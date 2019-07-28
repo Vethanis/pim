@@ -1,0 +1,6 @@
+#!/usr/bin/bash
+
+mkdir -p build
+cd build
+cmake -G "Visual Studio 15 2017" -T LLVM ..
+cd ..
