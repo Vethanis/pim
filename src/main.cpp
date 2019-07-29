@@ -18,7 +18,7 @@ static void AppUpdate()
 
 static void AppShutdown()
 {
-    puts("Goodbyte World!");
+    puts("Goodbye World!");
 }
 
 static void AppHandleEvent(const sapp_event* evt)
