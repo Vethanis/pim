@@ -1,9 +1,8 @@
-#pragma once
 
 #include "platform.h"
 
 #if CUR_PLAT == PLAT_WINDOWS
-    #define SOKOL_D3D11             1
+    #define SOKOL_GLCORE33          1
 #elif CUR_PLAT == PLAT_LINUX
     #define SOKOL_GLCORE33          1
 #elif CUR_PLAT == PLAT_MAC
@@ -15,3 +14,9 @@
 #elif CUR_PLAT == PLAT_IOS_SIM
     #define SOKOL_METAL             1
 #endif // CUR_PLAT == PLAT_WINDOWS
+
+#define SOKOL_WIN32_FORCE_MAIN      1
+#define SOKOL_IMPL                  1
+
+#include <sokol/sokol_app.h>
+#include <sokol/sokol_gfx.h>

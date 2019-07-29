@@ -1,2 +1,2 @@
-#define SOKOL_IMPL
+#define SOKOL_IMPL 1
 #include <sokol/sokol_time.h>
