@@ -6,9 +6,26 @@
 #include <sokol/sokol_time.h>
 #include <sokol/sokol_audio.h>
 
+static void AudioMain(float* buffer, int num_frames, int num_channels)
+{
+    for (int i = 0; i < num_frames; i++)
+    {
+        buffer[2*i + 0] = 0.0f;     // left channel
+        buffer[2*i + 1] = 0.0f;     // right channel
+    }
+}
+
 static void AppInit()
 {
-    puts("Hello World!");
+    stm_setup();
+    {
+        saudio_desc desc;
+        memset(&desc, 0, sizeof(desc));
+        desc.num_channels = 2;
+        desc.sample_rate = 44100;
+        desc.stream_cb = AudioMain;
+        saudio_setup(&desc);
+    }
 
     sg_desc desc;
     memset(&desc, 0, sizeof(desc));
@@ -35,8 +52,8 @@ static void AppUpdate()
 
 static void AppShutdown()
 {
-    puts("Goodbye World!");
     sg_shutdown();
+    saudio_shutdown();
 }
 
 static void AppHandleEvent(const sapp_event* evt)
