@@ -1,0 +1,259 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Source Files\systems">
+      <UniqueIdentifier>{32d9c28c-68dc-4818-a52a-cb24d175734b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\common">
+      <UniqueIdentifier>{63b2fe11-967e-4d26-ad90-abfd1edb3468}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sokol">
+      <UniqueIdentifier>{c55cea29-e2d9-476d-a3f9-64a94aec9d06}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="submodules">
+      <UniqueIdentifier>{16cc4582-6d40-4e75-84b8-b654f5602d70}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="submodules\imgui">
+      <UniqueIdentifier>{dd3c0200-6c30-4b09-ba89-e88293a27d29}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="submodules\stb">
+      <UniqueIdentifier>{a02ea6b3-ea73-4802-a89e-994e38e80b5f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="submodules\sokol">
+      <UniqueIdentifier>{a9ae11e8-70be-4954-a463-5fa53a8e6076}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="submodules\sokol\util">
+      <UniqueIdentifier>{79f5df7b-4b89-46c0-ac8d-bee1a533d915}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\systems\audio_system.cpp">
+      <Filter>Source Files\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\systems\ctrl_system.cpp">
+      <Filter>Source Files\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\systems\entity_system.cpp">
+      <Filter>Source Files\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\systems\render_system.cpp">
+      <Filter>Source Files\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\systems\systems.cpp">
+      <Filter>Source Files\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\systems\time_system.cpp">
+      <Filter>Source Files\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\allocator.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\sokol\sokol_app.c">
+      <Filter>Source Files\sokol</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\sokol\sokol_audio.c">
+      <Filter>Source Files\sokol</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\sokol\sokol_time.c">
+      <Filter>Source Files\sokol</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\imgui\imgui.cpp">
+      <Filter>submodules\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\imgui\imgui_demo.cpp">
+      <Filter>submodules\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\imgui\imgui_draw.cpp">
+      <Filter>submodules\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\imgui\imgui_widgets.cpp">
+      <Filter>submodules\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\stb\stb_vorbis.c">
+      <Filter>submodules\stb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\sokol\sokol_imgui.cpp">
+      <Filter>Source Files\sokol</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\systems\audio_system.h">
+      <Filter>Source Files\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\systems\ctrl_system.h">
+      <Filter>Source Files\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\systems\entity_system.h">
+      <Filter>Source Files\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\systems\render_system.h">
+      <Filter>Source Files\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\systems\systems.h">
+      <Filter>Source Files\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\systems\time_system.h">
+      <Filter>Source Files\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\allocator.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\array.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\dict.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\find.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\hash.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\int_types.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\macro.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\mat_types.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\memory.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\platform.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\slice.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\vec_types.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\sokol\sokol_app.h">
+      <Filter>submodules\sokol</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\sokol\sokol_args.h">
+      <Filter>submodules\sokol</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\sokol\sokol_audio.h">
+      <Filter>submodules\sokol</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\sokol\sokol_fetch.h">
+      <Filter>submodules\sokol</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\sokol\sokol_gfx.h">
+      <Filter>submodules\sokol</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\sokol\sokol_time.h">
+      <Filter>submodules\sokol</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\sokol\util\sokol_cimgui.h">
+      <Filter>submodules\sokol\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\sokol\util\sokol_gfx_cimgui.h">
+      <Filter>submodules\sokol\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\sokol\util\sokol_gfx_imgui.h">
+      <Filter>submodules\sokol\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\sokol\util\sokol_gl.h">
+      <Filter>submodules\sokol\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\sokol\util\sokol_imgui.h">
+      <Filter>submodules\sokol\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\imgui\imconfig.h">
+      <Filter>submodules\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\imgui\imgui.h">
+      <Filter>submodules\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\imgui\imgui_internal.h">
+      <Filter>submodules\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\imgui\imstb_rectpack.h">
+      <Filter>submodules\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\imgui\imstb_textedit.h">
+      <Filter>submodules\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\imgui\imstb_truetype.h">
+      <Filter>submodules\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_c_lexer.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_connected_components.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_divide.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_ds.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_dxt.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_easy_font.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_herringbone_wang_tile.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_image.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_image_resize.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_image_write.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_include.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_leakcheck.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_perlin.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_rect_pack.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_sprintf.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_textedit.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_tilemap_editor.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_truetype.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stb_voxel_render.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stb\stretchy_buffer.h">
+      <Filter>submodules\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\sokol\sokol_backend.h">
+      <Filter>Source Files\sokol</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -5,14 +5,9 @@
     - [Goals](#goals)
   - [Dependencies](#dependencies)
     - [Data](#data)
-    - [Tools](#tools)
   - [Usage](#usage)
     - [Cloning](#cloning)
     - [Pulling](#pulling)
-    - [Project File Generation](#project-file-generation)
-    - [Compiling](#compiling)
-    - [Running](#running)
-    - [Cleaning](#cleaning)
 
 ## About
 
@@ -46,7 +41,6 @@ Long term goals:
       * Manage your inventory of game assets
     * Script tool
       * For development of gameplay behavior
-      * Language will probably be either C (tcc + dll reload), or Lua
 
 ## Dependencies
 
@@ -54,12 +48,6 @@ Long term goals:
 
 * PAK files from [Quake](https://store.steampowered.com/app/2310/QUAKE/)
 * Optional: The [soundtrack](https://steamcommunity.com/sharedfiles/filedetails/?id=119489135)
-
-### Tools
-
-* [clang-cl](https://llvm.org/builds/)
-* [git bash](https://git-scm.com/downloads)
-* [cmake](https://cmake.org/download/)
 
 ## Usage
 
@@ -76,40 +64,4 @@ This repository uses [submodules](https://github.blog/2016-02-01-working-with-su
 ```
   git pull
   git submodule update
-```
-
-### Project File Generation
-
-This step is only required on the first build or after editing a CMakeLists.txt file.
-
-```
-  ./generate
-```
-
-### Compiling
-
-Options:
-* $1: Debug, Release
-  * Defaults to Debug
-
-```
-  ./compile Debug
-```
-
-### Running
-
-Options:
-* $1: Debug, Release
-  * Defaults to Debug
-
-```
-  ./run Debug
-```
-
-### Cleaning
-
-Removes the bin and build folders. Useful if you want to force a full recompile.
-
-```
-  ./clean
 ```

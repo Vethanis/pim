@@ -1,4 +1,7 @@
 
-void audiosys_init();
-void audiosys_update(float dt);
-void audiosys_shutdown();
+namespace AudioSystem
+{
+    void Init();
+    void Update(float dt);
+    void Shutdown();
+};

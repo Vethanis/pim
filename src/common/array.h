@@ -1,70 +1,104 @@
 #pragma once
 
-#include "common/types.h"
-#include <stdlib.h>
-#include <string.h>
+#include "common/macro.h"
+#include "common/int_types.h"
+#include "common/allocator.h"
 
-typedef struct arr_t { void* ptr; i32 len; i32 cap; } arr_t;
-#define ArrayArgs(x) (arr_t*)&(x), sizeof((x).ptr[0])
-
-#define ArrEmpty(x) ((x).len == 0)
-#define ArrFull(x) ((x).len == (x).cap)
-#define ArrByteCt(x) ( sizeof((x).ptr[0]) * (x).len )
-#define ArrByteCap(x) ( sizeof((x).ptr[0]) * (x).cap )
-#define ArrBack(x) ((x).ptr[(x).len - 1])
-
-#define ArrReset(x) arr_reset(ArrayArgs(x))
-inline void arr_reset(arr_t* arr, i32 stride)
+template<typename T>
+struct Array
 {
-    void* ptr = arr->ptr;
-    arr->ptr=0;
-    arr->len=0;
-    arr->cap=0;
-    if(ptr)
+    T* m_ptr;
+    i32 m_len;
+    i32 m_cap;
+    AllocatorType m_alloc;
+
+    inline i32 size() const { return m_len; }
+    inline i32 capacity() const { return m_cap; }
+    inline usize sizeBytes() const { return (usize)m_len * sizeof(T); }
+    inline usize capacityBytes() const { return (usize)m_cap * sizeof(T); }
+    inline bool empty() const { return m_len == 0; }
+    inline bool full() const { return m_len == m_cap; }
+    
+    inline const T* begin() const { return m_ptr; }
+    inline const T* end() const { return m_ptr + m_len; }
+    inline const T& front() const { DebugAssert(!empty()); return m_ptr[0]; }
+    inline const T& back() const { DebugAssert(!empty()); return m_ptr[m_len - 1]; }
+    inline const T& operator[](i32 i) const { DebugAssert((u32)i < (u32)m_len); return m_ptr[i]; }
+
+    inline T* begin() { return m_ptr; }
+    inline T* end() { return m_ptr + m_len; }
+    inline T& front() { DebugAssert(!empty()); return m_ptr[0]; }
+    inline T& back() { DebugAssert(!empty()); return m_ptr[m_len - 1]; }
+    inline T& operator[](i32 i) { DebugAssert((u32)i < (u32)m_len); return m_ptr[i]; }
+
+    inline void init(AllocatorType type = Allocator_Malloc)
     {
-        free(ptr);
+        m_ptr = 0;
+        m_len = 0;
+        m_cap = 0;
+        m_alloc = type;
     }
-}
-
-#define ArrReserve(x, cap) arr_reserve(ArrayArgs(x), cap)
-inline void arr_reserve(arr_t* arr, i32 stride, i32 capacity)
-{
-    const i32 cur = arr->cap;
-    const i32 next = cur * 2;
-    const i32 chosen = next > capacity ? next : capacity;
-    if(capacity > cur)
+    inline void clear() { m_len = 0; }
+    inline void reset()
     {
-        void* ptr = realloc(arr->ptr, stride * chosen);
-        arr->ptr = ptr;
-        arr->cap = chosen;
+        Allocator::Free(m_alloc, m_ptr);
+        m_ptr = 0;
+        m_len = 0;
+        m_cap = 0;
     }
-}
-
-#define ArrResize(x, len) arr_resize(ArrayArgs(x), len)
-inline void arr_resize(arr_t* arr, i32 stride, i32 len)
-{
-    arr_reserve(arr, stride, len);
-    arr->len = len;
-}
-
-#define ArrGrow(x) arr_grow(ArrayArgs(x))
-inline void arr_grow(arr_t* arr, i32 stride)
-{
-    const i32 back = arr->len++;
-    arr_reserve(arr, stride, back + 1);
-}
-
-#define ArrFind(x, key) arr_find(ArrayArgs(x), &(key))
-inline i32 arr_find(arr_t* arr, i32 stride, const void* key)
-{
-    const u8* ptr = (const u8*)(arr->ptr);
-    const i32 count = arr->len;
-    for(i32 i = 0; i < count; ++i)
-    {
-        if(memcmp(key, ptr + stride * i, stride) == 0)
+    inline void reserve(i32 newCap)
+    { 
+        i32 cur = m_cap;
+        if(newCap > cur)
         {
-            return i;
+            i32 next = cur * 2; 
+            i32 chosen = newCap > next ? newCap : next; 
+            m_ptr = Allocator::Realloc(m_alloc, m_ptr, cur, chosen);
+            m_cap = chosen;
         }
     }
-    return -1;
-}
+    inline void resize(i32 newLen) { reserve(newLen); m_len = newLen; }
+    inline T& grow() { reserve(++m_len); return back(); }
+    inline void pop() { DebugAssert(!empty()); --m_len; }
+    inline void remove(i32 idx)
+    {
+        DebugAssert((u32)idx < (u32)m_len);
+        m_ptr[idx] = m_ptr[--m_len];
+    }
+    inline void shiftRemove(i32 idx)
+    {
+        DebugAssert((u32)idx < (u32)m_len);
+        T* ptr = m_ptr;
+        const i32 len = m_len--;
+        for (i32 i = idx; i + 1 < len; ++i)
+        {
+            ptr[i] = ptr[i + 1];
+        }
+    }
+    inline void shiftInsert(i32 idx, const T& value)
+    {
+        const i32 len = ++m_len;
+        DebugAssert((u32)idx < (u32)len);
+        reserve(len);
+        T* ptr = m_ptr;
+        for (i32 i = len - 1; i > idx; --i)
+        {
+            ptr[i] = ptr[i - 1];
+        }
+        ptr[idx] = value;
+    }
+    inline void shiftTail(i32 tailSize)
+    {
+        T* ptr = m_ptr;
+        const i32 len = m_len;
+        const i32 diff = len - tailSize;
+        if (diff > 0)
+        {
+            for (i32 i = diff; i < len; ++i)
+            {
+                ptr[i - diff] = ptr[i];
+            }
+            m_len = tailSize;
+        }
+    }
+};

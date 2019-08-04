@@ -1,4 +1,10 @@
 
-void ctrlsys_init();
-void ctrlsys_update(float dt);
-void ctrlsys_shutdown();
+struct sapp_event;
+
+namespace CtrlSystem
+{
+    void Init();
+    void Update(float dt);
+    void Shutdown();
+    void OnEvent(const sapp_event* evt, bool keyboardCaptured);
+};

@@ -1,7 +1,12 @@
 #pragma once
 
-#include <sokol/sokol_gfx.h>
+struct sapp_event;
 
-void rendersys_init();
-void rendersys_update(float dt);
-void rendersys_shutdown();
+namespace RenderSystem
+{
+    void Init();
+    void NewFrame(float dt);
+    void Update(float dt);
+    void Shutdown();
+    bool OnEvent(const sapp_event* evt);
+};

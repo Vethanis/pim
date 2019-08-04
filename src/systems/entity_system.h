@@ -1,4 +1,7 @@
 
-void entsys_init();
-void entsys_update(float dt);
-void entsys_shutdown();
+namespace EntitySystem
+{
+    void Init();
+    void Update(float dt);
+    void Shutdown();
+};

@@ -24,4 +24,5 @@
     #define CUR_PLAT                    PLAT_LINUX
 #else
     #define CUR_PLAT                    PLAT_UNKNOWN
+    #error Unable to detect current platform
 #endif // _WIN32 || __CYGWIN__
