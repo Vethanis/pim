@@ -255,5 +255,8 @@
     <ClInclude Include="..\src\sokol\sokol_backend.h">
       <Filter>Source Files\sokol</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\common\ringbuf.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

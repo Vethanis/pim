@@ -4,26 +4,24 @@
 #include <imgui/imgui.h>
 
 #include "common/array.h"
+#include "common/ringbuf.h"
 
 namespace CtrlSystem
 {
-    static Array<sapp_event_type> ms_evtTypes;
-    static Array<sapp_keycode> ms_keycodes;
-    static Array<u64> ms_frames;
+    constexpr u32 BufferLength = 64u;
+    static RingBuf<sapp_event_type, BufferLength> ms_evtTypes;
+    static RingBuf<sapp_keycode, BufferLength> ms_keycodes;
+    static RingBuf<u64, BufferLength> ms_frames;
 
     void Init()
     {
-        ms_evtTypes.init();
-        ms_keycodes.init();
-        ms_frames.init();
+        ms_evtTypes.Reset();
+        ms_keycodes.Reset();
+        ms_frames.Reset();
     }
     void Update(float dt)
     {
-        const i32 maxEvents = 64;
-        ms_evtTypes.shiftTail(maxEvents);
-        ms_keycodes.shiftTail(maxEvents);
-        ms_frames.shiftTail(maxEvents);
-
+        ImGui::SetNextWindowSize({ 400.0f, 400.0f }, ImGuiCond_Once);
         ImGui::Begin("Control Events");
         {
             ImGui::Columns(3);
@@ -32,8 +30,9 @@ namespace CtrlSystem
             ImGui::Text("Frame"); ImGui::NextColumn();
             ImGui::Separator();
 
-            const i32 len = ms_evtTypes.size();
-            for (i32 i = len - 1; i >= 0; --i)
+            for (u32 i = ms_evtTypes.RBegin();
+                i != ms_evtTypes.REnd();
+                i = ms_evtTypes.Prev(i))
             {
                 ImGui::Text("%-8d", ms_evtTypes[i]); ImGui::NextColumn();
                 ImGui::Text("%-8d", ms_keycodes[i]); ImGui::NextColumn();
@@ -46,17 +45,15 @@ namespace CtrlSystem
     }
     void Shutdown()
     {
-        ms_evtTypes.reset();
-        ms_keycodes.reset();
-        ms_frames.reset();
+
     }
     void OnEvent(const sapp_event* evt, bool keyboardCaptured)
     {
         if (keyboardCaptured) { return; }
 
-        ms_evtTypes.grow() = evt->type;
-        ms_keycodes.grow() = evt->key_code;
-        ms_frames.grow() = evt->frame_count;
+        ms_evtTypes.Overwrite(evt->type);
+        ms_keycodes.Overwrite(evt->key_code);
+        ms_frames.Overwrite(evt->frame_count);
 
         if (evt->key_code == SAPP_KEYCODE_ESCAPE)
         {
