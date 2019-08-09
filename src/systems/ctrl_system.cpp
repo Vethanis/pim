@@ -4,20 +4,24 @@
 #include <imgui/imgui.h>
 
 #include "common/array.h"
-#include "common/ringbuf.h"
+#include "common/ring.h"
 
 namespace CtrlSystem
 {
-    constexpr u32 BufferLength = 64u;
-    static RingBuf<sapp_event_type, BufferLength> ms_evtTypes;
-    static RingBuf<sapp_keycode, BufferLength> ms_keycodes;
-    static RingBuf<u64, BufferLength> ms_frames;
+    struct EventBuffer
+    {
+        static constexpr u32 Length = 64u;
+        Ring<Length> ring;
+        sapp_event_type evtTypes[Length];
+        sapp_keycode keycodes[Length];
+        u64 frames[Length];
+    };
+
+    static EventBuffer ms_buffer;
 
     void Init()
     {
-        ms_evtTypes.Reset();
-        ms_keycodes.Reset();
-        ms_frames.Reset();
+        ms_buffer.ring.Clear();
     }
     void Update(float dt)
     {
@@ -30,13 +34,13 @@ namespace CtrlSystem
             ImGui::Text("Frame"); ImGui::NextColumn();
             ImGui::Separator();
 
-            for (u32 i = ms_evtTypes.RBegin();
-                i != ms_evtTypes.REnd();
-                i = ms_evtTypes.Prev(i))
+            for (u32 i = ms_buffer.ring.RBegin();
+                i != ms_buffer.ring.REnd();
+                i = ms_buffer.ring.Prev(i))
             {
-                ImGui::Text("%-8d", ms_evtTypes[i]); ImGui::NextColumn();
-                ImGui::Text("%-8d", ms_keycodes[i]); ImGui::NextColumn();
-                ImGui::Text("%-8u", ms_frames[i]); ImGui::NextColumn();
+                ImGui::Text("%-8d", ms_buffer.evtTypes[i]); ImGui::NextColumn();
+                ImGui::Text("%-8d", ms_buffer.keycodes[i]); ImGui::NextColumn();
+                ImGui::Text("%-8u", ms_buffer.frames[i]); ImGui::NextColumn();
             }
 
             ImGui::Columns();
@@ -50,10 +54,11 @@ namespace CtrlSystem
     void OnEvent(const sapp_event* evt, bool keyboardCaptured)
     {
         if (keyboardCaptured) { return; }
-
-        ms_evtTypes.Overwrite(evt->type);
-        ms_keycodes.Overwrite(evt->key_code);
-        ms_frames.Overwrite(evt->frame_count);
+        
+        u32 i = ms_buffer.ring.Overwrite();
+        ms_buffer.evtTypes[i] = evt->type;
+        ms_buffer.keycodes[i] = evt->key_code;
+        ms_buffer.frames[i] = evt->frame_count;
 
         if (evt->key_code == SAPP_KEYCODE_ESCAPE)
         {

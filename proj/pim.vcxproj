@@ -48,7 +48,7 @@
     <ClInclude Include="..\src\common\mat_types.h" />
     <ClInclude Include="..\src\common\memory.h" />
     <ClInclude Include="..\src\common\platform.h" />
-    <ClInclude Include="..\src\common\ringbuf.h" />
+    <ClInclude Include="..\src\common\ring.h" />
     <ClInclude Include="..\src\common\slice.h" />
     <ClInclude Include="..\src\common\vec_types.h" />
     <ClInclude Include="..\src\sokol\sokol_backend.h" />
