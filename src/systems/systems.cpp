@@ -1,7 +1,7 @@
 #include "systems.h"
 
 #include "audio_system.h"
-#include "ctrl_system.h"
+#include "input_system.h"
 #include "entity_system.h"
 #include "render_system.h"
 #include "time_system.h"
@@ -13,25 +13,25 @@ namespace Systems
         TimeSystem::Init();
         AudioSystem::Init();
         RenderSystem::Init();
-        CtrlSystem::Init();
+        InputSystem::Init();
         EntitySystem::Init();
     }
 
     void Update()
     {
-        const float dt = TimeSystem::Update();
-        RenderSystem::NewFrame(dt);
-        CtrlSystem::Update(dt);
+        TimeSystem::Update();
+        RenderSystem::BeginFrame();
+        InputSystem::Update();
 
-        EntitySystem::Update(dt);
+        EntitySystem::Update();
 
-        AudioSystem::Update(dt);
-        RenderSystem::Update(dt);
+        AudioSystem::Update();
+        RenderSystem::EndFrame();
     }
 
     void Shutdown()
     {
-        CtrlSystem::Shutdown();
+        InputSystem::Shutdown();
         EntitySystem::Shutdown();
         RenderSystem::Shutdown();
         AudioSystem::Shutdown();
@@ -40,6 +40,6 @@ namespace Systems
 
     void OnEvent(const sapp_event* evt)
     {
-        CtrlSystem::OnEvent(evt, RenderSystem::OnEvent(evt));
+        InputSystem::OnEvent(evt, RenderSystem::OnEvent(evt));
     }
 };

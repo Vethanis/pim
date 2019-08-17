@@ -20,13 +20,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\common\allocator.cpp" />
+    <ClCompile Include="..\src\common\reflection.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\sokol\sokol_app.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
     <ClCompile Include="..\src\sokol\sokol_imgui.cpp" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
     <ClCompile Include="..\src\systems\audio_system.cpp" />
-    <ClCompile Include="..\src\systems\ctrl_system.cpp" />
+    <ClCompile Include="..\src\systems\input_system.cpp" />
     <ClCompile Include="..\src\systems\entity_system.cpp" />
     <ClCompile Include="..\src\systems\render_system.cpp" />
     <ClCompile Include="..\src\systems\systems.cpp" />
@@ -48,12 +49,14 @@
     <ClInclude Include="..\src\common\mat_types.h" />
     <ClInclude Include="..\src\common\memory.h" />
     <ClInclude Include="..\src\common\platform.h" />
+    <ClInclude Include="..\src\common\reflection.h" />
     <ClInclude Include="..\src\common\ring.h" />
+    <ClInclude Include="..\src\common\ctrl_enums.h" />
     <ClInclude Include="..\src\common\slice.h" />
     <ClInclude Include="..\src\common\vec_types.h" />
     <ClInclude Include="..\src\sokol\sokol_backend.h" />
     <ClInclude Include="..\src\systems\audio_system.h" />
-    <ClInclude Include="..\src\systems\ctrl_system.h" />
+    <ClInclude Include="..\src\systems\input_system.h" />
     <ClInclude Include="..\src\systems\entity_system.h" />
     <ClInclude Include="..\src\systems\render_system.h" />
     <ClInclude Include="..\src\systems\systems.h" />

@@ -7,6 +7,7 @@
 #include "common/int_types.h"
 #include "common/memory.h"
 #include "common/array.h"
+#include "systems/time_system.h"
 
 namespace RenderSystem
 {
@@ -20,6 +21,8 @@ namespace RenderSystem
             },
         },
     };
+    static i32 ms_width;
+    static i32 ms_height;
 
     void Init()
     {
@@ -40,17 +43,20 @@ namespace RenderSystem
             MemClear(desc);
             simgui_setup(&desc);
         }
+        ms_width = sapp_width();
+        ms_height = sapp_height();
     }
 
-    void NewFrame(float dt)
+    void BeginFrame()
     {
-        simgui_new_frame(sapp_width(), sapp_height(), dt);
+        ms_width = sapp_width();
+        ms_height = sapp_height();
+        simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
+        sg_begin_default_pass(&ms_clear, ms_width, ms_height);
     }
 
-    void Update(float dt)
+    void EndFrame()
     {
-        sg_begin_default_pass(&ms_clear, sapp_width(), sapp_height());
-
         simgui_render();
         sg_end_pass();
         sg_commit();

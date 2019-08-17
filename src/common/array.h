@@ -3,6 +3,7 @@
 #include "common/macro.h"
 #include "common/int_types.h"
 #include "common/allocator.h"
+#include <string.h>
 
 template<typename T>
 struct Array
@@ -100,5 +101,28 @@ struct Array
             }
             m_len = tailSize;
         }
+    }
+    inline i32 find(const T& value) const
+    {
+        const T* ptr = m_ptr;
+        const i32 len = m_len;
+        for (i32 i = 0; i < len; ++i)
+        {
+            if (memcmp(ptr + i, &value, sizeof(T)) == 0)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+    inline bool findRemove(const T& value)
+    {
+        const i32 idx = find(value);
+        if (idx != -1)
+        {
+            remove(idx);
+            return true;
+        }
+        return false;
     }
 };

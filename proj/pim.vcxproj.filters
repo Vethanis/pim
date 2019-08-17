@@ -37,9 +37,6 @@
     <ClCompile Include="..\src\systems\audio_system.cpp">
       <Filter>Source Files\systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\systems\ctrl_system.cpp">
-      <Filter>Source Files\systems</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\systems\entity_system.cpp">
       <Filter>Source Files\systems</Filter>
     </ClCompile>
@@ -82,12 +79,15 @@
     <ClCompile Include="..\src\sokol\sokol_imgui.cpp">
       <Filter>Source Files\sokol</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\systems\input_system.cpp">
+      <Filter>Source Files\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\reflection.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\systems\audio_system.h">
-      <Filter>Source Files\systems</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\systems\ctrl_system.h">
       <Filter>Source Files\systems</Filter>
     </ClInclude>
     <ClInclude Include="..\src\systems\entity_system.h">
@@ -256,6 +256,15 @@
       <Filter>Source Files\sokol</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\ring.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\ctrl_enums.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\systems\input_system.h">
+      <Filter>Source Files\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\reflection.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>

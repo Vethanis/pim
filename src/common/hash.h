@@ -2,70 +2,95 @@
 
 #include "common/int_types.h"
 
-inline u32 Fnv32(const u8* ptr, i32 len)
+static constexpr u32 Fnv32_Bias = 2166136261u;
+static constexpr u32 Fnv32_Prime = 16777619u;
+static constexpr u64 Fnv64_Bias = 14695981039346656037ul;
+static constexpr u64 Fnv64_Prime = 1099511628211ul;
+
+inline constexpr u32 Fnv32Bytes(const u8 * const ptr, u32 len)
 {
-    u32 hash = 2166136261u;
-    for(i32 i = 0; i < len; ++i)
+    u32 hash = Fnv32_Bias;
+    for(u32 i = 0u; i < len; ++i)
     {
         hash ^= ptr[i];
-        hash *= 16777619u;
+        hash *= Fnv32_Prime;
     }
     return hash;
 }
 
-inline u32 Fnv32(cstr ptr)
+inline constexpr u32 Fnv32String(cstrc ptr)
 {
-    u32 hash = 2166136261u;
-    while(*ptr)
-    {
-        hash ^= *ptr++;
-        hash *= 16777619u;
-    }
-    return hash;
-}
-
-template<typename T>
-inline u32 Fnv32(const T& x)
-{
-    return Fnv32((const u8*)&x, sizeof(T));
-}
-
-template<typename T>
-inline u32 Fnv32(const T* ptr, i32 len)
-{
-    return Fnv32((const u8*)ptr, sizeof(T) * len);
-}
-
-inline u64 Fnv64(const u8* ptr, i32 len)
-{
-    u64 hash = 14695981039346656037ul;
-    for(i32 i = 0; i < len; ++i)
+    u32 hash = Fnv32_Bias;
+    for(u32 i = 0u; ptr[i]; ++i)
     {
         hash ^= ptr[i];
-        hash *= 1099511628211ul;
+        hash *= Fnv32_Prime;
     }
     return hash;
 }
 
-inline u64 Fnv64(cstr ptr)
+inline constexpr u32 Fnv32Dword(u32 x, u32 hash = Fnv32_Bias)
 {
-    u64 hash = 14695981039346656037ul;
-    while(*ptr)
+    for (u32 i = 0u; i < 4u; ++i)
     {
-        hash ^= *ptr++;
-        hash *= 1099511628211ul;
+        hash ^= x & 0xff;
+        hash *= Fnv32_Prime;
+        x >>= 8u;
     }
     return hash;
 }
 
-template<typename T>
-inline u64 Fnv64(const T& x)
+inline constexpr u32 Fnv32Qword(u64 x, u32 hash = Fnv32_Bias)
 {
-    return Fnv64((const u8*)&x, sizeof(T));
+    for (u32 i = 0u; i < 8u; ++i)
+    {
+        hash ^= x & 0xff;
+        hash *= Fnv32_Prime;
+        x >>= 8u;
+    }
+    return hash;
 }
 
-template<typename T>
-inline u64 Fnv64(const T* ptr, i32 len)
+inline constexpr u64 Fnv64Bytes(const u8 * const ptr, u32 len)
 {
-    return Fnv64((const u8*)ptr, sizeof(T) * len);
+    u64 hash = Fnv64_Bias;
+    for(u32 i = 0u; i < len; ++i)
+    {
+        hash ^= ptr[i];
+        hash *= Fnv64_Prime;
+    }
+    return hash;
+}
+
+inline constexpr u64 Fnv64String(cstrc ptr)
+{
+    u64 hash = Fnv64_Bias;
+    for(u32 i = 0u; ptr[i]; ++i)
+    {
+        hash ^= ptr[i];
+        hash *= Fnv64_Prime;
+    }
+    return hash;
+}
+
+inline constexpr u64 Fnv64Dword(u32 x, u64 hash = Fnv64_Bias)
+{
+    for (u32 i = 0u; i < 4u; ++i)
+    {
+        hash ^= x & 0xff;
+        hash *= Fnv64_Prime;
+        x >>= 8u;
+    }
+    return hash;
+}
+
+inline constexpr u64 Fnv64Qword(u64 x, u64 hash = Fnv64_Bias)
+{
+    for (u32 i = 0u; i < 8u; ++i)
+    {
+        hash ^= x & 0xff;
+        hash *= Fnv64_Prime;
+        x >>= 8u;
+    }
+    return hash;
 }

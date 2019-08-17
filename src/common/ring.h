@@ -14,6 +14,8 @@ struct Ring
     static inline u32 Mask(u32 i) { return i & t_mask; }
     static inline u32 Next(u32 i) { return Mask(i + 1u); }
     static inline u32 Prev(u32 i) { return Mask(i - 1u); }
+    static inline u32 RNext(u32 i) { return Mask(i - 1u); }
+    static inline u32 RPrev(u32 i) { return Mask(i + 1u); }
 
     inline u32 capacity() const { return t_mask; }
     inline u32 size() const { return m_count; }
@@ -45,6 +47,6 @@ struct Ring
     }
     inline u32 Begin() const { return Mask(m_tail - m_count); }
     inline u32 End() const { return Mask(m_tail); }
-    inline u32 RBegin() const { return Prev(End()); }
-    inline u32 REnd() const { return Next(Begin()); }
+    inline u32 RBegin() const { return Mask(m_tail - 1u); }
+    inline u32 REnd() const { return Mask(m_tail - m_count - 1u); }
 };

@@ -49,3 +49,6 @@ using int2 = vec2<i32>;
 using int3 = vec3<i32>;
 using int4 = vec4<i32>;
 
+using uint2 = vec2<u32>;
+using uint3 = vec3<u32>;
+using uint4 = vec4<u32>;

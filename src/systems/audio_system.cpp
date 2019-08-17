@@ -24,7 +24,7 @@ namespace AudioSystem
         saudio_setup(&desc);
     }
 
-    void Update(float dt)
+    void Update()
     {
 
     }

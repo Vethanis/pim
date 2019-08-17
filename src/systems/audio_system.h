@@ -2,6 +2,6 @@
 namespace AudioSystem
 {
     void Init();
-    void Update(float dt);
+    void Update();
     void Shutdown();
 };

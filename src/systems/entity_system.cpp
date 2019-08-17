@@ -6,7 +6,7 @@ namespace EntitySystem
     {
 
     }
-    void Update(float dt)
+    void Update()
     {
 
     }

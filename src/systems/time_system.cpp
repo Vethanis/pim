@@ -4,20 +4,34 @@
 
 namespace TimeSystem
 {
-    static uint64_t ms_lastTime;
+    static u64 ms_appStart;
+    static u64 ms_lastTime;
+    static u64 ms_dt;
+    static f32 ms_dtf32;
+
+    u64 Now() { return stm_now(); }
+    u64 StartOfApp() { return ms_appStart; }
+    u64 StartOfFrame() { return ms_lastTime; }
+    u64 DeltaTime() { return ms_dt; }
+    f32 DeltaTimeF32() { return ms_dtf32; }
+
+    f32 ToSeconds(u64 ticks) { return (f32)stm_sec(ticks); }
+    f32 ToMilliseconds(u64 ticks) { return (f32)stm_ms(ticks); }
+    f32 ToMicroseconds(u64 ticks) { return (f32)stm_us(ticks); }
 
     void Init()
     {
         stm_setup();
-        ms_lastTime = stm_now();
+        ms_appStart = Now();
+        ms_lastTime = ms_appStart;
+        ms_dt = 0;
+        ms_dtf32 = 0.0f;
     }
-
-    float Update()
+    void Update()
     {
-        uint64_t dt = stm_laptime(&ms_lastTime);
-        return (float)stm_sec(dt);
+        ms_dt = stm_laptime(&ms_lastTime);
+        ms_dtf32 = ToSeconds(ms_dt);
     }
-    
     void Shutdown()
     {
 
