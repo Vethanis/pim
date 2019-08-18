@@ -3,7 +3,7 @@
 #include "common/platform.h"
 
 #if CUR_PLAT == PLAT_WINDOWS
-    #define SOKOL_GLCORE33          1
+    #define SOKOL_D3D11             1
 #elif CUR_PLAT == PLAT_LINUX
     #define SOKOL_GLCORE33          1
 #elif CUR_PLAT == PLAT_MAC
