@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--https://docs.microsoft.com/en-us/visualstudio/debugger/create-custom-views-of-native-objects?view=vs-2019-->
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="Array&lt;*&gt;">
+    <DisplayString>{m_len} / {m_cap}; {m_alloc,en}; {m_ptr,hv}</DisplayString>
+    <Expand>
+      <!--<Item Name="[ptr]">m_ptr,hv</Item>-->
+      <!--<Item Name="[size]">m_len</Item>-->
+      <!--<Item Name="[capacity]">m_cap</Item>-->
+      <!--<Item Name="[allocator]">m_alloc,en</Item>-->
+      <ArrayItems>
+        <Size>m_len</Size>
+        <ValuePointer>m_ptr</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+</AutoVisualizer>

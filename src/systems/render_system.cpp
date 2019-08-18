@@ -21,6 +21,7 @@ namespace RenderSystem
             },
         },
     };
+
     static i32 ms_width;
     static i32 ms_height;
 
@@ -28,7 +29,7 @@ namespace RenderSystem
     {
         {
             sg_desc desc;
-            MemClear(desc);
+            MemClear(&desc, sizeof(desc));
             desc.mtl_device = sapp_metal_get_device();
             desc.mtl_drawable_cb = sapp_metal_get_drawable;
             desc.mtl_renderpass_descriptor_cb = sapp_metal_get_renderpass_descriptor;
@@ -40,26 +41,37 @@ namespace RenderSystem
         }
         {
             simgui_desc_t desc;
-            MemClear(desc);
+            MemClear(&desc, sizeof(desc));
             simgui_setup(&desc);
         }
         ms_width = sapp_width();
         ms_height = sapp_height();
     }
+    void Shutdown()
+    {
+        simgui_shutdown();
+        sg_shutdown();
+    }
 
-    void BeginFrame()
+    void BeginDraws()
     {
         ms_width = sapp_width();
         ms_height = sapp_height();
-        simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
         sg_begin_default_pass(&ms_clear, ms_width, ms_height);
     }
-
-    void EndFrame()
+    void EndDraws()
     {
-        simgui_render();
         sg_end_pass();
         sg_commit();
+    }
+
+    void BeginVisualize()
+    {
+        simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
+    }
+    void EndVisualize()
+    {
+        simgui_render();
     }
 
     bool OnEvent(const sapp_event* evt)
@@ -67,9 +79,8 @@ namespace RenderSystem
         return simgui_handle_event(evt);
     }
 
-    void Shutdown()
+    void Visualize()
     {
-        simgui_shutdown();
-        sg_shutdown();
+
     }
 };

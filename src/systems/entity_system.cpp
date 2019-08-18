@@ -14,4 +14,8 @@ namespace EntitySystem
     {
         
     }
+    void Visualize()
+    {
+
+    }
 };

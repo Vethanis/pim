@@ -3,7 +3,7 @@
 #include "common/macro.h"
 #include "common/int_types.h"
 #include "common/allocator.h"
-#include <string.h>
+#include "common/memory.h"
 
 template<typename T>
 struct Array
@@ -55,11 +55,18 @@ struct Array
             i32 next = cur * 2; 
             i32 chosen = newCap > next ? newCap : next; 
             m_ptr = Allocator::Realloc(m_alloc, m_ptr, cur, chosen);
+            MemClear(m_ptr + cur, sizeof(T) * (chosen - cur));
             m_cap = chosen;
         }
     }
     inline void resize(i32 newLen) { reserve(newLen); m_len = newLen; }
-    inline T& grow() { reserve(++m_len); return back(); }
+    inline T& grow()
+    {
+        reserve(++m_len);
+        T& item = back();
+        MemClear(&item, sizeof(T));
+        return item;
+    }
     inline void pop() { DebugAssert(!empty()); --m_len; }
     inline void remove(i32 idx)
     {
@@ -108,7 +115,20 @@ struct Array
         const i32 len = m_len;
         for (i32 i = 0; i < len; ++i)
         {
-            if (memcmp(ptr + i, &value, sizeof(T)) == 0)
+            if (MemCmp(ptr + i, &value, sizeof(T)) == 0)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+    inline i32 rfind(const T& value) const
+    {
+        const T* ptr = m_ptr;
+        const i32 len = m_len;
+        for (i32 i = len - 1; i >= 0; --i)
+        {
+            if (MemCmp(ptr + i, &value, sizeof(T)) == 0)
             {
                 return i;
             }

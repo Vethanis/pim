@@ -1,67 +1,88 @@
 #include "common/array.h"
 #include "common/find.h"
+#include "common/hash.h"
 
-template<typename T>
+template<typename K, typename V>
 struct Dict
 {
-    Array<u32> keys;
-    Array<T> values;
+    Array<u8> fuzz;
+    Array<K> keys;
+    Array<V> values;
 
-    inline void init(AllocatorType type) { keys.init(type); values.init(type); }
-    inline void clear() { keys.clear(); values.clear(); }
-    inline void reset() { keys.reset(); values.reset(); }
-    inline i32 size() const { return keys.size(); }
-    inline bool empty() const { return keys.empty(); }
-    inline T* get(u32 key)
+    inline i32 size() const { return fuzz.size(); }
+    inline i32 capacity() const { return fuzz.capacity(); }
+    inline bool empty() const { return fuzz.empty(); }
+    inline bool full() const { return fuzz.full(); }
+
+    inline void init(AllocatorType type)
     {
-        i32 i = RFind(keys.begin(), keys.size(), key);
-        if(i == -1) { return 0; }
-        return values.begin() + i;
+        fuzz.init(type);
+        keys.init(type);
+        values.init(type);
     }
-    inline void set(u32 key, const T& value)
+    inline void reset()
     {
-        if(T* ptr = get(key)) { *ptr = value; return; }
-        keys.grow() = key; values.grow() = value;
+        fuzz.reset();
+        keys.reset();
+        values.reset();
     }
-    inline void remove(u32 key)
+    inline void clear()
     {
-        i32 i = RFind(keys.begin(), keys.size(), key);
-        if(i != -1) { keys.remove(i); values.remove(i); }
+        fuzz.clear();
+        keys.clear();
+        values.clear();
     }
-    inline T& operator[](u32 key)
+    inline i32 find(K key) const
     {
-        i32 i = Find(keys.begin(), keys.size(), key);
-        if(i != -1) { return values[i]; }
-        keys.grow() = key; values.grow(); return values.back();
+        const u8 keyFuzzed = Fnv8Bytes(&key, sizeof(K));
+        const u8* pFuzz = fuzz.begin();
+        const i32 len = fuzz.size();
+        const K* pKeys = keys.begin();
+        for (i32 i = 0; i < len; ++i)
+        {
+            if (pFuzz[i] == keyFuzzed)
+            {
+                if (pKeys[i] == key)
+                {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
-
-    struct iterator
+    inline bool contains(K key) const { return find(key) != -1; }
+    inline const V* get(K key) const
     {
-        u32* keys;
-        T* values;
-        const i32 len;
-        i32 idx;
-
-        inline operator++() { if(idx < len) { ++idx; } }
-        inline bool operator!=(const iterator& other) const { return idx != other.idx; }
-        u32& key() { return keys[idx]; }
-        T& value() { return values[idx]; }
-    };
-    struct const_iterator
+        const i32 i = find(key);
+        return (i == -1) ? 0 : values.begin() + i;
+    }
+    inline V* get(K key)
     {
-        const u32* keys;
-        const T* values;
-        const i32 len;
-        i32 idx;
-
-        inline operator++() { if(idx < len) { ++idx; } }
-        inline bool operator!=(const const_iterator& other) const { return idx != other.idx; }
-        const u32& key() const { return keys[idx]; }
-        const T& value() const { return values[idx]; }
-    };
-
-    inline iterator begin() { return { keys.begin(), values.begin(), size(), 0 }; }
-    inline iterator end() { return { keys.begin(), values.begin(), size(), size() }; }
-    inline const_iterator begin() const { return { keys.begin(), values.begin(), size(), 0 }; }
-    inline const_iterator end() const { return { keys.begin(), values.begin(), size(), size() }; }
+        const i32 i = find(key);
+        return (i == -1) ? 0 : values.begin() + i;
+    }
+    inline void remove(K key)
+    {
+        const i32 i = find(key);
+        if (i != -1)
+        {
+            fuzz.remove(i);
+            keys.remove(i);
+            values.remove(i);
+        }
+    }
+    inline V& operator[](K key)
+    {
+        const i32 i = find(key);
+        if (i != -1)
+        {
+            return values[i];
+        }
+        else
+        {
+            fuzz.grow() = Fnv8Bytes(&key, sizeof(K));
+            keys.grow() = key;
+            return values.grow();
+        }
+    }
 };

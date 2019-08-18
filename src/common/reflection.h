@@ -3,25 +3,17 @@
 #include "common/int_types.h"
 #include "common/array.h"
 
-template<typename T>
-void _TypeFn() {}
-
-template<typename T>
-static constexpr usize RfId()
-{
-    void(*fnPtr)() = _TypeFn<T>;
-    return (usize)fnPtr;
-}
-
 struct RfType;
 struct RfMember;
+struct RfItems;
 
 struct RfType
 {
+    usize id;
     cstr name;
     u32 size;
     u32 align;
-    const RfType* value;      // for pointers
+    const RfType* deref;      // for pointers
     Array<RfMember> members;  // for structs
 };
 
@@ -32,28 +24,67 @@ struct RfMember
     const RfType* value;
 };
 
-template<typename T>
-struct RfStorage
+struct RfItems
 {
-    static void Add(const RfMember& x) { Value.members.grow() = x; }
-
-    static RfType Value;
+    RfType type;
+    void* compArrays;
 };
 
 template<typename T>
-static const RfType& RfGet() { return RfStorage<T>::Value; }
+static constexpr usize RfId();
+
+template<typename T>
+static constexpr const RfType& RfGet();
+
+static RfItems& RfGetItems(usize id);
+
+static const RfType& RfGet(usize id);
+
+#define Reflect(T) static const ValueReflector<T> r_##T(#T, "const " #T, "" #T "*", "const " #T "*");
+#define ReflectMember(T, name) static const MemberReflector<T, decltype(T##::##name)> rm_##T##_##name(#name, OffsetOf(T, name));
+
+// ----------------------------------------------------------------------------
+
+template<typename T>
+struct RfStore
+{
+    static void Create(cstr name, const RfType* deref)
+    {
+        ms_items.type = { RfId<T>(), name, sizeof(T), alignof(T), deref, { 0, 0 } };
+    }
+    static void AddMember(cstr name, u32 offset, const RfType* desc)
+    {
+        ms_items.type.members.grow() = { name, offset, desc };
+    }
+
+    static RfItems ms_items;
+};
+
+template<typename T>
+static constexpr usize RfId() { return (usize)(&RfStore<T>::ms_items); }
+
+template<typename T>
+static constexpr const RfType& RfGet() { return RfStore<T>::ms_items.type; }
+
+static RfItems& RfGetItems(usize id)
+{
+    return *(RfItems*)id;
+}
+
+static const RfType& RfGet(usize id)
+{
+    return ((const RfItems*)id)->type;
+}
 
 template<typename T>
 struct ValueReflector
 {
-    ValueReflector(cstr name, cstr ptrName)
+    ValueReflector(cstr name, cstr cname, cstr ptrName, cstr cptrName)
     {
-        const RfType x = { name, sizeof(T), alignof(T), 0, { 0, 0 } };
-        RfStorage<T>::Value = x;
-        const RfType pX = { ptrName, sizeof(T*), alignof(T*), &RfStorage<T>::Value, { 0, 0 } };
-        RfStorage<const T>::Value = x;
-        RfStorage<T*>::Value = pX;
-        RfStorage<const T*>::Value = pX;
+        RfStore<T>::Create(name, 0);
+        RfStore<const T>::Create(cname, 0);
+        RfStore<T*>::Create(ptrName, &RfGet<T>());
+        RfStore<const T*>::Create(cptrName, &RfGet<const T>());
     }
 };
 
@@ -62,29 +93,12 @@ struct MemberReflector
 {
     MemberReflector(cstr name, u32 offset)
     {
-        const RfMember x = { name, offset, &RfStorage<U>::Value };
-        RfStorage<T>::Add(x);
-        RfStorage<const T>::Add(x);
+        RfStore<T>::AddMember(name, offset, &RfGet<U>());
+        RfStore<const T>::AddMember(name, offset, &RfGet<U>());
     }
 };
 
-#define Reflect(T) static const ValueReflector<T> r_##T(#T, "" #T "*");
-#define AddMember(T, name) static const MemberReflector<T, decltype(T##::##name)> rm_##T##_##name(#name, OffsetOf(T, name));
-
-// could be useful if the above hits any snags
-//template<typename T>
-//struct rem_ptr { using type = T; };
-//
-//template<typename T>
-//struct rem_ptr<const T*> { using type = T; };
-//
-//template<typename T>
-//struct rem_ptr<T*> { using type = T; };
-//
-//template<typename T>
-//struct rem_ptr<const T> { using type = T; };
-
-struct Test
+struct RfTest
 {
     u32 a;
     const u32 b;

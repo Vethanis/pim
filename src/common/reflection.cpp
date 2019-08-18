@@ -1,7 +1,7 @@
 #include "common/reflection.h"
 
 template<typename T>
-RfType RfStorage<T>::Value;
+RfItems RfStore<T>::ms_items;
 
 Reflect(char)
 
@@ -15,8 +15,8 @@ Reflect(u16)
 Reflect(u32)
 Reflect(u64)
 
-Reflect(Test)
-AddMember(Test, a)
-AddMember(Test, b)
-AddMember(Test, c)
-AddMember(Test, d)
+Reflect(RfTest)
+ReflectMember(RfTest, a)
+ReflectMember(RfTest, b)
+ReflectMember(RfTest, c)
+ReflectMember(RfTest, d)

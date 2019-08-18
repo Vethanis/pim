@@ -1,5 +1,6 @@
 #include "systems.h"
 
+#include "tables/tables.h"
 #include "audio_system.h"
 #include "input_system.h"
 #include "entity_system.h"
@@ -8,34 +9,62 @@
 
 namespace Systems
 {
+    static void Visualize();
+
+    static void InputPhase()
+    {
+        TimeSystem::Update();
+        InputSystem::Update();
+    }
+    static void SimulationPhase()
+    {
+        EntitySystem::Update();
+    }
+    static void PresentationPhase()
+    {
+        AudioSystem::Update();
+        RenderSystem::BeginDraws();
+        Visualize();
+        RenderSystem::EndDraws();
+    }
+
     void Init()
     {
+        Tables::Init();
         TimeSystem::Init();
-        AudioSystem::Init();
-        RenderSystem::Init();
         InputSystem::Init();
         EntitySystem::Init();
+        AudioSystem::Init();
+        RenderSystem::Init();
     }
 
     void Update()
     {
-        TimeSystem::Update();
-        RenderSystem::BeginFrame();
-        InputSystem::Update();
-
-        EntitySystem::Update();
-
-        AudioSystem::Update();
-        RenderSystem::EndFrame();
+        InputPhase();
+        SimulationPhase();
+        PresentationPhase();
     }
 
     void Shutdown()
     {
-        InputSystem::Shutdown();
-        EntitySystem::Shutdown();
         RenderSystem::Shutdown();
         AudioSystem::Shutdown();
+        EntitySystem::Shutdown();
+        InputSystem::Shutdown();
         TimeSystem::Shutdown();
+        Tables::Shutdown();
+    }
+
+    static void Visualize()
+    {
+        RenderSystem::BeginVisualize();
+        Tables::Visualize();
+        TimeSystem::Visualize();
+        InputSystem::Visualize();
+        EntitySystem::Visualize();
+        RenderSystem::Visualize();
+        AudioSystem::Visualize();
+        RenderSystem::EndVisualize();
     }
 
     void OnEvent(const sapp_event* evt)

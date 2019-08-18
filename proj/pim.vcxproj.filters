@@ -29,6 +29,12 @@
     <Filter Include="submodules\sokol\util">
       <UniqueIdentifier>{79f5df7b-4b89-46c0-ac8d-bee1a533d915}</UniqueIdentifier>
     </Filter>
+    <Filter Include="natvis">
+      <UniqueIdentifier>{e966c196-540e-4e4f-b01f-f68c039cec72}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\tables">
+      <UniqueIdentifier>{d44fe845-3a6a-4d29-b3d2-618e851059f5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -84,6 +90,12 @@
     </ClCompile>
     <ClCompile Include="..\src\common\reflection.cpp">
       <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\tables\entity_table.cpp">
+      <Filter>Source Files\tables</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\tables\tables.cpp">
+      <Filter>Source Files\tables</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -267,5 +279,31 @@
     <ClInclude Include="..\src\common\reflection.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\tables\entity.h">
+      <Filter>Source Files\tables</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\tables\entity_table.h">
+      <Filter>Source Files\tables</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\tables\entity_table_ex.h">
+      <Filter>Source Files\tables</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\tables\tables.h">
+      <Filter>Source Files\tables</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="natvis\array.natvis">
+      <Filter>natvis</Filter>
+    </Natvis>
+    <Natvis Include="natvis\RfMember.natvis">
+      <Filter>natvis</Filter>
+    </Natvis>
+    <Natvis Include="natvis\RfType.natvis">
+      <Filter>natvis</Filter>
+    </Natvis>
+    <Natvis Include="natvis\dict.natvis">
+      <Filter>natvis</Filter>
+    </Natvis>
   </ItemGroup>
 </Project>

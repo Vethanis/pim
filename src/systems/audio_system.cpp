@@ -9,15 +9,15 @@ namespace AudioSystem
     {
         for (int i = 0; i < num_frames; i++)
         {
-            buffer[2*i + 0] = 0.0f;     // left channel
-            buffer[2*i + 1] = 0.0f;     // right channel
+            buffer[2 * i + 0] = 0.0f;     // left channel
+            buffer[2 * i + 1] = 0.0f;     // right channel
         }
     }
 
     void Init()
     {
         saudio_desc desc;
-        MemClear(desc);
+        MemClear(&desc, sizeof(desc));
         desc.num_channels = 2;
         desc.sample_rate = 44100;
         desc.stream_cb = AudioMain;
@@ -32,5 +32,10 @@ namespace AudioSystem
     void Shutdown()
     {
         saudio_shutdown();
+    }
+
+    void Visualize()
+    {
+
     }
 };

@@ -36,4 +36,8 @@ namespace TimeSystem
     {
 
     }
+    void Visualize()
+    {
+
+    }
 };

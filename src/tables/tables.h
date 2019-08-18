@@ -1,8 +1,8 @@
+#pragma once
 
-namespace AudioSystem
+namespace Tables
 {
     void Init();
-    void Update();
     void Shutdown();
     void Visualize();
 };

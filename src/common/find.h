@@ -1,14 +1,14 @@
 #pragma once
 
-#include <stdint.h>
-#include <string.h>
+#include "common/int_types.h"
+#include "common/memory.h"
 
 template<typename T>
-inline int32_t Find(const T* ptr, int32_t len, T key)
+inline i32 Find(const T* ptr, i32 len, T key)
 {
-    for(int32_t i = 0; i < len; ++i)
+    for(i32 i = 0; i < len; ++i)
     {
-        if(memcmp(ptr + i, &key, sizeof(T)) == 0)
+        if(MemCmp(ptr + i, &key, sizeof(T)) == 0)
         {
             return i;
         }
@@ -17,9 +17,9 @@ inline int32_t Find(const T* ptr, int32_t len, T key)
 }
 
 template<typename T>
-inline int32_t Find(const T* ptr, int32_t len, T key, int32_t (*cmp)(T lhs, T rhs))
+inline i32 Find(const T* ptr, i32 len, T key, i32 (*cmp)(T lhs, T rhs))
 {
-    for(int32_t i = 0; i < len; ++i)
+    for(i32 i = 0; i < len; ++i)
     {
         if(cmp(ptr[i], key) == 0)
         {
@@ -30,11 +30,11 @@ inline int32_t Find(const T* ptr, int32_t len, T key, int32_t (*cmp)(T lhs, T rh
 }
 
 template<typename T>
-inline int32_t RFind(const T* ptr, int32_t len, T key)
+inline i32 RFind(const T* ptr, i32 len, T key)
 {
-    for(int32_t i = len - 1; i >= 0; --i)
+    for(i32 i = len - 1; i >= 0; --i)
     {
-        if(memcmp(ptr + i, &key, sizeof(T)) == 0)
+        if(MemCmp(ptr + i, &key, sizeof(T)) == 0)
         {
             return i;
         }
@@ -43,9 +43,9 @@ inline int32_t RFind(const T* ptr, int32_t len, T key)
 }
 
 template<typename T>
-inline int32_t RFind(const T* ptr, int32_t len, T key, int32_t (*cmp)(T lhs, T rhs))
+inline i32 RFind(const T* ptr, i32 len, T key, i32 (*cmp)(T lhs, T rhs))
 {
-    for(int32_t i = len - 1; i >= 0; --i)
+    for(i32 i = len - 1; i >= 0; --i)
     {
         if(cmp(ptr[i], key) == 0)
         {

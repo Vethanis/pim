@@ -140,7 +140,7 @@ namespace InputSystem
     }
     void Update()
     {
-        Visualize();
+
     }
     void Shutdown()
     {
@@ -186,16 +186,16 @@ namespace InputSystem
                 ImGui::Columns();
             }
 
-            const RfType* info = &RfGet<Test*>();
+            const RfType* info = &RfGet<RfTest*>();
             ImGui::Text("%s %u %u", info->name, info->size, info->align);
-            if (info->value)
+            if (info->deref)
             {
-                info = info->value;
+                info = info->deref;
                 ImGui::Text("%s %u %u", info->name, info->size, info->align);
             }
             for (const RfMember& member : info->members)
             {
-                ImGui::Text("%s::%s %s at %x", info->name, member.name, member.value->name, member.offset);
+                ImGui::Text("%s::%s %s at %u", info->name, member.name, member.value->name, member.offset);
             }
         }
         ImGui::End();

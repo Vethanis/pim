@@ -16,4 +16,5 @@ namespace TimeSystem
     void Init();
     void Update();
     void Shutdown();
+    void Visualize();
 };

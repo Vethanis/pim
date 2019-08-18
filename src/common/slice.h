@@ -24,7 +24,12 @@ struct Slice
     inline const T& operator[](i32 i) const { DebugAssert((u32)i < (u32)len); return ptr[i]; }
     
     template<typename U>
-    inline Slice<U> cast() { return { (U*)ptr, bytes() / sizeof(U) }; }
+    inline Slice<U> cast()
+    {
+        U* pU = (U*)ptr;
+        usize Ubytes = bytes() / sizeof(U);
+        return { pU, (i32)Ubytes };
+    }
     inline Slice<T> subslice(i32 start, i32 count)
     {
         DebugAssert((start + count) < len);
