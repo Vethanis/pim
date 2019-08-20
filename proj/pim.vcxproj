@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\common\allocator.cpp" />
+    <ClCompile Include="..\src\common\fs_win32.cpp" />
     <ClCompile Include="..\src\common\reflection.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\sokol\sokol_app.c" />
@@ -37,6 +38,7 @@
     <ClInclude Include="..\src\common\array.h" />
     <ClInclude Include="..\src\common\dict.h" />
     <ClInclude Include="..\src\common\find.h" />
+    <ClInclude Include="..\src\common\fs.h" />
     <ClInclude Include="..\src\common\hash.h" />
     <ClInclude Include="..\src\common\int_types.h" />
     <ClInclude Include="..\src\common\macro.h" />
@@ -47,6 +49,7 @@
     <ClInclude Include="..\src\common\ring.h" />
     <ClInclude Include="..\src\common\ctrl_enums.h" />
     <ClInclude Include="..\src\common\slice.h" />
+    <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\vec_types.h" />
     <ClInclude Include="..\src\sokol\sokol_backend.h" />
     <ClInclude Include="..\src\systems\audio_system.h" />

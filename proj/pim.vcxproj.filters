@@ -35,6 +35,9 @@
     <Filter Include="Source Files\tables">
       <UniqueIdentifier>{d44fe845-3a6a-4d29-b3d2-618e851059f5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\shaders">
+      <UniqueIdentifier>{ca7a580f-e677-45cc-a7b1-179614a1be50}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -96,6 +99,9 @@
     </ClCompile>
     <ClCompile Include="..\src\tables\tables.cpp">
       <Filter>Source Files\tables</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\fs_win32.cpp">
+      <Filter>Source Files\common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -290,6 +296,12 @@
     </ClInclude>
     <ClInclude Include="..\src\tables\tables.h">
       <Filter>Source Files\tables</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\fs.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\stringutil.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

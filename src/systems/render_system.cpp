@@ -5,9 +5,12 @@
 #include <sokol/util/sokol_imgui.h>
 
 #include "common/int_types.h"
-#include "common/memory.h"
 #include "common/array.h"
 #include "systems/time_system.h"
+#include "common/fs.h"
+#include "common/stringutil.h"
+
+#include <stdio.h>
 
 namespace RenderSystem
 {
@@ -25,11 +28,25 @@ namespace RenderSystem
     static i32 ms_width;
     static i32 ms_height;
 
+    static void LoadShaders()
+    {
+        Fs::Results results;
+        results.Init(Allocator_Malloc);
+        Fs::Find(ROOT_DIR"/src/shaders/*", results);
+        for (const Fs::Info& file : results.files)
+        {
+            if (EndsWithStr(file.extension, ".hlsl"))
+            {
+                printf("Loading shader %s\n", file.path);
+            }
+        }
+        results.Reset();
+    }
+
     void Init()
     {
         {
-            sg_desc desc;
-            MemClear(&desc, sizeof(desc));
+            sg_desc desc = {};
             desc.mtl_device = sapp_metal_get_device();
             desc.mtl_drawable_cb = sapp_metal_get_drawable;
             desc.mtl_renderpass_descriptor_cb = sapp_metal_get_renderpass_descriptor;
@@ -40,12 +57,13 @@ namespace RenderSystem
             sg_setup(&desc);
         }
         {
-            simgui_desc_t desc;
-            MemClear(&desc, sizeof(desc));
+            simgui_desc_t desc = {};
             simgui_setup(&desc);
         }
         ms_width = sapp_width();
         ms_height = sapp_height();
+
+        LoadShaders();
     }
     void Shutdown()
     {

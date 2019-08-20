@@ -19,3 +19,4 @@ using f64 = double;
 using f32 = float;
 
 using cstr = const char*;
+using cstrc = const char * const;
