@@ -42,6 +42,18 @@ struct ComponentArrays
     {
         for (ComponentArray& x : m_arrays)
         {
+            u8* data = x.data.begin();
+            const u32* versions = x.versions.begin();
+            const i32 count = x.versions.size();
+            const u32 stride = m_stride;
+            const auto OnRemove = m_onRemove;
+            for (i32 i = 0; i < count; ++i)
+            {
+                if (versions[i] & 1u)
+                {
+                    OnRemove(data + i * stride);
+                }
+            }
             x.versions.reset();
             x.data.reset();
         }

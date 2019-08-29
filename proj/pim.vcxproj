@@ -13,7 +13,9 @@
   <ItemGroup>
     <ClCompile Include="..\src\common\allocator.cpp" />
     <ClCompile Include="..\src\common\fs_win32.cpp" />
+    <ClCompile Include="..\src\common\random.cpp" />
     <ClCompile Include="..\src\common\reflection.cpp" />
+    <ClCompile Include="..\src\common\thread_win32.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\sokol\sokol_app.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
@@ -45,11 +47,13 @@
     <ClInclude Include="..\src\common\mat_types.h" />
     <ClInclude Include="..\src\common\memory.h" />
     <ClInclude Include="..\src\common\platform.h" />
+    <ClInclude Include="..\src\common\random.h" />
     <ClInclude Include="..\src\common\reflection.h" />
     <ClInclude Include="..\src\common\ring.h" />
     <ClInclude Include="..\src\common\ctrl_enums.h" />
     <ClInclude Include="..\src\common\slice.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
+    <ClInclude Include="..\src\common\thread.h" />
     <ClInclude Include="..\src\common\vec_types.h" />
     <ClInclude Include="..\src\sokol\sokol_backend.h" />
     <ClInclude Include="..\src\systems\audio_system.h" />
@@ -68,6 +72,7 @@
     <ClInclude Include="..\submodules\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\submodules\imgui\imstb_textedit.h" />
     <ClInclude Include="..\submodules\imgui\imstb_truetype.h" />
+    <ClInclude Include="..\submodules\pcg32\pcg32.h" />
     <ClInclude Include="..\submodules\sokol\sokol_app.h" />
     <ClInclude Include="..\submodules\sokol\sokol_args.h" />
     <ClInclude Include="..\submodules\sokol\sokol_audio.h" />
@@ -105,7 +110,9 @@
     <Natvis Include="natvis\array.natvis" />
     <Natvis Include="natvis\dict.natvis" />
     <Natvis Include="natvis\RfMember.natvis" />
-    <Natvis Include="natvis\RfType.natvis" />
+    <Natvis Include="natvis\RfType.natvis">
+      <SubType>Designer</SubType>
+    </Natvis>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

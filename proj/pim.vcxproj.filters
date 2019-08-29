@@ -38,6 +38,9 @@
     <Filter Include="Source Files\shaders">
       <UniqueIdentifier>{ca7a580f-e677-45cc-a7b1-179614a1be50}</UniqueIdentifier>
     </Filter>
+    <Filter Include="submodules\pcg32">
+      <UniqueIdentifier>{415601ef-5c67-46f4-9c5f-ed59be6222f4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -101,6 +104,12 @@
       <Filter>Source Files\tables</Filter>
     </ClCompile>
     <ClCompile Include="..\src\common\fs_win32.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\random.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\thread_win32.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
   </ItemGroup>
@@ -301,6 +310,15 @@
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\stringutil.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\pcg32\pcg32.h">
+      <Filter>submodules\pcg32</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\random.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\thread.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>

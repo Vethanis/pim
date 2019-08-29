@@ -2,6 +2,8 @@
 
 #include "common/int_types.h"
 
+#pragma warning(disable : 4307)
+
 static constexpr u8 Fnv8_Bias = 251;
 static constexpr u8 Fnv8_Prime = 83;
 static constexpr u16 Fnv16_Bias = 65521;
