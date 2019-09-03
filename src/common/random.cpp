@@ -2,7 +2,7 @@
 
 #include "common/allocator.h"
 #include "common/hash.h"
-#include "common/thread.h"
+#include "os/thread.h"
 #include "systems/time_system.h"
 #include <pcg32/pcg32.h>
 

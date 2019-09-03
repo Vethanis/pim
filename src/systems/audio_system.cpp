@@ -1,7 +1,6 @@
 #include "audio_system.h"
 
 #include <sokol/sokol_audio.h>
-#include "common/memory.h"
 
 namespace AudioSystem
 {
@@ -16,8 +15,7 @@ namespace AudioSystem
 
     void Init()
     {
-        saudio_desc desc;
-        MemClear(&desc, sizeof(desc));
+        saudio_desc desc = {};
         desc.num_channels = 2;
         desc.sample_rate = 44100;
         desc.stream_cb = AudioMain;

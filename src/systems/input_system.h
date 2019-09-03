@@ -1,46 +1,57 @@
 
-#include "common/array.h"
+#include "containers/ring.h"
 #include "common/vec_types.h"
 
 struct sapp_event;
 
 namespace InputSystem
 {
-    struct KeyEvent
+    enum ButtonDevice : u8
     {
-        u64 tick;
-        u8 down;
+        BD_Key = 0,
+        BD_Mouse,
+        BD_Pad0,
+        BD_Pad1,
+        BD_Pad2,
+        BD_Pad3,
+        BD_Count
     };
 
-    struct MouseButtonEvent
+    enum AxisDevice : u8
     {
-        u64 tick;
-        u8 down;
+        AD_Mouse = 0,
+        AD_Pad0,
+        AD_Pad1,
+        AD_Pad2,
+        AD_Pad3,
+        AD_Count
     };
 
-    struct MousePositionEvent
+    struct ButtonChannel
     {
-        u64 tick;
-        float2 position;
+        static constexpr u32 Capacity = 16;
+        Ring<Capacity> ring;
+        u64 ticks[Capacity];
+        u8 down[Capacity];
     };
 
-    struct MouseScrollEvent
+    struct AxisChannel
     {
-        u64 tick;
-        float2 position;
+        static constexpr u32 Capacity = 64;
+        Ring<Capacity> ring;
+        u64 ticks[Capacity];
+        float2 positions[Capacity];
     };
 
-    void AddListener(Array<KeyEvent>& dst, u16 key);
-    void RemoveListener(Array<KeyEvent>& dst);
+    void Bind(ButtonDevice dev, u16 button, u16 channel);
+    void Unbind(ButtonDevice dev, u16 button);
+    void Bind(AxisDevice dev, u16 axis, u16 channel);
+    void Unbind(AxisDevice dev, u16 axis);
 
-    void AddListener(Array<MouseButtonEvent>& dst, u16 button);
-    void RemoveListener(Array<MouseButtonEvent>& dst);
-
-    void AddListener(Array<MousePositionEvent>& dst);
-    void RemoveListener(Array<MousePositionEvent>& dst);
-
-    void AddListener(Array<MouseScrollEvent>& dst);
-    void RemoveListener(Array<MouseScrollEvent>& dst);
+    void Register(u16 channel, ButtonChannel& dst);
+    void UnregisterButton(u16 channel);
+    void Register(u16 channel, AxisChannel& dst);
+    void UnregisterAxis(u16 channel);
 
     void Init();
     void Update();

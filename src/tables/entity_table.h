@@ -1,7 +1,7 @@
 #pragma once
 
 #include "tables/entity.h"
-#include "common/slice.h"
+#include "containers/slice.h"
 
 namespace EntityTable
 {

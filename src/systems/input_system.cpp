@@ -4,39 +4,26 @@
 #include <inttypes.h>
 #include <imgui/imgui.h>
 
-#include "common/array.h"
+#include "containers/array.h"
+#include "containers/dict.h"
 #include "systems/time_system.h"
 
 #include "common/reflection.h"
 
 namespace InputSystem
 {
-    struct KeyListener
-    {
-        Array<KeyEvent>* dst;
-        u16 key;
-    };
+    static Dict<u16, ButtonChannel*> ms_buttonChannels;
+    static Dict<u16, AxisChannel*> ms_axisChannels;
+    static Dict<u32, u16> ms_buttonBinds;
+    static Dict<u32, u16> ms_axisBinds;
 
-    struct MouseButtonListener
+    static u32 ToDictKey(u16 device, u16 id)
     {
-        Array<MouseButtonEvent>* dst;
-        u16 button;
-    };
-
-    struct MousePositionListener
-    {
-        Array<MousePositionEvent>* dst;
-    };
-
-    struct MouseScrollListener
-    {
-        Array<MouseScrollEvent>* dst;
-    };
-
-    static Array<KeyListener> ms_keyListeners;
-    static Array<MouseButtonListener> ms_mouseButtonListeners;
-    static Array<MousePositionListener> ms_mousePositionListeners;
-    static Array<MouseScrollListener> ms_mouseScrollListeners;
+        u32 y = device;
+        y <<= 16;
+        y |= id;
+        return y;
+    }
 
     static void OnKey(const sapp_event* evt)
     {
@@ -45,15 +32,16 @@ namespace InputSystem
             return;
         }
 
-        const u64 tick = TimeSystem::Now();
-        const u16 key = evt->key_code;
-        const u8 down = evt->type == SAPP_EVENTTYPE_KEY_DOWN;
-
-        for (KeyListener& listener : ms_keyListeners)
+        const u16* pId = ms_buttonBinds.get(ToDictKey(BD_Key, evt->key_code));
+        if (pId)
         {
-            if (listener.key == key)
+            ButtonChannel** ppChannel = ms_buttonChannels.get(*pId);
+            if (ppChannel && *ppChannel)
             {
-                listener.dst->grow() = { tick, down };
+                ButtonChannel* pChannel = *ppChannel;
+                u32 i = pChannel->ring.Overwrite();
+                pChannel->ticks[i] = TimeSystem::Now();
+                pChannel->down[i] = evt->type == SAPP_EVENTTYPE_KEY_DOWN;
             }
         }
 
@@ -68,75 +56,90 @@ namespace InputSystem
         {
             return;
         }
-        const u64 tick = TimeSystem::Now();
-        const u16 button = evt->mouse_button;
-        const u8 down = evt->type == SAPP_EVENTTYPE_MOUSE_DOWN;
-        for (MouseButtonListener& listener : ms_mouseButtonListeners)
+        const u16* pId = ms_buttonBinds.get(ToDictKey(BD_Mouse, evt->mouse_button));
+        if (pId)
         {
-            if (listener.button == button)
+            ButtonChannel** ppChannel = ms_buttonChannels.get(*pId);
+            if (ppChannel && *ppChannel)
             {
-                listener.dst->grow() = { tick, down };
+                ButtonChannel* pChannel = *ppChannel;
+                u32 i = pChannel->ring.Overwrite();
+                pChannel->ticks[i] = TimeSystem::Now();
+                pChannel->down[i] = evt->type == SAPP_EVENTTYPE_MOUSE_DOWN;
             }
         }
     }
     static void OnMouseMove(const sapp_event* evt)
     {
-        const u64 tick = TimeSystem::Now();
-        const float2 position = { evt->mouse_x, evt->mouse_y };
-        for (MousePositionListener& listener : ms_mousePositionListeners)
+        const u16* pId = ms_axisBinds.get(ToDictKey(AD_Mouse, 0));
+        if (pId)
         {
-            listener.dst->grow() = { tick, position };
+            AxisChannel** ppChannel = ms_axisChannels.get(*pId);
+            if (ppChannel && *ppChannel)
+            {
+                AxisChannel* pChannel = *ppChannel;
+                u32 i = pChannel->ring.Overwrite();
+                pChannel->positions[i] = { evt->mouse_x, evt->mouse_y };
+                pChannel->ticks[i] = TimeSystem::Now();
+            }
         }
     }
     static void OnMouseScroll(const sapp_event* evt)
     {
-        const u64 tick = TimeSystem::Now();
-        const float2 position = { evt->scroll_x, evt->scroll_y };
-        for (MouseScrollListener& listener : ms_mouseScrollListeners)
+        const u16* pId = ms_axisBinds.get(ToDictKey(AD_Mouse, 1));
+        if (pId)
         {
-            listener.dst->grow() = { tick, position };
+            AxisChannel** ppChannel = ms_axisChannels.get(*pId);
+            if (ppChannel && *ppChannel)
+            {
+                AxisChannel* pChannel = *ppChannel;
+                u32 i = pChannel->ring.Overwrite();
+                pChannel->positions[i] = { evt->scroll_x, evt->scroll_y };
+                pChannel->ticks[i] = TimeSystem::Now();
+            }
         }
     }
 
-    void AddListener(Array<KeyEvent>& dst, u16 key)
+    void Bind(ButtonDevice dev, u16 button, u16 channel)
     {
-        ms_keyListeners.grow() = { &dst, key };
+        ms_buttonBinds[ToDictKey(dev, button)] = channel;
     }
-    void RemoveListener(Array<KeyEvent>& dst, u16 key)
+    void Unbind(ButtonDevice dev, u16 button)
     {
-        ms_keyListeners.findRemove({ &dst, key });
+        ms_buttonBinds.remove(ToDictKey(dev, button));
     }
-
-    void AddListener(Array<MouseButtonEvent>& dst, u16 button)
+    void Bind(AxisDevice dev, u16 axis, u16 channel)
     {
-        ms_mouseButtonListeners.grow() = { &dst, button };
+        ms_axisBinds[ToDictKey(dev, axis)] = channel;
     }
-    void RemoveListener(Array<MouseButtonEvent>& dst, u16 button)
+    void Unbind(AxisDevice dev, u16 axis)
     {
-        ms_mouseButtonListeners.findRemove({ &dst, button });
-    }
-
-    void AddListener(Array<MousePositionEvent>& dst)
-    {
-        ms_mousePositionListeners.grow() = { &dst };
-    }
-    void RemoveListener(Array<MousePositionEvent>& dst)
-    {
-        ms_mousePositionListeners.findRemove({ &dst });
+        ms_axisBinds.remove(ToDictKey(dev, axis));
     }
 
-    void AddListener(Array<MouseScrollEvent>& dst)
+    void Register(u16 id, ButtonChannel& ch)
     {
-        ms_mouseScrollListeners.grow() = { &dst };
+        ms_buttonChannels[id] = &ch;
     }
-    void RemoveListener(Array<MouseScrollEvent>& dst)
+    void UnregisterButton(u16 id)
     {
-        ms_mouseScrollListeners.findRemove({ &dst });
+        ms_buttonChannels.remove(id);
+    }
+    void Register(u16 id, AxisChannel& ch)
+    {
+        ms_axisChannels[id] = &ch;
+    }
+    void UnregisterAxis(u16 id)
+    {
+        ms_axisChannels.remove(id);
     }
 
     void Init()
     {
-
+        ms_buttonChannels.init(Allocator_Malloc);
+        ms_axisChannels.init(Allocator_Malloc);
+        ms_buttonBinds.init(Allocator_Malloc);
+        ms_axisBinds.init(Allocator_Malloc);
     }
     void Update()
     {
@@ -144,7 +147,10 @@ namespace InputSystem
     }
     void Shutdown()
     {
-
+        ms_buttonChannels.reset();
+        ms_axisChannels.reset();
+        ms_buttonBinds.reset();
+        ms_axisBinds.reset();
     }
     void OnEvent(const sapp_event* evt, bool keyboardCaptured)
     {

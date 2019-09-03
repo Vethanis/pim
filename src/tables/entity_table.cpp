@@ -1,6 +1,6 @@
 #include "tables/entity_table.h"
-#include "common/array.h"
-#include "common/dict.h"
+#include "containers/array.h"
+#include "containers/dict.h"
 #include "common/reflection.h"
 
 static constexpr AllocatorType TableAllocator = Allocator_Malloc;
@@ -178,7 +178,6 @@ namespace EntityTable
         if (!carrs)
         {
             carrs = Allocator::Alloc<ComponentArrays>(TableAllocator, 1);
-            MemClear(carrs, sizeof(ComponentArrays));
             carrs->Init(OnAdd, OnRemove, RfGet(typeId).size);
             SetArrays(typeId, carrs);
             ms_registrations.grow() = typeId;

@@ -3,9 +3,11 @@
 
 #if PLAT_WINDOWS
 
+#define WIN32_LEAN_AND_MEAN
+
 #include <windows.h>
 
-#include "common/thread.h"
+#include "os/thread.h"
 #include "common/macro.h"
 
 // ----------------------------------------------------------------------------
@@ -14,7 +16,9 @@ void Handle::Close()
 {
     if (value)
     {
-        ::CloseHandle(value);
+        // https://docs.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle
+        bool rval = ::CloseHandle(value);
+        DebugAssert(rval);
         value = 0;
     }
 }
@@ -23,24 +27,32 @@ void Handle::Close()
 
 Semaphore Semaphore::Create(u32 initialValue)
 {
-    void* h = ::CreateSemaphore(0, initialValue, 0xffff, 0);
+    constexpr u32 MaxValue = 0xFFFFFFF;
+    DebugAssert(initialValue <= MaxValue);
+    // https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createsemaphorea
+    void* h = ::CreateSemaphoreA(0, initialValue, MaxValue, 0);
     DebugAssert(h);
-    return { h };
+    Semaphore s = {};
+    s.handle.value = h;
+    return s;
 }
 
 void Semaphore::Signal(u32 count)
 {
-    DebugAssert(handle.IsOpen());
-    ::ReleaseSemaphore(handle.value, count, 0);
+    DebugAssert(handle.value);
+    // increment by count
+    // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-releasesemaphore
+    bool rval = ::ReleaseSemaphore(handle.value, count, 0);
+    DebugAssert(rval);
 }
 
-void Semaphore::Wait(u32 count)
+void Semaphore::Wait()
 {
-    DebugAssert(handle.IsOpen());
-    for (u32 i = 0; i < count; ++i)
-    {
-        ::WaitForSingleObject(handle.value, INFINITE);
-    }
+    DebugAssert(handle.value);
+    // decrement by one
+    // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
+    u32 status = ::WaitForSingleObject(handle.value, INFINITE);
+    DebugAssert(!status);
 }
 
 // ----------------------------------------------------------------------------
@@ -61,14 +73,19 @@ Thread Thread::Open(ThreadFn fn, void* data)
         0,
         &id);
     DebugAssert(hdl);
-    return { { hdl }, id };
+    Thread t = {};
+    t.handle.value = hdl;
+    t.id = id;
+    return t;
 }
 
 void Thread::Join()
 {
     if (handle.IsOpen())
     {
-        ::WaitForSingleObject(handle.value, INFINITE);
+        // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
+        u32 status = ::WaitForSingleObject(handle.value, INFINITE);
+        DebugAssert(!status);
         handle.Close();
         id = 0;
     }
@@ -76,16 +93,19 @@ void Thread::Join()
 
 void Thread::Sleep(u32 ms)
 {
+    // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep
     ::Sleep((DWORD)ms);
 }
 
 void Thread::Yield()
 {
+    // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-switchtothread
     ::SwitchToThread();
 }
 
 void Thread::Exit(u8 exitCode)
 {
+    // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitthread
     ::ExitThread((DWORD)exitCode);
 }
 
@@ -105,6 +125,7 @@ Process Process::Open(char* cmdline, cstr cwd)
         sa.bInheritHandle = TRUE;
         sa.lpSecurityDescriptor = NULL;
 
+        // https://docs.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-createpipe
         rval = ::CreatePipe(
             &hstdinRd,
             &result.hstdinWr.value,
@@ -112,12 +133,14 @@ Process Process::Open(char* cmdline, cstr cwd)
             0);
         DebugAssert(rval);
 
+        // https://docs.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-sethandleinformation
         rval = ::SetHandleInformation(
             result.hstdinWr.value,
             HANDLE_FLAG_INHERIT,
             0);
         DebugAssert(rval);
 
+        // https://docs.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-createpipe
         rval = ::CreatePipe(
             &result.hstdoutRd.value,
             &hstdoutWr,
@@ -125,6 +148,7 @@ Process Process::Open(char* cmdline, cstr cwd)
             0);
         DebugAssert(rval);
 
+        // https://docs.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-sethandleinformation
         rval = ::SetHandleInformation(
             result.hstdoutRd.value,
             HANDLE_FLAG_INHERIT,
@@ -141,6 +165,7 @@ Process Process::Open(char* cmdline, cstr cwd)
     }
 
     PROCESS_INFORMATION proc = {};
+    // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa
     rval = ::CreateProcess(
         0,          // const char* application name
         cmdline,    // char* command line
@@ -170,6 +195,7 @@ bool Process::Write(const void* src, u32 len, u32& wrote)
     DebugAssert(hstdinWr.IsOpen());
 
     DWORD dwWrote = 0;
+    // https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile
     bool rval = ::WriteFile(hstdinWr.value, src, (DWORD)len, &dwWrote, 0);
     wrote = dwWrote;
 
@@ -184,6 +210,7 @@ bool Process::Read(void* dst, u32 len, u32& read)
     DebugAssert(hstdoutRd.IsOpen());
 
     DWORD dwRead = 0;
+    // https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-readfile
     bool rval = ::ReadFile(hstdoutRd.value, dst, (DWORD)len, &dwRead, 0);
     read = dwRead;
 

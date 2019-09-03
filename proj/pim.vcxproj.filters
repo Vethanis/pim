@@ -41,6 +41,12 @@
     <Filter Include="submodules\pcg32">
       <UniqueIdentifier>{415601ef-5c67-46f4-9c5f-ed59be6222f4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\os">
+      <UniqueIdentifier>{37418151-53ed-48de-bfa8-eb5f9777bf7a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\containers">
+      <UniqueIdentifier>{0471c703-b4a0-48b2-a88b-17e1c2ff16cf}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -103,13 +109,19 @@
     <ClCompile Include="..\src\tables\tables.cpp">
       <Filter>Source Files\tables</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\fs_win32.cpp">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\common\random.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\thread_win32.cpp">
+    <ClCompile Include="..\src\os\fs_win32.cpp">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\socket_win32.cpp">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\thread_win32.cpp">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\stream.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
   </ItemGroup>
@@ -132,15 +144,6 @@
     <ClInclude Include="..\src\common\allocator.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\array.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\dict.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\find.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\hash.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -157,9 +160,6 @@
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\platform.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\slice.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\vec_types.h">
@@ -282,9 +282,6 @@
     <ClInclude Include="..\src\sokol\sokol_backend.h">
       <Filter>Source Files\sokol</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\ring.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\ctrl_enums.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -306,9 +303,6 @@
     <ClInclude Include="..\src\tables\tables.h">
       <Filter>Source Files\tables</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\fs.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\stringutil.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -318,8 +312,32 @@
     <ClInclude Include="..\src\common\random.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\thread.h">
+    <ClInclude Include="..\src\common\socket.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\os\fs.h">
+      <Filter>Source Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\os\socket.h">
+      <Filter>Source Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\os\thread.h">
+      <Filter>Source Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\stream.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\array.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\dict.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\ring.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\slice.h">
+      <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

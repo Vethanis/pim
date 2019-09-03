@@ -36,7 +36,7 @@ struct Ring
     inline u32 Overwrite()
     {
         u32 c = m_count + 1u;
-        m_count = c > t_mask ? t_mask : c;
+        m_count = c < t_mask ? c : t_mask;
         return Mask(m_tail++);
     }
     inline u32 Pop()

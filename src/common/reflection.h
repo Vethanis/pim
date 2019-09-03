@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/int_types.h"
-#include "common/array.h"
+#include "containers/array.h"
 
 struct RfType;
 struct RfMember;

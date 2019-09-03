@@ -5,10 +5,10 @@
 #include <sokol/util/sokol_imgui.h>
 
 #include "common/int_types.h"
-#include "common/array.h"
-#include "systems/time_system.h"
-#include "common/fs.h"
+#include "containers/array.h"
 #include "common/stringutil.h"
+#include "systems/time_system.h"
+#include "os/fs.h"
 
 #include <stdio.h>
 
