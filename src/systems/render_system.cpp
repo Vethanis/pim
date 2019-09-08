@@ -1,16 +1,16 @@
-#include "render_system.h"
+#include "systems/render_system.h"
 
 #include <sokol/sokol_gfx.h>
 #include <sokol/sokol_app.h>
 #include <sokol/util/sokol_imgui.h>
+#include <stdio.h>
 
 #include "common/int_types.h"
-#include "containers/array.h"
 #include "common/stringutil.h"
+#include "containers/array.h"
 #include "systems/time_system.h"
 #include "os/fs.h"
 
-#include <stdio.h>
 
 namespace RenderSystem
 {
@@ -65,31 +65,29 @@ namespace RenderSystem
 
         LoadShaders();
     }
+
+    void Update()
+    {
+        ms_width = sapp_width();
+        ms_height = sapp_height();
+        simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
+    }
+
     void Shutdown()
     {
         simgui_shutdown();
         sg_shutdown();
     }
 
-    void BeginDraws()
+    void FrameEnd()
     {
-        ms_width = sapp_width();
-        ms_height = sapp_height();
         sg_begin_default_pass(&ms_clear, ms_width, ms_height);
-    }
-    void EndDraws()
-    {
+        {
+            simgui_render();
+        }
         sg_end_pass();
-        sg_commit();
-    }
 
-    void BeginVisualize()
-    {
-        simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
-    }
-    void EndVisualize()
-    {
-        simgui_render();
+        sg_commit();
     }
 
     bool OnEvent(const sapp_event* evt)
@@ -100,5 +98,17 @@ namespace RenderSystem
     void Visualize()
     {
 
+    }
+
+    System GetSystem()
+    {
+        System sys;
+        sys.Init = Init;
+        sys.Update = Update;
+        sys.Shutdown = Shutdown;
+        sys.Visualize = Visualize;
+        sys.enabled = true;
+        sys.visualizing = false;
+        return sys;
     }
 };

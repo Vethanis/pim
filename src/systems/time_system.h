@@ -1,5 +1,7 @@
+#pragma once
 
 #include "common/int_types.h"
+#include "systems/systems.h"
 
 namespace TimeSystem
 {
@@ -17,4 +19,6 @@ namespace TimeSystem
     void Update();
     void Shutdown();
     void Visualize();
+
+    System GetSystem();
 };

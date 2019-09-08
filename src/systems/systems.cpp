@@ -1,74 +1,72 @@
 #include "systems.h"
 
-#include "tables/tables.h"
-#include "audio_system.h"
-#include "input_system.h"
-#include "entity_system.h"
-#include "render_system.h"
-#include "time_system.h"
+#include <sokol/sokol_app.h>
+
+#include "systems/time_system.h"
+#include "systems/audio_system.h"
+#include "systems/input_system.h"
+#include "systems/render_system.h"
+
+#include "common/macro.h"
 
 namespace Systems
 {
-    static void Visualize();
-
-    static void InputPhase()
+    static System ms_systems[] =
     {
-        TimeSystem::Update();
-        InputSystem::Update();
-    }
-    static void SimulationPhase()
-    {
-        EntitySystem::Update();
-    }
-    static void PresentationPhase()
-    {
-        AudioSystem::Update();
-        RenderSystem::BeginDraws();
-        Visualize();
-        RenderSystem::EndDraws();
-    }
+        TimeSystem::GetSystem(),
+        RenderSystem::GetSystem(),
+        InputSystem::GetSystem(),
+        AudioSystem::GetSystem(),
+    };
 
     void Init()
     {
-        Tables::Init();
-        TimeSystem::Init();
-        InputSystem::Init();
-        EntitySystem::Init();
-        AudioSystem::Init();
-        RenderSystem::Init();
+        for (const System& system : ms_systems)
+        {
+            if (system.enabled)
+            {
+                system.Init();
+            }
+        }
     }
 
     void Update()
     {
-        InputPhase();
-        SimulationPhase();
-        PresentationPhase();
+        for (const System& system : ms_systems)
+        {
+            if (system.enabled)
+            {
+                system.Update();
+            }
+        }
+        for (const System& system : ms_systems)
+        {
+            if (system.visualizing)
+            {
+                system.Visualize();
+            }
+        }
+        RenderSystem::FrameEnd();
     }
 
     void Shutdown()
     {
-        RenderSystem::Shutdown();
-        AudioSystem::Shutdown();
-        EntitySystem::Shutdown();
-        InputSystem::Shutdown();
-        TimeSystem::Shutdown();
-        Tables::Shutdown();
-    }
-
-    static void Visualize()
-    {
-        RenderSystem::BeginVisualize();
-        Tables::Visualize();
-        TimeSystem::Visualize();
-        InputSystem::Visualize();
-        EntitySystem::Visualize();
-        RenderSystem::Visualize();
-        AudioSystem::Visualize();
-        RenderSystem::EndVisualize();
+        for (i32 i = CountOf(ms_systems) - 1; i >= 0; --i)
+        {
+            if (ms_systems[i].enabled)
+            {
+                ms_systems[i].Shutdown();
+            }
+        }
     }
 
     void OnEvent(const sapp_event* evt)
     {
         InputSystem::OnEvent(evt, RenderSystem::OnEvent(evt));
+    }
+
+    void Exit()
+    {
+        sapp_request_quit();
     }
 };

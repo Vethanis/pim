@@ -32,9 +32,6 @@
     <Filter Include="natvis">
       <UniqueIdentifier>{e966c196-540e-4e4f-b01f-f68c039cec72}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\tables">
-      <UniqueIdentifier>{d44fe845-3a6a-4d29-b3d2-618e851059f5}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\shaders">
       <UniqueIdentifier>{ca7a580f-e677-45cc-a7b1-179614a1be50}</UniqueIdentifier>
     </Filter>
@@ -47,15 +44,18 @@
     <Filter Include="Source Files\containers">
       <UniqueIdentifier>{0471c703-b4a0-48b2-a88b-17e1c2ff16cf}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\quake">
+      <UniqueIdentifier>{3c58da36-bb0b-4a52-a788-6b425c649ac6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ui">
+      <UniqueIdentifier>{20e9139f-eaf6-4e26-8e94-fd200334aaef}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\systems\audio_system.cpp">
-      <Filter>Source Files\systems</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\systems\entity_system.cpp">
       <Filter>Source Files\systems</Filter>
     </ClCompile>
     <ClCompile Include="..\src\systems\render_system.cpp">
@@ -100,15 +100,6 @@
     <ClCompile Include="..\src\systems\input_system.cpp">
       <Filter>Source Files\systems</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\reflection.cpp">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\tables\entity_table.cpp">
-      <Filter>Source Files\tables</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\tables\tables.cpp">
-      <Filter>Source Files\tables</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\common\random.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
@@ -121,15 +112,12 @@
     <ClCompile Include="..\src\os\thread_win32.cpp">
       <Filter>Source Files\os</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\stream.cpp">
+    <ClCompile Include="..\src\common\io.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\systems\audio_system.h">
-      <Filter>Source Files\systems</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\systems\entity_system.h">
       <Filter>Source Files\systems</Filter>
     </ClInclude>
     <ClInclude Include="..\src\systems\render_system.h">
@@ -154,9 +142,6 @@
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\mat_types.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\memory.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\platform.h">
@@ -282,26 +267,8 @@
     <ClInclude Include="..\src\sokol\sokol_backend.h">
       <Filter>Source Files\sokol</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\ctrl_enums.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\systems\input_system.h">
       <Filter>Source Files\systems</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\reflection.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\tables\entity.h">
-      <Filter>Source Files\tables</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\tables\entity_table.h">
-      <Filter>Source Files\tables</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\tables\entity_table_ex.h">
-      <Filter>Source Files\tables</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\tables\tables.h">
-      <Filter>Source Files\tables</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\stringutil.h">
       <Filter>Source Files\common</Filter>
@@ -312,9 +279,6 @@
     <ClInclude Include="..\src\common\random.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\socket.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\os\fs.h">
       <Filter>Source Files\os</Filter>
     </ClInclude>
@@ -323,9 +287,6 @@
     </ClInclude>
     <ClInclude Include="..\src\os\thread.h">
       <Filter>Source Files\os</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\stream.h">
-      <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\array.h">
       <Filter>Source Files\containers</Filter>
@@ -338,6 +299,21 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\slice.h">
       <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\quake\bspfile.h">
+      <Filter>Source Files\quake</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\quake\packfile.h">
+      <Filter>Source Files\quake</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\io.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ui\imgui.h">
+      <Filter>Source Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ui\imconfig.h">
+      <Filter>Source Files\ui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

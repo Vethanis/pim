@@ -17,7 +17,7 @@ namespace Random
         constexpr u64 pimhash = Fnv64String("Piment");
         u64 hash = pimhash;
         hash = Fnv64Qword((u64)&printf, hash);
-        hash = Fnv64Qword(Thread::Self().id, hash);
+        hash = Fnv64Qword(OS::Thread::Self().id, hash);
         hash = Fnv64Qword(TimeSystem::Now(), hash);
         ts_state.inc = 1;
         ts_state.state = hash;

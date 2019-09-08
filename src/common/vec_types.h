@@ -16,7 +16,7 @@ struct alignas(8) vec2
 };
 
 template<typename T>
-struct alignas(4) vec3
+struct vec3
 {
     T x, y, z;
 

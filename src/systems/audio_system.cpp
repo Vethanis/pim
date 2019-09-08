@@ -36,4 +36,16 @@ namespace AudioSystem
     {
 
     }
+
+    System GetSystem()
+    {
+        System sys;
+        sys.Init = Init;
+        sys.Update = Update;
+        sys.Shutdown = Shutdown;
+        sys.Visualize = Visualize;
+        sys.enabled = true;
+        sys.visualizing = false;
+        return sys;
+    }
 };

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "containers/array.h"
 
 template<typename K, typename V>

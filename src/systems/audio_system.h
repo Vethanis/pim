@@ -1,3 +1,6 @@
+#pragma once
+
+#include "systems/systems.h"
 
 namespace AudioSystem
 {
@@ -5,4 +8,6 @@ namespace AudioSystem
     void Update();
     void Shutdown();
     void Visualize();
+
+    System GetSystem();
 };

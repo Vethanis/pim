@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/platform.h"
+#include "common/macro.h"
 
 #if CUR_PLAT == PLAT_WINDOWS
     #define SOKOL_D3D11             1
@@ -17,3 +18,6 @@
 #else
     #error Unhandled platform
 #endif // CUR_PLAT == PLAT_WINDOWS
+
+#define SOKOL_ASSERT                DebugAssert
+#define SOKOL_WIN32_FORCE_MAIN      1

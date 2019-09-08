@@ -12,9 +12,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\common\allocator.cpp" />
+    <ClCompile Include="..\src\common\io.cpp" />
     <ClCompile Include="..\src\common\random.cpp" />
-    <ClCompile Include="..\src\common\reflection.cpp" />
-    <ClCompile Include="..\src\common\stream.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\os\fs_win32.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
@@ -25,12 +24,9 @@
     <ClCompile Include="..\src\sokol\sokol_time.c" />
     <ClCompile Include="..\src\systems\audio_system.cpp" />
     <ClCompile Include="..\src\systems\input_system.cpp" />
-    <ClCompile Include="..\src\systems\entity_system.cpp" />
     <ClCompile Include="..\src\systems\render_system.cpp" />
     <ClCompile Include="..\src\systems\systems.cpp" />
     <ClCompile Include="..\src\systems\time_system.cpp" />
-    <ClCompile Include="..\src\tables\entity_table.cpp" />
-    <ClCompile Include="..\src\tables\tables.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_draw.cpp" />
@@ -39,17 +35,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\allocator.h" />
+    <ClInclude Include="..\src\common\io.h" />
     <ClInclude Include="..\src\common\hash.h" />
     <ClInclude Include="..\src\common\int_types.h" />
     <ClInclude Include="..\src\common\macro.h" />
     <ClInclude Include="..\src\common\mat_types.h" />
-    <ClInclude Include="..\src\common\memory.h" />
     <ClInclude Include="..\src\common\platform.h" />
     <ClInclude Include="..\src\common\random.h" />
-    <ClInclude Include="..\src\common\reflection.h" />
-    <ClInclude Include="..\src\common\ctrl_enums.h" />
-    <ClInclude Include="..\src\common\socket.h" />
-    <ClInclude Include="..\src\common\stream.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\vec_types.h" />
     <ClInclude Include="..\src\containers\array.h" />
@@ -59,17 +51,16 @@
     <ClInclude Include="..\src\os\fs.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\os\thread.h" />
+    <ClInclude Include="..\src\quake\bspfile.h" />
+    <ClInclude Include="..\src\quake\packfile.h" />
     <ClInclude Include="..\src\sokol\sokol_backend.h" />
     <ClInclude Include="..\src\systems\audio_system.h" />
     <ClInclude Include="..\src\systems\input_system.h" />
-    <ClInclude Include="..\src\systems\entity_system.h" />
     <ClInclude Include="..\src\systems\render_system.h" />
     <ClInclude Include="..\src\systems\systems.h" />
     <ClInclude Include="..\src\systems\time_system.h" />
-    <ClInclude Include="..\src\tables\entity.h" />
-    <ClInclude Include="..\src\tables\entity_table.h" />
-    <ClInclude Include="..\src\tables\entity_table_ex.h" />
-    <ClInclude Include="..\src\tables\tables.h" />
+    <ClInclude Include="..\src\ui\imconfig.h" />
+    <ClInclude Include="..\src\ui\imgui.h" />
     <ClInclude Include="..\submodules\imgui\imconfig.h" />
     <ClInclude Include="..\submodules\imgui\imgui.h" />
     <ClInclude Include="..\submodules\imgui\imgui_internal.h" />

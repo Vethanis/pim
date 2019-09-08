@@ -1,157 +1,126 @@
 #include "input_system.h"
 
 #include <sokol/sokol_app.h>
-#include <inttypes.h>
-#include <imgui/imgui.h>
+#include "ui/imgui.h"
 
+#include "common/macro.h"
 #include "containers/array.h"
 #include "containers/dict.h"
 #include "systems/time_system.h"
 
-#include "common/reflection.h"
+// ----------------------------------------------------------------------------
+
+using ListenerKey = u16;
+
+struct ListenerValue
+{
+    InputListener listener;
+    f32 value;
+};
+
+using ListenerStore = Dict<ListenerKey, ListenerValue>;
+
+static ListenerStore ms_stores[InputChannel_Count];
+static constexpr cstrc ms_storeNames[] =
+{
+    "Keyboard",
+    "MouseButton",
+    "MouseAxis",
+};
+
+// ----------------------------------------------------------------------------
+
+static ListenerKey EncodeKey(u16 id, u8 mods)
+{
+    return (id << 4u) | (mods & InputMod_Mask);
+}
+
+static void DecodeKey(ListenerKey key, u16& id, u8& mods)
+{
+    id = key >> 4u;
+    mods = key & InputMod_Mask;
+}
+
+static void Notify(InputChannel channel, u16 id, u8 mods, f32 value)
+{
+    ListenerValue* pValue = ms_stores[channel].get(EncodeKey(id, mods));
+    if (pValue)
+    {
+        pValue->value = value;
+        pValue->listener(TimeSystem::Now(), value);
+    }
+}
+
+static void OnKey(const sapp_event* evt)
+{
+    if (evt->key_repeat)
+    {
+        return;
+    }
+    f32 value = (evt->type == SAPP_EVENTTYPE_KEY_DOWN) ? 1.0f : 0.0f;
+    Notify(InputChannel_Keyboard, evt->key_code, evt->modifiers, value);
+}
+
+static void OnMouseButton(const sapp_event* evt)
+{
+    if (evt->key_repeat)
+    {
+        return;
+    }
+    f32 value = (evt->type == SAPP_EVENTTYPE_MOUSE_DOWN) ? 1.0f : 0.0f;
+    Notify(InputChannel_MouseButton, evt->mouse_button, evt->modifiers, value);
+}
+
+static void OnMouseMove(const sapp_event* evt)
+{
+    Notify(InputChannel_MouseAxis, MouseAxis_X, evt->modifiers, evt->mouse_x);
+    Notify(InputChannel_MouseAxis, MouseAxis_Y, evt->modifiers, evt->mouse_y);
+}
+
+static void OnMouseScroll(const sapp_event* evt)
+{
+    Notify(InputChannel_MouseAxis, MouseAxis_Z, evt->modifiers, evt->scroll_x);
+    Notify(InputChannel_MouseAxis, MouseAxis_W, evt->modifiers, evt->scroll_y);
+}
+
+// ----------------------------------------------------------------------------
 
 namespace InputSystem
 {
-    static Dict<u16, ButtonChannel*> ms_buttonChannels;
-    static Dict<u16, AxisChannel*> ms_axisChannels;
-    static Dict<u32, u16> ms_buttonBinds;
-    static Dict<u32, u16> ms_axisBinds;
-
-    static u32 ToDictKey(u16 device, u16 id)
+    void Listen(InputListenerDesc desc)
     {
-        u32 y = device;
-        y <<= 16;
-        y |= id;
-        return y;
-    }
-
-    static void OnKey(const sapp_event* evt)
-    {
-        if (evt->key_repeat)
+        u32 id = EncodeKey(desc.id, desc.modifiers);
+        if (desc.listener)
         {
-            return;
+            ms_stores[desc.channel][id] = { desc.listener, 0.0f };
         }
-
-        const u16* pId = ms_buttonBinds.get(ToDictKey(BD_Key, evt->key_code));
-        if (pId)
+        else
         {
-            ButtonChannel** ppChannel = ms_buttonChannels.get(*pId);
-            if (ppChannel && *ppChannel)
-            {
-                ButtonChannel* pChannel = *ppChannel;
-                u32 i = pChannel->ring.Overwrite();
-                pChannel->ticks[i] = TimeSystem::Now();
-                pChannel->down[i] = evt->type == SAPP_EVENTTYPE_KEY_DOWN;
-            }
+            ms_stores[desc.channel].remove(id);
         }
-
-        if (evt->key_code == SAPP_KEYCODE_ESCAPE)
-        {
-            sapp_request_quit();
-        }
-    }
-    static void OnMouseButton(const sapp_event* evt)
-    {
-        if (evt->key_repeat)
-        {
-            return;
-        }
-        const u16* pId = ms_buttonBinds.get(ToDictKey(BD_Mouse, evt->mouse_button));
-        if (pId)
-        {
-            ButtonChannel** ppChannel = ms_buttonChannels.get(*pId);
-            if (ppChannel && *ppChannel)
-            {
-                ButtonChannel* pChannel = *ppChannel;
-                u32 i = pChannel->ring.Overwrite();
-                pChannel->ticks[i] = TimeSystem::Now();
-                pChannel->down[i] = evt->type == SAPP_EVENTTYPE_MOUSE_DOWN;
-            }
-        }
-    }
-    static void OnMouseMove(const sapp_event* evt)
-    {
-        const u16* pId = ms_axisBinds.get(ToDictKey(AD_Mouse, 0));
-        if (pId)
-        {
-            AxisChannel** ppChannel = ms_axisChannels.get(*pId);
-            if (ppChannel && *ppChannel)
-            {
-                AxisChannel* pChannel = *ppChannel;
-                u32 i = pChannel->ring.Overwrite();
-                pChannel->positions[i] = { evt->mouse_x, evt->mouse_y };
-                pChannel->ticks[i] = TimeSystem::Now();
-            }
-        }
-    }
-    static void OnMouseScroll(const sapp_event* evt)
-    {
-        const u16* pId = ms_axisBinds.get(ToDictKey(AD_Mouse, 1));
-        if (pId)
-        {
-            AxisChannel** ppChannel = ms_axisChannels.get(*pId);
-            if (ppChannel && *ppChannel)
-            {
-                AxisChannel* pChannel = *ppChannel;
-                u32 i = pChannel->ring.Overwrite();
-                pChannel->positions[i] = { evt->scroll_x, evt->scroll_y };
-                pChannel->ticks[i] = TimeSystem::Now();
-            }
-        }
-    }
-
-    void Bind(ButtonDevice dev, u16 button, u16 channel)
-    {
-        ms_buttonBinds[ToDictKey(dev, button)] = channel;
-    }
-    void Unbind(ButtonDevice dev, u16 button)
-    {
-        ms_buttonBinds.remove(ToDictKey(dev, button));
-    }
-    void Bind(AxisDevice dev, u16 axis, u16 channel)
-    {
-        ms_axisBinds[ToDictKey(dev, axis)] = channel;
-    }
-    void Unbind(AxisDevice dev, u16 axis)
-    {
-        ms_axisBinds.remove(ToDictKey(dev, axis));
-    }
-
-    void Register(u16 id, ButtonChannel& ch)
-    {
-        ms_buttonChannels[id] = &ch;
-    }
-    void UnregisterButton(u16 id)
-    {
-        ms_buttonChannels.remove(id);
-    }
-    void Register(u16 id, AxisChannel& ch)
-    {
-        ms_axisChannels[id] = &ch;
-    }
-    void UnregisterAxis(u16 id)
-    {
-        ms_axisChannels.remove(id);
     }
 
     void Init()
     {
-        ms_buttonChannels.init(Allocator_Malloc);
-        ms_axisChannels.init(Allocator_Malloc);
-        ms_buttonBinds.init(Allocator_Malloc);
-        ms_axisBinds.init(Allocator_Malloc);
+        for (auto& store : ms_stores)
+        {
+            store.init(Allocator_Malloc);
+        }
     }
+
     void Update()
     {
 
     }
+
     void Shutdown()
     {
-        ms_buttonChannels.reset();
-        ms_axisChannels.reset();
-        ms_buttonBinds.reset();
-        ms_axisBinds.reset();
+        for (auto& store : ms_stores)
+        {
+            store.reset();
+        }
     }
+
     void OnEvent(const sapp_event* evt, bool keyboardCaptured)
     {
         if (keyboardCaptured) { return; }
@@ -176,34 +145,54 @@ namespace InputSystem
             break;
         }
     }
+
     void Visualize()
     {
         ImGui::SetNextWindowSize({ 400.0f, 400.0f }, ImGuiCond_Once);
         ImGui::Begin("CtrlSystem");
         {
-            if (ImGui::CollapsingHeader("Keys"))
+            for (u32 i = 0; i < CountOf(ms_stores); ++i)
             {
-                ImGui::Columns(3);
-                ImGui::Text("Tick"); ImGui::NextColumn();
-                ImGui::Text("Key Code"); ImGui::NextColumn();
-                ImGui::Text("State"); ImGui::NextColumn();
-                ImGui::Separator();
+                if (ImGui::CollapsingHeader(ms_storeNames[i]))
+                {
+                    const i32 numListeners = ms_stores[i].size();
+                    const ListenerKey* keys = ms_stores[i].m_keys.begin();
+                    const ListenerValue* values = ms_stores[i].m_values.begin();
 
-                ImGui::Columns();
-            }
+                    ImGui::Columns(4, "keylisteners");
+                    ImGui::Text("Id"); ImGui::NextColumn();
+                    ImGui::Text("Modifiers"); ImGui::NextColumn();
+                    ImGui::Text("Listener"); ImGui::NextColumn();
+                    ImGui::Text("Value"); ImGui::NextColumn();
+                    ImGui::Separator();
 
-            const RfType* info = &RfGet<RfTest*>();
-            ImGui::Text("%s %u %u", info->name, info->size, info->align);
-            if (info->deref)
-            {
-                info = info->deref;
-                ImGui::Text("%s %u %u", info->name, info->size, info->align);
-            }
-            for (const RfMember& member : info->members)
-            {
-                ImGui::Text("%s::%s %s at %u", info->name, member.name, member.value->name, member.offset);
+                    for (i32 j = 0; j < numListeners; ++j)
+                    {
+                        u16 id;
+                        u8 mods;
+                        DecodeKey(keys[j], id, mods);
+                        ImGui::Text("%u", id); ImGui::NextColumn();
+                        ImGui::Text("%x", mods); ImGui::NextColumn();
+                        ImGui::Text("%p", values[j].listener); ImGui::NextColumn();
+                        ImGui::Text("%g", values[j].value); ImGui::NextColumn();
+                    }
+
+                    ImGui::Columns();
+                }
             }
         }
         ImGui::End();
+    }
+
+    System GetSystem()
+    {
+        System sys;
+        sys.Init = Init;
+        sys.Update = Update;
+        sys.Shutdown = Shutdown;
+        sys.Visualize = Visualize;
+        sys.enabled = true;
+        sys.visualizing = false;
+        return sys;
     }
 };
