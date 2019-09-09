@@ -20,3 +20,6 @@ using f32 = float;
 
 using cstr = const char*;
 using cstrc = const char * const;
+
+// win32's DWORD
+using ul32 = unsigned long;

@@ -15,9 +15,9 @@
     <ClCompile Include="..\src\common\io.cpp" />
     <ClCompile Include="..\src\common\random.cpp" />
     <ClCompile Include="..\src\main.cpp" />
-    <ClCompile Include="..\src\os\fs_win32.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
     <ClCompile Include="..\src\os\thread_win32.cpp" />
+    <ClCompile Include="..\src\quake\packfile.cpp" />
     <ClCompile Include="..\src\sokol\sokol_app.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
     <ClCompile Include="..\src\sokol\sokol_imgui.cpp" />
@@ -35,6 +35,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\allocator.h" />
+    <ClInclude Include="..\src\common\hashstring.h" />
     <ClInclude Include="..\src\common\io.h" />
     <ClInclude Include="..\src\common\hash.h" />
     <ClInclude Include="..\src\common\int_types.h" />
@@ -43,12 +44,12 @@
     <ClInclude Include="..\src\common\platform.h" />
     <ClInclude Include="..\src\common\random.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
+    <ClInclude Include="..\src\common\tolower.h" />
     <ClInclude Include="..\src\common\vec_types.h" />
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\dict.h" />
     <ClInclude Include="..\src\containers\ring.h" />
     <ClInclude Include="..\src\containers\slice.h" />
-    <ClInclude Include="..\src\os\fs.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\os\thread.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />

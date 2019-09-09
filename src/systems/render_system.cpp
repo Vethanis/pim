@@ -9,8 +9,7 @@
 #include "common/stringutil.h"
 #include "containers/array.h"
 #include "systems/time_system.h"
-#include "os/fs.h"
-
+#include "common/io.h"
 
 namespace RenderSystem
 {
@@ -30,17 +29,12 @@ namespace RenderSystem
 
     static void LoadShaders()
     {
-        Fs::Results results;
-        results.Init(Allocator_Malloc);
-        Fs::Find(ROOT_DIR"/src/shaders/*", results);
-        for (const Fs::Info& file : results.files)
+        IO::Finder fdr = {};
+        IO::FindData fdata = {};
+        while (IO::Find(fdr, RootDir"/src/shaders/*.hlsl", fdata))
         {
-            if (EndsWithStr(file.extension, ".hlsl"))
-            {
-                printf("Loading shader %s\n", file.path);
-            }
+            printf("Loading shader %s\n", fdata.name);
         }
-        results.Reset();
     }
 
     void Init()

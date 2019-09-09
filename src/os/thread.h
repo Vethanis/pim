@@ -4,7 +4,7 @@
 
 namespace OS
 {
-    using ThreadFn = u32(*)(void* pData);
+    using ThreadFn = ul32(*)(void* pData);
 
     struct Semaphore
     {

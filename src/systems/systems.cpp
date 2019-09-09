@@ -9,8 +9,12 @@
 
 #include "common/macro.h"
 
+#include "quake/packfile.h"
+
 namespace Systems
 {
+    static Quake::SearchPaths ms_paths;
+
     static System ms_systems[] =
     {
         TimeSystem::GetSystem(),
@@ -21,6 +25,10 @@ namespace Systems
 
     void Init()
     {
+        Array<Quake::DPackFile> arena = {};
+        Quake::AddGameDirectory(PacksDir"/id1", ms_paths, arena);
+        arena.reset();
+
         for (const System& system : ms_systems)
         {
             if (system.enabled)

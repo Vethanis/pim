@@ -63,7 +63,7 @@ namespace OS
         HANDLE hdl = ::CreateThread(
             0,
             0,
-            (LPTHREAD_START_ROUTINE)fn,
+            fn,
             data,
             0,
             &id);

@@ -103,9 +103,6 @@
     <ClCompile Include="..\src\common\random.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\os\fs_win32.cpp">
-      <Filter>Source Files\os</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\os\socket_win32.cpp">
       <Filter>Source Files\os</Filter>
     </ClCompile>
@@ -114,6 +111,9 @@
     </ClCompile>
     <ClCompile Include="..\src\common\io.cpp">
       <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\quake\packfile.cpp">
+      <Filter>Source Files\quake</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -279,9 +279,6 @@
     <ClInclude Include="..\src\common\random.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\os\fs.h">
-      <Filter>Source Files\os</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\os\socket.h">
       <Filter>Source Files\os</Filter>
     </ClInclude>
@@ -314,6 +311,12 @@
     </ClInclude>
     <ClInclude Include="..\src\ui\imconfig.h">
       <Filter>Source Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\hashstring.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\tolower.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

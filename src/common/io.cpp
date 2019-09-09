@@ -6,102 +6,122 @@
 #include <sys/stat.h>
 #include <io.h>
 #include <stdio.h>
-#include <errno.h>
+#include <stdlib.h>
+#include <direct.h>
 
 #include "common/io.h"
 #include "common/macro.h"
 
 namespace IO
 {
+    static thread_local i32 ms_errno;
+
+    i32 GetErrNo()
+    {
+        return ms_errno;
+    }
+    void SetErrNo(i32 value)
+    {
+        ms_errno = value;
+    }
+    void ClearErrNo()
+    {
+        ms_errno = 0;
+    }
+
+    static i32 TestErrNo(i32 x)
+    {
+        if (x < 0)
+        {
+            ms_errno = 1;
+        }
+        return x;
+    }
+
+    // ------------------------------------------------------------------------
+
     FD Create(cstr filename)
     {
-        i32 fd = _creat(filename, _S_IREAD | _S_IWRITE);
-        return { fd };
+        return { TestErrNo(_creat(filename, _S_IREAD | _S_IWRITE)) };
     }
     FD Open(cstr filename, OFlagBits flags)
     {
-        i32 fd = _open(filename, (i32)flags.bits, _S_IREAD | _S_IWRITE);
-        return { fd };
+        return { TestErrNo(_open(filename, (i32)flags.bits, _S_IREAD | _S_IWRITE)) };
     }
     bool Close(FD& hdl)
     {
-        i32 rval = -1;
-        if (hdl.fd > 2)
-        {
-            rval = _close(hdl.fd);
-            DebugAssert(!rval);
-        }
+        i32 fd = hdl.fd;
         hdl.fd = -1;
-        return !rval;
+        // don't try to close invalid, stdin, stdout, or stderr
+        if (fd > 2)
+        {
+            return !TestErrNo(_close(fd));
+        }
+        return false;
     }
     i32 Read(FD hdl, void* dst, i32 size)
     {
-        DebugAssert(IsValid(hdl));
-        DebugAssert(dst);
-        i32 rval = _read(hdl.fd, dst, size);
-        DebugAssert(rval >= 0);
-        return rval;
+        return TestErrNo(_read(hdl.fd, dst, size));
     }
     i32 Write(FD hdl, const void* src, i32 size)
     {
-        DebugAssert(IsValid(hdl));
-        DebugAssert(src);
-        i32 rval = _write(hdl.fd, src, size);
-        DebugAssert(rval >= 0);
-        return rval;
+        return TestErrNo(_write(hdl.fd, src, size));
+    }
+    i32 Seek(FD hdl, i32 offset)
+    {
+        return TestErrNo(_lseek(hdl.fd, offset, SEEK_SET));
+    }
+    i32 Tell(FD hdl)
+    {
+        return TestErrNo(_tell(hdl.fd));
     }
     bool Pipe(FD& p0, FD& p1, i32 bufferSize)
     {
         i32 fds[2] = { -1, -1 };
         i32 rval = _pipe(fds, bufferSize, _O_BINARY);
-        DebugAssert(!rval);
         p0.fd = fds[0];
         p1.fd = fds[1];
-        return !rval;
+        return !TestErrNo(rval);
     }
     bool Stat(FD hdl, Status& status)
     {
         status = {};
-        i32 rval = _fstat64(hdl.fd, (struct _stat64*)&status);
-        DebugAssert(!rval);
-        return !rval;
+        return !TestErrNo(_fstat64(hdl.fd, (struct _stat64*)&status));
     }
 
     // ------------------------------------------------------------------------
 
     Writer::State Writer::Start(FD hdl, const void* src, i32 size)
     {
-        DebugAssert(IsValid(hdl));
-        DebugAssert(src);
-        DebugAssert(size > 0);
-        DebugAssert(m_state == State::Idle);
+        Check(m_state == State::Idle, return SetErr());
 
         m_hdl = hdl;
         m_src = (const u8*)src;
         m_size = size;
-        m_state = IsValid(hdl) ? State::Writing : State::Error;
 
+        Check(IsOpen(hdl), return SetErr());
+        Check(src, return SetErr());
+        Check(size > 0, return SetErr());
+
+        m_state = State::Writing;
         return m_state;
     }
     Writer::State Writer::Update()
     {
-        DebugAssert(m_state == State::Writing);
+        Check(m_state == State::Writing, return SetErr());
 
         i32 wrote = Write(m_hdl, m_src, Min(WriteSize, m_size));
-        if (wrote < 0)
+        CheckE(return SetErr());
+
+        m_src += wrote;
+        m_size -= wrote;
+        if (m_size <= 0)
         {
-            m_state = State::Error;
+            Close(m_hdl);
+            CheckE(return SetErr());
+            m_state = State::Idle;
         }
-        else
-        {
-            m_src += wrote;
-            m_size -= wrote;
-            if (m_size <= 0)
-            {
-                Close(m_hdl);
-                m_state = State::Idle;
-            }
-        }
+
         return m_state;
     }
 
@@ -109,33 +129,33 @@ namespace IO
 
     Reader::State Reader::Start(FD hdl)
     {
-        DebugAssert(IsValid(hdl));
-        DebugAssert(m_state == State::Idle);
+        Check(m_state == State::Idle, return SetErr());
 
         m_hdl = hdl;
-        m_state = IsValid(hdl) ? State::Reading : State::Error;
+        Check(IsOpen(hdl), return SetErr());
 
+        m_state = State::Reading;
         return m_state;
     }
     Reader::State Reader::Update(Slice<u8>& result)
     {
-        DebugAssert(m_state == State::Reading);
+        Check(m_state == State::Reading, return SetErr());
 
         result = { 0, 0 };
         i32 bytesRead = Read(m_hdl, m_dst, ReadSize);
+        CheckE(return SetErr());
+
         if (bytesRead > 0)
         {
             result = { m_dst, bytesRead };
         }
-        else if (bytesRead == 0)
-        {
-            Close(m_hdl);
-            m_state = State::Idle;
-        }
         else
         {
-            m_state = State::Error;
+            Close(m_hdl);
+            CheckE(return SetErr());
+            m_state = State::Idle;
         }
+
         return m_state;
     }
 
@@ -143,109 +163,180 @@ namespace IO
 
     Stream FOpen(cstr filename, cstr mode)
     {
-        DebugAssert(filename);
-        DebugAssert(mode);
         FILE* ptr = fopen(filename, mode);
+        if (!ptr) { SetErrNo(1); }
         return { ptr };
     }
     bool FClose(Stream& stream)
     {
-        i32 rval = -1;
-        if (IsOpen(stream))
-        {
-            rval = fclose((FILE*)stream.ptr);
-            DebugAssert(!rval);
-        }
+        FILE* file = (FILE*)stream.ptr;
         stream.ptr = 0;
-        return !rval;
+        if (file)
+        {
+            return !TestErrNo(fclose(file));
+        }
+        return false;
     }
     bool FFlush(Stream stream)
     {
-        DebugAssert(IsOpen(stream));
-        i32 rval = fflush((FILE*)stream.ptr);
-        DebugAssert(!rval);
-        return !rval;
+        return !TestErrNo(fflush((FILE*)stream.ptr));
     }
     usize FRead(Stream stream, void* dst, i32 size)
     {
-        DebugAssert(IsOpen(stream));
-        DebugAssert(dst);
-        usize rval = fread(dst, size, 1, (FILE*)stream.ptr);
-        DebugEAssert();
-        return rval;
+        return fread(dst, size, 1, (FILE*)stream.ptr);
     }
     usize FWrite(Stream stream, const void* src, i32 size)
     {
-        DebugAssert(IsOpen(stream));
-        DebugAssert(src);
-        usize rval = fwrite(src, size, 1, (FILE*)stream.ptr);
-        DebugEAssert();
-        return rval;
+        return fwrite(src, size, 1, (FILE*)stream.ptr);
     }
     char* FGets(Stream stream, char* dst, i32 size)
     {
-        DebugAssert(IsOpen(stream));
-        DebugAssert(dst);
-        char* rval = fgets(dst, size, (FILE*)stream.ptr);
-        DebugEAssert();
-        return rval;
+        char* ptr = fgets(dst, size, (FILE*)stream.ptr);
+        if (!ptr) { SetErrNo(1); }
+        return ptr;
     }
     i32 FPuts(Stream stream, cstr src)
     {
-        i32 rval = fputs(src, (FILE*)stream.ptr);
-        DebugEAssert();
-        return rval;
+        return TestErrNo(fputs(src, (FILE*)stream.ptr));
     }
     FD FileNo(Stream stream)
     {
-        DebugAssert(IsOpen(stream));
-        i32 fd = _fileno((FILE*)stream.ptr);
-        FD hdl = { fd };
-        DebugAssert(IsValid(hdl));
-        return hdl;
+        return { TestErrNo(_fileno((FILE*)stream.ptr)) };
     }
     Stream FDOpen(FD& hdl, cstr mode)
     {
-        DebugAssert(IsValid(hdl));
         FILE* ptr = _fdopen(hdl.fd, mode);
-        DebugAssert(ptr);
         if (ptr)
         {
             hdl.fd = -1;
+        }
+        else
+        {
+            SetErrNo(1);
         }
         return { ptr };
     }
     bool FSeek(Stream stream, i32 offset)
     {
-        DebugAssert(IsOpen(stream));
-        i32 rval = fseek((FILE*)stream.ptr, offset, SEEK_SET);
-        DebugAssert(!rval);
-        return !rval;
+        return !TestErrNo(fseek((FILE*)stream.ptr, offset, SEEK_SET));
     }
     i32 FTell(Stream stream)
     {
-        DebugAssert(IsOpen(stream));
-        i32 rval = ftell((FILE*)stream.ptr);
-        DebugAssert(rval != -1);
-        return rval;
+        return TestErrNo(ftell((FILE*)stream.ptr));
     }
     Stream POpen(cstr cmd, cstr mode)
     {
-        DebugAssert(cmd);
-        DebugAssert(mode);
-        FILE* ptr = _popen(cmd, mode);
-        DebugAssert(ptr);
-        return { ptr };
+        FILE* file = _popen(cmd, mode);
+        if (!file) { SetErrNo(1); }
+        return { file };
     }
     bool PClose(Stream& stream)
     {
-        i32 rval = -1;
-        if (IsOpen(stream))
-        {
-            rval = _pclose((FILE*)stream.ptr);
-            DebugAssert(!rval);
-        }
+        FILE* file = (FILE*)stream.ptr;
         stream.ptr = 0;
-        return !rval;
+        if (file)
+        {
+            return !TestErrNo(_pclose(file));
+        }
+        return false;
     }
+
+    // ------------------------------------------------------------------------
+
+    bool ChDrive(i32 drive)
+    {
+        return !TestErrNo(_chdrive(drive));
+    }
+    i32 GetDrive()
+    {
+        return TestErrNo(_getdrive());
+    }
+    u32 GetDrivesMask()
+    {
+        return _getdrives();
+    }
+    char* GetCwd(char* dst, i32 size)
+    {
+        char* ptr = _getcwd(dst, size);
+        if (!ptr) { SetErrNo(1); }
+        return ptr;
+    }
+    char* GetDrCwd(i32 drive, char* dst, i32 size)
+    {
+        char* ptr = _getdcwd(drive, dst, size);
+        if (!ptr) { SetErrNo(1); }
+        return ptr;
+    }
+    bool ChDir(cstr path)
+    {
+        return !TestErrNo(_chdir(path));
+    }
+    bool MkDir(cstr path)
+    {
+        return !TestErrNo(_mkdir(path));
+    }
+    bool RmDir(cstr path)
+    {
+        return !TestErrNo(_rmdir(path));
+    }
+    bool ChMod(cstr path, u32 flags)
+    {
+        return !TestErrNo(_chmod(path, (i32)flags));
+    }
+
+    // ------------------------------------------------------------------------
+
+    bool SearchEnv(cstr filename, cstr varname, char(&dst)[260])
+    {
+        dst[0] = 0;
+        _searchenv(filename, varname, dst);
+        bool found = dst[0] != 0;
+        if (!found) { SetErrNo(1); }
+        return found;
+    }
+    cstr GetEnv(cstr varname)
+    {
+        cstr ptr = getenv(varname);
+        if (!ptr) { SetErrNo(1); }
+        return ptr;
+    }
+    bool PutEnv(cstr varname, cstr value)
+    {
+        char buf[260];
+        i32 rval = sprintf_s(buf, "%s=%s", varname, value ? value : "");
+        TestErrNo(rval);
+        return !TestErrNo(_putenv(buf));
+    }
+
+    // ------------------------------------------------------------------------
+
+    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/findfirst-functions
+    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/findnext-functions
+    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/findclose
+
+    bool Find(Finder& fdr, cstrc spec, FindData& data)
+    {
+        switch (fdr.state)
+        {
+        case 0:
+            fdr.hdl = _findfirst64(spec, (struct __finddata64_t*)&data);
+            fdr.state = IsOpen(fdr) ? 1 : 0;
+            return IsOpen(fdr);
+        case 1:
+            if (!_findnext64(fdr.hdl, (struct __finddata64_t*)&data))
+            {
+                return true;
+            }
+            TestErrNo(_findclose(fdr.hdl));
+            fdr.hdl = -1;
+            fdr.state = 0;
+            return false;
+        }
+        fdr.hdl = -1;
+        fdr.state = 0;
+        return false;
+    }
+
+    // ------------------------------------------------------------------------
+
 }; // IO

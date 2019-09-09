@@ -1,13 +1,8 @@
 #pragma once
 
+#include "common/macro.h"
 #include "common/int_types.h"
-
-inline char ToLower(char c)
-{
-    const char asLower = 'a' + (c - 'A');
-    const bool isUpper = (c >= 'A') & (c <= 'Z');
-    return isUpper ? asLower : c;
-}
+#include "common/tolower.h"
 
 inline void ToLower(char* const dst)
 {
