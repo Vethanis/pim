@@ -10,10 +10,158 @@
 #include "containers/array.h"
 #include "systems/time_system.h"
 #include "common/io.h"
+#include "common/hashstring.h"
+#include "common/text.h"
+
+namespace ShaderSystem
+{
+    enum ShaderType
+    {
+        ShaderType_Pixel = 0,
+        ShaderType_Vertex,
+        ShaderType_Geometry,
+        ShaderType_Hull,
+        ShaderType_Domain,
+        ShaderType_Compute,
+
+        ShaderType_Count
+    };
+
+    static cstrc ShaderTypeTags[] =
+    {
+        "_ps.hlsl",
+        "_vs.hlsl",
+        "_gs.hlsl",
+        "_hs.hlsl",
+        "_ds.hlsl",
+        "_cs.hlsl",
+    };
+
+    static cstrc ProfileStrs[] =
+    {
+        "ps_6_3",
+        "vs_6_3",
+        "gs_6_3",
+        "hs_6_3",
+        "ds_6_3",
+        "cs_6_3",
+    };
+
+    using Bytecode = Slice<u8>;
+
+    struct Shaders
+    {
+        Array<HashString> names;
+        Array<ShaderType> types;
+        Array<Bytecode> bytecode;
+    };
+
+    DeclareNS(Shaders);
+
+    static Shaders ms_shaders;
+
+    static ShaderType GetShaderType(cstr shaderName)
+    {
+        for (i32 i = 0; i < CountOf(ShaderTypeTags); ++i)
+        {
+            if (StrIStr(shaderName, ShaderTypeTags[i]))
+            {
+                return (ShaderType)i;
+            }
+        }
+        return ShaderType_Count;
+    }
+
+    static void Init()
+    {
+        char cmd[1024];
+        char cwd[PIM_MAX_PATH];
+        char tmp[PIM_MAX_PATH];
+
+        cmd[0] = 0;
+        cwd[0] = 0;
+        tmp[0] = 0;
+
+        cwd[0] = 0;
+        IO::GetCwd(cwd, CountOf(cwd));
+
+        tmp[0] = 0;
+        SPrintf(tmp, "%s/build", cwd);
+        FixPath(tmp);
+        IO::MkDir(tmp);
+
+        tmp[0] = 0;
+        SPrintf(tmp, "%s/build/shaders", cwd);
+        FixPath(tmp);
+        IO::MkDir(tmp);
+
+        IO::Finder finder = {};
+        IO::FindData findData = {};
+        while (IO::Find(finder, findData, "src/shaders/*.hlsl"))
+        {
+            const ShaderType type = GetShaderType(findData.name);
+            if (type == ShaderType_Count)
+            {
+                continue;
+            }
+
+            ms_shaders.names.grow() = HashString(NS_Shaders, findData.name);
+            ms_shaders.types.grow() = type;
+
+            cmd[0] = 0;
+            SPrintf(cmd, " %s/tools/dxc/bin/dxc.exe -WX", cwd);
+            StrCatf(cmd, " -Fo %s/build/shaders/%s", cwd, findData.name);
+            StrIRep(cmd, ".hlsl", ".cso");
+            StrCatf(cmd, " %s/src/shaders/%s", cwd, findData.name);
+            StrCatf(cmd, " -I %s/src", cwd);
+            StrCatf(cmd, " -T %s", ProfileStrs[type]);
+            FixPath(cmd);
+
+            puts(cmd);
+
+            IO::Stream dxcStdout = IO::POpen(cmd, "rb");
+            if (IO::IsOpen(dxcStdout))
+            {
+                while (IO::FRead(dxcStdout, tmp, CountOf(tmp)))
+                {
+                    printf("%s", tmp);
+                }
+                IO::PClose(dxcStdout);
+            }
+
+            tmp[0] = 0;
+            SPrintf(tmp, "%s/build/shaders/%s", cwd, findData.name);
+            StrIRep(tmp, ".hlsl", ".cso");
+            FixPath(tmp);
+
+            Slice<u8> dxil = ms_shaders.bytecode.grow();
+
+            IO::Stream cso = IO::FOpen(tmp, "rb");
+            if (IO::IsOpen(cso))
+            {
+                const usize dxilSize = IO::FSize(cso);
+                dxil = Allocator::Alloc<u8>(dxilSize);
+                isize got = IO::FRead(cso, dxil.begin(), dxilSize);
+                IO::FClose(cso);
+                DebugAssert(got == dxilSize);
+            }
+        }
+    }
+    static void Shutdown()
+    {
+        for (Bytecode& bc : ms_shaders.bytecode)
+        {
+            Allocator::Free(bc);
+        }
+        ms_shaders.bytecode.reset();
+        ms_shaders.names.reset();
+        ms_shaders.types.reset();
+    }
+};
 
 namespace RenderSystem
 {
-    constexpr sg_pass_action ms_clear = 
+    constexpr sg_pass_action ms_clear =
     {
         0,
         {
@@ -26,16 +174,6 @@ namespace RenderSystem
 
     static i32 ms_width;
     static i32 ms_height;
-
-    static void LoadShaders()
-    {
-        IO::Finder fdr = {};
-        IO::FindData fdata = {};
-        while (IO::Find(fdr, RootDir"/src/shaders/*.hlsl", fdata))
-        {
-            printf("Loading shader %s\n", fdata.name);
-        }
-    }
 
     void Init()
     {
@@ -57,7 +195,7 @@ namespace RenderSystem
         ms_width = sapp_width();
         ms_height = sapp_height();
 
-        LoadShaders();
+        ShaderSystem::Init();
     }
 
     void Update()
@@ -71,6 +209,8 @@ namespace RenderSystem
     {
         simgui_shutdown();
         sg_shutdown();
+
+        ShaderSystem::Shutdown();
     }
 
     void FrameEnd()

@@ -15,10 +15,6 @@ namespace Quake
     struct PackTag {};
     struct SearchPathTag {};
 
-    using PackFileName = HashString<PackFileTag>;
-    using PackName = HashString<PackTag>;
-    using SearchPathName = HashString<SearchPathTag>;
-
     // dpackheader_t
     // common.c 1231
     // must match exactly for binary compatibility
@@ -40,14 +36,14 @@ namespace Quake
     // several packfile_t's (chunk + name) inside a pack_t (.pak)
     struct PackFiles
     {
-        Array<PackFileName> names;
+        Array<HashString> names;
         Array<IO::Chunk> chunks;
     };
 
     // several pack_t's (.pak) inside a searchpath_t (directory)
     struct Packs
     {
-        Array<PackName> names;
+        Array<HashString> names;
         Array<IO::FD> handles;
         Array<PackFiles> files;
     };
@@ -55,7 +51,7 @@ namespace Quake
     // several searchpath_t's (directories) holding Packs
     struct SearchPaths
     {
-        Array<SearchPathName> names;
+        Array<HashString> names;
         Array<Packs> packs;
     };
 

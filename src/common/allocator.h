@@ -1,37 +1,49 @@
 #pragma once
 
 #include "common/int_types.h"
+#include "containers/slice.h"
 
-enum AllocatorType : i32
-{
-    Allocator_Malloc = 0,
-    Allocator_Linear,
-    Allocator_Stack,
-
-    Allocator_Count
-};
+using Allocation = Slice<u8>;
 
 namespace Allocator
 {
-    void* _Alloc(AllocatorType type, usize bytes);
-    void* _Realloc(AllocatorType type, void* pPrev, usize prevBytes, usize newBytes);
-    void _Free(AllocatorType type, void* pPrev);
+    Allocation _Alloc(usize want);
+    Allocation _Realloc(Allocation& prev, usize want);
+    void _Free(Allocation& prev);
 
     template<typename T>
-    inline T* Alloc(AllocatorType type, i32 count)
+    inline Slice<T> Alloc(usize count)
     {
-        return (T*)_Alloc(type, sizeof(T) * count);
+        return _Alloc(sizeof(T) * count).cast<T>();
     }
 
     template<typename T>
-    inline T* Realloc(AllocatorType type, T* pPrev, i32 prevCount, i32 newCount)
+    inline Slice<T> Realloc(Slice<T>& prev, usize count)
     {
-        return (T*)_Realloc(type, (void*)pPrev, sizeof(T) * prevCount, sizeof(T) * newCount);
+        Allocation prevAlloc = prev.cast<u8>();
+        Allocation newAlloc = _Realloc(prevAlloc, sizeof(T) * count);
+        prev = prevAlloc.cast<T>();
+        return newAlloc.cast<T>();
     }
 
     template<typename T>
-    inline void Free(AllocatorType type, T* pPrev)
+    inline void Free(Slice<T>& prev)
     {
-        _Free(type, (void*)pPrev);
+        Allocation prevAlloc = prev.cast<u8>();
+        _Free(prevAlloc);
+        prev = prevAlloc.cast<T>();
+    }
+
+    template<typename T>
+    inline Slice<T> Reserve(Slice<T>& prev, usize count)
+    {
+        const usize cur = prev.size();
+        if (count > cur)
+        {
+            const usize next = cur ? cur * 2 : 16;
+            const usize chosen = next > count ? next : count;
+            return Realloc(prev, chosen);
+        }
+        return prev;
     }
 };

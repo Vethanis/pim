@@ -12,8 +12,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\common\allocator.cpp" />
+    <ClCompile Include="..\src\common\hashstring.cpp" />
     <ClCompile Include="..\src\common\io.cpp" />
     <ClCompile Include="..\src\common\random.cpp" />
+    <ClCompile Include="..\src\common\stringutil.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
     <ClCompile Include="..\src\os\thread_win32.cpp" />
@@ -26,11 +28,13 @@
     <ClCompile Include="..\src\systems\input_system.cpp" />
     <ClCompile Include="..\src\systems\render_system.cpp" />
     <ClCompile Include="..\src\systems\systems.cpp" />
+    <ClCompile Include="..\src\systems\task_system.cpp" />
     <ClCompile Include="..\src\systems\time_system.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="..\submodules\miniz\miniz.c" />
     <ClCompile Include="..\submodules\stb\stb_vorbis.c" />
   </ItemGroup>
   <ItemGroup>
@@ -43,8 +47,9 @@
     <ClInclude Include="..\src\common\mat_types.h" />
     <ClInclude Include="..\src\common\platform.h" />
     <ClInclude Include="..\src\common\random.h" />
+    <ClInclude Include="..\src\common\shift.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
-    <ClInclude Include="..\src\common\tolower.h" />
+    <ClInclude Include="..\src\common\text.h" />
     <ClInclude Include="..\src\common\vec_types.h" />
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\dict.h" />
@@ -54,11 +59,17 @@
     <ClInclude Include="..\src\os\thread.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
     <ClInclude Include="..\src\quake\packfile.h" />
+    <FxCompile Include="..\src\shaders\quat.hlsl">
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
     <ClInclude Include="..\src\sokol\sokol_backend.h" />
     <ClInclude Include="..\src\systems\audio_system.h" />
     <ClInclude Include="..\src\systems\input_system.h" />
     <ClInclude Include="..\src\systems\render_system.h" />
     <ClInclude Include="..\src\systems\systems.h" />
+    <ClInclude Include="..\src\systems\task_system.h" />
     <ClInclude Include="..\src\systems\time_system.h" />
     <ClInclude Include="..\src\ui\imconfig.h" />
     <ClInclude Include="..\src\ui\imgui.h" />
@@ -68,6 +79,7 @@
     <ClInclude Include="..\submodules\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\submodules\imgui\imstb_textedit.h" />
     <ClInclude Include="..\submodules\imgui\imstb_truetype.h" />
+    <ClInclude Include="..\submodules\miniz\miniz.h" />
     <ClInclude Include="..\submodules\pcg32\pcg32.h" />
     <ClInclude Include="..\submodules\sokol\sokol_app.h" />
     <ClInclude Include="..\submodules\sokol\sokol_args.h" />
@@ -109,6 +121,22 @@
     <Natvis Include="natvis\RfType.natvis">
       <SubType>Designer</SubType>
     </Natvis>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="..\src\shaders\example_input.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\example_vs.hlsl">
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.3</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.3</ShaderModel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\transforms.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

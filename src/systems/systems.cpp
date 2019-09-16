@@ -26,7 +26,7 @@ namespace Systems
     void Init()
     {
         Array<Quake::DPackFile> arena = {};
-        Quake::AddGameDirectory(PacksDir"/id1", ms_paths, arena);
+        Quake::AddGameDirectory("packs/id1", ms_paths, arena);
         arena.reset();
 
         for (const System& system : ms_systems)
