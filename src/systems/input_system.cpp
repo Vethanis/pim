@@ -104,7 +104,7 @@ namespace InputSystem
     {
         for (auto& store : ms_stores)
         {
-            store.init(Allocator_Malloc);
+            store.init();
         }
     }
 
@@ -155,7 +155,7 @@ namespace InputSystem
             {
                 if (ImGui::CollapsingHeader(ms_storeNames[i]))
                 {
-                    const i32 numListeners = ms_stores[i].size();
+                    const usize numListeners = ms_stores[i].size();
                     const ListenerKey* keys = ms_stores[i].m_keys.begin();
                     const ListenerValue* values = ms_stores[i].m_values.begin();
 
@@ -166,7 +166,7 @@ namespace InputSystem
                     ImGui::Text("Value"); ImGui::NextColumn();
                     ImGui::Separator();
 
-                    for (i32 j = 0; j < numListeners; ++j)
+                    for (usize j = 0; j < numListeners; ++j)
                     {
                         u16 id;
                         u8 mods;

@@ -1,4 +1,5 @@
 .vs/
 .vscode/
 .autosave/
-packs/
+packs/ 
+build/

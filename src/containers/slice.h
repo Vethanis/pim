@@ -1,38 +1,36 @@
 #pragma once
 
-#include "common/int_types.h"
 #include "common/macro.h"
+#include "common/int_types.h"
 
 template<typename T>
 struct Slice
 {
     T* ptr;
-    i32 len;
+    usize len;
 
-    inline bool empty() { return len == 0; }
-    inline i32 size() { return len; }
-    inline usize bytes() { return (usize)len * sizeof(T); }
+    inline usize size() { return len; }
+    inline bool empty() { return size() == 0; }
+    inline usize bytes() { return size() * sizeof(T); }
     inline T* begin() { return ptr; }
-    inline T* end() { return ptr + len; }
+    inline T* end() { return begin() + size(); }
     inline const T* begin() const { return ptr; }
-    inline const T* end() const { return ptr + len; }
-    inline T& front() { DebugAssert(!empty()); return ptr[0]; }
-    inline const T& front() const { DebugAssert(!empty()); return ptr[0]; }
-    inline T& back() { DebugAssert(!empty()); return ptr[len - 1]; }
-    inline const T& back() const { DebugAssert(!empty()); return ptr[len - 1]; }
-    inline T& operator[](i32 i) { DebugAssert((u32)i < (u32)len); return ptr[i]; }
-    inline const T& operator[](i32 i) const { DebugAssert((u32)i < (u32)len); return ptr[i]; }
-    
+    inline const T* end() const { return begin() + size(); }
+    inline T& front() { DebugAssert(!empty()); return begin()[0]; }
+    inline const T& front() const { DebugAssert(!empty()); return begin()[0]; }
+    inline T& back() { DebugAssert(!empty()); return begin()[size() - 1]; }
+    inline const T& back() const { DebugAssert(!empty()); return begin()[size() - 1]; }
+    inline T& operator[](usize i) { DebugAssert(i < size()); return begin()[i]; }
+    inline const T& operator[](usize i) const { DebugAssert(i < size()); return begin()[i]; }
+
     template<typename U>
     inline Slice<U> cast()
     {
-        U* pU = (U*)ptr;
-        usize Ubytes = bytes() / sizeof(U);
-        return { pU, (i32)Ubytes };
+        return { (U*)begin(), bytes() / sizeof(U) };
     }
-    inline Slice<T> subslice(i32 start, i32 count)
+    inline Slice<T> subslice(usize start, usize count)
     {
-        DebugAssert((start + count) < len);
-        return { ptr + start, ptr + start + count };
+        DebugAssert((start + count) < size());
+        return { begin() + start, count };
     }
 };

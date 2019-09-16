@@ -1,5 +1,8 @@
 
-#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS 1
+#define WIN32_LEAN_AND_MEAN 1
+
+#include <windows.h>
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -59,26 +62,26 @@ namespace IO
         }
         return false;
     }
-    i32 Read(FD hdl, void* dst, i32 size)
+    i32 Read(FD hdl, void* dst, usize size)
     {
-        return TestErrNo(_read(hdl.fd, dst, size));
+        return TestErrNo(_read(hdl.fd, dst, (u32)size));
     }
-    i32 Write(FD hdl, const void* src, i32 size)
+    i32 Write(FD hdl, const void* src, usize size)
     {
-        return TestErrNo(_write(hdl.fd, src, size));
+        return TestErrNo(_write(hdl.fd, src, (u32)size));
     }
-    i32 Seek(FD hdl, i32 offset)
+    i32 Seek(FD hdl, isize offset)
     {
-        return TestErrNo(_lseek(hdl.fd, offset, SEEK_SET));
+        return TestErrNo((i32)_lseek(hdl.fd, (i32)offset, SEEK_SET));
     }
     i32 Tell(FD hdl)
     {
         return TestErrNo(_tell(hdl.fd));
     }
-    bool Pipe(FD& p0, FD& p1, i32 bufferSize)
+    bool Pipe(FD& p0, FD& p1, usize bufferSize)
     {
         i32 fds[2] = { -1, -1 };
-        i32 rval = _pipe(fds, bufferSize, _O_BINARY);
+        i32 rval = _pipe(fds, (u32)bufferSize, _O_BINARY);
         p0.fd = fds[0];
         p1.fd = fds[1];
         return !TestErrNo(rval);
@@ -91,17 +94,16 @@ namespace IO
 
     // ------------------------------------------------------------------------
 
-    Writer::State Writer::Start(FD hdl, const void* src, i32 size)
+    Writer::State Writer::Start(FD hdl, Slice<const u8> src)
     {
         Check(m_state == State::Idle, return SetErr());
 
         m_hdl = hdl;
-        m_src = (const u8*)src;
-        m_size = size;
+        m_src = src;
 
         Check(IsOpen(hdl), return SetErr());
-        Check(src, return SetErr());
-        Check(size > 0, return SetErr());
+        Check(src.begin(), return SetErr());
+        Check(src.size(), return SetErr());
 
         m_state = State::Writing;
         return m_state;
@@ -110,16 +112,18 @@ namespace IO
     {
         Check(m_state == State::Writing, return SetErr());
 
-        i32 wrote = Write(m_hdl, m_src, Min(WriteSize, m_size));
+        i32 wrote = Write(m_hdl, m_src.begin(), Min(WriteSize, m_src.size()));
         CheckE(return SetErr());
 
-        m_src += wrote;
-        m_size -= wrote;
-        if (m_size <= 0)
+        isize rem = m_src.size() - wrote;
+        m_src = { m_src.begin() + wrote, m_src.size() - wrote };
+
+        if (rem <= 0)
         {
             Close(m_hdl);
             CheckE(return SetErr());
             m_state = State::Idle;
+            m_src = { 0, 0 };
         }
 
         return m_state;
@@ -147,7 +151,7 @@ namespace IO
 
         if (bytesRead > 0)
         {
-            result = { m_dst, bytesRead };
+            result = { m_dst, (usize)bytesRead };
         }
         else
         {
@@ -181,17 +185,17 @@ namespace IO
     {
         return !TestErrNo(fflush((FILE*)stream.ptr));
     }
-    usize FRead(Stream stream, void* dst, i32 size)
+    usize FRead(Stream stream, void* dst, usize size)
     {
-        return fread(dst, size, 1, (FILE*)stream.ptr);
+        return fread(dst, 1, size, (FILE*)stream.ptr);
     }
-    usize FWrite(Stream stream, const void* src, i32 size)
+    usize FWrite(Stream stream, const void* src, usize size)
     {
-        return fwrite(src, size, 1, (FILE*)stream.ptr);
+        return fwrite(src, 1, size, (FILE*)stream.ptr);
     }
-    char* FGets(Stream stream, char* dst, i32 size)
+    char* FGets(Stream stream, char* dst, usize size)
     {
-        char* ptr = fgets(dst, size, (FILE*)stream.ptr);
+        char* ptr = fgets(dst, (i32)(size - 1), (FILE*)stream.ptr);
         if (!ptr) { SetErrNo(1); }
         return ptr;
     }
@@ -216,9 +220,9 @@ namespace IO
         }
         return { ptr };
     }
-    bool FSeek(Stream stream, i32 offset)
+    bool FSeek(Stream stream, isize offset)
     {
-        return !TestErrNo(fseek((FILE*)stream.ptr, offset, SEEK_SET));
+        return !TestErrNo(fseek((FILE*)stream.ptr, (i32)offset, SEEK_SET));
     }
     i32 FTell(Stream stream)
     {
@@ -255,32 +259,38 @@ namespace IO
     {
         return _getdrives();
     }
-    char* GetCwd(char* dst, i32 size)
+    bool GetCwd(char* dst, i32 size)
     {
+        Check0(dst);
         char* ptr = _getcwd(dst, size);
         if (!ptr) { SetErrNo(1); }
-        return ptr;
+        return ptr != 0;
     }
-    char* GetDrCwd(i32 drive, char* dst, i32 size)
+    bool GetDrCwd(i32 drive, char* dst, i32 size)
     {
+        Check0(dst);
         char* ptr = _getdcwd(drive, dst, size);
         if (!ptr) { SetErrNo(1); }
-        return ptr;
+        return ptr != 0;
     }
     bool ChDir(cstr path)
     {
+        Check0(path);
         return !TestErrNo(_chdir(path));
     }
     bool MkDir(cstr path)
     {
+        Check0(path);
         return !TestErrNo(_mkdir(path));
     }
     bool RmDir(cstr path)
     {
+        Check0(path);
         return !TestErrNo(_rmdir(path));
     }
     bool ChMod(cstr path, u32 flags)
     {
+        Check0(path);
         return !TestErrNo(_chmod(path, (i32)flags));
     }
 
@@ -288,6 +298,8 @@ namespace IO
 
     bool SearchEnv(cstr filename, cstr varname, char(&dst)[260])
     {
+        Check0(filename);
+        Check0(varname);
         dst[0] = 0;
         _searchenv(filename, varname, dst);
         bool found = dst[0] != 0;
@@ -296,12 +308,15 @@ namespace IO
     }
     cstr GetEnv(cstr varname)
     {
+        Check0(varname);
         cstr ptr = getenv(varname);
         if (!ptr) { SetErrNo(1); }
         return ptr;
     }
     bool PutEnv(cstr varname, cstr value)
     {
+        Check0(varname);
+        Check0(value);
         char buf[260];
         i32 rval = sprintf_s(buf, "%s=%s", varname, value ? value : "");
         TestErrNo(rval);
@@ -314,7 +329,7 @@ namespace IO
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/findnext-functions
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/findclose
 
-    bool Find(Finder& fdr, cstrc spec, FindData& data)
+    bool Find(Finder& fdr, FindData& data, cstrc spec)
     {
         switch (fdr.state)
         {
@@ -339,4 +354,46 @@ namespace IO
 
     // ------------------------------------------------------------------------
 
+    bool OpenModule(cstr filename, Module& dst)
+    {
+        Check0(filename);
+        Check0(!dst.hdl);
+        dst.hdl = 0;
+        dst.hdl = ::LoadLibraryA(filename);
+        return dst.hdl != 0;
+    }
+
+    bool CloseModule(Module& mod)
+    {
+        Check0(mod.hdl);
+        void* hdl = mod.hdl;
+        mod.hdl = 0;
+        return ::FreeLibrary((HMODULE)hdl);
+    }
+
+    bool GetModule(cstr name, Module& dst)
+    {
+        Check0(!dst.hdl);
+        dst.hdl = 0;
+        dst.hdl = ::GetModuleHandleA(name);
+        return dst.hdl != 0;
+    }
+
+    bool GetModuleName(Module mod, char* dst, u32 dstSize)
+    {
+        Check0(dst);
+        Check0(dstSize);
+        u32 wrote = ::GetModuleFileNameA((HMODULE)mod.hdl, dst, dstSize);
+        return wrote != 0;
+    }
+
+    void* GetModuleFunc(Module mod, cstr name)
+    {
+        Check0(mod.hdl);
+        Check0(name);
+        FARPROC proc = ::GetProcAddress((HMODULE)mod.hdl, name);
+        return (void*)proc;
+    }
+
+    // ------------------------------------------------------------------------
 }; // IO

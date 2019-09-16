@@ -5,6 +5,10 @@
 
 namespace Quake
 {
+    DeclareNS(SearchPaths);
+    DeclareNS(Packs);
+    DeclareNS(PackFiles);
+
     bool LoadPackFile(cstrc dir, Packs& packs, Array<DPackFile>& arena)
     {
         Check0(dir);
@@ -33,7 +37,7 @@ namespace Quake
         CheckE0();
         Check0(nRead == header.chunk.length);
 
-        packs.names.grow() = PackName::Add(dir);
+        packs.names.grow() = HashString(NS_Packs, dir);
         packs.handles.grow() = fd;
         guard.Cancel();
 
@@ -42,7 +46,7 @@ namespace Quake
         files.chunks.resize(numPackFiles);
         for (i32 i = 0; i < numPackFiles; ++i)
         {
-            files.names[i] = PackFileName::Add(arena[i].name);
+            files.names[i] = HashString(NS_PackFiles, arena[i].name);
             files.chunks[i] = arena[i].chunk;
         }
 
@@ -53,18 +57,17 @@ namespace Quake
     {
         Check0(dir);
 
-        searchPaths.names.grow() = SearchPathName::Add(dir);
+        searchPaths.names.grow() = HashString(NS_SearchPaths, dir);
         Packs& packs = searchPaths.packs.grow();
 
+        IO::FindData fdata = {};
+        IO::Finder fder = {};
         char packDir[MaxOsPath];
-        for (i32 i = 0; ; ++i)
+        sprintf_s(packDir, "%s/*.pak", dir);
+        while (IO::Find(fder, fdata, packDir))
         {
-            sprintf_s(packDir, "%s/pak%i.pak", dir, i);
-            CheckE0();
-            if (!LoadPackFile(packDir, packs, arena))
-            {
-                break;
-            }
+            sprintf_s(packDir, "%s/%s", dir, fdata.name);
+            LoadPackFile(packDir, packs, arena);
         }
 
         return true;

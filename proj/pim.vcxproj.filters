@@ -50,6 +50,9 @@
     <Filter Include="Source Files\ui">
       <UniqueIdentifier>{20e9139f-eaf6-4e26-8e94-fd200334aaef}</UniqueIdentifier>
     </Filter>
+    <Filter Include="submodules\miniz">
+      <UniqueIdentifier>{8ae0fe3d-e5d0-49ee-848a-279491037880}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -114,6 +117,18 @@
     </ClCompile>
     <ClCompile Include="..\src\quake\packfile.cpp">
       <Filter>Source Files\quake</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\miniz\miniz.c">
+      <Filter>submodules\miniz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\stringutil.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\hashstring.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\systems\task_system.cpp">
+      <Filter>Source Files\systems</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -315,8 +330,20 @@
     <ClInclude Include="..\src\common\hashstring.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\tolower.h">
+    <ClInclude Include="..\submodules\miniz\miniz.h">
+      <Filter>submodules\miniz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\shaders\quat.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\shift.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\text.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\systems\task_system.h">
+      <Filter>Source Files\systems</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -332,5 +359,16 @@
     <Natvis Include="natvis\dict.natvis">
       <Filter>natvis</Filter>
     </Natvis>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="..\src\shaders\example_vs.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\transforms.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\example_input.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

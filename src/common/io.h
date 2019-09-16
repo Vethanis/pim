@@ -95,15 +95,15 @@ namespace IO
 
     // read
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/read
-    i32 Read(FD hdl, void* dst, i32 size);
+    i32 Read(FD hdl, void* dst, usize size);
 
     // write
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/write
-    i32 Write(FD hdl, const void* src, i32 size);
+    i32 Write(FD hdl, const void* src, usize size);
 
     // seek
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/lseek-lseeki64
-    i32 Seek(FD hdl, i32 offset);
+    i32 Seek(FD hdl, isize offset);
 
     // tell
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/tell-telli64
@@ -111,7 +111,7 @@ namespace IO
 
     // pipe
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/pipe
-    bool Pipe(FD& p0, FD& p1, i32 bufferSize);
+    bool Pipe(FD& p0, FD& p1, usize bufferSize);
 
     // fstat
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fstat-fstat32-fstat64-fstati64-fstat32i64-fstat64i32
@@ -130,7 +130,7 @@ namespace IO
 
     struct Writer
     {
-        static constexpr i32 WriteSize = 1024 * 4;
+        static constexpr usize WriteSize = 1024 * 4;
 
         enum State : i32
         {
@@ -139,12 +139,11 @@ namespace IO
             Error,
         };
 
-        const u8* m_src;
-        i32 m_size;
+        Slice<const u8> m_src;
         FD m_hdl;
         State m_state;
 
-        State Start(FD hdl, const void* src, i32 size);
+        State Start(FD hdl, Slice<const u8> src);
         State Update();
         inline State SetErr()
         {
@@ -198,15 +197,15 @@ namespace IO
 
     // fread
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fread
-    usize FRead(Stream stream, void* dst, i32 size);
+    usize FRead(Stream stream, void* dst, usize size);
 
     // fwrite
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fwrite
-    usize FWrite(Stream stream, const void* src, i32 size);
+    usize FWrite(Stream stream, const void* src, usize size);
 
     // fgets
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fgets-fgetws
-    char* FGets(Stream stream, char* dst, i32 size);
+    char* FGets(Stream stream, char* dst, usize size);
 
     // fputs
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fputs-fputws
@@ -222,7 +221,7 @@ namespace IO
 
     // fseek SEEK_SET
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/fseek-lseek-constants
-    bool FSeek(Stream stream, i32 offset);
+    bool FSeek(Stream stream, isize offset);
 
     // ftell
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/ftell-ftelli64
@@ -276,11 +275,11 @@ namespace IO
 
     // getcwd
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getcwd-wgetcwd
-    char* GetCwd(char* dst, i32 size);
+    bool GetCwd(char* dst, i32 size);
 
     // getdcwd
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getdcwd-wgetdcwd
-    char* GetDrCwd(i32 drive, char* dst, i32 size);
+    bool GetDrCwd(i32 drive, char* dst, i32 size);
 
     // chdir
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/chdir-wchdir
@@ -345,8 +344,31 @@ namespace IO
     };
 
     // findfirst + findnext + findclose
-    bool Find(Finder& fdr, cstrc spec, FindData& data);
+    bool Find(Finder& fdr, FindData& data, cstrc spec);
 
     // ------------------------------------------------------------------------
+    struct Module { void* hdl; };
 
+    // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadlibrarya
+    bool OpenModule(cstr filename, Module& dst);
+    // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-freelibrary
+    bool CloseModule(Module& mod);
+    // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlea
+    bool GetModule(cstr name, Module& dst);
+    // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamea
+    bool GetModuleName(Module mod, char* dst, u32 dstSize);
+    // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress
+    void* GetModuleFunc(Module mod, cstr name);
+
+    inline bool GetExeName(char* dst, u32 dstSize)
+    {
+        return GetModuleName({ 0 }, dst, dstSize);
+    }
+
+    inline bool GetExeModule(Module& dst)
+    {
+        return GetModule(0, dst);
+    }
+
+    // ------------------------------------------------------------------------
 }; // IO
