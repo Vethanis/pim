@@ -23,9 +23,7 @@
 #define IfTrue(x, expr)             if(x) { expr; }
 #define IfFalse(x, expr)            if(!(x)) { expr; }
 #define Assert(x)                   IfFalse(x, Interrupt())
-#define EAssert()                   IfTrue(IO::GetErrNo(), Interrupt(); IO::ClearErrNo())
 #define DebugAssert(x)              IfDebug(Assert(x))
-#define DebugEAssert()              IfDebug(EAssert())
 #define CheckE0()                   IfTrue(IO::GetErrNo(), DebugInterrupt(); IO::ClearErrNo(); return 0)
 #define CheckE(expr)                IfTrue(IO::GetErrNo(), DebugInterrupt(); IO::ClearErrNo(); expr)
 #define Check0(x)                   IfFalse(x, DebugInterrupt(); return 0)

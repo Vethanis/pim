@@ -3,6 +3,7 @@
 #include "common/macro.h"
 #include "common/int_types.h"
 #include "containers/slice.h"
+#include "containers/array.h"
 
 namespace IO
 {
@@ -79,7 +80,6 @@ namespace IO
         OBinSeqWrite    = OBinary | OSequential | OWriteOnly | OCreate,
         OBinRandRW      = OBinary | ORandom | OReadWrite,
     };
-    struct OFlagBits { u32 bits; };
 
     // creat
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/creat-wcreat
@@ -87,7 +87,7 @@ namespace IO
 
     // open
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/open-wopen
-    FD Open(cstr filename, OFlagBits flags);
+    FD Open(cstr filename, u32 flags);
 
     // close
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/close
@@ -117,12 +117,20 @@ namespace IO
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fstat-fstat32-fstat64-fstati64-fstat32i64-fstat64i32
     bool Stat(FD hdl, Status& status);
 
+    // fstat.st_size
+    inline i64 Size(FD fd)
+    {
+        Status status = {};
+        Stat(fd, status);
+        return status.st_size;
+    }
+
     struct FDGuard
     {
         FD& m_fd;
         bool m_cancelled;
         FDGuard(FD& fd) : m_fd(fd), m_cancelled(0) {}
-        ~FDGuard() { if (!m_cancelled) { Close(m_fd); DebugEAssert(); } }
+        ~FDGuard() { if (!m_cancelled) { Close(m_fd); } }
         inline void Cancel() { m_cancelled = true; }
     };
 
@@ -254,7 +262,7 @@ namespace IO
         Stream& m_stream;
         bool m_cancelled;
         StreamGuard(Stream& stream) : m_stream(stream), m_cancelled(0) {}
-        ~StreamGuard() { if (!m_cancelled) { FClose(m_stream); DebugEAssert(); } }
+        ~StreamGuard() { if (!m_cancelled) { FClose(m_stream); } }
         inline bool Cancel() { m_cancelled = true; }
     };
 
@@ -345,6 +353,7 @@ namespace IO
 
     // findfirst + findnext + findclose
     bool Find(Finder& fdr, FindData& data, cstrc spec);
+    void FindAll(Array<FindData>& results, cstrc spec);
 
     // ------------------------------------------------------------------------
     struct Module { void* hdl; };

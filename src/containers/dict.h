@@ -32,20 +32,20 @@ struct Dict
     {
         return m_keys.rfind(key);
     }
-    inline bool contains(K key) const { return find(key) != -1; }
+    inline bool contains(K key) const { return m_keys.rfind(key) != -1; }
     inline const V* get(K key) const
     {
-        const isize i = find(key);
+        const isize i = m_keys.rfind(key);
         return (i == -1) ? 0 : m_values.begin() + i;
     }
     inline V* get(K key)
     {
-        const isize i = find(key);
+        const isize i = m_keys.rfind(key);
         return (i == -1) ? 0 : m_values.begin() + i;
     }
     inline void remove(K key)
     {
-        const isize i = find(key);
+        const isize i = m_keys.rfind(key);
         if (i != -1)
         {
             m_keys.remove(i);
@@ -54,7 +54,7 @@ struct Dict
     }
     inline V& operator[](K key)
     {
-        const isize i = find(key);
+        const isize i = m_keys.rfind(key);
         if (i != -1)
         {
             return m_values[i];
@@ -74,7 +74,7 @@ struct DictTable
     static constexpr usize Mask = t_width - 1u;
     static constexpr usize GetSlot(K key)
     {
-        return (key * 16777619) & Mask;
+        return (key * 16777619u) & Mask;
     }
 
     Dict<K, V> m_dicts[Width];

@@ -26,6 +26,7 @@ namespace IO
     void SetErrNo(i32 value)
     {
         ms_errno = value;
+        DebugInterrupt();
     }
     void ClearErrNo()
     {
@@ -36,7 +37,7 @@ namespace IO
     {
         if (x < 0)
         {
-            ms_errno = 1;
+            SetErrNo(x);
         }
         return x;
     }
@@ -47,9 +48,9 @@ namespace IO
     {
         return { TestErrNo(_creat(filename, _S_IREAD | _S_IWRITE)) };
     }
-    FD Open(cstr filename, OFlagBits flags)
+    FD Open(cstr filename, u32 flags)
     {
-        return { TestErrNo(_open(filename, (i32)flags.bits, _S_IREAD | _S_IWRITE)) };
+        return { TestErrNo(_open(filename, (i32)flags, _S_IREAD | _S_IWRITE)) };
     }
     bool Close(FD& hdl)
     {
@@ -168,7 +169,7 @@ namespace IO
     Stream FOpen(cstr filename, cstr mode)
     {
         FILE* ptr = fopen(filename, mode);
-        if (!ptr) { SetErrNo(1); }
+        if (!ptr) { SetErrNo(-1); }
         return { ptr };
     }
     bool FClose(Stream& stream)
@@ -196,7 +197,7 @@ namespace IO
     char* FGets(Stream stream, char* dst, usize size)
     {
         char* ptr = fgets(dst, (i32)(size - 1), (FILE*)stream.ptr);
-        if (!ptr) { SetErrNo(1); }
+        if (!ptr) { SetErrNo(-1); }
         return ptr;
     }
     i32 FPuts(Stream stream, cstr src)
@@ -216,7 +217,7 @@ namespace IO
         }
         else
         {
-            SetErrNo(1);
+            SetErrNo(-1);
         }
         return { ptr };
     }
@@ -231,7 +232,7 @@ namespace IO
     Stream POpen(cstr cmd, cstr mode)
     {
         FILE* file = _popen(cmd, mode);
-        if (!file) { SetErrNo(1); }
+        if (!file) { SetErrNo(-1); }
         return { file };
     }
     bool PClose(Stream& stream)
@@ -263,30 +264,30 @@ namespace IO
     {
         Check0(dst);
         char* ptr = _getcwd(dst, size);
-        if (!ptr) { SetErrNo(1); }
+        if (!ptr) { SetErrNo(-1); }
         return ptr != 0;
     }
     bool GetDrCwd(i32 drive, char* dst, i32 size)
     {
         Check0(dst);
         char* ptr = _getdcwd(drive, dst, size);
-        if (!ptr) { SetErrNo(1); }
+        if (!ptr) { SetErrNo(-1); }
         return ptr != 0;
     }
     bool ChDir(cstr path)
     {
         Check0(path);
-        return !TestErrNo(_chdir(path));
+        return !_chdir(path);
     }
     bool MkDir(cstr path)
     {
         Check0(path);
-        return !TestErrNo(_mkdir(path));
+        return !_mkdir(path);
     }
     bool RmDir(cstr path)
     {
         Check0(path);
-        return !TestErrNo(_rmdir(path));
+        return !_rmdir(path);
     }
     bool ChMod(cstr path, u32 flags)
     {
@@ -303,14 +304,14 @@ namespace IO
         dst[0] = 0;
         _searchenv(filename, varname, dst);
         bool found = dst[0] != 0;
-        if (!found) { SetErrNo(1); }
+        if (!found) { SetErrNo(-1); }
         return found;
     }
     cstr GetEnv(cstr varname)
     {
         Check0(varname);
         cstr ptr = getenv(varname);
-        if (!ptr) { SetErrNo(1); }
+        if (!ptr) { SetErrNo(-1); }
         return ptr;
     }
     bool PutEnv(cstr varname, cstr value)
@@ -350,6 +351,13 @@ namespace IO
         fdr.hdl = -1;
         fdr.state = 0;
         return false;
+    }
+
+    void FindAll(Array<FindData>& results, cstrc spec)
+    {
+        Finder fdr = {};
+        while (Find(fdr, results.grow(), spec)) {};
+        results.pop();
     }
 
     // ------------------------------------------------------------------------

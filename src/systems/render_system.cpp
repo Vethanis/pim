@@ -77,75 +77,72 @@ namespace ShaderSystem
         char cmd[1024];
         char cwd[PIM_MAX_PATH];
         char tmp[PIM_MAX_PATH];
-
         cmd[0] = 0;
         cwd[0] = 0;
         tmp[0] = 0;
 
-        cwd[0] = 0;
         IO::GetCwd(cwd, CountOf(cwd));
 
-        tmp[0] = 0;
         SPrintf(tmp, "%s/build", cwd);
         FixPath(tmp);
         IO::MkDir(tmp);
 
-        tmp[0] = 0;
         SPrintf(tmp, "%s/build/shaders", cwd);
         FixPath(tmp);
         IO::MkDir(tmp);
 
-        IO::Finder finder = {};
-        IO::FindData findData = {};
-        while (IO::Find(finder, findData, "src/shaders/*.hlsl"))
+        Array<IO::FindData> findDatas = {};
+        Array<IO::Stream> procs = {};
+        IO::FindAll(findDatas, "src/shaders/*.hlsl");
+
+        for (usize i = 0; i < findDatas.size(); ++i)
         {
-            const ShaderType type = GetShaderType(findData.name);
+            cstrc hlslName = findDatas[i].name;
+            const ShaderType type = GetShaderType(hlslName);
             if (type == ShaderType_Count)
             {
+                findDatas.remove(i--);
                 continue;
             }
 
-            ms_shaders.names.grow() = HashString(NS_Shaders, findData.name);
+            ms_shaders.names.grow() = HashString(NS_Shaders, hlslName);
             ms_shaders.types.grow() = type;
 
-            cmd[0] = 0;
             SPrintf(cmd, " %s/tools/dxc/bin/dxc.exe -WX", cwd);
-            StrCatf(cmd, " -Fo %s/build/shaders/%s", cwd, findData.name);
+            StrCatf(cmd, " -Fo %s/build/shaders/%s", cwd, hlslName);
             StrIRep(cmd, ".hlsl", ".cso");
-            StrCatf(cmd, " %s/src/shaders/%s", cwd, findData.name);
+            StrCatf(cmd, " %s/src/shaders/%s", cwd, hlslName);
             StrCatf(cmd, " -I %s/src", cwd);
             StrCatf(cmd, " -T %s", ProfileStrs[type]);
             FixPath(cmd);
 
-            puts(cmd);
+            procs.grow() = IO::POpen(cmd, "rb");
+        }
 
-            IO::Stream dxcStdout = IO::POpen(cmd, "rb");
-            if (IO::IsOpen(dxcStdout))
-            {
-                while (IO::FRead(dxcStdout, tmp, CountOf(tmp)))
-                {
-                    printf("%s", tmp);
-                }
-                IO::PClose(dxcStdout);
-            }
-
-            tmp[0] = 0;
-            SPrintf(tmp, "%s/build/shaders/%s", cwd, findData.name);
+        for(usize i = 0; i < procs.size(); ++i)
+        {
+            SPrintf(tmp, "%s/build/shaders/%s", cwd, findDatas[i].name);
             StrIRep(tmp, ".hlsl", ".cso");
             FixPath(tmp);
 
-            Slice<u8> dxil = ms_shaders.bytecode.grow();
+            Slice<u8> dxil = {};
 
-            IO::Stream cso = IO::FOpen(tmp, "rb");
+            IO::PClose(procs[i]);
+            IO::FD cso = IO::Open(tmp, IO::OBinSeqRead);
             if (IO::IsOpen(cso))
             {
-                const usize dxilSize = IO::FSize(cso);
+                const usize dxilSize = IO::Size(cso);
                 dxil = Allocator::Alloc<u8>(dxilSize);
-                isize got = IO::FRead(cso, dxil.begin(), dxilSize);
-                IO::FClose(cso);
+                isize got = IO::Read(cso, dxil.begin(), dxilSize);
                 DebugAssert(got == dxilSize);
+                IO::Close(cso);
             }
+            
+            ms_shaders.bytecode.grow() = dxil;
         }
+
+        findDatas.reset();
+        procs.reset();
     }
     static void Shutdown()
     {

@@ -9,7 +9,7 @@ u8 HashString::NSIdx;
 Slice<char> HashString::Lookup(HashStringKey key)
 {
     Slice<char> result = { 0, 0 };
-    Slice<char>* pSlice = ms_store[key & HashNSMask].get(key >> HashNSBits);
+    Slice<char>* pSlice = ms_store[key & HashNSMask].get(key);
     if (pSlice)
     {
         result = *pSlice;
@@ -25,7 +25,7 @@ HashStringKey HashString::Insert(HashNamespace ns, cstrc value)
     }
 
     HashStringKey key = StrHash(ns, value);
-    Slice<char>& dst = ms_store[ns][key >> HashNSBits];
+    Slice<char>& dst = ms_store[ns][key];
 
     if (dst.begin())
     {

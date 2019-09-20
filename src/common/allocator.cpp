@@ -14,36 +14,6 @@ namespace Allocator
     {
         FixedArray<usize, PoolLen> sizes;
         FixedArray<u8*, PoolLen> ptrs;
-
-        inline bool Give(Allocation& alloc)
-        {
-            DebugAssert(!sizes.full());
-            if (!sizes.full())
-            {
-                ptrs.grow() = alloc.begin();
-                sizes.grow() = alloc.size();
-                alloc = { 0, 0 };
-                return true;
-            }
-            return false;
-        }
-
-        inline bool Take(usize want, Allocation& alloc)
-        {
-            const usize* szs = sizes.begin();
-            const usize ct = sizes.size();
-            for (usize i = 0; i < ct; ++i)
-            {
-                if (szs[i] >= want)
-                {
-                    alloc = { ptrs[i], szs[i] };
-                    sizes.remove(i);
-                    ptrs.remove(i);
-                    return true;
-                }
-            }
-            return false;
-        }
     };
 
     static Pool ms_pools[NumPools];
@@ -57,17 +27,42 @@ namespace Allocator
             a *= 4;
             ++i;
         }
-        return Min(i, NumPools);
+        return Min(i, NumPools - 1);
     }
 
     static bool Give(Allocation& alloc)
     {
-        return ms_pools[GetPoolIdx(alloc.size())].Give(alloc);
+        const u32 pidx = GetPoolIdx(alloc.size());
+        auto& ptrs = ms_pools[pidx].ptrs;
+        auto& sizes = ms_pools[pidx].sizes;
+        if (!sizes.full())
+        {
+            ptrs.grow() = alloc.begin();
+            sizes.grow() = alloc.size();
+            alloc = { 0, 0 };
+            return true;
+        }
+        return false;
     }
 
     static bool Take(usize want, Allocation& alloc)
     {
-        return ms_pools[GetPoolIdx(want)].Take(want, alloc);
+        const u32 pidx = GetPoolIdx(alloc.size());
+        auto& ptrs = ms_pools[pidx].ptrs;
+        auto& sizes = ms_pools[pidx].sizes;
+        const usize* szs = sizes.begin();
+        const usize ct = sizes.size();
+        for (usize i = 0; i < ct; ++i)
+        {
+            if (szs[i] >= want)
+            {
+                alloc = { ptrs[i], szs[i] };
+                sizes.remove(i);
+                ptrs.remove(i);
+                return true;
+            }
+        }
+        return false;
     }
 
     Allocation _Alloc(usize want)

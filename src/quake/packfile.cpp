@@ -13,7 +13,7 @@ namespace Quake
     {
         Check0(dir);
 
-        IO::FD fd = IO::Open(dir, { IO::OBinSeqRead });
+        IO::FD fd = IO::Open(dir, IO::OBinSeqRead);
         if (!IO::IsOpen(fd))
         {
             return false;
