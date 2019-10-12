@@ -38,16 +38,17 @@
     <ClCompile Include="..\submodules\stb\stb_vorbis.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\src\common\apply.h" />
     <ClInclude Include="..\src\common\allocator.h" />
+    <ClInclude Include="..\src\common\find.h" />
     <ClInclude Include="..\src\common\hashstring.h" />
     <ClInclude Include="..\src\common\io.h" />
     <ClInclude Include="..\src\common\hash.h" />
     <ClInclude Include="..\src\common\int_types.h" />
     <ClInclude Include="..\src\common\macro.h" />
     <ClInclude Include="..\src\common\mat_types.h" />
-    <ClInclude Include="..\src\common\platform.h" />
+    <ClInclude Include="..\src\common\mem.h" />
     <ClInclude Include="..\src\common\random.h" />
-    <ClInclude Include="..\src\common\shift.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\text.h" />
     <ClInclude Include="..\src\common\vec_types.h" />

@@ -33,35 +33,69 @@ namespace Quake
         IO::Chunk chunk;
     };
 
-    // several packfile_t's (chunk + name) inside a pack_t (.pak)
-    struct PackFiles
-    {
-        Array<HashString> names;
-        Array<IO::Chunk> chunks;
-    };
-
-    // several pack_t's (.pak) inside a searchpath_t (directory)
-    struct Packs
-    {
-        Array<HashString> names;
-        Array<IO::FD> handles;
-        Array<PackFiles> files;
-    };
-
-    // several searchpath_t's (directories) holding Packs
     struct SearchPaths
     {
         Array<HashString> names;
-        Array<Packs> packs;
+
+        inline void Reset()
+        {
+            names.reset();
+        }
+    };
+
+    struct Packs
+    {
+        Array<i32> pathIds;
+        Array<HashString> names;
+        Array<IO::FD> files;
+
+        inline void Reset()
+        {
+            pathIds.reset();
+            names.reset();
+            for (IO::FD& file : files)
+            {
+                IO::Close(file);
+            }
+            files.reset();
+        }
+    };
+
+    struct PackFiles
+    {
+        Array<i32> packIds;
+        Array<HashString> names;
+        Array<IO::Chunk> chunks;
+
+        inline void Reset()
+        {
+            packIds.reset();
+            names.reset();
+            chunks.reset();
+        }
+    };
+
+    struct PackAssets
+    {
+        SearchPaths paths;
+        Packs packs;
+        PackFiles packfiles;
+
+        inline void Reset()
+        {
+            paths.Reset();
+            packs.Reset();
+            packfiles.Reset();
+        }
     };
 
     // COM_LoadPackFile
     // common.c 1619
     // dir: explicit path to .pak
-    bool LoadPackFile(cstrc dir, Packs& packs, Array<DPackFile>& arena);
+    bool LoadPackFile(cstrc dir, PackAssets& assets, Array<DPackFile>& arena);
 
     // COM_AddGameDirectory
     // common.c 1689
     // dir: explicit path to a folder holding .pak files
-    bool AddGameDirectory(cstr dir, SearchPaths& searchPaths, Array<DPackFile>& arena);
+    bool AddGameDirectory(cstrc dir, PackAssets& assets, Array<DPackFile>& arena);
 };

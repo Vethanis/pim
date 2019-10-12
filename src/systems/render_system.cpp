@@ -47,7 +47,7 @@ namespace ShaderSystem
         "cs_6_3",
     };
 
-    using Bytecode = Slice<u8>;
+    using Bytecode = Array<u8>;
 
     struct Shaders
     {
@@ -56,15 +56,15 @@ namespace ShaderSystem
         Array<Bytecode> bytecode;
     };
 
-    DeclareNS(Shaders);
+    constexpr auto NS_Shaders = DeclareNS("Shaders");
 
     static Shaders ms_shaders;
 
-    static ShaderType GetShaderType(cstr shaderName)
+    static ShaderType GetShaderType(cstrc shaderName, i32 size)
     {
-        for (i32 i = 0; i < CountOf(ShaderTypeTags); ++i)
+        for (i32 i = 0; i < countof(ShaderTypeTags); ++i)
         {
-            if (StrIStr(shaderName, ShaderTypeTags[i]))
+            if (StrIStr(shaderName, size, ShaderTypeTags[i]))
             {
                 return (ShaderType)i;
             }
@@ -74,70 +74,67 @@ namespace ShaderSystem
 
     static void Init()
     {
-        char cmd[1024];
-        char cwd[PIM_MAX_PATH];
-        char tmp[PIM_MAX_PATH];
-        cmd[0] = 0;
-        cwd[0] = 0;
-        tmp[0] = 0;
+        char cmd[1024] = {};
+        char cwd[PIM_MAX_PATH] = {};
+        char tmp[PIM_MAX_PATH] = {};
 
-        IO::GetCwd(cwd, CountOf(cwd));
+        IO::GetCwd(argof(cwd));
 
-        SPrintf(tmp, "%s/build", cwd);
-        FixPath(tmp);
+        SPrintf(argof(tmp), "%s/build", cwd);
+        FixPath(argof(tmp));
         IO::MkDir(tmp);
 
-        SPrintf(tmp, "%s/build/shaders", cwd);
-        FixPath(tmp);
+        SPrintf(argof(tmp), "%s/build/shaders", cwd);
+        FixPath(argof(tmp));
         IO::MkDir(tmp);
 
         Array<IO::FindData> findDatas = {};
         Array<IO::Stream> procs = {};
         IO::FindAll(findDatas, "src/shaders/*.hlsl");
 
-        for (usize i = 0; i < findDatas.size(); ++i)
+        for (i32 i = 0; i < findDatas.size(); ++i)
         {
-            cstrc hlslName = findDatas[i].name;
-            const ShaderType type = GetShaderType(hlslName);
+            const ShaderType type = GetShaderType(argof(findDatas[i].name));
             if (type == ShaderType_Count)
             {
                 findDatas.remove(i--);
                 continue;
             }
+            cstrc hlslName = findDatas[i].name;
 
             ms_shaders.names.grow() = HashString(NS_Shaders, hlslName);
             ms_shaders.types.grow() = type;
 
-            SPrintf(cmd, " %s/tools/dxc/bin/dxc.exe -WX", cwd);
-            StrCatf(cmd, " -Fo %s/build/shaders/%s", cwd, hlslName);
-            StrIRep(cmd, ".hlsl", ".cso");
-            StrCatf(cmd, " %s/src/shaders/%s", cwd, hlslName);
-            StrCatf(cmd, " -I %s/src", cwd);
-            StrCatf(cmd, " -T %s", ProfileStrs[type]);
-            FixPath(cmd);
+            SPrintf(argof(cmd), " %s/tools/dxc/bin/dxc.exe -WX", cwd);
+            StrCatf(argof(cmd), " -Fo %s/build/shaders/%s", cwd, hlslName);
+            StrIRep(argof(cmd), ".hlsl", ".cso");
+            StrCatf(argof(cmd), " %s/src/shaders/%s", cwd, hlslName);
+            StrCatf(argof(cmd), " -I %s/src", cwd);
+            StrCatf(argof(cmd), " -T %s", ProfileStrs[type]);
+            FixPath(argof(cmd));
 
             procs.grow() = IO::POpen(cmd, "rb");
         }
 
-        for(usize i = 0; i < procs.size(); ++i)
+        for (i32 i = 0; i < procs.size(); ++i)
         {
-            SPrintf(tmp, "%s/build/shaders/%s", cwd, findDatas[i].name);
-            StrIRep(tmp, ".hlsl", ".cso");
-            FixPath(tmp);
+            SPrintf(argof(tmp), "%s/build/shaders/%s", cwd, findDatas[i].name);
+            StrIRep(argof(tmp), ".hlsl", ".cso");
+            FixPath(argof(tmp));
 
-            Slice<u8> dxil = {};
+            Bytecode dxil = {};
 
             IO::PClose(procs[i]);
             IO::FD cso = IO::Open(tmp, IO::OBinSeqRead);
             if (IO::IsOpen(cso))
             {
-                const usize dxilSize = IO::Size(cso);
-                dxil = Allocator::Alloc<u8>(dxilSize);
-                isize got = IO::Read(cso, dxil.begin(), dxilSize);
+                const i32 dxilSize = (i32)IO::Size(cso);
+                dxil.resize(dxilSize);
+                const i32 got = IO::Read(cso, dxil.begin(), dxilSize);
                 DebugAssert(got == dxilSize);
                 IO::Close(cso);
             }
-            
+
             ms_shaders.bytecode.grow() = dxil;
         }
 
@@ -148,7 +145,7 @@ namespace ShaderSystem
     {
         for (Bytecode& bc : ms_shaders.bytecode)
         {
-            Allocator::Free(bc);
+            bc.reset();
         }
         ms_shaders.bytecode.reset();
         ms_shaders.names.reset();

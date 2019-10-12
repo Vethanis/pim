@@ -1,30 +1,29 @@
 #include "common/allocator.h"
 #include "common/macro.h"
+#include "common/mem.h"
 #include "containers/array.h"
 #include <malloc.h>
-#include <string.h>
 
 namespace Allocator
 {
-    constexpr usize DefaultAlignment = 64;
-    constexpr u32 NumPools = 16;
-    constexpr u32 PoolLen = 256;
+    constexpr i32 NumPools = 32;
+    constexpr i32 PoolLen = 64;
 
     struct Pool
     {
-        FixedArray<usize, PoolLen> sizes;
+        FixedArray<i32, PoolLen> sizes;
         FixedArray<u8*, PoolLen> ptrs;
     };
 
     static Pool ms_pools[NumPools];
 
-    static u32 GetPoolIdx(usize size)
+    static i32 GetPoolIdx(i32 size)
     {
-        u32 i = 0;
-        usize a = 64;
+        i32 i = 0;
+        i32 a = 8;
         while (size > a)
         {
-            a *= 4;
+            a <<= 1;
             ++i;
         }
         return Min(i, NumPools - 1);
@@ -32,7 +31,8 @@ namespace Allocator
 
     static bool Give(Allocation& alloc)
     {
-        const u32 pidx = GetPoolIdx(alloc.size());
+        i32 have = alloc.size();
+        const i32 pidx = GetPoolIdx(have);
         auto& ptrs = ms_pools[pidx].ptrs;
         auto& sizes = ms_pools[pidx].sizes;
         if (!sizes.full())
@@ -45,14 +45,14 @@ namespace Allocator
         return false;
     }
 
-    static bool Take(usize want, Allocation& alloc)
+    static bool Take(i32 want, Allocation& alloc)
     {
-        const u32 pidx = GetPoolIdx(alloc.size());
+        const i32 pidx = GetPoolIdx(want);
         auto& ptrs = ms_pools[pidx].ptrs;
         auto& sizes = ms_pools[pidx].sizes;
-        const usize* szs = sizes.begin();
-        const usize ct = sizes.size();
-        for (usize i = 0; i < ct; ++i)
+        const i32* szs = sizes.begin();
+        const i32 ct = sizes.size();
+        for (i32 i = 0; i < ct; ++i)
         {
             if (szs[i] >= want)
             {
@@ -65,41 +65,45 @@ namespace Allocator
         return false;
     }
 
-    Allocation _Alloc(usize want)
+    Allocation _Alloc(i32 want)
     {
+        DebugAssert(want >= 0);
         Allocation got = { 0, 0 };
-        if (want)
+        if (want > 0)
         {
-            want = AlignGrow(want, DefaultAlignment);
             if (!Take(want, got))
             {
-                void* ptr = _aligned_malloc(want, DefaultAlignment);
+                void* ptr = _aligned_malloc(want, 64);
                 got = { (u8*)ptr, want };
             }
             DebugAssert(got.begin());
-            memset(got.begin(), 0, got.size());
+            pimclr(got.begin(), got.size());
         }
         return got;
     }
 
-    Allocation _Realloc(Allocation& prev, usize want)
+    void _Realloc(Allocation& prev, i32 want)
     {
+        const i32 has = prev.size();
+        DebugAssert(want >= 0);
+        DebugAssert(has >= 0);
+
         Allocation got = { 0, 0 };
-        if (!want)
+        if (want <= 0)
         {
             _Free(prev);
         }
-        else if (want > prev.size())
+        else if (want > has)
         {
             got = _Alloc(want);
-            memcpy(got.begin(), prev.begin(), prev.size());
+            pimcpy(got.begin(), prev.begin(), has);
             _Free(prev);
         }
         else
         {
             got = prev;
         }
-        return got;
+        prev = got;
     }
 
     void _Free(Allocation& prev)

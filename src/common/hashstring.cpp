@@ -1,60 +1,52 @@
 #include "common/hashstring.h"
 #include "containers/dict.h"
+#include "common/text.h"
 
-using HashStorage = DictTable<16, HashStringKey, Slice<char> >;
+#if _DEBUG
+
+using HashText = Text<64>;
+
+using HashStorage = DictTable<16, HashStringKey, HashText>;
 
 static HashStorage ms_store[HashNSCount];
-u8 HashString::NSIdx;
 
-Slice<char> HashString::Lookup(HashStringKey key)
+static HashStorage& GetStore(HashStringKey key)
 {
-    Slice<char> result = { 0, 0 };
-    Slice<char>* pSlice = ms_store[key & HashNSMask].get(key);
-    if (pSlice)
+    return ms_store[key & HashNSMask];
+}
+
+cstr HashString::Lookup(HashStringKey key)
+{
+    cstr result = 0;
+    HashText* pText = GetStore(key).get(key);
+    if (pText)
     {
-        result = *pSlice;
+        result = pText->value;
     }
     return result;
 }
 
-HashStringKey HashString::Insert(HashNamespace ns, cstrc value)
+void HashString::Insert(HashNamespace ns, cstrc value)
 {
-    if (!value)
+    if (!value || !value[0])
     {
-        return 0;
+        return;
     }
 
     HashStringKey key = StrHash(ns, value);
-    Slice<char>& dst = ms_store[ns][key];
+    HashText& dst = GetStore(key)[key];
 
-    if (dst.begin())
+    if (dst.value[0])
     {
-        if (!StrICmp(dst.begin(), value))
+        if (!StrICmp(argof(dst.value), value))
         {
-            return key;
+            return;
         }
         DebugInterrupt();
-        return 0;
+        return;
     }
 
-    const isize len = StrLen(value) + 1;
-    dst = Allocator::Alloc<char>(len);
-    StrCpy(dst.begin(), dst.size(), value);
-
-    return key;
+    StrCpy(argof(dst.value), value);
 }
 
-void HashString::Reset()
-{
-    for (HashStorage& store : ms_store)
-    {
-        for (auto& dict : store.m_dicts)
-        {
-            for (Slice<char>& value : dict.m_values)
-            {
-                Allocator::Free(value);
-            }
-        }
-        store.reset();
-    }
-}
+#endif // _DEBUG

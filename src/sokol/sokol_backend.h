@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/platform.h"
 #include "common/macro.h"
 
 #if CUR_PLAT == PLAT_WINDOWS

@@ -128,67 +128,15 @@ namespace IO
     struct FDGuard
     {
         FD& m_fd;
-        bool m_cancelled;
-        FDGuard(FD& fd) : m_fd(fd), m_cancelled(0) {}
-        ~FDGuard() { if (!m_cancelled) { Close(m_fd); } }
-        inline void Cancel() { m_cancelled = true; }
+        FDGuard(FD& fd) : m_fd(fd) {}
+        ~FDGuard() {  Close(m_fd); }
+        inline void Cancel() { m_fd.fd = -1; }
     };
-
-    // ------------------------------------------------------------------------
-
-    struct Writer
-    {
-        static constexpr usize WriteSize = 1024 * 4;
-
-        enum State : i32
-        {
-            Idle = 0,
-            Writing,
-            Error,
-        };
-
-        Slice<const u8> m_src;
-        FD m_hdl;
-        State m_state;
-
-        State Start(FD hdl, Slice<const u8> src);
-        State Update();
-        inline State SetErr()
-        {
-            m_state = State::Error;
-            return State::Error;
-        }
-    }; // Writer
-
-    struct Reader
-    {
-        static constexpr i32 ReadSize = 1024 * 4;
-
-        enum State : i32
-        {
-            Idle = 0,
-            Reading,
-            Error,
-        };
-
-        u8 m_dst[ReadSize];
-        FD m_hdl;
-        State m_state;
-
-        State Start(FD hdl);
-        State Update(Slice<u8>& result);
-        inline State SetErr()
-        {
-            m_state = State::Error;
-            return State::Error;
-        }
-    }; // Reader
 
     // ------------------------------------------------------------------------
 
     // buffered file stream
     struct Stream { void* ptr; };
-
     inline bool IsOpen(Stream s) { return s.ptr != 0; }
 
     // fopen
@@ -260,10 +208,9 @@ namespace IO
     struct StreamGuard
     {
         Stream& m_stream;
-        bool m_cancelled;
-        StreamGuard(Stream& stream) : m_stream(stream), m_cancelled(0) {}
-        ~StreamGuard() { if (!m_cancelled) { FClose(m_stream); } }
-        inline bool Cancel() { m_cancelled = true; }
+        StreamGuard(Stream& stream) : m_stream(stream) {}
+        ~StreamGuard() { FClose(m_stream); }
+        inline bool Cancel() { m_stream.ptr = 0; }
     };
 
     // ------------------------------------------------------------------------

@@ -7,30 +7,53 @@ template<typename T>
 struct Slice
 {
     T* ptr;
-    usize len;
+    i32 len;
 
-    inline usize size() { return len; }
-    inline bool empty() { return size() == 0; }
-    inline usize bytes() { return size() * sizeof(T); }
+    inline bool in_range(i32 i) const { return (u32)i < (u32)len; }
+    inline i32 size() const { return len; }
+    inline bool empty() const { return len == 0; }
+    inline i32 bytes() const { return len * sizeof(T); }
+
     inline T* begin() { return ptr; }
-    inline T* end() { return begin() + size(); }
+    inline T* end() { return ptr + len; }
     inline const T* begin() const { return ptr; }
-    inline const T* end() const { return begin() + size(); }
-    inline T& front() { DebugAssert(!empty()); return begin()[0]; }
-    inline const T& front() const { DebugAssert(!empty()); return begin()[0]; }
-    inline T& back() { DebugAssert(!empty()); return begin()[size() - 1]; }
-    inline const T& back() const { DebugAssert(!empty()); return begin()[size() - 1]; }
-    inline T& operator[](usize i) { DebugAssert(i < size()); return begin()[i]; }
-    inline const T& operator[](usize i) const { DebugAssert(i < size()); return begin()[i]; }
+    inline const T* end() const { return ptr + len; }
+    inline T& front() { DebugAssert(len > 0); return ptr[0]; }
+    inline const T& front() const { DebugAssert(len > 0); return ptr[0]; }
+    inline T& back() { DebugAssert(len > 0); return ptr[len - 1]; }
+    inline const T& back() const { DebugAssert(len > 0); return ptr[len - 1]; }
+    inline T& operator[](i32 i) { DebugAssert(in_range(i)); return ptr[i]; }
+    inline const T& operator[](i32 i) const { DebugAssert(in_range(i)); return ptr[i]; }
 
     template<typename U>
-    inline Slice<U> cast()
+    inline Slice<U> cast() const
     {
-        return { (U*)begin(), bytes() / sizeof(U) };
+        return { (U*)ptr, bytes() / (i32)sizeof(U) };
     }
-    inline Slice<T> subslice(usize start, usize count)
+    template<typename U>
+    inline explicit operator Slice<U>() const
     {
-        DebugAssert((start + count) < size());
-        return { begin() + start, count };
+        return { (U*)ptr, bytes() / (i32)sizeof(U) };
+    }
+    inline operator Slice<const T>() const
+    {
+        return { (const T*)ptr, len };
+    }
+    inline Slice<T> subslice(i32 start, i32 count) const
+    {
+        DebugAssert(in_range(start + count));
+        return { ptr + start, count };
+    }
+    inline Slice<T> head(i32 last) const
+    {
+        DebugAssert(last >= 0);
+        DebugAssert(last <= len);
+        return { ptr, last };
+    }
+    inline Slice<T> tail(i32 first) const
+    {
+        DebugAssert(first >= 0);
+        DebugAssert(first <= len);
+        return { ptr + first, len - first };
     }
 };

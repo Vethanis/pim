@@ -1,4 +1,4 @@
-#include "common/platform.h"
+#include "common/macro.h"
 
 #if PLAT_WINDOWS
 

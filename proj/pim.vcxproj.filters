@@ -159,9 +159,6 @@
     <ClInclude Include="..\src\common\mat_types.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\platform.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\vec_types.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -333,17 +330,20 @@
     <ClInclude Include="..\submodules\miniz\miniz.h">
       <Filter>submodules\miniz</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\shaders\quat.hlsl">
-      <Filter>Source Files\shaders</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\shift.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\text.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\systems\task_system.h">
       <Filter>Source Files\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\mem.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\apply.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\find.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -370,5 +370,6 @@
     <FxCompile Include="..\src\shaders\example_input.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
+    <FxCompile Include="..\src\shaders\quat.hlsl" />
   </ItemGroup>
 </Project>

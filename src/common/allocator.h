@@ -7,23 +7,52 @@ using Allocation = Slice<u8>;
 
 namespace Allocator
 {
-    Allocation _Alloc(usize want);
-    Allocation _Realloc(Allocation& prev, usize want);
+    Allocation _Alloc(i32 want);
+    void _Realloc(Allocation& alloc, i32 want);
     void _Free(Allocation& prev);
 
     template<typename T>
-    inline Slice<T> Alloc(usize count)
+    inline constexpr i32 ReserveStartingCount()
+    {
+        if (sizeof(T) <= 1)
+        {
+            return 64;
+        }
+        if (sizeof(T) <= 2)
+        {
+            return 32;
+        }
+        if (sizeof(T) <= 8)
+        {
+            return 16;
+        }
+        if (sizeof(T) <= 64)
+        {
+            return 8;
+        }
+        if (sizeof(T) <= 128)
+        {
+            return 4;
+        }
+        if (sizeof(T) <= 512)
+        {
+            return 2;
+        }
+        return 1;
+    }
+
+    template<typename T>
+    inline Slice<T> Alloc(i32 count)
     {
         return _Alloc(sizeof(T) * count).cast<T>();
     }
 
     template<typename T>
-    inline Slice<T> Realloc(Slice<T>& prev, usize count)
+    inline void Realloc(Slice<T>& alloc, i32 count)
     {
-        Allocation prevAlloc = prev.cast<u8>();
-        Allocation newAlloc = _Realloc(prevAlloc, sizeof(T) * count);
-        prev = prevAlloc.cast<T>();
-        return newAlloc.cast<T>();
+        Allocation prevAlloc = alloc.cast<u8>();
+         _Realloc(prevAlloc, sizeof(T) * count);
+        alloc = prevAlloc.cast<T>();
     }
 
     template<typename T>
@@ -35,15 +64,17 @@ namespace Allocator
     }
 
     template<typename T>
-    inline Slice<T> Reserve(Slice<T>& prev, usize count)
+    inline void Reserve(Slice<T>& alloc, i32 count)
     {
-        const usize cur = prev.size();
+        DebugAssert(count >= 0);
+        const i32 cur = alloc.size();
         if (count > cur)
         {
-            const usize next = cur ? cur * 2 : 16;
-            const usize chosen = next > count ? next : count;
-            return Realloc(prev, chosen);
+            constexpr i32 minCount = ReserveStartingCount<T>();
+            i32 next = cur << 1;
+            next = Max(next, minCount);
+            next = Max(next, count);
+            Realloc(alloc, next);
         }
-        return prev;
     }
 };

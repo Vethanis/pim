@@ -151,7 +151,7 @@ namespace InputSystem
         ImGui::SetNextWindowSize({ 400.0f, 400.0f }, ImGuiCond_Once);
         ImGui::Begin("CtrlSystem");
         {
-            for (u32 i = 0; i < CountOf(ms_stores); ++i)
+            for (u32 i = 0; i < countof(ms_stores); ++i)
             {
                 if (ImGui::CollapsingHeader(ms_storeNames[i]))
                 {

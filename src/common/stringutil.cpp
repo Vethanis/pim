@@ -2,14 +2,16 @@
 
 #include <stdio.h>
 
-char* VSPrintf(char* dst, isize size, cstr fmt, VaList va)
+void VSPrintf(char* dst, i32 size, cstr fmt, VaList va)
 {
-    dst[size - 1] = 0;
-    fmt = fmt ? fmt : "(NULL)";
-    i32 ct = vsnprintf(dst, size - 1, fmt, va);
-    ct = Max(0, ct);
-    dst[ct] = 0;
-    dst[size - 1] = 0;
-    return dst + ct;
-}
+    DebugAssert((dst && fmt) || !size);
+    DebugAssert(size >= 0);
+    DebugAssert(va);
 
+    if (size > 0)
+    {
+        const i32 back = size - 1;
+        vsnprintf(dst, back, fmt ? fmt : "(NULL)", va);
+        dst[back] = 0;
+    }
+}

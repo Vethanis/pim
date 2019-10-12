@@ -4,22 +4,25 @@
 #include "common/int_types.h"
 #include "common/hash.h"
 #include "common/stringutil.h"
-#include "containers/slice.h"
-
-#define HashNSBits  (5)
-#define HashNSCount (1 << HashNSBits)
-#define HashNSMask  (HashNSCount - 1)
-#define DeclareNS(T) static const u8 NS_##T = (HashString::NSIdx++ & HashNSMask)
 
 using HashNamespace = u8;
 using HashStringKey = u32;
 
-static constexpr HashStringKey StrHash(HashNamespace ns, cstrc src)
+constexpr u32 HashNSBits = 5;
+constexpr u32 HashNSCount = 1 << HashNSBits;
+constexpr u32 HashNSMask = HashNSCount - 1;
+
+inline constexpr u8 DeclareNS(cstrc name)
 {
-    if (!src) { return 0; }
+    return Fnv8String(name);
+}
+
+inline constexpr HashStringKey StrHash(HashNamespace ns, cstrc src)
+{
+    if (!src || !src[0]) { return 0; }
 
     HashStringKey hash = Fnv32_Bias;
-    for (usize i = 0; src[i]; ++i)
+    for (i32 i = 0; src[i]; ++i)
     {
         hash = Fnv32Byte(ToLower(src[i]), hash);
     }
@@ -34,22 +37,26 @@ struct HashString
 {
     HashStringKey m_key;
 
-    static Slice<char> Lookup(HashStringKey key);
-    static HashStringKey Insert(HashNamespace ns, cstrc value);
-    static void Reset();
-
     inline HashString() : m_key(0) {}
-    inline bool IsNull() const { return !(m_key >> HashNSBits); }
+    inline HashString(HashNamespace ns, HashStringKey key)
+    {
+        m_key = (key << HashNSBits) | ns;
+    }
     inline HashString(HashNamespace ns, cstrc src)
     {
-        m_key = Insert(ns, src);
+        m_key = StrHash(ns, src);
+        IfDebug(Insert(ns, src);)
     }
-    inline Slice<char> Get() const
+    inline bool IsNull() const { return !(m_key >> HashNSBits); }
+
+#if _DEBUG
+    inline cstr Get() const
     {
         return Lookup(m_key);
     }
-
-    static u8 NSIdx;
+    static cstr Lookup(HashStringKey key);
+    static void Insert(HashNamespace ns, cstrc value);
+#endif // _DEBUG
 };
 
 inline bool operator==(HashString a, HashString b)

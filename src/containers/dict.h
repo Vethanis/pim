@@ -8,8 +8,8 @@ struct Dict
     Array<K> m_keys;
     Array<V> m_values;
 
-    inline usize size() const { return m_keys.size(); }
-    inline usize capacity() const { return m_keys.capacity(); }
+    inline i32 size() const { return m_keys.size(); }
+    inline i32 capacity() const { return m_keys.capacity(); }
     inline bool empty() const { return m_keys.empty(); }
     inline bool full() const { return m_keys.full(); }
 
@@ -28,24 +28,24 @@ struct Dict
         m_keys.clear();
         m_values.clear();
     }
-    inline isize find(K key) const
+    inline i32 find(K key) const
     {
         return m_keys.rfind(key);
     }
     inline bool contains(K key) const { return m_keys.rfind(key) != -1; }
     inline const V* get(K key) const
     {
-        const isize i = m_keys.rfind(key);
+        const i32 i = m_keys.rfind(key);
         return (i == -1) ? 0 : m_values.begin() + i;
     }
     inline V* get(K key)
     {
-        const isize i = m_keys.rfind(key);
+        const i32 i = m_keys.rfind(key);
         return (i == -1) ? 0 : m_values.begin() + i;
     }
     inline void remove(K key)
     {
-        const isize i = m_keys.rfind(key);
+        const i32 i = m_keys.rfind(key);
         if (i != -1)
         {
             m_keys.remove(i);
@@ -54,7 +54,7 @@ struct Dict
     }
     inline V& operator[](K key)
     {
-        const isize i = m_keys.rfind(key);
+        const i32 i = m_keys.rfind(key);
         if (i != -1)
         {
             return m_values[i];
@@ -67,12 +67,12 @@ struct Dict
     }
 };
 
-template<usize t_width, typename K, typename V>
+template<u32 t_width, typename K, typename V>
 struct DictTable
 {
-    static constexpr usize Width = t_width;
-    static constexpr usize Mask = t_width - 1u;
-    static constexpr usize GetSlot(K key)
+    static constexpr u32 Width = t_width;
+    static constexpr u32 Mask = t_width - 1u;
+    static constexpr u32 GetSlot(K key)
     {
         return (key * 16777619u) & Mask;
     }
@@ -100,7 +100,7 @@ struct DictTable
             dict.clear();
         }
     }
-    inline isize find(K key) const
+    inline i32 find(K key) const
     {
         return m_dicts[GetSlot(key)].find(key);
     }

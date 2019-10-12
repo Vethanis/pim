@@ -13,7 +13,7 @@
 
 namespace Systems
 {
-    static Quake::SearchPaths ms_paths;
+    static Quake::PackAssets ms_assets;
 
     static System ms_systems[] =
     {
@@ -26,7 +26,7 @@ namespace Systems
     void Init()
     {
         Array<Quake::DPackFile> arena = {};
-        Quake::AddGameDirectory("packs/id1", ms_paths, arena);
+        Quake::AddGameDirectory("packs/id1", ms_assets, arena);
         arena.reset();
 
         for (const System& system : ms_systems)
@@ -59,13 +59,14 @@ namespace Systems
 
     void Shutdown()
     {
-        for (i32 i = CountOf(ms_systems) - 1; i >= 0; --i)
+        for (i32 i = countof(ms_systems) - 1; i >= 0; --i)
         {
             if (ms_systems[i].enabled)
             {
                 ms_systems[i].Shutdown();
             }
         }
+        ms_assets.Reset();
     }
 
     void OnEvent(const sapp_event* evt)

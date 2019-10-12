@@ -2,85 +2,228 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "common/shift.h"
 
 // ----------------------------------------------------------------------------
-// string length
+// null termination
 
-inline constexpr isize StrLen(cstrc x)
+inline void NullTerminate(char* dst, i32 i, i32 size)
 {
-    isize i = 0;
-    for(; x[i]; ++i)
-    {}
-    return i;
+    DebugAssert(dst || !size);
+    DebugAssert(i >= 0);
+    DebugAssert(size >= 0);
+
+    if (size > 0)
+    {
+        dst[Min(i, size - 1)] = 0;
+    }
+}
+
+// ----------------------------------------------------------------------------
+// character classes
+
+inline bool IsUpper(char c)
+{
+    return (c >= 'A') && (c <= 'Z');
+}
+
+inline bool IsLower(char c)
+{
+    return (c >= 'a') && (c <= 'z');
+}
+
+inline bool IsAlpha(char c)
+{
+    return IsLower(c) || IsUpper(c);
+}
+
+inline bool IsNumeric(char c)
+{
+    return (c >= '0') && (c <= '9');
+}
+
+inline bool IsAlphaNumeric(char c)
+{
+    return IsAlpha(c) || IsNumeric(c);
+}
+
+inline bool IsVarChar0(char c)
+{
+    return IsAlpha(c) || (c == '_');
+}
+
+inline bool IsVarChar1(char c)
+{
+    return IsVarChar0(c) || IsNumeric(c);
+}
+
+inline bool IsVarName(cstrc x, i32 size)
+{
+    DebugAssert(x || !size);
+    DebugAssert(size >= 0);
+
+    i32 i = 0;
+    if (!IsVarChar0(x[i]))
+    {
+        return false;
+    }
+    ++i;
+    for (; i < size && x[i]; ++i)
+    {
+        if (!IsVarChar1(x[i]))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 // ----------------------------------------------------------------------------
 // case conversion
 
-inline constexpr char ToLower(char c)
+inline char ToLower(char c)
 {
     constexpr char correction = 'a' - 'A';
     const char corrected = c + correction;
-    return ((c >= 'A') & (c <= 'Z')) ? corrected : c;
+    return IsUpper(c) ? corrected : c;
 }
 
-inline constexpr char ToUpper(char c)
+inline char ToUpper(char c)
 {
     constexpr char correction = 'A' - 'a';
     const char corrected = c + correction;
-    return ((c >= 'a') & (c <= 'z')) ? corrected : c;
+    return IsLower(c) ? corrected : c;
 }
 
-inline char* ToLower(char* dst)
+inline void ToLower(char* dst, i32 size)
 {
-    isize i = 0;
-    for (; dst[i]; ++i)
+    DebugAssert(dst || !size);
+    DebugAssert(size >= 0);
+
+    i32 i = 0;
+    for(; i < size && dst[i]; ++i)
     {
         dst[i] = ToLower(dst[i]);
     }
-    return dst + i;
+    NullTerminate(dst, i, size);
 }
 
-inline char* ToUpper(char* dst)
+inline char* ToUpper(char* dst, i32 size)
 {
-    isize i = 0;
-    for (; dst[i]; ++i)
+    DebugAssert(dst || !size);
+    DebugAssert(size >= 0);
+
+    i32 i = 0;
+    for (; i < size && dst[i]; ++i)
     {
         dst[i] = ToUpper(dst[i]);
     }
-    return dst + i;
+    NullTerminate(dst, i, size);
+}
+
+// ----------------------------------------------------------------------------
+// string length
+
+inline constexpr i32 StrLen(cstrc x)
+{
+    i32 i = 0;
+    if (x)
+    {
+        while (x[i])
+        {
+            ++i;
+        }
+    }
+    return i;
+}
+
+inline constexpr i32 StrLen(cstrc x, i32 size)
+{
+    DebugAssert(x || !size);
+    DebugAssert(size >= 0);
+
+    i32 i = 0;
+    if (x)
+    {
+        while (i < size && x[i])
+        {
+            ++i;
+        }
+    }
+    return i;
+}
+
+// ----------------------------------------------------------------------------
+// string copying
+
+inline void StrCpy(char* dst, i32 size, cstrc src)
+{
+    DebugAssert((dst && src) || !size);
+    DebugAssert(size >= 0);
+
+    i32 i = 0;
+    for (; i < size && src[i]; ++i)
+    {
+        dst[i] = src[i];
+    }
+    NullTerminate(dst, i, size);
+}
+
+inline void StrCat(char* dst, i32 size, cstrc src)
+{
+    DebugAssert((dst && src) || !size);
+    DebugAssert(size >= 0);
+
+    i32 len = StrLen(dst, size);
+    StrCpy(dst + len, size - len, src);
 }
 
 // ----------------------------------------------------------------------------
 // string compare
 
-inline constexpr i32 StrCmp(cstrc lhs, cstrc rhs)
+inline constexpr i32 StrCmp(cstrc lhs, i32 size, cstrc rhs)
 {
-    i32 cmp = 0;
-    for (isize i = 0; (lhs[i] | rhs[i]) && !cmp; ++i)
+    DebugAssert((lhs && rhs) || !size);
+    DebugAssert(size >= 0);
+
+    i32 c = 0;
+    for (i32 i = 0; !c && i < size; ++i)
     {
-        cmp = lhs[i] - rhs[i];
+        c = lhs[i] - rhs[i];
+        if (!lhs[i])
+        {
+            break;
+        }
     }
-    return cmp;
+    return c;
 }
 
-inline constexpr i32 StrICmp(cstrc lhs, cstrc rhs)
+inline constexpr i32 StrICmp(cstrc lhs, i32 size, cstrc rhs)
 {
-    i32 cmp = 0;
-    for (isize i = 0; (lhs[i] | rhs[i]) && !cmp; ++i)
+    DebugAssert((lhs && rhs) || !size);
+    DebugAssert(size >= 0);
+
+    i32 c = 0;
+    for (i32 i = 0; !c && i < size; ++i)
     {
-        cmp = ToLower(lhs[i]) - ToLower(rhs[i]);
+        c = ToLower(lhs[i]) - ToLower(rhs[i]);
+        if (!lhs[i])
+        {
+            break;
+        }
     }
-    return cmp;
+    return c;
 }
 
 // ----------------------------------------------------------------------------
 // string searching
 
-inline cstr StrChr(cstr hay, char needle)
+inline cstr StrChr(cstr hay, i32 size, char needle)
 {
-    for (isize i = 0; hay[i]; ++i)
+    DebugAssert(hay || !size);
+    DebugAssert(size >= 0);
+
+    i32 i = 0;
+    for (; i < size && hay[i]; ++i)
     {
         if (hay[i] == needle)
         {
@@ -90,10 +233,14 @@ inline cstr StrChr(cstr hay, char needle)
     return 0;
 }
 
-inline cstr StrIChr(cstr hay, char needle)
+inline cstr StrIChr(cstr hay, i32 size, char needle)
 {
+    DebugAssert(hay || !size);
+    DebugAssert(size >= 0);
+
     needle = ToLower(needle);
-    for (isize i = 0; hay[i]; ++i)
+    i32 i = 0;
+    for (; i < size && hay[i]; ++i)
     {
         if (ToLower(hay[i]) == needle)
         {
@@ -103,34 +250,53 @@ inline cstr StrIChr(cstr hay, char needle)
     return 0;
 }
 
-inline cstr StrRChr(cstr hay, char needle)
+inline cstr StrRChr(cstr hay, i32 size, char needle)
 {
-    cstr ptr = 0;
-    for (isize i = 0; hay[i]; ++i)
+    DebugAssert(hay || !size);
+    DebugAssert(size >= 0);
+
+    cstr p = 0;
+    i32 i = 0;
+    for (; i < size && hay[i]; ++i)
     {
-        ptr = (hay[i] == needle) ? hay : ptr;
+        if (hay[i] == needle)
+        {
+            p = hay + i;
+        }
     }
-    return ptr;
+    return p;
 }
 
-inline cstr StrIRChr(cstr hay, char needle)
+inline cstr StrIRChr(cstr hay, i32 size, char needle)
 {
-    cstr ptr = 0;
+    DebugAssert(hay || !size);
+    DebugAssert(size >= 0);
+
     needle = ToLower(needle);
-    for (isize i = 0; hay[i]; ++i)
+    cstr p = 0;
+    i32 i = 0;
+    for (; i < size && hay[i]; ++i)
     {
-        char c = ToLower(hay[i]);
-        ptr = (c == needle) ? hay : ptr;
+        if (ToLower(hay[i]) == needle)
+        {
+            p = hay + i;
+        }
     }
-    return ptr;
+    return p;
 }
 
-inline constexpr cstrc CStrStr(cstrc hay, cstrc needle)
+inline cstr StrStr(cstr hay, i32 size, cstrc needle)
 {
-    for (isize i = 0; hay[i]; ++i)
+    DebugAssert((hay && needle) || !size);
+    DebugAssert(size >= 0);
+
+    const i32 hayLen = StrLen(hay, size);
+    const i32 needleLen = StrLen(needle);
+    const i32 outerLen = hayLen - needleLen;
+    for (i32 i = 0; i <= outerLen; ++i)
     {
         i32 cmp = 0;
-        for (isize j = 0; needle[j] && !cmp; ++j)
+        for (i32 j = 0; j < needleLen && !cmp; ++j)
         {
             cmp = hay[i + j] - needle[j];
         }
@@ -141,17 +307,19 @@ inline constexpr cstrc CStrStr(cstrc hay, cstrc needle)
     }
     return 0;
 }
-inline cstr StrStr(cstr hay, cstr needle)
-{
-    return CStrStr(hay, needle);
-}
 
-inline constexpr cstrc CStrIStr(cstrc hay, cstrc needle)
+inline cstr StrIStr(cstr hay, i32 size, cstrc needle)
 {
-    for (isize i = 0; hay[i]; ++i)
+    DebugAssert((hay && needle) || !size);
+    DebugAssert(size >= 0);
+
+    const i32 hayLen = StrLen(hay, size);
+    const i32 needleLen = StrLen(needle);
+    const i32 outerLen = hayLen - needleLen;
+    for(i32 i = 0; i <= outerLen; ++i)
     {
         i32 cmp = 0;
-        for (isize j = 0; needle[j] && !cmp; ++j)
+        for (i32 j = 0; j < needleLen && !cmp; ++j)
         {
             cmp = ToLower(hay[i + j]) - ToLower(needle[j]);
         }
@@ -162,198 +330,197 @@ inline constexpr cstrc CStrIStr(cstrc hay, cstrc needle)
     }
     return 0;
 }
-inline cstr StrIStr(cstr hay, cstr needle)
+
+// ----------------------------------------------------------------------------
+// paths
+
+inline char FixPath(char c)
 {
-    return CStrIStr(hay, needle);
+    switch (c)
+    {
+    IfWin32(case '/': return '\\';)
+    IfUnix(case '\\': return '/';)
+    default: return c;
+    };
+}
+
+inline void FixPath(char* dst, i32 size)
+{
+    DebugAssert(dst || !size);
+    DebugAssert(size >= 0);
+
+    i32 i = 0;
+    for(; i < size && dst[i]; ++i)
+    {
+        dst[i] = FixPath(dst[i]);
+    }
+    NullTerminate(dst, i, size);
+}
+
+inline void PathCpy(char* dst, i32 size, cstrc src)
+{
+    DebugAssert((dst && src) || !size);
+    DebugAssert(size >= 0);
+
+    StrCpy(dst, size, src);
+    FixPath(dst, size);
+}
+
+inline void PathCat(char* dst, i32 size, cstr src)
+{
+    DebugAssert((dst && src) || !size);
+    DebugAssert(size >= 0);
+
+    i32 len = StrLen(dst, size);
+    PathCpy(dst + len, size - len, src);
 }
 
 // ----------------------------------------------------------------------------
 // string formatting
 
-char* VSPrintf(char* dst, isize size, cstr fmt, VaList va);
+void VSPrintf(char* dst, i32 size, cstr fmt, VaList va);
 
-template<isize size>
-inline char* VSPrintf(char(&dst)[size], cstr fmt, VaList va)
+inline void SPrintf(char* dst, i32 size, cstr fmt, ...)
 {
-    return VSPrintf(dst, size, fmt, va);
+    VSPrintf(dst, size, fmt, VaStart(fmt));
 }
 
-inline char* SPrintf(char* dst, isize size, cstr fmt, ...)
+inline void StrCatf(char* dst, i32 size, cstr fmt, ...)
 {
-    return VSPrintf(dst, size, fmt, VaStart(fmt));
-}
-
-template<isize size>
-inline char* SPrintf(char(&dst)[size], cstr fmt, ...)
-{
-    return VSPrintf(dst, fmt, VaStart(fmt));
-}
-
-inline char* StrCatf(char* dst, isize size, cstr fmt, ...)
-{
-    dst[size - 1] = 0;
-    const isize len = StrLen(dst);
-    const isize rem = size - len;
-    char* p = dst + len;
-    return VSPrintf(p, rem, fmt, VaStart(fmt));
-}
-
-template<isize size>
-inline char* StrCatf(char(&dst)[size], cstr fmt, ...)
-{
-    dst[size - 1] = 0;
-    const isize len = StrLen(dst);
-    const isize rem = size - len;
-    char* p = dst + len;
-    return VSPrintf(p, rem, fmt, VaStart(fmt));
-}
-
-// ----------------------------------------------------------------------------
-// string copying
-
-inline char* StrCpy(char* dst, isize size, cstr src)
-{
-    dst[size - 1] = 0;
-    const isize len = size - 1;
-    isize i;
-    for (i = 0; i < len && src[i]; ++i)
-    {
-        dst[i] = src[i];
-    }
-    dst[i] = 0;
-    dst[size - 1] = 0;
-    return dst + i;
-}
-template<isize size>
-inline char* StrCpy(char(&dst)[size], cstr src)
-{
-    return StrCpy(dst, size, src);
-}
-
-inline char* StrCat(char* dst, isize size, cstr src)
-{
-    dst[size - 1] = 0;
-    const isize len = StrLen(dst);
-    const isize rem = size - len;
-    char* p = dst + len;
-    return StrCpy(p, rem, src);
-}
-template<isize size>
-inline char* StrCat(char(&dst)[size], cstr src)
-{
-    return StrCat(dst, size, src);
+    i32 len = StrLen(dst, size);
+    VSPrintf(dst + len, size - len, fmt, VaStart(fmt));
 }
 
 // ----------------------------------------------------------------------------
 // char replace
 
-inline char* FixPath(char* dst, isize size)
+inline void ChrRep(char* dst, i32 size, char fnd, char rep)
 {
-    dst[size - 1] = 0;
-    isize i;
-    for (i = 0; dst[i]; ++i)
+    DebugAssert(dst || !size);
+    DebugAssert(size >= 0);
+
+    i32 i = 0;
+    for (; i < size && dst[i]; ++i)
     {
-        char c = dst[i];
-        dst[i] = c == '/' ? '\\' : c;
+        dst[i] = (dst[i] == fnd) ? rep : dst[i];
     }
-    dst[size - 1] = 0;
-    return dst + i;
-}
-template<isize size>
-inline char* FixPath(char(&dst)[size])
-{
-    return FixPath(dst, size);
+    NullTerminate(dst, i, size);
 }
 
-inline char* ChrRep(char* dst, isize size, char fnd, char rep)
+inline void ChrIRep(char* dst, i32 size, char fnd, char rep)
 {
-    dst[size - 1] = 0;
-    isize i;
-    for (i = 0; dst[i]; ++i)
-    {
-        char c = dst[i];
-        dst[i] = c == fnd ? rep : c;
-    }
-    dst[size - 1] = 0;
-    return dst + i;
-}
-template<isize size>
-inline char* ChrRep(char(&dst)[size], char fnd, char rep)
-{
-    return ChrRep(dst, size, fnd, rep);
-}
+    DebugAssert(dst || !size);
+    DebugAssert(size >= 0);
 
-inline char* ChrIRep(char* dst, isize size, char fnd, char rep)
-{
-    dst[size - 1] = 0;
     fnd = ToLower(fnd);
-    isize i;
-    for (i = 0; dst[i]; ++i)
+    i32 i = 0;
+    for (; i < size && dst[i]; ++i)
     {
-        char c = dst[i];
-        dst[i] = ToLower(c) == fnd ? rep : c;
+        dst[i] = (ToLower(dst[i]) == fnd) ? rep : dst[i];
     }
-    dst[size - 1] = 0;
-    return dst + i;
-}
-template<isize size>
-inline char* ChrIRep(char(&dst)[size], char fnd, char rep)
-{
-    return ChrIRep(dst, size, fnd, rep);
+    NullTerminate(dst, i, size);
 }
 
 // ----------------------------------------------------------------------------
 // string replace
 
-inline char* StrRep(char* dst, isize size, cstrc fnd, cstrc rep)
+inline void ShiftRight(char* dst, i32 size, i32 shifts)
 {
-    dst[size - 1] = 0;
-    const isize fndLen = StrLen(fnd);
-    const isize repLen = StrLen(rep);
-    const isize shifts = repLen - fndLen;
-    isize dstLen = StrLen(dst);
-    isize i = 0;
-    while (1)
+    DebugAssert(dst || !size);
+    DebugAssert(size >= 0);
+
+    i32 len = StrLen(dst, size);
+    len = Min(size - shifts - 1, len);
+    for (i32 i = len; i >= 0; --i)
     {
-        cstr p = StrStr(dst + i, fnd);
-        if (!p) { break; }
-        i = p - dst;
-        dstLen = Shift(dst + i, dstLen, i, shifts);
-        p = StrCpy(dst + i, size - i, rep);
-        i = p - dst;
+        dst[i + shifts] = dst[i];
     }
     dst[size - 1] = 0;
-    return dst + i;
-}
-template<isize size>
-inline char* StrRep(char(&dst)[size], cstrc fnd, cstrc rep)
-{
-    return StrRep(dst, size, fnd, rep);
 }
 
-inline char* StrIRep(char* dst, isize size, cstrc fnd, cstrc rep)
+inline void ShiftLeft(char* dst, i32 size, i32 shifts)
 {
-    dst[size - 1] = 0;
-    const isize fndLen = StrLen(fnd);
-    const isize repLen = StrLen(rep);
-    const isize shifts = repLen - fndLen;
-    isize dstLen = StrLen(dst);
-    isize i = 0;
-    while (1)
+    DebugAssert(dst || !size);
+    DebugAssert(size >= 0);
+
+    i32 len = StrLen(dst, size);
+    i32 i = shifts;
+    for (; i < len; ++i)
     {
-        cstr p = StrIStr(dst + i, fnd);
-        if (!p) { break; }
-        i = p - dst;
-        dstLen = Shift(dst + i, dstLen, i, shifts);
-        p = StrCpy(dst + i, size - i, rep);
-        i = p - dst;
+        dst[i - shifts] = dst[i];
     }
-    dst[size - 1] = 0;
-    return dst + i;
+    NullTerminate(dst, i, size);
 }
-template<isize size>
-inline char* StrIRep(char(&dst)[size], cstrc fnd, cstrc rep)
+
+inline void Shift(char* dst, i32 size, i32 shifts)
 {
-    return StrIRep(dst, size, fnd, rep);
+    DebugAssert(dst || !size);
+    DebugAssert(size >= 0);
+
+    return (shifts < 0) ?
+        ShiftLeft(dst, size, -shifts) :
+        ShiftRight(dst, size, shifts);
+}
+
+inline i32 StrRep(char* dst, i32 size, cstr fnd, cstr rep)
+{
+    DebugAssert((dst && fnd && rep) || !size);
+    DebugAssert(size >= 0);
+
+    i32 ct = 0;
+    i32 last = 0;
+    const i32 fndLen = StrLen(fnd);
+    const i32 repLen = StrLen(rep);
+    const i32 lenDiff = repLen - fndLen;
+
+    char* inst = (char*)StrStr(dst, size, fnd);
+    while (inst)
+    {
+        ++ct;
+        const i32 i = (i32)(inst - dst);
+        const i32 instSize = size - i;
+        Shift(inst, instSize, lenDiff);
+        const i32 cpyLen = Min(instSize, repLen);
+        for (i32 j = 0; j < cpyLen; ++j)
+        {
+            inst[j] = rep[j];
+        }
+        last = Max(last, i + cpyLen);
+        inst = (char*)StrStr(inst, instSize, fnd);
+    }
+    NullTerminate(dst, last, size);
+
+    return ct;
+}
+
+inline i32 StrIRep(char* dst, i32 size, cstr fnd, cstr rep)
+{
+    DebugAssert((dst && fnd && rep) || !size);
+    DebugAssert(size >= 0);
+
+    i32 ct = 0;
+    i32 last = 0;
+    const i32 fndLen = StrLen(fnd);
+    const i32 repLen = StrLen(rep);
+    const i32 lenDiff = repLen - fndLen;
+
+    char* inst = (char*)StrIStr(dst, size, fnd);
+    while (inst)
+    {
+        ++ct;
+        const i32 i = (i32)(inst - dst);
+        const i32 instSize = size - i;
+        Shift(inst, instSize, lenDiff);
+        const i32 cpyLen = Min(instSize, repLen);
+        for (i32 j = 0; j < cpyLen; ++j)
+        {
+            inst[j] = rep[j];
+        }
+        last = Max(last, i + cpyLen);
+        inst = (char*)StrIStr(inst, instSize, fnd);
+    }
+    NullTerminate(dst, last, size);
+
+    return ct;
 }
 

@@ -19,34 +19,33 @@ struct Ring
 
     inline u32 capacity() const { return t_mask; }
     inline u32 size() const { return m_count; }
-    inline bool full() const { return size() == capacity(); }
-    inline bool empty() const { return size() == 0u; }
+    inline bool full() const { return m_count >= t_mask; }
+    inline bool empty() const { return !m_count; }
 
     inline void Clear()
     {
-        m_tail = 0;
-        m_count = 0;
+        m_tail = 0u;
+        m_count = 0u;
     }
     inline u32 Push()
     {
-        DebugAssert(!full());
+        DebugAssert(m_count < t_mask);
         m_count++;
         return Mask(m_tail++);
     }
     inline u32 Overwrite()
     {
-        u32 c = m_count + 1u;
-        m_count = c < t_mask ? c : t_mask;
+        DebugAssert(m_count < t_mask);
+        m_count = Min(m_count + 1u, t_mask);
         return Mask(m_tail++);
     }
     inline u32 Pop()
     {
-        DebugAssert(!empty());
-        u32 b = --m_count;
-        return Mask(m_tail - b);
+        DebugAssert(m_count > 0u);
+        return Mask(m_tail - (--m_count));
     }
     inline u32 Begin() const { return Mask(m_tail - m_count); }
     inline u32 End() const { return Mask(m_tail); }
-    inline u32 RBegin() const { return Mask(m_tail - 1u); }
-    inline u32 REnd() const { return Mask(m_tail - m_count - 1u); }
+    inline u32 RBegin() const { return RNext(m_tail); }
+    inline u32 REnd() const { return RNext(m_tail - m_count); }
 };
