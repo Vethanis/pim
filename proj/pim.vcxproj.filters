@@ -53,6 +53,9 @@
     <Filter Include="submodules\miniz">
       <UniqueIdentifier>{8ae0fe3d-e5d0-49ee-848a-279491037880}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\math">
+      <UniqueIdentifier>{271e761d-17f4-4faa-9c1f-7f758b86cb0e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -154,12 +157,6 @@
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\macro.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\mat_types.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\vec_types.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\submodules\sokol\sokol_app.h">
@@ -345,6 +342,27 @@
     <ClInclude Include="..\src\common\find.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\math\mat_types.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\math.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\vec_types.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\vec_ops.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\vec_funcs.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\mat_ops.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\mat_funcs.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">
@@ -370,6 +388,8 @@
     <FxCompile Include="..\src\shaders\example_input.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
-    <FxCompile Include="..\src\shaders\quat.hlsl" />
+    <FxCompile Include="..\src\shaders\quat.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

@@ -74,6 +74,12 @@ struct Array
         DebugAssert(m_len > 0);
         --m_len;
     }
+    inline T popValue()
+    {
+        T item = back();
+        pop();
+        return item;
+    }
     inline void remove(i32 i)
     {
         T* ptr = m_alloc.ptr;

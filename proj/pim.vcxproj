@@ -46,16 +46,21 @@
     <ClInclude Include="..\src\common\hash.h" />
     <ClInclude Include="..\src\common\int_types.h" />
     <ClInclude Include="..\src\common\macro.h" />
-    <ClInclude Include="..\src\common\mat_types.h" />
     <ClInclude Include="..\src\common\mem.h" />
     <ClInclude Include="..\src\common\random.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\text.h" />
-    <ClInclude Include="..\src\common\vec_types.h" />
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\dict.h" />
     <ClInclude Include="..\src\containers\ring.h" />
     <ClInclude Include="..\src\containers\slice.h" />
+    <ClInclude Include="..\src\math\math.h" />
+    <ClInclude Include="..\src\math\mat_funcs.h" />
+    <ClInclude Include="..\src\math\mat_ops.h" />
+    <ClInclude Include="..\src\math\mat_types.h" />
+    <ClInclude Include="..\src\math\vec_funcs.h" />
+    <ClInclude Include="..\src\math\vec_ops.h" />
+    <ClInclude Include="..\src\math\vec_types.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\os\thread.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
@@ -180,7 +185,7 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -202,7 +207,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/vec_types.h"
+#include "math/vec_types.h"
 
 // [row][column]
 // [ (0,0), (0,1) ]
