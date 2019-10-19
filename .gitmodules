@@ -7,6 +7,3 @@
 [submodule "submodules/imgui"]
 	path = submodules/imgui
 	url = https://github.com/ocornut/imgui.git
-[submodule "submodules/curl"]
-	path = submodules/curl
-	url = https://github.com/curl/curl
