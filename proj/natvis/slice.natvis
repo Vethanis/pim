@@ -1,15 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--https://docs.microsoft.com/en-us/visualstudio/debugger/create-custom-views-of-native-objects?view=vs-2019-->
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
-  <Type Name="Array&lt;*&gt;">
-    <DisplayString>{m_len} / {m_alloc.len}; {m_alloc.ptr}</DisplayString>
+  <Type Name="Slice&lt;*&gt;">
+    <DisplayString>{len}; {ptr}</DisplayString>
     <Expand>
-      <Item Name="allocation">m_alloc</Item>
-      <Item Name="capacity">m_alloc.len</Item>
-      <Item Name="length">m_len</Item>
+      <Item Name="ptr">ptr</Item>
+      <Item Name="len">len</Item>
       <ArrayItems>
-        <Size>m_len</Size>
-        <ValuePointer>m_alloc.ptr</ValuePointer>
+        <Size>len</Size>
+        <ValuePointer>ptr</ValuePointer>
       </ArrayItems>
     </Expand>
   </Type>

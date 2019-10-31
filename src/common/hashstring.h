@@ -5,65 +5,90 @@
 #include "common/hash.h"
 #include "common/stringutil.h"
 
-using HashNamespace = u8;
-using HashStringKey = u32;
+using HashSpace = u8;
+using HashKey = u32;
 
-constexpr u32 HashNSBits = 5;
-constexpr u32 HashNSCount = 1 << HashNSBits;
-constexpr u32 HashNSMask = HashNSCount - 1;
+#define DeclareHashNS(T)            static constexpr HashSpace NS_##T   = HStr::CreateNs(#T);
+#define DeclareHash(name, ns, txt) static constexpr HashKey name        = HStr::Hash(ns, txt);
 
-inline constexpr u8 DeclareNS(cstrc name)
+namespace HStr
 {
-    return Fnv8String(name);
-}
+    constexpr HashKey NsValueBits     = 3;
+    constexpr HashKey NsTypeBits      = sizeof(HashSpace) * 8;
+    constexpr HashKey NsCount         = 1 << NsValueBits;
+    constexpr HashKey NsMask          = NsCount - 1;
 
-inline constexpr HashStringKey StrHash(HashNamespace ns, cstrc src)
-{
-    if (!src || !src[0]) { return 0; }
+    constexpr HashKey HashTypeBits    = sizeof(HashKey) * 8;
+    constexpr HashKey HashValueBits   = HashTypeBits - NsValueBits;
 
-    HashStringKey hash = Fnv32_Bias;
-    for (i32 i = 0; src[i]; ++i)
+    StaticAssert(NsTypeBits >= NsValueBits);
+
+    inline constexpr HashSpace CreateNs(cstrc name)
     {
-        hash = Fnv32Byte(ToLower(src[i]), hash);
+        return (HashSpace)(Fnv32String(name) & NsMask);
     }
 
-    hash = hash ? hash : 1;
-    hash = (hash << HashNSBits) | ns;
+    inline constexpr HashKey EmbedNs(HashSpace ns, HashKey hash)
+    {
+        DebugAssert(NsTypeBits >= NsValueBits);
+        return (hash << NsValueBits) | (ns & NsMask);
+    }
 
-    return hash;
-}
+    inline constexpr HashSpace GetNs(HashKey key)
+    {
+        return key & NsMask;
+    }
+
+    inline constexpr HashKey GetHash(HashKey key)
+    {
+        return key >> NsValueBits;
+    }
+
+    inline constexpr HashKey Hash(HashSpace ns, cstrc src)
+    {
+        if (!src || !src[0]) { return 0; }
+
+        HashKey hash = Fnv32Bias;
+        for (i32 i = 0; src[i]; ++i)
+        {
+            hash = Fnv32Byte(ToLower(src[i]), hash);
+        }
+
+        return EmbedNs(ns, Max(hash, 1));
+    }
+
+#if _DEBUG
+    cstr Lookup(HashKey key);
+    void Insert(HashKey key, cstrc value);
+#endif // _DEBUG
+
+}; // HStr
 
 struct HashString
 {
-    HashStringKey m_key;
+    HashKey Value;
 
-    inline HashString() : m_key(0) {}
-    inline HashString(HashNamespace ns, HashStringKey key)
-    {
-        m_key = (key << HashNSBits) | ns;
-    }
-    inline HashString(HashNamespace ns, cstrc src)
-    {
-        m_key = StrHash(ns, src);
-        IfDebug(Insert(ns, src);)
-    }
-    inline bool IsNull() const { return !(m_key >> HashNSBits); }
+    inline constexpr HashString()
+        : Value(0) {}
 
-#if _DEBUG
-    inline cstr Get() const
-    {
-        return Lookup(m_key);
-    }
-    static cstr Lookup(HashStringKey key);
-    static void Insert(HashNamespace ns, cstrc value);
-#endif // _DEBUG
-};
+    inline constexpr HashString(HashSpace ns, HashKey hash)
+        : Value(HStr::EmbedNs(ns, hash)) {}
 
-inline bool operator==(HashString a, HashString b)
-{
-    return a.m_key == b.m_key;
-}
-inline bool operator!=(HashString a, HashString b)
-{
-    return a.m_key != b.m_key;
-}
+    inline HashString(HashSpace ns, cstrc src)
+        : Value(HStr::Hash(ns, src))
+    {
+        IfDebug(HStr::Insert(Value, src);)
+    }
+
+    inline bool IsNull() const { return HStr::GetHash(Value) == 0; }
+    inline bool IsNotNull() const { return HStr::GetHash(Value) != 0; }
+    inline bool operator==(HashString other) const { return Value == other.Value; }
+    inline bool operator!=(HashString other) const { return Value != other.Value; }
+
+    inline cstr DebugGet() const
+    {
+        IfDebug(return HStr::Lookup(Value));
+        IfNotDebug(return nullptr);
+    }
+
+}; // HashString

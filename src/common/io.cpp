@@ -14,6 +14,8 @@
 
 #include "common/io.h"
 #include "common/macro.h"
+#include "common/stringutil.h"
+#include "common/mem.h"
 
 namespace IO
 {
@@ -26,7 +28,6 @@ namespace IO
     void SetErrNo(i32 value)
     {
         ms_errno = value;
-        DebugInterrupt();
     }
     void ClearErrNo()
     {
@@ -37,6 +38,7 @@ namespace IO
     {
         if (x < 0)
         {
+            DebugInterrupt();
             SetErrNo(x);
         }
         return x;
@@ -70,6 +72,10 @@ namespace IO
     i32 Write(FD hdl, const void* src, usize size)
     {
         return TestErrNo(_write(hdl.fd, src, (u32)size));
+    }
+    i32 Puts(cstrc str, FD hdl)
+    {
+        return Write(hdl, str, StrLen(str));
     }
     i32 Seek(FD hdl, isize offset)
     {
@@ -324,12 +330,37 @@ namespace IO
         return wrote != 0;
     }
 
-    void* GetModuleFunc(Module mod, cstr name)
+    bool GetModuleFunc(Module mod, cstr name, void** pFunc)
     {
-        Check0(mod.hdl);
         Check0(name);
+        Check0(pFunc);
         FARPROC proc = ::GetProcAddress((HMODULE)mod.hdl, name);
-        return (void*)proc;
+        *pFunc = (void*)proc;
+        return proc != 0;
+    }
+
+    // ------------------------------------------------------------------------
+
+    bool Curl(cstr url, Array<char>& result)
+    {
+        result.clear();
+        Check0(url);
+        char cmd[1024];
+        SPrintf(argof(cmd), "tools\\curl\\curl.exe --cacert tools\\curl\\ssl\\cert.pem -L -B %s", url);
+        Stream stream = POpen(cmd, "rb");
+        Check0(stream.ptr);
+        while (true)
+        {
+            i32 bytesRead = (i32)FRead(stream, argof(cmd));
+            if (bytesRead == 0)
+            {
+                break;
+            }
+            i32 prevSize = result.resizeRel(bytesRead);
+            pimcpy(result.begin() + prevSize, cmd, bytesRead);
+        }
+        PClose(stream);
+        return result.size() > 0;
     }
 
     // ------------------------------------------------------------------------

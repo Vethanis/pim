@@ -5,8 +5,6 @@
 
 struct sapp_event;
 
-using InputListener = void(*)(u64 tick, f32 value);
-
 enum InputModFlags : u8
 {
     InputMod_Shift = (1 << 0),
@@ -159,17 +157,21 @@ enum InputChannel : u8
     InputChannel_Count
 };
 
-struct InputListenerDesc
+struct InputEvent
 {
-    InputListener listener;
-    u16 id;
-    InputChannel channel;
-    u8 modifiers;
+    u64 tick;               // when
+    InputChannel channel;   // what device
+    u16 id;                 // what key / button / axis
+    u8 mods;                // what modifiers are active
+    f32 value;              // what value [0, 1] for buttons, [-1, 1] for axii
 };
+
+using InputListener = void(*)(InputEvent evt);
 
 namespace InputSystem
 {
-    void Listen(InputListenerDesc desc);
+    void Listen(InputChannel channel, InputListener onEvent);
+    void Deafen(InputChannel channel, InputListener onEvent);
 
     void Init();
     void Update();

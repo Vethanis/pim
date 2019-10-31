@@ -2,20 +2,18 @@
 
 #include "common/macro.h"
 
-#if CUR_PLAT == PLAT_WINDOWS
+#if PLAT_WINDOWS
     #define SOKOL_D3D11             1
-#elif CUR_PLAT == PLAT_LINUX
+#elif PLAT_LINUX
     #define SOKOL_GLCORE33          1
-#elif CUR_PLAT == PLAT_MAC
+#elif PLAT_MAC
     #define SOKOL_METAL             1
-#elif CUR_PLAT == PLAT_ANDROID
+#elif PLAT_ANDROID
     #define SOKOL_GLES3             1
-#elif CUR_PLAT == PLAT_IOS
+#elif PLAT_IOS
     #define SOKOL_METAL             1
-#elif CUR_PLAT == PLAT_IOS_SIM
+#elif PLAT_IOS_SIM
     #define SOKOL_METAL             1
-#else
-    #error Unhandled platform
 #endif // CUR_PLAT == PLAT_WINDOWS
 
 #define SOKOL_ASSERT                DebugAssert

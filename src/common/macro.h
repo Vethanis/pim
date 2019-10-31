@@ -2,34 +2,25 @@
 
 // ----------------------------------------------------------------------------
 
-#define PLAT_UNKNOWN                    0
-#define PLAT_WINDOWS                    1
-#define PLAT_LINUX                      2
-#define PLAT_MAC                        3
-#define PLAT_ANDROID                    4
-#define PLAT_IOS                        5
-#define PLAT_IOS_SIM                    6
-
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
-    #define CUR_PLAT                    PLAT_WINDOWS
+    #define PLAT_WINDOWS                1
 #elif defined(__ANDROID__)
-    #define CUR_PLAT                    PLAT_ANDROID
+    #define PLAT_ANDROID                1
 #elif defined(__APPLE__)
     #if defined(TARGET_IPHONE_SIMULATOR)
-        #define CUR_PLAT                PLAT_IOS_SIM
+        #define PLAT_IOS_SIM            1
     #elif defined(TARGET_OS_IPHONE)
-        #define CUR_PLAT                PLAT_IOS
+        #define PLAT_IOS                1
     #elif defined(TARGET_OS_MAC)
-        #define CUR_PLAT                PLAT_MAC
+        #define PLAT_MAC                1
     #endif // def TARGET_IPHONE_SIMULATOR
 #elif defined(__linux__)
-    #define CUR_PLAT                    PLAT_LINUX
+    #define PLAT_LINUX                  1
 #else
-    #define CUR_PLAT                    PLAT_UNKNOWN
     #error Unable to detect current platform
 #endif // def _WIN32 || def __CYGWIN__
 
-#if CUR_PLAT == PLAT_WINDOWS
+#if PLAT_WINDOWS
     #define inline                  __forceinline
     #define Restrict                __restrict
     #define DllImport               __declspec( dllimport )
@@ -45,36 +36,19 @@
 
 // ----------------------------------------------------------------------------
 
-#define TARGET_UNKNOWN                  0
-#define TARGET_DEBUG                    1
-#define TARGET_RELEASE                  2
-#define TARGET_MASTER                   3
-
 #ifdef _DEBUG
-    #define CUR_TARGET                  TARGET_DEBUG
     #define IfDebug(x)                  x
+    #define IfNotDebug(x)               
 #else
     #define IfDebug(x)                  
+    #define IfNotDebug(x)               x
 #endif // def _DEBUG
 
 #ifdef NDEBUG
-    #define CUR_TARGET                  TARGET_RELEASE
     #define IfRelease(x)                x
 #else
     #define IfRelease(x)                
 #endif // def _NDEBUG
-
-#ifdef _MASTER
-    #define CUR_TARGET                  TARGET_MASTER
-    #define IfMaster(x)                 x
-#else
-    #define IfMaster(x)                 
-#endif // def _MASTER
-
-#ifndef CUR_TARGET
-    #define CUR_TARGET                  TARGET_UNKNOWN
-    #error Unable to detect current build target
-#endif // ndef CUR_TARGET
 
 // ----------------------------------------------------------------------------
 
@@ -88,6 +62,11 @@
 #define DebugAssert(x)              IfDebug(Assert(x))
 #define Check0(x)                   IfFalse(x, DebugInterrupt(); return 0)
 #define Check(x, expr)              IfFalse(x, DebugInterrupt(); expr)
+
+#define _CatToken(x, y)             x ## y
+#define CatToken(x, y)              _CatToken(x, y)
+
+#define StaticAssert(x)             typedef char CatToken(StaticAssertType_, __COUNTER__) [ (x) ? 1 : -1]
 
 #define Min(a, b)                   ( (a) < (b) ? (a) : (b) )
 #define Max(a, b)                   ( (a) > (b) ? (a) : (b) )

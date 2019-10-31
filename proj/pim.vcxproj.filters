@@ -363,18 +363,18 @@
     <ClInclude Include="..\src\math\mat_funcs.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\common\unroll.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">
       <Filter>natvis</Filter>
     </Natvis>
-    <Natvis Include="natvis\RfMember.natvis">
-      <Filter>natvis</Filter>
-    </Natvis>
-    <Natvis Include="natvis\RfType.natvis">
-      <Filter>natvis</Filter>
-    </Natvis>
     <Natvis Include="natvis\dict.natvis">
+      <Filter>natvis</Filter>
+    </Natvis>
+    <Natvis Include="natvis\slice.natvis">
       <Filter>natvis</Filter>
     </Natvis>
   </ItemGroup>

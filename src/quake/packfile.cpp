@@ -4,9 +4,9 @@
 
 namespace Quake
 {
-    constexpr auto NS_SearchPaths = DeclareNS("SearchPaths");
-    constexpr auto NS_Packs = DeclareNS("Packs");
-    constexpr auto NS_PackFiles = DeclareNS("PackFiles");
+    DeclareHashNS(SearchPaths)
+    DeclareHashNS(Packs)
+    DeclareHashNS(PackFiles)
 
     bool LoadPackFile(cstrc dir, PackAssets& assets, Array<DPackFile>& arena)
     {

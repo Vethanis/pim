@@ -7,6 +7,9 @@ using Allocation = Slice<u8>;
 
 namespace Allocator
 {
+    void* _ImGuiAllocFn(size_t sz, void*);
+    void  _ImGuiFreeFn(void* ptr, void*);
+
     Allocation _Alloc(i32 want);
     void _Realloc(Allocation& alloc, i32 want);
     void _Free(Allocation& prev);

@@ -3,7 +3,7 @@
 #include <sokol/sokol_gfx.h>
 #include <sokol/sokol_app.h>
 #include <sokol/util/sokol_imgui.h>
-#include <stdio.h>
+#include "ui/imgui.h"
 
 #include "common/int_types.h"
 #include "common/stringutil.h"
@@ -12,10 +12,13 @@
 #include "common/io.h"
 #include "common/hashstring.h"
 #include "common/text.h"
+#include "containers/ring.h"
 
 namespace ShaderSystem
 {
-    enum ShaderType
+    DeclareHashNS(Shaders)
+
+        enum ShaderType
     {
         ShaderType_Pixel = 0,
         ShaderType_Vertex,
@@ -47,18 +50,14 @@ namespace ShaderSystem
         "cs_6_3",
     };
 
-    using Bytecode = Array<u8>;
-
     struct Shaders
     {
         Array<HashString> names;
         Array<ShaderType> types;
-        Array<Bytecode> bytecode;
+        Array<Allocation> bytecode;
     };
-
-    constexpr auto NS_Shaders = DeclareNS("Shaders");
-
     static Shaders ms_shaders;
+    static IO::Module ms_dxc;
 
     static ShaderType GetShaderType(cstrc shaderName, i32 size)
     {
@@ -72,8 +71,20 @@ namespace ShaderSystem
         return ShaderType_Count;
     }
 
+    static RingBuffer<i32, 32> ms_ring;
+
     static void Init()
     {
+        for (i32 i = 0; i < 32; ++i)
+        {
+            ms_ring.Push() = i;
+        }
+        for (i32 i = 0; i < 32; ++i)
+        {
+            i32 y = ms_ring.Pop();
+            Assert(y == i);
+        }
+
         char cmd[1024] = {};
         char cwd[PIM_MAX_PATH] = {};
         char tmp[PIM_MAX_PATH] = {};
@@ -91,6 +102,13 @@ namespace ShaderSystem
         Array<IO::FindData> findDatas = {};
         Array<IO::Stream> procs = {};
         IO::FindAll(findDatas, "src/shaders/*.hlsl");
+
+        Array<char> googleHtml = {};
+        IO::Curl("https://google.com", googleHtml);
+        IO::Puts("\n\nResult:\n\n");
+        IO::Write(IO::StdOut, googleHtml.begin(), googleHtml.sizeBytes());
+        IO::Puts("\n\n");
+        googleHtml.reset();
 
         for (i32 i = 0; i < findDatas.size(); ++i)
         {
@@ -122,14 +140,14 @@ namespace ShaderSystem
             StrIRep(argof(tmp), ".hlsl", ".cso");
             FixPath(argof(tmp));
 
-            Bytecode dxil = {};
+            Allocation dxil = {};
 
             IO::PClose(procs[i]);
             IO::FD cso = IO::Open(tmp, IO::OBinSeqRead);
             if (IO::IsOpen(cso))
             {
                 const i32 dxilSize = (i32)IO::Size(cso);
-                dxil.resize(dxilSize);
+                dxil = Allocator::_Alloc(dxilSize);
                 const i32 got = IO::Read(cso, dxil.begin(), dxilSize);
                 DebugAssert(got == dxilSize);
                 IO::Close(cso);
@@ -141,11 +159,12 @@ namespace ShaderSystem
         findDatas.reset();
         procs.reset();
     }
+
     static void Shutdown()
     {
-        for (Bytecode& bc : ms_shaders.bytecode)
+        for (Allocation& bc : ms_shaders.bytecode)
         {
-            bc.reset();
+            Allocator::_Free(bc);
         }
         ms_shaders.bytecode.reset();
         ms_shaders.names.reset();
@@ -183,6 +202,7 @@ namespace RenderSystem
             sg_setup(&desc);
         }
         {
+            ImGui::SetAllocatorFunctions(Allocator::_ImGuiAllocFn, Allocator::_ImGuiFreeFn);
             simgui_desc_t desc = {};
             simgui_setup(&desc);
         }

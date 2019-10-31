@@ -4,49 +4,45 @@
 
 #if _DEBUG
 
-using HashText = Text<64>;
-
-using HashStorage = DictTable<16, HashStringKey, HashText>;
-
-static HashStorage ms_store[HashNSCount];
-
-static HashStorage& GetStore(HashStringKey key)
+namespace HStr
 {
-    return ms_store[key & HashNSMask];
-}
+    using HashText = Text<64>;
+    using HashStorage = DictTable<4, HashKey, HashText>;
 
-cstr HashString::Lookup(HashStringKey key)
-{
-    cstr result = 0;
-    HashText* pText = GetStore(key).get(key);
-    if (pText)
+    static HashStorage ms_store[NsCount];
+
+    cstr Lookup(HashKey key)
     {
-        result = pText->value;
-    }
-    return result;
-}
-
-void HashString::Insert(HashNamespace ns, cstrc value)
-{
-    if (!value || !value[0])
-    {
-        return;
+        cstr result = 0;
+        HashText* pText = ms_store[GetNs(key)].get(key);
+        if (pText)
+        {
+            result = pText->value;
+        }
+        return result;
     }
 
-    HashStringKey key = StrHash(ns, value);
-    HashText& dst = GetStore(key)[key];
-
-    if (dst.value[0])
+    void Insert(HashKey key, cstrc value)
     {
-        if (!StrICmp(argof(dst.value), value))
+        if (!value || !value[0])
         {
             return;
         }
-        DebugInterrupt();
-        return;
+
+        HashText& dst = ms_store[GetNs(key)][key];
+        if (dst.value[0])
+        {
+            if (!StrICmp(argof(dst.value), value))
+            {
+                return;
+            }
+            DebugInterrupt();
+            return;
+        }
+
+        StrCpy(argof(dst.value), value);
     }
 
-    StrCpy(argof(dst.value), value);
-}
+}; // HStr
 
 #endif // _DEBUG

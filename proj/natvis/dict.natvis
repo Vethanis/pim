@@ -2,21 +2,16 @@
 <!--https://docs.microsoft.com/en-us/visualstudio/debugger/create-custom-views-of-native-objects?view=vs-2019-->
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
   <Type Name="Dict&lt;*,*&gt;">
-    <DisplayString>{fuzz.m_len} / {fuzz.m_cap}; {fuzz.m_alloc,en}</DisplayString>
+    <DisplayString>{m_keys.m_len} / {m_keys.m_alloc.len}</DisplayString>
     <Expand>
-      <Item Name="[keys]">keys</Item>
-      <Item Name="[values]">values</Item>
-      <Item Name="[fuzz]">fuzz</Item>
+      <Item Name="keys">m_keys</Item>
+      <Item Name="values">m_values</Item>
       <CustomListItems>
         <Variable Name="i" InitialValue="0"/>
         <Loop>
-          <Break Condition="i == fuzz.m_len"/>
-          <!--<Synthetic Name="Pair">
-            <DisplayString>{fuzz.m_ptr[i],bb} {keys.m_ptr[i]} {values.m_ptr[i]}</DisplayString>
-          </Synthetic>-->
-          <!--<Item>fuzz.m_ptr[i],bb</Item>-->
-          <Item>keys.m_ptr[i]</Item>
-          <Item>values.m_ptr[i]</Item>
+          <Break Condition="i >= m_keys.m_len"/>
+          <Item>m_keys[i]</Item>
+          <Item>m_values[i]</Item>
           <Exec>++i</Exec>
         </Loop>
       </CustomListItems>

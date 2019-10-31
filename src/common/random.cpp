@@ -5,6 +5,7 @@
 #include "os/thread.h"
 #include "systems/time_system.h"
 #include <pcg32/pcg32.h>
+#include "math/math.h"
 
 #include <stdio.h>
 
@@ -27,6 +28,20 @@ namespace Random
     {
         return pcg32_random_r(&ts_state);
     }
+    u32 NextU32(u32 lo, u32 hi)
+    {
+        DebugAssert(hi > lo);
+        return lo + (NextU32() % (hi - lo));
+    }
+    i32 NextI32()
+    {
+        return math::abs((i32)NextU32());
+    }
+    i32 NextI32(i32 lo, i32 hi)
+    {
+        DebugAssert(hi > lo);
+        return lo + (NextI32() % (hi - lo));
+    }
     f32 NextF32()
     {
         constexpr f32 r16 = 1.0f / 65536.0f;
@@ -37,6 +52,7 @@ namespace Random
     }
     f32 NextF32(f32 lo, f32 hi)
     {
+        DebugAssert(hi > lo);
         return lo + NextF32() * (hi - lo);
     }
 };

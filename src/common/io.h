@@ -101,6 +101,8 @@ namespace IO
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/write
     i32 Write(FD hdl, const void* src, usize size);
 
+    i32 Puts(cstrc str, FD hdl = StdOut);
+
     // seek
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/lseek-lseeki64
     i32 Seek(FD hdl, isize offset);
@@ -314,7 +316,7 @@ namespace IO
     // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamea
     bool GetModuleName(Module mod, char* dst, u32 dstSize);
     // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress
-    void* GetModuleFunc(Module mod, cstr name);
+    bool GetModuleFunc(Module mod, cstr name, void** pFunc);
 
     inline bool GetExeName(char* dst, u32 dstSize)
     {
@@ -325,6 +327,10 @@ namespace IO
     {
         return GetModule(0, dst);
     }
+
+    // ------------------------------------------------------------------------
+
+    bool Curl(cstr url, Array<char>& result);
 
     // ------------------------------------------------------------------------
 }; // IO

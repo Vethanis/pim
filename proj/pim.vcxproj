@@ -50,6 +50,7 @@
     <ClInclude Include="..\src\common\random.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\text.h" />
+    <ClInclude Include="..\src\common\unroll.h" />
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\dict.h" />
     <ClInclude Include="..\src\containers\ring.h" />
@@ -123,10 +124,7 @@
   <ItemGroup>
     <Natvis Include="natvis\array.natvis" />
     <Natvis Include="natvis\dict.natvis" />
-    <Natvis Include="natvis\RfMember.natvis" />
-    <Natvis Include="natvis\RfType.natvis">
-      <SubType>Designer</SubType>
-    </Natvis>
+    <Natvis Include="natvis\slice.natvis" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="..\src\shaders\example_input.hlsl">
@@ -188,7 +186,7 @@
       <PreprocessorDefinitions>NOMINMAX;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;C:\Users\Lauren\workspace\pim\tools\dxc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <CompileAsManaged>false</CompileAsManaged>
@@ -200,6 +198,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -208,7 +207,7 @@
       <WarningLevel>Level3</WarningLevel>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NOMINMAX;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;C:\Users\Lauren\workspace\pim\tools\dxc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
@@ -227,6 +226,7 @@
       <Profile>true</Profile>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -21,42 +21,42 @@ inline void NullTerminate(char* dst, i32 i, i32 size)
 // ----------------------------------------------------------------------------
 // character classes
 
-inline bool IsUpper(char c)
+inline constexpr bool IsUpper(char c)
 {
     return (c >= 'A') && (c <= 'Z');
 }
 
-inline bool IsLower(char c)
+inline constexpr bool IsLower(char c)
 {
     return (c >= 'a') && (c <= 'z');
 }
 
-inline bool IsAlpha(char c)
+inline constexpr bool IsAlpha(char c)
 {
     return IsLower(c) || IsUpper(c);
 }
 
-inline bool IsNumeric(char c)
+inline constexpr bool IsNumeric(char c)
 {
     return (c >= '0') && (c <= '9');
 }
 
-inline bool IsAlphaNumeric(char c)
+inline constexpr bool IsAlphaNumeric(char c)
 {
     return IsAlpha(c) || IsNumeric(c);
 }
 
-inline bool IsVarChar0(char c)
+inline constexpr bool IsVarChar0(char c)
 {
     return IsAlpha(c) || (c == '_');
 }
 
-inline bool IsVarChar1(char c)
+inline constexpr bool IsVarChar1(char c)
 {
     return IsVarChar0(c) || IsNumeric(c);
 }
 
-inline bool IsVarName(cstrc x, i32 size)
+inline constexpr bool IsVarName(cstrc x, i32 size)
 {
     DebugAssert(x || !size);
     DebugAssert(size >= 0);
@@ -80,14 +80,14 @@ inline bool IsVarName(cstrc x, i32 size)
 // ----------------------------------------------------------------------------
 // case conversion
 
-inline char ToLower(char c)
+inline constexpr char ToLower(char c)
 {
     constexpr char correction = 'a' - 'A';
     const char corrected = c + correction;
     return IsUpper(c) ? corrected : c;
 }
 
-inline char ToUpper(char c)
+inline constexpr char ToUpper(char c)
 {
     constexpr char correction = 'A' - 'a';
     const char corrected = c + correction;

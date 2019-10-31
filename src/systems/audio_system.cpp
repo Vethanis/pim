@@ -3,6 +3,9 @@
 #include "containers/array.h"
 #include "math/math.h"
 #include "common/find.h"
+#include "systems/input_system.h"
+#include "ui/imgui.h"
+#include "common/random.h"
 
 #include <sokol/sokol_audio.h>
 
@@ -11,401 +14,173 @@ namespace AudioSystem
     constexpr f32 SampleFreq = 44100.0f;
     constexpr f32 DeltaTime = 1.0f / SampleFreq;
 
-    enum ProcessorId
-    {
-        ProcessorId_None = 0,
-        ProcessorId_Mov,
-        ProcessorId_Inc,
-        ProcessorId_Dec,
-        ProcessorId_Zero,
-        ProcessorId_One,
-        ProcessorId_Add,
-        ProcessorId_Sub,
-        ProcessorId_Mul,
-        ProcessorId_Div,
-        ProcessorId_Mod,
-        ProcessorId_Lerp,
-        ProcessorId_Saturate,
-        ProcessorId_Fract,
-        ProcessorId_Sin,
-        ProcessorId_Cos,
-        ProcessorId_Tan,
-        ProcessorId_Select,
-        ProcessorId_Step,
-        ProcessorId_SmoothStep,
-        ProcessorId_Exp2,
-        ProcessorId_Log2,
-        ProcessorId_NoteToFreq,
-        ProcessorId_FreqToNote,
-        ProcessorId_SineWave,
-        ProcessorId_Impulse,
-        ProcessorId_ZeroCrossing,
-        ProcessorId_Gate,
-        ProcessorId_PhaseMod,
-        ProcessorId_Reinhard,
-    };
-
-    enum SignalId
-    {
-        SignalId_None = 0,
-        SignalId_Note,      // [0, 128] midi note
-        SignalId_Velocity,  // [0, 1] midi velocity
-        SignalId_Pitch,     // midi frequency, in hz
-        SignalId_Gate,      // midi gate, 1 on velocity zero crossing, otherwise 0
-        SignalId_Out,
-    };
-
-    struct Processor
-    {
-        ProcessorId id;
-        FixedArray<i32, 8> inputs;
-        FixedArray<i32, 4> outputs;
-    };
-
     inline f32 NoteToFreq(f32 note)
     {
-        constexpr f32 i = 1.0f / 12.0f;
-        return math::exp2(i * (note - 69.0f)) * 440.0f;
+        return math::exp2((note - 69.0f) / 12.0f) * 440.0f;
     }
 
     inline f32 FreqToNote(f32 freq)
     {
-        constexpr f32 j = 1.0f / 440.0f;
-        return (math::log2(freq * j) * 12.0f) + 69.0f;
+        return (math::log2(freq / 440.0f) * 12.0f) + 69.0f;
     }
 
-    inline f32 Gate(f32 trigger, f32 phase)
-    {
-        if (trigger > 0.0f)
-        {
-            return 0.0f;
-        }
-        return phase;
-    }
-
-    inline f32 PhaseMod(f32 phase, f32 signal)
+    inline float2 PhaseMod(float2 phase, float2 signal)
     {
         return math::frac(phase + signal * DeltaTime);
     }
 
-    inline f32 SineWave(f32& phase, f32 freq)
+    inline float2 SineOsc(float2& phase, float2 freq)
     {
         phase = PhaseMod(phase, freq);
         return math::sin(phase * math::Tau);
     }
 
-    inline f32 Impulse(f32 gate, f32& phase, f32 k)
+    inline f32 ImpulseEnv(float2& env)
     {
-        if (gate > 0.0f)
-        {
-            phase = 0.0f;
-        }
-        f32 h = k * phase;
-        phase += DeltaTime;
+        f32 h = env.y * env.x;
+        env.x += DeltaTime;
         return math::saturate(h * math::exp(1.0f - h));
     }
 
-    inline f32 ZeroCrossing(f32 a, f32 b)
+    inline float2 Mix(float2 value, float2 volPan)
     {
-        return (a > 0.0f && b <= 0.0f) ? 1.0f : 0.0f;
+        return math::exp2(volPan.x - 1.0f) * float2(1.0f - volPan.y, volPan.y) * value;
     }
-
-    static void Tick(const Processor& proc, Slice<f32> memory)
-    {
-        const auto& in = proc.inputs;
-        const auto& out = proc.outputs;
-        switch (proc.id)
-        {
-        default:
-        case ProcessorId_None:
-            break;
-        case ProcessorId_Zero:
-            memory[out[0]] = 0.0f;
-            break;
-        case ProcessorId_One:
-            memory[out[0]] = 1.0f;
-            break;
-        case ProcessorId_Inc:
-            ++memory[out[0]];
-            break;
-        case ProcessorId_Dec:
-            --memory[out[0]];
-            break;
-        case ProcessorId_Mov:
-            memory[out[0]] = memory[in[0]];
-            break;
-        case ProcessorId_Add:
-            memory[out[0]] = memory[in[0]] + memory[in[1]];
-            break;
-        case ProcessorId_Sub:
-            memory[out[0]] = memory[in[0]] - memory[in[1]];
-            break;
-        case ProcessorId_Mul:
-            memory[out[0]] = memory[in[0]] * memory[in[1]];
-            break;
-        case ProcessorId_Div:
-            memory[out[0]] = memory[in[0]] / memory[in[1]];
-            break;
-        case ProcessorId_Mod:
-            memory[out[0]] = math::fmod(memory[in[0]], memory[in[1]]);
-            break;
-        case ProcessorId_Lerp:
-            memory[out[0]] = math::lerp(memory[in[0]], memory[in[1]], memory[in[2]]);
-            break;
-        case ProcessorId_Saturate:
-            memory[out[0]] = math::saturate(memory[in[0]]);
-            break;
-        case ProcessorId_Fract:
-            memory[out[0]] = math::frac(memory[in[0]]);
-            break;
-        case ProcessorId_Sin:
-            memory[out[0]] = math::sin(memory[in[0]]);
-            break;
-        case ProcessorId_Cos:
-            memory[out[0]] = math::cos(memory[in[0]]);
-            break;
-        case ProcessorId_Tan:
-            memory[out[0]] = math::tan(memory[in[0]]);
-            break;
-        case ProcessorId_Select:
-            memory[out[0]] = math::select(memory[in[0]], memory[in[1]], memory[in[2]] != 0.0f);
-            break;
-        case ProcessorId_Step:
-            memory[out[0]] = math::step(memory[in[0]], memory[in[1]]);
-            break;
-        case ProcessorId_SmoothStep:
-            memory[out[0]] = math::smoothstep(memory[in[0]], memory[in[1]], memory[in[2]]);
-            break;
-        case ProcessorId_Exp2:
-            memory[out[0]] = math::exp2(memory[in[0]]);
-            break;
-        case ProcessorId_Log2:
-            memory[out[0]] = math::log2(memory[in[0]]);
-            break;
-        case ProcessorId_NoteToFreq:
-            memory[out[0]] = NoteToFreq(memory[in[0]]);
-            break;
-        case ProcessorId_FreqToNote:
-            memory[out[0]] = FreqToNote(memory[in[0]]);
-            break;
-        case ProcessorId_SineWave:
-            memory[out[0]] = SineWave(memory[in[0]], memory[in[1]]);
-            break;
-        case ProcessorId_Impulse:
-            memory[out[0]] = Impulse(memory[in[0]], memory[in[1]], memory[in[2]]);
-            break;
-        case ProcessorId_ZeroCrossing:
-            memory[out[0]] = ZeroCrossing(memory[in[0]], memory[in[1]]);
-            break;
-        case ProcessorId_Gate:
-            memory[out[0]] = Gate(memory[in[0]], memory[in[1]]);
-            break;
-        case ProcessorId_PhaseMod:
-            memory[out[0]] = PhaseMod(memory[in[0]], memory[in[1]]);
-            break;
-        case ProcessorId_Reinhard:
-            memory[out[0]] = math::reinhard(memory[in[0]]);
-            break;
-        }
-    }
-
-    static void Tick(
-        Slice<Processor> processors,
-        Slice<f32> memory)
-    {
-        for (const Processor& proc : processors)
-        {
-            Tick(proc, memory);
-        }
-    }
-
-    struct ProcessorMemory
-    {
-        Array<f32> memory;
-        Array<i32> refCount;
-        Array<i32> freelist;
-
-        inline Slice<f32> Get()
-        {
-            return { memory.begin(), memory.size() };
-        }
-        inline i32 Allocate()
-        {
-            if (freelist.empty())
-            {
-                freelist.grow() = memory.size();
-                memory.grow() = 0.0f;
-                refCount.grow() = 0;
-            }
-            i32 i = freelist.popValue();
-            memory[i] = 0.0f;
-            refCount[i] = 1;
-            return i;
-        }
-        inline void Free(i32 i)
-        {
-            i32 rc = --refCount[i];
-            if (rc == 0)
-            {
-                freelist.grow() = i;
-                memory[i] = 0.0f;
-            }
-        }
-        inline void Reset()
-        {
-            memory.reset();
-            refCount.reset();
-            freelist.reset();
-        }
-    };
-
-    struct Phasor
-    {
-        f32 m_phase;
-        f32 m_freqMult;
-        f32 m_freqBias;
-
-        inline f32 OnTick(f32 freq)
-        {
-            freq = m_freqBias + m_freqMult * freq;
-            return SineWave(m_phase, freq);
-        }
-        inline f32 OnTickPM(f32 freq, f32 phaseMod)
-        {
-            m_phase += phaseMod;
-            return OnTick(freq);
-        }
-        inline f32 OnTickReset(f32 freq, float2 reset)
-        {
-            if (ZeroCrossing(reset.x, reset.y))
-            {
-                m_phase = 0.0f;
-            }
-            return OnTick(freq);
-        }
-    };
-
-    struct Envelope
-    {
-        f32 m_phase;
-        f32 m_duration;
-
-        inline f32 OnTick(f32 gate, f32 velocity)
-        {
-            return Impulse(gate, m_phase, m_duration) * velocity;
-        }
-    };
-
-    struct MixChannel
-    {
-        f32 m_volume;
-        f32 m_pan;
-
-        inline float2 Mix(f32 x) const
-        {
-            f32 pan = math::to_unorm(m_pan);
-            return float2(1.0f - pan, pan) * m_volume * x;
-        }
-        inline float2 Mix(float2 x) const
-        {
-            f32 pan = math::to_unorm(m_pan);
-            return float2(1.0f - pan, pan) * m_volume * x;
-        }
-    };
-
-    struct Subvoice
-    {
-        Phasor m_phasor;
-        Envelope m_envelope;
-        MixChannel m_mixer;
-
-        inline float2 OnTick(f32 gate, f32 freq, f32 velocity)
-        {
-            return m_mixer.Mix(
-                m_phasor.OnTick(freq) *
-                m_envelope.OnTick(gate, velocity));
-        }
-    };
 
     struct Voice
     {
-        Subvoice m_voices[16];
+        static constexpr i32 NumOscs = 24;
+        static constexpr f32 Scale = 1.0f / (f32)NumOscs;
 
-        float2 OnTick(f32 gate, f32 freq, f32 velocity)
+        f32 m_modAmt = 0.1f;
+        i32 m_mainOffset = -12;
+        f32 m_mainFreq;
+        float2 m_mainPhase;
+        float2 m_mainEnv = float2(10.0f, 15.0f);
+        float2 m_mainMix = float2(-1.0f, 0.5f);
+
+        f32 m_modFreqs[NumOscs];
+        float2 m_modPhase[NumOscs];
+        float2 m_modEnvs[NumOscs];
+        float2 m_modMix[NumOscs];
+
+        inline void Randomize()
         {
-            float2 value = 0.0f;
-            for (Subvoice& voice : m_voices)
+            for (i32 i = 0; i < NumOscs; ++i)
             {
-                value += voice.OnTick(gate, freq, velocity);
+                m_modPhase[i] = float2(Random::NextF32(), Random::NextF32());
+                m_modEnvs[i] = float2(10.0f, Random::NextF32(1.0f, 40.0f));
+                m_modMix[i] = float2(Random::NextF32(-5.0f, 0.0f), Random::NextF32());
             }
-            return value;
+        }
+
+        inline void OnGui()
+        {
+            ImGui::SliderFloat("Mod Amt", &m_modAmt, 0.0f, 1.0f);
+            ImGui::SliderInt("Main Offset", &m_mainOffset, -36, 36);
+            ImGui::SliderFloat("Main Env.", &m_mainEnv.y, 1.0f, 40.0f);
+            ImGui::SliderFloat("Main Vol.", &m_mainMix.x, -5.0f, 0.0f);
+            ImGui::SliderFloat("Main Pan", &m_mainMix.y, 0.0f, 1.0f);
+        }
+
+        inline void OnNote(f32 note)
+        {
+            m_mainFreq = NoteToFreq(note + (f32)m_mainOffset);
+            m_mainEnv.x = 0.0f;
+            for (i32 i = 0; i < NumOscs; ++i)
+            {
+                m_modFreqs[i] = NoteToFreq(-12.0f + note + i * 12.0f);
+                m_modEnvs[i].x = 0.0f;
+            }
+        }
+
+        inline float2 OnTick()
+        {
+            const f32* modFreqs = m_modFreqs;
+            float2* modPhase = m_modPhase;
+            float2* modEnvs = m_modEnvs;
+            const float2* modMix = m_modMix;
+
+            float2 modulation = 0.0f;
+            for (i32 i = 0; i < NumOscs; ++i)
+            {
+                modulation += Mix(SineOsc(modPhase[i], modFreqs[i]) * ImpulseEnv(modEnvs[i]), modMix[i]);
+            }
+
+            m_mainPhase += modulation * Scale * m_modAmt;
+
+            return Mix(SineOsc(m_mainPhase, m_mainFreq) * ImpulseEnv(m_mainEnv), m_mainMix);
         }
     };
 
     struct Synth
     {
-        u8 m_notes[64];
-        f32 m_freqs[64];
-        f32 m_velocities[64];
-        f32 m_gates[64];
-        f32 m_durations[64];
-        Voice m_voices[64];
+        f32 m_gate = 0.0f;
+        f32 m_note = 41.0f;
+        Voice m_voice;
 
-        float2 OnTick(Slice<u8> notes, Slice<u8> velocities)
+        inline void OnGui()
         {
-            for (i32 i = 0; i < notes.size(); ++i)
+            if (ImGui::Button("Randomize"))
             {
-                f32 freq = NoteToFreq((f32)notes[i]);
-                f32 velocity = (f32)velocities[i] / 255.0f;
-
-                i32 v = Find(argof(m_notes), notes[i]);
-                if (v == -1)
-                {
-                    v = FindMax(argof(m_durations));
-                    m_velocities[v] = 0.0f;
-                }
-
-                m_gates[v] = ZeroCrossing(velocity, m_velocities[v]);
-                if (m_gates[v] > 0.0f)
-                {
-                    m_durations[v] = 0.0f;
-                }
-
-                m_notes[v] = notes[i];
-                m_freqs[v] = freq;
-                m_velocities[v] = velocity;
+                m_voice.Randomize();
             }
-
-            float2 value = 0.0f;
-            for (i32 i = 0; i < countof(m_voices); ++i)
+            if (ImGui::Button("Trigger"))
             {
-                value += m_voices[i].OnTick(
-                    m_gates[i],
-                    m_freqs[i],
-                    m_velocities[i]);
-                m_durations[i] += DeltaTime;
+                m_gate = 1.0f;
             }
+            ImGui::Value("Gate", m_gate);
+            ImGui::Value("Note", m_note);
+            m_voice.OnGui();
+        }
 
+        inline void OnNote(f32 note)
+        {
+            m_voice.OnNote(note);
+        }
+
+        inline float2 OnTick()
+        {
+            float2 value = m_voice.OnTick();
+            m_gate = 0.0f;
             return math::reinhard(value);
         }
     };
 
+    static Synth ms_synth;
+
+    static void KeyListener(InputEvent evt)
+    {
+        if (evt.id >= KeyCode_A && evt.id <= KeyCode_Z)
+        {
+            if (evt.value > 0.0f)
+            {
+                ms_synth.OnNote((f32)evt.id);
+            }
+        }
+    }
+
     static void AudioMain(f32* buffer, i32 num_frames, i32 num_channels)
     {
+        float2* buffer2 = (float2*)buffer;
         for (i32 i = 0; i < num_frames; i++)
         {
-            buffer[2 * i + 0] = 0.0f;     // left channel
-            buffer[2 * i + 1] = 0.0f;     // right channel
+            *buffer2++ = ms_synth.OnTick();
         }
     }
 
     void Init()
     {
+        Random::Seed();
+        ms_synth.m_voice.Randomize();
+
         saudio_desc desc = {};
         desc.num_channels = 2;
         desc.sample_rate = 44100;
         desc.stream_cb = AudioMain;
         saudio_setup(&desc);
+
+        InputSystem::Listen(InputChannel_Keyboard, KeyListener);
     }
 
     void Update()
@@ -416,11 +191,18 @@ namespace AudioSystem
     void Shutdown()
     {
         saudio_shutdown();
+
+        InputSystem::Deafen(InputChannel_Keyboard, KeyListener);
     }
 
     void Visualize()
     {
-
+        ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+        if (ImGui::Begin("Audio System"))
+        {
+            ms_synth.OnGui();
+        }
+        ImGui::End();
     }
 
     System GetSystem()
@@ -431,7 +213,7 @@ namespace AudioSystem
         sys.Shutdown = Shutdown;
         sys.Visualize = Visualize;
         sys.enabled = true;
-        sys.visualizing = false;
+        sys.visualizing = true;
         return sys;
     }
 };

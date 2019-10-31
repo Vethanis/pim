@@ -80,6 +80,18 @@ struct Array
         pop();
         return item;
     }
+    inline T popFront()
+    {
+        T* ptr = m_alloc.ptr;
+        const i32 len = m_len--;
+        DebugAssert(len > 0);
+        T item = ptr[0];
+        for (i32 i = 1; i < len; ++i)
+        {
+            ptr[i - 1] = ptr[i];
+        }
+        return item;
+    }
     inline void remove(i32 i)
     {
         T* ptr = m_alloc.ptr;
@@ -87,14 +99,14 @@ struct Array
         DebugAssert((u32)i <= (u32)b);
         ptr[i] = ptr[b];
     }
-    inline void shiftRemove(i32 i)
+    inline void shiftRemove(i32 idx)
     {
-        T* ptr = m_alloc.ptr;
+        DebugAssert((u32)idx < (u32)m_len);
+        T* ptr = begin();
         const i32 len = m_len--;
-        DebugAssert((u32)i < (u32)len);
-        for (i32 j = i; j + 1 < len; ++j)
+        for (i32 i = idx + 1; i < len; ++i)
         {
-            ptr[j] = ptr[j + 1];
+            ptr[i - 1] = ptr[i];
         }
     }
     inline void shiftInsert(i32 idx, const T& value)
@@ -152,10 +164,20 @@ struct Array
     }
     inline bool findRemove(const T& value)
     {
-        const i32 idx = find(value);
+        const i32 idx = rfind(value);
         if (idx != -1)
         {
             remove(idx);
+            return true;
+        }
+        return false;
+    }
+    inline bool uniquePush(const T& value)
+    {
+        const i32 idx = rfind(value);
+        if (idx == -1)
+        {
+            grow() = value;
             return true;
         }
         return false;
@@ -226,6 +248,18 @@ struct FixedArray
         DebugAssert(m_len);
         --m_len;
     }
+    inline T popFront()
+    {
+        T* ptr = begin();
+        const i32 len = m_len--;
+        DebugAssert(len > 0);
+        T item = ptr[0];
+        for (i32 i = 1; i < len; ++i)
+        {
+            ptr[i - 1] = ptr[i];
+        }
+        return item;
+    }
     inline void remove(i32 idx)
     {
         DebugAssert((u32)idx < (u32)m_len);
@@ -234,11 +268,11 @@ struct FixedArray
     inline void shiftRemove(i32 idx)
     {
         DebugAssert((u32)idx < (u32)m_len);
-        T* ptr = m_ptr;
+        T* ptr = begin();
         const i32 len = m_len--;
-        for (i32 i = idx; i + 1 < len; ++i)
+        for (i32 i = idx + 1; i < len; ++i)
         {
-            ptr[i] = ptr[i + 1];
+            ptr[i - 1] = ptr[i];
         }
     }
     inline void shiftInsert(i32 idx, const T& value)
@@ -295,10 +329,20 @@ struct FixedArray
     }
     inline bool findRemove(const T& value)
     {
-        const i32 idx = find(value);
+        const i32 idx = rfind(value);
         if (idx != -1)
         {
             remove(idx);
+            return true;
+        }
+        return false;
+    }
+    inline bool uniquePush(const T& value)
+    {
+        const i32 idx = rfind(value);
+        if (idx == -1)
+        {
+            grow() = value;
             return true;
         }
         return false;
