@@ -24,78 +24,88 @@ namespace Ecs
     // ------------------------------------------------------------------------
 
     template<typename T>
-    struct Comps
+    struct CompArray
     {
-        Slice<const u16> entVersions;
-        Slice<const u16> compVersions;
-        Slice<T> components;
+        const i32 m_size;
+        const u16* const m_compVersions;
+        T* const m_components;
 
-        inline bool Has(i32 i) const
-        {
-            return entVersions[i] == compVersions[i];
-        }
+        inline CompArray(
+            Slice<const u16> compVersions,
+            Slice<T> components)
+            : m_size(compVersions.size()),
+            m_compVersions(compVersions.begin()),
+            m_components(components.begin())
+        {}
+
         inline i32 Size() const
         {
-            return compVersions.size();
+            return m_size;
+        }
+        inline bool InRange(i32 i) const
+        {
+            return (u32)i < (u32)m_size;
+        }
+        inline bool Has(i32 i) const
+        {
+            return m_compVersions[i] != 0;
+        }
+        inline i32 Iterate(i32 i) const
+        {
+            for (; InRange(i); ++i)
+            {
+                if (Has(i))
+                {
+                    break;
+                }
+            }
+            return i;
         }
         inline T* Get(i32 i)
         {
-            return Has(i) ? &(components[i]) : nullptr;
+            DebugAssert(InRange(i));
+            return Has(i) ? m_components + i : nullptr;
         }
         inline const T* Get(i32 i) const
         {
-            return Has(i) ? &(components[i]) : nullptr;
+            DebugAssert(InRange(i));
+            return Has(i) ? m_components + i : nullptr;
         }
         inline T& operator[](i32 i)
         {
+            DebugAssert(InRange(i));
             DebugAssert(Has(i));
-            return components[i];
+            return m_components[i];
         }
         inline const T& operator[](i32 i) const
         {
+            DebugAssert(InRange(i));
             DebugAssert(Has(i));
-            return components[i];
+            return m_components[i];
         }
 
         struct iterator
         {
+            CompArray m_array;
             u32 m_i;
-            const u32 m_size;
-            const u16* m_entVersions;
-            const u16* m_compVersions;
-            T* m_components;
 
-            inline iterator(Comps& comps, i32 i) : m_size(comps.entVersions.size())
+            inline iterator(CompArray src, i32 i)
+                : m_array(src)
             {
-                m_i = i;
-                m_entVersions = comps.entVersions.begin();
-                m_compVersions = comps.compVersions.begin();
-                m_components = comps.components.begin();
+                m_i = m_array.Iterate(i);
             }
-
             inline bool operator !=(const iterator&) const
             {
-                return (m_i < m_size) && (m_entVersions[m_i] == m_compVersions[m_i]);
+                return m_array.InRange(m_i);
             }
             inline iterator& operator++()
             {
-                const i32 count = m_size;
-                auto ents = m_entVersions;
-                auto comps = m_compVersions;
-                i32 i = m_i + 1;
-                for (; i < count; ++i)
-                {
-                    if (ents[i] == comps[i])
-                    {
-                        break;
-                    }
-                }
-                m_i = i;
+                m_i = m_array.Iterate(m_i + 1);
                 return *this;
             }
             inline T& operator *()
             {
-                return m_components[m_i];
+                return m_array[m_i];
             }
         }; // iterator
 
@@ -105,7 +115,7 @@ namespace Ecs
         }
         inline iterator end()
         {
-            return iterator(*this, components.size());
+            return iterator(*this, Size());
         }
     };
 
@@ -129,23 +139,36 @@ namespace Ecs
             m_onDestroy = (DestroyCb)T::OnDestroy;
         }
 
+        inline bool IsNull() const
+        {
+            return m_type == ComponentType_Null;
+        }
+
+        inline i32 Size() const
+        {
+            return m_versions.size();
+        }
+
+        inline bool InRange(i32 i) const
+        {
+            return m_versions.in_range(i);
+        }
+
+        inline bool InRange(Entity entity) const
+        {
+            return InRange(entity.index);
+        }
+
         inline Slice<const u16> Versions() const
         {
             return m_versions;
         }
 
         template<typename T>
-        inline Slice<const T> Components() const
+        inline CompArray<T> Components()
         {
-            DebugAssert(T::C_Type == m_type);
-            return m_components.cast<const T>();
-        }
-
-        template<typename T>
-        inline Slice<T> Components()
-        {
-            DebugAssert(T::C_Type == m_type);
-            return m_components.cast<T>();
+            DebugAssert(IsNull() || T::C_Type == m_type);
+            return CompArray<T>(m_versions, m_components.cast<T>());
         }
 
         inline bool Has(Entity entity) const
@@ -155,9 +178,12 @@ namespace Ecs
         }
 
         template<typename T>
-        inline void Add(Entity entity)
+        inline T& Add(Entity entity)
         {
-            DebugAssert(entity.IsNotNull());
+            if (IsNull())
+            {
+                Setup<T>();
+            }
             DebugAssert(T::C_Type == m_type);
             if (!m_versions.in_range(entity.index))
             {
@@ -168,11 +194,17 @@ namespace Ecs
             m_components.embed<T>();
         }
 
+        template<typename T>
+        inline void Add(Entity entity, T component)
+        {
+            Add<T>(entity) = component;
+        }
+
         inline bool Remove(Entity entity)
         {
-            DebugAssert(m_stride != 0);
             if (Has(entity))
             {
+                DebugAssert(m_stride != 0);
                 m_onDestroy(m_components.at(entity.index * m_stride));
                 m_versions[entity.index] = 0;
                 return true;
@@ -181,14 +213,17 @@ namespace Ecs
         }
 
         template<typename T>
-        inline T* Get(Entity entity)
+        inline T& Get(Entity entity)
         {
-            if (Has(entity))
-            {
-                DebugAssert(T::C_Type == m_type);
-                return m_components.as<T>(entity.index);
-            }
-            return nullptr;
+            DebugAssert(Has(entity));
+            DebugAssert(T::C_Type == m_type);
+            return *m_components.as<T>(entity.index);
+        }
+
+        template<typename T>
+        inline void Set(Entity entity, T component)
+        {
+            Get(entity) = component;
         }
     };
 
@@ -196,21 +231,39 @@ namespace Ecs
 
     struct Table
     {
+        Array<Entity> m_entities;
         Array<u16> m_versions;
         Array<u16> m_freelist;
         Row m_rows[ComponentType_Count];
-        bool m_has[ComponentType_Count];
 
         void Reset();
+        Entity Create(TableId chunkId);
+        bool Destroy(Entity entity);
+
+        inline i32 Size() const
+        {
+            return m_versions.size();
+        }
+
+        inline bool InRange(i32 i) const
+        {
+            return m_versions.in_range(i);
+        }
+
+        inline bool InRange(Entity entity) const
+        {
+            return m_versions.in_range(entity.index);
+        }
 
         inline bool IsCurrent(Entity entity) const
         {
-            return m_versions.in_range(entity.index) &&
-                (m_versions[entity.index] == entity.version);
+            return m_versions[entity.index] == entity.version;
         }
 
-        Entity Create(TableId chunkId);
-        bool Destroy(Entity entity);
+        inline Slice<const Entity> Entities() const
+        {
+            return m_entities;
+        }
 
         inline Slice<const u16> Versions() const
         {
@@ -218,50 +271,73 @@ namespace Ecs
         }
 
         template<typename T>
-        inline bool HasRow() const
+        inline Row& GetRow()
         {
-            return m_has[T::C_Type];
+            return m_rows[T::C_Type];
         }
 
         template<typename T>
-        inline void AddRow()
+        inline CompArray<T> Components()
         {
-            i32 i = T::C_Type;
-            if (!m_has[i])
-            {
-                m_has[i] = true;
-                m_rows[T::C_Type].Setup<T>();
-            }
+            return GetRow<T>().Components<T>();
+        }
+
+        template<typename T>
+        inline bool HasRow() const
+        {
+            return !GetRow<T>().IsNull();
         }
 
         template<typename T>
         inline void RemoveRow()
         {
-            i32 i = T::C_Type;
-            if (m_has[i])
-            {
-                m_has[i] = false;
-                m_rows[i].Reset();
-            }
+            GetRow<T>().Reset();
         }
 
         template<typename T>
-        inline Row& GetRow()
+        inline bool HasComponent(Entity entity)
         {
-            i32 i = T::C_Type;
-            DebugAssert(m_has[i]);
-            return ;
+            DebugAssert(InRange(entity));
+            DebugAssert(IsCurrent(entity));
+            return GetRow<T>().Has(entity);
         }
 
         template<typename T>
-        inline Comps<T> Get()
+        inline T& AddComponent(Entity entity)
         {
-            Row& row = m_rows[T::C_Type];
-            Comps<T> slice = {};
-            slice.entVersions = m_versions;
-            slice.compVersions = row.m_versions;
-            slice.components = row.m_components.cast<T>();
-            return slice;
+            DebugAssert(InRange(entity));
+            DebugAssert(IsCurrent(entity));
+            return GetRow<T>().Add<T>(entity);
+        }
+
+        template<typename T>
+        inline void AddComponent(Entity entity, T component)
+        {
+            AddComponent<T>(entity) = component;
+        }
+
+        template<typename T>
+        inline bool RemoveComponent(Entity entity)
+        {
+            DebugAssert(InRange(entity));
+            DebugAssert(IsCurrent(entity));
+            return GetRow<T>().Remove(entity);
+        }
+
+        template<typename T>
+        inline T& GetComponent(Entity entity)
+        {
+            DebugAssert(InRange(entity));
+            DebugAssert(IsCurrent(entity));
+            return GetRow<T>().Get<T>(entity);
+        }
+
+        template<typename T>
+        inline void SetComponent(Entity entity, T component)
+        {
+            DebugAssert(InRange(entity));
+            DebugAssert(IsCurrent(entity));
+            GetRow<T>.Set<T>(entity, component);
         }
     };
 

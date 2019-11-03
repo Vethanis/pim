@@ -210,7 +210,7 @@ namespace RenderSystem
 
         for (auto& table : Ecs::Tables())
         {
-            for (LocalToWorld& transform : table.Get<LocalToWorld>())
+            for (LocalToWorld& transform : table.Components<LocalToWorld>())
             {
 
             }

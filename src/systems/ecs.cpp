@@ -52,12 +52,15 @@ namespace Ecs
         }
         m_versions.reset();
         m_components.reset();
+        m_stride = 0;
+        m_type = ComponentType_Null;
     }
 
     // ------------------------------------------------------------------------
 
     void Table::Reset()
     {
+        m_entities.reset();
         m_versions.reset();
         m_freelist.reset();
         for (Row& row : m_rows)
@@ -72,6 +75,7 @@ namespace Ecs
         {
             m_freelist.grow() = m_versions.size();
             m_versions.grow() = 0;
+            m_entities.grow() = { TableId_Default, 0, 0 };
         }
         u16 i = m_freelist.popValue();
         u16 v = m_versions[i];
@@ -81,6 +85,7 @@ namespace Ecs
         entity.table = chunkId;
         entity.version = v;
         entity.index = i;
+        m_entities[i] = entity;
         return entity;
     }
 
