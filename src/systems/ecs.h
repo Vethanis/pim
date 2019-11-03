@@ -17,22 +17,117 @@ namespace Ecs
 
     struct Table;
 
-    Table& GetChunk(TableId chunkId);
-    Table& GetChunk(Entity entity);
-    Slice<Table> Chunks();
+    Table& GetTable(TableId chunkId);
+    Table& GetTable(Entity entity);
+    Slice<Table> Tables();
 
     // ------------------------------------------------------------------------
 
+    template<typename T>
+    struct Comps
+    {
+        Slice<const u16> entVersions;
+        Slice<const u16> compVersions;
+        Slice<T> components;
+
+        inline bool Has(i32 i) const
+        {
+            return entVersions[i] == compVersions[i];
+        }
+        inline i32 Size() const
+        {
+            return compVersions.size();
+        }
+        inline T* Get(i32 i)
+        {
+            return Has(i) ? &(components[i]) : nullptr;
+        }
+        inline const T* Get(i32 i) const
+        {
+            return Has(i) ? &(components[i]) : nullptr;
+        }
+        inline T& operator[](i32 i)
+        {
+            DebugAssert(Has(i));
+            return components[i];
+        }
+        inline const T& operator[](i32 i) const
+        {
+            DebugAssert(Has(i));
+            return components[i];
+        }
+
+        struct iterator
+        {
+            u32 m_i;
+            const u32 m_size;
+            const u16* m_entVersions;
+            const u16* m_compVersions;
+            T* m_components;
+
+            inline iterator(Comps& comps, i32 i) : m_size(comps.entVersions.size())
+            {
+                m_i = i;
+                m_entVersions = comps.entVersions.begin();
+                m_compVersions = comps.compVersions.begin();
+                m_components = comps.components.begin();
+            }
+
+            inline bool operator !=(const iterator&) const
+            {
+                return (m_i < m_size) && (m_entVersions[m_i] == m_compVersions[m_i]);
+            }
+            inline iterator& operator++()
+            {
+                const i32 count = m_size;
+                auto ents = m_entVersions;
+                auto comps = m_compVersions;
+                i32 i = m_i + 1;
+                for (; i < count; ++i)
+                {
+                    if (ents[i] == comps[i])
+                    {
+                        break;
+                    }
+                }
+                m_i = i;
+                return *this;
+            }
+            inline T& operator *()
+            {
+                return m_components[m_i];
+            }
+        }; // iterator
+
+        inline iterator begin()
+        {
+            return iterator(*this, 0);
+        }
+        inline iterator end()
+        {
+            return iterator(*this, components.size());
+        }
+    };
+
     struct Row
     {
-        using RemoveCb = void(*)(void* pComponent);
+        using DestroyCb = void(*)(void*);
 
         Array<u16> m_versions;
         Array<u8> m_components;
+        ComponentType m_type;
         u32 m_stride;
-        RemoveCb m_onRemove;
+        DestroyCb m_onDestroy;
 
         void Reset();
+
+        template<typename T>
+        inline void Setup()
+        {
+            m_type = T::C_Type;
+            m_stride = sizeof(T);
+            m_onDestroy = (DestroyCb)T::OnDestroy;
+        }
 
         inline Slice<const u16> Versions() const
         {
@@ -42,14 +137,14 @@ namespace Ecs
         template<typename T>
         inline Slice<const T> Components() const
         {
-            DebugAssert(m_stride == sizeof(T));
+            DebugAssert(T::C_Type == m_type);
             return m_components.cast<const T>();
         }
 
         template<typename T>
         inline Slice<T> Components()
         {
-            DebugAssert(m_stride == sizeof(T));
+            DebugAssert(T::C_Type == m_type);
             return m_components.cast<T>();
         }
 
@@ -60,14 +155,10 @@ namespace Ecs
         }
 
         template<typename T>
-        inline void Add(Entity entity, void(*OnRemove)(T*) = nullptr)
+        inline void Add(Entity entity)
         {
             DebugAssert(entity.IsNotNull());
-            if (m_stride == 0)
-            {
-                m_stride = sizeof(T);
-            }
-            DebugAssert(m_stride == sizeof(T));
+            DebugAssert(T::C_Type == m_type);
             if (!m_versions.in_range(entity.index))
             {
                 m_versions.resize(entity.index + 1);
@@ -75,21 +166,14 @@ namespace Ecs
             }
             m_versions[entity.index] = entity.version;
             m_components.embed<T>();
-            if (OnRemove)
-            {
-                m_onRemove = (RemoveCb)OnRemove;
-            }
         }
 
         inline bool Remove(Entity entity)
         {
+            DebugAssert(m_stride != 0);
             if (Has(entity))
             {
-                DebugAssert(m_stride != 0);
-                if (m_onRemove)
-                {
-                    m_onRemove(m_components.at(entity.index * m_stride));
-                }
+                m_onDestroy(m_components.at(entity.index * m_stride));
                 m_versions[entity.index] = 0;
                 return true;
             }
@@ -101,7 +185,7 @@ namespace Ecs
         {
             if (Has(entity))
             {
-                DebugAssert(m_stride == sizeof(T));
+                DebugAssert(T::C_Type == m_type);
                 return m_components.as<T>(entity.index);
             }
             return nullptr;
@@ -114,7 +198,8 @@ namespace Ecs
     {
         Array<u16> m_versions;
         Array<u16> m_freelist;
-        DictTable<8, u16, Row> m_rows;
+        Row m_rows[ComponentType_Count];
+        bool m_has[ComponentType_Count];
 
         void Reset();
 
@@ -133,15 +218,50 @@ namespace Ecs
         }
 
         template<typename T>
-        inline bool HasType() const
+        inline bool HasRow() const
         {
-            return m_rows.find(TypeOf(T)) != -1;
+            return m_has[T::C_Type];
+        }
+
+        template<typename T>
+        inline void AddRow()
+        {
+            i32 i = T::C_Type;
+            if (!m_has[i])
+            {
+                m_has[i] = true;
+                m_rows[T::C_Type].Setup<T>();
+            }
+        }
+
+        template<typename T>
+        inline void RemoveRow()
+        {
+            i32 i = T::C_Type;
+            if (m_has[i])
+            {
+                m_has[i] = false;
+                m_rows[i].Reset();
+            }
         }
 
         template<typename T>
         inline Row& GetRow()
         {
-            return m_rows[TypeOf(T)];
+            i32 i = T::C_Type;
+            DebugAssert(m_has[i]);
+            return ;
+        }
+
+        template<typename T>
+        inline Comps<T> Get()
+        {
+            Row& row = m_rows[T::C_Type];
+            Comps<T> slice = {};
+            slice.entVersions = m_versions;
+            slice.compVersions = row.m_versions;
+            slice.components = row.m_components.cast<T>();
+            return slice;
         }
     };
 

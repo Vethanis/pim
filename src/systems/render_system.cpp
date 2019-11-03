@@ -13,6 +13,9 @@
 #include "common/hashstring.h"
 #include "common/text.h"
 
+#include "systems/ecs.h"
+#include "components/transform.h"
+
 namespace ShaderSystem
 {
     DeclareHashNS(Shaders);
@@ -204,6 +207,14 @@ namespace RenderSystem
         ms_width = sapp_width();
         ms_height = sapp_height();
         simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
+
+        for (auto& table : Ecs::Tables())
+        {
+            for (LocalToWorld& transform : table.Get<LocalToWorld>())
+            {
+
+            }
+        }
     }
 
     void Shutdown()

@@ -2,36 +2,40 @@
 
 #include "math/vec_types.h"
 #include "math/mat_types.h"
-#include "common/typeinfo.h"
 #include "components/entity.h"
 #include "containers/array.h"
 
-struct TranslationComponent
+struct Translation
 {
     float3 Value;
-};
-Reflect(TranslationComponent);
 
-struct RotationComponent
+    DeclComponent(Translation, )
+};
+
+struct Rotation
 {
     quaternion Value;
-};
-Reflect(RotationComponent);
 
-struct ScaleComponent
+    DeclComponent(Rotation, )
+};
+
+struct Scale
 {
     float3 Value;
+
+    DeclComponent(Scale, )
 };
-Reflect(ScaleComponent);
 
 struct LocalToWorld
 {
     float4x4 Value;
-};
-Reflect(LocalToWorld);
 
-struct ChildrenComponent
+    DeclComponent(LocalToWorld, )
+};
+
+struct Children
 {
     Array<Entity> Value;
+
+    DeclComponent(Children, ptr->Value.reset())
 };
-Reflect(ChildrenComponent);

@@ -18,18 +18,18 @@ namespace Ecs
         }
     }
 
-    Table& GetChunk(TableId chunkId)
+    Table& GetTable(TableId chunkId)
     {
         DebugAssert(chunkId < TableId_Count);
         return ms_chunks[chunkId];
     }
 
-    Table& GetChunk(Entity entity)
+    Table& GetTable(Entity entity)
     {
-        return GetChunk((TableId)entity.table);
+        return GetTable((TableId)entity.table);
     }
 
-    Slice<Table> Chunks()
+    Slice<Table> Tables()
     {
         return { ms_chunks, TableId_Count };
     }
@@ -38,16 +38,16 @@ namespace Ecs
 
     void Row::Reset()
     {
-        RemoveCb onRemove = m_onRemove;
-        Slice<u16> versions = m_versions;
+        const DestroyCb onDestroy = m_onDestroy;
+        const Slice<u16> versions = m_versions;
         u8* pComponents = m_components.begin();
-        i32 count = versions.size();
-        const i32 stride = m_stride;
+        const i32 count = versions.size();
+        const u32 stride = m_stride;
         for (i32 i = 0; i < count; ++i)
         {
             if (versions[i] != 0)
             {
-                onRemove(pComponents + i * stride);
+                onDestroy(pComponents + i * stride);
             }
         }
         m_versions.reset();
@@ -60,14 +60,10 @@ namespace Ecs
     {
         m_versions.reset();
         m_freelist.reset();
-        for (Dict<u16, Row>& dict : m_rows.m_dicts)
+        for (Row& row : m_rows)
         {
-            for (Row& row : dict.m_values)
-            {
-                row.Reset();
-            }
+            row.Reset();
         }
-        m_rows.reset();
     }
 
     Entity Table::Create(TableId chunkId)
@@ -94,12 +90,9 @@ namespace Ecs
         {
             m_freelist.grow() = entity.index;
             m_versions[entity.index]++;
-            for (Dict<u16, Row>& dict : m_rows.m_dicts)
+            for (Row& row : m_rows)
             {
-                for (Row& row : dict.m_values)
-                {
-                    row.Remove(entity);
-                }
+                row.Remove(entity);
             }
             return true;
         }
