@@ -3,6 +3,8 @@
 #include "common/macro.h"
 #include "common/int_types.h"
 #include "common/allocator.h"
+#include "containers/slice.h"
+#include <string.h>
 
 template<typename T>
 struct Array
@@ -17,7 +19,7 @@ struct Array
     inline i32 capacityBytes() const { return m_alloc.len() * sizeof(T); }
     inline bool empty() const { return m_len == 0; }
     inline bool full() const { return m_len == m_alloc.len(); }
-    
+
     inline const T* begin() const { return m_alloc.ptr; }
     inline const T* end() const { return m_alloc.ptr + m_len; }
     inline const T& front() const { DebugAssert(in_range(0)); return m_alloc.ptr[0]; }
@@ -29,6 +31,15 @@ struct Array
     inline T& front() { DebugAssert(in_range(0)); return m_alloc.ptr[0]; }
     inline T& back() { DebugAssert(in_range(0)); return m_alloc.ptr[m_len - 1]; }
     inline T& operator[](i32 i) { DebugAssert(in_range(i)); return m_alloc.ptr[i]; }
+
+    inline operator Slice<T>() { return { begin(), size() }; }
+    inline operator Slice<const T>() const { return { begin(), size() }; }
+
+    template<typename U>
+    inline Slice<U> cast() const
+    {
+        return { (U*)begin(), sizeBytes() / (i32)sizeof(U) };
+    }
 
     inline void init()
     {
@@ -67,7 +78,9 @@ struct Array
     {
         const i32 len = ++m_len;
         reserve(len);
-        return m_alloc.ptr[len - 1];
+        T& item = m_alloc.ptr[len - 1];
+        memset(&item, 0, sizeof(T));
+        return item;
     }
     inline void pop()
     {
@@ -182,24 +195,40 @@ struct Array
         }
         return false;
     }
-    inline void copy(const Array<T>& srcArr)
+    inline void copy(const Array<T>& other)
     {
-        resize(srcArr.size());
-        T* dst = begin();
-        const T* src = srcArr.begin();
-        const i32 len = m_len;
-        for (i32 i = 0; i < len; ++i)
-        {
-            dst[i] = src[i];
-        }
+        resize(other.size());
+        memcpy(begin(), other.begin(), sizeof(T) * size());
     }
-    inline void assume(Array<T>& srcArr)
+    inline void assume(Array<T>& other)
     {
         reset();
-        m_alloc = srcArr.m_alloc;
-        m_len = srcArr.m_len;
-        srcArr.m_alloc = { 0, 0 };
-        srcArr.m_len = 0;
+        memcpy(this, &other, sizeof(*this));
+        memset(&other, 0, sizeof(*this));
+    }
+
+    inline void* at(i32 i)
+    {
+        DebugAssert(in_range(i));
+        return begin() + i;
+    }
+
+    template<typename U>
+    inline U* as(i32 i)
+    {
+        DebugAssert((u32)(i * sizeof(U)) < (u32)sizeBytes());
+        U* ptr = (U*)begin();
+        return ptr + i;
+    }
+
+    template<typename U>
+    inline U& embed()
+    {
+        constexpr i32 relSize = DivRoundT(U, T);
+        i32 prevSize = resizeRel(relSize);
+        U* pU = (U*)at(prevSize);
+        memset(pU, 0, relSize);
+        return *pU;
     }
 };
 
@@ -211,6 +240,7 @@ struct FixedArray
     i32 m_len;
     T m_ptr[Capacity];
 
+    inline bool in_range(i32 i) const { return (u32)i < (u32)m_len; }
     inline i32 size() const { return m_len; }
     inline i32 capacity() const { return Capacity; }
     inline i32 sizeBytes() const { return m_len * sizeof(T); }
@@ -230,6 +260,9 @@ struct FixedArray
     inline T& back() { DebugAssert(m_len); return m_ptr[m_len - 1]; }
     inline T& operator[](i32 i) { DebugAssert(i < m_len); return m_ptr[i]; }
 
+    inline operator Slice<T>() { return { begin(), size() }; }
+    inline operator Slice<const T>() const { return { begin(), size() }; }
+
     inline void init() { m_len = 0; }
     inline void clear() { m_len = 0; }
     inline void reset() { m_len = 0; }
@@ -241,7 +274,9 @@ struct FixedArray
     inline T& grow()
     {
         DebugAssert(m_len < Capacity);
-        return  m_ptr[m_len++];
+        T& item = m_ptr[m_len++];
+        memset(&item, 0, sizeof(T));
+        return item;
     }
     inline void pop()
     {

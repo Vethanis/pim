@@ -83,6 +83,12 @@ inline u32 Fnv32Bytes(const void* ptr, i32 nBytes, u32 hash = Fnv32Bias)
     return hash;
 }
 
+template<typename T>
+inline u32 Fnv32T(const T* ptr, i32 count, u32 hash = Fnv32Bias)
+{
+    return Fnv32Bytes(ptr, sizeof(T) * count, hash);
+}
+
 // ----------------------------------------------------------------------------
 // Fnv64
 
@@ -157,4 +163,10 @@ inline u64 Fnv64Bytes(const void* ptr, i32 nBytes, u64 hash = Fnv64Bias)
     }
 
     return hash;
+}
+
+template<typename T>
+inline u64 Fnv64T(const T* ptr, i32 count, u64 hash = Fnv64Bias)
+{
+    return Fnv64Bytes(ptr, sizeof(T) * count, hash);
 }

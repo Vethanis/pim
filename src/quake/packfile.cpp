@@ -75,7 +75,7 @@ namespace Quake
 
         IO::FindData fdata = {};
         IO::Finder fder = {};
-        char packDir[PIM_MAX_PATH];
+        char packDir[PIM_PATH];
         SPrintf(argof(packDir), "%s/*.pak", dir);
         FixPath(argof(packDir));
         while (IO::Find(fder, fdata, packDir))

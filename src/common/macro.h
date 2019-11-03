@@ -73,20 +73,26 @@
 #define Clamp(x, lo, hi)            ( Min(hi, Max(lo, x)) )
 #define Lerp(a, b, t)               ( (a) + (((b) - (a)) * (t)) )
 
-#define AlignGrow(x, y)             ( ((x) + (y) - 1u) & ~((y) - 1u) )
-#define AlignGrowT(T, U)            AlignGrow(sizeof(T), sizeof(U))
-#define DWordSizeOf(T)              AlignGrowT(T, u32)
-#define QWordSizeOf(T)              AlignGrowT(T, u64)
-#define PtrSizeOf(T)                AlignGrowT(T, usize)
-#define CacheSizeOf(T)              AlignGrow(sizeof(T), 64u)
-#define PageSizeOf(T)               AlignGrow(sizeof(T), 4096u)
-#define PIM_MAX_PATH                256
+// The remainder to align x by y
+#define AlignRem(x, y)              ( ((x) + (y) - 1u) & (~((y) - 1u)) )
+#define AlignRemT(T, U)             AlignRem(sizeof(T), sizeof(U))
+#define AlignRemPtr(T)              AlignRemT(T, usize)
+
+// Divide x by y and round up
+#define DivRound(x, y)              ( ((x) + (y) - 1) / (y) )
+#define DivRoundT(T, U)             DivRound(sizeof(T), sizeof(U))
+
+// Scale x to a multiple of y
+#define MultipleOf(x, y)            ( (y) * DivRound(x, y) )
+#define MultipleOfT(T, U)           MultipleOf(sizeof(T), sizeof(U))
+
+#define PIM_PATH                    256
 
 // ----------------------------------------------------------------------------
 
 typedef char* VaList;
-#define VaStart(arg)                (reinterpret_cast<VaList>(&(arg)) + PtrSizeOf(arg))
-#define VaArg(va, T)                *reinterpret_cast<T*>((va += PtrSizeOf(T)) - PtrSizeOf(T))
+#define VaStart(arg)                (reinterpret_cast<VaList>(&(arg)) + AlignRemPtr(arg))
+#define VaArg(va, T)                *reinterpret_cast<T*>((va += AlignRemPtr(T)) - AlignRemPtr(T))
 
 // ----------------------------------------------------------------------------
 

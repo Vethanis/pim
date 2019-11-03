@@ -6,6 +6,7 @@
 #include "systems/audio_system.h"
 #include "systems/input_system.h"
 #include "systems/render_system.h"
+#include "systems/ecs.h"
 
 #include "common/macro.h"
 
@@ -15,57 +16,42 @@ namespace Systems
 {
     static Quake::PackAssets ms_assets;
 
-    static System ms_systems[] =
-    {
-        TimeSystem::GetSystem(),
-        RenderSystem::GetSystem(),
-        InputSystem::GetSystem(),
-        AudioSystem::GetSystem(),
-    };
-
     void Init()
     {
         Array<Quake::DPackFile> arena = {};
         Quake::AddGameDirectory("packs/id1", ms_assets, arena);
         arena.reset();
 
-        for (const System& system : ms_systems)
-        {
-            if (system.enabled)
-            {
-                system.Init();
-            }
-        }
+        TimeSystem::Init();
+        RenderSystem::Init();
+        InputSystem::Init();
+        AudioSystem::Init();
+        Ecs::Init();
     }
 
     void Update()
     {
-        for (const System& system : ms_systems)
-        {
-            if (system.enabled)
-            {
-                system.Update();
-            }
-        }
-        for (const System& system : ms_systems)
-        {
-            if (system.visualizing)
-            {
-                system.Visualize();
-            }
-        }
+        TimeSystem::Update();
+        RenderSystem::Update();
+        InputSystem::Update();
+        AudioSystem::Update();
+
+        TimeSystem::Visualize();
+        RenderSystem::Visualize();
+        InputSystem::Visualize();
+        AudioSystem::Visualize();
+
         RenderSystem::FrameEnd();
     }
 
     void Shutdown()
     {
-        for (i32 i = countof(ms_systems) - 1; i >= 0; --i)
-        {
-            if (ms_systems[i].enabled)
-            {
-                ms_systems[i].Shutdown();
-            }
-        }
+        Ecs::Shutdown();
+        AudioSystem::Shutdown();
+        InputSystem::Shutdown();
+        RenderSystem::Shutdown();
+        TimeSystem::Shutdown();
+
         ms_assets.Reset();
     }
 

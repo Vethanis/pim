@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/int_types.h"
-#include "systems/systems.h"
 
 struct sapp_event;
 
@@ -178,6 +177,4 @@ namespace InputSystem
     void Shutdown();
     void OnEvent(const sapp_event* evt, bool keyboardCaptured);
     void Visualize();
-
-    System GetSystem();
 };

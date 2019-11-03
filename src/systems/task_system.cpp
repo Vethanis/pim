@@ -3,35 +3,23 @@
 
 namespace TaskSystem
 {
-    static void Init()
+    void Init()
     {
 
     }
 
-    static void Update()
+    void Update()
     {
 
     }
 
-    static void Shutdown()
+    void Shutdown()
     {
 
     }
 
-    static void Visualize()
+    void Visualize()
     {
 
-    }
-
-    System GetSystem()
-    {
-        System sys = {};
-        sys.Init = Init;
-        sys.Update = Update;
-        sys.Shutdown = Shutdown;
-        sys.Visualize = Visualize;
-        sys.enabled = true;
-        sys.visualizing = false;
-        return sys;
     }
 };

@@ -5,16 +5,16 @@
 #include "common/hash.h"
 #include "common/stringutil.h"
 
-using HashSpace = u8;
+using HashNS = u8;
 using HashKey = u32;
 
-#define DeclareHashNS(T)            static constexpr HashSpace NS_##T   = HStr::CreateNs(#T);
-#define DeclareHash(name, ns, txt) static constexpr HashKey name        = HStr::Hash(ns, txt);
+#define DeclareHashNS(T)           static constexpr HashNS NS_##T   = HStr::CreateNs(#T);
+#define DeclareHash(name, ns, txt) static constexpr HashKey name    = HStr::Hash(ns, txt);
 
 namespace HStr
 {
     constexpr HashKey NsValueBits     = 3;
-    constexpr HashKey NsTypeBits      = sizeof(HashSpace) * 8;
+    constexpr HashKey NsTypeBits      = sizeof(HashNS) * 8;
     constexpr HashKey NsCount         = 1 << NsValueBits;
     constexpr HashKey NsMask          = NsCount - 1;
 
@@ -23,18 +23,18 @@ namespace HStr
 
     StaticAssert(NsTypeBits >= NsValueBits);
 
-    inline constexpr HashSpace CreateNs(cstrc name)
+    inline constexpr HashNS CreateNs(cstrc name)
     {
-        return (HashSpace)(Fnv32String(name) & NsMask);
+        return (HashNS)(Fnv32String(name) & NsMask);
     }
 
-    inline constexpr HashKey EmbedNs(HashSpace ns, HashKey hash)
+    inline constexpr HashKey EmbedNs(HashNS ns, HashKey hash)
     {
         DebugAssert(NsTypeBits >= NsValueBits);
         return (hash << NsValueBits) | (ns & NsMask);
     }
 
-    inline constexpr HashSpace GetNs(HashKey key)
+    inline constexpr HashNS GetNs(HashKey key)
     {
         return key & NsMask;
     }
@@ -44,7 +44,7 @@ namespace HStr
         return key >> NsValueBits;
     }
 
-    inline constexpr HashKey Hash(HashSpace ns, cstrc src)
+    inline constexpr HashKey Hash(HashNS ns, cstrc src)
     {
         if (!src || !src[0]) { return 0; }
 
@@ -71,10 +71,10 @@ struct HashString
     inline constexpr HashString()
         : Value(0) {}
 
-    inline constexpr HashString(HashSpace ns, HashKey hash)
+    inline constexpr HashString(HashNS ns, HashKey hash)
         : Value(HStr::EmbedNs(ns, hash)) {}
 
-    inline HashString(HashSpace ns, cstrc src)
+    inline HashString(HashNS ns, cstrc src)
         : Value(HStr::Hash(ns, src))
     {
         IfDebug(HStr::Insert(Value, src);)
@@ -92,3 +92,4 @@ struct HashString
     }
 
 }; // HashString
+

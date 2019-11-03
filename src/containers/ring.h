@@ -57,11 +57,11 @@ struct Ring
             ++m_i;
             return *this;
         }
-        inline bool operator!=(iterator o)
+        inline bool operator!=(iterator o) const
         {
             return m_left != 0;
         }
-        inline operator u32()
+        inline u32 operator *() const
         {
             return Mask(m_i);
         }
@@ -82,21 +82,22 @@ struct Ring
         {
             --m_left;
             --m_i;
+            return *this;
         }
-        inline bool operator!=(riterator o)
+        inline bool operator!=(riterator o) const
         {
             return m_left != 0;
         }
-        inline operator u32()
+        inline u32 operator *() const
         {
             return Mask(m_i);
         }
     };
 
     inline iterator begin() const { return iterator(m_count, m_tail); }
-    inline iterator end() const { return {}; }
+    inline iterator end() const { return { 0, 0 }; }
     inline riterator rbegin() const { return riterator(m_count, m_tail); }
-    inline riterator rend() const { return {}; }
+    inline riterator rend() const { return { 0, 0 }; }
 };
 
 template<typename T, u32 t_capacity>
@@ -125,5 +126,117 @@ struct RingBuffer
     inline T& Pop()
     {
         return m_data[m_ring.Pop()];
+    }
+
+    struct iterator
+    {
+        decltype(m_ring.begin()) it;
+        RingBuffer<T, t_capacity>& buffer;
+
+        inline iterator& operator++()
+        {
+            ++it;
+            return *this;
+        }
+        inline bool operator!=(iterator o) const
+        {
+            return it != o.it;
+        }
+        inline T& operator *()
+        {
+            return buffer.m_data[*it];
+        }
+    };
+    struct citerator
+    {
+        decltype(m_ring.begin()) it;
+        const RingBuffer<T, t_capacity>& buffer;
+
+        inline citerator& operator++()
+        {
+            ++it;
+            return *this;
+        }
+        inline bool operator!=(citerator o) const
+        {
+            return it != o.it;
+        }
+        inline const T& operator *() const
+        {
+            return buffer.m_data[*it];
+        }
+    };
+
+    struct riterator
+    {
+        decltype(m_ring.rbegin()) it;
+        RingBuffer<T, t_capacity>& buffer;
+
+        inline riterator& operator++()
+        {
+            ++it;
+            return *this;
+        }
+        inline bool operator!=(riterator o) const
+        {
+            return it != o.it;
+        }
+        inline T& operator *()
+        {
+            return buffer.m_data[*it];
+        }
+    };
+    struct rciterator
+    {
+        decltype(m_ring.rbegin()) it;
+        const RingBuffer<T, t_capacity>& buffer;
+
+        inline rciterator& operator++()
+        {
+            ++it;
+            return *this;
+        }
+        inline bool operator!=(rciterator o) const
+        {
+            return it != o.it;
+        }
+        inline const T& operator *() const
+        {
+            return buffer.m_data[*it];
+        }
+    };
+
+    inline citerator begin() const
+    {
+        return { m_ring.begin(), *this };
+    }
+    inline citerator end() const
+    {
+        return { m_ring.end(), *this };
+    }
+    inline iterator begin()
+    {
+        return { m_ring.begin(), *this };
+    }
+    inline iterator end()
+    {
+        return { m_ring.end(), *this };
+    }
+
+    inline rciterator rbegin() const
+    {
+        return { m_ring.rbegin(), *this };
+    }
+    inline rciterator rend() const
+    {
+        return { m_ring.rend(), *this };
+    }
+    inline riterator rbegin()
+    {
+        return { m_ring.rbegin(), *this };
+    }
+    inline riterator rend()
+    {
+        return { m_ring.rend(), *this };
     }
 };

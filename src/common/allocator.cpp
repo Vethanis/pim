@@ -1,9 +1,9 @@
 #include "common/allocator.h"
 #include "common/macro.h"
-#include "common/mem.h"
 #include "containers/array.h"
 #include "common/hashstring.h"
 #include <malloc.h>
+#include <string.h>
 
 namespace Allocator
 {
@@ -105,7 +105,7 @@ namespace Allocator
                 got = { (u8*)ptr, want };
             }
             DebugAssert(got.begin());
-            pimclr(got.begin(), got.size());
+            memset(got.begin(), 0, got.size());
         }
         return got;
     }
@@ -124,7 +124,7 @@ namespace Allocator
         else if (want > has)
         {
             got = _Alloc(want);
-            pimcpy(got.begin(), prev.begin(), has);
+            memcpy(got.begin(), prev.begin(), has);
             _Free(prev);
         }
         else

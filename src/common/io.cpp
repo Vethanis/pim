@@ -15,7 +15,7 @@
 #include "common/io.h"
 #include "common/macro.h"
 #include "common/stringutil.h"
-#include "common/mem.h"
+#include <string.h>
 
 namespace IO
 {
@@ -357,7 +357,7 @@ namespace IO
                 break;
             }
             i32 prevSize = result.resizeRel(bytesRead);
-            pimcpy(result.begin() + prevSize, cmd, bytesRead);
+            memcpy(result.begin() + prevSize, cmd, bytesRead);
         }
         PClose(stream);
         return result.size() > 0;

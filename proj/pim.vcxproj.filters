@@ -56,6 +56,9 @@
     <Filter Include="Source Files\math">
       <UniqueIdentifier>{271e761d-17f4-4faa-9c1f-7f758b86cb0e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\components">
+      <UniqueIdentifier>{fb33a5cf-c0cf-428a-923f-9cd6261e1e5a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -131,6 +134,12 @@
       <Filter>Source Files\common</Filter>
     </ClCompile>
     <ClCompile Include="..\src\systems\task_system.cpp">
+      <Filter>Source Files\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\tyeinfo.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\systems\ecs.cpp">
       <Filter>Source Files\systems</Filter>
     </ClCompile>
   </ItemGroup>
@@ -333,9 +342,6 @@
     <ClInclude Include="..\src\systems\task_system.h">
       <Filter>Source Files\systems</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\mem.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\apply.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -365,6 +371,18 @@
     </ClInclude>
     <ClInclude Include="..\src\common\unroll.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\typeinfo.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\systems\ecs.h">
+      <Filter>Source Files\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\transform.h">
+      <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\entity.h">
+      <Filter>Source Files\components</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "systems/systems.h"
-
 struct sapp_event;
 
 namespace RenderSystem
@@ -14,6 +12,4 @@ namespace RenderSystem
     bool OnEvent(const sapp_event* evt);
 
     void Visualize();
-
-    System GetSystem();
 };

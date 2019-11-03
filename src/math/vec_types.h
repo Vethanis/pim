@@ -111,3 +111,8 @@ using float4 = vec4<f32>;
 using double2 = vec2<f64>;
 using double3 = vec3<f64>;
 using double4 = vec4<f64>;
+
+struct quaternion
+{
+    float4 Value;
+};

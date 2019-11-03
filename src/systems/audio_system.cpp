@@ -165,7 +165,7 @@ namespace AudioSystem
         float2* buffer2 = (float2*)buffer;
         for (i32 i = 0; i < num_frames; i++)
         {
-            *buffer2++ = ms_synth.OnTick();
+            *buffer2++ = 0.0f; // ms_synth.OnTick();
         }
     }
 
@@ -203,17 +203,5 @@ namespace AudioSystem
             ms_synth.OnGui();
         }
         ImGui::End();
-    }
-
-    System GetSystem()
-    {
-        System sys;
-        sys.Init = Init;
-        sys.Update = Update;
-        sys.Shutdown = Shutdown;
-        sys.Visualize = Visualize;
-        sys.enabled = true;
-        sys.visualizing = true;
-        return sys;
     }
 };

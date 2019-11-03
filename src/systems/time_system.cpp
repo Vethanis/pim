@@ -27,29 +27,20 @@ namespace TimeSystem
         ms_dt = 0;
         ms_dtf32 = 0.0f;
     }
+
     void Update()
     {
         ms_dt = stm_laptime(&ms_lastTime);
         ms_dtf32 = ToSeconds(ms_dt);
     }
+
     void Shutdown()
     {
 
     }
+
     void Visualize()
     {
 
-    }
-
-    System GetSystem()
-    {
-        System sys;
-        sys.Init = Init;
-        sys.Update = Update;
-        sys.Shutdown = Shutdown;
-        sys.Visualize = Visualize;
-        sys.enabled = true;
-        sys.visualizing = false;
-        return sys;
     }
 };

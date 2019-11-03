@@ -1,7 +1,5 @@
 #pragma once
 
-#include "systems/systems.h"
-
 struct Task
 {
 
@@ -9,5 +7,8 @@ struct Task
 
 namespace TaskSystem
 {
-    System GetSystem();
+    void Init();
+    void Update();
+    void Shutdown();
+    void Visualize();
 };

@@ -12,13 +12,12 @@
 #include "common/io.h"
 #include "common/hashstring.h"
 #include "common/text.h"
-#include "containers/ring.h"
 
 namespace ShaderSystem
 {
-    DeclareHashNS(Shaders)
+    DeclareHashNS(Shaders);
 
-        enum ShaderType
+    enum ShaderType
     {
         ShaderType_Pixel = 0,
         ShaderType_Vertex,
@@ -71,23 +70,11 @@ namespace ShaderSystem
         return ShaderType_Count;
     }
 
-    static RingBuffer<i32, 32> ms_ring;
-
     static void Init()
     {
-        for (i32 i = 0; i < 32; ++i)
-        {
-            ms_ring.Push() = i;
-        }
-        for (i32 i = 0; i < 32; ++i)
-        {
-            i32 y = ms_ring.Pop();
-            Assert(y == i);
-        }
-
         char cmd[1024] = {};
-        char cwd[PIM_MAX_PATH] = {};
-        char tmp[PIM_MAX_PATH] = {};
+        char cwd[PIM_PATH] = {};
+        char tmp[PIM_PATH] = {};
 
         IO::GetCwd(argof(cwd));
 
@@ -246,17 +233,5 @@ namespace RenderSystem
     void Visualize()
     {
 
-    }
-
-    System GetSystem()
-    {
-        System sys;
-        sys.Init = Init;
-        sys.Update = Update;
-        sys.Shutdown = Shutdown;
-        sys.Visualize = Visualize;
-        sys.enabled = true;
-        sys.visualizing = false;
-        return sys;
     }
 };
