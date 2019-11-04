@@ -1,6 +1,6 @@
 
 #include <sokol/sokol_app.h>
-#include "systems/systems.h"
+#include "systems.h"
 
 sapp_desc sokol_main(int argc, char** argv)
 {

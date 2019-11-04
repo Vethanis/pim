@@ -3,6 +3,7 @@
 #include "common/macro.h"
 #include "common/int_types.h"
 #include "common/unroll.h"
+#include "containers/slice.h"
 
 #pragma warning(disable : 4307)
 
@@ -49,6 +50,8 @@ inline constexpr u32 Fnv32Qword(u64 x, u32 hash = Fnv32Bias)
 
 inline constexpr u32 Fnv32String(cstrc ptr, u32 hash = Fnv32Bias)
 {
+    DebugAssert(ptr);
+
     for (i32 i = 0; ptr[i]; ++i)
     {
         hash = Fnv32Byte(ptr[i], hash);
@@ -58,6 +61,8 @@ inline constexpr u32 Fnv32String(cstrc ptr, u32 hash = Fnv32Bias)
 
 inline u32 Fnv32Bytes(const void* ptr, i32 nBytes, u32 hash = Fnv32Bias)
 {
+    DebugAssert(ptr || !nBytes);
+
     i32 n16 = 0, n4 = 0, n1 = 0;
     Unroll16(nBytes, n16, n4, n1);
 
@@ -84,9 +89,10 @@ inline u32 Fnv32Bytes(const void* ptr, i32 nBytes, u32 hash = Fnv32Bias)
 }
 
 template<typename T>
-inline u32 Fnv32T(const T* ptr, i32 count, u32 hash = Fnv32Bias)
+inline u32 Fnv32(Slice<const T> src, u32 hash = Fnv32Bias)
 {
-    return Fnv32Bytes(ptr, sizeof(T) * count, hash);
+    Slice<const u8> bytes = src.to_bytes();
+    return Fnv32Bytes(bytes.begin(), bytes.size(), hash);
 }
 
 // ----------------------------------------------------------------------------
@@ -131,6 +137,8 @@ inline constexpr u64 Fnv64Qword(u64 x, u64 hash = Fnv64Bias)
 
 inline constexpr u64 Fnv64String(cstrc ptr, u64 hash = Fnv64Bias)
 {
+    DebugAssert(ptr);
+
     for (i32 i = 0; ptr[i]; ++i)
     {
         hash = Fnv64Byte(ptr[i], hash);
@@ -140,6 +148,8 @@ inline constexpr u64 Fnv64String(cstrc ptr, u64 hash = Fnv64Bias)
 
 inline u64 Fnv64Bytes(const void* ptr, i32 nBytes, u64 hash = Fnv64Bias)
 {
+    DebugAssert(ptr || !nBytes);
+
     i32 n16 = 0, n4 = 0, n1 = 0;
     Unroll16(nBytes, n16, n4, n1);
 
@@ -166,7 +176,8 @@ inline u64 Fnv64Bytes(const void* ptr, i32 nBytes, u64 hash = Fnv64Bias)
 }
 
 template<typename T>
-inline u64 Fnv64T(const T* ptr, i32 count, u64 hash = Fnv64Bias)
+inline u64 Fnv64(Slice<const T> src, u64 hash = Fnv64Bias)
 {
-    return Fnv64Bytes(ptr, sizeof(T) * count, hash);
+    Slice<const u8> bytes = src.to_bytes();
+    return Fnv64Bytes(bytes.begin(), bytes.size(), hash);
 }

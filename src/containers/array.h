@@ -32,13 +32,18 @@ struct Array
     inline T& back() { DebugAssert(in_range(0)); return m_alloc.ptr[m_len - 1]; }
     inline T& operator[](i32 i) { DebugAssert(in_range(i)); return m_alloc.ptr[i]; }
 
-    inline operator Slice<T>() { return { begin(), size() }; }
     inline operator Slice<const T>() const { return { begin(), size() }; }
+    inline operator Slice<T>() { return { begin(), size() }; }
 
     template<typename U>
-    inline Slice<U> cast() const
+    inline Slice<const U> cast() const
     {
-        return { (U*)begin(), sizeBytes() / (i32)sizeof(U) };
+        return { reinterpret_cast<const U*>(begin()), sizeBytes() / (i32)sizeof(U) };
+    }
+    template<typename U>
+    inline Slice<U> cast()
+    {
+        return { reinterpret_cast<U*>(begin()), sizeBytes() / (i32)sizeof(U) };
     }
 
     inline void init()
@@ -217,17 +222,16 @@ struct Array
     inline U* as(i32 i)
     {
         DebugAssert((u32)(i * sizeof(U)) < (u32)sizeBytes());
-        U* ptr = (U*)begin();
-        return ptr + i;
+        return reinterpret_cast<U*>(begin()) + i;
     }
 
     template<typename U>
     inline U& embed()
     {
-        constexpr i32 relSize = DivRoundT(U, T);
-        i32 prevSize = resizeRel(relSize);
-        U* pU = (U*)at(prevSize);
-        memset(pU, 0, relSize);
+        DebugAssert(sizeof(T) == 1);
+        i32 prevSize = resizeRel(sizeof(U));
+        U* pU = reinterpret_cast<U*>(at(prevSize));
+        memset(pU, 0, sizeof(U));
         return *pU;
     }
 };

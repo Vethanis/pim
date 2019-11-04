@@ -3,7 +3,7 @@
 #include "containers/array.h"
 #include "math/math.h"
 #include "common/find.h"
-#include "systems/input_system.h"
+#include "input/input_system.h"
 #include "ui/imgui.h"
 #include "common/random.h"
 

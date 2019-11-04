@@ -5,7 +5,7 @@
 
 #include "common/macro.h"
 #include "containers/array.h"
-#include "systems/time_system.h"
+#include "time/time_system.h"
 
 // ----------------------------------------------------------------------------
 

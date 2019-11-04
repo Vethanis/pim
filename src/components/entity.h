@@ -3,6 +3,8 @@
 #include "common/macro.h"
 #include "common/int_types.h"
 
+// ----------------------------------------------------------------------------
+
 enum TableId : u16
 {
     TableId_Default = 0,
@@ -16,6 +18,8 @@ enum TableId : u16
     TableId_Count
 };
 
+// ----------------------------------------------------------------------------
+
 struct Entity
 {
     TableId table;
@@ -26,9 +30,13 @@ struct Entity
     inline bool IsNotNull() const { return version != 0; }
 };
 
+// ----------------------------------------------------------------------------
+
 #define DeclComponent(T, DtorExpr) \
     static constexpr ComponentType C_Type = ComponentType_ ## T; \
     static void OnDestroy(T* ptr) { DtorExpr; }
+
+// ----------------------------------------------------------------------------
 
 enum ComponentType : u16
 {
@@ -38,6 +46,8 @@ enum ComponentType : u16
     ComponentType_Scale,
     ComponentType_LocalToWorld,
     ComponentType_Children,
+
+    ComponentType_Renderable,
 
     ComponentType_Count
 };

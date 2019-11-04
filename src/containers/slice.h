@@ -28,17 +28,23 @@ struct Slice
     template<typename U>
     inline Slice<U> cast() const
     {
-        return { (U*)ptr, bytes() / (i32)sizeof(U) };
+        return
+        {
+            (U*)begin(),
+            bytes() / (i32)sizeof(U)
+        };
     }
-    template<typename U>
-    inline explicit operator Slice<U>() const
+
+    inline Slice<u8> to_bytes() const
     {
-        return { (U*)ptr, bytes() / (i32)sizeof(U) };
+        return cast<u8>();
     }
+
     inline operator Slice<const T>() const
     {
-        return { (const T*)ptr, len };
+        return { ptr, len };
     }
+
     inline Slice<T> subslice(i32 start, i32 count) const
     {
         DebugAssert(in_range(start + count));

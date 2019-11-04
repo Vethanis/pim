@@ -1,20 +1,10 @@
-#include "systems/render_system.h"
+#include "rendering/shader_system.h"
 
-#include <sokol/sokol_gfx.h>
-#include <sokol/sokol_app.h>
-#include <sokol/util/sokol_imgui.h>
-#include "ui/imgui.h"
-
-#include "common/int_types.h"
-#include "common/stringutil.h"
-#include "containers/array.h"
-#include "systems/time_system.h"
-#include "common/io.h"
+#include "common/macro.h"
 #include "common/hashstring.h"
-#include "common/text.h"
+#include "common/io.h"
+#include "containers/array.h"
 
-#include "systems/ecs.h"
-#include "components/transform.h"
 
 namespace ShaderSystem
 {
@@ -73,7 +63,7 @@ namespace ShaderSystem
         return ShaderType_Count;
     }
 
-    static void Init()
+    void Init()
     {
         char cmd[1024] = {};
         char cwd[PIM_PATH] = {};
@@ -150,7 +140,12 @@ namespace ShaderSystem
         procs.reset();
     }
 
-    static void Shutdown()
+    void Update()
+    {
+
+    }
+
+    void Shutdown()
     {
         for (Allocation& bc : ms_shaders.bytecode)
         {
@@ -159,86 +154,6 @@ namespace ShaderSystem
         ms_shaders.bytecode.reset();
         ms_shaders.names.reset();
         ms_shaders.types.reset();
-    }
-};
-
-namespace RenderSystem
-{
-    constexpr sg_pass_action ms_clear =
-    {
-        0,
-        {
-            {
-                SG_ACTION_CLEAR,
-                { 0.25f, 0.25f, 0.5f, 0.0f }
-            },
-        },
-    };
-
-    static i32 ms_width;
-    static i32 ms_height;
-
-    void Init()
-    {
-        {
-            sg_desc desc = {};
-            desc.mtl_device = sapp_metal_get_device();
-            desc.mtl_drawable_cb = sapp_metal_get_drawable;
-            desc.mtl_renderpass_descriptor_cb = sapp_metal_get_renderpass_descriptor;
-            desc.d3d11_device = sapp_d3d11_get_device();
-            desc.d3d11_device_context = sapp_d3d11_get_device_context();
-            desc.d3d11_render_target_view_cb = sapp_d3d11_get_render_target_view;
-            desc.d3d11_depth_stencil_view_cb = sapp_d3d11_get_depth_stencil_view;
-            sg_setup(&desc);
-        }
-        {
-            ImGui::SetAllocatorFunctions(Allocator::_ImGuiAllocFn, Allocator::_ImGuiFreeFn);
-            simgui_desc_t desc = {};
-            simgui_setup(&desc);
-        }
-        ms_width = sapp_width();
-        ms_height = sapp_height();
-
-        ShaderSystem::Init();
-    }
-
-    void Update()
-    {
-        ms_width = sapp_width();
-        ms_height = sapp_height();
-        simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
-
-        for (auto& table : Ecs::Tables())
-        {
-            for (LocalToWorld& transform : table.Components<LocalToWorld>())
-            {
-
-            }
-        }
-    }
-
-    void Shutdown()
-    {
-        simgui_shutdown();
-        sg_shutdown();
-
-        ShaderSystem::Shutdown();
-    }
-
-    void FrameEnd()
-    {
-        sg_begin_default_pass(&ms_clear, ms_width, ms_height);
-        {
-            simgui_render();
-        }
-        sg_end_pass();
-
-        sg_commit();
-    }
-
-    bool OnEvent(const sapp_event* evt)
-    {
-        return simgui_handle_event(evt);
     }
 
     void Visualize()

@@ -5,9 +5,6 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Source Files\systems">
-      <UniqueIdentifier>{32d9c28c-68dc-4818-a52a-cb24d175734b}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\common">
       <UniqueIdentifier>{63b2fe11-967e-4d26-ad90-abfd1edb3468}</UniqueIdentifier>
     </Filter>
@@ -59,22 +56,28 @@
     <Filter Include="Source Files\components">
       <UniqueIdentifier>{fb33a5cf-c0cf-428a-923f-9cd6261e1e5a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\audio">
+      <UniqueIdentifier>{a6ffd75a-038e-4c61-a4a3-ff4d0a4983ee}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\input">
+      <UniqueIdentifier>{07dbe64d-6caf-45d7-be29-22b7f8513f5a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\physics">
+      <UniqueIdentifier>{5e2003fa-f9d6-4806-bd43-89ab02aca189}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\rendering">
+      <UniqueIdentifier>{2eef6a91-18fc-4cdd-bb98-7d10c2a37c19}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\threading">
+      <UniqueIdentifier>{72b4bbbe-00bd-454a-9e8c-ec4674c3d58c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\time">
+      <UniqueIdentifier>{13d824aa-a38c-4e7f-8755-0d56bf2e214e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\systems\audio_system.cpp">
-      <Filter>Source Files\systems</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\systems\render_system.cpp">
-      <Filter>Source Files\systems</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\systems\systems.cpp">
-      <Filter>Source Files\systems</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\systems\time_system.cpp">
-      <Filter>Source Files\systems</Filter>
     </ClCompile>
     <ClCompile Include="..\src\common\allocator.cpp">
       <Filter>Source Files\common</Filter>
@@ -106,9 +109,6 @@
     <ClCompile Include="..\src\sokol\sokol_imgui.cpp">
       <Filter>Source Files\sokol</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\systems\input_system.cpp">
-      <Filter>Source Files\systems</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\common\random.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
@@ -133,29 +133,35 @@
     <ClCompile Include="..\src\common\hashstring.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\systems\task_system.cpp">
-      <Filter>Source Files\systems</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\common\tyeinfo.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\systems\ecs.cpp">
-      <Filter>Source Files\systems</Filter>
+    <ClCompile Include="..\src\audio\audio_system.cpp">
+      <Filter>Source Files\audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\components\ecs.cpp">
+      <Filter>Source Files\components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\input\input_system.cpp">
+      <Filter>Source Files\input</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\render_system.cpp">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\shader_system.cpp">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\threading\task_system.cpp">
+      <Filter>Source Files\threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\time\time_system.cpp">
+      <Filter>Source Files\time</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\systems.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\systems\audio_system.h">
-      <Filter>Source Files\systems</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\systems\render_system.h">
-      <Filter>Source Files\systems</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\systems\systems.h">
-      <Filter>Source Files\systems</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\systems\time_system.h">
-      <Filter>Source Files\systems</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\allocator.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -285,9 +291,6 @@
     <ClInclude Include="..\src\sokol\sokol_backend.h">
       <Filter>Source Files\sokol</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\systems\input_system.h">
-      <Filter>Source Files\systems</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\stringutil.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -339,9 +342,6 @@
     <ClInclude Include="..\src\common\text.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\systems\task_system.h">
-      <Filter>Source Files\systems</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\apply.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -375,14 +375,50 @@
     <ClInclude Include="..\src\common\typeinfo.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\systems\ecs.h">
-      <Filter>Source Files\systems</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\components\transform.h">
       <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\src\components\entity.h">
       <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\bitfield.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\audio\audio_system.h">
+      <Filter>Source Files\audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\ecs.h">
+      <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\input\input_system.h">
+      <Filter>Source Files\input</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\render_system.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\renderable.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\shader_system.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\task_system.h">
+      <Filter>Source Files\threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\time\time_system.h">
+      <Filter>Source Files\time</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\systems.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\mesh.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\guid.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\material.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

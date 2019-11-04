@@ -2,11 +2,11 @@
 
 #include <sokol/sokol_app.h>
 
-#include "systems/time_system.h"
-#include "systems/audio_system.h"
-#include "systems/input_system.h"
-#include "systems/render_system.h"
-#include "systems/ecs.h"
+#include "time/time_system.h"
+#include "audio/audio_system.h"
+#include "input/input_system.h"
+#include "rendering/render_system.h"
+#include "components/ecs.h"
 
 #include "common/macro.h"
 
