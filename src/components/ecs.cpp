@@ -4,6 +4,7 @@
 namespace Ecs
 {
     static Table ms_tables[TableId_Count];
+    static Slice<Table> ms_slice = { ms_tables, TableId_Count };
 
     void Init()
     {
@@ -22,20 +23,9 @@ namespace Ecs
         }
     }
 
-    Table& GetTable(TableId chunkId)
-    {
-        DebugAssert(chunkId < TableId_Count);
-        return ms_tables[chunkId];
-    }
-
-    Table& GetTable(Entity entity)
-    {
-        return GetTable((TableId)entity.table);
-    }
-
     Slice<Table> Tables()
     {
-        return { ms_tables, TableId_Count };
+        return ms_slice;
     }
 
     static bool HasAll(ComponentFlags rowFlags, ComponentFlags flags)
@@ -234,7 +224,7 @@ namespace Ecs
         }
     }
 
-    Slice<const Entity> ForEach(EntityQuery query, Array<Entity>& results)
+    Slice<const Entity> Search(EntityQuery query, Array<Entity>& results)
     {
         results.clear();
 
@@ -278,21 +268,24 @@ namespace Ecs
 
     void Row::Reset()
     {
-        const DestroyCb onDestroy = m_onDestroy;
-        const Slice<u16> versions = m_versions;
-        u8* pComponents = m_components.begin();
-        const i32 count = versions.size();
-        const u32 stride = m_stride;
-        for (i32 i = 0; i < count; ++i)
+        if (!IsNull())
         {
-            if (versions[i] != 0)
+            const ComponentType type = m_type;
+            const Slice<u16> versions = m_versions;
+            u8* pComponents = m_components.begin();
+            const i32 count = versions.size();
+            const u32 stride = Component::SizeOf(type);
+            for (i32 i = 0; i < count; ++i)
             {
-                onDestroy(pComponents + i * stride);
+                if (versions[i] != 0)
+                {
+                    Component::Drop(type, pComponents + i * stride);
+                }
             }
         }
         m_versions.reset();
         m_components.reset();
-        m_stride = 0;
+        m_type = ComponentType_Null;
     }
 
     // ------------------------------------------------------------------------
@@ -341,14 +334,9 @@ namespace Ecs
         {
             const u16 e = entity.index;
 
-            ComponentFlags flags = m_entityFlags[e];
             for (u32 c = 0; c < ComponentType_Count; ++c)
             {
-                if (flags.Has(c))
-                {
-                    bool removed = m_rows[c].Remove(entity);
-                    DebugAssert(removed);
-                }
+                m_rows[c].Remove(entity);
             }
             m_entityFlags[e].Clear();
 

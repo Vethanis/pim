@@ -2,129 +2,11 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "common/typeinfo.h"
 #include "containers/slice.h"
 #include "containers/array.h"
 #include "containers/bitfield.h"
 #include "components/entity.h"
-
-template<typename T>
-struct CompArray
-{
-    const i32 m_size;
-    const u16* const m_compVersions;
-    T* const m_components;
-
-    inline CompArray(
-        Slice<const u16> compVersions,
-        Slice<T> components)
-        : m_size(compVersions.size()),
-        m_compVersions(compVersions.begin()),
-        m_components(components.begin())
-    {}
-
-    inline i32 Size() const
-    {
-        return m_size;
-    }
-    inline bool InRange(i32 i) const
-    {
-        return (u32)i < (u32)m_size;
-    }
-    inline bool Has(Entity entity) const
-    {
-        return InRange(entity.index) && (m_compVersions[entity.index] == entity.version);
-    }
-    inline bool Has(i32 i) const
-    {
-        return m_compVersions[i] != 0;
-    }
-    inline i32 Iterate(i32 i) const
-    {
-        for (; InRange(i); ++i)
-        {
-            if (Has(i))
-            {
-                break;
-            }
-        }
-        return i;
-    }
-    inline T* Get(Entity entity)
-    {
-        return Has(entity) ? m_components + entity.index : nullptr;
-    }
-    inline const T* Get(Entity entity) const
-    {
-        return Has(entity) ? m_components + entity.index : nullptr;
-    }
-    inline T* Get(i32 i)
-    {
-        DebugAssert(InRange(i));
-        return Has(i) ? m_components + i : nullptr;
-    }
-    inline const T* Get(i32 i) const
-    {
-        DebugAssert(InRange(i));
-        return Has(i) ? m_components + i : nullptr;
-    }
-    inline T& operator[](Entity entity)
-    {
-        DebugAssert(Has(entity));
-        return m_components[entity.index];
-    }
-    inline const T& operator[](Entity entity) const
-    {
-        DebugAssert(Has(entity));
-        return m_components[entity.index];
-    }
-    inline T& operator[](i32 i)
-    {
-        DebugAssert(InRange(i));
-        DebugAssert(Has(i));
-        return m_components[i];
-    }
-    inline const T& operator[](i32 i) const
-    {
-        DebugAssert(InRange(i));
-        DebugAssert(Has(i));
-        return m_components[i];
-    }
-
-    struct iterator
-    {
-        CompArray m_array;
-        u32 m_i;
-
-        inline iterator(CompArray src, i32 i)
-            : m_array(src)
-        {
-            m_i = m_array.Iterate(i);
-        }
-        inline bool operator !=(const iterator&) const
-        {
-            return m_array.InRange(m_i);
-        }
-        inline iterator& operator++()
-        {
-            m_i = m_array.Iterate(m_i + 1);
-            return *this;
-        }
-        inline T& operator *()
-        {
-            return m_array[m_i];
-        }
-    }; // iterator
-
-    inline iterator begin()
-    {
-        return iterator(*this, 0);
-    }
-    inline iterator end()
-    {
-        return iterator(*this, Size());
-    }
-};
+#include "components/component.h"
 
 using ComponentFlags = BitField<ComponentType_Count>;
 
@@ -137,22 +19,38 @@ struct EntityQuery
     inline EntityQuery()
         : all(), any(), none() {}
 
+    inline EntityQuery All(ComponentType type)
+    {
+        all.Set(type);
+        return *this;
+    }
     template<typename T>
     inline EntityQuery& All()
     {
-        all.Set(T::C_Type);
+        all.Set(Component::TypeOf<T>());
+        return *this;
+    }
+
+    inline EntityQuery& Any(ComponentType type)
+    {
+        any.Set(type);
         return *this;
     }
     template<typename T>
     inline EntityQuery& Any()
     {
-        any.Set(T::C_Type);
+        any.Set(Component::TypeOf<T>());
+        return *this;
+    }
+    inline EntityQuery None(ComponentType type)
+    {
+        none.Set(type);
         return *this;
     }
     template<typename T>
     inline EntityQuery& None()
     {
-        none.Set(T::C_Type);
+        none.Set(Component::TypeOf<T>());
         return *this;
     }
 };
@@ -162,19 +60,16 @@ namespace Ecs
     void Init();
     void Shutdown();
 
-    Slice<const Entity> ForEach(EntityQuery query, Array<Entity>& results);
+    Slice<const Entity> Search(EntityQuery query, Array<Entity>& results);
 
     // ------------------------------------------------------------------------
 
     struct Row
     {
-        using DestroyCb = void(*)(void*);
-
         Array<u16> m_versions;
         Array<u8> m_components;
-        u32 m_stride;
+        ComponentType m_type;
         i32 m_count;
-        DestroyCb m_onDestroy;
 
         void Reset();
 
@@ -185,7 +80,13 @@ namespace Ecs
 
         inline bool IsNull() const
         {
-            return m_stride == 0;
+            return m_type == ComponentType_Null;
+        }
+
+        template<typename T>
+        inline bool SameType() const
+        {
+            return Component::TypeOf<T>() == m_type;
         }
 
         inline Slice<const u16> Versions() const
@@ -193,78 +94,104 @@ namespace Ecs
             return m_versions;
         }
 
-        template<typename T>
-        inline CompArray<T> Components()
+        inline Slice<const u8> Components() const
         {
-            DebugAssert(
-                (m_versions.empty() && IsNull()) ||
-                (m_stride == sizeof(T)));
-            return CompArray<T>(m_versions, m_components.cast<T>());
+            return m_components;
+        }
+        inline Slice<u8> Components()
+        {
+            return m_components;
+        }
+
+        template<typename T>
+        inline Slice<const T> Components() const
+        {
+            DebugAssert((m_versions.empty() && IsNull()) || SameType<T>());
+            return m_components.cast<T>();
+        }
+        template<typename T>
+        inline Slice<T> Components()
+        {
+            DebugAssert((m_versions.empty() && IsNull()) || SameType<T>());
+            return m_components.cast<T>();
         }
 
         inline bool Has(Entity entity) const
         {
             DebugAssert(entity.IsNotNull());
-
             return m_versions.in_range(entity.index) &&
                 (m_versions[entity.index] == entity.version);
         }
 
-        template<typename T>
-        inline T& Add(Entity entity)
+        inline bool Add(Entity entity, ComponentType type)
         {
             DebugAssert(entity.IsNotNull());
-
-            if (m_stride == 0)
-            {
-                m_type = T::C_Type;
-                m_stride = sizeof(T);
-                m_onDestroy = (DestroyCb)T::OnDestroy;
-            }
-            DebugAssert(m_stride == sizeof(T));
-
             const i32 i = entity.index;
-            if (!m_versions.in_range(i))
+
+            bool inRange = m_versions.in_range(i);
+            const u16 curVersion = inRange ? m_versions[i] : 0;
+            if (curVersion)
             {
+                return curVersion == entity.version;
+            }
+
+            if (IsNull())
+            {
+                m_type = type;
+            }
+            DebugAssert(m_type == type);
+
+            const i32 sizeOf = Component::SizeOf(type);
+
+            if (!inRange)
+            {
+                const i32 prevLen = m_versions.size();
+                const i32 newLen = i + 1;
                 m_versions.resize(i + 1);
-                m_components.resize((i + 1) * sizeof(T));
-                m_components.embed<T>();
+                for (i32 iVersion = prevLen; iVersion < newLen; ++iVersion)
+                {
+                    m_versions[iVersion] = 0;
+                }
+                m_components.resize(newLen * sizeOf);
             }
 
-            if (m_versions[i] == 0)
-            {
-                m_versions[i] = entity.version;
-                ++m_count;
-            }
+            m_versions[i] = entity.version;
+            memset(m_components.at(i * sizeOf), 0, sizeOf);
+            ++m_count;
 
-            return m_components.as<T>(entity.index);
+            return true;
+        }
+
+        template<typename T>
+        inline bool Add(Entity entity)
+        {
+            return Add(entity, Component::TypeOf<T>());
         }
 
         inline bool Remove(Entity entity)
         {
             if (Has(entity))
             {
-                DebugAssert(m_stride != 0);
-                DebugAssert(m_onDestroy);
-
-                void* pComponent = m_components.at(entity.index * m_stride);
-                m_onDestroy(pComponent);
+                Component::Drop(m_type, Get(entity));
                 m_versions[entity.index] = 0;
                 --m_count;
-
                 return true;
             }
             return false;
         }
 
+        inline void* Get(Entity entity)
+        {
+            DebugAssert(Has(entity));
+            return m_components.at(entity.index * Component::SizeOf(m_type));
+        }
+
         template<typename T>
         inline T& Get(Entity entity)
         {
-            DebugAssert(entity.IsNotNull());
+            DebugAssert(SameType<T>());
             DebugAssert(Has(entity));
-            DebugAssert(m_stride == sizeof(T));
-
-            return *m_components.as<T>(entity.index);
+            return *(m_components.as<T>(entity.index));
         }
     };
 
@@ -284,10 +211,25 @@ namespace Ecs
         Entity Create();
         bool Destroy(Entity entity);
 
+        inline Row& GetRow(ComponentType type)
+        {
+            DebugAssert(Component::ValidType(type));
+            return m_rows[type];
+        }
+        inline const Row& GetRow(ComponentType type) const
+        {
+            DebugAssert(Component::ValidType(type));
+            return m_rows[type];
+        }
         template<typename T>
         inline Row& GetRow()
         {
-            return m_rows[T::C_Type];
+            return GetRow(Component::TypeOf<T>());
+        }
+        template<typename T>
+        inline const Row& GetRow() const
+        {
+            return GetRow(Component::TypeOf<T>());
         }
 
         inline i32 Size() const
@@ -322,8 +264,12 @@ namespace Ecs
             return m_versions;
         }
 
+        inline Slice<u8> Components(ComponentType type)
+        {
+            return GetRow(type).Components();
+        }
         template<typename T>
-        inline CompArray<T> Components()
+        inline Slice<T> Components()
         {
             return GetRow<T>().Components<T>();
         }
@@ -338,47 +284,66 @@ namespace Ecs
             return m_entityFlags;
         }
 
-        template<typename T>
-        inline void Clear()
+        inline void Clear(ComponentType type)
         {
-            if (m_rowFlags.Has(T::C_Type))
+            if (m_rowFlags.Has(type))
             {
-                m_rowFlags.UnSet(T::C_Type);
-                GetRow<T>().Reset();
+                m_rowFlags.UnSet(type);
+                GetRow(type).Reset();
             }
         }
 
         template<typename T>
-        inline bool HasComponent(Entity entity)
+        inline void Clear()
+        {
+            Clear(Component::TypeOf<T>());
+        }
+
+        inline bool Has(Entity entity, ComponentType type) const
         {
             DebugAssert(entity.table == m_id);
             DebugAssert(InRange(entity));
             DebugAssert(IsCurrent(entity));
-            return GetRow<T>().Has(entity);
+            return GetRow(type).Has(entity);
         }
 
         template<typename T>
-        inline T& AddComponent(Entity entity)
+        inline bool Has(Entity entity) const
+        {
+            return Has(entity, Component::TypeOf<T>());
+        }
+
+        inline bool Add(Entity entity, ComponentType type)
         {
             DebugAssert(entity.table == m_id);
             DebugAssert(InRange(entity));
             DebugAssert(IsCurrent(entity));
-            m_rowFlags.Set(T::C_Type);
-            m_entityFlags[entity.index].Set(T::C_Type);
-            return GetRow<T>().Add<T>(entity);
+            if (GetRow(type).Add(entity, type))
+            {
+                m_rowFlags.Set(type);
+                m_entityFlags[entity.index].Set(type);
+                return true;
+            }
+            return false;
         }
 
         template<typename T>
-        inline bool RemoveComponent(Entity entity)
+        inline bool Add(Entity entity)
+        {
+            return Add(entity, Component::TypeOf<T>());
+        }
+
+        inline bool Remove(Entity entity, ComponentType type)
         {
             DebugAssert(entity.table == m_id);
-            Row& row = GetRow<T>();
+            Row& row = GetRow(type);
             if (row.Remove(entity))
             {
-                m_entityFlags[entity.index].UnSet(T::C_Type);
+                m_entityFlags[entity.index].UnSet(type);
                 if (row.IsEmpty())
                 {
                     row.Reset();
+                    m_rowFlags.UnSet(type);
                 }
                 return true;
             }
@@ -386,7 +351,21 @@ namespace Ecs
         }
 
         template<typename T>
-        inline T& GetComponent(Entity entity)
+        inline bool Remove(Entity entity)
+        {
+            return Remove(entity, Component::TypeOf<T>());
+        }
+
+        inline void* Get(Entity entity, ComponentType type)
+        {
+            DebugAssert(entity.table == m_id);
+            DebugAssert(InRange(entity));
+            DebugAssert(IsCurrent(entity));
+            return GetRow(type).Get(entity);
+        }
+
+        template<typename T>
+        inline T& Get(Entity entity)
         {
             DebugAssert(entity.table == m_id);
             DebugAssert(InRange(entity));
@@ -397,31 +376,69 @@ namespace Ecs
 
     // ------------------------------------------------------------------------
 
-    Table& GetTable(TableId chunkId);
-    Table& GetTable(Entity entity);
     Slice<Table> Tables();
 
-    template<typename T>
-    inline bool HasComponent(Entity entity)
+    inline Table& GetTable(TableId tableId)
     {
-        return GetTable(entity).HasComponent<T>(entity);
+        return Tables()[tableId];
+    }
+
+    inline Table& GetTable(Entity entity)
+    {
+        return Tables()[entity.table];
+    }
+
+    inline Entity Create(TableId tableId)
+    {
+        return GetTable(tableId).Create();
+    }
+
+    inline bool Destroy(Entity entity)
+    {
+        return GetTable(entity).Destroy(entity);
+    }
+
+    inline bool Has(Entity entity, ComponentType type)
+    {
+        return GetTable(entity).Has(entity, type);
     }
 
     template<typename T>
-    inline T& AddComponent(Entity entity)
+    inline bool Has(Entity entity)
     {
-        return GetTable(entity).AddComponent<T>(entity);
+        return Has(entity, Component::TypeOf<T>());
+    }
+
+    inline bool Add(Entity entity, ComponentType type)
+    {
+        return GetTable(entity).Add(entity, type);
     }
 
     template<typename T>
-    inline bool RemoveComponent(Entity entity)
+    inline bool Add(Entity entity)
     {
-        return GetTable(entity).RemoveComponent<T>(entity);
+        return Add(entity, Component::TypeOf<T>());
+    }
+
+    inline bool Remove(Entity entity, ComponentType type)
+    {
+        return GetTable(entity).Remove(entity, type);
     }
 
     template<typename T>
-    inline T& GetComponent(Entity entity)
+    inline bool Remove(Entity entity)
     {
-        return GetTable(entity).GetComponent<T>(entity);
+        return Remove(entity, Component::TypeOf<T>());
+    }
+
+    inline void* Get(Entity entity, ComponentType type)
+    {
+        return GetTable(entity).Get(entity, type);
+    }
+
+    template<typename T>
+    inline T& Get(Entity entity)
+    {
+        return GetTable(entity).Get<T>(entity);
     }
 };

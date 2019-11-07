@@ -23,10 +23,10 @@ namespace Systems
         arena.reset();
 
         TimeSystem::Init();
+        Ecs::Init();
         RenderSystem::Init();
         InputSystem::Init();
         AudioSystem::Init();
-        Ecs::Init();
     }
 
     void Update()
@@ -46,10 +46,10 @@ namespace Systems
 
     void Shutdown()
     {
-        Ecs::Shutdown();
         AudioSystem::Shutdown();
         InputSystem::Shutdown();
         RenderSystem::Shutdown();
+        Ecs::Shutdown();
         TimeSystem::Shutdown();
 
         ms_assets.Reset();

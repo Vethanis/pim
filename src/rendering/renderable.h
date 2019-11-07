@@ -1,6 +1,7 @@
 #pragma once
 
 #include "components/entity.h"
+#include "components/component.h"
 #include "rendering/mesh.h"
 #include "rendering/material.h"
 
@@ -9,7 +10,10 @@ struct Renderable
     MeshId mesh;
     MaterialId material;
 
-    DeclComponent(Renderable,
-        MeshSystem::Release(ptr->mesh);
-        MaterialSystem::Release(ptr->material));
+    inline void Drop()
+    {
+        MeshSystem::Release(mesh);
+        MaterialSystem::Release(material);
+    }
 };
+DeclComponent(Renderable, ptr->Drop());

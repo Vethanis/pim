@@ -18,12 +18,15 @@
     <ClCompile Include="..\src\common\random.cpp" />
     <ClCompile Include="..\src\common\stringutil.cpp" />
     <ClCompile Include="..\src\common\tyeinfo.cpp" />
+    <ClCompile Include="..\src\components\component.cpp" />
     <ClCompile Include="..\src\components\ecs.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
     <ClCompile Include="..\src\os\thread_win32.cpp" />
     <ClCompile Include="..\src\quake\packfile.cpp" />
+    <ClCompile Include="..\src\rendering\material.cpp" />
+    <ClCompile Include="..\src\rendering\mesh.cpp" />
     <ClCompile Include="..\src\rendering\render_system.cpp" />
     <ClCompile Include="..\src\rendering\shader_system.cpp" />
     <ClCompile Include="..\src\sokol\sokol_app.c" />
@@ -56,6 +59,7 @@
     <ClInclude Include="..\src\common\text.h" />
     <ClInclude Include="..\src\common\typeinfo.h" />
     <ClInclude Include="..\src\common\unroll.h" />
+    <ClInclude Include="..\src\components\component.h" />
     <ClInclude Include="..\src\components\ecs.h" />
     <ClInclude Include="..\src\components\entity.h" />
     <ClInclude Include="..\src\components\transform.h" />

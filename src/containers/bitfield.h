@@ -92,9 +92,10 @@ struct BitField
 template<u32 ct>
 inline BitField<ct>& operator ~(BitField<ct>& x)
 {
-    for (u32& dword : x.m_dwords)
+    constexpr u32 count = x.NumDwords;
+    for (u32 i = 0; i < count; ++i)
     {
-        dword = ~dword;
+        x.m_dwords[i] = ~x.m_dwords[i];
     }
     return x;
 }
@@ -103,7 +104,8 @@ template<u32 ct>
 inline BitField<ct> operator | (BitField<ct> lhs, BitField<ct> rhs)
 {
     BitField<ct> result;
-    for (u32 i = 0; i < lhs.NumDwords; ++i)
+    constexpr u32 count = lhs.NumDwords;
+    for (u32 i = 0; i < count; ++i)
     {
         result.m_dwords[i] = lhs.m_dwords[i] | rhs.m_dwords[i];
     }
@@ -114,7 +116,8 @@ template<u32 ct>
 inline BitField<ct> operator & (BitField<ct> lhs, BitField<ct> rhs)
 {
     BitField<ct> result;
-    for (u32 i = 0; i < lhs.NumDwords; ++i)
+    constexpr u32 count = lhs.NumDwords;
+    for (u32 i = 0; i < count; ++i)
     {
         result.m_dwords[i] = lhs.m_dwords[i] & rhs.m_dwords[i];
     }
@@ -125,7 +128,8 @@ template<u32 ct>
 inline BitField<ct> operator ^ (BitField<ct> lhs, BitField<ct> rhs)
 {
     BitField<ct> result;
-    for (u32 i = 0; i < lhs.NumDwords; ++i)
+    constexpr u32 count = lhs.NumDwords;
+    for (u32 i = 0; i < count; ++i)
     {
         result.m_dwords[i] = lhs.m_dwords[i] ^ rhs.m_dwords[i];
     }
@@ -135,7 +139,8 @@ inline BitField<ct> operator ^ (BitField<ct> lhs, BitField<ct> rhs)
 template<u32 ct>
 inline bool operator == (BitField<ct> lhs, BitField<ct> rhs)
 {
-    for (u32 i = 0; i < lhs.NumDwords; ++i)
+    constexpr u32 count = lhs.NumDwords;
+    for (u32 i = 0; i < count; ++i)
     {
         if (lhs.m_dwords[i] != rhs.m_dwords[i])
         {
@@ -148,7 +153,8 @@ inline bool operator == (BitField<ct> lhs, BitField<ct> rhs)
 template<u32 ct>
 inline bool operator != (BitField<ct> lhs, BitField<ct> rhs)
 {
-    for (u32 i = 0; i < lhs.NumDwords; ++i)
+    constexpr u32 count = lhs.NumDwords;
+    for (u32 i = 0; i < count; ++i)
     {
         if (lhs.m_dwords[i] == rhs.m_dwords[i])
         {

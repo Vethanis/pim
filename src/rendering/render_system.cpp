@@ -53,6 +53,10 @@ namespace RenderSystem
         ms_height = sapp_height();
 
         ShaderSystem::Init();
+
+        Entity map = Ecs::Create(TableId_Map);
+        Ecs::Add<LocalToWorld>(map);
+        Ecs::Add<Renderable>(map);
     }
 
     static Array<Entity> ms_entities;
@@ -63,10 +67,10 @@ namespace RenderSystem
         ms_height = sapp_height();
         simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
 
-        for (Entity entity : Ecs::ForEach(EntityQuery().All<LocalToWorld>().All<Renderable>(), ms_entities))
+        for (Entity entity : Ecs::Search(EntityQuery().All<LocalToWorld>().All<Renderable>(), ms_entities))
         {
-            LocalToWorld& transform = Ecs::GetComponent<LocalToWorld>(entity);
-            Translation& translation = Ecs::GetComponent<Translation>(entity);
+            LocalToWorld& transform = Ecs::Get<LocalToWorld>(entity);
+            Renderable& renderable = Ecs::Get<Renderable>(entity);
         }
 
         ShaderSystem::Update();
