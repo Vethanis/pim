@@ -1,5 +1,5 @@
 #include "components/ecs.h"
-#include <string.h>
+#include "common/stringutil.h"
 
 namespace Ecs
 {
@@ -228,7 +228,7 @@ namespace Ecs
     {
         results.clear();
 
-        i32 bits = 0;
+        u32 bits = 0;
         bits |= query.all.Any() ? 1 : 0;
         bits |= query.any.Any() ? 2 : 0;
         bits |= query.none.Any() ? 4 : 0;
@@ -294,6 +294,7 @@ namespace Ecs
     {
         m_rowFlags.Clear();
         m_entities.reset();
+        m_names.reset();
         m_entityFlags.reset();
         m_versions.reset();
         m_freelist.reset();
@@ -303,13 +304,14 @@ namespace Ecs
         }
     }
 
-    Entity Table::Create()
+    Entity Table::Create(HashString name)
     {
         if (m_freelist.empty())
         {
             m_freelist.grow() = m_versions.size();
             m_versions.grow() = 0;
             m_entities.grow() = { TableId_Default, 0, 0 };
+            m_names.grow();
             m_entityFlags.grow();
         }
         u16 i = m_freelist.popValue();
@@ -321,6 +323,7 @@ namespace Ecs
         entity.index = i;
 
         m_entities[i] = entity;
+        m_names[i] = name;
         m_entityFlags[i].Clear();
 
         return entity;
@@ -338,6 +341,8 @@ namespace Ecs
             {
                 m_rows[c].Remove(entity);
             }
+
+            m_names[e] = HashString();
             m_entityFlags[e].Clear();
 
             m_versions[e]++;

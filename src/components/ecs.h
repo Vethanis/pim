@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
+#include "common/hashstring.h"
 #include "containers/slice.h"
 #include "containers/array.h"
 #include "containers/bitfield.h"
@@ -202,14 +203,25 @@ namespace Ecs
         TableId m_id;
         ComponentFlags m_rowFlags;
         Array<Entity> m_entities;
+        Array<HashString> m_names;
         Array<ComponentFlags> m_entityFlags;
         Array<u16> m_versions;
         Array<u16> m_freelist;
         Row m_rows[ComponentType_Count];
 
         void Reset();
-        Entity Create();
+        Entity Create(HashString name);
         bool Destroy(Entity entity);
+
+        inline Entity Find(HashString name) const
+        {
+            i32 i = m_names.find(name);
+            if (i != -1)
+            {
+                return m_entities[i];
+            }
+            return { TableId_Default, 0, 0 };
+        }
 
         inline Row& GetRow(ComponentType type)
         {
@@ -262,6 +274,11 @@ namespace Ecs
         inline Slice<const u16> Versions() const
         {
             return m_versions;
+        }
+
+        inline Slice<const HashString> Names() const
+        {
+            return m_names;
         }
 
         inline Slice<u8> Components(ComponentType type)
@@ -358,7 +375,6 @@ namespace Ecs
 
         inline void* Get(Entity entity, ComponentType type)
         {
-            DebugAssert(entity.table == m_id);
             DebugAssert(InRange(entity));
             DebugAssert(IsCurrent(entity));
             return GetRow(type).Get(entity);
@@ -367,10 +383,16 @@ namespace Ecs
         template<typename T>
         inline T& Get(Entity entity)
         {
-            DebugAssert(entity.table == m_id);
             DebugAssert(InRange(entity));
             DebugAssert(IsCurrent(entity));
             return GetRow<T>().Get<T>(entity);
+        }
+
+        inline HashString Name(Entity entity) const
+        {
+            DebugAssert(InRange(entity));
+            DebugAssert(IsCurrent(entity));
+            return m_names[entity.index];
         }
     };
 
@@ -388,14 +410,32 @@ namespace Ecs
         return Tables()[entity.table];
     }
 
-    inline Entity Create(TableId tableId)
+    inline Entity Create(TableId tableId, HashString name)
     {
-        return GetTable(tableId).Create();
+        return GetTable(tableId).Create(name);
     }
 
     inline bool Destroy(Entity entity)
     {
         return GetTable(entity).Destroy(entity);
+    }
+
+    inline Entity Find(TableId tableId, HashString name)
+    {
+        return GetTable(tableId).Find(name);
+    }
+
+    inline Entity Find(HashString name)
+    {
+        for (const Table& table : Tables())
+        {
+            Entity entity = table.Find(name);
+            if (entity.IsNotNull())
+            {
+                return entity;
+            }
+        }
+        return { TableId_Default, 0, 0 };
     }
 
     inline bool Has(Entity entity, ComponentType type)
