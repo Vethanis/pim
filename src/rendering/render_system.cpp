@@ -54,7 +54,7 @@ namespace RenderSystem
 
         ShaderSystem::Init();
 
-        Entity map = Ecs::Create(TableId_Map, HashString(0, "Map Test"));
+        Entity map = Ecs::Create(TableId_Map, HashString(TableId_Map, "Map Test"));
         Ecs::Add<LocalToWorld>(map);
         Ecs::Add<Renderable>(map);
     }
@@ -67,7 +67,7 @@ namespace RenderSystem
         ms_height = sapp_height();
         simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
 
-        Entity map = Ecs::Find(HashString(0, "Map Test"));
+        Entity map = Ecs::Find(TableId_Map, HashString(TableId_Map, "Map Test"));
         DebugAssert(map.IsNotNull());
 
         for (Entity entity : Ecs::Search(EntityQuery().All<LocalToWorld>().All<Renderable>(), ms_entities))
