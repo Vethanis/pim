@@ -4,10 +4,6 @@
 
 namespace Quake
 {
-    DeclareHashNS(SearchPaths)
-    DeclareHashNS(Packs)
-    DeclareHashNS(PackFiles)
-
     bool LoadPackFile(cstrc dir, PackAssets& assets, Array<DPackFile>& arena)
     {
         Check0(dir);
@@ -40,7 +36,7 @@ namespace Quake
         {
             const i32 pathId = assets.paths.names.size() - 1;
 
-            assets.packs.names.grow() = HashString(NS_Packs, dir);
+            assets.packs.names.grow() = HashString(dir);
             assets.packs.pathIds.grow() = pathId;
             assets.packs.files.grow() = file;
             guard.Cancel();
@@ -57,7 +53,7 @@ namespace Quake
             for (i32 i = 0; i < numPackFiles; ++i)
             {
                 const i32 j = prevLen + i;
-                assets.packfiles.names[j] = HashString(NS_PackFiles, arena[i].name);
+                assets.packfiles.names[j] = HashString(arena[i].name);
                 assets.packfiles.chunks[j] = arena[i].chunk;
                 assets.packfiles.packIds[j] = packId;
             }
@@ -71,7 +67,7 @@ namespace Quake
         Check0(dir);
 
         // add a path
-        assets.paths.names.grow() = HashString(NS_SearchPaths, dir);
+        assets.paths.names.grow() = HashString(dir);
 
         IO::FindData fdata = {};
         IO::Finder fder = {};

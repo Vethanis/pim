@@ -7,14 +7,13 @@
 namespace HStr
 {
     using HashText = Text<64>;
-    using HashStorage = DictTable<4, HashKey, HashText>;
 
-    static HashStorage ms_store[NsCount];
+    static DictTable<64, HashKey, HashText> ms_store;
 
     cstr Lookup(HashKey key)
     {
         cstr result = 0;
-        HashText* pText = ms_store[GetNs(key)].get(key);
+        HashText* pText = ms_store.get(key);
         if (pText)
         {
             result = pText->value;
@@ -29,7 +28,7 @@ namespace HStr
             return;
         }
 
-        HashText& dst = ms_store[GetNs(key)][key];
+        HashText& dst = ms_store[key];
         if (dst.value[0])
         {
             if (!StrICmp(argof(dst.value), value))

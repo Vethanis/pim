@@ -387,7 +387,7 @@ namespace Ecs
 
     inline Entity Create(TableId tableId, cstrc name)
     {
-        return Create(tableId, HashString(tableId, name));
+        return Create(tableId, HashString(name));
     }
 
     inline Entity Create(cstrc name)

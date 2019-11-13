@@ -8,8 +8,6 @@
 
 namespace ShaderSystem
 {
-    DeclareHashNS(Shaders);
-
     enum ShaderType
     {
         ShaderType_Pixel = 0,
@@ -100,7 +98,7 @@ namespace ShaderSystem
             }
             cstrc hlslName = findDatas[i].name;
 
-            ms_shaders.names.grow() = HashString(NS_Shaders, hlslName);
+            ms_shaders.names.grow() = HashString(hlslName);
             ms_shaders.types.grow() = type;
 
             SPrintf(argof(cmd), " %s/tools/dxc/bin/dxc.exe -WX", cwd);

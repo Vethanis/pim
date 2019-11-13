@@ -7,8 +7,7 @@
 
 namespace Allocator
 {
-    DeclareHashNS(Allocator)
-    DeclareHash(ImGuiHash, NS_Allocator, "ImGui")
+    static const HashString ImGuiHash("ImGui");
 
     constexpr i32 NumPools = 32;
     constexpr i32 PoolLen = 64;
@@ -76,7 +75,7 @@ namespace Allocator
             Allocation alloc = _Alloc((i32)sz + 16);
             u64* pHeader = (u64*)alloc.begin();
             *pHeader++ = alloc.size();
-            *pHeader++ = ImGuiHash;
+            *pHeader++ = ImGuiHash.Value;
             return pHeader;
         }
         return nullptr;
@@ -87,7 +86,7 @@ namespace Allocator
         if (ptr)
         {
             u64* pHeader = ((u64*)ptr) - 2;
-            DebugAssert(pHeader[1] == ImGuiHash);
+            DebugAssert(pHeader[1] == ImGuiHash.Value);
             Allocation alloc = { (u8*)pHeader, (i32)pHeader[0] };
             _Free(alloc);
         }
