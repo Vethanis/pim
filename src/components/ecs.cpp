@@ -4,7 +4,7 @@
 namespace Ecs
 {
     static Table ms_tables[TableId_Count];
-    static Slice<Table> ms_slice = { ms_tables, TableId_Count };
+    static constexpr Slice<Table> ms_slice = { ms_tables, TableId_Count };
 
     void Init()
     {
@@ -224,9 +224,11 @@ namespace Ecs
         }
     }
 
-    Slice<const Entity> Search(EntityQuery query, Array<Entity>& results)
+    static Array<Entity> ms_results;
+
+    Slice<const Entity> Search(EntityQuery query)
     {
-        results.clear();
+        ms_results.clear();
 
         u32 bits = 0;
         bits |= query.all.Any() ? 1 : 0;
@@ -239,29 +241,29 @@ namespace Ecs
         case 0:
             break;
         case 1:
-            SearchAll(query.all, results);
+            SearchAll(query.all, ms_results);
             break;
         case 2:
-            SearchAny(query.any, results);
+            SearchAny(query.any, ms_results);
             break;
         case 4:
-            SearchNone(query.none, results);
+            SearchNone(query.none, ms_results);
             break;
         case (1 | 2):
-            SearchAllAny(query.all, query.any, results);
+            SearchAllAny(query.all, query.any, ms_results);
             break;
         case (1 | 4):
-            SearchAllNone(query.all, query.none, results);
+            SearchAllNone(query.all, query.none, ms_results);
             break;
         case (2 | 4):
-            SearchAnyNone(query.any, query.none, results);
+            SearchAnyNone(query.any, query.none, ms_results);
             break;
         case (1 | 2 | 4):
-            SearchAllAnyNone(query.all, query.any, query.none, results);
+            SearchAllAnyNone(query.all, query.any, query.none, ms_results);
             break;
         }
 
-        return results;
+        return ms_results;
     }
 
     // ------------------------------------------------------------------------

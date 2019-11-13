@@ -2,8 +2,9 @@
 
 #include "containers/slice.h"
 #include "containers/array.h"
+#include "containers/initlist.h"
 
-template<u32 ct>
+template<typename T, u32 ct>
 struct BitField
 {
     static constexpr u32 NumBits = ct;
@@ -11,10 +12,17 @@ struct BitField
 
     u32 m_dwords[NumDwords];
 
-    inline BitField() : m_dwords()
+    inline constexpr BitField() : m_dwords() {}
+
+    inline constexpr BitField(std::initializer_list<T> list) : m_dwords()
     {
-        for (u32& x : m_dwords)
-            x = 0;
+        for (T x : list)
+        {
+            u32 i = x >> 5;
+            u32 j = x & 31;
+            u32 mask = 1u << j;
+            m_dwords[i] |= mask;
+        }
     }
 
     inline void Clear()
@@ -89,8 +97,8 @@ struct BitField
     }
 };
 
-template<u32 ct>
-inline BitField<ct>& operator ~(BitField<ct>& x)
+template<typename T, u32 ct>
+inline BitField<T, ct>& operator ~(BitField<T, ct>& x)
 {
     constexpr u32 count = x.NumDwords;
     for (u32 i = 0; i < count; ++i)
@@ -100,10 +108,10 @@ inline BitField<ct>& operator ~(BitField<ct>& x)
     return x;
 }
 
-template<u32 ct>
-inline BitField<ct> operator | (BitField<ct> lhs, BitField<ct> rhs)
+template<typename T, u32 ct>
+inline BitField<T, ct> operator | (BitField<T, ct> lhs, BitField<T, ct> rhs)
 {
-    BitField<ct> result;
+    BitField<T, ct> result;
     constexpr u32 count = lhs.NumDwords;
     for (u32 i = 0; i < count; ++i)
     {
@@ -112,10 +120,10 @@ inline BitField<ct> operator | (BitField<ct> lhs, BitField<ct> rhs)
     return result;
 }
 
-template<u32 ct>
-inline BitField<ct> operator & (BitField<ct> lhs, BitField<ct> rhs)
+template<typename T, u32 ct>
+inline BitField<T, ct> operator & (BitField<T, ct> lhs, BitField<T, ct> rhs)
 {
-    BitField<ct> result;
+    BitField<T, ct> result;
     constexpr u32 count = lhs.NumDwords;
     for (u32 i = 0; i < count; ++i)
     {
@@ -124,10 +132,10 @@ inline BitField<ct> operator & (BitField<ct> lhs, BitField<ct> rhs)
     return result;
 }
 
-template<u32 ct>
-inline BitField<ct> operator ^ (BitField<ct> lhs, BitField<ct> rhs)
+template<typename T, u32 ct>
+inline BitField<T, ct> operator ^ (BitField<T, ct> lhs, BitField<T, ct> rhs)
 {
-    BitField<ct> result;
+    BitField<T, ct> result;
     constexpr u32 count = lhs.NumDwords;
     for (u32 i = 0; i < count; ++i)
     {
@@ -136,8 +144,8 @@ inline BitField<ct> operator ^ (BitField<ct> lhs, BitField<ct> rhs)
     return result;
 }
 
-template<u32 ct>
-inline bool operator == (BitField<ct> lhs, BitField<ct> rhs)
+template<typename T, u32 ct>
+inline bool operator == (BitField<T, ct> lhs, BitField<T, ct> rhs)
 {
     constexpr u32 count = lhs.NumDwords;
     for (u32 i = 0; i < count; ++i)
@@ -150,8 +158,8 @@ inline bool operator == (BitField<ct> lhs, BitField<ct> rhs)
     return true;
 }
 
-template<u32 ct>
-inline bool operator != (BitField<ct> lhs, BitField<ct> rhs)
+template<typename T, u32 ct>
+inline bool operator != (BitField<T, ct> lhs, BitField<T, ct> rhs)
 {
     constexpr u32 count = lhs.NumDwords;
     for (u32 i = 0; i < count; ++i)

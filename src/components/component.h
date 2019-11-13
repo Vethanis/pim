@@ -31,13 +31,6 @@ namespace Component
     i32 SizeOf(ComponentType type);
     void Drop(ComponentType type, void* pVoid);
 
-    template<typename T>
-    inline constexpr ComponentType TypeOf()
-    {
-        DebugInterrupt();
-        return ComponentType_Null;
-    }
-
     // ------------------------------------------------------------------------
 
     void SetSize(ComponentType type, i32 size);
@@ -53,8 +46,15 @@ namespace Component
     };
 };
 
+template<typename T>
+inline constexpr ComponentType CTypeOf()
+{
+    DebugInterrupt();
+    return ComponentType_Null;
+}
+
 #define DeclComponent(T, DtorExpr) \
     template<> \
-    inline constexpr ComponentType Component::TypeOf<T>() { return ComponentType_ ## T; } \
+    inline constexpr ComponentType CTypeOf<T>() { return ComponentType_ ## T; } \
     Component::InfoSetter CatToken(CompInfoSetter_, __COUNTER__)(ComponentType_ ## T, sizeof(T), [](void* pVoid) { T* ptr = (T*)pVoid; DtorExpr; });
 

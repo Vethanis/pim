@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
+#include "containers/initlist.h"
 #include "common/hashstring.h"
 #include "containers/slice.h"
 #include "containers/array.h"
@@ -9,7 +10,8 @@
 #include "components/entity.h"
 #include "components/component.h"
 
-using ComponentFlags = BitField<ComponentType_Count>;
+
+using ComponentFlags = BitField<ComponentType, ComponentType_Count>;
 
 struct EntityQuery
 {
@@ -17,43 +19,11 @@ struct EntityQuery
     ComponentFlags any;
     ComponentFlags none;
 
-    inline EntityQuery()
-        : all(), any(), none() {}
-
-    inline EntityQuery All(ComponentType type)
-    {
-        all.Set(type);
-        return *this;
-    }
-    template<typename T>
-    inline EntityQuery& All()
-    {
-        all.Set(Component::TypeOf<T>());
-        return *this;
-    }
-
-    inline EntityQuery& Any(ComponentType type)
-    {
-        any.Set(type);
-        return *this;
-    }
-    template<typename T>
-    inline EntityQuery& Any()
-    {
-        any.Set(Component::TypeOf<T>());
-        return *this;
-    }
-    inline EntityQuery None(ComponentType type)
-    {
-        none.Set(type);
-        return *this;
-    }
-    template<typename T>
-    inline EntityQuery& None()
-    {
-        none.Set(Component::TypeOf<T>());
-        return *this;
-    }
+    inline constexpr EntityQuery(
+        std::initializer_list<ComponentType> allList = {},
+        std::initializer_list<ComponentType> anyList = {},
+        std::initializer_list<ComponentType> noneList = {})
+        : all(allList), any(anyList), none(noneList) {}
 };
 
 namespace Ecs
@@ -61,7 +31,7 @@ namespace Ecs
     void Init();
     void Shutdown();
 
-    Slice<const Entity> Search(EntityQuery query, Array<Entity>& results);
+    Slice<const Entity> Search(EntityQuery query);
 
     // ------------------------------------------------------------------------
 
@@ -87,7 +57,7 @@ namespace Ecs
         template<typename T>
         inline bool SameType() const
         {
-            return Component::TypeOf<T>() == m_type;
+            return CTypeOf<T>() == m_type;
         }
 
         inline Slice<const u16> Versions() const
@@ -166,7 +136,7 @@ namespace Ecs
         template<typename T>
         inline bool Add(Entity entity)
         {
-            return Add(entity, Component::TypeOf<T>());
+            return Add(entity, CTypeOf<T>());
         }
 
         inline bool Remove(Entity entity)
@@ -236,12 +206,12 @@ namespace Ecs
         template<typename T>
         inline Row& GetRow()
         {
-            return GetRow(Component::TypeOf<T>());
+            return GetRow(CTypeOf<T>());
         }
         template<typename T>
         inline const Row& GetRow() const
         {
-            return GetRow(Component::TypeOf<T>());
+            return GetRow(CTypeOf<T>());
         }
 
         inline i32 Size() const
@@ -313,7 +283,7 @@ namespace Ecs
         template<typename T>
         inline void Clear()
         {
-            Clear(Component::TypeOf<T>());
+            Clear(CTypeOf<T>());
         }
 
         inline bool Has(Entity entity, ComponentType type) const
@@ -327,7 +297,7 @@ namespace Ecs
         template<typename T>
         inline bool Has(Entity entity) const
         {
-            return Has(entity, Component::TypeOf<T>());
+            return Has(entity, CTypeOf<T>());
         }
 
         inline bool Add(Entity entity, ComponentType type)
@@ -347,7 +317,7 @@ namespace Ecs
         template<typename T>
         inline bool Add(Entity entity)
         {
-            return Add(entity, Component::TypeOf<T>());
+            return Add(entity, CTypeOf<T>());
         }
 
         inline bool Remove(Entity entity, ComponentType type)
@@ -370,7 +340,7 @@ namespace Ecs
         template<typename T>
         inline bool Remove(Entity entity)
         {
-            return Remove(entity, Component::TypeOf<T>());
+            return Remove(entity, CTypeOf<T>());
         }
 
         inline void* Get(Entity entity, ComponentType type)
@@ -415,6 +385,16 @@ namespace Ecs
         return GetTable(tableId).Create(name);
     }
 
+    inline Entity Create(TableId tableId, cstrc name)
+    {
+        return Create(tableId, HashString(tableId, name));
+    }
+
+    inline Entity Create(cstrc name)
+    {
+        return Create(TableId_Default, name);
+    }
+
     inline bool Destroy(Entity entity)
     {
         return GetTable(entity).Destroy(entity);
@@ -446,7 +426,7 @@ namespace Ecs
     template<typename T>
     inline bool Has(Entity entity)
     {
-        return Has(entity, Component::TypeOf<T>());
+        return Has(entity, CTypeOf<T>());
     }
 
     inline bool Add(Entity entity, ComponentType type)
@@ -457,7 +437,7 @@ namespace Ecs
     template<typename T>
     inline bool Add(Entity entity)
     {
-        return Add(entity, Component::TypeOf<T>());
+        return Add(entity, CTypeOf<T>());
     }
 
     inline bool Remove(Entity entity, ComponentType type)
@@ -468,7 +448,7 @@ namespace Ecs
     template<typename T>
     inline bool Remove(Entity entity)
     {
-        return Remove(entity, Component::TypeOf<T>());
+        return Remove(entity, CTypeOf<T>());
     }
 
     inline void* Get(Entity entity, ComponentType type)

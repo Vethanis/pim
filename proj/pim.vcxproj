@@ -65,6 +65,7 @@
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\bitfield.h" />
     <ClInclude Include="..\src\containers\dict.h" />
+    <ClInclude Include="..\src\containers\initlist.h" />
     <ClInclude Include="..\src\containers\ring.h" />
     <ClInclude Include="..\src\containers\slice.h" />
     <ClInclude Include="..\src\input\input_system.h" />

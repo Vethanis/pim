@@ -13,7 +13,7 @@ using HashKey = u32;
 
 namespace HStr
 {
-    constexpr HashKey NsValueBits = 3;
+    constexpr HashKey NsValueBits = 5;
     constexpr HashKey NsTypeBits = sizeof(HashNS) * 8;
     constexpr HashKey NsCount = 1 << NsValueBits;
     constexpr HashKey NsMask = NsCount - 1;
@@ -71,6 +71,7 @@ struct HashString
     inline constexpr HashString()
         : Value(0) {}
 
+
     inline constexpr HashString(HashNS ns, HashKey hash)
         : Value(HStr::EmbedNs(ns, hash)) {}
 
@@ -80,9 +81,17 @@ struct HashString
     {
         HStr::Insert(Value, src);
     }
+    inline HashString(cstrc src)
+        : Value(HStr::Hash(0, src))
+    {
+        HStr::Insert(Value, src);
+    }
 #else
     inline constexpr HashString(HashNS ns, cstrc src)
         : Value(HStr::Hash(ns, src)) {}
+
+    inline constexpr HashString(cstrc src)
+        : Value(HStr::Hash(0, src)) {}
 #endif // _DEBUG
 
     inline bool IsNull() const { return HStr::GetHash(Value) == 0; }
