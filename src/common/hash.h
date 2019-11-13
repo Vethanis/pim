@@ -89,10 +89,16 @@ inline u32 Fnv32Bytes(const void* ptr, i32 nBytes, u32 hash = Fnv32Bias)
 }
 
 template<typename T>
-inline u32 Fnv32(Slice<const T> src, u32 hash = Fnv32Bias)
+inline u32 Fnv32S(Slice<const T> src, u32 hash = Fnv32Bias)
 {
     Slice<const u8> bytes = src.to_bytes();
     return Fnv32Bytes(bytes.begin(), bytes.size(), hash);
+}
+
+template<typename T>
+inline u32 Fnv32T(const T& x, u32 hash = Fnv32Bias)
+{
+    return Fnv32Bytes(&x, sizeof(T), hash);
 }
 
 // ----------------------------------------------------------------------------
@@ -176,8 +182,14 @@ inline u64 Fnv64Bytes(const void* ptr, i32 nBytes, u64 hash = Fnv64Bias)
 }
 
 template<typename T>
-inline u64 Fnv64(Slice<const T> src, u64 hash = Fnv64Bias)
+inline u64 Fnv64S(Slice<const T> src, u64 hash = Fnv64Bias)
 {
     Slice<const u8> bytes = src.to_bytes();
     return Fnv64Bytes(bytes.begin(), bytes.size(), hash);
+}
+
+template<typename T>
+inline u64 Fnv64T(const T& x, u64 hash = Fnv64Bias)
+{
+    return Fnv64Bytes(&x, sizeof(T), hash);
 }

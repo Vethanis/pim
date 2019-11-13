@@ -200,7 +200,12 @@ struct Array
         }
         return false;
     }
-    inline void copy(const Array<T>& other)
+    inline void copy(Slice<const T> other)
+    {
+        resize(other.size());
+        memcpy(begin(), other.begin(), sizeof(T) * size());
+    }
+    inline void copy(Slice<T> other)
     {
         resize(other.size());
         memcpy(begin(), other.begin(), sizeof(T) * size());

@@ -2,41 +2,43 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "common/random.h"
 #include "common/hash.h"
-#include "containers/slice.h"
 
 struct Guid
 {
-    const u64 Value[2];
+    u64 Value[2];
 
-    static Guid Create(Slice<const u8> bytes)
+    inline bool operator==(const Guid& o) const
     {
-        i32 half = bytes.size() >> 1;
-        if (half > 0)
-        {
-            return
-            {
-                Fnv64(bytes.head(half)),
-                Fnv64(bytes.tail(half))
-            };
-        }
-        return { 0, 0 };
+        return !((Value[0] - o.Value[0]) | (Value[1] - o.Value[1]));
     }
 
-    static Guid Create(cstrc str)
+    inline bool IsNull() const
+    {
+        return !(Value[0] | Value[1]);
+    }
+};
+
+struct GuidStr
+{
+    char Value[2 + 16 * 2];
+};
+
+namespace Guids
+{
+    inline constexpr Guid AsHash(cstrc str)
     {
         if (str)
         {
-            i32 len = 0;
-            for (; str[len]; ++len) {}
-            return Create({ (const u8*)str, len });
+            u64 q0 = Fnv64String(str);
+            u64 q1 = Fnv64String(str, q0);
+            q0 = q0 ? q0 : 1;
+            q1 = q1 ? q1 : 1;
+            return { q0, q1 };
         }
         return { 0, 0 };
     }
 
-    static Guid Create()
-    {
-        return { Random::NextU64(), Random::NextU64() };
-    }
+    Guid FromString(GuidStr str);
+    GuidStr ToString(Guid guid);
 };

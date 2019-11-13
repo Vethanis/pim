@@ -133,9 +133,6 @@
     <ClCompile Include="..\src\common\hashstring.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\tyeinfo.cpp">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\audio\audio_system.cpp">
       <Filter>Source Files\audio</Filter>
     </ClCompile>
@@ -168,6 +165,9 @@
     </ClCompile>
     <ClCompile Include="..\src\rendering\material.cpp">
       <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\guid.cpp">
+      <Filter>Source Files\common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -379,9 +379,6 @@
       <Filter>Source Files\math</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\unroll.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\typeinfo.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\components\transform.h">

@@ -56,18 +56,14 @@ inline constexpr bool IsVarChar1(char c)
     return IsVarChar0(c) || IsNumeric(c);
 }
 
-inline constexpr bool IsVarName(cstrc x, i32 size)
+inline constexpr bool IsVarName(cstrc x)
 {
-    DebugAssert(x || !size);
-    DebugAssert(size >= 0);
-
-    i32 i = 0;
-    if (!IsVarChar0(x[i]))
+    DebugAssert(x);
+    if (!IsVarChar0(x[0]))
     {
         return false;
     }
-    ++i;
-    for (; i < size && x[i]; ++i)
+    for (i32 i = 1; x[i]; ++i)
     {
         if (!IsVarChar1(x[i]))
         {
@@ -75,6 +71,21 @@ inline constexpr bool IsVarName(cstrc x, i32 size)
         }
     }
     return true;
+}
+
+inline bool IsWhitespace(char c)
+{
+    switch (c)
+    {
+    case '\0':
+    case ' ':
+    case '\n':
+    case '\r':
+    case '\t':
+        return true;
+    default:
+        return false;
+    }
 }
 
 // ----------------------------------------------------------------------------

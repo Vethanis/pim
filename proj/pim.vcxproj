@@ -13,11 +13,11 @@
   <ItemGroup>
     <ClCompile Include="..\src\audio\audio_system.cpp" />
     <ClCompile Include="..\src\common\allocator.cpp" />
+    <ClCompile Include="..\src\common\guid.cpp" />
     <ClCompile Include="..\src\common\hashstring.cpp" />
     <ClCompile Include="..\src\common\io.cpp" />
     <ClCompile Include="..\src\common\random.cpp" />
     <ClCompile Include="..\src\common\stringutil.cpp" />
-    <ClCompile Include="..\src\common\tyeinfo.cpp" />
     <ClCompile Include="..\src\components\component.cpp" />
     <ClCompile Include="..\src\components\ecs.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
@@ -57,7 +57,6 @@
     <ClInclude Include="..\src\common\random.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\text.h" />
-    <ClInclude Include="..\src\common\typeinfo.h" />
     <ClInclude Include="..\src\common\unroll.h" />
     <ClInclude Include="..\src\components\component.h" />
     <ClInclude Include="..\src\components\ecs.h" />

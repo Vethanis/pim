@@ -91,8 +91,8 @@
 // ----------------------------------------------------------------------------
 
 typedef char* VaList;
-#define VaStart(arg)                (reinterpret_cast<VaList>(&(arg)) + AlignRemPtr(arg))
-#define VaArg(va, T)                *reinterpret_cast<T*>((va += AlignRemPtr(T)) - AlignRemPtr(T))
+#define VaStart(arg)                ((VaList)(&(arg)) + AlignRemPtr(arg))
+#define VaArg(va, T)                *(T*)((va += AlignRemPtr(T)) - AlignRemPtr(T))
 
 // ----------------------------------------------------------------------------
 
