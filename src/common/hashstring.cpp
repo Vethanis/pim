@@ -13,7 +13,7 @@ namespace HStr
     cstr Lookup(HashKey key)
     {
         cstr result = 0;
-        HashText* pText = ms_store.get(key);
+        HashText* pText = ms_store.Get(key);
         if (pText)
         {
             result = pText->value;

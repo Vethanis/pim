@@ -11,8 +11,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\allocator\allocator.cpp" />
+    <ClCompile Include="..\src\assets\asset_system.cpp" />
     <ClCompile Include="..\src\audio\audio_system.cpp" />
-    <ClCompile Include="..\src\common\allocator.cpp" />
     <ClCompile Include="..\src\common\guid.cpp" />
     <ClCompile Include="..\src\common\hashstring.cpp" />
     <ClCompile Include="..\src\common\io.cpp" />
@@ -28,7 +29,6 @@
     <ClCompile Include="..\src\rendering\material.cpp" />
     <ClCompile Include="..\src\rendering\mesh.cpp" />
     <ClCompile Include="..\src\rendering\render_system.cpp" />
-    <ClCompile Include="..\src\rendering\shader_system.cpp" />
     <ClCompile Include="..\src\sokol\sokol_app.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
     <ClCompile Include="..\src\sokol\sokol_imgui.cpp" />
@@ -44,9 +44,15 @@
     <ClCompile Include="..\submodules\stb\stb_vorbis.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\src\allocator\allocator.h" />
+    <ClInclude Include="..\src\allocator\base_allocator.h" />
+    <ClInclude Include="..\src\allocator\linear_allocator.h" />
+    <ClInclude Include="..\src\allocator\pool_allocator.h" />
+    <ClInclude Include="..\src\allocator\stack_allocator.h" />
+    <ClInclude Include="..\src\allocator\stdlib_allocator.h" />
+    <ClInclude Include="..\src\assets\asset_system.h" />
     <ClInclude Include="..\src\audio\audio_system.h" />
     <ClInclude Include="..\src\common\apply.h" />
-    <ClInclude Include="..\src\common\allocator.h" />
     <ClInclude Include="..\src\common\find.h" />
     <ClInclude Include="..\src\common\guid.h" />
     <ClInclude Include="..\src\common\hashstring.h" />
@@ -55,6 +61,7 @@
     <ClInclude Include="..\src\common\int_types.h" />
     <ClInclude Include="..\src\common\macro.h" />
     <ClInclude Include="..\src\common\random.h" />
+    <ClInclude Include="..\src\common\strhash.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\text.h" />
     <ClInclude Include="..\src\common\unroll.h" />
@@ -89,7 +96,6 @@
     <ClInclude Include="..\src\rendering\mesh.h" />
     <ClInclude Include="..\src\rendering\renderable.h" />
     <ClInclude Include="..\src\rendering\render_system.h" />
-    <ClInclude Include="..\src\rendering\shader_system.h" />
     <ClInclude Include="..\src\sokol\sokol_backend.h" />
     <ClInclude Include="..\src\systems.h" />
     <ClInclude Include="..\src\threading\task_system.h" />

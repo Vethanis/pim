@@ -9,8 +9,8 @@ enum ComponentType : u16
     ComponentType_Translation,
     ComponentType_Rotation,
     ComponentType_Scale,
-    ComponentType_LocalToWorld,
-    ComponentType_Children,
+    ComponentType_ModelMatrix,
+    ComponentType_Child,
 
     ComponentType_Renderable,
 

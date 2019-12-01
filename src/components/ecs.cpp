@@ -52,13 +52,13 @@ namespace Ecs
                 auto entities = table.Entities();
                 auto versions = table.Versions();
                 auto entityFlags = table.EntityFlags();
-                const i32 count = entities.size();
+                const i32 count = entities.Size();
                 for (i32 i = 0; i < count; ++i)
                 {
                     if ((entities[i].version == versions[i]) &&
                         HasAll(entityFlags[i], all))
                     {
-                        results.grow() = entities[i];
+                        results.Grow() = entities[i];
                     }
                 }
             }
@@ -74,13 +74,13 @@ namespace Ecs
                 auto entities = table.Entities();
                 auto versions = table.Versions();
                 auto entityFlags = table.EntityFlags();
-                const i32 count = entities.size();
+                const i32 count = entities.Size();
                 for (i32 i = 0; i < count; ++i)
                 {
                     if ((entities[i].version == versions[i]) &&
                         HasAny(entityFlags[i], any))
                     {
-                        results.grow() = entities[i];
+                        results.Grow() = entities[i];
                     }
                 }
             }
@@ -96,13 +96,13 @@ namespace Ecs
                 auto entities = table.Entities();
                 auto versions = table.Versions();
                 auto entityFlags = table.EntityFlags();
-                const i32 count = entities.size();
+                const i32 count = entities.Size();
                 for (i32 i = 0; i < count; ++i)
                 {
                     if ((entities[i].version == versions[i]) &&
                         HasNone(entityFlags[i], none))
                     {
-                        results.grow() = entities[i];
+                        results.Grow() = entities[i];
                     }
                 }
             }
@@ -123,14 +123,14 @@ namespace Ecs
                 auto entities = table.Entities();
                 auto versions = table.Versions();
                 auto entityFlags = table.EntityFlags();
-                const i32 count = entities.size();
+                const i32 count = entities.Size();
                 for (i32 i = 0; i < count; ++i)
                 {
                     if ((entities[i].version == versions[i]) &&
                         HasAll(entityFlags[i], all) &&
                         HasAny(entityFlags[i], any))
                     {
-                        results.grow() = entities[i];
+                        results.Grow() = entities[i];
                     }
                 }
             }
@@ -151,14 +151,14 @@ namespace Ecs
                 auto entities = table.Entities();
                 auto versions = table.Versions();
                 auto entityFlags = table.EntityFlags();
-                const i32 count = entities.size();
+                const i32 count = entities.Size();
                 for (i32 i = 0; i < count; ++i)
                 {
                     if ((entities[i].version == versions[i]) &&
                         HasAll(entityFlags[i], all) &&
                         HasNone(entityFlags[i], none))
                     {
-                        results.grow() = entities[i];
+                        results.Grow() = entities[i];
                     }
                 }
             }
@@ -179,14 +179,14 @@ namespace Ecs
                 auto entities = table.Entities();
                 auto versions = table.Versions();
                 auto entityFlags = table.EntityFlags();
-                const i32 count = entities.size();
+                const i32 count = entities.Size();
                 for (i32 i = 0; i < count; ++i)
                 {
                     if ((entities[i].version == versions[i]) &&
                         HasAny(entityFlags[i], any) &&
                         HasNone(entityFlags[i], none))
                     {
-                        results.grow() = entities[i];
+                        results.Grow() = entities[i];
                     }
                 }
             }
@@ -209,7 +209,7 @@ namespace Ecs
                 auto entities = table.Entities();
                 auto versions = table.Versions();
                 auto entityFlags = table.EntityFlags();
-                const i32 count = entities.size();
+                const i32 count = entities.Size();
                 for (i32 i = 0; i < count; ++i)
                 {
                     if ((entities[i].version == versions[i]) &&
@@ -217,7 +217,7 @@ namespace Ecs
                         HasAny(entityFlags[i], any) &&
                         HasNone(entityFlags[i], none))
                     {
-                        results.grow() = entities[i];
+                        results.Grow() = entities[i];
                     }
                 }
             }
@@ -228,7 +228,7 @@ namespace Ecs
 
     Slice<const Entity> Search(EntityQuery query)
     {
-        ms_results.clear();
+        ms_results.Clear();
 
         u32 bits = 0;
         bits |= query.all.Any() ? 1 : 0;
@@ -275,7 +275,7 @@ namespace Ecs
             const ComponentType type = m_type;
             const Slice<u16> versions = m_versions;
             u8* pComponents = m_components.begin();
-            const i32 count = versions.size();
+            const i32 count = versions.Size();
             const u32 stride = Component::SizeOf(type);
             for (i32 i = 0; i < count; ++i)
             {
@@ -285,8 +285,8 @@ namespace Ecs
                 }
             }
         }
-        m_versions.reset();
-        m_components.reset();
+        m_versions.Reset();
+        m_components.Reset();
         m_type = ComponentType_Null;
     }
 
@@ -295,11 +295,11 @@ namespace Ecs
     void Table::Reset()
     {
         m_rowFlags.Clear();
-        m_entities.reset();
-        m_names.reset();
-        m_entityFlags.reset();
-        m_versions.reset();
-        m_freelist.reset();
+        m_entities.Reset();
+        m_names.Reset();
+        m_entityFlags.Reset();
+        m_versions.Reset();
+        m_freelist.Reset();
         for (Row& row : m_rows)
         {
             row.Reset();
@@ -308,15 +308,15 @@ namespace Ecs
 
     Entity Table::Create(HashString name)
     {
-        if (m_freelist.empty())
+        if (m_freelist.IsEmpty())
         {
-            m_freelist.grow() = m_versions.size();
-            m_versions.grow() = 0;
-            m_entities.grow() = { TableId_Default, 0, 0 };
-            m_names.grow();
-            m_entityFlags.grow();
+            m_freelist.Grow() = m_versions.Size();
+            m_versions.Grow() = 0;
+            m_entities.Grow() = { TableId_Default, 0, 0 };
+            m_names.Grow();
+            m_entityFlags.Grow();
         }
-        u16 i = m_freelist.popValue();
+        u16 i = m_freelist.PopValue();
         u16 v = (m_versions[i] |= 1u);
 
         Entity entity;
@@ -333,7 +333,7 @@ namespace Ecs
 
     bool Table::Destroy(Entity entity)
     {
-        DebugAssert(entity.table == m_id);
+        Assert(entity.table == m_id);
 
         if (IsCurrent(entity))
         {
@@ -348,7 +348,7 @@ namespace Ecs
             m_entityFlags[e].Clear();
 
             m_versions[e]++;
-            m_freelist.grow() = e;
+            m_freelist.Grow() = e;
 
             return true;
         }

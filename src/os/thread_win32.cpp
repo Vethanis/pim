@@ -15,10 +15,10 @@ namespace OS
     Semaphore Semaphore::Create(u32 initialValue)
     {
         constexpr u32 MaxValue = 0xFFFFFFF;
-        DebugAssert(initialValue <= MaxValue);
+        Assert(initialValue <= MaxValue);
         // https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createsemaphorea
         void* h = ::CreateSemaphoreA(0, initialValue, MaxValue, 0);
-        DebugAssert(h);
+        Assert(h);
         return { h };
     }
 
@@ -27,27 +27,27 @@ namespace OS
         if (handle)
         {
             bool closed = ::CloseHandle(handle);
-            DebugAssert(closed);
+            Assert(closed);
             handle = 0;
         }
     }
 
     void Semaphore::Signal(u32 count)
     {
-        DebugAssert(handle);
+        Assert(handle);
         // increment by count
         // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-releasesemaphore
         bool rval = ::ReleaseSemaphore(handle, count, 0);
-        DebugAssert(rval);
+        Assert(rval);
     }
 
     void Semaphore::Wait()
     {
-        DebugAssert(handle);
+        Assert(handle);
         // decrement by one
         // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
         u32 status = ::WaitForSingleObject(handle, INFINITE);
-        DebugAssert(!status);
+        Assert(!status);
     }
 
     // ----------------------------------------------------------------------------
@@ -67,7 +67,7 @@ namespace OS
             data,
             0,
             &id);
-        DebugAssert(hdl);
+        Assert(hdl);
         return { hdl, id };
     }
 
@@ -77,9 +77,9 @@ namespace OS
         {
             // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
             u32 status = ::WaitForSingleObject(handle, INFINITE);
-            DebugAssert(!status);
+            Assert(!status);
             bool closed = ::CloseHandle(handle);
-            DebugAssert(closed);
+            Assert(closed);
             handle = 0;
             id = 0;
         }

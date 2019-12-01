@@ -50,7 +50,7 @@ inline constexpr u32 Fnv32Qword(u64 x, u32 hash = Fnv32Bias)
 
 inline constexpr u32 Fnv32String(cstrc ptr, u32 hash = Fnv32Bias)
 {
-    DebugAssert(ptr);
+    Assert(ptr);
 
     for (i32 i = 0; ptr[i]; ++i)
     {
@@ -61,7 +61,7 @@ inline constexpr u32 Fnv32String(cstrc ptr, u32 hash = Fnv32Bias)
 
 inline u32 Fnv32Bytes(const void* ptr, i32 nBytes, u32 hash = Fnv32Bias)
 {
-    DebugAssert(ptr || !nBytes);
+    Assert(ptr || !nBytes);
 
     i32 n16 = 0, n4 = 0, n1 = 0;
     Unroll16(nBytes, n16, n4, n1);
@@ -143,7 +143,7 @@ inline constexpr u64 Fnv64Qword(u64 x, u64 hash = Fnv64Bias)
 
 inline constexpr u64 Fnv64String(cstrc ptr, u64 hash = Fnv64Bias)
 {
-    DebugAssert(ptr);
+    Assert(ptr);
 
     for (i32 i = 0; ptr[i]; ++i)
     {
@@ -154,7 +154,7 @@ inline constexpr u64 Fnv64String(cstrc ptr, u64 hash = Fnv64Bias)
 
 inline u64 Fnv64Bytes(const void* ptr, i32 nBytes, u64 hash = Fnv64Bias)
 {
-    DebugAssert(ptr || !nBytes);
+    Assert(ptr || !nBytes);
 
     i32 n16 = 0, n4 = 0, n1 = 0;
     Unroll16(nBytes, n16, n4, n1);

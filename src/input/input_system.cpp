@@ -71,19 +71,19 @@ namespace InputSystem
 {
     void Listen(InputChannel channel, InputListener onEvent)
     {
-        DebugAssert(onEvent);
+        Assert(onEvent);
         if (onEvent)
         {
-            ms_listeners[channel].uniquePush(onEvent);
+            ms_listeners[channel].UniquePush(onEvent);
         }
     }
 
     void Deafen(InputChannel channel, InputListener onEvent)
     {
-        DebugAssert(onEvent);
+        Assert(onEvent);
         if (onEvent)
         {
-            ms_listeners[channel].findRemove(onEvent);
+            ms_listeners[channel].FindRemove(onEvent);
         }
     }
 
@@ -91,7 +91,7 @@ namespace InputSystem
     {
         for (auto& store : ms_listeners)
         {
-            store.init();
+            store.Init(Alloc_Stdlib);
         }
     }
 
@@ -104,7 +104,7 @@ namespace InputSystem
     {
         for (auto& store : ms_listeners)
         {
-            store.reset();
+            store.Reset();
         }
     }
 

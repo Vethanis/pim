@@ -74,13 +74,16 @@
     <Filter Include="Source Files\time">
       <UniqueIdentifier>{13d824aa-a38c-4e7f-8755-0d56bf2e214e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\allocator">
+      <UniqueIdentifier>{ea6d353a-3b51-48c5-bfb7-d0d4f11eddc0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\assets">
+      <UniqueIdentifier>{4d54bb06-ee32-4c09-a404-749041fe8847}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\common\allocator.cpp">
-      <Filter>Source Files\common</Filter>
     </ClCompile>
     <ClCompile Include="..\src\sokol\sokol_app.c">
       <Filter>Source Files\sokol</Filter>
@@ -145,9 +148,6 @@
     <ClCompile Include="..\src\rendering\render_system.cpp">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\shader_system.cpp">
-      <Filter>Source Files\rendering</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\threading\task_system.cpp">
       <Filter>Source Files\threading</Filter>
     </ClCompile>
@@ -169,11 +169,14 @@
     <ClCompile Include="..\src\common\guid.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\allocator\allocator.cpp">
+      <Filter>Source Files\allocator</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\assets\asset_system.cpp">
+      <Filter>Source Files\assets</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\common\allocator.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\hash.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -405,9 +408,6 @@
     <ClInclude Include="..\src\rendering\renderable.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\shader_system.h">
-      <Filter>Source Files\rendering</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\threading\task_system.h">
       <Filter>Source Files\threading</Filter>
     </ClInclude>
@@ -431,6 +431,30 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\initlist.h">
       <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\allocator\allocator.h">
+      <Filter>Source Files\allocator</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\allocator\linear_allocator.h">
+      <Filter>Source Files\allocator</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\allocator\pool_allocator.h">
+      <Filter>Source Files\allocator</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\allocator\stack_allocator.h">
+      <Filter>Source Files\allocator</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\allocator\stdlib_allocator.h">
+      <Filter>Source Files\allocator</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\allocator\base_allocator.h">
+      <Filter>Source Files\allocator</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\assets\asset_system.h">
+      <Filter>Source Files\assets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\strhash.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

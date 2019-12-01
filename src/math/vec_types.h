@@ -16,8 +16,8 @@ struct alignas(sizeof(T) * 2) vec2
     inline constexpr vec2(T s1, T s2) : x(s1), y(s2) {}
     inline constexpr vec2(const T * const v) : x(v[0]), y(v[1]) {}
 
-    inline constexpr T& operator[](i32 i) { DebugAssert((u32)i < 2u); return (&x)[i]; }
-    inline constexpr const T& operator[](i32 i) const { DebugAssert((u32)i < 2u); return (&x)[i]; }
+    inline constexpr T& operator[](i32 i) { Assert((u32)i < 2u); return (&x)[i]; }
+    inline constexpr const T& operator[](i32 i) const { Assert((u32)i < 2u); return (&x)[i]; }
 };
 
 template<typename T>
@@ -37,8 +37,8 @@ struct vec3
     inline constexpr vec3(vec2<T> v, T s) : x(v.x), y(v.y), z(s) {}
     inline constexpr vec3(T s, vec2<T> v) : x(s), y(v.x), z(v.y) {}
 
-    inline constexpr T& operator[](i32 i) { DebugAssert((u32)i < 3u); return (&x)[i]; }
-    inline constexpr const T& operator[](i32 i) const { DebugAssert((u32)i < 3u); return (&x)[i]; }
+    inline constexpr T& operator[](i32 i) { Assert((u32)i < 3u); return (&x)[i]; }
+    inline constexpr const T& operator[](i32 i) const { Assert((u32)i < 3u); return (&x)[i]; }
 };
 
 template<typename T>
@@ -64,8 +64,8 @@ struct alignas(sizeof(T) * 4) vec4
     inline constexpr vec4(vec3<T> v, T s) : x(v.x), y(v.y), z(v.z), w(s) {}
     inline constexpr vec4(T s, vec3<T> v) : x(s), y(v.x), z(v.y), w(v.z) {}
 
-    inline constexpr T& operator[](i32 i) { DebugAssert((u32)i < 4u); return (&x)[i]; }
-    inline constexpr const T& operator[](i32 i) const { DebugAssert((u32)i < 4u); return (&x)[i]; }
+    inline constexpr T& operator[](i32 i) { Assert((u32)i < 4u); return (&x)[i]; }
+    inline constexpr const T& operator[](i32 i) const { Assert((u32)i < 4u); return (&x)[i]; }
 };
 
 using bool2 = vec2<u32>;

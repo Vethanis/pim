@@ -5,19 +5,15 @@
 #include "containers/slice.h"
 #include "containers/array.h"
 
+enum EResult
+{
+    EUnknown = 0,
+    ESuccess = 1,
+    EFail = 2,
+};
+
 namespace IO
 {
-    i32 GetErrNo();
-    void SetErrNo(i32 value);
-    void ClearErrNo();
-
-    // offset within a file and number of bytes
-    struct Chunk
-    {
-        i32 offset;
-        i32 length;
-    };
-
     // file descriptor
     struct FD { i32 fd; };
     inline bool IsOpen(FD hdl) { return hdl.fd >= 0; }
@@ -83,56 +79,69 @@ namespace IO
 
     // creat
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/creat-wcreat
-    FD Create(cstr filename);
+    FD Create(cstr filename, EResult& err);
 
     // open
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/open-wopen
-    FD Open(cstr filename, u32 flags);
+    FD Open(cstr filename, u32 flags, EResult& err);
 
     // close
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/close
-    bool Close(FD& hdl);
+    void Close(FD& hdl, EResult& err);
 
     // read
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/read
-    i32 Read(FD hdl, void* dst, usize size);
+    i32 Read(FD hdl, void* dst, usize size, EResult& err);
 
     // write
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/write
-    i32 Write(FD hdl, const void* src, usize size);
+    i32 Write(FD hdl, const void* src, usize size, EResult& err);
 
     i32 Puts(cstrc str, FD hdl = StdOut);
 
     // seek
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/lseek-lseeki64
-    i32 Seek(FD hdl, isize offset);
+    i32 Seek(FD hdl, isize offset, EResult& err);
 
     // tell
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/tell-telli64
-    i32 Tell(FD hdl);
+    i32 Tell(FD hdl, EResult& err);
 
     // pipe
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/pipe
-    bool Pipe(FD& p0, FD& p1, usize bufferSize);
+    void Pipe(FD& p0, FD& p1, usize bufferSize, EResult& err);
 
     // fstat
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fstat-fstat32-fstat64-fstati64-fstat32i64-fstat64i32
-    bool Stat(FD hdl, Status& status);
+    void Stat(FD hdl, Status& status, EResult& err);
 
     // fstat.st_size
-    inline i64 Size(FD fd)
+    inline i64 Size(FD fd, EResult& err)
     {
         Status status = {};
-        Stat(fd, status);
+        Stat(fd, status, err);
         return status.st_size;
     }
 
     struct FDGuard
     {
-        FD& m_fd;
-        FDGuard(FD& fd) : m_fd(fd) {}
-        ~FDGuard() {  Close(m_fd); }
-        inline void Cancel() { m_fd.fd = -1; }
+        FD m_fd;
+        EResult m_result;
+
+        FDGuard(FD fd) : m_fd(fd), m_result(EUnknown) {}
+        ~FDGuard() { Close(m_fd, m_result); }
+
+        inline operator FD () const
+        {
+            return m_fd;
+        }
+
+        inline FD Take()
+        {
+            FD fd = m_fd;
+            m_fd.fd = -1;
+            return fd;
+        }
     };
 
     // ------------------------------------------------------------------------
@@ -143,76 +152,93 @@ namespace IO
 
     // fopen
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fopen-wfopen
-    Stream FOpen(cstr filename, cstr mode);
+    Stream FOpen(cstr filename, cstr mode, EResult& err);
 
     // fclose
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fclose-fcloseall
-    bool FClose(Stream& stream);
+    void FClose(Stream& stream, EResult& err);
 
     // fflush
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fflush
-    bool FFlush(Stream stream);
+    void FFlush(Stream stream, EResult& err);
 
     // fread
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fread
-    usize FRead(Stream stream, void* dst, usize size);
+    usize FRead(Stream stream, void* dst, usize size, EResult& err);
 
     // fwrite
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fwrite
-    usize FWrite(Stream stream, const void* src, usize size);
+    usize FWrite(Stream stream, const void* src, usize size, EResult& err);
 
     // fgets
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fgets-fgetws
-    char* FGets(Stream stream, char* dst, usize size);
+    void FGets(Stream stream, char* dst, usize size, EResult& err);
 
     // fputs
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fputs-fputws
-    i32 FPuts(Stream stream, cstr src);
+    i32 FPuts(Stream stream, cstr src, EResult& err);
 
     // fileno
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fileno
-    FD FileNo(Stream stream);
+    FD FileNo(Stream stream, EResult& err);
 
     // fdopen
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fdopen-wfdopen
-    Stream FDOpen(FD& hdl, cstr mode);
+    Stream FDOpen(FD& hdl, cstr mode, EResult& err);
 
     // fseek SEEK_SET
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/fseek-lseek-constants
-    bool FSeek(Stream stream, isize offset);
+    void FSeek(Stream stream, isize offset, EResult& err);
 
     // ftell
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/ftell-ftelli64
-    i32 FTell(Stream stream);
+    i32 FTell(Stream stream, EResult& err);
 
     // popen
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/popen-wpopen
-    Stream POpen(cstr cmd, cstr mode);
+    Stream POpen(cstr cmd, cstr mode, EResult& err);
 
     // pclose
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/pclose
-    bool PClose(Stream& stream);
+    void PClose(Stream& stream, EResult& err);
 
     // fstat
-    inline bool FStat(Stream stream, Status& status)
+    inline void FStat(Stream stream, Status& status, EResult& err)
     {
-        return Stat(FileNo(stream), status);
+        FD fd = FileNo(stream, err);
+        if (err == ESuccess)
+        {
+            Stat(fd, status, err);
+        }
     }
 
     // fstat.st_size
-    inline i64 FSize(Stream stream)
+    inline i64 FSize(Stream stream, EResult& err)
     {
         Status status = {};
-        FStat(stream, status);
+        FStat(stream, status, err);
         return status.st_size;
     }
 
     struct StreamGuard
     {
-        Stream& m_stream;
-        StreamGuard(Stream& stream) : m_stream(stream) {}
-        ~StreamGuard() { FClose(m_stream); }
-        inline bool Cancel() { m_stream.ptr = 0; }
+        Stream m_stream;
+        EResult m_result;
+
+        StreamGuard(Stream stream) : m_stream(stream), m_result(EUnknown) {}
+        ~StreamGuard() { FClose(m_stream, m_result); }
+
+        inline operator Stream () const
+        {
+            return m_stream;
+        }
+
+        inline Stream Take()
+        {
+            Stream stream = m_stream;
+            m_stream.ptr = 0;
+            return stream;
+        }
     };
 
     // ------------------------------------------------------------------------
@@ -220,35 +246,35 @@ namespace IO
 
     // chdrive
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/chdrive
-    bool ChDrive(i32 drive);
+    void ChDrive(i32 drive, EResult& err);
 
     // getdrive
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getdrive
-    i32 GetDrive();
+    i32 GetDrive(EResult& err);
 
     // getdrives
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getdrives
-    u32 GetDrivesMask();
+    u32 GetDrivesMask(EResult& err);
 
     // getcwd
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getcwd-wgetcwd
-    bool GetCwd(char* dst, i32 size);
+    void GetCwd(char* dst, i32 size, EResult& err);
 
     // getdcwd
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getdcwd-wgetdcwd
-    bool GetDrCwd(i32 drive, char* dst, i32 size);
+    void GetDrCwd(i32 drive, char* dst, i32 size, EResult& err);
 
     // chdir
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/chdir-wchdir
-    bool ChDir(cstr path);
+    void ChDir(cstr path, EResult& err);
 
     // mkdir
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/mkdir-wmkdir
-    bool MkDir(cstr path);
+    void MkDir(cstr path, EResult& err);
 
     // rmdir
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/rmdir-wrmdir
-    bool RmDir(cstr path);
+    void RmDir(cstr path, EResult& err);
 
     enum ChModFlags : u32
     {
@@ -258,21 +284,21 @@ namespace IO
     };
     // chmod
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/chmod-wchmod
-    bool ChMod(cstr path, u32 flags);
+    void ChMod(cstr path, u32 flags, EResult& err);
 
     // ------------------------------------------------------------------------
 
     // searchenv
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/searchenv-wsearchenv
-    bool SearchEnv(cstr filename, cstr varname, char(&dst)[260]);
+    void SearchEnv(cstr filename, cstr varname, char(&dst)[260], EResult& err);
 
     // getenv
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getenv-wgetenv
-    cstr GetEnv(cstr varname);
+    cstr GetEnv(cstr varname, EResult& err);
 
     // putenv
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/putenv-wputenv
-    bool PutEnv(cstr varname, cstr value);
+    void PutEnv(cstr varname, cstr value, EResult& err);
 
     // ------------------------------------------------------------------------
 
@@ -301,36 +327,36 @@ namespace IO
     };
 
     // findfirst + findnext + findclose
-    bool Find(Finder& fdr, FindData& data, cstrc spec);
-    void FindAll(Array<FindData>& results, cstrc spec);
+    bool Find(Finder& fdr, FindData& data, cstrc spec, EResult& err);
+    void FindAll(Array<FindData>& results, cstrc spec, EResult& err);
 
     // ------------------------------------------------------------------------
     struct Module { void* hdl; };
 
     // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadlibrarya
-    bool OpenModule(cstr filename, Module& dst);
+    void OpenModule(cstr filename, Module& dst, EResult& err);
     // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-freelibrary
-    bool CloseModule(Module& mod);
+    void CloseModule(Module& mod, EResult& err);
     // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlea
-    bool GetModule(cstr name, Module& dst);
+    void GetModule(cstr name, Module& dst, EResult& err);
     // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamea
-    bool GetModuleName(Module mod, char* dst, u32 dstSize);
+    void GetModuleName(Module mod, char* dst, u32 dstSize, EResult& err);
     // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress
-    bool GetModuleFunc(Module mod, cstr name, void** pFunc);
+    void GetModuleFunc(Module mod, cstr name, void** pFunc, EResult& err);
 
-    inline bool GetExeName(char* dst, u32 dstSize)
+    inline void GetExeName(char* dst, u32 dstSize, EResult& err)
     {
-        return GetModuleName({ 0 }, dst, dstSize);
+        return GetModuleName({ 0 }, dst, dstSize, err);
     }
 
-    inline bool GetExeModule(Module& dst)
+    inline void GetExeModule(Module& dst, EResult& err)
     {
-        return GetModule(0, dst);
+        return GetModule(0, dst, err);
     }
 
     // ------------------------------------------------------------------------
 
-    bool Curl(cstr url, Array<char>& result);
+    void Curl(cstr url, Array<char>& result, EResult& err);
 
     // ------------------------------------------------------------------------
 }; // IO

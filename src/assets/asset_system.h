@@ -1,9 +1,8 @@
 #pragma once
 
-namespace ShaderSystem
+namespace AssetSystem
 {
     void Init();
     void Update();
     void Shutdown();
-    void Visualize();
-};
+}

@@ -58,15 +58,14 @@
 #define DebugInterrupt()            IfDebug(Interrupt())
 #define IfTrue(x, expr)             if(x) { expr; }
 #define IfFalse(x, expr)            if(!(x)) { expr; }
-#define Assert(x)                   IfFalse(x, Interrupt())
-#define DebugAssert(x)              IfDebug(Assert(x))
-#define Check0(x)                   IfFalse(x, DebugInterrupt(); return 0)
-#define Check(x, expr)              IfFalse(x, DebugInterrupt(); expr)
+#define Assert(x)                   IfDebug(IfFalse(x, Interrupt()))
+#define Check(x)                    IfFalse(x, DebugInterrupt(); err = EFail; return retval)
+#define CheckErr()                  IfFalse(err == ESuccess, DebugInterrupt(); return retval)
 
 #define _CatToken(x, y)             x ## y
 #define CatToken(x, y)              _CatToken(x, y)
 
-#define StaticAssert(x)             typedef char CatToken(StaticAssertType_, __COUNTER__) [ (x) ? 1 : -1]
+#define StaticAssert(x)             typedef char CatToken(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
 
 #define Min(a, b)                   ( (a) < (b) ? (a) : (b) )
 #define Max(a, b)                   ( (a) > (b) ? (a) : (b) )

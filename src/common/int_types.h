@@ -25,6 +25,16 @@ using ul32 = unsigned long;
 template<typename T>
 struct Slice;
 
+enum AllocType : u8
+{
+    Alloc_Stdlib = 0,
+    Alloc_Pool,
+    Alloc_Linear,
+    Alloc_Stack,
+
+    Alloc_COUNT
+};
+
 template<typename T>
 struct Array;
 

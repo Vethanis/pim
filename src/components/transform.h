@@ -25,23 +25,14 @@ struct Scale
 };
 DeclComponent(Scale, )
 
-struct LocalToWorld
+struct ModelMatrix
 {
     float4x4 Value;
 };
-DeclComponent(LocalToWorld, )
+DeclComponent(ModelMatrix, )
 
-struct Children
+struct Child
 {
-    Array<Entity> Value;
-
-    inline void Drop()
-    {
-        for (Entity child : Value)
-        {
-            Ecs::Destroy(child);
-        }
-        Value.reset();
-    }
+    Entity Value;
 };
-DeclComponent(Children, ptr->Drop())
+DeclComponent(Child, )

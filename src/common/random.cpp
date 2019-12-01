@@ -1,6 +1,5 @@
 #include "common/random.h"
 
-#include "common/allocator.h"
 #include "common/hash.h"
 #include "time/time_system.h"
 #include <pcg32/pcg32.h>

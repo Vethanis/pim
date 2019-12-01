@@ -854,7 +854,7 @@ namespace math
 #pragma warning(disable : 4146)
     inline u32 hash(void* pBuffer, u32 numBytes, u32 seed = 0)
     {
-        DebugAssert(pBuffer || !numBytes);
+        Assert(pBuffer || !numBytes);
 
         constexpr u32 Prime1 = 2654435761u;
         constexpr u32 Prime2 = 2246822519u;

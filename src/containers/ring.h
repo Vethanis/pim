@@ -11,12 +11,14 @@ struct Ring
 
     static constexpr u32 t_mask = t_capacity - 1u;
 
+    StaticAssert((t_capacity & (t_capacity - 1u)) == 0);
+
     static inline u32 Mask(u32 i) { return i & t_mask; }
 
-    inline u32 capacity() const { return t_capacity; }
-    inline u32 size() const { return m_count; }
-    inline bool full() const { return m_count >= t_capacity; }
-    inline bool empty() const { return !m_count; }
+    inline u32 Capacity() const { return t_capacity; }
+    inline u32 Size() const { return m_count; }
+    inline bool IsFull() const { return m_count >= t_capacity; }
+    inline bool IsEmpty() const { return !m_count; }
 
     inline void Clear()
     {
@@ -25,7 +27,7 @@ struct Ring
     }
     inline u32 Push()
     {
-        DebugAssert(!full());
+        Assert(!IsFull());
         m_count++;
         return Mask(m_tail++);
     }
@@ -36,7 +38,7 @@ struct Ring
     }
     inline u32 Pop()
     {
-        DebugAssert(!empty());
+        Assert(!IsEmpty());
         return Mask(m_tail - (m_count--));
     }
 
@@ -106,10 +108,10 @@ struct RingBuffer
     Ring<t_capacity> m_ring;
     T m_data[t_capacity];
 
-    inline u32 capacity() const { return m_ring.capacity(); }
-    inline u32 size() const { return m_ring.size(); }
-    inline bool full() const { return m_ring.full(); }
-    inline bool empty() const { return m_ring.empty(); }
+    inline u32 Capacity() const { return m_ring.Capacity(); }
+    inline u32 Size() const { return m_ring.Size(); }
+    inline bool IsFull() const { return m_ring.IsFull(); }
+    inline bool IsEmpty() const { return m_ring.IsEmpty(); }
 
     inline void Clear()
     {
@@ -127,6 +129,8 @@ struct RingBuffer
     {
         return m_data[m_ring.Pop()];
     }
+
+    // ------------------------------------------------------------------------
 
     struct iterator
     {
@@ -147,6 +151,17 @@ struct RingBuffer
             return buffer.m_data[*it];
         }
     };
+    inline iterator begin()
+    {
+        return { m_ring.begin(), *this };
+    }
+    inline iterator end()
+    {
+        return { m_ring.end(), *this };
+    }
+
+    // ------------------------------------------------------------------------
+
     struct citerator
     {
         decltype(m_ring.begin()) it;
@@ -166,6 +181,16 @@ struct RingBuffer
             return buffer.m_data[*it];
         }
     };
+    inline citerator begin() const
+    {
+        return { m_ring.begin(), *this };
+    }
+    inline citerator end() const
+    {
+        return { m_ring.end(), *this };
+    }
+
+    // ------------------------------------------------------------------------
 
     struct riterator
     {
@@ -186,6 +211,17 @@ struct RingBuffer
             return buffer.m_data[*it];
         }
     };
+    inline riterator rbegin()
+    {
+        return { m_ring.rbegin(), *this };
+    }
+    inline riterator rend()
+    {
+        return { m_ring.rend(), *this };
+    }
+
+    // ------------------------------------------------------------------------
+
     struct rciterator
     {
         decltype(m_ring.rbegin()) it;
@@ -205,24 +241,6 @@ struct RingBuffer
             return buffer.m_data[*it];
         }
     };
-
-    inline citerator begin() const
-    {
-        return { m_ring.begin(), *this };
-    }
-    inline citerator end() const
-    {
-        return { m_ring.end(), *this };
-    }
-    inline iterator begin()
-    {
-        return { m_ring.begin(), *this };
-    }
-    inline iterator end()
-    {
-        return { m_ring.end(), *this };
-    }
-
     inline rciterator rbegin() const
     {
         return { m_ring.rbegin(), *this };
@@ -231,12 +249,7 @@ struct RingBuffer
     {
         return { m_ring.rend(), *this };
     }
-    inline riterator rbegin()
-    {
-        return { m_ring.rbegin(), *this };
-    }
-    inline riterator rend()
-    {
-        return { m_ring.rend(), *this };
-    }
+
+    // ------------------------------------------------------------------------
+
 };

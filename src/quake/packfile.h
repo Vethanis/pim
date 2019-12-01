@@ -4,24 +4,18 @@
 #include "common/hashstring.h"
 #include "common/io.h"
 #include "containers/array.h"
+#include "math/vec_types.h"
 
 namespace Quake
 {
-    // might want to grow this to MAX_PATH
-    static constexpr i32 MaxOsPath = 128;
-    static constexpr i32 MaxQPath = 64;
-
-    struct PackFileTag {};
-    struct PackTag {};
-    struct SearchPathTag {};
-
     // dpackheader_t
     // common.c 1231
     // must match exactly for binary compatibility
     struct DPackHeader
     {
         char id[4]; // "PACK"
-        IO::Chunk chunk;
+        i32 offset;
+        i32 length;
     };
 
     // dpackfile_t
@@ -30,72 +24,41 @@ namespace Quake
     struct DPackFile
     {
         char name[56];
-        IO::Chunk chunk;
+        i32 offset;
+        i32 length;
     };
 
-    struct SearchPaths
+    struct PackFile
     {
-        Array<HashString> names;
-
-        inline void Reset()
-        {
-            names.reset();
-        }
+        Allocation content;
+        i32 refCount;
+        i32 offset;
+        i32 length;
     };
 
-    struct Packs
+    struct Pack
     {
-        Array<i32> pathIds;
-        Array<HashString> names;
-        Array<IO::FD> files;
-
-        inline void Reset()
-        {
-            pathIds.reset();
-            names.reset();
-            for (IO::FD& file : files)
-            {
-                IO::Close(file);
-            }
-            files.reset();
-        }
+        HashString name;
+        IO::FD descriptor;
+        Array<HashString> filenames;
+        Array<PackFile> files;
     };
 
-    struct PackFiles
+    struct Folder
     {
-        Array<i32> packIds;
-        Array<HashString> names;
-        Array<IO::Chunk> chunks;
-
-        inline void Reset()
-        {
-            packIds.reset();
-            names.reset();
-            chunks.reset();
-        }
-    };
-
-    struct PackAssets
-    {
-        SearchPaths paths;
-        Packs packs;
-        PackFiles packfiles;
-
-        inline void Reset()
-        {
-            paths.Reset();
-            packs.Reset();
-            packfiles.Reset();
-        }
+        HashString name;
+        Array<Pack> packs;
     };
 
     // COM_LoadPackFile
     // common.c 1619
     // dir: explicit path to .pak
-    bool LoadPackFile(cstrc dir, PackAssets& assets, Array<DPackFile>& arena);
+    Pack LoadPack(cstrc dir, Array<DPackFile>& arena, EResult& err);
+    void FreePack(Pack& pack);
 
     // COM_AddGameDirectory
     // common.c 1689
     // dir: explicit path to a folder holding .pak files
-    bool AddGameDirectory(cstrc dir, PackAssets& assets, Array<DPackFile>& arena);
+    Folder LoadFolder(cstrc dir, Array<DPackFile>& arena, EResult& err);
+    void FreeFolder(Folder& folder);
 };

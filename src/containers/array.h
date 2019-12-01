@@ -2,107 +2,119 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "common/allocator.h"
+#include "allocator/allocator.h"
 #include "containers/slice.h"
 #include <string.h>
 
 template<typename T>
 struct Array
 {
-    Slice<T> m_alloc;
-    i32 m_len;
+    T* m_ptr;
+    i32 m_length;
+    i32 m_capacity;
+    AllocType m_allocType;
 
-    inline bool in_range(i32 i) const { return (u32)i < (u32)m_len; }
-    inline i32 size() const { return m_len; }
-    inline i32 capacity() const { return m_alloc.len; }
-    inline i32 sizeBytes() const { return m_len * sizeof(T); }
-    inline i32 capacityBytes() const { return m_alloc.len() * sizeof(T); }
-    inline bool empty() const { return m_len == 0; }
-    inline bool full() const { return m_len == m_alloc.len(); }
+    inline bool InRange(i32 i) const { return (u32)i < (u32)m_length; }
+    inline i32 Size() const { return m_length; }
+    inline i32 Capacity() const { return m_capacity; }
+    inline i32 SizeBytes() const { return m_length * sizeof(T); }
+    inline i32 CapacityBytes() const { return m_capacity * sizeof(T); }
+    inline bool IsEmpty() const { return m_length == 0; }
+    inline bool IsFull() const { return m_length == m_capacity; }
 
-    inline const T* begin() const { return m_alloc.ptr; }
-    inline const T* end() const { return m_alloc.ptr + m_len; }
-    inline const T& front() const { DebugAssert(in_range(0)); return m_alloc.ptr[0]; }
-    inline const T& back() const { DebugAssert(in_range(0)); return  m_alloc.ptr[m_len - 1]; }
-    inline const T& operator[](i32 i) const { DebugAssert(in_range(i)); return m_alloc.ptr[i]; }
+    inline const T* begin() const { return m_ptr; }
+    inline const T* end() const { return m_ptr + m_length; }
+    inline const T& front() const { Assert(InRange(0)); return m_ptr[0]; }
+    inline const T& back() const { Assert(InRange(0)); return  m_ptr[m_length - 1]; }
+    inline const T& operator[](i32 i) const { Assert(InRange(i)); return m_ptr[i]; }
 
-    inline T* begin() { return m_alloc.ptr; }
-    inline T* end() { return m_alloc.ptr + m_len; }
-    inline T& front() { DebugAssert(in_range(0)); return m_alloc.ptr[0]; }
-    inline T& back() { DebugAssert(in_range(0)); return m_alloc.ptr[m_len - 1]; }
-    inline T& operator[](i32 i) { DebugAssert(in_range(i)); return m_alloc.ptr[i]; }
+    inline T* begin() { return m_ptr; }
+    inline T* end() { return m_ptr + m_length; }
+    inline T& front() { Assert(InRange(0)); return m_ptr[0]; }
+    inline T& back() { Assert(InRange(0)); return m_ptr[m_length - 1]; }
+    inline T& operator[](i32 i) { Assert(InRange(i)); return m_ptr[i]; }
 
-    inline operator Slice<const T>() const { return { begin(), size() }; }
-    inline operator Slice<T>() { return { begin(), size() }; }
+    inline operator Slice<const T>() const { return { begin(), Size() }; }
+    inline operator Slice<T>() { return { begin(), Size() }; }
 
     template<typename U>
-    inline Slice<const U> cast() const
+    inline Slice<const U> Cast() const
     {
-        return { reinterpret_cast<const U*>(begin()), sizeBytes() / (i32)sizeof(U) };
+        return { reinterpret_cast<const U*>(begin()), SizeBytes() / (i32)sizeof(U) };
     }
     template<typename U>
-    inline Slice<U> cast()
+    inline Slice<U> Cast()
     {
-        return { reinterpret_cast<U*>(begin()), sizeBytes() / (i32)sizeof(U) };
+        return { reinterpret_cast<U*>(begin()), SizeBytes() / (i32)sizeof(U) };
     }
 
-    inline void init()
+    inline void Init(AllocType allocType)
     {
-        m_alloc = { 0, 0 };
-        m_len = 0;
+        m_ptr = nullptr;
+        m_length = 0;
+        m_capacity = 0;
+        m_allocType = allocType;
     }
-    inline void clear()
+    inline void Clear()
     {
-        m_len = 0;
+        m_length = 0;
     }
-    inline void reset()
+    inline void Reset()
     {
-        Allocator::Free(m_alloc);
-        m_len = 0;
+        AllocationT<T> alloc = { m_ptr, m_capacity, m_allocType };
+        Allocator::FreeT(alloc);
+        m_ptr = nullptr;
+        m_capacity = 0;
+        m_length = 0;
     }
-    inline void reserve(i32 newCap)
+    inline void Reserve(i32 newCap)
     {
-        Allocator::Reserve(m_alloc, newCap);
+        AllocationT<T> alloc = { m_ptr, m_capacity, m_allocType };
+        Allocator::ReserveT(alloc, newCap);
+        m_ptr = alloc.slice.ptr;
+        m_capacity = alloc.slice.len;
     }
-    inline void reserveRel(i32 relSize)
+    inline void ReserveRel(i32 relSize)
     {
-        reserve(m_len + relSize);
+        Reserve(m_length + relSize);
     }
-    inline void resize(i32 newLen)
+    inline void Resize(i32 newLen)
     {
-        reserve(newLen);
-        m_len = newLen;
+        Reserve(newLen);
+        m_length = newLen;
     }
-    inline i32 resizeRel(i32 relSize)
+    inline i32 ResizeRel(i32 relSize)
     {
-        i32 prevLen = m_len;
-        resize(m_len + relSize);
+        i32 prevLen = m_length;
+        Resize(m_length + relSize);
         return prevLen;
     }
-    inline T& grow()
+    inline T& Grow()
     {
-        const i32 len = ++m_len;
-        reserve(len);
-        T& item = m_alloc.ptr[len - 1];
+        const i32 iBack = m_length;
+        const i32 newLen = iBack + 1;
+        Reserve(newLen);
+        m_length = newLen;
+        T& item = m_ptr[iBack];
         memset(&item, 0, sizeof(T));
         return item;
     }
-    inline void pop()
+    inline void Pop()
     {
-        DebugAssert(m_len > 0);
-        --m_len;
+        Assert(m_length > 0);
+        --m_length;
     }
-    inline T popValue()
+    inline T PopValue()
     {
         T item = back();
-        pop();
+        Pop();
         return item;
     }
-    inline T popFront()
+    inline T PopFront()
     {
-        T* ptr = m_alloc.ptr;
-        const i32 len = m_len--;
-        DebugAssert(len > 0);
+        T* ptr = m_ptr;
+        const i32 len = m_length--;
+        Assert(len > 0);
         T item = ptr[0];
         for (i32 i = 1; i < len; ++i)
         {
@@ -110,40 +122,40 @@ struct Array
         }
         return item;
     }
-    inline void remove(i32 i)
+    inline void Remove(i32 i)
     {
-        T* ptr = m_alloc.ptr;
-        const i32 b = --m_len;
-        DebugAssert((u32)i <= (u32)b);
+        T* ptr = m_ptr;
+        const i32 b = --m_length;
+        Assert((u32)i <= (u32)b);
         ptr[i] = ptr[b];
     }
-    inline void shiftRemove(i32 idx)
+    inline void ShiftRemove(i32 idx)
     {
-        DebugAssert((u32)idx < (u32)m_len);
+        Assert((u32)idx < (u32)m_length);
         T* ptr = begin();
-        const i32 len = m_len--;
+        const i32 len = m_length--;
         for (i32 i = idx + 1; i < len; ++i)
         {
             ptr[i - 1] = ptr[i];
         }
     }
-    inline void shiftInsert(i32 idx, const T& value)
+    inline void ShiftInsert(i32 idx, const T& value)
     {
-        const i32 len = ++m_len;
-        DebugAssert((u32)idx < (u32)len);
-        reserve(len);
-        T* ptr = m_alloc.ptr;
+        const i32 len = ++m_length;
+        Assert((u32)idx < (u32)len);
+        Reserve(len);
+        T* ptr = m_ptr;
         for (i32 i = len - 1; i > idx; --i)
         {
             ptr[i] = ptr[i - 1];
         }
         ptr[idx] = value;
     }
-    inline void shiftTail(i32 tailSize)
+    inline void ShiftTail(i32 tailSize)
     {
-        DebugAssert(tailSize >= 0);
-        T* ptr = m_alloc.ptr;
-        const i32 len = m_len;
+        Assert(tailSize >= 0);
+        T* ptr = m_ptr;
+        const i32 len = m_length;
         const i32 diff = len - tailSize;
         if (diff > 0)
         {
@@ -151,13 +163,13 @@ struct Array
             {
                 ptr[i - diff] = ptr[i];
             }
-            m_len = tailSize;
+            m_length = tailSize;
         }
     }
-    inline i32 find(const T& value) const
+    inline i32 Find(const T& value) const
     {
-        const T* ptr = m_alloc.ptr;
-        const i32 len = m_len;
+        const T* ptr = m_ptr;
+        const i32 len = m_length;
         for (i32 i = 0; i < len; ++i)
         {
             if (ptr[i] == value)
@@ -167,10 +179,10 @@ struct Array
         }
         return -1;
     }
-    inline i32 rfind(const T& value) const
+    inline i32 RFind(const T& value) const
     {
-        const T* ptr = m_alloc.ptr;
-        const i32 len = m_len;
+        const T* ptr = m_ptr;
+        const i32 len = m_length;
         for (i32 i = len - 1; i >= 0; --i)
         {
             if (ptr[i] == value)
@@ -180,62 +192,62 @@ struct Array
         }
         return -1;
     }
-    inline bool findRemove(const T& value)
+    inline bool FindRemove(const T& value)
     {
-        const i32 idx = rfind(value);
+        const i32 idx = RFind(value);
         if (idx != -1)
         {
-            remove(idx);
+            Remove(idx);
             return true;
         }
         return false;
     }
-    inline bool uniquePush(const T& value)
+    inline bool UniquePush(const T& value)
     {
-        const i32 idx = rfind(value);
+        const i32 idx = RFind(value);
         if (idx == -1)
         {
-            grow() = value;
+            Grow() = value;
             return true;
         }
         return false;
     }
-    inline void copy(Slice<const T> other)
+    inline void Copy(Slice<const T> other)
     {
-        resize(other.size());
-        memcpy(begin(), other.begin(), sizeof(T) * size());
+        Resize(other.Size());
+        memcpy(begin(), other.begin(), sizeof(T) * Size());
     }
-    inline void copy(Slice<T> other)
+    inline void Copy(Slice<T> other)
     {
-        resize(other.size());
-        memcpy(begin(), other.begin(), sizeof(T) * size());
+        Resize(other.Size());
+        memcpy(begin(), other.begin(), sizeof(T) * Size());
     }
-    inline void assume(Array<T>& other)
+    inline void Assume(Array<T>& other)
     {
-        reset();
+        Reset();
         memcpy(this, &other, sizeof(*this));
         memset(&other, 0, sizeof(*this));
     }
 
-    inline void* at(i32 i)
+    inline void* At(i32 i)
     {
-        DebugAssert(in_range(i));
+        Assert(InRange(i));
         return begin() + i;
     }
 
     template<typename U>
-    inline U* as(i32 i)
+    inline U* As(i32 i)
     {
-        DebugAssert((u32)(i * sizeof(U)) < (u32)sizeBytes());
+        Assert((u32)(i * sizeof(U)) < (u32)SizeBytes());
         return reinterpret_cast<U*>(begin()) + i;
     }
 
     template<typename U>
-    inline U& embed()
+    inline U& Embed()
     {
-        DebugAssert(sizeof(T) == 1);
-        i32 prevSize = resizeRel(sizeof(U));
-        U* pU = reinterpret_cast<U*>(at(prevSize));
+        Assert(sizeof(T) == 1);
+        i32 prevSize = ResizeRel(sizeof(U));
+        U* pU = reinterpret_cast<U*>(At(prevSize));
         memset(pU, 0, sizeof(U));
         return *pU;
     }
@@ -244,59 +256,57 @@ struct Array
 template<typename T, i32 t_capacity>
 struct FixedArray
 {
-    static constexpr i32 Capacity = t_capacity;
-
     i32 m_len;
-    T m_ptr[Capacity];
+    T m_ptr[t_capacity];
 
-    inline bool in_range(i32 i) const { return (u32)i < (u32)m_len; }
-    inline i32 size() const { return m_len; }
-    inline i32 capacity() const { return Capacity; }
-    inline i32 sizeBytes() const { return m_len * sizeof(T); }
-    inline i32 capacityBytes() const { return Capacity * sizeof(T); }
-    inline bool empty() const { return m_len == 0; }
-    inline bool full() const { return m_len == Capacity; }
+    inline bool InRange(i32 i) const { return (u32)i < (u32)m_len; }
+    inline i32 Size() const { return m_len; }
+    inline i32 Capacity() const { return t_capacity; }
+    inline i32 SizeBytes() const { return m_len * sizeof(T); }
+    inline i32 CapacityBytes() const { return t_capacity * sizeof(T); }
+    inline bool IsEmpty() const { return m_len == 0; }
+    inline bool IsFull() const { return m_len == t_capacity; }
 
     inline const T* begin() const { return m_ptr; }
     inline const T* end() const { return m_ptr + m_len; }
-    inline const T& front() const { DebugAssert(m_len); return m_ptr[0]; }
-    inline const T& back() const { DebugAssert(m_len); return m_ptr[m_len - 1]; }
-    inline const T& operator[](i32 i) const { DebugAssert(i < m_len); return m_ptr[i]; }
+    inline const T& front() const { Assert(m_len); return m_ptr[0]; }
+    inline const T& back() const { Assert(m_len); return m_ptr[m_len - 1]; }
+    inline const T& operator[](i32 i) const { Assert(i < m_len); return m_ptr[i]; }
 
     inline T* begin() { return m_ptr; }
     inline T* end() { return m_ptr + m_len; }
-    inline T& front() { DebugAssert(m_len); return m_ptr[0]; }
-    inline T& back() { DebugAssert(m_len); return m_ptr[m_len - 1]; }
-    inline T& operator[](i32 i) { DebugAssert(i < m_len); return m_ptr[i]; }
+    inline T& front() { Assert(m_len); return m_ptr[0]; }
+    inline T& back() { Assert(m_len); return m_ptr[m_len - 1]; }
+    inline T& operator[](i32 i) { Assert(i < m_len); return m_ptr[i]; }
 
-    inline operator Slice<T>() { return { begin(), size() }; }
-    inline operator Slice<const T>() const { return { begin(), size() }; }
+    inline operator Slice<T>() { return { begin(), Size() }; }
+    inline operator Slice<const T>() const { return { begin(), Size() }; }
 
-    inline void init() { m_len = 0; }
-    inline void clear() { m_len = 0; }
-    inline void reset() { m_len = 0; }
-    inline void resize(i32 newLen)
+    inline void Init() { m_len = 0; }
+    inline void Clear() { m_len = 0; }
+    inline void Reset() { m_len = 0; }
+    inline void Resize(i32 newLen)
     {
-        DebugAssert(newLen < Capacity);
+        Assert(newLen < t_capacity);
         m_len = newLen;
     }
-    inline T& grow()
+    inline T& Grow()
     {
-        DebugAssert(m_len < Capacity);
+        Assert(m_len < t_capacity);
         T& item = m_ptr[m_len++];
         memset(&item, 0, sizeof(T));
         return item;
     }
-    inline void pop()
+    inline void Pop()
     {
-        DebugAssert(m_len);
+        Assert(m_len);
         --m_len;
     }
-    inline T popFront()
+    inline T PopFront()
     {
         T* ptr = begin();
         const i32 len = m_len--;
-        DebugAssert(len > 0);
+        Assert(len > 0);
         T item = ptr[0];
         for (i32 i = 1; i < len; ++i)
         {
@@ -304,14 +314,14 @@ struct FixedArray
         }
         return item;
     }
-    inline void remove(i32 idx)
+    inline void Remove(i32 idx)
     {
-        DebugAssert((u32)idx < (u32)m_len);
+        Assert((u32)idx < (u32)m_len);
         m_ptr[idx] = m_ptr[--m_len];
     }
-    inline void shiftRemove(i32 idx)
+    inline void ShiftRemove(i32 idx)
     {
-        DebugAssert((u32)idx < (u32)m_len);
+        Assert((u32)idx < (u32)m_len);
         T* ptr = begin();
         const i32 len = m_len--;
         for (i32 i = idx + 1; i < len; ++i)
@@ -319,11 +329,11 @@ struct FixedArray
             ptr[i - 1] = ptr[i];
         }
     }
-    inline void shiftInsert(i32 idx, const T& value)
+    inline void ShiftInsert(i32 idx, const T& value)
     {
-        DebugAssert(m_len < Capacity);
+        Assert(m_len < t_capacity);
         const i32 len = ++m_len;
-        DebugAssert(idx < len);
+        Assert(idx < len);
         T* ptr = m_ptr;
         for (i32 i = len - 1; i > idx; --i)
         {
@@ -331,7 +341,7 @@ struct FixedArray
         }
         ptr[idx] = value;
     }
-    inline void shiftTail(i32 tailSize)
+    inline void ShiftTail(i32 tailSize)
     {
         T* ptr = m_ptr;
         const i32 len = m_len;
@@ -345,7 +355,7 @@ struct FixedArray
             m_len = tailSize;
         }
     }
-    inline i32 find(const T& value) const
+    inline i32 Find(const T& value) const
     {
         const T* ptr = m_ptr;
         const i32 len = m_len;
@@ -358,7 +368,7 @@ struct FixedArray
         }
         return -1;
     }
-    inline i32 rfind(const T& value) const
+    inline i32 RFind(const T& value) const
     {
         const T* ptr = m_ptr;
         const i32 len = m_len;
@@ -371,22 +381,22 @@ struct FixedArray
         }
         return -1;
     }
-    inline bool findRemove(const T& value)
+    inline bool FindRemove(const T& value)
     {
-        const i32 idx = rfind(value);
+        const i32 idx = RFind(value);
         if (idx != -1)
         {
-            remove(idx);
+            Remove(idx);
             return true;
         }
         return false;
     }
-    inline bool uniquePush(const T& value)
+    inline bool UniquePush(const T& value)
     {
-        const i32 idx = rfind(value);
+        const i32 idx = RFind(value);
         if (idx == -1)
         {
-            grow() = value;
+            Grow() = value;
             return true;
         }
         return false;

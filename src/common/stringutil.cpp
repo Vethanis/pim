@@ -4,9 +4,9 @@
 
 void VSPrintf(char* dst, i32 size, cstr fmt, VaList va)
 {
-    DebugAssert((dst && fmt) || !size);
-    DebugAssert(size >= 0);
-    DebugAssert(va);
+    Assert((dst && fmt) || !size);
+    Assert(size >= 0);
+    Assert(va);
 
     if (size > 0)
     {

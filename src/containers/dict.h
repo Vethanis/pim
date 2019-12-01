@@ -9,37 +9,42 @@ struct Dict
     Array<K> m_keys;
     Array<V> m_values;
 
-    inline i32 size() const { return m_keys.size(); }
-    inline i32 capacity() const { return m_keys.capacity(); }
-    inline bool empty() const { return m_keys.empty(); }
-    inline bool full() const { return m_keys.full(); }
+    inline i32 Size() const { return m_keys.Size(); }
+    inline i32 Capacity() const { return m_keys.Capacity(); }
+    inline bool IsEmpty() const { return m_keys.IsEmpty(); }
+    inline bool IsFull() const { return m_keys.IsFull(); }
 
-    inline void init()
+    inline Slice<K> Keys() { return m_keys; }
+    inline Slice<const K> Keys() const { return m_keys; }
+    inline Slice<V> Values() { return m_values; }
+    inline Slice<const V> Values() const { return m_values; }
+
+    inline void Init(AllocType allocType)
     {
-        m_hashes.init();
-        m_keys.init();
-        m_values.init();
+        m_hashes.Init(allocType);
+        m_keys.Init(allocType);
+        m_values.Init(allocType);
     }
-    inline void reset()
+    inline void Reset()
     {
-        m_hashes.reset();
-        m_keys.reset();
-        m_values.reset();
+        m_hashes.Reset();
+        m_keys.Reset();
+        m_values.Reset();
     }
-    inline void clear()
+    inline void Clear()
     {
-        m_hashes.clear();
-        m_keys.clear();
-        m_values.clear();
+        m_hashes.Clear();
+        m_keys.Clear();
+        m_values.Clear();
     }
-    inline static u8 to_hash(K key)
+    inline static u8 ToHash(K key)
     {
         return 0xff & Fnv32T(key);
     }
-    inline i32 find(K key) const
+    inline i32 Find(K key) const
     {
-        const u8 hash = to_hash(key);
-        const i32 count = m_hashes.size();
+        const u8 hash = ToHash(key);
+        const i32 count = m_hashes.Size();
         const u8* const hashes = m_hashes.begin();
         const K* const keys = m_keys.begin();
         for (i32 i = count - 1; i >= 0; --i)
@@ -54,39 +59,39 @@ struct Dict
         }
         return -1;
     }
-    inline bool contains(K key) const { return find(key) != -1; }
-    inline const V* get(K key) const
+    inline bool Contains(K key) const { return Find(key) != -1; }
+    inline const V* Get(K key) const
     {
-        const i32 i = find(key);
+        const i32 i = Find(key);
         return (i == -1) ? 0 : m_values.begin() + i;
     }
-    inline V* get(K key)
+    inline V* Get(K key)
     {
-        const i32 i = find(key);
+        const i32 i = Find(key);
         return (i == -1) ? 0 : m_values.begin() + i;
     }
-    inline void remove(K key)
+    inline void Remove(K key)
     {
-        const i32 i = find(key);
+        const i32 i = Find(key);
         if (i != -1)
         {
-            m_hashes.remove(i);
-            m_keys.remove(i);
-            m_values.remove(i);
+            m_hashes.Remove(i);
+            m_keys.Remove(i);
+            m_values.Remove(i);
         }
     }
     inline V& operator[](K key)
     {
-        const i32 i = find(key);
+        const i32 i = Find(key);
         if (i != -1)
         {
             return m_values[i];
         }
         else
         {
-            m_hashes.grow() = to_hash(key);
-            m_keys.grow() = key;
-            return m_values.grow();
+            m_hashes.Grow() = ToHash(key);
+            m_keys.Grow() = key;
+            return m_values.Grow();
         }
     }
 };
@@ -97,6 +102,8 @@ struct DictTable
     static constexpr u32 Width = t_width;
     static constexpr u32 Mask = t_width - 1u;
 
+    StaticAssert((t_width & (t_width - 1u)) == 0);
+
     inline static u32 GetSlot(K key)
     {
         return Fnv32T(key) & Mask;
@@ -104,43 +111,43 @@ struct DictTable
 
     Dict<K, V> m_dicts[Width];
 
-    inline void init()
+    inline void Init(AllocType allocType)
     {
         for (auto& dict : m_dicts)
         {
-            dict.init();
+            dict.Init(allocType);
         }
     }
-    inline void reset()
+    inline void Reset()
     {
         for (auto& dict : m_dicts)
         {
-            dict.reset();
+            dict.Reset();
         }
     }
-    inline void clear()
+    inline void Clear()
     {
         for (auto& dict : m_dicts)
         {
-            dict.clear();
+            dict.Clear();
         }
     }
-    inline i32 find(K key) const
+    inline i32 Find(K key) const
     {
-        return m_dicts[GetSlot(key)].find(key);
+        return m_dicts[GetSlot(key)].Find(key);
     }
-    inline bool contains(K key) const { return find(key) != -1; }
-    inline const V* get(K key) const
+    inline bool Contains(K key) const { return Find(key) != -1; }
+    inline const V* Get(K key) const
     {
-        return m_dicts[GetSlot(key)].get(key);
+        return m_dicts[GetSlot(key)].Get(key);
     }
-    inline V* get(K key)
+    inline V* Get(K key)
     {
-        return m_dicts[GetSlot(key)].get(key);
+        return m_dicts[GetSlot(key)].Get(key);
     }
-    inline void remove(K key)
+    inline void Remove(K key)
     {
-        m_dicts[GetSlot(key)].remove(key);
+        m_dicts[GetSlot(key)].Remove(key);
     }
     inline V& operator[](K key)
     {

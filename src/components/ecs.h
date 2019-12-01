@@ -77,29 +77,29 @@ namespace Ecs
         template<typename T>
         inline Slice<const T> Components() const
         {
-            DebugAssert((m_versions.empty() && IsNull()) || SameType<T>());
+            Assert((m_versions.empty() && IsNull()) || SameType<T>());
             return m_components.cast<T>();
         }
         template<typename T>
         inline Slice<T> Components()
         {
-            DebugAssert((m_versions.empty() && IsNull()) || SameType<T>());
+            Assert((m_versions.empty() && IsNull()) || SameType<T>());
             return m_components.cast<T>();
         }
 
         inline bool Has(Entity entity) const
         {
-            DebugAssert(entity.IsNotNull());
-            return m_versions.in_range(entity.index) &&
+            Assert(entity.IsNotNull());
+            return m_versions.InRange(entity.index) &&
                 (m_versions[entity.index] == entity.version);
         }
 
         inline bool Add(Entity entity, ComponentType type)
         {
-            DebugAssert(entity.IsNotNull());
+            Assert(entity.IsNotNull());
             const i32 i = entity.index;
 
-            bool inRange = m_versions.in_range(i);
+            bool inRange = m_versions.InRange(i);
             const u16 curVersion = inRange ? m_versions[i] : 0;
             if (curVersion)
             {
@@ -110,24 +110,24 @@ namespace Ecs
             {
                 m_type = type;
             }
-            DebugAssert(m_type == type);
+            Assert(m_type == type);
 
             const i32 sizeOf = Component::SizeOf(type);
 
             if (!inRange)
             {
-                const i32 prevLen = m_versions.size();
+                const i32 prevLen = m_versions.Size();
                 const i32 newLen = i + 1;
-                m_versions.resize(i + 1);
+                m_versions.Resize(i + 1);
                 for (i32 iVersion = prevLen; iVersion < newLen; ++iVersion)
                 {
                     m_versions[iVersion] = 0;
                 }
-                m_components.resize(newLen * sizeOf);
+                m_components.Resize(newLen * sizeOf);
             }
 
             m_versions[i] = entity.version;
-            memset(m_components.at(i * sizeOf), 0, sizeOf);
+            memset(m_components.At(i * sizeOf), 0, sizeOf);
             ++m_count;
 
             return true;
@@ -153,16 +153,16 @@ namespace Ecs
 
         inline void* Get(Entity entity)
         {
-            DebugAssert(Has(entity));
-            return m_components.at(entity.index * Component::SizeOf(m_type));
+            Assert(Has(entity));
+            return m_components.At(entity.index * Component::SizeOf(m_type));
         }
 
         template<typename T>
         inline T& Get(Entity entity)
         {
-            DebugAssert(SameType<T>());
-            DebugAssert(Has(entity));
-            return *(m_components.as<T>(entity.index));
+            Assert(SameType<T>());
+            Assert(Has(entity));
+            return *(m_components.As<T>(entity.index));
         }
     };
 
@@ -185,7 +185,7 @@ namespace Ecs
 
         inline Entity Find(HashString name) const
         {
-            i32 i = m_names.find(name);
+            i32 i = m_names.RFind(name);
             if (i != -1)
             {
                 return m_entities[i];
@@ -195,12 +195,12 @@ namespace Ecs
 
         inline Row& GetRow(ComponentType type)
         {
-            DebugAssert(Component::ValidType(type));
+            Assert(Component::ValidType(type));
             return m_rows[type];
         }
         inline const Row& GetRow(ComponentType type) const
         {
-            DebugAssert(Component::ValidType(type));
+            Assert(Component::ValidType(type));
             return m_rows[type];
         }
         template<typename T>
@@ -216,18 +216,18 @@ namespace Ecs
 
         inline i32 Size() const
         {
-            return m_versions.size();
+            return m_versions.Size();
         }
 
         inline bool InRange(Entity entity) const
         {
-            DebugAssert(entity.table == m_id);
-            return m_versions.in_range(entity.index);
+            Assert(entity.table == m_id);
+            return m_versions.InRange(entity.index);
         }
 
         inline bool IsCurrent(Entity entity) const
         {
-            DebugAssert(entity.table == m_id);
+            Assert(entity.table == m_id);
             return m_versions[entity.index] == entity.version;
         }
 
@@ -288,9 +288,9 @@ namespace Ecs
 
         inline bool Has(Entity entity, ComponentType type) const
         {
-            DebugAssert(entity.table == m_id);
-            DebugAssert(InRange(entity));
-            DebugAssert(IsCurrent(entity));
+            Assert(entity.table == m_id);
+            Assert(InRange(entity));
+            Assert(IsCurrent(entity));
             return GetRow(type).Has(entity);
         }
 
@@ -302,9 +302,9 @@ namespace Ecs
 
         inline bool Add(Entity entity, ComponentType type)
         {
-            DebugAssert(entity.table == m_id);
-            DebugAssert(InRange(entity));
-            DebugAssert(IsCurrent(entity));
+            Assert(entity.table == m_id);
+            Assert(InRange(entity));
+            Assert(IsCurrent(entity));
             if (GetRow(type).Add(entity, type))
             {
                 m_rowFlags.Set(type);
@@ -322,7 +322,7 @@ namespace Ecs
 
         inline bool Remove(Entity entity, ComponentType type)
         {
-            DebugAssert(entity.table == m_id);
+            Assert(entity.table == m_id);
             Row& row = GetRow(type);
             if (row.Remove(entity))
             {
@@ -345,23 +345,23 @@ namespace Ecs
 
         inline void* Get(Entity entity, ComponentType type)
         {
-            DebugAssert(InRange(entity));
-            DebugAssert(IsCurrent(entity));
+            Assert(InRange(entity));
+            Assert(IsCurrent(entity));
             return GetRow(type).Get(entity);
         }
 
         template<typename T>
         inline T& Get(Entity entity)
         {
-            DebugAssert(InRange(entity));
-            DebugAssert(IsCurrent(entity));
+            Assert(InRange(entity));
+            Assert(IsCurrent(entity));
             return GetRow<T>().Get<T>(entity);
         }
 
         inline HashString Name(Entity entity) const
         {
-            DebugAssert(InRange(entity));
-            DebugAssert(IsCurrent(entity));
+            Assert(InRange(entity));
+            Assert(IsCurrent(entity));
             return m_names[entity.index];
         }
     };

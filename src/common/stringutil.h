@@ -8,9 +8,9 @@
 
 inline void NullTerminate(char* dst, i32 i, i32 size)
 {
-    DebugAssert(dst || !size);
-    DebugAssert(i >= 0);
-    DebugAssert(size >= 0);
+    Assert(dst || !size);
+    Assert(i >= 0);
+    Assert(size >= 0);
 
     if (size > 0)
     {
@@ -58,7 +58,7 @@ inline constexpr bool IsVarChar1(char c)
 
 inline constexpr bool IsVarName(cstrc x)
 {
-    DebugAssert(x);
+    Assert(x);
     if (!IsVarChar0(x[0]))
     {
         return false;
@@ -107,8 +107,8 @@ inline constexpr char ToUpper(char c)
 
 inline void ToLower(char* dst, i32 size)
 {
-    DebugAssert(dst || !size);
-    DebugAssert(size >= 0);
+    Assert(dst || !size);
+    Assert(size >= 0);
 
     i32 i = 0;
     for(; i < size && dst[i]; ++i)
@@ -120,8 +120,8 @@ inline void ToLower(char* dst, i32 size)
 
 inline char* ToUpper(char* dst, i32 size)
 {
-    DebugAssert(dst || !size);
-    DebugAssert(size >= 0);
+    Assert(dst || !size);
+    Assert(size >= 0);
 
     i32 i = 0;
     for (; i < size && dst[i]; ++i)
@@ -149,8 +149,8 @@ inline constexpr i32 StrLen(cstrc x)
 
 inline constexpr i32 StrLen(cstrc x, i32 size)
 {
-    DebugAssert(x || !size);
-    DebugAssert(size >= 0);
+    Assert(x || !size);
+    Assert(size >= 0);
 
     i32 i = 0;
     if (x)
@@ -168,8 +168,8 @@ inline constexpr i32 StrLen(cstrc x, i32 size)
 
 inline void StrCpy(char* dst, i32 size, cstrc src)
 {
-    DebugAssert((dst && src) || !size);
-    DebugAssert(size >= 0);
+    Assert((dst && src) || !size);
+    Assert(size >= 0);
 
     i32 i = 0;
     for (; i < size && src[i]; ++i)
@@ -181,8 +181,8 @@ inline void StrCpy(char* dst, i32 size, cstrc src)
 
 inline void StrCat(char* dst, i32 size, cstrc src)
 {
-    DebugAssert((dst && src) || !size);
-    DebugAssert(size >= 0);
+    Assert((dst && src) || !size);
+    Assert(size >= 0);
 
     i32 len = StrLen(dst, size);
     StrCpy(dst + len, size - len, src);
@@ -193,8 +193,8 @@ inline void StrCat(char* dst, i32 size, cstrc src)
 
 inline constexpr i32 StrCmp(cstrc lhs, i32 size, cstrc rhs)
 {
-    DebugAssert((lhs && rhs) || !size);
-    DebugAssert(size >= 0);
+    Assert((lhs && rhs) || !size);
+    Assert(size >= 0);
 
     i32 c = 0;
     for (i32 i = 0; !c && i < size; ++i)
@@ -210,8 +210,8 @@ inline constexpr i32 StrCmp(cstrc lhs, i32 size, cstrc rhs)
 
 inline constexpr i32 StrICmp(cstrc lhs, i32 size, cstrc rhs)
 {
-    DebugAssert((lhs && rhs) || !size);
-    DebugAssert(size >= 0);
+    Assert((lhs && rhs) || !size);
+    Assert(size >= 0);
 
     i32 c = 0;
     for (i32 i = 0; !c && i < size; ++i)
@@ -230,8 +230,8 @@ inline constexpr i32 StrICmp(cstrc lhs, i32 size, cstrc rhs)
 
 inline cstr StrChr(cstr hay, i32 size, char needle)
 {
-    DebugAssert(hay || !size);
-    DebugAssert(size >= 0);
+    Assert(hay || !size);
+    Assert(size >= 0);
 
     i32 i = 0;
     for (; i < size && hay[i]; ++i)
@@ -246,8 +246,8 @@ inline cstr StrChr(cstr hay, i32 size, char needle)
 
 inline cstr StrIChr(cstr hay, i32 size, char needle)
 {
-    DebugAssert(hay || !size);
-    DebugAssert(size >= 0);
+    Assert(hay || !size);
+    Assert(size >= 0);
 
     needle = ToLower(needle);
     i32 i = 0;
@@ -263,8 +263,8 @@ inline cstr StrIChr(cstr hay, i32 size, char needle)
 
 inline cstr StrRChr(cstr hay, i32 size, char needle)
 {
-    DebugAssert(hay || !size);
-    DebugAssert(size >= 0);
+    Assert(hay || !size);
+    Assert(size >= 0);
 
     cstr p = 0;
     i32 i = 0;
@@ -280,8 +280,8 @@ inline cstr StrRChr(cstr hay, i32 size, char needle)
 
 inline cstr StrIRChr(cstr hay, i32 size, char needle)
 {
-    DebugAssert(hay || !size);
-    DebugAssert(size >= 0);
+    Assert(hay || !size);
+    Assert(size >= 0);
 
     needle = ToLower(needle);
     cstr p = 0;
@@ -298,8 +298,8 @@ inline cstr StrIRChr(cstr hay, i32 size, char needle)
 
 inline cstr StrStr(cstr hay, i32 size, cstrc needle)
 {
-    DebugAssert((hay && needle) || !size);
-    DebugAssert(size >= 0);
+    Assert((hay && needle) || !size);
+    Assert(size >= 0);
 
     const i32 hayLen = StrLen(hay, size);
     const i32 needleLen = StrLen(needle);
@@ -321,8 +321,8 @@ inline cstr StrStr(cstr hay, i32 size, cstrc needle)
 
 inline cstr StrIStr(cstr hay, i32 size, cstrc needle)
 {
-    DebugAssert((hay && needle) || !size);
-    DebugAssert(size >= 0);
+    Assert((hay && needle) || !size);
+    Assert(size >= 0);
 
     const i32 hayLen = StrLen(hay, size);
     const i32 needleLen = StrLen(needle);
@@ -357,8 +357,8 @@ inline char FixPath(char c)
 
 inline void FixPath(char* dst, i32 size)
 {
-    DebugAssert(dst || !size);
-    DebugAssert(size >= 0);
+    Assert(dst || !size);
+    Assert(size >= 0);
 
     i32 i = 0;
     for(; i < size && dst[i]; ++i)
@@ -370,8 +370,8 @@ inline void FixPath(char* dst, i32 size)
 
 inline void PathCpy(char* dst, i32 size, cstrc src)
 {
-    DebugAssert((dst && src) || !size);
-    DebugAssert(size >= 0);
+    Assert((dst && src) || !size);
+    Assert(size >= 0);
 
     StrCpy(dst, size, src);
     FixPath(dst, size);
@@ -379,8 +379,8 @@ inline void PathCpy(char* dst, i32 size, cstrc src)
 
 inline void PathCat(char* dst, i32 size, cstr src)
 {
-    DebugAssert((dst && src) || !size);
-    DebugAssert(size >= 0);
+    Assert((dst && src) || !size);
+    Assert(size >= 0);
 
     i32 len = StrLen(dst, size);
     PathCpy(dst + len, size - len, src);
@@ -407,8 +407,8 @@ inline void StrCatf(char* dst, i32 size, cstr fmt, ...)
 
 inline void ChrRep(char* dst, i32 size, char fnd, char rep)
 {
-    DebugAssert(dst || !size);
-    DebugAssert(size >= 0);
+    Assert(dst || !size);
+    Assert(size >= 0);
 
     i32 i = 0;
     for (; i < size && dst[i]; ++i)
@@ -420,8 +420,8 @@ inline void ChrRep(char* dst, i32 size, char fnd, char rep)
 
 inline void ChrIRep(char* dst, i32 size, char fnd, char rep)
 {
-    DebugAssert(dst || !size);
-    DebugAssert(size >= 0);
+    Assert(dst || !size);
+    Assert(size >= 0);
 
     fnd = ToLower(fnd);
     i32 i = 0;
@@ -437,8 +437,8 @@ inline void ChrIRep(char* dst, i32 size, char fnd, char rep)
 
 inline void ShiftRight(char* dst, i32 size, i32 shifts)
 {
-    DebugAssert(dst || !size);
-    DebugAssert(size >= 0);
+    Assert(dst || !size);
+    Assert(size >= 0);
 
     i32 len = StrLen(dst, size);
     len = Min(size - shifts - 1, len);
@@ -451,8 +451,8 @@ inline void ShiftRight(char* dst, i32 size, i32 shifts)
 
 inline void ShiftLeft(char* dst, i32 size, i32 shifts)
 {
-    DebugAssert(dst || !size);
-    DebugAssert(size >= 0);
+    Assert(dst || !size);
+    Assert(size >= 0);
 
     i32 len = StrLen(dst, size);
     i32 i = shifts;
@@ -465,8 +465,8 @@ inline void ShiftLeft(char* dst, i32 size, i32 shifts)
 
 inline void Shift(char* dst, i32 size, i32 shifts)
 {
-    DebugAssert(dst || !size);
-    DebugAssert(size >= 0);
+    Assert(dst || !size);
+    Assert(size >= 0);
 
     return (shifts < 0) ?
         ShiftLeft(dst, size, -shifts) :
@@ -475,8 +475,8 @@ inline void Shift(char* dst, i32 size, i32 shifts)
 
 inline i32 StrRep(char* dst, i32 size, cstr fnd, cstr rep)
 {
-    DebugAssert((dst && fnd && rep) || !size);
-    DebugAssert(size >= 0);
+    Assert((dst && fnd && rep) || !size);
+    Assert(size >= 0);
 
     i32 ct = 0;
     i32 last = 0;
@@ -506,8 +506,8 @@ inline i32 StrRep(char* dst, i32 size, cstr fnd, cstr rep)
 
 inline i32 StrIRep(char* dst, i32 size, cstr fnd, cstr rep)
 {
-    DebugAssert((dst && fnd && rep) || !size);
-    DebugAssert(size >= 0);
+    Assert((dst && fnd && rep) || !size);
+    Assert(size >= 0);
 
     i32 ct = 0;
     i32 last = 0;

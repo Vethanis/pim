@@ -2,39 +2,37 @@
 
 #include <sokol/sokol_app.h>
 
+#include "common/macro.h"
 #include "time/time_system.h"
+#include "allocator/allocator.h"
+#include "components/ecs.h"
+#include "assets/asset_system.h"
 #include "audio/audio_system.h"
 #include "input/input_system.h"
 #include "rendering/render_system.h"
-#include "components/ecs.h"
-
-#include "common/macro.h"
-
-#include "quake/packfile.h"
 
 namespace Systems
 {
-    static Quake::PackAssets ms_assets;
-
     void Init()
     {
-        Array<Quake::DPackFile> arena = {};
-        Quake::AddGameDirectory("packs/id1", ms_assets, arena);
-        arena.reset();
-
         TimeSystem::Init();
+        Allocator::Init();
         Ecs::Init();
-        RenderSystem::Init();
         InputSystem::Init();
         AudioSystem::Init();
+        RenderSystem::Init();
+        AssetSystem::Init();
     }
 
     void Update()
     {
         TimeSystem::Update();
-        RenderSystem::Update();
+        Allocator::Update();
+        AssetSystem::Update();
         InputSystem::Update();
         AudioSystem::Update();
+
+        RenderSystem::Update();
 
         TimeSystem::Visualize();
         RenderSystem::Visualize();
@@ -46,13 +44,13 @@ namespace Systems
 
     void Shutdown()
     {
+        RenderSystem::Shutdown();
         AudioSystem::Shutdown();
         InputSystem::Shutdown();
-        RenderSystem::Shutdown();
         Ecs::Shutdown();
+        AssetSystem::Shutdown();
+        Allocator::Shutdown();
         TimeSystem::Shutdown();
-
-        ms_assets.Reset();
     }
 
     void OnEvent(const sapp_event* evt)

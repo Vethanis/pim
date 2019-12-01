@@ -2,24 +2,15 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "common/hash.h"
-#include "common/stringutil.h"
+#include "common/strhash.h"
 
-using HashKey = u32;
+using HashKey = u64;
 
 namespace HStr
 {
     inline constexpr HashKey Hash(cstrc src)
     {
-        if (!src || !src[0]) { return 0; }
-
-        HashKey hash = Fnv32Bias;
-        for (i32 i = 0; src[i]; ++i)
-        {
-            hash = Fnv32Byte(ToLower(src[i]), hash);
-        }
-
-        return Max(hash, 1);
+        return StrHash64(src);
     }
 
 #if _DEBUG

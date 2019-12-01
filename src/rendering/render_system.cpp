@@ -12,7 +12,6 @@
 #include "components/ecs.h"
 #include "components/transform.h"
 
-#include "rendering/shader_system.h"
 #include "rendering/renderable.h"
 
 namespace RenderSystem
@@ -45,17 +44,15 @@ namespace RenderSystem
             sg_setup(&desc);
         }
         {
-            ImGui::SetAllocatorFunctions(Allocator::_ImGuiAllocFn, Allocator::_ImGuiFreeFn);
+            ImGui::SetAllocatorFunctions(Allocator::ImGuiAllocFn, Allocator::ImGuiFreeFn);
             simgui_desc_t desc = {};
             simgui_setup(&desc);
         }
         ms_width = sapp_width();
         ms_height = sapp_height();
 
-        ShaderSystem::Init();
-
         Entity map = Ecs::Create("Map Test");
-        Ecs::Add<LocalToWorld>(map);
+        Ecs::Add<ModelMatrix>(map);
         Ecs::Add<Renderable>(map);
     }
 
@@ -66,21 +63,17 @@ namespace RenderSystem
         simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
 
         Entity map = Ecs::Find("Map Test");
-        DebugAssert(map.IsNotNull());
+        Assert(map.IsNotNull());
 
-        for (Entity entity : Ecs::Search({ CTypeOf<Renderable>(), CTypeOf<LocalToWorld>() }))
+        for (Entity entity : Ecs::Search({ CTypeOf<Renderable>(), CTypeOf<ModelMatrix>() }))
         {
-            LocalToWorld& transform = Ecs::Get<LocalToWorld>(entity);
+            ModelMatrix& transform = Ecs::Get<ModelMatrix>(entity);
             Renderable& renderable = Ecs::Get<Renderable>(entity);
         }
-
-        ShaderSystem::Update();
     }
 
     void Shutdown()
     {
-        ShaderSystem::Shutdown();
-
         simgui_shutdown();
         sg_shutdown();
     }
@@ -103,6 +96,6 @@ namespace RenderSystem
 
     void Visualize()
     {
-        ShaderSystem::Visualize();
+
     }
 };

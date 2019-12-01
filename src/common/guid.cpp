@@ -65,8 +65,8 @@ namespace Guids
     {
         cstr src = str.Value;
 
-        DebugAssert(src[0] == '0');
-        DebugAssert(src[1] == 'x');
+        Assert(src[0] == '0');
+        Assert(src[1] == 'x');
 
         u64 qwords[2] = { 0, 0 };
 
