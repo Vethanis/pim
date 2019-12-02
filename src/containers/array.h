@@ -4,7 +4,7 @@
 #include "common/int_types.h"
 #include "allocator/allocator.h"
 #include "containers/slice.h"
-#include <string.h>
+#include "common/memory.h"
 
 template<typename T>
 struct Array
@@ -96,7 +96,7 @@ struct Array
         Reserve(newLen);
         m_length = newLen;
         T& item = m_ptr[iBack];
-        memset(&item, 0, sizeof(T));
+        MemClear(&item, sizeof(T));
         return item;
     }
     inline void Pop()
@@ -215,18 +215,18 @@ struct Array
     inline void Copy(Slice<const T> other)
     {
         Resize(other.Size());
-        memcpy(begin(), other.begin(), sizeof(T) * Size());
+        MemCpy(begin(), other.begin(), sizeof(T) * Size());
     }
     inline void Copy(Slice<T> other)
     {
         Resize(other.Size());
-        memcpy(begin(), other.begin(), sizeof(T) * Size());
+        MemCpy(begin(), other.begin(), sizeof(T) * Size());
     }
     inline void Assume(Array<T>& other)
     {
         Reset();
-        memcpy(this, &other, sizeof(*this));
-        memset(&other, 0, sizeof(*this));
+        MemCpy(this, &other, sizeof(*this));
+        MemClear(&other, sizeof(*this));
     }
 
     inline void* At(i32 i)
@@ -248,7 +248,7 @@ struct Array
         Assert(sizeof(T) == 1);
         i32 prevSize = ResizeRel(sizeof(U));
         U* pU = reinterpret_cast<U*>(At(prevSize));
-        memset(pU, 0, sizeof(U));
+        MemClear(pU, sizeof(U));
         return *pU;
     }
 };
@@ -294,7 +294,7 @@ struct FixedArray
     {
         Assert(m_len < t_capacity);
         T& item = m_ptr[m_len++];
-        memset(&item, 0, sizeof(T));
+        MemClear(&item, sizeof(T));
         return item;
     }
     inline void Pop()

@@ -342,6 +342,38 @@ inline cstr StrIStr(cstr hay, i32 size, cstrc needle)
     return 0;
 }
 
+inline bool EndsWith(cstr hay, i32 size, cstrc needle)
+{
+    Assert((hay && needle) || !size);
+    Assert(size >= 0);
+
+    const i32 hayLen = StrLen(hay, size);
+    const i32 needleLen = StrLen(needle);
+    if (needleLen > hayLen)
+    {
+        return false;
+    }
+
+    const i32 i = hayLen - needleLen;
+    return StrCmp(hay + i, size - i, needle) == 0;
+}
+
+inline bool IEndsWith(cstr hay, i32 size, cstrc needle)
+{
+    Assert((hay && needle) || !size);
+    Assert(size >= 0);
+
+    const i32 hayLen = StrLen(hay, size);
+    const i32 needleLen = StrLen(needle);
+    if (needleLen > hayLen)
+    {
+        return false;
+    }
+
+    const i32 i = hayLen - needleLen;
+    return StrICmp(hay + i, size - i, needle) == 0;
+}
+
 // ----------------------------------------------------------------------------
 // paths
 
@@ -489,15 +521,15 @@ inline i32 StrRep(char* dst, i32 size, cstr fnd, cstr rep)
     {
         ++ct;
         const i32 i = (i32)(inst - dst);
-        const i32 instSize = size - i;
-        Shift(inst, instSize, lenDiff);
-        const i32 cpyLen = Min(instSize, repLen);
+        const i32 remLen = size - i;
+        Shift(inst, remLen, lenDiff);
+        const i32 cpyLen = Min(remLen, repLen);
         for (i32 j = 0; j < cpyLen; ++j)
         {
             inst[j] = rep[j];
         }
         last = Max(last, i + cpyLen);
-        inst = (char*)StrStr(inst, instSize, fnd);
+        inst = (char*)StrStr(inst + 1, remLen - 1, fnd);
     }
     NullTerminate(dst, last, size);
 
@@ -520,15 +552,15 @@ inline i32 StrIRep(char* dst, i32 size, cstr fnd, cstr rep)
     {
         ++ct;
         const i32 i = (i32)(inst - dst);
-        const i32 instSize = size - i;
-        Shift(inst, instSize, lenDiff);
-        const i32 cpyLen = Min(instSize, repLen);
+        const i32 remLen = size - i;
+        Shift(inst, remLen, lenDiff);
+        const i32 cpyLen = Min(remLen, repLen);
         for (i32 j = 0; j < cpyLen; ++j)
         {
             inst[j] = rep[j];
         }
         last = Max(last, i + cpyLen);
-        inst = (char*)StrIStr(inst, instSize, fnd);
+        inst = (char*)StrIStr(inst + 1, remLen - 1, fnd);
     }
     NullTerminate(dst, last, size);
 

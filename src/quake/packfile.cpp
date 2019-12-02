@@ -17,7 +17,7 @@ namespace Quake
         i32 nRead = IO::Read(file, &header, sizeof(header), err);
         CheckErr();
         Check(nRead == sizeof(header));
-        Check(!memcmp(header.id, "PACK", 4));
+        Check(!MemCmp(header.id, "PACK", 4));
 
         const i32 numPackFiles = header.length / sizeof(DPackFile);
         Check(numPackFiles > 0);

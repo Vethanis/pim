@@ -127,7 +127,7 @@ namespace Ecs
             }
 
             m_versions[i] = entity.version;
-            memset(m_components.At(i * sizeOf), 0, sizeOf);
+            MemClear(m_components.At(i * sizeOf), sizeOf);
             ++m_count;
 
             return true;

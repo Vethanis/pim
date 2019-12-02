@@ -8,7 +8,7 @@ namespace Ecs
 
     void Init()
     {
-        memset(ms_tables, 0, sizeof(ms_tables));
+        MemClear(ms_tables, sizeof(ms_tables));
         for (i32 i = 0; i < TableId_Count; ++i)
         {
             ms_tables[i].m_id = (TableId)i;

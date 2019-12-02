@@ -15,7 +15,7 @@
 #include "common/io.h"
 #include "common/macro.h"
 #include "common/stringutil.h"
-#include <string.h>
+#include "common/memory.h"
 
 namespace IO
 {
@@ -79,6 +79,8 @@ namespace IO
         Assert(IsOpen(hdl));
         EResult err = EUnknown;
         i32 ct = Write(hdl, str, StrLen(str), err);
+        Assert(err == ESuccess);
+        ct += Write(hdl, "\n", 1, err);
         Assert(err == ESuccess);
         return ct;
     }
@@ -320,6 +322,55 @@ namespace IO
         results.Pop();
     }
 
+    void ListDir(Directory& dir, cstrc spec, EResult& err)
+    {
+        constexpr u32 IgnoreFlags = FAF_Hidden | FAF_System;
+
+        Finder fdr = {};
+        FindData data = {};
+        while (Find(fdr, data, spec, err))
+        {
+            if (data.attrib & IgnoreFlags)
+            {
+                continue;
+            }
+
+            if (data.attrib & FAF_SubDir)
+            {
+                if (!StrCmp(argof(data.name), ".") ||
+                    !StrCmp(argof(data.name), ".."))
+                {
+                    continue;
+                }
+
+                Directory& child = dir.subdirs.Grow();
+                SPrintf(
+                    argof(child.data.name),
+                    "%s\\%s",
+                    dir.data.name,
+                    data.name);
+                child.subdirs = {};
+                child.files = {};
+                char buffer[256] = {};
+                StrCpy(argof(buffer), spec);
+                StrRep(argof(buffer), "\\*", "\\");
+                StrCat(argof(buffer), data.name);
+                StrCat(argof(buffer), "\\*");
+                ListDir(child, buffer, err);
+            }
+            else
+            {
+                FindData& child = dir.files.Grow();
+                child = data;
+                SPrintf(
+                    argof(child.name),
+                    "%s\\%s",
+                    dir.data.name,
+                    data.name);
+            }
+        }
+    }
+
     // ------------------------------------------------------------------------
 
     void OpenModule(cstr filename, Module& dst, EResult& err)
@@ -384,7 +435,7 @@ namespace IO
                     break;
                 }
                 i32 prevSize = result.ResizeRel(bytesRead);
-                memcpy(result.begin() + prevSize, cmd, bytesRead);
+                MemCpy(result.begin() + prevSize, cmd, bytesRead);
             }
         }
         PClose(stream, err);

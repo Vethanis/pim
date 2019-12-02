@@ -315,7 +315,7 @@ namespace IO
         FAF_Archive = 0x20,
     };
 
-    // __finddata64_t
+    // __finddata64_t, do not modify
     struct FindData
     {
         u32 attrib;
@@ -329,6 +329,25 @@ namespace IO
     // findfirst + findnext + findclose
     bool Find(Finder& fdr, FindData& data, cstrc spec, EResult& err);
     void FindAll(Array<FindData>& results, cstrc spec, EResult& err);
+
+    struct Directory
+    {
+        FindData data;
+        Array<Directory> subdirs;
+        Array<FindData> files;
+
+        void Reset()
+        {
+            for (Directory& dir : subdirs)
+            {
+                dir.Reset();
+            }
+            subdirs.Reset();
+            files.Reset();
+        }
+    };
+
+    void ListDir(Directory& dir, cstrc spec, EResult& err);
 
     // ------------------------------------------------------------------------
     struct Module { void* hdl; };

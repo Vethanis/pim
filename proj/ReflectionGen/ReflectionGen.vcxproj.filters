@@ -1,0 +1,100 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Source Files\pim">
+      <UniqueIdentifier>{98eae86b-647f-4200-95c2-e40876596c50}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\common\guid.cpp">
+      <Filter>Source Files\pim</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\common\hashstring.cpp">
+      <Filter>Source Files\pim</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\common\io.cpp">
+      <Filter>Source Files\pim</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\common\stringutil.cpp">
+      <Filter>Source Files\pim</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\allocator\allocator.cpp">
+      <Filter>Source Files\pim</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\common\guid.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\common\hash.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\common\hashstring.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\common\int_types.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\common\io.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\common\macro.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\common\strhash.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\common\stringutil.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\common\text.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\common\unroll.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\containers\array.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\containers\bitfield.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\containers\dict.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\containers\initlist.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\containers\ring.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\containers\slice.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\allocator\allocator.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\allocator\base_allocator.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\allocator\linear_allocator.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\allocator\pool_allocator.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\allocator\stack_allocator.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\allocator\stdlib_allocator.h">
+      <Filter>Source Files\pim</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

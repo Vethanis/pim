@@ -456,6 +456,9 @@
     <ClInclude Include="..\src\common\strhash.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\common\memory.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">
