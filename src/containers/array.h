@@ -34,8 +34,17 @@ struct Array
     inline T& back() { Assert(InRange(0)); return m_ptr[m_length - 1]; }
     inline T& operator[](i32 i) { Assert(InRange(i)); return m_ptr[i]; }
 
-    inline operator Slice<const T>() const { return { begin(), Size() }; }
-    inline operator Slice<T>() { return { begin(), Size() }; }
+    inline Slice<const T> AsSlice() const
+    {
+        return { begin(), Size() };
+    }
+    inline Slice<T> AsSlice()
+    {
+        return { begin(), Size() };
+    }
+
+    inline operator Slice<const T>() const { return AsSlice(); }
+    inline operator Slice<T>() { return AsSlice(); }
 
     template<typename U>
     inline Slice<const U> Cast() const
@@ -172,7 +181,7 @@ struct Array
         const i32 len = m_length;
         for (i32 i = 0; i < len; ++i)
         {
-            if (ptr[i] == value)
+            if (MemEq(ptr + i, &value, sizeof(T)))
             {
                 return i;
             }
@@ -185,7 +194,7 @@ struct Array
         const i32 len = m_length;
         for (i32 i = len - 1; i >= 0; --i)
         {
-            if (ptr[i] == value)
+            if (MemEq(ptr + i, &value, sizeof(T)))
             {
                 return i;
             }

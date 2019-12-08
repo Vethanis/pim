@@ -53,6 +53,8 @@
     <ClInclude Include="..\src\assets\asset_system.h" />
     <ClInclude Include="..\src\audio\audio_system.h" />
     <ClInclude Include="..\src\common\apply.h" />
+    <ClInclude Include="..\src\common\chunk_allocator.h" />
+    <ClInclude Include="..\src\common\cmp.h" />
     <ClInclude Include="..\src\common\find.h" />
     <ClInclude Include="..\src\common\guid.h" />
     <ClInclude Include="..\src\common\hashstring.h" />

@@ -52,7 +52,7 @@ inline i32 MemCmp(
     const u8* Restrict r1 = (const u8* Restrict)r8;
     for (i32 i = 0; i < n1; ++i)
     {
-        i32 cmp = *l1 - *r1;
+        i32 cmp = *l1++ - *r1++;
         if (cmp)
         {
             return cmp;
@@ -60,6 +60,63 @@ inline i32 MemCmp(
     }
 
     return 0;
+}
+
+inline i32 MemEq(
+    const void* Restrict lhs,
+    const void* Restrict rhs,
+    i32 bytes)
+{
+    Assert(bytes >= 0);
+    Assert(!bytes || (lhs && rhs));
+
+    i32 n64, n8, n1;
+    Unroll64(bytes, n64, n8, n1);
+
+    const u64* Restrict l8 = (const u64* Restrict)lhs;
+    const u64* Restrict r8 = (const u64* Restrict)rhs;
+    for (i32 i = 0; i < n64; ++i)
+    {
+        u64 cmp = 0;
+        cmp |= *l8++ - *r8++;
+        cmp |= *l8++ - *r8++;
+        cmp |= *l8++ - *r8++;
+        cmp |= *l8++ - *r8++;
+
+        cmp |= *l8++ - *r8++;
+        cmp |= *l8++ - *r8++;
+        cmp |= *l8++ - *r8++;
+        cmp |= *l8++ - *r8++;
+
+        if (cmp != 0)
+        {
+            return 0;
+        }
+    }
+
+    for (i32 i = 0; i < n8; ++i)
+    {
+        u64 L = *l8++;
+        u64 R = *r8++;
+        if (L != R)
+        {
+            return 0;
+        }
+    }
+
+    const u8* Restrict l1 = (const u8* Restrict)l8;
+    const u8* Restrict r1 = (const u8* Restrict)r8;
+    for (i32 i = 0; i < n1; ++i)
+    {
+        u8 L = *l1++;
+        u8 R = *r1++;
+        if (L != R)
+        {
+            return 0;
+        }
+    }
+
+    return 1;
 }
 
 inline void MemCpy(

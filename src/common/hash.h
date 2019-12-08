@@ -59,6 +59,19 @@ inline constexpr u32 Fnv32String(cstrc ptr, u32 hash = Fnv32Bias)
     return hash;
 }
 
+inline constexpr u32 Fnv32Array(
+    cstrc ptr,
+    i32 len,
+    u32 hash = Fnv32Bias)
+{
+    Assert(ptr);
+    for (i32 i = 0; i < len; ++i)
+    {
+        hash = Fnv32Byte(ptr[i], hash);
+    }
+    return hash;
+}
+
 inline u32 Fnv32Bytes(const void* ptr, i32 nBytes, u32 hash = Fnv32Bias)
 {
     Assert(ptr || !nBytes);

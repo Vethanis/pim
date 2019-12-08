@@ -6,22 +6,22 @@
 
 struct Guid
 {
-    u64 Value[2];
-
-    inline bool operator==(const Guid& o) const
-    {
-        return !((Value[0] - o.Value[0]) | (Value[1] - o.Value[1]));
-    }
+    u32 a, b, c, d;
 
     inline bool IsNull() const
     {
-        return !(Value[0] | Value[1]);
+        return !(a | b | c | d);
     }
 };
 
 struct GuidStr
 {
-    char Value[2 + 16 * 2];
+    // 0x
+    // 32 nibbles
+    // null terminator
+    char Value[2 + 16 * 2 + 1];
+
+    inline operator cstr() const { return Value; }
 };
 
 namespace Guids
@@ -30,13 +30,17 @@ namespace Guids
     {
         if (str)
         {
-            u64 q0 = Fnv64String(str);
-            u64 q1 = Fnv64String(str, q0);
-            q0 = q0 ? q0 : 1;
-            q1 = q1 ? q1 : 1;
-            return { q0, q1 };
+            u32 a = Fnv32String(str);
+            a = a ? a : 1;
+            u32 b = Fnv32String(str, a);
+            b = b ? b : 1;
+            u32 c = Fnv32String(str, b);
+            c = c ? c : 1;
+            u32 d = Fnv32String(str, c);
+            d = d ? d : 1;
+            return { a, b, c, d };
         }
-        return { 0, 0 };
+        return { 0, 0, 0, 0 };
     }
 
     Guid FromString(GuidStr str);

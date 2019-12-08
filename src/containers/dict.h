@@ -5,9 +5,12 @@
 template<typename K, typename V>
 struct Dict
 {
-    Array<u8> m_hashes;
+    Array<u32> m_hashes;
     Array<K> m_keys;
     Array<V> m_values;
+
+    inline static u32 GetHash(K key) { return Fnv32T(key); }
+    inline static bool Equals(K lhs, K rhs) { return MemEq(&lhs, &rhs, sizeof(K)); }
 
     inline i32 Size() const { return m_keys.Size(); }
     inline i32 Capacity() const { return m_keys.Capacity(); }
@@ -37,21 +40,17 @@ struct Dict
         m_keys.Clear();
         m_values.Clear();
     }
-    inline static u8 ToHash(K key)
+
+    inline i32 Find(K key, u32 hash) const
     {
-        return 0xff & Fnv32T(key);
-    }
-    inline i32 Find(K key) const
-    {
-        const u8 hash = ToHash(key);
         const i32 count = m_hashes.Size();
-        const u8* const hashes = m_hashes.begin();
-        const K* const keys = m_keys.begin();
+        const u32* hashes = m_hashes.begin();
+        const K* keys = m_keys.begin();
         for (i32 i = count - 1; i >= 0; --i)
         {
             if (hashes[i] == hash)
             {
-                if (keys[i] == key)
+                if (Equals(keys[i], key))
                 {
                     return i;
                 }
@@ -59,37 +58,63 @@ struct Dict
         }
         return -1;
     }
-    inline bool Contains(K key) const { return Find(key) != -1; }
-    inline const V* Get(K key) const
+    inline i32 Find(K key) const
     {
-        const i32 i = Find(key);
+        return Find(key, GetHash(key));
+    }
+
+    inline bool Contains(K key, u32 hash) const { return Find(key, hash) != -1; }
+    inline bool Contains(K key) const { return Contains(key, GetHash(key)); }
+
+    inline const V* Get(K key, u32 hash) const
+    {
+        const i32 i = Find(key, hash);
         return (i == -1) ? 0 : m_values.begin() + i;
     }
-    inline V* Get(K key)
+    inline const V* Get(K key) const { return Get(key, GetHash(key)); }
+    inline const V GetOrNull(K key) const
     {
-        const i32 i = Find(key);
+        const V* ptr = Get(key);
+        return ptr ? *ptr : nullptr;
+    }
+
+    inline V* Get(K key, u32 hash)
+    {
+        const i32 i = Find(key, hash);
         return (i == -1) ? 0 : m_values.begin() + i;
     }
-    inline void Remove(K key)
+    inline V* Get(K key) { return Get(key, GetHash(key)); }
+    inline V GetOrNull(K key)
     {
-        const i32 i = Find(key);
+        V* ptr = Get(key);
+        return ptr ? *ptr : nullptr;
+    }
+
+    inline bool Remove(K key, u32 hash)
+    {
+        const i32 i = Find(key, hash);
         if (i != -1)
         {
             m_hashes.Remove(i);
             m_keys.Remove(i);
             m_values.Remove(i);
+            return true;
         }
+        return false;
     }
+    inline bool Remove(K key) { return Remove(key, GetHash(key)); }
+
     inline V& operator[](K key)
     {
-        const i32 i = Find(key);
+        const u32 hash = GetHash(key);
+        const i32 i = Find(key, hash);
         if (i != -1)
         {
             return m_values[i];
         }
         else
         {
-            m_hashes.Grow() = ToHash(key);
+            m_hashes.Grow() = hash;
             m_keys.Grow() = key;
             return m_values.Grow();
         }
@@ -104,9 +129,13 @@ struct DictTable
 
     StaticAssert((t_width & (t_width - 1u)) == 0);
 
-    inline static u32 GetSlot(K key)
+    inline static u32 GetHash(K key)
     {
-        return Fnv32T(key) & Mask;
+        return Dict<K, V>::GetHash(key);
+    }
+    inline static u32 GetSlot(u32 hash)
+    {
+        return hash & Mask;
     }
 
     Dict<K, V> m_dicts[Width];
@@ -134,23 +163,46 @@ struct DictTable
     }
     inline i32 Find(K key) const
     {
-        return m_dicts[GetSlot(key)].Find(key);
+        const u32 hash = GetHash(key);
+        return m_dicts[GetSlot(hash)].Find(key, hash);
     }
     inline bool Contains(K key) const { return Find(key) != -1; }
     inline const V* Get(K key) const
     {
-        return m_dicts[GetSlot(key)].Get(key);
+        const u32 hash = GetHash(key);
+        return m_dicts[GetSlot(hash)].Get(key, hash);
+    }
+    inline const V GetOrNull(K key) const
+    {
+        const V* ptr = Get(key);
+        return ptr ? *ptr : nullptr;
     }
     inline V* Get(K key)
     {
-        return m_dicts[GetSlot(key)].Get(key);
+        const u32 hash = GetHash(key);
+        return m_dicts[GetSlot(hash)].Get(key, hash);
+    }
+    inline V GetOrNull(K key)
+    {
+        V* ptr = Get(key);
+        return ptr ? *ptr : nullptr;
     }
     inline void Remove(K key)
     {
-        m_dicts[GetSlot(key)].Remove(key);
+        const u32 hash = GetHash(key);
+        m_dicts[GetSlot(hash)].Remove(key);
     }
     inline V& operator[](K key)
     {
-        return m_dicts[GetSlot(key)][key];
+        const u32 hash = GetHash(key);
+        Dict<K, V>& dict = m_dicts[GetSlot(hash)];
+        const i32 i = dict.Find(key, hash);
+        if (i != -1)
+        {
+            return dict.m_values[i];
+        }
+        dict.m_hashes.Grow() = hash;
+        dict.m_keys.Grow() = key;
+        return dict.m_values.Grow();
     }
 };

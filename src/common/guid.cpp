@@ -64,18 +64,17 @@ namespace Guids
     Guid FromString(GuidStr str)
     {
         cstr src = str.Value;
-
         Assert(src[0] == '0');
         Assert(src[1] == 'x');
+        src += 2;
 
-        u64 qwords[2] = { 0, 0 };
+        Guid guid = { 0, 0, 0, 0 };
 
-        u8* dst = (u8*)qwords;
-        i32 p = 2;
+        u8* dst = (u8*)&guid;
         for (i32 i = 0; i < 16; ++i)
         {
-            u8 lo = src[p++];
-            u8 hi = src[p++];
+            u8 lo = *src++;
+            u8 hi = *src++;
 
             lo = H2N.values[lo];
             hi = N2H.values[hi];
@@ -83,16 +82,16 @@ namespace Guids
             dst[i] = (hi << 4) | lo;
         }
 
-        return { qwords[0], qwords[1] };
+        return guid;
     }
 
     GuidStr ToString(Guid guid)
     {
-        GuidStr str = {};
-        char* dst = str.Value;
+        GuidStr guidStr = {};
+        u8* dst = (u8*)&guidStr;
+        const u8* src = (const u8*)&guid;
         *dst++ = '0';
         *dst++ = 'x';
-        const u8* src = (const u8*)guid.Value;
         for (i32 i = 0; i < 16; ++i)
         {
             u8 c = src[i];
@@ -103,6 +102,7 @@ namespace Guids
             *dst++ = lo;
             *dst++ = hi;
         }
-        return str;
+        *dst++ = 0;
+        return guidStr;
     }
 };
