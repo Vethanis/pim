@@ -5,7 +5,7 @@
 #include "containers/slice.h"
 
 struct FieldInfo;
-struct ITypeInfo;
+struct TypeInfo;
 
 struct TypeInfo
 {
