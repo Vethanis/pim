@@ -49,14 +49,15 @@ inline constexpr TypeInfo BasicType(const char* const name)
 template<typename T>
 inline constexpr TypeInfo StructType(
     const char* const name,
-    const FieldInfo* const fields, size_t numFields)
+    Slice<const FieldInfo> fields)
 {
     bool isPOD = true;
-    for (usize i = 0; i < numFields; ++i)
+    for (usize i = 0; i < fields.Size(); ++i)
     {
         if (!fields[i].Type.IsPOD)
         {
             isPOD = false;
+            break;
         }
     }
     return TypeInfo
@@ -64,7 +65,7 @@ inline constexpr TypeInfo StructType(
         name,
         sizeof(T),
         alignof(T),
-        { fields, numFields },
+        fields,
         isPOD,
     };
 }
@@ -87,7 +88,7 @@ static constexpr FieldInfo FooFields[] =
 template<>
 inline constexpr TypeInfo TypeOf<Foo>()
 {
-    return StructType<Foo>("Foo", FooFields, 2);
+    return StructType<Foo>("Foo", { argof(FooFields) });
 }
 
 static void TypeExample()
