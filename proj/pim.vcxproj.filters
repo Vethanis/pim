@@ -465,6 +465,9 @@
     <ClInclude Include="..\src\common\cmp.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\common\type.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">

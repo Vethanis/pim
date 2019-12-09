@@ -67,6 +67,7 @@
     <ClInclude Include="..\src\common\strhash.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\text.h" />
+    <ClInclude Include="..\src\common\type.h" />
     <ClInclude Include="..\src\common\unroll.h" />
     <ClInclude Include="..\src\components\component.h" />
     <ClInclude Include="..\src\components\ecs.h" />

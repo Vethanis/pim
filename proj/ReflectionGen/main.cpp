@@ -578,8 +578,7 @@ struct Parser
             Text<256> text = {};
             StrCpy(argof(text.value), id);
             i32 i = RFind(m_guids, guid);
-            i32 t = RFind(m_texts, text);
-            Assert(i == t);
+            Assert(i == RFind(m_texts, text));
             if (i == -1)
             {
                 i = m_guids.Size();
