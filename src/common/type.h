@@ -29,6 +29,10 @@ struct FieldInfo
     const usize Offset;
 };
 
+#define FieldOffset(s, m) ((::size_t)&reinterpret_cast<char const volatile&>((((s*)0)->m)))
+
+#define FieldDecl(T, F, fname) FieldInfo { TypeOf<F>(), #fname, FieldOffset(T, fname) }
+
 template<typename T>
 inline constexpr TypeInfo BasicType(const char* const name)
 {
@@ -76,8 +80,8 @@ struct Foo final
 
 static constexpr FieldInfo FooFields[] =
 {
-    { TypeOf<i32>(), "bar", 0 },
-    { TypeOf<i32>(), "blorp", 4 },
+    FieldDecl(Foo, i32, bar),
+    FieldDecl(Foo, i32, blorp),
 };
 
 template<>
