@@ -11,32 +11,33 @@ static void Sort(T* items, i32 count)
         return;
     }
 
-    const i32 pivot = count >> 1;
-
     i32 i = 0;
-    i32 j = count - 1;
-    while (true)
     {
-        while (items[i] < items[pivot])
+        i32 j = count - 1;
+        const T pivot = items[count >> 1];
+        while (true)
         {
+            while (items[i] < pivot)
+            {
+                ++i;
+            }
+            while (items[j] > pivot)
+            {
+                --j;
+            }
+
+            if (i >= j)
+            {
+                break;
+            }
+
+            T temp = items[i];
+            items[i] = items[j];
+            items[j] = temp;
+
             ++i;
-        }
-        while (items[j] > items[pivot])
-        {
             --j;
         }
-
-        if (i >= j)
-        {
-            break;
-        }
-
-        T temp = items[i];
-        items[i] = items[j];
-        items[j] = temp;
-
-        ++i;
-        --j;
     }
 
     Sort(items, i);
@@ -51,32 +52,33 @@ static void Sort(T* items, i32 count, C cmp)
         return;
     }
 
-    const i32 pivot = count >> 1;
-
     i32 i = 0;
-    i32 j = count - 1;
-    while (true)
     {
-        while (cmp(items[i], items[pivot]) < 0)
+        i32 j = count - 1;
+        const T pivot = items[count >> 1];
+        while (true)
         {
+            while (cmp(items[i], pivot) < 0)
+            {
+                ++i;
+            }
+            while (cmp(items[j], pivot) > 0)
+            {
+                --j;
+            }
+
+            if (i >= j)
+            {
+                break;
+            }
+
+            T temp = items[i];
+            items[i] = items[j];
+            items[j] = temp;
+
             ++i;
-        }
-        while (cmp(items[j], items[pivot]) > 0)
-        {
             --j;
         }
-
-        if (i >= j)
-        {
-            break;
-        }
-
-        T temp = items[i];
-        items[i] = items[j];
-        items[j] = temp;
-
-        ++i;
-        --j;
     }
 
     Sort(items, i, cmp);
