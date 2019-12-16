@@ -1,139 +1,193 @@
 #include "allocator/allocator.h"
-#include "allocator/stdlib_allocator.h"
-#include "allocator/pool_allocator.h"
-#include "allocator/linear_allocator.h"
-#include "allocator/stack_allocator.h"
+
+#include "allocator/allocators.h"
 #include "containers/array.h"
 #include "common/hashstring.h"
-#include <string.h>
+#include "common/round.h"
+#include <stdlib.h>
 
 namespace Allocator
 {
-    static StdlibAllocator ms_stdlibAllocator;
-    static PoolAllocator ms_poolAllocator;
-    static LinearAllocator ms_linearAllocator;
-    static StackAllocator ms_stackAllocator;
-
-    static BaseAllocator* ms_allocators[] =
+    // Separate from 'VTables' so that we can have multiple of the same type.
+    static constexpr VTable ms_tables[] =
     {
-        &ms_stdlibAllocator,
-        &ms_poolAllocator,
-        &ms_linearAllocator,
-        &ms_stackAllocator,
+        Stdlib::Table,
+        Linear::Table,
+        Stack::Table,
+        Pool::Table,
     };
+    static constexpr i32 NumAllocators = NELEM(ms_tables);
 
-    static const HashKey ImGuiHash = HStr::Hash("ImGui");
+    static UAllocator ms_allocators[NumAllocators];
+    static void* ms_allocations[NumAllocators];
 
-    void* ImGuiAllocFn(size_t sz, void*)
+    // TODO: make these config vars (and make a config var system...)
+    static constexpr i32 ms_capacities[] =
     {
-        if (sz > 0)
-        {
-            i32 iSize = (i32)sz;
-            Assert(iSize > 0);
+        0,          // stdlib doesnt care
+        1 << 20,    // 1 mb for linear
+        1 << 20,    // 1 mb for stack
+        64 << 20,   // 64 mb for pool
+    };
+    SASSERT(NELEM(ms_capacities) == NumAllocators);
 
-            Allocation alloc = Alloc(Alloc_Stdlib, iSize + 16);
+    static constexpr bool ms_isPerFrame[] =
+    {
+        false,
+        true,
+        false,
+        false,
+    };
+    SASSERT(NELEM(ms_isPerFrame) == NumAllocators);
 
-            u64* pHeader = (u64*)alloc.begin();
-            pHeader[0] = alloc.Size();
-            pHeader[1] = ImGuiHash;
+    static constexpr i32 Alignment = 16;
+    static constexpr i32 PadBytes = sizeof(Header);
 
-            return pHeader + 2;
-        }
-        return nullptr;
+    static constexpr bool IsAligned(usize x)
+    {
+        constexpr usize mask = (usize)(Alignment - 1);
+        return !(x & mask);
+    }
+    static constexpr bool IsAligned(void* ptr)
+    {
+        return IsAligned((usize)ptr);
     }
 
-    void ImGuiFreeFn(void* ptr, void*)
-    {
-        if (ptr)
-        {
-            u64* pHeader = (u64*)ptr - 2;
-            Assert((u64)pHeader[1] == ImGuiHash);
-            Allocation alloc =
-            {
-                (u8*)pHeader,
-                (i32)pHeader[0],
-                Alloc_Stdlib,
-            };
+    SASSERT(IsAligned(PadBytes));
 
-            Free(alloc);
-        }
+    static bool InRange(i32 iType)
+    {
+        return (u32)iType < (u32)NumAllocators;
+    }
+
+    static i32 PadRequest(i32 reqBytes)
+    {
+        reqBytes += PadBytes;
+        reqBytes = MultipleOf(reqBytes, Alignment);
+        ASSERT(reqBytes > 0);
+        return reqBytes;
     }
 
     // ------------------------------------------------------------------------
 
     void Init()
     {
-        for (BaseAllocator* allocator : ms_allocators)
+        for (i32 i = 0; i < NumAllocators; ++i)
         {
-            allocator->Init(32 << 20);
+            i32 capacity = ms_capacities[i];
+            void* memory = capacity > 0 ? malloc(capacity) : 0;
+            ms_allocations[i] = memory;
+            ms_tables[i].Init(ms_allocators[i], memory, capacity);
         }
     }
 
     void Update()
     {
-        for (BaseAllocator* allocator : ms_allocators)
+        for (i32 i = 0; i < NumAllocators; ++i)
         {
-            allocator->Clear();
+            if (ms_isPerFrame[i])
+            {
+                ms_tables[i].Clear(ms_allocators[i]);
+            }
         }
     }
 
     void Shutdown()
     {
-        for (BaseAllocator* allocator : ms_allocators)
+        for (i32 i = 0; i < NumAllocators; ++i)
         {
-            allocator->Shutdown();
+            ms_tables[i].Shutdown(ms_allocators[i]);
+            void* memory = ms_allocations[i];
+            ms_allocations[i] = 0;
+            if (memory)
+            {
+                free(memory);
+            }
         }
     }
 
-    Allocation Alloc(AllocType type, i32 want)
+    void* Alloc(AllocType type, i32 want)
     {
-        Assert(want >= 0);
-        Allocation got = { 0, 0, type };
+        ASSERT(InRange(type));
+        ASSERT(want >= 0);
 
         if (want > 0)
         {
-            got.slice = ms_allocators[type]->Alloc(want);
-            Assert(got.begin());
-        }
+            want = PadRequest(want);
 
-        return got;
+            Header* hdr = ms_tables[type].Alloc(ms_allocators[type], want);
+
+            ASSERT(hdr);
+            hdr->size = want;
+            hdr->type = type;
+
+            ASSERT(IsAligned(hdr + 1));
+
+            return hdr + 1;
+        }
+        return 0;
     }
 
-    void Realloc(Allocation& prev, i32 want)
+    void* Realloc(AllocType type, void* prev, i32 want)
     {
-        const i32 has = prev.Size();
-        Assert(want >= 0);
-        Assert(has >= 0);
+        ASSERT(InRange(type));
+        ASSERT(want >= 0);
 
-        Allocation got = { 0, 0, prev.type };
-
-        if (!prev.begin())
+        if (!prev)
         {
-            got = Alloc(prev.type, want);
+            return Alloc(type, want);
         }
-        else if (want <= 0)
+
+        if (!want)
         {
             Free(prev);
-        }
-        else if (want != has)
-        {
-            got.slice = ms_allocators[prev.type]->Realloc(prev.slice, want);
-            Assert(got.begin());
-        }
-        else
-        {
-            got = prev;
+            return 0;
         }
 
-        prev = got;
+        Header* hdr = ((Header*)prev) - 1;
+
+        const i32 has = hdr->size - PadBytes;
+        ASSERT(has > 0);
+
+        if (want != has)
+        {
+            want = PadRequest(want);
+
+            const i32 iType = hdr->type;
+            ASSERT(InRange(iType));
+
+            Header* newHdr = ms_tables[iType].Realloc(
+                ms_allocators[iType],
+                hdr,
+                want);
+
+            ASSERT(newHdr);
+            newHdr->size = want;
+            newHdr->type = iType;
+
+            ASSERT(IsAligned(newHdr + 1));
+
+            return newHdr + 1;
+        }
+
+        return prev;
     }
 
-    void Free(Allocation& prev)
+    void Free(void* prev)
     {
-        if (prev.begin())
+        if (prev)
         {
-            ms_allocators[prev.type]->Free(prev.slice);
+            ASSERT(IsAligned(prev));
+
+            Header* hdr = ((Header*)prev) - 1;
+
+            const i32 size = hdr->size;
+            ASSERT(size > 0);
+
+            const i32 iType = hdr->type;
+            ASSERT(InRange(iType));
+
+            ms_tables[iType].Free(ms_allocators[iType], hdr);
         }
-        prev.slice = { 0, 0 };
     }
 };

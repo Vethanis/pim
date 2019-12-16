@@ -19,8 +19,11 @@
     <ClCompile Include="..\src\common\io.cpp" />
     <ClCompile Include="..\src\common\random.cpp" />
     <ClCompile Include="..\src\common\stringutil.cpp" />
+    <ClCompile Include="..\src\common\type.cpp" />
     <ClCompile Include="..\src\components\component.cpp" />
     <ClCompile Include="..\src\components\ecs.cpp" />
+    <ClCompile Include="..\src\components\entity.cpp" />
+    <ClCompile Include="..\src\components\transform.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
@@ -28,6 +31,7 @@
     <ClCompile Include="..\src\quake\packfile.cpp" />
     <ClCompile Include="..\src\rendering\material.cpp" />
     <ClCompile Include="..\src\rendering\mesh.cpp" />
+    <ClCompile Include="..\src\rendering\renderable.cpp" />
     <ClCompile Include="..\src\rendering\render_system.cpp" />
     <ClCompile Include="..\src\sokol\sokol_app.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
@@ -36,6 +40,7 @@
     <ClCompile Include="..\src\systems.cpp" />
     <ClCompile Include="..\src\threading\task_system.cpp" />
     <ClCompile Include="..\src\time\time_system.cpp" />
+    <ClCompile Include="..\src\typeinfo\basic_types.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_draw.cpp" />
@@ -45,7 +50,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\allocator\allocator.h" />
-    <ClInclude Include="..\src\allocator\base_allocator.h" />
+    <ClInclude Include="..\src\allocator\allocator_vtable.h" />
+    <ClInclude Include="..\src\allocator\allocators.h" />
     <ClInclude Include="..\src\allocator\linear_allocator.h" />
     <ClInclude Include="..\src\allocator\pool_allocator.h" />
     <ClInclude Include="..\src\allocator\stack_allocator.h" />
@@ -54,7 +60,8 @@
     <ClInclude Include="..\src\audio\audio_system.h" />
     <ClInclude Include="..\src\common\apply.h" />
     <ClInclude Include="..\src\common\chunk_allocator.h" />
-    <ClInclude Include="..\src\common\cmp.h" />
+    <ClInclude Include="..\src\common\minmax.h" />
+    <ClInclude Include="..\src\common\round.h" />
     <ClInclude Include="..\src\common\find.h" />
     <ClInclude Include="..\src\common\guid.h" />
     <ClInclude Include="..\src\common\hashstring.h" />
@@ -62,13 +69,16 @@
     <ClInclude Include="..\src\common\hash.h" />
     <ClInclude Include="..\src\common\int_types.h" />
     <ClInclude Include="..\src\common\macro.h" />
-    <ClInclude Include="..\src\common\memory.h" />
     <ClInclude Include="..\src\common\random.h" />
+    <ClInclude Include="..\src\common\sort.h" />
     <ClInclude Include="..\src\common\strhash.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\text.h" />
     <ClInclude Include="..\src\common\type.h" />
+    <ClInclude Include="..\src\common\typedecl.h" />
+    <ClInclude Include="..\src\common\typeid.h" />
     <ClInclude Include="..\src\common\unroll.h" />
+    <ClInclude Include="..\src\common\valist.h" />
     <ClInclude Include="..\src\components\component.h" />
     <ClInclude Include="..\src\components\ecs.h" />
     <ClInclude Include="..\src\components\entity.h" />
@@ -76,6 +86,7 @@
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\bitfield.h" />
     <ClInclude Include="..\src\containers\dict.h" />
+    <ClInclude Include="..\src\containers\generational.h" />
     <ClInclude Include="..\src\containers\initlist.h" />
     <ClInclude Include="..\src\containers\ring.h" />
     <ClInclude Include="..\src\containers\slice.h" />

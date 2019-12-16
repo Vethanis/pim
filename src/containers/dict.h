@@ -9,8 +9,7 @@ struct Dict
     Array<K> m_keys;
     Array<V> m_values;
 
-    inline static u32 GetHash(K key) { return Fnv32T(key); }
-    inline static bool Equals(K lhs, K rhs) { return MemEq(&lhs, &rhs, sizeof(K)); }
+    inline static constexpr u32 GetHash(K key) { return Fnv32Bytes(&key, sizeof(K)); }
 
     inline i32 Size() const { return m_keys.Size(); }
     inline i32 Capacity() const { return m_keys.Capacity(); }
@@ -44,13 +43,13 @@ struct Dict
     inline i32 Find(K key, u32 hash) const
     {
         const i32 count = m_hashes.Size();
-        const u32* hashes = m_hashes.begin();
-        const K* keys = m_keys.begin();
+        const u32* const hashes = m_hashes.begin();
+        const K* const keys = m_keys.begin();
         for (i32 i = count - 1; i >= 0; --i)
         {
             if (hashes[i] == hash)
             {
-                if (Equals(keys[i], key))
+                if (key == keys[i])
                 {
                     return i;
                 }
@@ -127,9 +126,9 @@ struct DictTable
     static constexpr u32 Width = t_width;
     static constexpr u32 Mask = t_width - 1u;
 
-    StaticAssert((t_width & (t_width - 1u)) == 0);
+    SASSERT((t_width & (t_width - 1u)) == 0);
 
-    inline static u32 GetHash(K key)
+    inline static constexpr u32 GetHash(K key)
     {
         return Dict<K, V>::GetHash(key);
     }

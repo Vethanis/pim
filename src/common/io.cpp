@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <io.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <direct.h>
@@ -15,7 +16,6 @@
 #include "common/io.h"
 #include "common/macro.h"
 #include "common/stringutil.h"
-#include "common/memory.h"
 
 namespace IO
 {
@@ -41,12 +41,12 @@ namespace IO
 
     FD Create(cstr filename, EResult& err)
     {
-        Assert(filename);
+        ASSERT(filename);
         return { NotNeg(_creat(filename, _S_IREAD | _S_IWRITE), err) };
     }
     FD Open(cstr filename, u32 flags, EResult& err)
     {
-        Assert(filename);
+        ASSERT(filename);
         return { NotNeg(_open(filename, (i32)flags, _S_IREAD | _S_IWRITE), err) };
     }
     void Close(FD& hdl, EResult& err)
@@ -61,37 +61,37 @@ namespace IO
     }
     i32 Read(FD hdl, void* dst, usize size, EResult& err)
     {
-        Assert(IsOpen(hdl));
-        Assert(dst);
-        Assert(size);
+        ASSERT(IsOpen(hdl));
+        ASSERT(dst);
+        ASSERT(size);
         return NotNeg(_read(hdl.fd, dst, (u32)size), err);
     }
     i32 Write(FD hdl, const void* src, usize size, EResult& err)
     {
-        Assert(IsOpen(hdl));
-        Assert(src);
-        Assert(size);
+        ASSERT(IsOpen(hdl));
+        ASSERT(src);
+        ASSERT(size);
         return NotNeg(_write(hdl.fd, src, (u32)size), err);
     }
     i32 Puts(cstrc str, FD hdl)
     {
-        Assert(str);
-        Assert(IsOpen(hdl));
+        ASSERT(str);
+        ASSERT(IsOpen(hdl));
         EResult err = EUnknown;
         i32 ct = Write(hdl, str, StrLen(str), err);
-        Assert(err == ESuccess);
+        ASSERT(err == ESuccess);
         ct += Write(hdl, "\n", 1, err);
-        Assert(err == ESuccess);
+        ASSERT(err == ESuccess);
         return ct;
     }
     i32 Seek(FD hdl, isize offset, EResult& err)
     {
-        Assert(IsOpen(hdl));
+        ASSERT(IsOpen(hdl));
         return NotNeg((i32)_lseek(hdl.fd, (i32)offset, SEEK_SET), err);
     }
     i32 Tell(FD hdl, EResult& err)
     {
-        Assert(IsOpen(hdl));
+        ASSERT(IsOpen(hdl));
         return NotNeg(_tell(hdl.fd), err);
     }
     void Pipe(FD& p0, FD& p1, usize bufferSize, EResult& err)
@@ -103,7 +103,7 @@ namespace IO
     }
     void Stat(FD hdl, Status& status, EResult& err)
     {
-        Assert(IsOpen(hdl));
+        ASSERT(IsOpen(hdl));
         status = {};
         IsZero(_fstat64(hdl.fd, (struct _stat64*)&status), err);
     }
@@ -112,8 +112,8 @@ namespace IO
 
     Stream FOpen(cstr filename, cstr mode, EResult& err)
     {
-        Assert(filename);
-        Assert(mode);
+        ASSERT(filename);
+        ASSERT(mode);
         return { NotNull(fopen(filename, mode), err) };
     }
     void FClose(Stream& stream, EResult& err)
@@ -127,43 +127,43 @@ namespace IO
     }
     void FFlush(Stream stream, EResult& err)
     {
-        Assert(IsOpen(stream));
+        ASSERT(IsOpen(stream));
         IsZero(fflush((FILE*)stream.ptr), err);
     }
     usize FRead(Stream stream, void* dst, usize size, EResult& err)
     {
-        Assert(IsOpen(stream));
-        Assert(dst);
-        Assert(size);
+        ASSERT(IsOpen(stream));
+        ASSERT(dst);
+        ASSERT(size);
         usize ct = fread(dst, 1, size, (FILE*)stream.ptr);
         err = ct == size ? ESuccess : EFail;
         return ct;
     }
     usize FWrite(Stream stream, const void* src, usize size, EResult& err)
     {
-        Assert(IsOpen(stream));
-        Assert(src);
-        Assert(size);
+        ASSERT(IsOpen(stream));
+        ASSERT(src);
+        ASSERT(size);
         usize ct = fwrite(src, 1, size, (FILE*)stream.ptr);
         err = ct == size ? ESuccess : EFail;
         return ct;
     }
     void FGets(Stream stream, char* dst, usize size, EResult& err)
     {
-        Assert(IsOpen(stream));
-        Assert(dst);
-        Assert(size > 0);
+        ASSERT(IsOpen(stream));
+        ASSERT(dst);
+        ASSERT(size > 0);
         NotNull(fgets(dst, (i32)(size - 1), (FILE*)stream.ptr), err);
     }
     i32 FPuts(Stream stream, cstr src, EResult& err)
     {
-        Assert(IsOpen(stream));
-        Assert(src);
+        ASSERT(IsOpen(stream));
+        ASSERT(src);
         return NotNeg(fputs(src, (FILE*)stream.ptr), err);
     }
     FD FileNo(Stream stream, EResult& err)
     {
-        Assert(IsOpen(stream));
+        ASSERT(IsOpen(stream));
         return { NotNeg(_fileno((FILE*)stream.ptr), err) };
     }
     Stream FDOpen(FD& hdl, cstr mode, EResult& err)
@@ -177,18 +177,18 @@ namespace IO
     }
     void FSeek(Stream stream, isize offset, EResult& err)
     {
-        Assert(IsOpen(stream));
+        ASSERT(IsOpen(stream));
         NotNeg(fseek((FILE*)stream.ptr, (i32)offset, SEEK_SET), err);
     }
     i32 FTell(Stream stream, EResult& err)
     {
-        Assert(IsOpen(stream));
+        ASSERT(IsOpen(stream));
         return NotNeg(ftell((FILE*)stream.ptr), err);
     }
     Stream POpen(cstr cmd, cstr mode, EResult& err)
     {
-        Assert(cmd);
-        Assert(mode);
+        ASSERT(cmd);
+        ASSERT(mode);
         FILE* file = _popen(cmd, mode);
         return { NotNull(file, err) };
     }
@@ -220,34 +220,34 @@ namespace IO
     }
     void GetCwd(char* dst, i32 size, EResult& err)
     {
-        Assert(dst);
-        Assert(size > 0);
+        ASSERT(dst);
+        ASSERT(size > 0);
         NotNull(_getcwd(dst, size), err);
     }
     void GetDrCwd(i32 drive, char* dst, i32 size, EResult& err)
     {
-        Assert(dst);
-        Assert(size > 0);
+        ASSERT(dst);
+        ASSERT(size > 0);
         NotNull(_getdcwd(drive, dst, size), err);
     }
     void ChDir(cstr path, EResult& err)
     {
-        Assert(path);
+        ASSERT(path);
         IsZero(_chdir(path), err);
     }
     void MkDir(cstr path, EResult& err)
     {
-        Assert(path);
+        ASSERT(path);
         IsZero(_mkdir(path), err);
     }
     void RmDir(cstr path, EResult& err)
     {
-        Assert(path);
+        ASSERT(path);
         IsZero(_rmdir(path), err);
     }
     void ChMod(cstr path, u32 flags, EResult& err)
     {
-        Assert(path);
+        ASSERT(path);
         IsZero(_chmod(path, (i32)flags), err);
     }
 
@@ -255,22 +255,22 @@ namespace IO
 
     void SearchEnv(cstr filename, cstr varname, char(&dst)[260], EResult& err)
     {
-        Assert(filename);
-        Assert(varname);
+        ASSERT(filename);
+        ASSERT(varname);
         dst[0] = 0;
         _searchenv(filename, varname, dst);
         err = dst[0] != 0 ? ESuccess : EFail;
     }
     cstr GetEnv(cstr varname, EResult& err)
     {
-        Assert(varname);
+        ASSERT(varname);
         return (cstr)NotNull(getenv(varname), err);
     }
     void PutEnv(cstr varname, cstr value, EResult& err)
     {
-        Assert(varname);
+        ASSERT(varname);
         char buf[260];
-        SPrintf(argof(buf), "%s=%s", varname, value ? value : "");
+        SPrintf(ARGS(buf), "%s=%s", varname, value ? value : "");
         IsZero(_putenv(buf), err);
     }
 
@@ -285,7 +285,7 @@ namespace IO
         switch (fdr.state)
         {
         case 0:
-            Assert(spec);
+            ASSERT(spec);
             fdr.hdl = _findfirst64(spec, (struct __finddata64_t*)&data);
             if (IsOpen(fdr))
             {
@@ -297,7 +297,7 @@ namespace IO
             err = EFail;
             return false;
         case 1:
-            Assert(IsOpen(fdr));
+            ASSERT(IsOpen(fdr));
             if (!_findnext64(fdr.hdl, (struct __finddata64_t*)&data))
             {
                 return true;
@@ -307,7 +307,7 @@ namespace IO
             fdr.state = 0;
             return false;
         default:
-            DebugInterrupt();
+            DBG_INT();
             err = EFail;
             fdr.hdl = -1;
             fdr.state = 0;
@@ -337,25 +337,25 @@ namespace IO
 
             if (data.attrib & FAF_SubDir)
             {
-                if (!StrCmp(argof(data.name), ".") ||
-                    !StrCmp(argof(data.name), ".."))
+                if (!StrCmp(ARGS(data.name), ".") ||
+                    !StrCmp(ARGS(data.name), ".."))
                 {
                     continue;
                 }
 
                 Directory& child = dir.subdirs.Grow();
                 SPrintf(
-                    argof(child.data.name),
+                    ARGS(child.data.name),
                     "%s\\%s",
                     dir.data.name,
                     data.name);
                 child.subdirs = {};
                 child.files = {};
                 char buffer[256] = {};
-                StrCpy(argof(buffer), spec);
-                StrRep(argof(buffer), "\\*", "\\");
-                StrCat(argof(buffer), data.name);
-                StrCat(argof(buffer), "\\*");
+                StrCpy(ARGS(buffer), spec);
+                StrRep(ARGS(buffer), "\\*", "\\");
+                StrCat(ARGS(buffer), data.name);
+                StrCat(ARGS(buffer), "\\*");
                 ListDir(child, buffer, err);
             }
             else
@@ -363,7 +363,7 @@ namespace IO
                 FindData& child = dir.files.Grow();
                 child = data;
                 SPrintf(
-                    argof(child.name),
+                    ARGS(child.name),
                     "%s\\%s",
                     dir.data.name,
                     data.name);
@@ -375,8 +375,8 @@ namespace IO
 
     void OpenModule(cstr filename, Module& dst, EResult& err)
     {
-        Assert(filename);
-        Assert(!dst.hdl);
+        ASSERT(filename);
+        ASSERT(!dst.hdl);
         dst.hdl = NotNull(::LoadLibraryA(filename), err);
     }
 
@@ -393,14 +393,14 @@ namespace IO
 
     void GetModule(cstr name, Module& dst, EResult& err)
     {
-        Assert(!dst.hdl);
+        ASSERT(!dst.hdl);
         dst.hdl = NotNull(::GetModuleHandleA(name), err);
     }
 
     void GetModuleName(Module mod, char* dst, u32 dstSize, EResult& err)
     {
-        Assert(dst);
-        Assert(dstSize);
+        ASSERT(dst);
+        ASSERT(dstSize);
         dst[0] = 0;
         u32 wrote = ::GetModuleFileNameA((HMODULE)mod.hdl, dst, dstSize);
         err = wrote != 0 ? ESuccess : EFail;
@@ -408,8 +408,8 @@ namespace IO
 
     void GetModuleFunc(Module mod, cstr name, void** pFunc, EResult& err)
     {
-        Assert(name);
-        Assert(pFunc);
+        ASSERT(name);
+        ASSERT(pFunc);
         *pFunc = NotNull(::GetProcAddress((HMODULE)mod.hdl, name), err);
     }
 
@@ -417,11 +417,11 @@ namespace IO
 
     void Curl(cstr url, Array<char>& result, EResult& err)
     {
-        Assert(url);
+        ASSERT(url);
         result.Clear();
         char cmd[1024];
         SPrintf(
-            argof(cmd),
+            ARGS(cmd),
             "tools\\curl\\curl.exe --cacert tools\\curl\\ssl\\cert.pem -L -B %s",
             url);
         Stream stream = POpen(cmd, "rb", err);
@@ -429,13 +429,13 @@ namespace IO
         {
             while (true)
             {
-                i32 bytesRead = (i32)FRead(stream, argof(cmd), err);
+                i32 bytesRead = (i32)FRead(stream, ARGS(cmd), err);
                 if (bytesRead == 0)
                 {
                     break;
                 }
                 i32 prevSize = result.ResizeRel(bytesRead);
-                MemCpy(result.begin() + prevSize, cmd, bytesRead);
+                memcpy(result.begin() + prevSize, cmd, bytesRead);
             }
         }
         PClose(stream, err);

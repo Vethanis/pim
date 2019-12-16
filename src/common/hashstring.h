@@ -4,13 +4,13 @@
 #include "common/int_types.h"
 #include "common/strhash.h"
 
-using HashKey = u64;
+using HashKey = u32;
 
 namespace HStr
 {
     inline constexpr HashKey Hash(cstrc src)
     {
-        return StrHash64(src);
+        return StrHash32(src);
     }
 
 #if _DEBUG
@@ -48,8 +48,8 @@ struct HashString
 
     inline cstr DebugGet() const
     {
-        IfDebug(return HStr::Lookup(Value));
-        IfNotDebug(return nullptr);
+        IF_DEBUG(return HStr::Lookup(Value));
+        IFN_DEBUG(return nullptr);
     }
 
 }; // HashString

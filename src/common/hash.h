@@ -50,7 +50,7 @@ inline constexpr u32 Fnv32Qword(u64 x, u32 hash = Fnv32Bias)
 
 inline constexpr u32 Fnv32String(cstrc ptr, u32 hash = Fnv32Bias)
 {
-    Assert(ptr);
+    ASSERT(ptr);
 
     for (i32 i = 0; ptr[i]; ++i)
     {
@@ -64,7 +64,7 @@ inline constexpr u32 Fnv32Array(
     i32 len,
     u32 hash = Fnv32Bias)
 {
-    Assert(ptr);
+    ASSERT(ptr);
     for (i32 i = 0; i < len; ++i)
     {
         hash = Fnv32Byte(ptr[i], hash);
@@ -72,46 +72,33 @@ inline constexpr u32 Fnv32Array(
     return hash;
 }
 
-inline u32 Fnv32Bytes(const void* ptr, i32 nBytes, u32 hash = Fnv32Bias)
+inline constexpr u32 Fnv32Bytes(const void* const ptr, i32 nBytes, u32 hash = Fnv32Bias)
 {
-    Assert(ptr || !nBytes);
+    ASSERT(ptr || !nBytes);
 
     i32 n16 = 0, n4 = 0, n1 = 0;
     Unroll16(nBytes, n16, n4, n1);
+    const i32 n8 = n16 * 2;
 
-    const u64* p8s = (const u64*)ptr;
-    for (i32 i = 0; i < n16; ++i)
+    const u64* const p8s = (const u64* const)ptr;
+    for (i32 i = 0; i < n8; ++i)
     {
-        hash = Fnv32Qword(*p8s++, hash);
-        hash = Fnv32Qword(*p8s++, hash);
+        hash = Fnv32Qword(p8s[i], hash);
     }
 
-    const u32* p4s = (const u32*)p8s;
+    const u32* const p4s = (const u32* const)(p8s + n8);
     for (i32 i = 0; i < n4; ++i)
     {
-        hash = Fnv32Dword(*p4s++);
+        hash = Fnv32Dword(p4s[i]);
     }
 
-    const u8* p1s = (const u8*)p4s;
+    const u8* const p1s = (const u8* const)(p4s + n4);
     for(i32 i = 0; i < n1; ++i)
     {
-        hash = Fnv32Byte(*p1s++);
+        hash = Fnv32Byte(p1s[i]);
     }
 
     return hash;
-}
-
-template<typename T>
-inline u32 Fnv32S(Slice<const T> src, u32 hash = Fnv32Bias)
-{
-    Slice<const u8> bytes = src.to_bytes();
-    return Fnv32Bytes(bytes.begin(), bytes.size(), hash);
-}
-
-template<typename T>
-inline u32 Fnv32T(const T& x, u32 hash = Fnv32Bias)
-{
-    return Fnv32Bytes(&x, sizeof(T), hash);
 }
 
 // ----------------------------------------------------------------------------
@@ -156,7 +143,7 @@ inline constexpr u64 Fnv64Qword(u64 x, u64 hash = Fnv64Bias)
 
 inline constexpr u64 Fnv64String(cstrc ptr, u64 hash = Fnv64Bias)
 {
-    Assert(ptr);
+    ASSERT(ptr);
 
     for (i32 i = 0; ptr[i]; ++i)
     {
@@ -165,44 +152,31 @@ inline constexpr u64 Fnv64String(cstrc ptr, u64 hash = Fnv64Bias)
     return hash;
 }
 
-inline u64 Fnv64Bytes(const void* ptr, i32 nBytes, u64 hash = Fnv64Bias)
+inline constexpr u64 Fnv64Bytes(const void* const ptr, i32 nBytes, u64 hash = Fnv64Bias)
 {
-    Assert(ptr || !nBytes);
+    ASSERT(ptr || !nBytes);
 
     i32 n16 = 0, n4 = 0, n1 = 0;
     Unroll16(nBytes, n16, n4, n1);
+    const i32 n8 = n16 * 2;
 
-    const u64* p8s = (const u64*)ptr;
-    for (i32 i = 0; i < n16; ++i)
+    const u64* const p8s = (const u64* const)ptr;
+    for (i32 i = 0; i < n8; ++i)
     {
-        hash = Fnv64Qword(*p8s++, hash);
-        hash = Fnv64Qword(*p8s++, hash);
+        hash = Fnv64Qword(p8s[i], hash);
     }
 
-    const u32* p4s = (const u32*)p8s;
+    const u32* const p4s = (const u32* const)(p8s + n8);
     for (i32 i = 0; i < n4; ++i)
     {
-        hash = Fnv64Dword(*p4s++);
+        hash = Fnv64Dword(p4s[i]);
     }
 
-    const u8* p1s = (const u8*)p4s;
+    const u8* const p1s = (const u8* const)(p4s + n4);
     for (i32 i = 0; i < n1; ++i)
     {
-        hash = Fnv64Byte(*p1s++);
+        hash = Fnv64Byte(p1s[i]);
     }
 
     return hash;
-}
-
-template<typename T>
-inline u64 Fnv64S(Slice<const T> src, u64 hash = Fnv64Bias)
-{
-    Slice<const u8> bytes = src.to_bytes();
-    return Fnv64Bytes(bytes.begin(), bytes.size(), hash);
-}
-
-template<typename T>
-inline u64 Fnv64T(const T& x, u64 hash = Fnv64Bias)
-{
-    return Fnv64Bytes(&x, sizeof(T), hash);
 }

@@ -51,9 +51,9 @@ namespace RenderSystem
         ms_width = sapp_width();
         ms_height = sapp_height();
 
-        Entity map = Ecs::Create("Map Test");
-        Ecs::Add<ModelMatrix>(map);
-        Ecs::Add<Renderable>(map);
+        //Entity map = Ecs::Create("Map Test");
+        //Ecs::Add<ModelMatrix>(map);
+        //Ecs::Add<Renderable>(map);
     }
 
     void Update()
@@ -62,14 +62,14 @@ namespace RenderSystem
         ms_height = sapp_height();
         simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
 
-        Entity map = Ecs::Find("Map Test");
-        Assert(map.IsNotNull());
+        //Entity map = Ecs::Find("Map Test");
+        //ASSERT(map.IsNotNull());
 
-        for (Entity entity : Ecs::Search({ CTypeOf<Renderable>(), CTypeOf<ModelMatrix>() }))
-        {
-            ModelMatrix& transform = Ecs::Get<ModelMatrix>(entity);
-            Renderable& renderable = Ecs::Get<Renderable>(entity);
-        }
+        //for (Entity entity : Ecs::Search({ CTypeOf<Renderable>(), CTypeOf<ModelMatrix>() }))
+        //{
+        //    ModelMatrix& transform = Ecs::Get<ModelMatrix>(entity);
+        //    Renderable& renderable = Ecs::Get<Renderable>(entity);
+        //}
     }
 
     void Shutdown()

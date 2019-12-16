@@ -15,10 +15,10 @@ namespace OS
     Semaphore Semaphore::Create(u32 initialValue)
     {
         constexpr u32 MaxValue = 0xFFFFFFF;
-        Assert(initialValue <= MaxValue);
+        ASSERT(initialValue <= MaxValue);
         // https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createsemaphorea
         void* h = ::CreateSemaphoreA(0, initialValue, MaxValue, 0);
-        Assert(h);
+        ASSERT(h);
         return { h };
     }
 
@@ -27,27 +27,27 @@ namespace OS
         if (handle)
         {
             bool closed = ::CloseHandle(handle);
-            Assert(closed);
+            ASSERT(closed);
             handle = 0;
         }
     }
 
     void Semaphore::Signal(u32 count)
     {
-        Assert(handle);
+        ASSERT(handle);
         // increment by count
         // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-releasesemaphore
         bool rval = ::ReleaseSemaphore(handle, count, 0);
-        Assert(rval);
+        ASSERT(rval);
     }
 
     void Semaphore::Wait()
     {
-        Assert(handle);
+        ASSERT(handle);
         // decrement by one
         // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
         u32 status = ::WaitForSingleObject(handle, INFINITE);
-        Assert(!status);
+        ASSERT(!status);
     }
 
     // ----------------------------------------------------------------------------
@@ -67,7 +67,7 @@ namespace OS
             data,
             0,
             &id);
-        Assert(hdl);
+        ASSERT(hdl);
         return { hdl, id };
     }
 
@@ -77,9 +77,9 @@ namespace OS
         {
             // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
             u32 status = ::WaitForSingleObject(handle, INFINITE);
-            Assert(!status);
+            ASSERT(!status);
             bool closed = ::CloseHandle(handle);
-            Assert(closed);
+            ASSERT(closed);
             handle = 0;
             id = 0;
         }

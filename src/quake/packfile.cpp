@@ -6,29 +6,29 @@ namespace Quake
 {
     Pack LoadPack(cstrc dir, Array<DPackFile>& arena, EResult& err)
     {
-        Assert(dir);
+        ASSERT(dir);
         Pack retval = {};
         retval.name = HashString(dir);
 
         IO::FDGuard file = IO::Open(dir, IO::OBinSeqRead, err);
-        CheckErr();
+        CHECKERR();
 
         DPackHeader header;
         i32 nRead = IO::Read(file, &header, sizeof(header), err);
-        CheckErr();
-        Check(nRead == sizeof(header));
-        Check(!MemCmp(header.id, "PACK", 4));
+        CHECKERR();
+        CHECK(nRead == sizeof(header));
+        CHECK(!memcmp(header.id, "PACK", 4));
 
         const i32 numPackFiles = header.length / sizeof(DPackFile);
-        Check(numPackFiles > 0);
+        CHECK(numPackFiles > 0);
 
         IO::Seek(file, header.offset, err);
-        CheckErr();
+        CHECKERR();
 
         arena.Resize(numPackFiles);
         nRead = IO::Read(file, arena.begin(), header.length, err);
-        CheckErr();
-        Check(nRead == header.length);
+        CHECKERR();
+        CHECK(nRead == header.length);
 
         retval.descriptor = file.Take();
         retval.filenames.Resize(numPackFiles);
@@ -50,27 +50,28 @@ namespace Quake
         pack.filenames.Reset();
         for (PackFile& file : pack.files)
         {
-            Allocator::Free(file.content);
+            Allocator::Free(file.content.begin());
+            file.content = { 0, 0 };
         }
         pack.files.Reset();
     }
 
     Folder LoadFolder(cstrc dir, Array<DPackFile>& arena, EResult& err)
     {
-        Assert(dir);
+        ASSERT(dir);
         Folder retval = {};
         retval.name = HashString(dir);
 
         char packDir[PIM_PATH];
-        SPrintf(argof(packDir), "%s/*.pak", dir);
-        FixPath(argof(packDir));
+        SPrintf(ARGS(packDir), "%s/*.pak", dir);
+        FixPath(ARGS(packDir));
 
         IO::FindData fdata = {};
         IO::Finder fder = {};
         while (IO::Find(fder, fdata, packDir, err))
         {
-            SPrintf(argof(packDir), "%s/%s", dir, fdata.name);
-            FixPath(argof(packDir));
+            SPrintf(ARGS(packDir), "%s/%s", dir, fdata.name);
+            FixPath(ARGS(packDir));
             Pack pack = LoadPack(packDir, arena, err);
             if (err == ESuccess)
             {

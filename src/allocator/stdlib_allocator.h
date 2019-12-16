@@ -1,34 +1,42 @@
 #pragma once
 
-#include "allocator/base_allocator.h"
+#include "common/macro.h"
+#include "allocator/allocator_vtable.h"
 #include <stdlib.h>
 
-struct StdlibAllocator final : BaseAllocator
+namespace Allocator
 {
-    inline void Init(i32 capacity) final {}
-    inline void Shutdown() final {}
-    inline void Clear() final {}
-
-    inline Slice<u8> Alloc(i32 count) final
+    struct Stdlib
     {
-        return
+        void Init(void* memory, i32 bytes) { }
+        void Shutdown() { }
+        void Clear() { }
+
+        Header* Alloc(i32 count)
         {
-            (u8*)malloc(count),
-            count,
-        };
-    }
+            Header* hdr = (Header*)malloc(count);
+            ASSERT(hdr);
+            hdr->type = Alloc_Stdlib;
+            hdr->size = count;
+            return hdr;
+        }
 
-    inline Slice<u8> Realloc(Slice<u8> prev, i32 count) final
-    {
-        return
+        Header* Realloc(Header* prev, i32 count)
         {
-            (u8*)realloc(prev.begin(), count),
-            count,
-        };
-    }
+            Header* hdr = (Header*)realloc(prev, count);
+            ASSERT(hdr);
+            hdr->size = count;
+            hdr->type = Alloc_Stdlib;
+            return hdr;
+        }
 
-    inline void Free(Slice<u8> prev) final
-    {
-        free(prev.begin());
-    }
+        void Free(Header* prev)
+        {
+            ASSERT(prev);
+            ASSERT(prev->type == Alloc_Stdlib);
+            free(prev);
+        }
+
+        static constexpr const VTable Table = VTable::Create<Stdlib>();
+    };
 };

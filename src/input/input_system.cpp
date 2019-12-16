@@ -5,6 +5,7 @@
 
 #include "common/macro.h"
 #include "containers/array.h"
+#include "common/find.h"
 #include "time/time_system.h"
 
 // ----------------------------------------------------------------------------
@@ -71,19 +72,19 @@ namespace InputSystem
 {
     void Listen(InputChannel channel, InputListener onEvent)
     {
-        Assert(onEvent);
+        ASSERT(onEvent);
         if (onEvent)
         {
-            ms_listeners[channel].UniquePush(onEvent);
+            UniquePush(ms_listeners[channel], onEvent);
         }
     }
 
     void Deafen(InputChannel channel, InputListener onEvent)
     {
-        Assert(onEvent);
+        ASSERT(onEvent);
         if (onEvent)
         {
-            ms_listeners[channel].FindRemove(onEvent);
+            FindRemove(ms_listeners[channel], onEvent);
         }
     }
 
@@ -138,7 +139,7 @@ namespace InputSystem
         ImGui::SetNextWindowSize({ 400.0f, 400.0f }, ImGuiCond_Once);
         ImGui::Begin("CtrlSystem");
         {
-            for (u32 i = 0; i < countof(ms_listeners); ++i)
+            for (u32 i = 0; i < NELEM(ms_listeners); ++i)
             {
                 if (ImGui::CollapsingHeader(ms_storeNames[i]))
                 {

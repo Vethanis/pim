@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common/round.h"
 #include "containers/slice.h"
 #include "containers/array.h"
 #include "containers/initlist.h"
@@ -8,7 +9,7 @@ template<typename T, u32 ct>
 struct BitField
 {
     static constexpr u32 NumBits = ct;
-    static constexpr u32 NumDwords = DivRound(NumBits, 32);
+    static constexpr u32 NumDwords = DivRound(NumBits, 32u);
 
     u32 m_dwords[NumDwords];
 

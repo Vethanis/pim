@@ -2,4 +2,4 @@
 
 #include "common/macro.h"
 
-#define IM_ASSERT Assert
+#define IM_ASSERT ASSERT

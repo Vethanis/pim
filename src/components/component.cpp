@@ -1,39 +1,21 @@
 #include "components/component.h"
+#include "containers/array.h"
 
-namespace Component
+static Array<i32> ms_sizes;
+
+namespace ComponentRegistry
 {
-    static i32 ms_sizes[ComponentType_Count];
-    static DropFn ms_dropFns[ComponentType_Count];
-
-    void SetSize(ComponentType type, i32 size)
+    void Register(ComponentId id, i32 size)
     {
-        Assert(ValidType(type));
-        Assert(size > 0);
-        Assert(ms_sizes[type] == 0);
-        ms_sizes[type] = size;
+        while (id.Value >= ms_sizes.Size())
+        {
+            ms_sizes.Grow() = 0;
+        }
+        ms_sizes[id.Value] = size;
     }
 
-    i32 SizeOf(ComponentType type)
+    i32 Size(ComponentId id)
     {
-        Assert(ValidType(type));
-        Assert(ms_sizes[type] > 0);
-        return ms_sizes[type];
+        return ms_sizes[id.Value];
     }
-
-    void SetDropFn(ComponentType type, DropFn fn)
-    {
-        Assert(ValidType(type));
-        Assert(fn != nullptr);
-        Assert(ms_dropFns[type] == nullptr);
-        ms_dropFns[type] = fn;
-    }
-
-    void Drop(ComponentType type, void* pVoid)
-    {
-        Assert(ValidType(type));
-        Assert(pVoid != nullptr);
-        Assert(ms_dropFns[type] != nullptr);
-        ms_dropFns[type](pVoid);
-    }
-
 };

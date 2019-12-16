@@ -2,463 +2,210 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "containers/initlist.h"
+#include "common/guid.h"
 #include "common/hashstring.h"
+#include "common/sort.h"
+#include "common/find.h"
+
+#include "containers/initlist.h"
 #include "containers/slice.h"
 #include "containers/array.h"
-#include "containers/bitfield.h"
+#include "containers/dict.h"
+#include "containers/generational.h"
+
 #include "components/entity.h"
 #include "components/component.h"
-
-
-using ComponentFlags = BitField<ComponentType, ComponentType_Count>;
-
-struct EntityQuery
-{
-    ComponentFlags all;
-    ComponentFlags any;
-    ComponentFlags none;
-
-    inline constexpr EntityQuery(
-        std::initializer_list<ComponentType> allList = {},
-        std::initializer_list<ComponentType> anyList = {},
-        std::initializer_list<ComponentType> noneList = {})
-        : all(allList), any(anyList), none(noneList) {}
-};
 
 namespace Ecs
 {
     void Init();
     void Shutdown();
 
-    Slice<const Entity> Search(EntityQuery query);
-
     // ------------------------------------------------------------------------
 
-    struct Row
+    struct ComponentInfo
     {
-        Array<u16> m_versions;
-        Array<u8> m_components;
-        ComponentType m_type;
-        i32 m_count;
+        ComponentId* ids;   // id of each component, sorted (required for deterministic guids from hash)
+        i32* strides;       // size of each component
+        i32 count;          // number of components in the archetype
+        i32 bytesPerEntity; // bytes required for each entity
+    };
 
-        void Reset();
+    struct ChunkInfo
+    {
+        i32* offsets;       // offset to each component lane
+        i32 count;          // number of resident entities
+        i32 capacity;       // number of entities this chunk can hold
+        i32 entityOffset;   // 0th entity will have this index
+    };
 
-        inline bool IsEmpty() const
-        {
-            return m_count == 0;
-        }
+    // dynamic struct Chunk
+    // {
+    //     T0 t0s[capacity];
+    //     T1 t1s[capacity];
+    //     etc
+    // };
+    struct Chunk { };
 
-        inline bool IsNull() const
-        {
-            return m_type == ComponentType_Null;
-        }
+    struct Archetype
+    {
+        GenIdAllocator entAllocator;    // entity allocator
+        ComponentInfo compInfo;         // component info
+        Array<ChunkInfo> chunkInfos;    // chunk infos
+        Array<Chunk*> chunks;           // chunk pointers
+        i32 entityBegin;                // 0th entity of entAllocator will have this index
+        i32 entityEnd;
+    };
 
-        template<typename T>
-        inline bool SameType() const
-        {
-            return CTypeOf<T>() == m_type;
-        }
-
-        inline Slice<const u16> Versions() const
-        {
-            return m_versions;
-        }
-
-        inline Slice<const u8> Components() const
-        {
-            return m_components;
-        }
-        inline Slice<u8> Components()
-        {
-            return m_components;
-        }
-
-        template<typename T>
-        inline Slice<const T> Components() const
-        {
-            Assert((m_versions.empty() && IsNull()) || SameType<T>());
-            return m_components.cast<T>();
-        }
-        template<typename T>
-        inline Slice<T> Components()
-        {
-            Assert((m_versions.empty() && IsNull()) || SameType<T>());
-            return m_components.cast<T>();
-        }
-
-        inline bool Has(Entity entity) const
-        {
-            Assert(entity.IsNotNull());
-            return m_versions.InRange(entity.index) &&
-                (m_versions[entity.index] == entity.version);
-        }
-
-        inline bool Add(Entity entity, ComponentType type)
-        {
-            Assert(entity.IsNotNull());
-            const i32 i = entity.index;
-
-            bool inRange = m_versions.InRange(i);
-            const u16 curVersion = inRange ? m_versions[i] : 0;
-            if (curVersion)
-            {
-                return curVersion == entity.version;
-            }
-
-            if (IsNull())
-            {
-                m_type = type;
-            }
-            Assert(m_type == type);
-
-            const i32 sizeOf = Component::SizeOf(type);
-
-            if (!inRange)
-            {
-                const i32 prevLen = m_versions.Size();
-                const i32 newLen = i + 1;
-                m_versions.Resize(i + 1);
-                for (i32 iVersion = prevLen; iVersion < newLen; ++iVersion)
-                {
-                    m_versions[iVersion] = 0;
-                }
-                m_components.Resize(newLen * sizeOf);
-            }
-
-            m_versions[i] = entity.version;
-            MemClear(m_components.At(i * sizeOf), sizeOf);
-            ++m_count;
-
-            return true;
-        }
-
-        template<typename T>
-        inline bool Add(Entity entity)
-        {
-            return Add(entity, CTypeOf<T>());
-        }
-
-        inline bool Remove(Entity entity)
-        {
-            if (Has(entity))
-            {
-                Component::Drop(m_type, Get(entity));
-                m_versions[entity.index] = 0;
-                --m_count;
-                return true;
-            }
-            return false;
-        }
-
-        inline void* Get(Entity entity)
-        {
-            Assert(Has(entity));
-            return m_components.At(entity.index * Component::SizeOf(m_type));
-        }
-
-        template<typename T>
-        inline T& Get(Entity entity)
-        {
-            Assert(SameType<T>());
-            Assert(Has(entity));
-            return *(m_components.As<T>(entity.index));
-        }
+    struct Archetypes
+    {
+        DictTable<64, Guid, Archetype> table;
     };
 
     // ------------------------------------------------------------------------
 
-    struct Table
+    static Guid ToGuid(const ComponentId* ids, i32 count)
     {
-        TableId m_id;
-        ComponentFlags m_rowFlags;
-        Array<Entity> m_entities;
-        Array<HashString> m_names;
-        Array<ComponentFlags> m_entityFlags;
-        Array<u16> m_versions;
-        Array<u16> m_freelist;
-        Row m_rows[ComponentType_Count];
+        return Guid(ids, sizeof(ComponentId) * count);
+    }
 
-        void Reset();
-        Entity Create(HashString name);
-        bool Destroy(Entity entity);
+    static void Init(
+        ComponentInfo& info,
+        Slice<const ComponentId> ids)
+    {
+        info = {};
+        info.count = ids.Size();
 
-        inline Entity Find(HashString name) const
-        {
-            i32 i = m_names.RFind(name);
-            if (i != -1)
-            {
-                return m_entities[i];
-            }
-            return { TableId_Default, 0, 0 };
-        }
+        info.ids = (ComponentId*)Allocator::Alloc(
+            Alloc_Pool, ids.Bytes());
+        memcpy(info.ids, ids.begin(), ids.Bytes());
+        Sort(info.ids, info.count);
 
-        inline Row& GetRow(ComponentType type)
-        {
-            Assert(Component::ValidType(type));
-            return m_rows[type];
-        }
-        inline const Row& GetRow(ComponentType type) const
-        {
-            Assert(Component::ValidType(type));
-            return m_rows[type];
-        }
-        template<typename T>
-        inline Row& GetRow()
-        {
-            return GetRow(CTypeOf<T>());
-        }
-        template<typename T>
-        inline const Row& GetRow() const
-        {
-            return GetRow(CTypeOf<T>());
-        }
+        info.strides = (i32*)Allocator::Alloc(
+            Alloc_Pool, sizeof(i32) * info.count);
 
-        inline i32 Size() const
+        info.bytesPerEntity = 0;
+        for (i32 i = 0; i < info.count; ++i)
         {
-            return m_versions.Size();
+            info.strides[i] = ComponentRegistry::Size(info.ids[i]);
+            info.bytesPerEntity += info.strides[i];
         }
+    }
 
-        inline bool InRange(Entity entity) const
-        {
-            Assert(entity.table == m_id);
-            return m_versions.InRange(entity.index);
-        }
+    static Guid Init(
+        Archetype& arch,
+        Slice<const ComponentId> ids,
+        i32 entityBegin,
+        i32 entityEnd)
+    {
+        arch = {};
+        arch.entAllocator.Init(Alloc_Pool);
+        arch.chunkInfos.Init(Alloc_Pool);
+        arch.chunks.Init(Alloc_Pool);
+        arch.entityBegin = entityBegin;
+        arch.entityEnd = entityEnd;
+        Init(arch.compInfo, ids);
+        return ToGuid(arch.compInfo.ids, arch.compInfo.count);
+    }
 
-        inline bool IsCurrent(Entity entity) const
+    static void Init(
+        ChunkInfo& chunkInfo,
+        ComponentInfo compInfo,
+        i32 capacity,
+        i32 entityOffset)
+    {
+        chunkInfo = {};
+        chunkInfo.capacity = capacity;
+        chunkInfo.count = 0;
+        chunkInfo.entityOffset = entityOffset;
+        chunkInfo.offsets = (i32*)Allocator::Alloc(
+            Alloc_Pool, compInfo.count * sizeof(i32));
+        i32 offset = 0;
+        for (i32 i = 0; i < compInfo.count; ++i)
         {
-            Assert(entity.table == m_id);
-            return m_versions[entity.index] == entity.version;
+            chunkInfo.offsets[i] = offset;
+            offset += capacity * compInfo.strides[i];
         }
+    }
 
-        inline bool IsCurrent(i32 i) const
+    static Chunk* AddChunk(Archetype& arch, i32 capacity)
+    {
+        i32 entityOffset = arch.entityBegin;
+        for (const ChunkInfo& info : arch.chunkInfos)
         {
-            return m_versions[i] == m_entities[i].version;
+            entityOffset += info.capacity;
         }
+        ASSERT(entityOffset < arch.entityEnd);
 
-        inline Slice<const Entity> Entities() const
-        {
-            return m_entities;
-        }
+        Init(arch.chunkInfos.Grow(), arch.compInfo, capacity, entityOffset);
 
-        inline Slice<const u16> Versions() const
-        {
-            return m_versions;
-        }
+        const i32 bytes = capacity * arch.compInfo.bytesPerEntity;
+        Chunk* chunk = (Chunk*)Allocator::Alloc(Alloc_Pool, bytes);
+        memset(chunk, 0, bytes);
+        arch.chunks.Grow() = chunk;
 
-        inline Slice<const HashString> Names() const
-        {
-            return m_names;
-        }
-
-        inline Slice<u8> Components(ComponentType type)
-        {
-            return GetRow(type).Components();
-        }
-        template<typename T>
-        inline Slice<T> Components()
-        {
-            return GetRow<T>().Components<T>();
-        }
-
-        inline ComponentFlags RowFlags() const
-        {
-            return m_rowFlags;
-        }
-
-        inline Slice<const ComponentFlags> EntityFlags() const
-        {
-            return m_entityFlags;
-        }
-
-        inline void Clear(ComponentType type)
-        {
-            if (m_rowFlags.Has(type))
-            {
-                m_rowFlags.UnSet(type);
-                GetRow(type).Reset();
-            }
-        }
-
-        template<typename T>
-        inline void Clear()
-        {
-            Clear(CTypeOf<T>());
-        }
-
-        inline bool Has(Entity entity, ComponentType type) const
-        {
-            Assert(entity.table == m_id);
-            Assert(InRange(entity));
-            Assert(IsCurrent(entity));
-            return GetRow(type).Has(entity);
-        }
-
-        template<typename T>
-        inline bool Has(Entity entity) const
-        {
-            return Has(entity, CTypeOf<T>());
-        }
-
-        inline bool Add(Entity entity, ComponentType type)
-        {
-            Assert(entity.table == m_id);
-            Assert(InRange(entity));
-            Assert(IsCurrent(entity));
-            if (GetRow(type).Add(entity, type))
-            {
-                m_rowFlags.Set(type);
-                m_entityFlags[entity.index].Set(type);
-                return true;
-            }
-            return false;
-        }
-
-        template<typename T>
-        inline bool Add(Entity entity)
-        {
-            return Add(entity, CTypeOf<T>());
-        }
-
-        inline bool Remove(Entity entity, ComponentType type)
-        {
-            Assert(entity.table == m_id);
-            Row& row = GetRow(type);
-            if (row.Remove(entity))
-            {
-                m_entityFlags[entity.index].UnSet(type);
-                if (row.IsEmpty())
-                {
-                    row.Reset();
-                    m_rowFlags.UnSet(type);
-                }
-                return true;
-            }
-            return false;
-        }
-
-        template<typename T>
-        inline bool Remove(Entity entity)
-        {
-            return Remove(entity, CTypeOf<T>());
-        }
-
-        inline void* Get(Entity entity, ComponentType type)
-        {
-            Assert(InRange(entity));
-            Assert(IsCurrent(entity));
-            return GetRow(type).Get(entity);
-        }
-
-        template<typename T>
-        inline T& Get(Entity entity)
-        {
-            Assert(InRange(entity));
-            Assert(IsCurrent(entity));
-            return GetRow<T>().Get<T>(entity);
-        }
-
-        inline HashString Name(Entity entity) const
-        {
-            Assert(InRange(entity));
-            Assert(IsCurrent(entity));
-            return m_names[entity.index];
-        }
-    };
+        return chunk;
+    }
 
     // ------------------------------------------------------------------------
 
-    Slice<Table> Tables();
-
-    inline Table& GetTable(TableId tableId)
+    static i32 FindRow(const Archetype& arch, ComponentId id)
     {
-        return Tables()[tableId];
+        return Find(arch.compInfo.ids, arch.compInfo.count, id);
     }
 
-    inline Table& GetTable(Entity entity)
+    static i32 FindChunk(const Archetype& arch, Entity entity)
     {
-        return Tables()[entity.table];
-    }
-
-    inline Entity Create(TableId tableId, HashString name)
-    {
-        return GetTable(tableId).Create(name);
-    }
-
-    inline Entity Create(TableId tableId, cstrc name)
-    {
-        return Create(tableId, HashString(name));
-    }
-
-    inline Entity Create(cstrc name)
-    {
-        return Create(TableId_Default, name);
-    }
-
-    inline bool Destroy(Entity entity)
-    {
-        return GetTable(entity).Destroy(entity);
-    }
-
-    inline Entity Find(TableId tableId, HashString name)
-    {
-        return GetTable(tableId).Find(name);
-    }
-
-    inline Entity Find(HashString name)
-    {
-        for (const Table& table : Tables())
+        const ChunkInfo* infos = arch.chunkInfos.begin();
+        const i32 count = arch.chunkInfos.Size();
+        for (i32 i = 0; i < count; ++i)
         {
-            Entity entity = table.Find(name);
-            if (entity.IsNotNull())
+            const i32 start = infos[i].entityOffset;
+            const i32 end = start + infos[i].capacity;
+            if ((entity.index >= start) &&
+                (entity.index < end))
             {
-                return entity;
+                return i;
             }
         }
-        return { TableId_Default, 0, 0 };
+        return -1;
     }
 
-    inline bool Has(Entity entity, ComponentType type)
+    static i32 FindArchetype(Slice<const Archetype> archs, Entity entity)
     {
-        return GetTable(entity).Has(entity, type);
+        for (i32 i = 0; i < archs.len; ++i)
+        {
+            const Archetype& arch = archs[i];
+            if ((entity.index >= arch.entityBegin) &&
+                (entity.index < arch.entityEnd))
+            {
+                return i;
+            }
+        }
+        return -1;
     }
 
-    template<typename T>
-    inline bool Has(Entity entity)
+    // ------------------------------------------------------------------------
+
+    static u8* GetComponents(Chunk* chunk, ChunkInfo chunkInfo, i32 row)
     {
-        return Has(entity, CTypeOf<T>());
+        return reinterpret_cast<u8*>(chunk) + chunkInfo.offsets[row];
     }
 
-    inline bool Add(Entity entity, ComponentType type)
+    static u8* GetComponents(Archetype& arch, i32 iChunk, i32 row)
     {
-        return GetTable(entity).Add(entity, type);
+        return GetComponents(arch.chunks[iChunk], arch.chunkInfos[iChunk], row);
     }
 
-    template<typename T>
-    inline bool Add(Entity entity)
+    static u8* GetComponents(Archetype& arch, i32 iChunk, ComponentId id)
     {
-        return Add(entity, CTypeOf<T>());
+        i32 row = FindRow(arch, id);
+        if (row == -1)
+        {
+            return 0;
+        }
+        return GetComponents(arch, iChunk, row);
     }
 
-    inline bool Remove(Entity entity, ComponentType type)
-    {
-        return GetTable(entity).Remove(entity, type);
-    }
-
-    template<typename T>
-    inline bool Remove(Entity entity)
-    {
-        return Remove(entity, CTypeOf<T>());
-    }
-
-    inline void* Get(Entity entity, ComponentType type)
-    {
-        return GetTable(entity).Get(entity, type);
-    }
-
-    template<typename T>
-    inline T& Get(Entity entity)
-    {
-        return GetTable(entity).Get<T>(entity);
-    }
+    // ------------------------------------------------------------------------
 };

@@ -16,5 +16,5 @@
     #define SOKOL_METAL             1
 #endif // CUR_PLAT == PLAT_WINDOWS
 
-#define SOKOL_ASSERT                Assert
+#define SOKOL_ASSERT                ASSERT
 #define SOKOL_WIN32_FORCE_MAIN      1

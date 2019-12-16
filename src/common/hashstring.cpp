@@ -31,15 +31,15 @@ namespace HStr
         HashText& dst = ms_store[key];
         if (dst.value[0])
         {
-            if (!StrICmp(argof(dst.value), value))
+            if (!StrICmp(ARGS(dst.value), value))
             {
                 return;
             }
-            DebugInterrupt();
+            DBG_INT();
             return;
         }
 
-        StrCpy(argof(dst.value), value);
+        StrCpy(ARGS(dst.value), value);
     }
 
 }; // HStr

@@ -64,11 +64,11 @@ namespace Guids
     Guid FromString(GuidStr str)
     {
         cstr src = str.Value;
-        Assert(src[0] == '0');
-        Assert(src[1] == 'x');
+        ASSERT(src[0] == '0');
+        ASSERT(src[1] == 'x');
         src += 2;
 
-        Guid guid = { 0, 0, 0, 0 };
+        Guid guid = {};
 
         u8* dst = (u8*)&guid;
         for (i32 i = 0; i < 16; ++i)

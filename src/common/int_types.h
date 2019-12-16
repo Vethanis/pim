@@ -1,17 +1,20 @@
 #pragma once
 
-using usize = unsigned __int64;
-using isize = signed __int64;
+#include <stdint.h>
+#include <stddef.h>
 
-using i64 = signed __int64;
-using i32 = signed __int32;
-using i16 = signed __int16;
-using i8 = signed __int8;
+using usize = size_t;
+using isize = ptrdiff_t;
 
-using u64 = unsigned __int64;
-using u32 = unsigned __int32;
-using u16 = unsigned __int16;
-using u8 = unsigned __int8;
+using i64 = int64_t;
+using i32 = int32_t;
+using i16 = int16_t;
+using i8 = int8_t;
+
+using u64 = uint64_t;
+using u32 = uint32_t;
+using u16 = uint16_t;
+using u8 = uint8_t;
 
 using f64 = double;
 using f32 = float;
@@ -28,9 +31,9 @@ struct Slice;
 enum AllocType : u8
 {
     Alloc_Stdlib = 0,
-    Alloc_Pool,
     Alloc_Linear,
     Alloc_Stack,
+    Alloc_Pool,
 
     Alloc_COUNT
 };

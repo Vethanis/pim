@@ -18,12 +18,12 @@ struct Slice
     inline T* end() { return ptr + len; }
     inline const T* begin() const { return ptr; }
     inline const T* end() const { return ptr + len; }
-    inline T& Front() { Assert(len > 0); return ptr[0]; }
-    inline const T& Front() const { Assert(len > 0); return ptr[0]; }
-    inline T& Back() { Assert(len > 0); return ptr[len - 1]; }
-    inline const T& Back() const { Assert(len > 0); return ptr[len - 1]; }
-    inline T& operator[](i32 i) { Assert(InRange(i)); return ptr[i]; }
-    inline const T& operator[](i32 i) const { Assert(InRange(i)); return ptr[i]; }
+    inline T& Front() { ASSERT(len > 0); return ptr[0]; }
+    inline const T& Front() const { ASSERT(len > 0); return ptr[0]; }
+    inline T& Back() { ASSERT(len > 0); return ptr[len - 1]; }
+    inline const T& Back() const { ASSERT(len > 0); return ptr[len - 1]; }
+    inline T& operator[](i32 i) { ASSERT(InRange(i)); return ptr[i]; }
+    inline const T& operator[](i32 i) const { ASSERT(InRange(i)); return ptr[i]; }
 
     template<typename U>
     inline Slice<U> Cast() const
@@ -37,7 +37,7 @@ struct Slice
 
     inline Slice<u8> ToBytes() const
     {
-        return Cast<u8>();
+        return { (u8*)ptr, (i32)sizeof(T) * len };
     }
 
     inline operator Slice<const T>() const
@@ -47,47 +47,24 @@ struct Slice
 
     inline Slice<T> Subslice(i32 start, i32 count) const
     {
-        Assert(InRange(start + count));
+        ASSERT(InRange(start + count));
         return { ptr + start, count };
     }
     inline Slice<T> Head(i32 last) const
     {
-        Assert(last >= 0);
-        Assert(last <= len);
+        ASSERT(last >= 0);
+        ASSERT(last <= len);
         return { ptr, last };
     }
     inline Slice<T> Tail(i32 first) const
     {
-        Assert(first >= 0);
-        Assert(first <= len);
+        ASSERT(first >= 0);
+        ASSERT(first <= len);
         return { ptr + first, len - first };
     }
 
-    inline i32 Find(T key) const
+    inline bool Overlaps(const Slice<T> other) const
     {
-        T* p = ptr;
-        i32 l = len;
-        for (i32 i = 0; i < l; ++i)
-        {
-            if (p[i] == key)
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    inline i32 RFind(T key) const
-    {
-        T* p = ptr;
-        i32 l = len;
-        for (i32 i = l - 1; i >= 0; --i)
-        {
-            if (p[i] == key)
-            {
-                return i;
-            }
-        }
-        return -1;
+        return (end() >= other.begin()) && (begin() <= other.end());
     }
 };

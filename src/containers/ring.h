@@ -11,7 +11,7 @@ struct Ring
 
     static constexpr u32 t_mask = t_capacity - 1u;
 
-    StaticAssert((t_capacity & (t_capacity - 1u)) == 0);
+    SASSERT((t_capacity & (t_capacity - 1u)) == 0);
 
     static inline u32 Mask(u32 i) { return i & t_mask; }
 
@@ -27,7 +27,7 @@ struct Ring
     }
     inline u32 Push()
     {
-        Assert(!IsFull());
+        ASSERT(!IsFull());
         m_count++;
         return Mask(m_tail++);
     }
@@ -38,7 +38,7 @@ struct Ring
     }
     inline u32 Pop()
     {
-        Assert(!IsEmpty());
+        ASSERT(!IsEmpty());
         return Mask(m_tail - (m_count--));
     }
 

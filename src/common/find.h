@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/cmp.h"
 #include "containers/slice.h"
 #include "containers/array.h"
 
@@ -9,7 +8,7 @@ inline i32 Find(const T* ptr, i32 count, const T& key)
 {
     for (i32 i = 0; i < count; ++i)
     {
-        if (CmpEq(ptr[i], key))
+        if (ptr[i] == key)
         {
             return i;
         }
@@ -17,7 +16,7 @@ inline i32 Find(const T* ptr, i32 count, const T& key)
     return -1;
 }
 template<typename T>
-inline i32 Find(Slice<const T> slice, const T& key)
+inline i32 Find(const Slice<const T> slice, const T& key)
 {
     return Find(slice.begin(), slice.Size(), key);
 }
@@ -32,7 +31,7 @@ inline i32 RFind(const T* ptr, i32 count, const T& key)
 {
     for (i32 i = count - 1; i >= 0; --i)
     {
-        if (CmpEq(ptr[i], key))
+        if (ptr[i] == key)
         {
             return i;
         }
@@ -40,7 +39,7 @@ inline i32 RFind(const T* ptr, i32 count, const T& key)
     return -1;
 }
 template<typename T>
-inline i32 RFind(Slice<const T> slice, const T& key)
+inline i32 RFind(const Slice<const T> slice, const T& key)
 {
     return RFind(slice.begin(), slice.Size(), key);
 }
@@ -56,7 +55,7 @@ inline bool Contains(const T* ptr, i32 count, const T& key)
     return RFind(ptr, count, key) != -1;
 }
 template<typename T>
-inline bool Contains(Slice<const T> slice, const T& key)
+inline bool Contains(const Slice<const T> slice, const T& key)
 {
     return Contains(slice.begin(), slice.Size(), key);
 }
@@ -76,7 +75,7 @@ inline i32 FindMax(const T* ptr, i32 count)
     i32 m = 0;
     for (i32 i = 1; i < count; ++i)
     {
-        if (CmpGt(ptr[i], ptr[m]))
+        if (ptr[i] > ptr[m])
         {
             m = i;
         }
@@ -84,7 +83,7 @@ inline i32 FindMax(const T* ptr, i32 count)
     return m;
 }
 template<typename T>
-inline i32 FindMax(Slice<const T> slice)
+inline i32 FindMax(const Slice<const T> slice)
 {
     return FindMax(slice.begin(), slice.Size());
 }
@@ -104,7 +103,7 @@ inline i32 FindMin(const T* ptr, i32 count)
     i32 m = 0;
     for (i32 i = 1; i < count; ++i)
     {
-        if (CmpLt(ptr[i], ptr[m]))
+        if (ptr[i] < ptr[m])
         {
             m = i;
         }
@@ -112,7 +111,7 @@ inline i32 FindMin(const T* ptr, i32 count)
     return m;
 }
 template<typename T>
-inline i32 FindMin(Slice<const T> slice)
+inline i32 FindMin(const Slice<const T> slice)
 {
     return FindMin(slice.begin(), slice.Size());
 }
@@ -120,4 +119,27 @@ template<typename T>
 inline i32 FindMin(const Array<T> arr)
 {
     return FindMin(arr.begin(), arr.Size());
+}
+
+template<typename T>
+inline bool FindRemove(Array<T>& arr, const T& key)
+{
+    i32 i = RFind(arr, key);
+    if (i != -1)
+    {
+        arr.Remove(i);
+        return true;
+    }
+    return false;
+}
+
+template<typename T>
+inline bool UniquePush(Array<T>& arr, const T& key)
+{
+    if (!Contains(arr, key))
+    {
+        arr.Grow() = key;
+        return true;
+    }
+    return false;
 }

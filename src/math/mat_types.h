@@ -16,8 +16,8 @@ struct mat2
     inline row_t* end() { return &x + 2; }
     inline const row_t* begin() const { return &x; }
     inline const row_t* end() const { return &x + 2; }
-    inline row_t& operator[](i32 i) { Assert((u32)i < 2u); return (&x)[i]; }
-    inline const row_t& operator[](i32 i) const { Assert((u32)i < 2u); return (&x)[i]; }
+    inline row_t& operator[](i32 i) { ASSERT((u32)i < 2u); return (&x)[i]; }
+    inline const row_t& operator[](i32 i) const { ASSERT((u32)i < 2u); return (&x)[i]; }
 };
 
 // [row][column]
@@ -35,8 +35,8 @@ struct mat3
     inline row_t* end() { return &x + 3; }
     inline const row_t* begin() const { return &x; }
     inline const row_t* end() const { return &x + 3; }
-    inline row_t& operator[](i32 i) { Assert((u32)i < 3u); return (&x)[i]; }
-    inline const row_t& operator[](i32 i) const { Assert((u32)i < 3u); return (&x)[i]; }
+    inline row_t& operator[](i32 i) { ASSERT((u32)i < 3u); return (&x)[i]; }
+    inline const row_t& operator[](i32 i) const { ASSERT((u32)i < 3u); return (&x)[i]; }
 };
 
 // [row][column]
@@ -55,8 +55,8 @@ struct mat4
     inline row_t* end() { return &x + 4; }
     inline const row_t* begin() const { return &x; }
     inline const row_t* end() const { return &x + 4; }
-    inline row_t& operator[](i32 i) { Assert((u32)i < 4u); return (&x)[i]; }
-    inline const row_t& operator[](i32 i) const { Assert((u32)i < 4u); return (&x)[i]; }
+    inline row_t& operator[](i32 i) { ASSERT((u32)i < 4u); return (&x)[i]; }
+    inline const row_t& operator[](i32 i) const { ASSERT((u32)i < 4u); return (&x)[i]; }
 };
 
 using float2x2 = mat2<f32>;

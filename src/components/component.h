@@ -1,60 +1,39 @@
 #pragma once
 
-#include "common/macro.h"
-#include "common/int_types.h"
+#include "common/typeid.h"
 
-enum ComponentType : u16
+struct ComponentId
 {
-    ComponentType_Null = 0,
-    ComponentType_Translation,
-    ComponentType_Rotation,
-    ComponentType_Scale,
-    ComponentType_ModelMatrix,
-    ComponentType_Child,
+    i32 Value;
 
-    ComponentType_Renderable,
-
-    ComponentType_Count
+    inline operator i32 () const { return Value; }
 };
 
-// ----------------------------------------------------------------------------
-
-namespace Component
+namespace ComponentRegistry
 {
-    using DropFn = void(*)(void* pComponent);
+    void Register(ComponentId id, i32 size);
+    i32 Size(ComponentId id);
+};
 
-    inline bool ValidType(ComponentType type)
+template<typename ComponentType>
+struct ComponentMeta
+{
+    static ComponentId ms_id;
+    static i32 ms_size;
+
+    ComponentMeta()
     {
-        return (type > ComponentType_Null) && (type < ComponentType_Count);
+        ms_id.Value = TypeIds<ComponentId>::Get<ComponentType>();
+        ms_size = sizeof(ComponentType);
+        ComponentRegistry::Register(ms_id, ms_size);
     }
 
-    i32 SizeOf(ComponentType type);
-    void Drop(ComponentType type, void* pVoid);
-
-    // ------------------------------------------------------------------------
-
-    void SetSize(ComponentType type, i32 size);
-    void SetDropFn(ComponentType type, DropFn fn);
-
-    struct InfoSetter
-    {
-        inline InfoSetter(ComponentType type, i32 sizeOf, void(*DropFn)(void*))
-        {
-            SetSize(type, sizeOf);
-            SetDropFn(type, DropFn);
-        }
-    };
+    static ComponentId Id() { return ms_id; }
+    static i32 Size() { return ms_size; }
 };
 
-template<typename T>
-inline constexpr ComponentType CTypeOf()
-{
-    DebugInterrupt();
-    return ComponentType_Null;
-}
+template<typename ComponentType>
+ComponentId ComponentMeta<ComponentType>::ms_id;
 
-#define DeclComponent(T, DtorExpr) \
-    template<> \
-    inline constexpr ComponentType CTypeOf<T>() { return ComponentType_ ## T; } \
-    Component::InfoSetter CatToken(CompInfoSetter_, __COUNTER__)(ComponentType_ ## T, sizeof(T), [](void* pVoid) { T* ptr = (T*)pVoid; DtorExpr; });
-
+template<typename ComponentType>
+i32 ComponentMeta<ComponentType>::ms_size;

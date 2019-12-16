@@ -1,5 +1,7 @@
 #pragma once
 
+#include "containers/slice.h"
+
 // The compiler only accepts this exact type for initializer list behavior
 // And I dont want to include STL headers
 // C++ is fucking stupid sometimes
@@ -63,3 +65,9 @@ namespace std
         return (_Ilist.end());
     }
 };
+
+template<typename T>
+static Slice<T> ToSlice(std::initializer_list<T> list)
+{
+    return { list.begin(), (i32)list.size() };
+}

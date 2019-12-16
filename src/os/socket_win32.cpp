@@ -17,8 +17,8 @@ static i32 s_hasInit;
 
 static sockaddr_in ToSockAddr(u32 addr, u16 port)
 {
-    Assert(addr != INADDR_NONE);
-    Assert(port);
+    ASSERT(addr != INADDR_NONE);
+    ASSERT(port);
 
     // https://docs.microsoft.com/en-us/windows/win32/winsock/sockaddr-2
     sockaddr_in name = {};
@@ -32,18 +32,18 @@ static sockaddr_in ToSockAddr(u32 addr, u16 port)
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-wsastartup
 void Socket::Init()
 {
-    Assert(s_hasInit == 0);
+    ASSERT(s_hasInit == 0);
     i32 rval = ::WSAStartup(MAKEWORD(1, 1), &s_wsadata);
-    Assert(rval != SOCKET_ERROR);
+    ASSERT(rval != SOCKET_ERROR);
     s_hasInit++;
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-wsacleanup
 void Socket::Shutdown()
 {
-    Assert(s_hasInit == 1);
+    ASSERT(s_hasInit == 1);
     i32 rval = ::WSACleanup();
-    Assert(rval != SOCKET_ERROR);
+    ASSERT(rval != SOCKET_ERROR);
     --s_hasInit;
 }
 
@@ -58,7 +58,7 @@ bool Socket::UrlToAddress(cstr url, u32& addr)
     {
         // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-gethostbyname
         hostent *h = ::gethostbyname(url);
-        Assert(h);
+        ASSERT(h);
         char* addr0 = h->h_addr_list[0];
         y = *(u32*)addr0;
     }
@@ -74,7 +74,7 @@ bool Socket::UrlToAddress(cstr url, u32& addr)
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket
 Socket Socket::Open(bool tcp)
 {
-    Assert(s_hasInit == 1);
+    ASSERT(s_hasInit == 1);
     SOCKET sock = ::socket(
         AF_INET,
         tcp ? SOCK_STREAM : SOCK_DGRAM,
@@ -96,7 +96,7 @@ void Socket::Close()
     if (IsOpen())
     {
         i32 rval = ::closesocket((SOCKET)m_handle);
-        Assert(rval != SOCKET_ERROR);
+        ASSERT(rval != SOCKET_ERROR);
     }
     m_handle = 0;
 }
@@ -104,12 +104,12 @@ void Socket::Close()
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-bind
 bool Socket::Bind(u32 addr, u16 port)
 {
-    Assert(IsOpen());
+    ASSERT(IsOpen());
     if (IsOpen())
     {
         sockaddr_in name = ToSockAddr(addr, port);
         i32 rval = ::bind((SOCKET)m_handle, (const sockaddr*)&name, sizeof(name));
-        Assert(rval != SOCKET_ERROR);
+        ASSERT(rval != SOCKET_ERROR);
         return rval != SOCKET_ERROR;
     }
     return false;
@@ -118,11 +118,11 @@ bool Socket::Bind(u32 addr, u16 port)
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-listen
 bool Socket::Listen()
 {
-    Assert(IsOpen());
+    ASSERT(IsOpen());
     if (IsOpen())
     {
         i32 rval = ::listen((SOCKET)m_handle, SOMAXCONN);
-        Assert(rval != SOCKET_ERROR);
+        ASSERT(rval != SOCKET_ERROR);
         return rval != SOCKET_ERROR;
     }
     return false;
@@ -131,11 +131,11 @@ bool Socket::Listen()
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-accept
 Socket Socket::Accept(u32& addr)
 {
-    Assert(IsOpen());
+    ASSERT(IsOpen());
     if (IsOpen())
     {
         SOCKET sock = ::accept((SOCKET)m_handle, 0, 0);
-        Assert(sock != INVALID_SOCKET);
+        ASSERT(sock != INVALID_SOCKET);
         return { sock, m_isTcp };
     }
     return { INVALID_SOCKET, m_isTcp };
@@ -144,7 +144,7 @@ Socket Socket::Accept(u32& addr)
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-connect
 bool Socket::Connect(u32 addr, u16 port)
 {
-    Assert(IsOpen());
+    ASSERT(IsOpen());
     if (IsOpen())
     {
         sockaddr_in name = ToSockAddr(addr, port);
@@ -157,14 +157,14 @@ bool Socket::Connect(u32 addr, u16 port)
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-send
 i32 Socket::Send(const void* src, u32 len)
 {
-    Assert(src);
-    Assert(len);
-    Assert(IsOpen());
+    ASSERT(src);
+    ASSERT(len);
+    ASSERT(IsOpen());
     i32 rval = -1;
     if (IsOpen())
     {
         rval = ::send((SOCKET)m_handle, (cstr)src, len, 0x0);
-        Assert(rval != SOCKET_ERROR);
+        ASSERT(rval != SOCKET_ERROR);
     }
     return rval;
 }
@@ -172,14 +172,14 @@ i32 Socket::Send(const void* src, u32 len)
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-recv
 i32 Socket::Recv(void* dst, u32 len)
 {
-    Assert(dst);
-    Assert(len);
-    Assert(IsOpen());
+    ASSERT(dst);
+    ASSERT(len);
+    ASSERT(IsOpen());
     i32 rval = -1;
     if (IsOpen())
     {
         rval = ::recv((SOCKET)m_handle, (char*)dst, len, 0x0);
-        Assert(rval != SOCKET_ERROR);
+        ASSERT(rval != SOCKET_ERROR);
     }
     return rval;
 }

@@ -30,7 +30,7 @@ namespace Quake
 
     struct PackFile
     {
-        Allocation content;
+        Slice<u8> content;
         i32 refCount;
         i32 offset;
         i32 length;
