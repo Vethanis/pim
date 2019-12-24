@@ -20,10 +20,7 @@
     <ClCompile Include="..\src\common\random.cpp" />
     <ClCompile Include="..\src\common\stringutil.cpp" />
     <ClCompile Include="..\src\common\type.cpp" />
-    <ClCompile Include="..\src\components\component.cpp" />
     <ClCompile Include="..\src\components\ecs.cpp" />
-    <ClCompile Include="..\src\components\entity.cpp" />
-    <ClCompile Include="..\src\components\transform.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
@@ -31,7 +28,6 @@
     <ClCompile Include="..\src\quake\packfile.cpp" />
     <ClCompile Include="..\src\rendering\material.cpp" />
     <ClCompile Include="..\src\rendering\mesh.cpp" />
-    <ClCompile Include="..\src\rendering\renderable.cpp" />
     <ClCompile Include="..\src\rendering\render_system.cpp" />
     <ClCompile Include="..\src\sokol\sokol_app.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
@@ -58,8 +54,10 @@
     <ClInclude Include="..\src\allocator\stdlib_allocator.h" />
     <ClInclude Include="..\src\assets\asset_system.h" />
     <ClInclude Include="..\src\audio\audio_system.h" />
+    <ClInclude Include="..\src\audio\components.h" />
     <ClInclude Include="..\src\common\apply.h" />
     <ClInclude Include="..\src\common\chunk_allocator.h" />
+    <ClInclude Include="..\src\common\comparator.h" />
     <ClInclude Include="..\src\common\minmax.h" />
     <ClInclude Include="..\src\common\round.h" />
     <ClInclude Include="..\src\common\find.h" />
@@ -79,6 +77,8 @@
     <ClInclude Include="..\src\common\typeid.h" />
     <ClInclude Include="..\src\common\unroll.h" />
     <ClInclude Include="..\src\common\valist.h" />
+    <ClInclude Include="..\src\components\all.h" />
+    <ClInclude Include="..\src\components\common.h" />
     <ClInclude Include="..\src\components\component.h" />
     <ClInclude Include="..\src\components\ecs.h" />
     <ClInclude Include="..\src\components\entity.h" />
@@ -87,9 +87,12 @@
     <ClInclude Include="..\src\containers\bitfield.h" />
     <ClInclude Include="..\src\containers\dict.h" />
     <ClInclude Include="..\src\containers\generational.h" />
+    <ClInclude Include="..\src\containers\hash_set.h" />
     <ClInclude Include="..\src\containers\initlist.h" />
     <ClInclude Include="..\src\containers\ring.h" />
     <ClInclude Include="..\src\containers\slice.h" />
+    <ClInclude Include="..\src\geometry\distance.h" />
+    <ClInclude Include="..\src\geometry\types.h" />
     <ClInclude Include="..\src\input\input_system.h" />
     <ClInclude Include="..\src\math\math.h" />
     <ClInclude Include="..\src\math\mat_funcs.h" />
@@ -100,6 +103,7 @@
     <ClInclude Include="..\src\math\vec_types.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\os\thread.h" />
+    <ClInclude Include="..\src\physics\components.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
     <ClInclude Include="..\src\quake\packfile.h" />
     <FxCompile Include="..\src\shaders\quat.hlsl">
@@ -109,7 +113,7 @@
     </FxCompile>
     <ClInclude Include="..\src\rendering\material.h" />
     <ClInclude Include="..\src\rendering\mesh.h" />
-    <ClInclude Include="..\src\rendering\renderable.h" />
+    <ClInclude Include="..\src\rendering\components.h" />
     <ClInclude Include="..\src\rendering\render_system.h" />
     <ClInclude Include="..\src\sokol\sokol_backend.h" />
     <ClInclude Include="..\src\systems.h" />

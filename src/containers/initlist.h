@@ -46,6 +46,11 @@ namespace std
             return (static_cast<size_t>(_Last - _First));
         }
 
+        inline operator Slice<const _Elem>() const noexcept
+        {
+            return { begin(), (i32)size() };
+        }
+
     private:
         const _Elem *_First;
         const _Elem *_Last;
@@ -65,9 +70,3 @@ namespace std
         return (_Ilist.end());
     }
 };
-
-template<typename T>
-static Slice<T> ToSlice(std::initializer_list<T> list)
-{
-    return { list.begin(), (i32)list.size() };
-}

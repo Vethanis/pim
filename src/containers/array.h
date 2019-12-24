@@ -14,6 +14,38 @@ struct Array
     i32 m_capacity;
     AllocType m_allocType;
 
+    // ------------------------------------------------------------------------
+
+    inline void Init(AllocType allocType)
+    {
+        m_ptr = nullptr;
+        m_length = 0;
+        m_capacity = 0;
+        m_allocType = allocType;
+    }
+    inline void Reset()
+    {
+        Allocator::Free(m_ptr);
+        m_ptr = nullptr;
+        m_capacity = 0;
+        m_length = 0;
+    }
+    inline void Clear()
+    {
+        m_length = 0;
+    }
+    inline void Trim()
+    {
+        const i32 len = m_length;
+        if (m_capacity > len)
+        {
+            m_ptr = (T*)Allocator::Realloc(m_allocType, m_ptr, sizeof(T) * len);
+            m_capacity = len;
+        }
+    }
+
+    // ------------------------------------------------------------------------
+
     inline bool InRange(i32 i) const { return (u32)i < (u32)m_length; }
     inline i32 Size() const { return m_length; }
     inline i32 Capacity() const { return m_capacity; }
@@ -32,6 +64,8 @@ struct Array
     inline T& back() { ASSERT(InRange(0)); return m_ptr[m_length - 1]; }
     inline T& operator[](i32 i) { ASSERT(InRange(i)); return m_ptr[i]; }
 
+    // ------------------------------------------------------------------------
+
     inline Slice<const T> AsSlice() const
     {
         return { begin(), Size() };
@@ -44,24 +78,6 @@ struct Array
     inline operator Slice<const T>() const { return AsSlice(); }
     inline operator Slice<T>() { return AsSlice(); }
 
-    inline void Init(AllocType allocType)
-    {
-        m_ptr = nullptr;
-        m_length = 0;
-        m_capacity = 0;
-        m_allocType = allocType;
-    }
-    inline void Clear()
-    {
-        m_length = 0;
-    }
-    inline void Reset()
-    {
-        Allocator::Free(m_ptr);
-        m_ptr = nullptr;
-        m_capacity = 0;
-        m_length = 0;
-    }
     inline void Reserve(i32 newCap)
     {
         m_ptr = Allocator::Reserve<T>(m_allocType, m_ptr, m_capacity, newCap);
@@ -163,7 +179,7 @@ struct Array
         Resize(other.Size());
         memcpy(begin(), other.begin(), sizeof(T) * Size());
     }
-    inline void Copy(Slice<T> other)
+    inline void Copy(const Slice<T> other)
     {
         Resize(other.Size());
         memcpy(begin(), other.begin(), sizeof(T) * Size());

@@ -59,50 +59,47 @@ struct NibbleToHex
 static constexpr NibbleToHex N2H = NibbleToHex::Create();
 static constexpr HexToNibble H2N = HexToNibble::Create();
 
-namespace Guids
+Guid ToGuid(GuidStr str)
 {
-    Guid FromString(GuidStr str)
+    cstr src = str.value;
+    ASSERT(src[0] == '0');
+    ASSERT(src[1] == 'x');
+    src += 2;
+
+    Guid guid = {};
+
+    u8* dst = (u8*)&guid;
+    for (i32 i = 0; i < 16; ++i)
     {
-        cstr src = str.Value;
-        ASSERT(src[0] == '0');
-        ASSERT(src[1] == 'x');
-        src += 2;
+        u8 lo = *src++;
+        u8 hi = *src++;
 
-        Guid guid = {};
+        lo = H2N.values[lo];
+        hi = N2H.values[hi];
 
-        u8* dst = (u8*)&guid;
-        for (i32 i = 0; i < 16; ++i)
-        {
-            u8 lo = *src++;
-            u8 hi = *src++;
-
-            lo = H2N.values[lo];
-            hi = N2H.values[hi];
-
-            dst[i] = (hi << 4) | lo;
-        }
-
-        return guid;
+        dst[i] = (hi << 4) | lo;
     }
 
-    GuidStr ToString(Guid guid)
+    return guid;
+}
+
+GuidStr ToString(Guid guid)
+{
+    GuidStr guidStr = {};
+    u8* dst = (u8*)&guidStr;
+    const u8* src = (const u8*)&guid;
+    *dst++ = '0';
+    *dst++ = 'x';
+    for (i32 i = 0; i < 16; ++i)
     {
-        GuidStr guidStr = {};
-        u8* dst = (u8*)&guidStr;
-        const u8* src = (const u8*)&guid;
-        *dst++ = '0';
-        *dst++ = 'x';
-        for (i32 i = 0; i < 16; ++i)
-        {
-            u8 c = src[i];
-            u8 lo = 0xf & c;
-            u8 hi = 0xf & (c >> 4);
-            lo = N2H.values[lo];
-            hi = N2H.values[hi];
-            *dst++ = lo;
-            *dst++ = hi;
-        }
-        *dst++ = 0;
-        return guidStr;
+        u8 c = src[i];
+        u8 lo = 0xf & c;
+        u8 hi = 0xf & (c >> 4);
+        lo = N2H.values[lo];
+        hi = N2H.values[hi];
+        *dst++ = lo;
+        *dst++ = hi;
     }
-};
+    *dst++ = 0;
+    return guidStr;
+}

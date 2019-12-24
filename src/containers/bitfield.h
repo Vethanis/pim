@@ -1,8 +1,6 @@
 #pragma once
 
 #include "common/round.h"
-#include "containers/slice.h"
-#include "containers/array.h"
 #include "containers/initlist.h"
 
 template<typename T, u32 ct>
@@ -62,24 +60,6 @@ struct BitField
         u32 j = bit & 31;
         u32 mask = 1u << j;
         return (m_dwords[i] & mask) != 0;
-    }
-    inline void FromEnum(Slice<const u32> enums)
-    {
-        for (u32 value : enums)
-        {
-            Set(value);
-        }
-    }
-    inline void ToEnum(Array<u32>& enums) const
-    {
-        enums.clear();
-        for (u32 i = 0; i < NumBits; ++i)
-        {
-            if (Has(i))
-            {
-                enums.grow() = i;
-            }
-        }
     }
     inline bool Any() const
     {

@@ -1,5 +1,7 @@
 #pragma once
 
+#define NOMINMAX
+
 #include "math/vec_ops.h"
 #include "common/apply.h"
 #include <math.h>

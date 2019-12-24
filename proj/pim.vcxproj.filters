@@ -83,6 +83,9 @@
     <Filter Include="Source Files\typeinfo">
       <UniqueIdentifier>{df2c963e-08b3-4425-95e4-c97c532f2127}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\geometry">
+      <UniqueIdentifier>{b7d1122f-5798-4b19-8920-edcd7dad3554}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -160,9 +163,6 @@
     <ClCompile Include="..\src\systems.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\components\component.cpp">
-      <Filter>Source Files\components</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\rendering\mesh.cpp">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
@@ -183,15 +183,6 @@
     </ClCompile>
     <ClCompile Include="..\src\typeinfo\basic_types.cpp">
       <Filter>Source Files\typeinfo</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\components\transform.cpp">
-      <Filter>Source Files\components</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\components\entity.cpp">
-      <Filter>Source Files\components</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\rendering\renderable.cpp">
-      <Filter>Source Files\rendering</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -423,9 +414,6 @@
     <ClInclude Include="..\src\rendering\render_system.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\renderable.h">
-      <Filter>Source Files\rendering</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\threading\task_system.h">
       <Filter>Source Files\threading</Filter>
     </ClInclude>
@@ -502,6 +490,33 @@
       <Filter>Source Files\containers</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\sort.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\all.h">
+      <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\common.h">
+      <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\components.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\geometry\types.h">
+      <Filter>Source Files\geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\geometry\distance.h">
+      <Filter>Source Files\geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\physics\components.h">
+      <Filter>Source Files\physics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\audio\components.h">
+      <Filter>Source Files\audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\hash_set.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\comparator.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>

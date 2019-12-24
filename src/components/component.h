@@ -1,39 +1,34 @@
 #pragma once
 
-#include "common/typeid.h"
+#include "common/int_types.h"
 
-struct ComponentId
+enum ComponentId : u16
 {
-    i32 Value;
+    ComponentId_Identifier,
 
-    inline operator i32 () const { return Value; }
+    ComponentId_Immovable,
+    ComponentId_Translation,
+    ComponentId_Rotation,
+    ComponentId_Scale,
+    ComponentId_LocalToWorld,
+    ComponentId_LocalToParent,
+    ComponentId_Parent,
+    ComponentId_Children,
+
+    ComponentId_Drawable,
+    ComponentId_RenderBounds,
+    ComponentId_Camera,
+    ComponentId_Light,
+    ComponentId_ParticleEmitter,
+    ComponentId_FogVolume,
+
+    ComponentId_Collider,
+    ComponentId_Rigidbody,
+
+    ComponentId_SoundTag,
+    ComponentId_SoundArea,
+    ComponentId_SoundEmitter,
+    ComponentId_SoundListener,
+
+    ComponentId_COUNT
 };
-
-namespace ComponentRegistry
-{
-    void Register(ComponentId id, i32 size);
-    i32 Size(ComponentId id);
-};
-
-template<typename ComponentType>
-struct ComponentMeta
-{
-    static ComponentId ms_id;
-    static i32 ms_size;
-
-    ComponentMeta()
-    {
-        ms_id.Value = TypeIds<ComponentId>::Get<ComponentType>();
-        ms_size = sizeof(ComponentType);
-        ComponentRegistry::Register(ms_id, ms_size);
-    }
-
-    static ComponentId Id() { return ms_id; }
-    static i32 Size() { return ms_size; }
-};
-
-template<typename ComponentType>
-ComponentId ComponentMeta<ComponentType>::ms_id;
-
-template<typename ComponentType>
-i32 ComponentMeta<ComponentType>::ms_size;

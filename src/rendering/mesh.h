@@ -1,13 +1,7 @@
 #pragma once
 
-#include "common/macro.h"
-#include "common/int_types.h"
 #include "common/guid.h"
-
-struct MeshId
-{
-    u64 Value;
-};
+#include "rendering/components.h"
 
 namespace MeshSystem
 {

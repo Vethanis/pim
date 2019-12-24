@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/macro.h"
 #include "common/minmax.h"
 #include "common/int_types.h"
 
@@ -29,14 +28,6 @@ namespace Allocator
         return prev;
     }
 
-    inline void* ImGuiAllocFn(size_t sz, void*)
-    {
-        ASSERT(sz < 0x7fffffff);
-        return Alloc(Alloc_Stdlib, (i32)sz);
-    }
-
-    inline void ImGuiFreeFn(void* ptr, void*)
-    {
-        Free(ptr);
-    }
+    inline void* ImGuiAllocFn(size_t sz, void*) { return Alloc(Alloc_Pool, (i32)sz); }
+    inline void ImGuiFreeFn(void* ptr, void*) { Free(ptr); }
 };
