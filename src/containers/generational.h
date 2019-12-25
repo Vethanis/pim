@@ -64,6 +64,7 @@ struct IdAllocator
         }
         u16 i = m_freelist.PopValue();
         u16 v = ++m_versions[i];
+        ASSERT(v & 1);
         version = v;
         index = i;
         return grew;
@@ -74,7 +75,8 @@ struct IdAllocator
         if (IsCurrent(version, index))
         {
             m_freelist.Grow() = index;
-            ++m_versions[index];
+            u16 v = ++m_versions[index];
+            ASSERT(!(v & 1));
             return true;
         }
         return false;

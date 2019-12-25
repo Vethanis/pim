@@ -1,105 +1,118 @@
 #pragma once
 
 #include "containers/array.h"
+#include "common/find.h"
 
-template<typename T>
 struct ChunkAllocator
 {
-    Array<T*> m_chunks;
-    Array<Array<u16>> m_freelists;
-    u16 m_chunkSize;
+    struct Chunk
+    {
+        u8* memory;
+        i32* freelist;
+        i32 freelen;
+    };
 
-    void Init(u16 chunkSize)
+    Array<Chunk> m_chunks;
+    i32 m_chunkSize;
+    i32 m_itemSize;
+
+    void Init(AllocType allocator, i32 chunkSize, i32 itemSize)
     {
         ASSERT(chunkSize > 0);
-        m_chunks.Init(Alloc_Stdlib);
-        m_freelists.Init(Alloc_Stdlib);
+        ASSERT(itemSize > 0);
+        m_chunks.Init(allocator);
         m_chunkSize = chunkSize;
+        m_itemSize = itemSize;
     }
 
     void Reset()
     {
-        const u16 chunkSize = m_chunkSize;
-        for (T* ptr : m_chunks)
+        for (Chunk chunk : m_chunks)
         {
-            Allocator::Free(ptr);
+            Allocator::Free(chunk.memory);
+            Allocator::Free(chunk.freelist);
         }
         m_chunks.Reset();
-        for (Array<u16> freelist : m_freelists)
-        {
-            freelist.Reset();
-        }
-        m_freelists.Reset();
     }
 
-    T* Allocate()
+    void* Allocate()
     {
         {
-            const i32 chunkCt = m_freelists.Size();
-            Array<u16>* freelists = m_freelists.begin();
-            for (i32 i = chunkCt - 1; i >= 0; --i)
+            const i32 count = m_chunks.Size();
+            Chunk* chunks = m_chunks.begin();
+            for (i32 i = count - 1; i >= 0; --i)
             {
-                if (!freelists[i].IsEmpty())
+                if (chunks[i].freelen > 0)
                 {
-                    u16 j = freelists[i].PopValue();
-                    return m_chunks[i] + j;
+                    i32 j = --chunks[i].freelen;
+                    return chunks[i].memory + j * m_itemSize;
                 }
             }
         }
         {
-            const u16 chunkSize = m_chunkSize;
+            const AllocType allocator = m_chunks.m_allocType;
+            const i32 chunkSize = m_chunkSize;
+            const i32 itemSize = m_itemSize;
             ASSERT(chunkSize > 0);
+            ASSERT(itemSize > 0);
 
-            m_chunks.Grow() = (T*)Allocator::Alloc(Alloc_Pool, sizeof(T) * chunkSize);
-            memset(m_chunks.back(), 0, sizeof(T) * chunkSize);
+            Chunk chunk = {};
+            chunk.memory = Allocator::CallocT<u8>(
+                allocator, chunkSize * itemSize);
+            chunk.freelist = Allocator::AllocT<i32>(allocator, chunkSize);
+            chunk.freelen = chunkSize;
 
-            Array<u16> freelist = {};
-            freelist.Init(Alloc_Stdlib);
-            freelist.Resize(chunkSize);
-            for (u16 i = 0; i < chunkSize; ++i)
+            for (i32 i = 0; i < chunkSize; ++i)
             {
-                freelist[i] = (chunkSize - 1u) - i;
+                chunk.freelist[i] = (chunkSize - 1) - i;
             }
-            m_freelists.Grow() = freelist;
+
+            m_chunks.Grow() = chunk;
         }
         return Allocate();
     }
 
-    void Free(T* ptr)
+    void Free(void* pVoid)
     {
-        if (!ptr)
+        if (!pVoid)
         {
             return;
         }
 
-        const i32 chunkCt = m_chunks.Size();
-        const u16 chunkSize = m_chunkSize;
+        u8* ptr = (u8*)pVoid;
+        const i32 chunkSize = m_chunkSize;
+        const i32 itemSize = m_itemSize;
         ASSERT(chunkSize > 0);
+        ASSERT(itemSize > 0);
 
-        T** chunks = m_chunks.begin();
+        Chunk* chunks = m_chunks.begin();
+        const i32 chunkCt = m_chunks.Size();
         for (i32 i = chunkCt - 1; i >= 0; --i)
         {
-            T* chunk = chunks[i];
-            T* end = chunk + chunkSize;
-            if ((ptr >= chunk) && (ptr < end))
+            const u8* begin = chunks[i].memory;
+            const u8* end = begin + chunkSize * itemSize;
+            if ((ptr >= begin) && (ptr < end))
             {
-                u16 j = (u16)(ptr - chunk);
-                Array<u16>& freelist = m_freelists[i];
+                const i32 j = (i32)(ptr - begin) / itemSize;
 
-                ASSERT(freelist.Size() < (i32)chunkSize);
-                ASSERT(freelist.RFind(j) == -1);
-                freelist.Grow() = j;
+                i32* freelist = chunks[i].freelist;
+                i32 freelen = chunks[i].freelen;
 
-                if (freelist.Size() == chunkSize)
+                ASSERT(freelen < chunkSize);
+                ASSERT(!Contains(freelist, freelen, j));
+
+                freelist[freelen++] = j;
+                chunks[i].freelen = freelen;
+
+                if (freelen == chunkSize)
                 {
-                    freelist.Reset();
-                    Allocator::Free(chunk);
+                    Allocator::Free(chunks[i].memory);
+                    Allocator::Free(chunks[i].freelist);
                     m_chunks.Remove(i);
-                    m_freelists.Remove(i);
                 }
                 else
                 {
-                    memset(ptr, 0, sizeof(T));
+                    memset(ptr, 0, itemSize);
                 }
 
                 return;

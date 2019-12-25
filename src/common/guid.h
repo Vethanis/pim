@@ -31,13 +31,13 @@ inline constexpr bool IsNull(Guid g)
 
 inline constexpr Guid ToGuid(cstrc str)
 {
-    i32 a = Fnv32String(str);
+    u32 a = Fnv32String(str);
     a = a ? a : 1;
-    i32 b = Fnv32String(str, a);
+    u32 b = Fnv32String(str, a);
     b = b ? b : 1;
-    i32 c = Fnv32String(str, b);
+    u32 c = Fnv32String(str, b);
     c = c ? c : 1;
-    i32 d = Fnv32String(str, c);
+    u32 d = Fnv32String(str, c);
     d = d ? d : 1;
 
     return Guid { a, b, c, d };
@@ -45,13 +45,13 @@ inline constexpr Guid ToGuid(cstrc str)
 
 inline Guid ToGuid(const void* const ptr, i32 count)
 {
-    i32 a = Fnv32Bytes(ptr, count);
+    u32 a = Fnv32Bytes(ptr, count);
     a = a ? a : 1;
-    i32 b = Fnv32Bytes(ptr, count, a);
+    u32 b = Fnv32Bytes(ptr, count, a);
     b = b ? b : 1;
-    i32 c = Fnv32Bytes(ptr, count, b);
+    u32 c = Fnv32Bytes(ptr, count, b);
     c = c ? c : 1;
-    i32 d = Fnv32Bytes(ptr, count, c);
+    u32 d = Fnv32Bytes(ptr, count, c);
     d = d ? d : 1;
 
     return Guid { a, b, c, d };

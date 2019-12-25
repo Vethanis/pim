@@ -16,7 +16,7 @@ namespace TypeRegistry
 
     const TypeInfo* Get(Guid guid)
     {
-        ASSERT(!guid.IsNull());
+        ASSERT(!IsNull(guid));
         return ms_table.Get(guid);
     }
 };

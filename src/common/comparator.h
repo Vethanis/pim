@@ -1,32 +1,72 @@
 #pragma once
 
 #include "common/hash.h"
+#include <string.h>
 
 template<typename T>
-struct IComparator
+struct Comparator
 {
-    virtual bool Equals(T lhs, T rhs) const = 0;
-    virtual i32 Compare(T lhs, T rhs) const = 0;
-    virtual u32 Hash(T item) const = 0;
+    using EqualsFn = bool(*)(T lhs, T rhs);
+    using CompareFn = i32(*)(T lhs, T rhs);
+    using HashFn = u32(*)(T item);
+
+    const EqualsFn Equals;
+    const CompareFn Compare;
+    const HashFn Hash;
 };
 
 template<typename T>
-struct DefaultComparator final : IComparator<T>
+static bool OpEqualsFn(T lhs, T rhs)
 {
-    inline bool Equals(T lhs, T rhs) const final
+    return lhs == rhs;
+}
+
+template<typename T>
+static i32 OpCompareFn(T lhs, T rhs)
+{
+    if (!(lhs == rhs))
     {
-        return lhs == rhs;
+        return lhs < rhs ? -1 : 1;
     }
-    inline i32 Compare(T lhs, T rhs) const final
+    return 0;
+}
+
+template<typename T>
+static bool MemEqualsFn(T lhs, T rhs)
+{
+    return memcmp(&lhs, &rhs, sizeof(T)) == 0;
+}
+
+template<typename T>
+static i32 MemCompareFn(T lhs, T rhs)
+{
+    return memcmp(&lhs, &rhs, sizeof(T));
+}
+
+template<typename T>
+static u32 MemHashFn(T item)
+{
+    return Fnv32Bytes(&item, sizeof(T));
+}
+
+template<typename T>
+static constexpr Comparator<T> OpComparator()
+{
+    return Comparator<T>
     {
-        if (!(lhs == rhs))
-        {
-            return lhs < rhs ? -1 : 1;
-        }
-        return 0;
-    }
-    inline u32 Hash(T item) const final
+        OpEqualsFn<T>,
+        OpCompareFn<T>,
+        MemHashFn<T>,
+    };
+}
+
+template<typename T>
+static constexpr Comparator<T> MemComparator()
+{
+    return Comparator<T>
     {
-        return Fnv32Bytes(&item, sizeof(T));
-    }
-};
+        MemEqualsFn<T>,
+        MemCompareFn<T>,
+        MemHashFn<T>,
+    };
+}

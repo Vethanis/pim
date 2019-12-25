@@ -9,24 +9,24 @@ struct BitField
     static constexpr u32 NumBits = ct;
     static constexpr u32 NumDwords = DivRound(NumBits, 32u);
 
-    u32 m_dwords[NumDwords];
+    u32 Values[NumDwords];
 
-    inline constexpr BitField() : m_dwords() {}
+    inline constexpr BitField() : Values() {}
 
-    inline constexpr BitField(std::initializer_list<T> list) : m_dwords()
+    inline constexpr BitField(std::initializer_list<T> list) : Values()
     {
         for (T x : list)
         {
             u32 i = x >> 5;
             u32 j = x & 31;
             u32 mask = 1u << j;
-            m_dwords[i] |= mask;
+            Values[i] |= mask;
         }
     }
 
     inline void Clear()
     {
-        for (u32& x : m_dwords)
+        for (u32& x : Values)
             x = 0;
     }
     inline void Set(u32 bit)
@@ -34,14 +34,14 @@ struct BitField
         u32 i = bit >> 5;
         u32 j = bit & 31;
         u32 mask = 1u << j;
-        m_dwords[i] |= mask;
+        Values[i] |= mask;
     }
     inline void UnSet(u32 bit)
     {
         u32 i = bit >> 5;
         u32 j = bit & 31;
         u32 mask = 1u << j;
-        m_dwords[i] &= ~mask;
+        Values[i] &= ~mask;
     }
     inline void Set(u32 bit, bool on)
     {
@@ -59,96 +59,87 @@ struct BitField
         u32 i = bit >> 5;
         u32 j = bit & 31;
         u32 mask = 1u << j;
-        return (m_dwords[i] & mask) != 0;
+        return (Values[i] & mask) != 0;
     }
     inline bool Any() const
     {
-        for (u32 x : m_dwords)
+        u32 y = 0u;
+        for (u32 x : Values)
         {
-            if (x != 0u)
-            {
-                return true;
-            }
+            y |= x;
         }
-        return false;
+        return y != 0u;
     }
     inline bool None() const
     {
         return !Any();
     }
+
+    inline BitField operator ~() const
+    {
+        BitField result = {};
+        for (i32 i = 0; i < NumDwords; ++i)
+        {
+            result.Values[i] = ~Values[i];
+        }
+        return result;
+    }
+
+    inline BitField operator | (BitField r) const
+    {
+        BitField result = {};
+        for (i32 i = 0; i < NumDwords; ++i)
+        {
+            result.Values[i] = Values[i] | r.Values[i];
+        }
+        return result;
+    }
+
+    inline BitField operator & (BitField r) const
+    {
+        BitField result = {};
+        for (i32 i = 0; i < NumDwords; ++i)
+        {
+            result.Values[i] = Values[i] & r.Values[i];
+        }
+        return result;
+    }
+
+    inline BitField operator ^ (BitField r) const
+    {
+        BitField result = {};
+        for (i32 i = 0; i < NumDwords; ++i)
+        {
+            result.Values[i] = Values[i] ^ r.Values[i];
+        }
+        return result;
+    }
+
+    inline bool operator == (BitField r) const
+    {
+        u32 cmp = 0;
+        for (i32 i = 0; i < NumDwords; ++i)
+        {
+            cmp |= Values[i] - r.Values[i];
+        }
+        return cmp == 0;
+    }
+
+    inline bool operator != (BitField r) const
+    {
+        BitField l = *this;
+        return !(l == r);
+    }
+
+    inline bool operator < (BitField r) const
+    {
+        for (i32 i = 0; i < NumDwords; ++i)
+        {
+            if (Values[i] != r.Values[i])
+            {
+                return Values[i] < r.Values[i];
+            }
+        }
+        return false;
+    }
 };
-
-template<typename T, u32 ct>
-inline BitField<T, ct>& operator ~(BitField<T, ct>& x)
-{
-    constexpr u32 count = x.NumDwords;
-    for (u32 i = 0; i < count; ++i)
-    {
-        x.m_dwords[i] = ~x.m_dwords[i];
-    }
-    return x;
-}
-
-template<typename T, u32 ct>
-inline BitField<T, ct> operator | (BitField<T, ct> lhs, BitField<T, ct> rhs)
-{
-    BitField<T, ct> result;
-    constexpr u32 count = lhs.NumDwords;
-    for (u32 i = 0; i < count; ++i)
-    {
-        result.m_dwords[i] = lhs.m_dwords[i] | rhs.m_dwords[i];
-    }
-    return result;
-}
-
-template<typename T, u32 ct>
-inline BitField<T, ct> operator & (BitField<T, ct> lhs, BitField<T, ct> rhs)
-{
-    BitField<T, ct> result;
-    constexpr u32 count = lhs.NumDwords;
-    for (u32 i = 0; i < count; ++i)
-    {
-        result.m_dwords[i] = lhs.m_dwords[i] & rhs.m_dwords[i];
-    }
-    return result;
-}
-
-template<typename T, u32 ct>
-inline BitField<T, ct> operator ^ (BitField<T, ct> lhs, BitField<T, ct> rhs)
-{
-    BitField<T, ct> result;
-    constexpr u32 count = lhs.NumDwords;
-    for (u32 i = 0; i < count; ++i)
-    {
-        result.m_dwords[i] = lhs.m_dwords[i] ^ rhs.m_dwords[i];
-    }
-    return result;
-}
-
-template<typename T, u32 ct>
-inline bool operator == (BitField<T, ct> lhs, BitField<T, ct> rhs)
-{
-    constexpr u32 count = lhs.NumDwords;
-    for (u32 i = 0; i < count; ++i)
-    {
-        if (lhs.m_dwords[i] != rhs.m_dwords[i])
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-template<typename T, u32 ct>
-inline bool operator != (BitField<T, ct> lhs, BitField<T, ct> rhs)
-{
-    constexpr u32 count = lhs.NumDwords;
-    for (u32 i = 0; i < count; ++i)
-    {
-        if (lhs.m_dwords[i] == rhs.m_dwords[i])
-        {
-            return false;
-        }
-    }
-    return true;
-}

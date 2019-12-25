@@ -12,8 +12,6 @@
 #include "components/ecs.h"
 #include "components/transform.h"
 
-#include "rendering/renderable.h"
-
 namespace RenderSystem
 {
     constexpr sg_pass_action ms_clear =

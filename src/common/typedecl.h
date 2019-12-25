@@ -40,13 +40,13 @@ struct TypeBuilder
 
 // ----------------------------------------------------------------------------
 
-#define BasicDecl(T) TypeInfo { { #T }, #T, sizeof(T), alignof(T) }
+#define BasicDecl(T) TypeInfo { ToGuid(#T), #T, sizeof(T), alignof(T) }
 
-#define FieldDecl(T, F, fname) FieldInfo { { #F }, #fname, offsetof(T, fname) }
+#define FieldDecl(T, F, fname) FieldInfo { ToGuid(#F), #fname, offsetof(T, fname) }
 
-#define FuncDecl(Fn) FuncInfo { { #Fn }, #Fn, &Fn }
+#define FuncDecl(Fn) FuncInfo { ToGuid(#Fn), #Fn, &Fn }
 
-#define MethodDecl(Fn, Wrapper) FuncInfo { { #Fn }, #Fn, &Wrapper }
+#define MethodDecl(Fn, Wrapper) FuncInfo { ToGuid(#Fn), #Fn, &Wrapper }
 
 #define TypeDecl(T) TypeBuilder::Begin<T>(#T)
 
