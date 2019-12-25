@@ -341,6 +341,46 @@ namespace Ecs
         return false;
     }
 
+    bool HasAll(Entity entity, ComponentFlags flags)
+    {
+        ASSERT(IsCurrent(entity));
+        return (ms_flags[entity.index] & flags) == flags;
+    }
+
+    bool HasAny(Entity entity, ComponentFlags flags)
+    {
+        ASSERT(IsCurrent(entity));
+        return (ms_flags[entity.index] & flags).Any();
+    }
+
+    bool HasNone(Entity entity, ComponentFlags flags)
+    {
+        ASSERT(IsCurrent(entity));
+        return (ms_flags[entity.index] & flags).None();
+    }
+
+    bool Add(Entity entity, std::initializer_list<ComponentId> ids)
+    {
+        ASSERT(IsCurrent(entity));
+        bool added = false;
+        for (ComponentId id : ids)
+        {
+            added |= Add(entity, id);
+        }
+        return added;
+    }
+
+    bool Remove(Entity entity, std::initializer_list<ComponentId> ids)
+    {
+        ASSERT(IsCurrent(entity));
+        bool removed = false;
+        for (ComponentId id : ids)
+        {
+            removed |= Remove(entity, id);
+        }
+        return removed;
+    }
+
     QueryResult Search(EntityQuery query)
     {
         Array<Entity> storage = {};
@@ -380,6 +420,22 @@ namespace Ecs
         }
 
         return { storage.begin(), storage.Size() };
+    }
+
+    void Add(EntityQuery query, std::initializer_list<ComponentId> ids)
+    {
+        for (Entity entity : Search(query))
+        {
+            Add(entity, ids);
+        }
+    }
+
+    void Remove(EntityQuery query, std::initializer_list<ComponentId> ids)
+    {
+        for (Entity entity : Search(query))
+        {
+            Remove(entity, ids);
+        }
     }
 
     void Destroy(EntityQuery query)

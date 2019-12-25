@@ -1,6 +1,5 @@
 #pragma once
 
-#include "containers/slice.h"
 #include "allocator/allocator.h"
 #include "components/entity.h"
 #include "components/component.h"
@@ -30,6 +29,13 @@ namespace Ecs
     bool Add(Entity entity, ComponentId id);
     bool Remove(Entity entity, ComponentId id);
 
+    bool HasAll(Entity entity, ComponentFlags flags);
+    bool HasAny(Entity entity, ComponentFlags flags);
+    bool HasNone(Entity entity, ComponentFlags flags);
+
+    bool Add(Entity entity, std::initializer_list<ComponentId> ids);
+    bool Remove(Entity entity, std::initializer_list<ComponentId> ids);
+
     struct QueryResult
     {
         Entity* m_ptr; i32 m_len;
@@ -41,6 +47,9 @@ namespace Ecs
     };
 
     QueryResult Search(EntityQuery query);
+
+    void Add(EntityQuery query, std::initializer_list<ComponentId> ids);
+    void Remove(EntityQuery query, std::initializer_list<ComponentId> ids);
     void Destroy(EntityQuery query);
 
     template<typename K>
