@@ -48,7 +48,7 @@ struct IdAllocator
 
     inline bool IsCurrent(u16 version, u16 index) const
     {
-        return m_versions.InRange(index) && (version == m_versions[index]);
+        return version == m_versions[index];
     }
 
     // ------------------------------------------------------------------------
