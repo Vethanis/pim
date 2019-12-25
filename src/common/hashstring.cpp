@@ -1,5 +1,5 @@
 #include "common/hashstring.h"
-#include "containers/dict.h"
+#include "containers/hash_set.h"
 #include "common/text.h"
 
 #if _DEBUG
@@ -8,7 +8,8 @@ namespace HStr
 {
     using HashText = Text<64>;
 
-    static DictTable<64, HashKey, HashText> ms_store;
+    static constexpr auto HashComparator = OpComparator<HashKey>();
+    static HashDict<HashKey, HashText, HashComparator> ms_store;
 
     cstr Lookup(HashKey key)
     {

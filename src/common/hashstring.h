@@ -45,6 +45,7 @@ struct HashString
     inline bool IsNotNull() const { return Value != 0; }
     inline bool operator==(HashString other) const { return Value == other.Value; }
     inline bool operator!=(HashString other) const { return Value != other.Value; }
+    inline bool operator<(HashString other) const { return Value < other.Value; }
 
     inline cstr DebugGet() const
     {

@@ -1,8 +1,9 @@
 #include "common/type.h"
 
-#include "containers/dict.h"
+#include "containers/hash_set.h"
 
-static DictTable<256, Guid, TypeInfo> ms_table;
+static constexpr auto GuidComparator = OpComparator<Guid>();
+static HashDict<Guid, TypeInfo, GuidComparator> ms_table;
 
 namespace TypeRegistry
 {

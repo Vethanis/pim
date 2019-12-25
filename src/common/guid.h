@@ -19,6 +19,26 @@ struct Guid
         cmp |= d - o.d;
         return cmp == 0;
     }
+    inline constexpr bool operator<(Guid o) const
+    {
+        if (a != o.a)
+        {
+            return a < o.a;
+        }
+        if (b != o.b)
+        {
+            return b < o.b;
+        }
+        if (c != o.c)
+        {
+            return c < o.c;
+        }
+        if (d != o.d)
+        {
+            return d < o.d;
+        }
+        return false;
+    }
 };
 
 Guid ToGuid(GuidStr str);

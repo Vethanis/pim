@@ -330,9 +330,6 @@
     <ClInclude Include="..\src\containers\array.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\dict.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\ring.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -528,6 +525,9 @@
       <Filter>natvis</Filter>
     </Natvis>
     <Natvis Include="natvis\slice.natvis">
+      <Filter>natvis</Filter>
+    </Natvis>
+    <Natvis Include="chunkallocator.natvis">
       <Filter>natvis</Filter>
     </Natvis>
   </ItemGroup>

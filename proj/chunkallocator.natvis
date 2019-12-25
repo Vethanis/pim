@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+    <Type Name="ChunkAllocator">
+        <DisplayString>{m_length} / {m_capacity}</DisplayString>
+        <Expand>
+            <Item Name="chunks">m_chunks,[m_length]</Item>
+            <Item Name="freelists">m_freelists,[m_length]</Item>
+            <Item Name="freelens">m_freelens,[m_length]</Item>
+            <Item Name="length">m_length</Item>
+            <Item Name="capacity">m_capacity</Item>
+            <Item Name="allocator">m_allocator</Item>
+            <Item Name="chunkSize">m_chunkSize</Item>
+            <Item Name="itemSize">m_itemSize</Item>
+            <CustomListItems>
+                <Variable Name="i" InitialValue="0"/>
+                <Loop>
+                    <Break Condition="i >= m_length"/>
+                    <Item>m_freelists[i],[m_freelens[i]]</Item>
+                    <Exec>++i</Exec>
+                </Loop>
+            </CustomListItems>
+        </Expand>
+    </Type>
+</AutoVisualizer>

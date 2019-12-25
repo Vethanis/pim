@@ -202,7 +202,7 @@ namespace HashUtil
 
     static u32 GrowWidth(u32 width, u32 count)
     {
-        if (((count + 1u) * 2u) >= width)
+        if (((count + 1u) * 4u) >= (width * 3u))
         {
             return Max(32u, width * 2u);
         }
@@ -288,7 +288,7 @@ struct HashSet
         for (u32 i = 0u; i < oldWidth; ++i)
         {
             const u32 hash = oldHashes[i];
-            if (IsEmptyOrTomb(hash))
+            if (HashUtil::IsEmptyOrTomb(hash))
             {
                 continue;
             }
@@ -424,7 +424,7 @@ struct HashDict
         for (u32 i = 0u; i < oldWidth; ++i)
         {
             const u32 hash = oldHashes[i];
-            if (IsEmptyOrTomb(hash))
+            if (HashUtil::IsEmptyOrTomb(hash))
             {
                 continue;
             }
@@ -477,6 +477,32 @@ struct HashDict
         return false;
     }
 
+    inline const V* Get(K key) const
+    {
+        i32 i = HashUtil::Find<K>(
+            cmp, m_width, m_hashes, m_keys, key);
+        return (i == -1) ? nullptr : m_values + i;
+    }
+
+    inline V* Get(K key)
+    {
+        i32 i = HashUtil::Find<K>(
+            cmp, m_width, m_hashes, m_keys, key);
+        return (i == -1) ? nullptr : m_values + i;
+    }
+
+    inline bool Set(K key, V value)
+    {
+        i32 i = HashUtil::Find<K>(
+            cmp, m_width, m_hashes, m_keys, key);
+        if (i == -1)
+        {
+            return false;
+        }
+        m_values[i] = value;
+        return true;
+    }
+
     inline V& operator[](K key)
     {
         const u32 hash = HashUtil::Hash<K>(cmp, key);
@@ -489,6 +515,7 @@ struct HashDict
                 cmp, m_width, m_hashes, m_keys, hash, key);
             ASSERT(i != -1);
             memset(m_values + i, 0, sizeof(V));
+            ++m_count;
         }
         return m_values[i];
     }

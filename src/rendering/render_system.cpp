@@ -11,6 +11,7 @@
 
 #include "components/ecs.h"
 #include "components/transform.h"
+#include "rendering/components.h"
 
 namespace RenderSystem
 {
@@ -49,9 +50,7 @@ namespace RenderSystem
         ms_width = sapp_width();
         ms_height = sapp_height();
 
-        //Entity map = Ecs::Create("Map Test");
-        //Ecs::Add<ModelMatrix>(map);
-        //Ecs::Add<Renderable>(map);
+        Entity map = Ecs::Create({ LocalToWorld::Id, Drawable::Id });
     }
 
     void Update()
@@ -60,14 +59,11 @@ namespace RenderSystem
         ms_height = sapp_height();
         simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
 
-        //Entity map = Ecs::Find("Map Test");
-        //ASSERT(map.IsNotNull());
-
-        //for (Entity entity : Ecs::Search({ CTypeOf<Renderable>(), CTypeOf<ModelMatrix>() }))
-        //{
-        //    ModelMatrix& transform = Ecs::Get<ModelMatrix>(entity);
-        //    Renderable& renderable = Ecs::Get<Renderable>(entity);
-        //}
+        for (Entity entity : Ecs::Search({ { Drawable::Id, LocalToWorld::Id }, {}, {} }))
+        {
+            LocalToWorld& l2w = Ecs::Get<LocalToWorld>(entity);
+            Drawable& drawable = Ecs::Get<Drawable>(entity);
+        }
     }
 
     void Shutdown()

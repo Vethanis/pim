@@ -85,7 +85,6 @@
     <ClInclude Include="..\src\components\transform.h" />
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\bitfield.h" />
-    <ClInclude Include="..\src\containers\dict.h" />
     <ClInclude Include="..\src\containers\generational.h" />
     <ClInclude Include="..\src\containers\hash_set.h" />
     <ClInclude Include="..\src\containers\initlist.h" />
@@ -163,6 +162,7 @@
     <ClInclude Include="..\submodules\stb\stretchy_buffer.h" />
   </ItemGroup>
   <ItemGroup>
+    <Natvis Include="chunkallocator.natvis" />
     <Natvis Include="natvis\array.natvis" />
     <Natvis Include="natvis\dict.natvis" />
     <Natvis Include="natvis\slice.natvis" />

@@ -249,7 +249,7 @@ namespace Ecs
         for (i32 i = 0; i < ComponentId_COUNT; ++i)
         {
             ms_ptrs[i].Init(allocator);
-            ms_allocators[i].Init(allocator, 1024, ComponentSizes[i]);
+            ms_allocators[i].Init(allocator, ComponentSizes[i]);
         }
     }
 
