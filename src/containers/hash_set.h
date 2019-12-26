@@ -85,6 +85,17 @@ namespace HashUtil
             cmp, width, hashes, keys, Hash(cmp, key), key);
     }
 
+    template<typename K>
+    static bool Contains(
+        const Comparator<K> cmp,
+        u32 width,
+        const u32* hashes, const K* keys,
+        K key)
+    {
+        return Find<K>(
+            cmp, width, hashes, keys, key) != -1;
+    }
+
     // ------------------------------------------------------------------------
 
     template<typename K>
@@ -139,13 +150,13 @@ namespace HashUtil
         u32 hash, K key)
     {
         i32 i = Find(
-            cmp, width, hashes, values, hash, value);
+            cmp, width, hashes, keys, hash, key);
         if (i == -1)
         {
             return -1;
         }
         hashes[i] = TombHash;
-        memset(values + i, 0, sizeof(K));
+        memset(keys + i, 0, sizeof(K));
         return i;
     }
 
@@ -158,19 +169,6 @@ namespace HashUtil
     {
         return Remove<K>(
             cmp, width, hashes, keys, Hash(cmp, key), key);
-    }
-
-    // ------------------------------------------------------------------------
-
-    template<typename K>
-    static bool Contains(
-        const Comparator<K> cmp,
-        u32 width,
-        const u32* hashes, const K* keys,
-        K key)
-    {
-        return Find<K>(
-            cmp, width, hashes, keys, key) != -1;
     }
 
     // ------------------------------------------------------------------------
@@ -217,11 +215,11 @@ template<
     const Comparator<K>& cmp>
 struct HashSet
 {
+    AllocType m_allocator;
     u32* m_hashes;
     K* m_keys;
     u32 m_width;
     u32 m_count;
-    AllocType m_allocator;
 
     // ------------------------------------------------------------------------
 
@@ -350,12 +348,12 @@ template<
     const Comparator<K>& cmp>
 struct HashDict
 {
+    AllocType m_allocator;
     u32* m_hashes;
     K* m_keys;
     V* m_values;
     u32 m_width;
     u32 m_count;
-    AllocType m_allocator;
 
     // ------------------------------------------------------------------------
 

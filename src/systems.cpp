@@ -6,6 +6,7 @@
 #include "time/time_system.h"
 #include "allocator/allocator.h"
 #include "components/ecs.h"
+#include "components/system.h"
 #include "assets/asset_system.h"
 #include "audio/audio_system.h"
 #include "input/input_system.h"
@@ -17,11 +18,13 @@ namespace Systems
     {
         TimeSystem::Init();
         Allocator::Init();
-        Ecs::Init();
         InputSystem::Init();
         AudioSystem::Init();
         RenderSystem::Init();
         AssetSystem::Init();
+
+        Ecs::Init();
+        SystemRegistry::Init();
     }
 
     void Update()
@@ -30,8 +33,10 @@ namespace Systems
         Allocator::Update();
         AssetSystem::Update();
         InputSystem::Update();
-        AudioSystem::Update();
 
+        SystemRegistry::Update();
+
+        AudioSystem::Update();
         RenderSystem::Update();
 
         TimeSystem::Visualize();
@@ -44,6 +49,8 @@ namespace Systems
 
     void Shutdown()
     {
+        SystemRegistry::Shutdown();
+
         RenderSystem::Shutdown();
         AudioSystem::Shutdown();
         InputSystem::Shutdown();

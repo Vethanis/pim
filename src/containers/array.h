@@ -9,10 +9,10 @@
 template<typename T>
 struct Array
 {
+    AllocType m_allocType;
     T* m_ptr;
     i32 m_length;
     i32 m_capacity;
-    AllocType m_allocType;
 
     // ------------------------------------------------------------------------
 

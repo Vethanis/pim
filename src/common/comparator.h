@@ -6,9 +6,9 @@
 template<typename T>
 struct Comparator
 {
-    using EqualsFn = bool(*)(T lhs, T rhs);
-    using CompareFn = i32(*)(T lhs, T rhs);
-    using HashFn = u32(*)(T item);
+    using EqualsFn = bool(*)(const T& lhs, const T& rhs);
+    using CompareFn = i32(*)(const T& lhs, const T& rhs);
+    using HashFn = u32(*)(const T& item);
 
     const EqualsFn Equals;
     const CompareFn Compare;
@@ -16,13 +16,13 @@ struct Comparator
 };
 
 template<typename T>
-static bool OpEqualsFn(T lhs, T rhs)
+static bool OpEqualsFn(const T& lhs, const T& rhs)
 {
     return lhs == rhs;
 }
 
 template<typename T>
-static i32 OpCompareFn(T lhs, T rhs)
+static i32 OpCompareFn(const T& lhs, const T& rhs)
 {
     if (!(lhs == rhs))
     {
@@ -32,19 +32,19 @@ static i32 OpCompareFn(T lhs, T rhs)
 }
 
 template<typename T>
-static bool MemEqualsFn(T lhs, T rhs)
+static bool MemEqualsFn(const T& lhs, const T& rhs)
 {
     return memcmp(&lhs, &rhs, sizeof(T)) == 0;
 }
 
 template<typename T>
-static i32 MemCompareFn(T lhs, T rhs)
+static i32 MemCompareFn(const T& lhs, const T& rhs)
 {
     return memcmp(&lhs, &rhs, sizeof(T));
 }
 
 template<typename T>
-static u32 MemHashFn(T item)
+static u32 MemHashFn(const T& item)
 {
     return Fnv32Bytes(&item, sizeof(T));
 }

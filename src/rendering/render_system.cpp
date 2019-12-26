@@ -49,8 +49,6 @@ namespace RenderSystem
         }
         ms_width = sapp_width();
         ms_height = sapp_height();
-
-        Entity map = Ecs::Create({ LocalToWorld::Id, Drawable::Id });
     }
 
     void Update()
