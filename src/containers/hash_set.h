@@ -200,9 +200,9 @@ namespace HashUtil
 
     static u32 GrowWidth(u32 width, u32 count)
     {
-        if (((count + 1u) * 4u) >= (width * 3u))
+        if (((count + 1u) * 10u) >= (width * 8u))
         {
-            return Max(32u, width * 2u);
+            return Max(8u, width * 2u);
         }
         return width;
     }

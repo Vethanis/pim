@@ -1,5 +1,6 @@
 #include "components/ecs.h"
 
+#include "components/system.h"
 #include "containers/array.h"
 #include "containers/generational.h"
 #include "common/chunk_allocator.h"
@@ -241,7 +242,7 @@ static void SearchAllAnyNone(
 
 namespace Ecs
 {
-    void Init()
+    static void Init()
     {
         AllocType allocator = Alloc_Pool;
         ms_ids.Init(allocator);
@@ -253,7 +254,12 @@ namespace Ecs
         }
     }
 
-    void Shutdown()
+    static void Update()
+    {
+
+    }
+
+    static void Shutdown()
     {
         ms_ids.Reset();
         ms_flags.Reset();
@@ -263,6 +269,18 @@ namespace Ecs
             ms_allocators[i].Reset();
         }
     }
+
+    static constexpr System ms_system =
+    {
+        ToGuid("Ecs"),
+        { 0, 0 },
+        Init,
+        Update,
+        Shutdown,
+    };
+    static RegisterSystem ms_register(ms_system);
+
+    // ------------------------------------------------------------------------
 
     bool IsCurrent(Entity entity)
     {

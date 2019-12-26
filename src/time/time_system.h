@@ -4,6 +4,10 @@
 
 namespace TimeSystem
 {
+    void Init();
+    void Update();
+    void Shutdown();
+
     u64 Now();
     u64 StartOfApp();
     u64 StartOfFrame();
@@ -13,9 +17,4 @@ namespace TimeSystem
     f32 ToSeconds(u64 ticks);
     f32 ToMilliseconds(u64 ticks);
     f32 ToMicroseconds(u64 ticks);
-
-    void Init();
-    void Update();
-    void Shutdown();
-    void Visualize();
 };

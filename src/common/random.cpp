@@ -1,5 +1,6 @@
 #include "common/random.h"
 
+#include "components/system.h"
 #include "common/hash.h"
 #include "time/time_system.h"
 #include <pcg32/pcg32.h>
@@ -11,7 +12,7 @@ namespace Random
 {
     static thread_local pcg32_random_t ts_state;
 
-    void Seed()
+    static void Init()
     {
         constexpr u64 pimhash = Fnv64String("Piment");
         u64 hash = pimhash;
@@ -19,6 +20,29 @@ namespace Random
         hash = Fnv64Qword((u64)&printf, hash);
         ts_state.state = hash;
     }
+
+    static void Update()
+    {
+
+    }
+
+    static void Shutdown()
+    {
+
+    }
+
+    static constexpr System ms_system =
+    {
+        ToGuid("Random"),
+        { 0, 0 },
+        Init,
+        Update,
+        Shutdown,
+    };
+    static RegisterSystem ms_register(ms_system);
+
+    // ------------------------------------------------------------------------
+
     void Seed(u64 seed)
     {
         ts_state.state = seed;

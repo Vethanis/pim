@@ -7,6 +7,7 @@
 #include "containers/array.h"
 #include "common/find.h"
 #include "time/time_system.h"
+#include "components/system.h"
 
 // ----------------------------------------------------------------------------
 
@@ -88,27 +89,6 @@ namespace InputSystem
         }
     }
 
-    void Init()
-    {
-        for (auto& store : ms_listeners)
-        {
-            store.Init(Alloc_Stdlib);
-        }
-    }
-
-    void Update()
-    {
-
-    }
-
-    void Shutdown()
-    {
-        for (auto& store : ms_listeners)
-        {
-            store.Reset();
-        }
-    }
-
     void OnEvent(const sapp_event* evt, bool keyboardCaptured)
     {
         if (keyboardCaptured) { return; }
@@ -134,19 +114,36 @@ namespace InputSystem
         }
     }
 
-    void Visualize()
-    {
-        ImGui::SetNextWindowSize({ 400.0f, 400.0f }, ImGuiCond_Once);
-        ImGui::Begin("CtrlSystem");
-        {
-            for (u32 i = 0; i < NELEM(ms_listeners); ++i)
-            {
-                if (ImGui::CollapsingHeader(ms_storeNames[i]))
-                {
+    // ------------------------------------------------------------------------
 
-                }
-            }
+    static void Init()
+    {
+        for (auto& store : ms_listeners)
+        {
+            store.Init(Alloc_Pool);
         }
-        ImGui::End();
     }
+
+    static void Update()
+    {
+
+    }
+
+    static void Shutdown()
+    {
+        for (auto& store : ms_listeners)
+        {
+            store.Reset();
+        }
+    }
+
+    static constexpr System ms_system =
+    {
+        ToGuid("InputSystem"),
+        { 0, 0 },
+        Init,
+        Update,
+        Shutdown,
+    };
+    static RegisterSystem ms_register(ms_system);
 };

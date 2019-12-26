@@ -18,11 +18,11 @@ static void Sort(T* items, i32 count, const Comparator<T> cmp)
         const T pivot = items[count >> 1];
         while (true)
         {
-            while (cmp.Compare(items[i], pivot) < 0)
+            while ((i < j) && (cmp.Compare(items[i], pivot) < 0))
             {
                 ++i;
             }
-            while (cmp.Compare(items[j], pivot) > 0)
+            while ((j > i) && (cmp.Compare(items[j], pivot) > 0))
             {
                 --j;
             }

@@ -10,11 +10,14 @@
 #include "time/time_system.h"
 
 #include "components/ecs.h"
+#include "components/system.h"
 #include "components/transform.h"
 #include "rendering/components.h"
 
 namespace RenderSystem
 {
+    static i32 ms_width;
+    static i32 ms_height;
     constexpr sg_pass_action ms_clear =
     {
         0,
@@ -26,10 +29,7 @@ namespace RenderSystem
         },
     };
 
-    static i32 ms_width;
-    static i32 ms_height;
-
-    void Init()
+    static void Init()
     {
         {
             sg_desc desc = {};
@@ -51,7 +51,7 @@ namespace RenderSystem
         ms_height = sapp_height();
     }
 
-    void Update()
+    static void Update()
     {
         ms_width = sapp_width();
         ms_height = sapp_height();
@@ -64,11 +64,26 @@ namespace RenderSystem
         }
     }
 
-    void Shutdown()
+    static void Shutdown()
     {
         simgui_shutdown();
         sg_shutdown();
     }
+
+    static constexpr Guid ms_dependencies[] =
+    {
+        ToGuid("InputSystem"),
+    };
+
+    static constexpr System ms_system =
+    {
+        ToGuid("RenderSystem"),
+        { ARGS(ms_dependencies) },
+        Init,
+        Update,
+        Shutdown,
+    };
+    static RegisterSystem ms_register(ms_system);
 
     void FrameEnd()
     {
@@ -84,10 +99,5 @@ namespace RenderSystem
     bool OnEvent(const sapp_event* evt)
     {
         return simgui_handle_event(evt);
-    }
-
-    void Visualize()
-    {
-
     }
 };

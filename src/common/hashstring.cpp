@@ -9,7 +9,7 @@ namespace HStr
     using HashText = Text<64>;
 
     static constexpr auto HashComparator = OpComparator<HashKey>();
-    static HashDict<HashKey, HashText, HashComparator> ms_store;
+    static HashDict<HashKey, HashText, HashComparator> ms_store = { Alloc_Pool };
 
     cstr Lookup(HashKey key)
     {

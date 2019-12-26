@@ -2,13 +2,9 @@
 
 #include <sokol/sokol_app.h>
 
-#include "common/macro.h"
 #include "time/time_system.h"
 #include "allocator/allocator.h"
-#include "components/ecs.h"
 #include "components/system.h"
-#include "assets/asset_system.h"
-#include "audio/audio_system.h"
 #include "input/input_system.h"
 #include "rendering/render_system.h"
 
@@ -18,12 +14,6 @@ namespace Systems
     {
         TimeSystem::Init();
         Allocator::Init();
-        InputSystem::Init();
-        AudioSystem::Init();
-        RenderSystem::Init();
-        AssetSystem::Init();
-
-        Ecs::Init();
         SystemRegistry::Init();
     }
 
@@ -31,31 +21,13 @@ namespace Systems
     {
         TimeSystem::Update();
         Allocator::Update();
-        AssetSystem::Update();
-        InputSystem::Update();
-
         SystemRegistry::Update();
-
-        AudioSystem::Update();
-        RenderSystem::Update();
-
-        TimeSystem::Visualize();
-        RenderSystem::Visualize();
-        InputSystem::Visualize();
-        AudioSystem::Visualize();
-
         RenderSystem::FrameEnd();
     }
 
     void Shutdown()
     {
         SystemRegistry::Shutdown();
-
-        RenderSystem::Shutdown();
-        AudioSystem::Shutdown();
-        InputSystem::Shutdown();
-        Ecs::Shutdown();
-        AssetSystem::Shutdown();
         Allocator::Shutdown();
         TimeSystem::Shutdown();
     }

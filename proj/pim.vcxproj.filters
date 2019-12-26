@@ -184,6 +184,9 @@
     <ClCompile Include="..\src\typeinfo\basic_types.cpp">
       <Filter>Source Files\typeinfo</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\os\socket.cpp">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\hash.h">

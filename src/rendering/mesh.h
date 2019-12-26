@@ -5,10 +5,6 @@
 
 namespace MeshSystem
 {
-    void Init();
-    void Update();
-    void Shutdown();
-
     MeshId Load(Guid guid);
     void Release(MeshId id);
 };

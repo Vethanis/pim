@@ -23,6 +23,7 @@
     <ClCompile Include="..\src\components\ecs.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\os\socket.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
     <ClCompile Include="..\src\os\thread_win32.cpp" />
     <ClCompile Include="..\src\quake\packfile.cpp" />

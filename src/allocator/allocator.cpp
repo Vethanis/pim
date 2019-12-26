@@ -68,16 +68,20 @@ namespace Allocator
         return reqBytes;
     }
 
-    // ------------------------------------------------------------------------
+    static bool ms_init;
 
     void Init()
     {
-        for (i32 i = 0; i < NumAllocators; ++i)
+        if (!ms_init)
         {
-            i32 capacity = ms_capacities[i];
-            void* memory = capacity > 0 ? malloc(capacity) : 0;
-            ms_allocations[i] = memory;
-            ms_tables[i].Init(ms_allocators[i], memory, capacity);
+            ms_init = true;
+            for (i32 i = 0; i < NumAllocators; ++i)
+            {
+                i32 capacity = ms_capacities[i];
+                void* memory = capacity > 0 ? malloc(capacity) : 0;
+                ms_allocations[i] = memory;
+                ms_tables[i].Init(ms_allocators[i], memory, capacity);
+            }
         }
     }
 
@@ -106,8 +110,11 @@ namespace Allocator
         }
     }
 
+    // ------------------------------------------------------------------------
+
     void* Alloc(AllocType type, i32 want)
     {
+        Init();
         ASSERT(InRange(type));
         ASSERT(want >= 0);
 
@@ -130,6 +137,7 @@ namespace Allocator
 
     void* Realloc(AllocType type, void* prev, i32 want)
     {
+        Init();
         ASSERT(InRange(type));
         ASSERT(want >= 0);
 
@@ -175,6 +183,7 @@ namespace Allocator
 
     void Free(void* prev)
     {
+        Init();
         if (prev)
         {
             ASSERT(IsAligned(prev));

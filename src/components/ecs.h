@@ -16,9 +16,6 @@ struct EntityQuery
 
 namespace Ecs
 {
-    void Init();
-    void Shutdown();
-
     Entity Create();
     Entity Create(std::initializer_list<ComponentId> ids);
     bool Destroy(Entity entity);

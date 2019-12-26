@@ -172,9 +172,5 @@ namespace InputSystem
     void Listen(InputChannel channel, InputListener onEvent);
     void Deafen(InputChannel channel, InputListener onEvent);
 
-    void Init();
-    void Update();
-    void Shutdown();
     void OnEvent(const sapp_event* evt, bool keyboardCaptured);
-    void Visualize();
 };

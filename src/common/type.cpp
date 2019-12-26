@@ -3,7 +3,7 @@
 #include "containers/hash_set.h"
 
 static constexpr auto GuidComparator = OpComparator<Guid>();
-static HashDict<Guid, TypeInfo, GuidComparator> ms_table;
+static HashDict<Guid, TypeInfo, GuidComparator> ms_table = { Alloc_Pool };
 
 namespace TypeRegistry
 {

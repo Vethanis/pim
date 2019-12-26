@@ -1,19 +1,36 @@
 #include "rendering/material.h"
+#include "components/system.h"
 
 namespace MaterialSystem
 {
-    void Init()
+    static void Init()
     {
 
     }
-    void Update()
+    static void Update()
     {
 
     }
-    void Shutdown()
+    static void Shutdown()
     {
 
     }
+
+    static constexpr Guid ms_dependencies[] =
+    {
+        ToGuid("AssetSystem"),
+        ToGuid("RenderSystem"),
+    };
+
+    static constexpr System ms_system =
+    {
+        ToGuid("MaterialSystem"),
+        { ARGS(ms_dependencies) },
+        Init,
+        Update,
+        Shutdown,
+    };
+    static RegisterSystem ms_register(ms_system);
 
     MaterialId Load(Guid guid)
     {

@@ -6,76 +6,99 @@
 #include "common/sort.h"
 
 static constexpr auto GuidComparator = OpComparator<Guid>();
-static HashDict<Guid, i32, GuidComparator> ms_lookup = { Alloc_Pool };
-static HashSet<Guid, GuidComparator> ms_initialized = { Alloc_Pool };
+using GuidSet = HashSet<Guid, GuidComparator>;
+
+static Array<Guid> ms_names = { Alloc_Pool };
 static Array<System> ms_systems = { Alloc_Pool };
+static Array<GuidSet> ms_deps = { Alloc_Pool };
+static Array<bool> ms_hasInit = { Alloc_Pool };
+static Array<i32> ms_order = { Alloc_Pool };
 static bool ms_needsSort;
 
 static const System& GetSystem(Guid name)
 {
-    const i32* pIndex = ms_lookup.Get(name);
-    ASSERT(pIndex);
-    return ms_systems[*pIndex];
+    i32 i = RFind(ms_names, name);
+    ASSERT(i != -1);
+    return ms_systems[i];
+}
+
+static void BuildSet(const System& system, GuidSet& set)
+{
+    if (set.Add(system.Name))
+    {
+        for (Guid dep : system.Dependencies)
+        {
+            if (set.Add(dep))
+            {
+                BuildSet(GetSystem(dep), set);
+            }
+        }
+    }
 }
 
 namespace SystemComparator
 {
-    static bool Equals(const System& lhs, const System& rhs)
+    static bool Equals(const i32& lhs, const i32& rhs)
     {
-        return lhs.Name == rhs.Name;
+        return lhs == rhs;
     }
 
-    static i32 Compare(const System& lhs, const System& rhs)
+    static i32 Compare(const i32& lhs, const i32& rhs)
     {
-        // can happen when resolving a dependency chain
-        if (lhs.Name == rhs.Name)
+        if (lhs == rhs)
         {
             return 0;
         }
 
-        // check if lhs depends on rhs
-        if (Contains(lhs.Dependencies, rhs.Name))
+        const Guid lName = ms_names[lhs];
+        const Guid rName = ms_names[rhs];
+
+        const GuidSet lSet = ms_deps[lhs];
+        const GuidSet rSet = ms_deps[rhs];
+
+        if (lSet.Contains(rName))
         {
+            ASSERT(!rSet.Contains(lName));
             return 1;
         }
-
-        // check if rhs depends on lhs
-        if (Contains(rhs.Dependencies, lhs.Name))
+        if (rSet.Contains(lName))
         {
             return -1;
         }
-
-        // check if lhs dependencies depend on rhs
-        for (Guid dep : lhs.Dependencies)
-        {
-            i32 cmp = Compare(GetSystem(dep), rhs);
-            if (cmp != 0)
-            {
-                return cmp;
-            }
-        }
-
-        // check if rhs dependencies depend on lhs
-        for (Guid dep : rhs.Dependencies)
-        {
-            i32 cmp = Compare(lhs, GetSystem(dep));
-            if (cmp != 0)
-            {
-                return cmp;
-            }
-        }
-
-        // no dependencies between these, don't care how they're sorted.
         return 0;
     }
 
-    static u32 Hash(const System& sys)
+    static u32 Hash(const i32& i)
     {
-        return Fnv32Bytes(&sys.Name, sizeof(Guid));
+        return Fnv32Bytes(&(ms_names[i]), sizeof(Guid));
     }
 
-    static constexpr Comparator<System> Value = { Equals, Compare, Hash };
+    static constexpr Comparator<i32> Value = { Equals, Compare, Hash };
 };
+
+static void InitSystem(i32 i)
+{
+    ASSERT(!ms_hasInit[i]);
+    ms_hasInit[i] = true;
+    ms_systems[i].Init();
+}
+
+static void UpdateSystem(i32 i)
+{
+    if (ms_hasInit[i])
+    {
+        ms_systems[i].Update();
+    }
+}
+
+static void ShutdownSystem(i32 i)
+{
+    if (ms_hasInit[i])
+    {
+        ms_hasInit[i] = false;
+        ms_systems[i].Shutdown();
+    }
+}
 
 static void SortSystems()
 {
@@ -83,49 +106,17 @@ static void SortSystems()
     {
         ms_needsSort = false;
 
-        Sort(ms_systems.begin(), ms_systems.Size(), SystemComparator::Value);
         const i32 count = ms_systems.Size();
-        const System* systems = ms_systems.begin();
         for (i32 i = 0; i < count; ++i)
         {
-            const Guid name = systems[i].Name;
-            ms_lookup[name] = i;
+            ms_order[i] = i;
+            ms_deps[i].Clear();
         }
-    }
-}
-
-static void InitSystem(const System& system)
-{
-    for (Guid dep : system.Dependencies)
-    {
-        InitSystem(GetSystem(dep));
-    }
-    if (ms_initialized.Add(system.Name))
-    {
-        system.Init();
-    }
-}
-
-static void UpdateSystem(const System& system)
-{
-    if (ms_initialized.Contains(system.Name))
-    {
-        system.Update();
-    }
-}
-
-static void ShutdownSystem(const System& system)
-{
-    if (ms_initialized.Remove(system.Name))
-    {
-        for (const System& other : ms_systems)
+        for (i32 i = 0; i < count; ++i)
         {
-            if (Contains(other.Dependencies, system.Name))
-            {
-                ShutdownSystem(other);
-            }
+            BuildSet(ms_systems[i], ms_deps[i]);
         }
-        system.Shutdown();
+        Sort(ms_order.begin(), ms_order.Size(), SystemComparator::Value);
     }
 }
 
@@ -133,28 +124,32 @@ namespace SystemRegistry
 {
     void Register(System system)
     {
-        if (ms_lookup.Add(system.Name, ms_systems.Size()))
-        {
-            ms_systems.Grow() = system;
-            ms_needsSort = true;
-        }
+        ASSERT(!Contains(ms_names, system.Name));
+        ms_order.Grow() = ms_names.Size();
+        ms_names.Grow() = system.Name;
+        ms_systems.Grow() = system;
+        ms_deps.Grow().Init(Alloc_Pool);
+        ms_hasInit.Grow() = false;
+        ms_needsSort = true;
     }
 
     void Init()
     {
         SortSystems();
-        for (const System& system : ms_systems)
+        const i32 count = ms_systems.Size();
+        for (i32 i = 0; i < count; ++i)
         {
-            InitSystem(system);
+            InitSystem(ms_order[i]);
         }
     }
 
     void Update()
     {
         SortSystems();
-        for (const System& system : ms_systems)
+        const i32 count = ms_systems.Size();
+        for (i32 i = 0; i < count; ++i)
         {
-            UpdateSystem(system);
+            UpdateSystem(ms_order[i]);
         }
     }
 
@@ -164,7 +159,7 @@ namespace SystemRegistry
         const i32 count = ms_systems.Size();
         for (i32 i = count - 1; i >= 0; --i)
         {
-            ShutdownSystem(ms_systems[i]);
+            ShutdownSystem(ms_order[i]);
         }
     }
 };

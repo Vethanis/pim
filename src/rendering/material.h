@@ -5,10 +5,6 @@
 
 namespace MaterialSystem
 {
-    void Init();
-    void Update();
-    void Shutdown();
-
     MaterialId Load(Guid guid);
     void Release(MaterialId id);
 };

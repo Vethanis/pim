@@ -2,7 +2,5 @@
 
 namespace AssetSystem
 {
-    void Init();
-    void Update();
-    void Shutdown();
-}
+
+};

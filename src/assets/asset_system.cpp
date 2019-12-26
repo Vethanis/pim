@@ -1,13 +1,14 @@
 #include "assets/asset_system.h"
 
 #include "containers/array.h"
+#include "components/system.h"
 #include "quake/packfile.h"
 
 namespace AssetSystem
 {
     static Quake::Folder ms_folder;
 
-    void Init()
+    static void Init()
     {
         EResult err = EUnknown;
         Array<Quake::DPackFile> arena;
@@ -16,13 +17,28 @@ namespace AssetSystem
         arena.Reset();
     }
 
-    void Update()
+    static void Update()
     {
 
     }
 
-    void Shutdown()
+    static void Shutdown()
     {
         Quake::FreeFolder(ms_folder);
     }
-}
+
+    static constexpr Guid ms_dependencies[] =
+    {
+        ToGuid("InputSystem"),
+    };
+
+    static constexpr System ms_system =
+    {
+        ToGuid("AssetSystem"),
+        { ARGS(ms_dependencies) },
+        Init,
+        Update,
+        Shutdown,
+    };
+    static RegisterSystem ms_register(ms_system);
+};
