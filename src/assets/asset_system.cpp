@@ -11,10 +11,7 @@ namespace AssetSystem
     static void Init()
     {
         EResult err = EUnknown;
-        Array<Quake::DPackFile> arena;
-        arena.Init(Alloc_Linear);
-        ms_folder = Quake::LoadFolder("packs/id1", arena, err);
-        arena.Reset();
+        ms_folder = Quake::LoadFolder("packs/id1", err);
     }
 
     static void Update()

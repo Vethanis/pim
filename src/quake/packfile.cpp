@@ -4,59 +4,77 @@
 
 namespace Quake
 {
-    Pack LoadPack(cstrc dir, Array<DPackFile>& arena, EResult& err)
+    Pack LoadPack(cstrc dir, EResult& err)
     {
         ASSERT(dir);
         Pack retval = {};
-        retval.name = HashString(dir);
 
         IO::FDGuard file = IO::Open(dir, IO::OBinSeqRead, err);
-        CHECKERR();
+        if (!IO::IsOpen(file))
+        {
+            return retval;
+        }
 
         DPackHeader header;
         i32 nRead = IO::Read(file, &header, sizeof(header), err);
-        CHECKERR();
-        CHECK(nRead == sizeof(header));
-        CHECK(!memcmp(header.id, "PACK", 4));
+        if (nRead != sizeof(header))
+        {
+            err = EFail;
+            return retval;
+        }
+        ASSERT(memcmp(header.id, "PACK", 4) == 0);
 
-        const i32 numPackFiles = header.length / sizeof(DPackFile);
-        CHECK(numPackFiles > 0);
+        const i32 count = header.length / sizeof(DPackFile);
+        ASSERT(count > 0);
 
         IO::Seek(file, header.offset, err);
-        CHECKERR();
+        ASSERT(err == ESuccess);
 
-        arena.Resize(numPackFiles);
-        nRead = IO::Read(file, arena.begin(), header.length, err);
-        CHECKERR();
-        CHECK(nRead == header.length);
+        DPackFile* pHeaders = Allocator::AllocT<DPackFile>(Alloc_Linear, count);
+        nRead = IO::Read(file, pHeaders, header.length, err);
+        ASSERT(err == ESuccess);
+        ASSERT(nRead == header.length);
 
+        retval.name = HashString(dir);
         retval.descriptor = file.Take();
-        retval.filenames.Resize(numPackFiles);
-        retval.files.Resize(numPackFiles);
-        for (int i = 0; i < numPackFiles; ++i)
+        retval.count = count;
+        retval.filenames = Allocator::AllocT<HashString>(Alloc_Pool, count);
+        retval.files = Allocator::AllocT<PackFile>(Alloc_Pool, count);
+
+        for (int i = 0; i < count; ++i)
         {
-            retval.filenames[i] = HashString(arena[i].name);
+            retval.filenames[i] = HashString(pHeaders[i].name);
             retval.files[i] = {};
-            retval.files[i].offset = arena[i].offset;
-            retval.files[i].length = arena[i].length;
+            retval.files[i].offset = pHeaders[i].offset;
+            retval.files[i].length = pHeaders[i].length;
         }
 
+        Allocator::Free(pHeaders);
+
+        err = ESuccess;
         return retval;
     }
+
     void FreePack(Pack& pack)
     {
         EResult err = EUnknown;
         IO::Close(pack.descriptor, err);
-        pack.filenames.Reset();
-        for (PackFile& file : pack.files)
+
+        Allocator::Free(pack.filenames);
+        pack.filenames = nullptr;
+
+        const i32 count = pack.count;
+        PackFile* files = pack.files;
+        for(i32 i = 0; i < count; ++i)
         {
-            Allocator::Free(file.content.begin());
-            file.content = { 0, 0 };
+            Allocator::Free(files[i].content);
+            files[i].content = nullptr;
         }
-        pack.files.Reset();
+        Allocator::Free(files);
+        pack.files = nullptr;
     }
 
-    Folder LoadFolder(cstrc dir, Array<DPackFile>& arena, EResult& err)
+    Folder LoadFolder(cstrc dir, EResult& err)
     {
         ASSERT(dir);
         Folder retval = {};
@@ -68,25 +86,36 @@ namespace Quake
 
         IO::FindData fdata = {};
         IO::Finder fder = {};
+        Array<Pack> packs = { Alloc_Pool };
         while (IO::Find(fder, fdata, packDir, err))
         {
             SPrintf(ARGS(packDir), "%s/%s", dir, fdata.name);
             FixPath(ARGS(packDir));
-            Pack pack = LoadPack(packDir, arena, err);
+            Pack pack = LoadPack(packDir, err);
             if (err == ESuccess)
             {
-                retval.packs.Grow() = pack;
+                packs.Grow() = pack;
             }
         }
 
+        retval.packs = packs.begin();
+        retval.count = packs.Size();
+
+        err = retval.count > 0 ? ESuccess : EFail;
+
         return retval;
     }
+
     void FreeFolder(Folder& folder)
     {
-        for (Pack& pack : folder.packs)
+        const i32 count = folder.count;
+        Pack* packs = folder.packs;
+        for (i32 i = 0; i < count; ++i)
         {
-            FreePack(pack);
+            FreePack(packs[i]);
         }
-        folder.packs.Reset();
+        Allocator::Free(packs);
+        folder.packs = nullptr;
+        folder.count = 0;
     }
 };

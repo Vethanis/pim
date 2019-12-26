@@ -3,7 +3,6 @@
 #include "common/int_types.h"
 #include "common/hashstring.h"
 #include "common/io.h"
-#include "containers/array.h"
 #include "math/vec_types.h"
 
 namespace Quake
@@ -30,7 +29,7 @@ namespace Quake
 
     struct PackFile
     {
-        Slice<u8> content;
+        void* content;
         i32 refCount;
         i32 offset;
         i32 length;
@@ -40,25 +39,27 @@ namespace Quake
     {
         HashString name;
         IO::FD descriptor;
-        Array<HashString> filenames;
-        Array<PackFile> files;
+        HashString* filenames;
+        PackFile* files;
+        i32 count;
     };
 
     struct Folder
     {
         HashString name;
-        Array<Pack> packs;
+        Pack* packs;
+        i32 count;
     };
 
     // COM_LoadPackFile
     // common.c 1619
     // dir: explicit path to .pak
-    Pack LoadPack(cstrc dir, Array<DPackFile>& arena, EResult& err);
+    Pack LoadPack(cstrc dir, EResult& err);
     void FreePack(Pack& pack);
 
     // COM_AddGameDirectory
     // common.c 1689
     // dir: explicit path to a folder holding .pak files
-    Folder LoadFolder(cstrc dir, Array<DPackFile>& arena, EResult& err);
+    Folder LoadFolder(cstrc dir, EResult& err);
     void FreeFolder(Folder& folder);
 };
