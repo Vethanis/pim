@@ -183,7 +183,7 @@ namespace Allocator
 
     void Free(void* prev)
     {
-        Init();
+        ASSERT(ms_init);
         if (prev)
         {
             ASSERT(IsAligned(prev));
