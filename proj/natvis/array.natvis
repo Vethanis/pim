@@ -7,7 +7,7 @@
       <Item Name="ptr">m_ptr</Item>
         <Item Name="length">m_length</Item>
         <Item Name="capacity">m_capacity</Item>
-        <Item Name="allocType">m_allocType</Item>
+        <Item Name="allocType">m_allocator</Item>
       <ArrayItems>
         <Size>m_length</Size>
         <ValuePointer>m_ptr</ValuePointer>

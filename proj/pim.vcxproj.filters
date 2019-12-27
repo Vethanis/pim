@@ -187,6 +187,9 @@
     <ClCompile Include="..\src\os\socket.cpp">
       <Filter>Source Files\os</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\components\system.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\hash.h">
@@ -522,6 +525,9 @@
     <ClInclude Include="..\src\components\system.h">
       <Filter>Source Files\components</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\containers\queue.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">
@@ -533,7 +539,7 @@
     <Natvis Include="natvis\slice.natvis">
       <Filter>natvis</Filter>
     </Natvis>
-    <Natvis Include="chunkallocator.natvis">
+    <Natvis Include="natvis\chunkallocator.natvis">
       <Filter>natvis</Filter>
     </Natvis>
   </ItemGroup>
@@ -550,10 +556,5 @@
     <FxCompile Include="..\src\shaders\quat.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\src\components\system.cpp">
-      <Filter>Source Files\components</Filter>
-    </None>
   </ItemGroup>
 </Project>

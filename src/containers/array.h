@@ -9,10 +9,10 @@
 template<typename T>
 struct Array
 {
-    AllocType m_allocType;
+    i32 m_allocator : 4;
+    i32 m_capacity : 30;
+    i32 m_length : 30;
     T* m_ptr;
-    i32 m_length;
-    i32 m_capacity;
 
     // ------------------------------------------------------------------------
 
@@ -21,7 +21,7 @@ struct Array
         m_ptr = nullptr;
         m_length = 0;
         m_capacity = 0;
-        m_allocType = allocType;
+        m_allocator = allocType;
     }
     inline void Reset()
     {
@@ -39,7 +39,7 @@ struct Array
         const i32 len = m_length;
         if (m_capacity > len)
         {
-            m_ptr = (T*)Allocator::Realloc(m_allocType, m_ptr, sizeof(T) * len);
+            m_ptr = Allocator::ReallocT<T>(GetAllocType(), m_ptr, len);
             m_capacity = len;
         }
     }
@@ -49,6 +49,7 @@ struct Array
     inline bool InRange(i32 i) const { return (u32)i < (u32)m_length; }
     inline i32 Size() const { return m_length; }
     inline i32 Capacity() const { return m_capacity; }
+    inline AllocType GetAllocType() const { return (AllocType)m_allocator; }
     inline bool IsEmpty() const { return m_length == 0; }
     inline bool IsFull() const { return m_length == m_capacity; }
 
@@ -80,7 +81,9 @@ struct Array
 
     inline void Reserve(i32 newCap)
     {
-        m_ptr = Allocator::Reserve<T>(m_allocType, m_ptr, m_capacity, newCap);
+        i32 cap = m_capacity;
+        m_ptr = Allocator::Reserve<T>(GetAllocType(), m_ptr, cap, newCap);
+        m_capacity = cap;
     }
     inline void ReserveRel(i32 relSize)
     {

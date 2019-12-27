@@ -1,8 +1,8 @@
-#include "common/hashstring.h"
-#include "containers/hash_set.h"
-#include "common/text.h"
-
 #if _DEBUG
+
+#include "common/hashstring.h"
+#include "common/text.h"
+#include "containers/hash_set.h"
 
 namespace HStr
 {
@@ -13,13 +13,8 @@ namespace HStr
 
     cstr Lookup(HashKey key)
     {
-        cstr result = 0;
         HashText* pText = ms_store.Get(key);
-        if (pText)
-        {
-            result = pText->value;
-        }
-        return result;
+        return pText ? pText->value : nullptr;
     }
 
     void Insert(HashKey key, cstrc value)
@@ -30,16 +25,7 @@ namespace HStr
         }
 
         HashText& dst = ms_store[key];
-        if (dst.value[0])
-        {
-            if (!StrICmp(ARGS(dst.value), value))
-            {
-                return;
-            }
-            DBG_INT();
-            return;
-        }
-
+        ASSERT(!dst.value[0] || !StrICmp(ARGS(dst.value), value));
         StrCpy(ARGS(dst.value), value);
     }
 

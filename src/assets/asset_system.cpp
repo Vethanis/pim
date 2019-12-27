@@ -1,17 +1,67 @@
 #include "assets/asset_system.h"
 
+#include "common/text.h"
 #include "containers/array.h"
+#include "containers/hash_set.h"
+#include "containers/queue.h"
 #include "components/system.h"
 #include "quake/packfile.h"
 
+using PathText = Text<PIM_PATH>;
+
+struct Children
+{
+    Array<Guid> Values;
+};
+
+struct AssetInMem
+{
+    void* ptr;
+    i32 size;
+    i32 refCount;
+};
+
+struct AssetInFile
+{
+    Guid filename;
+    i32 offset;
+    i32 size;
+};
+
+struct FileOp
+{
+    u64 time;
+    bool read;
+    void* ptr;
+    i32 size;
+    i32 offset;
+};
+
+struct FileQueue
+{
+    Queue<FileOp> Value;
+};
+
+struct StreamFiles
+{
+    Array<PathText> paths;
+    Array<Guid> names;
+    Array<IO::FD> descriptors;
+    Array<FileQueue> queues;
+};
+
+static constexpr auto GuidComparator = OpComparator<Guid>();
+static Array<Guid> ms_names = { Alloc_Pool };
+static Array<Children> ms_children = { Alloc_Pool };
+static StreamFiles ms_files;
+
+static Array<Quake::Pack> ms_packs = { Alloc_Pool };
+
 namespace AssetSystem
 {
-    static Quake::Folder ms_folder;
-
     static void Init()
     {
-        EResult err = EUnknown;
-        ms_folder = Quake::LoadFolder("packs/id1", err);
+        Quake::LoadFolder("packs/id1", ms_packs);
     }
 
     static void Update()
@@ -21,18 +71,13 @@ namespace AssetSystem
 
     static void Shutdown()
     {
-        Quake::FreeFolder(ms_folder);
+        Quake::FreeFolder(ms_packs);
     }
-
-    static constexpr Guid ms_dependencies[] =
-    {
-        ToGuid("InputSystem"),
-    };
 
     static constexpr System ms_system =
     {
         ToGuid("AssetSystem"),
-        { ARGS(ms_dependencies) },
+        { 0, 0 },
         Init,
         Update,
         Shutdown,

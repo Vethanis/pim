@@ -32,6 +32,19 @@ namespace HashUtil
         return IsEmpty(hash) || IsTomb(hash);
     }
 
+    static u32 Iterate(const u32* const hashes, const u32 width, u32 i)
+    {
+        ++i;
+        for (; i < width; ++i)
+        {
+            if (!IsEmptyOrTomb(hashes[i]))
+            {
+                break;
+            }
+        }
+        return i;
+    }
+
     // ------------------------------------------------------------------------
 
     template<typename K>
@@ -215,16 +228,17 @@ template<
     const Comparator<K>& cmp>
 struct HashSet
 {
-    AllocType m_allocator;
+    u32 m_allocator : 4;
+    u32 m_count : 28;
+    u32 m_width;
     u32* m_hashes;
     K* m_keys;
-    u32 m_width;
-    u32 m_count;
 
     // ------------------------------------------------------------------------
 
     inline i32 Size() const { return (i32)m_count; }
     inline i32 Capacity() const { return (i32)m_width; }
+    inline AllocType GetAllocType() const { return (AllocType)m_allocator; }
 
     void Init(AllocType allocator)
     {
@@ -276,8 +290,8 @@ struct HashSet
         ASSERT(width >= m_count);
         ASSERT(HashUtil::IsPow2(width));
 
-        u32* newHashes = Allocator::CallocT<u32>(m_allocator, width);
-        K* newKeys = Allocator::CallocT<K>(m_allocator, width);
+        u32* newHashes = Allocator::CallocT<u32>(GetAllocType(), width);
+        K* newKeys = Allocator::CallocT<K>(GetAllocType(), width);
 
         const u32* oldHashes = m_hashes;
         const K* oldKeys = m_keys;
@@ -338,6 +352,48 @@ struct HashSet
         }
         return false;
     }
+
+    struct iterator
+    {
+        u32 m_i;
+        const u32 m_width;
+        const u32* const m_hashes;
+        K* const m_keys;
+
+        iterator(HashSet& set, bool isBegin)
+        {
+            m_width = set.m_width;
+            m_hashes = set.m_hashes;
+            m_keys = set.m_keys;
+            m_values = set.m_values;
+            m_i = isBegin ? 0 : m_width;
+        }
+
+        inline bool operator!=(const iterator& rhs) const
+        {
+            return m_i != rhs.m_i;
+        }
+
+        inline iterator& operator++()
+        {
+            m_i = HashUtil::Iterate(m_hashes, m_width, m_i);
+            return *this;
+        }
+
+        inline K& operator*()
+        {
+            return m_keys[m_i];
+        }
+    };
+
+    inline iterator begin()
+    {
+        return iterator(*this, true);
+    }
+    inline iterator end()
+    {
+        return iterator(*this, false);
+    }
 };
 
 // ----------------------------------------------------------------------------
@@ -348,17 +404,18 @@ template<
     const Comparator<K>& cmp>
 struct HashDict
 {
-    AllocType m_allocator;
+    u32 m_allocator : 4;
+    u32 m_count : 28;
+    u32 m_width;
     u32* m_hashes;
     K* m_keys;
     V* m_values;
-    u32 m_width;
-    u32 m_count;
 
     // ------------------------------------------------------------------------
 
     inline i32 Size() const { return (i32)m_count; }
     inline i32 Capacity() const { return (i32)m_width; }
+    inline AllocType GetAllocType() const { return (AllocType)m_allocator; }
 
     void Init(AllocType allocator)
     {
@@ -410,9 +467,9 @@ struct HashDict
         ASSERT(width >= m_count);
         ASSERT(HashUtil::IsPow2(width));
 
-        u32* newHashes = Allocator::CallocT<u32>(m_allocator, width);
-        K* newKeys = Allocator::CallocT<K>(m_allocator, width);
-        V* newValues = Allocator::AllocT<V>(m_allocator, width);
+        u32* newHashes = Allocator::CallocT<u32>(GetAllocType(), width);
+        K* newKeys = Allocator::CallocT<K>(GetAllocType(), width);
+        V* newValues = Allocator::AllocT<V>(GetAllocType(), width);
 
         const u32* oldHashes = m_hashes;
         const K* oldKeys = m_keys;
@@ -516,5 +573,54 @@ struct HashDict
             ++m_count;
         }
         return m_values[i];
+    }
+
+    struct Pair
+    {
+        K& Key;
+        V& Value;
+    };
+
+    struct iterator
+    {
+        u32 m_i;
+        const u32 m_width;
+        const u32* const m_hashes;
+        K* const m_keys;
+        V* const m_values;
+
+        inline iterator(HashDict& dict, bool isBegin)
+        {
+            m_width = dict.m_width;
+            m_hashes = dict.m_hashes;
+            m_keys = dict.m_keys;
+            m_values = dict.m_values;
+            m_i = isBegin ? 0 : m_width;
+        }
+
+        inline bool operator!=(const iterator& rhs) const
+        {
+            return m_i != rhs.m_i;
+        }
+
+        inline iterator& operator++()
+        {
+            m_i = HashUtil::Iterate(m_hashes, m_width, m_i);
+            return *this;
+        }
+
+        inline Pair& operator*()
+        {
+            return Pair{ m_keys[m_i], m_values[m_i] };
+        }
+    };
+
+    inline iterator begin()
+    {
+        return iterator(*this, true);
+    }
+    inline iterator end()
+    {
+        return iterator(*this, false);
     }
 };

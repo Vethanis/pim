@@ -90,6 +90,7 @@
     <ClInclude Include="..\src\containers\generational.h" />
     <ClInclude Include="..\src\containers\hash_set.h" />
     <ClInclude Include="..\src\containers\initlist.h" />
+    <ClInclude Include="..\src\containers\queue.h" />
     <ClInclude Include="..\src\containers\ring.h" />
     <ClInclude Include="..\src\containers\slice.h" />
     <ClInclude Include="..\src\geometry\distance.h" />
@@ -164,8 +165,8 @@
     <ClInclude Include="..\submodules\stb\stretchy_buffer.h" />
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="chunkallocator.natvis" />
     <Natvis Include="natvis\array.natvis" />
+    <Natvis Include="natvis\chunkallocator.natvis" />
     <Natvis Include="natvis\dict.natvis" />
     <Natvis Include="natvis\slice.natvis" />
   </ItemGroup>
