@@ -2,7 +2,7 @@
 
 #include "common/hashstring.h"
 #include "common/text.h"
-#include "containers/hash_set.h"
+#include "containers/hash_dict.h"
 
 namespace HStr
 {

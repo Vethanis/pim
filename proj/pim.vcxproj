@@ -88,7 +88,9 @@
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\bitfield.h" />
     <ClInclude Include="..\src\containers\generational.h" />
+    <ClInclude Include="..\src\containers\hash_dict.h" />
     <ClInclude Include="..\src\containers\hash_set.h" />
+    <ClInclude Include="..\src\containers\hash_util.h" />
     <ClInclude Include="..\src\containers\initlist.h" />
     <ClInclude Include="..\src\containers\queue.h" />
     <ClInclude Include="..\src\containers\ring.h" />

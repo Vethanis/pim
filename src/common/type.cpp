@@ -1,6 +1,6 @@
 #include "common/type.h"
 
-#include "containers/hash_set.h"
+#include "containers/hash_dict.h"
 
 static constexpr auto GuidComparator = OpComparator<Guid>();
 static HashDict<Guid, TypeInfo, GuidComparator> ms_table = { Alloc_Pool };

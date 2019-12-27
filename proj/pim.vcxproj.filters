@@ -528,6 +528,12 @@
     <ClInclude Include="..\src\containers\queue.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\containers\hash_util.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\hash_dict.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">
