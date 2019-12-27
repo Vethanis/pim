@@ -189,19 +189,19 @@ struct Queue
             const i32 mid = (start + end) >> 1;
             const i32 mask = m_width - 1;
             const i32 head = m_head;
-            T* const ptr = m_ptr;
-            const T pivot = ptr[(head + mid) & mask];
+            T* const items = m_ptr;
+            const T pivot = items[(head + mid) & mask];
 
             i32 j = end - 1;
             while (true)
             {
                 while ((i < j) &&
-                    (cmp.Compare(ptr[(head + i) & mask], pivot) < 0))
+                    (cmp.Compare(items[(head + i) & mask], pivot) < 0))
                 {
                     ++i;
                 }
                 while ((j > i) &&
-                    (cmp.Compare(ptr[(head + j) & mask], pivot) > 0))
+                    (cmp.Compare(items[(head + j) & mask], pivot) > 0))
                 {
                     --j;
                 }
@@ -214,7 +214,7 @@ struct Queue
                 {
                     const i32 i2 = (head + i) & mask;
                     const i32 j2 = (head + j) & mask;
-                    T tmp = ptr[i2];
+                    T tmp = items[i2];
                     items[i2] = items[j2];
                     items[j2] = tmp;
                 }

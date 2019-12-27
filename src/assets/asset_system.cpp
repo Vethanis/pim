@@ -62,6 +62,16 @@ namespace AssetSystem
     static void Init()
     {
         Quake::LoadFolder("packs/id1", ms_packs);
+        Queue<i32> indices = { Alloc_Linear };
+        indices.Push(5);
+        indices.Push(4);
+        indices.Push(99);
+        indices.Push(1);
+        indices.Sort(OpComparator<i32>());
+        ASSERT(indices.Pop() == 1);
+        ASSERT(indices.Pop() == 4);
+        ASSERT(indices.Pop() == 5);
+        ASSERT(indices.Pop() == 99);
     }
 
     static void Update()
