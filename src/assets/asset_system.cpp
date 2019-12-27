@@ -67,7 +67,7 @@ namespace AssetSystem
         indices.Push(4);
         indices.Push(99);
         indices.Push(1);
-        indices.Sort(OpComparator<i32>());
+        indices.Sort(OpComparable<i32>());
         ASSERT(indices.Pop() == 1);
         ASSERT(indices.Pop() == 4);
         ASSERT(indices.Pop() == 5);

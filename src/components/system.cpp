@@ -36,13 +36,8 @@ static void BuildSet(const System& system, GuidSet& set)
     }
 }
 
-namespace SystemComparator
+namespace SystemComparable
 {
-    static bool Equals(const i32& lhs, const i32& rhs)
-    {
-        return lhs == rhs;
-    }
-
     static i32 Compare(const i32& lhs, const i32& rhs)
     {
         if (lhs == rhs)
@@ -68,12 +63,7 @@ namespace SystemComparator
         return 0;
     }
 
-    static u32 Hash(const i32& i)
-    {
-        return Fnv32Bytes(&(ms_names[i]), sizeof(Guid));
-    }
-
-    static constexpr Comparator<i32> Value = { Equals, Compare, Hash };
+    static constexpr Comparable<i32> Value = { Compare };
 };
 
 static void InitSystem(i32 i)
@@ -116,7 +106,7 @@ static void SortSystems()
         {
             BuildSet(ms_systems[i], ms_deps[i]);
         }
-        Sort(ms_order.begin(), ms_order.Size(), SystemComparator::Value);
+        Sort(ms_order.begin(), ms_order.Size(), SystemComparable::Value);
     }
 }
 

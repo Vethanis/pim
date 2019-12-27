@@ -16,6 +16,27 @@ struct Comparator
 };
 
 template<typename T>
+struct Comparable
+{
+    using CompareFn = i32(*)(const T& lhs, const T& rhs);
+    const CompareFn Compare;
+};
+
+template<typename T>
+struct Equatable
+{
+    using EqualsFn = bool(*)(const T& lhs, const T& rhs);
+    const EqualsFn Equals;
+};
+
+template<typename T>
+struct Hashable
+{
+    using HashFn = u32(*)(const T& item);
+    const HashFn Hash;
+};
+
+template<typename T>
 static bool OpEqualsFn(const T& lhs, const T& rhs)
 {
     return lhs == rhs;
@@ -61,6 +82,24 @@ static constexpr Comparator<T> OpComparator()
 }
 
 template<typename T>
+static constexpr Comparable<T> OpComparable()
+{
+    return Comparable<T>
+    {
+        OpCompareFn<T>,
+    };
+}
+
+template<typename T>
+static constexpr Equatable<T> OpEquatable()
+{
+    return Comparable<T>
+    {
+        OpEqualsFn<T>,
+    };
+}
+
+template<typename T>
 static constexpr Comparator<T> MemComparator()
 {
     return Comparator<T>
@@ -70,3 +109,31 @@ static constexpr Comparator<T> MemComparator()
         MemHashFn<T>,
     };
 }
+
+template<typename T>
+static constexpr Comparable<T> MemComparable()
+{
+    return Comparable<T>
+    {
+        MemCompareFn<T>,
+    };
+}
+
+template<typename T>
+static constexpr Equatable<T> MemEquatable()
+{
+    return Comparable<T>
+    {
+        MemEqualsFn<T>,
+    };
+}
+
+template<typename T>
+static constexpr Hashable<T> MemHashable()
+{
+    return Comparable<T>
+    {
+        MemHashFn<T>,
+    };
+}
+

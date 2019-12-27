@@ -177,7 +177,7 @@ struct Queue
         }
     }
 
-    void Sort(i32 start, i32 end, Comparator<T> cmp)
+    void Sort(i32 start, i32 end, Comparable<T> cmp)
     {
         if ((end - start) < 2)
         {
@@ -227,7 +227,7 @@ struct Queue
         Sort(i, end, cmp);
     }
 
-    inline void Sort(Comparator<T> cmp)
+    inline void Sort(Comparable<T> cmp)
     {
         Sort(0, Size(), cmp);
     }

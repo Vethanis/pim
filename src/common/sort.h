@@ -5,7 +5,7 @@
 #include "common/comparator.h"
 
 template<typename T>
-static void Sort(T* items, i32 count, const Comparator<T> cmp)
+static void Sort(T* items, i32 count, const Comparable<T> cmp)
 {
     if (count < 2)
     {
