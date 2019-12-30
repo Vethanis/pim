@@ -6,6 +6,7 @@
 namespace Random
 {
     void Seed(u64 seed);
+    void Seed();
 
     u32 NextU32();
     u32 NextU32(u32 hi);

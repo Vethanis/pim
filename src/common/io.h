@@ -5,13 +5,6 @@
 #include "containers/slice.h"
 #include "containers/array.h"
 
-enum EResult
-{
-    EUnknown = 0,
-    ESuccess = 1,
-    EFail = 2,
-};
-
 namespace IO
 {
     // file descriptor
@@ -378,4 +371,20 @@ namespace IO
     void Curl(cstr url, Array<char>& result, EResult& err);
 
     // ------------------------------------------------------------------------
+
+    struct FileMap
+    {
+        void* hFile;
+        void* hMapping;
+        void* address;
+        usize size;
+    };
+
+    inline bool IsOpen(FileMap map)
+    {
+        return map.address != nullptr;
+    }
+
+    FileMap MapFile(cstr path, bool writable);
+    void Unmap(FileMap& map);
 }; // IO

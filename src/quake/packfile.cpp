@@ -4,7 +4,7 @@
 
 namespace Quake
 {
-    Pack LoadPack(cstrc dir, EResult& err)
+    Pack LoadPack(cstrc dir, AllocType allocator, EResult& err)
     {
         ASSERT(dir);
         Pack retval = {};
@@ -25,18 +25,22 @@ namespace Quake
         ASSERT(memcmp(header.id, "PACK", 4) == 0);
 
         const i32 count = header.length / sizeof(DPackFile);
-        ASSERT(count > 0);
+        ASSERT(count >= 0);
+        ASSERT((count * sizeof(DPackFile)) == header.length);
 
-        IO::Seek(file, header.offset, err);
-        ASSERT(err == ESuccess);
+        if (count > 0)
+        {
+            IO::Seek(file, header.offset, err);
+            ASSERT(err == ESuccess);
 
-        StrCpy(ARGS(retval.path), dir);
-        retval.files = { Alloc_Pool };
-        retval.files.Resize(count);
+            StrCpy(ARGS(retval.path), dir);
+            retval.files = { allocator };
+            retval.files.Resize(count);
 
-        nRead = IO::Read(file, retval.files.begin(), header.length, err);
-        ASSERT(err == ESuccess);
-        ASSERT(nRead == header.length);
+            nRead = IO::Read(file, retval.files.begin(), header.length, err);
+            ASSERT(err == ESuccess);
+            ASSERT(nRead == header.length);
+        }
 
         err = ESuccess;
         return retval;
@@ -62,7 +66,7 @@ namespace Quake
         {
             SPrintf(ARGS(packDir), "%s/%s", dir, fdata.name);
             FixPath(ARGS(packDir));
-            Pack pack = LoadPack(packDir, err);
+            Pack pack = LoadPack(packDir, results.GetAllocType(), err);
             if (err == ESuccess)
             {
                 results.Grow() = pack;

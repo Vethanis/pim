@@ -4,7 +4,7 @@
 
 struct sapp_event;
 
-enum InputModFlags : u8
+enum InputMods : u8
 {
     InputMod_Shift = (1 << 0),
     InputMod_Ctrl = (1 << 1),
@@ -125,7 +125,7 @@ enum KeyCode : u16
     KeyCode_RightSuper = 347,
     KeyCode_Menu = 348,
 
-    KeyCode_Count
+    KeyCode_COUNT
 };
 
 enum MouseButton : u8
@@ -134,43 +134,32 @@ enum MouseButton : u8
     MouseButton_Right,
     MouseButton_Middle,
 
-    MouseButton_Count
-};
-
-enum MouseAxis : u8
-{
-    MouseAxis_X = 0,
-    MouseAxis_Y,
-    MouseAxis_Z,
-    MouseAxis_W,
-
-    MouseAxis_Count
+    MouseButton_COUNT
 };
 
 enum InputChannel : u8
 {
     InputChannel_Keyboard = 0,
     InputChannel_MouseButton,
-    InputChannel_MouseAxis,
+    InputChannel_MouseMove,
+    InputChannel_MouseScroll,
 
-    InputChannel_Count
+    InputChannel_COUNT
 };
 
 struct InputEvent
 {
-    u64 tick;               // when
-    InputChannel channel;   // what device
-    u16 id;                 // what key / button / axis
-    u8 mods;                // what modifiers are active
-    f32 value;              // what value [0, 1] for buttons, [-1, 1] for axii
+    InputChannel channel;
+    u16 id;
+    u8 modifiers;
 };
 
-using InputListener = void(*)(InputEvent evt);
+using InputListener = void(*)(InputEvent evt, f32 valueX, f32 valueY);
 
 namespace InputSystem
 {
-    void Listen(InputChannel channel, InputListener onEvent);
-    void Deafen(InputChannel channel, InputListener onEvent);
+    bool Register(InputChannel channel, InputListener listener);
+    bool Remove(InputChannel channel, InputListener listener);
 
     void OnEvent(const sapp_event* evt, bool keyboardCaptured);
 };

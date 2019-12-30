@@ -3,6 +3,7 @@
 #include "common/int_types.h"
 #include "common/minmax.h"
 #include "common/comparator.h"
+#include "common/bitutil.h"
 #include "allocator/allocator.h"
 
 template<typename T>
@@ -55,37 +56,87 @@ struct Queue
 
     // ------------------------------------------------------------------------
 
-    inline static i32 NextPow2(i32 x)
-    {
-        i32 y = x > 0 ? 1 : 0;
-        while (y < x)
-        {
-            y *= 2;
-        }
-        return y;
-    }
-
     void FitTo(i32 newSize)
     {
-        ASSERT(newSize >= 0);
-        const i32 minWidth = NextPow2(newSize);
-        const i32 width = m_width;
-        if (minWidth != width)
-        {
-            T* newPtr = Allocator::AllocT<T>(GetAllocType(), minWidth);
-            T* oldPtr = m_ptr;
+        const i32 newWidth = BitUtil::ToPow2(newSize);
+        const i32 oldWidth = m_width;
+        const i32 oldMask = oldWidth - 1;
+        const i32 oldHead = m_head;
+        const i32 length = m_tail - oldHead;
+        const AllocType allocator = m_allocator;
 
-            const i32 mask = width - 1;
-            const i32 head = m_head;
-            const i32 length = m_tail - head;
-            for (i32 i = 0; i < length; ++i)
+        ASSERT(newSize >= 0);
+        ASSERT(newWidth >= 0);
+        ASSERT((u32)length <= (u32)oldWidth);
+        ASSERT((u32)length <= (u32)newWidth);
+
+        // no resize
+        if (newWidth == oldWidth)
+        {
+            return;
+        }
+
+        // no wraparound
+        const i32 rotation = oldHead & oldMask;
+        if ((rotation + length) <= oldWidth)
+        {
+            if (rotation != 0)
             {
-                newPtr[i] = oldPtr[(head + i) & mask];
+                T* const ptr = m_ptr;
+                for (i32 i = 0; i < length; ++i)
+                {
+                    ptr[i] = ptr[i + rotation];
+                }
             }
 
+            m_ptr = Allocator::ReallocT<T>(allocator, m_ptr, newWidth);
+            m_width = newWidth;
+            m_head = 0;
+            m_tail = length;
+
+            return;
+        }
+
+        // >= 2x growth
+        if (newWidth >= (oldWidth * 2))
+        {
+            m_ptr = Allocator::ReallocT<T>(allocator, m_ptr, newWidth);
+
+            // un-rotate into new side
+            T* const oldSide = m_ptr;
+            T* const newSide = m_ptr + oldWidth;
+            for (i32 i = 0; i < length; ++i)
+            {
+                const i32 j = (oldHead + i) & oldMask;
+                newSide[i] = oldSide[j];
+            }
+
+            // head is now at midpoint of resized allocation
+            m_head = oldWidth;
+            m_tail = oldWidth + length;
+            m_width = newWidth;
+
+            return;
+        }
+
+        // < 2x growth
+        {
+            // create a new allocation
+            T* newPtr = Allocator::AllocT<T>(allocator, newWidth);
+            T* oldPtr = m_ptr;
+
+            // un-rotate into new allocation
+            for (i32 i = 0; i < length; ++i)
+            {
+                const i32 j = (oldHead + i) & oldMask;
+                newPtr[i] = oldPtr[j];
+            }
+
+            // free old allocation
             Allocator::Free(oldPtr);
+
             m_ptr = newPtr;
-            m_width = minWidth;
+            m_width = newWidth;
             m_head = 0;
             m_tail = length;
         }
@@ -124,50 +175,44 @@ struct Queue
         return m_ptr[GetIndex(i)];
     }
 
-    inline i32 PopIdx()
+    inline T Pop()
     {
         const i32 head = m_head++;
         const i32 mask = m_width - 1;
         const i32 index = head & mask;
         ASSERT((m_tail - head) > 0);
-        return index;
+        return m_ptr[index];
     }
 
-    inline i32 PushIdx()
+    inline void Push(T value)
     {
         Reserve(Size() + 1);
         const i32 tail = m_tail++;
         const i32 mask = m_width - 1;
         const i32 index = tail & mask;
-        return index;
+        m_ptr[index] = value;
     }
 
-    inline T Pop()
-    {
-        return m_ptr[PopIdx()];
-    }
-
-    inline void Push(T value)
-    {
-        m_ptr[PushIdx()] = value;
-    }
-
-    inline void Push(T value, Comparator<T> cmp)
+    inline void Push(T value, const Comparable<T> cmp)
     {
         const i32 back = m_tail - m_head;
         Reserve(back + 1);
+
         const i32 mask = m_width - 1;
         const i32 head = m_head;
         T* const ptr = m_ptr;
+
         {
             const i32 tail = m_tail++;
             const i32 index = tail & mask;
             ptr[index] = value;
         }
+
         for (i32 i = back; i > 0; --i)
         {
             const i32 rhs = (head + i) & mask;
             const i32 lhs = (head + i - 1) & mask;
+
             if (cmp.Compare(ptr[lhs], ptr[rhs]) > 0)
             {
                 T tmp = ptr[lhs];
@@ -175,60 +220,5 @@ struct Queue
                 ptr[rhs] = tmp;
             }
         }
-    }
-
-    void Sort(i32 start, i32 end, Comparable<T> cmp)
-    {
-        if ((end - start) < 2)
-        {
-            return;
-        }
-
-        i32 i = start;
-        {
-            const i32 mid = (start + end) >> 1;
-            const i32 mask = m_width - 1;
-            const i32 head = m_head;
-            T* const items = m_ptr;
-            const T pivot = items[(head + mid) & mask];
-
-            i32 j = end - 1;
-            while (true)
-            {
-                while ((i < j) &&
-                    (cmp.Compare(items[(head + i) & mask], pivot) < 0))
-                {
-                    ++i;
-                }
-                while ((j > i) &&
-                    (cmp.Compare(items[(head + j) & mask], pivot) > 0))
-                {
-                    --j;
-                }
-
-                if (i >= j)
-                {
-                    break;
-                }
-
-                {
-                    const i32 i2 = (head + i) & mask;
-                    const i32 j2 = (head + j) & mask;
-                    T tmp = items[i2];
-                    items[i2] = items[j2];
-                    items[j2] = tmp;
-                }
-
-                ++i;
-                --j;
-            }
-        }
-        Sort(start, i, cmp);
-        Sort(i, end, cmp);
-    }
-
-    inline void Sort(Comparable<T> cmp)
-    {
-        Sort(0, Size(), cmp);
     }
 };

@@ -6,18 +6,32 @@
 #include "ui/imgui.h"
 
 #include "common/int_types.h"
+#include "common/time.h"
 #include "containers/array.h"
-#include "time/time_system.h"
 
 #include "components/ecs.h"
 #include "components/system.h"
 #include "components/transform.h"
 #include "rendering/components.h"
+#include "rendering/screen.h"
 
-namespace RenderSystem
+namespace Screen
 {
     static i32 ms_width;
     static i32 ms_height;
+
+    i32 Width() { return ms_width; }
+    i32 Height() { return ms_height; }
+
+    static void Update()
+    {
+        Screen::ms_width = sapp_width();
+        Screen::ms_height = sapp_height();
+    }
+};
+
+namespace RenderSystem
+{
     constexpr sg_pass_action ms_clear =
     {
         0,
@@ -47,15 +61,13 @@ namespace RenderSystem
             simgui_desc_t desc = {};
             simgui_setup(&desc);
         }
-        ms_width = sapp_width();
-        ms_height = sapp_height();
+        Screen::Update();
     }
 
     static void Update()
     {
-        ms_width = sapp_width();
-        ms_height = sapp_height();
-        simgui_new_frame(ms_width, ms_height, TimeSystem::DeltaTimeF32());
+        Screen::Update();
+        simgui_new_frame(Screen::Width(), Screen::Height(), Time::DeltaTimeF32());
 
         for (Entity entity : Ecs::Search({ { Drawable::Id, LocalToWorld::Id }, {}, {} }))
         {
@@ -87,7 +99,7 @@ namespace RenderSystem
 
     void FrameEnd()
     {
-        sg_begin_default_pass(&ms_clear, ms_width, ms_height);
+        sg_begin_default_pass(&ms_clear, Screen::Width(), Screen::Height());
         {
             simgui_render();
         }

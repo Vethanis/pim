@@ -10,19 +10,124 @@
 
 namespace math
 {
-    constexpr f32 Pi = 3.141592f;
-    constexpr f32 Tau = Pi * 2.0f;
+    constexpr f32 Pi  = 3.141592653f;
+    constexpr f32 Tau = 6.283185307f;
     constexpr f32 HalfPi = Pi * 0.5f;
+    constexpr f32 RadiansPerDegree = Tau / 360.0f;
+    constexpr f32 DegreesPerRadian = 360.0f / Tau;
 
-    inline f32 radians(f32 x) { return x * 0.017453293f; }
-    inline float2 radians(float2 x) { return x * 0.017453293f; }
-    inline float3 radians(float3 x) { return x * 0.017453293f; }
-    inline float4 radians(float4 x) { return x * 0.017453293f; }
+    inline f32 radians(f32 x) { return x * RadiansPerDegree; }
+    inline float2 radians(float2 x) { return x * RadiansPerDegree; }
+    inline float3 radians(float3 x) { return x * RadiansPerDegree; }
+    inline float4 radians(float4 x) { return x * RadiansPerDegree; }
 
-    inline f32 degrees(f32 x) { return x * 57.295779513f; }
-    inline float2 degrees(float2 x) { return x * 57.295779513f; }
-    inline float3 degrees(float3 x) { return x * 57.295779513f; }
-    inline float4 degrees(float4 x) { return x * 57.295779513f; }
+    inline f32 degrees(f32 x) { return x * DegreesPerRadian; }
+    inline float2 degrees(float2 x) { return x * DegreesPerRadian; }
+    inline float3 degrees(float3 x) { return x * DegreesPerRadian; }
+    inline float4 degrees(float4 x) { return x * DegreesPerRadian; }
+
+    inline u32 asuint(f32 f)
+    {
+        return *reinterpret_cast<u32*>(&f);
+    }
+    inline uint2 asuint(float2 x)
+    {
+        return { asuint(x.x), asuint(x.y) };
+    }
+    inline uint3 asuint(float3 x)
+    {
+        return { asuint(x.x), asuint(x.y), asuint(x.z) };
+    }
+    inline uint4 asuint(float4 x)
+    {
+        return { asuint(x.x), asuint(x.y), asuint(x.z), asuint(x.w) };
+    }
+
+    inline f32 asfloat(u32 u)
+    {
+        return *reinterpret_cast<f32*>(&u);
+    }
+    inline float2 asfloat(uint2 x)
+    {
+        return { asfloat(x.x), asfloat(x.y) };
+    }
+    inline float3 asfloat(uint3 x)
+    {
+        return { asfloat(x.x), asfloat(x.y), asfloat(x.z) };
+    }
+    inline float4 asfloat(uint4 x)
+    {
+        return { asfloat(x.x), asfloat(x.y), asfloat(x.z), asfloat(x.w) };
+    }
+
+    inline u32 signbit(f32 f)
+    {
+        return 0x1u & (asuint(f) >> 31);
+    }
+    inline uint2 signbit(float2 x)
+    {
+        return { signbit(x.x), signbit(x.y) };
+    }
+    inline uint3 signbit(float3 x)
+    {
+        return { signbit(x.x), signbit(x.y), signbit(x.z) };
+    }
+    inline uint4 signbit(float4 x)
+    {
+        return { signbit(x.x), signbit(x.y), signbit(x.z), signbit(x.w) };
+    }
+
+    inline u32 signbit(i32 i)
+    {
+        u32 u = (u32)i;
+        return 0x1u & (u >> 31);
+    }
+    inline uint2 signbit(int2 x)
+    {
+        return { signbit(x.x), signbit(x.y) };
+    }
+    inline uint3 signbit(int3 x)
+    {
+        return { signbit(x.x), signbit(x.y), signbit(x.z) };
+    }
+    inline uint4 signbit(int4 x)
+    {
+        return { signbit(x.x), signbit(x.y), signbit(x.z), signbit(x.w) };
+    }
+
+    inline f32 sign(f32 x)
+    {
+        return (f32)(1 - 2 * (i32)signbit(x));
+    }
+    inline float2 sign(float2 x)
+    {
+        return { sign(x.x), sign(x.y) };
+    }
+    inline float3 sign(float3 x)
+    {
+        return { sign(x.x), sign(x.y), sign(x.z) };
+    }
+    inline float4 sign(float4 x)
+    {
+        return { sign(x.x), sign(x.y), sign(x.z), sign(x.w) };
+    }
+
+    inline i32 sign(i32 x)
+    {
+        return 1 - 2 * (i32)signbit(x);
+    }
+    inline int2 sign(int2 x)
+    {
+        return { sign(x.x), sign(x.y) };
+    }
+    inline int3 sign(int3 x)
+    {
+        return { sign(x.x), sign(x.y), sign(x.z) };
+    }
+    inline int4 sign(int4 x)
+    {
+        return { sign(x.x), sign(x.y), sign(x.z), sign(x.w) };
+    }
 
     inline f32 tan(f32 x)
     {
@@ -433,23 +538,6 @@ namespace math
         return 1.0f / x;
     }
 
-    inline f32 sign(f32 x)
-    {
-        return (x > 0.0f ? 1.0f : 0.0f) - (x < 0.0f ? 1.0f : 0.0f);
-    }
-    inline float2 sign(float2 x)
-    {
-        return { sign(x.x), sign(x.y) };
-    }
-    inline float3 sign(float3 x)
-    {
-        return { sign(x.x), sign(x.y), sign(x.z) };
-    }
-    inline float4 sign(float4 x)
-    {
-        return { sign(x.x), sign(x.y), sign(x.z), sign(x.w) };
-    }
-
     // ------------------------------------------------------------------------
 
     template<typename T>
@@ -517,6 +605,83 @@ namespace math
     }
 
     template<typename T>
+    inline T clamp(T x, T lo, T hi)
+    {
+        return min(hi, max(lo, x));
+    }
+
+    inline f32 saturate(f32 x)
+    {
+        return clamp(x, 0.0f, 1.0f);
+    }
+    inline float2 saturate(float2 x)
+    {
+        return { saturate(x.x), saturate(x.y) };
+    }
+    inline float3 saturate(float3 x)
+    {
+        return { saturate(x.x), saturate(x.y), saturate(x.z) };
+    }
+    inline float4 saturate(float4 x)
+    {
+        return { saturate(x.x), saturate(x.y), saturate(x.z), saturate(x.w) };
+    }
+
+    inline i32 abs(i32 i)
+    {
+        return i & 0x7fffffff;
+    }
+    inline int2 abs(int2 x)
+    {
+        return x & 0x7fffffff;
+    }
+    inline int3 abs(int3 x)
+    {
+        return x & 0x7fffffff;
+    }
+    inline int4 abs(int4 x)
+    {
+        return x & 0x7fffffff;
+    }
+
+    inline f32 abs(f32 f)
+    {
+        return asfloat(asuint(f) & 0x7fffffffu);
+    }
+    inline float2 abs(float2 x)
+    {
+        return asfloat(asuint(x) & 0x7fffffffu);
+    }
+    inline float3 abs(float3 x)
+    {
+        return asfloat(asuint(x) & 0x7fffffffu);
+    }
+    inline float4 abs(float4 x)
+    {
+        return asfloat(asuint(x) & 0x7fffffffu);
+    }
+
+    template<typename T>
+    inline T reinhard(T x)
+    {
+        return x / (1.0f + abs(x));
+    }
+
+    template<typename T>
+    inline T to_unorm(T x)
+    {
+        return 0.5f + 0.5f * x;
+    }
+
+    template<typename T>
+    inline T to_snorm(T x)
+    {
+        return -1.0f + 2.0f * x;
+    }
+
+    // ----------------------------------------------------------------------------
+
+    template<typename T>
     inline T cmin(vec2<T> x)
     {
         return min(x.x, x.y);
@@ -581,93 +746,94 @@ namespace math
     }
 
     template<typename T>
-    inline T clamp(T x, T lo, T hi)
+    inline T cor(vec2<T> x)
     {
-        return min(hi, max(lo, x));
+        return x.x | x.y;
     }
-
-    inline f32 saturate(f32 x)
+    template<typename T>
+    inline T cor(vec3<T> x)
     {
-        return clamp(x, 0.0f, 1.0f);
+        return x.x | x.y | x.z;
     }
-    inline float2 saturate(float2 x)
+    template<typename T>
+    inline T cor(vec4<T> x)
     {
-        return { saturate(x.x), saturate(x.y) };
-    }
-    inline float3 saturate(float3 x)
-    {
-        return { saturate(x.x), saturate(x.y), saturate(x.z) };
-    }
-    inline float4 saturate(float4 x)
-    {
-        return { saturate(x.x), saturate(x.y), saturate(x.z), saturate(x.w) };
+        return x.x | x.y | x.z | x.w;
     }
 
     template<typename T>
-    inline T abs(T x)
+    inline T cand(vec2<T> x)
     {
-        return max(x, -x);
+        return x.x & x.y;
+    }
+    template<typename T>
+    inline T cand(vec3<T> x)
+    {
+        return x.x & x.y & x.z;
+    }
+    template<typename T>
+    inline T cand(vec4<T> x)
+    {
+        return x.x & x.y & x.z & x.w;
     }
 
     template<typename T>
-    inline T reinhard(T x)
+    inline T cxor(vec2<T> x)
     {
-        return x / (1.0f + abs(x));
+        return x.x ^ x.y;
     }
-
     template<typename T>
-    inline T to_unorm(T x)
+    inline T cxor(vec3<T> x)
     {
-        return 0.5f + 0.5f * x;
+        return x.x ^ x.y ^ x.z;
     }
-
     template<typename T>
-    inline T to_snorm(T x)
+    inline T cxor(vec4<T> x)
     {
-        return -1.0f + 2.0f * x;
+        return x.x ^ x.y ^ x.z ^ x.w;
     }
 
     // ----------------------------------------------------------------------------
 
-    // [F, T] -> [a, b]
     template<typename T>
-    inline T select(T a, T b, bool x)
+    inline T select(T a, T b, bool t)
     {
-        return x ? b : a;
+        return t ? b : a;
     }
+
     template<typename T>
-    inline vec2<T> select(vec2<T> a, vec2<T> b, bool2 x)
+    inline vec2<T> select(vec2<T> a, vec2<T> b, bool2 t)
     {
-        return
+        return vec2<T>
         {
-            select(a.x, b.x, x.x),
-            select(a.y, b.y, x.y),
+            select(a.x, b.x, t.x),
+            select(a.y, b.y, t.y),
         };
     }
     template<typename T>
-    inline vec3<T> select(vec3<T> a, vec3<T> b, bool3 x)
+    inline vec3<T> select(vec3<T> a, vec3<T> b, bool3 t)
     {
-        return
+        return vec3<T>
         {
-            select(a.x, b.x, x.x),
-            select(a.y, b.y, x.y),
-            select(a.z, b.z, x.z),
+            select(a.x, b.x, t.x),
+            select(a.y, b.y, t.y),
+            select(a.z, b.z, t.z),
         };
     }
     template<typename T>
-    inline vec4<T> select(vec4<T> a, vec4<T> b, bool4 x)
+    inline vec4<T> select(vec4<T> a, vec4<T> b, bool4 t)
     {
-        return
+        return vec4<T>
         {
-            select(a.x, b.x, x.x),
-            select(a.y, b.y, x.y),
-            select(a.z, b.z, x.z),
-            select(a.w, b.w, x.w),
+            select(a.x, b.x, t.x),
+            select(a.y, b.y, t.y),
+            select(a.z, b.z, t.z),
+            select(a.w, b.w, t.w),
         };
     }
 
     template<typename T>
-    inline T step(T x, T y)
+    inline T step(T a, T b, T x)
     {
         return select(T(0.0f), T(1.0f), x >= y);
     }
@@ -707,36 +873,6 @@ namespace math
     inline float4 lerp(float4 a, float4 b, float4 x)
     {
         return a + x * (b - a);
-    }
-
-    // [a, b] -> [0, 1]
-    inline f32 unlerp(f32 a, f32 b, f32 x)
-    {
-        return (x - a) / (b - a);
-    }
-    inline float2 unlerp(float2 a, float2 b, f32 x)
-    {
-        return (x - a) / (b - a);
-    }
-    inline float2 unlerp(float2 a, float2 b, float2 x)
-    {
-        return (x - a) / (b - a);
-    }
-    inline float3 unlerp(float3 a, float3 b, f32 x)
-    {
-        return (x - a) / (b - a);
-    }
-    inline float3 unlerp(float3 a, float3 b, float3 x)
-    {
-        return (x - a) / (b - a);
-    }
-    inline float4 unlerp(float4 a, float4 b, f32 x)
-    {
-        return (x - a) / (b - a);
-    }
-    inline float4 unlerp(float4 a, float4 b, float4 x)
-    {
-        return (x - a) / (b - a);
     }
 
     // ------------------------------------------------------------------------
@@ -830,86 +966,6 @@ namespace math
     inline f32 distancesq(float2 x, float2 y) { return lengthsq(y - x); }
     inline f32 distancesq(float3 x, float3 y) { return lengthsq(y - x); }
     inline f32 distancesq(float4 x, float4 y) { return lengthsq(y - x); }
-
-    // ----------------------------------------------------------------------------
-
-    inline u32 rol(u32 x, u32 n) { return (x << n) | (x >> (32u - n)); }
-    inline uint2 rol(uint2 x, u32 n) { return (x << n) | (x >> (32u - n)); }
-    inline uint3 rol(uint3 x, u32 n) { return (x << n) | (x >> (32u - n)); }
-    inline uint4 rol(uint4 x, u32 n) { return (x << n) | (x >> (32u - n)); }
-
-    inline u64 rol(u64 x, u32 n) { return (x << n) | (x >> (64u - n)); }
-    inline ulong2 rol(ulong2 x, u32 n) { return (x << n) | (x >> (64u - n)); }
-    inline ulong3 rol(ulong3 x, u32 n) { return (x << n) | (x >> (64u - n)); }
-    inline ulong4 rol(ulong4 x, u32 n) { return (x << n) | (x >> (64u - n)); }
-
-    inline u32 ror(u32 x, u32 n) { return (x >> n) | (x << (32u - n)); }
-    inline uint2 ror(uint2 x, u32 n) { return (x >> n) | (x << (32u - n)); }
-    inline uint3 ror(uint3 x, u32 n) { return (x >> n) | (x << (32u - n)); }
-    inline uint4 ror(uint4 x, u32 n) { return (x >> n) | (x << (32u - n)); }
-
-    inline u64 ror(u64 x, u32 n) { return (x >> n) | (x << (64u - n)); }
-    inline ulong2 ror(ulong2 x, u32 n) { return (x >> n) | (x << (64u - n)); }
-    inline ulong3 ror(ulong3 x, u32 n) { return (x >> n) | (x << (64u - n)); }
-    inline ulong4 ror(ulong4 x, u32 n) { return (x >> n) | (x << (64u - n)); }
-
-#pragma warning(push)
-#pragma warning(disable : 4307)
-#pragma warning(disable : 4146)
-    inline u32 hash(void* pBuffer, u32 numBytes, u32 seed = 0)
-    {
-        ASSERT(pBuffer || !numBytes);
-
-        constexpr u32 Prime1 = 2654435761u;
-        constexpr u32 Prime2 = 2246822519u;
-        constexpr u32 Prime3 = 3266489917u;
-        constexpr u32 Prime4 = 668265263u;
-        constexpr u32 Prime5 = 374761393u;
-
-        const u32 count16 = numBytes >> 4;
-        const u32 count4 = (numBytes >> 2) & 3;
-        const u32 count1 = numBytes & 3;
-
-        uint4* p16 = (uint4*)pBuffer;
-        u32 x = seed + Prime5;
-
-        if (count16 > 0)
-        {
-            uint4 state = uint4(Prime1 + Prime2, Prime2, 0, -Prime1) + seed;
-            for (u32 i = 0; i < count16; ++i)
-            {
-                state += *p16++ * Prime2;
-                state = (state << 13) | (state >> 19);
-                state *= Prime1;
-            }
-            x = rol(state.x, 1) + rol(state.y, 7) + rol(state.z, 12) + rol(state.w, 18);
-        }
-
-        x += numBytes;
-
-        u32* p4 = (u32*)p16;
-        for (u32 i = 0; i < count4; ++i)
-        {
-            x += *p4++ * Prime3;
-            x = rol(x, 17) * Prime4;
-        }
-
-        u8* p1 = (u8*)p4;
-        for (u32 i = 0; i < count1; ++i)
-        {
-            x += *p1++ * Prime5;
-            x = rol(x, 11) * Prime1;
-        }
-
-        x ^= x >> 15;
-        x *= Prime2;
-        x ^= x >> 13;
-        x *= Prime3;
-        x ^= x >> 16;
-
-        return x;
-    }
-#pragma warning(pop)
 
     // ----------------------------------------------------------------------------
 

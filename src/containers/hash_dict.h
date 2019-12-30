@@ -194,13 +194,13 @@ template<
         V* const m_values;
 
         inline iterator(HashDict& dict, bool isBegin)
-        {
-            m_width = dict.m_width;
-            m_hashes = dict.m_hashes;
-            m_keys = dict.m_keys;
-            m_values = dict.m_values;
-            m_i = isBegin ? 0 : m_width;
-        }
+            :
+              m_i(isBegin ? 0 : dict.m_width),
+              m_width(dict.m_width),
+              m_hashes(dict.m_hashes),
+              m_keys(dict.m_keys),
+              m_values(dict.m_values)
+        {}
 
         inline bool operator!=(const iterator& rhs) const
         {
@@ -213,7 +213,7 @@ template<
             return *this;
         }
 
-        inline Pair& operator*()
+        inline Pair operator*()
         {
             return Pair{ m_keys[m_i], m_values[m_i] };
         }

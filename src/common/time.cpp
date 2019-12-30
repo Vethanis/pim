@@ -1,8 +1,8 @@
-#include "time_system.h"
+#include "common/time.h"
 
 #include <sokol/sokol_time.h>
 
-namespace TimeSystem
+namespace Time
 {
     static u64 ms_appStart;
     static u64 ms_lastTime;

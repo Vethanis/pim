@@ -157,9 +157,6 @@
     <ClCompile Include="..\src\threading\task_system.cpp">
       <Filter>Source Files\threading</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\time\time_system.cpp">
-      <Filter>Source Files\time</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\systems.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -187,8 +184,14 @@
     <ClCompile Include="..\src\os\socket.cpp">
       <Filter>Source Files\os</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\assets\file_streaming.cpp">
+      <Filter>Source Files\assets</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\components\system.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\time.cpp">
+      <Filter>Source Files\common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -420,9 +423,6 @@
     <ClInclude Include="..\src\threading\task_system.h">
       <Filter>Source Files\threading</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\time\time_system.h">
-      <Filter>Source Files\time</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\systems.h">
       <Filter>Source Files</Filter>
     </ClInclude>
@@ -533,6 +533,18 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\hash_dict.h">
       <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\assets\file_streaming.h">
+      <Filter>Source Files\assets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\screen.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\time.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\bitutil.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

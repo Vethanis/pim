@@ -443,4 +443,87 @@ namespace IO
     }
 
     // ------------------------------------------------------------------------
+
+    FileMap MapFile(cstr path, bool writable)
+    {
+        ASSERT(path);
+
+        const u32 fileAccess = 
+            GENERIC_READ | (writable ? GENERIC_WRITE : 0u);
+        const u32 shareMode = 0u;
+        const u32 creationDisposition = OPEN_EXISTING;
+        const u32 flagsAndAttributes = FILE_ATTRIBUTE_NORMAL;
+
+        void* hFile = CreateFileA(
+            path,
+            fileAccess,
+            shareMode,
+            nullptr,
+            creationDisposition,
+            flagsAndAttributes,
+            nullptr);
+        if (!hFile)
+        {
+            return {};
+        }
+
+        const usize fileSize = GetFileSize(hFile, nullptr);
+        if (!fileSize)
+        {
+            CloseHandle(hFile);
+            return {};
+        }
+
+        const u32 flProtect = writable ? PAGE_READWRITE : PAGE_READONLY;
+        void* hMapping = CreateFileMappingA(
+            hFile,
+            nullptr,
+            flProtect,
+            0u,
+            0u,
+            nullptr);
+        if (!hMapping)
+        {
+            CloseHandle(hFile);
+            return {};
+        }
+
+        const u32 viewAccess =
+            FILE_MAP_READ | (writable ? FILE_MAP_WRITE : 0u);
+        void* addr = MapViewOfFile(
+            hMapping,
+            viewAccess,
+            0u,
+            0u,
+            0u);
+        if (!addr)
+        {
+            CloseHandle(hMapping);
+            CloseHandle(hFile);
+            return {};
+        }
+
+        FileMap map = {};
+        map.hFile = hFile;
+        map.hMapping = hMapping;
+        map.address = addr;
+        map.size = fileSize;
+
+        return map;
+    }
+
+    void Unmap(FileMap& map)
+    {
+        if (!IsOpen(map))
+        {
+            return;
+        }
+
+        UnmapViewOfFile(map.address);
+        CloseHandle(map.hMapping);
+        CloseHandle(map.hFile);
+
+        map = {};
+    }
+
 }; // IO

@@ -17,11 +17,19 @@ struct BitField
     {
         for (T x : list)
         {
-            u32 i = x >> 5;
-            u32 j = x & 31;
-            u32 mask = 1u << j;
-            Values[i] |= mask;
+            Set(x);
         }
+    }
+
+    inline static u32 IndexOf(u32 bit)
+    {
+        u32 i = bit >> 5;
+        ASSERT(i < NumDwords);
+        return i;
+    }
+    inline static u32 MaskOf(u32 bit)
+    {
+        return 1u << (bit & 31u);
     }
 
     inline void Clear()
@@ -29,20 +37,20 @@ struct BitField
         for (u32& x : Values)
             x = 0;
     }
+
     inline void Set(u32 bit)
     {
-        u32 i = bit >> 5;
-        u32 j = bit & 31;
-        u32 mask = 1u << j;
-        Values[i] |= mask;
+        Values[IndexOf(bit)] |= MaskOf(bit);
     }
     inline void UnSet(u32 bit)
     {
-        u32 i = bit >> 5;
-        u32 j = bit & 31;
-        u32 mask = 1u << j;
-        Values[i] &= ~mask;
+        Values[IndexOf(bit)] &= ~MaskOf(bit);
     }
+    inline void Toggle(u32 bit)
+    {
+        Values[IndexOf(bit)] ^= MaskOf(bit);
+    }
+
     inline void Set(u32 bit, bool on)
     {
         if (on)
@@ -54,12 +62,9 @@ struct BitField
             UnSet(bit);
         }
     }
-    inline bool Has(u32 bit) const
+    inline bool Get(u32 bit) const
     {
-        u32 i = bit >> 5;
-        u32 j = bit & 31;
-        u32 mask = 1u << j;
-        return (Values[i] & mask) != 0;
+        return Values[IndexOf(bit)] & MaskOf(bit);
     }
     inline bool Any() const
     {

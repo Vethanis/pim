@@ -2,7 +2,7 @@
 
 #include "common/int_types.h"
 
-namespace TimeSystem
+namespace Time
 {
     void Init();
     void Update();

@@ -1,9 +1,7 @@
 #pragma once
 
 #include "common/int_types.h"
-#include "common/io.h"
 #include "containers/array.h"
-#include "math/vec_types.h"
 
 namespace Quake
 {
@@ -33,7 +31,7 @@ namespace Quake
         Array<DPackFile> files;
     };
 
-    Pack LoadPack(cstrc dir, EResult& err);
+    Pack LoadPack(cstrc dir, AllocType allocator, EResult& err);
     void FreePack(Pack& pack);
     void LoadFolder(cstrc dir, Array<Pack>& packs);
     void FreeFolder(Array<Pack>& packs);

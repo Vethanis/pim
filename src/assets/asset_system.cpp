@@ -1,60 +1,45 @@
 #include "assets/asset_system.h"
 
 #include "common/text.h"
+#include "common/io.h"
 #include "containers/array.h"
-#include "containers/hash_set.h"
 #include "containers/queue.h"
+#include "containers/hash_dict.h"
 #include "components/system.h"
 #include "quake/packfile.h"
 
 using PathText = Text<PIM_PATH>;
+static constexpr auto GuidComparator = OpComparator<Guid>();
 
-struct Children
+struct Asset
 {
-    Array<Guid> Values;
-};
-
-struct AssetInMem
-{
-    void* ptr;
-    i32 size;
-    i32 refCount;
-};
-
-struct AssetInFile
-{
-    Guid filename;
+    Guid file;
+    Guid name;
+    Array<Guid> children;
     i32 offset;
     i32 size;
+    void* ptr;
+    i32 refCount;
 };
 
 struct FileOp
 {
     u64 time;
-    bool read;
     void* ptr;
-    i32 size;
     i32 offset;
+    i32 size;
+    bool read;
 };
 
-struct FileQueue
+struct File
 {
-    Queue<FileOp> Value;
+    Guid name;
+    IO::FD descriptor;
+    Queue<FileOp> ops;
 };
 
-struct StreamFiles
-{
-    Array<PathText> paths;
-    Array<Guid> names;
-    Array<IO::FD> descriptors;
-    Array<FileQueue> queues;
-};
-
-static constexpr auto GuidComparator = OpComparator<Guid>();
-static Array<Guid> ms_names = { Alloc_Pool };
-static Array<Children> ms_children = { Alloc_Pool };
-static StreamFiles ms_files;
-
+static HashDict<Guid, File, GuidComparator> ms_files;
+static HashDict<Guid, Asset, GuidComparator> ms_assets;
 static Array<Quake::Pack> ms_packs = { Alloc_Pool };
 
 namespace AssetSystem
@@ -63,15 +48,15 @@ namespace AssetSystem
     {
         Quake::LoadFolder("packs/id1", ms_packs);
         Queue<i32> indices = { Alloc_Linear };
-        indices.Push(5);
-        indices.Push(4);
-        indices.Push(99);
-        indices.Push(1);
-        indices.Sort(OpComparable<i32>());
-        ASSERT(indices.Pop() == 1);
-        ASSERT(indices.Pop() == 4);
-        ASSERT(indices.Pop() == 5);
-        ASSERT(indices.Pop() == 99);
+        for (i32 i = 0; i < 1000; ++i)
+        {
+            indices.Push(1000 - i - 1, OpComparable<i32>());
+        }
+        for (i32 i = 0; i < 1000; ++i)
+        {
+            i32 j = indices.Pop();
+            ASSERT(j == i);
+        }
     }
 
     static void Update()

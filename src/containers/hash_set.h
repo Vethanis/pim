@@ -139,14 +139,13 @@ struct HashSet
         const u32* const m_hashes;
         K* const m_keys;
 
-        iterator(HashSet& set, bool isBegin)
-        {
-            m_width = set.m_width;
-            m_hashes = set.m_hashes;
-            m_keys = set.m_keys;
-            m_values = set.m_values;
-            m_i = isBegin ? 0 : m_width;
-        }
+        inline iterator(HashSet& set, bool isBegin)
+            :
+            m_i(isBegin ? 0, set.m_width),
+            m_width(set.m_width),
+            m_hashes(set.m_hashes),
+            m_keys(set.m_keys)
+        {}
 
         inline bool operator!=(const iterator& rhs) const
         {

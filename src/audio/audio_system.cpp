@@ -48,11 +48,6 @@ namespace AudioSystem
         return math::exp2(volPan.x - 1.0f) * float2(1.0f - volPan.y, volPan.y) * value;
     }
 
-    static void KeyListener(InputEvent evt)
-    {
-
-    }
-
     static void AudioMain(f32* buffer, i32 num_frames, i32 num_channels)
     {
         float2* buffer2 = (float2*)buffer;
@@ -60,6 +55,11 @@ namespace AudioSystem
         {
             *buffer2++ = 0.0f;
         }
+    }
+
+    static void KeyListener(InputEvent evt, f32 valueX, f32 valueY)
+    {
+
     }
 
     static void Init()
@@ -70,7 +70,7 @@ namespace AudioSystem
         desc.stream_cb = AudioMain;
         saudio_setup(&desc);
 
-        InputSystem::Listen(InputChannel_Keyboard, KeyListener);
+        InputSystem::Register(InputChannel_Keyboard, KeyListener);
     }
 
     static void Update()
@@ -82,12 +82,11 @@ namespace AudioSystem
     {
         saudio_shutdown();
 
-        InputSystem::Deafen(InputChannel_Keyboard, KeyListener);
+        InputSystem::Remove(InputChannel_Keyboard, KeyListener);
     }
 
     static constexpr Guid ms_dependencies[] =
     {
-        ToGuid("Random"),
         ToGuid("InputSystem"),
     };
 

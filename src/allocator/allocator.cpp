@@ -8,6 +8,9 @@
 
 namespace Allocator
 {
+    static constexpr i32 Alignment = 16;
+    static constexpr i32 PadBytes = sizeof(Header);
+
     // Separate from 'VTables' so that we can have multiple of the same type.
     static constexpr VTable ms_tables[] =
     {
@@ -17,9 +20,6 @@ namespace Allocator
         Pool::Table,
     };
     static constexpr i32 NumAllocators = NELEM(ms_tables);
-
-    static UAllocator ms_allocators[NumAllocators];
-    static void* ms_allocations[NumAllocators];
 
     // TODO: make these config vars (and make a config var system...)
     static constexpr i32 ms_capacities[] =
@@ -40,8 +40,13 @@ namespace Allocator
     };
     SASSERT(NELEM(ms_isPerFrame) == NumAllocators);
 
-    static constexpr i32 Alignment = 16;
-    static constexpr i32 PadBytes = sizeof(Header);
+    // ------------------------------------------------------------------------
+
+    static UAllocator ms_allocators[NumAllocators];
+    static void* ms_allocations[NumAllocators];
+    static bool ms_init;
+
+    // ------------------------------------------------------------------------
 
     static constexpr bool IsAligned(usize x)
     {
@@ -68,25 +73,24 @@ namespace Allocator
         return reqBytes;
     }
 
-    static bool ms_init;
+    // ------------------------------------------------------------------------
 
     void Init()
     {
-        if (!ms_init)
+        ASSERT(!ms_init)
+        for (i32 i = 0; i < NumAllocators; ++i)
         {
-            ms_init = true;
-            for (i32 i = 0; i < NumAllocators; ++i)
-            {
-                i32 capacity = ms_capacities[i];
-                void* memory = capacity > 0 ? malloc(capacity) : 0;
-                ms_allocations[i] = memory;
-                ms_tables[i].Init(ms_allocators[i], memory, capacity);
-            }
+            i32 capacity = ms_capacities[i];
+            void* memory = capacity > 0 ? malloc(capacity) : 0;
+            ms_allocations[i] = memory;
+            ms_tables[i].Init(ms_allocators[i], memory, capacity);
         }
+        ms_init = true;
     }
 
     void Update()
     {
+        ASSERT(ms_init)
         for (i32 i = 0; i < NumAllocators; ++i)
         {
             if (ms_isPerFrame[i])
@@ -98,6 +102,7 @@ namespace Allocator
 
     void Shutdown()
     {
+        ASSERT(ms_init)
         for (i32 i = 0; i < NumAllocators; ++i)
         {
             ms_tables[i].Shutdown(ms_allocators[i]);
@@ -108,13 +113,14 @@ namespace Allocator
                 free(memory);
             }
         }
+        ms_init = false;
     }
 
     // ------------------------------------------------------------------------
 
     void* Alloc(AllocType type, i32 want)
     {
-        Init();
+        ASSERT(ms_init);
         ASSERT(InRange(type));
         ASSERT(want >= 0);
 
@@ -137,7 +143,7 @@ namespace Allocator
 
     void* Realloc(AllocType type, void* prev, i32 want)
     {
-        Init();
+        ASSERT(ms_init);
         ASSERT(InRange(type));
         ASSERT(want >= 0);
 

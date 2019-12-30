@@ -25,8 +25,12 @@ using cstrc = const char * const;
 // win32's DWORD
 using ul32 = unsigned long;
 
-template<typename T>
-struct Slice;
+enum EResult
+{
+    EUnknown = 0,
+    ESuccess = 1,
+    EFail = 2,
+};
 
 enum AllocType : u8
 {
@@ -37,18 +41,3 @@ enum AllocType : u8
 
     Alloc_COUNT
 };
-
-template<typename T>
-struct Array;
-
-template<typename T, i32 t_capacity>
-struct FixedArray;
-
-template<typename K, typename V>
-struct Dict;
-
-template<u32 t_width, typename K, typename V>
-struct DictTable;
-
-template<u32 t_capacity>
-struct Ring;

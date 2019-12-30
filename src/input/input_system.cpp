@@ -1,92 +1,101 @@
 #include "input_system.h"
 
 #include <sokol/sokol_app.h>
-#include "ui/imgui.h"
 
 #include "common/macro.h"
 #include "containers/array.h"
 #include "common/find.h"
-#include "time/time_system.h"
 #include "components/system.h"
 
 // ----------------------------------------------------------------------------
 
-static Array<InputListener> ms_listeners[InputChannel_Count];
-static constexpr cstrc ms_storeNames[] =
-{
-    "Keyboard",
-    "MouseButton",
-    "MouseAxis",
-};
+static Array<InputListener> ms_listeners[InputChannel_COUNT];
 
 // ----------------------------------------------------------------------------
 
-static void Notify(InputChannel channel, u16 id, u8 mods, f32 value)
+static void Notify(InputChannel channel, u16 id, u8 modifiers, f32 valueX, f32 valueY)
 {
-    InputEvent evt;
+    InputEvent evt = {};
     evt.channel = channel;
     evt.id = id;
-    evt.mods = mods;
-    evt.value = value;
-    evt.tick = TimeSystem::Now();
-    for (InputListener onEvent : ms_listeners[channel])
+    evt.modifiers = modifiers;
+    for (InputListener listener : ms_listeners[channel])
     {
-        onEvent(evt);
+        listener(evt, valueX, valueY);
     }
 }
 
-static void OnKey(const sapp_event* evt)
+static void OnKey(const sapp_event* evt, bool down)
 {
     if (evt->key_repeat)
     {
         return;
     }
-    f32 value = (evt->type == SAPP_EVENTTYPE_KEY_DOWN) ? 1.0f : 0.0f;
-    Notify(InputChannel_Keyboard, evt->key_code, evt->modifiers, value);
+    Notify(
+        InputChannel_Keyboard,
+        evt->key_code,
+        evt->modifiers,
+        down ? 1.0f : 0.0f,
+        0.0f);
 }
 
-static void OnMouseButton(const sapp_event* evt)
+static void OnMouseButton(const sapp_event* evt, bool down)
 {
     if (evt->key_repeat)
     {
         return;
     }
-    f32 value = (evt->type == SAPP_EVENTTYPE_MOUSE_DOWN) ? 1.0f : 0.0f;
-    Notify(InputChannel_MouseButton, evt->mouse_button, evt->modifiers, value);
+    Notify(
+        InputChannel_MouseButton,
+        evt->mouse_button,
+        evt->modifiers,
+        down ? 1.0f : 0.0f,
+        0.0f);
 }
 
 static void OnMouseMove(const sapp_event* evt)
 {
-    Notify(InputChannel_MouseAxis, MouseAxis_X, evt->modifiers, evt->mouse_x);
-    Notify(InputChannel_MouseAxis, MouseAxis_Y, evt->modifiers, evt->mouse_y);
+    const f32 width = (f32)evt->window_width;
+    const f32 height = (f32)evt->window_height;
+
+    f32 x = (f32)evt->mouse_x;
+    f32 y = (f32)evt->mouse_y;
+
+    // convert pixel to snorm
+    x = 2.0f * (x / width) - 1.0f;
+    y = 2.0f * (y / height) - 1.0f;
+
+    // flip y so that +y == up, as it is more intuitive.
+    // +y == down is a legacy artifact.
+    y = -y;
+
+    Notify(InputChannel_MouseMove, 0, evt->modifiers, x, y);
 }
 
 static void OnMouseScroll(const sapp_event* evt)
 {
-    Notify(InputChannel_MouseAxis, MouseAxis_Z, evt->modifiers, evt->scroll_x);
-    Notify(InputChannel_MouseAxis, MouseAxis_W, evt->modifiers, evt->scroll_y);
+    Notify(
+        InputChannel_MouseScroll,
+        0,
+        evt->modifiers,
+        evt->scroll_x,
+        evt->scroll_y);
 }
 
 // ----------------------------------------------------------------------------
 
 namespace InputSystem
 {
-    void Listen(InputChannel channel, InputListener onEvent)
+    bool Register(InputChannel channel, InputListener listener)
     {
-        ASSERT(onEvent);
-        if (onEvent)
-        {
-            UniquePush(ms_listeners[channel], onEvent);
-        }
+        ASSERT(listener);
+        return FindAdd(ms_listeners[channel], listener);
     }
 
-    void Deafen(InputChannel channel, InputListener onEvent)
+    bool Remove(InputChannel channel, InputListener listener)
     {
-        ASSERT(onEvent);
-        if (onEvent)
-        {
-            FindRemove(ms_listeners[channel], onEvent);
-        }
+        ASSERT(listener);
+        return FindRemove(ms_listeners[channel], listener);
     }
 
     void OnEvent(const sapp_event* evt, bool keyboardCaptured)
@@ -96,21 +105,22 @@ namespace InputSystem
         switch (evt->type)
         {
         case SAPP_EVENTTYPE_KEY_DOWN:
+            OnKey(evt, true); break;
         case SAPP_EVENTTYPE_KEY_UP:
-            OnKey(evt);
-            break;
+            OnKey(evt, false); break;
+
         case SAPP_EVENTTYPE_MOUSE_DOWN:
+            OnMouseButton(evt, true); break;
         case SAPP_EVENTTYPE_MOUSE_UP:
-            OnMouseButton(evt);
-            break;
+            OnMouseButton(evt, false); break;
+
         case SAPP_EVENTTYPE_MOUSE_MOVE:
-            OnMouseMove(evt);
-            break;
+            OnMouseMove(evt); break;
+
         case SAPP_EVENTTYPE_MOUSE_SCROLL:
-            OnMouseScroll(evt);
-            break;
-        default:
-            break;
+            OnMouseScroll(evt); break;
+
+        default: break;
         }
     }
 
@@ -118,9 +128,9 @@ namespace InputSystem
 
     static void Init()
     {
-        for (auto& store : ms_listeners)
+        for (Array<InputListener>& listeners : ms_listeners)
         {
-            store.Init(Alloc_Pool);
+            listeners.Init(Alloc_Pool);
         }
     }
 
@@ -131,9 +141,9 @@ namespace InputSystem
 
     static void Shutdown()
     {
-        for (auto& store : ms_listeners)
+        for (Array<InputListener>& listeners : ms_listeners)
         {
-            store.Reset();
+            listeners.Reset();
         }
     }
 

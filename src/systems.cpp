@@ -2,24 +2,26 @@
 
 #include <sokol/sokol_app.h>
 
-#include "time/time_system.h"
+#include "common/time.h"
 #include "allocator/allocator.h"
 #include "components/system.h"
 #include "input/input_system.h"
+#include "common/random.h"
 #include "rendering/render_system.h"
 
 namespace Systems
 {
     void Init()
     {
-        TimeSystem::Init();
+        Time::Init();
+        Random::Seed();
         Allocator::Init();
         SystemRegistry::Init();
     }
 
     void Update()
     {
-        TimeSystem::Update();
+        Time::Update();
         Allocator::Update();
         SystemRegistry::Update();
         RenderSystem::FrameEnd();
@@ -29,7 +31,7 @@ namespace Systems
     {
         SystemRegistry::Shutdown();
         Allocator::Shutdown();
-        TimeSystem::Shutdown();
+        Time::Shutdown();
     }
 
     void OnEvent(const sapp_event* evt)

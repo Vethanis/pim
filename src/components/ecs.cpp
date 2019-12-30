@@ -315,7 +315,7 @@ namespace Ecs
             ms_flags[entity.index] = {};
             for (i32 i = 0; i < ComponentId_COUNT; ++i)
             {
-                if (flags.Has(i))
+                if (flags.Get(i))
                 {
                     Free(i, entity.index);
                 }
@@ -328,7 +328,7 @@ namespace Ecs
     bool Has(Entity entity, ComponentId id)
     {
         ASSERT(IsCurrent(entity));
-        return ms_flags[entity.index].Has(id);
+        return ms_flags[entity.index].Get(id);
     }
 
     void* Get(Entity entity, ComponentId id)

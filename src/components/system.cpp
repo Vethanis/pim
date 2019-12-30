@@ -5,19 +5,21 @@
 #include "common/find.h"
 #include "common/sort.h"
 
+static constexpr i32 MaxSystems = 64;
 static constexpr auto GuidComparator = OpComparator<Guid>();
 using GuidSet = HashSet<Guid, GuidComparator>;
 
-static Array<Guid> ms_names = { Alloc_Pool };
-static Array<System> ms_systems = { Alloc_Pool };
-static Array<GuidSet> ms_deps = { Alloc_Pool };
-static Array<bool> ms_hasInit = { Alloc_Pool };
-static Array<i32> ms_order = { Alloc_Pool };
+static i32 ms_systemCount;
+static Guid ms_names[MaxSystems];
+static System ms_systems[MaxSystems];
+static GuidSet ms_deps[MaxSystems];
+static i32 ms_order[MaxSystems];
+static bool ms_hasInit[MaxSystems];
 static bool ms_needsSort;
 
 static const System& GetSystem(Guid name)
 {
-    i32 i = RFind(ms_names, name);
+    i32 i = RFind(ms_names, ms_systemCount, name);
     ASSERT(i != -1);
     return ms_systems[i];
 }
@@ -96,17 +98,14 @@ static void SortSystems()
     {
         ms_needsSort = false;
 
-        const i32 count = ms_systems.Size();
+        const i32 count = ms_systemCount;
         for (i32 i = 0; i < count; ++i)
         {
             ms_order[i] = i;
             ms_deps[i].Clear();
-        }
-        for (i32 i = 0; i < count; ++i)
-        {
             BuildSet(ms_systems[i], ms_deps[i]);
         }
-        Sort(ms_order.begin(), ms_order.Size(), SystemComparable::Value);
+        Sort(ms_order, count, SystemComparable::Value);
     }
 }
 
@@ -114,19 +113,23 @@ namespace SystemRegistry
 {
     void Register(System system)
     {
-        ASSERT(!Contains(ms_names, system.Name));
-        ms_order.Grow() = ms_names.Size();
-        ms_names.Grow() = system.Name;
-        ms_systems.Grow() = system;
-        ms_deps.Grow().Init(Alloc_Pool);
-        ms_hasInit.Grow() = false;
+        ASSERT(!Contains(ms_names, ms_systemCount, system.Name));
+        ASSERT(ms_systemCount < MaxSystems);
+
+        const i32 i = ms_systemCount++;
+        ms_names[i] = system.Name;
+        ms_systems[i] = system;
+        ms_deps[i].Init(Alloc_Pool);
+        ms_order[i] = i;
+        ms_hasInit[i] = false;
+
         ms_needsSort = true;
     }
 
     void Init()
     {
         SortSystems();
-        const i32 count = ms_systems.Size();
+        const i32 count = ms_systemCount;
         for (i32 i = 0; i < count; ++i)
         {
             InitSystem(ms_order[i]);
@@ -136,7 +139,7 @@ namespace SystemRegistry
     void Update()
     {
         SortSystems();
-        const i32 count = ms_systems.Size();
+        const i32 count = ms_systemCount;
         for (i32 i = 0; i < count; ++i)
         {
             UpdateSystem(ms_order[i]);
@@ -146,7 +149,7 @@ namespace SystemRegistry
     void Shutdown()
     {
         SortSystems();
-        const i32 count = ms_systems.Size();
+        const i32 count = ms_systemCount;
         for (i32 i = count - 1; i >= 0; --i)
         {
             ShutdownSystem(ms_order[i]);

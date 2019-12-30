@@ -34,15 +34,15 @@ namespace HashUtil
 
     static u32 Iterate(const u32* const hashes, const u32 width, u32 i)
     {
-        ++i;
-        for (; i < width; ++i)
+        u32 j = i + 1;
+        for (; j < width; ++j)
         {
-            if (!IsEmptyOrTomb(hashes[i]))
+            if (!IsEmptyOrTomb(hashes[j]))
             {
                 break;
             }
         }
-        return i;
+        return j;
     }
 
     // ------------------------------------------------------------------------

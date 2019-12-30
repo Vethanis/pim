@@ -93,7 +93,7 @@ static constexpr Comparable<T> OpComparable()
 template<typename T>
 static constexpr Equatable<T> OpEquatable()
 {
-    return Comparable<T>
+    return Equatable<T>
     {
         OpEqualsFn<T>,
     };
@@ -122,7 +122,7 @@ static constexpr Comparable<T> MemComparable()
 template<typename T>
 static constexpr Equatable<T> MemEquatable()
 {
-    return Comparable<T>
+    return Equatable<T>
     {
         MemEqualsFn<T>,
     };
@@ -131,7 +131,7 @@ static constexpr Equatable<T> MemEquatable()
 template<typename T>
 static constexpr Hashable<T> MemHashable()
 {
-    return Comparable<T>
+    return Hashable<T>
     {
         MemHashFn<T>,
     };
