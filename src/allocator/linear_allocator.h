@@ -36,24 +36,26 @@ namespace Allocator
         {
             Slice<u8> alloc = m_current.Head(count);
             m_current = m_current.Tail(count);
-            return (Header*)alloc.begin();
+            Header* pNew = (Header*)alloc.begin();
+            pNew->size = count;
+            pNew->type = Alloc_Linear;
+            return pNew;
         }
 
-        Header* Realloc(Header* prev, i32 count)
+        Header* Realloc(Header* pOld, i32 count)
         {
-            Free(prev);
-            return Alloc(count);
+            Free(pOld);
+            Header* pNew = Alloc(count);
+            ASSERT(pNew == pOld);
+            return pNew;
         }
 
         void Free(Header* prev)
         {
-            Slice<u8> slice = { (u8*)prev, prev->size };
-            if (slice.end() == m_current.begin())
+            Slice<u8> slice = prev->AsSlice();
+            if (m_current.Adjacent(slice))
             {
-                // free the prior allocation only if it was the most recent
-                // this is like a stack allocator but much less strict
-                m_current.ptr = slice.ptr;
-                m_current.len += slice.len;
+                m_current.Combine(slice);
             }
         }
 

@@ -2,9 +2,6 @@
 
 #include "common/int_types.h"
 #include "common/hash.h"
-#include "common/text.h"
-
-using GuidStr = Text<35>;
 
 struct Guid
 {
@@ -41,9 +38,6 @@ struct Guid
     }
 };
 
-Guid ToGuid(GuidStr str);
-GuidStr ToString(Guid guid);
-
 inline constexpr bool IsNull(Guid g)
 {
     return !(g.a | g.b | g.c | g.d);
@@ -63,7 +57,7 @@ inline constexpr Guid ToGuid(cstrc str)
     return Guid { a, b, c, d };
 }
 
-inline Guid ToGuid(const void* const ptr, i32 count)
+inline Guid ToGuid(const void* ptr, i32 count)
 {
     u32 a = Fnv32Bytes(ptr, count);
     a = a ? a : 1;

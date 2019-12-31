@@ -45,26 +45,43 @@ struct Slice
         return { ptr, len };
     }
 
+    inline bool ValidSlice(i32 start, i32 count) const
+    {
+        const i32 endIndex = start + count;
+        ASSERT(start >= 0);
+        ASSERT(count >= 0);
+        ASSERT(endIndex >= 0);
+        return (u32)endIndex <= (u32)len;
+    }
     inline Slice<T> Subslice(i32 start, i32 count) const
     {
-        ASSERT(InRange(start + count));
+        ASSERT(ValidSlice(start, count));
+        ASSERT(ptr || !(start | count));
         return { ptr + start, count };
     }
     inline Slice<T> Head(i32 last) const
     {
-        ASSERT(last >= 0);
-        ASSERT(last <= len);
-        return { ptr, last };
+        return Subslice(0, last);
     }
     inline Slice<T> Tail(i32 first) const
     {
-        ASSERT(first >= 0);
-        ASSERT(first <= len);
-        return { ptr + first, len - first };
+        return Subslice(first, len - first);
     }
 
     inline bool Overlaps(const Slice<T> other) const
     {
         return (end() >= other.begin()) && (begin() <= other.end());
+    }
+
+    inline bool Adjacent(const Slice<T> other) const
+    {
+        return (begin() == other.end()) || (end() == other.begin());
+    }
+    inline void Combine(Slice<T> other)
+    {
+        ASSERT(Adjacent(other));
+        ptr = ptr < other.ptr ? ptr : other.ptr;
+        len = len + other.len;
+        ASSERT(len >= 0);
     }
 };

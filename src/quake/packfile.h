@@ -31,8 +31,15 @@ namespace Quake
         Array<DPackFile> files;
     };
 
-    Pack LoadPack(cstrc dir, AllocType allocator, EResult& err);
+    struct Folder
+    {
+        char path[PIM_PATH];
+        Array<Pack> packs;
+    };
+
+    Pack LoadPack(cstrc dir, AllocType allocator);
     void FreePack(Pack& pack);
-    void LoadFolder(cstrc dir, Array<Pack>& packs);
-    void FreeFolder(Array<Pack>& packs);
+
+    Folder LoadFolder(cstrc dir, AllocType allocator);
+    void FreeFolder(Folder& folder);
 };

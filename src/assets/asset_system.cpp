@@ -5,58 +5,54 @@
 #include "containers/array.h"
 #include "containers/queue.h"
 #include "containers/hash_dict.h"
+#include "containers/hash_set.h"
 #include "components/system.h"
 #include "quake/packfile.h"
 
-using PathText = Text<PIM_PATH>;
 static constexpr auto GuidComparator = OpComparator<Guid>();
 
-struct Asset
+using PathText = Text<PIM_PATH>;
+using GuidSet = HashSet<Guid, GuidComparator>;
+using GuidToIndex = HashDict<Guid, i32, GuidComparator>;
+using GuidToGuid = HashDict<Guid, Guid, GuidComparator>;
+
+struct FileLocation
 {
-    Guid file;
-    Guid name;
-    Array<Guid> children;
     i32 offset;
     i32 size;
-    void* ptr;
-    i32 refCount;
 };
 
-struct FileOp
+struct FilePack
 {
-    u64 time;
-    void* ptr;
-    i32 offset;
-    i32 size;
-    bool read;
+    Array<Guid> assets;
+    Array<FileLocation> locations;
 };
 
-struct File
+namespace Assets
 {
-    Guid name;
-    IO::FD descriptor;
-    Queue<FileOp> ops;
+    static GuidToIndex lookup;
+    static Array<Guid> names;
+    static Array<GuidSet> children;
+    static Array<Guid> files;
+    static Array<i32> refcounts;
+    static Array<Slice<u8>> memory;
 };
 
-static HashDict<Guid, File, GuidComparator> ms_files;
-static HashDict<Guid, Asset, GuidComparator> ms_assets;
-static Array<Quake::Pack> ms_packs = { Alloc_Pool };
+namespace Files
+{
+    static GuidToIndex lookup;
+    static Array<Guid> names;
+    static Array<PathText> paths;
+    static Array<GuidToIndex> packLookups;
+    static Array<FilePack> packs;
+};
 
 namespace AssetSystem
 {
     static void Init()
     {
-        Quake::LoadFolder("packs/id1", ms_packs);
-        Queue<i32> indices = { Alloc_Linear };
-        for (i32 i = 0; i < 1000; ++i)
-        {
-            indices.Push(1000 - i - 1, OpComparable<i32>());
-        }
-        for (i32 i = 0; i < 1000; ++i)
-        {
-            i32 j = indices.Pop();
-            ASSERT(j == i);
-        }
+        Quake::Folder folder = Quake::LoadFolder("packs/id1", Alloc_Stack);
+        Quake::FreeFolder(folder);
     }
 
     static void Update()
@@ -66,7 +62,7 @@ namespace AssetSystem
 
     static void Shutdown()
     {
-        Quake::FreeFolder(ms_packs);
+
     }
 
     static constexpr System ms_system =

@@ -15,13 +15,11 @@
     <ClCompile Include="..\src\assets\asset_system.cpp" />
     <ClCompile Include="..\src\assets\file_streaming.cpp" />
     <ClCompile Include="..\src\audio\audio_system.cpp" />
-    <ClCompile Include="..\src\common\guid.cpp" />
     <ClCompile Include="..\src\common\hashstring.cpp" />
     <ClCompile Include="..\src\common\io.cpp" />
     <ClCompile Include="..\src\common\random.cpp" />
     <ClCompile Include="..\src\common\stringutil.cpp" />
     <ClCompile Include="..\src\common\time.cpp" />
-    <ClCompile Include="..\src\common\type.cpp" />
     <ClCompile Include="..\src\components\ecs.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
@@ -38,7 +36,6 @@
     <ClCompile Include="..\src\sokol\sokol_time.c" />
     <ClCompile Include="..\src\systems.cpp" />
     <ClCompile Include="..\src\threading\task_system.cpp" />
-    <ClCompile Include="..\src\typeinfo\basic_types.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_draw.cpp" />
@@ -77,9 +74,6 @@
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\text.h" />
     <ClInclude Include="..\src\common\time.h" />
-    <ClInclude Include="..\src\common\type.h" />
-    <ClInclude Include="..\src\common\typedecl.h" />
-    <ClInclude Include="..\src\common\typeid.h" />
     <ClInclude Include="..\src\common\unroll.h" />
     <ClInclude Include="..\src\common\valist.h" />
     <ClInclude Include="..\src\components\all.h" />

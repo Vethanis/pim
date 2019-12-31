@@ -76,7 +76,7 @@ namespace IO
 
     // open
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/open-wopen
-    FD Open(cstr filename, u32 flags, EResult& err);
+    FD Open(cstr filename, u32 oflags, EResult& err);
 
     // close
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/close
@@ -295,7 +295,7 @@ namespace IO
 
     // ------------------------------------------------------------------------
 
-    struct Finder { i32 state; i64 hdl; };
+    struct Finder { i64 hdl = -1; };
     inline bool IsOpen(Finder fdr) { return fdr.hdl != -1; }
 
     enum FileAttrFlags : u32
@@ -319,10 +319,6 @@ namespace IO
         char name[260];
     };
 
-    // findfirst + findnext + findclose
-    bool Find(Finder& fdr, FindData& data, cstrc spec, EResult& err);
-    void FindAll(Array<FindData>& results, cstrc spec, EResult& err);
-
     struct Directory
     {
         FindData data;
@@ -340,7 +336,15 @@ namespace IO
         }
     };
 
-    void ListDir(Directory& dir, cstrc spec, EResult& err);
+    bool Begin(Finder& fdr, FindData& data, cstrc spec);
+    bool Next(Finder& fdr, FindData& data);
+    void Close(Finder& fdr);
+
+    // Begin + Next + Close
+    bool Find(Finder& fdr, FindData& data, cstrc spec);
+    void FindAll(Array<FindData>& results, cstrc spec);
+
+    void ListDir(Directory& dir, cstrc spec);
 
     // ------------------------------------------------------------------------
     struct Module { void* hdl; };
@@ -378,6 +382,13 @@ namespace IO
         void* hMapping;
         void* address;
         usize size;
+
+        inline Slice<u8> AsSlice()
+        {
+            ASSERT(size < 0x7fffffff);
+            ASSERT((address && size) || (!address && !size));
+            return { (u8*)address, (i32)size };
+        }
     };
 
     inline bool IsOpen(FileMap map)
@@ -386,5 +397,6 @@ namespace IO
     }
 
     FileMap MapFile(cstr path, bool writable);
-    void Unmap(FileMap& map);
+    void Close(FileMap& map);
+
 }; // IO

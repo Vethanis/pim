@@ -80,9 +80,6 @@
     <Filter Include="Source Files\assets">
       <UniqueIdentifier>{4d54bb06-ee32-4c09-a404-749041fe8847}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\typeinfo">
-      <UniqueIdentifier>{df2c963e-08b3-4425-95e4-c97c532f2127}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\geometry">
       <UniqueIdentifier>{b7d1122f-5798-4b19-8920-edcd7dad3554}</UniqueIdentifier>
     </Filter>
@@ -166,20 +163,11 @@
     <ClCompile Include="..\src\rendering\material.cpp">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\guid.cpp">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\allocator\allocator.cpp">
       <Filter>Source Files\allocator</Filter>
     </ClCompile>
     <ClCompile Include="..\src\assets\asset_system.cpp">
       <Filter>Source Files\assets</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\common\type.cpp">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\typeinfo\basic_types.cpp">
-      <Filter>Source Files\typeinfo</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\socket.cpp">
       <Filter>Source Files\os</Filter>
@@ -465,9 +453,6 @@
     <ClInclude Include="..\src\common\chunk_allocator.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\type.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\valist.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -475,12 +460,6 @@
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\minmax.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\typedecl.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\typeid.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\allocator\allocator_vtable.h">

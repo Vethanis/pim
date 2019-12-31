@@ -1,8 +1,11 @@
 #pragma once
 
 #include "common/macro.h"
-#include "allocator/allocator_vtable.h"
+#include "common/minmax.h"
 #include "containers/slice.h"
+#include "allocator/allocator_vtable.h"
+#include <stdlib.h>
+#include <string.h>
 
 namespace Allocator
 {
@@ -10,62 +13,104 @@ namespace Allocator
     {
         Slice<u8> m_memory;
         Slice<u8> m_stack;
+        Header** m_allocations;
+        i32 m_length;
+        i32 m_capacity;
 
         void Init(void* memory, i32 bytes)
         {
+            memset(this, 0, sizeof(*this));
             m_memory = { (u8*)memory, bytes };
             m_stack = m_memory;
         }
 
         void Shutdown()
         {
-            m_memory = { 0, 0 };
-            m_stack = { 0, 0 };
+            free(m_allocations);
+            memset(this, 0, sizeof(*this));
         }
 
         void Clear()
         {
             m_stack = m_memory;
+            m_length = 0;
         }
 
         Header* Alloc(i32 count)
         {
+            i32 len = m_length;
+            i32 cap = m_capacity;
+            Header** allocations = m_allocations;
+            if (len == cap)
+            {
+                cap = Max(cap * 2, 64);
+                allocations = (Header**)realloc(allocations, cap * sizeof(Header**));
+                ASSERT(allocations);
+            }
+
             Slice<u8> allocation = m_stack.Head(count);
             m_stack = m_stack.Tail(count);
-            return (Header*)allocation.ptr;
+
+            Header* pNew = (Header*)allocation.ptr;
+            pNew->size = count;
+            pNew->type = Alloc_Stack;
+            pNew->c = len;
+            pNew->d = 0;
+
+            allocations[len++] = pNew;
+
+            m_length = len;
+            m_capacity = cap;
+            m_allocations = allocations;
+
+            return pNew;
         }
 
-        Header* Realloc(Header* hdr, i32 count)
+        Header* Realloc(Header* pOld, i32 count)
         {
-            Free(hdr);
-            return Alloc(count);
+            Free(pOld);
+            Header* pNew = Alloc(count);
+            if (pNew != pOld)
+            {
+                Slice<u8> oldRegion = pOld->AsSlice().Tail(sizeof(Header));
+                Slice<u8> newRegion = pNew->AsSlice().Tail(sizeof(Header));
+                const i32 cpySize = Min(newRegion.Size(), oldRegion.Size());
+                if (newRegion.Overlaps(oldRegion))
+                {
+                    memmove(newRegion.begin(), oldRegion.begin(), cpySize);
+                }
+                else
+                {
+                    memcpy(newRegion.begin(), oldRegion.begin(), cpySize);
+                }
+            }
+            return pNew;
         }
 
         void Free(Header* hdr)
         {
-            Slice<u8> prev = { (u8*)hdr, hdr->size };
-            u8* top = m_stack.ptr;
-            u8* end = prev.end();
+            hdr->d = 1;
 
-            if (end == top)
+            Slice<u8> stack = m_stack;
+            Header** allocations = m_allocations;
+            i32 len = m_length;
+
+            while (len > 0)
             {
-                // free the top of the stack.
-                // this matches the API usage of a stack.
-                m_stack.ptr = prev.ptr;
-                m_stack.len = m_memory.len - (i32)(prev.ptr - m_memory.ptr);
+                Header* pBack = allocations[len - 1];
+                if (pBack->d == 1)
+                {
+                    --len;
+                    stack.Combine(pBack->AsSlice());
+                }
+                else
+                {
+                    break;
+                }
             }
-            else if (end > top)
-            {
-                // allocation is above the stack.
-                // this is not a LIFO usage pattern.
-                ASSERT(false);
-            }
-            else
-            {
-                // allocation is beneath the top of the stack.
-                // this is not a LIFO usage pattern.
-                ASSERT(false);
-            }
+
+            m_length = len;
+            m_stack = stack;
         }
 
         static constexpr const VTable Table = VTable::Create<Stack>();

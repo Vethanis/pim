@@ -7,29 +7,88 @@
 
 #include <windows.h>
 
-#include "os/thread.h"
 #include "common/macro.h"
+#include "os/thread.h"
+#include <stdlib.h>
 
 namespace OS
 {
-    Semaphore Semaphore::Create(u32 initialValue)
+    struct ThreadAdapter
     {
-        constexpr u32 MaxValue = 0xFFFFFFF;
+        ThreadFn fn;
+        void* data;
+    };
+
+    static unsigned long Win32ThreadFn(void* pVoid)
+    {
+        ASSERT(pVoid);
+
+        ThreadAdapter adapter = *(ThreadAdapter*)pVoid;
+        free(pVoid);
+
+        adapter.fn(adapter.data);
+
+        return 0;
+    }
+
+    void Thread::Open(ThreadFn fn, void* data)
+    {
+        ASSERT(fn);
+
+        ThreadAdapter* pAdapter = (ThreadAdapter*)malloc(sizeof(ThreadAdapter));
+        ASSERT(pAdapter);
+
+        pAdapter->fn = fn;
+        pAdapter->data = data;
+
+        ASSERT(!handle);
+        // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread
+        handle = ::CreateThread(
+            nullptr,
+            0,
+            Win32ThreadFn,
+            pAdapter,
+            0,
+            nullptr);
+        ASSERT(handle);
+    }
+
+    void Thread::Join()
+    {
+        if (handle)
+        {
+            // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
+            u32 status = ::WaitForSingleObject(handle, INFINITE);
+            ASSERT(!status);
+
+            // https://docs.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle
+            bool closed = ::CloseHandle(handle);
+            ASSERT(closed);
+        }
+        handle = nullptr;
+    }
+
+    // ----------------------------------------------------------------------------
+
+    void Semaphore::Open(u32 initialValue)
+    {
+        constexpr u32 MaxValue = 0x7FFFFFFF;
         ASSERT(initialValue <= MaxValue);
+        ASSERT(!handle);
         // https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createsemaphorea
-        void* h = ::CreateSemaphoreA(0, initialValue, MaxValue, 0);
-        ASSERT(h);
-        return { h };
+        handle = ::CreateSemaphoreA(nullptr, initialValue, MaxValue, nullptr);
+        ASSERT(handle);
     }
 
     void Semaphore::Close()
     {
         if (handle)
         {
+            // https://docs.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle
             bool closed = ::CloseHandle(handle);
             ASSERT(closed);
-            handle = 0;
         }
+        handle = nullptr;
     }
 
     void Semaphore::Signal(u32 count)
@@ -37,7 +96,7 @@ namespace OS
         ASSERT(handle);
         // increment by count
         // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-releasesemaphore
-        bool rval = ::ReleaseSemaphore(handle, count, 0);
+        bool rval = ::ReleaseSemaphore(handle, count, nullptr);
         ASSERT(rval);
     }
 
@@ -49,60 +108,6 @@ namespace OS
         u32 status = ::WaitForSingleObject(handle, INFINITE);
         ASSERT(!status);
     }
-
-    // ----------------------------------------------------------------------------
-
-    Thread Thread::Self()
-    {
-        return { ::GetCurrentThread(), ::GetCurrentThreadId() };
-    }
-
-    Thread Thread::Open(ThreadFn fn, void* data)
-    {
-        DWORD id = 0;
-        HANDLE hdl = ::CreateThread(
-            0,
-            0,
-            fn,
-            data,
-            0,
-            &id);
-        ASSERT(hdl);
-        return { hdl, id };
-    }
-
-    void Thread::Join()
-    {
-        if (handle)
-        {
-            // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
-            u32 status = ::WaitForSingleObject(handle, INFINITE);
-            ASSERT(!status);
-            bool closed = ::CloseHandle(handle);
-            ASSERT(closed);
-            handle = 0;
-            id = 0;
-        }
-    }
-
-    void Thread::Sleep(u32 ms)
-    {
-        // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep
-        ::Sleep((DWORD)ms);
-    }
-
-    void Thread::DoYield()
-    {
-        // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-switchtothread
-        ::SwitchToThread();
-    }
-
-    void Thread::Exit(u8 exitCode)
-    {
-        // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitthread
-        ::ExitThread((DWORD)exitCode);
-    }
-
-}; // OS
+};
 
 #endif // PLAT_WINDOWS

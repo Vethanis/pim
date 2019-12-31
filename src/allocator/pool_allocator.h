@@ -5,26 +5,12 @@
 #include "containers/slice.h"
 #include "allocator/allocator_vtable.h"
 #include <string.h>
+#include <stdlib.h>
 
 namespace Allocator
 {
     struct Pool
     {
-        static i32 TableBytes(i32 totalBytes)
-        {
-            // 1/128 of the memory is used for a lookup table.
-            // This is less flexible than embedded headers,
-            // but offers much better cache coherency
-            return totalBytes >> 7;
-        }
-
-        static i32 TableCapacity(i32 totalBytes)
-        {
-            // 'sizeof(i32) * 2' == '8'
-            // 'x / 8' == 'x >> 3'
-            return TableBytes(totalBytes) >> 3;
-        }
-
         struct FreeTable
         {
             i32* m_sizes;
@@ -34,22 +20,39 @@ namespace Allocator
 
             void Clear(i32 bytes)
             {
+                ASSERT(bytes > 0);
+
                 m_length = 1;
-                m_sizes[0] = bytes - TableBytes(bytes);
+                if (m_capacity == 0)
+                {
+                    constexpr i32 StartCap = 64;
+                    constexpr i32 StartBytes = StartCap * sizeof(i32);
+
+                    m_sizes = (i32*)malloc(StartBytes);
+                    m_offsets = (i32*)malloc(StartBytes);
+                    ASSERT(m_sizes);
+                    ASSERT(m_offsets);
+                    m_capacity = StartCap;
+                }
+
+                m_sizes[0] = bytes;
                 m_offsets[0] = 0;
             }
 
-            void Init(void* memory, i32 bytes)
+            void Init(i32 bytes)
             {
-                m_capacity = TableCapacity(bytes);
-                ASSERT(m_capacity > 0);
-
-                m_sizes = (i32*)memory;
-                m_offsets = m_sizes + m_capacity;
+                memset(this, 0, sizeof(*this));
                 Clear(bytes);
             }
 
-            inline static i32 Find(
+            void Reset()
+            {
+                free(m_sizes);
+                free(m_offsets);
+                memset(this, 0, sizeof(*this));
+            }
+
+            static i32 Find(
                 const i32* sizes,
                 i32 count,
                 i32 reqBytes)
@@ -61,17 +64,63 @@ namespace Allocator
                 for (i32 i = 0; i < count; ++i)
                 {
                     const i32 size = sizes[i];
-                    if (size >= reqBytes)
+                    if ((size >= reqBytes) &&
+                        (size < chosenSize))
                     {
-                        if (size < chosenSize)
-                        {
-                            iChosen = i;
-                            chosenSize = size;
-                        }
+                        iChosen = i;
+                        chosenSize = size;
                     }
                 }
 
                 return iChosen;
+            }
+
+            static void Defrag(
+                i32* sizes,
+                i32* offsets,
+                i32& rLength,
+                i32& rSize,
+                i32& rOffset)
+            {
+                i32 length = rLength;
+                i32 size = rSize;
+                i32 offset = rOffset;
+                i32 end = offset + size;
+                ASSERT(end > 0);
+
+                for (i32 i = length - 1; i >= 0; --i)
+                {
+                    const i32 iSize = sizes[i];
+                    const i32 iOffset = offsets[i];
+                    const i32 iEnd = iOffset + iSize;
+                    ASSERT(iEnd > 0);
+                    ASSERT(iOffset != offset);
+
+                    if (end == iOffset)
+                    {
+                        end = iEnd;
+                        size += iSize;
+
+                        --length;
+                        sizes[i] = sizes[length];
+                        offsets[i] = offsets[length];
+                        i = length - 1;
+                    }
+                    else if (offset == iEnd)
+                    {
+                        offset = iOffset;
+                        size += iSize;
+
+                        --length;
+                        sizes[i] = sizes[length];
+                        offsets[i] = offsets[length];
+                        i = length - 1;
+                    }
+                }
+
+                rLength = length;
+                rSize = size;
+                rOffset = offset;
             }
 
             bool Alloc(i32 reqBytes, i32& sizeOut, i32& offsetOut)
@@ -79,27 +128,30 @@ namespace Allocator
                 sizeOut = 0;
                 offsetOut = 0;
 
-                const i32 i = Find(m_sizes, m_length, reqBytes);
+                i32* sizes = m_sizes;
+                i32* offsets = m_offsets;
+                i32 length = m_length;
+
+                const i32 i = Find(
+                    sizes,
+                    length,
+                    reqBytes);
                 if (i == -1)
                 {
                     return false;
                 }
 
-                i32* sizes = m_sizes;
-                i32* offsets = m_offsets;
-
                 i32 size = sizes[i];
                 i32 offset = offsets[i];
                 ASSERT(size >= reqBytes);
 
-                const i32 back = --m_length;
+                const i32 back = --length;
+                ASSERT(back >= 0);
+
                 sizes[i] = sizes[back];
                 offsets[i] = offsets[back];
 
-                const i32 threshold = reqBytes << 1;
-                ASSERT(threshold > 0);
-
-                if (size >= threshold)
+                if (size > reqBytes)
                 {
                     const i32 remSize = size - reqBytes;
                     const i32 remOffset = offset + reqBytes;
@@ -107,90 +159,63 @@ namespace Allocator
 
                     sizes[back] = remSize;
                     offsets[back] = remOffset;
-                    ++m_length;
+                    ++length;
                 }
 
+                m_length = length;
                 sizeOut = size;
                 offsetOut = offset;
 
                 return true;
             }
 
-            bool Free(i32 size, i32 start)
+            void Free(i32 size, i32 offset)
             {
-                i32 end = start + size;
+                Defrag(
+                    m_sizes,
+                    m_offsets,
+                    m_length,
+                    size,
+                    offset);
 
-                i32 count = m_length;
-                i32* const offsets = m_offsets;
-                i32* const sizes = m_sizes;
-
-                for (i32 i = count - 1; i >= 0; --i)
+                const i32 back = m_length++;
+                const i32 cap = m_capacity;
+                if (back == cap)
                 {
-                    const i32 iStart = offsets[i];
-                    const i32 iSize = sizes[i];
-                    const i32 iEnd = iStart + iSize;
+                    const i32 newCap = cap * 2;
+                    const i32 newBytes = newCap * sizeof(i32);
+                    ASSERT(newBytes > 0);
 
-                    if (end == iStart)
-                    {
-                        end += iSize;
-                        size += iSize;
-
-                        --count;
-                        offsets[i] = offsets[count];
-                        sizes[i] = sizes[count];
-                        i = count - 1;
-                    }
-                    else if (start == iEnd)
-                    {
-                        start = iStart;
-                        size += iSize;
-
-                        --count;
-                        offsets[i] = offsets[count];
-                        sizes[i] = sizes[count];
-                        i = count - 1;
-                    }
+                    m_sizes = (i32*)realloc(m_sizes, newBytes);
+                    m_offsets = (i32*)realloc(m_offsets, newBytes);
+                    ASSERT(m_sizes);
+                    ASSERT(m_offsets);
+                    m_capacity = newCap;
                 }
 
-                if (count < m_capacity)
-                {
-                    sizes[count] = size;
-                    offsets[count] = start;
-                    ++count;
-                }
-                else
-                {
-                    ASSERT(count == m_length);
-                    return false;
-                }
-
-                m_length = count;
-
-                return true;
+                m_sizes[back] = size;
+                m_offsets[back] = offset;
             }
         };
 
-        Slice<u8> m_memory; // all memory
-        Slice<u8> m_user;   // user-available memory
+        Slice<u8> m_memory;
         FreeTable m_table;
 
         void Init(void* memory, i32 bytes)
         {
             m_memory = { (u8*)memory, bytes };
-            m_user = m_memory.Tail(TableBytes(bytes));
-            m_table.Init(memory, bytes);
+            m_table.Init(bytes);
         }
 
         void Shutdown()
         {
+            m_table.Reset();
             memset(this, 0, sizeof(*this));
         }
 
         void Clear()
         {
-            const i32 size = m_memory.len;
-            m_user = m_memory.Tail(TableBytes(size));
-            m_table.Clear(size);
+            m_table.Clear(m_memory.Size());
         }
 
         Header* Alloc(i32 reqBytes)
@@ -199,15 +224,18 @@ namespace Allocator
             i32 offset = 0;
             if (m_table.Alloc(reqBytes, size, offset))
             {
-                u8* ptr = m_user.ptr + offset;
-                Header* hdr = (Header*)ptr;
-                hdr->c = size;
-                hdr->d = offset;
-                return hdr;
+                ASSERT(size >= reqBytes);
+                Slice<u8> allocation = m_memory.Subslice(offset, size);
+                Header* pNew = (Header*)allocation.begin();
+                pNew->size = size;
+                pNew->type = Alloc_Pool;
+                pNew->c = size;
+                pNew->d = offset;
+                return pNew;
             }
             else
             {
-                return 0;
+                return nullptr;
             }
         }
 
@@ -217,41 +245,36 @@ namespace Allocator
             const i32 offset = prev->d;
             ASSERT(offset >= 0);
             ASSERT(size >= prev->size);
-            ASSERT((m_user.ptr + offset) == ((u8*)prev));
+            ASSERT((m_memory.begin() + offset) == ((u8*)prev));
 
-            bool didFree = m_table.Free(size, offset);
-            ASSERT(didFree);
+            m_table.Free(size, offset);
         }
 
-        Header* Realloc(Header* prev, i32 reqBytes)
+        Header* Realloc(Header* pOld, i32 reqBytes)
         {
-            Slice<u8> prevSlice = { (u8*)prev, prev->size };
-
-            Free(prev);
-            Header* hdr = Alloc(reqBytes);
-
-            if (hdr != prev)
+            Free(pOld);
+            Header* pNew = Alloc(reqBytes);
+            if (!pNew)
             {
-                Slice<u8> newSlice = { (u8*)hdr, hdr->size };
+                return nullptr;
+            }
 
-                const i32 offset = sizeof(Header);
-                const i32 cpySize = Min(newSlice.len, prevSlice.len) - offset;
-                ASSERT(cpySize > 0);
-
-                void* dst = newSlice.ptr + offset;
-                void* src = prevSlice.ptr + offset;
-
-                if (newSlice.Overlaps(prevSlice))
+            if (pNew != pOld)
+            {
+                Slice<u8> oldSlice = pOld->AsSlice().Tail(sizeof(Header));
+                Slice<u8> newSlice = pNew->AsSlice().Tail(sizeof(Header));
+                const i32 cpySize = Min(newSlice.Size(), oldSlice.Size());
+                if (newSlice.Overlaps(oldSlice))
                 {
-                    memmove(dst, src, cpySize);
+                    memmove(newSlice.begin(), oldSlice.begin(), cpySize);
                 }
                 else
                 {
-                    memcpy(dst, src, cpySize);
+                    memcpy(newSlice.begin(), oldSlice.begin(), cpySize);
                 }
             }
 
-            return hdr;
+            return pNew;
         }
 
         static constexpr const VTable Table = VTable::Create<Pool>();

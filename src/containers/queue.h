@@ -193,7 +193,7 @@ struct Queue
         m_ptr[index] = value;
     }
 
-    inline void Push(T value, const Comparable<T> cmp)
+    void Push(T value, const Comparable<T> cmp)
     {
         const i32 back = m_tail - m_head;
         Reserve(back + 1);
@@ -218,6 +218,10 @@ struct Queue
                 T tmp = ptr[lhs];
                 ptr[lhs] = ptr[rhs];
                 ptr[rhs] = tmp;
+            }
+            else
+            {
+                break;
             }
         }
     }

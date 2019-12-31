@@ -1,96 +1,56 @@
 #pragma once
 
 #include "containers/array.h"
-#include "common/find.h"
-#include "common/minmax.h"
+#include "containers/queue.h"
 
 struct ChunkAllocator
 {
-    u8** m_chunks;
-    i32** m_freelists;
-    i32* m_freelens;
-    i32 m_length;
-    i32 m_capacity;
-    AllocType m_allocator;
-
+    Array<u8*> m_chunks;
+    Queue<u8*> m_freelist;
     i32 m_chunkSize;
     i32 m_itemSize;
 
     void Init(AllocType allocator, i32 itemSize)
     {
-        memset(this, 0, sizeof(*this));
         ASSERT(itemSize > 0);
-        m_chunkSize = Max(1, 4096 / itemSize);
+        m_chunks.Init(allocator);
+        m_freelist.Init(allocator);
+        m_chunkSize = 64;
         m_itemSize = itemSize;
-        m_allocator = allocator;
     }
 
     void Reset()
     {
-        for (i32 i = 0; i < m_length; ++i)
+        for (u8* chunk : m_chunks)
         {
-            Allocator::Free(m_chunks[i]);
-            Allocator::Free(m_freelists[i]);
+            Allocator::Free(chunk);
         }
-        Allocator::Free(m_chunks);
-        Allocator::Free(m_freelists);
-        Allocator::Free(m_freelens);
-        m_chunks = 0;
-        m_freelists = 0;
-        m_freelens = 0;
-        m_length = 0;
-        m_capacity = 0;
+        m_chunks.Reset();
+        m_freelist.Reset();
+        m_chunkSize = 64;
     }
 
     void* Allocate()
     {
+        if (m_freelist.IsEmpty())
         {
-            u8** chunks = m_chunks;
-            i32** freelists = m_freelists;
-            i32* freelens = m_freelens;
-            const i32 length = m_length;
-            for (i32 i = length - 1; i >= 0; --i)
-            {
-                if (freelens[i] > 0)
-                {
-                    i32 back = --freelens[i];
-                    i32 j = freelists[i][back];
-                    return chunks[i] + j * m_itemSize;
-                }
-            }
-        }
-        {
-            const AllocType allocator = m_allocator;
-            const i32 length = ++m_length;
-
-            {
-                const i32 oldCap = m_capacity;
-                i32 newCap = oldCap;
-                m_chunks = Allocator::Reserve(allocator, m_chunks, newCap, length);
-                newCap = oldCap;
-                m_freelists = Allocator::Reserve(allocator, m_freelists, newCap, length);
-                newCap = oldCap;
-                m_freelens = Allocator::Reserve(allocator, m_freelens, newCap, length);
-                m_capacity = newCap;
-            }
-
             const i32 chunkSize = m_chunkSize;
+            const i32 itemSize = m_itemSize;
+            const AllocType allocator = m_chunks.GetAllocType();
+            ASSERT(itemSize > 0);
             ASSERT(chunkSize > 0);
+            u8* chunk = Allocator::AllocT<u8>(allocator, chunkSize * itemSize);
+            m_chunks.Grow() = chunk;
+            m_chunkSize = chunkSize * 2;
 
-            i32* freelist = Allocator::AllocT<i32>(allocator, chunkSize);
+            Queue<u8*> freelist = m_freelist;
             for (i32 i = 0; i < chunkSize; ++i)
             {
-                freelist[i] = i;
+                freelist.Push(chunk + i * itemSize);
             }
-
-            const i32 itemSize = m_itemSize;
-            ASSERT(itemSize > 0);
-
-            m_chunks[length - 1] = Allocator::CallocT<u8>(allocator, chunkSize * itemSize);
-            m_freelists[length - 1] = freelist;
-            m_freelens[length - 1] = chunkSize;
+            m_freelist = freelist;
         }
-        return Allocate();
+        return m_freelist.Pop();
     }
 
     void Free(void* pVoid)
@@ -100,49 +60,6 @@ struct ChunkAllocator
             return;
         }
 
-        u8* ptr = (u8*)pVoid;
-        const i32 chunkSize = m_chunkSize;
-        const i32 itemSize = m_itemSize;
-        const i32 memSize = chunkSize * itemSize;
-        ASSERT(memSize > 0);
-
-        u8** chunks = m_chunks;
-        i32** freelists = m_freelists;
-        i32* freelens = m_freelens;
-        const i32 length = m_length;
-        for (i32 i = length - 1; i >= 0; --i)
-        {
-            const u8* begin = chunks[i];
-            const u8* end = begin + memSize;
-            if ((ptr >= begin) && (ptr < end))
-            {
-                const i32 j = (i32)(ptr - begin) / itemSize;
-                ASSERT((u32)j < (u32)chunkSize);
-
-                const i32 back = freelens[i]++;
-                ASSERT(back < chunkSize);
-
-                ASSERT(!Contains(freelists[i], back, j));
-                freelists[i][back] = j;
-
-                if (back == (chunkSize - 1))
-                {
-                    Allocator::Free(chunks[i]);
-                    Allocator::Free(freelists[i]);
-                    chunks[i] = chunks[length - 1];
-                    freelists[i] = freelists[length - 1];
-                    freelens[i] = freelens[length - 1];
-                    --m_length;
-                }
-                else
-                {
-                    memset(ptr, 0, itemSize);
-                }
-
-                return;
-            }
-        }
-
-        ASSERT(false);
+        m_freelist.Push((u8*)pVoid, OpComparable<u8*>());
     }
 };

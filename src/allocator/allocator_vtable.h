@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/int_types.h"
+#include "containers/slice.h"
 
 namespace Allocator
 {
@@ -10,6 +11,11 @@ namespace Allocator
         i32 size;
         i32 c;
         i32 d;
+
+        inline Slice<u8> AsSlice()
+        {
+            return { (u8*)this, size };
+        }
     };
 
     union UAllocator;

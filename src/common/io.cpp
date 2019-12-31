@@ -280,55 +280,71 @@ namespace IO
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/findnext-functions
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/findclose
 
-    bool Find(Finder& fdr, FindData& data, cstrc spec, EResult& err)
+    bool Begin(Finder& fdr, FindData& data, cstrc spec)
     {
-        switch (fdr.state)
+        ASSERT(spec);
+        ASSERT(!IsOpen(fdr));
+        fdr.hdl = _findfirst64(spec, (struct __finddata64_t*)&data);
+        return IsOpen(fdr);
+    }
+
+    bool Next(Finder& fdr, FindData& data)
+    {
+        if (IsOpen(fdr))
         {
-        case 0:
-            ASSERT(spec);
-            fdr.hdl = _findfirst64(spec, (struct __finddata64_t*)&data);
-            if (IsOpen(fdr))
-            {
-                fdr.state = 1;
-                err = ESuccess;
-                return true;
-            }
-            fdr.state = 0;
-            err = EFail;
-            return false;
-        case 1:
-            ASSERT(IsOpen(fdr));
             if (!_findnext64(fdr.hdl, (struct __finddata64_t*)&data))
             {
                 return true;
             }
+        }
+        return false;
+    }
+
+    void Close(Finder& fdr)
+    {
+        if (IsOpen(fdr))
+        {
             _findclose(fdr.hdl);
             fdr.hdl = -1;
-            fdr.state = 0;
-            return false;
-        default:
-            DBG_INT();
-            err = EFail;
-            fdr.hdl = -1;
-            fdr.state = 0;
-            return false;
         }
     }
 
-    void FindAll(Array<FindData>& results, cstrc spec, EResult& err)
+    bool Find(Finder& fdr, FindData& data, cstrc spec)
     {
-        Finder fdr = {};
-        while (Find(fdr, results.Grow(), spec, err)) {};
-        results.Pop();
+        if (IsOpen(fdr))
+        {
+            if (Next(fdr, data))
+            {
+                return true;
+            }
+            Close(fdr);
+            return false;
+        }
+        else
+        {
+            return Begin(fdr, data, spec);
+        }
+        return false;
     }
 
-    void ListDir(Directory& dir, cstrc spec, EResult& err)
+    void FindAll(Array<FindData>& results, cstrc spec)
+    {
+        results.Clear();
+        Finder fdr = {};
+        FindData data = {};
+        while (Find(fdr, data, spec))
+        {
+            results.Grow() = data;
+        }
+    }
+
+    void ListDir(Directory& dir, cstrc spec)
     {
         constexpr u32 IgnoreFlags = FAF_Hidden | FAF_System;
 
         Finder fdr = {};
         FindData data = {};
-        while (Find(fdr, data, spec, err))
+        while (Find(fdr, data, spec))
         {
             if (data.attrib & IgnoreFlags)
             {
@@ -343,30 +359,37 @@ namespace IO
                     continue;
                 }
 
-                Directory& child = dir.subdirs.Grow();
+                Directory& subdir = dir.subdirs.Grow();
                 SPrintf(
-                    ARGS(child.data.name),
+                    ARGS(subdir.data.name),
                     "%s\\%s",
                     dir.data.name,
                     data.name);
-                child.subdirs = {};
-                child.files = {};
-                char buffer[256] = {};
-                StrCpy(ARGS(buffer), spec);
-                StrRep(ARGS(buffer), "\\*", "\\");
-                StrCat(ARGS(buffer), data.name);
-                StrCat(ARGS(buffer), "\\*");
-                ListDir(child, buffer, err);
+
+                subdir.subdirs.Init(dir.subdirs.GetAllocType());
+                subdir.files.Init(dir.subdirs.GetAllocType());
+
+                char buffer[PIM_PATH] = {};
+                {
+                    StrCpy(ARGS(buffer), spec);
+                    char* pStar = (char*)StrStr(ARGS(buffer), "*");
+                    if (pStar)
+                    {
+                        *pStar = 0;
+                    }
+                    StrCat(ARGS(buffer), data.name);
+                    StrCat(ARGS(buffer), "\\*");
+                }
+
+                ListDir(subdir, buffer);
             }
             else
             {
-                FindData& child = dir.files.Grow();
-                child = data;
-                SPrintf(
-                    ARGS(child.name),
-                    "%s\\%s",
-                    dir.data.name,
-                    data.name);
+                FindData& file = dir.files.Grow();
+                file = data;
+                StrCpy(ARGS(file.name), dir.data.name);
+                StrCat(ARGS(file.name), "\\");
+                StrCat(ARGS(file.name), data.name);
             }
         }
     }
@@ -512,16 +535,14 @@ namespace IO
         return map;
     }
 
-    void Unmap(FileMap& map)
+    void Close(FileMap& map)
     {
-        if (!IsOpen(map))
+        if (IsOpen(map))
         {
-            return;
+            UnmapViewOfFile(map.address);
+            CloseHandle(map.hMapping);
+            CloseHandle(map.hFile);
         }
-
-        UnmapViewOfFile(map.address);
-        CloseHandle(map.hMapping);
-        CloseHandle(map.hFile);
 
         map = {};
     }

@@ -4,46 +4,43 @@
 
 namespace Quake
 {
-    Pack LoadPack(cstrc dir, AllocType allocator, EResult& err)
+    Pack LoadPack(cstrc dir, AllocType allocator)
     {
         ASSERT(dir);
-        Pack retval = {};
 
-        IO::FDGuard file = IO::Open(dir, IO::OBinSeqRead, err);
-        if (!IO::IsOpen(file))
+        Pack pack = {};
+        IO::FileMap file = {};
+
+        StrCpy(ARGS(pack.path), dir);
+        pack.files.Init(allocator);
+
+        file = IO::MapFile(dir, false);
+        if (!file.address)
         {
-            return retval;
+            return pack;
         }
 
-        DPackHeader header;
-        i32 nRead = IO::Read(file, &header, sizeof(header), err);
-        if (nRead != sizeof(header))
+        Slice<u8> memory = file.AsSlice();
+        Slice<DPackHeader> headers = memory.Cast<DPackHeader>();
+        if (headers.Size() < 1)
         {
-            err = EFail;
-            return retval;
+            return pack;
         }
+
+        DPackHeader header = headers[0];
+
         ASSERT(memcmp(header.id, "PACK", 4) == 0);
+        ASSERT((header.length % sizeof(DPackFile)) == 0);
 
-        const i32 count = header.length / sizeof(DPackFile);
-        ASSERT(count >= 0);
-        ASSERT((count * sizeof(DPackFile)) == header.length);
+        Slice<DPackFile> metadata = memory
+            .Subslice(header.offset, header.length)
+            .Cast<DPackFile>();
 
-        if (count > 0)
-        {
-            IO::Seek(file, header.offset, err);
-            ASSERT(err == ESuccess);
+        pack.files.Copy(metadata);
 
-            StrCpy(ARGS(retval.path), dir);
-            retval.files = { allocator };
-            retval.files.Resize(count);
+        IO::Close(file);
 
-            nRead = IO::Read(file, retval.files.begin(), header.length, err);
-            ASSERT(err == ESuccess);
-            ASSERT(nRead == header.length);
-        }
-
-        err = ESuccess;
-        return retval;
+        return pack;
     }
 
     void FreePack(Pack& pack)
@@ -51,35 +48,43 @@ namespace Quake
         pack.files.Reset();
     }
 
-    void LoadFolder(cstrc dir, Array<Pack>& results)
+    Folder LoadFolder(cstrc dir, AllocType allocator)
     {
         ASSERT(dir);
+
+        Folder folder = {};
+        folder.packs.Init(allocator);
+        StrCpy(ARGS(folder.path), dir);
 
         char packDir[PIM_PATH];
         SPrintf(ARGS(packDir), "%s/*.pak", dir);
         FixPath(ARGS(packDir));
 
-        IO::FindData fdata = {};
-        IO::Finder fder = {};
-        EResult err = EUnknown;
-        while (IO::Find(fder, fdata, packDir, err))
+        Array<IO::FindData> files = { Alloc_Linear };
+        IO::FindAll(files, packDir);
+
+        for (const IO::FindData& file : files)
         {
-            SPrintf(ARGS(packDir), "%s/%s", dir, fdata.name);
+            SPrintf(ARGS(packDir), "%s/%s", dir, file.name);
             FixPath(ARGS(packDir));
-            Pack pack = LoadPack(packDir, results.GetAllocType(), err);
-            if (err == ESuccess)
+            Pack pack = LoadPack(packDir, allocator);
+            if (pack.files.Size() > 0)
             {
-                results.Grow() = pack;
+                folder.packs.Grow() = pack;
             }
         }
+
+        files.Reset();
+
+        return folder;
     }
 
-    void FreeFolder(Array<Pack>& packs)
+    void FreeFolder(Folder& folder)
     {
-        for (Pack& pack : packs)
+        for (Pack& pack : folder.packs)
         {
             FreePack(pack);
         }
-        packs.Reset();
+        folder.packs.Reset();
     }
 };
