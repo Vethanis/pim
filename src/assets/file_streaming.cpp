@@ -100,7 +100,7 @@ static void PushItem(WorkItem item)
 
 static void ThreadFn(void*)
 {
-    while (ms_run)
+    while (true)
     {
         ms_sema.Wait();
         if (!ms_run)

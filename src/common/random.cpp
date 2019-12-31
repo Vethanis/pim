@@ -51,11 +51,11 @@ namespace Random
     }
     f32 NextF32()
     {
-        constexpr f32 r16 = 1.0f / 65536.0f;
-        constexpr u32 mask = 0xffff;
+        constexpr f32 r24 = 1.0f / (f32)(1 << 24);
+        constexpr u32 mask = (1 << 24) - 1;
         u32 uValue = NextU32() & mask;
         f32 fValue = (f32)uValue;
-        return fValue * r16;
+        return fValue * r24;
     }
     f32 NextF32(f32 hi)
     {
