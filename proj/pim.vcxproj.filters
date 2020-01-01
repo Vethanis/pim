@@ -537,6 +537,9 @@
     <ClInclude Include="..\src\containers\lookup_table.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\containers\heap.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">

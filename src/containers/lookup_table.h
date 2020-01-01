@@ -43,30 +43,14 @@ struct LookupTable
     // ------------------------------------------------------------------------
 
     inline i32 size() const { return Table.Size(); }
-    inline T* begin() { return Table.begin(); }
-    inline T* end() { return Table.end(); }
     inline const T* begin() const { return Table.begin(); }
     inline const T* end() const { return Table.end(); }
-
-    // ------------------------------------------------------------------------
-
-    inline const T& operator[](i32 i) const
-    {
-        return Table[i];
-    }
-    inline T& operator[](i32 i)
-    {
-        return Table[i];
-    }
+    inline const T& operator[](i32 i) const { return Table[i]; }
 
     // ------------------------------------------------------------------------
 
     inline AllocType GetAllocator() const { return Table.GetAllocType(); }
-
-    inline bool Contains(T item) const
-    {
-        return Lookup.Contains(item);
-    }
+    inline bool Contains(T item) const { return Lookup.Contains(item); }
 
     inline i32 Find(T item) const
     {

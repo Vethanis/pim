@@ -4,39 +4,48 @@
 #include "common/guid_util.h"
 #include "common/text.h"
 #include "containers/array.h"
+#include "containers/heap.h"
 
-struct PackDb
+struct PackFile
 {
-    struct FilePos
-    {
-        i32 offset;
-        i32 size;
-    };
-
-    struct PackAssets
-    {
-        GuidTable table;            // guid table of asset name
-        Array<FilePos> positions;   // position of asset in file
-    };
-
-    GuidTable table;            // guid table of the pack path
-    Array<PathText> paths;      // path to the pack file
-    Array<PackAssets> assets;   // assets within the pack
+    PathText path;              // path to the file
+    Heap heap;                  // free positions in file
+    GuidTable table;            // guid table of asset name
+    Array<HeapItem> positions;  // positions of asset in file
 
     // ------------------------------------------------------------------------
 
     void Init(AllocType allocator);
     void Reset();
 
-    // ------------------------------------------------------------------------
+    i32 Find(Guid name) const { return table.Find(name); }
+    bool Contains(Guid name) const { return table.Contains(name); }
+
+    i32 Add(Guid name, i32 size);
+    bool Remove(Guid name);
 
     i32 size() const { return table.size(); }
-    const Guid* begin() const { return table.begin(); }
-    const Guid* end() const { return table.end(); }
+    Guid GetName(i32 i) const { return table[i]; }
+    HeapItem& GetPosition(i32 i) { return positions[i]; }
+};
+
+struct PackDb
+{
+    GuidTable table;            // guid table of the pack path
+    Array<PackFile> packs;      // assets within the pack
 
     // ------------------------------------------------------------------------
 
-    Guid& GetName(i32 i) { return table[i]; }
-    PathText& GetPath(i32 i) { return paths[i]; }
-    PackAssets& GetAssets(i32 i) { return assets[i]; }
+    void Init(AllocType allocator);
+    void Reset();
+
+    i32 Find(Guid name) const { return table.Find(name); }
+    bool Contains(Guid name) const { return table.Contains(name); }
+
+    i32 Add(Guid name, cstr path);
+    bool Remove(Guid name);
+
+    i32 size() const { return table.size(); }
+    Guid GetName(i32 i) { return table[i]; }
+    PackFile& GetPack(i32 i) { return packs[i]; }
 };

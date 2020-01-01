@@ -65,6 +65,11 @@ namespace Allocator
         return (u32)iType < (u32)NumAllocators;
     }
 
+    static bool ValidAllocator(i32 iType)
+    {
+        return InRange(iType) && (ms_init || iType == Alloc_Stdlib);
+    }
+
     static i32 PadRequest(i32 reqBytes)
     {
         reqBytes += PadBytes;
@@ -120,8 +125,7 @@ namespace Allocator
 
     void* Alloc(AllocType type, i32 want)
     {
-        ASSERT(ms_init);
-        ASSERT(InRange(type));
+        ASSERT(ValidAllocator(type));
         ASSERT(want >= 0);
 
         if (want > 0)
@@ -143,8 +147,7 @@ namespace Allocator
 
     void* Realloc(AllocType type, void* prev, i32 want)
     {
-        ASSERT(ms_init);
-        ASSERT(InRange(type));
+        ASSERT(ValidAllocator(type));
         ASSERT(want >= 0);
 
         if (!prev)
@@ -168,7 +171,8 @@ namespace Allocator
             want = PadRequest(want);
 
             const i32 iType = hdr->type;
-            ASSERT(InRange(iType));
+            ASSERT(ValidAllocator(iType));
+            ASSERT(ms_init || iType == Alloc_Stdlib);
 
             Header* newHdr = ms_tables[iType].Realloc(
                 ms_allocators[iType],
@@ -189,7 +193,6 @@ namespace Allocator
 
     void Free(void* prev)
     {
-        ASSERT(ms_init);
         if (prev)
         {
             ASSERT(IsAligned(prev));
@@ -200,7 +203,7 @@ namespace Allocator
             ASSERT(size > 0);
 
             const i32 iType = hdr->type;
-            ASSERT(InRange(iType));
+            ASSERT(ValidAllocator(iType));
 
             ms_tables[iType].Free(ms_allocators[iType], hdr);
         }

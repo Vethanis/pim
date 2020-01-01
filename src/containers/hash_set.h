@@ -1,12 +1,14 @@
 #pragma once
 
+#include "allocator/allocator.h"
 #include "containers/hash_util.h"
 #include "containers/slice.h"
+#include <string.h>
 
 template<
     typename K,
     const Comparator<K>& cmp>
-struct HashSet
+    struct HashSet
 {
     u32 m_allocator : 4;
     u32 m_count : 28;
@@ -153,6 +155,8 @@ struct HashSet
         return false;
     }
 
+    // ------------------------------------------------------------------------
+
     struct iterator
     {
         u32 m_i;
@@ -161,8 +165,7 @@ struct HashSet
         K* const m_keys;
 
         inline iterator(HashSet& set, bool isBegin)
-            :
-            m_i(isBegin ? 0, set.m_width),
+            : m_i(isBegin ? 0, set.m_width),
             m_width(set.m_width),
             m_hashes(set.m_hashes),
             m_keys(set.m_keys)
@@ -179,18 +182,44 @@ struct HashSet
             return *this;
         }
 
-        inline K& operator*()
-        {
-            return m_keys[m_i];
-        }
+        inline K& operator*() { return m_keys[m_i]; }
     };
 
-    inline iterator begin()
+    inline iterator begin() { return iterator(*this, true); }
+    inline iterator end() { return iterator(*this, false); }
+
+    // ------------------------------------------------------------------------
+
+    struct const_iterator
     {
-        return iterator(*this, true);
-    }
-    inline iterator end()
-    {
-        return iterator(*this, false);
-    }
+        u32 m_i;
+        const u32 m_width;
+        const u32* const m_hashes;
+        const K* const m_keys;
+
+        inline const_iterator(const HashSet& set, bool isBegin)
+            : m_i(isBegin ? 0, set.m_width),
+            m_width(set.m_width),
+            m_hashes(set.m_hashes),
+            m_keys(set.m_keys)
+        {}
+
+        inline bool operator!=(const const_iterator& rhs) const
+        {
+            return m_i != rhs.m_i;
+        }
+
+        inline const_iterator& operator++()
+        {
+            m_i = HashUtil::Iterate(m_hashes, m_width, m_i);
+            return *this;
+        }
+
+        inline const K& operator*() const { return m_keys[m_i]; }
+    };
+
+    inline const_iterator begin() const { return const_iterator(*this, true); }
+    inline const_iterator end() const { return const_iterator(*this, false); }
+
+    // ------------------------------------------------------------------------
 };

@@ -46,3 +46,24 @@ static void Sort(T* items, i32 count, const Comparable<T> cmp)
     Sort(items, i, cmp);
     Sort(items + i, count - i, cmp);
 }
+
+template<typename T>
+static void AddSort(T* items, i32 countWithItem, T item, const Comparable<T> cmp)
+{
+    const i32 back = countWithItem - 1;
+    items[back] = item;
+
+    for (i32 i = back; i > 0; --i)
+    {
+        if (cmp(items[i - 1], items[i]) > 0)
+        {
+            T tmp = items[i - 1];
+            items[i - 1] = items[i];
+            items[i] = tmp;
+        }
+        else
+        {
+            break;
+        }
+    }
+}

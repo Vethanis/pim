@@ -20,27 +20,17 @@ struct AssetDb
     void Init(AllocType allocator);
     void Reset();
 
-    // ------------------------------------------------------------------------
-
     i32 Find(Guid name) const { return table.Find(name); }
     bool Contains(Guid name) const { return table.Contains(name); }
 
     i32 Add(Guid name, Guid pack, Slice<const Guid> refersTo);
     bool Remove(Guid name);
 
-    // ------------------------------------------------------------------------
-
     i32 size() const { return table.size(); }
-    const Guid* begin() const { return table.begin(); }
-    const Guid* end() const { return table.end(); }
-
-    // ------------------------------------------------------------------------
-
-    Guid& GetName(i32 i) { return table[i]; }
+    Guid GetName(i32 i) const { return table[i]; }
     Guid& GetPack(i32 i) { return packIds[i]; }
     GuidSet& GetRefersTo(i32 i) { return referencedIds[i]; }
     Slice<u8>& GetMemory(i32 i) { return memories[i]; }
     i32& GetRefs(i32 i) { return refCounts[i]; }
-
     void RemoveAt(i32 i);
 };

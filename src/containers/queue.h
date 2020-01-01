@@ -224,4 +224,74 @@ struct Queue
             }
         }
     }
+
+    // ------------------------------------------------------------------------
+
+    struct iterator
+    {
+        T* const m_ptr;
+        const i32 m_mask;
+        i32 m_i;
+
+        inline iterator(Queue& queue, bool isBegin)
+            : m_ptr(queue.m_ptr),
+            m_mask(queue.m_width - 1),
+            m_i(isBegin ? queue.m_head : queue.m_tail)
+        {}
+
+        inline bool operator!=(iterator rhs) const
+        {
+            return m_i != rhs.m_i;
+        }
+
+        inline iterator& operator++()
+        {
+            ++m_i;
+            return *this;
+        }
+
+        inline T& operator*()
+        {
+            return m_ptr[m_i & m_mask];
+        }
+    };
+
+    inline iterator begin() { return iterator(*this, true); }
+    inline iterator end() { return iterator(*this, false); }
+
+    // ------------------------------------------------------------------------
+
+    struct const_iterator
+    {
+        const T* const m_ptr;
+        const i32 m_mask;
+        i32 m_i;
+
+        inline const_iterator(const Queue& queue, bool isBegin)
+            : m_ptr(queue.m_ptr),
+            m_mask(queue.m_width - 1),
+            m_i(isBegin ? queue.m_head : queue.m_tail)
+        {}
+
+        inline bool operator!=(const_iterator rhs) const
+        {
+            return m_i != rhs.m_i;
+        }
+
+        inline const_iterator& operator++()
+        {
+            ++m_i;
+            return *this;
+        }
+
+        inline const T& operator*() const
+        {
+            return m_ptr[m_i & m_mask];
+        }
+    };
+
+    inline const_iterator begin() const { return const_iterator(*this, true); }
+    inline const_iterator end() const { return const_iterator(*this, false); }
+
+    // ------------------------------------------------------------------------
 };

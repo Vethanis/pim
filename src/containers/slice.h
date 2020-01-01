@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
+#include "common/minmax.h"
 
 template<typename T>
 struct Slice
@@ -70,13 +71,14 @@ struct Slice
 
     inline bool Overlaps(const Slice<T> other) const
     {
-        return (end() >= other.begin()) && (begin() <= other.end());
+        return ::Overlaps(begin(), end(), other.begin(), other.end());
     }
 
     inline bool Adjacent(const Slice<T> other) const
     {
-        return (begin() == other.end()) || (end() == other.begin());
+        return ::Adjacent(begin(), end(), other.begin(), other.end());
     }
+
     inline void Combine(Slice<T> other)
     {
         ASSERT(Adjacent(other));
