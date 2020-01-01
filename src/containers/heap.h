@@ -128,20 +128,11 @@ struct Heap
             ASSERT(iEnd > 0);
             ASSERT(!Overlaps(offset, end, iOffset, iEnd));
 
-            if (offset == iEnd)
+            if (Adjacent(offset, end, iOffset, iEnd))
             {
-                offset = iOffset;
+                offset = Min(offset, iOffset);
                 size += iSize;
-
-                --count;
-                sizes[i] = sizes[count];
-                offsets[i] = offsets[count];
-                i = count;
-            }
-            else if (end == iOffset)
-            {
-                size += iSize;
-                end = iEnd;
+                end = offset + size;
 
                 --count;
                 sizes[i] = sizes[count];

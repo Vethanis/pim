@@ -3,8 +3,8 @@
 #include "common/macro.h"
 #include "common/minmax.h"
 #include "containers/slice.h"
+#include "containers/array.h"
 #include "allocator/allocator_vtable.h"
-#include <stdlib.h>
 #include <string.h>
 
 namespace Allocator
@@ -13,55 +13,40 @@ namespace Allocator
     {
         Slice<u8> m_memory;
         Slice<u8> m_stack;
-        Header** m_allocations;
-        i32 m_length;
-        i32 m_capacity;
+        Array<Header*> m_allocations;
 
         void Init(void* memory, i32 bytes)
         {
             memset(this, 0, sizeof(*this));
             m_memory = { (u8*)memory, bytes };
             m_stack = m_memory;
+            m_allocations.Init(Alloc_Stdlib);
         }
 
         void Shutdown()
         {
-            free(m_allocations);
+            m_allocations.Reset();
             memset(this, 0, sizeof(*this));
         }
 
         void Clear()
         {
             m_stack = m_memory;
-            m_length = 0;
+            m_allocations.Clear();
         }
 
         Header* Alloc(i32 count)
         {
-            i32 len = m_length;
-            i32 cap = m_capacity;
-            Header** allocations = m_allocations;
-            if (len == cap)
-            {
-                cap = Max(cap * 2, 64);
-                allocations = (Header**)realloc(allocations, cap * sizeof(Header**));
-                ASSERT(allocations);
-            }
-
             Slice<u8> allocation = m_stack.Head(count);
             m_stack = m_stack.Tail(count);
 
             Header* pNew = (Header*)allocation.ptr;
             pNew->size = count;
             pNew->type = Alloc_Stack;
-            pNew->c = len;
+            pNew->c = m_allocations.Size();
             pNew->d = 0;
 
-            allocations[len++] = pNew;
-
-            m_length = len;
-            m_capacity = cap;
-            m_allocations = allocations;
+            m_allocations.Grow() = pNew;
 
             return pNew;
         }
@@ -90,27 +75,19 @@ namespace Allocator
         void Free(Header* hdr)
         {
             hdr->d = 1;
-
-            Slice<u8> stack = m_stack;
-            Header** allocations = m_allocations;
-            i32 len = m_length;
-
-            while (len > 0)
+            while (m_allocations.Size())
             {
-                Header* pBack = allocations[len - 1];
-                if (pBack->d == 1)
+                Header* pBack = m_allocations.back();
+                if (pBack->d)
                 {
-                    --len;
-                    stack.Combine(pBack->AsSlice());
+                    m_allocations.Pop();
+                    m_stack.Combine(pBack->AsSlice());
                 }
                 else
                 {
                     break;
                 }
             }
-
-            m_length = len;
-            m_stack = stack;
         }
 
         static constexpr const VTable Table = VTable::Create<Stack>();
