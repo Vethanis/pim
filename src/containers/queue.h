@@ -3,7 +3,7 @@
 #include "common/int_types.h"
 #include "common/minmax.h"
 #include "common/comparator.h"
-#include "common/bitutil.h"
+#include "containers/hash_util.h"
 #include "allocator/allocator.h"
 
 template<typename T>
@@ -58,7 +58,7 @@ struct Queue
 
     void FitTo(i32 newSize)
     {
-        const i32 newWidth = BitUtil::ToPow2(newSize);
+        const i32 newWidth = HashUtil::ToPow2(newSize);
         const i32 oldWidth = m_width;
         const i32 oldMask = oldWidth - 1;
         const i32 oldHead = m_head;
@@ -148,8 +148,7 @@ struct Queue
         const i32 width = m_width;
         if (newSize > width)
         {
-            const i32 nextSize = Max(newSize, Max(width * 2, 16));
-            FitTo(nextSize);
+            FitTo(Max(newSize, Max(width * 2, 16)));
         }
     }
 
@@ -213,7 +212,7 @@ struct Queue
             const i32 rhs = (head + i) & mask;
             const i32 lhs = (head + i - 1) & mask;
 
-            if (cmp.Compare(ptr[lhs], ptr[rhs]) > 0)
+            if (cmp(ptr[lhs], ptr[rhs]) > 0)
             {
                 T tmp = ptr[lhs];
                 ptr[lhs] = ptr[rhs];

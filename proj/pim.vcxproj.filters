@@ -181,6 +181,9 @@
     <ClCompile Include="..\src\common\time.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\assets\assetdb.cpp">
+      <Filter>Source Files\assets</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\hash.h">
@@ -522,8 +525,17 @@
     <ClInclude Include="..\src\common\time.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\bitutil.h">
+    <ClInclude Include="..\src\assets\assetdb.h">
+      <Filter>Source Files\assets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\assets\packdb.h">
+      <Filter>Source Files\assets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\guid_util.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\lookup_table.h">
+      <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

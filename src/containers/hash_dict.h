@@ -1,6 +1,7 @@
 #pragma once
 
 #include "containers/hash_util.h"
+#include "containers/slice.h"
 
 template<
     typename K,
@@ -49,6 +50,20 @@ template<
         }
     }
 
+    static HashDict Build(AllocType allocator, Slice<const K> keys, Slice<const V> values)
+    {
+        const i32 count = keys.Size();
+        ASSERT(count == values.Size());
+        HashDict dict;
+        dict.Init(allocator);
+        dict.Reserve(count);
+        for (i32 i = 0; i < count; ++i)
+        {
+            dict.Add(keys[i], values[i]);
+        }
+        return dict;
+    }
+
     // ------------------------------------------------------------------------
 
     inline bool Contains(K key) const
@@ -57,28 +72,29 @@ template<
             cmp, m_width, m_hashes, m_keys, key);
     }
 
-    void Resize(u32 width)
+    void Resize(u32 minCount)
     {
-        if (width == m_width)
+        ASSERT(minCount >= m_count);
+        const u32 newWidth = HashUtil::ToPow2(minCount);
+        const u32 oldWidth = m_width;
+        if (newWidth == oldWidth)
         {
             return;
         }
-        if (width == 0)
+        if (newWidth == 0)
         {
             Reset();
             return;
         }
-        ASSERT(width >= m_count);
-        ASSERT(HashUtil::IsPow2(width));
 
-        u32* newHashes = Allocator::CallocT<u32>(GetAllocType(), width);
-        K* newKeys = Allocator::CallocT<K>(GetAllocType(), width);
-        V* newValues = Allocator::AllocT<V>(GetAllocType(), width);
+        const AllocType allocator = GetAllocType();
+        u32* newHashes = Allocator::CallocT<u32>(allocator, newWidth);
+        K* newKeys = Allocator::CallocT<K>(allocator, newWidth);
+        V* newValues = Allocator::AllocT<V>(allocator, newWidth);
 
         const u32* oldHashes = m_hashes;
         const K* oldKeys = m_keys;
         const V* oldValues = m_values;
-        const u32 oldWidth = m_width;
 
         for (u32 i = 0u; i < oldWidth; ++i)
         {
@@ -88,7 +104,7 @@ template<
                 continue;
             }
             i32 j = HashUtil::Insert<K>(
-                cmp, width,
+                cmp, newWidth,
                 newHashes, newKeys,
                 hash, oldKeys[i]);
             ASSERT(j != -1);
@@ -99,20 +115,28 @@ template<
         Allocator::Free(m_keys);
         Allocator::Free(m_values);
 
-        m_width = width;
+        m_width = newWidth;
         m_hashes = newHashes;
         m_keys = newKeys;
         m_values = newValues;
     }
 
+    void Reserve(u32 capacity)
+    {
+        if ((capacity * 10u) >= (m_width * 7u))
+        {
+            Resize(Max(capacity, 8u));
+        }
+    }
+
     void Trim()
     {
-        Resize(HashUtil::TrimWidth(m_width, m_count));
+        Resize(m_count);
     }
 
     inline bool Add(K key, V value)
     {
-        Resize(HashUtil::GrowWidth(m_width, m_count));
+        Reserve(m_count + 1u);
         i32 i = HashUtil::Insert<K>(
             cmp, m_width, m_hashes, m_keys, key);
         if (i != -1)
@@ -169,7 +193,7 @@ template<
             cmp, m_width, m_hashes, m_keys, hash, key);
         if (i == -1)
         {
-            Resize(HashUtil::GrowWidth(m_width, m_count));
+            Reserve(m_count + 1u);
             i = HashUtil::Insert<K>(
                 cmp, m_width, m_hashes, m_keys, hash, key);
             ASSERT(i != -1);

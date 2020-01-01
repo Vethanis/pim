@@ -1,9 +1,8 @@
 #pragma once
 
 #include "common/macro.h"
+#include "common/int_types.h"
 #include "common/comparator.h"
-#include "allocator/allocator.h"
-#include <string.h>
 
 namespace HashUtil
 {
@@ -12,9 +11,32 @@ namespace HashUtil
 
     // ------------------------------------------------------------------------
 
+    static constexpr u32 RotL(u32 x, i32 shift)
+    {
+        return (x << shift) | (x >> (32 - shift));
+    }
+
+    static constexpr u32 RotR(u32 x, i32 shift)
+    {
+        return (x >> shift) | (x << (32 - shift));
+    }
+
     static constexpr bool IsPow2(u32 x)
     {
         return (x & (x - 1u)) == 0u;
+    }
+
+    // https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+    static constexpr u32 ToPow2(u32 x)
+    {
+        --x;
+        x |= x >> 1;
+        x |= x >> 2;
+        x |= x >> 4;
+        x |= x >> 8;
+        x |= x >> 16;
+        ++x;
+        return x;
     }
 
     static constexpr bool IsEmpty(u32 hash)
@@ -31,6 +53,8 @@ namespace HashUtil
     {
         return IsEmpty(hash) || IsTomb(hash);
     }
+
+    // ------------------------------------------------------------------------
 
     static u32 Iterate(const u32* const hashes, const u32 width, u32 i)
     {
@@ -169,7 +193,7 @@ namespace HashUtil
             return -1;
         }
         hashes[i] = TombHash;
-        memset(keys + i, 0, sizeof(K));
+        keys[i] = {};
         return i;
     }
 
@@ -182,41 +206,5 @@ namespace HashUtil
     {
         return Remove<K>(
             cmp, width, hashes, keys, Hash(cmp, key), key);
-    }
-
-    // ------------------------------------------------------------------------
-
-    static u32 TrimWidth(u32 width, u32 count)
-    {
-        if (width > count)
-        {
-            if (count > 0u)
-            {
-                u32 cap = 1u;
-                while (count > cap)
-                {
-                    cap <<= 1u;
-                }
-                if (cap < width)
-                {
-                    return cap;
-                }
-                return width;
-            }
-            else
-            {
-                return 0;
-            }
-        }
-        return width;
-    }
-
-    static u32 GrowWidth(u32 width, u32 count)
-    {
-        if (((count + 1u) * 10u) >= (width * 8u))
-        {
-            return Max(8u, width * 2u);
-        }
-        return width;
     }
 };

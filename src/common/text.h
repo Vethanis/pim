@@ -65,3 +65,5 @@ struct Text
         return Fnv32String(text);
     }
 };
+
+using PathText = Text<PIM_PATH>;

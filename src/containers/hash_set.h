@@ -1,6 +1,7 @@
 #pragma once
 
 #include "containers/hash_util.h"
+#include "containers/slice.h"
 
 template<
     typename K,
@@ -45,6 +46,18 @@ struct HashSet
         }
     }
 
+    static HashSet Build(AllocType allocator, Slice<const K> keys)
+    {
+        HashSet set;
+        set.Init(allocator);
+        set.Reserve(keys.Size());
+        for (const K& key : keys)
+        {
+            set.Add(key);
+        }
+        return set;
+    }
+
     // ------------------------------------------------------------------------
 
     bool Contains(K key) const
@@ -55,26 +68,26 @@ struct HashSet
             key);
     }
 
-    void Resize(u32 width)
+    void Resize(u32 minCount)
     {
-        if (width == m_width)
+        ASSERT(minCount >= m_count);
+        const u32 newWidth = HashUtil::ToPow2(minCount);
+        const u32 oldWidth = m_width;
+        if (newWidth == oldWidth)
         {
             return;
         }
-        if (width == 0)
+        if (newWidth == 0)
         {
             Reset();
             return;
         }
-        ASSERT(width >= m_count);
-        ASSERT(HashUtil::IsPow2(width));
 
-        u32* newHashes = Allocator::CallocT<u32>(GetAllocType(), width);
-        K* newKeys = Allocator::CallocT<K>(GetAllocType(), width);
+        u32* newHashes = Allocator::CallocT<u32>(GetAllocType(), newWidth);
+        K* newKeys = Allocator::CallocT<K>(GetAllocType(), newWidth);
 
         const u32* oldHashes = m_hashes;
         const K* oldKeys = m_keys;
-        const u32 oldWidth = m_width;
 
         for (u32 i = 0u; i < oldWidth; ++i)
         {
@@ -84,7 +97,7 @@ struct HashSet
                 continue;
             }
             i32 j = HashUtil::Insert<K>(
-                cmp, width,
+                cmp, newWidth,
                 newHashes, newKeys,
                 hash, oldKeys[i]);
             ASSERT(j != -1);
@@ -93,19 +106,27 @@ struct HashSet
         Allocator::Free(m_hashes);
         Allocator::Free(m_keys);
 
-        m_width = width;
+        m_width = newWidth;
         m_hashes = newHashes;
         m_keys = newKeys;
     }
 
+    void Reserve(u32 capacity)
+    {
+        if ((capacity * 10u) >= (m_width * 7u))
+        {
+            Resize(Max(capacity, 8u));
+        }
+    }
+
     void Trim()
     {
-        Resize(HashUtil::TrimWidth(m_width, m_count));
+        Resize(m_count);
     }
 
     bool Add(K key)
     {
-        Resize(HashUtil::GrowWidth(m_width, m_count));
+        Reserve(m_count + 1);
         i32 i = HashUtil::Insert<K>(
             cmp, m_width,
             m_hashes, m_keys,
