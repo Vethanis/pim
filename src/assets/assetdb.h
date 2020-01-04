@@ -26,7 +26,7 @@ struct AssetDb
     i32 Add(Guid name, Guid pack, Slice<const Guid> refersTo);
     bool Remove(Guid name);
 
-    i32 size() const { return table.size(); }
+    i32 Size() const { return table.size(); }
     Guid GetName(i32 i) const { return table[i]; }
     Guid& GetPack(i32 i) { return packIds[i]; }
     GuidSet& GetRefersTo(i32 i) { return referencedIds[i]; }

@@ -83,6 +83,9 @@
     <Filter Include="Source Files\geometry">
       <UniqueIdentifier>{b7d1122f-5798-4b19-8920-edcd7dad3554}</UniqueIdentifier>
     </Filter>
+    <Filter Include="submodules\stackwalker">
+      <UniqueIdentifier>{e0456328-7388-42da-a262-d62c91264225}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -183,6 +186,9 @@
     </ClCompile>
     <ClCompile Include="..\src\assets\assetdb.cpp">
       <Filter>Source Files\assets</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp">
+      <Filter>submodules\stackwalker</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -539,6 +545,12 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\heap.h">
       <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\stackwalker\StackWalker.h">
+      <Filter>submodules\stackwalker</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\allocator\leak_tracker.h">
+      <Filter>Source Files\allocator</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

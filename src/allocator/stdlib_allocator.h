@@ -16,8 +16,6 @@ namespace Allocator
         {
             Header* hdr = (Header*)malloc(count);
             ASSERT(hdr);
-            hdr->type = Alloc_Stdlib;
-            hdr->size = count;
             return hdr;
         }
 
@@ -25,15 +23,12 @@ namespace Allocator
         {
             Header* hdr = (Header*)realloc(prev, count);
             ASSERT(hdr);
-            hdr->size = count;
-            hdr->type = Alloc_Stdlib;
             return hdr;
         }
 
         void Free(Header* prev)
         {
             ASSERT(prev);
-            ASSERT(prev->type == Alloc_Stdlib);
             free(prev);
         }
 

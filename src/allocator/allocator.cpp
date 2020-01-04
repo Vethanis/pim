@@ -6,6 +6,10 @@
 #include "common/round.h"
 #include <stdlib.h>
 
+#if ENABLE_LEAK_TRACKER
+#include "allocator/leak_tracker.h"
+#endif
+
 namespace Allocator
 {
     static constexpr i32 Alignment = 16;
@@ -18,6 +22,7 @@ namespace Allocator
         Linear::Table,
         Stack::Table,
         Pool::Table,
+        Stdlib::Table,
     };
     static constexpr i32 NumAllocators = NELEM(ms_tables);
 
@@ -28,6 +33,7 @@ namespace Allocator
         1 << 20,    // 1 mb for linear
         1 << 20,    // 1 mb for stack
         64 << 20,   // 64 mb for pool
+        0,          // debug uses stdlib
     };
     SASSERT(NELEM(ms_capacities) == NumAllocators);
 
@@ -35,6 +41,7 @@ namespace Allocator
     {
         false,
         true,
+        false,
         false,
         false,
     };
@@ -45,6 +52,10 @@ namespace Allocator
     static UAllocator ms_allocators[NumAllocators];
     static void* ms_allocations[NumAllocators];
     static bool ms_init;
+
+#if ENABLE_LEAK_TRACKER
+    static LeakTracker ms_tracker;
+#endif // 
 
     // ------------------------------------------------------------------------
 
@@ -67,7 +78,7 @@ namespace Allocator
 
     static bool ValidAllocator(i32 iType)
     {
-        return InRange(iType) && (ms_init || iType == Alloc_Stdlib);
+        return InRange(iType) && (ms_init || iType == Alloc_Stdlib || iType == Alloc_Debug);
     }
 
     static i32 PadRequest(i32 reqBytes)
@@ -82,7 +93,7 @@ namespace Allocator
 
     void Init()
     {
-        ASSERT(!ms_init)
+        ASSERT(!ms_init);
         for (i32 i = 0; i < NumAllocators; ++i)
         {
             i32 capacity = ms_capacities[i];
@@ -95,7 +106,7 @@ namespace Allocator
 
     void Update()
     {
-        ASSERT(ms_init)
+        ASSERT(ms_init);
         for (i32 i = 0; i < NumAllocators; ++i)
         {
             if (ms_isPerFrame[i])
@@ -107,7 +118,7 @@ namespace Allocator
 
     void Shutdown()
     {
-        ASSERT(ms_init)
+        ASSERT(ms_init);
         for (i32 i = 0; i < NumAllocators; ++i)
         {
             ms_tables[i].Shutdown(ms_allocators[i]);
@@ -119,6 +130,10 @@ namespace Allocator
             }
         }
         ms_init = false;
+
+#if ENABLE_LEAK_TRACKER
+        ms_tracker.ListLeaks();
+#endif
     }
 
     // ------------------------------------------------------------------------
@@ -139,6 +154,13 @@ namespace Allocator
             hdr->type = type;
 
             ASSERT(IsAligned(hdr + 1));
+
+#if ENABLE_LEAK_TRACKER
+            if (type != Alloc_Debug)
+            {
+                ms_tracker.OnAlloc(hdr, want);
+            }
+#endif
 
             return hdr + 1;
         }
@@ -185,6 +207,13 @@ namespace Allocator
 
             ASSERT(IsAligned(newHdr + 1));
 
+#if ENABLE_LEAK_TRACKER
+            if (iType != Alloc_Debug)
+            {
+                ms_tracker.OnRealloc(hdr, newHdr, want);
+            }
+#endif
+
             return newHdr + 1;
         }
 
@@ -206,6 +235,13 @@ namespace Allocator
             ASSERT(ValidAllocator(iType));
 
             ms_tables[iType].Free(ms_allocators[iType], hdr);
+
+#if ENABLE_LEAK_TRACKER
+            if (iType != Alloc_Debug)
+            {
+                ms_tracker.OnFree(hdr);
+            }
+#endif
         }
     }
 };

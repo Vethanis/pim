@@ -24,7 +24,7 @@ struct PackFile
     i32 Add(Guid name, i32 size);
     bool Remove(Guid name);
 
-    i32 size() const { return table.size(); }
+    i32 Size() const { return table.size(); }
     Guid GetName(i32 i) const { return table[i]; }
     HeapItem& GetPosition(i32 i) { return positions[i]; }
 };
@@ -45,7 +45,7 @@ struct PackDb
     i32 Add(Guid name, cstr path);
     bool Remove(Guid name);
 
-    i32 size() const { return table.size(); }
+    i32 Size() const { return table.size(); }
     Guid GetName(i32 i) { return table[i]; }
     PackFile& GetPack(i32 i) { return packs[i]; }
 };

@@ -164,16 +164,18 @@ template<
         const u32* const m_hashes;
         K* const m_keys;
 
-        inline iterator(HashSet& set, bool isBegin)
-            : m_i(isBegin ? 0, set.m_width),
+        inline iterator(HashSet& set)
+            : m_i(0),
             m_width(set.m_width),
             m_hashes(set.m_hashes),
             m_keys(set.m_keys)
-        {}
+        {
+            m_i = HashUtil::Iterate(m_hashes, m_width, m_i);
+        }
 
         inline bool operator!=(const iterator& rhs) const
         {
-            return m_i != rhs.m_i;
+            return m_i < m_width;
         }
 
         inline iterator& operator++()
@@ -185,8 +187,8 @@ template<
         inline K& operator*() { return m_keys[m_i]; }
     };
 
-    inline iterator begin() { return iterator(*this, true); }
-    inline iterator end() { return iterator(*this, false); }
+    inline iterator begin() { return iterator(*this); }
+    inline iterator end() { return iterator(*this); }
 
     // ------------------------------------------------------------------------
 
@@ -197,16 +199,18 @@ template<
         const u32* const m_hashes;
         const K* const m_keys;
 
-        inline const_iterator(const HashSet& set, bool isBegin)
-            : m_i(isBegin ? 0, set.m_width),
+        inline const_iterator(const HashSet& set)
+            : m_i(0),
             m_width(set.m_width),
             m_hashes(set.m_hashes),
             m_keys(set.m_keys)
-        {}
+        {
+            m_i = HashUtil::Iterate(m_hashes, m_width, m_i);
+        }
 
         inline bool operator!=(const const_iterator& rhs) const
         {
-            return m_i != rhs.m_i;
+            return m_i < m_width;
         }
 
         inline const_iterator& operator++()
@@ -218,8 +222,8 @@ template<
         inline const K& operator*() const { return m_keys[m_i]; }
     };
 
-    inline const_iterator begin() const { return const_iterator(*this, true); }
-    inline const_iterator end() const { return const_iterator(*this, false); }
+    inline const_iterator begin() const { return const_iterator(*this); }
+    inline const_iterator end() const { return const_iterator(*this); }
 
     // ------------------------------------------------------------------------
 };

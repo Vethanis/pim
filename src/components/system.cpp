@@ -154,5 +154,10 @@ namespace SystemRegistry
         {
             ShutdownSystem(ms_order[i]);
         }
+        for (i32 i = 0; i < count; ++i)
+        {
+            ms_deps[i].Reset();
+        }
+        ms_needsSort = true;
     }
 };

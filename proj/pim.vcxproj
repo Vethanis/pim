@@ -42,12 +42,14 @@
     <ClCompile Include="..\submodules\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_widgets.cpp" />
     <ClCompile Include="..\submodules\miniz\miniz.c" />
+    <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp" />
     <ClCompile Include="..\submodules\stb\stb_vorbis.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\allocator\allocator.h" />
     <ClInclude Include="..\src\allocator\allocator_vtable.h" />
     <ClInclude Include="..\src\allocator\allocators.h" />
+    <ClInclude Include="..\src\allocator\leak_tracker.h" />
     <ClInclude Include="..\src\allocator\linear_allocator.h" />
     <ClInclude Include="..\src\allocator\pool_allocator.h" />
     <ClInclude Include="..\src\allocator\stack_allocator.h" />
@@ -147,6 +149,7 @@
     <ClInclude Include="..\submodules\sokol\util\sokol_gfx_imgui.h" />
     <ClInclude Include="..\submodules\sokol\util\sokol_gl.h" />
     <ClInclude Include="..\submodules\sokol\util\sokol_imgui.h" />
+    <ClInclude Include="..\submodules\stackwalker\StackWalker.h" />
     <ClInclude Include="..\submodules\stb\stb.h" />
     <ClInclude Include="..\submodules\stb\stb_connected_components.h" />
     <ClInclude Include="..\submodules\stb\stb_c_lexer.h" />
