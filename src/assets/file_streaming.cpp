@@ -1,43 +1,71 @@
 #include "assets/file_streaming.h"
 
 #include "common/guid.h"
+#include "common/guid_util.h"
 #include "common/io.h"
 #include "common/stringutil.h"
 #include "common/text.h"
 #include "components/system.h"
 #include "containers/hash_dict.h"
 #include "containers/queue.h"
+#include "containers/array.h"
+#include "containers/heap.h"
 #include "os/thread.h"
 
-static constexpr i32 NumStreamThreads = 8;
-
-using PathText = Text<PIM_PATH>;
-static constexpr auto GuidComparator = OpComparator<Guid>();
-
-struct WorkItem
+struct StreamFile
 {
-    Guid guid;
-    FStreamDesc desc;
-    PathText path;
-
-    inline static i32 Compare(const WorkItem& lhs, const WorkItem& rhs)
-    {
-        if (!(lhs.guid == rhs.guid))
-        {
-            return lhs.guid < rhs.guid ? -1 : 1;
-        }
-        return lhs.desc.offset - rhs.desc.offset;
-    }
+    OS::RWLock m_lock;
+    IO::FileMap m_map;
 };
 
-static HashDict<Guid, IO::FileMap, GuidComparator> ms_files;
-static Queue<WorkItem> ms_queue;
+struct StreamQueue
+{
+    OS::Mutex mutex;
+    Queue<i32> queue;
+    Array<i32> freelist;
+    Array<Guid> names;
+    Array<HeapItem> locs;
+    Array<bool> writes;
+    Array<void*> ptrs;
+    Array<EResult*> results;
+};
 
+static StreamQueue ms_queue;
+static HashDict<Guid, StreamFile*, GuidComparator> ms_files;
+
+static constexpr i32 NumStreamThreads = 4;
 static OS::Thread ms_threads[NumStreamThreads];
-static OS::Semaphore ms_sema;
+static OS::LightSema ms_sema;
 static OS::Mutex ms_queueMutex;
 static OS::Mutex ms_filesMutex;
 static bool ms_run;
+
+static i32 Compare(const i32& lhs, const i32& rhs)
+{
+    {
+        const Guid lname = ms_queue.names[lhs];
+        const Guid rname = ms_queue.names[rhs];
+        const i32 i = Compare(lname, rname);
+        if (i)
+        {
+            return i;
+        }
+    }
+    {
+        const HeapItem lheap = ms_queue.locs[lhs];
+        const HeapItem rheap = ms_queue.locs[rhs];
+        if (Overlaps(lheap, rheap))
+        {
+            const bool lwrite = ms_queue.writes[lhs];
+            const bool rwrite = ms_queue.writes[rhs];
+            if (lwrite || rwrite)
+            {
+                return 0;
+            }
+        }
+        return lheap.offset - rheap.offset;
+    }
+}
 
 static Slice<const u8> GetFile(Guid guid, cstr path)
 {
@@ -48,15 +76,20 @@ static Slice<const u8> GetFile(Guid guid, cstr path)
 
     ms_filesMutex.Lock();
     {
-        IO::FileMap* pFile = ms_files.Get(guid);
+        StreamFile* pFile = ms_files.Get(guid);
         if (pFile)
         {
             file = *pFile;
         }
         else
         {
-            file = IO::MapFile(path, false);
-            if (IO::IsOpen(file))
+            EResult err = EUnknown;
+            IO::FD fd = IO::Open(path, IO::OBinSeqRead, err);
+            if (err == ESuccess)
+            {
+                file = IO::MapFile(fd, false, err);
+            }
+            if (err == ESuccess)
             {
                 bool added = ms_files.Add(guid, file);
                 ASSERT(added);
@@ -65,7 +98,7 @@ static Slice<const u8> GetFile(Guid guid, cstr path)
     }
     ms_filesMutex.Unlock();
 
-    return file.AsSlice();
+    return file.memory;
 }
 
 static EResult CopyRegion(Slice<const u8> memory, i32 offset, i32 size, void* dst)
@@ -93,7 +126,7 @@ static WorkItem PopItem()
 static void PushItem(WorkItem item)
 {
     ms_queueMutex.Lock();
-    ms_queue.Push(item, { WorkItem::Compare });
+    ms_queue.Push(item, { Compare });
     ms_queueMutex.Unlock();
     ms_sema.Signal(1);
 }

@@ -42,14 +42,15 @@ struct LookupTable
 
     // ------------------------------------------------------------------------
 
-    inline i32 size() const { return Table.Size(); }
+    inline i32 capacity() const { return Table.capacity(); }
+    inline i32 size() const { return Table.size(); }
     inline const T* begin() const { return Table.begin(); }
     inline const T* end() const { return Table.end(); }
     inline const T& operator[](i32 i) const { return Table[i]; }
 
     // ------------------------------------------------------------------------
 
-    inline AllocType GetAllocator() const { return Table.GetAllocType(); }
+    inline AllocType GetAllocator() const { return Table.GetAllocator(); }
     inline bool Contains(T item) const { return Lookup.Contains(item); }
 
     inline i32 Find(T item) const
@@ -61,10 +62,10 @@ struct LookupTable
     inline i32 Add(T item)
     {
         i32 i = -1;
-        const i32 back = Table.Size();
+        const i32 back = Table.size();
         if (Lookup.Add(item, back))
         {
-            Table.Grow() = item;
+            Table.PushBack(item);
             i = back;
         }
         return i;
@@ -72,7 +73,7 @@ struct LookupTable
 
     inline void RemoveAt(i32 i)
     {
-        const i32 back = Table.Size() - 1;
+        const i32 back = Table.size() - 1;
         if (i != back)
         {
             Lookup.Set(Table[back], i);

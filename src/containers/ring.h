@@ -15,8 +15,8 @@ struct Ring
 
     static inline u32 Mask(u32 i) { return i & t_mask; }
 
-    inline u32 Capacity() const { return t_capacity; }
-    inline u32 Size() const { return m_count; }
+    inline u32 capacity() const { return t_capacity; }
+    inline u32 size() const { return m_count; }
     inline bool IsFull() const { return m_count >= t_capacity; }
     inline bool IsEmpty() const { return !m_count; }
 
@@ -108,8 +108,8 @@ struct RingBuffer
     Ring<t_capacity> m_ring;
     T m_data[t_capacity];
 
-    inline u32 Capacity() const { return m_ring.Capacity(); }
-    inline u32 Size() const { return m_ring.Size(); }
+    inline u32 capacity() const { return m_ring.capacity(); }
+    inline u32 size() const { return m_ring.size(); }
     inline bool IsFull() const { return m_ring.IsFull(); }
     inline bool IsEmpty() const { return m_ring.IsEmpty(); }
 

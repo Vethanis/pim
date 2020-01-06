@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common/macro.h"
 #include "common/minmax.h"
 #include "common/int_types.h"
 #include <string.h>
@@ -40,18 +41,20 @@ namespace Allocator
     }
 
     template<typename T>
-    inline T* Reserve(
-        AllocType type,
-        T* prev,
-        i32& capacity,
-        i32 count)
+    inline T* Reserve(AllocType allocator, T* pOld, i32& capacity, i32 want)
     {
-        if (count > capacity)
+        const i32 oldCapacity = capacity;
+        ASSERT(want >= 0);
+        ASSERT(oldCapacity >= 0);
+
+        if (want > oldCapacity)
         {
-            capacity = Max(count, Max(capacity * 2, 16));
-            return ReallocT<T>(type, prev, capacity);
+            const i32 newCapacity = Max(want, Max(oldCapacity * 2, 16));
+            capacity = newCapacity;
+            return ReallocT<T>(allocator, pOld, newCapacity);
         }
-        return prev;
+
+        return pOld;
     }
 
     inline void* ImGuiAllocFn(size_t sz, void*) { return Alloc(Alloc_Pool, (i32)sz); }

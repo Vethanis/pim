@@ -190,6 +190,15 @@
     <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp">
       <Filter>submodules\stackwalker</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\assets\packdb.cpp">
+      <Filter>Source Files\assets</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\atomics.cpp">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\thread.cpp">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\hash.h">
@@ -551,6 +560,18 @@
     </ClInclude>
     <ClInclude Include="..\src\allocator\leak_tracker.h">
       <Filter>Source Files\allocator</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\array_view.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\os\atomics.h">
+      <Filter>Source Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\bitpack.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\pool.h">
+      <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -72,7 +72,7 @@ namespace IO
 
     // creat
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/creat-wcreat
-    FD Create(cstr filename, EResult& err);
+    FD Create(cstr filename, u32 oFlags, EResult& err);
 
     // open
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/open-wopen
@@ -89,6 +89,9 @@ namespace IO
     // write
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/write
     i32 Write(FD hdl, const void* src, usize size, EResult& err);
+
+    // Grow the size of a file to the specified size
+    void Grow(FD hdl, usize size, EResult& err);
 
     i32 Puts(cstrc str, FD hdl = StdOut);
 
@@ -378,25 +381,26 @@ namespace IO
 
     struct FileMap
     {
-        void* hFile;
+        IO::FD fd;
         void* hMapping;
-        void* address;
-        usize size;
-
-        inline Slice<u8> AsSlice()
-        {
-            ASSERT(size < 0x7fffffff);
-            ASSERT((address && size) || (!address && !size));
-            return { (u8*)address, (i32)size };
-        }
+        Slice<u8> memory;
     };
 
     inline bool IsOpen(FileMap map)
     {
-        return map.address != nullptr;
+        return map.memory.begin() != nullptr;
     }
 
-    FileMap MapFile(cstr path, bool writable);
+    FileMap MapFile(
+        IO::FD fd,
+        bool writable,
+        EResult& err);
     void Close(FileMap& map);
+
+    // Only necessary when you want to guard against a power failure.
+    bool Flush(
+        FileMap map,
+        i32 offset,
+        i32 size);
 
 }; // IO

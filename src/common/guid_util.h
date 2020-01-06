@@ -4,10 +4,7 @@
 #include "containers/hash_set.h"
 #include "containers/lookup_table.h"
 
-struct GuidComparator
-{
-    static constexpr auto Value = OpComparator<Guid>();
-};
+static constexpr Comparator<Guid> GuidComparator = { Equals, Compare, Hash };
 
-using GuidSet = HashSet<Guid, GuidComparator::Value>;
-using GuidTable = LookupTable<Guid, GuidComparator::Value>;
+using GuidSet = HashSet<Guid, GuidComparator>;
+using GuidTable = LookupTable<Guid, GuidComparator>;

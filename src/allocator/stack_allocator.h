@@ -43,7 +43,7 @@ namespace Allocator
             Header* pNew = (Header*)allocation.ptr;
             pNew->size = count;
             pNew->type = Alloc_Stack;
-            pNew->c = m_allocations.Size();
+            pNew->c = m_allocations.size();
             pNew->d = 0;
 
             m_allocations.Grow() = pNew;
@@ -59,8 +59,8 @@ namespace Allocator
             {
                 Slice<u8> oldRegion = pOld->AsSlice().Tail(sizeof(Header));
                 Slice<u8> newRegion = pNew->AsSlice().Tail(sizeof(Header));
-                const i32 cpySize = Min(newRegion.Size(), oldRegion.Size());
-                if (newRegion.Overlaps(oldRegion))
+                const i32 cpySize = Min(newRegion.size(), oldRegion.size());
+                if (Overlaps(newRegion, oldRegion))
                 {
                     memmove(newRegion.begin(), oldRegion.begin(), cpySize);
                 }
@@ -75,13 +75,13 @@ namespace Allocator
         void Free(Header* hdr)
         {
             hdr->d = 1;
-            while (m_allocations.Size())
+            while (m_allocations.size())
             {
                 Header* pBack = m_allocations.back();
                 if (pBack->d)
                 {
                     m_allocations.Pop();
-                    m_stack.Combine(pBack->AsSlice());
+                    m_stack = Combine(m_stack, pBack->AsSlice());
                 }
                 else
                 {

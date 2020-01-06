@@ -11,21 +11,19 @@ void AssetDb::Init(AllocType allocator)
 
 void AssetDb::Reset()
 {
-    table.Reset();
-    packIds.Reset();
-
-    for (GuidSet set : referencedIds)
+    for (GuidSet& set : referencedIds)
     {
         set.Reset();
     }
-    referencedIds.Reset();
-
     for (Slice<u8> memory : memories)
     {
         Allocator::Free(memory.begin());
     }
-    memories.Reset();
 
+    table.Reset();
+    packIds.Reset();
+    referencedIds.Reset();
+    memories.Reset();
     refCounts.Reset();
 }
 
@@ -55,11 +53,12 @@ bool AssetDb::Remove(Guid name)
 
 void AssetDb::RemoveAt(i32 i)
 {
+    referencedIds[i].Reset();
+    Allocator::Free(memories[i].begin());
+
     table.RemoveAt(i);
     packIds.Remove(i);
-    referencedIds[i].Reset();
     referencedIds.Remove(i);
-    Allocator::Free(memories[i].begin());
     memories.Remove(i);
     refCounts.Remove(i);
 }

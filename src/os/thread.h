@@ -1,9 +1,14 @@
 #pragma once
 
 #include "common/int_types.h"
+#include "os/atomics.h"
 
 namespace OS
 {
+    void YieldProcessor();
+    u64 ReadTimeStampCounter();
+    void SpinWait(u64 ticks);
+
     using ThreadFn = void(*)(void* pData);
 
     struct Thread
@@ -11,8 +16,8 @@ namespace OS
         void* handle;
 
         inline bool IsOpen() const { return handle != nullptr; }
-        void Open(ThreadFn fn, void* data);
-        void Join();
+        bool Open(ThreadFn fn, void* data);
+        bool Join();
     };
 
     struct Semaphore
@@ -20,21 +25,49 @@ namespace OS
         void* handle;
 
         inline bool IsOpen() const { return handle != nullptr; }
-        void Open(u32 initialValue);
-        void Close();
-        void Signal(u32 count);
+        bool Open(u32 initialValue = 0);
+        bool Close();
+        bool Signal(u32 count = 1);
+        bool Wait();
+        bool TryWait();
+    };
+
+    struct SpinLock
+    {
+        Ai32 m_count;
+
+        bool TryLock();
+        void Lock();
+        void Unlock();
+    };
+
+    struct LightSema
+    {
+        Semaphore m_sema;
+        Ai32 m_count;
+
+        inline bool IsOpen() const { return m_sema.IsOpen(); }
+        inline bool Open(u32 initialValue = 0)
+        {
+            m_count.m_value = (i32)initialValue;
+            return m_sema.Open(initialValue);
+        }
+        inline bool Close() { return m_sema.Close(); }
+        bool TryWait();
         void Wait();
+        void Signal(i32 count = 1);
     };
 
     struct Mutex
     {
-        Semaphore sema;
+        LightSema sema;
 
         inline bool IsOpen() const { return sema.IsOpen(); }
-        inline void Open() { sema.Open(1); }
-        inline void Close() { sema.Close(); };
+        inline bool Open() { return sema.Open(1); }
+        inline bool Close() { return sema.Close(); };
         inline void Lock() { sema.Wait(); }
-        inline void Unlock() { sema.Signal(1); }
+        inline void Unlock() { sema.Signal(); }
+        inline bool TryLock() { return sema.TryWait(); }
     };
 
     struct LockGuard
@@ -42,5 +75,48 @@ namespace OS
         Mutex& m_mtx;
         LockGuard(Mutex& mtx) : m_mtx(mtx) { m_mtx.Lock(); }
         ~LockGuard() { m_mtx.Unlock(); }
+    };
+
+    struct RWLock
+    {
+        Au32 m_state;
+        LightSema m_read;
+        LightSema m_write;
+
+        void Open()
+        {
+            m_state.m_value = 0;
+            m_read.Open();
+            m_write.Open();
+        }
+        void Close()
+        {
+            m_read.Close();
+            m_write.Close();
+        }
+
+        void LockReader();
+        void UnlockReader();
+        void LockWriter();
+        void UnlockWriter();
+    };
+
+    struct Event
+    {
+        Ai32 m_state;
+        LightSema m_sema;
+
+        bool Open(bool signalled = false)
+        {
+            m_state.m_value = signalled ? 1 : 0;
+            return m_sema.Open(signalled ? 1u : 0u);
+        }
+        bool Close()
+        {
+            return m_sema.Close();
+        }
+
+        void Signal();
+        void Wait();
     };
 };

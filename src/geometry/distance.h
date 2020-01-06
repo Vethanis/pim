@@ -1,7 +1,6 @@
 #pragma once
 
-#define NOMINMAX
-
+#include "common/macro.h"
 #include "geometry/types.h"
 #include "math/vec_funcs.h"
 

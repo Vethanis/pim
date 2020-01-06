@@ -15,6 +15,7 @@
     <ClCompile Include="..\src\assets\assetdb.cpp" />
     <ClCompile Include="..\src\assets\asset_system.cpp" />
     <ClCompile Include="..\src\assets\file_streaming.cpp" />
+    <ClCompile Include="..\src\assets\packdb.cpp" />
     <ClCompile Include="..\src\audio\audio_system.cpp" />
     <ClCompile Include="..\src\common\hashstring.cpp" />
     <ClCompile Include="..\src\common\io.cpp" />
@@ -24,8 +25,10 @@
     <ClCompile Include="..\src\components\ecs.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\os\atomics.cpp" />
     <ClCompile Include="..\src\os\socket.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
+    <ClCompile Include="..\src\os\thread.cpp" />
     <ClCompile Include="..\src\os\thread_win32.cpp" />
     <ClCompile Include="..\src\quake\packfile.cpp" />
     <ClCompile Include="..\src\rendering\material.cpp" />
@@ -90,6 +93,7 @@
     <ClInclude Include="..\src\components\transform.h" />
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\bitfield.h" />
+    <ClInclude Include="..\src\containers\bitpack.h" />
     <ClInclude Include="..\src\containers\generational.h" />
     <ClInclude Include="..\src\containers\hash_dict.h" />
     <ClInclude Include="..\src\containers\hash_set.h" />
@@ -97,9 +101,11 @@
     <ClInclude Include="..\src\containers\heap.h" />
     <ClInclude Include="..\src\containers\initlist.h" />
     <ClInclude Include="..\src\containers\lookup_table.h" />
+    <ClInclude Include="..\src\containers\pool.h" />
     <ClInclude Include="..\src\containers\queue.h" />
     <ClInclude Include="..\src\containers\ring.h" />
     <ClInclude Include="..\src\containers\slice.h" />
+    <ClInclude Include="..\src\containers\array_view.h" />
     <ClInclude Include="..\src\geometry\distance.h" />
     <ClInclude Include="..\src\geometry\types.h" />
     <ClInclude Include="..\src\input\input_system.h" />
@@ -110,6 +116,7 @@
     <ClInclude Include="..\src\math\vec_funcs.h" />
     <ClInclude Include="..\src\math\vec_ops.h" />
     <ClInclude Include="..\src\math\vec_types.h" />
+    <ClInclude Include="..\src\os\atomics.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\os\thread.h" />
     <ClInclude Include="..\src\physics\components.h" />

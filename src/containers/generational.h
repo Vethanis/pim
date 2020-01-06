@@ -36,9 +36,9 @@ struct IdAllocator
 
     // ------------------------------------------------------------------------
 
-    inline i32 Size() const
+    inline i32 size() const
     {
-        return m_versions.Size();
+        return m_versions.size();
     }
 
     inline u16 operator[](i32 i) const
@@ -58,11 +58,11 @@ struct IdAllocator
         bool grew = false;
         if (m_freelist.IsEmpty())
         {
-            m_freelist.Grow() = m_versions.Size();
+            m_freelist.Grow() = m_versions.size();
             m_versions.Grow() = 0;
             grew = true;
         }
-        u16 i = m_freelist.PopValue();
+        u16 i = m_freelist.PopBack();
         u16 v = ++m_versions[i];
         ASSERT(v & 1);
         version = v;
@@ -133,12 +133,12 @@ struct IdMapping
 
     inline i32 LocalSize() const
     {
-        return m_toGlobal.Size();
+        return m_toGlobal.size();
     }
 
     inline i32 LocalCapacity() const
     {
-        return m_toGlobal.Capacity();
+        return m_toGlobal.capacity();
     }
 
     inline u16 ToGlobal(u16 localIndex) const
@@ -155,12 +155,12 @@ struct IdMapping
 
     inline i32 GlobalSize() const
     {
-        return m_toLocal.Size();
+        return m_toLocal.size();
     }
 
     inline i32 GlobalCapacity() const
     {
-        return m_toLocal.Capacity();
+        return m_toLocal.capacity();
     }
 
     inline u16 ToLocal(u16 globalIndex) const
@@ -183,7 +183,7 @@ struct IdMapping
             m_toLocal.Grow() = 0xffff;
             grew = true;
         }
-        m_toLocal[index] = u16(m_toGlobal.Size());
+        m_toLocal[index] = u16(m_toGlobal.size());
         m_toGlobal.Grow() = index;
         return grew;
     }
@@ -198,7 +198,7 @@ struct IdMapping
 
             const u16 globalA = index;
             const u16 localA = m_toLocal[globalA];
-            const u16 localB = u16(m_toGlobal.Size() - 1);
+            const u16 localB = u16(m_toGlobal.size() - 1);
             const u16 globalB = m_toGlobal[localB];
 
             m_toLocal[globalB] = localA;

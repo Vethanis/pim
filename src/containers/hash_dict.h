@@ -20,9 +20,9 @@ template<
 
     // ------------------------------------------------------------------------
 
-    inline i32 Size() const { return (i32)m_count; }
-    inline i32 Capacity() const { return (i32)m_width; }
-    inline AllocType GetAllocType() const { return (AllocType)m_allocator; }
+    inline i32 size() const { return (i32)m_count; }
+    inline i32 capacity() const { return (i32)m_width; }
+    inline AllocType GetAllocator() const { return (AllocType)m_allocator; }
 
     void Init(AllocType allocator)
     {
@@ -54,8 +54,8 @@ template<
 
     static HashDict Build(AllocType allocator, Slice<const K> keys, Slice<const V> values)
     {
-        const i32 count = keys.Size();
-        ASSERT(count == values.Size());
+        const i32 count = keys.size();
+        ASSERT(count == values.size());
         HashDict dict;
         dict.Init(allocator);
         dict.Reserve(count);
@@ -89,7 +89,7 @@ template<
             return;
         }
 
-        const AllocType allocator = GetAllocType();
+        const AllocType allocator = GetAllocator();
         u32* newHashes = Allocator::CallocT<u32>(allocator, newWidth);
         K* newKeys = Allocator::CallocT<K>(allocator, newWidth);
         V* newValues = Allocator::AllocT<V>(allocator, newWidth);
@@ -123,11 +123,11 @@ template<
         m_values = newValues;
     }
 
-    void Reserve(u32 capacity)
+    void Reserve(u32 cap)
     {
-        if ((capacity * 10u) >= (m_width * 7u))
+        if ((cap * 10u) >= (m_width * 7u))
         {
-            Resize(capacity > 8u ? capacity : 8u);
+            Resize(cap > 8u ? cap : 8u);
         }
     }
 

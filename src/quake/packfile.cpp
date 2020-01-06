@@ -14,15 +14,21 @@ namespace Quake
         StrCpy(ARGS(pack.path), dir);
         pack.files.Init(allocator);
 
-        file = IO::MapFile(dir, false);
-        if (!file.address)
+        EResult err = EUnknown;
+        IO::FD fd = IO::Open(dir, IO::OBinary, err);
+        if (err == EFail)
         {
             return pack;
         }
 
-        Slice<u8> memory = file.AsSlice();
-        Slice<DPackHeader> headers = memory.Cast<DPackHeader>();
-        if (headers.Size() < 1)
+        file = IO::MapFile(fd, false, err);
+        if (err == EFail)
+        {
+            return pack;
+        }
+
+        Slice<DPackHeader> headers = file.memory.Cast<DPackHeader>();
+        if (headers.size() < 1)
         {
             return pack;
         }
@@ -32,11 +38,11 @@ namespace Quake
         ASSERT(memcmp(header.id, "PACK", 4) == 0);
         ASSERT((header.length % sizeof(DPackFile)) == 0);
 
-        Slice<DPackFile> metadata = memory
+        Slice<DPackFile> metadata = file.memory
             .Subslice(header.offset, header.length)
             .Cast<DPackFile>();
 
-        pack.files.Copy(metadata);
+        Copy(pack.files, metadata);
 
         IO::Close(file);
 
@@ -68,7 +74,7 @@ namespace Quake
             SPrintf(ARGS(packDir), "%s/%s", dir, file.name);
             FixPath(ARGS(packDir));
             Pack pack = LoadPack(packDir, allocator);
-            if (pack.files.Size() > 0)
+            if (pack.files.size() > 0)
             {
                 folder.packs.Grow() = pack;
             }

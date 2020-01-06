@@ -7,7 +7,7 @@
 // ----------------------------------------------------------------------------
 
 template<typename T>
-inline constexpr i32 Find(const T* const ptr, i32 count, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline constexpr i32 Find(const T* const ptr, i32 count, const T& key, const Equatable<T> eq)
 {
     for (i32 i = 0; i < count; ++i)
     {
@@ -19,20 +19,20 @@ inline constexpr i32 Find(const T* const ptr, i32 count, const T& key, const Equ
     return -1;
 }
 template<typename T>
-inline i32 Find(const Slice<const T> x, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline i32 Find(const Slice<const T> x, const T& key, const Equatable<T> eq)
 {
-    return Find(x.begin(), x.Size(), key, eq);
+    return Find(x.begin(), x.size(), key, eq);
 }
 template<typename T>
-inline i32 Find(const Array<T> x, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline i32 Find(const Array<T> x, const T& key, const Equatable<T> eq)
 {
-    return Find(x.begin(), x.Size(), key, eq);
+    return Find(x.begin(), x.size(), key, eq);
 }
 
 // ----------------------------------------------------------------------------
 
 template<typename T>
-inline constexpr i32 RFind(const T* const ptr, i32 count, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline constexpr i32 RFind(const T* const ptr, i32 count, const T& key, const Equatable<T> eq)
 {
     for (i32 i = count - 1; i >= 0; --i)
     {
@@ -44,38 +44,38 @@ inline constexpr i32 RFind(const T* const ptr, i32 count, const T& key, const Eq
     return -1;
 }
 template<typename T>
-inline i32 RFind(const Slice<const T> x, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline i32 RFind(const Slice<const T> x, const T& key, const Equatable<T> eq)
 {
-    return RFind(x.begin(), x.Size(), key, eq);
+    return RFind(x.begin(), x.size(), key, eq);
 }
 template<typename T>
-inline i32 RFind(const Array<T> x, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline i32 RFind(const Array<T> x, const T& key, const Equatable<T> eq)
 {
-    return RFind(x.begin(), x.Size(), key, eq);
+    return RFind(x.begin(), x.size(), key, eq);
 }
 
 // ----------------------------------------------------------------------------
 
 template<typename T>
-inline constexpr bool Contains(const T* const ptr, i32 count, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline constexpr bool Contains(const T* const ptr, i32 count, const T& key, const Equatable<T> eq)
 {
     return RFind(ptr, count, key, eq) != -1;
 }
 template<typename T>
-inline bool Contains(const Slice<const T> x, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline bool Contains(const Slice<const T> x, const T& key, const Equatable<T> eq)
 {
-    return Contains(x.begin(), x.Size(), key, eq);
+    return Contains(x.begin(), x.size(), key, eq);
 }
 template<typename T>
-inline bool Contains(const Array<T> x, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline bool Contains(const Array<T> x, const T& key, const Equatable<T> eq)
 {
-    return Contains(x.begin(), x.Size(), key, eq);
+    return Contains(x.begin(), x.size(), key, eq);
 }
 
 // ----------------------------------------------------------------------------
 
 template<typename T>
-inline bool FindRemove(T* const ptr, i32& count, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline bool FindRemove(T* const ptr, i32& count, const T& key, const Equatable<T> eq)
 {
     i32 i = RFind(ptr, count, key, eq);
     if (i != -1)
@@ -88,7 +88,7 @@ inline bool FindRemove(T* const ptr, i32& count, const T& key, const Equatable<T
 }
 
 template<typename T>
-inline bool FindRemove(Array<T>& x, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline bool FindRemove(Array<T>& x, const T& key, const Equatable<T> eq)
 {
     i32 i = RFind(x, key, eq);
     if (i != -1)
@@ -102,7 +102,7 @@ inline bool FindRemove(Array<T>& x, const T& key, const Equatable<T> eq = OpEqua
 // ----------------------------------------------------------------------------
 
 template<typename T>
-inline bool FindAdd(Array<T>& x, const T& key, const Equatable<T> eq = OpEquatable<T>())
+inline bool FindAdd(Array<T>& x, const T& key, const Equatable<T> eq)
 {
     i32 i = RFind(x, key, eq);
     if (i != -1)
@@ -116,7 +116,7 @@ inline bool FindAdd(Array<T>& x, const T& key, const Equatable<T> eq = OpEquatab
 // ----------------------------------------------------------------------------
 
 template<typename T>
-inline constexpr i32 FindMax(const T* const ptr, i32 count, const Comparable<T> cmp = OpComparable<T>())
+inline constexpr i32 FindMax(const T* const ptr, i32 count, const Comparable<T> cmp)
 {
     if (count <= 0)
     {
@@ -133,20 +133,20 @@ inline constexpr i32 FindMax(const T* const ptr, i32 count, const Comparable<T> 
     return j;
 }
 template<typename T>
-inline i32 FindMax(const Slice<const T> x, const Comparable<T> cmp = OpComparable<T>())
+inline i32 FindMax(const Slice<const T> x, const Comparable<T> cmp)
 {
-    return FindMax(x.begin(), x.Size(), cmp);
+    return FindMax(x.begin(), x.size(), cmp);
 }
 template<typename T>
-inline i32 FindMax(const Array<T> x, const Comparable<T> cmp = OpComparable<T>())
+inline i32 FindMax(const Array<T> x, const Comparable<T> cmp)
 {
-    return FindMax(x.begin(), x.Size(), cmp);
+    return FindMax(x.begin(), x.size(), cmp);
 }
 
 // ----------------------------------------------------------------------------
 
 template<typename T>
-inline constexpr i32 FindMin(const T* const ptr, i32 count, const Comparable<T> cmp = OpComparable<T>())
+inline constexpr i32 FindMin(const T* const ptr, i32 count, const Comparable<T> cmp)
 {
     if (count <= 0)
     {
@@ -163,14 +163,14 @@ inline constexpr i32 FindMin(const T* const ptr, i32 count, const Comparable<T> 
     return j;
 }
 template<typename T>
-inline i32 FindMin(const Slice<const T> x, const Comparable<T> cmp = OpComparable<T>())
+inline i32 FindMin(const Slice<const T> x, const Comparable<T> cmp)
 {
-    return FindMin(x.begin(), x.Size(), cmp);
+    return FindMin(x.begin(), x.size(), cmp);
 }
 template<typename T>
-inline i32 FindMin(const Array<T> x, const Comparable<T> cmp = OpComparable<T>())
+inline i32 FindMin(const Array<T> x, const Comparable<T> cmp)
 {
-    return FindMin(x.begin(), x.Size(), cmp);
+    return FindMin(x.begin(), x.size(), cmp);
 }
 
 // ----------------------------------------------------------------------------

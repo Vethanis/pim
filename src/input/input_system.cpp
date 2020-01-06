@@ -86,16 +86,18 @@ static void OnMouseScroll(const sapp_event* evt)
 
 namespace InputSystem
 {
+    static constexpr auto ListenerEq = PtrEquatable<InputListener>();
+
     bool Register(InputChannel channel, InputListener listener)
     {
         ASSERT(listener);
-        return FindAdd(ms_listeners[channel], listener);
+        return FindAdd(ms_listeners[channel], listener, ListenerEq);
     }
 
     bool Remove(InputChannel channel, InputListener listener)
     {
         ASSERT(listener);
-        return FindRemove(ms_listeners[channel], listener);
+        return FindRemove(ms_listeners[channel], listener, ListenerEq);
     }
 
     void OnEvent(const sapp_event* evt, bool keyboardCaptured)

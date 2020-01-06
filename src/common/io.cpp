@@ -1,6 +1,6 @@
 
 #define _CRT_SECURE_NO_WARNINGS 1
-#define WIN32_LEAN_AND_MEAN 1
+#include "common/macro.h"
 
 #include <windows.h>
 
@@ -14,7 +14,6 @@
 #include <direct.h>
 
 #include "common/io.h"
-#include "common/macro.h"
 #include "common/stringutil.h"
 
 namespace IO
@@ -39,16 +38,31 @@ namespace IO
 
     // ------------------------------------------------------------------------
 
-    FD Create(cstr filename, EResult& err)
+    FD Create(cstr filename, u32 flags, EResult& err)
     {
         ASSERT(filename);
-        return { NotNeg(_creat(filename, _S_IREAD | _S_IWRITE), err) };
+
+        i32 pMode = _S_IREAD;
+        if (flags & OReadWrite)
+        {
+            pMode |= _S_IWRITE;
+        }
+        i32 oFlags = (i32)flags | _O_CREAT | _O_EXCL;
+
+        i32 fd = _open(
+            filename,
+            oFlags,
+            pMode);
+
+        return { NotNeg(fd, err) };
     }
+
     FD Open(cstr filename, u32 flags, EResult& err)
     {
         ASSERT(filename);
         return { NotNeg(_open(filename, (i32)flags, _S_IREAD | _S_IWRITE), err) };
     }
+
     void Close(FD& hdl, EResult& err)
     {
         i32 fd = hdl.fd;
@@ -59,6 +73,7 @@ namespace IO
             IsZero(_close(fd), err);
         }
     }
+
     i32 Read(FD hdl, void* dst, usize size, EResult& err)
     {
         ASSERT(IsOpen(hdl));
@@ -66,6 +81,7 @@ namespace IO
         ASSERT(size);
         return NotNeg(_read(hdl.fd, dst, (u32)size), err);
     }
+
     i32 Write(FD hdl, const void* src, usize size, EResult& err)
     {
         ASSERT(IsOpen(hdl));
@@ -73,6 +89,24 @@ namespace IO
         ASSERT(size);
         return NotNeg(_write(hdl.fd, src, (u32)size), err);
     }
+
+    void Grow(FD hdl, usize size, EResult& err)
+    {
+        ASSERT(IsOpen(hdl));
+        if (size > 0)
+        {
+            i64 curSize = Size(hdl, err);
+            if (size > (usize)curSize)
+            {
+                i32 prevOffset = Tell(hdl, err);
+                Seek(hdl, size - 1, err);
+                u8 x = 0;
+                Write(hdl, &x, 1, err);
+                Seek(hdl, prevOffset, err);
+            }
+        }
+    }
+
     i32 Puts(cstrc str, FD hdl)
     {
         ASSERT(str);
@@ -84,16 +118,19 @@ namespace IO
         ASSERT(err == ESuccess);
         return ct;
     }
+
     i32 Seek(FD hdl, isize offset, EResult& err)
     {
         ASSERT(IsOpen(hdl));
         return NotNeg((i32)_lseek(hdl.fd, (i32)offset, SEEK_SET), err);
     }
+
     i32 Tell(FD hdl, EResult& err)
     {
         ASSERT(IsOpen(hdl));
         return NotNeg(_tell(hdl.fd), err);
     }
+
     void Pipe(FD& p0, FD& p1, usize bufferSize, EResult& err)
     {
         i32 fds[2] = { -1, -1 };
@@ -101,6 +138,7 @@ namespace IO
         p0.fd = fds[0];
         p1.fd = fds[1];
     }
+
     void Stat(FD hdl, Status& status, EResult& err)
     {
         ASSERT(IsOpen(hdl));
@@ -366,8 +404,8 @@ namespace IO
                     dir.data.name,
                     data.name);
 
-                subdir.subdirs.Init(dir.subdirs.GetAllocType());
-                subdir.files.Init(dir.subdirs.GetAllocType());
+                subdir.subdirs.Init(dir.subdirs.GetAllocator());
+                subdir.files.Init(dir.subdirs.GetAllocator());
 
                 char buffer[PIM_PATH] = {};
                 {
@@ -467,52 +505,56 @@ namespace IO
 
     // ------------------------------------------------------------------------
 
-    FileMap MapFile(cstr path, bool writable)
+    FileMap MapFile(IO::FD fd, bool writable, EResult& err)
     {
-        ASSERT(path);
+        err = EUnknown;
 
-        const u32 fileAccess = 
-            GENERIC_READ | (writable ? GENERIC_WRITE : 0u);
-        const u32 shareMode = 0u;
-        const u32 creationDisposition = OPEN_EXISTING;
-        const u32 flagsAndAttributes = FILE_ATTRIBUTE_NORMAL;
+        if (!IsOpen(fd))
+        {
+            err = EFail;
+            return {};
+        }
 
-        void* hFile = CreateFileA(
-            path,
-            fileAccess,
-            shareMode,
-            nullptr,
-            creationDisposition,
-            flagsAndAttributes,
-            nullptr);
-        if (!hFile)
+        const i32 fileSize = (i32)Size(fd, err);
+        if (err == EFail)
         {
             return {};
         }
 
-        const usize fileSize = GetFileSize(hFile, nullptr);
-        if (!fileSize)
+        if (fileSize <= 0)
         {
-            CloseHandle(hFile);
+            err = EFail;
             return {};
         }
 
-        const u32 flProtect = writable ? PAGE_READWRITE : PAGE_READONLY;
-        void* hMapping = CreateFileMappingA(
+        HANDLE hFile = (HANDLE)_get_osfhandle(fd.fd);
+        if (hFile == INVALID_HANDLE_VALUE)
+        {
+            err = EFail;
+            return {};
+        }
+
+        const u32 flProtect =
+            writable ? PAGE_READWRITE : PAGE_READONLY;
+
+        HANDLE hMapping = CreateFileMappingA(
             hFile,
             nullptr,
             flProtect,
             0u,
             0u,
             nullptr);
-        if (!hMapping)
+        if (hMapping == INVALID_HANDLE_VALUE)
         {
-            CloseHandle(hFile);
+            err = EFail;
             return {};
         }
 
+        constexpr u32 FILE_MAP_READWRITE = FILE_MAP_READ | FILE_MAP_WRITE;
+
         const u32 viewAccess =
-            FILE_MAP_READ | (writable ? FILE_MAP_WRITE : 0u);
+            writable ? FILE_MAP_READWRITE : FILE_MAP_READ;
+
         void* addr = MapViewOfFile(
             hMapping,
             viewAccess,
@@ -522,15 +564,16 @@ namespace IO
         if (!addr)
         {
             CloseHandle(hMapping);
-            CloseHandle(hFile);
+            err = EFail;
             return {};
         }
 
         FileMap map = {};
-        map.hFile = hFile;
+        map.fd = fd;
         map.hMapping = hMapping;
-        map.address = addr;
-        map.size = fileSize;
+        map.memory = { (u8*)addr, fileSize };
+
+        err = ESuccess;
 
         return map;
     }
@@ -539,12 +582,21 @@ namespace IO
     {
         if (IsOpen(map))
         {
-            UnmapViewOfFile(map.address);
+            UnmapViewOfFile(map.memory.begin());
             CloseHandle(map.hMapping);
-            CloseHandle(map.hFile);
+            EResult err;
+            Close(map.fd, err);
         }
 
         map = {};
     }
 
-}; // IO
+    bool Flush(
+        FileMap map,
+        i32 offset,
+        i32 size)
+    {
+        Slice<u8> region = map.memory.Subslice(offset, size);
+        return FlushViewOfFile(region.begin(), region.size());
+    }
+};

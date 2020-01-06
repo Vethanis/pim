@@ -44,7 +44,6 @@ namespace Allocator
             Slice<u8> allocation = m_memory.Subslice(offset, size);
             Header* pNew = (Header*)allocation.begin();
             pNew->size = size;
-            pNew->type = Alloc_Pool;
             pNew->c = size;
             pNew->d = offset;
             return pNew;
@@ -77,8 +76,8 @@ namespace Allocator
             {
                 Slice<u8> oldSlice = pOld->AsSlice().Tail(sizeof(Header));
                 Slice<u8> newSlice = pNew->AsSlice().Tail(sizeof(Header));
-                const i32 cpySize = Min(newSlice.Size(), oldSlice.Size());
-                if (newSlice.Overlaps(oldSlice))
+                const i32 cpySize = Min(newSlice.size(), oldSlice.size());
+                if (Overlaps(newSlice, oldSlice))
                 {
                     memmove(newSlice.begin(), oldSlice.begin(), cpySize);
                 }

@@ -62,7 +62,7 @@ static ChunkAllocator ms_allocators[ComponentId_COUNT];
 static void* Allocate(i32 id, i32 index)
 {
     Array<void*>& arr = ms_ptrs[id];
-    const i32 size = arr.Size();
+    const i32 size = arr.size();
     if (size <= index)
     {
         arr.Resize(index + 1);
@@ -95,7 +95,7 @@ static void SearchAll(
     ComponentFlags all,
     Array<Entity>& storage)
 {
-    const i32 count = ms_ids.m_versions.Size();
+    const i32 count = ms_ids.m_versions.size();
     const u16* versions = ms_ids.m_versions.begin();
     const ComponentFlags* flags = ms_flags.begin();
     for (i32 i = 0; i < count; ++i)
@@ -114,7 +114,7 @@ static void SearchAny(
     ComponentFlags any,
     Array<Entity>& storage)
 {
-    const i32 count = ms_ids.m_versions.Size();
+    const i32 count = ms_ids.m_versions.size();
     const u16* versions = ms_ids.m_versions.begin();
     const ComponentFlags* flags = ms_flags.begin();
     for (i32 i = 0; i < count; ++i)
@@ -133,7 +133,7 @@ static void SearchNone(
     ComponentFlags none,
     Array<Entity>& storage)
 {
-    const i32 count = ms_ids.m_versions.Size();
+    const i32 count = ms_ids.m_versions.size();
     const u16* versions = ms_ids.m_versions.begin();
     const ComponentFlags* flags = ms_flags.begin();
     for (i32 i = 0; i < count; ++i)
@@ -153,7 +153,7 @@ static void SearchAllAny(
     ComponentFlags any,
     Array<Entity>& storage)
 {
-    const i32 count = ms_ids.m_versions.Size();
+    const i32 count = ms_ids.m_versions.size();
     const u16* versions = ms_ids.m_versions.begin();
     const ComponentFlags* flags = ms_flags.begin();
     for (i32 i = 0; i < count; ++i)
@@ -175,7 +175,7 @@ static void SearchAllNone(
     ComponentFlags none,
     Array<Entity>& storage)
 {
-    const i32 count = ms_ids.m_versions.Size();
+    const i32 count = ms_ids.m_versions.size();
     const u16* versions = ms_ids.m_versions.begin();
     const ComponentFlags* flags = ms_flags.begin();
     for (i32 i = 0; i < count; ++i)
@@ -197,7 +197,7 @@ static void SearchAnyNone(
     ComponentFlags none,
     Array<Entity>& storage)
 {
-    const i32 count = ms_ids.m_versions.Size();
+    const i32 count = ms_ids.m_versions.size();
     const u16* versions = ms_ids.m_versions.begin();
     const ComponentFlags* flags = ms_flags.begin();
     for (i32 i = 0; i < count; ++i)
@@ -220,7 +220,7 @@ static void SearchAllAnyNone(
     ComponentFlags none,
     Array<Entity>& storage)
 {
-    const i32 count = ms_ids.m_versions.Size();
+    const i32 count = ms_ids.m_versions.size();
     const u16* versions = ms_ids.m_versions.begin();
     const ComponentFlags* flags = ms_flags.begin();
     for (i32 i = 0; i < count; ++i)
@@ -437,7 +437,7 @@ namespace Ecs
             break;
         }
 
-        return { storage.begin(), storage.Size() };
+        return { storage.begin(), storage.size() };
     }
 
     void Add(EntityQuery query, std::initializer_list<ComponentId> ids)

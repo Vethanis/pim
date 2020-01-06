@@ -48,22 +48,33 @@ static void Sort(T* items, i32 count, const Comparable<T> cmp)
 }
 
 template<typename T>
-static void AddSort(T* items, i32 countWithItem, T item, const Comparable<T> cmp)
+static i32 PushSort(T* items, i32 countWithItem, T item, const Comparable<T> cmp)
 {
+    ASSERT(items);
+    ASSERT(countWithItem > 0);
+
     const i32 back = countWithItem - 1;
     items[back] = item;
 
+    i32 pos = back;
     for (i32 i = back; i > 0; --i)
     {
-        if (cmp(items[i - 1], items[i]) > 0)
+        const i32 lhs = i - 1;
+        if (cmp(items[lhs], items[i]) > 0)
         {
-            T tmp = items[i - 1];
-            items[i - 1] = items[i];
+            T tmp = items[lhs];
+            items[lhs] = items[i];
             items[i] = tmp;
+            pos = lhs;
         }
         else
         {
             break;
         }
     }
+
+    ASSERT(pos >= 0);
+    ASSERT(cmp(items[pos], item) == 0);
+
+    return pos;
 }

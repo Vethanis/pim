@@ -53,9 +53,9 @@ namespace Allocator
         void Free(Header* prev)
         {
             Slice<u8> slice = prev->AsSlice();
-            if (m_current.Adjacent(slice))
+            if (Adjacent(m_current, slice))
             {
-                m_current.Combine(slice);
+                m_current = Combine(m_current, slice);
             }
         }
 

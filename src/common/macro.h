@@ -25,6 +25,12 @@
 #if PLAT_WINDOWS
     #define RESTRICT                __restrict
     #define INTERRUPT()             __debugbreak()
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
 
     #define IF_WIN32(x)             x
     #define IF_UNIX(x)              

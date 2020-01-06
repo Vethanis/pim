@@ -88,6 +88,26 @@ static u32 MemHashFn(const T& item)
 // ----------------------------------------------------------------------------
 
 template<typename T>
+static i32 PtrCompareFn(const T& lhs, const T& rhs)
+{
+    return (i32)(lhs - rhs);
+}
+
+template<typename T>
+static bool PtrEqualsFn(const T& lhs, const T& rhs)
+{
+    return lhs == rhs;
+}
+
+template<typename T>
+static u32 PtrHashFn(const T& item)
+{
+    return Fnv32Qword((u64)item);
+}
+
+// ----------------------------------------------------------------------------
+
+template<typename T>
 static constexpr Comparator<T> OpComparator()
 {
     return Comparator<T>
@@ -153,6 +173,46 @@ static constexpr Hashable<T> MemHashable()
     return Hashable<T>
     {
         MemHashFn<T>,
+    };
+}
+
+// ----------------------------------------------------------------------------
+
+template<typename T>
+static constexpr Comparator<T> PtrComparator()
+{
+    return Comparator<T>
+    {
+        PtrEqualsFn<T>,
+        PtrCompareFn<T>,
+        PtrHashFn<T>,
+    };
+}
+
+template<typename T>
+static constexpr Comparable<T> PtrComparable()
+{
+    return Comparable<T>
+    {
+        PtrCompareFn<T>,
+    };
+}
+
+template<typename T>
+static constexpr Equatable<T> PtrEquatable()
+{
+    return Equatable<T>
+    {
+        PtrEqualsFn<T>,
+    };
+}
+
+template<typename T>
+static constexpr Hashable<T> PtrHashable()
+{
+    return Hashable<T>
+    {
+        PtrHashFn<T>,
     };
 }
 

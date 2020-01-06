@@ -1,9 +1,6 @@
 #pragma once
 
-#ifndef NOMINMAX
-    #define NOMINMAX
-#endif
-
+#include "common/macro.h"
 #include "math/vec_ops.h"
 #include "common/apply.h"
 #include <math.h>

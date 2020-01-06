@@ -18,9 +18,9 @@ template<
 
     // ------------------------------------------------------------------------
 
-    inline i32 Size() const { return (i32)m_count; }
-    inline i32 Capacity() const { return (i32)m_width; }
-    inline AllocType GetAllocType() const { return (AllocType)m_allocator; }
+    inline i32 size() const { return (i32)m_count; }
+    inline i32 capacity() const { return (i32)m_width; }
+    inline AllocType GetAllocator() const { return (AllocType)m_allocator; }
 
     void Init(AllocType allocator)
     {
@@ -52,7 +52,7 @@ template<
     {
         HashSet set;
         set.Init(allocator);
-        set.Reserve(keys.Size());
+        set.Reserve(keys.size());
         for (const K& key : keys)
         {
             set.Add(key);
@@ -85,8 +85,8 @@ template<
             return;
         }
 
-        u32* newHashes = Allocator::CallocT<u32>(GetAllocType(), newWidth);
-        K* newKeys = Allocator::CallocT<K>(GetAllocType(), newWidth);
+        u32* newHashes = Allocator::CallocT<u32>(GetAllocator(), newWidth);
+        K* newKeys = Allocator::CallocT<K>(GetAllocator(), newWidth);
 
         const u32* oldHashes = m_hashes;
         const K* oldKeys = m_keys;
@@ -113,11 +113,11 @@ template<
         m_keys = newKeys;
     }
 
-    void Reserve(u32 capacity)
+    void Reserve(u32 cap)
     {
-        if ((capacity * 10u) >= (m_width * 7u))
+        if ((cap * 10u) >= (m_width * 7u))
         {
-            Resize(Max(capacity, 8u));
+            Resize(Max(cap, 8u));
         }
     }
 

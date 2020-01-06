@@ -82,6 +82,14 @@
  *
  **********************************************************************/
 
+#ifndef WIN32_LEAN_AND_MEAN
+    #define WIN32_LEAN_AND_MEAN
+#endif
+
+#ifndef NOMINMAX
+    #define NOMINMAX
+#endif
+
 #include "StackWalker.h"
 
 #include <stdio.h>
@@ -140,8 +148,8 @@ static bool GetEnvVar(const char* name, char(&buffer)[nSize])
 
 static bool GetOsVersion(OSVERSIONINFOA& version)
 {
-    memset(&version, 0, sizeof(version));
-    version.dwOSVersionInfoSize = sizeof(version);
+    memset(&version, 0, sizeof(OSVERSIONINFOA));
+    version.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
     return GetVersionExA(&version);
 }
 

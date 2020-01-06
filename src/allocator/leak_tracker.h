@@ -117,7 +117,7 @@ struct LeakTracker
             StackWalker::DefaultOnOutput(m_base, pair.Value.text.value);
         }
 
-        if (!m_items.Size())
+        if (!m_items.size())
         {
             StackWalker::DefaultOnOutput(m_base, "No Leaks! : )\n");
         }

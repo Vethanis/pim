@@ -4,10 +4,10 @@
 #include "containers/array.h"
 #include "common/find.h"
 #include "common/sort.h"
+#include "common/guid_util.h"
 
 static constexpr i32 MaxSystems = 64;
-static constexpr auto GuidComparator = OpComparator<Guid>();
-using GuidSet = HashSet<Guid, GuidComparator>;
+static constexpr auto GuidEq = GuidComparator.Equals;
 
 static i32 ms_systemCount;
 static Guid ms_names[MaxSystems];
@@ -19,7 +19,7 @@ static bool ms_needsSort;
 
 static const System& GetSystem(Guid name)
 {
-    i32 i = RFind(ms_names, ms_systemCount, name);
+    i32 i = RFind(ms_names, ms_systemCount, name, GuidEq);
     ASSERT(i != -1);
     return ms_systems[i];
 }
@@ -113,7 +113,7 @@ namespace SystemRegistry
 {
     void Register(System system)
     {
-        ASSERT(!Contains(ms_names, ms_systemCount, system.Name));
+        ASSERT(!Contains(ms_names, ms_systemCount, system.Name, GuidEq));
         ASSERT(ms_systemCount < MaxSystems);
 
         const i32 i = ms_systemCount++;

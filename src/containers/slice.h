@@ -2,7 +2,6 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "common/minmax.h"
 
 template<typename T>
 struct Slice
@@ -11,18 +10,18 @@ struct Slice
     i32 len;
 
     inline bool InRange(i32 i) const { return (u32)i < (u32)len; }
-    inline i32 Size() const { return len; }
     inline bool IsEmpty() const { return len == 0; }
-    inline i32 Bytes() const { return len * sizeof(T); }
 
+    inline i32 bytes() const { return len * sizeof(T); }
+    inline i32 size() const { return len; }
     inline T* begin() { return ptr; }
     inline T* end() { return ptr + len; }
     inline const T* begin() const { return ptr; }
     inline const T* end() const { return ptr + len; }
-    inline T& Front() { ASSERT(len > 0); return ptr[0]; }
-    inline const T& Front() const { ASSERT(len > 0); return ptr[0]; }
-    inline T& Back() { ASSERT(len > 0); return ptr[len - 1]; }
-    inline const T& Back() const { ASSERT(len > 0); return ptr[len - 1]; }
+    inline T& front() { ASSERT(len > 0); return ptr[0]; }
+    inline const T& front() const { ASSERT(len > 0); return ptr[0]; }
+    inline T& back() { ASSERT(len > 0); return ptr[len - 1]; }
+    inline const T& back() const { ASSERT(len > 0); return ptr[len - 1]; }
     inline T& operator[](i32 i) { ASSERT(InRange(i)); return ptr[i]; }
     inline const T& operator[](i32 i) const { ASSERT(InRange(i)); return ptr[i]; }
 
@@ -32,7 +31,7 @@ struct Slice
         return
         {
             (U*)begin(),
-            Bytes() / (i32)sizeof(U)
+            bytes() / (i32)sizeof(U)
         };
     }
 
@@ -68,22 +67,15 @@ struct Slice
     {
         return Subslice(first, len - first);
     }
-
-    inline bool Overlaps(const Slice<T> other) const
-    {
-        return ::Overlaps(begin(), end(), other.begin(), other.end());
-    }
-
-    inline bool Adjacent(const Slice<T> other) const
-    {
-        return ::Adjacent(begin(), end(), other.begin(), other.end());
-    }
-
-    inline void Combine(Slice<T> other)
-    {
-        ASSERT(Adjacent(other));
-        ptr = ptr < other.ptr ? ptr : other.ptr;
-        len = len + other.len;
-        ASSERT(len >= 0);
-    }
 };
+
+template<typename T>
+static Slice<T> Combine(Slice<T> lhs, Slice<T> rhs)
+{
+    ASSERT(Adjacent(lhs, rhs));
+    return
+    {
+        lhs.ptr < rhs.ptr ? lhs.ptr : rhs.ptr,
+        lhs.len + rhs.len
+    };
+}

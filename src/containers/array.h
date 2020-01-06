@@ -23,6 +23,7 @@ struct Array
         m_capacity = 0;
         m_allocator = allocType;
     }
+
     inline void Reset()
     {
         Allocator::Free(m_ptr);
@@ -30,16 +31,18 @@ struct Array
         m_capacity = 0;
         m_length = 0;
     }
+
     inline void Clear()
     {
         m_length = 0;
     }
+
     inline void Trim()
     {
         const i32 len = m_length;
         if (m_capacity > len)
         {
-            m_ptr = Allocator::ReallocT<T>(GetAllocType(), m_ptr, len);
+            m_ptr = Allocator::ReallocT<T>(GetAllocator(), m_ptr, len);
             m_capacity = len;
         }
     }
@@ -47,12 +50,12 @@ struct Array
     // ------------------------------------------------------------------------
 
     inline bool InRange(i32 i) const { return (u32)i < (u32)m_length; }
-    inline i32 Size() const { return m_length; }
-    inline i32 Capacity() const { return m_capacity; }
-    inline AllocType GetAllocType() const { return (AllocType)m_allocator; }
+    inline AllocType GetAllocator() const { return (AllocType)m_allocator; }
     inline bool IsEmpty() const { return m_length == 0; }
     inline bool IsFull() const { return m_length == m_capacity; }
 
+    inline i32 capacity() const { return m_capacity; }
+    inline i32 size() const { return m_length; }
     inline const T* begin() const { return m_ptr; }
     inline const T* end() const { return m_ptr + m_length; }
     inline const T& front() const { ASSERT(InRange(0)); return m_ptr[0]; }
@@ -69,11 +72,11 @@ struct Array
 
     inline Slice<const T> AsSlice() const
     {
-        return { begin(), Size() };
+        return { m_ptr, m_length };
     }
     inline Slice<T> AsSlice()
     {
-        return { begin(), Size() };
+        return { m_ptr, m_length };
     }
 
     inline operator Slice<const T>() const { return AsSlice(); }
@@ -82,7 +85,7 @@ struct Array
     inline void Reserve(i32 newCap)
     {
         i32 cap = m_capacity;
-        m_ptr = Allocator::Reserve<T>(GetAllocType(), m_ptr, cap, newCap);
+        m_ptr = Allocator::Reserve<T>(GetAllocator(), m_ptr, cap, newCap);
         m_capacity = cap;
     }
     inline void ReserveRel(i32 relSize)
@@ -91,106 +94,110 @@ struct Array
     }
     inline void Resize(i32 newLen)
     {
+        ASSERT(newLen >= 0);
         Reserve(newLen);
         m_length = newLen;
     }
     inline i32 ResizeRel(i32 relSize)
     {
-        i32 prevLen = m_length;
-        Resize(m_length + relSize);
+        const i32 prevLen = m_length;
+        Resize(prevLen + relSize);
         return prevLen;
     }
     inline T& Grow()
     {
-        const i32 iBack = m_length;
-        const i32 newLen = iBack + 1;
-        Reserve(newLen);
-        m_length = newLen;
+        const i32 iBack = m_length++;
+        Reserve(iBack + 1);
         T& item = m_ptr[iBack];
         memset(&item, 0, sizeof(T));
         return item;
     }
     inline void Pop()
     {
-        ASSERT(m_length > 0);
-        --m_length;
+        const i32 iBack = --m_length;
+        ASSERT(iBack >= 0);
     }
-    inline T PopValue()
+    inline void PushBack(T item)
     {
-        T item = back();
-        Pop();
-        return item;
+        const i32 iBack = m_length++;
+        Reserve(iBack + 1);
+        m_ptr[iBack] = item;
+    }
+    inline T PopBack()
+    {
+        const i32 iBack = --m_length;
+        ASSERT(iBack >= 0);
+        return m_ptr[iBack];
     }
     inline T PopFront()
     {
-        T* ptr = m_ptr;
-        const i32 len = m_length--;
-        ASSERT(len > 0);
-        T item = ptr[0];
-        for (i32 i = 1; i < len; ++i)
-        {
-            ptr[i - 1] = ptr[i];
-        }
+        const T item = front();
+        ShiftRemove(0);
         return item;
     }
-    inline void Remove(i32 i)
+    inline void PushFront(T item)
     {
-        T* ptr = m_ptr;
-        const i32 b = --m_length;
-        ASSERT((u32)i <= (u32)b);
-        ptr[i] = ptr[b];
+        ShiftInsert(0, item);
+    }
+    inline void Remove(i32 idx)
+    {
+        const i32 iBack = --m_length;
+        ASSERT(iBack >= 0);
+        ASSERT((u32)idx <= (u32)iBack);
+
+        T* const ptr = m_ptr;
+        ptr[idx] = ptr[iBack];
     }
     inline void ShiftRemove(i32 idx)
     {
-        ASSERT((u32)idx < (u32)m_length);
-        T* ptr = begin();
-        const i32 len = m_length--;
-        for (i32 i = idx + 1; i < len; ++i)
+        const i32 iBack = --m_length;
+        ASSERT(iBack >= 0);
+        ASSERT((u32)idx <= (u32)iBack);
+
+        T* const ptr = m_ptr;
+        for (i32 i = idx; i < iBack; ++i)
         {
-            ptr[i - 1] = ptr[i];
+            ptr[i] = ptr[i + 1];
         }
     }
     inline void ShiftInsert(i32 idx, const T& value)
     {
-        const i32 len = ++m_length;
-        ASSERT((u32)idx < (u32)len);
-        Reserve(len);
-        T* ptr = m_ptr;
-        for (i32 i = len - 1; i > idx; --i)
+        const i32 length = m_length++;
+        ASSERT(idx >= 0);
+        ASSERT((u32)idx <= (u32)length);
+
+        Reserve(length + 1);
+        T* const ptr = m_ptr;
+        for (i32 i = length; i > idx; --i)
         {
             ptr[i] = ptr[i - 1];
         }
         ptr[idx] = value;
     }
-    inline void ShiftTail(i32 tailSize)
-    {
-        ASSERT(tailSize >= 0);
-        T* ptr = m_ptr;
-        const i32 len = m_length;
-        const i32 diff = len - tailSize;
-        if (diff > 0)
-        {
-            for (i32 i = diff; i < len; ++i)
-            {
-                ptr[i - diff] = ptr[i];
-            }
-            m_length = tailSize;
-        }
-    }
-    inline void Copy(Slice<const T> other)
-    {
-        Resize(other.Size());
-        memcpy(begin(), other.begin(), sizeof(T) * Size());
-    }
-    inline void Copy(const Slice<T> other)
-    {
-        Resize(other.Size());
-        memcpy(begin(), other.begin(), sizeof(T) * Size());
-    }
-    inline void Assume(Array<T>& other)
-    {
-        Reset();
-        memcpy(this, &other, sizeof(*this));
-        memset(&other, 0, sizeof(*this));
-    }
 };
+
+template<typename T>
+inline void Copy(Array<T>& dst, Slice<const T> src)
+{
+    const i32 length = src.size();
+    const i32 bytes = sizeof(T) * length;
+    dst.Resize(length);
+    memcpy(dst.begin(), src.begin(), bytes);
+}
+
+template<typename T>
+inline void Copy(Array<T>& dst, Slice<T> src)
+{
+    const i32 length = src.size();
+    const i32 bytes = sizeof(T) * length;
+    dst.Resize(length);
+    memcpy(dst.begin(), src.begin(), bytes);
+}
+
+template<typename T>
+inline void Move(Array<T>& dst, Array<T>& src)
+{
+    dst.Reset();
+    memcpy(&dst, &src, sizeof(Array<T>));
+    memset(&src, 0, sizeof(Array<T>));
+}

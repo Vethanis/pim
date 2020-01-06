@@ -25,6 +25,7 @@ struct Queue
         m_tail = 0;
         m_ptr = 0;
     }
+
     inline void Reset()
     {
         Allocator::Free(m_ptr);
@@ -33,26 +34,29 @@ struct Queue
         m_head = 0;
         m_tail = 0;
     }
+
     inline void Clear()
     {
         m_tail = 0;
         m_head = 0;
     }
+
     inline void Trim()
     {
-        FitTo(Size());
+        FitTo(size());
     }
 
     // ------------------------------------------------------------------------
 
-    inline AllocType GetAllocType() const { return m_allocator; }
-    inline i32 Capacity() const { return m_width; }
+    inline i32 capacity() const { return m_width; }
+    inline i32 size() const { return m_tail - m_head; }
+
+    inline AllocType GetAllocator() const { return m_allocator; }
     inline i32 Mask() const { return m_width - 1; }
-    inline i32 Size() const { return m_tail - m_head; }
     inline i32 Head() const { return m_head & (m_width - 1); }
     inline i32 Tail() const { return m_tail & (m_width - 1); }
-    inline bool HasItems() const { return Size() > 0; }
-    inline bool IsEmpty() const { return Size() == 0; }
+    inline bool HasItems() const { return size() > 0; }
+    inline bool IsEmpty() const { return size() == 0; }
 
     // ------------------------------------------------------------------------
 
@@ -185,14 +189,14 @@ struct Queue
 
     inline void Push(T value)
     {
-        Reserve(Size() + 1);
+        Reserve(size() + 1);
         const i32 tail = m_tail++;
         const i32 mask = m_width - 1;
         const i32 index = tail & mask;
         m_ptr[index] = value;
     }
 
-    void Push(T value, const Comparable<T> cmp)
+    i32 Push(T value, const Comparable<T> cmp)
     {
         const i32 back = m_tail - m_head;
         Reserve(back + 1);
@@ -207,6 +211,7 @@ struct Queue
             ptr[index] = value;
         }
 
+        i32 pos = back;
         for (i32 i = back; i > 0; --i)
         {
             const i32 rhs = (head + i) & mask;
@@ -217,12 +222,14 @@ struct Queue
                 T tmp = ptr[lhs];
                 ptr[lhs] = ptr[rhs];
                 ptr[rhs] = tmp;
+                --pos;
             }
             else
             {
                 break;
             }
         }
+        return pos;
     }
 
     // ------------------------------------------------------------------------
@@ -295,3 +302,34 @@ struct Queue
 
     // ------------------------------------------------------------------------
 };
+
+template<typename T>
+inline i32 Find(const Queue<T> queue, const T& key, const Equatable<T> eq)
+{
+    const i32 count = queue.size();
+    for (i32 i = 0; i < count; ++i)
+    {
+        if (eq(key, queue[i]))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+template<typename T>
+inline void Remove(Queue<T>& queue, i32 i)
+{
+    Queue<T> local = queue;
+
+    const i32 size = local.size();
+    const i32 back = size - 1;
+    ASSERT((u32)i < (u32)size);
+
+    for (; i < back; ++i)
+    {
+        local[i] = local[i + 1];
+    }
+
+    queue.Pop();
+}
