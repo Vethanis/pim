@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/int_types.h"
-#include "os/atomics.h"
+#include "os/atomic_types.h"
 
 namespace OS
 {
@@ -34,7 +34,7 @@ namespace OS
 
     struct SpinLock
     {
-        Ai32 m_count;
+        a32 m_count;
 
         bool TryLock();
         void Lock();
@@ -44,12 +44,12 @@ namespace OS
     struct LightSema
     {
         Semaphore m_sema;
-        Ai32 m_count;
+        a32 m_count;
 
         inline bool IsOpen() const { return m_sema.IsOpen(); }
         inline bool Open(u32 initialValue = 0)
         {
-            m_count.m_value = (i32)initialValue;
+            m_count.Value = (i32)initialValue;
             return m_sema.Open(initialValue);
         }
         inline bool Close() { return m_sema.Close(); }
@@ -79,13 +79,13 @@ namespace OS
 
     struct RWLock
     {
-        Au32 m_state;
+        a32 m_state;
         LightSema m_read;
         LightSema m_write;
 
         void Open()
         {
-            m_state.m_value = 0;
+            m_state.Value = 0;
             m_read.Open();
             m_write.Open();
         }
@@ -103,12 +103,12 @@ namespace OS
 
     struct Event
     {
-        Ai32 m_state;
+        a32 m_state;
         LightSema m_sema;
 
         bool Open(bool signalled = false)
         {
-            m_state.m_value = signalled ? 1 : 0;
+            m_state.Value = signalled ? 1 : 0;
             return m_sema.Open(signalled ? 1u : 0u);
         }
         bool Close()

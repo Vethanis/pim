@@ -37,7 +37,7 @@ struct ThreadAdapter
 
 static constexpr isize MaxThreads = 64;
 static ThreadAdapter ms_adapters[MaxThreads];
-static Ai32 ms_adaptersInUse[MaxThreads];
+static a32 ms_adaptersInUse[MaxThreads];
 
 static isize AllocAdapter(ThreadAdapter adapter)
 {
@@ -46,10 +46,8 @@ static isize AllocAdapter(ThreadAdapter adapter)
     {
         for (isize i = 0; i < MaxThreads; ++i)
         {
-            i32 state = 0;
-            if (ms_adaptersInUse[i].CmpExStrong(state, 1, MO_Acquire))
+            if (CmpEx(ms_adaptersInUse[i], 0, 1, MO_AcqRel) == 0)
             {
-                ASSERT(!state);
                 ms_adapters[i].fn = adapter.fn;
                 ms_adapters[i].data = adapter.data;
                 return i;
@@ -64,7 +62,7 @@ static isize AllocAdapter(ThreadAdapter adapter)
 
 static void FreeAdapter(isize i)
 {
-    i32 state = ms_adaptersInUse[i].Dec(MO_Release);
+    i32 state = Dec(ms_adaptersInUse[i], MO_AcqRel);
     ASSERT(state == 1);
 }
 

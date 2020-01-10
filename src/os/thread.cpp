@@ -3,6 +3,7 @@
 #include "common/macro.h"
 #include "common/minmax.h"
 #include "containers/bitpack.h"
+#include "os/atomics.h"
 
 static constexpr u64 SpinMultiplier = 100;
 static constexpr u64 MaxSpins = 10;
@@ -11,77 +12,60 @@ namespace OS
 {
     bool SpinLock::TryLock()
     {
-        i32 oldCount = m_count.Load(MO_Relaxed);
-        return (!oldCount) &&
-            m_count.CmpExStrong(oldCount, oldCount + 1, MO_Acquire);
+        return CmpEx(m_count, 0, 1, MO_AcqRel) == 0;
     }
 
     void SpinLock::Lock()
     {
-        if (!TryLock())
+        u64 spins = 0;
+        while (!TryLock())
         {
-            u64 spins = 0;
-            i32 oldCount;
-            while (true)
-            {
-                oldCount = m_count.Load(MO_Relaxed);
-                if ((!oldCount) &&
-                    m_count.CmpExStrong(oldCount, oldCount + 1, MO_AcqRel))
-                {
-                    return;
-                }
-                ASSERT(oldCount > 0);
-                AtomicSignalFence(MO_Acquire);
-                ++spins;
-                SpinWait(spins * SpinMultiplier);
-            }
+            ++spins;
+            SpinWait(spins * SpinMultiplier);
         }
     }
 
     void SpinLock::Unlock()
     {
-        i32 oldCount = m_count.Sub(1, MO_Release);
-        ASSERT(oldCount > 0);
+        u32 prev = Exchange(m_count, 0, MO_Release);
+        ASSERT(prev == 1);
     }
 
     // ------------------------------------------------------------------------
 
     bool LightSema::TryWait()
     {
-        i32 oldCount = m_count.Load(MO_Relaxed);
+        u32 oldCount = Load(m_count, MO_Relaxed);
         return (oldCount > 0) &&
-            m_count.CmpExStrong(oldCount, oldCount - 1, MO_Acquire);
+            (CmpEx(m_count, oldCount, oldCount - 1u, MO_AcqRel) == oldCount);
     }
 
     void LightSema::Wait()
     {
-        if (!TryWait())
+        u64 spins = 0;
+        i32 oldCount;
+        while (spins < MaxSpins)
         {
-            u64 spins = 0;
-            i32 oldCount;
-            while (spins < MaxSpins)
+            oldCount = Load(m_count, MO_Relaxed);
+            if (
+                (oldCount > 0) &&
+                (CmpEx(m_count, oldCount, oldCount - 1, MO_AcqRel) == oldCount))
             {
-                oldCount = m_count.Load(MO_Relaxed);
-                if ((oldCount > 0) &&
-                    m_count.CmpExStrong(oldCount, oldCount - 1, MO_AcqRel))
-                {
-                    return;
-                }
-                AtomicSignalFence(MO_Acquire);
-                ++spins;
-                SpinWait(spins * SpinMultiplier);
+                return;
             }
-            oldCount = m_count.Dec(MO_Acquire);
-            if (oldCount <= 0)
-            {
-                m_sema.Wait();
-            }
+            ++spins;
+            SpinWait(spins * SpinMultiplier);
+        }
+        oldCount = Dec(m_count, MO_Acquire);
+        if (oldCount <= 0)
+        {
+            m_sema.Wait();
         }
     }
 
     void LightSema::Signal(i32 count)
     {
-        i32 oldCount = m_count.Add(count, MO_Release);
+        i32 oldCount = FetchAdd(m_count, count, MO_Release);
         i32 toRelease = (-oldCount < count) ? -oldCount : count;
         if (toRelease > 0)
         {
@@ -115,7 +99,7 @@ namespace OS
     {
         using namespace RWLocks;
 
-        State oldState = m_state.Load(MO_Relaxed);
+        State oldState = Load(m_state, MO_Relaxed);
         State newState;
         do
         {
@@ -128,11 +112,7 @@ namespace OS
             {
                 newState.Inc<Readers>();
             }
-        } while (!m_state.CmpExWeak(
-            oldState,
-            newState,
-            MO_Acquire,
-            MO_Relaxed));
+        } while (!CmpExWeak(m_state, (u32&)oldState, newState, MO_Acquire, MO_Relaxed));
 
         if (oldState.Get<Writers>() > 0)
         {
@@ -144,7 +124,7 @@ namespace OS
     {
         using namespace RWLocks;
 
-        State oldState = m_state.Sub(OneReader, MO_Release);
+        State oldState = FetchAdd(m_state, 0u - OneReader, MO_Release);
         u32 writers = oldState.Get<Writers>();
         u32 readers = oldState.Get<Readers>();
         ASSERT(readers > 0);
@@ -158,7 +138,7 @@ namespace OS
     {
         using namespace RWLocks;
 
-        State oldState = m_state.Add(OneWriter, MO_Acquire);
+        State oldState = FetchAdd(m_state, OneWriter, MO_Acquire);
         u32 writers = oldState.Get<Writers>();
         u32 readers = oldState.Get<Readers>();
         ASSERT(writers != State::MaxValue);
@@ -172,7 +152,7 @@ namespace OS
     {
         using namespace RWLocks;
 
-        State oldState = m_state.Load(MO_Relaxed);
+        State oldState = Load(m_state, MO_Relaxed);
         State newState;
         u32 waits = 0u;
         do
@@ -186,11 +166,8 @@ namespace OS
                 newState.Set<RWaits>(0);
                 newState.Set<Readers>(waits);
             }
-        } while (!m_state.CmpExWeak(
-            oldState,
-            newState,
-            MO_Release,
-            MO_Relaxed));
+        } while (!CmpExWeak(
+            m_state, (u32&)oldState, newState, MO_Release, MO_Relaxed));
 
         if (waits > 0u)
         {
@@ -206,16 +183,13 @@ namespace OS
 
     void Event::Signal()
     {
-        i32 oldState = m_state.Load(MO_Relaxed);
+        i32 oldState = (i32)Load(m_state, MO_Relaxed);
         while (true)
         {
-            ASSERT(oldState <= 1);
+            ASSERT(oldState <= 1u);
             i32 newState = Min(oldState + 1, 1);
-            if (m_state.CmpExWeak(
-                oldState,
-                newState,
-                MO_Release,
-                MO_Relaxed))
+            if (CmpExWeak(
+                m_state, (u32&)oldState, (u32)newState, MO_Release, MO_Relaxed))
             {
                 break;
             }
@@ -228,7 +202,7 @@ namespace OS
 
     void Event::Wait()
     {
-        i32 oldState = m_state.Sub(1, MO_Acquire);
+        i32 oldState = (i32)Dec(m_state, MO_Acquire);
         ASSERT(oldState <= 1);
         if (oldState < 1)
         {

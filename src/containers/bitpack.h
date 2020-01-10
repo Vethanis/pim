@@ -54,8 +54,6 @@ namespace BitPack
         inline Value& operator=(Value value) { m_value = value.m_value; return *this; }
         inline Value& operator=(u32 value) { m_value = value; return *this; }
         inline operator u32() const { return m_value; }
-        inline operator const u32&() const { return m_value; }
-        inline operator u32&() { return m_value; }
 
         static constexpr u32 MaxValue = Mask(width);
 

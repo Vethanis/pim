@@ -573,6 +573,12 @@
     <ClInclude Include="..\src\containers\pool.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\os\atomic_types.h">
+      <Filter>Source Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\os\atomic_funcs.h">
+      <Filter>Source Files\os</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">

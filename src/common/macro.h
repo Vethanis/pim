@@ -4,6 +4,9 @@
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
     #define PLAT_WINDOWS            1
+    #ifdef _WIN64
+        #define PLAT_64
+    #endif
 #elif defined(__ANDROID__)
     #define PLAT_ANDROID            1
 #elif defined(__APPLE__)

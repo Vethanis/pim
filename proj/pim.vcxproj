@@ -117,6 +117,8 @@
     <ClInclude Include="..\src\math\vec_ops.h" />
     <ClInclude Include="..\src\math\vec_types.h" />
     <ClInclude Include="..\src\os\atomics.h" />
+    <ClInclude Include="..\src\os\atomic_funcs.h" />
+    <ClInclude Include="..\src\os\atomic_types.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\os\thread.h" />
     <ClInclude Include="..\src\physics\components.h" />

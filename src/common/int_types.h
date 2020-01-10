@@ -19,6 +19,7 @@ using u8 = uint8_t;
 using f64 = double;
 using f32 = float;
 
+using ptr_t = void*;
 using cstr = const char*;
 using cstrc = const char * const;
 
