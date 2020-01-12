@@ -7,7 +7,7 @@ static constexpr u32 kNumThreads = 32;
 static constexpr u32 kThreadMask = kNumThreads - 1u;
 
 static OS::Thread ms_threads[kNumThreads];
-static ScatterPipe<Task, 64> ms_pipes[kNumThreads];
+static ScatterPipe<Task, 16> ms_pipes[kNumThreads];
 static OS::LightSema ms_signal;
 static u32 ms_running;
 static u32 ms_robin;

@@ -3,6 +3,13 @@
 #include "common/macro.h"
 #include <atomic>
 
+SASSERT(MO_Relaxed == std::memory_order_relaxed);
+SASSERT(MO_Consume == std::memory_order_consume);
+SASSERT(MO_Acquire == std::memory_order_acquire);
+SASSERT(MO_Release == std::memory_order_release);
+SASSERT(MO_AcqRel == std::memory_order_acq_rel);
+SASSERT(MO_SeqCst == std::memory_order_seq_cst);
+
 // ----------------------------------------------------------------------------
 
 void SignalFenceAcquire() { std::atomic_signal_fence(std::memory_order_acquire); }
