@@ -14,7 +14,7 @@ struct LeakTracker
 
     struct Item
     {
-        void* ptr;
+        ptr_t ptr;
         i32 size;
         StackText text;
     };
@@ -26,8 +26,8 @@ struct LeakTracker
         StackText text;
     };
 
-    static constexpr auto PtrComparator = OpComparator<void*>();
-    HashDict<void*, Item, PtrComparator> m_items;
+    static constexpr auto VoidCmp = PtrComparator<ptr_t>();
+    HashDict<ptr_t, Item, VoidCmp> m_items;
     Item m_current;
 
     void ShowCallstack()
@@ -40,7 +40,7 @@ struct LeakTracker
         StackWalker::ShowCallstack(m_base);
     }
 
-    void OnAlloc(void* ptr, i32 size)
+    void OnAlloc(ptr_t ptr, i32 size)
     {
         m_current.ptr = ptr;
         m_current.size = size;
@@ -48,12 +48,12 @@ struct LeakTracker
         ShowCallstack();
     }
 
-    void OnFree(void* ptr)
+    void OnFree(ptr_t ptr)
     {
         m_items.Remove(ptr);
     }
 
-    void OnRealloc(void* pOld, void* pNew, i32 size)
+    void OnRealloc(ptr_t pOld, ptr_t pNew, i32 size)
     {
         OnFree(pOld);
         OnAlloc(pNew, size);
@@ -91,7 +91,7 @@ struct LeakTracker
 
     void ListLeaks()
     {
-        HashDict<Guid, Leak, GuidComparator::Value> leaks;
+        HashDict<Guid, Leak, GuidComparator> leaks;
         leaks.Init(Alloc_Debug);
 
         for (auto pair : m_items)

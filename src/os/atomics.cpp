@@ -1,149 +1,47 @@
 #include "os/atomics.h"
 
 #include "common/macro.h"
-
-#if PLAT_WINDOWS
-
-#include <Windows.h>
-#include <intrin.h>
+#include <atomic>
 
 // ----------------------------------------------------------------------------
 
-void SignalFenceAcquire() { _ReadWriteBarrier(); }
-void SignalFenceRelease() { _ReadWriteBarrier(); }
+void SignalFenceAcquire() { std::atomic_signal_fence(std::memory_order_acquire); }
+void SignalFenceRelease() { std::atomic_signal_fence(std::memory_order_release); }
 
-void ThreadFenceAcquire() { _ReadWriteBarrier(); }
-void ThreadFenceRelease() { _ReadWriteBarrier(); }
-
-// ----------------------------------------------------------------------------
-
-u32 CmpExRelaxed(a32& atom, u32 expected, u32 desired)
-{
-    return _InterlockedCompareExchange((long*)&atom, desired, expected);
-}
-u64 CmpExRelaxed(a64& atom, u64 expected, u64 desired)
-{
-    return _InterlockedCompareExchange64((LONG64*)&atom, desired, expected);
-}
-ptr_t CmpExRelaxed(aPtr& atom, ptr_t expected, ptr_t desired)
-{
-    return _InterlockedCompareExchangePointer((PVOID*)&atom, desired, expected);
-}
+void ThreadFenceAcquire() { std::atomic_thread_fence(std::memory_order_acquire); }
+void ThreadFenceRelease() { std::atomic_thread_fence(std::memory_order_release); }
 
 // ----------------------------------------------------------------------------
 
-bool CmpExWeakRelaxed(a32& atom, u32& expected, u32 desired)
-{
-    u32 e = expected;
-    u32 prev = _InterlockedCompareExchange((long*)&atom, desired, e);
-    bool matched = (prev == e);
-    if (!matched)
-    {
-        expected = prev;
-    }
-    return matched;
-}
-bool CmpExWeakRelaxed(a64& atom, u64& expected, u64 desired)
-{
-    u64 e = expected;
-    u64 prev = _InterlockedCompareExchange64((LONG64*)&atom, desired, e);
-    bool matched = (prev == e);
-    if (!matched)
-    {
-        expected = prev;
-    }
-    return matched;
-}
-bool CmpExWeakRelaxed(aPtr& atom, ptr_t& expected, ptr_t desired)
-{
-    ptr_t e = expected;
-    ptr_t prev = _InterlockedCompareExchangePointer((PVOID*)&atom, desired, e);
-    bool matched = (prev == e);
-    if (!matched)
-    {
-        expected = prev;
-    }
-    return matched;
-}
+#define STD_T(T, atom) reinterpret_cast<volatile std::atomic<T>&>(atom)
+#define STD_CT(T, atom) reinterpret_cast<const volatile std::atomic<T>&>(atom)
 
-// ----------------------------------------------------------------------------
+#define STD_E(ord) (std::memory_order)(ord)
 
-u32 ExchangeRelaxed(a32& atom, u32 desired)
-{
-    return _InterlockedExchange((long*)&atom, desired);
-}
-u64 ExchangeRelaxed(a64& atom, u64 desired)
-{
-    return _InterlockedExchange64((LONG64*)&atom, desired);
-}
-ptr_t ExchangeRelaxed(aPtr& atom, ptr_t desired)
-{
-    return _InterlockedExchangePointer((PVOID*)&atom, desired);
-}
+#define ATOMIC_IMPL(T) \
+    T Load(const volatile T& atom, MemOrder ord) { return STD_CT(T, atom).load(STD_E(ord)); } \
+    void Store(volatile T& atom, T x, MemOrder ord) { STD_T(T, atom).store(x, STD_E(ord)); } \
+    bool CmpExWeak(volatile T& atom, T& expected, T desired, MemOrder success, MemOrder failure) \
+    { \
+        return STD_T(T, atom).compare_exchange_weak(expected, desired, STD_E(success), STD_E(failure)); \
+    } \
+    bool CmpExStrong(volatile T& atom, T& expected, T desired, MemOrder success, MemOrder failure) \
+    { \
+        return STD_T(T, atom).compare_exchange_strong(expected, desired, STD_E(success), STD_E(failure)); \
+    } \
+    T Exchange(volatile T& atom, T x, MemOrder ord) { return STD_T(T, atom).exchange(x, STD_E(ord)); } \
+    T Inc(volatile T& atom, MemOrder ord) { return STD_T(T, atom).fetch_add(1, STD_E(ord)); } \
+    T Dec(volatile T& atom, MemOrder ord) { return STD_T(T, atom).fetch_sub(1, STD_E(ord)); } \
+    T FetchAdd(volatile T& atom, T x, MemOrder ord) { return STD_T(T, atom).fetch_add(x, STD_E(ord)); } \
+    T FetchSub(volatile T& atom, T x, MemOrder ord) { return STD_T(T, atom).fetch_sub(x, STD_E(ord)); } \
+    T FetchAnd(volatile T& atom, T x, MemOrder ord) { return STD_T(T, atom).fetch_and(x, STD_E(ord)); } \
+    T FetchOr(volatile T& atom, T x, MemOrder ord) { return STD_T(T, atom).fetch_or(x, STD_E(ord)); }
 
-// ----------------------------------------------------------------------------
-
-u32 FetchAddRelaxed(a32& atom, u32 x)
-{
-    return _InterlockedExchangeAdd((long*)&atom, x);
-}
-u64 FetchAddRelaxed(a64& atom, u64 x)
-{
-    return _InterlockedExchangeAdd64((LONG64*)&atom, x);
-}
-ptr_t FetchAddRelaxed(aPtr& atom, isize x)
-{
-#ifdef PLAT_64
-    return (PVOID)_InterlockedExchangeAdd64((LONG64*)&atom, x);
-#else
-    return (PVOID)_InterlockedExchangeAdd((long*)&atom, x);
-#endif
-}
-
-// ----------------------------------------------------------------------------
-
-u32 IncRelaxed(a32& atom)
-{
-    return _InterlockedIncrement((long*)&atom);
-}
-u64 IncRelaxed(a64& atom)
-{
-    return _InterlockedIncrement64((LONG64*)&atom);
-}
-
-// ----------------------------------------------------------------------------
-
-u32 DecRelaxed(a32& atom)
-{
-    return _InterlockedDecrement((long*)&atom);
-}
-u64 DecRelaxed(a64& atom)
-{
-    return _InterlockedDecrement64((LONG64*)&atom);
-}
-
-// ----------------------------------------------------------------------------
-
-u32 FetchAndRelaxed(a32& atom, u32 x)
-{
-    return _InterlockedAnd((long*)&atom, x);
-}
-u64 FetchAndRelaxed(a64& atom, u64 x)
-{
-    return _InterlockedAnd64((LONG64*)&atom, x);
-}
-
-// ----------------------------------------------------------------------------
-
-u32 FetchOrRelaxed(a32& atom, u32 x)
-{
-    return _InterlockedOr((long*)&atom, x);
-}
-u64 FetchOrRelaxed(a64& atom, u64 x)
-{
-    return _InterlockedOr64((LONG64*)&atom, x);
-}
-
-// ----------------------------------------------------------------------------
-
-#endif // PLAT_WINDOWS
+ATOMIC_IMPL(u8);
+ATOMIC_IMPL(i8);
+ATOMIC_IMPL(u16);
+ATOMIC_IMPL(i16);
+ATOMIC_IMPL(u32);
+ATOMIC_IMPL(i32);
+ATOMIC_IMPL(u64);
+ATOMIC_IMPL(i64);

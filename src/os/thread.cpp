@@ -5,14 +5,12 @@
 #include "containers/bitpack.h"
 #include "os/atomics.h"
 
-static constexpr u64 SpinMultiplier = 100;
-static constexpr u64 MaxSpins = 10;
-
 namespace OS
 {
     bool SpinLock::TryLock()
     {
-        return CmpEx(m_count, 0, 1, MO_AcqRel) == 0;
+        i32 cmp = 0;
+        return CmpExStrong(m_count, cmp, 1, MO_Acquire, MO_Relaxed);
     }
 
     void SpinLock::Lock()
@@ -21,7 +19,7 @@ namespace OS
         while (!TryLock())
         {
             ++spins;
-            SpinWait(spins * SpinMultiplier);
+            SpinWait(spins * 100);
         }
     }
 
@@ -35,28 +33,23 @@ namespace OS
 
     bool LightSema::TryWait()
     {
-        u32 oldCount = Load(m_count, MO_Relaxed);
-        return (oldCount > 0) &&
-            (CmpEx(m_count, oldCount, oldCount - 1u, MO_AcqRel) == oldCount);
+        i32 oldCount = Load(m_count, MO_Relaxed);
+        return (oldCount > 0) && CmpExStrong(m_count, oldCount, oldCount - 1, MO_Acquire, MO_Relaxed);
     }
 
     void LightSema::Wait()
     {
         u64 spins = 0;
-        i32 oldCount;
-        while (spins < MaxSpins)
+        while (spins < 10)
         {
-            oldCount = Load(m_count, MO_Relaxed);
-            if (
-                (oldCount > 0) &&
-                (CmpEx(m_count, oldCount, oldCount - 1, MO_AcqRel) == oldCount))
+            if (TryWait())
             {
                 return;
             }
             ++spins;
-            SpinWait(spins * SpinMultiplier);
+            SpinWait(spins * 100);
         }
-        oldCount = Dec(m_count, MO_Acquire);
+        i32 oldCount = Dec(m_count, MO_Acquire);
         if (oldCount <= 0)
         {
             m_sema.Wait();
@@ -66,7 +59,7 @@ namespace OS
     void LightSema::Signal(i32 count)
     {
         i32 oldCount = FetchAdd(m_count, count, MO_Release);
-        i32 toRelease = (-oldCount < count) ? -oldCount : count;
+        i32 toRelease = Min(-oldCount, count);
         if (toRelease > 0)
         {
             m_sema.Signal(toRelease);
@@ -112,7 +105,7 @@ namespace OS
             {
                 newState.Inc<Readers>();
             }
-        } while (!CmpExWeak(m_state, (u32&)oldState, newState, MO_Acquire, MO_Relaxed));
+        } while (!CmpExStrong(m_state, (u32&)oldState, newState, MO_Acquire, MO_Relaxed));
 
         if (oldState.Get<Writers>() > 0)
         {
@@ -166,8 +159,7 @@ namespace OS
                 newState.Set<RWaits>(0);
                 newState.Set<Readers>(waits);
             }
-        } while (!CmpExWeak(
-            m_state, (u32&)oldState, newState, MO_Release, MO_Relaxed));
+        } while (!CmpExWeak(m_state, (u32&)oldState, newState, MO_Release, MO_Relaxed));
 
         if (waits > 0u)
         {
@@ -183,13 +175,12 @@ namespace OS
 
     void Event::Signal()
     {
-        i32 oldState = (i32)Load(m_state, MO_Relaxed);
+        i32 oldState = Load(m_state, MO_Relaxed);
         while (true)
         {
             ASSERT(oldState <= 1u);
             i32 newState = Min(oldState + 1, 1);
-            if (CmpExWeak(
-                m_state, (u32&)oldState, (u32)newState, MO_Release, MO_Relaxed))
+            if (CmpExStrong(m_state, oldState, newState, MO_Release, MO_Relaxed))
             {
                 break;
             }
@@ -202,7 +193,7 @@ namespace OS
 
     void Event::Wait()
     {
-        i32 oldState = (i32)Dec(m_state, MO_Acquire);
+        i32 oldState = Dec(m_state, MO_Acquire);
         ASSERT(oldState <= 1);
         if (oldState < 1)
         {

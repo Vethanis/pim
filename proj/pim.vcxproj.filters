@@ -570,14 +570,8 @@
     <ClInclude Include="..\src\containers\bitpack.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\pool.h">
+    <ClInclude Include="..\src\containers\pipe.h">
       <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\os\atomic_types.h">
-      <Filter>Source Files\os</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\os\atomic_funcs.h">
-      <Filter>Source Files\os</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

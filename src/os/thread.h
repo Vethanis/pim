@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/int_types.h"
-#include "os/atomic_types.h"
 
 namespace OS
 {
@@ -15,7 +14,7 @@ namespace OS
     {
         void* handle;
 
-        inline bool IsOpen() const { return handle != nullptr; }
+        bool IsOpen() const { return handle != nullptr; }
         bool Open(ThreadFn fn, void* data);
         bool Join();
     };
@@ -24,7 +23,7 @@ namespace OS
     {
         void* handle;
 
-        inline bool IsOpen() const { return handle != nullptr; }
+        bool IsOpen() const { return handle != nullptr; }
         bool Open(u32 initialValue = 0);
         bool Close();
         bool Signal(u32 count = 1);
@@ -34,7 +33,7 @@ namespace OS
 
     struct SpinLock
     {
-        a32 m_count;
+        i32 m_count;
 
         bool TryLock();
         void Lock();
@@ -44,15 +43,15 @@ namespace OS
     struct LightSema
     {
         Semaphore m_sema;
-        a32 m_count;
+        i32 m_count;
 
-        inline bool IsOpen() const { return m_sema.IsOpen(); }
-        inline bool Open(u32 initialValue = 0)
+        bool IsOpen() const { return m_sema.IsOpen(); }
+        bool Open(u32 initialValue = 0)
         {
-            m_count.Value = (i32)initialValue;
+            m_count = (i32)initialValue;
             return m_sema.Open(initialValue);
         }
-        inline bool Close() { return m_sema.Close(); }
+        bool Close() { return m_sema.Close(); }
         bool TryWait();
         void Wait();
         void Signal(i32 count = 1);
@@ -62,12 +61,12 @@ namespace OS
     {
         LightSema sema;
 
-        inline bool IsOpen() const { return sema.IsOpen(); }
-        inline bool Open() { return sema.Open(1); }
-        inline bool Close() { return sema.Close(); };
-        inline void Lock() { sema.Wait(); }
-        inline void Unlock() { sema.Signal(); }
-        inline bool TryLock() { return sema.TryWait(); }
+        bool IsOpen() const { return sema.IsOpen(); }
+        bool Open() { return sema.Open(1); }
+        bool Close() { return sema.Close(); };
+        void Lock() { sema.Wait(); }
+        void Unlock() { sema.Signal(); }
+        bool TryLock() { return sema.TryWait(); }
     };
 
     struct LockGuard
@@ -79,13 +78,13 @@ namespace OS
 
     struct RWLock
     {
-        a32 m_state;
+        u32 m_state;
         LightSema m_read;
         LightSema m_write;
 
         void Open()
         {
-            m_state.Value = 0;
+            m_state = 0;
             m_read.Open();
             m_write.Open();
         }
@@ -101,14 +100,40 @@ namespace OS
         void UnlockWriter();
     };
 
+    struct ReadGuard
+    {
+        RWLock& m_lock;
+        ReadGuard(RWLock& lock) : m_lock(lock)
+        {
+            lock.LockReader();
+        }
+        ~ReadGuard()
+        {
+            m_lock.UnlockReader();
+        }
+    };
+
+    struct WriteGuard
+    {
+        RWLock& m_lock;
+        WriteGuard(RWLock& lock) : m_lock(lock)
+        {
+            lock.LockWriter();
+        }
+        ~WriteGuard()
+        {
+            m_lock.UnlockWriter();
+        }
+    };
+
     struct Event
     {
-        a32 m_state;
+        i32 m_state;
         LightSema m_sema;
 
         bool Open(bool signalled = false)
         {
-            m_state.Value = signalled ? 1 : 0;
+            m_state = signalled ? 1 : 0;
             return m_sema.Open(signalled ? 1u : 0u);
         }
         bool Close()

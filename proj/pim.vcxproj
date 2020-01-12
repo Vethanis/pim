@@ -101,7 +101,7 @@
     <ClInclude Include="..\src\containers\heap.h" />
     <ClInclude Include="..\src\containers\initlist.h" />
     <ClInclude Include="..\src\containers\lookup_table.h" />
-    <ClInclude Include="..\src\containers\pool.h" />
+    <ClInclude Include="..\src\containers\pipe.h" />
     <ClInclude Include="..\src\containers\queue.h" />
     <ClInclude Include="..\src\containers\ring.h" />
     <ClInclude Include="..\src\containers\slice.h" />
@@ -117,8 +117,6 @@
     <ClInclude Include="..\src\math\vec_ops.h" />
     <ClInclude Include="..\src\math\vec_types.h" />
     <ClInclude Include="..\src\os\atomics.h" />
-    <ClInclude Include="..\src\os\atomic_funcs.h" />
-    <ClInclude Include="..\src\os\atomic_types.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\os\thread.h" />
     <ClInclude Include="..\src\physics\components.h" />

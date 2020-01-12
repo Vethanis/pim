@@ -5,6 +5,7 @@
 #include "containers/slice.h"
 #include "containers/heap.h"
 #include "allocator/allocator_vtable.h"
+#include "os/thread.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -12,11 +13,13 @@ namespace Allocator
 {
     struct Pool
     {
+        OS::Mutex m_mutex;
         Slice<u8> m_memory;
         Heap m_heap;
 
         void Init(void* memory, i32 bytes)
         {
+            m_mutex.Open();
             m_memory = { (u8*)memory, bytes };
             m_heap.Init(Alloc_Stdlib, bytes);
         }
@@ -25,14 +28,16 @@ namespace Allocator
         {
             m_heap.Reset();
             memset(this, 0, sizeof(*this));
+            m_mutex.Close();
         }
 
         void Clear()
         {
+            OS::LockGuard guard(m_mutex);
             m_heap.Clear();
         }
 
-        Header* Alloc(i32 reqBytes)
+        Header* _Alloc(i32 reqBytes)
         {
             const HeapItem item = m_heap.Alloc(reqBytes);
             const i32 offset = item.offset;
@@ -49,7 +54,7 @@ namespace Allocator
             return pNew;
         }
 
-        void Free(Header* prev)
+        void _Free(Header* prev)
         {
             const i32 size = prev->c;
             const i32 offset = prev->d;
@@ -63,10 +68,10 @@ namespace Allocator
             m_heap.Free(item);
         }
 
-        Header* Realloc(Header* pOld, i32 reqBytes)
+        Header* _Realloc(Header* pOld, i32 reqBytes)
         {
-            Free(pOld);
-            Header* pNew = Alloc(reqBytes);
+            _Free(pOld);
+            Header* pNew = _Alloc(reqBytes);
             if (!pNew)
             {
                 return nullptr;
@@ -88,6 +93,24 @@ namespace Allocator
             }
 
             return pNew;
+        }
+
+        Header* Alloc(i32 reqBytes)
+        {
+            OS::LockGuard guard(m_mutex);
+            return _Alloc(reqBytes);
+        }
+
+        void Free(Header* prev)
+        {
+            OS::LockGuard guard(m_mutex);
+            _Free(prev);
+        }
+
+        Header* Realloc(Header* pOld, i32 reqBytes)
+        {
+            OS::LockGuard guard(m_mutex);
+            return _Realloc(pOld, reqBytes);
         }
 
         static constexpr const VTable Table = VTable::Create<Pool>();

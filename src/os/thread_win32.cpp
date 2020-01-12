@@ -23,8 +23,8 @@ void OS::SpinWait(u64 ticks)
     const u64 end = ::ReadTimeStampCounter() + ticks;
     do
     {
-        YieldProcessor();
-    } while (ReadTimeStampCounter() < end);
+        ::YieldProcessor();
+    } while (::ReadTimeStampCounter() < end);
 }
 
 // ------------------------------------------------------------------------
@@ -37,7 +37,7 @@ struct ThreadAdapter
 
 static constexpr isize MaxThreads = 64;
 static ThreadAdapter ms_adapters[MaxThreads];
-static a32 ms_adaptersInUse[MaxThreads];
+static i32 ms_adaptersInUse[MaxThreads];
 
 static isize AllocAdapter(ThreadAdapter adapter)
 {
@@ -46,7 +46,8 @@ static isize AllocAdapter(ThreadAdapter adapter)
     {
         for (isize i = 0; i < MaxThreads; ++i)
         {
-            if (CmpEx(ms_adaptersInUse[i], 0, 1, MO_AcqRel) == 0)
+            i32 state = 0;
+            if (CmpExStrong(ms_adaptersInUse[i], state, 1, MO_Acquire, MO_Relaxed))
             {
                 ms_adapters[i].fn = adapter.fn;
                 ms_adapters[i].data = adapter.data;
@@ -62,7 +63,7 @@ static isize AllocAdapter(ThreadAdapter adapter)
 
 static void FreeAdapter(isize i)
 {
-    i32 state = Dec(ms_adaptersInUse[i], MO_AcqRel);
+    i32 state = Dec(ms_adaptersInUse[i], MO_Release);
     ASSERT(state == 1);
 }
 

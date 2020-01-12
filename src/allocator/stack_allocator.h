@@ -5,12 +5,14 @@
 #include "containers/slice.h"
 #include "containers/array.h"
 #include "allocator/allocator_vtable.h"
+#include "os/thread.h"
 #include <string.h>
 
 namespace Allocator
 {
     struct Stack
     {
+        OS::Mutex m_mutex;
         Slice<u8> m_memory;
         Slice<u8> m_stack;
         Array<Header*> m_allocations;
@@ -18,6 +20,7 @@ namespace Allocator
         void Init(void* memory, i32 bytes)
         {
             memset(this, 0, sizeof(*this));
+            m_mutex.Open();
             m_memory = { (u8*)memory, bytes };
             m_stack = m_memory;
             m_allocations.Init(Alloc_Stdlib);
@@ -26,16 +29,18 @@ namespace Allocator
         void Shutdown()
         {
             m_allocations.Reset();
+            m_mutex.Close();
             memset(this, 0, sizeof(*this));
         }
 
         void Clear()
         {
+            OS::LockGuard guard(m_mutex);
             m_stack = m_memory;
             m_allocations.Clear();
         }
 
-        Header* Alloc(i32 count)
+        Header* _Alloc(i32 count)
         {
             Slice<u8> allocation = m_stack.Head(count);
             m_stack = m_stack.Tail(count);
@@ -51,10 +56,28 @@ namespace Allocator
             return pNew;
         }
 
-        Header* Realloc(Header* pOld, i32 count)
+        void _Free(Header* hdr)
         {
-            Free(pOld);
-            Header* pNew = Alloc(count);
+            hdr->d = 1;
+            while (m_allocations.size())
+            {
+                Header* pBack = m_allocations.back();
+                if (pBack->d)
+                {
+                    m_allocations.Pop();
+                    m_stack = Combine(m_stack, pBack->AsSlice());
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
+        Header* _Realloc(Header* pOld, i32 count)
+        {
+            _Free(pOld);
+            Header* pNew = _Alloc(count);
             if (pNew != pOld)
             {
                 Slice<u8> oldRegion = pOld->AsSlice().Tail(sizeof(Header));
@@ -72,22 +95,22 @@ namespace Allocator
             return pNew;
         }
 
+        Header* Alloc(i32 count)
+        {
+            OS::LockGuard guard(m_mutex);
+            return _Alloc(count);
+        }
+
         void Free(Header* hdr)
         {
-            hdr->d = 1;
-            while (m_allocations.size())
-            {
-                Header* pBack = m_allocations.back();
-                if (pBack->d)
-                {
-                    m_allocations.Pop();
-                    m_stack = Combine(m_stack, pBack->AsSlice());
-                }
-                else
-                {
-                    break;
-                }
-            }
+            OS::LockGuard guard(m_mutex);
+            _Free(hdr);
+        }
+
+        Header* Realloc(Header* pOld, i32 count)
+        {
+            OS::LockGuard guard(m_mutex);
+            return _Realloc(pOld, count);
         }
 
         static constexpr const VTable Table = VTable::Create<Stack>();

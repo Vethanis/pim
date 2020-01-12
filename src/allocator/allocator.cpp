@@ -78,7 +78,7 @@ namespace Allocator
 
     static bool ValidAllocator(i32 iType)
     {
-        return InRange(iType) && (ms_init || iType == Alloc_Stdlib || iType == Alloc_Debug);
+        return InRange(iType) && (ms_init || (iType == Alloc_Stdlib) || (iType == Alloc_Debug));
     }
 
     static i32 PadRequest(i32 reqBytes)
