@@ -1,15 +1,19 @@
 
 #include "common/int_types.h"
+#include "common/guid.h"
+#include "common/minmax.h"
+#include "threading/task_group.h"
 
-struct FStreamDesc
+struct FileTask final : ITask
 {
-    EResult* status;
-    void* dst;
-    i32 offset;
-    i32 size;
-};
+    Guid m_guid;
+    i32 m_offset;
+    i32 m_size;
+    void* m_ptr;
+    bool m_write;
 
-namespace FStream
-{
-    void Request(cstr path, FStreamDesc desc);
+    void Execute(u32, u32, u32) final;
+
+    using CmpType = ITask*;
+    static i32 Compare(const CmpType& lhs, const CmpType& rhs);
 };

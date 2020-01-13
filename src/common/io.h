@@ -403,4 +403,17 @@ namespace IO
         i32 offset,
         i32 size);
 
+    struct MapGuard
+    {
+        FileMap& m_map;
+        MapGuard(FileMap& map) : m_map(map) {}
+        ~MapGuard() { Close(m_map); }
+        FileMap Take()
+        {
+            FileMap map = m_map;
+            m_map = {};
+            return map;
+        }
+    };
+
 }; // IO

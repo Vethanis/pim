@@ -2,6 +2,7 @@
 
 #include "threading/task_system.h"
 #include "containers/array.h"
+#include "common/sort.h"
 
 struct TaskGroup final : ITask
 {
@@ -46,6 +47,13 @@ struct TaskGroup final : ITask
     {
         ASSERT(pTask);
         m_tasks.PushBack(pTask);
+    }
+
+    void Add(ITask* pTask, Comparable<ITask*> cmp)
+    {
+        ASSERT(pTask);
+        m_tasks.PushBack(pTask);
+        PushSort(m_tasks.begin(), m_tasks.size(), pTask, cmp);
     }
 
     void Submit()
