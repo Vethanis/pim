@@ -39,6 +39,13 @@ struct ScatterPipe
         Clear();
     }
 
+    bool IsEmpty() const
+    {
+        u32 count = Load(m_iWrite, MO_Relaxed) - Load(m_readCount, MO_Relaxed);
+        ASSERT(count <= kCapacity);
+        return !count;
+    }
+
     bool ReaderTryReadBack(T& dst)
     {
         u32 i = 0;

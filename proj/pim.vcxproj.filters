@@ -573,6 +573,9 @@
     <ClInclude Include="..\src\containers\pipe.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\threading\task_group.h">
+      <Filter>Source Files\threading</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">
