@@ -229,9 +229,6 @@ static void SplitAndAdd(
     u32 rangeToSplit,
     u32 rangeToRun)
 {
-    i32 iAdd = 0;
-    i32 iExec = 0;
-
     ITask* pTask = subtask.pTask;
     u32 begin = subtask.begin;
     const u32 end = subtask.end;
@@ -239,6 +236,7 @@ static void SplitAndAdd(
     rangeToSplit = Min(rangeToSplit, totalRange);
     rangeToRun = Min(rangeToRun, totalRange);
 
+    i32 iExec = 1;
     IncExec(pTask);
 
     while (begin < end)
@@ -249,15 +247,10 @@ static void SplitAndAdd(
 
         Subtask splitChild = { pTask, begin, begin + splitRange };
 
-        ++iAdd;
         IncExec(subtask.pTask);
         if (!ms_pipes[tid][priority].WriterTryWriteFront(splitChild))
         {
-            if (iAdd > 1)
-            {
-                iAdd = 0;
-                WakeThreadsForNewTasks();
-            }
+            WakeThreadsForNewTasks();
 
             ++iExec;
             pTask->Execute(begin, begin + runRange, tid);
@@ -269,7 +262,7 @@ static void SplitAndAdd(
         }
     }
 
-    FetchSub(subtask.pTask->m_iExec, iExec + 1, MO_Release);
+    FetchSub(subtask.pTask->m_iExec, iExec, MO_Release);
 
     WakeThreadsForNewTasks();
 }

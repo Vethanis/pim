@@ -13,9 +13,6 @@
 #include "threading/task_system.h"
 #include <new>
 
-static constexpr u32 kNumRows = 64;
-static constexpr u32 kRowMask = kNumRows - 1;
-
 template<typename T>
 struct ObjPool
 {
@@ -258,6 +255,9 @@ struct Row
 
 struct Rows
 {
+    static constexpr u32 kNumRows = 64;
+    static constexpr u32 kRowMask = kNumRows - 1;
+
     Row m_rows[kNumRows];
 
     void Init()
