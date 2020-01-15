@@ -114,7 +114,9 @@ struct StreamFile : ITask
         {
             if (IsComplete())
             {
-                m_taskSize = 4;
+                constexpr i32 kSplitSize = 16;
+                constexpr i32 kNumThreads = 4;
+                m_taskSize = kSplitSize * kNumThreads;
                 m_granularity = 1;
                 TaskSystem::Submit(this);
             }
