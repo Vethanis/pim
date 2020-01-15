@@ -17,26 +17,12 @@ struct TaskGroup final : ITask
     {
         m_tasks.Init(Alloc_Pool);
     }
-    ~TaskGroup()
+    ~TaskGroup() final
     {
         m_tasks.Reset();
     }
-
     TaskGroup(const TaskGroup& ro) = delete;
     TaskGroup& operator=(const TaskGroup& ro) = delete;
-
-    TaskGroup(TaskGroup&& tmp)
-    {
-        memcpy(this, &tmp, sizeof(*this));
-        memset(&tmp, 0, sizeof(*this));
-    }
-    TaskGroup& operator=(TaskGroup&& tmp)
-    {
-        m_tasks.Reset();
-        memcpy(this, &tmp, sizeof(*this));
-        memset(&tmp, 0, sizeof(*this));
-        return *this;
-    }
 
     void Clear()
     {

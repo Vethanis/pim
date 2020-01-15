@@ -2,43 +2,14 @@
 
 #include "common/macro.h"
 #include "common/minmax.h"
+#include "common/heap_item.h"
 #include "common/find.h"
 #include "common/sort.h"
 #include "containers/array.h"
 
-struct HeapItem
-{
-    i32 offset;
-    i32 size;
-
-    inline i32 begin() const { return offset; }
-    inline i32 end() const { return offset + size; }
-};
-
-static i32 Compare(const HeapItem& lhs, const HeapItem& rhs)
-{
-    return lhs.offset - rhs.offset;
-}
-
 static bool Fits(const HeapItem& key, const HeapItem& item)
 {
     return item.size >= key.size;
-}
-
-static HeapItem Combine(HeapItem lhs, HeapItem rhs)
-{
-    ASSERT(Adjacent(lhs, rhs));
-    return { Min(lhs.offset, rhs.offset), lhs.size + rhs.size };
-}
-
-static HeapItem Shrink(HeapItem& item, i32 desiredSize)
-{
-    ASSERT(desiredSize > 0);
-    const i32 remSize = item.size - desiredSize;
-    ASSERT(remSize > 0);
-    const i32 remOffset = item.offset + desiredSize;
-    item.size = desiredSize;
-    return { remOffset, remSize };
 }
 
 struct Heap
@@ -80,7 +51,7 @@ struct Heap
         HeapItem item = items[i];
         if (item.size > desiredSize)
         {
-            items[i] = Shrink(item, desiredSize);
+            items[i] = Split(item, desiredSize);
         }
         else
         {

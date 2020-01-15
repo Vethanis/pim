@@ -2,9 +2,11 @@
 
 #include "containers/array.h"
 #include "containers/queue.h"
+#include "os/thread.h"
 
 struct ChunkAllocator
 {
+    OS::Mutex m_lock;
     Array<u8*> m_chunks;
     Queue<u8*> m_freelist;
     i32 m_chunkSize;
@@ -21,14 +23,16 @@ struct ChunkAllocator
     void Init(AllocType allocator, i32 itemSize)
     {
         ASSERT(itemSize > 0);
+        m_lock.Open();
         m_chunks.Init(allocator);
         m_freelist.Init(allocator);
         m_chunkSize = InitialChunkSize;
         m_itemSize = itemSize;
     }
 
-    void Reset()
+    void Shutdown()
     {
+        m_lock.Lock();
         for (u8* chunk : m_chunks)
         {
             Allocator::Free(chunk);
@@ -36,10 +40,14 @@ struct ChunkAllocator
         m_chunks.Reset();
         m_freelist.Reset();
         m_chunkSize = InitialChunkSize;
+        m_lock.Unlock();
+
+        m_lock.Close();
     }
 
     void* Allocate()
     {
+        OS::LockGuard guard(m_lock);
         if (m_freelist.IsEmpty())
         {
             const i32 chunkSize = m_chunkSize;
@@ -57,7 +65,11 @@ struct ChunkAllocator
             }
             m_freelist = freelist;
         }
-        return m_freelist.Pop();
+
+        void* ptr = m_freelist.Pop();
+        ASSERT(ptr);
+        memset(ptr, 0, m_itemSize);
+        return ptr;
     }
 
     void Free(void* pVoid)
@@ -67,6 +79,7 @@ struct ChunkAllocator
             return;
         }
 
+        OS::LockGuard guard(m_lock);
         m_freelist.Push((u8*)pVoid, { PtrCmp });
     }
 };

@@ -20,6 +20,9 @@ struct ITask
         m_iExec(0),
         m_iWait(0)
     {}
+    virtual ~ITask() {}
+    ITask(const ITask& other) = delete;
+    ITask& operator=(const ITask& other) = delete;
 
     ITask(u32 size, u32 granularity, TaskPriority priority) :
         m_priority(priority),
@@ -28,8 +31,6 @@ struct ITask
         m_iExec(0),
         m_iWait(0)
     {}
-
-    virtual ~ITask() {}
 
     bool IsComplete() const;
 

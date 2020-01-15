@@ -67,6 +67,7 @@
     <ClInclude Include="..\src\common\chunk_allocator.h" />
     <ClInclude Include="..\src\common\comparator.h" />
     <ClInclude Include="..\src\common\guid_util.h" />
+    <ClInclude Include="..\src\common\heap_item.h" />
     <ClInclude Include="..\src\common\minmax.h" />
     <ClInclude Include="..\src\common\round.h" />
     <ClInclude Include="..\src\common\find.h" />
