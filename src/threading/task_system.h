@@ -2,54 +2,39 @@
 
 #include "common/int_types.h"
 
-enum TaskPriority : u32
+enum TaskState : u32
 {
-    TaskPriority_High = 0,
-    TaskPriority_Med,
-    TaskPriority_Low,
-
-    TaskPriority_COUNT
+    TaskState_Init = 0,
+    TaskState_Submit,
+    TaskState_Execute,
+    TaskState_Complete,
 };
 
 struct ITask
 {
     ITask() :
-        m_priority(TaskPriority_Med),
-        m_taskSize(1),
-        m_granularity(1),
-        m_iExec(0),
+        m_state(TaskState_Init),
         m_iWait(0)
     {}
     virtual ~ITask() {}
     ITask(const ITask& other) = delete;
     ITask& operator=(const ITask& other) = delete;
 
-    ITask(u32 size, u32 granularity, TaskPriority priority) :
-        m_priority(priority),
-        m_taskSize(size),
-        m_granularity(granularity),
-        m_iExec(0),
-        m_iWait(0)
-    {}
-
     bool IsComplete() const;
+    TaskState GetState() const;
+    void AwaitIfQueued();
+    void SubmitIfNotQueued();
 
-    virtual void Execute(u32 begin, u32 end, u32 tid) = 0;
-
-    // ------------------------------------------------------------------------
-
-    TaskPriority m_priority;
-    u32 m_taskSize;
-    u32 m_granularity;
+    virtual void Execute(u32 tid) = 0;
 
     // ------------------------------------------------------------------------
-    i32 m_iExec;
+    u32 m_state;
     i32 m_iWait;
 };
 
 namespace TaskSystem
 {
     void Submit(ITask* pTask);
-    void Await(ITask* pTask, TaskPriority lowestToRun);
+    void Await(ITask* pTask);
     void AwaitAll();
 };

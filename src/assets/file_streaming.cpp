@@ -1,14 +1,10 @@
 #include "assets/file_streaming.h"
 
 #include "common/chunk_allocator.h"
-#include "common/guid.h"
 #include "common/guid_util.h"
 #include "common/io.h"
-#include "common/sort.h"
-#include "common/text.h"
 #include "components/system.h"
 #include "containers/array.h"
-#include "containers/heap.h"
 #include "os/thread.h"
 #include "threading/task_system.h"
 #include <new>
@@ -41,25 +37,10 @@ struct ObjPool
     }
 };
 
-static i32 Compare(const FileOp& lhs, const FileOp& rhs)
-{
-    if (lhs.write | rhs.write)
-    {
-        if (Overlaps(lhs.pos, rhs.pos))
-        {
-            return 0;
-        }
-    }
-    return lhs.pos.offset - rhs.pos.offset;
-}
-
-struct StreamFile : ITask
+struct StreamFile
 {
     OS::RWLock m_lock;
-    OS::Mutex m_opsLock;
-    OS::Mutex m_submitLock;
     IO::FileMap m_map;
-    Queue<FileOp> m_ops;
 
     bool Open(cstr path)
     {
@@ -79,60 +60,15 @@ struct StreamFile : ITask
 
         file.Take();
         m_map = map.Take();
-
         m_lock.Open();
-        m_opsLock.Open();
-        m_submitLock.Open();
-
-        m_ops.Init(Alloc_Pool);
 
         return true;
     }
 
     void Close()
     {
-        if (!IsComplete())
-        {
-            TaskSystem::Await(this, TaskPriority_Low);
-        }
-
         m_lock.Close();
-        m_opsLock.Close();
-        m_submitLock.Close();
-
         IO::Close(m_map);
-        m_ops.Reset();
-    }
-
-    void Push(FileOp op)
-    {
-        {
-            OS::LockGuard guard(m_opsLock);
-            m_ops.Push(op, { Compare });
-        }
-        if (m_submitLock.TryLock())
-        {
-            if (IsComplete())
-            {
-                constexpr i32 kSplitSize = 16;
-                constexpr i32 kNumThreads = 4;
-                m_taskSize = kSplitSize * kNumThreads;
-                m_granularity = 1;
-                TaskSystem::Submit(this);
-            }
-            m_submitLock.Unlock();
-        }
-    }
-
-    bool TryPop(FileOp& dst)
-    {
-        OS::LockGuard guard(m_opsLock);
-        if (m_ops.HasItems())
-        {
-            dst = m_ops.Pop();
-            return true;
-        }
-        return false;
     }
 
     bool Read(void* dst, HeapItem src)
@@ -160,29 +96,8 @@ struct StreamFile : ITask
         }
         return false;
     }
-
-    void Execute(u32, u32, u32) final
-    {
-        FileOp op = {};
-        while (TryPop(op))
-        {
-            bool success = false;
-            if (op.write)
-            {
-                success = Write(op.pos, op.ptr);
-            }
-            else
-            {
-                success = Read(op.ptr, op.pos);
-            }
-            if (op.OnComplete)
-            {
-                op.OnComplete(op, success);
-            }
-        }
-    }
 };
-static ObjPool<StreamFile> ms_streamFilePool;
+static ChunkAllocator ms_streamFilePool;
 
 struct Row
 {
@@ -235,20 +150,20 @@ struct Row
             return pFile;
         }
 
-        pFile = ms_streamFilePool.New();
+        pFile = (StreamFile*)ms_streamFilePool.Allocate();
 
         if (!pFile->Open(path))
         {
             pFile->Close();
-            ms_streamFilePool.Delete(pFile);
+            ms_streamFilePool.Free(pFile);
             return nullptr;
         }
 
         if (!Add(guid, pFile))
         {
             pFile->Close();
-            ms_streamFilePool.Delete(pFile);
-            return nullptr;
+            ms_streamFilePool.Free(pFile);
+            return Get(guid);
         }
 
         return pFile;
@@ -285,27 +200,68 @@ struct Rows
     }
 };
 static Rows ms_rows;
+static ObjPool<FileTask> ms_taskPool;
+
+void FileTask::Execute(u32 tid)
+{
+    StreamFile* pFile = ms_rows.GetAdd(path);
+    if (!pFile)
+    {
+        if (OnError)
+        {
+            OnError(*this);
+        }
+        return;
+    }
+    if (write)
+    {
+        pFile->Write(pos, ptr);
+    }
+    else
+    {
+        pFile->Read(ptr, pos);
+    }
+    if (OnSuccess)
+    {
+        OnSuccess(*this);
+    }
+    ms_taskPool.Delete(this);
+}
 
 namespace FStream
 {
-    bool Request(cstr path, FileOp op)
+    FileTask* Read(cstr path, void* dst, HeapItem src)
     {
         ASSERT(path);
-        ASSERT(op.ptr);
+        ASSERT(dst);
+        FileTask* pTask = ms_taskPool.New();
+        pTask->path = path;
+        pTask->ptr = dst;
+        pTask->pos = src;
+        pTask->write = false;
+        pTask->OnSuccess = nullptr;
+        pTask->OnError = nullptr;
+        return pTask;
+    }
 
-        StreamFile* pFile = ms_rows.GetAdd(path);
-        if (!pFile)
-        {
-            return false;
-        }
-        pFile->Push(op);
-
-        return true;
+    FileTask* Write(cstr path, HeapItem dst, void* src)
+    {
+        ASSERT(path);
+        ASSERT(src);
+        FileTask* pTask = ms_taskPool.New();
+        pTask->path = path;
+        pTask->ptr = src;
+        pTask->pos = dst;
+        pTask->write = true;
+        pTask->OnSuccess = nullptr;
+        pTask->OnError = nullptr;
+        return pTask;
     }
 
     static void Init()
     {
-        ms_streamFilePool.Init();
+        ms_streamFilePool.Init(Alloc_Pool, sizeof(StreamFile));
+        ms_taskPool.Init();
         ms_rows.Init();
     }
 
@@ -317,6 +273,7 @@ namespace FStream
     static void Shutdown()
     {
         ms_rows.Shutdown();
+        ms_taskPool.Shutdown();
         ms_streamFilePool.Shutdown();
     }
 

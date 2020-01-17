@@ -200,4 +200,22 @@ namespace OS
             m_sema.Wait();
         }
     }
+
+    void MultiEvent::Signal()
+    {
+        i32 oldCount = Load(m_waitCount, MO_Relaxed);
+        if (oldCount > 0)
+        {
+            if (CmpExStrong(m_waitCount, oldCount, 0, MO_Release, MO_Relaxed))
+            {
+                m_sema.Signal(oldCount);
+            }
+        }
+    }
+
+    void MultiEvent::Wait()
+    {
+        Inc(m_waitCount, MO_Acquire);
+        m_sema.Wait();
+    }
 };

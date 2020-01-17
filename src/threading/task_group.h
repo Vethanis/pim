@@ -2,18 +2,15 @@
 
 #include "threading/task_system.h"
 #include "containers/array.h"
-#include "common/sort.h"
 
 struct TaskGroup final : ITask
 {
+    ITask* m_dependency;
     Array<ITask*> m_tasks;
 
-    TaskGroup() : ITask()
-    {
-        m_tasks.Init(Alloc_Pool);
-    }
-    TaskGroup(TaskPriority priority)
-        : ITask(1, 1, priority)
+    TaskGroup(ITask* dependency)
+        : ITask(),
+        m_dependency(dependency)
     {
         m_tasks.Init(Alloc_Pool);
     }
@@ -35,32 +32,29 @@ struct TaskGroup final : ITask
         m_tasks.PushBack(pTask);
     }
 
-    void Add(ITask* pTask, Comparable<ITask*> cmp)
-    {
-        ASSERT(pTask);
-        m_tasks.PushBack(pTask);
-        PushSort(m_tasks.begin(), m_tasks.size(), pTask, cmp);
-    }
-
     void Submit()
     {
-        for (ITask* pTask : m_tasks)
-        {
-            TaskSystem::Submit(pTask);
-        }
         TaskSystem::Submit(this);
     }
 
     void Await()
     {
-        TaskSystem::Await(this, m_priority);
+        TaskSystem::Await(this);
     }
 
-    void Execute(u32 begin, u32 end, u32 tid) final
+    void Execute(u32 tid) final
     {
+        if (m_dependency)
+        {
+            TaskSystem::Await(m_dependency);
+        }
         for (ITask* pTask : m_tasks)
         {
-            TaskSystem::Await(pTask, m_priority);
+            TaskSystem::Submit(pTask);
+        }
+        for (ITask* pTask : m_tasks)
+        {
+            TaskSystem::Await(pTask);
         }
         m_tasks.Reset();
     }

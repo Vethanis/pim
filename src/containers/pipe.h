@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/macro.h"
-#include "containers/queue.h"
 #include "os/atomics.h"
 
 // multiple consumer, single producer pipe

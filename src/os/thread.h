@@ -131,10 +131,29 @@ namespace OS
         i32 m_state;
         LightSema m_sema;
 
-        bool Open(bool signalled = false)
+        bool Open()
         {
-            m_state = signalled ? 1 : 0;
-            return m_sema.Open(signalled ? 1u : 0u);
+            m_state = 0;
+            return m_sema.Open();
+        }
+        bool Close()
+        {
+            return m_sema.Close();
+        }
+
+        void Signal();
+        void Wait();
+    };
+
+    struct MultiEvent
+    {
+        i32 m_waitCount;
+        LightSema m_sema;
+
+        bool Open()
+        {
+            m_waitCount = 0;
+            return m_sema.Open();
         }
         bool Close()
         {
