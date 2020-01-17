@@ -3,14 +3,8 @@
 #include "common/macro.h"
 #include "common/minmax.h"
 #include "common/heap_item.h"
-#include "common/find.h"
 #include "common/sort.h"
 #include "containers/array.h"
-
-static bool Fits(const HeapItem& key, const HeapItem& item)
-{
-    return item.size >= key.size;
-}
 
 struct Heap
 {
@@ -39,15 +33,29 @@ struct Heap
     // Usable amount is less due to fragmentation
     i32 SizeFree() const { return m_size - m_allocated; }
 
+    i32 Find(i32 size) const
+    {
+        const HeapItem* const items = m_items.begin();
+        const i32 count = m_items.size();
+        for (i32 i = 0; i < count; ++i)
+        {
+            if (items[i].size >= size)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     HeapItem Alloc(i32 desiredSize)
     {
         ASSERT(desiredSize > 0);
-        Array<HeapItem> items = m_items;
-        const i32 i = Find(items, { -1, desiredSize }, { Fits });
+        const i32 i = Find(desiredSize);
         if (i == -1)
         {
             return { -1, -1 };
         }
+        Array<HeapItem> items = m_items;
         HeapItem item = items[i];
         if (item.size > desiredSize)
         {
