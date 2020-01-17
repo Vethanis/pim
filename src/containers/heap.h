@@ -69,6 +69,7 @@ struct Heap
         ASSERT(item.offset >= 0);
         ASSERT(item.offset + item.size <= m_size);
         m_items = items;
+        m_allocated += item.size;
         return item;
     }
 
@@ -107,5 +108,6 @@ struct Heap
         }
 
         m_items = items;
+        m_allocated -= item.size;
     }
 };
