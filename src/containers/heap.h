@@ -33,13 +33,13 @@ struct Heap
     // Usable amount is less due to fragmentation
     i32 SizeFree() const { return m_size - m_allocated; }
 
-    i32 Find(i32 size) const
+    i32 Find(i32 desiredSize) const
     {
         const HeapItem* const items = m_items.begin();
         const i32 count = m_items.size();
         for (i32 i = 0; i < count; ++i)
         {
-            if (items[i].size >= size)
+            if (items[i].size >= desiredSize)
             {
                 return i;
             }
