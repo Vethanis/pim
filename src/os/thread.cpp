@@ -2,7 +2,6 @@
 
 #include "common/macro.h"
 #include "common/minmax.h"
-#include "containers/bitpack.h"
 #include "os/atomics.h"
 
 namespace OS
@@ -68,46 +67,84 @@ namespace OS
 
     // ------------------------------------------------------------------------
 
-    namespace RWLocks
+    struct RWState
     {
-        enum Attribute : u32
+        u32 readers : 10;
+        u32 waiters : 10;
+        u32 writers : 10;
+
+        static constexpr u32 kMask = (1u << 10) - 1u;
+
+        RWState(u32 x = 0u)
         {
-            Readers,
-            RWaits,
-            Writers,
+            *this = *reinterpret_cast<RWState*>(&x);
+        }
 
-            COUNT,
-            WIDTH = 10u,
-        };
+        operator u32&()
+        {
+            return *reinterpret_cast<u32*>(this);
+        }
 
-        using State = BitPack::Value<COUNT, WIDTH>;
+        void IncWait()
+        {
+            u32 x = waiters;
+            ASSERT(x < kMask);
+            waiters = (x + 1u) & kMask;
+        }
+        void DecWait()
+        {
+            u32 x = waiters;
+            ASSERT(x > 0u);
+            waiters = (x - 1u) & kMask;
+        }
 
-        static constexpr u32 OneReader =
-            BitPack::Pack<Readers, WIDTH>(1u);
-        static constexpr u32 OneWriter =
-            BitPack::Pack<Writers, WIDTH>(1u);
+        void IncWriter()
+        {
+            u32 x = writers;
+            ASSERT(x < kMask);
+            writers = (x + 1u) & kMask;
+        }
+        void DecWriter()
+        {
+            u32 x = writers;
+            ASSERT(x > 0u);
+            writers = (x - 1u) & kMask;
+        }
+
+        void IncReader()
+        {
+            u32 x = readers;
+            ASSERT(x < kMask);
+            readers = (x + 1u) & kMask;
+        }
+        void DecReader()
+        {
+            u32 x = readers;
+            ASSERT(x > 0u);
+            readers = (x - 1u) & kMask;
+        }
     };
+    SASSERT(sizeof(RWState) == sizeof(u32));
+    SASSERT(alignof(RWState) == alignof(u32));
 
     void RWLock::LockReader()
     {
-        using namespace RWLocks;
-
-        State oldState = Load(m_state, MO_Relaxed);
-        State newState;
+        RWState oldState = Load(m_state, MO_Relaxed);
+        RWState newState;
         do
         {
             newState = oldState;
-            if (oldState.Get<Writers>() > 0)
+            if (newState.writers)
             {
-                newState.Inc<RWaits>();
+                newState.IncWait();
             }
             else
             {
-                newState.Inc<Readers>();
+                newState.IncReader();
             }
-        } while (!CmpExStrong(m_state, (u32&)oldState, newState, MO_Acquire, MO_Relaxed));
+        } while (!CmpExStrong(m_state, oldState, newState, MO_AcqRel, MO_Relaxed));
 
-        if (oldState.Get<Writers>() > 0)
+        if (oldState.writers != 0u)
         {
             m_read.Wait();
         }
@@ -115,13 +152,15 @@ namespace OS
 
     void RWLock::UnlockReader()
     {
-        using namespace RWLocks;
+        RWState oldState = Load(m_state, MO_Relaxed);
+        RWState newState;
+        do
+        {
+            newState = oldState;
+            newState.DecReader();
+        } while (!CmpExStrong(m_state, oldState, newState, MO_AcqRel, MO_Relaxed));
 
-        State oldState = FetchAdd(m_state, 0u - OneReader, MO_Release);
-        u32 writers = oldState.Get<Writers>();
-        u32 readers = oldState.Get<Readers>();
-        ASSERT(readers > 0);
-        if ((readers == 1) && (writers > 0))
+        if ((oldState.readers == 1u) && (oldState.writers != 0u))
         {
             m_write.Signal();
         }
@@ -129,13 +168,15 @@ namespace OS
 
     void RWLock::LockWriter()
     {
-        using namespace RWLocks;
+        RWState oldState = Load(m_state, MO_Relaxed);
+        RWState newState;
+        do
+        {
+            newState = oldState;
+            newState.IncWriter();
+        } while (!CmpExStrong(m_state, oldState, newState, MO_AcqRel, MO_Relaxed));
 
-        State oldState = FetchAdd(m_state, OneWriter, MO_Acquire);
-        u32 writers = oldState.Get<Writers>();
-        u32 readers = oldState.Get<Readers>();
-        ASSERT(writers != State::MaxValue);
-        if ((writers > 0) || (readers > 0))
+        if ((oldState.writers != 0u) || (oldState.readers != 0u))
         {
             m_write.Wait();
         }
@@ -143,29 +184,26 @@ namespace OS
 
     void RWLock::UnlockWriter()
     {
-        using namespace RWLocks;
-
-        State oldState = Load(m_state, MO_Relaxed);
-        State newState;
+        RWState oldState = Load(m_state, MO_Relaxed);
+        RWState newState;
         u32 waits = 0u;
         do
         {
-            ASSERT(oldState.Get<Readers>() == 0u);
             newState = oldState;
-            newState.Dec<Writers>();
-            waits = oldState.Get<RWaits>();
-            if (waits > 0)
+            newState.DecWriter();
+            waits = newState.waiters;
+            if (waits != 0u)
             {
-                newState.Set<RWaits>(0);
-                newState.Set<Readers>(waits);
+                newState.waiters = 0u;
+                newState.readers = waits;
             }
-        } while (!CmpExWeak(m_state, (u32&)oldState, newState, MO_Release, MO_Relaxed));
+        } while (!CmpExWeak(m_state, oldState, newState, MO_AcqRel, MO_Relaxed));
 
-        if (waits > 0u)
+        if (waits != 0u)
         {
             m_read.Signal(waits);
         }
-        else if (oldState.Get<Writers>() > 1)
+        else if (oldState.writers > 1u)
         {
             m_write.Signal();
         }
@@ -176,7 +214,7 @@ namespace OS
     void Event::Signal()
     {
         i32 oldState = Load(m_state, MO_Relaxed);
-        while (!CmpExStrong(m_state, oldState, Min(oldState + 1, 1), MO_Release, MO_Relaxed))
+        while (!CmpExStrong(m_state, oldState, Min(oldState + 1, 1), MO_Acquire, MO_Relaxed))
         {
             OS::YieldCore();
         }
@@ -195,12 +233,14 @@ namespace OS
         }
     }
 
+    // ------------------------------------------------------------------------
+
     void MultiEvent::Signal()
     {
         i32 oldCount = Load(m_waitCount, MO_Relaxed);
         if (oldCount > 0)
         {
-            if (CmpExStrong(m_waitCount, oldCount, 0, MO_Release, MO_Relaxed))
+            if (CmpExStrong(m_waitCount, oldCount, 0, MO_Acquire, MO_Relaxed))
             {
                 m_sema.Signal(oldCount);
             }

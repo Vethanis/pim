@@ -12,6 +12,7 @@ struct Pipe
     static constexpr u32 kFlagWritable = 0x00000000u;
     static constexpr u32 kFlagReadable = 0x11111111u;
     static constexpr u32 kFlagLocked = 0xffffffffu;
+    static constexpr u32 kNotFound = kFlagLocked;
 
     u32 m_iWrite;
     u32 m_iRead;
@@ -36,51 +37,48 @@ struct Pipe
 
     u32 size() const
     {
-        return Load(m_iWrite, MO_Relaxed) - Load(m_iRead, MO_Relaxed);
+        return (Load(m_iWrite, MO_Relaxed) - Load(m_iRead, MO_Relaxed)) & kMask;
     }
 
     u32 LockSlot(u32 start, u32 searchFlag, u32 quitSize)
     {
         u32 i = start;
-        while (true)
+        while (size() != quitSize)
         {
-            if (size() == quitSize)
-            {
-                i = kCapacity;
-                break;
-            }
             i &= kMask;
             u32 prev = searchFlag;
             if (CmpExStrong(m_flags[i], prev, kFlagLocked, MO_Acquire, MO_Relaxed))
             {
-                break;
+                return i;
             }
             ++i;
         }
-        return i;
-    }
-
-    bool TryPop(T& dst)
-    {
-        const u32 i = LockSlot(Load(m_iRead, MO_Relaxed), kFlagReadable, 0u);
-        if (i != kCapacity)
-        {
-            Inc(m_iRead, MO_Acquire);
-            dst = m_data[i];
-            Store(m_flags[i], kFlagWritable, MO_Release);
-        }
-        return i != kCapacity;
+        return kNotFound;
     }
 
     bool TryPush(const T& src)
     {
         const u32 i = LockSlot(Load(m_iWrite, MO_Relaxed), kFlagWritable, kMask);
-        if (i != kCapacity)
+        if (i != kNotFound)
         {
-            Inc(m_iWrite, MO_Acquire);
             m_data[i] = src;
             Store(m_flags[i], kFlagReadable, MO_Release);
+            Inc(m_iWrite, MO_Release);
+            return true;
         }
-        return i != kCapacity;
+        return false;
+    }
+
+    bool TryPop(T& dst)
+    {
+        const u32 i = LockSlot(Load(m_iRead, MO_Relaxed), kFlagReadable, 0u);
+        if (i != kNotFound)
+        {
+            dst = m_data[i];
+            Store(m_flags[i], kFlagWritable, MO_Release);
+            Inc(m_iRead, MO_Release);
+            return true;
+        }
+        return false;
     }
 };

@@ -24,6 +24,7 @@ namespace BitPack
     {
         constexpr u32 mask = Mask(width);
         constexpr u32 offset = Offset(i, width);
+        ASSERT(x <= mask);
         return (x & mask) << offset;
     }
 
