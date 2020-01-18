@@ -19,7 +19,7 @@ namespace OS
         while (!TryLock())
         {
             ++spins;
-            SpinWait(spins * 100);
+            Spin(spins * 100);
         }
     }
 
@@ -47,7 +47,7 @@ namespace OS
                 return;
             }
             ++spins;
-            SpinWait(spins * 100);
+            Spin(spins * 100);
         }
         i32 oldCount = Dec(m_count, MO_Acquire);
         if (oldCount <= 0)
@@ -176,14 +176,9 @@ namespace OS
     void Event::Signal()
     {
         i32 oldState = Load(m_state, MO_Relaxed);
-        while (true)
+        while (!CmpExStrong(m_state, oldState, Min(oldState + 1, 1), MO_Release, MO_Relaxed))
         {
-            ASSERT(oldState <= 1u);
-            i32 newState = Min(oldState + 1, 1);
-            if (CmpExStrong(m_state, oldState, newState, MO_Release, MO_Relaxed))
-            {
-                break;
-            }
+            OS::YieldCore();
         }
         if (oldState < 0)
         {
@@ -194,7 +189,6 @@ namespace OS
     void Event::Wait()
     {
         i32 oldState = Dec(m_state, MO_Acquire);
-        ASSERT(oldState <= 1);
         if (oldState < 1)
         {
             m_sema.Wait();

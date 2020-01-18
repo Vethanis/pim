@@ -12,29 +12,22 @@ enum TaskState : u32
 
 struct ITask
 {
-    ITask() :
-        m_state(TaskState_Init),
-        m_iWait(0)
-    {}
+    u32 m_state;
+
+    ITask() : m_state(TaskState_Init) {}
     virtual ~ITask() {}
     ITask(const ITask& other) = delete;
     ITask& operator=(const ITask& other) = delete;
 
-    bool IsComplete() const;
     TaskState GetState() const;
-    void AwaitIfQueued();
-    void SubmitIfNotQueued();
+    bool IsComplete() const;
+    bool IsInProgress() const;
 
     virtual void Execute(u32 tid) = 0;
-
-    // ------------------------------------------------------------------------
-    u32 m_state;
-    i32 m_iWait;
 };
 
 namespace TaskSystem
 {
     void Submit(ITask* pTask);
     void Await(ITask* pTask);
-    void AwaitAll();
 };

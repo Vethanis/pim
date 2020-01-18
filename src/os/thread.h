@@ -4,9 +4,9 @@
 
 namespace OS
 {
-    void YieldProcessor();
-    u64 ReadTimeStampCounter();
-    void SpinWait(u64 ticks);
+    void YieldCore();
+    u64 ReadCounter();
+    void Spin(u64 ticks);
 
     using ThreadFn = void(*)(void* pData);
 

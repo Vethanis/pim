@@ -8,23 +8,23 @@
 #include "os/thread.h"
 #include <intrin.h>
 
-void OS::YieldProcessor()
+void OS::YieldCore()
 {
-    ::YieldProcessor();
+    _mm_pause();
 }
 
-u64 OS::ReadTimeStampCounter()
+u64 OS::ReadCounter()
 {
-    return ::ReadTimeStampCounter();
+    return __rdtsc();
 }
 
-void OS::SpinWait(u64 ticks)
+void OS::Spin(u64 ticks)
 {
-    const u64 end = ::ReadTimeStampCounter() + ticks;
+    const u64 end = ReadCounter() + ticks;
     do
     {
-        ::YieldProcessor();
-    } while (::ReadTimeStampCounter() < end);
+        YieldCore();
+    } while (ReadCounter() < end);
 }
 
 // ------------------------------------------------------------------------
@@ -37,7 +37,7 @@ struct ThreadAdapter
 
 static constexpr isize MaxThreads = 64;
 static ThreadAdapter ms_adapters[MaxThreads];
-static i32 ms_adaptersInUse[MaxThreads];
+static i32 ms_adapterLocks[MaxThreads];
 
 static isize AllocAdapter(ThreadAdapter adapter)
 {
@@ -47,7 +47,7 @@ static isize AllocAdapter(ThreadAdapter adapter)
         for (isize i = 0; i < MaxThreads; ++i)
         {
             i32 state = 0;
-            if (CmpExStrong(ms_adaptersInUse[i], state, 1, MO_Acquire, MO_Relaxed))
+            if (CmpExStrong(ms_adapterLocks[i], state, 1, MO_Acquire, MO_Relaxed))
             {
                 ms_adapters[i].fn = adapter.fn;
                 ms_adapters[i].data = adapter.data;
@@ -55,7 +55,7 @@ static isize AllocAdapter(ThreadAdapter adapter)
             }
         }
         ++spins;
-        OS::SpinWait(spins * 100);
+        OS::Spin(spins * 100);
     }
     ASSERT(false);
     return -1;
@@ -63,8 +63,7 @@ static isize AllocAdapter(ThreadAdapter adapter)
 
 static void FreeAdapter(isize i)
 {
-    i32 state = Dec(ms_adaptersInUse[i], MO_Release);
-    ASSERT(state == 1);
+    Store(ms_adapterLocks[i], 0, MO_Release);
 }
 
 static unsigned long Win32ThreadFn(void* pVoid)
