@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common/macro.h"
 #include "common/int_types.h"
 #include "common/hash.h"
 
@@ -39,6 +40,7 @@ inline constexpr bool IsNull(Guid x)
 
 inline constexpr Guid ToGuid(cstrc str)
 {
+    ASSERT(str);
     u64 a = Fnv64String(str);
     a = a ? a : 1;
     u64 b = Fnv64String(str, a);
@@ -48,6 +50,7 @@ inline constexpr Guid ToGuid(cstrc str)
 
 inline Guid ToGuid(const void* ptr, i32 count)
 {
+    ASSERT(ptr);
     u64 a = Fnv64Bytes(ptr, count);
     a = a ? a : 1;
     u64 b = Fnv64Bytes(ptr, count, a);

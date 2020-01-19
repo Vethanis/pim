@@ -1,33 +1,35 @@
 #pragma once
 
-#include "common/guid.h"
+#include "common/text.h"
+#include "common/heap_item.h"
 #include "common/guid_util.h"
-#include "containers/slice.h"
-#include "containers/array.h"
-#include "containers/hash_dict.h"
-#include "containers/hash_set.h"
+#include "containers/obj_table.h"
 
-struct AssetDb
+struct Asset
 {
-    GuidTable table;                // guid of the asset name
-    Array<Guid> packIds;            // guid of the pack path of the asset
-    Array<GuidSet> referencedIds;   // guids of referenced asset names
-    Array<Slice<u8>> memories;      // deserialized memory of the asset
-    Array<i32> refCounts;           // number of active references to the asset
+    Text<64> name;
+    Guid pack;
+    GuidSet children;
+    HeapItem position;
+    Slice<u8> memory;
+    i32 refCount;
 
-    void Init(AllocType allocator);
-    void Reset();
+    Asset() {}
+    ~Asset()
+    {
+        children.Reset();
+        Allocator::Free(memory.begin());
+    }
+    Asset(const Asset& other) = delete;
+    Asset& operator=(const Asset& other) = delete;
 
-    i32 Add(Guid name, Guid pack, Slice<const Guid> refersTo);
-    bool Remove(Guid name);
-    void RemoveAt(i32 i);
-
-    i32 size() const { return table.size(); }
-    i32 Find(Guid name) const { return table.Find(name); }
-    bool Contains(Guid name) const { return table.Contains(name); }
-    Guid GetName(i32 i) const { return table[i]; }
-    Guid& GetPack(i32 i) { return packIds[i]; }
-    GuidSet& GetRefersTo(i32 i) { return referencedIds[i]; }
-    Slice<u8>& GetMemory(i32 i) { return memories[i]; }
-    i32& GetRefs(i32 i) { return refCounts[i]; }
+    void Init(cstr nameStr, Guid packId, HeapItem pos)
+    {
+        name = nameStr;
+        pack = packId;
+        position = pos;
+        children.Init(Alloc_Pool);
+    }
 };
+
+using AssetTable = ObjTable<Guid, Asset, GuidComparator, 64>;

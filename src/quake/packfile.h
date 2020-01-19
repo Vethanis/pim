@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common/macro.h"
 #include "common/int_types.h"
 #include "containers/array.h"
 
@@ -28,7 +29,9 @@ namespace Quake
     struct Pack
     {
         char path[PIM_PATH];
+        DPackHeader header;
         Array<DPackFile> files;
+        i32 size;
     };
 
     struct Folder

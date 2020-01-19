@@ -5,12 +5,10 @@
 
 struct TaskGroup final : ITask
 {
-    ITask* m_dependency;
+    ITask* m_dep;
     Array<ITask*> m_tasks;
 
-    TaskGroup(ITask* dependency)
-        : ITask(),
-        m_dependency(dependency)
+    TaskGroup(ITask* dep = nullptr) : ITask(), m_dep(dep)
     {
         m_tasks.Init(Alloc_Pool);
     }
@@ -32,21 +30,11 @@ struct TaskGroup final : ITask
         m_tasks.PushBack(pTask);
     }
 
-    void Submit()
-    {
-        TaskSystem::Submit(this);
-    }
-
-    void Await()
-    {
-        TaskSystem::Await(this);
-    }
-
     void Execute(u32 tid) final
     {
-        if (m_dependency)
+        if (m_dep)
         {
-            TaskSystem::Await(m_dependency);
+            TaskSystem::Await(m_dep);
         }
         for (ITask* pTask : m_tasks)
         {
@@ -56,6 +44,5 @@ struct TaskGroup final : ITask
         {
             TaskSystem::Await(pTask);
         }
-        m_tasks.Reset();
     }
 };

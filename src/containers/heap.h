@@ -110,4 +110,39 @@ struct Heap
         m_items = items;
         m_allocated -= item.size;
     }
+
+    bool Remove(HeapItem rm)
+    {
+        ASSERT(rm.offset >= 0);
+        ASSERT(rm.size > 0);
+        ASSERT((u32)(rm.end()) <= (u32)m_size);
+
+        bool removed = false;
+        Array<HeapItem> items = m_items;
+        for (i32 i = 0; i < items.size(); ++i)
+        {
+            HeapItem iItem = items[i];
+            if (Overlaps(rm, iItem))
+            {
+                removed = true;
+                items.ShiftRemove(i);
+                --i;
+
+                HeapItem left = { iItem.begin(), rm.begin() - iItem.begin() };
+                HeapItem right = { rm.end(), iItem.end() - rm.end() };
+                if (left.size > 0)
+                {
+                    items.PushBack(left);
+                    PushSort(items.begin(), items.size(), left, { Compare });
+                }
+                if (right.size > 0)
+                {
+                    items.PushBack(right);
+                    PushSort(items.begin(), items.size(), right, { Compare });
+                }
+            }
+        }
+        m_items = items;
+        return removed;
+    }
 };

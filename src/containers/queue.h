@@ -10,9 +10,9 @@ template<typename T>
 struct Queue
 {
     AllocType m_allocator;
-    i32 m_width;
-    i32 m_head;
-    i32 m_tail;
+    u32 m_width;
+    u32 m_iRead;
+    u32 m_iWrite;
     T* m_ptr;
 
     // ------------------------------------------------------------------------
@@ -21,8 +21,8 @@ struct Queue
     {
         m_allocator = allocator;
         m_width = 0;
-        m_head = 0;
-        m_tail = 0;
+        m_iRead = 0;
+        m_iWrite = 0;
         m_ptr = 0;
     }
 
@@ -31,14 +31,14 @@ struct Queue
         Allocator::Free(m_ptr);
         m_ptr = 0;
         m_width = 0;
-        m_head = 0;
-        m_tail = 0;
+        m_iRead = 0;
+        m_iWrite = 0;
     }
 
     inline void Clear()
     {
-        m_tail = 0;
-        m_head = 0;
+        m_iWrite = 0;
+        m_iRead = 0;
     }
 
     inline void Trim()
@@ -48,31 +48,24 @@ struct Queue
 
     // ------------------------------------------------------------------------
 
-    inline i32 capacity() const { return m_width; }
-    inline i32 size() const { return m_tail - m_head; }
-
     inline AllocType GetAllocator() const { return m_allocator; }
-    inline i32 Mask() const { return m_width - 1; }
-    inline i32 Head() const { return m_head & (m_width - 1); }
-    inline i32 Tail() const { return m_tail & (m_width - 1); }
-    inline bool HasItems() const { return size() > 0; }
-    inline bool IsEmpty() const { return size() == 0; }
+    inline u32 Mask() const { return m_width - 1u; }
+    inline u32 capacity() const { return m_width; }
+    inline u32 size() const { return (m_iWrite - m_iRead) & Mask(); }
+    inline bool HasItems() const { return size() != 0u; }
+    inline bool IsEmpty() const { return size() == 0u; }
 
     // ------------------------------------------------------------------------
 
-    void FitTo(i32 newSize)
+    void FitTo(u32 newSize)
     {
-        const i32 newWidth = HashUtil::ToPow2(newSize);
-        const i32 oldWidth = m_width;
-        const i32 oldMask = oldWidth - 1;
-        const i32 oldHead = m_head;
-        const i32 length = m_tail - oldHead;
-        const AllocType allocator = m_allocator;
+        const u32 newWidth = HashUtil::ToPow2(newSize);
+        const u32 oldWidth = m_width;
+        const u32 length = size();
 
-        ASSERT(newSize >= 0);
-        ASSERT(newWidth >= 0);
-        ASSERT((u32)length <= (u32)oldWidth);
-        ASSERT((u32)length <= (u32)newWidth);
+        ASSERT(newSize >= 0u);
+        ASSERT(newWidth >= 0u);
+        ASSERT(length <= newWidth);
 
         // no resize
         if (newWidth == oldWidth)
@@ -80,44 +73,43 @@ struct Queue
             return;
         }
 
+        const u32 oldMask = Mask();
+        const u32 oldiRead = m_iRead;
+
         // no wraparound
-        const i32 rotation = oldHead & oldMask;
+        const u32 rotation = oldiRead & oldMask;
         if ((rotation + length) <= oldWidth)
         {
-            if (rotation != 0)
+            if (rotation != 0u)
             {
-                T* const ptr = m_ptr;
-                for (i32 i = 0; i < length; ++i)
-                {
-                    ptr[i] = ptr[i + rotation];
-                }
+                memcpy(m_ptr, m_ptr + rotation, length * sizeof(T));
             }
 
-            m_ptr = Allocator::ReallocT<T>(allocator, m_ptr, newWidth);
+            m_ptr = Allocator::ReallocT<T>(GetAllocator(), m_ptr, newWidth);
             m_width = newWidth;
-            m_head = 0;
-            m_tail = length;
+            m_iRead = 0u;
+            m_iWrite = length;
 
             return;
         }
 
         // >= 2x growth
-        if (newWidth >= (oldWidth * 2))
+        if (newWidth >= (oldWidth * 2u))
         {
-            m_ptr = Allocator::ReallocT<T>(allocator, m_ptr, newWidth);
+            m_ptr = Allocator::ReallocT<T>(GetAllocator(), m_ptr, newWidth);
 
             // un-rotate into new side
             T* const oldSide = m_ptr;
             T* const newSide = m_ptr + oldWidth;
-            for (i32 i = 0; i < length; ++i)
+            for (u32 i = 0; i < length; ++i)
             {
-                const i32 j = (oldHead + i) & oldMask;
+                const u32 j = (oldiRead + i) & oldMask;
                 newSide[i] = oldSide[j];
             }
 
-            // head is now at midpoint of resized allocation
-            m_head = oldWidth;
-            m_tail = oldWidth + length;
+            // iRead is now at midpoint of resized allocation
+            m_iRead = oldWidth;
+            m_iWrite = oldWidth + length;
             m_width = newWidth;
 
             return;
@@ -126,13 +118,13 @@ struct Queue
         // < 2x growth
         {
             // create a new allocation
-            T* newPtr = Allocator::AllocT<T>(allocator, newWidth);
+            T* newPtr = Allocator::AllocT<T>(GetAllocator(), newWidth);
             T* oldPtr = m_ptr;
 
             // un-rotate into new allocation
-            for (i32 i = 0; i < length; ++i)
+            for (u32 i = 0; i < length; ++i)
             {
-                const i32 j = (oldHead + i) & oldMask;
+                const u32 j = (oldiRead + i) & oldMask;
                 newPtr[i] = oldPtr[j];
             }
 
@@ -141,38 +133,34 @@ struct Queue
 
             m_ptr = newPtr;
             m_width = newWidth;
-            m_head = 0;
-            m_tail = length;
+            m_iRead = 0;
+            m_iWrite = length;
         }
     }
 
-    inline void Reserve(i32 newSize)
+    inline void Reserve(u32 newSize)
     {
-        ASSERT(newSize >= 0);
-        const i32 width = m_width;
-        if (newSize > width)
+        const u32 width = m_width;
+        if (newSize >= width)
         {
-            FitTo(Max(newSize, Max(width * 2, 16)));
+            FitTo(Max(newSize, Max(width * 2u, 16u)));
         }
     }
 
     // ------------------------------------------------------------------------
 
-    inline i32 GetIndex(i32 i) const
+    inline u32 GetIndex(u32 i) const
     {
-        const i32 head = m_head;
-        const i32 mask = m_width - 1;
-        const i32 index = (head + i) & mask;
-        return index;
+        return (m_iRead + i) & Mask();
     }
 
-    inline T& operator[](i32 i)
+    inline T& operator[](u32 i)
     {
         ASSERT(HasItems());
         return m_ptr[GetIndex(i)];
     }
 
-    inline const T& operator[](i32 i) const
+    inline const T& operator[](u32 i) const
     {
         ASSERT(HasItems());
         return m_ptr[GetIndex(i)];
@@ -180,42 +168,32 @@ struct Queue
 
     inline T Pop()
     {
-        const i32 head = m_head++;
-        const i32 mask = m_width - 1;
-        const i32 index = head & mask;
-        ASSERT((m_tail - head) > 0);
-        return m_ptr[index];
+        ASSERT(HasItems());
+        const u32 i = m_iRead++ & Mask();
+        return m_ptr[i];
     }
 
     inline void Push(T value)
     {
-        Reserve(size() + 1);
-        const i32 tail = m_tail++;
-        const i32 mask = m_width - 1;
-        const i32 index = tail & mask;
-        m_ptr[index] = value;
+        Reserve(size() + 1u);
+        const u32 i = m_iWrite++ & Mask();
+        m_ptr[i] = value;
     }
 
-    i32 Push(T value, const Comparable<T> cmp)
+    u32 Push(T value, const Comparable<T> cmp)
     {
-        const i32 back = m_tail - m_head;
-        Reserve(back + 1);
+        Push(value);
 
-        const i32 mask = m_width - 1;
-        const i32 head = m_head;
+        const u32 mask = Mask();
+        const u32 iRead = m_iRead;
         T* const ptr = m_ptr;
 
+        const u32 back = size() - 1u;
+        u32 pos = back;
+        for (u32 i = back; i > 0u; --i)
         {
-            const i32 tail = m_tail++;
-            const i32 index = tail & mask;
-            ptr[index] = value;
-        }
-
-        i32 pos = back;
-        for (i32 i = back; i > 0; --i)
-        {
-            const i32 rhs = (head + i) & mask;
-            const i32 lhs = (head + i - 1) & mask;
+            const u32 rhs = (iRead + i) & mask;
+            const u32 lhs = (iRead + i - 1u) & mask;
 
             if (cmp(ptr[lhs], ptr[rhs]) > 0)
             {
@@ -237,13 +215,13 @@ struct Queue
     struct iterator
     {
         T* const m_ptr;
-        const i32 m_mask;
-        i32 m_i;
+        const u32 m_mask;
+        u32 m_i;
 
         inline iterator(Queue& queue, bool isBegin)
             : m_ptr(queue.m_ptr),
-            m_mask(queue.m_width - 1),
-            m_i(isBegin ? queue.m_head : queue.m_tail)
+            m_mask(queue.Mask()),
+            m_i(isBegin ? queue.m_iRead : queue.m_iWrite)
         {}
 
         inline bool operator!=(iterator rhs) const
@@ -271,13 +249,13 @@ struct Queue
     struct const_iterator
     {
         const T* const m_ptr;
-        const i32 m_mask;
-        i32 m_i;
+        const u32 m_mask;
+        u32 m_i;
 
         inline const_iterator(const Queue& queue, bool isBegin)
             : m_ptr(queue.m_ptr),
-            m_mask(queue.m_width - 1),
-            m_i(isBegin ? queue.m_head : queue.m_tail)
+            m_mask(queue.Mask()),
+            m_i(isBegin ? queue.m_iRead : queue.m_iWrite)
         {}
 
         inline bool operator!=(const_iterator rhs) const
@@ -306,29 +284,29 @@ struct Queue
 template<typename T>
 inline i32 Find(const Queue<T> queue, const T& key, const Equatable<T> eq)
 {
-    const i32 count = queue.size();
-    for (i32 i = 0; i < count; ++i)
+    const u32 count = queue.size();
+    for (u32 i = 0u; i < count; ++i)
     {
         if (eq(key, queue[i]))
         {
-            return i;
+            return (i32)i;
         }
     }
     return -1;
 }
 
 template<typename T>
-inline void Remove(Queue<T>& queue, i32 i)
+inline void Remove(Queue<T>& queue, u32 i)
 {
     Queue<T> local = queue;
 
-    const i32 size = local.size();
-    const i32 back = size - 1;
-    ASSERT((u32)i < (u32)size);
+    const u32 count = local.size();
+    const u32 back = count - 1u;
+    ASSERT(i < count);
 
     for (; i < back; ++i)
     {
-        local[i] = local[i + 1];
+        local[i] = local[i + 1u];
     }
 
     queue.Pop();

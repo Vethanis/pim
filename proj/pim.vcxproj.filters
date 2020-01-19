@@ -579,6 +579,15 @@
     <ClInclude Include="..\src\common\heap_item.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\containers\obj_pool.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\assets\stream_file.h">
+      <Filter>Source Files\assets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\obj_table.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">

@@ -1,49 +1,40 @@
 #pragma once
 
-#include "common/guid.h"
 #include "common/guid_util.h"
 #include "common/text.h"
-#include "containers/array.h"
 #include "containers/heap.h"
+#include "containers/obj_table.h"
 
-struct PackAssets
+struct Pack
 {
-    GuidTable table;            // guid table of asset name
-    Array<HeapItem> positions;  // positions of asset in file
+    PathText path;
+    Heap heap;
 
-    void Init(AllocType allocator);
-    void Reset();
+    Pack() {}
+    ~Pack()
+    {
+        heap.Reset();
+    }
 
-    i32 Add(Guid name, HeapItem position);
-    bool Remove(Guid name);
-    void RemoveAt(i32 i);
+    void Init(cstr pathStr, i32 fileSize)
+    {
+        path = pathStr;
+        heap.Init(Alloc_Pool, fileSize);
+    }
 
-    i32 size() const { return table.size(); }
-    i32 Find(Guid name) const { return table.Find(name); }
-    bool Contains(Guid name) const { return table.Contains(name); }
-    Guid GetName(i32 i) const { return table[i]; }
-    HeapItem& GetPosition(i32 i) { return positions[i]; }
+    HeapItem Alloc(i32 size)
+    {
+        return heap.Alloc(size);
+    }
+    void Free(HeapItem item)
+    {
+        heap.Free(item);
+    }
+    void Remove(HeapItem extant)
+    {
+        bool removed = heap.Remove(extant);
+        ASSERT(removed);
+    }
 };
 
-struct PackDb
-{
-    GuidTable table;            // guid table of the pack path
-    Array<PathText> paths;      // path to pack
-    Array<Heap> heaps;          // free positions in pack
-    Array<PackAssets> packs;    // the locations of the assets in the pack
-
-    void Init(AllocType allocator);
-    void Reset();
-
-    i32 Add(Guid name, cstr path);
-    bool Remove(Guid name);
-    void RemoveAt(i32 i);
-
-    i32 size() const { return table.size(); }
-    i32 Find(Guid name) const { return table.Find(name); }
-    bool Contains(Guid name) const { return table.Contains(name); }
-    Guid GetName(i32 i) const { return table[i]; }
-    PathText& GetPath(i32 i) { return paths[i]; }
-    Heap& GetHeap(i32 i) { return heaps[i]; }
-    PackAssets& GetPack(i32 i) { return packs[i]; }
-};
+using PackTable = ObjTable<Guid, Pack, GuidComparator, 64>;

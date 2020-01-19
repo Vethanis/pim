@@ -11,8 +11,7 @@ struct FileTask final : ITask
     HeapItem pos;
     void* ptr;
     bool write;
-    void(*OnSuccess)(FileTask& task);
-    void(*OnError)(FileTask& task);
+    bool success;
 
     void Execute(u32 tid) final;
 };
@@ -21,4 +20,5 @@ namespace FStream
 {
     FileTask* Read(cstr path, void* dst, HeapItem src);
     FileTask* Write(cstr path, HeapItem dst, void* src);
+    void Free(FileTask* pTask);
 };

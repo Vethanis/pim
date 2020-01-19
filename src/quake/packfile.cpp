@@ -24,22 +24,25 @@ namespace Quake
         file = IO::MapFile(fd, false, err);
         if (err == EFail)
         {
+            IO::Close(fd, err);
             return pack;
         }
 
+        pack.size = file.memory.size();
         Slice<DPackHeader> headers = file.memory.Cast<DPackHeader>();
         if (headers.size() < 1)
         {
+            IO::Close(file);
             return pack;
         }
 
-        DPackHeader header = headers[0];
+        pack.header = headers[0];
 
-        ASSERT(memcmp(header.id, "PACK", 4) == 0);
-        ASSERT((header.length % sizeof(DPackFile)) == 0);
+        ASSERT(memcmp(pack.header.id, "PACK", 4) == 0);
+        ASSERT((pack.header.length % sizeof(DPackFile)) == 0);
 
         Slice<DPackFile> metadata = file.memory
-            .Subslice(header.offset, header.length)
+            .Subslice(pack.header.offset, pack.header.length)
             .Cast<DPackFile>();
 
         Copy(pack.files, metadata);

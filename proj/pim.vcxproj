@@ -61,6 +61,7 @@
     <ClInclude Include="..\src\assets\asset_system.h" />
     <ClInclude Include="..\src\assets\file_streaming.h" />
     <ClInclude Include="..\src\assets\packdb.h" />
+    <ClInclude Include="..\src\assets\stream_file.h" />
     <ClInclude Include="..\src\audio\audio_system.h" />
     <ClInclude Include="..\src\audio\components.h" />
     <ClInclude Include="..\src\common\apply.h" />
@@ -102,6 +103,8 @@
     <ClInclude Include="..\src\containers\heap.h" />
     <ClInclude Include="..\src\containers\initlist.h" />
     <ClInclude Include="..\src\containers\lookup_table.h" />
+    <ClInclude Include="..\src\containers\obj_pool.h" />
+    <ClInclude Include="..\src\containers\obj_table.h" />
     <ClInclude Include="..\src\containers\pipe.h" />
     <ClInclude Include="..\src\containers\queue.h" />
     <ClInclude Include="..\src\containers\ring.h" />

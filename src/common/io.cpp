@@ -20,19 +20,19 @@ namespace IO
 {
     static i32 NotNeg(i32 x, EResult& err)
     {
-        err = x < 0 ? EFail : ESuccess;
+        err = (x >= 0) ? ESuccess : EFail;
         return x;
     }
 
     static void* NotNull(void* x, EResult& err)
     {
-        err = x ? ESuccess : EFail;
+        err = (x != nullptr) ? ESuccess : EFail;
         return x;
     }
 
     static i32 IsZero(i32 x, EResult& err)
     {
-        err = x ? ESuccess : EFail;
+        err = (x == 0) ? ESuccess : EFail;
         return x;
     }
 
