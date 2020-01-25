@@ -18,13 +18,21 @@ namespace OS
         while (!TryLock())
         {
             ++spins;
-            Spin(spins * 100);
+            if (spins > 10)
+            {
+                OS::Rest(0);
+                spins = 0;
+            }
+            else
+            {
+                Spin(spins * 100);
+            }
         }
     }
 
     void SpinLock::Unlock()
     {
-        u32 prev = Exchange(m_count, 0, MO_Release);
+        i32 prev = Exchange(m_count, 0, MO_Release);
         ASSERT(prev == 1);
     }
 
@@ -142,7 +150,7 @@ namespace OS
             {
                 newState.IncReader();
             }
-        } while (!CmpExStrong(m_state, oldState, newState, MO_AcqRel, MO_Relaxed));
+        } while (!CmpExStrong(m_state, oldState, newState, MO_Acquire, MO_Relaxed));
 
         if (oldState.writers != 0u)
         {
@@ -152,14 +160,10 @@ namespace OS
 
     void RWLock::UnlockReader()
     {
-        RWState oldState = Load(m_state, MO_Relaxed);
-        RWState newState;
-        do
-        {
-            newState = oldState;
-            newState.DecReader();
-        } while (!CmpExStrong(m_state, oldState, newState, MO_AcqRel, MO_Relaxed));
-
+        RWState oneReader = 0u;
+        oneReader.IncReader();
+        RWState oldState = FetchSub(m_state, oneReader, MO_Release);
+        ASSERT(oldState.readers);
         if ((oldState.readers == 1u) && (oldState.writers != 0u))
         {
             m_write.Signal();
@@ -168,15 +172,11 @@ namespace OS
 
     void RWLock::LockWriter()
     {
-        RWState oldState = Load(m_state, MO_Relaxed);
-        RWState newState;
-        do
-        {
-            newState = oldState;
-            newState.IncWriter();
-        } while (!CmpExStrong(m_state, oldState, newState, MO_AcqRel, MO_Relaxed));
-
-        if ((oldState.writers != 0u) || (oldState.readers != 0u))
+        RWState oneWriter = 0u;
+        oneWriter.IncWriter();
+        RWState oldState = FetchAdd(m_state, oneWriter, MO_Acquire);
+        ASSERT(oldState.writers < RWState::kMask);
+        if (oldState.writers || oldState.readers)
         {
             m_write.Wait();
         }
@@ -197,9 +197,9 @@ namespace OS
                 newState.waiters = 0u;
                 newState.readers = waits;
             }
-        } while (!CmpExWeak(m_state, oldState, newState, MO_AcqRel, MO_Relaxed));
+        } while (!CmpExWeak(m_state, oldState, newState, MO_Release, MO_Relaxed));
 
-        if (waits != 0u)
+        if (waits)
         {
             m_read.Signal(waits);
         }
@@ -211,45 +211,35 @@ namespace OS
 
     // ------------------------------------------------------------------------
 
-    void Event::Signal()
+    void Event::WakeOne()
     {
-        i32 oldState = Load(m_state, MO_Relaxed);
-        while (!CmpExStrong(m_state, oldState, Min(oldState + 1, 1), MO_Acquire, MO_Relaxed))
+        i32 waits = Load(m_waits, MO_Relaxed);
+        while (!CmpExStrong(m_waits, waits, Max(waits - 1, 0), MO_Release, MO_Relaxed))
         {
             OS::YieldCore();
         }
-        if (oldState < 0)
+        if (waits > 0)
         {
-            m_sema.Signal();
+            m_sema.Signal(1);
+        }
+    }
+
+    void Event::WakeAll()
+    {
+        i32 waits = Load(m_waits, MO_Relaxed);
+        while (!CmpExStrong(m_waits, waits, 0, MO_Release, MO_Relaxed))
+        {
+            OS::YieldCore();
+        }
+        if (waits > 0)
+        {
+            m_sema.Signal(waits);
         }
     }
 
     void Event::Wait()
     {
-        i32 oldState = Dec(m_state, MO_Acquire);
-        if (oldState < 1)
-        {
-            m_sema.Wait();
-        }
-    }
-
-    // ------------------------------------------------------------------------
-
-    void MultiEvent::Signal()
-    {
-        i32 oldCount = Load(m_waitCount, MO_Relaxed);
-        if (oldCount > 0)
-        {
-            if (CmpExStrong(m_waitCount, oldCount, 0, MO_Acquire, MO_Relaxed))
-            {
-                m_sema.Signal(oldCount);
-            }
-        }
-    }
-
-    void MultiEvent::Wait()
-    {
-        Inc(m_waitCount, MO_Acquire);
+        Inc(m_waits, MO_Acquire);
         m_sema.Wait();
     }
 };

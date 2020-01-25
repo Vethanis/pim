@@ -23,10 +23,11 @@ static constexpr u32 kThreadMask = kNumThreads - 1u;
 // ----------------------------------------------------------------------------
 
 static OS::Thread ms_threads[kNumThreads];
-static Pipe<ITask*, 2048> ms_queue;
+static PtrPipe<2048> ms_queue;
 
-static OS::MultiEvent ms_waitNew;
-static OS::MultiEvent ms_waitComplete;
+static OS::Event ms_waitPush;
+static OS::Event ms_waitExec;
+static OS::Event ms_waitPop;
 
 static i32 ms_numThreadsRunning;
 static u32 ms_running;
@@ -76,14 +77,21 @@ bool ITask::IsInProgress() const { return ::IsInProgress(this); }
 
 static bool TryRunTask(u32 tid)
 {
-    ITask* pTask = nullptr;
-    if (ms_queue.TryPop(pTask))
+    ITask* pTask = (ITask*)ms_queue.TryPop();
+    if (pTask)
     {
+        ms_waitPop.WakeOne();
+
         ASSERT(pTask);
         Store(pTask->m_state, TaskState_Execute, MO_Release);
         pTask->Execute(tid);
         Store(pTask->m_state, TaskState_Complete, MO_Release);
-        ms_waitComplete.Signal();
+
+        if (Load(pTask->m_waits, MO_Relaxed) > 0)
+        {
+            ms_waitExec.WakeAll();
+        }
+
         return true;
     }
     return false;
@@ -108,8 +116,8 @@ static void AddTask(ITask* pTask)
         }
         else if (spins > kMaxSpins)
         {
+            ms_waitPop.Wait();
             spins = 0;
-            ms_waitComplete.Wait();
         }
         else
         {
@@ -117,7 +125,7 @@ static void AddTask(ITask* pTask)
         }
     }
 
-    ms_waitNew.Signal();
+    ms_waitPush.WakeOne();
 }
 
 static void WaitForTask(ITask* pTask)
@@ -136,8 +144,10 @@ static void WaitForTask(ITask* pTask)
         }
         else if (spins > kMaxSpins)
         {
+            Inc(pTask->m_waits, MO_Acquire);
+            ms_waitExec.Wait();
+            Dec(pTask->m_waits, MO_Release);
             spins = 0;
-            ms_waitComplete.Wait();
         }
         else
         {
@@ -167,8 +177,8 @@ static void ThreadFn(void* pVoid)
             ++spins;
             if (spins > kMaxSpins)
             {
+                ms_waitPush.Wait();
                 spins = 0;
-                ms_waitNew.Wait();
             }
             else
             {
@@ -195,8 +205,9 @@ namespace TaskSystem
     static void Init()
     {
         ms_tid = 0u;
-        ms_waitComplete.Open();
-        ms_waitNew.Open();
+        ms_waitPush.Open();
+        ms_waitExec.Open();
+        ms_waitPop.Open();
         Store(ms_running, 1u, MO_Release);
         ms_queue.Init();
         for (u32 t = 0u; t < kNumThreads; ++t)
@@ -214,11 +225,12 @@ namespace TaskSystem
 
     static void Shutdown()
     {
-        Store(ms_running, 0, MO_Release);
+        Store(ms_running, 0u, MO_Release);
         while (Load(ms_numThreadsRunning, MO_Relaxed) > 0)
         {
-            ms_waitNew.Signal();
-            ms_waitComplete.Signal();
+            ms_waitPush.WakeAll();
+            ms_waitExec.WakeAll();
+            ms_waitPop.WakeAll();
         }
 
         for (u32 i = 0u; i < kNumThreads; ++i)
@@ -227,8 +239,9 @@ namespace TaskSystem
         }
 
         ms_queue.Clear();
-        ms_waitNew.Close();
-        ms_waitComplete.Close();
+        ms_waitPush.Close();
+        ms_waitExec.Close();
+        ms_waitPop.Close();
     }
 
     static constexpr System ms_system =

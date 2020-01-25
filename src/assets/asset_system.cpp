@@ -64,8 +64,8 @@ namespace AssetSystem
 
     static void Shutdown()
     {
-        ms_packs.Shutdown();
-        ms_assets.Shutdown();
+        ms_packs.Reset();
+        ms_assets.Reset();
     }
 
     static constexpr System ms_system =

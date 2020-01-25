@@ -13,8 +13,9 @@ enum TaskState : u32
 struct ITask
 {
     u32 m_state;
+    i32 m_waits;
 
-    ITask() : m_state(TaskState_Init) {}
+    ITask() : m_state(TaskState_Init), m_waits(0) {}
     virtual ~ITask() {}
     ITask(const ITask& other) = delete;
     ITask& operator=(const ITask& other) = delete;

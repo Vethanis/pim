@@ -7,6 +7,7 @@ namespace OS
     void YieldCore();
     u64 ReadCounter();
     void Spin(u64 ticks);
+    void Rest(u64 ms);
 
     using ThreadFn = void(*)(void* pData);
 
@@ -128,12 +129,12 @@ namespace OS
 
     struct Event
     {
-        i32 m_state;
+        i32 m_waits;
         LightSema m_sema;
 
         bool Open()
         {
-            m_state = 0;
+            m_waits = 0;
             return m_sema.Open();
         }
         bool Close()
@@ -141,26 +142,8 @@ namespace OS
             return m_sema.Close();
         }
 
-        void Signal();
-        void Wait();
-    };
-
-    struct MultiEvent
-    {
-        i32 m_waitCount;
-        LightSema m_sema;
-
-        bool Open()
-        {
-            m_waitCount = 0;
-            return m_sema.Open();
-        }
-        bool Close()
-        {
-            return m_sema.Close();
-        }
-
-        void Signal();
+        void WakeOne();
+        void WakeAll();
         void Wait();
     };
 };

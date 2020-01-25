@@ -25,30 +25,25 @@ static StreamFile* GetAdd(cstr path)
         {
             return pFile;
         }
-        else
-        {
-            ms_table.Delete(pFile);
-            return ms_table.Get(key);
-        }
     }
     ms_table.Delete(pFile);
-    return nullptr;
+    return ms_table.Get(key);
 }
 
 void FileTask::Execute(u32 tid)
 {
+    success = false;
     StreamFile* pFile = GetAdd(path);
     if (pFile)
     {
         if (write)
         {
-            pFile->Write(pos, ptr);
+            success = pFile->Write(pos, ptr);
         }
         else
         {
-            pFile->Read(ptr, pos);
+            success = pFile->Read(ptr, pos);
         }
-        success = true;
     }
 }
 
@@ -96,8 +91,8 @@ namespace FStream
 
     static void Shutdown()
     {
-        ms_table.Shutdown();
-        ms_taskPool.Shutdown();
+        ms_table.Reset();
+        ms_taskPool.Reset();
     }
 
     static constexpr System ms_system =

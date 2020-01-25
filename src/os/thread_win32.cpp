@@ -20,11 +20,16 @@ u64 OS::ReadCounter()
 
 void OS::Spin(u64 ticks)
 {
-    const u64 end = ReadCounter() + ticks;
+    const u64 end = __rdtsc() + ticks;
     do
     {
-        YieldCore();
-    } while (ReadCounter() < end);
+        _mm_pause();
+    } while (__rdtsc() < end);
+}
+
+void OS::Rest(u64 ms)
+{
+    ::Sleep((u32)ms);
 }
 
 // ------------------------------------------------------------------------

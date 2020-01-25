@@ -266,7 +266,7 @@ namespace Ecs
         for (i32 i = 0; i < ComponentId_COUNT; ++i)
         {
             ms_ptrs[i].Reset();
-            ms_allocators[i].Shutdown();
+            ms_allocators[i].Reset();
         }
     }
 

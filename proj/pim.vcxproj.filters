@@ -71,9 +71,6 @@
     <Filter Include="Source Files\threading">
       <UniqueIdentifier>{72b4bbbe-00bd-454a-9e8c-ec4674c3d58c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\time">
-      <UniqueIdentifier>{13d824aa-a38c-4e7f-8755-0d56bf2e214e}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\allocator">
       <UniqueIdentifier>{ea6d353a-3b51-48c5-bfb7-d0d4f11eddc0}</UniqueIdentifier>
     </Filter>
@@ -586,6 +583,15 @@
       <Filter>Source Files\assets</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\obj_table.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\typeid.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\chunk.h">
+      <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\atomic_array.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>

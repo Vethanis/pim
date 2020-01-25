@@ -12,9 +12,9 @@ struct ObjPool
     {
         m_chunks.Init(Alloc_Pool, sizeof(T));
     }
-    void Shutdown()
+    void Reset()
     {
-        m_chunks.Shutdown();
+        m_chunks.Reset();
     }
     T* New()
     {

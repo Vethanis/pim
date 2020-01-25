@@ -24,11 +24,11 @@ void ThreadFenceRelease();
 // ----------------------------------------------------------------------------
 
 #define ATOMIC_INTERFACE(T) \
-    T Load(const volatile T& atom, MemOrder ord); \
-    void Store(volatile T& atom, T x, MemOrder ord); \
-    bool CmpExWeak(volatile T& atom, T& expected, T desired, MemOrder success, MemOrder failure); \
-    bool CmpExStrong(volatile T& atom, T& expected, T desired, MemOrder success, MemOrder failure); \
-    T Exchange(volatile T& atom, T x, MemOrder ord); \
+    T Load(const volatile T& atom, MemOrder ord = MO_Acquire); \
+    void Store(volatile T& atom, T x, MemOrder ord = MO_Release); \
+    bool CmpExWeak(volatile T& atom, T& expected, T desired, MemOrder success = MO_AcqRel, MemOrder failure = MO_Relaxed); \
+    bool CmpExStrong(volatile T& atom, T& expected, T desired, MemOrder success = MO_AcqRel, MemOrder failure = MO_Relaxed); \
+    T Exchange(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
     T Inc(volatile T& atom, MemOrder ord); \
     T Dec(volatile T& atom, MemOrder ord); \
     T FetchAdd(volatile T& atom, T x, MemOrder ord); \
@@ -51,51 +51,62 @@ ATOMIC_INTERFACE(i64);
 
 // ----------------------------------------------------------------------------
 
-template<typename T>
-struct APtr
-{
-    using TPtr = T*;
-
 #if PLAT_64
-    using OPtr = i64;
+using OPtr = i64;
 #else
-    using OPtr = i32;
+using OPtr = i32;
 #endif // PLAT_64
 
-    static TPtr Load(const volatile TPtr& atom, MemOrder ord)
-    {
-        return (TPtr)::Load((const volatile OPtr&)atom, ord);
-    }
-    static void Store(volatile TPtr& atom, TPtr x, MemOrder ord)
-    {
-        ::Store((volatile OPtr&)atom, (OPtr)x, ord);
-    }
-    static bool CmpExWeak(volatile TPtr& atom, TPtr& expected, TPtr desired, MemOrder success, MemOrder failure)
-    {
-        return ::CmpExWeak((volatile OPtr&)atom, (OPtr&)expected, (OPtr)desired, success, failure);
-    }
-    static bool CmpExStrong(volatile TPtr& atom, TPtr& expected, TPtr desired, MemOrder success, MemOrder failure)
-    {
-        return ::CmpExStrong((volatile OPtr&)atom, (OPtr&)expected, (OPtr)desired, success, failure);
-    }
-    static TPtr Exchange(volatile TPtr& atom, TPtr x, MemOrder ord)
-    {
-        return (TPtr)::Exchange((volatile OPtr&)atom, (OPtr)x, ord);
-    }
-    static TPtr Inc(volatile TPtr& atom, MemOrder ord)
-    {
-        return (TPtr)::FetchAdd((volatile OPtr&)atom, sizeof(T), ord);
-    }
-    static TPtr Dec(volatile TPtr& atom, MemOrder ord)
-    {
-        return (TPtr)::FetchSub((volatile OPtr&)atom, sizeof(T), ord);
-    }
-    static TPtr FetchAdd(volatile TPtr& atom, OPtr x, MemOrder ord)
-    {
-        return (TPtr)::FetchAdd((volatile OPtr&)atom, x * sizeof(T), ord);
-    }
-    static TPtr FetchSub(volatile TPtr& atom, OPtr x, MemOrder ord)
-    {
-        return (TPtr)::FetchSub((volatile OPtr&)atom, x * sizeof(T), ord);
-    }
-};
+template<typename T>
+static T* LoadPtr(T* const & atom, MemOrder ord = MO_Acquire)
+{
+    return (T*)::Load((const volatile OPtr&)atom, ord);
+}
+
+template<typename T>
+static void StorePtr(T*& atom, T* x, MemOrder ord = MO_Release)
+{
+    ::Store((volatile OPtr&)atom, (OPtr)x, ord);
+}
+
+template<typename T>
+static bool CmpExWeakPtr(T*& atom, T*& expected, T* desired, MemOrder success = MO_AcqRel, MemOrder failure = MO_Relaxed)
+{
+    return ::CmpExWeak((volatile OPtr&)atom, (OPtr&)expected, (OPtr)desired, success, failure);
+}
+
+template<typename T>
+static bool CmpExStrongPtr(T*& atom, T*& expected, T* desired, MemOrder success = MO_AcqRel, MemOrder failure = MO_Relaxed)
+{
+    return ::CmpExStrong((volatile OPtr&)atom, (OPtr&)expected, (OPtr)desired, success, failure);
+}
+
+template<typename T>
+static T* ExchangePtr(T*& atom, T* x, MemOrder ord = MO_AcqRel)
+{
+    return (T*)::Exchange((volatile OPtr&)atom, (OPtr)x, ord);
+}
+
+template<typename T>
+static T* IncPtr(T*& atom, MemOrder ord)
+{
+    return (T*)::FetchAdd((volatile OPtr&)atom, sizeof(T), ord);
+}
+
+template<typename T>
+static T* DecPtr(T*& atom, MemOrder ord)
+{
+    return (T*)::FetchSub((volatile OPtr&)atom, sizeof(T), ord);
+}
+
+template<typename T>
+static T* FetchAddPtr(T*& atom, OPtr x, MemOrder ord)
+{
+    return (T*)::FetchAdd((volatile OPtr&)atom, x * sizeof(T), ord);
+}
+
+template<typename T>
+static T* FetchSubPtr(T*& atom, OPtr x, MemOrder ord)
+{
+    return (T*)::FetchSub((volatile OPtr&)atom, x * sizeof(T), ord);
+}

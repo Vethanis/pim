@@ -25,7 +25,7 @@ struct ObjTable
         m_pool.Init();
     }
 
-    void Shutdown()
+    void Reset()
     {
         for (u32 i = 0; i < kWidth; ++i)
         {
@@ -38,7 +38,7 @@ struct ObjTable
             }
             m_dicts[i].Reset();
         }
-        m_pool.Shutdown();
+        m_pool.Reset();
     }
 
     V* New() { return m_pool.New(); }
@@ -49,8 +49,9 @@ struct ObjTable
     V* Get(K key)
     {
         const u32 i = ToIndex(key);
-        OS::ReadGuard guard(m_locks[i]);
+        m_locks[i].LockReader();
         V** ppValue = m_dicts[i].Get(key);
+        m_locks[i].UnlockReader();
         return ppValue ? *ppValue : nullptr;
     }
 
@@ -58,24 +59,30 @@ struct ObjTable
     {
         ASSERT(pValue);
         const u32 i = ToIndex(key);
-        OS::WriteGuard guard(m_locks[i]);
-        return m_dicts[i].Add(key, pValue);
+        m_locks[i].LockWriter();
+        bool added = m_dicts[i].Add(key, pValue);
+        m_locks[i].UnlockWriter();
+        return added;
     }
 
     bool Remove(K key)
     {
         const u32 i = ToIndex(key);
 
-        m_locks[i].LockWriter();
+        m_locks[i].LockReader();
         V** ppValue = m_dicts[i].Get(key);
-        m_dicts[i].Remove(key);
-        m_locks[i].UnlockWriter();
+        m_locks[i].UnlockReader();
 
         if (ppValue)
         {
+            m_locks[i].LockWriter();
+            m_dicts[i].Remove(key);
+            m_locks[i].UnlockWriter();
+
             m_pool.Delete(*ppValue);
             return true;
         }
+
         return false;
     }
 };

@@ -84,9 +84,11 @@
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\text.h" />
     <ClInclude Include="..\src\common\time.h" />
+    <ClInclude Include="..\src\common\typeid.h" />
     <ClInclude Include="..\src\common\unroll.h" />
     <ClInclude Include="..\src\common\valist.h" />
     <ClInclude Include="..\src\components\all.h" />
+    <ClInclude Include="..\src\components\chunk.h" />
     <ClInclude Include="..\src\components\common.h" />
     <ClInclude Include="..\src\components\component.h" />
     <ClInclude Include="..\src\components\ecs.h" />
@@ -94,6 +96,7 @@
     <ClInclude Include="..\src\components\system.h" />
     <ClInclude Include="..\src\components\transform.h" />
     <ClInclude Include="..\src\containers\array.h" />
+    <ClInclude Include="..\src\containers\atomic_array.h" />
     <ClInclude Include="..\src\containers\bitfield.h" />
     <ClInclude Include="..\src\containers\bitpack.h" />
     <ClInclude Include="..\src\containers\generational.h" />

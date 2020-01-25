@@ -173,6 +173,16 @@ struct Queue
         return m_ptr[i];
     }
 
+    inline bool TryPop(T& dst)
+    {
+        if (HasItems())
+        {
+            dst = Pop();
+            return true;
+        }
+        return false;
+    }
+
     inline void Push(T value)
     {
         Reserve(size() + 1u);
