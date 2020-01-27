@@ -10,6 +10,7 @@ struct AArray
 {
     static constexpr i32 kRecordSize = 64;
     static constexpr i32 kRecordMask = kRecordSize - 1;
+    SASSERT((kRecordSize & kRecordMask) == 0);
 
     struct Record
     {
@@ -28,7 +29,7 @@ struct AArray
     AllocType GetAllocator() const { return (AllocType)Load(m_allocator, MO_Relaxed); }
     i32 size() const { return Load(m_length); }
     i32 capacity() const { return Load(m_capacity); }
-    bool IsEmpty() const { return size() > 0; }
+    bool IsEmpty() const { return size() == 0; }
     bool InRange(i32 i) const { return (u32)i < (u32)size(); }
 
     void Init(AllocType allocator)
@@ -98,38 +99,37 @@ struct AArray
         return (void*)Exchange(RefAt(i), (isize)value);
     }
 
-    bool CmpExAt(i32 i, void*& expected, void* desired, MemOrder success = MO_AcqRel, MemOrder failure = MO_Relaxed)
-    {
-        return CmpExStrong(RefAt(i), (isize&)expected, (isize)desired, success, failure);
-    }
-
     void Reserve(i32 minSize)
     {
         ASSERT(minSize >= 0);
         while (capacity() < minSize)
         {
+            u64 spins = 0;
             Record* pNew = Allocator::CallocT<Record>(GetAllocator(), 1);
-            while (pNew)
+            Record** ppNext = &m_head;
+            Record* pNext = LoadPtr(*ppNext);
+        findtail:
+            while (pNext)
             {
-                Record** ppNext = &m_head;
-                Record* pNext = LoadPtr(*ppNext);
-                while (pNext)
-                {
-                    ppNext = &(pNext->pNext);
-                    pNext = LoadPtr(*ppNext);
-                }
-                if (CmpExStrongPtr(*ppNext, pNext, pNew))
-                {
-                    FetchAdd(m_capacity, kRecordSize, MO_Release);
-                    pNew = nullptr;
-                }
+                ppNext = &(pNext->pNext);
+                pNext = LoadPtr(*ppNext);
+            }
+            if (CmpExStrongPtr(*ppNext, pNext, pNew))
+            {
+                FetchAdd(m_capacity, kRecordSize);
+            }
+            else
+            {
+                ++spins;
+                OS::Spin(spins * 100);
+                goto findtail;
             }
         }
     }
 
     void PushBack(void* value)
     {
-        const i32 i = Inc(m_innerLength, MO_AcqRel);
+        const i32 i = Inc(m_innerLength);
         Reserve(i + 1);
         StoreAt(i, value);
         Inc(m_length, MO_AcqRel);
@@ -141,7 +141,7 @@ struct AArray
         if (len > 0 && CmpExStrong(m_length, len, len - 1))
         {
             void* ptr = LoadAt(len - 1);
-            Dec(m_innerLength, MO_AcqRel);
+            Dec(m_innerLength);
             return ptr;
         }
         return nullptr;
@@ -150,10 +150,10 @@ struct AArray
     void* TryRemoveAt(i32 i)
     {
         void* backVal = TryPopBack();
-        if (backVal)
+        if (backVal && i < size())
         {
             return ExchangeAt(i, backVal);
         }
-        return nullptr;
+        return backVal;
     }
 };

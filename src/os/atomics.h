@@ -29,12 +29,12 @@ void ThreadFenceRelease();
     bool CmpExWeak(volatile T& atom, T& expected, T desired, MemOrder success = MO_AcqRel, MemOrder failure = MO_Relaxed); \
     bool CmpExStrong(volatile T& atom, T& expected, T desired, MemOrder success = MO_AcqRel, MemOrder failure = MO_Relaxed); \
     T Exchange(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
-    T Inc(volatile T& atom, MemOrder ord); \
-    T Dec(volatile T& atom, MemOrder ord); \
-    T FetchAdd(volatile T& atom, T x, MemOrder ord); \
-    T FetchSub(volatile T& atom, T x, MemOrder ord); \
-    T FetchAnd(volatile T& atom, T x, MemOrder ord); \
-    T FetchOr(volatile T& atom, T x, MemOrder ord);
+    T Inc(volatile T& atom, MemOrder ord = MO_AcqRel); \
+    T Dec(volatile T& atom, MemOrder ord = MO_AcqRel); \
+    T FetchAdd(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
+    T FetchSub(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
+    T FetchAnd(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
+    T FetchOr(volatile T& atom, T x, MemOrder ord = MO_AcqRel);
 
 // ----------------------------------------------------------------------------
 

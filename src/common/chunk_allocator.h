@@ -56,18 +56,29 @@ struct ChunkAllocator
     void* Allocate()
     {
         void* ptr = nullptr;
-        while (!ptr)
+        u64 spins = 0;
+
+    trypop:
+        ptr = m_pipe.TryPop();
+        if (ptr)
         {
-            ptr = m_pipe.TryPop();
-            if (!ptr)
-            {
-                ptr = m_free.TryPopBack();
-            }
-            if (!ptr)
-            {
-                PushChunk();
-            }
+            goto popped;
         }
+        ptr = m_free.TryPopBack();
+        if (ptr)
+        {
+            goto popped;
+        }
+        ++spins;
+        if (spins > 5)
+        {
+            PushChunk();
+            spins = 0;
+        }
+        OS::Spin(spins * 100);
+        goto trypop;
+
+    popped:
         memset(ptr, 0, m_itemSize);
         return ptr;
     }
@@ -76,10 +87,15 @@ struct ChunkAllocator
     {
         if (pVoid)
         {
-            if (!m_pipe.TryPush(pVoid))
+            for (u64 i = 1; i <= 5; ++i)
             {
-                m_free.PushBack(pVoid);
+                if (m_pipe.TryPush(pVoid))
+                {
+                    return;
+                }
+                OS::Spin(i * 100);
             }
+            m_free.PushBack(pVoid);
         }
     }
 };

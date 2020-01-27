@@ -146,4 +146,15 @@ namespace OS
         void WakeAll();
         void Wait();
     };
+
+    struct RWFlag
+    {
+        i32 m_state;
+
+        bool TryLockReader();
+        void UnlockReader();
+
+        bool TryLockWriter();
+        void UnlockWriter();
+    };
 };

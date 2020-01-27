@@ -4,10 +4,13 @@
 #include "common/int_types.h"
 #include "os/atomics.h"
 
+struct ComponentRow;
+
 struct TypeData
 {
     i32 sizeOf;
     i32 alignOf;
+    ComponentRow* pRow;
 };
 
 struct TypeId
@@ -18,12 +21,15 @@ struct TypeId
     bool operator<(TypeId rhs) const { return handle < rhs.handle; }
 
     bool IsNull() const { return handle == 0; }
+    bool IsNotNull() const { return handle != 0; }
 
-    TypeData AsData() const
+    TypeData& AsData() const
     {
         ASSERT(!IsNull());
-        return *reinterpret_cast<const TypeData*>(handle);
+        return *reinterpret_cast<TypeData*>(handle);
     }
+    i32 SizeOf() const { return AsData().sizeOf; }
+    i32 AlignOf() const { return AsData().alignOf; }
 };
 
 struct TypeMgr

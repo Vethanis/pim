@@ -51,7 +51,7 @@ struct Queue
     inline AllocType GetAllocator() const { return m_allocator; }
     inline u32 Mask() const { return m_width - 1u; }
     inline u32 capacity() const { return m_width; }
-    inline u32 size() const { return (m_iWrite - m_iRead) & Mask(); }
+    inline u32 size() const { return m_iWrite - m_iRead; }
     inline bool HasItems() const { return size() != 0u; }
     inline bool IsEmpty() const { return size() == 0u; }
 
