@@ -546,9 +546,6 @@
     <ClInclude Include="..\src\common\guid_util.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\lookup_table.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\heap.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -592,6 +589,12 @@
       <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\atomic_array.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\mtqueue.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\mtarray.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>

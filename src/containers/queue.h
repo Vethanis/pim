@@ -190,7 +190,7 @@ struct Queue
         m_ptr[i] = value;
     }
 
-    u32 Push(T value, const Comparable<T> cmp)
+    u32 Push(T value, const Comparable<T>& cmp)
     {
         Push(value);
 

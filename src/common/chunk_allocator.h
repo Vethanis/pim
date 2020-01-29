@@ -24,11 +24,12 @@ struct ChunkAllocator
 
     void Reset()
     {
+    trypop:
         void* ptr = m_chunks.TryPopBack();
-        while (ptr)
+        if (ptr)
         {
             Allocator::Free(ptr);
-            ptr = m_chunks.TryPopBack();
+            goto trypop;
         }
         m_chunks.Reset();
         m_free.Reset();
@@ -69,8 +70,7 @@ struct ChunkAllocator
         {
             goto popped;
         }
-        ++spins;
-        if (spins > 5)
+        if (++spins > 5)
         {
             PushChunk();
             spins = 0;

@@ -78,7 +78,7 @@ namespace HashUtil
 
     static u32 Iterate(const u32* const hashes, const u32 width, u32 i)
     {
-        u32 j = i + 1;
+        u32 j = i + 1u;
         for (; j < width; ++j)
         {
             if (IsValidHash(hashes[j]))

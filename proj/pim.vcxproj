@@ -105,7 +105,8 @@
     <ClInclude Include="..\src\containers\hash_util.h" />
     <ClInclude Include="..\src\containers\heap.h" />
     <ClInclude Include="..\src\containers\initlist.h" />
-    <ClInclude Include="..\src\containers\lookup_table.h" />
+    <ClInclude Include="..\src\containers\mtarray.h" />
+    <ClInclude Include="..\src\containers\mtqueue.h" />
     <ClInclude Include="..\src\containers\obj_pool.h" />
     <ClInclude Include="..\src\containers\obj_table.h" />
     <ClInclude Include="..\src\containers\pipe.h" />

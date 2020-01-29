@@ -32,4 +32,4 @@ struct Asset
     }
 };
 
-using AssetTable = ObjTable<Guid, Asset, GuidComparator, 64>;
+using AssetTable = ObjTable<Guid, Asset, GuidComparator>;

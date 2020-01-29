@@ -5,351 +5,286 @@
 #include "common/sort.h"
 #include "common/hash.h"
 #include "common/guid_util.h"
-#include "containers/array.h"
+#include "containers/mtarray.h"
 #include "containers/atomic_array.h"
-#include "containers/queue.h"
+#include "containers/mtqueue.h"
 #include "containers/hash_dict.h"
 #include "containers/obj_table.h"
 #include "os/thread.h"
 #include "os/atomics.h"
 
-struct GenId
+struct Entity
 {
     i32 index;
     i32 version;
 };
 
-struct Entity
-{
-    GenId id;
-};
-
 struct ComponentRow
 {
-    mutable OS::RWLock m_ptrLock;
-    OS::Mutex m_freeLock;
-    OS::RWFlag* m_flags;
+    mutable OS::RWLock m_lock;
     i32* m_versions;
-    u8* m_data;
+    isize* m_ptrs;
+    OS::RWFlag* m_flags;
+    i32 m_stride;
     i32 m_innerLength;
     i32 m_length;
-    i32 m_stride;
     i32 m_capacity;
-    Queue<GenId> m_free;
+    ChunkAllocator m_allocator;
 
-    void Init(TypeId type)
-    {
-        memset(this, 0, sizeof(*this));
-        m_stride = type.SizeOf();
-        m_ptrLock.Open();
-        m_freeLock.Open();
-        m_free.Init(Alloc_Pool);
-    }
-
-    void Reset()
-    {
-        m_ptrLock.LockWriter();
-        m_freeLock.Lock();
-        Allocator::Free(m_flags);
-        Allocator::Free(m_data);
-        Allocator::Free(m_versions);
-        m_free.Reset();
-        m_ptrLock.Close();
-        m_freeLock.Close();
-        memset(this, 0, sizeof(*this));
-    }
-
-    void _LockRead(i32 i)
-    {
-        u64 spins = 0;
-        while (!m_flags[i].TryLockReader())
-        {
-            OS::Spin(++spins * 100);
-        }
-    }
-
-    void _UnlockRead(i32 i)
-    {
-        m_flags[i].UnlockReader();
-    }
-
-    void _LockWrite(i32 i)
-    {
-        u64 spins = 0;
-        while (!m_flags[i].TryLockWriter())
-        {
-            OS::Spin(++spins * 100);
-        }
-    }
-
-    void _UnlockWrite(i32 i)
-    {
-        m_flags[i].UnlockWriter();
-    }
-
-    bool InRange(i32 i) const { return (u32)i < (u32)Load(m_length); }
-
-    bool _IsCurrent(GenId id) const
-    {
-        return InRange(id.index) && (Load(m_versions[id.index]) == id.version);
-    }
-    bool IsCurrent(GenId id) const
-    {
-        OS::ReadGuard guard(m_ptrLock);
-        return _IsCurrent(id);
-    }
-
-    GenId Alloc()
-    {
-        GenId id;
-        m_freeLock.Lock();
-        bool popped = m_free.TryPop(id);
-        m_freeLock.Unlock();
-
-        if (!popped)
-        {
-            const i32 back = Inc(m_innerLength);
-            id.index = back;
-            id.version = 1;
-            if (back >= Load(m_capacity))
-            {
-                m_ptrLock.LockWriter();
-                if (back >= Load(m_capacity))
-                {
-                    const i32 cap = Max(Load(m_capacity) * 2, 64);
-                    m_flags = Allocator::ReallocT<OS::RWFlag>(Alloc_Pool, m_flags, cap);
-                    m_data = (u8*)Allocator::Realloc(Alloc_Pool, m_data, cap * m_stride);
-                    m_versions = Allocator::ReallocT<i32>(Alloc_Pool, m_versions, cap);
-                    Store(m_capacity, cap);
-                }
-                m_ptrLock.UnlockWriter();
-            }
-
-            m_ptrLock.LockReader();
-            Store(m_versions[back], 1);
-            Store(m_flags[back].m_state, 0);
-            Inc(m_length);
-            goto inLock;
-        }
-
-        m_ptrLock.LockReader();
-    inLock:
-        _LockWrite(id.index);
-        memset(m_data + id.index * m_stride, 0, m_stride);
-        _UnlockWrite(id.index);
-        m_ptrLock.UnlockReader();
-
-        return id;
-    }
-
-    bool Free(GenId id)
-    {
-        m_ptrLock.LockReader();
-        bool freed = InRange(id.index) && CmpExStrong(m_versions[id.index], id.version, id.version + 1);
-        m_ptrLock.UnlockReader();
-        if (freed)
-        {
-            m_freeLock.Lock();
-            m_free.Push(id);
-            m_freeLock.Unlock();
-        }
-        return freed;
-    }
-
-    bool Read(GenId id, void* dst)
-    {
-        ASSERT(dst);
-        OS::ReadGuard ptrGuard(m_ptrLock);
-        if (_IsCurrent(id))
-        {
-            const void* src = m_data + id.index * m_stride;
-            _LockRead(id.index);
-            memcpy(dst, src, m_stride);
-            _UnlockRead(id.index);
-            return true;
-        }
-        return false;
-    }
-
-    bool Write(GenId id, const void* src)
-    {
-        ASSERT(src);
-        OS::ReadGuard ptrGuard(m_ptrLock);
-        if (_IsCurrent(id))
-        {
-            void* dst = m_data + id.index * m_stride;
-            _LockWrite(id.index);
-            memcpy(dst, src, m_stride);
-            _UnlockWrite(id.index);
-        }
-        return false;
-    }
-
-    static ComponentRow& Get(TypeId id)
-    {
-        TypeData& rData = id.AsData();
-        ComponentRow* pRow = LoadPtr(rData.pRow);
-        if (pRow)
-        {
-            return *pRow;
-        }
-        pRow = Allocator::AllocT<ComponentRow>(Alloc_Pool, 1);
-        pRow->Init(id);
-        ComponentRow* pOld = nullptr;
-        if (CmpExStrongPtr(rData.pRow, pOld, pRow))
-        {
-            return *pRow;
-        }
-        else
-        {
-            pRow->Reset();
-            Allocator::Free(pRow);
-            return *LoadPtr(rData.pRow);
-        }
-    }
-};
-
-struct ComponentId
-{
-    TypeId type;
-    GenId id;
-
-    bool IsCurrent() const
-    {
-        return ComponentRow::Get(type).IsCurrent(id);
-    }
-    bool Read(void* dst)
-    {
-        return ComponentRow::Get(type).Read(id, dst);
-    }
-    bool Write(const void* src)
-    {
-        return ComponentRow::Get(type).Write(id, src);
-    }
-};
-
-struct ComponentIds
-{
-    mutable OS::RWLock m_lock;
-    Array<ComponentId> m_ids;
-
-    void Init()
+    ComponentRow()
     {
         m_lock.Open();
-        m_ids.Init(Alloc_Pool);
+        m_capacity = ChunkAllocator::kChunkSize;
+        m_versions = Allocator::CallocT<i32>(Alloc_Pool, m_capacity);
+        m_ptrs = Allocator::CallocT<isize>(Alloc_Pool, m_capacity);
+        m_flags = Allocator::CallocT<OS::RWFlag>(Alloc_Pool, m_capacity);
     }
 
-    void Reset()
+    ~ComponentRow()
     {
         m_lock.LockWriter();
-        for (ComponentId id : m_ids)
-        {
-            ComponentRow& row = ComponentRow::Get(id.type);
-            row.Free(id.id);
-        }
-        m_ids.Reset();
+        Allocator::Free(m_versions);
+        Allocator::Free(m_ptrs);
+        Allocator::Free(m_flags);
+        m_allocator.Reset();
         m_lock.Close();
     }
 
-    i32 _Find(TypeId type) const
+    void Init(TypeId type)
     {
-        ASSERT(!type.IsNull());
-        for (i32 i = 0, c = m_ids.size(); i < c; ++i)
+        m_stride = type.SizeOf();
+        m_allocator.Init(Alloc_Pool, m_stride);
+    }
+
+    i32 size() const
+    {
+        return Load(m_length, MO_Relaxed);
+    }
+    i32 capacity() const
+    {
+        return Load(m_capacity, MO_Relaxed);
+    }
+
+    bool InRange(i32 i) const
+    {
+        return (u32)i < (u32)size();
+    }
+
+    bool _IsCurrent(Entity entity) const
+    {
+        ASSERT(InRange(entity.index));
+        return Load(m_versions[entity.index], MO_Relaxed) == entity.version;
+    }
+    bool IsCurrent(Entity entity) const
+    {
+        OS::ReadGuard guard(m_lock);
+        return _IsCurrent(entity);
+    }
+
+    void OnGrow(i32 length)
+    {
+        if (length > capacity())
         {
-            if (m_ids[i].type == type)
+            OS::WriteGuard guard(m_lock);
+            const i32 curCap = capacity();
+            if (length > curCap)
             {
-                return i;
+                const i32 newCap = Max(length, Max(curCap * 2, ChunkAllocator::kChunkSize));
+                m_versions = Allocator::ReallocT<i32>(Alloc_Pool, m_versions, newCap);
+                m_ptrs = Allocator::ReallocT<isize>(Alloc_Pool, m_ptrs, newCap);
+                m_flags = Allocator::ReallocT<OS::RWFlag>(Alloc_Pool, m_flags, newCap);
+                Store(m_capacity, newCap);
             }
         }
-        return -1;
-    }
-
-    bool Has(TypeId type) const
-    {
         OS::ReadGuard guard(m_lock);
-        return _Find(type) != -1;
-    }
-
-    template<typename T>
-    bool Has() const
-    {
-        return Has(TypeOf<T>());
-    }
-
-    bool Get(TypeId type, ComponentId& result) const
-    {
-        OS::ReadGuard guard(m_lock);
-        i32 i = _Find(type);
-        if (i != -1)
+        i32 prev = Load(m_innerLength);
+        while (prev < length)
         {
-            result = m_ids[i];
+            if (CmpExStrong(m_innerLength, prev, prev + 1))
+            {
+                Store(m_versions[prev], 0);
+                Store(m_ptrs[prev], 0);
+                Store(m_flags[prev].m_state, 0);
+                Inc(m_length);
+            }
+        }
+    }
+
+    void Read(Entity entity, void* dst)
+    {
+        ASSERT(dst);
+        OS::ReadGuard guard(m_lock);
+        ASSERT(_IsCurrent(entity));
+        const void* src = (const void*)Load(m_ptrs[entity.index], MO_Relaxed);
+        ASSERT(src);
+        m_flags[entity.index].LockReader();
+        memcpy(dst, src, m_stride);
+        m_flags[entity.index].UnlockReader();
+    }
+
+    void Write(Entity entity, const void* src)
+    {
+        ASSERT(src);
+        OS::ReadGuard guard(m_lock);
+        ASSERT(_IsCurrent(entity));
+        void* dst = (void*)Load(m_ptrs[entity.index], MO_Relaxed);
+        ASSERT(dst);
+        m_flags[entity.index].LockWriter();
+        memcpy(dst, src, m_stride);
+        m_flags[entity.index].UnlockWriter();
+    }
+
+    bool Add(Entity entity)
+    {
+        const i32 i = entity.index;
+        ASSERT(InRange(i));
+
+        void* pData = m_allocator.Allocate();
+        bool added = false;
+
+        m_lock.LockReader();
+        i32 prevVersion = Load(m_versions[i]);
+        bool newer = (entity.version - prevVersion) > 0;
+        if (newer && CmpExStrong(m_versions[i], prevVersion, entity.version))
+        {
+            isize prevPtr = 0;
+            added = CmpExStrong(m_ptrs[i], prevPtr, (isize)pData);
+            ASSERT(added);
+        }
+        m_lock.UnlockReader();
+
+        if (!added)
+        {
+            m_allocator.Free(pData);
+        }
+
+        return added;
+    }
+
+    bool Remove(Entity entity)
+    {
+        const i32 i = entity.index;
+        ASSERT(InRange(i));
+        OS::ReadGuard guard(m_lock);
+        i32 prev = entity.version;
+        if (CmpExStrong(m_versions[i], prev, prev + 1))
+        {
+            isize prevPtr = Load(m_ptrs[i]);
+            ASSERT(prevPtr);
+            if (CmpExStrong(m_ptrs[i], prevPtr, 0))
+            {
+                m_allocator.Free((void*)prevPtr);
+            }
+            else
+            {
+                ASSERT(false);
+            }
             return true;
         }
-        result = {};
         return false;
-    }
-
-    ComponentId GetAdd(TypeId type)
-    {
-        ComponentId result;
-        if (Get(type, result))
-        {
-            return result;
-        }
-        ComponentRow& row = ComponentRow::Get(type);
-        ComponentId id;
-        id.type = type;
-        id.id = row.Alloc();
-        OS::WriteGuard guard(m_lock);
-        i32 i = _Find(type);
-        if (i != -1)
-        {
-            row.Free(id.id);
-            return m_ids[i];
-        }
-        m_ids.PushBack(id);
-        return id;
-    }
-
-    template<typename T>
-    ComponentId GetAdd()
-    {
-        return GetAdd(TypeOf<T>());
-    }
-
-    bool Remove(TypeId type)
-    {
-        if (Has(type))
-        {
-            GenId id;
-            {
-                OS::WriteGuard guard(m_lock);
-                i32 i = _Find(type);
-                if (i == -1)
-                {
-                    return false;
-                }
-                id = m_ids[i].id;
-                m_ids.Remove(i);
-            }
-            return ComponentRow::Get(type).Free(id);
-        }
-        return false;
-    }
-
-    template<typename T>
-    bool Remove()
-    {
-        return Remove(TypeOf<T>());
     }
 };
 
-struct Entities
+struct TypeIdComparator
 {
-    mutable OS::RWLock m_lock;
-    Array<i32> m_versions;
-    Array<ComponentIds*> m_ids;
+    static bool Equals(const TypeId& lhs, const TypeId& rhs)
+    {
+        return lhs.handle == rhs.handle;
+    }
+    static i32 Compare(const TypeId& lhs, const TypeId& rhs)
+    {
+        if (lhs.handle != rhs.handle)
+        {
+            return lhs.handle < rhs.handle ? -1 : 1;
+        }
+        return 0;
+    }
+    static u32 Hash(const TypeId& id)
+    {
+        return Fnv32Qword(id.handle);
+    }
+    static constexpr Comparator<TypeId> Value = { Equals, Compare, Hash };
+};
 
-    OS::Mutex m_freeLock;
-    Queue<Entity> m_free;
+struct Table
+{
+    using Rows = ObjTable<TypeId, ComponentRow, TypeIdComparator::Value>;
+
+    MtQueue<Entity> m_freelist;
+    MtArray<i32> m_versions;
+    Rows m_rows;
+
+    ComponentRow* GetRow(TypeId type)
+    {
+        ComponentRow* pRow = m_rows.Get(type);
+        if (!pRow)
+        {
+            pRow = m_rows.New();
+            pRow->Init(type);
+            if (!m_rows.Add(type, pRow))
+            {
+                m_rows.Delete(pRow);
+                pRow = m_rows.Get(type);
+                ASSERT(pRow);
+            }
+        }
+        return pRow;
+    }
+
+    bool IsCurrent(Entity entity) const
+    {
+        return m_versions.Read(entity.index) == entity.version;
+    }
+
+    Entity Create()
+    {
+        Entity entity;
+        if (!m_freelist.TryPop(entity))
+        {
+            entity.version = 1;
+            entity.index = m_versions.PushBack(entity.version);
+            const i32 len = entity.index + 1;
+            for (auto pair : m_rows.BeginIter())
+            {
+                pair.Value->OnGrow(len);
+            }
+            m_rows.EndIter();
+        }
+        return entity;
+    }
+
+    bool Destroy(Entity entity)
+    {
+        i32 version = entity.version;
+        if (m_versions.CmpEx(entity.index, version, version + 2))
+        {
+            for (auto pair : m_rows.BeginIter())
+            {
+                pair.Value->Remove(entity);
+            }
+            m_rows.EndIter();
+            entity.version += 2;
+            m_freelist.Push(entity);
+            return true;
+        }
+        return false;
+    }
+
+    bool Add(Entity entity, TypeId type)
+    {
+        if (IsCurrent(entity))
+        {
+            return GetRow(type)->Add(entity);
+        }
+        return false;
+    }
+
+    bool Remove(Entity entity, TypeId type)
+    {
+        if (IsCurrent(entity))
+        {
+            return GetRow(type)->Remove(entity);
+        }
+        return false;
+    }
 };

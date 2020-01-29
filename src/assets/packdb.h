@@ -37,4 +37,4 @@ struct Pack
     }
 };
 
-using PackTable = ObjTable<Guid, Pack, GuidComparator, 64>;
+using PackTable = ObjTable<Guid, Pack, GuidComparator>;

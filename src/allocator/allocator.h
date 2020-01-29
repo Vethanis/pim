@@ -40,23 +40,6 @@ namespace Allocator
         return (T*)Calloc(type, sizeof(T) * count);
     }
 
-    template<typename T>
-    inline T* Reserve(AllocType allocator, T* pOld, i32& capacity, i32 want)
-    {
-        const i32 oldCapacity = capacity;
-        ASSERT(want >= 0);
-        ASSERT(oldCapacity >= 0);
-
-        if (want > oldCapacity)
-        {
-            const i32 newCapacity = Max(want, Max(oldCapacity * 2, 16));
-            capacity = newCapacity;
-            return ReallocT<T>(allocator, pOld, newCapacity);
-        }
-
-        return pOld;
-    }
-
     inline void* ImGuiAllocFn(size_t sz, void*) { return Alloc(Alloc_Pool, (i32)sz); }
     inline void ImGuiFreeFn(void* ptr, void*) { Free(ptr); }
 };

@@ -5,7 +5,7 @@
 #include "common/guid_util.h"
 #include "components/system.h"
 
-using FileTable = ObjTable<Guid, StreamFile, GuidComparator, 64>;
+using FileTable = ObjTable<Guid, StreamFile, GuidComparator>;
 
 static FileTable ms_table;
 static ObjPool<FileTask> ms_taskPool;

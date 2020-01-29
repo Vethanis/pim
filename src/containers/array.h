@@ -84,9 +84,13 @@ struct Array
 
     inline void Reserve(i32 newCap)
     {
-        i32 cap = m_capacity;
-        m_ptr = Allocator::Reserve<T>(GetAllocator(), m_ptr, cap, newCap);
-        m_capacity = cap;
+        const i32 current = m_capacity;
+        if (newCap > current)
+        {
+            i32 next = Max(newCap, Max(current * 2, 16));
+            m_ptr = Allocator::ReallocT<T>(GetAllocator(), m_ptr, next);
+            m_capacity = next;
+        }
     }
     inline void ReserveRel(i32 relSize)
     {

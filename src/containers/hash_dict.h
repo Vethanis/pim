@@ -150,12 +150,13 @@ template<
         return false;
     }
 
-    inline bool Remove(K key)
+    inline bool Remove(K key, V& valueOut)
     {
         i32 i = HashUtil::Remove<K>(
             cmp, m_width, m_hashes, m_keys, key);
         if (i != -1)
         {
+            valueOut = m_values[i];
             --m_count;
             return true;
         }
@@ -212,7 +213,7 @@ template<
         u32 m_i;
         const u32 m_width;
         const u32* const m_hashes;
-        K* const m_keys;
+        const K* const m_keys;
         V* const m_values;
 
         inline iterator(HashDict& dict)
@@ -238,7 +239,7 @@ template<
 
         struct Pair
         {
-            K& Key;
+            const K& Key;
             V& Value;
         };
 

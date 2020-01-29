@@ -152,9 +152,51 @@ namespace OS
         i32 m_state;
 
         bool TryLockReader();
+        void LockReader()
+        {
+            u64 spins = 0;
+            while (!TryLockReader())
+            {
+                OS::Spin(++spins * 100);
+            }
+        }
         void UnlockReader();
 
         bool TryLockWriter();
+        void LockWriter()
+        {
+            u64 spins = 0;
+            while (!TryLockWriter())
+            {
+                OS::Spin(++spins * 100);
+            }
+        }
         void UnlockWriter();
+    };
+
+    struct ReadFlagGuard
+    {
+        RWFlag& m_flag;
+        ReadFlagGuard(RWFlag& flag) : m_flag(flag)
+        {
+            m_flag.LockReader();
+        }
+        ~ReadFlagGuard()
+        {
+            m_flag.UnlockReader();
+        }
+    };
+
+    struct WriteFlagGuard
+    {
+        RWFlag& m_flag;
+        WriteFlagGuard(RWFlag& flag) : m_flag(flag)
+        {
+            m_flag.LockWriter();
+        }
+        ~WriteFlagGuard()
+        {
+            m_flag.UnlockWriter();
+        }
     };
 };
