@@ -178,6 +178,16 @@ struct Array
         }
         ptr[idx] = value;
     }
+
+    void PushBytes(const void* src, i32 count)
+    {
+        ASSERT(sizeof(T) == 1);
+        ASSERT(src);
+        ASSERT(count >= 0);
+        const i32 iDst = ResizeRel(count);
+        void* dst = m_ptr + iDst;
+        memcpy(dst, src, count);
+    }
 };
 
 template<typename T>

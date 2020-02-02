@@ -9,22 +9,15 @@ struct MtArray
 {
     mutable OS::RWLock m_lock;
     T* m_ptr;
-    mutable OS::RWFlag* m_flags;
     i32 m_innerLength;
     i32 m_length;
     i32 m_capacity;
     AllocType m_allocator;
 
-    static constexpr bool kIsInt = (sizeof(T) == sizeof(i32)) && (alignof(T) == alignof(i32));
-    static constexpr bool kIsPtr = (sizeof(T) == sizeof(isize)) && (alignof(T) == alignof(isize));
-    static constexpr bool kFlagsOff = kIsInt || kIsPtr;
-    static constexpr bool kFlagsOn = !kFlagsOff;
-
     void Init(AllocType allocator)
     {
         m_lock.Open();
         m_ptr = 0;
-        m_flags = 0;
         m_innerLength = 0;
         m_length = 0;
         m_capacity = 0;
@@ -39,28 +32,13 @@ struct MtArray
         m_innerLength = 0;
         m_length = 0;
         m_capacity = 0;
-        if (kFlagsOn)
-        {
-            Allocator::Free(m_flags);
-            m_flags = 0;
-        }
         m_lock.Close();
     }
 
-    i32 size() const
-    {
-        return Load(m_length);
-    }
-
-    i32 capacity() const
-    {
-        return Load(m_capacity);
-    }
-
-    bool InRange(i32 i) const
-    {
-        return (u32)i < (u32)size();
-    }
+    AllocType GetAllocator() const { return m_allocator; }
+    i32 capacity() const { return Load(m_capacity); }
+    i32 size() const { return Load(m_length); }
+    bool InRange(i32 i) const { return (u32)i < (u32)size(); }
 
     void Clear()
     {
@@ -75,133 +53,36 @@ struct MtArray
         Store(m_length, newLen);
     }
 
-    void Trim()
-    {
-        if (capacity() > size())
-        {
-            OS::WriteGuard guard(m_lock);
-            const i32 current = capacity();
-            const i32 sz = size();
-            if (sz < current)
-            {
-                m_ptr = Allocator::ReallocT<T>(m_allocator, m_ptr, sz);
-                if (kFlagsOn)
-                {
-                    m_flags = Allocator::ReallocT<OS::RWFlag>(m_allocator, m_flags, sz);
-                }
-                Store(m_capacity, sz);
-            }
-        }
-    }
-
     void Reserve(i32 minCap)
     {
         ASSERT(minCap >= 0);
         if (minCap > capacity())
         {
-            OS::WriteGuard guard(m_lock);
+            const i32 cap = Max(minCap, current * 2, 16);
+            T* newPtr = Allocator::CallocT<T>(m_allocator, cap);
+
+            m_lock.LockWriter();
+            T* oldPtr = LoadPtr(m_ptr);
             const i32 current = capacity();
-            if (minCap > current)
+            const bool grew = cap > current;
+            if (grew)
             {
-                const i32 cap = Max(minCap, current * 2, 16);
-                m_ptr = Allocator::ReallocT<T>(m_allocator, m_ptr, cap);
-                if (kFlagsOn)
-                {
-                    m_flags = Allocator::ReallocT<OS::RWFlag>(m_allocator, m_flags, cap);
-                    for (i32 i = current; i < cap; ++i)
-                    {
-                        Store(m_flags[i].m_state, 0);
-                    }
-                }
+                memcpy(newPtr, oldPtr, sizeof(T) * current);
+                StorePtr(m_ptr, newPtr);
                 Store(m_capacity, cap);
             }
+            m_lock.UnlockWriter();
+
+            Allocator::Free(grew ? oldPtr : newPtr);
         }
     }
 
-    T _Read(i32 i) const
-    {
-        if (kFlagsOn)
-        {
-            OS::ReadFlagGuard guard(m_flags[i]);
-            return m_array[i];
-        }
-        else if (kIsInt)
-        {
-            T result;
-            i32* dst = reinterpret_cast<i32*>(&result);
-            const i32& src = reinterpret_cast<const i32&>(m_array[i]);
-            *dst = Load(src);
-            return result;
-        }
-        else
-        {
-            T result;
-            isize* dst = reinterpret_cast<isize*>(&result);
-            isize& src = reinterpret_cast<const isize&>(m_array[i]);
-            *dst = Load(src);
-            return result;
-        }
-    }
-
-    void _Write(i32 i, const T& valueIn)
-    {
-        if (kFlagsOn)
-        {
-            OS::WriteFlagGuard guard(m_flags[i]);
-            m_array[i] = valueIn;
-        }
-        else if (kIsInt)
-        {
-            const i32& src = reinterpret_cast<const i32&>(valueIn);
-            i32& dst = reinterpret_cast<i32&>(m_array[i]);
-            Store(dst, src);
-        }
-        else
-        {
-            const isize& src = reinterpret_cast<const isize&>(valueIn);
-            isize& dst = reinterpret_cast<isize&>(m_array[i]);
-            Store(dst, src);
-        }
-    }
-
-    T Read(i32 i) const
-    {
-        OS::ReadGuard guard(m_lock);
-        ASSERT(InRange(i));
-        return _Read(i);
-    }
-
-    void Write(i32 i, const T& valueIn)
-    {
-        OS::ReadGuard guard(m_lock);
-        ASSERT(InRange(i));
-        _Write(i, valueIn);
-    }
-
-    bool CmpEx(i32 i, i32& expected, i32 desired, MemOrder success = MO_AcqRel, MemOrder failure = MO_Relaxed)
-    {
-        ASSERT(kIsInt);
-        ASSERT(InRange(i));
-        OS::ReadGuard guard(m_lock);
-        T& rT = m_ptr[i];
-        return CmpExStrong((i32&)rT, expected, desired, success, failure);
-    }
-
-    bool CmpEx(i32 i, isize& expected, isize desired, MemOrder success = MO_AcqRel, MemOrder failure = MO_Relaxed)
-    {
-        ASSERT(kIsPtr);
-        ASSERT(InRange(i));
-        OS::ReadGuard guard(m_lock);
-        T& rT = m_ptr[i];
-        return CmpExStrong((isize&)rT, expected, desired, success, failure);
-    }
-
-    i32 PushBack(const T& value)
+    i32 PushBack(T value)
     {
         const i32 i = Inc(m_innerLength);
-        Reserve(i + 1);
+        Reserve(i + 8);
         m_lock.LockReader();
-        _Write(i, value);
+        Store(m_ptr[i], value);
         m_lock.UnlockReader();
         Inc(m_length);
         return i;
@@ -212,7 +93,7 @@ struct MtArray
         const i32 i = Dec(m_length) - 1;
         ASSERT(i >= 0);
         m_lock.LockReader();
-        T value = _Read(i);
+        T value = Load(m_ptr[i]);
         m_lock.UnlockReader();
         const i32 j = Dec(m_innerLength) - 1;
         ASSERT(j >= 0);
@@ -224,63 +105,74 @@ struct MtArray
         ASSERT(InRange(i));
         T backVal = PopBack();
         OS::ReadGuard guard(m_lock);
-        _Write(i, backVal);
+        Store(m_ptr[i], backVal);
     }
 
-    i32 Find(const T& key, const Equatable<T>& eq) const
+    T IncAt(i32 i)
     {
+        ASSERT(InRange(i));
         OS::ReadGuard guard(m_lock);
-        const T* ptr = m_ptr;
-        const i32 ct = size();
-        if (kFlagsOn)
-        {
-            const OS::RWFlag* flags = m_flags;
-            for (i32 i = ct - 1; i >= 0; --i)
-            {
-                OS::ReadFlagGuard g2(flags[i]);
-                if (eq(key, ptr[i]))
-                {
-                    return i;
-                }
-            }
-        }
-        else
-        {
-            for (i32 i = ct - 1; i >= 0; --i)
-            {
-                if (eq(key, ptr[i]))
-                {
-                    return i;
-                }
-            }
-        }
-        return -1;
+        return Inc(m_ptr[i]);
     }
 
-    bool Contains(const T& key, const Equatable<T>& eq) const
+    T DecAt(i32 i)
     {
-        return Find(key, eq) != -1;
+        ASSERT(InRange(i));
+        OS::ReadGuard guard(m_lock);
+        return Dec(m_ptr[i]);
     }
 
-    bool FindAdd(const T& key, const Equatable<T>& eq)
+    T LoadAt(i32 i) const
     {
-        i32 i = Find(key, eq);
-        if (i == -1)
-        {
-            PushBack(key);
-            return true;
-        }
-        return false;
+        ASSERT(InRange(i));
+        OS::ReadGuard guard(m_lock);
+        return Load(m_ptr[i]);
     }
 
-    bool FindRemove(const T& key, const Equatable<T>& eq)
+    void StoreAt(i32 i, T value) const
     {
-        i32 i = Find(key, eq);
-        if (i != -1)
-        {
-            RemoveAt(i);
-            return true;
-        }
-        return false;
+        ASSERT(InRange(i));
+        OS::ReadGuard guard(m_lock);
+        Store(m_ptr[i], value);
+    }
+
+    T ExchangeAt(i32 i, T value)
+    {
+        ASSERT(InRange(i));
+        OS::ReadGuard guard(m_lock);
+        return Exchange(m_ptr[i], value);
+    }
+
+    bool CmpExAt(i32 i, T& expected, T desired)
+    {
+        ASSERT(InRange(i));
+        OS::ReadGuard guard(m_lock);
+        return CmpExStrong(m_ptr[i], expected, desired);
+    }
+
+    T FetchAddAt(i32 i, T add)
+    {
+        ASSERT(InRange(i));
+        OS::ReadGuard guard(m_lock);
+        return FetchAdd(m_ptr[i], add);
+    }
+
+    T FetchSubAt(i32 i, T sub)
+    {
+        ASSERT(InRange(i));
+        OS::ReadGuard guard(m_lock);
+        return FetchSub(m_ptr[i], sub);
+    }
+
+    const T* Borrow()
+    {
+        m_lock.LockReader();
+        return LoadPtr(m_ptr);
+    }
+
+    void Return(const T* ptr)
+    {
+        ASSERT(ptr == LoadPtr(m_ptr));
+        m_lock.UnlockReader();
     }
 };

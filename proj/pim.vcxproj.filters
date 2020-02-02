@@ -196,6 +196,12 @@
     <ClCompile Include="..\src\os\thread.cpp">
       <Filter>Source Files\os</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\components\resources.cpp">
+      <Filter>Source Files\components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\components\taskgraph.cpp">
+      <Filter>Source Files\components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\hash.h">
@@ -596,6 +602,18 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\mtarray.h">
       <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\comparator_util.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\resources.h">
+      <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\genid.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\taskgraph.h">
+      <Filter>Source Files\components</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

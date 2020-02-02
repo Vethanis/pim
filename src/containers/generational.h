@@ -1,216 +1,303 @@
 #pragma once
 
-#include "common/int_types.h"
-#include "containers/array.h"
+#include "containers/genid.h"
+#include "containers/mtarray.h"
+#include "containers/mtqueue.h"
 
 struct IdAllocator
 {
-    Array<u16> m_versions;
-    Array<u16> m_freelist;
+    MtArray<u32> m_versions;
+    MtQueue<GenId> m_freelist;
 
     // ------------------------------------------------------------------------
 
-    inline void Init(AllocType type)
+    void Init(AllocType type)
     {
         m_versions.Init(type);
         m_freelist.Init(type);
     }
 
-    inline void Reset()
+    void Reset()
     {
         m_versions.Reset();
         m_freelist.Reset();
     }
 
-    inline void Clear()
+    void Clear()
     {
         m_versions.Clear();
         m_freelist.Clear();
     }
 
-    inline void Trim()
-    {
-        m_versions.Trim();
-        m_freelist.Trim();
-    }
+    // ------------------------------------------------------------------------
+
+    AllocType GetAllocator() const { return m_versions.GetAllocator(); }
+    i32 capacity() const { return m_versions.capacity(); }
+    i32 size() const { return m_versions.size(); }
+    GenId operator[](i32 i) const { return { (u32)i, m_versions.LoadAt(i) }; }
 
     // ------------------------------------------------------------------------
 
-    inline i32 size() const
+    bool IsCurrent(GenId id) const { return id.version == m_versions.LoadAt(id.index); }
+
+    bool LockSlot(GenId id)
     {
-        return m_versions.size();
+        ASSERT(id.version);
+        return m_versions.CmpExAt(id.index, id.version, 0u);
     }
 
-    inline u16 operator[](i32 i) const
+    void UnlockSlot(GenId id)
     {
-        return m_versions[i];
+        ASSERT(id.version);
+        u32 prev = m_versions.ExchangeAt(id.index, id.version);
+        ASSERT(!prev);
     }
 
-    inline bool IsCurrent(u16 version, u16 index) const
+    GenId Create()
     {
-        return version == m_versions[index];
-    }
-
-    // ------------------------------------------------------------------------
-
-    inline bool Create(u16& version, u16& index)
-    {
-        bool grew = false;
-        if (m_freelist.IsEmpty())
+        GenId id = { 0, 0 };
+        if (!m_freelist.TryPop(id))
         {
-            m_freelist.Grow() = m_versions.size();
-            m_versions.Grow() = 0;
-            grew = true;
+            id.index = (u32)m_versions.PushBack(2u);
         }
-        u16 i = m_freelist.PopBack();
-        u16 v = ++m_versions[i];
-        ASSERT(v & 1);
-        version = v;
-        index = i;
-        return grew;
+        id.version = 1u + m_versions.IncAt(id.index);
+        ASSERT(id.version & 1u);
+        return id;
     }
 
-    inline bool Destroy(u16 version, u16 index)
+    bool Destroy(GenId id)
     {
-        if (IsCurrent(version, index))
+        const u32 version = id.version;
+        ASSERT(version & 1u);
+        u64 spins = 0;
+    tryfree:
+        id.version = version;
+        if (m_versions.CmpExAt(id.index, id.version, version + 1u))
         {
-            m_freelist.Grow() = index;
-            u16 v = ++m_versions[index];
-            ASSERT(!(v & 1));
+            id.version += 2u;
+            m_freelist.Push(id);
             return true;
         }
+        if (!id.version)
+        {
+            // locked slot
+            OS::Spin(++spins * 100);
+            goto tryfree;
+        }
         return false;
+    }
+
+    const u32* Borrow()
+    {
+        return m_versions.Borrow();
+    }
+
+    void Return(const u32* ptr)
+    {
+        m_versions.Return(ptr);
+    }
+
+    Array<GenId> GetActive()
+    {
+        Array<GenId> results;
+        results.Init(Alloc_Stack);
+        results.Reserve(size());
+
+        const u32* versions = m_versions.Borrow();
+        const u32 len = (u32)size();
+        for (u32 i = 0; i < len; ++i)
+        {
+            u32 v = Load(versions[i]);
+            if (v & 1u)
+            {
+                results.PushBack({ i, v });
+            }
+        }
+        m_versions.Return(versions);
+
+        return results;
     }
 };
 
-// ------------------------------------------------------------------------
-
-struct IdMapping
+template<typename T>
+struct GenArray
 {
-    IdAllocator m_allocator;    // global ids
-    Array<u16> m_toLocal;       // parallel to global ids
-
-    Array<u16> m_toGlobal;      // parallel to local storage
+    IdAllocator m_ids;
+    OS::RWLock m_lock;
+    T* m_ptr;
+    i32 m_capacity;
 
     // ------------------------------------------------------------------------
 
-    inline void Init(AllocType type)
+    void Init(AllocType type)
     {
-        m_allocator.Init(type);
-        m_toLocal.Init(type);
-        m_toGlobal.Init(type);
+        m_ids.Init(type);
+        m_ptr = nullptr;
     }
 
-    inline void Reset()
+    void Reset()
     {
-        m_allocator.Reset();
-        m_toLocal.Reset();
-        m_toGlobal.Reset();
+        m_ids.Reset();
+        m_lock.LockWriter();
+        Store(m_capacity, 0);
+        Allocator::Free(m_ptr);
+        m_ptr = nullptr;
+        m_lock.Close();
     }
 
-    inline void Clear()
+    void Clear()
     {
-        m_allocator.Clear();
-        m_toLocal.Clear();
-        m_toGlobal.Clear();
-    }
-
-    inline void Trim()
-    {
-        m_allocator.Trim();
-        m_toLocal.Trim();
-        m_toGlobal.Trim();
+        m_ids.Clear();
     }
 
     // ------------------------------------------------------------------------
 
-    inline bool IsCurrent(u16 version, u16 globalIndex) const
-    {
-        return m_allocator.IsCurrent(version, globalIndex);
-    }
+    AllocType GetAllocator() const { return m_ids.GetAllocator(); }
+    i32 capacity() const { return m_ids.capacity(); }
+    i32 size() const { return m_ids.size(); }
 
     // ------------------------------------------------------------------------
 
-    inline i32 LocalSize() const
+    bool IsCurrent(GenId id) const { return m_ids.IsCurrent(version, index); }
+
+    void OnGrow(i32 newCap)
     {
-        return m_toGlobal.size();
-    }
-
-    inline i32 LocalCapacity() const
-    {
-        return m_toGlobal.capacity();
-    }
-
-    inline u16 ToGlobal(u16 localIndex) const
-    {
-        return m_toGlobal[localIndex];
-    }
-
-    inline Slice<const u16> ToGlobals() const
-    {
-        return m_toGlobal;
-    }
-
-    // ------------------------------------------------------------------------
-
-    inline i32 GlobalSize() const
-    {
-        return m_toLocal.size();
-    }
-
-    inline i32 GlobalCapacity() const
-    {
-        return m_toLocal.capacity();
-    }
-
-    inline u16 ToLocal(u16 globalIndex) const
-    {
-        return m_toLocal[globalIndex];
-    }
-
-    inline Slice<const u16> ToLocals() const
-    {
-        return m_toLocal;
-    }
-
-    // ------------------------------------------------------------------------
-
-    inline bool Create(u16& version, u16& index)
-    {
-        bool grew = false;
-        if (m_allocator.Create(version, index))
+        if (newCap != Load(m_capacity))
         {
-            m_toLocal.Grow() = 0xffff;
-            grew = true;
+            T* newPtr = Allocator::CallocT<T>(GetAllocator(), newCap);
+
+            m_lock.LockWriter();
+
+            T* oldPtr = LoadPtr(m_ptr);
+            const i32 oldCap = Load(m_capacity);
+            const bool grew = newCap > oldCap;
+
+            if (grew)
+            {
+                memcpy(newPtr, oldPtr, sizeof(T) * oldCap);
+                StorePtr(m_ptr, newPtr);
+                Store(m_capacity, newCap);
+            }
+
+            m_lock.UnlockWriter();
+
+            if (grew)
+            {
+                Allocator::Free(oldPtr);
+            }
+            else
+            {
+                Allocator::Free(newPtr);
+            }
         }
-        m_toLocal[index] = u16(m_toGlobal.size());
-        m_toGlobal.Grow() = index;
-        return grew;
     }
 
-    inline bool Destroy(u16 version, u16 index)
+    GenId Create()
     {
-        if (m_allocator.Destroy(version, index))
+        GenId id = m_ids.Create();
+        OnGrow(m_ids.capacity());
+        return id;
+    }
+
+    bool Destroy(GenId id)
+    {
+        return m_ids.Destroy(id);
+    }
+
+    bool Read(GenId id, T& valueOut)
+    {
+        OS::ReadGuard guard(m_lock);
+        if (m_ids.LockSlot(id))
         {
-            // x[i] = x[--length]
-            // make globalB point to localA
-            // and localA point to globalB
-
-            const u16 globalA = index;
-            const u16 localA = m_toLocal[globalA];
-            const u16 localB = u16(m_toGlobal.size() - 1);
-            const u16 globalB = m_toGlobal[localB];
-
-            m_toLocal[globalB] = localA;
-            m_toLocal[globalA] = 0xffff;
-
-            m_toGlobal[localA] = globalB;
-            m_toGlobal[localB] = 0xffff;
-
-            m_toGlobal.Pop();
-
+            valueOut = m_ptr[id.index];
+            m_ids.UnlockSlot(id);
             return true;
         }
         return false;
+    }
+
+    bool Write(GenId id, const T& valueIn)
+    {
+        OS::ReadGuard guard(m_lock);
+        if (m_ids.LockSlot(id))
+        {
+            m_ptr[id.index] = valueIn;
+            m_ids.UnlockSlot(id);
+            return true;
+        }
+        return false;
+    }
+
+    bool Exch(GenId id, T& prevValue, T newValue)
+    {
+        OS::ReadGuard guard(m_lock);
+        if (m_ids.LockSlot(id))
+        {
+            prevValue = Exchange(m_ptr[id.index], newValue);
+            m_ids.UnlockSlot(id);
+            return true
+        }
+        return false;
+    }
+
+    bool CmpEx(GenId id, T& expected, T desired)
+    {
+        OS::ReadGuard guard(m_lock);
+        if (m_ids.LockSlot(id))
+        {
+            bool result = CmpExStrong(m_ptr[id.index], expected, desired);
+            m_ids.UnlockSlot(id);
+            return result;
+        }
+        return false;
+    }
+
+    const u32* BorrowVersions()
+    {
+        return m_ids.Borrow();
+    }
+
+    void ReturnVersions(const u32* ptr)
+    {
+        m_ids.Return(ptr);
+    }
+
+    const T* BorrowData()
+    {
+        m_lock.LockReader();
+        return LoadPtr(m_ptr);
+    }
+
+    void ReturnData(const T* ptr)
+    {
+        ASSERT(ptr == LoadPtr(m_ptr));
+        m_lock.UnlockReader();
+    }
+
+    Array<GenId> GetActiveIds()
+    {
+        return m_ids.GetActive();
+    }
+
+    Array<T> GetActiveData()
+    {
+        Array<T> results;
+        results.Init(Alloc_Stack);
+        results.Reserve(size());
+
+        const u32* pVersions = m_ids.Borrow();
+        const T* pData = BorrowData();
+        const i32 len = size();
+        for (i32 i = 0; i < len; ++i)
+        {
+            if (Load(pVersions[i]) & 1u)
+            {
+                results.PushBack(pData[i]);
+            }
+        }
+        ReturnData(pData);
+        m_ids.Return(pVersions);
+
+        return results;
     }
 };

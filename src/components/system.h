@@ -28,3 +28,8 @@ struct RegisterSystem
         SystemRegistry::Register(system);
     }
 };
+
+#define DEFINE_SYSTEM(name, deps, initFn, updateFn, shutdownFn) \
+    static constexpr System ms_system = \
+    { ToGuid(name), deps, initFn, updateFn, shutdownFn }; \
+    static RegisterSystem ms_register(ms_system);

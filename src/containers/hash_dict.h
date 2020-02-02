@@ -3,300 +3,335 @@
 #include "allocator/allocator.h"
 #include "containers/hash_util.h"
 #include "containers/slice.h"
+#include "os/thread.h"
+#include "os/atomics.h"
 #include <string.h>
 
-template<
-    typename K,
-    typename V,
-    const Comparator<K>& cmp>
-    struct HashDict
+template<typename K, typename V, const Comparator<K>& cmp>
+struct HashDict
 {
-    u32 m_allocator : 4;
-    u32 m_count : 28;
+    mutable OS::RWLock m_lock;
+    u32 m_count;
     u32 m_width;
+    mutable OS::RWFlag* m_flags;
     u32* m_hashes;
     K* m_keys;
     V* m_values;
+    AllocType m_allocator;
 
     // ------------------------------------------------------------------------
 
-    inline i32 size() const { return (i32)m_count; }
-    inline i32 capacity() const { return (i32)m_width; }
-    inline AllocType GetAllocator() const { return (AllocType)m_allocator; }
+    AllocType GetAllocator() const { return m_allocator; }
+    u32 size() const { return Load(m_count); }
+    u32 capacity() const { return Load(m_width); }
 
     void Init(AllocType allocator)
     {
         memset(this, 0, sizeof(*this));
         m_allocator = allocator;
+        m_lock.Open();
     }
 
     void Reset()
     {
+        m_lock.LockWriter();
+        Allocator::Free(m_flags);
         Allocator::Free(m_hashes);
         Allocator::Free(m_keys);
         Allocator::Free(m_values);
+        m_flags = 0;
         m_hashes = 0;
         m_values = 0;
         m_width = 0;
         m_count = 0;
+        m_lock.Close();
     }
 
     void Clear()
     {
+        OS::WriteGuard guard(m_lock);
         m_count = 0;
-        if (m_hashes)
+        OS::RWFlag* flags = m_flags;
+        u32* hashes = m_hashes;
+        K* keys = m_keys;
+        V* values = m_values;
+        const u32 width = m_width;
+        if (flags)
         {
-            memset(m_hashes, 0, sizeof(u32) * m_width);
-            memset(m_keys, 0, sizeof(K) * m_width);
-            memset(m_values, 0, sizeof(V) * m_width);
+            memset(flags, 0, sizeof(OS::RWFlag) * width);
+            memset(hashes, 0, sizeof(u32) * width);
+            memset(keys, 0, sizeof(K) * width);
+            memset(values, 0, sizeof(V) * width);
         }
-    }
-
-    static HashDict Build(AllocType allocator, Slice<const K> keys, Slice<const V> values)
-    {
-        const i32 count = keys.size();
-        ASSERT(count == values.size());
-        HashDict dict;
-        dict.Init(allocator);
-        dict.Reserve(count);
-        for (i32 i = 0; i < count; ++i)
-        {
-            dict.Add(keys[i], values[i]);
-        }
-        return dict;
     }
 
     // ------------------------------------------------------------------------
 
-    inline bool Contains(K key) const
+    i32 Find(K key) const
     {
-        return HashUtil::Contains<K>(
-            cmp, m_width, m_hashes, m_keys, key);
+        const u32 hash = HashUtil::Hash(cmp, key);
+        OS::ReadGuard guard(m_lock);
+
+        OS::RWFlag* flags = LoadPtr(m_flags);
+        const u32* hashes = Load(m_hashes);
+        const K* keys = Load(m_keys);
+        const u32 width = Load(m_width);
+        const u32 mask = width - 1u;
+
+        u32 ct = width;
+        u32 j = hash;
+        while (ct--)
+        {
+            j &= mask;
+            const u32 jHash = Load(hashes[j]);
+            if (HashUtil::IsEmpty(jHash))
+            {
+                break;
+            }
+            if (jHash == hash)
+            {
+                OS::ReadFlagGuard g2(flags[j]);
+                if (cmp.Equals(key, keys[j]))
+                {
+                    return (i32)j;
+                }
+            }
+            ++j;
+        }
+
+        return -1;
     }
 
-    void Resize(u32 minCount)
+    bool Contains(K key) const
     {
-        ASSERT(minCount >= m_count);
+        return Find(key) != -1;
+    }
+
+    void Reserve(u32 minCount)
+    {
+        minCount = Max(minCount, 16u);
         const u32 newWidth = HashUtil::ToPow2(minCount);
-        const u32 oldWidth = m_width;
-        if (newWidth == oldWidth)
+        if (newWidth <= capacity())
         {
-            return;
-        }
-        if (newWidth == 0)
-        {
-            Reset();
             return;
         }
 
         const AllocType allocator = GetAllocator();
+        OS::RWFlag* newFlags = Allocator::CallocT<OS::RWFlag>(allocator, newWidth);
         u32* newHashes = Allocator::CallocT<u32>(allocator, newWidth);
         K* newKeys = Allocator::CallocT<K>(allocator, newWidth);
         V* newValues = Allocator::AllocT<V>(allocator, newWidth);
 
-        const u32* oldHashes = m_hashes;
-        const K* oldKeys = m_keys;
-        const V* oldValues = m_values;
+        m_lock.LockWriter();
 
-        for (u32 i = 0u; i < oldWidth; ++i)
+        OS::RWFlag* oldFlags = LoadPtr(m_flags);
+        u32* oldHashes = LoadPtr(m_hashes);
+        K* oldKeys = LoadPtr(m_keys);
+        V* oldValues = LoadPtr(m_values);
+        const u32 oldWidth = capacity();
+        const bool grow = newWidth > oldWidth;
+
+        if (grow)
         {
-            const u32 hash = oldHashes[i];
-            if (HashUtil::IsEmptyOrTomb(hash))
+            const u32 newMask = newWidth - 1u;
+            for (u32 iSrc = 0u; iSrc < oldWidth; ++iSrc)
             {
-                continue;
+                u32 iDst = oldHashes[iSrc];
+                if (HashUtil::IsValidHash(iDst))
+                {
+                    while (true)
+                    {
+                        iDst &= newMask;
+                        if (!newHashes[iDst])
+                        {
+                            newFlags[iDst] = oldFlags[iSrc];
+                            newHashes[iDst] = oldHashes[iSrc];
+                            newKeys[iDst] = oldKeys[iSrc];
+                            newValues[iDst] = oldValues[iSrc];
+                            break;
+                        }
+                        ++iDst;
+                    }
+                }
             }
-            i32 j = HashUtil::Insert<K>(
-                cmp, newWidth,
-                newHashes, newKeys,
-                hash, oldKeys[i]);
-            ASSERT(j != -1);
-            newValues[j] = oldValues[i];
+
+            StorePtr(m_flags, newFlags);
+            StorePtr(m_hashes, newHashes);
+            StorePtr(m_keys, newKeys);
+            StorePtr(m_values, newValues);
+            Store(m_width, newWidth);
         }
 
-        Allocator::Free(m_hashes);
-        Allocator::Free(m_keys);
-        Allocator::Free(m_values);
+        m_lock.UnlockWriter();
 
-        m_width = newWidth;
-        m_hashes = newHashes;
-        m_keys = newKeys;
-        m_values = newValues;
-    }
-
-    void Reserve(u32 cap)
-    {
-        if ((cap * 10u) >= (m_width * 7u))
+        if (grow)
         {
-            Resize(cap > 8u ? cap : 8u);
+            Allocator::Free(oldFlags);
+            Allocator::Free(oldHashes);
+            Allocator::Free(oldKeys);
+            Allocator::Free(oldValues);
         }
-    }
-
-    void Trim()
-    {
-        Resize(m_count);
-    }
-
-    inline bool Add(K key, V value)
-    {
-        Reserve(m_count + 1u);
-        i32 i = HashUtil::Insert<K>(
-            cmp, m_width, m_hashes, m_keys, key);
-        if (i != -1)
+        else
         {
-            m_values[i] = value;
-            ++m_count;
-            return true;
+            Allocator::Free(newFlags);
+            Allocator::Free(newHashes);
+            Allocator::Free(newKeys);
+            Allocator::Free(newValues);
         }
+    }
+
+    bool Add(K key, V value)
+    {
+        Reserve(size() + 3u);
+
+        const u32 hash = HashUtil::Hash(cmp, key);
+
+        OS::ReadGuard guard(m_lock);
+
+        OS::RWFlag* flags = LoadPtr(m_flags);
+        u32* hashes = LoadPtr(m_hashes);
+        K* keys = LoadPtr(m_keys);
+        V* values = LoadPtr(m_values);
+
+        u32 j = hash;
+        u32 ct = capacity();
+        const u32 mask = ct - 1u;
+
+        while (ct--)
+        {
+            j &= mask;
+            u32 jHash = Load(hashes[j]);
+            if (HashUtil::IsEmptyOrTomb(jHash))
+            {
+                OS::WriteFlagGuard g2(flags[j]);
+                if (CmpExStrong(hashes[j], jHash, hash))
+                {
+                    keys[j] = key;
+                    values[j] = value;
+                    Inc(m_count);
+                    return true;
+                }
+            }
+            ++j;
+        }
+
         return false;
     }
 
-    inline bool Remove(K key, V& valueOut)
+    bool Remove(K key, V& valueOut)
     {
-        i32 i = HashUtil::Remove<K>(
-            cmp, m_width, m_hashes, m_keys, key);
-        if (i != -1)
+        const u32 hash = HashUtil::Hash(cmp, key);
+
+        OS::ReadGuard guard(m_lock);
+
+        OS::RWFlag* flags = LoadPtr(m_flags);
+        u32* hashes = LoadPtr(m_hashes);
+        const K* keys = LoadPtr(m_keys);
+        const V* values = LoadPtr(m_values);
+
+        u32 j = hash;
+        u32 ct = capacity();
+        const u32 mask = ct - 1u;
+
+        while (ct--)
         {
-            valueOut = m_values[i];
-            --m_count;
-            return true;
+            j &= mask;
+            u32 jHash = Load(hashes[j]);
+            if (HashUtil::IsEmpty(jHash))
+            {
+                break;
+            }
+            if (jHash == hash)
+            {
+                OS::WriteFlagGuard g2(flags[j]);
+                if (cmp.Equals(key, keys[j]) && CmpExStrong(hashes[j], jHash, HashUtil::TombMask))
+                {
+                    valueOut = values[j];
+                    memset(keys + j, 0, sizeof(K));
+                    memset(values + j, 0, sizeof(V));
+                    Dec(m_count);
+                    return true;
+                }
+            }
+            ++j;
         }
+
         return false;
     }
 
-    inline const V* Get(K key) const
+    bool Get(K key, V& valueOut) const
     {
-        i32 i = HashUtil::Find<K>(
-            cmp, m_width, m_hashes, m_keys, key);
-        return (i == -1) ? nullptr : m_values + i;
+        const u32 hash = HashUtil::Hash(cmp, key);
+
+        OS::ReadGuard guard(m_lock);
+
+        OS::RWFlag* flags = LoadPtr(m_flags);
+        const u32* hashes = LoadPtr(m_hashes);
+        const K* keys = LoadPtr(m_keys);
+        const V* values = LoadPtr(m_values);
+
+        u32 j = hash;
+        u32 ct = capacity();
+        const u32 mask = ct - 1u;
+
+        while (ct--)
+        {
+            j &= mask;
+            const u32 jHash = Load(hashes[j]);
+            if (HashUtil::IsEmpty(jHash))
+            {
+                break;
+            }
+            if (jHash == hash)
+            {
+                OS::ReadFlagGuard g2(flags[j]);
+                if (cmp.Equals(key, keys[j]))
+                {
+                    valueOut = values[j];
+                    return true;
+                }
+            }
+            ++j;
+        }
+
+        return false;
     }
 
-    inline V* Get(K key)
+    bool Set(K key, const V& valueIn)
     {
-        i32 i = HashUtil::Find<K>(
-            cmp, m_width, m_hashes, m_keys, key);
-        return (i == -1) ? nullptr : m_values + i;
+        const u32 hash = HashUtil::Hash(cmp, key);
+
+        OS::ReadGuard guard(m_lock);
+
+        OS::RWFlag* flags = LoadPtr(m_flags);
+        const u32* hashes = LoadPtr(m_hashes);
+        const K* keys = LoadPtr(m_keys);
+        V* values = LoadPtr(m_values);
+
+        u32 j = hash;
+        u32 ct = capacity();
+        const u32 mask = ct - 1u;
+
+        while (ct--)
+        {
+            j &= mask;
+            const u32 jHash = Load(hashes[j]);
+            if (HashUtil::IsEmpty(jHash))
+            {
+                break;
+            }
+            if (jHash == hash)
+            {
+                OS::WriteFlagGuard g2(flags[j]);
+                if (cmp.Equals(key, keys[j]))
+                {
+                    values[j] = valueIn;
+                    return true;
+                }
+            }
+            ++j;
+        }
+
+        return false;
     }
-
-    inline bool Set(K key, V value)
-    {
-        i32 i = HashUtil::Find<K>(
-            cmp, m_width, m_hashes, m_keys, key);
-        if (i == -1)
-        {
-            return false;
-        }
-        m_values[i] = value;
-        return true;
-    }
-
-    inline V& operator[](K key)
-    {
-        const u32 hash = HashUtil::Hash<K>(cmp, key);
-        i32 i = HashUtil::Find<K>(
-            cmp, m_width, m_hashes, m_keys, hash, key);
-        if (i == -1)
-        {
-            Reserve(m_count + 1u);
-            i = HashUtil::Insert<K>(
-                cmp, m_width, m_hashes, m_keys, hash, key);
-            ASSERT(i != -1);
-            memset(m_values + i, 0, sizeof(V));
-            ++m_count;
-        }
-        return m_values[i];
-    }
-
-    // ------------------------------------------------------------------------
-
-    struct iterator
-    {
-        u32 m_i;
-        const u32 m_width;
-        const u32* const m_hashes;
-        const K* const m_keys;
-        V* const m_values;
-
-        inline iterator(HashDict& dict)
-            : m_i(0),
-            m_width(dict.m_width),
-            m_hashes(dict.m_hashes),
-            m_keys(dict.m_keys),
-            m_values(dict.m_values)
-        {
-            m_i = HashUtil::Iterate(m_hashes, m_width, m_i);
-        }
-
-        inline bool operator!=(const iterator& rhs) const
-        {
-            return m_i < m_width;
-        }
-
-        inline iterator& operator++()
-        {
-            m_i = HashUtil::Iterate(m_hashes, m_width, m_i);
-            return *this;
-        }
-
-        struct Pair
-        {
-            const K& Key;
-            V& Value;
-        };
-
-        inline Pair operator*()
-        {
-            return Pair{ m_keys[m_i], m_values[m_i] };
-        }
-    };
-
-    inline iterator begin() { return iterator(*this); }
-    inline iterator end() { return iterator(*this); }
-
-    // ------------------------------------------------------------------------
-
-    struct const_iterator
-    {
-        u32 m_i;
-        const u32 m_width;
-        const u32* const m_hashes;
-        const K* const m_keys;
-        const V* const m_values;
-
-        inline const_iterator(const HashDict& dict)
-            : m_i(0),
-            m_width(dict.m_width),
-            m_hashes(dict.m_hashes),
-            m_keys(dict.m_keys),
-            m_values(dict.m_values)
-        {
-            m_i = HashUtil::Iterate(m_hashes, m_width, m_i);
-        }
-
-        inline bool operator!=(const const_iterator&) const
-        {
-            return m_i < m_width;
-        }
-
-        inline const_iterator& operator++()
-        {
-            m_i = HashUtil::Iterate(m_hashes, m_width, m_i);
-            return *this;
-        }
-
-        struct Pair
-        {
-            const K& Key;
-            const V& Value;
-        };
-
-        inline Pair operator*() const
-        {
-            return Pair{ m_keys[m_i], m_values[m_i] };
-        }
-    };
-
-    inline const_iterator begin() const { return const_iterator(*this); }
-    inline const_iterator end() const { return const_iterator(*this); }
-
-    // ------------------------------------------------------------------------
 };

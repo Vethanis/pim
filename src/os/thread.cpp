@@ -82,7 +82,7 @@ namespace OS
         static constexpr u32 kMask = (1u << 10) - 1u;
 
         static u32 Inc(u32 x) { ASSERT(x < kMask); return (x + 1u) & kMask; }
-        static u32 Dec(u32 x) { ASSERT(x > 0u); return (x - 1u) & kMask; }
+        static u32 Dec(u32 x) { ASSERT(x); return (x - 1u) & kMask; }
 
         RWState(u32 x = 0u) { *this = *reinterpret_cast<RWState*>(&x); }
         operator u32&() { return *reinterpret_cast<u32*>(this); }
@@ -142,7 +142,7 @@ namespace OS
         oneWriter.writers = 1u;
         RWState oldState = FetchAdd(m_state, oneWriter, MO_Acquire);
         ASSERT(oldState.writers < RWState::kMask);
-        if (oldState.writers || oldState.readers)
+        if (oldState.writers | oldState.readers)
         {
             m_write.Wait();
         }

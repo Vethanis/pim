@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common/int_types.h"
+
 template<typename T>
 inline constexpr T Min(T a, T b)
 {
@@ -40,4 +42,17 @@ template<typename C>
 inline constexpr bool Overlaps(C lhs, C rhs)
 {
     return Overlaps(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+}
+
+// https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+static constexpr u32 ToPow2(u32 x)
+{
+    --x;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    ++x;
+    return x;
 }

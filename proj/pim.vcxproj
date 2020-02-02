@@ -23,6 +23,8 @@
     <ClCompile Include="..\src\common\stringutil.cpp" />
     <ClCompile Include="..\src\common\time.cpp" />
     <ClCompile Include="..\src\components\ecs.cpp" />
+    <ClCompile Include="..\src\components\resources.cpp" />
+    <ClCompile Include="..\src\components\taskgraph.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\os\atomics.cpp" />
@@ -67,6 +69,7 @@
     <ClInclude Include="..\src\common\apply.h" />
     <ClInclude Include="..\src\common\chunk_allocator.h" />
     <ClInclude Include="..\src\common\comparator.h" />
+    <ClInclude Include="..\src\common\comparator_util.h" />
     <ClInclude Include="..\src\common\guid_util.h" />
     <ClInclude Include="..\src\common\heap_item.h" />
     <ClInclude Include="..\src\common\minmax.h" />
@@ -93,13 +96,16 @@
     <ClInclude Include="..\src\components\component.h" />
     <ClInclude Include="..\src\components\ecs.h" />
     <ClInclude Include="..\src\components\entity.h" />
+    <ClInclude Include="..\src\components\resources.h" />
     <ClInclude Include="..\src\components\system.h" />
+    <ClInclude Include="..\src\components\taskgraph.h" />
     <ClInclude Include="..\src\components\transform.h" />
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\atomic_array.h" />
     <ClInclude Include="..\src\containers\bitfield.h" />
     <ClInclude Include="..\src\containers\bitpack.h" />
     <ClInclude Include="..\src\containers\generational.h" />
+    <ClInclude Include="..\src\containers\genid.h" />
     <ClInclude Include="..\src\containers\hash_dict.h" />
     <ClInclude Include="..\src\containers\hash_set.h" />
     <ClInclude Include="..\src\containers\hash_util.h" />

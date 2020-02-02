@@ -17,9 +17,9 @@ struct Pipe
     u32 m_flags[kCapacity];
     T m_data[kCapacity];
 
-    u32 size() const { return Load(m_iWrite, MO_Relaxed) - Load(m_iRead, MO_Relaxed); }
-    u32 Head() const { return Load(m_iWrite, MO_Relaxed) & kMask; }
-    u32 Tail() const { return Load(m_iRead, MO_Relaxed) & kMask; }
+    u32 size() const { return Load(m_iWrite) - Load(m_iRead); }
+    u32 Head() const { return Load(m_iWrite) & kMask; }
+    u32 Tail() const { return Load(m_iRead) & kMask; }
     static u32 Next(u32 i) { return (i + 1u) & kMask; }
 
     void Init() { Clear(); }
@@ -36,7 +36,7 @@ struct Pipe
 
     bool TryPush(const T& src)
     {
-        for (u32 i = Head(); size() < kMask; i = Next(i))
+        for (u32 i = Head(); size() <= kMask; i = Next(i))
         {
             u32 prev = kFlagWritable;
             if (CmpExStrong(m_flags[i], prev, kFlagLocked))
@@ -52,7 +52,7 @@ struct Pipe
 
     bool TryPop(T& dst)
     {
-        for (u32 i = Tail(); size() > 0u; i = Next(i))
+        for (u32 i = Tail(); size() != 0u; i = Next(i))
         {
             u32 prev = kFlagReadable;
             if (CmpExStrong(m_flags[i], prev, kFlagLocked))
@@ -88,15 +88,15 @@ struct PtrPipe
         }
     }
 
-    u32 size() const { return Load(m_iWrite, MO_Relaxed) - Load(m_iRead, MO_Relaxed); }
-    u32 Head() const { return Load(m_iWrite, MO_Relaxed) & kMask; }
-    u32 Tail() const { return Load(m_iRead, MO_Relaxed) & kMask; }
+    u32 size() const { return Load(m_iWrite) - Load(m_iRead); }
+    u32 Head() const { return Load(m_iWrite) & kMask; }
+    u32 Tail() const { return Load(m_iRead) & kMask; }
     static u32 Next(u32 i) { return (i + 1u) & kMask; }
 
     bool TryPush(void* ptr)
     {
         ASSERT(ptr);
-        for (u32 i = Head(); size() < kMask; i = Next(i))
+        for (u32 i = Head(); size() <= kMask; i = Next(i))
         {
             isize prev = 0;
             if (CmpExStrong(m_ptrs[i], prev, (isize)ptr))
@@ -111,7 +111,7 @@ struct PtrPipe
 
     void* TryPop()
     {
-        for (u32 i = Tail(); size() > 0u; i = Next(i))
+        for (u32 i = Tail(); size() != 0u; i = Next(i))
         {
             isize prev = Load(m_ptrs[i]);
             if (prev && CmpExStrong(m_ptrs[i], prev, 0))
@@ -122,5 +122,90 @@ struct PtrPipe
             }
         }
         return nullptr;
+    }
+};
+
+struct IndexPipe
+{
+    u32 m_iRead;
+    u32 m_iWrite;
+    u32 m_width;
+    i32* m_indices;
+
+    void Init(AllocType allocator, u32 cap)
+    {
+        ASSERT((cap & (cap - 1)) == 0);
+        m_width = cap;
+        m_iRead = 0;
+        m_iWrite = 0;
+        i32* indices = Allocator::AllocT<i32>(allocator, cap);
+        for (u32 i = 0; i < cap; ++i)
+        {
+            indices[i] = -1;
+        }
+        m_indices = indices;
+    }
+
+    void Clear()
+    {
+        const u32 width = m_width;
+        i32* const indices = m_indices;
+        for (u32 i = 0; i < width; ++i)
+        {
+            Store(indices[i], -1);
+        }
+        Store(m_iWrite, 0);
+        Store(m_iRead, 0);
+    }
+
+    void Reset()
+    {
+        Clear();
+        m_width = 0;
+        Allocator::Free(m_indices);
+        m_indices = nullptr;
+    }
+
+    u32 size() const { return Load(m_iWrite) - Load(m_iRead); }
+    u32 Mask() const { return m_width - 1u; }
+    u32 Head(u32 mask) const { return Load(m_iWrite) & mask; }
+    u32 Tail(u32 mask) const { return Load(m_iRead) & mask; }
+    static u32 Next(u32 i, u32 mask) { return (i + 1u) & mask; }
+
+    bool TryPush(i32 index)
+    {
+        ASSERT(index >= 0);
+        const u32 mask = Mask();
+        i32* const indices = m_indices;
+        ASSERT(indices);
+        for (u32 i = Head(mask); size() <= mask; i = Next(i, mask))
+        {
+            i32 prev = -1;
+            if (CmpExStrong(indices[i], prev, index))
+            {
+                Inc(m_iWrite);
+                ASSERT(prev == -1);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    i32 TryPop()
+    {
+        const u32 mask = Mask();
+        i32* const indices = m_indices;
+        ASSERT(indices);
+        for (u32 i = Tail(mask); size() != 0u; i = Next(i, mask))
+        {
+            i32 prev = Load(indices[i]);
+            if ((prev != -1) && CmpExStrong(indices[i], prev, -1))
+            {
+                Inc(m_iRead);
+                ASSERT(prev != -1);
+                return prev;
+            }
+        }
+        return -1;
     }
 };

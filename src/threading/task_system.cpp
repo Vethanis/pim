@@ -244,13 +244,5 @@ namespace TaskSystem
         ms_waitPop.Close();
     }
 
-    static constexpr System ms_system =
-    {
-        ToGuid("TaskSystem"),
-        { 0, 0 },
-        Init,
-        Update,
-        Shutdown,
-    };
-    static RegisterSystem ms_register(ms_system);
+    DEFINE_SYSTEM("TaskSystem", {}, Init, Update, Shutdown)
 };
