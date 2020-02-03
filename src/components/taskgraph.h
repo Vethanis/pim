@@ -1,32 +1,29 @@
 #pragma once
 
-#include "threading/task_system.h"
-#include "containers/hash_set.h"
+#include "threading/task.h"
 #include "containers/array.h"
 #include "components/resources.h"
-#include "common/comparator_util.h"
-
-struct TaskNodeId
-{
-    Guid guid;
-};
-
-static constexpr Comparator<TaskNodeId> TaskNodeIdComparator = GuidBasedComparator<TaskNodeId>();
-using TaskNodeIds = HashSet<TaskNodeId, TaskNodeIdComparator>;
 
 struct TaskNode : ITask
 {
-    TaskNodeIds m_depedencies;
-    ResourceIds m_reads;
-    ResourceIds m_writes;
+    u32 m_graphMark;
+    Array<TaskNode*> m_inward; // nodes that run before this, aka inward edges
+
+    TaskNode() : ITask()
+    {
+        m_graphMark = 0;
+        m_inward.Init(Alloc_Pool);
+    }
+
+    virtual ~TaskNode()
+    {
+        m_inward.Reset();
+    }
 };
 
 namespace TaskGraph
 {
-    bool Add(TaskNodeId id, TaskNode* pNode);
-    TaskNode* Remove(TaskNodeId id);
-    TaskNode* Get(TaskNodeId id);
-    TaskNodeId Execute();
-    void Await(TaskNodeId id);
-    void Clear();
+    bool Add(TaskNode* pNode);
+    bool AddDependency(TaskNode* pFirst, TaskNode* pAfter);
+    bool RmDependency(TaskNode* pFirst, TaskNode* pAfter);
 };

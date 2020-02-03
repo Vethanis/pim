@@ -76,27 +76,3 @@ static TypeId TypeOf()
 {
     return TypeId{ TypeMgr::PerType<T>::GetHandle() };
 }
-
-template<typename T>
-static TypeId TypeOf<const T>()
-{
-    return TypeOf<T>();
-}
-
-template<typename T>
-static TypeId TypeOf<const T&>()
-{
-    return TypeOf<T>();
-}
-
-template<typename T>
-static TypeId TypeOf<T&>()
-{
-    return TypeOf<T>();
-}
-
-template<typename T>
-static TypeId TypeOf<T&&>()
-{
-    return TypeOf<T>();
-}

@@ -10,28 +10,29 @@ struct ObjTable
     using VPtr = V*;
     using TableType = ObjTable<K, V, cmp>;
 
-    mutable OS::RWLock m_lock;
     HashDict<K, V*, cmp> m_dict;
     ObjPool<V> m_pool;
 
     void Init()
     {
-        m_lock.Open();
         m_dict.Init(Alloc_Pool);
         m_pool.Init();
     }
 
     void Reset()
     {
-        m_lock.LockWriter();
-        for (auto pair : m_dict)
+        Array<K> keys = CreateArray<K>(Alloc_Linear, m_dict.size());
+        Array<V*> values = CreateArray<V*>(Alloc_Linear, m_dict.size());
+        m_dict.GetElements(keys, values);
+        m_dict.Reset();
+
+        i32 len = keys.size();
+        for (i32 i = 0; i < len; ++i)
         {
-            VPtr pValue = pair.Value;
-            ASSERT(pValue);
-            pValue->~V();
+            values[i]->~V();
         }
+
         m_pool.Reset();
-        m_lock.Close();
     }
 
     VPtr New() { return m_pool.New(); }
@@ -39,36 +40,19 @@ struct ObjTable
 
     VPtr Get(K key)
     {
-        m_lock.LockReader();
-        V** ppValue = m_dict.Get(key);
-        m_lock.UnlockReader();
-        return ppValue ? *ppValue : nullptr;
+        V* ptr = nullptr;
+        m_dict.Get(key, ptr);
+        return ptr;
     }
 
     bool Add(K key, VPtr ptrIn)
     {
         ASSERT(ptrIn);
-        m_lock.LockWriter();
-        bool added = m_dict.Add(key, ptrIn);
-        m_lock.UnlockWriter();
-        return added;
+        return m_dict.Add(key, ptrIn);
     }
 
     bool Remove(K key, VPtr& ptrOut)
     {
-        m_lock.LockWriter();
-        bool removed = m_dict.Remove(key, pValue);
-        m_lock.UnlockWriter();
-        return removed;
-    }
-
-    HashDict<K, V*, cmp>& BeginIter()
-    {
-        m_lock.LockReader();
-        return m_dict;
-    }
-    void EndIter()
-    {
-        m_lock.UnlockReader();
+        return m_dict.Remove(key, ptrOut);
     }
 };

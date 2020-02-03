@@ -99,7 +99,7 @@ namespace OS
     SASSERT(sizeof(RWState) == sizeof(u32));
     SASSERT(alignof(RWState) == alignof(u32));
 
-    void RWLock::LockReader()
+    void RWLock::LockReader() const
     {
         u64 spins = 0;
     trywrite:
@@ -124,7 +124,7 @@ namespace OS
         }
     }
 
-    void RWLock::UnlockReader()
+    void RWLock::UnlockReader() const
     {
         RWState oneReader = 0u;
         oneReader.readers = 1u;
@@ -215,13 +215,13 @@ namespace OS
 
     // ------------------------------------------------------------------------
 
-    bool RWFlag::TryLockReader()
+    bool RWFlag::TryLockReader() const
     {
         i32 state = Load(m_state, MO_Relaxed);
         return (state >= 0) && CmpExStrong(m_state, state, state + 1, MO_Acquire);
     }
 
-    void RWFlag::UnlockReader()
+    void RWFlag::UnlockReader() const
     {
         i32 prev = Dec(m_state, MO_Release);
         ASSERT(prev > 0);

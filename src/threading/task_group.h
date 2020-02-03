@@ -1,6 +1,6 @@
 #pragma once
 
-#include "threading/task_system.h"
+#include "threading/task.h"
 #include "containers/array.h"
 
 struct TaskGroup final : ITask
@@ -47,9 +47,10 @@ struct TaskGroup final : ITask
     }
 };
 
-template<i32 kPartitions>
 struct TaskFor : ITask
 {
+    static constexpr i32 kPartitions = 16;
+
     virtual void ExecuteFor(i32 begin, i32 end, u32 tid) = 0;
 
     struct Subtask : ITask
@@ -60,8 +61,7 @@ struct TaskFor : ITask
 
         void Execute(u32 tid) final
         {
-            TaskFor* parent = m_parent;
-            parent->ExecuteFor(m_begin, m_end, tid);
+            m_parent->ExecuteFor(m_begin, m_end, tid);
         }
     };
 

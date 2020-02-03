@@ -79,9 +79,9 @@ namespace OS
 
     struct RWLock
     {
-        u32 m_state;
-        LightSema m_read;
-        LightSema m_write;
+        mutable u32 m_state;
+        mutable LightSema m_read;
+        mutable LightSema m_write;
 
         void Open()
         {
@@ -95,16 +95,16 @@ namespace OS
             m_write.Close();
         }
 
-        void LockReader();
-        void UnlockReader();
+        void LockReader() const;
+        void UnlockReader() const;
         void LockWriter();
         void UnlockWriter();
     };
 
     struct ReadGuard
     {
-        RWLock& m_lock;
-        ReadGuard(RWLock& lock) : m_lock(lock)
+        const RWLock& m_lock;
+        ReadGuard(const RWLock& lock) : m_lock(lock)
         {
             lock.LockReader();
         }
@@ -149,10 +149,10 @@ namespace OS
 
     struct RWFlag
     {
-        i32 m_state;
+        mutable i32 m_state;
 
-        bool TryLockReader();
-        void LockReader()
+        bool TryLockReader() const;
+        void LockReader() const
         {
             u64 spins = 0;
             while (!TryLockReader())
@@ -160,7 +160,7 @@ namespace OS
                 OS::Spin(++spins * 100);
             }
         }
-        void UnlockReader();
+        void UnlockReader() const;
 
         bool TryLockWriter();
         void LockWriter()
@@ -176,8 +176,8 @@ namespace OS
 
     struct ReadFlagGuard
     {
-        RWFlag& m_flag;
-        ReadFlagGuard(RWFlag& flag) : m_flag(flag)
+        const RWFlag& m_flag;
+        ReadFlagGuard(const RWFlag& flag) : m_flag(flag)
         {
             m_flag.LockReader();
         }

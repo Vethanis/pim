@@ -68,12 +68,6 @@ namespace RenderSystem
     {
         Screen::Update();
         simgui_new_frame(Screen::Width(), Screen::Height(), Time::DeltaTimeF32());
-
-        for (Entity entity : Ecs::Search({ { Drawable::Id, LocalToWorld::Id }, {}, {} }))
-        {
-            LocalToWorld& l2w = Ecs::Get<LocalToWorld>(entity);
-            Drawable& drawable = Ecs::Get<Drawable>(entity);
-        }
     }
 
     static void Shutdown()

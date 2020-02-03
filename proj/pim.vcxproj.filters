@@ -151,9 +151,6 @@
     <ClCompile Include="..\src\rendering\render_system.cpp">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\threading\task_system.cpp">
-      <Filter>Source Files\threading</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\systems.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -201,6 +198,9 @@
     </ClCompile>
     <ClCompile Include="..\src\components\taskgraph.cpp">
       <Filter>Source Files\components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\threading\task.cpp">
+      <Filter>Source Files\threading</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -429,9 +429,6 @@
     <ClInclude Include="..\src\rendering\render_system.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\threading\task_system.h">
-      <Filter>Source Files\threading</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\systems.h">
       <Filter>Source Files</Filter>
     </ClInclude>
@@ -614,6 +611,9 @@
     </ClInclude>
     <ClInclude Include="..\src\components\taskgraph.h">
       <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\task.h">
+      <Filter>Source Files\threading</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

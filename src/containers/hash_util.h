@@ -69,18 +69,4 @@ namespace HashUtil
     {
         return CreateHash(cmp.Hash(key));
     }
-
-    static u32 Iterate(const u32* const hashes, const u32 width, u32 i)
-    {
-        u32 j = i + 1u;
-        for (; j < width; ++j)
-        {
-            u32 hash = Load(hashes[i], MO_Relaxed);
-            if (IsValidHash(hash))
-            {
-                break;
-            }
-        }
-        return j;
-    }
 };

@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include "os/atomics.h"
+#include "allocator/allocator.h"
 
 template<typename T, u32 kCapacity>
 struct Pipe

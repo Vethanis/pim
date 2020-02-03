@@ -1,38 +1,34 @@
 #pragma once
 
-#include "containers/atomic_array.h"
-#include "containers/pipe.h"
-#include "os/atomics.h"
+#include "containers/mtqueue.h"
 
 struct ChunkAllocator
 {
     static constexpr i32 kChunkSize = 256;
 
-    PtrPipe<kChunkSize> m_pipe;
-    AArray m_free;
-    AArray m_chunks;
+    MtQueue<void*> m_free;
+    MtQueue<void*> m_chunks;
     i32 m_itemSize;
 
     void Init(AllocType allocator, i32 itemSize)
     {
         ASSERT(itemSize > 0);
-        m_pipe.Init();
         m_chunks.Init(allocator);
         m_free.Init(allocator);
+        m_chunks.Reserve(1);
+        m_free.Reserve(kChunkSize);
         m_itemSize = itemSize;
     }
 
     void Reset()
     {
-    trypop:
-        void* ptr = m_chunks.TryPopBack();
-        if (ptr)
+        m_free.Reset();
+        void* ptr = nullptr;
+        while (m_chunks.TryPop(ptr))
         {
             Allocator::Free(ptr);
-            goto trypop;
         }
         m_chunks.Reset();
-        m_free.Reset();
     }
 
     void PushChunk()
@@ -40,45 +36,24 @@ struct ChunkAllocator
         const i32 itemSize = m_itemSize;
         ASSERT(itemSize > 0);
 
-        u8* pChunk = (u8*)Allocator::Alloc(m_chunks.GetAllocator(), kChunkSize * itemSize);
+        u8* ptr = (u8*)Allocator::Alloc(m_chunks.GetAllocator(), kChunkSize * itemSize);
 
-        m_chunks.PushBack(pChunk);
+        m_chunks.Push(ptr);
 
         for (i32 i = 0; i < kChunkSize; ++i)
         {
-            if (!m_pipe.TryPush(pChunk))
-            {
-                m_free.PushBack(pChunk);
-            }
-            pChunk += itemSize;
+            m_free.Push(ptr);
+            ptr += itemSize;
         }
     }
 
     void* Allocate()
     {
         void* ptr = nullptr;
-        u64 spins = 0;
-
-    trypop:
-        ptr = m_pipe.TryPop();
-        if (ptr)
-        {
-            goto popped;
-        }
-        ptr = m_free.TryPopBack();
-        if (ptr)
-        {
-            goto popped;
-        }
-        if (++spins > 5)
+        while (!m_free.TryPop(ptr))
         {
             PushChunk();
-            spins = 0;
         }
-        OS::Spin(spins * 100);
-        goto trypop;
-
-    popped:
         memset(ptr, 0, m_itemSize);
         return ptr;
     }
@@ -87,15 +62,39 @@ struct ChunkAllocator
     {
         if (pVoid)
         {
-            for (u64 i = 1; i <= 5; ++i)
-            {
-                if (m_pipe.TryPush(pVoid))
-                {
-                    return;
-                }
-                OS::Spin(i * 100);
-            }
-            m_free.PushBack(pVoid);
+            m_free.Push(pVoid);
         }
     }
 };
+
+template<typename T>
+struct TPool
+{
+    ChunkAllocator m_allocator;
+
+    TPool()
+    {
+        m_allocator.Init(Alloc_Pool, sizeof(T));
+    }
+    ~TPool()
+    {
+        m_allocator.Reset();
+    }
+
+    T* Allocate()
+    {
+        return (T*)m_allocator.Allocate();
+    }
+
+    void Free(T* ptr)
+    {
+        m_allocator.Free(ptr);
+    }
+};
+
+#define DECLARE_TPOOL(T) \
+    static TPool<T> ms_pool; \
+    static T* PoolAlloc() { return ms_pool.Allocate(); } \
+    static void PoolFree(T* ptr) { ms_pool.Free(ptr); }
+
+#define DEFINE_TPOOL(T) TPool<T> T::ms_pool;

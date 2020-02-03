@@ -1,4 +1,4 @@
-#include "threading/task_system.h"
+#include "threading/task.h"
 #include "os/thread.h"
 #include "os/atomics.h"
 #include "containers/pipe.h"
@@ -131,6 +131,7 @@ static void AddTask(ITask* pTask)
 static void WaitForTask(ITask* pTask)
 {
     ASSERT(pTask);
+    ASSERT(pTask->GetState() != TaskState_Init);
 
     const u32 tid = ms_tid;
 

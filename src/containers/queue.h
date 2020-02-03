@@ -321,3 +321,13 @@ inline void Remove(Queue<T>& queue, u32 i)
 
     queue.Pop();
 }
+
+template<typename T>
+static Queue<T> CreateQueue(AllocType allocator, i32 cap)
+{
+    ASSERT(cap >= 0);
+    Queue<T> queue;
+    queue.Init(allocator);
+    queue.Reserve((u32)cap);
+    return queue;
+}

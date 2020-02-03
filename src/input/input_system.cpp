@@ -6,6 +6,7 @@
 #include "containers/array.h"
 #include "common/find.h"
 #include "components/system.h"
+#include "common/comparator_util.h"
 
 // ----------------------------------------------------------------------------
 

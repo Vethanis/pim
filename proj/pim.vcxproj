@@ -41,7 +41,7 @@
     <ClCompile Include="..\src\sokol\sokol_imgui.cpp" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
     <ClCompile Include="..\src\systems.cpp" />
-    <ClCompile Include="..\src\threading\task_system.cpp" />
+    <ClCompile Include="..\src\threading\task.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_draw.cpp" />
@@ -149,7 +149,7 @@
     <ClInclude Include="..\src\sokol\sokol_backend.h" />
     <ClInclude Include="..\src\systems.h" />
     <ClInclude Include="..\src\threading\task_group.h" />
-    <ClInclude Include="..\src\threading\task_system.h" />
+    <ClInclude Include="..\src\threading\task.h" />
     <ClInclude Include="..\src\ui\imconfig.h" />
     <ClInclude Include="..\src\ui\imgui.h" />
     <ClInclude Include="..\submodules\imgui\imconfig.h" />

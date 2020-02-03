@@ -3,6 +3,7 @@
 #include "allocator/allocator.h"
 #include "containers/hash_util.h"
 #include "containers/slice.h"
+#include "containers/array.h"
 #include "os/thread.h"
 #include "os/atomics.h"
 #include <string.h>
@@ -65,6 +66,19 @@ struct HashDict
         }
     }
 
+    static HashDict Build(AllocType allocator, Slice<const K> keys, Slice<const V> values)
+    {
+        HashDict dict;
+        dict.Init(allocator);
+        const i32 len = keys.size();
+        dict.Reserve(len);
+        for (i32 i = 0; i < len; ++i)
+        {
+            dict.Add(keys[i], values[i]);
+        }
+        return dict;
+    }
+
     // ------------------------------------------------------------------------
 
     i32 Find(K key) const
@@ -78,8 +92,8 @@ struct HashDict
         const u32 width = Load(m_width);
         const u32 mask = width - 1u;
 
-        u32 ct = width;
         u32 j = hash;
+        u32 ct = width;
         while (ct--)
         {
             j &= mask;
@@ -124,41 +138,42 @@ struct HashDict
 
         m_lock.LockWriter();
 
-        OS::RWFlag* oldFlags = LoadPtr(m_flags);
-        u32* oldHashes = LoadPtr(m_hashes);
-        K* oldKeys = LoadPtr(m_keys);
-        V* oldValues = LoadPtr(m_values);
+        OS::RWFlag* oldFlags = m_flags;
+        u32* oldHashes = m_hashes;
+        K* oldKeys = m_keys;
+        V* oldValues = m_values;
         const u32 oldWidth = capacity();
         const bool grow = newWidth > oldWidth;
 
         if (grow)
         {
             const u32 newMask = newWidth - 1u;
-            for (u32 iSrc = 0u; iSrc < oldWidth; ++iSrc)
+            for (u32 i = 0u; i < oldWidth; ++i)
             {
-                u32 iDst = oldHashes[iSrc];
-                if (HashUtil::IsValidHash(iDst))
+                const u32 hash = oldHashes[i];
+                if (HashUtil::IsValidHash(hash))
                 {
+                    u32 j = hash;
                     while (true)
                     {
-                        iDst &= newMask;
-                        if (!newHashes[iDst])
+                        j &= newMask;
+                        if (!newHashes[j])
                         {
-                            newFlags[iDst] = oldFlags[iSrc];
-                            newHashes[iDst] = oldHashes[iSrc];
-                            newKeys[iDst] = oldKeys[iSrc];
-                            newValues[iDst] = oldValues[iSrc];
+                            newHashes[j] = hash;
+                            newFlags[j] = oldFlags[i];
+                            newKeys[j] = oldKeys[i];
+                            newValues[j] = oldValues[i];
                             break;
                         }
-                        ++iDst;
+                        ++j;
                     }
                 }
             }
 
-            StorePtr(m_flags, newFlags);
-            StorePtr(m_hashes, newHashes);
-            StorePtr(m_keys, newKeys);
-            StorePtr(m_values, newValues);
+            m_flags = newFlags;
+            m_hashes = newHashes;
+            m_keys = newKeys;
+            m_values = newValues;
             Store(m_width, newWidth);
         }
 
@@ -188,16 +203,15 @@ struct HashDict
 
         OS::ReadGuard guard(m_lock);
 
-        OS::RWFlag* flags = LoadPtr(m_flags);
-        u32* hashes = LoadPtr(m_hashes);
-        K* keys = LoadPtr(m_keys);
-        V* values = LoadPtr(m_values);
+        OS::RWFlag* const flags = m_flags;
+        u32* const hashes = m_hashes;
+        K* const keys = m_keys;
+        V* const values = m_values;
 
-        u32 j = hash;
-        u32 ct = capacity();
-        const u32 mask = ct - 1u;
+        u32 width = capacity();
+        const u32 mask = width - 1u;
 
-        while (ct--)
+        for (u32 j = hash; width--; ++j)
         {
             j &= mask;
             u32 jHash = Load(hashes[j]);
@@ -212,7 +226,6 @@ struct HashDict
                     return true;
                 }
             }
-            ++j;
         }
 
         return false;
@@ -224,16 +237,15 @@ struct HashDict
 
         OS::ReadGuard guard(m_lock);
 
-        OS::RWFlag* flags = LoadPtr(m_flags);
-        u32* hashes = LoadPtr(m_hashes);
-        const K* keys = LoadPtr(m_keys);
-        const V* values = LoadPtr(m_values);
+        OS::RWFlag* const flags = m_flags;
+        u32* const hashes = m_hashes;
+        const K* const keys = m_keys;
+        const V* const values = m_values;
 
-        u32 j = hash;
-        u32 ct = capacity();
-        const u32 mask = ct - 1u;
+        u32 width = capacity();
+        const u32 mask = width - 1u;
 
-        while (ct--)
+        for (u32 j = hash; width--; ++j)
         {
             j &= mask;
             u32 jHash = Load(hashes[j]);
@@ -253,7 +265,6 @@ struct HashDict
                     return true;
                 }
             }
-            ++j;
         }
 
         return false;
@@ -265,16 +276,15 @@ struct HashDict
 
         OS::ReadGuard guard(m_lock);
 
-        OS::RWFlag* flags = LoadPtr(m_flags);
-        const u32* hashes = LoadPtr(m_hashes);
-        const K* keys = LoadPtr(m_keys);
-        const V* values = LoadPtr(m_values);
+        OS::RWFlag* const flags = m_flags;
+        const u32* const hashes = m_hashes;
+        const K* const keys = m_keys;
+        const V* const values = m_values;
 
-        u32 j = hash;
-        u32 ct = capacity();
-        const u32 mask = ct - 1u;
+        u32 width = capacity();
+        const u32 mask = width - 1u;
 
-        while (ct--)
+        for (u32 j = hash; width--; ++j)
         {
             j &= mask;
             const u32 jHash = Load(hashes[j]);
@@ -291,7 +301,6 @@ struct HashDict
                     return true;
                 }
             }
-            ++j;
         }
 
         return false;
@@ -303,16 +312,15 @@ struct HashDict
 
         OS::ReadGuard guard(m_lock);
 
-        OS::RWFlag* flags = LoadPtr(m_flags);
-        const u32* hashes = LoadPtr(m_hashes);
-        const K* keys = LoadPtr(m_keys);
-        V* values = LoadPtr(m_values);
+        OS::RWFlag* const flags = m_flags;
+        const u32* const hashes = m_hashes;
+        const K* const keys = m_keys;
+        V* const values = m_values;
 
-        u32 j = hash;
-        u32 ct = capacity();
-        const u32 mask = ct - 1u;
+        u32 width = capacity();
+        const u32 mask = width - 1u;
 
-        while (ct--)
+        for (u32 j = hash; width--; ++j)
         {
             j &= mask;
             const u32 jHash = Load(hashes[j]);
@@ -329,9 +337,35 @@ struct HashDict
                     return true;
                 }
             }
-            ++j;
         }
 
         return false;
+    }
+
+    void GetElements(Array<K>& keysOut, Array<V>& valuesOut)
+    {
+        keysOut.Clear();
+        valuesOut.Clear();
+        const i32 len = (i32)size();
+        keysOut.Reserve(len);
+        valuesOut.Reserve(len);
+
+        OS::ReadGuard guard(m_lock);
+
+        const OS::RWFlag* const flags = m_flags;
+        const u32* const hashes = m_hashes;
+        const K* const keys = m_keys;
+        const V* const values = m_values;
+
+        const u32 width = capacity();
+        for (u32 j = 0; j < width; ++j)
+        {
+            OS::ReadFlagGuard g2(flags[j]);
+            if (HashUtil::IsValidHash(Load(hashes[j])))
+            {
+                keysOut.PushBack(keys[j]);
+                valuesOut.PushBack(values[j]);
+            }
+        }
     }
 };

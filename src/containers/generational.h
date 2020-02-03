@@ -87,16 +87,6 @@ struct IdAllocator
         return false;
     }
 
-    const u32* Borrow()
-    {
-        return m_versions.Borrow();
-    }
-
-    void Return(const u32* ptr)
-    {
-        m_versions.Return(ptr);
-    }
-
     Array<GenId> GetActive()
     {
         Array<GenId> results;
@@ -252,52 +242,8 @@ struct GenArray
         return false;
     }
 
-    const u32* BorrowVersions()
-    {
-        return m_ids.Borrow();
-    }
-
-    void ReturnVersions(const u32* ptr)
-    {
-        m_ids.Return(ptr);
-    }
-
-    const T* BorrowData()
-    {
-        m_lock.LockReader();
-        return LoadPtr(m_ptr);
-    }
-
-    void ReturnData(const T* ptr)
-    {
-        ASSERT(ptr == LoadPtr(m_ptr));
-        m_lock.UnlockReader();
-    }
-
-    Array<GenId> GetActiveIds()
+    Array<GenId> GetActive()
     {
         return m_ids.GetActive();
-    }
-
-    Array<T> GetActiveData()
-    {
-        Array<T> results;
-        results.Init(Alloc_Stack);
-        results.Reserve(size());
-
-        const u32* pVersions = m_ids.Borrow();
-        const T* pData = BorrowData();
-        const i32 len = size();
-        for (i32 i = 0; i < len; ++i)
-        {
-            if (Load(pVersions[i]) & 1u)
-            {
-                results.PushBack(pData[i]);
-            }
-        }
-        ReturnData(pData);
-        m_ids.Return(pVersions);
-
-        return results;
     }
 };

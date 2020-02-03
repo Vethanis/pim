@@ -32,16 +32,17 @@ struct MtQueue
     void Reset()
     {
         m_lock.LockWriter();
+        Allocator::Free(m_ptr);
+        Allocator::Free(m_flags);
+        m_ptr = 0;
+        m_flags = 0;
         Store(m_width, 0);
         Store(m_iWrite, 0);
         Store(m_iRead, 0);
-        T* ptr = ExchangePtr(m_ptr, (T*)nullptr);
-        u32* flags = ExchangePtr(m_flags, (u32*)nullptr);
-        Allocator::Free(ptr);
-        Allocator::Free(flags);
         m_lock.Close();
     }
 
+    AllocType GetAllocator() const { return m_allocator; }
     u32 capacity() const { return Load(m_width); }
     u32 size() const { return Load(m_iWrite) - Load(m_iRead); }
 
@@ -60,6 +61,7 @@ struct MtQueue
 
     void Reserve(u32 minCap)
     {
+        minCap = Max(minCap, 16u);
         const u32 newWidth = ToPow2(minCap);
         if (newWidth > Load(m_width))
         {
@@ -68,8 +70,8 @@ struct MtQueue
 
             m_lock.LockWriter();
 
-            T* oldPtr = LoadPtr(m_ptr);
-            u32* oldFlags = LoadPtr(m_flags);
+            T* oldPtr = m_ptr;
+            u32* oldFlags = m_flags;
             const u32 oldWidth = Load(m_width);
             const bool grew = oldWidth < newWidth;
 
@@ -87,8 +89,8 @@ struct MtQueue
                     newFlags[i] = oldFlags[iOld];
                 }
 
-                StorePtr(m_ptr, newPtr);
-                StorePtr(m_flags, newFlags);
+                m_ptr = newPtr;
+                m_flags = newFlags;
                 Store(m_width, newWidth);
                 Store(m_iRead, 0);
                 Store(m_iWrite, len);
@@ -113,12 +115,12 @@ struct MtQueue
     {
         while (true)
         {
-            Reserve(size() + 16u);
+            Reserve(size() + 3u);
             OS::ReadGuard guard(m_lock);
             const u32 mask = Load(m_width) - 1u;
-            T* const ptr = LoadPtr(m_ptr);
-            u32* const flags = LoadPtr(m_flags);
-            for (u32 i = Load(m_iWrite); size() < mask; ++i)
+            T* const ptr = m_ptr;
+            u32* const flags = m_flags;
+            for (u32 i = Load(m_iWrite); size() <= mask; ++i)
             {
                 i &= mask;
                 u32 prev = kFlagWritable;
@@ -141,8 +143,8 @@ struct MtQueue
         }
         OS::ReadGuard guard(m_lock);
         const u32 mask = Load(m_width) - 1u;
-        T* const ptr = LoadPtr(m_ptr);
-        u32* const flags = LoadPtr(m_flags);
+        T* const ptr = m_ptr;
+        u32* const flags = m_flags;
         for (u32 i = Load(m_iRead); size() != 0u; ++i)
         {
             i &= mask;
