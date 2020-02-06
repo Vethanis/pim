@@ -26,11 +26,13 @@ struct ObjTable
         m_dict.GetElements(keys, values);
         m_dict.Reset();
 
-        i32 len = keys.size();
-        for (i32 i = 0; i < len; ++i)
+        for (V* value : values)
         {
-            values[i]->~V();
+            value->~V();
         }
+
+        keys.Reset();
+        values.Reset();
 
         m_pool.Reset();
     }

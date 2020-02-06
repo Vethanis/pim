@@ -615,6 +615,9 @@
     <ClInclude Include="..\src\threading\task.h">
       <Filter>Source Files\threading</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\containers\graph.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">

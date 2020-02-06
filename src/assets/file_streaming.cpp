@@ -8,7 +8,6 @@
 using FileTable = ObjTable<Guid, StreamFile, GuidComparator>;
 
 static FileTable ms_table;
-static ObjPool<FileTask> ms_taskPool;
 
 static StreamFile* GetAdd(cstr path)
 {
@@ -30,58 +29,28 @@ static StreamFile* GetAdd(cstr path)
     return ms_table.Get(key);
 }
 
-void FileTask::Execute(u32 tid)
+void FileTask::Execute()
 {
-    success = false;
-    StreamFile* pFile = GetAdd(path);
+    m_success = false;
+    StreamFile* pFile = GetAdd(m_path);
     if (pFile)
     {
-        if (write)
+        if (m_write)
         {
-            success = pFile->Write(pos, ptr);
+            m_success = pFile->Write(m_pos, m_ptr);
         }
         else
         {
-            success = pFile->Read(ptr, pos);
+            m_success = pFile->Read(m_ptr, m_pos);
         }
     }
 }
 
 namespace FStream
 {
-    FileTask* Read(cstr path, void* dst, HeapItem src)
-    {
-        ASSERT(path);
-        ASSERT(dst);
-        FileTask* pTask = ms_taskPool.New();
-        pTask->path = path;
-        pTask->ptr = dst;
-        pTask->pos = src;
-        pTask->write = false;
-        return pTask;
-    }
-
-    FileTask* Write(cstr path, HeapItem dst, void* src)
-    {
-        ASSERT(path);
-        ASSERT(src);
-        FileTask* pTask = ms_taskPool.New();
-        pTask->path = path;
-        pTask->ptr = src;
-        pTask->pos = dst;
-        pTask->write = true;
-        return pTask;
-    }
-
-    void Free(FileTask* pTask)
-    {
-        ms_taskPool.Delete(pTask);
-    }
-
     static void Init()
     {
         ms_table.Init();
-        ms_taskPool.Init();
     }
 
     static void Update()
@@ -92,16 +61,7 @@ namespace FStream
     static void Shutdown()
     {
         ms_table.Reset();
-        ms_taskPool.Reset();
     }
 
-    static constexpr System ms_system =
-    {
-        ToGuid("FStream"),
-        { 0, 0 },
-        Init,
-        Update,
-        Shutdown,
-    };
-    static RegisterSystem ms_register(ms_system);
+    DEFINE_SYSTEM("FStream", {}, Init, Update, Shutdown)
 };

@@ -106,6 +106,7 @@
     <ClInclude Include="..\src\containers\bitpack.h" />
     <ClInclude Include="..\src\containers\generational.h" />
     <ClInclude Include="..\src\containers\genid.h" />
+    <ClInclude Include="..\src\containers\graph.h" />
     <ClInclude Include="..\src\containers\hash_dict.h" />
     <ClInclude Include="..\src\containers\hash_set.h" />
     <ClInclude Include="..\src\containers\hash_util.h" />

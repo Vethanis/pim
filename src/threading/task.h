@@ -1,6 +1,16 @@
 #pragma once
 
+#include "common/macro.h"
 #include "common/int_types.h"
+#include "os/atomics.h"
+
+struct Task;
+
+namespace TaskSystem
+{
+    void Submit(Task* pTask);
+    void Await(Task* pTask);
+};
 
 enum TaskState : u32
 {
@@ -10,25 +20,62 @@ enum TaskState : u32
     TaskState_Complete,
 };
 
-struct ITask
+struct Task
 {
+    using TaskFn = void(*)(Task& task);
+
     u32 m_state;
     i32 m_waits;
+    TaskFn m_fn;
 
-    ITask() : m_state(TaskState_Init), m_waits(0) {}
-    virtual ~ITask() {}
-    ITask(const ITask& other) = delete;
-    ITask& operator=(const ITask& other) = delete;
+    TaskState GetState() const { return (TaskState)Load(m_state); }
+    bool IsComplete() const { return GetState() == TaskState_Complete; }
+    bool IsInProgress() const
+    {
+        switch (GetState())
+        {
+        case TaskState_Submit:
+        case TaskState_Execute:
+            return true;
+        }
+        return false;
+    }
+    bool IsInitOrComplete() const
+    {
+        switch (GetState())
+        {
+        case TaskState_Init:
+        case TaskState_Complete:
+            return true;
+        }
+        return false;
+    }
 
-    TaskState GetState() const;
-    bool IsComplete() const;
-    bool IsInProgress() const;
+    void Init(TaskFn fn)
+    {
+        m_state = 0;
+        m_waits = 0;
+        m_fn = fn;
+    }
 
-    virtual void Execute(u32 tid) = 0;
-};
+    void Execute()
+    {
+        ASSERT(m_fn);
+        m_fn(*this);
+    }
 
-namespace TaskSystem
-{
-    void Submit(ITask* pTask);
-    void Await(ITask* pTask);
+    void Submit() { TaskSystem::Submit(this); }
+    void Await() { TaskSystem::Await(this); }
+
+    template<typename T>
+    void InitAs()
+    {
+        Init(ExecuteAs<T>);
+    }
+
+    template<typename T>
+    static void ExecuteAs(Task& task)
+    {
+        reinterpret_cast<T&>(task).Execute();
+    }
 };
