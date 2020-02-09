@@ -103,8 +103,6 @@
 #pragma warning(disable : 4826)
 #pragma warning(disable : 4996)
 
-#define USED_CONTEXT_FLAGS CONTEXT_FULL
-
 #define NELEM(x) ( sizeof(x) / sizeof((x)[0]) )
 
  // ----------------------------------------------------------------------------
@@ -206,31 +204,18 @@ namespace StackWalker
     static HANDLE ms_hProcess;
     static HANDLE ms_hThread;
     static DWORD ms_processId;
+    static bool ms_hasInit;
 
-    void DefaultOnOutput(Walker& walker, const char* buffer)
+    void Walker::OnOutput(const char* buffer)
     {
         OutputDebugStringA(buffer);
     }
 
-    static void OnOutput(Walker& walker, const char* text)
-    {
-        walker.OnOutput(walker, text);
-    }
-
-    static void OnCallstackEntry(
-        Walker& walker,
+    void Walker::OnCallstackEntry(
         CallstackEntryType eType,
         CallstackEntry& entry)
     {
-        walker.OnCallstackEntry(walker, eType, entry);
-    }
-
-    void DefaultOnCallstackEntry(
-        Walker& walker,
-        CallstackEntryType eType,
-        CallstackEntry& entry)
-    {
-        char buffer[MaxNameLen];
+        char buffer[MAX_PATH];
 
         if ((eType != lastEntry) && (entry.offset))
         {
@@ -273,24 +258,23 @@ namespace StackWalker
                     entry.lineNumber,
                     entry.name);
             }
-            OnOutput(walker, buffer);
+            OnOutput(buffer);
         }
     }
 
-    static void OnSymInit(
-        Walker& walker,
+    void Walker::OnSymInit(
         const char* szSearchPath,
         uint32_t symOptions,
         const char* szUserName)
     {
-        char buffer[MaxNameLen];
+        char buffer[MAX_PATH];
         sprintf_s(
             buffer,
             "SymInit: Symbol-SearchPath: '%s', symOptions: %d, UserName: '%s'\n",
             szSearchPath,
             symOptions,
             szUserName);
-        OnOutput(walker, buffer);
+        OnOutput(buffer);
 
         OSVERSIONINFOA ver;
         if (GetOsVersion(ver))
@@ -302,12 +286,11 @@ namespace StackWalker
                 ver.dwMinorVersion,
                 ver.dwBuildNumber,
                 ver.szCSDVersion);
-            OnOutput(walker, buffer);
+            OnOutput(buffer);
         }
     }
 
-    static void OnLoadModule(
-        Walker& walker,
+    void Walker::OnLoadModule(
         const char* img,
         const char* mod,
         uint64_t baseAddr,
@@ -317,7 +300,7 @@ namespace StackWalker
         const char* pdbName,
         uint64_t fileVersion)
     {
-        char buffer[MaxNameLen];
+        char buffer[MAX_PATH];
 
         sprintf_s(
             buffer,
@@ -342,45 +325,35 @@ namespace StackWalker
         }
 
         strcat_s(buffer, "\n");
-        OnOutput(walker, buffer);
+        OnOutput(buffer);
     }
 
-    void DefaultOnError(
-        Walker& walker,
+    void Walker::OnError(
         const char* szFuncName,
         uint32_t gle,
         uint64_t addr)
     {
-        char buffer[MaxNameLen];
+        char buffer[MAX_PATH];
         sprintf_s(
             buffer,
             "ERROR: %s, GetLastError: %d (Address: %p)\n",
             szFuncName,
             gle,
             (void*)addr);
-        OnOutput(walker, buffer);
-    }
-
-    static void OnError(
-        Walker& walker,
-        const char* szFuncName,
-        uint32_t gle,
-        uint64_t addr)
-    {
-        walker.OnError(walker, szFuncName, gle, addr);
+        OnOutput(buffer);
     }
 
     // ----------------------------------------------------------------------------
 
     struct Symbol : IMAGEHLP_SYMBOL64
     {
-        char NameBuffer[MaxNameLen];
+        char NameBuffer[MAX_PATH];
 
         Symbol()
         {
             memset(this, 0, sizeof(*this));
             SizeOfStruct = sizeof(IMAGEHLP_SYMBOL64);
-            MaxNameLength = sizeof(NameBuffer);
+            MaxNameLength = MAX_PATH;
         }
 
         operator IMAGEHLP_SYMBOL64* ()
@@ -444,6 +417,7 @@ namespace StackWalker
             HMODULE handle = Load();
             if (!handle)
             {
+                walker.OnError("DebugHelp::Init", ERROR_DLL_INIT_FAILED, 0);
                 return false;
             }
 
@@ -451,7 +425,7 @@ namespace StackWalker
 
             if (!SymInitializeFn(hProcess, searchPath, false))
             {
-                OnError(walker, "SymInitialize", GetLastError(), 0);
+                walker.OnError("SymInitialize", GetLastError(), 0);
                 return false;
             }
 
@@ -460,19 +434,19 @@ namespace StackWalker
             symOptions |= SYMOPT_FAIL_CRITICAL_ERRORS;
             symOptions = SymSetOptionsFn(symOptions);
 
-            char pathBuffer[MaxNameLen] = { 0 };
+            char pathBuffer[MAX_PATH] = { 0 };
             if (!SymGetSearchPathFn(hProcess, pathBuffer, NELEM(pathBuffer)))
             {
-                OnError(walker, "SymGetSearchPath", GetLastError(), 0);
+                walker.OnError("SymGetSearchPath", GetLastError(), 0);
             }
 
-            char szUserName[MaxNameLen] = { 0 };
-            DWORD dwSize = MaxNameLen;
+            char szUserName[MAX_PATH] = { 0 };
+            DWORD dwSize = MAX_PATH;
             if (!GetUserNameA(szUserName, &dwSize))
             {
-                OnError(walker, "GetUserName", GetLastError(), 0);
+                walker.OnError("GetUserName", GetLastError(), 0);
             }
-            OnSymInit(walker, pathBuffer, symOptions, szUserName);
+            walker.OnSymInit(pathBuffer, symOptions, szUserName);
 
             m_handle = handle;
 
@@ -506,12 +480,15 @@ namespace StackWalker
         {
             if (!m_handle)
             {
+                walker.OnError("DebugHelp::LoadModule", ERROR_DLL_INIT_FAILED, 0);
                 return ERROR_DLL_INIT_FAILED;
             }
 
             if (!SymLoadModule64Fn(ms_hProcess, 0, img, mod, baseAddr, size))
             {
-                return GetLastError();
+                uint32_t gle = GetLastError();
+                walker.OnError("SymLoadModule64", gle, 0);
+                return gle;
             }
 
             const uint64_t fileVersion = GetFileVersion(img);
@@ -559,8 +536,7 @@ namespace StackWalker
                 pdbName = Module.LoadedPdbName;
             }
 
-            OnLoadModule(
-                walker,
+            walker.OnLoadModule(
                 img, mod,
                 baseAddr, size,
                 ERROR_SUCCESS, symType,
@@ -622,6 +598,7 @@ namespace StackWalker
         {
             if (!Load())
             {
+                walker.OnError("ToolHelp32::Load", ERROR_DLL_INIT_FAILED, 0);
                 return false;
             }
 
@@ -630,6 +607,7 @@ namespace StackWalker
             HANDLE hSnap = CreateToolhelp32SnapshotFn(TH32CS_SNAPMODULE, pid);
             if (hSnap == (HANDLE)-1)
             {
+                walker.OnError("CreateToolhelp32Snapshot", GetLastError(), 0);
                 return false;
             }
 
@@ -649,8 +627,8 @@ namespace StackWalker
                     modEntry.modBaseSize);
                 if (hResult != ERROR_SUCCESS)
                 {
-                    OnError(walker, "LoadModule", hResult, 0);
-                    OnOutput(walker, modEntry.szExePath);
+                    walker.OnError("LoadModule", hResult, 0);
+                    walker.OnOutput(modEntry.szExePath);
                 }
                 else
                 {
@@ -676,22 +654,19 @@ namespace StackWalker
             return ms_symbolPath;
         }
 
-        constexpr size_t nSymPathLen = NELEM(ms_symbolPath);
-        constexpr size_t nTempLen = MAX_PATH;
-        ms_symbolPath[0] = 0;
-        char szTemp[nTempLen];
+        char buffer[MAX_PATH];
 
-        if (GetCurrentDirectoryA(nTempLen, szTemp) > 0)
+        if (GetCurrentDirectoryA(MAX_PATH, buffer) > 0)
         {
-            szTemp[nTempLen - 1] = 0;
-            strcat_s(ms_symbolPath, nSymPathLen, szTemp);
-            strcat_s(ms_symbolPath, nSymPathLen, ";");
+            buffer[MAX_PATH - 1] = 0;
+            strcat_s(ms_symbolPath, MAX_PATH, buffer);
+            strcat_s(ms_symbolPath, MAX_PATH, ";");
         }
 
-        if (GetModuleFileNameA(NULL, szTemp, nTempLen) > 0)
+        if (GetModuleFileNameA(NULL, buffer, MAX_PATH) > 0)
         {
-            szTemp[nTempLen - 1] = 0;
-            for (char* p = (szTemp + strlen(szTemp) - 1); p >= szTemp; --p)
+            buffer[MAX_PATH - 1] = 0;
+            for (char* p = (buffer + strlen(buffer) - 1); p >= buffer; --p)
             {
                 if ((*p == '\\') || (*p == '/') || (*p == ':'))
                 {
@@ -699,94 +674,83 @@ namespace StackWalker
                     break;
                 }
             }
-            if (strlen(szTemp) > 0)
+            if (strlen(buffer) > 0)
             {
-                strcat_s(ms_symbolPath, nSymPathLen, szTemp);
-                strcat_s(ms_symbolPath, nSymPathLen, ";");
+                strcat_s(ms_symbolPath, MAX_PATH, buffer);
+                strcat_s(ms_symbolPath, MAX_PATH, ";");
             }
         }
 
-        if (GetEnvVar("_NT_SYMBOL_PATH", szTemp))
+        if (GetEnvVar("_NT_SYMBOL_PATH", buffer))
         {
-            szTemp[nTempLen - 1] = 0;
-            strcat_s(ms_symbolPath, nSymPathLen, szTemp);
-            strcat_s(ms_symbolPath, nSymPathLen, ";");
+            buffer[MAX_PATH - 1] = 0;
+            strcat_s(ms_symbolPath, MAX_PATH, buffer);
+            strcat_s(ms_symbolPath, MAX_PATH, ";");
         }
 
-        if (GetEnvVar("_NT_ALTERNATE_SYMBOL_PATH", szTemp))
+        if (GetEnvVar("_NT_ALTERNATE_SYMBOL_PATH", buffer))
         {
-            szTemp[nTempLen - 1] = 0;
-            strcat_s(ms_symbolPath, nSymPathLen, szTemp);
-            strcat_s(ms_symbolPath, nSymPathLen, ";");
+            buffer[MAX_PATH - 1] = 0;
+            strcat_s(ms_symbolPath, MAX_PATH, buffer);
+            strcat_s(ms_symbolPath, MAX_PATH, ";");
         }
 
-        if (GetEnvVar("SYSTEMROOT", szTemp))
+        if (GetEnvVar("SYSTEMROOT", buffer))
         {
-            szTemp[nTempLen - 1] = 0;
-            strcat_s(ms_symbolPath, nSymPathLen, szTemp);
-            strcat_s(ms_symbolPath, nSymPathLen, ";");
+            buffer[MAX_PATH - 1] = 0;
+            strcat_s(ms_symbolPath, MAX_PATH, buffer);
+            strcat_s(ms_symbolPath, MAX_PATH, ";");
             // also add the "system32"-directory:
-            strcat_s(szTemp, nTempLen, "\\system32");
-            strcat_s(ms_symbolPath, nSymPathLen, szTemp);
-            strcat_s(ms_symbolPath, nSymPathLen, ";");
+            strcat_s(buffer, MAX_PATH, "\\system32");
+            strcat_s(ms_symbolPath, MAX_PATH, buffer);
+            strcat_s(ms_symbolPath, MAX_PATH, ";");
         }
 
-        strcat_s(ms_symbolPath, nSymPathLen,
-            "SRV*c:\\websymbols*http://msdl.microsoft.com/download/symbols;");
+        strcat_s(ms_symbolPath, MAX_PATH, "SRV*c:\\websymbols*http://msdl.microsoft.com/download/symbols;");
 
         return ms_symbolPath[0] ? ms_symbolPath : 0;
     }
 
-    bool Init(Walker& walker)
+    bool Walker::Init()
     {
-        if (!ms_hProcess)
+        if (!ms_hasInit)
         {
-            ms_hProcess = GetCurrentProcess();
-            ms_hThread = GetCurrentThread();
-            ms_processId = GetCurrentProcessId();
-        }
+            bool success = false;
+            if (!ms_hProcess)
+            {
+                ms_hProcess = GetCurrentProcess();
+                ms_hThread = GetCurrentThread();
+                ms_processId = GetCurrentProcessId();
+            }
 
-        if (!walker.OnCallstackEntry)
-        {
-            walker.OnCallstackEntry = DefaultOnCallstackEntry;
-        }
-        if (!walker.OnError)
-        {
-            walker.OnError = DefaultOnError;
-        }
-        if (!walker.OnOutput)
-        {
-            walker.OnOutput = DefaultOnOutput;
-        }
+            success = (ms_hProcess != NULL) && (ms_hThread != NULL);
 
-        bool success = true;
+            if (success)
+            {
+                success = ms_debugHelp.Init(*this, GetSymbolPath());
+            }
 
-        if (!ms_debugHelp.Init(walker, GetSymbolPath()))
-        {
-            OnError(walker, "Error while initializing dbghelp.dll", 0, 0);
-            SetLastError(ERROR_DLL_INIT_FAILED);
-            success = false;
+            if (success)
+            {
+                success = ms_toolHelp32.GetModuleList(*this);
+            }
+
+            ms_hasInit = success;
         }
-
-        if (success)
-        {
-            success = ms_toolHelp32.GetModuleList(walker);
-        }
-
-        return success;
+        return ms_hasInit;
     }
 
-    bool ShowCallstack(Walker& walker)
+    bool Walker::ShowCallstack()
     {
-        if (!walker.OnCallstackEntry)
+        if (!Init())
         {
-            Init(walker);
+            return false;
         }
         void* hProcess = ms_hProcess;
 
         CONTEXT ctx;
         memset(&ctx, 0, sizeof(CONTEXT));
-        ctx.ContextFlags = USED_CONTEXT_FLAGS;
+        ctx.ContextFlags = CONTEXT_FULL;
         RtlCaptureContext(&ctx);
 
         // init STACKFRAME for first call
@@ -817,7 +781,7 @@ namespace StackWalker
         {
             if (!ms_debugHelp.Walk(sframe, ctx))
             {
-                OnError(walker, "StackWalk64", 0, sframe.AddrPC.Offset);
+                OnError("StackWalk64", 0, sframe.AddrPC.Offset);
                 break;
             }
 
@@ -836,7 +800,7 @@ namespace StackWalker
             {
                 if (curRecursionCount > 1000)
                 {
-                    OnError(walker, "StackWalk64-Endless-Callstack!", 0, sframe.AddrPC.Offset);
+                    OnError("StackWalk64-Endless-Callstack!", 0, sframe.AddrPC.Offset);
                     break;
                 }
                 curRecursionCount++;
@@ -858,17 +822,17 @@ namespace StackWalker
                     ms_debugHelp.UnDecorateSymbolNameFn(
                         symbol.Name,
                         csEntry.undName,
-                        MaxNameLen,
+                        MAX_PATH,
                         UNDNAME_NAME_ONLY);
                     ms_debugHelp.UnDecorateSymbolNameFn(
                         symbol.Name,
                         csEntry.undFullName,
-                        MaxNameLen,
+                        MAX_PATH,
                         UNDNAME_COMPLETE);
                 }
                 else
                 {
-                    OnError(walker, "SymGetSymFromAddr64", GetLastError(), sframe.AddrPC.Offset);
+                    OnError("SymGetSymFromAddr64", GetLastError(), sframe.AddrPC.Offset);
                 }
 
                 if (ms_debugHelp.SymGetLineFromAddr64Fn(
@@ -882,7 +846,7 @@ namespace StackWalker
                 }
                 else
                 {
-                    OnError(walker, "SymGetLineFromAddr64", GetLastError(), sframe.AddrPC.Offset);
+                    OnError("SymGetLineFromAddr64", GetLastError(), sframe.AddrPC.Offset);
                 }
 
                 if (ms_debugHelp.SymGetModuleInfo64Fn(
@@ -930,17 +894,17 @@ namespace StackWalker
                 }
                 else
                 {
-                    OnError(walker, "SymGetModuleInfo64", GetLastError(), sframe.AddrPC.Offset);
+                    OnError("SymGetModuleInfo64", GetLastError(), sframe.AddrPC.Offset);
                 }
             }
 
             bLastEntryCalled = false;
-            OnCallstackEntry(walker, frameNum ? nextEntry : firstEntry, csEntry);
+            OnCallstackEntry(frameNum ? nextEntry : firstEntry, csEntry);
 
             if (!sframe.AddrReturn.Offset)
             {
                 bLastEntryCalled = true;
-                OnCallstackEntry(walker, lastEntry, csEntry);
+                OnCallstackEntry(lastEntry, csEntry);
                 SetLastError(ERROR_SUCCESS);
                 break;
             }
@@ -948,17 +912,17 @@ namespace StackWalker
 
         if (!bLastEntryCalled)
         {
-            OnCallstackEntry(walker, lastEntry, csEntry);
+            OnCallstackEntry(lastEntry, csEntry);
         }
 
         return true;
     }
 
-    bool ShowObject(Walker& walker, void* pObject)
+    bool Walker::ShowObject(void* pObject)
     {
-        if (!walker.OnCallstackEntry)
+        if (!Init())
         {
-            Init(walker);
+            return false;
         }
         void* hProcess = ms_hProcess;
 
@@ -971,11 +935,11 @@ namespace StackWalker
             &dwDisplacement,
             symbol))
         {
-            OnError(walker, "SymGetSymFromAddr64", GetLastError(), dwAddress);
+            OnError("SymGetSymFromAddr64", GetLastError(), dwAddress);
             return false;
         }
 
-        OnOutput(walker, symbol.Name);
+        OnOutput(symbol.Name);
 
         return true;
     }

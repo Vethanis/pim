@@ -1,6 +1,10 @@
 #include "allocator/allocator.h"
 
-#include "allocator/allocators.h"
+#include "allocator/linear_allocator.h"
+#include "allocator/pool_allocator.h"
+#include "allocator/stack_allocator.h"
+#include "allocator/stdlib_allocator.h"
+
 #include "containers/array.h"
 #include "common/hashstring.h"
 #include "common/round.h"
@@ -12,236 +16,159 @@
 
 namespace Allocator
 {
-    static constexpr i32 Alignment = 16;
-    static constexpr i32 PadBytes = sizeof(Header);
-
-    // Separate from 'VTables' so that we can have multiple of the same type.
-    static constexpr VTable ms_tables[] =
-    {
-        Stdlib::Table,
-        Linear::Table,
-        Stack::Table,
-        Pool::Table,
-        Stdlib::Table,
-    };
-    static constexpr i32 NumAllocators = NELEM(ms_tables);
-
-    // TODO: make these config vars (and make a config var system...)
-    static constexpr i32 ms_capacities[] =
-    {
-        0,          // stdlib doesnt care
-        1 << 20,    // 1 mb for linear
-        1 << 20,    // 1 mb for stack
-        64 << 20,   // 64 mb for pool
-        0,          // debug uses stdlib
-    };
-    SASSERT(NELEM(ms_capacities) == NumAllocators);
-
-    static constexpr bool ms_isPerFrame[] =
-    {
-        false,
-        true,
-        false,
-        false,
-        false,
-    };
-    SASSERT(NELEM(ms_isPerFrame) == NumAllocators);
-
-    // ------------------------------------------------------------------------
-
-    static UAllocator ms_allocators[NumAllocators];
-    static void* ms_allocations[NumAllocators];
-    static bool ms_init;
+    static StdlibAllocator ms_stdlib = StdlibAllocator(Alloc_Stdlib);
+    static StdlibAllocator ms_debug = StdlibAllocator(Alloc_Debug);
+    static LinearAllocator ms_linear = LinearAllocator(1 << 20);
+    static StackAllocator ms_stack = StackAllocator(1 << 20);
+    static PoolAllocator ms_pool = PoolAllocator(64 << 20);
 
 #if ENABLE_LEAK_TRACKER
     static LeakTracker ms_tracker;
-#endif // 
-
-    // ------------------------------------------------------------------------
-
-    static constexpr bool IsAligned(usize x)
-    {
-        constexpr usize mask = (usize)(Alignment - 1);
-        return !(x & mask);
-    }
-    static constexpr bool IsAligned(void* ptr)
-    {
-        return IsAligned((usize)ptr);
-    }
-
-    SASSERT(IsAligned(PadBytes));
-
-    static bool InRange(i32 iType)
-    {
-        return (u32)iType < (u32)NumAllocators;
-    }
-
-    static bool ValidAllocator(i32 iType)
-    {
-        return InRange(iType) && (ms_init || (iType == Alloc_Stdlib) || (iType == Alloc_Debug));
-    }
-
-    static i32 PadRequest(i32 reqBytes)
-    {
-        reqBytes += PadBytes;
-        reqBytes = MultipleOf(reqBytes, Alignment);
-        ASSERT(reqBytes > 0);
-        return reqBytes;
-    }
-
-    // ------------------------------------------------------------------------
+#endif // ENABLE_LEAK_TRACKER
 
     void Init()
     {
-        ASSERT(!ms_init);
-        for (i32 i = 0; i < NumAllocators; ++i)
-        {
-            i32 capacity = ms_capacities[i];
-            void* memory = capacity > 0 ? malloc(capacity) : 0;
-            ms_allocations[i] = memory;
-            ms_tables[i].Init(ms_allocators[i], memory, capacity);
-        }
-        ms_init = true;
     }
 
     void Update()
     {
-        ASSERT(ms_init);
-        for (i32 i = 0; i < NumAllocators; ++i)
-        {
-            if (ms_isPerFrame[i])
-            {
-                ms_tables[i].Clear(ms_allocators[i]);
-            }
-        }
+        ms_linear.Clear();
     }
 
     void Shutdown()
     {
-        ASSERT(ms_init);
-        for (i32 i = 0; i < NumAllocators; ++i)
-        {
-            ms_tables[i].Shutdown(ms_allocators[i]);
-            void* memory = ms_allocations[i];
-            ms_allocations[i] = 0;
-            if (memory)
-            {
-                free(memory);
-            }
-        }
-        ms_init = false;
-
 #if ENABLE_LEAK_TRACKER
         ms_tracker.ListLeaks();
-#endif
+#endif // ENABLE_LEAK_TRACKER
+
+        ms_linear.Clear();
+        ms_stack.Clear();
+        ms_pool.Clear();
     }
 
     // ------------------------------------------------------------------------
 
-    void* Alloc(AllocType type, i32 want)
+    void* Alloc(AllocType type, i32 bytes)
     {
-        ASSERT(ValidAllocator(type));
-        ASSERT(want >= 0);
+        ASSERT(bytes >= 0);
 
-        if (want > 0)
+        void* ptr = 0;
+
+        switch (type)
         {
-            want = PadRequest(want);
-
-            Header* hdr = ms_tables[type].Alloc(ms_allocators[type], want);
-
-            ASSERT(hdr);
-            hdr->size = want;
-            hdr->type = type;
-
-            ASSERT(IsAligned(hdr + 1));
+        case Alloc_Stdlib:
+            ptr = ms_stdlib.Alloc(bytes);
+            break;
+        case Alloc_Linear:
+            ptr = ms_linear.Alloc(bytes);
+            break;
+        case Alloc_Stack:
+            ptr = ms_stack.Alloc(bytes);
+            break;
+        case Alloc_Pool:
+            ptr = ms_pool.Alloc(bytes);
+            break;
+        case Alloc_Debug:
+            ptr = ms_debug.Alloc(bytes);
+            break;
+        default:
+            ASSERT(false);
+        }
 
 #if ENABLE_LEAK_TRACKER
-            if (type != Alloc_Debug)
-            {
-                ms_tracker.OnAlloc(hdr, want);
-            }
-#endif
-
-            return hdr + 1;
+        if (type != Alloc_Debug)
+        {
+            ms_tracker.OnAlloc(ptr, bytes);
         }
-        return 0;
+#endif // ENABLE_LEAK_TRACKER
+
+        return ptr;
     }
 
-    void* Realloc(AllocType type, void* prev, i32 want)
+    void* Realloc(AllocType type, void* prev, i32 bytes)
     {
-        ASSERT(ValidAllocator(type));
-        ASSERT(want >= 0);
+        ASSERT(bytes >= 0);
 
         if (!prev)
         {
-            return Alloc(type, want);
+            return Alloc(type, bytes);
         }
 
-        if (!want)
+        if (bytes <= 0)
         {
             Free(prev);
             return 0;
         }
 
-        Header* hdr = ((Header*)prev) - 1;
+        Header* hdr = ToHeader(prev, type);
 
-        const i32 has = hdr->size - PadBytes;
-        ASSERT(has > 0);
+        void* ptr = 0;
 
-        if (want != has)
+        switch (hdr->type)
         {
-            want = PadRequest(want);
-
-            const i32 iType = hdr->type;
-            ASSERT(ValidAllocator(iType));
-            ASSERT(ms_init || iType == Alloc_Stdlib);
-
-            Header* newHdr = ms_tables[iType].Realloc(
-                ms_allocators[iType],
-                hdr,
-                want);
-
-            ASSERT(newHdr);
-            newHdr->size = want;
-            newHdr->type = iType;
-
-            ASSERT(IsAligned(newHdr + 1));
-
-#if ENABLE_LEAK_TRACKER
-            if (iType != Alloc_Debug)
-            {
-                ms_tracker.OnRealloc(hdr, newHdr, want);
-            }
-#endif
-
-            return newHdr + 1;
+        case Alloc_Stdlib:
+            ptr = ms_stdlib.Realloc(prev, bytes);
+            break;
+        case Alloc_Linear:
+            ptr = ms_linear.Realloc(prev, bytes);
+            break;
+        case Alloc_Stack:
+            ptr = ms_stack.Realloc(prev, bytes);
+            break;
+        case Alloc_Pool:
+            ptr = ms_pool.Realloc(prev, bytes);
+            break;
+        case Alloc_Debug:
+            ptr = ms_debug.Realloc(prev, bytes);
+            break;
+        default:
+            ASSERT(false);
         }
 
-        return prev;
+#if ENABLE_LEAK_TRACKER
+        if (iType != Alloc_Debug)
+        {
+            ms_tracker.OnRealloc(prev, ptr, bytes);
+        }
+#endif // ENABLE_LEAK_TRACKER
+
+        return ptr;
     }
 
-    void Free(void* prev)
+    void Free(void* ptr)
     {
-        if (prev)
+        if (ptr)
         {
-            ASSERT(IsAligned(prev));
+            Header* hdr = (Header*)ptr;
+            hdr -= 1;
 
-            Header* hdr = ((Header*)prev) - 1;
-
-            const i32 size = hdr->size;
-            ASSERT(size > 0);
-
-            const i32 iType = hdr->type;
-            ASSERT(ValidAllocator(iType));
-
-            ms_tables[iType].Free(ms_allocators[iType], hdr);
+            switch (hdr->type)
+            {
+            case Alloc_Stdlib:
+                ms_stdlib.Free(ptr);
+                break;
+            case Alloc_Linear:
+                ms_linear.Free(ptr);
+                break;
+            case Alloc_Stack:
+                ms_stack.Free(ptr);
+                break;
+            case Alloc_Pool:
+                ms_pool.Free(ptr);
+                break;
+            case Alloc_Debug:
+                ms_debug.Free(ptr);
+                break;
+            default:
+                ASSERT(false);
+            }
 
 #if ENABLE_LEAK_TRACKER
-            if (iType != Alloc_Debug)
+            if (hdr->type != Alloc_Debug)
             {
-                ms_tracker.OnFree(hdr);
+                ms_tracker.OnFree(ptr);
             }
-#endif
+#endif // ENABLE_LEAK_TRACKER
         }
     }
 };

@@ -10,6 +10,6 @@ struct TaskId
 
 namespace TaskGraph
 {
-    TaskId Add(Task* pTask);
+    TaskId Add(ITask* pTask);
     bool AddDependency(TaskId src, TaskId dst);
 };

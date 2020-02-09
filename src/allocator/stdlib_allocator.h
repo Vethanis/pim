@@ -1,37 +1,60 @@
 #pragma once
 
-#include "common/macro.h"
-#include "allocator/allocator_vtable.h"
+#include "allocator/iallocator.h"
+#include "allocator/header.h"
 #include <stdlib.h>
 
-namespace Allocator
+struct StdlibAllocator final : IAllocator
 {
-    struct Stdlib
+    StdlibAllocator(AllocType type) : IAllocator(0), m_type(type) {}
+    ~StdlibAllocator() {}
+
+    AllocType m_type;
+
+    void Clear() final { }
+
+    void* Alloc(i32 bytes) final
     {
-        void Init(void* memory, i32 bytes) { }
-        void Shutdown() { }
-        void Clear() { }
+        using namespace Allocator;
 
-        Header* Alloc(i32 count)
+        if (bytes > 0)
         {
-            Header* hdr = (Header*)malloc(count);
-            ASSERT(hdr);
-            return hdr;
+            bytes = AlignBytes(bytes);
+            void* ptr = malloc(bytes);
+            return MakePtr(ptr, m_type, bytes);
         }
+        ASSERT(bytes == 0);
+        return nullptr;
+    }
 
-        Header* Realloc(Header* prev, i32 count)
+    void* Realloc(void* ptr, i32 bytes) final
+    {
+        using namespace Allocator;
+
+        if (!ptr)
         {
-            Header* hdr = (Header*)realloc(prev, count);
-            ASSERT(hdr);
-            return hdr;
+            return Alloc(bytes);
         }
-
-        void Free(Header* prev)
+        if (bytes <= 0)
         {
-            ASSERT(prev);
-            free(prev);
+            ASSERT(bytes == 0);
+            Free(ptr);
+            return nullptr;
         }
+        bytes = AlignBytes(bytes);
+        Header* hdr = ToHeader(ptr, m_type);
+        void* pNew = realloc(hdr, bytes);
+        return MakePtr(pNew, m_type, bytes);
+    }
 
-        static constexpr const VTable Table = VTable::Create<Stdlib>();
-    };
+    void Free(void* ptr) final
+    {
+        using namespace Allocator;
+
+        if (ptr)
+        {
+            Header* hdr = ToHeader(ptr, m_type);
+            free(hdr);
+        }
+    }
 };

@@ -5,6 +5,44 @@
 #include "components/system.h"
 #include "common/random.h"
 
+TaskState ITask::GetState() const { return (TaskState)Load(m_state); }
+
+bool ITask::IsComplete() const { return GetState() == TaskState_Complete; }
+
+bool ITask::IsInProgress() const
+{
+    switch (GetState())
+    {
+    case TaskState_Submit:
+    case TaskState_Execute:
+        return true;
+    }
+    return false;
+}
+
+bool ITask::IsInitOrComplete() const
+{
+    switch (GetState())
+    {
+    case TaskState_Init:
+    case TaskState_Complete:
+        return true;
+    }
+    return false;
+}
+
+struct ITaskFriend
+{
+    static u32& GetState(ITask* pTask)
+    {
+        return pTask->m_state;
+    }
+    static i32& GetWaits(ITask* pTask)
+    {
+        return pTask->m_waits;
+    }
+};
+
 // ----------------------------------------------------------------------------
 
 enum ThreadState : u32
@@ -36,16 +74,19 @@ static u32 ms_running;
 
 static bool TryRunTask()
 {
-    Task* pTask = (Task*)ms_queue.TryPop();
+    ITask* pTask = (ITask*)ms_queue.TryPop();
     if (pTask)
     {
         ms_waitPop.WakeOne();
 
-        Store(pTask->m_state, TaskState_Execute);
-        pTask->Execute();
-        Store(pTask->m_state, TaskState_Complete);
+        u32& state = ITaskFriend::GetState(pTask);
+        i32& waits = ITaskFriend::GetWaits(pTask);
 
-        if (Load(pTask->m_waits) > 0)
+        Store(state, TaskState_Execute);
+        pTask->Execute();
+        Store(state, TaskState_Complete);
+
+        if (Load(waits) > 0)
         {
             ms_waitExec.WakeAll();
         }
@@ -55,12 +96,12 @@ static bool TryRunTask()
     return false;
 }
 
-static void AddTask(Task* pTask)
+static void AddTask(ITask* pTask)
 {
     ASSERT(pTask);
     ASSERT(pTask->IsInitOrComplete());
 
-    Store(pTask->m_state, TaskState_Submit);
+    Store(ITaskFriend::GetState(pTask), TaskState_Submit);
 
     u64 spins = 0;
     while (!ms_queue.TryPush(pTask))
@@ -83,10 +124,12 @@ static void AddTask(Task* pTask)
     ms_waitPush.WakeOne();
 }
 
-static void WaitForTask(Task* pTask)
+static void WaitForTask(ITask* pTask)
 {
     ASSERT(pTask);
     ASSERT(pTask->GetState() != TaskState_Init);
+
+    i32& waits = ITaskFriend::GetWaits(pTask);
 
     u64 spins = 0;
     while (!pTask->IsComplete())
@@ -101,9 +144,9 @@ static void WaitForTask(Task* pTask)
         }
         else
         {
-            Inc(pTask->m_waits);
+            Inc(waits);
             ms_waitExec.Wait();
-            Dec(pTask->m_waits);
+            Dec(waits);
             spins = 0;
         }
     }
@@ -140,12 +183,12 @@ static void ThreadFn(void*)
 
 namespace TaskSystem
 {
-    void Submit(Task* pTask)
+    void Submit(ITask* pTask)
     {
         AddTask(pTask);
     }
 
-    void Await(Task* pTask)
+    void Await(ITask* pTask)
     {
         WaitForTask(pTask);
     }

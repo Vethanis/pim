@@ -3,6 +3,15 @@
 #include "common/macro.h"
 #include <atomic>
 
+// https://en.cppreference.com/w/cpp/atomic/atomic_is_lock_free
+SASSERT(ATOMIC_BOOL_LOCK_FREE == 2);
+SASSERT(ATOMIC_CHAR_LOCK_FREE == 2);
+SASSERT(ATOMIC_SHORT_LOCK_FREE == 2);
+SASSERT(ATOMIC_INT_LOCK_FREE == 2);
+SASSERT(ATOMIC_LONG_LOCK_FREE == 2);
+SASSERT(ATOMIC_LLONG_LOCK_FREE == 2);
+SASSERT(ATOMIC_POINTER_LOCK_FREE == 2);
+
 SASSERT(MO_Relaxed == std::memory_order_relaxed);
 SASSERT(MO_Consume == std::memory_order_consume);
 SASSERT(MO_Acquire == std::memory_order_acquire);

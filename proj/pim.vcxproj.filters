@@ -202,6 +202,12 @@
     <ClCompile Include="..\src\threading\task.cpp">
       <Filter>Source Files\threading</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\common\chunk_allocator.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\assets\stream_file.cpp">
+      <Filter>Source Files\assets</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\hash.h">
@@ -480,12 +486,6 @@
     <ClInclude Include="..\src\common\minmax.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\allocator\allocator_vtable.h">
-      <Filter>Source Files\allocator</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\allocator\allocators.h">
-      <Filter>Source Files\allocator</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\generational.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -617,6 +617,12 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\graph.h">
       <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\allocator\iallocator.h">
+      <Filter>Source Files\allocator</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\allocator\header.h">
+      <Filter>Source Files\allocator</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

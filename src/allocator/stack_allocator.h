@@ -1,118 +1,136 @@
 #pragma once
 
-#include "common/macro.h"
-#include "common/minmax.h"
-#include "containers/slice.h"
+#include "allocator/iallocator.h"
+#include "allocator/header.h"
 #include "containers/array.h"
-#include "allocator/allocator_vtable.h"
 #include "os/thread.h"
-#include <string.h>
+#include <stdlib.h>
 
-namespace Allocator
+struct StackAllocator final : IAllocator
 {
-    struct Stack
+public:
+    StackAllocator(i32 bytes) : IAllocator(bytes)
     {
-        OS::Mutex m_mutex;
-        Slice<u8> m_memory;
-        Slice<u8> m_stack;
-        Array<Header*> m_allocations;
+        ASSERT(bytes > 0);
+        void* memory = malloc(bytes);
+        ASSERT(memory);
 
-        void Init(void* memory, i32 bytes)
+        memset(this, 0, sizeof(*this));
+        m_mutex.Open();
+        m_memory = { (u8*)memory, bytes };
+        m_stack = m_memory;
+        m_allocations.Init(Alloc_Stdlib);
+    }
+
+    ~StackAllocator()
+    {
+        m_mutex.Lock();
+        m_allocations.Reset();
+        void* ptr = m_memory.begin();
+        free(ptr);
+        m_mutex.Close();
+        memset(this, 0, sizeof(*this));
+    }
+
+    void Clear() final
+    {
+        OS::LockGuard guard(m_mutex);
+        m_stack = m_memory;
+        m_allocations.Clear();
+    }
+
+    void* Alloc(i32 bytes) final
+    {
+        if (bytes <= 0)
         {
-            memset(this, 0, sizeof(*this));
-            m_mutex.Open();
-            m_memory = { (u8*)memory, bytes };
-            m_stack = m_memory;
-            m_allocations.Init(Alloc_Stdlib);
+            ASSERT(bytes == 0);
+            return nullptr;
         }
+        OS::LockGuard guard(m_mutex);
+        return _Alloc(bytes);
+    }
 
-        void Shutdown()
-        {
-            m_allocations.Reset();
-            m_mutex.Close();
-            memset(this, 0, sizeof(*this));
-        }
-
-        void Clear()
+    void Free(void* ptr) final
+    {
+        if (ptr)
         {
             OS::LockGuard guard(m_mutex);
-            m_stack = m_memory;
-            m_allocations.Clear();
+            _Free(ptr);
+        }
+    }
+
+    void* Realloc(void* ptr, i32 bytes) final
+    {
+        if (!ptr)
+        {
+            return Alloc(bytes);
         }
 
-        Header* _Alloc(i32 count)
+        if (bytes <= 0)
         {
-            Slice<u8> allocation = m_stack.Head(count);
-            m_stack = m_stack.Tail(count);
-
-            Header* pNew = (Header*)allocation.ptr;
-            pNew->size = count;
-            pNew->type = Alloc_Stack;
-            pNew->c = m_allocations.size();
-            pNew->d = 0;
-
-            m_allocations.Grow() = pNew;
-
-            return pNew;
+            ASSERT(bytes == 0);
+            Free(ptr);
+            return nullptr;
         }
 
-        void _Free(Header* hdr)
+        OS::LockGuard guard(m_mutex);
+        return _Realloc(ptr, bytes);
+    }
+
+private:
+    OS::Mutex m_mutex;
+    Slice<u8> m_memory;
+    Slice<u8> m_stack;
+    Array<Allocator::Header*> m_allocations;
+
+    void* _Alloc(i32 bytes)
+    {
+        using namespace Allocator;
+
+        bytes = AlignBytes(bytes);
+
+        Slice<u8> allocation = m_stack.Head(bytes);
+        m_stack = m_stack.Tail(bytes);
+
+        Header* pNew = (Header*)allocation.begin();
+        m_allocations.PushBack(pNew);
+        return MakePtr(pNew, Alloc_Stack, bytes, m_allocations.size(), 0);
+    }
+
+    void _Free(void* ptr)
+    {
+        using namespace Allocator;
+
+        Header* hdr = ToHeader(ptr, Alloc_Stack);
+        hdr->d = 1;
+
+        while (m_allocations.size())
         {
-            hdr->d = 1;
-            while (m_allocations.size())
+            Header* pBack = m_allocations.back();
+            if (pBack->d)
             {
-                Header* pBack = m_allocations.back();
-                if (pBack->d)
-                {
-                    m_allocations.Pop();
-                    m_stack = Combine(m_stack, pBack->AsSlice());
-                }
-                else
-                {
-                    break;
-                }
+                m_allocations.Pop();
+                m_stack = Combine(m_stack, pBack->AsRaw());
+            }
+            else
+            {
+                break;
             }
         }
+    }
 
-        Header* _Realloc(Header* pOld, i32 count)
+    void* _Realloc(void* pOld, i32 bytes)
+    {
+        using namespace Allocator;
+
+        _Free(pOld);
+        void* pNew = _Alloc(bytes);
+
+        if (pNew != pOld)
         {
-            _Free(pOld);
-            Header* pNew = _Alloc(count);
-            if (pNew != pOld)
-            {
-                Slice<u8> oldRegion = pOld->AsSlice().Tail(sizeof(Header));
-                Slice<u8> newRegion = pNew->AsSlice().Tail(sizeof(Header));
-                const i32 cpySize = Min(newRegion.size(), oldRegion.size());
-                if (Overlaps(newRegion, oldRegion))
-                {
-                    memmove(newRegion.begin(), oldRegion.begin(), cpySize);
-                }
-                else
-                {
-                    memcpy(newRegion.begin(), oldRegion.begin(), cpySize);
-                }
-            }
-            return pNew;
+            Copy(ToHeader(pNew, Alloc_Stack), ToHeader(pOld, Alloc_Stack));
         }
 
-        Header* Alloc(i32 count)
-        {
-            OS::LockGuard guard(m_mutex);
-            return _Alloc(count);
-        }
-
-        void Free(Header* hdr)
-        {
-            OS::LockGuard guard(m_mutex);
-            _Free(hdr);
-        }
-
-        Header* Realloc(Header* pOld, i32 count)
-        {
-            OS::LockGuard guard(m_mutex);
-            return _Realloc(pOld, count);
-        }
-
-        static constexpr const VTable Table = VTable::Create<Stack>();
-    };
+        return pNew;
+    }
 };

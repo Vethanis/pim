@@ -7,7 +7,6 @@
 template<typename K, typename V, const Comparator<K>& cmp>
 struct ObjTable
 {
-    using VPtr = V*;
     using TableType = ObjTable<K, V, cmp>;
 
     HashDict<K, V*, cmp> m_dict;
@@ -37,24 +36,44 @@ struct ObjTable
         m_pool.Reset();
     }
 
-    VPtr New() { return m_pool.New(); }
-    void Delete(VPtr ptr) { m_pool.Delete(ptr); }
+    V* New() { return m_pool.New(); }
+    void Delete(V* ptr) { m_pool.Delete(ptr); }
 
-    VPtr Get(K key)
+    V* Get(K key)
     {
         V* ptr = nullptr;
         m_dict.Get(key, ptr);
         return ptr;
     }
 
-    bool Add(K key, VPtr ptrIn)
+    bool Add(K key, V* ptrIn)
     {
         ASSERT(ptrIn);
         return m_dict.Add(key, ptrIn);
     }
 
-    bool Remove(K key, VPtr& ptrOut)
+    V* GetAdd(K key)
     {
-        return m_dict.Remove(key, ptrOut);
+        V* ptr = Get(key);
+        if (ptr)
+        {
+            return ptr;
+        }
+        ptr = New();
+        if (Add(key, ptr))
+        {
+            return ptr;
+        }
+        Delete(ptr);
+        ptr = Get(key);
+        ASSERT(ptr);
+        return ptr;
+    }
+
+    V* Remove(K key)
+    {
+        V* ptrOut = 0;
+        m_dict.Remove(key, ptrOut);
+        return ptrOut;
     }
 };

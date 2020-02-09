@@ -41,16 +41,12 @@
 
 namespace StackWalker
 {
-    constexpr uint32_t MaxNameLen = 256;
-
     enum CallstackEntryType : int32_t
     {
         firstEntry,
         nextEntry,
         lastEntry
     };
-
-    struct Walker;
 
     struct CallstackEntry
     {
@@ -61,71 +57,34 @@ namespace StackWalker
         uint32_t symType;
         uint32_t offsetFromLine;
         uint32_t lineNumber;
-        char name[MaxNameLen];
-        char undName[MaxNameLen];
-        char undFullName[MaxNameLen];
-        char lineFileName[MaxNameLen];
-        char moduleName[MaxNameLen];
-        char loadedImageName[MaxNameLen];
+        char name[260];
+        char undName[260];
+        char undFullName[260];
+        char lineFileName[260];
+        char moduleName[260];
+        char loadedImageName[260];
     };
-
-    using OnCallstackEntryFn = void(*)(
-        Walker& walker,
-        CallstackEntryType eType,
-        CallstackEntry& entry);
-
-    using OnOutputFn = void(*)(
-        Walker& walker,
-        const char* text);
-
-    using OnErrorFn = void(*)(
-        Walker& walker,
-        const char* funcName,
-        uint32_t errorCode,
-        uint64_t address);
 
     struct Walker
     {
-        OnCallstackEntryFn OnCallstackEntry;
-        OnOutputFn OnOutput;
-        OnErrorFn OnError;
+        bool Init();
+        bool ShowCallstack();
+        bool ShowObject(void* pObject);
+
+        virtual void OnCallstackEntry(CallstackEntryType eType, CallstackEntry& entry);
+        virtual void OnOutput(const char* text);
+        virtual void OnError(const char* funcName, uint32_t errCode, uint64_t address);
+        virtual void OnSymInit(const char* searchPath, uint32_t symOptions, const char* userName);
+        virtual void OnLoadModule(
+            const char* img,
+            const char* mod,
+            uint64_t baseAddr,
+            uint32_t size,
+            uint32_t result,
+            const char* symType,
+            const char* pdbName,
+            uint64_t fileVersion);
     };
-
-    bool Init(Walker& walker);
-    bool ShowCallstack(Walker& walker);
-    bool ShowObject(Walker& walker, void* pObject);
-
-    // ------------------------------------------------------------------------
-
-    void DefaultOnCallstackEntry(
-        Walker& walker,
-        CallstackEntryType eType,
-        CallstackEntry& entry);
-
-    void DefaultOnOutput(
-        Walker& walker,
-        const char* text);
-
-    void DefaultOnError(
-        Walker& walker,
-        const char* funcName,
-        uint32_t errorCode,
-        uint64_t address);
-
-    static void EmptyOnCallstackEntry(
-        Walker& walker,
-        CallstackEntryType eType,
-        CallstackEntry& entry) {}
-
-    static void EmptyOnOutput(
-        Walker& walker,
-        const char* text) {}
-
-    static void EmptyOnError(
-        Walker& walker,
-        const char* funcName,
-        uint32_t errorCode,
-        uint64_t address) {}
 };
 
 #endif // _MSC_VER

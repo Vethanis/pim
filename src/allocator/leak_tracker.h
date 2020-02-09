@@ -5,71 +5,93 @@
 #include "common/guid_util.h"
 #include "common/text.h"
 #include "containers/hash_dict.h"
+#include "common/comparator_util.h"
 
-struct LeakTracker
+struct LeakTracker final : StackWalker::Walker
 {
-    StackWalker::Walker m_base;
-
     using StackText = Text<4096>;
 
-    struct Item
+    struct Allocation
     {
-        ptr_t ptr;
+        Guid stack;
         i32 size;
-        StackText text;
     };
 
     struct Leak
     {
         i32 count;
         i32 size;
-        StackText text;
     };
 
-    static constexpr auto VoidCmp = PtrComparator<ptr_t>();
-    HashDict<ptr_t, Item, VoidCmp> m_items;
-    Item m_current;
+    static constexpr auto VoidCmp = PtrComparator<void*>();
+    HashDict<void*, Allocation, VoidCmp> m_items;
+    HashDict<Guid, StackText, GuidComparator> m_stacks;
+    HashDict<Guid, Leak, GuidComparator> m_leaks;
 
-    void ShowCallstack()
+    void* m_ptr;
+    Allocation m_current;
+    StackText m_text;
+
+    LeakTracker() : StackWalker::Walker()
     {
-        m_items.m_allocator = Alloc_Debug;
-        m_base.OnCallstackEntry = SOnEntry;
-        m_base.OnOutput = StackWalker::EmptyOnOutput;
-        m_base.OnError = StackWalker::EmptyOnError;
-        StackWalker::Init(m_base);
-        StackWalker::ShowCallstack(m_base);
+        m_items.Init(Alloc_Debug);
+        m_stacks.Init(Alloc_Debug);
+        m_leaks.Init(Alloc_Debug);
     }
 
-    void OnAlloc(ptr_t ptr, i32 size)
+    void OnAlloc(void* ptr, i32 size)
     {
-        m_current.ptr = ptr;
+        if (!ptr)
+        {
+            return;
+        }
+
+        m_ptr = ptr;
         m_current.size = size;
-        m_current.text.value[0] = 0;
+        m_current.stack = {};
+        m_text.value[0] = 0;
         ShowCallstack();
     }
 
-    void OnFree(ptr_t ptr)
+    void OnFree(void* ptr)
     {
-        m_items.Remove(ptr);
+        if (!ptr)
+        {
+            return;
+        }
+
+        Allocation item = {};
+        if (m_items.Remove(ptr, item))
+        {
+            Leak leak = {};
+            if (m_leaks.Get(item.stack, leak))
+            {
+                leak.count -= 1;
+                leak.size -= item.size;
+                ASSERT(leak.count >= 0);
+                ASSERT(leak.size >= 0);
+                m_leaks.Set(item.stack, leak);
+            }
+        }
     }
 
-    void OnRealloc(ptr_t pOld, ptr_t pNew, i32 size)
+    void OnRealloc(void* pOld, void* pNew, i32 size)
     {
         OnFree(pOld);
         OnAlloc(pNew, size);
     }
 
-    void OnEntry(
+    void OnCallstackEntry(
         StackWalker::CallstackEntryType type,
-        StackWalker::CallstackEntry& entry)
+        StackWalker::CallstackEntry& entry) final
     {
         if (type == StackWalker::firstEntry)
         {
-            m_current.text.value[0] = 0;
+            m_text.value[0] = 0;
         }
 
         StrCatf(
-            ARGS(m_current.text.value),
+            ARGS(m_text.value),
             "%s (%d): %s\n",
             entry.lineFileName,
             entry.lineNumber,
@@ -77,51 +99,56 @@ struct LeakTracker
 
         if (type == StackWalker::lastEntry)
         {
-            m_items[m_current.ptr] = m_current;
+            Guid id = ToGuid(m_text.value);
+            m_current.stack = id;
+            m_stacks.Add(id, m_text);
+            m_items.Add(m_ptr, m_current);
+            Leak leak = {};
+            if (m_leaks.Get(id, leak))
+            {
+                leak.count += 1;
+                leak.size += m_current.size;
+                m_leaks.Set(id, leak);
+            }
+            else
+            {
+                leak.count = 1;
+                leak.size = m_current.size;
+                m_leaks.Add(id, leak);
+            }
         }
-    }
-
-    static void SOnEntry(
-        StackWalker::Walker& walker,
-        StackWalker::CallstackEntryType type,
-        StackWalker::CallstackEntry& entry)
-    {
-        reinterpret_cast<LeakTracker&>(walker).OnEntry(type, entry);
     }
 
     void ListLeaks()
     {
-        HashDict<Guid, Leak, GuidComparator> leaks;
-        leaks.Init(Alloc_Debug);
+        Array<Guid> ids = CreateArray<Guid>(Alloc_Debug, 0);
+        Array<Leak> leaks = CreateArray<Leak>(Alloc_Debug, 0);
+        m_leaks.GetElements(ids, leaks);
 
-        for (auto pair : m_items)
+        i32 leakCount = 0;
+        for (i32 i = 0; i < ids.size(); ++i)
         {
-            Guid id = ToGuid(pair.Value.text.value);
-            Leak* pLeak = leaks.Get(id);
-            if (!pLeak)
+            Guid id = ids[i];
+            Leak leak = leaks[i];
+            ASSERT(leak.count >= 0);
+            if (leak.count > 0)
             {
-                pLeak = &leaks[id];
-                pLeak->count = 0;
-                pLeak->size = 0;
-                pLeak->text = pair.Value.text;
+                StackText stack = {};
+                m_stacks.Get(id, stack);
+                char buffer[64];
+                SPrintf(ARGS(buffer), "LEAK: ct: %d sz: %d\n", leak.count, leak.size);
+                OnOutput(buffer);
+                OnOutput(stack.value);
+                ++leakCount;
             }
-            pLeak->count += 1;
-            pLeak->size += pair.Value.size;
         }
 
-        for (auto pair : leaks)
+        if (leakCount == 0)
         {
-            char buffer[64];
-            SPrintf(ARGS(buffer), "LEAK: %d %d\n", pair.Value.count, pair.Value.size);
-            StackWalker::DefaultOnOutput(m_base, buffer);
-            StackWalker::DefaultOnOutput(m_base, pair.Value.text.value);
+            OnOutput("No leaks! : )\n");
         }
 
-        if (!m_items.size())
-        {
-            StackWalker::DefaultOnOutput(m_base, "No Leaks! : )\n");
-        }
-
+        ids.Reset();
         leaks.Reset();
     }
 };

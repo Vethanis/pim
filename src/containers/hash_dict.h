@@ -195,7 +195,7 @@ struct HashDict
         }
     }
 
-    bool Add(K key, V value)
+    bool Add(K key, const V& value)
     {
         Reserve(size() + 3u);
 

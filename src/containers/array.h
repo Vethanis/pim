@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
+#include "common/minmax.h"
 #include "allocator/allocator.h"
 #include "containers/slice.h"
 #include <string.h>

@@ -9,45 +9,79 @@ using FileTable = ObjTable<Guid, StreamFile, GuidComparator>;
 
 static FileTable ms_table;
 
-static StreamFile* GetAdd(cstr path)
+static StreamFile* GetFile(cstr path)
 {
-    Guid key = ToGuid(path);
-    StreamFile* pFile = ms_table.Get(key);
-    if (pFile)
+    Guid id = ToGuid(path);
+    StreamFile* pFile = ms_table.GetAdd(id);
+    if (pFile->Open(path))
     {
         return pFile;
     }
-    pFile = ms_table.New();
-    if (pFile->Open(path))
-    {
-        if (ms_table.Add(key, pFile))
-        {
-            return pFile;
-        }
-    }
-    ms_table.Delete(pFile);
-    return ms_table.Get(key);
-}
-
-void FileTask::Execute()
-{
-    m_success = false;
-    StreamFile* pFile = GetAdd(m_path);
-    if (pFile)
-    {
-        if (m_write)
-        {
-            m_success = pFile->Write(m_pos, m_ptr);
-        }
-        else
-        {
-            m_success = pFile->Read(m_ptr, m_pos);
-        }
-    }
+    return nullptr;
 }
 
 namespace FStream
 {
+    bool Submit(FileStreamOp* pOps, i32 count)
+    {
+        ASSERT(pOps);
+        ASSERT(count >= 0);
+
+        for (i32 i = 0; i < count; ++i)
+        {
+            if (!GetFile(pOps[i].path))
+            {
+                return false;
+            }
+        }
+
+        Guid lastId = {};
+        StreamFile* pFile = nullptr;
+        for (i32 i = 0; i < count; ++i)
+        {
+            FileStreamOp op = pOps[i];
+            Guid id = ToGuid(op.path);
+            if (id != lastId)
+            {
+                lastId = id;
+                pFile = ms_table.Get(id);
+            }
+            ASSERT(pFile);
+            bool added = false;
+            if (op.write)
+            {
+                added = pFile->AddWrite(op.offset, op.size, op.ptr, op.pCompleted);
+            }
+            else
+            {
+                added = pFile->AddRead(op.ptr, op.offset, op.size, op.pCompleted);
+            }
+            ASSERT(added);
+        }
+
+        return true;
+    }
+
+    bool AddRead(cstr path, void* dst, i32 offset, i32 size, i32* pCompleted)
+    {
+        StreamFile* pFile = GetFile(path);
+        if (pFile)
+        {
+            return pFile->AddRead(dst, offset, size, pCompleted);
+        }
+        return false;
+    }
+
+    bool AddWrite(cstr path, i32 offset, i32 size, void* src, i32* pCompleted)
+    {
+        StreamFile* pFile = GetFile(path);
+        if (pFile)
+        {
+            return pFile->AddWrite(offset, size, src, pCompleted);
+        }
+        return false;
+    }
+
     static void Init()
     {
         ms_table.Init();

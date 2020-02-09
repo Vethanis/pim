@@ -1,7 +1,5 @@
 #pragma once
 
-#include "common/macro.h"
-#include "common/minmax.h"
 #include "common/int_types.h"
 #include <string.h>
 

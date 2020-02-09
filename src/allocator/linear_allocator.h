@@ -1,87 +1,134 @@
 #pragma once
 
-#include "common/macro.h"
-#include "allocator/allocator_vtable.h"
-#include "containers/slice.h"
-#include "os/thread.h"
+#include "allocator/iallocator.h"
+#include "allocator/header.h"
+#include "os/atomics.h"
+#include <stdlib.h>
 
-namespace Allocator
+struct LinearAllocator final : IAllocator
 {
-    struct Linear
+public:
+    LinearAllocator(i32 bytes) : IAllocator(bytes)
     {
-        OS::Mutex m_mutex;
-        Slice<u8> m_memory;
-        Slice<u8> m_current;
+        ASSERT(bytes > 0);
+        void* memory = malloc(bytes);
+        ASSERT(memory);
+        StorePtr(m_ptr, (u8*)memory);
+        StorePtr(m_head, (u8*)memory);
+        StorePtr(m_tail, (u8*)memory + bytes);
+    }
 
-        void Init(void* memory, i32 bytes)
+    ~LinearAllocator()
+    {
+        void* ptr = LoadPtr(m_ptr);
+        StorePtr(m_tail, (u8*)0);
+        StorePtr(m_head, (u8*)0);
+        StorePtr(m_ptr, (u8*)0);
+        free(ptr);
+    }
+
+    void Clear() final
+    {
+        StorePtr(m_head, LoadPtr(m_ptr));
+    }
+
+    void* Alloc(i32 bytes) final
+    {
+        using namespace Allocator;
+
+        if (bytes <= 0)
         {
-            m_mutex.Open();
-            m_memory =
+            ASSERT(bytes == 0);
+            return nullptr;
+        }
+
+        bytes = AlignBytes(bytes);
+
+    tryalloc:
+        u8* tail = LoadPtr(m_tail);
+        u8* head = LoadPtr(m_head);
+        if (head + bytes <= tail)
+        {
+            if (CmpExStrongPtr(m_head, head, head + bytes, MO_Acquire))
             {
-                (u8*)memory,
-                bytes,
-            };
-            m_current = m_memory;
+                return MakePtr(head, Alloc_Linear, bytes);
+            }
+            goto tryalloc;
+        }
+        return 0;
+    }
+
+    void Free(void* ptr) final
+    {
+        using namespace Allocator;
+
+        if (!ptr)
+        {
+            return;
         }
 
-        void Shutdown()
-        {
-            m_memory = { 0, 0 };
-            m_current = { 0, 0 };
-            m_mutex.Close();
-        }
+        Header* prev = ToHeader(ptr, Alloc_Linear);
+        u8* begin = prev->begin();
+        u8* end = prev->end();
 
-        void Clear()
+    tryfree:
+        u8* head = LoadPtr(m_head);
+        ASSERT(head);
+        if (end == head)
         {
-            OS::LockGuard guard(m_mutex);
-            m_current = m_memory;
-        }
-
-        Header* _Alloc(i32 count)
-        {
-            Slice<u8> alloc = m_current.Head(count);
-            m_current = m_current.Tail(count);
-            Header* pNew = (Header*)alloc.begin();
-            pNew->size = count;
-            pNew->type = Alloc_Linear;
-            return pNew;
-        }
-
-        void _Free(Header* prev)
-        {
-            Slice<u8> slice = prev->AsSlice();
-            if (Adjacent(m_current, slice))
+            if (!CmpExStrongPtr(m_head, head, begin, MO_Release))
             {
-                m_current = Combine(m_current, slice);
+                goto tryfree;
             }
         }
+    }
 
-        Header* _Realloc(Header* pOld, i32 count)
+    void* Realloc(void* ptr, i32 bytes) final
+    {
+        using namespace Allocator;
+
+        if (!ptr)
         {
-            _Free(pOld);
-            Header* pNew = _Alloc(count);
-            ASSERT(pNew == pOld);
-            return pNew;
+            return Alloc(bytes);
+        }
+        if (bytes <= 0)
+        {
+            ASSERT(bytes == 0);
+            Free(ptr);
+            return nullptr;
         }
 
-        Header* Alloc(i32 count)
+        const i32 userBytes = bytes;
+        bytes = AlignBytes(bytes);
+
+        Header* prev = ToHeader(ptr, Alloc_Linear);
+        const i32 diff = bytes - prev->size;
+        u8* end = prev->end();
+
+    tryresize:
+        u8* head = LoadPtr(m_head);
+        ASSERT(head);
+        if (end == head)
         {
-            OS::LockGuard guard(m_mutex);
-            return _Alloc(count);
+            if (CmpExStrongPtr(m_head, head, head + diff))
+            {
+                prev->size += diff;
+                return prev;
+            }
+            goto tryresize;
         }
 
-        Header* Realloc(Header* pOld, i32 count)
+        void* pNew = Alloc(userBytes);
+        if (pNew)
         {
-            OS::LockGuard guard(m_mutex);
-            return _Realloc(pOld, count);
+            Copy(ToHeader(pNew, Alloc_Linear), prev);
         }
+        Free(prev);
+        return pNew;
+    }
 
-        void Free(Header* prev)
-        {
-            OS::LockGuard guard(m_mutex);
-            _Free(prev);
-        }
-
-        static constexpr const VTable Table = VTable::Create<Linear>();
-    };
+private:
+    u8* m_ptr;
+    u8* m_head;
+    u8* m_tail;
 };

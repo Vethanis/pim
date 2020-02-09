@@ -2,9 +2,13 @@
 
 #include "common/typeid.h"
 #include "common/round.h"
+#include "common/sort.h"
 #include "containers/array.h"
+#include "containers/mtqueue.h"
 #include "os/thread.h"
 #include "os/atomics.h"
+
+struct Chunk;
 
 struct Entity
 {
@@ -32,6 +36,21 @@ struct Entity
     bool operator<(Entity rhs) const
     {
         return AsQword() < rhs.AsQword();
+    }
+};
+
+struct ChunkPos
+{
+    Chunk* pChunk;
+    i32 index;
+
+    static i32 Compare(const ChunkPos& lhs, const ChunkPos& rhs)
+    {
+        if (lhs.pChunk == rhs.pChunk)
+        {
+            return lhs.index - rhs.index;
+        }
+        return lhs.pChunk < rhs.pChunk;
     }
 };
 
@@ -121,7 +140,6 @@ struct Chunk
         Row* pRows = pChunk->m_rows;
         for (i32 i = 0; i < rowCount; ++i)
         {
-            pRows[i].lock.LockWriter();
             pRows[i].lock.Close();
         }
         pChunk->m_lock.Close();
@@ -147,6 +165,40 @@ struct Chunk
         return FindType(type) != -1;
     }
 
+    void Remove(Slice<ChunkPos> positions)
+    {
+        OS::WriteGuard guard(m_lock);
+
+        const i32 rowCount = m_rowCount;
+        const TypeId* types = m_types;
+        Row* pRows = m_rows;
+
+        i32 removed = 0;
+        for (ChunkPos pos : positions)
+        {
+            const i32 i = pos.index - removed;
+            ASSERT(pos.pChunk == this);
+            ASSERT((u32)i < (u32)m_length);
+
+            const i32 len = --m_length;
+            ASSERT(len >= 0);
+
+            if (i < len)
+            {
+                for (i32 iRow = 0; iRow < rowCount; ++iRow)
+                {
+                    u8* ptr = (u8*)(pRows[iRow].ptr);
+                    const i32 stride = types[iRow].SizeOf();
+                    u8* dst = ptr + i * stride;
+                    u8* src = ptr + (i + 1) * stride;
+                    memmove(dst, src, stride * len);
+                }
+            }
+
+            ++removed;
+        }
+    }
+
     template<typename T>
     Slice<const T> BorrowR(TypeId type)
     {
@@ -154,7 +206,7 @@ struct Chunk
         i32 i = FindType(type);
         ASSERT(i != -1);
         m_rows[i].lock.LockReader();
-        return { (const T*)m_rows[i].ptr, Load(m_length) };
+        return { (const T*)m_rows[i].ptr, m_length };
     }
 
     template<typename T>
@@ -164,7 +216,7 @@ struct Chunk
         i32 i = FindType(type);
         ASSERT(i != -1);
         m_rows[i].lock.LockWriter();
-        return { (const T*)m_rows[i].ptr, Load(m_length) };
+        return { (const T*)m_rows[i].ptr, m_length };
     }
 
     template<typename T>
@@ -186,16 +238,75 @@ struct Chunk
     }
 };
 
-struct Chunks
+struct ChunkStore
 {
     OS::RWLock m_lock;
+    Array<OS::RWFlag> m_flags;
     Array<Chunk*> m_chunks;
 };
 
-struct Entities
+struct EntityStore
 {
     OS::RWLock m_lock;
+    Array<OS::RWFlag> m_flags;
     Array<i32> m_versions;
-    Array<Chunk*> m_chunks;
-    Array<i32> m_offsets;
+    Array<ChunkPos> m_pos;
+    MtQueue<Entity> m_free;
+
+    Array<ChunkPos> Destroy(Slice<Entity> entities)
+    {
+        Array<ChunkPos> toRemove = CreateArray<ChunkPos>(Alloc_Linear, entities.size());
+        if (!entities.size())
+        {
+            return toRemove;
+        }
+        {
+            OS::ReadGuard entGuard(m_lock);
+
+            OS::RWFlag* flags = m_flags.begin();
+            i32* versions = m_versions.begin();
+            ChunkPos* positions = m_pos.begin();
+
+            for (Entity entity : entities)
+            {
+                i32 i = entity.index;
+                if (CmpExStrong(versions[i], entity.version, entity.version + 1, MO_Acquire))
+                {
+                    flags[i].LockWriter();
+                    ChunkPos pos = positions[i];
+                    positions[i] = { 0, 0 };
+                    flags[i].UnlockWriter();
+
+                    toRemove.PushBack(pos);
+                    entity.version += 2;
+                    m_free.Push(entity);
+                }
+            }
+        }
+        Sort(toRemove.begin(), toRemove.size(), { ChunkPos::Compare });
+        return toRemove;
+    }
+};
+
+struct Ecs
+{
+    EntityStore m_entStore;
+    ChunkStore m_chunkStore;
+
+    void Destroy(Slice<Entity> entities)
+    {
+        Array<ChunkPos> positions = m_entStore.Destroy(entities);
+        Chunk* pChunk = 0;
+        for (ChunkPos pos : positions)
+        {
+            if (!pos.pChunk)
+            {
+                continue;
+            }
+            if (pos.pChunk != pChunk)
+            {
+
+            }
+        }
+    }
 };

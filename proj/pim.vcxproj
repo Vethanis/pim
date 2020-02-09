@@ -16,7 +16,9 @@
     <ClCompile Include="..\src\assets\asset_system.cpp" />
     <ClCompile Include="..\src\assets\file_streaming.cpp" />
     <ClCompile Include="..\src\assets\packdb.cpp" />
+    <ClCompile Include="..\src\assets\stream_file.cpp" />
     <ClCompile Include="..\src\audio\audio_system.cpp" />
+    <ClCompile Include="..\src\common\chunk_allocator.cpp" />
     <ClCompile Include="..\src\common\hashstring.cpp" />
     <ClCompile Include="..\src\common\io.cpp" />
     <ClCompile Include="..\src\common\random.cpp" />
@@ -52,8 +54,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\allocator\allocator.h" />
-    <ClInclude Include="..\src\allocator\allocator_vtable.h" />
-    <ClInclude Include="..\src\allocator\allocators.h" />
+    <ClInclude Include="..\src\allocator\header.h" />
+    <ClInclude Include="..\src\allocator\iallocator.h" />
     <ClInclude Include="..\src\allocator\leak_tracker.h" />
     <ClInclude Include="..\src\allocator\linear_allocator.h" />
     <ClInclude Include="..\src\allocator\pool_allocator.h" />

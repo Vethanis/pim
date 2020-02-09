@@ -1,7 +1,8 @@
 #pragma once
 
-#include "containers/queue.h"
+#include "allocator/allocator.h"
 #include "os/thread.h"
+#include "os/atomics.h"
 
 template<typename T>
 struct MtQueue

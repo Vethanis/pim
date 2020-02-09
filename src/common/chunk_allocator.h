@@ -1,70 +1,42 @@
 #pragma once
 
-#include "containers/mtqueue.h"
+#include "common/int_types.h"
 
 struct ChunkAllocator
 {
     static constexpr i32 kChunkSize = 256;
 
-    MtQueue<void*> m_free;
-    MtQueue<void*> m_chunks;
+    struct Chunk
+    {
+        Chunk* pNext;
+        u8 inUse[kChunkSize];
+
+        u8* GetItems()
+        {
+            u8* ptr = (u8*)this;
+            return ptr + sizeof(Chunk);
+        }
+
+        u8* GetItem(i32 i, i32 itemSize)
+        {
+            return GetItems() + i * itemSize;
+        }
+
+        isize IndexOf(u8* ptr, i32 itemSize)
+        {
+            u8* items = GetItems();
+            return (ptr - items) / itemSize;
+        }
+    };
+
+    Chunk* m_head;
+    AllocType m_allocator;
     i32 m_itemSize;
 
-    void Init(AllocType allocator, i32 itemSize)
-    {
-        ASSERT(itemSize > 0);
-        m_chunks.Init(allocator);
-        m_free.Init(allocator);
-        m_chunks.Reserve(1);
-        m_free.Reserve(kChunkSize);
-        m_itemSize = itemSize;
-    }
-
-    void Reset()
-    {
-        m_free.Reset();
-        void* ptr = nullptr;
-        while (m_chunks.TryPop(ptr))
-        {
-            Allocator::Free(ptr);
-        }
-        m_chunks.Reset();
-    }
-
-    void PushChunk()
-    {
-        const i32 itemSize = m_itemSize;
-        ASSERT(itemSize > 0);
-
-        u8* ptr = (u8*)Allocator::Alloc(m_chunks.GetAllocator(), kChunkSize * itemSize);
-
-        m_chunks.Push(ptr);
-
-        for (i32 i = 0; i < kChunkSize; ++i)
-        {
-            m_free.Push(ptr);
-            ptr += itemSize;
-        }
-    }
-
-    void* Allocate()
-    {
-        void* ptr = nullptr;
-        while (!m_free.TryPop(ptr))
-        {
-            PushChunk();
-        }
-        memset(ptr, 0, m_itemSize);
-        return ptr;
-    }
-
-    void Free(void* pVoid)
-    {
-        if (pVoid)
-        {
-            m_free.Push(pVoid);
-        }
-    }
+    void Init(AllocType allocator, i32 itemSize);
+    void Reset();
+    void* Allocate();
+    void Free(void* pVoid);
 };
 
 template<typename T>

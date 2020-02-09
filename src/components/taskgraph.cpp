@@ -7,10 +7,10 @@ namespace TaskGraph
 {
     static OS::Mutex ms_mutex;
     static Graph ms_graph;
-    static Array<Task*> ms_tasks;
+    static Array<ITask*> ms_tasks;
     static i32 ms_frame;
 
-    TaskId Add(Task* pNode)
+    TaskId Add(ITask* pNode)
     {
         ASSERT(pNode);
         OS::LockGuard guard(ms_mutex);

@@ -1,69 +1,35 @@
 #pragma once
 
+#include "threading/task.h"
 #include "os/thread.h"
-#include "common/io.h"
-#include "common/heap_item.h"
+#include "containers/mtqueue.h"
 
-struct StreamFile
+struct StreamFile final : ITask
 {
+    StreamFile();
+    ~StreamFile();
+
+    bool IsOpen() const;
+    bool Open(cstr path);
+    bool Close();
+    bool AddRead(void* dst, i32 offset, i32 size, i32* pCompleted);
+    bool AddWrite(i32 offset, i32 size, void* src, i32* pCompleted);
+    void Execute() final;
+
+private:
+
+    struct FileOp
+    {
+        void* ptr;
+        i32 offset;
+        i32 size;
+        i32* pCompleted;
+        bool write;
+    };
+
+    static i32 Compare(const FileOp& lhs, const FileOp& rhs);
+
     OS::RWLock m_lock;
-    IO::FileMap m_map;
-
-    StreamFile() : m_lock(), m_map() {}
-    ~StreamFile() { Close(); }
-
-    bool Open(cstr path)
-    {
-        ASSERT(path);
-
-        EResult err = EUnknown;
-        IO::FDGuard file = IO::Open(path, IO::OBinary | IO::OReadWrite, err);
-        if (err != ESuccess)
-        {
-            return false;
-        }
-        IO::MapGuard map = IO::MapFile(file, true, err);
-        if (err != ESuccess)
-        {
-            return false;
-        }
-
-        file.Take();
-        m_map = map.Take();
-        m_lock.Open();
-
-        return true;
-    }
-
-    void Close()
-    {
-        m_lock.Close();
-        IO::Close(m_map);
-    }
-
-    bool Read(void* dst, HeapItem src)
-    {
-        OS::ReadGuard guard(m_lock);
-        Slice<u8> mem = m_map.memory;
-        if (mem.ValidSlice(src.offset, src.size))
-        {
-            Slice<u8> memSrc = mem.Subslice(src.offset, src.size);
-            memcpy(dst, memSrc.begin(), src.size);
-            return true;
-        }
-        return false;
-    }
-
-    bool Write(HeapItem dst, const void* src)
-    {
-        OS::WriteGuard guard(m_lock);
-        Slice<u8> mem = m_map.memory;
-        if (mem.ValidSlice(dst.offset, dst.size))
-        {
-            Slice<u8> memDst = mem.Subslice(dst.offset, dst.size);
-            memcpy(memDst.begin(), src, dst.size);
-            return true;
-        }
-        return false;
-    }
+    void* m_file;
+    MtQueue<FileOp> m_queue;
 };

@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
+#include <string.h>
 
 template<typename T>
 struct Slice
@@ -78,4 +79,13 @@ static Slice<T> Combine(Slice<T> lhs, Slice<T> rhs)
         lhs.ptr < rhs.ptr ? lhs.ptr : rhs.ptr,
         lhs.len + rhs.len
     };
+}
+
+template<typename T>
+static void Copy(Slice<T> dst, Slice<T> src)
+{
+    i32 a = dst.bytes();
+    i32 b = src.bytes();
+    i32 sz = a < b ? a : b;
+    memmove(dst.begin(), src.begin(), sz);
 }

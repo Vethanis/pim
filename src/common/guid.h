@@ -10,24 +10,25 @@ struct Guid
 {
     u64 a;
     u64 b;
+
+    bool operator==(Guid rhs) const
+    {
+        return ((a - rhs.a) | (b - rhs.b)) == 0;
+    }
+    bool operator!=(Guid rhs) const
+    {
+        return ((a - rhs.a) | (b - rhs.b)) != 0;
+    }
 };
 
 static bool GuidEqualsFn(const Guid& lhs, const Guid& rhs)
 {
-    return !((lhs.a - rhs.a) | (lhs.b - rhs.b));
+    return lhs == rhs;
 }
 
 static i32 GuidCompareFn(const Guid& lhs, const Guid& rhs)
 {
-    if (lhs.a != rhs.a)
-    {
-        return lhs.a < rhs.a ? -1 : 1;
-    }
-    if (lhs.b != rhs.b)
-    {
-        return lhs.b < rhs.b ? -1 : 1;
-    }
-    return 0;
+    return memcmp(&lhs, &rhs, sizeof(Guid));
 }
 
 static u32 GuidHashFn(const Guid& x)
