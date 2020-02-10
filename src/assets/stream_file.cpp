@@ -7,22 +7,23 @@
 #include "os/atomics.h"
 #include <stdio.h>
 
-i32 StreamFile::Compare(const StreamFile::FileOp& lhs, const StreamFile::FileOp& rhs)
+bool StreamFile::FileOp::operator<(const StreamFile::FileOp& rhs) const
 {
-    if (lhs.write | rhs.write)
+    if (write | rhs.write)
     {
-        if (::Overlaps(lhs.offset, lhs.offset + lhs.size, rhs.offset, rhs.offset + rhs.size))
+        if (::Overlaps(offset, offset + size, rhs.offset, rhs.offset + rhs.size))
         {
             return 0;
         }
     }
-    return lhs.offset - rhs.offset;
+    return offset - rhs.offset;
 }
 
-StreamFile::StreamFile() : ITask()
+StreamFile::StreamFile(StreamFileArgs args) : ITask()
 {
+    ASSERT(args.path);
     m_lock.Open();
-    m_file = 0;
+    m_file = fopen(args.path, "r+b");
     m_queue.Init(Alloc_Pool, 64);
 }
 
@@ -42,41 +43,6 @@ bool StreamFile::IsOpen() const
 {
     OS::ReadGuard guard(m_lock);
     return m_file != 0;
-}
-
-bool StreamFile::Open(cstr path)
-{
-    ASSERT(path);
-    if (IsOpen())
-    {
-        return true;
-    }
-
-    OS::WriteGuard guard(m_lock);
-    if (!m_file)
-    {
-        m_file = fopen(path, "r+b");
-        if (!m_file)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool StreamFile::Close()
-{
-    if (IsOpen())
-    {
-        OS::WriteGuard guard(m_lock);
-        if (m_file)
-        {
-            fclose((FILE*)m_file);
-            m_file = 0;
-            return true;
-        }
-    }
-    return false;
 }
 
 bool StreamFile::AddRead(void* dst, i32 offset, i32 size, i32* pCompleted)
@@ -153,7 +119,7 @@ void StreamFile::Execute()
         }
     }
 
-    Sort(ops.begin(), ops.size(), { Compare });
+    Sort(ops.begin(), ops.size());
 
     OS::WriteGuard guard(m_lock);
     FILE* file = (FILE*)m_file;

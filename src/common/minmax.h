@@ -56,3 +56,11 @@ static constexpr u32 ToPow2(u32 x)
     ++x;
     return x;
 }
+
+template<typename T>
+static void Swap(T& lhs, T& rhs)
+{
+    T tmp = lhs;
+    lhs = rhs;
+    rhs = tmp;
+}

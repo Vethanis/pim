@@ -4,14 +4,17 @@
 #include "os/thread.h"
 #include "containers/mtqueue.h"
 
+struct StreamFileArgs
+{
+    cstr path;
+};
+
 struct StreamFile final : ITask
 {
-    StreamFile();
+    StreamFile(StreamFileArgs args);
     ~StreamFile();
 
     bool IsOpen() const;
-    bool Open(cstr path);
-    bool Close();
     bool AddRead(void* dst, i32 offset, i32 size, i32* pCompleted);
     bool AddWrite(i32 offset, i32 size, void* src, i32* pCompleted);
     void Execute() final;
@@ -25,9 +28,9 @@ private:
         i32 size;
         i32* pCompleted;
         bool write;
-    };
 
-    static i32 Compare(const FileOp& lhs, const FileOp& rhs);
+        bool operator<(const FileOp& rhs) const;
+    };
 
     OS::RWLock m_lock;
     void* m_file;

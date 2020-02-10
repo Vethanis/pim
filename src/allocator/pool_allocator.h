@@ -16,7 +16,8 @@ public:
         ASSERT(memory);
         m_mutex.Open();
         m_memory = { (u8*)memory, bytes };
-        m_heap.Init(Alloc_Stdlib, bytes);
+        m_heap.Init(Alloc_Stdlib, 2048);
+        m_heap.Insert({ 0, bytes });
     }
 
     ~PoolAllocator()
@@ -72,48 +73,56 @@ public:
     }
 
 private:
+
+    struct Item
+    {
+        i32 offset;
+        i32 size;
+
+        bool operator<(Item rhs) const
+        {
+            return size < rhs.size;
+        }
+    };
+
     OS::Mutex m_mutex;
     Slice<u8> m_memory;
-    Heap m_heap;
-
-    static HeapItem ToHeap(void* ptr)
-    {
-        using namespace Allocator;
-
-        Header* hdr = ToHeader(ptr, Alloc_Pool);
-        HeapItem item;
-        item.offset = hdr->c;
-        item.size = hdr->d;
-        return item;
-    }
-
-    static void* ToPtr(HeapItem item, Slice<u8> memory)
-    {
-        using namespace Allocator;
-
-        if (item.offset == -1)
-        {
-            return nullptr;
-        }
-        Slice<u8> region = memory.Subslice(item.offset, item.size);
-        return MakePtr(region.begin(), Alloc_Pool, item.size, item.offset, item.size);
-    }
+    Heap<Item> m_heap;
 
     void* _Alloc(i32 bytes)
     {
         using namespace Allocator;
 
         bytes = AlignBytes(bytes);
-        HeapItem item = m_heap.Alloc(bytes);
-        return ToPtr(item, m_memory);
+
+        Item item;
+        if (m_heap.RemoveBestFit({ 0, bytes }, item))
+        {
+            if (item.size > bytes)
+            {
+                m_heap.Insert({ item.offset + bytes, item.size - bytes });
+                item.size = bytes;
+            }
+            else if (item.size < bytes)
+            {
+                m_heap.Insert(item);
+                return nullptr;
+            }
+            Slice<u8> region = m_memory.Subslice(item.offset, item.size);
+            return MakePtr(region.begin(), Alloc_Pool, item.size, item.offset);
+        }
+        return nullptr;
     }
 
     void _Free(void* ptr)
     {
         using namespace Allocator;
 
-        HeapItem item = ToHeap(ptr);
-        m_heap.Free(item);
+        Header* hdr = ToHeader(ptr, Alloc_Pool);
+        const i32 rc = Dec(hdr->refcount, MO_Relaxed);
+        ASSERT(rc == 1);
+
+        m_heap.Insert({ hdr->arg1, hdr->size });
     }
 
     void* _Realloc(void* pOld, i32 bytes)

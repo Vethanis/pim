@@ -2,21 +2,17 @@
 
 #include "common/macro.h"
 #include "common/minmax.h"
-#include "common/heap_item.h"
-#include "common/sort.h"
 #include "containers/array.h"
 
+template<typename T>
 struct Heap
 {
-    Array<HeapItem> m_items;
-    i32 m_size;
-    i32 m_allocated;
+    i32 size() const { return m_items.size(); }
+    i32 capacity() const { return m_items.capacity(); }
 
-    void Init(AllocType allocator, i32 size)
+    void Init(AllocType allocator, i32 minCap)
     {
-        m_items.Init(allocator);
-        m_items.Grow() = { 0, size };
-        m_size = size;
+        m_items.Init(allocator, minCap);
     }
     void Reset()
     {
@@ -25,124 +21,118 @@ struct Heap
     void Clear()
     {
         m_items.Clear();
-        m_items.Grow() = { 0, m_size };
     }
 
-    i32 size() const { return m_size; }
-    i32 SizeAllocated() const { return m_allocated; }
-    // Usable amount is less due to fragmentation
-    i32 SizeFree() const { return m_size - m_allocated; }
-
-    i32 Find(i32 desiredSize) const
+    void Insert(const T& item)
     {
-        const HeapItem* const items = m_items.begin();
-        const i32 count = m_items.size();
-        for (i32 i = 0; i < count; ++i)
+        HeapUp((u32)m_items.PushBack(item));
+    }
+
+    bool Remove(T& largest)
+    {
+        const i32 len = m_items.size();
+        if (len > 0)
         {
-            if (items[i].size >= desiredSize)
+            largest = m_items[0];
+            m_items[0] = m_items.back();
+            m_items.Pop();
+            if (len > 1)
             {
-                return i;
+                HeapDown(0);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    bool RemoveBestFit(const T& key, T& result)
+    {
+        const u32 len = (u32)m_items.size();
+        T* items = m_items.begin();
+        u32 i = 0;
+    loop:
+        u32 iLeft = GetLeftChild(i);
+        u32 iRight = GetRightChild(i);
+        if (iRight < len)
+        {
+            u32 iChild = items[iLeft] < items[iRight] ? iLeft : iRight;
+            if (key < items[iChild])
+            {
+                i = iChild;
+                goto loop;
             }
         }
-        return -1;
+        if (i < len)
+        {
+            if (key < items[i])
+            {
+                result = items[i];
+                items[i] = items[len - 1];
+                m_items.Pop();
+                HeapDown(i);
+                return true;
+            }
+        }
+        return false;
     }
 
-    HeapItem Alloc(i32 desiredSize)
+private:
+    Array<T> m_items;
+
+    static u32 GetLeftChild(u32 i)
     {
-        ASSERT(desiredSize > 0);
-        const i32 i = Find(desiredSize);
-        if (i == -1)
+        return (i << 1u) + 1u;
+    }
+    static u32 GetRightChild(u32 i)
+    {
+        return (i << 1u) + 2u;
+    }
+    static u32 GetParent(u32 i)
+    {
+        return (i - 1u) >> 1u;
+    }
+
+    void HeapUp(u32 iChild)
+    {
+        T* items = m_items.begin();
+    loop:
+        u32 iParent = GetParent(iChild);
+        if (iChild)
         {
-            return { -1, -1 };
+            if (items[iParent] < items[iChild])
+            {
+                Swap(items[iParent], items[iChild]);
+                iChild = iParent;
+                goto loop;
+            }
         }
-        Array<HeapItem> items = m_items;
-        HeapItem item = items[i];
-        if (item.size > desiredSize)
+    }
+
+    void HeapDown(u32 iParent)
+    {
+        const u32 len = (u32)m_items.size();
+        T* items = m_items.begin();
+    loop:
+        u32 lChild = GetLeftChild(iParent);
+        u32 rChild = GetRightChild(iParent);
+        u32 iChild = 0;
+        if (rChild >= len)
         {
-            items[i] = Split(item, desiredSize);
+            if (lChild >= len)
+            {
+                return;
+            }
+            iChild = lChild;
         }
         else
         {
-            items.ShiftRemove(i);
+            iChild = items[lChild] < items[rChild] ? rChild : lChild;
         }
-        ASSERT(item.size == desiredSize);
-        ASSERT(item.offset >= 0);
-        ASSERT(item.offset + item.size <= m_size);
-        m_items = items;
-        m_allocated += item.size;
-        return item;
-    }
-
-    void Free(HeapItem item)
-    {
-        ASSERT(item.offset >= 0);
-        ASSERT(item.size > 0);
-        ASSERT((u32)(item.end()) <= (u32)m_size);
-
-        Array<HeapItem> items = m_items;
-        items.PushBack(item);
-        const i32 i = PushSort(
-            items.begin(),
-            items.size(),
-            item,
-            { Compare });
-        const i32 lhs = i - 1;
-        const i32 rhs = i + 1;
-
-        if (rhs < items.size())
+        if (items[iParent] < items[iChild])
         {
-            if (Adjacent(items[i], items[rhs]))
-            {
-                items[i] = Combine(items[i], items[rhs]);
-                items.ShiftRemove(rhs);
-            }
+            Swap(items[iParent], items[iChild]);
+            iParent = iChild;
+            goto loop;
         }
-
-        if (lhs >= 0)
-        {
-            if (Adjacent(items[lhs], items[i]))
-            {
-                items[lhs] = Combine(items[lhs], items[i]);
-                items.ShiftRemove(i);
-            }
-        }
-
-        m_items = items;
-        m_allocated -= item.size;
-    }
-
-    bool Remove(HeapItem rm)
-    {
-        ASSERT(rm.offset >= 0);
-        ASSERT(rm.size > 0);
-        ASSERT((u32)(rm.end()) <= (u32)m_size);
-
-        bool removed = false;
-        Array<HeapItem> items = m_items;
-        for (i32 i = 0; i < items.size(); ++i)
-        {
-            HeapItem iItem = items[i];
-            if (Overlaps(rm, iItem))
-            {
-                removed = true;
-                items.ShiftRemove(i);
-                --i;
-
-                HeapItem left = { iItem.begin(), rm.begin() - iItem.begin() };
-                HeapItem right = { rm.end(), iItem.end() - rm.end() };
-                if (left.size > 0)
-                {
-                    items.PushBack(left);
-                    PushSort(items.begin(), items.size(), left, { Compare });
-                }
-                if (right.size > 0)
-                {
-                    items.PushBack(right);
-                    PushSort(items.begin(), items.size(), right, { Compare });
-                }
-            }
-        }
-        m_items = items;
-        return removed;
     }
 };

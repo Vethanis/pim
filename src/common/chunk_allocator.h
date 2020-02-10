@@ -9,6 +9,7 @@ struct ChunkAllocator
     struct Chunk
     {
         Chunk* pNext;
+        isize _pad;
         u8 inUse[kChunkSize];
 
         u8* GetItems()

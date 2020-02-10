@@ -2,10 +2,9 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "common/comparator.h"
 
 template<typename T>
-static void Sort(T* items, i32 count, const Comparable<T> cmp)
+static void Sort(T* items, i32 count)
 {
     if (count < 2)
     {
@@ -18,11 +17,11 @@ static void Sort(T* items, i32 count, const Comparable<T> cmp)
         const T pivot = items[count >> 1];
         while (true)
         {
-            while ((i < j) && (cmp(items[i], pivot) < 0))
+            while ((i < j) && (items[i] < pivot))
             {
                 ++i;
             }
-            while ((j > i) && (cmp(items[j], pivot) > 0))
+            while ((j > i) && (pivot < items[j]))
             {
                 --j;
             }
@@ -43,12 +42,12 @@ static void Sort(T* items, i32 count, const Comparable<T> cmp)
         }
     }
 
-    Sort(items, i, cmp);
-    Sort(items + i, count - i, cmp);
+    Sort(items, i);
+    Sort(items + i, count - i);
 }
 
 template<typename T>
-static i32 PushSort(T* items, i32 countWithItem, T item, const Comparable<T> cmp)
+static i32 PushSort(T* const items, i32 countWithItem, const T& item)
 {
     ASSERT(items);
     ASSERT(countWithItem > 0);
@@ -56,25 +55,20 @@ static i32 PushSort(T* items, i32 countWithItem, T item, const Comparable<T> cmp
     const i32 back = countWithItem - 1;
     items[back] = item;
 
-    i32 pos = back;
-    for (i32 i = back; i > 0; --i)
+    i32 i = back;
+    while ((i > 0) && (items[i] < items[i - 1]))
     {
-        const i32 lhs = i - 1;
-        if (cmp(items[lhs], items[i]) > 0)
-        {
-            T tmp = items[lhs];
-            items[lhs] = items[i];
-            items[i] = tmp;
-            pos = lhs;
-        }
-        else
-        {
-            break;
-        }
+        T tmp = items[i - 1];
+        items[i - 1] = items[i];
+        items[i] = tmp;
+        --i;
     }
 
-    ASSERT(pos >= 0);
-    ASSERT(cmp(items[pos], item) == 0);
+    ASSERT(i >= 0);
+    if (i < back)
+    {
+        ASSERT(items[i] < items[i + 1]);
+    }
 
-    return pos;
+    return i;
 }

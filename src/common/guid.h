@@ -3,7 +3,6 @@
 #include "common/macro.h"
 #include "common/int_types.h"
 #include "common/hash.h"
-#include "common/comparator.h"
 #include "common/random.h"
 
 struct Guid
@@ -20,23 +19,6 @@ struct Guid
         return ((a - rhs.a) | (b - rhs.b)) != 0;
     }
 };
-
-static bool GuidEqualsFn(const Guid& lhs, const Guid& rhs)
-{
-    return lhs == rhs;
-}
-
-static i32 GuidCompareFn(const Guid& lhs, const Guid& rhs)
-{
-    return memcmp(&lhs, &rhs, sizeof(Guid));
-}
-
-static u32 GuidHashFn(const Guid& x)
-{
-    return Fnv32Qword(x.b, Fnv32Qword(x.a));
-}
-
-static constexpr Comparator<Guid> GuidComparator = { GuidEqualsFn, GuidCompareFn, GuidHashFn };
 
 inline constexpr bool IsNull(Guid x)
 {

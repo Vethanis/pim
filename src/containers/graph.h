@@ -26,7 +26,7 @@ struct Graph
         m_ids.Reset();
     }
 
-    i32 Add()
+    i32 AddVertex()
     {
         const i32 id = m_marks.size();
         m_marks.PushBack(0u);
@@ -87,5 +87,12 @@ struct Graph
         }
 
         return m_ids;
+    }
+
+    i32 size() const { return m_ids.size(); }
+
+    i32 operator[](i32 i) const
+    {
+        return m_ids[i];
     }
 };

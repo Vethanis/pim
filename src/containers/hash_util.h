@@ -2,7 +2,7 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "common/comparator.h"
+#include "common/hash.h"
 
 namespace HashUtil
 {
@@ -65,8 +65,8 @@ namespace HashUtil
     }
 
     template<typename K>
-    static u32 Hash(const Comparator<K>& cmp, K key)
+    static u32 Hash(K key)
     {
-        return CreateHash(cmp.Hash(key));
+        return CreateHash(Fnv32Bytes(&key, sizeof(K)));
     }
 };

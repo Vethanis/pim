@@ -23,10 +23,9 @@ struct LeakTracker final : StackWalker::Walker
         i32 size;
     };
 
-    static constexpr auto VoidCmp = PtrComparator<void*>();
-    HashDict<void*, Allocation, VoidCmp> m_items;
-    HashDict<Guid, StackText, GuidComparator> m_stacks;
-    HashDict<Guid, Leak, GuidComparator> m_leaks;
+    HashDict<void*, Allocation> m_items;
+    HashDict<Guid, StackText> m_stacks;
+    HashDict<Guid, Leak> m_leaks;
 
     void* m_ptr;
     Allocation m_current;

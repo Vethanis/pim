@@ -23,7 +23,7 @@ namespace Allocator
     static PoolAllocator ms_pool = PoolAllocator(64 << 20);
 
 #if ENABLE_LEAK_TRACKER
-    static LeakTracker ms_tracker;
+    static LeakTracker ms_tracker = LeakTracker();
 #endif // ENABLE_LEAK_TRACKER
 
     void Init()
@@ -170,5 +170,13 @@ namespace Allocator
             }
 #endif // ENABLE_LEAK_TRACKER
         }
+    }
+
+    void* Calloc(AllocType type, i32 bytes)
+    {
+        void* ptr = Alloc(type, bytes);
+        ASSERT(ptr);
+        memset(ptr, 0, bytes);
+        return ptr;
     }
 };

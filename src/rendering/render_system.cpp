@@ -11,7 +11,6 @@
 
 #include "components/ecs.h"
 #include "components/system.h"
-#include "components/transform.h"
 #include "rendering/components.h"
 #include "rendering/screen.h"
 

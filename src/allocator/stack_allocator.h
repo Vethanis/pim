@@ -94,7 +94,7 @@ private:
 
         Header* pNew = (Header*)allocation.begin();
         m_allocations.PushBack(pNew);
-        return MakePtr(pNew, Alloc_Stack, bytes, m_allocations.size(), 0);
+        return MakePtr(pNew, Alloc_Stack, bytes, 0);
     }
 
     void _Free(void* ptr)
@@ -102,12 +102,14 @@ private:
         using namespace Allocator;
 
         Header* hdr = ToHeader(ptr, Alloc_Stack);
-        hdr->d = 1;
+        const i32 rc = Dec(hdr->refcount, MO_Relaxed);
+        ASSERT(rc == 1);
+        Store(hdr->arg1, 1);
 
         while (m_allocations.size())
         {
             Header* pBack = m_allocations.back();
-            if (pBack->d)
+            if (Load(pBack->arg1))
             {
                 m_allocations.Pop();
                 m_stack = Combine(m_stack, pBack->AsRaw());

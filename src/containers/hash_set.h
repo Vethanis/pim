@@ -8,11 +8,10 @@
 #include "os/thread.h"
 #include <string.h>
 
-template<
-    typename K,
-    const Comparator<K>& cmp>
-    struct HashSet
+template<typename K>
+struct HashSet
 {
+private:
     OS::RWLock m_lock;
     OS::RWFlag* m_flags;
     u32* m_hashes;
@@ -21,8 +20,7 @@ template<
     u32 m_width;
     AllocType m_allocator;
 
-    // ------------------------------------------------------------------------
-
+public:
     u32 size() const { return Load(m_count); }
     u32 capacity() const { return Load(m_width); }
     AllocType GetAllocator() const { return m_allocator; }
@@ -32,6 +30,12 @@ template<
         memset(this, 0, sizeof(*this));
         m_allocator = allocator;
         m_lock.Open();
+    }
+
+    void Init(AllocType allocator, u32 minCap)
+    {
+        Init(allocator);
+        Reserve(minCap);
     }
 
     void Reset()
@@ -73,47 +77,6 @@ template<
     }
 
     // ------------------------------------------------------------------------
-
-    i32 Find(K key) const
-    {
-        const u32 hash = HashUtil::Hash(cmp, key);
-
-        OS::ReadGuard guard(m_lock);
-
-        const OS::RWFlag* flags = LoadPtr(m_flags);
-        const u32* hashes = LoadPtr(m_hashes);
-        const K* keys = LoadPtr(m_keys);
-        const u32 width = capacity();
-        const u32 mask = width - 1u;
-
-        u32 j = hash;
-        u32 ct = width;
-        while (ct--)
-        {
-            j &= mask;
-            const u32 jHash = Load(hashes[j]);
-            if (HashUtil::IsEmpty(jHash))
-            {
-                break;
-            }
-            if (jHash == hash)
-            {
-                OS::ReadFlagGuard g2(flags[j]);
-                if (cmp.Equals(key, keys[j]))
-                {
-                    return (i32)j;
-                }
-            }
-            ++j;
-        }
-
-        return -1;
-    }
-
-    bool Contains(K key) const
-    {
-        return Find(key) != -1;
-    }
 
     void Reserve(u32 minCount)
     {
@@ -183,11 +146,21 @@ template<
         }
     }
 
+    bool Contains(K key) const
+    {
+        K tmp;
+        return Get(key, tmp);
+    }
+
     bool Add(K key)
     {
-        const u32 hash = HashUtil::Hash(cmp, key);
+        if (Contains(key))
+        {
+            return false;
+        }
 
         Reserve(size() + 3u);
+        const u32 hash = HashUtil::Hash(key);
         OS::ReadGuard guard(m_lock);
 
         u32 width = capacity();
@@ -196,7 +169,7 @@ template<
         u32* hashes = m_hashes;
         K* keys = m_keys;
 
-        for(u32 j = hash; width--; ++j)
+        for (u32 j = hash; width--; ++j)
         {
             j &= mask;
             u32 prev = Load(hashes[j]);
@@ -217,7 +190,7 @@ template<
 
     bool Remove(K key)
     {
-        const u32 hash = HashUtil::Hash(cmp, key);
+        const u32 hash = HashUtil::Hash(key);
 
         OS::ReadGuard guard(m_lock);
 
@@ -239,7 +212,7 @@ template<
             if (jHash == hash)
             {
                 OS::WriteFlagGuard g2(flags[j]);
-                if (cmp.Equals(key, keys[j]) && CmpExStrong(hashes[j], jHash, HashUtil::TombMask))
+                if ((key == keys[j]) && CmpExStrong(hashes[j], jHash, HashUtil::TombMask))
                 {
                     memset(keys + j, 0, sizeof(K));
                     Dec(m_count);
@@ -253,7 +226,7 @@ template<
 
     bool Get(K key, K& keyOut) const
     {
-        const u32 hash = HashUtil::Hash(cmp, key);
+        const u32 hash = HashUtil::Hash(key);
 
         OS::ReadGuard guard(m_lock);
 
@@ -275,7 +248,7 @@ template<
             if (prev == hash)
             {
                 OS::ReadFlagGuard g2(flags[j]);
-                if (cmp.Equals(key, keys[j]))
+                if (key == keys[j])
                 {
                     keyOut = keys[j];
                     return true;
@@ -286,25 +259,67 @@ template<
         return false;
     }
 
-    void GetElements(Array<K>& keysOut)
+    struct const_iterator
     {
-        keysOut.Clear();
-        keysOut.Reserve((i32)size());
+        const HashSet& m_set;
+        u32 m_index;
 
-        OS::ReadGuard guard(m_lock);
-
-        const OS::RWFlag* const flags = m_flags;
-        const u32* const hashes = m_hashes;
-        const K* const keys = m_keys;
-        const u32 width = capacity();
-
-        for (u32 j = 0u; j < width; ++j)
+        const_iterator(const HashSet& set, u32 index) :
+            m_set(set), m_index(index)
         {
-            OS::ReadFlagGuard g2(flags[j]);
-            if (HashUtil::IsValidHash(Load(hashes[j])))
+            OS::ReadGuard guard(m_set.m_lock);
+            const u32 width = m_set.capacity();
+            const u32* const hashes = m_set.m_hashes;
+            u32 i = m_index;
+            for (; i < width; ++i)
             {
-                keysOut.PushBack(keys[j]);
+                if (HashUtil::IsValidHash(Load(hashes[i])))
+                {
+                    break;
+                }
             }
+            m_index = i;
         }
-    }
+
+        const_iterator& operator++()
+        {
+            OS::ReadGuard guard(m_set.m_lock);
+            const u32 width = m_set.capacity();
+            const u32* const hashes = m_set.m_hashes;
+            u32 i = ++m_index;
+            for (; i < width; ++i)
+            {
+                if (HashUtil::IsValidHash(Load(hashes[i])))
+                {
+                    break;
+                }
+            }
+            m_index = i;
+            return *this;
+        }
+
+        bool operator!=(const_iterator rhs) const
+        {
+            return m_index != rhs.m_index;
+        }
+
+        K operator*() const
+        {
+            const i32 i = m_index;
+            OS::ReadGuard guard(m_set.m_lock);
+            OS::ReadFlagGuard g2(m_set.m_flags[i]);
+            return m_set.m_keys[i];
+        }
+    };
+
+    const_iterator begin() const { return const_iterator(*this, 0); }
+    const_iterator end() const { return const_iterator(*this, capacity()); }
 };
+
+template<typename K>
+static HashSet<K> CreateHashSet(AllocType allocator, u32 minCap)
+{
+    HashSet<K> set = {};
+    set.Init(allocator, minCap);
+    return set;
+}

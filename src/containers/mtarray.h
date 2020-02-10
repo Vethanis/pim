@@ -80,7 +80,7 @@ struct MtArray
     i32 PushBack(T value)
     {
         const i32 i = Inc(m_innerLength);
-        Reserve(i + 8);
+        Reserve(i + 3);
         m_lock.LockReader();
         Store(m_ptr[i], value);
         m_lock.UnlockReader();

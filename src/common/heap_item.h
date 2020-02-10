@@ -11,12 +11,16 @@ struct HeapItem
 
     inline i32 begin() const { return offset; }
     inline i32 end() const { return offset + size; }
-};
 
-static i32 Compare(const HeapItem& lhs, const HeapItem& rhs)
-{
-    return lhs.offset - rhs.offset;
-}
+    bool operator<(HeapItem rhs) const
+    {
+        return offset < rhs.offset;
+    }
+    bool operator==(HeapItem rhs) const
+    {
+        return ((offset - rhs.offset) | (size - rhs.size)) == 0;
+    }
+};
 
 static HeapItem Combine(HeapItem lhs, HeapItem rhs)
 {

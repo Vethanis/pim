@@ -193,9 +193,6 @@
     <ClCompile Include="..\src\os\thread.cpp">
       <Filter>Source Files\os</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\components\resources.cpp">
-      <Filter>Source Files\components</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\components\taskgraph.cpp">
       <Filter>Source Files\components</Filter>
     </ClCompile>
@@ -207,6 +204,9 @@
     </ClCompile>
     <ClCompile Include="..\src\assets\stream_file.cpp">
       <Filter>Source Files\assets</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\components\component_mgr.cpp">
+      <Filter>Source Files\components</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -414,9 +414,6 @@
     <ClInclude Include="..\src\common\unroll.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\components\transform.h">
-      <Filter>Source Files\components</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\components\entity.h">
       <Filter>Source Files\components</Filter>
     </ClInclude>
@@ -446,9 +443,6 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\material.h">
       <Filter>Source Files\rendering</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\component.h">
-      <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\initlist.h">
       <Filter>Source Files\containers</Filter>
@@ -492,12 +486,6 @@
     <ClInclude Include="..\src\common\sort.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\components\all.h">
-      <Filter>Source Files\components</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\common.h">
-      <Filter>Source Files\components</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\rendering\components.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
@@ -515,9 +503,6 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\hash_set.h">
       <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\comparator.h">
-      <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\components\system.h">
       <Filter>Source Files\components</Filter>
@@ -545,9 +530,6 @@
     </ClInclude>
     <ClInclude Include="..\src\assets\packdb.h">
       <Filter>Source Files\assets</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\guid_util.h">
-      <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\heap.h">
       <Filter>Source Files\containers</Filter>
@@ -588,9 +570,6 @@
     <ClInclude Include="..\src\common\typeid.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\components\chunk.h">
-      <Filter>Source Files\components</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\atomic_array.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -599,12 +578,6 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\mtarray.h">
       <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\comparator_util.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\resources.h">
-      <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\genid.h">
       <Filter>Source Files\containers</Filter>
@@ -623,6 +596,12 @@
     </ClInclude>
     <ClInclude Include="..\src\allocator\header.h">
       <Filter>Source Files\allocator</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\component_mgr.h">
+      <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\component_row.h">
+      <Filter>Source Files\components</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

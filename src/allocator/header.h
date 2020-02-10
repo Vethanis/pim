@@ -3,6 +3,7 @@
 #include "common/macro.h"
 #include "common/int_types.h"
 #include "containers/slice.h"
+#include "os/atomics.h"
 
 namespace Allocator
 {
@@ -10,8 +11,8 @@ namespace Allocator
     {
         i32 type;
         i32 size;
-        i32 c;
-        i32 d;
+        i32 refcount;
+        i32 arg1;
 
         Slice<u8> AsRaw()
         {
@@ -48,14 +49,14 @@ namespace Allocator
         return hdr + 1;
     }
 
-    static void* MakePtr(void* pRaw, AllocType type, i32 size, i32 arg1 = 0, i32 arg2 = 0)
+    static void* MakePtr(void* pRaw, AllocType type, i32 size, i32 arg1 = 0)
     {
         ASSERT(pRaw);
         Header* hdr = (Header*)pRaw;
-        hdr->type = type;
-        hdr->size = size;
-        hdr->c = arg1;
-        hdr->d = arg2;
+        Store(hdr->type, type, MO_Relaxed);
+        Store(hdr->size, size, MO_Relaxed);
+        Store(hdr->refcount, 1, MO_Relaxed);
+        Store(hdr->arg1, arg1, MO_Relaxed);
         return hdr + 1;
     }
 

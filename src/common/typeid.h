@@ -2,10 +2,8 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "common/comparator.h"
 #include "os/atomics.h"
-
-struct ComponentRow;
+#include "components/component_mgr.h"
 
 struct TypeData
 {
@@ -27,43 +25,31 @@ struct TypeId
 
     TypeData& AsData() const
     {
-        ASSERT(!IsNull());
+        ASSERT(handle);
         return *reinterpret_cast<TypeData*>(handle);
     }
-    i32 SizeOf() const { return AsData().sizeOf; }
-    i32 AlignOf() const { return AsData().alignOf; }
+
+    i32 SizeOf() const { return Load(AsData().sizeOf); }
+    i32 AlignOf() const { return Load(AsData().alignOf); }
+
+    ComponentRow* GetRow()
+    {
+        return ComponentManager::EnsureRow(AsData());
+    }
 };
 
-static bool Equals(const TypeId& lhs, const TypeId& rhs)
-{
-    return lhs.handle == rhs.handle;
-}
-static i32 Compare(const TypeId& lhs, const TypeId& rhs)
-{
-    if (lhs.handle != rhs.handle)
-    {
-        return lhs.handle < rhs.handle ? -1 : 1;
-    }
-    return 0;
-}
-static u32 Hash(const TypeId& id)
-{
-    return Fnv32Qword(id.handle);
-}
-static constexpr Comparator<TypeId> TypeIdComparator = { Equals, Compare, Hash };
-
-struct TypeMgr
+namespace TypeMgr
 {
     template<typename T>
     struct PerType
     {
         static TypeData ms_data;
 
-        static isize GetHandle()
+        static TypeId GetId()
         {
             Store(ms_data.sizeOf, (i32)sizeof(T));
             Store(ms_data.alignOf, (i32)alignof(T));
-            return reinterpret_cast<isize>(&ms_data);
+            return { reinterpret_cast<isize>(&ms_data) };
         }
     };
 };
@@ -74,5 +60,5 @@ TypeData TypeMgr::PerType<T>::ms_data;
 template<typename T>
 static TypeId TypeOf()
 {
-    return TypeId{ TypeMgr::PerType<T>::GetHandle() };
+    return TypeMgr::PerType<T>::GetId();
 }

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/int_types.h"
-#include <string.h>
 
 namespace Allocator
 {
@@ -12,13 +11,7 @@ namespace Allocator
     void* Alloc(AllocType type, i32 bytes);
     void Free(void* prev);
     void* Realloc(AllocType type, void* prev, i32 bytes);
-
-    inline void* Calloc(AllocType type, i32 bytes)
-    {
-        void* ptr = Alloc(type, bytes);
-        memset(ptr, 0, bytes);
-        return ptr;
-    }
+    void* Calloc(AllocType type, i32 bytes);
 
     template<typename T>
     inline T* AllocT(AllocType type, i32 count)

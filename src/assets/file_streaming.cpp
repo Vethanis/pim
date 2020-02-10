@@ -2,18 +2,18 @@
 
 #include "assets/stream_file.h"
 #include "containers/obj_table.h"
-#include "common/guid_util.h"
+#include "common/guid.h"
 #include "components/system.h"
 
-using FileTable = ObjTable<Guid, StreamFile, GuidComparator>;
+using FileTable = ObjTable<Guid, StreamFile, StreamFileArgs>;
 
 static FileTable ms_table;
 
 static StreamFile* GetFile(cstr path)
 {
     Guid id = ToGuid(path);
-    StreamFile* pFile = ms_table.GetAdd(id);
-    if (pFile->Open(path))
+    StreamFile* pFile = ms_table.GetAdd(id, { path });
+    if (pFile->IsOpen())
     {
         return pFile;
     }

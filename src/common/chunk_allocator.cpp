@@ -3,6 +3,7 @@
 #include "common/macro.h"
 #include "allocator/allocator.h"
 #include "os/atomics.h"
+#include <string.h>
 
 void ChunkAllocator::Init(AllocType allocator, i32 itemSize)
 {
@@ -28,7 +29,8 @@ void ChunkAllocator::Reset()
 
 void* ChunkAllocator::Allocate()
 {
-    ASSERT(m_itemSize);
+    const i32 itemSize = m_itemSize;
+    ASSERT(itemSize);
 
 tryalloc:
     Chunk* pChunk = LoadPtr(m_head, MO_Relaxed);
@@ -40,15 +42,15 @@ tryalloc:
             u8 used = Load(inUse[i], MO_Relaxed);
             if (!used && CmpExStrong(inUse[i], used, 1, MO_Acquire))
             {
-                u8* ptr = pChunk->GetItem(i, m_itemSize);
-                memset(ptr, 0, m_itemSize);
+                u8* ptr = pChunk->GetItem(i, itemSize);
+                memset(ptr, 0, itemSize);
                 return ptr;
             }
         }
         pChunk = LoadPtr(pChunk->pNext);
     }
 
-    Chunk* pNew = (Chunk*)Allocator::Calloc(m_allocator, sizeof(Chunk) + (m_itemSize * kChunkSize));
+    Chunk* pNew = (Chunk*)Allocator::Calloc(m_allocator, sizeof(Chunk) + (itemSize * kChunkSize));
 
 tryinsert:
     Chunk* pHead = LoadPtr(m_head);
@@ -62,12 +64,12 @@ tryinsert:
 
 void ChunkAllocator::Free(void* pVoid)
 {
-    ASSERT(m_itemSize);
+    const i32 itemSize = m_itemSize;
+    ASSERT(itemSize);
 
     if (pVoid)
     {
         u8* ptr = (u8*)pVoid;
-        const i32 itemSize = m_itemSize;
         Chunk* pChunk = LoadPtr(m_head, MO_Relaxed);
         while (pChunk)
         {

@@ -45,8 +45,8 @@ public:
         bytes = AlignBytes(bytes);
 
     tryalloc:
-        u8* tail = LoadPtr(m_tail);
-        u8* head = LoadPtr(m_head);
+        u8* tail = LoadPtr(m_tail, MO_Relaxed);
+        u8* head = LoadPtr(m_head, MO_Relaxed);
         if (head + bytes <= tail)
         {
             if (CmpExStrongPtr(m_head, head, head + bytes, MO_Acquire))
@@ -68,11 +68,14 @@ public:
         }
 
         Header* prev = ToHeader(ptr, Alloc_Linear);
+        const i32 rc = Dec(prev->refcount, MO_Relaxed);
+        ASSERT(rc == 1);
+
         u8* begin = prev->begin();
         u8* end = prev->end();
 
     tryfree:
-        u8* head = LoadPtr(m_head);
+        u8* head = LoadPtr(m_head, MO_Relaxed);
         ASSERT(head);
         if (end == head)
         {
@@ -102,15 +105,23 @@ public:
         bytes = AlignBytes(bytes);
 
         Header* prev = ToHeader(ptr, Alloc_Linear);
+        const i32 rc = Load(prev->refcount, MO_Relaxed);
+        ASSERT(rc == 1);
+
         const i32 diff = bytes - prev->size;
+        if (diff <= 0)
+        {
+            return ptr;
+        }
+
         u8* end = prev->end();
 
     tryresize:
-        u8* head = LoadPtr(m_head);
+        u8* head = LoadPtr(m_head, MO_Relaxed);
         ASSERT(head);
         if (end == head)
         {
-            if (CmpExStrongPtr(m_head, head, head + diff))
+            if (CmpExStrongPtr(m_head, head, head + diff, MO_Acquire))
             {
                 prev->size += diff;
                 return prev;

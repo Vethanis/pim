@@ -43,6 +43,8 @@ struct StdlibAllocator final : IAllocator
         }
         bytes = AlignBytes(bytes);
         Header* hdr = ToHeader(ptr, m_type);
+        const i32 rc = Load(hdr->refcount, MO_Relaxed);
+        ASSERT(rc == 1);
         void* pNew = realloc(hdr, bytes);
         return MakePtr(pNew, m_type, bytes);
     }
@@ -54,6 +56,8 @@ struct StdlibAllocator final : IAllocator
         if (ptr)
         {
             Header* hdr = ToHeader(ptr, m_type);
+            const i32 rc = Dec(hdr->refcount, MO_Relaxed);
+            ASSERT(rc == 1);
             free(hdr);
         }
     }

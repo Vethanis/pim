@@ -6,7 +6,6 @@
 #include "containers/array.h"
 #include "common/find.h"
 #include "components/system.h"
-#include "common/comparator_util.h"
 
 // ----------------------------------------------------------------------------
 
@@ -87,18 +86,16 @@ static void OnMouseScroll(const sapp_event* evt)
 
 namespace InputSystem
 {
-    static constexpr auto ListenerEq = PtrEquatable<InputListener>();
-
     bool Register(InputChannel channel, InputListener listener)
     {
         ASSERT(listener);
-        return FindAdd(ms_listeners[channel], listener, ListenerEq);
+        return ms_listeners[channel].FindAdd(listener);
     }
 
     bool Remove(InputChannel channel, InputListener listener)
     {
         ASSERT(listener);
-        return FindRemove(ms_listeners[channel], listener, ListenerEq);
+        return ms_listeners[channel].FindRemove(listener);
     }
 
     void OnEvent(const sapp_event* evt, bool keyboardCaptured)

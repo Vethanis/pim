@@ -3,7 +3,7 @@
 #include "common/chunk_allocator.h"
 #include <new>
 
-template<typename T>
+template<typename T, typename Args>
 struct ObjPool
 {
     ChunkAllocator m_chunks;
@@ -17,6 +17,6 @@ struct ObjPool
         m_chunks.Reset();
     }
 
-    T* New() { return new (m_chunks.Allocate()) T(); }
+    T* New(Args args) { return new (m_chunks.Allocate()) T(args); }
     void Delete(T* ptr) { if (ptr) { ptr->~T(); m_chunks.Free(ptr); } }
 };

@@ -135,11 +135,12 @@ struct Array
         ASSERT(iBack >= 0);
     }
 
-    void PushBack(T item)
+    i32 PushBack(T item)
     {
         const i32 iBack = m_length++;
         Reserve(iBack + 1);
         m_ptr[iBack] = item;
+        return iBack;
     }
 
     T PopBack()

@@ -4,13 +4,11 @@
 #include "containers/hash_dict.h"
 #include "containers/obj_pool.h"
 
-template<typename K, typename V, const Comparator<K>& cmp>
+template<typename K, typename V, typename Args>
 struct ObjTable
 {
-    using TableType = ObjTable<K, V, cmp>;
-
-    HashDict<K, V*, cmp> m_dict;
-    ObjPool<V> m_pool;
+    HashDict<K, V*> m_dict;
+    ObjPool<V, Args> m_pool;
 
     void Init()
     {
@@ -20,23 +18,15 @@ struct ObjTable
 
     void Reset()
     {
-        Array<K> keys = CreateArray<K>(Alloc_Linear, m_dict.size());
-        Array<V*> values = CreateArray<V*>(Alloc_Linear, m_dict.size());
-        m_dict.GetElements(keys, values);
-        m_dict.Reset();
-
-        for (V* value : values)
+        for (auto pair : m_dict)
         {
-            value->~V();
+            pair.value->~V();
         }
-
-        keys.Reset();
-        values.Reset();
-
+        m_dict.Reset();
         m_pool.Reset();
     }
 
-    V* New() { return m_pool.New(); }
+    V* New(Args args) { return m_pool.New(args); }
     void Delete(V* ptr) { m_pool.Delete(ptr); }
 
     V* Get(K key)
@@ -46,21 +36,15 @@ struct ObjTable
         return ptr;
     }
 
-    bool Add(K key, V* ptrIn)
-    {
-        ASSERT(ptrIn);
-        return m_dict.Add(key, ptrIn);
-    }
-
-    V* GetAdd(K key)
+    V* GetAdd(K key, Args args)
     {
         V* ptr = Get(key);
         if (ptr)
         {
             return ptr;
         }
-        ptr = New();
-        if (Add(key, ptr))
+        ptr = New(args);
+        if (m_dict.Add(key, ptr))
         {
             return ptr;
         }
@@ -70,10 +54,14 @@ struct ObjTable
         return ptr;
     }
 
-    V* Remove(K key)
+    bool Remove(K key)
     {
         V* ptrOut = 0;
-        m_dict.Remove(key, ptrOut);
-        return ptrOut;
+        if (m_dict.Remove(key, ptrOut))
+        {
+            Delete(ptrOut);
+            return true;
+        }
+        return false;
     }
 };

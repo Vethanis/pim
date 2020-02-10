@@ -16,7 +16,7 @@ namespace TaskGraph
         OS::LockGuard guard(ms_mutex);
         if (ms_tasks.FindAdd(pNode))
         {
-            return { ms_graph.Add(), ms_frame };
+            return { ms_graph.AddVertex(), ms_frame };
         }
         return { -1, -1 };
     }

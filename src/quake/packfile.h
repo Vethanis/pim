@@ -24,6 +24,11 @@ namespace Quake
         char name[56];
         i32 offset;
         i32 length;
+
+        bool operator<(const DPackFile& rhs) const
+        {
+            return offset - rhs.offset;
+        }
     };
 
     struct Pack
