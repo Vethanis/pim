@@ -6,6 +6,11 @@ struct TaskId
 {
     i32 value;
     i32 frame;
+
+    bool operator==(TaskId rhs) const
+    {
+        return ((value - rhs.value) | (frame - rhs.frame)) == 0;
+    }
 };
 
 namespace TaskGraph

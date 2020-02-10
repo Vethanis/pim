@@ -41,9 +41,9 @@ namespace std
             return (_Last);
         }
 
-        constexpr size_t size() const noexcept
+        constexpr i32 size() const noexcept
         {	// get length of list
-            return (static_cast<size_t>(_Last - _First));
+            return (static_cast<i32>(_Last - _First));
         }
 
         inline operator Slice<const _Elem>() const noexcept

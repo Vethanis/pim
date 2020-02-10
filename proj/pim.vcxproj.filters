@@ -217,6 +217,9 @@
     <ClCompile Include="..\src\allocator\tlsf_allocator.cpp">
       <Filter>Source Files\allocator</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\components\entity_system.cpp">
+      <Filter>Source Files\components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\hash.h">
@@ -617,6 +620,9 @@
     </ClInclude>
     <ClInclude Include="..\src\allocator\tlsf_allocator.h">
       <Filter>Source Files\allocator</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\entity_system.h">
+      <Filter>Source Files\components</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

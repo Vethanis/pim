@@ -27,6 +27,7 @@
     <ClCompile Include="..\src\common\time.cpp" />
     <ClCompile Include="..\src\components\component_mgr.cpp" />
     <ClCompile Include="..\src\components\ecs.cpp" />
+    <ClCompile Include="..\src\components\entity_system.cpp" />
     <ClCompile Include="..\src\components\taskgraph.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
@@ -96,6 +97,7 @@
     <ClInclude Include="..\src\components\component_row.h" />
     <ClInclude Include="..\src\components\ecs.h" />
     <ClInclude Include="..\src\components\entity.h" />
+    <ClInclude Include="..\src\components\entity_system.h" />
     <ClInclude Include="..\src\components\system.h" />
     <ClInclude Include="..\src\components\taskgraph.h" />
     <ClInclude Include="..\src\containers\array.h" />

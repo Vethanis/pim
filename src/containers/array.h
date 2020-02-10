@@ -245,19 +245,13 @@ struct Array
     }
 };
 
-template<typename T>
-static void Copy(Array<T>& dst, Slice<T> src)
+template<typename T, typename C>
+static void Copy(Array<T>& dst, const C& src)
 {
     const i32 length = src.size();
     const i32 bytes = sizeof(T) * length;
     dst.Resize(length);
     memcpy(dst.begin(), src.begin(), bytes);
-}
-
-template<typename T>
-static void Copy(Array<T>& dst, Array<T> src)
-{
-    Copy(dst, src.AsSlice());
 }
 
 template<typename T>

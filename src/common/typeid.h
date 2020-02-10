@@ -32,7 +32,7 @@ struct TypeId
     i32 SizeOf() const { return Load(AsData().sizeOf); }
     i32 AlignOf() const { return Load(AsData().alignOf); }
 
-    ComponentRow* GetRow()
+    ComponentRow* GetRow() const
     {
         return ComponentManager::EnsureRow(AsData());
     }

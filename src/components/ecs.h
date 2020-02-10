@@ -44,5 +44,6 @@ namespace Ecs
         i32 length;
     };
 
-    QueryResult ForEach(std::initializer_list<TypeId> all = {}, std::initializer_list<TypeId> none = {});
+    QueryResult ForEach(std::initializer_list<TypeId> all, std::initializer_list<TypeId> none = {});
+    QueryResult ForEach(const TypeId* pAll, i32 allCount, const TypeId* pNone, i32 noneCount);
 };

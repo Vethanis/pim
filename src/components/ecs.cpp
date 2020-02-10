@@ -138,6 +138,11 @@ namespace Ecs
 
     QueryResult ForEach(std::initializer_list<TypeId> all, std::initializer_list<TypeId> none)
     {
+        return ForEach(all.begin(), all.size(), none.begin(), none.size());
+    }
+
+    QueryResult ForEach(const TypeId* pAll, i32 allCount, const TypeId* pNone, i32 noneCount)
+    {
         Array<Entity> results = CreateArray<Entity>(Alloc_Stack, size());
 
         OS::ReadGuard guard(ms_lock);
@@ -155,17 +160,17 @@ namespace Ecs
                 goto next;
             }
 
-            for (TypeId type : all)
+            for (i32 j = 0; j < allCount; ++j)
             {
-                if (!type.GetRow()->Get(i))
+                if (!pAll[j].GetRow()->Get(i))
                 {
                     goto next;
                 }
             }
 
-            for (TypeId type : none)
+            for (i32 j = 0; j < noneCount; ++j)
             {
-                if (type.GetRow()->Get(i))
+                if (pNone[j].GetRow()->Get(i))
                 {
                     goto next;
                 }
