@@ -130,7 +130,7 @@ namespace InputSystem
     {
         for (Array<InputListener>& listeners : ms_listeners)
         {
-            listeners.Init(Alloc_Pool);
+            listeners.Init(Alloc_Tlsf);
         }
     }
 

@@ -4,6 +4,7 @@
 #include "allocator/pool_allocator.h"
 #include "allocator/stack_allocator.h"
 #include "allocator/stdlib_allocator.h"
+#include "allocator/tlsf_allocator.h"
 
 #include "containers/array.h"
 #include "common/hashstring.h"
@@ -12,7 +13,7 @@
 
 #if ENABLE_LEAK_TRACKER
 #include "allocator/leak_tracker.h"
-#endif
+#endif // ENABLE_LEAK_TRACKER
 
 namespace Allocator
 {
@@ -20,7 +21,8 @@ namespace Allocator
     static StdlibAllocator ms_debug = StdlibAllocator(Alloc_Debug);
     static LinearAllocator ms_linear = LinearAllocator(1 << 20);
     static StackAllocator ms_stack = StackAllocator(1 << 20);
-    static PoolAllocator ms_pool = PoolAllocator(64 << 20);
+    static PoolAllocator ms_pool = PoolAllocator(1 << 20);
+    static TlsfAllocator ms_tlsf = TlsfAllocator(16 << 20);
 
 #if ENABLE_LEAK_TRACKER
     static LeakTracker ms_tracker = LeakTracker();
@@ -70,6 +72,9 @@ namespace Allocator
             break;
         case Alloc_Debug:
             ptr = ms_debug.Alloc(bytes);
+            break;
+        case Alloc_Tlsf:
+            ptr = ms_tlsf.Alloc(bytes);
             break;
         default:
             ASSERT(false);
@@ -121,6 +126,9 @@ namespace Allocator
         case Alloc_Debug:
             ptr = ms_debug.Realloc(prev, bytes);
             break;
+        case Alloc_Tlsf:
+            ptr = ms_tlsf.Realloc(prev, bytes);
+            break;
         default:
             ASSERT(false);
         }
@@ -158,6 +166,9 @@ namespace Allocator
                 break;
             case Alloc_Debug:
                 ms_debug.Free(ptr);
+                break;
+            case Alloc_Tlsf:
+                ms_tlsf.Free(ptr);
                 break;
             default:
                 ASSERT(false);

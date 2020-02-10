@@ -83,6 +83,9 @@
     <Filter Include="submodules\stackwalker">
       <UniqueIdentifier>{e0456328-7388-42da-a262-d62c91264225}</UniqueIdentifier>
     </Filter>
+    <Filter Include="submodules\tlsf">
+      <UniqueIdentifier>{a5fc4c19-dc35-45aa-95d5-c09346c1ec2f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -207,6 +210,12 @@
     </ClCompile>
     <ClCompile Include="..\src\components\component_mgr.cpp">
       <Filter>Source Files\components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\tlsf\tlsf.c">
+      <Filter>submodules\tlsf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\allocator\tlsf_allocator.cpp">
+      <Filter>Source Files\allocator</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -602,6 +611,12 @@
     </ClInclude>
     <ClInclude Include="..\src\components\component_row.h">
       <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\tlsf\tlsf.h">
+      <Filter>submodules\tlsf</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\allocator\tlsf_allocator.h">
+      <Filter>Source Files\allocator</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -56,8 +56,8 @@ namespace TaskGraph
     static void Init()
     {
         ms_mutex.Open();
-        ms_graph.Init(Alloc_Pool);
-        ms_tasks.Init(Alloc_Pool);
+        ms_graph.Init(Alloc_Tlsf);
+        ms_tasks.Init(Alloc_Tlsf);
     }
     static void Update()
     {

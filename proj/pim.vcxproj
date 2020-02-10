@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\allocator\allocator.cpp" />
+    <ClCompile Include="..\src\allocator\tlsf_allocator.cpp" />
     <ClCompile Include="..\src\assets\assetdb.cpp" />
     <ClCompile Include="..\src\assets\asset_system.cpp" />
     <ClCompile Include="..\src\assets\file_streaming.cpp" />
@@ -51,6 +52,7 @@
     <ClCompile Include="..\submodules\miniz\miniz.c" />
     <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp" />
     <ClCompile Include="..\submodules\stb\stb_vorbis.c" />
+    <ClCompile Include="..\submodules\tlsf\tlsf.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\allocator\allocator.h" />
@@ -61,6 +63,7 @@
     <ClInclude Include="..\src\allocator\pool_allocator.h" />
     <ClInclude Include="..\src\allocator\stack_allocator.h" />
     <ClInclude Include="..\src\allocator\stdlib_allocator.h" />
+    <ClInclude Include="..\src\allocator\tlsf_allocator.h" />
     <ClInclude Include="..\src\assets\assetdb.h" />
     <ClInclude Include="..\src\assets\asset_system.h" />
     <ClInclude Include="..\src\assets\file_streaming.h" />
@@ -132,6 +135,7 @@
     <ClInclude Include="..\src\physics\components.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
     <ClInclude Include="..\src\quake\packfile.h" />
+    <ClInclude Include="..\submodules\tlsf\tlsf.h" />
     <FxCompile Include="..\src\shaders\quat.hlsl">
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>

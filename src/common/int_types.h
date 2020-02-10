@@ -37,6 +37,7 @@ enum AllocType : u8
     Alloc_Stack,
     Alloc_Pool,
     Alloc_Debug,
+    Alloc_Tlsf,
 
     Alloc_COUNT
 };

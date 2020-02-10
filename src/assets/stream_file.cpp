@@ -24,7 +24,7 @@ StreamFile::StreamFile(StreamFileArgs args) : ITask()
     ASSERT(args.path);
     m_lock.Open();
     m_file = fopen(args.path, "r+b");
-    m_queue.Init(Alloc_Pool, 64);
+    m_queue.Init(Alloc_Tlsf, 64);
 }
 
 StreamFile::~StreamFile()

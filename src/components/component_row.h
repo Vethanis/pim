@@ -26,7 +26,7 @@ struct ComponentRow
         StorePtr(m_ptrs, (isize*)0);
         Store(m_length, 0);
         Store(m_capacity, 0);
-        m_allocator.Init(Alloc_Pool, stride);
+        m_allocator.Init(Alloc_Tlsf, stride);
     }
 
     void Reset()
@@ -48,7 +48,7 @@ struct ComponentRow
             if (newSize > curCap)
             {
                 const i32 newCap = Max(newSize, Max(curCap * 2, 64));
-                m_ptrs = Allocator::ReallocT<isize>(Alloc_Pool, m_ptrs, newCap);
+                m_ptrs = Allocator::ReallocT<isize>(Alloc_Tlsf, m_ptrs, newCap);
                 memset(m_ptrs + curCap, 0, (newCap - curCap) * sizeof(isize));
                 Store(m_capacity, newCap);
             }

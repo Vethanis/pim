@@ -12,7 +12,7 @@ struct ObjTable
 
     void Init()
     {
-        m_dict.Init(Alloc_Pool);
+        m_dict.Init(Alloc_Tlsf);
         m_pool.Init();
     }
 

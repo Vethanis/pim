@@ -47,7 +47,7 @@ struct TPool
 
     TPool()
     {
-        m_allocator.Init(Alloc_Pool, sizeof(T));
+        m_allocator.Init(Alloc_Tlsf, sizeof(T));
     }
     ~TPool()
     {

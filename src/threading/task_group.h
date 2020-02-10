@@ -7,7 +7,7 @@ struct TaskGroup final : ITask
 {
     TaskGroup(ITask* dep) : ITask(), m_dep(dep)
     {
-        m_group.Init(Alloc_Pool);
+        m_group.Init(Alloc_Tlsf);
     }
     ~TaskGroup()
     {
@@ -92,7 +92,7 @@ struct TaskParallelFor final : ITask
         ASSERT(pLoop);
         ASSERT(end >= begin);
         ASSERT(granularity > 0);
-        m_tasks.Init(Alloc_Pool);
+        m_tasks.Init(Alloc_Tlsf);
         while (begin < end)
         {
             const i32 next = Min(begin + granularity, end);

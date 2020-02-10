@@ -88,7 +88,7 @@ namespace SystemRegistry
 
     void Init()
     {
-        ms_graph.Init(Alloc_Pool);
+        ms_graph.Init(Alloc_Tlsf);
         SortSystems();
         const i32 count = ms_systemCount;
         for (i32 i = 0; i < count; ++i)

@@ -7,3 +7,6 @@
 [submodule "submodules/imgui"]
 	path = submodules/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "submodules/tlsf"]
+	path = submodules/tlsf
+	url = https://github.com/mattconte/tlsf

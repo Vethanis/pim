@@ -42,7 +42,7 @@ namespace Ecs
             return;
         }
         const i32 newCap = Max(newSize, Max(curCap * 2, 1024));
-        ms_versions = Allocator::ReallocT<i32>(Alloc_Pool, ms_versions, newCap);
+        ms_versions = Allocator::ReallocT<i32>(Alloc_Tlsf, ms_versions, newCap);
         memset(ms_versions + curCap, 0, (newCap - curCap) * sizeof(i32));
         Store(ms_capacity, newCap);
     }
@@ -183,8 +183,8 @@ namespace Ecs
     static void Init()
     {
         ms_lock.Open();
-        ms_free.Init(Alloc_Pool, 1024);
-        ms_types.Init(Alloc_Pool, 1024);
+        ms_free.Init(Alloc_Tlsf, 1024);
+        ms_types.Init(Alloc_Tlsf, 1024);
         ms_length = 0;
         ms_capacity = 0;
         ms_versions = 0;
