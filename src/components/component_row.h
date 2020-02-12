@@ -113,4 +113,26 @@ struct ComponentRow
         m_lock.UnlockReader();
         return false;
     }
+
+    Slice<const void*> BorrowReader()
+    {
+        m_lock.LockReader();
+        return { (const void**)m_ptrs, size() };
+    }
+    void ReturnReader(Slice<const void*> borrow)
+    {
+        m_lock.UnlockReader();
+        ASSERT(borrow.begin() == (const void**)m_ptrs);
+    }
+
+    Slice<void*> BorrowWriter()
+    {
+        m_lock.LockWriter();
+        return { (void**)m_ptrs, size() };
+    }
+    void ReturnWriter(Slice<void*> borrow)
+    {
+        m_lock.UnlockWriter();
+        ASSERT(borrow.begin() == (void**)m_ptrs);
+    }
 };

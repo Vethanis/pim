@@ -27,38 +27,38 @@ struct StdlibAllocator final : IAllocator
         return nullptr;
     }
 
-    void* Realloc(void* ptr, i32 bytes) final
+    void* Realloc(void* pOld, i32 bytes) final
     {
         using namespace Allocator;
 
-        if (!ptr)
+        if (!pOld)
         {
             return Alloc(bytes);
         }
         if (bytes <= 0)
         {
             ASSERT(bytes == 0);
-            Free(ptr);
+            Free(pOld);
             return nullptr;
         }
         bytes = AlignBytes(bytes);
-        Header* hdr = ToHeader(ptr, m_type);
-        const i32 rc = Load(hdr->refcount, MO_Relaxed);
+        Header* hOld = ToHeader(pOld, m_type);
+        const i32 rc = Load(hOld->refcount, MO_Relaxed);
         ASSERT(rc == 1);
-        void* pNew = realloc(hdr, bytes);
-        return MakePtr(pNew, m_type, bytes);
+        Header* hNew = (Header*)realloc(hOld, bytes);
+        return MakePtr(hNew, m_type, bytes);
     }
 
-    void Free(void* ptr) final
+    void Free(void* pOld) final
     {
         using namespace Allocator;
 
-        if (ptr)
+        if (pOld)
         {
-            Header* hdr = ToHeader(ptr, m_type);
-            const i32 rc = Dec(hdr->refcount, MO_Relaxed);
+            Header* hOld = ToHeader(pOld, m_type);
+            const i32 rc = Dec(hOld->refcount, MO_Relaxed);
             ASSERT(rc == 1);
-            free(hdr);
+            free(hOld);
         }
     }
 };

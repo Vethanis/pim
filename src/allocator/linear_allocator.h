@@ -58,21 +58,21 @@ public:
         return 0;
     }
 
-    void Free(void* ptr) final
+    void Free(void* pOld) final
     {
         using namespace Allocator;
 
-        if (!ptr)
+        if (!pOld)
         {
             return;
         }
 
-        Header* prev = ToHeader(ptr, Alloc_Linear);
-        const i32 rc = Dec(prev->refcount, MO_Relaxed);
+        Header* hOld = ToHeader(pOld, Alloc_Linear);
+        const i32 rc = Dec(hOld->refcount, MO_Relaxed);
         ASSERT(rc == 1);
 
-        u8* begin = prev->begin();
-        u8* end = prev->end();
+        u8* begin = hOld->begin();
+        u8* end = hOld->end();
 
     tryfree:
         u8* head = LoadPtr(m_head, MO_Relaxed);
@@ -86,35 +86,35 @@ public:
         }
     }
 
-    void* Realloc(void* ptr, i32 bytes) final
+    void* Realloc(void* pOld, i32 bytes) final
     {
         using namespace Allocator;
 
-        if (!ptr)
+        if (!pOld)
         {
             return Alloc(bytes);
         }
         if (bytes <= 0)
         {
             ASSERT(bytes == 0);
-            Free(ptr);
+            Free(pOld);
             return nullptr;
         }
 
         const i32 userBytes = bytes;
         bytes = AlignBytes(bytes);
 
-        Header* prev = ToHeader(ptr, Alloc_Linear);
-        const i32 rc = Load(prev->refcount, MO_Relaxed);
+        Header* hOld = ToHeader(pOld, Alloc_Linear);
+        const i32 rc = Load(hOld->refcount, MO_Relaxed);
         ASSERT(rc == 1);
 
-        const i32 diff = bytes - prev->size;
+        const i32 diff = bytes - hOld->size;
         if (diff <= 0)
         {
-            return ptr;
+            return pOld;
         }
 
-        u8* end = prev->end();
+        u8* end = hOld->end();
 
     tryresize:
         u8* head = LoadPtr(m_head, MO_Relaxed);
@@ -123,8 +123,8 @@ public:
         {
             if (CmpExStrongPtr(m_head, head, head + diff, MO_Acquire))
             {
-                prev->size += diff;
-                return prev;
+                hOld->size += diff;
+                return pOld;
             }
             goto tryresize;
         }
@@ -132,9 +132,9 @@ public:
         void* pNew = Alloc(userBytes);
         if (pNew)
         {
-            Copy(ToHeader(pNew, Alloc_Linear), prev);
+            Copy(ToHeader(pNew, Alloc_Linear), hOld);
         }
-        Free(prev);
+        Free(pOld);
         return pNew;
     }
 

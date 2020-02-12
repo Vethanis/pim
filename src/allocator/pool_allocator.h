@@ -114,15 +114,15 @@ private:
         return nullptr;
     }
 
-    void _Free(void* ptr)
+    void _Free(void* pOld)
     {
         using namespace Allocator;
 
-        Header* hdr = ToHeader(ptr, Alloc_Pool);
-        const i32 rc = Dec(hdr->refcount, MO_Relaxed);
+        Header* hOld = ToHeader(pOld, Alloc_Pool);
+        const i32 rc = Dec(hOld->refcount, MO_Relaxed);
         ASSERT(rc == 1);
 
-        m_heap.Insert({ hdr->arg1, hdr->size });
+        m_heap.Insert({ hOld->arg1, hOld->size });
     }
 
     void* _Realloc(void* pOld, i32 bytes)

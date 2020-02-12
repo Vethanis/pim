@@ -92,27 +92,27 @@ private:
         Slice<u8> allocation = m_stack.Head(bytes);
         m_stack = m_stack.Tail(bytes);
 
-        Header* pNew = (Header*)allocation.begin();
-        m_allocations.PushBack(pNew);
-        return MakePtr(pNew, Alloc_Stack, bytes, 0);
+        Header* hNew = (Header*)allocation.begin();
+        m_allocations.PushBack(hNew);
+        return MakePtr(hNew, Alloc_Stack, bytes, 0);
     }
 
-    void _Free(void* ptr)
+    void _Free(void* pOld)
     {
         using namespace Allocator;
 
-        Header* hdr = ToHeader(ptr, Alloc_Stack);
-        const i32 rc = Dec(hdr->refcount, MO_Relaxed);
+        Header* hOld = ToHeader(pOld, Alloc_Stack);
+        const i32 rc = Dec(hOld->refcount, MO_Relaxed);
         ASSERT(rc == 1);
-        Store(hdr->arg1, 1);
+        Store(hOld->arg1, 1);
 
         while (m_allocations.size())
         {
-            Header* pBack = m_allocations.back();
-            if (Load(pBack->arg1))
+            Header* hBack = m_allocations.back();
+            if (Load(hBack->arg1))
             {
                 m_allocations.Pop();
-                m_stack = Combine(m_stack, pBack->AsRaw());
+                m_stack = Combine(m_stack, hBack->AsRaw());
             }
             else
             {

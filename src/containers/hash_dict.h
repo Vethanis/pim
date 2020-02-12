@@ -207,8 +207,8 @@ public:
 
         OS::RWFlag* const flags = m_flags;
         u32* const hashes = m_hashes;
-        const K* const keys = m_keys;
-        const V* const values = m_values;
+        K* const keys = m_keys;
+        V* const values = m_values;
 
         u32 width = capacity();
         const u32 mask = width - 1u;
