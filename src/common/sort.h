@@ -46,6 +46,49 @@ static void Sort(T* items, i32 count)
     Sort(items + i, count - i);
 }
 
+template<typename T, typename C>
+static void Sort(T* items, i32 count, C LtFn)
+{
+    if (count < 2)
+    {
+        return;
+    }
+
+    i32 i = 0;
+    {
+        i32 j = count - 1;
+        const T pivot = items[count >> 1];
+        while (true)
+        {
+            while ((i < j) && LtFn(items[i], pivot))
+            {
+                ++i;
+            }
+            while ((j > i) && LtFn(pivot, items[j]))
+            {
+                --j;
+            }
+
+            if (i >= j)
+            {
+                break;
+            }
+
+            {
+                T temp = items[i];
+                items[i] = items[j];
+                items[j] = temp;
+            }
+
+            ++i;
+            --j;
+        }
+    }
+
+    Sort(items, i, LtFn);
+    Sort(items + i, count - i, LtFn);
+}
+
 template<typename T>
 static i32 PushSort(T* const items, i32 countWithItem, const T& item)
 {

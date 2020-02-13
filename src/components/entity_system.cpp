@@ -6,7 +6,7 @@
 #include "components/component_row.h"
 #include "common/sort.h"
 
-static HashDict<Guid, IEntitySystem*> ms_systems;
+static Array<IEntitySystem*> ms_systems;
 
 static void Init()
 {
@@ -20,40 +20,27 @@ static void Shutdown()
 
 static void Update()
 {
-    Array<IEntitySystem*> systems = CreateArray<IEntitySystem*>(Alloc_Linear, ms_systems.size());
-    for (auto pair : ms_systems)
+    const i32 count = ms_systems.size();
+
+    Sort(ms_systems.begin(), count, IEntitySystem::LessThan);
+
+    for (i32 i = 0; i < count; ++i)
     {
-        systems.PushBack(pair.value);
+        TaskGraph::AddVertex(ms_systems[i]);
     }
 
-    Sort(systems.begin(), systems.size());
-
-    for (IEntitySystem* pDst : systems)
+    for (i32 i = count - 1; i > 0; --i)
     {
-        TaskGraph::AddVertex(pDst);
-    }
-
-    for (i32 i = 0; i < systems.size() - 1; ++i)
-    {
-        IEntitySystem* lhs = systems[i];
-        IEntitySystem* rhs = systems[i + 1];
-        // TODO:
-        // test for query overlap (one writes on anothers query)
-        // if so, add edge
-    }
-
-    for (IEntitySystem* pDst : systems)
-    {
-        Slice<const Guid> deps = pDst->GetDeps();
-        for (Guid id : deps)
+        IEntitySystem* dst = ms_systems[i];
+        for (i32 j = i - 1; j >= 0; --j)
         {
-            IEntitySystem* pSrc = IEntitySystem::FindSystem(id);
-            ASSERT(pSrc);
-            TaskGraph::AddEdge(pSrc, pDst);
+            IEntitySystem* src = ms_systems[j];
+            if (IEntitySystem::Overlaps(dst, src))
+            {
+                TaskGraph::AddEdge(src, dst);
+            }
         }
     }
-
-    systems.Reset();
 
     TaskGraph::Evaluate();
 }
@@ -86,11 +73,11 @@ void QueryRows::Reset()
 void QueryRows::Borrow()
 {
     m_readableRows.Clear();
+    m_writableRows.Clear();
     for (TypeId type : m_readableTypes)
     {
         m_readableRows.PushBack(type.GetRow()->BorrowReader());
     }
-    m_writableRows.Clear();
     for (TypeId type : m_writableTypes)
     {
         m_writableRows.PushBack(type.GetRow()->BorrowWriter());
@@ -109,12 +96,57 @@ void QueryRows::Return()
         TypeId type = m_readableTypes[i];
         type.GetRow()->ReturnReader(m_readableRows[i]);
     }
+    m_writableRows.Clear();
+    m_readableRows.Clear();
 }
 
 void QueryRows::Set(Slice<const TypeId> readable, Slice<const TypeId> writable)
 {
     Copy(m_readableTypes, readable);
     Copy(m_writableTypes, writable);
+}
+
+Slice<void*> QueryRows::GetRW(TypeId type)
+{
+    i32 i = m_writableTypes.Find(type);
+    if (i != -1)
+    {
+        return m_writableRows[i];
+    }
+    return { 0, 0 };
+}
+
+Slice<const void*> QueryRows::GetR(TypeId type) const
+{
+    i32 i = m_readableTypes.Find(type);
+    if (i != -1)
+    {
+        return m_readableRows[i];
+    }
+    return { 0, 0 };
+}
+
+bool QueryRows::Overlaps(const QueryRows& lhs, const QueryRows& rhs)
+{
+    for (TypeId type : lhs.m_writableTypes)
+    {
+        if (rhs.m_writableTypes.Contains(type))
+        {
+            return true;
+        }
+        if (rhs.m_readableTypes.Contains(type))
+        {
+            return true;
+        }
+    }
+    for (TypeId type : lhs.m_readableTypes)
+    {
+        if (rhs.m_writableTypes.Contains(type))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool QueryRows::operator<(const QueryRows& rhs) const
@@ -128,18 +160,15 @@ bool QueryRows::operator<(const QueryRows& rhs) const
 
 // ----------------------------------------------------------------------------
 
-IEntitySystem::IEntitySystem(cstr name) : TaskNode()
+IEntitySystem::IEntitySystem() : TaskNode()
 {
-    m_id = ToGuid(name);
     m_query.Init();
-    ms_systems.Add(m_id, this);
+    ms_systems.PushBack(this);
 }
 
 IEntitySystem::~IEntitySystem()
 {
-    IEntitySystem* pRemoved = 0;
-    ms_systems.Remove(m_id, pRemoved);
-
+    ms_systems.FindRemove(this);
     m_query.Reset();
 }
 
@@ -155,9 +184,12 @@ void IEntitySystem::Execute()
     m_query.Return();
 }
 
-IEntitySystem* IEntitySystem::FindSystem(Guid id)
+bool IEntitySystem::LessThan(const IEntitySystem* pLhs, const IEntitySystem* pRhs)
 {
-    IEntitySystem* pSystem = 0;
-    ms_systems.Get(id, pSystem);
-    return pSystem;
+    return pLhs->m_query < pRhs->m_query;
+}
+
+bool IEntitySystem::Overlaps(const IEntitySystem* pLhs, const IEntitySystem* pRhs)
+{
+    return QueryRows::Overlaps(pLhs->m_query, pRhs->m_query);
 }
