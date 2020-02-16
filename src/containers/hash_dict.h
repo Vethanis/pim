@@ -15,7 +15,6 @@ private:
     OS::RWLock m_lock;
     u32 m_count;
     u32 m_width;
-    OS::RWFlag* m_flags;
     u32* m_hashes;
     K* m_keys;
     V* m_values;
@@ -26,7 +25,7 @@ public:
     u32 size() const { return Load(m_count); }
     u32 capacity() const { return Load(m_width); }
 
-    void Init(AllocType allocator)
+    void Init(AllocType allocator = Alloc_Tlsf)
     {
         memset(this, 0, sizeof(*this));
         m_allocator = allocator;
@@ -36,11 +35,9 @@ public:
     void Reset()
     {
         m_lock.LockWriter();
-        Allocator::Free(m_flags);
         Allocator::Free(m_hashes);
         Allocator::Free(m_keys);
         Allocator::Free(m_values);
-        m_flags = 0;
         m_hashes = 0;
         m_values = 0;
         m_width = 0;
@@ -52,14 +49,12 @@ public:
     {
         OS::WriteGuard guard(m_lock);
         m_count = 0;
-        OS::RWFlag* flags = m_flags;
         u32* hashes = m_hashes;
         K* keys = m_keys;
         V* values = m_values;
         const u32 width = m_width;
-        if (flags)
+        if (hashes)
         {
-            memset(flags, 0, sizeof(OS::RWFlag) * width);
             memset(hashes, 0, sizeof(u32) * width);
             memset(keys, 0, sizeof(K) * width);
             memset(values, 0, sizeof(V) * width);
@@ -91,14 +86,12 @@ public:
         }
 
         const AllocType allocator = GetAllocator();
-        OS::RWFlag* newFlags = Allocator::CallocT<OS::RWFlag>(allocator, newWidth);
         u32* newHashes = Allocator::CallocT<u32>(allocator, newWidth);
         K* newKeys = Allocator::CallocT<K>(allocator, newWidth);
         V* newValues = Allocator::AllocT<V>(allocator, newWidth);
 
         m_lock.LockWriter();
 
-        OS::RWFlag* oldFlags = m_flags;
         u32* oldHashes = m_hashes;
         K* oldKeys = m_keys;
         V* oldValues = m_values;
@@ -120,7 +113,6 @@ public:
                         if (!newHashes[j])
                         {
                             newHashes[j] = hash;
-                            newFlags[j] = oldFlags[i];
                             newKeys[j] = oldKeys[i];
                             newValues[j] = oldValues[i];
                             break;
@@ -130,7 +122,6 @@ public:
                 }
             }
 
-            m_flags = newFlags;
             m_hashes = newHashes;
             m_keys = newKeys;
             m_values = newValues;
@@ -141,14 +132,12 @@ public:
 
         if (grow)
         {
-            Allocator::Free(oldFlags);
             Allocator::Free(oldHashes);
             Allocator::Free(oldKeys);
             Allocator::Free(oldValues);
         }
         else
         {
-            Allocator::Free(newFlags);
             Allocator::Free(newHashes);
             Allocator::Free(newKeys);
             Allocator::Free(newValues);
@@ -172,7 +161,6 @@ public:
         const u32 hash = HashUtil::Hash(key);
         OS::ReadGuard guard(m_lock);
 
-        OS::RWFlag* const flags = m_flags;
         u32* const hashes = m_hashes;
         K* const keys = m_keys;
         V* const values = m_values;
@@ -186,12 +174,11 @@ public:
             u32 jHash = Load(hashes[j]);
             if (HashUtil::IsEmptyOrTomb(jHash))
             {
-                OS::WriteFlagGuard g2(flags[j]);
-                if (CmpExStrong(hashes[j], jHash, hash))
+                if (CmpExStrong(hashes[j], jHash, hash, MO_Acquire))
                 {
                     keys[j] = key;
                     values[j] = value;
-                    Inc(m_count);
+                    Inc(m_count, MO_Release);
                     return true;
                 }
             }
@@ -205,7 +192,6 @@ public:
         const u32 hash = HashUtil::Hash(key);
         OS::ReadGuard guard(m_lock);
 
-        OS::RWFlag* const flags = m_flags;
         u32* const hashes = m_hashes;
         K* const keys = m_keys;
         V* const values = m_values;
@@ -223,13 +209,12 @@ public:
             }
             if (jHash == hash)
             {
-                OS::WriteFlagGuard g2(flags[j]);
-                if ((key == keys[j]) && CmpExStrong(hashes[j], jHash, HashUtil::TombMask))
+                if ((key == keys[j]) && CmpExStrong(hashes[j], jHash, HashUtil::TombMask, MO_Acquire))
                 {
                     valueOut = values[j];
                     memset(keys + j, 0, sizeof(K));
                     memset(values + j, 0, sizeof(V));
-                    Dec(m_count);
+                    Dec(m_count, MO_Release);
                     return true;
                 }
             }
@@ -243,7 +228,6 @@ public:
         const u32 hash = HashUtil::Hash(key);
         OS::ReadGuard guard(m_lock);
 
-        OS::RWFlag* const flags = m_flags;
         const u32* const hashes = m_hashes;
         const K* const keys = m_keys;
         const V* const values = m_values;
@@ -261,7 +245,6 @@ public:
             }
             if (jHash == hash)
             {
-                OS::ReadFlagGuard g2(flags[j]);
                 if (key == keys[j])
                 {
                     valueOut = values[j];
@@ -278,7 +261,6 @@ public:
         const u32 hash = HashUtil::Hash(key);
         OS::ReadGuard guard(m_lock);
 
-        OS::RWFlag* const flags = m_flags;
         const u32* const hashes = m_hashes;
         const K* const keys = m_keys;
         V* const values = m_values;
@@ -296,7 +278,6 @@ public:
             }
             if (jHash == hash)
             {
-                OS::WriteFlagGuard g2(flags[j]);
                 if (key == keys[j])
                 {
                     values[j] = valueIn;
@@ -327,7 +308,7 @@ public:
             u32 i = m_index;
             for (; i < width; ++i)
             {
-                if (HashUtil::IsValidHash(Load(hashes[i])))
+                if (HashUtil::IsValidHash(Load(hashes[i], MO_Relaxed)))
                 {
                     break;
                 }
@@ -340,7 +321,6 @@ public:
             const u32 i = m_index;
             OS::ReadGuard guard(m_dict.m_lock);
             ASSERT(i < m_dict.capacity());
-            OS::ReadFlagGuard g2(m_dict.m_flags[i]);
             return { m_dict.m_keys[i], m_dict.m_values[i] };
         }
 
@@ -357,7 +337,7 @@ public:
             u32 i = ++m_index;
             for (; i < width; ++i)
             {
-                if (HashUtil::IsValidHash(Load(hashes[i])))
+                if (HashUtil::IsValidHash(Load(hashes[i], MO_Relaxed)))
                 {
                     break;
                 }

@@ -82,20 +82,19 @@ namespace FStream
         return false;
     }
 
-    static void Init()
+    struct System final : ISystem
     {
-        ms_table.Init();
-    }
+        System() : ISystem("FStream") {}
 
-    static void Update()
-    {
-
-    }
-
-    static void Shutdown()
-    {
-        ms_table.Reset();
-    }
-
-    DEFINE_SYSTEM("FStream", {}, Init, Update, Shutdown)
+        void Init() final
+        {
+            ms_table.Init();
+        }
+        void Update() final {}
+        void Shutdown() final
+        {
+            ms_table.Reset();
+        }
+    };
+    static System ms_system;
 };

@@ -17,7 +17,7 @@ struct Array
 
     // ------------------------------------------------------------------------
 
-    void Init(AllocType allocType)
+    void Init(AllocType allocType = Alloc_Tlsf)
     {
         m_ptr = nullptr;
         m_length = 0;
@@ -110,6 +110,12 @@ struct Array
     {
         ASSERT(newLen >= 0);
         Reserve(newLen);
+        const i32 oldLen = m_length;
+        const i32 diff = newLen - oldLen;
+        if (diff > 0)
+        {
+            memset(m_ptr + oldLen, 0, sizeof(T) * diff);
+        }
         m_length = newLen;
     }
 
@@ -248,7 +254,7 @@ struct Array
 template<typename T, typename C>
 static void Copy(Array<T>& dst, const C& src)
 {
-    const i32 length = src.size();
+    const i32 length = (i32)src.size();
     const i32 bytes = sizeof(T) * length;
     dst.Resize(length);
     memcpy(dst.begin(), src.begin(), bytes);
@@ -263,7 +269,7 @@ static void Move(Array<T>& dst, Array<T>& src)
 }
 
 template<typename T>
-static Array<T> CreateArray(AllocType allocator, i32 cap)
+static Array<T> CreateArray(AllocType allocator = Alloc_Tlsf, i32 cap = 0)
 {
     Array<T> arr;
     arr.Init(allocator, cap);

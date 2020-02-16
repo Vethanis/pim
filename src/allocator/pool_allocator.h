@@ -25,9 +25,9 @@ public:
         m_mutex.Lock();
         m_heap.Reset();
         void* ptr = m_memory.begin();
+        m_memory = {};
         free(ptr);
         m_mutex.Close();
-        memset(this, 0, sizeof(*this));
     }
 
     void Clear() final

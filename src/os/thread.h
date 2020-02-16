@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common/macro.h"
 #include "common/int_types.h"
 
 namespace OS
@@ -8,6 +9,7 @@ namespace OS
     u64 ReadCounter();
     void Spin(u64 ticks);
     void Rest(u64 ms);
+    bool SwitchThread();
 
     using ThreadFn = void(*)(void* pData);
 
@@ -154,32 +156,20 @@ namespace OS
         void Wait();
     };
 
-    struct RWFlag
+    struct alignas(64) RWFlag
     {
         mutable i32 m_state;
+        u8 m_pad[64 - sizeof(i32)];
 
         bool TryLockReader() const;
-        void LockReader() const
-        {
-            u64 spins = 0;
-            while (!TryLockReader())
-            {
-                OS::Spin(++spins * 100);
-            }
-        }
+        void LockReader() const;
         void UnlockReader() const;
 
         bool TryLockWriter();
-        void LockWriter()
-        {
-            u64 spins = 0;
-            while (!TryLockWriter())
-            {
-                OS::Spin(++spins * 100);
-            }
-        }
+        void LockWriter();
         void UnlockWriter();
     };
+    SASSERT(sizeof(RWFlag) == 64);
 
     struct ReadFlagGuard
     {

@@ -2,7 +2,6 @@
 
 #include "common/int_types.h"
 #include "common/minmax.h"
-#include "common/comparator.h"
 #include "containers/hash_util.h"
 #include "allocator/allocator.h"
 
@@ -17,7 +16,7 @@ struct Queue
 
     // ------------------------------------------------------------------------
 
-    inline void Init(AllocType allocator)
+    void Init(AllocType allocator = Alloc_Tlsf)
     {
         m_allocator = allocator;
         m_width = 0;
@@ -26,7 +25,7 @@ struct Queue
         m_ptr = 0;
     }
 
-    inline void Reset()
+    void Reset()
     {
         Allocator::Free(m_ptr);
         m_ptr = 0;
@@ -35,25 +34,25 @@ struct Queue
         m_iWrite = 0;
     }
 
-    inline void Clear()
+    void Clear()
     {
         m_iWrite = 0;
         m_iRead = 0;
     }
 
-    inline void Trim()
+    void Trim()
     {
         FitTo(size());
     }
 
     // ------------------------------------------------------------------------
 
-    inline AllocType GetAllocator() const { return m_allocator; }
-    inline u32 Mask() const { return m_width - 1u; }
-    inline u32 capacity() const { return m_width; }
-    inline u32 size() const { return m_iWrite - m_iRead; }
-    inline bool HasItems() const { return size() != 0u; }
-    inline bool IsEmpty() const { return size() == 0u; }
+    AllocType GetAllocator() const { return m_allocator; }
+    u32 Mask() const { return m_width - 1u; }
+    u32 capacity() const { return m_width; }
+    u32 size() const { return m_iWrite - m_iRead; }
+    bool HasItems() const { return size() != 0u; }
+    bool IsEmpty() const { return size() == 0u; }
 
     // ------------------------------------------------------------------------
 
@@ -138,7 +137,7 @@ struct Queue
         }
     }
 
-    inline void Reserve(u32 newSize)
+    void Reserve(u32 newSize)
     {
         const u32 width = m_width;
         if (newSize >= width)
@@ -149,31 +148,31 @@ struct Queue
 
     // ------------------------------------------------------------------------
 
-    inline u32 GetIndex(u32 i) const
+    u32 GetIndex(u32 i) const
     {
         return (m_iRead + i) & Mask();
     }
 
-    inline T& operator[](u32 i)
+    T& operator[](u32 i)
     {
         ASSERT(HasItems());
         return m_ptr[GetIndex(i)];
     }
 
-    inline const T& operator[](u32 i) const
+    const T& operator[](u32 i) const
     {
         ASSERT(HasItems());
         return m_ptr[GetIndex(i)];
     }
 
-    inline T Pop()
+    T Pop()
     {
         ASSERT(HasItems());
         const u32 i = m_iRead++ & Mask();
         return m_ptr[i];
     }
 
-    inline bool TryPop(T& dst)
+    bool TryPop(T& dst)
     {
         if (HasItems())
         {
@@ -183,14 +182,14 @@ struct Queue
         return false;
     }
 
-    inline void Push(T value)
+    void Push(T value)
     {
         Reserve(size() + 1u);
         const u32 i = m_iWrite++ & Mask();
         m_ptr[i] = value;
     }
 
-    u32 Push(T value, const Comparable<T>& cmp)
+    u32 PushSort(T value)
     {
         Push(value);
 
@@ -205,7 +204,7 @@ struct Queue
             const u32 rhs = (iRead + i) & mask;
             const u32 lhs = (iRead + i - 1u) & mask;
 
-            if (cmp(ptr[lhs], ptr[rhs]) > 0)
+            if (ptr[rhs] < ptr[lhs])
             {
                 T tmp = ptr[lhs];
                 ptr[lhs] = ptr[rhs];
@@ -292,12 +291,12 @@ struct Queue
 };
 
 template<typename T>
-inline i32 Find(const Queue<T> queue, const T& key, const Equatable<T> eq)
+inline i32 Find(const Queue<T> queue, const T& key)
 {
     const u32 count = queue.size();
     for (u32 i = 0u; i < count; ++i)
     {
-        if (eq(key, queue[i]))
+        if (key == queue[i])
         {
             return (i32)i;
         }
@@ -323,11 +322,14 @@ inline void Remove(Queue<T>& queue, u32 i)
 }
 
 template<typename T>
-static Queue<T> CreateQueue(AllocType allocator, i32 cap)
+static Queue<T> CreateQueue(AllocType allocator = Alloc_Tlsf, i32 cap = 0)
 {
     ASSERT(cap >= 0);
     Queue<T> queue;
     queue.Init(allocator);
-    queue.Reserve((u32)cap);
+    if (cap > 0)
+    {
+        queue.Reserve((u32)cap);
+    }
     return queue;
 }

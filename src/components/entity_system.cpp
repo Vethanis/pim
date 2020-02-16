@@ -2,194 +2,141 @@
 #include "os/thread.h"
 #include "components/taskgraph.h"
 #include "components/system.h"
-#include "containers/hash_dict.h"
-#include "components/component_row.h"
-#include "common/sort.h"
 
-static Array<IEntitySystem*> ms_systems;
-
-static void Init()
+struct Scheduler final : ISystem
 {
-    ms_systems.Init(Alloc_Tlsf);
-}
+private:
+    OS::RWLock m_lock;
+    Array<IEntitySystem*> m_systems;
+    Array<Guid> m_guids;
 
-static void Shutdown()
-{
-    ms_systems.Reset();
-}
+public:
+    Scheduler() : ISystem("IEntitySystem", { "TaskGraph" }) {}
 
-static void Update()
-{
-    const i32 count = ms_systems.size();
-
-    Sort(ms_systems.begin(), count, IEntitySystem::LessThan);
-
-    for (i32 i = 0; i < count; ++i)
+    void Init() final
     {
-        TaskGraph::AddVertex(ms_systems[i]);
+        m_lock.Open();
+        m_systems.Init();
+        m_guids.Init();
     }
 
-    for (i32 i = count - 1; i > 0; --i)
+    void Update() final
     {
-        IEntitySystem* dst = ms_systems[i];
-        for (i32 j = i - 1; j >= 0; --j)
+        OS::ReadGuard guard(m_lock);
+
+        for (IEntitySystem* pSystem : m_systems)
         {
-            IEntitySystem* src = ms_systems[j];
-            if (IEntitySystem::Overlaps(dst, src))
+            TaskGraph::AddVertex(pSystem);
+        }
+
+        for (i32 i = m_systems.size() - 1; i > 0; --i)
+        {
+            IEntitySystem* dst = m_systems[i];
+
+            for (i32 j = i - 1; j >= 0; --j)
+            {
+                IEntitySystem* src = m_systems[j];
+                if (IEntitySystem::Overlaps(dst, src))
+                {
+                    TaskGraph::AddEdge(src, dst);
+                }
+            }
+
+            for (IEntitySystem* src : dst->GetEdges())
             {
                 TaskGraph::AddEdge(src, dst);
             }
         }
+
+        TaskGraph::Evaluate();
     }
 
-    TaskGraph::Evaluate();
-}
+    void Shutdown() final
+    {
+        m_lock.LockWriter();
+        m_systems.Reset();
+        m_guids.Reset();
+        m_lock.Close();
+    }
 
-static constexpr Guid ms_dependencies[] =
-{
-    ToGuid("TaskGraph"),
+    void Register(cstr name, IEntitySystem* pSystem)
+    {
+        const Guid id = ToGuid(name);
+        OS::WriteGuard guard(m_lock);
+        ASSERT(!m_guids.Contains(id));
+        m_guids.PushBack(id);
+        m_systems.PushBack(pSystem);
+    }
+
+    void Remove(IEntitySystem* pSystem)
+    {
+        OS::WriteGuard guard(m_lock);
+        const i32 i = m_systems.Find(pSystem);
+        ASSERT(i != -1);
+        m_guids.Remove(i);
+        m_systems.Remove(i);
+    }
+
+    IEntitySystem* Find(Guid id)
+    {
+        OS::ReadGuard guard(m_lock);
+        const i32 i = m_guids.Find(id);
+        return (i == -1) ? nullptr : m_systems[i];
+    }
 };
 
-DEFINE_SYSTEM("IEntitySystem", { ARGS(ms_dependencies) }, Init, Update, Shutdown);
+static Scheduler ms_system;
 
 // ----------------------------------------------------------------------------
 
-void QueryRows::Init()
+IEntitySystem::IEntitySystem(cstr name) : TaskNode()
 {
-    m_readableTypes.Init(Alloc_Tlsf);
-    m_writableTypes.Init(Alloc_Tlsf);
-    m_readableRows.Init(Alloc_Tlsf);
-    m_writableRows.Init(Alloc_Tlsf);
+    m_all.Init();
+    m_none.Init();
+    m_deps.Init();
+    ms_system.Register(name, this);
 }
 
-void QueryRows::Reset()
+IEntitySystem::~IEntitySystem()
 {
-    m_readableTypes.Reset();
-    m_writableTypes.Reset();
-    m_readableRows.Reset();
-    m_writableRows.Reset();
+    ms_system.Remove(this);
+    m_all.Reset();
+    m_none.Reset();
+    m_deps.Reset();
 }
 
-void QueryRows::Borrow()
+void IEntitySystem::SetQuery(std::initializer_list<ComponentType> all, std::initializer_list<ComponentType> none)
 {
-    m_readableRows.Clear();
-    m_writableRows.Clear();
-    for (TypeId type : m_readableTypes)
-    {
-        m_readableRows.PushBack(type.GetRow()->BorrowReader());
-    }
-    for (TypeId type : m_writableTypes)
-    {
-        m_writableRows.PushBack(type.GetRow()->BorrowWriter());
-    }
+    Copy(m_all, all);
+    Copy(m_none, none);
 }
 
-void QueryRows::Return()
+void IEntitySystem::Execute()
 {
-    for (i32 i = m_writableTypes.size() - 1; i >= 0; --i)
-    {
-        TypeId type = m_writableTypes[i];
-        type.GetRow()->ReturnWriter(m_writableRows[i]);
-    }
-    for (i32 i = m_readableTypes.size() - 1; i >= 0; --i)
-    {
-        TypeId type = m_readableTypes[i];
-        type.GetRow()->ReturnReader(m_readableRows[i]);
-    }
-    m_writableRows.Clear();
-    m_readableRows.Clear();
+    ECS::QueryResult result = ECS::ForEach(m_all, m_none);
+    Slice<const Entity> entities = { result.begin(), result.size() };
+    Execute(entities);
 }
 
-void QueryRows::Set(Slice<const TypeId> readable, Slice<const TypeId> writable)
+bool IEntitySystem::Overlaps(const IEntitySystem* pLhs, const IEntitySystem* pRhs)
 {
-    Copy(m_readableTypes, readable);
-    Copy(m_writableTypes, writable);
-}
-
-Slice<void*> QueryRows::GetRW(TypeId type)
-{
-    i32 i = m_writableTypes.Find(type);
-    if (i != -1)
+    for (ComponentType lhsType : pLhs->m_all)
     {
-        return m_writableRows[i];
-    }
-    return { 0, 0 };
-}
-
-Slice<const void*> QueryRows::GetR(TypeId type) const
-{
-    i32 i = m_readableTypes.Find(type);
-    if (i != -1)
-    {
-        return m_readableRows[i];
-    }
-    return { 0, 0 };
-}
-
-bool QueryRows::Overlaps(const QueryRows& lhs, const QueryRows& rhs)
-{
-    for (TypeId type : lhs.m_writableTypes)
-    {
-        if (rhs.m_writableTypes.Contains(type))
+        for (ComponentType rhsType : pRhs->m_all)
         {
-            return true;
-        }
-        if (rhs.m_readableTypes.Contains(type))
-        {
-            return true;
-        }
-    }
-    for (TypeId type : lhs.m_readableTypes)
-    {
-        if (rhs.m_writableTypes.Contains(type))
-        {
-            return true;
+            if (lhsType == rhsType)
+            {
+                if (lhsType.write | rhsType.write)
+                {
+                    return true;
+                }
+            }
         }
     }
     return false;
 }
 
-bool QueryRows::operator<(const QueryRows& rhs) const
+IEntitySystem* IEntitySystem::FindSystem(Guid id)
 {
-    if (m_writableRows.size() == rhs.m_writableRows.size())
-    {
-        return m_readableRows.size() < rhs.m_readableRows.size();
-    }
-    return m_writableRows.size() < rhs.m_writableRows.size();
-}
-
-// ----------------------------------------------------------------------------
-
-IEntitySystem::IEntitySystem() : TaskNode()
-{
-    m_query.Init();
-    ms_systems.PushBack(this);
-}
-
-IEntitySystem::~IEntitySystem()
-{
-    ms_systems.FindRemove(this);
-    m_query.Reset();
-}
-
-void IEntitySystem::SetQuery(std::initializer_list<TypeId> readable, std::initializer_list<TypeId> writable)
-{
-    m_query.Set(readable, writable);
-}
-
-void IEntitySystem::Execute()
-{
-    m_query.Borrow();
-    Execute(m_query);
-    m_query.Return();
-}
-
-bool IEntitySystem::LessThan(const IEntitySystem* pLhs, const IEntitySystem* pRhs)
-{
-    return pLhs->m_query < pRhs->m_query;
-}
-
-bool IEntitySystem::Overlaps(const IEntitySystem* pLhs, const IEntitySystem* pRhs)
-{
-    return QueryRows::Overlaps(pLhs->m_query, pRhs->m_query);
+    return ms_system.Find(id);
 }

@@ -124,36 +124,25 @@ namespace InputSystem
         }
     }
 
-    // ------------------------------------------------------------------------
-
-    static void Init()
+    struct System final : ISystem
     {
-        for (Array<InputListener>& listeners : ms_listeners)
+        System() : ISystem("InputSystem") {}
+        void Init() final
         {
-            listeners.Init(Alloc_Tlsf);
+            for (Array<InputListener>& listeners : ms_listeners)
+            {
+                listeners.Init(Alloc_Tlsf);
+            }
         }
-    }
-
-    static void Update()
-    {
-
-    }
-
-    static void Shutdown()
-    {
-        for (Array<InputListener>& listeners : ms_listeners)
+        void Update() final {}
+        void Shutdown() final
         {
-            listeners.Reset();
+            for (Array<InputListener>& listeners : ms_listeners)
+            {
+                listeners.Reset();
+            }
         }
-    }
-
-    static constexpr System ms_system =
-    {
-        ToGuid("InputSystem"),
-        { 0, 0 },
-        Init,
-        Update,
-        Shutdown,
     };
-    static RegisterSystem ms_register(ms_system);
+
+    static System ms_system;
 };

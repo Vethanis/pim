@@ -20,6 +20,10 @@ u64 OS::ReadCounter()
 
 void OS::Spin(u64 ticks)
 {
+    if ((ticks >= 4000) && ::SwitchToThread())
+    {
+        return;
+    }
     const u64 end = __rdtsc() + ticks;
     do
     {
@@ -30,6 +34,11 @@ void OS::Spin(u64 ticks)
 void OS::Rest(u64 ms)
 {
     ::Sleep((u32)ms);
+}
+
+bool OS::SwitchThread()
+{
+    return ::SwitchToThread();
 }
 
 // ------------------------------------------------------------------------

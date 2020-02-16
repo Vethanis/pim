@@ -5,14 +5,14 @@
 
 struct MeshId
 {
-    u16 version;
-    u16 index;
+    i32 version;
+    i32 index;
 };
 
 struct MaterialId
 {
-    u16 version;
-    u16 index;
+    i32 version;
+    i32 index;
 };
 
 enum class LightType : u8

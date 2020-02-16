@@ -15,7 +15,6 @@ public:
         void* memory = malloc(bytes);
         ASSERT(memory);
 
-        memset(this, 0, sizeof(*this));
         m_mutex.Open();
         m_memory = { (u8*)memory, bytes };
         m_stack = m_memory;
@@ -27,9 +26,9 @@ public:
         m_mutex.Lock();
         m_allocations.Reset();
         void* ptr = m_memory.begin();
+        m_memory = {};
         free(ptr);
         m_mutex.Close();
-        memset(this, 0, sizeof(*this));
     }
 
     void Clear() final

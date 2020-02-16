@@ -4,53 +4,25 @@
 #include "components/ecs.h"
 #include "components/taskgraph.h"
 
-struct QueryRows
-{
-    Array<TypeId> m_readableTypes;
-    Array<Slice<const void*>> m_readableRows;
-    Array<TypeId> m_writableTypes;
-    Array<Slice<void*>> m_writableRows;
-
-    void Init();
-    void Reset();
-    void Borrow();
-    void Return();
-
-    void Set(Slice<const TypeId> readable, Slice<const TypeId> writable);
-
-    Slice<void*> GetRW(TypeId type);
-    Slice<const void*> GetR(TypeId type) const;
-
-    template<typename T>
-    Slice<T*> GetRW()
-    {
-        Slice<void*> row = GetRW(TypeOf<T>());
-        return { (T*)row.begin(), row.size() };
-    }
-
-    template<typename T>
-    Slice<const T*> GetR()
-    {
-        Slice<const void*> row = GetR(TypeOf<T>());
-        return { (const T*)row.begin(), row.size() };
-    }
-
-    static bool Overlaps(const QueryRows& lhs, const QueryRows& rhs);
-    bool operator<(const QueryRows& rhs) const;
-};
-
 struct IEntitySystem : TaskNode
 {
-    IEntitySystem();
+    IEntitySystem(cstr name);
     virtual ~IEntitySystem();
 
-    void SetQuery(std::initializer_list<TypeId> readable, std::initializer_list<TypeId> writable);
-    void Execute() final;
-    virtual void Execute(QueryRows& rows) = 0;
+    bool AddEdge(IEntitySystem* pSrc) { return m_deps.FindAdd(pSrc); }
+    bool RmEdge(IEntitySystem* pSrc) { return m_deps.FindRemove(pSrc); }
+    Slice<IEntitySystem*> GetEdges() { return m_deps; }
 
-    static bool LessThan(const IEntitySystem* pLhs, const IEntitySystem* pRhs);
+    void SetQuery(std::initializer_list<ComponentType> all, std::initializer_list<ComponentType> none);
+
+    void Execute() final;
+    virtual void Execute(Slice<const Entity> entities) = 0;
+
     static bool Overlaps(const IEntitySystem* pLhs, const IEntitySystem* pRhs);
+    static IEntitySystem* FindSystem(Guid id);
 
 private:
-    QueryRows m_query;
+    Array<ComponentType> m_all;
+    Array<ComponentType> m_none;
+    Array<IEntitySystem*> m_deps;
 };

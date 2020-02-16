@@ -1,19 +1,17 @@
 #include "components/system.h"
-
 #include "common/find.h"
-#include "common/sort.h"
 #include "containers/graph.h"
 
 static constexpr i32 MaxSystems = 64;
 
 static i32 ms_systemCount;
 static Guid ms_names[MaxSystems];
-static System ms_systems[MaxSystems];
+static ISystem* ms_systems[MaxSystems];
 static bool ms_hasInit[MaxSystems];
 static bool ms_needsSort;
 static Graph ms_graph;
 
-static const System& GetSystem(Guid name)
+static const ISystem* GetSystem(Guid name)
 {
     i32 i = RFind(ms_names, ms_systemCount, name);
     ASSERT(i != -1);
@@ -24,14 +22,14 @@ static void InitSystem(i32 i)
 {
     ASSERT(!ms_hasInit[i]);
     ms_hasInit[i] = true;
-    ms_systems[i].Init();
+    ms_systems[i]->Init();
 }
 
 static void UpdateSystem(i32 i)
 {
     if (ms_hasInit[i])
     {
-        ms_systems[i].Update();
+        ms_systems[i]->Update();
     }
 }
 
@@ -40,7 +38,7 @@ static void ShutdownSystem(i32 i)
     if (ms_hasInit[i])
     {
         ms_hasInit[i] = false;
-        ms_systems[i].Shutdown();
+        ms_systems[i]->Shutdown();
     }
 }
 
@@ -56,7 +54,8 @@ static void SortSystems()
             const i32 j = ms_graph.AddVertex();
             ASSERT(iDst == j);
 
-            for (Guid name : ms_systems[iDst].Dependencies)
+            Slice<const Guid> deps = ms_systems[iDst]->GetDependencies();
+            for (Guid name : deps)
             {
                 const i32 iSrc = Find(ms_names, count, name);
                 if (iSrc != -1)
@@ -71,21 +70,31 @@ static void SortSystems()
     }
 }
 
-namespace SystemRegistry
+static void Register(Guid id, ISystem* pSystem)
 {
-    void Register(System system)
+    ASSERT(!Contains(ms_names, ms_systemCount, id));
+    ASSERT(ms_systemCount < MaxSystems);
+
+    const i32 i = ms_systemCount++;
+    ms_names[i] = id;
+    ms_systems[i] = pSystem;
+    ms_hasInit[i] = false;
+
+    ms_needsSort = true;
+}
+
+ISystem::ISystem(cstr name, std::initializer_list<cstr> dependencies)
+{
+    m_dependencies.Init(Alloc_Stdlib, (i32)dependencies.size());
+    for (cstr depName : dependencies)
     {
-        ASSERT(!Contains(ms_names, ms_systemCount, system.Name));
-        ASSERT(ms_systemCount < MaxSystems);
-
-        const i32 i = ms_systemCount++;
-        ms_names[i] = system.Name;
-        ms_systems[i] = system;
-        ms_hasInit[i] = false;
-
-        ms_needsSort = true;
+        m_dependencies.PushBack(ToGuid(depName));
     }
+    Register(ToGuid(name), this);
+}
 
+namespace Systems
+{
     void Init()
     {
         ms_graph.Init(Alloc_Tlsf);
@@ -116,5 +125,18 @@ namespace SystemRegistry
             ShutdownSystem(ms_graph[i]);
         }
         ms_graph.Reset();
+    }
+
+    ISystem* Find(Guid id)
+    {
+        const i32 count = ms_systemCount;
+        for (i32 i = 0; i < count; ++i)
+        {
+            if (ms_names[i] == id)
+            {
+                return ms_systems[i];
+            }
+        }
+        return nullptr;
     }
 };

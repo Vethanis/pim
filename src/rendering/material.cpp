@@ -3,34 +3,23 @@
 
 namespace MaterialSystem
 {
-    static void Init()
+    struct System final : ISystem
     {
+        System() : ISystem("MaterialSystem", { "AssetSystem", "RenderSystem" }) {}
+        void Init() final
+        {
 
-    }
-    static void Update()
-    {
+        }
+        void Update() final
+        {
 
-    }
-    static void Shutdown()
-    {
+        }
+        void Shutdown() final
+        {
 
-    }
-
-    static constexpr Guid ms_dependencies[] =
-    {
-        ToGuid("AssetSystem"),
-        ToGuid("RenderSystem"),
+        }
     };
-
-    static constexpr System ms_system =
-    {
-        ToGuid("MaterialSystem"),
-        { ARGS(ms_dependencies) },
-        Init,
-        Update,
-        Shutdown,
-    };
-    static RegisterSystem ms_register(ms_system);
+    static System ms_system;
 
     MaterialId Load(Guid guid)
     {

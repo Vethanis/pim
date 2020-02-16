@@ -14,29 +14,27 @@ struct TaskGraphImpl
     static void ClearMark(TaskNode* pNode)
     {
         ASSERT(pNode);
-        Store(pNode->m_mark, 0);
+        pNode->m_mark = 0;
     }
 
     static void MarkTemp(TaskNode* pNode)
     {
-        ASSERT(pNode);
-        Store(pNode->m_mark, 1);
+        pNode->m_mark = 1;
     }
 
     static void MarkPerm(TaskNode* pNode)
     {
-        ASSERT(pNode);
-        Store(pNode->m_mark, 2);
+        pNode->m_mark = 2;
     }
 
     static i32 GetMark(TaskNode* pNode)
     {
-        ASSERT(pNode);
-        return Load(pNode->m_mark);
+        return pNode->m_mark;
     }
 
     static bool IsUnmarked(TaskNode* pNode)
     {
+        ASSERT(pNode);
         return GetMark(pNode) == 0;
     }
 
@@ -152,29 +150,24 @@ namespace TaskGraph
         TaskGraphImpl::Evaluate();
     }
 
-    static void Init()
+    struct System final : ISystem
     {
-        ms_mutex.Open();
-        ms_list.Init(Alloc_Tlsf);
-        ms_tasks.Init(Alloc_Tlsf);
-    }
+        System() : ISystem("TaskGraph", { "TaskSystem" }) {}
+        void Init() final
+        {
+            ms_mutex.Open();
+            ms_list.Init(Alloc_Tlsf);
+            ms_tasks.Init(Alloc_Tlsf);
+        }
+        void Update() final {}
+        void Shutdown() final
+        {
+            ms_mutex.Lock();
+            ms_list.Reset();
+            ms_tasks.Reset();
+            ms_mutex.Close();
+        }
+    };
 
-    static void Update()
-    {
-
-    }
-
-    static void Shutdown()
-    {
-        ms_mutex.Close();
-        ms_list.Reset();
-        ms_tasks.Reset();
-    }
+    static System ms_system;
 };
-
-static constexpr Guid ms_deps[] =
-{
-    ToGuid("TaskSystem"),
-};
-
-DEFINE_SYSTEM("TaskGraph", { ARGS(ms_deps) }, TaskGraph::Init, TaskGraph::Update, TaskGraph::Shutdown)

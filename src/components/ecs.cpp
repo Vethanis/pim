@@ -1,89 +1,125 @@
 #include "components/ecs.h"
-#include "component_row.h"
-#include "containers/mtqueue.h"
-#include "containers/hash_set.h"
+#include "containers/array.h"
+#include "containers/queue.h"
 #include "components/system.h"
+#include "components/component_id.h"
+#include "os/thread.h"
+#include "os/atomics.h"
 
-namespace Ecs
+namespace ECS
 {
-    static MtQueue<Entity> ms_free;
-    static HashSet<TypeId> ms_types;
+    struct Row
+    {
+        i32 sizeOf;
+        Array<i32> versions;
+        Array<u8> bytes;
+    };
+
     static OS::RWLock ms_lock;
-    static i32 ms_length;
-    static i32 ms_capacity;
-    static i32* ms_versions;
+    static Array<Guid> ms_guids;
+    static Array<Row> ms_rows;
+    static Array<i32> ms_versions;
+    static Queue<i32> ms_free;
 
-    static i32 size() { return Load(ms_length, MO_Relaxed); }
-    static i32 capacity() { return Load(ms_capacity, MO_Relaxed); }
-    static bool InRange(i32 i) { return (u32)i < (u32)size(); }
-
-    bool IsCurrent(Entity entity)
+    struct System final : ISystem
     {
-        OS::ReadGuard guard(ms_lock);
-        return InRange(entity.index) && (Load(ms_versions[entity.index], MO_Relaxed) == entity.version);
-    }
-
-    static bool CmpExVersion(i32 index, i32& expected, i32 desired)
-    {
-        OS::ReadGuard guard(ms_lock);
-        return InRange(index) && CmpExStrong(ms_versions[index], expected, desired, MO_Acquire);
-    }
-
-    static void Reserve(i32 newSize)
-    {
-        if (newSize < capacity())
+        System() : ISystem("ECS") {}
+        void Init() final
         {
-            return;
+            ms_lock.Open();
+            ms_guids.Init();
+            ms_rows.Init();
+            ms_versions.Init();
+            ms_free.Init();
         }
+        void Update() final {}
+        void Shutdown() final
+        {
+            ms_lock.LockWriter();
+
+            ms_guids.Reset();
+            for (Row& row : ms_rows)
+            {
+                row.bytes.Reset();
+                row.versions.Reset();
+                row.sizeOf = 0;
+            }
+            ms_rows.Reset();
+
+            ms_versions.Reset();
+            ms_free.Reset();
+
+            ms_lock.Close();
+        }
+    };
+
+    static System ms_system;
+
+    static i32 size() { return ms_versions.size(); }
+    static i32 capacity() { return ms_versions.capacity(); }
+    static bool InRange(i32 i) { return ms_versions.InRange(i); }
+    static bool IsNewer(i32 prev, i32 next) { return (next - prev) > 0; }
+    static bool IsActive(i32 version) { return version & 1; }
+    static bool IsActive(Entity entity) { return IsActive(entity.version); }
+    static u8* _Begin(ComponentId id) { return ms_rows[id.Value].bytes.begin(); }
+    static i32 _SizeOf(ComponentId id) { return ms_rows[id.Value].sizeOf; }
+    static i32& _EntityVersion(i32 i) { return ms_versions[i]; }
+
+    static i32& _ComponentVersion(Entity entity, ComponentId id)
+    {
+        return ms_rows[id.Value].versions[entity.index];
+    }
+    static bool _IsCurrent(Entity entity)
+    {
+        return Load(_EntityVersion(entity.index), MO_Relaxed) == entity.version;
+    }
+    static bool _Has(Entity entity, ComponentId id)
+    {
+        return Load(_ComponentVersion(entity, id), MO_Relaxed) == entity.version;
+    }
+
+    ComponentId RegisterType(Guid guid, i32 sizeOf)
+    {
+        ASSERT(!IsNull(guid));
+        ASSERT(sizeOf > 0);
+
         OS::WriteGuard guard(ms_lock);
-        const i32 curCap = capacity();
-        if (newSize <= curCap)
-        {
-            return;
-        }
-        const i32 newCap = Max(newSize, Max(curCap * 2, 1024));
-        ms_versions = Allocator::ReallocT<i32>(Alloc_Tlsf, ms_versions, newCap);
-        memset(ms_versions + curCap, 0, (newCap - curCap) * sizeof(i32));
-        Store(ms_capacity, newCap);
-    }
+        bool added = ms_guids.FindAdd(guid);
+        ASSERT(added);
 
-    static bool TryInsert(Entity& entity)
-    {
-        Reserve(size() + 3);
+        Row row = {};
+        row.sizeOf = sizeOf;
+        row.bytes.Init();
+        row.versions.Init();
+        row.bytes.Resize(size() * sizeOf);
+        row.versions.Resize(size());
 
-        OS::ReadGuard guard(ms_lock);
+        const i32 i = ms_rows.PushBack(row);
 
-        i32 len = size();
-        if ((len < capacity()) && CmpExStrong(ms_length, len, len + 1, MO_Acquire))
-        {
-            i32 prev = Exchange(ms_versions[len], 1);
-            ASSERT(!prev);
-            entity.index = len;
-            entity.version = 1;
-            return true;
-        }
-
-        return false;
+        return { i };
     }
 
     Entity Create()
     {
-        Entity entity = {};
-        if (ms_free.TryPop(entity))
+        Entity entity = { 0, 0 };
+        if (ms_free.TryPop(entity.index))
         {
-            ASSERT(InRange(entity.index));
-            ASSERT(entity.version & 1);
-
-            i32 expected = entity.version - 1;
-            bool current = CmpExVersion(entity.index, expected, entity.version);
-            ASSERT(current);
+            OS::ReadGuard guard(ms_lock);
+            entity.version = 1 + Inc(ms_versions[entity.index], MO_Acquire);
+            ASSERT(IsActive(entity));
             return entity;
         }
 
-        u64 spins = 0;
-        while (!TryInsert(entity))
+        OS::WriteGuard guard(ms_lock);
+
+        entity.version = 1;
+        entity.index = ms_versions.PushBack(entity.version);
+        ASSERT(IsActive(entity));
+
+        for (Row& row : ms_rows)
         {
-            OS::Spin(++spins * 100);
+            row.versions.PushBack(0);
+            row.bytes.ResizeRel(row.sizeOf);
         }
 
         return entity;
@@ -91,136 +127,142 @@ namespace Ecs
 
     bool Destroy(Entity entity)
     {
-        if (CmpExVersion(entity.index, entity.version, entity.version + 1))
+        ASSERT(IsActive(entity));
+        bool released = false;
         {
-            ASSERT(entity.version & 1);
-            entity.version += 2;
-            ASSERT(entity.version & 1);
+            OS::ReadGuard guard(ms_lock);
+            released = CmpExStrong(ms_versions[entity.index], entity.version, entity.version + 1, MO_Acquire);
+        }
+        if (released)
+        {
+            ms_free.Push(entity.index);
+        }
+        return released;
+    }
 
-            for (TypeId type : ms_types)
+    bool IsCurrent(Entity entity)
+    {
+        ASSERT(IsActive(entity));
+        OS::ReadGuard guard(ms_lock);
+        return _IsCurrent(entity);
+    }
+
+    bool Has(Entity entity, ComponentId id)
+    {
+        ASSERT(IsActive(entity));
+        OS::ReadGuard guard(ms_lock);
+        return _Has(entity, id);
+    }
+
+    bool Add(Entity entity, ComponentId id)
+    {
+        ASSERT(IsActive(entity));
+        OS::ReadGuard guard(ms_lock);
+        i32& version = _ComponentVersion(entity, id);
+        const i32 sizeOf = _SizeOf(id);
+        i32 prev = Load(version, MO_Relaxed);
+        if (IsNewer(prev, entity.version))
+        {
+            ASSERT(!IsActive(prev));
+            if (CmpExStrong(version, prev, entity.version, MO_Acquire))
             {
-                type.GetRow()->Remove(entity.index);
+                memset(_Begin(id) + entity.index * sizeOf, 0, sizeOf);
+                return true;
             }
+        }
+        return false;
+    }
 
-            ms_free.Push(entity);
+    bool Remove(Entity entity, ComponentId id)
+    {
+        ASSERT(IsActive(entity));
+        OS::ReadGuard guard(ms_lock);
+        i32& version = _ComponentVersion(entity, id);
+        return CmpExStrong(version, entity.version, entity.version + 1, MO_Release);
+    }
+
+    bool Get(Entity entity, ComponentId id, void* dst, i32 userSizeOf)
+    {
+        ASSERT(IsActive(entity));
+        ASSERT(dst);
+        OS::ReadGuard guard(ms_lock);
+        const i32 sizeOf = _SizeOf(id);
+        ASSERT(sizeOf == userSizeOf);
+        if (_Has(entity, id))
+        {
+            memcpy(dst, _Begin(id) + entity.index * sizeOf, sizeOf);
             return true;
         }
         return false;
     }
 
-    void* Get(Entity entity, TypeId type)
+    bool Set(Entity entity, ComponentId id, const void* src, i32 userSizeOf)
     {
-        if (IsCurrent(entity))
+        ASSERT(IsActive(entity));
+        ASSERT(src);
+        OS::ReadGuard guard(ms_lock);
+        const i32 sizeOf = _SizeOf(id);
+        ASSERT(sizeOf == userSizeOf);
+        if (_Has(entity, id))
         {
-            return type.GetRow()->Get(entity.index);
-        }
-        return nullptr;
-    }
-
-    void* Add(Entity entity, TypeId type)
-    {
-        if (IsCurrent(entity))
-        {
-            ms_types.Add(type);
-            return type.GetRow()->Add(entity.index);
-        }
-        return nullptr;
-    }
-
-    bool Remove(Entity entity, TypeId type)
-    {
-        if (IsCurrent(entity))
-        {
-            return type.GetRow()->Remove(entity.index);
+            memcpy(_Begin(id) + entity.index * sizeOf, src, sizeOf);
+            return true;
         }
         return false;
     }
 
-    QueryResult ForEach(std::initializer_list<TypeId> all, std::initializer_list<TypeId> none)
+    QueryResult ForEach(std::initializer_list<ComponentType> all, std::initializer_list<ComponentType> none)
     {
-        return ForEach(all.begin(), all.size(), none.begin(), none.size());
+        using slice_t = Slice<const ComponentType>;
+        return ForEach(slice_t{ all.begin(), (i32)all.size() }, slice_t{ none.begin(), (i32)none.size() });
     }
 
-    QueryResult ForEach(const TypeId* pAll, i32 allCount, const TypeId* pNone, i32 noneCount)
+    QueryResult ForEach(Slice<const ComponentType> all, Slice<const ComponentType> none)
     {
-        Array<Entity> results = CreateArray<Entity>(Alloc_Stack, size());
-
         OS::ReadGuard guard(ms_lock);
-        const i32* const versions = ms_versions;
 
-        i32 i = 0;
-        while (i < size())
+        const i32 len = ms_versions.size();
+        const i32* const versions = ms_versions.begin();
+        const Row* const rows = ms_rows.begin();
+        Array<Entity> results = CreateArray<Entity>(Alloc_Linear, len);
+
+        for (i32 i = 0; i < len; ++i)
         {
             Entity entity;
             entity.index = i;
             entity.version = Load(versions[i], MO_Relaxed);
-
-            if (!(entity.version & 1))
+            if (IsActive(entity))
             {
-                goto next;
+                results.PushBack(entity);
             }
+        }
 
-            for (i32 j = 0; j < allCount; ++j)
+        for (ComponentType type : all)
+        {
+            const i32* const rowVersions = rows[type.id.Value].versions.begin();
+            for (i32 i = results.size() - 1; i >= 0; --i)
             {
-                if (!pAll[j].GetRow()->Get(i))
+                Entity entity = results[i];
+                if (Load(rowVersions[entity.index], MO_Relaxed) != entity.version)
                 {
-                    goto next;
+                    results.Remove(i);
                 }
             }
+        }
 
-            for (i32 j = 0; j < noneCount; ++j)
+        for (ComponentType type : none)
+        {
+            const i32* const rowVersions = rows[type.id.Value].versions.begin();
+            for (i32 i = results.size() - 1; i >= 0; --i)
             {
-                if (pNone[j].GetRow()->Get(i))
+                Entity entity = results[i];
+                if (Load(rowVersions[entity.index], MO_Relaxed) == entity.version)
                 {
-                    goto next;
+                    results.Remove(i);
                 }
             }
-
-            results.PushBack(entity);
-
-        next:
-            ++i;
         }
 
         return QueryResult(results.begin(), results.size());
     }
-
-    static void Init()
-    {
-        ms_lock.Open();
-        ms_free.Init(Alloc_Tlsf, 1024);
-        ms_types.Init(Alloc_Tlsf, 1024);
-        ms_length = 0;
-        ms_capacity = 0;
-        ms_versions = 0;
-
-        Reserve(1024);
-    }
-
-    static void Update()
-    {
-
-    }
-
-    static void Shutdown()
-    {
-        ms_lock.LockWriter();
-
-        ms_free.Reset();
-
-        Allocator::Free(ms_versions);
-        StorePtr(ms_versions, (i32*)0);
-        Store(ms_capacity, 0);
-        Store(ms_length, 0);
-
-        for (TypeId type : ms_types)
-        {
-            ComponentManager::ReleaseRow(type.AsData());
-        }
-        ms_types.Reset();
-
-        ms_lock.Close();
-    }
-
-    DEFINE_SYSTEM("Ecs", {}, Init, Update, Shutdown);
 };

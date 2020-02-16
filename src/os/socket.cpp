@@ -1,15 +1,19 @@
 #include "os/socket.h"
 #include "components/system.h"
 
-static void SocketUpdate() {}
-
-static constexpr System ms_system =
+struct SocketSystem final : ISystem
 {
-    ToGuid("Socket"),
-    { 0, 0 },
-    Socket::Init,
-    SocketUpdate,
-    Socket::Shutdown,
+    SocketSystem() : ISystem("Socket") {}
+
+    void Init() final
+    {
+        Socket::Init();
+    }
+    void Update() final {}
+    void Shutdown() final
+    {
+        Socket::Shutdown();
+    }
 };
 
-static RegisterSystem ms_register(ms_system);
+static SocketSystem ms_system;

@@ -4,47 +4,98 @@
 #include "os/atomics.h"
 #include "allocator/allocator.h"
 
+struct alignas(64) PipeFlag
+{
+    static constexpr u32 kFlagWritable = 0x00000000u;
+    static constexpr u32 kFlagReadable = 0x11111111u;
+    static constexpr u32 kFlagLocked = 0xffffffffu;
+
+    u32 value;
+    u8 pad[64 - sizeof(u32)];
+
+    bool TryLockWriter()
+    {
+        u32 prev = kFlagWritable;
+        return CmpExStrong(value, prev, kFlagLocked, MO_Acquire);
+    }
+    void UnlockWriter()
+    {
+        ASSERT(Load(value, MO_Relaxed) == kFlagLocked);
+        Store(value, kFlagReadable, MO_Release);
+    }
+    bool TryLockReader()
+    {
+        u32 prev = kFlagReadable;
+        return CmpExStrong(value, prev, kFlagLocked, MO_Acquire);
+    }
+    void UnlockReader()
+    {
+        ASSERT(Load(value, MO_Relaxed) == kFlagLocked);
+        Store(value, kFlagWritable, MO_Release);
+    }
+};
+SASSERT(sizeof(PipeFlag) == 64);
+
+struct alignas(64) PtrLine
+{
+    isize m_ptr;
+    u8 m_pad[64 - sizeof(isize)];
+
+    bool TryWrite(isize valueIn)
+    {
+        isize prev = 0;
+        return CmpExStrong(m_ptr, prev, valueIn, MO_Release);
+    }
+
+    bool TryRead(isize& valueOut)
+    {
+        isize ptr = Load(m_ptr, MO_Relaxed);
+        if (ptr && CmpExStrong(m_ptr, ptr, 0, MO_Acquire))
+        {
+            valueOut = ptr;
+            return true;
+        }
+        return false;
+    }
+};
+SASSERT(sizeof(PtrLine) == 64);
+
+struct alignas(64) u32Line
+{
+    u32 Value;
+    u8 Pad[64 - sizeof(u32)];
+};
+SASSERT(sizeof(u32Line) == 64);
+
 template<typename T, u32 kCapacity>
 struct Pipe
 {
     static constexpr u32 kMask = kCapacity - 1u;
-    static constexpr u32 kFlagWritable = 0x00000000u;
-    static constexpr u32 kFlagReadable = 0x11111111u;
-    static constexpr u32 kFlagLocked = 0xffffffffu;
     SASSERT((kCapacity & kMask) == 0u);
 
-    u32 m_iWrite;
-    u32 m_iRead;
-    u32 m_flags[kCapacity];
+    u32Line m_iWrite;
+    u32Line m_iRead;
+    PipeFlag m_flags[kCapacity];
     T m_data[kCapacity];
 
-    u32 size() const { return Load(m_iWrite) - Load(m_iRead); }
-    u32 Head() const { return Load(m_iWrite) & kMask; }
-    u32 Tail() const { return Load(m_iRead) & kMask; }
+    u32 size() const { return Load(m_iWrite.Value, MO_Relaxed) - Load(m_iRead.Value, MO_Relaxed); }
+    u32 Head() const { return Load(m_iWrite.Value, MO_Relaxed) & kMask; }
+    u32 Tail() const { return Load(m_iRead.Value, MO_Relaxed) & kMask; }
     static u32 Next(u32 i) { return (i + 1u) & kMask; }
 
     void Init() { Clear(); }
-    void Clear()
-    {
-        Store(m_iWrite, 0u);
-        Store(m_iRead, 0u);
-        u32* const flags = m_flags;
-        for (u32 i = 0; i < kCapacity; ++i)
-        {
-            Store(flags[i], kFlagWritable);
-        }
-    }
+    void Clear() { memset(this, 0, sizeof(*this)); }
 
     bool TryPush(const T& src)
     {
         for (u32 i = Head(); size() <= kMask; i = Next(i))
         {
             u32 prev = kFlagWritable;
-            if (CmpExStrong(m_flags[i], prev, kFlagLocked))
+            if (m_flags[i].TryLockWriter())
             {
                 m_data[i] = src;
-                Store(m_flags[i], kFlagReadable);
-                Inc(m_iWrite);
+                m_flags[i].UnlockWriter();
+                Inc(m_iWrite.Value, MO_Relaxed);
                 return true;
             }
         }
@@ -56,11 +107,11 @@ struct Pipe
         for (u32 i = Tail(); size() != 0u; i = Next(i))
         {
             u32 prev = kFlagReadable;
-            if (CmpExStrong(m_flags[i], prev, kFlagLocked))
+            if (m_flags[i].TryLockReader())
             {
                 dst = m_data[i];
-                Store(m_flags[i], kFlagWritable);
-                Inc(m_iRead);
+                m_flags[i].UnlockReader();
+                Inc(m_iRead.Value, MO_Relaxed);
                 return true;
             }
         }
@@ -74,35 +125,28 @@ struct PtrPipe
     static constexpr u32 kMask = kCapacity - 1u;
     SASSERT((kCapacity & kMask) == 0u);
 
-    u32 m_iWrite;
-    u32 m_iRead;
-    isize m_ptrs[kCapacity];
+    u32Line m_iWrite;
+    u32Line m_iRead;
+    PtrLine m_ptrs[kCapacity];
 
     void Init() { Clear(); }
-    void Clear()
-    {
-        Store(m_iWrite, 0u);
-        Store(m_iRead, 0u);
-        for (u32 i = 0; i < kCapacity; ++i)
-        {
-            Store(m_ptrs[i], 0);
-        }
-    }
+    void Clear() { memset(this, 0, sizeof(*this)); }
 
-    u32 size() const { return Load(m_iWrite) - Load(m_iRead); }
-    u32 Head() const { return Load(m_iWrite) & kMask; }
-    u32 Tail() const { return Load(m_iRead) & kMask; }
+    u32 size() const { return Load(m_iWrite.Value, MO_Relaxed) - Load(m_iRead.Value, MO_Relaxed); }
+    u32 Head() const { return Load(m_iWrite.Value, MO_Relaxed) & kMask; }
+    u32 Tail() const { return Load(m_iRead.Value, MO_Relaxed) & kMask; }
     static u32 Next(u32 i) { return (i + 1u) & kMask; }
 
     bool TryPush(void* ptr)
     {
         ASSERT(ptr);
+        PtrLine* const ptrs = m_ptrs;
         for (u32 i = Head(); size() <= kMask; i = Next(i))
         {
             isize prev = 0;
-            if (CmpExStrong(m_ptrs[i], prev, (isize)ptr))
+            if (ptrs[i].TryWrite((isize)ptr))
             {
-                Inc(m_iWrite);
+                Inc(m_iWrite.Value, MO_Relaxed);
                 ASSERT(!prev);
                 return true;
             }
@@ -112,101 +156,17 @@ struct PtrPipe
 
     void* TryPop()
     {
+        isize ptr = 0;
+        PtrLine* const ptrs = m_ptrs;
         for (u32 i = Tail(); size() != 0u; i = Next(i))
         {
-            isize prev = Load(m_ptrs[i]);
-            if (prev && CmpExStrong(m_ptrs[i], prev, 0))
+            if (ptrs[i].TryRead(ptr))
             {
-                Inc(m_iRead);
-                ASSERT(prev);
-                return (void*)prev;
+                Inc(m_iRead.Value, MO_Relaxed);
+                ASSERT(ptr);
+                return (void*)ptr;
             }
         }
         return nullptr;
-    }
-};
-
-struct IndexPipe
-{
-    u32 m_iRead;
-    u32 m_iWrite;
-    u32 m_width;
-    i32* m_indices;
-
-    void Init(AllocType allocator, u32 cap)
-    {
-        ASSERT((cap & (cap - 1)) == 0);
-        m_width = cap;
-        m_iRead = 0;
-        m_iWrite = 0;
-        i32* indices = Allocator::AllocT<i32>(allocator, cap);
-        for (u32 i = 0; i < cap; ++i)
-        {
-            indices[i] = -1;
-        }
-        m_indices = indices;
-    }
-
-    void Clear()
-    {
-        const u32 width = m_width;
-        i32* const indices = m_indices;
-        for (u32 i = 0; i < width; ++i)
-        {
-            Store(indices[i], -1);
-        }
-        Store(m_iWrite, 0);
-        Store(m_iRead, 0);
-    }
-
-    void Reset()
-    {
-        Clear();
-        m_width = 0;
-        Allocator::Free(m_indices);
-        m_indices = nullptr;
-    }
-
-    u32 size() const { return Load(m_iWrite) - Load(m_iRead); }
-    u32 Mask() const { return m_width - 1u; }
-    u32 Head(u32 mask) const { return Load(m_iWrite) & mask; }
-    u32 Tail(u32 mask) const { return Load(m_iRead) & mask; }
-    static u32 Next(u32 i, u32 mask) { return (i + 1u) & mask; }
-
-    bool TryPush(i32 index)
-    {
-        ASSERT(index >= 0);
-        const u32 mask = Mask();
-        i32* const indices = m_indices;
-        ASSERT(indices);
-        for (u32 i = Head(mask); size() <= mask; i = Next(i, mask))
-        {
-            i32 prev = -1;
-            if (CmpExStrong(indices[i], prev, index))
-            {
-                Inc(m_iWrite);
-                ASSERT(prev == -1);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    i32 TryPop()
-    {
-        const u32 mask = Mask();
-        i32* const indices = m_indices;
-        ASSERT(indices);
-        for (u32 i = Tail(mask); size() != 0u; i = Next(i, mask))
-        {
-            i32 prev = Load(indices[i]);
-            if ((prev != -1) && CmpExStrong(indices[i], prev, -1))
-            {
-                Inc(m_iRead);
-                ASSERT(prev != -1);
-                return prev;
-            }
-        }
-        return -1;
     }
 };

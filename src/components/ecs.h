@@ -1,36 +1,38 @@
 #pragma once
 
 #include "components/entity.h"
-#include "common/typeid.h"
-#include "containers/initlist.h"
+#include "components/component_id.h"
 #include "allocator/allocator.h"
+#include "containers/slice.h"
+#include <initializer_list>
 
-namespace Ecs
+namespace ECS
 {
     Entity Create();
     bool Destroy(Entity entity);
     bool IsCurrent(Entity entity);
 
-    void* Get(Entity entity, TypeId type);
-    void* Add(Entity entity, TypeId type);
-    bool Remove(Entity entity, TypeId type);
+    bool Add(Entity entity, ComponentId type);
+    bool Remove(Entity entity, ComponentId type);
+    bool Get(Entity entity, ComponentId type, void* dst, i32 sizeOf);
+    bool Set(Entity entity, ComponentId type, const void* src, i32 sizeOf);
 
     template<typename T>
-    T* Get(Entity entity)
+    bool Add(Entity entity) { return Add(entity, GetId<T>()); }
+
+    template<typename T>
+    bool Remove(Entity entity) { return Remove(entity, GetId<T>()); }
+
+    template<typename T>
+    bool Get(Entity entity, T& valueOut)
     {
-        return (T*)Get(entity, TypeOf<T>());
+        return Get(entity, GetId<T>(), &valueOut, sizeof(T));
     }
 
     template<typename T>
-    T* Add(Entity entity)
+    bool Set(Entity entity, const T& valueIn)
     {
-        return (T*)Add(entity, TypeOf<T>());
-    }
-
-    template<typename T>
-    bool Remove(Entity entity)
-    {
-        return Remove(entity, TypeOf<T>());
+        return Set(entity, GetId<T>(), &valueIn, sizeof(T));
     }
 
     struct QueryResult
@@ -39,11 +41,12 @@ namespace Ecs
         ~QueryResult() { Allocator::Free(ptr); ptr = 0; length = 0; }
         const Entity* begin() const { return ptr; }
         const Entity* end() const { return ptr + length; }
+        i32 size() const { return length; }
     private:
         Entity* ptr;
         i32 length;
     };
 
-    QueryResult ForEach(std::initializer_list<TypeId> all, std::initializer_list<TypeId> none = {});
-    QueryResult ForEach(const TypeId* pAll, i32 allCount, const TypeId* pNone, i32 noneCount);
+    QueryResult ForEach(std::initializer_list<ComponentType> all = {}, std::initializer_list<ComponentType> none = {});
+    QueryResult ForEach(Slice<const ComponentType> all, Slice<const ComponentType> none);
 };

@@ -25,7 +25,7 @@ struct TaskGroup final : ITask
         m_group.PushBack(pTask);
     }
 
-    void Execute() final
+    void Submit()
     {
         if (m_dep)
         {
@@ -35,6 +35,11 @@ struct TaskGroup final : ITask
         {
             TaskSystem::Submit(pTask);
         }
+        TaskSystem::Submit(this);
+    }
+
+    void Execute() final
+    {
         for (ITask* pTask : m_group)
         {
             TaskSystem::Await(pTask);
@@ -50,7 +55,7 @@ struct IForLoop
 {
     IForLoop() {}
     virtual ~IForLoop() {}
-    virtual void Execute(i32 i) = 0;
+    virtual void Execute(i32 begin, i32 end) = 0;
 };
 
 struct TaskFor final : ITask
@@ -65,14 +70,7 @@ struct TaskFor final : ITask
         ASSERT(end >= begin);
     }
 
-    void Execute() final
-    {
-        IForLoop* pFor = m_pFor;
-        for (i32 i = m_begin, e = m_end; i < e; ++i)
-        {
-            pFor->Execute(i);
-        }
-    }
+    void Execute() final { m_pFor->Execute(m_begin, m_end); }
 
 private:
     IForLoop* m_pFor;
@@ -82,10 +80,7 @@ private:
 
 struct TaskParallelFor final : ITask
 {
-    ITask* m_dep;
-    IForLoop* m_loop;
-    Array<TaskFor> m_tasks;
-
+public:
     TaskParallelFor(ITask* dep, IForLoop* pLoop, i32 begin, i32 end, i32 granularity) :
         ITask(), m_dep(dep), m_loop(pLoop)
     {
@@ -105,7 +100,7 @@ struct TaskParallelFor final : ITask
         m_tasks.Reset();
     }
 
-    void Execute() final
+    void Submit()
     {
         if (m_dep)
         {
@@ -115,9 +110,19 @@ struct TaskParallelFor final : ITask
         {
             TaskSystem::Submit(&subtask);
         }
+        TaskSystem::Submit(this);
+    }
+
+    void Execute() final
+    {
         for (TaskFor& subtask : m_tasks)
         {
             TaskSystem::Await(&subtask);
         }
     }
+
+private:
+    ITask* m_dep;
+    IForLoop* m_loop;
+    Array<TaskFor> m_tasks;
 };
