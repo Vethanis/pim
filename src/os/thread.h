@@ -156,10 +156,9 @@ namespace OS
         void Wait();
     };
 
-    struct alignas(64) RWFlag
+    struct RWFlag
     {
         mutable i32 m_state;
-        u8 m_pad[64 - sizeof(i32)];
 
         bool TryLockReader() const;
         void LockReader() const;
@@ -169,7 +168,6 @@ namespace OS
         void LockWriter();
         void UnlockWriter();
     };
-    SASSERT(sizeof(RWFlag) == 64);
 
     struct ReadFlagGuard
     {

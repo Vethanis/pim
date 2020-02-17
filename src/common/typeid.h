@@ -3,13 +3,11 @@
 #include "common/macro.h"
 #include "common/int_types.h"
 #include "os/atomics.h"
-#include "components/component_mgr.h"
 
 struct TypeData
 {
     i32 sizeOf;
     i32 alignOf;
-    ComponentRow* pRow;
 };
 
 struct TypeId
@@ -31,11 +29,6 @@ struct TypeId
 
     i32 SizeOf() const { return Load(AsData().sizeOf); }
     i32 AlignOf() const { return Load(AsData().alignOf); }
-
-    ComponentRow* GetRow() const
-    {
-        return ComponentManager::EnsureRow(AsData());
-    }
 };
 
 namespace TypeMgr

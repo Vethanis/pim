@@ -19,7 +19,7 @@ bool StreamFile::FileOp::operator<(const StreamFile::FileOp& rhs) const
     return offset - rhs.offset;
 }
 
-StreamFile::StreamFile(StreamFileArgs args) : ITask()
+StreamFile::StreamFile(StreamFileArgs args) : ITask(0, 0)
 {
     ASSERT(args.path);
     m_lock.Open();
@@ -103,7 +103,7 @@ bool StreamFile::AddWrite(i32 offset, i32 size, void* src, i32* pCompleted)
     return true;
 }
 
-void StreamFile::Execute()
+void StreamFile::Execute(i32 begin, i32 end)
 {
     if (!IsOpen() || !m_queue.size())
     {

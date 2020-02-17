@@ -5,7 +5,7 @@
 
 struct TaskNode : ITask
 {
-    TaskNode() : ITask(), m_mark(0) { m_edges.Init(Alloc_Tlsf); }
+    TaskNode(i32 begin, i32 end) : ITask(begin, end), m_mark(0) { m_edges.Init(Alloc_Tlsf); }
     virtual ~TaskNode() { m_edges.Reset(); }
 
 private:
@@ -17,7 +17,9 @@ private:
 namespace TaskGraph
 {
     void AddVertex(TaskNode* pNode);
+    void AddVertices(Slice<TaskNode*> nodes);
     bool AddEdge(TaskNode* src, TaskNode* dst);
     bool RmEdge(TaskNode* src, TaskNode* dst);
+    void ClearEdges(TaskNode* dst);
     void Evaluate();
 };

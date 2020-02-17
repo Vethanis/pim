@@ -1,4 +1,4 @@
-#include "components/taskgraph.h"
+#include "threading/taskgraph.h"
 #include "components/system.h"
 #include "os/thread.h"
 #include "os/atomics.h"
@@ -11,56 +11,6 @@ static i32 ms_frame;
 
 struct TaskGraphImpl
 {
-    static void ClearMark(TaskNode* pNode)
-    {
-        ASSERT(pNode);
-        pNode->m_mark = 0;
-    }
-
-    static void MarkTemp(TaskNode* pNode)
-    {
-        pNode->m_mark = 1;
-    }
-
-    static void MarkPerm(TaskNode* pNode)
-    {
-        pNode->m_mark = 2;
-    }
-
-    static i32 GetMark(TaskNode* pNode)
-    {
-        return pNode->m_mark;
-    }
-
-    static bool IsUnmarked(TaskNode* pNode)
-    {
-        ASSERT(pNode);
-        return GetMark(pNode) == 0;
-    }
-
-    static bool IsTemp(TaskNode* pNode)
-    {
-        return GetMark(pNode) == 1;
-    }
-
-    static bool IsPerm(TaskNode* pNode)
-    {
-        return GetMark(pNode) == 2;
-    }
-
-    static Slice<TaskNode*> GetEdges(TaskNode* pNode)
-    {
-        ASSERT(pNode);
-        return pNode->m_edges;
-    }
-
-    static void AddVertex(TaskNode* pNode)
-    {
-        ASSERT(pNode);
-        OS::LockGuard guard(ms_mutex);
-        ms_tasks.PushBack(pNode);
-    }
-
     static bool AddEdge(TaskNode* src, TaskNode* dst)
     {
         ASSERT(src);
@@ -75,18 +25,23 @@ struct TaskGraphImpl
         return dst->m_edges.FindRemove(src);
     }
 
+    static void ClearEdges(TaskNode* dst)
+    {
+        ASSERT(dst);
+        dst->m_edges.Clear();
+    }
+
     static void Visit(TaskNode* pNode)
     {
-        ASSERT(!IsTemp(pNode));
-        if (IsUnmarked(pNode))
+        ASSERT(pNode->m_mark != 1);
+        if (pNode->m_mark == 0)
         {
-            MarkTemp(pNode);
-            Slice<TaskNode*> edges = GetEdges(pNode);
-            for (TaskNode* pDep : edges)
+            pNode->m_mark = 1;
+            for (TaskNode* pDep : pNode->m_edges)
             {
                 Visit(pDep);
             }
-            MarkPerm(pNode);
+            pNode->m_mark = 2;
             ms_list.PushBack(pNode);
         }
     }
@@ -97,22 +52,22 @@ struct TaskGraphImpl
 
         for (TaskNode* pNode : ms_tasks)
         {
-            ClearMark(pNode);
+            pNode->m_mark = 0;
         }
 
         ms_list.Clear();
         for (TaskNode* pNode : ms_tasks)
         {
-            if (IsUnmarked(pNode))
+            if (pNode->m_mark == 0)
             {
                 Visit(pNode);
             }
         }
+        ms_tasks.Clear();
 
         for (TaskNode* pNode : ms_list)
         {
-            Slice<TaskNode*> edges = GetEdges(pNode);
-            for (TaskNode* pDep : edges)
+            for (TaskNode* pDep : pNode->m_edges)
             {
                 TaskSystem::Await(pDep);
             }
@@ -132,17 +87,39 @@ namespace TaskGraph
 {
     void AddVertex(TaskNode* pNode)
     {
-        TaskGraphImpl::AddVertex(pNode);
+        ASSERT(pNode);
+        OS::LockGuard guard(ms_mutex);
+        ms_tasks.PushBack(pNode);
+    }
+
+    void AddVertices(Slice<TaskNode*> nodes)
+    {
+        OS::LockGuard guard(ms_mutex);
+        for (TaskNode* pNode : nodes)
+        {
+            ASSERT(pNode);
+            ms_tasks.PushBack(pNode);
+        }
     }
 
     bool AddEdge(TaskNode* src, TaskNode* dst)
     {
+        ASSERT(src);
+        ASSERT(dst);
         return TaskGraphImpl::AddEdge(src, dst);
     }
 
     bool RmEdge(TaskNode* src, TaskNode* dst)
     {
+        ASSERT(src);
+        ASSERT(dst);
         return TaskGraphImpl::RmEdge(src, dst);
+    }
+
+    void ClearEdges(TaskNode* dst)
+    {
+        ASSERT(dst);
+        TaskGraphImpl::ClearEdges(dst);
     }
 
     void Evaluate()

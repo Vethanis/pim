@@ -25,10 +25,8 @@
     <ClCompile Include="..\src\common\random.cpp" />
     <ClCompile Include="..\src\common\stringutil.cpp" />
     <ClCompile Include="..\src\common\time.cpp" />
-    <ClCompile Include="..\src\components\component_mgr.cpp" />
     <ClCompile Include="..\src\components\ecs.cpp" />
     <ClCompile Include="..\src\components\entity_system.cpp" />
-    <ClCompile Include="..\src\components\taskgraph.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\os\atomics.cpp" />
@@ -45,6 +43,7 @@
     <ClCompile Include="..\src\sokol\sokol_imgui.cpp" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
     <ClCompile Include="..\src\threading\task.cpp" />
+    <ClCompile Include="..\src\threading\taskgraph.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_draw.cpp" />
@@ -94,13 +93,10 @@
     <ClInclude Include="..\src\common\unroll.h" />
     <ClInclude Include="..\src\common\valist.h" />
     <ClInclude Include="..\src\components\component_id.h" />
-    <ClInclude Include="..\src\components\component_mgr.h" />
-    <ClInclude Include="..\src\components\component_row.h" />
     <ClInclude Include="..\src\components\ecs.h" />
     <ClInclude Include="..\src\components\entity.h" />
     <ClInclude Include="..\src\components\entity_system.h" />
     <ClInclude Include="..\src\components\system.h" />
-    <ClInclude Include="..\src\components\taskgraph.h" />
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\atomic_array.h" />
     <ClInclude Include="..\src\containers\bitfield.h" />
@@ -137,6 +133,7 @@
     <ClInclude Include="..\src\physics\components.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
     <ClInclude Include="..\src\quake\packfile.h" />
+    <ClInclude Include="..\src\threading\taskgraph.h" />
     <ClInclude Include="..\submodules\tlsf\tlsf.h" />
     <FxCompile Include="..\src\shaders\quat.hlsl">
       <FileType>Document</FileType>

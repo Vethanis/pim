@@ -218,7 +218,7 @@ namespace OS
     bool RWFlag::TryLockReader() const
     {
         i32 state = Load(m_state, MO_Relaxed);
-        return (state >= 0) && CmpExStrong(m_state, state, state + 1, MO_Relaxed);
+        return (state >= 0) && CmpExStrong(m_state, state, state + 1, MO_Acquire);
     }
 
     void RWFlag::LockReader() const
@@ -239,7 +239,7 @@ namespace OS
     bool RWFlag::TryLockWriter()
     {
         i32 state = Load(m_state, MO_Relaxed);
-        return (state == 0) && CmpExStrong(m_state, state, -1, MO_Relaxed);
+        return (state == 0) && CmpExStrong(m_state, state, -1, MO_Acquire);
     }
 
     void RWFlag::LockWriter()
@@ -253,7 +253,7 @@ namespace OS
 
     void RWFlag::UnlockWriter()
     {
-        i32 prev = Exchange(m_state, 0, MO_Relaxed);
+        i32 prev = Exchange(m_state, 0, MO_Release);
         ASSERT(prev == -1);
     }
 };

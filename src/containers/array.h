@@ -77,7 +77,7 @@ struct Array
 
     // ------------------------------------------------------------------------
 
-    Slice<const T> AsSlice() const
+    Slice<const T> AsCSlice() const
     {
         return { m_ptr, m_length };
     }
@@ -87,7 +87,7 @@ struct Array
         return { m_ptr, m_length };
     }
 
-    operator Slice<const T>() const { return AsSlice(); }
+    operator Slice<const T>() const { return AsCSlice(); }
     operator Slice<T>() { return AsSlice(); }
 
     void Reserve(i32 newCap)

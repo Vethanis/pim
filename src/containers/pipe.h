@@ -4,83 +4,23 @@
 #include "os/atomics.h"
 #include "allocator/allocator.h"
 
-struct alignas(64) PipeFlag
+template<typename T, u32 kCapacity>
+struct Pipe
 {
     static constexpr u32 kFlagWritable = 0x00000000u;
     static constexpr u32 kFlagReadable = 0x11111111u;
     static constexpr u32 kFlagLocked = 0xffffffffu;
-
-    u32 value;
-    u8 pad[64 - sizeof(u32)];
-
-    bool TryLockWriter()
-    {
-        u32 prev = kFlagWritable;
-        return CmpExStrong(value, prev, kFlagLocked, MO_Acquire);
-    }
-    void UnlockWriter()
-    {
-        ASSERT(Load(value, MO_Relaxed) == kFlagLocked);
-        Store(value, kFlagReadable, MO_Release);
-    }
-    bool TryLockReader()
-    {
-        u32 prev = kFlagReadable;
-        return CmpExStrong(value, prev, kFlagLocked, MO_Acquire);
-    }
-    void UnlockReader()
-    {
-        ASSERT(Load(value, MO_Relaxed) == kFlagLocked);
-        Store(value, kFlagWritable, MO_Release);
-    }
-};
-SASSERT(sizeof(PipeFlag) == 64);
-
-struct alignas(64) PtrLine
-{
-    isize m_ptr;
-    u8 m_pad[64 - sizeof(isize)];
-
-    bool TryWrite(isize valueIn)
-    {
-        isize prev = 0;
-        return CmpExStrong(m_ptr, prev, valueIn, MO_Release);
-    }
-
-    bool TryRead(isize& valueOut)
-    {
-        isize ptr = Load(m_ptr, MO_Relaxed);
-        if (ptr && CmpExStrong(m_ptr, ptr, 0, MO_Acquire))
-        {
-            valueOut = ptr;
-            return true;
-        }
-        return false;
-    }
-};
-SASSERT(sizeof(PtrLine) == 64);
-
-struct alignas(64) u32Line
-{
-    u32 Value;
-    u8 Pad[64 - sizeof(u32)];
-};
-SASSERT(sizeof(u32Line) == 64);
-
-template<typename T, u32 kCapacity>
-struct Pipe
-{
     static constexpr u32 kMask = kCapacity - 1u;
     SASSERT((kCapacity & kMask) == 0u);
 
-    u32Line m_iWrite;
-    u32Line m_iRead;
-    PipeFlag m_flags[kCapacity];
+    u32 m_iWrite;
+    u32 m_iRead;
+    u32 m_flags[kCapacity];
     T m_data[kCapacity];
 
-    u32 size() const { return Load(m_iWrite.Value, MO_Relaxed) - Load(m_iRead.Value, MO_Relaxed); }
-    u32 Head() const { return Load(m_iWrite.Value, MO_Relaxed) & kMask; }
-    u32 Tail() const { return Load(m_iRead.Value, MO_Relaxed) & kMask; }
+    u32 size() const { return Load(m_iWrite) - Load(m_iRead); }
+    u32 Head() const { return Load(m_iWrite) & kMask; }
+    u32 Tail() const { return Load(m_iRead) & kMask; }
     static u32 Next(u32 i) { return (i + 1u) & kMask; }
 
     void Init() { Clear(); }
@@ -91,11 +31,11 @@ struct Pipe
         for (u32 i = Head(); size() <= kMask; i = Next(i))
         {
             u32 prev = kFlagWritable;
-            if (m_flags[i].TryLockWriter())
+            if (CmpExStrong(m_flags[i], prev, kFlagLocked, MO_Acquire))
             {
                 m_data[i] = src;
-                m_flags[i].UnlockWriter();
-                Inc(m_iWrite.Value, MO_Relaxed);
+                Store(m_flags[i], kFlagReadable);
+                Inc(m_iWrite, MO_Release);
                 return true;
             }
         }
@@ -107,11 +47,11 @@ struct Pipe
         for (u32 i = Tail(); size() != 0u; i = Next(i))
         {
             u32 prev = kFlagReadable;
-            if (m_flags[i].TryLockReader())
+            if (CmpExStrong(m_flags[i], prev, kFlagLocked, MO_Acquire))
             {
                 dst = m_data[i];
-                m_flags[i].UnlockReader();
-                Inc(m_iRead.Value, MO_Relaxed);
+                Store(m_flags[i], kFlagWritable);
+                Inc(m_iRead, MO_Release);
                 return true;
             }
         }
@@ -125,28 +65,27 @@ struct PtrPipe
     static constexpr u32 kMask = kCapacity - 1u;
     SASSERT((kCapacity & kMask) == 0u);
 
-    u32Line m_iWrite;
-    u32Line m_iRead;
-    PtrLine m_ptrs[kCapacity];
+    u32 m_iWrite;
+    u32 m_iRead;
+    isize m_ptrs[kCapacity];
 
     void Init() { Clear(); }
     void Clear() { memset(this, 0, sizeof(*this)); }
 
-    u32 size() const { return Load(m_iWrite.Value, MO_Relaxed) - Load(m_iRead.Value, MO_Relaxed); }
-    u32 Head() const { return Load(m_iWrite.Value, MO_Relaxed) & kMask; }
-    u32 Tail() const { return Load(m_iRead.Value, MO_Relaxed) & kMask; }
+    u32 size() const { return Load(m_iWrite.Value) - Load(m_iRead.Value); }
+    u32 Head() const { return Load(m_iWrite.Value) & kMask; }
+    u32 Tail() const { return Load(m_iRead.Value) & kMask; }
     static u32 Next(u32 i) { return (i + 1u) & kMask; }
 
     bool TryPush(void* ptr)
     {
         ASSERT(ptr);
-        PtrLine* const ptrs = m_ptrs;
         for (u32 i = Head(); size() <= kMask; i = Next(i))
         {
             isize prev = 0;
-            if (ptrs[i].TryWrite((isize)ptr))
+            if (CmpExStrong(m_ptrs[i], prev, (isize)ptr, MO_Acquire))
             {
-                Inc(m_iWrite.Value, MO_Relaxed);
+                Inc(m_iWrite.Value, MO_Release);
                 ASSERT(!prev);
                 return true;
             }
@@ -156,13 +95,12 @@ struct PtrPipe
 
     void* TryPop()
     {
-        isize ptr = 0;
-        PtrLine* const ptrs = m_ptrs;
         for (u32 i = Tail(); size() != 0u; i = Next(i))
         {
-            if (ptrs[i].TryRead(ptr))
+            isize ptr = Load(m_ptrs[i], MO_Relaxed);
+            if (ptr && CmpExStrong(m_ptrs[i], ptr, 0, MO_Acquire))
             {
-                Inc(m_iRead.Value, MO_Relaxed);
+                Inc(m_iRead.Value, MO_Release);
                 ASSERT(ptr);
                 return (void*)ptr;
             }

@@ -11,7 +11,7 @@ struct MtQueue
     static constexpr u32 kFlagReadable = 0x11111111u;
     static constexpr u32 kFlagLocked = 0xffffffffu;
 
-    mutable OS::RWLock m_lock;
+    OS::RWLock m_lock;
     u32 m_iWrite;
     u32 m_iRead;
     u32 m_width;
@@ -19,7 +19,7 @@ struct MtQueue
     u32* m_flags;
     AllocType m_allocator;
 
-    void Init(AllocType allocator, u32 minCap = 0u)
+    void Init(AllocType allocator = Alloc_Tlsf, u32 minCap = 0u)
     {
         memset(this, 0, sizeof(*this));
         m_lock.Open();
@@ -37,6 +37,9 @@ struct MtQueue
         Allocator::Free(m_flags);
         m_ptr = 0;
         m_flags = 0;
+        m_width = 0;
+        m_iWrite = 0;
+        m_iRead = 0;
         Store(m_width, 0);
         Store(m_iWrite, 0);
         Store(m_iRead, 0);
@@ -49,14 +52,14 @@ struct MtQueue
 
     void Clear()
     {
+        OS::ReadGuard guard(m_lock);
         Store(m_iWrite, 0);
         Store(m_iRead, 0);
-        OS::ReadGuard guard(m_lock);
         const u32 width = Load(m_width);
         u32* const flags = m_flags;
         for (u32 i = 0; i < width; ++i)
         {
-            Store(flags[i], kFlagWritable);
+            Store(flags[i], kFlagWritable, MO_Relaxed);
         }
     }
 
@@ -64,7 +67,7 @@ struct MtQueue
     {
         minCap = Max(minCap, 16u);
         const u32 newWidth = ToPow2(minCap);
-        if (newWidth > Load(m_width))
+        if (newWidth > capacity())
         {
             T* newPtr = Allocator::CallocT<T>(m_allocator, newWidth);
             u32* newFlags = Allocator::CallocT<u32>(m_allocator, newWidth);
@@ -73,7 +76,7 @@ struct MtQueue
 
             T* oldPtr = m_ptr;
             u32* oldFlags = m_flags;
-            const u32 oldWidth = Load(m_width);
+            const u32 oldWidth = capacity();
             const bool grew = oldWidth < newWidth;
 
             if (grew)
@@ -118,7 +121,7 @@ struct MtQueue
         {
             Reserve(size() + 3u);
             OS::ReadGuard guard(m_lock);
-            const u32 mask = Load(m_width) - 1u;
+            const u32 mask = capacity() - 1u;
             T* const ptr = m_ptr;
             u32* const flags = m_flags;
             for (u32 i = Load(m_iWrite); size() <= mask; ++i)
@@ -129,7 +132,7 @@ struct MtQueue
                 {
                     ptr[i] = value;
                     Store(flags[i], kFlagReadable);
-                    Inc(m_iWrite);
+                    Inc(m_iWrite, MO_Release);
                     return;
                 }
             }
@@ -143,7 +146,7 @@ struct MtQueue
             return false;
         }
         OS::ReadGuard guard(m_lock);
-        const u32 mask = Load(m_width) - 1u;
+        const u32 mask = capacity() - 1u;
         T* const ptr = m_ptr;
         u32* const flags = m_flags;
         for (u32 i = Load(m_iRead); size() != 0u; ++i)
@@ -154,7 +157,7 @@ struct MtQueue
             {
                 valueOut = ptr[i];
                 Store(flags[i], kFlagWritable);
-                Inc(m_iRead);
+                Inc(m_iRead, MO_Release);
                 return true;
             }
         }

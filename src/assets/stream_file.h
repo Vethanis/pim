@@ -17,7 +17,7 @@ struct StreamFile final : ITask
     bool IsOpen() const;
     bool AddRead(void* dst, i32 offset, i32 size, i32* pCompleted);
     bool AddWrite(i32 offset, i32 size, void* src, i32* pCompleted);
-    void Execute() final;
+    void Execute(i32 begin, i32 end) final;
 
 private:
 

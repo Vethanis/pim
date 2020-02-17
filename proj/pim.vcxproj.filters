@@ -193,9 +193,6 @@
     <ClCompile Include="..\src\os\thread.cpp">
       <Filter>Source Files\os</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\components\taskgraph.cpp">
-      <Filter>Source Files\components</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\threading\task.cpp">
       <Filter>Source Files\threading</Filter>
     </ClCompile>
@@ -205,9 +202,6 @@
     <ClCompile Include="..\src\assets\stream_file.cpp">
       <Filter>Source Files\assets</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\components\component_mgr.cpp">
-      <Filter>Source Files\components</Filter>
-    </ClCompile>
     <ClCompile Include="..\submodules\tlsf\tlsf.c">
       <Filter>submodules\tlsf</Filter>
     </ClCompile>
@@ -216,6 +210,9 @@
     </ClCompile>
     <ClCompile Include="..\src\components\entity_system.cpp">
       <Filter>Source Files\components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\threading\taskgraph.cpp">
+      <Filter>Source Files\threading</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -585,9 +582,6 @@
     <ClInclude Include="..\src\containers\genid.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\components\taskgraph.h">
-      <Filter>Source Files\components</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\threading\task.h">
       <Filter>Source Files\threading</Filter>
     </ClInclude>
@@ -599,12 +593,6 @@
     </ClInclude>
     <ClInclude Include="..\src\allocator\header.h">
       <Filter>Source Files\allocator</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\component_mgr.h">
-      <Filter>Source Files\components</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\component_row.h">
-      <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\submodules\tlsf\tlsf.h">
       <Filter>submodules\tlsf</Filter>
@@ -620,6 +608,9 @@
     </ClInclude>
     <ClInclude Include="..\src\common\type_guid.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\taskgraph.h">
+      <Filter>Source Files\threading</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
