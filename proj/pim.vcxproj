@@ -97,6 +97,7 @@
     <ClInclude Include="..\src\components\entity.h" />
     <ClInclude Include="..\src\components\entity_system.h" />
     <ClInclude Include="..\src\components\system.h" />
+    <ClInclude Include="..\src\components\transform.h" />
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\atomic_array.h" />
     <ClInclude Include="..\src\containers\bitfield.h" />

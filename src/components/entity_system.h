@@ -1,7 +1,6 @@
 #pragma once
 
-#include "components/entity.h"
-#include "components/component_id.h"
+#include "components/ecs.h"
 #include "threading/taskgraph.h"
 #include <initializer_list>
 
@@ -15,11 +14,13 @@ struct IEntitySystem : TaskNode
     virtual ~IEntitySystem();
 
     void Execute(i32 begin, i32 end) final;
+    void BeforeSubmit() final;
     virtual void Execute(Slice<const Entity> entities) = 0;
 
     static bool Overlaps(const IEntitySystem* pLhs, const IEntitySystem* pRhs);
 
 private:
+    Slice<const Entity> m_entities;
     Array<ComponentType> m_all;
     Array<ComponentType> m_none;
 };

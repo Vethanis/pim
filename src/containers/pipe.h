@@ -4,23 +4,51 @@
 #include "os/atomics.h"
 #include "allocator/allocator.h"
 
-template<typename T, u32 kCapacity>
-struct Pipe
+struct PipeFlag
 {
     static constexpr u32 kFlagWritable = 0x00000000u;
     static constexpr u32 kFlagReadable = 0x11111111u;
     static constexpr u32 kFlagLocked = 0xffffffffu;
+
+    u32 value;
+    u8 pad[64 - sizeof(u32)];
+
+    bool TryLockWriter()
+    {
+        u32 prev = kFlagWritable;
+        return CmpExStrong(value, prev, kFlagLocked, MO_Acquire);
+    }
+    void UnlockWriter()
+    {
+        Store(value, kFlagReadable);
+    }
+
+    bool TryLockReader()
+    {
+        u32 prev = kFlagReadable;
+        return CmpExStrong(value, prev, kFlagLocked, MO_Acquire);
+    }
+    void UnlockReader()
+    {
+        Store(value, kFlagWritable);
+    }
+};
+SASSERT(sizeof(PipeFlag) == 64);
+
+template<typename T, u32 kCapacity>
+struct Pipe
+{
     static constexpr u32 kMask = kCapacity - 1u;
     SASSERT((kCapacity & kMask) == 0u);
 
+    PipeFlag m_flags[kCapacity];
     u32 m_iWrite;
-    u32 m_iRead;
-    u32 m_flags[kCapacity];
     T m_data[kCapacity];
+    u32 m_iRead;
 
-    u32 size() const { return Load(m_iWrite) - Load(m_iRead); }
-    u32 Head() const { return Load(m_iWrite) & kMask; }
-    u32 Tail() const { return Load(m_iRead) & kMask; }
+    u32 size() const { return Load(m_iWrite, MO_Relaxed) - Load(m_iRead, MO_Relaxed); }
+    u32 Head() const { return Load(m_iWrite, MO_Relaxed) & kMask; }
+    u32 Tail() const { return Load(m_iRead, MO_Relaxed) & kMask; }
     static u32 Next(u32 i) { return (i + 1u) & kMask; }
 
     void Init() { Clear(); }
@@ -30,12 +58,11 @@ struct Pipe
     {
         for (u32 i = Head(); size() <= kMask; i = Next(i))
         {
-            u32 prev = kFlagWritable;
-            if (CmpExStrong(m_flags[i], prev, kFlagLocked, MO_Acquire))
+            if (m_flags[i].TryLockWriter())
             {
                 m_data[i] = src;
-                Store(m_flags[i], kFlagReadable);
-                Inc(m_iWrite, MO_Release);
+                m_flags[i].UnlockWriter();
+                Inc(m_iWrite, MO_Relaxed);
                 return true;
             }
         }
@@ -46,12 +73,11 @@ struct Pipe
     {
         for (u32 i = Tail(); size() != 0u; i = Next(i))
         {
-            u32 prev = kFlagReadable;
-            if (CmpExStrong(m_flags[i], prev, kFlagLocked, MO_Acquire))
+            if (m_flags[i].TryLockReader())
             {
                 dst = m_data[i];
-                Store(m_flags[i], kFlagWritable);
-                Inc(m_iRead, MO_Release);
+                m_flags[i].UnlockReader();
+                Inc(m_iRead, MO_Relaxed);
                 return true;
             }
         }
@@ -59,52 +85,3 @@ struct Pipe
     }
 };
 
-template<u32 kCapacity>
-struct PtrPipe
-{
-    static constexpr u32 kMask = kCapacity - 1u;
-    SASSERT((kCapacity & kMask) == 0u);
-
-    u32 m_iWrite;
-    u32 m_iRead;
-    isize m_ptrs[kCapacity];
-
-    void Init() { Clear(); }
-    void Clear() { memset(this, 0, sizeof(*this)); }
-
-    u32 size() const { return Load(m_iWrite.Value) - Load(m_iRead.Value); }
-    u32 Head() const { return Load(m_iWrite.Value) & kMask; }
-    u32 Tail() const { return Load(m_iRead.Value) & kMask; }
-    static u32 Next(u32 i) { return (i + 1u) & kMask; }
-
-    bool TryPush(void* ptr)
-    {
-        ASSERT(ptr);
-        for (u32 i = Head(); size() <= kMask; i = Next(i))
-        {
-            isize prev = 0;
-            if (CmpExStrong(m_ptrs[i], prev, (isize)ptr, MO_Acquire))
-            {
-                Inc(m_iWrite.Value, MO_Release);
-                ASSERT(!prev);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    void* TryPop()
-    {
-        for (u32 i = Tail(); size() != 0u; i = Next(i))
-        {
-            isize ptr = Load(m_ptrs[i], MO_Relaxed);
-            if (ptr && CmpExStrong(m_ptrs[i], ptr, 0, MO_Acquire))
-            {
-                Inc(m_iRead.Value, MO_Release);
-                ASSERT(ptr);
-                return (void*)ptr;
-            }
-        }
-        return nullptr;
-    }
-};

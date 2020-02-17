@@ -46,8 +46,7 @@ static void SortSystems()
 {
     if (ms_needsSort)
     {
-        ms_needsSort = false;
-
+        ms_graph.Clear();
         const i32 count = ms_systemCount;
         for (i32 iDst = 0; iDst < count; ++iDst)
         {
@@ -64,9 +63,9 @@ static void SortSystems()
                 }
             }
         }
-
-        ms_graph.TopoSort();
+        ms_graph.Sort();
         ASSERT(ms_graph.size() == count);
+        ms_needsSort = false;
     }
 }
 

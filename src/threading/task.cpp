@@ -7,10 +7,6 @@
 
 struct ITaskFriend
 {
-    static u32& GetState(ITask* pTask)
-    {
-        return pTask->m_state;
-    }
     static i32& GetWaits(ITask* pTask)
     {
         return pTask->m_waits;
@@ -29,7 +25,6 @@ struct ITaskFriend
     }
 };
 
-static u32& GetState(ITask* pTask) { return ITaskFriend::GetState(pTask); }
 static i32& GetWaits(ITask* pTask) { return ITaskFriend::GetWaits(pTask); }
 static i32& GetExec(ITask* pTask) { return ITaskFriend::GetExec(pTask); }
 static i32 GetBegin(ITask* pTask) { return ITaskFriend::GetBegin(pTask); }
@@ -37,29 +32,18 @@ static i32 GetEnd(ITask* pTask) { return ITaskFriend::GetEnd(pTask); }
 
 // ----------------------------------------------------------------------------
 
-TaskState ITask::GetState() const { return (TaskState)Load(m_state); }
-
-bool ITask::IsComplete() const { return GetState() == TaskState_Complete; }
-
-bool ITask::IsInProgress() const
-{
-    switch (GetState())
-    {
-    case TaskState_Execute:
-        return true;
-    }
-    return false;
-}
-
+bool ITask::IsComplete() const { return Load(m_exec) == 0; }
+bool ITask::IsInProgress() const { return Load(m_exec) > 0; }
 bool ITask::IsInitOrComplete() const
 {
-    switch (GetState())
-    {
-    case TaskState_Init:
-    case TaskState_Complete:
-        return true;
-    }
-    return false;
+    return Load(m_exec) == 0;
+}
+
+void ITask::SetRange(i32 begin, i32 end)
+{
+    ASSERT(IsInitOrComplete());
+    m_begin = begin;
+    m_end = end;
 }
 
 // ----------------------------------------------------------------------------
@@ -83,15 +67,15 @@ enum ThreadState : u32
 
 static constexpr u64 kMaxSpins = 10;
 static constexpr u64 kTicksPerSpin = 100;
-static constexpr u32 kNumThreads = 16;
+static constexpr u32 kNumThreads = 32;
 static constexpr u32 kThreadMask = kNumThreads - 1u;
 
 // ----------------------------------------------------------------------------
 
 static OS::Thread ms_threads[kNumThreads];
-static Pipe<Subtask, 16> ms_queues[kNumThreads];
+static Pipe<Subtask, 8> ms_queues[kNumThreads];
 
-static OS::Event ms_waitPush[kNumThreads];
+static OS::Event ms_waitPush;
 static OS::Event ms_waitExec;
 
 static i32 ms_numThreadsRunning;
@@ -121,11 +105,6 @@ static bool TryRunTask()
 
             if (Dec(GetExec(pTask)) == 1)
             {
-                Store(GetState(pTask), TaskState_Complete);
-            }
-
-            if (Load(GetWaits(subtask.pTask)) > 0)
-            {
                 ms_waitExec.WakeAll();
             }
 
@@ -148,11 +127,11 @@ static void Insert(Subtask subtask)
             const u32 j = (t + tid + hint) & kThreadMask;
             if (ms_queues[j].TryPush(subtask))
             {
-                ms_waitPush[t].WakeOne();
                 ms_hint = t;
                 return;
             }
         }
+        ms_waitPush.WakeAll();
         if (TryRunTask())
         {
             spins = 0;
@@ -175,8 +154,7 @@ static void AddTask(ITask* pTask)
     ASSERT(count >= 0);
 
     i32& iExec = GetExec(pTask);
-    Store(iExec, 0);
-    Store(ITaskFriend::GetState(pTask), TaskState_Execute);
+    Store(iExec, 1);
 
     if (count == 0)
     {
@@ -202,33 +180,25 @@ static void AddTask(ITask* pTask)
             Insert(subtask);
         }
     }
+
+    Dec(iExec, MO_Release);
+
+    ms_waitPush.WakeAll();
 }
 
 static void WaitForTask(ITask* pTask)
 {
     ASSERT(pTask);
-    ASSERT(pTask->GetState() != TaskState_Init);
 
-    u64 spins = 0;
+    i32& waits = ITaskFriend::GetWaits(pTask);
+    Inc(waits, MO_Acquire);
+
     while (!pTask->IsComplete())
     {
-        if (TryRunTask())
-        {
-            spins = 0;
-        }
-        else if (spins < kMaxSpins)
-        {
-            OS::Spin(++spins * kTicksPerSpin);
-        }
-        else
-        {
-            i32& waits = ITaskFriend::GetWaits(pTask);
-            Inc(waits, MO_Acquire);
-            ms_waitExec.Wait();
-            Dec(waits, MO_Release);
-            spins = 0;
-        }
+        ms_waitExec.Wait();
     }
+
+    Dec(waits, MO_Release);
 }
 
 static void ThreadFn(void* pVoid)
@@ -253,7 +223,7 @@ static void ThreadFn(void* pVoid)
         }
         else
         {
-            ms_waitPush[tid].Wait();
+            ms_waitPush.Wait();
             spins = 0;
         }
     }
@@ -269,10 +239,7 @@ namespace TaskSystem
 
         void Init() final
         {
-            for (u32 t = 0u; t < kNumThreads; ++t)
-            {
-                ms_waitPush[t].Open();
-            }
+            ms_waitPush.Open();
             ms_waitExec.Open();
             Store(ms_running, 1u);
             for (u32 t = 0u; t < kNumThreads; ++t)
@@ -292,10 +259,7 @@ namespace TaskSystem
             Store(ms_running, 0u);
             while (Load(ms_numThreadsRunning) > 0)
             {
-                for (u32 t = 0; t < kNumThreads; ++t)
-                {
-                    ms_waitPush[t].WakeAll();
-                }
+                ms_waitPush.WakeAll();
                 ms_waitExec.WakeAll();
                 OS::SwitchThread();
             }
@@ -310,11 +274,7 @@ namespace TaskSystem
                 ms_queues[t].Clear();
             }
 
-            for (u32 t = 0u; t < kNumThreads; ++t)
-            {
-                ms_waitPush[t].Close();
-            }
-
+            ms_waitPush.Close();
             ms_waitExec.Close();
         }
     };

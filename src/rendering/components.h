@@ -2,6 +2,7 @@
 
 #include "math/vec_types.h"
 #include "geometry/types.h"
+#include "common/type_guid.h"
 
 struct MeshId
 {
@@ -28,7 +29,6 @@ enum class BoundsType : u8
 {
     Sphere,
     Box,
-    Capsule,
 
     COUNT
 };
@@ -40,12 +40,14 @@ struct Drawable
     MeshId mesh;
     MaterialId material;
 };
+DECL_TGUID(Drawable)
 
 struct RenderBounds
 {
     BoundsType type;
     float3 extents;
 };
+DECL_TGUID(RenderBounds)
 
 struct Camera
 {
@@ -53,6 +55,7 @@ struct Camera
     float nearPlane;
     float farPlane;
 };
+DECL_TGUID(Camera)
 
 struct Light
 {
@@ -61,14 +64,17 @@ struct Light
     float intensity;
     float3 color;
 };
+DECL_TGUID(Light)
 
 struct ParticleEmitter
 {
 
 };
+DECL_TGUID(ParticleEmitter)
 
 struct FogVolume
 {
     float density;
     float3 color;
 };
+DECL_TGUID(FogVolume)

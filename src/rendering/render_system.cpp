@@ -5,14 +5,14 @@
 #include <sokol/util/sokol_imgui.h>
 #include "ui/imgui.h"
 
-#include "common/int_types.h"
 #include "common/time.h"
-#include "containers/array.h"
-
 #include "components/ecs.h"
 #include "components/system.h"
 #include "rendering/components.h"
 #include "rendering/screen.h"
+#include "components/transform.h"
+#include "components/entity_system.h"
+#include "math/vec_funcs.h"
 
 namespace Screen
 {
@@ -31,9 +31,44 @@ namespace Screen
 
 namespace RenderSystem
 {
+    static constexpr sg_pass_action ms_clear =
+    {
+        0,
+        {
+            {
+                SG_ACTION_CLEAR,
+                { 0.25f, 0.25f, 0.5f, 0.0f }
+            },
+        },
+    };
+
+    struct DrawSystem final : IEntitySystem
+    {
+        DrawSystem() : IEntitySystem(
+            "DrawSystem",
+            {},
+            { CTypeOf<Drawable>(false), CTypeOf<LocalToWorld>(true) },
+            {})
+        {}
+
+        void Execute(Slice<const Entity> entities) final
+        {
+            for (Entity entity : entities)
+            {
+                const Drawable* drawable = ECS::Get<Drawable>(entity);
+                LocalToWorld* l2w = ECS::Get<LocalToWorld>(entity);
+                ASSERT(drawable);
+                ASSERT(l2w);
+                l2w->Value.x.x = math::sin(Random::NextF32());
+            }
+        }
+    };
+
+    static DrawSystem* ms_drawSystem;
+
     struct System final : ISystem
     {
-        System() : ISystem("RenderSystem", { "InputSystem" }) {}
+        System() : ISystem("RenderSystem", { "InputSystem", "IEntitySystem", "ECS", }) {}
 
         void Init() final
         {
@@ -54,16 +89,30 @@ namespace RenderSystem
                 simgui_setup(&desc);
             }
             Screen::Update();
+
+            for (i32 i = 0; i < 50000; ++i)
+            {
+                Entity entity = ECS::Create();
+                bool added = ECS::Add<Drawable>(entity);
+                ASSERT(added);
+                added = ECS::Add<LocalToWorld>(entity);
+                ASSERT(added);
+            }
+
+            ms_drawSystem = new DrawSystem();
         }
 
         void Update() final
         {
             Screen::Update();
             simgui_new_frame(Screen::Width(), Screen::Height(), Time::DeltaTimeF32());
+            sg_begin_default_pass(&ms_clear, Screen::Width(), Screen::Height());
         }
 
         void Shutdown() final
         {
+            delete ms_drawSystem;
+
             simgui_shutdown();
             sg_shutdown();
         }
@@ -71,25 +120,10 @@ namespace RenderSystem
 
     static System ms_system;
 
-    static constexpr sg_pass_action ms_clear =
-    {
-        0,
-        {
-            {
-                SG_ACTION_CLEAR,
-                { 0.25f, 0.25f, 0.5f, 0.0f }
-            },
-        },
-    };
-
     void FrameEnd()
     {
-        sg_begin_default_pass(&ms_clear, Screen::Width(), Screen::Height());
-        {
-            simgui_render();
-        }
+        simgui_render();
         sg_end_pass();
-
         sg_commit();
     }
 

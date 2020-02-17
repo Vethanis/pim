@@ -3,93 +3,22 @@
 #include "os/thread.h"
 #include "os/atomics.h"
 #include "containers/graph.h"
-
-static OS::Mutex ms_mutex;
-static Array<TaskNode*> ms_tasks;
-static Array<TaskNode*> ms_list;
-static i32 ms_frame;
-
-struct TaskGraphImpl
-{
-    static bool AddEdge(TaskNode* src, TaskNode* dst)
-    {
-        ASSERT(src);
-        ASSERT(dst);
-        return dst->m_edges.FindAdd(src);
-    }
-
-    static bool RmEdge(TaskNode* src, TaskNode* dst)
-    {
-        ASSERT(src);
-        ASSERT(dst);
-        return dst->m_edges.FindRemove(src);
-    }
-
-    static void ClearEdges(TaskNode* dst)
-    {
-        ASSERT(dst);
-        dst->m_edges.Clear();
-    }
-
-    static void Visit(TaskNode* pNode)
-    {
-        ASSERT(pNode->m_mark != 1);
-        if (pNode->m_mark == 0)
-        {
-            pNode->m_mark = 1;
-            for (TaskNode* pDep : pNode->m_edges)
-            {
-                Visit(pDep);
-            }
-            pNode->m_mark = 2;
-            ms_list.PushBack(pNode);
-        }
-    }
-
-    static void Evaluate()
-    {
-        OS::LockGuard guard(ms_mutex);
-
-        for (TaskNode* pNode : ms_tasks)
-        {
-            pNode->m_mark = 0;
-        }
-
-        ms_list.Clear();
-        for (TaskNode* pNode : ms_tasks)
-        {
-            if (pNode->m_mark == 0)
-            {
-                Visit(pNode);
-            }
-        }
-        ms_tasks.Clear();
-
-        for (TaskNode* pNode : ms_list)
-        {
-            for (TaskNode* pDep : pNode->m_edges)
-            {
-                TaskSystem::Await(pDep);
-            }
-            TaskSystem::Submit(pNode);
-        }
-
-        if (ms_list.size())
-        {
-            TaskNode* pLast = ms_list.back();
-            TaskSystem::Await(pLast);
-        }
-        ms_list.Clear();
-    }
-};
+#include"components/ecs.h"
 
 namespace TaskGraph
 {
+    static OS::Mutex ms_mutex;
+    static Graph ms_graph;
+    static Array<TaskNode*> ms_nodes;
+
     void AddVertex(TaskNode* pNode)
     {
         ASSERT(pNode);
         OS::LockGuard guard(ms_mutex);
-        ms_tasks.PushBack(pNode);
+        i32 i = ms_nodes.PushBack(pNode);
+        i32 j = ms_graph.AddVertex();
+        ASSERT(i == j);
+        pNode->m_graphId = j;
     }
 
     void AddVertices(Slice<TaskNode*> nodes)
@@ -98,7 +27,10 @@ namespace TaskGraph
         for (TaskNode* pNode : nodes)
         {
             ASSERT(pNode);
-            ms_tasks.PushBack(pNode);
+            i32 i = ms_nodes.PushBack(pNode);
+            i32 j = ms_graph.AddVertex();
+            ASSERT(i == j);
+            pNode->m_graphId = j;
         }
     }
 
@@ -106,25 +38,32 @@ namespace TaskGraph
     {
         ASSERT(src);
         ASSERT(dst);
-        return TaskGraphImpl::AddEdge(src, dst);
-    }
-
-    bool RmEdge(TaskNode* src, TaskNode* dst)
-    {
-        ASSERT(src);
-        ASSERT(dst);
-        return TaskGraphImpl::RmEdge(src, dst);
-    }
-
-    void ClearEdges(TaskNode* dst)
-    {
-        ASSERT(dst);
-        TaskGraphImpl::ClearEdges(dst);
+        OS::LockGuard guard(ms_mutex);
+        return ms_graph.AddEdge(src->m_graphId, dst->m_graphId);
     }
 
     void Evaluate()
     {
-        TaskGraphImpl::Evaluate();
+        OS::LockGuard guard(ms_mutex);
+        ECS::SetPhase(ECS::Phase_MultiThread);
+
+        ms_graph.Sort();
+        for (i32 i : ms_graph)
+        {
+            for (i32 j : ms_graph.GetEdges(i))
+            {
+                TaskSystem::Await(ms_nodes[j]);
+            }
+            ms_nodes[i]->BeforeSubmit();
+            TaskSystem::Submit(ms_nodes[i]);
+        }
+        for (i32 i : ms_graph)
+        {
+            TaskSystem::Await(ms_nodes[i]);
+        }
+        ms_graph.Clear();
+        ms_nodes.Clear();
+        ECS::SetPhase(ECS::Phase_MainThread);
     }
 
     struct System final : ISystem
@@ -133,15 +72,15 @@ namespace TaskGraph
         void Init() final
         {
             ms_mutex.Open();
-            ms_list.Init(Alloc_Tlsf);
-            ms_tasks.Init(Alloc_Tlsf);
+            ms_graph.Init();
+            ms_nodes.Init();
         }
         void Update() final {}
         void Shutdown() final
         {
             ms_mutex.Lock();
-            ms_list.Reset();
-            ms_tasks.Reset();
+            ms_graph.Reset();
+            ms_nodes.Reset();
             ms_mutex.Close();
         }
     };

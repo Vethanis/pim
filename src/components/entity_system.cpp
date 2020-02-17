@@ -3,7 +3,7 @@
 #include "components/system.h"
 #include "common/find.h"
 #include "common/guid.h"
-#include "components/ecs.h"
+#include "os/atomics.h"
 
 struct EntitySystems final : ISystem
 {
@@ -15,7 +15,7 @@ private:
     bool m_dirty;
 
 public:
-    EntitySystems() : ISystem("IEntitySystem", { "TaskGraph" }) {}
+    EntitySystems() : ISystem("IEntitySystem", { "TaskGraph", "ECS" }) {}
 
     void Init() final
     {
@@ -37,35 +37,25 @@ public:
 
         TaskGraph::AddVertices({ reinterpret_cast<TaskNode**>(systems), len });
 
-        if (m_dirty)
+        for (i32 i = len - 1; i > 0; --i)
         {
-            for (i32 i = 0; i < len; ++i)
+            IEntitySystem* dst = systems[i];
+
+            for (i32 j = i - 1; j >= 0; --j)
             {
-                TaskGraph::ClearEdges(systems[i]);
-            }
-
-            for (i32 i = len - 1; i > 0; --i)
-            {
-                IEntitySystem* dst = systems[i];
-
-                for (i32 j = i - 1; j >= 0; --j)
+                IEntitySystem* src = systems[j];
+                if (IEntitySystem::Overlaps(dst, src))
                 {
-                    IEntitySystem* src = systems[j];
-                    if (IEntitySystem::Overlaps(dst, src))
-                    {
-                        TaskGraph::AddEdge(src, dst);
-                    }
-                }
-
-                for (Guid id : edges[i])
-                {
-                    i32 iSrc = ::Find(guids, len, id);
-                    ASSERT(iSrc != -1);
-                    TaskGraph::AddEdge(systems[iSrc], dst);
+                    TaskGraph::AddEdge(src, dst);
                 }
             }
 
-            m_dirty = false;
+            for (Guid id : edges[i])
+            {
+                i32 iSrc = ::Find(guids, len, id);
+                ASSERT(iSrc != -1);
+                TaskGraph::AddEdge(systems[iSrc], dst);
+            }
         }
 
         TaskGraph::Evaluate();
@@ -122,7 +112,7 @@ IEntitySystem::IEntitySystem(
     cstr name,
     std::initializer_list<cstr> edges,
     std::initializer_list<ComponentType> all,
-    std::initializer_list<ComponentType> none) : TaskNode(0, 0)
+    std::initializer_list<ComponentType> none) : TaskNode()
 {
     m_all.Init();
     m_none.Init();
@@ -138,24 +128,15 @@ IEntitySystem::~IEntitySystem()
     m_none.Reset();
 }
 
-void IEntitySystem::Execute(i32 begin, i32 end)
-{
-    auto result = ECS::Select(m_all, m_none);
-    Slice<const Entity> entities = { result.begin(), result.size() };
-    Execute(entities);
-}
-
 bool IEntitySystem::Overlaps(const IEntitySystem* pLhs, const IEntitySystem* pRhs)
 {
-    Slice<const ComponentType> lhs = pLhs->m_all;
-    Slice<const ComponentType> rhs = pRhs->m_all;
-    for (ComponentType lhsType : lhs)
+    for (ComponentType outer : pLhs->m_all)
     {
-        for (ComponentType rhsType : rhs)
+        for (ComponentType inner : pRhs->m_all)
         {
-            if (lhsType == rhsType)
+            if (outer == inner)
             {
-                if (lhsType.write | rhsType.write)
+                if (outer.write | inner.write)
                 {
                     return true;
                 }
@@ -164,4 +145,17 @@ bool IEntitySystem::Overlaps(const IEntitySystem* pLhs, const IEntitySystem* pRh
         }
     }
     return false;
+}
+
+void IEntitySystem::BeforeSubmit()
+{
+    m_entities = ECS::ForEach(
+        std::initializer_list<ComponentType>(m_all.begin(), m_all.end()),
+        std::initializer_list<ComponentType>(m_none.begin(), m_none.end()));
+    SetRange(0, m_entities.size());
+}
+
+void IEntitySystem::Execute(i32 begin, i32 end)
+{
+    Execute(m_entities.Subslice(begin, end - begin));
 }

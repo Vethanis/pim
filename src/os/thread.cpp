@@ -17,10 +17,10 @@ namespace OS
         u64 spins = 0;
         while (!TryLock())
         {
-            if (spins > 10)
+            if (spins > 5)
             {
                 spins = 0;
-                OS::Rest(0);
+                OS::SwitchThread();
             }
             else
             {
@@ -46,18 +46,17 @@ namespace OS
     void LightSema::Wait()
     {
         u64 spins = 0;
-    trywait:
-        if (!TryWait())
+        while (spins < 10)
         {
-            if (spins < 10)
+            if (TryWait())
             {
-                OS::Spin(++spins * 100);
-                goto trywait;
+                return;
             }
-            if (Dec(m_count, MO_Acquire) <= 0)
-            {
-                m_sema.Wait();
-            }
+            OS::Spin(++spins * 100);
+        }
+        if (Dec(m_count, MO_Acquire) <= 0)
+        {
+            m_sema.Wait();
         }
     }
 
@@ -209,8 +208,20 @@ namespace OS
 
     void Event::Wait()
     {
+        u64 spins = 0;
         Inc(m_waits, MO_Acquire);
-        m_sema.Wait();
+        while (Load(m_waits, MO_Relaxed) > 0)
+        {
+            OS::Spin(++spins * 100);
+            if (spins >= 10)
+            {
+                break;
+            }
+        }
+        if (Load(m_waits, MO_Relaxed) > 0)
+        {
+            m_sema.Wait();
+        }
     }
 
     // ------------------------------------------------------------------------

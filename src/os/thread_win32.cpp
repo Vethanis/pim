@@ -20,7 +20,7 @@ u64 OS::ReadCounter()
 
 void OS::Spin(u64 ticks)
 {
-    if ((ticks >= 4000) && ::SwitchToThread())
+    if ((ticks > 1000) && ::SwitchToThread())
     {
         return;
     }
