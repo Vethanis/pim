@@ -22,7 +22,7 @@ namespace Allocator
     static LinearAllocator ms_linear = LinearAllocator(1 << 20);
     static StackAllocator ms_stack = StackAllocator(1 << 20);
     static PoolAllocator ms_pool = PoolAllocator(1 << 20);
-    static TlsfAllocator ms_tlsf = TlsfAllocator(16 << 20);
+    static TlsfAllocator ms_tlsf = TlsfAllocator(256 << 20);
 
 #if ENABLE_LEAK_TRACKER
     static LeakTracker ms_tracker = LeakTracker();

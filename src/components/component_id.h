@@ -29,7 +29,7 @@ namespace ECS
     template<typename T>
     static ComponentId GetId()
     {
-        static const ComponentId id = RegisterType(TGuidOf<T>(), sizeof(T));
+        static ComponentId id = RegisterType(TGuidOf<T>(), sizeof(T));
         return id;
     }
 };

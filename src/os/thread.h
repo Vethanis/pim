@@ -34,35 +34,9 @@ namespace OS
         bool TryWait();
     };
 
-    struct SpinLock
-    {
-        i32 m_count;
-
-        bool TryLock();
-        void Lock();
-        void Unlock();
-    };
-
-    struct LightSema
-    {
-        Semaphore m_sema;
-        i32 m_count;
-
-        bool IsOpen() const { return m_sema.IsOpen(); }
-        bool Open(u32 initialValue = 0)
-        {
-            m_count = (i32)initialValue;
-            return m_sema.Open(initialValue);
-        }
-        bool Close() { return m_sema.Close(); }
-        bool TryWait();
-        void Wait();
-        void Signal(i32 count = 1);
-    };
-
     struct Mutex
     {
-        LightSema sema;
+        Semaphore sema;
 
         bool IsOpen() const { return sema.IsOpen(); }
         bool Open() { return sema.Open(1); }
@@ -82,8 +56,8 @@ namespace OS
     struct RWLock
     {
         mutable u32 m_state;
-        mutable LightSema m_read;
-        mutable LightSema m_write;
+        mutable Semaphore m_read;
+        mutable Semaphore m_write;
 
         void Open()
         {
@@ -139,7 +113,7 @@ namespace OS
     struct Event
     {
         i32 m_waits;
-        LightSema m_sema;
+        Semaphore m_sema;
 
         bool Open()
         {

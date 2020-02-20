@@ -1,26 +1,44 @@
 #pragma once
 
 #include "components/ecs.h"
-#include "threading/taskgraph.h"
+#include "components/system.h"
 #include <initializer_list>
 
-struct IEntitySystem : TaskNode
+struct IEntitySystem;
+
+struct EntitySystemTask final : ECS::ForEachTask
+{
+    EntitySystemTask(
+        IEntitySystem* pSystem,
+        std::initializer_list<ComponentType> all,
+        std::initializer_list<ComponentType> none) :
+        ECS::ForEachTask(all, none),
+        m_system(pSystem)
+    {}
+
+    void OnEntity(Entity entity) final;
+
+private:
+    IEntitySystem* m_system;
+};
+
+struct IEntitySystem : ISystem
 {
     IEntitySystem(
         cstr name,
-        std::initializer_list<cstr> edges,
+        std::initializer_list<cstr> dependencies,
         std::initializer_list<ComponentType> all,
         std::initializer_list<ComponentType> none);
     virtual ~IEntitySystem();
 
-    void Execute(i32 begin, i32 end) final;
-    void BeforeSubmit() final;
-    virtual void Execute(Slice<const Entity> entities) = 0;
-
-    static bool Overlaps(const IEntitySystem* pLhs, const IEntitySystem* pRhs);
+    void Update() final;
+    virtual void OnEntity(Entity entity) = 0;
 
 private:
-    Slice<const Entity> m_entities;
-    Array<ComponentType> m_all;
-    Array<ComponentType> m_none;
+    EntitySystemTask m_task;
 };
+
+inline void EntitySystemTask::OnEntity(Entity entity)
+{
+    m_system->OnEntity(entity);
+}

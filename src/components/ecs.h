@@ -5,6 +5,7 @@
 #include "allocator/allocator.h"
 #include "containers/slice.h"
 #include "containers/array.h"
+#include "threading/task.h"
 #include <initializer_list>
 
 namespace ECS
@@ -16,6 +17,8 @@ namespace ECS
     };
 
     void SetPhase(Phase phase);
+
+    i32 EntityCount();
 
     Entity Create();
     bool Destroy(Entity entity);
@@ -37,5 +40,19 @@ namespace ECS
         return (T*)Get(entity, GetId<T>());
     }
 
-    Slice<const Entity> ForEach(std::initializer_list<ComponentType> all, std::initializer_list<ComponentType> none);
+    struct ForEachTask : ITask
+    {
+        ForEachTask(
+            std::initializer_list<ComponentType> all,
+            std::initializer_list<ComponentType> none);
+        ~ForEachTask();
+
+        void Setup();
+        void Execute(i32, i32) final;
+        virtual void OnEntity(Entity entity) = 0;
+
+    private:
+        Array<ComponentType> m_all;
+        Array<ComponentType> m_none;
+    };
 };

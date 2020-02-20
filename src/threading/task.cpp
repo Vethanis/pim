@@ -34,14 +34,10 @@ static i32 GetEnd(ITask* pTask) { return ITaskFriend::GetEnd(pTask); }
 
 bool ITask::IsComplete() const { return Load(m_exec) == 0; }
 bool ITask::IsInProgress() const { return Load(m_exec) > 0; }
-bool ITask::IsInitOrComplete() const
-{
-    return Load(m_exec) == 0;
-}
 
 void ITask::SetRange(i32 begin, i32 end)
 {
-    ASSERT(IsInitOrComplete());
+    ASSERT(!IsInProgress());
     m_begin = begin;
     m_end = end;
 }
@@ -69,44 +65,38 @@ static constexpr u64 kMaxSpins = 10;
 static constexpr u64 kTicksPerSpin = 100;
 static constexpr u32 kNumThreads = 32;
 static constexpr u32 kThreadMask = kNumThreads - 1u;
+static constexpr u32 kTaskSplit = kNumThreads * (kNumThreads - 1u);
+
+using pipe_t = Pipe<Subtask, 8>;
 
 // ----------------------------------------------------------------------------
 
 static OS::Thread ms_threads[kNumThreads];
-static Pipe<Subtask, 8> ms_queues[kNumThreads];
+static pipe_t ms_queues[kNumThreads];
 
 static OS::Event ms_waitPush;
-static OS::Event ms_waitExec;
 
 static i32 ms_numThreadsRunning;
 static u32 ms_running;
 
 static thread_local u32 ms_tid;
-static thread_local u32 ms_hint;
 
 // ----------------------------------------------------------------------------
 
-static bool TryRunTask()
+static bool TryRunTask(u32 tid)
 {
-    const u32 tid = ms_tid;
-    const u32 hint = ms_hint;
+    pipe_t* const queues = ms_queues;
 
     for (u32 t = 0u; t < kNumThreads; ++t)
     {
-        const u32 j = (t + tid + hint) & kThreadMask;
+        const u32 j = (t + tid) & kThreadMask;
 
         Subtask subtask = {};
-        if (ms_queues[t].TryPop(subtask))
+        if (queues[j].TryPop(subtask))
         {
-            ms_hint = t;
-
             ITask* pTask = subtask.pTask;
             pTask->Execute(subtask.begin, subtask.end);
-
-            if (Dec(GetExec(pTask)) == 1)
-            {
-                ms_waitExec.WakeAll();
-            }
+            Dec(GetExec(pTask));
 
             return true;
         }
@@ -115,24 +105,23 @@ static bool TryRunTask()
     return false;
 }
 
-static void Insert(Subtask subtask)
+static void Insert(Subtask subtask, u32 tid)
 {
-    const u32 tid = ms_tid;
+    pipe_t* const queues = ms_queues;
+
     u64 spins = 0;
-    const u32 hint = ms_hint;
     while (true)
     {
         for (u32 t = 0; t < kNumThreads; ++t)
         {
-            const u32 j = (t + tid + hint) & kThreadMask;
-            if (ms_queues[j].TryPush(subtask))
+            const u32 j = (t + tid) & kThreadMask;
+            if (queues[j].TryPush(subtask))
             {
-                ms_hint = t;
                 return;
             }
         }
         ms_waitPush.WakeAll();
-        if (TryRunTask())
+        if (TryRunTask(tid))
         {
             spins = 0;
         }
@@ -143,18 +132,17 @@ static void Insert(Subtask subtask)
     }
 }
 
-static void AddTask(ITask* pTask)
+static void AddTask(ITask* pTask, u32 tid)
 {
     ASSERT(pTask);
-    ASSERT(pTask->IsInitOrComplete());
+
+    i32& iExec = GetExec(pTask);
+    ASSERT(Load(iExec) == 0);
 
     i32 begin = GetBegin(pTask);
     const i32 end = GetEnd(pTask);
     const i32 count = end - begin;
     ASSERT(count >= 0);
-
-    i32& iExec = GetExec(pTask);
-    Store(iExec, 1);
 
     if (count == 0)
     {
@@ -163,7 +151,7 @@ static void AddTask(ITask* pTask)
         subtask.begin = begin;
         subtask.end = end;
         Inc(iExec);
-        Insert(subtask);
+        Insert(subtask, tid);
     }
     else
     {
@@ -177,31 +165,37 @@ static void AddTask(ITask* pTask)
             subtask.end = next;
             begin = next;
             Inc(iExec);
-            Insert(subtask);
+            Insert(subtask, tid);
         }
     }
-
-    Dec(iExec, MO_Release);
 
     ms_waitPush.WakeAll();
 }
 
-static void WaitForTask(ITask* pTask)
+static void WaitForTask(ITask* pTask, u32 tid)
 {
     ASSERT(pTask);
 
-    i32& waits = ITaskFriend::GetWaits(pTask);
-    Inc(waits, MO_Acquire);
+    i32& waits = GetWaits(pTask);
+    Inc(waits);
 
-    while (!pTask->IsComplete())
+    u64 spins = 0;
+    while (Load(GetExec(pTask)) > 0)
     {
-        ms_waitExec.Wait();
+        if (TryRunTask(tid))
+        {
+            spins = 0;
+        }
+        else
+        {
+            OS::Spin(++spins * kTicksPerSpin);
+        }
     }
 
-    Dec(waits, MO_Release);
+    Dec(waits);
 }
 
-static void ThreadFn(void* pVoid)
+static void TaskLoop(void* pVoid)
 {
     Inc(ms_numThreadsRunning);
 
@@ -209,11 +203,12 @@ static void ThreadFn(void* pVoid)
 
     ms_tid = (u32)((isize)pVoid);
     const u32 tid = ms_tid;
+    ASSERT(tid != 0u);
 
     u64 spins = 0;
-    while (Load(ms_running, MO_Relaxed))
+    while (Load(ms_running))
     {
-        if (TryRunTask())
+        if (TryRunTask(tid))
         {
             spins = 0;
         }
@@ -224,7 +219,6 @@ static void ThreadFn(void* pVoid)
         else
         {
             ms_waitPush.Wait();
-            spins = 0;
         }
     }
 
@@ -240,15 +234,17 @@ namespace TaskSystem
         void Init() final
         {
             ms_waitPush.Open();
-            ms_waitExec.Open();
             Store(ms_running, 1u);
+
+            pipe_t* const queues = ms_queues;
+            OS::Thread* const threads = ms_threads;
             for (u32 t = 0u; t < kNumThreads; ++t)
             {
-                ms_queues[t].Init();
+                queues[t].Init();
             }
-            for (u32 t = 0u; t < kNumThreads; ++t)
+            for (u32 t = 1u; t < kNumThreads; ++t)
             {
-                ms_threads[t].Open(ThreadFn, (void*)((isize)t));
+                threads[t].Open(TaskLoop, (void*)((isize)t));
             }
         }
 
@@ -257,35 +253,34 @@ namespace TaskSystem
         void Shutdown() final
         {
             Store(ms_running, 0u);
-            while (Load(ms_numThreadsRunning) > 0)
+            while (Load(ms_numThreadsRunning, MO_Relaxed) > 0)
             {
                 ms_waitPush.WakeAll();
-                ms_waitExec.WakeAll();
                 OS::SwitchThread();
             }
 
-            for (u32 t = 0u; t < kNumThreads; ++t)
+            pipe_t* const queues = ms_queues;
+            OS::Thread* const threads = ms_threads;
+            for (u32 t = 1u; t < kNumThreads; ++t)
             {
-                ms_threads[t].Join();
+                threads[t].Join();
             }
-
             for (u32 t = 0u; t < kNumThreads; ++t)
             {
-                ms_queues[t].Clear();
+                queues[t].Clear();
             }
 
             ms_waitPush.Close();
-            ms_waitExec.Close();
         }
     };
     static System ms_system;
 
     void Submit(ITask* pTask)
     {
-        AddTask(pTask);
+        AddTask(pTask, ms_tid);
     }
     void Await(ITask* pTask)
     {
-        WaitForTask(pTask);
+        WaitForTask(pTask, ms_tid);
     }
 };

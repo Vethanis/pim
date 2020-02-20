@@ -6,72 +6,6 @@
 
 namespace OS
 {
-    bool SpinLock::TryLock()
-    {
-        i32 cmp = 0;
-        return CmpExStrong(m_count, cmp, 1, MO_Acquire);
-    }
-
-    void SpinLock::Lock()
-    {
-        u64 spins = 0;
-        while (!TryLock())
-        {
-            if (spins > 5)
-            {
-                spins = 0;
-                OS::SwitchThread();
-            }
-            else
-            {
-                OS::Spin(++spins * 100);
-            }
-        }
-    }
-
-    void SpinLock::Unlock()
-    {
-        i32 prev = Exchange(m_count, 0, MO_Release);
-        ASSERT(prev == 1);
-    }
-
-    // ------------------------------------------------------------------------
-
-    bool LightSema::TryWait()
-    {
-        i32 oldCount = Load(m_count, MO_Relaxed);
-        return (oldCount > 0) && CmpExStrong(m_count, oldCount, oldCount - 1, MO_Acquire);
-    }
-
-    void LightSema::Wait()
-    {
-        u64 spins = 0;
-        while (spins < 10)
-        {
-            if (TryWait())
-            {
-                return;
-            }
-            OS::Spin(++spins * 100);
-        }
-        if (Dec(m_count, MO_Acquire) <= 0)
-        {
-            m_sema.Wait();
-        }
-    }
-
-    void LightSema::Signal(i32 count)
-    {
-        i32 oldCount = FetchAdd(m_count, count, MO_Release);
-        i32 toRelease = Min(-oldCount, count);
-        if (toRelease > 0)
-        {
-            m_sema.Signal(toRelease);
-        }
-    }
-
-    // ------------------------------------------------------------------------
-
     struct RWState
     {
         u32 readers : 10;
@@ -181,11 +115,8 @@ namespace OS
     void Event::WakeOne()
     {
         u64 spins = 0;
-        i32 waits = Load(m_waits, MO_Relaxed);
-        while (!CmpExStrong(m_waits, waits, Max(waits - 1, 0), MO_Release))
-        {
-            OS::Spin(++spins * 100);
-        }
+        i32 waits = Load(m_waits);
+        waits = Exchange(m_waits, Max(waits - 1, 0));
         if (waits > 0)
         {
             m_sema.Signal(1);
@@ -195,11 +126,7 @@ namespace OS
     void Event::WakeAll()
     {
         u64 spins = 0;
-        i32 waits = Load(m_waits, MO_Relaxed);
-        while (!CmpExStrong(m_waits, waits, 0, MO_Release))
-        {
-            OS::Spin(++spins * 100);
-        }
+        i32 waits = Exchange(m_waits, 0);
         if (waits > 0)
         {
             m_sema.Signal(waits);
@@ -208,20 +135,8 @@ namespace OS
 
     void Event::Wait()
     {
-        u64 spins = 0;
-        Inc(m_waits, MO_Acquire);
-        while (Load(m_waits, MO_Relaxed) > 0)
-        {
-            OS::Spin(++spins * 100);
-            if (spins >= 10)
-            {
-                break;
-            }
-        }
-        if (Load(m_waits, MO_Relaxed) > 0)
-        {
-            m_sema.Wait();
-        }
+        Inc(m_waits);
+        m_sema.Wait();
     }
 
     // ------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/int_types.h"
+#include "containers/array.h"
 
 struct ITask
 {
@@ -8,14 +9,12 @@ struct ITask
         m_waits(0),
         m_exec(0),
         m_begin(begin),
-        m_end(end)
-    {}
+        m_end(end) {}
     virtual ~ITask() {}
     virtual void Execute(i32 begin, i32 end) = 0;
 
     bool IsComplete() const;
     bool IsInProgress() const;
-    bool IsInitOrComplete() const;
     void SetRange(i32 begin, i32 end);
 
 private:

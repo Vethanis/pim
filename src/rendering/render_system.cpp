@@ -29,6 +29,23 @@ namespace Screen
     }
 };
 
+struct DrawTask final : ECS::ForEachTask
+{
+    DrawTask() : ECS::ForEachTask(
+        { CTypeOf<Drawable>(false), CTypeOf<LocalToWorld>(true) },
+        {})
+    {}
+
+    void OnEntity(Entity entity) final
+    {
+        const Drawable* drawable = ECS::Get<Drawable>(entity);
+        LocalToWorld* l2w = ECS::Get<LocalToWorld>(entity);
+        ASSERT(drawable);
+        ASSERT(l2w);
+        l2w->Value.x.x = math::sin(Random::NextF32());
+    }
+};
+
 namespace RenderSystem
 {
     static constexpr sg_pass_action ms_clear =
@@ -42,33 +59,11 @@ namespace RenderSystem
         },
     };
 
-    struct DrawSystem final : IEntitySystem
-    {
-        DrawSystem() : IEntitySystem(
-            "DrawSystem",
-            {},
-            { CTypeOf<Drawable>(false), CTypeOf<LocalToWorld>(true) },
-            {})
-        {}
-
-        void Execute(Slice<const Entity> entities) final
-        {
-            for (Entity entity : entities)
-            {
-                const Drawable* drawable = ECS::Get<Drawable>(entity);
-                LocalToWorld* l2w = ECS::Get<LocalToWorld>(entity);
-                ASSERT(drawable);
-                ASSERT(l2w);
-                l2w->Value.x.x = math::sin(Random::NextF32());
-            }
-        }
-    };
-
-    static DrawSystem* ms_drawSystem;
-
     struct System final : ISystem
     {
         System() : ISystem("RenderSystem", { "InputSystem", "IEntitySystem", "ECS", }) {}
+
+        DrawTask m_task;
 
         void Init() final
         {
@@ -90,16 +85,18 @@ namespace RenderSystem
             }
             Screen::Update();
 
-            for (i32 i = 0; i < 50000; ++i)
+            for (i32 i = 0; i < 1000000; ++i)
             {
                 Entity entity = ECS::Create();
-                bool added = ECS::Add<Drawable>(entity);
-                ASSERT(added);
-                added = ECS::Add<LocalToWorld>(entity);
-                ASSERT(added);
+                if (Random::NextU32() & 1)
+                {
+                    ECS::Add<Drawable>(entity);
+                }
+                if (Random::NextU32() & 1)
+                {
+                    ECS::Add<LocalToWorld>(entity);
+                }
             }
-
-            ms_drawSystem = new DrawSystem();
         }
 
         void Update() final
@@ -107,12 +104,14 @@ namespace RenderSystem
             Screen::Update();
             simgui_new_frame(Screen::Width(), Screen::Height(), Time::DeltaTimeF32());
             sg_begin_default_pass(&ms_clear, Screen::Width(), Screen::Height());
+
+            m_task.Setup();
+            TaskSystem::Submit(&m_task);
+            TaskSystem::Await(&m_task);
         }
 
         void Shutdown() final
         {
-            delete ms_drawSystem;
-
             simgui_shutdown();
             sg_shutdown();
         }
