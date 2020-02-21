@@ -9,9 +9,6 @@
 
 namespace ECS
 {
-    static constexpr i32 kPacketSize = 128;
-    static constexpr i32 kMaxTypes = 256;
-
     static Array<i32> ms_versions;
     static MtQueue<i32> ms_free;
 
@@ -23,7 +20,7 @@ namespace ECS
 
     struct System final : ISystem
     {
-        System() : ISystem("ECS") {}
+        System() : ISystem("ECS", { "TaskSystem" }) {}
         void Init() final
         {
             ms_versions.Init(Alloc_Tlsf, 1024);
@@ -47,8 +44,6 @@ namespace ECS
     };
 
     static System ms_system;
-
-    static bool IsNewer(i32 prev, i32 next) { return (next - prev) > 0; }
 
     static i32 Match(i32 entity, i32 component)
     {
@@ -91,6 +86,9 @@ namespace ECS
 
     Entity Create()
     {
+        ASSERT(ThreadId() == 0);
+        ASSERT(NumActiveThreads() == 0);
+
         Entity entity = { 0, 0 };
         if (ms_free.TryPop(entity.index))
         {
@@ -144,7 +142,7 @@ namespace ECS
         i32& rVersion = ms_rowVersions[iRow][entity.index];
 
         i32 version = Load(rVersion, MO_Relaxed);
-        ASSERT(!(version & 1));
+        ASSERT((version & 1) == 0);
         if ((entity.version - version) > 0)
         {
             if (CmpExStrong(rVersion, version, entity.version, MO_Acquire))
@@ -166,17 +164,11 @@ namespace ECS
     void* Get(Entity entity, ComponentId id)
     {
         ASSERT(entity.version & 1);
-
         const i32 iRow = id.Value;
         const i32 sizeOf = ms_strides[iRow];
         u8* ptr = ms_rowBytes[iRow].begin() + entity.index * sizeOf;
         i32& rVersion = ms_rowVersions[iRow][entity.index];
-
-        if (Load(rVersion, MO_Relaxed) == entity.version)
-        {
-            return ptr;
-        }
-        return nullptr;
+        return (Load(rVersion, MO_Relaxed) == entity.version) ? ptr : nullptr;
     }
 
     ForEachTask::ForEachTask(
@@ -220,55 +212,35 @@ namespace ECS
     {
         const Slice<const ComponentId> all = m_all;
         const Slice<const ComponentId> none = m_none;
-        const Array<i32>* const rowVersions = ms_rowVersions;
         const i32* const versions = ms_versions.begin();
+        const Array<i32>* const rowVersions = ms_rowVersions;
 
-        i32 packet[kPacketSize];
-
-        i32 a = begin;
-        i32 b = Min(a + kPacketSize, end);
-        while (a < b)
+        for (i32 i = begin; i < end;)
         {
-            i32 j = 0;
-            for (i32 i = a; i < b; ++i)
+            const i32 version = Load(versions[i], MO_Relaxed);
+            if (version & 1)
             {
-                packet[j++] = Load(versions[i], MO_Relaxed) & 1;
-            }
-
-            for (ComponentId id : all)
-            {
-                j = 0;
-                const i32* const row = rowVersions[id.Value].begin();
-                for (i32 i = a; i < b; ++i)
+                for (ComponentId id : all)
                 {
-                    packet[j++] &= NoBit(Load(versions[i], MO_Relaxed) - Load(row[i], MO_Relaxed));
+                    const i32 compVersion = Load(rowVersions[id.Value][i], MO_Relaxed);
+                    if (version != compVersion)
+                    {
+                        goto next;
+                    }
                 }
-            }
-
-            for (ComponentId id : none)
-            {
-                j = 0;
-                const i32* const row = rowVersions[id.Value].begin();
-                for (i32 i = a; i < b; ++i)
+                for (ComponentId id : none)
                 {
-                    packet[j++] &= AnyBit(Load(versions[i], MO_Relaxed) - Load(row[i], MO_Relaxed));
+                    const i32 compVersion = Load(rowVersions[id.Value][i], MO_Relaxed);
+                    if (version == compVersion)
+                    {
+                        goto next;
+                    }
                 }
-            }
 
-            j = 0;
-            for (i32 i = a; i < b; ++i)
-            {
-                if (packet[j++])
-                {
-                    Entity entity;
-                    entity.index = i;
-                    entity.version = Load(versions[i], MO_Relaxed);
-                    OnEntity(entity);
-                }
+                OnEntity({ i, version });
             }
-
-            a = b;
-            b = Min(b + kPacketSize, end);
+        next:
+            ++i;
         }
     }
 };

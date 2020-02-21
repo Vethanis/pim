@@ -1,7 +1,9 @@
 #pragma once
 
+#include "common/int_types.h"
 #include "common/round.h"
-#include "containers/initlist.h"
+#include "os/atomics.h"
+#include <initializer_list>
 
 template<typename T, u32 ct>
 struct BitField
@@ -9,49 +11,61 @@ struct BitField
     static constexpr u32 NumBits = ct;
     static constexpr u32 NumDwords = DivRound(NumBits, 32u);
 
+    SASSERT(sizeof(T) == sizeof(u32));
+
     u32 Values[NumDwords];
 
-    inline constexpr BitField() : Values() {}
+    constexpr BitField() : Values() {}
 
-    inline constexpr BitField(std::initializer_list<T> list) : Values()
+    constexpr BitField(std::initializer_list<T> list) : Values()
     {
         for (T x : list)
         {
-            Set(x);
+            u32 value = *reinterpret_cast<u32*>(&x);
+            Set(value);
         }
     }
 
-    inline static u32 IndexOf(u32 bit)
+    static u32 IndexOf(u32 bit)
     {
         u32 i = bit >> 5;
         ASSERT(i < NumDwords);
         return i;
     }
-    inline static u32 MaskOf(u32 bit)
+
+    static u32 MaskOf(u32 bit)
     {
         return 1u << (bit & 31u);
     }
 
-    inline void Clear()
+    void Clear()
     {
         for (u32& x : Values)
-            x = 0;
+            Store(x, 0);
     }
 
-    inline void Set(u32 bit)
+    bool Set(u32 bit)
     {
-        Values[IndexOf(bit)] |= MaskOf(bit);
-    }
-    inline void UnSet(u32 bit)
-    {
-        Values[IndexOf(bit)] &= ~MaskOf(bit);
-    }
-    inline void Toggle(u32 bit)
-    {
-        Values[IndexOf(bit)] ^= MaskOf(bit);
+        u32 i = IndexOf(bit);
+        u32 mask = MaskOf(bit);
+        return FetchOr(Values[i], mask) & mask;
     }
 
-    inline void Set(u32 bit, bool on)
+    bool UnSet(u32 bit)
+    {
+        u32 i = IndexOf(bit);
+        u32 mask = MaskOf(bit);
+        return FetchAnd(Values[i], ~mask) & mask;
+    }
+
+    bool Toggle(u32 bit)
+    {
+        u32 i = IndexOf(bit);
+        u32 mask = MaskOf(bit);
+        return FetchXor(Values[i], mask) & mask;
+    }
+
+    void Set(u32 bit, bool on)
     {
         if (on)
         {
@@ -62,87 +76,137 @@ struct BitField
             UnSet(bit);
         }
     }
-    inline bool Get(u32 bit) const
+
+    bool Get(u32 bit) const
     {
-        return Values[IndexOf(bit)] & MaskOf(bit);
+        u32 i = IndexOf(bit);
+        u32 mask = MaskOf(bit);
+        return Load(Values[i], MO_Relaxed) & mask;
     }
-    inline bool Any() const
+
+    bool Any() const
     {
         u32 y = 0u;
-        for (u32 x : Values)
+        for (u32 i = 0; i < NumDwords; ++i)
         {
-            y |= x;
+            y |= Load(Values[i], MO_Relaxed);
         }
         return y != 0u;
     }
-    inline bool None() const
+
+    bool None() const
     {
         return !Any();
     }
 
-    inline BitField operator ~() const
+    static bool HasAll(const BitField& all, const BitField& x)
+    {
+        for (u32 i = 0; i < NumDwords; ++i)
+        {
+            u32 l = Load(all.Values[i], MO_Relaxed);
+            u32 r = Load(x.Values[i], MO_Relaxed);
+            if ((l & r) != l)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static bool HasNone(const BitField& none, const BitField& x)
+    {
+        for (u32 i = 0; i < NumDwords; ++i)
+        {
+            u32 l = Load(none.Values[i], MO_Relaxed);
+            u32 r = Load(x.Values[i], MO_Relaxed);
+            if ((l & r) != 0)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    BitField operator ~() const
     {
         BitField result = {};
         for (i32 i = 0; i < NumDwords; ++i)
         {
-            result.Values[i] = ~Values[i];
+            u32 dword = Load(Values[i], MO_Relaxed);
+            result.Values[i] = ~dword;
         }
         return result;
     }
 
-    inline BitField operator | (BitField r) const
+    BitField operator | (const BitField& r) const
     {
         BitField result = {};
         for (i32 i = 0; i < NumDwords; ++i)
         {
-            result.Values[i] = Values[i] | r.Values[i];
+            u32 lhs = Load(Values[i], MO_Relaxed);
+            u32 rhs = Load(r.Values[i], MO_Relaxed);
+            result.Values[i] = lhs | rhs;
         }
         return result;
     }
 
-    inline BitField operator & (BitField r) const
+    BitField operator & (const BitField& r) const
     {
         BitField result = {};
         for (i32 i = 0; i < NumDwords; ++i)
         {
-            result.Values[i] = Values[i] & r.Values[i];
+            u32 lhs = Load(Values[i], MO_Relaxed);
+            u32 rhs = Load(r.Values[i], MO_Relaxed);
+            result.Values[i] = lhs & rhs;
         }
         return result;
     }
 
-    inline BitField operator ^ (BitField r) const
+    BitField operator ^ (const BitField& r) const
     {
         BitField result = {};
         for (i32 i = 0; i < NumDwords; ++i)
         {
-            result.Values[i] = Values[i] ^ r.Values[i];
+            u32 lhs = Load(Values[i], MO_Relaxed);
+            u32 rhs = Load(r.Values[i], MO_Relaxed);
+            result.Values[i] = lhs ^ rhs;
         }
         return result;
     }
 
-    inline bool operator == (BitField r) const
+    bool operator == (const BitField& r) const
     {
         u32 cmp = 0;
         for (i32 i = 0; i < NumDwords; ++i)
         {
-            cmp |= Values[i] - r.Values[i];
+            u32 lhs = Load(Values[i], MO_Relaxed);
+            u32 rhs = Load(r.Values[i], MO_Relaxed);
+            cmp |= lhs - rhs;
         }
         return cmp == 0;
     }
 
-    inline bool operator != (BitField r) const
+    bool operator != (const BitField& r) const
     {
-        BitField l = *this;
-        return !(l == r);
+        u32 cmp = 0;
+        for (i32 i = 0; i < NumDwords; ++i)
+        {
+            u32 lhs = Load(Values[i], MO_Relaxed);
+            u32 rhs = Load(r.Values[i], MO_Relaxed);
+            cmp |= lhs - rhs;
+        }
+        return cmp != 0;
     }
 
-    inline bool operator < (BitField r) const
+    bool operator < (const BitField& r) const
     {
         for (i32 i = 0; i < NumDwords; ++i)
         {
-            if (Values[i] != r.Values[i])
+            u32 lhs = Load(Values[i], MO_Relaxed);
+            u32 rhs = Load(r.Values[i], MO_Relaxed);
+            if (lhs != rhs)
             {
-                return Values[i] < r.Values[i];
+                return lhs < rhs;
             }
         }
         return false;

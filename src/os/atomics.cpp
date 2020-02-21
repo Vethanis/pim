@@ -51,7 +51,8 @@ void ThreadFenceRelease() { std::atomic_thread_fence(std::memory_order_release);
     T FetchAdd(volatile T& atom, T x, MemOrder ord) { return STD_T(T, atom).fetch_add(x, STD_E(ord)); } \
     T FetchSub(volatile T& atom, T x, MemOrder ord) { return STD_T(T, atom).fetch_sub(x, STD_E(ord)); } \
     T FetchAnd(volatile T& atom, T x, MemOrder ord) { return STD_T(T, atom).fetch_and(x, STD_E(ord)); } \
-    T FetchOr(volatile T& atom, T x, MemOrder ord) { return STD_T(T, atom).fetch_or(x, STD_E(ord)); }
+    T FetchOr(volatile T& atom, T x, MemOrder ord) { return STD_T(T, atom).fetch_or(x, STD_E(ord)); } \
+    T FetchXor(volatile T& atom, T x, MemOrder ord) { return STD_T(T, atom).fetch_xor(x, STD_E(ord)); }
 
 ATOMIC_IMPL(u8);
 ATOMIC_IMPL(i8);

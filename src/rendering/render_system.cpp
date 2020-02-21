@@ -32,6 +32,9 @@ static void Update()
 
 struct DrawTask final : ECS::ForEachTask
 {
+    CType<Drawable> m_drawable;
+    CType<LocalToWorld> m_l2w;
+
     DrawTask() : ECS::ForEachTask(
         { CTypeOf<Drawable>(), CTypeOf<LocalToWorld>() },
         { CTypeOf<Camera>(), CTypeOf<ParticleEmitter>(), CTypeOf<FogVolume>() })
@@ -39,8 +42,8 @@ struct DrawTask final : ECS::ForEachTask
 
     void OnEntity(Entity entity) final
     {
-        const Drawable* drawable = ECS::Get<Drawable>(entity);
-        LocalToWorld* l2w = ECS::Get<LocalToWorld>(entity);
+        const Drawable* drawable = m_drawable.Get(entity);
+        LocalToWorld* l2w = m_l2w.Get(entity);
         ASSERT(drawable);
         ASSERT(l2w);
         l2w->Value.x.x = math::sin(Random::NextF32());
@@ -65,7 +68,6 @@ namespace RenderSystem
         System() : ISystem("RenderSystem", { "InputSystem", "IEntitySystem", "ECS", }) {}
 
         DrawTask m_task;
-        float m_avg;
         i32 m_frame;
 
         void Init() final
@@ -88,20 +90,23 @@ namespace RenderSystem
             }
             Screen::Update();
 
-            for (i32 i = 0; i < 1000000; ++i)
+            for (i32 i = 0; i < 2000000; ++i)
             {
                 Entity entity = ECS::Create();
-                if (Random::NextU32() & 1)
+                if (i & 1)
                 {
                     ECS::Add<Drawable>(entity);
                 }
-                if (Random::NextU32() & 1)
+                if (i & 7)
                 {
                     ECS::Add<LocalToWorld>(entity);
                 }
+                if (i == 0)
+                {
+                    ECS::Add<Camera>(entity);
+                }
             }
 
-            m_avg = 0.0f;
             m_frame = 0;
         }
 
@@ -111,23 +116,21 @@ namespace RenderSystem
             simgui_new_frame(Screen::Width(), Screen::Height(), Time::DeltaTimeF32());
             sg_begin_default_pass(&ms_clear, Screen::Width(), Screen::Height());
 
-            u64 a = Time::Now();
+            TaskSystem::Await(&m_task);
             m_task.Setup();
             TaskSystem::Submit(&m_task);
-            TaskSystem::Await(&m_task);
-            float ms = Time::ToMilliseconds(Time::Now() - a);
 
-            constexpr float kAlpha = 1.0f / 60.0f;
-            m_avg = m_avg * (1.0f - kAlpha) + kAlpha * ms;
             ++m_frame;
             if ((m_frame & 63) == 0)
             {
-                printf("Avg Ms: %f\n", m_avg);
+                printf("dt: %f\n", Time::DeltaTimeF32());
             }
         }
 
         void Shutdown() final
         {
+            TaskSystem::Await(&m_task);
+
             simgui_shutdown();
             sg_shutdown();
         }

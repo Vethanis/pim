@@ -127,6 +127,7 @@ namespace OS
 
         void WakeOne();
         void WakeAll();
+        void Wake(i32 count);
         void Wait();
     };
 

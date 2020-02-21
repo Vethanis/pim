@@ -34,7 +34,8 @@ void ThreadFenceRelease();
     T FetchAdd(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
     T FetchSub(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
     T FetchAnd(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
-    T FetchOr(volatile T& atom, T x, MemOrder ord = MO_AcqRel);
+    T FetchOr(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
+    T FetchXor(volatile T& atom, T x, MemOrder ord = MO_AcqRel);
 
 // ----------------------------------------------------------------------------
 

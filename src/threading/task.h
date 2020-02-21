@@ -3,6 +3,11 @@
 #include "common/int_types.h"
 #include "containers/array.h"
 
+static constexpr u32 kNumThreads = 16;
+
+u32 ThreadId();
+u32 NumActiveThreads();
+
 struct ITask
 {
     ITask(i32 begin, i32 end) :

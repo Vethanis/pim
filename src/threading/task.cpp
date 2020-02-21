@@ -63,11 +63,10 @@ enum ThreadState : u32
 
 static constexpr u64 kMaxSpins = 10;
 static constexpr u64 kTicksPerSpin = 100;
-static constexpr u32 kNumThreads = 32;
 static constexpr u32 kThreadMask = kNumThreads - 1u;
-static constexpr u32 kTaskSplit = kNumThreads * 8;
+static constexpr u32 kTaskSplit = kNumThreads * (kNumThreads - 1u);
 
-using pipe_t = Pipe<Subtask, 4>;
+using pipe_t = Pipe<Subtask, kNumThreads>;
 
 // ----------------------------------------------------------------------------
 
@@ -77,11 +76,22 @@ static pipe_t ms_queues[kNumThreads];
 static OS::Event ms_waitPush;
 
 static i32 ms_numThreadsRunning;
+static i32 ms_numThreadsSleeping;
 static u32 ms_running;
 
 static thread_local u32 ms_tid;
 
 // ----------------------------------------------------------------------------
+
+u32 ThreadId()
+{
+    return ms_tid;
+}
+
+u32 NumActiveThreads()
+{
+    return Load(ms_numThreadsRunning, MO_Relaxed) - Load(ms_numThreadsSleeping, MO_Relaxed);
+}
 
 static bool TryRunTask(u32 tid)
 {
@@ -120,7 +130,7 @@ static void Insert(Subtask subtask, u32 tid)
                 return;
             }
         }
-        ms_waitPush.WakeAll();
+        ms_waitPush.WakeOne();
         if (TryRunTask(tid))
         {
             spins = 0;
@@ -169,7 +179,7 @@ static void AddTask(ITask* pTask, u32 tid)
         }
     }
 
-    ms_waitPush.WakeAll();
+    ms_waitPush.WakeOne();
 }
 
 static void WaitForTask(ITask* pTask, u32 tid)
@@ -178,6 +188,11 @@ static void WaitForTask(ITask* pTask, u32 tid)
 
     i32& waits = GetWaits(pTask);
     Inc(waits);
+
+    if (Load(GetExec(pTask)) > 0)
+    {
+        ms_waitPush.Wake(2);
+    }
 
     u64 spins = 0;
     while (Load(GetExec(pTask)) > 0)
@@ -218,7 +233,9 @@ static void TaskLoop(void* pVoid)
         }
         else
         {
+            Inc(ms_numThreadsSleeping);
             ms_waitPush.Wait();
+            Dec(ms_numThreadsSleeping);
         }
     }
 

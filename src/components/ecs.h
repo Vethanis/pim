@@ -10,6 +10,7 @@
 
 namespace ECS
 {
+    static constexpr i32 kMaxTypes = 256;
     i32 EntityCount();
 
     Entity Create();
@@ -27,9 +28,13 @@ namespace ECS
     bool Remove(Entity entity) { return Remove(entity, GetId<T>()); }
 
     template<typename T>
-    T* Get(Entity entity)
+    T* Get(Entity entity) { return (T*)Get(entity, GetId<T>()); }
+
+    template<typename T>
+    T* Get(Entity entity, ComponentId type)
     {
-        return (T*)Get(entity, GetId<T>());
+        ASSERT(GetId<T>() == type);
+        return (T*)Get(entity, type);
     }
 
     struct ForEachTask : ITask
@@ -47,4 +52,26 @@ namespace ECS
         Array<ComponentId> m_all;
         Array<ComponentId> m_none;
     };
+};
+
+template<typename T>
+struct CType final
+{
+    CType() : m_type(ECS::GetId<T>()) {}
+
+    bool Add(Entity entity) const
+    {
+        return ECS::Add(entity, m_type);
+    }
+    bool Remove(Entity entity) const
+    {
+        return ECS::Remove(entity, m_type);
+    }
+    T* Get(Entity entity) const
+    {
+        return (T*)ECS::Get(entity, m_type);
+    }
+
+private:
+    ComponentId m_type;
 };

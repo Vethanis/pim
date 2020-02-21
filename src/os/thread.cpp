@@ -116,17 +116,38 @@ namespace OS
     {
         u64 spins = 0;
         i32 waits = Load(m_waits);
-        waits = Exchange(m_waits, Max(waits - 1, 0));
+        while (!CmpExStrong(m_waits, waits, Max(waits - 1, 0), MO_Acquire))
+        {
+            OS::Spin(++spins * 100);
+        }
         if (waits > 0)
         {
             m_sema.Signal(1);
         }
     }
 
+    void Event::Wake(i32 count)
+    {
+        u64 spins = 0;
+        i32 waits = Load(m_waits);
+        while (!CmpExStrong(m_waits, waits, Max(waits - count, 0), MO_Acquire))
+        {
+            OS::Spin(++spins * 100);
+        }
+        if (waits > 0)
+        {
+            m_sema.Signal(Min(waits, count));
+        }
+    }
+
     void Event::WakeAll()
     {
         u64 spins = 0;
-        i32 waits = Exchange(m_waits, 0);
+        i32 waits = Load(m_waits);
+        while (!CmpExStrong(m_waits, waits, 0, MO_Acquire))
+        {
+            OS::Spin(++spins * 100);
+        }
         if (waits > 0)
         {
             m_sema.Signal(waits);
