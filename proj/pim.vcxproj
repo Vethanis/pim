@@ -26,7 +26,6 @@
     <ClCompile Include="..\src\common\stringutil.cpp" />
     <ClCompile Include="..\src\common\time.cpp" />
     <ClCompile Include="..\src\components\ecs.cpp" />
-    <ClCompile Include="..\src\components\entity_system.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\os\atomics.cpp" />
@@ -95,7 +94,6 @@
     <ClInclude Include="..\src\components\component_id.h" />
     <ClInclude Include="..\src\components\ecs.h" />
     <ClInclude Include="..\src\components\entity.h" />
-    <ClInclude Include="..\src\components\entity_system.h" />
     <ClInclude Include="..\src\components\system.h" />
     <ClInclude Include="..\src\components\transform.h" />
     <ClInclude Include="..\src\containers\array.h" />

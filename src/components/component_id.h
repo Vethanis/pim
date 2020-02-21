@@ -8,19 +8,9 @@ struct ComponentId
     i32 Value;
 };
 
-struct ComponentType
-{
-    ComponentId id;
-    u8 write;
-};
-
 static bool operator==(ComponentId lhs, ComponentId rhs) { return lhs.Value == rhs.Value; }
 static bool operator!=(ComponentId lhs, ComponentId rhs) { return lhs.Value == rhs.Value; }
 static bool operator<(ComponentId lhs, ComponentId rhs) { return lhs.Value < rhs.Value; }
-
-static bool operator==(ComponentType lhs, ComponentType rhs) { return lhs.id == rhs.id; }
-static bool operator!=(ComponentType lhs, ComponentType rhs) { return lhs.id == rhs.id; }
-static bool operator<(ComponentType lhs, ComponentType rhs) { return lhs.id < rhs.id; }
 
 namespace ECS
 {
@@ -29,13 +19,13 @@ namespace ECS
     template<typename T>
     static ComponentId GetId()
     {
-        static ComponentId id = RegisterType(TGuidOf<T>(), sizeof(T));
-        return id;
+        static const i32 index = RegisterType(TGuidOf<T>(), sizeof(T)).Value;
+        return { index };
     }
 };
 
 template<typename T>
-static ComponentType CTypeOf(bool write)
+static ComponentId CTypeOf()
 {
-    return { ECS::GetId<T>(), (u8)write };
+    return ECS::GetId<T>();
 }

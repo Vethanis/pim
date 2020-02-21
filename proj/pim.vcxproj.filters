@@ -208,9 +208,6 @@
     <ClCompile Include="..\src\allocator\tlsf_allocator.cpp">
       <Filter>Source Files\allocator</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\components\entity_system.cpp">
-      <Filter>Source Files\components</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\threading\taskgraph.cpp">
       <Filter>Source Files\threading</Filter>
     </ClCompile>
@@ -599,9 +596,6 @@
     </ClInclude>
     <ClInclude Include="..\src\allocator\tlsf_allocator.h">
       <Filter>Source Files\allocator</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\entity_system.h">
-      <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\src\components\component_id.h">
       <Filter>Source Files\components</Filter>

@@ -9,49 +9,35 @@
 
 namespace ECS
 {
-    struct Row
-    {
-        Array<i32> versions;
-        Array<u8> bytes;
-    };
-
-    static constexpr i32 kInitCapacity = 256;
+    static constexpr i32 kPacketSize = 128;
     static constexpr i32 kMaxTypes = 256;
 
-    static i32 ms_phase;
     static Array<i32> ms_versions;
     static MtQueue<i32> ms_free;
 
+    static i32 ms_typeCount;
     static Guid ms_guids[kMaxTypes];
     static i32 ms_strides[kMaxTypes];
-    static Row ms_rows[kMaxTypes];
-    static i32 ms_typeCount;
-
-    void SetPhase(Phase phase)
-    {
-        Store(ms_phase, phase);
-    }
+    static Array<i32> ms_rowVersions[kMaxTypes];
+    static Array<u8> ms_rowBytes[kMaxTypes];
 
     struct System final : ISystem
     {
         System() : ISystem("ECS") {}
         void Init() final
         {
-            SetPhase(Phase_MainThread);
-            ms_versions.Init(Alloc_Tlsf, kInitCapacity);
-            ms_free.Init(Alloc_Tlsf, kInitCapacity);
+            ms_versions.Init(Alloc_Tlsf, 1024);
+            ms_free.Init(Alloc_Tlsf, 1024);
         }
         void Update() final
         {
-            SetPhase(Phase_MainThread);
         }
         void Shutdown() final
         {
-            SetPhase(Phase_MainThread);
-            for (Row& row : ms_rows)
+            for (i32 i = 0; i < ms_typeCount; ++i)
             {
-                row.bytes.Reset();
-                row.versions.Reset();
+                ms_rowBytes[i].Reset();
+                ms_rowVersions[i].Reset();
             }
 
             ms_versions.Reset();
@@ -63,7 +49,6 @@ namespace ECS
     static System ms_system;
 
     static bool IsNewer(i32 prev, i32 next) { return (next - prev) > 0; }
-    static Row& GetRow(ComponentId id) { return ms_rows[id.Value]; }
 
     static i32 Match(i32 entity, i32 component)
     {
@@ -82,7 +67,6 @@ namespace ECS
         ASSERT(!IsNull(guid));
         ASSERT(sizeOf > 0);
 
-        ASSERT(Load(ms_phase) == Phase_MainThread);
         i32 i = RFind(ARGS(ms_guids), guid);
         if (i == -1)
         {
@@ -90,8 +74,8 @@ namespace ECS
             i = ms_typeCount++;
             ms_guids[i] = guid;
             ms_strides[i] = sizeOf;
-            ms_rows[i].bytes.Init(Alloc_Tlsf);
-            ms_rows[i].versions.Init(Alloc_Tlsf);
+            ms_rowBytes[i].Init(Alloc_Tlsf);
+            ms_rowVersions[i].Init(Alloc_Tlsf);
         }
 
         return { i };
@@ -107,24 +91,23 @@ namespace ECS
 
     Entity Create()
     {
-        ASSERT(Load(ms_phase) == Phase_MainThread);
-
         Entity entity = { 0, 0 };
         if (ms_free.TryPop(entity.index))
         {
-            entity.version = 1 + Inc(ms_versions[entity.index]);
+            entity.version = 1 + Inc(ms_versions[entity.index], MO_Relaxed);
             ASSERT(entity.version & 1);
             return entity;
         }
 
         entity.version = 1;
         entity.index = ms_versions.PushBack(entity.version);
-        for(i32 i = 0; i < ms_typeCount; ++i)
-        {
-            Array<i32>& versions = ms_rows[i].versions;
-            Array<u8>& bytes = ms_rows[i].bytes;
-            const i32 stride = ms_strides[i];
 
+        const i32 typeCount = ms_typeCount;
+        for(i32 i = 0; i < typeCount; ++i)
+        {
+            Array<i32>& versions = ms_rowVersions[i];
+            Array<u8>& bytes = ms_rowBytes[i];
+            const i32 stride = ms_strides[i];
             while (entity.index >= versions.size())
             {
                 versions.PushBack(0);
@@ -137,7 +120,6 @@ namespace ECS
 
     bool Destroy(Entity entity)
     {
-        ASSERT(Load(ms_phase) == Phase_MainThread);
         if (CmpExStrong(ms_versions[entity.index], entity.version, entity.version + 1))
         {
             ms_free.Push(entity.index);
@@ -149,8 +131,7 @@ namespace ECS
     bool Has(Entity entity, ComponentId id)
     {
         ASSERT(entity.version & 1);
-        const Row& row = GetRow(id);
-        return entity.version == Load(row.versions[entity.index], MO_Relaxed);
+        return entity.version == Load(ms_rowVersions[id.Value][entity.index], MO_Relaxed);
     }
 
     bool Add(Entity entity, ComponentId id)
@@ -159,16 +140,16 @@ namespace ECS
 
         const i32 iRow = id.Value;
         const i32 sizeOf = ms_strides[iRow];
-        Array<i32>& versions = ms_rows[iRow].versions;
-        Array<u8>& bytes = ms_rows[iRow].bytes;
+        u8* ptr = ms_rowBytes[iRow].begin() + entity.index * sizeOf;
+        i32& rVersion = ms_rowVersions[iRow][entity.index];
 
-        i32 version = Load(versions[entity.index], MO_Relaxed);
+        i32 version = Load(rVersion, MO_Relaxed);
         ASSERT(!(version & 1));
-        if (IsNewer(version, entity.version))
+        if ((entity.version - version) > 0)
         {
-            if (CmpExStrong(ms_rows[id.Value].versions[entity.index], version, entity.version, MO_Acquire))
+            if (CmpExStrong(rVersion, version, entity.version, MO_Acquire))
             {
-                memset(bytes.begin() + entity.index * sizeOf, 0, sizeOf);
+                memset(ptr, 0, sizeOf);
                 return true;
             }
         }
@@ -178,8 +159,8 @@ namespace ECS
     bool Remove(Entity entity, ComponentId id)
     {
         ASSERT(entity.version & 1);
-        Row& row = GetRow(id);
-        return CmpExStrong(row.versions[entity.index], entity.version, entity.version + 1, MO_Release);
+        i32& rVersion = ms_rowVersions[id.Value][entity.index];
+        return CmpExStrong(rVersion, entity.version, entity.version + 1, MO_Release);
     }
 
     void* Get(Entity entity, ComponentId id)
@@ -188,19 +169,19 @@ namespace ECS
 
         const i32 iRow = id.Value;
         const i32 sizeOf = ms_strides[iRow];
-        Array<i32>& versions = ms_rows[iRow].versions;
-        Array<u8>& bytes = ms_rows[iRow].bytes;
+        u8* ptr = ms_rowBytes[iRow].begin() + entity.index * sizeOf;
+        i32& rVersion = ms_rowVersions[iRow][entity.index];
 
-        if (Load(versions[entity.index], MO_Relaxed) == entity.version)
+        if (Load(rVersion, MO_Relaxed) == entity.version)
         {
-            return bytes.begin() + entity.index * sizeOf;
+            return ptr;
         }
         return nullptr;
     }
 
     ForEachTask::ForEachTask(
-        std::initializer_list<ComponentType> all,
-        std::initializer_list<ComponentType> none) : ITask(0, 0)
+        std::initializer_list<ComponentId> all,
+        std::initializer_list<ComponentId> none) : ITask(0, 0)
     {
         m_all.Init(Alloc_Tlsf);
         m_none.Init(Alloc_Tlsf);
@@ -220,41 +201,74 @@ namespace ECS
         SetRange(0, ms_versions.size());
     }
 
+    static i32 AnyBit(i32 x)
+    {
+        x |= x >> 1;
+        x |= x >> 2;
+        x |= x >> 4;
+        x |= x >> 8;
+        x |= x >> 16;
+        return x & 1;
+    }
+
+    static i32 NoBit(i32 x)
+    {
+        return (~AnyBit(x)) & 1;
+    }
+
     void ForEachTask::Execute(i32 begin, i32 end)
     {
-        const Slice<const ComponentType> all = m_all;
-        const Slice<const ComponentType> none = m_none;
-
+        const Slice<const ComponentId> all = m_all;
+        const Slice<const ComponentId> none = m_none;
+        const Array<i32>* const rowVersions = ms_rowVersions;
         const i32* const versions = ms_versions.begin();
-        for (i32 i = begin; i < end;)
+
+        i32 packet[kPacketSize];
+
+        i32 a = begin;
+        i32 b = Min(a + kPacketSize, end);
+        while (a < b)
         {
-            i32 version = Load(versions[i], MO_Relaxed);
-            if (version & 1)
+            i32 j = 0;
+            for (i32 i = a; i < b; ++i)
             {
-                for (ComponentType type : all)
-                {
-                    if (version != Load(GetRow(type.id).versions[i], MO_Relaxed))
-                    {
-                        goto next;
-                    }
-                }
-                for (ComponentType type : none)
-                {
-                    if (version == Load(GetRow(type.id).versions[i], MO_Relaxed))
-                    {
-                        goto next;
-                    }
-                }
-
-                Entity entity;
-                entity.index = i;
-                entity.version = version;
-
-                OnEntity(entity);
+                packet[j++] = Load(versions[i], MO_Relaxed) & 1;
             }
 
-        next:
-            ++i;
+            for (ComponentId id : all)
+            {
+                j = 0;
+                const i32* const row = rowVersions[id.Value].begin();
+                for (i32 i = a; i < b; ++i)
+                {
+                    packet[j++] &= NoBit(Load(versions[i], MO_Relaxed) - Load(row[i], MO_Relaxed));
+                }
+            }
+
+            for (ComponentId id : none)
+            {
+                j = 0;
+                const i32* const row = rowVersions[id.Value].begin();
+                for (i32 i = a; i < b; ++i)
+                {
+                    packet[j++] &= AnyBit(Load(versions[i], MO_Relaxed) - Load(row[i], MO_Relaxed));
+                }
+            }
+
+            j = 0;
+            for (i32 i = a; i < b; ++i)
+            {
+                if (packet[j++])
+                {
+                    Entity entity;
+                    entity.index = i;
+                    entity.version = Load(versions[i], MO_Relaxed);
+                    OnEntity(entity);
+                }
+            }
+
+            a = b;
+            b = Min(b + kPacketSize, end);
         }
     }
 };

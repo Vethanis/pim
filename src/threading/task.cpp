@@ -65,9 +65,9 @@ static constexpr u64 kMaxSpins = 10;
 static constexpr u64 kTicksPerSpin = 100;
 static constexpr u32 kNumThreads = 32;
 static constexpr u32 kThreadMask = kNumThreads - 1u;
-static constexpr u32 kTaskSplit = kNumThreads * (kNumThreads - 1u);
+static constexpr u32 kTaskSplit = kNumThreads * 8;
 
-using pipe_t = Pipe<Subtask, 8>;
+using pipe_t = Pipe<Subtask, 4>;
 
 // ----------------------------------------------------------------------------
 
@@ -155,7 +155,7 @@ static void AddTask(ITask* pTask, u32 tid)
     }
     else
     {
-        const i32 delta = Max(1, count / (i32)kNumThreads);
+        const i32 delta = Max(1, count / (i32)kTaskSplit);
         while (begin < end)
         {
             const i32 next = Min(begin + delta, end);

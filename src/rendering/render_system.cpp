@@ -11,8 +11,9 @@
 #include "rendering/components.h"
 #include "rendering/screen.h"
 #include "components/transform.h"
-#include "components/entity_system.h"
 #include "math/vec_funcs.h"
+
+#include <stdio.h>
 
 namespace Screen
 {
@@ -20,20 +21,20 @@ namespace Screen
     static i32 ms_height;
 
     i32 Width() { return ms_width; }
-    i32 Height() { return ms_height; }
+i32 Height() { return ms_height; }
 
-    static void Update()
-    {
-        Screen::ms_width = sapp_width();
-        Screen::ms_height = sapp_height();
-    }
+static void Update()
+{
+    Screen::ms_width = sapp_width();
+    Screen::ms_height = sapp_height();
+}
 };
 
 struct DrawTask final : ECS::ForEachTask
 {
     DrawTask() : ECS::ForEachTask(
-        { CTypeOf<Drawable>(false), CTypeOf<LocalToWorld>(true) },
-        {})
+        { CTypeOf<Drawable>(), CTypeOf<LocalToWorld>() },
+        { CTypeOf<Camera>(), CTypeOf<ParticleEmitter>(), CTypeOf<FogVolume>() })
     {}
 
     void OnEntity(Entity entity) final
@@ -64,6 +65,8 @@ namespace RenderSystem
         System() : ISystem("RenderSystem", { "InputSystem", "IEntitySystem", "ECS", }) {}
 
         DrawTask m_task;
+        float m_avg;
+        i32 m_frame;
 
         void Init() final
         {
@@ -97,6 +100,9 @@ namespace RenderSystem
                     ECS::Add<LocalToWorld>(entity);
                 }
             }
+
+            m_avg = 0.0f;
+            m_frame = 0;
         }
 
         void Update() final
@@ -105,9 +111,19 @@ namespace RenderSystem
             simgui_new_frame(Screen::Width(), Screen::Height(), Time::DeltaTimeF32());
             sg_begin_default_pass(&ms_clear, Screen::Width(), Screen::Height());
 
+            u64 a = Time::Now();
             m_task.Setup();
             TaskSystem::Submit(&m_task);
             TaskSystem::Await(&m_task);
+            float ms = Time::ToMilliseconds(Time::Now() - a);
+
+            constexpr float kAlpha = 1.0f / 60.0f;
+            m_avg = m_avg * (1.0f - kAlpha) + kAlpha * ms;
+            ++m_frame;
+            if ((m_frame & 63) == 0)
+            {
+                printf("Avg Ms: %f\n", m_avg);
+            }
         }
 
         void Shutdown() final

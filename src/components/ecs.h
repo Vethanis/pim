@@ -10,14 +10,6 @@
 
 namespace ECS
 {
-    enum Phase : i32
-    {
-        Phase_MainThread,
-        Phase_MultiThread,
-    };
-
-    void SetPhase(Phase phase);
-
     i32 EntityCount();
 
     Entity Create();
@@ -43,8 +35,8 @@ namespace ECS
     struct ForEachTask : ITask
     {
         ForEachTask(
-            std::initializer_list<ComponentType> all,
-            std::initializer_list<ComponentType> none);
+            std::initializer_list<ComponentId> all,
+            std::initializer_list<ComponentId> none);
         ~ForEachTask();
 
         void Setup();
@@ -52,7 +44,7 @@ namespace ECS
         virtual void OnEntity(Entity entity) = 0;
 
     private:
-        Array<ComponentType> m_all;
-        Array<ComponentType> m_none;
+        Array<ComponentId> m_all;
+        Array<ComponentId> m_none;
     };
 };
