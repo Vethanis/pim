@@ -5,5 +5,5 @@
 struct Entity
 {
     i32 index;
-    i32 version;
+    u16 version;
 };

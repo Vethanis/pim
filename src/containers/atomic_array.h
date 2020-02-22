@@ -120,8 +120,7 @@ struct AArray
             }
             else
             {
-                ++spins;
-                OS::Spin(spins * 100);
+                OS::Spin(++spins);
                 goto findtail;
             }
         }

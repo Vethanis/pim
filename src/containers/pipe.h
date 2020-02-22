@@ -11,14 +11,12 @@ struct PipeFlag
     static constexpr u32 kFlagLocked = 0xffffffffu;
 
     u32 value;
-    u8 pad[64 - sizeof(u32)];
 
-    bool TryLockWriter()
+    bool IsWritable()
     {
-        u32 prev = kFlagWritable;
-        return CmpExStrong(value, prev, kFlagLocked, MO_Acquire);
+        return Load(value) == kFlagWritable;
     }
-    void UnlockWriter()
+    void SetReadable()
     {
         Store(value, kFlagReadable);
     }
@@ -26,14 +24,13 @@ struct PipeFlag
     bool TryLockReader()
     {
         u32 prev = kFlagReadable;
-        return CmpExStrong(value, prev, kFlagLocked, MO_Acquire);
+        return CmpExStrong(value, prev, kFlagLocked);
     }
     void UnlockReader()
     {
         Store(value, kFlagWritable);
     }
 };
-SASSERT(sizeof(PipeFlag) == 64);
 
 template<typename T, u32 kCapacity>
 struct Pipe
@@ -41,10 +38,10 @@ struct Pipe
     static constexpr u32 kMask = kCapacity - 1u;
     SASSERT((kCapacity & kMask) == 0u);
 
-    PipeFlag m_flags[kCapacity];
     u32 m_iWrite;
-    T m_data[kCapacity];
     u32 m_iRead;
+    PipeFlag m_flags[kCapacity];
+    T m_data[kCapacity];
 
     u32 size() const { return Load(m_iWrite, MO_Relaxed) - Load(m_iRead, MO_Relaxed); }
     u32 Head() const { return Load(m_iWrite, MO_Relaxed) & kMask; }
@@ -56,15 +53,13 @@ struct Pipe
 
     bool TryPush(const T& src)
     {
-        for (u32 i = Head(); size() <= kMask; i = Next(i))
+        u32 i = m_iWrite & kMask;
+        if (m_flags[i].IsWritable())
         {
-            if (m_flags[i].TryLockWriter())
-            {
-                m_data[i] = src;
-                m_flags[i].UnlockWriter();
-                Inc(m_iWrite, MO_Relaxed);
-                return true;
-            }
+            m_data[i] = src;
+            m_flags[i].SetReadable();
+            Inc(m_iWrite);
+            return true;
         }
         return false;
     }
@@ -75,9 +70,9 @@ struct Pipe
         {
             if (m_flags[i].TryLockReader())
             {
+                Inc(m_iRead);
                 dst = m_data[i];
                 m_flags[i].UnlockReader();
-                Inc(m_iRead, MO_Relaxed);
                 return true;
             }
         }

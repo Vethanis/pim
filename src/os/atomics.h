@@ -26,16 +26,16 @@ void ThreadFenceRelease();
 #define ATOMIC_INTERFACE(T) \
     T Load(const volatile T& atom, MemOrder ord = MO_Acquire); \
     void Store(volatile T& atom, T x, MemOrder ord = MO_Release); \
-    bool CmpExWeak(volatile T& atom, T& expected, T desired, MemOrder success = MO_AcqRel, MemOrder failure = MO_Relaxed); \
-    bool CmpExStrong(volatile T& atom, T& expected, T desired, MemOrder success = MO_AcqRel, MemOrder failure = MO_Relaxed); \
-    T Exchange(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
-    T Inc(volatile T& atom, MemOrder ord = MO_AcqRel); \
-    T Dec(volatile T& atom, MemOrder ord = MO_AcqRel); \
-    T FetchAdd(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
-    T FetchSub(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
-    T FetchAnd(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
-    T FetchOr(volatile T& atom, T x, MemOrder ord = MO_AcqRel); \
-    T FetchXor(volatile T& atom, T x, MemOrder ord = MO_AcqRel);
+    bool CmpExWeak(volatile T& atom, T& expected, T desired, MemOrder success = MO_Acquire, MemOrder failure = MO_Relaxed); \
+    bool CmpExStrong(volatile T& atom, T& expected, T desired, MemOrder success = MO_Acquire, MemOrder failure = MO_Relaxed); \
+    T Exchange(volatile T& atom, T x, MemOrder ord = MO_Relaxed); \
+    T Inc(volatile T& atom, MemOrder ord = MO_Relaxed); \
+    T Dec(volatile T& atom, MemOrder ord = MO_Relaxed); \
+    T FetchAdd(volatile T& atom, T x, MemOrder ord = MO_Relaxed); \
+    T FetchSub(volatile T& atom, T x, MemOrder ord = MO_Relaxed); \
+    T FetchAnd(volatile T& atom, T x, MemOrder ord = MO_Relaxed); \
+    T FetchOr(volatile T& atom, T x, MemOrder ord = MO_Relaxed); \
+    T FetchXor(volatile T& atom, T x, MemOrder ord = MO_Relaxed);
 
 // ----------------------------------------------------------------------------
 

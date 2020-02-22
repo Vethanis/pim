@@ -48,7 +48,7 @@ namespace OS
         }
         if (!CmpExStrong(m_state, oldState, newState, MO_Acquire))
         {
-            OS::Spin(++spins * 100);
+            OS::Spin(++spins);
             goto trywrite;
         }
         if (oldState.writers)
@@ -96,7 +96,7 @@ namespace OS
         newState.DecWriter();
         if (!CmpExStrong(m_state, oldState, newState, MO_Release))
         {
-            OS::Spin(++spins * 100);
+            OS::Spin(++spins);
             goto trywrite;
         }
 
@@ -116,9 +116,9 @@ namespace OS
     {
         u64 spins = 0;
         i32 waits = Load(m_waits);
-        while (!CmpExStrong(m_waits, waits, Max(waits - 1, 0), MO_Acquire))
+        while (!CmpExStrong(m_waits, waits, Max(waits - 1, 0), MO_Release))
         {
-            OS::Spin(++spins * 100);
+            OS::Spin(++spins);
         }
         if (waits > 0)
         {
@@ -130,9 +130,9 @@ namespace OS
     {
         u64 spins = 0;
         i32 waits = Load(m_waits);
-        while (!CmpExStrong(m_waits, waits, Max(waits - count, 0), MO_Acquire))
+        while (!CmpExStrong(m_waits, waits, Max(waits - count, 0), MO_Release))
         {
-            OS::Spin(++spins * 100);
+            OS::Spin(++spins);
         }
         if (waits > 0)
         {
@@ -144,9 +144,9 @@ namespace OS
     {
         u64 spins = 0;
         i32 waits = Load(m_waits);
-        while (!CmpExStrong(m_waits, waits, 0, MO_Acquire))
+        while (!CmpExStrong(m_waits, waits, 0, MO_Release))
         {
-            OS::Spin(++spins * 100);
+            OS::Spin(++spins);
         }
         if (waits > 0)
         {
@@ -156,7 +156,7 @@ namespace OS
 
     void Event::Wait()
     {
-        Inc(m_waits);
+        Inc(m_waits, MO_Acquire);
         m_sema.Wait();
     }
 
@@ -173,7 +173,7 @@ namespace OS
         u64 spins = 0;
         while (!TryLockReader())
         {
-            OS::Spin(++spins * 100);
+            OS::Spin(++spins);
         }
     }
 
@@ -194,7 +194,7 @@ namespace OS
         u64 spins = 0;
         while (!TryLockWriter())
         {
-            OS::Spin(++spins * 100);
+            OS::Spin(++spins);
         }
     }
 

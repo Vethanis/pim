@@ -20,7 +20,8 @@ u64 OS::ReadCounter()
 
 void OS::Spin(u64 ticks)
 {
-    if ((ticks > 1000) && ::SwitchToThread())
+    ticks *= 100;
+    if ((ticks >= 4000) && ::SwitchToThread())
     {
         return;
     }
@@ -56,7 +57,7 @@ static i32 ms_adapterLocks[MaxThreads];
 static isize AllocAdapter(ThreadAdapter adapter)
 {
     u64 spins = 0;
-    while (spins < 100)
+    while (spins < 10)
     {
         for (isize i = 0; i < MaxThreads; ++i)
         {
@@ -68,8 +69,7 @@ static isize AllocAdapter(ThreadAdapter adapter)
                 return i;
             }
         }
-        ++spins;
-        OS::Spin(spins * 100);
+        OS::Spin(++spins);
     }
     ASSERT(false);
     return -1;

@@ -81,7 +81,7 @@ struct IdAllocator
         if (!id.version)
         {
             // locked slot
-            OS::Spin(++spins * 100);
+            OS::Spin(++spins);
             goto tryfree;
         }
         return false;

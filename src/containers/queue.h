@@ -16,13 +16,17 @@ struct Queue
 
     // ------------------------------------------------------------------------
 
-    void Init(AllocType allocator = Alloc_Tlsf)
+    void Init(AllocType allocator = Alloc_Tlsf, u32 capacity = 0)
     {
         m_allocator = allocator;
         m_width = 0;
         m_iRead = 0;
         m_iWrite = 0;
         m_ptr = 0;
+        if (capacity > 0)
+        {
+            Reserve(capacity);
+        }
     }
 
     void Reset()

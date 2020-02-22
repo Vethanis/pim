@@ -37,7 +37,7 @@ struct DrawTask final : ECS::ForEachTask
 
     DrawTask() : ECS::ForEachTask(
         { CTypeOf<Drawable>(), CTypeOf<LocalToWorld>() },
-        { CTypeOf<Camera>(), CTypeOf<ParticleEmitter>(), CTypeOf<FogVolume>() })
+        { })
     {}
 
     void OnEntity(Entity entity) final
@@ -90,7 +90,9 @@ namespace RenderSystem
             }
             Screen::Update();
 
-            for (i32 i = 0; i < 2000000; ++i)
+            CTypeOf<Camera>();
+
+            for (i32 i = 0; i < 1000000; ++i)
             {
                 Entity entity = ECS::Create();
                 if (i & 1)
@@ -116,14 +118,17 @@ namespace RenderSystem
             simgui_new_frame(Screen::Width(), Screen::Height(), Time::DeltaTimeF32());
             sg_begin_default_pass(&ms_clear, Screen::Width(), Screen::Height());
 
+            u64 a = Time::Now();
+
             TaskSystem::Await(&m_task);
             m_task.Setup();
             TaskSystem::Submit(&m_task);
+            //TaskSystem::Await(&m_task);
 
             ++m_frame;
             if ((m_frame & 63) == 0)
             {
-                printf("dt: %f\n", Time::DeltaTimeF32());
+                printf("dt: %f\n", Time::ToMilliseconds(Time::Now() - a));
             }
         }
 
