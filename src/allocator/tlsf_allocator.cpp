@@ -48,47 +48,46 @@ void TlsfAllocator::Clear()
     }
 }
 
-void* TlsfAllocator::Alloc(i32 bytes)
+void* TlsfAllocator::Alloc(i32 userBytes)
 {
     using namespace Allocator;
 
-    if (bytes <= 0)
+    if (userBytes <= 0)
     {
-        ASSERT(bytes == 0);
+        ASSERT(userBytes == 0);
         return nullptr;
     }
-    bytes = AlignBytes(bytes);
+    const i32 rawBytes = AlignBytes(userBytes);
 
     if (m_type != Alloc_Task)
     {
         m_lock.Lock();
     }
 
-    Header* hNew = (Header*)tlsf_malloc(m_impl, bytes);
+    void* pRaw = tlsf_malloc(m_impl, rawBytes);
 
     if (m_type != Alloc_Task)
     {
         m_lock.Unlock();
     }
 
-    return MakePtr(hNew, m_type, bytes);
+    return RawToUser(pRaw, m_type, rawBytes);
 }
 
-void TlsfAllocator::Free(void* pOld)
+void TlsfAllocator::Free(void* pUser)
 {
     using namespace Allocator;
 
-    if (pOld)
+    if (pUser)
     {
-        Header* hOld = ToHeader(pOld, m_type);
-        ASSERT(Dec(hOld->refcount) == 1);
+        void* pRaw = UserToRaw(pUser, m_type);
 
         if (m_type != Alloc_Task)
         {
             m_lock.Lock();
         }
 
-        tlsf_free(m_impl, hOld);
+        tlsf_free(m_impl, pRaw);
 
         if (m_type != Alloc_Task)
         {
@@ -97,36 +96,36 @@ void TlsfAllocator::Free(void* pOld)
     }
 }
 
-void* TlsfAllocator::Realloc(void* pOld, i32 bytes)
+void* TlsfAllocator::Realloc(void* pOldUser, i32 userBytes)
 {
     using namespace Allocator;
 
-    if (!pOld)
+    if (!pOldUser)
     {
-        return Alloc(bytes);
+        return Alloc(userBytes);
     }
-    if (bytes <= 0)
+
+    if (userBytes <= 0)
     {
-        ASSERT(bytes == 0);
-        Free(pOld);
+        ASSERT(userBytes == 0);
+        Free(pOldUser);
         return nullptr;
     }
-    Header* hOld = ToHeader(pOld, m_type);
-    ASSERT(Load(hOld->refcount) == 1);
 
-    bytes = AlignBytes(bytes);
+    void* pOldRaw = UserToRaw(pOldUser, m_type);
+    const i32 rawBytes = AlignBytes(userBytes);
 
     if (m_type != Alloc_Task)
     {
         m_lock.Lock();
     }
 
-    Header* hNew = (Header*)tlsf_realloc(m_impl, hOld, bytes);
+    void* pNewRaw = tlsf_realloc(m_impl, pOldRaw, rawBytes);
 
     if (m_type != Alloc_Task)
     {
         m_lock.Unlock();
     }
 
-    return MakePtr(hNew, m_type, bytes);
+    return RawToUser(pNewRaw, m_type, rawBytes);
 }

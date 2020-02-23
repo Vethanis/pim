@@ -14,50 +14,51 @@ public:
     void Reset() final { }
     void Clear() final { }
 
-    void* Alloc(i32 bytes) final
+    void* Alloc(i32 userBytes) final
     {
         using namespace Allocator;
 
-        if (bytes > 0)
+        if (userBytes > 0)
         {
-            bytes = AlignBytes(bytes);
-            void* ptr = malloc(bytes);
-            return MakePtr(ptr, m_type, bytes);
+            const i32 rawBytes = AlignBytes(userBytes);
+            void* pRaw = malloc(rawBytes);
+            return RawToUser(pRaw, m_type, rawBytes);
         }
-        ASSERT(bytes == 0);
+        ASSERT(userBytes == 0);
         return nullptr;
     }
 
-    void* Realloc(void* pOld, i32 bytes) final
+    void* Realloc(void* pOldUser, i32 userBytes) final
     {
         using namespace Allocator;
 
-        if (!pOld)
+        if (!pOldUser)
         {
-            return Alloc(bytes);
+            return Alloc(userBytes);
         }
-        if (bytes <= 0)
+        if (userBytes <= 0)
         {
-            ASSERT(bytes == 0);
-            Free(pOld);
+            ASSERT(userBytes == 0);
+            Free(pOldUser);
             return nullptr;
         }
-        bytes = AlignBytes(bytes);
-        Header* hOld = ToHeader(pOld, m_type);
-        ASSERT(Load(hOld->refcount) == 1);
-        Header* hNew = (Header*)realloc(hOld, bytes);
-        return MakePtr(hNew, m_type, bytes);
+
+        const i32 rawBytes = AlignBytes(userBytes);
+        void* pOldRaw = UserToRaw(pOldUser, m_type);
+
+        void* pNewRaw = realloc(pOldRaw, rawBytes);
+
+        return RawToUser(pNewRaw, m_type, rawBytes);
     }
 
-    void Free(void* pOld) final
+    void Free(void* pUser) final
     {
         using namespace Allocator;
 
-        if (pOld)
+        if (pUser)
         {
-            Header* hOld = ToHeader(pOld, m_type);
-            ASSERT(Dec(hOld->refcount) == 1);
-            free(hOld);
+            void* pRaw = UserToRaw(pUser, m_type);
+            free(pRaw);
         }
     }
 };

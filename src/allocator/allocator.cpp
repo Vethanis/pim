@@ -86,31 +86,39 @@ namespace Allocator
         ASSERT(bytes >= 0);
         void* ptr = GetAllocator(type).Alloc(bytes);
         ASSERT(ptr);
+        ASSERT(((isize)ptr & 15) == 0);
         return ptr;
     }
 
-    void* Realloc(AllocType type, void* prev, i32 bytes)
+    void* Realloc(AllocType type, void* pOldUser, i32 userBytes)
     {
-        ASSERT(bytes >= 0);
-        if (!prev)
+        ASSERT(userBytes >= 0);
+
+        if (!pOldUser)
         {
-            return Alloc(type, bytes);
+            return Alloc(type, userBytes);
         }
-        if (bytes <= 0)
+
+        if (userBytes <= 0)
         {
-            Free(prev);
+            Free(pOldUser);
             return 0;
         }
-        Header* hdr = ToHeader(prev, type);
-        void* ptr = GetAllocator(hdr->type).Realloc(prev, bytes);
-        ASSERT(ptr);
-        return ptr;
+
+        Header* pOldHeader = UserToHeader(pOldUser, type);
+        void* pNewUser = GetAllocator(pOldHeader->type).Realloc(pOldUser, userBytes);
+
+        ASSERT(pNewUser);
+        ASSERT(((isize)pNewUser & 15) == 0);
+
+        return pNewUser;
     }
 
     void Free(void* ptr)
     {
         if (ptr)
         {
+            ASSERT(((isize)ptr & 15) == 0);
             Header* hdr = (Header*)ptr;
             hdr -= 1;
             GetAllocator(hdr->type).Free(ptr);

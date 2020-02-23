@@ -2,81 +2,110 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "containers/slice.h"
-#include "os/atomics.h"
+#include "common/minmax.h"
+#include <string.h>
 
 namespace Allocator
 {
+    static constexpr i32 kAlign = 16;
+    static constexpr i32 kMask = kAlign - 1;
+
     struct Header
     {
         i32 type;
         i32 size;
-        i32 refcount;
+        i32 offset;
         i32 arg1;
-
-        Slice<u8> AsRaw()
-        {
-            ASSERT(this);
-            return { (u8*)this, size };
-        }
-
-        Slice<u8> AsUser()
-        {
-            ASSERT(this);
-            Header* ptr = this + 1;
-            return { (u8*)ptr, size - (i32)sizeof(Header) };
-        }
-
-        u8* begin() { return AsRaw().begin(); }
-        u8* end() { return AsRaw().end(); }
     };
+    SASSERT((sizeof(Header) & kMask) == 0);
 
-    SASSERT(sizeof(Header) == 16);
+    static constexpr i32 kPadBytes = sizeof(Header) + kAlign;
 
-    static Header* ToHeader(void* ptr, AllocType type)
-    {
-        ASSERT(ptr);
-        Header* header = (Header*)ptr;
-        header -= 1;
-        ASSERT(header->type == type);
-        ASSERT(header->size > 0);
-        return header;
+    static i64 Align(i64 x, i64& offset)
+    {                                           // ex:
+        const i64 rem = x & kMask;              // 21 % 16 = 5
+        const i64 fix = (kAlign - rem) & kMask; // 16 - 5 = 11
+        x += fix;                               // 21 + 11 = 32
+        offset = fix;
+        return x;
     }
 
-    static void* ToPtr(Header* hdr)
+    static i32 AlignBytes(i32 x)
+    {
+        ASSERT(x > 0);
+        i64 offset = 0;
+        const i32 y = (i32)Align(x + kPadBytes, offset);
+        ASSERT(y > 0);
+        return y;
+    }
+
+    static void* AlignPtr(void* ptr, i64& offset)
+    {
+        ASSERT(ptr);
+        return (void*)Align((i64)ptr, offset);
+    }
+
+    static Header* RawToHeader(void* pRaw, AllocType type, i32 size, i32 arg1 = 0)
+    {
+        i64 offset = 0;
+        Header* hdr = (Header*)AlignPtr(pRaw, offset);
+        hdr->type = type;
+        hdr->size = size;
+        hdr->offset = (i32)offset;
+        hdr->arg1 = arg1;
+        return hdr;
+    }
+
+    static void* HeaderToRaw(Header* hdr)
+    {
+        ASSERT(hdr);
+        const i32 offset = hdr->offset;
+        ASSERT(offset >= 0);
+        ASSERT(offset < kAlign);
+        u8* pBytes = (u8*)hdr;
+        return pBytes - offset;
+    }
+
+    static void* HeaderToUser(Header* hdr)
     {
         ASSERT(hdr);
         return hdr + 1;
     }
 
-    static void* MakePtr(void* pRaw, AllocType type, i32 size, i32 arg1 = 0)
+    static Header* UserToHeader(void* pUser, AllocType type)
     {
-        ASSERT(pRaw);
-        Header* hdr = (Header*)pRaw;
-        Store(hdr->type, type, MO_Relaxed);
-        Store(hdr->size, size, MO_Relaxed);
-        Store(hdr->refcount, 1, MO_Relaxed);
-        Store(hdr->arg1, arg1, MO_Relaxed);
-        return hdr + 1;
+        ASSERT(pUser);
+        Header* header = (Header*)pUser;
+        header -= 1;
+        ASSERT(header->type == type);
+        ASSERT(header->size > 0);
+        ASSERT(header->offset >= 0);
+        ASSERT(header->offset < kAlign);
+        return header;
+    }
+
+    static void* RawToUser(void* pRaw, AllocType type, i32 size, i32 arg1 = 0)
+    {
+        Header* pHeader = RawToHeader(pRaw, type, size, arg1);
+        void* pUser = HeaderToUser(pHeader);
+        return pUser;
+    }
+
+    static void* UserToRaw(void* pUser, AllocType type)
+    {
+        Header* pHeader = UserToHeader(pUser, type);
+        void* pRaw = HeaderToRaw(pHeader);
+        return pRaw;
     }
 
     static void Copy(Header* dst, Header* src)
     {
-        ::Copy(dst->AsUser(), src->AsUser());
-    }
-
-    static constexpr i32 kAlign = 64;
-    static constexpr i32 kMask = kAlign - 1;
-
-    static i32 AlignBytes(i32 x)
-    {
-        ASSERT(x > 0);
-        x += sizeof(Header);
-        i32 rem = x & kMask;
-        i32 fix = (kAlign - rem) & kMask;
-        i32 y = x + fix;
-        ASSERT((y & kMask) == 0);
-        ASSERT(y > 0);
-        return y;
+        void* pDst = HeaderToUser(dst);
+        const void* pSrc = HeaderToUser(src);
+        const i32 bytes = Min(dst->size, src->size) - kPadBytes;
+        if (bytes > 0)
+        {
+            memcpy(pDst, pSrc, bytes);
+        }
     }
 };

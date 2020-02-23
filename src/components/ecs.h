@@ -55,6 +55,9 @@ namespace ECS
         void SetQuery(
             std::initializer_list<ComponentId> all,
             std::initializer_list<ComponentId> none);
+        void GetQuery(
+            Slice<const ComponentId>& all,
+            Slice<const ComponentId>& none) const;
         void Execute(i32, i32) final;
         virtual void OnEntities(Slice<const Entity> entities) = 0;
 

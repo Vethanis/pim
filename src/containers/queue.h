@@ -129,11 +129,28 @@ struct Queue
         return m_ptr[i];
     }
 
+    T Peek() const
+    {
+        ASSERT(HasItems());
+        const u32 i = m_iRead & Mask();
+        return m_ptr[i];
+    }
+
     bool TryPop(T& dst)
     {
         if (HasItems())
         {
             dst = Pop();
+            return true;
+        }
+        return false;
+    }
+
+    bool TryPeek(T& dst)
+    {
+        if (HasItems())
+        {
+            dst = Peek();
             return true;
         }
         return false;

@@ -10,6 +10,7 @@ struct BarrierTask final : ITask
     void Setup(ITask* pTask)
     {
         m_await = pTask;
+        SetRange(0, kNumThreads * 2, 1);
     }
     void Execute(i32, i32) final
     {

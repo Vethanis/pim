@@ -20,16 +20,16 @@ private:
     AllocType m_type;
 
 public:
-    void Init(i32 bytes, AllocType type) final
+    void Init(i32 capacity, AllocType type) final
     {
-        ASSERT(bytes > 0);
-        void* memory = malloc(bytes);
+        ASSERT(capacity > 0);
+        void* memory = malloc(capacity);
         ASSERT(memory);
         m_type = type;
         m_mutex.Open();
-        m_memory = { (u8*)memory, bytes };
+        m_memory = { (u8*)memory, capacity };
         m_heap.Init(Alloc_Init, 2048);
-        m_heap.Insert({ 0, bytes });
+        m_heap.Insert({ 0, capacity });
     }
 
     void Reset() final
@@ -85,57 +85,55 @@ public:
     }
 
 private:
-    void* _Alloc(i32 bytes)
+    void* _Alloc(i32 userBytes)
     {
         using namespace Allocator;
 
-        bytes = AlignBytes(bytes);
+        const i32 rawBytes = AlignBytes(userBytes);
 
         Item item;
-        if (m_heap.RemoveBestFit({ 0, bytes }, item))
+        if (m_heap.RemoveBestFit({ 0, rawBytes }, item))
         {
-            if (item.size > bytes)
+            if (item.size > (rawBytes + 64))
             {
-                m_heap.Insert({ item.offset + bytes, item.size - bytes });
-                item.size = bytes;
+                m_heap.Insert({ item.offset + rawBytes, item.size - rawBytes });
+                item.size = rawBytes;
             }
-            else if (item.size < bytes)
+            else if (item.size < rawBytes)
             {
                 m_heap.Insert(item);
                 return nullptr;
             }
             Slice<u8> region = m_memory.Subslice(item.offset, item.size);
-            return MakePtr(region.begin(), m_type, item.size, item.offset);
+            return RawToUser(region.begin(), m_type, item.size, item.offset);
         }
         return nullptr;
     }
 
-    void _Free(void* pOld)
+    void _Free(void* pUser)
     {
         using namespace Allocator;
 
-        Header* hOld = ToHeader(pOld, m_type);
-        ASSERT(Dec(hOld->refcount) == 1);
-
-        m_heap.Insert({ hOld->arg1, hOld->size });
+        Header* pHeader = UserToHeader(pUser, m_type);
+        m_heap.Insert({ pHeader->arg1, pHeader->size });
     }
 
-    void* _Realloc(void* pOld, i32 bytes)
+    void* _Realloc(void* pOldUser, i32 userBytes)
     {
         using namespace Allocator;
 
-        _Free(pOld);
-        void* pNew = _Alloc(bytes);
-        if (!pNew)
+        _Free(pOldUser);
+        void* pNewUser = _Alloc(userBytes);
+        if (!pNewUser)
         {
             return nullptr;
         }
 
-        if (pNew != pOld)
+        if (pNewUser != pOldUser)
         {
-            Copy(ToHeader(pNew, m_type), ToHeader(pOld, m_type));
+            Copy(UserToHeader(pNewUser, m_type), UserToHeader(pOldUser, m_type));
         }
 
-        return pNew;
+        return pNewUser;
     }
 };

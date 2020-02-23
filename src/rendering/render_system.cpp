@@ -33,15 +33,15 @@ struct DrawTask final : ECS::ForEachTask
 {
     CType<Drawable> m_drawable;
     CType<LocalToWorld> m_l2w;
-    u32 m_frame;
+    f32 m_iteration;
     f32 m_expect;
     f32 m_write;
 
-    DrawTask() : ECS::ForEachTask() {}
+    DrawTask() : ECS::ForEachTask(), m_iteration(0.0f) {}
 
     void Setup(f32 expect, f32 write)
     {
-        m_frame = Time::FrameCount();
+        ++m_iteration;
         m_expect = expect;
         m_write = write;
         SetQuery({ CTypeOf<Drawable>(), CTypeOf<LocalToWorld>() }, {});
@@ -49,7 +49,7 @@ struct DrawTask final : ECS::ForEachTask
 
     void OnEntities(Slice<const Entity> entities) final
     {
-        const u32 frame = m_frame;
+        const f32 iteration = m_iteration;
         const f32 expect = m_expect;
         const f32 write = m_write;
         Slice<const Drawable> drawables = m_drawable.GetRow();
@@ -63,27 +63,27 @@ struct DrawTask final : ECS::ForEachTask
             const Drawable& drawable = drawables[entity.index];
             LocalToWorld& l2w = l2ws[entity.index];
 
-            if (frame == 1)
+            float4& c0 = l2w.Value.x;
+            float4& c1 = l2w.Value.y;
+
+            const f32 index = (f32)entity.index;
+            const f32 version = (f32)entity.version;
+
+            if (iteration <= 1)
             {
-                l2w.Value.x.x = (f32)frame;
-                l2w.Value.x.y = (f32)entity.index;
-                l2w.Value.x.z = (f32)entity.version;
-                l2w.Value.x.w = 1.0f;
-                l2w.Value.y.y = write;
+                c0 = float4(iteration, index, version, 0.0f);
             }
             else
             {
-                ASSERT(((f32)frame - l2w.Value.x.x) <= 1.0f);
-                ASSERT(l2w.Value.x.y == (f32)entity.index);
-                ASSERT(l2w.Value.x.z == (f32)entity.version);
-                f32 updateCount = ++l2w.Value.x.w;
-                ASSERT(updateCount >= frame);
-
-                ASSERT(l2w.Value.y.y == expect);
-                l2w.Value.y.y = write;
+                ASSERT(math::distance(c0.x, iteration) <= 1.0f);
+                ASSERT(c0.y == index);
+                ASSERT(c0.z == version);
+                ASSERT(c1.y == expect);
             }
-            l2w.Value.x.x = (f32)frame;
-            l2w.Value.y.x = math::sin(Random::NextF32());
+            c0.x = iteration;
+            c0.w += 1.0f;
+            c1.x = math::sin(Random::NextF32());
+            c1.y = write;
         }
     }
 };
@@ -103,12 +103,11 @@ namespace RenderSystem
 
     struct System final : ISystem
     {
-        System() : ISystem("RenderSystem", { "InputSystem", "IEntitySystem", "ECS", }) {}
+        System() : ISystem("RenderSystem", { "InputSystem", "ECS", "TaskSystem" }) {}
 
         DrawTask m_task1;
         BarrierTask m_barrier;
         DrawTask m_task2;
-        i32 m_frame;
 
         void Init() final
         {
@@ -135,7 +134,7 @@ namespace RenderSystem
             constexpr i32 kThousand = 1000;
             constexpr i32 kMillion = 1000 * kThousand;
 
-            constexpr i32 kCount = 250 * kThousand;
+            constexpr i32 kCount = 1 * kMillion;
             for (i32 i = 0; i < kCount; ++i)
             {
                 Entity entity = ECS::Create();
@@ -152,8 +151,6 @@ namespace RenderSystem
                     ECS::Add<Camera>(entity);
                 }
             }
-
-            m_frame = 0;
         }
 
         void Update() final
@@ -169,6 +166,7 @@ namespace RenderSystem
             m_task1.Setup(math::Pi, math::Tau);
             m_barrier.Setup(&m_task1);
             m_task2.Setup(math::Tau, math::Pi);
+
             TaskSystem::Submit(&m_task1);
             TaskSystem::Submit(&m_barrier);
             TaskSystem::Submit(&m_task2);

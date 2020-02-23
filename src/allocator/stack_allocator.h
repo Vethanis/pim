@@ -4,6 +4,7 @@
 #include "allocator/header.h"
 #include "containers/array.h"
 #include "os/thread.h"
+#include "os/atomics.h"
 #include <stdlib.h>
 
 struct StackAllocator final : IAllocator
@@ -16,14 +17,14 @@ private:
     AllocType m_type;
 
 public:
-    void Init(i32 bytes, AllocType type) final
+    void Init(i32 capacity, AllocType type) final
     {
-        ASSERT(bytes > 0);
-        void* memory = malloc(bytes);
+        ASSERT(capacity > 0);
+        void* memory = malloc(capacity);
         ASSERT(memory);
         m_type = type;
         m_mutex.Open();
-        m_memory = { (u8*)memory, bytes };
+        m_memory = { (u8*)memory, capacity };
         m_stack = m_memory;
         m_allocations.Init(Alloc_Init);
     }
@@ -84,35 +85,38 @@ public:
     }
 
 private:
-    void* _Alloc(i32 bytes)
+    void* _Alloc(i32 userBytes)
     {
         using namespace Allocator;
 
-        bytes = AlignBytes(bytes);
+        const i32 rawBytes = AlignBytes(userBytes);
 
-        Slice<u8> allocation = m_stack.Head(bytes);
-        m_stack = m_stack.Tail(bytes);
+        Slice<u8> allocation = m_stack.Head(rawBytes);
+        m_stack = m_stack.Tail(rawBytes);
 
-        Header* hNew = (Header*)allocation.begin();
-        m_allocations.PushBack(hNew);
-        return MakePtr(hNew, m_type, bytes, 0);
+        void* pRaw = allocation.begin();
+        Header* pHeader = RawToHeader(pRaw, m_type, rawBytes);
+
+        m_allocations.PushBack(pHeader);
+
+        return HeaderToUser(pHeader);
     }
 
-    void _Free(void* pOld)
+    void _Free(void* pUser)
     {
         using namespace Allocator;
 
-        Header* hOld = ToHeader(pOld, m_type);
-        ASSERT(Dec(hOld->refcount) == 1);
-        Store(hOld->arg1, 1);
+        Header* pHeader = UserToHeader(pUser, m_type);
+        pHeader->arg1 = 1;
 
         while (m_allocations.size())
         {
-            Header* hBack = m_allocations.back();
-            if (Load(hBack->arg1))
+            Header* pBackHeader = m_allocations.back();
+            if (pBackHeader->arg1)
             {
                 m_allocations.Pop();
-                m_stack = Combine(m_stack, hBack->AsRaw());
+                void* pRaw = HeaderToRaw(pBackHeader);
+                m_stack = Combine(m_stack, { (u8*)pRaw, pBackHeader->size });
             }
             else
             {
@@ -121,18 +125,18 @@ private:
         }
     }
 
-    void* _Realloc(void* pOld, i32 bytes)
+    void* _Realloc(void* pOldUser, i32 bytes)
     {
         using namespace Allocator;
 
-        _Free(pOld);
-        void* pNew = _Alloc(bytes);
+        _Free(pOldUser);
+        void* pNewUser = _Alloc(bytes);
 
-        if (pNew != pOld)
+        if (pNewUser != pOldUser)
         {
-            Copy(ToHeader(pNew, m_type), ToHeader(pOld, m_type));
+            Copy(UserToHeader(pNewUser, m_type), UserToHeader(pOldUser, m_type));
         }
 
-        return pNew;
+        return pNewUser;
     }
 };

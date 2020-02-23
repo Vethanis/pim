@@ -14,15 +14,15 @@ private:
     AllocType m_type;
 
 public:
-    void Init(i32 bytes, AllocType type) final
+    void Init(i32 capacity, AllocType type) final
     {
-        ASSERT(bytes > 0);
-        void* memory = malloc(bytes);
+        ASSERT(capacity > 0);
+        void* memory = malloc(capacity);
         ASSERT(memory);
         m_type = type;
         m_ptr = (u8*)memory;
         m_head = m_ptr;
-        m_tail = m_head + bytes;
+        m_tail = m_head + capacity;
     }
 
     void Reset() final
@@ -39,46 +39,46 @@ public:
         StorePtr(m_head, m_ptr);
     }
 
-    void* Alloc(i32 bytes) final
+    void* Alloc(i32 userBytes) final
     {
         using namespace Allocator;
 
-        if (bytes <= 0)
+        if (userBytes <= 0)
         {
-            ASSERT(bytes == 0);
+            ASSERT(userBytes == 0);
             return nullptr;
         }
 
-        bytes = AlignBytes(bytes);
+        const i32 rawBytes = AlignBytes(userBytes);
+        u8* tail = LoadPtr(m_tail, MO_Relaxed);
 
     tryalloc:
-        u8* tail = LoadPtr(m_tail, MO_Relaxed);
         u8* head = LoadPtr(m_head, MO_Relaxed);
-        if (head + bytes <= tail)
+        if (head + rawBytes <= tail)
         {
-            if (CmpExStrongPtr(m_head, head, head + bytes, MO_Acquire))
+            if (CmpExStrongPtr(m_head, head, head + rawBytes, MO_Acquire))
             {
-                return MakePtr(head, m_type, bytes);
+                return RawToUser(head, m_type, rawBytes);
             }
             goto tryalloc;
         }
         return 0;
     }
 
-    void Free(void* pOld) final
+    void Free(void* pUser) final
     {
         using namespace Allocator;
 
-        if (!pOld)
+        if (!pUser)
         {
             return;
         }
 
-        Header* hOld = ToHeader(pOld, m_type);
-        ASSERT(Dec(hOld->refcount) == 1);
+        Header* pHeader = UserToHeader(pUser, m_type);
+        void* pRaw = HeaderToRaw(pHeader);
 
-        u8* begin = hOld->begin();
-        u8* end = hOld->end();
+        u8* begin = (u8*)pRaw;
+        u8* end = begin + pHeader->size;
 
     tryfree:
         u8* head = LoadPtr(m_head, MO_Relaxed);
@@ -92,51 +92,52 @@ public:
         }
     }
 
-    void* Realloc(void* pOld, i32 bytes) final
+    void* Realloc(void* pOldUser, i32 userBytes) final
     {
         using namespace Allocator;
 
-        if (!pOld)
+        if (!pOldUser)
         {
-            return Alloc(bytes);
+            return Alloc(userBytes);
         }
-        if (bytes <= 0)
+
+        if (userBytes <= 0)
         {
-            ASSERT(bytes == 0);
-            Free(pOld);
+            ASSERT(userBytes == 0);
+            Free(pOldUser);
             return nullptr;
         }
 
-        const i32 userBytes = bytes;
-        bytes = AlignBytes(bytes);
+        const i32 rawBytes = AlignBytes(userBytes);
+        Header* pOldHeader = UserToHeader(pOldUser, m_type);
+        const i32 diff = rawBytes - pOldHeader->size;
 
-        Header* hOld = ToHeader(pOld, m_type);
-        ASSERT(Load(hOld->refcount) == 1);
-
-        const i32 diff = bytes - hOld->size;
         if (diff <= 0)
         {
-            return pOld;
+            return pOldUser;
         }
 
-        u8* end = hOld->end();
+        u8* begin = (u8*)HeaderToRaw(pOldHeader);
+        u8* end = begin + pOldHeader->size;
+
         u8* head = LoadPtr(m_head, MO_Relaxed);
         ASSERT(head);
         if (end == head)
         {
             if (CmpExStrongPtr(m_head, head, head + diff, MO_Acquire))
             {
-                hOld->size += diff;
-                return pOld;
+                pOldHeader->size += diff;
+                return pOldUser;
             }
         }
 
-        void* pNew = Alloc(userBytes);
-        if (pNew)
+        void* pNewUser = Alloc(userBytes);
+        if (pNewUser)
         {
-            Copy(ToHeader(pNew, m_type), hOld);
+            Copy(UserToHeader(pNewUser, m_type), pOldHeader);
         }
-        Free(pOld);
-        return pNew;
+        Free(pOldUser);
+
+        return pNewUser;
     }
 };

@@ -61,6 +61,10 @@ static void SortSystems()
                 {
                     ms_graph.AddEdge(iSrc, iDst);
                 }
+                else
+                {
+                    ASSERT(false);
+                }
             }
         }
         ms_graph.Sort();

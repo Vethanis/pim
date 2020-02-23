@@ -16,9 +16,36 @@ namespace ECS
     static Array<version_t> ms_rowVersions[kMaxTypes];
     static Array<u8> ms_rowBytes[kMaxTypes];
 
-    static bool IsSingleThreaded()
+    static bool IsSingleThreaded() { return (ThreadId() == 0) && (NumActiveThreads() == 0); }
+    static bool IsActive(Entity entity) { return (entity.version & 1) != 0; }
+
+    static bool HasAll(Entity entity, Slice<const ComponentId> ids)
     {
-        return (ThreadId() == 0) && (NumActiveThreads() == 0);
+        for (ComponentId id : ids)
+        {
+            if (!Has(entity, id))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static bool HasAny(Entity entity, Slice<const ComponentId> ids)
+    {
+        for (ComponentId id : ids)
+        {
+            if (Has(entity, id))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static bool HasNone(Entity entity, Slice<const ComponentId> ids)
+    {
+        return !HasAny(entity, ids);
     }
 
     struct System final : ISystem
@@ -29,9 +56,7 @@ namespace ECS
             ms_versions.Init(Alloc_Perm, 1024);
             ms_free.Init(Alloc_Perm, 1024);
         }
-        void Update() final
-        {
-        }
+        void Update() final {}
         void Shutdown() final
         {
             for (i32 i = 0; i < ms_typeCount; ++i)
@@ -39,10 +64,9 @@ namespace ECS
                 ms_rowBytes[i].Reset();
                 ms_rowVersions[i].Reset();
             }
-
+            ms_typeCount = 0;
             ms_versions.Reset();
             ms_free.Reset();
-            ms_typeCount = 0;
         }
     };
 
@@ -72,7 +96,7 @@ namespace ECS
 
     bool IsCurrent(Entity entity)
     {
-        ASSERT(entity.version & 1);
+        ASSERT(IsActive(entity));
         return entity.version == ms_versions[entity.index];
     }
 
@@ -84,7 +108,7 @@ namespace ECS
         if (ms_free.TryPop(entity.index))
         {
             entity.version = ++ms_versions[entity.index];
-            ASSERT(entity.version & 1);
+            ASSERT(IsActive(entity));
             return entity;
         }
 
@@ -110,6 +134,7 @@ namespace ECS
     bool Destroy(Entity entity)
     {
         ASSERT(IsSingleThreaded());
+        ASSERT(IsActive(entity));
         if (entity.version == ms_versions[entity.index])
         {
             ++ms_versions[entity.index];
@@ -121,14 +146,14 @@ namespace ECS
 
     bool Has(Entity entity, ComponentId id)
     {
-        ASSERT(entity.version & 1);
+        ASSERT(IsActive(entity));
         return entity.version == ms_rowVersions[id.Value][entity.index];
     }
 
     bool Add(Entity entity, ComponentId id)
     {
         ASSERT(IsSingleThreaded());
-        ASSERT(entity.version & 1);
+        ASSERT(IsActive(entity));
 
         const i32 iRow = id.Value;
         const i32 sizeOf = ms_strides[iRow];
@@ -148,7 +173,7 @@ namespace ECS
     bool Remove(Entity entity, ComponentId id)
     {
         ASSERT(IsSingleThreaded());
-        ASSERT(entity.version & 1);
+        ASSERT(IsActive(entity));
         version_t& rVersion = ms_rowVersions[id.Value][entity.index];
         if (entity.version == rVersion)
         {
@@ -160,27 +185,34 @@ namespace ECS
 
     void* Get(Entity entity, ComponentId id)
     {
-        ASSERT(entity.version & 1);
+        ASSERT(IsActive(entity));
         const i32 iRow = id.Value;
         const i32 sizeOf = ms_strides[iRow];
         u8* const ptr = ms_rowBytes[iRow].begin() + entity.index * sizeOf;
         return (entity.version == ms_rowVersions[iRow][entity.index]) ? ptr : nullptr;
     }
 
-    Slice<u8> GetRow(ComponentId type)
-    {
-        return ms_rowBytes[type.Value];
-    }
+    Slice<u8> GetRow(ComponentId type) { return ms_rowBytes[type.Value]; }
 
     void ForEachTask::SetQuery(
         std::initializer_list<ComponentId> all,
         std::initializer_list<ComponentId> none)
     {
+        ASSERT(IsInitOrComplete());
         m_all.Init(Alloc_Temp);
         m_none.Init(Alloc_Temp);
         Copy(m_all, all);
         Copy(m_none, none);
-        SetRange(0, ms_versions.size());
+        const i32 len = ms_versions.size();
+        SetRange(0, len, Max(16, len / kTaskSplit));
+    }
+
+    void ForEachTask::GetQuery(
+        Slice<const ComponentId>& all,
+        Slice<const ComponentId>& none) const
+    {
+        all = m_all;
+        none = m_none;
     }
 
     void ForEachTask::Execute(i32 begin, i32 end)
@@ -188,35 +220,16 @@ namespace ECS
         const Slice<const ComponentId> all = m_all;
         const Slice<const ComponentId> none = m_none;
         const Slice<const version_t> versions = ms_versions;
-        const Slice<const Array<version_t>> rows = { ms_rowVersions, kMaxTypes };
 
         Array<Entity> results = CreateArray<Entity>(Alloc_Task, end - begin);
 
-        for(i32 ei = begin; ei < end;)
+        for (i32 i = begin; i < end; ++i)
         {
-            const version_t ev = versions[ei];
-            if (ev & 1)
+            const Entity entity = { i, versions[i] };
+            if (IsActive(entity) && HasAll(entity, all) && HasNone(entity, none))
             {
-                for (ComponentId id : all)
-                {
-                    const version_t cv = rows[id.Value][ei];
-                    if (ev != cv)
-                    {
-                        goto next;
-                    }
-                }
-                for (ComponentId id : none)
-                {
-                    const version_t cv = rows[id.Value][ei];
-                    if (ev == cv)
-                    {
-                        goto next;
-                    }
-                }
-                results.AppendBack({ ei, ev });
+                results.AppendBack(entity);
             }
-        next:
-            ++ei;
         }
 
         if (results.size() > 0)

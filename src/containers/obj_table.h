@@ -9,7 +9,7 @@ struct ObjTable
 {
     OS::Mutex m_mutex;
     HashDict<K, V*> m_dict;
-    ObjPool<V, Args> m_pool;
+    ObjPoolEx<V, Args> m_pool;
 
     void Init()
     {
