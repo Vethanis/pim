@@ -16,7 +16,7 @@ struct Queue
 
     // ------------------------------------------------------------------------
 
-    void Init(AllocType allocator = Alloc_Tlsf, u32 capacity = 0)
+    void Init(AllocType allocator = Alloc_Perm, u32 capacity = 0)
     {
         m_allocator = allocator;
         m_width = 0;
@@ -70,7 +70,6 @@ struct Queue
         ASSERT(newWidth >= 0u);
         ASSERT(length <= newWidth);
 
-        // no resize
         if (newWidth == oldWidth)
         {
             return;
@@ -78,67 +77,21 @@ struct Queue
 
         const u32 oldMask = Mask();
         const u32 oldiRead = m_iRead;
+        T* newPtr = Allocator::AllocT<T>(GetAllocator(), newWidth);
+        T* oldPtr = m_ptr;
 
-        // no wraparound
-        const u32 rotation = oldiRead & oldMask;
-        if ((rotation + length) <= oldWidth)
+        for (u32 i = 0; i < length; ++i)
         {
-            if (rotation != 0u)
-            {
-                memcpy(m_ptr, m_ptr + rotation, length * sizeof(T));
-            }
-
-            m_ptr = Allocator::ReallocT<T>(GetAllocator(), m_ptr, newWidth);
-            m_width = newWidth;
-            m_iRead = 0u;
-            m_iWrite = length;
-
-            return;
+            const u32 j = (oldiRead + i) & oldMask;
+            newPtr[i] = oldPtr[j];
         }
 
-        // >= 2x growth
-        if (newWidth >= (oldWidth * 2u))
-        {
-            m_ptr = Allocator::ReallocT<T>(GetAllocator(), m_ptr, newWidth);
+        Allocator::Free(oldPtr);
 
-            // un-rotate into new side
-            T* const oldSide = m_ptr;
-            T* const newSide = m_ptr + oldWidth;
-            for (u32 i = 0; i < length; ++i)
-            {
-                const u32 j = (oldiRead + i) & oldMask;
-                newSide[i] = oldSide[j];
-            }
-
-            // iRead is now at midpoint of resized allocation
-            m_iRead = oldWidth;
-            m_iWrite = oldWidth + length;
-            m_width = newWidth;
-
-            return;
-        }
-
-        // < 2x growth
-        {
-            // create a new allocation
-            T* newPtr = Allocator::AllocT<T>(GetAllocator(), newWidth);
-            T* oldPtr = m_ptr;
-
-            // un-rotate into new allocation
-            for (u32 i = 0; i < length; ++i)
-            {
-                const u32 j = (oldiRead + i) & oldMask;
-                newPtr[i] = oldPtr[j];
-            }
-
-            // free old allocation
-            Allocator::Free(oldPtr);
-
-            m_ptr = newPtr;
-            m_width = newWidth;
-            m_iRead = 0;
-            m_iWrite = length;
-        }
+        m_ptr = newPtr;
+        m_width = newWidth;
+        m_iRead = 0;
+        m_iWrite = length;
     }
 
     void Reserve(u32 newSize)
@@ -326,7 +279,7 @@ inline void Remove(Queue<T>& queue, u32 i)
 }
 
 template<typename T>
-static Queue<T> CreateQueue(AllocType allocator = Alloc_Tlsf, i32 cap = 0)
+static Queue<T> CreateQueue(AllocType allocator = Alloc_Perm, i32 cap = 0)
 {
     ASSERT(cap >= 0);
     Queue<T> queue;

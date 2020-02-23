@@ -19,7 +19,7 @@ struct MtQueue
     u32* m_flags;
     AllocType m_allocator;
 
-    void Init(AllocType allocator = Alloc_Tlsf, u32 minCap = 0u)
+    void Init(AllocType allocator = Alloc_Perm, u32 minCap = 0u)
     {
         memset(this, 0, sizeof(*this));
         m_lock.Open();

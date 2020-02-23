@@ -10,7 +10,7 @@ struct ObjPool
 
     void Init()
     {
-        m_chunks.Init(Alloc_Tlsf, sizeof(T));
+        m_chunks.Init(Alloc_Perm, sizeof(T));
     }
     void Reset()
     {

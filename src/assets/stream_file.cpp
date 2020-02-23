@@ -19,12 +19,12 @@ bool StreamFile::FileOp::operator<(const StreamFile::FileOp& rhs) const
     return offset - rhs.offset;
 }
 
-StreamFile::StreamFile(StreamFileArgs args) : ITask(0, 0)
+StreamFile::StreamFile(StreamFileArgs args) : ITask(0, 1, 1)
 {
     ASSERT(args.path);
     m_lock.Open();
     m_file = fopen(args.path, "r+b");
-    m_queue.Init(Alloc_Tlsf, 64);
+    m_queue.Init(Alloc_Perm, 64);
 }
 
 StreamFile::~StreamFile()
@@ -110,7 +110,7 @@ void StreamFile::Execute(i32 begin, i32 end)
         return;
     }
 
-    Array<FileOp> ops = CreateArray<FileOp>(Alloc_Stack, m_queue.size());
+    Array<FileOp> ops = CreateArray<FileOp>(Alloc_Task, m_queue.size());
     {
         FileOp op = {};
         while (m_queue.TryPop(op))

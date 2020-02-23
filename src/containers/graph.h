@@ -8,7 +8,7 @@ struct Graph
     Array<Array<i32>> m_edges;
     Array<i32> m_ids;
 
-    void Init(AllocType allocator = Alloc_Tlsf)
+    void Init(AllocType allocator = Alloc_Perm)
     {
         m_marks.Init(allocator);
         m_edges.Init(allocator);

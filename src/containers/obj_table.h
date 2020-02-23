@@ -7,23 +7,27 @@
 template<typename K, typename V, typename Args>
 struct ObjTable
 {
+    OS::Mutex m_mutex;
     HashDict<K, V*> m_dict;
     ObjPool<V, Args> m_pool;
 
     void Init()
     {
-        m_dict.Init(Alloc_Tlsf);
+        m_mutex.Open();
+        m_dict.Init(Alloc_Perm);
         m_pool.Init();
     }
 
     void Reset()
     {
+        m_mutex.Lock();
         for (auto pair : m_dict)
         {
             pair.value->~V();
         }
         m_dict.Reset();
         m_pool.Reset();
+        m_mutex.Close();
     }
 
     V* New(Args args) { return m_pool.New(args); }
@@ -31,7 +35,8 @@ struct ObjTable
 
     V* Get(K key)
     {
-        V* ptr = nullptr;
+        V* ptr = 0;
+        OS::LockGuard guard(m_mutex);
         m_dict.Get(key, ptr);
         return ptr;
     }
@@ -44,9 +49,12 @@ struct ObjTable
             return ptr;
         }
         ptr = New(args);
-        if (m_dict.Add(key, ptr))
         {
-            return ptr;
+            OS::LockGuard guard(m_mutex);
+            if (m_dict.Add(key, ptr))
+            {
+                return ptr;
+            }
         }
         Delete(ptr);
         ptr = Get(key);
@@ -56,10 +64,14 @@ struct ObjTable
 
     bool Remove(K key)
     {
-        V* ptrOut = 0;
-        if (m_dict.Remove(key, ptrOut))
+        V* ptr = 0;
         {
-            Delete(ptrOut);
+            OS::LockGuard guard(m_mutex);
+            m_dict.Remove(key, ptr);
+        }
+        if (ptr)
+        {
+            Delete(ptr);
             return true;
         }
         return false;

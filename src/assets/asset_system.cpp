@@ -20,7 +20,7 @@ namespace AssetSystem
             ms_packs.Init();
             ms_assets.Init();
 
-            Quake::Folder folder = Quake::LoadFolder("packs/id1", Alloc_Stack);
+            Quake::Folder folder = Quake::LoadFolder("packs/id1", Alloc_Temp);
             for (Quake::Pack& pack : folder.packs)
             {
                 const Guid packId = ToGuid(pack.path);

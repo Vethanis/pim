@@ -84,7 +84,7 @@ static void Register(Guid id, ISystem* pSystem)
 
 ISystem::ISystem(cstr name, std::initializer_list<cstr> dependencies)
 {
-    m_dependencies.Init(Alloc_Stdlib, (i32)dependencies.size());
+    m_dependencies.Init(Alloc_Init, (i32)dependencies.size());
     for (cstr depName : dependencies)
     {
         m_dependencies.PushBack(ToGuid(depName));
@@ -96,7 +96,7 @@ namespace Systems
 {
     void Init()
     {
-        ms_graph.Init(Alloc_Tlsf);
+        ms_graph.Init(Alloc_Perm);
         SortSystems();
         const i32 count = ms_systemCount;
         for (i32 i = 0; i < count; ++i)

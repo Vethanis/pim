@@ -17,7 +17,7 @@ struct Array
 
     // ------------------------------------------------------------------------
 
-    void Init(AllocType allocType = Alloc_Tlsf)
+    void Init(AllocType allocType = Alloc_Perm)
     {
         m_ptr = nullptr;
         m_length = 0;
@@ -149,6 +149,13 @@ struct Array
         return iBack;
     }
 
+    void AppendBack(T item)
+    {
+        const i32 iBack = m_length++;
+        ASSERT(iBack < m_capacity);
+        m_ptr[iBack] = item;
+    }
+
     T PopBack()
     {
         const i32 iBack = --m_length;
@@ -269,7 +276,7 @@ static void Move(Array<T>& dst, Array<T>& src)
 }
 
 template<typename T>
-static Array<T> CreateArray(AllocType allocator = Alloc_Tlsf, i32 cap = 0)
+static Array<T> CreateArray(AllocType allocator = Alloc_Perm, i32 cap = 0)
 {
     Array<T> arr;
     arr.Init(allocator, cap);

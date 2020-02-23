@@ -112,59 +112,9 @@ namespace OS
 
     // ------------------------------------------------------------------------
 
-    void Event::WakeOne()
-    {
-        u64 spins = 0;
-        i32 waits = Load(m_waits);
-        while (!CmpExStrong(m_waits, waits, Max(waits - 1, 0), MO_Release))
-        {
-            OS::Spin(++spins);
-        }
-        if (waits > 0)
-        {
-            m_sema.Signal(1);
-        }
-    }
-
-    void Event::Wake(i32 count)
-    {
-        u64 spins = 0;
-        i32 waits = Load(m_waits);
-        while (!CmpExStrong(m_waits, waits, Max(waits - count, 0), MO_Release))
-        {
-            OS::Spin(++spins);
-        }
-        if (waits > 0)
-        {
-            m_sema.Signal(Min(waits, count));
-        }
-    }
-
-    void Event::WakeAll()
-    {
-        u64 spins = 0;
-        i32 waits = Load(m_waits);
-        while (!CmpExStrong(m_waits, waits, 0, MO_Release))
-        {
-            OS::Spin(++spins);
-        }
-        if (waits > 0)
-        {
-            m_sema.Signal(waits);
-        }
-    }
-
-    void Event::Wait()
-    {
-        Inc(m_waits, MO_Acquire);
-        m_sema.Wait();
-    }
-
-    // ------------------------------------------------------------------------
-
     bool RWFlag::TryLockReader() const
     {
-        i32 state = Load(m_state, MO_Relaxed);
+        i16 state = Load(m_state, MO_Relaxed);
         return (state >= 0) && CmpExStrong(m_state, state, state + 1, MO_Acquire);
     }
 
@@ -179,13 +129,13 @@ namespace OS
 
     void RWFlag::UnlockReader() const
     {
-        i32 prev = Dec(m_state, MO_Release);
+        i16 prev = Dec(m_state, MO_Release);
         ASSERT(prev > 0);
     }
 
     bool RWFlag::TryLockWriter()
     {
-        i32 state = Load(m_state, MO_Relaxed);
+        i16 state = Load(m_state, MO_Relaxed);
         return (state == 0) && CmpExStrong(m_state, state, -1, MO_Acquire);
     }
 
@@ -200,7 +150,7 @@ namespace OS
 
     void RWFlag::UnlockWriter()
     {
-        i32 prev = Exchange(m_state, 0, MO_Release);
+        i16 prev = Exchange(m_state, 0, MO_Release);
         ASSERT(prev == -1);
     }
 };

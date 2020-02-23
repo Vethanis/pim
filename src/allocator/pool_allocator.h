@@ -8,19 +8,31 @@
 
 struct PoolAllocator final : IAllocator
 {
+private:
+    struct Item
+    {
+        i32 offset, size;
+        bool operator<(Item rhs) const { return size < rhs.size; }
+    };
+    OS::Mutex m_mutex;
+    Slice<u8> m_memory;
+    Heap<Item> m_heap;
+    AllocType m_type;
+
 public:
-    PoolAllocator(i32 bytes) : IAllocator(bytes)
+    void Init(i32 bytes, AllocType type) final
     {
         ASSERT(bytes > 0);
         void* memory = malloc(bytes);
         ASSERT(memory);
+        m_type = type;
         m_mutex.Open();
         m_memory = { (u8*)memory, bytes };
-        m_heap.Init(Alloc_Stdlib, 2048);
+        m_heap.Init(Alloc_Init, 2048);
         m_heap.Insert({ 0, bytes });
     }
 
-    ~PoolAllocator()
+    void Reset() final
     {
         m_mutex.Lock();
         m_heap.Reset();
@@ -73,22 +85,6 @@ public:
     }
 
 private:
-
-    struct Item
-    {
-        i32 offset;
-        i32 size;
-
-        bool operator<(Item rhs) const
-        {
-            return size < rhs.size;
-        }
-    };
-
-    OS::Mutex m_mutex;
-    Slice<u8> m_memory;
-    Heap<Item> m_heap;
-
     void* _Alloc(i32 bytes)
     {
         using namespace Allocator;
@@ -109,7 +105,7 @@ private:
                 return nullptr;
             }
             Slice<u8> region = m_memory.Subslice(item.offset, item.size);
-            return MakePtr(region.begin(), Alloc_Pool, item.size, item.offset);
+            return MakePtr(region.begin(), m_type, item.size, item.offset);
         }
         return nullptr;
     }
@@ -118,9 +114,8 @@ private:
     {
         using namespace Allocator;
 
-        Header* hOld = ToHeader(pOld, Alloc_Pool);
-        const i32 rc = Dec(hOld->refcount, MO_Relaxed);
-        ASSERT(rc == 1);
+        Header* hOld = ToHeader(pOld, m_type);
+        ASSERT(Dec(hOld->refcount) == 1);
 
         m_heap.Insert({ hOld->arg1, hOld->size });
     }
@@ -138,7 +133,7 @@ private:
 
         if (pNew != pOld)
         {
-            Copy(ToHeader(pNew, Alloc_Pool), ToHeader(pOld, Alloc_Pool));
+            Copy(ToHeader(pNew, m_type), ToHeader(pOld, m_type));
         }
 
         return pNew;

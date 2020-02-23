@@ -17,9 +17,14 @@ namespace ECS
     bool Destroy(Entity entity);
     bool IsCurrent(Entity entity);
 
+    bool Has(Entity entity, ComponentId type);
     bool Add(Entity entity, ComponentId type);
     bool Remove(Entity entity, ComponentId type);
     void* Get(Entity entity, ComponentId type);
+    Slice<u8> GetRow(ComponentId type);
+
+    template<typename T>
+    bool Has(Entity entity) { return Has(entity, GetId<T>()); }
 
     template<typename T>
     bool Add(Entity entity) { return Add(entity, GetId<T>()); }
@@ -31,6 +36,12 @@ namespace ECS
     T* Get(Entity entity) { return (T*)Get(entity, GetId<T>()); }
 
     template<typename T>
+    Slice<T> GetRow()
+    {
+        return GetRow(GetId<T>()).Cast<T>();
+    }
+
+    template<typename T>
     T* Get(Entity entity, ComponentId type)
     {
         ASSERT(GetId<T>() == type);
@@ -39,14 +50,13 @@ namespace ECS
 
     struct ForEachTask : ITask
     {
-        ForEachTask(
+        ForEachTask() : ITask(0, 0, 1) {}
+
+        void SetQuery(
             std::initializer_list<ComponentId> all,
             std::initializer_list<ComponentId> none);
-        ~ForEachTask();
-
-        void Setup();
         void Execute(i32, i32) final;
-        virtual void OnEntity(Entity entity) = 0;
+        virtual void OnEntities(Slice<const Entity> entities) = 0;
 
     private:
         Array<ComponentId> m_all;
@@ -70,6 +80,10 @@ struct CType final
     T* Get(Entity entity) const
     {
         return (T*)ECS::Get(entity, m_type);
+    }
+    Slice<T> GetRow() const
+    {
+        return ECS::GetRow(m_type).Cast<T>();
     }
 
 private:

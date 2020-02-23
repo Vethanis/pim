@@ -29,7 +29,7 @@ struct Asset
         memory({ 0, 0 }),
         refCount(0)
     {
-        children.Init(Alloc_Tlsf);
+        children.Init(Alloc_Perm);
     }
     ~Asset()
     {

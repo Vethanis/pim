@@ -34,16 +34,17 @@ namespace OS
         bool TryWait();
     };
 
-    struct Mutex
+    struct alignas(8) Mutex
     {
-        Semaphore sema;
+        u64 opaque[5];
+        bool created;
 
-        bool IsOpen() const { return sema.IsOpen(); }
-        bool Open() { return sema.Open(1); }
-        bool Close() { return sema.Close(); };
-        void Lock() { sema.Wait(); }
-        void Unlock() { sema.Signal(); }
-        bool TryLock() { return sema.TryWait(); }
+        bool IsOpen() const;
+        bool Open();
+        bool Close();
+        void Lock();
+        void Unlock();
+        bool TryLock();
     };
 
     struct LockGuard
@@ -112,19 +113,10 @@ namespace OS
 
     struct Event
     {
-        i32 m_waits;
-        Semaphore m_sema;
+        i32 state;
 
-        bool Open()
-        {
-            m_waits = 0;
-            return m_sema.Open();
-        }
-        bool Close()
-        {
-            return m_sema.Close();
-        }
-
+        bool Open();
+        bool Close();
         void WakeOne();
         void WakeAll();
         void Wake(i32 count);
@@ -133,7 +125,7 @@ namespace OS
 
     struct RWFlag
     {
-        mutable i32 m_state;
+        mutable i16 m_state;
 
         bool TryLockReader() const;
         void LockReader() const;

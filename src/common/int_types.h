@@ -32,12 +32,10 @@ enum EResult
 
 enum AllocType : u8
 {
-    Alloc_Stdlib = 0,
-    Alloc_Linear,
-    Alloc_Stack,
-    Alloc_Pool,
-    Alloc_Debug,
-    Alloc_Tlsf,
+    Alloc_Init = 0, // init-time allocation with malloc
+    Alloc_Temp,     // temporary allocation, linear allocator with < 3 frame lifetime
+    Alloc_Perm,     // long duration allocation on the main thread or moved between threads
+    Alloc_Task,     // task allocation, thread local
 
     Alloc_COUNT
 };

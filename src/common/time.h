@@ -17,4 +17,6 @@ namespace Time
     f32 ToSeconds(u64 ticks);
     f32 ToMilliseconds(u64 ticks);
     f32 ToMicroseconds(u64 ticks);
+
+    u32 FrameCount();
 };

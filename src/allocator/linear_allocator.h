@@ -7,29 +7,36 @@
 
 struct LinearAllocator final : IAllocator
 {
+private:
+    u8* m_ptr;
+    u8* m_head;
+    u8* m_tail;
+    AllocType m_type;
+
 public:
-    LinearAllocator(i32 bytes) : IAllocator(bytes)
+    void Init(i32 bytes, AllocType type) final
     {
         ASSERT(bytes > 0);
         void* memory = malloc(bytes);
         ASSERT(memory);
-        StorePtr(m_ptr, (u8*)memory);
-        StorePtr(m_head, (u8*)memory);
-        StorePtr(m_tail, (u8*)memory + bytes);
+        m_type = type;
+        m_ptr = (u8*)memory;
+        m_head = m_ptr;
+        m_tail = m_head + bytes;
     }
 
-    ~LinearAllocator()
+    void Reset() final
     {
-        void* ptr = LoadPtr(m_ptr);
-        StorePtr(m_tail, (u8*)0);
-        StorePtr(m_head, (u8*)0);
-        StorePtr(m_ptr, (u8*)0);
+        void* ptr = m_ptr;
+        m_ptr = 0;
+        m_head = 0;
+        m_tail = 0;
         free(ptr);
     }
 
     void Clear() final
     {
-        StorePtr(m_head, LoadPtr(m_ptr));
+        StorePtr(m_head, m_ptr);
     }
 
     void* Alloc(i32 bytes) final
@@ -51,7 +58,7 @@ public:
         {
             if (CmpExStrongPtr(m_head, head, head + bytes, MO_Acquire))
             {
-                return MakePtr(head, Alloc_Linear, bytes);
+                return MakePtr(head, m_type, bytes);
             }
             goto tryalloc;
         }
@@ -67,9 +74,8 @@ public:
             return;
         }
 
-        Header* hOld = ToHeader(pOld, Alloc_Linear);
-        const i32 rc = Dec(hOld->refcount, MO_Relaxed);
-        ASSERT(rc == 1);
+        Header* hOld = ToHeader(pOld, m_type);
+        ASSERT(Dec(hOld->refcount) == 1);
 
         u8* begin = hOld->begin();
         u8* end = hOld->end();
@@ -104,9 +110,8 @@ public:
         const i32 userBytes = bytes;
         bytes = AlignBytes(bytes);
 
-        Header* hOld = ToHeader(pOld, Alloc_Linear);
-        const i32 rc = Load(hOld->refcount, MO_Relaxed);
-        ASSERT(rc == 1);
+        Header* hOld = ToHeader(pOld, m_type);
+        ASSERT(Load(hOld->refcount) == 1);
 
         const i32 diff = bytes - hOld->size;
         if (diff <= 0)
@@ -115,8 +120,6 @@ public:
         }
 
         u8* end = hOld->end();
-
-    tryresize:
         u8* head = LoadPtr(m_head, MO_Relaxed);
         ASSERT(head);
         if (end == head)
@@ -126,20 +129,14 @@ public:
                 hOld->size += diff;
                 return pOld;
             }
-            goto tryresize;
         }
 
         void* pNew = Alloc(userBytes);
         if (pNew)
         {
-            Copy(ToHeader(pNew, Alloc_Linear), hOld);
+            Copy(ToHeader(pNew, m_type), hOld);
         }
         Free(pOld);
         return pNew;
     }
-
-private:
-    u8* m_ptr;
-    u8* m_head;
-    u8* m_tail;
 };

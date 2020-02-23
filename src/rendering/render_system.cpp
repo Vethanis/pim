@@ -34,19 +34,44 @@ struct DrawTask final : ECS::ForEachTask
 {
     CType<Drawable> m_drawable;
     CType<LocalToWorld> m_l2w;
+    u32 m_frame;
 
-    DrawTask() : ECS::ForEachTask(
-        { CTypeOf<Drawable>(), CTypeOf<LocalToWorld>() },
-        { })
-    {}
+    DrawTask() : ECS::ForEachTask() {}
 
-    void OnEntity(Entity entity) final
+    void Setup()
     {
-        const Drawable* drawable = m_drawable.Get(entity);
-        LocalToWorld* l2w = m_l2w.Get(entity);
-        ASSERT(drawable);
-        ASSERT(l2w);
-        l2w->Value.x.x = math::sin(Random::NextF32());
+        m_frame = Time::FrameCount();
+        SetQuery({ CTypeOf<Drawable>(), CTypeOf<LocalToWorld>() }, {});
+    }
+
+    void OnEntities(Slice<const Entity> entities) final
+    {
+        const u32 frame = m_frame;
+        Slice<const Drawable> drawables = m_drawable.GetRow();
+        Slice<LocalToWorld> l2ws = m_l2w.GetRow();
+        for (Entity entity : entities)
+        {
+            const Drawable& drawable = drawables[entity.index];
+            LocalToWorld& l2w = l2ws[entity.index];
+            if (frame == 1)
+            {
+                l2w.Value.x.w = 1.0f;
+            }
+            else if (frame > 2)
+            {
+                ASSERT(l2w.Value.x.x == (f32)(frame - 1u));
+                ASSERT(l2w.Value.x.y == (f32)entity.index);
+                ASSERT(l2w.Value.x.z == (f32)entity.version);
+            }
+            l2w.Value.x.x = (f32)frame;
+            l2w.Value.x.y = (f32)entity.index;
+            l2w.Value.x.z = (f32)entity.version;
+            f32 updateCount = l2w.Value.x.w++;
+            l2w.Value.y.x = math::sin(Random::NextF32());
+            ASSERT(updateCount == (f32)frame);
+            ASSERT(ECS::Has<Drawable>(entity));
+            ASSERT(ECS::Has<LocalToWorld>(entity));
+        }
     }
 };
 
@@ -123,7 +148,6 @@ namespace RenderSystem
             TaskSystem::Await(&m_task);
             m_task.Setup();
             TaskSystem::Submit(&m_task);
-            //TaskSystem::Await(&m_task);
 
             ++m_frame;
             if ((m_frame & 63) == 0)

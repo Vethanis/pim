@@ -8,6 +8,9 @@
 #include "os/thread.h"
 #include <intrin.h>
 
+// for WaitOnAddress
+#pragma comment(lib, "synchronization.lib")
+
 void OS::YieldCore()
 {
     _mm_pause();
@@ -21,15 +24,18 @@ u64 OS::ReadCounter()
 void OS::Spin(u64 ticks)
 {
     ticks *= 100;
-    if ((ticks >= 4000) && ::SwitchToThread())
+    if (ticks >= 1000)
     {
-        return;
+        ::SwitchToThread();
     }
-    const u64 end = __rdtsc() + ticks;
-    do
+    else
     {
-        _mm_pause();
-    } while (__rdtsc() < end);
+        const u64 end = __rdtsc() + ticks;
+        do
+        {
+            _mm_pause();
+        } while (__rdtsc() < end);
+    }
 }
 
 void OS::Rest(u64 ms)
@@ -195,6 +201,99 @@ namespace OS
             (status == WAIT_TIMEOUT));
         return status == WAIT_OBJECT_0;
     }
+
+    SASSERT(sizeof(Mutex) >= sizeof(CRITICAL_SECTION));
+    SASSERT(alignof(Mutex) >= alignof(CRITICAL_SECTION));
+
+    static CRITICAL_SECTION* const AsCrit(Mutex* const pMutex)
+    {
+        return reinterpret_cast<CRITICAL_SECTION* const>(pMutex);
+    }
+
+    static const CRITICAL_SECTION* const AsCrit(const Mutex* const pMutex)
+    {
+        return reinterpret_cast<const CRITICAL_SECTION* const>(pMutex);
+    }
+
+    bool Mutex::IsOpen() const
+    {
+        HANDLE hdl = AsCrit(this)->LockSemaphore;
+        return (created) && (hdl != INVALID_HANDLE_VALUE);
+    }
+
+    bool Mutex::Open()
+    {
+        created = ::InitializeCriticalSectionAndSpinCount(AsCrit(this), 1000);
+        return created;
+    }
+
+    bool Mutex::Close()
+    {
+        if (IsOpen())
+        {
+            ::DeleteCriticalSection(AsCrit(this));
+            created = false;
+            return true;
+        }
+        return false;
+    }
+
+    void Mutex::Lock()
+    {
+        ASSERT(IsOpen());
+        ::EnterCriticalSection(AsCrit(this));
+    }
+
+    void Mutex::Unlock()
+    {
+        ASSERT(IsOpen());
+        ::LeaveCriticalSection(AsCrit(this));
+    }
+
+    bool Mutex::TryLock()
+    {
+        ASSERT(IsOpen());
+        return ::TryEnterCriticalSection(AsCrit(this));
+    }
+
+    bool Event::Open()
+    {
+        Store(state, 0);
+        return true;
+    }
+
+    bool Event::Close()
+    {
+        WakeAll();
+        return true;
+    }
+
+    void Event::WakeOne()
+    {
+        Inc(state, MO_AcqRel);
+        ::WakeByAddressSingle(&state);
+    }
+
+    void Event::WakeAll()
+    {
+        Inc(state, MO_AcqRel);
+        ::WakeByAddressAll(&state);
+    }
+
+    void Event::Wake(i32 count)
+    {
+        for (i32 i = 0; i < count; ++i)
+        {
+            WakeOne();
+        }
+    }
+
+    void Event::Wait()
+    {
+        i32 prev = Load(state);
+        ::WaitOnAddress(&state, &prev, sizeof(state), INFINITE);
+    }
+
 };
 
 #endif // PLAT_WINDOWS

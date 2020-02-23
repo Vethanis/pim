@@ -131,7 +131,7 @@ namespace InputSystem
         {
             for (Array<InputListener>& listeners : ms_listeners)
             {
-                listeners.Init(Alloc_Tlsf);
+                listeners.Init(Alloc_Perm);
             }
         }
         void Update() final {}

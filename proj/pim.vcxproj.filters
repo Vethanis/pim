@@ -208,9 +208,6 @@
     <ClCompile Include="..\src\allocator\tlsf_allocator.cpp">
       <Filter>Source Files\allocator</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\threading\taskgraph.cpp">
-      <Filter>Source Files\threading</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\hash.h">
@@ -549,9 +546,6 @@
     <ClInclude Include="..\src\containers\pipe.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\threading\task_group.h">
-      <Filter>Source Files\threading</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\heap_item.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -602,9 +596,6 @@
     </ClInclude>
     <ClInclude Include="..\src\common\type_guid.h">
       <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\threading\taskgraph.h">
-      <Filter>Source Files\threading</Filter>
     </ClInclude>
     <ClInclude Include="..\src\components\transform.h">
       <Filter>Source Files\components</Filter>

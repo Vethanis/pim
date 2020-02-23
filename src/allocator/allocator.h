@@ -31,6 +31,6 @@ namespace Allocator
         return (T*)Calloc(type, sizeof(T) * count);
     }
 
-    inline void* ImGuiAllocFn(size_t sz, void*) { return Alloc(Alloc_Tlsf, (i32)sz); }
+    inline void* ImGuiAllocFn(size_t sz, void*) { return Alloc(Alloc_Perm, (i32)sz); }
     inline void ImGuiFreeFn(void* ptr, void*) { Free(ptr); }
 };

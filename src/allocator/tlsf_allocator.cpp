@@ -5,17 +5,26 @@
 #include "tlsf/tlsf.h"
 #include <stdlib.h>
 
-TlsfAllocator::TlsfAllocator(i32 bytes) : IAllocator(bytes)
+void TlsfAllocator::Init(i32 bytes, AllocType type)
 {
-    m_lock.Open();
+    if (type != Alloc_Task)
+    {
+        m_lock.Open();
+    }
+
     m_bytes = bytes;
+    m_type = type;
     m_memory = malloc(bytes);
     m_impl = tlsf_create_with_pool(m_memory, bytes);
 }
 
-TlsfAllocator::~TlsfAllocator()
+void TlsfAllocator::Reset()
 {
-    m_lock.Lock();
+    if (m_type != Alloc_Task)
+    {
+        m_lock.Lock();
+    }
+
     tlsf_destroy(m_impl);
     free(m_memory);
     m_impl = 0;
@@ -25,9 +34,18 @@ TlsfAllocator::~TlsfAllocator()
 
 void TlsfAllocator::Clear()
 {
-    OS::LockGuard guard(m_lock);
+    if (m_type != Alloc_Task)
+    {
+        m_lock.Lock();
+    }
+
     tlsf_destroy(m_impl);
     m_impl = tlsf_create_with_pool(m_memory, m_bytes);
+
+    if (m_type != Alloc_Task)
+    {
+        m_lock.Unlock();
+    }
 }
 
 void* TlsfAllocator::Alloc(i32 bytes)
@@ -40,9 +58,20 @@ void* TlsfAllocator::Alloc(i32 bytes)
         return nullptr;
     }
     bytes = AlignBytes(bytes);
-    OS::LockGuard guard(m_lock);
+
+    if (m_type != Alloc_Task)
+    {
+        m_lock.Lock();
+    }
+
     Header* hNew = (Header*)tlsf_malloc(m_impl, bytes);
-    return MakePtr(hNew, Alloc_Tlsf, bytes);
+
+    if (m_type != Alloc_Task)
+    {
+        m_lock.Unlock();
+    }
+
+    return MakePtr(hNew, m_type, bytes);
 }
 
 void TlsfAllocator::Free(void* pOld)
@@ -51,12 +80,20 @@ void TlsfAllocator::Free(void* pOld)
 
     if (pOld)
     {
-        Header* hOld = ToHeader(pOld, Alloc_Tlsf);
-        const i32 rc = Dec(hOld->refcount);
-        ASSERT(rc == 1);
+        Header* hOld = ToHeader(pOld, m_type);
+        ASSERT(Dec(hOld->refcount) == 1);
 
-        OS::LockGuard guard(m_lock);
+        if (m_type != Alloc_Task)
+        {
+            m_lock.Lock();
+        }
+
         tlsf_free(m_impl, hOld);
+
+        if (m_type != Alloc_Task)
+        {
+            m_lock.Unlock();
+        }
     }
 }
 
@@ -74,12 +111,22 @@ void* TlsfAllocator::Realloc(void* pOld, i32 bytes)
         Free(pOld);
         return nullptr;
     }
-    Header* hOld = ToHeader(pOld, Alloc_Tlsf);
-    const i32 rc = Load(hOld->refcount);
-    ASSERT(rc == 1);
+    Header* hOld = ToHeader(pOld, m_type);
+    ASSERT(Load(hOld->refcount) == 1);
 
     bytes = AlignBytes(bytes);
-    OS::LockGuard guard(m_lock);
+
+    if (m_type != Alloc_Task)
+    {
+        m_lock.Lock();
+    }
+
     Header* hNew = (Header*)tlsf_realloc(m_impl, hOld, bytes);
-    return MakePtr(hNew, Alloc_Tlsf, bytes);
+
+    if (m_type != Alloc_Task)
+    {
+        m_lock.Unlock();
+    }
+
+    return MakePtr(hNew, m_type, bytes);
 }

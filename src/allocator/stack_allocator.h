@@ -8,20 +8,27 @@
 
 struct StackAllocator final : IAllocator
 {
+private:
+    OS::Mutex m_mutex;
+    Slice<u8> m_memory;
+    Slice<u8> m_stack;
+    Array<Allocator::Header*> m_allocations;
+    AllocType m_type;
+
 public:
-    StackAllocator(i32 bytes) : IAllocator(bytes)
+    void Init(i32 bytes, AllocType type) final
     {
         ASSERT(bytes > 0);
         void* memory = malloc(bytes);
         ASSERT(memory);
-
+        m_type = type;
         m_mutex.Open();
         m_memory = { (u8*)memory, bytes };
         m_stack = m_memory;
-        m_allocations.Init(Alloc_Stdlib);
+        m_allocations.Init(Alloc_Init);
     }
 
-    ~StackAllocator()
+    void Reset() final
     {
         m_mutex.Lock();
         m_allocations.Reset();
@@ -77,11 +84,6 @@ public:
     }
 
 private:
-    OS::Mutex m_mutex;
-    Slice<u8> m_memory;
-    Slice<u8> m_stack;
-    Array<Allocator::Header*> m_allocations;
-
     void* _Alloc(i32 bytes)
     {
         using namespace Allocator;
@@ -93,16 +95,15 @@ private:
 
         Header* hNew = (Header*)allocation.begin();
         m_allocations.PushBack(hNew);
-        return MakePtr(hNew, Alloc_Stack, bytes, 0);
+        return MakePtr(hNew, m_type, bytes, 0);
     }
 
     void _Free(void* pOld)
     {
         using namespace Allocator;
 
-        Header* hOld = ToHeader(pOld, Alloc_Stack);
-        const i32 rc = Dec(hOld->refcount, MO_Relaxed);
-        ASSERT(rc == 1);
+        Header* hOld = ToHeader(pOld, m_type);
+        ASSERT(Dec(hOld->refcount) == 1);
         Store(hOld->arg1, 1);
 
         while (m_allocations.size())
@@ -129,7 +130,7 @@ private:
 
         if (pNew != pOld)
         {
-            Copy(ToHeader(pNew, Alloc_Stack), ToHeader(pOld, Alloc_Stack));
+            Copy(ToHeader(pNew, m_type), ToHeader(pOld, m_type));
         }
 
         return pNew;

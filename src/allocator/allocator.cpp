@@ -1,51 +1,82 @@
 #include "allocator/allocator.h"
 
 #include "allocator/linear_allocator.h"
-#include "allocator/pool_allocator.h"
-#include "allocator/stack_allocator.h"
 #include "allocator/stdlib_allocator.h"
 #include "allocator/tlsf_allocator.h"
 
 #include "containers/array.h"
-#include "common/hashstring.h"
-#include "common/round.h"
-#include <stdlib.h>
-
-#if ENABLE_LEAK_TRACKER
-#include "allocator/leak_tracker.h"
-#endif // ENABLE_LEAK_TRACKER
+#include "common/time.h"
+#include "threading/task.h"
 
 namespace Allocator
 {
-    static StdlibAllocator ms_stdlib = StdlibAllocator(Alloc_Stdlib);
-    static StdlibAllocator ms_debug = StdlibAllocator(Alloc_Debug);
-    static LinearAllocator ms_linear = LinearAllocator(1 << 20);
-    static StackAllocator ms_stack = StackAllocator(1 << 20);
-    static PoolAllocator ms_pool = PoolAllocator(1 << 20);
-    static TlsfAllocator ms_tlsf = TlsfAllocator(512 << 20);
+    static constexpr i32 kKilobyte = 1 << 10;
+    static constexpr i32 kMegabyte = 1 << 20;
+    static constexpr i32 kGigabyte = 1 << 30;
 
-#if ENABLE_LEAK_TRACKER
-    static LeakTracker ms_tracker = LeakTracker();
-#endif // ENABLE_LEAK_TRACKER
+    static constexpr u32 kTempFrames = 4;
+    static constexpr u32 kFrameMask = kTempFrames - 1u;
+
+    static constexpr i32 kPermCapacity = 512 * kMegabyte;
+    static constexpr i32 kTempCapacity = 1 * kMegabyte;
+    static constexpr i32 kTaskCapacity = 1 * kMegabyte;
+
+    static StdlibAllocator ms_initAllocator;
+    static LinearAllocator ms_tempAllocators[kTempFrames];
+    static TlsfAllocator ms_permAllocator;
+    static TlsfAllocator ms_taskAllocators[kNumThreads];
+
+    static u32 GetFrame() { return Time::FrameCount() & kFrameMask; }
+
+    static IAllocator& GetAllocator(i32 type)
+    {
+        switch (type)
+        {
+        case Alloc_Init:
+            return ms_initAllocator;
+        case Alloc_Temp:
+            return ms_tempAllocators[GetFrame()];
+        case Alloc_Perm:
+            return ms_permAllocator;
+        case Alloc_Task:
+            return ms_taskAllocators[ThreadId()];
+        default:
+            ASSERT(false);
+            return ms_initAllocator;
+        }
+    }
 
     void Init()
     {
+        ms_initAllocator.Init(0, Alloc_Init);
+        for (auto& allocator : ms_tempAllocators)
+        {
+            allocator.Init(kTempCapacity, Alloc_Temp);
+        }
+        ms_permAllocator.Init(kPermCapacity, Alloc_Perm);
+        for (auto& allocator : ms_taskAllocators)
+        {
+            allocator.Init(kTaskCapacity, Alloc_Task);
+        }
     }
 
     void Update()
     {
-        ms_linear.Clear();
+        ms_tempAllocators[GetFrame()].Clear();
     }
 
     void Shutdown()
     {
-#if ENABLE_LEAK_TRACKER
-        ms_tracker.ListLeaks();
-#endif // ENABLE_LEAK_TRACKER
-
-        ms_linear.Clear();
-        ms_stack.Clear();
-        ms_pool.Clear();
+        ms_initAllocator.Reset();
+        for (auto& allocator : ms_tempAllocators)
+        {
+            allocator.Reset();
+        }
+        ms_permAllocator.Reset();
+        for (auto& allocator : ms_taskAllocators)
+        {
+            allocator.Reset();
+        }
     }
 
     // ------------------------------------------------------------------------
@@ -53,93 +84,26 @@ namespace Allocator
     void* Alloc(AllocType type, i32 bytes)
     {
         ASSERT(bytes >= 0);
-
-        void* ptr = 0;
-
-        switch (type)
-        {
-        case Alloc_Stdlib:
-            ptr = ms_stdlib.Alloc(bytes);
-            break;
-        case Alloc_Linear:
-            ptr = ms_linear.Alloc(bytes);
-            break;
-        case Alloc_Stack:
-            ptr = ms_stack.Alloc(bytes);
-            break;
-        case Alloc_Pool:
-            ptr = ms_pool.Alloc(bytes);
-            break;
-        case Alloc_Debug:
-            ptr = ms_debug.Alloc(bytes);
-            break;
-        case Alloc_Tlsf:
-            ptr = ms_tlsf.Alloc(bytes);
-            break;
-        default:
-            ASSERT(false);
-        }
-
-#if ENABLE_LEAK_TRACKER
-        if (type != Alloc_Debug)
-        {
-            ms_tracker.OnAlloc(ptr, bytes);
-        }
-#endif // ENABLE_LEAK_TRACKER
-
+        void* ptr = GetAllocator(type).Alloc(bytes);
+        ASSERT(ptr);
         return ptr;
     }
 
     void* Realloc(AllocType type, void* prev, i32 bytes)
     {
         ASSERT(bytes >= 0);
-
         if (!prev)
         {
             return Alloc(type, bytes);
         }
-
         if (bytes <= 0)
         {
             Free(prev);
             return 0;
         }
-
         Header* hdr = ToHeader(prev, type);
-
-        void* ptr = 0;
-
-        switch (hdr->type)
-        {
-        case Alloc_Stdlib:
-            ptr = ms_stdlib.Realloc(prev, bytes);
-            break;
-        case Alloc_Linear:
-            ptr = ms_linear.Realloc(prev, bytes);
-            break;
-        case Alloc_Stack:
-            ptr = ms_stack.Realloc(prev, bytes);
-            break;
-        case Alloc_Pool:
-            ptr = ms_pool.Realloc(prev, bytes);
-            break;
-        case Alloc_Debug:
-            ptr = ms_debug.Realloc(prev, bytes);
-            break;
-        case Alloc_Tlsf:
-            ptr = ms_tlsf.Realloc(prev, bytes);
-            break;
-        default:
-            ASSERT(false);
-        }
-
-#if ENABLE_LEAK_TRACKER
-        if (iType != Alloc_Debug)
-        {
-            ms_tracker.OnRealloc(prev, ptr, bytes);
-        }
-#endif // ENABLE_LEAK_TRACKER
-
+        void* ptr = GetAllocator(hdr->type).Realloc(prev, bytes);
+        ASSERT(ptr);
         return ptr;
     }
 
@@ -149,37 +113,7 @@ namespace Allocator
         {
             Header* hdr = (Header*)ptr;
             hdr -= 1;
-
-            switch (hdr->type)
-            {
-            case Alloc_Stdlib:
-                ms_stdlib.Free(ptr);
-                break;
-            case Alloc_Linear:
-                ms_linear.Free(ptr);
-                break;
-            case Alloc_Stack:
-                ms_stack.Free(ptr);
-                break;
-            case Alloc_Pool:
-                ms_pool.Free(ptr);
-                break;
-            case Alloc_Debug:
-                ms_debug.Free(ptr);
-                break;
-            case Alloc_Tlsf:
-                ms_tlsf.Free(ptr);
-                break;
-            default:
-                ASSERT(false);
-            }
-
-#if ENABLE_LEAK_TRACKER
-            if (hdr->type != Alloc_Debug)
-            {
-                ms_tracker.OnFree(ptr);
-            }
-#endif // ENABLE_LEAK_TRACKER
+            GetAllocator(hdr->type).Free(ptr);
         }
     }
 

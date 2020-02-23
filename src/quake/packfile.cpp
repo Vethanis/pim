@@ -67,7 +67,7 @@ namespace Quake
         SPrintf(ARGS(packDir), "%s/*.pak", path);
         FixPath(ARGS(packDir));
 
-        Array<IO::FindData> files = CreateArray<IO::FindData>(Alloc_Stack, 16);
+        Array<IO::FindData> files = CreateArray<IO::FindData>(Alloc_Temp, 16);
         IO::FindAll(files, packDir);
 
         for (const IO::FindData& file : files)

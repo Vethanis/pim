@@ -47,7 +47,7 @@ struct TPool
 
     TPool()
     {
-        m_allocator.Init(Alloc_Tlsf, sizeof(T));
+        m_allocator.Init(Alloc_Perm, sizeof(T));
     }
     ~TPool()
     {

@@ -4,15 +4,12 @@
 #include "containers/hash_util.h"
 #include "containers/slice.h"
 #include "containers/array.h"
-#include "os/thread.h"
-#include "os/atomics.h"
 #include <string.h>
 
 template<typename K, typename V>
 struct HashDict
 {
 private:
-    OS::RWLock m_lock;
     u32 m_count;
     u32 m_width;
     u32* m_hashes;
@@ -22,19 +19,17 @@ private:
 
 public:
     AllocType GetAllocator() const { return m_allocator; }
-    u32 size() const { return Load(m_count); }
-    u32 capacity() const { return Load(m_width); }
+    u32 size() const { return m_count; }
+    u32 capacity() const { return m_width; }
 
-    void Init(AllocType allocator = Alloc_Tlsf)
+    void Init(AllocType allocator = Alloc_Perm)
     {
         memset(this, 0, sizeof(*this));
         m_allocator = allocator;
-        m_lock.Open();
     }
 
     void Reset()
     {
-        m_lock.LockWriter();
         Allocator::Free(m_hashes);
         Allocator::Free(m_keys);
         Allocator::Free(m_values);
@@ -42,12 +37,10 @@ public:
         m_values = 0;
         m_width = 0;
         m_count = 0;
-        m_lock.Close();
     }
 
     void Clear()
     {
-        OS::WriteGuard guard(m_lock);
         m_count = 0;
         u32* hashes = m_hashes;
         K* keys = m_keys;
@@ -80,7 +73,8 @@ public:
     {
         minCount = Max(minCount, 16u);
         const u32 newWidth = HashUtil::ToPow2(minCount);
-        if (newWidth <= capacity())
+        const u32 oldWidth = capacity();
+        if (newWidth <= oldWidth)
         {
             return;
         }
@@ -90,202 +84,146 @@ public:
         K* newKeys = Allocator::CallocT<K>(allocator, newWidth);
         V* newValues = Allocator::AllocT<V>(allocator, newWidth);
 
-        m_lock.LockWriter();
-
         u32* oldHashes = m_hashes;
         K* oldKeys = m_keys;
         V* oldValues = m_values;
-        const u32 oldWidth = capacity();
-        const bool grow = newWidth > oldWidth;
 
-        if (grow)
+        const u32 newMask = newWidth - 1u;
+        for (u32 i = 0u; i < oldWidth;)
         {
-            const u32 newMask = newWidth - 1u;
-            for (u32 i = 0u; i < oldWidth; ++i)
+            const u32 hash = oldHashes[i];
+            if (HashUtil::IsValidHash(hash))
             {
-                const u32 hash = oldHashes[i];
-                if (HashUtil::IsValidHash(hash))
+                u32 j = hash;
+                while (true)
                 {
-                    u32 j = hash;
-                    while (true)
+                    j &= newMask;
+                    if (!newHashes[j])
                     {
-                        j &= newMask;
-                        if (!newHashes[j])
-                        {
-                            newHashes[j] = hash;
-                            newKeys[j] = oldKeys[i];
-                            newValues[j] = oldValues[i];
-                            break;
-                        }
-                        ++j;
+                        newHashes[j] = hash;
+                        newKeys[j] = oldKeys[i];
+                        newValues[j] = oldValues[i];
+                        goto next;
                     }
+                    ++j;
                 }
             }
-
-            m_hashes = newHashes;
-            m_keys = newKeys;
-            m_values = newValues;
-            Store(m_width, newWidth);
+        next:
+            ++i;
         }
 
-        m_lock.UnlockWriter();
+        m_hashes = newHashes;
+        m_keys = newKeys;
+        m_values = newValues;
+        m_width = newWidth;
 
-        if (grow)
+        Allocator::Free(oldHashes);
+        Allocator::Free(oldKeys);
+        Allocator::Free(oldValues);
+    }
+
+    i32 Find(u32 keyHash, K key) const
+    {
+        const u32* const hashes = m_hashes;
+        const K* const keys = m_keys;
+
+        u32 width = m_width;
+        const u32 mask = width - 1u;
+
+        for (u32 j = keyHash; width--; ++j)
         {
-            Allocator::Free(oldHashes);
-            Allocator::Free(oldKeys);
-            Allocator::Free(oldValues);
+            j &= mask;
+            const u32 jHash = hashes[j];
+            if (HashUtil::IsEmpty(jHash))
+            {
+                break;
+            }
+            if (jHash == keyHash)
+            {
+                if (key == keys[j])
+                {
+                    return (i32)j;
+                }
+            }
         }
-        else
-        {
-            Allocator::Free(newHashes);
-            Allocator::Free(newKeys);
-            Allocator::Free(newValues);
-        }
+        return -1;
+    }
+
+    i32 Find(K key) const
+    {
+        return Find(HashUtil::Hash(key), key);
     }
 
     bool Contains(K key) const
     {
-        V tmp;
-        return Get(key, tmp);
+        return Find(key) != -1;
     }
 
     bool Add(K key, const V& value)
     {
-        if (Contains(key))
+        const u32 keyHash = HashUtil::Hash(key);
+        if (Find(keyHash, key) != -1)
         {
             return false;
         }
 
         Reserve(size() + 3u);
-        const u32 hash = HashUtil::Hash(key);
-        OS::ReadGuard guard(m_lock);
 
         u32* const hashes = m_hashes;
         K* const keys = m_keys;
         V* const values = m_values;
+        const u32 mask = m_width - 1u;
 
-        u32 width = capacity();
-        const u32 mask = width - 1u;
-
-        for (u32 j = hash; width--; ++j)
+        u32 j = keyHash;
+        while(true)
         {
             j &= mask;
-            u32 jHash = Load(hashes[j]);
-            if (HashUtil::IsEmptyOrTomb(jHash))
+            if (HashUtil::IsEmptyOrTomb(hashes[j]))
             {
-                if (CmpExStrong(hashes[j], jHash, hash, MO_Acquire))
-                {
-                    keys[j] = key;
-                    values[j] = value;
-                    Inc(m_count, MO_Release);
-                    return true;
-                }
+                hashes[j] = keyHash;
+                keys[j] = key;
+                values[j] = value;
+                ++m_count;
+                return true;
             }
+            ++j;
         }
-
-        return false;
     }
 
     bool Remove(K key, V& valueOut)
     {
-        const u32 hash = HashUtil::Hash(key);
-        OS::ReadGuard guard(m_lock);
-
-        u32* const hashes = m_hashes;
-        K* const keys = m_keys;
-        V* const values = m_values;
-
-        u32 width = capacity();
-        const u32 mask = width - 1u;
-
-        for (u32 j = hash; width--; ++j)
+        const i32 i = Find(key);
+        if (i != -1)
         {
-            j &= mask;
-            u32 jHash = Load(hashes[j]);
-            if (HashUtil::IsEmpty(jHash))
-            {
-                break;
-            }
-            if (jHash == hash)
-            {
-                if ((key == keys[j]) && CmpExStrong(hashes[j], jHash, HashUtil::TombMask, MO_Acquire))
-                {
-                    valueOut = values[j];
-                    memset(keys + j, 0, sizeof(K));
-                    memset(values + j, 0, sizeof(V));
-                    Dec(m_count, MO_Release);
-                    return true;
-                }
-            }
+            m_hashes[j] = HashUtil::TombMask;
+            valueOut = m_values[j];
+            memset(m_keys + j, 0, sizeof(K));
+            memset(m_values + j, 0, sizeof(V));
+            --m_count;
+            return true;
         }
-
         return false;
     }
 
     bool Get(K key, V& valueOut) const
     {
-        const u32 hash = HashUtil::Hash(key);
-        OS::ReadGuard guard(m_lock);
-
-        const u32* const hashes = m_hashes;
-        const K* const keys = m_keys;
-        const V* const values = m_values;
-
-        u32 width = capacity();
-        const u32 mask = width - 1u;
-
-        for (u32 j = hash; width--; ++j)
+        const i32 i = Find(key);
+        if (i != -1)
         {
-            j &= mask;
-            const u32 jHash = Load(hashes[j]);
-            if (HashUtil::IsEmpty(jHash))
-            {
-                break;
-            }
-            if (jHash == hash)
-            {
-                if (key == keys[j])
-                {
-                    valueOut = values[j];
-                    return true;
-                }
-            }
+            valueOut = m_values[i];
+            return true;
         }
-
         return false;
     }
 
     bool Set(K key, const V& valueIn)
     {
-        const u32 hash = HashUtil::Hash(key);
-        OS::ReadGuard guard(m_lock);
-
-        const u32* const hashes = m_hashes;
-        const K* const keys = m_keys;
-        V* const values = m_values;
-
-        u32 width = capacity();
-        const u32 mask = width - 1u;
-
-        for (u32 j = hash; width--; ++j)
+        const i32 i = Find(key);
+        if (i != -1)
         {
-            j &= mask;
-            const u32 jHash = Load(hashes[j]);
-            if (HashUtil::IsEmpty(jHash))
-            {
-                break;
-            }
-            if (jHash == hash)
-            {
-                if (key == keys[j])
-                {
-                    values[j] = valueIn;
-                    return true;
-                }
-            }
+            m_values[i] = valueIn;
+            return true;
         }
-
         return false;
     }
 
@@ -302,13 +240,12 @@ public:
 
         const_iterator(const HashDict<K, V>& dict, u32 index) : m_dict(dict), m_index(index)
         {
-            OS::ReadGuard guard(m_dict.m_lock);
             const u32* const hashes = m_dict.m_hashes;
             const u32 width = m_dict.capacity();
             u32 i = m_index;
             for (; i < width; ++i)
             {
-                if (HashUtil::IsValidHash(Load(hashes[i], MO_Relaxed)))
+                if (HashUtil::IsValidHash(hashes[i]))
                 {
                     break;
                 }
@@ -319,7 +256,6 @@ public:
         Pair operator*() const
         {
             const u32 i = m_index;
-            OS::ReadGuard guard(m_dict.m_lock);
             ASSERT(i < m_dict.capacity());
             return { m_dict.m_keys[i], m_dict.m_values[i] };
         }
@@ -331,13 +267,12 @@ public:
 
         const_iterator& operator++()
         {
-            OS::ReadGuard guard(m_dict.m_lock);
             const u32* const hashes = m_dict.m_hashes;
             const u32 width = m_dict.capacity();
             u32 i = ++m_index;
             for (; i < width; ++i)
             {
-                if (HashUtil::IsValidHash(Load(hashes[i], MO_Relaxed)))
+                if (HashUtil::IsValidHash(hashes[i]))
                 {
                     break;
                 }

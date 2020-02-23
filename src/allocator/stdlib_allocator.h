@@ -6,11 +6,12 @@
 
 struct StdlibAllocator final : IAllocator
 {
-    StdlibAllocator(AllocType type) : IAllocator(0), m_type(type) {}
-    ~StdlibAllocator() {}
-
+private:
     AllocType m_type;
 
+public:
+    void Init(i32 bytes, AllocType type) final { m_type = type; }
+    void Reset() final { }
     void Clear() final { }
 
     void* Alloc(i32 bytes) final
@@ -43,8 +44,7 @@ struct StdlibAllocator final : IAllocator
         }
         bytes = AlignBytes(bytes);
         Header* hOld = ToHeader(pOld, m_type);
-        const i32 rc = Load(hOld->refcount, MO_Relaxed);
-        ASSERT(rc == 1);
+        ASSERT(Load(hOld->refcount) == 1);
         Header* hNew = (Header*)realloc(hOld, bytes);
         return MakePtr(hNew, m_type, bytes);
     }
@@ -56,8 +56,7 @@ struct StdlibAllocator final : IAllocator
         if (pOld)
         {
             Header* hOld = ToHeader(pOld, m_type);
-            const i32 rc = Dec(hOld->refcount, MO_Relaxed);
-            ASSERT(rc == 1);
+            ASSERT(Dec(hOld->refcount) == 1);
             free(hOld);
         }
     }
