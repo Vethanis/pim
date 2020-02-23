@@ -149,10 +149,10 @@ namespace RenderSystem
 
             f32 ms = Time::ToMilliseconds(Time::Now() - a);
             static f32 s_avg = 0.0f;
-            s_avg = math::lerp(s_avg, ms, 1.0f / 60.0f);
+            s_avg = math::lerp(s_avg, ms, 1.0f / (f32)Min(Time::FrameCount(), 300u));
 
             ImGui::Begin("RenderSystem");
-            ImGui::Text("DrawTask ms: %f", s_avg);
+            ImGui::Text("DrawTask ms: %.2f", s_avg);
             ImGui::End();
         }
 
