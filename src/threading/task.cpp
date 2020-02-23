@@ -15,7 +15,7 @@ enum ThreadState : u32
 
 struct Range { i32 begin, end; };
 
-static constexpr i32 kTaskSplit = kNumThreads * (kNumThreads - 1);
+static constexpr i32 kTaskSplit = kNumThreads * (kNumThreads / 2);
 
 // ----------------------------------------------------------------------------
 
@@ -36,31 +36,38 @@ static thread_local u32 ms_tid;
 struct ITaskFriend
 {
     static i32& GetWaits(ITask* pTask) { return pTask->m_waits; }
-    static i32& GetExec(ITask* pTask) { return pTask->m_exec; }
-    static i32 GetBegin(ITask* pTask) { return pTask->m_begin; }
-    static i32 GetEnd(ITask* pTask) { return pTask->m_end; }
-    static i32 GetLoopLen(ITask* pTask) { return pTask->m_loopLen; }
-    static i32& GetIndex(ITask* pTask) { return pTask->m_index; }
+    static i32 GetBegin(ITask* pTask) { return Load(pTask->m_begin, MO_Relaxed); }
+    static i32 GetEnd(ITask* pTask) { return Load(pTask->m_end, MO_Relaxed); }
+    static i32 GetLoopLen(ITask* pTask) { return Load(pTask->m_loopLen, MO_Relaxed); }
+    static i32& GetHead(ITask* pTask) { return pTask->m_head; }
+    static i32& GetTail(ITask* pTask) { return pTask->m_tail; }
 };
 
 static i32& GetWaits(ITask* pTask) { return ITaskFriend::GetWaits(pTask); }
-static i32& GetExec(ITask* pTask) { return ITaskFriend::GetExec(pTask); }
 static i32 GetBegin(ITask* pTask) { return ITaskFriend::GetBegin(pTask); }
 static i32 GetEnd(ITask* pTask) { return ITaskFriend::GetEnd(pTask); }
 static i32 GetLoopLen(ITask* pTask) { return ITaskFriend::GetLoopLen(pTask); }
-static i32& GetIndex(ITask* pTask) { return ITaskFriend::GetIndex(pTask); }
+static i32& GetHead(ITask* pTask) { return ITaskFriend::GetHead(pTask); }
+static i32& GetTail(ITask* pTask) { return ITaskFriend::GetTail(pTask); }
 
 // ----------------------------------------------------------------------------
 
-bool ITask::IsComplete() const { return Load(m_exec) == 0; }
-bool ITask::IsInProgress() const { return Load(m_exec) > 0; }
+bool ITask::IsComplete() const { return Load(m_tail, MO_Relaxed) >= m_end; }
+bool ITask::IsInitOrComplete() const
+{
+    i32 head = Load(m_head, MO_Relaxed);
+    i32 tail = Load(m_tail, MO_Relaxed);
+    return (head <= m_begin) || (tail >= m_end);
+}
 
 void ITask::SetRange(i32 begin, i32 end, i32 loopLen)
 {
-    ASSERT(IsComplete());
+    ASSERT(IsInitOrComplete());
     m_begin = begin;
     m_end = end;
     m_loopLen = loopLen;
+    Store(m_head, begin);
+    Store(m_tail, begin);
 }
 
 void ITask::SetRange(i32 begin, i32 end)
@@ -86,11 +93,21 @@ static bool StealWork(ITask* pTask, Range& range)
 {
     const i32 len = GetLoopLen(pTask);
     const i32 end = GetEnd(pTask);
-    const i32 a = FetchAdd(GetIndex(pTask), len);
+    const i32 a = Min(FetchAdd(GetHead(pTask), len, MO_Acquire), end);
     const i32 b = Min(a + len, end);
     range.begin = a;
     range.end = b;
     return b > a;
+}
+
+static bool ReportProgress(ITask* pTask, Range range)
+{
+    const i32 count = range.end - range.begin;
+    const i32 end = GetEnd(pTask);
+    ASSERT(count > 0);
+    const i32 prev = FetchAdd(GetTail(pTask), count, MO_AcqRel);
+    ASSERT(prev < end);
+    return (prev + count) >= end;
 }
 
 static ITask* PopTask(u32 tid)
@@ -110,16 +127,13 @@ static bool TryRunTask(u32 tid)
         while (StealWork(pTask, range))
         {
             pTask->Execute(range.begin, range.end);
-        }
-        if (Dec(GetExec(pTask), MO_Release) == 1)
-        {
-            // TODO: instead of using thread exec count, use work range for awaits
-            // fetchadd processed item count here then wake waiters
-            u64 spins = 0;
-            while (Load(GetWaits(pTask), MO_Relaxed) > 0)
+            if (ReportProgress(pTask, range))
             {
-                ms_waitExec.WakeAll();
-                OS::Spin(++spins);
+                if (Load(GetWaits(pTask)) > 0)
+                {
+                    ms_waitExec.WakeAll();
+                }
+                break;
             }
         }
         return true;
@@ -130,14 +144,17 @@ static bool TryRunTask(u32 tid)
 static void AddTask(ITask* pTask, u32 tid)
 {
     ASSERT(pTask);
-    ASSERT(pTask->IsComplete());
-    Store(GetIndex(pTask), GetBegin(pTask));
+    ASSERT(pTask->IsInitOrComplete());
+
+    Store(GetHead(pTask), GetBegin(pTask));
+    Store(GetTail(pTask), GetBegin(pTask));
+
     for (u32 i = 1; i < kNumThreads; ++i)
     {
-        Inc(GetExec(pTask), MO_Acquire);
         OS::LockGuard guard(ms_locks[i]);
         ms_queues[i].Push(pTask);
     }
+
     ms_waitPush.WakeAll();
 }
 
@@ -145,12 +162,12 @@ static void WaitForTask(ITask* pTask, u32 tid)
 {
     ASSERT(pTask);
     i32& waits = GetWaits(pTask);
-    Inc(waits, MO_Acquire);
     while (!pTask->IsComplete())
     {
+        Inc(waits, MO_Acquire);
         ms_waitExec.Wait();
+        Dec(waits, MO_Release);
     }
-    Dec(waits, MO_Release);
 }
 
 static void TaskLoop(void* pVoid)

@@ -600,6 +600,9 @@
     <ClInclude Include="..\src\components\transform.h">
       <Filter>Source Files\components</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\threading\barrier_task.h">
+      <Filter>Source Files\threading</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">

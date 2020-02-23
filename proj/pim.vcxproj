@@ -131,6 +131,7 @@
     <ClInclude Include="..\src\physics\components.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
     <ClInclude Include="..\src\quake\packfile.h" />
+    <ClInclude Include="..\src\threading\barrier_task.h" />
     <ClInclude Include="..\submodules\tlsf\tlsf.h" />
     <FxCompile Include="..\src\shaders\quat.hlsl">
       <FileType>Document</FileType>

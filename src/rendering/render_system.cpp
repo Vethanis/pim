@@ -12,6 +12,7 @@
 #include "rendering/screen.h"
 #include "components/transform.h"
 #include "math/vec_funcs.h"
+#include "threading/barrier_task.h"
 
 namespace Screen
 {
@@ -33,42 +34,56 @@ struct DrawTask final : ECS::ForEachTask
     CType<Drawable> m_drawable;
     CType<LocalToWorld> m_l2w;
     u32 m_frame;
+    f32 m_expect;
+    f32 m_write;
 
     DrawTask() : ECS::ForEachTask() {}
 
-    void Setup()
+    void Setup(f32 expect, f32 write)
     {
         m_frame = Time::FrameCount();
+        m_expect = expect;
+        m_write = write;
         SetQuery({ CTypeOf<Drawable>(), CTypeOf<LocalToWorld>() }, {});
     }
 
     void OnEntities(Slice<const Entity> entities) final
     {
         const u32 frame = m_frame;
+        const f32 expect = m_expect;
+        const f32 write = m_write;
         Slice<const Drawable> drawables = m_drawable.GetRow();
         Slice<LocalToWorld> l2ws = m_l2w.GetRow();
+
         for (Entity entity : entities)
         {
-            const Drawable& drawable = drawables[entity.index];
-            LocalToWorld& l2w = l2ws[entity.index];
-            if (frame == 1)
-            {
-                l2w.Value.x.w = 1.0f;
-            }
-            else if (frame > 2)
-            {
-                ASSERT(l2w.Value.x.x == (f32)(frame - 1u));
-                ASSERT(l2w.Value.x.y == (f32)entity.index);
-                ASSERT(l2w.Value.x.z == (f32)entity.version);
-            }
-            l2w.Value.x.x = (f32)frame;
-            l2w.Value.x.y = (f32)entity.index;
-            l2w.Value.x.z = (f32)entity.version;
-            f32 updateCount = l2w.Value.x.w++;
-            l2w.Value.y.x = math::sin(Random::NextF32());
-            ASSERT(updateCount == (f32)frame);
             ASSERT(ECS::Has<Drawable>(entity));
             ASSERT(ECS::Has<LocalToWorld>(entity));
+
+            const Drawable& drawable = drawables[entity.index];
+            LocalToWorld& l2w = l2ws[entity.index];
+
+            if (frame == 1)
+            {
+                l2w.Value.x.x = (f32)frame;
+                l2w.Value.x.y = (f32)entity.index;
+                l2w.Value.x.z = (f32)entity.version;
+                l2w.Value.x.w = 1.0f;
+                l2w.Value.y.y = write;
+            }
+            else
+            {
+                ASSERT(((f32)frame - l2w.Value.x.x) <= 1.0f);
+                ASSERT(l2w.Value.x.y == (f32)entity.index);
+                ASSERT(l2w.Value.x.z == (f32)entity.version);
+                f32 updateCount = ++l2w.Value.x.w;
+                ASSERT(updateCount >= frame);
+
+                ASSERT(l2w.Value.y.y == expect);
+                l2w.Value.y.y = write;
+            }
+            l2w.Value.x.x = (f32)frame;
+            l2w.Value.y.x = math::sin(Random::NextF32());
         }
     }
 };
@@ -90,7 +105,9 @@ namespace RenderSystem
     {
         System() : ISystem("RenderSystem", { "InputSystem", "IEntitySystem", "ECS", }) {}
 
-        DrawTask m_task;
+        DrawTask m_task1;
+        BarrierTask m_barrier;
+        DrawTask m_task2;
         i32 m_frame;
 
         void Init() final
@@ -115,7 +132,11 @@ namespace RenderSystem
 
             CTypeOf<Camera>();
 
-            for (i32 i = 0; i < 250000; ++i)
+            constexpr i32 kThousand = 1000;
+            constexpr i32 kMillion = 1000 * kThousand;
+
+            constexpr i32 kCount = 250 * kThousand;
+            for (i32 i = 0; i < kCount; ++i)
             {
                 Entity entity = ECS::Create();
                 if (i & 1)
@@ -141,24 +162,31 @@ namespace RenderSystem
             simgui_new_frame(Screen::Width(), Screen::Height(), Time::DeltaTimeF32());
             sg_begin_default_pass(&ms_clear, Screen::Width(), Screen::Height());
 
-            u64 a = Time::Now();
+            const u64 a = Time::Now();
 
-            m_task.Setup();
-            TaskSystem::Submit(&m_task);
-            TaskSystem::Await(&m_task);
+            TaskSystem::Await(&m_task2);
+
+            m_task1.Setup(math::Pi, math::Tau);
+            m_barrier.Setup(&m_task1);
+            m_task2.Setup(math::Tau, math::Pi);
+            TaskSystem::Submit(&m_task1);
+            TaskSystem::Submit(&m_barrier);
+            TaskSystem::Submit(&m_task2);
 
             f32 ms = Time::ToMilliseconds(Time::Now() - a);
             static f32 s_avg = 0.0f;
-            s_avg = math::lerp(s_avg, ms, 1.0f / (f32)Min(Time::FrameCount(), 300u));
+
+            f32 alpha = 1.0f / Min((f32)Time::FrameCount(), 120.0f);
+            s_avg = math::lerp(s_avg, ms, alpha);
 
             ImGui::Begin("RenderSystem");
-            ImGui::Text("DrawTask ms: %.2f", s_avg);
+            ImGui::Text("DrawTask Submit ms: %.2f", s_avg);
             ImGui::End();
         }
 
         void Shutdown() final
         {
-            TaskSystem::Await(&m_task);
+            TaskSystem::Await(&m_task2);
 
             simgui_shutdown();
             sg_shutdown();

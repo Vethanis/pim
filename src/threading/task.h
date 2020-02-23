@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/int_types.h"
-#include "containers/array.h"
 
 static constexpr u32 kNumThreads = 32;
 
@@ -12,28 +11,28 @@ struct ITask
 {
     ITask(i32 begin, i32 end, i32 loopLen) :
         m_waits(0),
-        m_exec(0),
         m_begin(begin),
         m_end(end),
-        m_index(0),
-        m_loopLen(loopLen)
+        m_loopLen(loopLen),
+        m_head(begin),
+        m_tail(begin)
     {}
     virtual ~ITask() {}
     virtual void Execute(i32 begin, i32 end) = 0;
 
     bool IsComplete() const;
-    bool IsInProgress() const;
+    bool IsInitOrComplete() const;
     void SetRange(i32 begin, i32 end, i32 loopLen);
     void SetRange(i32 begin, i32 end);
 
 private:
     friend struct ITaskFriend;
     i32 m_waits;
-    i32 m_exec;
     i32 m_begin;
     i32 m_end;
-    i32 m_index;
     i32 m_loopLen;
+    i32 m_head;
+    i32 m_tail;
 };
 
 namespace TaskSystem

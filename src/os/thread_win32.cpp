@@ -240,19 +240,16 @@ namespace OS
 
     void Mutex::Lock()
     {
-        ASSERT(IsOpen());
         ::EnterCriticalSection(AsCrit(this));
     }
 
     void Mutex::Unlock()
     {
-        ASSERT(IsOpen());
         ::LeaveCriticalSection(AsCrit(this));
     }
 
     bool Mutex::TryLock()
     {
-        ASSERT(IsOpen());
         return ::TryEnterCriticalSection(AsCrit(this));
     }
 
@@ -270,13 +267,13 @@ namespace OS
 
     void Event::WakeOne()
     {
-        Inc(state, MO_AcqRel);
+        Inc(state, MO_Release);
         ::WakeByAddressSingle(&state);
     }
 
     void Event::WakeAll()
     {
-        Inc(state, MO_AcqRel);
+        Inc(state, MO_Release);
         ::WakeByAddressAll(&state);
     }
 

@@ -67,7 +67,7 @@ bool StreamFile::AddRead(void* dst, i32 offset, i32 size, i32* pCompleted)
     op.write = false;
     m_queue.Push(op);
 
-    if (!IsInProgress())
+    if (IsInitOrComplete())
     {
         TaskSystem::Submit(this);
     }
@@ -96,7 +96,7 @@ bool StreamFile::AddWrite(i32 offset, i32 size, void* src, i32* pCompleted)
     op.write = true;
     m_queue.Push(op);
 
-    if (!IsInProgress())
+    if (IsInitOrComplete())
     {
         TaskSystem::Submit(this);
     }
