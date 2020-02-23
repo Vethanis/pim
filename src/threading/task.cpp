@@ -5,6 +5,34 @@
 #include "components/system.h"
 #include "common/random.h"
 
+enum ThreadState : u32
+{
+    ThreadState_Running,
+    ThreadState_AwaitDependency,
+    ThreadState_AwaitWork,
+    ThreadState_Stopped
+};
+
+struct Range { i32 begin, end; };
+
+static constexpr i32 kTaskSplit = kNumThreads * (kNumThreads - 1);
+
+// ----------------------------------------------------------------------------
+
+static OS::Thread ms_threads[kNumThreads];
+static Queue<ITask*> ms_queues[kNumThreads];
+static OS::Mutex ms_locks[kNumThreads];
+
+static OS::Event ms_waitPush;
+static OS::Event ms_waitExec;
+
+static i32 ms_numThreadsRunning;
+static i32 ms_numThreadsSleeping;
+static u32 ms_running;
+
+static thread_local u32 ms_tid;
+
+// ----------------------------------------------------------------------------
 struct ITaskFriend
 {
     static i32& GetWaits(ITask* pTask) { return pTask->m_waits; }
@@ -38,39 +66,9 @@ void ITask::SetRange(i32 begin, i32 end, i32 loopLen)
 void ITask::SetRange(i32 begin, i32 end)
 {
     const i32 len = end - begin;
-    const i32 loop = Max(1, len / (i32)(kNumThreads * (kNumThreads - 1)));
+    const i32 loop = Max(1, len / kTaskSplit);
     SetRange(begin, end, loop);
 }
-
-// ----------------------------------------------------------------------------
-
-enum ThreadState : u32
-{
-    ThreadState_Running,
-    ThreadState_AwaitDependency,
-    ThreadState_AwaitWork,
-    ThreadState_Stopped
-};
-
-struct Range { i32 begin, end; };
-
-static constexpr u64 kMaxSpins = 10;
-static constexpr u32 kThreadMask = kNumThreads - 1u;
-
-// ----------------------------------------------------------------------------
-
-static OS::Thread ms_threads[kNumThreads];
-static Queue<ITask*> ms_queues[kNumThreads];
-static OS::Mutex ms_locks[kNumThreads];
-
-static OS::Event ms_waitPush;
-static OS::Event ms_waitExec;
-
-static i32 ms_numThreadsRunning;
-static i32 ms_numThreadsSleeping;
-static u32 ms_running;
-
-static thread_local u32 ms_tid;
 
 // ----------------------------------------------------------------------------
 

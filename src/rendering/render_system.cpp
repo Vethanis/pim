@@ -13,21 +13,19 @@
 #include "components/transform.h"
 #include "math/vec_funcs.h"
 
-#include <stdio.h>
-
 namespace Screen
 {
     static i32 ms_width;
     static i32 ms_height;
 
     i32 Width() { return ms_width; }
-i32 Height() { return ms_height; }
+    i32 Height() { return ms_height; }
 
-static void Update()
-{
-    Screen::ms_width = sapp_width();
-    Screen::ms_height = sapp_height();
-}
+    static void Update()
+    {
+        Screen::ms_width = sapp_width();
+        Screen::ms_height = sapp_height();
+    }
 };
 
 struct DrawTask final : ECS::ForEachTask
@@ -117,7 +115,7 @@ namespace RenderSystem
 
             CTypeOf<Camera>();
 
-            for (i32 i = 0; i < 1000000; ++i)
+            for (i32 i = 0; i < 250000; ++i)
             {
                 Entity entity = ECS::Create();
                 if (i & 1)
@@ -145,15 +143,17 @@ namespace RenderSystem
 
             u64 a = Time::Now();
 
-            TaskSystem::Await(&m_task);
             m_task.Setup();
             TaskSystem::Submit(&m_task);
+            TaskSystem::Await(&m_task);
 
-            ++m_frame;
-            if ((m_frame & 63) == 0)
-            {
-                printf("dt: %f\n", Time::ToMilliseconds(Time::Now() - a));
-            }
+            f32 ms = Time::ToMilliseconds(Time::Now() - a);
+            static f32 s_avg = 0.0f;
+            s_avg = math::lerp(s_avg, ms, 1.0f / 60.0f);
+
+            ImGui::Begin("RenderSystem");
+            ImGui::Text("DrawTask ms: %f", s_avg);
+            ImGui::End();
         }
 
         void Shutdown() final
