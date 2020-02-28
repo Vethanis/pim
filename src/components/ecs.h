@@ -5,15 +5,18 @@
 #include "allocator/allocator.h"
 #include "containers/slice.h"
 #include "containers/array.h"
+#include "containers/bitfield.h"
 #include "threading/task.h"
 #include <initializer_list>
 
 namespace ECS
 {
     static constexpr i32 kMaxTypes = 256;
+    using TypeFlags = BitField<ComponentId, kMaxTypes>;
+
     i32 EntityCount();
 
-    Entity Create();
+    Entity Create(std::initializer_list<ComponentId> components);
     bool Destroy(Entity entity);
     bool IsCurrent(Entity entity);
 

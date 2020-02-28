@@ -46,6 +46,12 @@ static void Sort(T* items, i32 count)
     Sort(items + i, count - i);
 }
 
+template<typename Container>
+static void Sort(Container container)
+{
+    Sort(container.begin(), container.size());
+}
+
 template<typename T, typename C>
 static void Sort(T* items, i32 count, C LtFn)
 {

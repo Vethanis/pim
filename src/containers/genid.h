@@ -1,36 +1,36 @@
 #pragma once
 
+#include "common/macro.h"
 #include "common/int_types.h"
-#include "common/comparator.h"
-#include "common/hash.h"
 
 struct GenId
 {
-    u32 index;
-    u32 version;
+public:
+    GenId() : Value(0) {}
+    GenId(i32 index, u8 version)
+    {
+        u32 i = index;
+        u32 v = version;
+        ASSERT(i <= kIndexMask);
+        Value = (v << kVersionShift) | (i & kIndexMask);
+    }
+
+    i32 GetIndex() const { return (i32)(Value & kIndexMask); }
+    u8 GetVersion() const { return (u8)((Value >> kVersionShift) & 0xffu); }
+    void SetIndex(i32 index) { *this = GenId(index, GetVersion()); }
+    void SetVersion(u8 version) { *this = GenId(GetIndex(), version); }
+
+    bool IsNull() const { return Value == 0u; }
+    bool IsNotNull() const { return Value != 0u; }
+    bool operator==(GenId rhs) const { return Value == rhs.Value; }
+    bool operator!=(GenId rhs) const { return Value != rhs.Value; }
+    bool operator<(GenId rhs) const { return Value < rhs.Value; }
+
+private:
+    static constexpr u32 kVersionShift = 24u;
+    static constexpr u32 kVersionMask  = 0xff000000u;
+    static constexpr u32 kIndexMask    = 0x00ffffffu;
+
+    u32 Value;
 };
-
-static bool Equals(const GenId& lhs, const GenId& rhs)
-{
-    return ((lhs.index - rhs.index) | (lhs.version - rhs.version)) == 0u;
-}
-
-static i32 Compare(const GenId& lhs, const GenId& rhs)
-{
-    if (lhs.index != rhs.index)
-    {
-        return lhs.index < rhs.index ? -1 : 1;
-    }
-    if (lhs.version != rhs.version)
-    {
-        return lhs.version < rhs.version ? -1 : 1;
-    }
-    return 0;
-}
-
-static u32 Hash(const GenId& id)
-{
-    return Fnv32Dword(id.version, Fnv32Dword(id.index));
-}
-
-static constexpr Comparator<GenId> GenIdComparator = { Equals, Compare, Hash };
+SASSERT(sizeof(GenId) == sizeof(u32));

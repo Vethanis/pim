@@ -21,6 +21,15 @@ inline constexpr T Clamp(T x, T lo, T hi)
 }
 
 template<typename T>
+inline constexpr T Align(T x, T align)
+{
+    const T mask = align - 1;
+    T rem = x & mask;
+    T fix = (align - rem) & mask;
+    return x + fix;
+}
+
+template<typename T>
 inline constexpr bool Adjacent(T lBegin, T lEnd, T rBegin, T rEnd)
 {
     return (lBegin == rEnd) || (rBegin == lEnd);
