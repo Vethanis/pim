@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/int_types.h"
+#include "common/valist.h"
 
 // ----------------------------------------------------------------------------
 // null termination
@@ -61,6 +62,7 @@ cstr IEndsWith(cstr hay, i32 size, char needle);
 // ----------------------------------------------------------------------------
 // string formatting
 
+i32 VSPrintf(char* dst, i32 size, cstr fmt, VaList va);
 i32 SPrintf(char* dst, i32 size, cstr fmt, ...);
 i32 StrCatf(char* dst, i32 size, cstr fmt, ...);
 

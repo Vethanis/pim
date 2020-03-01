@@ -119,6 +119,18 @@ namespace IO
         return ct;
     }
 
+    i32 Printf(FD hdl, cstr fmt, ...)
+    {
+        ASSERT(fmt);
+        ASSERT(IsOpen(hdl));
+        char buffer[256] = {};
+        const i32 ct = VSPrintf(ARGS(buffer), fmt, VaStart(fmt));
+        EResult err = EUnknown;
+        Write(hdl, buffer, ct, err);
+        ASSERT(err == ESuccess);
+        return ct;
+    }
+
     i32 Seek(FD hdl, isize offset, EResult& err)
     {
         ASSERT(IsOpen(hdl));

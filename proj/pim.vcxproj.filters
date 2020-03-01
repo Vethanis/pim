@@ -169,9 +169,6 @@
     <ClCompile Include="..\src\os\socket.cpp">
       <Filter>Source Files\os</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\assets\file_streaming.cpp">
-      <Filter>Source Files\assets</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\components\system.cpp">
       <Filter>Source Files\components</Filter>
     </ClCompile>
@@ -207,6 +204,9 @@
     </ClCompile>
     <ClCompile Include="..\src\allocator\tlsf_allocator.cpp">
       <Filter>Source Files\allocator</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\cvar.cpp">
+      <Filter>Source Files\common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -510,9 +510,6 @@
     <ClInclude Include="..\src\containers\hash_dict.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\assets\file_streaming.h">
-      <Filter>Source Files\assets</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\rendering\screen.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
@@ -602,6 +599,9 @@
     </ClInclude>
     <ClInclude Include="..\src\threading\barrier_task.h">
       <Filter>Source Files\threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\cvar.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

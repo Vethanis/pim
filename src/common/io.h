@@ -95,6 +95,8 @@ namespace IO
 
     i32 Puts(cstrc str, FD hdl = StdOut);
 
+    i32 Printf(FD hdl, cstr fmt, ...);
+
     // seek
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/lseek-lseeki64
     i32 Seek(FD hdl, isize offset, EResult& err);

@@ -1,43 +1,45 @@
 #pragma once
 
 #include "common/text.h"
-#include "common/guid.h"
 #include "common/heap_item.h"
 #include "containers/obj_table.h"
-#include "containers/hash_set.h"
+#include "containers/array.h"
 
-struct AssetArgs
+using AssetText = Text<64>;
+
+struct AssetArgs final
 {
     cstr name;
-    Guid pack;
-    HeapItem pos;
+    cstr pack;
+    i32 offset;
+    i32 size;
 };
 
-struct Asset
+struct Asset final
 {
-    Text<64> name;
-    Guid pack;
-    HashSet<Guid> children;
-    HeapItem position;
-    Slice<u8> memory;
+    AssetText name;
+    AssetText pack;
+    i32 offset;
+    i32 size;
+    void* pData;
     i32 refCount;
 
     Asset(AssetArgs args) :
         name(args.name),
         pack(args.pack),
-        position(args.pos),
-        memory({ 0, 0 }),
+        offset(args.offset),
+        size(args.size),
+        pData(0),
         refCount(0)
-    {
-        children.Init(Alloc_Perm);
-    }
+    {}
     ~Asset()
     {
-        children.Reset();
-        Allocator::Free(memory.begin());
+        Allocator::Free(pData);
+        pData = 0;
     }
+
     Asset(const Asset& other) = delete;
     Asset& operator=(const Asset& other) = delete;
 };
 
-using AssetTable = ObjTable<Guid, Asset, AssetArgs>;
+using AssetTable = ObjTable<AssetText, Asset, AssetArgs>;

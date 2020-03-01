@@ -69,4 +69,4 @@
 #define SASSERT(x)                  typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
 
 // Maximum path length, including null terminator
-#define PIM_PATH                    260
+#define PIM_PATH                    256

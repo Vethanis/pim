@@ -23,7 +23,7 @@ using ptr_t = void*;
 using cstr = const char*;
 using cstrc = const char * const;
 
-enum EResult
+enum EResult : i32
 {
     EUnknown = 0,
     ESuccess = 1,
