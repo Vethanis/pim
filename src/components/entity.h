@@ -1,6 +1,7 @@
 #pragma once
 
 #include "containers/genid.h"
+#include "common/type_guid.h"
 
 struct Entity
 {
@@ -15,4 +16,7 @@ struct Entity
     void SetIndex(i32 i) { id.SetIndex(i); }
     u8 GetVersion() const { return id.GetVersion(); }
     void SetVersion(u8 v) { id.SetVersion(v); }
+    void BumpVersion() { SetVersion(GetVersion() + 1); }
 };
+
+DECL_TGUID(Entity);

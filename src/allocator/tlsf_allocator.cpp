@@ -112,20 +112,11 @@ void* TlsfAllocator::Realloc(void* pOldUser, i32 userBytes)
         return nullptr;
     }
 
-    void* pOldRaw = UserToRaw(pOldUser, m_type);
-    const i32 rawBytes = AlignBytes(userBytes);
+    void* pNewUser = Alloc(userBytes);
+    ASSERT(pNewUser);
 
-    if (m_type != Alloc_Task)
-    {
-        m_lock.Lock();
-    }
+    Copy(UserToHeader(pNewUser, m_type), UserToHeader(pOldUser, m_type));
+    Free(pOldUser);
 
-    void* pNewRaw = tlsf_realloc(m_impl, pOldRaw, rawBytes);
-
-    if (m_type != Alloc_Task)
-    {
-        m_lock.Unlock();
-    }
-
-    return RawToUser(pNewRaw, m_type, rawBytes);
+    return pNewUser;
 }

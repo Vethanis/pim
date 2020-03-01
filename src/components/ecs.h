@@ -20,78 +20,80 @@ namespace ECS
     bool Destroy(Entity entity);
     bool IsCurrent(Entity entity);
 
-    bool Has(Entity entity, ComponentId type);
-    bool Add(Entity entity, ComponentId type);
-    bool Remove(Entity entity, ComponentId type);
-    void* Get(Entity entity, ComponentId type);
-    Slice<u8> GetRow(ComponentId type);
+    bool HasAll(Entity entity, TypeFlags all);
+    bool HasAny(Entity entity, TypeFlags any);
+    bool HasNone(Entity entity, TypeFlags none);
 
-    template<typename T>
-    bool Has(Entity entity) { return Has(entity, GetId<T>()); }
-
-    template<typename T>
-    bool Add(Entity entity) { return Add(entity, GetId<T>()); }
-
-    template<typename T>
-    bool Remove(Entity entity) { return Remove(entity, GetId<T>()); }
-
-    template<typename T>
-    T* Get(Entity entity) { return (T*)Get(entity, GetId<T>()); }
-
-    template<typename T>
-    Slice<T> GetRow()
+    struct Row
     {
-        return GetRow(GetId<T>()).Cast<T>();
-    }
+        ComponentId type;
+        i32 stride;
+        void* ptr;
+    };
 
-    template<typename T>
-    T* Get(Entity entity, ComponentId type)
+    struct OnSlabTask : ITask
     {
-        ASSERT(GetId<T>() == type);
-        return (T*)Get(entity, type);
-    }
+        OnSlabTask() : ITask(0, 0, 1) {}
 
-    struct ForEachTask : ITask
-    {
-        ForEachTask() : ITask(0, 0, 1) {}
-
-        void SetQuery(
-            std::initializer_list<ComponentId> all,
-            std::initializer_list<ComponentId> none);
-        void GetQuery(
-            Slice<const ComponentId>& all,
-            Slice<const ComponentId>& none) const;
+        void SetQuery(TypeFlags all, TypeFlags none);
         void Execute(i32, i32) final;
-        virtual void OnEntities(Slice<const Entity> entities) = 0;
+        virtual void OnSlab(i32 length, Slice<Row> rows) = 0;
+        static i32 FindRow(ComponentId type, Slice<const Row> rows);
+
+        template<typename T>
+        static Slice<T> GetRow(i32 length, Slice<Row> rows)
+        {
+            i32 i = FindRow(GetId<T>(), rows);
+            ASSERT(i != -1);
+            return { (T*)(rows[i].ptr), length };
+        }
 
     private:
-        Array<ComponentId> m_all;
-        Array<ComponentId> m_none;
+        TypeFlags m_all;
+        TypeFlags m_none;
     };
-};
 
-template<typename T>
-struct CType final
-{
-    CType() : m_type(ECS::GetId<T>()) {}
+    template<typename T0>
+    struct ForEach1 : OnSlabTask
+    {
+        ForEach1() : OnSlabTask() {}
+        void OnSlab(i32 length, Slice<Row> rows) final
+        {
+            OnRows(GetRow<Entity>(length, rows), GetRow<T0>(length, rows));
+        }
+        virtual void OnRows(Slice<const Entity> entities, Slice<T0> t0s) = 0;
+    };
 
-    bool Add(Entity entity) const
+    template<typename T0, typename T1>
+    struct ForEach2 : OnSlabTask
     {
-        return ECS::Add(entity, m_type);
-    }
-    bool Remove(Entity entity) const
-    {
-        return ECS::Remove(entity, m_type);
-    }
-    T* Get(Entity entity) const
-    {
-        return (T*)ECS::Get(entity, m_type);
-    }
-    Slice<T> GetRow() const
-    {
-        return ECS::GetRow(m_type).Cast<T>();
-    }
+        ForEach2() : OnSlabTask() {}
+        void OnSlab(i32 length, Slice<Row> rows) final
+        {
+            OnRows(GetRow<Entity>(length, rows), GetRow<T0>(length, rows), GetRow<T1>(length, rows));
+        }
+        virtual void OnRows(Slice<const Entity> entities, Slice<T0> t0s, Slice<T1> t1s) = 0;
+    };
 
-private:
-    ComponentId m_type;
+    template<typename T0, typename T1, typename T2>
+    struct ForEach3 : OnSlabTask
+    {
+        ForEach3() : OnSlabTask() {}
+        void OnSlab(i32 length, Slice<Row> rows) final
+        {
+            OnRows(GetRow<Entity>(length, rows), GetRow<T0>(length, rows), GetRow<T1>(length, rows), GetRow<T2>(length, rows));
+        }
+        virtual void OnRows(Slice<const Entity> entities, Slice<T0> t0s, Slice<T1> t1s, Slice<T2> t2s) = 0;
+    };
+
+    template<typename T0, typename T1, typename T2, typename T3>
+    struct ForEach4 : OnSlabTask
+    {
+        ForEach4() : OnSlabTask() {}
+        void OnSlab(i32 length, Slice<Row> rows) final
+        {
+            OnRows(GetRow<Entity>(length, rows), GetRow<T0>(length, rows), GetRow<T1>(length, rows), GetRow<T2>(length, rows), GetRow<T3>(length, rows));
+        }
+        virtual void OnRows(Slice<const Entity> entities, Slice<T0> t0s, Slice<T1> t1s, Slice<T2> t2s, Slice<T3> t3s) = 0;
+    };
 };

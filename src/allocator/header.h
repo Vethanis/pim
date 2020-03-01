@@ -47,6 +47,7 @@ namespace Allocator
 
     static Header* RawToHeader(void* pRaw, AllocType type, i32 size, i32 arg1 = 0)
     {
+        ASSERT(pRaw);
         i64 offset = 0;
         Header* hdr = (Header*)AlignPtr(pRaw, offset);
         hdr->type = type;
@@ -86,6 +87,7 @@ namespace Allocator
 
     static void* RawToUser(void* pRaw, AllocType type, i32 size, i32 arg1 = 0)
     {
+        ASSERT(pRaw);
         Header* pHeader = RawToHeader(pRaw, type, size, arg1);
         void* pUser = HeaderToUser(pHeader);
         return pUser;
@@ -93,6 +95,7 @@ namespace Allocator
 
     static void* UserToRaw(void* pUser, AllocType type)
     {
+        ASSERT(pUser);
         Header* pHeader = UserToHeader(pUser, type);
         void* pRaw = HeaderToRaw(pHeader);
         return pRaw;
@@ -100,6 +103,8 @@ namespace Allocator
 
     static void Copy(Header* dst, Header* src)
     {
+        ASSERT(dst);
+        ASSERT(src);
         void* pDst = HeaderToUser(dst);
         const void* pSrc = HeaderToUser(src);
         const i32 bytes = Min(dst->size, src->size) - kPadBytes;

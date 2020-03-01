@@ -2,6 +2,7 @@
 
 #include "common/int_types.h"
 #include "common/guid.h"
+#include "common/type_guid.h"
 
 struct ComponentId
 {

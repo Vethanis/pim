@@ -7,85 +7,74 @@
 #include "containers/slice.h"
 #include <string.h>
 
-struct ArrayInts
-{
-public:
-    void Set(AllocType allocator, i32 length, i32 capacity)
-    {
-        ASSERT((u32)length <= kMask);
-        ASSERT((u32)capacity <= kMask);
-        ASSERT((u32)allocator <= 0xffu);
-
-        u64 a = 0xffu & allocator;
-        u64 l = k28Mask & length;
-        u64 c = k28Mask & capacity;
-        m_value = (a << 56) | (l << 28) | c;
-    }
-    AllocType GetAllocator() const
-    {
-        return (AllocType)(0xff & (m_value >> 56));
-    }
-    i32 GetLength() const
-    {
-        return (i32)(k28Mask & (m_value >> 28));
-    }
-    i32 GetCapacity() const
-    {
-        return (i32)(k28Mask & m_value);
-    }
-    void SetAllocator(AllocType allocator)
-    {
-        Set(allocator, GetLength(), GetCapacity());
-    }
-    void SetLength(i32 length)
-    {
-        Set(GetAllocator(), length, GetCapacity());
-    }
-    void SetCapacity(i32 capacity)
-    {
-        Set(GetAllocator(), GetLength(), capacity);
-    }
-
-private:
-    static constexpr u64 k28Mask = 0x0fffffffu;
-
-    u64 m_value;
-};
-
 template<typename T>
-struct alignas(16) Array
+struct Array
 {
 private:
     T* m_ptr;
-    ArrayInts m_ints;
+    i32 m_length;
+    u32 m_bits;
+
+    static constexpr u32 kCapMask = 0x0fffffff;
+    static constexpr u32 kAllocMask = ~kCapMask;
+    static constexpr u32 kAllocShift = 30;
+
+    SASSERT(Alloc_COUNT <= 0xf);
+
+    i32 GetCapacity() const
+    {
+        u32 x = m_bits & kCapMask;
+        return (i32)x;
+    }
+
+    void SetCapacity(i32 c)
+    {
+        ASSERT((u32)c <= kCapMask);
+        m_bits = (kAllocMask & m_bits) | (kCapMask & c);
+    }
+
+    void SetAllocator(AllocType allocator)
+    {
+        ASSERT(allocator <= Alloc_COUNT);
+        u32 a = 0xf & allocator;
+        m_bits = (a << kAllocShift) | (kCapMask & m_bits);
+    }
 
 public:
 
-    AllocType GetAllocator() const { return m_ints.GetAllocator(); }
-    i32 capacity() const { return m_ints.GetCapacity(); }
-    i32 size() const { return m_ints.GetLength(); }
+    AllocType GetAllocator() const
+    {
+        u32 x = ((m_bits & kAllocMask) >> kAllocShift);
+        ASSERT(x < Alloc_COUNT);
+        return (AllocType)x;
+    }
 
-    bool InRange(i32 i) const { return (u32)i < (u32)size(); }
-    bool IsEmpty() const { return size() == 0; }
-    bool IsFull() const { return size() == capacity(); }
+    i32 capacity() const { return GetCapacity(); }
+    i32 size() const { return m_length; }
+
+    bool InRange(i32 i) const { return (u32)i < (u32)m_length; }
+    bool IsEmpty() const { return m_length == 0; }
+    bool IsFull() const { return m_length == capacity(); }
 
     const T* begin() const { return m_ptr; }
-    const T* end() const { return m_ptr + size(); }
+    const T* end() const { return m_ptr + m_length; }
     const T& front() const { ASSERT(InRange(0)); return m_ptr[0]; }
-    const T& back() const { ASSERT(InRange(0)); return  m_ptr[size() - 1]; }
+    const T& back() const { ASSERT(InRange(0)); return  m_ptr[m_length - 1]; }
     const T& operator[](i32 i) const { ASSERT(InRange(i)); return m_ptr[i]; }
 
     T* begin() { return m_ptr; }
-    T* end() { return m_ptr + size(); }
+    T* end() { return m_ptr + m_length; }
     T& front() { ASSERT(InRange(0)); return m_ptr[0]; }
-    T& back() { ASSERT(InRange(0)); return m_ptr[size() - 1]; }
+    T& back() { ASSERT(InRange(0)); return m_ptr[m_length - 1]; }
     T& operator[](i32 i) { ASSERT(InRange(i)); return m_ptr[i]; }
 
     // ------------------------------------------------------------------------
 
     void Init(AllocType allocType = Alloc_Perm)
     {
-        m_ints.Set(allocType, 0, 0);
+        m_length = 0;
+        SetCapacity(0);
+        SetAllocator(allocType);
         m_ptr = nullptr;
     }
 
@@ -99,21 +88,22 @@ public:
     {
         Allocator::Free(m_ptr);
         m_ptr = nullptr;
-        m_ints.Set(m_ints.GetAllocator(), 0, 0);
+        m_length = 0;
+        SetCapacity(0);
     }
 
     void Clear()
     {
-        m_ints.SetLength(0);
+        m_length = 0;
     }
 
     void Trim()
     {
-        const i32 len = size();
+        const i32 len = m_length;
         if (capacity() > len)
         {
             m_ptr = Allocator::ReallocT<T>(GetAllocator(), m_ptr, len);
-            m_ints.SetCapacity(len);
+            SetCapacity(len);
         }
     }
 
@@ -121,12 +111,12 @@ public:
 
     Slice<const T> AsCSlice() const
     {
-        return { begin(), size() };
+        return { begin(), m_length };
     }
 
     Slice<T> AsSlice()
     {
-        return { begin(), size() };
+        return { begin(), m_length };
     }
 
     operator Slice<const T>() const { return AsCSlice(); }
@@ -139,26 +129,20 @@ public:
         {
             const i32 next = Max(newCap, Max(current * 2, 16));
             m_ptr = Allocator::ReallocT<T>(GetAllocator(), m_ptr, next);
-            m_ints.SetCapacity(next);
+            SetCapacity(next);
         }
     }
 
     void ReserveRel(i32 relSize)
     {
-        Reserve(size() + relSize);
+        Reserve(m_length + relSize);
     }
 
     void Resize(i32 newLen)
     {
         ASSERT(newLen >= 0);
         Reserve(newLen);
-        const i32 oldLen = size();
-        const i32 diff = newLen - oldLen;
-        if (diff > 0)
-        {
-            memset(m_ptr + oldLen, 0, sizeof(T) * diff);
-        }
-        m_ints.SetLength(newLen);
+        m_length = newLen;
     }
 
     i32 ResizeRel(i32 relSize)
@@ -170,9 +154,8 @@ public:
 
     T& Grow()
     {
-        const i32 iBack = size();
+        const i32 iBack = m_length++;
         Reserve(iBack + 1);
-        m_ints.SetLength(iBack + 1);
         T& item = m_ptr[iBack];
         memset(&item, 0, sizeof(T));
         return item;
@@ -180,33 +163,42 @@ public:
 
     void Pop()
     {
-        const i32 iBack = size() - 1;
+        const i32 iBack = --m_length;
         ASSERT(iBack >= 0);
-        m_ints.SetLength(iBack);
     }
 
     i32 PushBack(T item)
     {
-        const i32 iBack = size();
+        const i32 iBack = m_length++;
         Reserve(iBack + 1);
-        m_ints.SetLength(iBack + 1);
         m_ptr[iBack] = item;
         return iBack;
     }
 
     void AppendBack(T item)
     {
-        const i32 iBack = size();
+        const i32 iBack = m_length++;
         ASSERT(iBack < capacity());
-        m_ints.SetLength(iBack + 1);
         m_ptr[iBack] = item;
+    }
+
+    template<typename C>
+    void AppendRange(const C& container)
+    {
+        const i32 extend = (i32)container.size();
+        const i32 iDst = ResizeRel(extend);
+        T* const pDst = m_ptr + iDst;
+        const T* const pSrc = container.begin();
+        for (i32 i = 0; i < extend; ++i)
+        {
+            pDst[i] = pSrc[i];
+        }
     }
 
     T PopBack()
     {
-        const i32 iBack = size() - 1;
+        const i32 iBack = --m_length;
         ASSERT(iBack >= 0);
-        m_ints.SetLength(iBack);
         return m_ptr[iBack];
     }
 
@@ -224,10 +216,9 @@ public:
 
     void Remove(i32 idx)
     {
-        const i32 iBack = size() - 1;
+        const i32 iBack = --m_length;
         ASSERT(iBack >= 0);
         ASSERT((u32)idx <= (u32)iBack);
-        m_ints.SetLength(iBack);
 
         T* const ptr = m_ptr;
         ptr[idx] = ptr[iBack];
@@ -235,23 +226,21 @@ public:
 
     void ShiftRemove(i32 idx)
     {
-        const i32 oldBack = size() - 1;
+        const i32 oldBack = --m_length;
         const i32 shifts = oldBack - idx;
         ASSERT(oldBack >= 0);
         ASSERT(shifts >= 0);
-        m_ints.SetLength(oldBack);
         T* const ptr = m_ptr;
         memmove(ptr + idx, ptr + idx + 1, sizeof(T) * shifts);
     }
 
     void ShiftInsert(i32 idx, const T& value)
     {
-        const i32 newBack = size();
+        const i32 newBack = m_length++;
         const i32 shifts = newBack - idx;
         ASSERT(idx >= 0);
         ASSERT(shifts >= 0);
         Reserve(newBack + 1);
-        m_ints.SetLength(newBack + 1);
         T* const ptr = m_ptr;
         memmove(ptr + idx + 1, ptr + idx, sizeof(T) * shifts);
         ptr[idx] = value;
@@ -268,7 +257,7 @@ public:
     i32 Find(T key) const
     {
         const T* ptr = m_ptr;
-        const i32 len = size();
+        const i32 len = m_length;
         for (i32 i = len - 1; i >= 0; --i)
         {
             if (ptr[i] == key)
@@ -311,7 +300,7 @@ SASSERT(sizeof(Array<i32>) == 16);
 template<typename T, typename C>
 static void Copy(Array<T>& dst, const C& src)
 {
-    const i32 length = (i32)src.size();
+    const i32 length = (i32)src.m_length;
     const i32 bytes = sizeof(T) * length;
     dst.Resize(length);
     memcpy(dst.begin(), src.begin(), bytes);

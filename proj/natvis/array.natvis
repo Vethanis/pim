@@ -2,12 +2,12 @@
 <!--https://docs.microsoft.com/en-us/visualstudio/debugger/create-custom-views-of-native-objects?view=vs-2019-->
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
   <Type Name="Array&lt;*&gt;">
-    <DisplayString>{m_length} / {m_capacity}; {m_ptr}</DisplayString>
+    <DisplayString>{m_length} / {capacity()}; {m_ptr}</DisplayString>
     <Expand>
       <Item Name="ptr">m_ptr</Item>
         <Item Name="length">m_length</Item>
-        <Item Name="capacity">m_capacity</Item>
-        <Item Name="allocType">m_allocator</Item>
+        <Item Name="capacity">capacity()</Item>
+        <Item Name="allocType">GetAllocator()</Item>
       <ArrayItems>
         <Size>m_length</Size>
         <ValuePointer>m_ptr</ValuePointer>

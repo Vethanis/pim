@@ -29,15 +29,13 @@ namespace Screen
     }
 };
 
-struct DrawTask final : ECS::ForEachTask
+struct DrawTask final : ECS::ForEach2<Drawable, LocalToWorld>
 {
-    CType<Drawable> m_drawable;
-    CType<LocalToWorld> m_l2w;
     f32 m_iteration;
     f32 m_expect;
     f32 m_write;
 
-    DrawTask() : ECS::ForEachTask(), m_iteration(0.0f) {}
+    DrawTask() : ECS::ForEach2<Drawable, LocalToWorld>() {}
 
     void Setup(f32 expect, f32 write)
     {
@@ -47,27 +45,27 @@ struct DrawTask final : ECS::ForEachTask
         SetQuery({ CTypeOf<Drawable>(), CTypeOf<LocalToWorld>() }, {});
     }
 
-    void OnEntities(Slice<const Entity> entities) final
+    void OnRows(
+        Slice<const Entity> entities,
+        Slice<Drawable> drawables,
+        Slice<LocalToWorld> transforms) final
     {
         const f32 iteration = m_iteration;
         const f32 expect = m_expect;
         const f32 write = m_write;
-        Slice<const Drawable> drawables = m_drawable.GetRow();
-        Slice<LocalToWorld> l2ws = m_l2w.GetRow();
 
-        for (Entity entity : entities)
+        const i32 length = entities.size();
+        for (i32 i = 0; i < length; ++i)
         {
-            ASSERT(ECS::Has<Drawable>(entity));
-            ASSERT(ECS::Has<LocalToWorld>(entity));
+            const Entity entity = entities[i];
+            const Drawable& drawable = drawables[i];
+            LocalToWorld& transform = transforms[i];
 
-            const Drawable& drawable = drawables[entity.index];
-            LocalToWorld& l2w = l2ws[entity.index];
+            float4& c0 = transform.Value.x;
+            float4& c1 = transform.Value.y;
 
-            float4& c0 = l2w.Value.x;
-            float4& c1 = l2w.Value.y;
-
-            const f32 index = (f32)entity.index;
-            const f32 version = (f32)entity.version;
+            const f32 index = (f32)entity.GetIndex();
+            const f32 version = (f32)entity.GetVersion();
 
             if (iteration <= 1)
             {
@@ -137,18 +135,17 @@ namespace RenderSystem
             constexpr i32 kCount = 1 * kMillion;
             for (i32 i = 0; i < kCount; ++i)
             {
-                Entity entity = ECS::Create();
-                if (i & 1)
+                if (Random::NextF32() < 0.5f)
                 {
-                    ECS::Add<Drawable>(entity);
+                    Entity entity = ECS::Create({ CTypeOf<Drawable>(), CTypeOf<LocalToWorld>() });
                 }
-                if (i & 7)
+                else if (Random::NextF32() < 0.5f)
                 {
-                    ECS::Add<LocalToWorld>(entity);
+                    Entity entity = ECS::Create({ CTypeOf<LocalToWorld>() });
                 }
-                if (i == 0)
+                else if (Random::NextF32() < 0.01f)
                 {
-                    ECS::Add<Camera>(entity);
+                    Entity entity = ECS::Create({ CTypeOf<Camera>(), CTypeOf<LocalToWorld>() });
                 }
             }
         }
