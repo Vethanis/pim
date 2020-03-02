@@ -3,7 +3,7 @@
 #include "common/macro.h"
 #include "common/minmax.h"
 #include "common/valist.h"
-#include <stdio.h>
+#include "stb/stb_sprintf.h"
 
 // ----------------------------------------------------------------------------
 // null termination
@@ -482,9 +482,8 @@ i32 VSPrintf(char* dst, i32 size, cstr fmt, VaList va)
     if (size > 0)
     {
         fmt = fmt ? fmt : "(NULL)";
-        const i32 result = vsnprintf(dst, size, fmt, va);
-        const i32 wrote = result < 0 ? size : result;
-        len = NullTerminate(dst, size, wrote);
+        len = stbsp_vsnprintf(dst, size, fmt, va);
+        len = NullTerminate(dst, size, len);
     }
 
     return len;

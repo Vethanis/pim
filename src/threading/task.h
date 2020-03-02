@@ -20,6 +20,7 @@ enum TaskStatus : i32
 struct ITask
 {
     ITask(i32 begin, i32 end, i32 loopLen) :
+        m_dependency(0),
         m_status(TaskStatus_Init),
         m_waits(0),
         m_begin(begin),
@@ -34,11 +35,13 @@ struct ITask
     TaskStatus GetStatus() const;
     bool IsComplete() const;
     bool IsInitOrComplete() const;
+    void SetDependency(ITask* pTask);
     void SetRange(i32 begin, i32 end, i32 loopLen);
     void SetRange(i32 begin, i32 end);
 
 private:
     friend struct ITaskFriend;
+    ITask* m_dependency;
     i32 m_status;
     i32 m_waits;
     i32 m_begin;

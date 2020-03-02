@@ -131,7 +131,6 @@
     <ClInclude Include="..\src\physics\components.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
     <ClInclude Include="..\src\quake\packfile.h" />
-    <ClInclude Include="..\src\threading\barrier_task.h" />
     <ClInclude Include="..\submodules\tlsf\tlsf.h" />
     <FxCompile Include="..\src\shaders\quat.hlsl">
       <FileType>Document</FileType>
@@ -255,10 +254,10 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>NOMINMAX;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;_DEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <CompileAsManaged>false</CompileAsManaged>
@@ -266,6 +265,7 @@
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <SupportJustMyCode>false</SupportJustMyCode>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -279,8 +279,8 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>NOMINMAX;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NOMINMAX;NDEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
@@ -291,7 +291,7 @@
       <PrecompiledHeaderFile />
       <TreatWarningAsError>true</TreatWarningAsError>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <SupportJustMyCode>true</SupportJustMyCode>
+      <SupportJustMyCode>false</SupportJustMyCode>
       <FloatingPointModel>Fast</FloatingPointModel>
     </ClCompile>
     <Link>

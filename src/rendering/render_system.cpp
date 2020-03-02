@@ -12,7 +12,6 @@
 #include "rendering/screen.h"
 #include "components/transform.h"
 #include "math/vec_funcs.h"
-#include "threading/barrier_task.h"
 
 namespace Screen
 {
@@ -104,7 +103,6 @@ namespace RenderSystem
         System() : ISystem("RenderSystem", { "InputSystem", "ECS", "TaskSystem" }) {}
 
         DrawTask m_task1;
-        BarrierTask m_barrier;
         DrawTask m_task2;
 
         void Init() final
@@ -161,11 +159,10 @@ namespace RenderSystem
             TaskSystem::Await(&m_task2);
 
             m_task1.Setup(math::Pi, math::Tau);
-            m_barrier.Setup(&m_task1);
+            m_task2.SetDependency(&m_task1);
             m_task2.Setup(math::Tau, math::Pi);
 
             TaskSystem::Submit(&m_task1);
-            TaskSystem::Submit(&m_barrier);
             TaskSystem::Submit(&m_task2);
 
             f32 ms = Time::ToMilliseconds(Time::Now() - a);

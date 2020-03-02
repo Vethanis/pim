@@ -40,6 +40,7 @@ struct ITaskFriend
     static i32 GetLoopLen(ITask* pTask) { return Load(pTask->m_loopLen, MO_Relaxed); }
     static i32& GetHead(ITask* pTask) { return pTask->m_head; }
     static i32& GetTail(ITask* pTask) { return pTask->m_tail; }
+    static ITask* GetDependency(ITask* pTask) { return pTask->m_dependency; }
 };
 
 static i32& GetStatus(ITask* pTask) { return ITaskFriend::GetStatus(pTask); }
@@ -49,6 +50,7 @@ static i32 GetEnd(ITask* pTask) { return ITaskFriend::GetEnd(pTask); }
 static i32 GetLoopLen(ITask* pTask) { return ITaskFriend::GetLoopLen(pTask); }
 static i32& GetHead(ITask* pTask) { return ITaskFriend::GetHead(pTask); }
 static i32& GetTail(ITask* pTask) { return ITaskFriend::GetTail(pTask); }
+static ITask* GetDependency(ITask* pTask) { return ITaskFriend::GetDependency(pTask); }
 
 // ----------------------------------------------------------------------------
 
@@ -58,6 +60,12 @@ bool ITask::IsInitOrComplete() const
 {
     TaskStatus status = GetStatus();
     return (status == TaskStatus_Init) || (status == TaskStatus_Complete);
+}
+
+void ITask::SetDependency(ITask* pPrev)
+{
+    ASSERT(IsInitOrComplete());
+    m_dependency = pPrev;
 }
 
 void ITask::SetRange(i32 begin, i32 end, i32 loopLen)
@@ -123,6 +131,11 @@ static bool TryRunTask(u32 tid)
     ITask* pTask = PopTask(tid);
     if (pTask)
     {
+        ITask* pDependency = GetDependency(pTask);
+        if (pDependency)
+        {
+            TaskSystem::Await(pDependency);
+        }
         Range range = { 0, 0 };
         while (StealWork(pTask, range))
         {

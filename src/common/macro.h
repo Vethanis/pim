@@ -46,9 +46,9 @@
 
 #ifdef _DEBUG
     #define IF_DEBUG(x)             x
-    #define IFN_DEBUG(x)            
+    #define IFN_DEBUG(x)            (void)0
 #else
-    #define IF_DEBUG(x)             
+    #define IF_DEBUG(x)             (void)0
     #define IFN_DEBUG(x)            x
 #endif // def _DEBUG
 
@@ -57,8 +57,8 @@
 #define NELEM(x)                    ( sizeof(x) / sizeof((x)[0]) )
 #define ARGS(x)                     x, NELEM(x)
 #define DBG_INT()                   IF_DEBUG(INTERRUPT())
-#define IF_TRUE(x, expr)            if(x) { expr; }
-#define IF_FALSE(x, expr)           if(!(x)) { expr; }
+#define IF_TRUE(x, expr)            do { if(x) { expr; } } while(0)
+#define IF_FALSE(x, expr)           do { if(!(x)) { expr; } } while(0)
 #define ASSERT(x)                   IF_DEBUG(IF_FALSE(x, INTERRUPT()))
 #define CHECK(x)                    IF_FALSE(x, DBG_INT(); err = EFail; return retval)
 #define CHECKERR()                  IF_FALSE(err == ESuccess, DBG_INT(); return retval)
