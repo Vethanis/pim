@@ -202,9 +202,6 @@
     <ClCompile Include="..\submodules\tlsf\tlsf.c">
       <Filter>submodules\tlsf</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\allocator\tlsf_allocator.cpp">
-      <Filter>Source Files\allocator</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\common\cvar.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
@@ -584,9 +581,6 @@
     </ClInclude>
     <ClInclude Include="..\submodules\tlsf\tlsf.h">
       <Filter>submodules\tlsf</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\allocator\tlsf_allocator.h">
-      <Filter>Source Files\allocator</Filter>
     </ClInclude>
     <ClInclude Include="..\src\components\component_id.h">
       <Filter>Source Files\components</Filter>

@@ -43,12 +43,6 @@ public:
     {
         using namespace Allocator;
 
-        if (userBytes <= 0)
-        {
-            ASSERT(userBytes == 0);
-            return nullptr;
-        }
-
         const i32 rawBytes = AlignBytes(userBytes);
         u8* tail = LoadPtr(m_tail, MO_Relaxed);
 
@@ -68,11 +62,6 @@ public:
     void Free(void* pUser) final
     {
         using namespace Allocator;
-
-        if (!pUser)
-        {
-            return;
-        }
 
         Header* pHeader = UserToHeader(pUser, m_type);
         void* pRaw = HeaderToRaw(pHeader);
@@ -95,18 +84,6 @@ public:
     void* Realloc(void* pOldUser, i32 userBytes) final
     {
         using namespace Allocator;
-
-        if (!pOldUser)
-        {
-            return Alloc(userBytes);
-        }
-
-        if (userBytes <= 0)
-        {
-            ASSERT(userBytes == 0);
-            Free(pOldUser);
-            return nullptr;
-        }
 
         const i32 rawBytes = AlignBytes(userBytes);
         Header* pOldHeader = UserToHeader(pOldUser, m_type);

@@ -10,7 +10,6 @@
 struct StackAllocator final : IAllocator
 {
 private:
-    OS::Mutex m_mutex;
     Slice<u8> m_memory;
     Slice<u8> m_stack;
     Array<Allocator::Header*> m_allocations;
@@ -23,7 +22,6 @@ public:
         void* memory = malloc(capacity);
         ASSERT(memory);
         m_type = type;
-        m_mutex.Open();
         m_memory = { (u8*)memory, capacity };
         m_stack = m_memory;
         m_allocations.Init(Alloc_Init);
@@ -31,56 +29,30 @@ public:
 
     void Reset() final
     {
-        m_mutex.Lock();
         m_allocations.Reset();
         void* ptr = m_memory.begin();
         m_memory = {};
         free(ptr);
-        m_mutex.Close();
     }
 
     void Clear() final
     {
-        OS::LockGuard guard(m_mutex);
         m_stack = m_memory;
         m_allocations.Clear();
     }
 
     void* Alloc(i32 bytes) final
     {
-        if (bytes <= 0)
-        {
-            ASSERT(bytes == 0);
-            return nullptr;
-        }
-        OS::LockGuard guard(m_mutex);
         return _Alloc(bytes);
     }
 
     void Free(void* ptr) final
     {
-        if (ptr)
-        {
-            OS::LockGuard guard(m_mutex);
-            _Free(ptr);
-        }
+        _Free(ptr);
     }
 
     void* Realloc(void* ptr, i32 bytes) final
     {
-        if (!ptr)
-        {
-            return Alloc(bytes);
-        }
-
-        if (bytes <= 0)
-        {
-            ASSERT(bytes == 0);
-            Free(ptr);
-            return nullptr;
-        }
-
-        OS::LockGuard guard(m_mutex);
         return _Realloc(ptr, bytes);
     }
 
