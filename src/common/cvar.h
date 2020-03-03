@@ -5,12 +5,16 @@
 struct CVar
 {
 public:
-    CVar(const char* name, const char* value);
-    void Set(const char* value) { *this = CVar(m_name, value); }
+    CVar(cstr name, cstr value);
+    void Set(cstr value);
     void Set(f32 value);
-    const char* GetName() const { return m_name; }
-    const char* GetValue() const { return m_value; }
+    cstr GetName() const { return m_name; }
+    cstr GetValue() const { return m_value; }
     f32 AsFloat() const { return m_asFloat; }
+    i32 AsInt() const { return (i32)m_asFloat; }
+    bool AsBool() const { return m_asFloat > 0.0f; }
+
+    static CVar* Find(cstr name);
 private:
     char m_name[30];
     char m_value[30];

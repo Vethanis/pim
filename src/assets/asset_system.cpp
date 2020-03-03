@@ -8,6 +8,9 @@
 #include "ui/imgui.h"
 #include "common/io.h"
 #include "os/atomics.h"
+#include "common/cvar.h"
+
+static CVar cv_imgui("AssetSystem::ImGui", "1.0");
 
 namespace AssetSystem
 {
@@ -57,22 +60,25 @@ namespace AssetSystem
 
         void Update() final
         {
-            ImGui::Begin("AssetSystem");
+            if (cv_imgui.AsBool())
             {
-                OS::LockGuard guard(ms_assets.m_mutex);
-                for (auto pair : ms_assets.m_dict)
+                ImGui::Begin("AssetSystem");
                 {
-                    const Asset* pAsset = pair.value;
-                    ASSERT(pAsset);
-                    ImGui::Separator();
-                    ImGui::Text("Name: %s", pAsset->name.begin());
-                    ImGui::Text("Pack: %s", pAsset->pack.begin());
-                    ImGui::Text("Location: (%d, %d)", pAsset->offset, pAsset->size);
-                    ImGui::Text("RefCount: %d", pAsset->refCount);
-                    ImGui::Text("Loaded: %s", LoadPtr(pAsset->pData) ? "true" : "false");
+                    OS::LockGuard guard(ms_assets.m_mutex);
+                    for (auto pair : ms_assets.m_dict)
+                    {
+                        const Asset* pAsset = pair.value;
+                        ASSERT(pAsset);
+                        ImGui::Separator();
+                        ImGui::Text("Name: %s", pAsset->name.begin());
+                        ImGui::Text("Pack: %s", pAsset->pack.begin());
+                        ImGui::Text("Location: (%d, %d)", pAsset->offset, pAsset->size);
+                        ImGui::Text("RefCount: %d", pAsset->refCount);
+                        ImGui::Text("Loaded: %s", LoadPtr(pAsset->pData) ? "true" : "false");
+                    }
                 }
+                ImGui::End();
             }
-            ImGui::End();
         }
 
         void Shutdown() final

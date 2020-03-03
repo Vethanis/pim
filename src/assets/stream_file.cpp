@@ -6,6 +6,9 @@
 #include "os/thread.h"
 #include "common/io.h"
 #include "ui/imgui.h"
+#include "common/cvar.h"
+
+static CVar cv_imgui("StreamFile::ImGui", "0.0");
 
 namespace StreamFile
 {
@@ -22,19 +25,22 @@ namespace StreamFile
         }
         void Update() final
         {
-            ImGui::Begin("StreamFile");
+            if (cv_imgui.AsBool())
             {
-                OS::LockGuard guard(ms_lock);
-                for (auto pair : ms_files)
+                ImGui::Begin("StreamFile");
                 {
-                    ImGui::Separator();
-                    ImGui::Text("Path: %s", pair.key.begin());
-                    ImGui::Text("Size: %d", pair.value.memory.size());
-                    ImGui::Text("Descriptor: %d", pair.value.fd.fd);
-                    ImGui::Text("Mapping: %p", pair.value.hMapping);
+                    OS::LockGuard guard(ms_lock);
+                    for (auto pair : ms_files)
+                    {
+                        ImGui::Separator();
+                        ImGui::Text("Path: %s", pair.key.begin());
+                        ImGui::Text("Size: %d", pair.value.memory.size());
+                        ImGui::Text("Descriptor: %d", pair.value.fd.fd);
+                        ImGui::Text("Mapping: %p", pair.value.hMapping);
+                    }
                 }
+                ImGui::End();
             }
-            ImGui::End();
         }
         void Shutdown() final
         {

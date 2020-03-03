@@ -190,7 +190,7 @@ private:
         using namespace Allocator;
 
         Hunk* pHunk = UserToHeader(pOldUser, m_type);
-        if (userBytes < pHunk->size)
+        if (userBytes <= pHunk->size)
         {
             return pOldUser;
         }
