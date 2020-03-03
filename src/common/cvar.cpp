@@ -22,8 +22,7 @@ CVar* CVar::Find(cstr name)
 CVar::CVar(cstr name, cstr value)
 {
     StrCpy(ARGS(m_name), name);
-    StrCpy(ARGS(m_value), value);
-    m_asFloat = (float)atof(value);
+    Set(value);
 
     ms_dict.Add(name, this);
 }
@@ -32,12 +31,12 @@ void CVar::Set(cstr value)
 {
     StrCpy(ARGS(m_value), value);
     m_asFloat = (float)atof(value);
+    ASSERT(m_asFloat != NAN);
 }
 
 void CVar::Set(f32 value)
 {
     ASSERT(value != NAN);
-    char buffer[30];
-    SPrintf(ARGS(buffer), "%f", value);
-    Set(buffer);
+    SPrintf(ARGS(m_value), "%f", value);
+    m_asFloat = value;
 }

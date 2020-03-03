@@ -124,25 +124,26 @@ namespace InputSystem
         }
     }
 
-    struct System final : ISystem
+    static void Init()
     {
-        System() : ISystem("InputSystem") {}
-        void Init() final
+        for (Array<InputListener>& listeners : ms_listeners)
         {
-            for (Array<InputListener>& listeners : ms_listeners)
-            {
-                listeners.Init(Alloc_Perm);
-            }
+            listeners.Init(Alloc_Perm);
         }
-        void Update() final {}
-        void Shutdown() final
-        {
-            for (Array<InputListener>& listeners : ms_listeners)
-            {
-                listeners.Reset();
-            }
-        }
-    };
+    }
 
-    static System ms_system;
+    static void Update()
+    {
+
+    }
+
+    static void Shutdown()
+    {
+        for (Array<InputListener>& listeners : ms_listeners)
+        {
+            listeners.Reset();
+        }
+    }
+
+    static System ms_system{ "InputSystem", {}, Init, Update, Shutdown };
 };

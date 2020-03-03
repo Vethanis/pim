@@ -3,30 +3,33 @@
 
 namespace MeshSystem
 {
-    struct System final : ISystem
+    static void Init()
     {
-        System() : ISystem("MeshSystem", { "AssetSystem", "RenderSystem" }) {}
-        void Init() final
-        {
 
-        }
-        void Update() final
-        {
+    }
 
-        }
-        void Shutdown() final
-        {
+    static void Update()
+    {
 
-        }
-    };
-    static System ms_system;
+    }
+
+    static void Shutdown()
+    {
+
+    }
 
     MeshId Load(Guid guid)
     {
         return {};
     }
+
     void Release(MeshId id)
     {
 
     }
+
+    static System ms_system
+    {
+        "MeshSystem", { "AssetSystem", "RenderSystem" }, Init, Update, Shutdown,
+    };
 };

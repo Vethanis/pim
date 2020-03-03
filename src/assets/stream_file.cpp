@@ -15,46 +15,42 @@ namespace StreamFile
     static OS::Mutex ms_lock;
     static HashDict<PathText, IO::FileMap> ms_files;
 
-    struct StreamFileSystem final : ISystem
+    static void Init()
     {
-        StreamFileSystem() : ISystem("StreamFile", { "RenderSystem" }) {}
-        void Init() final
-        {
-            ms_lock.Open();
-            ms_files.Init();
-        }
-        void Update() final
-        {
-            if (cv_imgui.AsBool())
-            {
-                ImGui::Begin("StreamFile");
-                {
-                    OS::LockGuard guard(ms_lock);
-                    for (auto pair : ms_files)
-                    {
-                        ImGui::Separator();
-                        ImGui::Text("Path: %s", pair.key.begin());
-                        ImGui::Text("Size: %d", pair.value.memory.size());
-                        ImGui::Text("Descriptor: %d", pair.value.fd.fd);
-                        ImGui::Text("Mapping: %p", pair.value.hMapping);
-                    }
-                }
-                ImGui::End();
-            }
-        }
-        void Shutdown() final
-        {
-            ms_lock.Lock();
-            for (auto pair : ms_files)
-            {
-                IO::Close(pair.value);
-            }
-            ms_files.Reset();
-            ms_lock.Close();
-        }
-    };
+        ms_lock.Open();
+        ms_files.Init();
+    }
 
-    static StreamFileSystem ms_system;
+    static void Update()
+    {
+        if (cv_imgui.AsBool())
+        {
+            ImGui::Begin("StreamFile");
+            {
+                OS::LockGuard guard(ms_lock);
+                for (auto pair : ms_files)
+                {
+                    ImGui::Separator();
+                    ImGui::Text("Path: %s", pair.key.begin());
+                    ImGui::Text("Size: %d", pair.value.memory.size());
+                    ImGui::Text("Descriptor: %d", pair.value.fd.fd);
+                    ImGui::Text("Mapping: %p", pair.value.hMapping);
+                }
+            }
+            ImGui::End();
+        }
+    }
+
+    static void Shutdown()
+    {
+        ms_lock.Lock();
+        for (auto pair : ms_files)
+        {
+            IO::Close(pair.value);
+        }
+        ms_files.Reset();
+        ms_lock.Close();
+    }
 
     static bool GetFile(cstr path, IO::FileMap& file)
     {
@@ -158,4 +154,6 @@ namespace StreamFile
 
         return EFail;
     }
+
+    static System ms_system{ "StreamFile", {"RenderSystem"}, Init,Update,Shutdown, };
 };

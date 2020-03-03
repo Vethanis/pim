@@ -85,33 +85,32 @@ namespace ECS
     static Slice<const i32> GetOffsets(const SlabSet* pSet);
     static i32 SlabToRows(Slab* pSlab, Array<Row>& rows);
 
-    struct System final : ISystem
+    static void Init()
     {
-        System() : ISystem("ECS", { "TaskSystem" }) {}
-        void Init() final
-        {
-            ms_free.Init(Alloc_Perm, 1024);
-            ms_entities.Init(Alloc_Perm, 1024);
-            ms_inSlabs.Init(Alloc_Perm, 1024);
-            ms_slabSets.Init(Alloc_Perm, 1024);
+        ms_free.Init(Alloc_Perm, 1024);
+        ms_entities.Init(Alloc_Perm, 1024);
+        ms_inSlabs.Init(Alloc_Perm, 1024);
+        ms_slabSets.Init(Alloc_Perm, 1024);
 
-            RegisterType(TGuidOf<Entity>(), sizeof(Entity));
-        }
-        void Update() final {}
-        void Shutdown() final
-        {
-            ms_free.Reset();
-            ms_entities.Reset();
-            ms_inSlabs.Reset();
-            for (SlabSet* pSet : ms_slabSets)
-            {
-                DestroySlabSet(pSet);
-            }
-            ms_slabSets.Reset();
-        }
-    };
+        RegisterType(TGuidOf<Entity>(), sizeof(Entity));
+    }
 
-    static System ms_system;
+    static void Update()
+    {
+
+    }
+
+    static void Shutdown()
+    {
+        ms_free.Reset();
+        ms_entities.Reset();
+        ms_inSlabs.Reset();
+        for (SlabSet* pSet : ms_slabSets)
+        {
+            DestroySlabSet(pSet);
+        }
+        ms_slabSets.Reset();
+    }
 
     ComponentId RegisterType(Guid guid, i32 sizeOf)
     {
@@ -588,4 +587,6 @@ namespace ECS
         }
         return -1;
     }
+
+    static System ms_system{ "ECS", {"TaskSystem"}, Init, Update, Shutdown, };
 };

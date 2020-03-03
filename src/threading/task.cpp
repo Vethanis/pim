@@ -216,42 +216,42 @@ static void TaskLoop(void* pVoid)
 
 namespace TaskSystem
 {
-    struct System final : ISystem
+    static void Init()
     {
-        System() : ISystem("TaskSystem") {}
-        void Init() final
+        ms_waitPush.Open();
+        ms_waitExec.Open();
+        Store(ms_running, 1u);
+        for (u32 t = 1u; t < kNumThreads; ++t)
         {
-            ms_waitPush.Open();
-            ms_waitExec.Open();
-            Store(ms_running, 1u);
-            for (u32 t = 1u; t < kNumThreads; ++t)
-            {
-                ms_locks[t].Open();
-                ms_queues[t].Init(Alloc_Perm, 256);
-                ms_threads[t].Open(TaskLoop, (void*)((isize)t));
-            }
+            ms_locks[t].Open();
+            ms_queues[t].Init(Alloc_Perm, 256);
+            ms_threads[t].Open(TaskLoop, (void*)((isize)t));
         }
-        void Update() final {}
-        void Shutdown() final
+    }
+
+    static void Update()
+    {
+
+    }
+
+    static void Shutdown()
+    {
+        Store(ms_running, 0u);
+        while (Load(ms_numThreadsRunning, MO_Relaxed) > 0)
         {
-            Store(ms_running, 0u);
-            while (Load(ms_numThreadsRunning, MO_Relaxed) > 0)
-            {
-                ms_waitPush.WakeAll();
-                ms_waitExec.WakeAll();
-                OS::SwitchThread();
-            }
-            for (u32 t = 1u; t < kNumThreads; ++t)
-            {
-                ms_threads[t].Join();
-                ms_queues[t].Reset();
-                ms_locks[t].Close();
-            }
-            ms_waitPush.Close();
-            ms_waitExec.Close();
+            ms_waitPush.WakeAll();
+            ms_waitExec.WakeAll();
+            OS::SwitchThread();
         }
-    };
-    static System ms_system;
+        for (u32 t = 1u; t < kNumThreads; ++t)
+        {
+            ms_threads[t].Join();
+            ms_queues[t].Reset();
+            ms_locks[t].Close();
+        }
+        ms_waitPush.Close();
+        ms_waitExec.Close();
+    }
 
     void Submit(ITask* pTask)
     {
@@ -261,4 +261,6 @@ namespace TaskSystem
     {
         WaitForTask(pTask, ms_tid);
     }
+
+    static System ms_system{ "TaskSystem", {}, Init, Update, Shutdown };
 };

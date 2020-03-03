@@ -14,25 +14,31 @@ namespace AudioSystem
         }
     }
 
-    struct System final : ISystem
+    static void Init()
     {
-        System() : ISystem("AudioSystem") {}
-        void Init() final
-        {
-            saudio_desc desc = {};
-            desc.num_channels = 2;
-            desc.sample_rate = 44100;
-            desc.stream_cb = AudioMain;
-            saudio_setup(&desc);
-        }
-        void Update() final
-        {
+        saudio_desc desc = {};
+        desc.num_channels = 2;
+        desc.sample_rate = 44100;
+        desc.stream_cb = AudioMain;
+        saudio_setup(&desc);
+    }
 
-        }
-        void Shutdown() final
-        {
-            saudio_shutdown();
-        }
+    static void Update()
+    {
+
+    }
+
+    static void Shutdown()
+    {
+        saudio_shutdown();
+    }
+
+    static System ms_system
+    {
+        "AudioSystem",
+        {},
+        Init,
+        Update,
+        Shutdown,
     };
-    static System ms_system;
 };

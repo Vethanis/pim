@@ -1,26 +1,23 @@
 #pragma once
 
-#include "common/guid.h"
-#include "containers/slice.h"
-#include "containers/array.h"
+#include "common/int_types.h"
 #include <initializer_list>
 
-struct ISystem
+struct System
 {
-    ISystem(cstr name, std::initializer_list<cstr> dependencies = {});
-    virtual ~ISystem() {}
+    System() {}
+    System(
+        cstr name,
+        std::initializer_list<cstr> dependencies,
+        void(*pInit)(),
+        void(*pUpdate)(),
+        void(*pShutdown)());
 
-    virtual void Init() = 0;
-    virtual void Update() = 0;
-    virtual void Shutdown() = 0;
-
-    Slice<const Guid> GetDependencies() const { return m_dependencies; }
-
-private:
-    Array<Guid> m_dependencies;
-
-    ISystem(const ISystem&) = delete;
-    ISystem& operator=(const ISystem&) = delete;
+    cstr m_name;
+    std::initializer_list<cstr> m_dependencies;
+    void(*Init)();
+    void(*Update)();
+    void(*Shutdown)();
 };
 
 namespace Systems
@@ -28,5 +25,4 @@ namespace Systems
     void Init();
     void Update();
     void Shutdown();
-    ISystem* Find(Guid id);
 }

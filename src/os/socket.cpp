@@ -1,19 +1,28 @@
 #include "os/socket.h"
 #include "components/system.h"
 
-struct SocketSystem final : ISystem
+namespace SocketSystem
 {
-    SocketSystem() : ISystem("Socket") {}
-
-    void Init() final
+    static void Init()
     {
         Socket::Init();
     }
-    void Update() final {}
-    void Shutdown() final
+    static void Update()
+    {
+
+    }
+    static void Shutdown()
     {
         Socket::Shutdown();
     }
+
+    static System ms_system
+    {
+        "Socket",
+        {},
+        Init,
+        Update,
+        Shutdown,
+    };
 };
 
-static SocketSystem ms_system;

@@ -31,68 +31,62 @@ namespace AssetSystem
     static AssetTable ms_assets;
     static ObjPool<LoadTask> ms_taskPool;
 
-    struct System final : ISystem
+    static void Init()
     {
-        System() : ISystem("AssetSystem", { "RenderSystem" }) {}
+        ms_assets.Init();
+        ms_taskPool.Init();
 
-        void Init() final
+        Quake::Folder folder = Quake::LoadFolder("packs/id1", Alloc_Temp);
+        for (const Quake::Pack& pack : folder.packs)
         {
-            ms_assets.Init();
-            ms_taskPool.Init();
-
-            Quake::Folder folder = Quake::LoadFolder("packs/id1", Alloc_Temp);
-            for (const Quake::Pack& pack : folder.packs)
+            for (const Quake::DPackFile& file : pack.files)
             {
-                for (const Quake::DPackFile& file : pack.files)
-                {
-                    ms_assets.GetAdd(
-                        file.name,
-                        {
-                            file.name,
-                            pack.path,
-                            file.offset,
-                            file.length
-                        });
-                }
-            }
-            Quake::FreeFolder(folder);
-        }
-
-        void Update() final
-        {
-            if (cv_imgui.AsBool())
-            {
-                ImGui::Begin("AssetSystem");
-                {
-                    OS::LockGuard guard(ms_assets.m_mutex);
-                    for (auto pair : ms_assets.m_dict)
+                ms_assets.GetAdd(
+                    file.name,
                     {
-                        const Asset* pAsset = pair.value;
-                        ASSERT(pAsset);
-                        ImGui::Separator();
-                        ImGui::Text("Name: %s", pAsset->name.begin());
-                        ImGui::Text("Pack: %s", pAsset->pack.begin());
-                        ImGui::Text("Location: (%d, %d)", pAsset->offset, pAsset->size);
-                        ImGui::Text("RefCount: %d", pAsset->refCount);
-                        ImGui::Text("Loaded: %s", LoadPtr(pAsset->pData) ? "true" : "false");
-                    }
-                }
-                ImGui::End();
+                        file.name,
+                        pack.path,
+                        file.offset,
+                        file.length
+                    });
             }
         }
+        Quake::FreeFolder(folder);
+    }
 
-        void Shutdown() final
+    static void Update()
+    {
+        if (cv_imgui.AsBool())
         {
-            ms_taskPool.Reset();
-            ms_assets.m_mutex.Lock();
-            for (auto pair : ms_assets.m_dict)
+            ImGui::Begin("AssetSystem");
             {
-                Allocator::Free(pair.value->pData);
+                OS::LockGuard guard(ms_assets.m_mutex);
+                for (auto pair : ms_assets.m_dict)
+                {
+                    const Asset* pAsset = pair.value;
+                    ASSERT(pAsset);
+                    ImGui::Separator();
+                    ImGui::Text("Name: %s", pAsset->name.begin());
+                    ImGui::Text("Pack: %s", pAsset->pack.begin());
+                    ImGui::Text("Location: (%d, %d)", pAsset->offset, pAsset->size);
+                    ImGui::Text("RefCount: %d", pAsset->refCount);
+                    ImGui::Text("Loaded: %s", LoadPtr(pAsset->pData) ? "true" : "false");
+                }
             }
-            ms_assets.Reset();
+            ImGui::End();
         }
-    };
-    static System ms_system;
+    }
+
+    static void Shutdown()
+    {
+        ms_taskPool.Reset();
+        ms_assets.m_mutex.Lock();
+        for (auto pair : ms_assets.m_dict)
+        {
+            Allocator::Free(pair.value->pData);
+        }
+        ms_assets.Reset();
+    }
 
     void LoadTask::OnResult(EResult err, Slice<u8> data)
     {
@@ -213,4 +207,6 @@ namespace AssetSystem
             }
         }
     }
+
+    static System ms_system{ "AssetSystem", {"RenderSystem"}, Init, Update, Shutdown, };
 };

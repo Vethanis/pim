@@ -3,30 +3,37 @@
 
 namespace MaterialSystem
 {
-    struct System final : ISystem
+    static void Init()
     {
-        System() : ISystem("MaterialSystem", { "AssetSystem", "RenderSystem" }) {}
-        void Init() final
-        {
 
-        }
-        void Update() final
-        {
+    }
 
-        }
-        void Shutdown() final
-        {
+    static void Update()
+    {
 
-        }
-    };
-    static System ms_system;
+    }
+
+    static void Shutdown()
+    {
+
+    }
 
     MaterialId Load(Guid guid)
     {
         return { 0 };
     }
+
     void Release(MaterialId id)
     {
 
     }
+
+    static System ms_system
+    {
+        "MaterialSystem",
+        { "AssetSystem", "RenderSystem" },
+        Init,
+        Update,
+        Shutdown,
+    };
 };

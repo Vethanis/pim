@@ -98,94 +98,99 @@ namespace RenderSystem
         },
     };
 
-    struct System final : ISystem
+    static DrawTask m_task1;
+    static DrawTask m_task2;
+    static void Init();
+    static void Update();
+    static void Shutdown();
+
+    static System ms_system
     {
-        System() : ISystem("RenderSystem", { "InputSystem", "ECS", "TaskSystem" }) {}
-
-        DrawTask m_task1;
-        DrawTask m_task2;
-
-        void Init() final
-        {
-            {
-                sg_desc desc = {};
-                desc.mtl_device = sapp_metal_get_device();
-                desc.mtl_drawable_cb = sapp_metal_get_drawable;
-                desc.mtl_renderpass_descriptor_cb = sapp_metal_get_renderpass_descriptor;
-                desc.d3d11_device = sapp_d3d11_get_device();
-                desc.d3d11_device_context = sapp_d3d11_get_device_context();
-                desc.d3d11_render_target_view_cb = sapp_d3d11_get_render_target_view;
-                desc.d3d11_depth_stencil_view_cb = sapp_d3d11_get_depth_stencil_view;
-                sg_setup(&desc);
-            }
-            {
-                ImGui::SetAllocatorFunctions(Allocator::ImGuiAllocFn, Allocator::ImGuiFreeFn);
-                simgui_desc_t desc = {};
-                simgui_setup(&desc);
-            }
-            Screen::Update();
-
-            CTypeOf<Camera>();
-
-            constexpr i32 kThousand = 1000;
-            constexpr i32 kMillion = 1000 * kThousand;
-
-            constexpr i32 kCount = 1 * kMillion;
-            for (i32 i = 0; i < kCount; ++i)
-            {
-                if (Random::NextF32() < 0.5f)
-                {
-                    Entity entity = ECS::Create({ CTypeOf<Drawable>(), CTypeOf<LocalToWorld>() });
-                }
-                else if (Random::NextF32() < 0.5f)
-                {
-                    Entity entity = ECS::Create({ CTypeOf<LocalToWorld>() });
-                }
-                else if (Random::NextF32() < 0.01f)
-                {
-                    Entity entity = ECS::Create({ CTypeOf<Camera>(), CTypeOf<LocalToWorld>() });
-                }
-            }
-        }
-
-        void Update() final
-        {
-            Screen::Update();
-            simgui_new_frame(Screen::Width(), Screen::Height(), Time::DeltaTimeF32());
-            sg_begin_default_pass(&ms_clear, Screen::Width(), Screen::Height());
-
-            const u64 a = Time::Now();
-
-            TaskSystem::Await(&m_task2);
-
-            m_task1.Setup(math::Pi, math::Tau);
-            m_task2.SetDependency(&m_task1);
-            m_task2.Setup(math::Tau, math::Pi);
-
-            TaskSystem::Submit(&m_task1);
-            TaskSystem::Submit(&m_task2);
-
-            f32 ms = Time::ToMilliseconds(Time::Now() - a);
-            static f32 s_avg = 0.0f;
-
-            f32 alpha = 1.0f / Min((f32)Time::FrameCount(), 120.0f);
-            s_avg = math::lerp(s_avg, ms, alpha);
-
-            ImGui::Begin("RenderSystem");
-            ImGui::Text("DrawTask Submit ms: %.2f", s_avg);
-            ImGui::End();
-        }
-
-        void Shutdown() final
-        {
-            TaskSystem::Await(&m_task2);
-
-            simgui_shutdown();
-            sg_shutdown();
-        }
+        "RenderSystem",
+        { "InputSystem", "ECS", "TaskSystem" },
+        Init,
+        Update,
+        Shutdown,
     };
 
-    static System ms_system;
+    static void Init()
+    {
+        {
+            sg_desc desc = {};
+            desc.mtl_device = sapp_metal_get_device();
+            desc.mtl_drawable_cb = sapp_metal_get_drawable;
+            desc.mtl_renderpass_descriptor_cb = sapp_metal_get_renderpass_descriptor;
+            desc.d3d11_device = sapp_d3d11_get_device();
+            desc.d3d11_device_context = sapp_d3d11_get_device_context();
+            desc.d3d11_render_target_view_cb = sapp_d3d11_get_render_target_view;
+            desc.d3d11_depth_stencil_view_cb = sapp_d3d11_get_depth_stencil_view;
+            sg_setup(&desc);
+        }
+        {
+            ImGui::SetAllocatorFunctions(Allocator::ImGuiAllocFn, Allocator::ImGuiFreeFn);
+            simgui_desc_t desc = {};
+            simgui_setup(&desc);
+        }
+        Screen::Update();
+
+        CTypeOf<Camera>();
+
+        constexpr i32 kThousand = 1000;
+        constexpr i32 kMillion = 1000 * kThousand;
+
+        constexpr i32 kCount = 1 * kMillion;
+        for (i32 i = 0; i < kCount; ++i)
+        {
+            if (Random::NextF32() < 0.5f)
+            {
+                Entity entity = ECS::Create({ CTypeOf<Drawable>(), CTypeOf<LocalToWorld>() });
+            }
+            else if (Random::NextF32() < 0.5f)
+            {
+                Entity entity = ECS::Create({ CTypeOf<LocalToWorld>() });
+            }
+            else if (Random::NextF32() < 0.01f)
+            {
+                Entity entity = ECS::Create({ CTypeOf<Camera>(), CTypeOf<LocalToWorld>() });
+            }
+        }
+    }
+
+    static void Update()
+    {
+        Screen::Update();
+        simgui_new_frame(Screen::Width(), Screen::Height(), Time::DeltaTimeF32());
+        sg_begin_default_pass(&ms_clear, Screen::Width(), Screen::Height());
+
+        const u64 a = Time::Now();
+
+        TaskSystem::Await(&m_task2);
+
+        m_task1.Setup(math::Pi, math::Tau);
+        m_task2.SetDependency(&m_task1);
+        m_task2.Setup(math::Tau, math::Pi);
+
+        TaskSystem::Submit(&m_task1);
+        TaskSystem::Submit(&m_task2);
+
+        f32 ms = Time::ToMilliseconds(Time::Now() - a);
+        static f32 s_avg = 0.0f;
+
+        f32 alpha = 1.0f / Min((f32)Time::FrameCount(), 120.0f);
+        s_avg = math::lerp(s_avg, ms, alpha);
+
+        ImGui::Begin("RenderSystem");
+        ImGui::Text("DrawTask Submit ms: %.2f", s_avg);
+        ImGui::End();
+    }
+
+    static void Shutdown()
+    {
+        TaskSystem::Await(&m_task2);
+
+        simgui_shutdown();
+        sg_shutdown();
+    }
 
     void FrameEnd()
     {
