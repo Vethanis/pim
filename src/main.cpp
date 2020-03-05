@@ -9,9 +9,7 @@
 
 static void Init()
 {
-    Time::Init();
     Random::Seed();
-    Allocator::Init();
     Systems::Init();
 }
 
@@ -37,9 +35,17 @@ static void OnEvent(const sapp_event* evt)
 
 sapp_desc sokol_main(int argc, char** argv)
 {
-    sapp_desc desc = {0};
-    desc.width = 640;
-    desc.height = 480;
+    Time::Init();
+    Allocator::Init();
+
+    sapp_desc desc = {};
+    desc.window_title = "Pim";
+    desc.width = 320 * 4;
+    desc.height = 240 * 4;
+    desc.sample_count = 1;
+    desc.swap_interval = 1;
+    desc.alpha = false;
+    desc.high_dpi = false;
     desc.init_cb = Init;
     desc.frame_cb = Update;
     desc.cleanup_cb = Shutdown;

@@ -1,9 +1,10 @@
 #include "threading/task.h"
 #include "os/thread.h"
 #include "os/atomics.h"
-#include "containers/queue.h"
+#include "containers/ptrqueue.h"
 #include "components/system.h"
 #include "common/random.h"
+#include "common/minmax.h"
 
 enum ThreadState : u32
 {
@@ -18,8 +19,7 @@ struct Range { i32 begin, end; };
 // ----------------------------------------------------------------------------
 
 static OS::Thread ms_threads[kNumThreads];
-static Queue<ITask*> ms_queues[kNumThreads];
-static OS::Mutex ms_locks[kNumThreads];
+static PtrQueue ms_queues[kNumThreads];
 
 static OS::Event ms_waitPush;
 static OS::Event ms_waitExec;
@@ -120,10 +120,7 @@ static bool ReportProgress(ITask* pTask, Range range)
 
 static ITask* PopTask(u32 tid)
 {
-    ITask* pTask = 0;
-    OS::LockGuard guard(ms_locks[tid]);
-    ms_queues[tid].TryPop(pTask);
-    return pTask;
+    return static_cast<ITask*>(ms_queues[tid].TryPop());
 }
 
 static bool TryRunTask(u32 tid)
@@ -167,8 +164,30 @@ static void AddTask(ITask* pTask, u32 tid)
 
     for (u32 i = 1; i < kNumThreads; ++i)
     {
-        OS::LockGuard guard(ms_locks[i]);
         ms_queues[i].Push(pTask);
+    }
+
+    ms_waitPush.WakeAll();
+}
+
+static void AddTasks(Slice<ITask*> tasks, u32 tid)
+{
+    for (ITask* pTask : tasks)
+    {
+        ASSERT(pTask);
+        ASSERT(pTask->IsInitOrComplete());
+
+        Store(GetStatus(pTask), TaskStatus_Exec);
+        Store(GetHead(pTask), GetBegin(pTask));
+        Store(GetTail(pTask), GetBegin(pTask));
+    }
+
+    for (u32 i = 1; i < kNumThreads; ++i)
+    {
+        for (ITask* pTask : tasks)
+        {
+            ms_queues[i].Push(pTask);
+        }
     }
 
     ms_waitPush.WakeAll();
@@ -223,7 +242,6 @@ namespace TaskSystem
         Store(ms_running, 1u);
         for (u32 t = 1u; t < kNumThreads; ++t)
         {
-            ms_locks[t].Open();
             ms_queues[t].Init(Alloc_Perm, 256);
             ms_threads[t].Open(TaskLoop, (void*)((isize)t));
         }
@@ -247,7 +265,6 @@ namespace TaskSystem
         {
             ms_threads[t].Join();
             ms_queues[t].Reset();
-            ms_locks[t].Close();
         }
         ms_waitPush.Close();
         ms_waitExec.Close();
@@ -257,6 +274,12 @@ namespace TaskSystem
     {
         AddTask(pTask, ms_tid);
     }
+
+    void Submit(Slice<ITask*> tasks)
+    {
+        AddTasks(tasks, ms_tid);
+    }
+
     void Await(ITask* pTask)
     {
         WaitForTask(pTask, ms_tid);

@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 using usize = size_t;
-using isize = ptrdiff_t;
+using isize = intptr_t;
 
 using i64 = int64_t;
 using i32 = int32_t;

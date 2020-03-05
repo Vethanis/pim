@@ -2,7 +2,6 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include <string.h>
 
 template<typename T>
 struct Slice
@@ -71,6 +70,18 @@ struct Slice
 };
 
 template<typename T>
+static bool Overlaps(Slice<T> lhs, Slice<T> rhs)
+{
+    return (lhs.begin() <= rhs.end()) && (lhs.end() >= rhs.begin());
+}
+
+template<typename T>
+static bool Adjacent(Slice<T> lhs, Slice<T> rhs)
+{
+    return (lhs.begin() == rhs.end()) || (rhs.begin() == lhs.end());
+}
+
+template<typename T>
 static Slice<T> Combine(Slice<T> lhs, Slice<T> rhs)
 {
     ASSERT(Adjacent(lhs, rhs));
@@ -84,8 +95,9 @@ static Slice<T> Combine(Slice<T> lhs, Slice<T> rhs)
 template<typename T>
 static void Copy(Slice<T> dst, Slice<T> src)
 {
-    i32 a = dst.bytes();
-    i32 b = src.bytes();
-    i32 sz = a < b ? a : b;
-    memmove(dst.begin(), src.begin(), sz);
+    const i32 sz = a < b ? a : b;
+    for (i32 i = 0; i < sz; ++i)
+    {
+        dst[i] = src[i];
+    }
 }

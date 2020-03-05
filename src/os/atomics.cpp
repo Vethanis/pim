@@ -37,11 +37,7 @@ void ThreadFenceRelease() { std::atomic_thread_fence(std::memory_order_release);
 #define ATOMIC_IMPL(T) \
     T Load(const volatile T& atom, MemOrder ord) { return STD_CT(T, atom).load(STD_E(ord)); } \
     void Store(volatile T& atom, T x, MemOrder ord) { STD_T(T, atom).store(x, STD_E(ord)); } \
-    bool CmpExWeak(volatile T& atom, T& expected, T desired, MemOrder success, MemOrder failure) \
-    { \
-        return STD_T(T, atom).compare_exchange_weak(expected, desired, STD_E(success), STD_E(failure)); \
-    } \
-    bool CmpExStrong(volatile T& atom, T& expected, T desired, MemOrder success, MemOrder failure) \
+    bool CmpEx(volatile T& atom, T& expected, T desired, MemOrder success, MemOrder failure) \
     { \
         return STD_T(T, atom).compare_exchange_strong(expected, desired, STD_E(success), STD_E(failure)); \
     } \

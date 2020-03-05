@@ -50,7 +50,7 @@ public:
         u8* head = LoadPtr(m_head, MO_Relaxed);
         if (head + rawBytes <= tail)
         {
-            if (CmpExStrongPtr(m_head, head, head + rawBytes, MO_Acquire))
+            if (CmpExPtr(m_head, head, head + rawBytes, MO_Acquire))
             {
                 return RawToUser(head, m_type, rawBytes);
             }
@@ -74,7 +74,7 @@ public:
         ASSERT(head);
         if (end == head)
         {
-            if (!CmpExStrongPtr(m_head, head, begin, MO_Release))
+            if (!CmpExPtr(m_head, head, begin, MO_Release))
             {
                 goto tryfree;
             }
@@ -101,7 +101,7 @@ public:
         ASSERT(head);
         if (end == head)
         {
-            if (CmpExStrongPtr(m_head, head, head + diff, MO_Acquire))
+            if (CmpExPtr(m_head, head, head + diff, MO_Acquire))
             {
                 pOldHeader->size += diff;
                 return pOldUser;

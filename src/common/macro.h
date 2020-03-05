@@ -4,9 +4,6 @@
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
     #define PLAT_WINDOWS            1
-    #ifdef _WIN64
-        #define PLAT_64             1
-    #endif
 #elif defined(__ANDROID__)
     #define PLAT_ANDROID            1
 #elif defined(__APPLE__)
@@ -22,6 +19,9 @@
 #else
     #error Unable to detect current platform
 #endif // def _WIN32 || def __CYGWIN__
+
+#define PLAT_64 (UINTPTR_MAX == UINT64_MAX)
+#define PLAT_32 (UINTPTR_MAX == UINT32_MAX)
 
 // ----------------------------------------------------------------------------
 

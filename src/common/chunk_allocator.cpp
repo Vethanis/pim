@@ -16,7 +16,7 @@ void ChunkAllocator::Init(AllocType allocator, i32 itemSize)
 void ChunkAllocator::Reset()
 {
     Chunk* pChunk = LoadPtr(m_head, MO_Relaxed);
-    if (pChunk && CmpExStrongPtr(m_head, pChunk, (Chunk*)0, MO_Acquire))
+    if (pChunk && CmpExPtr(m_head, pChunk, (Chunk*)0, MO_Acquire))
     {
         while (pChunk)
         {
@@ -40,7 +40,7 @@ tryalloc:
         for (i32 i = 0; i < kChunkSize; ++i)
         {
             u8 used = Load(inUse[i], MO_Relaxed);
-            if (!used && CmpExStrong(inUse[i], used, 1, MO_Acquire))
+            if (!used && CmpEx(inUse[i], used, 1, MO_Acquire))
             {
                 u8* ptr = pChunk->GetItem(i, itemSize);
                 memset(ptr, 0, itemSize);
@@ -55,7 +55,7 @@ tryalloc:
 tryinsert:
     Chunk* pHead = LoadPtr(m_head);
     pNew->pNext = pHead;
-    if (!CmpExStrongPtr(m_head, pHead, pNew))
+    if (!CmpExPtr(m_head, pHead, pNew))
     {
         goto tryinsert;
     }
@@ -78,7 +78,7 @@ void ChunkAllocator::Free(void* pVoid)
             {
                 u8 used = Load(pChunk->inUse[i], MO_Relaxed);
                 ASSERT(used);
-                bool released = CmpExStrong(pChunk->inUse[i], used, 0, MO_Release);
+                bool released = CmpEx(pChunk->inUse[i], used, 0, MO_Release);
                 ASSERT(released);
             }
             pChunk = LoadPtr(pChunk->pNext, MO_Relaxed);

@@ -3,20 +3,15 @@
 #include "allocator/allocator.h"
 #include "os/thread.h"
 #include "os/atomics.h"
+#include "common/minmax.h"
 
-template<typename T>
-struct MtQueue
+struct PtrQueue
 {
-    static constexpr u32 kFlagWritable = 0x00000000u;
-    static constexpr u32 kFlagReadable = 0x11111111u;
-    static constexpr u32 kFlagLocked = 0xffffffffu;
-
     OS::RWLock m_lock;
     u32 m_iWrite;
     u32 m_iRead;
     u32 m_width;
-    T* m_ptr;
-    u32* m_flags;
+    isize* m_ptr;
     AllocType m_allocator;
 
     void Init(AllocType allocator = Alloc_Perm, u32 minCap = 0u)
@@ -25,7 +20,6 @@ struct MtQueue
         m_iRead = 0;
         m_width = 0;
         m_ptr = 0;
-        m_flags = 0;
         m_lock = {};
         m_lock.Open();
         m_allocator = allocator;
@@ -39,9 +33,7 @@ struct MtQueue
     {
         m_lock.LockWriter();
         Allocator::Free(m_ptr);
-        Allocator::Free(m_flags);
         m_ptr = 0;
-        m_flags = 0;
         m_width = 0;
         m_iWrite = 0;
         m_iRead = 0;
@@ -61,10 +53,10 @@ struct MtQueue
         Store(m_iWrite, 0);
         Store(m_iRead, 0);
         const u32 width = Load(m_width);
-        u32* const flags = m_flags;
+        isize* const ptr = m_ptr;
         for (u32 i = 0; i < width; ++i)
         {
-            Store(flags[i], kFlagWritable, MO_Relaxed);
+            Store(ptr[i], 0, MO_Relaxed);
         }
     }
 
@@ -74,13 +66,11 @@ struct MtQueue
         const u32 newWidth = ToPow2(minCap);
         if (newWidth > capacity())
         {
-            T* newPtr = Allocator::CallocT<T>(m_allocator, newWidth);
-            u32* newFlags = Allocator::CallocT<u32>(m_allocator, newWidth);
+            isize* newPtr = Allocator::CallocT<isize>(m_allocator, newWidth);
 
             m_lock.LockWriter();
 
-            T* oldPtr = m_ptr;
-            u32* oldFlags = m_flags;
+            isize* oldPtr = m_ptr;
             const u32 oldWidth = capacity();
             const bool grew = oldWidth < newWidth;
 
@@ -95,11 +85,9 @@ struct MtQueue
                 {
                     const u32 iOld = (oldTail + i) & oldMask;
                     newPtr[i] = oldPtr[iOld];
-                    newFlags[i] = oldFlags[iOld];
                 }
 
                 m_ptr = newPtr;
-                m_flags = newFlags;
                 Store(m_width, newWidth);
                 Store(m_iRead, 0);
                 Store(m_iWrite, len);
@@ -110,33 +98,30 @@ struct MtQueue
             if (grew)
             {
                 Allocator::Free(oldPtr);
-                Allocator::Free(oldFlags);
             }
             else
             {
                 Allocator::Free(newPtr);
-                Allocator::Free(newFlags);
             }
         }
     }
 
-    void Push(const T& value)
+    void Push(void* pValue)
     {
+        ASSERT(pValue);
+        const isize iPtr = (isize)pValue;
         while (true)
         {
-            Reserve(size() + 3u);
+            Reserve(size() + 1u);
             OS::ReadGuard guard(m_lock);
             const u32 mask = capacity() - 1u;
-            T* const ptr = m_ptr;
-            u32* const flags = m_flags;
+            isize* const ptr = m_ptr;
             for (u32 i = Load(m_iWrite); size() <= mask; ++i)
             {
                 i &= mask;
-                u32 prev = kFlagWritable;
-                if (CmpExStrong(flags[i], prev, kFlagLocked, MO_Acquire))
+                isize prev = Load(ptr[i], MO_Relaxed);
+                if (!prev && CmpEx(ptr[i], prev, iPtr, MO_Acquire))
                 {
-                    ptr[i] = value;
-                    Store(flags[i], kFlagReadable);
                     Inc(m_iWrite, MO_Release);
                     return;
                 }
@@ -144,28 +129,26 @@ struct MtQueue
         }
     }
 
-    bool TryPop(T& valueOut)
+    void* TryPop()
     {
         if (!size())
         {
-            return false;
+            return 0;
         }
         OS::ReadGuard guard(m_lock);
         const u32 mask = capacity() - 1u;
-        T* const ptr = m_ptr;
-        u32* const flags = m_flags;
+        isize* const ptr = m_ptr;
         for (u32 i = Load(m_iRead); size() != 0u; ++i)
         {
             i &= mask;
-            u32 prev = kFlagReadable;
-            if (CmpExStrong(flags[i], prev, kFlagLocked, MO_Acquire))
+            isize prev = Load(ptr[i], MO_Relaxed);
+            if (prev && CmpEx(ptr[i], prev, 0, MO_Acquire))
             {
-                valueOut = ptr[i];
-                Store(flags[i], kFlagWritable);
                 Inc(m_iRead, MO_Release);
-                return true;
+                ASSERT(prev);
+                return (void*)prev;
             }
         }
-        return false;
+        return 0;
     }
 };

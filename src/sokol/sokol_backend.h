@@ -3,7 +3,7 @@
 #include "common/macro.h"
 
 #if PLAT_WINDOWS
-    #define SOKOL_D3D11             1
+    #define SOKOL_GLCORE33          1
 #elif PLAT_LINUX
     #define SOKOL_GLCORE33          1
 #elif PLAT_MAC

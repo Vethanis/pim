@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/int_types.h"
+#include "containers/slice.h"
 
 static constexpr u32 kNumThreads = 32;
 static constexpr i32 kTaskSplit = kNumThreads * (kNumThreads / 2);
@@ -54,5 +55,6 @@ private:
 namespace TaskSystem
 {
     void Submit(ITask* pTask);
+    void Submit(Slice<ITask*> tasks);
     void Await(ITask* pTask);
 };

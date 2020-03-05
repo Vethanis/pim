@@ -102,7 +102,7 @@ namespace AssetSystem
             void* pDst = LoadPtr(pAsset->pData);
             if (!pDst)
             {
-                wrote = CmpExStrongPtr(pAsset->pData, pDst, pSrc);
+                wrote = CmpExPtr(pAsset->pData, pDst, pSrc);
             }
 
             if (!wrote)
@@ -194,7 +194,7 @@ namespace AssetSystem
             u64 spins = 0;
             while (
                 (prev > 0) &&
-                !CmpExStrong(pAsset->refCount, prev, prev - 1))
+                !CmpEx(pAsset->refCount, prev, prev - 1))
             {
                 OS::Spin(++spins);
             }

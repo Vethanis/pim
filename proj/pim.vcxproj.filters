@@ -205,6 +205,9 @@
     <ClCompile Include="..\src\common\cvar.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\sokol\sokol_gl.c">
+      <Filter>Source Files\sokol</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\hash.h">
@@ -593,6 +596,9 @@
     </ClInclude>
     <ClInclude Include="..\src\common\cvar.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\ptrqueue.h">
+      <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

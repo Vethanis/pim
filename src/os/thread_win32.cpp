@@ -68,7 +68,7 @@ static isize AllocAdapter(ThreadAdapter adapter)
         for (isize i = 0; i < MaxThreads; ++i)
         {
             i32 state = 0;
-            if (CmpExStrong(ms_adapterLocks[i], state, 1, MO_Acquire, MO_Relaxed))
+            if (CmpEx(ms_adapterLocks[i], state, 1))
             {
                 ms_adapters[i].fn = adapter.fn;
                 ms_adapters[i].data = adapter.data;

@@ -112,6 +112,8 @@ namespace ECS
         ms_slabSets.Reset();
     }
 
+    static System ms_system{ "ECS", {}, Init, Update, Shutdown, };
+
     ComponentId RegisterType(Guid guid, i32 sizeOf)
     {
         ASSERT(!IsNull(guid));
@@ -587,6 +589,4 @@ namespace ECS
         }
         return -1;
     }
-
-    static System ms_system{ "ECS", {"TaskSystem"}, Init, Update, Shutdown, };
 };

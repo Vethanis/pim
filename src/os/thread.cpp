@@ -46,7 +46,7 @@ namespace OS
         {
             newState.IncReader();
         }
-        if (!CmpExStrong(m_state, oldState, newState, MO_Acquire))
+        if (!CmpEx(m_state, oldState, newState, MO_Acquire))
         {
             OS::Spin(++spins);
             goto trywrite;
@@ -94,7 +94,7 @@ namespace OS
             newState.readers = waits;
         }
         newState.DecWriter();
-        if (!CmpExStrong(m_state, oldState, newState, MO_Release))
+        if (!CmpEx(m_state, oldState, newState, MO_Release))
         {
             OS::Spin(++spins);
             goto trywrite;
@@ -115,7 +115,7 @@ namespace OS
     bool RWFlag::TryLockReader() const
     {
         i16 state = Load(m_state, MO_Relaxed);
-        return (state >= 0) && CmpExStrong(m_state, state, state + 1, MO_Acquire);
+        return (state >= 0) && CmpEx(m_state, state, state + 1, MO_Acquire);
     }
 
     void RWFlag::LockReader() const
@@ -136,7 +136,7 @@ namespace OS
     bool RWFlag::TryLockWriter()
     {
         i16 state = Load(m_state, MO_Relaxed);
-        return (state == 0) && CmpExStrong(m_state, state, -1, MO_Acquire);
+        return (state == 0) && CmpEx(m_state, state, -1, MO_Acquire);
     }
 
     void RWFlag::LockWriter()
