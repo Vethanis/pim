@@ -33,9 +33,11 @@ static constexpr i32 kNumFrames = 4;
 static constexpr i32 kFrameMask = kNumFrames - 1;
 static constexpr i32 kDrawWidth = 320;
 static constexpr i32 kDrawHeight = 240;
+static constexpr i32 kDrawPixels = kDrawWidth * kDrawHeight;
 static constexpr i32 kTileCount = 8 * 8;
 static constexpr i32 kTileWidth = kDrawWidth / 8;
 static constexpr i32 kTileHeight = kDrawHeight / 8;
+static constexpr i32 kTilePixels = kTileWidth * kTileHeight;
 
 static int4 GetTile(i32 i)
 {
@@ -48,7 +50,7 @@ static int4 GetTile(i32 i)
 
 struct alignas(64) Framebuffer
 {
-    u32 buffer[kDrawWidth * kDrawHeight];
+    u32 buffer[kDrawPixels];
 
     void Set(i32 x, i32 y, float4 color)
     {
@@ -67,9 +69,16 @@ struct alignas(64) Framebuffer
 
     void Clear()
     {
-        for (u32& x : buffer)
+        constexpr i32 ct = kDrawPixels / (4 * 8);
+        ASSERT(ct * (4 * 8) == kDrawPixels);
+        uint4* ptr = (uint4*)buffer;
+        const uint4 v = { 0, 0, 0, 0 };
+        for (i32 i = 0; i < ct; ++i)
         {
-            x = 0;
+            for (i32 j = 0; j < 8; ++j)
+            {
+                ptr[i * 8 + j] = v;
+            }
         }
     }
 };
