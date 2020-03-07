@@ -829,12 +829,14 @@ namespace math
         };
     }
 
+    // https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-step
     template<typename T>
-    inline T step(T a, T b, T x)
+    inline T step(T a, T b)
     {
-        return select(T(0.0f), T(1.0f), x >= y);
+        return select(T(0.0f), T(1.0f), a >= b);
     }
 
+    // https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-smoothstep
     template<typename T>
     inline T smoothstep(T a, T b, T x)
     {

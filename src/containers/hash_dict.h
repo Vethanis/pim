@@ -195,10 +195,10 @@ public:
         const i32 i = Find(key);
         if (i != -1)
         {
-            m_hashes[j] = HashUtil::TombMask;
-            valueOut = m_values[j];
-            memset(m_keys + j, 0, sizeof(K));
-            memset(m_values + j, 0, sizeof(V));
+            m_hashes[i] = HashUtil::TombMask;
+            valueOut = m_values[i];
+            memset(m_keys + i, 0, sizeof(K));
+            memset(m_values + i, 0, sizeof(V));
             --m_count;
             return true;
         }

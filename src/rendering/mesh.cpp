@@ -18,12 +18,12 @@ namespace MeshSystem
 
     }
 
-    MeshId Load(Guid guid)
+    MeshId Load(Guid)
     {
         return {};
     }
 
-    void Release(MeshId id)
+    void Release(MeshId)
     {
 
     }

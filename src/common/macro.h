@@ -28,6 +28,9 @@
 #if PLAT_WINDOWS
     #define RESTRICT                __restrict
     #define INTERRUPT()             __debugbreak()
+    #define PIM_CDECL               __cdecl
+    #define PIM_EXPORT              __declspec(dllexport)
+    #define PIM_IMPORT              __declspec(dllimport)
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN
     #endif
@@ -40,6 +43,9 @@
 #else
     #define IF_WIN32(x)             
     #define IF_UNIX(x)              x
+    #define PIM_CDECL               
+    #define PIM_EXPORT              
+    #define PIM_IMPORT              
 #endif // PLAT_WINDOWS
 
 // ----------------------------------------------------------------------------

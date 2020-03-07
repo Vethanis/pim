@@ -33,7 +33,7 @@ static void OnEvent(const sapp_event* evt)
     InputSystem::OnEvent(evt, RenderSystem::OnEvent(evt));
 }
 
-sapp_desc sokol_main(int argc, char** argv)
+sapp_desc sokol_main(int, char**)
 {
     Time::Init();
     Allocator::Init();

@@ -78,13 +78,6 @@ namespace OS
         void UnlockWriter();
     };
 
-    static RWLock CreateRWLock()
-    {
-        RWLock lock = {};
-        lock.Open();
-        return lock;
-    }
-
     struct ReadGuard
     {
         const RWLock& m_lock;

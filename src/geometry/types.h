@@ -22,7 +22,7 @@ struct Box
 
 struct Cone
 {
-    float3 center;
+    float4 center;
     float2 angle; // sincos of cone angle
 };
 

@@ -18,12 +18,12 @@ namespace MaterialSystem
 
     }
 
-    MaterialId Load(Guid guid)
+    MaterialId Load(Guid)
     {
         return { 0 };
     }
 
-    void Release(MaterialId id)
+    void Release(MaterialId)
     {
 
     }

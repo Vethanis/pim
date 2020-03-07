@@ -5,7 +5,7 @@
 
 namespace AudioSystem
 {
-    static void AudioMain(f32* buffer, i32 num_frames, i32 num_channels)
+    static void AudioMain(f32* buffer, i32 num_frames, i32)
     {
         for (i32 i = 0; i < num_frames; ++i)
         {

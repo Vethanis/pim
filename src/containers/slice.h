@@ -95,6 +95,8 @@ static Slice<T> Combine(Slice<T> lhs, Slice<T> rhs)
 template<typename T>
 static void Copy(Slice<T> dst, Slice<T> src)
 {
+    const i32 a = dst.size();
+    const i32 b = src.size();
     const i32 sz = a < b ? a : b;
     for (i32 i = 0; i < sz; ++i)
     {

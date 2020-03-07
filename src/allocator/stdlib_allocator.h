@@ -10,7 +10,7 @@ private:
     AllocType m_type;
 
 public:
-    void Init(i32 bytes, AllocType type) final { m_type = type; }
+    void Init(i32, AllocType type) final { m_type = type; }
     void Reset() final { }
     void Clear() final { }
 

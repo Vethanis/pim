@@ -9,9 +9,9 @@ struct ComponentId
     i32 Value;
 };
 
-static bool operator==(ComponentId lhs, ComponentId rhs) { return lhs.Value == rhs.Value; }
-static bool operator!=(ComponentId lhs, ComponentId rhs) { return lhs.Value == rhs.Value; }
-static bool operator<(ComponentId lhs, ComponentId rhs) { return lhs.Value < rhs.Value; }
+inline bool operator==(ComponentId lhs, ComponentId rhs) { return lhs.Value == rhs.Value; }
+inline bool operator!=(ComponentId lhs, ComponentId rhs) { return lhs.Value == rhs.Value; }
+inline bool operator<(ComponentId lhs, ComponentId rhs) { return lhs.Value < rhs.Value; }
 
 namespace ECS
 {

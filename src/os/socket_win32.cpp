@@ -2,10 +2,12 @@
 
 #if PLAT_WINDOWS
 
+#define _WINSOCK_DEPRECATED_NO_WARNINGS 1
+
 #include <Windows.h>
 #include <winsock.h>
 #include <ctype.h>
-#pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "Ws2_32.lib")
 
 #include "os/socket.h"
 #include "common/macro.h"
@@ -22,6 +24,7 @@ static sockaddr_in ToSockAddr(u32 addr, u16 port)
     sockaddr_in name = {};
     name.sin_family = AF_INET;
     name.sin_addr.s_addr = addr;
+    // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-htons
     name.sin_port = ::htons(port);
 
     return name;
@@ -132,8 +135,11 @@ Socket Socket::Accept(u32& addr)
     ASSERT(IsOpen());
     if (IsOpen())
     {
-        SOCKET sock = ::accept((SOCKET)m_handle, 0, 0);
+        sockaddr_in saddr = {};
+        i32 len = sizeof(saddr);
+        SOCKET sock = ::accept((SOCKET)m_handle, (sockaddr*)&saddr, &len);
         ASSERT(sock != INVALID_SOCKET);
+        addr = saddr.sin_addr.s_addr;
         return { sock, m_isTcp };
     }
     return { INVALID_SOCKET, m_isTcp };

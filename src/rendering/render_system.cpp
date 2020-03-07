@@ -39,13 +39,11 @@ static constexpr i32 kTileWidth = kDrawWidth / 8;
 static constexpr i32 kTileHeight = kDrawHeight / 8;
 static constexpr i32 kTilePixels = kTileWidth * kTileHeight;
 
-static int4 GetTile(i32 i)
+static int2 GetTile(i32 i)
 {
     i32 x = i & 7;
     i32 y = i >> 3;
-    x *= kTileWidth;
-    y *= kTileHeight;
-    return int4(x, y, x + kTileWidth, y + kTileHeight);
+    return int2(x, y);
 }
 
 struct alignas(64) Framebuffer
@@ -70,7 +68,7 @@ struct alignas(64) Framebuffer
     void Clear()
     {
         constexpr i32 ct = kDrawPixels / (4 * 8);
-        ASSERT(ct * (4 * 8) == kDrawPixels);
+        SASSERT(ct * (4 * 8) == kDrawPixels);
         uint4* ptr = (uint4*)buffer;
         const uint4 v = { 0, 0, 0, 0 };
         for (i32 i = 0; i < ct; ++i)
@@ -83,12 +81,16 @@ struct alignas(64) Framebuffer
     }
 };
 
-static void DrawTile(Framebuffer& buffer, i32 x0, i32 x1, i32 y0, i32 y1)
+static void DrawTile(Framebuffer& buffer, i32 x0, i32 y0)
 {
-    for (i32 y = y0; y < y1; ++y)
+    x0 *= kTileWidth;
+    y0 *= kTileHeight;
+    for (i32 ty = 0; ty < kTileHeight; ++ty)
     {
-        for (i32 x = x0; x < x1; ++x)
+        for (i32 tx = 0; tx < kTileWidth; ++tx)
         {
+            const i32 x = x0 + tx;
+            const i32 y = y0 + ty;
             buffer.Set(x, y, float4(x / (f32)kDrawWidth, y / (f32)kDrawHeight, 0.0f, 1.0f));
         }
     }
@@ -107,8 +109,8 @@ struct DrawTask final : ITask
         Framebuffer& buffer = *m_pBuffer;
         for (i32 i = begin; i < end; ++i)
         {
-            const int4 tile = GetTile(i);
-            DrawTile(buffer, tile.x, tile.z, tile.y, tile.w);
+            const int2 tile = GetTile(i);
+            DrawTile(buffer, tile.x, tile.y);
         }
     }
 };

@@ -374,7 +374,6 @@ namespace IO
         {
             return Begin(fdr, data, spec);
         }
-        return false;
     }
 
     void FindAll(Array<FindData>& results, cstrc spec)

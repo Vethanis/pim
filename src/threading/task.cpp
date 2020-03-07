@@ -153,7 +153,7 @@ static bool TryRunTask(u32 tid)
     return false;
 }
 
-static void AddTask(ITask* pTask, u32 tid)
+static void AddTask(ITask* pTask, u32)
 {
     ASSERT(pTask);
     ASSERT(pTask->IsInitOrComplete());
@@ -170,7 +170,7 @@ static void AddTask(ITask* pTask, u32 tid)
     ms_waitPush.WakeAll();
 }
 
-static void AddTasks(Slice<ITask*> tasks, u32 tid)
+static void AddTasks(Slice<ITask*> tasks, u32)
 {
     for (ITask* pTask : tasks)
     {
@@ -193,7 +193,7 @@ static void AddTasks(Slice<ITask*> tasks, u32 tid)
     ms_waitPush.WakeAll();
 }
 
-static void WaitForTask(ITask* pTask, u32 tid)
+static void WaitForTask(ITask* pTask, u32)
 {
     ASSERT(pTask);
     if (pTask->GetStatus() == TaskStatus_Init)

@@ -195,23 +195,6 @@ namespace ECS
         return !HasAny(entity, none);
     }
 
-    static Array<SlabSet*> GatherSlabSets(TypeFlags all, TypeFlags none)
-    {
-        Array<SlabSet*> results = CreateArray<SlabSet*>(Alloc_Task);
-
-        auto sets = ms_slabSets.AsSlice();
-        for (SlabSet* const pSet : sets)
-        {
-            const TypeFlags flags = pSet->m_flags;
-            if (flags.HasAll(all) && flags.HasNone(none))
-            {
-                results.PushBack(pSet);
-            }
-        }
-
-        return results;
-    }
-
     static Array<Slab*> GatherSlabs(TypeFlags all, TypeFlags none)
     {
         Array<Slab*> results = CreateArray<Slab*>(Alloc_Task);
@@ -229,42 +212,6 @@ namespace ECS
         return results;
     }
 
-    static Array<Entity> GatherEntities(TypeFlags all, TypeFlags none)
-    {
-        Array<Entity> results = CreateArray<Entity>(Alloc_Task);
-
-        const auto sets = ms_slabSets.AsCSlice();
-        for (const SlabSet* const pSet : sets)
-        {
-            const TypeFlags flags = pSet->m_flags;
-            if (flags.HasAll(all) && flags.HasNone(none))
-            {
-                const auto slabs = pSet->m_slabs.AsCSlice();
-                for (const Slab* pSlab : slabs)
-                {
-                    results.AppendRange(GetEntities(pSlab));
-                }
-            }
-        }
-
-        return results;
-    }
-
-    static i32 CountSlabSets(TypeFlags all, TypeFlags none)
-    {
-        i32 count = 0;
-        const auto sets = ms_slabSets.AsCSlice();
-        for (const SlabSet* const pSet : sets)
-        {
-            const TypeFlags flags = pSet->m_flags;
-            if (flags.HasAll(all) && flags.HasNone(none))
-            {
-                ++count;
-            }
-        }
-        return count;
-    }
-
     static i32 CountSlabs(TypeFlags all, TypeFlags none)
     {
         i32 count = 0;
@@ -280,43 +227,9 @@ namespace ECS
         return count;
     }
 
-    static i32 CountEntities(TypeFlags all, TypeFlags none)
-    {
-        i32 count = 0;
-        const auto sets = ms_slabSets.AsCSlice();
-        for (const SlabSet* const pSet : sets)
-        {
-            const TypeFlags flags = pSet->m_flags;
-            if (flags.HasAll(all) && flags.HasNone(none))
-            {
-                const auto slabs = pSet->m_slabs.AsCSlice();
-                for (const Slab* const pSlab : slabs)
-                {
-                    count += pSlab->m_length;
-                }
-            }
-        }
-        return count;
-    }
-
-    static const u8* GetBytes(const Slab* pSlab)
-    {
-        return reinterpret_cast<const u8*>(pSlab + 1);
-    }
-
     static u8* GetBytes(Slab* pSlab)
     {
         return reinterpret_cast<u8*>(pSlab + 1);
-    }
-
-    static Slice<const ComponentId> GetTypes(const SlabSet* pSet)
-    {
-        return { pSet->m_types, pSet->m_typeCount };
-    }
-
-    static Slice<const i32> GetOffsets(const SlabSet* pSet)
-    {
-        return { pSet->m_offsets, pSet->m_typeCount };
     }
 
     static i32 SlabToRows(Slab* pSlab, Array<Row>& rows)
@@ -345,11 +258,6 @@ namespace ECS
     }
 
     static bool IsSingleThreaded() { return (ThreadId() == 0) && (NumActiveThreads() == 0); }
-
-    static Slice<const i32> GetStrides()
-    {
-        return { ms_strides, ms_typeCount };
-    }
 
     static i32 SizeSum(std::initializer_list<ComponentId> types)
     {
@@ -449,14 +357,6 @@ namespace ECS
 
             ms_slabSets.FindRemove(pSet);
         }
-    }
-
-    static Slice<const Entity> GetEntities(const Slab* pSlab)
-    {
-        ASSERT(pSlab);
-        const i32 entitiesOffset = pSlab->m_pSet->m_offsets[0];
-        const Entity* pEntities = reinterpret_cast<const Entity*>(GetBytes(pSlab) + entitiesOffset);
-        return { pEntities, pSlab->m_length };
     }
 
     static Slice<Entity> GetEntities(Slab* pSlab)

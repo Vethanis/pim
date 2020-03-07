@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/text.h"
-#include "common/heap_item.h"
 #include "containers/obj_table.h"
 #include "containers/array.h"
 

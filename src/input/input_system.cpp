@@ -33,8 +33,8 @@ static void OnKey(const sapp_event* evt, bool down)
     }
     Notify(
         InputChannel_Keyboard,
-        evt->key_code,
-        evt->modifiers,
+        (u16)evt->key_code,
+        (u8)evt->modifiers,
         down ? 1.0f : 0.0f,
         0.0f);
 }
@@ -47,8 +47,8 @@ static void OnMouseButton(const sapp_event* evt, bool down)
     }
     Notify(
         InputChannel_MouseButton,
-        evt->mouse_button,
-        evt->modifiers,
+        (u16)evt->mouse_button,
+        (u8)evt->modifiers,
         down ? 1.0f : 0.0f,
         0.0f);
 }
@@ -69,7 +69,7 @@ static void OnMouseMove(const sapp_event* evt)
     // +y == down is a legacy artifact.
     y = -y;
 
-    Notify(InputChannel_MouseMove, 0, evt->modifiers, x, y);
+    Notify(InputChannel_MouseMove, 0, (u8)evt->modifiers, x, y);
 }
 
 static void OnMouseScroll(const sapp_event* evt)
@@ -77,7 +77,7 @@ static void OnMouseScroll(const sapp_event* evt)
     Notify(
         InputChannel_MouseScroll,
         0,
-        evt->modifiers,
+        (u8)evt->modifiers,
         evt->scroll_x,
         evt->scroll_y);
 }

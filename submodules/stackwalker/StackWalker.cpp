@@ -132,11 +132,6 @@ struct DynProc
 
 // ----------------------------------------------------------------------------
 
-static bool FileExists(const char* path)
-{
-    return GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
-}
-
 template<uint32_t nSize>
 static bool GetEnvVar(const char* name, char(&buffer)[nSize])
 {
@@ -602,7 +597,6 @@ namespace StackWalker
                 return false;
             }
 
-            HANDLE hProcess = ms_hProcess;
             const uint32_t pid = ms_processId;
             HANDLE hSnap = CreateToolhelp32SnapshotFn(TH32CS_SNAPMODULE, pid);
             if (hSnap == (HANDLE)-1)
@@ -756,7 +750,6 @@ namespace StackWalker
         // init STACKFRAME for first call
         STACKFRAME64 sframe; // in/out stackframe
         memset(&sframe, 0, sizeof(sframe));
-        DWORD imageType = IMAGE_FILE_MACHINE_AMD64;
         sframe.AddrPC.Offset = ctx.Rip;
         sframe.AddrPC.Mode = AddrModeFlat;
         sframe.AddrFrame.Offset = ctx.Rsp;

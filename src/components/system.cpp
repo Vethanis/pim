@@ -13,13 +13,6 @@ static bool ms_hasInit[MaxSystems];
 static bool ms_needsSort;
 static Graph ms_graph;
 
-static const System* GetSystem(Guid name)
-{
-    i32 i = RFind(ms_names, ms_systemCount, name);
-    ASSERT(i != -1);
-    return ms_systems + i;
-}
-
 static void InitSystem(i32 i)
 {
     ASSERT(!ms_hasInit[i]);

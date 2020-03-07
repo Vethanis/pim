@@ -127,8 +127,7 @@ struct alignas(16) BitField
         BitField result = {};
         for (i32 i = 0; i < NumDwords; ++i)
         {
-            u32 dword = Load(Values[i], MO_Relaxed);
-            result.Values[i] = ~dword;
+            result.Values[i] = ~Values[i];
         }
         return result;
     }

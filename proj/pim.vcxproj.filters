@@ -543,9 +543,6 @@
     <ClInclude Include="..\src\containers\pipe.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\heap_item.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\obj_pool.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -599,6 +596,9 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\ptrqueue.h">
       <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\module.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
