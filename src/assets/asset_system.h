@@ -6,10 +6,8 @@
 
 namespace AssetSystem
 {
-    bool Exists(cstr name);
-    bool IsLoaded(cstr name);
-    ITask* CreateLoad(cstr name);
-    void FreeLoad(ITask* pLoadTask);
-    Slice<u8> Acquire(cstr name);
-    void Release(cstr name);
+    //bool Exists(cstr name);
+    //bool IsLoaded(cstr name);
+    //Slice<u8> Acquire(cstr name);
+    //void Release(cstr name);
 };

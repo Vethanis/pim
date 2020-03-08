@@ -1,5 +1,13 @@
 #pragma once
 
+#ifdef __cplusplus
+    #define PIM_C_BEGIN extern "C" {
+    #define PIM_C_END };
+#else
+    #define PIM_C_BEGIN 
+    #define PIM_C_END 
+#endif // __cplusplus
+
 // ----------------------------------------------------------------------------
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
@@ -26,27 +34,36 @@
 // ----------------------------------------------------------------------------
 
 #if PLAT_WINDOWS
+    #define IF_WIN(x)               x
+    #define IF_UNIX(x)              
+
     #define RESTRICT                __restrict
     #define INTERRUPT()             __debugbreak()
-    #define PIM_CDECL               __cdecl
-    #define PIM_EXPORT              __declspec(dllexport)
-    #define PIM_IMPORT              __declspec(dllimport)
+
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN
     #endif
     #ifndef NOMINMAX
         #define NOMINMAX
     #endif
-
-    #define IF_WIN32(x)             x
-    #define IF_UNIX(x)              
 #else
-    #define IF_WIN32(x)             
+    #define IF_WIN(x)               
     #define IF_UNIX(x)              x
-    #define PIM_CDECL               
-    #define PIM_EXPORT              
-    #define PIM_IMPORT              
+
+    #define INTERRUPT()             raise(SIGTRAP)
 #endif // PLAT_WINDOWS
+
+#define PIM_EXPORT                  IF_WIN(__declspec(dllexport))
+#define PIM_IMPORT                  IF_WIN(__declspec(dllimport))
+#define PIM_CDECL                   IF_WIN(__cdecl)
+
+// ----------------------------------------------------------------------------
+
+#ifdef COMPILING_MODULE
+    #define PIM_API                 PIM_EXPORT
+#else
+    #define PIM_API                 PIM_IMPORT
+#endif // COMPILING_MODULE
 
 // ----------------------------------------------------------------------------
 
@@ -74,5 +91,15 @@
 
 #define SASSERT(x)                  typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
 
+// ----------------------------------------------------------------------------
+
 // Maximum path length, including null terminator
 #define PIM_PATH                    256
+
+// Error codes
+#define PIM_ERR_OK                  0
+#define PIM_ERR_INTERNAL            1
+#define PIM_ERR_ARG_COUNT           2
+#define PIM_ERR_ARG_NAME            3
+#define PIM_ERR_ARG_NULL            4
+#define PIM_ERR_NOT_FOUND           5

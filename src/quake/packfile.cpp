@@ -10,49 +10,46 @@ namespace Quake
         ASSERT(path);
 
         Pack pack = {};
-        pack.files.Init(allocator);
         StrCpy(ARGS(pack.path), path);
 
-        IO::StreamGuard file = IO::FOpen(path, "rb", err);
-        if (err != ESuccess)
+        IO::FD fd = IO::Open(path, IO::OBinary, err);
+        if (!IO::IsOpen(fd))
         {
             return pack;
         }
 
-        IO::FRead(file, &pack.header, sizeof(pack.header), err);
-        if (err != ESuccess)
+        IO::FileMap map = IO::Map(fd, 0, 0, IO::OBinary);
+        IO::Close(fd, err);
+
+        if (!IO::IsOpen(map))
         {
             return pack;
         }
 
-        const i64 fileSize = IO::FSize(file, err);
-        if (err != ESuccess)
-        {
-            return pack;
-        }
-        ASSERT(fileSize < 0x7fffffff);
-        pack.size = (i32)fileSize;
+        pack.ptr = map.memory.begin();
+        pack.bytes = map.memory.size();
+        pack.header = (const DPackHeader*)pack.ptr;
+        ASSERT(pack.bytes >= sizeof(pack.header));
 
-        ASSERT(memcmp(pack.header.id, "PACK", 4) == 0);
-
-        IO::FSeek(file, pack.header.offset, err);
-        if (err != ESuccess)
-        {
-            return pack;
-        }
-
-        ASSERT(pack.header.length >= 0);
-        pack.files.Resize(pack.header.length / sizeof(DPackFile));
-
-        IO::FRead(file, pack.files.begin(), pack.header.length, err);
-        ASSERT(err == ESuccess);
+        ASSERT(memcmp(pack.header->id, "PACK", 4) == 0);
+        ASSERT(pack.header->length >= 0);
+        pack.count = pack.header->length / sizeof(DPackFile);
+        const u8* pFileHeaders = pack.ptr + pack.header->offset;
+        pack.files = (const DPackFile*)pFileHeaders;
 
         return pack;
     }
 
     void FreePack(Pack& pack)
     {
-        pack.files.Reset();
+        if (pack.ptr)
+        {
+            IO::FileMap map = { (u8*)pack.ptr, pack.bytes };
+            IO::Unmap(map);
+            pack.ptr = 0;
+            pack.header = 0;
+            pack.files = 0;
+        }
     }
 
     Folder LoadFolder(cstrc path, AllocType allocator)
@@ -75,7 +72,7 @@ namespace Quake
             SPrintf(ARGS(packDir), "%s/%s", path, file.name);
             FixPath(ARGS(packDir));
             Pack pack = LoadPack(packDir, allocator);
-            if (pack.files.size() > 0)
+            if (pack.ptr != NULL)
             {
                 folder.packs.Grow() = pack;
             }

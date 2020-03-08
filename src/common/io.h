@@ -383,8 +383,6 @@ namespace IO
 
     struct FileMap
     {
-        IO::FD fd;
-        void* hMapping;
         Slice<u8> memory;
     };
 
@@ -393,23 +391,15 @@ namespace IO
         return map.memory.begin() != nullptr;
     }
 
-    FileMap MapFile(
-        IO::FD fd,
-        bool writable,
-        EResult& err);
-    void Close(FileMap& map);
-
-    // Only necessary when you want to guard against a power failure.
-    bool Flush(
-        FileMap map,
-        i32 offset,
-        i32 size);
+    FileMap Map(IO::FD fd, i32 offset, i32 size, u32 oflags);
+    void Unmap(FileMap& map);
+    bool Flush(FileMap map);
 
     struct MapGuard
     {
         FileMap& m_map;
         MapGuard(FileMap& map) : m_map(map) {}
-        ~MapGuard() { Close(m_map); }
+        ~MapGuard() { Unmap(m_map); }
         FileMap Take()
         {
             FileMap map = m_map;

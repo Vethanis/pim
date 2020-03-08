@@ -208,6 +208,12 @@
     <ClCompile Include="..\src\sokol\sokol_gl.c">
       <Filter>Source Files\sokol</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\common\module.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\mman.c">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\hash.h">
@@ -599,6 +605,9 @@
     </ClInclude>
     <ClInclude Include="..\src\common\module.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\os\mman.h">
+      <Filter>Source Files\os</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

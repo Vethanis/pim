@@ -10,6 +10,12 @@ struct PoolAllocator final : IAllocator
 private:
     using Hunk = Allocator::Header;
 
+    // todo: split pool into 3 regions
+    // <= 1kb per alloc
+    // <= 64kb per alloc
+    // > 64 kb per alloc
+    // in order to reduce fragmentation from persistent,
+    // small allocations sitting in a 'desert'
     Hunk* m_head;
     Hunk* m_recent;
     i32 m_capacity;

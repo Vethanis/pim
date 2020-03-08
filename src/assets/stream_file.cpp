@@ -33,8 +33,6 @@ namespace StreamFile
                     ImGui::Separator();
                     ImGui::Text("Path: %s", pair.key.begin());
                     ImGui::Text("Size: %d", pair.value.memory.size());
-                    ImGui::Text("Descriptor: %d", pair.value.fd.fd);
-                    ImGui::Text("Mapping: %p", pair.value.hMapping);
                 }
             }
             ImGui::End();
@@ -46,7 +44,7 @@ namespace StreamFile
         ms_lock.Lock();
         for (auto pair : ms_files)
         {
-            IO::Close(pair.value);
+            IO::Unmap(pair.value);
         }
         ms_files.Reset();
         ms_lock.Close();
@@ -75,21 +73,22 @@ namespace StreamFile
         {
             EResult err = EUnknown;
             IO::FD fd = IO::Open(path, IO::OBinRandRW, err);
-            if (err != ESuccess)
+            if (!IO::IsOpen(fd))
             {
                 return false;
             }
 
-            file = IO::MapFile(fd, true, err);
-            if (err != ESuccess)
+            file = IO::Map(fd, 0, 0, IO::OBinRandRW);
+            IO::Close(fd, err);
+
+            if (!IO::IsOpen(file))
             {
-                IO::Close(fd, err);
                 return false;
             }
 
             if (!AddFile(path, file))
             {
-                IO::Close(file);
+                IO::Unmap(file);
                 return GetFile(path, file);
             }
         }

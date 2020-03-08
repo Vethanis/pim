@@ -3,210 +3,135 @@
 #include "assets/assetdb.h"
 #include "components/system.h"
 #include "quake/packfile.h"
-#include "assets/stream_file.h"
-#include "containers/mtqueue.h"
+#include "containers/hash_dict.h"
 #include "ui/imgui.h"
 #include "common/io.h"
-#include "os/atomics.h"
 #include "common/cvar.h"
+#include "common/guid.h"
 
-static CVar cv_imgui("AssetSystem::ImGui", "1.0");
+static CVar cv_imgui("assets_ui", "1.0");
 
 namespace AssetSystem
 {
-    struct LoadTask final : ReadTask
-    {
-        LoadTask() : ReadTask(), m_pAsset(0) {}
-        void Setup(Asset* pAsset)
-        {
-            ASSERT(pAsset);
-            m_pAsset = pAsset;
-            ReadTask::Setup(pAsset->pack, pAsset->offset, pAsset->size);
-        }
-        void OnResult(EResult err, Slice<u8> data) final;
-    private:
-        Asset* m_pAsset;
-    };
+    static HashDict<Guid, Asset> ms_assets;
+    static Quake::Folder ms_folder;
+    static Array<Quake::Pack> ms_packs;
 
-    static AssetTable ms_assets;
-    static ObjPool<LoadTask> ms_taskPool;
+    static void Init();
+    static void Update();
+    static void Shutdown();
+    static void OnGui();
 
     static void Init()
     {
         ms_assets.Init();
-        ms_taskPool.Init();
+        ms_packs.Init();
 
-        Quake::Folder folder = Quake::LoadFolder("packs/id1", Alloc_Temp);
-        for (const Quake::Pack& pack : folder.packs)
+        ms_folder = Quake::LoadFolder("packs/id1", Alloc_Perm);
+
+        for (const Quake::Pack& pack : ms_packs)
         {
-            for (const Quake::DPackFile& file : pack.files)
+            for (i32 i = 0; i < pack.count; ++i)
             {
-                ms_assets.GetAdd(
+                const Quake::DPackFile& file = pack.files[i];
+                const Guid guid = ToGuid(file.name);
+                const Asset asset =
+                {
                     file.name,
-                    {
-                        file.name,
-                        pack.path,
-                        file.offset,
-                        file.length
-                    });
+                    pack.path,
+                    file.offset,
+                    file.length,
+                    NULL,
+                    0
+                };
+                if (!ms_assets.Add(guid, asset))
+                {
+                    ms_assets.Set(guid, asset);
+                }
             }
         }
-        Quake::FreeFolder(folder);
     }
 
     static void Update()
     {
         if (cv_imgui.AsBool())
         {
-            ImGui::Begin("AssetSystem");
-            {
-                OS::LockGuard guard(ms_assets.m_mutex);
-                for (auto pair : ms_assets.m_dict)
-                {
-                    const Asset* pAsset = pair.value;
-                    ASSERT(pAsset);
-                    ImGui::Separator();
-                    ImGui::Text("Name: %s", pAsset->name.begin());
-                    ImGui::Text("Pack: %s", pAsset->pack.begin());
-                    ImGui::Text("Location: (%d, %d)", pAsset->offset, pAsset->size);
-                    ImGui::Text("RefCount: %d", pAsset->refCount);
-                    ImGui::Text("Loaded: %s", LoadPtr(pAsset->pData) ? "true" : "false");
-                }
-            }
-            ImGui::End();
+            OnGui();
         }
     }
 
     static void Shutdown()
     {
-        ms_taskPool.Reset();
-        ms_assets.m_mutex.Lock();
-        for (auto pair : ms_assets.m_dict)
-        {
-            Allocator::Free(pair.value->pData);
-        }
         ms_assets.Reset();
+        Quake::FreeFolder(ms_folder);
     }
 
-    void LoadTask::OnResult(EResult err, Slice<u8> data)
+    static void OnGui()
     {
-        Asset* pAsset = m_pAsset;
-        ASSERT(pAsset);
-        if (err == ESuccess)
+        ImGui::Begin("AssetSystem");
         {
-            void* pSrc = data.begin();
-            ASSERT(pSrc);
-            ASSERT(data.size() == pAsset->size);
-
-            bool wrote = false;
-            void* pDst = LoadPtr(pAsset->pData);
-            if (!pDst)
+            for (const Quake::Pack& pack : ms_folder.packs)
             {
-                wrote = CmpExPtr(pAsset->pData, pDst, pSrc);
-            }
+                if (ImGui::CollapsingHeader(pack.path))
+                {
+                    i32 used = 0;
+                    for (i32 i = 0; i < pack.count; ++i)
+                    {
+                        used += pack.files[i].length;
+                    }
+                    const i32 overhead = (sizeof(Quake::DPackFile) * pack.count) + sizeof(Quake::DPackHeader);
+                    const i32 empty = (pack.bytes - used) - overhead;
 
-            if (!wrote)
-            {
-                ASSERT(pDst);
-                Allocator::Free(pSrc);
-            }
-        }
-        else
-        {
-            IO::Printf(IO::StdErr, "Failed to load file %s\n", pAsset->name);
-        }
+                    ImGui::PushID(pack.path);
+                    ImGui::Value("File Count", pack.count);
+                    ImGui::Bytes("Bytes", pack.bytes);
+                    ImGui::Bytes("Used", used);
+                    ImGui::Bytes("Empty", empty);
+                    ImGui::Value("Header Offset", pack.header->offset);
+                    ImGui::Bytes("Header Length", pack.header->length);
+                    ImGui::Text("Header ID: %c%c%c%c", pack.header->id[0], pack.header->id[1], pack.header->id[2], pack.header->id[3]);
+                    ImGui::Separator();
 
-        ms_taskPool.Delete(this);
-    }
-
-    bool Exists(cstr name)
-    {
-        ASSERT(name);
-        return ms_assets.Get(name) != 0;
-    }
-
-    bool IsLoaded(cstr name)
-    {
-        ASSERT(name);
-
-        const void* ptr = 0;
-        const Asset* pAsset = ms_assets.Get(name);
-        if (pAsset)
-        {
-            ptr = LoadPtr(pAsset->pData);
-        }
-
-        return ptr != 0;
-    }
-
-    ITask* CreateLoad(cstr name)
-    {
-        ASSERT(name);
-        Asset* pAsset = ms_assets.Get(name);
-        if (pAsset)
-        {
-            const i32 rc = Inc(pAsset->refCount);
-            ASSERT(rc >= 0);
-
-            if (LoadPtr(pAsset->pData))
-            {
-                return 0;
-            }
-
-            LoadTask* pTask = ms_taskPool.New();
-            ASSERT(pTask);
-            pTask->Setup(pAsset);
-            return pTask;
-        }
-        return 0;
-    }
-
-    void FreeLoad(ITask* pLoadTask)
-    {
-        if (pLoadTask)
-        {
-            ms_taskPool.Delete(static_cast<LoadTask*>(pLoadTask));
-        }
-    }
-
-    Slice<u8> Acquire(cstr name)
-    {
-        ASSERT(name);
-
-        Asset* pAsset = ms_assets.Get(name);
-        if (pAsset)
-        {
-            const i32 rc = Inc(pAsset->refCount);
-            ASSERT(rc >= 0);
-            return { (u8*)LoadPtr(pAsset->pData), pAsset->size };
-        }
-        return { 0, 0 };
-    }
-
-    void Release(cstr name)
-    {
-        ASSERT(name);
-
-        Asset* pAsset = ms_assets.Get(name);
-        if (pAsset)
-        {
-            i32 prev = Load(pAsset->refCount);
-            u64 spins = 0;
-            while (
-                (prev > 0) &&
-                !CmpEx(pAsset->refCount, prev, prev - 1))
-            {
-                OS::Spin(++spins);
-            }
-
-            ASSERT(prev >= 0);
-            if (prev == 1)
-            {
-                void* pData = ExchangePtr(pAsset->pData, (void*)0);
-                Allocator::Free(pData);
+                    for (i32 i = 0; i < pack.count; ++i)
+                    {
+                        const Quake::DPackFile& file = pack.files[i];
+                        ImGui::Text("Name: %s", file.name);
+                        ImGui::Text("Usage: %2.2f%%", (file.length * 100.0f) / (f32)used);
+                        ImGui::Value("Offset", file.offset);
+                        ImGui::Bytes("Length", file.length);
+                        ImGui::Separator();
+                    }
+                    ImGui::PopID();
+                }
             }
         }
+        ImGui::End();
     }
+
+    //bool Exists(cstr name)
+    //{
+    //    ASSERT(name);
+    //}
+
+    //bool IsLoaded(cstr name)
+    //{
+    //    ASSERT(name);
+    //}
+
+    //bool Load(cstr name)
+    //{
+
+    //}
+
+    //Slice<u8> Acquire(cstr name)
+    //{
+    //    ASSERT(name);
+    //}
+
+    //void Release(cstr name)
+    //{
+    //    ASSERT(name);
+    //}
 
     static System ms_system{ "AssetSystem", {"RenderSystem"}, Init, Update, Shutdown, };
 };

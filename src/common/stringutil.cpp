@@ -608,7 +608,7 @@ char FixPath(char c)
 {
     switch (c)
     {
-    IF_WIN32(case '/': return '\\';)
+    IF_WIN(case '/': return '\\';)
     IF_UNIX(case '\\': return '/';)
     default: return c;
     };

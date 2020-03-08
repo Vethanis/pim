@@ -24,19 +24,16 @@ namespace Quake
         char name[56];
         i32 offset;
         i32 length;
-
-        bool operator<(const DPackFile& rhs) const
-        {
-            return offset - rhs.offset;
-        }
     };
 
     struct Pack
     {
         char path[PIM_PATH];
-        DPackHeader header;
-        Array<DPackFile> files;
-        i32 size;
+        const u8* ptr;
+        i32 bytes;
+        const DPackHeader* header;
+        const DPackFile* files;
+        i32 count;
     };
 
     struct Folder

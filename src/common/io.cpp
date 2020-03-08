@@ -1,6 +1,6 @@
-
 #define _CRT_SECURE_NO_WARNINGS 1
 #include "common/macro.h"
+#include "os/mman.h"
 
 #include <windows.h>
 
@@ -516,98 +516,49 @@ namespace IO
 
     // ------------------------------------------------------------------------
 
-    FileMap MapFile(IO::FD fd, bool writable, EResult& err)
+    FileMap Map(IO::FD fd, i32 offset, i32 size, u32 oflags)
     {
-        err = EUnknown;
-
-        if (!IsOpen(fd))
+        i32 mapping = 0;
+        if (IsOpen(fd))
         {
-            err = EFail;
+            mapping = MAP_FILE;
+            if (size == 0)
+            {
+                EResult err = EUnknown;
+                size = (i32)Size(fd, err);
+            }
+        }
+        else
+        {
+            mapping = MAP_ANONYMOUS;
+        }
+
+        i32 prot = PROT_READ;
+        if (oflags & OReadWrite)
+        {
+            prot |= PROT_WRITE;
+        }
+
+        void* addr = mmap(NULL, size, prot, MAP_FILE, fd.fd, offset);
+        if (addr == MAP_FAILED)
+        {
             return {};
         }
 
-        const i32 fileSize = (i32)Size(fd, err);
-        if (err == EFail)
-        {
-            return {};
-        }
-
-        if (fileSize <= 0)
-        {
-            err = EFail;
-            return {};
-        }
-
-        HANDLE hFile = (HANDLE)_get_osfhandle(fd.fd);
-        if (hFile == INVALID_HANDLE_VALUE)
-        {
-            err = EFail;
-            return {};
-        }
-
-        const u32 flProtect =
-            writable ? PAGE_READWRITE : PAGE_READONLY;
-
-        HANDLE hMapping = CreateFileMappingA(
-            hFile,
-            nullptr,
-            flProtect,
-            0u,
-            0u,
-            nullptr);
-        if (hMapping == INVALID_HANDLE_VALUE)
-        {
-            err = EFail;
-            return {};
-        }
-
-        constexpr u32 FILE_MAP_READWRITE = FILE_MAP_READ | FILE_MAP_WRITE;
-
-        const u32 viewAccess =
-            writable ? FILE_MAP_READWRITE : FILE_MAP_READ;
-
-        void* addr = MapViewOfFile(
-            hMapping,
-            viewAccess,
-            0u,
-            0u,
-            0u);
-        if (!addr)
-        {
-            CloseHandle(hMapping);
-            err = EFail;
-            return {};
-        }
-
-        FileMap map = {};
-        map.fd = fd;
-        map.hMapping = hMapping;
-        map.memory = { (u8*)addr, fileSize };
-
-        err = ESuccess;
-
-        return map;
+        return { (u8*)addr, size };
     }
 
-    void Close(FileMap& map)
+    void Unmap(FileMap& map)
     {
         if (IsOpen(map))
         {
-            UnmapViewOfFile(map.memory.begin());
-            CloseHandle(map.hMapping);
-            EResult err;
-            Close(map.fd, err);
+            munmap(map.memory.begin(), map.memory.size());
         }
-
         map = {};
     }
 
-    bool Flush(
-        FileMap map,
-        i32 offset,
-        i32 size)
+    bool Flush(FileMap map)
     {
-        Slice<u8> region = map.memory.Subslice(offset, size);
-        return FlushViewOfFile(region.begin(), region.size());
+        return msync(map.memory.begin(), map.memory.size(), MS_ASYNC) == 0;
     }
 };
