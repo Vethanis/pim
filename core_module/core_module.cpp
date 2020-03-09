@@ -46,8 +46,12 @@ static constexpr pimod_t s_module =
     Shutdown,
 };
 
+PIM_C_BEGIN
+
 COREMODULE_API pim_err_t core_module_export(pimod_t* mod_out)
 {
-    *mod_out = s_module;
+    memcpy(mod_out, &s_module, sizeof(pimod_t));
     return 0;
 }
+
+PIM_C_END
