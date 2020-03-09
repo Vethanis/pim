@@ -175,14 +175,8 @@
     <ClCompile Include="..\src\common\time.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\assets\assetdb.cpp">
-      <Filter>Source Files\assets</Filter>
-    </ClCompile>
     <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp">
       <Filter>submodules\stackwalker</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\assets\packdb.cpp">
-      <Filter>Source Files\assets</Filter>
     </ClCompile>
     <ClCompile Include="..\src\os\atomics.cpp">
       <Filter>Source Files\os</Filter>
@@ -195,9 +189,6 @@
     </ClCompile>
     <ClCompile Include="..\src\common\chunk_allocator.cpp">
       <Filter>Source Files\common</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\assets\stream_file.cpp">
-      <Filter>Source Files\assets</Filter>
     </ClCompile>
     <ClCompile Include="..\submodules\tlsf\tlsf.c">
       <Filter>submodules\tlsf</Filter>
@@ -522,12 +513,6 @@
     <ClInclude Include="..\src\common\time.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\assets\assetdb.h">
-      <Filter>Source Files\assets</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\assets\packdb.h">
-      <Filter>Source Files\assets</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\heap.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -551,9 +536,6 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\obj_pool.h">
       <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\assets\stream_file.h">
-      <Filter>Source Files\assets</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\obj_table.h">
       <Filter>Source Files\containers</Filter>

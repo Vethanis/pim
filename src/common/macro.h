@@ -59,14 +59,6 @@
 
 // ----------------------------------------------------------------------------
 
-#ifdef COMPILING_MODULE
-    #define PIM_API                 PIM_EXPORT
-#else
-    #define PIM_API                 PIM_IMPORT
-#endif // COMPILING_MODULE
-
-// ----------------------------------------------------------------------------
-
 #ifdef _DEBUG
     #define IF_DEBUG(x)             x
     #define IFN_DEBUG(x)            (void)0

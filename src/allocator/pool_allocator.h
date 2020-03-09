@@ -10,14 +10,21 @@ struct PoolAllocator final : IAllocator
 private:
     using Hunk = Allocator::Header;
 
-    // todo: split pool into 3 regions
-    // <= 1kb per alloc
-    // <= 64kb per alloc
-    // > 64 kb per alloc
-    // in order to reduce fragmentation from persistent,
-    // small allocations sitting in a 'desert'
-    Hunk* m_head;
-    Hunk* m_recent;
+    static constexpr i32 kSmall = 1 << 10;
+    static constexpr i32 kMedium = 64 << 10;
+    static constexpr i32 kHunkSize = sizeof(Hunk);
+    static constexpr i32 kPools = 3;
+
+    struct Pool
+    {
+        Hunk* pHead;
+        Hunk* pRecent;
+    };
+
+    Pool m_pools[kPools];
+    i32 m_counts[kPools];
+    i32 m_used[kPools];
+    void* m_ptr;
     i32 m_capacity;
     AllocType m_type;
 
@@ -25,32 +32,51 @@ public:
     void Init(i32 capacity, AllocType type) final
     {
         ASSERT(capacity > 0);
-        m_head = (Hunk*)malloc(capacity);
-        ASSERT(m_head);
-        m_recent = 0;
         m_capacity = capacity;
         m_type = type;
-
+        m_ptr = malloc(capacity);
+        ASSERT(m_ptr);
         Clear();
     }
 
     void Reset() final
     {
-        free(m_head);
-        m_head = 0;
-        m_recent = 0;
+        Clear();
+        free(m_ptr);
+        m_ptr = 0;
         m_capacity = 0;
+        for (Pool& pool : m_pools)
+        {
+            pool.pHead = 0;
+            pool.pRecent = 0;
+        }
     }
 
     void Clear() final
     {
-        m_recent = m_head;
-        m_head->next = 0;
-        m_head->prev = 0;
-        m_head->offset = kHunkSize;
-        m_head->size = m_capacity - kHunkSize;
-        m_head->type = m_type;
-        m_head->arg1 = 0;
+        u8* pBase = (u8*)m_ptr;
+        const i32 trimmed = m_capacity - kPools * Allocator::kAlign;
+        const i32 split = Align(trimmed / kPools, Allocator::kAlign);
+        i32 offset = 0;
+        for (i32 i = 0; i < kPools; ++i)
+        {
+            u8* ptr = pBase + i * split;
+            Hunk* pHead = (Hunk*)ptr;
+
+            pHead->type = m_type;
+            pHead->size = split - kHunkSize;
+            pHead->offset = offset + kHunkSize;
+            pHead->arg1 = 0;
+            pHead->prev = 0;
+            pHead->next = 0;
+
+            m_pools[i].pHead = pHead;
+            m_pools[i].pRecent = 0;
+            m_counts[i] = 0;
+            m_used[i] = 0;
+
+            offset += split;
+        }
     }
 
     void* Alloc(i32 bytes) final
@@ -69,8 +95,6 @@ public:
     }
 
 private:
-
-    static constexpr i32 kHunkSize = (i32)sizeof(Hunk);
 
     static Hunk* OffsetPtr(void* ptr, i32 offset)
     {
@@ -121,26 +145,41 @@ private:
         ASSERT(pHunk);
         ASSERT(!pHunk->arg1);
 
+    merge:
         Hunk* pNext = pHunk->next;
-        if (pNext && !pNext->arg1)
+        Hunk* pPrev = pHunk->prev;
+
+        while (pNext && !pNext->arg1)
         {
             pHunk->size += kHunkSize + pNext->size;
-
-            Hunk* pNext2 = pNext->next;
-            pHunk->next = pNext2;
-            if (pNext2)
+            pNext = pNext->next;
+            pHunk->next = pNext;
+            if (pNext)
             {
-                pNext2->prev = pHunk;
+                pNext->prev = pHunk;
             }
         }
 
-        Hunk* pPrev = pHunk->prev;
         if (pPrev && !pPrev->arg1)
         {
-            return Merge(pPrev);
+            pHunk = pPrev;
+            goto merge;
         }
 
         return pHunk;
+    }
+
+    static constexpr i32 SelectPool(i32 bytes)
+    {
+        if (bytes >= kMedium)
+        {
+            return 2;
+        }
+        if (bytes >= kSmall)
+        {
+            return 1;
+        }
+        return 0;
     }
 
     void* _Alloc(i32 userBytes)
@@ -148,32 +187,31 @@ private:
         using namespace Allocator;
 
         const i32 rawBytes = Align(userBytes);
+        const i32 iPool = SelectPool(rawBytes);
 
-        Hunk* pHunk = m_recent;
-    search:
-        while (pHunk)
+        Hunk* hunks[] = { m_pools[iPool].pRecent, m_pools[iPool].pHead };
+        for (Hunk* pStart : hunks)
         {
-            const i32 size = pHunk->size * (1 - pHunk->arg1);
-            const i32 diff = size - rawBytes;
-            if (diff >= 0)
+            Hunk* pHunk = pStart;
+            while (pHunk)
             {
-                if (diff >= 1024)
+                const i32 size = pHunk->size * (1 - pHunk->arg1);
+                const i32 diff = size - rawBytes;
+                if (diff >= 0)
                 {
-                    Split(pHunk, rawBytes);
+                    if (diff >= 256)
+                    {
+                        Split(pHunk, rawBytes);
+                    }
+                    pHunk->arg1 = 1;
+                    pHunk->type = m_type;
+                    m_pools[iPool].pRecent = pHunk->next;
+                    ++m_counts[iPool];
+                    m_used[iPool] += rawBytes;
+                    return HeaderToUser(pHunk);
                 }
-                pHunk->arg1 = 1;
-                pHunk->type = m_type;
-                m_recent = pHunk->next;
-                return HeaderToUser(pHunk);
+                pHunk = pHunk->next;
             }
-            pHunk = pHunk->next;
-        }
-
-        if (m_recent != m_head)
-        {
-            m_recent = m_head;
-            pHunk = m_head;
-            goto search;
         }
 
         ASSERT(false);
@@ -188,7 +226,11 @@ private:
         ASSERT(pHunk->arg1);
         ASSERT(pHunk->type == m_type);
         pHunk->arg1 = 0;
-        m_recent = Merge(pHunk);
+        const i32 rawBytes = pHunk->size;
+        const i32 iPool = SelectPool(rawBytes);
+        m_pools[iPool].pRecent = Merge(pHunk);
+        --m_counts[iPool];
+        m_used[iPool] -= rawBytes;
     }
 
     void* _Realloc(void* pOldUser, i32 userBytes)

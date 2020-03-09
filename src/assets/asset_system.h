@@ -2,12 +2,17 @@
 
 #include "common/int_types.h"
 #include "containers/slice.h"
-#include "threading/task.h"
+
+struct Asset
+{
+    cstr name;
+    cstr pack;
+    i32 offset;
+    i32 size;
+    const void* pData;
+};
 
 namespace AssetSystem
 {
-    //bool Exists(cstr name);
-    //bool IsLoaded(cstr name);
-    //Slice<u8> Acquire(cstr name);
-    //void Release(cstr name);
+    bool Get(cstr name, Asset& asset);
 };
