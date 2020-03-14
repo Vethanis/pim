@@ -59,6 +59,7 @@
 #define PIM_IMPORT                  IF_WIN(__declspec(dllimport))
 #define PIM_CDECL                   IF_WIN(__cdecl)
 
+
 // ----------------------------------------------------------------------------
 
 #ifdef _DEBUG
@@ -84,6 +85,10 @@
 #define CAT_TOK(x, y)               _CAT_TOK(x, y)
 
 #define SASSERT(x)                  typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
+
+#define CONV_ASSERT(O, I) \
+    SASSERT(sizeof(O) >= sizeof(I)); \
+    SASSERT(alignof(O) >= alignof(I));
 
 // ----------------------------------------------------------------------------
 

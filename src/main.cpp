@@ -13,33 +13,17 @@
 #include "../core_module/core_module.h"
 #include "../allocator_module/allocator_module.h"
 
-static constexpr const char* ms_moduleNames[] =
-{
-    "core_module",
-    "allocator_module",
-};
-
 static const core_module_t* CoreModule;
 static const allocator_module_t* AllocatorModule;
 
-static constexpr i32 kNumModules = NELEM(ms_moduleNames);
-static const void* ms_modules[kNumModules];
-static Graph ms_moduleGraph;
-
-template<typename T>
-static const T* LoadModT(const char* name)
-{
-    const T* ptr = reinterpret_cast<const T*>(pimod_load(name));
-    ASSERT(ptr);
-    return ptr;
-}
-
-#define LoadMod(T) LoadModT<T##_t>(#T)
+#define LoadMod(T) (const T##_t*)pimod_load(#T)
 
 static void LoadModules(int32_t argc, char** argv)
 {
     CoreModule = LoadMod(core_module);
+    ASSERT(CoreModule);
     AllocatorModule = LoadMod(allocator_module);
+    ASSERT(AllocatorModule);
 
     CoreModule->Init(argc, argv);
     constexpr int32_t sizes[EAlloc_Count] =

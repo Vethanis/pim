@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/macro.h"
-#include "common/module.h"
 
 #ifdef COREMODULE
     #define COREMODULE_API PIM_EXPORT
@@ -10,6 +9,8 @@
 #endif // COREMODULE
 
 PIM_C_BEGIN
+
+#include <stdint.h>
 
 typedef struct
 {

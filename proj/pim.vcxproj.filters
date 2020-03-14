@@ -86,6 +86,9 @@
     <Filter Include="submodules\tlsf">
       <UniqueIdentifier>{a5fc4c19-dc35-45aa-95d5-c09346c1ec2f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="submodules\pthread_w32">
+      <UniqueIdentifier>{44058f43-2e38-44dd-b4be-8b3d1cc93bee}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">

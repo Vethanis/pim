@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/macro.h"
-#include "common/module.h"
 
 #ifdef ALLOC_MODULE
 #define ALLOC_API PIM_EXPORT
@@ -10,6 +9,8 @@
 #endif // ALLOC_MODULE
 
 PIM_C_BEGIN
+
+#include <stdint.h>
 
 typedef enum
 {
@@ -29,6 +30,6 @@ typedef struct
     void  (PIM_CDECL *Free)(void* ptr);
 } allocator_module_t;
 
-ALLOC_API const void* PIM_CDECL allocator_module_export(void);
+ALLOC_API const allocator_module_t* PIM_CDECL allocator_module_export(void);
 
 PIM_C_END

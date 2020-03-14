@@ -1,6 +1,7 @@
 #include "allocator_module.h"
 
 #include <stdlib.h>
+#include <pthread.h>
 #include "tlsf/tlsf.h"
 
 typedef struct
@@ -13,6 +14,7 @@ typedef struct
 static int32_t ms_sizes[EAlloc_Count];
 static int32_t ms_tempIndex;
 
+static pthread_mutex_t ms_perm_mtx;
 static allocator_t ms_perm;
 static allocator_t ms_temp[2];
 static PIM_TLS allocator_t ms_local;
@@ -62,6 +64,8 @@ static void PIM_CDECL Init(const int32_t* sizes, int32_t count)
         ms_sizes[i] = sizes[i];
     }
 
+    pthread_mutex_init(&ms_perm_mtx, NULL);
+
     ms_tempIndex = 0;
     ms_perm = Create(ms_sizes[EAlloc_Perm]);
     ms_temp[0] = Create(ms_sizes[EAlloc_Temp]);
@@ -76,6 +80,7 @@ static void PIM_CDECL Update(void)
 
 static void PIM_CDECL Shutdown(void)
 {
+    pthread_mutex_destroy(&ms_perm_mtx);
     Destroy(&ms_perm);
     Destroy(&ms_local);
     Destroy(ms_temp + 0);
@@ -101,7 +106,9 @@ static void* PIM_CDECL Alloc(EAllocator type, int32_t bytes)
         ptr = malloc(bytes);
         break;
     case EAlloc_Perm:
+        pthread_mutex_lock(&ms_perm_mtx);
         ptr = tlsf_memalign(ms_perm.tlsf, 16, bytes);
+        pthread_mutex_unlock(&ms_perm_mtx);
         break;
     case EAlloc_Temp:
         ptr = tlsf_memalign(ms_temp[ms_tempIndex].tlsf, 16, bytes);
@@ -163,7 +170,7 @@ static const allocator_module_t kModule =
     .Free = Free,
 };
 
-ALLOC_API const void* PIM_CDECL allocator_module_export(void)
+ALLOC_API const allocator_module_t* PIM_CDECL allocator_module_export(void)
 {
     return &kModule;
 }
