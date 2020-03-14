@@ -10,131 +10,77 @@
 #include "common/random.h"
 #include "rendering/render_system.h"
 
+#include "../core_module/core_module.h"
+#include "../allocator_module/allocator_module.h"
+
 static constexpr const char* ms_moduleNames[] =
 {
     "core_module",
+    "allocator_module",
 };
 
+static const core_module_t* CoreModule;
+static const allocator_module_t* AllocatorModule;
+
 static constexpr i32 kNumModules = NELEM(ms_moduleNames);
-static pimod_t ms_modules[kNumModules];
+static const void* ms_modules[kNumModules];
 static Graph ms_moduleGraph;
 
-static i32 FindModule(cstr name)
+template<typename T>
+static const T* LoadModT(const char* name)
 {
-    const pimod_t* const modules = ms_modules;
-    for (i32 i = 0; i < kNumModules; ++i)
-    {
-        if (strcmp(name, modules[i].name) == 0)
-        {
-            return i;
-        }
-    }
-    return -1;
+    const T* ptr = reinterpret_cast<const T*>(pimod_load(name));
+    ASSERT(ptr);
+    return ptr;
 }
 
-static void LoadModules()
+#define LoadMod(T) LoadModT<T##_t>(#T)
+
+static void LoadModules(int32_t argc, char** argv)
 {
-    for (i32 i = 0; i < kNumModules; ++i)
+    CoreModule = LoadMod(core_module);
+    AllocatorModule = LoadMod(allocator_module);
+
+    CoreModule->Init(argc, argv);
+    constexpr int32_t sizes[EAlloc_Count] =
     {
-        pim_err_t err = pimod_load(ms_moduleNames[i], ms_modules + i);
-        ASSERT(err == PIM_ERR_OK);
-    }
+        1,
+        1 << 10,
+        1 << 10,
+        1 << 10,
+    };
+    AllocatorModule->Init(sizes, EAlloc_Count);
 }
 
 static void UnloadModules()
 {
-    for (i32 i = 0; i < kNumModules; ++i)
-    {
-        pimod_unload(ms_moduleNames[i]);
-    }
-}
+    AllocatorModule->Shutdown();
+    CoreModule->Shutdown();
 
-static void InitModules()
-{
-    ms_moduleGraph.Init();
-    for (i32 i = 0; i < kNumModules; ++i)
-    {
-        ms_moduleGraph.AddVertex();
-    }
-
-    for (i32 dst = 0; dst < kNumModules; ++dst)
-    {
-        const pimod_t& mod = ms_modules[dst];
-        for (i32 j = 0; j < mod.import_count; ++j)
-        {
-            const i32 src = FindModule(mod.imports[j]);
-            if (src == -1)
-            {
-                ASSERT(false);
-                continue;
-            }
-            if (src == dst)
-            {
-                ASSERT(false);
-                continue;
-            }
-            ms_moduleGraph.AddEdge(src, dst);
-        }
-    }
-
-    ms_moduleGraph.Sort();
-
-    for (i32 i = 0; i < kNumModules; ++i)
-    {
-        i32 j = ms_moduleGraph[i];
-        pim_err_t err = ms_modules[j].init(ms_modules, kNumModules);
-        ASSERT(err == PIM_ERR_OK);
-    }
-}
-
-static void UpdateModules()
-{
-    for (i32 i = 0; i < kNumModules; ++i)
-    {
-        i32 j = ms_moduleGraph[i];
-        pim_err_t err = ms_modules[j].update();
-        ASSERT(err == PIM_ERR_OK);
-    }
-}
-
-static void ShutdownModules()
-{
-    for (i32 i = kNumModules - 1; i >= 0; --i)
-    {
-        i32 j = ms_moduleGraph[i];
-        pim_err_t err = ms_modules[j].shutdown();
-        ASSERT(err == PIM_ERR_OK);
-    }
-    ms_moduleGraph.Reset();
+    pimod_unload("allocator_module");
+    pimod_unload("core_module");
 }
 
 static void Init()
 {
     Random::Seed();
     Systems::Init();
-
-    InitModules();
-
-    pimod_func_t func = pimod_find(ARGS(ms_modules), "core_module", "ExampleFn");
-    ASSERT(func);
-    func(0, 0);
 }
 
 static void Update()
 {
+    CoreModule->Update();
+    AllocatorModule->Update();
+
     Time::Update();
     Allocator::Update();
     Systems::Update();
-
-    UpdateModules();
 
     RenderSystem::FrameEnd();
 }
 
 static void Shutdown()
 {
-    ShutdownModules();
-
     Systems::Shutdown();
     Allocator::Shutdown();
     Time::Shutdown();
@@ -147,9 +93,9 @@ static void OnEvent(const sapp_event* evt)
     InputSystem::OnEvent(evt, RenderSystem::OnEvent(evt));
 }
 
-sapp_desc sokol_main(int, char**)
+sapp_desc sokol_main(int argc, char* argv[])
 {
-    LoadModules();
+    LoadModules(argc, argv);
 
     Time::Init();
     Allocator::Init();

@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="allocator_module.h" />
+    <ClInclude Include="tlsf\tlsf.h">
+      <Filter>tlsf</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="allocator_module.c" />
+    <ClCompile Include="tlsf\tlsf.c">
+      <Filter>tlsf</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="tlsf">
+      <UniqueIdentifier>{2032abeb-9ab7-4a52-a60e-0ee740fc1ec0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

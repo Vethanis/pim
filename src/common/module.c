@@ -2,22 +2,23 @@
 
 #if PLAT_WINDOWS
 
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <string.h>
 #include <stdio.h>
 #include <Windows.h>
 
-pim_err_t PIM_CDECL pimod_load(const char* name, pimod_t* mod_out)
+const void* PIM_CDECL pimod_load(const char* name)
 {
-    if (!name || !mod_out)
+    if (!name)
     {
-        return PIM_ERR_ARG_NULL;
+        return 0;
     }
 
-    memset(mod_out, 0, sizeof(pimod_t));
     HMODULE hmod = LoadLibrary(name);
     if (!hmod)
     {
-        return PIM_ERR_NOT_FOUND;
+        return 0;
     }
 
     char procname[256];
@@ -28,38 +29,30 @@ pim_err_t PIM_CDECL pimod_load(const char* name, pimod_t* mod_out)
     if (!proc)
     {
         FreeLibrary(hmod);
-        return PIM_ERR_NOT_FOUND;
+        return 0;
     }
 
     pimod_export_t exporter = (pimod_export_t)proc;
-    pim_err_t status = exporter(mod_out);
-    if (status != PIM_ERR_OK)
+    const void* pModule = exporter();
+    if (!pModule)
     {
         FreeLibrary(hmod);
+        return 0;
     }
 
-    return status;
+    return pModule;
 }
 
-pim_err_t PIM_CDECL pimod_unload(const char* name)
+void PIM_CDECL pimod_unload(const char* name)
 {
-    if (!name)
+    if (name)
     {
-        return PIM_ERR_ARG_NULL;
+        HMODULE hmod = GetModuleHandle(name);
+        if (hmod)
+        {
+            FreeLibrary(hmod);
+        }
     }
-
-    HMODULE hmod = GetModuleHandle(name);
-    if (!hmod)
-    {
-        return PIM_ERR_NOT_FOUND;
-    }
-
-    if (FreeLibrary(hmod))
-    {
-        return PIM_ERR_OK;
-    }
-
-    return PIM_ERR_INTERNAL;
 }
 
 #endif // PLAT_WINDOWS

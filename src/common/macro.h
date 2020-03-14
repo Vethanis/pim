@@ -39,6 +39,7 @@
 
     #define RESTRICT                __restrict
     #define INTERRUPT()             __debugbreak()
+    #define PIM_TLS                 __declspec(thread)
 
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN
@@ -51,6 +52,7 @@
     #define IF_UNIX(x)              x
 
     #define INTERRUPT()             raise(SIGTRAP)
+    #define PIM_TLS                 _Thread_local
 #endif // PLAT_WINDOWS
 
 #define PIM_EXPORT                  IF_WIN(__declspec(dllexport))
