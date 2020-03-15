@@ -1,19 +1,20 @@
 #pragma once
 
 #include "common/macro.h"
-#include "common/int_types.h"
 
-// ----------------------------------------------------------------------------
+PIM_C_BEGIN
 
-enum MemOrder : u32
+#include <stdint.h>
+
+typedef enum
 {
-    MO_Relaxed = 0u,
+    MO_Relaxed = 0,
     MO_Consume,
     MO_Acquire,
     MO_Release,
     MO_AcqRel,
     MO_SeqCst,
-};
+} memorder_t;
 
 void SignalFenceAcquire();
 void SignalFenceRelease();
@@ -21,80 +22,38 @@ void SignalFenceRelease();
 void ThreadFenceAcquire();
 void ThreadFenceRelease();
 
-// ----------------------------------------------------------------------------
+#define DECL_ATOMIC(T, tag) \
+    T load_##tag(const volatile T* atom, memorder_t ord); \
+    void store_##tag(volatile T* atom, T x, memorder_t ord); \
+    int32_t cmpex_##tag(volatile T* atom, T* expected, T desired, memorder_t ord); \
+    T exch_##tag(volatile T* atom, T x, memorder_t ord); \
+    T inc_##tag(volatile T* atom, memorder_t ord); \
+    T dec_##tag(volatile T* atom, memorder_t ord); \
+    T fetch_add_##tag(volatile T* atom, T x, memorder_t ord); \
+    T fetch_sub_##tag(volatile T* atom, T x, memorder_t ord); \
+    T fetch_and_##tag(volatile T* atom, T x, memorder_t ord); \
+    T fetch_or_##tag(volatile T* atom, T x, memorder_t ord); \
+    T fetch_xor_##tag(volatile T* atom, T x, memorder_t ord);
 
-#define ATOMIC_INTERFACE(T) \
-    T Load(const volatile T& atom, MemOrder ord = MO_Acquire); \
-    void Store(volatile T& atom, T x, MemOrder ord = MO_Release); \
-    bool CmpEx(volatile T& atom, T& expected, T desired, MemOrder success = MO_Acquire, MemOrder failure = MO_Relaxed); \
-    T Exchange(volatile T& atom, T x, MemOrder ord = MO_Relaxed); \
-    T Inc(volatile T& atom, MemOrder ord = MO_Relaxed); \
-    T Dec(volatile T& atom, MemOrder ord = MO_Relaxed); \
-    T FetchAdd(volatile T& atom, T x, MemOrder ord = MO_Relaxed); \
-    T FetchSub(volatile T& atom, T x, MemOrder ord = MO_Relaxed); \
-    T FetchAnd(volatile T& atom, T x, MemOrder ord = MO_Relaxed); \
-    T FetchOr(volatile T& atom, T x, MemOrder ord = MO_Relaxed); \
-    T FetchXor(volatile T& atom, T x, MemOrder ord = MO_Relaxed);
+DECL_ATOMIC(uint8_t, u8)
+DECL_ATOMIC(int8_t, i8)
+DECL_ATOMIC(uint16_t, u16)
+DECL_ATOMIC(int16_t, i16)
+DECL_ATOMIC(uint32_t, u32)
+DECL_ATOMIC(int32_t, i32)
+DECL_ATOMIC(uint64_t, u64)
+DECL_ATOMIC(int64_t, i64)
+DECL_ATOMIC(intptr_t, ptr)
 
-// ----------------------------------------------------------------------------
+#define LoadPtr(T, atom, ord)               (T*)load_ptr((const volatile intptr_t*)&(atom), ord)
+#define StorePtr(T, atom, x, ord)           store_ptr((volatile intptr_t*)&(atom), (intptr_t)x, ord)
+#define CmpExPtr(T, atom, exp, des, ord)    cmpex_ptr((volatile intptr_t*)&(atom), (intptr_t*)&(exp), (intptr_t)des, ord)
+#define ExchPtr(T, atom, x, ord)            (T*)exch_ptr((volatile intptr_t*)&(atom), (intptr_t)x, ord)
+#define IncPtr(T, atom, ord)                (T*)fetch_add_ptr((volatile intptr_t*)&(atom), sizeof(T), ord)
+#define DecPtr(T, atom, ord)                (T*)fetch_sub_ptr((volatile intptr_t*)&(atom), sizeof(T), ord)
+#define FetchAddPtr(T, atom, x, ord)        (T*)fetch_add_ptr((volatile intptr_t*)&(atom), sizeof(T) * (intptr_t)(x), ord)
+#define FetchSubPtr(T, atom, x, ord)        (T*)fetch_sub_ptr((volatile intptr_t*)&(atom), sizeof(T) * (intptr_t)(x), ord)
 
-ATOMIC_INTERFACE(u8);
-ATOMIC_INTERFACE(i8);
-ATOMIC_INTERFACE(u16);
-ATOMIC_INTERFACE(i16);
-ATOMIC_INTERFACE(u32);
-ATOMIC_INTERFACE(i32);
-ATOMIC_INTERFACE(u64);
-ATOMIC_INTERFACE(i64);
+PIM_C_END
 
-#undef ATOMIC_INTERFACE
-
-// ----------------------------------------------------------------------------
-
-template<typename T>
-static T* LoadPtr(T* const & atom, MemOrder ord = MO_Acquire)
-{
-    return (T*)::Load((const volatile isize&)atom, ord);
-}
-
-template<typename T>
-static void StorePtr(T*& atom, T* x, MemOrder ord = MO_Release)
-{
-    ::Store((volatile isize&)atom, (isize)x, ord);
-}
-
-template<typename T>
-static bool CmpExPtr(T*& atom, T*& expected, T* desired, MemOrder success = MO_Acquire, MemOrder failure = MO_Relaxed)
-{
-    return ::CmpEx((volatile isize&)atom, (isize&)expected, (isize)desired, success, failure);
-}
-
-template<typename T>
-static T* ExchangePtr(T*& atom, T* x, MemOrder ord = MO_AcqRel)
-{
-    return (T*)::Exchange((volatile isize&)atom, (isize)x, ord);
-}
-
-template<typename T>
-static T* IncPtr(T*& atom, MemOrder ord = MO_Relaxed)
-{
-    return (T*)::FetchAdd((volatile isize&)atom, sizeof(T), ord);
-}
-
-template<typename T>
-static T* DecPtr(T*& atom, MemOrder ord = MO_Relaxed)
-{
-    return (T*)::FetchSub((volatile isize&)atom, sizeof(T), ord);
-}
-
-template<typename T>
-static T* FetchAddPtr(T*& atom, isize x, MemOrder ord = MO_Relaxed)
-{
-    return (T*)::FetchAdd((volatile isize&)atom, x * sizeof(T), ord);
-}
-
-template<typename T>
-static T* FetchSubPtr(T*& atom, isize x, MemOrder ord = MO_Relaxed)
-{
-    return (T*)::FetchSub((volatile isize&)atom, x * sizeof(T), ord);
-}
+#undef DECL_ATOMIC

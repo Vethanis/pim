@@ -18,7 +18,7 @@ namespace OS
         static u32 Dec(u32 x) { ASSERT(x); return (x - 1u) & kMask; }
 
         RWState(u32 x = 0u) { *this = *reinterpret_cast<RWState*>(&x); }
-        operator u32&() { return *reinterpret_cast<u32*>(this); }
+        operator u32() { return *reinterpret_cast<u32*>(this); }
 
         void IncWait() { waiters = Inc(waiters); }
         void DecWait() { waiters = Dec(waiters); }
@@ -36,7 +36,7 @@ namespace OS
     {
         u64 spins = 0;
     trywrite:
-        RWState oldState = Load(m_state, MO_Relaxed);
+        RWState oldState = load_u32(&m_state, MO_Relaxed);
         RWState newState = oldState;
         if (newState.writers)
         {
@@ -46,7 +46,7 @@ namespace OS
         {
             newState.IncReader();
         }
-        if (!CmpEx(m_state, oldState, newState, MO_Acquire))
+        if (!cmpex_u32(&m_state, (u32*)&oldState, newState, MO_Acquire))
         {
             OS::Spin(++spins);
             goto trywrite;
@@ -61,7 +61,7 @@ namespace OS
     {
         RWState oneReader = 0u;
         oneReader.readers = 1u;
-        RWState oldState = FetchSub(m_state, oneReader, MO_Release);
+        RWState oldState = fetch_sub_u32(&m_state, oneReader, MO_Release);
         ASSERT(oldState.readers);
         if ((oldState.readers == 1u) && oldState.writers)
         {
@@ -73,7 +73,7 @@ namespace OS
     {
         RWState oneWriter = 0u;
         oneWriter.writers = 1u;
-        RWState oldState = FetchAdd(m_state, oneWriter, MO_Acquire);
+        RWState oldState = fetch_add_u32(&m_state, oneWriter, MO_Acquire);
         ASSERT(oldState.writers < RWState::kMask);
         if (oldState.writers | oldState.readers)
         {
@@ -85,7 +85,7 @@ namespace OS
     {
         u64 spins = 0;
     trywrite:
-        RWState oldState = Load(m_state, MO_Relaxed);
+        RWState oldState = load_u32(&m_state, MO_Relaxed);
         RWState newState = oldState;
         const u32 waits = newState.waiters;
         if (waits)
@@ -94,7 +94,7 @@ namespace OS
             newState.readers = waits;
         }
         newState.DecWriter();
-        if (!CmpEx(m_state, oldState, newState, MO_Release))
+        if (!cmpex_u32(&m_state, (u32*)&oldState, newState, MO_Release))
         {
             OS::Spin(++spins);
             goto trywrite;
@@ -114,8 +114,8 @@ namespace OS
 
     bool RWFlag::TryLockReader() const
     {
-        i16 state = Load(m_state, MO_Relaxed);
-        return (state >= 0) && CmpEx(m_state, state, state + 1, MO_Acquire);
+        i16 state = load_i16(&m_state, MO_Relaxed);
+        return (state >= 0) && cmpex_i16(&m_state, &state, state + 1, MO_Acquire);
     }
 
     void RWFlag::LockReader() const
@@ -129,14 +129,14 @@ namespace OS
 
     void RWFlag::UnlockReader() const
     {
-        i16 prev = Dec(m_state, MO_Release);
+        i16 prev = dec_i16(&m_state, MO_Release);
         ASSERT(prev > 0);
     }
 
     bool RWFlag::TryLockWriter()
     {
-        i16 state = Load(m_state, MO_Relaxed);
-        return (state == 0) && CmpEx(m_state, state, -1, MO_Acquire);
+        i16 state = load_i16(&m_state, MO_Relaxed);
+        return (state == 0) && cmpex_i16(&m_state, &state, -1, MO_Acquire);
     }
 
     void RWFlag::LockWriter()
@@ -150,7 +150,7 @@ namespace OS
 
     void RWFlag::UnlockWriter()
     {
-        i16 prev = Exchange(m_state, 0, MO_Release);
+        i16 prev = exch_i16(&m_state, 0, MO_Release);
         ASSERT(prev == -1);
     }
 };

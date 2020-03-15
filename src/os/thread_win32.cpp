@@ -68,7 +68,7 @@ static isize AllocAdapter(ThreadAdapter adapter)
         for (isize i = 0; i < MaxThreads; ++i)
         {
             i32 state = 0;
-            if (CmpEx(ms_adapterLocks[i], state, 1))
+            if (cmpex_i32(ms_adapterLocks + i, &state, 1, MO_Acquire))
             {
                 ms_adapters[i].fn = adapter.fn;
                 ms_adapters[i].data = adapter.data;
@@ -83,7 +83,7 @@ static isize AllocAdapter(ThreadAdapter adapter)
 
 static void FreeAdapter(isize i)
 {
-    Store(ms_adapterLocks[i], 0, MO_Release);
+    store_i32(ms_adapterLocks + i, 0, MO_Release);
 }
 
 static unsigned long Win32ThreadFn(void* pVoid)
@@ -255,7 +255,7 @@ namespace OS
 
     bool Event::Open()
     {
-        Store(state, 0);
+        store_i32(&state, 0, MO_Release);
         return true;
     }
 
@@ -267,13 +267,13 @@ namespace OS
 
     void Event::WakeOne()
     {
-        Inc(state, MO_Release);
+        inc_i32(&state, MO_Release);
         ::WakeByAddressSingle(&state);
     }
 
     void Event::WakeAll()
     {
-        Inc(state, MO_Release);
+        inc_i32(&state, MO_Release);
         ::WakeByAddressAll(&state);
     }
 
@@ -287,7 +287,7 @@ namespace OS
 
     void Event::Wait()
     {
-        i32 prev = Load(state);
+        i32 prev = load_i32(&state, MO_Relaxed);
         ::WaitOnAddress(&state, &prev, sizeof(state), INFINITE);
     }
 

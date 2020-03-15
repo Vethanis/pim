@@ -37,26 +37,26 @@ struct PtrQueue
         m_width = 0;
         m_iWrite = 0;
         m_iRead = 0;
-        Store(m_width, 0);
-        Store(m_iWrite, 0);
-        Store(m_iRead, 0);
+        store_u32(&m_width, 0, MO_Relaxed);
+        store_u32(&m_iWrite, 0, MO_Relaxed);
+        store_u32(&m_iRead, 0, MO_Relaxed);
         m_lock.Close();
     }
 
     AllocType GetAllocator() const { return m_allocator; }
-    u32 capacity() const { return Load(m_width); }
-    u32 size() const { return Load(m_iWrite) - Load(m_iRead); }
+    u32 capacity() const { return load_u32(&m_width, MO_Acquire); }
+    u32 size() const { return load_u32(&m_iWrite, MO_Acquire) - load_u32(&m_iRead, MO_Acquire); }
 
     void Clear()
     {
         OS::ReadGuard guard(m_lock);
-        Store(m_iWrite, 0);
-        Store(m_iRead, 0);
-        const u32 width = Load(m_width);
+        store_u32(&m_iWrite, 0, MO_Relaxed);
+        store_u32(&m_iRead, 0, MO_Relaxed);
+        const u32 width = load_u32(&m_width, MO_Relaxed);
         isize* const ptr = m_ptr;
         for (u32 i = 0; i < width; ++i)
         {
-            Store(ptr[i], 0, MO_Relaxed);
+            store_ptr(ptr + i, 0, MO_Relaxed);
         }
     }
 
@@ -77,8 +77,8 @@ struct PtrQueue
             if (grew)
             {
                 const u32 oldMask = oldWidth - 1u;
-                const u32 oldTail = Load(m_iRead);
-                const u32 oldHead = Load(m_iWrite);
+                const u32 oldTail = load_u32(&m_iRead, MO_Relaxed);
+                const u32 oldHead = load_u32(&m_iWrite, MO_Relaxed);
                 const u32 len = oldHead - oldTail;
 
                 for (u32 i = 0u; i < len; ++i)
@@ -88,9 +88,9 @@ struct PtrQueue
                 }
 
                 m_ptr = newPtr;
-                Store(m_width, newWidth);
-                Store(m_iRead, 0);
-                Store(m_iWrite, len);
+                store_u32(&m_width, newWidth, MO_Relaxed);
+                store_u32(&m_iRead, 0, MO_Relaxed);
+                store_u32(&m_iWrite, len, MO_Relaxed);
             }
 
             m_lock.UnlockWriter();
@@ -116,13 +116,13 @@ struct PtrQueue
             OS::ReadGuard guard(m_lock);
             const u32 mask = capacity() - 1u;
             isize* const ptr = m_ptr;
-            for (u32 i = Load(m_iWrite); size() <= mask; ++i)
+            for (u32 i = load_u32(&m_iWrite, MO_Acquire); size() <= mask; ++i)
             {
                 i &= mask;
-                isize prev = Load(ptr[i], MO_Relaxed);
-                if (!prev && CmpEx(ptr[i], prev, iPtr, MO_Acquire))
+                isize prev = load_ptr(ptr + i, MO_Relaxed);
+                if (!prev && cmpex_ptr(ptr + i, &prev, iPtr, MO_Acquire))
                 {
-                    Inc(m_iWrite, MO_Release);
+                    inc_u32(&m_iWrite, MO_Release);
                     return;
                 }
             }
@@ -138,13 +138,13 @@ struct PtrQueue
         OS::ReadGuard guard(m_lock);
         const u32 mask = capacity() - 1u;
         isize* const ptr = m_ptr;
-        for (u32 i = Load(m_iRead); size() != 0u; ++i)
+        for (u32 i = load_u32(&m_iRead, MO_Acquire); size() != 0u; ++i)
         {
             i &= mask;
-            isize prev = Load(ptr[i], MO_Relaxed);
-            if (prev && CmpEx(ptr[i], prev, 0, MO_Acquire))
+            isize prev = load_ptr(ptr + i, MO_Relaxed);
+            if (prev && cmpex_ptr(ptr + i, &prev, 0, MO_Acquire))
             {
-                Inc(m_iRead, MO_Release);
+                inc_u32(&m_iRead, MO_Release);
                 ASSERT(prev);
                 return (void*)prev;
             }
