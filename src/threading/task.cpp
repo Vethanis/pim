@@ -1,6 +1,6 @@
 #include "threading/task.h"
 #include "os/thread.h"
-#include "os/atomics.h"
+#include "common/atomics.h"
 #include "containers/ptrqueue.h"
 #include "components/system.h"
 #include "common/random.h"

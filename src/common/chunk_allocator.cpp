@@ -2,7 +2,7 @@
 
 #include "common/macro.h"
 #include "allocator/allocator.h"
-#include "os/atomics.h"
+#include "common/atomics.h"
 #include <string.h>
 
 void ChunkAllocator::Init(AllocType allocator, i32 itemSize)

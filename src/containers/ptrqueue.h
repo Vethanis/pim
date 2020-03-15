@@ -2,7 +2,7 @@
 
 #include "allocator/allocator.h"
 #include "os/thread.h"
-#include "os/atomics.h"
+#include "common/atomics.h"
 #include "common/minmax.h"
 
 struct PtrQueue

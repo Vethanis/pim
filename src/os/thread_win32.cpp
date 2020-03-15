@@ -4,7 +4,7 @@
 
 #include <windows.h>
 
-#include "os/atomics.h"
+#include "common/atomics.h"
 #include "os/thread.h"
 #include <intrin.h>
 

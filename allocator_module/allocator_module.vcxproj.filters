@@ -11,6 +11,7 @@
     <ClCompile Include="tlsf\tlsf.c">
       <Filter>tlsf</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\common\atomics.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="tlsf">

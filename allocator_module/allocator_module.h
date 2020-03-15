@@ -12,7 +12,7 @@ PIM_C_BEGIN
 
 #include <stdint.h>
 
-typedef enum
+typedef enum EAlloc
 {
     EAlloc_Init = 0,
     EAlloc_Perm,

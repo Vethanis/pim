@@ -178,9 +178,6 @@
     <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp">
       <Filter>submodules\stackwalker</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\os\atomics.cpp">
-      <Filter>Source Files\os</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\os\thread.cpp">
       <Filter>Source Files\os</Filter>
     </ClCompile>
@@ -203,6 +200,9 @@
       <Filter>Source Files\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\common\cvar.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\atomics.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
   </ItemGroup>
@@ -441,18 +441,6 @@
     <ClInclude Include="..\src\allocator\allocator.h">
       <Filter>Source Files\allocator</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\allocator\linear_allocator.h">
-      <Filter>Source Files\allocator</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\allocator\pool_allocator.h">
-      <Filter>Source Files\allocator</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\allocator\stack_allocator.h">
-      <Filter>Source Files\allocator</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\allocator\stdlib_allocator.h">
-      <Filter>Source Files\allocator</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\assets\asset_system.h">
       <Filter>Source Files\assets</Filter>
     </ClInclude>
@@ -525,9 +513,6 @@
     <ClInclude Include="..\src\containers\array_view.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\os\atomics.h">
-      <Filter>Source Files\os</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\bitpack.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -561,12 +546,6 @@
     <ClInclude Include="..\src\containers\graph.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\allocator\iallocator.h">
-      <Filter>Source Files\allocator</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\allocator\header.h">
-      <Filter>Source Files\allocator</Filter>
-    </ClInclude>
     <ClInclude Include="..\submodules\tlsf\tlsf.h">
       <Filter>submodules\tlsf</Filter>
     </ClInclude>
@@ -590,6 +569,9 @@
     </ClInclude>
     <ClInclude Include="..\src\os\mman.h">
       <Filter>Source Files\os</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\atomics.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

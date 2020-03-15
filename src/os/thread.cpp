@@ -2,7 +2,7 @@
 
 #include "common/macro.h"
 #include "common/minmax.h"
-#include "os/atomics.h"
+#include "common/atomics.h"
 
 namespace OS
 {

@@ -15,6 +15,7 @@
     <ClInclude Include="tlsf\tlsf.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\common\atomics.cpp" />
     <ClCompile Include="allocator_module.c" />
     <ClCompile Include="tlsf\tlsf.c" />
   </ItemGroup>

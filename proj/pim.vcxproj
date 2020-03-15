@@ -14,6 +14,7 @@
     <ClCompile Include="..\src\allocator\allocator.cpp" />
     <ClCompile Include="..\src\assets\asset_system.cpp" />
     <ClCompile Include="..\src\audio\audio_system.cpp" />
+    <ClCompile Include="..\src\common\atomics.cpp" />
     <ClCompile Include="..\src\common\chunk_allocator.cpp" />
     <ClCompile Include="..\src\common\cvar.c" />
     <ClCompile Include="..\src\common\io.cpp" />
@@ -24,7 +25,6 @@
     <ClCompile Include="..\src\components\ecs.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
-    <ClCompile Include="..\src\os\atomics.cpp" />
     <ClCompile Include="..\src\os\mman.c" />
     <ClCompile Include="..\src\os\socket.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
@@ -51,17 +51,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\allocator\allocator.h" />
-    <ClInclude Include="..\src\allocator\header.h" />
-    <ClInclude Include="..\src\allocator\iallocator.h" />
     <ClInclude Include="..\src\allocator\leak_tracker.h" />
-    <ClInclude Include="..\src\allocator\linear_allocator.h" />
-    <ClInclude Include="..\src\allocator\pool_allocator.h" />
-    <ClInclude Include="..\src\allocator\stack_allocator.h" />
-    <ClInclude Include="..\src\allocator\stdlib_allocator.h" />
     <ClInclude Include="..\src\assets\asset_system.h" />
     <ClInclude Include="..\src\audio\audio_system.h" />
     <ClInclude Include="..\src\audio\components.h" />
     <ClInclude Include="..\src\common\apply.h" />
+    <ClInclude Include="..\src\common\atomics.h" />
     <ClInclude Include="..\src\common\chunk_allocator.h" />
     <ClInclude Include="..\src\common\cvar.h" />
     <ClInclude Include="..\src\common\minmax.h" />
@@ -120,7 +115,6 @@
     <ClInclude Include="..\src\math\vec_funcs.h" />
     <ClInclude Include="..\src\math\vec_ops.h" />
     <ClInclude Include="..\src\math\vec_types.h" />
-    <ClInclude Include="..\src\os\atomics.h" />
     <ClInclude Include="..\src\os\mman.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\os\thread.h" />
