@@ -13,35 +13,19 @@
 #include "../core_module/core_module.h"
 #include "../allocator_module/allocator_module.h"
 
-static const core_module_t* CoreModule;
-static const allocator_module_t* AllocatorModule;
-
-#define LoadMod(T) (const T##_t*)pimod_load(#T)
-
+static core_module_t CoreModule;
 static void LoadModules(int32_t argc, char** argv)
 {
-    CoreModule = LoadMod(core_module);
-    ASSERT(CoreModule);
-    AllocatorModule = LoadMod(allocator_module);
-    ASSERT(AllocatorModule);
-
-    CoreModule->Init(argc, argv);
-    constexpr int32_t sizes[EAlloc_Count] =
+    if (!pimod_register("core_module", &CoreModule, sizeof(CoreModule)))
     {
-        1,
-        1 << 10,
-        1 << 10,
-        1 << 10,
-    };
-    AllocatorModule->Init(sizes, EAlloc_Count);
+        ASSERT(0);
+    }
+    CoreModule.Init(argc, argv);
 }
 
 static void UnloadModules()
 {
-    AllocatorModule->Shutdown();
-    CoreModule->Shutdown();
-
-    pimod_unload("allocator_module");
+    CoreModule.Shutdown();
     pimod_unload("core_module");
 }
 
@@ -53,8 +37,7 @@ static void Init()
 
 static void Update()
 {
-    CoreModule->Update();
-    AllocatorModule->Update();
+    CoreModule.Update();
 
     Time::Update();
     Allocator::Update();
@@ -79,10 +62,10 @@ static void OnEvent(const sapp_event* evt)
 
 sapp_desc sokol_main(int argc, char* argv[])
 {
-    LoadModules(argc, argv);
-
     Time::Init();
     Allocator::Init();
+
+    LoadModules(argc, argv);
 
     sapp_desc desc = {};
     desc.window_title = "Pim";

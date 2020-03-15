@@ -18,8 +18,11 @@ PIM_C_BEGIN
 //      MY_API const void* your_module_export(void);
 //   MyModule.c:
 //      static const MyModule kModule = { Init };
-//      MY_API const void* your_module_export(void) { return &kModule; }
+//      MY_API const MyModule* your_module_export(void) { return &kModule; }
 typedef const void* (PIM_CDECL *pimod_export_t)(void);
+
+int32_t PIM_CDECL pimod_register(const char* name, void* dst, int32_t bytes);
+int32_t PIM_CDECL pimod_get(const char* name, void* dst, int32_t bytes);
 
 const void* PIM_CDECL pimod_load(const char* name);
 void PIM_CDECL pimod_unload(const char* name);

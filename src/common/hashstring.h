@@ -1,35 +1,39 @@
 #pragma once
 
 #include "common/macro.h"
-#include "common/int_types.h"
-#include "common/strhash.h"
 
-using HashKey = u32;
+PIM_C_BEGIN
 
-namespace HStr
+#include <stdint.h>
+
+static uint32_t HashStr(const char* text)
 {
-    inline constexpr HashKey Hash(cstrc src)
+    const uint32_t kBias = 2166136261u;
+    const uint32_t kPrime = 16777619u;
+    uint32_t value = 0;
+    if (text)
     {
-        return StrHash32(src);
+        value = kBias;
+        while (*text)
+        {
+            value = (value ^ *text++) * kPrime;
+        }
+        value = value ? value : 1;
     }
-};
+    return value;
+}
 
-struct HashString
+static int32_t HashFind(const uint32_t* const hashes, int32_t count, uint32_t hash)
 {
-    HashKey Value;
+    ASSERT(hashes);
+    for (int32_t i = 0; i < count; ++i)
+    {
+        if (hashes[i] == hash)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
 
-    constexpr HashString()
-        : Value(0) {}
-
-    constexpr HashString(HashKey hash)
-        : Value(hash) {}
-
-    constexpr HashString(cstrc src)
-        : Value(HStr::Hash(src)) {}
-
-    bool IsNull() const { return Value == 0; }
-    bool IsNotNull() const { return Value != 0; }
-    bool operator==(HashString other) const { return Value == other.Value; }
-    bool operator!=(HashString other) const { return Value != other.Value; }
-    bool operator<(HashString other) const { return Value < other.Value; }
-};
+PIM_C_END

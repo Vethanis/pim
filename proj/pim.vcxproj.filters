@@ -142,9 +142,6 @@
     <ClCompile Include="..\src\common\stringutil.cpp">
       <Filter>Source Files\common</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\hashstring.cpp">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\audio\audio_system.cpp">
       <Filter>Source Files\audio</Filter>
     </ClCompile>
@@ -196,9 +193,6 @@
     <ClCompile Include="..\submodules\tlsf\tlsf.c">
       <Filter>submodules\tlsf</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\cvar.cpp">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\sokol\sokol_gl.c">
       <Filter>Source Files\sokol</Filter>
     </ClCompile>
@@ -207,6 +201,9 @@
     </ClCompile>
     <ClCompile Include="..\src\os\mman.c">
       <Filter>Source Files\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\cvar.c">
+      <Filter>Source Files\common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

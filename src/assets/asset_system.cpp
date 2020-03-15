@@ -10,7 +10,7 @@
 #include "common/text.h"
 #include "common/sort.h"
 
-static CVar cv_imgui("assets_ui", "1.0");
+static cvar_t cv_imgui;
 
 namespace AssetSystem
 {
@@ -41,6 +41,8 @@ namespace AssetSystem
 
     static void Init()
     {
+        cvar_create(&cv_imgui, "asset_imgui", "1.0");
+
         ms_assets.Init();
         ms_packs.Init();
 
@@ -56,7 +58,7 @@ namespace AssetSystem
             ms_task = LoadTask();
         }
 
-        if (cv_imgui.AsBool())
+        if (cv_imgui.asFloat > 0.0f)
         {
             OnGui();
         }

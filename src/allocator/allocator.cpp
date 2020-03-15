@@ -1,12 +1,10 @@
 #include "allocator/allocator.h"
 
-#include "allocator/linear_allocator.h"
-#include "allocator/stdlib_allocator.h"
-#include "allocator/pool_allocator.h"
+#include "common/module.h"
+#include "../allocator_module/allocator_module.h"
+#include <string.h>
 
-#include "os/thread.h"
-#include "common/time.h"
-#include "threading/task.h"
+static allocator_module_t ms_module;
 
 namespace Allocator
 {
@@ -14,169 +12,67 @@ namespace Allocator
     static constexpr i32 kMegabyte = 1 << 20;
     static constexpr i32 kGigabyte = 1 << 30;
 
-    static constexpr u32 kTempFrames = 4;
-    static constexpr u32 kFrameMask = kTempFrames - 1u;
-
+    static const int32_t kInitCapacity = 0;
     static constexpr i32 kPermCapacity = 128 * kMegabyte;
     static constexpr i32 kTempCapacity = 4 * kMegabyte;
     static constexpr i32 kTaskCapacity = 1 * kMegabyte;
 
-    static StdlibAllocator ms_initAllocator;
-    static LinearAllocator ms_tempAllocators[kTempFrames];
-    static PoolAllocator ms_taskAllocators[kNumThreads];
-    static PoolAllocator ms_permAllocator;
-    static OS::Mutex ms_permLock;
-
-    static u32 GetFrame() { return Time::FrameCount() & kFrameMask; }
+    static const int32_t kSizes[] =
+    {
+        kInitCapacity,
+        kPermCapacity,
+        kTempCapacity,
+        kTaskCapacity,
+    };
 
     void Init()
     {
-        ms_initAllocator.Init(0, Alloc_Init);
-        ms_permLock.Open();
-        ms_permAllocator.Init(kPermCapacity, Alloc_Perm);
-        for (auto& allocator : ms_tempAllocators)
+        if (!pimod_register("allocator_module", &ms_module, sizeof(ms_module)))
         {
-            allocator.Init(kTempCapacity, Alloc_Temp);
+            ASSERT(0);
         }
-        for (auto& allocator : ms_taskAllocators)
-        {
-            allocator.Init(kTaskCapacity, Alloc_Task);
-        }
+
+        ms_module.Init(kSizes, NELEM(kSizes));
     }
 
     void Update()
     {
-        ms_tempAllocators[GetFrame()].Clear();
+        ms_module.Update();
     }
 
     void Shutdown()
     {
-        ms_permLock.Lock();
-        ms_initAllocator.Reset();
-        for (auto& allocator : ms_tempAllocators)
-        {
-            allocator.Reset();
-        }
-        ms_permAllocator.Reset();
-        for (auto& allocator : ms_taskAllocators)
-        {
-            allocator.Reset();
-        }
-        ms_permLock.Close();
+        ms_module.Shutdown();
+        memset(&ms_module, 0, sizeof(ms_module));
+        pimod_unload("allocator_module");
     }
 
     // ------------------------------------------------------------------------
 
     void* Alloc(AllocType type, i32 bytes)
     {
-        const u32 tid = ThreadId();
-        const u32 frame = GetFrame();
-
-        ASSERT(bytes >= 0);
-        if (bytes <= 0)
-        {
-            return 0;
-        }
-
-        void* ptr = 0;
-
-        switch (type)
-        {
-        case Alloc_Init:
-            ptr = ms_initAllocator.Alloc(bytes);
-            break;
-        case Alloc_Temp:
-            ptr = ms_tempAllocators[frame].Alloc(bytes);
-            break;
-        case Alloc_Perm:
-            ms_permLock.Lock();
-            ptr = ms_permAllocator.Alloc(bytes);
-            ms_permLock.Unlock();
-            break;
-        case Alloc_Task:
-            ptr = ms_taskAllocators[tid].Alloc(bytes);
-            break;
-        }
-
+        void* ptr = ms_module.Alloc((EAllocator)type, bytes);
         ASSERT(ptr);
-        ASSERT(((isize)ptr & 15) == 0);
-
+        ASSERT(((intptr_t)ptr & 15) == 0);
         return ptr;
     }
 
-    void* Realloc(AllocType type, void* pOldUser, i32 bytes)
+    void* Realloc(AllocType type, void* pOld, i32 bytes)
     {
-        const u32 tid = ThreadId();
-        const u32 frame = GetFrame();
-
-        ASSERT(bytes >= 0);
-
-        if (!pOldUser)
+        void* pNew = Alloc(type, bytes);
+        if (pOld && pNew)
         {
-            return Alloc(type, bytes);
+            int32_t* pHeader = (int32_t*)pOld - 4;
+            int32_t oldBytes = pHeader[0];
+            memcpy(pNew, pOld, oldBytes < bytes ? oldBytes : bytes);
         }
-
-        if (bytes <= 0)
-        {
-            Free(pOldUser);
-            return 0;
-        }
-
-        void* ptr = 0;
-
-        switch (UserToHeader(pOldUser, type)->type)
-        {
-        case Alloc_Init:
-            ptr = ms_initAllocator.Realloc(pOldUser, bytes);
-            break;
-        case Alloc_Temp:
-            ptr = ms_tempAllocators[frame].Realloc(pOldUser, bytes);
-            break;
-        case Alloc_Perm:
-            ms_permLock.Lock();
-            ptr = ms_permAllocator.Realloc(pOldUser, bytes);
-            ms_permLock.Unlock();
-            break;
-        case Alloc_Task:
-            ptr = ms_taskAllocators[tid].Realloc(pOldUser, bytes);
-            break;
-        }
-
-        ASSERT(ptr);
-        ASSERT(((isize)ptr & 15) == 0);
-
-        return ptr;
+        Free(pOld);
+        return pNew;
     }
 
     void Free(void* ptr)
     {
-        const u32 tid = ThreadId();
-        const u32 frame = GetFrame();
-
-        if (ptr)
-        {
-            ASSERT(((isize)ptr & 15) == 0);
-            Header* hdr = (Header*)ptr;
-            hdr -= 1;
-
-            switch (hdr->type)
-            {
-            case Alloc_Init:
-                ms_initAllocator.Free(ptr);
-                break;
-            case Alloc_Temp:
-                ms_tempAllocators[frame].Free(ptr);
-                break;
-            case Alloc_Perm:
-                ms_permLock.Lock();
-                ms_permAllocator.Free(ptr);
-                ms_permLock.Unlock();
-                break;
-            case Alloc_Task:
-                ms_taskAllocators[tid].Free(ptr);
-                break;
-            }
-        }
+        ms_module.Free(ptr);
     }
 
     void* Calloc(AllocType type, i32 bytes)

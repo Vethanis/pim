@@ -15,8 +15,7 @@
     <ClCompile Include="..\src\assets\asset_system.cpp" />
     <ClCompile Include="..\src\audio\audio_system.cpp" />
     <ClCompile Include="..\src\common\chunk_allocator.cpp" />
-    <ClCompile Include="..\src\common\cvar.cpp" />
-    <ClCompile Include="..\src\common\hashstring.cpp" />
+    <ClCompile Include="..\src\common\cvar.c" />
     <ClCompile Include="..\src\common\io.cpp" />
     <ClCompile Include="..\src\common\module.c" />
     <ClCompile Include="..\src\common\random.cpp" />

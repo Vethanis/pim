@@ -5,10 +5,18 @@
 
 static constexpr i32 MaxSystems = 64;
 
+#define kMaxDependencies 8
+
+typedef struct
+{
+    Guid guids[kMaxDependencies];
+    int32_t count;
+} deps_t;
+
 static i32 ms_systemCount;
 static Guid ms_names[MaxSystems];
 static System ms_systems[MaxSystems];
-static Array<Guid> ms_deps[MaxSystems];
+static deps_t ms_deps[MaxSystems];
 static bool ms_hasInit[MaxSystems];
 static bool ms_needsSort;
 static Graph ms_graph;
@@ -44,10 +52,10 @@ static void SortSystems()
             const i32 j = ms_graph.AddVertex();
             ASSERT(iDst == j);
 
-            const Slice<const Guid> deps = ms_deps[iDst];
-            for (Guid name : deps)
+            deps_t deps = ms_deps[iDst];
+            for (int32_t d = 0; d < deps.count; ++d)
             {
-                const i32 iSrc = Find(ms_names, count, name);
+                const i32 iSrc = Find(ms_names, count, deps.guids[d]);
                 if (iSrc != -1)
                 {
                     ms_graph.AddEdge(iSrc, iDst);
@@ -72,11 +80,12 @@ static void Register(Guid id, const System* pSystem)
     const i32 i = ms_systemCount++;
     ms_names[i] = id;
     ms_systems[i] = *pSystem;
-    ms_deps[i].Init(Alloc_Init);
     for (cstr dep : pSystem->m_dependencies)
     {
         ASSERT(dep);
-        ms_deps[i].PushBack(ToGuid(dep));
+        int32_t j = ms_deps[i].count++;
+        ASSERT(j < kMaxDependencies);
+        ms_deps[i].guids[j] = ToGuid(dep);
     }
     ms_hasInit[i] = false;
 

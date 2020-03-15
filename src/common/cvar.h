@@ -1,22 +1,21 @@
 #pragma once
 
-#include "common/int_types.h"
+#include "common/macro.h"
 
-struct CVar
+PIM_C_BEGIN
+
+#include <stdint.h>
+
+typedef struct cvar_s
 {
-public:
-    CVar(cstr name, cstr value);
-    void Set(cstr value);
-    void Set(f32 value);
-    cstr GetName() const { return m_name; }
-    cstr GetValue() const { return m_value; }
-    f32 AsFloat() const { return m_asFloat; }
-    i32 AsInt() const { return (i32)m_asFloat; }
-    bool AsBool() const { return m_asFloat > 0.0f; }
+    char name[30];
+    char value[30];
+    float asFloat;
+} cvar_t;
 
-    static CVar* Find(cstr name);
-private:
-    char m_name[30];
-    char m_value[30];
-    f32 m_asFloat;
-};
+void cvar_create(cvar_t* ptr, const char* name, const char* value);
+cvar_t* cvar_find(const char* name);
+void cvar_set_str(cvar_t* ptr, const char* value);
+void cvar_set_float(cvar_t* ptr, float value);
+
+PIM_C_END
