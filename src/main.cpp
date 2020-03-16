@@ -11,12 +11,12 @@
 #include "rendering/render_system.h"
 
 #include "../core_module/core_module.h"
-#include "../allocator_module/allocator_module.h"
 
 static core_module_t CoreModule;
+
 static void LoadModules(int32_t argc, char** argv)
 {
-    if (!pimod_register("core_module", &CoreModule, sizeof(CoreModule)))
+    if (!pimod_get("core_module", &CoreModule, sizeof(CoreModule)))
     {
         ASSERT(0);
     }
@@ -26,7 +26,7 @@ static void LoadModules(int32_t argc, char** argv)
 static void UnloadModules()
 {
     CoreModule.Shutdown();
-    pimod_unload("core_module");
+    pimod_release("core_module");
 }
 
 static void Init()

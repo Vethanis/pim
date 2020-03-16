@@ -2,8 +2,7 @@
 
 // pim code modules:
 // implement and export this function in your dll:
-// pim_err_t %MODULE_NAME%_export(pimod_t* mod_out);
-// where %MODULE_NAME% is the name of your module
+// const your_module_t* your_module_export(void);
 
 #include "common/macro.h"
 
@@ -11,20 +10,157 @@ PIM_C_BEGIN
 
 #include <stdint.h>
 
-// returns address of your function table
-// Example:
-//   MyModule.h:
-//      typedef struct { void(*Init)(void); } MyModule;
-//      MY_API const void* your_module_export(void);
-//   MyModule.c:
-//      static const MyModule kModule = { Init };
-//      MY_API const MyModule* your_module_export(void) { return &kModule; }
 typedef const void* (PIM_CDECL *pimod_export_t)(void);
 
-int32_t PIM_CDECL pimod_register(const char* name, void* dst, int32_t bytes);
 int32_t PIM_CDECL pimod_get(const char* name, void* dst, int32_t bytes);
+int32_t PIM_CDECL pimod_release(const char* name);
 
-const void* PIM_CDECL pimod_load(const char* name);
-void PIM_CDECL pimod_unload(const char* name);
+void* PIM_CDECL pimod_dlopen(const char* name);
+void  PIM_CDECL pimod_dlclose(void* dll);
+void* PIM_CDECL pimod_dlsym(void* dll, const char* name);
 
 PIM_C_END
+
+#ifdef MODULE_IMPL
+
+#include "common/hashstring.h"
+#include "stb/stb_sprintf.h"
+#include <string.h>
+
+#define kMaxModules 256
+
+static int32_t ms_count;
+static uint32_t ms_hashes[kMaxModules];
+static void* ms_dlls[kMaxModules];
+static const void* ms_modules[kMaxModules];
+
+static int32_t pimod_import(const char* name, uint32_t hash)
+{
+    void* dll = pimod_dlopen(name);
+    if (!dll)
+    {
+        return -1;
+    }
+
+    char symname[256];
+    stbsp_sprintf(symname, "%s_export", name);
+    symname[NELEM(symname) - 1] = 0;
+
+    void* sym = pimod_dlsym(dll, symname);
+    if (!sym)
+    {
+        pimod_dlclose(dll);
+        return -1;
+    }
+
+    pimod_export_t exporter = 0;
+    *(void**)(&exporter) = sym;
+    const void* mod = exporter();
+    if (!mod)
+    {
+        pimod_dlclose(dll);
+        return -1;
+    }
+
+    ASSERT(ms_count < kMaxModules);
+    int32_t i = ms_count++;
+    ms_hashes[i] = hash;
+    ms_dlls[i] = dll;
+    ms_modules[i] = mod;
+
+    return i;
+}
+
+int32_t PIM_CDECL pimod_get(const char* name, void* dst, int32_t bytes)
+{
+    ASSERT(name);
+    ASSERT(dst);
+    ASSERT(bytes > 0);
+    const uint32_t hash = HashStr(name);
+    int32_t i = HashFind(ms_hashes, ms_count, hash);
+    if (i == -1)
+    {
+        i = pimod_import(name, hash);
+    }
+    if (i != -1)
+    {
+        const void* src = ms_modules[i];
+        ASSERT(src);
+        memcpy(dst, src, bytes);
+        return 1;
+    }
+    return 0;
+}
+
+int32_t PIM_CDECL pimod_release(const char* name)
+{
+    ASSERT(name);
+    const uint32_t hash = HashStr(name);
+    const int32_t i = HashFind(ms_hashes, ms_count, hash);
+    if (i != -1)
+    {
+        const int32_t back = --ms_count;
+        ASSERT(back >= 0);
+        void* dll = ms_dlls[i];
+        ASSERT(dll);
+        ms_hashes[i] = ms_hashes[back];
+        ms_dlls[i] = ms_dlls[back];
+        ms_modules[i] = ms_modules[back];
+        pimod_dlclose(dll);
+        return 1;
+    }
+    return 0;
+}
+
+#if PLAT_WINDOWS
+
+#include <Windows.h>
+
+void* PIM_CDECL pimod_dlopen(const char* name)
+{
+    HMODULE hmod = LoadLibraryA(name);
+    return (void*)hmod;
+}
+
+void PIM_CDECL pimod_dlclose(void* dll)
+{
+    HMODULE hmod = (HMODULE)dll;
+    FreeLibrary(hmod);
+}
+
+void* PIM_CDECL pimod_dlsym(void* dll, const char* name)
+{
+    HMODULE hmod = (HMODULE)dll;
+    FARPROC proc = GetProcAddress(hmod, name);
+    void* addr = *(void**)(&proc);
+    return addr;
+}
+
+#else
+
+#include <dlfcn.h>
+
+// link with -ldl
+// https://linux.die.net/man/3/dlopen
+
+void* PIM_CDECL pimod_dlopen(const char* name)
+{
+    char libname[256];
+    stbsp_sprintf(libname, "%s.so", name);
+    libname[NELEM(libname) - 1] = 0;
+    return dlopen(libname, RTLD_LAZY | RTLD_LOCAL);
+}
+
+void PIM_CDECL pimod_dlclose(void* dll)
+{
+    dlclose(dll);
+}
+
+void* PIM_CDECL pimod_dlsym(void* dll, const char* name)
+{
+    return dlsym(dll, name);
+}
+
+#endif // PLAT_WINDOWS
+
+#endif // MODULE_IMPL

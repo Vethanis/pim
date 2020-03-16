@@ -12,12 +12,12 @@ namespace Allocator
     static constexpr i32 kMegabyte = 1 << 20;
     static constexpr i32 kGigabyte = 1 << 30;
 
-    static const int32_t kInitCapacity = 0;
+    static constexpr i32 kInitCapacity = 0;
     static constexpr i32 kPermCapacity = 128 * kMegabyte;
     static constexpr i32 kTempCapacity = 4 * kMegabyte;
     static constexpr i32 kTaskCapacity = 1 * kMegabyte;
 
-    static const int32_t kSizes[] =
+    static constexpr i32 kSizes[] =
     {
         kInitCapacity,
         kPermCapacity,
@@ -27,7 +27,7 @@ namespace Allocator
 
     void Init()
     {
-        if (!pimod_register("allocator_module", &ms_module, sizeof(ms_module)))
+        if (!pimod_get("allocator_module", &ms_module, sizeof(ms_module)))
         {
             ASSERT(0);
         }
@@ -44,7 +44,7 @@ namespace Allocator
     {
         ms_module.Shutdown();
         memset(&ms_module, 0, sizeof(ms_module));
-        pimod_unload("allocator_module");
+        pimod_release("allocator_module");
     }
 
     // ------------------------------------------------------------------------

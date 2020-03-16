@@ -23,9 +23,14 @@ static uint32_t HashStr(const char* text)
     return value;
 }
 
-static int32_t HashFind(const uint32_t* const hashes, int32_t count, uint32_t hash)
+static int32_t HashFind(
+    const uint32_t* const hashes,
+    int32_t count,
+    uint32_t hash)
 {
     ASSERT(hashes);
+    ASSERT(count >= 0);
+    ASSERT(hash != 0);
     for (int32_t i = 0; i < count; ++i)
     {
         if (hashes[i] == hash)

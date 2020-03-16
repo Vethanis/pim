@@ -52,7 +52,7 @@ static void SortSystems()
             const i32 j = ms_graph.AddVertex();
             ASSERT(iDst == j);
 
-            deps_t deps = ms_deps[iDst];
+            const deps_t& deps = ms_deps[iDst];
             for (int32_t d = 0; d < deps.count; ++d)
             {
                 const i32 iSrc = Find(ms_names, count, deps.guids[d]);

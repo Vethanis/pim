@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/int_types.h"
-#include "containers/slice.h"
 
 struct Asset
 {

@@ -153,6 +153,8 @@ static void* PIM_CDECL Alloc(EAllocator type, int32_t bytes)
             header[0] = type;
             header[1] = bytes;
             ptr = header + 4;
+
+            ASSERT(((int64_t)ptr & 15) == 0);
         }
     }
 
@@ -163,6 +165,7 @@ static void PIM_CDECL Free(void* ptr)
 {
     if (ptr)
     {
+        ASSERT(((int64_t)ptr & 15) == 0);
         int32_t* header = (int32_t*)ptr - 4;
         EAllocator type = header[0];
         int32_t bytes = header[1];
