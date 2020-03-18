@@ -4,7 +4,7 @@
 
 namespace Quake
 {
-    Pack LoadPack(cstrc path, AllocType allocator)
+    Pack LoadPack(cstrc path, EAlloc allocator)
     {
         EResult err = EUnknown;
         ASSERT(path);
@@ -52,7 +52,7 @@ namespace Quake
         }
     }
 
-    Folder LoadFolder(cstrc path, AllocType allocator)
+    Folder LoadFolder(cstrc path, EAlloc allocator)
     {
         ASSERT(path);
 
@@ -64,7 +64,7 @@ namespace Quake
         SPrintf(ARGS(packDir), "%s/*.pak", path);
         FixPath(ARGS(packDir));
 
-        Array<IO::FindData> files = CreateArray<IO::FindData>(Alloc_Temp, 16);
+        Array<IO::FindData> files = CreateArray<IO::FindData>(EAlloc_Temp, 16);
         IO::FindAll(files, packDir);
 
         for (const IO::FindData& file : files)

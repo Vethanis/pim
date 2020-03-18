@@ -8,7 +8,7 @@
 template<typename T>
 struct Queue
 {
-    AllocType m_allocator;
+    EAlloc m_allocator;
     u32 m_width;
     u32 m_iRead;
     u32 m_iWrite;
@@ -16,7 +16,7 @@ struct Queue
 
     // ------------------------------------------------------------------------
 
-    void Init(AllocType allocator = Alloc_Perm, u32 capacity = 0)
+    void Init(EAlloc allocator = EAlloc_Perm, u32 capacity = 0)
     {
         m_allocator = allocator;
         m_width = 0;
@@ -31,7 +31,7 @@ struct Queue
 
     void Reset()
     {
-        Allocator::Free(m_ptr);
+        CAllocator.Free(m_ptr);
         m_ptr = 0;
         m_width = 0;
         m_iRead = 0;
@@ -51,7 +51,7 @@ struct Queue
 
     // ------------------------------------------------------------------------
 
-    AllocType GetAllocator() const { return m_allocator; }
+    EAlloc GetAllocator() const { return m_allocator; }
     u32 Mask() const { return m_width - 1u; }
     u32 capacity() const { return m_width; }
     u32 size() const { return m_iWrite - m_iRead; }
@@ -86,7 +86,7 @@ struct Queue
             newPtr[i] = oldPtr[j];
         }
 
-        Allocator::Free(oldPtr);
+        CAllocator.Free(oldPtr);
 
         m_ptr = newPtr;
         m_width = newWidth;
@@ -296,7 +296,7 @@ inline void Remove(Queue<T>& queue, u32 i)
 }
 
 template<typename T>
-static Queue<T> CreateQueue(AllocType allocator = Alloc_Perm, i32 cap = 0)
+static Queue<T> CreateQueue(EAlloc allocator = EAlloc_Perm, i32 cap = 0)
 {
     ASSERT(cap >= 0);
     Queue<T> queue;

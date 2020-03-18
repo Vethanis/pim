@@ -10,7 +10,7 @@ struct ObjPool
 
     void Init()
     {
-        m_chunks.Init(Alloc_Perm, sizeof(T));
+        m_chunks.Init(EAlloc_Perm, sizeof(T));
     }
     void Reset()
     {
@@ -28,7 +28,7 @@ struct ObjPoolEx
 
     void Init()
     {
-        m_chunks.Init(Alloc_Perm, sizeof(T));
+        m_chunks.Init(EAlloc_Perm, sizeof(T));
     }
     void Reset()
     {

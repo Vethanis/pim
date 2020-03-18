@@ -5,10 +5,6 @@ VisualStudioVersion = 15.0.28307.705
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pim", "pim.vcxproj", "{C4FF6728-7E8C-478A-9C11-3113A79C8B99}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "core_module", "..\core_module\core_module.vcxproj", "{79FA5A61-EDEC-4AC4-A918-FFD1A9CEC4E1}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "allocator_module", "..\allocator_module\allocator_module.vcxproj", "{56B46EEE-5526-4064-90C5-8506FFBDF529}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -19,14 +15,6 @@ Global
 		{C4FF6728-7E8C-478A-9C11-3113A79C8B99}.Debug|x64.Build.0 = Debug|x64
 		{C4FF6728-7E8C-478A-9C11-3113A79C8B99}.Release|x64.ActiveCfg = Release|x64
 		{C4FF6728-7E8C-478A-9C11-3113A79C8B99}.Release|x64.Build.0 = Release|x64
-		{79FA5A61-EDEC-4AC4-A918-FFD1A9CEC4E1}.Debug|x64.ActiveCfg = Debug|x64
-		{79FA5A61-EDEC-4AC4-A918-FFD1A9CEC4E1}.Debug|x64.Build.0 = Debug|x64
-		{79FA5A61-EDEC-4AC4-A918-FFD1A9CEC4E1}.Release|x64.ActiveCfg = Release|x64
-		{79FA5A61-EDEC-4AC4-A918-FFD1A9CEC4E1}.Release|x64.Build.0 = Release|x64
-		{56B46EEE-5526-4064-90C5-8506FFBDF529}.Debug|x64.ActiveCfg = Debug|x64
-		{56B46EEE-5526-4064-90C5-8506FFBDF529}.Debug|x64.Build.0 = Debug|x64
-		{56B46EEE-5526-4064-90C5-8506FFBDF529}.Release|x64.ActiveCfg = Release|x64
-		{56B46EEE-5526-4064-90C5-8506FFBDF529}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

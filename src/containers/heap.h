@@ -10,7 +10,7 @@ struct Heap
     i32 size() const { return m_items.size(); }
     i32 capacity() const { return m_items.capacity(); }
 
-    void Init(AllocType allocator, i32 minCap)
+    void Init(EAlloc allocator, i32 minCap)
     {
         m_items.Init(allocator, minCap);
     }

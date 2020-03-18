@@ -242,7 +242,7 @@ namespace TaskSystem
         store_u32(&ms_running, 1u, MO_Release);
         for (u32 t = 1u; t < kNumThreads; ++t)
         {
-            ms_queues[t].Init(Alloc_Perm, 256);
+            ms_queues[t].Init(EAlloc_Perm, 256);
             ms_threads[t].Open(TaskLoop, (void*)((isize)t));
         }
     }

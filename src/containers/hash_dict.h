@@ -15,14 +15,14 @@ private:
     u32* m_hashes;
     K* m_keys;
     V* m_values;
-    AllocType m_allocator;
+    EAlloc m_allocator;
 
 public:
-    AllocType GetAllocator() const { return m_allocator; }
+    EAlloc GetAllocator() const { return m_allocator; }
     u32 size() const { return m_count; }
     u32 capacity() const { return m_width; }
 
-    void Init(AllocType allocator = Alloc_Perm)
+    void Init(EAlloc allocator = EAlloc_Perm)
     {
         memset(this, 0, sizeof(*this));
         m_allocator = allocator;
@@ -30,9 +30,9 @@ public:
 
     void Reset()
     {
-        Allocator::Free(m_hashes);
-        Allocator::Free(m_keys);
-        Allocator::Free(m_values);
+        CAllocator.Free(m_hashes);
+        CAllocator.Free(m_keys);
+        CAllocator.Free(m_values);
         m_hashes = 0;
         m_values = 0;
         m_width = 0;
@@ -54,7 +54,7 @@ public:
         }
     }
 
-    static HashDict Build(AllocType allocator, Slice<const K> keys, Slice<const V> values)
+    static HashDict Build(EAlloc allocator, Slice<const K> keys, Slice<const V> values)
     {
         HashDict dict;
         dict.Init(allocator);
@@ -79,7 +79,7 @@ public:
             return;
         }
 
-        const AllocType allocator = GetAllocator();
+        const EAlloc allocator = GetAllocator();
         u32* newHashes = Allocator::CallocT<u32>(allocator, newWidth);
         K* newKeys = Allocator::CallocT<K>(allocator, newWidth);
         V* newValues = Allocator::AllocT<V>(allocator, newWidth);
@@ -117,9 +117,9 @@ public:
         m_values = newValues;
         m_width = newWidth;
 
-        Allocator::Free(oldHashes);
-        Allocator::Free(oldKeys);
-        Allocator::Free(oldValues);
+        CAllocator.Free(oldHashes);
+        CAllocator.Free(oldKeys);
+        CAllocator.Free(oldValues);
     }
 
     i32 Find(u32 keyHash, K key) const

@@ -19,7 +19,7 @@ private:
     static constexpr u32 kAllocMask = ~kCapMask;
     static constexpr u32 kAllocShift = 30;
 
-    SASSERT(Alloc_COUNT <= 0xf);
+    SASSERT(EAlloc_Count <= 0xf);
 
     i32 GetCapacity() const
     {
@@ -33,20 +33,20 @@ private:
         m_bits = (kAllocMask & m_bits) | (kCapMask & c);
     }
 
-    void SetAllocator(AllocType allocator)
+    void SetAllocator(EAlloc allocator)
     {
-        ASSERT(allocator <= Alloc_COUNT);
+        ASSERT(allocator <= EAlloc_Count);
         u32 a = 0xf & allocator;
         m_bits = (a << kAllocShift) | (kCapMask & m_bits);
     }
 
 public:
 
-    AllocType GetAllocator() const
+    EAlloc GetAllocator() const
     {
         u32 x = ((m_bits & kAllocMask) >> kAllocShift);
-        ASSERT(x < Alloc_COUNT);
-        return (AllocType)x;
+        ASSERT(x < EAlloc_Count);
+        return (EAlloc)x;
     }
 
     i32 capacity() const { return GetCapacity(); }
@@ -70,7 +70,7 @@ public:
 
     // ------------------------------------------------------------------------
 
-    void Init(AllocType allocType = Alloc_Perm)
+    void Init(EAlloc allocType = EAlloc_Perm)
     {
         m_length = 0;
         SetCapacity(0);
@@ -78,7 +78,7 @@ public:
         m_ptr = nullptr;
     }
 
-    void Init(AllocType allocator, i32 cap)
+    void Init(EAlloc allocator, i32 cap)
     {
         Init(allocator);
         Reserve(cap);
@@ -86,7 +86,7 @@ public:
 
     void Reset()
     {
-        Allocator::Free(m_ptr);
+        CAllocator.Free(m_ptr);
         m_ptr = nullptr;
         m_length = 0;
         SetCapacity(0);
@@ -315,7 +315,7 @@ static void Move(Array<T>& dst, Array<T>& src)
 }
 
 template<typename T>
-static Array<T> CreateArray(AllocType allocator = Alloc_Perm, i32 cap = 0)
+static Array<T> CreateArray(EAlloc allocator = EAlloc_Perm, i32 cap = 0)
 {
     Array<T> arr;
     arr.Init(allocator, cap);

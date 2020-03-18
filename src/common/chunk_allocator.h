@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/int_types.h"
+#include "allocator/allocator.h"
 
 struct ChunkAllocator
 {
@@ -31,10 +32,10 @@ struct ChunkAllocator
     };
 
     Chunk* m_head;
-    AllocType m_allocator;
+    EAlloc m_allocator;
     i32 m_itemSize;
 
-    void Init(AllocType allocator, i32 itemSize);
+    void Init(EAlloc allocator, i32 itemSize);
     void Reset();
     void* Allocate();
     void Free(void* pVoid);
@@ -47,7 +48,7 @@ struct TPool
 
     TPool()
     {
-        m_allocator.Init(Alloc_Perm, sizeof(T));
+        m_allocator.Init(EAlloc_Perm, sizeof(T));
     }
     ~TPool()
     {

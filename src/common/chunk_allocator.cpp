@@ -5,7 +5,7 @@
 #include "common/atomics.h"
 #include <string.h>
 
-void ChunkAllocator::Init(AllocType allocator, i32 itemSize)
+void ChunkAllocator::Init(EAlloc allocator, i32 itemSize)
 {
     ASSERT(itemSize > 0);
     m_head = 0;
@@ -21,7 +21,7 @@ void ChunkAllocator::Reset()
         while (pChunk)
         {
             Chunk* pNext = LoadPtr(Chunk, pChunk->pNext, MO_Relaxed);
-            Allocator::Free(pChunk);
+            CAllocator.Free(pChunk);
             pChunk = pNext;
         }
     }
@@ -50,7 +50,7 @@ tryalloc:
         pChunk = LoadPtr(Chunk, pChunk->pNext, MO_Relaxed);
     }
 
-    Chunk* pNew = (Chunk*)Allocator::Calloc(m_allocator, sizeof(Chunk) + (itemSize * kChunkSize));
+    Chunk* pNew = (Chunk*)CAllocator.Calloc(m_allocator, sizeof(Chunk) + (itemSize * kChunkSize));
 
 tryinsert:
     Chunk* pHead = LoadPtr(Chunk, m_head, MO_Relaxed);

@@ -87,10 +87,10 @@ namespace ECS
 
     static void Init()
     {
-        ms_free.Init(Alloc_Perm, 1024);
-        ms_entities.Init(Alloc_Perm, 1024);
-        ms_inSlabs.Init(Alloc_Perm, 1024);
-        ms_slabSets.Init(Alloc_Perm, 1024);
+        ms_free.Init(EAlloc_Perm, 1024);
+        ms_entities.Init(EAlloc_Perm, 1024);
+        ms_inSlabs.Init(EAlloc_Perm, 1024);
+        ms_slabSets.Init(EAlloc_Perm, 1024);
 
         RegisterType(TGuidOf<Entity>(), sizeof(Entity));
     }
@@ -197,7 +197,7 @@ namespace ECS
 
     static Array<Slab*> GatherSlabs(TypeFlags all, TypeFlags none)
     {
-        Array<Slab*> results = CreateArray<Slab*>(Alloc_Task);
+        Array<Slab*> results = CreateArray<Slab*>(EAlloc_TLS);
 
         auto sets = ms_slabSets.AsSlice();
         for (SlabSet* pSet : sets)
@@ -271,7 +271,7 @@ namespace ECS
 
     static Slab* CreateSlab(SlabSet* pSet)
     {
-        Slab* pSlab = (Slab*)Allocator::Calloc(Alloc_Perm, kSlabBytes);
+        Slab* pSlab = (Slab*)CAllocator.Calloc(EAlloc_Perm, kSlabBytes);
         ASSERT(pSlab);
         pSlab->m_pSet = pSet;
         pSlab->m_capacity = pSet->m_slabCapacity;
@@ -287,7 +287,7 @@ namespace ECS
             SlabSet* pSet = pSlab->m_pSet;
             ASSERT(pSet);
             pSet->m_slabs.FindRemove(pSlab);
-            Allocator::Free(pSlab);
+            CAllocator.Free(pSlab);
 
             if (pSet->m_slabs.size() == 0)
             {
@@ -314,9 +314,9 @@ namespace ECS
         const i32 padding = (i32)sizeof(Slab) + (typeCount * kSlabAlign);
         const i32 capacity = (kSlabBytes - padding) / typeBytes;
 
-        SlabSet* pSet = Allocator::CallocT<SlabSet>(Alloc_Perm, 1);
-        i32* offsets = Allocator::CallocT<i32>(Alloc_Perm, typeCount);
-        ComponentId* ids = Allocator::CallocT<ComponentId>(Alloc_Perm, typeCount);
+        SlabSet* pSet = Allocator::CallocT<SlabSet>(EAlloc_Perm, 1);
+        i32* offsets = Allocator::CallocT<i32>(EAlloc_Perm, typeCount);
+        ComponentId* ids = Allocator::CallocT<ComponentId>(EAlloc_Perm, typeCount);
 
         ids[0] = GetId<Entity>();
         memcpy(ids + 1, types.begin(), types.size() * sizeof(ComponentId));
@@ -348,12 +348,12 @@ namespace ECS
         {
             for (Slab* pSlab : pSet->m_slabs)
             {
-                Allocator::Free(pSlab);
+                CAllocator.Free(pSlab);
             }
             pSet->m_slabs.Reset();
-            Allocator::Free(pSet->m_offsets);
-            Allocator::Free(pSet->m_types);
-            Allocator::Free(pSet);
+            CAllocator.Free(pSet->m_offsets);
+            CAllocator.Free(pSet->m_types);
+            CAllocator.Free(pSet);
 
             ms_slabSets.FindRemove(pSet);
         }
@@ -462,7 +462,7 @@ namespace ECS
 
     void OnSlabTask::Execute(i32 begin, i32 end)
     {
-        Array<Row> rows = CreateArray<Row>(Alloc_Task);
+        Array<Row> rows = CreateArray<Row>(EAlloc_TLS);
         Array<Slab*> slabs = GatherSlabs(m_all, m_none);
 
         begin = Max(begin, 0);

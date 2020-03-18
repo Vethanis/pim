@@ -1,36 +1,56 @@
 #pragma once
 
-#include "common/int_types.h"
+#include "common/macro.h"
+
+PIM_C_BEGIN
+
+#include <stdint.h>
+
+typedef enum
+{
+    EAlloc_Init = 0,
+    EAlloc_Perm,
+    EAlloc_Temp,
+    EAlloc_TLS,
+    EAlloc_Count
+} EAlloc;
+
+typedef struct allocator_s
+{
+    void  (PIM_CDECL *Init)(void);
+    void  (PIM_CDECL *Update)(void);
+    void  (PIM_CDECL *Shutdown)(void);
+    void* (PIM_CDECL *Alloc)(EAlloc type, int32_t bytes);
+    void  (PIM_CDECL *Free)(void* ptr);
+    void* (PIM_CDECL *Realloc)(EAlloc type, void* prev, int32_t bytes);
+    void* (PIM_CDECL *Calloc)(EAlloc type, int32_t bytes);
+} allocator_t;
+
+extern const allocator_t CAllocator;
+
+PIM_C_END
+
+#ifdef __cplusplus
 
 namespace Allocator
 {
-    void Init();
-    void Update();
-    void Shutdown();
-
-    void* Alloc(AllocType type, i32 bytes);
-    void Free(void* prev);
-    void* Realloc(AllocType type, void* prev, i32 bytes);
-    void* Calloc(AllocType type, i32 bytes);
-
     template<typename T>
-    inline T* AllocT(AllocType type, i32 count)
+    static T* AllocT(EAlloc type, int32_t count)
     {
-        return (T*)Alloc(type, sizeof(T) * count);
+        return reinterpret_cast<T*>(CAllocator.Alloc(type, sizeof(T) * count));
     }
 
     template<typename T>
-    inline T* ReallocT(AllocType type, T* prev, i32 count)
+    static T* ReallocT(EAlloc type, T* prev, int32_t count)
     {
-        return (T*)Realloc(type, prev, sizeof(T) * count);
+        return reinterpret_cast<T*>(CAllocator.Realloc(type, prev, sizeof(T) * count));
     }
 
     template<typename T>
-    inline T* CallocT(AllocType type, i32 count)
+    static T* CallocT(EAlloc type, int32_t count)
     {
-        return (T*)Calloc(type, sizeof(T) * count);
+        return reinterpret_cast<T*>(CAllocator.Calloc(type, sizeof(T) * count));
     }
-
-    inline void* ImGuiAllocFn(size_t sz, void*) { return Alloc(Alloc_Perm, (i32)sz); }
-    inline void ImGuiFreeFn(void* ptr, void*) { Free(ptr); }
 };
+
+#endif // __cplusplus

@@ -24,15 +24,15 @@ struct AArray
     i32 m_innerLength;
     i32 m_length;
     i32 m_capacity;
-    AllocType m_allocator;
+    EAlloc m_allocator;
 
-    AllocType GetAllocator() const { return (AllocType)Load(m_allocator, MO_Relaxed); }
+    EAlloc GetAllocator() const { return (EAlloc)Load(m_allocator, MO_Relaxed); }
     i32 size() const { return Load(m_length); }
     i32 capacity() const { return Load(m_capacity); }
     bool IsEmpty() const { return size() == 0; }
     bool InRange(i32 i) const { return (u32)i < (u32)size(); }
 
-    void Init(AllocType allocator)
+    void Init(EAlloc allocator)
     {
         StorePtr(m_head, kNull);
         Store(m_innerLength, 0);
@@ -52,7 +52,7 @@ struct AArray
             while (pHead)
             {
                 Record* pNext = LoadPtr(pHead->pNext);
-                Allocator::Free(pHead);
+                CAllocator.Free(pHead);
                 pHead = pNext;
             }
         }

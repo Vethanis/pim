@@ -128,6 +128,8 @@ namespace RenderSystem
     static void Init();
     static void Update();
     static void Shutdown();
+    static void* ImGuiAllocFn(size_t sz, void*);
+    static void ImGuiFreeFn(void* ptr, void*);
 
     static System ms_system
     {
@@ -174,7 +176,7 @@ namespace RenderSystem
             sgl_setup(&desc);
         }
         {
-            ImGui::SetAllocatorFunctions(Allocator::ImGuiAllocFn, Allocator::ImGuiFreeFn);
+            ImGui::SetAllocatorFunctions(ImGuiAllocFn, ImGuiFreeFn);
             simgui_desc_t desc = {};
             simgui_setup(&desc);
         }
@@ -200,6 +202,9 @@ namespace RenderSystem
         sgl_shutdown();
         sg_shutdown();
     }
+
+    static void* ImGuiAllocFn(size_t sz, void*) { return CAllocator.Alloc(EAlloc_Perm, (int32_t)sz); }
+    static void ImGuiFreeFn(void* ptr, void*) { CAllocator.Free(ptr); }
 
     void FrameEnd()
     {

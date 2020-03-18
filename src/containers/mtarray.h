@@ -12,9 +12,9 @@ struct MtArray
     i32 m_innerLength;
     i32 m_length;
     i32 m_capacity;
-    AllocType m_allocator;
+    EAlloc m_allocator;
 
-    void Init(AllocType allocator)
+    void Init(EAlloc allocator)
     {
         m_lock.Open();
         m_ptr = 0;
@@ -27,7 +27,7 @@ struct MtArray
     void Reset()
     {
         m_lock.LockWriter();
-        Allocator::Free(m_ptr);
+        CAllocator.Free(m_ptr);
         m_ptr = 0;
         m_innerLength = 0;
         m_length = 0;
@@ -35,7 +35,7 @@ struct MtArray
         m_lock.Close();
     }
 
-    AllocType GetAllocator() const { return m_allocator; }
+    EAlloc GetAllocator() const { return m_allocator; }
     i32 capacity() const { return Load(m_capacity); }
     i32 size() const { return Load(m_length); }
     bool InRange(i32 i) const { return (u32)i < (u32)size(); }
@@ -73,7 +73,7 @@ struct MtArray
             }
             m_lock.UnlockWriter();
 
-            Allocator::Free(grew ? oldPtr : newPtr);
+            CAllocator.Free(grew ? oldPtr : newPtr);
         }
     }
 

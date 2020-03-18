@@ -104,7 +104,7 @@ namespace ImGui
             }
             ImGui::Separator();
 
-            Array<i32> order = CreateArray<i32>(Alloc_Temp, itemCount);
+            Array<i32> order = CreateArray<i32>(EAlloc_Temp, itemCount);
             order.Resize(itemCount);
             for (i32 i = 0; i < itemCount; ++i)
             {

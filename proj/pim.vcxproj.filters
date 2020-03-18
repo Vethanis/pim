@@ -160,9 +160,6 @@
     <ClCompile Include="..\src\rendering\material.cpp">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\allocator\allocator.cpp">
-      <Filter>Source Files\allocator</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\assets\asset_system.cpp">
       <Filter>Source Files\assets</Filter>
     </ClCompile>
@@ -204,6 +201,9 @@
     </ClCompile>
     <ClCompile Include="..\src\common\atomics.cpp">
       <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\allocator\allocator.c">
+      <Filter>Source Files\allocator</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

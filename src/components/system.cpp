@@ -115,7 +115,7 @@ namespace Systems
 {
     void Init()
     {
-        ms_graph.Init(Alloc_Perm);
+        ms_graph.Init(EAlloc_Perm);
         SortSystems();
         const i32 count = ms_systemCount;
         for (i32 i = 0; i < count; ++i)

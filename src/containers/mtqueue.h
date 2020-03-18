@@ -17,9 +17,9 @@ struct MtQueue
     u32 m_width;
     T* m_ptr;
     u32* m_flags;
-    AllocType m_allocator;
+    EAlloc m_allocator;
 
-    void Init(AllocType allocator = Alloc_Perm, u32 minCap = 0u)
+    void Init(EAlloc allocator = EAlloc_Perm, u32 minCap = 0u)
     {
         m_iWrite = 0;
         m_iRead = 0;
@@ -38,8 +38,8 @@ struct MtQueue
     void Reset()
     {
         m_lock.LockWriter();
-        Allocator::Free(m_ptr);
-        Allocator::Free(m_flags);
+        CAllocator.Free(m_ptr);
+        CAllocator.Free(m_flags);
         m_ptr = 0;
         m_flags = 0;
         m_width = 0;
@@ -51,7 +51,7 @@ struct MtQueue
         m_lock.Close();
     }
 
-    AllocType GetAllocator() const { return m_allocator; }
+    EAlloc GetAllocator() const { return m_allocator; }
     u32 capacity() const { return Load(m_width); }
     u32 size() const { return Load(m_iWrite) - Load(m_iRead); }
 
@@ -109,13 +109,13 @@ struct MtQueue
 
             if (grew)
             {
-                Allocator::Free(oldPtr);
-                Allocator::Free(oldFlags);
+                CAllocator.Free(oldPtr);
+                CAllocator.Free(oldFlags);
             }
             else
             {
-                Allocator::Free(newPtr);
-                Allocator::Free(newFlags);
+                CAllocator.Free(newPtr);
+                CAllocator.Free(newFlags);
             }
         }
     }

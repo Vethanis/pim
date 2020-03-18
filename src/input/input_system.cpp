@@ -128,7 +128,7 @@ namespace InputSystem
     {
         for (Array<InputListener>& listeners : ms_listeners)
         {
-            listeners.Init(Alloc_Perm);
+            listeners.Init(EAlloc_Perm);
         }
     }
 

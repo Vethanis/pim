@@ -12,9 +12,9 @@ struct PtrQueue
     u32 m_iRead;
     u32 m_width;
     isize* m_ptr;
-    AllocType m_allocator;
+    EAlloc m_allocator;
 
-    void Init(AllocType allocator = Alloc_Perm, u32 minCap = 0u)
+    void Init(EAlloc allocator = EAlloc_Perm, u32 minCap = 0u)
     {
         m_iWrite = 0;
         m_iRead = 0;
@@ -32,7 +32,7 @@ struct PtrQueue
     void Reset()
     {
         m_lock.LockWriter();
-        Allocator::Free(m_ptr);
+        CAllocator.Free(m_ptr);
         m_ptr = 0;
         m_width = 0;
         m_iWrite = 0;
@@ -43,7 +43,7 @@ struct PtrQueue
         m_lock.Close();
     }
 
-    AllocType GetAllocator() const { return m_allocator; }
+    EAlloc GetAllocator() const { return m_allocator; }
     u32 capacity() const { return load_u32(&m_width, MO_Acquire); }
     u32 size() const { return load_u32(&m_iWrite, MO_Acquire) - load_u32(&m_iRead, MO_Acquire); }
 
@@ -97,11 +97,11 @@ struct PtrQueue
 
             if (grew)
             {
-                Allocator::Free(oldPtr);
+                CAllocator.Free(oldPtr);
             }
             else
             {
-                Allocator::Free(newPtr);
+                CAllocator.Free(newPtr);
             }
         }
     }

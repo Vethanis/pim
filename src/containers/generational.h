@@ -11,7 +11,7 @@ struct IdAllocator
 
     // ------------------------------------------------------------------------
 
-    void Init(AllocType type)
+    void Init(EAlloc type)
     {
         m_versions.Init(type);
         m_freelist.Init(type);
@@ -31,7 +31,7 @@ struct IdAllocator
 
     // ------------------------------------------------------------------------
 
-    AllocType GetAllocator() const { return m_versions.GetAllocator(); }
+    EAlloc GetAllocator() const { return m_versions.GetAllocator(); }
     i32 capacity() const { return m_versions.capacity(); }
     i32 size() const { return m_versions.size(); }
     GenId operator[](i32 i) const { return { (u32)i, m_versions.LoadAt(i) }; }
@@ -119,7 +119,7 @@ struct GenArray
 
     // ------------------------------------------------------------------------
 
-    void Init(AllocType type)
+    void Init(EAlloc type)
     {
         m_ids.Init(type);
         m_ptr = nullptr;
@@ -130,7 +130,7 @@ struct GenArray
         m_ids.Reset();
         m_lock.LockWriter();
         Store(m_capacity, 0);
-        Allocator::Free(m_ptr);
+        CAllocator.Free(m_ptr);
         m_ptr = nullptr;
         m_lock.Close();
     }
@@ -142,7 +142,7 @@ struct GenArray
 
     // ------------------------------------------------------------------------
 
-    AllocType GetAllocator() const { return m_ids.GetAllocator(); }
+    EAlloc GetAllocator() const { return m_ids.GetAllocator(); }
     i32 capacity() const { return m_ids.capacity(); }
     i32 size() const { return m_ids.size(); }
 
@@ -173,11 +173,11 @@ struct GenArray
 
             if (grew)
             {
-                Allocator::Free(oldPtr);
+                CAllocator.Free(oldPtr);
             }
             else
             {
-                Allocator::Free(newPtr);
+                CAllocator.Free(newPtr);
             }
         }
     }

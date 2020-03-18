@@ -3,39 +3,29 @@
 #include <stdint.h>
 #include <stddef.h>
 
-using usize = size_t;
-using isize = intptr_t;
+typedef size_t usize;
+typedef intptr_t isize;
 
-using i64 = int64_t;
-using i32 = int32_t;
-using i16 = int16_t;
-using i8 = int8_t;
+typedef int64_t i64;
+typedef int32_t i32;
+typedef int16_t i16;
+typedef int8_t i8;
 
-using u64 = uint64_t;
-using u32 = uint32_t;
-using u16 = uint16_t;
-using u8 = uint8_t;
+typedef uint64_t u64;
+typedef uint32_t u32;
+typedef uint16_t u16;
+typedef uint8_t u8;
 
-using f64 = double;
-using f32 = float;
+typedef double f64;
+typedef float f32;
 
-using ptr_t = void*;
-using cstr = const char*;
-using cstrc = const char * const;
+typedef void* ptr_t;
+typedef const char* cstr;
+typedef const char* const cstrc;
 
-enum EResult : i32
+typedef enum
 {
     EUnknown = 0,
     ESuccess = 1,
     EFail = 2,
-};
-
-enum AllocType : u8
-{
-    Alloc_Init = 0, // init-time allocation with malloc
-    Alloc_Perm,     // long duration allocation on the main thread or moved between threads
-    Alloc_Temp,     // temporary allocation, linear allocator with < 3 frame lifetime
-    Alloc_Task,     // task allocation, thread local
-
-    Alloc_COUNT
-};
+} EResult;

@@ -14,7 +14,7 @@ struct ObjTable
     void Init()
     {
         m_mutex.Open();
-        m_dict.Init(Alloc_Perm);
+        m_dict.Init(EAlloc_Perm);
         m_pool.Init();
     }
 

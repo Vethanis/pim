@@ -14,20 +14,20 @@ private:
     K* m_keys;
     u32 m_count;
     u32 m_width;
-    AllocType m_allocator;
+    EAlloc m_allocator;
 
 public:
     u32 size() const { return m_count; }
     u32 capacity() const { return m_width; }
-    AllocType GetAllocator() const { return m_allocator; }
+    EAlloc GetAllocator() const { return m_allocator; }
 
-    void Init(AllocType allocator)
+    void Init(EAlloc allocator)
     {
         memset(this, 0, sizeof(*this));
         m_allocator = allocator;
     }
 
-    void Init(AllocType allocator, u32 minCap)
+    void Init(EAlloc allocator, u32 minCap)
     {
         Init(allocator);
         Reserve(minCap);
@@ -35,8 +35,8 @@ public:
 
     void Reset()
     {
-        Allocator::Free(m_hashes);
-        Allocator::Free(m_keys);
+        CAllocator.Free(m_hashes);
+        CAllocator.Free(m_keys);
         m_hashes = 0;
         m_keys = 0;
         m_width = 0;
@@ -53,7 +53,7 @@ public:
         }
     }
 
-    static HashSet Build(AllocType allocator, Slice<const K> keys)
+    static HashSet Build(EAlloc allocator, Slice<const K> keys)
     {
         HashSet set;
         set.Init(allocator);
@@ -76,7 +76,7 @@ public:
             return;
         }
 
-        const AllocType allocator = m_allocator;
+        const EAlloc allocator = m_allocator;
         u32* newHashes = Allocator::CallocT<u32>(allocator, newWidth);
         K* newKeys = Allocator::CallocT<K>(allocator, newWidth);
 
@@ -109,8 +109,8 @@ public:
         m_keys = newKeys;
         m_width = newWidth;
 
-        Allocator::Free(oldHashes);
-        Allocator::Free(oldKeys);
+        CAllocator.Free(oldHashes);
+        CAllocator.Free(oldKeys);
     }
 
     i32 Find(u32 keyHash, K key) const
@@ -260,7 +260,7 @@ public:
 };
 
 template<typename K>
-static HashSet<K> CreateHashSet(AllocType allocator, u32 minCap)
+static HashSet<K> CreateHashSet(EAlloc allocator, u32 minCap)
 {
     HashSet<K> set = {};
     set.Init(allocator, minCap);

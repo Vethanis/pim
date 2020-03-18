@@ -42,9 +42,9 @@ namespace Quake
         Array<Pack> packs;
     };
 
-    Pack LoadPack(cstrc dir, AllocType allocator);
+    Pack LoadPack(cstrc dir, EAlloc allocator);
     void FreePack(Pack& pack);
 
-    Folder LoadFolder(cstrc dir, AllocType allocator);
+    Folder LoadFolder(cstrc dir, EAlloc allocator);
     void FreeFolder(Folder& folder);
 };

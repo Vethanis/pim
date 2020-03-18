@@ -30,7 +30,7 @@ namespace AssetSystem
         Text<64> m_path;
         Folder m_folder;
         LoadTask() : ITask(0, 1, 1){}
-        void Execute(i32, i32) final { m_folder = Quake::LoadFolder(m_path, Alloc_Perm); }
+        void Execute(i32, i32) final { m_folder = Quake::LoadFolder(m_path, EAlloc_Perm); }
     };
 
     static HashDict<Text<64>, Asset> ms_assets;
