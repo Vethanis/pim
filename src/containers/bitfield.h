@@ -8,7 +8,7 @@ template<typename T, u32 ct>
 struct alignas(16) BitField
 {
     static constexpr u32 NumBits = ct;
-    static constexpr u32 NumDwords = DivRound(NumBits, 32u);
+    static constexpr u32 NumDwords = DIV_ROUND(NumBits, 32u);
 
     SASSERT(sizeof(T) == sizeof(u32));
 

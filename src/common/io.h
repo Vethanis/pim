@@ -1,411 +1,255 @@
 #pragma once
 
 #include "common/macro.h"
-#include "common/int_types.h"
-#include "containers/slice.h"
-#include "containers/array.h"
 
-namespace IO
+PIM_C_BEGIN
+
+#include <stdint.h>
+
+int32_t pim_errno(void);
+
+// file descriptor
+typedef int32_t fd_t;
+static int32_t fd_isopen(fd_t hdl) { return hdl >= 0; }
+
+#define fd_stdin  0
+#define fd_stdout 1
+#define fd_stderr 2
+
+typedef enum
 {
-    // file descriptor
-    struct FD { i32 fd; };
-    inline bool IsOpen(FD hdl) { return hdl.fd >= 0; }
-
-    static constexpr FD StdIn  = { 0 };
-    static constexpr FD StdOut = { 1 };
-    static constexpr FD StdErr = { 2 };
-
-    enum StModeFlags : u16
-    {
-        StMode_Regular  = 0x8000,
-        StMode_Dir      = 0x4000,
-        StMode_SpecChar = 0x2000,
-        StMode_Pipe     = 0x1000,
-        StMode_Read     = 0x0100,
-        StMode_Write    = 0x0080,
-        StMode_Exec     = 0x0040,
-    };
-
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fstat-fstat32-fstat64-fstati64-fstat32i64-fstat64i32
-    struct Status
-    {
-        u32 st_dev;
-        u16 st_ino;
-        u16 st_mode;
-        i16 st_nlink;
-        i16 st_uid;
-        i16 st_guid;
-        u32 st_rdev;
-        i64 st_size;
-        i64 st_atime;
-        i64 st_mtime;
-        i64 st_ctime;
-    };
-
-    // derived from values in wdk/include/10.0.17763.0/ucrt/fcntl.h
-    // file control options used by _open()
-    enum OFlags : u32
-    {
-        OReadOnly   = 0x0000,   // open for reading only
-        OWriteOnly  = 0x0001,   // open for writing only
-        OReadWrite  = 0x0002,   // open for reading and writing
-        OAppend     = 0x0008,   // writes done at eof
-
-        ORandom     = 0x0010,   // optimize for random accesses
-        OSequential = 0x0020,   // optimize for sequential accesses (preferred)
-        OTemporary  = 0x0040,   // file is deleted when last handle is closed (ref counted)
-        ONoInherit  = 0x0080,   // child process doesn't inherit file (private fd)
-
-        OCreate     = 0x0100,   // create and open file
-        OTruncate   = 0x0200,   // open and truncate
-        OExclusive  = 0x0400,   // open only if file doesnt exist
-
-        OShortLived = 0x1000,   // temporary storage, avoid flushing
-        OObtainDir  = 0x2000,   // get directory info
-        OText       = 0x4000,   // file mode is text (translated, crlf -> lf on read, lf -> crlf on write)
-        OBinary     = 0x8000,   // file mode is binary (untranslated, preferred)
-
-        OBinSeqRead     = OBinary | OSequential | OReadOnly,
-        OBinSeqWrite    = OBinary | OSequential | OWriteOnly | OCreate,
-        OBinRandRW      = OBinary | ORandom | OReadWrite,
-    };
-
-    // creat
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/creat-wcreat
-    FD Create(cstr filename, u32 oFlags, EResult& err);
-
-    // open
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/open-wopen
-    FD Open(cstr filename, u32 oflags, EResult& err);
-
-    // close
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/close
-    void Close(FD& hdl, EResult& err);
-
-    // read
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/read
-    i32 Read(FD hdl, void* dst, usize size, EResult& err);
-
-    // write
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/write
-    i32 Write(FD hdl, const void* src, usize size, EResult& err);
-
-    // Grow the size of a file to the specified size
-    void Grow(FD hdl, usize size, EResult& err);
-
-    i32 Puts(cstrc str, FD hdl = StdOut);
-
-    i32 Printf(FD hdl, cstr fmt, ...);
-
-    // seek
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/lseek-lseeki64
-    i32 Seek(FD hdl, isize offset, EResult& err);
-
-    // tell
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/tell-telli64
-    i32 Tell(FD hdl, EResult& err);
-
-    // pipe
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/pipe
-    void Pipe(FD& p0, FD& p1, usize bufferSize, EResult& err);
-
-    // fstat
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fstat-fstat32-fstat64-fstati64-fstat32i64-fstat64i32
-    void Stat(FD hdl, Status& status, EResult& err);
-
-    // fstat.st_size
-    inline i64 Size(FD fd, EResult& err)
-    {
-        Status status = {};
-        Stat(fd, status, err);
-        return status.st_size;
-    }
-
-    struct FDGuard
-    {
-        FD m_fd;
-        EResult m_result;
-
-        FDGuard(FD fd) : m_fd(fd), m_result(EUnknown) {}
-        ~FDGuard() { Close(m_fd, m_result); }
-
-        inline operator FD () const
-        {
-            return m_fd;
-        }
-
-        inline FD Take()
-        {
-            FD fd = m_fd;
-            m_fd.fd = -1;
-            return fd;
-        }
-    };
-
-    // ------------------------------------------------------------------------
-
-    // buffered file stream
-    struct Stream { void* ptr; };
-    inline bool IsOpen(Stream s) { return s.ptr != 0; }
-
-    // fopen
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fopen-wfopen
-    Stream FOpen(cstr filename, cstr mode, EResult& err);
-
-    // fclose
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fclose-fcloseall
-    void FClose(Stream& stream, EResult& err);
-
-    // fflush
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fflush
-    void FFlush(Stream stream, EResult& err);
-
-    // fread
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fread
-    usize FRead(Stream stream, void* dst, usize size, EResult& err);
-
-    // fwrite
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fwrite
-    usize FWrite(Stream stream, const void* src, usize size, EResult& err);
-
-    // fgets
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fgets-fgetws
-    void FGets(Stream stream, char* dst, usize size, EResult& err);
-
-    // fputs
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fputs-fputws
-    i32 FPuts(Stream stream, cstr src, EResult& err);
-
-    // fileno
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fileno
-    FD FileNo(Stream stream, EResult& err);
-
-    // fdopen
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fdopen-wfdopen
-    Stream FDOpen(FD& hdl, cstr mode, EResult& err);
-
-    // fseek SEEK_SET
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/fseek-lseek-constants
-    void FSeek(Stream stream, isize offset, EResult& err);
-
-    // ftell
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/ftell-ftelli64
-    i32 FTell(Stream stream, EResult& err);
-
-    // popen
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/popen-wpopen
-    Stream POpen(cstr cmd, cstr mode, EResult& err);
-
-    // pclose
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/pclose
-    void PClose(Stream& stream, EResult& err);
-
-    // fstat
-    inline void FStat(Stream stream, Status& status, EResult& err)
-    {
-        FD fd = FileNo(stream, err);
-        if (err == ESuccess)
-        {
-            Stat(fd, status, err);
-        }
-    }
-
-    // fstat.st_size
-    inline i64 FSize(Stream stream, EResult& err)
-    {
-        Status status = {};
-        FStat(stream, status, err);
-        return status.st_size;
-    }
-
-    struct StreamGuard
-    {
-        Stream m_stream;
-        EResult m_result;
-
-        StreamGuard(Stream stream) : m_stream(stream), m_result(EUnknown) {}
-        ~StreamGuard() { FClose(m_stream, m_result); }
-
-        inline operator Stream () const
-        {
-            return m_stream;
-        }
-
-        inline Stream Take()
-        {
-            Stream stream = m_stream;
-            m_stream.ptr = 0;
-            return stream;
-        }
-    };
-
-    // ------------------------------------------------------------------------
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/directory-control
-
-    // chdrive
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/chdrive
-    void ChDrive(i32 drive, EResult& err);
-
-    // getdrive
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getdrive
-    i32 GetDrive(EResult& err);
-
-    // getdrives
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getdrives
-    u32 GetDrivesMask(EResult& err);
-
-    // getcwd
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getcwd-wgetcwd
-    void GetCwd(char* dst, i32 size, EResult& err);
-
-    // getdcwd
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getdcwd-wgetdcwd
-    void GetDrCwd(i32 drive, char* dst, i32 size, EResult& err);
-
-    // chdir
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/chdir-wchdir
-    void ChDir(cstr path, EResult& err);
-
-    // mkdir
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/mkdir-wmkdir
-    void MkDir(cstr path, EResult& err);
-
-    // rmdir
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/rmdir-wrmdir
-    void RmDir(cstr path, EResult& err);
-
-    enum ChModFlags : u32
-    {
-        ChMod_Read = 0x0100,
-        ChMod_Write = 0x0080,
-        ChMod_Exec = 0x0040,
-    };
-    // chmod
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/chmod-wchmod
-    void ChMod(cstr path, u32 flags, EResult& err);
-
-    // ------------------------------------------------------------------------
-
-    // searchenv
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/searchenv-wsearchenv
-    void SearchEnv(cstr filename, cstr varname, char(&dst)[260], EResult& err);
-
-    // getenv
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getenv-wgetenv
-    cstr GetEnv(cstr varname, EResult& err);
-
-    // putenv
-    // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/putenv-wputenv
-    void PutEnv(cstr varname, cstr value, EResult& err);
-
-    // ------------------------------------------------------------------------
-
-    struct Finder { i64 hdl = -1; };
-    inline bool IsOpen(Finder fdr) { return fdr.hdl != -1; }
-
-    enum FileAttrFlags : u32
-    {
-        FAF_Normal = 0x00,
-        FAF_ReadOnly = 0x01,
-        FAF_Hidden = 0x02,
-        FAF_System = 0x04,
-        FAF_SubDir = 0x10,
-        FAF_Archive = 0x20,
-    };
-
-    // __finddata64_t, do not modify
-    struct FindData
-    {
-        u32 attrib;
-        i64 time_create;
-        i64 time_access;
-        i64 time_write;
-        i64 size;
-        char name[260];
-    };
-
-    struct Directory
-    {
-        FindData data;
-        Array<Directory> subdirs;
-        Array<FindData> files;
-
-        void Reset()
-        {
-            for (Directory& dir : subdirs)
-            {
-                dir.Reset();
-            }
-            subdirs.Reset();
-            files.Reset();
-        }
-    };
-
-    bool Begin(Finder& fdr, FindData& data, cstrc spec);
-    bool Next(Finder& fdr, FindData& data);
-    void Close(Finder& fdr);
-
-    // Begin + Next + Close
-    bool Find(Finder& fdr, FindData& data, cstrc spec);
-    void FindAll(Array<FindData>& results, cstrc spec);
-
-    void ListDir(Directory& dir, cstrc spec);
-
-    // ------------------------------------------------------------------------
-    struct Module { void* hdl; };
-
-    // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadlibrarya
-    void OpenModule(cstr filename, Module& dst, EResult& err);
-    // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-freelibrary
-    void CloseModule(Module& mod, EResult& err);
-    // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlea
-    void GetModule(cstr name, Module& dst, EResult& err);
-    // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamea
-    void GetModuleName(Module mod, char* dst, u32 dstSize, EResult& err);
-    // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress
-    void GetModuleFunc(Module mod, cstr name, void** pFunc, EResult& err);
-
-    inline void GetExeName(char* dst, u32 dstSize, EResult& err)
-    {
-        return GetModuleName({ 0 }, dst, dstSize, err);
-    }
-
-    inline void GetExeModule(Module& dst, EResult& err)
-    {
-        return GetModule(0, dst, err);
-    }
-
-    // ------------------------------------------------------------------------
-
-    void Curl(cstr url, Array<char>& result, EResult& err);
-
-    // ------------------------------------------------------------------------
-
-    struct FileMap
-    {
-        Slice<u8> memory;
-    };
-
-    inline bool IsOpen(FileMap map)
-    {
-        return map.memory.begin() != nullptr;
-    }
-
-    FileMap Map(IO::FD fd, i32 offset, i32 size, u32 oflags);
-    void Unmap(FileMap& map);
-    bool Flush(FileMap map);
-
-    struct MapGuard
-    {
-        FileMap& m_map;
-        MapGuard(FileMap& map) : m_map(map) {}
-        ~MapGuard() { Unmap(m_map); }
-        FileMap Take()
-        {
-            FileMap map = m_map;
-            m_map = {};
-            return map;
-        }
-    };
-
-}; // IO
+    StMode_Regular = 0x8000,
+    StMode_Dir = 0x4000,
+    StMode_SpecChar = 0x2000,
+    StMode_Pipe = 0x1000,
+    StMode_Read = 0x0100,
+    StMode_Write = 0x0080,
+    StMode_Exec = 0x0040,
+} StModeFlags;
+
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fstat-fstat32-fstat64-fstati64-fstat32i64-fstat64i32
+typedef struct fd_status_s
+{
+    uint32_t    st_dev;
+    uint16_t    st_ino;
+    uint16_t    st_mode;
+    int16_t     st_nlink;
+    int16_t     st_uid;
+    int16_t     st_guid;
+    uint32_t    st_rdev;
+    int64_t     st_size;
+    int64_t     st_atime;
+    int64_t     st_mtime;
+    int64_t     st_ctime;
+} fd_status_t;
+
+// creat
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/creat-wcreat
+fd_t pim_create(const char* filename);
+
+// open
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/open-wopen
+fd_t pim_open(const char* filename, int32_t writable);
+
+// close
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/close
+void pim_close(fd_t* hdl);
+
+// read
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/read
+int32_t pim_read(fd_t hdl, void* dst, int32_t size);
+
+// write
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/write
+int32_t pim_write(fd_t hdl, const void* src, int32_t size);
+
+int32_t pim_puts(const char* str, fd_t hdl);
+
+int32_t pim_printf(fd_t hdl, const char* fmt, ...);
+
+// seek
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/lseek-lseeki64
+int32_t pim_seek(fd_t hdl, int32_t offset);
+
+// tell
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/tell-telli64
+int32_t pim_tell(fd_t hdl);
+
+// pipe
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/pipe
+void pim_pipe(fd_t* p0, fd_t* p1, int32_t bufferSize);
+
+// fstat
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fstat-fstat32-fstat64-fstati64-fstat32i64-fstat64i32
+void pim_stat(fd_t hdl, fd_status_t* status);
+
+// fstat.st_size
+static int64_t fd_size(fd_t fd)
+{
+    fd_status_t status;
+    pim_stat(fd, &status);
+    return status.st_size;
+}
+
+// ------------------------------------------------------------------------
+
+// buffered file stream
+typedef void* fstr_t;
+
+// fopen
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fopen-wfopen
+fstr_t pim_fopen(const char* filename, const char* mode);
+
+// fclose
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fclose-fcloseall
+void pim_fclose(fstr_t* stream);
+
+// fflush
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fflush
+void pim_fflush(fstr_t stream);
+
+// fread
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fread
+int32_t pim_fread(fstr_t stream, void* dst, int32_t size);
+
+// fwrite
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fwrite
+int32_t pim_fwrite(fstr_t stream, const void* src, int32_t size);
+
+// fgets
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fgets-fgetws
+void pim_fgets(fstr_t stream, char* dst, int32_t size);
+
+// fputs
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fputs-fputws
+int32_t pim_fputs(fstr_t stream, const char* src);
+
+// fileno
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fileno
+fd_t pim_fileno(fstr_t stream);
+
+// fdopen
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/fdopen-wfdopen
+fstr_t pim_fdopen(fd_t* hdl, const char* mode);
+
+// fseek SEEK_SET
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/fseek-lseek-constants
+void pim_fseek(fstr_t stream, int32_t offset);
+
+// ftell
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/ftell-ftelli64
+int32_t pim_ftell(fstr_t stream);
+
+// popen
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/popen-wpopen
+fstr_t pim_popen(const char* cmd, const char* mode);
+
+// pclose
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/pclose
+void pim_pclose(fstr_t* stream);
+
+// fstat
+static void pim_fstat(fstr_t stream, fd_status_t* status)
+{
+    fd_t fd = pim_fileno(stream);
+    pim_stat(fd, status);
+}
+
+// fstat.st_size
+static int64_t pim_fsize(fstr_t stream)
+{
+    fd_status_t status;
+    pim_fstat(stream, &status);
+    return status.st_size;
+}
+
+// ------------------------------------------------------------------------
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/directory-control
+
+// getcwd
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getcwd-wgetcwd
+void pim_getcwd(char* dst, int32_t size);
+
+// chdir
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/chdir-wchdir
+void pim_chdir(const char* path);
+
+// mkdir
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/mkdir-wmkdir
+void pim_mkdir(const char* path);
+
+// rmdir
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/rmdir-wrmdir
+void pim_rmdir(const char* path);
+
+typedef enum
+{
+    ChMod_Read = 0x0100,
+    ChMod_Write = 0x0080,
+    ChMod_Exec = 0x0040,
+} ChModFlags;
+
+// chmod
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/chmod-wchmod
+void pim_chmod(const char* path, int32_t flags);
+
+// ------------------------------------------------------------------------
+
+// searchenv
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/searchenv-wsearchenv
+void pim_searchenv(const char* filename, const char* varname, char* dst);
+
+// getenv
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/getenv-wgetenv
+const char* pim_getenv(const char* varname);
+
+// putenv
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/putenv-wputenv
+void pim_putenv(const char* varname, const char* value);
+
+// ------------------------------------------------------------------------
+
+typedef intptr_t fnd_t;
+static int32_t fnd_isopen(fnd_t fdr) { return fdr != -1; }
+
+typedef enum
+{
+    FAF_Normal = 0x00,
+    FAF_ReadOnly = 0x01,
+    FAF_Hidden = 0x02,
+    FAF_System = 0x04,
+    FAF_SubDir = 0x10,
+    FAF_Archive = 0x20,
+} FileAttrFlags;
+
+// __finddata64_t, do not modify
+typedef struct fnd_data_s
+{
+    uint32_t attrib;
+    int64_t time_create;
+    int64_t time_access;
+    int64_t time_write;
+    int64_t size;
+    char name[260];
+} fnd_data_t;
+
+int32_t pim_fndfirst(fnd_t* fdr, fnd_data_t* data, const char* spec);
+int32_t pim_fndnext(fnd_t* fdr, fnd_data_t* data);
+void pim_fndclose(fnd_t* fdr);
+
+// Begin + Next + Close
+int32_t pim_fnditer(fnd_t* fdr, fnd_data_t* data, const char* spec);
+
+// ------------------------------------------------------------------------
+
+typedef struct fmap_s
+{
+    void* ptr;
+    int32_t size;
+} fmap_t;
+
+fmap_t pim_mmap(fd_t fd, int32_t writable);
+void pim_munmap(fmap_t* map);
+void pim_msync(fmap_t map);
+
+PIM_C_END

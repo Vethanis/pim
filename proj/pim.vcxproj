@@ -17,15 +17,14 @@
     <ClCompile Include="..\src\common\atomics.cpp" />
     <ClCompile Include="..\src\common\chunk_allocator.cpp" />
     <ClCompile Include="..\src\common\cvar.c" />
-    <ClCompile Include="..\src\common\io.cpp" />
+    <ClCompile Include="..\src\common\io.c" />
     <ClCompile Include="..\src\common\module.c" />
     <ClCompile Include="..\src\common\random.cpp" />
-    <ClCompile Include="..\src\common\stringutil.cpp" />
+    <ClCompile Include="..\src\common\stringutil.c" />
     <ClCompile Include="..\src\common\time.cpp" />
     <ClCompile Include="..\src\components\ecs.cpp" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
-    <ClCompile Include="..\src\os\mman.c" />
     <ClCompile Include="..\src\os\socket.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
     <ClCompile Include="..\src\os\thread.cpp" />
@@ -115,7 +114,6 @@
     <ClInclude Include="..\src\math\vec_funcs.h" />
     <ClInclude Include="..\src\math\vec_ops.h" />
     <ClInclude Include="..\src\math\vec_types.h" />
-    <ClInclude Include="..\src\os\mman.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\os\thread.h" />
     <ClInclude Include="..\src\physics\components.h" />

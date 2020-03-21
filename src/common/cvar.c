@@ -1,9 +1,8 @@
 #include "common/cvar.h"
 
 #include "common/hashstring.h"
-#include <string.h>
-#include <stdio.h>
-#include <math.h>
+#include "stb/stb_sprintf.h"
+#include <stdlib.h>
 
 #define kMaxCvars 256
 
@@ -17,18 +16,19 @@ void cvar_create(cvar_t* ptr, const char* name, const char* value)
     ASSERT(name);
     ASSERT(value);
 
-    cvar_t* extant = cvar_find(name);
-    if (extant)
+    uint32_t hash = HashStr(name);
+    int32_t i = HashFind(ms_hashes, ms_count, hash);
+    if (i != -1)
     {
-        ASSERT(ptr == extant);
+        ASSERT(ptr == ms_cvars[i]);
     }
     else
     {
         ASSERT(ms_count < kMaxCvars);
-        int32_t i = ms_count++;
-        ms_hashes[i] = HashStr(name);
+        i = ms_count++;
+        ms_hashes[i] = hash;
         ms_cvars[i] = ptr;
-        strcpy_s(ptr->name, NELEM(ptr->name), name);
+        stbsp_snprintf(ptr->name, NELEM(ptr->name), "%s", name);
         cvar_set_str(ptr, value);
     }
 }
@@ -44,13 +44,13 @@ void cvar_set_str(cvar_t* ptr, const char* value)
 {
     ASSERT(ptr);
     ASSERT(value);
-    strcpy_s(ptr->value, NELEM(ptr->value), value);
+    stbsp_snprintf(ptr->value, NELEM(ptr->value), "%s", value);
     ptr->asFloat = (float)atof(value);
 }
 
 void cvar_set_float(cvar_t* ptr, float value)
 {
     ASSERT(ptr);
-    sprintf_s(ptr->value, NELEM(ptr->value), "%f", value);
+    stbsp_snprintf(ptr->value, NELEM(ptr->value), "%f", value);
     ptr->asFloat = value;
 }

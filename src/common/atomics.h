@@ -47,7 +47,7 @@ DECL_ATOMIC(intptr_t, ptr)
 
 #define LoadPtr(T, atom, ord)               (T*)load_ptr((const volatile intptr_t*)&(atom), ord)
 #define StorePtr(T, atom, x, ord)           store_ptr((volatile intptr_t*)&(atom), (intptr_t)x, ord)
-#define CmpExPtr(T, atom, exp, des, ord)    cmpex_ptr((volatile intptr_t*)&(atom), (intptr_t*)&(exp), (intptr_t)des, ord)
+#define CmpExPtr(T, atom, ex, des, ord)     cmpex_ptr((volatile intptr_t*)&(atom), (intptr_t*)&(ex), (intptr_t)des, ord)
 #define ExchPtr(T, atom, x, ord)            (T*)exch_ptr((volatile intptr_t*)&(atom), (intptr_t)x, ord)
 #define IncPtr(T, atom, ord)                (T*)fetch_add_ptr((volatile intptr_t*)&(atom), sizeof(T), ord)
 #define DecPtr(T, atom, ord)                (T*)fetch_sub_ptr((volatile intptr_t*)&(atom), sizeof(T), ord)

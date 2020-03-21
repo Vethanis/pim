@@ -6,28 +6,27 @@ namespace Quake
 {
     Pack LoadPack(cstrc path, EAlloc allocator)
     {
-        EResult err = EUnknown;
         ASSERT(path);
 
         Pack pack = {};
         StrCpy(ARGS(pack.path), path);
 
-        IO::FD fd = IO::Open(path, IO::OBinary, err);
-        if (!IO::IsOpen(fd))
+        fd_t fd = pim_open(path, 0);
+        if (!fd_isopen(fd))
         {
             return pack;
         }
 
-        IO::FileMap map = IO::Map(fd, 0, 0, IO::OBinary);
-        IO::Close(fd, err);
+        fmap_t map = pim_mmap(fd, 0);
+        pim_close(&fd);
 
-        if (!IO::IsOpen(map))
+        if (!map.ptr)
         {
             return pack;
         }
 
-        pack.ptr = map.memory.begin();
-        pack.bytes = map.memory.size();
+        pack.ptr = (const u8*)map.ptr;
+        pack.bytes = map.size;
         pack.header = (const DPackHeader*)pack.ptr;
         ASSERT(pack.bytes >= sizeof(pack.header));
 
@@ -44,8 +43,8 @@ namespace Quake
     {
         if (pack.ptr)
         {
-            IO::FileMap map = { (u8*)pack.ptr, pack.bytes };
-            IO::Unmap(map);
+            fmap_t map = { (void*)pack.ptr, pack.bytes };
+            pim_munmap(&map);
             pack.ptr = 0;
             pack.header = 0;
             pack.files = 0;
@@ -58,27 +57,25 @@ namespace Quake
 
         Folder folder = {};
         folder.packs.Init(allocator);
-        strcpy_s(folder.path, path);
+        StrCpy(ARGS(folder.path), path);
 
         char packDir[PIM_PATH];
         SPrintf(ARGS(packDir), "%s/*.pak", path);
-        FixPath(ARGS(packDir));
+        StrPath(ARGS(packDir));
 
-        Array<IO::FindData> files = CreateArray<IO::FindData>(EAlloc_Temp, 16);
-        IO::FindAll(files, packDir);
-
-        for (const IO::FindData& file : files)
+        fnd_t fnd = -1;
+        fnd_data_t fndData;
+        while (pim_fnditer(&fnd, &fndData, packDir))
         {
-            SPrintf(ARGS(packDir), "%s/%s", path, file.name);
-            FixPath(ARGS(packDir));
-            Pack pack = LoadPack(packDir, allocator);
+            char subdir[PIM_PATH];
+            SPrintf(ARGS(subdir), "%s/%s", path, fndData.name);
+            StrPath(ARGS(subdir));
+            Pack pack = LoadPack(subdir, allocator);
             if (pack.ptr != NULL)
             {
                 folder.packs.Grow() = pack;
             }
         }
-
-        files.Reset();
 
         return folder;
     }

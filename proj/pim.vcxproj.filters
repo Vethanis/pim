@@ -130,17 +130,11 @@
     <ClCompile Include="..\src\os\thread_win32.cpp">
       <Filter>Source Files\os</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\io.cpp">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\quake\packfile.cpp">
       <Filter>Source Files\quake</Filter>
     </ClCompile>
     <ClCompile Include="..\submodules\miniz\miniz.c">
       <Filter>submodules\miniz</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\common\stringutil.cpp">
-      <Filter>Source Files\common</Filter>
     </ClCompile>
     <ClCompile Include="..\src\audio\audio_system.cpp">
       <Filter>Source Files\audio</Filter>
@@ -193,9 +187,6 @@
     <ClCompile Include="..\src\common\module.c">
       <Filter>Source Files\common</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\os\mman.c">
-      <Filter>Source Files\os</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\common\cvar.c">
       <Filter>Source Files\common</Filter>
     </ClCompile>
@@ -204,6 +195,12 @@
     </ClCompile>
     <ClCompile Include="..\src\allocator\allocator.c">
       <Filter>Source Files\allocator</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\stringutil.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\io.c">
+      <Filter>Source Files\common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -566,9 +563,6 @@
     </ClInclude>
     <ClInclude Include="..\src\common\module.h">
       <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\os\mman.h">
-      <Filter>Source Files\os</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\atomics.h">
       <Filter>Source Files\common</Filter>
