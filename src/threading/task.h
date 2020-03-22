@@ -1,60 +1,29 @@
 #pragma once
 
-#include "common/int_types.h"
-#include "containers/slice.h"
+#include "common/macro.h"
 
-static constexpr u32 kNumThreads = 32;
-static constexpr i32 kTaskSplit = kNumThreads * (kNumThreads / 2);
+PIM_C_BEGIN
 
-u32 ThreadId();
-u32 NumActiveThreads();
+#include <stdint.h>
 
-enum TaskStatus : i32
+typedef enum
 {
-    TaskStatus_Init = 0,
-    TaskStatus_Exec,
+    TaskStatus_Exec = 0,
     TaskStatus_Complete,
+} TaskStatus;
 
-    TaskStatus_COUNT
-};
+typedef void (*task_execute_fn)(void* userData, int32_t begin, int32_t end);
+typedef void* task_hdl;
 
-struct ITask
-{
-    ITask(i32 begin, i32 end, i32 loopLen) :
-        m_dependency(0),
-        m_status(TaskStatus_Init),
-        m_waits(0),
-        m_begin(begin),
-        m_end(end),
-        m_loopLen(loopLen),
-        m_head(begin),
-        m_tail(begin)
-    {}
-    virtual ~ITask() {}
-    virtual void Execute(i32 begin, i32 end) = 0;
+int32_t task_thread_id(void);
+int32_t task_num_active(void);
 
-    TaskStatus GetStatus() const;
-    bool IsComplete() const;
-    bool IsInitOrComplete() const;
-    void SetDependency(ITask* pTask);
-    void SetRange(i32 begin, i32 end, i32 loopLen);
-    void SetRange(i32 begin, i32 end);
+task_hdl task_submit(void* data, task_execute_fn execute, int32_t worksize);
+TaskStatus task_stat(task_hdl hdl);
+void* task_complete(task_hdl* pHandle);
 
-private:
-    friend struct ITaskFriend;
-    ITask* m_dependency;
-    i32 m_status;
-    i32 m_waits;
-    i32 m_begin;
-    i32 m_end;
-    i32 m_loopLen;
-    i32 m_head;
-    i32 m_tail;
-};
+void task_sys_init(void);
+void task_sys_update(void);
+void task_sys_shutdown(void);
 
-namespace TaskSystem
-{
-    void Submit(ITask* pTask);
-    void Submit(Slice<ITask*> tasks);
-    void Await(ITask* pTask);
-};
+PIM_C_END

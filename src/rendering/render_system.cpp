@@ -14,6 +14,8 @@
 #include "components/transform.h"
 #include "math/vec_funcs.h"
 
+#include <string.h>
+
 namespace Screen
 {
     static i32 ms_width;
@@ -67,17 +69,7 @@ struct alignas(64) Framebuffer
 
     void Clear()
     {
-        constexpr i32 ct = kDrawPixels / (4 * 8);
-        SASSERT(ct * (4 * 8) == kDrawPixels);
-        uint4* ptr = (uint4*)buffer;
-        const uint4 v = { 0, 0, 0, 0 };
-        for (i32 i = 0; i < ct; ++i)
-        {
-            for (i32 j = 0; j < 8; ++j)
-            {
-                ptr[i * 8 + j] = v;
-            }
-        }
+        memset(buffer, 0, sizeof(buffer));
     }
 };
 
@@ -96,24 +88,15 @@ static void DrawTile(Framebuffer& buffer, i32 x0, i32 y0)
     }
 }
 
-struct DrawTask final : ITask
+static void DrawFn(void* data, int32_t begin, int32_t end)
 {
-    Framebuffer* m_pBuffer;
-    DrawTask() : ITask(0, kTileCount, 1) {}
-    void Setup(Framebuffer& buffer)
+    Framebuffer* pBuffer = (Framebuffer*)data;
+    for (int32_t i = begin; i < end; ++i)
     {
-        m_pBuffer = &buffer;
+        int2 tile = GetTile(i);
+        DrawTile(*pBuffer, tile.x, tile.y);
     }
-    void Execute(i32 begin, i32 end) final
-    {
-        Framebuffer& buffer = *m_pBuffer;
-        for (i32 i = begin; i < end; ++i)
-        {
-            const int2 tile = GetTile(i);
-            DrawTile(buffer, tile.x, tile.y);
-        }
-    }
-};
+}
 
 namespace RenderSystem
 {
@@ -122,7 +105,7 @@ namespace RenderSystem
     static sg_backend ms_backend;
     static i32 ms_iFrame;
     static sg_image ms_images[kNumFrames];
-    static DrawTask ms_tasks[kNumFrames];
+    static task_hdl ms_tasks[kNumFrames];
     static Framebuffer ms_buffers[kNumFrames];
 
     static void Init();
@@ -134,7 +117,7 @@ namespace RenderSystem
     static System ms_system
     {
         "RenderSystem",
-        { "InputSystem", "ECS", "TaskSystem" },
+        { "InputSystem", "ECS" },
         Init,
         Update,
         Shutdown,
@@ -193,7 +176,7 @@ namespace RenderSystem
     {
         for (i32 i = 0; i < kNumFrames; ++i)
         {
-            TaskSystem::Await(ms_tasks + i);
+            task_complete(ms_tasks + i);
             sg_destroy_image(ms_images[i]);
             ms_images[i] = {};
         }
@@ -203,15 +186,15 @@ namespace RenderSystem
         sg_shutdown();
     }
 
-    static void* ImGuiAllocFn(size_t sz, void*) { return CAllocator.Alloc(EAlloc_Perm, (int32_t)sz); }
-    static void ImGuiFreeFn(void* ptr, void*) { CAllocator.Free(ptr); }
+    static void* ImGuiAllocFn(size_t sz, void*) { return pim_malloc(EAlloc_Perm, (int32_t)sz); }
+    static void ImGuiFreeFn(void* ptr, void*) { pim_free(ptr); }
 
     void FrameEnd()
     {
         const i32 iPrev = (ms_iFrame - 1) & kFrameMask;
         const i32 iCurrent = (ms_iFrame + 0) & kFrameMask;
         {
-            TaskSystem::Await(ms_tasks + iCurrent);
+            task_complete(ms_tasks + iCurrent);
             sg_image_content content = {};
             content.subimage[0][0] =
             {
@@ -220,8 +203,7 @@ namespace RenderSystem
             };
             sg_update_image(ms_images[iCurrent], &content);
             ms_buffers[iCurrent].Clear();
-            ms_tasks[iCurrent].Setup(ms_buffers[iCurrent]);
-            TaskSystem::Submit(ms_tasks + iCurrent);
+            ms_tasks[iCurrent] = task_submit(ms_buffers + iCurrent, DrawFn, kTileCount);
         }
         {
             sg_pass_action clear = {};

@@ -28,6 +28,8 @@ static tlsf_t ms_perm;
 static linear_allocator_t ms_temp[2];
 static PIM_TLS tlsf_t ms_local;
 
+// ----------------------------------------------------------------------------
+
 static tlsf_t create_tlsf(int32_t capacity)
 {
     ASSERT(capacity > 0);
@@ -83,7 +85,9 @@ static void linear_clear(linear_allocator_t* alloc)
     store_i64(&(alloc->head), 0, MO_Release);
 }
 
-static void PIM_CDECL Init(void)
+// ----------------------------------------------------------------------------
+
+void alloc_sys_init(void)
 {
     int32_t rv = pthread_mutex_init(&ms_perm_mtx, NULL);
     ASSERT(rv == 0);
@@ -94,13 +98,13 @@ static void PIM_CDECL Init(void)
     create_linear(ms_temp + 1, kTempCapacity);
 }
 
-static void PIM_CDECL Update(void)
+void alloc_sys_update(void)
 {
     ms_tempIndex = (ms_tempIndex + 1) & 1;
     linear_clear(ms_temp + ms_tempIndex);
 }
 
-static void PIM_CDECL Shutdown(void)
+void alloc_sys_shutdown(void)
 {
     int32_t rv = pthread_mutex_destroy(&ms_perm_mtx);
     ASSERT(rv == 0);
@@ -114,10 +118,13 @@ static void PIM_CDECL Shutdown(void)
     destroy_linear(ms_temp + 1);
 }
 
-static void* PIM_CDECL Alloc(EAlloc type, int32_t bytes)
+// ----------------------------------------------------------------------------
+
+void* pim_malloc(EAlloc type, int32_t bytes)
 {
     void* ptr = 0;
 
+    ASSERT(bytes >= 0);
     if (bytes > 0)
     {
         bytes = ((bytes + 16) + 15) & ~15;
@@ -161,7 +168,7 @@ static void* PIM_CDECL Alloc(EAlloc type, int32_t bytes)
     return ptr;
 }
 
-static void PIM_CDECL Free(void* ptr)
+void pim_free(void* ptr)
 {
     if (ptr)
     {
@@ -194,16 +201,16 @@ static void PIM_CDECL Free(void* ptr)
     }
 }
 
-static void* PIM_CDECL Realloc(EAlloc type, void* prev, int32_t bytes)
+void* pim_realloc(EAlloc type, void* prev, int32_t bytes)
 {
     if (!prev)
     {
-        return Alloc(type, bytes);
+        return pim_malloc(type, bytes);
     }
     if (bytes <= 0)
     {
         ASSERT(bytes == 0);
-        Free(prev);
+        pim_free(prev);
         return 0;
     }
 
@@ -217,34 +224,23 @@ static void* PIM_CDECL Realloc(EAlloc type, void* prev, int32_t bytes)
 
     bytes = (bytes > (prevBytes * 2)) ? bytes : (prevBytes * 2);
 
-    void* next = Alloc(type, bytes);
+    void* next = pim_malloc(type, bytes);
     if (next)
     {
         memcpy(next, prev, prevBytes);
     }
 
-    Free(prev);
+    pim_free(prev);
 
     return next;
 }
 
-static void* PIM_CDECL Calloc(EAlloc type, int32_t bytes)
+void* pim_calloc(EAlloc type, int32_t bytes)
 {
-    void* ptr = Alloc(type, bytes);
+    void* ptr = pim_malloc(type, bytes);
     if (ptr)
     {
         memset(ptr, 0, bytes);
     }
     return ptr;
 }
-
-const allocator_t CAllocator =
-{
-    .Init = Init,
-    .Update = Update,
-    .Shutdown = Shutdown,
-    .Alloc = Alloc,
-    .Free = Free,
-    .Realloc = Realloc,
-    .Calloc = Calloc,
-};

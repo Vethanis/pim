@@ -86,7 +86,7 @@ public:
 
     void Reset()
     {
-        CAllocator.Free(m_ptr);
+        pim_free(m_ptr);
         m_ptr = nullptr;
         m_length = 0;
         SetCapacity(0);
@@ -95,16 +95,6 @@ public:
     void Clear()
     {
         m_length = 0;
-    }
-
-    void Trim()
-    {
-        const i32 len = m_length;
-        if (capacity() > len)
-        {
-            m_ptr = Allocator::ReallocT<T>(GetAllocator(), m_ptr, len);
-            SetCapacity(len);
-        }
     }
 
     // ------------------------------------------------------------------------
@@ -128,7 +118,7 @@ public:
         if (newCap > current)
         {
             const i32 next = Max(newCap, Max(current * 2, 16));
-            m_ptr = Allocator::ReallocT<T>(GetAllocator(), m_ptr, next);
+            m_ptr = pim_trealloc(T, GetAllocator(), m_ptr, next);
             SetCapacity(next);
         }
     }

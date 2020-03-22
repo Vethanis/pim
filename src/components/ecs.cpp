@@ -83,7 +83,7 @@ namespace ECS
     static u8* GetBytes(Slab* pSlab);
     static Slice<const ComponentId> GetTypes(const SlabSet* pSet);
     static Slice<const i32> GetOffsets(const SlabSet* pSet);
-    static i32 SlabToRows(Slab* pSlab, Array<Row>& rows);
+    //static i32 SlabToRows(Slab* pSlab, Array<Row>& rows);
 
     static void Init()
     {
@@ -232,32 +232,32 @@ namespace ECS
         return reinterpret_cast<u8*>(pSlab + 1);
     }
 
-    static i32 SlabToRows(Slab* pSlab, Array<Row>& rows)
-    {
-        ASSERT(pSlab);
+    //static i32 SlabToRows(Slab* pSlab, Array<Row>& rows)
+    //{
+    //    ASSERT(pSlab);
 
-        const i32 length = pSlab->m_length;
-        u8* const pBytes = GetBytes(pSlab);
+    //    const i32 length = pSlab->m_length;
+    //    u8* const pBytes = GetBytes(pSlab);
 
-        const SlabSet* const pSet = pSlab->m_pSet;
-        ASSERT(pSet);
+    //    const SlabSet* const pSet = pSlab->m_pSet;
+    //    ASSERT(pSet);
 
-        const i32 rowCount = pSet->m_typeCount;
-        const Slice<const ComponentId> types = { pSet->m_types, rowCount };
-        const Slice<const i32> offsets = { pSet->m_offsets, rowCount };
-        const Slice<const i32> strides = { ms_strides, ms_typeCount };
+    //    const i32 rowCount = pSet->m_typeCount;
+    //    const Slice<const ComponentId> types = { pSet->m_types, rowCount };
+    //    const Slice<const i32> offsets = { pSet->m_offsets, rowCount };
+    //    const Slice<const i32> strides = { ms_strides, ms_typeCount };
 
-        rows.Resize(rowCount);
-        for (i32 iRow = 0; iRow < rowCount; ++iRow)
-        {
-            const ComponentId type = types[iRow];
-            rows[iRow] = { type, strides[type.Value], pBytes + offsets[iRow] };
-        }
+    //    rows.Resize(rowCount);
+    //    for (i32 iRow = 0; iRow < rowCount; ++iRow)
+    //    {
+    //        const ComponentId type = types[iRow];
+    //        rows[iRow] = { type, strides[type.Value], pBytes + offsets[iRow] };
+    //    }
 
-        return length;
-    }
+    //    return length;
+    //}
 
-    static bool IsSingleThreaded() { return (ThreadId() == 0) && (NumActiveThreads() == 0); }
+    static bool IsSingleThreaded() { return (task_thread_id() == 0) && (task_num_active() == 0); }
 
     static i32 SizeSum(std::initializer_list<ComponentId> types)
     {
@@ -271,7 +271,7 @@ namespace ECS
 
     static Slab* CreateSlab(SlabSet* pSet)
     {
-        Slab* pSlab = (Slab*)CAllocator.Calloc(EAlloc_Perm, kSlabBytes);
+        Slab* pSlab = pim_tcalloc(Slab, EAlloc_Perm, kSlabBytes);
         ASSERT(pSlab);
         pSlab->m_pSet = pSet;
         pSlab->m_capacity = pSet->m_slabCapacity;
@@ -287,7 +287,7 @@ namespace ECS
             SlabSet* pSet = pSlab->m_pSet;
             ASSERT(pSet);
             pSet->m_slabs.FindRemove(pSlab);
-            CAllocator.Free(pSlab);
+            pim_free(pSlab);
 
             if (pSet->m_slabs.size() == 0)
             {
@@ -314,9 +314,9 @@ namespace ECS
         const i32 padding = (i32)sizeof(Slab) + (typeCount * kSlabAlign);
         const i32 capacity = (kSlabBytes - padding) / typeBytes;
 
-        SlabSet* pSet = Allocator::CallocT<SlabSet>(EAlloc_Perm, 1);
-        i32* offsets = Allocator::CallocT<i32>(EAlloc_Perm, typeCount);
-        ComponentId* ids = Allocator::CallocT<ComponentId>(EAlloc_Perm, typeCount);
+        SlabSet* pSet = pim_tcalloc(SlabSet, EAlloc_Perm, 1);
+        i32* offsets = pim_tcalloc(i32, EAlloc_Perm, typeCount);
+        ComponentId* ids = pim_tcalloc(ComponentId, EAlloc_Perm, typeCount);
 
         ids[0] = GetId<Entity>();
         memcpy(ids + 1, types.begin(), types.size() * sizeof(ComponentId));
@@ -348,12 +348,12 @@ namespace ECS
         {
             for (Slab* pSlab : pSet->m_slabs)
             {
-                CAllocator.Free(pSlab);
+                pim_free(pSlab);
             }
             pSet->m_slabs.Reset();
-            CAllocator.Free(pSet->m_offsets);
-            CAllocator.Free(pSet->m_types);
-            CAllocator.Free(pSet);
+            pim_free(pSet->m_offsets);
+            pim_free(pSet->m_types);
+            pim_free(pSet);
 
             ms_slabSets.FindRemove(pSet);
         }
@@ -452,41 +452,41 @@ namespace ECS
         }
     }
 
-    void OnSlabTask::SetQuery(TypeFlags all, TypeFlags none)
-    {
-        ASSERT(IsInitOrComplete());
-        m_all = all;
-        m_none = none;
-        SetRange(0, CountSlabs(all, none));
-    }
+    //void OnSlabTask::SetQuery(TypeFlags all, TypeFlags none)
+    //{
+    //    ASSERT(IsInitOrComplete());
+    //    m_all = all;
+    //    m_none = none;
+    //    SetRange(0, CountSlabs(all, none));
+    //}
 
-    void OnSlabTask::Execute(i32 begin, i32 end)
-    {
-        Array<Row> rows = CreateArray<Row>(EAlloc_TLS);
-        Array<Slab*> slabs = GatherSlabs(m_all, m_none);
+    //void OnSlabTask::Execute(i32 begin, i32 end)
+    //{
+    //    Array<Row> rows = CreateArray<Row>(EAlloc_TLS);
+    //    Array<Slab*> slabs = GatherSlabs(m_all, m_none);
 
-        begin = Max(begin, 0);
-        end = Min(end, slabs.size());
-        for (i32 iSlab = begin; iSlab < end; ++iSlab)
-        {
-            Slab* const pSlab = slabs[iSlab];
-            const i32 length = SlabToRows(pSlab, rows);
-            OnSlab(length, rows);
-        }
+    //    begin = Max(begin, 0);
+    //    end = Min(end, slabs.size());
+    //    for (i32 iSlab = begin; iSlab < end; ++iSlab)
+    //    {
+    //        Slab* const pSlab = slabs[iSlab];
+    //        const i32 length = SlabToRows(pSlab, rows);
+    //        OnSlab(length, rows);
+    //    }
 
-        slabs.Reset();
-        rows.Reset();
-    }
+    //    slabs.Reset();
+    //    rows.Reset();
+    //}
 
-    i32 OnSlabTask::FindRow(ComponentId type, Slice<const Row> rows)
-    {
-        for (i32 i = 0, c = rows.size(); i < c; ++i)
-        {
-            if (rows[i].type == type)
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
+    //i32 OnSlabTask::FindRow(ComponentId type, Slice<const Row> rows)
+    //{
+    //    for (i32 i = 0, c = rows.size(); i < c; ++i)
+    //    {
+    //        if (rows[i].type == type)
+    //        {
+    //            return i;
+    //        }
+    //    }
+    //    return -1;
+    //}
 };

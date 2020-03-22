@@ -153,4 +153,52 @@ namespace OS
         i16 prev = exch_i16(&m_state, 0, MO_Release);
         ASSERT(prev == -1);
     }
+
+    bool Event::Open()
+    {
+        store_i32(&m_state, 0, MO_Release);
+        return m_sema.Open();
+    }
+
+    bool Event::Close()
+    {
+        WakeAll();
+        m_sema.Close();
+        return true;
+    }
+
+    void Event::WakeOne()
+    {
+        i32 state = load_i32(&m_state, MO_Relaxed);
+        if (state > 0)
+        {
+            if (cmpex_i32(&m_state, &state, state - 1, MO_Release))
+            {
+                m_sema.Signal(1);
+            }
+        }
+    }
+
+    void Event::WakeAll()
+    {
+        i32 state = exch_i32(&m_state, 0, MO_AcqRel);
+        if (state > 0)
+        {
+            m_sema.Signal(state);
+        }
+    }
+
+    void Event::Wake(i32 count)
+    {
+        for (i32 i = 0; i < count; ++i)
+        {
+            WakeOne();
+        }
+    }
+
+    void Event::Wait()
+    {
+        inc_i32(&m_state, MO_Acquire);
+        m_sema.Wait();
+    }
 };

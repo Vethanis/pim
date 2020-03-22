@@ -32,7 +32,7 @@ struct PtrQueue
     void Reset()
     {
         m_lock.LockWriter();
-        CAllocator.Free(m_ptr);
+        pim_free(m_ptr);
         m_ptr = 0;
         m_width = 0;
         m_iWrite = 0;
@@ -66,7 +66,7 @@ struct PtrQueue
         const u32 newWidth = ToPow2(minCap);
         if (newWidth > capacity())
         {
-            isize* newPtr = Allocator::CallocT<isize>(m_allocator, newWidth);
+            isize* newPtr = pim_tcalloc(isize, m_allocator, newWidth);
 
             m_lock.LockWriter();
 
@@ -97,11 +97,11 @@ struct PtrQueue
 
             if (grew)
             {
-                CAllocator.Free(oldPtr);
+                pim_free(oldPtr);
             }
             else
             {
-                CAllocator.Free(newPtr);
+                pim_free(newPtr);
             }
         }
     }

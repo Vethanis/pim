@@ -23,21 +23,11 @@ namespace AssetSystem
     static void Update();
     static void Shutdown();
     static void OnGui();
-    static void OnFolder(Folder& folder);
-
-    struct LoadTask final : ITask
-    {
-        Text<64> m_path;
-        Folder m_folder;
-        LoadTask() : ITask(0, 1, 1){}
-        void Execute(i32, i32) final { m_folder = Quake::LoadFolder(m_path, EAlloc_Perm); }
-    };
 
     static HashDict<Text<64>, Asset> ms_assets;
     static Array<Pack> ms_packs;
-    static LoadTask ms_task;
 
-    static System ms_system{ "AssetSystem", { "RenderSystem", "TaskSystem" }, Init, Update, Shutdown, };
+    static System ms_system{ "AssetSystem", { "RenderSystem" }, Init, Update, Shutdown, };
 
     static void Init()
     {
@@ -46,36 +36,7 @@ namespace AssetSystem
         ms_assets.Init();
         ms_packs.Init();
 
-        ms_task.m_path = "packs/id1";
-        TaskSystem::Submit(&ms_task);
-    }
-
-    static void Update()
-    {
-        if (ms_task.IsComplete())
-        {
-            OnFolder(ms_task.m_folder);
-            ms_task = LoadTask();
-        }
-
-        if (cv_imgui.asFloat > 0.0f)
-        {
-            OnGui();
-        }
-    }
-
-    static void Shutdown()
-    {
-        ms_assets.Reset();
-        for (Pack& pack : ms_packs)
-        {
-            Quake::FreePack(pack);
-        }
-        ms_packs.Reset();
-    }
-
-    static void OnFolder(Folder& folder)
-    {
+        Folder folder = Quake::LoadFolder("packs/id1", EAlloc_Perm);
         for (const Pack& src : folder.packs)
         {
             ms_packs.PushBack(src);
@@ -99,6 +60,24 @@ namespace AssetSystem
             }
         }
         folder.packs.Reset();
+    }
+
+    static void Update()
+    {
+        if (cv_imgui.asFloat > 0.0f)
+        {
+            OnGui();
+        }
+    }
+
+    static void Shutdown()
+    {
+        ms_assets.Reset();
+        for (Pack& pack : ms_packs)
+        {
+            Quake::FreePack(pack);
+        }
+        ms_packs.Reset();
     }
 
     static bool ColumnCmp(i32 metric, const File* files, i32 a, i32 b)

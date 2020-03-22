@@ -31,7 +31,7 @@ struct Queue
 
     void Reset()
     {
-        CAllocator.Free(m_ptr);
+        pim_free(m_ptr);
         m_ptr = 0;
         m_width = 0;
         m_iRead = 0;
@@ -77,7 +77,7 @@ struct Queue
 
         const u32 oldMask = Mask();
         const u32 oldiRead = m_iRead;
-        T* newPtr = Allocator::AllocT<T>(GetAllocator(), newWidth);
+        T* newPtr = pim_tmalloc(T, GetAllocator(), newWidth);
         T* oldPtr = m_ptr;
 
         for (u32 i = 0; i < length; ++i)
@@ -86,7 +86,7 @@ struct Queue
             newPtr[i] = oldPtr[j];
         }
 
-        CAllocator.Free(oldPtr);
+        pim_free(oldPtr);
 
         m_ptr = newPtr;
         m_width = newWidth;
@@ -162,106 +162,6 @@ struct Queue
         const u32 i = m_iWrite++ & Mask();
         m_ptr[i] = value;
     }
-
-    u32 PushSort(T value)
-    {
-        Push(value);
-
-        const u32 mask = Mask();
-        const u32 iRead = m_iRead;
-        T* const ptr = m_ptr;
-
-        const u32 back = size() - 1u;
-        u32 pos = back;
-        for (u32 i = back; i > 0u; --i)
-        {
-            const u32 rhs = (iRead + i) & mask;
-            const u32 lhs = (iRead + i - 1u) & mask;
-
-            if (ptr[rhs] < ptr[lhs])
-            {
-                T tmp = ptr[lhs];
-                ptr[lhs] = ptr[rhs];
-                ptr[rhs] = tmp;
-                --pos;
-            }
-            else
-            {
-                break;
-            }
-        }
-        return pos;
-    }
-
-    // ------------------------------------------------------------------------
-
-    struct iterator
-    {
-        T* const m_ptr;
-        const u32 m_mask;
-        u32 m_i;
-
-        inline iterator(Queue& queue, bool isBegin)
-            : m_ptr(queue.m_ptr),
-            m_mask(queue.Mask()),
-            m_i(isBegin ? queue.m_iRead : queue.m_iWrite)
-        {}
-
-        inline bool operator!=(iterator rhs) const
-        {
-            return m_i != rhs.m_i;
-        }
-
-        inline iterator& operator++()
-        {
-            ++m_i;
-            return *this;
-        }
-
-        inline T& operator*()
-        {
-            return m_ptr[m_i & m_mask];
-        }
-    };
-
-    inline iterator begin() { return iterator(*this, true); }
-    inline iterator end() { return iterator(*this, false); }
-
-    // ------------------------------------------------------------------------
-
-    struct const_iterator
-    {
-        const T* const m_ptr;
-        const u32 m_mask;
-        u32 m_i;
-
-        inline const_iterator(const Queue& queue, bool isBegin)
-            : m_ptr(queue.m_ptr),
-            m_mask(queue.Mask()),
-            m_i(isBegin ? queue.m_iRead : queue.m_iWrite)
-        {}
-
-        inline bool operator!=(const_iterator rhs) const
-        {
-            return m_i != rhs.m_i;
-        }
-
-        inline const_iterator& operator++()
-        {
-            ++m_i;
-            return *this;
-        }
-
-        inline const T& operator*() const
-        {
-            return m_ptr[m_i & m_mask];
-        }
-    };
-
-    inline const_iterator begin() const { return const_iterator(*this, true); }
-    inline const_iterator end() const { return const_iterator(*this, false); }
-
-    // ------------------------------------------------------------------------
 };
 
 template<typename T>

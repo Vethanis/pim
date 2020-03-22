@@ -175,9 +175,6 @@
     <ClCompile Include="..\src\threading\task.cpp">
       <Filter>Source Files\threading</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\chunk_allocator.cpp">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\submodules\tlsf\tlsf.c">
       <Filter>submodules\tlsf</Filter>
     </ClCompile>
@@ -348,9 +345,6 @@
     <ClInclude Include="..\src\containers\array.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\ring.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\slice.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -444,9 +438,6 @@
     <ClInclude Include="..\src\common\strhash.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\chunk_allocator.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\valist.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -455,9 +446,6 @@
     </ClInclude>
     <ClInclude Include="..\src\common\minmax.h">
       <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\generational.h">
-      <Filter>Source Files\containers</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\sort.h">
       <Filter>Source Files\common</Filter>
@@ -498,41 +486,17 @@
     <ClInclude Include="..\src\common\time.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\heap.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\submodules\stackwalker\StackWalker.h">
       <Filter>submodules\stackwalker</Filter>
     </ClInclude>
     <ClInclude Include="..\src\allocator\leak_tracker.h">
       <Filter>Source Files\allocator</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\array_view.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\bitpack.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\pipe.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\obj_pool.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\obj_table.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\typeid.h">
       <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\atomic_array.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\mtqueue.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\mtarray.h">
-      <Filter>Source Files\containers</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\genid.h">
       <Filter>Source Files\containers</Filter>

@@ -30,9 +30,9 @@ public:
 
     void Reset()
     {
-        CAllocator.Free(m_hashes);
-        CAllocator.Free(m_keys);
-        CAllocator.Free(m_values);
+        pim_free(m_hashes);
+        pim_free(m_keys);
+        pim_free(m_values);
         m_hashes = 0;
         m_values = 0;
         m_width = 0;
@@ -80,9 +80,9 @@ public:
         }
 
         const EAlloc allocator = GetAllocator();
-        u32* newHashes = Allocator::CallocT<u32>(allocator, newWidth);
-        K* newKeys = Allocator::CallocT<K>(allocator, newWidth);
-        V* newValues = Allocator::AllocT<V>(allocator, newWidth);
+        u32* newHashes = pim_tcalloc(u32, allocator, newWidth);
+        K* newKeys = pim_tcalloc(K, allocator, newWidth);
+        V* newValues = pim_tmalloc(V, allocator, newWidth);
 
         u32* oldHashes = m_hashes;
         K* oldKeys = m_keys;
@@ -117,9 +117,9 @@ public:
         m_values = newValues;
         m_width = newWidth;
 
-        CAllocator.Free(oldHashes);
-        CAllocator.Free(oldKeys);
-        CAllocator.Free(oldValues);
+        pim_free(oldHashes);
+        pim_free(oldKeys);
+        pim_free(oldValues);
     }
 
     i32 Find(u32 keyHash, K key) const

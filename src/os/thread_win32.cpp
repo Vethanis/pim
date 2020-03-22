@@ -252,45 +252,6 @@ namespace OS
     {
         return ::TryEnterCriticalSection(AsCrit(this));
     }
-
-    bool Event::Open()
-    {
-        store_i32(&state, 0, MO_Release);
-        return true;
-    }
-
-    bool Event::Close()
-    {
-        WakeAll();
-        return true;
-    }
-
-    void Event::WakeOne()
-    {
-        inc_i32(&state, MO_Release);
-        ::WakeByAddressSingle(&state);
-    }
-
-    void Event::WakeAll()
-    {
-        inc_i32(&state, MO_Release);
-        ::WakeByAddressAll(&state);
-    }
-
-    void Event::Wake(i32 count)
-    {
-        for (i32 i = 0; i < count; ++i)
-        {
-            WakeOne();
-        }
-    }
-
-    void Event::Wait()
-    {
-        i32 prev = load_i32(&state, MO_Relaxed);
-        ::WaitOnAddress(&state, &prev, sizeof(state), INFINITE);
-    }
-
 };
 
 #endif // PLAT_WINDOWS

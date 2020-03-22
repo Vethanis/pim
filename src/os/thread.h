@@ -106,7 +106,8 @@ namespace OS
 
     struct Event
     {
-        i32 state;
+        Semaphore m_sema;
+        i32 m_state;
 
         bool Open();
         bool Close();

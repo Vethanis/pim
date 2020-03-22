@@ -35,8 +35,8 @@ public:
 
     void Reset()
     {
-        CAllocator.Free(m_hashes);
-        CAllocator.Free(m_keys);
+        pim_free(m_hashes);
+        pim_free(m_keys);
         m_hashes = 0;
         m_keys = 0;
         m_width = 0;
@@ -109,8 +109,8 @@ public:
         m_keys = newKeys;
         m_width = newWidth;
 
-        CAllocator.Free(oldHashes);
-        CAllocator.Free(oldKeys);
+        pim_free(oldHashes);
+        pim_free(oldKeys);
     }
 
     i32 Find(u32 keyHash, K key) const

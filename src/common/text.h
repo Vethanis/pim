@@ -4,11 +4,9 @@
 #include "common/int_types.h"
 
 template<i32 t_capacity>
-struct alignas(16) Text
+struct Text
 {
     static constexpr i32 Capacity = t_capacity;
-    SASSERT(Capacity >= 16);
-    SASSERT((Capacity % 16) == 0);
 
     char value[Capacity];
 
