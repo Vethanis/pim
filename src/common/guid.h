@@ -47,8 +47,10 @@ inline Guid ToGuid(const void* ptr, i32 count, u64 seed = Fnv64Bias)
 
 inline Guid CreateGuid()
 {
-    u64 a = Random::NextU64();
-    u64 b = Random::NextU64();
+    u64 a = rand_int();
+    a = (a << 32) | rand_int();
+    u64 b = rand_int();
+    b = (b << 32) | rand_int();
     a = a ? a : 1;
     b = b ? b : 1;
     return Guid{ a, b };

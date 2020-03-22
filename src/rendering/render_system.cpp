@@ -169,7 +169,7 @@ namespace RenderSystem
     static void Update()
     {
         Screen::Update();
-        simgui_new_frame(Screen::Width(), Screen::Height(), Time::DeltaTimeF32());
+        simgui_new_frame(Screen::Width(), Screen::Height(), time_dtf());
     }
 
     static void Shutdown()

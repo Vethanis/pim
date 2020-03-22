@@ -18,16 +18,15 @@
     <ClCompile Include="..\src\common\cvar.c" />
     <ClCompile Include="..\src\common\io.c" />
     <ClCompile Include="..\src\common\module.c" />
-    <ClCompile Include="..\src\common\random.cpp" />
+    <ClCompile Include="..\src\common\random.c" />
     <ClCompile Include="..\src\common\stringutil.c" />
-    <ClCompile Include="..\src\common\time.cpp" />
+    <ClCompile Include="..\src\common\time.c" />
     <ClCompile Include="..\src\components\ecs.cpp" />
+    <ClCompile Include="..\src\containers\ptrqueue.c" />
     <ClCompile Include="..\src\input\input_system.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\os\socket.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
-    <ClCompile Include="..\src\os\thread.cpp" />
-    <ClCompile Include="..\src\os\thread_win32.cpp" />
     <ClCompile Include="..\src\quake\packfile.cpp" />
     <ClCompile Include="..\src\rendering\material.cpp" />
     <ClCompile Include="..\src\rendering\mesh.cpp" />
@@ -37,7 +36,13 @@
     <ClCompile Include="..\src\sokol\sokol_gl.c" />
     <ClCompile Include="..\src\sokol\sokol_imgui.cpp" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
-    <ClCompile Include="..\src\threading\task.cpp" />
+    <ClCompile Include="..\src\threading\event.c" />
+    <ClCompile Include="..\src\threading\intrin.c" />
+    <ClCompile Include="..\src\threading\mutex.c" />
+    <ClCompile Include="..\src\threading\rwlock.c" />
+    <ClCompile Include="..\src\threading\semaphore.c" />
+    <ClCompile Include="..\src\threading\task.c" />
+    <ClCompile Include="..\src\threading\thread.c" />
     <ClCompile Include="..\submodules\imgui\imgui.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\submodules\imgui\imgui_draw.cpp" />
@@ -103,10 +108,15 @@
     <ClInclude Include="..\src\math\vec_ops.h" />
     <ClInclude Include="..\src\math\vec_types.h" />
     <ClInclude Include="..\src\os\socket.h" />
-    <ClInclude Include="..\src\os\thread.h" />
     <ClInclude Include="..\src\physics\components.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
     <ClInclude Include="..\src\quake\packfile.h" />
+    <ClInclude Include="..\src\threading\event.h" />
+    <ClInclude Include="..\src\threading\intrin.h" />
+    <ClInclude Include="..\src\threading\mutex.h" />
+    <ClInclude Include="..\src\threading\rwlock.h" />
+    <ClInclude Include="..\src\threading\semaphore.h" />
+    <ClInclude Include="..\src\threading\thread.h" />
     <ClInclude Include="..\submodules\tlsf\tlsf.h" />
     <FxCompile Include="..\src\shaders\quat.hlsl">
       <FileType>Document</FileType>
@@ -254,8 +264,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>pthreadVC2.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)..\submodules\pthread_w32\bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <FxCompile>
       <ShaderModel>5.0</ShaderModel>
@@ -292,8 +302,8 @@
       <SubSystem>Console</SubSystem>
       <Profile>true</Profile>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <AdditionalDependencies>pthreadVC2.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)..\submodules\pthread_w32\bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
     <FxCompile>

@@ -1,8 +1,12 @@
 #include "threading/task.h"
-#include "os/thread.h"
+
+#include "threading/thread.h"
+#include "threading/event.h"
+#include "threading/intrin.h"
 #include "common/atomics.h"
-#include "containers/ptrqueue.h"
 #include "common/random.h"
+#include "containers/ptrqueue.h"
+
 #include <string.h>
 
 #define kNumThreads     32
@@ -27,11 +31,11 @@ typedef struct range_s
 
 // ----------------------------------------------------------------------------
 
-static OS::Thread ms_threads[kNumThreads];
-static PtrQueue ms_queues[kNumThreads];
+static thread_t ms_threads[kNumThreads];
+static ptrqueue_t ms_queues[kNumThreads];
 
-static OS::Event ms_waitPush;
-static OS::Event ms_waitExec;
+static event_t ms_waitPush;
+static event_t ms_waitExec;
 
 static int32_t ms_numThreadsRunning;
 static int32_t ms_numThreadsSleeping;
@@ -66,14 +70,14 @@ static void MarkComplete(task_t* task)
     store_i32(&(task->status), TaskStatus_Complete, MO_Release);
     while (load_i32(&(task->awaits), MO_Acquire) > 0)
     {
-        ms_waitExec.WakeAll();
-        OS::SwitchThread();
+        event_wakeall(&ms_waitExec);
+        intrin_yield();
     }
 }
 
 static int32_t TryRunTask(int32_t tid)
 {
-    task_t* task = (task_t*)(ms_queues[tid].TryPop());
+    task_t* task = (task_t*)ptrqueue_trypop(ms_queues + tid);
     if (task)
     {
         const int32_t worksize = task->worksize;
@@ -100,27 +104,29 @@ static int32_t TryRunTask(int32_t tid)
     return task != 0;
 }
 
-static void TaskLoop(void* pVoid)
+static int32_t TaskLoop(void* arg)
 {
     inc_i32(&ms_numThreadsRunning, MO_Acquire);
 
-    Random::Seed();
+    rand_autoseed();
 
-    ms_tid = (int32_t)((isize)pVoid);
-    const int32_t tid = ms_tid;
+    const int32_t tid = (int32_t)((intptr_t)arg);
     ASSERT(tid);
+    ms_tid = tid;
 
     while (load_i32(&ms_running, MO_Relaxed))
     {
         if (!TryRunTask(tid))
         {
             inc_i32(&ms_numThreadsSleeping, MO_Acquire);
-            ms_waitPush.Wait();
+            event_wait(&ms_waitPush);
             dec_i32(&ms_numThreadsSleeping, MO_Release);
         }
     }
 
     dec_i32(&ms_numThreadsRunning, MO_Release);
+
+    return 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -147,7 +153,7 @@ task_hdl task_submit(void* data, task_execute_fn execute, int32_t worksize)
     ASSERT(execute);
     ASSERT(worksize > 0);
 
-    task_t* task = pim_tcalloc(task_t, EAlloc_TLS, 1);
+    task_t* task = pim_tcalloc(task_t, EAlloc_Perm, 1);
     ASSERT(task);
 
     task->execute = execute;
@@ -157,10 +163,10 @@ task_hdl task_submit(void* data, task_execute_fn execute, int32_t worksize)
 
     for (int32_t t = 1; t < kNumThreads; ++t)
     {
-        ms_queues[t].Push(task);
+        ptrqueue_push(ms_queues + t, task);
     }
 
-    ms_waitPush.WakeAll();
+    event_wakeall(&ms_waitPush);
 
     return task;
 }
@@ -179,7 +185,7 @@ void* task_complete(task_hdl* pHandle)
         inc_i32(&(task->awaits), MO_Acquire);
         while (task_stat(task) != TaskStatus_Complete)
         {
-            ms_waitExec.Wait();
+            event_wait(&ms_waitExec);
         }
         dec_i32(&(task->awaits), MO_Release);
 
@@ -192,13 +198,13 @@ void* task_complete(task_hdl* pHandle)
 
 void task_sys_init(void)
 {
-    ms_waitPush.Open();
-    ms_waitExec.Open();
+    event_create(&ms_waitPush);
+    event_create(&ms_waitExec);
     store_i32(&ms_running, 1, MO_Release);
     for (int32_t t = 1; t < kNumThreads; ++t)
     {
-        ms_queues[t].Init(EAlloc_Perm, 256);
-        ms_threads[t].Open(TaskLoop, (void*)((isize)t));
+        ptrqueue_create(ms_queues + t, EAlloc_Perm, 256);
+        ms_threads[t] = thread_create(TaskLoop, (void*)((intptr_t)t));
     }
 }
 
@@ -212,15 +218,17 @@ void task_sys_shutdown(void)
     store_i32(&ms_running, 0, MO_Release);
     while (load_i32(&ms_numThreadsRunning, MO_Acquire) > 0)
     {
-        ms_waitPush.WakeAll();
-        ms_waitExec.WakeAll();
-        OS::SwitchThread();
+        event_wakeall(&ms_waitPush);
+        event_wakeall(&ms_waitExec);
+        intrin_yield();
     }
     for (int32_t t = 1; t < kNumThreads; ++t)
     {
-        ms_threads[t].Join();
-        ms_queues[t].Reset();
+        thread_join(ms_threads[t]);
+        ptrqueue_destroy(ms_queues + t);
     }
-    ms_waitPush.Close();
-    ms_waitExec.Close();
+    memset(ms_threads, 0, sizeof(ms_threads));
+    memset(ms_queues, 0, sizeof(ms_queues));
+    event_destroy(&ms_waitPush);
+    event_destroy(&ms_waitExec);
 }

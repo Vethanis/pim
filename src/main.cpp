@@ -14,8 +14,8 @@
 
 static void Init()
 {
-    Time::Init();
-    Random::Seed();
+    time_sys_init();
+    rand_autoseed();
     alloc_sys_init();
     task_sys_init();
     Systems::Init();
@@ -23,7 +23,7 @@ static void Init()
 
 static void Update()
 {
-    Time::Update();
+    time_sys_update();
     alloc_sys_update();
     task_sys_update();
     Systems::Update();
@@ -36,7 +36,7 @@ static void Shutdown()
     Systems::Shutdown();
     task_sys_shutdown();
     alloc_sys_shutdown();
-    Time::Shutdown();
+    time_sys_shutdown();
 }
 
 static void OnEvent(const sapp_event* evt)

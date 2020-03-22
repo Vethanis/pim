@@ -88,7 +88,7 @@
 
 #define CONV_ASSERT(O, I) \
     SASSERT(sizeof(O) >= sizeof(I)); \
-    SASSERT(alignof(O) >= alignof(I));
+    SASSERT(_Alignof(O) >= _Alignof(I));
 
 // ----------------------------------------------------------------------------
 

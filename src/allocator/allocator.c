@@ -1,10 +1,14 @@
 #include "allocator/allocator.h"
 
-#include <stdlib.h>
-#include <pthread.h>
-#include <string.h>
-#include "tlsf/tlsf.h"
 #include "common/atomics.h"
+#include "threading/mutex.h"
+#include "threading/task.h"
+#include "tlsf/tlsf.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+#define kMaxThreads 32
 
 static const int32_t kKilobyte = 1 << 10;
 static const int32_t kMegabyte = 1 << 20;
@@ -23,10 +27,10 @@ typedef struct linear_allocator_s
 } linear_allocator_t;
 
 static int32_t ms_tempIndex;
-static pthread_mutex_t ms_perm_mtx;
+static mutex_t ms_perm_mtx;
 static tlsf_t ms_perm;
 static linear_allocator_t ms_temp[2];
-static PIM_TLS tlsf_t ms_local;
+static tlsf_t ms_local[kMaxThreads];
 
 // ----------------------------------------------------------------------------
 
@@ -89,9 +93,7 @@ static void linear_clear(linear_allocator_t* alloc)
 
 void alloc_sys_init(void)
 {
-    int32_t rv = pthread_mutex_init(&ms_perm_mtx, NULL);
-    ASSERT(rv == 0);
-
+    mutex_create(&ms_perm_mtx);
     ms_tempIndex = 0;
     ms_perm = create_tlsf(kPermCapacity);
     create_linear(ms_temp + 0, kTempCapacity);
@@ -106,13 +108,19 @@ void alloc_sys_update(void)
 
 void alloc_sys_shutdown(void)
 {
-    int32_t rv = pthread_mutex_destroy(&ms_perm_mtx);
-    ASSERT(rv == 0);
+    mutex_destroy(&ms_perm_mtx);
 
     free(ms_perm);
     ms_perm = 0;
-    free(ms_local);
-    ms_local = 0;
+
+    for (int32_t i = 0; i < kMaxThreads; ++i)
+    {
+        if (ms_local[i])
+        {
+            free(ms_local[i]);
+            ms_local[i] = 0;
+        }
+    }
 
     destroy_linear(ms_temp + 0);
     destroy_linear(ms_temp + 1);
@@ -123,6 +131,8 @@ void alloc_sys_shutdown(void)
 void* pim_malloc(EAlloc type, int32_t bytes)
 {
     void* ptr = 0;
+    int32_t tid = task_thread_id();
+    ASSERT(tid < kMaxThreads);
 
     ASSERT(bytes >= 0);
     if (bytes > 0)
@@ -138,19 +148,19 @@ void* pim_malloc(EAlloc type, int32_t bytes)
             ptr = malloc(bytes);
             break;
         case EAlloc_Perm:
-            pthread_mutex_lock(&ms_perm_mtx);
+            mutex_lock(&ms_perm_mtx);
             ptr = tlsf_memalign(ms_perm, 16, bytes);
-            pthread_mutex_unlock(&ms_perm_mtx);
+            mutex_unlock(&ms_perm_mtx);
             break;
         case EAlloc_Temp:
             ptr = linear_alloc(ms_temp + ms_tempIndex, bytes);
             break;
         case EAlloc_TLS:
-            if (!ms_local)
+            if (!ms_local[tid])
             {
-                ms_local = create_tlsf(kTlsCapacity);
+                ms_local[tid] = create_tlsf(kTlsCapacity);
             }
-            ptr = tlsf_memalign(ms_local, 16, bytes);
+            ptr = tlsf_memalign(ms_local[tid], 16, bytes);
             break;
         }
 
@@ -159,6 +169,7 @@ void* pim_malloc(EAlloc type, int32_t bytes)
             int32_t* header = (int32_t*)ptr;
             header[0] = type;
             header[1] = bytes - 16;
+            header[2] = tid;
             ptr = header + 4;
 
             ASSERT(((int64_t)ptr & 15) == 0);
@@ -176,8 +187,11 @@ void pim_free(void* ptr)
         int32_t* header = (int32_t*)ptr - 4;
         EAlloc type = header[0];
         int32_t bytes = header[1];
+        int32_t tid = header[2];
         ASSERT(bytes > 0);
         ASSERT((bytes & 15) == 0);
+        ASSERT(tid < kMaxThreads);
+        ASSERT(tid == task_thread_id());
 
         switch (type)
         {
@@ -188,14 +202,16 @@ void pim_free(void* ptr)
             free(header);
             break;
         case EAlloc_Perm:
+            mutex_lock(&ms_perm_mtx);
             tlsf_free(ms_perm, header);
+            mutex_unlock(&ms_perm_mtx);
             break;
         case EAlloc_Temp:
             linear_free(ms_temp + ms_tempIndex, header, bytes + 16);
             break;
         case EAlloc_TLS:
-            ASSERT(ms_local);
-            tlsf_free(ms_local, header);
+            ASSERT(ms_local[tid]);
+            tlsf_free(ms_local[tid], header);
             break;
         }
     }

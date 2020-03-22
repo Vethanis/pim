@@ -1,22 +1,25 @@
 #pragma once
 
-#include "common/int_types.h"
+#include "common/macro.h"
 
-namespace Time
-{
-    void Init();
-    void Update();
-    void Shutdown();
+PIM_C_BEGIN
 
-    u64 Now();
-    u64 StartOfApp();
-    u64 StartOfFrame();
-    u64 DeltaTime();
-    f32 DeltaTimeF32();
+#include <stdint.h>
 
-    f32 ToSeconds(u64 ticks);
-    f32 ToMilliseconds(u64 ticks);
-    f32 ToMicroseconds(u64 ticks);
+void time_sys_init(void);
+void time_sys_update(void);
+void time_sys_shutdown(void);
 
-    u32 FrameCount();
-};
+uint32_t time_framecount(void);
+uint64_t time_appstart(void);
+uint64_t time_framestart(void);
+
+uint64_t time_now(void);
+uint64_t time_dt(void);
+double time_dtf(void);
+
+double time_sec(uint64_t ticks);
+double time_milli(uint64_t ticks);
+double time_micro(uint64_t ticks);
+
+PIM_C_END

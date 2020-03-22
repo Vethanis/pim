@@ -86,9 +86,6 @@
     <Filter Include="submodules\tlsf">
       <UniqueIdentifier>{a5fc4c19-dc35-45aa-95d5-c09346c1ec2f}</UniqueIdentifier>
     </Filter>
-    <Filter Include="submodules\pthread_w32">
-      <UniqueIdentifier>{44058f43-2e38-44dd-b4be-8b3d1cc93bee}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -121,13 +118,7 @@
     <ClCompile Include="..\src\sokol\sokol_imgui.cpp">
       <Filter>Source Files\sokol</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\random.cpp">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\os\socket_win32.cpp">
-      <Filter>Source Files\os</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\os\thread_win32.cpp">
       <Filter>Source Files\os</Filter>
     </ClCompile>
     <ClCompile Include="..\src\quake\packfile.cpp">
@@ -163,17 +154,8 @@
     <ClCompile Include="..\src\components\system.cpp">
       <Filter>Source Files\components</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\time.cpp">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp">
       <Filter>submodules\stackwalker</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\os\thread.cpp">
-      <Filter>Source Files\os</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\threading\task.cpp">
-      <Filter>Source Files\threading</Filter>
     </ClCompile>
     <ClCompile Include="..\submodules\tlsf\tlsf.c">
       <Filter>submodules\tlsf</Filter>
@@ -198,6 +180,36 @@
     </ClCompile>
     <ClCompile Include="..\src\common\io.c">
       <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\threading\intrin.c">
+      <Filter>Source Files\threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\threading\thread.c">
+      <Filter>Source Files\threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\threading\mutex.c">
+      <Filter>Source Files\threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\threading\semaphore.c">
+      <Filter>Source Files\threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\threading\event.c">
+      <Filter>Source Files\threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\threading\rwlock.c">
+      <Filter>Source Files\threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\ptrqueue.c">
+      <Filter>Source Files\containers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\time.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\random.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\threading\task.c">
+      <Filter>Source Files\threading</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -337,9 +349,6 @@
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\os\socket.h">
-      <Filter>Source Files\os</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\os\thread.h">
       <Filter>Source Files\os</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\array.h">
@@ -530,6 +539,24 @@
     </ClInclude>
     <ClInclude Include="..\src\common\atomics.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\intrin.h">
+      <Filter>Source Files\threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\thread.h">
+      <Filter>Source Files\threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\mutex.h">
+      <Filter>Source Files\threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\semaphore.h">
+      <Filter>Source Files\threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\event.h">
+      <Filter>Source Files\threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\rwlock.h">
+      <Filter>Source Files\threading</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
