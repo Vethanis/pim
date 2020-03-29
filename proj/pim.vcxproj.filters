@@ -612,6 +612,18 @@
     <ClInclude Include="..\src\rendering\framebuffer.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\sokol\sokol_app.h">
+      <Filter>Source Files\sokol</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\sokol\sokol_audio.h">
+      <Filter>Source Files\sokol</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\sokol\sokol_gfx.h">
+      <Filter>Source Files\sokol</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\sokol\sokol_time.h">
+      <Filter>Source Files\sokol</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">
