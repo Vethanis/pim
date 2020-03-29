@@ -56,7 +56,7 @@ static void ents_wunlock(void) { rwlock_unlock_write(&(ms_ents.lock)); }
 
 static void slab_lock(int32_t iSlab) { mutex_lock(ms_slabs.locks + iSlab); }
 static void slab_unlock(int32_t iSlab) { mutex_unlock(ms_slabs.locks + iSlab); }
-static uint8_t** slab_rows(int32_t iSlab) { return ms_slabs.rows[iSlab].rows; }
+static void** slab_rows(int32_t iSlab) { return ms_slabs.rows[iSlab].rows; }
 
 static idset_t* slab_ids(void) { return &(ms_slabs.ids); }
 static idset_t* ent_ids(void) { return &(ms_ents.ids); }
@@ -80,7 +80,7 @@ static void slabs_shutdown(void)
     for (int32_t i = 0; i < len; ++i)
     {
         mutex_destroy(ms_slabs.locks + i);
-        uint8_t** rows = slab_rows(i);
+        void** rows = slab_rows(i);
         for (int32_t j = 0; j < CompId_COUNT; ++j)
         {
             pim_free(rows[j]);
@@ -141,7 +141,7 @@ static id_t slab_create(compflag_t flags)
     }
     ms_slabs.lens[iSlab] = 0;
     ms_slabs.flags[iSlab] = flags;
-    uint8_t** rows = slab_rows(iSlab);
+    void** rows = slab_rows(iSlab);
     for (int32_t i = 0; i < CompId_COUNT; ++i)
     {
         rows[i] = NULL;
@@ -162,7 +162,7 @@ static void slab_destroy(id_t id)
         const int32_t iSlab = id.index;
         memset(ms_slabs.flags + iSlab, 0, sizeof(compflag_t));
         ms_slabs.lens[iSlab] = 0;
-        uint8_t** rows = slab_rows(iSlab);
+        void** rows = slab_rows(iSlab);
         for (int32_t i = 0; i < CompId_COUNT; ++i)
         {
             pim_free(rows[i]);
@@ -174,7 +174,7 @@ static void slab_destroy(id_t id)
 
 static void slabset(int32_t iSlab, int32_t iSlot)
 {
-    uint8_t** rows = slab_rows(iSlab);
+    void** rows = slab_rows(iSlab);
     for (int32_t i = 0; i < CompId_COUNT; ++i)
     {
         uint8_t* ptr = rows[i];
@@ -192,7 +192,7 @@ static void slabcpy(int32_t iSlab, int32_t iSlotDst, int32_t iSlotSrc)
     {
         return;
     }
-    uint8_t** rows = slab_rows(iSlab);
+    void** rows = slab_rows(iSlab);
     for (int32_t i = 0; i < CompId_COUNT; ++i)
     {
         uint8_t* ptr = rows[i];
@@ -236,19 +236,19 @@ static ent_t ent_create(compflag_t flags)
 
             for (int32_t iSlab = numSlabs - 1; iSlab >= 0; --iSlab)
             {
-                if (load_i32(slabLens + iSlab, MO_Relaxed) >= kSlabCapacity)
+                if (slabLens[iSlab] >= kSlabCapacity)
                 {
                     continue;
                 }
-                if (memcmp(slabFlags + iSlab, &flags, sizeof(compflag_t)))
+                if (!compflag_eq(slabFlags[iSlab], flags))
                 {
                     continue;
                 }
                 slab_lock(iSlab);
-                const int32_t slabLen = load_i32(slabLens + iSlab, MO_Relaxed);
+                const int32_t slabLen = slabLens[iSlab];
                 if (slabLen < kSlabCapacity)
                 {
-                    store_i32(slabLens + iSlab, slabLen + 1, MO_Relaxed);
+                    slabLens[iSlab] = slabLen + 1;
                     dstSlot = slabLen;
                     slabId.index = iSlab;
                     slabId.version = ms_slabs.ids.versions[iSlab];
@@ -437,6 +437,7 @@ static void foreach_exec(task_t* task, int32_t begin, int32_t end)
     {
         ASSERT(end <= ms_slabs.ids.length);
         ecs_foreach_t* foreach = (ecs_foreach_t*)task;
+        const ecs_foreach_fn func = foreach->fn;
         const compflag_t all = foreach->all;
         const compflag_t none = foreach->none;
         for (int32_t i = begin; i < end; ++i)
@@ -448,7 +449,7 @@ static void foreach_exec(task_t* task, int32_t begin, int32_t end)
                 const int32_t length = ms_slabs.lens[i];
                 if (length > 0)
                 {
-                    foreach->fn(foreach, slab_rows(i), length);
+                    func(foreach, slab_rows(i), length);
                 }
                 slab_unlock(i);
             }

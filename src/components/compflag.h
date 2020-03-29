@@ -21,4 +21,6 @@ int32_t compflag_get(compflag_t flag, compid_t id);
 void compflag_set(compflag_t* flag, compid_t id);
 void compflag_unset(compflag_t* flag, compid_t id);
 
+int32_t compflag_eq(compflag_t lhs, compflag_t rhs);
+
 PIM_C_END

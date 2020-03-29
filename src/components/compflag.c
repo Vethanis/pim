@@ -66,3 +66,14 @@ void compflag_unset(compflag_t* flag, compid_t id)
     uint32_t mask = 1u << bit;
     flag->dwords[dword] &= ~mask;
 }
+
+int32_t compflag_eq(compflag_t lhs, compflag_t rhs)
+{
+    const int32_t len = sizeof(compflag_t) >> 2;
+    uint32_t cmp = 0;
+    for (int32_t i = 0; i < len; ++i)
+    {
+        cmp |= lhs.dwords[i] - rhs.dwords[i];
+    }
+    return cmp == 0;
+}

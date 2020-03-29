@@ -52,7 +52,7 @@ static int32_t UpdateProgress(task_t* task, range_t range)
 {
     const int32_t wsize = task->worksize;
     const int32_t count = range.end - range.begin;
-    const int32_t prev = fetch_add_i32(&(task->tail), count, MO_AcqRel);
+    const int32_t prev = fetch_add_i32(&(task->tail), count, MO_Release);
     ASSERT(prev < wsize);
     return (prev + count) >= wsize;
 }
@@ -145,9 +145,7 @@ void task_submit(task_t* task, task_execute_fn execute, int32_t worksize)
 {
     ASSERT(execute);
     ASSERT(worksize > 0);
-    ASSERT(task_stat(task) != TaskStatus_Exec);
-    ASSERT(load_i32(&(task->awaits), MO_Relaxed) == 0);
-
+    task_await(task);
     store_i32(&(task->status), TaskStatus_Exec, MO_Release);
     task->execute = execute;
     store_i32(&(task->worksize), worksize, MO_Release);

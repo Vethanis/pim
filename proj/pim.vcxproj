@@ -36,6 +36,7 @@
     <ClCompile Include="..\src\os\socket.cpp" />
     <ClCompile Include="..\src\os\socket_win32.cpp" />
     <ClCompile Include="..\src\quake\packfile.cpp" />
+    <ClCompile Include="..\src\rendering\framebuffer.c" />
     <ClCompile Include="..\src\rendering\material.cpp" />
     <ClCompile Include="..\src\rendering\mesh.cpp" />
     <ClCompile Include="..\src\rendering\render_system.cpp" />
@@ -126,6 +127,7 @@
     <ClInclude Include="..\src\physics\components.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
     <ClInclude Include="..\src\quake\packfile.h" />
+    <ClInclude Include="..\src\rendering\framebuffer.h" />
     <ClInclude Include="..\src\threading\event.h" />
     <ClInclude Include="..\src\threading\intrin.h" />
     <ClInclude Include="..\src\threading\mutex.h" />

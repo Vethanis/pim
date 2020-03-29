@@ -25,7 +25,7 @@ int32_t ecs_has_all(ent_t entity, compflag_t all);
 int32_t ecs_has_any(ent_t entity, compflag_t any);
 int32_t ecs_has_none(ent_t entity, compflag_t none);
 
-typedef void(PIM_CDECL *ecs_foreach_fn)(struct ecs_foreach_s* foreach, uint8_t** rows, int32_t length);
+typedef void(PIM_CDECL *ecs_foreach_fn)(struct ecs_foreach_s* foreach, void** rows, int32_t length);
 
 typedef struct ecs_foreach_s
 {

@@ -1,4 +1,5 @@
 #include "threading/mutex.h"
+#include <string.h>
 
 #if PLAT_WINDOWS
 
@@ -9,9 +10,7 @@ CONV_ASSERT(mutex_t, CRITICAL_SECTION)
 void mutex_create(mutex_t* mut)
 {
     ASSERT(mut);
-    BOOL created = InitializeCriticalSectionAndSpinCount(
-        (LPCRITICAL_SECTION)mut, 1000);
-    ASSERT(created);
+    InitializeCriticalSection((LPCRITICAL_SECTION)mut);
 }
 
 void mutex_destroy(mutex_t* mut)

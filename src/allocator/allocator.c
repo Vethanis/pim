@@ -10,13 +10,9 @@
 
 #define kMaxThreads 32
 
-static const int32_t kKilobyte = 1 << 10;
-static const int32_t kMegabyte = 1 << 20;
-static const int32_t kGigabyte = 1 << 30;
-
 static const int32_t kInitCapacity = 0;
-static const int32_t kPermCapacity = 128 << 20;
-static const int32_t kTempCapacity = 4 << 20;
+static const int32_t kPermCapacity = 1 << 30;
+static const int32_t kTempCapacity = 8 << 20;
 static const int32_t kTlsCapacity = 1 << 20;
 
 typedef struct linear_allocator_s

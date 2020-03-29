@@ -47,7 +47,7 @@ writestate:
     }
     newstate = (readers << 16) | (waiters << 8) | (writers << 0);
 
-    if (!cmpex_u32(&(lck->state), &oldstate, newstate, MO_AcqRel))
+    if (!cmpex_u32(&(lck->state), &oldstate, newstate, MO_Acquire))
     {
         intrin_spin(++spins);
         goto writestate;
@@ -109,7 +109,7 @@ writestate:
         waiters = 0;
     }
     writers = 0xff & (writers - 1u);
-    if (!cmpex_u32(&(lck->state), &oldstate, newstate, MO_AcqRel))
+    if (!cmpex_u32(&(lck->state), &oldstate, newstate, MO_Release))
     {
         intrin_spin(++spins);
         goto writestate;

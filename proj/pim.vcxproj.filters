@@ -238,6 +238,9 @@
     <ClCompile Include="..\src\io\fmap.c">
       <Filter>Source Files\io</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\framebuffer.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\hash.h">
@@ -605,6 +608,9 @@
     </ClInclude>
     <ClInclude Include="..\src\io\fmap.h">
       <Filter>Source Files\io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\framebuffer.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

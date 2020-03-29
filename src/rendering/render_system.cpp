@@ -11,9 +11,11 @@
 #include "components/system.h"
 #include "rendering/components.h"
 #include "rendering/screen.h"
+#include "rendering/framebuffer.h"
 #include "components/transform.h"
 #include "math/vec_funcs.h"
 #include "common/random.h"
+#include "containers/idset.h"
 
 #include <string.h>
 
@@ -49,50 +51,58 @@ static int2 GetTile(i32 i)
     return int2(x, y);
 }
 
-struct alignas(64) Framebuffer
-{
-    u32 buffer[kDrawPixels];
-
-    void Set(i32 x, i32 y, float4 color)
-    {
-        u8 r = (u8)Clamp(color.x * 256.0f, 0.0f, 255.0f);
-        u8 g = (u8)Clamp(color.y * 256.0f, 0.0f, 255.0f);
-        u8 b = (u8)Clamp(color.z * 256.0f, 0.0f, 255.0f);
-        u32 c = 0xff;
-        c <<= 8;
-        c |= b;
-        c <<= 8;
-        c |= g;
-        c <<= 8;
-        c |= r;
-        buffer[y * kDrawWidth + x] = c;
-    }
-
-    void Clear()
-    {
-        memset(buffer, 0, sizeof(buffer));
-    }
-};
-
-static void DrawTile(Framebuffer& buffer, i32 x0, i32 y0)
+static void DrawTile(framebuf_t buf, i32 x0, i32 y0)
 {
     x0 *= kTileWidth;
     y0 *= kTileHeight;
+    const float dx = 1.0f / kDrawWidth;
+    const float dy = 1.0f / kDrawHeight;
+    const float kDither = 1.0f / (1 << 5);
     for (i32 ty = 0; ty < kTileHeight; ++ty)
     {
         for (i32 tx = 0; tx < kTileWidth; ++tx)
         {
             const i32 x = x0 + tx;
             const i32 y = y0 + ty;
-            buffer.Set(x, y, float4(x / (f32)kDrawWidth, y / (f32)kDrawHeight, 0.0f, 1.0f));
+            float color[4] = { x * dx, y * dy, 0.0f, 1.0f };
+            f4_dither(color, kDither);
+            framebuf_wcolor(buf, x, y, color);
         }
     }
 }
 
+typedef struct mesh_s
+{
+    float* positions;
+    float* uvs;
+    int32_t length;
+} mesh_t;
+
+typedef struct drawcmd_s
+{
+    float matrix[16];
+    mesh_t mesh;
+} drawcmd_t;
+
+typedef struct cmdbuf_s
+{
+    int32_t* ids;
+    void* cmds;
+    int32_t length;
+} cmdbuf_t;
+
+typedef struct camera_s
+{
+    float V[16];
+    float P[16];
+} camera_t;
+
 typedef struct rendertask_s
 {
     task_t task;
-    Framebuffer* buffer;
+    framebuf_t buffer;
+    camera_t camera;
+    cmdbuf_t cmds;
 } rendertask_t;
 
 static void RenderTaskFn(task_t* task, int32_t begin, int32_t end)
@@ -101,7 +111,7 @@ static void RenderTaskFn(task_t* task, int32_t begin, int32_t end)
     for (int32_t i = begin; i < end; ++i)
     {
         int2 tile = GetTile(i);
-        DrawTile(*(renderTask->buffer), tile.x, tile.y);
+        DrawTile(renderTask->buffer, tile.x, tile.y);
     }
 }
 
@@ -110,28 +120,21 @@ typedef struct drawabletask_s
     ecs_foreach_t task;
 } drawabletask_t;
 
-static void DrawableTaskFn(ecs_foreach_t* task, uint8_t** rows, int32_t length)
+static void DrawableTaskFn(ecs_foreach_t* task, void** rows, int32_t length)
 {
-    position_t* positions = (position_t*)(rows[CompId_Position]);
-    rotation_t* rotations = (rotation_t*)(rows[CompId_Rotation]);
-    scale_t* scales = (scale_t*)(rows[CompId_Rotation]);
+    ent_t* entities = (ent_t*)(rows[CompId_Entity]);
+    float4* positions = (float4*)(rows[CompId_Position]);
+    quaternion* rotations = (quaternion*)(rows[CompId_Rotation]);
+    float4* scales = (float4*)(rows[CompId_Rotation]);
+    ASSERT(entities);
     ASSERT(positions);
     ASSERT(rotations);
     ASSERT(scales);
     for (int32_t i = 0; i < length; ++i)
     {
-        positions[i].Value[0] = (float)(i * 1);
-        positions[i].Value[1] = (float)(i * 2);
-        positions[i].Value[2] = (float)(i * 4);
-        positions[i].Value[3] = (float)(i * 8);
-        rotations[i].Value[0] = 0.0f;
-        rotations[i].Value[1] = 0.0f;
-        rotations[i].Value[2] = 0.0f;
-        rotations[i].Value[3] = 1.0f;
-        scales[i].Value[0] = 1.0f;
-        scales[i].Value[1] = 1.0f;
-        scales[i].Value[2] = 1.0f;
-        scales[i].Value[3] = 1.0f;
+        positions[i] = float4(i * 1.0f, i * 2.0f, i * 3.0f, i * 4.0f);
+        rotations[i] = { float4(0.0f, 0.0f, 0.0f, 1.0f) };
+        scales[i] = float4(1.0f, 1.0f, 1.0f, 0.0f);
     }
 }
 
@@ -143,7 +146,7 @@ namespace RenderSystem
     static i32 ms_iFrame;
     static sg_image ms_images[kNumFrames];
     static rendertask_t ms_tasks[kNumFrames];
-    static Framebuffer ms_buffers[kNumFrames];
+    static framebuf_t ms_buffers[kNumFrames];
     static drawabletask_t ms_drawableTask;
 
     static void Init();
@@ -180,7 +183,7 @@ namespace RenderSystem
 
             sg_image_desc img = {};
             img.type = SG_IMAGETYPE_2D;
-            img.pixel_format = SG_PIXELFORMAT_RGBA8;
+            img.pixel_format = SG_PIXELFORMAT_RGB5A1;
             img.width = kDrawWidth;
             img.height = kDrawHeight;
             img.usage = SG_USAGE_STREAM;
@@ -202,6 +205,11 @@ namespace RenderSystem
             simgui_setup(&desc);
         }
         Screen::Update();
+
+        for (int32_t i = 0; i < kNumFrames; ++i)
+        {
+            framebuf_create(ms_buffers + i, kDrawWidth, kDrawHeight);
+        }
 
         compflag_t all = compflag_create(3, CompId_Position, CompId_Rotation, CompId_Scale);
         compflag_t some = compflag_create(1, CompId_Position);
@@ -228,6 +236,7 @@ namespace RenderSystem
             task_await(&(ms_tasks[i].task));
             sg_destroy_image(ms_images[i]);
             ms_images[i] = {};
+            framebuf_destroy(ms_buffers + i);
         }
 
         simgui_shutdown();
@@ -244,15 +253,17 @@ namespace RenderSystem
         const i32 iCurrent = (ms_iFrame + 0) & kFrameMask;
         {
             task_await(&(ms_tasks[iCurrent].task));
+            framebuf_t buffer = ms_buffers[iCurrent];
             sg_image_content content = {};
             content.subimage[0][0] =
             {
-                ms_buffers[iCurrent].buffer,
-                sizeof(ms_buffers[iCurrent].buffer)
+                buffer.color,
+                framebuf_color_bytes(buffer),
             };
             sg_update_image(ms_images[iCurrent], &content);
-            ms_buffers[iCurrent].Clear();
-            ms_tasks[iCurrent].buffer = ms_buffers + iCurrent;
+            float color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+            framebuf_clear(buffer, color, 1.0f);
+            ms_tasks[iCurrent].buffer = buffer;
             task_submit(&(ms_tasks[iCurrent].task), RenderTaskFn, kTileCount);
         }
         {
