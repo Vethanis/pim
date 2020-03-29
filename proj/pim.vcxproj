@@ -161,17 +161,6 @@
     <ClInclude Include="..\submodules\imgui\imstb_truetype.h" />
     <ClInclude Include="..\submodules\miniz\miniz.h" />
     <ClInclude Include="..\submodules\pcg32\pcg32.h" />
-    <ClInclude Include="..\submodules\sokol\sokol_app.h" />
-    <ClInclude Include="..\submodules\sokol\sokol_args.h" />
-    <ClInclude Include="..\submodules\sokol\sokol_audio.h" />
-    <ClInclude Include="..\submodules\sokol\sokol_fetch.h" />
-    <ClInclude Include="..\submodules\sokol\sokol_gfx.h" />
-    <ClInclude Include="..\submodules\sokol\sokol_time.h" />
-    <ClInclude Include="..\submodules\sokol\util\sokol_cimgui.h" />
-    <ClInclude Include="..\submodules\sokol\util\sokol_gfx_cimgui.h" />
-    <ClInclude Include="..\submodules\sokol\util\sokol_gfx_imgui.h" />
-    <ClInclude Include="..\submodules\sokol\util\sokol_gl.h" />
-    <ClInclude Include="..\submodules\sokol\util\sokol_imgui.h" />
     <ClInclude Include="..\submodules\stackwalker\StackWalker.h" />
     <ClInclude Include="..\submodules\stb\stb.h" />
     <ClInclude Include="..\submodules\stb\stb_connected_components.h" />

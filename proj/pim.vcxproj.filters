@@ -20,12 +20,6 @@
     <Filter Include="submodules\stb">
       <UniqueIdentifier>{a02ea6b3-ea73-4802-a89e-994e38e80b5f}</UniqueIdentifier>
     </Filter>
-    <Filter Include="submodules\sokol">
-      <UniqueIdentifier>{a9ae11e8-70be-4954-a463-5fa53a8e6076}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="submodules\sokol\util">
-      <UniqueIdentifier>{79f5df7b-4b89-46c0-ac8d-bee1a533d915}</UniqueIdentifier>
-    </Filter>
     <Filter Include="natvis">
       <UniqueIdentifier>{e966c196-540e-4e4f-b01f-f68c039cec72}</UniqueIdentifier>
     </Filter>
@@ -251,39 +245,6 @@
     </ClInclude>
     <ClInclude Include="..\src\common\macro.h">
       <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\sokol\sokol_app.h">
-      <Filter>submodules\sokol</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\sokol\sokol_args.h">
-      <Filter>submodules\sokol</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\sokol\sokol_audio.h">
-      <Filter>submodules\sokol</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\sokol\sokol_fetch.h">
-      <Filter>submodules\sokol</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\sokol\sokol_gfx.h">
-      <Filter>submodules\sokol</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\sokol\sokol_time.h">
-      <Filter>submodules\sokol</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\sokol\util\sokol_cimgui.h">
-      <Filter>submodules\sokol\util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\sokol\util\sokol_gfx_cimgui.h">
-      <Filter>submodules\sokol\util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\sokol\util\sokol_gfx_imgui.h">
-      <Filter>submodules\sokol\util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\sokol\util\sokol_gl.h">
-      <Filter>submodules\sokol\util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\sokol\util\sokol_imgui.h">
-      <Filter>submodules\sokol\util</Filter>
     </ClInclude>
     <ClInclude Include="..\submodules\imgui\imconfig.h">
       <Filter>submodules\imgui</Filter>
