@@ -13,6 +13,7 @@
 #include "rendering/screen.h"
 #include "components/transform.h"
 #include "math/vec_funcs.h"
+#include "common/random.h"
 
 #include <string.h>
 
@@ -88,13 +89,49 @@ static void DrawTile(Framebuffer& buffer, i32 x0, i32 y0)
     }
 }
 
-static void DrawFn(void* data, int32_t begin, int32_t end)
+typedef struct rendertask_s
 {
-    Framebuffer* pBuffer = (Framebuffer*)data;
+    task_t task;
+    Framebuffer* buffer;
+} rendertask_t;
+
+static void RenderTaskFn(task_t* task, int32_t begin, int32_t end)
+{
+    rendertask_t* renderTask = (rendertask_t*)task;
     for (int32_t i = begin; i < end; ++i)
     {
         int2 tile = GetTile(i);
-        DrawTile(*pBuffer, tile.x, tile.y);
+        DrawTile(*(renderTask->buffer), tile.x, tile.y);
+    }
+}
+
+typedef struct drawabletask_s
+{
+    ecs_foreach_t task;
+} drawabletask_t;
+
+static void DrawableTaskFn(ecs_foreach_t* task, uint8_t** rows, int32_t length)
+{
+    position_t* positions = (position_t*)(rows[CompId_Position]);
+    rotation_t* rotations = (rotation_t*)(rows[CompId_Rotation]);
+    scale_t* scales = (scale_t*)(rows[CompId_Rotation]);
+    ASSERT(positions);
+    ASSERT(rotations);
+    ASSERT(scales);
+    for (int32_t i = 0; i < length; ++i)
+    {
+        positions[i].Value[0] = (float)(i * 1);
+        positions[i].Value[1] = (float)(i * 2);
+        positions[i].Value[2] = (float)(i * 4);
+        positions[i].Value[3] = (float)(i * 8);
+        rotations[i].Value[0] = 0.0f;
+        rotations[i].Value[1] = 0.0f;
+        rotations[i].Value[2] = 0.0f;
+        rotations[i].Value[3] = 1.0f;
+        scales[i].Value[0] = 1.0f;
+        scales[i].Value[1] = 1.0f;
+        scales[i].Value[2] = 1.0f;
+        scales[i].Value[3] = 1.0f;
     }
 }
 
@@ -105,8 +142,9 @@ namespace RenderSystem
     static sg_backend ms_backend;
     static i32 ms_iFrame;
     static sg_image ms_images[kNumFrames];
-    static task_hdl ms_tasks[kNumFrames];
+    static rendertask_t ms_tasks[kNumFrames];
     static Framebuffer ms_buffers[kNumFrames];
+    static drawabletask_t ms_drawableTask;
 
     static void Init();
     static void Update();
@@ -117,7 +155,7 @@ namespace RenderSystem
     static System ms_system
     {
         "RenderSystem",
-        { "InputSystem", "ECS" },
+        { "InputSystem" },
         Init,
         Update,
         Shutdown,
@@ -164,19 +202,30 @@ namespace RenderSystem
             simgui_setup(&desc);
         }
         Screen::Update();
+
+        compflag_t all = compflag_create(3, CompId_Position, CompId_Rotation, CompId_Scale);
+        compflag_t some = compflag_create(1, CompId_Position);
+        for (int32_t i = 0; i < (1 << 20); ++i)
+        {
+            ecs_create((rand_int() & 1) ? all : some);
+        }
     }
 
     static void Update()
     {
         Screen::Update();
         simgui_new_frame(Screen::Width(), Screen::Height(), time_dtf());
+
+        compflag_t all = compflag_create(3, CompId_Position, CompId_Rotation, CompId_Scale);
+        compflag_t none = compflag_create(0);
+        ecs_foreach(&ms_drawableTask.task, all, none, DrawableTaskFn);
     }
 
     static void Shutdown()
     {
         for (i32 i = 0; i < kNumFrames; ++i)
         {
-            task_complete(ms_tasks + i);
+            task_await(&(ms_tasks[i].task));
             sg_destroy_image(ms_images[i]);
             ms_images[i] = {};
         }
@@ -194,7 +243,7 @@ namespace RenderSystem
         const i32 iPrev = (ms_iFrame - 1) & kFrameMask;
         const i32 iCurrent = (ms_iFrame + 0) & kFrameMask;
         {
-            task_complete(ms_tasks + iCurrent);
+            task_await(&(ms_tasks[iCurrent].task));
             sg_image_content content = {};
             content.subimage[0][0] =
             {
@@ -203,7 +252,8 @@ namespace RenderSystem
             };
             sg_update_image(ms_images[iCurrent], &content);
             ms_buffers[iCurrent].Clear();
-            ms_tasks[iCurrent] = task_submit(ms_buffers + iCurrent, DrawFn, kTileCount);
+            ms_tasks[iCurrent].buffer = ms_buffers + iCurrent;
+            task_submit(&(ms_tasks[iCurrent].task), RenderTaskFn, kTileCount);
         }
         {
             sg_pass_action clear = {};

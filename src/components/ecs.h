@@ -1,164 +1,46 @@
 #pragma once
 
-#include "components/entity.h"
-#include "components/component_id.h"
-#include "allocator/allocator.h"
-#include "containers/slice.h"
-#include "containers/array.h"
-#include "containers/bitfield.h"
+#include "common/macro.h"
+
+PIM_C_BEGIN
+
+#include <stdint.h>
+#include "components/components.h"
+#include "components/compflag.h"
 #include "threading/task.h"
-#include <initializer_list>
 
-namespace ECS
+void ecs_sys_init(void);
+void ecs_sys_update(void);
+void ecs_sys_shutdown(void);
+
+int32_t ecs_ent_count(void);
+int32_t ecs_slab_count(void);
+
+ent_t ecs_create(compflag_t components);
+void ecs_destroy(ent_t entity);
+int32_t ecs_is_current(ent_t entity);
+
+int32_t ecs_has(ent_t entity, compid_t component);
+int32_t ecs_has_all(ent_t entity, compflag_t all);
+int32_t ecs_has_any(ent_t entity, compflag_t any);
+int32_t ecs_has_none(ent_t entity, compflag_t none);
+
+typedef void(PIM_CDECL *ecs_foreach_fn)(struct ecs_foreach_s* foreach, uint8_t** rows, int32_t length);
+
+typedef struct ecs_foreach_s
 {
-    static constexpr i32 kMaxTypes = 256;
-    using TypeFlags = BitField<ComponentId, kMaxTypes>;
+    task_t task;
+    ecs_foreach_fn fn;
+    compflag_t all;
+    compflag_t none;
+} ecs_foreach_t;
 
-    i32 EntityCount();
+SASSERT((sizeof(ecs_foreach_t) & 15) == 0);
 
-    Entity Create(std::initializer_list<ComponentId> components);
-    bool Destroy(Entity entity);
-    bool IsCurrent(Entity entity);
+void ecs_foreach(
+    ecs_foreach_t* foreach,
+    compflag_t all,
+    compflag_t none,
+    ecs_foreach_fn fn);
 
-    bool HasAll(Entity entity, TypeFlags all);
-    bool HasAny(Entity entity, TypeFlags any);
-    bool HasNone(Entity entity, TypeFlags none);
-
-    //struct Row
-    //{
-    //    ComponentId type;
-    //    i32 stride;
-    //    void* ptr;
-    //};
-
-    //struct OnSlabTask : ITask
-    //{
-    //    OnSlabTask() : ITask(0, 0, 1) {}
-
-    //    void SetQuery(TypeFlags all, TypeFlags none);
-    //    void Execute(i32, i32) final;
-    //    virtual void OnSlab(i32 length, Slice<Row> rows) = 0;
-    //    static i32 FindRow(ComponentId type, Slice<const Row> rows);
-
-    //    template<typename T>
-    //    static Slice<T> GetRow(ComponentId id, i32 length, Slice<Row> rows)
-    //    {
-    //        ASSERT(GetId<T>() == id);
-    //        const i32 i = FindRow(id, rows);
-    //        ASSERT(i != -1);
-    //        return { (T*)(rows[i].ptr), length };
-    //    }
-
-    //private:
-    //    TypeFlags m_all;
-    //    TypeFlags m_none;
-    //};
-
-    //template<typename T0>
-    //struct ForEach1 : OnSlabTask
-    //{
-    //    ForEach1() :
-    //        OnSlabTask(),
-    //        m_idE(GetId<Entity>()),
-    //        m_id0(GetId<T0>()) {}
-    //    void OnSlab(i32 length, Slice<Row> rows) final
-    //    {
-    //        OnRows(
-    //            GetRow<Entity>(m_idE, length, rows),
-    //            GetRow<T0>(m_id0, length, rows));
-    //    }
-    //    virtual void OnRows(
-    //        Slice<const Entity> entities,
-    //        Slice<T0> t0s) = 0;
-    //private:
-    //    ComponentId m_idE;
-    //    ComponentId m_id0;
-    //};
-
-    //template<typename T0, typename T1>
-    //struct ForEach2 : OnSlabTask
-    //{
-    //    ForEach2() :
-    //        OnSlabTask(),
-    //        m_idE(GetId<Entity>()),
-    //        m_id0(GetId<T0>()),
-    //        m_id1(GetId<T1>()) {}
-    //    void OnSlab(i32 length, Slice<Row> rows) final
-    //    {
-    //        OnRows(
-    //            GetRow<Entity>(m_idE, length, rows),
-    //            GetRow<T0>(m_id0, length, rows),
-    //            GetRow<T1>(m_id1, length, rows));
-    //    }
-    //    virtual void OnRows(
-    //        Slice<const Entity> entities,
-    //        Slice<T0> t0s,
-    //        Slice<T1> t1s) = 0;
-    //private:
-    //    ComponentId m_idE;
-    //    ComponentId m_id0;
-    //    ComponentId m_id1;
-    //};
-
-    //template<typename T0, typename T1, typename T2>
-    //struct ForEach3 : OnSlabTask
-    //{
-    //    ForEach3() :
-    //        OnSlabTask(),
-    //        m_idE(GetId<Entity>()),
-    //        m_id0(GetId<T0>()),
-    //        m_id1(GetId<T1>()),
-    //        m_id2(GetId<T2>()) {}
-    //    void OnSlab(i32 length, Slice<Row> rows) final
-    //    {
-    //        OnRows(
-    //            GetRow<Entity>(m_idE, length, rows),
-    //            GetRow<T0>(m_id0, length, rows),
-    //            GetRow<T1>(m_id1, length, rows),
-    //            GetRow<T2>(m_id2, length, rows));
-    //    }
-    //    virtual void OnRows(
-    //        Slice<const Entity> entities,
-    //        Slice<T0> t0s,
-    //        Slice<T1> t1s,
-    //        Slice<T2> t2s) = 0;
-    //private:
-    //    ComponentId m_idE;
-    //    ComponentId m_id0;
-    //    ComponentId m_id1;
-    //    ComponentId m_id2;
-    //};
-
-    //template<typename T0, typename T1, typename T2, typename T3>
-    //struct ForEach4 : OnSlabTask
-    //{
-    //    ForEach4() :
-    //        OnSlabTask(),
-    //        m_idE(GetId<Entity>()),
-    //        m_id0(GetId<T0>()),
-    //        m_id1(GetId<T1>()),
-    //        m_id2(GetId<T2>()),
-    //        m_id3(GetId<T3>()) {}
-    //    void OnSlab(i32 length, Slice<Row> rows) final
-    //    {
-    //        OnRows(
-    //            GetRow<Entity>(m_idE, length, rows),
-    //            GetRow<T0>(m_id0, length, rows),
-    //            GetRow<T1>(m_id1, length, rows),
-    //            GetRow<T2>(m_id2, length, rows),
-    //            GetRow<T3>(m_id3, length, rows));
-    //    }
-    //    virtual void OnRows(
-    //        Slice<const Entity> entities,
-    //        Slice<T0> t0s,
-    //        Slice<T1> t1s,
-    //        Slice<T2> t2s,
-    //        Slice<T3> t3s) = 0;
-    //private:
-    //    ComponentId m_idE;
-    //    ComponentId m_id0;
-    //    ComponentId m_id1;
-    //    ComponentId m_id2;
-    //    ComponentId m_id3;
-    //};
-};
+PIM_C_END

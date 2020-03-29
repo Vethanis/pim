@@ -4,7 +4,7 @@
 void event_create(event_t* evt)
 {
     ASSERT(evt);
-    evt->sema = semaphore_create(0);
+    semaphore_create(&(evt->sema), 0);
     store_i32(&(evt->state), 0, MO_Release);
 }
 
@@ -12,8 +12,7 @@ void event_destroy(event_t* evt)
 {
     ASSERT(evt);
     event_wakeall(evt);
-    semaphore_destroy(evt->sema);
-    evt->sema = NULL;
+    semaphore_destroy(&(evt->sema));
 }
 
 void event_wait(event_t* evt)

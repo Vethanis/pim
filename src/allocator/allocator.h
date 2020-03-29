@@ -28,4 +28,14 @@ void* pim_calloc(EAlloc allocator, int32_t bytes);
 #define pim_trealloc(T, allocator, prev, count) (T*)(pim_realloc(allocator, prev, sizeof(T) * count))
 #define pim_tcalloc(T, allocator, count) (T*)(pim_calloc(allocator, sizeof(T) * count))
 
+static void* perm_malloc(int32_t bytes)
+{
+    return pim_malloc(EAlloc_Perm, bytes);
+}
+
+static void* perm_realloc(void* prev, int32_t bytes)
+{
+    return pim_realloc(EAlloc_Perm, prev, bytes);
+}
+
 PIM_C_END

@@ -14,7 +14,8 @@ typedef struct
 } deps_t;
 
 static i32 ms_systemCount;
-static Guid ms_names[MaxSystems];
+static Guid ms_guids[MaxSystems];
+static const char* ms_names[MaxSystems];
 static System ms_systems[MaxSystems];
 static deps_t ms_deps[MaxSystems];
 static bool ms_hasInit[MaxSystems];
@@ -55,7 +56,7 @@ static void SortSystems()
             const deps_t& deps = ms_deps[iDst];
             for (int32_t d = 0; d < deps.count; ++d)
             {
-                const i32 iSrc = Find(ms_names, count, deps.guids[d]);
+                const i32 iSrc = Find(ms_guids, count, deps.guids[d]);
                 if (iSrc != -1)
                 {
                     ms_graph.AddEdge(iSrc, iDst);
@@ -72,13 +73,15 @@ static void SortSystems()
     }
 }
 
-static void Register(Guid id, const System* pSystem)
+static void Register(const char* name, const System* pSystem)
 {
-    ASSERT(!Contains(ms_names, ms_systemCount, id));
+    Guid id = ToGuid(name);
+    ASSERT(!Contains(ms_guids, ms_systemCount, id));
     ASSERT(ms_systemCount < MaxSystems);
 
     const i32 i = ms_systemCount++;
-    ms_names[i] = id;
+    ms_guids[i] = id;
+    ms_names[i] = name;
     ms_systems[i] = *pSystem;
     for (cstr dep : pSystem->m_dependencies)
     {
@@ -108,7 +111,7 @@ System::System(
     Init = pInit;
     Update = pUpdate;
     Shutdown = pShutdown;
-    Register(ToGuid(name), this);
+    Register(name, this);
 }
 
 namespace Systems

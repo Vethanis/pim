@@ -164,16 +164,15 @@ void* pim_malloc(EAlloc type, int32_t bytes)
             break;
         }
 
-        if (ptr)
-        {
-            int32_t* header = (int32_t*)ptr;
-            header[0] = type;
-            header[1] = bytes - 16;
-            header[2] = tid;
-            ptr = header + 4;
+        ASSERT(ptr);
+        int32_t* header = (int32_t*)ptr;
+        header[0] = type;
+        header[1] = bytes - 16;
+        header[2] = tid;
+        header[3] = 1;
+        ptr = header + 4;
 
-            ASSERT(((int64_t)ptr & 15) == 0);
-        }
+        ASSERT(((intptr_t)ptr & 15) == 0);
     }
 
     return ptr;
@@ -183,15 +182,16 @@ void pim_free(void* ptr)
 {
     if (ptr)
     {
-        ASSERT(((int64_t)ptr & 15) == 0);
+        ASSERT(((intptr_t)ptr & 15) == 0);
         int32_t* header = (int32_t*)ptr - 4;
         EAlloc type = header[0];
         int32_t bytes = header[1];
         int32_t tid = header[2];
+        int32_t rc = dec_i32(header + 3, MO_Relaxed);
         ASSERT(bytes > 0);
         ASSERT((bytes & 15) == 0);
         ASSERT(tid < kMaxThreads);
-        ASSERT(tid == task_thread_id());
+        ASSERT(rc == 1);
 
         switch (type)
         {
@@ -210,6 +210,7 @@ void pim_free(void* ptr)
             linear_free(ms_temp + ms_tempIndex, header, bytes + 16);
             break;
         case EAlloc_TLS:
+            ASSERT(tid == task_thread_id());
             ASSERT(ms_local[tid]);
             tlsf_free(ms_local[tid], header);
             break;
@@ -233,19 +234,17 @@ void* pim_realloc(EAlloc type, void* prev, int32_t bytes)
     int32_t* prevHdr = (int32_t*)prev - 4;
     const int32_t prevBytes = prevHdr[1];
     ASSERT(prevBytes > 0);
+    ASSERT(load_i32(prevHdr + 3, MO_Relaxed) == 1);
     if (bytes <= prevBytes)
     {
         return prev;
     }
 
     bytes = (bytes > (prevBytes * 2)) ? bytes : (prevBytes * 2);
+    ASSERT(bytes > 0);
 
     void* next = pim_malloc(type, bytes);
-    if (next)
-    {
-        memcpy(next, prev, prevBytes);
-    }
-
+    memcpy(next, prev, prevBytes);
     pim_free(prev);
 
     return next;

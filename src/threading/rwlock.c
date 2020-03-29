@@ -12,17 +12,15 @@ void rwlock_create(rwlock_t* lck)
 {
     ASSERT(lck);
     store_u32(&(lck->state), 0, MO_Release);
-    lck->rsema = semaphore_create(1);
-    ASSERT(lck->rsema);
-    lck->wsema = semaphore_create(1);
-    ASSERT(lck->wsema);
+    semaphore_create(&(lck->rsema), 1);
+    semaphore_create(&(lck->wsema), 1);
 }
 
 void rwlock_destroy(rwlock_t* lck)
 {
     ASSERT(lck);
-    semaphore_destroy(lck->rsema);
-    semaphore_destroy(lck->wsema);
+    semaphore_destroy(&(lck->rsema));
+    semaphore_destroy(&(lck->wsema));
     memset(lck, 0, sizeof(rwlock_t));
 }
 

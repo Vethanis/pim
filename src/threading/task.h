@@ -8,19 +8,32 @@ PIM_C_BEGIN
 
 typedef enum
 {
-    TaskStatus_Exec = 0,
+    TaskStatus_Init = 0,
+    TaskStatus_Exec,
     TaskStatus_Complete,
 } TaskStatus;
 
-typedef void (*task_execute_fn)(void* userData, int32_t begin, int32_t end);
-typedef void* task_hdl;
+typedef void(PIM_CDECL *task_execute_fn)(struct task_s* task, int32_t begin, int32_t end);
+
+typedef struct task_s
+{
+    task_execute_fn execute;
+    int32_t status;
+    int32_t awaits;
+    int32_t worksize;
+    int32_t granularity;
+    int32_t head;
+    int32_t tail;
+} task_t;
+
+SASSERT((sizeof(task_t) & 15) == 0);
 
 int32_t task_thread_id(void);
 int32_t task_num_active(void);
 
-task_hdl task_submit(void* data, task_execute_fn execute, int32_t worksize);
-TaskStatus task_stat(task_hdl hdl);
-void* task_complete(task_hdl* pHandle);
+void task_submit(task_t* task, task_execute_fn execute, int32_t worksize);
+TaskStatus task_stat(task_t* task);
+void task_await(task_t* task);
 
 void task_sys_init(void);
 void task_sys_update(void);

@@ -1,5 +1,6 @@
 #include "quake/packfile.h"
-#include "common/io.h"
+#include "io/fmap.h"
+#include "io/fnd.h"
 #include "common/stringutil.h"
 
 namespace Quake
@@ -11,14 +12,15 @@ namespace Quake
         Pack pack = {};
         StrCpy(ARGS(pack.path), path);
 
-        fd_t fd = pim_open(path, 0);
+        fd_t fd = fd_open(path, 0);
         if (!fd_isopen(fd))
         {
             return pack;
         }
 
-        fmap_t map = pim_mmap(fd, 0);
-        pim_close(&fd);
+        fmap_t map;
+        fmap_create(&map, fd, 0);
+        fd_close(&fd);
 
         if (!map.ptr)
         {
@@ -44,7 +46,7 @@ namespace Quake
         if (pack.ptr)
         {
             fmap_t map = { (void*)pack.ptr, pack.bytes };
-            pim_munmap(&map);
+            fmap_destroy(&map);
             pack.ptr = 0;
             pack.header = 0;
             pack.files = 0;
@@ -63,9 +65,9 @@ namespace Quake
         SPrintf(ARGS(packDir), "%s/*.pak", path);
         StrPath(ARGS(packDir));
 
-        fnd_t fnd = -1;
+        fnd_t fnd = { -1 };
         fnd_data_t fndData;
-        while (pim_fnditer(&fnd, &fndData, packDir))
+        while (fnd_iter(&fnd, &fndData, packDir))
         {
             char subdir[PIM_PATH];
             SPrintf(ARGS(subdir), "%s/%s", path, fndData.name);

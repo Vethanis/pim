@@ -23,15 +23,15 @@ static void __cdecl Win32ThreadFn(void* arg)
     _endthread();
 }
 
-thread_t thread_create(thread_fn entrypoint, void* arg)
+void thread_create(thread_t* tr, thread_fn entrypoint, void* arg)
 {
+    ASSERT(tr);
     ASSERT(entrypoint);
 
     adapter_t* adapter = pim_malloc(EAlloc_Perm, sizeof(adapter_t));
-    ASSERT(adapter);
     adapter->entrypoint = entrypoint;
     adapter->arg = arg;
-    adapter->sema = semaphore_create(0);
+    semaphore_create(&(adapter->sema), 0);
 
     uintptr_t handle = _beginthread(
         Win32ThreadFn,
@@ -39,16 +39,17 @@ thread_t thread_create(thread_fn entrypoint, void* arg)
         adapter);
     ASSERT(handle);
 
-    return adapter;
+    tr->handle = adapter;
 }
 
-void thread_join(thread_t tr)
+void thread_join(thread_t* tr)
 {
     ASSERT(tr);
-    adapter_t* adapter = (adapter_t*)tr;
+    adapter_t* adapter = tr->handle;
     semaphore_wait(adapter->sema);
-    semaphore_destroy(adapter->sema);
+    semaphore_destroy(&(adapter->sema));
     pim_free(adapter);
+    tr->handle = NULL;
 }
 
 #else
@@ -58,19 +59,22 @@ void thread_join(thread_t tr)
 SASSERT(sizeof(pthread_t) == sizeof(thread_t));
 SASSERT(alignof(pthread_t) == alignof(thread_t));
 
-thread_t thread_create(thread_fn entrypoint, void* arg)
-{
-    pthread_t tr = NULL;
-    int32_t rv = pthread_create(&tr, NULL, entrypoint, arg);
-    ASSERT(!rv);
-    return tr;
-}
-
-void thread_join(thread_t tr)
+void thread_create(thread_t* tr, thread_fn entrypoint, void* arg)
 {
     ASSERT(tr);
-    int32_t rv = pthread_join(tr, NULL);
+    tr->handle = NULL;
+    pthread_t* pt = (pthread_t*)tr;
+    int32_t rv = pthread_create(pt, NULL, entrypoint, arg);
     ASSERT(!rv);
+}
+
+void thread_join(thread_t* tr)
+{
+    ASSERT(tr);
+    pthread_t* pt = (pthread_t*)tr;
+    int32_t rv = pthread_join(pt, NULL);
+    ASSERT(!rv);
+    tr->handle = NULL;
 }
 
 #endif // PLAT

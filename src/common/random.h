@@ -6,6 +6,10 @@ PIM_C_BEGIN
 
 #include <stdint.h>
 
+void rand_sys_init(void);
+void rand_sys_update(void);
+void rand_sys_shutdown(void);
+
 void rand_autoseed(void);
 void rand_seed(uint64_t seed);
 

@@ -7,6 +7,10 @@
 static const float kInvFloat = 1.0f / (1 << 24);
 static PIM_TLS pcg32_random_t ts_state;
 
+void rand_sys_init(void) { rand_autoseed(); }
+void rand_sys_update(void) {}
+void rand_sys_shutdown(void) {}
+
 void rand_autoseed(void)
 {
     uint64_t hash = HashStr("Piment");

@@ -86,6 +86,9 @@
     <Filter Include="submodules\tlsf">
       <UniqueIdentifier>{a5fc4c19-dc35-45aa-95d5-c09346c1ec2f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\io">
+      <UniqueIdentifier>{4c250d55-1045-4e19-b5a6-0035df0c0b50}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -129,9 +132,6 @@
     </ClCompile>
     <ClCompile Include="..\src\audio\audio_system.cpp">
       <Filter>Source Files\audio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\components\ecs.cpp">
-      <Filter>Source Files\components</Filter>
     </ClCompile>
     <ClCompile Include="..\src\input\input_system.cpp">
       <Filter>Source Files\input</Filter>
@@ -178,9 +178,6 @@
     <ClCompile Include="..\src\common\stringutil.c">
       <Filter>Source Files\common</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\io.c">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\threading\intrin.c">
       <Filter>Source Files\threading</Filter>
     </ClCompile>
@@ -210,6 +207,36 @@
     </ClCompile>
     <ClCompile Include="..\src\threading\task.c">
       <Filter>Source Files\threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\components\ecs.c">
+      <Filter>Source Files\components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\components\compflag.c">
+      <Filter>Source Files\components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\int_queue.c">
+      <Filter>Source Files\containers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\idset.c">
+      <Filter>Source Files\containers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\io\fd.c">
+      <Filter>Source Files\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\io\fstr.c">
+      <Filter>Source Files\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\io\dir.c">
+      <Filter>Source Files\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\io\env.c">
+      <Filter>Source Files\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\io\fnd.c">
+      <Filter>Source Files\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\io\fmap.c">
+      <Filter>Source Files\io</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -363,9 +390,6 @@
     <ClInclude Include="..\src\quake\packfile.h">
       <Filter>Source Files\quake</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\io.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\ui\imgui.h">
       <Filter>Source Files\ui</Filter>
     </ClInclude>
@@ -410,9 +434,6 @@
     </ClInclude>
     <ClInclude Include="..\src\common\unroll.h">
       <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\entity.h">
-      <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\bitfield.h">
       <Filter>Source Files\containers</Filter>
@@ -519,9 +540,6 @@
     <ClInclude Include="..\submodules\tlsf\tlsf.h">
       <Filter>submodules\tlsf</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\components\component_id.h">
-      <Filter>Source Files\components</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\type_guid.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -557,6 +575,36 @@
     </ClInclude>
     <ClInclude Include="..\src\threading\rwlock.h">
       <Filter>Source Files\threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\components.h">
+      <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\compflag.h">
+      <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\int_queue.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\idset.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\io\fd.h">
+      <Filter>Source Files\io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\io\fstr.h">
+      <Filter>Source Files\io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\io\dir.h">
+      <Filter>Source Files\io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\io\env.h">
+      <Filter>Source Files\io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\io\fnd.h">
+      <Filter>Source Files\io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\io\fmap.h">
+      <Filter>Source Files\io</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -5,7 +5,6 @@
 #include "containers/hash_dict.h"
 #include "ui/imgui.h"
 #include "threading/task.h"
-#include "common/io.h"
 #include "common/cvar.h"
 #include "common/text.h"
 #include "common/sort.h"

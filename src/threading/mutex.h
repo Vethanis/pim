@@ -8,7 +8,7 @@ PIM_C_BEGIN
 
 typedef struct mutex_s
 {
-    uint64_t opaque[5];
+    uint64_t opaque[6];
 } mutex_t;
 
 void mutex_create(mutex_t* mut);

@@ -12,17 +12,6 @@
 #define kNumThreads     32
 #define kTaskSplit      (kNumThreads * (kNumThreads / 2))
 
-typedef struct task_s
-{
-    task_execute_fn execute;
-    void* data;
-    int32_t status;
-    int32_t awaits;
-    int32_t worksize;
-    int32_t head;
-    int32_t tail;
-} task_t;
-
 typedef struct range_s
 {
     int32_t begin;
@@ -48,21 +37,24 @@ static PIM_TLS int32_t ms_tid;
 static int32_t min_i32(int32_t a, int32_t b) { return (a < b) ? a : b; }
 static int32_t max_i32(int32_t a, int32_t b) { return (a > b) ? a : b; }
 
-static range_t StealWork(task_t* task, int32_t worksize, int32_t granularity)
+static int32_t StealWork(task_t* task, range_t* range)
 {
-    range_t range;
-    range.begin = fetch_add_i32(&(task->head), granularity, MO_Acquire);
-    range.end = min_i32(range.begin + granularity, worksize);
-    return range;
+    const int32_t gran = task->granularity;
+    const int32_t wsize = task->worksize;
+    const int32_t a = fetch_add_i32(&(task->head), gran, MO_Acquire);
+    const int32_t b = min_i32(a + gran, wsize);
+    range->begin = a;
+    range->end = b;
+    return a < b;
 }
 
 static int32_t UpdateProgress(task_t* task, range_t range)
 {
-    int32_t count = range.end - range.begin;
-    int32_t size = load_i32(&(task->worksize), MO_Relaxed);
-    int32_t prev = fetch_add_i32(&(task->tail), count, MO_AcqRel);
-    ASSERT(prev < size);
-    return (prev + count) >= size;
+    const int32_t wsize = task->worksize;
+    const int32_t count = range.end - range.begin;
+    const int32_t prev = fetch_add_i32(&(task->tail), count, MO_AcqRel);
+    ASSERT(prev < wsize);
+    return (prev + count) >= wsize;
 }
 
 static void MarkComplete(task_t* task)
@@ -77,31 +69,20 @@ static void MarkComplete(task_t* task)
 
 static int32_t TryRunTask(int32_t tid)
 {
-    task_t* task = (task_t*)ptrqueue_trypop(ms_queues + tid);
+    task_t* task = ptrqueue_trypop(ms_queues + tid);
     if (task)
     {
-        const int32_t worksize = task->worksize;
-        const int32_t granularity = max_i32(1, worksize / kTaskSplit);
         range_t range;
-
-    stealloop:
-        range = StealWork(task, worksize, granularity);
-        if (range.begin < range.end)
+        while (StealWork(task, &range))
         {
-            task->execute(task->data, range.begin, range.end);
-
+            task->execute(task, range.begin, range.end);
             if (UpdateProgress(task, range))
             {
                 MarkComplete(task);
             }
-            else
-            {
-                goto stealloop;
-            }
         }
     }
-
-    return task != 0;
+    return task != NULL;
 }
 
 static int32_t TaskLoop(void* arg)
@@ -114,13 +95,26 @@ static int32_t TaskLoop(void* arg)
     ASSERT(tid);
     ms_tid = tid;
 
+    int64_t spins = 0;
     while (load_i32(&ms_running, MO_Relaxed))
     {
-        if (!TryRunTask(tid))
+        if (TryRunTask(tid))
         {
-            inc_i32(&ms_numThreadsSleeping, MO_Acquire);
-            event_wait(&ms_waitPush);
-            dec_i32(&ms_numThreadsSleeping, MO_Release);
+            spins = 0;
+        }
+        else
+        {
+            if (spins < 3)
+            {
+                intrin_spin(++spins);
+            }
+            else
+            {
+                spins = 0;
+                inc_i32(&ms_numThreadsSleeping, MO_Acquire);
+                event_wait(&ms_waitPush);
+                dec_i32(&ms_numThreadsSleeping, MO_Release);
+            }
         }
     }
 
@@ -141,25 +135,25 @@ int32_t task_num_active(void)
     return load_i32(&ms_numThreadsRunning, MO_Relaxed) - load_i32(&ms_numThreadsSleeping, MO_Relaxed);
 }
 
-TaskStatus task_stat(task_hdl hdl)
+TaskStatus task_stat(task_t* task)
 {
-    task_t* task = (task_t*)hdl;
     ASSERT(task);
     return (TaskStatus)load_i32(&(task->status), MO_Acquire);
 }
 
-task_hdl task_submit(void* data, task_execute_fn execute, int32_t worksize)
+void task_submit(task_t* task, task_execute_fn execute, int32_t worksize)
 {
     ASSERT(execute);
     ASSERT(worksize > 0);
+    ASSERT(task_stat(task) != TaskStatus_Exec);
+    ASSERT(load_i32(&(task->awaits), MO_Relaxed) == 0);
 
-    task_t* task = pim_tcalloc(task_t, EAlloc_Perm, 1);
-    ASSERT(task);
-
+    store_i32(&(task->status), TaskStatus_Exec, MO_Release);
     task->execute = execute;
-    task->data = data;
-    task->status = TaskStatus_Exec;
-    task->worksize = worksize;
+    store_i32(&(task->worksize), worksize, MO_Release);
+    store_i32(&(task->granularity), max_i32(1, worksize / kTaskSplit), MO_Release);
+    store_i32(&(task->head), 0, MO_Release);
+    store_i32(&(task->tail), 0, MO_Release);
 
     for (int32_t t = 1; t < kNumThreads; ++t)
     {
@@ -167,33 +161,17 @@ task_hdl task_submit(void* data, task_execute_fn execute, int32_t worksize)
     }
 
     event_wakeall(&ms_waitPush);
-
-    return task;
 }
 
-void* task_complete(task_hdl* pHandle)
+void task_await(task_t* task)
 {
-    void* result = 0;
-
-    ASSERT(pHandle);
-    void* hdl = *pHandle;
-    *pHandle = 0;
-    task_t* task = (task_t*)hdl;
-
-    if (task)
+    ASSERT(task);
+    inc_i32(&(task->awaits), MO_Acquire);
+    while (task_stat(task) == TaskStatus_Exec)
     {
-        inc_i32(&(task->awaits), MO_Acquire);
-        while (task_stat(task) != TaskStatus_Complete)
-        {
-            event_wait(&ms_waitExec);
-        }
-        dec_i32(&(task->awaits), MO_Release);
-
-        result = task->data;
-        pim_free(task);
+        event_wait(&ms_waitExec);
     }
-
-    return result;
+    dec_i32(&(task->awaits), MO_Release);
 }
 
 void task_sys_init(void)
@@ -204,7 +182,7 @@ void task_sys_init(void)
     for (int32_t t = 1; t < kNumThreads; ++t)
     {
         ptrqueue_create(ms_queues + t, EAlloc_Perm, 256);
-        ms_threads[t] = thread_create(TaskLoop, (void*)((intptr_t)t));
+        thread_create(ms_threads + t, TaskLoop, (void*)((intptr_t)t));
     }
 }
 
@@ -224,7 +202,7 @@ void task_sys_shutdown(void)
     }
     for (int32_t t = 1; t < kNumThreads; ++t)
     {
-        thread_join(ms_threads[t]);
+        thread_join(ms_threads + t);
         ptrqueue_destroy(ms_queues + t);
     }
     memset(ms_threads, 0, sizeof(ms_threads));
