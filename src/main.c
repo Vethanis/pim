@@ -1,8 +1,5 @@
 #include <sokol/sokol_app.h>
 
-#include "common/module.h"
-#include "containers/graph.h"
-
 #include "common/time.h"
 #include "common/random.h"
 #include "allocator/allocator.h"
@@ -35,7 +32,7 @@ static const system_t ms_systems[] =
     { network_sys_init, network_sys_update, network_sys_shutdown },
 };
 
-static void Init()
+static void Init(void)
 {
     for (int32_t i = 0; i < NELEM(ms_systems); ++i)
     {
@@ -43,7 +40,7 @@ static void Init()
     }
 }
 
-static void Update()
+static void Update(void)
 {
     for (int32_t i = 0; i < NELEM(ms_systems); ++i)
     {
@@ -53,7 +50,7 @@ static void Update()
     render_sys_frameend();
 }
 
-static void Shutdown()
+static void Shutdown(void)
 {
     for (int32_t i = NELEM(ms_systems) - 1; i >= 0; --i)
     {
@@ -68,18 +65,19 @@ static void OnEvent(const sapp_event* evt)
 
 sapp_desc sokol_main(int argc, char* argv[])
 {
-    sapp_desc desc = {};
-    desc.window_title = "Pim";
-    desc.width = 320 * 4;
-    desc.height = 240 * 4;
-    desc.sample_count = 1;
-    desc.swap_interval = 1;
-    desc.alpha = false;
-    desc.high_dpi = false;
-    desc.init_cb = Init;
-    desc.frame_cb = Update;
-    desc.cleanup_cb = Shutdown;
-    desc.event_cb = OnEvent;
-
+    sapp_desc desc =
+    {
+        .window_title = "Pim",
+        .width = 320 * 4,
+        .height = 240 * 4,
+        .sample_count = 1,
+        .swap_interval = 1,
+        .alpha = 0,
+        .high_dpi = 0,
+        .init_cb = Init,
+        .frame_cb = Update,
+        .cleanup_cb = Shutdown,
+        .event_cb = OnEvent,
+    };
     return desc;
 }

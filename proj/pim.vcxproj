@@ -34,7 +34,7 @@
     <ClCompile Include="..\src\io\fmap.c" />
     <ClCompile Include="..\src\io\fnd.c" />
     <ClCompile Include="..\src\io\fstr.c" />
-    <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\main.c" />
     <ClCompile Include="..\src\os\socket.c" />
     <ClCompile Include="..\src\quake\packfile.cpp" />
     <ClCompile Include="..\src\rendering\framebuffer.c" />
