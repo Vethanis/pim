@@ -2,7 +2,7 @@
 
 #include "common/macro.h"
 #include "common/int_types.h"
-#include "common/hash.h"
+#include "common/fnv1a.h"
 
 namespace HashUtil
 {
@@ -67,6 +67,6 @@ namespace HashUtil
     template<typename K>
     static u32 Hash(K key)
     {
-        return CreateHash(Fnv32Bytes(&key, sizeof(K)));
+        return CreateHash(Fnv32Bytes(&key, sizeof(K), Fnv32Bias));
     }
 };

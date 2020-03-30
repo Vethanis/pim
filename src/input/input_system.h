@@ -1,10 +1,13 @@
 #pragma once
 
-#include "common/int_types.h"
+#include "common/macro.h"
 
-struct sapp_event;
+PIM_C_BEGIN
 
-enum InputMods : u8
+#include <stdint.h>
+#include <stdbool.h>
+
+typedef enum
 {
     InputMod_Shift = (1 << 0),
     InputMod_Ctrl = (1 << 1),
@@ -12,9 +15,9 @@ enum InputMods : u8
     InputMod_Super = (1 << 3),
 
     InputMod_Mask = (1 << 4) - 1
-};
+} InputMod;
 
-enum KeyCode : u16
+typedef enum
 {
     KeyCode_Invalid = 0,
     KeyCode_Space = 32,
@@ -126,18 +129,18 @@ enum KeyCode : u16
     KeyCode_Menu = 348,
 
     KeyCode_COUNT
-};
+} KeyCode;
 
-enum MouseButton : u8
+typedef enum
 {
     MouseButton_Left = 0,
     MouseButton_Right,
     MouseButton_Middle,
 
     MouseButton_COUNT
-};
+} MouseButton;
 
-enum InputChannel : u8
+typedef enum
 {
     InputChannel_Keyboard = 0,
     InputChannel_MouseButton,
@@ -145,21 +148,24 @@ enum InputChannel : u8
     InputChannel_MouseScroll,
 
     InputChannel_COUNT
-};
+} InputChannel;
 
-struct InputEvent
+typedef struct input_event_s
 {
-    InputChannel channel;
-    u16 id;
-    u8 modifiers;
-};
+    int32_t channel;    // InputChannel
+    int32_t id;         // KeyCode | MouseButton
+    int32_t modifiers;  // InputMod
+    float x;            // [-1, 1] mouse X
+    float y;            // [-1, 1] mouse Y
+} input_event_t;
 
-using InputListener = void(*)(InputEvent evt, f32 valueX, f32 valueY);
+void input_sys_init(void);
+void input_sys_update(void);
+void input_sys_shutdown(void);
 
-namespace InputSystem
-{
-    bool Register(InputChannel channel, InputListener listener);
-    bool Remove(InputChannel channel, InputListener listener);
+void input_sys_onevent(const struct sapp_event* evt, int32_t kbCaptured);
+void input_sys_frameend(void);
 
-    void OnEvent(const sapp_event* evt, bool keyboardCaptured);
-};
+bool input_get_event(int32_t i, input_event_t* dst);
+
+PIM_C_END

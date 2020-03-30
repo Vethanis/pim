@@ -23,9 +23,6 @@
     <Filter Include="natvis">
       <UniqueIdentifier>{e966c196-540e-4e4f-b01f-f68c039cec72}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\shaders">
-      <UniqueIdentifier>{ca7a580f-e677-45cc-a7b1-179614a1be50}</UniqueIdentifier>
-    </Filter>
     <Filter Include="submodules\pcg32">
       <UniqueIdentifier>{415601ef-5c67-46f4-9c5f-ed59be6222f4}</UniqueIdentifier>
     </Filter>
@@ -115,20 +112,11 @@
     <ClCompile Include="..\src\sokol\sokol_imgui.cpp">
       <Filter>Source Files\sokol</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\os\socket_win32.cpp">
-      <Filter>Source Files\os</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\quake\packfile.cpp">
       <Filter>Source Files\quake</Filter>
     </ClCompile>
     <ClCompile Include="..\submodules\miniz\miniz.c">
       <Filter>submodules\miniz</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\audio\audio_system.cpp">
-      <Filter>Source Files\audio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\input\input_system.cpp">
-      <Filter>Source Files\input</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\render_system.cpp">
       <Filter>Source Files\rendering</Filter>
@@ -141,12 +129,6 @@
     </ClCompile>
     <ClCompile Include="..\src\assets\asset_system.cpp">
       <Filter>Source Files\assets</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\os\socket.cpp">
-      <Filter>Source Files\os</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\components\system.cpp">
-      <Filter>Source Files\components</Filter>
     </ClCompile>
     <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp">
       <Filter>submodules\stackwalker</Filter>
@@ -235,11 +217,23 @@
     <ClCompile Include="..\src\rendering\framebuffer.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\common\guid.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\audio\audio_system.c">
+      <Filter>Source Files\audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\input\input_system.c">
+      <Filter>Source Files\input</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\queue.c">
+      <Filter>Source Files\containers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\os\socket.c">
+      <Filter>Source Files\os</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\common\hash.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\int_types.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -444,26 +438,14 @@
     <ClInclude Include="..\src\common\sort.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\components.h">
-      <Filter>Source Files\rendering</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\geometry\types.h">
       <Filter>Source Files\geometry</Filter>
     </ClInclude>
     <ClInclude Include="..\src\geometry\distance.h">
       <Filter>Source Files\geometry</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\physics\components.h">
-      <Filter>Source Files\physics</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\audio\components.h">
-      <Filter>Source Files\audio</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\hash_set.h">
       <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\system.h">
-      <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\queue.h">
       <Filter>Source Files\containers</Filter>
@@ -585,6 +567,12 @@
     <ClInclude Include="..\src\sokol\sokol_time.h">
       <Filter>Source Files\sokol</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\common\fnv1a.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\nextpow2.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">
@@ -599,19 +587,5 @@
     <Natvis Include="natvis\chunkallocator.natvis">
       <Filter>natvis</Filter>
     </Natvis>
-  </ItemGroup>
-  <ItemGroup>
-    <FxCompile Include="..\src\shaders\example_vs.hlsl">
-      <Filter>Source Files\shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="..\src\shaders\transforms.hlsl">
-      <Filter>Source Files\shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="..\src\shaders\example_input.hlsl">
-      <Filter>Source Files\shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="..\src\shaders\quat.hlsl">
-      <Filter>Source Files\shaders</Filter>
-    </FxCompile>
   </ItemGroup>
 </Project>

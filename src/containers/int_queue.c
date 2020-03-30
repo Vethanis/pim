@@ -1,20 +1,21 @@
 #include "containers/int_queue.h"
-#include "allocator/allocator.h"
+#include "common/nextpow2.h"
 
-void intQ_create(intQ_t* q)
+void intQ_create(intQ_t* q, EAlloc allocator)
 {
     ASSERT(q);
-    q->ptr = 0;
+    q->ptr = NULL;
     q->width = 0;
     q->iRead = 0;
     q->iWrite = 0;
+    q->allocator = allocator;
 }
 
 void intQ_destroy(intQ_t* q)
 {
     ASSERT(q);
     pim_free(q->ptr);
-    q->ptr = 0;
+    q->ptr = NULL;
     q->width = 0;
     q->iRead = 0;
     q->iWrite = 0;
@@ -24,7 +25,7 @@ void intQ_clear(intQ_t* q)
 {
     ASSERT(q);
     q->iRead = 0;
-    q->iRead = 0;
+    q->iWrite = 0;
 }
 
 uint32_t intQ_size(const intQ_t* q)
@@ -39,18 +40,6 @@ uint32_t intQ_capacity(const intQ_t* q)
     return q->width;
 }
 
-static uint32_t NextPow2(uint32_t x)
-{
-    --x;
-    x |= x >> 1;
-    x |= x >> 2;
-    x |= x >> 4;
-    x |= x >> 8;
-    x |= x >> 16;
-    ++x;
-    return x;
-}
-
 void intQ_reserve(intQ_t* q, uint32_t capacity)
 {
     ASSERT(q);
@@ -60,7 +49,7 @@ void intQ_reserve(intQ_t* q, uint32_t capacity)
     if (newWidth > oldWidth)
     {
         int32_t* oldPtr = q->ptr;
-        int32_t* newPtr = pim_malloc(EAlloc_Perm, sizeof(*newPtr) * newWidth);
+        int32_t* newPtr = pim_malloc(q->allocator, sizeof(*newPtr) * newWidth);
         const uint32_t iRead = q->iRead;
         const uint32_t len = q->iWrite - iRead;
         const uint32_t mask = oldWidth - 1u;
@@ -86,7 +75,7 @@ void intQ_push(intQ_t* q, int32_t value)
     q->ptr[dst & mask] = value;
 }
 
-int32_t intQ_trypop(intQ_t* q, int32_t* valueOut)
+bool intQ_trypop(intQ_t* q, int32_t* valueOut)
 {
     ASSERT(valueOut);
     if (intQ_size(q))

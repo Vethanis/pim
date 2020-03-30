@@ -37,5 +37,4 @@ typedef enum
     CompId_COUNT
 } compid_t;
 
-
 PIM_C_END

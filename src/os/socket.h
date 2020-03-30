@@ -1,27 +1,41 @@
 #pragma once
 
-#include "common/int_types.h"
+#include "common/macro.h"
 
-struct Socket
+PIM_C_BEGIN
+
+#include <stdint.h>
+#include <stdbool.h>
+
+typedef enum
 {
-    usize m_handle;
-    bool m_isTcp;
+    SocketProto_UDP = 0,
+    SocketProto_TCP,
+    SocketProto_COUNT
+} SocketProto;
 
-    static void Init();
-    static void Shutdown();
+typedef struct socket_s
+{
+    void* handle;
+    SocketProto proto;
+} socket_t;
 
-    static bool UrlToAddress(cstr url, u32& addr);
+void network_sys_init(void);
+void network_sys_update(void);
+void network_sys_shutdown(void);
 
-    static Socket Open(bool tcp);
-    bool IsOpen() const;
-    void Close();
+bool network_url2addr(const char* url, uint32_t* addrOut);
 
-    bool Bind(u32 addr, u16 port);
-    bool Listen();
-    Socket Accept(u32& addr);
+bool socket_open(socket_t* sock, SocketProto proto);
+void socket_close(socket_t* sock);
 
-    bool Connect(u32 addr, u16 port);
+bool socket_isopen(socket_t sock);
+bool socket_bind(socket_t sock, uint32_t addr, uint16_t port);
+bool socket_listen(socket_t sock);
+socket_t socket_accept(socket_t sock, uint32_t* addr);
+bool socket_connect(socket_t sock, uint32_t addr, uint16_t port);
 
-    i32 Send(const void* src, u32 len);
-    i32 Recv(void* dst, u32 len);
-};
+int32_t socket_send(socket_t sock, const void* src, int32_t len);
+int32_t socket_recv(socket_t sock, void* dst, int32_t len);
+
+PIM_C_END

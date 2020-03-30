@@ -1,5 +1,6 @@
 #include "containers/ptrqueue.h"
 #include "common/atomics.h"
+#include "common/nextpow2.h"
 #include <string.h>
 
 void ptrqueue_create(ptrqueue_t* pq, EAlloc allocator, uint32_t capacity)
@@ -54,19 +55,6 @@ void ptrqueue_clear(ptrqueue_t* pq)
         }
     }
     rwlock_unlock_read(&(pq->lock));
-}
-
-// https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-static uint32_t NextPow2(uint32_t x)
-{
-    --x;
-    x |= x >> 1;
-    x |= x >> 2;
-    x |= x >> 4;
-    x |= x >> 8;
-    x |= x >> 16;
-    ++x;
-    return x;
 }
 
 void ptrqueue_reserve(ptrqueue_t* pq, uint32_t capacity)

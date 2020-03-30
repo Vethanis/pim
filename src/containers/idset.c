@@ -7,7 +7,7 @@ void idset_create(idset_t* set)
     ASSERT(set);
     set->versions = 0;
     set->length = 0;
-    intQ_create(&(set->queue));
+    intQ_create(&(set->queue), EAlloc_Perm);
 }
 
 void idset_destroy(idset_t* set)

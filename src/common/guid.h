@@ -1,57 +1,30 @@
 #pragma once
 
 #include "common/macro.h"
-#include "common/int_types.h"
-#include "common/hash.h"
-#include "common/random.h"
 
-struct Guid
+PIM_C_BEGIN
+
+#include <stdint.h>
+
+typedef struct guid_s
 {
-    u64 a;
-    u64 b;
+    uint64_t a;
+    uint64_t b;
+} guid_t;
 
-    bool operator==(Guid rhs) const
-    {
-        return ((a - rhs.a) | (b - rhs.b)) == 0;
-    }
-    bool operator!=(Guid rhs) const
-    {
-        return ((a - rhs.a) | (b - rhs.b)) != 0;
-    }
-};
-
-inline constexpr bool IsNull(Guid x)
+static int32_t guid_isnull(guid_t x)
 {
     return !(x.a | x.b);
 }
 
-inline constexpr Guid ToGuid(cstrc str, u64 seed = Fnv64Bias)
+static int32_t guid_eq(guid_t lhs, guid_t rhs)
 {
-    ASSERT(str);
-    u64 a = Fnv64String(str, seed);
-    a = a ? a : 1;
-    u64 b = Fnv64String(str, a);
-    b = b ? b : 1;
-    return Guid{ a, b };
+    return !((lhs.a - rhs.a) | (lhs.b - rhs.b));
 }
 
-inline Guid ToGuid(const void* ptr, i32 count, u64 seed = Fnv64Bias)
-{
-    ASSERT(ptr);
-    u64 a = Fnv64Bytes(ptr, count, seed);
-    a = a ? a : 1;
-    u64 b = Fnv64Bytes(ptr, count, a);
-    b = b ? b : 1;
-    return Guid{ a, b };
-}
+int32_t guid_find(const guid_t* ptr, int32_t count, guid_t key);
+guid_t StrToGuid(const char* str, uint64_t seed);
+guid_t BytesToGuid(const void* ptr, int32_t nBytes, uint64_t seed);
+guid_t RandGuid();
 
-inline Guid CreateGuid()
-{
-    u64 a = rand_int();
-    a = (a << 32) | rand_int();
-    u64 b = rand_int();
-    b = (b << 32) | rand_int();
-    a = a ? a : 1;
-    b = b ? b : 1;
-    return Guid{ a, b };
-}
+PIM_C_END

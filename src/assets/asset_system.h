@@ -1,17 +1,24 @@
 #pragma once
 
-#include "common/int_types.h"
+#include "common/macro.h"
 
-struct Asset
+PIM_C_BEGIN
+
+#include <stdint.h>
+
+typedef struct asset_s
 {
-    cstr name;
-    cstr pack;
-    i32 offset;
-    i32 size;
+    const char* name;
+    const char* pack;
+    int32_t offset;
+    int32_t size;
     const void* pData;
-};
+} asset_t;
 
-namespace AssetSystem
-{
-    bool Get(cstr name, Asset& asset);
-};
+void asset_sys_init(void);
+void asset_sys_update(void);
+void asset_sys_shutdown(void);
+
+int32_t asset_sys_get(const char* name, asset_t* assetOut);
+
+PIM_C_END

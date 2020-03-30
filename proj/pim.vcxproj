@@ -13,9 +13,10 @@
   <ItemGroup>
     <ClCompile Include="..\src\allocator\allocator.c" />
     <ClCompile Include="..\src\assets\asset_system.cpp" />
-    <ClCompile Include="..\src\audio\audio_system.cpp" />
+    <ClCompile Include="..\src\audio\audio_system.c" />
     <ClCompile Include="..\src\common\atomics.cpp" />
     <ClCompile Include="..\src\common\cvar.c" />
+    <ClCompile Include="..\src\common\guid.c" />
     <ClCompile Include="..\src\common\module.c" />
     <ClCompile Include="..\src\common\random.c" />
     <ClCompile Include="..\src\common\stringutil.c" />
@@ -25,7 +26,8 @@
     <ClCompile Include="..\src\containers\idset.c" />
     <ClCompile Include="..\src\containers\int_queue.c" />
     <ClCompile Include="..\src\containers\ptrqueue.c" />
-    <ClCompile Include="..\src\input\input_system.cpp" />
+    <ClCompile Include="..\src\containers\queue.c" />
+    <ClCompile Include="..\src\input\input_system.c" />
     <ClCompile Include="..\src\io\dir.c" />
     <ClCompile Include="..\src\io\env.c" />
     <ClCompile Include="..\src\io\fd.c" />
@@ -33,8 +35,7 @@
     <ClCompile Include="..\src\io\fnd.c" />
     <ClCompile Include="..\src\io\fstr.c" />
     <ClCompile Include="..\src\main.cpp" />
-    <ClCompile Include="..\src\os\socket.cpp" />
-    <ClCompile Include="..\src\os\socket_win32.cpp" />
+    <ClCompile Include="..\src\os\socket.c" />
     <ClCompile Include="..\src\quake\packfile.cpp" />
     <ClCompile Include="..\src\rendering\framebuffer.c" />
     <ClCompile Include="..\src\rendering\material.cpp" />
@@ -66,17 +67,17 @@
     <ClInclude Include="..\src\allocator\leak_tracker.h" />
     <ClInclude Include="..\src\assets\asset_system.h" />
     <ClInclude Include="..\src\audio\audio_system.h" />
-    <ClInclude Include="..\src\audio\components.h" />
     <ClInclude Include="..\src\common\apply.h" />
     <ClInclude Include="..\src\common\atomics.h" />
     <ClInclude Include="..\src\common\cvar.h" />
     <ClInclude Include="..\src\common\minmax.h" />
     <ClInclude Include="..\src\common\module.h" />
+    <ClInclude Include="..\src\common\nextpow2.h" />
     <ClInclude Include="..\src\common\round.h" />
     <ClInclude Include="..\src\common\find.h" />
     <ClInclude Include="..\src\common\guid.h" />
     <ClInclude Include="..\src\common\hashstring.h" />
-    <ClInclude Include="..\src\common\hash.h" />
+    <ClInclude Include="..\src\common\fnv1a.h" />
     <ClInclude Include="..\src\common\int_types.h" />
     <ClInclude Include="..\src\common\macro.h" />
     <ClInclude Include="..\src\common\random.h" />
@@ -92,7 +93,6 @@
     <ClInclude Include="..\src\components\compflag.h" />
     <ClInclude Include="..\src\components\components.h" />
     <ClInclude Include="..\src\components\ecs.h" />
-    <ClInclude Include="..\src\components\system.h" />
     <ClInclude Include="..\src\components\transform.h" />
     <ClInclude Include="..\src\containers\array.h" />
     <ClInclude Include="..\src\containers\bitfield.h" />
@@ -124,7 +124,6 @@
     <ClInclude Include="..\src\math\vec_ops.h" />
     <ClInclude Include="..\src\math\vec_types.h" />
     <ClInclude Include="..\src\os\socket.h" />
-    <ClInclude Include="..\src\physics\components.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
     <ClInclude Include="..\src\quake\packfile.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />
@@ -139,14 +138,8 @@
     <ClInclude Include="..\src\threading\semaphore.h" />
     <ClInclude Include="..\src\threading\thread.h" />
     <ClInclude Include="..\submodules\tlsf\tlsf.h" />
-    <FxCompile Include="..\src\shaders\quat.hlsl">
-      <FileType>Document</FileType>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </FxCompile>
     <ClInclude Include="..\src\rendering\material.h" />
     <ClInclude Include="..\src\rendering\mesh.h" />
-    <ClInclude Include="..\src\rendering\components.h" />
     <ClInclude Include="..\src\rendering\render_system.h" />
     <ClInclude Include="..\src\rendering\screen.h" />
     <ClInclude Include="..\src\sokol\sokol_backend.h" />
@@ -189,25 +182,6 @@
     <Natvis Include="natvis\chunkallocator.natvis" />
     <Natvis Include="natvis\dict.natvis" />
     <Natvis Include="natvis\slice.natvis" />
-  </ItemGroup>
-  <ItemGroup>
-    <FxCompile Include="..\src\shaders\example_input.hlsl">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </FxCompile>
-    <FxCompile Include="..\src\shaders\example_vs.hlsl">
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.3</ShaderModel>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.3</ShaderModel>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </FxCompile>
-    <FxCompile Include="..\src\shaders\transforms.hlsl">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </FxCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\src\components\system.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

@@ -1,13 +1,14 @@
 #pragma once
 
 #include <imgui/imgui.h>
+#include <stdint.h>
 #include "rendering/screen.h"
 #include "common/sort.h"
 #include "containers/array.h"
 
 namespace ImGui
 {
-    inline char BytesFormat(i32 bytes)
+    inline char BytesFormat(int32_t bytes)
     {
         if (bytes >= (1 << 30))
         {
@@ -24,33 +25,33 @@ namespace ImGui
         return ' ';
     }
 
-    inline f32 BytesValue(i32 bytes)
+    inline float BytesValue(int32_t bytes)
     {
         if (bytes >= (1 << 30))
         {
-            return (f32)bytes / (f32)(1 << 30);
+            return (float)bytes / (float)(1 << 30);
         }
         if (bytes >= (1 << 20))
         {
-            return (f32)bytes / (f32)(1 << 20);
+            return (float)bytes / (float)(1 << 20);
         }
         if (bytes >= (1 << 10))
         {
-            return (f32)bytes / (f32)(1 << 10);
+            return (float)bytes / (float)(1 << 10);
         }
-        return (f32)bytes;
+        return (float)bytes;
     }
 
-    inline void Bytes(i32 bytes)
+    inline void Bytes(int32_t bytes)
     {
         ImGui::Text("%.2f%cB", BytesValue(bytes), BytesFormat(bytes));
     }
-    inline void Bytes(cstr label, i32 bytes)
+    inline void Bytes(cstr label, int32_t bytes)
     {
         ImGui::Text("%s: %.2f%cB", label, BytesValue(bytes), BytesFormat(bytes));
     }
 
-    inline void SetNextWindowScale(f32 x, f32 y, ImGuiCond cond = ImGuiCond_Once)
+    inline void SetNextWindowScale(float x, float y, ImGuiCond cond = ImGuiCond_Once)
     {
         ImGui::SetNextWindowSize({ Screen::Width() * x, Screen::Height() * y }, cond);
     }
@@ -58,35 +59,35 @@ namespace ImGui
     template<typename T>
     struct Table
     {
-        using LtFn = bool(*)(i32 metric, const T* items, i32 a, i32 b);
+        using LtFn = bool(*)(int32_t metric, const T* items, int32_t a, int32_t b);
 
         const char* const* m_titles;
-        const f32* m_scales;
-        i32 m_numColumns;
+        const float* m_scales;
+        int32_t m_numColumns;
         LtFn m_cmp;
 
-        i32 m_metric;
+        int32_t m_metric;
         bool m_reversed;
         const T* m_items;
 
-        bool operator()(i32 lhs, i32 rhs) const
+        bool operator()(int32_t lhs, int32_t rhs) const
         {
-            i32 a = m_reversed ? rhs : lhs;
-            i32 b = m_reversed ? lhs : rhs;
+            int32_t a = m_reversed ? rhs : lhs;
+            int32_t b = m_reversed ? lhs : rhs;
             return m_cmp(m_metric, m_items, a, b);
         }
 
-        Array<i32> Begin(const T* const pItems, i32 itemCount)
+        Array<int32_t> Begin(const T* const pItems, int32_t itemCount)
         {
             m_items = pItems;
-            const f32 width = ImGui::GetWindowWidth();
+            const float width = ImGui::GetWindowWidth();
             ImGui::Columns(m_numColumns);
-            for (i32 i = 0; i < m_numColumns; ++i)
+            for (int32_t i = 0; i < m_numColumns; ++i)
             {
                 ImGui::SetColumnWidth(i, m_scales[i] * width);
             }
 
-            for (i32 i = 0; i < m_numColumns; ++i)
+            for (int32_t i = 0; i < m_numColumns; ++i)
             {
                 if (ImGui::Button(m_titles[i]))
                 {
@@ -104,9 +105,9 @@ namespace ImGui
             }
             ImGui::Separator();
 
-            Array<i32> order = CreateArray<i32>(EAlloc_Temp, itemCount);
+            Array<int32_t> order = CreateArray<int32_t>(EAlloc_Temp, itemCount);
             order.Resize(itemCount);
-            for (i32 i = 0; i < itemCount; ++i)
+            for (int32_t i = 0; i < itemCount; ++i)
             {
                 order[i] = i;
             }
@@ -116,7 +117,7 @@ namespace ImGui
             return order;
         }
 
-        void End(Array<i32>& order)
+        void End(Array<int32_t>& order)
         {
             m_items = nullptr;
             order.Reset();
