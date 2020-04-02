@@ -31,6 +31,14 @@
 #define PLAT_64 (UINTPTR_MAX == UINT64_MAX)
 #define PLAT_32 (UINTPTR_MAX == UINT32_MAX)
 
+#if defined(__arm__) || defined(__arm64__)
+    #define PLAT_CPU_ARM            1
+    #define PLAT_CPU_X86            0
+#else
+    #define PLAT_CPU_ARM            0
+    #define PLAT_CPU_X86            1
+#endif 
+
 // ----------------------------------------------------------------------------
 
 #if PLAT_WINDOWS
@@ -58,7 +66,7 @@
 #define PIM_EXPORT                  IF_WIN(__declspec(dllexport))
 #define PIM_IMPORT                  IF_WIN(__declspec(dllimport))
 #define PIM_CDECL                   IF_WIN(__cdecl)
-
+#define VEC_CALL                    __vectorcall
 
 // ----------------------------------------------------------------------------
 

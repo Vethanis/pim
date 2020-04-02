@@ -116,13 +116,7 @@
     <ClInclude Include="..\src\io\fmap.h" />
     <ClInclude Include="..\src\io\fnd.h" />
     <ClInclude Include="..\src\io\fstr.h" />
-    <ClInclude Include="..\src\math\math.h" />
-    <ClInclude Include="..\src\math\mat_funcs.h" />
-    <ClInclude Include="..\src\math\mat_ops.h" />
-    <ClInclude Include="..\src\math\mat_types.h" />
-    <ClInclude Include="..\src\math\vec_funcs.h" />
-    <ClInclude Include="..\src\math\vec_ops.h" />
-    <ClInclude Include="..\src\math\vec_types.h" />
+    <ClInclude Include="..\src\math\vec.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
     <ClInclude Include="..\src\quake\packfile.h" />
@@ -236,7 +230,6 @@
       <TreatWarningAsError>true</TreatWarningAsError>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <SupportJustMyCode>false</SupportJustMyCode>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <DisableLanguageExtensions>false</DisableLanguageExtensions>
       <ConformanceMode>true</ConformanceMode>
       <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
@@ -263,7 +256,6 @@
       <PreprocessorDefinitions>NOMINMAX;NDEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb;$(ProjectDir)..\submodules\pthread_w32\include</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <CompileAsManaged>false</CompileAsManaged>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>

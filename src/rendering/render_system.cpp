@@ -10,7 +10,7 @@
 #include "components/ecs.h"
 #include "rendering/screen.h"
 #include "rendering/framebuffer.h"
-#include "math/vec_funcs.h"
+#include "math/vec.h"
 #include "common/random.h"
 #include "containers/idset.h"
 
@@ -18,11 +18,11 @@
 
 namespace Screen
 {
-    static i32 ms_width;
-    static i32 ms_height;
+    static int32_t ms_width;
+    static int32_t ms_height;
 
-    i32 Width() { return ms_width; }
-    i32 Height() { return ms_height; }
+    int32_t Width() { return ms_width; }
+    int32_t Height() { return ms_height; }
 
     static void Update()
     {
@@ -31,36 +31,35 @@ namespace Screen
     }
 };
 
-static constexpr i32 kNumFrames = 4;
-static constexpr i32 kFrameMask = kNumFrames - 1;
-static constexpr i32 kDrawWidth = 320;
-static constexpr i32 kDrawHeight = 240;
-static constexpr i32 kDrawPixels = kDrawWidth * kDrawHeight;
-static constexpr i32 kTileCount = 8 * 8;
-static constexpr i32 kTileWidth = kDrawWidth / 8;
-static constexpr i32 kTileHeight = kDrawHeight / 8;
-static constexpr i32 kTilePixels = kTileWidth * kTileHeight;
+static constexpr int32_t kNumFrames = 4;
+static constexpr int32_t kFrameMask = kNumFrames - 1;
+static constexpr int32_t kDrawWidth = 320;
+static constexpr int32_t kDrawHeight = 240;
+static constexpr int32_t kDrawPixels = kDrawWidth * kDrawHeight;
+static constexpr int32_t kTileCount = 8 * 8;
+static constexpr int32_t kTileWidth = kDrawWidth / 8;
+static constexpr int32_t kTileHeight = kDrawHeight / 8;
+static constexpr int32_t kTilePixels = kTileWidth * kTileHeight;
 
-static int2 GetTile(i32 i)
+static void GetTile(int32_t i, int32_t* x, int32_t* y)
 {
-    i32 x = i & 7;
-    i32 y = i >> 3;
-    return int2(x, y);
+    *x = (i & 7) * kTileWidth;
+    *y = (i >> 3) * kTileHeight;
 }
 
-static void DrawTile(framebuf_t buf, i32 x0, i32 y0)
+static void DrawTile(framebuf_t buf, int32_t iTile)
 {
-    x0 *= kTileWidth;
-    y0 *= kTileHeight;
+    int32_t tx0, ty0;
+    GetTile(iTile, &tx0, &ty0);
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
     const float kDither = 1.0f / (1 << 5);
-    for (i32 ty = 0; ty < kTileHeight; ++ty)
+    for (int32_t ty = 0; ty < kTileHeight; ++ty)
     {
-        for (i32 tx = 0; tx < kTileWidth; ++tx)
+        for (int32_t tx = 0; tx < kTileWidth; ++tx)
         {
-            const i32 x = x0 + tx;
-            const i32 y = y0 + ty;
+            const int32_t x = tx0 + tx;
+            const int32_t y = ty0 + ty;
             float color[4] = { x * dx, y * dy, 0.0f, 1.0f };
             f4_dither(color, kDither);
             framebuf_wcolor(buf, x, y, color);
@@ -107,8 +106,7 @@ static void RenderTaskFn(task_t* task, int32_t begin, int32_t end)
     rendertask_t* renderTask = (rendertask_t*)task;
     for (int32_t i = begin; i < end; ++i)
     {
-        int2 tile = GetTile(i);
-        DrawTile(renderTask->buffer, tile.x, tile.y);
+        DrawTile(renderTask->buffer, i);
     }
 }
 
@@ -120,25 +118,28 @@ typedef struct drawabletask_s
 static void DrawableTaskFn(ecs_foreach_t* task, void** rows, int32_t length)
 {
     ent_t* entities = (ent_t*)(rows[CompId_Entity]);
-    float4* positions = (float4*)(rows[CompId_Position]);
-    quaternion* rotations = (quaternion*)(rows[CompId_Rotation]);
-    float4* scales = (float4*)(rows[CompId_Rotation]);
+    vec_t* positions = (vec_t*)(rows[CompId_Position]);
+    vec_t* rotations = (vec_t*)(rows[CompId_Rotation]);
+    vec_t* scales = (vec_t*)(rows[CompId_Rotation]);
     ASSERT(entities);
     ASSERT(positions);
     ASSERT(rotations);
     ASSERT(scales);
+    const vec_t pos_stride = vec_set(1.0f, 2.0f, 3.0f, 4.0f);
+    const vec_t quat_ident = vec_set(0.0f, 0.0f, 0.0f, 1.0f);
+    const vec_t scale_ident = vec_one();
     for (int32_t i = 0; i < length; ++i)
     {
-        positions[i] = float4(i * 1.0f, i * 2.0f, i * 3.0f, i * 4.0f);
-        rotations[i] = { float4(0.0f, 0.0f, 0.0f, 1.0f) };
-        scales[i] = float4(1.0f, 1.0f, 1.0f, 0.0f);
+        positions[i] = vec_mul(vec_set1((float)i), pos_stride);
+        rotations[i] = quat_ident;
+        scales[i] = scale_ident;
     }
 }
 
 static sg_features ms_features;
 static sg_limits ms_limits;
 static sg_backend ms_backend;
-static i32 ms_iFrame;
+static int32_t ms_iFrame;
 static sg_image ms_images[kNumFrames];
 static rendertask_t ms_tasks[kNumFrames];
 static framebuf_t ms_buffers[kNumFrames];
@@ -173,7 +174,7 @@ extern "C" void render_sys_init(void)
         img.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
         img.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
 
-        for (i32 i = 0; i < kNumFrames; ++i)
+        for (int32_t i = 0; i < kNumFrames; ++i)
         {
             ms_images[i] = sg_make_image(&img);
         }
@@ -214,7 +215,7 @@ extern "C" void render_sys_update(void)
 
 extern "C" void render_sys_shutdown(void)
 {
-    for (i32 i = 0; i < kNumFrames; ++i)
+    for (int32_t i = 0; i < kNumFrames; ++i)
     {
         task_await(&(ms_tasks[i].task));
         sg_destroy_image(ms_images[i]);
@@ -229,8 +230,8 @@ extern "C" void render_sys_shutdown(void)
 
 extern "C" void render_sys_frameend(void)
 {
-    const i32 iPrev = (ms_iFrame - 1) & kFrameMask;
-    const i32 iCurrent = (ms_iFrame + 0) & kFrameMask;
+    const int32_t iPrev = (ms_iFrame - 1) & kFrameMask;
+    const int32_t iCurrent = (ms_iFrame + 0) & kFrameMask;
     {
         task_await(&(ms_tasks[iCurrent].task));
         framebuf_t buffer = ms_buffers[iCurrent];

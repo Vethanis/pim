@@ -369,27 +369,6 @@
     <ClInclude Include="..\src\common\find.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\math\mat_types.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\math\math.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\math\vec_types.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\math\vec_ops.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\math\vec_funcs.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\math\mat_ops.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\math\mat_funcs.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\unroll.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -572,6 +551,9 @@
     </ClInclude>
     <ClInclude Include="..\src\common\nextpow2.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\vec.h">
+      <Filter>Source Files\math</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
