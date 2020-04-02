@@ -116,6 +116,7 @@
     <ClInclude Include="..\src\io\fmap.h" />
     <ClInclude Include="..\src\io\fnd.h" />
     <ClInclude Include="..\src\io\fstr.h" />
+    <ClInclude Include="..\src\math\mat.h" />
     <ClInclude Include="..\src\math\vec.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\quake\bspfile.h" />
@@ -135,7 +136,6 @@
     <ClInclude Include="..\src\rendering\material.h" />
     <ClInclude Include="..\src\rendering\mesh.h" />
     <ClInclude Include="..\src\rendering\render_system.h" />
-    <ClInclude Include="..\src\rendering\screen.h" />
     <ClInclude Include="..\src\sokol\sokol_backend.h" />
     <ClInclude Include="..\src\threading\task.h" />
     <ClInclude Include="..\src\ui\imconfig.h" />

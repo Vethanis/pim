@@ -435,9 +435,6 @@
     <ClInclude Include="..\src\containers\hash_dict.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\screen.h">
-      <Filter>Source Files\rendering</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\time.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -553,6 +550,9 @@
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\math\vec.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\mat.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
   </ItemGroup>

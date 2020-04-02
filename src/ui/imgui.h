@@ -2,9 +2,9 @@
 
 #include <imgui/imgui.h>
 #include <stdint.h>
-#include "rendering/screen.h"
 #include "common/sort.h"
 #include "containers/array.h"
+#include "rendering/render_system.h"
 
 namespace ImGui
 {
@@ -53,7 +53,7 @@ namespace ImGui
 
     inline void SetNextWindowScale(float x, float y, ImGuiCond cond = ImGuiCond_Once)
     {
-        ImGui::SetNextWindowSize({ Screen::Width() * x, Screen::Height() * y }, cond);
+        ImGui::SetNextWindowSize({ screen_width() * x, screen_height() * y }, cond);
     }
 
     template<typename T>

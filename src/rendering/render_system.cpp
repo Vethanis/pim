@@ -8,38 +8,22 @@
 
 #include "common/time.h"
 #include "components/ecs.h"
-#include "rendering/screen.h"
 #include "rendering/framebuffer.h"
 #include "math/vec.h"
+#include "math/mat.h"
 #include "common/random.h"
 #include "containers/idset.h"
-
 #include <string.h>
 
-namespace Screen
-{
-    static int32_t ms_width;
-    static int32_t ms_height;
-
-    int32_t Width() { return ms_width; }
-    int32_t Height() { return ms_height; }
-
-    static void Update()
-    {
-        Screen::ms_width = sapp_width();
-        Screen::ms_height = sapp_height();
-    }
-};
-
-static constexpr int32_t kNumFrames = 4;
-static constexpr int32_t kFrameMask = kNumFrames - 1;
-static constexpr int32_t kDrawWidth = 320;
-static constexpr int32_t kDrawHeight = 240;
-static constexpr int32_t kDrawPixels = kDrawWidth * kDrawHeight;
-static constexpr int32_t kTileCount = 8 * 8;
-static constexpr int32_t kTileWidth = kDrawWidth / 8;
-static constexpr int32_t kTileHeight = kDrawHeight / 8;
-static constexpr int32_t kTilePixels = kTileWidth * kTileHeight;
+static const int32_t kNumFrames = 4;
+static const int32_t kFrameMask = kNumFrames - 1;
+static const int32_t kDrawWidth = 320;
+static const int32_t kDrawHeight = 240;
+static const int32_t kDrawPixels = kDrawWidth * kDrawHeight;
+static const int32_t kTileCount = 8 * 8;
+static const int32_t kTileWidth = kDrawWidth / 8;
+static const int32_t kTileHeight = kDrawHeight / 8;
+static const int32_t kTilePixels = kTileWidth * kTileHeight;
 
 static void GetTile(int32_t i, int32_t* x, int32_t* y)
 {
@@ -67,6 +51,16 @@ static void DrawTile(framebuf_t buf, int32_t iTile)
     }
 }
 
+typedef struct texture_s
+{
+
+} texture_t;
+
+typedef struct material_s
+{
+
+} material_t;
+
 typedef struct mesh_s
 {
     float* positions;
@@ -76,8 +70,9 @@ typedef struct mesh_s
 
 typedef struct drawcmd_s
 {
-    float matrix[16];
+    mat_t matrix;
     mesh_t mesh;
+    material_t material;
 } drawcmd_t;
 
 typedef struct cmdbuf_s
@@ -89,8 +84,8 @@ typedef struct cmdbuf_s
 
 typedef struct camera_s
 {
-    float V[16];
-    float P[16];
+    mat_t view;
+    mat_t projection;
 } camera_t;
 
 typedef struct rendertask_s
@@ -130,12 +125,14 @@ static void DrawableTaskFn(ecs_foreach_t* task, void** rows, int32_t length)
     const vec_t scale_ident = vec_one();
     for (int32_t i = 0; i < length; ++i)
     {
-        positions[i] = vec_mul(vec_set1((float)i), pos_stride);
+        positions[i] = vec_mul(vec_set1(i * kPi), pos_stride);
         rotations[i] = quat_ident;
         scales[i] = scale_ident;
     }
 }
 
+static int32_t ms_width;
+static int32_t ms_height;
 static sg_features ms_features;
 static sg_limits ms_limits;
 static sg_backend ms_backend;
@@ -147,6 +144,9 @@ static drawabletask_t ms_drawableTask;
 
 static void* ImGuiAllocFn(size_t sz, void*) { return perm_malloc((int32_t)sz); }
 static void ImGuiFreeFn(void* ptr, void*) { pim_free(ptr); }
+
+extern "C" int32_t screen_width(void) { return ms_width; }
+extern "C" int32_t screen_height(void) { return ms_height; }
 
 extern "C" void render_sys_init(void)
 {
@@ -188,7 +188,8 @@ extern "C" void render_sys_init(void)
         simgui_desc_t desc = {};
         simgui_setup(&desc);
     }
-    Screen::Update();
+    ms_width = sapp_width();
+    ms_height = sapp_height();
 
     for (int32_t i = 0; i < kNumFrames; ++i)
     {
@@ -205,8 +206,9 @@ extern "C" void render_sys_init(void)
 
 extern "C" void render_sys_update(void)
 {
-    Screen::Update();
-    simgui_new_frame(Screen::Width(), Screen::Height(), time_dtf());
+    ms_width = sapp_width();
+    ms_height = sapp_height();
+    simgui_new_frame(ms_width, ms_height, time_dtf());
 
     compflag_t all = compflag_create(3, CompId_Position, CompId_Rotation, CompId_Scale);
     compflag_t none = compflag_create(0);
@@ -249,8 +251,8 @@ extern "C" void render_sys_frameend(void)
     }
     {
         sg_pass_action clear = {};
-        sg_begin_default_pass(&clear, Screen::Width(), Screen::Height());
-        sgl_viewport(0, 0, Screen::Width(), Screen::Height(), ms_features.origin_top_left);
+        sg_begin_default_pass(&clear, ms_width, ms_height);
+        sgl_viewport(0, 0, ms_width, ms_height, ms_features.origin_top_left);
         sgl_enable_texture();
         sgl_matrix_mode_texture();
         sgl_load_identity();
