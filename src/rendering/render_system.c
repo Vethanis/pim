@@ -4,7 +4,7 @@
 #include <sokol/sokol_app.h>
 #include <sokol/util/sokol_imgui.h>
 #include <sokol/util/sokol_gl.h>
-#include "ui/imgui.h"
+#include "ui/cimgui.h"
 
 #include "allocator/allocator.h"
 #include "common/time.h"
@@ -137,53 +137,48 @@ static rendertask_t ms_tasks[kNumFrames];
 static framebuf_t ms_buffers[kNumFrames];
 static drawabletask_t ms_drawableTask;
 
-static void* ImGuiAllocFn(size_t sz, void*) { return perm_malloc((i32)sz); }
-static void ImGuiFreeFn(void* ptr, void*) { pim_free(ptr); }
+static void* ImGuiAllocFn(usize sz, void* userData) { return perm_malloc((i32)sz); }
+static void ImGuiFreeFn(void* ptr, void* userData) { pim_free(ptr); }
 
-extern "C" i32 screen_width(void) { return ms_width; }
-extern "C" i32 screen_height(void) { return ms_height; }
+i32 screen_width(void) { return ms_width; }
+i32 screen_height(void) { return ms_height; }
 
-extern "C" void render_sys_init(void)
+void render_sys_init(void)
 {
     ms_iFrame = 0;
+    sg_setup(&(sg_desc)
     {
-        sg_desc desc = {};
-        desc.mtl_device = sapp_metal_get_device();
-        desc.mtl_drawable_cb = sapp_metal_get_drawable;
-        desc.mtl_renderpass_descriptor_cb = sapp_metal_get_renderpass_descriptor;
-        desc.d3d11_device = sapp_d3d11_get_device();
-        desc.d3d11_device_context = sapp_d3d11_get_device_context();
-        desc.d3d11_render_target_view_cb = sapp_d3d11_get_render_target_view;
-        desc.d3d11_depth_stencil_view_cb = sapp_d3d11_get_depth_stencil_view;
-        sg_setup(&desc);
-        ms_features = sg_query_features();
-        ms_limits = sg_query_limits();
-        ms_backend = sg_query_backend();
+        .mtl_device = sapp_metal_get_device(),
+        .mtl_drawable_cb = sapp_metal_get_drawable,
+        .mtl_renderpass_descriptor_cb = sapp_metal_get_renderpass_descriptor,
+        .d3d11_device = sapp_d3d11_get_device(),
+        .d3d11_device_context = sapp_d3d11_get_device_context(),
+        .d3d11_render_target_view_cb = sapp_d3d11_get_render_target_view,
+        .d3d11_depth_stencil_view_cb = sapp_d3d11_get_depth_stencil_view,
+    });
+    ms_features = sg_query_features();
+    ms_limits = sg_query_limits();
+    ms_backend = sg_query_backend();
 
-        sg_image_desc img = {};
-        img.type = SG_IMAGETYPE_2D;
-        img.pixel_format = SG_PIXELFORMAT_RGB5A1;
-        img.width = kDrawWidth;
-        img.height = kDrawHeight;
-        img.usage = SG_USAGE_STREAM;
-        img.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
-        img.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
+    const sg_image_desc img =
+    {
+        .type = SG_IMAGETYPE_2D,
+        .pixel_format = SG_PIXELFORMAT_RGB5A1,
+        .width = kDrawWidth,
+        .height = kDrawHeight,
+        .usage = SG_USAGE_STREAM,
+        .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+        .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+    };
+    for (i32 i = 0; i < kNumFrames; ++i)
+    {
+        ms_images[i] = sg_make_image(&img);
+    }
 
-        for (i32 i = 0; i < kNumFrames; ++i)
-        {
-            ms_images[i] = sg_make_image(&img);
-        }
-    }
-    {
-        sgl_desc_t desc = {};
-        sgl_setup(&desc);
-    }
-    {
-        // TODO: switch to cimgui
-        ImGui::SetAllocatorFunctions(ImGuiAllocFn, ImGuiFreeFn);
-        simgui_desc_t desc = {};
-        simgui_setup(&desc);
-    }
+    sgl_setup(&(sgl_desc_t) { 0 });
+    igSetAllocatorFunctions(ImGuiAllocFn, ImGuiFreeFn, NULL);
+    simgui_setup(&(simgui_desc_t) { 0 });
+
     ms_width = sapp_width();
     ms_height = sapp_height();
 
@@ -195,7 +190,7 @@ extern "C" void render_sys_init(void)
     CreateEntities(NULL, 0, 1 << 20);
 }
 
-extern "C" void render_sys_update(void)
+void render_sys_update(void)
 {
     ms_width = sapp_width();
     ms_height = sapp_height();
@@ -206,7 +201,7 @@ extern "C" void render_sys_update(void)
     ecs_foreach(&ms_drawableTask.task, all, none, DrawableTaskFn);
 }
 
-extern "C" void render_sys_shutdown(void)
+void render_sys_shutdown(void)
 {
     task_sys_schedule();
 
@@ -214,7 +209,6 @@ extern "C" void render_sys_shutdown(void)
     {
         task_await(&(ms_tasks[i].task));
         sg_destroy_image(ms_images[i]);
-        ms_images[i] = {};
         framebuf_destroy(ms_buffers + i);
     }
 
@@ -223,27 +217,23 @@ extern "C" void render_sys_shutdown(void)
     sg_shutdown();
 }
 
-extern "C" void render_sys_frameend(void)
+void render_sys_frameend(void)
 {
     const i32 iPrev = (ms_iFrame - 1) & kFrameMask;
     const i32 iCurrent = (ms_iFrame + 0) & kFrameMask;
     {
         task_await(&(ms_tasks[iCurrent].task));
         framebuf_t buffer = ms_buffers[iCurrent];
-        sg_image_content content = {};
-        content.subimage[0][0] =
-        {
-            buffer.color,
-            framebuf_color_bytes(buffer),
-        };
-        sg_update_image(ms_images[iCurrent], &content);
+        sg_update_image(ms_images[iCurrent], &(sg_image_content){
+            .subimage[0][0].ptr = buffer.color,
+            .subimage[0][0].size = framebuf_color_bytes(buffer),
+        });
         framebuf_clear(buffer, 0, 0xffff);
         ms_tasks[iCurrent].buffer = buffer;
         task_submit(&(ms_tasks[iCurrent].task), RenderTaskFn, kTileCount);
     }
     {
-        sg_pass_action clear = {};
-        sg_begin_default_pass(&clear, ms_width, ms_height);
+        sg_begin_default_pass(&(sg_pass_action) { 0 }, ms_width, ms_height);
         sgl_viewport(0, 0, ms_width, ms_height, ms_features.origin_top_left);
         sgl_enable_texture();
         sgl_matrix_mode_texture();
@@ -268,7 +258,7 @@ extern "C" void render_sys_frameend(void)
     }
 }
 
-extern "C" i32 render_sys_onevent(const struct sapp_event* evt)
+i32 render_sys_onevent(const struct sapp_event* evt)
 {
     return simgui_handle_event(evt);
 }

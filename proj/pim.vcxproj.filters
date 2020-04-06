@@ -14,9 +14,6 @@
     <Filter Include="submodules">
       <UniqueIdentifier>{16cc4582-6d40-4e75-84b8-b654f5602d70}</UniqueIdentifier>
     </Filter>
-    <Filter Include="submodules\imgui">
-      <UniqueIdentifier>{dd3c0200-6c30-4b09-ba89-e88293a27d29}</UniqueIdentifier>
-    </Filter>
     <Filter Include="submodules\stb">
       <UniqueIdentifier>{a02ea6b3-ea73-4802-a89e-994e38e80b5f}</UniqueIdentifier>
     </Filter>
@@ -91,38 +88,17 @@
     <ClCompile Include="..\src\sokol\sokol_time.c">
       <Filter>Source Files\sokol</Filter>
     </ClCompile>
-    <ClCompile Include="..\submodules\imgui\imgui.cpp">
-      <Filter>submodules\imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\submodules\imgui\imgui_demo.cpp">
-      <Filter>submodules\imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\submodules\imgui\imgui_draw.cpp">
-      <Filter>submodules\imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\submodules\imgui\imgui_widgets.cpp">
-      <Filter>submodules\imgui</Filter>
-    </ClCompile>
     <ClCompile Include="..\submodules\stb\stb_vorbis.c">
       <Filter>submodules\stb</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\sokol\sokol_imgui.cpp">
-      <Filter>Source Files\sokol</Filter>
-    </ClCompile>
     <ClCompile Include="..\submodules\miniz\miniz.c">
       <Filter>submodules\miniz</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\rendering\render_system.cpp">
-      <Filter>Source Files\rendering</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\mesh.cpp">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\material.cpp">
       <Filter>Source Files\rendering</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\assets\asset_system.cpp">
-      <Filter>Source Files\assets</Filter>
     </ClCompile>
     <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp">
       <Filter>submodules\stackwalker</Filter>
@@ -241,28 +217,34 @@
     <ClCompile Include="..\src\containers\hash_set.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\ui\cimgui.cpp">
+      <Filter>Source Files\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ui\imgui.cpp">
+      <Filter>Source Files\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ui\imgui_demo.cpp">
+      <Filter>Source Files\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ui\imgui_draw.cpp">
+      <Filter>Source Files\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ui\imgui_widgets.cpp">
+      <Filter>Source Files\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\sokol\sokol_imgui.c">
+      <Filter>Source Files\sokol</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\assets\asset_system.c">
+      <Filter>Source Files\assets</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\render_system.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
       <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\imgui\imconfig.h">
-      <Filter>submodules\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\imgui\imgui.h">
-      <Filter>submodules\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\imgui\imgui_internal.h">
-      <Filter>submodules\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\imgui\imstb_rectpack.h">
-      <Filter>submodules\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\imgui\imstb_textedit.h">
-      <Filter>submodules\imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\imgui\imstb_truetype.h">
-      <Filter>submodules\imgui</Filter>
     </ClInclude>
     <ClInclude Include="..\submodules\stb\stb.h">
       <Filter>submodules\stb</Filter>
@@ -341,9 +323,6 @@
     </ClInclude>
     <ClInclude Include="..\src\os\socket.h">
       <Filter>Source Files\os</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\quake\bspfile.h">
-      <Filter>Source Files\quake</Filter>
     </ClInclude>
     <ClInclude Include="..\src\quake\packfile.h">
       <Filter>Source Files\quake</Filter>
@@ -548,6 +527,24 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\constants.h">
       <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\quake\bsp.h">
+      <Filter>Source Files\quake</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ui\cimgui.h">
+      <Filter>Source Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ui\imgui_internal.h">
+      <Filter>Source Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ui\imstb_rectpack.h">
+      <Filter>Source Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ui\imstb_textedit.h">
+      <Filter>Source Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ui\imstb_truetype.h">
+      <Filter>Source Files\ui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

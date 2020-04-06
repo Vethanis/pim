@@ -4,6 +4,9 @@
 
 PIM_C_BEGIN
 
+#include "math/float3.h"
+#include "math/float4.h"
+
 enum
 {
     Q_BspVersion = 29,
@@ -11,6 +14,10 @@ enum
     Q_MaxKey = 32,
     Q_MaxValue = 1024,
     Q_NumMipLevels = 4,
+    Q_MaxLightMaps = 4,
+    Q_TexSpecial = 1,
+    Q_AngleUp = -1,
+    Q_AngleDown = -2,
 };
 
 typedef enum
@@ -20,7 +27,6 @@ typedef enum
     MaxMap_Brushes = 4096,
     MaxMap_Entities = 1024,
     MaxMap_EntString = 65536,
-
     MaxMap_Planes = 32767,
     MaxMap_Nodes = 32767,
     MaxMap_ClipNodes = 32767,
@@ -35,7 +41,6 @@ typedef enum
     MaxMap_MipTex = 0x200000,
     MaxMap_Lighting = 0x100000,
     MaxMap_Visibility = 0x100000,
-
     MaxMap_Portals = 65536,
 } MaxMap;
 
@@ -60,6 +65,48 @@ typedef enum
     LumpId_COUNT
 } LumpId;
 
+typedef enum
+{
+    // axial planes
+    PlaneId_X = 0,
+    PlaneId_Y,
+    PlaneId_Z,
+
+    // non-axial, snapped to nearest
+    PlaneId_AnyX,
+    PlaneId_AnyY,
+    PlaneId_AnyZ,
+
+    PlaneId_COUNT
+} PlaneId;
+
+typedef enum
+{
+    Contents_Empty = -1,
+    Contents_Solid = -2,
+    Contents_Water = -3,
+    Contents_Slime = -4,
+    Contents_Lava = -5,
+    Contents_Sky = -6,
+    Contents_Origin = -7, // removed at csg time
+    Contents_Clip = -8,   // changed to Contents_Solid
+    Contents_Current_0 = -9,
+    Contents_Current_90 = -10,
+    Contents_Current_180 = -11,
+    Contents_Current_270 = -12,
+    Contents_Current_Up = -13,
+    Contents_Current_Down = -14,
+} Contents;
+
+typedef enum
+{
+    Ambient_Water = 0,
+    Ambient_Sky,
+    Ambient_Slime,
+    Ambient_Lava,
+    Ambient_COUNT
+} Ambient;
+
 typedef struct bsp_lump_s
 {
     i32 offset;
@@ -74,9 +121,9 @@ typedef struct bsp_header_s
 
 typedef struct bsp_model_s
 {
-    float mins[3];
-    float maxs[3];
-    float origin[3];
+    float3 min;
+    float3 max;
+    float3 origin;
     i32 headNode[MaxMap_Hulls];
     i32 visLeaves; // not including the solid leaf 0
     i32 firstFace;
@@ -86,7 +133,7 @@ typedef struct bsp_model_s
 typedef struct bsp_miptex_lump_s
 {
     i32 count;
-    i32 offsets[4];
+    i32 offsets[Q_NumMipLevels];
 } bsp_miptex_lump_t;
 
 typedef struct bsp_miptex_s
@@ -96,52 +143,6 @@ typedef struct bsp_miptex_s
     u32 height;
     u32 offsets[Q_NumMipLevels];
 } bsp_miptex_t;
-
-typedef struct bsp_vertex_s
-{
-    float point[3];
-} bsp_vertex_t;
-
-typedef enum
-{
-    // axial planes
-    PlaneId_X = 0,
-    PlaneId_Y,
-    PlaneId_Z,
-
-    // non-axial, snapped to nearest
-    PlaneId_AnyX,
-    PlaneId_AnyY,
-    PlaneId_AnyZ,
-
-    PlaneId_Count
-} PlaneId;
-
-typedef struct bsp_plane_s
-{
-    float normal[3];
-    float distance;
-    i32 type;   // PlaneId
-} bsp_plane_t;
-
-typedef enum
-{
-    Contents_Empty = -1,
-    Contents_Solid = -2,
-    Contents_Water = -3,
-    Contents_Slime = -4,
-    Contents_Lava = -5,
-    Contents_Sky = -6,
-    Contents_Origin = -7, // removed at csg time
-    Contents_Clip = -8,   // changed to Contents_Solid
-
-    Contents_Current_0 = -9,
-    Contents_Current_90 = -10,
-    Contents_Current_180 = -11,
-    Contents_Current_270 = -12,
-    Contents_Current_Up = -13,
-    Contents_Current_Down = -14,
-} Contents;
 
 typedef struct bsp_node_s
 {
@@ -166,15 +167,11 @@ typedef struct bsp_texinfo_s
     i32 flags;
 } bsp_texinfo_t;
 
-#define TexSpecial 1 // sky or slime, no lightmap or 256 subdivision
-
 // edge 0 is never used; negative edge nums are for CCW use of the edge in a face
 typedef struct bsp_edge_s
 {
-    u16 v[2]; // vertex numbers
+    i16 v[2]; // vertex numbers
 } bsp_edge_t;
-
-#define MaxLightMaps 4
 
 typedef struct bsp_face_s
 {
@@ -185,19 +182,9 @@ typedef struct bsp_face_s
     i16 numEdges;
     i16 texInfo;
 
-    u8 styles[MaxLightMaps];
+    u8 styles[Q_MaxLightMaps];
     i32 lightOffset; // start of [numStyles * surfSize] samples
 } bsp_face_t;
-
-typedef enum
-{
-    Ambient_Water = 0,
-    Ambient_Sky,
-    Ambient_Slime,
-    Ambient_Lava,
-
-    Ambient_Count
-} Ambient;
 
 typedef struct bsp_leaf_s
 {
@@ -210,7 +197,7 @@ typedef struct bsp_leaf_s
     u16 firstMarkSurface;
     u16 numMarkSurfaces;
 
-    u8 ambientLevel[Ambient_Count];
+    u8 ambientLevel[Ambient_COUNT];
 } bsp_leaf_t;
 
 typedef struct bsp_pair_s
@@ -223,7 +210,7 @@ typedef struct bsp_pair_s
 // https://quakewiki.org/wiki/Entity_guide
 typedef struct bsp_entity_s
 {
-    float origin[3];
+    float3 origin;
     i32 firstBrush;
     i32 numBrushes;
     struct bsp_pair_s* pairs;
@@ -231,56 +218,53 @@ typedef struct bsp_entity_s
 
 typedef struct bsp_mapdata_s
 {
-    static const i32 AngleUp = -1;
-    static const i32 AngleDown = -2;
-
     i32 numModels;
-    bsp_model_t models[MaxMap_Models];
+    bsp_model_t* models;
 
     i32 visDataSize;
-    u8 visData[MaxMap_Visibility];
+    u8* visData;
 
     i32 lightDataSize;
-    u8 lightData[MaxMap_Lighting];
+    u8* lightData;
 
     i32 texDataSize;
-    u8 texData[MaxMap_MipTex]; // (MipTexLump)
+    u8* texData; // (MipTexLump)
 
     i32 entDataSize;
-    char entData[MaxMap_EntString];
+    char* entData;
 
     i32 numLeaves;
-    bsp_leaf_t leaves[MaxMap_Leaves];
+    bsp_leaf_t* leaves;
 
     i32 numPlanes;
-    bsp_plane_t planes[MaxMap_Planes];
+    float4* planes;
 
     i32 numVertices;
-    bsp_vertex_t vertices[MaxMap_Verts];
+    float3* vertices;
 
     i32 numNodes;
-    bsp_node_t nodes[MaxMap_Nodes];
+    bsp_node_t* nodes;
 
     i32 numTexInfo;
-    bsp_texinfo_t texInfo[MaxMap_TexInfo];
+    bsp_texinfo_t* texInfo;
 
     i32 numFaces;
-    bsp_face_t faces[MaxMap_Faces];
+    bsp_face_t* faces;
 
     i32 numClipNodes;
-    bsp_clipnode_t clipNodes[MaxMap_ClipNodes];
+    bsp_clipnode_t* clipNodes;
 
     i32 numEdges;
-    bsp_edge_t edges[MaxMap_Edges];
+    bsp_edge_t* edges;
 
     i32 numMarkSurfaces;
-    u16 markSurfaces[MaxMap_MarkSurfaces];
+    u16* markSurfaces;
 
     i32 numSurfEdges;
-    i32 surfEdges[MaxMap_SurfEdges];
+    i32* surfEdges;
 
     i32 numEntities;
-    bsp_entity_t entities[MaxMap_Entities];
+    bsp_entity_t* entities;
 } bsp_mapdata_t;
 
 void bsp_decompress_vis(u8* input, u8* output);

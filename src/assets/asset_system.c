@@ -1,12 +1,13 @@
 #include "assets/asset_system.h"
 
 #include "quake/packfile.h"
-#include "ui/imgui.h"
+#include "ui/cimgui.h"
 #include "threading/task.h"
 #include "common/cvar.h"
 #include "common/hashstring.h"
 #include "allocator/allocator.h"
 #include "common/stringutil.h"
+#include <string.h>
 
 static cvar_t cv_imgui;
 
@@ -18,7 +19,7 @@ static asset_t* ms_assets;
 
 static folder_t ms_folder;
 
-extern "C" void asset_sys_init(void)
+void asset_sys_init(void)
 {
     cvar_create(&cv_imgui, "asset_imgui", "1.0");
 
@@ -66,7 +67,7 @@ extern "C" void asset_sys_init(void)
     ms_folder = folder;
 }
 
-extern "C" void asset_sys_update()
+void asset_sys_update()
 {
     if (cv_imgui.asFloat > 0.0f)
     {
@@ -74,7 +75,7 @@ extern "C" void asset_sys_update()
     }
 }
 
-extern "C" void asset_sys_shutdown(void)
+void asset_sys_shutdown(void)
 {
     ms_numAssets = 0;
     pim_free(ms_assets);
@@ -86,18 +87,18 @@ extern "C" void asset_sys_shutdown(void)
 
 static void OnGui()
 {
-    ImGui::SetNextWindowScale(0.7f, 0.7f);
-    ImGui::Begin("AssetSystem");
+    igSetNextWindowSize((ImVec2){ 800.0f, 600.0f }, ImGuiCond_Once);
+    igBegin("AssetSystem", NULL, 0);
     const i32 numPacks = ms_folder.length;
     const pack_t* packs = ms_folder.packs;
     for (i32 i = 0; i < numPacks; ++i)
     {
-        if (!ImGui::CollapsingHeader(packs[i].path))
+        if (!igCollapsingHeaderTreeNodeFlags(packs[i].path, 0))
         {
             continue;
         }
 
-        ImGui::PushID(packs[i].path);
+        igPushIDStr(packs[i].path);
 
         const i32 fileCount = packs[i].filecount;
         const dpackfile_t* files = packs[i].files;
@@ -110,33 +111,33 @@ static void OnGui()
         const i32 empty = (packs[i].bytes - used) - overhead;
         const dpackheader_t* hdr = packs[i].header;
 
-        ImGui::Value("File Count", fileCount);
-        ImGui::Bytes("Bytes", packs[i].bytes);
-        ImGui::Bytes("Used", used);
-        ImGui::Bytes("Empty", empty);
-        ImGui::Value("Header Offset", hdr->offset);
-        ImGui::Bytes("Header Length", hdr->length);
-        ImGui::Text("Header ID: %c%c%c%c", hdr->id[0], hdr->id[1], hdr->id[2], hdr->id[3]);
-        ImGui::Separator();
+        igValueInt("File Count", fileCount);
+        igValueInt("Bytes", packs[i].bytes);
+        igValueInt("Used", used);
+        igValueInt("Empty", empty);
+        igValueInt("Header Offset", hdr->offset);
+        igValueInt("Header Length", hdr->length);
+        igText("Header ID: %c%c%c%c", hdr->id[0], hdr->id[1], hdr->id[2], hdr->id[3]);
+        igSeparator();
 
-        ImGui::Columns(5);
+        igColumns(5, NULL, true);
         for (i32 j = 0; j < fileCount; ++j)
         {
             const dpackfile_t* file = files + j;
-            ImGui::Text("%d", j); ImGui::NextColumn();
-            ImGui::Text("%s", file->name); ImGui::NextColumn();
-            ImGui::Text("%d", file->offset); ImGui::NextColumn();
-            ImGui::Bytes(file->length); ImGui::NextColumn();
-            ImGui::Text("%2.2f%%", (file->length * 100.0f) / (float)used); ImGui::NextColumn();
+            igText("%d", j); igNextColumn();
+            igText("%s", file->name); igNextColumn();
+            igText("%d", file->offset); igNextColumn();
+            igText("%d", file->length); igNextColumn();
+            igText("%2.2f%%", (file->length * 100.0f) / (float)used); igNextColumn();
         }
-        ImGui::Columns();
+        igColumns(1, NULL, true);
 
-        ImGui::PopID();
+        igPopID();
     }
-    ImGui::End();
+    igEnd();
 }
 
-extern "C" i32 asset_sys_get(const char* name, asset_t* asset)
+i32 asset_sys_get(const char* name, asset_t* asset)
 {
     ASSERT(name);
     ASSERT(asset);
