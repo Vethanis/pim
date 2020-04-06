@@ -1,9 +1,11 @@
 #pragma once
 
-#include <stdint.h>
+#include "common/macro.h"
+
+PIM_C_BEGIN
 
 // https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-static uint32_t NextPow2(uint32_t x)
+static u32 NextPow2(u32 x)
 {
     --x;
     x |= x >> 1;
@@ -14,3 +16,10 @@ static uint32_t NextPow2(uint32_t x)
     ++x;
     return x;
 }
+
+static bool IsPow2(u32 x)
+{
+    return (x & (x - 1u)) == 0u;
+}
+
+PIM_C_END

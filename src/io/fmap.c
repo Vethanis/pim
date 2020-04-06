@@ -3,16 +3,16 @@
 #include <Windows.h>
 #include <io.h>
 
-static PIM_TLS int32_t ms_errno;
+static pim_thread_local i32 ms_errno;
 
-int32_t fmap_errno(void)
+i32 fmap_errno(void)
 {
-    int32_t rv = ms_errno;
+    i32 rv = ms_errno;
     ms_errno = 0;
     return rv;
 }
 
-static int32_t NotNeg(int32_t x)
+static i32 NotNeg(i32 x)
 {
     if (x < 0)
     {
@@ -30,7 +30,7 @@ static void* NotNull(void* x)
     return x;
 }
 
-static int32_t IsZero(int32_t x)
+static i32 IsZero(i32 x)
 {
     if (x)
     {
@@ -39,7 +39,7 @@ static int32_t IsZero(int32_t x)
     return x;
 }
 
-void fmap_create(fmap_t* fmap, fd_t fd, int32_t writable)
+void fmap_create(fmap_t* fmap, fd_t fd, i32 writable)
 {
     ASSERT(fmap);
     ASSERT(fd_isopen(fd));
@@ -55,11 +55,11 @@ void fmap_create(fmap_t* fmap, fd_t fd, int32_t writable)
         return;
     }
 
-    int32_t size = (int32_t)fd_size(fd);
+    i32 size = (i32)fd_size(fd);
     ASSERT(size >= 0);
 
-    int32_t flProtect = writable ? PAGE_READWRITE : PAGE_READONLY;
-    int32_t dwDesiredAccess = writable ? (FILE_MAP_READ | FILE_MAP_WRITE) : FILE_MAP_READ;
+    i32 flProtect = writable ? PAGE_READWRITE : PAGE_READONLY;
+    i32 dwDesiredAccess = writable ? (FILE_MAP_READ | FILE_MAP_WRITE) : FILE_MAP_READ;
 
     HANDLE fileMapping = CreateFileMappingA(hdl, NULL, flProtect, 0, size, NULL);
     ASSERT(fileMapping);

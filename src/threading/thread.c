@@ -1,7 +1,6 @@
 #include "threading/thread.h"
 #include "threading/semaphore.h"
 #include "allocator/allocator.h"
-#include <string.h>
 
 typedef struct adapter_s
 {
@@ -33,7 +32,7 @@ void thread_create(thread_t* tr, thread_fn entrypoint, void* arg)
     adapter->arg = arg;
     semaphore_create(&(adapter->sema), 0);
 
-    uintptr_t handle = _beginthread(
+    usize handle = _beginthread(
         Win32ThreadFn,
         0,
         adapter);
@@ -64,7 +63,7 @@ void thread_create(thread_t* tr, thread_fn entrypoint, void* arg)
     ASSERT(tr);
     tr->handle = NULL;
     pthread_t* pt = (pthread_t*)tr;
-    int32_t rv = pthread_create(pt, NULL, entrypoint, arg);
+    i32 rv = pthread_create(pt, NULL, entrypoint, arg);
     ASSERT(!rv);
 }
 
@@ -72,7 +71,7 @@ void thread_join(thread_t* tr)
 {
     ASSERT(tr);
     pthread_t* pt = (pthread_t*)tr;
-    int32_t rv = pthread_join(pt, NULL);
+    i32 rv = pthread_join(pt, NULL);
     ASSERT(!rv);
     tr->handle = NULL;
 }

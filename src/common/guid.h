@@ -4,27 +4,25 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
-
 typedef struct guid_s
 {
-    uint64_t a;
-    uint64_t b;
+    u64 a;
+    u64 b;
 } guid_t;
 
-static int32_t guid_isnull(guid_t x)
+static bool guid_isnull(guid_t x)
 {
     return !(x.a | x.b);
 }
 
-static int32_t guid_eq(guid_t lhs, guid_t rhs)
+static bool guid_eq(guid_t lhs, guid_t rhs)
 {
     return !((lhs.a - rhs.a) | (lhs.b - rhs.b));
 }
 
-int32_t guid_find(const guid_t* ptr, int32_t count, guid_t key);
-guid_t StrToGuid(const char* str, uint64_t seed);
-guid_t BytesToGuid(const void* ptr, int32_t nBytes, uint64_t seed);
+i32 guid_find(const guid_t* ptr, i32 count, guid_t key);
+guid_t StrToGuid(const char* str, u64 seed);
+guid_t BytesToGuid(const void* ptr, i32 nBytes, u64 seed);
 guid_t RandGuid();
 
 PIM_C_END

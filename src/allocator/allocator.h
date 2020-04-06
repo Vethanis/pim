@@ -4,36 +4,21 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
-
-typedef enum
-{
-    EAlloc_Init = 0,
-    EAlloc_Perm,
-    EAlloc_Temp,
-    EAlloc_TLS,
-    EAlloc_Count
-} EAlloc;
-
 void alloc_sys_init(void);
 void alloc_sys_update(void);
 void alloc_sys_shutdown(void);
 
-void* pim_malloc(EAlloc allocator, int32_t bytes);
+void* pim_malloc(EAlloc allocator, i32 bytes);
 void pim_free(void* ptr);
-void* pim_realloc(EAlloc allocator, void* prev, int32_t bytes);
-void* pim_calloc(EAlloc allocator, int32_t bytes);
+void* pim_realloc(EAlloc allocator, void* prev, i32 bytes);
+void* pim_calloc(EAlloc allocator, i32 bytes);
 
-#define pim_tmalloc(T, allocator, count) (T*)(pim_malloc(allocator, sizeof(T) * count))
-#define pim_trealloc(T, allocator, prev, count) (T*)(pim_realloc(allocator, prev, sizeof(T) * count))
-#define pim_tcalloc(T, allocator, count) (T*)(pim_calloc(allocator, sizeof(T) * count))
-
-static void* perm_malloc(int32_t bytes)
+static void* perm_malloc(i32 bytes)
 {
     return pim_malloc(EAlloc_Perm, bytes);
 }
 
-static void* perm_realloc(void* prev, int32_t bytes)
+static void* perm_realloc(void* prev, i32 bytes)
 {
     return pim_realloc(EAlloc_Perm, prev, bytes);
 }

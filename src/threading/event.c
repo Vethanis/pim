@@ -25,7 +25,7 @@ void event_wait(event_t* evt)
 void event_wakeone(event_t* evt)
 {
     ASSERT(evt);
-    int32_t state = load_i32(&(evt->state), MO_Relaxed);
+    i32 state = load_i32(&(evt->state), MO_Relaxed);
     if (state > 0)
     {
         if (cmpex_i32(&(evt->state), &state, state - 1, MO_AcqRel))
@@ -38,7 +38,7 @@ void event_wakeone(event_t* evt)
 void event_wakeall(event_t* evt)
 {
     ASSERT(evt);
-    int32_t state = exch_i32(&(evt->state), 0, MO_AcqRel);
+    i32 state = exch_i32(&(evt->state), 0, MO_AcqRel);
     if (state > 0)
     {
         semaphore_signal(evt->sema, state);

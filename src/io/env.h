@@ -4,9 +4,7 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
-
-int32_t env_errno(void);
+i32 env_errno(void);
 
 void pim_searchenv(const char* filename, const char* varname, char* dst);
 const char* pim_getenv(const char* varname);

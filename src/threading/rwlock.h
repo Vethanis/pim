@@ -4,14 +4,12 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
-#include "threading/semaphore.h"
+#include "threading/event.h"
 
 typedef struct rwlock_s
 {
-    uint32_t state;
-    semaphore_t rsema;
-    semaphore_t wsema;
+    i32 state;
+    event_t evt;
 } rwlock_t;
 
 void rwlock_create(rwlock_t* lck);

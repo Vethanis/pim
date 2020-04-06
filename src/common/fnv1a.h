@@ -4,8 +4,6 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
-
 // ----------------------------------------------------------------------------
 // Fnv32
 
@@ -14,32 +12,32 @@ PIM_C_BEGIN
 
 static char FnvToUpper(char x)
 {
-    int32_t c = (int32_t)x;
-    int32_t lo = ('a' - 1) - c;     // c >= 'a'
-    int32_t hi = c - ('z' + 1);     // c <= 'z'
-    int32_t mask = (lo & hi) >> 9;  // &&
+    i32 c = (i32)x;
+    i32 lo = ('a' - 1) - c;     // c >= 'a'
+    i32 hi = c - ('z' + 1);     // c <= 'z'
+    i32 mask = (lo & hi) >> 9;  // &&
     c = c + (mask & ('A' - 'a'));
     return (char)c;
 }
 
-static uint32_t Fnv32Char(char x, uint32_t hash)
+static u32 Fnv32Char(char x, u32 hash)
 {
     return (hash ^ FnvToUpper(x)) * Fnv32Prime;
 }
 
-static uint32_t Fnv32Byte(uint8_t x, uint32_t hash)
+static u32 Fnv32Byte(u8 x, u32 hash)
 {
     return (hash ^ x) * Fnv32Prime;
 }
 
-static uint32_t Fnv32Word(uint16_t x, uint32_t hash)
+static u32 Fnv32Word(u16 x, u32 hash)
 {
     hash = (hash ^ (0xff & (x >> 0))) * Fnv32Prime;
     hash = (hash ^ (0xff & (x >> 8))) * Fnv32Prime;
     return hash;
 }
 
-static uint32_t Fnv32Dword(uint32_t x, uint32_t hash)
+static u32 Fnv32Dword(u32 x, u32 hash)
 {
     hash = (hash ^ (0xff & (x >> 0))) * Fnv32Prime;
     hash = (hash ^ (0xff & (x >> 8))) * Fnv32Prime;
@@ -48,7 +46,7 @@ static uint32_t Fnv32Dword(uint32_t x, uint32_t hash)
     return hash;
 }
 
-static uint32_t Fnv32Qword(uint64_t x, uint32_t hash)
+static u32 Fnv32Qword(u64 x, u32 hash)
 {
     hash = (hash ^ (0xff & (x >> 0))) * Fnv32Prime;
     hash = (hash ^ (0xff & (x >> 8))) * Fnv32Prime;
@@ -62,22 +60,22 @@ static uint32_t Fnv32Qword(uint64_t x, uint32_t hash)
     return hash;
 }
 
-static uint32_t Fnv32String(const char* str, uint32_t hash)
+static u32 Fnv32String(const char* str, u32 hash)
 {
     ASSERT(str);
-    for (int32_t i = 0; str[i]; ++i)
+    for (i32 i = 0; str[i]; ++i)
     {
         hash = Fnv32Char(str[i], hash);
     }
     return hash;
 }
 
-static uint32_t Fnv32Bytes(const void* ptr, int32_t nBytes, uint32_t hash)
+static u32 Fnv32Bytes(const void* ptr, i32 nBytes, u32 hash)
 {
     ASSERT(ptr || !nBytes);
     ASSERT(nBytes >= 0);
-    const uint8_t* asBytes = (const uint8_t*)ptr;
-    for (int32_t i = 0; i < nBytes; ++i)
+    const u8* asBytes = (const u8*)ptr;
+    for (i32 i = 0; i < nBytes; ++i)
     {
         hash = Fnv32Byte(asBytes[i], hash);
     }
@@ -90,24 +88,24 @@ static uint32_t Fnv32Bytes(const void* ptr, int32_t nBytes, uint32_t hash)
 #define Fnv64Bias 14695981039346656037ull
 #define Fnv64Prime 1099511628211ull
 
-static uint64_t Fnv64Char(char x, uint64_t hash)
+static u64 Fnv64Char(char x, u64 hash)
 {
     return (hash ^ FnvToUpper(x)) * Fnv64Prime;
 }
 
-static uint64_t Fnv64Byte(uint8_t x, uint64_t hash)
+static u64 Fnv64Byte(u8 x, u64 hash)
 {
     return (hash ^ x) * Fnv64Prime;
 }
 
-static uint64_t Fnv64Word(uint16_t x, uint64_t hash)
+static u64 Fnv64Word(u16 x, u64 hash)
 {
     hash = (hash ^ (0xff & (x >> 0))) * Fnv64Prime;
     hash = (hash ^ (0xff & (x >> 8))) * Fnv64Prime;
     return hash;
 }
 
-static uint64_t Fnv64Dword(uint32_t x, uint64_t hash)
+static u64 Fnv64Dword(u32 x, u64 hash)
 {
     hash = (hash ^ (0xff & (x >> 0))) * Fnv64Prime;
     hash = (hash ^ (0xff & (x >> 8))) * Fnv64Prime;
@@ -116,7 +114,7 @@ static uint64_t Fnv64Dword(uint32_t x, uint64_t hash)
     return hash;
 }
 
-static uint64_t Fnv64Qword(uint64_t x, uint64_t hash)
+static u64 Fnv64Qword(u64 x, u64 hash)
 {
     hash = (hash ^ (0xff & (x >> 0))) * Fnv64Prime;
     hash = (hash ^ (0xff & (x >> 8))) * Fnv64Prime;
@@ -129,22 +127,22 @@ static uint64_t Fnv64Qword(uint64_t x, uint64_t hash)
     return hash;
 }
 
-static uint64_t Fnv64String(const char* ptr, uint64_t hash)
+static u64 Fnv64String(const char* ptr, u64 hash)
 {
     ASSERT(ptr);
-    for (int32_t i = 0; ptr[i]; ++i)
+    for (i32 i = 0; ptr[i]; ++i)
     {
         hash = Fnv64Char(ptr[i], hash);
     }
     return hash;
 }
 
-static uint64_t Fnv64Bytes(const void* ptr, int32_t nBytes, uint64_t hash)
+static u64 Fnv64Bytes(const void* ptr, i32 nBytes, u64 hash)
 {
     ASSERT(ptr || !nBytes);
     ASSERT(nBytes >= 0);
-    const uint8_t* asBytes = (const uint8_t*)ptr;
-    for (int32_t i = 0; i < nBytes; ++i)
+    const u8* asBytes = (const u8*)ptr;
+    for (i32 i = 0; i < nBytes; ++i)
     {
         hash = Fnv64Byte(asBytes[i], hash);
     }

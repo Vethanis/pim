@@ -7,7 +7,7 @@
 
 CONV_ASSERT(semaphore_t, HANDLE)
 
-void semaphore_create(semaphore_t* sema, int32_t value)
+void semaphore_create(semaphore_t* sema, i32 value)
 {
     ASSERT(sema);
     HANDLE handle = CreateSemaphoreA(NULL, value, 0x7fffffff, NULL);
@@ -25,7 +25,7 @@ void semaphore_destroy(semaphore_t* sema)
     ASSERT(closed);
 }
 
-void semaphore_signal(semaphore_t sema, int32_t count)
+void semaphore_signal(semaphore_t sema, i32 count)
 {
     ASSERT(sema.handle);
     ASSERT(count >= 0);
@@ -40,7 +40,7 @@ void semaphore_wait(semaphore_t sema)
     ASSERT(status == WAIT_OBJECT_0);
 }
 
-int32_t semaphore_trywait(semaphore_t sema)
+bool semaphore_trywait(semaphore_t sema)
 {
     ASSERT(sema.handle);
     DWORD status = WaitForSingleObject(sema.handle, 0);
@@ -53,7 +53,7 @@ int32_t semaphore_trywait(semaphore_t sema)
 #include <semaphore.h>
 
 // sem_wait is interruptable, must check for EINTR
-static int32_t sem_wait_safe(sem_t* sem)
+static i32 sem_wait_safe(sem_t* sem)
 {
     while (sem_wait(sem))
     {
@@ -70,7 +70,7 @@ static int32_t sem_wait_safe(sem_t* sem)
 }
 
 // sem_trywait is interruptable, must check for EINTR
-static int32_t sem_trywait_safe(sem_t* sem)
+static i32 sem_trywait_safe(sem_t* sem)
 {
     while (sem_trywait(sem))
     {
@@ -86,11 +86,11 @@ static int32_t sem_trywait_safe(sem_t* sem)
     return 0;
 }
 
-void semaphore_create(semaphore_t* sema, int32_t value)
+void semaphore_create(semaphore_t* sema, i32 value)
 {
     ASSERT(sema);
     sem_t* handle = perm_malloc(sizeof(sem_t));
-    int32_t rv = sem_init(handle, 0, value);
+    i32 rv = sem_init(handle, 0, value);
     ASSERT(!rv);
     sema->handle = handle;
 }
@@ -101,18 +101,18 @@ void semaphore_destroy(semaphore_t* sema)
     sem_t* handle = sema->handle;
     sema->handle = NULL;
     ASSERT(handle);
-    int32_t rv = sem_destroy(handle);
+    i32 rv = sem_destroy(handle);
     ASSERT(!rv);
     pim_free(handle);
 }
 
-void semaphore_signal(semaphore_t sema, int32_t count)
+void semaphore_signal(semaphore_t sema, i32 count)
 {
     sem_t* handle = sema.handle;
     ASSERT(handle);
-    for (int32_t i = 0; i < count; ++i)
+    for (i32 i = 0; i < count; ++i)
     {
-        int32_t rv = sem_post(handle);
+        i32 rv = sem_post(handle);
         ASSERT(!rv);
     }
 }
@@ -121,15 +121,15 @@ void semaphore_wait(semaphore_t sema)
 {
     sem_t* handle = sema.handle;
     ASSERT(handle);
-    int32_t rv = sem_wait_safe(handle);
+    i32 rv = sem_wait_safe(handle);
     ASSERT(!rv);
 }
 
-int32_t semaphore_trywait(semaphore_t sema)
+bool semaphore_trywait(semaphore_t sema)
 {
     sem_t* handle = sema.handle;
     ASSERT(handle);
-    int32_t rv = sem_trywait_safe(handle);
+    i32 rv = sem_trywait_safe(handle);
     return rv == 0;
 }
 

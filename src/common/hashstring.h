@@ -4,13 +4,11 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
-
-static uint32_t HashStr(const char* text)
+static u32 HashStr(const char* text)
 {
-    const uint32_t kBias = 2166136261u;
-    const uint32_t kPrime = 16777619u;
-    uint32_t value = 0;
+    const u32 kBias = 2166136261u;
+    const u32 kPrime = 16777619u;
+    u32 value = 0;
     if (text)
     {
         value = kBias;
@@ -23,15 +21,11 @@ static uint32_t HashStr(const char* text)
     return value;
 }
 
-static int32_t HashFind(
-    const uint32_t* const hashes,
-    int32_t count,
-    uint32_t hash)
+static i32 HashFind(const u32* const hashes, i32 count, u32 hash)
 {
-    ASSERT(hashes);
     ASSERT(count >= 0);
     ASSERT(hash != 0);
-    for (int32_t i = 0; i < count; ++i)
+    for (i32 i = 0; i < count; ++i)
     {
         if (hashes[i] == hash)
         {

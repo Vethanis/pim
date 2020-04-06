@@ -11,9 +11,9 @@
 #pragma comment(lib, "Ws2_32.lib")
 
 static WSADATA s_wsadata;
-static int32_t s_hasInit;
+static i32 s_hasInit;
 
-static SOCKADDR_IN ToSockAddr(uint32_t addr, uint16_t port)
+static SOCKADDR_IN ToSockAddr(u32 addr, u16 port)
 {
     ASSERT(addr != INADDR_NONE);
     ASSERT(port);
@@ -33,7 +33,7 @@ static SOCKADDR_IN ToSockAddr(uint32_t addr, uint16_t port)
 static void wsock_init(void)
 {
     ASSERT(s_hasInit == 0);
-    int32_t rval = WSAStartup(MAKEWORD(1, 1), &s_wsadata);
+    i32 rval = WSAStartup(MAKEWORD(1, 1), &s_wsadata);
     ASSERT(rval != SOCKET_ERROR);
     s_hasInit++;
 }
@@ -42,25 +42,25 @@ static void wsock_init(void)
 static void wsock_shutdown(void)
 {
     ASSERT(s_hasInit == 1);
-    int32_t rval = WSACleanup();
+    i32 rval = WSACleanup();
     ASSERT(rval != SOCKET_ERROR);
     --s_hasInit;
 }
 
-static bool wsock_url2addr(const char* url, uint32_t* addr)
+static bool wsock_url2addr(const char* url, u32* addr)
 {
     if (!url)
     {
         return false;
     }
-    uint32_t y = 0;
+    u32 y = 0;
     if (isalpha(url[0]))
     {
         // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-gethostbyname
         struct hostent *h = gethostbyname(url);
         ASSERT(h);
         char* addr0 = h->h_addr_list[0];
-        y = *(uint32_t*)addr0;
+        y = *(u32*)addr0;
     }
     else
     {
@@ -96,20 +96,20 @@ static void wsock_close(socket_t* sock)
 {
     if (wsock_isopen(*sock))
     {
-        int32_t rval = closesocket((SOCKET)sock->handle);
+        i32 rval = closesocket((SOCKET)sock->handle);
         ASSERT(rval != SOCKET_ERROR);
     }
     sock->handle = NULL;
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-bind
-static bool wsock_bind(socket_t sock, uint32_t addr, uint16_t port)
+static bool wsock_bind(socket_t sock, u32 addr, u16 port)
 {
     ASSERT(wsock_isopen(sock));
     if (wsock_isopen(sock))
     {
         SOCKADDR_IN name = ToSockAddr(addr, port);
-        int32_t rval = bind((SOCKET)sock.handle, (const struct sockaddr*)&name, sizeof(name));
+        i32 rval = bind((SOCKET)sock.handle, (const struct sockaddr*)&name, sizeof(name));
         ASSERT(rval != SOCKET_ERROR);
         return rval != SOCKET_ERROR;
     }
@@ -122,7 +122,7 @@ static bool wsock_listen(socket_t sock)
     ASSERT(wsock_isopen(sock));
     if (wsock_isopen(sock))
     {
-        int32_t rval = listen((SOCKET)sock.handle, SOMAXCONN);
+        i32 rval = listen((SOCKET)sock.handle, SOMAXCONN);
         ASSERT(rval != SOCKET_ERROR);
         return rval != SOCKET_ERROR;
     }
@@ -130,7 +130,7 @@ static bool wsock_listen(socket_t sock)
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-accept
-static socket_t wsock_accept(socket_t sock, uint32_t* addr)
+static socket_t wsock_accept(socket_t sock, u32* addr)
 {
     ASSERT(addr);
     socket_t result;
@@ -142,7 +142,7 @@ static socket_t wsock_accept(socket_t sock, uint32_t* addr)
     {
         SOCKADDR_IN saddr;
         memset(&saddr, 0, sizeof(saddr));
-        int32_t len = sizeof(saddr);
+        i32 len = sizeof(saddr);
         SOCKET s = accept((SOCKET)sock.handle, (struct sockaddr*)&saddr, &len);
         ASSERT(s != INVALID_SOCKET);
         if (s != INVALID_SOCKET)
@@ -155,22 +155,22 @@ static socket_t wsock_accept(socket_t sock, uint32_t* addr)
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-connect
-static bool wsock_connect(socket_t sock, uint32_t addr, uint16_t port)
+static bool wsock_connect(socket_t sock, u32 addr, u16 port)
 {
     ASSERT(wsock_isopen(sock));
     if (wsock_isopen(sock))
     {
         SOCKADDR_IN name = ToSockAddr(addr, port);
-        int32_t rval = connect((SOCKET)sock.handle, (const struct sockaddr*)&name, sizeof(name));
+        i32 rval = connect((SOCKET)sock.handle, (const struct sockaddr*)&name, sizeof(name));
         return rval != SOCKET_ERROR;
     }
     return false;
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-send
-static int32_t wsock_send(socket_t sock, const void* src, uint32_t len)
+static i32 wsock_send(socket_t sock, const void* src, u32 len)
 {
-    int32_t rval = -1;
+    i32 rval = -1;
     ASSERT(src);
     ASSERT(len);
     ASSERT(wsock_isopen(sock));
@@ -183,9 +183,9 @@ static int32_t wsock_send(socket_t sock, const void* src, uint32_t len)
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-recv
-static int32_t wsock_recv(socket_t sock, void* dst, uint32_t len)
+static i32 wsock_recv(socket_t sock, void* dst, u32 len)
 {
-    int32_t rval = -1;
+    i32 rval = -1;
     ASSERT(dst);
     ASSERT(len);
     ASSERT(wsock_isopen(sock));
@@ -218,7 +218,7 @@ void network_sys_shutdown(void)
 #endif // PLAT_WINDOWS
 }
 
-bool network_url2addr(const char* url, uint32_t* addrOut)
+bool network_url2addr(const char* url, u32* addrOut)
 {
 #if PLAT_WINDOWS
     return wsock_url2addr(url, addrOut);
@@ -246,7 +246,7 @@ bool socket_isopen(socket_t sock)
 #endif // PLAT_WINDOWS
 }
 
-bool socket_bind(socket_t sock, uint32_t addr, uint16_t port)
+bool socket_bind(socket_t sock, u32 addr, u16 port)
 {
 #if PLAT_WINDOWS
     return wsock_bind(sock, addr, port);
@@ -260,28 +260,28 @@ bool socket_listen(socket_t sock)
 #endif // PLAT_WINDOWS
 }
 
-socket_t socket_accept(socket_t sock, uint32_t* addr)
+socket_t socket_accept(socket_t sock, u32* addr)
 {
 #if PLAT_WINDOWS
     return wsock_accept(sock, addr);
 #endif // PLAT_WINDOWS
 }
 
-bool socket_connect(socket_t sock, uint32_t addr, uint16_t port)
+bool socket_connect(socket_t sock, u32 addr, u16 port)
 {
 #if PLAT_WINDOWS
     return wsock_connect(sock, addr, port);
 #endif // PLAT_WINDOWS
 }
 
-int32_t socket_send(socket_t sock, const void* src, int32_t len)
+i32 socket_send(socket_t sock, const void* src, i32 len)
 {
 #if PLAT_WINDOWS
     return wsock_send(sock, src, len);
 #endif // PLAT_WINDOWS
 }
 
-int32_t socket_recv(socket_t sock, void* dst, int32_t len)
+i32 socket_recv(socket_t sock, void* dst, i32 len)
 {
 #if PLAT_WINDOWS
     return wsock_recv(sock, dst, len);

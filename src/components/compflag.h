@@ -8,19 +8,19 @@ PIM_C_BEGIN
 
 typedef struct compflag_s
 {
-    uint32_t dwords[((CompId_COUNT + 31) / 32)];
+    u32 dwords[((CompId_COUNT + 31) / 32)];
 } compflag_t;
 
-compflag_t compflag_create(int32_t count, ...);
+compflag_t compflag_create(i32 count, ...);
 
-int32_t compflag_all(compflag_t has, compflag_t all);
-int32_t compflag_any(compflag_t has, compflag_t any);
-int32_t compflag_none(compflag_t has, compflag_t none);
+bool compflag_all(compflag_t has, compflag_t all);
+bool compflag_any(compflag_t has, compflag_t any);
+bool compflag_none(compflag_t has, compflag_t none);
 
-int32_t compflag_get(compflag_t flag, compid_t id);
+bool compflag_get(compflag_t flag, compid_t id);
 void compflag_set(compflag_t* flag, compid_t id);
 void compflag_unset(compflag_t* flag, compid_t id);
 
-int32_t compflag_eq(compflag_t lhs, compflag_t rhs);
+bool compflag_eq(compflag_t lhs, compflag_t rhs);
 
 PIM_C_END

@@ -8,29 +8,31 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define kMaxThreads 32
+#define kMaxThreads     32
+#define kTempFrames     4
+#define kTempMask       3
 
-static const int32_t kInitCapacity = 0;
-static const int32_t kPermCapacity = 1 << 30;
-static const int32_t kTempCapacity = 8 << 20;
-static const int32_t kTlsCapacity = 1 << 20;
+#define kInitCapacity   0
+#define kPermCapacity   (1 << 30)
+#define kTempCapacity   (8 << 20)
+#define kTlsCapacity    (1 << 20)
 
 typedef struct linear_allocator_s
 {
-    int64_t base;
-    int64_t head;
-    int64_t capacity;
+    i64 base;
+    i64 head;
+    i64 capacity;
 } linear_allocator_t;
 
-static int32_t ms_tempIndex;
+static i32 ms_tempIndex;
 static mutex_t ms_perm_mtx;
 static tlsf_t ms_perm;
-static linear_allocator_t ms_temp[2];
+static linear_allocator_t ms_temp[kTempFrames];
 static tlsf_t ms_local[kMaxThreads];
 
 // ----------------------------------------------------------------------------
 
-static tlsf_t create_tlsf(int32_t capacity)
+static tlsf_t create_tlsf(i32 capacity)
 {
     ASSERT(capacity > 0);
 
@@ -43,7 +45,7 @@ static tlsf_t create_tlsf(int32_t capacity)
     return tlsf;
 }
 
-static void create_linear(linear_allocator_t* alloc, int32_t capacity)
+static void create_linear(linear_allocator_t* alloc, i32 capacity)
 {
     ASSERT(alloc);
     ASSERT(capacity > 0);
@@ -51,7 +53,7 @@ static void create_linear(linear_allocator_t* alloc, int32_t capacity)
     void* memory = malloc(capacity);
     ASSERT(memory);
 
-    alloc->base = (int64_t)memory;
+    alloc->base = (i64)memory;
     alloc->capacity = capacity;
     alloc->head = 0;
 }
@@ -63,20 +65,20 @@ static void destroy_linear(linear_allocator_t* alloc)
     memset(alloc, 0, sizeof(linear_allocator_t));
 }
 
-static void* linear_alloc(linear_allocator_t* alloc, int32_t bytes)
+static void* linear_alloc(linear_allocator_t* alloc, i32 bytes)
 {
-    int64_t head = fetch_add_i64(&(alloc->head), bytes, MO_Acquire);
-    int64_t tail = head + bytes;
-    int64_t addr = alloc->base + head;
-    return (tail < alloc->capacity) ? (void*)addr : 0;
+    const i64 head = fetch_add_i64(&(alloc->head), bytes, MO_Acquire);
+    const i64 tail = head + bytes;
+    const i64 addr = alloc->base + head;
+    return (tail < alloc->capacity) ? (void*)addr : NULL;
 }
 
-static void linear_free(linear_allocator_t* alloc, void* ptr, int32_t bytes)
+static void linear_free(linear_allocator_t* alloc, void* ptr, i32 bytes)
 {
-    int64_t addr = (int64_t)ptr;
-    int64_t base = alloc->base;
-    int64_t head = addr - base;
-    int64_t tail = head + bytes;
+    const i64 addr = (i64)ptr;
+    const i64 base = alloc->base;
+    const i64 head = addr - base;
+    i64 tail = head + bytes;
     cmpex_i64(&(alloc->head), &tail, head, MO_Release);
 }
 
@@ -90,44 +92,49 @@ static void linear_clear(linear_allocator_t* alloc)
 void alloc_sys_init(void)
 {
     mutex_create(&ms_perm_mtx);
-    ms_tempIndex = 0;
     ms_perm = create_tlsf(kPermCapacity);
-    create_linear(ms_temp + 0, kTempCapacity);
-    create_linear(ms_temp + 1, kTempCapacity);
+    ms_tempIndex = 0;
+    for (i32 i = 0; i < kTempFrames; ++i)
+    {
+        create_linear(ms_temp + i, kTempCapacity);
+    }
 }
 
 void alloc_sys_update(void)
 {
-    ms_tempIndex = (ms_tempIndex + 1) & 1;
-    linear_clear(ms_temp + ms_tempIndex);
+    const i32 i = (ms_tempIndex + 1) & kTempMask;
+    ms_tempIndex = i;
+    linear_clear(ms_temp + i);
 }
 
 void alloc_sys_shutdown(void)
 {
-    mutex_destroy(&ms_perm_mtx);
+    mutex_lock(&ms_perm_mtx);
 
     free(ms_perm);
     ms_perm = 0;
 
-    for (int32_t i = 0; i < kMaxThreads; ++i)
+    for (i32 i = 0; i < kMaxThreads; ++i)
     {
-        if (ms_local[i])
-        {
-            free(ms_local[i]);
-            ms_local[i] = 0;
-        }
+        free(ms_local[i]);
+        ms_local[i] = NULL;
     }
 
-    destroy_linear(ms_temp + 0);
-    destroy_linear(ms_temp + 1);
+    for (i32 i = 0; i < kTempFrames; ++i)
+    {
+        destroy_linear(ms_temp + i);
+    }
+
+    mutex_unlock(&ms_perm_mtx);
+    mutex_destroy(&ms_perm_mtx);
 }
 
 // ----------------------------------------------------------------------------
 
-void* pim_malloc(EAlloc type, int32_t bytes)
+void* pim_malloc(EAlloc type, i32 bytes)
 {
     void* ptr = 0;
-    int32_t tid = task_thread_id();
+    const i32 tid = task_thread_id();
     ASSERT(tid < kMaxThreads);
 
     ASSERT(bytes >= 0);
@@ -161,14 +168,14 @@ void* pim_malloc(EAlloc type, int32_t bytes)
         }
 
         ASSERT(ptr);
-        int32_t* header = (int32_t*)ptr;
+        i32* header = (i32*)ptr;
         header[0] = type;
         header[1] = bytes - 16;
         header[2] = tid;
         header[3] = 1;
         ptr = header + 4;
 
-        ASSERT(((intptr_t)ptr & 15) == 0);
+        ASSERT(((isize)ptr & 15) == 0);
     }
 
     return ptr;
@@ -178,12 +185,12 @@ void pim_free(void* ptr)
 {
     if (ptr)
     {
-        ASSERT(((intptr_t)ptr & 15) == 0);
-        int32_t* header = (int32_t*)ptr - 4;
-        EAlloc type = header[0];
-        int32_t bytes = header[1];
-        int32_t tid = header[2];
-        int32_t rc = dec_i32(header + 3, MO_Relaxed);
+        ASSERT(((isize)ptr & 15) == 0);
+        i32* header = (i32*)ptr - 4;
+        const EAlloc type = header[0];
+        const i32 bytes = header[1];
+        const i32 tid = header[2];
+        const i32 rc = dec_i32(header + 3, MO_Relaxed);
         ASSERT(bytes > 0);
         ASSERT((bytes & 15) == 0);
         ASSERT(tid < kMaxThreads);
@@ -214,39 +221,36 @@ void pim_free(void* ptr)
     }
 }
 
-void* pim_realloc(EAlloc type, void* prev, int32_t bytes)
+void* pim_realloc(EAlloc type, void* prev, i32 bytes)
 {
-    if (!prev)
-    {
-        return pim_malloc(type, bytes);
-    }
-    if (bytes <= 0)
-    {
-        ASSERT(bytes == 0);
-        pim_free(prev);
-        return 0;
-    }
-
-    int32_t* prevHdr = (int32_t*)prev - 4;
-    const int32_t prevBytes = prevHdr[1];
-    ASSERT(prevBytes > 0);
-    ASSERT(load_i32(prevHdr + 3, MO_Relaxed) == 1);
-    if (bytes <= prevBytes)
-    {
-        return prev;
-    }
-
-    bytes = (bytes > (prevBytes * 2)) ? bytes : (prevBytes * 2);
     ASSERT(bytes > 0);
 
-    void* next = pim_malloc(type, bytes);
+    i32 prevBytes = 0;
+    if (prev)
+    {
+        const i32* prevHdr = (const i32*)prev - 4;
+        prevBytes = prevHdr[1];
+        ASSERT(prevBytes > 0);
+        ASSERT(load_i32(prevHdr + 3, MO_Relaxed) == 1);
+
+        if (bytes <= prevBytes)
+        {
+            return prev;
+        }
+    }
+
+    i32 nextBytes = prevBytes * 2;
+    nextBytes = nextBytes > 64 ? nextBytes : 64;
+    nextBytes = nextBytes > bytes ? nextBytes : bytes;
+
+    void* next = pim_malloc(type, nextBytes);
     memcpy(next, prev, prevBytes);
     pim_free(prev);
 
     return next;
 }
 
-void* pim_calloc(EAlloc type, int32_t bytes)
+void* pim_calloc(EAlloc type, i32 bytes)
 {
     void* ptr = pim_malloc(type, bytes);
     if (ptr)

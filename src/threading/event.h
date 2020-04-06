@@ -4,12 +4,11 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
 #include "threading/semaphore.h"
 
 typedef struct event_s
 {
-    int32_t state;
+    i32 state;
     semaphore_t sema;
 } event_t;
 

@@ -3,16 +3,16 @@
 #include <direct.h>
 #include <io.h>
 
-static PIM_TLS int32_t ms_errno;
+static pim_thread_local i32 ms_errno;
 
-int32_t dir_errno(void)
+i32 dir_errno(void)
 {
-    int32_t rv = ms_errno;
+    i32 rv = ms_errno;
     ms_errno = 0;
     return rv;
 }
 
-static int32_t NotNeg(int32_t x)
+static i32 NotNeg(i32 x)
 {
     if (x < 0)
     {
@@ -30,7 +30,7 @@ static void* NotNull(void* x)
     return x;
 }
 
-static int32_t IsZero(int32_t x)
+static i32 IsZero(i32 x)
 {
     if (x)
     {
@@ -39,7 +39,7 @@ static int32_t IsZero(int32_t x)
     return x;
 }
 
-void pim_getcwd(char* dst, int32_t size)
+void pim_getcwd(char* dst, i32 size)
 {
     ASSERT(dst);
     ASSERT(size > 0);
@@ -64,7 +64,7 @@ void pim_rmdir(const char* path)
     IsZero(_rmdir(path));
 }
 
-void pim_chmod(const char* path, int32_t flags)
+void pim_chmod(const char* path, i32 flags)
 {
     ASSERT(path);
     IsZero(_chmod(path, flags));

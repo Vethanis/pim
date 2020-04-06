@@ -1,50 +1,49 @@
 #pragma once
 
 #include "common/macro.h"
-#include "common/int_types.h"
-#include "containers/array.h"
 
-namespace Quake
+PIM_C_BEGIN
+
+// dpackheader_t
+// common.c 1231
+// must match exactly for binary compatibility
+typedef struct dpackheader_s
 {
-    // dpackheader_t
-    // common.c 1231
-    // must match exactly for binary compatibility
-    struct DPackHeader
-    {
-        char id[4]; // "PACK"
-        i32 offset;
-        i32 length;
-    };
+    char id[4]; // "PACK"
+    i32 offset;
+    i32 length;
+} dpackheader_t;
 
-    // dpackfile_t
-    // common.c 1225
-    // must match exactly for binary compatibility
-    struct DPackFile
-    {
-        char name[56];
-        i32 offset;
-        i32 length;
-    };
+// dpackfile_t
+// common.c 1225
+// must match exactly for binary compatibility
+typedef struct dpackfile_s
+{
+    char name[56];
+    i32 offset;
+    i32 length;
+} dpackfile_t;
 
-    struct Pack
-    {
-        char path[PIM_PATH];
-        const u8* ptr;
-        i32 bytes;
-        const DPackHeader* header;
-        const DPackFile* files;
-        i32 count;
-    };
+typedef struct pack_s
+{
+    char path[PIM_PATH];
+    const dpackheader_t* header;
+    const dpackfile_t* files;
+    i32 filecount;
+    i32 bytes;
+} pack_t;
 
-    struct Folder
-    {
-        char path[PIM_PATH];
-        Array<Pack> packs;
-    };
+typedef struct folder_s
+{
+    char path[PIM_PATH];
+    pack_t* packs;
+    i32 length;
+} folder_t;
 
-    Pack LoadPack(cstrc dir, EAlloc allocator);
-    void FreePack(Pack& pack);
+pack_t pack_load(const char* dir, EAlloc allocator);
+void pack_free(pack_t* pack);
 
-    Folder LoadFolder(cstrc dir, EAlloc allocator);
-    void FreeFolder(Folder& folder);
-};
+folder_t folder_load(const char* dir, EAlloc allocator);
+void folder_free(folder_t* folder);
+
+PIM_C_END

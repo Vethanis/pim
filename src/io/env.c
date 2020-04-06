@@ -4,16 +4,16 @@
 #include <stdlib.h>
 #include "common/stringutil.h"
 
-static PIM_TLS int32_t ms_errno;
+static pim_thread_local i32 ms_errno;
 
-int32_t env_errno(void)
+i32 env_errno(void)
 {
-    int32_t rv = ms_errno;
+    i32 rv = ms_errno;
     ms_errno = 0;
     return rv;
 }
 
-static int32_t NotNeg(int32_t x)
+static i32 NotNeg(i32 x)
 {
     if (x < 0)
     {
@@ -31,7 +31,7 @@ static void* NotNull(void* x)
     return x;
 }
 
-static int32_t IsZero(int32_t x)
+static i32 IsZero(i32 x)
 {
     if (x)
     {

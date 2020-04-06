@@ -2,16 +2,16 @@
 
 #include <io.h>
 
-static PIM_TLS int32_t ms_errno;
+static pim_thread_local i32 ms_errno;
 
-int32_t fnd_errno(void)
+i32 fnd_errno(void)
 {
-    int32_t rv = ms_errno;
+    i32 rv = ms_errno;
     ms_errno = 0;
     return rv;
 }
 
-static int32_t NotNeg(int32_t x)
+static i32 NotNeg(i32 x)
 {
     if (x < 0)
     {
@@ -29,7 +29,7 @@ static void* NotNull(void* x)
     return x;
 }
 
-static int32_t IsZero(int32_t x)
+static i32 IsZero(i32 x)
 {
     if (x)
     {
@@ -38,7 +38,7 @@ static int32_t IsZero(int32_t x)
     return x;
 }
 
-int32_t fnd_first(fnd_t* fdr, fnd_data_t* data, const char* spec)
+i32 fnd_first(fnd_t* fdr, fnd_data_t* data, const char* spec)
 {
     ASSERT(fdr);
     ASSERT(data);
@@ -47,7 +47,7 @@ int32_t fnd_first(fnd_t* fdr, fnd_data_t* data, const char* spec)
     return fnd_isopen(*fdr);
 }
 
-int32_t fnd_next(fnd_t* fdr, fnd_data_t* data)
+i32 fnd_next(fnd_t* fdr, fnd_data_t* data)
 {
     ASSERT(fdr);
     ASSERT(data);
@@ -71,7 +71,7 @@ void fnd_close(fnd_t* fdr)
     }
 }
 
-int32_t fnd_iter(fnd_t* fdr, fnd_data_t* data, const char* spec)
+i32 fnd_iter(fnd_t* fdr, fnd_data_t* data, const char* spec)
 {
     ASSERT(fdr);
     if (fnd_isopen(*fdr))

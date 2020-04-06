@@ -5,7 +5,7 @@
 #include <pcg32/pcg32.h>
 
 static const float kInvFloat = 1.0f / (1 << 24);
-static PIM_TLS pcg32_random_t ts_state;
+static pim_thread_local pcg32_random_t ts_state;
 
 void rand_sys_init(void) { rand_autoseed(); }
 void rand_sys_update(void) {}
@@ -13,28 +13,28 @@ void rand_sys_shutdown(void) {}
 
 void rand_autoseed(void)
 {
-    uint64_t hash = HashStr("Piment");
+    u64 hash = HashStr("Piment");
     hash = (hash ^ time_now()) * 16777619u;
     ts_state.state = hash;
 }
 
-void rand_seed(uint64_t seed)
+void rand_seed(u64 seed)
 {
     ts_state.state = seed;
 }
 
-int32_t rand_int(void)
+i32 rand_int(void)
 {
-    return (int32_t)pcg32_random_r(&ts_state);
+    return (i32)pcg32_random_r(&ts_state);
 }
 
 float rand_float(void)
 {
-    int32_t x = rand_int() & 0xffffff;
+    i32 x = rand_int() & 0xffffff;
     return (float)x * kInvFloat;
 }
 
-int32_t rand_rangei(int32_t lo, int32_t hi)
+i32 rand_rangei(i32 lo, i32 hi)
 {
     ASSERT(hi != lo);
     return lo + (rand_int() % (hi - lo));

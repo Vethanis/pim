@@ -6,9 +6,9 @@
 
 #define kMaxCvars 256
 
-static uint32_t ms_hashes[kMaxCvars];
+static u32 ms_hashes[kMaxCvars];
 static cvar_t* ms_cvars[kMaxCvars];
-static int32_t ms_count;
+static i32 ms_count;
 
 void cvar_create(cvar_t* ptr, const char* name, const char* value)
 {
@@ -16,8 +16,8 @@ void cvar_create(cvar_t* ptr, const char* name, const char* value)
     ASSERT(name);
     ASSERT(value);
 
-    uint32_t hash = HashStr(name);
-    int32_t i = HashFind(ms_hashes, ms_count, hash);
+    u32 hash = HashStr(name);
+    i32 i = HashFind(ms_hashes, ms_count, hash);
     if (i != -1)
     {
         ASSERT(ptr == ms_cvars[i]);
@@ -36,7 +36,7 @@ void cvar_create(cvar_t* ptr, const char* name, const char* value)
 cvar_t* cvar_find(const char* name)
 {
     ASSERT(name);
-    int32_t i = HashFind(ms_hashes, ms_count, HashStr(name));
+    i32 i = HashFind(ms_hashes, ms_count, HashStr(name));
     return (i == -1) ? 0 : ms_cvars[i];
 }
 

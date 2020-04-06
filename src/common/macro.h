@@ -28,9 +28,6 @@
     #error Unable to detect current platform
 #endif // def _WIN32 || def __CYGWIN__
 
-#define PLAT_64 (UINTPTR_MAX == UINT64_MAX)
-#define PLAT_32 (UINTPTR_MAX == UINT32_MAX)
-
 #if defined(__arm__) || defined(__arm64__)
     #define PLAT_CPU_ARM            1
     #define PLAT_CPU_X86            0
@@ -45,9 +42,8 @@
     #define IF_WIN(x)               x
     #define IF_UNIX(x)              
 
-    #define RESTRICT                __restrict
     #define INTERRUPT()             __debugbreak()
-    #define PIM_TLS                 __declspec(thread)
+    #define pim_thread_local        __declspec(thread)
 
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN
@@ -60,13 +56,16 @@
     #define IF_UNIX(x)              x
 
     #define INTERRUPT()             raise(SIGTRAP)
-    #define PIM_TLS                 _Thread_local
+    #define pim_thread_local        _Thread_local
 #endif // PLAT_WINDOWS
 
 #define PIM_EXPORT                  IF_WIN(__declspec(dllexport))
 #define PIM_IMPORT                  IF_WIN(__declspec(dllimport))
 #define PIM_CDECL                   IF_WIN(__cdecl)
-#define VEC_CALL                    __vectorcall
+#define VEC_CALL                    IF_WIN(__vectorcall)
+#define pim_inline                  IF_WIN(__forceinline)
+#define pim_noalias                 IF_WIN(__restrict)
+#define pim_alignas(x)              IF_WIN(__declspec(align(x)))
 
 // ----------------------------------------------------------------------------
 
@@ -103,10 +102,45 @@
 // Maximum path length, including null terminator
 #define PIM_PATH                    256
 
-// Error codes
-#define PIM_ERR_OK                  0
-#define PIM_ERR_INTERNAL            1
-#define PIM_ERR_ARG_COUNT           2
-#define PIM_ERR_ARG_NAME            3
-#define PIM_ERR_ARG_NULL            4
-#define PIM_ERR_NOT_FOUND           5
+// ----------------------------------------------------------------------------
+
+PIM_C_BEGIN
+
+typedef signed char             i8;
+typedef signed short            i16;
+typedef signed int              i32;
+typedef signed long long        i64;
+typedef i64                     isize;
+typedef unsigned char           u8;
+typedef unsigned short          u16;
+typedef unsigned int            u32;
+typedef unsigned long long      u64;
+typedef u64                     usize;
+
+
+#if !defined(NULL)
+    #define NULL                0
+#endif
+
+#ifndef _STDBOOL
+#define _STDBOOL
+#define __bool_true_false_are_defined 1
+#ifndef __cplusplus
+    #define bool                _Bool
+    #define false               0
+    #define true                1
+#endif // __cplusplus
+#endif // _STDBOOL
+
+typedef enum
+{
+    EAlloc_Init = 0,
+    EAlloc_Perm,
+    EAlloc_Temp,
+    EAlloc_TLS,
+    EAlloc_Count
+} EAlloc;
+
+PIM_C_END
+
+// ----------------------------------------------------------------------------

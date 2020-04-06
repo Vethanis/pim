@@ -1,14 +1,17 @@
 #include "components/compflag.h"
-
 #include "common/valist.h"
-#include <string.h>
 
-compflag_t compflag_create(int32_t count, ...)
+static const i32 kDwordCount = sizeof(compflag_t) / sizeof(u32);
+
+compflag_t compflag_create(i32 count, ...)
 {
     compflag_t result;
-    memset(&result, 0, sizeof(result));
+    for (i32 i = 0; i < kDwordCount; ++i)
+    {
+        result.dwords[i] = 0;
+    }
     VaList va = VA_START(count);
-    for (int32_t i = 0; i < count; ++i)
+    for (i32 i = 0; i < count; ++i)
     {
         compid_t id = VA_ARG(va, compid_t);
         compflag_set(&result, id);
@@ -16,62 +19,59 @@ compflag_t compflag_create(int32_t count, ...)
     return result;
 }
 
-int32_t compflag_all(compflag_t has, compflag_t all)
+bool compflag_all(compflag_t has, compflag_t all)
 {
-    uint32_t test = 0;
-    const int32_t count = sizeof(compflag_t) / sizeof(uint32_t);
-    for (int32_t i = 0; i < count; ++i)
+    u32 test = 0;
+    for (i32 i = 0; i < kDwordCount; ++i)
     {
         test |= (has.dwords[i] & all.dwords[i]) - all.dwords[i];
     }
     return !test;
 }
 
-int32_t compflag_any(compflag_t has, compflag_t any)
+bool compflag_any(compflag_t has, compflag_t any)
 {
-    uint32_t test = 0;
-    const int32_t count = sizeof(compflag_t) / sizeof(uint32_t);
-    for (int32_t i = 0; i < count; ++i)
+    u32 test = 0;
+    for (i32 i = 0; i < kDwordCount; ++i)
     {
         test |= has.dwords[i] & any.dwords[i];
     }
     return test;
 }
 
-int32_t compflag_none(compflag_t has, compflag_t none)
+bool compflag_none(compflag_t has, compflag_t none)
 {
     return !compflag_any(has, none);
 }
 
-int32_t compflag_get(compflag_t flag, compid_t id)
+bool compflag_get(compflag_t flag, compid_t id)
 {
-    uint32_t dword = id >> 5;
-    uint32_t bit = id & 31;
-    uint32_t mask = 1u << bit;
+    u32 dword = id >> 5;
+    u32 bit = id & 31;
+    u32 mask = 1u << bit;
     return flag.dwords[dword] & mask;
 }
 
 void compflag_set(compflag_t* flag, compid_t id)
 {
-    uint32_t dword = id >> 5;
-    uint32_t bit = id & 31;
-    uint32_t mask = 1u << bit;
+    u32 dword = id >> 5;
+    u32 bit = id & 31;
+    u32 mask = 1u << bit;
     flag->dwords[dword] |= mask;
 }
 
 void compflag_unset(compflag_t* flag, compid_t id)
 {
-    uint32_t dword = id >> 5;
-    uint32_t bit = id & 31;
-    uint32_t mask = 1u << bit;
+    u32 dword = id >> 5;
+    u32 bit = id & 31;
+    u32 mask = 1u << bit;
     flag->dwords[dword] &= ~mask;
 }
 
-int32_t compflag_eq(compflag_t lhs, compflag_t rhs)
+bool compflag_eq(compflag_t lhs, compflag_t rhs)
 {
-    const int32_t len = sizeof(compflag_t) >> 2;
-    uint32_t cmp = 0;
-    for (int32_t i = 0; i < len; ++i)
+    u32 cmp = 0;
+    for (i32 i = 0; i < kDwordCount; ++i)
     {
         cmp |= lhs.dwords[i] - rhs.dwords[i];
     }

@@ -4,27 +4,27 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
+#include "math/float4.h"
 
 typedef struct ent_s
 {
-    int32_t index;
-    int32_t version;
+    i32 index;
+    i32 version;
 } ent_t;
 
 typedef struct position_s
 {
-    float Value[4];
+    float4 Value;
 } position_t;
 
 typedef struct rotation_s
 {
-    float Value[4];
+    float4 Value;
 } rotation_t;
 
 typedef struct scale_s
 {
-    float Value[4];
+    float4 Value;
 } scale_t;
 
 typedef enum

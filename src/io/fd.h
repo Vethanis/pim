@@ -4,10 +4,8 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
-
-typedef struct fd_s { int32_t handle; } fd_t;
-static int32_t fd_isopen(fd_t fd) { return fd.handle >= 0; }
+typedef struct fd_s { i32 handle; } fd_t;
+static i32 fd_isopen(fd_t fd) { return fd.handle >= 0; }
 
 #define fd_stdin  0
 #define fd_stdout 1
@@ -26,38 +24,38 @@ typedef enum
 
 typedef struct fd_status_s
 {
-    uint32_t    st_dev;
-    uint16_t    st_ino;
-    uint16_t    st_mode;
-    int16_t     st_nlink;
-    int16_t     st_uid;
-    int16_t     st_guid;
-    uint32_t    st_rdev;
-    int64_t     st_size;
-    int64_t     st_atime;
-    int64_t     st_mtime;
-    int64_t     st_ctime;
+    u32 st_dev;
+    u16 st_ino;
+    u16 st_mode;
+    i16 st_nlink;
+    i16 st_uid;
+    i16 st_guid;
+    u32 st_rdev;
+    i64 st_size;
+    i64 st_atime;
+    i64 st_mtime;
+    i64 st_ctime;
 } fd_status_t;
 
-int32_t fd_errno(void);
+i32 fd_errno(void);
 
 fd_t fd_create(const char* filename);
-fd_t fd_open(const char* filename, int32_t writable);
+fd_t fd_open(const char* filename, i32 writable);
 void fd_close(fd_t* hdl);
 
-int32_t fd_read(fd_t hdl, void* dst, int32_t size);
-int32_t fd_write(fd_t hdl, const void* src, int32_t size);
+i32 fd_read(fd_t hdl, void* dst, i32 size);
+i32 fd_write(fd_t hdl, const void* src, i32 size);
 
-int32_t fd_puts(const char* str, fd_t hdl);
-int32_t fd_printf(fd_t hdl, const char* fmt, ...);
+i32 fd_puts(const char* str, fd_t hdl);
+i32 fd_printf(fd_t hdl, const char* fmt, ...);
 
-int32_t fd_seek(fd_t hdl, int32_t offset);
-int32_t fd_tell(fd_t hdl);
+i32 fd_seek(fd_t hdl, i32 offset);
+i32 fd_tell(fd_t hdl);
 
-void fd_pipe(fd_t* p0, fd_t* p1, int32_t bufferSize);
+void fd_pipe(fd_t* p0, fd_t* p1, i32 bufferSize);
 void fd_stat(fd_t hdl, fd_status_t* status);
 
-static int64_t fd_size(fd_t fd)
+static i64 fd_size(fd_t fd)
 {
     fd_status_t status;
     fd_stat(fd, &status);

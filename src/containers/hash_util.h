@@ -1,72 +1,53 @@
 #pragma once
 
 #include "common/macro.h"
-#include "common/int_types.h"
+
+PIM_C_BEGIN
+
 #include "common/fnv1a.h"
+#include "common/nextpow2.h"
 
-namespace HashUtil
+#define hashutil_tomb_mask (1u << 31u)
+#define hashutil_hash_mask (~hashutil_tomb_mask)
+
+static u32 hashutil_filled(u32 hash)
 {
-    // ------------------------------------------------------------------------
+    return hash & 1u;
+}
 
-    static constexpr bool IsPow2(u32 x)
-    {
-        return (x & (x - 1u)) == 0u;
-    }
+static u32 hashutil_tomb(u32 hash)
+{
+    return (hash >> 31u) & 1u;
+}
 
-    // https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
-    static constexpr u32 ToPow2(u32 x)
-    {
-        --x;
-        x |= x >> 1;
-        x |= x >> 2;
-        x |= x >> 4;
-        x |= x >> 8;
-        x |= x >> 16;
-        ++x;
-        return x;
-    }
+static u32 hashutil_empty(u32 hash)
+{
+    return hashutil_filled(~hash);
+}
 
-    static constexpr u32 TombMask = 1u << 31u;
-    static constexpr u32 HashMask = ~TombMask;
+static u32 hashutil_nottomb(u32 hash)
+{
+    return hashutil_tomb(~hash);
+}
 
-    static constexpr u32 IsFilled(u32 hash)
-    {
-        return hash & 1u;
-    }
+static u32 hashutil_empty_or_tomb(u32 hash)
+{
+    return hashutil_empty(hash) | hashutil_tomb(hash);
+}
 
-    static constexpr u32 IsTomb(u32 hash)
-    {
-        return (hash >> 31u) & 1u;
-    }
+static u32 hashutil_valid(u32 hash)
+{
+    return hashutil_filled(hash) & hashutil_nottomb(hash);
+}
 
-    static constexpr u32 IsEmpty(u32 hash)
-    {
-        return IsFilled(~hash);
-    }
+static u32 hashutil_create_hash(u32 hash)
+{
+    return (hash | 1u) & hashutil_hash_mask;
+}
 
-    static constexpr u32 IsNotTomb(u32 hash)
-    {
-        return IsTomb(~hash);
-    }
+static u32 hashutil_hash(const void* key, i32 sizeOf)
+{
+    return hashutil_create_hash(Fnv32Bytes(key, sizeOf, Fnv32Bias));
+}
 
-    static constexpr u32 IsEmptyOrTomb(u32 hash)
-    {
-        return IsEmpty(hash) | IsTomb(hash);
-    }
-
-    static constexpr u32 IsValidHash(u32 hash)
-    {
-        return IsFilled(hash) & IsNotTomb(hash);
-    }
-
-    static constexpr u32 CreateHash(u32 hash)
-    {
-        return (hash | 1u) & HashMask;
-    }
-
-    template<typename K>
-    static u32 Hash(K key)
-    {
-        return CreateHash(Fnv32Bytes(&key, sizeof(K), Fnv32Bias));
-    }
-};
+PIM_C_END

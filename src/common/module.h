@@ -8,12 +8,10 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
-
 typedef const void* (PIM_CDECL *pimod_export_t)(void);
 
-int32_t PIM_CDECL pimod_get(const char* name, void* dst, int32_t bytes);
-int32_t PIM_CDECL pimod_release(const char* name);
+i32 PIM_CDECL pimod_get(const char* name, void* dst, i32 bytes);
+i32 PIM_CDECL pimod_release(const char* name);
 
 void* PIM_CDECL pimod_dlopen(const char* name);
 void  PIM_CDECL pimod_dlclose(void* dll);
@@ -29,12 +27,12 @@ PIM_C_END
 
 #define kMaxModules 256
 
-static int32_t ms_count;
-static uint32_t ms_hashes[kMaxModules];
+static i32 ms_count;
+static u32 ms_hashes[kMaxModules];
 static void* ms_dlls[kMaxModules];
 static const void* ms_modules[kMaxModules];
 
-static int32_t pimod_import(const char* name, uint32_t hash)
+static i32 pimod_import(const char* name, u32 hash)
 {
     void* dll = pimod_dlopen(name);
     if (!dll)
@@ -63,7 +61,7 @@ static int32_t pimod_import(const char* name, uint32_t hash)
     }
 
     ASSERT(ms_count < kMaxModules);
-    int32_t i = ms_count++;
+    i32 i = ms_count++;
     ms_hashes[i] = hash;
     ms_dlls[i] = dll;
     ms_modules[i] = mod;
@@ -71,13 +69,13 @@ static int32_t pimod_import(const char* name, uint32_t hash)
     return i;
 }
 
-int32_t PIM_CDECL pimod_get(const char* name, void* dst, int32_t bytes)
+i32 PIM_CDECL pimod_get(const char* name, void* dst, i32 bytes)
 {
     ASSERT(name);
     ASSERT(dst);
     ASSERT(bytes > 0);
-    const uint32_t hash = HashStr(name);
-    int32_t i = HashFind(ms_hashes, ms_count, hash);
+    const u32 hash = HashStr(name);
+    i32 i = HashFind(ms_hashes, ms_count, hash);
     if (i == -1)
     {
         i = pimod_import(name, hash);
@@ -92,14 +90,14 @@ int32_t PIM_CDECL pimod_get(const char* name, void* dst, int32_t bytes)
     return 0;
 }
 
-int32_t PIM_CDECL pimod_release(const char* name)
+i32 PIM_CDECL pimod_release(const char* name)
 {
     ASSERT(name);
-    const uint32_t hash = HashStr(name);
-    const int32_t i = HashFind(ms_hashes, ms_count, hash);
+    const u32 hash = HashStr(name);
+    const i32 i = HashFind(ms_hashes, ms_count, hash);
     if (i != -1)
     {
-        const int32_t back = --ms_count;
+        const i32 back = --ms_count;
         ASSERT(back >= 0);
         void* dll = ms_dlls[i];
         ASSERT(dll);

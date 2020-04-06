@@ -4,8 +4,6 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
-
 typedef struct cvar_s
 {
     char name[30];

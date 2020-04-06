@@ -3,10 +3,8 @@
 void intrin_spin(uint64_t spins)
 {
     uint64_t ticks = spins * 100;
-    if (ticks >= 1000)
+    if (ticks >= 2500)
     {
-        // rescheduling tends to take about 5k cycles
-        // after 10 spins its probably time to reschedule
         intrin_yield();
     }
     else

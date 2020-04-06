@@ -109,9 +109,6 @@
     <ClCompile Include="..\src\sokol\sokol_imgui.cpp">
       <Filter>Source Files\sokol</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\quake\packfile.cpp">
-      <Filter>Source Files\quake</Filter>
-    </ClCompile>
     <ClCompile Include="..\submodules\miniz\miniz.c">
       <Filter>submodules\miniz</Filter>
     </ClCompile>
@@ -232,11 +229,20 @@
     <ClCompile Include="..\src\main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\cmd.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\graph.c">
+      <Filter>Source Files\containers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\quake\packfile.c">
+      <Filter>Source Files\quake</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\hash_set.c">
+      <Filter>Source Files\containers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\common\int_types.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\macro.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -336,12 +342,6 @@
     <ClInclude Include="..\src\os\socket.h">
       <Filter>Source Files\os</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\array.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\slice.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\quake\bspfile.h">
       <Filter>Source Files\quake</Filter>
     </ClInclude>
@@ -360,20 +360,8 @@
     <ClInclude Include="..\submodules\miniz\miniz.h">
       <Filter>submodules\miniz</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\text.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\apply.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\find.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\unroll.h">
       <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\bitfield.h">
-      <Filter>Source Files\containers</Filter>
     </ClInclude>
     <ClInclude Include="..\src\audio\audio_system.h">
       <Filter>Source Files\audio</Filter>
@@ -402,19 +390,10 @@
     <ClInclude Include="..\src\assets\asset_system.h">
       <Filter>Source Files\assets</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\strhash.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\valist.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\round.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\minmax.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\sort.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\geometry\types.h">
@@ -441,18 +420,6 @@
     <ClInclude Include="..\submodules\stackwalker\StackWalker.h">
       <Filter>submodules\stackwalker</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\allocator\leak_tracker.h">
-      <Filter>Source Files\allocator</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\pipe.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\typeid.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\genid.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\threading\task.h">
       <Filter>Source Files\threading</Filter>
     </ClInclude>
@@ -461,12 +428,6 @@
     </ClInclude>
     <ClInclude Include="..\submodules\tlsf\tlsf.h">
       <Filter>submodules\tlsf</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\type_guid.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\transform.h">
-      <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\cvar.h">
       <Filter>Source Files\common</Filter>
@@ -549,11 +510,44 @@
     <ClInclude Include="..\src\common\nextpow2.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\math\vec.h">
+    <ClInclude Include="..\src\math\float4.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\math\mat.h">
+    <ClInclude Include="..\src\math\float4_funcs.h">
       <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\float4x4.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\f32_funcs.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\float3.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\float3_funcs.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\float2.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\float2_funcs.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\texture.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\cmd.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\carray.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\carray_fn.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\constants.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

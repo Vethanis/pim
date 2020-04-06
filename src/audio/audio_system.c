@@ -1,9 +1,9 @@
 #include "audio_system.h"
 #include <sokol/sokol_audio.h>
 
-static void audio_main(float* buffer, int32_t num_frames, int32_t num_channels)
+static void audio_main(float* buffer, i32 num_frames, i32 num_channels)
 {
-    for (int32_t i = 0; i < num_frames; ++i)
+    for (i32 i = 0; i < num_frames; ++i)
     {
         *buffer++ = 0.0f;
         *buffer++ = 0.0f;

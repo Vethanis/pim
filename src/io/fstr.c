@@ -3,16 +3,16 @@
 
 #include <stdio.h>
 
-static PIM_TLS int32_t ms_errno;
+static pim_thread_local i32 ms_errno;
 
-int32_t fstr_errno(void)
+i32 fstr_errno(void)
 {
-    int32_t rv = ms_errno;
+    i32 rv = ms_errno;
     ms_errno = 0;
     return rv;
 }
 
-static int32_t NotNeg(int32_t x)
+static i32 NotNeg(i32 x)
 {
     if (x < 0)
     {
@@ -30,7 +30,7 @@ static void* NotNull(void* x)
     return x;
 }
 
-static int32_t IsZero(int32_t x)
+static i32 IsZero(i32 x)
 {
     if (x)
     {
@@ -66,13 +66,13 @@ void fstr_flush(fstr_t stream)
     IsZero(fflush(file));
 }
 
-int32_t fstr_read(fstr_t stream, void* dst, int32_t size)
+i32 fstr_read(fstr_t stream, void* dst, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
     ASSERT(dst);
     ASSERT(size >= 0);
-    int32_t ct = (int32_t)fread(dst, 1, size, file);
+    i32 ct = (i32)fread(dst, 1, size, file);
     if (ct != size)
     {
         ms_errno = 1;
@@ -80,13 +80,13 @@ int32_t fstr_read(fstr_t stream, void* dst, int32_t size)
     return ct;
 }
 
-int32_t fstr_write(fstr_t stream, const void* src, int32_t size)
+i32 fstr_write(fstr_t stream, const void* src, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
     ASSERT(src);
     ASSERT(size >= 0);
-    int32_t ct = (int32_t)fwrite(src, 1, size, file);
+    i32 ct = (i32)fwrite(src, 1, size, file);
     if (ct != size)
     {
         ms_errno = 1;
@@ -94,7 +94,7 @@ int32_t fstr_write(fstr_t stream, const void* src, int32_t size)
     return ct;
 }
 
-void fstr_gets(fstr_t stream, char* dst, int32_t size)
+void fstr_gets(fstr_t stream, char* dst, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -103,7 +103,7 @@ void fstr_gets(fstr_t stream, char* dst, int32_t size)
     NotNull(fgets(dst, size - 1, file));
 }
 
-int32_t fstr_puts(fstr_t stream, const char* src)
+i32 fstr_puts(fstr_t stream, const char* src)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -121,14 +121,14 @@ fd_t fstr_to_fd(fstr_t stream)
 fstr_t fd_to_fstr(fd_t* pFD, const char* mode)
 {
     ASSERT(pFD);
-    int32_t fd = pFD->handle;
+    i32 fd = pFD->handle;
     pFD->handle = -1;
     ASSERT(fd >= 0);
     FILE* ptr = _fdopen(fd, mode);
     return (fstr_t) { NotNull(ptr) };
 }
 
-void fstr_seek(fstr_t stream, int32_t offset)
+void fstr_seek(fstr_t stream, i32 offset)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -136,7 +136,7 @@ void fstr_seek(fstr_t stream, int32_t offset)
     NotNeg(fseek(file, offset, SEEK_SET));
 }
 
-int32_t fstr_tell(fstr_t stream)
+i32 fstr_tell(fstr_t stream)
 {
     FILE* file = stream.handle;
     ASSERT(file);
