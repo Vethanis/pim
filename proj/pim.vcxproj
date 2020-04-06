@@ -41,8 +41,6 @@
     <ClCompile Include="..\src\quake\packfile.c" />
     <ClCompile Include="..\src\rendering\cmd.c" />
     <ClCompile Include="..\src\rendering\framebuffer.c" />
-    <ClCompile Include="..\src\rendering\material.cpp" />
-    <ClCompile Include="..\src\rendering\mesh.cpp" />
     <ClCompile Include="..\src\rendering\render_system.c" />
     <ClCompile Include="..\src\sokol\sokol_app.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />

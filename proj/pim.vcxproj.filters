@@ -94,12 +94,6 @@
     <ClCompile Include="..\submodules\miniz\miniz.c">
       <Filter>submodules\miniz</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\mesh.cpp">
-      <Filter>Source Files\rendering</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\rendering\material.cpp">
-      <Filter>Source Files\rendering</Filter>
-    </ClCompile>
     <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp">
       <Filter>submodules\stackwalker</Filter>
     </ClCompile>
