@@ -11,9 +11,10 @@ enum
     kDrawWidth = 320,
     kDrawHeight = 240,
     kDrawPixels = kDrawWidth * kDrawHeight,
-    kTileCount = 8 * 8,
-    kTileWidth = kDrawWidth / 8,
-    kTileHeight = kDrawHeight / 8,
+    kTilesPerDim = 8,
+    kTileCount = kTilesPerDim * kTilesPerDim,
+    kTileWidth = kDrawWidth / kTilesPerDim,
+    kTileHeight = kDrawHeight / kTilesPerDim,
     kTilePixels = kTileWidth * kTileHeight,
 };
 

@@ -63,16 +63,16 @@ typedef struct rcmdqueue_s
     ptrqueue_t queues[kTileCount];
 } rcmdqueue_t;
 
-void cmdbuf_create(rcmdbuf_t* buf);
-bool cmdbuf_read(rcmdbuf_t buf, i32* pCursor, rcmd_t* dst);
+rcmdbuf_t* rcmdbuf_create(void);
+bool rcmdbuf_read(const rcmdbuf_t* buf, i32* pCursor, rcmd_t* dst);
 
-void cmd_clear(rcmdbuf_t* buf, u16 color, u16 depth);
-void cmd_view(rcmdbuf_t* buf, float4x4 view, float4x4 proj);
-void cmd_draw(rcmdbuf_t* buf, float4x4 model, mesh_t mesh, material_t material);
+void rcmd_clear(rcmdbuf_t* buf, u16 color, u16 depth);
+void rcmd_view(rcmdbuf_t* buf, float4x4 view, float4x4 proj);
+void rcmd_draw(rcmdbuf_t* buf, float4x4 model, mesh_t mesh, material_t material);
 
-void cmdqueue_create(rcmdqueue_t* queue);
-void cmdqueue_destroy(rcmdqueue_t* queue);
-void cmdqueue_submit(rcmdqueue_t* queue, rcmdbuf_t* buf);
-rcmdbuf_t* cmdqueue_read(rcmdqueue_t* queue, i32 tile_id);
+void rcmdqueue_create(rcmdqueue_t* queue);
+void rcmdqueue_destroy(rcmdqueue_t* queue);
+void rcmdqueue_submit(rcmdqueue_t* queue, rcmdbuf_t* buf);
+rcmdbuf_t* rcmdqueue_read(rcmdqueue_t* queue, i32 tile_id);
 
 PIM_C_END

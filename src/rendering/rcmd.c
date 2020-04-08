@@ -1,4 +1,4 @@
-#include "rendering/cmd.h"
+#include "rendering/rcmd.h"
 #include "allocator/allocator.h"
 #include <string.h>
 
@@ -12,26 +12,26 @@ static const i32 kCmdSize[] =
 
 SASSERT(NELEM(kCmdSize) == RCmdType_COUNT);
 
-void cmdbuf_create(rcmdbuf_t* buf)
+rcmdbuf_t* rcmdbuf_create(void)
 {
-    ASSERT(buf);
-    buf->ptr = NULL;
-    buf->length = 0;
+    rcmdbuf_t* buf = pim_calloc(EAlloc_Temp, sizeof(*buf));
+    return buf;
 }
 
-bool cmdbuf_read(rcmdbuf_t buf, i32* pCursor, rcmd_t* dst)
+bool rcmdbuf_read(const rcmdbuf_t* buf, i32* pCursor, rcmd_t* dst)
 {
     i32 cmdType = RCmdType_NONE;
 
     ASSERT(pCursor);
     ASSERT(dst);
 
-    const u8* buffer = buf.ptr;
-    const i32 length = buf.length;
+    const u8* buffer = buf->ptr;
+    const i32 length = buf->length;
     i32 cursor = *pCursor;
 
     ASSERT(cursor >= 0);
     ASSERT(length >= 0);
+    ASSERT(length < 0xffff);
     ASSERT(cursor <= length);
 
     if (cursor < length)
@@ -57,7 +57,7 @@ bool cmdbuf_read(rcmdbuf_t buf, i32* pCursor, rcmd_t* dst)
     return false;
 }
 
-static void cmdbuf_write(rcmdbuf_t* buf, i32 type, const void* src, i32 bytes)
+static void rcmdbuf_write(rcmdbuf_t* buf, i32 type, const void* src, i32 bytes)
 {
     ASSERT(buf);
     ASSERT(src);
@@ -77,32 +77,32 @@ static void cmdbuf_write(rcmdbuf_t* buf, i32 type, const void* src, i32 bytes)
     buf->length = length + sizeof(type) + bytes;
 }
 
-void cmd_clear(rcmdbuf_t* buf, u16 color, u16 depth)
+void rcmd_clear(rcmdbuf_t* buf, u16 color, u16 depth)
 {
     rcmd_clear_t cmd;
     cmd.color = color;
     cmd.depth = depth;
-    cmdbuf_write(buf, RCmdType_Clear, &cmd, sizeof(cmd));
+    rcmdbuf_write(buf, RCmdType_Clear, &cmd, sizeof(cmd));
 }
 
-void cmd_view(rcmdbuf_t* buf, float4x4 view, float4x4 proj)
+void rcmd_view(rcmdbuf_t* buf, float4x4 view, float4x4 proj)
 {
     rcmd_view_t cmd;
     cmd.V = view;
     cmd.P = proj;
-    cmdbuf_write(buf, RCmdType_View, &cmd, sizeof(cmd));
+    rcmdbuf_write(buf, RCmdType_View, &cmd, sizeof(cmd));
 }
 
-void cmd_draw(rcmdbuf_t* buf, float4x4 model, mesh_t mesh, material_t material)
+void rcmd_draw(rcmdbuf_t* buf, float4x4 model, mesh_t mesh, material_t material)
 {
     rcmd_draw_t cmd;
     cmd.M = model;
     cmd.mesh = mesh;
     cmd.material = material;
-    cmdbuf_write(buf, RCmdType_Draw, &cmd, sizeof(cmd));
+    rcmdbuf_write(buf, RCmdType_Draw, &cmd, sizeof(cmd));
 }
 
-void cmdqueue_create(rcmdqueue_t* queue)
+void rcmdqueue_create(rcmdqueue_t* queue)
 {
     ASSERT(queue);
     ptrqueue_t* queues = queue->queues;
@@ -112,7 +112,7 @@ void cmdqueue_create(rcmdqueue_t* queue)
     }
 }
 
-void cmdqueue_destroy(rcmdqueue_t* queue)
+void rcmdqueue_destroy(rcmdqueue_t* queue)
 {
     ASSERT(queue);
     ptrqueue_t* queues = queue->queues;
@@ -122,21 +122,23 @@ void cmdqueue_destroy(rcmdqueue_t* queue)
     }
 }
 
-void cmdqueue_submit(rcmdqueue_t* queue, rcmdbuf_t* buf)
+void rcmdqueue_submit(rcmdqueue_t* queue, rcmdbuf_t* buf)
 {
     ASSERT(queue);
     ASSERT(buf);
+    ASSERT(buf->length >= 0);
+
     if (buf->length > 0)
     {
-        ptrqueue_t* queues = queue->queues;
         for (i32 i = 0; i < kTileCount; ++i)
         {
-            ptrqueue_push(queues + i, buf);
+            ptrqueue_t* q = &(queue->queues[i]);
+            ptrqueue_push(q, buf);
         }
     }
 }
 
-rcmdbuf_t* cmdqueue_read(rcmdqueue_t* queue, i32 tile_id)
+rcmdbuf_t* rcmdqueue_read(rcmdqueue_t* queue, i32 tile_id)
 {
     ASSERT(queue);
     ASSERT(tile_id < kTileCount);

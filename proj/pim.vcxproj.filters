@@ -199,9 +199,6 @@
     <ClCompile Include="..\src\main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\cmd.c">
-      <Filter>Source Files\rendering</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\containers\graph.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
@@ -233,6 +230,9 @@
       <Filter>Source Files\assets</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\render_system.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\rcmd.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
   </ItemGroup>
@@ -510,9 +510,6 @@
     <ClInclude Include="..\src\rendering\texture.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\cmd.h">
-      <Filter>Source Files\rendering</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\carray.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -539,6 +536,18 @@
     </ClInclude>
     <ClInclude Include="..\src\ui\imstb_truetype.h">
       <Filter>Source Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\rcmd.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\int2.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\int3.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\int4.h">
+      <Filter>Source Files\math</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

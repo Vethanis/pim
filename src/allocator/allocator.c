@@ -10,7 +10,7 @@
 
 #define kMaxThreads     32
 #define kTempFrames     4
-#define kTempMask       3
+#define kTempMask       (kTempFrames - 1)
 
 #define kInitCapacity   0
 #define kPermCapacity   (1 << 30)
@@ -176,6 +176,7 @@ void* pim_malloc(EAlloc type, i32 bytes)
         ptr = header + 4;
 
         ASSERT(((isize)ptr & 15) == 0);
+        IF_DEBUG(memset(ptr, 0xcc, bytes - 16));
     }
 
     return ptr;
@@ -195,6 +196,8 @@ void pim_free(void* ptr)
         ASSERT((bytes & 15) == 0);
         ASSERT(tid < kMaxThreads);
         ASSERT(rc == 1);
+
+        IF_DEBUG(memset(ptr, 0xcd, bytes));
 
         switch (type)
         {
