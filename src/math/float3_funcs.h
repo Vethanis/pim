@@ -4,86 +4,87 @@
 
 PIM_C_BEGIN
 
-#include "math/f32_funcs.h"
+#include "math/scalar.h"
 
-#define f3_0 f3_s(0.0f)
-#define f3_1 f3_s(1.0f)
-#define f3_2 f3_s(2.0f)
+static const float3 f3_0 = { 0.0f, 0.0f, 0.0f };
+static const float3 f3_1 = { 1.0f, 1.0f, 1.0f };
+static const float3 f3_2 = { 2.0f, 2.0f, 2.0f };
+static const float3 f3_05 = { 0.5f, 0.5f, 0.5f };
 
-math_inline float3 VEC_CALL f3_v(float x, float y, float z)
+pim_inline float3 VEC_CALL f3_v(float x, float y, float z)
 {
     float3 vec = { x, y, z };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_s(float s)
+pim_inline float3 VEC_CALL f3_s(float s)
 {
     float3 vec = { s, s, s };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_load(const float* src)
+pim_inline float3 VEC_CALL f3_load(const float* src)
 {
     float3 vec = { src[0], src[1], src[2] };
     return vec;
 }
 
-math_inline void VEC_CALL f3_store(float3 src, float* dst)
+pim_inline void VEC_CALL f3_store(float3 src, float* dst)
 {
     dst[0] = src.x;
     dst[1] = src.y;
     dst[2] = src.z;
 }
 
-math_inline float3 VEC_CALL f3_zxy(float3 v)
+pim_inline float3 VEC_CALL f3_zxy(float3 v)
 {
     float3 vec = { v.z, v.x, v.y };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_yzx(float3 v)
+pim_inline float3 VEC_CALL f3_yzx(float3 v)
 {
     float3 vec = { v.y, v.z, v.x };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_neg(float3 v)
+pim_inline float3 VEC_CALL f3_neg(float3 v)
 {
     float3 vec = { -v.x, -v.y, -v.z };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_rcp(float3 v)
+pim_inline float3 VEC_CALL f3_rcp(float3 v)
 {
     float3 vec = { 1.0f / v.x, 1.0f / v.y, 1.0f / v.z };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_add(float3 lhs, float3 rhs)
+pim_inline float3 VEC_CALL f3_add(float3 lhs, float3 rhs)
 {
     float3 vec = { lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_sub(float3 lhs, float3 rhs)
+pim_inline float3 VEC_CALL f3_sub(float3 lhs, float3 rhs)
 {
     float3 vec = { lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_mul(float3 lhs, float3 rhs)
+pim_inline float3 VEC_CALL f3_mul(float3 lhs, float3 rhs)
 {
     float3 vec = { lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_div(float3 lhs, float3 rhs)
+pim_inline float3 VEC_CALL f3_div(float3 lhs, float3 rhs)
 {
     float3 vec = { lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_eq(float3 lhs, float3 rhs)
+pim_inline float3 VEC_CALL f3_eq(float3 lhs, float3 rhs)
 {
     float3 vec =
     {
@@ -94,7 +95,7 @@ math_inline float3 VEC_CALL f3_eq(float3 lhs, float3 rhs)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_neq(float3 lhs, float3 rhs)
+pim_inline float3 VEC_CALL f3_neq(float3 lhs, float3 rhs)
 {
     float3 vec =
     {
@@ -105,7 +106,7 @@ math_inline float3 VEC_CALL f3_neq(float3 lhs, float3 rhs)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_lt(float3 lhs, float3 rhs)
+pim_inline float3 VEC_CALL f3_lt(float3 lhs, float3 rhs)
 {
     float3 vec =
     {
@@ -116,7 +117,7 @@ math_inline float3 VEC_CALL f3_lt(float3 lhs, float3 rhs)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_gt(float3 lhs, float3 rhs)
+pim_inline float3 VEC_CALL f3_gt(float3 lhs, float3 rhs)
 {
     float3 vec =
     {
@@ -127,7 +128,7 @@ math_inline float3 VEC_CALL f3_gt(float3 lhs, float3 rhs)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_lteq(float3 lhs, float3 rhs)
+pim_inline float3 VEC_CALL f3_lteq(float3 lhs, float3 rhs)
 {
     float3 vec =
     {
@@ -138,7 +139,7 @@ math_inline float3 VEC_CALL f3_lteq(float3 lhs, float3 rhs)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_gteq(float3 lhs, float3 rhs)
+pim_inline float3 VEC_CALL f3_gteq(float3 lhs, float3 rhs)
 {
     float3 vec =
     {
@@ -149,22 +150,22 @@ math_inline float3 VEC_CALL f3_gteq(float3 lhs, float3 rhs)
     return vec;
 }
 
-math_inline float VEC_CALL f3_sum(float3 v)
+pim_inline float VEC_CALL f3_sum(float3 v)
 {
     return v.x + v.y + v.z;
 }
 
-math_inline bool VEC_CALL f3_any(float3 v)
+pim_inline bool VEC_CALL f3_any(float3 v)
 {
     return f3_sum(v) != 0.0f;
 }
 
-math_inline bool VEC_CALL f3_all(float3 v)
+pim_inline bool VEC_CALL f3_all(float3 v)
 {
     return f3_sum(v) == 3.0f;
 }
 
-math_inline float3 VEC_CALL f3_min(float3 a, float3 b)
+pim_inline float3 VEC_CALL f3_min(float3 a, float3 b)
 {
     float3 vec =
     {
@@ -175,7 +176,7 @@ math_inline float3 VEC_CALL f3_min(float3 a, float3 b)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_max(float3 a, float3 b)
+pim_inline float3 VEC_CALL f3_max(float3 a, float3 b)
 {
     float3 vec =
     {
@@ -186,7 +187,7 @@ math_inline float3 VEC_CALL f3_max(float3 a, float3 b)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_select(float3 a, float3 b, float3 t)
+pim_inline float3 VEC_CALL f3_select(float3 a, float3 b, float3 t)
 {
     float3 c =
     {
@@ -197,17 +198,17 @@ math_inline float3 VEC_CALL f3_select(float3 a, float3 b, float3 t)
     return c;
 }
 
-math_inline float VEC_CALL f3_hmin(float3 v)
+pim_inline float VEC_CALL f3_hmin(float3 v)
 {
     return f32_min(v.x, f32_min(v.y, v.z));
 }
 
-math_inline float VEC_CALL f3_hmax(float3 v)
+pim_inline float VEC_CALL f3_hmax(float3 v)
 {
     return f32_max(v.x, f32_max(v.y, v.z));
 }
 
-math_inline float3 VEC_CALL f3_cross(float3 a, float3 b)
+pim_inline float3 VEC_CALL f3_cross(float3 a, float3 b)
 {
     return f3_zxy(
         f3_sub(
@@ -215,47 +216,47 @@ math_inline float3 VEC_CALL f3_cross(float3 a, float3 b)
             f3_mul(a, f3_zxy(b))));
 }
 
-math_inline float3 VEC_CALL f3_clamp(float3 x, float3 lo, float3 hi)
+pim_inline float3 VEC_CALL f3_clamp(float3 x, float3 lo, float3 hi)
 {
     return f3_min(f3_max(x, lo), hi);
 }
 
-math_inline float3 VEC_CALL f3_saturate(float3 a)
+pim_inline float3 VEC_CALL f3_saturate(float3 a)
 {
     return f3_clamp(a, f3_0, f3_1);
 }
 
-math_inline float VEC_CALL f3_dot(float3 a, float3 b)
+pim_inline float VEC_CALL f3_dot(float3 a, float3 b)
 {
     return f3_sum(f3_mul(a, b));
 }
 
-math_inline float VEC_CALL f3_length(float3 x)
+pim_inline float VEC_CALL f3_length(float3 x)
 {
     return sqrtf(f3_dot(x, x));
 }
 
-math_inline float3 VEC_CALL f3_normalize(float3 x)
+pim_inline float3 VEC_CALL f3_normalize(float3 x)
 {
     return f3_mul(x, f3_s(1.0f / f3_length(x)));
 }
 
-math_inline float VEC_CALL f3_distance(float3 a, float3 b)
+pim_inline float VEC_CALL f3_distance(float3 a, float3 b)
 {
     return f3_length(f3_sub(a, b));
 }
 
-math_inline float VEC_CALL f3_lengthsq(float3 x)
+pim_inline float VEC_CALL f3_lengthsq(float3 x)
 {
     return f3_dot(x, x);
 }
 
-math_inline float VEC_CALL f3_distancesq(float3 a, float3 b)
+pim_inline float VEC_CALL f3_distancesq(float3 a, float3 b)
 {
     return f3_lengthsq(f3_sub(a, b));
 }
 
-math_inline float3 VEC_CALL f3_lerp(float3 a, float3 b, float t)
+pim_inline float3 VEC_CALL f3_lerp(float3 a, float3 b, float t)
 {
     float3 vt = f3_s(t);
     float3 ba = f3_sub(b, a);
@@ -263,25 +264,25 @@ math_inline float3 VEC_CALL f3_lerp(float3 a, float3 b, float t)
     return f3_add(a, b);
 }
 
-math_inline float3 VEC_CALL f3_step(float3 a, float3 b)
+pim_inline float3 VEC_CALL f3_step(float3 a, float3 b)
 {
     return f3_select(f3_0, f3_1, f3_gteq(a, b));
 }
 
-math_inline float3 VEC_CALL f3_smoothstep(float3 a, float3 b, float3 x)
+pim_inline float3 VEC_CALL f3_smoothstep(float3 a, float3 b, float3 x)
 {
     float3 t = f3_saturate(f3_div(f3_sub(x, a), f3_sub(b, a)));
     float3 s = f3_sub(f3_s(3.0f), f3_mul(f3_2, t));
     return f3_mul(f3_mul(t, t), s);
 }
 
-math_inline float3 VEC_CALL f3_reflect(float3 i, float3 n)
+pim_inline float3 VEC_CALL f3_reflect(float3 i, float3 n)
 {
     float3 nidn = f3_mul(n, f3_s(f3_dot(i, n)));
     return f3_sub(i, f3_mul(f3_2, nidn));
 }
 
-math_inline float3 VEC_CALL f3_refract(float3 i, float3 n, float ior)
+pim_inline float3 VEC_CALL f3_refract(float3 i, float3 n, float ior)
 {
     float ndi = f3_dot(n, i);
     float k = 1.0f - ior * ior * (1.0f - ndi * ndi);
@@ -292,19 +293,19 @@ math_inline float3 VEC_CALL f3_refract(float3 i, float3 n, float ior)
     return k >= 0.0f ? f3_0 : m;
 }
 
-math_inline float3 VEC_CALL f3_sqrt(float3 v)
+pim_inline float3 VEC_CALL f3_sqrt(float3 v)
 {
     float3 vec = { sqrtf(v.x), sqrtf(v.y), sqrtf(v.z) };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_abs(float3 v)
+pim_inline float3 VEC_CALL f3_abs(float3 v)
 {
     float3 vec = { fabsf(v.x), fabsf(v.y), fabsf(v.z) };
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_pow(float3 v, float3 e)
+pim_inline float3 VEC_CALL f3_pow(float3 v, float3 e)
 {
     float3 vec =
     {
@@ -315,7 +316,7 @@ math_inline float3 VEC_CALL f3_pow(float3 v, float3 e)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_exp(float3 v)
+pim_inline float3 VEC_CALL f3_exp(float3 v)
 {
     float3 vec =
     {
@@ -326,7 +327,7 @@ math_inline float3 VEC_CALL f3_exp(float3 v)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_log(float3 v)
+pim_inline float3 VEC_CALL f3_log(float3 v)
 {
     float3 vec =
     {
@@ -337,7 +338,7 @@ math_inline float3 VEC_CALL f3_log(float3 v)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_sin(float3 v)
+pim_inline float3 VEC_CALL f3_sin(float3 v)
 {
     float3 vec =
     {
@@ -348,7 +349,7 @@ math_inline float3 VEC_CALL f3_sin(float3 v)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_cos(float3 v)
+pim_inline float3 VEC_CALL f3_cos(float3 v)
 {
     float3 vec =
     {
@@ -359,7 +360,7 @@ math_inline float3 VEC_CALL f3_cos(float3 v)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_tan(float3 v)
+pim_inline float3 VEC_CALL f3_tan(float3 v)
 {
     float3 vec =
     {
@@ -370,7 +371,7 @@ math_inline float3 VEC_CALL f3_tan(float3 v)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_asin(float3 v)
+pim_inline float3 VEC_CALL f3_asin(float3 v)
 {
     float3 vec =
     {
@@ -381,7 +382,7 @@ math_inline float3 VEC_CALL f3_asin(float3 v)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_acos(float3 v)
+pim_inline float3 VEC_CALL f3_acos(float3 v)
 {
     float3 vec =
     {
@@ -392,7 +393,7 @@ math_inline float3 VEC_CALL f3_acos(float3 v)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_atan(float3 v)
+pim_inline float3 VEC_CALL f3_atan(float3 v)
 {
     float3 vec =
     {
@@ -403,7 +404,7 @@ math_inline float3 VEC_CALL f3_atan(float3 v)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_floor(float3 v)
+pim_inline float3 VEC_CALL f3_floor(float3 v)
 {
     float3 vec =
     {
@@ -414,7 +415,7 @@ math_inline float3 VEC_CALL f3_floor(float3 v)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_ceil(float3 v)
+pim_inline float3 VEC_CALL f3_ceil(float3 v)
 {
     float3 vec =
     {
@@ -425,7 +426,7 @@ math_inline float3 VEC_CALL f3_ceil(float3 v)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_trunc(float3 v)
+pim_inline float3 VEC_CALL f3_trunc(float3 v)
 {
     float3 vec =
     {
@@ -436,12 +437,12 @@ math_inline float3 VEC_CALL f3_trunc(float3 v)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_frac(float3 v)
+pim_inline float3 VEC_CALL f3_frac(float3 v)
 {
     return f3_sub(v, f3_floor(v));
 }
 
-math_inline float3 VEC_CALL f3_fmod(float3 a, float3 b)
+pim_inline float3 VEC_CALL f3_fmod(float3 a, float3 b)
 {
     float3 vec =
     {
@@ -452,12 +453,12 @@ math_inline float3 VEC_CALL f3_fmod(float3 a, float3 b)
     return vec;
 }
 
-math_inline float3 VEC_CALL f3_rad(float3 x)
+pim_inline float3 VEC_CALL f3_rad(float3 x)
 {
     return f3_mul(x, f3_s(kRadiansPerDegree));
 }
 
-math_inline float3 VEC_CALL f3_deg(float3 x)
+pim_inline float3 VEC_CALL f3_deg(float3 x)
 {
     return f3_mul(x, f3_s(kDegreesPerRadian));
 }

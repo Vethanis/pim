@@ -492,9 +492,6 @@
     <ClInclude Include="..\src\math\float4x4.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\math\f32_funcs.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\math\float3.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
@@ -547,6 +544,12 @@
       <Filter>Source Files\math</Filter>
     </ClInclude>
     <ClInclude Include="..\src\math\int4.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\int2_funcs.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\scalar.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
   </ItemGroup>
