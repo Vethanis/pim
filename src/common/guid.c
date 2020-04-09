@@ -37,12 +37,12 @@ guid_t BytesToGuid(const void* ptr, i32 nBytes, u64 seed)
     return (guid_t) { a, b };
 }
 
-guid_t RandGuid()
+guid_t RandGuid(struct prng_s* rng)
 {
-    u64 a = rand_int();
-    a = (a << 32) | rand_int();
-    u64 b = rand_int();
-    b = (b << 32) | rand_int();
+    u64 a = prng_u32(rng);
+    a = (a << 32) | prng_u32(rng);
+    u64 b = prng_u32(rng);
+    b = (b << 32) | prng_u32(rng);
     a = a ? a : 1;
     b = b ? b : 1;
     return (guid_t) { a, b };

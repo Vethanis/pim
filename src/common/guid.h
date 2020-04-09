@@ -23,6 +23,6 @@ static bool guid_eq(guid_t lhs, guid_t rhs)
 i32 guid_find(const guid_t* ptr, i32 count, guid_t key);
 guid_t StrToGuid(const char* str, u64 seed);
 guid_t BytesToGuid(const void* ptr, i32 nBytes, u64 seed);
-guid_t RandGuid();
+guid_t RandGuid(struct prng_s* rng);
 
 PIM_C_END

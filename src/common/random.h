@@ -4,17 +4,31 @@
 
 PIM_C_BEGIN
 
-void rand_sys_init(void);
-void rand_sys_update(void);
-void rand_sys_shutdown(void);
+typedef struct prng_s { u64 state; } prng_t;
 
-void rand_autoseed(void);
-void rand_seed(u64 seed);
+void prng_create(prng_t* rng);
 
-i32 rand_int(void);
-float rand_float(void);
+#pragma warning(push)
+#pragma warning(disable : 4146)
+#pragma warning(disable : 4244)
 
-i32 rand_rangei(i32 lo, i32 hi);
-float rand_rangef(float lo, float hi);
+pim_inline u32 prng_u32(prng_t* rng)
+{
+    u64 oldstate = rng->state;
+    rng->state = oldstate * 6364136223846793005ull + 1ull;
+    u32 xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
+    u32 rot = oldstate >> 59u;
+    return (xorshifted >> rot) | (xorshifted << ((~rot) & 31u));
+}
+
+#pragma warning(pop)
+
+pim_inline i32 prng_i32(prng_t* rng) { return (i32)prng_u32(rng); }
+pim_inline float prng_f32(prng_t* rng)
+{
+    u32 x = prng_u32(rng) & 0xffffff;
+    const float kScale = 1.0f / (1 << 24);
+    return (float)x * kScale;
+}
 
 PIM_C_END

@@ -21,7 +21,6 @@ typedef struct system_s
 static const system_t ms_systems[] =
 {
     { time_sys_init, time_sys_update, time_sys_shutdown },
-    { rand_sys_init, rand_sys_update, rand_sys_shutdown },
     { alloc_sys_init, alloc_sys_update, alloc_sys_shutdown },
     { input_sys_init, input_sys_update, input_sys_shutdown },
     { task_sys_init, task_sys_update, task_sys_shutdown },

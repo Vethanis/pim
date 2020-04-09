@@ -284,10 +284,7 @@ pim_inline float VEC_CALL f4_distancesq(float4 a, float4 b)
 
 pim_inline float4 VEC_CALL f4_lerp(float4 a, float4 b, float t)
 {
-    float4 vt = f4_s(t);
-    float4 ba = f4_sub(b, a);
-    b = f4_mul(ba, vt);
-    return f4_add(a, b);
+    return f4_add(a, f4_mul(f4_sub(b, a), f4_s(t)));
 }
 
 pim_inline float4 VEC_CALL f4_saturate(float4 a)

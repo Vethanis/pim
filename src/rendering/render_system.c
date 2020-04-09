@@ -59,14 +59,20 @@ static cmdtask_t ms_cmdtasks[kNumFrames];
 static const int2 kTileSize = { kTileWidth, kTileHeight };
 static const float2 kRcpScreen = { 1.0f / kDrawWidth, 1.0f / kDrawHeight };
 
-pim_inline float4 VEC_CALL f4_rand(void)
+pim_inline float4 VEC_CALL f4_rand(prng_t* rng)
 {
-    return f4_v(rand_float(), rand_float(), rand_float(), rand_float());
+    return f4_v(prng_f32(rng), prng_f32(rng), prng_f32(rng), prng_f32(rng));
 }
 
-pim_inline float2 VEC_CALL f2_rand(void)
+pim_inline float2 VEC_CALL f2_rand(prng_t* rng)
 {
-    return f2_v(rand_float(), rand_float());
+    return f2_v(prng_f32(rng), prng_f32(rng));
+}
+
+pim_inline float4 VEC_CALL f4_dither(prng_t* rng, float4 x)
+{
+    const float kDither = 1.0f / (1 << 5);
+    return f4_lerp(x, f4_rand(rng), kDither);
 }
 
 pim_inline float2 VEC_CALL i2_f2(int2 v)
@@ -99,11 +105,17 @@ pim_inline float3 VEC_CALL f4_f3(float4 v)
     return (float3) { v.x, v.y, v.z };
 }
 
+pim_inline float2 VEC_CALL f4_f2(float4 v)
+{
+    return (float2) { v.x, v.y };
+}
+
 pim_inline u16 VEC_CALL f4_rgb5a1(float4 v)
 {
-    u16 r = (u16)(v.x * 31.0f) & 31;
-    u16 g = (u16)(v.y * 31.0f) & 31;
-    u16 b = (u16)(v.z * 31.0f) & 31;
+    v = f4_mul(v, f4_s(31.0f));
+    u16 r = (u16)v.x;
+    u16 g = (u16)v.y;
+    u16 b = (u16)v.z;
     u16 c = (r << 11) | (g << 6) | (b << 1) | 1;
     return c;
 }
@@ -136,6 +148,41 @@ pim_inline float4 ray_tri_isect(
         result.w = test ? 1.0f : 0.0f;
     }
     return result;
+}
+
+pim_inline float VEC_CALL sdPlane2D(float2 n, float d, float2 pt)
+{
+    return f2_dot(n, pt) - d;
+}
+
+pim_inline float VEC_CALL sdTriangle2D(float2 a, float2 b, float2 c, float2 p)
+{
+    float2 mid = f2_mul(f2_add(a, f2_add(b, c)), f2_rcp3);
+    float2 abN = f2_normalize(f2_sub(f2_mul(f2_add(a, b), f2_rcp2), mid));
+    float2 acN = f2_normalize(f2_sub(f2_mul(f2_add(a, c), f2_rcp2), mid));
+    float2 bcN = f2_normalize(f2_sub(f2_mul(f2_add(b, c), f2_rcp2), mid));
+    float abD = f2_dot(abN, b);
+    float acD = f2_dot(acN, c);
+    float bcD = f2_dot(bcN, c);
+    float AB = sdPlane2D(abN, abD, p);
+    float AC = sdPlane2D(acN, acD, p);
+    float BC = sdPlane2D(bcN, bcD, p);
+    return f32_max(AB, f32_max(AC, BC));
+}
+
+pim_inline float VEC_CALL sdTriangleBox2D(float2 a, float2 b, float2 c, float2 center, float2 extents)
+{
+    float2 mid = f2_mul(f2_add(a, f2_add(b, c)), f2_rcp3);
+    float2 abN = f2_normalize(f2_sub(f2_mul(f2_add(a, b), f2_rcp2), mid));
+    float2 acN = f2_normalize(f2_sub(f2_mul(f2_add(a, c), f2_rcp2), mid));
+    float2 bcN = f2_normalize(f2_sub(f2_mul(f2_add(b, c), f2_rcp2), mid));
+    float abD = f2_dot(abN, b);
+    float acD = f2_dot(acN, c);
+    float bcD = f2_dot(bcN, c);
+    float AB = sdPlane2D(abN, abD, center) - f32_abs(f2_dot(abN, extents));
+    float AC = sdPlane2D(acN, acD, center) - f32_abs(f2_dot(acN, extents));
+    float BC = sdPlane2D(bcN, bcD, center) - f32_abs(f2_dot(bcN, extents));
+    return f32_max(AB, f32_max(AC, BC));
 }
 
 pim_inline int2 VEC_CALL GetScreenTile(i32 i)
@@ -185,11 +232,18 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     int2 tile = GetScreenTile(state.iTile);
     // float4x4 M = draw.M;
     const mesh_t mesh = draw.mesh;
-    // mesh_t vstream = state.vstream;
     // material_t material = draw.material;
 
-    // const float4 tileRange = GetUnormTile(state.iTile);
+    const float4 tileRange = GetUnormTile(state.iTile);
+    const float2 tileCenter = {
+        0.5f * (tileRange.x + tileRange.z),
+        0.5f * (tileRange.y + tileRange.w) };
+    const float2 tileExtents = {
+        tileRange.z - tileCenter.x,
+        tileRange.w - tileCenter.y };
     const float dz = 0xffff;
+    prng_t rng;
+    prng_create(&rng);
 
     for (i32 iVert = 0; (iVert + 3) <= mesh.length; iVert += 3)
     {
@@ -203,19 +257,24 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 
         // front face test
         const float3 N = f3_cross(f4_f3(AB), f4_f3(AC));
-        if (N.z < 0.0001f)
+        if (N.z < 0.001f)
         {
             continue;
         }
 
+        // tile cull
+        float tileDist = sdTriangleBox2D(f4_f2(A), f4_f2(B), f4_f2(C), tileCenter, tileExtents);
+        if (tileDist > 0.0001f)
+        {
+            continue;
+        }
+
+        // interpolators
         const float4 NA = mesh.normals[iVert];
         const float4 NB = mesh.normals[iVert + 1];
         const float4 NC = mesh.normals[iVert + 2];
         const float4 NAB = f4_sub(NB, NA);
         const float4 NAC = f4_sub(NC, NA);
-
-        // float2 lo = f2_min(a, f2_min(b, c));
-        // float2 hi = f2_max(a, f2_max(b, c));
 
         for (i32 ty = 0; ty < kTileHeight; ++ty)
         {
@@ -227,39 +286,44 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
                 ASSERT(iTexel >= 0);
                 ASSERT(iTexel < kDrawPixels);
 
-                const float2 ptDir = f2_sub(pt01, f2_v(A.x, A.y));
-                const float2 uv =
-                {
-                    f2_dot(ptDir, f2_v(AB.x, AB.y)),
-                    f2_dot(ptDir, f2_v(AC.x, AC.y))
-                };
-                if (f2_any(f2_lt(uv, f2_0)) ||
-                    f2_any(f2_gt(uv, f2_1)) ||
+                // moller-trumbore: P = A + u * (B - A) + v * (C - A);
+                // when 0 < u < 1, 0 < v < 1, 0 < (u + v) < 1;
+                // u = dot(P - A, B - A);
+                // v = dot(P - A, C - A);
+                const float2 pa = f2_sub(pt01, f4_f2(A));
+                const float2 uv = { f2_dot(pa, f4_f2(AB)), f2_dot(pa, f4_f2(AC)) };
+
+                // uv clip
+                if (f2_any(f2_add(
+                    f2_lt(uv, f2_0),
+                    f2_gt(uv, f2_1))) ||
                     f2_sum(uv) > 1.0f)
                 {
                     continue;
                 }
+
                 float4 P = f4_blend(A, AB, AC, uv);
-                P.w = 0.0f;
-                if (f4_any(f4_lt(P, f4_0)) || f4_any(f4_gt(P, f4_1)))
+                // depth clip
+                if (P.z >= 1.0f || P.z < 0.0f)
                 {
                     continue;
                 }
 
                 // depth test
-                u16 Z = (u16)(P.z * dz);
+                const u16 Z = (u16)(P.z * dz);
                 if (Z >= frame.depth[iTexel])
                 {
                     continue;
                 }
                 frame.depth[iTexel] = Z;
 
-                float4 N = f4_blend(NA, NAB, NAC, uv);
-                N.w = 0.0f;
-                N = f4_normalize(N);
+                // blend interpolators
+                float4 N = f4_normalize3(f4_blend(NA, NAB, NAC, uv));
 
                 // treating normal as vertex color for the moment
-                u16 color = f4_rgb5a1(N);
+                N = f4_dither(&rng, N);
+                const u16 color = f4_rgb5a1(N);
+
                 frame.color[iTexel] = color;
             }
         }
@@ -356,11 +420,13 @@ static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length)
 
 static void CreateEntities(task_t* task, i32 begin, i32 end)
 {
+    prng_t rng;
+    prng_create(&rng);
     compflag_t all = compflag_create(3, CompId_Position, CompId_Rotation, CompId_Scale);
     compflag_t some = compflag_create(1, CompId_Position);
     for (i32 i = begin; i < end; ++i)
     {
-        ecs_create(rand_int() & 1 ? all : some);
+        ecs_create(prng_i32(&rng) & 1 ? all : some);
     }
 }
 

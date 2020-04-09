@@ -9,7 +9,8 @@ PIM_C_BEGIN
 static const float2 f2_0 = { 0.0f, 0.0f };
 static const float2 f2_1 = { 1.0f, 1.0f };
 static const float2 f2_2 = { 2.0f, 2.0f };
-static const float2 f2_05 = { 0.5f, 0.5f };
+static const float2 f2_rcp2 = { 0.5f, 0.5f };
+static const float2 f2_rcp3 = { 0.33333333f, 0.33333333f };
 
 pim_inline float2 VEC_CALL f2_v(float x, float y)
 {

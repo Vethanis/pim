@@ -4,7 +4,6 @@
 #include "threading/event.h"
 #include "threading/intrin.h"
 #include "common/atomics.h"
-#include "common/random.h"
 #include "containers/ptrqueue.h"
 
 #include <string.h>
@@ -88,8 +87,6 @@ static i32 TryRunTask(i32 tid)
 static i32 TaskLoop(void* arg)
 {
     inc_i32(&ms_numThreadsRunning, MO_Acquire);
-
-    rand_autoseed();
 
     const i32 tid = (i32)((isize)arg);
     ASSERT(tid);
