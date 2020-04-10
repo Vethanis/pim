@@ -16,6 +16,7 @@
 #include "math/float4_funcs.h"
 #include "math/float3_funcs.h"
 #include "math/float2_funcs.h"
+#include "math/float4x4_funcs.h"
 #include "common/random.h"
 #include "containers/idset.h"
 #include "containers/ptrqueue.h"
@@ -253,10 +254,25 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 
     for (i32 iVert = 0; (iVert + 3) <= mesh.length; iVert += 3)
     {
+        // local space
+        float4 A = mesh.positions[iVert];
+        float4 B = mesh.positions[iVert + 1];
+        float4 C = mesh.positions[iVert + 2];
+
+        // projection
+        A = f4x4_mul_pt(state.P, A);
+        B = f4x4_mul_pt(state.P, B);
+        C = f4x4_mul_pt(state.P, C);
+        // perspective divide
+        A = f4_divvs(A, A.w);
+        B = f4_divvs(B, B.w);
+        C = f4_divvs(C, C.w);
         // [-1, 1] => [0, 1]
-        const float4 A = f4_unorm(mesh.positions[iVert]);
-        const float4 B = f4_unorm(mesh.positions[iVert + 1]);
-        const float4 C = f4_unorm(mesh.positions[iVert + 2]);
+        A = f4_unorm(A);
+        B = f4_unorm(B);
+        C = f4_unorm(C);
+
+        // TODO: test if all 3 verts are inside clip space
 
         const float4 AB = f4_sub(B, A);
         const float4 AC = f4_sub(C, A);
@@ -269,11 +285,11 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         }
 
         // tile cull
-        float tileDist = sdTriangleBox2D(f4_f2(A), f4_f2(B), f4_f2(C), tileCenter, tileExtents);
-        if (tileDist > 0.0001f)
-        {
-            continue;
-        }
+        //float tileDist = sdTriangleBox2D(f4_f2(A), f4_f2(B), f4_f2(C), tileCenter, tileExtents);
+        //if (tileDist > 0.0001f)
+        //{
+        //    continue;
+        //}
 
         // interpolators
         const float4 NA = mesh.normals[iVert];
@@ -505,15 +521,17 @@ void render_sys_update(void)
     rcmdbuf_t* cmdbuf = rcmdbuf_create();
     rcmd_clear(cmdbuf, 0x0000, 0xffff);
 
+    rcmd_view(cmdbuf, f4x4_id, f4x4_perspective(f32_radians(90.0f), (float)ms_width / ms_height, 0.05f, 200.0f));
+
     float4x4 M = { 0 };
     mesh_t mesh = { 0 };
     mesh.length = 3;
     mesh.positions = pim_malloc(EAlloc_Temp, sizeof(float4) * 3);
     mesh.normals = pim_malloc(EAlloc_Temp, sizeof(float4) * 3);
     // GL defaults to counter-clock-wise
-    mesh.positions[0] = (float4) { -1.0f, 1.0f, 0.5f, 1.0f };
-    mesh.positions[1] = (float4) { -1.0f, -1.0f, 0.5f, 1.0f };
-    mesh.positions[2] = (float4) { 1.0f, 1.0f, 0.5f, 1.0f };
+    mesh.positions[0] = (float4) { -1.0f, 1.0f, 0.0f, 1.0f };
+    mesh.positions[1] = (float4) { -1.0f, -1.0f, 0.0f, 1.0f };
+    mesh.positions[2] = (float4) { 1.0f, 1.0f, 0.0f, 1.0f };
     mesh.normals[0] = (float4) { 1.0f, 0.0f, 0.0f, 0.0f };
     mesh.normals[1] = (float4) { 0.0f, 1.0f, 0.0f, 0.0f };
     mesh.normals[2] = (float4) { 0.0f, 0.0f, 1.0f, 0.0f };

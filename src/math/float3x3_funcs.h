@@ -5,7 +5,7 @@
 PIM_C_BEGIN
 
 #include "math/scalar.h"
-#include "float3_funcs.h"
+#include "math/float3_funcs.h"
 
 static const float3x3 f3x3_0 =
 {

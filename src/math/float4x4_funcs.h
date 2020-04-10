@@ -7,6 +7,7 @@ PIM_C_BEGIN
 #include "math/scalar.h"
 #include "float4_funcs.h"
 #include "float3x3_funcs.h"
+#include "math/quat_funcs.h"
 
 static const float4x4 f4x4_0 = 
 {
@@ -129,16 +130,16 @@ pim_inline float4x4 VEC_CALL f4x4_scale(float4x4 m, float3 v)
     return m;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_trs(float3 t, float angle, float3 axis, float3 s)
+pim_inline float4x4 VEC_CALL f4x4_trs(float3 t, quat r, float3 s)
 {
-    float3x3 r = f3x3_angle_axis(angle, axis);
-    r.c0 = f3_mulvs(r.c0, s.x);
-    r.c1 = f3_mulvs(r.c1, s.y);
-    r.c2 = f3_mulvs(r.c2, s.z);
+    float3x3 rm = quat_f3x3(r);
+    rm.c0 = f3_mulvs(rm.c0, s.x);
+    rm.c1 = f3_mulvs(rm.c1, s.y);
+    rm.c2 = f3_mulvs(rm.c2, s.z);
     float4x4 m;
-    m.c0 = f4_v(r.c0.x, r.c0.y, r.c0.z, 0.0f);
-    m.c1 = f4_v(r.c1.x, r.c1.y, r.c1.z, 0.0f);
-    m.c2 = f4_v(r.c2.x, r.c2.y, r.c2.z, 0.0f);
+    m.c0 = f4_v(rm.c0.x, rm.c0.y, rm.c0.z, 0.0f);
+    m.c1 = f4_v(rm.c1.x, rm.c1.y, rm.c1.z, 0.0f);
+    m.c2 = f4_v(rm.c2.x, rm.c2.y, rm.c2.z, 0.0f);
     m.c3 = f4_v(t.x, t.y, t.z, 1.0f);
     return m;
 }
@@ -195,7 +196,7 @@ pim_inline float4x4 VEC_CALL f4x4_perspective(
 {
     float t = tanf(fovy * 0.5f);
 
-    float4x4 m = f4x4_0;
+    float4x4 m = f4x4_id;
     m.c0.x = 1.0f / (aspect * t);
     m.c1.y = 1.0f / t;
     m.c2.z = -(far + near) / (far - near);
