@@ -1,6 +1,6 @@
 #pragma once
 
-#include "math/float4.h"
+#include "math/types.h"
 
 PIM_C_BEGIN
 
@@ -9,7 +9,8 @@ PIM_C_BEGIN
 static const float4 f4_0 = { 0.0f, 0.0f, 0.0f, 0.0f };
 static const float4 f4_1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 static const float4 f4_2 = { 2.0f, 2.0f, 2.0f, 2.0f };
-static const float4 f4_05 = { 0.5f, 0.5f, 0.5f, 0.5f };
+static const float4 f4_rcp2 = { 0.5f, 0.5f, 0.5f, 0.5f };
+static const float4 f4_rcp3 = { 0.33333333f, 0.33333333f, 0.33333333f, 0.33333333f };
 
 pim_inline float4 VEC_CALL f4_v(float x, float y, float z, float w)
 {
@@ -67,9 +68,33 @@ pim_inline float4 VEC_CALL f4_add(float4 lhs, float4 rhs)
     return vec;
 }
 
+pim_inline float4 VEC_CALL f4_addvs(float4 lhs, float rhs)
+{
+    float4 vec = { lhs.x + rhs, lhs.y + rhs, lhs.z + rhs, lhs.w + rhs };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_addsv(float lhs, float4 rhs)
+{
+    float4 vec = { lhs + rhs.x, lhs + rhs.y, lhs + rhs.z, lhs + rhs.w };
+    return vec;
+}
+
 pim_inline float4 VEC_CALL f4_sub(float4 lhs, float4 rhs)
 {
     float4 vec = { lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z, lhs.w - rhs.w };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_subvs(float4 lhs, float rhs)
+{
+    float4 vec = { lhs.x - rhs, lhs.y - rhs, lhs.z - rhs, lhs.w - rhs };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_subsv(float lhs, float4 rhs)
+{
+    float4 vec = { lhs - rhs.x, lhs - rhs.y, lhs - rhs.z, lhs - rhs.w };
     return vec;
 }
 
@@ -79,9 +104,32 @@ pim_inline float4 VEC_CALL f4_mul(float4 lhs, float4 rhs)
     return vec;
 }
 
+pim_inline float4 VEC_CALL f4_mulvs(float4 lhs, float rhs)
+{
+    float4 vec = { lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_mulsv(float lhs, float4 rhs)
+{
+    float4 vec = { lhs * rhs.x, lhs * rhs.y, lhs * rhs.z, lhs * rhs.w };
+    return vec;
+}
+
 pim_inline float4 VEC_CALL f4_div(float4 lhs, float4 rhs)
 {
     float4 vec = { lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z, lhs.w / rhs.w };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_divvs(float4 lhs, float rhs)
+{
+    return f4_mulvs(lhs, 1.0f / rhs);
+}
+
+pim_inline float4 VEC_CALL f4_divsv(float lhs, float4 rhs)
+{
+    float4 vec = { lhs / rhs.x, lhs / rhs.y, lhs / rhs.z, lhs / rhs.w };
     return vec;
 }
 
@@ -93,6 +141,30 @@ pim_inline float4 VEC_CALL f4_eq(float4 lhs, float4 rhs)
         lhs.y == rhs.y ? 1.0f : 0.0f,
         lhs.z == rhs.z ? 1.0f : 0.0f,
         lhs.w == rhs.w ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_eqvs(float4 lhs, float rhs)
+{
+    float4 vec =
+    {
+        lhs.x == rhs ? 1.0f : 0.0f,
+        lhs.y == rhs ? 1.0f : 0.0f,
+        lhs.z == rhs ? 1.0f : 0.0f,
+        lhs.w == rhs ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_eqsv(float lhs, float4 rhs)
+{
+    float4 vec =
+    {
+        lhs == rhs.x ? 1.0f : 0.0f,
+        lhs == rhs.y ? 1.0f : 0.0f,
+        lhs == rhs.z ? 1.0f : 0.0f,
+        lhs == rhs.w ? 1.0f : 0.0f,
     };
     return vec;
 }
@@ -109,6 +181,30 @@ pim_inline float4 VEC_CALL f4_neq(float4 lhs, float4 rhs)
     return vec;
 }
 
+pim_inline float4 VEC_CALL f4_neqvs(float4 lhs, float rhs)
+{
+    float4 vec =
+    {
+        lhs.x != rhs ? 1.0f : 0.0f,
+        lhs.y != rhs ? 1.0f : 0.0f,
+        lhs.z != rhs ? 1.0f : 0.0f,
+        lhs.w != rhs ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_neqsv(float lhs, float4 rhs)
+{
+    float4 vec =
+    {
+        lhs != rhs.x ? 1.0f : 0.0f,
+        lhs != rhs.y ? 1.0f : 0.0f,
+        lhs != rhs.z ? 1.0f : 0.0f,
+        lhs != rhs.w ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
 pim_inline float4 VEC_CALL f4_lt(float4 lhs, float4 rhs)
 {
     float4 vec =
@@ -117,6 +213,30 @@ pim_inline float4 VEC_CALL f4_lt(float4 lhs, float4 rhs)
         lhs.y < rhs.y ? 1.0f : 0.0f,
         lhs.z < rhs.z ? 1.0f : 0.0f,
         lhs.w < rhs.w ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_ltvs(float4 lhs, float rhs)
+{
+    float4 vec =
+    {
+        lhs.x < rhs ? 1.0f : 0.0f,
+        lhs.y < rhs ? 1.0f : 0.0f,
+        lhs.z < rhs ? 1.0f : 0.0f,
+        lhs.w < rhs ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_ltsv(float lhs, float4 rhs)
+{
+    float4 vec =
+    {
+        lhs < rhs.x ? 1.0f : 0.0f,
+        lhs < rhs.y ? 1.0f : 0.0f,
+        lhs < rhs.z ? 1.0f : 0.0f,
+        lhs < rhs.w ? 1.0f : 0.0f,
     };
     return vec;
 }
@@ -133,6 +253,30 @@ pim_inline float4 VEC_CALL f4_gt(float4 lhs, float4 rhs)
     return vec;
 }
 
+pim_inline float4 VEC_CALL f4_gtvs(float4 lhs, float rhs)
+{
+    float4 vec =
+    {
+        lhs.x > rhs ? 1.0f : 0.0f,
+        lhs.y > rhs ? 1.0f : 0.0f,
+        lhs.z > rhs ? 1.0f : 0.0f,
+        lhs.w > rhs ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_gtsv(float lhs, float4 rhs)
+{
+    float4 vec =
+    {
+        lhs > rhs.x ? 1.0f : 0.0f,
+        lhs > rhs.y ? 1.0f : 0.0f,
+        lhs > rhs.z ? 1.0f : 0.0f,
+        lhs > rhs.w ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
 pim_inline float4 VEC_CALL f4_lteq(float4 lhs, float4 rhs)
 {
     float4 vec =
@@ -145,6 +289,30 @@ pim_inline float4 VEC_CALL f4_lteq(float4 lhs, float4 rhs)
     return vec;
 }
 
+pim_inline float4 VEC_CALL f4_lteqvs(float4 lhs, float rhs)
+{
+    float4 vec =
+    {
+        lhs.x <= rhs ? 1.0f : 0.0f,
+        lhs.y <= rhs ? 1.0f : 0.0f,
+        lhs.z <= rhs ? 1.0f : 0.0f,
+        lhs.w <= rhs ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_lteqsv(float lhs, float4 rhs)
+{
+    float4 vec =
+    {
+        lhs <= rhs.x ? 1.0f : 0.0f,
+        lhs <= rhs.y ? 1.0f : 0.0f,
+        lhs <= rhs.z ? 1.0f : 0.0f,
+        lhs <= rhs.w ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
 pim_inline float4 VEC_CALL f4_gteq(float4 lhs, float4 rhs)
 {
     float4 vec =
@@ -153,6 +321,30 @@ pim_inline float4 VEC_CALL f4_gteq(float4 lhs, float4 rhs)
         lhs.y >= rhs.y ? 1.0f : 0.0f,
         lhs.z >= rhs.z ? 1.0f : 0.0f,
         lhs.w >= rhs.w ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_gteqvs(float4 lhs, float rhs)
+{
+    float4 vec =
+    {
+        lhs.x >= rhs ? 1.0f : 0.0f,
+        lhs.y >= rhs ? 1.0f : 0.0f,
+        lhs.z >= rhs ? 1.0f : 0.0f,
+        lhs.w >= rhs ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_gteqsv(float lhs, float4 rhs)
+{
+    float4 vec =
+    {
+        lhs >= rhs.x ? 1.0f : 0.0f,
+        lhs >= rhs.y ? 1.0f : 0.0f,
+        lhs >= rhs.z ? 1.0f : 0.0f,
+        lhs >= rhs.w ? 1.0f : 0.0f,
     };
     return vec;
 }
@@ -179,7 +371,7 @@ pim_inline bool VEC_CALL f4_all(float4 b)
 
 pim_inline float4 VEC_CALL f4_not(float4 b)
 {
-    return f4_sub(f4_1, b);
+    return f4_subsv(1.0f, b);
 }
 
 pim_inline float4 VEC_CALL f4_min(float4 a, float4 b)
@@ -190,6 +382,30 @@ pim_inline float4 VEC_CALL f4_min(float4 a, float4 b)
         f32_min(a.y, b.y),
         f32_min(a.z, b.z),
         f32_min(a.w, b.w),
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_minvs(float4 a, float b)
+{
+    float4 vec =
+    {
+        f32_min(a.x, b),
+        f32_min(a.y, b),
+        f32_min(a.z, b),
+        f32_min(a.w, b),
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_minsv(float a, float4 b)
+{
+    float4 vec =
+    {
+        f32_min(a, b.x),
+        f32_min(a, b.y),
+        f32_min(a, b.z),
+        f32_min(a, b.w),
     };
     return vec;
 }
@@ -206,6 +422,30 @@ pim_inline float4 VEC_CALL f4_max(float4 a, float4 b)
     return vec;
 }
 
+pim_inline float4 VEC_CALL f4_maxvs(float4 a, float b)
+{
+    float4 vec =
+    {
+        f32_max(a.x, b),
+        f32_max(a.y, b),
+        f32_max(a.z, b),
+        f32_max(a.w, b),
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_maxsv(float a, float4 b)
+{
+    float4 vec =
+    {
+        f32_max(a, b.x),
+        f32_max(a, b.y),
+        f32_max(a, b.z),
+        f32_max(a, b.w),
+    };
+    return vec;
+}
+
 pim_inline float4 VEC_CALL f4_select(float4 a, float4 b, float4 t)
 {
     float4 c =
@@ -214,6 +454,30 @@ pim_inline float4 VEC_CALL f4_select(float4 a, float4 b, float4 t)
         t.y != 0.0f ? b.y : a.y,
         t.z != 0.0f ? b.z : a.z,
         t.w != 0.0f ? b.w : a.w,
+    };
+    return c;
+}
+
+pim_inline float4 VEC_CALL f4_selectvs(float4 a, float4 b, float t)
+{
+    float4 c =
+    {
+        t != 0.0f ? b.x : a.x,
+        t != 0.0f ? b.y : a.y,
+        t != 0.0f ? b.z : a.z,
+        t != 0.0f ? b.w : a.w,
+    };
+    return c;
+}
+
+pim_inline float4 VEC_CALL f4_selectsv(float a, float b, float4 t)
+{
+    float4 c =
+    {
+        t.x != 0.0f ? b : a,
+        t.y != 0.0f ? b : a,
+        t.z != 0.0f ? b : a,
+        t.w != 0.0f ? b : a,
     };
     return c;
 }
@@ -235,6 +499,16 @@ pim_inline float VEC_CALL f4_hmax(float4 v)
 pim_inline float4 VEC_CALL f4_clamp(float4 x, float4 lo, float4 hi)
 {
     return f4_min(f4_max(x, lo), hi);
+}
+
+pim_inline float4 VEC_CALL f4_clampvs(float4 x, float lo, float hi)
+{
+    return f4_minvs(f4_maxvs(x, lo), hi);
+}
+
+pim_inline float4 VEC_CALL f4_clampsv(float x, float4 lo, float4 hi)
+{
+    return f4_min(f4_maxsv(x, lo), hi);
 }
 
 pim_inline float VEC_CALL f4_dot(float4 a, float4 b)
@@ -284,41 +558,55 @@ pim_inline float VEC_CALL f4_distancesq(float4 a, float4 b)
 
 pim_inline float4 VEC_CALL f4_lerp(float4 a, float4 b, float t)
 {
-    return f4_add(a, f4_mul(f4_sub(b, a), f4_s(t)));
+    return f4_add(a, f4_mulvs(f4_sub(b, a), t));
 }
 
 pim_inline float4 VEC_CALL f4_saturate(float4 a)
 {
-    return f4_clamp(a, f4_0, f4_1);
+    return f4_clampvs(a, 0.0f, 1.0f);
 }
 
 pim_inline float4 VEC_CALL f4_step(float4 a, float4 b)
 {
-    return f4_select(f4_0, f4_1, f4_gteq(a, b));
+    return f4_selectsv(0.0f, 1.0f, f4_gteq(a, b));
 }
 
 pim_inline float4 VEC_CALL f4_smoothstep(float4 a, float4 b, float4 x)
 {
     float4 t = f4_saturate(f4_div(f4_sub(x, a), f4_sub(b, a)));
-    float4 s = f4_sub(f4_s(3.0f), f4_mul(f4_2, t));
+    float4 s = f4_subsv(3.0f, f4_mulsv(2.0f, t));
+    return f4_mul(f4_mul(t, t), s);
+}
+
+pim_inline float4 VEC_CALL f4_smoothstepvs(float4 a, float4 b, float x)
+{
+    float4 t = f4_saturate(f4_div(f4_subsv(x, a), f4_sub(b, a)));
+    float4 s = f4_subsv(3.0f, f4_mulsv(2.0f, t));
+    return f4_mul(f4_mul(t, t), s);
+}
+
+pim_inline float4 VEC_CALL f4_smoothstepsv(float a, float b, float4 x)
+{
+    float4 t = f4_saturate(f4_divvs(f4_subvs(x, a), b - a));
+    float4 s = f4_subsv(3.0f, f4_mulsv(2.0f, t));
     return f4_mul(f4_mul(t, t), s);
 }
 
 pim_inline float4 VEC_CALL f4_reflect(float4 i, float4 n)
 {
-    float4 nidn = f4_mul(n, f4_s(f4_dot(i, n)));
-    return f4_sub(i, f4_mul(f4_2, nidn));
+    float4 nidn = f4_mulvs(n, f4_dot(i, n));
+    return f4_sub(i, f4_mulsv(2.0f, nidn));
 }
 
 pim_inline float4 VEC_CALL f4_refract(float4 i, float4 n, float ior)
 {
     float ndi = f4_dot(n, i);
-    float k = 1.0f - ior * ior * (1.0f - ndi * ndi);
+    float ndi2 = ndi * ndi;
+    float ior2 = ior * ior;
+    float k = 1.0f - (ior2 * (1.0f - ndi2));
     float l = ior * ndi + sqrtf(k);
-    float4 m = f4_sub(
-        f4_mul(f4_s(ior), i),
-        f4_mul(f4_s(l), n));
-    return k >= 0.0f ? f4_0 : m;
+    float4 m = f4_sub(f4_mulsv(ior, i), f4_mulsv(l, n));
+    return f4_mulvs(m, k >= 0.0f ? 1.0f : 0.0f);
 }
 
 pim_inline float4 VEC_CALL f4_sqrt(float4 v)
@@ -341,6 +629,30 @@ pim_inline float4 VEC_CALL f4_pow(float4 v, float4 e)
         powf(v.y, e.y),
         powf(v.z, e.z),
         powf(v.w, e.w),
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_powvs(float4 v, float e)
+{
+    float4 vec =
+    {
+        powf(v.x, e),
+        powf(v.y, e),
+        powf(v.z, e),
+        powf(v.w, e),
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_powsv(float v, float4 e)
+{
+    float4 vec =
+    {
+        powf(v, e.x),
+        powf(v, e.y),
+        powf(v, e.z),
+        powf(v, e.w),
     };
     return vec;
 }
@@ -494,14 +806,38 @@ pim_inline float4 VEC_CALL f4_fmod(float4 a, float4 b)
     return vec;
 }
 
+pim_inline float4 VEC_CALL f4_fmodvs(float4 a, float b)
+{
+    float4 vec =
+    {
+        fmodf(a.x, b),
+        fmodf(a.y, b),
+        fmodf(a.z, b),
+        fmodf(a.w, b),
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_fmodsv(float a, float4 b)
+{
+    float4 vec =
+    {
+        fmodf(a, b.x),
+        fmodf(a, b.y),
+        fmodf(a, b.z),
+        fmodf(a, b.w),
+    };
+    return vec;
+}
+
 pim_inline float4 VEC_CALL f4_rad(float4 x)
 {
-    return f4_mul(x, f4_s(kRadiansPerDegree));
+    return f4_mulvs(x, kRadiansPerDegree);
 }
 
 pim_inline float4 VEC_CALL f4_deg(float4 x)
 {
-    return f4_mul(x, f4_s(kDegreesPerRadian));
+    return f4_mulvs(x, kDegreesPerRadian);
 }
 
 PIM_C_END

@@ -12,12 +12,10 @@
 #include "rendering/framebuffer.h"
 #include "rendering/constants.h"
 #include "rendering/rcmd.h"
+#include "math/types.h"
 #include "math/float4_funcs.h"
 #include "math/float3_funcs.h"
 #include "math/float2_funcs.h"
-#include "math/float4x4.h"
-#include "math/int2.h"
-#include "math/int4.h"
 #include "common/random.h"
 #include "containers/idset.h"
 #include "containers/ptrqueue.h"
@@ -91,13 +89,13 @@ pim_inline float4 VEC_CALL f4_blend(float4 a, float4 b, float4 c, float2 blend)
 pim_inline float4 VEC_CALL f4_unorm(float4 s)
 {
     // u = (s + 1) / 2
-    return f4_mul(f4_add(s, f4_1), f4_05);
+    return f4_mulvs(f4_addvs(s, 1.0f), 0.5f);
 }
 
 pim_inline float4 VEC_CALL f4_snorm(float4 u)
 {
     // s = (u * 2) - 1
-    return f4_sub(f4_mul(u, f4_2), f4_1);
+    return f4_subvs(f4_mulvs(u, 2.0f), 1.0f);
 }
 
 pim_inline float3 VEC_CALL f4_f3(float4 v)
@@ -112,7 +110,8 @@ pim_inline float2 VEC_CALL f4_f2(float4 v)
 
 pim_inline u16 VEC_CALL f4_rgb5a1(float4 v)
 {
-    v = f4_mul(v, f4_s(31.0f));
+    const float4 kScale = { 31.0f, 31.0f, 31.0f, 31.0f };
+    v = f4_mul(v, kScale);
     u16 r = (u16)v.x;
     u16 g = (u16)v.y;
     u16 b = (u16)v.z;
@@ -120,7 +119,7 @@ pim_inline u16 VEC_CALL f4_rgb5a1(float4 v)
     return c;
 }
 
-pim_inline float4 ray_tri_isect(
+pim_inline float4 VEC_CALL ray_tri_isect(
     float3 O, float3 D,
     float3 A, float3 B, float3 C)
 {
@@ -134,18 +133,20 @@ pim_inline float4 ray_tri_isect(
         float rcpDet = 1.0f / det;
         float3 T = f3_sub(O, A);
         float3 Q = f3_cross(T, BA);
+
         float t = f3_dot(CA, Q) * rcpDet;
         float u = f3_dot(T, P) * rcpDet;
         float v = f3_dot(D, Q) * rcpDet;
-        bool test =
-            (u >= 0.0f && u <= 1.0f) &&
-            (v >= 0.0f) &&
-            ((u + v) <= 1.0f) &&
-            (t > 0.0f);
+
+        float tU = (u >= 0.0f) ? 1.0f : 0.0f;
+        float tV = (v >= 0.0f) ? 1.0f : 0.0f;
+        float tUV = ((u + v) <= 1.0f) ? 1.0f : 0.0f;
+        float tT = (t > 0.0f) ? 1.0f : 0.0f;
+
         result.x = u;
         result.y = v;
         result.z = t;
-        result.w = test ? 1.0f : 0.0f;
+        result.w = (tU + tV + tUV + tT) * 0.25f;
     }
     return result;
 }
@@ -153,6 +154,11 @@ pim_inline float4 ray_tri_isect(
 pim_inline float VEC_CALL sdPlane2D(float2 n, float d, float2 pt)
 {
     return f2_dot(n, pt) - d;
+}
+
+pim_inline float VEC_CALL sdPlaneBox2D(float2 n, float d, float2 center, float2 extents)
+{
+    return sdPlane2D(n, d, center) - sdPlane2D(n, 0.0f, extents);
 }
 
 pim_inline float VEC_CALL sdTriangle2D(float2 a, float2 b, float2 c, float2 p)
@@ -179,9 +185,9 @@ pim_inline float VEC_CALL sdTriangleBox2D(float2 a, float2 b, float2 c, float2 c
     float abD = f2_dot(abN, b);
     float acD = f2_dot(acN, c);
     float bcD = f2_dot(bcN, c);
-    float AB = sdPlane2D(abN, abD, center) - f32_abs(f2_dot(abN, extents));
-    float AC = sdPlane2D(acN, acD, center) - f32_abs(f2_dot(acN, extents));
-    float BC = sdPlane2D(bcN, bcD, center) - f32_abs(f2_dot(bcN, extents));
+    float AB = sdPlaneBox2D(abN, abD, center, extents);
+    float AC = sdPlaneBox2D(acN, acD, center, extents);
+    float BC = sdPlaneBox2D(bcN, bcD, center, extents);
     return f32_max(AB, f32_max(AC, BC));
 }
 
@@ -294,17 +300,14 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
                 const float2 uv = { f2_dot(pa, f4_f2(AB)), f2_dot(pa, f4_f2(AC)) };
 
                 // uv clip
-                if (f2_any(f2_add(
-                    f2_lt(uv, f2_0),
-                    f2_gt(uv, f2_1))) ||
-                    f2_sum(uv) > 1.0f)
+                if ((f2_sum(uv) > 1.0f) || f2_any(f2_lt(uv, f2_0)))
                 {
                     continue;
                 }
 
                 float4 P = f4_blend(A, AB, AC, uv);
                 // depth clip
-                if (P.z >= 1.0f || P.z < 0.0f)
+                if (P.z > 1.0f || P.z < 0.0f)
                 {
                     continue;
                 }

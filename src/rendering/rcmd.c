@@ -133,7 +133,10 @@ void rcmdqueue_submit(rcmdqueue_t* queue, rcmdbuf_t* buf)
         for (i32 i = 0; i < kTileCount; ++i)
         {
             ptrqueue_t* q = &(queue->queues[i]);
-            ptrqueue_push(q, buf);
+            if (!ptrqueue_trypush(q, buf))
+            {
+                ASSERT(false);
+            }
         }
     }
 }

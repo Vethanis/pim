@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-#include "math/float4x4.h"
+#include "math/types.h"
 #include "rendering/mesh.h"
 #include "rendering/material.h"
 #include "containers/ptrqueue.h"

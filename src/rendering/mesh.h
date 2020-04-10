@@ -4,8 +4,7 @@
 
 PIM_C_BEGIN
 
-#include "math/float4.h"
-#include "math/float2.h"
+#include "math/types.h"
 
 typedef struct mesh_s
 {

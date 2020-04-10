@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-#include "math/float4.h"
+#include "math/types.h"
 
 typedef struct ent_s
 {
@@ -19,7 +19,7 @@ typedef struct position_s
 
 typedef struct rotation_s
 {
-    float4 Value;
+    quat Value;
 } rotation_t;
 
 typedef struct scale_s

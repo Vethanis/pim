@@ -483,22 +483,10 @@
     <ClInclude Include="..\src\common\nextpow2.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\math\float4.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\math\float4_funcs.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\math\float4x4.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\math\float3.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\math\float3_funcs.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\math\float2.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
     <ClInclude Include="..\src\math\float2_funcs.h">
@@ -537,19 +525,22 @@
     <ClInclude Include="..\src\rendering\rcmd.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\math\int2.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\math\int3.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\math\int4.h">
-      <Filter>Source Files\math</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\math\int2_funcs.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
     <ClInclude Include="..\src\math\scalar.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\float4x4_funcs.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\types.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\float3x3_funcs.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\quat_funcs.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
   </ItemGroup>

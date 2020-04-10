@@ -1,6 +1,6 @@
 #pragma once
 
-#include "math/float3.h"
+#include "math/types.h"
 
 PIM_C_BEGIN
 
@@ -9,7 +9,8 @@ PIM_C_BEGIN
 static const float3 f3_0 = { 0.0f, 0.0f, 0.0f };
 static const float3 f3_1 = { 1.0f, 1.0f, 1.0f };
 static const float3 f3_2 = { 2.0f, 2.0f, 2.0f };
-static const float3 f3_05 = { 0.5f, 0.5f, 0.5f };
+static const float3 f3_rcp2 = { 0.5f, 0.5f, 0.5f };
+static const float3 f3_rcp3 = { 0.33333333f, 0.33333333f, 0.33333333f };
 
 pim_inline float3 VEC_CALL f3_v(float x, float y, float z)
 {
@@ -66,9 +67,33 @@ pim_inline float3 VEC_CALL f3_add(float3 lhs, float3 rhs)
     return vec;
 }
 
+pim_inline float3 VEC_CALL f3_addvs(float3 lhs, float rhs)
+{
+    float3 vec = { lhs.x + rhs, lhs.y + rhs, lhs.z + rhs };
+    return vec;
+}
+
+pim_inline float3 VEC_CALL f3_addsv(float lhs, float3 rhs)
+{
+    float3 vec = { lhs + rhs.x, lhs + rhs.y, lhs + rhs.z };
+    return vec;
+}
+
 pim_inline float3 VEC_CALL f3_sub(float3 lhs, float3 rhs)
 {
     float3 vec = { lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z };
+    return vec;
+}
+
+pim_inline float3 VEC_CALL f3_subvs(float3 lhs, float rhs)
+{
+    float3 vec = { lhs.x - rhs, lhs.y - rhs, lhs.z - rhs };
+    return vec;
+}
+
+pim_inline float3 VEC_CALL f3_subsv(float lhs, float3 rhs)
+{
+    float3 vec = { lhs - rhs.x, lhs - rhs.y, lhs - rhs.z };
     return vec;
 }
 
@@ -78,9 +103,32 @@ pim_inline float3 VEC_CALL f3_mul(float3 lhs, float3 rhs)
     return vec;
 }
 
+pim_inline float3 VEC_CALL f3_mulvs(float3 lhs, float rhs)
+{
+    float3 vec = { lhs.x * rhs, lhs.y * rhs, lhs.z * rhs };
+    return vec;
+}
+
+pim_inline float3 VEC_CALL f3_mulsv(float lhs, float3 rhs)
+{
+    float3 vec = { lhs * rhs.x, lhs * rhs.y, lhs * rhs.z };
+    return vec;
+}
+
 pim_inline float3 VEC_CALL f3_div(float3 lhs, float3 rhs)
 {
     float3 vec = { lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z };
+    return vec;
+}
+
+pim_inline float3 VEC_CALL f3_divvs(float3 lhs, float rhs)
+{
+    return f3_mulvs(lhs, 1.0f / rhs);
+}
+
+pim_inline float3 VEC_CALL f3_divsv(float lhs, float3 rhs)
+{
+    float3 vec = { lhs / rhs.x, lhs / rhs.y, lhs / rhs.z };
     return vec;
 }
 

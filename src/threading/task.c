@@ -139,7 +139,10 @@ void task_submit(task_t* task, task_execute_fn execute, i32 worksize)
 
     for (i32 t = 1; t < kNumThreads; ++t)
     {
-        ptrqueue_push(ms_queues + t, task);
+        if (!ptrqueue_trypush(ms_queues + t, task))
+        {
+            ASSERT(false);
+        }
     }
 }
 

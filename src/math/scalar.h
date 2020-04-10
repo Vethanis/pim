@@ -14,6 +14,11 @@ PIM_C_BEGIN
 #define kDegreesPerRadian   (360.0f / kTau)
 #endif // kPi
 
+// https://en.wikipedia.org/wiki/Machine_epsilon
+static const float f16_eps = 1.0f / (1 << 10);
+static const float f32_eps = 1.0f / (1 << 23);
+static const double f64_eps = 1.0 / (1ll << 52);
+
 pim_inline float VEC_CALL f32_radians(float x)
 {
     return x * kRadiansPerDegree;
@@ -112,7 +117,7 @@ pim_inline float VEC_CALL f32_reflect(float i, float n)
 
 pim_inline float VEC_CALL f32_distance(float a, float b)
 {
-    return f32_abs(a - b);
+    return f32_abs(b - a);
 }
 
 pim_inline i32 VEC_CALL i32_min(i32 a, i32 b)
@@ -142,7 +147,7 @@ pim_inline i32 VEC_CALL i32_lerp(i32 a, i32 b, i32 t)
 
 pim_inline i32 VEC_CALL i32_distance(i32 a, i32 b)
 {
-    return i32_abs(a - b);
+    return i32_abs(b - a);
 }
 
 PIM_C_END

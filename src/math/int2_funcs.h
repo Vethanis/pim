@@ -1,6 +1,6 @@
 #pragma once
 
-#include "math/int2.h"
+#include "math/types.h"
 
 PIM_C_BEGIN
 
