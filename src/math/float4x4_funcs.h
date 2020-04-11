@@ -191,17 +191,17 @@ pim_inline float4x4 VEC_CALL f4x4_ortho(
 pim_inline float4x4 VEC_CALL f4x4_perspective(
     float fovy,
     float aspect,
-    float near,
-    float far)
+    float zNear,
+    float zFar)
 {
     float t = tanf(fovy * 0.5f);
 
-    float4x4 m = f4x4_id;
+    float4x4 m = f4x4_0;
     m.c0.x = 1.0f / (aspect * t);
     m.c1.y = 1.0f / t;
-    m.c2.z = -(far + near) / (far - near);
+    m.c2.z = -1.0f * (zFar + zNear) / (zFar - zNear);
     m.c2.w = -1.0f;
-    m.c3.z = (-2.0f * far * near) / (far - near);
+    m.c3.z = -2.0f * (zFar * zNear) / (zFar - zNear);
     return m;
 }
 

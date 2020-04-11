@@ -165,6 +165,28 @@ pim_inline float3 VEC_CALL f3_lt(float3 lhs, float3 rhs)
     return vec;
 }
 
+pim_inline float3 VEC_CALL f3_ltvs(float3 lhs, float rhs)
+{
+    float3 vec =
+    {
+        lhs.x < rhs ? 1.0f : 0.0f,
+        lhs.y < rhs ? 1.0f : 0.0f,
+        lhs.z < rhs ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float3 VEC_CALL f3_ltsv(float lhs, float3 rhs)
+{
+    float3 vec =
+    {
+        lhs < rhs.x ? 1.0f : 0.0f,
+        lhs < rhs.y ? 1.0f : 0.0f,
+        lhs < rhs.z ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
 pim_inline float3 VEC_CALL f3_gt(float3 lhs, float3 rhs)
 {
     float3 vec =
@@ -172,6 +194,28 @@ pim_inline float3 VEC_CALL f3_gt(float3 lhs, float3 rhs)
         lhs.x > rhs.x ? 1.0f : 0.0f,
         lhs.y > rhs.y ? 1.0f : 0.0f,
         lhs.z > rhs.z ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float3 VEC_CALL f3_gtvs(float3 lhs, float rhs)
+{
+    float3 vec =
+    {
+        lhs.x > rhs ? 1.0f : 0.0f,
+        lhs.y > rhs ? 1.0f : 0.0f,
+        lhs.z > rhs ? 1.0f : 0.0f,
+    };
+    return vec;
+}
+
+pim_inline float3 VEC_CALL f3_gtsv(float lhs, float3 rhs)
+{
+    float3 vec =
+    {
+        lhs > rhs.x ? 1.0f : 0.0f,
+        lhs > rhs.y ? 1.0f : 0.0f,
+        lhs > rhs.z ? 1.0f : 0.0f,
     };
     return vec;
 }

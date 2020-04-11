@@ -80,6 +80,18 @@ pim_inline float2 VEC_CALL f2_mul(float2 lhs, float2 rhs)
     return vec;
 }
 
+pim_inline float2 VEC_CALL f2_mulvs(float2 lhs, float rhs)
+{
+    float2 vec = { lhs.x * rhs, lhs.y * rhs };
+    return vec;
+}
+
+pim_inline float2 VEC_CALL f2_mulsv(float lhs, float2 rhs)
+{
+    float2 vec = { lhs * rhs.x, lhs * rhs.y };
+    return vec;
+}
+
 pim_inline float2 VEC_CALL f2_div(float2 lhs, float2 rhs)
 {
     float2 vec = { lhs.x / rhs.x, lhs.y / rhs.y };
