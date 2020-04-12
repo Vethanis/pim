@@ -3,9 +3,11 @@
 #include "common/time.h"
 #include "common/hashstring.h"
 
-void prng_create(prng_t* prng)
+prng_t prng_create(void)
 {
+    prng_t rng;
     u64 hash = HashStr("Piment");
     hash = (hash ^ time_now()) * 16777619u;
-    prng->state = hash;
+    rng.state = hash;
+    return rng;
 }

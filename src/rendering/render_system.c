@@ -22,6 +22,18 @@
 #include "containers/ptrqueue.h"
 #include <string.h>
 
+static const float2 kTileExtents =
+{
+    (0.5f * kTileWidth) / kDrawWidth,
+    (0.5f * kTileHeight) / kDrawHeight
+};
+
+static const float2 kTileSize =
+{
+    (float)kTileWidth / kDrawWidth,
+    (float)kTileHeight / kDrawHeight
+};
+
 typedef struct rastertask_s
 {
     task_t task;
@@ -55,8 +67,18 @@ static rcmdqueue_t ms_queues[kNumFrames];
 static rastertask_t ms_rastasks[kNumFrames];
 static cmdtask_t ms_cmdtasks[kNumFrames];
 
-static const int2 kTileSize = { kTileWidth, kTileHeight };
-static const float2 kRcpScreen = { 1.0f / kDrawWidth, 1.0f / kDrawHeight };
+static mesh_t ms_mesh;
+static prng_t ms_prng;
+static float ms_fov = 90.0f;
+static float ms_near = 0.05f;
+static float ms_far = 200.0f;
+static float3 ms_eye = { 0.0f, 0.0f, 0.0f };
+static float3 ms_at = { 0.0f, 0.0f, -1.0f };
+static float3 ms_up = { 0.0f, 1.0f, 0.0f };
+static float3 ms_modelTranslation = { 0.0f, 0.0f, 0.0f };
+static float3 ms_modelForward = { 0.0f, 0.0f, -1.0f };
+static float3 ms_modelUp = { 0.0f, 1.0f, 0.0f };
+static float3 ms_modelScale = { 1.0f, 1.0f, 1.0f };
 
 pim_inline float4 VEC_CALL f4_rand(prng_t* rng)
 {
@@ -118,24 +140,51 @@ pim_inline u16 VEC_CALL f4_rgb5a1(float4 v)
     return c;
 }
 
+pim_inline bool VEC_CALL f3_cliptest(float3 x, float lo, float hi)
+{
+    return f3_all(f3_ltvs(x, lo)) || f3_all(f3_gtvs(x, hi));
+}
+
+// pineda edge function (flipped for right handedness)
+// returns > 0 when on right side of A -> B
+// returns 0 when exactly on A -> B
+// returns < 0 when on left side of A -> B
+// returns 2x the area of the triangle formed by A -> B -> P
+// (also is its determinant aka cross product in two dimensions)
+pim_inline float VEC_CALL edge_func2D(float2 A, float2 B, float2 P)
+{
+    float2 AP = f2_sub(P, A);
+    float2 AB = f2_sub(B, A);
+    // the determinant of
+    // [AP.x, AP.y]
+    // [AB.x, AB.y]
+    float e = AP.y * AB.x - AP.x * AB.y;
+    return e;
+}
+
+pim_inline u16 VEC_CALL f4_color(prng_t* rng, float4 x)
+{
+    return f4_rgb5a1(f4_dither(rng, x));
+}
+
 pim_inline float4 VEC_CALL ray_tri_isect(
-    float3 O, float3 D,
+    float3 ro, float3 rd,
     float3 A, float3 B, float3 C)
 {
     float4 result = { 0.0f, 0.0f, 0.0f, 0.0f };
     float3 BA = f3_sub(B, A);
     float3 CA = f3_sub(C, A);
-    float3 P = f3_cross(D, CA);
+    float3 P = f3_cross(rd, CA);
     float det = f3_dot(BA, P);
-    if (det > 0.001f)
+    if (det >= f16_eps)
     {
         float rcpDet = 1.0f / det;
-        float3 T = f3_sub(O, A);
+        float3 T = f3_sub(ro, A);
         float3 Q = f3_cross(T, BA);
 
         float t = f3_dot(CA, Q) * rcpDet;
         float u = f3_dot(T, P) * rcpDet;
-        float v = f3_dot(D, Q) * rcpDet;
+        float v = f3_dot(rd, Q) * rcpDet;
 
         float tU = (u >= 0.0f) ? 1.0f : 0.0f;
         float tV = (v >= 0.0f) ? 1.0f : 0.0f;
@@ -145,9 +194,28 @@ pim_inline float4 VEC_CALL ray_tri_isect(
         result.x = u;
         result.y = v;
         result.z = t;
-        result.w = (tU + tV + tUV + tT) * 0.25f;
+        result.w = (tU + tV + tUV + tT) == 4.0f ? 1.0f : 0.0f;
     }
     return result;
+}
+
+pim_inline float VEC_CALL sdTriangle2D(
+    float2 a, float2 b, float2 c, float2 p)
+{
+    float2 ba = f2_sub(b, a); float2 pa = f2_sub(p, a);
+    float2 cb = f2_sub(c, b); float2 pb = f2_sub(p, b);
+    float2 ac = f2_sub(a, c); float2 pc = f2_sub(p, c);
+
+    float h = f32_saturate(f2_dot(ba, pa) / f2_lengthsq(ba));
+    h = f2_lengthsq(f2_sub(f2_mulvs(ba, h), pa));
+
+    float i = f32_saturate(f2_dot(cb, pb) / f2_lengthsq(cb));
+    i = f2_lengthsq(f2_sub(f2_mulvs(cb, i), pb));
+
+    float j = f32_saturate(f2_dot(ac, pc) / f2_lengthsq(ac));
+    j = f2_lengthsq(f2_sub(f2_mulvs(ac, j), pc));
+
+    return sqrtf(f32_min(h, f32_min(i, j)));
 }
 
 pim_inline float VEC_CALL sdPlane2D(float2 n, float d, float2 pt)
@@ -155,33 +223,26 @@ pim_inline float VEC_CALL sdPlane2D(float2 n, float d, float2 pt)
     return f2_dot(n, pt) - d;
 }
 
-pim_inline float VEC_CALL sdPlaneBox2D(float2 n, float d, float2 center, float2 extents)
+pim_inline float VEC_CALL sdPlaneBox2D(
+    float2 n, float d, float2 center, float2 extents)
 {
-    return sdPlane2D(n, d, center) - f32_abs(f2_dot(n, extents));
+    return sdPlane2D(n, d, center) - f32_abs(sdPlane2D(n, 0.0f, extents));
 }
 
-float sdTriangle2D(float2 a, float2 b, float2 c, float2 p)
+pim_inline int2 VEC_CALL UnormToScreen(float2 u)
 {
-    float2 mid = f2_mulvs(f2_add(a, f2_add(b, c)), 0.33333333f);
-    float2 abN = f2_normalize(f2_sub(f2_lerp(a, b, 0.5f), mid));
-    float2 acN = f2_normalize(f2_sub(f2_lerp(a, c, 0.5f), mid));
-    float2 bcN = f2_normalize(f2_sub(f2_lerp(b, c, 0.5f), mid));
-    float dab = sdPlane2D(abN, f2_dot(abN, a), p);
-    float dac = sdPlane2D(acN, f2_dot(acN, a), p);
-    float dbc = sdPlane2D(bcN, f2_dot(bcN, b), p);
-    return f32_max(dab, f32_max(dac, dbc));
+    const float2 kScreen = { kDrawWidth, kDrawHeight };
+    u = f2_floor(f2_mul(u, kScreen));
+    int2 s = { (i32)u.x, (i32)u.y };
+    return s;
 }
 
-float sdTriangleBox2D(float2 a, float2 b, float2 c, float2 center, float2 extents)
+pim_inline float2 VEC_CALL ScreenToUnorm(int2 s)
 {
-    float2 mid = f2_mulvs(f2_add(a, f2_add(b, c)), 0.33333333f);
-    float2 nab = f2_normalize(f2_sub(f2_lerp(a, b, 0.5f), mid));
-    float2 nac = f2_normalize(f2_sub(f2_lerp(a, c, 0.5f), mid));
-    float2 nbc = f2_normalize(f2_sub(f2_lerp(b, c, 0.5f), mid));
-    float dab = sdPlaneBox2D(nab, f2_dot(nab, a), center, extents);
-    float dac = sdPlaneBox2D(nac, f2_dot(nac, a), center, extents);
-    float dbc = sdPlaneBox2D(nbc, f2_dot(nbc, b), center, extents);
-    return f32_max(dab, f32_max(dac, dbc));
+    const float2 kRcpScreen = { 1.0f / kDrawWidth, 1.0f / kDrawHeight };
+    float2 u = f2_iv(s.x, s.y);
+    u = f2_mul(u, kRcpScreen);
+    return u;
 }
 
 pim_inline int2 VEC_CALL GetScreenTile(i32 i)
@@ -191,13 +252,9 @@ pim_inline int2 VEC_CALL GetScreenTile(i32 i)
     return (int2) { x * kTileWidth, y * kTileHeight };
 }
 
-pim_inline float4 VEC_CALL GetUnormTile(i32 i)
+pim_inline float2 VEC_CALL GetUnormTile(i32 i)
 {
-    int2 tile = GetScreenTile(i);
-    int2 iHi = { tile.x + kTileWidth, tile.y + kTileHeight };
-    float2 lo = f2_mul(i2_f2(tile), kRcpScreen);
-    float2 hi = f2_mul(i2_f2(iHi), kRcpScreen);
-    return (float4) { lo.x, lo.y, hi.x, hi.y };
+    return ScreenToUnorm(GetScreenTile(i));
 }
 
 static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
@@ -226,64 +283,40 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
     }
 }
 
-pim_inline bool VEC_CALL f3_cliptest(float3 x, float lo, float hi)
-{
-    return f3_all(f3_ltvs(x, lo)) || f3_all(f3_gtvs(x, hi));
-}
-
-// pineda edge function (flipped for right handedness)
-// returns > 0 when on right side of A -> B
-// returns 0 when exactly on A -> B
-// returns < 0 when on left side of A -> B
-// returns 2x the area of the triangle formed by A -> B -> P
-// (also is its determinant aka cross product in two dimensions)
-pim_inline float VEC_CALL edge_func(float2 A, float2 B, float2 P)
-{
-    float2 AP = f2_sub(P, A);
-    float2 AB = f2_sub(B, A);
-    // the determinant of
-    // [AP.x, AP.y]
-    // [AB.x, AB.y]
-    float e = AP.y * AB.x - AP.x * AB.y;
-    return e;
-}
-
-pim_inline u16 VEC_CALL f4_color(prng_t* rng, float4 x)
-{
-    return f4_rgb5a1(f4_dither(rng, x));
-}
-
 static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 {
     framebuf_t frame = ms_buffers[state.iFrame];
-    // int2 tile = GetScreenTile(state.iTile);
-    // float4x4 M = draw.M;
+    const float4x4 M = draw.M;
+    const float4x4 V = state.V;
+    const float4x4 P = state.P;
     const mesh_t mesh = draw.mesh;
     // material_t material = draw.material;
 
-    const float4 tileRange = GetUnormTile(state.iTile);
-    const float2 tileCenter = {
-        0.5f * (tileRange.x + tileRange.z),
-        0.5f * (tileRange.y + tileRange.w) };
-    const float2 tileExtents = {
-        tileRange.z - tileCenter.x,
-        tileRange.w - tileCenter.y };
-    const float tileLen = f2_length(tileExtents);
-    const float dz = 0xffff;
-    prng_t rng;
-    prng_create(&rng);
+    const float2 tileMin = GetUnormTile(state.iTile);
+    const float2 tileMax = f2_add(tileMin, kTileSize);
+    prng_t rng = prng_create();
 
     for (i32 iVert = 0; (iVert + 3) <= mesh.length; iVert += 3)
     {
         // local space
-        float4 A = mesh.positions[iVert];
-        float4 B = mesh.positions[iVert + 1];
-        float4 C = mesh.positions[iVert + 2];
+        const float4 localA = mesh.positions[iVert];
+        const float4 localB = mesh.positions[iVert + 1];
+        const float4 localC = mesh.positions[iVert + 2];
+
+        // model
+        const float4 worldA = f4x4_mul_pt(M, localA);
+        const float4 worldB = f4x4_mul_pt(M, localB);
+        const float4 worldC = f4x4_mul_pt(M, localC);
+
+        // view
+        const float4 viewA = f4x4_mul_pt(V, worldA);
+        const float4 viewB = f4x4_mul_pt(V, worldB);
+        const float4 viewC = f4x4_mul_pt(V, worldC);
 
         // projection
-        A = f4x4_mul_pt(state.P, A);
-        B = f4x4_mul_pt(state.P, B);
-        C = f4x4_mul_pt(state.P, C);
+        float4 A = f4x4_mul_pt(P, viewA);
+        float4 B = f4x4_mul_pt(P, viewB);
+        float4 C = f4x4_mul_pt(P, viewC);
         // perspective divide
         A = f4_divvs(A, A.w);
         B = f4_divvs(B, B.w);
@@ -296,37 +329,36 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         const float2 a = f4_f2(A);
         const float2 b = f4_f2(B);
         const float2 c = f4_f2(C);
-        const float area2 = edge_func(a, b, c);
+        const float area2 = edge_func2D(a, b, c);
 
-        // front face test
+        // cull backfaces
         if (area2 < f16_eps)
         {
             continue;
         }
 
-        // test if all 3 verts are inside clip space and tile range
+        // early z clip
         if (f3_cliptest(f3_v(A.z, B.z, C.z), 0.0f, 1.0f))
         {
             continue;
         }
 
-        // tile cull
-        //if (sdTriangleBox2D(a, b, c, tileCenter, tileExtents) > 0.01f)
-        //{
-        //    continue;
-        //}
-
-        // interpolators
+        // interpolated attributes
         const float4 NA = mesh.normals[iVert];
         const float4 NB = mesh.normals[iVert + 1];
         const float4 NC = mesh.normals[iVert + 2];
 
-        const float yMin = f32_max(tileRange.y, f3_hmin(f3_v(a.y, b.y, c.y)));
-        const float yMax = f32_min(tileRange.w, f3_hmax(f3_v(a.y, b.y, c.y)));
-        const float xMin = f32_max(tileRange.x, f3_hmin(f3_v(a.x, b.x, c.x)));
-        const float xMax = f32_min(tileRange.z, f3_hmax(f3_v(a.x, b.x, c.x)));
+        // rasterization bounds
+        const float yMin = f32_max(tileMin.y, f3_hmin(f3_v(a.y, b.y, c.y)));
+        const float yMax = f32_min(tileMax.y, f3_hmax(f3_v(a.y, b.y, c.y)));
+        const float xMin = f32_max(tileMin.x, f3_hmin(f3_v(a.x, b.x, c.x)));
+        const float xMax = f32_min(tileMax.x, f3_hmax(f3_v(a.x, b.x, c.x)));
+
+        // constants
         const float dx = 1.0f / kDrawWidth;
         const float dy = 1.0f / kDrawHeight;
+        const float2 kDrawSize = { kDrawWidth, kDrawHeight };
+        const float dz = 0xffff;
         const float rcpArea2 = 1.0f / area2;
 
         for (float y = yMin; y <= yMax; y += dy)
@@ -334,40 +366,43 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
             for (float x = xMin; x <= xMax; x += dx)
             {
                 const float2 p = f2_v(x, y);
-                const float w = edge_func(b, c, p) * rcpArea2;
-                const float u = edge_func(c, a, p) * rcpArea2;
-                const float v = edge_func(a, b, p) * rcpArea2;
+                const float2 pSc = f2_mul(p, kDrawSize);
+                const i32 iTexel = (i32)pSc.x + kDrawWidth * (i32)pSc.y;
 
+                // barycentrics
+                const float w = edge_func2D(b, c, p) * rcpArea2;
+                const float u = edge_func2D(c, a, p) * rcpArea2;
+                const float v = edge_func2D(a, b, p) * rcpArea2;
+
+                // barycentric clip
                 if (w < 0.0f || u < 0.0f || v < 0.0f)
                 {
                     continue;
                 }
 
-                float4 P = f4_blend(A, B, C, w, u, v);
+                const float4 P = f4_blend(A, B, C, w, u, v);
+                const u16 Z = (u16)(P.z * dz);
+
                 // depth clip
                 if (P.z > 1.0f || P.z < 0.0f)
                 {
                     continue;
                 }
 
-                const float2 pSc = f2_floor(f2_v(p.x * kDrawWidth, p.y * kDrawHeight));
-                const i32 iTexel = (i32)pSc.x + kDrawWidth * (i32)pSc.y;
+                // depth test
                 ASSERT(iTexel >= 0);
                 ASSERT(iTexel < kDrawPixels);
-
-                // depth test
-                const u16 Z = (u16)(P.z * dz);
                 if (Z >= frame.depth[iTexel])
                 {
                     continue;
                 }
-                frame.depth[iTexel] = Z;
 
                 // blend interpolators
-                float4 N = f4_blend(NA, NB, NC, w, u, v);
+                const float4 N = f4_blend(NA, NB, NC, w, u, v);
 
-                // treating normal as vertex color for the moment
-                frame.color[iTexel] = f4_color(&rng, N);
+                const u16 C = f4_color(&rng, N);
+                frame.depth[iTexel] = Z;
+                frame.color[iTexel] = C;
             }
         }
     }
@@ -463,14 +498,42 @@ static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length)
 
 static void CreateEntities(task_t* task, i32 begin, i32 end)
 {
-    prng_t rng;
-    prng_create(&rng);
+    prng_t rng = prng_create();
     compflag_t all = compflag_create(3, CompId_Position, CompId_Rotation, CompId_Scale);
     compflag_t some = compflag_create(1, CompId_Position);
     for (i32 i = begin; i < end; ++i)
     {
         ecs_create(prng_i32(&rng) & 1 ? all : some);
     }
+}
+
+static void RegenMesh(void)
+{
+    const i32 len = (1 + (prng_i32(&ms_prng) & 31)) * 3;
+    float4* positions = pim_malloc(EAlloc_Perm, sizeof(float4) * len);
+    float4* normals = pim_malloc(EAlloc_Perm, sizeof(float4) * len);
+
+    for (i32 i = 0; i < len; ++i)
+    {
+        float4 position;
+        position.x = f32_lerp(-1.0f, 1.0f, prng_f32(&ms_prng));
+        position.y = f32_lerp(-1.0f, 1.0f, prng_f32(&ms_prng));
+        position.z = f32_lerp(-1.0f, 1.0f, prng_f32(&ms_prng));
+        position.w = 1.0f;
+        float4 normal;
+        normal.x = f32_lerp(0.01f, 1.0f, prng_f32(&ms_prng));
+        normal.y = f32_lerp(0.01f, 1.0f, prng_f32(&ms_prng));
+        normal.z = f32_lerp(0.01f, 1.0f, prng_f32(&ms_prng));
+        normal.w = 0.0f;
+        positions[i] = position;
+        normals[i] = normal;
+    }
+
+    pim_free(ms_mesh.positions);
+    pim_free(ms_mesh.normals);
+    ms_mesh.length = len;
+    ms_mesh.positions = positions;
+    ms_mesh.normals = normals;
 }
 
 static void* ImGuiAllocFn(usize sz, void* userData) { return perm_malloc((i32)sz); }
@@ -528,6 +591,9 @@ void render_sys_init(void)
     }
 
     CreateEntities(NULL, 0, 1 << 20);
+
+    ms_prng = prng_create();
+    RegenMesh();
 }
 
 void render_sys_update(void)
@@ -538,6 +604,34 @@ void render_sys_update(void)
     ms_height = sapp_height();
     simgui_new_frame(ms_width, ms_height, time_dtf());
 
+    igBegin("RenderSystem", NULL, 0);
+    {
+        if (igCollapsingHeaderTreeNodeFlags("View", 0))
+        {
+            igSliderFloat3("eye", &ms_eye.x, -10.0f, 10.0f, NULL, 1.0f);
+            igSliderFloat3("at", &ms_at.x, -10.0f, 10.0f, NULL, 1.0f);
+            igSliderFloat3("up", &ms_up.x, -10.0f, 10.0f, NULL, 1.0f);
+        }
+        if (igCollapsingHeaderTreeNodeFlags("Projection", 0))
+        {
+            igSliderFloat("fov", &ms_fov, 10.0f, 170.0f, NULL, 1.0f);
+            igSliderFloat("near", &ms_near, 0.1f, 1.0f, NULL, 1.0f);
+            igSliderFloat("far", &ms_far, 1.0f, 300.0f, NULL, 1.0f);
+        }
+        if (igCollapsingHeaderTreeNodeFlags("Model", 0))
+        {
+            igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f, NULL, 1.0f);
+            igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f, NULL, 1.0f);
+            igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f, NULL, 1.0f);
+            igSliderFloat3("scale", &ms_modelScale.x, -10.0f, 10.0f, NULL, 1.0f);
+            if (igButton("Regen Mesh", (ImVec2) { 0 }))
+            {
+                RegenMesh();
+            }
+        }
+    }
+    igEnd();
+
     compflag_t all = compflag_create(3, CompId_Position, CompId_Rotation, CompId_Scale);
     compflag_t none = compflag_create(0);
     ecs_foreach(&(ms_cmdtasks[iFrame].task), all, none, DrawableTaskFn);
@@ -545,24 +639,14 @@ void render_sys_update(void)
     rcmdbuf_t* cmdbuf = rcmdbuf_create();
     rcmd_clear(cmdbuf, 0x0000, 0xffff);
 
-    float aspect = (float)ms_width / (float)ms_height;
-    const float fovy = f32_radians(90.0f);
-    rcmd_view(cmdbuf, f4x4_id, f4x4_perspective(fovy, aspect, 0.05f, 200.0f));
+    float4x4 P = f4x4_perspective(f32_radians(ms_fov), (float)ms_width / (float)ms_height, ms_near, ms_far);
+    float4x4 V = f4x4_lookat(ms_eye, ms_at, f3_normalize(ms_up));
+    rcmd_view(cmdbuf, V, P);
 
-    float4x4 M = { 0 };
-    mesh_t mesh = { 0 };
-    mesh.length = 3;
-    mesh.positions = pim_malloc(EAlloc_Temp, sizeof(float4) * 3);
-    mesh.normals = pim_malloc(EAlloc_Temp, sizeof(float4) * 3);
-    // GL defaults to counter-clock-wise
-    mesh.positions[0] = (float4) { -1.0f, -1.0f, -2.0f, 1.0f };
-    mesh.positions[1] = (float4) { 1.0f, -1.0f, -2.0f, 1.0f };
-    mesh.positions[2] = (float4) { 0.0f, 1.0f, -2.0f, 1.0f };
-    mesh.normals[0] = (float4) { 1.0f, 0.0f, 0.0f, 0.0f };
-    mesh.normals[1] = (float4) { 0.0f, 1.0f, 0.0f, 0.0f };
-    mesh.normals[2] = (float4) { 0.0f, 0.0f, 1.0f, 0.0f };
     material_t material = { 0 };
-    rcmd_draw(cmdbuf, M, mesh, material);
+    quat modelRotation = quat_lookat(f3_normalize(ms_modelForward), f3_normalize(ms_modelUp));
+    float4x4 M = f4x4_trs(ms_modelTranslation, modelRotation, ms_modelScale);
+    rcmd_draw(cmdbuf, M, ms_mesh, material);
 
     rcmdqueue_submit(ms_queues + iFrame, cmdbuf);
 }

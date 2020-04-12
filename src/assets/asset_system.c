@@ -21,7 +21,7 @@ static folder_t ms_folder;
 
 void asset_sys_init(void)
 {
-    cvar_create(&cv_imgui, "asset_imgui", "1.0");
+    cvar_create(&cv_imgui, "asset_imgui", "0.0");
 
     ms_numAssets = 0;
     ms_hashes = NULL;
