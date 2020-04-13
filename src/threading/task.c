@@ -3,6 +3,7 @@
 #include "threading/thread.h"
 #include "threading/event.h"
 #include "threading/intrin.h"
+#include "threading/sleep.h"
 #include "common/atomics.h"
 #include "containers/ptrqueue.h"
 
@@ -164,6 +165,7 @@ void task_sys_schedule(void)
 
 void task_sys_init(void)
 {
+    intrin_clockres_begin(1);
     event_create(&ms_waitPush);
     event_create(&ms_waitExec);
     store_i32(&ms_running, 1, MO_Release);
@@ -197,4 +199,5 @@ void task_sys_shutdown(void)
     memset(ms_queues, 0, sizeof(ms_queues));
     event_destroy(&ms_waitPush);
     event_destroy(&ms_waitExec);
+    intrin_clockres_end(1);
 }

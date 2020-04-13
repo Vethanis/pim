@@ -256,6 +256,9 @@
     <ClCompile Include="..\src\ui\ui.c">
       <Filter>Source Files\ui</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\threading\sleep.c">
+      <Filter>Source Files\threading</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -578,6 +581,9 @@
     </ClInclude>
     <ClInclude Include="..\src\ui\ui.h">
       <Filter>Source Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\sleep.h">
+      <Filter>Source Files\threading</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

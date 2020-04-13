@@ -2,10 +2,19 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include "io/fd.h"
+#include "common/time.h"
+#include "common/cvar.h"
+#include "threading/intrin.h"
+#include "threading/sleep.h"
+#include <math.h>
+
+static cvar_t cv_TargetFps;
 
 static GLFWwindow* ms_window;
 static i32 ms_width;
 static i32 ms_height;
+static i32 ms_target;
+static u64 ms_lastSwap;
 static bool ms_cursorCaptured;
 
 static GLFWwindow* CreateGlfwWindow(i32 width, i32 height, const char* title, bool fullscreen);
@@ -15,6 +24,9 @@ static void OnGlfwError(i32 error_code, const char* description);
 
 void window_sys_init(void)
 {
+    cvar_create(&cv_TargetFps, "target_fps", "120");
+    ms_lastSwap = time_now();
+
     glfwSetErrorCallback(OnGlfwError);
     i32 rv = glfwInit();
     ASSERT(rv);
@@ -69,10 +81,30 @@ void window_close(bool shouldClose)
     glfwSetWindowShouldClose(ms_window, shouldClose);
 }
 
+float window_get_target(void)
+{
+    return cv_TargetFps.asFloat;
+}
+
+void window_set_target(float fps)
+{
+    ASSERT(fps >= 1.0f);
+    cvar_set_float(&cv_TargetFps, fps);
+}
+
 void window_swapbuffers(void)
 {
     ASSERT(ms_window);
     glfwSwapBuffers(ms_window);
+
+    const double targetMS = 1000.0 / cv_TargetFps.asFloat;
+    const double diffMS = targetMS - time_milli(time_now() - ms_lastSwap);
+    if (diffMS >= 1.0)
+    {
+        intrin_sleep((u32)diffMS);
+    }
+
+    ms_lastSwap = time_now();
 }
 
 bool window_cursor_captured(void)

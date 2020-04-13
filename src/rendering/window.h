@@ -12,6 +12,8 @@ i32 window_width(void);
 i32 window_height(void);
 bool window_is_open(void);
 void window_close(bool shouldClose);
+float window_get_target(void);
+void window_set_target(float fps);
 void window_swapbuffers(void);
 bool window_cursor_captured(void);
 void window_capture_cursor(bool capture);

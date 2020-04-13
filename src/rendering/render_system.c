@@ -145,34 +145,10 @@ pim_inline float2 VEC_CALL GetUnormTile(i32 i)
     return ScreenToUnorm(GetScreenTile(i));
 }
 
-static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
-{
-    framebuf_t frame = ms_buffer;;
-    const int2 tile = GetScreenTile(state.iTile);
-    for (i32 ty = 0; ty < kTileHeight; ++ty)
-    {
-        for (i32 tx = 0; tx < kTileWidth; ++tx)
-        {
-            i32 x = tile.x + tx;
-            i32 y = tile.y + ty;
-            i32 i = kDrawWidth * y + x;
-            frame.color[i] = clear.color;
-        }
-    }
-    for (i32 ty = 0; ty < kTileHeight; ++ty)
-    {
-        for (i32 tx = 0; tx < kTileWidth; ++tx)
-        {
-            i32 x = tile.x + tx;
-            i32 y = tile.y + ty;
-            i32 i = kDrawWidth * y + x;
-            frame.depth[i] = clear.depth;
-        }
-    }
-}
-
 static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 {
+    const float e = 1.0f / (1 << 10);
+
     framebuf_t frame = ms_buffer;
     const float4x4 M = draw.M;
     const float4x4 V = state.V;
@@ -206,6 +182,16 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         float4 B = f4x4_mul_pt(P, viewB);
         float4 C = f4x4_mul_pt(P, viewC);
 
+        if (A.w < e && B.w < e && C.w < e)
+        {
+            continue;
+        }
+
+        // guard against division by very small values
+        A.w = f1_max(A.w, e);
+        B.w = f1_max(B.w, e);
+        C.w = f1_max(C.w, e);
+
         // perspective divide
         A = f4_divvs(A, A.w);
         B = f4_divvs(B, B.w);
@@ -222,13 +208,13 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         const float2 c = f4_f2(C);
         const float area = tri_area2D(a, b, c);
 
-        // cull backfaces
-        if (area < f16_eps)
+        // discard backfaces
+        if (area < e)
         {
             continue;
         }
 
-        // early z clip
+        // discard triangles outside unorm clip space of tile
         if (f3_cliptest(f3_v(A.z, B.z, C.z), 0.0f, 1.0f))
         {
             continue;
@@ -304,6 +290,34 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     }
 
     state.rng = rng;
+}
+
+static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
+{
+    framebuf_t frame = ms_buffer;
+    const int2 tile = GetScreenTile(state.iTile);
+    u16* __restrict color = frame.color;
+    u16* __restrict depth = frame.depth;
+    const u16 C = clear.color;
+    const u16 Z = clear.depth;
+
+    for (i32 ty = 0; ty < kTileHeight; ++ty)
+    {
+        for (i32 tx = 0; tx < kTileWidth; ++tx)
+        {
+            i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
+            color[i] = C;
+        }
+    }
+
+    for (i32 ty = 0; ty < kTileHeight; ++ty)
+    {
+        for (i32 tx = 0; tx < kTileWidth; ++tx)
+        {
+            i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
+            depth[i] = Z;
+        }
+    }
 }
 
 static void ExecTile(rastertask_t* task, i32 iTile)

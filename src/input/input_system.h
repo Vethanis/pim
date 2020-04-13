@@ -154,21 +154,20 @@ typedef enum
     MouseAxis_COUNT
 } MouseAxis;
 
-typedef enum
-{
-    IS_Release = 0,
-    IS_Press,
-    IS_Repeat,
-
-    InputState_COUNT
-} InputState;
-
 void input_sys_init(void);
 void input_sys_update(void);
 void input_sys_shutdown(void);
 
-InputState input_get_key(KeyCode key);
-InputState input_get_button(MouseButton button);
-float input_get_axis(MouseAxis axis);
+bool input_key(KeyCode key);
+bool input_button(MouseButton button);
+
+bool input_keydown(KeyCode key);
+bool input_buttondown(MouseButton button);
+
+bool input_keyup(KeyCode key);
+bool input_buttonup(MouseButton button);
+
+float input_axis(MouseAxis axis);
+float input_delta_axis(MouseAxis axis);
 
 PIM_C_END

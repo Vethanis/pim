@@ -39,6 +39,11 @@ pim_inline float VEC_CALL f1_max(float a, float b)
     return a > b ? a : b;
 }
 
+pim_inline float VEC_CALL f1_sign(float x)
+{
+    return ((x > 0.0f) ? 1.0f : 0.0f) - ((x < 0.0f) ? -1.0f : 0.0f);
+}
+
 pim_inline float VEC_CALL f1_clamp(float x, float lo, float hi)
 {
     return f1_min(hi, f1_max(lo, x));
@@ -52,6 +57,16 @@ pim_inline float VEC_CALL f1_saturate(float x)
 pim_inline float VEC_CALL f1_abs(float x)
 {
     return f1_max(x, -x);
+}
+
+pim_inline float VEC_CALL f1_bigger(float x, float mag)
+{
+    return f1_sign(x) * f1_max(f1_abs(x), mag);
+}
+
+pim_inline float VEC_CALL f1_smaller(float x, float mag)
+{
+    return f1_sign(x) * f1_min(f1_abs(x), mag);
 }
 
 pim_inline float VEC_CALL f1_ceil(float x)

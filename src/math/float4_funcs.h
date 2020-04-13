@@ -522,6 +522,14 @@ pim_inline float VEC_CALL f4_dot3(float4 a, float4 b)
     return f4_sum3(f4_mul(a, b));
 }
 
+pim_inline float4 VEC_CALL f4_cross3(float4 a, float4 b)
+{
+    return f4_zxy(
+        f4_sub(
+            f4_mul(f4_zxy(a), b),
+            f4_mul(a, f4_zxy(b))));
+}
+
 pim_inline float VEC_CALL f4_length(float4 x)
 {
     return sqrtf(f4_dot(x, x));
