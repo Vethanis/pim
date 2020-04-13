@@ -476,7 +476,7 @@ void render_sys_init(void)
     SetupTextureUnit(ms_blitProgram, "inColor", 0);
 
     // demo stuff
-    CreateEntities(NULL, 0, 1 << 20);
+    //CreateEntities(NULL, 0, 1 << 20);
     RegenMesh();
 }
 
@@ -490,6 +490,7 @@ void render_sys_update(void)
         float dt = (float)time_dtf();
         ms_dt = f1_lerp(ms_dt, dt, 1.0f / 60.0f);
         igValueFloat("ms", ms_dt * 1000.0f, NULL);
+        igValueFloat("fps", 1.0f / ms_dt, NULL);
         igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f, NULL, 1.0f);
         igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f, NULL, 1.0f);
         igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f, NULL, 1.0f);
