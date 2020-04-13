@@ -261,9 +261,9 @@ pim_inline float3 VEC_CALL f3_min(float3 a, float3 b)
 {
     float3 vec =
     {
-        f32_min(a.x, b.x),
-        f32_min(a.y, b.y),
-        f32_min(a.z, b.z),
+        f1_min(a.x, b.x),
+        f1_min(a.y, b.y),
+        f1_min(a.z, b.z),
     };
     return vec;
 }
@@ -272,9 +272,9 @@ pim_inline float3 VEC_CALL f3_max(float3 a, float3 b)
 {
     float3 vec =
     {
-        f32_max(a.x, b.x),
-        f32_max(a.y, b.y),
-        f32_max(a.z, b.z),
+        f1_max(a.x, b.x),
+        f1_max(a.y, b.y),
+        f1_max(a.z, b.z),
     };
     return vec;
 }
@@ -292,12 +292,12 @@ pim_inline float3 VEC_CALL f3_select(float3 a, float3 b, float3 t)
 
 pim_inline float VEC_CALL f3_hmin(float3 v)
 {
-    return f32_min(v.x, f32_min(v.y, v.z));
+    return f1_min(v.x, f1_min(v.y, v.z));
 }
 
 pim_inline float VEC_CALL f3_hmax(float3 v)
 {
-    return f32_max(v.x, f32_max(v.y, v.z));
+    return f1_max(v.x, f1_max(v.y, v.z));
 }
 
 pim_inline float3 VEC_CALL f3_cross(float3 a, float3 b)
@@ -553,6 +553,11 @@ pim_inline float3 VEC_CALL f3_rad(float3 x)
 pim_inline float3 VEC_CALL f3_deg(float3 x)
 {
     return f3_mul(x, f3_s(kDegreesPerRadian));
+}
+
+pim_inline bool VEC_CALL f3_cliptest(float3 x, float lo, float hi)
+{
+    return f3_all(f3_ltvs(x, lo)) || f3_all(f3_gtvs(x, hi));
 }
 
 PIM_C_END

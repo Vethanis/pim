@@ -1,9 +1,6 @@
 #include "rendering/render_system.h"
 
-#include <sokol/sokol_gfx.h>
-#include <sokol/sokol_app.h>
-#include <sokol/util/sokol_imgui.h>
-#include <sokol/util/sokol_gl.h>
+#include <glad/glad.h>
 #include "ui/cimgui.h"
 
 #include "allocator/allocator.h"
@@ -12,14 +9,16 @@
 #include "rendering/framebuffer.h"
 #include "rendering/constants.h"
 #include "rendering/rcmd.h"
+#include "rendering/camera.h"
+#include "rendering/window.h"
 #include "math/types.h"
+#include "math/int2_funcs.h"
 #include "math/float4_funcs.h"
 #include "math/float3_funcs.h"
 #include "math/float2_funcs.h"
 #include "math/float4x4_funcs.h"
-#include "common/random.h"
-#include "containers/idset.h"
-#include "containers/ptrqueue.h"
+#include "math/sdf.h"
+#include "io/fd.h"
 #include <string.h>
 
 static const float2 kTileExtents =
@@ -37,7 +36,6 @@ static const float2 kTileSize =
 typedef struct rastertask_s
 {
     task_t task;
-    i32 iFrame;
 } rastertask_t;
 
 typedef struct cmdtask_s
@@ -50,184 +48,75 @@ typedef struct renderstate_s
     float4 viewport;
     float4x4 P;
     float4x4 V;
-    mesh_t vstream;
+    prng_t rng;
     i32 iTile;
-    i32 iFrame;
 } renderstate_t;
 
-static i32 ms_width;
-static i32 ms_height;
-static sg_features ms_features;
-static sg_limits ms_limits;
-static sg_backend ms_backend;
-static i32 ms_iFrame;
-static sg_image ms_images[kNumFrames];
-static framebuf_t ms_buffers[kNumFrames];
-static rcmdqueue_t ms_queues[kNumFrames];
-static rastertask_t ms_rastasks[kNumFrames];
-static cmdtask_t ms_cmdtasks[kNumFrames];
+typedef GLuint glhandle;
+
+typedef struct glmesh_s
+{
+    glhandle vao;
+    glhandle vbo;
+    i32 vertCount;
+} glmesh_t;
+
+typedef struct vert_attrib_s
+{
+    i32 dimension;
+    i32 offset;
+} vert_attrib_t;
+
+static ImGuiContext* ms_imctx;
+static glmesh_t ms_blitMesh;
+static glhandle ms_blitProgram;
+static glhandle ms_image;
+static framebuf_t ms_buffer;
+static rcmdqueue_t ms_queue;
+static rastertask_t ms_rastask;
+static cmdtask_t ms_cmdtask;
 
 static mesh_t ms_mesh;
 static prng_t ms_prng;
-static float ms_fov = 90.0f;
-static float ms_near = 0.05f;
-static float ms_far = 200.0f;
-static float3 ms_eye = { 0.0f, 0.0f, 0.0f };
-static float3 ms_at = { 0.0f, 0.0f, -1.0f };
-static float3 ms_up = { 0.0f, 1.0f, 0.0f };
+static float ms_dt;
 static float3 ms_modelTranslation = { 0.0f, 0.0f, 0.0f };
 static float3 ms_modelForward = { 0.0f, 0.0f, -1.0f };
 static float3 ms_modelUp = { 0.0f, 1.0f, 0.0f };
 static float3 ms_modelScale = { 1.0f, 1.0f, 1.0f };
 
-pim_inline float4 VEC_CALL f4_rand(prng_t* rng)
+static const float kScreenMesh[] =
 {
-    return f4_v(prng_f32(rng), prng_f32(rng), prng_f32(rng), prng_f32(rng));
-}
+    -1.0f, -1.0f,
+     1.0f, -1.0f,
+     1.0f,  1.0f,
+     1.0f,  1.0f,
+    -1.0f,  1.0f,
+    -1.0f, -1.0f
+};
 
-pim_inline float2 VEC_CALL f2_rand(prng_t* rng)
+static const char* kBlitVertShader[] =
 {
-    return f2_v(prng_f32(rng), prng_f32(rng));
-}
+    "#version 330 core\n",
+    "layout(location = 0) in vec2 mesh;\n",
+    "out vec2 uv;\n",
+    "void main()\n",
+    "{\n",
+    "   gl_Position = vec4(mesh.xy, 0.0, 1.0);\n",
+    "   uv = mesh * 0.5 + 0.5;\n",
+    "}\n",
+};
 
-pim_inline float4 VEC_CALL f4_dither(prng_t* rng, float4 x)
+static const char* kBlitFragShader[] =
 {
-    const float kDither = 1.0f / (1 << 5);
-    return f4_lerp(x, f4_rand(rng), kDither);
-}
-
-pim_inline float2 VEC_CALL i2_f2(int2 v)
-{
-    return f2_iv(v.x, v.y);
-}
-
-pim_inline float4 VEC_CALL f4_blend(float4 a, float4 b, float4 c, float w, float u, float v)
-{
-    float4 p = f4_mulvs(a, w);
-    p = f4_add(p, f4_mulvs(b, u));
-    p = f4_add(p, f4_mulvs(c, v));
-    return p;
-}
-
-pim_inline float4 VEC_CALL f4_unorm(float4 s)
-{
-    return f4_addvs(f4_mulvs(s, 0.5f), 0.5f);
-}
-
-pim_inline float4 VEC_CALL f4_snorm(float4 u)
-{
-    return f4_subvs(f4_mulvs(u, 2.0f), 1.0f);
-}
-
-pim_inline float3 VEC_CALL f4_f3(float4 v)
-{
-    return (float3) { v.x, v.y, v.z };
-}
-
-pim_inline float2 VEC_CALL f4_f2(float4 v)
-{
-    return (float2) { v.x, v.y };
-}
-
-pim_inline u16 VEC_CALL f4_rgb5a1(float4 v)
-{
-    const float4 kScale = { 31.0f, 31.0f, 31.0f, 31.0f };
-    v = f4_mul(v, kScale);
-    u16 r = (u16)v.x;
-    u16 g = (u16)v.y;
-    u16 b = (u16)v.z;
-    u16 c = (r << 11) | (g << 6) | (b << 1) | 1;
-    return c;
-}
-
-pim_inline bool VEC_CALL f3_cliptest(float3 x, float lo, float hi)
-{
-    return f3_all(f3_ltvs(x, lo)) || f3_all(f3_gtvs(x, hi));
-}
-
-// pineda edge function (flipped for right handedness)
-// returns > 0 when on right side of A -> B
-// returns 0 when exactly on A -> B
-// returns < 0 when on left side of A -> B
-// returns 2x the area of the triangle formed by A -> B -> P
-// (also is its determinant aka cross product in two dimensions)
-pim_inline float VEC_CALL edge_func2D(float2 A, float2 B, float2 P)
-{
-    float2 AP = f2_sub(P, A);
-    float2 AB = f2_sub(B, A);
-    // the determinant of
-    // [AP.x, AP.y]
-    // [AB.x, AB.y]
-    float e = AP.y * AB.x - AP.x * AB.y;
-    return e;
-}
-
-pim_inline u16 VEC_CALL f4_color(prng_t* rng, float4 x)
-{
-    return f4_rgb5a1(f4_dither(rng, x));
-}
-
-pim_inline float4 VEC_CALL ray_tri_isect(
-    float3 ro, float3 rd,
-    float3 A, float3 B, float3 C)
-{
-    float4 result = { 0.0f, 0.0f, 0.0f, 0.0f };
-    float3 BA = f3_sub(B, A);
-    float3 CA = f3_sub(C, A);
-    float3 P = f3_cross(rd, CA);
-    float det = f3_dot(BA, P);
-    if (det >= f16_eps)
-    {
-        float rcpDet = 1.0f / det;
-        float3 T = f3_sub(ro, A);
-        float3 Q = f3_cross(T, BA);
-
-        float t = f3_dot(CA, Q) * rcpDet;
-        float u = f3_dot(T, P) * rcpDet;
-        float v = f3_dot(rd, Q) * rcpDet;
-
-        float tU = (u >= 0.0f) ? 1.0f : 0.0f;
-        float tV = (v >= 0.0f) ? 1.0f : 0.0f;
-        float tUV = ((u + v) <= 1.0f) ? 1.0f : 0.0f;
-        float tT = (t > 0.0f) ? 1.0f : 0.0f;
-
-        result.x = u;
-        result.y = v;
-        result.z = t;
-        result.w = (tU + tV + tUV + tT) == 4.0f ? 1.0f : 0.0f;
-    }
-    return result;
-}
-
-pim_inline float VEC_CALL sdTriangle2D(
-    float2 a, float2 b, float2 c, float2 p)
-{
-    float2 ba = f2_sub(b, a); float2 pa = f2_sub(p, a);
-    float2 cb = f2_sub(c, b); float2 pb = f2_sub(p, b);
-    float2 ac = f2_sub(a, c); float2 pc = f2_sub(p, c);
-
-    float h = f32_saturate(f2_dot(ba, pa) / f2_lengthsq(ba));
-    h = f2_lengthsq(f2_sub(f2_mulvs(ba, h), pa));
-
-    float i = f32_saturate(f2_dot(cb, pb) / f2_lengthsq(cb));
-    i = f2_lengthsq(f2_sub(f2_mulvs(cb, i), pb));
-
-    float j = f32_saturate(f2_dot(ac, pc) / f2_lengthsq(ac));
-    j = f2_lengthsq(f2_sub(f2_mulvs(ac, j), pc));
-
-    return sqrtf(f32_min(h, f32_min(i, j)));
-}
-
-pim_inline float VEC_CALL sdPlane2D(float2 n, float d, float2 pt)
-{
-    return f2_dot(n, pt) - d;
-}
-
-pim_inline float VEC_CALL sdPlaneBox2D(
-    float2 n, float d, float2 center, float2 extents)
-{
-    return sdPlane2D(n, d, center) - f32_abs(sdPlane2D(n, 0.0f, extents));
-}
+    "#version 330 core\n",
+    "in vec2 uv;\n",
+    "out vec4 outColor;\n",
+    "uniform sampler2D inColor;\n",
+    "void main()\n",
+    "{\n",
+    "   outColor = texture(inColor, uv);\n",
+    "}\n",
+};
 
 pim_inline int2 VEC_CALL UnormToScreen(float2 u)
 {
@@ -259,7 +148,7 @@ pim_inline float2 VEC_CALL GetUnormTile(i32 i)
 
 static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
 {
-    framebuf_t frame = ms_buffers[state.iFrame];
+    framebuf_t frame = ms_buffer;;
     const int2 tile = GetScreenTile(state.iTile);
     for (i32 ty = 0; ty < kTileHeight; ++ty)
     {
@@ -285,7 +174,7 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
 
 static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 {
-    framebuf_t frame = ms_buffers[state.iFrame];
+    framebuf_t frame = ms_buffer;
     const float4x4 M = draw.M;
     const float4x4 V = state.V;
     const float4x4 P = state.P;
@@ -294,7 +183,7 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 
     const float2 tileMin = GetUnormTile(state.iTile);
     const float2 tileMax = f2_add(tileMin, kTileSize);
-    prng_t rng = prng_create();
+    prng_t rng = state.rng;
 
     for (i32 iVert = 0; (iVert + 3) <= mesh.length; iVert += 3)
     {
@@ -317,28 +206,39 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         float4 A = f4x4_mul_pt(P, viewA);
         float4 B = f4x4_mul_pt(P, viewB);
         float4 C = f4x4_mul_pt(P, viewC);
+
         // perspective divide
         A = f4_divvs(A, A.w);
         B = f4_divvs(B, B.w);
         C = f4_divvs(C, C.w);
-        // [-1, 1] => [0, 1]
+
+        // snorm clip space to unorm clip space
         A = f4_unorm(A);
         B = f4_unorm(B);
         C = f4_unorm(C);
 
+        // 2D triangle and area
         const float2 a = f4_f2(A);
         const float2 b = f4_f2(B);
         const float2 c = f4_f2(C);
-        const float area2 = edge_func2D(a, b, c);
+        const float area = tri_area2D(a, b, c);
 
         // cull backfaces
-        if (area2 < f16_eps)
+        if (area < f16_eps)
         {
             continue;
         }
 
         // early z clip
         if (f3_cliptest(f3_v(A.z, B.z, C.z), 0.0f, 1.0f))
+        {
+            continue;
+        }
+        if (f3_cliptest(f3_v(a.x, b.x, c.x), tileMin.x, tileMax.x))
+        {
+            continue;
+        }
+        if (f3_cliptest(f3_v(a.y, b.y, c.y), tileMin.y, tileMax.y))
         {
             continue;
         }
@@ -349,38 +249,35 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         const float4 NC = mesh.normals[iVert + 2];
 
         // rasterization bounds
-        const float yMin = f32_max(tileMin.y, f3_hmin(f3_v(a.y, b.y, c.y)));
-        const float yMax = f32_min(tileMax.y, f3_hmax(f3_v(a.y, b.y, c.y)));
-        const float xMin = f32_max(tileMin.x, f3_hmin(f3_v(a.x, b.x, c.x)));
-        const float xMax = f32_min(tileMax.x, f3_hmax(f3_v(a.x, b.x, c.x)));
+        const float yMin = f1_max(tileMin.y, f3_hmin(f3_v(a.y, b.y, c.y)));
+        const float yMax = f1_min(tileMax.y, f3_hmax(f3_v(a.y, b.y, c.y)));
+        const float xMin = f1_max(tileMin.x, f3_hmin(f3_v(a.x, b.x, c.x)));
+        const float xMax = f1_min(tileMax.x, f3_hmax(f3_v(a.x, b.x, c.x)));
 
         // constants
         const float dx = 1.0f / kDrawWidth;
         const float dy = 1.0f / kDrawHeight;
         const float2 kDrawSize = { kDrawWidth, kDrawHeight };
+        const int2 kCoordStride = { 1, kDrawWidth };
         const float dz = 0xffff;
-        const float rcpArea2 = 1.0f / area2;
+        const float rcpArea = 1.0f / area;
 
         for (float y = yMin; y <= yMax; y += dy)
         {
             for (float x = xMin; x <= xMax; x += dx)
             {
                 const float2 p = f2_v(x, y);
-                const float2 pSc = f2_mul(p, kDrawSize);
-                const i32 iTexel = (i32)pSc.x + kDrawWidth * (i32)pSc.y;
 
                 // barycentrics
-                const float w = edge_func2D(b, c, p) * rcpArea2;
-                const float u = edge_func2D(c, a, p) * rcpArea2;
-                const float v = edge_func2D(a, b, p) * rcpArea2;
+                const float3 wuv = bary2D(a, b, c, rcpArea, p);
 
                 // barycentric clip
-                if (w < 0.0f || u < 0.0f || v < 0.0f)
+                if (f3_any(f3_ltvs(wuv, 0.0f)))
                 {
                     continue;
                 }
 
-                const float4 P = f4_blend(A, B, C, w, u, v);
+                const float4 P = f4_blend(A, B, C, wuv);
                 const u16 Z = (u16)(P.z * dz);
 
                 // depth clip
@@ -390,15 +287,15 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
                 }
 
                 // depth test
-                ASSERT(iTexel >= 0);
-                ASSERT(iTexel < kDrawPixels);
+                const i32 iTexel = i2_dot(f2_i2(f2_mul(p, kDrawSize)), kCoordStride);
+                ASSERT((u32)iTexel < (u32)kDrawPixels);
                 if (Z >= frame.depth[iTexel])
                 {
                     continue;
                 }
 
                 // blend interpolators
-                const float4 N = f4_blend(NA, NB, NC, w, u, v);
+                const float4 N = f4_blend(NA, NB, NC, wuv);
 
                 const u16 C = f4_color(&rng, N);
                 frame.depth[iTexel] = Z;
@@ -406,32 +303,31 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
             }
         }
     }
+
+    state.rng = rng;
 }
 
 static void ExecTile(rastertask_t* task, i32 iTile)
 {
-    const i32 iFrame = task->iFrame & kFrameMask;
     renderstate_t state;
     state.viewport = (float4) { 0.0f, 0.0f, kDrawWidth, kDrawHeight };
     state.P = (float4x4) {
         .c0 = { 1.0f, 0.0f, 0.0f, 0.0f },
-        .c1 = { 0.0f, 1.0f, 0.0f, 0.0f },
-        .c2 = { 0.0f, 0.0f, 1.0f, 0.0f },
-        .c3 = { 0.0f, 0.0f, 0.0f, 1.0f },
+            .c1 = { 0.0f, 1.0f, 0.0f, 0.0f },
+            .c2 = { 0.0f, 0.0f, 1.0f, 0.0f },
+            .c3 = { 0.0f, 0.0f, 0.0f, 1.0f },
     };
     state.V = (float4x4) {
         .c0 = { 1.0f, 0.0f, 0.0f, 0.0f },
-        .c1 = { 0.0f, 1.0f, 0.0f, 0.0f },
-        .c2 = { 0.0f, 0.0f, 1.0f, 0.0f },
-        .c3 = { 0.0f, 0.0f, 0.0f, 1.0f },
+            .c1 = { 0.0f, 1.0f, 0.0f, 0.0f },
+            .c2 = { 0.0f, 0.0f, 1.0f, 0.0f },
+            .c3 = { 0.0f, 0.0f, 0.0f, 1.0f },
     };
     state.iTile = iTile;
-    state.iFrame = iFrame;
+    state.rng = prng_create();
 
     rcmdbuf_t* cmdBuf = NULL;
-    rcmdqueue_t* cmdQueue = &(ms_queues[iFrame]);
-
-    while((cmdBuf = rcmdqueue_read(cmdQueue, iTile)))
+    while ((cmdBuf = rcmdqueue_read(&ms_queue, iTile)))
     {
         i32 cursor = 0;
         rcmd_t cmd;
@@ -516,14 +412,14 @@ static void RegenMesh(void)
     for (i32 i = 0; i < len; ++i)
     {
         float4 position;
-        position.x = f32_lerp(-1.0f, 1.0f, prng_f32(&ms_prng));
-        position.y = f32_lerp(-1.0f, 1.0f, prng_f32(&ms_prng));
-        position.z = f32_lerp(-1.0f, 1.0f, prng_f32(&ms_prng));
+        position.x = f1_lerp(-2.0f, 2.0f, prng_f32(&ms_prng));
+        position.y = f1_lerp(-2.0f, 2.0f, prng_f32(&ms_prng));
+        position.z = f1_lerp(-2.0f, 2.0f, prng_f32(&ms_prng));
         position.w = 1.0f;
         float4 normal;
-        normal.x = f32_lerp(0.01f, 1.0f, prng_f32(&ms_prng));
-        normal.y = f32_lerp(0.01f, 1.0f, prng_f32(&ms_prng));
-        normal.z = f32_lerp(0.01f, 1.0f, prng_f32(&ms_prng));
+        normal.x = f1_lerp(0.0001f, 1.0f, prng_f32(&ms_prng));
+        normal.y = f1_lerp(0.0001f, 1.0f, prng_f32(&ms_prng));
+        normal.z = f1_lerp(0.0001f, 1.0f, prng_f32(&ms_prng));
         normal.w = 0.0f;
         positions[i] = position;
         normals[i] = normal;
@@ -536,111 +432,86 @@ static void RegenMesh(void)
     ms_mesh.normals = normals;
 }
 
-static void* ImGuiAllocFn(usize sz, void* userData) { return perm_malloc((i32)sz); }
-static void ImGuiFreeFn(void* ptr, void* userData) { pim_free(ptr); }
+static glhandle CreateGlProgram(
+    i32 vsLines, const char** vs,
+    i32 fsLines, const char** fs);
+static void DestroyGlProgram(glhandle* pProg);
+static void SetupTextureUnit(glhandle prog, const char* texName, i32 unit);
 
-i32 screen_width(void) { return ms_width; }
-i32 screen_height(void) { return ms_height; }
+static glhandle CreateGlTexture(i32 width, i32 height);
+static void UpdateGlTexture(
+    glhandle hdl, i32 width, i32 height, const void* data);
+static void DestroyGlTexture(glhandle* pHdl);
+static void BindGlTexture(glhandle hdl, i32 unit);
+
+static glmesh_t CreateGlMesh(
+    i32 bytes, const void* data,
+    i32 stride,
+    i32 attribCount, const vert_attrib_t* attribs);
+static void DrawGlMesh(glmesh_t mesh);
+static void DestroyGlMesh(glmesh_t* pMesh);
 
 void render_sys_init(void)
 {
-    ms_iFrame = 0;
-    sg_setup(&(sg_desc)
-    {
-        .mtl_device = sapp_metal_get_device(),
-        .mtl_drawable_cb = sapp_metal_get_drawable,
-        .mtl_renderpass_descriptor_cb = sapp_metal_get_renderpass_descriptor,
-        .d3d11_device = sapp_d3d11_get_device(),
-        .d3d11_device_context = sapp_d3d11_get_device_context(),
-        .d3d11_render_target_view_cb = sapp_d3d11_get_render_target_view,
-        .d3d11_depth_stencil_view_cb = sapp_d3d11_get_depth_stencil_view,
-    });
-    ms_features = sg_query_features();
-    ms_limits = sg_query_limits();
-    ms_backend = sg_query_backend();
-
-    sgl_setup(&(sgl_desc_t) { 0 });
-    igSetAllocatorFunctions(ImGuiAllocFn, ImGuiFreeFn, NULL);
-    simgui_setup(&(simgui_desc_t) { 0 });
-
-    ms_width = sapp_width();
-    ms_height = sapp_height();
-
-    for (i32 i = 0; i < kNumFrames; ++i)
-    {
-        ms_images[i] = sg_make_image(&(sg_image_desc)
-        {
-            .type = SG_IMAGETYPE_2D,
-            .pixel_format = SG_PIXELFORMAT_RGB5A1,
-            .width = kDrawWidth,
-            .height = kDrawHeight,
-            .usage = SG_USAGE_STREAM,
-            .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
-            .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
-        });
-        framebuf_create(ms_buffers + i, kDrawWidth, kDrawHeight);
-        rcmdqueue_create(ms_queues + i);
-        ms_rastasks[i] = (rastertask_t)
-        {
-            .iFrame = i,
-        };
-        ms_cmdtasks[i] = (cmdtask_t)
-        {
-            0
-        };
-    }
-
-    CreateEntities(NULL, 0, 1 << 20);
-
     ms_prng = prng_create();
+
+    framebuf_create(&ms_buffer, kDrawWidth, kDrawHeight);
+    rcmdqueue_create(&ms_queue);
+
+    // setup gl texture blit
+    ms_image = CreateGlTexture(kDrawWidth, kDrawHeight);
+    ASSERT(ms_image);
+    const vert_attrib_t attribs[] =
+    {
+        { .dimension = 2, .offset = 0 },
+    };
+    ms_blitMesh = CreateGlMesh(
+        sizeof(kScreenMesh), kScreenMesh,
+        sizeof(float2),
+        NELEM(attribs), attribs);
+    ms_blitProgram = CreateGlProgram(
+        NELEM(kBlitVertShader), kBlitVertShader,
+        NELEM(kBlitFragShader), kBlitFragShader);
+    ASSERT(ms_blitProgram);
+    SetupTextureUnit(ms_blitProgram, "inColor", 0);
+
+    // demo stuff
+    CreateEntities(NULL, 0, 1 << 20);
     RegenMesh();
 }
 
 void render_sys_update(void)
 {
-    const i32 iFrame = ms_iFrame & kFrameMask;
-
-    ms_width = sapp_width();
-    ms_height = sapp_height();
-    simgui_new_frame(ms_width, ms_height, time_dtf());
+    camera_t camera;
+    camera_get(&camera);
 
     igBegin("RenderSystem", NULL, 0);
     {
-        if (igCollapsingHeaderTreeNodeFlags("View", 0))
+        float dt = (float)time_dtf();
+        ms_dt = f1_lerp(ms_dt, dt, 1.0f / 60.0f);
+        igValueFloat("ms", ms_dt * 1000.0f, NULL);
+        igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f, NULL, 1.0f);
+        igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f, NULL, 1.0f);
+        igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f, NULL, 1.0f);
+        igSliderFloat3("scale", &ms_modelScale.x, -10.0f, 10.0f, NULL, 1.0f);
+        if (igButton("Regen Mesh"))
         {
-            igSliderFloat3("eye", &ms_eye.x, -10.0f, 10.0f, NULL, 1.0f);
-            igSliderFloat3("at", &ms_at.x, -10.0f, 10.0f, NULL, 1.0f);
-            igSliderFloat3("up", &ms_up.x, -10.0f, 10.0f, NULL, 1.0f);
-        }
-        if (igCollapsingHeaderTreeNodeFlags("Projection", 0))
-        {
-            igSliderFloat("fov", &ms_fov, 10.0f, 170.0f, NULL, 1.0f);
-            igSliderFloat("near", &ms_near, 0.1f, 1.0f, NULL, 1.0f);
-            igSliderFloat("far", &ms_far, 1.0f, 300.0f, NULL, 1.0f);
-        }
-        if (igCollapsingHeaderTreeNodeFlags("Model", 0))
-        {
-            igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f, NULL, 1.0f);
-            igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f, NULL, 1.0f);
-            igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f, NULL, 1.0f);
-            igSliderFloat3("scale", &ms_modelScale.x, -10.0f, 10.0f, NULL, 1.0f);
-            if (igButton("Regen Mesh", (ImVec2) { 0 }))
-            {
-                RegenMesh();
-            }
+            RegenMesh();
         }
     }
     igEnd();
 
     compflag_t all = compflag_create(3, CompId_Position, CompId_Rotation, CompId_Scale);
     compflag_t none = compflag_create(0);
-    ecs_foreach(&(ms_cmdtasks[iFrame].task), all, none, DrawableTaskFn);
+    ecs_foreach((ecs_foreach_t*)&ms_cmdtask, all, none, DrawableTaskFn);
 
     rcmdbuf_t* cmdbuf = rcmdbuf_create();
     rcmd_clear(cmdbuf, 0x0000, 0xffff);
 
-    float4x4 P = f4x4_perspective(f32_radians(ms_fov), (float)ms_width / (float)ms_height, ms_near, ms_far);
-    float4x4 V = f4x4_lookat(ms_eye, ms_at, f3_normalize(ms_up));
+    float aspect = (float)window_width() / (float)window_height();
+    float fovy = f1_radians(camera.fovy);
+    float4x4 P = f4x4_perspective(fovy, aspect, camera.nearFar.x, camera.nearFar.y);
+    float4x4 V = f4x4_lookat(camera.position, f3_add(camera.position, quat_fwd(camera.rotation)), quat_up(camera.rotation));
     rcmd_view(cmdbuf, V, P);
 
     material_t material = { 0 };
@@ -648,71 +519,320 @@ void render_sys_update(void)
     float4x4 M = f4x4_trs(ms_modelTranslation, modelRotation, ms_modelScale);
     rcmd_draw(cmdbuf, M, ms_mesh, material);
 
-    rcmdqueue_submit(ms_queues + iFrame, cmdbuf);
+    rcmdqueue_submit(&ms_queue, cmdbuf);
+    task_submit((task_t*)&ms_rastask, RenderTaskFn, kTileCount);
+    task_sys_schedule();
+}
+
+void render_sys_present(void)
+{
+    task_await((task_t*)&ms_rastask);
+    UpdateGlTexture(ms_image, kDrawWidth, kDrawHeight, ms_buffer.color);
+
+    glViewport(0, 0, window_width(), window_height());
+    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+    glUseProgram(ms_blitProgram);
+    BindGlTexture(ms_image, 0);
+    DrawGlMesh(ms_blitMesh);
 }
 
 void render_sys_shutdown(void)
 {
     task_sys_schedule();
 
-    for (i32 i = 0; i < kNumFrames; ++i)
-    {
-        task_await((task_t*)(ms_cmdtasks + i));
-        task_await((task_t*)(ms_rastasks + i));
-        sg_destroy_image(ms_images[i]);
-        framebuf_destroy(ms_buffers + i);
-        rcmdqueue_destroy(ms_queues + i);
-    }
-
-    simgui_shutdown();
-    sgl_shutdown();
-    sg_shutdown();
+    task_await((task_t*)&ms_cmdtask);
+    task_await((task_t*)&ms_rastask);
+    framebuf_destroy(&ms_buffer);
+    rcmdqueue_destroy(&ms_queue);
+    DestroyGlTexture(&ms_image);
+    DestroyGlMesh(&ms_blitMesh);
+    DestroyGlProgram(&ms_blitProgram);
 }
 
-void render_sys_frameend(void)
+static glhandle CreateGlTexture(i32 width, i32 height)
 {
-    const i32 iPrev = (ms_iFrame - 1) & kFrameMask;
-    const i32 iCurrent = (ms_iFrame + 0) & kFrameMask;
+    glhandle hdl = 0;
+    glGenTextures(1, &hdl);
+    ASSERT(hdl);
+    ASSERT(!glGetError());
+    glBindTexture(GL_TEXTURE_2D, hdl);
+    ASSERT(!glGetError());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    ASSERT(!glGetError());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    ASSERT(!glGetError());
+    glTexImage2D(
+        GL_TEXTURE_2D,              // target
+        0,                          // level
+        GL_RGB5_A1,                 // internalformat
+        width,                      // width
+        height,                     // height
+        GL_FALSE,                   // border
+        GL_RGBA,                    // format
+        GL_UNSIGNED_SHORT_5_5_5_1,  // type
+        NULL);                      // data
+    ASSERT(!glGetError());
+    return hdl;
+}
+
+static void UpdateGlTexture(
+    glhandle hdl,
+    i32 width,
+    i32 height,
+    const void* data)
+{
+    ASSERT(hdl);
+    ASSERT(data);
+    glBindTexture(GL_TEXTURE_2D, hdl);
+    ASSERT(!glGetError());
+    glTexSubImage2D(
+        GL_TEXTURE_2D,              // target
+        0,                          // mip level
+        0,                          // xoffset
+        0,                          // yoffset
+        width,                      // width
+        height,                     // height
+        GL_RGBA,                    // format
+        GL_UNSIGNED_SHORT_5_5_5_1,  // type
+        data);                      // data
+    ASSERT(!glGetError());
+}
+
+static void DestroyGlTexture(glhandle* pHdl)
+{
+    ASSERT(pHdl);
+    glhandle hdl = *pHdl;
+    *pHdl = 0;
+    if (hdl)
     {
-        rastertask_t* task = ms_rastasks + iCurrent;
-        task_await((task_t*)task);
-
-        framebuf_t buffer = ms_buffers[iCurrent];
-        sg_update_image(ms_images[iCurrent], &(sg_image_content){
-            .subimage[0][0].ptr = buffer.color,
-            .subimage[0][0].size = framebuf_color_bytes(buffer),
-        });
-
-        task->iFrame = iCurrent;
-        task_submit((task_t*)task, RenderTaskFn, kTileCount);
-    }
-    {
-        sg_begin_default_pass(&(sg_pass_action) { 0 }, ms_width, ms_height);
-        sgl_viewport(0, 0, ms_width, ms_height, ms_features.origin_top_left);
-        sgl_enable_texture();
-        sgl_matrix_mode_texture();
-        sgl_load_identity();
-        sgl_texture(ms_images[iPrev]);
-        sgl_begin_triangles();
-        {
-            sgl_v2f_t2f(-1.0f, -1.0f, 0.0f, 0.0f); // TL
-            sgl_v2f_t2f(-1.0f, 1.0f, 0.0f, 1.0f); // BL
-            sgl_v2f_t2f(1.0f, -1.0f, 1.0f, 0.0f); // TR
-
-            sgl_v2f_t2f(1.0f, -1.0f, 1.0f, 0.0f); // TR
-            sgl_v2f_t2f(-1.0f, 1.0f, 0.0f, 1.0f); // BL
-            sgl_v2f_t2f(1.0f, 1.0f, 1.0f, 1.0f); // BR
-        }
-        sgl_end();
-        sgl_draw();
-        simgui_render();
-        sg_end_pass();
-        sg_commit();
-        ++ms_iFrame;
+        glDeleteTextures(1, &hdl);
+        ASSERT(!glGetError());
     }
 }
 
-i32 render_sys_onevent(const struct sapp_event* evt)
+static void BindGlTexture(glhandle hdl, i32 index)
 {
-    return simgui_handle_event(evt);
+    ASSERT(hdl);
+    ASSERT(index >= 0 && index < 8);
+    glActiveTexture(GL_TEXTURE0 + index);
+    ASSERT(!glGetError());
+    glBindTexture(GL_TEXTURE_2D, hdl);
+    ASSERT(!glGetError());
+}
+
+static glmesh_t CreateGlMesh(
+    i32 bytes, const void* data,
+    i32 stride,
+    i32 attribCount, const vert_attrib_t* attribs)
+{
+    ASSERT(bytes > 0);
+    ASSERT(data);
+    ASSERT(attribCount > 0);
+    ASSERT(attribs);
+
+    i32 vao = 0;
+    i32 vbo = 0;
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    ASSERT(vao);
+    ASSERT(vbo);
+    ASSERT(!glGetError());
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    ASSERT(!glGetError());
+    for (i32 i = 0; i < attribCount; ++i)
+    {
+        glEnableVertexAttribArray(i);
+        ASSERT(!glGetError());
+        glVertexAttribPointer(
+            i,                              // index
+            attribs[i].dimension,           // dimension
+            GL_FLOAT,                       // type
+            GL_FALSE,                       // normalized
+            stride,                         // bytes between vertices
+            (void*)(isize)(attribs[i].offset));    // offset of attribute
+        ASSERT(!glGetError());
+    }
+    glBufferData(GL_ARRAY_BUFFER, bytes, data, GL_STATIC_DRAW);
+    ASSERT(!glGetError());
+
+    glmesh_t mesh;
+    mesh.vao = vao;
+    mesh.vbo = vbo;
+    mesh.vertCount = bytes / stride;
+
+    return mesh;
+}
+
+static void DrawGlMesh(glmesh_t mesh)
+{
+    ASSERT(mesh.vao);
+    ASSERT(mesh.vbo);
+    ASSERT(mesh.vertCount > 0);
+    glBindVertexArray(mesh.vao);
+    ASSERT(!glGetError());
+    glDrawArrays(GL_TRIANGLES, 0, mesh.vertCount);
+    ASSERT(!glGetError());
+}
+
+static void DestroyGlMesh(glmesh_t* pMesh)
+{
+    ASSERT(pMesh);
+    glhandle vao = pMesh->vao;
+    glhandle vbo = pMesh->vbo;
+    pMesh->vao = 0;
+    pMesh->vbo = 0;
+    pMesh->vertCount = 0;
+    if (vbo)
+    {
+        glDeleteBuffers(1, &vbo);
+        ASSERT(!glGetError());
+    }
+    if (vao)
+    {
+        glDeleteVertexArrays(1, &vao);
+        ASSERT(!glGetError());
+    }
+}
+
+static char* GetShaderLog(glhandle shader)
+{
+    ASSERT(shader);
+    i32 status = 0;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+    ASSERT(!glGetError());
+    if (!status)
+    {
+        i32 loglen = 0;
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &loglen);
+        ASSERT(!glGetError());
+        char* infolog = pim_calloc(EAlloc_Temp, loglen + 1);
+        ASSERT(infolog);
+        glGetShaderInfoLog(shader, loglen, NULL, infolog);
+        ASSERT(!glGetError());
+        infolog[loglen] = 0;
+        return infolog;
+    }
+    return NULL;
+}
+
+static char* GetProgramLog(glhandle program)
+{
+    ASSERT(program);
+    i32 status = 0;
+    glGetProgramiv(program, GL_LINK_STATUS, &status);
+    ASSERT(!glGetError());
+    if (!status)
+    {
+        i32 loglen = 0;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &loglen);
+        ASSERT(!glGetError());
+        char* infolog = pim_calloc(EAlloc_Temp, loglen + 1);
+        glGetProgramInfoLog(program, loglen, NULL, infolog);
+        ASSERT(!glGetError());
+        infolog[loglen] = 0;
+        return infolog;
+    }
+    return NULL;
+}
+
+static glhandle CreateGlProgram(
+    i32 vsLines, const char** vs,
+    i32 fsLines, const char** fs)
+{
+    ASSERT(vsLines > 0);
+    ASSERT(fsLines > 0);
+    ASSERT(vs);
+    ASSERT(fs);
+
+    glhandle vso = glCreateShader(GL_VERTEX_SHADER);
+    ASSERT(vso);
+    ASSERT(!glGetError());
+    glShaderSource(vso, vsLines, vs, NULL);
+    ASSERT(!glGetError());
+    glCompileShader(vso);
+    ASSERT(!glGetError());
+    char* vsErrors = GetShaderLog(vso);
+    if (vsErrors)
+    {
+        fd_puts(vsErrors, fd_stderr);
+        pim_free(vsErrors);
+        glDeleteShader(vso);
+        ASSERT(!glGetError());
+        return 0;
+    }
+
+    glhandle fso = glCreateShader(GL_FRAGMENT_SHADER);
+    ASSERT(fso);
+    ASSERT(!glGetError());
+    glShaderSource(fso, fsLines, fs, NULL);
+    ASSERT(!glGetError());
+    glCompileShader(fso);
+    ASSERT(!glGetError());
+    char* fsErrors = GetShaderLog(vso);
+    if (fsErrors)
+    {
+        fd_puts(fsErrors, fd_stderr);
+        pim_free(fsErrors);
+        glDeleteShader(vso);
+        ASSERT(!glGetError());
+        glDeleteShader(fso);
+        ASSERT(!glGetError());
+        return 0;
+    }
+
+    glhandle prog = glCreateProgram();
+    ASSERT(prog);
+    ASSERT(!glGetError());
+    glAttachShader(prog, vso);
+    ASSERT(!glGetError());
+    glAttachShader(prog, fso);
+    ASSERT(!glGetError());
+    glLinkProgram(prog);
+    ASSERT(!glGetError());
+
+    char* progErrors = GetProgramLog(prog);
+    if (progErrors)
+    {
+        fd_puts(progErrors, fd_stderr);
+        pim_free(progErrors);
+        glDeleteProgram(prog);
+        ASSERT(!glGetError());
+        prog = 0;
+    }
+
+    glDeleteShader(vso);
+    ASSERT(!glGetError());
+    glDeleteShader(fso);
+    ASSERT(!glGetError());
+
+    return prog;
+}
+
+static void DestroyGlProgram(glhandle* pProg)
+{
+    ASSERT(pProg);
+    glhandle prog = *pProg;
+    *pProg = 0;
+    if (prog)
+    {
+        glUseProgram(0);
+        ASSERT(!glGetError());
+        glDeleteProgram(prog);
+        ASSERT(!glGetError());
+    }
+}
+
+static void SetupTextureUnit(glhandle prog, const char* texName, i32 unit)
+{
+    ASSERT(prog);
+    ASSERT(texName);
+    i32 location = glGetUniformLocation(prog, texName);
+    ASSERT(!glGetError());
+    ASSERT(location != -1);
+    glUseProgram(prog);
+    ASSERT(!glGetError());
+    glUniform1i(location, unit);
+    ASSERT(!glGetError());
 }

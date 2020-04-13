@@ -12,13 +12,12 @@ static void audio_main(float* buffer, i32 num_frames, i32 num_channels)
 
 void audio_sys_init(void)
 {
-    saudio_desc desc =
+    saudio_setup(&(saudio_desc)
     {
         .num_channels = 2,
         .sample_rate = 44100,
         .stream_cb = audio_main,
-    };
-    saudio_setup(&desc);
+    });
 }
 
 void audio_sys_update(void)

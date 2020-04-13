@@ -93,7 +93,7 @@ static void OnGui()
     const pack_t* packs = ms_folder.packs;
     for (i32 i = 0; i < numPacks; ++i)
     {
-        if (!igCollapsingHeaderTreeNodeFlags(packs[i].path, 0))
+        if (!igCollapsingHeader1(packs[i].path))
         {
             continue;
         }

@@ -5,6 +5,7 @@
 PIM_C_BEGIN
 
 #include "math/scalar.h"
+#include "common/random.h"
 
 static const float2 f2_0 = { 0.0f, 0.0f };
 static const float2 f2_1 = { 1.0f, 1.0f };
@@ -30,6 +31,12 @@ pim_inline float2 VEC_CALL f2_iv(i32 x, i32 y)
 pim_inline float2 VEC_CALL f2_is(i32 s)
 {
     return (float2) { (float)s, (float)s };
+}
+
+pim_inline int2 VEC_CALL f2_i2(float2 f)
+{
+    int2 i = { (i32)f.x, (i32)f.y };
+    return i;
 }
 
 pim_inline float2 VEC_CALL f2_xx(float2 v)
@@ -206,8 +213,8 @@ pim_inline float2 VEC_CALL f2_min(float2 a, float2 b)
 {
     float2 vec =
     {
-        f32_min(a.x, b.x),
-        f32_min(a.y, b.y),
+        f1_min(a.x, b.x),
+        f1_min(a.y, b.y),
     };
     return vec;
 }
@@ -216,8 +223,8 @@ pim_inline float2 VEC_CALL f2_max(float2 a, float2 b)
 {
     float2 vec =
     {
-        f32_max(a.x, b.x),
-        f32_max(a.y, b.y),
+        f1_max(a.x, b.x),
+        f1_max(a.y, b.y),
     };
     return vec;
 }
@@ -234,12 +241,12 @@ pim_inline float2 VEC_CALL f2_select(float2 a, float2 b, float2 t)
 
 pim_inline float VEC_CALL f2_hmin(float2 v)
 {
-    return f32_min(v.x, v.y);
+    return f1_min(v.x, v.y);
 }
 
 pim_inline float VEC_CALL f2_hmax(float2 v)
 {
-    return f32_max(v.x, v.y);
+    return f1_max(v.x, v.y);
 }
 
 pim_inline float2 VEC_CALL f2_clamp(float2 x, float2 lo, float2 hi)
@@ -462,6 +469,11 @@ pim_inline float2 VEC_CALL f2_rad(float2 x)
 pim_inline float2 VEC_CALL f2_deg(float2 x)
 {
     return f2_mul(x, f2_s(kDegreesPerRadian));
+}
+
+pim_inline float2 VEC_CALL f2_rand(prng_t* rng)
+{
+    return f2_v(prng_f32(rng), prng_f32(rng));
 }
 
 PIM_C_END

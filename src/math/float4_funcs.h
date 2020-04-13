@@ -5,6 +5,7 @@
 PIM_C_BEGIN
 
 #include "math/scalar.h"
+#include "common/random.h"
 
 static const float4 f4_0 = { 0.0f, 0.0f, 0.0f, 0.0f };
 static const float4 f4_1 = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -378,10 +379,10 @@ pim_inline float4 VEC_CALL f4_min(float4 a, float4 b)
 {
     float4 vec =
     {
-        f32_min(a.x, b.x),
-        f32_min(a.y, b.y),
-        f32_min(a.z, b.z),
-        f32_min(a.w, b.w),
+        f1_min(a.x, b.x),
+        f1_min(a.y, b.y),
+        f1_min(a.z, b.z),
+        f1_min(a.w, b.w),
     };
     return vec;
 }
@@ -390,10 +391,10 @@ pim_inline float4 VEC_CALL f4_minvs(float4 a, float b)
 {
     float4 vec =
     {
-        f32_min(a.x, b),
-        f32_min(a.y, b),
-        f32_min(a.z, b),
-        f32_min(a.w, b),
+        f1_min(a.x, b),
+        f1_min(a.y, b),
+        f1_min(a.z, b),
+        f1_min(a.w, b),
     };
     return vec;
 }
@@ -402,10 +403,10 @@ pim_inline float4 VEC_CALL f4_minsv(float a, float4 b)
 {
     float4 vec =
     {
-        f32_min(a, b.x),
-        f32_min(a, b.y),
-        f32_min(a, b.z),
-        f32_min(a, b.w),
+        f1_min(a, b.x),
+        f1_min(a, b.y),
+        f1_min(a, b.z),
+        f1_min(a, b.w),
     };
     return vec;
 }
@@ -414,10 +415,10 @@ pim_inline float4 VEC_CALL f4_max(float4 a, float4 b)
 {
     float4 vec =
     {
-        f32_max(a.x, b.x),
-        f32_max(a.y, b.y),
-        f32_max(a.z, b.z),
-        f32_max(a.w, b.w),
+        f1_max(a.x, b.x),
+        f1_max(a.y, b.y),
+        f1_max(a.z, b.z),
+        f1_max(a.w, b.w),
     };
     return vec;
 }
@@ -426,10 +427,10 @@ pim_inline float4 VEC_CALL f4_maxvs(float4 a, float b)
 {
     float4 vec =
     {
-        f32_max(a.x, b),
-        f32_max(a.y, b),
-        f32_max(a.z, b),
-        f32_max(a.w, b),
+        f1_max(a.x, b),
+        f1_max(a.y, b),
+        f1_max(a.z, b),
+        f1_max(a.w, b),
     };
     return vec;
 }
@@ -438,10 +439,10 @@ pim_inline float4 VEC_CALL f4_maxsv(float a, float4 b)
 {
     float4 vec =
     {
-        f32_max(a, b.x),
-        f32_max(a, b.y),
-        f32_max(a, b.z),
-        f32_max(a, b.w),
+        f1_max(a, b.x),
+        f1_max(a, b.y),
+        f1_max(a, b.z),
+        f1_max(a, b.w),
     };
     return vec;
 }
@@ -484,16 +485,16 @@ pim_inline float4 VEC_CALL f4_selectsv(float a, float b, float4 t)
 
 pim_inline float VEC_CALL f4_hmin(float4 v)
 {
-    float a = f32_min(v.x, v.y);
-    float b = f32_min(v.z, v.w);
-    return f32_min(a, b);
+    float a = f1_min(v.x, v.y);
+    float b = f1_min(v.z, v.w);
+    return f1_min(a, b);
 }
 
 pim_inline float VEC_CALL f4_hmax(float4 v)
 {
-    float a = f32_max(v.x, v.y);
-    float b = f32_max(v.z, v.w);
-    return f32_max(a, b);
+    float a = f1_max(v.x, v.y);
+    float b = f1_max(v.z, v.w);
+    return f1_max(a, b);
 }
 
 pim_inline float4 VEC_CALL f4_clamp(float4 x, float4 lo, float4 hi)
@@ -838,6 +839,61 @@ pim_inline float4 VEC_CALL f4_rad(float4 x)
 pim_inline float4 VEC_CALL f4_deg(float4 x)
 {
     return f4_mulvs(x, kDegreesPerRadian);
+}
+
+pim_inline float4 VEC_CALL f4_blend(float4 a, float4 b, float4 c, float3 wuv)
+{
+    float4 p = f4_mulvs(a, wuv.x);
+    p = f4_add(p, f4_mulvs(b, wuv.y));
+    p = f4_add(p, f4_mulvs(c, wuv.z));
+    return p;
+}
+
+pim_inline float4 VEC_CALL f4_unorm(float4 s)
+{
+    return f4_addvs(f4_mulvs(s, 0.5f), 0.5f);
+}
+
+pim_inline float4 VEC_CALL f4_snorm(float4 u)
+{
+    return f4_subvs(f4_mulvs(u, 2.0f), 1.0f);
+}
+
+pim_inline float3 VEC_CALL f4_f3(float4 v)
+{
+    return (float3) { v.x, v.y, v.z };
+}
+
+pim_inline float2 VEC_CALL f4_f2(float4 v)
+{
+    return (float2) { v.x, v.y };
+}
+
+pim_inline u16 VEC_CALL f4_rgb5a1(float4 v)
+{
+    const float4 kScale = { 31.0f, 31.0f, 31.0f, 31.0f };
+    v = f4_mul(v, kScale);
+    u16 r = (u16)v.x;
+    u16 g = (u16)v.y;
+    u16 b = (u16)v.z;
+    u16 c = (r << 11) | (g << 6) | (b << 1) | 1;
+    return c;
+}
+
+pim_inline float4 VEC_CALL f4_rand(prng_t* rng)
+{
+    return f4_v(prng_f32(rng), prng_f32(rng), prng_f32(rng), prng_f32(rng));
+}
+
+pim_inline float4 VEC_CALL f4_dither(prng_t* rng, float4 x)
+{
+    const float kDither = 1.0f / (1 << 5);
+    return f4_lerp(x, f4_rand(rng), kDither);
+}
+
+pim_inline u16 VEC_CALL f4_color(prng_t* rng, float4 x)
+{
+    return f4_rgb5a1(f4_dither(rng, x));
 }
 
 PIM_C_END

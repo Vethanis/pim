@@ -4,9 +4,6 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
-#include <stdbool.h>
-
 typedef enum
 {
     InputMod_Shift = (1 << 0),
@@ -20,12 +17,14 @@ typedef enum
 typedef enum
 {
     KeyCode_Invalid = 0,
+
     KeyCode_Space = 32,
-    KeyCode_Apostrophe = 39,  /* ' */
-    KeyCode_Comma = 44,  /* , */
-    KeyCode_Minus = 45,  /* - */
-    KeyCode_Period = 46,  /* . */
-    KeyCode_Slash = 47,  /* / */
+    KeyCode_Apostrophe = 39,    /* ' */
+    KeyCode_Comma = 44,         /* , */
+    KeyCode_Minus = 45,         /* - */
+    KeyCode_Period = 46,        /* . */
+    KeyCode_Slash = 47,         /* / */
+
     KeyCode_0 = 48,
     KeyCode_1 = 49,
     KeyCode_2 = 50,
@@ -36,8 +35,10 @@ typedef enum
     KeyCode_7 = 55,
     KeyCode_8 = 56,
     KeyCode_9 = 57,
-    KeyCode_Semicolon = 59,  /* ; */
-    KeyCode_Equal = 61,  /* = */
+
+    KeyCode_Semicolon = 59,     /* ; */
+    KeyCode_Equal = 61,         /* = */
+
     KeyCode_A = 65,
     KeyCode_B = 66,
     KeyCode_C = 67,
@@ -64,12 +65,15 @@ typedef enum
     KeyCode_X = 88,
     KeyCode_Y = 89,
     KeyCode_Z = 90,
-    KeyCode_LeftBracket = 91,  /* [ */
-    KeyCode_Backslash = 92,  /* \ */
-    KeyCode_RightBracket = 93,  /* ] */
-    KeyCode_GraveAccent = 96,  /* ` */
+
+    KeyCode_LeftBracket = 91,       /* [ */
+    KeyCode_Backslash = 92,         /* \ */
+    KeyCode_RightBracket = 93,      /* ] */
+    KeyCode_GraveAccent = 96,       /* ` */
+
     KeyCode_World1 = 161, /* non-US #1 */
     KeyCode_World2 = 162, /* non-US #2 */
+
     KeyCode_Escape = 256,
     KeyCode_Enter = 257,
     KeyCode_Tab = 258,
@@ -142,30 +146,29 @@ typedef enum
 
 typedef enum
 {
-    InputChannel_Keyboard = 0,
-    InputChannel_MouseButton,
-    InputChannel_MouseMove,
-    InputChannel_MouseScroll,
+    MouseAxis_X = 0,
+    MouseAxis_Y,
+    MouseAxis_ScrollX,
+    MouseAxis_ScrollY,
 
-    InputChannel_COUNT
-} InputChannel;
+    MouseAxis_COUNT
+} MouseAxis;
 
-typedef struct input_event_s
+typedef enum
 {
-    int32_t channel;    // InputChannel
-    int32_t id;         // KeyCode | MouseButton
-    int32_t modifiers;  // InputMod
-    float x;            // [-1, 1] mouse X
-    float y;            // [-1, 1] mouse Y
-} input_event_t;
+    IS_Release = 0,
+    IS_Press,
+    IS_Repeat,
+
+    InputState_COUNT
+} InputState;
 
 void input_sys_init(void);
 void input_sys_update(void);
 void input_sys_shutdown(void);
 
-void input_sys_onevent(const struct sapp_event* evt, int32_t kbCaptured);
-void input_sys_frameend(void);
-
-bool input_get_event(int32_t i, input_event_t* dst);
+InputState input_get_key(KeyCode key);
+InputState input_get_button(MouseButton button);
+float input_get_axis(MouseAxis axis);
 
 PIM_C_END

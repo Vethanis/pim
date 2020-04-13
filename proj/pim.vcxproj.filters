@@ -77,11 +77,14 @@
     <Filter Include="Source Files\io">
       <UniqueIdentifier>{4c250d55-1045-4e19-b5a6-0035df0c0b50}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\logic">
+      <UniqueIdentifier>{5c0aac3a-9ecf-4f94-90e6-20926650d973}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\glad">
+      <UniqueIdentifier>{d5176a6b-93d5-4121-85d3-09ab2e84b471}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\sokol\sokol_app.c">
-      <Filter>Source Files\sokol</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
       <Filter>Source Files\sokol</Filter>
     </ClCompile>
@@ -99,9 +102,6 @@
     </ClCompile>
     <ClCompile Include="..\submodules\tlsf\tlsf.c">
       <Filter>submodules\tlsf</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\sokol\sokol_gl.c">
-      <Filter>Source Files\sokol</Filter>
     </ClCompile>
     <ClCompile Include="..\src\common\module.c">
       <Filter>Source Files\common</Filter>
@@ -223,9 +223,6 @@
     <ClCompile Include="..\src\ui\imgui_widgets.cpp">
       <Filter>Source Files\ui</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\sokol\sokol_imgui.c">
-      <Filter>Source Files\sokol</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\assets\asset_system.c">
       <Filter>Source Files\assets</Filter>
     </ClCompile>
@@ -234,6 +231,30 @@
     </ClCompile>
     <ClCompile Include="..\src\rendering\rcmd.c">
       <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\camera.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\logic\logic.c">
+      <Filter>Source Files\logic</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\logic\camera_logic.c">
+      <Filter>Source Files\logic</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\glad\glad.c">
+      <Filter>Source Files\glad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ui\imgui_impl_glfw.cpp">
+      <Filter>Source Files\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ui\imgui_impl_opengl3.cpp">
+      <Filter>Source Files\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\window.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ui\ui.c">
+      <Filter>Source Files\ui</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -302,9 +323,6 @@
     </ClInclude>
     <ClInclude Include="..\submodules\stb\stretchy_buffer.h">
       <Filter>submodules\stb</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\sokol\sokol_backend.h">
-      <Filter>Source Files\sokol</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\stringutil.h">
       <Filter>Source Files\common</Filter>
@@ -465,13 +483,7 @@
     <ClInclude Include="..\src\rendering\framebuffer.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\sokol\sokol_app.h">
-      <Filter>Source Files\sokol</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\sokol\sokol_audio.h">
-      <Filter>Source Files\sokol</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\sokol\sokol_gfx.h">
       <Filter>Source Files\sokol</Filter>
     </ClInclude>
     <ClInclude Include="..\src\sokol\sokol_time.h">
@@ -542,6 +554,30 @@
     </ClInclude>
     <ClInclude Include="..\src\math\quat_funcs.h">
       <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\sdf.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\camera.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\logic\logic.h">
+      <Filter>Source Files\logic</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\logic\camera_logic.h">
+      <Filter>Source Files\logic</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ui\imgui_impl_glfw.h">
+      <Filter>Source Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ui\imgui_impl_opengl3.h">
+      <Filter>Source Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\window.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ui\ui.h">
+      <Filter>Source Files\ui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

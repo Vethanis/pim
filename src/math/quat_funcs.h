@@ -113,6 +113,24 @@ pim_inline float3 VEC_CALL quat_mul_dir(quat q, float3 dir)
     return y;
 }
 
+pim_inline float3 VEC_CALL quat_fwd(quat q)
+{
+    float3 dir = { 0.0f, 0.0f, -1.0f };
+    return quat_mul_dir(q, dir);
+}
+
+pim_inline float3 VEC_CALL quat_up(quat q)
+{
+    float3 dir = { 0.0f, 1.0f, 0.0f };
+    return quat_mul_dir(q, dir);
+}
+
+pim_inline float3 VEC_CALL quat_right(quat q)
+{
+    float3 dir = { 1.0f, 0.0f, 0.0f };
+    return quat_mul_dir(q, dir);
+}
+
 pim_inline float3 VEC_CALL quat_mul_invdir(float3 dir, quat q)
 {
     return quat_mul_dir(quat_inverse(q), dir);
@@ -165,9 +183,9 @@ pim_inline quat VEC_CALL f3x3_quat(float3x3 m)
 
     i32 i = 0;
     float b = w;
-    b = f32_max(b, x);
-    b = f32_max(b, z);
-    b = f32_max(b, y);
+    b = f1_max(b, x);
+    b = f1_max(b, z);
+    b = f1_max(b, y);
     i = (b == x) ? 1 : i;
     i = (b == y) ? 2 : i;
     i = (b == z) ? 3 : i;

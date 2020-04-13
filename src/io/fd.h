@@ -7,9 +7,9 @@ PIM_C_BEGIN
 typedef struct fd_s { i32 handle; } fd_t;
 static i32 fd_isopen(fd_t fd) { return fd.handle >= 0; }
 
-#define fd_stdin  0
-#define fd_stdout 1
-#define fd_stderr 2
+static const fd_t fd_stdin = { 0 };
+static const fd_t fd_stdout = { 1 };
+static const fd_t fd_stderr = { 2 };
 
 typedef enum
 {

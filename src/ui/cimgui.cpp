@@ -20,7 +20,7 @@ void igSetCurrentContext(ImGuiContext* ctx)
 {
     return ImGui::SetCurrentContext(ctx);
 }
-bool igDebugCheckVersionAndDataLayout(const char* version_str,size_t sz_io,size_t sz_style,size_t sz_vec2,size_t sz_vec4,size_t sz_drawvert,size_t sz_drawidx)
+bool igDebugCheckVersionAndDataLayout(const char* version_str,usize sz_io,usize sz_style,usize sz_vec2,usize sz_vec4,usize sz_drawvert,usize sz_drawidx)
 {
     return ImGui::DebugCheckVersionAndDataLayout(version_str,sz_io,sz_style,sz_vec2,sz_vec4,sz_drawvert,sz_drawidx);
 }
@@ -554,9 +554,9 @@ void igBulletTextV(const char* fmt,VaList args)
 {
     return ImGui::BulletTextV(fmt,args);
 }
-bool igButton(const char* label,const ImVec2 size)
+bool igButton(const char* label)
 {
-    return ImGui::Button(label,size);
+    return ImGui::Button(label);
 }
 bool igSmallButton(const char* label)
 {
@@ -726,15 +726,15 @@ bool igVSliderScalar(const char* label,const ImVec2 size,ImGuiDataType data_type
 {
     return ImGui::VSliderScalar(label,size,data_type,p_data,p_min,p_max,format,power);
 }
-bool igInputText(const char* label,char* buf,size_t buf_size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data)
+bool igInputText(const char* label,char* buf,usize buf_size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data)
 {
     return ImGui::InputText(label,buf,buf_size,flags,callback,user_data);
 }
-bool igInputTextMultiline(const char* label,char* buf,size_t buf_size,const ImVec2 size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data)
+bool igInputTextMultiline(const char* label,char* buf,usize buf_size,const ImVec2 size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data)
 {
     return ImGui::InputTextMultiline(label,buf,buf_size,size,flags,callback,user_data);
 }
-bool igInputTextWithHint(const char* label,const char* hint,char* buf,size_t buf_size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data)
+bool igInputTextWithHint(const char* label,const char* hint,char* buf,usize buf_size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data)
 {
     return ImGui::InputTextWithHint(label,hint,buf,buf_size,flags,callback,user_data);
 }
@@ -870,13 +870,13 @@ float igGetTreeNodeToLabelSpacing()
 {
     return ImGui::GetTreeNodeToLabelSpacing();
 }
-bool igCollapsingHeaderTreeNodeFlags(const char* label,ImGuiTreeNodeFlags flags)
+bool igCollapsingHeader1(const char* label)
 {
-    return ImGui::CollapsingHeader(label,flags);
+    return ImGui::CollapsingHeader(label);
 }
-bool igCollapsingHeaderBoolPtr(const char* label,bool* p_open,ImGuiTreeNodeFlags flags)
+bool igCollapsingHeader2(const char* label,bool* p_open)
 {
-    return ImGui::CollapsingHeader(label,p_open,flags);
+    return ImGui::CollapsingHeader(label,p_open);
 }
 void igSetNextItemOpen(bool is_open,ImGuiCond cond)
 {
@@ -1107,7 +1107,7 @@ bool igBeginDragDropSource(ImGuiDragDropFlags flags)
 {
     return ImGui::BeginDragDropSource(flags);
 }
-bool igSetDragDropPayload(const char* type,const void* data,size_t sz,ImGuiCond cond)
+bool igSetDragDropPayload(const char* type,const void* data,usize sz,ImGuiCond cond)
 {
     return ImGui::SetDragDropPayload(type,data,sz,cond);
 }
@@ -1375,7 +1375,7 @@ void igLoadIniSettingsFromDisk(const char* ini_filename)
 {
     return ImGui::LoadIniSettingsFromDisk(ini_filename);
 }
-void igLoadIniSettingsFromMemory(const char* ini_data,size_t ini_size)
+void igLoadIniSettingsFromMemory(const char* ini_data,usize ini_size)
 {
     return ImGui::LoadIniSettingsFromMemory(ini_data,ini_size);
 }
@@ -1383,15 +1383,15 @@ void igSaveIniSettingsToDisk(const char* ini_filename)
 {
     return ImGui::SaveIniSettingsToDisk(ini_filename);
 }
-const char* igSaveIniSettingsToMemory(size_t* out_ini_size)
+const char* igSaveIniSettingsToMemory(usize* out_ini_size)
 {
     return ImGui::SaveIniSettingsToMemory(out_ini_size);
 }
-void igSetAllocatorFunctions(void*(*alloc_func)(size_t sz,void* user_data),void(*free_func)(void* ptr,void* user_data),void* user_data)
+void igSetAllocatorFunctions(void*(*alloc_func)(usize sz,void* user_data),void(*free_func)(void* ptr,void* user_data),void* user_data)
 {
     return ImGui::SetAllocatorFunctions(alloc_func,free_func,user_data);
 }
-void* igMemAlloc(size_t size)
+void* igMemAlloc(usize size)
 {
     return ImGui::MemAlloc(size);
 }

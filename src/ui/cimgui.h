@@ -7,6 +7,11 @@ PIM_C_BEGIN
 
 #include "common/valist.h"
 
+#ifndef CIMGUI_VERSION
+    #define CIMGUI_VERSION      "1.75"
+    #define CIMGUI_VERSION_NUM  17500
+#endif
+
 typedef signed char ImS8;
 typedef unsigned char ImU8;
 typedef signed short ImS16;
@@ -865,7 +870,7 @@ struct ImGuiContext* igCreateContext(ImFontAtlas* shared_font_atlas);
 void igDestroyContext(ImGuiContext* ctx);
 struct ImGuiContext* igGetCurrentContext(void);
 void igSetCurrentContext(struct ImGuiContext* ctx);
-bool igDebugCheckVersionAndDataLayout(const char* version_str,size_t sz_io,size_t sz_style,size_t sz_vec2,size_t sz_vec4,size_t sz_drawvert,size_t sz_drawidx);
+bool igDebugCheckVersionAndDataLayout(const char* version_str,usize sz_io,usize sz_style,usize sz_vec2,usize sz_vec4,usize sz_drawvert,usize sz_drawidx);
 ImGuiIO* igGetIO(void);
 ImGuiStyle* igGetStyle(void);
 void igNewFrame(void);
@@ -997,7 +1002,7 @@ void igLabelText(const char* label,const char* fmt,...);
 void igLabelTextV(const char* label,const char* fmt, VaList args);
 void igBulletText(const char* fmt,...);
 void igBulletTextV(const char* fmt, VaList args);
-bool igButton(const char* label,const ImVec2 size);
+bool igButton(const char* label);
 bool igSmallButton(const char* label);
 bool igInvisibleButton(const char* str_id,const ImVec2 size);
 bool igArrowButton(const char* str_id,ImGuiDir dir);
@@ -1040,9 +1045,9 @@ bool igSliderScalarN(const char* label,ImGuiDataType data_type,void* p_data,int 
 bool igVSliderFloat(const char* label,const ImVec2 size,float* v,float v_min,float v_max,const char* format,float power);
 bool igVSliderInt(const char* label,const ImVec2 size,int* v,int v_min,int v_max,const char* format);
 bool igVSliderScalar(const char* label,const ImVec2 size,ImGuiDataType data_type,void* p_data,const void* p_min,const void* p_max,const char* format,float power);
-bool igInputText(const char* label,char* buf,size_t buf_size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data);
-bool igInputTextMultiline(const char* label,char* buf,size_t buf_size,const ImVec2 size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data);
-bool igInputTextWithHint(const char* label,const char* hint,char* buf,size_t buf_size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data);
+bool igInputText(const char* label,char* buf,usize buf_size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data);
+bool igInputTextMultiline(const char* label,char* buf,usize buf_size,const ImVec2 size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data);
+bool igInputTextWithHint(const char* label,const char* hint,char* buf,usize buf_size,ImGuiInputTextFlags flags,ImGuiInputTextCallback callback,void* user_data);
 bool igInputFloat(const char* label,float* v,float step,float step_fast,const char* format,ImGuiInputTextFlags flags);
 bool igInputFloat2(const char* label,float v[2],const char* format,ImGuiInputTextFlags flags);
 bool igInputFloat3(const char* label,float v[3],const char* format,ImGuiInputTextFlags flags);
@@ -1074,8 +1079,8 @@ void igTreePushStr(const char* str_id);
 void igTreePushPtr(const void* ptr_id);
 void igTreePop(void);
 float igGetTreeNodeToLabelSpacing(void);
-bool igCollapsingHeaderTreeNodeFlags(const char* label,ImGuiTreeNodeFlags flags);
-bool igCollapsingHeaderBoolPtr(const char* label,bool* p_open,ImGuiTreeNodeFlags flags);
+bool igCollapsingHeader1(const char* label);
+bool igCollapsingHeader2(const char* label,bool* p_open);
 void igSetNextItemOpen(bool is_open,ImGuiCond cond);
 bool igSelectableBool(const char* label,bool selected,ImGuiSelectableFlags flags,const ImVec2 size);
 bool igSelectableBoolPtr(const char* label,bool* p_selected,ImGuiSelectableFlags flags,const ImVec2 size);
@@ -1133,7 +1138,7 @@ void igLogToClipboard(int auto_open_depth);
 void igLogFinish(void);
 void igLogButtons(void);
 bool igBeginDragDropSource(ImGuiDragDropFlags flags);
-bool igSetDragDropPayload(const char* type,const void* data,size_t sz,ImGuiCond cond);
+bool igSetDragDropPayload(const char* type,const void* data,usize sz,ImGuiCond cond);
 void igEndDragDropSource(void);
 bool igBeginDragDropTarget(void);
 const ImGuiPayload* igAcceptDragDropPayload(const char* type,ImGuiDragDropFlags flags);
@@ -1200,11 +1205,11 @@ void igCaptureMouseFromApp(bool want_capture_mouse_value);
 const char* igGetClipboardText(void);
 void igSetClipboardText(const char* text);
 void igLoadIniSettingsFromDisk(const char* ini_filename);
-void igLoadIniSettingsFromMemory(const char* ini_data,size_t ini_size);
+void igLoadIniSettingsFromMemory(const char* ini_data,usize ini_size);
 void igSaveIniSettingsToDisk(const char* ini_filename);
-const char* igSaveIniSettingsToMemory(size_t* out_ini_size);
-void igSetAllocatorFunctions(void*(*alloc_func)(size_t sz,void* user_data),void(*free_func)(void* ptr,void* user_data),void* user_data);
-void* igMemAlloc(size_t size);
+const char* igSaveIniSettingsToMemory(usize* out_ini_size);
+void igSetAllocatorFunctions(void*(*alloc_func)(usize sz,void* user_data),void(*free_func)(void* ptr,void* user_data),void* user_data);
+void* igMemAlloc(usize size);
 void igMemFree(void* ptr);
 void ImGuiStyle_ScaleAllSizes(ImGuiStyle* self,float scale_factor);
 void ImGuiIO_AddInputCharacter(ImGuiIO* self,unsigned int c);

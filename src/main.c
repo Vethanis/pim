@@ -1,5 +1,3 @@
-#include <sokol/sokol_app.h>
-
 #include "common/time.h"
 #include "common/random.h"
 #include "allocator/allocator.h"
@@ -9,74 +7,96 @@
 #include "rendering/render_system.h"
 #include "audio/audio_system.h"
 #include "assets/asset_system.h"
+#include "rendering/window.h"
+#include "ui/ui.h"
 #include "os/socket.h"
+#include "logic/logic.h"
 
-typedef struct system_s
-{
-    void(*Init)(void);
-    void(*Update)(void);
-    void(*Shutdown)(void);
-} system_t;
+typedef void(*SysFn)(void);
 
-static const system_t ms_systems[] =
+static const SysFn ms_initFns[] = 
 {
-    { time_sys_init, time_sys_update, time_sys_shutdown },
-    { alloc_sys_init, alloc_sys_update, alloc_sys_shutdown },
-    { input_sys_init, input_sys_update, input_sys_shutdown },
-    { task_sys_init, task_sys_update, task_sys_shutdown },
-    { ecs_sys_init, ecs_sys_update, ecs_sys_shutdown },
-    { render_sys_init, render_sys_update, render_sys_shutdown },
-    { audio_sys_init, audio_sys_update, audio_sys_shutdown },
-    { asset_sys_init, asset_sys_update, asset_sys_shutdown },
-    { network_sys_init, network_sys_update, network_sys_shutdown },
+    time_sys_init,      // setup sokol time
+    alloc_sys_init,     // preallocate pools
+    task_sys_init,      // enable async work
+    ecs_sys_init,       // place to store data
+    asset_sys_init,     // means of loading data
+    network_sys_init,   // setup sockets
+    window_sys_init,    // gl context, window
+    render_sys_init,    // setup rendering resources
+    audio_sys_init,     // setup audio callback
+    input_sys_init,     // setup glfw input callbacks
+    ui_sys_init,        // setup imgui
+    logic_sys_init,     // setup game logic
+};
+
+// reverse order of ms_initFns
+static const SysFn ms_shutdownFns[] =
+{
+    logic_sys_shutdown,
+    ui_sys_shutdown,
+    input_sys_shutdown,
+    audio_sys_shutdown,
+    render_sys_shutdown,
+    window_sys_shutdown,
+    network_sys_shutdown,
+    asset_sys_shutdown,
+    ecs_sys_shutdown,
+    task_sys_shutdown,
+    alloc_sys_shutdown,
+    time_sys_shutdown,
+};
+
+static const SysFn ms_updateFns[] =
+{
+    time_sys_update,    // update frame time
+    alloc_sys_update,   // reset linear allocator
+    input_sys_update,   // pump input events to callbacks
+    window_sys_update,  // update window size
+    ui_sys_beginframe,  // ImGui::BeginFrame
+    network_sys_update, // transmit and receive game state
+    logic_sys_update,   // update game simulation
+    ecs_sys_update,     // behaviorless
+    asset_sys_update,   // stream assets
+    render_sys_update,  // begin draw tasks
+    audio_sys_update,   // handle audio events
+    render_sys_present, // clear framebuffer, draw results
+    ui_sys_endframe,    // ImGui::EndFrame
+    task_sys_update,    // schedule tasks
+    window_swapbuffers, // glfwSwapBuffers
 };
 
 static void Init(void)
 {
-    for (int32_t i = 0; i < NELEM(ms_systems); ++i)
+    for (i32 i = 0; i < NELEM(ms_initFns); ++i)
     {
-        ms_systems[i].Init();
+        ms_initFns[i]();
     }
 }
 
 static void Update(void)
 {
-    for (int32_t i = 0; i < NELEM(ms_systems); ++i)
+    for (i32 i = 0; i < NELEM(ms_updateFns); ++i)
     {
-        ms_systems[i].Update();
+        ms_updateFns[i]();
     }
-    input_sys_frameend();
-    render_sys_frameend();
 }
 
 static void Shutdown(void)
 {
-    for (int32_t i = NELEM(ms_systems) - 1; i >= 0; --i)
+    for (i32 i = 0; i < NELEM(ms_shutdownFns); ++i)
     {
-        ms_systems[i].Shutdown();
+        ms_shutdownFns[i]();
     }
 }
 
-static void OnEvent(const sapp_event* evt)
+int main()
 {
-    input_sys_onevent(evt, render_sys_onevent(evt));
-}
-
-sapp_desc sokol_main(int argc, char* argv[])
-{
-    sapp_desc desc =
+    Init();
+    while (window_is_open())
     {
-        .window_title = "Pim",
-        .width = 320 * 4,
-        .height = 240 * 4,
-        .sample_count = 1,
-        .swap_interval = 1,
-        .alpha = 0,
-        .high_dpi = 0,
-        .init_cb = Init,
-        .frame_cb = Update,
-        .cleanup_cb = Shutdown,
-        .event_cb = OnEvent,
-    };
-    return desc;
+        Update();
+    }
+    Shutdown();
+    return 0;
 }

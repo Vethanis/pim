@@ -6,8 +6,6 @@ PIM_C_BEGIN
 
 enum
 {
-    kNumFrames = 2,
-    kFrameMask = kNumFrames - 1,
     kDrawWidth = 320,
     kDrawHeight = 240,
     kDrawPixels = kDrawWidth * kDrawHeight,
