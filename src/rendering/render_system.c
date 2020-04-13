@@ -67,7 +67,6 @@ typedef struct vert_attrib_s
     i32 offset;
 } vert_attrib_t;
 
-static ImGuiContext* ms_imctx;
 static glmesh_t ms_blitMesh;
 static glhandle ms_blitProgram;
 static glhandle ms_image;
