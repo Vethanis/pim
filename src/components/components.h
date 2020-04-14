@@ -5,6 +5,8 @@
 PIM_C_BEGIN
 
 #include "math/types.h"
+#include "rendering/mesh.h"
+#include "rendering/material.h"
 
 typedef struct ent_s
 {
@@ -27,12 +29,25 @@ typedef struct scale_s
     float4 Value;
 } scale_t;
 
+typedef struct localtoworld_s
+{
+    float4x4 Value;
+} localtoworld_t;
+
+typedef struct drawable_s
+{
+    meshid_t mesh;
+    material_t material;
+} drawable_t;
+
 typedef enum
 {
     CompId_Entity,
     CompId_Position,
     CompId_Rotation,
     CompId_Scale,
+    CompId_LocalToWorld,
+    CompId_Drawable,
 
     CompId_COUNT
 } compid_t;

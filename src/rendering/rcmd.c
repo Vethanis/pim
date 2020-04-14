@@ -93,11 +93,11 @@ void rcmd_view(rcmdbuf_t* buf, float4x4 view, float4x4 proj)
     rcmdbuf_write(buf, RCmdType_View, &cmd, sizeof(cmd));
 }
 
-void rcmd_draw(rcmdbuf_t* buf, float4x4 model, mesh_t mesh, material_t material)
+void rcmd_draw(rcmdbuf_t* buf, float4x4 model, meshid_t meshid, material_t material)
 {
     rcmd_draw_t cmd;
     cmd.M = model;
-    cmd.mesh = mesh;
+    cmd.meshid = meshid;
     cmd.material = material;
     rcmdbuf_write(buf, RCmdType_Draw, &cmd, sizeof(cmd));
 }

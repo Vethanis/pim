@@ -37,7 +37,7 @@ typedef struct rcmd_view_s
 typedef struct rcmd_draw_s
 {
     float4x4 M;
-    mesh_t mesh;
+    meshid_t meshid;
     material_t material;
 } rcmd_draw_t;
 
@@ -68,7 +68,7 @@ bool rcmdbuf_read(const rcmdbuf_t* buf, i32* pCursor, rcmd_t* dst);
 
 void rcmd_clear(rcmdbuf_t* buf, u16 color, u16 depth);
 void rcmd_view(rcmdbuf_t* buf, float4x4 view, float4x4 proj);
-void rcmd_draw(rcmdbuf_t* buf, float4x4 model, mesh_t mesh, material_t material);
+void rcmd_draw(rcmdbuf_t* buf, float4x4 model, meshid_t meshid, material_t material);
 
 void rcmdqueue_create(rcmdqueue_t* queue);
 void rcmdqueue_destroy(rcmdqueue_t* queue);

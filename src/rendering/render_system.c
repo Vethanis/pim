@@ -33,16 +33,6 @@ static const float2 kTileSize =
     (float)kTileHeight / kDrawHeight
 };
 
-typedef struct rastertask_s
-{
-    task_t task;
-} rastertask_t;
-
-typedef struct cmdtask_s
-{
-    ecs_foreach_t task;
-} cmdtask_t;
-
 typedef struct renderstate_s
 {
     float4 viewport;
@@ -72,10 +62,25 @@ static glhandle ms_blitProgram;
 static glhandle ms_image;
 static framebuf_t ms_buffer;
 static rcmdqueue_t ms_queue;
-static rastertask_t ms_rastask;
-static cmdtask_t ms_cmdtask;
+static task_t ms_rastask;
 
-static mesh_t ms_mesh;
+static const compflag_t kDrawableFilter =
+{
+    (1 << CompId_LocalToWorld) |
+    (1 << CompId_Drawable)
+};
+static ecs_foreach_t ms_cmdtask;
+
+static const compflag_t kLocalToWorldFilter =
+{
+    (1 << CompId_Position) |
+    (1 << CompId_Rotation) |
+    (1 << CompId_Scale) |
+    (1 << CompId_LocalToWorld)
+};
+static ecs_foreach_t ms_l2wtask;
+
+static meshid_t ms_meshid;
 static prng_t ms_prng;
 static float ms_dt;
 static float3 ms_modelTranslation = { 0.0f, 0.0f, 0.0f };
@@ -93,7 +98,7 @@ static const float kScreenMesh[] =
     -1.0f, -1.0f
 };
 
-static const char* kBlitVertShader[] =
+static const char* const kBlitVertShader[] =
 {
     "#version 330 core\n",
     "layout(location = 0) in vec2 mesh;\n",
@@ -105,7 +110,7 @@ static const char* kBlitVertShader[] =
     "}\n",
 };
 
-static const char* kBlitFragShader[] =
+static const char* const kBlitFragShader[] =
 {
     "#version 330 core\n",
     "in vec2 uv;\n",
@@ -149,11 +154,16 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 {
     const float e = 1.0f / (1 << 10);
 
+    mesh_t mesh;
+    if (!mesh_get(draw.meshid, &mesh))
+    {
+        return;
+    }
+
     framebuf_t frame = ms_buffer;
     const float4x4 M = draw.M;
     const float4x4 V = state.V;
     const float4x4 P = state.P;
-    const mesh_t mesh = draw.mesh;
     // material_t material = draw.material;
 
     const float2 tileMin = GetUnormTile(state.iTile);
@@ -320,7 +330,7 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
     }
 }
 
-static void ExecTile(rastertask_t* task, i32 iTile)
+static void ExecTile(i32 iTile)
 {
     renderstate_t state;
     state.viewport = (float4) { 0.0f, 0.0f, kDrawWidth, kDrawHeight };
@@ -366,49 +376,64 @@ static void ExecTile(rastertask_t* task, i32 iTile)
     }
 }
 
-static void RenderTaskFn(task_t* task, i32 begin, i32 end)
+static void RasterizeTaskFn(task_t* task, i32 begin, i32 end)
 {
-    rastertask_t* renderTask = (rastertask_t*)task;
     for (i32 i = begin; i < end; ++i)
     {
-        ExecTile(renderTask, i);
+        ExecTile(i);
     }
 }
 
 static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length)
 {
-    ent_t* __restrict entities = (ent_t*)(rows[CompId_Entity]);
-    float4* __restrict positions = (float4*)(rows[CompId_Position]);
-    float4* __restrict rotations = (float4*)(rows[CompId_Rotation]);
-    float4* __restrict scales = (float4*)(rows[CompId_Rotation]);
-    ASSERT(entities);
+    drawable_t* drawables = (drawable_t*)(rows[CompId_Drawable]);
+    localtoworld_t* matrices = (localtoworld_t*)(rows[CompId_LocalToWorld]);
+    ASSERT(length > 0);
+    ASSERT(drawables);
+    ASSERT(matrices);
+
+    // TODO: frustum culling
+    // TODO: visibility culling
+    rcmdbuf_t* cmds = rcmdbuf_create();
+
+    camera_t camera;
+    camera_get(&camera);
+    float aspect = (float)window_width() / (float)window_height();
+    float fovy = f1_radians(camera.fovy);
+    float4x4 P = f4x4_perspective(fovy, aspect, camera.nearFar.x, camera.nearFar.y);
+    float4x4 V = f4x4_lookat(camera.position, f3_add(camera.position, quat_fwd(camera.rotation)), quat_up(camera.rotation));
+    rcmd_view(cmds, V, P);
+
+    for (i32 i = 0; i < length; ++i)
+    {
+        rcmd_draw(cmds, matrices[i].Value, drawables[i].mesh, drawables[i].material);
+    }
+
+    rcmdqueue_submit(&ms_queue, cmds);
+}
+
+static void LocalToWorldTaskFn(ecs_foreach_t* task, void** rows, i32 length)
+{
+    position_t* positions = (position_t*)(rows[CompId_Position]);
+    rotation_t* rotations = (rotation_t*)(rows[CompId_Rotation]);
+    scale_t* scales = (scale_t*)(rows[CompId_Scale]);
+    localtoworld_t* matrices = (localtoworld_t*)(rows[CompId_LocalToWorld]);
     ASSERT(positions);
     ASSERT(rotations);
     ASSERT(scales);
-    const float4 pos_stride = { 1.0f, 2.0f, 3.0f, 4.0f };
-    const float4 quat_ident = { 0.0f, 0.0f, 0.0f, 1.0f };
-    const float4 scale_ident = { 1.0f, 1.0f, 1.0f, 1.0f };
+    ASSERT(matrices);
+    ASSERT(length > 0);
 
     for (i32 i = 0; i < length; ++i)
     {
-        positions[i] = f4_mul(f4_s(i * kPi), pos_stride);
-    }
-
-    for (i32 i = 0; i < length; ++i)
-    {
-        rotations[i] = quat_ident;
-    }
-
-    for (i32 i = 0; i < length; ++i)
-    {
-        scales[i] = scale_ident;
+        matrices[i].Value = f4x4_trs(f4_f3(positions[i].Value), rotations[i].Value, f4_f3(scales[i].Value));
     }
 }
 
 static void CreateEntities(task_t* task, i32 begin, i32 end)
 {
     prng_t rng = prng_create();
-    compflag_t all = compflag_create(3, CompId_Position, CompId_Rotation, CompId_Scale);
+    compflag_t all = compflag_create(5, CompId_Position, CompId_Rotation, CompId_Scale, CompId_LocalToWorld, CompId_Drawable);
     compflag_t some = compflag_create(1, CompId_Position);
     for (i32 i = begin; i < end; ++i)
     {
@@ -418,36 +443,43 @@ static void CreateEntities(task_t* task, i32 begin, i32 end)
 
 static void RegenMesh(void)
 {
-    const i32 len = (1 + (prng_i32(&ms_prng) & 31)) * 3;
-    float4* positions = pim_malloc(EAlloc_Perm, sizeof(float4) * len);
-    float4* normals = pim_malloc(EAlloc_Perm, sizeof(float4) * len);
+    mesh_t mesh;
+    mesh.length = (1 + (prng_i32(&ms_prng) & 31)) * 3;
+    mesh.positions = perm_malloc(sizeof(*mesh.positions) * mesh.length);
+    mesh.normals = perm_malloc(sizeof(*mesh.normals) * mesh.length);
+    mesh.uvs = perm_malloc(sizeof(*mesh.uvs) * mesh.length);
 
-    for (i32 i = 0; i < len; ++i)
+    prng_t rng = ms_prng;
+    for (i32 i = 0; i < mesh.length; ++i)
     {
         float4 position;
-        position.x = f1_lerp(-2.0f, 2.0f, prng_f32(&ms_prng));
-        position.y = f1_lerp(-2.0f, 2.0f, prng_f32(&ms_prng));
-        position.z = f1_lerp(-2.0f, 2.0f, prng_f32(&ms_prng));
+        position.x = f1_lerp(-2.0f, 2.0f, prng_f32(&rng));
+        position.y = f1_lerp(-2.0f, 2.0f, prng_f32(&rng));
+        position.z = f1_lerp(-2.0f, 2.0f, prng_f32(&rng));
         position.w = 1.0f;
         float4 normal;
-        normal.x = f1_lerp(0.0001f, 1.0f, prng_f32(&ms_prng));
-        normal.y = f1_lerp(0.0001f, 1.0f, prng_f32(&ms_prng));
-        normal.z = f1_lerp(0.0001f, 1.0f, prng_f32(&ms_prng));
+        normal.x = f1_lerp(0.0001f, 1.0f, prng_f32(&rng));
+        normal.y = f1_lerp(0.0001f, 1.0f, prng_f32(&rng));
+        normal.z = f1_lerp(0.0001f, 1.0f, prng_f32(&rng));
         normal.w = 0.0f;
-        positions[i] = position;
-        normals[i] = normal;
+        float2 uv;
+        uv.x = prng_f32(&rng);
+        uv.y = prng_f32(&rng);
+        mesh.positions[i] = position;
+        mesh.normals[i] = normal;
+        mesh.uvs[i] = uv;
     }
+    ms_prng = rng;
 
-    pim_free(ms_mesh.positions);
-    pim_free(ms_mesh.normals);
-    ms_mesh.length = len;
-    ms_mesh.positions = positions;
-    ms_mesh.normals = normals;
+    meshid_t newid = mesh_create(&mesh);
+    meshid_t oldid = ms_meshid;
+    ms_meshid = newid;
+    mesh_destroy(oldid);
 }
 
 static glhandle CreateGlProgram(
-    i32 vsLines, const char** vs,
-    i32 fsLines, const char** fs);
+    i32 vsLines, const char* const * const vs,
+    i32 fsLines, const char* const * const fs);
 static void DestroyGlProgram(glhandle* pProg);
 static void SetupTextureUnit(glhandle prog, const char* texName, i32 unit);
 
@@ -515,10 +547,6 @@ void render_sys_update(void)
     }
     igEnd();
 
-    compflag_t all = compflag_create(3, CompId_Position, CompId_Rotation, CompId_Scale);
-    compflag_t none = compflag_create(0);
-    ecs_foreach((ecs_foreach_t*)&ms_cmdtask, all, none, DrawableTaskFn);
-
     rcmdbuf_t* cmdbuf = rcmdbuf_create();
     rcmd_clear(cmdbuf, 0x0000, 0xffff);
 
@@ -531,10 +559,14 @@ void render_sys_update(void)
     material_t material = { 0 };
     quat modelRotation = quat_lookat(f3_normalize(ms_modelForward), f3_normalize(ms_modelUp));
     float4x4 M = f4x4_trs(ms_modelTranslation, modelRotation, ms_modelScale);
-    rcmd_draw(cmdbuf, M, ms_mesh, material);
+    rcmd_draw(cmdbuf, M, ms_meshid, material);
 
     rcmdqueue_submit(&ms_queue, cmdbuf);
-    task_submit((task_t*)&ms_rastask, RenderTaskFn, kTileCount);
+
+    ecs_foreach(&ms_l2wtask, kLocalToWorldFilter, (compflag_t) { 0 }, LocalToWorldTaskFn);
+    ecs_foreach(&ms_cmdtask, kDrawableFilter, (compflag_t) { 0 }, DrawableTaskFn);
+    task_submit(&ms_rastask, RasterizeTaskFn, kTileCount);
+
     task_sys_schedule();
 }
 
@@ -752,8 +784,8 @@ static char* GetProgramLog(glhandle program)
 }
 
 static glhandle CreateGlProgram(
-    i32 vsLines, const char** vs,
-    i32 fsLines, const char** fs)
+    i32 vsLines, const char* const * const vs,
+    i32 fsLines, const char* const * const fs)
 {
     ASSERT(vsLines > 0);
     ASSERT(fsLines > 0);

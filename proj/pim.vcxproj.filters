@@ -259,6 +259,12 @@
     <ClCompile Include="..\src\threading\sleep.c">
       <Filter>Source Files\threading</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\mesh.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\texture.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">

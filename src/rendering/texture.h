@@ -4,13 +4,23 @@
 
 PIM_C_BEGIN
 
-#include <stdint.h>
-
 typedef struct texture_s
 {
-    int32_t width;
-    int32_t height;
-    uint32_t* texels;
+    u64 version;
+    i32 width;
+    i32 height;
+    u32* texels;
 } texture_t;
+
+typedef struct textureid_s
+{
+    u64 version;
+    void* handle;
+} textureid_t;
+
+textureid_t texture_create(texture_t* src);
+bool texture_destroy(textureid_t id);
+bool texture_current(textureid_t id);
+bool texture_get(textureid_t id, texture_t* dst);
 
 PIM_C_END
