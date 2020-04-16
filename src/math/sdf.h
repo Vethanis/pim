@@ -17,7 +17,7 @@ pim_inline float4 VEC_CALL ray_tri_isect(
     float3 CA = f3_sub(C, A);
     float3 P = f3_cross(rd, CA);
     float det = f3_dot(BA, P);
-    if (det >= f16_eps)
+    if (det > f16_eps)
     {
         float rcpDet = 1.0f / det;
         float3 T = f3_sub(ro, A);

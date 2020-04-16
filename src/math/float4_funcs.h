@@ -898,6 +898,24 @@ pim_inline u32 VEC_CALL f4_rgba8(float4 v)
     return c;
 }
 
+pim_inline float4 VEC_CALL f4_tosrgb(float4 lin)
+{
+    float4 srgb = f4_powvs(lin, 0.416666667f);
+    srgb = f4_mulvs(srgb, 1.055f);
+    srgb = f4_subvs(srgb, 0.055f);
+    return f4_max(srgb, f4_0);
+}
+
+pim_inline float4 VEC_CALL f4_tolinear(float4 srgb)
+{
+    float4 srgb2 = f4_mul(srgb, srgb);
+    float4 srgb3 = f4_mul(srgb, srgb2);
+    float4 lin = f4_mulvs(srgb, 0.012522878f);
+    lin = f4_add(lin, f4_mulvs(srgb2, 0.682171111f));
+    lin = f4_add(lin, f4_mulvs(srgb3, 0.305306011f));
+    return lin;
+}
+
 pim_inline float4 VEC_CALL f4_rand(prng_t* rng)
 {
     return f4_v(prng_f32(rng), prng_f32(rng), prng_f32(rng), prng_f32(rng));
@@ -909,9 +927,10 @@ pim_inline float4 VEC_CALL f4_dither(prng_t* rng, float4 x)
     return f4_lerp(x, f4_rand(rng), kDither);
 }
 
-pim_inline u32 VEC_CALL f4_color(prng_t* rng, float4 x)
+pim_inline u32 VEC_CALL f4_color(prng_t* rng, float4 linear)
 {
-    return f4_rgba8(f4_dither(rng, x));
+    float4 srgb = f4_tosrgb(linear);
+    return f4_rgba8(f4_dither(rng, srgb));
 }
 
 PIM_C_END

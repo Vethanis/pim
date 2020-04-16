@@ -165,4 +165,14 @@ pim_inline i32 VEC_CALL i1_distance(i32 a, i32 b)
     return i1_abs(b - a);
 }
 
+pim_inline float VEC_CALL f1_tosrgb(float lin)
+{
+    return f1_max(1.055f * powf(lin, 0.416666667f) - 0.055f, 0.0f);
+}
+
+pim_inline float VEC_CALL f1_tolinear(float srgb)
+{
+    return 0.012522878f * srgb + 0.682171111f * srgb * srgb + 0.305306011f * srgb * srgb * srgb;
+}
+
 PIM_C_END

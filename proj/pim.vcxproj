@@ -47,6 +47,7 @@
     <ClCompile Include="..\src\rendering\rcmd.c" />
     <ClCompile Include="..\src\rendering\framebuffer.c" />
     <ClCompile Include="..\src\rendering\render_system.c" />
+    <ClCompile Include="..\src\rendering\screenblit.c" />
     <ClCompile Include="..\src\rendering\texture.c" />
     <ClCompile Include="..\src\rendering\window.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
@@ -132,6 +133,7 @@
     <ClInclude Include="..\src\rendering\rcmd.h" />
     <ClInclude Include="..\src\rendering\constants.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />
+    <ClInclude Include="..\src\rendering\screenblit.h" />
     <ClInclude Include="..\src\rendering\texture.h" />
     <ClInclude Include="..\src\rendering\window.h" />
     <ClInclude Include="..\src\sokol\sokol_audio.h" />
