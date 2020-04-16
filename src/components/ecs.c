@@ -17,6 +17,7 @@ static const i32 kComponentSize[] =
     sizeof(scale_t),
     sizeof(localtoworld_t),
     sizeof(drawable_t),
+    sizeof(bounds_t),
 };
 SASSERT(NELEM(kComponentSize) == CompId_COUNT);
 

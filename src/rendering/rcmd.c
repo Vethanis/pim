@@ -46,7 +46,7 @@ bool rcmdbuf_read(const rcmdbuf_t* buf, i32* pCursor, rcmd_t* dst)
         ASSERT((length - cursor) >= cmdSize);
 
         dst->type = cmdType;
-        memcpy(&(dst->cmd), buffer + cursor, cmdSize);
+        memcpy(&(dst->clear), buffer + cursor, cmdSize);
         cursor += cmdSize;
 
         *pCursor = cursor;
@@ -77,7 +77,7 @@ static void rcmdbuf_write(rcmdbuf_t* buf, i32 type, const void* src, i32 bytes)
     buf->length = length + sizeof(type) + bytes;
 }
 
-void rcmd_clear(rcmdbuf_t* buf, u16 color, u16 depth)
+void rcmd_clear(rcmdbuf_t* buf, u32 color, float depth)
 {
     rcmd_clear_t cmd;
     cmd.color = color;
@@ -85,11 +85,10 @@ void rcmd_clear(rcmdbuf_t* buf, u16 color, u16 depth)
     rcmdbuf_write(buf, RCmdType_Clear, &cmd, sizeof(cmd));
 }
 
-void rcmd_view(rcmdbuf_t* buf, float4x4 view, float4x4 proj)
+void rcmd_view(rcmdbuf_t* buf, camera_t camera)
 {
     rcmd_view_t cmd;
-    cmd.V = view;
-    cmd.P = proj;
+    cmd.camera = camera;
     rcmdbuf_write(buf, RCmdType_View, &cmd, sizeof(cmd));
 }
 

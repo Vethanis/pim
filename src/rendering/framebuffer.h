@@ -8,18 +8,18 @@ PIM_C_BEGIN
 
 typedef struct framebuf_s
 {
-    int32_t width;
-    int32_t height;
-    uint16_t* color; // rgb5a1
-    uint16_t* depth; // z16
+    i32 width;
+    i32 height;
+    u32* color; // rgba8
+    float* depth;
 } framebuf_t;
 
-void framebuf_create(framebuf_t* buf, int32_t width, int32_t height);
+void framebuf_create(framebuf_t* buf, i32 width, i32 height);
 void framebuf_destroy(framebuf_t* buf);
 
-int32_t framebuf_color_bytes(framebuf_t buf);
-int32_t framebuf_depth_bytes(framebuf_t buf);
+i32 framebuf_color_bytes(framebuf_t buf);
+i32 framebuf_depth_bytes(framebuf_t buf);
 
-void framebuf_clear(framebuf_t buf, uint16_t color, uint16_t depth);
+void framebuf_clear(framebuf_t buf, u32 color, float depth);
 
 PIM_C_END

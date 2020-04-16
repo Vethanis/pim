@@ -119,6 +119,7 @@
     <ClInclude Include="..\src\math\float3_funcs.h" />
     <ClInclude Include="..\src\math\float4x4_funcs.h" />
     <ClInclude Include="..\src\math\float4_funcs.h" />
+    <ClInclude Include="..\src\math\int3_funcs.h" />
     <ClInclude Include="..\src\math\quat_funcs.h" />
     <ClInclude Include="..\src\math\scalar.h" />
     <ClInclude Include="..\src\math\int2_funcs.h" />

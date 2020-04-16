@@ -879,12 +879,22 @@ pim_inline float2 VEC_CALL f4_f2(float4 v)
 
 pim_inline u16 VEC_CALL f4_rgb5a1(float4 v)
 {
-    const float4 kScale = { 31.0f, 31.0f, 31.0f, 31.0f };
-    v = f4_mul(v, kScale);
+    v = f4_mulvs(v, 31.0f);
     u16 r = (u16)v.x;
     u16 g = (u16)v.y;
     u16 b = (u16)v.z;
     u16 c = (r << 11) | (g << 6) | (b << 1) | 1;
+    return c;
+}
+
+pim_inline u32 VEC_CALL f4_rgba8(float4 v)
+{
+    v = f4_mulvs(v, 255.0f);
+    u32 r = (u32)v.x;
+    u32 g = (u32)v.y;
+    u32 b = (u32)v.z;
+    u32 a = (u32)v.w;
+    u32 c = (a << 24) | (b << 16) | (g << 8) | r;
     return c;
 }
 
@@ -895,13 +905,13 @@ pim_inline float4 VEC_CALL f4_rand(prng_t* rng)
 
 pim_inline float4 VEC_CALL f4_dither(prng_t* rng, float4 x)
 {
-    const float kDither = 1.0f / (1 << 5);
+    const float kDither = 1.0f / (1 << 8);
     return f4_lerp(x, f4_rand(rng), kDither);
 }
 
-pim_inline u16 VEC_CALL f4_color(prng_t* rng, float4 x)
+pim_inline u32 VEC_CALL f4_color(prng_t* rng, float4 x)
 {
-    return f4_rgb5a1(f4_dither(rng, x));
+    return f4_rgba8(f4_dither(rng, x));
 }
 
 PIM_C_END

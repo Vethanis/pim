@@ -35,7 +35,7 @@ pim_inline float4 VEC_CALL ray_tri_isect(
         result.x = u;
         result.y = v;
         result.z = t;
-        result.w = (tU + tV + tUV + tT) == 4.0f ? 1.0f : 0.0f;
+        result.w = (tU + tV + tUV + tT) * 0.25f;
     }
     return result;
 }

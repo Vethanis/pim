@@ -555,6 +555,14 @@ pim_inline float3 VEC_CALL f3_deg(float3 x)
     return f3_mul(x, f3_s(kDegreesPerRadian));
 }
 
+pim_inline float3 VEC_CALL f3_blend(float3 a, float3 b, float3 c, float3 wuv)
+{
+    float3 p = f3_mulvs(a, wuv.x);
+    p = f3_add(p, f3_mulvs(b, wuv.y));
+    p = f3_add(p, f3_mulvs(c, wuv.z));
+    return p;
+}
+
 pim_inline bool VEC_CALL f3_cliptest(float3 x, float lo, float hi)
 {
     return f3_all(f3_ltvs(x, lo)) || f3_all(f3_gtvs(x, hi));

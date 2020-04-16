@@ -591,6 +591,9 @@
     <ClInclude Include="..\src\threading\sleep.h">
       <Filter>Source Files\threading</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\math\int3_funcs.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\array.natvis">

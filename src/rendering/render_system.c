@@ -36,8 +36,7 @@ static const float2 kTileSize =
 typedef struct renderstate_s
 {
     float4 viewport;
-    float4x4 P;
-    float4x4 V;
+    camera_t camera;
     prng_t rng;
     i32 iTile;
 } renderstate_t;
@@ -67,15 +66,13 @@ static task_t ms_rastask;
 static const compflag_t kDrawableFilter =
 {
     (1 << CompId_LocalToWorld) |
-    (1 << CompId_Drawable)
+    (1 << CompId_Drawable) |
+    (1 << CompId_Bounds)
 };
 static ecs_foreach_t ms_cmdtask;
 
 static const compflag_t kLocalToWorldFilter =
 {
-    (1 << CompId_Position) |
-    (1 << CompId_Rotation) |
-    (1 << CompId_Scale) |
     (1 << CompId_LocalToWorld)
 };
 static ecs_foreach_t ms_l2wtask;
@@ -161,140 +158,64 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     }
 
     framebuf_t frame = ms_buffer;
+    const float4* const positions = mesh.positions;
+    const float4* const normals = mesh.normals;
+    const float2* const uvs = mesh.uvs;
+    const i32 vertCount = mesh.length;
     const float4x4 M = draw.M;
-    const float4x4 V = state.V;
-    const float4x4 P = state.P;
+    const camera_t camera = state.camera;
     // material_t material = draw.material;
 
-    const float2 tileMin = GetUnormTile(state.iTile);
-    const float2 tileMax = f2_add(tileMin, kTileSize);
+    const int2 tile = GetScreenTile(state.iTile);
+    const float2 rcpScreen = { 1.0f / kDrawWidth, 1.0f / kDrawHeight };
+    const float aspect = (float)kDrawWidth / (float)kDrawHeight;
+    const float fovSlope = tanf(camera.fovy * 0.5f);
+    const float xSlope = aspect * fovSlope;
+    const float ySlope = fovSlope;
+
+    const float3 forward = quat_fwd(camera.rotation);
+    const float3 right = quat_right(camera.rotation);
+    const float3 up = quat_up(camera.rotation);
+    const float3 ro = camera.position;
     prng_t rng = state.rng;
 
-    for (i32 iVert = 0; (iVert + 3) <= mesh.length; iVert += 3)
+    for (i32 y = 0; y < kTileHeight; ++y)
     {
-        // local space
-        const float4 localA = mesh.positions[iVert];
-        const float4 localB = mesh.positions[iVert + 1];
-        const float4 localC = mesh.positions[iVert + 2];
-
-        // model
-        const float4 worldA = f4x4_mul_pt(M, localA);
-        const float4 worldB = f4x4_mul_pt(M, localB);
-        const float4 worldC = f4x4_mul_pt(M, localC);
-
-        // view
-        const float4 viewA = f4x4_mul_pt(V, worldA);
-        const float4 viewB = f4x4_mul_pt(V, worldB);
-        const float4 viewC = f4x4_mul_pt(V, worldC);
-
-        // projection
-        float4 A = f4x4_mul_pt(P, viewA);
-        float4 B = f4x4_mul_pt(P, viewB);
-        float4 C = f4x4_mul_pt(P, viewC);
-
-        if (A.w < e && B.w < e && C.w < e)
+        for (i32 x = 0; x < kTileWidth; ++x)
         {
-            continue;
-        }
+            const int2 iCoord = i2_add(tile, i2_v(x, y));
+            const i32 iTexel = iCoord.x + iCoord.y * kDrawWidth;
+            const float2 fCoord = f2_snorm(f2_mul(i2_f2(iCoord), rcpScreen));
 
-        // guard against division by very small values
-        A.w = f1_max(A.w, e);
-        B.w = f1_max(B.w, e);
-        C.w = f1_max(C.w, e);
+            const float3 rd = f3_normalize(f3_add(forward, f3_add(f3_mulvs(right, fCoord.x * xSlope), f3_mulvs(up, fCoord.y * ySlope))));
 
-        // perspective divide
-        A = f4_divvs(A, A.w);
-        B = f4_divvs(B, B.w);
-        C = f4_divvs(C, C.w);
-
-        // snorm clip space to unorm clip space
-        A = f4_unorm(A);
-        B = f4_unorm(B);
-        C = f4_unorm(C);
-
-        // 2D triangle and area
-        const float2 a = f4_f2(A);
-        const float2 b = f4_f2(B);
-        const float2 c = f4_f2(C);
-        const float area = tri_area2D(a, b, c);
-
-        // discard backfaces
-        if (area < e)
-        {
-            continue;
-        }
-
-        // discard triangles outside unorm clip space of tile
-        if (f3_cliptest(f3_v(A.z, B.z, C.z), 0.0f, 1.0f))
-        {
-            continue;
-        }
-        if (f3_cliptest(f3_v(a.x, b.x, c.x), tileMin.x, tileMax.x))
-        {
-            continue;
-        }
-        if (f3_cliptest(f3_v(a.y, b.y, c.y), tileMin.y, tileMax.y))
-        {
-            continue;
-        }
-
-        // interpolated attributes
-        const float4 NA = mesh.normals[iVert];
-        const float4 NB = mesh.normals[iVert + 1];
-        const float4 NC = mesh.normals[iVert + 2];
-
-        // rasterization bounds
-        const float yMin = f1_max(tileMin.y, f3_hmin(f3_v(a.y, b.y, c.y)));
-        const float yMax = f1_min(tileMax.y, f3_hmax(f3_v(a.y, b.y, c.y)));
-        const float xMin = f1_max(tileMin.x, f3_hmin(f3_v(a.x, b.x, c.x)));
-        const float xMax = f1_min(tileMax.x, f3_hmax(f3_v(a.x, b.x, c.x)));
-
-        // constants
-        const float dx = 1.0f / kDrawWidth;
-        const float dy = 1.0f / kDrawHeight;
-        const float2 kDrawSize = { kDrawWidth, kDrawHeight };
-        const int2 kCoordStride = { 1, kDrawWidth };
-        const float dz = 0xffff;
-        const float rcpArea = 1.0f / area;
-
-        for (float y = yMin; y <= yMax; y += dy)
-        {
-            for (float x = xMin; x <= xMax; x += dx)
+            for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
             {
-                const float2 p = f2_v(x, y);
+                const float3 A = f4_f3(f4x4_mul_pt(M, positions[iVert + 0]));
+                const float3 B = f4_f3(f4x4_mul_pt(M, positions[iVert + 1]));
+                const float3 C = f4_f3(f4x4_mul_pt(M, positions[iVert + 2]));
 
-                // barycentrics
-                const float3 wuv = bary2D(a, b, c, rcpArea, p);
-
-                // barycentric clip
-                if (f3_any(f3_ltvs(wuv, 0.0f)))
+                const float4 uvt = ray_tri_isect(ro, rd, A, B, C);
+                if (uvt.w != 1.0f)
                 {
                     continue;
                 }
-
-                const float4 P = f4_blend(A, B, C, wuv);
-                const u16 Z = (u16)(P.z * dz);
-
-                // depth clip
-                if (P.z > 1.0f || P.z < 0.0f)
+                if (uvt.z > frame.depth[iTexel] || uvt.z < camera.nearFar.x)
                 {
                     continue;
                 }
-
-                // depth test
-                const i32 iTexel = i2_dot(f2_i2(f2_mul(p, kDrawSize)), kCoordStride);
-                ASSERT((u32)iTexel < (u32)kDrawPixels);
-                if (Z >= frame.depth[iTexel])
-                {
-                    continue;
-                }
+                frame.depth[iTexel] = uvt.z;
+                // const float3 P = f3_add(ro, f3_mulvs(rd, uvt.z));
 
                 // blend interpolators
-                const float4 N = f4_blend(NA, NB, NC, wuv);
+                const float3 wuv = f3_v(1.0f - uvt.x - uvt.y, uvt.x, uvt.y);
+                // const float4 N = f4_blend(NA, NB, NC, wuv);
+                const float2 UA = uvs[iVert + 0];
+                const float2 UB = uvs[iVert + 1];
+                const float2 UC = uvs[iVert + 2];
+                float2 U = f2_blend(UA, UB, UC, wuv);
 
-                const u16 C = f4_color(&rng, N);
-                frame.depth[iTexel] = Z;
-                frame.color[iTexel] = C;
+                frame.color[iTexel] = f4_color(&rng, f4_v(U.x, U.y, 0.0f, 1.0f));
             }
         }
     }
@@ -306,17 +227,15 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
 {
     framebuf_t frame = ms_buffer;
     const int2 tile = GetScreenTile(state.iTile);
-    u16* __restrict color = frame.color;
-    u16* __restrict depth = frame.depth;
-    const u16 C = clear.color;
-    const u16 Z = clear.depth;
+    u32* color = frame.color;
+    float* depth = frame.depth;
 
     for (i32 ty = 0; ty < kTileHeight; ++ty)
     {
         for (i32 tx = 0; tx < kTileWidth; ++tx)
         {
             i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
-            color[i] = C;
+            color[i] = clear.color;
         }
     }
 
@@ -325,7 +244,7 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
         for (i32 tx = 0; tx < kTileWidth; ++tx)
         {
             i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
-            depth[i] = Z;
+            depth[i] = clear.depth;
         }
     }
 }
@@ -334,20 +253,9 @@ static void ExecTile(i32 iTile)
 {
     renderstate_t state;
     state.viewport = (float4) { 0.0f, 0.0f, kDrawWidth, kDrawHeight };
-    state.P = (float4x4) {
-        .c0 = { 1.0f, 0.0f, 0.0f, 0.0f },
-            .c1 = { 0.0f, 1.0f, 0.0f, 0.0f },
-            .c2 = { 0.0f, 0.0f, 1.0f, 0.0f },
-            .c3 = { 0.0f, 0.0f, 0.0f, 1.0f },
-    };
-    state.V = (float4x4) {
-        .c0 = { 1.0f, 0.0f, 0.0f, 0.0f },
-            .c1 = { 0.0f, 1.0f, 0.0f, 0.0f },
-            .c2 = { 0.0f, 0.0f, 1.0f, 0.0f },
-            .c3 = { 0.0f, 0.0f, 0.0f, 1.0f },
-    };
     state.iTile = iTile;
     state.rng = prng_create();
+    camera_get(&state.camera);
 
     rcmdbuf_t* cmdBuf = NULL;
     while ((cmdBuf = rcmdqueue_read(&ms_queue, iTile)))
@@ -362,14 +270,13 @@ static void ExecTile(i32 iTile)
                 ASSERT(false);
                 break;
             case RCmdType_Clear:
-                ClearTile(state, cmd.cmd.clear);
+                ClearTile(state, cmd.clear);
                 break;
             case RCmdType_View:
-                state.V = cmd.cmd.view.V;
-                state.P = cmd.cmd.view.P;
+                state.camera = cmd.view.camera;
                 break;
             case RCmdType_Draw:
-                DrawMesh(state, cmd.cmd.draw);
+                DrawMesh(state, cmd.draw);
                 break;
             }
         }
@@ -386,11 +293,13 @@ static void RasterizeTaskFn(task_t* task, i32 begin, i32 end)
 
 static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length)
 {
-    drawable_t* drawables = (drawable_t*)(rows[CompId_Drawable]);
-    localtoworld_t* matrices = (localtoworld_t*)(rows[CompId_LocalToWorld]);
+    const drawable_t* drawables = (const drawable_t*)(rows[CompId_Drawable]);
+    const localtoworld_t* matrices = (const localtoworld_t*)(rows[CompId_LocalToWorld]);
+    const bounds_t* bounds = (const bounds_t*)(rows[CompId_Bounds]);
     ASSERT(length > 0);
     ASSERT(drawables);
     ASSERT(matrices);
+    ASSERT(bounds);
 
     // TODO: frustum culling
     // TODO: visibility culling
@@ -398,11 +307,7 @@ static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length)
 
     camera_t camera;
     camera_get(&camera);
-    float aspect = (float)window_width() / (float)window_height();
-    float fovy = f1_radians(camera.fovy);
-    float4x4 P = f4x4_perspective(fovy, aspect, camera.nearFar.x, camera.nearFar.y);
-    float4x4 V = f4x4_lookat(camera.position, f3_add(camera.position, quat_fwd(camera.rotation)), quat_up(camera.rotation));
-    rcmd_view(cmds, V, P);
+    rcmd_view(cmds, camera);
 
     for (i32 i = 0; i < length; ++i)
     {
@@ -412,28 +317,94 @@ static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length)
     rcmdqueue_submit(&ms_queue, cmds);
 }
 
-static void LocalToWorldTaskFn(ecs_foreach_t* task, void** rows, i32 length)
+static void TrsTaskFn(ecs_foreach_t* task, void** rows, i32 length)
 {
-    position_t* positions = (position_t*)(rows[CompId_Position]);
-    rotation_t* rotations = (rotation_t*)(rows[CompId_Rotation]);
-    scale_t* scales = (scale_t*)(rows[CompId_Scale]);
+    const position_t* positions = (const position_t*)(rows[CompId_Position]);
+    const rotation_t* rotations = (const rotation_t*)(rows[CompId_Rotation]);
+    const scale_t* scales = (const scale_t*)(rows[CompId_Scale]);
     localtoworld_t* matrices = (localtoworld_t*)(rows[CompId_LocalToWorld]);
-    ASSERT(positions);
-    ASSERT(rotations);
-    ASSERT(scales);
     ASSERT(matrices);
     ASSERT(length > 0);
 
-    for (i32 i = 0; i < length; ++i)
+    i32 code = 0;
+    code |= positions ? 1 : 0;
+    code |= rotations ? 2 : 0;
+    code |= scales ? 4 : 0;
+
+    switch (code)
     {
-        matrices[i].Value = f4x4_trs(f4_f3(positions[i].Value), rotations[i].Value, f4_f3(scales[i].Value));
+    default:
+    case 0:
+    {
+        for (i32 i = 0; i < length; ++i)
+        {
+            matrices[i].Value = f4x4_id;
+        }
+    }
+    break;
+    case 1:
+    {
+        for (i32 i = 0; i < length; ++i)
+        {
+            matrices[i].Value = f4x4_trs(positions[i].Value, quat_id, f3_1);
+        }
+    }
+    break;
+    case 2:
+    {
+        for (i32 i = 0; i < length; ++i)
+        {
+            matrices[i].Value = f4x4_trs(f3_0, rotations[i].Value, f3_1);
+        }
+    }
+    break;
+    case 4:
+    {
+        for (i32 i = 0; i < length; ++i)
+        {
+            matrices[i].Value = f4x4_trs(f3_0, quat_id, scales[i].Value);
+        }
+    }
+    break;
+    case (1 | 2):
+    {
+        for (i32 i = 0; i < length; ++i)
+        {
+            matrices[i].Value = f4x4_trs(positions[i].Value, rotations[i].Value, f3_1);
+        }
+    }
+    break;
+    case (1 | 4):
+    {
+        for (i32 i = 0; i < length; ++i)
+        {
+            matrices[i].Value = f4x4_trs(positions[i].Value, quat_id, scales[i].Value);
+        }
+    }
+    break;
+    case (2 | 4):
+    {
+        for (i32 i = 0; i < length; ++i)
+        {
+            matrices[i].Value = f4x4_trs(f3_0, rotations[i].Value, scales[i].Value);
+        }
+    }
+    break;
+    case (1 | 2 | 4):
+    {
+        for (i32 i = 0; i < length; ++i)
+        {
+            matrices[i].Value = f4x4_trs(positions[i].Value, rotations[i].Value, scales[i].Value);
+        }
+    }
+    break;
     }
 }
 
 static void CreateEntities(task_t* task, i32 begin, i32 end)
 {
     prng_t rng = prng_create();
-    compflag_t all = compflag_create(5, CompId_Position, CompId_Rotation, CompId_Scale, CompId_LocalToWorld, CompId_Drawable);
+    compflag_t all = compflag_create(6, CompId_Position, CompId_LocalToWorld, CompId_Drawable, CompId_Bounds);
     compflag_t some = compflag_create(1, CompId_Position);
     for (i32 i = begin; i < end; ++i)
     {
@@ -444,7 +415,7 @@ static void CreateEntities(task_t* task, i32 begin, i32 end)
 static void RegenMesh(void)
 {
     mesh_t mesh;
-    mesh.length = (1 + (prng_i32(&ms_prng) & 31)) * 3;
+    mesh.length = (1 + (prng_i32(&ms_prng) & 3)) * 3;
     mesh.positions = perm_malloc(sizeof(*mesh.positions) * mesh.length);
     mesh.normals = perm_malloc(sizeof(*mesh.normals) * mesh.length);
     mesh.uvs = perm_malloc(sizeof(*mesh.uvs) * mesh.length);
@@ -453,18 +424,29 @@ static void RegenMesh(void)
     for (i32 i = 0; i < mesh.length; ++i)
     {
         float4 position;
-        position.x = f1_lerp(-2.0f, 2.0f, prng_f32(&rng));
-        position.y = f1_lerp(-2.0f, 2.0f, prng_f32(&rng));
-        position.z = f1_lerp(-2.0f, 2.0f, prng_f32(&rng));
+        position.x = f1_lerp(-5.0f, 5.0f, prng_f32(&rng));
+        position.y = f1_lerp(-5.0f, 5.0f, prng_f32(&rng));
+        position.z = f1_lerp(-5.0f, 5.0f, prng_f32(&rng));
         position.w = 1.0f;
         float4 normal;
-        normal.x = f1_lerp(0.0001f, 1.0f, prng_f32(&rng));
-        normal.y = f1_lerp(0.0001f, 1.0f, prng_f32(&rng));
-        normal.z = f1_lerp(0.0001f, 1.0f, prng_f32(&rng));
+        normal.x = f1_lerp(-1.0f, 1.0f, prng_f32(&rng));
+        normal.y = f1_lerp(-1.0f, 1.0f, prng_f32(&rng));
+        normal.z = f1_lerp(-1.0f, 1.0f, prng_f32(&rng));
         normal.w = 0.0f;
+        normal = f4_normalize3(normal);
         float2 uv;
-        uv.x = prng_f32(&rng);
-        uv.y = prng_f32(&rng);
+        switch (i % 3)
+        {
+        case 0:
+            uv = f2_v(0.0f, 0.0f);
+            break;
+        case 1:
+            uv = f2_v(1.0f, 0.0f);
+            break;
+        case 2:
+            uv = f2_v(0.0f, 1.0f);
+            break;
+        }
         mesh.positions[i] = position;
         mesh.normals[i] = normal;
         mesh.uvs[i] = uv;
@@ -508,7 +490,7 @@ void render_sys_init(void)
     ASSERT(ms_image);
     const vert_attrib_t attribs[] =
     {
-        { .dimension = 2, .offset = 0 },
+        {.dimension = 2,.offset = 0 },
     };
     ms_blitMesh = CreateGlMesh(
         sizeof(kScreenMesh), kScreenMesh,
@@ -527,9 +509,6 @@ void render_sys_init(void)
 
 void render_sys_update(void)
 {
-    camera_t camera;
-    camera_get(&camera);
-
     igBegin("RenderSystem", NULL, 0);
     {
         float dt = (float)time_dtf();
@@ -547,14 +526,11 @@ void render_sys_update(void)
     }
     igEnd();
 
+    camera_t camera;
+    camera_get(&camera);
     rcmdbuf_t* cmdbuf = rcmdbuf_create();
-    rcmd_clear(cmdbuf, 0x0000, 0xffff);
-
-    float aspect = (float)window_width() / (float)window_height();
-    float fovy = f1_radians(camera.fovy);
-    float4x4 P = f4x4_perspective(fovy, aspect, camera.nearFar.x, camera.nearFar.y);
-    float4x4 V = f4x4_lookat(camera.position, f3_add(camera.position, quat_fwd(camera.rotation)), quat_up(camera.rotation));
-    rcmd_view(cmdbuf, V, P);
+    rcmd_clear(cmdbuf, f4_rgba8(f4_v(0.02f, 0.05f, 0.1f, 1.0f)), camera.nearFar.y);
+    rcmd_view(cmdbuf, camera);
 
     material_t material = { 0 };
     quat modelRotation = quat_lookat(f3_normalize(ms_modelForward), f3_normalize(ms_modelUp));
@@ -563,7 +539,7 @@ void render_sys_update(void)
 
     rcmdqueue_submit(&ms_queue, cmdbuf);
 
-    ecs_foreach(&ms_l2wtask, kLocalToWorldFilter, (compflag_t) { 0 }, LocalToWorldTaskFn);
+    ecs_foreach(&ms_l2wtask, kLocalToWorldFilter, (compflag_t) { 0 }, TrsTaskFn);
     ecs_foreach(&ms_cmdtask, kDrawableFilter, (compflag_t) { 0 }, DrawableTaskFn);
     task_submit(&ms_rastask, RasterizeTaskFn, kTileCount);
 
@@ -575,6 +551,12 @@ void render_sys_present(void)
     task_await((task_t*)&ms_rastask);
     UpdateGlTexture(ms_image, kDrawWidth, kDrawHeight, ms_buffer.color);
 
+    glDisable(GL_BLEND);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glPolygonMode(GL_FRONT, GL_FILL);
     glViewport(0, 0, window_width(), window_height());
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
     glUseProgram(ms_blitProgram);
@@ -610,12 +592,12 @@ static glhandle CreateGlTexture(i32 width, i32 height)
     glTexImage2D(
         GL_TEXTURE_2D,              // target
         0,                          // level
-        GL_RGB5_A1,                 // internalformat
+        GL_RGBA8,                   // internalformat
         width,                      // width
         height,                     // height
         GL_FALSE,                   // border
         GL_RGBA,                    // format
-        GL_UNSIGNED_SHORT_5_5_5_1,  // type
+        GL_UNSIGNED_BYTE,           // type
         NULL);                      // data
     ASSERT(!glGetError());
     return hdl;
@@ -639,7 +621,7 @@ static void UpdateGlTexture(
         width,                      // width
         height,                     // height
         GL_RGBA,                    // format
-        GL_UNSIGNED_SHORT_5_5_5_1,  // type
+        GL_UNSIGNED_BYTE,           // type
         data);                      // data
     ASSERT(!glGetError());
 }

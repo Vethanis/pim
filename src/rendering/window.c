@@ -31,7 +31,7 @@ void window_sys_init(void)
     i32 rv = glfwInit();
     ASSERT(rv);
 
-    ms_window = CreateGlfwWindow(800, 600, "Pim", false);
+    ms_window = CreateGlfwWindow(800, 600, "Pim", true);
     ASSERT(ms_window);
     glfwMakeContextCurrent(ms_window);
     glfwSwapInterval(0);
@@ -153,12 +153,25 @@ static GLFWwindow* CreateGlfwWindow(
     glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE);
     glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_TRUE);
 
+    i32 xpos, ypos;
+    if (fullscreen)
+    {
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        ASSERT(monitor);
+        glfwGetMonitorWorkarea(monitor, &xpos, &ypos, &width, &height);
+    }
+
     GLFWwindow* window = glfwCreateWindow(
         width,
         height,
         title,
-        fullscreen ? glfwGetPrimaryMonitor() : NULL,
+        NULL,
         NULL);
+
+    if (fullscreen)
+    {
+        glfwSetWindowPos(window, xpos, ypos);
+    }
 
     return window;
 }

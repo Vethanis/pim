@@ -9,6 +9,7 @@ PIM_C_BEGIN
 #include "rendering/material.h"
 #include "containers/ptrqueue.h"
 #include "rendering/constants.h"
+#include "rendering/camera.h"
 
 typedef enum
 {
@@ -24,14 +25,13 @@ typedef enum
 
 typedef struct rcmd_clear_s
 {
-    u16 color;
-    u16 depth;
+    u32 color;
+    float depth;
 } rcmd_clear_t;
 
 typedef struct rcmd_view_s
 {
-    float4x4 V;
-    float4x4 P;
+    camera_t camera;
 } rcmd_view_t;
 
 typedef struct rcmd_draw_s
@@ -49,7 +49,7 @@ typedef struct rcmd_s
         rcmd_clear_t clear;
         rcmd_view_t view;
         rcmd_draw_t draw;
-    } cmd;
+    };
 } rcmd_t;
 
 typedef struct rcmdbuf_s
@@ -66,8 +66,8 @@ typedef struct rcmdqueue_s
 rcmdbuf_t* rcmdbuf_create(void);
 bool rcmdbuf_read(const rcmdbuf_t* buf, i32* pCursor, rcmd_t* dst);
 
-void rcmd_clear(rcmdbuf_t* buf, u16 color, u16 depth);
-void rcmd_view(rcmdbuf_t* buf, float4x4 view, float4x4 proj);
+void rcmd_clear(rcmdbuf_t* buf, u32 color, float depth);
+void rcmd_view(rcmdbuf_t* buf, camera_t camera);
 void rcmd_draw(rcmdbuf_t* buf, float4x4 model, meshid_t meshid, material_t material);
 
 void rcmdqueue_create(rcmdqueue_t* queue);

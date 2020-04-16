@@ -75,6 +75,30 @@ pim_inline float2 VEC_CALL f2_add(float2 lhs, float2 rhs)
     return vec;
 }
 
+pim_inline float2 VEC_CALL f2_addvs(float2 lhs, float rhs)
+{
+    float2 vec = { lhs.x + rhs, lhs.y + rhs };
+    return vec;
+}
+
+pim_inline float2 VEC_CALL f2_addsv(float lhs, float2 rhs)
+{
+    float2 vec = { lhs + rhs.x, lhs + rhs.y };
+    return vec;
+}
+
+pim_inline float2 VEC_CALL f2_subvs(float2 lhs, float rhs)
+{
+    float2 vec = { lhs.x - rhs, lhs.y - rhs };
+    return vec;
+}
+
+pim_inline float2 VEC_CALL f2_subsv(float lhs, float2 rhs)
+{
+    float2 vec = { lhs - rhs.x, lhs - rhs.y };
+    return vec;
+}
+
 pim_inline float2 VEC_CALL f2_sub(float2 lhs, float2 rhs)
 {
     float2 vec = { lhs.x - rhs.x, lhs.y - rhs.y };
@@ -471,9 +495,27 @@ pim_inline float2 VEC_CALL f2_deg(float2 x)
     return f2_mul(x, f2_s(kDegreesPerRadian));
 }
 
+pim_inline float2 VEC_CALL f2_blend(float2 a, float2 b, float2 c, float3 wuv)
+{
+    float2 p = f2_mulvs(a, wuv.x);
+    p = f2_add(p, f2_mulvs(b, wuv.y));
+    p = f2_add(p, f2_mulvs(c, wuv.z));
+    return p;
+}
+
 pim_inline float2 VEC_CALL f2_rand(prng_t* rng)
 {
     return f2_v(prng_f32(rng), prng_f32(rng));
+}
+
+pim_inline float2 VEC_CALL f2_snorm(float2 u)
+{
+    return f2_subvs(f2_mulvs(u, 2.0f), 1.0f);
+}
+
+pim_inline float2 VEC_CALL f2_unorm(float2 s)
+{
+    return f2_addvs(f2_mulvs(s, 0.5f), 0.5f);
 }
 
 PIM_C_END

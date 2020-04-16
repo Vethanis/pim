@@ -99,6 +99,18 @@ pim_inline float4x4 VEC_CALL f4x4_translate(float4x4 m, float3 v)
     return m;
 }
 
+pim_inline float4x4 VEC_CALL f4x4_translation(float3 v)
+{
+    float4x4 m =
+    {
+        .c0 = f4_v(1.0f, 0.0f, 0.0f, 0.0f),
+        .c1 = f4_v(0.0f, 1.0f, 0.0f, 0.0f),
+        .c2 = f4_v(0.0f, 0.0f, 1.0f, 0.0f),
+        .c3 = f4_v(v.x, v.y, v.z, 1.0f),
+    };
+    return m;
+}
+
 pim_inline float4x4 VEC_CALL f4x4_rotate(float4x4 m, float a, float3 v)
 {
     float3x3 rot = f3x3_angle_axis(a, v);
@@ -127,6 +139,18 @@ pim_inline float4x4 VEC_CALL f4x4_scale(float4x4 m, float3 v)
     m.c0 = f4_mulvs(m.c0, v.x);
     m.c1 = f4_mulvs(m.c1, v.y);
     m.c2 = f4_mulvs(m.c2, v.z);
+    return m;
+}
+
+pim_inline float4x4 VEC_CALL f4x4_scaling(float3 v)
+{
+    float4x4 m =
+    {
+        .c0 = f4_v(v.x, 0.0f, 0.0f, 0.0f),
+        .c1 = f4_v(0.0f, v.y, 0.0f, 0.0f),
+        .c2 = f4_v(0.0f, 0.0f, v.z, 0.0f),
+        .c3 = f4_v(0.0f, 0.0f, 0.0f, 1.0f),
+    };
     return m;
 }
 
@@ -224,6 +248,92 @@ pim_inline float4x4 VEC_CALL f4x4_inf_perspective(
     m.c2.w = -1.0f;
     m.c3.z = (e - 2.0f) * near;
     return m;
+}
+
+pim_inline float4x4 VEC_CALL f4x4_inverse(float4x4 m)
+{
+    float c00 = m.c2.z * m.c3.w - m.c3.z * m.c2.w;
+    float c02 = m.c1.z * m.c3.w - m.c3.z * m.c1.w;
+    float c03 = m.c1.z * m.c2.w - m.c2.z * m.c1.w;
+
+    float c04 = m.c2.y * m.c3.w - m.c3.y * m.c2.w;
+    float c06 = m.c1.y * m.c3.w - m.c3.y * m.c1.w;
+    float c07 = m.c1.y * m.c2.w - m.c2.y * m.c1.w;
+
+    float c08 = m.c2.y * m.c3.z - m.c3.y * m.c2.z;
+    float c10 = m.c1.y * m.c3.z - m.c3.y * m.c1.z;
+    float c11 = m.c1.y * m.c2.z - m.c2.y * m.c1.z;
+
+    float c12 = m.c2.x * m.c3.w - m.c3.x * m.c2.w;
+    float c14 = m.c1.x * m.c3.w - m.c3.x * m.c1.w;
+    float c15 = m.c1.x * m.c2.w - m.c2.x * m.c1.w;
+
+    float c16 = m.c2.x * m.c3.z - m.c3.x * m.c2.z;
+    float c18 = m.c1.x * m.c3.z - m.c3.x * m.c1.z;
+    float c19 = m.c1.x * m.c2.z - m.c2.x * m.c1.z;
+
+    float c20 = m.c2.x * m.c3.y - m.c3.x * m.c2.y;
+    float c22 = m.c1.x * m.c3.y - m.c3.x * m.c1.y;
+    float c23 = m.c1.x * m.c2.y - m.c2.x * m.c1.y;
+
+    float4 f0 = { c00, c00, c02, c03 };
+    float4 f1 = { c04, c04, c06, c07 };
+    float4 f2 = { c08, c08, c10, c11 };
+    float4 f3 = { c12, c12, c14, c15 };
+    float4 f4 = { c16, c16, c18, c19 };
+    float4 f5 = { c20, c20, c22, c23 };
+
+    float4 v0 = { m.c1.x, m.c0.x, m.c0.x, m.c0.x };
+    float4 v1 = { m.c1.y, m.c0.y, m.c0.y, m.c0.y };
+    float4 v2 = { m.c1.z, m.c0.z, m.c0.z, m.c0.z };
+    float4 v3 = { m.c1.w, m.c0.w, m.c0.w, m.c0.w };
+
+    float4 i0 =
+            f4_add(
+            f4_sub(
+            f4_mul(v1, f0),
+            f4_mul(v2, f1)),
+            f4_mul(v3, f2));
+    float4 i1 =
+            f4_add(
+            f4_sub(
+            f4_mul(v0, f0),
+            f4_mul(v2, f3)),
+            f4_mul(v3, f4));
+    float4 i2 =
+            f4_add(
+            f4_sub(
+            f4_mul(v0, f1),
+            f4_mul(v1, f3)),
+            f4_mul(v3, f5));
+    float4 i3 =
+            f4_add(
+            f4_sub(
+            f4_mul(v0, f2),
+            f4_mul(v1, f4)),
+            f4_mul(v2, f5));
+
+    const float4 s1 = { +1.0f, -1.0f, +1.0f, -1.0f };
+    const float4 s2 = { -1.0f, +1.0f, -1.0f, +1.0f };
+    float4x4 inv = 
+    {
+        f4_mul(i0, s1),
+        f4_mul(i1, s2),
+        f4_mul(i2, s1),
+        f4_mul(i3, s2),
+    };
+
+    float4 r0 = { inv.c0.x, inv.c1.x, inv.c2.x, inv.c3.x };
+    float det = f4_sum(f4_mul(m.c0, r0));
+    ASSERT(det != 0.0f);
+    float rcpDet = 1.0f / det;
+
+    inv.c0 = f4_mulvs(inv.c0, rcpDet);
+    inv.c1 = f4_mulvs(inv.c1, rcpDet);
+    inv.c2 = f4_mulvs(inv.c2, rcpDet);
+    inv.c3 = f4_mulvs(inv.c3, rcpDet);
+
+    return inv;
 }
 
 PIM_C_END

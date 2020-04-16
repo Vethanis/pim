@@ -16,7 +16,7 @@ typedef struct ent_s
 
 typedef struct position_s
 {
-    float4 Value;
+    float3 Value;
 } position_t;
 
 typedef struct rotation_s
@@ -26,7 +26,7 @@ typedef struct rotation_s
 
 typedef struct scale_s
 {
-    float4 Value;
+    float3 Value;
 } scale_t;
 
 typedef struct localtoworld_s
@@ -40,6 +40,11 @@ typedef struct drawable_s
     material_t material;
 } drawable_t;
 
+typedef struct bounds_s
+{
+    float4 sphere; // center, radius
+} bounds_t;
+
 typedef enum
 {
     CompId_Entity,
@@ -48,6 +53,7 @@ typedef enum
     CompId_Scale,
     CompId_LocalToWorld,
     CompId_Drawable,
+    CompId_Bounds,
 
     CompId_COUNT
 } compid_t;
