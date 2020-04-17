@@ -65,6 +65,7 @@ static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length);
 static void TrsTaskFn(ecs_foreach_t* task, void** rows, i32 length);
 static void CreateEntities(task_t* task, i32 begin, i32 end);
 static void RegenMesh(void);
+static void RegenAlbedo(void);
 
 // ----------------------------------------------------------------------------
 
@@ -74,6 +75,7 @@ static task_t ms_rastask;
 static ecs_foreach_t ms_cmdtask;
 static ecs_foreach_t ms_l2wtask;
 static meshid_t ms_meshid;
+static textureid_t ms_albedoid;
 static prng_t ms_prng;
 static float ms_dt;
 static float3 ms_modelTranslation = { 0.0f, 0.0f, 0.0f };
@@ -94,6 +96,7 @@ void render_sys_init(void)
     // demo stuff
     //CreateEntities(NULL, 0, 1 << 20);
     RegenMesh();
+    RegenAlbedo();
 }
 
 void render_sys_update(void)
@@ -102,15 +105,19 @@ void render_sys_update(void)
     {
         float dt = (float)time_dtf();
         ms_dt = f1_lerp(ms_dt, dt, 1.0f / 60.0f);
-        igValueFloat("ms", ms_dt * 1000.0f, NULL);
-        igValueFloat("fps", 1.0f / ms_dt, NULL);
-        igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f, NULL, 1.0f);
-        igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f, NULL, 1.0f);
-        igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f, NULL, 1.0f);
-        igSliderFloat3("scale", &ms_modelScale.x, -10.0f, 10.0f, NULL, 1.0f);
+        igValueFloat("ms", ms_dt * 1000.0f);
+        igValueFloat("fps", 1.0f / ms_dt);
+        igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f);
+        igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f);
+        igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f);
+        igSliderFloat3("scale", &ms_modelScale.x, -10.0f, 10.0f);
         if (igButton("Regen Mesh"))
         {
             RegenMesh();
+        }
+        if (igButton("Regen Albedo"))
+        {
+            RegenAlbedo();
         }
     }
     igEnd();
@@ -121,7 +128,11 @@ void render_sys_update(void)
     rcmd_clear(cmdbuf, f4_rgba8(f4_v(0.02f, 0.05f, 0.1f, 1.0f)), camera.nearFar.y);
     rcmd_view(cmdbuf, camera);
 
-    material_t material = { 0 };
+    material_t material =
+    {
+        .st = f4_v(1.0f / 32.0f, 1.0f / 32.0f, 0.0f, 0.0f),
+        .albedo = ms_albedoid,
+    };
     quat modelRotation = quat_lookat(f3_normalize(ms_modelForward), f3_normalize(ms_modelUp));
     float4x4 M = f4x4_trs(ms_modelTranslation, modelRotation, ms_modelScale);
     rcmd_draw(cmdbuf, M, ms_meshid, material);
@@ -149,6 +160,8 @@ void render_sys_shutdown(void)
     task_await((task_t*)&ms_rastask);
     framebuf_destroy(&ms_buffer);
     rcmdqueue_destroy(&ms_queue);
+    mesh_destroy(ms_meshid);
+    texture_destroy(ms_albedoid);
 }
 
 // ----------------------------------------------------------------------------
@@ -160,12 +173,29 @@ pim_inline int2 VEC_CALL GetTile(i32 i)
     return (int2) { x * kTileWidth, y * kTileHeight };
 }
 
+pim_inline float2 VEC_CALL TransformUv(float2 uv, float4 st)
+{
+    uv.x = uv.x * st.x + st.z;
+    uv.y = uv.y * st.y + st.w;
+    return f2_fmod(uv, f2_1);
+}
+
+pim_inline float4 VEC_CALL SampleTexture(texture_t texture, float2 uv)
+{
+    uv.x = uv.x * texture.width;
+    uv.y = uv.y * texture.height;
+    i32 i = (i32)uv.x + ((i32)uv.y) * texture.width;
+    return color_f4(texture.texels[i]);
+}
+
 static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 {
     const float e = 1.0f / (1 << 10);
 
     mesh_t mesh;
-    if (!mesh_get(draw.meshid, &mesh))
+    texture_t albedo;
+    material_t material = draw.material;
+    if (!mesh_get(draw.meshid, &mesh) || !texture_get(material.albedo, &albedo))
     {
         return;
     }
@@ -177,12 +207,11 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     const i32 vertCount = mesh.length;
     const float4x4 M = draw.M;
     const camera_t camera = state.camera;
-    // material_t material = draw.material;
 
     const int2 tile = GetTile(state.iTile);
     const float2 rcpScreen = { 1.0f / kDrawWidth, 1.0f / kDrawHeight };
     const float aspect = (float)kDrawWidth / (float)kDrawHeight;
-    const float fovSlope = tanf(camera.fovy * 0.5f);
+    const float fovSlope = tanf(f1_radians(camera.fovy) * 0.5f);
     const float xSlope = aspect * fovSlope;
     const float ySlope = fovSlope;
 
@@ -192,21 +221,24 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     const float3 ro = camera.position;
     prng_t rng = state.rng;
 
-    for (i32 y = 0; y < kTileHeight; ++y)
+    for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
     {
-        for (i32 x = 0; x < kTileWidth; ++x)
+        const float3 A = f4_f3(f4x4_mul_pt(M, positions[iVert + 0]));
+        const float3 B = f4_f3(f4x4_mul_pt(M, positions[iVert + 1]));
+        const float3 C = f4_f3(f4x4_mul_pt(M, positions[iVert + 2]));
+
+        for (i32 y = 0; y < kTileHeight; ++y)
         {
-            const int2 iCoord = i2_add(tile, i2_v(x, y));
-            const i32 iTexel = iCoord.x + iCoord.y * kDrawWidth;
-            const float2 fCoord = f2_snorm(f2_mul(i2_f2(iCoord), rcpScreen));
-
-            const float3 rd = f3_normalize(f3_add(forward, f3_add(f3_mulvs(right, fCoord.x * xSlope), f3_mulvs(up, fCoord.y * ySlope))));
-
-            for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
+            for (i32 x = 0; x < kTileWidth; ++x)
             {
-                const float3 A = f4_f3(f4x4_mul_pt(M, positions[iVert + 0]));
-                const float3 B = f4_f3(f4x4_mul_pt(M, positions[iVert + 1]));
-                const float3 C = f4_f3(f4x4_mul_pt(M, positions[iVert + 2]));
+                const int2 iCoord = i2_add(tile, i2_v(x, y));
+                const i32 iTexel = iCoord.x + iCoord.y * kDrawWidth;
+                const float2 fCoord = f2_snorm(f2_mul(i2_f2(iCoord), rcpScreen));
+
+                const float3 rd = f3_normalize(
+                    f3_add(forward, f3_add(
+                        f3_mulvs(right, fCoord.x * xSlope),
+                        f3_mulvs(up, fCoord.y * ySlope))));
 
                 const float4 uvt = ray_tri_isect(ro, rd, A, B, C);
                 if (uvt.w != 1.0f)
@@ -218,17 +250,29 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
                     continue;
                 }
                 frame.depth[iTexel] = uvt.z;
-                // const float3 P = f3_add(ro, f3_mulvs(rd, uvt.z));
 
                 // blend interpolators
                 const float3 wuv = f3_v(1.0f - uvt.x - uvt.y, uvt.x, uvt.y);
-                // const float4 N = f4_blend(NA, NB, NC, wuv);
-                const float2 UA = uvs[iVert + 0];
-                const float2 UB = uvs[iVert + 1];
-                const float2 UC = uvs[iVert + 2];
-                float2 U = f2_blend(UA, UB, UC, wuv);
+                //float4 P = f4_blend(
+                //    positions[iTop + 0],
+                //    positions[iTop + 1],
+                //    positions[iTop + 2],
+                //    wuv);
+                //float4 N = f4_blend(
+                //        normals[iTop + 0],
+                //        normals[iTop + 1],
+                //        normals[iTop + 2],
+                //        wuv);
+                float2 U = f2_blend(
+                    uvs[iVert + 0],
+                    uvs[iVert + 1],
+                    uvs[iVert + 2],
+                    wuv);
 
-                frame.color[iTexel] = f4_color(&rng, f4_v(U.x, U.y, 0.0f, 1.0f));
+                U = TransformUv(U, material.st);
+                float4 alb = SampleTexture(albedo, U);
+
+                frame.color[iTexel] = f4_color(&rng, alb);
             }
         }
     }
@@ -428,7 +472,7 @@ static void CreateEntities(task_t* task, i32 begin, i32 end)
 static void RegenMesh(void)
 {
     mesh_t mesh;
-    mesh.length = (1 + (prng_i32(&ms_prng) & 3)) * 3;
+    mesh.length = (1 + (prng_i32(&ms_prng) & 15)) * 3;
     mesh.positions = perm_malloc(sizeof(*mesh.positions) * mesh.length);
     mesh.normals = perm_malloc(sizeof(*mesh.normals) * mesh.length);
     mesh.uvs = perm_malloc(sizeof(*mesh.uvs) * mesh.length);
@@ -470,4 +514,31 @@ static void RegenMesh(void)
     meshid_t oldid = ms_meshid;
     ms_meshid = newid;
     mesh_destroy(oldid);
+}
+
+static void RegenAlbedo(void)
+{
+    texture_t albedo;
+    const i32 size = 1 << 8;
+    albedo.width = size;
+    albedo.height = size;
+    albedo.texels = perm_malloc(sizeof(*albedo.texels) * size * size);
+
+    prng_t rng = ms_prng;
+    for (i32 y = 0; y < size; ++y)
+    {
+        for (i32 x = 0; x < size; ++x)
+        {
+            const i32 i = x + y * size;
+            u32 a = (y & 1) ? 0xffffffff : 0;
+            u32 b = ~a;
+            albedo.texels[i] = x & 1 ? a : b;
+        }
+    }
+    ms_prng = rng;
+
+    textureid_t newid = texture_create(&albedo);
+    textureid_t oldid = ms_albedoid;
+    ms_albedoid = newid;
+    texture_destroy(oldid);
 }

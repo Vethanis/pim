@@ -128,8 +128,8 @@ static void OnClick(GLFWwindow* window, i32 button, i32 action, i32 mods)
 
 static void OnScroll(GLFWwindow* window, double xoffset, double yoffset)
 {
-    ms_axis[MouseAxis_ScrollX] = (float)xoffset;
-    ms_axis[MouseAxis_ScrollY] = (float)yoffset;
+    ms_axis[MouseAxis_ScrollX] += (float)xoffset;
+    ms_axis[MouseAxis_ScrollY] += (float)yoffset;
     ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
 }
 

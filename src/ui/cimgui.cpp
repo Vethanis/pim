@@ -670,21 +670,21 @@ bool igDragScalarN(const char* label,ImGuiDataType data_type,void* p_data,int co
 {
     return ImGui::DragScalarN(label,data_type,p_data,components,v_speed,p_min,p_max,format,power);
 }
-bool igSliderFloat(const char* label,float* v,float v_min,float v_max,const char* format,float power)
+bool igSliderFloat(const char* label,float* v,float v_min,float v_max)
 {
-    return ImGui::SliderFloat(label,v,v_min,v_max,format,power);
+    return ImGui::SliderFloat(label,v,v_min,v_max);
 }
-bool igSliderFloat2(const char* label,float v[2],float v_min,float v_max,const char* format,float power)
+bool igSliderFloat2(const char* label,float v[2],float v_min,float v_max)
 {
-    return ImGui::SliderFloat2(label,v,v_min,v_max,format,power);
+    return ImGui::SliderFloat2(label,v,v_min,v_max);
 }
-bool igSliderFloat3(const char* label,float v[3],float v_min,float v_max,const char* format,float power)
+bool igSliderFloat3(const char* label,float v[3],float v_min,float v_max)
 {
-    return ImGui::SliderFloat3(label,v,v_min,v_max,format,power);
+    return ImGui::SliderFloat3(label,v,v_min,v_max);
 }
-bool igSliderFloat4(const char* label,float v[4],float v_min,float v_max,const char* format,float power)
+bool igSliderFloat4(const char* label,float v[4],float v_min,float v_max)
 {
-    return ImGui::SliderFloat4(label,v,v_min,v_max,format,power);
+    return ImGui::SliderFloat4(label,v,v_min,v_max);
 }
 bool igSliderAngle(const char* label,float* v_rad,float v_degrees_min,float v_degrees_max,const char* format)
 {
@@ -928,19 +928,31 @@ void igPlotHistogramFnPtr(const char* label,float(*values_getter)(void* data,int
 }
 void igValueBool(const char* prefix,bool b)
 {
-    return ImGui::Value(prefix,b);
+    ImGui::Value(prefix,b);
 }
 void igValueInt(const char* prefix,int v)
 {
-    return ImGui::Value(prefix,v);
+    ImGui::Value(prefix,v);
 }
 void igValueUint(const char* prefix,unsigned int v)
 {
-    return ImGui::Value(prefix,v);
+    ImGui::Value(prefix,v);
 }
-void igValueFloat(const char* prefix,float v,const char* float_format)
+void igValueFloat(const char* prefix,float v)
 {
-    return ImGui::Value(prefix,v,float_format);
+    ImGui::Value(prefix,v);
+}
+void igValueFloat2(const char* prefix, float v[2])
+{
+    ImGui::Text("%s: %.3f %.3f", prefix, v[0], v[1]);
+}
+void igValueFloat3(const char* prefix, float v[3])
+{
+    ImGui::Text("%s: %.3f %.3f %.3f", prefix, v[0], v[1], v[2]);
+}
+void igValueFloat4(const char* prefix, float v[4])
+{
+    ImGui::Text("%s: %.3f %.3f %.3f %.3f", prefix, v[0], v[1], v[2], v[3]);
 }
 bool igBeginMenuBar()
 {

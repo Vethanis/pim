@@ -570,6 +570,11 @@ pim_inline float4 VEC_CALL f4_lerp(float4 a, float4 b, float t)
     return f4_add(a, f4_mulvs(f4_sub(b, a), t));
 }
 
+pim_inline float4 VEC_CALL f4_lerpsv(float a, float b, float4 t)
+{
+    return f4_addsv(a, f4_mulsv(b - a, t));
+}
+
 pim_inline float4 VEC_CALL f4_saturate(float4 a)
 {
     return f4_clampvs(a, 0.0f, 1.0f);
@@ -898,6 +903,18 @@ pim_inline u32 VEC_CALL f4_rgba8(float4 v)
     return c;
 }
 
+pim_inline float4 VEC_CALL rgba8_f4(u32 c)
+{
+    u32 r = c & 0xff;
+    c >>= 8;
+    u32 g = c & 0xff;
+    c >>= 8;
+    u32 b = c & 0xff;
+    c >>= 8;
+    u32 a = c & 0xff;
+    return f4_v(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
+}
+
 pim_inline float4 VEC_CALL f4_tosrgb(float4 lin)
 {
     float4 srgb = f4_powvs(lin, 0.416666667f);
@@ -931,6 +948,11 @@ pim_inline u32 VEC_CALL f4_color(prng_t* rng, float4 linear)
 {
     float4 srgb = f4_tosrgb(linear);
     return f4_rgba8(f4_dither(rng, srgb));
+}
+
+pim_inline float4 VEC_CALL color_f4(u32 c)
+{
+    return f4_tolinear(rgba8_f4(c));
 }
 
 PIM_C_END

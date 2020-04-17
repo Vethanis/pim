@@ -49,6 +49,12 @@ pim_inline float3 VEC_CALL f3_yzx(float3 v)
     return vec;
 }
 
+pim_inline float4 VEC_CALL f3_f4(float3 v, float w)
+{
+    float4 f4 = { v.x, v.y, v.z, w };
+    return f4;
+}
+
 pim_inline float3 VEC_CALL f3_neg(float3 v)
 {
     float3 vec = { -v.x, -v.y, -v.z };

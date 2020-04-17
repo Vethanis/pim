@@ -1,9 +1,8 @@
 #include "rendering/texture.h"
 #include "allocator/allocator.h"
 #include "common/atomics.h"
-#include "common/random.h"
 
-static prng_t ms_rng;
+static u64 ms_version;
 
 textureid_t texture_create(texture_t* src)
 {
@@ -12,12 +11,8 @@ textureid_t texture_create(texture_t* src)
     ASSERT(src->height > 0);
     ASSERT(src->texels);
 
-    if (!ms_rng.state)
-    {
-        ms_rng = prng_create();
-    }
+    const u64 version = 1099511628211ull + fetch_add_u64(&ms_version, 3, MO_Relaxed);
 
-    const u64 version = prng_u64(&ms_rng);
     texture_t* dst = perm_malloc(sizeof(*dst));
     *dst = *src;
     dst->version = version;

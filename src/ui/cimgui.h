@@ -1031,10 +1031,10 @@ bool igDragInt4(const char* label,int v[4],float v_speed,int v_min,int v_max,con
 bool igDragIntRange2(const char* label,int* v_current_min,int* v_current_max,float v_speed,int v_min,int v_max,const char* format,const char* format_max);
 bool igDragScalar(const char* label,ImGuiDataType data_type,void* p_data,float v_speed,const void* p_min,const void* p_max,const char* format,float power);
 bool igDragScalarN(const char* label,ImGuiDataType data_type,void* p_data,int components,float v_speed,const void* p_min,const void* p_max,const char* format,float power);
-bool igSliderFloat(const char* label,float* v,float v_min,float v_max,const char* format,float power);
-bool igSliderFloat2(const char* label,float v[2],float v_min,float v_max,const char* format,float power);
-bool igSliderFloat3(const char* label,float v[3],float v_min,float v_max,const char* format,float power);
-bool igSliderFloat4(const char* label,float v[4],float v_min,float v_max,const char* format,float power);
+bool igSliderFloat(const char* label,float* v,float v_min,float v_max);
+bool igSliderFloat2(const char* label,float v[2],float v_min,float v_max);
+bool igSliderFloat3(const char* label,float v[3],float v_min,float v_max);
+bool igSliderFloat4(const char* label,float v[4],float v_min,float v_max);
 bool igSliderAngle(const char* label,float* v_rad,float v_degrees_min,float v_degrees_max,const char* format);
 bool igSliderInt(const char* label,int* v,int v_min,int v_max,const char* format);
 bool igSliderInt2(const char* label,int v[2],int v_min,int v_max,const char* format);
@@ -1096,7 +1096,10 @@ void igPlotHistogramFnPtr(const char* label,float(*values_getter)(void* data,int
 void igValueBool(const char* prefix,bool b);
 void igValueInt(const char* prefix,int v);
 void igValueUint(const char* prefix,unsigned int v);
-void igValueFloat(const char* prefix,float v,const char* float_format);
+void igValueFloat(const char* prefix, float v);
+void igValueFloat2(const char* prefix, float v[2]);
+void igValueFloat3(const char* prefix, float v[3]);
+void igValueFloat4(const char* prefix, float v[4]);
 bool igBeginMenuBar(void);
 void igEndMenuBar(void);
 bool igBeginMainMenuBar(void);

@@ -24,7 +24,7 @@ static void OnGlfwError(i32 error_code, const char* description);
 
 void window_sys_init(void)
 {
-    cvar_create(&cv_TargetFps, "target_fps", "120");
+    cvar_create(&cv_TargetFps, "target_fps", "240");
     ms_lastSwap = time_now();
 
     glfwSetErrorCallback(OnGlfwError);

@@ -5,6 +5,7 @@
 #include "rendering/window.h"
 #include "math/quat_funcs.h"
 #include "common/time.h"
+#include "ui/cimgui.h"
 
 static float ms_pitchScale = 720.0f;
 static float ms_yawScale = 720.0f;
@@ -17,6 +18,19 @@ void camera_logic_init(void)
 
 void camera_logic_update(void)
 {
+    const float dx = input_delta_axis(MouseAxis_X);
+    const float dy = input_delta_axis(MouseAxis_Y);
+    const float dscroll = input_delta_axis(MouseAxis_ScrollY);
+    camera_t camera;
+    camera_get(&camera);
+
+    igBegin("CameraLogic", NULL, 0);
+    {
+        igValueFloat3("eye", &camera.position.x);
+        igValueFloat("fov", camera.fovy);
+    }
+    igEnd();
+
     if (input_keyup(KeyCode_Escape))
     {
         window_close(true);
@@ -33,11 +47,7 @@ void camera_logic_update(void)
         return;
     }
 
-    camera_t camera;
-    camera_get(&camera);
-
-    float dt = (float)time_dtf();
-    dt = f1_clamp(dt, 0.0f, 1.0f / 15.0f);
+    const float dt = f1_clamp((float)time_dtf(), 0.0f, 1.0f / 15.0f);
     float moveScale = ms_moveScale * dt;
     float pitchScale = f1_radians(ms_pitchScale * dt);
     float yawScale = f1_radians(ms_yawScale * dt);
@@ -45,8 +55,9 @@ void camera_logic_update(void)
     quat rot = camera.rotation;
     float3 eye = camera.position;
     float3 fwd = quat_fwd(rot);
-    float3 right = quat_right(rot);
-    float3 up = { 0.0f, 1.0f, 0.0f };
+    const float3 right = quat_right(rot);
+    const float3 up = quat_up(rot);
+    const float3 yAxis = { 0.0f, 1.0f, 0.0f };
 
     if (input_key(KeyCode_W))
     {
@@ -75,20 +86,13 @@ void camera_logic_update(void)
         eye = f3_add(eye, f3_mulvs(up, -dt * ms_moveScale));
     }
 
-    const float dx = input_delta_axis(MouseAxis_X);
-    const float dy = input_delta_axis(MouseAxis_Y);
-    if (f1_abs(dx) > 1.0f || f1_abs(dy) > 1.0f)
-    {
-        // sometimes glfw sends out huge input spikes at startup
-        // we don't want to introduce these to the game, so we discard them
-        return;
-    }
-
     float3 at = f3_add(eye, fwd);
     at = f3_add(at, f3_mulvs(right, dx));
     at = f3_add(at, f3_mulvs(up, dy));
     fwd = f3_normalize(f3_sub(at, eye));
-    rot = quat_lookat(fwd, up);
+    rot = quat_lookat(fwd, yAxis);
+
+    camera.fovy = f1_clamp(camera.fovy + dscroll, 30.0f, 150.0f);
 
     camera.position = eye;
     camera.rotation = rot;
