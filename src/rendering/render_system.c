@@ -64,6 +64,7 @@ static void RasterizeTaskFn(task_t* task, i32 begin, i32 end);
 static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length);
 static void TrsTaskFn(ecs_foreach_t* task, void** rows, i32 length);
 static void CreateEntities(task_t* task, i32 begin, i32 end);
+static meshid_t GenSphereMesh(float r, i32 steps);
 static void RegenMesh(void);
 static void RegenAlbedo(void);
 
@@ -118,6 +119,12 @@ void render_sys_update(void)
         if (igButton("Regen Albedo"))
         {
             RegenAlbedo();
+        }
+        if (igButton("Sphere"))
+        {
+            meshid_t sphere = GenSphereMesh(1.0, 8);
+            mesh_destroy(ms_meshid);
+            ms_meshid = sphere;
         }
     }
     igEnd();
@@ -177,7 +184,8 @@ pim_inline float2 VEC_CALL TransformUv(float2 uv, float4 st)
 {
     uv.x = uv.x * st.x + st.z;
     uv.y = uv.y * st.y + st.w;
-    return f2_fmod(uv, f2_1);
+    uv = f2_saturate(f2_fmod(uv, f2_1));
+    return uv;
 }
 
 pim_inline float4 VEC_CALL SampleTexture(texture_t texture, float2 uv)
@@ -467,6 +475,140 @@ static void CreateEntities(task_t* task, i32 begin, i32 end)
     {
         ecs_create(prng_i32(&rng) & 1 ? all : some);
     }
+}
+
+static meshid_t GenSphereMesh(float r, i32 steps)
+{
+    const i32 vsteps = steps;       // divisions along y axis
+    const i32 hsteps = steps * 2;   // divisions along x-z plane
+    const float dv = kPi / vsteps;
+    const float dh = kTau / hsteps;
+
+    i32 length = 0;
+    float4* positions = NULL;
+    float4* normals = NULL;
+    float2* uvs = NULL;
+
+    for (i32 v = 0; v < vsteps; ++v)
+    {
+        float theta1 = v * dv;
+        float theta2 = (v + 1) * dv;
+        float st1 = sinf(theta1);
+        float ct1 = cosf(theta1);
+        float st2 = sinf(theta2);
+        float ct2 = cosf(theta2);
+
+        for (i32 h = 0; h < hsteps; ++h)
+        {
+            float phi1 = h * dh;
+            float phi2 = (h + 1) * dh;
+            float sp1 = sinf(phi1);
+            float cp1 = cosf(phi1);
+            float sp2 = sinf(phi2);
+            float cp2 = cosf(phi2);
+
+            // p2  p1
+            // |   |
+            // 2---1 -- t1
+            // |\  |
+            // | \ |
+            // 3---4 -- t2
+
+            float2 u1 = f2_v(phi1 / kTau, 1.0f - theta1 / kPi);
+            float2 u2 = f2_v(phi2 / kTau, 1.0f - theta1 / kPi);
+            float2 u3 = f2_v(phi2 / kTau, 1.0f - theta2 / kPi);
+            float2 u4 = f2_v(phi1 / kTau, 1.0f - theta2 / kPi);
+
+            float4 n1 = f4_v(st1 * cp1, ct1, st1 * sp1, 0.0f);
+            float4 n2 = f4_v(st1 * cp2, ct1, st1 * sp2, 0.0f);
+            float4 n3 = f4_v(st2 * cp2, ct2, st2 * sp2, 0.0f);
+            float4 n4 = f4_v(st2 * cp1, ct2, st2 * sp1, 0.0f);
+
+            float4 v1 = f4_mulvs(n1, r);
+            float4 v2 = f4_mulvs(n2, r);
+            float4 v3 = f4_mulvs(n3, r);
+            float4 v4 = f4_mulvs(n4, r);
+
+            const i32 back = length;
+            if (v == 0)
+            {
+                length += 3;
+                positions = perm_realloc(positions, sizeof(*positions) * length);
+                normals = perm_realloc(normals, sizeof(*normals) * length);
+                uvs = perm_realloc(uvs, sizeof(*uvs) * length);
+
+                positions[back + 0] = v1;
+                positions[back + 1] = v3;
+                positions[back + 2] = v4;
+
+                normals[back + 0] = n1;
+                normals[back + 1] = n3;
+                normals[back + 2] = n4;
+
+                uvs[back + 0] = u1;
+                uvs[back + 1] = u3;
+                uvs[back + 2] = u4;
+            }
+            else if ((v + 1) == vsteps)
+            {
+                length += 3;
+                positions = perm_realloc(positions, sizeof(*positions) * length);
+                normals = perm_realloc(normals, sizeof(*normals) * length);
+                uvs = perm_realloc(uvs, sizeof(*uvs) * length);
+
+                positions[back + 0] = v3;
+                positions[back + 1] = v1;
+                positions[back + 2] = v2;
+
+                normals[back + 0] = n3;
+                normals[back + 1] = n1;
+                normals[back + 2] = n2;
+
+                uvs[back + 0] = u3;
+                uvs[back + 1] = u1;
+                uvs[back + 2] = u2;
+            }
+            else
+            {
+                length += 6;
+                positions = perm_realloc(positions, sizeof(*positions) * length);
+                normals = perm_realloc(normals, sizeof(*normals) * length);
+                uvs = perm_realloc(uvs, sizeof(*uvs) * length);
+
+                positions[back + 0] = v1;
+                positions[back + 1] = v2;
+                positions[back + 2] = v4;
+
+                normals[back + 0] = n1;
+                normals[back + 1] = n2;
+                normals[back + 2] = n4;
+
+                uvs[back + 0] = u1;
+                uvs[back + 1] = u2;
+                uvs[back + 2] = u4;
+
+                positions[back + 3] = v2;
+                positions[back + 4] = v3;
+                positions[back + 5] = v4;
+
+                normals[back + 3] = n2;
+                normals[back + 4] = n3;
+                normals[back + 5] = n4;
+
+                uvs[back + 3] = u2;
+                uvs[back + 4] = u3;
+                uvs[back + 5] = u4;
+            }
+        }
+    }
+
+    return mesh_create(&(mesh_t)
+    {
+        .length = length,
+        .positions = positions,
+        .normals = normals,
+        .uvs = uvs,
+    });
 }
 
 static void RegenMesh(void)

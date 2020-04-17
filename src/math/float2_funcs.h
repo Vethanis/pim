@@ -229,7 +229,7 @@ pim_inline float2 VEC_CALL f2_sqrt(float2 v)
 
 pim_inline float2 VEC_CALL f2_abs(float2 v)
 {
-    float2 vec = { fabsf(v.x), fabsf(v.y) };
+    float2 vec = { f1_abs(v.x), f1_abs(v.y) };
     return vec;
 }
 
