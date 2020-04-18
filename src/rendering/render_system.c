@@ -16,6 +16,7 @@
 #include "math/float2_funcs.h"
 #include "math/float4x4_funcs.h"
 #include "math/sdf.h"
+#include "math/frustum.h"
 #include "ui/cimgui.h"
 
 // ----------------------------------------------------------------------------
@@ -180,6 +181,36 @@ pim_inline int2 VEC_CALL GetTile(i32 i)
     return (int2) { x * kTileWidth, y * kTileHeight };
 }
 
+pim_inline float2 VEC_CALL ScreenToUnorm(int2 screen)
+{
+    const float2 kRcpScreen = { 1.0f / kDrawWidth, 1.0f / kDrawHeight };
+    return f2_mul(i2_f2(screen), kRcpScreen);
+}
+
+pim_inline float2 VEC_CALL ScreenToSnorm(int2 screen)
+{
+    return f2_snorm(ScreenToUnorm(screen));
+}
+
+pim_inline float2 VEC_CALL TileMin(int2 tile)
+{
+    return ScreenToSnorm(tile);
+}
+
+pim_inline float2 VEC_CALL TileMax(int2 tile)
+{
+    tile.x += kTileWidth;
+    tile.y += kTileHeight;
+    return ScreenToSnorm(tile);
+}
+
+pim_inline float2 VEC_CALL TileCenter(int2 tile)
+{
+    tile.x += (kTileWidth >> 1);
+    tile.y += (kTileHeight >> 1);
+    return ScreenToSnorm(tile);
+}
+
 pim_inline float2 VEC_CALL TransformUv(float2 uv, float4 st)
 {
     uv.x = uv.x * st.x + st.z;
@@ -219,21 +250,49 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     const int2 tile = GetTile(state.iTile);
     const float2 rcpScreen = { 1.0f / kDrawWidth, 1.0f / kDrawHeight };
     const float aspect = (float)kDrawWidth / (float)kDrawHeight;
-    const float fovSlope = tanf(f1_radians(camera.fovy) * 0.5f);
-    const float xSlope = aspect * fovSlope;
-    const float ySlope = fovSlope;
+    const float fov = f1_radians(camera.fovy);
+    const float tanHalfFov = tanf(fov * 0.5f);
+    const float2 slope = { aspect * tanHalfFov, tanHalfFov };
 
     const float3 forward = quat_fwd(camera.rotation);
     const float3 right = quat_right(camera.rotation);
     const float3 up = quat_up(camera.rotation);
     const float3 ro = camera.position;
+    // const float4x4 V = f4x4_lookat(ro, f3_add(ro, forward), up);
+    //const float4x4 P = f4x4_perspective(fov, aspect, camera.nearFar.x, camera.nearFar.y);
     prng_t rng = state.rng;
+
+    const float3 tileDir = proj_dir(right, up, forward, slope, TileCenter(tile));
+    const frus_t frus = frus_new(
+        ro,
+        camera.rotation,
+        TileMin(tile),
+        TileMax(tile),
+        fov,
+        aspect,
+        camera.nearFar.x,
+        camera.nearFar.y);
 
     for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
     {
         const float3 A = f4_f3(f4x4_mul_pt(M, positions[iVert + 0]));
         const float3 B = f4_f3(f4x4_mul_pt(M, positions[iVert + 1]));
         const float3 C = f4_f3(f4x4_mul_pt(M, positions[iVert + 2]));
+
+        {
+            float3 N = f3_normalize(f3_cross(f3_sub(C, A), f3_sub(B, A)));
+            if (f3_dot(tileDir, N) < e)
+            {
+                continue;
+            }
+        }
+
+        float4 sphere = triToSphere(A, B, C);
+        float dist = sdFrusSph(frus, sphere);
+        if (dist > 0.0f)
+        {
+            continue;
+        }
 
         for (i32 y = 0; y < kTileHeight; ++y)
         {
@@ -243,24 +302,21 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
                 const i32 iTexel = iCoord.x + iCoord.y * kDrawWidth;
                 const float2 fCoord = f2_snorm(f2_mul(i2_f2(iCoord), rcpScreen));
 
-                const float3 rd = f3_normalize(
-                    f3_add(forward, f3_add(
-                        f3_mulvs(right, fCoord.x * xSlope),
-                        f3_mulvs(up, fCoord.y * ySlope))));
+                const float3 rd = proj_dir(right, up, forward, slope, fCoord);
 
-                const float4 uvt = ray_tri_isect(ro, rd, A, B, C);
-                if (uvt.w != 1.0f)
+                const float4 wuvt = isectTri3D(ro, rd, A, B, C);
+                if (f4_any(f4_ltvs(wuvt, 0.0f)))
                 {
                     continue;
                 }
-                if (uvt.z > frame.depth[iTexel] || uvt.z < camera.nearFar.x)
+                if (wuvt.w < camera.nearFar.x || wuvt.w > frame.depth[iTexel])
                 {
                     continue;
                 }
-                frame.depth[iTexel] = uvt.z;
+                frame.depth[iTexel] = wuvt.w;
 
                 // blend interpolators
-                const float3 wuv = f3_v(1.0f - uvt.x - uvt.y, uvt.x, uvt.y);
+                const float3 wuv = f4_f3(wuvt);
                 //float4 P = f4_blend(
                 //    positions[iTop + 0],
                 //    positions[iTop + 1],
@@ -484,10 +540,11 @@ static meshid_t GenSphereMesh(float r, i32 steps)
     const float dv = kPi / vsteps;
     const float dh = kTau / hsteps;
 
+    const i32 maxlen = 6 * vsteps * hsteps;
     i32 length = 0;
-    float4* positions = NULL;
-    float4* normals = NULL;
-    float2* uvs = NULL;
+    float4* positions = perm_malloc(sizeof(*positions) * maxlen);
+    float4* normals = perm_malloc(sizeof(*normals) * maxlen);
+    float2* uvs = perm_malloc(sizeof(*uvs) * maxlen);
 
     for (i32 v = 0; v < vsteps; ++v)
     {
@@ -533,9 +590,7 @@ static meshid_t GenSphereMesh(float r, i32 steps)
             if (v == 0)
             {
                 length += 3;
-                positions = perm_realloc(positions, sizeof(*positions) * length);
-                normals = perm_realloc(normals, sizeof(*normals) * length);
-                uvs = perm_realloc(uvs, sizeof(*uvs) * length);
+                ASSERT(length <= maxlen);
 
                 positions[back + 0] = v1;
                 positions[back + 1] = v3;
@@ -552,9 +607,7 @@ static meshid_t GenSphereMesh(float r, i32 steps)
             else if ((v + 1) == vsteps)
             {
                 length += 3;
-                positions = perm_realloc(positions, sizeof(*positions) * length);
-                normals = perm_realloc(normals, sizeof(*normals) * length);
-                uvs = perm_realloc(uvs, sizeof(*uvs) * length);
+                ASSERT(length <= maxlen);
 
                 positions[back + 0] = v3;
                 positions[back + 1] = v1;
@@ -571,9 +624,7 @@ static meshid_t GenSphereMesh(float r, i32 steps)
             else
             {
                 length += 6;
-                positions = perm_realloc(positions, sizeof(*positions) * length);
-                normals = perm_realloc(normals, sizeof(*normals) * length);
-                uvs = perm_realloc(uvs, sizeof(*uvs) * length);
+                ASSERT(length <= maxlen);
 
                 positions[back + 0] = v1;
                 positions[back + 1] = v2;

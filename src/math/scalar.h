@@ -29,6 +29,16 @@ pim_inline float VEC_CALL f1_degrees(float x)
     return x * kDegreesPerRadian;
 }
 
+pim_inline float VEC_CALL f1_unorm(float s)
+{
+    return 0.5f + 0.5f * s;
+}
+
+pim_inline float VEC_CALL f1_snorm(float u)
+{
+    return 2.0f * u - 1.0f;
+}
+
 pim_inline float VEC_CALL f1_min(float a, float b)
 {
     return a < b ? a : b;
@@ -57,16 +67,6 @@ pim_inline float VEC_CALL f1_saturate(float x)
 pim_inline float VEC_CALL f1_abs(float x)
 {
     return f1_max(x, -x);
-}
-
-pim_inline float VEC_CALL f1_bigger(float x, float mag)
-{
-    return f1_sign(x) * f1_max(f1_abs(x), mag);
-}
-
-pim_inline float VEC_CALL f1_smaller(float x, float mag)
-{
-    return f1_sign(x) * f1_min(f1_abs(x), mag);
 }
 
 pim_inline float VEC_CALL f1_ceil(float x)

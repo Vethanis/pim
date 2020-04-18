@@ -336,7 +336,7 @@ pim_inline float VEC_CALL f3_length(float3 x)
 
 pim_inline float3 VEC_CALL f3_normalize(float3 x)
 {
-    return f3_mul(x, f3_s(1.0f / f3_length(x)));
+    return f3_mulvs(x, 1.0f / f3_length(x));
 }
 
 pim_inline float VEC_CALL f3_distance(float3 a, float3 b)
