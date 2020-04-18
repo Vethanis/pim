@@ -25,6 +25,13 @@ typedef struct box_s
     float3 extents;
 } box_t;
 
+pim_inline float2 VEC_CALL proj_slope(float fovy, float aspect)
+{
+    float tanHalfFov = tanf(fovy * 0.5f);
+    float2 slope = { aspect * tanHalfFov, tanHalfFov };
+    return slope;
+}
+
 pim_inline float3 VEC_CALL proj_dir(
     float3 right,
     float3 up,
@@ -54,28 +61,22 @@ pim_inline float3 VEC_CALL proj_pt(
 
 pim_inline frus_t VEC_CALL frus_new(
     float3 eye,     // frustum origin
-    quat rot,       // frustum orientation
+    float3 right,
+    float3 up,
+    float3 fwd,
     float2 lo,      // minX, minY in [-1, 1]
     float2 hi,      // maxX, maxY in [-1, 1]
-    float fovy,     // vertical field of view, in radians
-    float aspect,   // aspect ratio (width / height)
-    float zNear,    // near clipping plane
-    float zFar)     // far clipping plane
+    float2 slope,
+    float2 nearFar) // clipping plane
 {
-    const float tanHalfFovy = tanf(fovy * 0.5f);
-    const float2 slope = { tanHalfFovy * aspect, tanHalfFovy };
-    const float3 right = quat_right(rot);
-    const float3 up = quat_up(rot);
-    const float3 fwd = quat_fwd(rot);
-
-    float3 LBN = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, lo.y, zNear));
-    float3 LBF = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, lo.y, zFar));
-    float3 LTN = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, hi.y, zNear));
-    float3 LTF = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, hi.y, zFar));
-    float3 RBN = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, lo.y, zNear));
-    float3 RBF = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, lo.y, zFar));
-    float3 RTN = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, zNear));
-    float3 RTF = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, zFar));
+    float3 LBN = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, lo.y, nearFar.x));
+    float3 LBF = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, lo.y, nearFar.y));
+    float3 LTN = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, hi.y, nearFar.x));
+    float3 LTF = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, hi.y, nearFar.y));
+    float3 RBN = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, lo.y, nearFar.x));
+    float3 RBF = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, lo.y, nearFar.y));
+    float3 RTN = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, nearFar.x));
+    float3 RTF = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, nearFar.y));
 
     float3 lN = f3_normalize(f3_cross(f3_sub(LTN, LBN), f3_sub(LBF, LBN)));
     float lD = f3_dot(lN, LBN);

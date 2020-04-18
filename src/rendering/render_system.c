@@ -248,30 +248,25 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     const camera_t camera = state.camera;
 
     const int2 tile = GetTile(state.iTile);
-    const float2 rcpScreen = { 1.0f / kDrawWidth, 1.0f / kDrawHeight };
-    const float aspect = (float)kDrawWidth / (float)kDrawHeight;
-    const float fov = f1_radians(camera.fovy);
-    const float tanHalfFov = tanf(fov * 0.5f);
-    const float2 slope = { aspect * tanHalfFov, tanHalfFov };
+    const float aspect = (float)kDrawWidth / kDrawHeight;
+    const float2 slope = proj_slope(f1_radians(camera.fovy), aspect);
 
-    const float3 forward = quat_fwd(camera.rotation);
+    const float3 fwd = quat_fwd(camera.rotation);
     const float3 right = quat_right(camera.rotation);
     const float3 up = quat_up(camera.rotation);
-    const float3 ro = camera.position;
-    // const float4x4 V = f4x4_lookat(ro, f3_add(ro, forward), up);
-    //const float4x4 P = f4x4_perspective(fov, aspect, camera.nearFar.x, camera.nearFar.y);
+    const float3 eye = camera.position;
     prng_t rng = state.rng;
 
-    const float3 tileDir = proj_dir(right, up, forward, slope, TileCenter(tile));
+    const float3 tileDir = proj_dir(right, up, fwd, slope, TileCenter(tile));
     const frus_t frus = frus_new(
-        ro,
-        camera.rotation,
+        eye,
+        right,
+        up,
+        fwd,
         TileMin(tile),
         TileMax(tile),
-        fov,
-        aspect,
-        camera.nearFar.x,
-        camera.nearFar.y);
+        slope,
+        camera.nearFar);
 
     for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
     {
@@ -279,17 +274,12 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         const float3 B = f4_f3(f4x4_mul_pt(M, positions[iVert + 1]));
         const float3 C = f4_f3(f4x4_mul_pt(M, positions[iVert + 2]));
 
+        if (f3_dot(tileDir, f3_cross(f3_sub(C, A), f3_sub(B, A))) < 0.0f)
         {
-            float3 N = f3_cross(f3_sub(C, A), f3_sub(B, A));
-            if (f3_dot(tileDir, N) < 0.0f)
-            {
-                continue;
-            }
+            continue;
         }
 
-        float4 sphere = triToSphere(A, B, C);
-        float dist = sdFrusSph(frus, sphere);
-        if (dist > 0.0f)
+        if (sdFrusSph(frus, triToSphere(A, B, C)) > 0.0f)
         {
             continue;
         }
@@ -300,11 +290,8 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
             {
                 const int2 iCoord = i2_add(tile, i2_v(x, y));
                 const i32 iTexel = iCoord.x + iCoord.y * kDrawWidth;
-                const float2 fCoord = f2_snorm(f2_mul(i2_f2(iCoord), rcpScreen));
-
-                const float3 rd = proj_dir(right, up, forward, slope, fCoord);
-
-                const float4 wuvt = isectTri3D(ro, rd, A, B, C);
+                const float3 rd = proj_dir(right, up, fwd, slope, ScreenToSnorm(iCoord));
+                const float4 wuvt = isectTri3D(eye, rd, A, B, C);
                 if (f4_any(f4_ltvs(wuvt, 0.0f)))
                 {
                     continue;
