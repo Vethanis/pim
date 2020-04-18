@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include "common/valist.h"
+#include "allocator/allocator.h"
 #include "stb/stb_sprintf.h"
 
 static i32 min_i32(i32 a, i32 b)
@@ -139,6 +140,19 @@ i32 StrCat(char* dst, i32 size, const char* src)
 
     const i32 len = StrNLen(dst, size);
     return StrCpy(dst + len, size - len, src) + len;
+}
+
+char* StrDup(const char* src, EAlloc allocator)
+{
+    ASSERT(src);
+    const i32 len = StrNLen(src, PIM_PATH);
+    char* dst = pim_malloc(allocator, len + 1);
+    for (i32 i = 0; i < len; ++i)
+    {
+        dst[i] = src[i];
+    }
+    dst[len] = 0;
+    return dst;
 }
 
 i32 ShiftRight(char* dst, i32 size, i32 shifts)

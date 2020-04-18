@@ -1,6 +1,7 @@
 .vs/
 .vscode/
 .autosave/
-packs/ 
+packs/
+data/
 build/
 imgui.ini

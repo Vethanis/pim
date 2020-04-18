@@ -23,6 +23,7 @@
     <ClCompile Include="..\src\common\time.c" />
     <ClCompile Include="..\src\components\compflag.c" />
     <ClCompile Include="..\src\components\ecs.c" />
+    <ClCompile Include="..\src\containers\dict.c" />
     <ClCompile Include="..\src\containers\graph.c" />
     <ClCompile Include="..\src\containers\hash_set.c" />
     <ClCompile Include="..\src\containers\idset.c" />
@@ -99,7 +100,7 @@
     <ClInclude Include="..\src\containers\int_queue.h" />
     <ClInclude Include="..\src\containers\graph.h" />
     <ClInclude Include="..\src\containers\idset.h" />
-    <ClInclude Include="..\src\containers\hash_dict.h" />
+    <ClInclude Include="..\src\containers\dict.h" />
     <ClInclude Include="..\src\containers\hash_set.h" />
     <ClInclude Include="..\src\containers\hash_util.h" />
     <ClInclude Include="..\src\containers\ptrqueue.h" />

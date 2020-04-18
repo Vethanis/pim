@@ -2,33 +2,35 @@
 
 #include "quake/packfile.h"
 #include "ui/cimgui.h"
-#include "threading/task.h"
 #include "common/cvar.h"
 #include "common/hashstring.h"
 #include "allocator/allocator.h"
 #include "common/stringutil.h"
-#include <string.h>
+#include "containers/dict.h"
 
-static cvar_t cv_imgui;
+static cvar_t cv_basedir = { "basedir", "data", "base directory for game data" };
+static cvar_t cv_game = { "game", "id1", "name of the active game" };
+static cvar_t cv_assetgui = { "assetgui", "1", "show asset system gui" };
 
 static void OnGui();
 
-static i32 ms_numAssets;
-static u32* ms_hashes;
-static asset_t* ms_assets;
-
+static dict_t ms_assets;
 static folder_t ms_folder;
 
 void asset_sys_init(void)
 {
-    cvar_create(&cv_imgui, "asset_imgui", "0.0");
+    cvar_reg(&cv_basedir);
+    cvar_reg(&cv_game);
+    cvar_reg(&cv_assetgui);
 
-    ms_numAssets = 0;
-    ms_hashes = NULL;
-    ms_assets = NULL;
+    dict_t assets;
+    dict_new(&assets, sizeof(asset_t), EAlloc_Perm);
 
-    folder_t folder = folder_load("packs/id1", EAlloc_Perm);
-    for(i32 i = 0; i < folder.length; ++i)
+    char path[PIM_PATH];
+    SPrintf(ARGS(path), "%s/%s", cv_basedir.value, cv_game.value);
+    folder_t folder = folder_load(path, EAlloc_Perm);
+
+    for (i32 i = 0; i < folder.length; ++i)
     {
         const pack_t* pack = folder.packs + i;
         const u8* packBase = (const u8*)(pack->header);
@@ -37,39 +39,26 @@ void asset_sys_init(void)
             const dpackfile_t* file = pack->files + j;
             const asset_t asset =
             {
-                file->name,
-                pack->path,
-                file->offset,
-                file->length,
-                packBase + file->offset,
+                .name = file->name,
+                .offset = file->offset,
+                .length = file->length,
+                .pData = packBase + file->offset,
             };
 
-            const u32 hash = HashStr(asset.name);
-            const i32 k = HashFind(ms_hashes, ms_numAssets, hash);
-            const i32 back = ms_numAssets;
-            if (k == -1)
+            if (!dict_add(&assets, file->name, &asset))
             {
-                const i32 newLen = back + 1;
-                ms_hashes = (u32*)perm_realloc(ms_hashes, sizeof(hash) * newLen);
-                ms_assets = (asset_t*)perm_realloc(ms_assets, sizeof(asset) * newLen);
-                ms_numAssets = newLen;
+                dict_set(&assets, file->name, &asset);
             }
-            else
-            {
-                // overwrites asset with modded version when k != -1
-                // ensure it isn't actually a hash collision
-                ASSERT(StrCmp(asset.name, NELEM(file->name), ms_assets[k].name) == 0);
-            }
-            ms_hashes[back] = hash;
-            ms_assets[back] = asset;
         }
     }
+
+    ms_assets = assets;
     ms_folder = folder;
 }
 
 void asset_sys_update()
 {
-    if (cv_imgui.asFloat > 0.0f)
+    if (cv_assetgui.asFloat != 0.0f)
     {
         OnGui();
     }
@@ -77,11 +66,7 @@ void asset_sys_update()
 
 void asset_sys_shutdown(void)
 {
-    ms_numAssets = 0;
-    pim_free(ms_assets);
-    ms_assets = NULL;
-    pim_free(ms_hashes);
-    ms_hashes = NULL;
+    dict_del(&ms_assets);
     folder_free(&ms_folder);
 }
 
@@ -137,16 +122,9 @@ static void OnGui()
     igEnd();
 }
 
-i32 asset_sys_get(const char* name, asset_t* asset)
+bool asset_sys_get(const char* name, asset_t* asset)
 {
     ASSERT(name);
     ASSERT(asset);
-    const u32 hash = HashStr(name);
-    const i32 i = HashFind(ms_hashes, ms_numAssets, hash);
-    if (i != -1)
-    {
-        memcpy(asset, ms_assets + i, sizeof(asset_t));
-        return 1;
-    }
-    return 0;
+    return dict_get(&ms_assets, name, asset);
 }

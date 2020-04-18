@@ -8,7 +8,12 @@
 #include "threading/sleep.h"
 #include <math.h>
 
-static cvar_t cv_TargetFps;
+static cvar_t cv_FpsLimit =
+{
+    "fps_limit",
+    "120",
+    "limits fps when above this value"
+};
 
 static GLFWwindow* ms_window;
 static i32 ms_width;
@@ -24,7 +29,7 @@ static void OnGlfwError(i32 error_code, const char* description);
 
 void window_sys_init(void)
 {
-    cvar_create(&cv_TargetFps, "target_fps", "120");
+    cvar_reg(&cv_FpsLimit);
     ms_lastSwap = time_now();
 
     glfwSetErrorCallback(OnGlfwError);
@@ -83,13 +88,13 @@ void window_close(bool shouldClose)
 
 float window_get_target(void)
 {
-    return cv_TargetFps.asFloat;
+    return cv_FpsLimit.asFloat;
 }
 
 void window_set_target(float fps)
 {
     ASSERT(fps >= 1.0f);
-    cvar_set_float(&cv_TargetFps, fps);
+    cvar_set_float(&cv_FpsLimit, fps);
 }
 
 void window_swapbuffers(void)
@@ -97,7 +102,7 @@ void window_swapbuffers(void)
     ASSERT(ms_window);
     glfwSwapBuffers(ms_window);
 
-    const double targetMS = 1000.0 / cv_TargetFps.asFloat;
+    const double targetMS = 1000.0 / cv_FpsLimit.asFloat;
     const double diffMS = targetMS - time_milli(time_now() - ms_lastSwap);
     if (diffMS >= 1.0)
     {

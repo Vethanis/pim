@@ -32,6 +32,8 @@ i32 StrNLen(const char* x, i32 size);
 i32 StrCpy(char* dst, i32 size, const char* src);
 i32 StrCat(char* dst, i32 size, const char* src);
 
+char* StrDup(const char* src, EAlloc allocator);
+
 i32 ShiftRight(char* dst, i32 size, i32 shifts);
 i32 ShiftLeft(char* dst, i32 size, i32 shifts);
 i32 Shift(char* dst, i32 size, i32 shifts);
