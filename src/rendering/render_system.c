@@ -174,6 +174,7 @@ void render_sys_shutdown(void)
 
 // ----------------------------------------------------------------------------
 
+pim_optimize
 pim_inline int2 VEC_CALL GetTile(i32 i)
 {
     i32 x = (i % kTilesPerDim);
@@ -181,22 +182,26 @@ pim_inline int2 VEC_CALL GetTile(i32 i)
     return (int2) { x * kTileWidth, y * kTileHeight };
 }
 
+pim_optimize
 pim_inline float2 VEC_CALL ScreenToUnorm(int2 screen)
 {
     const float2 kRcpScreen = { 1.0f / kDrawWidth, 1.0f / kDrawHeight };
     return f2_mul(i2_f2(screen), kRcpScreen);
 }
 
+pim_optimize
 pim_inline float2 VEC_CALL ScreenToSnorm(int2 screen)
 {
     return f2_snorm(ScreenToUnorm(screen));
 }
 
+pim_optimize
 pim_inline float2 VEC_CALL TileMin(int2 tile)
 {
     return ScreenToSnorm(tile);
 }
 
+pim_optimize
 pim_inline float2 VEC_CALL TileMax(int2 tile)
 {
     tile.x += kTileWidth;
@@ -204,6 +209,7 @@ pim_inline float2 VEC_CALL TileMax(int2 tile)
     return ScreenToSnorm(tile);
 }
 
+pim_optimize
 pim_inline float2 VEC_CALL TileCenter(int2 tile)
 {
     tile.x += (kTileWidth >> 1);
@@ -211,6 +217,7 @@ pim_inline float2 VEC_CALL TileCenter(int2 tile)
     return ScreenToSnorm(tile);
 }
 
+pim_optimize
 pim_inline float2 VEC_CALL TransformUv(float2 uv, float4 st)
 {
     uv.x = uv.x * st.x + st.z;
@@ -219,6 +226,7 @@ pim_inline float2 VEC_CALL TransformUv(float2 uv, float4 st)
     return uv;
 }
 
+pim_optimize
 pim_inline float4 VEC_CALL SampleTexture(texture_t texture, float2 uv)
 {
     uv.x = uv.x * texture.width;
@@ -227,6 +235,7 @@ pim_inline float4 VEC_CALL SampleTexture(texture_t texture, float2 uv)
     return color_f4(texture.texels[i]);
 }
 
+pim_optimize
 static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 {
     const float e = 1.0f / (1 << 10);
@@ -331,6 +340,7 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     state.rng = rng;
 }
 
+pim_optimize
 static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
 {
     framebuf_t frame = ms_buffer;
@@ -357,6 +367,7 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
     }
 }
 
+pim_optimize
 static void ExecTile(i32 iTile)
 {
     renderstate_t state;
@@ -391,6 +402,7 @@ static void ExecTile(i32 iTile)
     }
 }
 
+pim_optimize
 static void RasterizeTaskFn(task_t* task, i32 begin, i32 end)
 {
     for (i32 i = begin; i < end; ++i)

@@ -3,36 +3,30 @@
 #include "allocator/allocator.h"
 #include "common/hashstring.h"
 #include "common/stringutil.h"
-#include <stdlib.h>
+#include "containers/dict.h"
+#include <stdlib.h> // atof
 
-#define kMaxCvars 256
+static dict_t ms_dict;
 
-static u32 ms_hashes[kMaxCvars];
-static cvar_t* ms_cvars[kMaxCvars];
-static i32 ms_count;
+static void EnsureDict(void)
+{
+    if (!ms_dict.valueSize)
+    {
+        dict_new(&ms_dict, sizeof(cvar_t*), EAlloc_Perm);
+    }
+}
 
 void cvar_reg(cvar_t* ptr)
 {
+    EnsureDict();
+
     ASSERT(ptr);
     ASSERT(ptr->name);
-    ASSERT(ptr->value);
     ASSERT(ptr->description);
     ptr->asFloat = (float)atof(ptr->value);
 
-    u32 hash = HashStr(ptr->name);
-    i32 i = HashFind(ms_hashes, ms_count, hash);
-    if (i != -1)
-    {
-        ASSERT(ptr == ms_cvars[i]);
-        ASSERT(StrCmp(ms_cvars[i]->name, 32, ptr->name) == 0);
-    }
-    else
-    {
-        ASSERT(ms_count < kMaxCvars);
-        i = ms_count++;
-        ms_hashes[i] = hash;
-        ms_cvars[i] = ptr;
-    }
+    bool added = dict_add(&ms_dict, ptr->name, &ptr);
+    ASSERT(added);
 }
 
 void cvar_create(cvar_t* ptr, const char* name, const char* value, const char* desc)
@@ -43,32 +37,20 @@ void cvar_create(cvar_t* ptr, const char* name, const char* value, const char* d
     ASSERT(desc);
     ptr->name = name;
     ptr->description = desc;
-
-    u32 hash = HashStr(name);
-    i32 i = HashFind(ms_hashes, ms_count, hash);
-    if (i != -1)
-    {
-        ASSERT(ptr == ms_cvars[i]);
-        ASSERT(StrCmp(ms_cvars[i]->name, 32, ptr->name) == 0);
-    }
-    else
-    {
-        ASSERT(ms_count < kMaxCvars);
-        i = ms_count++;
-        ms_hashes[i] = hash;
-        ms_cvars[i] = ptr;
-        cvar_set_str(ptr, value);
-    }
+    cvar_set_str(ptr, value);
+    cvar_reg(ptr);
 }
 
 cvar_t* cvar_find(const char* name)
 {
+    EnsureDict();
+
     ASSERT(name);
-    i32 i = HashFind(ms_hashes, ms_count, HashStr(name));
+    const i32 i = dict_find(&ms_dict, name);
     if (i != -1)
     {
-        ASSERT(StrCmp(ms_cvars[i]->name, 32, name) == 0);
-        return ms_cvars[i];
+        cvar_t** cvars = ms_dict.values;
+        return cvars[i];
     }
     return NULL;
 }

@@ -66,6 +66,8 @@
 #define pim_inline                  IF_WIN(__forceinline)
 #define pim_noalias                 IF_WIN(__restrict)
 #define pim_alignas(x)              IF_WIN(__declspec(align(x)))
+#define pim_optimize                IF_WIN(__pragma(optimize("gt", on)))
+#define pim_deoptimize              IF_WIN(__pragma(optimize("gt", off)))
 
 // ----------------------------------------------------------------------------
 
