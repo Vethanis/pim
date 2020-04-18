@@ -139,11 +139,13 @@ pim_inline float4 VEC_CALL isectTri3D(
     float3 ro, float3 rd,
     float3 A, float3 B, float3 C)
 {
+    const float e = 1.0f / (1 << 10);
+
     float3 BA = f3_sub(B, A);
     float3 CA = f3_sub(C, A);
     float3 P = f3_cross(rd, CA);
     float det = f3_dot(BA, P);
-    if (det > f16_eps)
+    if (det > e)
     {
         float rcpDet = 1.0f / det;
         float3 T = f3_sub(ro, A);
@@ -156,7 +158,7 @@ pim_inline float4 VEC_CALL isectTri3D(
 
         return f4_v(w, u, v, t);
     }
-    return f4_0;
+    return f4_s(-1.0f);
 }
 
 pim_inline float VEC_CALL isectSphere3D(float3 ro, float3 rd, float3 c, float r)

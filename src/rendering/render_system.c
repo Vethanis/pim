@@ -280,8 +280,8 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         const float3 C = f4_f3(f4x4_mul_pt(M, positions[iVert + 2]));
 
         {
-            float3 N = f3_normalize(f3_cross(f3_sub(C, A), f3_sub(B, A)));
-            if (f3_dot(tileDir, N) < e)
+            float3 N = f3_cross(f3_sub(C, A), f3_sub(B, A));
+            if (f3_dot(tileDir, N) < 0.0f)
             {
                 continue;
             }
@@ -336,7 +336,7 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
                 U = TransformUv(U, material.st);
                 float4 alb = SampleTexture(albedo, U);
 
-                frame.color[iTexel] = f4_color(&rng, alb);
+                frame.color[iTexel] = f4_rgba8(f4_tosrgb(alb));
             }
         }
     }

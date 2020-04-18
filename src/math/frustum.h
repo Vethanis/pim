@@ -32,10 +32,12 @@ pim_inline float3 VEC_CALL proj_dir(
     float2 slope,
     float2 coord)
 {
-    return f3_normalize(
-        f3_add(fwd, f3_add(
-            f3_mulvs(right, coord.x * slope.x),
-            f3_mulvs(up, coord.y * slope.y))));
+    coord = f2_mul(coord, slope);
+    right = f3_mulvs(right, coord.x);
+    up = f3_mulvs(up, coord.y);
+    fwd = f3_add(fwd, right);
+    fwd = f3_add(fwd, up);
+    return f3_normalize(fwd);
 }
 
 pim_inline float3 VEC_CALL proj_pt(

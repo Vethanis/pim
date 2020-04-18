@@ -905,6 +905,7 @@ pim_inline u32 VEC_CALL f4_rgba8(float4 v)
 
 pim_inline float4 VEC_CALL rgba8_f4(u32 c)
 {
+    const float s = 1.0f / 255.0f;
     u32 r = c & 0xff;
     c >>= 8;
     u32 g = c & 0xff;
@@ -912,15 +913,18 @@ pim_inline float4 VEC_CALL rgba8_f4(u32 c)
     u32 b = c & 0xff;
     c >>= 8;
     u32 a = c & 0xff;
-    return f4_v(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
+    return f4_v(r * s, g * s, b * s, a * s);
 }
 
 pim_inline float4 VEC_CALL f4_tosrgb(float4 lin)
 {
-    float4 srgb = f4_powvs(lin, 0.416666667f);
-    srgb = f4_mulvs(srgb, 1.055f);
-    srgb = f4_subvs(srgb, 0.055f);
-    return f4_max(srgb, f4_0);
+    float4 s1 = f4_sqrt(lin);
+    float4 s2 = f4_sqrt(s1);
+    float4 s3 = f4_sqrt(s2);
+    float4 srgb = f4_mulvs(s1, 0.585122381f);
+    srgb = f4_add(srgb, f4_mulvs(s2, 0.783140355f));
+    srgb = f4_add(srgb, f4_mulvs(s3, -0.368262736f));
+    return srgb;
 }
 
 pim_inline float4 VEC_CALL f4_tolinear(float4 srgb)
