@@ -3,7 +3,7 @@
 static camera_t ms_camera = 
 {
     .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-    .position = { 0.0f, 0.0f, 0.0f },
+    .position = { 0.0f, 0.0f, 5.0f },
     .fovy = 90.0f,
     .nearFar = { 0.05f, 200.0f },
 };

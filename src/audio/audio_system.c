@@ -1,4 +1,5 @@
 #include "audio_system.h"
+#include "common/profiler.h"
 #include <sokol/sokol_audio.h>
 
 static void audio_main(float* buffer, i32 num_frames, i32 num_channels)
@@ -20,9 +21,12 @@ void audio_sys_init(void)
     });
 }
 
+ProfileMark(pm_update, audio_sys_update)
 void audio_sys_update(void)
 {
+    ProfileBegin(pm_update);
 
+    ProfileEnd(pm_update);
 }
 
 void audio_sys_shutdown(void)

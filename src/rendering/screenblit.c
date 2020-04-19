@@ -2,6 +2,7 @@
 #include "rendering/window.h"
 #include "io/fd.h"
 #include "allocator/allocator.h"
+#include "common/profiler.h"
 #include <glad/glad.h>
 
 // ----------------------------------------------------------------------------
@@ -118,8 +119,11 @@ void screenblit_shutdown(void)
     ms_height = 0;
 }
 
+ProfileMark(pm_blit, screenblit_blit)
 void screenblit_blit(const u32* texels, i32 width, i32 height)
 {
+    ProfileBegin(pm_blit);
+
     ASSERT(width == ms_width);
     ASSERT(height == ms_height);
     UpdateGlTexture(ms_image, width, height, texels);
@@ -131,6 +135,8 @@ void screenblit_blit(const u32* texels, i32 width, i32 height)
     glUseProgram(ms_blitProgram);
     BindGlTexture(ms_image, 0);
     DrawGlMesh(ms_blitMesh);
+
+    ProfileEnd(pm_blit);
 }
 
 // ----------------------------------------------------------------------------

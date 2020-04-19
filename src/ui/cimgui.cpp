@@ -1043,9 +1043,9 @@ void igCloseCurrentPopup()
 {
     return ImGui::CloseCurrentPopup();
 }
-void igColumns(int count,const char* id,bool border)
+void igColumns(int count)
 {
-    return ImGui::Columns(count,id,border);
+    return ImGui::Columns(count);
 }
 void igNextColumn()
 {

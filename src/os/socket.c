@@ -1,4 +1,5 @@
 #include "os/socket.h"
+#include "common/profiler.h"
 #include <string.h>
 
 #if PLAT_WINDOWS
@@ -206,9 +207,12 @@ void network_sys_init(void)
 #endif // PLAT_WINDOWS
 }
 
+ProfileMark(pm_update, network_sys_update)
 void network_sys_update(void)
 {
+    ProfileBegin(pm_update);
 
+    ProfileEnd(pm_update);
 }
 
 void network_sys_shutdown(void)

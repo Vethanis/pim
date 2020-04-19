@@ -136,8 +136,7 @@ typedef u64                     usize;
 
 typedef enum
 {
-    EAlloc_Init = 0,
-    EAlloc_Perm,
+    EAlloc_Perm = 0,
     EAlloc_Temp,
     EAlloc_TLS,
     EAlloc_Count

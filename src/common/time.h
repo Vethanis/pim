@@ -20,4 +20,6 @@ double time_sec(u64 ticks);
 double time_milli(u64 ticks);
 double time_micro(u64 ticks);
 
+float time_avgms(u64 begin, float prev, float t);
+
 PIM_C_END

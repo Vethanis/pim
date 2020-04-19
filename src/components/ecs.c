@@ -4,6 +4,7 @@
 #include "threading/rwlock.h"
 #include "common/atomics.h"
 #include "containers/idset.h"
+#include "common/profiler.h"
 
 #include <string.h>
 
@@ -363,9 +364,12 @@ void ecs_sys_init(void)
     slabs_init();
 }
 
+ProfileMark(pm_update, ecs_sys_update)
 void ecs_sys_update(void)
 {
+    ProfileBegin(pm_update);
 
+    ProfileEnd(pm_update);
 }
 
 void ecs_sys_shutdown(void)
@@ -429,8 +433,11 @@ bool ecs_has_none(ent_t ent, compflag_t none)
     return compflag_none(ent_flags(ent), none);
 }
 
+ProfileMark(pm_foreach, ecs_foreach)
 static void foreach_exec(task_t* task, i32 begin, i32 end)
 {
+    ProfileBegin(pm_foreach);
+
     ASSERT(task);
     ASSERT(begin >= 0);
     ASSERT(begin < end);
@@ -459,6 +466,8 @@ static void foreach_exec(task_t* task, i32 begin, i32 end)
         }
     }
     slabs_runlock();
+
+    ProfileEnd(pm_foreach);
 }
 
 void ecs_foreach(

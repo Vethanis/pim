@@ -18,6 +18,7 @@
 #include "math/sdf.h"
 #include "math/frustum.h"
 #include "ui/cimgui.h"
+#include "common/profiler.h"
 
 // ----------------------------------------------------------------------------
 
@@ -79,7 +80,9 @@ static ecs_foreach_t ms_l2wtask;
 static meshid_t ms_meshid;
 static textureid_t ms_albedoid;
 static prng_t ms_prng;
+static u64 ms_laptick;
 static float ms_dt;
+static float ms_drawMs;
 static float3 ms_modelTranslation = { 0.0f, 0.0f, 0.0f };
 static float3 ms_modelForward = { 0.0f, 0.0f, -1.0f };
 static float3 ms_modelUp = { 0.0f, 1.0f, 0.0f };
@@ -97,18 +100,25 @@ void render_sys_init(void)
 
     // demo stuff
     //CreateEntities(NULL, 0, 1 << 20);
-    RegenMesh();
+    meshid_t sphere = GenSphereMesh(3.0, 16);
+    mesh_destroy(ms_meshid);
+    ms_meshid = sphere;
     RegenAlbedo();
 }
 
+ProfileMark(pm_update, render_sys_update)
 void render_sys_update(void)
 {
+    ProfileBegin(pm_update);
+
+    ms_dt = time_avgms(ms_laptick, ms_dt, 1.0f / 120.0f);
+    ms_laptick = time_now();
+
     igBegin("RenderSystem", NULL, 0);
     {
-        float dt = (float)time_dtf();
-        ms_dt = f1_lerp(ms_dt, dt, 1.0f / 60.0f);
-        igValueFloat("ms", ms_dt * 1000.0f);
-        igValueFloat("fps", 1.0f / ms_dt);
+        igValueFloat("ms", ms_dt);
+        igValueFloat("fps", 1000.0f / ms_dt);
+        igValueFloat("draw", ms_drawMs);
         igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f);
         igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f);
         igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f);
@@ -123,7 +133,7 @@ void render_sys_update(void)
         }
         if (igButton("Sphere"))
         {
-            meshid_t sphere = GenSphereMesh(1.0, 8);
+            meshid_t sphere = GenSphereMesh(3.0, 64);
             mesh_destroy(ms_meshid);
             ms_meshid = sphere;
         }
@@ -152,12 +162,22 @@ void render_sys_update(void)
     task_submit(&ms_rastask, RasterizeTaskFn, kTileCount);
 
     task_sys_schedule();
+
+    ProfileEnd(pm_update);
 }
 
+ProfileMark(pm_present, render_sys_present)
 void render_sys_present(void)
 {
+    ProfileBegin(pm_present);
+
+    u64 before = time_now();
     task_await((task_t*)&ms_rastask);
+    ms_drawMs = time_avgms(before, ms_drawMs, 1.0f / 120.0f);
+
     screenblit_blit(ms_buffer.color, kDrawWidth, kDrawHeight);
+
+    ProfileEnd(pm_present);
 }
 
 void render_sys_shutdown(void)
@@ -193,6 +213,16 @@ pim_optimize
 pim_inline float2 VEC_CALL ScreenToSnorm(int2 screen)
 {
     return f2_snorm(ScreenToUnorm(screen));
+}
+
+pim_optimize
+pim_inline i32 VEC_CALL SnormToIndex(float2 s)
+{
+    const float2 kScale = { kDrawWidth, kDrawHeight };
+    int2 i2 = f2_i2(f2_mul(f2_unorm(s), kScale));
+    i32 i = i2.x + i2.y * kDrawWidth;
+    ASSERT((u32)i < (u32)kDrawPixels);
+    return i;
 }
 
 pim_optimize
@@ -236,9 +266,46 @@ pim_inline float4 VEC_CALL SampleTexture(texture_t texture, float2 uv)
 }
 
 pim_optimize
+pim_inline float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, i32 iTile)
+{
+    float4 a = f3_f4(A, 1.0f);
+    float4 b = f3_f4(B, 1.0f);
+    float4 c = f3_f4(C, 1.0f);
+
+    a = f4x4_mul_pt(VP, a);
+    b = f4x4_mul_pt(VP, b);
+    c = f4x4_mul_pt(VP, c);
+
+    a = f4_divvs(a, a.w);
+    b = f4_divvs(b, b.w);
+    c = f4_divvs(c, c.w);
+
+    float4 bounds;
+    bounds.x = f1_min(a.x, f1_min(b.x, c.x));
+    bounds.y = f1_min(a.y, f1_min(b.y, c.y));
+    bounds.z = f1_max(a.x, f1_max(b.x, c.x));
+    bounds.w = f1_max(a.y, f1_max(b.y, c.y));
+
+    int2 tile = GetTile(iTile);
+    float2 tileMin = TileMin(tile);
+    float2 tileMax = TileMax(tile);
+
+    bounds.x = f1_max(bounds.x, tileMin.x);
+    bounds.y = f1_max(bounds.y, tileMin.y);
+    bounds.z = f1_min(bounds.z, tileMax.x);
+    bounds.w = f1_min(bounds.w, tileMax.y);
+
+    return bounds;
+}
+
+ProfileMark(pm_DrawMesh, DrawMesh)
+
+pim_optimize
 static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 {
     const float e = 1.0f / (1 << 10);
+
+    ProfileBegin(pm_DrawMesh);
 
     mesh_t mesh;
     texture_t albedo;
@@ -249,22 +316,30 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     }
 
     framebuf_t frame = ms_buffer;
-    const float4* const positions = mesh.positions;
-    const float4* const normals = mesh.normals;
-    const float2* const uvs = mesh.uvs;
+    const float4* const __restrict positions = mesh.positions;
+    const float4* const __restrict normals = mesh.normals;
+    const float2* const __restrict uvs = mesh.uvs;
     const i32 vertCount = mesh.length;
     const float4x4 M = draw.M;
     const camera_t camera = state.camera;
 
     const int2 tile = GetTile(state.iTile);
     const float aspect = (float)kDrawWidth / kDrawHeight;
+    const float dx = 1.0f / kDrawWidth;
+    const float dy = 1.0f / kDrawHeight;
     const float2 slope = proj_slope(f1_radians(camera.fovy), aspect);
 
     const float3 fwd = quat_fwd(camera.rotation);
     const float3 right = quat_right(camera.rotation);
     const float3 up = quat_up(camera.rotation);
     const float3 eye = camera.position;
-    prng_t rng = state.rng;
+
+    float4x4 VP;
+    {
+        const float4x4 V = f4x4_lookat(eye, f3_add(eye, fwd), up);
+        const float4x4 P = f4x4_perspective(f1_radians(camera.fovy), aspect, camera.nearFar.x, camera.nearFar.y);
+        VP = f4x4_mul(P, V);
+    }
 
     const float3 tileDir = proj_dir(right, up, fwd, slope, TileCenter(tile));
     const frus_t frus = frus_new(
@@ -293,18 +368,20 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
             continue;
         }
 
-        for (i32 y = 0; y < kTileHeight; ++y)
+        const float4 bounds = TriBounds(VP, A, B, C, state.iTile);
+
+        for (float y = bounds.y; y < bounds.w; y += dy)
         {
-            for (i32 x = 0; x < kTileWidth; ++x)
+            for (float x = bounds.x; x < bounds.z; x += dx)
             {
-                const int2 iCoord = i2_add(tile, i2_v(x, y));
-                const i32 iTexel = iCoord.x + iCoord.y * kDrawWidth;
-                const float3 rd = proj_dir(right, up, fwd, slope, ScreenToSnorm(iCoord));
+                const float2 coord = { x, y };
+                const float3 rd = proj_dir(right, up, fwd, slope, coord);
                 const float4 wuvt = isectTri3D(eye, rd, A, B, C);
                 if (f4_any(f4_ltvs(wuvt, 0.0f)))
                 {
                     continue;
                 }
+                const i32 iTexel = SnormToIndex(coord);
                 if (wuvt.w < camera.nearFar.x || wuvt.w > frame.depth[iTexel])
                 {
                     continue;
@@ -337,12 +414,16 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         }
     }
 
-    state.rng = rng;
+    ProfileEnd(pm_DrawMesh);
 }
+
+ProfileMark(pm_ClearTile, ClearTile)
 
 pim_optimize
 static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
 {
+    ProfileBegin(pm_ClearTile);
+
     framebuf_t frame = ms_buffer;
     const int2 tile = GetTile(state.iTile);
     u32* color = frame.color;
@@ -365,11 +446,17 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
             depth[i] = clear.depth;
         }
     }
+
+    ProfileEnd(pm_ClearTile);
 }
+
+ProfileMark(pm_ExecTile, ExecTile)
 
 pim_optimize
 static void ExecTile(i32 iTile)
 {
+    ProfileBegin(pm_ExecTile);
+
     renderstate_t state;
     state.viewport = (float4) { 0.0f, 0.0f, kDrawWidth, kDrawHeight };
     state.iTile = iTile;
@@ -400,6 +487,8 @@ static void ExecTile(i32 iTile)
             }
         }
     }
+
+    ProfileEnd(pm_ExecTile);
 }
 
 pim_optimize
@@ -411,8 +500,12 @@ static void RasterizeTaskFn(task_t* task, i32 begin, i32 end)
     }
 }
 
+ProfileMark(pm_DrawableTaskFn, DrawableTaskFn)
+
 static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length)
 {
+    ProfileBegin(pm_DrawableTaskFn);
+
     const drawable_t* drawables = (const drawable_t*)(rows[CompId_Drawable]);
     const localtoworld_t* matrices = (const localtoworld_t*)(rows[CompId_LocalToWorld]);
     const bounds_t* bounds = (const bounds_t*)(rows[CompId_Bounds]);
@@ -435,10 +528,16 @@ static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length)
     }
 
     rcmdqueue_submit(&ms_queue, cmds);
+
+    ProfileEnd(pm_DrawableTaskFn);
 }
+
+ProfileMark(pm_TrsTaskFn, TrsTaskFn)
 
 static void TrsTaskFn(ecs_foreach_t* task, void** rows, i32 length)
 {
+    ProfileBegin(pm_TrsTaskFn);
+
     const position_t* positions = (const position_t*)(rows[CompId_Position]);
     const rotation_t* rotations = (const rotation_t*)(rows[CompId_Rotation]);
     const scale_t* scales = (const scale_t*)(rows[CompId_Scale]);
@@ -519,6 +618,8 @@ static void TrsTaskFn(ecs_foreach_t* task, void** rows, i32 length)
     }
     break;
     }
+
+    ProfileEnd(pm_TrsTaskFn);
 }
 
 static void CreateEntities(task_t* task, i32 begin, i32 end)

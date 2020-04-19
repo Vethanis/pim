@@ -1,5 +1,6 @@
 #include "common/time.h"
 #include <sokol/sokol_time.h>
+#include "math/scalar.h"
 
 static u64 ms_appStart;
 static u64 ms_lastTime;
@@ -35,3 +36,8 @@ double time_dtf(void) { return ms_dtf64; }
 double time_sec(u64 ticks) { return stm_sec(ticks); }
 double time_milli(u64 ticks) { return stm_ms(ticks); }
 double time_micro(u64 ticks) { return stm_us(ticks); }
+
+float time_avgms(u64 begin, float prev, float t)
+{
+    return f1_lerp(prev, (float)time_milli(time_now() - begin), t);
+}

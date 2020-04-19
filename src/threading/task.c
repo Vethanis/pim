@@ -6,6 +6,7 @@
 #include "threading/sleep.h"
 #include "common/atomics.h"
 #include "containers/ptrqueue.h"
+#include "common/profiler.h"
 
 #include <string.h>
 
@@ -126,8 +127,11 @@ TaskStatus task_stat(task_t* task)
     return (TaskStatus)load_i32(&(task->status), MO_Acquire);
 }
 
+ProfileMark(pm_submit, task_submit)
 void task_submit(task_t* task, task_execute_fn execute, i32 worksize)
 {
+    ProfileBegin(pm_submit);
+
     ASSERT(execute);
     ASSERT(worksize > 0);
     task_await(task);
@@ -145,10 +149,15 @@ void task_submit(task_t* task, task_execute_fn execute, i32 worksize)
             ASSERT(false);
         }
     }
+
+    ProfileEnd(pm_submit);
 }
 
+ProfileMark(pm_await, task_await)
 void task_await(task_t* task)
 {
+    ProfileBegin(pm_await);
+
     ASSERT(task);
     inc_i32(&(task->awaits), MO_Acquire);
     while (task_stat(task) == TaskStatus_Exec)
@@ -156,11 +165,18 @@ void task_await(task_t* task)
         event_wait(&ms_waitExec);
     }
     dec_i32(&(task->awaits), MO_Release);
+
+    ProfileEnd(pm_await);
 }
 
+ProfileMark(pm_schedule, task_sys_schedule)
 void task_sys_schedule(void)
 {
+    ProfileBegin(pm_schedule);
+
     event_wakeall(&ms_waitPush);
+
+    ProfileEnd(pm_schedule);
 }
 
 void task_sys_init(void)
@@ -176,9 +192,14 @@ void task_sys_init(void)
     }
 }
 
+ProfileMark(pm_update, task_sys_update)
 void task_sys_update(void)
 {
+    ProfileBegin(pm_update);
+
     task_sys_schedule();
+
+    ProfileEnd(pm_update);
 }
 
 void task_sys_shutdown(void)

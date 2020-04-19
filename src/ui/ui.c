@@ -4,6 +4,7 @@
 #include "ui/imgui_impl_opengl3.h"
 #include "allocator/allocator.h"
 #include "rendering/window.h"
+#include "common/profiler.h"
 
 static ImGuiContext* ms_ctx;
 
@@ -29,17 +30,27 @@ void ui_sys_init(void)
     ImGui_ImplOpenGL3_Init();
 }
 
+ProfileMark(pm_beginframe, ui_sys_beginframe)
 void ui_sys_beginframe(void)
 {
+    ProfileBegin(pm_beginframe);
+
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     igNewFrame();
+
+    ProfileEnd(pm_beginframe);
 }
 
+ProfileMark(pm_endframe, ui_sys_endframe)
 void ui_sys_endframe(void)
 {
+    ProfileBegin(pm_endframe);
+
     igRender();
     ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
+
+    ProfileEnd(pm_endframe);
 }
 
 void ui_sys_shutdown(void)

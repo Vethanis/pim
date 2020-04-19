@@ -6,12 +6,13 @@
 #include "common/cvar.h"
 #include "threading/intrin.h"
 #include "threading/sleep.h"
+#include "common/profiler.h"
 #include <math.h>
 
 static cvar_t cv_FpsLimit =
 {
     "fps_limit",
-    "120",
+    "125",
     "limits fps when above this value"
 };
 
@@ -48,10 +49,15 @@ void window_sys_init(void)
     ASSERT(!glGetError());
 }
 
+ProfileMark(pm_update, window_sys_update)
 void window_sys_update(void)
 {
+    ProfileBegin(pm_update);
+
     ASSERT(ms_window);
     glfwGetWindowSize(ms_window, &ms_width, &ms_height);
+
+    ProfileEnd(pm_update);
 }
 
 void window_sys_shutdown(void)
@@ -97,10 +103,10 @@ void window_set_target(float fps)
     cvar_set_float(&cv_FpsLimit, fps);
 }
 
-void window_swapbuffers(void)
+ProfileMark(pm_waitfps, wait_for_target_fps)
+static void wait_for_target_fps(void)
 {
-    ASSERT(ms_window);
-    glfwSwapBuffers(ms_window);
+    ProfileBegin(pm_waitfps);
 
     const double targetMS = 1000.0 / cv_FpsLimit.asFloat;
     const double diffMS = targetMS - time_milli(time_now() - ms_lastSwap);
@@ -110,6 +116,21 @@ void window_swapbuffers(void)
     }
 
     ms_lastSwap = time_now();
+
+    ProfileEnd(pm_waitfps);
+}
+
+ProfileMark(pm_swapbuffers, window_swapbuffers)
+void window_swapbuffers(void)
+{
+    ProfileBegin(pm_swapbuffers);
+
+    ASSERT(ms_window);
+    glfwSwapBuffers(ms_window);
+
+    ProfileEnd(pm_swapbuffers);
+
+    wait_for_target_fps();
 }
 
 bool window_cursor_captured(void)

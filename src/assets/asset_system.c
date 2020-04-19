@@ -7,6 +7,7 @@
 #include "allocator/allocator.h"
 #include "common/stringutil.h"
 #include "containers/dict.h"
+#include "common/profiler.h"
 
 static cvar_t cv_basedir = { "basedir", "data", "base directory for game data" };
 static cvar_t cv_game = { "game", "id1", "name of the active game" };
@@ -56,12 +57,18 @@ void asset_sys_init(void)
     ms_folder = folder;
 }
 
+ProfileMark(pm_update, asset_sys_update)
+
 void asset_sys_update()
 {
+    ProfileBegin(pm_update);
+
     if (cv_assetgui.asFloat != 0.0f)
     {
         OnGui();
     }
+
+    ProfileEnd(pm_update);
 }
 
 void asset_sys_shutdown(void)
@@ -70,9 +77,12 @@ void asset_sys_shutdown(void)
     folder_free(&ms_folder);
 }
 
+ProfileMark(pm_OnGui, asset_sys_gui)
 static void OnGui()
 {
-    igSetNextWindowSize((ImVec2){ 800.0f, 600.0f }, ImGuiCond_Once);
+    ProfileBegin(pm_OnGui);
+
+    igSetNextWindowSize((ImVec2) { 800.0f, 600.0f }, ImGuiCond_Once);
     igBegin("AssetSystem", NULL, 0);
     const i32 numPacks = ms_folder.length;
     const pack_t* packs = ms_folder.packs;
@@ -105,7 +115,7 @@ static void OnGui()
         igText("Header ID: %c%c%c%c", hdr->id[0], hdr->id[1], hdr->id[2], hdr->id[3]);
         igSeparator();
 
-        igColumns(5, NULL, true);
+        igColumns(5);
         for (i32 j = 0; j < fileCount; ++j)
         {
             const dpackfile_t* file = files + j;
@@ -115,11 +125,13 @@ static void OnGui()
             igText("%d", file->length); igNextColumn();
             igText("%2.2f%%", (file->length * 100.0f) / (float)used); igNextColumn();
         }
-        igColumns(1, NULL, true);
+        igColumns(1);
 
         igPopID();
     }
     igEnd();
+
+    ProfileEnd(pm_OnGui);
 }
 
 bool asset_sys_get(const char* name, asset_t* asset)

@@ -1122,7 +1122,7 @@ void igEndPopup(void);
 bool igOpenPopupOnItemClick(const char* str_id,ImGuiMouseButton mouse_button);
 bool igIsPopupOpen(const char* str_id);
 void igCloseCurrentPopup(void);
-void igColumns(int count,const char* id,bool border);
+void igColumns(int count); // 1 for ending scope
 void igNextColumn(void);
 int igGetColumnIndex(void);
 float igGetColumnWidth(int column_index);

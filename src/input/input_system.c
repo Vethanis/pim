@@ -3,6 +3,7 @@
 #include "rendering/window.h"
 #include <GLFW/glfw3.h>
 #include "common/time.h"
+#include "common/profiler.h"
 
 static u64 ms_frametick;
 static u64 ms_keyTimes[KeyCode_COUNT];
@@ -33,14 +34,19 @@ void input_sys_init(void)
     ms_frametick = time_now();
 }
 
+ProfileMark(pm_update, input_sys_update)
 void input_sys_update(void)
 {
+    ProfileBegin(pm_update);
+
     ms_frametick = time_now();
     ms_prevaxis[MouseAxis_ScrollX] = ms_axis[MouseAxis_ScrollX];
     ms_prevaxis[MouseAxis_ScrollY] = ms_axis[MouseAxis_ScrollY];
     ms_prevaxis[MouseAxis_X] = ms_axis[MouseAxis_X];
     ms_prevaxis[MouseAxis_Y] = ms_axis[MouseAxis_Y];
     glfwPollEvents();
+
+    ProfileEnd(pm_update);
 }
 
 void input_sys_shutdown(void)
