@@ -288,3 +288,41 @@ void* pim_calloc(EAlloc type, i32 bytes)
 {
     return memset(pim_malloc(type, bytes), 0x00, bytes);
 }
+
+#define kStackCapacity      (4 << 10)
+#define kFrameCount         (kStackCapacity / kAlign)
+
+typedef pim_alignas(kAlign) struct sframe_s
+{
+    u8 value[kAlign];
+} sframe_t;
+
+static i32 ms_iFrame[kNumThreads];
+static sframe_t ms_stack[kNumThreads][kFrameCount];
+
+void* pim_pusha(i32 bytes)
+{
+    ASSERT((u32)bytes <= (u32)kStackCapacity);
+    const i32 tid = task_thread_id();
+
+    bytes = align_bytes(bytes);
+    i32 frames = bytes / kAlign;
+    i32 back = ms_iFrame[tid];
+    ms_iFrame[tid] = back + frames;
+
+    ASSERT(ms_iFrame[tid] <= kFrameCount);
+
+    return ms_stack[tid] + back;
+}
+
+void pim_popa(i32 bytes)
+{
+    ASSERT((u32)bytes <= (u32)kStackCapacity);
+    const i32 tid = task_thread_id();
+
+    bytes = align_bytes(bytes);
+    i32 frames = bytes / kAlign;
+    ms_iFrame[tid] -= frames;
+
+    ASSERT(ms_iFrame[tid] >= 0);
+}

@@ -6,9 +6,13 @@
 #include "allocator/allocator.h"
 #include "common/time.h"
 #include "common/cvar.h"
+#include "common/hashstring.h"
+#include "common/fnv1a.h"
+#include "common/sort.h"
+#include "common/stringutil.h"
+#include "containers/dict.h"
 #include "ui/cimgui.h"
 #include <string.h>
-#include <stdlib.h>
 
 static cvar_t cv_profilegui = { "profilegui", "1", "Show profiler GUI" };
 
@@ -23,37 +27,36 @@ typedef struct node_s
     struct node_s* sibling;
     u64 begin;
     u64 end;
+    u32 hash;
 } node_t;
-
-typedef struct marks_s
-{
-    profmark_t** marks;
-    i32 length;
-} marks_t;
 
 // ----------------------------------------------------------------------------
 
-static void Collect(profinfo_t* info);
+static void OnGui(void);
 static i32 FindMark(const profmark_t** hay, i32 count, const profmark_t* needle);
-static void Visit(const node_t* node, marks_t* info);
-static i32 MarkCmp(void const* lhs, void const* rhs);
+static void VisitClr(node_t* node);
+static void VisitSum(node_t* node);
+static void VisitGui(const node_t* node);
 
 // ----------------------------------------------------------------------------
 
 static u32 ms_frame[kNumThreads];
+static node_t ms_prevroots[kNumThreads];
 static node_t ms_roots[kNumThreads];
 static node_t* ms_top[kNumThreads];
-static profinfo_t ms_info;
+
+static i32 ms_gui_tid;
+static dict_t ms_node_dict;
 
 // ----------------------------------------------------------------------------
 
 void profile_sys_init(void)
 {
     cvar_reg(&cv_profilegui);
+    dict_new(&ms_node_dict, sizeof(double), EAlloc_Perm);
     memset(ms_frame, 0, sizeof(ms_frame));
     memset(ms_roots, 0, sizeof(ms_roots));
     memset(ms_top, 0, sizeof(ms_top));
-    memset(&ms_info, 0, sizeof(ms_info));
 }
 
 ProfileMark(pm_sys_gui, profile_sys_gui)
@@ -62,33 +65,9 @@ void profile_sys_gui(void)
     ProfileBegin(pm_sys_gui);
     if (cv_profilegui.asFloat != 0.0f)
     {
-        igBegin("Profiler", NULL, 0);
-
-        const i32 len = ms_info.length;
-        profmark_t* marks = ms_info.marks;
-        qsort(marks, len, sizeof(*marks), MarkCmp);
-
-        igColumns(3);
-        igText("Name"); igNextColumn();
-        igText("ms"); igNextColumn();
-        igText("calls"); igNextColumn();
-        igSeparator();
-        for (i32 i = 0; i < len; ++i)
-        {
-            igText(marks[i].name); igNextColumn();
-            igText("%f", marks[i].average); igNextColumn();
-            igText("%d", marks[i].calls); igNextColumn();
-        }
-        igColumns(1);
-
-        igEnd();
+        OnGui();
     }
     ProfileEnd(pm_sys_gui);
-}
-
-void profile_sys_collect(void)
-{
-    Collect(&ms_info);
 }
 
 void profile_sys_shutdown(void)
@@ -96,8 +75,7 @@ void profile_sys_shutdown(void)
     memset(ms_frame, 0, sizeof(ms_frame));
     memset(ms_roots, 0, sizeof(ms_roots));
     memset(ms_top, 0, sizeof(ms_top));
-    pim_free(ms_info.marks);
-    memset(&ms_info, 0, sizeof(ms_info));
+    dict_del(&ms_node_dict);
 }
 
 // ----------------------------------------------------------------------------
@@ -110,9 +88,10 @@ void _ProfileBegin(profmark_t* mark)
 
     if (frame != ms_frame[tid])
     {
+        ms_prevroots[tid] = ms_roots[tid];
+        ms_roots[tid] = (node_t){ 0 };
         ms_frame[tid] = frame;
         ms_top[tid] = NULL;
-        ms_roots[tid] = (node_t){ 0 };
     }
 
     node_t* top = ms_top[tid];
@@ -158,41 +137,7 @@ void _ProfileEnd(profmark_t* mark)
     ms_top[tid] = top->parent;
 }
 
-const profinfo_t* ProfileInfo(void)
-{
-    return &ms_info;
-}
-
 // ----------------------------------------------------------------------------
-
-static void Collect(profinfo_t* info)
-{
-    ASSERT(info);
-    info->length = 0;
-
-    marks_t marks = { 0 };
-    for (i32 tid = 0; tid < NELEM(ms_roots); ++tid)
-    {
-        Visit(ms_roots + tid, &marks);
-    }
-
-    const double alpha = 1.0 / 30.0;
-    const i32 len = marks.length;
-    info->length = len;
-    if (len > 0)
-    {
-        info->marks = perm_realloc(info->marks, sizeof(info->marks[0]) * len);
-        for (i32 i = 0; i < len; ++i)
-        {
-            profmark_t* pMark = marks.marks[i];
-            double ms = time_milli(pMark->sum);
-            pMark->average += (ms - pMark->average) * alpha;
-            info->marks[i] = *pMark;
-            pMark->calls = 0;
-            pMark->sum = 0;
-        }
-    }
-}
 
 static i32 FindMark(const profmark_t** hay, i32 count, const profmark_t* needle)
 {
@@ -206,7 +151,32 @@ static i32 FindMark(const profmark_t** hay, i32 count, const profmark_t* needle)
     return -1;
 }
 
-static void Visit(const node_t* node, marks_t* info)
+static void VisitClr(node_t* node)
+{
+    if (!node)
+    {
+        return;
+    }
+
+    profmark_t* mark = node->mark;
+    if (mark)
+    {
+        mark->calls = 0;
+        mark->sum = 0;
+        u32 hash = mark->hash;
+        if (hash == 0)
+        {
+            hash = HashStr(mark->name);
+            mark->hash = hash;
+        }
+        node->hash = hash;
+    }
+
+    VisitClr(node->sibling);
+    VisitClr(node->fchild);
+}
+
+static void VisitSum(node_t* node)
 {
     if (!node)
     {
@@ -218,41 +188,145 @@ static void Visit(const node_t* node, marks_t* info)
     {
         mark->calls += 1;
         mark->sum += node->end - node->begin;
-
-        if (FindMark(info->marks, info->length, node->mark) == -1)
-        {
-            i32 len = info->length + 1;
-            info->length = len;
-            info->marks = pim_realloc(EAlloc_Temp, info->marks, sizeof(info->marks[0]) * len);
-            info->marks[len - 1] = mark;
-        }
     }
 
-    Visit(node->sibling, info);
-    Visit(node->fchild, info);
+    u32 hash = node->hash;
+    if (node->parent)
+    {
+        hash = Fnv32Dword(node->parent->hash, hash);
+    }
+    if (node->sibling)
+    {
+        hash = Fnv32Dword(node->sibling->hash, hash);
+    }
+    if (node->fchild)
+    {
+        hash = Fnv32Dword(node->fchild->hash, hash);
+    }
+    node->hash = hash;
+
+    VisitSum(node->sibling);
+    VisitSum(node->fchild);
 }
 
-static i32 MarkCmp(void const* vlhs, void const* vrhs)
+static void GetNodeKey(const node_t* node, char key[64])
 {
-    const profmark_t* lhs = vlhs;
-    const profmark_t* rhs = vrhs;
-    if (lhs->average == rhs->average)
+    const profmark_t* mark = node->mark;
+    const char* name = mark ? mark->name : "(null)";
+    SPrintf(key, 64, "%s%x", name, node->hash);
+}
+
+static double GetNodeAvgMs(const node_t* node, const char* key)
+{
+    double avgMs = 0.0;
+    const profmark_t* mark = node->mark;
+    if (mark)
     {
-        return 0;
+        dict_get(&ms_node_dict, key, &avgMs);
     }
-    return lhs->average > rhs->average ? -1 : 1;
+    return avgMs;
+}
+
+static double UpdateNodeAvgMs(const node_t* node, const char* key)
+{
+    const double ms = time_milli(node->end - node->begin);
+    double avgMs = ms;
+    const profmark_t* mark = node->mark;
+    if (mark)
+    {
+        if (dict_get(&ms_node_dict, key, &avgMs))
+        {
+            const double alpha = 1.0 / 60.0;
+            avgMs += (ms - avgMs) * alpha;
+            dict_set(&ms_node_dict, key, &avgMs);
+        }
+        else
+        {
+            dict_add(&ms_node_dict, key, &avgMs);
+        }
+    }
+    return avgMs;
+}
+
+static void VisitGui(const node_t* node)
+{
+    if (!node)
+    {
+        return;
+    }
+
+    const profmark_t* mark = node->mark;
+    if (mark)
+    {
+        const char* name = mark->name;
+        char key[64];
+        GetNodeKey(node, key);
+
+        double ms = UpdateNodeAvgMs(node, key);
+
+        const i32 calls = (i32)mark->calls;
+        double pct = 0.0;
+        const node_t* root = ms_prevroots[ms_gui_tid].fchild;
+        if (root)
+        {
+            char rootKey[64];
+            GetNodeKey(root, rootKey);
+            double rootMs = GetNodeAvgMs(root, rootKey);
+            if (rootMs > 0.0)
+            {
+                pct = 100.0 * (ms / rootMs);
+            }
+        }
+
+        igText("%s", name); igNextColumn();
+        igText("%3.2f", ms); igNextColumn();
+        igText("%4.1f%%", pct); igNextColumn();
+
+        igTreePushPtr(key);
+        VisitGui(node->fchild);
+        igTreePop();
+    }
+    else
+    {
+        VisitGui(node->fchild);
+    }
+    VisitGui(node->sibling);
+}
+
+static void OnGui(void)
+{
+    igBegin("Profiler", NULL, 0);
+
+    igSliderInt("thread", &ms_gui_tid, 0, kNumThreads - 1, "%d");
+    node_t* root = ms_prevroots + ms_gui_tid;
+
+    igSeparator();
+
+    VisitClr(root);
+    VisitSum(root);
+
+    igColumns(3);
+    {
+        igText("Name"); igNextColumn();
+        igText("Milliseconds"); igNextColumn();
+        igText("Percent"); igNextColumn();
+
+        igSeparator();
+
+        VisitGui(root);
+    }
+    igColumns(1);
+
+    igEnd();
 }
 
 #else
 
 void profile_sys_init(void) {}
 void profile_sys_gui(void) {}
-void profile_sys_collect(void) {}
 void profile_sys_shutdown(void) {}
 
 void _ProfileBegin(profmark_t* mark) {}
 void _ProfileEnd(profmark_t* mark) {}
-
-const profinfo_t* ProfileInfo(void) { return NULL; }
 
 #endif // PIM_PROFILE

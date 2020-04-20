@@ -33,11 +33,11 @@ static void Init(void)
     time_sys_init();            // setup sokol time
     alloc_sys_init();           // preallocate pools
     profile_sys_init();         // noop
+    window_sys_init();          // gl context, window
     task_sys_init();            // enable async work
     ecs_sys_init();             // place to store data
     asset_sys_init();           // means of loading data
     network_sys_init();         // setup sockets
-    window_sys_init();          // gl context, window
     render_sys_init();          // setup rendering resources
     audio_sys_init();           // setup audio callback
     input_sys_init();           // setup glfw input callbacks
@@ -48,11 +48,9 @@ static void Init(void)
 ProfileMark(pm_update, Update)
 static void Update(void)
 {
-    profile_sys_collect();      // collect profiling data
-    time_sys_update();          // update frame time
-    alloc_sys_update();         // reset linear allocator
-
+    time_sys_update();          // update frame time + frame id
     ProfileBegin(pm_update);
+    alloc_sys_update();         // reset linear allocator
     input_sys_update();         // pump input events to callbacks
     window_sys_update();        // update window size
     ui_sys_beginframe();        // ImGui::BeginFrame
@@ -77,11 +75,11 @@ static void Shutdown(void)
     input_sys_shutdown();
     audio_sys_shutdown();
     render_sys_shutdown();
-    window_sys_shutdown();
     network_sys_shutdown();
     asset_sys_shutdown();
     ecs_sys_shutdown();
     task_sys_shutdown();
+    window_sys_shutdown();
     profile_sys_shutdown();
     alloc_sys_shutdown();
     time_sys_shutdown();

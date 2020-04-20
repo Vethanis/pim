@@ -7,26 +7,17 @@ PIM_C_BEGIN
 typedef struct profmrk_s
 {
     const char* name;
+    u32 hash;
+    u32 calls;
     u64 sum;
-    u64 calls;
-    double average;
 } profmark_t;
-
-typedef struct profinfo_s
-{
-    profmark_t* marks;
-    i32 length;
-} profinfo_t;
 
 void profile_sys_init(void);
 void profile_sys_gui(void);
-void profile_sys_collect(void);
 void profile_sys_shutdown(void);
 
 void _ProfileBegin(profmark_t* mark);
 void _ProfileEnd(profmark_t* mark);
-
-const profinfo_t* ProfileInfo(void);
 
 #define PIM_PROFILE 1
 

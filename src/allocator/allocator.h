@@ -13,6 +13,10 @@ void pim_free(void* ptr);
 void* pim_realloc(EAlloc allocator, void* prev, i32 bytes);
 void* pim_calloc(EAlloc allocator, i32 bytes);
 
+// alternative to alloca
+void* pim_pusha(i32 bytes);
+void pim_popa(i32 bytes);
+
 static void* perm_malloc(i32 bytes)
 {
     return pim_malloc(EAlloc_Perm, bytes);

@@ -90,6 +90,7 @@
     <ClInclude Include="..\src\common\fnv1a.h" />
     <ClInclude Include="..\src\common\macro.h" />
     <ClInclude Include="..\src\common\random.h" />
+    <ClInclude Include="..\src\common\sort.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\time.h" />
     <ClInclude Include="..\src\common\unroll.h" />
