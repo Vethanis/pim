@@ -3,6 +3,7 @@
 #include "allocator/allocator.h"
 #include "common/hashstring.h"
 #include "common/stringutil.h"
+#include "common/profiler.h"
 #include "containers/dict.h"
 #include "ui/cimgui.h"
 #include <stdlib.h> // atof
@@ -63,8 +64,10 @@ void cvar_set_float(cvar_t* ptr, float value)
 }
 
 static char ms_guibuf[256];
+ProfileMark(pm_gui, cvar_gui)
 void cvar_gui(void)
 {
+    ProfileBegin(pm_gui);
     EnsureDict();
 
     if (cv_cvar_gui.asFloat != 0.0f)
@@ -95,10 +98,9 @@ void cvar_gui(void)
             break;
             case cvar_text:
             {
-                StrCpy(ARGS(ms_guibuf), cvars[i]->value);
-                if (igInputText(cvar->name, ARGS(ms_guibuf), 0, NULL, NULL) && StrLen(ms_guibuf) > 0)
+                if (igInputText(cvar->name, ARGS(cvar->value), 0, NULL, NULL) && (StrLen(cvar->value) > 0))
                 {
-                    cvar_set_str(cvars[i], ms_guibuf);
+                    cvar->asFloat = (float)atof(cvar->value);
                 }
             }
             break;
@@ -127,4 +129,6 @@ void cvar_gui(void)
         igColumns(1);
         igEnd();
     }
+
+    ProfileEnd(pm_gui);
 }
