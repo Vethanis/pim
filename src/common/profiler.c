@@ -8,13 +8,11 @@
 #include "common/cvar.h"
 #include "common/hashstring.h"
 #include "common/fnv1a.h"
-#include "common/sort.h"
-#include "common/stringutil.h"
 #include "containers/dict.h"
 #include "ui/cimgui.h"
 #include <string.h>
 
-static cvar_t cv_profilegui = { "profilegui", "1", "Show profiler GUI" };
+static cvar_t cv_profilegui = { cvar_bool, "profilegui", "1", "Show profiler GUI" };
 
 // ----------------------------------------------------------------------------
 
@@ -33,7 +31,6 @@ typedef struct node_s
 // ----------------------------------------------------------------------------
 
 static void OnGui(void);
-static i32 FindMark(const profmark_t** hay, i32 count, const profmark_t* needle);
 static void VisitClr(node_t* node);
 static void VisitSum(node_t* node);
 static void VisitGui(const node_t* node);
@@ -50,32 +47,25 @@ static dict_t ms_node_dict;
 
 // ----------------------------------------------------------------------------
 
-void profile_sys_init(void)
+static void EnsureDict(void)
 {
-    cvar_reg(&cv_profilegui);
-    dict_new(&ms_node_dict, sizeof(double), EAlloc_Perm);
-    memset(ms_frame, 0, sizeof(ms_frame));
-    memset(ms_roots, 0, sizeof(ms_roots));
-    memset(ms_top, 0, sizeof(ms_top));
+    if (!ms_node_dict.valueSize)
+    {
+        cvar_reg(&cv_profilegui);
+        dict_new(&ms_node_dict, sizeof(double), EAlloc_Perm);
+    }
 }
 
-ProfileMark(pm_sys_gui, profile_sys_gui)
-void profile_sys_gui(void)
+ProfileMark(pm_gui, profile_gui)
+void profile_gui(void)
 {
-    ProfileBegin(pm_sys_gui);
+    ProfileBegin(pm_gui);
+    EnsureDict();
     if (cv_profilegui.asFloat != 0.0f)
     {
         OnGui();
     }
-    ProfileEnd(pm_sys_gui);
-}
-
-void profile_sys_shutdown(void)
-{
-    memset(ms_frame, 0, sizeof(ms_frame));
-    memset(ms_roots, 0, sizeof(ms_roots));
-    memset(ms_top, 0, sizeof(ms_top));
-    dict_del(&ms_node_dict);
+    ProfileEnd(pm_gui);
 }
 
 // ----------------------------------------------------------------------------
@@ -139,18 +129,6 @@ void _ProfileEnd(profmark_t* mark)
 
 // ----------------------------------------------------------------------------
 
-static i32 FindMark(const profmark_t** hay, i32 count, const profmark_t* needle)
-{
-    for (i32 i = count - 1; i >= 0; --i)
-    {
-        if (hay[i] == needle)
-        {
-            return i;
-        }
-    }
-    return -1;
-}
-
 static void VisitClr(node_t* node)
 {
     if (!node)
@@ -159,18 +137,16 @@ static void VisitClr(node_t* node)
     }
 
     profmark_t* mark = node->mark;
-    if (mark)
+    ASSERT(mark);
+    mark->calls = 0;
+    mark->sum = 0;
+    u32 hash = mark->hash;
+    if (hash == 0)
     {
-        mark->calls = 0;
-        mark->sum = 0;
-        u32 hash = mark->hash;
-        if (hash == 0)
-        {
-            hash = HashStr(mark->name);
-            mark->hash = hash;
-        }
-        node->hash = hash;
+        hash = HashStr(mark->name);
+        mark->hash = hash;
     }
+    node->hash = hash;
 
     VisitClr(node->sibling);
     VisitClr(node->fchild);
@@ -184,17 +160,13 @@ static void VisitSum(node_t* node)
     }
 
     profmark_t* mark = node->mark;
-    if (mark)
-    {
-        mark->calls += 1;
-        mark->sum += node->end - node->begin;
-    }
+    ASSERT(mark);
+    mark->calls += 1;
+    mark->sum += node->end - node->begin;
 
     u32 hash = node->hash;
-    if (node->parent)
-    {
-        hash = Fnv32Dword(node->parent->hash, hash);
-    }
+    ASSERT(node->parent);
+    hash = Fnv32Dword(node->parent->hash, hash);
     if (node->sibling)
     {
         hash = Fnv32Dword(node->sibling->hash, hash);
@@ -209,41 +181,46 @@ static void VisitSum(node_t* node)
     VisitSum(node->fchild);
 }
 
-static void GetNodeKey(const node_t* node, char key[64])
+static void GetNodeKey(const node_t* node, char key[8])
 {
-    const profmark_t* mark = node->mark;
-    const char* name = mark ? mark->name : "(null)";
-    SPrintf(key, 64, "%s%x", name, node->hash);
+    ASSERT(node);
+    ASSERT(key);
+    u32* dst = (u32*)key;
+    dst[0] = node->hash;
+    dst[1] = 0;
 }
 
 static double GetNodeAvgMs(const node_t* node, const char* key)
 {
+    ASSERT(node);
+    ASSERT(key);
+
     double avgMs = 0.0;
     const profmark_t* mark = node->mark;
-    if (mark)
-    {
-        dict_get(&ms_node_dict, key, &avgMs);
-    }
+    ASSERT(mark);
+
+    dict_get(&ms_node_dict, key, &avgMs);
     return avgMs;
 }
 
 static double UpdateNodeAvgMs(const node_t* node, const char* key)
 {
+    ASSERT(node);
+    ASSERT(key);
+
     const double ms = time_milli(node->end - node->begin);
     double avgMs = ms;
     const profmark_t* mark = node->mark;
-    if (mark)
+    ASSERT(mark);
+    if (dict_get(&ms_node_dict, key, &avgMs))
     {
-        if (dict_get(&ms_node_dict, key, &avgMs))
-        {
-            const double alpha = 1.0 / 60.0;
-            avgMs += (ms - avgMs) * alpha;
-            dict_set(&ms_node_dict, key, &avgMs);
-        }
-        else
-        {
-            dict_add(&ms_node_dict, key, &avgMs);
-        }
+        const double alpha = 1.0 / 60.0;
+        avgMs += (ms - avgMs) * alpha;
+        dict_set(&ms_node_dict, key, &avgMs);
+    }
+    else
+    {
+        dict_add(&ms_node_dict, key, &avgMs);
     }
     return avgMs;
 }
@@ -256,40 +233,34 @@ static void VisitGui(const node_t* node)
     }
 
     const profmark_t* mark = node->mark;
-    if (mark)
+    ASSERT(mark);
+    const char* name = mark->name;
+    ASSERT(name);
+
+    char key[8];
+    GetNodeKey(node, key);
+
+    double ms = UpdateNodeAvgMs(node, key);
+
+    double pct = 0.0;
+    const node_t* root = ms_prevroots[ms_gui_tid].fchild;
+    ASSERT(root);
+
+    char rootKey[8];
+    GetNodeKey(root, rootKey);
+    double rootMs = GetNodeAvgMs(root, rootKey);
+    if (rootMs > 0.0)
     {
-        const char* name = mark->name;
-        char key[64];
-        GetNodeKey(node, key);
-
-        double ms = UpdateNodeAvgMs(node, key);
-
-        const i32 calls = (i32)mark->calls;
-        double pct = 0.0;
-        const node_t* root = ms_prevroots[ms_gui_tid].fchild;
-        if (root)
-        {
-            char rootKey[64];
-            GetNodeKey(root, rootKey);
-            double rootMs = GetNodeAvgMs(root, rootKey);
-            if (rootMs > 0.0)
-            {
-                pct = 100.0 * (ms / rootMs);
-            }
-        }
-
-        igText("%s", name); igNextColumn();
-        igText("%3.2f", ms); igNextColumn();
-        igText("%4.1f%%", pct); igNextColumn();
-
-        igTreePushPtr(key);
-        VisitGui(node->fchild);
-        igTreePop();
+        pct = 100.0 * (ms / rootMs);
     }
-    else
-    {
-        VisitGui(node->fchild);
-    }
+
+    igText("%s", name); igNextColumn();
+    igText("%3.2f", ms); igNextColumn();
+    igText("%4.1f%%", pct); igNextColumn();
+
+    igTreePushPtr(key);
+    VisitGui(node->fchild);
+    igTreePop();
     VisitGui(node->sibling);
 }
 
@@ -298,7 +269,7 @@ static void OnGui(void)
     igBegin("Profiler", NULL, 0);
 
     igSliderInt("thread", &ms_gui_tid, 0, kNumThreads - 1, "%d");
-    node_t* root = ms_prevroots + ms_gui_tid;
+    node_t* root = ms_prevroots[ms_gui_tid].fchild;
 
     igSeparator();
 
@@ -322,9 +293,7 @@ static void OnGui(void)
 
 #else
 
-void profile_sys_init(void) {}
-void profile_sys_gui(void) {}
-void profile_sys_shutdown(void) {}
+void profile_gui(void) {}
 
 void _ProfileBegin(profmark_t* mark) {}
 void _ProfileEnd(profmark_t* mark) {}

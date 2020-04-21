@@ -11,6 +11,7 @@
 
 static cvar_t cv_FpsLimit =
 {
+    cvar_int,
     "fps_limit",
     "125",
     "limits fps when above this value"
@@ -127,10 +128,9 @@ void window_swapbuffers(void)
 
     ASSERT(ms_window);
     glfwSwapBuffers(ms_window);
+    wait_for_target_fps();
 
     ProfileEnd(pm_swapbuffers);
-
-    wait_for_target_fps();
 }
 
 bool window_cursor_captured(void)

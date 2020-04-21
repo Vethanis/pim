@@ -12,10 +12,12 @@
 #include "os/socket.h"
 #include "logic/logic.h"
 #include "common/profiler.h"
+#include "common/cvar.h"
 
 static void Init(void);
 static void Update(void);
 static void Shutdown(void);
+static void OnGui(void);
 
 int main()
 {
@@ -32,7 +34,6 @@ static void Init(void)
 {
     time_sys_init();            // setup sokol time
     alloc_sys_init();           // preallocate pools
-    profile_sys_init();         // noop
     window_sys_init();          // gl context, window
     task_sys_init();            // enable async work
     ecs_sys_init();             // place to store data
@@ -43,29 +44,6 @@ static void Init(void)
     input_sys_init();           // setup glfw input callbacks
     ui_sys_init();              // setup imgui
     logic_sys_init();           // setup game logic
-}
-
-ProfileMark(pm_update, Update)
-static void Update(void)
-{
-    time_sys_update();          // update frame time + frame id
-    ProfileBegin(pm_update);
-    alloc_sys_update();         // reset linear allocator
-    input_sys_update();         // pump input events to callbacks
-    window_sys_update();        // update window size
-    ui_sys_beginframe();        // ImGui::BeginFrame
-    profile_sys_gui();          // display profile stats
-    network_sys_update();       // transmit and receive game state
-    logic_sys_update();         // update game simulation
-    ecs_sys_update();           // noop
-    asset_sys_update();         // stream assets
-    render_sys_update();        // begin draw tasks
-    audio_sys_update();         // handle audio events
-    render_sys_present();       // clear framebuffer, draw results
-    ui_sys_endframe();          // ImGui::EndFrame
-    task_sys_update();          // schedule tasks
-    window_swapbuffers();       // glfwSwapBuffers
-    ProfileEnd(pm_update);
 }
 
 static void Shutdown(void)
@@ -80,7 +58,68 @@ static void Shutdown(void)
     ecs_sys_shutdown();
     task_sys_shutdown();
     window_sys_shutdown();
-    profile_sys_shutdown();
     alloc_sys_shutdown();
     time_sys_shutdown();
+}
+
+ProfileMark(pm_input, InputPhase)
+static void InputPhase(void)
+{
+    ProfileBegin(pm_input);
+    alloc_sys_update();         // reset linear allocator
+    input_sys_update();         // pump input events to callbacks
+    window_sys_update();        // update window size
+    network_sys_update();       // transmit and receive game state
+    asset_sys_update();         // stream assets in
+    ProfileEnd(pm_input);
+}
+
+ProfileMark(pm_simulate, SimulatePhase)
+static void SimulatePhase(void)
+{
+    ProfileBegin(pm_simulate);
+    logic_sys_update();         // update game simulation
+    task_sys_update();          // schedule tasks
+    ecs_sys_update();           // noop?
+    ProfileEnd(pm_simulate);
+}
+
+ProfileMark(pm_present, PresentPhase)
+static void PresentPhase(void)
+{
+    ProfileBegin(pm_present);
+    render_sys_update();        // begin draw tasks
+    audio_sys_update();         // handle audio events
+    render_sys_present();       // clear framebuffer, draw results
+    ProfileEnd(pm_present);
+}
+
+ProfileMark(pm_update, Update)
+static void Update(void)
+{
+    time_sys_update();          // bump frame id for profiler
+    ProfileBegin(pm_update);
+
+    InputPhase();
+    SimulatePhase();
+    PresentPhase();
+    OnGui();
+
+    window_swapbuffers();       // glfwSwapBuffers
+    ProfileEnd(pm_update);
+}
+
+ProfileMark(pm_gui, OnGui)
+static void OnGui(void)
+{
+    ProfileBegin(pm_gui);
+    ui_sys_beginframe();        // ImGui::BeginFrame
+
+    cvar_gui();
+    asset_gui();
+    profile_gui();
+    render_sys_gui();
+
+    ui_sys_endframe();          // ImGui::EndFrame
+    ProfileEnd(pm_gui);
 }

@@ -5,7 +5,6 @@
 #include "rendering/window.h"
 #include "math/quat_funcs.h"
 #include "common/time.h"
-#include "ui/cimgui.h"
 
 static float ms_pitchScale = 720.0f;
 static float ms_yawScale = 720.0f;
@@ -23,13 +22,6 @@ void camera_logic_update(void)
     const float dscroll = input_delta_axis(MouseAxis_ScrollY);
     camera_t camera;
     camera_get(&camera);
-
-    igBegin("CameraLogic", NULL, 0);
-    {
-        igValueFloat3("eye", &camera.position.x);
-        igValueFloat("fov", camera.fovy);
-    }
-    igEnd();
 
     if (input_keyup(KeyCode_Escape))
     {

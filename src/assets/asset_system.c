@@ -9,9 +9,9 @@
 #include "containers/dict.h"
 #include "common/profiler.h"
 
-static cvar_t cv_basedir = { "basedir", "data", "base directory for game data" };
-static cvar_t cv_game = { "game", "id1", "name of the active game" };
-static cvar_t cv_assetgui = { "assetgui", "1", "show asset system gui" };
+static cvar_t cv_basedir = { cvar_text, "basedir", "data", "base directory for game data" };
+static cvar_t cv_game = { cvar_text, "game", "id1", "name of the active game" };
+static cvar_t cv_assetgui = { cvar_bool, "assetgui", "1", "show asset system gui" };
 
 static void OnGui();
 
@@ -63,11 +63,6 @@ void asset_sys_update()
 {
     ProfileBegin(pm_update);
 
-    if (cv_assetgui.asFloat != 0.0f)
-    {
-        OnGui();
-    }
-
     ProfileEnd(pm_update);
 }
 
@@ -77,9 +72,14 @@ void asset_sys_shutdown(void)
     folder_free(&ms_folder);
 }
 
-ProfileMark(pm_OnGui, asset_sys_gui)
-static void OnGui()
+ProfileMark(pm_OnGui, asset_gui)
+void asset_gui(void)
 {
+    if (cv_assetgui.asFloat == 0.0f)
+    {
+        return;
+    }
+
     ProfileBegin(pm_OnGui);
 
     igSetNextWindowSize((ImVec2) { 800.0f, 600.0f }, ImGuiCond_Once);

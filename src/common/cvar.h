@@ -4,8 +4,17 @@
 
 PIM_C_BEGIN
 
+typedef enum
+{
+    cvar_text = 0,
+    cvar_float,
+    cvar_int,
+    cvar_bool,
+} cvar_type;
+
 typedef struct cvar_s
 {
+    cvar_type type;
     const char* name;
     char value[32];
     const char* description;
@@ -13,9 +22,10 @@ typedef struct cvar_s
 } cvar_t;
 
 void cvar_reg(cvar_t* ptr);
-void cvar_create(cvar_t* ptr, const char* name, const char* value, const char* desc);
 cvar_t* cvar_find(const char* name);
 void cvar_set_str(cvar_t* ptr, const char* value);
 void cvar_set_float(cvar_t* ptr, float value);
+
+void cvar_gui(void);
 
 PIM_C_END

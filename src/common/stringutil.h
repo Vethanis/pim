@@ -20,6 +20,10 @@ char ChrLo(char x);
 i32 StrUp(char* dst, i32 size);
 i32 StrLo(char* dst, i32 size);
 
+bool IsAlpha(char c); // alphabet chars test
+bool IsDigit(char c); // digit chars test
+bool IsSpace(char c); // whitespace chars test
+
 // ----------------------------------------------------------------------------
 // string length
 

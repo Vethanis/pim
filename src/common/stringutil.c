@@ -86,6 +86,31 @@ i32 StrLo(char* dst, i32 size)
     return NullTerminate(dst, size, i);
 }
 
+bool IsAlpha(char c)
+{
+    c = ChrLo(c);
+    return (c >= 'a') && (c <= 'z');
+}
+
+bool IsDigit(char c)
+{
+    return (c >= '0') && (c <= '9');
+}
+
+bool IsSpace(char c)
+{
+    switch (c)
+    {
+    default:
+        return false;
+    case ' ':
+    case '\t':
+    case '\r':
+    case '\n':
+        return true;
+    }
+}
+
 // ----------------------------------------------------------------------------
 // string length
 

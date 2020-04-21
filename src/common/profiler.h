@@ -12,9 +12,7 @@ typedef struct profmrk_s
     u64 sum;
 } profmark_t;
 
-void profile_sys_init(void);
-void profile_sys_gui(void);
-void profile_sys_shutdown(void);
+void profile_gui(void);
 
 void _ProfileBegin(profmark_t* mark);
 void _ProfileEnd(profmark_t* mark);

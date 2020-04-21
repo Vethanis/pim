@@ -2,6 +2,7 @@
 
 #include "allocator/allocator.h"
 #include "common/time.h"
+#include "common/cvar.h"
 #include "components/ecs.h"
 #include "rendering/framebuffer.h"
 #include "rendering/constants.h"
@@ -72,6 +73,10 @@ static void RegenAlbedo(void);
 
 // ----------------------------------------------------------------------------
 
+static cvar_t cv_render_sys_gui = { cvar_bool, "render_sys_gui", "1", "Show the render system GUI" };
+
+// ----------------------------------------------------------------------------
+
 static framebuf_t ms_buffer;
 static rcmdqueue_t ms_queue;
 static task_t ms_rastask;
@@ -80,9 +85,6 @@ static ecs_foreach_t ms_l2wtask;
 static meshid_t ms_meshid;
 static textureid_t ms_albedoid;
 static prng_t ms_prng;
-static u64 ms_laptick;
-static float ms_dt;
-static float ms_drawMs;
 static float3 ms_modelTranslation = { 0.0f, 0.0f, 0.0f };
 static float3 ms_modelForward = { 0.0f, 0.0f, -1.0f };
 static float3 ms_modelUp = { 0.0f, 1.0f, 0.0f };
@@ -92,6 +94,7 @@ static float3 ms_modelScale = { 1.0f, 1.0f, 1.0f };
 
 void render_sys_init(void)
 {
+    cvar_reg(&cv_render_sys_gui);
     ms_prng = prng_create();
 
     framebuf_create(&ms_buffer, kDrawWidth, kDrawHeight);
@@ -110,35 +113,6 @@ ProfileMark(pm_update, render_sys_update)
 void render_sys_update(void)
 {
     ProfileBegin(pm_update);
-
-    ms_dt = time_avgms(ms_laptick, ms_dt, 1.0f / 120.0f);
-    ms_laptick = time_now();
-
-    igBegin("RenderSystem", NULL, 0);
-    {
-        igValueFloat("ms", ms_dt);
-        igValueFloat("fps", 1000.0f / ms_dt);
-        igValueFloat("draw", ms_drawMs);
-        igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f);
-        igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f);
-        igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f);
-        igSliderFloat3("scale", &ms_modelScale.x, -10.0f, 10.0f);
-        if (igButton("Regen Mesh"))
-        {
-            RegenMesh();
-        }
-        if (igButton("Regen Albedo"))
-        {
-            RegenAlbedo();
-        }
-        if (igButton("Sphere"))
-        {
-            meshid_t sphere = GenSphereMesh(3.0, 64);
-            mesh_destroy(ms_meshid);
-            ms_meshid = sphere;
-        }
-    }
-    igEnd();
 
     camera_t camera;
     camera_get(&camera);
@@ -171,10 +145,7 @@ void render_sys_present(void)
 {
     ProfileBegin(pm_present);
 
-    u64 before = time_now();
     task_await((task_t*)&ms_rastask);
-    ms_drawMs = time_avgms(before, ms_drawMs, 1.0f / 120.0f);
-
     screenblit_blit(ms_buffer.color, kDrawWidth, kDrawHeight);
 
     ProfileEnd(pm_present);
@@ -190,6 +161,41 @@ void render_sys_shutdown(void)
     rcmdqueue_destroy(&ms_queue);
     mesh_destroy(ms_meshid);
     texture_destroy(ms_albedoid);
+}
+
+ProfileMark(pm_gui, render_sys_gui)
+void render_sys_gui(void)
+{
+    if (cv_render_sys_gui.asFloat == 0.0f)
+    {
+        return;
+    }
+    ProfileBegin(pm_gui);
+
+    igBegin("RenderSystem", NULL, 0);
+    {
+        igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f);
+        igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f);
+        igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f);
+        igSliderFloat3("scale", &ms_modelScale.x, -10.0f, 10.0f);
+        if (igButton("Regen Mesh"))
+        {
+            RegenMesh();
+        }
+        if (igButton("Regen Albedo"))
+        {
+            RegenAlbedo();
+        }
+        if (igButton("Sphere"))
+        {
+            meshid_t sphere = GenSphereMesh(3.0, 64);
+            mesh_destroy(ms_meshid);
+            ms_meshid = sphere;
+        }
+    }
+    igEnd();
+
+    ProfileEnd(pm_gui);
 }
 
 // ----------------------------------------------------------------------------
