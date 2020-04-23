@@ -170,7 +170,7 @@ i32 StrCat(char* dst, i32 size, const char* src)
 char* StrDup(const char* src, EAlloc allocator)
 {
     ASSERT(src);
-    const i32 len = StrNLen(src, PIM_PATH);
+    const i32 len = StrLen(src);
     char* dst = pim_malloc(allocator, len + 1);
     for (i32 i = 0; i < len; ++i)
     {

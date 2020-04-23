@@ -274,6 +274,12 @@
     <ClCompile Include="..\src\common\profiler.c">
       <Filter>Source Files\common</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\common\cmd.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\pimcpy.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -613,6 +619,12 @@
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\sort.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\cmd.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\pimcpy.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>

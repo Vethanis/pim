@@ -348,7 +348,7 @@ static glhandle CreateGlProgram(
     char* vsErrors = GetShaderLog(vso);
     if (vsErrors)
     {
-        fd_puts(vsErrors, fd_stderr);
+        fd_puts(fd_stderr, vsErrors);
         pim_free(vsErrors);
         glDeleteShader(vso);
         ASSERT(!glGetError());
@@ -365,7 +365,7 @@ static glhandle CreateGlProgram(
     char* fsErrors = GetShaderLog(vso);
     if (fsErrors)
     {
-        fd_puts(fsErrors, fd_stderr);
+        fd_puts(fd_stderr, fsErrors);
         pim_free(fsErrors);
         glDeleteShader(vso);
         ASSERT(!glGetError());
@@ -387,7 +387,7 @@ static glhandle CreateGlProgram(
     char* progErrors = GetProgramLog(prog);
     if (progErrors)
     {
-        fd_puts(progErrors, fd_stderr);
+        fd_puts(fd_stderr, progErrors);
         pim_free(progErrors);
         glDeleteProgram(prog);
         ASSERT(!glGetError());

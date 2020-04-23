@@ -15,9 +15,11 @@
     <ClCompile Include="..\src\assets\asset_system.c" />
     <ClCompile Include="..\src\audio\audio_system.c" />
     <ClCompile Include="..\src\common\atomics.cpp" />
+    <ClCompile Include="..\src\common\cmd.c" />
     <ClCompile Include="..\src\common\cvar.c" />
     <ClCompile Include="..\src\common\guid.c" />
     <ClCompile Include="..\src\common\module.c" />
+    <ClCompile Include="..\src\common\pimcpy.c" />
     <ClCompile Include="..\src\common\profiler.c" />
     <ClCompile Include="..\src\common\random.c" />
     <ClCompile Include="..\src\common\stringutil.c" />
@@ -80,9 +82,11 @@
     <ClInclude Include="..\src\assets\asset_system.h" />
     <ClInclude Include="..\src\audio\audio_system.h" />
     <ClInclude Include="..\src\common\atomics.h" />
+    <ClInclude Include="..\src\common\cmd.h" />
     <ClInclude Include="..\src\common\cvar.h" />
     <ClInclude Include="..\src\common\module.h" />
     <ClInclude Include="..\src\common\nextpow2.h" />
+    <ClInclude Include="..\src\common\pimcpy.h" />
     <ClInclude Include="..\src\common\profiler.h" />
     <ClInclude Include="..\src\common\round.h" />
     <ClInclude Include="..\src\common\guid.h" />

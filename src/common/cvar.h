@@ -23,6 +23,7 @@ typedef struct cvar_s
 
 void cvar_reg(cvar_t* ptr);
 cvar_t* cvar_find(const char* name);
+const char* cvar_complete(const char* namePart);
 void cvar_set_str(cvar_t* ptr, const char* value);
 void cvar_set_float(cvar_t* ptr, float value);
 

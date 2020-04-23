@@ -204,6 +204,6 @@ static GLFWwindow* CreateGlfwWindow(
 
 static void OnGlfwError(i32 error_code, const char* description)
 {
-    fd_puts(description, fd_stderr);
+    fd_puts(fd_stderr, description);
     ASSERT(false);
 }

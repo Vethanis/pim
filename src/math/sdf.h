@@ -69,14 +69,14 @@ pim_inline float VEC_CALL sdPlaneSphere(float4 plane, float4 sphere)
 
 pim_inline float VEC_CALL sdPlaneBox2D(float2 n, float d, float2 c, float2 e)
 {
-    return sdPlane2D(n, d, c) - f1_abs(sdPlane2D(n, 0.0f, e));
+    return sdPlane2D(n, d, c) - f2_dot(f2_abs(n), f2_abs(e));
 }
 
 pim_inline float VEC_CALL sdPlaneBox3D(float4 plane, float3 c, float3 e)
 {
     float a = sdPlane3D(plane, c);
     plane.w = 0.0f;
-    float b = f1_abs(sdPlane3D(plane, e));
+    float b = sdPlane3D(f4_abs(plane), f3_abs(e));
     return a - b;
 }
 

@@ -46,7 +46,7 @@ void fd_close(fd_t* hdl);
 i32 fd_read(fd_t hdl, void* dst, i32 size);
 i32 fd_write(fd_t hdl, const void* src, i32 size);
 
-i32 fd_puts(const char* str, fd_t hdl);
+i32 fd_puts(fd_t hdl, const char* str);
 i32 fd_printf(fd_t hdl, const char* fmt, ...);
 
 i32 fd_seek(fd_t hdl, i32 offset);

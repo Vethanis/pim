@@ -12,7 +12,7 @@ static cvar_t cv_cvar_gui = { cvar_bool, "cvar_gui", "1", "Show the configuratio
 
 static dict_t ms_dict;
 
-static void EnsureDict(void)
+static void EnsureInit(void)
 {
     if (!ms_dict.valueSize)
     {
@@ -23,7 +23,7 @@ static void EnsureDict(void)
 
 void cvar_reg(cvar_t* ptr)
 {
-    EnsureDict();
+    EnsureInit();
 
     ASSERT(ptr);
     ASSERT(ptr->name);
@@ -36,7 +36,7 @@ void cvar_reg(cvar_t* ptr)
 
 cvar_t* cvar_find(const char* name)
 {
-    EnsureDict();
+    EnsureInit();
 
     ASSERT(name);
     const i32 i = dict_find(&ms_dict, name);
@@ -44,6 +44,25 @@ cvar_t* cvar_find(const char* name)
     {
         cvar_t** cvars = ms_dict.values;
         return cvars[i];
+    }
+    return NULL;
+}
+
+const char* cvar_complete(const char* namePart)
+{
+    EnsureInit();
+
+    ASSERT(namePart);
+    const i32 partLen = StrLen(namePart);
+    const u32 width = ms_dict.width;
+    const char** names = ms_dict.keys;
+    for (u32 i = 0; i < width; ++i)
+    {
+        const char* name = names[i];
+        if (name && !StrCmp(namePart, partLen, name))
+        {
+            return name;
+        }
     }
     return NULL;
 }
@@ -63,12 +82,11 @@ void cvar_set_float(cvar_t* ptr, float value)
     ptr->asFloat = value;
 }
 
-static char ms_guibuf[256];
 ProfileMark(pm_gui, cvar_gui)
 void cvar_gui(void)
 {
     ProfileBegin(pm_gui);
-    EnsureDict();
+    EnsureInit();
 
     if (cv_cvar_gui.asFloat != 0.0f)
     {

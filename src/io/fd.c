@@ -101,7 +101,7 @@ i32 fd_write(fd_t fd, const void* src, i32 size)
     return NotNeg(_write(handle, src, (u32)size));
 }
 
-i32 fd_puts(const char* str, fd_t fd)
+i32 fd_puts(fd_t fd, const char* str)
 {
     ASSERT(str);
     ASSERT(fd.handle >= 0);
