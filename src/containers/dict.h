@@ -27,4 +27,11 @@ bool dict_set(dict_t* dict, const char* key, const void* valueIn);
 bool dict_add(dict_t* dict, const char* key, const void* valueIn);
 bool dict_rm(dict_t* dict, const char* key, void* valueOut);
 
+typedef i32(*DictCmpFn)(
+    const char* lkey, const char* rkey,
+    const void* lval, const void* rval,
+    void* usr);
+
+u32* dict_sort(const dict_t* dict, DictCmpFn cmp, void* usr);
+
 PIM_C_END

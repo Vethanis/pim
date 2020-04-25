@@ -65,6 +65,7 @@
     <ClCompile Include="..\src\threading\task.c" />
     <ClCompile Include="..\src\threading\thread.c" />
     <ClCompile Include="..\src\ui\cimgui.cpp" />
+    <ClCompile Include="..\src\ui\cimgui_ext.c" />
     <ClCompile Include="..\src\ui\imgui.cpp" />
     <ClCompile Include="..\src\ui\imgui_demo.cpp" />
     <ClCompile Include="..\src\ui\imgui_draw.cpp" />
@@ -155,6 +156,7 @@
     <ClInclude Include="..\src\threading\sleep.h" />
     <ClInclude Include="..\src\threading\thread.h" />
     <ClInclude Include="..\src\ui\cimgui.h" />
+    <ClInclude Include="..\src\ui\cimgui_ext.h" />
     <ClInclude Include="..\src\ui\imgui_impl_glfw.h" />
     <ClInclude Include="..\src\ui\imgui_impl_opengl3.h" />
     <ClInclude Include="..\src\ui\imgui_internal.h" />
