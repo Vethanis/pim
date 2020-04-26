@@ -30,6 +30,10 @@ typedef struct cbuf_s
     EAlloc allocator;
 } cbuf_t;
 
+void cmd_sys_init(void);
+void cmd_sys_update(void);
+void cmd_sys_shutdown(void);
+
 void cbuf_new(cbuf_t* buf, EAlloc allocator);
 void cbuf_del(cbuf_t* buf);
 void cbuf_clear(cbuf_t* buf);

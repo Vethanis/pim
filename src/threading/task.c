@@ -7,8 +7,7 @@
 #include "common/atomics.h"
 #include "containers/ptrqueue.h"
 #include "common/profiler.h"
-
-#include <string.h>
+#include "common/pimcpy.h"
 
 #define kTaskSplit      (kNumThreads * (kNumThreads / 2))
 
@@ -216,8 +215,8 @@ void task_sys_shutdown(void)
         thread_join(ms_threads + t);
         ptrqueue_destroy(ms_queues + t);
     }
-    memset(ms_threads, 0, sizeof(ms_threads));
-    memset(ms_queues, 0, sizeof(ms_queues));
+    pimset(ms_threads, 0, sizeof(ms_threads));
+    pimset(ms_queues, 0, sizeof(ms_queues));
     event_destroy(&ms_waitPush);
     event_destroy(&ms_waitExec);
     intrin_clockres_end(1);

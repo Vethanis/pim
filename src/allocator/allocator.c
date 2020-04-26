@@ -4,9 +4,9 @@
 #include "threading/mutex.h"
 #include "threading/task.h"
 #include "tlsf/tlsf.h"
+#include "common/pimcpy.h"
 
 #include <stdlib.h>
-#include <string.h>
 
 #define kTempFrames     4
 #define kTempMask       (kTempFrames - 1)
@@ -206,7 +206,7 @@ void* pim_malloc(EAlloc type, i32 bytes)
         ptr = hdr + 1;
 
         ASSERT(ptr_is_aligned(ptr));
-        IF_DEBUG(memset(ptr, 0xcc, userBytes));
+        IF_DEBUG(pimset(ptr, 0xcc, userBytes));
     }
 
     return ptr;
@@ -226,7 +226,7 @@ void pim_free(void* ptr)
         ASSERT(i32_is_aligned(userBytes));
         ASSERT(valid_tid(tid));
         ASSERT(dec_i32(&(hdr->refCount), MO_Relaxed) == 1);
-        IF_DEBUG(memset(ptr, 0xcd, userBytes));
+        IF_DEBUG(pimset(ptr, 0xcd, userBytes));
 
         switch (hdr->type)
         {
@@ -278,7 +278,7 @@ void* pim_realloc(EAlloc type, void* prev, i32 bytes)
     nextBytes = nextBytes > bytes ? nextBytes : bytes;
 
     void* next = pim_malloc(type, nextBytes);
-    memcpy(next, prev, prevBytes);
+    pimcpy(next, prev, prevBytes);
     pim_free(prev);
 
     return next;
@@ -286,7 +286,9 @@ void* pim_realloc(EAlloc type, void* prev, i32 bytes)
 
 void* pim_calloc(EAlloc type, i32 bytes)
 {
-    return memset(pim_malloc(type, bytes), 0x00, bytes);
+    void* ptr = pim_malloc(type, bytes);
+    pimset(ptr, 0x00, bytes);
+    return ptr;
 }
 
 #define kStackCapacity      (4 << 10)

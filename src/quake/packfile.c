@@ -3,14 +3,14 @@
 #include "io/fnd.h"
 #include "common/stringutil.h"
 #include "allocator/allocator.h"
-#include <string.h>
+#include "common/pimcpy.h"
 
 pack_t pack_load(const char* path, EAlloc allocator)
 {
     ASSERT(path);
 
     pack_t pack;
-    memset(&pack, 0, sizeof(pack));
+    pimset(&pack, 0, sizeof(pack));
     StrCpy(ARGS(pack.path), path);
 
     fd_t fd = fd_open(path, 0);
@@ -32,7 +32,7 @@ pack_t pack_load(const char* path, EAlloc allocator)
     pack.bytes = map.size;
 
     ASSERT(pack.bytes >= sizeof(pack.header));
-    ASSERT(memcmp(pack.header->id, "PACK", 4) == 0);
+    ASSERT(pimcmp(pack.header->id, "PACK", 4) == 0);
     ASSERT(pack.header->length >= 0);
 
     const u8* buffer = map.ptr;
@@ -61,7 +61,7 @@ folder_t folder_load(const char* path, EAlloc allocator)
     ASSERT(path);
 
     folder_t folder;
-    memset(&folder, 0, sizeof(folder));
+    pimset(&folder, 0, sizeof(folder));
 
     StrCpy(ARGS(folder.path), path);
 

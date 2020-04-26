@@ -5,7 +5,8 @@
 PIM_C_BEGIN
 
 #include "containers/carray.h"
-#include <string.h>
+#include "allocator/allocator.h"
+#include "common/pimcpy.h"
 
 pim_inline void arr_new(arr_t* arr, i32 sizeOf, EAlloc allocator)
 {
@@ -42,7 +43,7 @@ pim_inline void arr_reserve(arr_t* arr, i32 minCap)
         const i32 length = arr->length;
         void* pNew = pim_malloc(arr->allocator, next * stride);
         void* pOld = arr->ptr;
-        memcpy(pNew, pOld, length * stride);
+        pimcpy(pNew, pOld, length * stride);
         pim_free(pOld);
         arr->ptr = pNew;
         arr->capacity = next;
@@ -62,7 +63,7 @@ pim_inline void arr_add(arr_t* arr, const void* src, i32 sizeOf)
     arr_reserve(arr, back + 1);
     arr->length = back + 1;
     u8* dst = (u8*)(arr->ptr) + back * sizeOf;
-    memcpy(dst, src, sizeOf);
+    pimcpy(dst, src, sizeOf);
 }
 
 pim_inline void arr_dynadd(arr_t* arr, const void* src, i32 bytes)
@@ -72,7 +73,7 @@ pim_inline void arr_dynadd(arr_t* arr, const void* src, i32 bytes)
     arr_reserve(arr, back + bytes);
     arr->length = back + bytes;
     u8* dst = (u8*)(arr->ptr) + back;
-    memcpy(dst, src, bytes);
+    pimcpy(dst, src, bytes);
 }
 
 pim_inline void arr_pop(arr_t* arr)
@@ -87,17 +88,17 @@ pim_inline void arr_remove(arr_t* arr, i32 i)
     const i32 stride = arr->stride;
     u8* ptr = (u8*)(arr->ptr);
     ASSERT((u32)i <= (u32)back);
-    memcpy(ptr + i * stride, ptr + back * stride, stride);
+    pimcpy(ptr + i * stride, ptr + back * stride, stride);
 }
 
 pim_inline i32 arr_find(arr_t arr, const void* pKey, i32 sizeOf)
 {
-    ASSERT(arr->stride == sizeOf);
+    ASSERT(arr.stride == sizeOf);
     const u8* ptr = (const u8*)(arr.ptr);
     const i32 len = arr.length;
     for (i32 i = 0; i < len; ++i)
     {
-        if (!memcmp(pKey, ptr + i * sizeOf, sizeOf))
+        if (!pimcmp(pKey, ptr + i * sizeOf, sizeOf))
         {
             return i;
         }
@@ -107,12 +108,12 @@ pim_inline i32 arr_find(arr_t arr, const void* pKey, i32 sizeOf)
 
 pim_inline i32 arr_rfind(arr_t arr, const void* pKey, i32 sizeOf)
 {
-    ASSERT(arr->stride == sizeOf);
+    ASSERT(arr.stride == sizeOf);
     const u8* ptr = (const u8*)(arr.ptr);
     const i32 len = arr.length;
     for (i32 i = len - 1; i >= 0; --i)
     {
-        if (!memcmp(pKey, ptr + i * sizeOf, sizeOf))
+        if (!pimcmp(pKey, ptr + i * sizeOf, sizeOf))
         {
             return i;
         }

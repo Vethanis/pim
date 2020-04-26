@@ -5,8 +5,7 @@
 #include "common/atomics.h"
 #include "containers/idset.h"
 #include "common/profiler.h"
-
-#include <string.h>
+#include "common/pimcpy.h"
 
 #define kSlabCapacity 1024
 
@@ -67,7 +66,7 @@ static idset_t* ent_ids(void) { return &(ms_ents.ids); }
 
 static void slabs_init(void)
 {
-    memset(&ms_slabs, 0, sizeof(ms_slabs));
+    pimset(&ms_slabs, 0, sizeof(ms_slabs));
     rwlock_create(&(ms_slabs.lock));
     idset_create(slab_ids());
     const i32 kCapacity = 1024;
@@ -106,7 +105,7 @@ static void slabs_shutdown(void)
 
 static void ents_init(void)
 {
-    memset(&ms_ents, 0, sizeof(ms_ents));
+    pimset(&ms_ents, 0, sizeof(ms_ents));
     rwlock_create(&(ms_ents.lock));
     idset_create(ent_ids());
     const i32 kCapacity = 1024;
@@ -164,7 +163,7 @@ static void slab_destroy(id_t id)
     if (id_release(slab_ids(), id))
     {
         const i32 iSlab = id.index;
-        memset(ms_slabs.flags + iSlab, 0, sizeof(compflag_t));
+        pimset(ms_slabs.flags + iSlab, 0, sizeof(compflag_t));
         ms_slabs.lens[iSlab] = 0;
         void** rows = slab_rows(iSlab);
         for (i32 i = 0; i < CompId_COUNT; ++i)
@@ -185,7 +184,7 @@ static void slabset(i32 iSlab, i32 iSlot)
         const i32 stride = kComponentSize[i];
         if (ptr)
         {
-            memset(ptr + stride * iSlot, 0, stride);
+            pimset(ptr + stride * iSlot, 0, stride);
         }
     }
 }
@@ -203,7 +202,7 @@ static void slabcpy(i32 iSlab, i32 iSlotDst, i32 iSlotSrc)
         const i32 stride = kComponentSize[i];
         if (ptr)
         {
-            memcpy(ptr + stride * iSlotDst, ptr + stride * iSlotSrc, stride);
+            pimcpy(ptr + stride * iSlotDst, ptr + stride * iSlotSrc, stride);
         }
     }
 }
@@ -318,7 +317,7 @@ static void ent_destroy(ent_t ent)
                 ASSERT(slabBack >= 0);
                 const ent_t* ents = (ent_t*)(slab_rows(iSlab)[CompId_Entity]);
                 const ent_t backEnt = ents[slabBack];
-                ASSERT(!memcmp(ents + offset, &ent, sizeof(ent_t)));
+                ASSERT(!pimcmp(ents + offset, &ent, sizeof(ent_t)));
                 slabcpy(iSlab, offset, slabBack);
                 ms_ents.offsets[backEnt.index] = offset;
             }
@@ -342,7 +341,7 @@ static bool ent_current(ent_t ent)
 static compflag_t ent_flags(ent_t ent)
 {
     compflag_t result;
-    memset(&result, 0, sizeof(result));
+    pimset(&result, 0, sizeof(result));
     ents_rlock();
     if (ent_current(ent))
     {

@@ -1,6 +1,6 @@
 #include "os/socket.h"
 #include "common/profiler.h"
-#include <string.h>
+#include "common/pimcpy.h"
 
 #if PLAT_WINDOWS
 
@@ -21,7 +21,7 @@ static SOCKADDR_IN ToSockAddr(u32 addr, u16 port)
 
     // https://docs.microsoft.com/en-us/windows/win32/winsock/sockaddr-2
     SOCKADDR_IN name;
-    memset(&name, 0, sizeof(name));
+    pimset(&name, 0, sizeof(name));
     name.sin_family = AF_INET;
     name.sin_addr.s_addr = addr;
     // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-htons
@@ -142,7 +142,7 @@ static socket_t wsock_accept(socket_t sock, u32* addr)
     if (wsock_isopen(sock))
     {
         SOCKADDR_IN saddr;
-        memset(&saddr, 0, sizeof(saddr));
+        pimset(&saddr, 0, sizeof(saddr));
         i32 len = sizeof(saddr);
         SOCKET s = accept((SOCKET)sock.handle, (struct sockaddr*)&saddr, &len);
         ASSERT(s != INVALID_SOCKET);

@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include "common/stringutil.h"
+#include "common/pimcpy.h"
 
 static pim_thread_local i32 ms_errno = 0;
 
@@ -156,6 +157,6 @@ void fd_stat(fd_t fd, fd_status_t* status)
 {
     ASSERT(fd.handle >= 0);
     ASSERT(status);
-    memset(status, 0, sizeof(fd_status_t));
+    pimset(status, 0, sizeof(fd_status_t));
     IsZero(_fstat64(fd.handle, (struct _stat64*)status));
 }

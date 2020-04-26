@@ -4,23 +4,95 @@
 #include "common/pimcpy.h"
 #include "common/cvar.h"
 #include "containers/dict.h"
+#include "containers/queue.h"
 #include "io/fd.h"
+#include "assets/asset_system.h"
+#include "common/time.h"
+#include "common/profiler.h"
+
+// ----------------------------------------------------------------------------
 
 typedef struct cmdalias_s
 {
     char* value;
 } cmdalias_t;
 
+typedef struct cmdbrain_s
+{
+    cbuf_t cbuf;
+    i32 yieldframe;
+} cmdbrain_t;
+
+// ----------------------------------------------------------------------------
+
+static bool IsSpecialChar(char c);
+static char** cmd_tokenize(const char* text, i32* argcOut);
+static const char* cmd_parse(const char* text, char** tokenOut);
+static cmdstat_t cmd_alias_fn(i32 argc, const char** argv);
+static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv);
+static cmdstat_t cmd_wait_fn(i32 argc, const char** argv);
+
+// ----------------------------------------------------------------------------
+
 static dict_t ms_cmds;
 static dict_t ms_aliases;
+static queue_t ms_cmdqueue;
 
-static void EnsureInit(void)
+// ----------------------------------------------------------------------------
+
+void cmd_sys_init(void)
 {
-    if (!ms_cmds.valueSize)
+    dict_new(&ms_cmds, sizeof(cmdfn_t), EAlloc_Perm);
+    dict_new(&ms_aliases, sizeof(cmdalias_t), EAlloc_Perm);
+    queue_create(&ms_cmdqueue, sizeof(cmdbrain_t), EAlloc_Perm);
+    cmd_reg("alias", cmd_alias_fn);
+    cmd_reg("exec", cmd_execfile_fn);
+    cmd_reg("wait", cmd_wait_fn);
+}
+
+ProfileMark(pm_update, cmd_sys_update)
+void cmd_sys_update(void)
+{
+    ProfileBegin(pm_update);
+
+    const i32 curFrame = time_framecount();
+
+    cmdbrain_t brain;
+    while (queue_trypop(&ms_cmdqueue, &brain, sizeof(brain)))
     {
-        dict_new(&ms_cmds, sizeof(cmdfn_t), EAlloc_Perm);
-        dict_new(&ms_aliases, sizeof(cmdalias_t), EAlloc_Perm);
+        if (brain.yieldframe == curFrame)
+        {
+            queue_push(&ms_cmdqueue, &brain, sizeof(brain));
+            return;
+        }
+        else
+        {
+            brain.yieldframe = curFrame;
+            cmdstat_t status = cbuf_exec(&brain.cbuf);
+            if (status == cmdstat_yield)
+            {
+                queue_push(&ms_cmdqueue, &brain, sizeof(brain));
+            }
+            else
+            {
+                cbuf_del(&brain.cbuf);
+            }
+        }
     }
+
+    ProfileEnd(pm_update);
+}
+
+void cmd_sys_shutdown(void)
+{
+    dict_del(&ms_cmds);
+    dict_del(&ms_aliases);
+    cmdbrain_t brain;
+    while (queue_trypop(&ms_cmdqueue, &brain, sizeof(brain)))
+    {
+        cbuf_del(&brain.cbuf);
+    }
+    queue_destroy(&ms_cmdqueue);
 }
 
 void cbuf_new(cbuf_t* buf, EAlloc allocator)
@@ -94,7 +166,6 @@ void cbuf_pushback(cbuf_t* buf, const char* text)
 cmdstat_t cbuf_exec(cbuf_t* buf)
 {
     ASSERT(buf);
-    EnsureInit();
 
     char line[1024];
 
@@ -141,15 +212,24 @@ cmdstat_t cbuf_exec(cbuf_t* buf)
             pimcpy(text, text + i, buf->length);
         }
 
+        cmdbrain_t brain;
         cmdstat_t status = cmd_exec(buf, line, cmdsrc_buffer);
-
-        // should execution continue after an error? probably not.
-        if (status != cmdstat_ok)
+        switch (status)
         {
-            return status;
+        case cmdstat_yield:
+            brain.cbuf = *buf;
+            brain.yieldframe = time_framecount();
+            queue_push(&ms_cmdqueue, &brain, sizeof(brain));
+            return cmdstat_yield;
+        break;
+        case cmdstat_err:
+            cbuf_del(buf);
+            return cmdstat_err;
+        break;
         }
     }
 
+    cbuf_del(buf);
     return cmdstat_ok;
 }
 
@@ -157,8 +237,6 @@ void cmd_reg(const char* name, cmdfn_t fn)
 {
     ASSERT(name);
     ASSERT(fn);
-    EnsureInit();
-
     if (!dict_add(&ms_cmds, name, &fn))
     {
         dict_set(&ms_cmds, name, &fn);
@@ -168,15 +246,11 @@ void cmd_reg(const char* name, cmdfn_t fn)
 bool cmd_exists(const char* name)
 {
     ASSERT(name);
-    EnsureInit();
-
     return dict_find(&ms_cmds, name) != -1;
 }
 
 const char* cmd_complete(const char* namePart)
 {
-    EnsureInit();
-
     ASSERT(namePart);
     const i32 partLen = StrLen(namePart);
     const u32 width = ms_cmds.width;
@@ -191,6 +265,57 @@ const char* cmd_complete(const char* namePart)
     }
     return NULL;
 }
+
+cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
+{
+    ASSERT(buf);
+    ASSERT(line);
+
+    i32 argc = 0;
+    char** argv = cmd_tokenize(line, &argc);
+    if (!argc)
+    {
+        return cmdstat_err;
+    }
+    ASSERT(argv);
+
+    // commands
+    cmdfn_t cmd = NULL;
+    if (dict_get(&ms_cmds, argv[0], &cmd))
+    {
+        return cmd(argc, argv);
+    }
+
+    // aliases (macros to expand into front of cbuf)
+    cmdalias_t alias = { 0 };
+    if (dict_get(&ms_aliases, argv[0], &alias))
+    {
+        cbuf_pushfront(buf, alias.value);
+        return cmdstat_ok;
+    }
+
+    // cvars
+    cvar_t* cvar = cvar_find(argv[0]);
+    if (cvar)
+    {
+        if (argc == 1)
+        {
+            // todo: print to console the cvar name and value
+            fd_printf(fd_stdout, "\"%s\" is \"%s\"\n", cvar->name, cvar->value);
+            return cmdstat_ok;
+        }
+        if (argc >= 2)
+        {
+            cvar_set_str(cvar, argv[1]);
+            return cmdstat_ok;
+        }
+    }
+
+    fd_printf(fd_stdout, "Unknown command \"%s\"\n", argv[0]);
+    return cmdstat_err;
+}
+
+// ----------------------------------------------------------------------------
 
 static bool IsSpecialChar(char c)
 {
@@ -312,56 +437,6 @@ static char** cmd_tokenize(const char* text, i32* argcOut)
     return argv;
 }
 
-cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
-{
-    ASSERT(buf);
-    ASSERT(line);
-    EnsureInit();
-
-    i32 argc = 0;
-    char** argv = cmd_tokenize(line, &argc);
-    if (!argc)
-    {
-        return cmdstat_err;
-    }
-    ASSERT(argv);
-
-    // commands
-    cmdfn_t cmd = NULL;
-    if (dict_get(&ms_cmds, argv[0], &cmd))
-    {
-        return cmd(argc, argv);
-    }
-
-    // aliases (macros to expand into front of cbuf)
-    cmdalias_t alias = { 0 };
-    if (dict_get(&ms_aliases, argv[0], &alias))
-    {
-        cbuf_pushfront(buf, alias.value);
-        return cmdstat_ok;
-    }
-
-    // cvars
-    cvar_t* cvar = cvar_find(argv[0]);
-    if (cvar)
-    {
-        if (argc == 1)
-        {
-            // todo: print to console the cvar name and value
-            fd_printf(fd_stdout, "\"%s\" is \"%s\"\n", cvar->name, cvar->value);
-            return cmdstat_ok;
-        }
-        if (argc >= 2)
-        {
-            cvar_set_str(cvar, argv[1]);
-            return cmdstat_ok;
-        }
-    }
-
-    fd_printf(fd_stdout, "Unknown command \"%s\"\n", argv[0]);
-    return cmdstat_err;
-}
-
 static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
 {
     if (argc <= 1)
@@ -406,4 +481,32 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
     ASSERT(added);
 
     return cmdstat_ok;
+}
+
+static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv)
+{
+    if (argc != 2)
+    {
+        fd_puts(fd_stdout, "exec <filename> : executes a script file");
+        return cmdstat_err;
+    }
+    asset_t asset;
+    if (asset_get(argv[1], &asset))
+    {
+        cbuf_t cbuf;
+        cbuf_new(&cbuf, EAlloc_Perm);
+        cbuf_pushback(&cbuf, asset.pData);
+        return cbuf_exec(&cbuf);
+    }
+    return cmdstat_err;
+}
+
+static cmdstat_t cmd_wait_fn(i32 argc, const char** argv)
+{
+    if (argc != 1)
+    {
+        fd_puts(fd_stdout, "wait : yields execution for one frame");
+        return cmdstat_err;
+    }
+    return cmdstat_yield;
 }

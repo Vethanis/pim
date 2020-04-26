@@ -22,8 +22,8 @@ PIM_C_END
 #ifdef MODULE_IMPL
 
 #include "common/hashstring.h"
-#include "stb/stb_sprintf.h"
-#include <string.h>
+#include "common/stringutil.h"
+#include "common/pimcpy.h"
 
 #define kMaxModules 256
 
@@ -41,7 +41,7 @@ static i32 pimod_import(const char* name, u32 hash)
     }
 
     char symname[256];
-    stbsp_sprintf(symname, "%s_export", name);
+    SPrintf(ARGS(symname), "%s_export", name);
     symname[NELEM(symname) - 1] = 0;
 
     void* sym = pimod_dlsym(dll, symname);
@@ -84,7 +84,7 @@ i32 PIM_CDECL pimod_get(const char* name, void* dst, i32 bytes)
     {
         const void* src = ms_modules[i];
         ASSERT(src);
-        memcpy(dst, src, bytes);
+        pimcpy(dst, src, bytes);
         return 1;
     }
     return 0;

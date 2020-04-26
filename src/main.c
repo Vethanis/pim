@@ -13,6 +13,7 @@
 #include "logic/logic.h"
 #include "common/profiler.h"
 #include "common/cvar.h"
+#include "common/cmd.h"
 
 static void Init(void);
 static void Update(void);
@@ -35,6 +36,7 @@ static void Init(void)
     time_sys_init();            // setup sokol time
     alloc_sys_init();           // preallocate pools
     window_sys_init();          // gl context, window
+    cmd_sys_init();
     task_sys_init();            // enable async work
     ecs_sys_init();             // place to store data
     asset_sys_init();           // means of loading data
@@ -57,6 +59,7 @@ static void Shutdown(void)
     asset_sys_shutdown();
     ecs_sys_shutdown();
     task_sys_shutdown();
+    cmd_sys_shutdown();
     window_sys_shutdown();
     alloc_sys_shutdown();
     time_sys_shutdown();
@@ -78,6 +81,7 @@ ProfileMark(pm_simulate, SimulatePhase)
 static void SimulatePhase(void)
 {
     ProfileBegin(pm_simulate);
+    cmd_sys_update();
     logic_sys_update();         // update game simulation
     task_sys_update();          // schedule tasks
     ecs_sys_update();           // noop?

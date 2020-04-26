@@ -1,14 +1,14 @@
 #include "containers/queue.h"
 #include "common/nextpow2.h"
 #include "allocator/allocator.h"
-#include <string.h>
+#include "common/pimcpy.h"
 
 void queue_create(queue_t* q, u32 itemSize, EAlloc allocator)
 {
     ASSERT(q);
     ASSERT(itemSize > 0);
     ASSERT(itemSize <= 256);
-    memset(q, 0, sizeof(*q));
+    pimset(q, 0, sizeof(*q));
     q->stride = itemSize;
     q->allocator = allocator;
 }
@@ -61,8 +61,8 @@ void queue_reserve(queue_t* q, u32 capacity)
             const u32 mask = oldWidth - 1u;
             const u32 twist = (iRead & mask) * stride;
             const u32 untwist = (oldWidth * stride) - twist;
-            memcpy(newPtr, oldPtr + twist, untwist);
-            memcpy(newPtr + untwist, oldPtr, twist);
+            pimcpy(newPtr, oldPtr + twist, untwist);
+            pimcpy(newPtr + untwist, oldPtr, twist);
         }
         pim_free(oldPtr);
         q->ptr = newPtr;
@@ -82,7 +82,7 @@ void queue_push(queue_t* q, void* src, u32 itemSize)
     u8* dst = q->ptr;
     const u32 mask = q->width - 1;
     const u32 iWrite = q->iWrite++ & mask;
-    memcpy(dst + iWrite * stride, src, stride);
+    pimcpy(dst + iWrite * stride, src, stride);
 }
 
 bool queue_trypop(queue_t* q, void* dst, u32 itemSize)
@@ -96,7 +96,7 @@ bool queue_trypop(queue_t* q, void* dst, u32 itemSize)
         const u8* src = q->ptr;
         const u32 mask = q->width - 1;
         const u32 iRead = q->iRead++ & mask;
-        memcpy(dst, src + iRead * stride, stride);
+        pimcpy(dst, src + iRead * stride, stride);
         return true;
     }
     return false;
@@ -112,5 +112,5 @@ void queue_get(queue_t* q, u32 i, void* dst, u32 itemSize)
     const u32 mask = q->width - 1;
     const u32 iRead = q->iRead;
     const u32 j = (iRead + i) & mask;
-    memcpy(dst, src + j * stride, stride);
+    pimcpy(dst, src + j * stride, stride);
 }
