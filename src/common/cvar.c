@@ -80,66 +80,68 @@ void cvar_set_float(cvar_t* ptr, float value)
 }
 
 ProfileMark(pm_gui, cvar_gui)
-void cvar_gui(void)
+void cvar_gui(bool* pEnabled)
 {
     ProfileBegin(pm_gui);
     EnsureInit();
 
-    igBegin("Config Vars", NULL, 0);
-    const u32 width = ms_dict.width;
-    cvar_t** cvars = ms_dict.values;
-
-    igColumns(2);
-    for (u32 i = 0; i < width; ++i)
+    if (igBegin("Config Vars", pEnabled, 0))
     {
-        cvar_t* cvar = cvars[i];
-        if (!cvar)
+        const u32 width = ms_dict.width;
+        cvar_t** cvars = ms_dict.values;
+
+        igColumns(2);
+        for (u32 i = 0; i < width; ++i)
         {
-            continue;
-        }
-        switch (cvar->type)
-        {
-        default: ASSERT(false); break;
-        case cvar_bool:
-        {
-            bool value = cvar->asFloat != 0.0f;
-            if (igCheckbox(cvar->name, &value))
+            cvar_t* cvar = cvars[i];
+            if (!cvar)
             {
-                cvar_set_float(cvar, value ? 1.0f : 0.0f);
+                continue;
             }
-        }
-        break;
-        case cvar_text:
-        {
-            if (igInputText(cvar->name, ARGS(cvar->value), 0, NULL, NULL) && (StrLen(cvar->value) > 0))
+            switch (cvar->type)
             {
-                cvar->asFloat = (float)atof(cvar->value);
-            }
-        }
-        break;
-        case cvar_int:
-        {
-            i32 value = (i32)cvar->asFloat;
-            if (igSliderInt(cvar->name, &value, 0, 1000, "%d"))
+            default: ASSERT(false); break;
+            case cvar_bool:
             {
-                cvar_set_float(cvar, (float)value);
+                bool value = cvar->asFloat != 0.0f;
+                if (igCheckbox(cvar->name, &value))
+                {
+                    cvar_set_float(cvar, value ? 1.0f : 0.0f);
+                }
             }
-        }
-        break;
-        case cvar_float:
-        {
-            float value = cvar->asFloat;
-            if (igSliderFloat(cvar->name, &value, -10.0f, 10.0f))
+            break;
+            case cvar_text:
             {
-                cvar_set_float(cvar, value);
+                if (igInputText(cvar->name, ARGS(cvar->value), 0, NULL, NULL) && (StrLen(cvar->value) > 0))
+                {
+                    cvar->asFloat = (float)atof(cvar->value);
+                }
             }
+            break;
+            case cvar_int:
+            {
+                i32 value = (i32)cvar->asFloat;
+                if (igSliderInt(cvar->name, &value, 0, 1000, "%d"))
+                {
+                    cvar_set_float(cvar, (float)value);
+                }
+            }
+            break;
+            case cvar_float:
+            {
+                float value = cvar->asFloat;
+                if (igSliderFloat(cvar->name, &value, -10.0f, 10.0f))
+                {
+                    cvar_set_float(cvar, value);
+                }
+            }
+            break;
+            }
+            igNextColumn();
+            igText(cvars[i]->description); igNextColumn();
         }
-        break;
-        }
-        igNextColumn();
-        igText(cvars[i]->description); igNextColumn();
+        igColumns(1);
     }
-    igColumns(1);
     igEnd();
 
     ProfileEnd(pm_gui);

@@ -67,17 +67,11 @@ void asset_sys_shutdown(void)
     folder_free(&ms_folder);
 }
 
-ProfileMark(pm_get, asset_get)
 bool asset_get(const char* name, asset_t* asset)
 {
-    ProfileBegin(pm_get);
-
     ASSERT(name);
     ASSERT(asset);
-    bool got = dict_get(&ms_assets, name, asset);
-
-    ProfileEnd(pm_get);
-    return got;
+    return dict_get(&ms_assets, name, asset);
 }
 
 // ----------------------------------------------------------------------------
@@ -152,106 +146,106 @@ static i32 CmpAsset(
 }
 
 ProfileMark(pm_OnGui, asset_gui)
-void asset_gui(void)
+void asset_gui(bool* pEnabled)
 {
     ProfileBegin(pm_OnGui);
 
-    igBegin("AssetSystem", NULL, 0);
-
-    if (igCollapsingHeader1("Packs"))
+    if (igBegin("AssetSystem", pEnabled, 0))
     {
-        igIndent(0.0f);
-        const i32 numPacks = ms_folder.length;
-        const pack_t* packs = ms_folder.packs;
-        for (i32 i = 0; i < numPacks; ++i)
+        if (igCollapsingHeader1("Packs"))
         {
-            if (!igCollapsingHeader1(packs[i].path))
+            igIndent(0.0f);
+            const i32 numPacks = ms_folder.length;
+            const pack_t* packs = ms_folder.packs;
+            for (i32 i = 0; i < numPacks; ++i)
             {
-                continue;
+                if (!igCollapsingHeader1(packs[i].path))
+                {
+                    continue;
+                }
+
+                igPushIDStr(packs[i].path);
+
+                const i32 fileCount = packs[i].filecount;
+                const dpackfile_t* files = packs[i].files;
+                i32 used = 0;
+                for (i32 i = 0; i < fileCount; ++i)
+                {
+                    used += files[i].length;
+                }
+                const i32 overhead = (sizeof(dpackfile_t) * fileCount) + sizeof(dpackheader_t);
+                const i32 empty = (packs[i].bytes - used) - overhead;
+                const dpackheader_t* hdr = packs[i].header;
+
+                igValueInt("File Count", fileCount);
+                igValueInt("Bytes", packs[i].bytes);
+                igValueInt("Used", used);
+                igValueInt("Empty", empty);
+                igValueInt("Header Offset", hdr->offset);
+                igValueInt("Header Length", hdr->length);
+                igText("Header ID: %.4s", hdr->id);
+
+                const char* titles[] =
+                {
+                    "Index",
+                    "Name",
+                    "Offset",
+                    "Size",
+                    "Usage %",
+                };
+                if (igTableHeader(NELEM(titles), titles, (i32*)&gs_fileCmpMode))
+                {
+                    gs_revSort = !gs_revSort;
+                }
+
+                const double rcpUsed = 100.0 / used;
+                i32* indices = indsort(files, fileCount, sizeof(files[0]), CmpFile, NULL);
+                for (i32 j = 0; j < fileCount; ++j)
+                {
+                    const i32 k = indices[j];
+                    const dpackfile_t* file = files + k;
+                    const double len = file->length;
+                    igText("%d", k); igNextColumn();
+                    igText("%s", file->name); igNextColumn();
+                    igText("%d", file->offset); igNextColumn();
+                    igText("%d", file->length); igNextColumn();
+                    igText("%2.2f%%", len * rcpUsed); igNextColumn();
+                }
+                pim_free(indices);
+                igTableFooter();
+
+                igPopID();
             }
-
-            igPushIDStr(packs[i].path);
-
-            const i32 fileCount = packs[i].filecount;
-            const dpackfile_t* files = packs[i].files;
-            i32 used = 0;
-            for (i32 i = 0; i < fileCount; ++i)
-            {
-                used += files[i].length;
-            }
-            const i32 overhead = (sizeof(dpackfile_t) * fileCount) + sizeof(dpackheader_t);
-            const i32 empty = (packs[i].bytes - used) - overhead;
-            const dpackheader_t* hdr = packs[i].header;
-
-            igValueInt("File Count", fileCount);
-            igValueInt("Bytes", packs[i].bytes);
-            igValueInt("Used", used);
-            igValueInt("Empty", empty);
-            igValueInt("Header Offset", hdr->offset);
-            igValueInt("Header Length", hdr->length);
-            igText("Header ID: %.4s", hdr->id);
-
+            igUnindent(0.0f);
+        }
+        if (igCollapsingHeader1("Assets"))
+        {
             const char* titles[] =
             {
-                "Index",
                 "Name",
-                "Offset",
                 "Size",
-                "Usage %",
             };
-            if (igTableHeader(NELEM(titles), titles, (i32*)&gs_fileCmpMode))
+            if (igTableHeader(NELEM(titles), titles, (i32*)&gs_assetCmpMode))
             {
                 gs_revSort = !gs_revSort;
             }
 
-            const double rcpUsed = 100.0 / used;
-            i32* indices = indsort(files, fileCount, sizeof(files[0]), CmpFile, NULL);
-            for (i32 j = 0; j < fileCount; ++j)
+            const dict_t dict = ms_assets;
+            const asset_t* assets = dict.values;
+            u32* indices = dict_sort(&dict, CmpAsset, NULL);
+            for (u32 i = 0; i < dict.count; ++i)
             {
-                const i32 k = indices[j];
-                const dpackfile_t* file = files + k;
-                const double len = file->length;
-                igText("%d", k); igNextColumn();
-                igText("%s", file->name); igNextColumn();
-                igText("%d", file->offset); igNextColumn();
-                igText("%d", file->length); igNextColumn();
-                igText("%2.2f%%", len * rcpUsed); igNextColumn();
+                u32 j = indices[i];
+                const char* name = dict.keys[j];
+                ASSERT(name);
+                igText(name); igNextColumn();
+                igText("%d", assets[j].length); igNextColumn();
             }
             pim_free(indices);
+
             igTableFooter();
-
-            igPopID();
         }
-        igUnindent(0.0f);
     }
-    if (igCollapsingHeader1("Assets"))
-    {
-        const char* titles[] =
-        {
-            "Name",
-            "Size",
-        };
-        if (igTableHeader(NELEM(titles), titles, (i32*)&gs_assetCmpMode))
-        {
-            gs_revSort = !gs_revSort;
-        }
-
-        const dict_t dict = ms_assets;
-        const asset_t* assets = dict.values;
-        u32* indices = dict_sort(&dict, CmpAsset, NULL);
-        for (u32 i = 0; i < dict.count; ++i)
-        {
-            u32 j = indices[i];
-            const char* name = dict.keys[j];
-            ASSERT(name);
-            igText(name); igNextColumn();
-            igText("%d", assets[j].length); igNextColumn();
-        }
-        pim_free(indices);
-
-        igTableFooter();
-    }
-
     igEnd();
 
     ProfileEnd(pm_OnGui);

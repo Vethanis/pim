@@ -54,11 +54,35 @@ static void EnsureDict(void)
 }
 
 ProfileMark(pm_gui, profile_gui)
-void profile_gui(void)
+void profile_gui(bool* pEnabled)
 {
     ProfileBegin(pm_gui);
     EnsureDict();
-    OnGui();
+
+    if (igBegin("Profiler", pEnabled, 0))
+    {
+        igSliderInt("thread", &ms_gui_tid, 0, kNumThreads - 1, "%d");
+        node_t* root = ms_prevroots[ms_gui_tid].fchild;
+
+        igSeparator();
+
+        VisitClr(root);
+        VisitSum(root);
+
+        igColumns(3);
+        {
+            igText("Name"); igNextColumn();
+            igText("Milliseconds"); igNextColumn();
+            igText("Percent"); igNextColumn();
+
+            igSeparator();
+
+            VisitGui(root);
+        }
+        igColumns(1);
+    }
+    igEnd();
+
     ProfileEnd(pm_gui);
 }
 
@@ -258,36 +282,9 @@ static void VisitGui(const node_t* node)
     VisitGui(node->sibling);
 }
 
-static void OnGui(void)
-{
-    igBegin("Profiler", NULL, 0);
-
-    igSliderInt("thread", &ms_gui_tid, 0, kNumThreads - 1, "%d");
-    node_t* root = ms_prevroots[ms_gui_tid].fchild;
-
-    igSeparator();
-
-    VisitClr(root);
-    VisitSum(root);
-
-    igColumns(3);
-    {
-        igText("Name"); igNextColumn();
-        igText("Milliseconds"); igNextColumn();
-        igText("Percent"); igNextColumn();
-
-        igSeparator();
-
-        VisitGui(root);
-    }
-    igColumns(1);
-
-    igEnd();
-}
-
 #else
 
-void profile_gui(void) {}
+void profile_gui(bool* pEnabled) {}
 
 void _ProfileBegin(profmark_t* mark) {}
 void _ProfileEnd(profmark_t* mark) {}

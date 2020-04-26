@@ -159,11 +159,11 @@ void render_sys_shutdown(void)
 }
 
 ProfileMark(pm_gui, render_sys_gui)
-void render_sys_gui(void)
+void render_sys_gui(bool* pEnabled)
 {
     ProfileBegin(pm_gui);
 
-    igBegin("RenderSystem", NULL, 0);
+    if (igBegin("RenderSystem", pEnabled, 0))
     {
         igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f);
         igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f);
@@ -296,7 +296,6 @@ pim_inline float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, 
 }
 
 ProfileMark(pm_DrawMesh, DrawMesh)
-
 pim_optimize
 static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 {
@@ -415,7 +414,6 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 }
 
 ProfileMark(pm_ClearTile, ClearTile)
-
 pim_optimize
 static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
 {
@@ -448,7 +446,6 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
 }
 
 ProfileMark(pm_ExecTile, ExecTile)
-
 pim_optimize
 static void ExecTile(i32 iTile)
 {
@@ -498,7 +495,6 @@ static void RasterizeTaskFn(task_t* task, i32 begin, i32 end)
 }
 
 ProfileMark(pm_DrawableTaskFn, DrawableTaskFn)
-
 static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length)
 {
     ProfileBegin(pm_DrawableTaskFn);
@@ -530,7 +526,6 @@ static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length)
 }
 
 ProfileMark(pm_TrsTaskFn, TrsTaskFn)
-
 static void TrsTaskFn(ecs_foreach_t* task, void** rows, i32 length)
 {
     ProfileBegin(pm_TrsTaskFn);

@@ -16,6 +16,6 @@ void asset_sys_shutdown(void);
 
 bool asset_get(const char* name, asset_t* assetOut);
 
-void asset_gui(void);
+void asset_gui(bool* pEnabled);
 
 PIM_C_END

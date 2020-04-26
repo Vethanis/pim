@@ -12,7 +12,7 @@ typedef struct profmrk_s
     u64 sum;
 } profmark_t;
 
-void profile_gui(void);
+void profile_gui(bool* pEnabled);
 
 void _ProfileBegin(profmark_t* mark);
 void _ProfileEnd(profmark_t* mark);
@@ -24,7 +24,7 @@ void _ProfileEnd(profmark_t* mark);
     #define ProfileBegin(mark)      _ProfileBegin(&(mark))
     #define ProfileEnd(mark)        _ProfileEnd(&(mark))
 #else
-    #define ProfileMark(var)        
+    #define ProfileMark(var, tag)   
     #define ProfileBegin(mark)      (void)0
     #define ProfileEnd(mark)        (void)0
 #endif // PIM_PROFILE

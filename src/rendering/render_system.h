@@ -10,6 +10,6 @@ void render_sys_shutdown(void);
 
 void render_sys_present(void);
 
-void render_sys_gui(void);
+void render_sys_gui(bool* pEnabled);
 
 PIM_C_END

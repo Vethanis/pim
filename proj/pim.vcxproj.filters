@@ -289,6 +289,9 @@
     <ClCompile Include="..\src\editor\editor.c">
       <Filter>Source Files\editor</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\editor\menubar.c">
+      <Filter>Source Files\editor</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -640,6 +643,9 @@
       <Filter>Source Files\ui</Filter>
     </ClInclude>
     <ClInclude Include="..\src\editor\editor.h">
+      <Filter>Source Files\editor</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\editor\menubar.h">
       <Filter>Source Files\editor</Filter>
     </ClInclude>
   </ItemGroup>
