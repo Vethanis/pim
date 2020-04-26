@@ -1106,6 +1106,7 @@ bool igBeginMainMenuBar(void);
 void igEndMainMenuBar(void);
 bool igBeginMenu(const char* label,bool enabled);
 void igEndMenu(void);
+bool igMenuItem(const char* label);
 bool igMenuItemBool(const char* label,const char* shortcut,bool selected,bool enabled);
 bool igMenuItemBoolPtr(const char* label,const char* shortcut,bool* p_selected,bool enabled);
 void igBeginTooltip(void);

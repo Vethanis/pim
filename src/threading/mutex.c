@@ -5,7 +5,8 @@
 
 #include <Windows.h>
 
-CONV_ASSERT(mutex_t, CRITICAL_SECTION)
+SASSERT(sizeof(mutex_t) >= sizeof(CRITICAL_SECTION));
+SASSERT(_Alignof(mutex_t) >= _Alignof(CRITICAL_SECTION));
 
 void mutex_create(mutex_t* mut)
 {

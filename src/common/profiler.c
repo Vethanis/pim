@@ -12,8 +12,6 @@
 #include "ui/cimgui.h"
 #include <string.h>
 
-static cvar_t cv_profilegui = { cvar_bool, "profilegui", "1", "Show profiler GUI" };
-
 // ----------------------------------------------------------------------------
 
 typedef struct node_s
@@ -51,7 +49,6 @@ static void EnsureDict(void)
 {
     if (!ms_node_dict.valueSize)
     {
-        cvar_reg(&cv_profilegui);
         dict_new(&ms_node_dict, sizeof(double), EAlloc_Perm);
     }
 }
@@ -61,10 +58,7 @@ void profile_gui(void)
 {
     ProfileBegin(pm_gui);
     EnsureDict();
-    if (cv_profilegui.asFloat != 0.0f)
-    {
-        OnGui();
-    }
+    OnGui();
     ProfileEnd(pm_gui);
 }
 

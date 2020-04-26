@@ -83,6 +83,9 @@
     <Filter Include="Source Files\glad">
       <UniqueIdentifier>{d5176a6b-93d5-4121-85d3-09ab2e84b471}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\editor">
+      <UniqueIdentifier>{a70292de-f5f7-457a-8dfc-6d748d575523}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -282,6 +285,9 @@
     </ClCompile>
     <ClCompile Include="..\src\ui\cimgui_ext.c">
       <Filter>Source Files\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\editor\editor.c">
+      <Filter>Source Files\editor</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -632,6 +638,9 @@
     </ClInclude>
     <ClInclude Include="..\src\ui\cimgui_ext.h">
       <Filter>Source Files\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\editor\editor.h">
+      <Filter>Source Files\editor</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

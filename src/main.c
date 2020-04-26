@@ -14,6 +14,7 @@
 #include "common/profiler.h"
 #include "common/cvar.h"
 #include "common/cmd.h"
+#include "editor/editor.h"
 
 static void Init(void);
 static void Update(void);
@@ -46,10 +47,12 @@ static void Init(void)
     input_sys_init();           // setup glfw input callbacks
     ui_sys_init();              // setup imgui
     logic_sys_init();           // setup game logic
+    editor_sys_init();
 }
 
 static void Shutdown(void)
 {
+    editor_sys_shutdown();
     logic_sys_shutdown();
     ui_sys_shutdown();
     input_sys_shutdown();
@@ -119,10 +122,7 @@ static void OnGui(void)
     ProfileBegin(pm_gui);
     ui_sys_beginframe();        // ImGui::BeginFrame
 
-    cvar_gui();
-    asset_gui();
-    profile_gui();
-    render_sys_gui();
+    editor_sys_update();
 
     ui_sys_endframe();          // ImGui::EndFrame
     ProfileEnd(pm_gui);

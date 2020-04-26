@@ -8,8 +8,6 @@
     #define PIM_C_END 
 #endif // __cplusplus
 
-// ----------------------------------------------------------------------------
-
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
     #define PLAT_WINDOWS            1
 #elif defined(__ANDROID__)
@@ -28,22 +26,21 @@
     #error Unable to detect current platform
 #endif // def _WIN32 || def __CYGWIN__
 
-#if defined(__arm__) || defined(__arm64__)
-    #define PLAT_CPU_ARM            1
-    #define PLAT_CPU_X86            0
-#else
-    #define PLAT_CPU_ARM            0
-    #define PLAT_CPU_X86            1
-#endif 
-
-// ----------------------------------------------------------------------------
-
 #if PLAT_WINDOWS
     #define IF_WIN(x)               x
     #define IF_UNIX(x)              
 
     #define INTERRUPT()             __debugbreak()
     #define pim_thread_local        __declspec(thread)
+    #define PIM_EXPORT              __declspec(dllexport)
+    #define PIM_IMPORT              __declspec(dllimport)
+    #define PIM_CDECL               __cdecl
+    #define VEC_CALL                __vectorcall
+    #define pim_inline              __forceinline
+    #define pim_noalias             __restrict
+    #define pim_alignas(x)          __declspec(align(x))
+    #define pim_optimize            __pragma(optimize("gt", on))
+    #define pim_deoptimize          __pragma(optimize("gt", off))
 
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN
@@ -57,80 +54,67 @@
 
     #define INTERRUPT()             raise(SIGTRAP)
     #define pim_thread_local        _Thread_local
+    #define PIM_EXPORT              
+    #define PIM_IMPORT              
+    #define PIM_CDECL               
+    #define VEC_CALL                
+    #define pim_inline              
+    #define pim_noalias             
+    #define pim_alignas(x)          
+    #define pim_optimize            
+    #define pim_deoptimize          
 #endif // PLAT_WINDOWS
 
-#define PIM_EXPORT                  IF_WIN(__declspec(dllexport))
-#define PIM_IMPORT                  IF_WIN(__declspec(dllimport))
-#define PIM_CDECL                   IF_WIN(__cdecl)
-#define VEC_CALL                    IF_WIN(__vectorcall)
-#define pim_inline                  IF_WIN(__forceinline)
-#define pim_noalias                 IF_WIN(__restrict)
-#define pim_alignas(x)              IF_WIN(__declspec(align(x)))
-#define pim_optimize                IF_WIN(__pragma(optimize("gt", on)))
-#define pim_deoptimize              IF_WIN(__pragma(optimize("gt", off)))
-
-// ----------------------------------------------------------------------------
+#define NELEM(x)                    ( sizeof(x) / sizeof((x)[0]) )
+#define ARGS(x)                     x, NELEM(x)
+#define IF_TRUE(x, expr)            do { if(x) { expr; } } while(0)
+#define IF_FALSE(x, expr)           do { if(!(x)) { expr; } } while(0)
 
 #ifdef _DEBUG
     #define IF_DEBUG(x)             x
     #define IFN_DEBUG(x)            (void)0
+    #define ASSERT(x)               IF_FALSE(x, INTERRUPT())
 #else
     #define IF_DEBUG(x)             (void)0
     #define IFN_DEBUG(x)            x
+    #define ASSERT(x)               (void)0
 #endif // def _DEBUG
-
-// ----------------------------------------------------------------------------
-
-#define NELEM(x)                    ( sizeof(x) / sizeof((x)[0]) )
-#define ARGS(x)                     x, NELEM(x)
-#define DBG_INT()                   IF_DEBUG(INTERRUPT())
-#define IF_TRUE(x, expr)            do { if(x) { expr; } } while(0)
-#define IF_FALSE(x, expr)           do { if(!(x)) { expr; } } while(0)
-#define ASSERT(x)                   IF_DEBUG(IF_FALSE(x, INTERRUPT()))
-#define CHECK(x)                    IF_FALSE(x, DBG_INT(); err = EFail; return retval)
-#define CHECKERR()                  IF_FALSE(err == ESuccess, DBG_INT(); return retval)
 
 #define _CAT_TOK(x, y)              x ## y
 #define CAT_TOK(x, y)               _CAT_TOK(x, y)
 
 #define SASSERT(x)                  typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
 
-#define CONV_ASSERT(O, I) \
-    SASSERT(sizeof(O) >= sizeof(I)); \
-    SASSERT(_Alignof(O) >= _Alignof(I));
-
-// ----------------------------------------------------------------------------
-
-// Maximum path length, including null terminator
 #define PIM_PATH                    256
-
-// ----------------------------------------------------------------------------
 
 PIM_C_BEGIN
 
-typedef signed char             i8;
-typedef signed short            i16;
-typedef signed int              i32;
-typedef signed long long        i64;
-typedef i64                     isize;
-typedef unsigned char           u8;
-typedef unsigned short          u16;
-typedef unsigned int            u32;
-typedef unsigned long long      u64;
-typedef u64                     usize;
+typedef signed char                 i8;
+typedef signed short                i16;
+typedef signed int                  i32;
+typedef signed long long            i64;
+typedef i64                         isize;
+typedef unsigned char               u8;
+typedef unsigned short              u16;
+typedef unsigned int                u32;
+typedef unsigned long long          u64;
+typedef u64                         usize;
 
-
-#if !defined(NULL)
-    #define NULL                0
+#ifndef NULL
+    #ifdef __cplusplus
+        #define NULL                0
+    #else
+        #define NULL                ((void*)0)
+    #endif // cpp
 #endif
 
 #ifndef _STDBOOL
 #define _STDBOOL
 #define __bool_true_false_are_defined 1
 #ifndef __cplusplus
-    #define bool                _Bool
-    #define false               0
-    #define true                1
+    #define bool                    _Bool
+    #define false                   0
+    #define true                    1
 #endif // __cplusplus
 #endif // _STDBOOL
 
@@ -143,5 +127,3 @@ typedef enum
 } EAlloc;
 
 PIM_C_END
-
-// ----------------------------------------------------------------------------

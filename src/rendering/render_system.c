@@ -73,10 +73,6 @@ static void RegenAlbedo(void);
 
 // ----------------------------------------------------------------------------
 
-static cvar_t cv_render_sys_gui = { cvar_bool, "render_sys_gui", "1", "Show the render system GUI" };
-
-// ----------------------------------------------------------------------------
-
 static framebuf_t ms_buffer;
 static rcmdqueue_t ms_queue;
 static task_t ms_rastask;
@@ -94,7 +90,6 @@ static float3 ms_modelScale = { 1.0f, 1.0f, 1.0f };
 
 void render_sys_init(void)
 {
-    cvar_reg(&cv_render_sys_gui);
     ms_prng = prng_create();
 
     framebuf_create(&ms_buffer, kDrawWidth, kDrawHeight);
@@ -166,10 +161,6 @@ void render_sys_shutdown(void)
 ProfileMark(pm_gui, render_sys_gui)
 void render_sys_gui(void)
 {
-    if (cv_render_sys_gui.asFloat == 0.0f)
-    {
-        return;
-    }
     ProfileBegin(pm_gui);
 
     igBegin("RenderSystem", NULL, 0);

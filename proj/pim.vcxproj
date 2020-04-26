@@ -33,6 +33,7 @@
     <ClCompile Include="..\src\containers\int_queue.c" />
     <ClCompile Include="..\src\containers\ptrqueue.c" />
     <ClCompile Include="..\src\containers\queue.c" />
+    <ClCompile Include="..\src\editor\editor.c" />
     <ClCompile Include="..\src\glad\glad.c" />
     <ClCompile Include="..\src\input\input_system.c" />
     <ClCompile Include="..\src\io\dir.c" />
@@ -113,6 +114,7 @@
     <ClInclude Include="..\src\containers\hash_util.h" />
     <ClInclude Include="..\src\containers\ptrqueue.h" />
     <ClInclude Include="..\src\containers\queue.h" />
+    <ClInclude Include="..\src\editor\editor.h" />
     <ClInclude Include="..\src\geometry\distance.h" />
     <ClInclude Include="..\src\geometry\types.h" />
     <ClInclude Include="..\src\input\input_system.h" />

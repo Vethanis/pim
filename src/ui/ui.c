@@ -5,6 +5,7 @@
 #include "allocator/allocator.h"
 #include "rendering/window.h"
 #include "common/profiler.h"
+#include "common/cvar.h"
 
 static ImGuiContext* ms_ctx;
 

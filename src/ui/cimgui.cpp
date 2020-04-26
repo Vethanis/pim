@@ -978,6 +978,10 @@ void igEndMenu()
 {
     return ImGui::EndMenu();
 }
+bool igMenuItem(const char* label)
+{
+    return ImGui::MenuItem(label);
+}
 bool igMenuItemBool(const char* label,const char* shortcut,bool selected,bool enabled)
 {
     return ImGui::MenuItem(label,shortcut,selected,enabled);

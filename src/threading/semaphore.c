@@ -5,7 +5,8 @@
 
 #include <Windows.h>
 
-CONV_ASSERT(semaphore_t, HANDLE)
+SASSERT(sizeof(semaphore_t) >= sizeof(HANDLE));
+SASSERT(_Alignof(semaphore_t) >= _Alignof(HANDLE));
 
 void semaphore_create(semaphore_t* sema, i32 value)
 {

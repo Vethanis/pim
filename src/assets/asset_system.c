@@ -13,7 +13,6 @@
 
 static cvar_t cv_basedir = { cvar_text, "basedir", "data", "base directory for game data" };
 static cvar_t cv_game = { cvar_text, "game", "id1", "name of the active game" };
-static cvar_t cv_gui = { cvar_bool, "assetgui", "1", "show asset system gui" };
 
 static dict_t ms_assets;
 static folder_t ms_folder;
@@ -22,7 +21,6 @@ void asset_sys_init(void)
 {
     cvar_reg(&cv_basedir);
     cvar_reg(&cv_game);
-    cvar_reg(&cv_gui);
 
     dict_t assets;
     dict_new(&assets, sizeof(asset_t), EAlloc_Perm);
@@ -156,11 +154,6 @@ static i32 CmpAsset(
 ProfileMark(pm_OnGui, asset_gui)
 void asset_gui(void)
 {
-    if (cv_gui.asFloat == 0.0f)
-    {
-        return;
-    }
-
     ProfileBegin(pm_OnGui);
 
     igBegin("AssetSystem", NULL, 0);
