@@ -55,9 +55,8 @@ void con_sys_update(void)
 {
     ProfileBegin(pm_update);
 
-    if (cv_conlogpath.flags & cvarf_dirty)
+    if(cvar_check_dirty(&cv_conlogpath))
     {
-        cv_conlogpath.flags &= ~cvarf_dirty;
         fstr_close(&ms_file);
         ms_file = fstr_open(cv_conlogpath.value, "wb");
     }

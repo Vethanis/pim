@@ -31,7 +31,7 @@ static edwin_t ms_windows[] =
     { "Assets", false, asset_gui },
     { "Profiler", false, profile_gui },
     { "Renderer", false, render_sys_gui },
-    { "ImGui Demo", false, igShowDemoWindow }, // adds about 300kb to exe; strip in master builds
+    { "ImGui Demo", false, igShowDemoWindow },
 };
 
 // ----------------------------------------------------------------------------
