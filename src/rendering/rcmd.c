@@ -1,6 +1,7 @@
 #include "rendering/rcmd.h"
 #include "allocator/allocator.h"
-#include "common/pimcpy.h"
+
+#include <string.h>
 
 static const i32 kCmdSize[] =
 {
@@ -37,7 +38,7 @@ bool rcmdbuf_read(const rcmdbuf_t* buf, i32* pCursor, rcmd_t* dst)
     if (cursor < length)
     {
         ASSERT((length - cursor) >= sizeof(cmdType));
-        pimcpy(&cmdType, buffer + cursor, sizeof(cmdType));
+        memcpy(&cmdType, buffer + cursor, sizeof(cmdType));
         cursor += sizeof(cmdType);
 
         ASSERT(cmdType > RCmdType_NONE);
@@ -46,7 +47,7 @@ bool rcmdbuf_read(const rcmdbuf_t* buf, i32* pCursor, rcmd_t* dst)
         ASSERT((length - cursor) >= cmdSize);
 
         dst->type = cmdType;
-        pimcpy(&(dst->clear), buffer + cursor, cmdSize);
+        memcpy(&(dst->clear), buffer + cursor, cmdSize);
         cursor += cmdSize;
 
         *pCursor = cursor;
@@ -69,9 +70,9 @@ static void rcmdbuf_write(rcmdbuf_t* buf, i32 type, const void* src, i32 bytes)
 
     u8* dst = ptr;
     dst += length;
-    pimcpy(dst, &type, sizeof(type));
+    memcpy(dst, &type, sizeof(type));
     dst += sizeof(type);
-    pimcpy(dst, src, bytes);
+    memcpy(dst, src, bytes);
 
     buf->ptr = ptr;
     buf->length = length + sizeof(type) + bytes;

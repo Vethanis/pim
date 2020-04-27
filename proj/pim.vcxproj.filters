@@ -280,9 +280,6 @@
     <ClCompile Include="..\src\common\cmd.c">
       <Filter>Source Files\common</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\pimcpy.c">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\ui\cimgui_ext.c">
       <Filter>Source Files\ui</Filter>
     </ClCompile>
@@ -292,8 +289,11 @@
     <ClCompile Include="..\src\editor\menubar.c">
       <Filter>Source Files\editor</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\editor\console.c">
-      <Filter>Source Files\editor</Filter>
+    <ClCompile Include="..\src\common\console.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\text.c">
+      <Filter>Source Files\containers</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -636,9 +636,6 @@
     <ClInclude Include="..\src\common\cmd.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\pimcpy.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\ui\cimgui_ext.h">
       <Filter>Source Files\ui</Filter>
     </ClInclude>
@@ -648,10 +645,13 @@
     <ClInclude Include="..\src\editor\menubar.h">
       <Filter>Source Files\editor</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\editor\console.h">
-      <Filter>Source Files\editor</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\carray.c">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\console.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\text.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>

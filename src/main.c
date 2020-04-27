@@ -14,6 +14,7 @@
 #include "common/profiler.h"
 #include "common/cvar.h"
 #include "common/cmd.h"
+#include "common/console.h"
 #include "editor/editor.h"
 
 static void Init(void);
@@ -38,6 +39,7 @@ static void Init(void)
     alloc_sys_init();           // preallocate pools
     window_sys_init();          // gl context, window
     cmd_sys_init();
+    con_sys_init();
     task_sys_init();            // enable async work
     ecs_sys_init();             // place to store data
     asset_sys_init();           // means of loading data
@@ -62,17 +64,17 @@ static void Shutdown(void)
     asset_sys_shutdown();
     ecs_sys_shutdown();
     task_sys_shutdown();
+    con_sys_shutdown();
     cmd_sys_shutdown();
     window_sys_shutdown();
     alloc_sys_shutdown();
     time_sys_shutdown();
 }
 
-ProfileMark(pm_input, InputPhase)
-static void InputPhase(void)
+ProfileMark(pm_input, InitPhase)
+static void InitPhase(void)
 {
     ProfileBegin(pm_input);
-    alloc_sys_update();         // reset linear allocator
     input_sys_update();         // pump input events to callbacks
     window_sys_update();        // update window size
     network_sys_update();       // transmit and receive game state
@@ -105,9 +107,10 @@ ProfileMark(pm_update, Update)
 static void Update(void)
 {
     time_sys_update();          // bump frame id for profiler
+    alloc_sys_update();         // reset linear allocator
     ProfileBegin(pm_update);
 
-    InputPhase();
+    InitPhase();
     SimulatePhase();
     PresentPhase();
     OnGui();
@@ -122,6 +125,7 @@ static void OnGui(void)
     ProfileBegin(pm_gui);
     ui_sys_beginframe();        // ImGui::BeginFrame
 
+    con_sys_update();
     editor_sys_update();
 
     ui_sys_endframe();          // ImGui::EndFrame

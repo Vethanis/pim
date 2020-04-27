@@ -23,7 +23,8 @@ PIM_C_END
 
 #include "common/hashstring.h"
 #include "common/stringutil.h"
-#include "common/pimcpy.h"
+
+#include <string.h>
 
 #define kMaxModules 256
 
@@ -84,7 +85,7 @@ i32 PIM_CDECL pimod_get(const char* name, void* dst, i32 bytes)
     {
         const void* src = ms_modules[i];
         ASSERT(src);
-        pimcpy(dst, src, bytes);
+        memcpy(dst, src, bytes);
         return 1;
     }
     return 0;

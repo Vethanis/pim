@@ -1,14 +1,16 @@
 #include "common/cmd.h"
 #include "allocator/allocator.h"
 #include "common/stringutil.h"
-#include "common/pimcpy.h"
 #include "common/cvar.h"
 #include "containers/dict.h"
 #include "containers/queue.h"
 #include "assets/asset_system.h"
 #include "common/time.h"
 #include "common/profiler.h"
-#include "editor/console.h"
+#include "common/console.h"
+#include "containers/text.h"
+
+#include <string.h>
 
 // ----------------------------------------------------------------------------
 
@@ -42,8 +44,8 @@ static queue_t ms_cmdqueue;
 
 void cmd_sys_init(void)
 {
-    dict_new(&ms_cmds, sizeof(cmdfn_t), EAlloc_Perm);
-    dict_new(&ms_aliases, sizeof(cmdalias_t), EAlloc_Perm);
+    dict_new(&ms_cmds, sizeof(text32), sizeof(cmdfn_t), EAlloc_Perm);
+    dict_new(&ms_aliases, sizeof(text32), sizeof(cmdalias_t), EAlloc_Perm);
     queue_create(&ms_cmdqueue, sizeof(cmdbrain_t), EAlloc_Perm);
     cmd_reg("alias", cmd_alias_fn);
     cmd_reg("exec", cmd_execfile_fn);
@@ -134,8 +136,8 @@ void cbuf_pushfront(cbuf_t* buf, const char* text)
     const i32 newLen = bufLen + textLen;
     cbuf_reserve(buf, newLen);
     char* ptr = buf->ptr;
-    pimmove(ptr + bufLen, ptr, bufLen);
-    pimcpy(ptr, text, textLen);
+    memmove(ptr + bufLen, ptr, bufLen);
+    memcpy(ptr, text, textLen);
     ptr[newLen] = 0;
     buf->length = newLen;
 }
@@ -150,7 +152,7 @@ void cbuf_pushback(cbuf_t* buf, const char* text)
     const i32 newLen = bufLen + textLen;
     cbuf_reserve(buf, newLen);
     char* ptr = buf->ptr;
-    pimcpy(ptr + bufLen, text, textLen);
+    memcpy(ptr + bufLen, text, textLen);
     ptr[newLen] = 0;
     buf->length = newLen;
 }
@@ -186,7 +188,7 @@ cmdstat_t cbuf_exec(cbuf_t* buf)
 
         char line[1024] = { 0 };
         ASSERT(i < NELEM(line));
-        pimcpy(line, text, i);
+        memcpy(line, text, i);
         line[i] = 0;
 
         if (i == len)
@@ -197,7 +199,7 @@ cmdstat_t cbuf_exec(cbuf_t* buf)
         {
             ++i; // consume line ending
             buf->length -= i;
-            pimmove(text, text + i, buf->length);
+            memmove(text, text + i, buf->length);
             text[buf->length] = 0;
         }
 
@@ -227,16 +229,20 @@ void cmd_reg(const char* name, cmdfn_t fn)
 {
     ASSERT(name);
     ASSERT(fn);
-    if (!dict_add(&ms_cmds, name, &fn))
+    text32 txt;
+    text_new(&txt, sizeof(txt), name);
+    if (!dict_add(&ms_cmds, &txt, &fn))
     {
-        dict_set(&ms_cmds, name, &fn);
+        dict_set(&ms_cmds, &txt, &fn);
     }
 }
 
 bool cmd_exists(const char* name)
 {
     ASSERT(name);
-    return dict_find(&ms_cmds, name) != -1;
+    text32 txt;
+    text_new(&txt, sizeof(txt), name);
+    return dict_find(&ms_cmds, &txt) != -1;
 }
 
 const char* cmd_complete(const char* namePart)
@@ -244,11 +250,11 @@ const char* cmd_complete(const char* namePart)
     ASSERT(namePart);
     const i32 partLen = StrLen(namePart);
     const u32 width = ms_cmds.width;
-    const char** names = ms_cmds.keys;
+    const text32* names = ms_cmds.keys;
     for (u32 i = 0; i < width; ++i)
     {
-        const char* name = names[i];
-        if (name && !StrCmp(namePart, partLen, name))
+        const char* name = names[i].c;
+        if (name[0] && !StrCmp(namePart, partLen, name))
         {
             return name;
         }
@@ -269,23 +275,26 @@ cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
     }
     ASSERT(argv);
 
+    text32 txt;
+    text_new(&txt, sizeof(txt), argv[0]);
+
     // commands
     cmdfn_t cmd = NULL;
-    if (dict_get(&ms_cmds, argv[0], &cmd))
+    if (dict_get(&ms_cmds, &txt, &cmd))
     {
         return cmd(argc, argv);
     }
 
     // aliases (macros to expand into front of cbuf)
     cmdalias_t alias = { 0 };
-    if (dict_get(&ms_aliases, argv[0], &alias))
+    if (dict_get(&ms_aliases, &txt, &alias))
     {
         cbuf_pushfront(buf, alias.value);
         return cmdstat_ok;
     }
 
     // cvars
-    cvar_t* cvar = cvar_find(argv[0]);
+    cvar_t* cvar = cvar_find(txt.c);
     if (cvar)
     {
         if (argc == 1)
@@ -300,7 +309,7 @@ cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
         }
     }
 
-    con_printf(C32_RED, "Unknown command \"%s\"", argv[0]);
+    con_printf(C32_RED, "Unknown command \"%s\"", txt.c);
     return cmdstat_err;
 }
 
@@ -438,12 +447,12 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
     {
         con_puts(C32_RED, "Current alias commands:");
         const u32 width = ms_aliases.width;
-        const char** names = ms_aliases.keys;
+        const text32* names = ms_aliases.keys;
         const cmdalias_t* aliases = ms_aliases.values;
         for (u32 i = 0; i < width; ++i)
         {
-            const char* name = names[i];
-            if (name)
+            const char* name = names[i].c;
+            if (name[0])
             {
                 con_printf(C32_RED, "%s : %s", name, aliases[i].value);
             }
@@ -451,9 +460,11 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
         return cmdstat_err;
     }
 
-    const char* name = argv[1];
+    text32 name;
+    text_new(&name, sizeof(name), argv[1]);
+
     cmdalias_t alias = { 0 };
-    if (dict_rm(&ms_aliases, name, &alias))
+    if (dict_rm(&ms_aliases, &name, &alias))
     {
         pim_free(alias.value);
         alias.value = NULL;
@@ -472,7 +483,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
     StrCat(ARGS(cmd), ";");
 
     alias.value = StrDup(cmd, EAlloc_Perm);
-    bool added = dict_add(&ms_aliases, name, &alias);
+    bool added = dict_add(&ms_aliases, &name, &alias);
     ASSERT(added);
 
     return cmdstat_ok;

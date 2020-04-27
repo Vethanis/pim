@@ -1,14 +1,15 @@
-#include "editor/console.h"
+#include "common/console.h"
 #include "allocator/allocator.h"
 #include "common/cmd.h"
 #include "common/cvar.h"
-#include "common/pimcpy.h"
 #include "common/profiler.h"
 #include "common/stringutil.h"
 #include "common/valist.h"
 #include "io/fstr.h"
 #include "input/input_system.h"
 #include "ui/cimgui.h"
+
+#include <string.h>
 
 #define MAX_LINES       256
 #define MAX_HISTORY     64
@@ -258,7 +259,7 @@ static i32 OnTextComplete(ImGuiInputTextCallbackData* data)
     }
     if (src)
     {
-        pimset(dst, 0, size);
+        memset(dst, 0, size);
         StrCpy(dst, size, src);
         data->BufTextLen = StrNLen(buffer, capacity);
         data->CursorPos = data->BufTextLen;

@@ -5,6 +5,7 @@
 #include "common/stringutil.h"
 #include "common/profiler.h"
 #include "containers/dict.h"
+#include "containers/text.h"
 #include "ui/cimgui.h"
 #include <stdlib.h> // atof
 
@@ -14,7 +15,7 @@ static void EnsureInit(void)
 {
     if (!ms_dict.valueSize)
     {
-        dict_new(&ms_dict, sizeof(cvar_t*), EAlloc_Perm);
+        dict_new(&ms_dict, sizeof(text32), sizeof(cvar_t*), EAlloc_Perm);
     }
 }
 
@@ -27,7 +28,9 @@ void cvar_reg(cvar_t* ptr)
     ASSERT(ptr->description);
     ptr->asFloat = (float)atof(ptr->value);
 
-    bool added = dict_add(&ms_dict, ptr->name, &ptr);
+    text32 txt;
+    text_new(&txt, sizeof(txt), ptr->name);
+    bool added = dict_add(&ms_dict, &txt, &ptr);
     ASSERT(added);
 }
 
@@ -36,7 +39,9 @@ cvar_t* cvar_find(const char* name)
     EnsureInit();
 
     ASSERT(name);
-    const i32 i = dict_find(&ms_dict, name);
+    text32 txt;
+    text_new(&txt, sizeof(txt), name);
+    const i32 i = dict_find(&ms_dict, &txt);
     if (i != -1)
     {
         cvar_t** cvars = ms_dict.values;
@@ -52,11 +57,11 @@ const char* cvar_complete(const char* namePart)
     ASSERT(namePart);
     const i32 partLen = StrLen(namePart);
     const u32 width = ms_dict.width;
-    const char** names = ms_dict.keys;
+    const text32* names = ms_dict.keys;
     for (u32 i = 0; i < width; ++i)
     {
-        const char* name = names[i];
-        if (name && !StrCmp(namePart, partLen, name))
+        const char* name = names[i].c;
+        if (name[0] && !StrCmp(namePart, partLen, name))
         {
             return name;
         }

@@ -5,17 +5,15 @@
 PIM_C_BEGIN
 
 #include "allocator/allocator.h"
-#include "common/pimcpy.h"
+#include <string.h>
 
 typedef i32(*CmpFn)(const void* lhs, const void* rhs, void* usr);
 
-static void pimswap(void* pim_noalias lhs, void* pim_noalias rhs, i32 stride)
+static void pimswap(void* pim_noalias lhs, void* pim_noalias rhs, void* pim_noalias tmp, i32 stride)
 {
-    void* pim_noalias tmp = pim_pusha(stride);
-    pimcpy(tmp, lhs, stride);
-    pimcpy(lhs, rhs, stride);
-    pimcpy(rhs, tmp, stride);
-    pim_popa(stride);
+    memcpy(tmp, lhs, stride);
+    memcpy(lhs, rhs, stride);
+    memcpy(rhs, tmp, stride);
 }
 
 static void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
@@ -29,6 +27,7 @@ static void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
 
     if (count <= 4)
     {
+        void* tmp = pim_pusha(stride);
         for (i32 i = 0; i < count; ++i)
         {
             void* lhs = items + i * stride;
@@ -42,9 +41,10 @@ static void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
             }
             if (lo != i)
             {
-                pimswap(lhs, items + lo * stride, stride);
+                pimswap(lhs, items + lo * stride, tmp, stride);
             }
         }
+        pim_popa(stride);
         return;
     }
 
@@ -52,7 +52,8 @@ static void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
     {
         i32 j = count - 1;
         void* pim_noalias pivot = pim_pusha(stride);
-        pimcpy(pivot, items + stride * (count >> 1), stride);
+        void* pim_noalias tmp = pim_pusha(stride);
+        memcpy(pivot, items + stride * (count >> 1), stride);
 
         while (true)
         {
@@ -70,12 +71,13 @@ static void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
                 break;
             }
 
-            pimswap(items + i * stride, items + j * stride, stride);
+            pimswap(items + i * stride, items + j * stride, tmp, stride);
 
             ++i;
             --j;
         }
 
+        pim_popa(stride);
         pim_popa(stride);
     }
 

@@ -1,11 +1,12 @@
 #include "containers/hash_set.h"
 #include "allocator/allocator.h"
 #include "containers/hash_util.h"
-#include "common/pimcpy.h"
+
+#include <string.h>
 
 void hashset_new(hashset_t* set, u32 keySize, EAlloc allocator)
 {
-    pimset(set, 0, sizeof(*set));
+    memset(set, 0, sizeof(*set));
     set->stride = keySize;
     set->allocator = allocator;
 }
@@ -25,8 +26,8 @@ void hashset_clear(hashset_t* set)
     set->count = 0;
     if (set->hashes)
     {
-        pimset(set->hashes, 0, sizeof(u32) * set->width);
-        pimset(set->keys, 0, set->stride * set->width);
+        memset(set->hashes, 0, sizeof(u32) * set->width);
+        memset(set->keys, 0, set->stride * set->width);
     }
 }
 
@@ -60,7 +61,7 @@ void hashset_reserve(hashset_t* set, u32 minCount)
                 if (!newHashes[j])
                 {
                     newHashes[j] = hash;
-                    pimcpy(newKeys + stride * j, oldKeys + stride * i, stride);
+                    memcpy(newKeys + stride * j, oldKeys + stride * i, stride);
                     break;
                 }
                 ++j;
@@ -96,7 +97,7 @@ static i32 hashset_find2(const hashset_t* set, u32 keyHash, const void* key, u32
         if (jHash == keyHash)
         {
             const void* heldKey = keys + j * keySize;
-            if (!pimcmp(key, heldKey, keySize))
+            if (!memcmp(key, heldKey, keySize))
             {
                 return (i32)j;
             }
@@ -138,7 +139,7 @@ bool hashset_add(hashset_t* set, const void* key, u32 keySize)
         if (hashutil_empty_or_tomb(hashes[j]))
         {
             hashes[j] = keyHash;
-            pimcpy(keys + j * keySize, key, keySize);
+            memcpy(keys + j * keySize, key, keySize);
             ++(set->count);
             return true;
         }
@@ -155,7 +156,7 @@ bool hashset_rm(hashset_t* set, const void* key, u32 keySize)
     {
         set->hashes[i] = hashutil_tomb_mask;
         u8* keys = set->keys;
-        pimset(keys + keySize * i, 0, keySize);
+        memset(keys + keySize * i, 0, keySize);
         --(set->count);
         return true;
     }

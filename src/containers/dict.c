@@ -1,15 +1,23 @@
 #include "containers/dict.h"
 #include "allocator/allocator.h"
 #include "containers/hash_util.h"
-#include "common/stringutil.h"
-#include "common/pimcpy.h"
 #include "common/sort.h"
 
-void dict_new(dict_t* dict, u32 valueSize, EAlloc allocator)
+#include <string.h>
+
+static u32 HashKey(const void* key, u32 keySize)
+{
+    ASSERT(key);
+    ASSERT(keySize);
+    return hashutil_create_hash(Fnv32Bytes(key, keySize, Fnv32Bias));
+}
+
+void dict_new(dict_t* dict, u32 keySize, u32 valueSize, EAlloc allocator)
 {
     ASSERT(dict);
     ASSERT(valueSize);
-    pimset(dict, 0, sizeof(*dict));
+    memset(dict, 0, sizeof(*dict));
+    dict->keySize = keySize;
     dict->valueSize = valueSize;
     dict->allocator = allocator;
 }
@@ -17,14 +25,6 @@ void dict_new(dict_t* dict, u32 valueSize, EAlloc allocator)
 void dict_del(dict_t* dict)
 {
     ASSERT(dict);
-
-    const u32 width = dict->width;
-    char** keys = dict->keys;
-    for (u32 i = 0; i < width; ++i)
-    {
-        pim_free(keys[i]);
-        keys[i] = NULL;
-    }
 
     dict->width = 0;
     dict->count = 0;
@@ -43,14 +43,9 @@ void dict_clear(dict_t* dict)
     const u32 width = dict->width;
     if (width)
     {
-        char** keys = dict->keys;
-        for (u32 i = 0; i < width; ++i)
-        {
-            pim_free(keys[i]);
-            keys[i] = NULL;
-        }
-        pimset(dict->hashes, 0, sizeof(dict->hashes[0]) * width);
-        pimset(dict->values, 0, dict->valueSize * width);
+        memset(dict->hashes, 0, sizeof(dict->hashes[0]) * width);
+        memset(dict->keys, 0, dict->keySize * width);
+        memset(dict->values, 0, dict->valueSize * width);
     }
 }
 
@@ -66,16 +61,19 @@ void dict_reserve(dict_t* dict, i32 count)
         return;
     }
 
+    const u32 keySize = dict->keySize;
     const u32 valueSize = dict->valueSize;
+    const EAlloc allocator = dict->allocator;
+    ASSERT(keySize);
     ASSERT(valueSize);
 
     u32* oldHashes = dict->hashes;
-    char** oldKeys = dict->keys;
+    u8* oldKeys = dict->keys;
     u8* oldValues = dict->values;
 
-    u32* newHashes = pim_calloc(dict->allocator, sizeof(u32) * newWidth);
-    char** newKeys = pim_calloc(dict->allocator, sizeof(char*) * newWidth);
-    u8* newValues = pim_calloc(dict->allocator, valueSize * newWidth);
+    u32* newHashes = pim_calloc(allocator, sizeof(u32) * newWidth);
+    u8* newKeys = pim_calloc(allocator, keySize * newWidth);
+    u8* newValues = pim_calloc(allocator, valueSize * newWidth);
 
     const u32 newMask = newWidth - 1u;
     for (u32 i = 0; i < oldWidth;)
@@ -90,10 +88,8 @@ void dict_reserve(dict_t* dict, i32 count)
                 if (!newHashes[j])
                 {
                     newHashes[j] = hash;
-                    newKeys[j] = oldKeys[i];
-                    void* dst = newValues + j * valueSize;
-                    const void* src = oldValues + i * valueSize;
-                    pimcpy(dst, src, valueSize);
+                    memcpy(newKeys + j * keySize, oldKeys + i * keySize, keySize);
+                    memcpy(newValues + j * valueSize, oldValues + i * valueSize, valueSize);
                     goto next;
                 }
                 ++j;
@@ -113,17 +109,18 @@ void dict_reserve(dict_t* dict, i32 count)
     dict->values = newValues;
 }
 
-i32 dict_find(const dict_t* dict, const char* key)
+i32 dict_find(const dict_t* dict, const void* key)
 {
     ASSERT(dict);
     ASSERT(key);
 
-    const u32 keyHash = hashutil_create_hash(Fnv32String(key, Fnv32Bias));
+    const u32 keySize = dict->keySize;
+    const u32 keyHash = HashKey(key, keySize);
 
     u32 width = dict->width;
     const u32 mask = width - 1u;
     const u32* hashes = dict->hashes;
-    const char** keys = dict->keys;
+    const u8* keys = dict->keys;
 
     u32 j = keyHash;
     while (width--)
@@ -136,7 +133,7 @@ i32 dict_find(const dict_t* dict, const char* key)
         }
         if (jHash == keyHash)
         {
-            if (!StrCmp(keys[j], PIM_PATH, key))
+            if (!memcmp(key, keys + j * keySize, keySize))
             {
                 return (i32)j;
             }
@@ -147,7 +144,7 @@ i32 dict_find(const dict_t* dict, const char* key)
     return -1;
 }
 
-bool dict_get(dict_t* dict, const char* key, void* valueOut)
+bool dict_get(dict_t* dict, const void* key, void* valueOut)
 {
     ASSERT(dict);
     ASSERT(key);
@@ -162,12 +159,12 @@ bool dict_get(dict_t* dict, const char* key, void* valueOut)
     const u32 valueSize = dict->valueSize;
     const u8* values = dict->values;
     ASSERT(valueSize);
-    pimcpy(valueOut, values + i * valueSize, valueSize);
+    memcpy(valueOut, values + i * valueSize, valueSize);
 
     return true;
 }
 
-bool dict_set(dict_t* dict, const char* key, const void* valueIn)
+bool dict_set(dict_t* dict, const void* key, const void* valueIn)
 {
     ASSERT(dict);
     ASSERT(key);
@@ -182,12 +179,12 @@ bool dict_set(dict_t* dict, const char* key, const void* valueIn)
     const u32 valueSize = dict->valueSize;
     u8* values = dict->values;
     ASSERT(valueSize);
-    pimcpy(values + i * valueSize, valueIn, valueSize);
+    memcpy(values + i * valueSize, valueIn, valueSize);
 
     return true;
 }
 
-bool dict_add(dict_t* dict, const char* key, const void* valueIn)
+bool dict_add(dict_t* dict, const void* key, const void* valueIn)
 {
     ASSERT(dict);
     ASSERT(key);
@@ -202,10 +199,11 @@ bool dict_add(dict_t* dict, const char* key, const void* valueIn)
 
     const u32 mask = dict->width - 1u;
     const u32 valueSize = dict->valueSize;
-    const u32 keyHash = hashutil_create_hash(Fnv32String(key, Fnv32Bias));
+    const u32 keySize = dict->keySize;
+    const u32 keyHash = HashKey(key, keySize);
 
     u32* hashes = dict->hashes;
-    char** keys = dict->keys;
+    u8* keys = dict->keys;
     u8* values = dict->values;
 
     u32 j = keyHash;
@@ -215,16 +213,15 @@ bool dict_add(dict_t* dict, const char* key, const void* valueIn)
         if (hashutil_empty_or_tomb(hashes[j]))
         {
             hashes[j] = keyHash;
-            ASSERT(!keys[j]);
-            keys[j] = StrDup(key, dict->allocator);
-            pimcpy(values + j * valueSize, valueIn, valueSize);
+            memcpy(keys + j * keySize, key, keySize);
+            memcpy(values + j * valueSize, valueIn, valueSize);
             return true;
         }
         ++j;
     }
 }
 
-bool dict_rm(dict_t* dict, const char* key, void* valueOut)
+bool dict_rm(dict_t* dict, const void* key, void* valueOut)
 {
     ASSERT(dict);
     ASSERT(key);
@@ -237,18 +234,18 @@ bool dict_rm(dict_t* dict, const char* key, void* valueOut)
     }
 
     const u32 valueSize = dict->valueSize;
+    const u32 keySize = dict->keySize;
     ASSERT(valueSize);
 
     u32* hashes = dict->hashes;
-    char** keys = dict->keys;
+    u8* keys = dict->keys;
     u8* values = dict->values;
 
-    pimcpy(valueOut, values + i * valueSize, valueSize);
+    memcpy(valueOut, values + i * valueSize, valueSize);
 
     hashes[i] |= hashutil_tomb_mask;
-    pim_free(keys[i]);
-    keys[i] = NULL;
-    pimset(values + i * valueSize, 0, valueSize);
+    memset(keys + i * keySize, 0, keySize);
+    memset(values + i * valueSize, 0, valueSize);
 
     dict->count--;
 
@@ -257,9 +254,10 @@ bool dict_rm(dict_t* dict, const char* key, void* valueOut)
 
 typedef struct cmpctx_s
 {
-    const char** keys;
+    const u8* keys;
     const u8* values;
-    u32 stride;
+    u32 keySize;
+    u32 valueSize;
     DictCmpFn cmp;
     void* usr;
 } cmpctx_t;
@@ -268,13 +266,14 @@ static i32 DictCmp(const void* lhs, const void* rhs, void* usr)
 {
     const u32 a = *(u32*)lhs;
     const u32 b = *(u32*)rhs;
-    cmpctx_t* ctx = usr;
-    const char** keys = ctx->keys;
-    const u32 stride = ctx->stride;
+    const cmpctx_t* ctx = usr;
+    const u8* keys = ctx->keys;
     const u8* values = ctx->values;
+    const u32 keySize = ctx->keySize;
+    const u32 valueSize = ctx->valueSize;
     return ctx->cmp(
-        keys[a], keys[b],
-        values + a * stride, values + b * stride,
+        keys + a * keySize, keys + b * keySize,
+        values + a * valueSize, values + b * valueSize,
         ctx->usr);
 }
 
@@ -282,27 +281,31 @@ u32* dict_sort(const dict_t* dict, DictCmpFn cmp, void* usr)
 {
     ASSERT(dict);
     ASSERT(cmp);
+    ASSERT(dict->keySize);
     ASSERT(dict->valueSize);
 
     const u32 length = dict->count;
     const u32 width = dict->width;
-    const char** keys = dict->keys;
+    const u32* hashes = dict->hashes;
     u32* indices = pim_malloc(EAlloc_Temp, length * sizeof(indices[0]));
     u32 j = 0;
     for (u32 i = 0; i < width; ++i)
     {
-        if (keys[i])
+        if (hashutil_valid(hashes[i]))
         {
             indices[j++] = i;
         }
     }
     ASSERT(j == length);
-    cmpctx_t ctx;
-    ctx.keys = keys;
-    ctx.values = dict->values;
-    ctx.stride = dict->valueSize;
-    ctx.cmp = cmp;
-    ctx.usr = usr;
+    cmpctx_t ctx =
+    {
+        .keys = dict->keys,
+        .values = dict->values,
+        .keySize = dict->keySize,
+        .valueSize = dict->valueSize,
+        .cmp = cmp,
+        .usr = usr,
+    };
     pimsort(indices, length, sizeof(indices[0]), DictCmp, &ctx);
     return indices;
 }

@@ -10,6 +10,7 @@
 #include "quake/packfile.h"
 #include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
+#include "containers/text.h"
 
 static cvar_t cv_basedir = { cvart_text, 0x0, "basedir", "data", "base directory for game data" };
 static cvar_t cv_game = { cvart_text, 0x0, "game", "id1", "name of the active game" };
@@ -23,7 +24,7 @@ void asset_sys_init(void)
     cvar_reg(&cv_game);
 
     dict_t assets;
-    dict_new(&assets, sizeof(asset_t), EAlloc_Perm);
+    dict_new(&assets, sizeof(text64), sizeof(asset_t), EAlloc_Perm);
 
     char path[PIM_PATH];
     SPrintf(ARGS(path), "%s/%s", cv_basedir.value, cv_game.value);
@@ -42,9 +43,11 @@ void asset_sys_init(void)
                 .pData = packBase + file->offset,
             };
 
-            if (!dict_add(&assets, file->name, &asset))
+            text64 name;
+            text_new(&name, sizeof(name), file->name);
+            if (!dict_add(&assets, &name, &asset))
             {
-                dict_set(&assets, file->name, &asset);
+                dict_set(&assets, &name, &asset);
             }
         }
     }
@@ -71,7 +74,9 @@ bool asset_get(const char* name, asset_t* asset)
 {
     ASSERT(name);
     ASSERT(asset);
-    return dict_get(&ms_assets, name, asset);
+    text64 txt;
+    text_new(&txt, sizeof(txt), name);
+    return dict_get(&ms_assets, &txt, asset);
 }
 
 // ----------------------------------------------------------------------------
@@ -125,7 +130,7 @@ static i32 CmpFile(const void* lhs, const void* rhs, void* usr)
 }
 
 static i32 CmpAsset(
-    const char* lKey, const char* rKey,
+    const void* lKey, const void* rKey,
     const void* lVal, const void* rVal,
     void* usr)
 {
@@ -136,7 +141,7 @@ static i32 CmpAsset(
     {
     default:
     case AssetCmp_Name:
-        cmp = StrCmp(lKey, PIM_PATH, rKey);
+        cmp = StrCmp(lKey, 64, rKey);
         break;
     case AssetCmp_Size:
         cmp = lhs->length - rhs->length;
@@ -231,14 +236,13 @@ void asset_gui(bool* pEnabled)
             }
 
             const dict_t dict = ms_assets;
+            const text64* names = dict.keys;
             const asset_t* assets = dict.values;
             u32* indices = dict_sort(&dict, CmpAsset, NULL);
             for (u32 i = 0; i < dict.count; ++i)
             {
                 u32 j = indices[i];
-                const char* name = dict.keys[j];
-                ASSERT(name);
-                igText(name); igNextColumn();
+                igText(names[j].c); igNextColumn();
                 igText("%d", assets[j].length); igNextColumn();
             }
             pim_free(indices);

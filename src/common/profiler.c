@@ -8,6 +8,7 @@
 #include "common/cvar.h"
 #include "common/hashstring.h"
 #include "common/fnv1a.h"
+#include "common/stringutil.h"
 #include "containers/dict.h"
 #include "ui/cimgui.h"
 #include <string.h>
@@ -49,7 +50,7 @@ static void EnsureDict(void)
 {
     if (!ms_node_dict.valueSize)
     {
-        dict_new(&ms_node_dict, sizeof(double), EAlloc_Perm);
+        dict_new(&ms_node_dict, sizeof(u32), sizeof(double), EAlloc_Perm);
     }
 }
 
@@ -199,46 +200,39 @@ static void VisitSum(node_t* node)
     VisitSum(node->fchild);
 }
 
-static void GetNodeKey(const node_t* node, char key[8])
+static double GetNodeAvgMs(const node_t* node)
 {
     ASSERT(node);
-    ASSERT(key);
-    u32* dst = (u32*)key;
-    dst[0] = node->hash;
-    dst[1] = 0;
-}
-
-static double GetNodeAvgMs(const node_t* node, const char* key)
-{
-    ASSERT(node);
+    const u32 key = node->hash;
     ASSERT(key);
 
     double avgMs = 0.0;
     const profmark_t* mark = node->mark;
     ASSERT(mark);
 
-    dict_get(&ms_node_dict, key, &avgMs);
+    dict_get(&ms_node_dict, &key, &avgMs);
     return avgMs;
 }
 
-static double UpdateNodeAvgMs(const node_t* node, const char* key)
+static double UpdateNodeAvgMs(const node_t* node)
 {
     ASSERT(node);
+    const u32 key = node->hash;
     ASSERT(key);
 
     const double ms = time_milli(node->end - node->begin);
     double avgMs = ms;
     const profmark_t* mark = node->mark;
     ASSERT(mark);
-    if (dict_get(&ms_node_dict, key, &avgMs))
+    if (dict_get(&ms_node_dict, &key, &avgMs))
     {
         const double alpha = 1.0 / 60.0;
         avgMs += (ms - avgMs) * alpha;
-        dict_set(&ms_node_dict, key, &avgMs);
+        dict_set(&ms_node_dict, &key, &avgMs);
     }
     else
     {
-        dict_add(&ms_node_dict, key, &avgMs);
+        dict_add(&ms_node_dict, &key, &avgMs);
     }
     return avgMs;
 }
@@ -255,18 +249,13 @@ static void VisitGui(const node_t* node)
     const char* name = mark->name;
     ASSERT(name);
 
-    char key[8];
-    GetNodeKey(node, key);
-
-    double ms = UpdateNodeAvgMs(node, key);
+    double ms = UpdateNodeAvgMs(node);
 
     double pct = 0.0;
     const node_t* root = ms_prevroots[ms_gui_tid].fchild;
     ASSERT(root);
 
-    char rootKey[8];
-    GetNodeKey(root, rootKey);
-    double rootMs = GetNodeAvgMs(root, rootKey);
+    double rootMs = GetNodeAvgMs(root);
     if (rootMs > 0.0)
     {
         pct = 100.0 * (ms / rootMs);
@@ -276,7 +265,10 @@ static void VisitGui(const node_t* node)
     igText("%3.2f", ms); igNextColumn();
     igText("%4.1f%%", pct); igNextColumn();
 
-    igTreePushPtr(key);
+    char key[32];
+    SPrintf(ARGS(key), "%x", node->hash);
+
+    igTreePushStr(key);
     VisitGui(node->fchild);
     igTreePop();
     VisitGui(node->sibling);
