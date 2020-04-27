@@ -69,7 +69,11 @@ void cvar_set_str(cvar_t* ptr, const char* value)
     ASSERT(ptr);
     ASSERT(value);
     StrCpy(ARGS(ptr->value), value);
-    ptr->asFloat = (float)atof(value);
+    if (ptr->type != cvart_text)
+    {
+        ptr->asFloat = (float)atof(value);
+    }
+    ptr->flags |= cvarf_dirty;
 }
 
 void cvar_set_float(cvar_t* ptr, float value)
@@ -77,6 +81,18 @@ void cvar_set_float(cvar_t* ptr, float value)
     ASSERT(ptr);
     SPrintf(ARGS(ptr->value), "%f", value);
     ptr->asFloat = value;
+    ptr->flags |= cvarf_dirty;
+}
+
+bool cvar_check_dirty(cvar_t* ptr)
+{
+    ASSERT(ptr);
+    if (ptr->flags & cvarf_dirty)
+    {
+        ptr->flags &= ~cvarf_dirty;
+        return true;
+    }
+    return false;
 }
 
 ProfileMark(pm_gui, cvar_gui)
@@ -101,7 +117,7 @@ void cvar_gui(bool* pEnabled)
             switch (cvar->type)
             {
             default: ASSERT(false); break;
-            case cvar_bool:
+            case cvart_bool:
             {
                 bool value = cvar->asFloat != 0.0f;
                 if (igCheckbox(cvar->name, &value))
@@ -110,7 +126,7 @@ void cvar_gui(bool* pEnabled)
                 }
             }
             break;
-            case cvar_text:
+            case cvart_text:
             {
                 if (igInputText(cvar->name, ARGS(cvar->value), 0, NULL, NULL) && (StrLen(cvar->value) > 0))
                 {
@@ -118,7 +134,7 @@ void cvar_gui(bool* pEnabled)
                 }
             }
             break;
-            case cvar_int:
+            case cvart_int:
             {
                 i32 value = (i32)cvar->asFloat;
                 if (igSliderInt(cvar->name, &value, 0, 1000, "%d"))
@@ -127,7 +143,7 @@ void cvar_gui(bool* pEnabled)
                 }
             }
             break;
-            case cvar_float:
+            case cvart_float:
             {
                 float value = cvar->asFloat;
                 if (igSliderFloat(cvar->name, &value, -10.0f, 10.0f))

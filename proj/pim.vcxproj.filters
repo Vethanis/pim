@@ -292,6 +292,9 @@
     <ClCompile Include="..\src\editor\menubar.c">
       <Filter>Source Files\editor</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\editor\console.c">
+      <Filter>Source Files\editor</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -543,9 +546,6 @@
     <ClInclude Include="..\src\containers\carray.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\carray_fn.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\rendering\constants.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
@@ -647,6 +647,12 @@
     </ClInclude>
     <ClInclude Include="..\src\editor\menubar.h">
       <Filter>Source Files\editor</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\editor\console.h">
+      <Filter>Source Files\editor</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\carray.c">
+      <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

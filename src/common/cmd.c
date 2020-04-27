@@ -5,10 +5,10 @@
 #include "common/cvar.h"
 #include "containers/dict.h"
 #include "containers/queue.h"
-#include "io/fd.h"
 #include "assets/asset_system.h"
 #include "common/time.h"
 #include "common/profiler.h"
+#include "editor/console.h"
 
 // ----------------------------------------------------------------------------
 
@@ -63,20 +63,12 @@ void cmd_sys_update(void)
         if (brain.yieldframe == curFrame)
         {
             queue_push(&ms_cmdqueue, &brain, sizeof(brain));
-            return;
+            break;
         }
         else
         {
             brain.yieldframe = curFrame;
-            cmdstat_t status = cbuf_exec(&brain.cbuf);
-            if (status == cmdstat_yield)
-            {
-                queue_push(&ms_cmdqueue, &brain, sizeof(brain));
-            }
-            else
-            {
-                cbuf_del(&brain.cbuf);
-            }
+            cbuf_exec(&brain.cbuf);
         }
     }
 
@@ -165,9 +157,8 @@ void cbuf_pushback(cbuf_t* buf, const char* text)
 
 cmdstat_t cbuf_exec(cbuf_t* buf)
 {
+    cmdstat_t status = cmdstat_ok;
     ASSERT(buf);
-
-    char line[1024];
 
     while (buf->length > 0)
     {
@@ -175,13 +166,12 @@ cmdstat_t cbuf_exec(cbuf_t* buf)
         i32 i = 0;
         i32 q = 0;
 
-        // get a line of command text
-        for (; i < buf->length; ++i)
+        const i32 len = buf->length;
+        for (; i < len; ++i)
         {
             char c = text[i];
             if (c == '"')
             {
-                // escape quoted characters
                 ++q;
             }
             else if (!(q & 1) && (c == ';'))
@@ -194,43 +184,43 @@ cmdstat_t cbuf_exec(cbuf_t* buf)
             }
         }
 
-        // copy line of text to the stack
+        char line[1024] = { 0 };
         ASSERT(i < NELEM(line));
         pimcpy(line, text, i);
         line[i] = 0;
 
-        // shift remaining text to front of buffer
-        // in case cmd_exec pushes to front of cbuf
-        if (i == buf->length)
+        if (i == len)
         {
             cbuf_clear(buf);
         }
         else
         {
-            ++i;
+            ++i; // consume line ending
             buf->length -= i;
-            pimcpy(text, text + i, buf->length);
+            pimmove(text, text + i, buf->length);
+            text[buf->length] = 0;
         }
 
-        cmdbrain_t brain;
-        cmdstat_t status = cmd_exec(buf, line, cmdsrc_buffer);
-        switch (status)
+        status = cmd_exec(buf, line, cmdsrc_buffer);
+        if (status != cmdstat_ok)
         {
-        case cmdstat_yield:
-            brain.cbuf = *buf;
-            brain.yieldframe = time_framecount();
-            queue_push(&ms_cmdqueue, &brain, sizeof(brain));
-            return cmdstat_yield;
-        break;
-        case cmdstat_err:
-            cbuf_del(buf);
-            return cmdstat_err;
-        break;
+            break;
         }
     }
 
-    cbuf_del(buf);
-    return cmdstat_ok;
+    if (status == cmdstat_yield)
+    {
+        cmdbrain_t brain = { 0 };
+        brain.cbuf = *buf;
+        brain.yieldframe = time_framecount();
+        queue_push(&ms_cmdqueue, &brain, sizeof(brain));
+    }
+    else
+    {
+        cbuf_del(buf);
+    }
+
+    return status;
 }
 
 void cmd_reg(const char* name, cmdfn_t fn)
@@ -300,8 +290,7 @@ cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
     {
         if (argc == 1)
         {
-            // todo: print to console the cvar name and value
-            fd_printf(fd_stdout, "\"%s\" is \"%s\"\n", cvar->name, cvar->value);
+            con_printf(C32_WHITE, "\"%s\" is \"%s\"", cvar->name, cvar->value);
             return cmdstat_ok;
         }
         if (argc >= 2)
@@ -311,7 +300,7 @@ cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
         }
     }
 
-    fd_printf(fd_stdout, "Unknown command \"%s\"\n", argv[0]);
+    con_printf(C32_RED, "Unknown command \"%s\"", argv[0]);
     return cmdstat_err;
 }
 
@@ -340,7 +329,7 @@ static const char* cmd_parse(const char* text, char** tokenOut)
     *tokenOut = NULL;
     i32 len = 0;
     char c = 0;
-    char token[1024];
+    char token[1024] = { 0 };
 
 wspace:
     // whitespace
@@ -369,7 +358,8 @@ wspace:
         ++text;
         while (true)
         {
-            c = *text++;
+            c = *text;
+            ++text;
             if (!c || c == '"')
             {
                 ASSERT(len < NELEM(token));
@@ -377,7 +367,8 @@ wspace:
                 *tokenOut = StrDup(token, EAlloc_Temp);
                 return text;
             }
-            token[len++] = c;
+            token[len] = c;
+            ++len;
         }
     }
 
@@ -385,7 +376,9 @@ wspace:
     if (IsSpecialChar(c))
     {
         ASSERT(len < NELEM(token));
-        token[len++] = c;
+        token[len] = c;
+        ++len;
+        ASSERT(len < NELEM(token));
         token[len] = 0;
         *tokenOut = StrDup(token, EAlloc_Temp);
         return text + 1;
@@ -395,8 +388,10 @@ wspace:
     do
     {
         ASSERT(len < NELEM(token));
-        token[len++] = c;
-        c = *text++;
+        token[len] = c;
+        ++len;
+        ++text;
+        c = *text;
     } while (c > ' ' && !IsSpecialChar(c));
 
     ASSERT(len < NELEM(token));
@@ -441,7 +436,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
 {
     if (argc <= 1)
     {
-        fd_puts(fd_stdout, "Current alias commands:");
+        con_puts(C32_RED, "Current alias commands:");
         const u32 width = ms_aliases.width;
         const char** names = ms_aliases.keys;
         const cmdalias_t* aliases = ms_aliases.values;
@@ -450,10 +445,10 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
             const char* name = names[i];
             if (name)
             {
-                fd_printf(fd_stdout, "%s : %s\n", name, aliases[i].value);
+                con_printf(C32_RED, "%s : %s", name, aliases[i].value);
             }
         }
-        return cmdstat_ok;
+        return cmdstat_err;
     }
 
     const char* name = argv[1];
@@ -474,7 +469,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
             StrCat(ARGS(cmd), " ");
         }
     }
-    StrCat(ARGS(cmd), "\n");
+    StrCat(ARGS(cmd), ";");
 
     alias.value = StrDup(cmd, EAlloc_Perm);
     bool added = dict_add(&ms_aliases, name, &alias);
@@ -487,7 +482,7 @@ static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv)
 {
     if (argc != 2)
     {
-        fd_puts(fd_stdout, "exec <filename> : executes a script file");
+        con_puts(C32_RED, "exec <filename> : executes a script file");
         return cmdstat_err;
     }
     asset_t asset;
@@ -505,7 +500,7 @@ static cmdstat_t cmd_wait_fn(i32 argc, const char** argv)
 {
     if (argc != 1)
     {
-        fd_puts(fd_stdout, "wait : yields execution for one frame");
+        con_puts(C32_RED, "wait : yields execution for one frame");
         return cmdstat_err;
     }
     return cmdstat_yield;

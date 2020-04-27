@@ -148,9 +148,9 @@ float igGetWindowHeight()
 {
     return ImGui::GetWindowHeight();
 }
-void igSetNextWindowPos(const ImVec2 pos,ImGuiCond cond,const ImVec2 pivot)
+void igSetNextWindowPos(const ImVec2 pos,ImGuiCond cond)
 {
-    return ImGui::SetNextWindowPos(pos,cond,pivot);
+    return ImGui::SetNextWindowPos(pos,cond);
 }
 void igSetNextWindowSize(const ImVec2 size,ImGuiCond cond)
 {
@@ -376,9 +376,9 @@ void igSeparator()
 {
     return ImGui::Separator();
 }
-void igSameLine(float offset_from_start_x,float spacing)
+void igSameLine()
 {
-    return ImGui::SameLine(offset_from_start_x,spacing);
+    return ImGui::SameLine();
 }
 void igNewLine()
 {
@@ -1107,9 +1107,9 @@ void igLogToFile(int auto_open_depth,const char* filename)
 {
     return ImGui::LogToFile(auto_open_depth,filename);
 }
-void igLogToClipboard(int auto_open_depth)
+void igLogToClipboard()
 {
-    return ImGui::LogToClipboard(auto_open_depth);
+    return ImGui::LogToClipboard();
 }
 void igLogFinish()
 {

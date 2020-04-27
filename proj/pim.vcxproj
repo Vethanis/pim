@@ -33,6 +33,7 @@
     <ClCompile Include="..\src\containers\int_queue.c" />
     <ClCompile Include="..\src\containers\ptrqueue.c" />
     <ClCompile Include="..\src\containers\queue.c" />
+    <ClCompile Include="..\src\editor\console.c" />
     <ClCompile Include="..\src\editor\editor.c" />
     <ClCompile Include="..\src\editor\menubar.c" />
     <ClCompile Include="..\src\glad\glad.c" />
@@ -106,7 +107,7 @@
     <ClInclude Include="..\src\components\components.h" />
     <ClInclude Include="..\src\components\ecs.h" />
     <ClInclude Include="..\src\containers\carray.h" />
-    <ClInclude Include="..\src\containers\carray_fn.h" />
+    <ClInclude Include="..\src\containers\carray.c" />
     <ClInclude Include="..\src\containers\int_queue.h" />
     <ClInclude Include="..\src\containers\graph.h" />
     <ClInclude Include="..\src\containers\idset.h" />
@@ -115,6 +116,7 @@
     <ClInclude Include="..\src\containers\hash_util.h" />
     <ClInclude Include="..\src\containers\ptrqueue.h" />
     <ClInclude Include="..\src\containers\queue.h" />
+    <ClInclude Include="..\src\editor\console.h" />
     <ClInclude Include="..\src\editor\editor.h" />
     <ClInclude Include="..\src\editor\menubar.h" />
     <ClInclude Include="..\src\geometry\distance.h" />

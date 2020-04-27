@@ -108,7 +108,12 @@ i32 fstr_puts(fstr_t stream, const char* src)
     FILE* file = stream.handle;
     ASSERT(file);
     ASSERT(src);
-    return NotNeg(fputs(src, file));
+    i32 rval = NotNeg(fputs(src, file));
+    if (rval >= 0)
+    {
+        fputc('\n', file);
+    }
+    return rval;
 }
 
 fd_t fstr_to_fd(fstr_t stream)

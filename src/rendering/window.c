@@ -11,7 +11,8 @@
 
 static cvar_t cv_FpsLimit =
 {
-    cvar_int,
+    cvart_int,
+    0x0,
     "fps_limit",
     "125",
     "limits fps when above this value"

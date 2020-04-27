@@ -11,8 +11,8 @@
 #include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
 
-static cvar_t cv_basedir = { cvar_text, "basedir", "data", "base directory for game data" };
-static cvar_t cv_game = { cvar_text, "game", "id1", "name of the active game" };
+static cvar_t cv_basedir = { cvart_text, 0x0, "basedir", "data", "base directory for game data" };
+static cvar_t cv_game = { cvart_text, 0x0, "game", "id1", "name of the active game" };
 
 static dict_t ms_assets;
 static folder_t ms_folder;

@@ -5,6 +5,7 @@
 #include "rendering/window.h"
 #include "math/quat_funcs.h"
 #include "common/time.h"
+#include "common/profiler.h"
 
 static float ms_pitchScale = 720.0f;
 static float ms_yawScale = 720.0f;
@@ -15,8 +16,11 @@ void camera_logic_init(void)
 
 }
 
+ProfileMark(pm_update, camera_logic_update)
 void camera_logic_update(void)
 {
+    ProfileBegin(pm_update);
+
     const float dx = input_delta_axis(MouseAxis_X);
     const float dy = input_delta_axis(MouseAxis_Y);
     const float dscroll = input_delta_axis(MouseAxis_ScrollY);
@@ -26,6 +30,7 @@ void camera_logic_update(void)
     if (input_keyup(KeyCode_Escape))
     {
         window_close(true);
+        ProfileEnd(pm_update);
         return;
     }
 
@@ -36,6 +41,7 @@ void camera_logic_update(void)
 
     if (!window_cursor_captured())
     {
+        ProfileEnd(pm_update);
         return;
     }
 
@@ -90,6 +96,8 @@ void camera_logic_update(void)
     camera.rotation = rot;
 
     camera_set(&camera);
+
+    ProfileEnd(pm_update);
 }
 
 void camera_logic_shutdown(void)

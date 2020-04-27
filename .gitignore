@@ -5,3 +5,4 @@ packs/
 data/
 build/
 imgui.ini
+*.log
