@@ -204,6 +204,10 @@ cmdstat_t cbuf_exec(cbuf_t* buf)
         }
 
         status = cmd_exec(buf, line, cmdsrc_buffer);
+        if (status == cmdstat_err)
+        {
+            con_printf(C32_RED, "Error executing line: %s", line);
+        }
         if (status != cmdstat_ok)
         {
             break;
@@ -271,7 +275,7 @@ cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
     char** argv = cmd_tokenize(line, &argc);
     if (!argc)
     {
-        return cmdstat_err;
+        return cmdstat_ok;
     }
     ASSERT(argv);
 
@@ -305,6 +309,7 @@ cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
         if (argc >= 2)
         {
             cvar_set_str(cvar, argv[1]);
+            con_printf(C32_GREEN, "%s = %s", cvar->name, cvar->value);
             return cmdstat_ok;
         }
     }

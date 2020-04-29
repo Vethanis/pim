@@ -112,6 +112,7 @@ static void* linear_alloc(linear_allocator_t* alloc, i32 bytes)
 
 static void linear_clear(linear_allocator_t* alloc)
 {
+    IF_DEBUG(memset((void*)(alloc->base), 0xcd, alloc->capacity));
     store_u64(&(alloc->head), 0, MO_Relaxed);
 }
 
@@ -184,7 +185,7 @@ void* pim_malloc(EAlloc type, i32 bytes)
         case EAlloc_Temp:
             ptr = linear_alloc(ms_temp + ms_tempIndex, bytes);
             break;
-        case EAlloc_TLS:
+        case EAlloc_Task:
             if (!ms_local[tid])
             {
                 ms_local[tid] = create_tlsf(kTlsCapacity);
@@ -240,7 +241,7 @@ void pim_free(void* ptr)
             break;
         case EAlloc_Temp:
             break;
-        case EAlloc_TLS:
+        case EAlloc_Task:
             ASSERT(tid == task_thread_id());
             ASSERT(ms_local[tid]);
             tlsf_free(ms_local[tid], hdr);
@@ -291,6 +292,8 @@ void* pim_calloc(EAlloc type, i32 bytes)
     return ptr;
 }
 
+// ----------------------------------------------------------------------------
+
 #define kStackCapacity      (4 << 10)
 #define kFrameCount         (kStackCapacity / kAlign)
 
@@ -308,13 +311,14 @@ void* pim_pusha(i32 bytes)
     const i32 tid = task_thread_id();
 
     bytes = align_bytes(bytes);
-    i32 frames = bytes / kAlign;
-    i32 back = ms_iFrame[tid];
-    ms_iFrame[tid] = back + frames;
+    const i32 frames = bytes / kAlign;
+    const i32 back = ms_iFrame[tid];
+    const i32 front = back + frames;
+    ASSERT(front <= kFrameCount);
 
-    ASSERT(ms_iFrame[tid] <= kFrameCount);
+    ms_iFrame[tid] = front;
 
-    return ms_stack[tid] + back;
+    return ms_stack[tid][back].value;
 }
 
 void pim_popa(i32 bytes)
@@ -323,7 +327,7 @@ void pim_popa(i32 bytes)
     const i32 tid = task_thread_id();
 
     bytes = align_bytes(bytes);
-    i32 frames = bytes / kAlign;
+    const i32 frames = bytes / kAlign;
     ms_iFrame[tid] -= frames;
 
     ASSERT(ms_iFrame[tid] >= 0);
