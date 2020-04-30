@@ -32,7 +32,7 @@ void mutex_unlock(mutex_t* mut)
     LeaveCriticalSection((LPCRITICAL_SECTION)mut);
 }
 
-int32_t mutex_trylock(mutex_t* mut)
+bool mutex_trylock(mutex_t* mut)
 {
     ASSERT(mut);
     return TryEnterCriticalSection((LPCRITICAL_SECTION)mut);
@@ -72,10 +72,10 @@ void mutex_unlock(mutex_t* mut)
     ASSERT(!rv);
 }
 
-int32_t mutex_trylock(mutex_t* mut)
+bool mutex_trylock(mutex_t* mut)
 {
     ASSERT(mut);
-    int32_t rv = pthread_mutex_trylock((pthread_mutex_t*)mut);
+    i32 rv = pthread_mutex_trylock((pthread_mutex_t*)mut);
     return rv == 0;
 }
 #endif // PLAT

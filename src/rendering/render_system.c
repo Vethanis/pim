@@ -112,17 +112,18 @@ void render_sys_update(void)
     camera_t camera;
     camera_get(&camera);
     rcmdbuf_t* cmdbuf = rcmdbuf_create();
-    rcmd_clear(cmdbuf, f4_rgba8(f4_v(0.02f, 0.05f, 0.1f, 1.0f)), camera.nearFar.y);
+    rcmd_clear(cmdbuf, f4_v(0.01f, 0.012f, 0.022f, 0.0f), camera.nearFar.y);
     rcmd_view(cmdbuf, camera);
 
     material_t material =
     {
-        .st = f4_v(1.0f / 32.0f, 1.0f / 32.0f, 0.0f, 0.0f),
+        .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
         .albedo = ms_albedoid,
     };
     quat modelRotation = quat_lookat(f3_normalize(ms_modelForward), f3_normalize(ms_modelUp));
     float4x4 M = f4x4_trs(ms_modelTranslation, modelRotation, ms_modelScale);
     rcmd_draw(cmdbuf, M, ms_meshid, material);
+    rcmd_resolve(cmdbuf, 1.0f);
 
     rcmdqueue_submit(&ms_queue, cmdbuf);
 
@@ -249,17 +250,39 @@ pim_inline float2 VEC_CALL TransformUv(float2 uv, float4 st)
 {
     uv.x = uv.x * st.x + st.z;
     uv.y = uv.y * st.y + st.w;
-    uv = f2_saturate(f2_fmod(uv, f2_1));
     return uv;
 }
 
 pim_optimize
-pim_inline float4 VEC_CALL SampleTexture(texture_t texture, float2 uv)
+pim_inline float4 VEC_CALL Tex_Nearesti2(texture_t texture, int2 coord)
+{
+    coord.x = coord.x & (texture.width - 1);
+    coord.y = coord.y & (texture.height - 1);
+    i32 i = coord.x + coord.y * texture.width;
+    return color_f4(texture.texels[i]);
+}
+
+pim_optimize
+pim_inline float4 VEC_CALL Tex_Nearestf2(texture_t texture, float2 uv)
 {
     uv.x = uv.x * texture.width;
     uv.y = uv.y * texture.height;
-    i32 i = (i32)uv.x + ((i32)uv.y) * texture.width;
-    return color_f4(texture.texels[i]);
+    return Tex_Nearesti2(texture, f2_i2(uv));
+}
+
+pim_optimize
+pim_inline float4 VEC_CALL Tex_Bilinearf2(texture_t texture, float2 uv)
+{
+    uv.x = uv.x * texture.width;
+    uv.y = uv.y * texture.height;
+    float2 frac = f2_frac(uv);
+    int2 tl = f2_i2(uv);
+    float4 a = Tex_Nearesti2(texture, tl);
+    float4 b = Tex_Nearesti2(texture, (int2) { tl.x + 1, tl.y + 0 });
+    float4 c = Tex_Nearesti2(texture, (int2) { tl.x + 0, tl.y + 1 });
+    float4 d = Tex_Nearesti2(texture, (int2) { tl.x + 1, tl.y + 1 });
+    float4 e = f4_lerp(f4_lerp(a, b, frac.x), f4_lerp(c, d, frac.x), frac.y);
+    return e;
 }
 
 pim_optimize
@@ -348,6 +371,9 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         slope,
         camera.nearFar);
 
+    const float4 ambient = { 0.01f, 0.005f, 0.005f, 0.005f };
+    const float3 L = f3_normalize(f3_1);
+
     for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
     {
         const float3 A = f4_f3(f4x4_mul_pt(M, positions[iVert + 0]));
@@ -372,6 +398,7 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
             {
                 const float2 coord = { x, y };
                 const float3 rd = proj_dir(right, up, fwd, slope, coord);
+                // TODO: eye + ABC vectors (guts of this function) can be reused across bounds loops
                 const float4 wuvt = isectTri3D(eye, rd, A, B, C);
                 if (f4_any(f4_ltvs(wuvt, 0.0f)))
                 {
@@ -386,16 +413,25 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 
                 // blend interpolators
                 const float3 wuv = f4_f3(wuvt);
-                //float4 P = f4_blend(
-                //    positions[iTop + 0],
-                //    positions[iTop + 1],
-                //    positions[iTop + 2],
-                //    wuv);
-                //float4 N = f4_blend(
-                //        normals[iTop + 0],
-                //        normals[iTop + 1],
-                //        normals[iTop + 2],
-                //        wuv);
+                const float3 P = f4_f3(f4_blend(
+                    positions[iVert + 0],
+                    positions[iVert + 1],
+                    positions[iVert + 2],
+                    wuv));
+
+                const float3 N = f3_normalize(f4_f3(f4_blend(
+                    normals[iVert + 0],
+                    normals[iVert + 1],
+                    normals[iVert + 2],
+                    wuv)));
+
+                const float3 V = f3_normalize(f3_sub(eye, P));
+                const float3 H = f3_normalize(f3_add(V, L));
+                const float NdL = f1_saturate(f3_dot(N, L));
+                const float NdH = f1_saturate(f3_dot(N, H));
+                const float diffuse = NdL;
+                const float specular = powf(NdH, 64.0f);
+
                 float2 U = f2_blend(
                     uvs[iVert + 0],
                     uvs[iVert + 1],
@@ -403,9 +439,12 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
                     wuv);
 
                 U = TransformUv(U, material.st);
-                float4 alb = SampleTexture(albedo, U);
+                const float4 alb = Tex_Bilinearf2(albedo, U);
 
-                frame.color[iTexel] = f4_rgba8(f4_tosrgb(alb));
+                float4 light = f4_mul(alb, f4_addvs(ambient, diffuse));
+                light = f4_addvs(light, specular);
+
+                frame.light[iTexel] = light;
             }
         }
     }
@@ -421,7 +460,7 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
 
     framebuf_t frame = ms_buffer;
     const int2 tile = GetTile(state.iTile);
-    u32* color = frame.color;
+    float4* light = frame.light;
     float* depth = frame.depth;
 
     for (i32 ty = 0; ty < kTileHeight; ++ty)
@@ -429,7 +468,7 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
         for (i32 tx = 0; tx < kTileWidth; ++tx)
         {
             i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
-            color[i] = clear.color;
+            light[i] = clear.color;
         }
     }
 
@@ -439,6 +478,33 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
         {
             i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
             depth[i] = clear.depth;
+        }
+    }
+
+    ProfileEnd(pm_ClearTile);
+}
+
+ProfileMark(pm_ResolveTile, ResolveTile)
+pim_optimize
+static void VEC_CALL ResolveTile(renderstate_t state, rcmd_resolve_t resolve)
+{
+    ProfileBegin(pm_ClearTile);
+
+    framebuf_t frame = ms_buffer;
+    const int2 tile = GetTile(state.iTile);
+    float4* light = frame.light;
+    u32* color = frame.color;
+
+    for (i32 ty = 0; ty < kTileHeight; ++ty)
+    {
+        for (i32 tx = 0; tx < kTileWidth; ++tx)
+        {
+            i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
+            float4 hdr = light[i];
+            float4 ldr = f4_aces(hdr);
+            float4 srgb = f4_tosrgb(ldr);
+            u32 rgba8 = f4_rgba8(srgb);
+            color[i] = rgba8;
         }
     }
 
@@ -477,6 +543,9 @@ static void ExecTile(i32 iTile)
                 break;
             case RCmdType_Draw:
                 DrawMesh(state, cmd.draw);
+                break;
+            case RCmdType_Resolve:
+                ResolveTile(state, cmd.resolve);
                 break;
             }
         }
@@ -815,9 +884,11 @@ static void RegenAlbedo(void)
         for (i32 x = 0; x < size; ++x)
         {
             const i32 i = x + y * size;
-            u32 a = (y & 1) ? 0xffffffff : 0;
+            bool c0 = (x & 7) < 4;
+            bool c1 = (y & 7) < 4;
+            u32 a = c1 ? 0xffffffff : 0;
             u32 b = ~a;
-            albedo.texels[i] = x & 1 ? a : b;
+            albedo.texels[i] = c0 ? a : b;
         }
     }
     ms_prng = rng;

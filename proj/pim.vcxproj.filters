@@ -106,9 +106,6 @@
     <ClCompile Include="..\submodules\tlsf\tlsf.c">
       <Filter>submodules\tlsf</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\common\module.c">
-      <Filter>Source Files\common</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\common\cvar.c">
       <Filter>Source Files\common</Filter>
     </ClCompile>
@@ -295,6 +292,12 @@
     <ClCompile Include="..\src\containers\text.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\common\fnv1a.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\find.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -384,9 +387,6 @@
     <ClInclude Include="..\src\ui\imconfig.h">
       <Filter>Source Files\ui</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\common\hashstring.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
     <ClInclude Include="..\submodules\miniz\miniz.h">
       <Filter>submodules\miniz</Filter>
     </ClInclude>
@@ -461,9 +461,6 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\ptrqueue.h">
       <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\module.h">
-      <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\atomics.h">
       <Filter>Source Files\common</Filter>
@@ -653,6 +650,9 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\text.h">
       <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\find.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

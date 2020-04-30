@@ -918,23 +918,17 @@ pim_inline float4 VEC_CALL rgba8_f4(u32 c)
 
 pim_inline float4 VEC_CALL f4_tosrgb(float4 lin)
 {
-    float4 s1 = f4_sqrt(lin);
-    float4 s2 = f4_sqrt(s1);
-    float4 s3 = f4_sqrt(s2);
-    float4 srgb = f4_mulvs(s1, 0.585122381f);
-    srgb = f4_add(srgb, f4_mulvs(s2, 0.783140355f));
-    srgb = f4_add(srgb, f4_mulvs(s3, -0.368262736f));
-    return srgb;
+    const float e = 1.0f / 2.4f;
+    float4 lte = f4_mulvs(lin, 12.92f);
+    float4 gt = f4_subvs(f4_mulvs(f4_powvs(lin, e), 1.055f), 0.055f);
+    return f4_select(lte, gt, f4_gtvs(lin, 0.0031308f));
 }
 
 pim_inline float4 VEC_CALL f4_tolinear(float4 srgb)
 {
-    float4 srgb2 = f4_mul(srgb, srgb);
-    float4 srgb3 = f4_mul(srgb, srgb2);
-    float4 lin = f4_mulvs(srgb, 0.012522878f);
-    lin = f4_add(lin, f4_mulvs(srgb2, 0.682171111f));
-    lin = f4_add(lin, f4_mulvs(srgb3, 0.305306011f));
-    return lin;
+    float4 lte = f4_divvs(srgb, 12.92f);
+    float4 gt = f4_powvs(f4_divvs(f4_addvs(srgb, 0.055f), 1.055f), 2.4f);
+    return f4_select(lte, gt, f4_gtvs(srgb, 0.04045f));
 }
 
 pim_inline float4 VEC_CALL f4_rand(prng_t* rng)
@@ -948,15 +942,27 @@ pim_inline float4 VEC_CALL f4_dither(prng_t* rng, float4 x)
     return f4_lerp(x, f4_rand(rng), kDither);
 }
 
-pim_inline u32 VEC_CALL f4_color(prng_t* rng, float4 linear)
+pim_inline u32 VEC_CALL f4_color(float4 linear)
 {
-    float4 srgb = f4_tosrgb(linear);
-    return f4_rgba8(f4_dither(rng, srgb));
+    return f4_rgba8(f4_tosrgb(linear));
 }
 
 pim_inline float4 VEC_CALL color_f4(u32 c)
 {
     return f4_tolinear(rgba8_f4(c));
+}
+
+pim_inline float4 VEC_CALL f4_aces(float4 x)
+{
+    const float a = 2.51f;
+    const float b = 0.03f;
+    const float c = 2.43f;
+    const float d = 0.59f;
+    const float e = 0.14f;
+
+    float4 x0 = f4_mul(x, f4_addvs(f4_mulvs(x, a), b));
+    float4 x1 = f4_addvs(f4_mul(x, f4_addvs(f4_mulvs(x, c), d)), e);
+    return f4_div(x0, x1);
 }
 
 PIM_C_END

@@ -6,7 +6,6 @@
 #include "allocator/allocator.h"
 #include "common/time.h"
 #include "common/cvar.h"
-#include "common/hashstring.h"
 #include "common/fnv1a.h"
 #include "common/stringutil.h"
 #include "containers/dict.h"

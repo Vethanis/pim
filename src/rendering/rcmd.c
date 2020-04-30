@@ -9,6 +9,7 @@ static const i32 kCmdSize[] =
     sizeof(rcmd_clear_t),
     sizeof(rcmd_view_t),
     sizeof(rcmd_draw_t),
+    sizeof(rcmd_resolve_t),
 };
 
 SASSERT(NELEM(kCmdSize) == RCmdType_COUNT);
@@ -78,7 +79,7 @@ static void rcmdbuf_write(rcmdbuf_t* buf, i32 type, const void* src, i32 bytes)
     buf->length = length + sizeof(type) + bytes;
 }
 
-void rcmd_clear(rcmdbuf_t* buf, u32 color, float depth)
+void rcmd_clear(rcmdbuf_t* buf, float4 color, float depth)
 {
     rcmd_clear_t cmd;
     cmd.color = color;
@@ -100,6 +101,13 @@ void rcmd_draw(rcmdbuf_t* buf, float4x4 model, meshid_t meshid, material_t mater
     cmd.meshid = meshid;
     cmd.material = material;
     rcmdbuf_write(buf, RCmdType_Draw, &cmd, sizeof(cmd));
+}
+
+void rcmd_resolve(rcmdbuf_t* buf, float exposure)
+{
+    rcmd_resolve_t cmd;
+    cmd.exposure = exposure;
+    rcmdbuf_write(buf, RCmdType_Resolve, &cmd, sizeof(cmd));
 }
 
 void rcmdqueue_create(rcmdqueue_t* queue)

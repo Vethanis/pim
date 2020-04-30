@@ -2,7 +2,7 @@
 
 #include "allocator/allocator.h"
 #include "common/cvar.h"
-#include "common/hashstring.h"
+#include "common/fnv1a.h"
 #include "common/profiler.h"
 #include "common/sort.h"
 #include "common/stringutil.h"

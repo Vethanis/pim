@@ -18,6 +18,7 @@ typedef enum
     RCmdType_Clear,
     RCmdType_View,
     RCmdType_Draw,
+    RCmdType_Resolve,
 
     RCmdType_COUNT
 } RCmdType;
@@ -25,7 +26,7 @@ typedef enum
 
 typedef struct rcmd_clear_s
 {
-    u32 color;
+    float4 color;
     float depth;
 } rcmd_clear_t;
 
@@ -41,6 +42,11 @@ typedef struct rcmd_draw_s
     material_t material;
 } rcmd_draw_t;
 
+typedef struct rcmd_resolve_s
+{
+    float exposure;
+} rcmd_resolve_t;
+
 typedef struct rcmd_s
 {
     i32 type;
@@ -49,6 +55,7 @@ typedef struct rcmd_s
         rcmd_clear_t clear;
         rcmd_view_t view;
         rcmd_draw_t draw;
+        rcmd_resolve_t resolve;
     };
 } rcmd_t;
 
@@ -66,9 +73,11 @@ typedef struct rcmdqueue_s
 rcmdbuf_t* rcmdbuf_create(void);
 bool rcmdbuf_read(const rcmdbuf_t* buf, i32* pCursor, rcmd_t* dst);
 
-void rcmd_clear(rcmdbuf_t* buf, u32 color, float depth);
+void rcmd_clear(rcmdbuf_t* buf, float4 color, float depth);
 void rcmd_view(rcmdbuf_t* buf, camera_t camera);
 void rcmd_draw(rcmdbuf_t* buf, float4x4 model, meshid_t meshid, material_t material);
+// HDR linear float4 -> LDR sRGB rgba8
+void rcmd_resolve(rcmdbuf_t* buf, float exposure);
 
 void rcmdqueue_create(rcmdqueue_t* queue);
 void rcmdqueue_destroy(rcmdqueue_t* queue);
