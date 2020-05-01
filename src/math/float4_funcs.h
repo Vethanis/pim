@@ -918,17 +918,22 @@ pim_inline float4 VEC_CALL rgba8_f4(u32 c)
 
 pim_inline float4 VEC_CALL f4_tosrgb(float4 lin)
 {
-    const float e = 1.0f / 2.4f;
-    float4 lte = f4_mulvs(lin, 12.92f);
-    float4 gt = f4_subvs(f4_mulvs(f4_powvs(lin, e), 1.055f), 0.055f);
-    return f4_select(lte, gt, f4_gtvs(lin, 0.0031308f));
+    float4 srgb;
+    srgb.x = f1_tosrgb(lin.x);
+    srgb.y = f1_tosrgb(lin.y);
+    srgb.z = f1_tosrgb(lin.z);
+    srgb.w = f1_tosrgb(lin.w);
+    return srgb;
 }
 
 pim_inline float4 VEC_CALL f4_tolinear(float4 srgb)
 {
-    float4 lte = f4_divvs(srgb, 12.92f);
-    float4 gt = f4_powvs(f4_divvs(f4_addvs(srgb, 0.055f), 1.055f), 2.4f);
-    return f4_select(lte, gt, f4_gtvs(srgb, 0.04045f));
+    float4 lin;
+    lin.x = f1_tolinear(srgb.x);
+    lin.y = f1_tolinear(srgb.y);
+    lin.z = f1_tolinear(srgb.z);
+    lin.w = f1_tolinear(srgb.w);
+    return lin;
 }
 
 pim_inline float4 VEC_CALL f4_rand(prng_t* rng)
@@ -952,17 +957,45 @@ pim_inline float4 VEC_CALL color_f4(u32 c)
     return f4_tolinear(rgba8_f4(c));
 }
 
-pim_inline float4 VEC_CALL f4_aces(float4 x)
+pim_inline float4 VEC_CALL tmap4_reinhard(float4 x)
 {
-    const float a = 2.51f;
-    const float b = 0.03f;
-    const float c = 2.43f;
-    const float d = 0.59f;
-    const float e = 0.14f;
+    float4 y;
+    y.x = tmap1_reinhard(x.x);
+    y.y = tmap1_reinhard(x.y);
+    y.z = tmap1_reinhard(x.z);
+    y.w = tmap1_reinhard(x.w);
+    return y;
+}
 
-    float4 x0 = f4_mul(x, f4_addvs(f4_mulvs(x, a), b));
-    float4 x1 = f4_addvs(f4_mul(x, f4_addvs(f4_mulvs(x, c), d)), e);
-    return f4_div(x0, x1);
+pim_inline float4 VEC_CALL tmap4_aces(float4 x)
+{
+    float4 y;
+    y.x = tmap1_aces(x.x);
+    y.y = tmap1_aces(x.y);
+    y.z = tmap1_aces(x.z);
+    y.w = tmap1_aces(x.w);
+    return y;
+}
+
+// note: outputs roughly gamma2.2
+pim_inline float4 VEC_CALL tmap4_filmic(float4 x)
+{
+    float4 y;
+    y.x = tmap1_filmic(x.x);
+    y.y = tmap1_filmic(x.y);
+    y.z = tmap1_filmic(x.z);
+    y.w = tmap1_filmic(x.w);
+    return y;
+}
+
+pim_inline float4 VEC_CALL tmap4_uchart2(float4 x)
+{
+    float4 y;
+    y.x = tmap1_uchart2(x.x);
+    y.y = tmap1_uchart2(x.y);
+    y.z = tmap1_uchart2(x.z);
+    y.w = tmap1_uchart2(x.w);
+    return y;
 }
 
 PIM_C_END

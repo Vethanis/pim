@@ -7,6 +7,8 @@ PIM_C_BEGIN
 #include <stdbool.h>
 #include <math.h>
 
+#pragma intrinsic(pow, sqrt, exp, log, sin, cos, tan, fmod)
+
 #ifndef kPi
 #define kPi                 3.141592653f
 #define kTau                6.283185307f
@@ -165,14 +167,54 @@ pim_inline i32 VEC_CALL i1_distance(i32 a, i32 b)
     return i1_abs(b - a);
 }
 
-pim_inline float VEC_CALL f1_tosrgb(float lin)
+pim_inline float VEC_CALL f1_tosrgb(float c)
 {
-    return f1_max(1.055f * powf(lin, 0.416666667f) - 0.055f, 0.0f);
+    float s1 = sqrtf(c);
+    float s2 = sqrtf(s1);
+    float s3 = sqrtf(s2);
+    return f1_saturate(0.585122381f * s1 + 0.783140355f * s2 + 0.368262736f * s3);
 }
 
-pim_inline float VEC_CALL f1_tolinear(float srgb)
+pim_inline float VEC_CALL f1_tolinear(float c)
 {
-    return 0.012522878f * srgb + 0.682171111f * srgb * srgb + 0.305306011f * srgb * srgb * srgb;
+    float c2 = c * c;
+    float c3 = c2 * c;
+    return f1_saturate(0.012522878f * c + 0.682171111f * c2 + 0.305306011f * c3);
+}
+
+pim_inline float VEC_CALL tmap1_reinhard(float x)
+{
+    return x / (1.0f + x);
+}
+
+pim_inline float VEC_CALL tmap1_aces(float x)
+{
+    const float a = 2.51f;
+    const float b = 0.03f;
+    const float c = 2.43f;
+    const float d = 0.59f;
+    const float e = 0.14f;
+    return (x * (a * x + b)) / (x * (c * x + d) + e);
+}
+
+// note: outputs roughly gamma2.2
+pim_inline float VEC_CALL tmap1_filmic(float x)
+{
+    x = f1_max(0.0f, x - 0.004f);
+    return (x * (6.2f * x + 0.5f)) / (x * (6.2f * x + 1.7f) + 0.06f);
+}
+
+// http://filmicworlds.com/blog/filmic-tonemapping-operators/
+pim_inline float VEC_CALL tmap1_uchart2(float x)
+{
+    const float a = 0.15f;
+    const float b = 0.5f;
+    const float c = 0.1f;
+    const float d = 0.2f;
+    const float e = 0.02f;
+    const float f = 0.3f;
+    const float w = 11.2f;
+    return ((x * (a * x + c * b) + d * e) / (x * (a * x + b) + d * f)) - (e / f);
 }
 
 PIM_C_END

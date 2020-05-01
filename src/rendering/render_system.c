@@ -346,6 +346,8 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     const float aspect = (float)kDrawWidth / kDrawHeight;
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
+    const float nearClip = camera.nearFar.x;
+    const float farClip = camera.nearFar.y;
     const float2 slope = proj_slope(f1_radians(camera.fovy), aspect);
 
     const float3 fwd = quat_fwd(camera.rotation);
@@ -356,7 +358,7 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     float4x4 VP;
     {
         const float4x4 V = f4x4_lookat(eye, f3_add(eye, fwd), up);
-        const float4x4 P = f4x4_perspective(f1_radians(camera.fovy), aspect, camera.nearFar.x, camera.nearFar.y);
+        const float4x4 P = f4x4_perspective(f1_radians(camera.fovy), aspect, nearClip, farClip);
         VP = f4x4_mul(P, V);
     }
 
@@ -392,27 +394,54 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
 
         const float4 bounds = TriBounds(VP, A, B, C, state.iTile);
 
+        const float3 BA = f3_sub(B, A);
+        const float3 CA = f3_sub(C, A);
+        const float3 T = f3_sub(eye, A);
+        const float3 Q = f3_cross(T, BA);
+        const float t0 = f3_dot(CA, Q);
+
         for (float y = bounds.y; y < bounds.w; y += dy)
         {
             for (float x = bounds.x; x < bounds.z; x += dx)
             {
                 const float2 coord = { x, y };
                 const float3 rd = proj_dir(right, up, fwd, slope, coord);
-                // TODO: eye + ABC vectors (guts of this function) can be reused across bounds loops
-                const float4 wuvt = isectTri3D(eye, rd, A, B, C);
-                if (f4_any(f4_ltvs(wuvt, 0.0f)))
+                const float3 rdXca = f3_cross(rd, CA);
+                const float det = f3_dot(BA, rdXca);
+                if (det < e)
                 {
                     continue;
                 }
                 const i32 iTexel = SnormToIndex(coord);
-                if (wuvt.w < camera.nearFar.x || wuvt.w > frame.depth[iTexel])
+
+                float3 wuv;
                 {
-                    continue;
+                    const float rcpDet = 1.0f / det;
+                    const float t = t0 * rcpDet;
+                    if (t < nearClip || t > farClip || t > frame.depth[iTexel])
+                    {
+                        continue;
+                    }
+                    const float u = f3_dot(T, rdXca) * rcpDet;
+                    if (u < 0.0f)
+                    {
+                        continue;
+                    }
+                    const float v = f3_dot(rd, Q) * rcpDet;
+                    if (v < 0.0f)
+                    {
+                        continue;
+                    }
+                    const float w = 1.0f - u - v;
+                    if (w < 0.0f)
+                    {
+                        continue;
+                    }
+                    wuv = (float3) { w, u, v };
+                    frame.depth[iTexel] = t;
                 }
-                frame.depth[iTexel] = wuvt.w;
 
                 // blend interpolators
-                const float3 wuv = f4_f3(wuvt);
                 const float3 P = f4_f3(f4_blend(
                     positions[iVert + 0],
                     positions[iVert + 1],
@@ -488,7 +517,7 @@ ProfileMark(pm_ResolveTile, ResolveTile)
 pim_optimize
 static void VEC_CALL ResolveTile(renderstate_t state, rcmd_resolve_t resolve)
 {
-    ProfileBegin(pm_ClearTile);
+    ProfileBegin(pm_ResolveTile);
 
     framebuf_t frame = ms_buffer;
     const int2 tile = GetTile(state.iTile);
@@ -500,15 +529,11 @@ static void VEC_CALL ResolveTile(renderstate_t state, rcmd_resolve_t resolve)
         for (i32 tx = 0; tx < kTileWidth; ++tx)
         {
             i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
-            float4 hdr = light[i];
-            float4 ldr = f4_aces(hdr);
-            float4 srgb = f4_tosrgb(ldr);
-            u32 rgba8 = f4_rgba8(srgb);
-            color[i] = rgba8;
+            color[i] = f4_rgba8(tmap4_filmic(light[i]));
         }
     }
 
-    ProfileEnd(pm_ClearTile);
+    ProfileEnd(pm_ResolveTile);
 }
 
 ProfileMark(pm_ExecTile, ExecTile)
