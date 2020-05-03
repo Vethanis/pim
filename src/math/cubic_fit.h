@@ -12,13 +12,11 @@ PIM_C_BEGIN
 float3 CubicFit(
     const float* pim_noalias ys,
     i32 len,
-    i32 iterations,
     float* pim_noalias fitError);
 
 float3 SqrticFit(
     const float* pim_noalias ys,
     i32 len,
-    i32 iterations,
     float* pim_noalias fitError);
 
 pim_inline float VEC_CALL CubicEval(float3 eq, float x)

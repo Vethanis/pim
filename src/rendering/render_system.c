@@ -123,19 +123,18 @@ void render_sys_init(void)
     ms_meshid = sphere;
     RegenAlbedo();
 
-    const i32 len = 1 << 8;
-    const i32 iterations = 500;
+    const i32 len = 1 << 9;
     const float dx = 1.0f / len;
     float* pim_noalias ys = tmp_malloc(sizeof(ys[0]) * len);
     float x = 0.0f;
     for (i32 i = 0; i < len; ++i)
     {
-        ys[i] = f1_saturate(sRGBToLinear(x));
+        ys[i] = sRGBToLinear(x);
         x += dx;
     }
 
     float error;
-    float3 fit = CubicFit(ys, len, iterations, &error);
+    float3 fit = CubicFit(ys, len, &error);
     con_printf(C32_WHITE,
         "sRGBToLinear: %f %f %f (%f%%)",
         fit.x, fit.y, fit.z, 100.0f * error);
@@ -143,10 +142,10 @@ void render_sys_init(void)
     x = 0.0f;
     for (i32 i = 0; i < len; ++i)
     {
-        ys[i] = f1_saturate(LinearTosRGB(x));
+        ys[i] = LinearTosRGB(x);
         x += dx;
     }
-    fit = SqrticFit(ys, len, iterations, &error);
+    fit = SqrticFit(ys, len, &error);
     con_printf(C32_WHITE,
         "LinearTosRGB: %f %f %f (%f%%)",
         fit.x, fit.y, fit.z, 100.0f * error);

@@ -172,14 +172,14 @@ pim_inline float VEC_CALL f1_tosrgb(float c)
     float s1 = sqrtf(c);
     float s2 = sqrtf(s1);
     float s3 = sqrtf(s2);
-    return 0.582937f * s1 + 0.788192f * s2 - 0.370654f * s3;
+    return 0.582176f * s1 + 0.789747f * s2 - 0.371449f * s3;
 }
 
 pim_inline float VEC_CALL f1_tolinear(float c)
 {
     float c2 = c * c;
     float c3 = c2 * c;
-    return 0.016047f * c + 0.668073f * c2 + 0.317642f * c3;
+    return 0.016124f * c + 0.667737f * c2 + 0.317955f * c3;
 }
 
 pim_inline float VEC_CALL tmap1_reinhard(float x)
