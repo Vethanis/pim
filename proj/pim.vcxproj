@@ -48,6 +48,8 @@
     <ClCompile Include="..\src\logic\camera_logic.c" />
     <ClCompile Include="..\src\logic\logic.c" />
     <ClCompile Include="..\src\main.c" />
+    <ClCompile Include="..\src\math\cubic_fit.c" />
+    <ClCompile Include="..\src\math\sphgauss.c" />
     <ClCompile Include="..\src\os\socket.c" />
     <ClCompile Include="..\src\quake\packfile.c" />
     <ClCompile Include="..\src\rendering\camera.c" />
@@ -130,6 +132,7 @@
     <ClInclude Include="..\src\io\fstr.h" />
     <ClInclude Include="..\src\logic\camera_logic.h" />
     <ClInclude Include="..\src\logic\logic.h" />
+    <ClInclude Include="..\src\math\cubic_fit.h" />
     <ClInclude Include="..\src\math\float2_funcs.h" />
     <ClInclude Include="..\src\math\float3x3_funcs.h" />
     <ClInclude Include="..\src\math\float3_funcs.h" />
@@ -141,6 +144,7 @@
     <ClInclude Include="..\src\math\scalar.h" />
     <ClInclude Include="..\src\math\int2_funcs.h" />
     <ClInclude Include="..\src\math\sdf.h" />
+    <ClInclude Include="..\src\math\sphgauss.h" />
     <ClInclude Include="..\src\math\types.h" />
     <ClInclude Include="..\src\os\socket.h" />
     <ClInclude Include="..\src\quake\bsp.h" />

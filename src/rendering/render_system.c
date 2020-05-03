@@ -20,6 +20,8 @@
 #include "math/frustum.h"
 #include "ui/cimgui.h"
 #include "common/profiler.h"
+#include "math/cubic_fit.h"
+#include "common/console.h"
 
 // ----------------------------------------------------------------------------
 
@@ -88,6 +90,24 @@ static float3 ms_modelScale = { 1.0f, 1.0f, 1.0f };
 
 // ----------------------------------------------------------------------------
 
+static float VEC_CALL sRGBToLinear(float c)
+{
+    if (c <= 0.04045f)
+    {
+        return c / 12.92f;
+    }
+    return powf((c + 0.055f) / 1.055f, 2.4f);
+}
+
+static float VEC_CALL LinearTosRGB(float c)
+{
+    if (c <= 0.0031308f)
+    {
+        return c * 12.92f;
+    }
+    return 1.055f * powf(c, 1.0f / 2.4f) - 0.055f;
+}
+
 void render_sys_init(void)
 {
     ms_prng = prng_create();
@@ -102,6 +122,34 @@ void render_sys_init(void)
     mesh_destroy(ms_meshid);
     ms_meshid = sphere;
     RegenAlbedo();
+
+    const i32 len = 1 << 8;
+    const i32 iterations = 500;
+    const float dx = 1.0f / len;
+    float* pim_noalias ys = tmp_malloc(sizeof(ys[0]) * len);
+    float x = 0.0f;
+    for (i32 i = 0; i < len; ++i)
+    {
+        ys[i] = f1_saturate(sRGBToLinear(x));
+        x += dx;
+    }
+
+    float error;
+    float3 fit = CubicFit(ys, len, iterations, &error);
+    con_printf(C32_WHITE,
+        "sRGBToLinear: %f %f %f (%f%%)",
+        fit.x, fit.y, fit.z, 100.0f * error);
+
+    x = 0.0f;
+    for (i32 i = 0; i < len; ++i)
+    {
+        ys[i] = f1_saturate(LinearTosRGB(x));
+        x += dx;
+    }
+    fit = SqrticFit(ys, len, iterations, &error);
+    con_printf(C32_WHITE,
+        "LinearTosRGB: %f %f %f (%f%%)",
+        fit.x, fit.y, fit.z, 100.0f * error);
 }
 
 ProfileMark(pm_update, render_sys_update)
@@ -842,9 +890,9 @@ static meshid_t GenSphereMesh(float r, i32 steps)
     return mesh_create(&(mesh_t)
     {
         .length = length,
-        .positions = positions,
-        .normals = normals,
-        .uvs = uvs,
+            .positions = positions,
+            .normals = normals,
+            .uvs = uvs,
     });
 }
 

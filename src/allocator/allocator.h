@@ -27,4 +27,9 @@ static void* perm_realloc(void* prev, i32 bytes)
     return pim_realloc(EAlloc_Perm, prev, bytes);
 }
 
+static void* tmp_malloc(i32 bytes)
+{
+    return pim_malloc(EAlloc_Temp, bytes);
+}
+
 PIM_C_END

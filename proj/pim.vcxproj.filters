@@ -298,6 +298,12 @@
     <ClCompile Include="..\src\common\find.c">
       <Filter>Source Files\common</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\math\cubic_fit.c">
+      <Filter>Source Files\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\math\sphgauss.c">
+      <Filter>Source Files\math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -653,6 +659,12 @@
     </ClInclude>
     <ClInclude Include="..\src\common\find.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\cubic_fit.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\sphgauss.h">
+      <Filter>Source Files\math</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

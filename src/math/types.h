@@ -93,4 +93,12 @@ typedef struct int4x4_s
     int4 c3;
 } int4x4;
 
+// spherical gaussian
+typedef struct SG_s
+{
+    float3 axis;
+    float sharpness;
+    float3 amplitude;
+} SG_t;
+
 PIM_C_END
