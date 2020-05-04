@@ -1,8 +1,28 @@
 #include "rendering/texture.h"
 #include "allocator/allocator.h"
 #include "common/atomics.h"
+#include "stb/stb_image.h"
 
 static u64 ms_version;
+
+textureid_t texture_load(const char* path)
+{
+    i32 width = 0;
+    i32 height = 0;
+    i32 channels = 0;
+    u8* texels = stbi_load(path, &width, &height, &channels, 4);
+    if (texels)
+    {
+        texture_t tex =
+        {
+            .width = width,
+            .height = height,
+            .texels = (u32*)texels,
+        };
+        return texture_create(&tex);
+    }
+    return (textureid_t) { 0 };
+}
 
 textureid_t texture_create(texture_t* src)
 {

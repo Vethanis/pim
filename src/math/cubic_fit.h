@@ -7,31 +7,46 @@ PIM_C_BEGIN
 #include "math/types.h"
 #include "math/scalar.h"
 
+typedef struct dataset_s
+{
+    const float* pim_noalias xs;
+    const float* pim_noalias ys;
+    i32 len;
+} dataset_t;
+
+typedef pim_alignas(16) struct fit_s
+{
+    float value[8];
+} fit_t;
+
 // Attempts to fit a cubic polynomial to the given set of samples
-// assumes domain and range of [0, 1]
-float3 CubicFit(
-    const float* pim_noalias ys,
-    i32 len,
-    float* pim_noalias fitError);
+float CubicFit(dataset_t data, fit_t* fit, i32 iterations);
+float SqrticFit(dataset_t data, fit_t* fit, i32 iterations);
+float TMapFit(dataset_t data, fit_t* fit, i32 iterations);
 
-float3 SqrticFit(
-    const float* pim_noalias ys,
-    i32 len,
-    float* pim_noalias fitError);
-
-pim_inline float VEC_CALL CubicEval(float3 eq, float x)
+pim_inline float VEC_CALL CubicEval(float x, fit_t fit)
 {
     float x2 = x * x;
     float x3 = x2 * x;
-    return eq.x * x + eq.y * x2 + eq.z * x3;
+    return fit.value[0] * x + fit.value[1] * x2 + fit.value[2] * x3;
 }
 
-pim_inline float VEC_CALL SqrticEval(float3 eq, float x)
+pim_inline float VEC_CALL SqrticEval(float x, fit_t fit)
 {
     float s1 = sqrtf(x);
     float s2 = sqrtf(s1);
     float s3 = sqrtf(s2);
-    return eq.x * s1 + eq.y * s2 + eq.z * s3;
+    return fit.value[0] * s1 + fit.value[1] * s2 + fit.value[2] * s3;
+}
+
+pim_inline float VEC_CALL TMapEval(float x, fit_t fit)
+{
+    float a = fit.value[0];
+    float b = fit.value[1];
+    float c = fit.value[2];
+    float d = fit.value[3];
+    float e = fit.value[4];
+    return (x * (a * x + b)) / (x * (c * x + d) + e);
 }
 
 PIM_C_END

@@ -4,86 +4,87 @@
 #include "common/random.h"
 #include "threading/task.h"
 
-static float VEC_CALL CubicError(float3 fit, const float* pim_noalias ys, i32 len)
-{
-    const float dx = 1.0f / len;
-    float error = 0.0f;
-    float x = 0.0f;
-    for (i32 i = 0; i < len; ++i)
-    {
-        float y = CubicEval(fit, x);
-        float diff = y - ys[i];
-        error += dx * (diff * diff);
-        x += dx;
-    }
-    return sqrtf(error);
-}
+typedef float(VEC_CALL *ErrFn)(dataset_t data, fit_t fit);
 
-static float VEC_CALL SqrticError(float3 fit, const float* pim_noalias ys, i32 len)
+static float VEC_CALL CubicError(dataset_t data, fit_t fit);
+static float VEC_CALL SqrticError(dataset_t data, fit_t fit);
+static float VEC_CALL TMapError(dataset_t data, fit_t fit);
+
+typedef enum
 {
-    const float dx = 1.0f / len;
-    float error = 0.0f;
-    float x = 0.0f;
-    for (i32 i = 0; i < len; ++i)
-    {
-        float y = SqrticEval(fit, x);
-        float diff = y - ys[i];
-        error += dx * (diff * diff);
-        x += dx;
-    }
-    return sqrtf(error);
-}
+    Fit_Cubic,
+    Fit_Sqrtic,
+    Fit_TMap,
+} FitType;
+
+static const ErrFn ms_errFns[] =
+{
+    CubicError,
+    SqrticError,
+    TMapError,
+};
+
+typedef struct FitTask
+{
+    task_t task;
+    ErrFn errFn;
+    dataset_t data;
+    i32 iterations;
+    float errors[kNumThreads];
+    fit_t fits[kNumThreads];
+} FitTask;
 
 static float VEC_CALL randf32(prng_t* rng)
 {
     return 2.0f * prng_f32(rng) - 1.0f;
 }
 
-static float3 VEC_CALL randf3(prng_t* rng)
+static void VEC_CALL randFit(prng_t* rng, fit_t* fit)
 {
-    float3 y = { randf32(rng), randf32(rng), randf32(rng) };
-    return y;
+    float* pim_noalias value = fit->value;
+    for (i32 i = 0; i < NELEM(fit->value); ++i)
+    {
+        value[i] = randf32(rng);
+    }
 }
 
-typedef float(VEC_CALL *ErrFn)(float3 fit, const float* pim_noalias ys, i32 len);
-
-typedef struct FitTask
+static void VEC_CALL mutateFit(prng_t* rng, fit_t* fit, float eps)
 {
-    task_t task;
-    ErrFn errFn;
-    const float* pim_noalias ys;
-    i32 len;
-    float3 fits[kNumThreads];
-    float errors[kNumThreads];
-} FitTask;
+    float* pim_noalias value = fit->value;
+    for (i32 i = 0; i < NELEM(fit->value); ++i)
+    {
+        value[i] += eps * randf32(rng);
+    }
+}
 
 static void FitFn(task_t* task, i32 begin, i32 end)
 {
     FitTask* fitTask = (FitTask*)task;
-    const float* pim_noalias ys = fitTask->ys;
-    const i32 len = fitTask->len;
-    const i32 iterations = 2 * (len + 1);
+    const dataset_t data = fitTask->data;
+    const i32 iterations = i1_max(fitTask->iterations,  2 * (data.len + 1));
     const ErrFn errFn = fitTask->errFn;
     prng_t rng = prng_create();
 
     for (i32 eval = begin; eval < end; ++eval)
     {
-        float3 fit = randf3(&rng);
-        float error = errFn(fit, ys, len);
+        fit_t fit;
+        randFit(&rng, &fit);
+        float error = errFn(data, fit);
 
         for (i32 j = 0; j < iterations; ++j)
         {
-            float eps = 1.0f;
+            float eps = 10.0f;
             for (i32 i = 0; i < 12; ++i)
             {
-                float3 f2 = f3_add(fit, f3_mulvs(randf3(&rng), eps));
-                float e = errFn(f2, ys, len);
-                if (e < error)
-                {
-                    error = e;
-                    fit = f2;
-                }
                 eps *= 0.5f;
+                fit_t testFit = fit;
+                mutateFit(&rng, &testFit, eps);
+                float testErr = errFn(data, testFit);
+                if (testErr < error)
+                {
+                    error = testErr;
+                    fit = testFit;
+                }
             }
         }
 
@@ -92,55 +93,86 @@ static void FitFn(task_t* task, i32 begin, i32 end)
     }
 }
 
-typedef enum
-{
-    Fit_Cubic,
-    Fit_Sqrtic,
-} FitType;
-
-static const ErrFn ms_errFns[] =
-{
-    CubicError,
-    SqrticError,
-};
-
-static float3 CreateFit(
-    const float* pim_noalias ys,
-    i32 len,
-    float* pim_noalias fitError,
+static float CreateFit(
+    dataset_t data,
+    fit_t* fit,
+    i32 iterations,
     FitType type)
 {
     FitTask task = { 0 };
     task.errFn = ms_errFns[type];
-    task.ys = ys;
-    task.len = len;
+    task.data = data;
+    task.iterations = iterations;
     task_submit(&task.task, FitFn, NELEM(task.fits));
     task_sys_schedule();
     task_await(&task.task);
     i32 chosen = 0;
-    for (i32 i = 1; i < NELEM(task.fits); ++i)
+    for (i32 i = 1; i < NELEM(task.errors); ++i)
     {
         if (task.errors[i] < task.errors[chosen])
         {
             chosen = i;
         }
     }
-    *fitError = task.errors[chosen];
-    return task.fits[chosen];
+    *fit = task.fits[chosen];
+    return task.errors[chosen];
 }
 
-float3 CubicFit(
-    const float* pim_noalias ys,
-    i32 len,
-    float* pim_noalias fitError)
+float CubicFit(dataset_t data, fit_t* fit, i32 iterations)
 {
-    return CreateFit(ys, len, fitError, Fit_Cubic);
+    return CreateFit(data, fit, iterations, Fit_Cubic);
 }
 
-float3 SqrticFit(
-    const float* pim_noalias ys,
-    i32 len,
-    float* pim_noalias fitError)
+float SqrticFit(dataset_t data, fit_t* fit, i32 iterations)
 {
-    return CreateFit(ys, len, fitError, Fit_Sqrtic);
+    return CreateFit(data, fit, iterations, Fit_Sqrtic);
+}
+
+float TMapFit(dataset_t data, fit_t* fit, i32 iterations)
+{
+    return CreateFit(data, fit, iterations, Fit_TMap);
+}
+
+// ----------------------------------------------------------------------------
+// factoring out the eval functions as a function pointer
+// would introduce call overhead into the innermost loop.
+// instead we factor out the loop itself.
+
+static float VEC_CALL CubicError(dataset_t data, fit_t fit)
+{
+    const float weight = 1.0f / data.len;
+    float error = 0.0f;
+    for (i32 i = 0; i < data.len; ++i)
+    {
+        float y = CubicEval(data.xs[i], fit);
+        float diff = y - data.ys[i];
+        error += weight * (diff * diff);
+    }
+    return sqrtf(error);
+}
+
+static float VEC_CALL SqrticError(dataset_t data, fit_t fit)
+{
+    const float weight = 1.0f / data.len;
+    float error = 0.0f;
+    for (i32 i = 0; i < data.len; ++i)
+    {
+        float y = SqrticEval(data.xs[i], fit);
+        float diff = y - data.ys[i];
+        error += weight * (diff * diff);
+    }
+    return sqrtf(error);
+}
+
+static float VEC_CALL TMapError(dataset_t data, fit_t fit)
+{
+    const float weight = 1.0f / data.len;
+    float error = 0.0f;
+    for (i32 i = 0; i < data.len; ++i)
+    {
+        float y = TMapEval(data.xs[i], fit);
+        float diff = y - data.ys[i];
+        error += weight * (diff * diff);
+    }
+    return sqrtf(error);
 }

@@ -18,6 +18,7 @@ typedef struct textureid_s
     void* handle;
 } textureid_t;
 
+textureid_t texture_load(const char* path);
 textureid_t texture_create(texture_t* src);
 bool texture_destroy(textureid_t id);
 bool texture_current(textureid_t id);

@@ -894,6 +894,7 @@ pim_inline u16 VEC_CALL f4_rgb5a1(float4 v)
 
 pim_inline u32 VEC_CALL f4_rgba8(float4 v)
 {
+    v = f4_saturate(v);
     v = f4_mulvs(v, 255.0f);
     u32 r = (u32)v.x;
     u32 g = (u32)v.y;
@@ -941,17 +942,6 @@ pim_inline float4 VEC_CALL f4_rand(prng_t* rng)
     return f4_v(prng_f32(rng), prng_f32(rng), prng_f32(rng), prng_f32(rng));
 }
 
-pim_inline float4 VEC_CALL f4_dither(prng_t* rng, float4 x)
-{
-    const float kDither = 1.0f / (1 << 8);
-    return f4_lerp(x, f4_rand(rng), kDither);
-}
-
-pim_inline u32 VEC_CALL f4_color(float4 linear)
-{
-    return f4_rgba8(f4_tosrgb(linear));
-}
-
 pim_inline float4 VEC_CALL color_f4(u32 c)
 {
     return f4_tolinear(rgba8_f4(c));
@@ -959,12 +949,8 @@ pim_inline float4 VEC_CALL color_f4(u32 c)
 
 pim_inline float4 VEC_CALL tmap4_reinhard(float4 x)
 {
-    float4 y;
-    y.x = tmap1_reinhard(x.x);
-    y.y = tmap1_reinhard(x.y);
-    y.z = tmap1_reinhard(x.z);
-    y.w = tmap1_reinhard(x.w);
-    return y;
+    float4 y = f4_div(x, f4_addvs(x, 1.0f));
+    return f4_tosrgb(y);
 }
 
 pim_inline float4 VEC_CALL tmap4_aces(float4 x)
@@ -974,10 +960,9 @@ pim_inline float4 VEC_CALL tmap4_aces(float4 x)
     y.y = tmap1_aces(x.y);
     y.z = tmap1_aces(x.z);
     y.w = tmap1_aces(x.w);
-    return y;
+    return f4_tosrgb(y);
 }
 
-// note: outputs roughly gamma2.2
 pim_inline float4 VEC_CALL tmap4_filmic(float4 x)
 {
     float4 y;
@@ -990,12 +975,41 @@ pim_inline float4 VEC_CALL tmap4_filmic(float4 x)
 
 pim_inline float4 VEC_CALL tmap4_uchart2(float4 x)
 {
+    const float w = 11.2f;
+    x = f4_mulvs(x, 2.0f);
     float4 y;
     y.x = tmap1_uchart2(x.x);
     y.y = tmap1_uchart2(x.y);
     y.z = tmap1_uchart2(x.z);
-    y.w = tmap1_uchart2(x.w);
+    y.w = tmap1_uchart2(w);
+    y = f4_divvs(y, y.w);
+    return f4_tosrgb(y);
+}
+
+// params: Shoulder Strength, Linear Strength, Linear Angle, Toe Strength
+pim_inline float VEC_CALL tmap_hablefn(float x, float4 params)
+{
+    const float A = params.x;
+    const float B = params.y;
+    const float C = params.z;
+    const float D = params.w;
+    const float E = 0.02f;
+    const float F = 0.3f;
+    float y = ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
     return y;
+}
+
+pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
+{
+    const float w = 11.2f;
+    x = f4_mulvs(x, 2.0f);
+    float4 y;
+    y.x = tmap_hablefn(x.x, params);
+    y.y = tmap_hablefn(x.y, params);
+    y.z = tmap_hablefn(x.z, params);
+    y.w = tmap_hablefn(w, params);
+    y = f4_divvs(y, y.w);
+    return f4_tosrgb(y);
 }
 
 PIM_C_END

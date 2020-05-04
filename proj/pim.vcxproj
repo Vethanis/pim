@@ -62,6 +62,7 @@
     <ClCompile Include="..\src\rendering\window.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
+    <ClCompile Include="..\src\stb\stb_image.c" />
     <ClCompile Include="..\src\threading\event.c" />
     <ClCompile Include="..\src\threading\intrin.c" />
     <ClCompile Include="..\src\threading\mutex.c" />
@@ -140,6 +141,7 @@
     <ClInclude Include="..\src\math\float4_funcs.h" />
     <ClInclude Include="..\src\math\frustum.h" />
     <ClInclude Include="..\src\math\int3_funcs.h" />
+    <ClInclude Include="..\src\math\lighting.h" />
     <ClInclude Include="..\src\math\quat_funcs.h" />
     <ClInclude Include="..\src\math\scalar.h" />
     <ClInclude Include="..\src\math\int2_funcs.h" />

@@ -374,10 +374,13 @@ pim_inline float3 VEC_CALL f3_smoothstep(float3 a, float3 b, float3 x)
     return f3_mul(f3_mul(t, t), s);
 }
 
-pim_inline float3 VEC_CALL f3_reflect(float3 i, float3 n)
+pim_inline float3 VEC_CALL f3_reflect(float3 I, float3 N)
 {
-    float3 nidn = f3_mul(n, f3_s(f3_dot(i, n)));
-    return f3_sub(i, f3_mul(f3_2, nidn));
+    // V = I - 2 * N * dot(I, N)
+    float IoN = f3_dot(I, N);
+    float3 NIoN = f3_mulvs(N, IoN);
+    float3 twoNIoN = f3_mulvs(NIoN, 2.0f);
+    return f3_sub(I, twoNIoN);
 }
 
 pim_inline float3 VEC_CALL f3_refract(float3 i, float3 n, float ior)

@@ -610,9 +610,9 @@ void igEndCombo()
 {
     return ImGui::EndCombo();
 }
-bool igComboStr_arr(const char* label,int* current_item,const char* const items[],int items_count,int popup_max_height_in_items)
+bool igComboStr_arr(const char* label,int* current_item,const char* const items[],int items_count)
 {
-    return ImGui::Combo(label,current_item,items,items_count,popup_max_height_in_items);
+    return ImGui::Combo(label,current_item,items,items_count);
 }
 bool igComboStr(const char* label,int* current_item,const char* items_separated_by_zeros,int popup_max_height_in_items)
 {

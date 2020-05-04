@@ -1016,7 +1016,7 @@ void igProgressBar(float fraction,const ImVec2 size_arg,const char* overlay);
 void igBullet(void);
 bool igBeginCombo(const char* label,const char* preview_value,ImGuiComboFlags flags);
 void igEndCombo(void);
-bool igComboStr_arr(const char* label,int* current_item,const char* const items[],int items_count,int popup_max_height_in_items);
+bool igComboStr_arr(const char* label,int* current_item,const char* const items[],int items_count);
 bool igComboStr(const char* label,int* current_item,const char* items_separated_by_zeros,int popup_max_height_in_items);
 bool igComboFnPtr(const char* label,int* current_item,bool(*items_getter)(void* data,int idx,const char** out_text),void* data,int items_count,int popup_max_height_in_items);
 bool igDragFloat(const char* label,float* v,float v_speed,float v_min,float v_max,const char* format,float power);

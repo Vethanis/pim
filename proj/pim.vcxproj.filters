@@ -86,6 +86,9 @@
     <Filter Include="Source Files\editor">
       <UniqueIdentifier>{a70292de-f5f7-457a-8dfc-6d748d575523}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\stb">
+      <UniqueIdentifier>{f3ae00c2-b0e0-474e-89ce-c21c348648da}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -303,6 +306,9 @@
     </ClCompile>
     <ClCompile Include="..\src\math\sphgauss.c">
       <Filter>Source Files\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stb\stb_image.c">
+      <Filter>Source Files\stb</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -664,6 +670,9 @@
       <Filter>Source Files\math</Filter>
     </ClInclude>
     <ClInclude Include="..\src\math\sphgauss.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\lighting.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
   </ItemGroup>

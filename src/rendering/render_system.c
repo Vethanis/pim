@@ -22,6 +22,7 @@
 #include "common/profiler.h"
 #include "math/cubic_fit.h"
 #include "common/console.h"
+#include "math/lighting.h"
 
 // ----------------------------------------------------------------------------
 
@@ -61,6 +62,47 @@ static const compflag_t kDrawableFilter =
 
 // ----------------------------------------------------------------------------
 
+typedef enum
+{
+    TMap_Reinhard = 0,
+    TMap_Uncharted2,
+    TMap_Hable,
+    TMap_Filmic,
+    TMap_ACES,
+
+    TMap_COUNT
+} TonemapId;
+
+typedef float4(VEC_CALL *TonemapFn)(float4 color);
+
+static float4 ms_hableParams = { 0.15f, 0.5f, 0.1f, 0.2f };
+static float4 VEC_CALL TMapHable(float4 x)
+{
+    return tmap4_hable(x, ms_hableParams);
+}
+
+static const TonemapFn kTonemappers[] =
+{
+    tmap4_reinhard,
+    tmap4_uchart2,
+    TMapHable,
+    tmap4_filmic,
+    tmap4_aces,
+};
+SASSERT(NELEM(kTonemappers) == TMap_COUNT);
+
+static const char* const kTonemapNames[] =
+{
+    "Reinhard",
+    "Uncharted2",
+    "Hable",
+    "Filmic",
+    "Aces",
+};
+SASSERT(NELEM(kTonemapNames) == TMap_COUNT);
+
+// ----------------------------------------------------------------------------
+
 pim_inline int2 VEC_CALL GetTile(i32 i);
 static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw);
 static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear);
@@ -88,6 +130,14 @@ static float3 ms_modelForward = { 0.0f, 0.0f, -1.0f };
 static float3 ms_modelUp = { 0.0f, 1.0f, 0.0f };
 static float3 ms_modelScale = { 1.0f, 1.0f, 1.0f };
 
+static TonemapId ms_tonemapper;
+static float ms_roughness;
+static float ms_metallic;
+static float3 ms_lightDir;
+static float3 ms_radiance;
+static float3 ms_diffuseGI;
+static float3 ms_specularGI;
+
 // ----------------------------------------------------------------------------
 
 static float VEC_CALL sRGBToLinear(float c)
@@ -111,6 +161,13 @@ static float VEC_CALL LinearTosRGB(float c)
 void render_sys_init(void)
 {
     ms_prng = prng_create();
+    ms_tonemapper = TMap_Uncharted2;
+    ms_roughness = 0.143f;
+    ms_metallic = 0.0f;
+    ms_lightDir = f3_normalize(f3_1);
+    ms_radiance = f3_v(9.593f, 7.22f, 5.458f);
+    ms_diffuseGI = f3_v(0.074f, 0.074f, 0.142f);
+    ms_specularGI = f3_v(0.299f, 0.266f, 0.236f);
 
     framebuf_create(&ms_buffer, kDrawWidth, kDrawHeight);
     rcmdqueue_create(&ms_queue);
@@ -122,33 +179,6 @@ void render_sys_init(void)
     mesh_destroy(ms_meshid);
     ms_meshid = sphere;
     RegenAlbedo();
-
-    const i32 len = 1 << 9;
-    const float dx = 1.0f / len;
-    float* pim_noalias ys = tmp_malloc(sizeof(ys[0]) * len);
-    float x = 0.0f;
-    for (i32 i = 0; i < len; ++i)
-    {
-        ys[i] = sRGBToLinear(x);
-        x += dx;
-    }
-
-    float error;
-    float3 fit = CubicFit(ys, len, &error);
-    con_printf(C32_WHITE,
-        "sRGBToLinear: %f %f %f (%f%%)",
-        fit.x, fit.y, fit.z, 100.0f * error);
-
-    x = 0.0f;
-    for (i32 i = 0; i < len; ++i)
-    {
-        ys[i] = LinearTosRGB(x);
-        x += dx;
-    }
-    fit = SqrticFit(ys, len, &error);
-    con_printf(C32_WHITE,
-        "LinearTosRGB: %f %f %f (%f%%)",
-        fit.x, fit.y, fit.z, 100.0f * error);
 }
 
 ProfileMark(pm_update, render_sys_update)
@@ -211,25 +241,61 @@ void render_sys_gui(bool* pEnabled)
 {
     ProfileBegin(pm_gui);
 
+    const u32 pickerFlags = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR;
+
     if (igBegin("RenderSystem", pEnabled, 0))
     {
-        igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f);
-        igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f);
-        igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f);
-        igSliderFloat3("scale", &ms_modelScale.x, -10.0f, 10.0f);
-        if (igButton("Regen Mesh"))
+        if (igCollapsingHeader1("Tonemapping"))
         {
-            RegenMesh();
+            igIndent(0.0f);
+            igComboStr_arr("Operator", (i32*)&ms_tonemapper, kTonemapNames, TMap_COUNT);
+            if (ms_tonemapper == TMap_Hable)
+            {
+                igSliderFloat("Shoulder Strength", &ms_hableParams.x, 0.0f, 1.0f);
+                igSliderFloat("Linear Strength", &ms_hableParams.y, 0.0f, 1.0f);
+                igSliderFloat("Linear Angle", &ms_hableParams.z, 0.0f, 1.0f);
+                igSliderFloat("Toe Strength", &ms_hableParams.w, 0.0f, 1.0f);
+            }
+            igUnindent(0.0f);
         }
-        if (igButton("Regen Albedo"))
+
+        if (igCollapsingHeader1("Material"))
         {
-            RegenAlbedo();
+            igIndent(0.0f);
+            igSliderFloat("Roughness", &ms_roughness, 0.0f, 1.0f);
+            igSliderFloat("Metallic", &ms_metallic, 0.0f, 1.0f);
+            if (igSliderFloat3("Light Dir", &ms_lightDir.x, -1.0f, 1.0f))
+            {
+                ms_lightDir = f3_normalize(ms_lightDir);
+            }
+            igColorEdit3("Light Radiance", &ms_radiance.x, pickerFlags);
+            igColorEdit3("Diffuse GI", &ms_diffuseGI.x, pickerFlags);
+            igColorEdit3("Specular GI", &ms_specularGI.x, pickerFlags);
+            igUnindent(0.0f);
         }
-        if (igButton("Sphere"))
+
+        if (igCollapsingHeader1("Model"))
         {
-            meshid_t sphere = GenSphereMesh(3.0, 64);
-            mesh_destroy(ms_meshid);
-            ms_meshid = sphere;
+            igIndent(0.0f);
+            igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f);
+            igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f);
+            igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f);
+            igSliderFloat3("scale", &ms_modelScale.x, -10.0f, 10.0f);
+            if (igButton("Regen Mesh"))
+            {
+                RegenMesh();
+            }
+            if (igButton("Regen Albedo"))
+            {
+                RegenAlbedo();
+            }
+            if (igButton("Sphere"))
+            {
+                meshid_t sphere = GenSphereMesh(3.0, 64);
+                mesh_destroy(ms_meshid);
+                ms_meshid = sphere;
+            }
+            igUnindent(0.0f);
         }
     }
     igEnd();
@@ -264,7 +330,9 @@ pim_optimize
 pim_inline i32 VEC_CALL SnormToIndex(float2 s)
 {
     const float2 kScale = { kDrawWidth, kDrawHeight };
-    int2 i2 = f2_i2(f2_mul(f2_unorm(s), kScale));
+    s = f2_mul(f2_unorm(s), kScale);
+    s = f2_subvs(s, 0.5f); // pixel center offset
+    int2 i2 = f2_i2(s); // TODO: clamp to within tile. data race when s underflows tile.
     i32 i = i2.x + i2.y * kDrawWidth;
     ASSERT((u32)i < (u32)kDrawPixels);
     return i;
@@ -312,8 +380,7 @@ pim_inline float4 VEC_CALL Tex_Nearesti2(texture_t texture, int2 coord)
 pim_optimize
 pim_inline float4 VEC_CALL Tex_Nearestf2(texture_t texture, float2 uv)
 {
-    uv.x = uv.x * texture.width;
-    uv.y = uv.y * texture.height;
+    uv = f2_sub(f2_mul(uv, f2_iv(texture.width, texture.height)), f2_s(0.5f));
     return Tex_Nearesti2(texture, f2_i2(uv));
 }
 
@@ -382,9 +449,9 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
     }
 
     framebuf_t frame = ms_buffer;
-    const float4* const __restrict positions = mesh.positions;
-    const float4* const __restrict normals = mesh.normals;
-    const float2* const __restrict uvs = mesh.uvs;
+    const float4* pim_noalias positions = mesh.positions;
+    const float4* pim_noalias normals = mesh.normals;
+    const float2* pim_noalias uvs = mesh.uvs;
     const i32 vertCount = mesh.length;
     const float4x4 M = draw.M;
     const camera_t camera = state.camera;
@@ -420,8 +487,12 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         slope,
         camera.nearFar);
 
-    const float4 ambient = { 0.01f, 0.005f, 0.005f, 0.005f };
-    const float3 L = f3_normalize(f3_1);
+    const float3 diffuseGI = ms_diffuseGI;
+    const float3 specularGI = ms_specularGI;
+    const float3 L = f3_normalize(ms_lightDir);
+    const float3 radiance = ms_radiance;
+    const float metallic = ms_metallic;
+    const float roughness = ms_roughness;
 
     for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
     {
@@ -438,6 +509,14 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
         {
             continue;
         }
+
+        const float3 NA = f4_f3(normals[iVert + 0]);
+        const float3 NB = f4_f3(normals[iVert + 1]);
+        const float3 NC = f4_f3(normals[iVert + 2]);
+
+        const float2 UA = TransformUv(uvs[iVert + 0], material.st);
+        const float2 UB = TransformUv(uvs[iVert + 1], material.st);
+        const float2 UC = TransformUv(uvs[iVert + 2], material.st);
 
         const float4 bounds = TriBounds(VP, A, B, C, state.iTile);
 
@@ -489,38 +568,22 @@ static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
                 }
 
                 // blend interpolators
-                const float3 P = f4_f3(f4_blend(
-                    positions[iVert + 0],
-                    positions[iVert + 1],
-                    positions[iVert + 2],
-                    wuv));
-
-                const float3 N = f3_normalize(f4_f3(f4_blend(
-                    normals[iVert + 0],
-                    normals[iVert + 1],
-                    normals[iVert + 2],
-                    wuv)));
+                const float3 P = f3_blend(A, B, C, wuv);
+                const float3 N = f3_normalize(f3_blend(NA, NB, NC, wuv));
+                const float2 U = f2_blend(UA, UB, UC, wuv);
 
                 const float3 V = f3_normalize(f3_sub(eye, P));
-                const float3 H = f3_normalize(f3_add(V, L));
-                const float NdL = f1_saturate(f3_dot(N, L));
-                const float NdH = f1_saturate(f3_dot(N, H));
-                const float diffuse = NdL;
-                const float specular = powf(NdH, 64.0f);
+                const float3 alb = f4_f3(Tex_Bilinearf2(albedo, U));
+                const float ao = 1.0f;
+                const float3 direct = DirectBRDF(
+                    V, L, radiance, N, alb, roughness, metallic);
 
-                float2 U = f2_blend(
-                    uvs[iVert + 0],
-                    uvs[iVert + 1],
-                    uvs[iVert + 2],
-                    wuv);
+                const float3 indirect = IndirectBRDF(
+                    V, N, diffuseGI, specularGI, alb, roughness, metallic, ao);
 
-                U = TransformUv(U, material.st);
-                const float4 alb = Tex_Bilinearf2(albedo, U);
+                const float3 light = f3_add(direct, indirect);
 
-                float4 light = f4_mul(alb, f4_addvs(ambient, diffuse));
-                light = f4_addvs(light, specular);
-
-                frame.light[iTexel] = light;
+                frame.light[iTexel] = f3_f4(light, 1.0f);
             }
         }
     }
@@ -536,8 +599,8 @@ static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
 
     framebuf_t frame = ms_buffer;
     const int2 tile = GetTile(state.iTile);
-    float4* light = frame.light;
-    float* depth = frame.depth;
+    float4* pim_noalias light = frame.light;
+    float* pim_noalias depth = frame.depth;
 
     for (i32 ty = 0; ty < kTileHeight; ++ty)
     {
@@ -568,15 +631,16 @@ static void VEC_CALL ResolveTile(renderstate_t state, rcmd_resolve_t resolve)
 
     framebuf_t frame = ms_buffer;
     const int2 tile = GetTile(state.iTile);
-    float4* light = frame.light;
-    u32* color = frame.color;
+    float4* pim_noalias light = frame.light;
+    u32* pim_noalias color = frame.color;
+    const TonemapFn tmap = kTonemappers[ms_tonemapper];
 
     for (i32 ty = 0; ty < kTileHeight; ++ty)
     {
         for (i32 tx = 0; tx < kTileWidth; ++tx)
         {
             i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
-            color[i] = f4_rgba8(tmap4_filmic(light[i]));
+            color[i] = f4_rgba8(tmap(light[i]));
         }
     }
 

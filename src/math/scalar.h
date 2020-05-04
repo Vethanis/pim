@@ -167,6 +167,13 @@ pim_inline i32 VEC_CALL i1_distance(i32 a, i32 b)
     return i1_abs(b - a);
 }
 
+pim_inline float VEC_CALL f1_tolinear(float c)
+{
+    float c2 = c * c;
+    float c3 = c2 * c;
+    return 0.016124f * c + 0.667737f * c2 + 0.317955f * c3;
+}
+
 pim_inline float VEC_CALL f1_tosrgb(float c)
 {
     float s1 = sqrtf(c);
@@ -175,16 +182,10 @@ pim_inline float VEC_CALL f1_tosrgb(float c)
     return 0.582176f * s1 + 0.789747f * s2 - 0.371449f * s3;
 }
 
-pim_inline float VEC_CALL f1_tolinear(float c)
-{
-    float c2 = c * c;
-    float c3 = c2 * c;
-    return 0.016124f * c + 0.667737f * c2 + 0.317955f * c3;
-}
-
 pim_inline float VEC_CALL tmap1_reinhard(float x)
 {
-    return x / (1.0f + x);
+    float y = x / (1.0f + x);
+    return f1_tosrgb(y);
 }
 
 pim_inline float VEC_CALL tmap1_aces(float x)
@@ -194,27 +195,27 @@ pim_inline float VEC_CALL tmap1_aces(float x)
     const float c = 2.43f;
     const float d = 0.59f;
     const float e = 0.14f;
-    return (x * (a * x + b)) / (x * (c * x + d) + e);
+    float y = (x * (a * x + b)) / (x * (c * x + d) + e);
+    return y;
 }
 
-// note: outputs roughly gamma2.2
 pim_inline float VEC_CALL tmap1_filmic(float x)
 {
     x = f1_max(0.0f, x - 0.004f);
-    return (x * (6.2f * x + 0.5f)) / (x * (6.2f * x + 1.7f) + 0.06f);
+    float y = (x * (6.2f * x + 0.5f)) / (x * (6.2f * x + 1.7f) + 0.06f);
+    return y; // originally fit to gamma2.2
 }
 
-// http://filmicworlds.com/blog/filmic-tonemapping-operators/
 pim_inline float VEC_CALL tmap1_uchart2(float x)
 {
     const float a = 0.15f;
-    const float b = 0.5f;
-    const float c = 0.1f;
-    const float d = 0.2f;
+    const float b = 0.50f;
+    const float c = 0.10f;
+    const float d = 0.20f;
     const float e = 0.02f;
-    const float f = 0.3f;
-    const float w = 11.2f;
-    return ((x * (a * x + c * b) + d * e) / (x * (a * x + b) + d * f)) - (e / f);
+    const float f = 0.30f;
+    float y = ((x * ( a * x + c * b) + d * e) / (x * (a * x + b) + d * f)) - e / f;
+    return y; // take to srgb in tmap4
 }
 
 PIM_C_END
