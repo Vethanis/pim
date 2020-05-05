@@ -68,9 +68,9 @@ void render_sys_init(void)
     ms_material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
     ms_material.albedo = GenCheckerTex();
 
-    ms_meshid = GenSphereMesh(3.0, 16);
+    ms_meshid = GenSphereMesh(1.0, 16);
 
-    CreateEntities(ms_meshid, ms_material, 25);
+    CreateEntities(ms_meshid, ms_material, 64);
 }
 
 ProfileMark(pm_update, render_sys_update)
@@ -81,8 +81,8 @@ void render_sys_update(void)
     camera_t camera;
     camera_get(&camera);
 
-    task_t* clearTask = ClearTile(&ms_buffer, ms_clearColor, camera.nearFar.y);
     task_t* xformTask = TransformCompose();
+    task_t* clearTask = ClearTile(&ms_buffer, ms_clearColor, camera.nearFar.y);
     task_sys_schedule();
     task_await(xformTask);
 
@@ -225,15 +225,26 @@ static void CreateEntities(meshid_t mesh, material_t material, i32 count)
 
     prng_t rng = ms_prng;
     compflag_t all = compflag_create(4, CompId_Position, CompId_LocalToWorld, CompId_Drawable, CompId_Bounds);
-    compflag_t some = compflag_create(1, CompId_Position);
+    //compflag_t some = compflag_create(1, CompId_Position);
+
+    const float side = sqrtf((float)count);
+    const float stride = 3.0f;
+
+    float x = 0.0f;
+    float z = 0.0f;
     for (i32 i = 0; i < count; ++i)
     {
-        i32 x = i % 4;
-        i32 z = (i / 4) % 4;
-        position.Value.x = x * 4.0f;
-        position.Value.z = z * 4.0f;
+        position.Value.x = stride * x;
+        position.Value.z = stride * z;
         position.Value.y = 0.0f;
-        ecs_create(prng_bool(&rng) ? all : some, rows);
+        ecs_create(all, rows);
+
+        x += 1.0f;
+        if (x >= side)
+        {
+            x = 0.0f;
+            z += 1.0f;
+        }
     }
     ms_prng = rng;
 }

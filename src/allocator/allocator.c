@@ -8,8 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define kTempFrames     4
-#define kTempMask       (kTempFrames - 1)
+#define kTempFrames     2
 #define kAlign          16
 #define kAlignMask      (kAlign - 1)
 
@@ -130,7 +129,7 @@ void alloc_sys_init(void)
 
 void alloc_sys_update(void)
 {
-    const i32 i = (ms_tempIndex + 1) & kTempMask;
+    const i32 i = (ms_tempIndex + 1) % kTempFrames;
     ms_tempIndex = i;
     linear_clear(ms_temp + i);
 }
