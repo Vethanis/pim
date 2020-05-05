@@ -57,7 +57,4 @@ pim_inline float2 VEC_CALL TileCenter(int2 tile)
     return ScreenToSnorm(tile);
 }
 
-void AcquireTile(struct framebuf_s *target, i32 iTile);
-void ReleaseTile(struct framebuf_s *target, i32 iTile);
-
 PIM_C_END

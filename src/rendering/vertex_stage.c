@@ -25,11 +25,9 @@ typedef struct vertexstage_s
     framebuf_t* target;
 } vertexstage_t;
 
-ProfileMark(pm_VertexStageForEach, VertexStageForEach)
+pim_optimize
 static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
 {
-    ProfileBegin(pm_VertexStageForEach);
-
     vertexstage_t* vertTask = (vertexstage_t*)task;
     ASSERT(vertTask->target);
 
@@ -141,16 +139,13 @@ static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
             meshOut->uvs = uvsOut;
             meshid_t worldMesh = mesh_create(meshOut);
 
-            FragmentStage(vertTask->target, worldMesh, drawables[i].material);
-            task_sys_schedule();
+            SubmitMesh(worldMesh, drawables[i].material);
         }
         else
         {
             drawables[i].visible = false;
         }
     }
-
-    ProfileEnd(pm_VertexStageForEach);
 }
 
 static const compflag_t kAll =

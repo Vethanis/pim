@@ -15,7 +15,6 @@ void framebuf_create(framebuf_t* buf, i32 width, i32 height)
     buf->light = perm_malloc(len * sizeof(buf->light[0]));
     buf->color = perm_malloc(len * sizeof(buf->color[0]));
     buf->depth = perm_malloc(len * sizeof(buf->depth[0]));
-    buf->tileFlags = perm_calloc(kTileCount * sizeof(buf->tileFlags[0]));
 }
 
 void framebuf_destroy(framebuf_t* buf)
@@ -29,8 +28,6 @@ void framebuf_destroy(framebuf_t* buf)
     buf->color = NULL;
     pim_free(buf->depth);
     buf->depth = NULL;
-    pim_free(buf->tileFlags);
-    buf->tileFlags = NULL;
 }
 
 i32 framebuf_color_bytes(framebuf_t buf)

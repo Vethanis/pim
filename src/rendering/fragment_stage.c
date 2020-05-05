@@ -2,6 +2,7 @@
 #include "threading/task.h"
 #include "common/profiler.h"
 #include "allocator/allocator.h"
+#include "containers/ptrqueue.h"
 
 #include "math/types.h"
 #include "math/float4x4_funcs.h"
@@ -20,7 +21,96 @@
 #include "rendering/camera.h"
 #include "rendering/framebuffer.h"
 
-pim_inline float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, i32 iTile)
+typedef struct fragstage_s
+{
+    task_t task;
+    framebuf_t* target;
+} fragstage_t;
+
+typedef struct drawmesh_s
+{
+    material_t material;
+    meshid_t mesh;
+} drawmesh_t;
+
+static ptrqueue_t ms_queues[kTileCount];
+static float3 ms_lightDir;
+static float3 ms_lightRad;
+static float3 ms_diffuseGI;
+static float3 ms_specularGI;
+
+float3* LightDir(void) { return &ms_lightDir; }
+float3* LightRad(void) { return &ms_lightRad; }
+float3* DiffuseGI(void) { return &ms_diffuseGI; }
+float3* SpecularGI(void) { return &ms_specularGI; }
+
+static float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, i32 iTile);
+static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile);
+
+static void FragmentStageFn(task_t* task, i32 begin, i32 end)
+{
+    fragstage_t* stage = (fragstage_t*)task;
+    framebuf_t* pim_noalias target = stage->target;
+
+    for (i32 i = begin; i < end; ++i)
+    {
+        ptrqueue_t* queue = ms_queues + i;
+        drawmesh_t* draw = NULL;
+    trypop:
+        draw = ptrqueue_trypop(queue);
+        if (draw)
+        {
+            DrawMesh(target, draw, i);
+            goto trypop;
+        }
+    }
+}
+
+void SubmitMesh(meshid_t worldMesh, material_t material)
+{
+    drawmesh_t* draw = tmp_calloc(sizeof(*draw));
+    draw->material = material;
+    draw->mesh = worldMesh;
+
+    for (i32 i = 0; i < kTileCount; ++i)
+    {
+        bool pushed = ptrqueue_trypush(ms_queues + i, draw);
+        ASSERT(pushed);
+    }
+}
+
+void FragmentStage_Init(void)
+{
+    for (i32 i = 0; i < kTileCount; ++i)
+    {
+        ptrqueue_create(ms_queues + i, EAlloc_Perm, 256);
+    }
+}
+
+void FragmentStage_Shutdown(void)
+{
+    for (i32 i = 0; i < kTileCount; ++i)
+    {
+        ptrqueue_destroy(ms_queues + i);
+    }
+}
+
+ProfileMark(pm_FragmentStage, FragmentStage)
+struct task_s* FragmentStage(struct framebuf_s* target)
+{
+    ProfileBegin(pm_FragmentStage);
+
+    ASSERT(target);
+
+    fragstage_t* stage = tmp_calloc(sizeof(*stage));
+    stage->target = target;
+    task_submit((task_t*)stage, FragmentStageFn, kTileCount);
+
+    ProfileEnd(pm_FragmentStage);
+    return (task_t*)stage;
+}
+
+static float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, i32 iTile)
 {
     float4 a = f3_f4(A, 1.0f);
     float4 b = f3_f4(B, 1.0f);
@@ -52,30 +142,9 @@ pim_inline float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, 
     return bounds;
 }
 
-typedef struct drawmesh_s
-{
-    task_t task;
-    material_t material;
-    meshid_t mesh;
-    framebuf_t* target;
-} drawmesh_t;
-
-static float3 ms_lightDir;
-static float3 ms_lightRad;
-static float3 ms_diffuseGI;
-static float3 ms_specularGI;
-
-float3* LightDir(void) { return &ms_lightDir; }
-float3* LightRad(void) { return &ms_lightRad; }
-float3* DiffuseGI(void) { return &ms_diffuseGI; }
-float3* SpecularGI(void) { return &ms_specularGI; }
-
-ProfileMark(pm_DrawMesh, DrawMesh)
 pim_optimize
-static void VEC_CALL DrawMesh(drawmesh_t* draw, i32 iTile)
+static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
 {
-    ProfileBegin(pm_DrawMesh);
-
     mesh_t mesh;
     texture_t albedoMap;
     // texture_t romeMap;
@@ -84,7 +153,9 @@ static void VEC_CALL DrawMesh(drawmesh_t* draw, i32 iTile)
         return;
     }
 
-    framebuf_t target = *(draw->target);
+    float4* pim_noalias dstLight = target->light;
+    float* pim_noalias dstDepth = target->depth;
+
     const float4* pim_noalias positions = mesh.positions;
     const float4* pim_noalias normals = mesh.normals;
     const float2* pim_noalias uvs = mesh.uvs;
@@ -124,7 +195,6 @@ static void VEC_CALL DrawMesh(drawmesh_t* draw, i32 iTile)
     const float4 flatAlbedo = rgba8_f4(draw->material.flatAlbedo);
     const float4 flatRome = rgba8_f4(draw->material.flatRome);
 
-    AcquireTile(&target, iTile);
     for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
     {
         const float3 A = f4_f3(positions[iVert + 0]);
@@ -178,7 +248,7 @@ static void VEC_CALL DrawMesh(drawmesh_t* draw, i32 iTile)
                     // barycentric and depth clipping
                     const float rcpDet = 1.0f / det;
                     const float t = t0 * rcpDet;
-                    if (t < nearClip || t > farClip || t > target.depth[iTexel])
+                    if (t < nearClip || t > farClip || t > dstDepth[iTexel])
                     {
                         continue;
                     }
@@ -198,7 +268,7 @@ static void VEC_CALL DrawMesh(drawmesh_t* draw, i32 iTile)
                         continue;
                     }
                     wuv = (float3) { w, u, v };
-                    target.depth[iTexel] = t;
+                    dstDepth[iTexel] = t;
                 }
 
                 float3 light;
@@ -216,42 +286,8 @@ static void VEC_CALL DrawMesh(drawmesh_t* draw, i32 iTile)
                     light = f3_add(direct, indirect);
                 }
 
-                target.light[iTexel] = f3_f4(light, 1.0f);
+                dstLight[iTexel] = f3_f4(light, 1.0f);
             }
         }
     }
-    ReleaseTile(&target, iTile);
-
-    ProfileEnd(pm_DrawMesh);
-}
-
-ProfileMark(pm_FragmentStageFn, FragmentStageFn)
-static void FragmentStageFn(task_t* task, i32 begin, i32 end)
-{
-    ProfileBegin(pm_FragmentStageFn);
-
-    drawmesh_t* draw = (drawmesh_t*)task;
-    for (i32 i = begin; i < end; ++i)
-    {
-        DrawMesh(draw, i);
-    }
-
-    ProfileEnd(pm_FragmentStageFn);
-}
-
-ProfileMark(pm_FragmentStage, FragmentStage)
-struct task_s* FragmentStage(struct framebuf_s* target, meshid_t worldMesh, material_t material)
-{
-    ProfileBegin(pm_FragmentStage);
-
-    ASSERT(target);
-
-    drawmesh_t* draw = tmp_calloc(sizeof(*draw));
-    draw->target = target;
-    draw->mesh = worldMesh;
-    draw->material = material;
-    task_submit((task_t*)draw, FragmentStageFn, kTileCount);
-
-    ProfileEnd(pm_FragmentStage);
-    return (task_t*)draw;
 }

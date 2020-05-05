@@ -61,6 +61,7 @@ void render_sys_init(void)
 
     framebuf_create(&ms_buffer, kDrawWidth, kDrawHeight);
     screenblit_init(kDrawWidth, kDrawHeight);
+    FragmentStage_Init();
 
     ms_material.flatAlbedo = f4_rgba8(f4_s(1.0f));
     ms_material.flatRome = f4_rgba8(f4_v(0.143f, 1.0f, 0.0f, 0.0f));
@@ -82,17 +83,18 @@ void render_sys_update(void)
 
     task_t* clearTask = ClearTile(&ms_buffer, ms_clearColor, camera.nearFar.y);
     task_t* xformTask = TransformCompose();
-
     task_sys_schedule();
     task_await(xformTask);
 
     task_t* vertexTask = VertexStage(&ms_buffer);
-
     task_sys_schedule();
     task_await(vertexTask);
 
-    task_t* resolveTask = ResolveTile(&ms_buffer, ms_tonemapper, ms_toneParams);
+    task_t* fragTask = FragmentStage(&ms_buffer);
+    task_sys_schedule();
+    task_await(fragTask);
 
+    task_t* resolveTask = ResolveTile(&ms_buffer, ms_tonemapper, ms_toneParams);
     task_sys_schedule();
     task_await(resolveTask);
 
@@ -112,6 +114,7 @@ void render_sys_shutdown(void)
     framebuf_destroy(&ms_buffer);
     mesh_destroy(ms_meshid);
     texture_destroy(ms_material.albedo);
+    FragmentStage_Shutdown();
 }
 
 ProfileMark(pm_gui, render_sys_gui)

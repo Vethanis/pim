@@ -5,11 +5,8 @@
 #include "math/float4x4_funcs.h"
 #include "allocator/allocator.h"
 
-ProfileMark(pm_TransformComposeForEach, TransformComposeForEach)
 static void TransformComposeForEach(ecs_foreach_t* task, void** rows, i32 length)
 {
-    ProfileBegin(pm_TransformComposeForEach);
-
     ASSERT(rows);
     const position_t* pim_noalias positions = rows[CompId_Position];
     const rotation_t* pim_noalias rotations = rows[CompId_Rotation];
@@ -90,8 +87,6 @@ static void TransformComposeForEach(ecs_foreach_t* task, void** rows, i32 length
     }
     break;
     }
-
-    ProfileEnd(pm_TransformComposeForEach);
 }
 
 static const compflag_t kAll = { .dwords[0] = (1 << CompId_LocalToWorld) };

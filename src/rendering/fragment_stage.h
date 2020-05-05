@@ -7,7 +7,11 @@ PIM_C_BEGIN
 #include "rendering/mesh.h"
 #include "rendering/material.h"
 
-struct task_s* FragmentStage(struct framebuf_s* target, meshid_t worldMesh, material_t material);
+void SubmitMesh(meshid_t worldMesh, material_t material);
+
+void FragmentStage_Init(void);
+void FragmentStage_Shutdown(void);
+struct task_s* FragmentStage(struct framebuf_s* target);
 
 // temporary until we have a better scene data structure
 float3* LightDir(void);

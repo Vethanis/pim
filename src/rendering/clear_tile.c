@@ -14,11 +14,8 @@ typedef struct cleartile_s
     float depth;
 } cleartile_t;
 
-ProfileMark(pm_ClearTileFn, ClearTileFn)
 static void ClearTileFn(task_t* task, i32 begin, i32 end)
 {
-    ProfileBegin(pm_ClearTileFn);
-
     cleartile_t* pSelf = (cleartile_t*)task;
     framebuf_t* target = pSelf->target;
     const float4 color = pSelf->color;
@@ -28,7 +25,6 @@ static void ClearTileFn(task_t* task, i32 begin, i32 end)
 
     for (i32 iTile = begin; iTile < end; ++iTile)
     {
-        AcquireTile(target, iTile);
         const int2 tile = GetTile(iTile);
         for (i32 ty = 0; ty < kTileHeight; ++ty)
         {
@@ -39,10 +35,7 @@ static void ClearTileFn(task_t* task, i32 begin, i32 end)
                 depthBuf[i] = depth;
             }
         }
-        ReleaseTile(target, iTile);
     }
-
-    ProfileEnd(pm_ClearTileFn);
 }
 
 ProfileMark(pm_ClearTile, ClearTile)

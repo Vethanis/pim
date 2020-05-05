@@ -16,11 +16,8 @@ typedef struct resolve_s
     TonemapFn tonemapper;
 } resolve_t;
 
-ProfileMark(pm_ResolveTileFn, ResolveTileFn)
 static void ResolveTileFn(task_t* task, i32 begin, i32 end)
 {
-    ProfileBegin(pm_ResolveTileFn);
-
     resolve_t* resolve = (resolve_t*)task;
     framebuf_t* target = resolve->target;
     const float4 tmapParams = resolve->toneParams;
@@ -30,7 +27,6 @@ static void ResolveTileFn(task_t* task, i32 begin, i32 end)
 
     for (i32 iTile = begin; iTile < end; ++iTile)
     {
-        AcquireTile(target, iTile);
         const int2 tile = GetTile(iTile);
         for (i32 ty = 0; ty < kTileHeight; ++ty)
         {
@@ -40,10 +36,7 @@ static void ResolveTileFn(task_t* task, i32 begin, i32 end)
                 color[i] = f4_rgba8(tmap(light[i], tmapParams));
             }
         }
-        ReleaseTile(target, iTile);
     }
-
-    ProfileEnd(pm_ResolveTileFn);
 }
 
 ProfileMark(pm_ResolveTile, ResolveTile)
