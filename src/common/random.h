@@ -39,4 +39,6 @@ pim_inline float prng_f32(prng_t* rng)
     return (float)x * kScale;
 }
 
+pim_inline bool prng_bool(prng_t* rng) { return prng_u32(rng) & 1u; }
+
 PIM_C_END

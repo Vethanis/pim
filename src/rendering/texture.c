@@ -13,30 +13,27 @@ textureid_t texture_load(const char* path)
     u8* texels = stbi_load(path, &width, &height, &channels, 4);
     if (texels)
     {
-        texture_t tex =
-        {
-            .width = width,
-            .height = height,
-            .texels = (u32*)texels,
-        };
-        return texture_create(&tex);
+        texture_t* tex = perm_calloc(sizeof(*tex));
+        tex->width = width;
+        tex->height = height;
+        tex->texels = (u32*)texels;
+        return texture_create(tex);
     }
     return (textureid_t) { 0 };
 }
 
-textureid_t texture_create(texture_t* src)
+textureid_t texture_create(texture_t* tex)
 {
-    ASSERT(src);
-    ASSERT(src->width > 0);
-    ASSERT(src->height > 0);
-    ASSERT(src->texels);
+    ASSERT(tex);
+    ASSERT(tex->version == 0);
+    ASSERT(tex->width > 0);
+    ASSERT(tex->height > 0);
+    ASSERT(tex->texels);
 
     const u64 version = 1099511628211ull + fetch_add_u64(&ms_version, 3, MO_Relaxed);
 
-    texture_t* dst = perm_malloc(sizeof(*dst));
-    *dst = *src;
-    dst->version = version;
-    textureid_t id = { version, dst };
+    tex->version = version;
+    textureid_t id = { version, tex };
 
     return id;
 }

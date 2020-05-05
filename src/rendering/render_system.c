@@ -1,184 +1,75 @@
 #include "rendering/render_system.h"
 
 #include "allocator/allocator.h"
+#include "components/ecs.h"
+#include "threading/task.h"
+#include "ui/cimgui.h"
+
 #include "common/time.h"
 #include "common/cvar.h"
-#include "components/ecs.h"
-#include "rendering/framebuffer.h"
-#include "rendering/constants.h"
-#include "rendering/rcmd.h"
-#include "rendering/camera.h"
-#include "rendering/window.h"
-#include "rendering/screenblit.h"
+#include "common/profiler.h"
+#include "common/console.h"
+
 #include "math/types.h"
 #include "math/int2_funcs.h"
 #include "math/float4_funcs.h"
 #include "math/float3_funcs.h"
 #include "math/float2_funcs.h"
 #include "math/float4x4_funcs.h"
-#include "math/sdf.h"
-#include "math/frustum.h"
-#include "ui/cimgui.h"
-#include "common/profiler.h"
-#include "math/cubic_fit.h"
-#include "common/console.h"
-#include "math/lighting.h"
+#include "math/color.h"
+
+#include "rendering/framebuffer.h"
+#include "rendering/constants.h"
+#include "rendering/camera.h"
+#include "rendering/window.h"
+#include "rendering/screenblit.h"
+#include "rendering/transform_compose.h"
+#include "rendering/clear_tile.h"
+#include "rendering/vertex_stage.h"
+#include "rendering/fragment_stage.h"
+#include "rendering/resolve_tile.h"
 
 // ----------------------------------------------------------------------------
 
-typedef struct renderstate_s
-{
-    float4 viewport;
-    camera_t camera;
-    prng_t rng;
-    i32 iTile;
-} renderstate_t;
-
-// ----------------------------------------------------------------------------
-
-static const float2 kTileExtents =
-{
-    (0.5f * kTileWidth) / kDrawWidth,
-    (0.5f * kTileHeight) / kDrawHeight
-};
-
-static const float2 kTileSize =
-{
-    (float)kTileWidth / kDrawWidth,
-    (float)kTileHeight / kDrawHeight
-};
-
-static const compflag_t kLocalToWorldFilter =
-{
-    (1 << CompId_LocalToWorld)
-};
-
-static const compflag_t kDrawableFilter =
-{
-    (1 << CompId_LocalToWorld) |
-    (1 << CompId_Drawable) |
-    (1 << CompId_Bounds)
-};
-
-// ----------------------------------------------------------------------------
-
-typedef enum
-{
-    TMap_Reinhard = 0,
-    TMap_Uncharted2,
-    TMap_Hable,
-    TMap_Filmic,
-    TMap_ACES,
-
-    TMap_COUNT
-} TonemapId;
-
-typedef float4(VEC_CALL *TonemapFn)(float4 color);
-
-static float4 ms_hableParams = { 0.15f, 0.5f, 0.1f, 0.2f };
-static float4 VEC_CALL TMapHable(float4 x)
-{
-    return tmap4_hable(x, ms_hableParams);
-}
-
-static const TonemapFn kTonemappers[] =
-{
-    tmap4_reinhard,
-    tmap4_uchart2,
-    TMapHable,
-    tmap4_filmic,
-    tmap4_aces,
-};
-SASSERT(NELEM(kTonemappers) == TMap_COUNT);
-
-static const char* const kTonemapNames[] =
-{
-    "Reinhard",
-    "Uncharted2",
-    "Hable",
-    "Filmic",
-    "Aces",
-};
-SASSERT(NELEM(kTonemapNames) == TMap_COUNT);
-
-// ----------------------------------------------------------------------------
-
-pim_inline int2 VEC_CALL GetTile(i32 i);
-static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw);
-static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear);
-static void ExecTile(i32 iTile);
-static void RasterizeTaskFn(task_t* task, i32 begin, i32 end);
-static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length);
-static void TrsTaskFn(ecs_foreach_t* task, void** rows, i32 length);
-static void CreateEntities(task_t* task, i32 begin, i32 end);
+static void CreateEntities(meshid_t mesh, material_t material, i32 count);
 static meshid_t GenSphereMesh(float r, i32 steps);
-static void RegenMesh(void);
-static void RegenAlbedo(void);
+static textureid_t GenCheckerTex(void);
 
 // ----------------------------------------------------------------------------
 
 static framebuf_t ms_buffer;
-static rcmdqueue_t ms_queue;
-static task_t ms_rastask;
-static ecs_foreach_t ms_cmdtask;
-static ecs_foreach_t ms_l2wtask;
 static meshid_t ms_meshid;
-static textureid_t ms_albedoid;
+static material_t ms_material;
 static prng_t ms_prng;
-static float3 ms_modelTranslation = { 0.0f, 0.0f, 0.0f };
-static float3 ms_modelForward = { 0.0f, 0.0f, -1.0f };
-static float3 ms_modelUp = { 0.0f, 1.0f, 0.0f };
-static float3 ms_modelScale = { 1.0f, 1.0f, 1.0f };
 
 static TonemapId ms_tonemapper;
-static float ms_roughness;
-static float ms_metallic;
-static float3 ms_lightDir;
-static float3 ms_radiance;
-static float3 ms_diffuseGI;
-static float3 ms_specularGI;
+static float4 ms_toneParams;
+static float4 ms_clearColor;
 
 // ----------------------------------------------------------------------------
-
-static float VEC_CALL sRGBToLinear(float c)
-{
-    if (c <= 0.04045f)
-    {
-        return c / 12.92f;
-    }
-    return powf((c + 0.055f) / 1.055f, 2.4f);
-}
-
-static float VEC_CALL LinearTosRGB(float c)
-{
-    if (c <= 0.0031308f)
-    {
-        return c * 12.92f;
-    }
-    return 1.055f * powf(c, 1.0f / 2.4f) - 0.055f;
-}
 
 void render_sys_init(void)
 {
     ms_prng = prng_create();
-    ms_tonemapper = TMap_Uncharted2;
-    ms_roughness = 0.143f;
-    ms_metallic = 0.0f;
-    ms_lightDir = f3_normalize(f3_1);
-    ms_radiance = f3_v(9.593f, 7.22f, 5.458f);
-    ms_diffuseGI = f3_v(0.074f, 0.074f, 0.142f);
-    ms_specularGI = f3_v(0.299f, 0.266f, 0.236f);
+    ms_tonemapper = TMap_Hable;
+    ms_toneParams = Tonemap_DefParams();
+    ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
+    *LightDir() = f3_normalize(f3_1);
+    *LightRad() = f3_v(9.593f, 7.22f, 5.458f);
+    *DiffuseGI() = f3_v(0.074f, 0.074f, 0.142f);
+    *SpecularGI() = f3_v(0.299f, 0.266f, 0.236f);
 
     framebuf_create(&ms_buffer, kDrawWidth, kDrawHeight);
-    rcmdqueue_create(&ms_queue);
     screenblit_init(kDrawWidth, kDrawHeight);
 
-    // demo stuff
-    //CreateEntities(NULL, 0, 1 << 20);
-    meshid_t sphere = GenSphereMesh(3.0, 16);
-    mesh_destroy(ms_meshid);
-    ms_meshid = sphere;
-    RegenAlbedo();
+    ms_material.flatAlbedo = f4_rgba8(f4_s(1.0f));
+    ms_material.flatRome = f4_rgba8(f4_v(0.143f, 1.0f, 0.0f, 0.0f));
+    ms_material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
+    ms_material.albedo = GenCheckerTex();
+
+    ms_meshid = GenSphereMesh(3.0, 16);
+
+    CreateEntities(ms_meshid, ms_material, 25);
 }
 
 ProfileMark(pm_update, render_sys_update)
@@ -188,52 +79,39 @@ void render_sys_update(void)
 
     camera_t camera;
     camera_get(&camera);
-    rcmdbuf_t* cmdbuf = rcmdbuf_create();
-    rcmd_clear(cmdbuf, f4_v(0.01f, 0.012f, 0.022f, 0.0f), camera.nearFar.y);
-    rcmd_view(cmdbuf, camera);
 
-    material_t material =
-    {
-        .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
-        .albedo = ms_albedoid,
-    };
-    quat modelRotation = quat_lookat(f3_normalize(ms_modelForward), f3_normalize(ms_modelUp));
-    float4x4 M = f4x4_trs(ms_modelTranslation, modelRotation, ms_modelScale);
-    rcmd_draw(cmdbuf, M, ms_meshid, material);
-    rcmd_resolve(cmdbuf, 1.0f);
-
-    rcmdqueue_submit(&ms_queue, cmdbuf);
-
-    ecs_foreach(&ms_l2wtask, kLocalToWorldFilter, (compflag_t) { 0 }, TrsTaskFn);
-    ecs_foreach(&ms_cmdtask, kDrawableFilter, (compflag_t) { 0 }, DrawableTaskFn);
-    task_submit(&ms_rastask, RasterizeTaskFn, kTileCount);
+    task_t* clearTask = ClearTile(&ms_buffer, ms_clearColor, camera.nearFar.y);
+    task_t* xformTask = TransformCompose();
 
     task_sys_schedule();
+    task_await(xformTask);
+
+    task_t* vertexTask = VertexStage(&ms_buffer);
+
+    task_sys_schedule();
+    task_await(vertexTask);
+
+    task_t* resolveTask = ResolveTile(&ms_buffer, ms_tonemapper, ms_toneParams);
+
+    task_sys_schedule();
+    task_await(resolveTask);
+
+    screenblit_blit(ms_buffer.color, kDrawWidth, kDrawHeight);
 
     ProfileEnd(pm_update);
 }
 
-ProfileMark(pm_present, render_sys_present)
 void render_sys_present(void)
 {
-    ProfileBegin(pm_present);
-
-    task_await((task_t*)&ms_rastask);
-    screenblit_blit(ms_buffer.color, kDrawWidth, kDrawHeight);
-
-    ProfileEnd(pm_present);
 }
 
 void render_sys_shutdown(void)
 {
     task_sys_schedule();
     screenblit_shutdown();
-    task_await((task_t*)&ms_cmdtask);
-    task_await((task_t*)&ms_rastask);
     framebuf_destroy(&ms_buffer);
-    rcmdqueue_destroy(&ms_queue);
     mesh_destroy(ms_meshid);
-    texture_destroy(ms_albedoid);
+    texture_destroy(ms_material.albedo);
 }
 
 ProfileMark(pm_gui, render_sys_gui)
@@ -241,20 +119,21 @@ void render_sys_gui(bool* pEnabled)
 {
     ProfileBegin(pm_gui);
 
-    const u32 pickerFlags = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR;
+    const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_InputRGB;
+    const u32 hdrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
 
     if (igBegin("RenderSystem", pEnabled, 0))
     {
         if (igCollapsingHeader1("Tonemapping"))
         {
             igIndent(0.0f);
-            igComboStr_arr("Operator", (i32*)&ms_tonemapper, kTonemapNames, TMap_COUNT);
+            igComboStr_arr("Operator", (i32*)&ms_tonemapper, Tonemap_Names(), TMap_COUNT);
             if (ms_tonemapper == TMap_Hable)
             {
-                igSliderFloat("Shoulder Strength", &ms_hableParams.x, 0.0f, 1.0f);
-                igSliderFloat("Linear Strength", &ms_hableParams.y, 0.0f, 1.0f);
-                igSliderFloat("Linear Angle", &ms_hableParams.z, 0.0f, 1.0f);
-                igSliderFloat("Toe Strength", &ms_hableParams.w, 0.0f, 1.0f);
+                igSliderFloat("Shoulder Strength", &ms_toneParams.x, 0.0f, 1.0f);
+                igSliderFloat("Linear Strength", &ms_toneParams.y, 0.0f, 1.0f);
+                igSliderFloat("Linear Angle", &ms_toneParams.z, 0.0f, 1.0f);
+                igSliderFloat("Toe Strength", &ms_toneParams.w, 0.0f, 1.0f);
             }
             igUnindent(0.0f);
         }
@@ -262,39 +141,25 @@ void render_sys_gui(bool* pEnabled)
         if (igCollapsingHeader1("Material"))
         {
             igIndent(0.0f);
-            igSliderFloat("Roughness", &ms_roughness, 0.0f, 1.0f);
-            igSliderFloat("Metallic", &ms_metallic, 0.0f, 1.0f);
-            if (igSliderFloat3("Light Dir", &ms_lightDir.x, -1.0f, 1.0f))
-            {
-                ms_lightDir = f3_normalize(ms_lightDir);
-            }
-            igColorEdit3("Light Radiance", &ms_radiance.x, pickerFlags);
-            igColorEdit3("Diffuse GI", &ms_diffuseGI.x, pickerFlags);
-            igColorEdit3("Specular GI", &ms_specularGI.x, pickerFlags);
-            igUnindent(0.0f);
-        }
 
-        if (igCollapsingHeader1("Model"))
-        {
-            igIndent(0.0f);
-            igSliderFloat3("translation", &ms_modelTranslation.x, -10.0f, 10.0f);
-            igSliderFloat3("rotation forward", &ms_modelForward.x, -10.0f, 10.0f);
-            igSliderFloat3("rotation up", &ms_modelUp.x, -10.0f, 10.0f);
-            igSliderFloat3("scale", &ms_modelScale.x, -10.0f, 10.0f);
-            if (igButton("Regen Mesh"))
-            {
-                RegenMesh();
-            }
-            if (igButton("Regen Albedo"))
-            {
-                RegenAlbedo();
-            }
-            if (igButton("Sphere"))
-            {
-                meshid_t sphere = GenSphereMesh(3.0, 64);
-                mesh_destroy(ms_meshid);
-                ms_meshid = sphere;
-            }
+            float4 flatAlbedo = rgba8_f4(ms_material.flatAlbedo);
+            igColorEdit3("Albedo", &flatAlbedo.x, ldrPicker);
+            ms_material.flatAlbedo = f4_rgba8(flatAlbedo);
+
+            float4 flatRome = rgba8_f4(ms_material.flatRome);
+            igSliderFloat("Roughness", &flatRome.x, 0.0f, 1.0f);
+            igSliderFloat("Occlusion", &flatRome.x, 0.0f, 1.0f);
+            igSliderFloat("Metallic", &flatRome.z, 0.0f, 1.0f);
+            igSliderFloat("Emission", &flatRome.w, 0.0f, 1.0f);
+            ms_material.flatRome = f4_rgba8(flatRome);
+
+            float3 L = *LightDir();
+            igSliderFloat3("Light Dir", &L.x, -1.0f, 1.0f);
+            *LightDir() = f3_normalize(L);
+
+            igColorEdit3("Light Radiance", &LightRad()->x, hdrPicker);
+            igColorEdit3("Diffuse GI", &DiffuseGI()->x, hdrPicker);
+            igColorEdit3("Specular GI", &SpecularGI()->x, hdrPicker);
             igUnindent(0.0f);
         }
     }
@@ -305,529 +170,69 @@ void render_sys_gui(bool* pEnabled)
 
 // ----------------------------------------------------------------------------
 
-pim_optimize
-pim_inline int2 VEC_CALL GetTile(i32 i)
+static bounds_t CalcMeshBounds(meshid_t id)
 {
-    i32 x = (i % kTilesPerDim);
-    i32 y = (i / kTilesPerDim);
-    return (int2) { x * kTileWidth, y * kTileHeight };
-}
+    mesh_t mesh = { 0 };
+    if (mesh_get(id, &mesh))
+    {
+        const float kBig = 1 << 20;
+        const float kSmall = 1.0f / (1 << 20);
 
-pim_optimize
-pim_inline float2 VEC_CALL ScreenToUnorm(int2 screen)
-{
-    const float2 kRcpScreen = { 1.0f / kDrawWidth, 1.0f / kDrawHeight };
-    return f2_mul(i2_f2(screen), kRcpScreen);
-}
+        float4 lo = f4_s(kBig);
+        float4 hi = f4_s(kSmall);
 
-pim_optimize
-pim_inline float2 VEC_CALL ScreenToSnorm(int2 screen)
-{
-    return f2_snorm(ScreenToUnorm(screen));
-}
+        const i32 len = mesh.length;
+        const float4* pim_noalias positions = mesh.positions;
+        for (i32 i = 0; i < len; ++i)
+        {
+            const float4 pos = positions[i];
+            lo = f4_min(lo, pos);
+            hi = f4_max(hi, pos);
+        }
 
-pim_optimize
-pim_inline i32 VEC_CALL SnormToIndex(float2 s)
-{
-    const float2 kScale = { kDrawWidth, kDrawHeight };
-    s = f2_mul(f2_unorm(s), kScale);
-    s = f2_subvs(s, 0.5f); // pixel center offset
-    int2 i2 = f2_i2(s); // TODO: clamp to within tile. data race when s underflows tile.
-    i32 i = i2.x + i2.y * kDrawWidth;
-    ASSERT((u32)i < (u32)kDrawPixels);
-    return i;
-}
+        if (len > 0)
+        {
+            float4 center = f4_lerp(lo, hi, 0.5f);
+            float radius = 0.5f * f4_distance3(lo, hi);
 
-pim_optimize
-pim_inline float2 VEC_CALL TileMin(int2 tile)
-{
-    return ScreenToSnorm(tile);
-}
+            bounds_t bounds = { center.x, center.y, center.z, radius };
+            return bounds;
+        }
+    }
 
-pim_optimize
-pim_inline float2 VEC_CALL TileMax(int2 tile)
-{
-    tile.x += kTileWidth;
-    tile.y += kTileHeight;
-    return ScreenToSnorm(tile);
-}
-
-pim_optimize
-pim_inline float2 VEC_CALL TileCenter(int2 tile)
-{
-    tile.x += (kTileWidth >> 1);
-    tile.y += (kTileHeight >> 1);
-    return ScreenToSnorm(tile);
-}
-
-pim_optimize
-pim_inline float2 VEC_CALL TransformUv(float2 uv, float4 st)
-{
-    uv.x = uv.x * st.x + st.z;
-    uv.y = uv.y * st.y + st.w;
-    return uv;
-}
-
-pim_optimize
-pim_inline float4 VEC_CALL Tex_Nearesti2(texture_t texture, int2 coord)
-{
-    coord.x = coord.x & (texture.width - 1);
-    coord.y = coord.y & (texture.height - 1);
-    i32 i = coord.x + coord.y * texture.width;
-    return color_f4(texture.texels[i]);
-}
-
-pim_optimize
-pim_inline float4 VEC_CALL Tex_Nearestf2(texture_t texture, float2 uv)
-{
-    uv = f2_sub(f2_mul(uv, f2_iv(texture.width, texture.height)), f2_s(0.5f));
-    return Tex_Nearesti2(texture, f2_i2(uv));
-}
-
-pim_optimize
-pim_inline float4 VEC_CALL Tex_Bilinearf2(texture_t texture, float2 uv)
-{
-    uv.x = uv.x * texture.width;
-    uv.y = uv.y * texture.height;
-    float2 frac = f2_frac(uv);
-    int2 tl = f2_i2(uv);
-    float4 a = Tex_Nearesti2(texture, tl);
-    float4 b = Tex_Nearesti2(texture, (int2) { tl.x + 1, tl.y + 0 });
-    float4 c = Tex_Nearesti2(texture, (int2) { tl.x + 0, tl.y + 1 });
-    float4 d = Tex_Nearesti2(texture, (int2) { tl.x + 1, tl.y + 1 });
-    float4 e = f4_lerp(f4_lerp(a, b, frac.x), f4_lerp(c, d, frac.x), frac.y);
-    return e;
-}
-
-pim_optimize
-pim_inline float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, i32 iTile)
-{
-    float4 a = f3_f4(A, 1.0f);
-    float4 b = f3_f4(B, 1.0f);
-    float4 c = f3_f4(C, 1.0f);
-
-    a = f4x4_mul_pt(VP, a);
-    b = f4x4_mul_pt(VP, b);
-    c = f4x4_mul_pt(VP, c);
-
-    a = f4_divvs(a, a.w);
-    b = f4_divvs(b, b.w);
-    c = f4_divvs(c, c.w);
-
-    float4 bounds;
-    bounds.x = f1_min(a.x, f1_min(b.x, c.x));
-    bounds.y = f1_min(a.y, f1_min(b.y, c.y));
-    bounds.z = f1_max(a.x, f1_max(b.x, c.x));
-    bounds.w = f1_max(a.y, f1_max(b.y, c.y));
-
-    int2 tile = GetTile(iTile);
-    float2 tileMin = TileMin(tile);
-    float2 tileMax = TileMax(tile);
-
-    bounds.x = f1_max(bounds.x, tileMin.x);
-    bounds.y = f1_max(bounds.y, tileMin.y);
-    bounds.z = f1_min(bounds.z, tileMax.x);
-    bounds.w = f1_min(bounds.w, tileMax.y);
-
+    bounds_t bounds = { 0.0f, 0.0f, 0.0f, 0.0f };
     return bounds;
 }
 
-ProfileMark(pm_DrawMesh, DrawMesh)
-pim_optimize
-static void VEC_CALL DrawMesh(renderstate_t state, rcmd_draw_t draw)
+static void CreateEntities(meshid_t mesh, material_t material, i32 count)
 {
-    const float e = 1.0f / (1 << 10);
+    localtoworld_t localToWorld = { f4x4_id };
+    bounds_t bounds = { 0.0f, 0.0f, 0.0f, 1.0f };
+    drawable_t drawable = { 0 };
+    position_t position = { 0.0f, 0.0f, 0.0f };
+    void* rows[CompId_COUNT] = { 0 };
+    rows[CompId_Position] = &position;
+    rows[CompId_LocalToWorld] = &localToWorld;
+    rows[CompId_Drawable] = &drawable;
+    rows[CompId_Bounds] = &bounds;
 
-    ProfileBegin(pm_DrawMesh);
+    drawable.mesh = mesh;
+    drawable.material = material;
+    bounds = CalcMeshBounds(mesh);
 
-    mesh_t mesh;
-    texture_t albedo;
-    material_t material = draw.material;
-    if (!mesh_get(draw.meshid, &mesh) || !texture_get(material.albedo, &albedo))
-    {
-        return;
-    }
-
-    framebuf_t frame = ms_buffer;
-    const float4* pim_noalias positions = mesh.positions;
-    const float4* pim_noalias normals = mesh.normals;
-    const float2* pim_noalias uvs = mesh.uvs;
-    const i32 vertCount = mesh.length;
-    const float4x4 M = draw.M;
-    const camera_t camera = state.camera;
-
-    const int2 tile = GetTile(state.iTile);
-    const float aspect = (float)kDrawWidth / kDrawHeight;
-    const float dx = 1.0f / kDrawWidth;
-    const float dy = 1.0f / kDrawHeight;
-    const float nearClip = camera.nearFar.x;
-    const float farClip = camera.nearFar.y;
-    const float2 slope = proj_slope(f1_radians(camera.fovy), aspect);
-
-    const float3 fwd = quat_fwd(camera.rotation);
-    const float3 right = quat_right(camera.rotation);
-    const float3 up = quat_up(camera.rotation);
-    const float3 eye = camera.position;
-
-    float4x4 VP;
-    {
-        const float4x4 V = f4x4_lookat(eye, f3_add(eye, fwd), up);
-        const float4x4 P = f4x4_perspective(f1_radians(camera.fovy), aspect, nearClip, farClip);
-        VP = f4x4_mul(P, V);
-    }
-
-    const float3 tileDir = proj_dir(right, up, fwd, slope, TileCenter(tile));
-    const frus_t frus = frus_new(
-        eye,
-        right,
-        up,
-        fwd,
-        TileMin(tile),
-        TileMax(tile),
-        slope,
-        camera.nearFar);
-
-    const float3 diffuseGI = ms_diffuseGI;
-    const float3 specularGI = ms_specularGI;
-    const float3 L = f3_normalize(ms_lightDir);
-    const float3 radiance = ms_radiance;
-    const float metallic = ms_metallic;
-    const float roughness = ms_roughness;
-
-    for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
-    {
-        const float3 A = f4_f3(f4x4_mul_pt(M, positions[iVert + 0]));
-        const float3 B = f4_f3(f4x4_mul_pt(M, positions[iVert + 1]));
-        const float3 C = f4_f3(f4x4_mul_pt(M, positions[iVert + 2]));
-
-        if (f3_dot(tileDir, f3_cross(f3_sub(C, A), f3_sub(B, A))) < 0.0f)
-        {
-            continue;
-        }
-
-        if (sdFrusSph(frus, triToSphere(A, B, C)) > 0.0f)
-        {
-            continue;
-        }
-
-        const float3 NA = f4_f3(normals[iVert + 0]);
-        const float3 NB = f4_f3(normals[iVert + 1]);
-        const float3 NC = f4_f3(normals[iVert + 2]);
-
-        const float2 UA = TransformUv(uvs[iVert + 0], material.st);
-        const float2 UB = TransformUv(uvs[iVert + 1], material.st);
-        const float2 UC = TransformUv(uvs[iVert + 2], material.st);
-
-        const float4 bounds = TriBounds(VP, A, B, C, state.iTile);
-
-        const float3 BA = f3_sub(B, A);
-        const float3 CA = f3_sub(C, A);
-        const float3 T = f3_sub(eye, A);
-        const float3 Q = f3_cross(T, BA);
-        const float t0 = f3_dot(CA, Q);
-
-        for (float y = bounds.y; y < bounds.w; y += dy)
-        {
-            for (float x = bounds.x; x < bounds.z; x += dx)
-            {
-                const float2 coord = { x, y };
-                const float3 rd = proj_dir(right, up, fwd, slope, coord);
-                const float3 rdXca = f3_cross(rd, CA);
-                const float det = f3_dot(BA, rdXca);
-                if (det < e)
-                {
-                    continue;
-                }
-                const i32 iTexel = SnormToIndex(coord);
-
-                float3 wuv;
-                {
-                    const float rcpDet = 1.0f / det;
-                    const float t = t0 * rcpDet;
-                    if (t < nearClip || t > farClip || t > frame.depth[iTexel])
-                    {
-                        continue;
-                    }
-                    const float u = f3_dot(T, rdXca) * rcpDet;
-                    if (u < 0.0f)
-                    {
-                        continue;
-                    }
-                    const float v = f3_dot(rd, Q) * rcpDet;
-                    if (v < 0.0f)
-                    {
-                        continue;
-                    }
-                    const float w = 1.0f - u - v;
-                    if (w < 0.0f)
-                    {
-                        continue;
-                    }
-                    wuv = (float3) { w, u, v };
-                    frame.depth[iTexel] = t;
-                }
-
-                // blend interpolators
-                const float3 P = f3_blend(A, B, C, wuv);
-                const float3 N = f3_normalize(f3_blend(NA, NB, NC, wuv));
-                const float2 U = f2_blend(UA, UB, UC, wuv);
-
-                const float3 V = f3_normalize(f3_sub(eye, P));
-                const float3 alb = f4_f3(Tex_Bilinearf2(albedo, U));
-                const float ao = 1.0f;
-                const float3 direct = DirectBRDF(
-                    V, L, radiance, N, alb, roughness, metallic);
-
-                const float3 indirect = IndirectBRDF(
-                    V, N, diffuseGI, specularGI, alb, roughness, metallic, ao);
-
-                const float3 light = f3_add(direct, indirect);
-
-                frame.light[iTexel] = f3_f4(light, 1.0f);
-            }
-        }
-    }
-
-    ProfileEnd(pm_DrawMesh);
-}
-
-ProfileMark(pm_ClearTile, ClearTile)
-pim_optimize
-static void VEC_CALL ClearTile(renderstate_t state, rcmd_clear_t clear)
-{
-    ProfileBegin(pm_ClearTile);
-
-    framebuf_t frame = ms_buffer;
-    const int2 tile = GetTile(state.iTile);
-    float4* pim_noalias light = frame.light;
-    float* pim_noalias depth = frame.depth;
-
-    for (i32 ty = 0; ty < kTileHeight; ++ty)
-    {
-        for (i32 tx = 0; tx < kTileWidth; ++tx)
-        {
-            i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
-            light[i] = clear.color;
-        }
-    }
-
-    for (i32 ty = 0; ty < kTileHeight; ++ty)
-    {
-        for (i32 tx = 0; tx < kTileWidth; ++tx)
-        {
-            i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
-            depth[i] = clear.depth;
-        }
-    }
-
-    ProfileEnd(pm_ClearTile);
-}
-
-ProfileMark(pm_ResolveTile, ResolveTile)
-pim_optimize
-static void VEC_CALL ResolveTile(renderstate_t state, rcmd_resolve_t resolve)
-{
-    ProfileBegin(pm_ResolveTile);
-
-    framebuf_t frame = ms_buffer;
-    const int2 tile = GetTile(state.iTile);
-    float4* pim_noalias light = frame.light;
-    u32* pim_noalias color = frame.color;
-    const TonemapFn tmap = kTonemappers[ms_tonemapper];
-
-    for (i32 ty = 0; ty < kTileHeight; ++ty)
-    {
-        for (i32 tx = 0; tx < kTileWidth; ++tx)
-        {
-            i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
-            color[i] = f4_rgba8(tmap(light[i]));
-        }
-    }
-
-    ProfileEnd(pm_ResolveTile);
-}
-
-ProfileMark(pm_ExecTile, ExecTile)
-pim_optimize
-static void ExecTile(i32 iTile)
-{
-    ProfileBegin(pm_ExecTile);
-
-    renderstate_t state;
-    state.viewport = (float4) { 0.0f, 0.0f, kDrawWidth, kDrawHeight };
-    state.iTile = iTile;
-    state.rng = prng_create();
-    camera_get(&state.camera);
-
-    rcmdbuf_t* cmdBuf = NULL;
-    while ((cmdBuf = rcmdqueue_read(&ms_queue, iTile)))
-    {
-        i32 cursor = 0;
-        rcmd_t cmd;
-        while (rcmdbuf_read(cmdBuf, &cursor, &cmd))
-        {
-            switch (cmd.type)
-            {
-            default:
-                ASSERT(false);
-                break;
-            case RCmdType_Clear:
-                ClearTile(state, cmd.clear);
-                break;
-            case RCmdType_View:
-                state.camera = cmd.view.camera;
-                break;
-            case RCmdType_Draw:
-                DrawMesh(state, cmd.draw);
-                break;
-            case RCmdType_Resolve:
-                ResolveTile(state, cmd.resolve);
-                break;
-            }
-        }
-    }
-
-    ProfileEnd(pm_ExecTile);
-}
-
-pim_optimize
-static void RasterizeTaskFn(task_t* task, i32 begin, i32 end)
-{
-    for (i32 i = begin; i < end; ++i)
-    {
-        ExecTile(i);
-    }
-}
-
-ProfileMark(pm_DrawableTaskFn, DrawableTaskFn)
-static void DrawableTaskFn(ecs_foreach_t* task, void** rows, i32 length)
-{
-    ProfileBegin(pm_DrawableTaskFn);
-
-    const drawable_t* drawables = (const drawable_t*)(rows[CompId_Drawable]);
-    const localtoworld_t* matrices = (const localtoworld_t*)(rows[CompId_LocalToWorld]);
-    const bounds_t* bounds = (const bounds_t*)(rows[CompId_Bounds]);
-    ASSERT(length > 0);
-    ASSERT(drawables);
-    ASSERT(matrices);
-    ASSERT(bounds);
-
-    // TODO: frustum culling
-    // TODO: visibility culling
-    rcmdbuf_t* cmds = rcmdbuf_create();
-
-    camera_t camera;
-    camera_get(&camera);
-    rcmd_view(cmds, camera);
-
-    for (i32 i = 0; i < length; ++i)
-    {
-        rcmd_draw(cmds, matrices[i].Value, drawables[i].mesh, drawables[i].material);
-    }
-
-    rcmdqueue_submit(&ms_queue, cmds);
-
-    ProfileEnd(pm_DrawableTaskFn);
-}
-
-ProfileMark(pm_TrsTaskFn, TrsTaskFn)
-static void TrsTaskFn(ecs_foreach_t* task, void** rows, i32 length)
-{
-    ProfileBegin(pm_TrsTaskFn);
-
-    const position_t* positions = (const position_t*)(rows[CompId_Position]);
-    const rotation_t* rotations = (const rotation_t*)(rows[CompId_Rotation]);
-    const scale_t* scales = (const scale_t*)(rows[CompId_Scale]);
-    localtoworld_t* matrices = (localtoworld_t*)(rows[CompId_LocalToWorld]);
-    ASSERT(matrices);
-    ASSERT(length > 0);
-
-    i32 code = 0;
-    code |= positions ? 1 : 0;
-    code |= rotations ? 2 : 0;
-    code |= scales ? 4 : 0;
-
-    switch (code)
-    {
-    default:
-    case 0:
-    {
-        for (i32 i = 0; i < length; ++i)
-        {
-            matrices[i].Value = f4x4_id;
-        }
-    }
-    break;
-    case 1:
-    {
-        for (i32 i = 0; i < length; ++i)
-        {
-            matrices[i].Value = f4x4_trs(positions[i].Value, quat_id, f3_1);
-        }
-    }
-    break;
-    case 2:
-    {
-        for (i32 i = 0; i < length; ++i)
-        {
-            matrices[i].Value = f4x4_trs(f3_0, rotations[i].Value, f3_1);
-        }
-    }
-    break;
-    case 4:
-    {
-        for (i32 i = 0; i < length; ++i)
-        {
-            matrices[i].Value = f4x4_trs(f3_0, quat_id, scales[i].Value);
-        }
-    }
-    break;
-    case (1 | 2):
-    {
-        for (i32 i = 0; i < length; ++i)
-        {
-            matrices[i].Value = f4x4_trs(positions[i].Value, rotations[i].Value, f3_1);
-        }
-    }
-    break;
-    case (1 | 4):
-    {
-        for (i32 i = 0; i < length; ++i)
-        {
-            matrices[i].Value = f4x4_trs(positions[i].Value, quat_id, scales[i].Value);
-        }
-    }
-    break;
-    case (2 | 4):
-    {
-        for (i32 i = 0; i < length; ++i)
-        {
-            matrices[i].Value = f4x4_trs(f3_0, rotations[i].Value, scales[i].Value);
-        }
-    }
-    break;
-    case (1 | 2 | 4):
-    {
-        for (i32 i = 0; i < length; ++i)
-        {
-            matrices[i].Value = f4x4_trs(positions[i].Value, rotations[i].Value, scales[i].Value);
-        }
-    }
-    break;
-    }
-
-    ProfileEnd(pm_TrsTaskFn);
-}
-
-static void CreateEntities(task_t* task, i32 begin, i32 end)
-{
-    prng_t rng = prng_create();
-    compflag_t all = compflag_create(6, CompId_Position, CompId_LocalToWorld, CompId_Drawable, CompId_Bounds);
+    prng_t rng = ms_prng;
+    compflag_t all = compflag_create(4, CompId_Position, CompId_LocalToWorld, CompId_Drawable, CompId_Bounds);
     compflag_t some = compflag_create(1, CompId_Position);
-    for (i32 i = begin; i < end; ++i)
+    for (i32 i = 0; i < count; ++i)
     {
-        ecs_create(prng_i32(&rng) & 1 ? all : some);
+        i32 x = i % 4;
+        i32 z = (i / 4) % 4;
+        position.Value.x = x * 4.0f;
+        position.Value.z = z * 4.0f;
+        position.Value.y = 0.0f;
+        ecs_create(prng_bool(&rng) ? all : some, rows);
     }
+    ms_prng = rng;
 }
 
 static meshid_t GenSphereMesh(float r, i32 steps)
@@ -839,9 +244,9 @@ static meshid_t GenSphereMesh(float r, i32 steps)
 
     const i32 maxlen = 6 * vsteps * hsteps;
     i32 length = 0;
-    float4* positions = perm_malloc(sizeof(*positions) * maxlen);
-    float4* normals = perm_malloc(sizeof(*normals) * maxlen);
-    float2* uvs = perm_malloc(sizeof(*uvs) * maxlen);
+    float4* pim_noalias positions = perm_malloc(sizeof(*positions) * maxlen);
+    float4* pim_noalias normals = perm_malloc(sizeof(*normals) * maxlen);
+    float2* pim_noalias uvs = perm_malloc(sizeof(*uvs) * maxlen);
 
     for (i32 v = 0; v < vsteps; ++v)
     {
@@ -950,69 +355,21 @@ static meshid_t GenSphereMesh(float r, i32 steps)
         }
     }
 
-    return mesh_create(&(mesh_t)
-    {
-        .length = length,
-            .positions = positions,
-            .normals = normals,
-            .uvs = uvs,
-    });
+    mesh_t* mesh = perm_calloc(sizeof(*mesh));
+    mesh->length = length;
+    mesh->positions = positions;
+    mesh->normals = normals;
+    mesh->uvs = uvs;
+    return mesh_create(mesh);
 }
 
-static void RegenMesh(void)
+static textureid_t GenCheckerTex(void)
 {
-    mesh_t mesh;
-    mesh.length = (1 + (prng_i32(&ms_prng) & 15)) * 3;
-    mesh.positions = perm_malloc(sizeof(*mesh.positions) * mesh.length);
-    mesh.normals = perm_malloc(sizeof(*mesh.normals) * mesh.length);
-    mesh.uvs = perm_malloc(sizeof(*mesh.uvs) * mesh.length);
-
-    prng_t rng = ms_prng;
-    for (i32 i = 0; i < mesh.length; ++i)
-    {
-        float4 position;
-        position.x = f1_lerp(-5.0f, 5.0f, prng_f32(&rng));
-        position.y = f1_lerp(-5.0f, 5.0f, prng_f32(&rng));
-        position.z = f1_lerp(-5.0f, 5.0f, prng_f32(&rng));
-        position.w = 1.0f;
-        float4 normal;
-        normal.x = f1_lerp(-1.0f, 1.0f, prng_f32(&rng));
-        normal.y = f1_lerp(-1.0f, 1.0f, prng_f32(&rng));
-        normal.z = f1_lerp(-1.0f, 1.0f, prng_f32(&rng));
-        normal.w = 0.0f;
-        normal = f4_normalize3(normal);
-        float2 uv;
-        switch (i % 3)
-        {
-        case 0:
-            uv = f2_v(0.0f, 0.0f);
-            break;
-        case 1:
-            uv = f2_v(1.0f, 0.0f);
-            break;
-        case 2:
-            uv = f2_v(0.0f, 1.0f);
-            break;
-        }
-        mesh.positions[i] = position;
-        mesh.normals[i] = normal;
-        mesh.uvs[i] = uv;
-    }
-    ms_prng = rng;
-
-    meshid_t newid = mesh_create(&mesh);
-    meshid_t oldid = ms_meshid;
-    ms_meshid = newid;
-    mesh_destroy(oldid);
-}
-
-static void RegenAlbedo(void)
-{
-    texture_t albedo;
+    texture_t* albedo = perm_calloc(sizeof(*albedo));
     const i32 size = 1 << 8;
-    albedo.width = size;
-    albedo.height = size;
-    albedo.texels = perm_malloc(sizeof(*albedo.texels) * size * size);
+    albedo->width = size;
+    albedo->height = size;
+    u32* pim_noalias texels = perm_malloc(sizeof(texels[0]) * size * size);
 
     prng_t rng = ms_prng;
     for (i32 y = 0; y < size; ++y)
@@ -1024,13 +381,11 @@ static void RegenAlbedo(void)
             bool c1 = (y & 7) < 4;
             u32 a = c1 ? 0xffffffff : 0;
             u32 b = ~a;
-            albedo.texels[i] = c0 ? a : b;
+            texels[i] = c0 ? a : b;
         }
     }
+    albedo->texels = texels;
     ms_prng = rng;
 
-    textureid_t newid = texture_create(&albedo);
-    textureid_t oldid = ms_albedoid;
-    ms_albedoid = newid;
-    texture_destroy(oldid);
+    return texture_create(albedo);
 }

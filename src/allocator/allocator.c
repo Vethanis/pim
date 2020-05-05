@@ -13,10 +13,9 @@
 #define kAlign          16
 #define kAlignMask      (kAlign - 1)
 
-#define kInitCapacity   0
-#define kPermCapacity   (1 << 30)
-#define kTempCapacity   (8 << 20)
-#define kTlsCapacity    (1 << 20)
+#define kPermCapacity   (256 << 20)
+#define kTempCapacity   (256 << 20)
+#define kTlsCapacity    (16 << 20)
 
 typedef pim_alignas(kAlign) struct hdr_s
 {

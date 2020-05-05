@@ -15,7 +15,7 @@ void ecs_sys_shutdown(void);
 i32 ecs_ent_count(void);
 i32 ecs_slab_count(void);
 
-ent_t ecs_create(compflag_t components);
+ent_t ecs_create(compflag_t components, const void** data);
 void ecs_destroy(ent_t entity);
 bool ecs_is_current(ent_t entity);
 

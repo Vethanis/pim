@@ -71,10 +71,10 @@ static void slabs_init(void)
     rwlock_create(&(ms_slabs.lock));
     idset_create(slab_ids());
     const i32 kCapacity = 1024;
-    ms_slabs.locks = pim_calloc(EAlloc_Perm, sizeof(*ms_slabs.locks) * kCapacity);
-    ms_slabs.lens = pim_calloc(EAlloc_Perm, sizeof(*ms_slabs.lens) * kCapacity);
-    ms_slabs.rows = pim_calloc(EAlloc_Perm, sizeof(*ms_slabs.rows) * kCapacity);
-    ms_slabs.flags = pim_calloc(EAlloc_Perm, sizeof(*ms_slabs.flags) * kCapacity);
+    ms_slabs.locks = perm_calloc(sizeof(ms_slabs.locks[0]) * kCapacity);
+    ms_slabs.lens = perm_calloc(sizeof(ms_slabs.lens[0]) * kCapacity);
+    ms_slabs.rows = perm_calloc(sizeof(ms_slabs.rows[0]) * kCapacity);
+    ms_slabs.flags = perm_calloc(sizeof(ms_slabs.flags[0]) * kCapacity);
 }
 
 static void slabs_shutdown(void)
@@ -84,7 +84,7 @@ static void slabs_shutdown(void)
     for (i32 i = 0; i < len; ++i)
     {
         mutex_destroy(ms_slabs.locks + i);
-        void** rows = slab_rows(i);
+        void** pim_noalias rows = slab_rows(i);
         for (i32 j = 0; j < CompId_COUNT; ++j)
         {
             pim_free(rows[j]);
@@ -145,7 +145,7 @@ static id_t slab_create(compflag_t flags)
     }
     ms_slabs.lens[iSlab] = 0;
     ms_slabs.flags[iSlab] = flags;
-    void** rows = slab_rows(iSlab);
+    void** pim_noalias rows = slab_rows(iSlab);
     for (i32 i = 0; i < CompId_COUNT; ++i)
     {
         rows[i] = NULL;
@@ -166,7 +166,7 @@ static void slab_destroy(id_t id)
         const i32 iSlab = id.index;
         memset(ms_slabs.flags + iSlab, 0, sizeof(compflag_t));
         ms_slabs.lens[iSlab] = 0;
-        void** rows = slab_rows(iSlab);
+        void** pim_noalias rows = slab_rows(iSlab);
         for (i32 i = 0; i < CompId_COUNT; ++i)
         {
             pim_free(rows[i]);
@@ -178,14 +178,14 @@ static void slab_destroy(id_t id)
 
 static void slabset(i32 iSlab, i32 iSlot)
 {
-    void** rows = slab_rows(iSlab);
+    void** pim_noalias rows = slab_rows(iSlab);
     for (i32 i = 0; i < CompId_COUNT; ++i)
     {
-        u8* ptr = rows[i];
+        u8* pim_noalias row = rows[i];
         const i32 stride = kComponentSize[i];
-        if (ptr)
+        if (row)
         {
-            memset(ptr + stride * iSlot, 0, stride);
+            memset(row + stride * iSlot, 0, stride);
         }
     }
 }
@@ -196,24 +196,46 @@ static void slabcpy(i32 iSlab, i32 iSlotDst, i32 iSlotSrc)
     {
         return;
     }
-    void** rows = slab_rows(iSlab);
+    void** pim_noalias rows = slab_rows(iSlab);
     for (i32 i = 0; i < CompId_COUNT; ++i)
     {
-        u8* ptr = rows[i];
+        u8* pim_noalias row = rows[i];
         const i32 stride = kComponentSize[i];
-        if (ptr)
+        if (row)
         {
-            memcpy(ptr + stride * iSlotDst, ptr + stride * iSlotSrc, stride);
+            memcpy(row + stride * iSlotDst, row + stride * iSlotSrc, stride);
         }
     }
 }
 
-static ent_t ent_create(compflag_t flags)
+static void RowCpy(
+    void** pim_noalias dstRows,
+    const void** pim_noalias srcRows,
+    i32 iDst,
+    i32 iSrc)
+{
+    if (dstRows && srcRows)
+    {
+        for (i32 iComp = 0; iComp < CompId_COUNT; ++iComp)
+        {
+            u8* pim_noalias dst = dstRows[iComp];
+            const u8* pim_noalias src = srcRows[iComp];
+            if (dst && src)
+            {
+                const i32 stride = kComponentSize[iComp];
+                memcpy(dst + stride * iDst, src + stride * iSrc, stride);
+            }
+        }
+    }
+}
+
+static ent_t ent_create(compflag_t flags, const void** userData)
 {
     ent_t ent;
     compflag_set(&flags, CompId_Entity);
     {
         ents_wlock();
+
         i32 entsLen = ms_ents.ids.length;
         const id_t entId = id_alloc(ent_ids());
         if (entId.index >= entsLen)
@@ -223,6 +245,7 @@ static ent_t ent_create(compflag_t flags)
             ms_ents.offsets = perm_realloc(ms_ents.offsets, sizeof(i32) * entsLen);
             ms_ents.slabs = perm_realloc(ms_ents.slabs, sizeof(id_t) * entsLen);
         }
+
         ents_wunlock();
         ent.index = entId.index;
         ent.version = entId.version;
@@ -233,9 +256,9 @@ static ent_t ent_create(compflag_t flags)
     slabs_rlock();
     {
         const i32 numSlabs = ms_slabs.ids.length;
-        const compflag_t* slabFlags = ms_slabs.flags;
-        i32* slabLens = ms_slabs.lens;
-        mutex_t* slabLocks = ms_slabs.locks;
+        const compflag_t* pim_noalias slabFlags = ms_slabs.flags;
+        i32* pim_noalias slabLens = ms_slabs.lens;
+        mutex_t* pim_noalias slabLocks = ms_slabs.locks;
 
         for (i32 iSlab = numSlabs - 1; iSlab >= 0; --iSlab)
         {
@@ -247,20 +270,27 @@ static ent_t ent_create(compflag_t flags)
             {
                 continue;
             }
+
             slab_lock(iSlab);
             const i32 slabLen = slabLens[iSlab];
             if (slabLen < kSlabCapacity)
             {
                 slabLens[iSlab] = slabLen + 1;
                 dstSlot = slabLen;
+
                 slabId.index = iSlab;
                 slabId.version = ms_slabs.ids.versions[iSlab];
                 ASSERT(slabId.version & 1);
+
                 slabset(iSlab, dstSlot);
-                ent_t* ents = (ent_t*)(slab_rows(iSlab)[CompId_Entity]);
+                void** pim_noalias rows = slab_rows(iSlab);
+                RowCpy(rows, userData, dstSlot, 0);
+
+                ent_t* ents = rows[CompId_Entity];
                 ents[dstSlot] = ent;
             }
             slab_unlock(iSlab);
+
             if (dstSlot != -1)
             {
                 break;
@@ -273,17 +303,26 @@ static ent_t ent_create(compflag_t flags)
     {
         slabId = slab_create(flags);
         const i32 iSlab = slabId.index;
+
         slabs_rlock();
         slab_lock(iSlab);
-        const i32 slabLen = load_i32(ms_slabs.lens + iSlab, MO_Relaxed);
+
+        i32* pim_noalias lens = ms_slabs.lens;
+
+        const i32 slabLen = load_i32(lens + iSlab, MO_Relaxed);
         if (slabLen < kSlabCapacity)
         {
-            store_i32(ms_slabs.lens + iSlab, slabLen + 1, MO_Relaxed);
+            store_i32(lens + iSlab, slabLen + 1, MO_Relaxed);
             dstSlot = slabLen;
+
             slabset(iSlab, dstSlot);
-            ent_t* ents = (ent_t*)(slab_rows(iSlab)[CompId_Entity]);
+            void** pim_noalias rows = slab_rows(iSlab);
+            RowCpy(rows, userData, dstSlot, 0);
+
+            ent_t* ents = rows[CompId_Entity];
             ents[dstSlot] = ent;
         }
+
         slab_unlock(iSlab);
         slabs_runlock();
     }
@@ -304,23 +343,33 @@ static void ent_destroy(ent_t ent)
     if (id_release(ent_ids(), entId))
     {
         i32 slabBack = -1;
-        const id_t slabId = ms_ents.slabs[entId.index];
-        ms_ents.slabs[entId.index].version = 0;
-        const i32 offset = ms_ents.offsets[entId.index];
+
+        id_t* pim_noalias slabIds = ms_ents.slabs;
+        i32* pim_noalias offsets = ms_ents.offsets;
+
+        const id_t slabId = slabIds[entId.index];
+        slabIds[entId.index].version = 0;
+        const i32 offset = offsets[entId.index];
+
         slabs_rlock();
         {
             ASSERT(id_current(slab_ids(), slabId));
+
+            i32* pim_noalias lens = ms_slabs.lens;
             const i32 iSlab = slabId.index;
+
             slab_lock(iSlab);
             {
-                slabBack = load_i32(ms_slabs.lens + iSlab, MO_Relaxed) - 1;
-                store_i32(ms_slabs.lens + iSlab, slabBack, MO_Relaxed);
+                slabBack = load_i32(lens + iSlab, MO_Relaxed) - 1;
+                store_i32(lens + iSlab, slabBack, MO_Relaxed);
                 ASSERT(slabBack >= 0);
-                const ent_t* ents = (ent_t*)(slab_rows(iSlab)[CompId_Entity]);
+
+                const ent_t* pim_noalias ents = slab_rows(iSlab)[CompId_Entity];
                 const ent_t backEnt = ents[slabBack];
                 ASSERT(!memcmp(ents + offset, &ent, sizeof(ent_t)));
+
                 slabcpy(iSlab, offset, slabBack);
-                ms_ents.offsets[backEnt.index] = offset;
+                offsets[backEnt.index] = offset;
             }
             slab_unlock(iSlab);
         }
@@ -402,9 +451,9 @@ bool ecs_is_current(ent_t entity)
     return state;
 }
 
-ent_t ecs_create(compflag_t components)
+ent_t ecs_create(compflag_t components, const void** data)
 {
-    return ent_create(components);
+    return ent_create(components, data);
 }
 
 void ecs_destroy(ent_t entity)
@@ -441,21 +490,23 @@ static void foreach_exec(task_t* task, i32 begin, i32 end)
     ASSERT(begin >= 0);
     ASSERT(begin < end);
 
-    ecs_foreach_t* foreach = (ecs_foreach_t*)task;
+    ecs_foreach_t* pim_noalias foreach = (ecs_foreach_t*)task;
     const ecs_foreach_fn func = foreach->fn;
     const compflag_t all = foreach->all;
     const compflag_t none = foreach->none;
 
     slabs_rlock();
     {
+        const compflag_t* pim_noalias flags = ms_slabs.flags;
+        const i32* pim_noalias lens = ms_slabs.lens;
         ASSERT(end <= ms_slabs.ids.length);
         for (i32 i = begin; i < end; ++i)
         {
-            const compflag_t has = ms_slabs.flags[i];
+            const compflag_t has = flags[i];
             if (compflag_all(has, all) && compflag_none(has, none))
             {
                 slab_lock(i);
-                const i32 length = ms_slabs.lens[i];
+                const i32 length = lens[i];
                 if (length > 0)
                 {
                     func(foreach, slab_rows(i), length);

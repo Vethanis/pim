@@ -13,6 +13,7 @@ typedef struct framebuf_s
     float4* light; // HDR lighting written here. later pass converts it to color
     float* depth;
     u32* color; // rgba8
+    u32* tileFlags;
 } framebuf_t;
 
 void framebuf_create(framebuf_t* buf, i32 width, i32 height);

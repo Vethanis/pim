@@ -26,6 +26,11 @@ pim_inline float VEC_CALL SGBasisIntegral(SG_t sg)
     return (kTau * e) / sg.sharpness;
 }
 
+pim_inline float VEC_CALL SGBasisIntegralSq(SG_t sg)
+{
+    return (1.0f - expf(-4.0f * sg.sharpness)) / (4.0f * sg.sharpness);
+}
+
 // returns the total energy of the spherical gaussian
 pim_inline float3 VEC_CALL SGIntegral(SG_t sg)
 {
@@ -77,9 +82,10 @@ pim_inline float3 SGDiffuse(SG_t sg, float3 normal, float3 albedo)
 
 // SGSpecular not implemented; use a prefiltered cubemap for that.
 
-// averages in a new sample into the set of spherical gaussians
+// Averages in a new sample into the set of spherical gaussians
 // that are being progressively fit to your data set.
-// note that axis and sharpness are not modified, only amplitude.
+// Ensure the sample directions are not correlated (do a uniform shuffle).
+// Note that axis and sharpness are not modified, only amplitude.
 void SGAccumulate(
     i32 iSample,        // sample sequence number
     float3 sampleDir,   // sample direction

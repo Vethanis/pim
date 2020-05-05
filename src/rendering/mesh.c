@@ -4,21 +4,20 @@
 
 static u64 ms_version;
 
-meshid_t mesh_create(mesh_t* src)
+meshid_t mesh_create(mesh_t* mesh)
 {
-    ASSERT(src);
-    ASSERT(src->length > 0);
-    ASSERT((src->length % 3) == 0);
-    ASSERT(src->positions);
-    ASSERT(src->normals);
-    ASSERT(src->uvs);
+    ASSERT(mesh);
+    ASSERT(mesh->version == 0);
+    ASSERT(mesh->length > 0);
+    ASSERT((mesh->length % 3) == 0);
+    ASSERT(mesh->positions);
+    ASSERT(mesh->normals);
+    ASSERT(mesh->uvs);
 
     const u64 version = 1099511628211ull + fetch_add_u64(&ms_version, 3, MO_Relaxed);
 
-    mesh_t* dst = perm_malloc(sizeof(*dst));
-    *dst = *src;
-    dst->version = version;
-    meshid_t id = { version, dst };
+    mesh->version = version;
+    meshid_t id = { version, mesh };
 
     return id;
 }

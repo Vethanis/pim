@@ -31,18 +31,19 @@ typedef struct scale_s
 
 typedef struct localtoworld_s
 {
-    float4x4 Value;
+    float4x4 Value;         // transforms entity from local space to world space
 } localtoworld_t;
 
 typedef struct drawable_s
 {
-    meshid_t mesh;
-    material_t material;
+    meshid_t mesh;          // local space immutable mesh
+    material_t material;    // textures and surface properties
+    bool visible;           // cull result
 } drawable_t;
 
 typedef struct bounds_s
 {
-    float4 sphere; // center, radius
+    float4 sphere; // center, radius, in local space
 } bounds_t;
 
 typedef enum

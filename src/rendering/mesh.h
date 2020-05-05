@@ -21,7 +21,10 @@ typedef struct meshid_s
     void* handle;
 } meshid_t;
 
-meshid_t mesh_create(mesh_t* src);
+// creates a versioned handle to your mesh pointer
+meshid_t mesh_create(mesh_t* mesh);
+
+// atomically releases the handle, freeing the mesh buffers and mesh pointer only once
 bool mesh_destroy(meshid_t id);
 
 bool mesh_current(meshid_t id);

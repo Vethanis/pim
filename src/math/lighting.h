@@ -6,6 +6,7 @@ PIM_C_BEGIN
 
 #include "math/types.h"
 #include "math/float3_funcs.h"
+#include "math/sampling.h"
 
 // normal distribution function
 // amount of surface's microfacets are facing the H vector
@@ -95,42 +96,6 @@ pim_inline float3 VEC_CALL DirectBRDF(
     const float3 kD = f3_mulvs(f3_sub(f3_1, F), 1.0f - metallic);
     const float3 diffuse = f3_divvs(f3_mul(kD, albedo), kPi);
     return f3_mul(f3_add(diffuse, specular), f3_mulvs(radiance, NoL));
-}
-
-// http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
-// efficient VanDerCorpus calculation.
-pim_inline float VEC_CALL RadicalInverse_VdC(u32 bits)
-{
-    bits = (bits << 16u) | (bits >> 16u);
-    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
-    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
-    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
-    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-    return (float)(bits) * 2.3283064365386963e-10f; // / 0x100000000
-}
-
-// generates a stratified random 2D variable with range [0, 1]
-pim_inline float2 VEC_CALL Hammersley2D(u32 i, u32 N)
-{
-    float2 c = { (float)i / (float)N, RadicalInverse_VdC(i) };
-    return c;
-}
-
-// outputs a tangent space half vector of the NDF for given roughness
-pim_inline float3 ImportanceSampleGGX(float2 Xi, float roughness)
-{
-    float a = roughness * roughness;
-    float phi = kTau * Xi.x;
-    float cosTheta = sqrtf((1.0f - Xi.y) / (1.0f + (a * a - 1.0f) * Xi.y));
-    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
-    const float3 H =
-    {
-        cosf(phi) * sinTheta,
-        sinf(phi) * sinTheta,
-        cosTheta,
-    };
-    // TODO: might not need normalized
-    return f3_normalize(H);
 }
 
 // https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
