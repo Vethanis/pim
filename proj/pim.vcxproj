@@ -49,6 +49,7 @@
     <ClCompile Include="..\src\logic\logic.c" />
     <ClCompile Include="..\src\main.c" />
     <ClCompile Include="..\src\math\cubic_fit.c" />
+    <ClCompile Include="..\src\math\lighting.c" />
     <ClCompile Include="..\src\math\sphgauss.c" />
     <ClCompile Include="..\src\os\socket.c" />
     <ClCompile Include="..\src\quake\packfile.c" />
@@ -329,10 +330,9 @@
       <OpenMPSupport>false</OpenMPSupport>
       <LanguageStandard>stdcpp14</LanguageStandard>
       <EnableModules>false</EnableModules>
-      <FavorSizeOrSpeed>Size</FavorSizeOrSpeed>
-      <OmitFramePointers>true</OmitFramePointers>
-      <Optimization>MinSpace</Optimization>
-      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <Optimization>MaxSpeed</Optimization>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

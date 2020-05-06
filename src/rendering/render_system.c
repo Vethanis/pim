@@ -32,6 +32,7 @@
 // ----------------------------------------------------------------------------
 
 static void CreateEntities(meshid_t mesh, material_t material, i32 count);
+static task_t* SetEntityMaterials(material_t mat);
 static meshid_t GenSphereMesh(float r, i32 steps);
 static textureid_t GenCheckerTex(void);
 
@@ -88,16 +89,17 @@ void render_sys_update(void)
 
     task_t* vertexTask = VertexStage(&ms_buffer);
     task_sys_schedule();
+
     task_await(vertexTask);
-
     task_t* fragTask = FragmentStage(&ms_buffer);
+    SetEntityMaterials(ms_material);
     task_sys_schedule();
-    task_await(fragTask);
 
+    task_await(fragTask);
     task_t* resolveTask = ResolveTile(&ms_buffer, ms_tonemapper, ms_toneParams);
     task_sys_schedule();
-    task_await(resolveTask);
 
+    task_await(resolveTask);
     screenblit_blit(ms_buffer.color, kDrawWidth, kDrawHeight);
 
     ProfileEnd(pm_update);
@@ -122,11 +124,20 @@ void render_sys_gui(bool* pEnabled)
 {
     ProfileBegin(pm_gui);
 
-    const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_InputRGB;
-    const u32 hdrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
+    const u32 hdrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_InputRGB;
+    const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
 
     if (igBegin("RenderSystem", pEnabled, 0))
     {
+#if CULLING_STATS
+        igText("Vert Ents Culled: %I64u", Vert_EntsCulled());
+        igText("Vert Ents Drawn: %I64u", Vert_EntsDrawn());
+        igText("Vert Tris Culled: %I64u", Vert_TrisCulled());
+        igText("Vert Tris Drawn: %I64u", Vert_TrisDrawn());
+        igText("Frag Tris Culled: %I64u", Frag_TrisCulled());
+        igText("Frag Tris Drawn: %I64u", Frag_TrisDrawn());
+#endif // CULLING_STATS
+
         if (igCollapsingHeader1("Tonemapping"))
         {
             igIndent(0.0f);
@@ -151,7 +162,7 @@ void render_sys_gui(bool* pEnabled)
 
             float4 flatRome = rgba8_f4(ms_material.flatRome);
             igSliderFloat("Roughness", &flatRome.x, 0.0f, 1.0f);
-            igSliderFloat("Occlusion", &flatRome.x, 0.0f, 1.0f);
+            igSliderFloat("Occlusion", &flatRome.y, 0.0f, 1.0f);
             igSliderFloat("Metallic", &flatRome.z, 0.0f, 1.0f);
             igSliderFloat("Emission", &flatRome.w, 0.0f, 1.0f);
             ms_material.flatRome = f4_rgba8(flatRome);
@@ -196,9 +207,11 @@ static bounds_t CalcMeshBounds(meshid_t id)
         if (len > 0)
         {
             float4 center = f4_lerp(lo, hi, 0.5f);
-            float radius = 0.5f * f4_distance3(lo, hi);
+            float4 extents = f4_sub(hi, center);
 
-            bounds_t bounds = { center.x, center.y, center.z, radius };
+            bounds_t bounds;
+            bounds.box.center = center;
+            bounds.box.extents = extents;
             return bounds;
         }
     }
@@ -247,6 +260,35 @@ static void CreateEntities(meshid_t mesh, material_t material, i32 count)
         }
     }
     ms_prng = rng;
+}
+
+typedef struct setmat_s
+{
+    ecs_foreach_t task;
+    material_t mat;
+} setmat_t;
+
+static void SetEntityMaterialsFn(ecs_foreach_t* task, void** rows, i32 length)
+{
+    ASSERT(rows);
+    drawable_t* pim_noalias drawables = rows[CompId_Drawable];
+    ASSERT(drawables);
+
+    setmat_t* setmat = (setmat_t*)task;
+    const material_t mat = setmat->mat;
+
+    for (i32 i = 0; i < length; ++i)
+    {
+        drawables[i].material = mat;
+    }
+}
+
+static task_t* SetEntityMaterials(material_t mat)
+{
+    setmat_t* task = tmp_calloc(sizeof(*task));
+    task->mat = mat;
+    ecs_foreach((ecs_foreach_t*)task, compflag_create(1, CompId_Drawable), compflag_create(0), SetEntityMaterialsFn);
+    return (task_t*)task;
 }
 
 static meshid_t GenSphereMesh(float r, i32 steps)

@@ -15,5 +15,7 @@ enum
     kTileHeight = kDrawHeight / kTilesPerDim,
     kTilePixels = kTileWidth * kTileHeight,
 };
+SASSERT((kDrawWidth % kTilesPerDim) == 0);
+SASSERT((kDrawHeight % kTilesPerDim) == 0);
 
 PIM_C_END

@@ -18,5 +18,7 @@ float3* LightDir(void);
 float3* LightRad(void);
 float3* DiffuseGI(void);
 float3* SpecularGI(void);
+u64 Frag_TrisCulled(void);
+u64 Frag_TrisDrawn(void);
 
 PIM_C_END

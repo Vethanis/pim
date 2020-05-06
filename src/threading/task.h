@@ -19,14 +19,10 @@ typedef struct task_s
 {
     task_execute_fn execute;
     i32 status;
-    i32 awaits;
     i32 worksize;
-    i32 granularity;
     i32 head;
     i32 tail;
 } task_t;
-
-SASSERT((sizeof(task_t) & 15) == 0);
 
 i32 task_thread_id(void);
 i32 task_num_active(void);

@@ -402,7 +402,7 @@ pim_inline float3 VEC_CALL f3_sqrt(float3 v)
 
 pim_inline float3 VEC_CALL f3_abs(float3 v)
 {
-    float3 vec = { fabsf(v.x), fabsf(v.y), fabsf(v.z) };
+    float3 vec = { f1_abs(v.x), f1_abs(v.y), f1_abs(v.z) };
     return vec;
 }
 

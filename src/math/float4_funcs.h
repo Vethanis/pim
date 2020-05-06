@@ -490,11 +490,21 @@ pim_inline float VEC_CALL f4_hmin(float4 v)
     return f1_min(a, b);
 }
 
+pim_inline float VEC_CALL f4_hmin3(float4 v)
+{
+    return f1_min(v.x, f1_min(v.y, v.z));
+}
+
 pim_inline float VEC_CALL f4_hmax(float4 v)
 {
     float a = f1_max(v.x, v.y);
     float b = f1_max(v.z, v.w);
     return f1_max(a, b);
+}
+
+pim_inline float VEC_CALL f4_hmax3(float4 v)
+{
+    return f1_max(v.x, f1_max(v.y, v.z));
 }
 
 pim_inline float4 VEC_CALL f4_clamp(float4 x, float4 lo, float4 hi)
@@ -565,9 +575,19 @@ pim_inline float VEC_CALL f4_lengthsq(float4 x)
     return f4_dot(x, x);
 }
 
+pim_inline float VEC_CALL f4_lengthsq3(float4 x)
+{
+    return f4_dot3(x, x);
+}
+
 pim_inline float VEC_CALL f4_distancesq(float4 a, float4 b)
 {
     return f4_lengthsq(f4_sub(a, b));
+}
+
+pim_inline float VEC_CALL f4_distancesq3(float4 a, float4 b)
+{
+    return f4_lengthsq3(f4_sub(a, b));
 }
 
 pim_inline float4 VEC_CALL f4_lerp(float4 a, float4 b, float t)
@@ -636,7 +656,7 @@ pim_inline float4 VEC_CALL f4_sqrt(float4 v)
 
 pim_inline float4 VEC_CALL f4_abs(float4 v)
 {
-    float4 vec = { fabsf(v.x), fabsf(v.y), fabsf(v.z), fabsf(v.w) };
+    float4 vec = { f1_abs(v.x), f1_abs(v.y), f1_abs(v.z), f1_abs(v.w) };
     return vec;
 }
 

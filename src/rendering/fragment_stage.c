@@ -1,8 +1,9 @@
 #include "rendering/fragment_stage.h"
-#include "threading/task.h"
-#include "common/profiler.h"
 #include "allocator/allocator.h"
+#include "common/atomics.h"
+#include "common/profiler.h"
 #include "containers/ptrqueue.h"
+#include "threading/task.h"
 
 #include "math/types.h"
 #include "math/float4x4_funcs.h"
@@ -34,19 +35,25 @@ typedef struct drawmesh_s
 } drawmesh_t;
 
 static ptrqueue_t ms_queues[kTileCount];
+static BrdfLut ms_lut;
 static float3 ms_lightDir;
 static float3 ms_lightRad;
 static float3 ms_diffuseGI;
 static float3 ms_specularGI;
+static u64 ms_trisCulled;
+static u64 ms_trisDrawn;
 
 float3* LightDir(void) { return &ms_lightDir; }
 float3* LightRad(void) { return &ms_lightRad; }
 float3* DiffuseGI(void) { return &ms_diffuseGI; }
 float3* SpecularGI(void) { return &ms_specularGI; }
+u64 Frag_TrisCulled(void) { return ms_trisCulled; }
+u64 Frag_TrisDrawn(void) { return ms_trisDrawn; }
 
-static float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, i32 iTile);
+static float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, float2 tileMin, float2 tileMax);
 static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile);
 
+pim_optimize
 static void FragmentStageFn(task_t* task, i32 begin, i32 end)
 {
     fragstage_t* stage = (fragstage_t*)task;
@@ -85,6 +92,7 @@ void FragmentStage_Init(void)
     {
         ptrqueue_create(ms_queues + i, EAlloc_Perm, 256);
     }
+    ms_lut = BakeBRDF(256, 256, 1024);
 }
 
 void FragmentStage_Shutdown(void)
@@ -93,6 +101,7 @@ void FragmentStage_Shutdown(void)
     {
         ptrqueue_destroy(ms_queues + i);
     }
+    FreeBRDF(&ms_lut);
 }
 
 ProfileMark(pm_FragmentStage, FragmentStage)
@@ -102,6 +111,11 @@ struct task_s* FragmentStage(struct framebuf_s* target)
 
     ASSERT(target);
 
+#if CULLING_STATS
+    store_u64(&ms_trisCulled, 0, MO_Release);
+    store_u64(&ms_trisDrawn, 0, MO_Release);
+#endif // CULLING_STATS
+
     fragstage_t* stage = tmp_calloc(sizeof(*stage));
     stage->target = target;
     task_submit((task_t*)stage, FragmentStageFn, kTileCount);
@@ -110,7 +124,8 @@ struct task_s* FragmentStage(struct framebuf_s* target)
     return (task_t*)stage;
 }
 
-static float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, i32 iTile)
+pim_optimize
+static float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, float2 tileMin, float2 tileMax)
 {
     float4 a = f3_f4(A, 1.0f);
     float4 b = f3_f4(B, 1.0f);
@@ -129,10 +144,6 @@ static float4 VEC_CALL TriBounds(float4x4 VP, float3 A, float3 B, float3 C, i32 
     bounds.y = f1_min(a.y, f1_min(b.y, c.y));
     bounds.z = f1_max(a.x, f1_max(b.x, c.x));
     bounds.w = f1_max(a.y, f1_max(b.y, c.y));
-
-    int2 tile = GetTile(iTile);
-    float2 tileMin = TileMin(tile);
-    float2 tileMax = TileMax(tile);
 
     bounds.x = f1_max(bounds.x, tileMin.x);
     bounds.y = f1_max(bounds.y, tileMin.y);
@@ -164,6 +175,8 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
     camera_t camera;
     camera_get(&camera);
 
+    const BrdfLut lut = ms_lut;
+
     const int2 tile = GetTile(iTile);
     const float aspect = (float)kDrawWidth / kDrawHeight;
     const float dx = 1.0f / kDrawWidth;
@@ -178,8 +191,10 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
     const float3 up = quat_up(camera.rotation);
     const float3 eye = camera.position;
 
-    const float3 tileNormal = proj_dir(right, up, fwd, slope, TileCenter(tile));
-    const frus_t frus = frus_new(eye, right, up, fwd, TileMin(tile), TileMax(tile), slope, camera.nearFar);
+    const float2 tileMin = TileMin(tile);
+    const float2 tileMax = TileMax(tile);
+    const float3 tileNormal = proj_dir(right, up, fwd, slope, f2_lerp(tileMin, tileMax, 0.5f));
+    const frus_t frus = frus_new(eye, right, up, fwd, tileMin, tileMax, slope, camera.nearFar);
 
     float4x4 VP;
     {
@@ -201,17 +216,28 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
         const float3 B = f4_f3(positions[iVert + 1]);
         const float3 C = f4_f3(positions[iVert + 2]);
 
+        const float3 BA = f3_sub(B, A);
+        const float3 CA = f3_sub(C, A);
+
         // backface culling
-        if (f3_dot(tileNormal, f3_cross(f3_sub(C, A), f3_sub(B, A))) < 0.0f)
+        if (f3_dot(tileNormal, f3_cross(CA, BA)) < 0.0f)
         {
             continue;
         }
 
         // tile-frustum-triangle culling
-        if (sdFrusSph(frus, triToSphere(A, B, C)) > 0.0f)
+        const box_t triBox = triToBox(f3_f4(A, 1.0f), f3_f4(B, 1.0f), f3_f4(C, 1.0f));
+        const float boxDist = sdFrusBoxTest(frus, triBox);
+        if (boxDist > 0.0f)
         {
+#if CULLING_STATS
+            inc_u64(&ms_trisCulled, MO_Relaxed);
+#endif // CULLING_STATS
             continue;
         }
+#if CULLING_STATS
+        inc_u64(&ms_trisDrawn, MO_Relaxed);
+#endif // CULLING_STATS
 
         const float3 NA = f4_f3(normals[iVert + 0]);
         const float3 NB = f4_f3(normals[iVert + 1]);
@@ -221,14 +247,11 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
         const float2 UB = uvs[iVert + 1];
         const float2 UC = uvs[iVert + 2];
 
-        const float4 bounds = TriBounds(VP, A, B, C, iTile);
-
-        const float3 BA = f3_sub(B, A);
-        const float3 CA = f3_sub(C, A);
         const float3 T = f3_sub(eye, A);
         const float3 Q = f3_cross(T, BA);
         const float t0 = f3_dot(CA, Q);
 
+        const float4 bounds = TriBounds(VP, A, B, C, tileMin, tileMax);
         for (float y = bounds.y; y < bounds.w; y += dy)
         {
             for (float x = bounds.x; x < bounds.z; x += dx)
@@ -241,8 +264,8 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
                 {
                     continue;
                 }
-                const i32 iTexel = SnormToIndex(coord);
 
+                const i32 iTexel = SnormToIndex(coord);
                 float3 wuv;
                 {
                     // barycentric and depth clipping
@@ -282,7 +305,7 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
                     const float3 V = f3_normalize(f3_sub(eye, P));
                     const float3 albedo = f4_f3(f4_mul(Tex_Bilinearf2(albedoMap, U), flatAlbedo));
                     const float3 direct = DirectBRDF(V, L, radiance, N, albedo, flatRome.x, flatRome.z);
-                    const float3 indirect = IndirectBRDF(V, N, diffuseGI, specularGI, albedo, flatRome.x, flatRome.z, flatRome.y);
+                    const float3 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, flatRome.x, flatRome.z, flatRome.y);
                     light = f3_add(direct, indirect);
                 }
 

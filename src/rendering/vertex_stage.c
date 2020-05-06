@@ -1,8 +1,9 @@
 #include "rendering/vertex_stage.h"
 
 #include "allocator/allocator.h"
-#include "components/ecs.h"
+#include "common/atomics.h"
 #include "common/profiler.h"
+#include "components/ecs.h"
 
 #include "math/types.h"
 #include "math/float2_funcs.h"
@@ -24,6 +25,16 @@ typedef struct vertexstage_s
     ecs_foreach_t task;
     framebuf_t* target;
 } vertexstage_t;
+
+static u64 ms_entsCulled;
+static u64 ms_entsDrawn;
+static u64 ms_trisCulled;
+static u64 ms_trisDrawn;
+
+u64 Vert_EntsCulled(void) { return ms_entsCulled; }
+u64 Vert_EntsDrawn(void) { return ms_entsDrawn; }
+u64 Vert_TrisCulled(void) { return ms_trisCulled; }
+u64 Vert_TrisDrawn(void) { return ms_trisDrawn; }
 
 pim_optimize
 static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
@@ -47,25 +58,19 @@ static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
     // frustum-mesh culling
     for (i32 i = 0; i < length; ++i)
     {
-        const float4x4 M = matrices[i];
-        float4 sphere = bounds[i].sphere;
+        box_t box = TransformBox(matrices[i], bounds[i].box);
+        drawables[i].visible = sdFrusBoxTest(frus, box) <= 0.0f;
 
-        // translate sphere center
-        float4 center = { sphere.x, sphere.y, sphere.z, 1.0f };
-        center = f4x4_mul_pt(M, center);
-
-        // scale sphere radius
-        // this only works for positive scales
-        // negative scale is pretty weird, anyway. let's abs() it in the composition system.
-        float3 scale3;
-        scale3.x = f4_length3(M.c0);
-        scale3.y = f4_length3(M.c1);
-        scale3.z = f4_length3(M.c2);
-        float scale = f3_hmax(scale3);
-
-        sphere = f4_v(center.x, center.y, center.z, sphere.w * scale);
-
-        drawables[i].visible = sdFrusSph(frus, sphere) <= 0.0f;
+#if CULLING_STATS
+        if (drawables[i].visible)
+        {
+            inc_u64(&ms_entsDrawn, MO_Relaxed);
+        }
+        else
+        {
+            inc_u64(&ms_entsCulled, MO_Relaxed);
+        }
+#endif // CULLING_STATS
     }
 
     // vertex transform + frustum-triangle culling
@@ -105,12 +110,19 @@ static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
             const float4 A = f4x4_mul_pt(M, positionsIn[j + 0]);
             const float4 B = f4x4_mul_pt(M, positionsIn[j + 1]);
             const float4 C = f4x4_mul_pt(M, positionsIn[j + 2]);
-            const float4 sphere = triToSphere(f4_f3(A), f4_f3(B), f4_f3(C));
 
-            if (sdFrusSph(frus, sphere) > 0.0f)
+            const box_t triBox = triToBox(A, B, C);
+            const float triDist = sdFrusBoxTest(frus, triBox);
+            if (triDist > 0.0f)
             {
+#if CULLING_STATS
+                inc_u64(&ms_trisCulled, MO_Relaxed);
+#endif // CULLING_STATS
                 continue;
             }
+#if CULLING_STATS
+            inc_u64(&ms_trisDrawn, MO_Relaxed);
+#endif // CULLING_STATS
 
             const i32 back = insertions;
             insertions += 3;
@@ -161,6 +173,13 @@ ProfileMark(pm_VertexStage, VertexStage)
 task_t* VertexStage(struct framebuf_s* target)
 {
     ProfileBegin(pm_VertexStage);
+
+#if CULLING_STATS
+    store_u64(&ms_entsCulled, 0, MO_Release);
+    store_u64(&ms_entsDrawn, 0, MO_Release);
+    store_u64(&ms_trisCulled, 0, MO_Release);
+    store_u64(&ms_trisDrawn, 0, MO_Release);
+#endif // CULLING_STATS
 
     vertexstage_t* task = tmp_calloc(sizeof(*task));
     task->target = target;

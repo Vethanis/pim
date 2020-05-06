@@ -93,8 +93,25 @@ typedef struct int4x4_s
     int4 c3;
 } int4x4;
 
+// inward facing plane normals and positive distances
+typedef struct frus_s
+{
+    float4 x0;
+    float4 x1;
+    float4 y0;
+    float4 y1;
+    float4 z0;
+    float4 z1;
+} frus_t;
+
+typedef struct box_s
+{
+    float4 center;
+    float4 extents;
+} box_t;
+
 // spherical gaussian
-typedef struct SG_s
+typedef pim_alignas(16) struct SG_s
 {
     float3 axis;
     float sharpness;

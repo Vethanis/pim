@@ -24,7 +24,6 @@ static thread_t ms_threads[kNumThreads];
 static ptrqueue_t ms_queues[kNumThreads];
 
 static event_t ms_waitPush;
-static event_t ms_waitExec;
 
 static i32 ms_numThreadsRunning;
 static i32 ms_numThreadsSleeping;
@@ -37,9 +36,8 @@ static pim_thread_local i32 ms_tid;
 static i32 min_i32(i32 a, i32 b) { return (a < b) ? a : b; }
 static i32 max_i32(i32 a, i32 b) { return (a > b) ? a : b; }
 
-static i32 StealWork(task_t* task, range_t* range)
+static i32 StealWork(task_t* task, range_t* range, i32 gran)
 {
-    const i32 gran = task->granularity;
     const i32 wsize = task->worksize;
     const i32 a = fetch_add_i32(&(task->head), gran, MO_Acquire);
     const i32 b = min_i32(a + gran, wsize);
@@ -60,11 +58,6 @@ static i32 UpdateProgress(task_t* task, range_t range)
 static void MarkComplete(task_t* task)
 {
     store_i32(&(task->status), TaskStatus_Complete, MO_Release);
-    while (load_i32(&(task->awaits), MO_Acquire) > 0)
-    {
-        event_wakeall(&ms_waitExec);
-        intrin_yield();
-    }
 }
 
 static i32 TryRunTask(i32 tid)
@@ -72,9 +65,10 @@ static i32 TryRunTask(i32 tid)
     task_t* task = ptrqueue_trypop(ms_queues + tid);
     if (task)
     {
+        const i32 gran = max_i32(1, task->worksize / kTaskSplit);
         const task_execute_fn fn = task->execute;
         range_t range;
-        while (StealWork(task, &range))
+        while (StealWork(task, &range, gran))
         {
             fn(task, range.begin, range.end);
             if (UpdateProgress(task, range))
@@ -138,11 +132,10 @@ void task_submit(task_t* task, task_execute_fn execute, i32 worksize)
     store_i32(&(task->status), TaskStatus_Exec, MO_Release);
     task->execute = execute;
     store_i32(&(task->worksize), worksize, MO_Release);
-    store_i32(&(task->granularity), max_i32(1, worksize / kTaskSplit), MO_Release);
     store_i32(&(task->head), 0, MO_Release);
     store_i32(&(task->tail), 0, MO_Release);
 
-    for (i32 t = 1; t < kNumThreads; ++t)
+    for (i32 t = 0; t < kNumThreads; ++t)
     {
         if (!ptrqueue_trypush(ms_queues + t, task))
         {
@@ -159,12 +152,19 @@ void task_await(task_t* task)
     ProfileBegin(pm_await);
 
     ASSERT(task);
-    inc_i32(&(task->awaits), MO_Acquire);
+
+    const i32 tid = ms_tid;
+    u64 spins = 0;
     while (task_stat(task) == TaskStatus_Exec)
     {
-        event_wait(&ms_waitExec);
+        if (!TryRunTask(tid))
+        {
+            // trying to wait on an event here sometimes introduces
+            // a permanently slept main thread.
+            // so instead we do a few spins then yield.
+            intrin_spin(++spins);
+        }
     }
-    dec_i32(&(task->awaits), MO_Release);
 
     ProfileEnd(pm_await);
 }
@@ -183,8 +183,9 @@ void task_sys_init(void)
 {
     intrin_clockres_begin(1);
     event_create(&ms_waitPush);
-    event_create(&ms_waitExec);
     store_i32(&ms_running, 1, MO_Release);
+
+    ptrqueue_create(ms_queues + 0, EAlloc_Perm, 256);
     for (i32 t = 1; t < kNumThreads; ++t)
     {
         ptrqueue_create(ms_queues + t, EAlloc_Perm, 256);
@@ -208,7 +209,6 @@ void task_sys_shutdown(void)
     while (load_i32(&ms_numThreadsRunning, MO_Acquire) > 0)
     {
         event_wakeall(&ms_waitPush);
-        event_wakeall(&ms_waitExec);
         intrin_yield();
     }
     for (i32 t = 1; t < kNumThreads; ++t)
@@ -216,9 +216,10 @@ void task_sys_shutdown(void)
         thread_join(ms_threads + t);
         ptrqueue_destroy(ms_queues + t);
     }
+    ptrqueue_destroy(ms_queues + 0);
+
     memset(ms_threads, 0, sizeof(ms_threads));
     memset(ms_queues, 0, sizeof(ms_queues));
     event_destroy(&ms_waitPush);
-    event_destroy(&ms_waitExec);
     intrin_clockres_end(1);
 }

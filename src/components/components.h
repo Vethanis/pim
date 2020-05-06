@@ -43,7 +43,7 @@ typedef struct drawable_s
 
 typedef struct bounds_s
 {
-    float4 sphere; // center, radius, in local space
+    box_t box;
 } bounds_t;
 
 typedef enum
