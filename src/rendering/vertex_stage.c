@@ -28,13 +28,9 @@ typedef struct vertexstage_s
 
 static u64 ms_entsCulled;
 static u64 ms_entsDrawn;
-static u64 ms_trisCulled;
-static u64 ms_trisDrawn;
 
 u64 Vert_EntsCulled(void) { return ms_entsCulled; }
 u64 Vert_EntsDrawn(void) { return ms_entsDrawn; }
-u64 Vert_TrisCulled(void) { return ms_trisCulled; }
-u64 Vert_TrisDrawn(void) { return ms_trisDrawn; }
 
 pim_optimize
 static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
@@ -58,7 +54,7 @@ static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
     // frustum-mesh culling
     for (i32 i = 0; i < length; ++i)
     {
-        box_t box = TransformBox(matrices[i], bounds[i].box);
+        const box_t box = TransformBox(matrices[i], bounds[i].box);
         drawables[i].visible = sdFrusBoxTest(frus, box) <= 0.0f;
 
 #if CULLING_STATS
@@ -104,59 +100,27 @@ static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
         float4* pim_noalias normalsOut = tmp_malloc(sizeof(normalsOut[0]) * numVerts);
         float2* pim_noalias uvsOut = tmp_malloc(sizeof(uvsOut[0]) * numVerts);
 
-        i32 insertions = 0;
-        for (i32 j = 0; (j + 3) <= numVerts; j += 3)
+        for (i32 j = 0; j < numVerts; ++j)
         {
-            const float4 A = f4x4_mul_pt(M, positionsIn[j + 0]);
-            const float4 B = f4x4_mul_pt(M, positionsIn[j + 1]);
-            const float4 C = f4x4_mul_pt(M, positionsIn[j + 2]);
-
-            const box_t triBox = triToBox(A, B, C);
-            const float triDist = sdFrusBoxTest(frus, triBox);
-            if (triDist > 0.0f)
-            {
-#if CULLING_STATS
-                inc_u64(&ms_trisCulled, MO_Relaxed);
-#endif // CULLING_STATS
-                continue;
-            }
-#if CULLING_STATS
-            inc_u64(&ms_trisDrawn, MO_Relaxed);
-#endif // CULLING_STATS
-
-            const i32 back = insertions;
-            insertions += 3;
-
-            positionsOut[back + 0] = A;
-            positionsOut[back + 1] = B;
-            positionsOut[back + 2] = C;
-
-            normalsOut[back + 0] = f4_normalize3(f4x4_mul_dir(IM, normalsIn[j + 0]));
-            normalsOut[back + 1] = f4_normalize3(f4x4_mul_dir(IM, normalsIn[j + 1]));
-            normalsOut[back + 2] = f4_normalize3(f4x4_mul_dir(IM, normalsIn[j + 2]));
-
-            uvsOut[back + 0] = TransformUv(uvsIn[j + 0], ST);
-            uvsOut[back + 1] = TransformUv(uvsIn[j + 1], ST);
-            uvsOut[back + 2] = TransformUv(uvsIn[j + 2], ST);
+            positionsOut[j] = f4x4_mul_pt(M, positionsIn[j]);
+        }
+        for (i32 j = 0; j < numVerts; ++j)
+        {
+            normalsOut[j] = f4_normalize3(f4x4_mul_dir(IM, normalsIn[j]));
+        }
+        for(i32 j = 0; j < numVerts; ++j)
+        {
+            uvsOut[j] = TransformUv(uvsIn[j], ST);
         }
 
-        if (insertions > 0)
-        {
-            drawables[i].visible = true;
+        mesh_t* meshOut = tmp_calloc(sizeof(*meshOut));
+        meshOut->length = numVerts;
+        meshOut->positions = positionsOut;
+        meshOut->normals = normalsOut;
+        meshOut->uvs = uvsOut;
+        meshid_t worldMesh = mesh_create(meshOut);
 
-            mesh_t* meshOut = tmp_calloc(sizeof(*meshOut));
-            meshOut->length = insertions;
-            meshOut->positions = positionsOut;
-            meshOut->normals = normalsOut;
-            meshOut->uvs = uvsOut;
-            meshid_t worldMesh = mesh_create(meshOut);
-
-            SubmitMesh(worldMesh, drawables[i].material);
-        }
-        else
-        {
-            drawables[i].visible = false;
-        }
+        SubmitMesh(worldMesh, drawables[i].material);
     }
 }
 

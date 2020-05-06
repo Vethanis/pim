@@ -132,8 +132,6 @@ void render_sys_gui(bool* pEnabled)
 #if CULLING_STATS
         igText("Vert Ents Culled: %I64u", Vert_EntsCulled());
         igText("Vert Ents Drawn: %I64u", Vert_EntsDrawn());
-        igText("Vert Tris Culled: %I64u", Vert_TrisCulled());
-        igText("Vert Tris Drawn: %I64u", Vert_TrisDrawn());
         igText("Frag Tris Culled: %I64u", Frag_TrisCulled());
         igText("Frag Tris Drawn: %I64u", Frag_TrisDrawn());
 #endif // CULLING_STATS

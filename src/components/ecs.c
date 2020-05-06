@@ -8,7 +8,9 @@
 
 #include <string.h>
 
-#define kSlabCapacity 1024
+// TODO: completely flatten out ECS, get rid of chunks.
+// want more flexibility AND better thread granularity
+#define kSlabCapacity 16
 
 static const i32 kComponentSize[] =
 {
