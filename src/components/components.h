@@ -17,7 +17,7 @@ typedef struct ent_s
 typedef struct position_s
 {
     float3 Value;
-} position_t;
+} translation_t;
 
 typedef struct rotation_s
 {
@@ -48,8 +48,7 @@ typedef struct bounds_s
 
 typedef enum
 {
-    CompId_Entity,
-    CompId_Position,
+    CompId_Translation,
     CompId_Rotation,
     CompId_Scale,
     CompId_LocalToWorld,

@@ -1,12 +1,10 @@
 #include "components/compflag.h"
 #include "common/valist.h"
 
-static const i32 kDwordCount = sizeof(compflag_t) / sizeof(u32);
-
 compflag_t compflag_create(i32 count, ...)
 {
     compflag_t result;
-    for (i32 i = 0; i < kDwordCount; ++i)
+    for (i32 i = 0; i < NELEM(result.dwords); ++i)
     {
         result.dwords[i] = 0;
     }
@@ -22,7 +20,7 @@ compflag_t compflag_create(i32 count, ...)
 bool compflag_all(compflag_t has, compflag_t all)
 {
     u32 test = 0;
-    for (i32 i = 0; i < kDwordCount; ++i)
+    for (i32 i = 0; i < NELEM(has.dwords); ++i)
     {
         test |= (has.dwords[i] & all.dwords[i]) - all.dwords[i];
     }
@@ -32,7 +30,7 @@ bool compflag_all(compflag_t has, compflag_t all)
 bool compflag_any(compflag_t has, compflag_t any)
 {
     u32 test = 0;
-    for (i32 i = 0; i < kDwordCount; ++i)
+    for (i32 i = 0; i < NELEM(has.dwords); ++i)
     {
         test |= has.dwords[i] & any.dwords[i];
     }
@@ -71,7 +69,7 @@ void compflag_unset(compflag_t* flag, compid_t id)
 bool compflag_eq(compflag_t lhs, compflag_t rhs)
 {
     u32 cmp = 0;
-    for (i32 i = 0; i < kDwordCount; ++i)
+    for (i32 i = 0; i < NELEM(lhs.dwords); ++i)
     {
         cmp |= lhs.dwords[i] - rhs.dwords[i];
     }

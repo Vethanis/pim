@@ -33,18 +33,14 @@ u64 Vert_EntsCulled(void) { return ms_entsCulled; }
 u64 Vert_EntsDrawn(void) { return ms_entsDrawn; }
 
 pim_optimize
-static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
+static void VertexStageForEach(ecs_foreach_t* task, void** rows, const i32* indices, i32 length)
 {
     vertexstage_t* vertTask = (vertexstage_t*)task;
     ASSERT(vertTask->target);
 
-    ASSERT(rows);
-    drawable_t* pim_noalias drawables = rows[CompId_Drawable];
-    const bounds_t* pim_noalias bounds = rows[CompId_Bounds];
     const float4x4* pim_noalias matrices = rows[CompId_LocalToWorld];
-    ASSERT(drawables);
-    ASSERT(bounds);
-    ASSERT(matrices);
+    const bounds_t* pim_noalias bounds = rows[CompId_Bounds];
+    drawable_t* pim_noalias drawables = rows[CompId_Drawable];
 
     camera_t camera;
     camera_get(&camera);
@@ -54,11 +50,13 @@ static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
     // frustum-mesh culling
     for (i32 i = 0; i < length; ++i)
     {
-        const box_t box = TransformBox(matrices[i], bounds[i].box);
-        drawables[i].visible = sdFrusBoxTest(frus, box) <= 0.0f;
+        const i32 e = indices[i];
+        const box_t box = TransformBox(matrices[e], bounds[e].box);
+        const bool visible = sdFrusBoxTest(frus, box) <= 0.0f;
+        drawables[e].visible = visible;
 
 #if CULLING_STATS
-        if (drawables[i].visible)
+        if (visible)
         {
             inc_u64(&ms_entsDrawn, MO_Relaxed);
         }
@@ -72,22 +70,23 @@ static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
     // vertex transform + frustum-triangle culling
     for (i32 i = 0; i < length; ++i)
     {
-        if (!drawables[i].visible)
+        const i32 e = indices[i];
+        if (!drawables[e].visible)
         {
             continue;
         }
 
         mesh_t meshIn = { 0 };
-        if (!mesh_get(drawables[i].mesh, &meshIn))
+        if (!mesh_get(drawables[e].mesh, &meshIn))
         {
-            drawables[i].visible = false;
+            drawables[e].visible = false;
             continue;
         }
 
-        const float4x4 M = matrices[i];
         // TODO: float3x3, inverse, transpose, and mul_dir.
+        const float4x4 M = matrices[e];
         const float4x4 IM = f4x4_inverse(f4x4_transpose(M));
-        const float4 ST = drawables[i].material.st;
+        const float4 ST = drawables[e].material.st;
         const i32 numVerts = meshIn.length;
 
         const float4* pim_noalias positionsIn = meshIn.positions;
@@ -120,7 +119,7 @@ static void VertexStageForEach(ecs_foreach_t* task, void** rows, i32 length)
         meshOut->uvs = uvsOut;
         meshid_t worldMesh = mesh_create(meshOut);
 
-        SubmitMesh(worldMesh, drawables[i].material);
+        SubmitMesh(worldMesh, drawables[e].material);
     }
 }
 

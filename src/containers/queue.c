@@ -73,7 +73,7 @@ void queue_reserve(queue_t* q, u32 capacity)
     }
 }
 
-void queue_push(queue_t* q, void* src, u32 itemSize)
+void queue_push(queue_t* q, const void* src, u32 itemSize)
 {
     ASSERT(q);
     ASSERT(src);

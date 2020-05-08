@@ -223,9 +223,9 @@ static void CreateEntities(meshid_t mesh, material_t material, i32 count)
     localtoworld_t localToWorld = { f4x4_id };
     bounds_t bounds = { 0.0f, 0.0f, 0.0f, 1.0f };
     drawable_t drawable = { 0 };
-    position_t position = { 0.0f, 0.0f, 0.0f };
+    translation_t position = { 0.0f, 0.0f, 0.0f };
     void* rows[CompId_COUNT] = { 0 };
-    rows[CompId_Position] = &position;
+    rows[CompId_Translation] = &position;
     rows[CompId_LocalToWorld] = &localToWorld;
     rows[CompId_Drawable] = &drawable;
     rows[CompId_Bounds] = &bounds;
@@ -235,7 +235,7 @@ static void CreateEntities(meshid_t mesh, material_t material, i32 count)
     bounds = CalcMeshBounds(mesh);
 
     prng_t rng = ms_prng;
-    compflag_t all = compflag_create(4, CompId_Position, CompId_LocalToWorld, CompId_Drawable, CompId_Bounds);
+    compflag_t all = compflag_create(4, CompId_Translation, CompId_LocalToWorld, CompId_Drawable, CompId_Bounds);
     //compflag_t some = compflag_create(1, CompId_Position);
 
     const float side = sqrtf((float)count);
@@ -266,18 +266,16 @@ typedef struct setmat_s
     material_t mat;
 } setmat_t;
 
-static void SetEntityMaterialsFn(ecs_foreach_t* task, void** rows, i32 length)
+static void SetEntityMaterialsFn(ecs_foreach_t* task, void** rows, const i32* indices, i32 length)
 {
-    ASSERT(rows);
-    drawable_t* pim_noalias drawables = rows[CompId_Drawable];
-    ASSERT(drawables);
-
     setmat_t* setmat = (setmat_t*)task;
     const material_t mat = setmat->mat;
 
+    drawable_t* pim_noalias drawables = rows[CompId_Drawable];
     for (i32 i = 0; i < length; ++i)
     {
-        drawables[i].material = mat;
+        const i32 e = indices[i];
+        drawables[e].material = mat;
     }
 }
 

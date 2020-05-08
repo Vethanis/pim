@@ -21,7 +21,7 @@ void rwlock_lock_read(rwlock_t* lck)
     event_t* pEvent = &(lck->evt);
     i32 prev = 0;
 
-    while (1)
+    while (true)
     {
         prev = load_i32(pState, MO_Relaxed);
         if (prev < 0)
@@ -53,7 +53,7 @@ void rwlock_lock_write(rwlock_t* lck)
     event_t* pEvent = &(lck->evt);
     i32 prev = 0;
 
-    while (1)
+    while (true)
     {
         prev = load_i32(pState, MO_Relaxed);
         if (prev == 0 && cmpex_i32(pState, &prev, -1, MO_Acquire))
