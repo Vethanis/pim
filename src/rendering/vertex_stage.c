@@ -123,14 +123,12 @@ static void VertexStageForEach(ecs_foreach_t* task, void** rows, const i32* indi
     }
 }
 
-static const compflag_t kAll =
+static const u32 kAll =
 {
-    .dwords[0] =
-        (1 << CompId_Drawable) |
-        (1 << CompId_Bounds) |
-        (1 << CompId_LocalToWorld)
+    (1 << CompId_Drawable) |
+    (1 << CompId_Bounds) |
+    (1 << CompId_LocalToWorld)
 };
-static const compflag_t kNone = { 0 };
 
 ProfileMark(pm_VertexStage, VertexStage)
 task_t* VertexStage(struct framebuf_s* target)
@@ -146,7 +144,7 @@ task_t* VertexStage(struct framebuf_s* target)
 
     vertexstage_t* task = tmp_calloc(sizeof(*task));
     task->target = target;
-    ecs_foreach((ecs_foreach_t*)task, kAll, kNone, VertexStageForEach);
+    ecs_foreach((ecs_foreach_t*)task, kAll, 0, VertexStageForEach);
 
     ProfileEnd(pm_VertexStage);
     return (task_t*)task;

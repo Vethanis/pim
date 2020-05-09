@@ -223,9 +223,9 @@ static void CreateEntities(meshid_t mesh, material_t material, i32 count)
     localtoworld_t localToWorld = { f4x4_id };
     bounds_t bounds = { 0.0f, 0.0f, 0.0f, 1.0f };
     drawable_t drawable = { 0 };
-    translation_t position = { 0.0f, 0.0f, 0.0f };
+    translation_t translation = { 0.0f, 0.0f, 0.0f };
     void* rows[CompId_COUNT] = { 0 };
-    rows[CompId_Translation] = &position;
+    rows[CompId_Translation] = &translation;
     rows[CompId_LocalToWorld] = &localToWorld;
     rows[CompId_Drawable] = &drawable;
     rows[CompId_Bounds] = &bounds;
@@ -234,10 +234,6 @@ static void CreateEntities(meshid_t mesh, material_t material, i32 count)
     drawable.material = material;
     bounds = CalcMeshBounds(mesh);
 
-    prng_t rng = ms_prng;
-    compflag_t all = compflag_create(4, CompId_Translation, CompId_LocalToWorld, CompId_Drawable, CompId_Bounds);
-    //compflag_t some = compflag_create(1, CompId_Position);
-
     const float side = sqrtf((float)count);
     const float stride = 3.0f;
 
@@ -245,10 +241,10 @@ static void CreateEntities(meshid_t mesh, material_t material, i32 count)
     float z = 0.0f;
     for (i32 i = 0; i < count; ++i)
     {
-        position.Value.x = stride * x;
-        position.Value.z = stride * z;
-        position.Value.y = 0.0f;
-        ecs_create(all, rows);
+        translation.Value.x = stride * x;
+        translation.Value.z = stride * z;
+        translation.Value.y = 0.0f;
+        ecs_create(rows);
 
         x += 1.0f;
         if (x >= side)
@@ -257,7 +253,6 @@ static void CreateEntities(meshid_t mesh, material_t material, i32 count)
             z += 1.0f;
         }
     }
-    ms_prng = rng;
 }
 
 typedef struct setmat_s
@@ -283,7 +278,7 @@ static task_t* SetEntityMaterials(material_t mat)
 {
     setmat_t* task = tmp_calloc(sizeof(*task));
     task->mat = mat;
-    ecs_foreach((ecs_foreach_t*)task, compflag_create(1, CompId_Drawable), compflag_create(0), SetEntityMaterialsFn);
+    ecs_foreach((ecs_foreach_t*)task, 1 << CompId_Drawable, 0, SetEntityMaterialsFn);
     return (task_t*)task;
 }
 

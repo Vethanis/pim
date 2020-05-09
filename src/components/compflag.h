@@ -6,21 +6,36 @@ PIM_C_BEGIN
 
 #include "components/components.h"
 
-typedef struct compflag_s
+u32 compflag_create(i32 count, ...);
+
+static bool compflag_all(u32 has, u32 all)
 {
-    u32 dwords[((CompId_COUNT + 31) / 32)];
-} compflag_t;
+    return (has & all) == all;
+}
 
-compflag_t compflag_create(i32 count, ...);
+static bool compflag_any(u32 has, u32 any)
+{
+    return (has & any) != 0u;
+}
 
-bool compflag_all(compflag_t has, compflag_t all);
-bool compflag_any(compflag_t has, compflag_t any);
-bool compflag_none(compflag_t has, compflag_t none);
+static bool compflag_none(u32 has, u32 none)
+{
+    return (has & none) == 0u;
+}
 
-bool compflag_get(compflag_t flag, compid_t id);
-void compflag_set(compflag_t* flag, compid_t id);
-void compflag_unset(compflag_t* flag, compid_t id);
+static bool compflag_get(u32 flag, compid_t id)
+{
+    return (flag & (1u << id)) != 0;
+}
 
-bool compflag_eq(compflag_t lhs, compflag_t rhs);
+static u32 compflag_set(u32 flag, compid_t id)
+{
+    return flag | (1u << id);
+}
+
+static u32 compflag_unset(u32 flag, compid_t id)
+{
+    return flag & ~(1u << id);
+}
 
 PIM_C_END

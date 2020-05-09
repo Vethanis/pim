@@ -331,6 +331,9 @@
     <ClCompile Include="..\src\math\lighting.c">
       <Filter>Source Files\math</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\path_tracer.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -721,6 +724,9 @@
       <Filter>Source Files\math</Filter>
     </ClInclude>
     <ClInclude Include="..\src\rendering\sampler.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\path_tracer.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>

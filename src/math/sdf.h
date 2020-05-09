@@ -181,4 +181,20 @@ pim_inline float VEC_CALL isectPlane3D(float4 ro, float4 rd, float4 plane)
     return -sdPlane3D(plane, ro) / f4_dot3(rd, plane);
 }
 
+// returns [near, far] intersection distances
+// if far < near, the ray does not intersect the box
+pim_inline float2 VEC_CALL isectBox3D(
+    float4 ro,      // ray origin
+    float4 rcpRd,   // 1 / ray direction
+    box_t box)
+{
+    float4 lo = f4_sub(box.center, box.extents);
+    float4 hi = f4_add(box.center, box.extents);
+    float4 tx1 = f4_mul(f4_sub(lo, ro), rcpRd);
+    float4 tx2 = f4_mul(f4_sub(hi, ro), rcpRd);
+    float tmin = f4_hmax3(f4_min(tx1, tx2));
+    float tmax = f4_hmin3(f4_max(tx1, tx2));
+    return f2_v(tmin, tmax);
+}
+
 PIM_C_END
