@@ -103,6 +103,16 @@ pim_inline float4 VEC_CALL f4_tosrgb(float4 lin)
     return srgb;
 }
 
+pim_inline u32 VEC_CALL LinearToColor(float4 lin)
+{
+    return f4_rgba8(f4_tosrgb(lin));
+}
+
+pim_inline float4 VEC_CALL ColorToLinear(u32 c)
+{
+    return f4_tolinear(rgba8_f4(c));
+}
+
 pim_inline float VEC_CALL tmap1_reinhard(float x)
 {
     float y = x / (1.0f + x);
@@ -203,6 +213,12 @@ pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
     y.w = tmap1_hable(w, params);
     y = f4_divvs(y, y.w);
     return f4_tosrgb(y);
+}
+
+pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)
+{
+    e = 8.0f * e * e * e;
+    return f4_mulvs(albedo, e);
 }
 
 PIM_C_END

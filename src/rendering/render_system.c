@@ -28,11 +28,17 @@
 #include "rendering/vertex_stage.h"
 #include "rendering/fragment_stage.h"
 #include "rendering/resolve_tile.h"
+#include "rendering/path_tracer.h"
+
+#include <string.h>
+
+static cvar_t cv_pathtrace = { cvart_bool, 0, "pathtrace", "0", "enable path tracing of scene" };
 
 // ----------------------------------------------------------------------------
 
 static void CreateEntities(meshid_t mesh, material_t material, i32 count);
-static task_t* SetEntityMaterials(material_t mat);
+static task_t* SetEntityMaterials(void);
+static task_t* SetLights(void);
 static meshid_t GenSphereMesh(float r, i32 steps);
 static textureid_t GenCheckerTex(void);
 
@@ -41,37 +47,56 @@ static textureid_t GenCheckerTex(void);
 static framebuf_t ms_buffer;
 static meshid_t ms_meshid;
 static material_t ms_material;
+static float4 ms_flatAlbedo;
+static float4 ms_flatRome;
 static prng_t ms_prng;
 
 static TonemapId ms_tonemapper;
 static float4 ms_toneParams;
 static float4 ms_clearColor;
 
+static pt_scene_t* ms_ptscene;
+static pt_trace_t ms_trace;
+static camera_t ms_ptcamera;
+static i32 ms_sampleCount;
+
 // ----------------------------------------------------------------------------
 
 void render_sys_init(void)
 {
+    cvar_reg(&cv_pathtrace);
+
     ms_prng = prng_create();
     ms_tonemapper = TMap_Hable;
     ms_toneParams = Tonemap_DefParams();
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
-    *LightDir() = f3_normalize(f3_1);
-    *LightRad() = f3_v(9.593f, 7.22f, 5.458f);
-    *DiffuseGI() = f3_v(0.074f, 0.074f, 0.142f);
-    *SpecularGI() = f3_v(0.299f, 0.266f, 0.236f);
+    *LightDir() = f4_normalize3(f4_1);
+    *LightRad() = f4_v(9.593f, 7.22f, 5.458f, 0.0f);
+    *DiffuseGI() = f4_v(0.074f, 0.074f, 0.142f, 0.0f);
+    *SpecularGI() = f4_v(0.299f, 0.266f, 0.236f, 0.0f);
 
     framebuf_create(&ms_buffer, kDrawWidth, kDrawHeight);
     screenblit_init(kDrawWidth, kDrawHeight);
     FragmentStage_Init();
 
-    ms_material.flatAlbedo = f4_rgba8(f4_s(1.0f));
-    ms_material.flatRome = f4_rgba8(f4_v(0.143f, 1.0f, 0.0f, 0.0f));
+    ms_flatAlbedo = f4_s(1.0f);
+    ms_flatRome = f4_v(0.143f, 1.0f, 0.0f, 0.0f);
+    ms_material.flatAlbedo = LinearToColor(ms_flatAlbedo);
+    ms_material.flatRome = LinearToColor(ms_flatRome);
     ms_material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
     ms_material.albedo = GenCheckerTex();
 
-    ms_meshid = GenSphereMesh(1.0, 16);
+    ms_meshid = GenSphereMesh(1.0, 8);
 
-    CreateEntities(ms_meshid, ms_material, 64);
+    CreateEntities(ms_meshid, ms_material, 2);
+
+    TransformCompose();
+    SetEntityMaterials();
+    task_t* setLightsTask = SetLights();
+    task_sys_schedule();
+    task_await(setLightsTask);
+
+    ms_ptscene = pt_scene_new();
 }
 
 ProfileMark(pm_update, render_sys_update)
@@ -82,25 +107,49 @@ void render_sys_update(void)
     camera_t camera;
     camera_get(&camera);
 
-    task_t* xformTask = TransformCompose();
-    task_t* clearTask = ClearTile(&ms_buffer, ms_clearColor, camera.nearFar.y);
-    task_sys_schedule();
-    task_await(xformTask);
+    if (cv_pathtrace.asFloat != 0.0f)
+    {
+        if (memcmp(&camera, &ms_ptcamera, sizeof(camera)) != 0)
+        {
+            ms_sampleCount = 0;
+        }
+        ms_ptcamera = camera;
+        ms_trace.bounces = 3;
+        ms_trace.sampleWeight = 1.0f / ++ms_sampleCount;
+        ms_trace.camera = &ms_ptcamera;
+        ms_trace.dstImage = ms_buffer.light;
+        ms_trace.imageSize = i2_v(ms_buffer.width, ms_buffer.height);
+        ms_trace.scene = ms_ptscene;
+        task_t* traceTask = pt_trace(&ms_trace);
+        task_sys_schedule();
+        task_await(traceTask);
+    }
+    else
+    {
+        ms_sampleCount = 0;
+        task_t* xformTask = TransformCompose();
+        task_t* clearTask = ClearTile(&ms_buffer, ms_clearColor, camera.nearFar.y);
+        task_sys_schedule();
+        task_await(xformTask);
 
-    task_t* vertexTask = VertexStage(&ms_buffer);
-    task_sys_schedule();
+        task_t* vertexTask = VertexStage(&ms_buffer);
+        task_sys_schedule();
 
-    task_await(vertexTask);
-    task_t* fragTask = FragmentStage(&ms_buffer);
-    SetEntityMaterials(ms_material);
-    task_sys_schedule();
+        task_await(vertexTask);
+        task_t* fragTask = FragmentStage(&ms_buffer);
+        task_sys_schedule();
 
-    task_await(fragTask);
+        task_await(fragTask);
+    }
+
     task_t* resolveTask = ResolveTile(&ms_buffer, ms_tonemapper, ms_toneParams);
     task_sys_schedule();
 
     task_await(resolveTask);
     screenblit_blit(ms_buffer.color, kDrawWidth, kDrawHeight);
+
+    SetEntityMaterials();
+    SetLights();
 
     ProfileEnd(pm_update);
 }
@@ -117,6 +166,9 @@ void render_sys_shutdown(void)
     mesh_destroy(ms_meshid);
     texture_destroy(ms_material.albedo);
     FragmentStage_Shutdown();
+
+    pt_scene_del(ms_ptscene);
+    ms_ptscene = NULL;
 }
 
 ProfileMark(pm_gui, render_sys_gui)
@@ -154,27 +206,35 @@ void render_sys_gui(bool* pEnabled)
         {
             igIndent(0.0f);
 
-            float4 flatAlbedo = rgba8_f4(ms_material.flatAlbedo);
-            igColorEdit3("Albedo", &flatAlbedo.x, ldrPicker);
-            ms_material.flatAlbedo = f4_rgba8(flatAlbedo);
+            igColorEdit3("Albedo", &ms_flatAlbedo.x, ldrPicker);
+            ms_material.flatAlbedo = LinearToColor(ms_flatAlbedo);
 
-            float4 flatRome = rgba8_f4(ms_material.flatRome);
-            igSliderFloat("Roughness", &flatRome.x, 0.0f, 1.0f);
-            igSliderFloat("Occlusion", &flatRome.y, 0.0f, 1.0f);
-            igSliderFloat("Metallic", &flatRome.z, 0.0f, 1.0f);
-            igSliderFloat("Emission", &flatRome.w, 0.0f, 1.0f);
-            ms_material.flatRome = f4_rgba8(flatRome);
+            igSliderFloat("Roughness", &ms_flatRome.x, 0.0f, 1.0f);
+            igSliderFloat("Occlusion", &ms_flatRome.y, 0.0f, 1.0f);
+            igSliderFloat("Metallic", &ms_flatRome.z, 0.0f, 1.0f);
+            igSliderFloat("Emission", &ms_flatRome.w, 0.0f, 1.0f);
+            ms_material.flatRome = LinearToColor(ms_flatRome);
 
-            float3 L = *LightDir();
+            float4 L = *LightDir();
             igSliderFloat3("Light Dir", &L.x, -1.0f, 1.0f);
-            *LightDir() = f3_normalize(L);
+            *LightDir() = f4_normalize3(L);
 
             igColorEdit3("Light Radiance", &LightRad()->x, hdrPicker);
             igColorEdit3("Diffuse GI", &DiffuseGI()->x, hdrPicker);
             igColorEdit3("Specular GI", &SpecularGI()->x, hdrPicker);
             igUnindent(0.0f);
+
+            // lazy hack
+            pt_scene_t* scene = ms_ptscene;
+            if (scene)
+            {
+                for (i32 i = 0; i < scene->matCount; ++i)
+                {
+                    scene->materials[i] = ms_material;
+                }
+            }
         }
-    }
+}
     igEnd();
 
     ProfileEnd(pm_gui);
@@ -234,39 +294,34 @@ static void CreateEntities(meshid_t mesh, material_t material, i32 count)
     drawable.material = material;
     bounds = CalcMeshBounds(mesh);
 
-    const float side = sqrtf((float)count);
-    const float stride = 3.0f;
+    translation.Value.x = -1.0f;
+    translation.Value.z = 0.0f;
+    translation.Value.y = 0.0f;
+    ecs_create(rows);
+    translation.Value.x = 1.0f;
+    ecs_create(rows);
 
-    float x = 0.0f;
-    float z = 0.0f;
-    for (i32 i = 0; i < count; ++i)
-    {
-        translation.Value.x = stride * x;
-        translation.Value.z = stride * z;
-        translation.Value.y = 0.0f;
-        ecs_create(rows);
+    memset(rows, 0, sizeof(rows));
+    light_t light;
+    rotation_t rotation;
+    rows[CompId_Light] = &light;
+    rows[CompId_Rotation] = &rotation;
+    rows[CompId_Translation] = &translation;
 
-        x += 1.0f;
-        if (x >= side)
-        {
-            x = 0.0f;
-            z += 1.0f;
-        }
-    }
+    light.radiance = *LightRad();
+    rotation.Value = quat_lookat(*LightDir(), f4_v(0.0f, 1.0f, 0.0f, 0.0f));
+    translation.Value = f4_0;
+    ecs_create(rows);
 }
 
-typedef struct setmat_s
+static void SetEntityMaterialsFn(
+    ecs_foreach_t* task,
+    void** rows,
+    const i32* indices,
+    i32 length)
 {
-    ecs_foreach_t task;
-    material_t mat;
-} setmat_t;
-
-static void SetEntityMaterialsFn(ecs_foreach_t* task, void** rows, const i32* indices, i32 length)
-{
-    setmat_t* setmat = (setmat_t*)task;
-    const material_t mat = setmat->mat;
-
     drawable_t* pim_noalias drawables = rows[CompId_Drawable];
+    const material_t mat = ms_material;
     for (i32 i = 0; i < length; ++i)
     {
         const i32 e = indices[i];
@@ -274,11 +329,41 @@ static void SetEntityMaterialsFn(ecs_foreach_t* task, void** rows, const i32* in
     }
 }
 
-static task_t* SetEntityMaterials(material_t mat)
+static task_t* SetEntityMaterials(void)
 {
-    setmat_t* task = tmp_calloc(sizeof(*task));
-    task->mat = mat;
-    ecs_foreach((ecs_foreach_t*)task, 1 << CompId_Drawable, 0, SetEntityMaterialsFn);
+    ecs_foreach_t* task = tmp_calloc(sizeof(*task));
+    ecs_foreach(task, 1 << CompId_Drawable, 0, SetEntityMaterialsFn);
+    return (task_t*)task;
+}
+
+static void SetLightFn(
+    ecs_foreach_t* task,
+    void** rows,
+    const i32* indices,
+    i32 length)
+{
+    light_t* pim_noalias lights = rows[CompId_Light];
+    rotation_t* pim_noalias rotations = rows[CompId_Rotation];
+
+    const float4 lDir = *LightDir();
+    const float4 lRad = *LightRad();
+    const quat rotation = quat_lookat(lDir, f4_v(0.0f, 1.0f, 0.0f, 0.0f));
+    for (i32 i = 0; i < length; ++i)
+    {
+        const i32 e = indices[i];
+        lights[e].radiance = lRad;
+        rotations[e].Value = rotation;
+    }
+}
+
+static task_t* SetLights(void)
+{
+    ecs_foreach_t* task = tmp_calloc(sizeof(*task));
+    ecs_foreach(
+        task,
+        (1 << CompId_Light) | (1 << CompId_Rotation),
+        0,
+        SetLightFn);
     return (task_t*)task;
 }
 
@@ -414,10 +499,11 @@ static textureid_t GenCheckerTex(void)
 {
     texture_t* albedo = perm_calloc(sizeof(*albedo));
     const i32 size = 1 << 8;
-    albedo->width = size;
-    albedo->height = size;
+    albedo->size = i2_s(size);
     u32* pim_noalias texels = perm_malloc(sizeof(texels[0]) * size * size);
 
+    const float4 a = f4_s(1.0f);
+    const float4 b = f4_s(0.01f);
     prng_t rng = ms_prng;
     for (i32 y = 0; y < size; ++y)
     {
@@ -426,9 +512,9 @@ static textureid_t GenCheckerTex(void)
             const i32 i = x + y * size;
             bool c0 = (x & 7) < 4;
             bool c1 = (y & 7) < 4;
-            u32 a = c1 ? 0xffffffff : 0;
-            u32 b = ~a;
-            texels[i] = c0 ? a : b;
+            bool c2 = c0 != c1;
+            float4 c = c2 ? a : b;
+            texels[i] = LinearToColor(c);
         }
     }
     albedo->texels = texels;

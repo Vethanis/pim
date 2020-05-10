@@ -354,8 +354,8 @@ pim_inline float2 VEC_CALL f2_pow(float2 v, float2 e)
 {
     float2 vec =
     {
-        powf(v.x, e.x),
-        powf(v.y, e.y),
+        f1_pow(v.x, e.x),
+        f1_pow(v.y, e.y),
     };
     return vec;
 }
@@ -495,11 +495,11 @@ pim_inline float2 VEC_CALL f2_deg(float2 x)
     return f2_mul(x, f2_s(kDegreesPerRadian));
 }
 
-pim_inline float2 VEC_CALL f2_blend(float2 a, float2 b, float2 c, float3 wuv)
+pim_inline float2 VEC_CALL f2_blend(float2 a, float2 b, float2 c, float4 wuvt)
 {
-    float2 p = f2_mulvs(a, wuv.x);
-    p = f2_add(p, f2_mulvs(b, wuv.y));
-    p = f2_add(p, f2_mulvs(c, wuv.z));
+    float2 p = f2_mulvs(a, wuvt.x);
+    p = f2_add(p, f2_mulvs(b, wuvt.y));
+    p = f2_add(p, f2_mulvs(c, wuvt.z));
     return p;
 }
 

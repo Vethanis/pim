@@ -634,7 +634,13 @@ pim_inline float4 VEC_CALL f4_smoothstepsv(float a, float b, float4 x)
 pim_inline float4 VEC_CALL f4_reflect(float4 i, float4 n)
 {
     float4 nidn = f4_mulvs(n, f4_dot(i, n));
-    return f4_sub(i, f4_mulsv(2.0f, nidn));
+    return f4_sub(i, f4_mulvs(nidn, 2.0f));
+}
+
+pim_inline float4 VEC_CALL f4_reflect3(float4 i, float4 n)
+{
+    float4 nidn = f4_mulvs(n, f4_dot3(i, n));
+    return f4_sub(i, f4_mulvs(nidn, 2.0f));
 }
 
 pim_inline float4 VEC_CALL f4_refract(float4 i, float4 n, float ior)
@@ -664,10 +670,10 @@ pim_inline float4 VEC_CALL f4_pow(float4 v, float4 e)
 {
     float4 vec =
     {
-        powf(v.x, e.x),
-        powf(v.y, e.y),
-        powf(v.z, e.z),
-        powf(v.w, e.w),
+        f1_pow(v.x, e.x),
+        f1_pow(v.y, e.y),
+        f1_pow(v.z, e.z),
+        f1_pow(v.w, e.w),
     };
     return vec;
 }
@@ -676,10 +682,10 @@ pim_inline float4 VEC_CALL f4_powvs(float4 v, float e)
 {
     float4 vec =
     {
-        powf(v.x, e),
-        powf(v.y, e),
-        powf(v.z, e),
-        powf(v.w, e),
+        f1_pow(v.x, e),
+        f1_pow(v.y, e),
+        f1_pow(v.z, e),
+        f1_pow(v.w, e),
     };
     return vec;
 }
@@ -688,10 +694,10 @@ pim_inline float4 VEC_CALL f4_powsv(float v, float4 e)
 {
     float4 vec =
     {
-        powf(v, e.x),
-        powf(v, e.y),
-        powf(v, e.z),
-        powf(v, e.w),
+        f1_pow(v, e.x),
+        f1_pow(v, e.y),
+        f1_pow(v, e.z),
+        f1_pow(v, e.w),
     };
     return vec;
 }
@@ -879,11 +885,11 @@ pim_inline float4 VEC_CALL f4_deg(float4 x)
     return f4_mulvs(x, kDegreesPerRadian);
 }
 
-pim_inline float4 VEC_CALL f4_blend(float4 a, float4 b, float4 c, float3 wuv)
+pim_inline float4 VEC_CALL f4_blend(float4 a, float4 b, float4 c, float4 wuvt)
 {
-    float4 p = f4_mulvs(a, wuv.x);
-    p = f4_add(p, f4_mulvs(b, wuv.y));
-    p = f4_add(p, f4_mulvs(c, wuv.z));
+    float4 p = f4_mulvs(a, wuvt.x);
+    p = f4_add(p, f4_mulvs(b, wuvt.y));
+    p = f4_add(p, f4_mulvs(c, wuvt.z));
     return p;
 }
 

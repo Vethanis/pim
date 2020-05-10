@@ -410,9 +410,9 @@ pim_inline float3 VEC_CALL f3_pow(float3 v, float3 e)
 {
     float3 vec =
     {
-        powf(v.x, e.x),
-        powf(v.y, e.y),
-        powf(v.z, e.z),
+        f1_pow(v.x, e.x),
+        f1_pow(v.y, e.y),
+        f1_pow(v.z, e.z),
     };
     return vec;
 }

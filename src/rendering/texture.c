@@ -14,8 +14,7 @@ textureid_t texture_load(const char* path)
     if (texels)
     {
         texture_t* tex = perm_calloc(sizeof(*tex));
-        tex->width = width;
-        tex->height = height;
+        tex->size = (int2) { width, height };
         tex->texels = (u32*)texels;
         return texture_create(tex);
     }
@@ -26,8 +25,8 @@ textureid_t texture_create(texture_t* tex)
 {
     ASSERT(tex);
     ASSERT(tex->version == 0);
-    ASSERT(tex->width > 0);
-    ASSERT(tex->height > 0);
+    ASSERT(tex->size.x > 0);
+    ASSERT(tex->size.y > 0);
     ASSERT(tex->texels);
 
     const u64 version = 1099511628211ull + fetch_add_u64(&ms_version, 3, MO_Relaxed);
@@ -44,8 +43,7 @@ bool texture_destroy(textureid_t id)
     texture_t* tex = id.handle;
     if (tex && cmpex_u64(&(tex->version), &version, version + 1, MO_Release))
     {
-        tex->width = 0;
-        tex->height = 0;
+        tex->size = (int2) { 0 };
         pim_free(tex->texels);
         tex->texels = NULL;
         pim_free(tex);

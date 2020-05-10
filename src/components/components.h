@@ -19,9 +19,9 @@ typedef struct tag_s
     u32 Value;
 } tag_t;
 
-typedef struct position_s
+typedef struct translation_s
 {
-    float3 Value;
+    float4 Value;
 } translation_t;
 
 typedef struct rotation_s
@@ -31,7 +31,7 @@ typedef struct rotation_s
 
 typedef struct scale_s
 {
-    float3 Value;
+    float4 Value;
 } scale_t;
 
 typedef struct localtoworld_s
@@ -51,15 +51,21 @@ typedef struct bounds_s
     box_t box;
 } bounds_t;
 
+typedef enum
+{
+    LightType_Directional = 0,
+    LightType_Point,
+
+    LightType_COUNT
+} LightType;
+
 typedef struct light_s
 {
     // xyz: radiance of light, HDR value in [0, 1024]
-    // w  > 0: spherical light radius
-    // w == 0: directional light
-    // w  < 0: spotlight angle * -1
+    // w: LightType
     float4 radiance;
-    // direction is given by rotation_t
-    // position is given by translation_t
+    // direction: rotation_t forward vector
+    // position: translation_t
 } light_t;
 
 typedef enum

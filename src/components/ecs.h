@@ -24,6 +24,7 @@ void ecs_rm(ent_t entity, compid_t component);
 void* ecs_get(ent_t entity, compid_t component);
 
 ent_t* ecs_query(u32 compAll, u32 compNone, i32* countOut);
+void* ecs_gather(compid_t component, const ent_t* query, i32 queryLen);
 
 bool ecs_has_all(ent_t entity, u32 all);
 bool ecs_has_any(ent_t entity, u32 any);

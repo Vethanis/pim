@@ -1,110 +1,57 @@
 #include "math/lighting.h"
-#include "math/float3_funcs.h"
 #include "math/sampling.h"
+#include "rendering/sampler.h"
 #include "allocator/allocator.h"
-
-// normal distribution function
-// amount of surface's microfacets are facing the H vector
-// Trowbridge-Reitz GGX approximation
-static float VEC_CALL GGX_D(float NoH, float roughness)
-{
-    float r2 = roughness * roughness;
-    float r4 = r2 * r2;
-    float NoH2 = NoH * NoH;
-    float t = NoH2 * (r4 - 1.0f) + 1.0f;
-    return r4 / (kPi * t * t);
-}
-
-// base reflectivity for a surface viewed head-on
-static float3 VEC_CALL GGX_F0(float3 albedo, float metallic)
-{
-    const float3 F0 = { 0.04f, 0.04f, 0.04f };
-    return f3_lerp(F0, albedo, metallic);
-}
-
-// direct fresnel term
-// ratio of light reflection vs refraction, at a given angle
-// Fresnel-Schlick approximation
-static float3 VEC_CALL GGX_F(float cosTheta, float3 F0)
-{
-    float t = 1.0f - cosTheta;
-    float t5 = t * t * t * t * t;
-    return f3_lerp(F0, f3_1, t5);
-}
-
-// indirect fresnel term
-// ratio of light reflection vs refraction, at a given angle
-// Fresnel-Schlick approximation
-static float3 VEC_CALL GGX_FI(float cosTheta, float3 F0, float roughness)
-{
-    float t = 1.0f - cosTheta;
-    float t5 = t * t * t * t * t;
-    return f3_lerp(F0, f3_max(F0, f3_s(1.0f - roughness)), t5);
-}
-
-// direct geometry term
-// self shadowing effect from rough surfaces
-// Smith's Schlick-GGX approximation
-static float VEC_CALL GGX_G(float NoV, float NoL, float roughness)
-{
-    float r = roughness + 1.0f;
-    float k = (r * r) * 0.125f;
-    float revK = 1.0f - k;
-    float a = NoV / (k + NoV * revK);
-    float b = NoL / (k + NoL * revK);
-    return a * b;
-}
-
-// indirect geometry term
-// self shadowing effect from rough surfaces
-// Smith's Schlick-GGX approximation
-static float VEC_CALL GGX_GI(float NoV, float NoL, float roughness)
-{
-    float r = roughness + 1.0f;
-    float k = (r * r) * 0.5f;
-    float revK = 1.0f - k;
-    float a = NoV / (k + NoV * revK);
-    float b = NoL / (k + NoL * revK);
-    return a * b;
-}
 
 // Cook-Torrance BRDF
 pim_optimize
-float3 VEC_CALL DirectBRDF(
-    float3 V,           // unit view vector, points from position to eye
-    float3 L,           // unit light vector, points from position to light
-    float3 radiance,    // light color * intensity * attenuation
-    float3 N,           // unit normal vector of surface
-    float3 albedo,      // surface color (color! not diffuse map!)
+float4 VEC_CALL DirectBRDF(
+    float4 V,           // unit view vector, points from position to eye
+    float4 L,           // unit light vector, points from position to light
+    float4 radiance,    // light color * intensity * attenuation
+    float4 N,           // unit normal vector of surface
+    float4 albedo,      // surface color (color! not diffuse map!)
     float roughness,    // perceptual roughness
     float metallic)     // perceptual metalness
 {
-    const float3 H = f3_normalize(f3_add(V, L));
-    const float NoH = f1_max(0.0f, f3_dot(N, H));
-    const float HoV = f1_max(0.0f, f3_dot(H, V));
-    const float NoV = f1_max(0.0f, f3_dot(N, V));
-    const float NoL = f1_max(0.0f, f3_dot(N, L));
-    const float D = GGX_D(NoH, roughness);
-    const float G = GGX_G(NoV, NoL, roughness);
-    const float3 F = GGX_F(HoV, GGX_F0(albedo, metallic));
-    const float3 DGF = f3_mulvs(F, D * G);
-    const float3 specular = f3_divvs(DGF, f1_max(0.0001f, 4.0f * NoV * NoL));
-    const float3 kD = f3_mulvs(f3_sub(f3_1, F), 1.0f - metallic);
-    const float3 diffuse = f3_divvs(f3_mul(kD, albedo), kPi);
-    return f3_mul(f3_add(diffuse, specular), f3_mulvs(radiance, NoL));
+    const float4 H = f4_normalize3(f4_add(V, L));
+    const float NoH = f1_max(0.0f, f4_dot3(N, H));
+    const float HoV = f1_max(0.0f, f4_dot3(H, V));
+    const float NoV = f1_max(0.0f, f4_dot3(N, V));
+    const float NoL = f1_max(0.0f, f4_dot3(N, L));
+
+    const float a = GGX_a(roughness);
+    const float k = GGX_kDirect(roughness);
+
+    const float D = GGX_D(NoH, a);
+    const float G = GGX_G(NoV, NoL, k);
+    const float4 F = GGX_F(NoV, GGX_F0(albedo, metallic));
+
+    const float4 DGF = f4_mulvs(F, D * G);
+    const float4 specular = f4_divvs(DGF, f1_max(0.001f, 4.0f * NoV * NoL));
+    const float4 kD = f4_mulvs(f4_sub(f4_1, F), 1.0f - metallic);
+    const float4 diffuse = f4_divvs(f4_mul(kD, albedo), kPi);
+    return f4_mul(f4_add(diffuse, specular), f4_mulvs(radiance, NoL));
 }
 
 // https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 // ideally this should be baked into a LUT
 pim_optimize
-static float2 VEC_CALL IntegrateBRDF(float roughness, float NoV, u32 numSamples)
+static float2 VEC_CALL IntegrateBRDF(
+    float roughness,
+    float NoV,
+    u32 numSamples)
 {
-    const float3 V =
+    const float4 V =
     {
         sqrtf(1.0f - NoV * NoV),
         0.0f,
         NoV,
+        0.0f,
     };
+
+    const float a = GGX_a(roughness);
+    const float k = GGX_kIBL(roughness);
 
     float2 result = { 0.0f, 0.0f };
 
@@ -112,15 +59,15 @@ static float2 VEC_CALL IntegrateBRDF(float roughness, float NoV, u32 numSamples)
     for (u32 i = 0; i < numSamples; ++i)
     {
         const float2 Xi = Hammersley2D(i, numSamples);
-        const float3 H = ImportanceSampleGGX(Xi, roughness);
-        const float VoH = f1_max(0.0f, f3_dot(V, H));
+        const float4 H = ImportanceSampleGGX(Xi, a);
+        const float VoH = f1_max(0.0f, f4_dot3(V, H));
         const float NoH = f1_max(0.0f, H.z);
-        const float3 L = f3_reflect(f3_neg(V), H);
+        const float4 L = f4_reflect(f4_neg(V), H);
         const float NoL = L.z;
 
         if (NoL > 0.0f)
         {
-            const float G = GGX_GI(NoV, NoL, roughness);
+            const float G = GGX_G(NoV, NoL, k);
             const float GVis = (G * VoH) / (NoH * NoV);
             float Fc = 1.0f - VoH;
             Fc = Fc * Fc * Fc * Fc * Fc;
@@ -134,69 +81,87 @@ static float2 VEC_CALL IntegrateBRDF(float roughness, float NoV, u32 numSamples)
 }
 
 pim_optimize
-BrdfLut BakeBRDF(i32 width, i32 height, u32 numSamples)
+BrdfLut BakeBRDF(int2 size, u32 numSamples)
 {
-    ASSERT(width > 0);
-    ASSERT(height > 0);
-    ASSERT(numSamples > 16);
-    BrdfLut lut = { 0 };
-    lut.ptr = perm_malloc(sizeof(lut.ptr[0]) * width * height);
-    lut.width = width;
-    lut.height = height;
+    ASSERT(size.x > 0);
+    ASSERT(size.y > 0);
+    ASSERT(numSamples > 64);
 
-    const float dx = 1.0f / width;
-    const float dy = 1.0f / height;
-    for (i32 y = 0; y < height; ++y)
+    float2* pim_noalias texels = perm_malloc(sizeof(texels[0]) * size.x * size.y);
+
+    const float dx = 1.0f / size.x;
+    const float dy = 1.0f / size.y;
+    for (i32 y = 0; y < size.x; ++y)
     {
-        for (i32 x = 0; x < width; ++x)
+        for (i32 x = 0; x < size.y; ++x)
         {
-            float u = x * dx;
-            float v = y * dy;
-            i32 i = y * width + x;
-            lut.ptr[i] = IntegrateBRDF(u, v, numSamples);
+            float u = (x + 0.5f) * dx;
+            float v = (y + 0.5f) * dy;
+            i32 i = y * size.x + x;
+            texels[i] = IntegrateBRDF(u, v, numSamples);
         }
     }
 
+    BrdfLut lut;
+    lut.texels = texels;
+    lut.size = size;
     return lut;
 }
 
-void FreeBRDF(BrdfLut* lut)
+void FreeBrdfLut(BrdfLut* lut)
 {
-    ASSERT(lut);
-    pim_free(lut->ptr);
-    lut->ptr = NULL;
-    lut->width = 0;
-    lut->height = 0;
+    pim_free(lut->texels);
+    lut->texels = NULL;
+    lut->size = i2_s(0);
 }
 
 pim_optimize
-static float2 VEC_CALL SampleBrdf(BrdfLut lut, float roughness, float NoV)
+pim_inline float2 Lut_Nearesti2(BrdfLut lut, int2 coord)
 {
-    float u = roughness * lut.width - 0.5f;
-    float v = NoV * lut.height - 0.5f;
-    i32 x = i1_clamp((i32)u, 0, lut.width - 1);
-    i32 y = i1_clamp((i32)v, 0, lut.height - 1);
-    i32 i = x + y * lut.width;
-    return lut.ptr[i];
+    coord = Tex_ClampCoord(lut.size, coord);
+    i32 i = Tex_CoordToIndex(lut.size, coord);
+    return lut.texels[i];
 }
 
 pim_optimize
-float3 VEC_CALL IndirectBRDF(
+pim_inline float2 VEC_CALL SampleBrdf(BrdfLut lut, float roughness, float NoV)
+{
+    float2 uv = f2_v(roughness, NoV);
+    float2 coordf = Tex_UvToCoordf(lut.size, uv);
+    float2 frac = f2_frac(coordf);
+    int2 ia = f2_i2(coordf);
+    int2 ib = { ia.x + 1, ia.y + 0 };
+    int2 ic = { ia.x + 0, ia.y + 1 };
+    int2 id = { ia.x + 1, ia.y + 1 };
+    float2 a = Lut_Nearesti2(lut, ia);
+    float2 b = Lut_Nearesti2(lut, ib);
+    float2 c = Lut_Nearesti2(lut, ic);
+    float2 d = Lut_Nearesti2(lut, id);
+    float2 e = f2_lerp(f2_lerp(a, b, frac.x), f2_lerp(c, d, frac.x), frac.y);
+    return e;
+}
+
+pim_optimize
+float4 VEC_CALL IndirectBRDF(
     BrdfLut lut,
-    float3 V,           // unit view vector pointing from surface to eye
-    float3 N,           // unit normal vector pointing outward from surface
-    float3 diffuseGI,   // low frequency scene irradiance
-    float3 specularGI,  // high frequency scene irradiance
-    float3 albedo,      // surface color
+    float4 V,           // unit view vector pointing from surface to eye
+    float4 N,           // unit normal vector pointing outward from surface
+    float4 diffuseGI,   // low frequency scene irradiance
+    float4 specularGI,  // high frequency scene irradiance
+    float4 albedo,      // surface color
     float roughness,    // surface roughness
     float metallic,     // surface metalness
     float ao)           // 1 - ambient occlusion (affects gi only)
 {
-    const float NoV = f1_max(0.0f, f3_dot(N, V));
-    const float3 F = GGX_FI(NoV, GGX_F0(albedo, metallic), roughness);
-    const float3 kD = f3_mulvs(f3_sub(f3_1, F), 1.0f - metallic);
-    const float3 diffuse = f3_mul(albedo, diffuseGI);
+    const float NoV = f1_max(0.0f, f4_dot3(N, V));
+
+    const float4 F = GGX_FI(NoV, GGX_F0(albedo, metallic), roughness);
+
+    const float4 kD = f4_mulvs(f4_sub(f4_1, F), 1.0f - metallic);
+    const float4 diffuse = f4_mul(albedo, diffuseGI);
+
     const float2 brdf = SampleBrdf(lut, roughness, NoV);
-    const float3 specular = f3_mul(specularGI, f3_addvs(f3_mulvs(F, brdf.x), brdf.y));
-    return f3_mulvs(f3_add(f3_mul(kD, diffuse), specular), ao);
+    const float4 specular = f4_mul(specularGI, f4_addvs(f4_mulvs(F, brdf.x), brdf.y));
+
+    return f4_mulvs(f4_add(f4_mul(kD, diffuse), specular), ao);
 }

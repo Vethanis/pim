@@ -9,9 +9,9 @@ PIM_C_BEGIN
 typedef struct camera_s
 {
     quat rotation;
-    float3 position;
-    float fovy;
+    float4 position;
     float2 nearFar;
+    float fovy;
 } camera_t;
 
 void camera_get(camera_t* dst);

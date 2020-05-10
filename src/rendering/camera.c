@@ -35,7 +35,7 @@ void camera_subfrustum(const camera_t* src, struct frus_s* dst, float2 lo, float
     const float aspect = (float)kDrawWidth / (float)kDrawHeight;
     const float fov = f1_radians(src->fovy);
     const float2 slope = proj_slope(fov, aspect);
-    const float3 eye = src->position;
+    const float4 eye = src->position;
     const quat rot = src->rotation;
     const float2 nearFar = src->nearFar;
 

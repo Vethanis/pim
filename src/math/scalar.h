@@ -101,6 +101,15 @@ pim_inline float VEC_CALL f1_mod(float num, float div)
     return fmodf(num, div);
 }
 
+pim_inline float VEC_CALL f1_pow(float x, float n)
+{
+    // spherical gaussian approximation
+    // only worth a damn when n >= 5
+    // n = n * 1.4427f + 1.4427f;
+    // return exp2f(x * n - n);
+    return powf(x, n);
+}
+
 pim_inline float VEC_CALL f1_lerp(float a, float b, float t)
 {
     return a + (b - a) * t;

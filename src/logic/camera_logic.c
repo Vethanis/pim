@@ -51,43 +51,43 @@ void camera_logic_update(void)
     float yawScale = f1_radians(ms_yawScale * dt);
 
     quat rot = camera.rotation;
-    float3 eye = camera.position;
-    float3 fwd = quat_fwd(rot);
-    const float3 right = quat_right(rot);
-    const float3 up = quat_up(rot);
-    const float3 yAxis = { 0.0f, 1.0f, 0.0f };
+    float4 eye = camera.position;
+    float4 fwd = quat_fwd(rot);
+    const float4 right = quat_right(rot);
+    const float4 up = quat_up(rot);
+    const float4 yAxis = { 0.0f, 1.0f, 0.0f, 0.0f };
 
     if (input_key(KeyCode_W))
     {
-        eye = f3_add(eye, f3_mulvs(fwd, moveScale));
+        eye = f4_add(eye, f4_mulvs(fwd, moveScale));
     }
     if (input_key(KeyCode_S))
     {
-        eye = f3_add(eye, f3_mulvs(fwd, -moveScale));
+        eye = f4_add(eye, f4_mulvs(fwd, -moveScale));
     }
 
     if (input_key(KeyCode_D))
     {
-        eye = f3_add(eye, f3_mulvs(right, moveScale));
+        eye = f4_add(eye, f4_mulvs(right, moveScale));
     }
     if (input_key(KeyCode_A))
     {
-        eye = f3_add(eye, f3_mulvs(right, -moveScale));
+        eye = f4_add(eye, f4_mulvs(right, -moveScale));
     }
 
     if (input_key(KeyCode_Space))
     {
-        eye = f3_add(eye, f3_mulvs(up, moveScale));
+        eye = f4_add(eye, f4_mulvs(up, moveScale));
     }
     if (input_key(KeyCode_LeftShift))
     {
-        eye = f3_add(eye, f3_mulvs(up, -dt * ms_moveScale));
+        eye = f4_add(eye, f4_mulvs(up, -dt * ms_moveScale));
     }
 
-    float3 at = f3_add(eye, fwd);
-    at = f3_add(at, f3_mulvs(right, dx));
-    at = f3_add(at, f3_mulvs(up, dy));
-    fwd = f3_normalize(f3_sub(at, eye));
+    float4 at = f4_add(eye, fwd);
+    at = f4_add(at, f4_mulvs(right, dx));
+    at = f4_add(at, f4_mulvs(up, dy));
+    fwd = f4_normalize3(f4_sub(at, eye));
     rot = quat_lookat(fwd, yAxis);
 
     camera.fovy = f1_clamp(camera.fovy + dscroll, 30.0f, 150.0f);

@@ -99,49 +99,49 @@ pim_inline quat VEC_CALL quat_mul(quat a, quat b)
     return f4_quat(c);
 }
 
-pim_inline float3 VEC_CALL quat_mul_dir(quat q, float3 dir)
+pim_inline float4 VEC_CALL quat_mul_dir(quat q, float4 dir)
 {
-    float3 q3 = f3_v(q.v.x, q.v.y, q.v.z);
-    float3 uv = f3_cross(q3, dir);
-    float3 uuv = f3_cross(q3, uv);
+    float4 q3 = f4_v(q.v.x, q.v.y, q.v.z, 0.0f);
+    float4 uv = f4_cross3(q3, dir);
+    float4 uuv = f4_cross3(q3, uv);
 
-    float3 y = f3_mulvs(uv, q.v.w);
-    y = f3_add(y, uuv);
-    y = f3_mulvs(y, 2.0f);
-    y = f3_add(y, dir);
+    float4 y = f4_mulvs(uv, q.v.w);
+    y = f4_add(y, uuv);
+    y = f4_mulvs(y, 2.0f);
+    y = f4_add(y, dir);
 
     return y;
 }
 
-pim_inline float3 VEC_CALL quat_fwd(quat q)
+pim_inline float4 VEC_CALL quat_fwd(quat q)
 {
-    float3 dir = { 0.0f, 0.0f, -1.0f };
+    float4 dir = { 0.0f, 0.0f, -1.0f, 0.0f };
     return quat_mul_dir(q, dir);
 }
 
-pim_inline float3 VEC_CALL quat_up(quat q)
+pim_inline float4 VEC_CALL quat_up(quat q)
 {
-    float3 dir = { 0.0f, 1.0f, 0.0f };
+    float4 dir = { 0.0f, 1.0f, 0.0f, 0.0f };
     return quat_mul_dir(q, dir);
 }
 
-pim_inline float3 VEC_CALL quat_right(quat q)
+pim_inline float4 VEC_CALL quat_right(quat q)
 {
-    float3 dir = { 1.0f, 0.0f, 0.0f };
+    float4 dir = { 1.0f, 0.0f, 0.0f, 0.0f };
     return quat_mul_dir(q, dir);
 }
 
-pim_inline float3 VEC_CALL quat_mul_invdir(float3 dir, quat q)
+pim_inline float4 VEC_CALL quat_mul_invdir(float4 dir, quat q)
 {
     return quat_mul_dir(quat_inverse(q), dir);
 }
 
-pim_inline quat VEC_CALL quat_angleaxis(float angle, float3 axis)
+pim_inline quat VEC_CALL quat_angleaxis(float angle, float4 axis)
 {
     angle *= 0.5f;
     float s = sinf(angle);
     float c = cosf(angle);
-    axis = f3_mulvs(axis, s);
+    axis = f4_mulvs(axis, s);
     return quat_v(axis.x, axis.y, axis.z, c);
 }
 
@@ -241,12 +241,12 @@ pim_inline quat VEC_CALL f3x3_quat(float3x3 m)
     return f4_quat(r);
 }
 
-pim_inline quat VEC_CALL quat_lookat(float3 forward, float3 up)
+pim_inline quat VEC_CALL quat_lookat(float4 forward, float4 up)
 {
     float3x3 m;
-    m.c2 = f3_neg(forward);
-    m.c0 = f3_normalize(f3_cross(up, m.c2));
-    m.c1 = f3_cross(m.c2, m.c0);
+    m.c2 = f4_neg(forward);
+    m.c0 = f4_normalize3(f4_cross3(up, m.c2));
+    m.c1 = f4_cross3(m.c2, m.c0);
     return f3x3_quat(m);
 }
 

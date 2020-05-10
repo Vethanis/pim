@@ -90,7 +90,7 @@ pim_inline float4 VEC_CALL f4x4_mul_col(float4x4 m, float4 col)
     return f4_add(f4_add(a, b), f4_add(c, d));
 }
 
-pim_inline float4x4 VEC_CALL f4x4_translate(float4x4 m, float3 v)
+pim_inline float4x4 VEC_CALL f4x4_translate(float4x4 m, float4 v)
 {
     float4 a = f4_mulvs(m.c0, v.x);
     float4 b = f4_mulvs(m.c1, v.y);
@@ -99,7 +99,7 @@ pim_inline float4x4 VEC_CALL f4x4_translate(float4x4 m, float3 v)
     return m;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_translation(float3 v)
+pim_inline float4x4 VEC_CALL f4x4_translation(float4 v)
 {
     float4x4 m =
     {
@@ -111,7 +111,7 @@ pim_inline float4x4 VEC_CALL f4x4_translation(float3 v)
     return m;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_rotate(float4x4 m, float a, float3 v)
+pim_inline float4x4 VEC_CALL f4x4_rotate(float4x4 m, float a, float4 v)
 {
     float3x3 rot = f3x3_angle_axis(a, v);
     float4x4 res;
@@ -134,7 +134,7 @@ pim_inline float4x4 VEC_CALL f4x4_rotate(float4x4 m, float a, float3 v)
     return res;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_scale(float4x4 m, float3 v)
+pim_inline float4x4 VEC_CALL f4x4_scale(float4x4 m, float4 v)
 {
     m.c0 = f4_mulvs(m.c0, v.x);
     m.c1 = f4_mulvs(m.c1, v.y);
@@ -142,7 +142,7 @@ pim_inline float4x4 VEC_CALL f4x4_scale(float4x4 m, float3 v)
     return m;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_scaling(float3 v)
+pim_inline float4x4 VEC_CALL f4x4_scaling(float4 v)
 {
     float4x4 m =
     {
@@ -154,12 +154,12 @@ pim_inline float4x4 VEC_CALL f4x4_scaling(float3 v)
     return m;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_trs(float3 t, quat r, float3 s)
+pim_inline float4x4 VEC_CALL f4x4_trs(float4 t, quat r, float4 s)
 {
     float3x3 rm = quat_f3x3(r);
-    rm.c0 = f3_mulvs(rm.c0, s.x);
-    rm.c1 = f3_mulvs(rm.c1, s.y);
-    rm.c2 = f3_mulvs(rm.c2, s.z);
+    rm.c0 = f4_mulvs(rm.c0, s.x);
+    rm.c1 = f4_mulvs(rm.c1, s.y);
+    rm.c2 = f4_mulvs(rm.c2, s.z);
     float4x4 m;
     m.c0 = f4_v(rm.c0.x, rm.c0.y, rm.c0.z, 0.0f);
     m.c1 = f4_v(rm.c1.x, rm.c1.y, rm.c1.z, 0.0f);
@@ -168,15 +168,15 @@ pim_inline float4x4 VEC_CALL f4x4_trs(float3 t, quat r, float3 s)
     return m;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_lookat(float3 eye, float3 at, float3 up)
+pim_inline float4x4 VEC_CALL f4x4_lookat(float4 eye, float4 at, float4 up)
 {
     // forward: index finger, straight
     // up: middle finger, bent 90 degrees
     // right: thumb, extended and flat
     // => this is right-handed aka GL
-    float3 f = f3_normalize(f3_sub(at, eye)); // front
-    float3 s = f3_normalize(f3_cross(f, up)); // side
-    float3 u = f3_cross(s, f); // up
+    float4 f = f4_normalize3(f4_sub(at, eye)); // front
+    float4 s = f4_normalize3(f4_cross3(f, up)); // side
+    float4 u = f4_cross3(s, f); // up
 
     float4x4 m = f4x4_id;
     m.c0.x = s.x;
@@ -188,9 +188,9 @@ pim_inline float4x4 VEC_CALL f4x4_lookat(float3 eye, float3 at, float3 up)
     m.c0.z = -f.x;
     m.c1.z = -f.y;
     m.c2.z = -f.z;
-    m.c3.x = -f3_dot(s, eye);
-    m.c3.y = -f3_dot(u, eye);
-    m.c3.z = f3_dot(f, eye); // not negated (backward == +Z)
+    m.c3.x = -f4_dot3(s, eye);
+    m.c3.y = -f4_dot3(u, eye);
+    m.c3.z = f4_dot3(f, eye); // not negated (backward == +Z)
     return m;
 }
 

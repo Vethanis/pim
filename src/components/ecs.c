@@ -207,6 +207,23 @@ ent_t* ecs_query(u32 compAll, u32 compNone, i32* countOut)
     return result;
 }
 
+void* ecs_gather(compid_t id, const ent_t* query, i32 queryLen)
+{
+    ASSERT(query);
+    ASSERT(queryLen >= 0);
+    const i32 stride = kComponentSize[id];
+    u8* pim_noalias dst = tmp_malloc(stride * queryLen);
+    const u8* pim_noalias src = ms_components[id];
+    for (i32 i = 0; i < queryLen; ++i)
+    {
+        const ent_t ent = query[i];
+        const i32 e = ent.index;
+        ASSERT(ms_entities[e] == ent.version);
+        memcpy(dst + i * stride, src + e * stride, stride);
+    }
+    return dst;
+}
+
 static void foreach_exec(task_t* task, i32 begin, i32 end)
 {
     ASSERT(task);

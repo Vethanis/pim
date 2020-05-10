@@ -4,12 +4,13 @@
 
 PIM_C_BEGIN
 
+#include "math/types.h"
+
 typedef struct texture_s
 {
     u64 version;
-    i32 width;
-    i32 height;
-    u32* texels;
+    int2 size;
+    u32* pim_noalias texels;
 } texture_t;
 
 typedef struct textureid_s

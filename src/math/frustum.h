@@ -16,69 +16,71 @@ pim_inline float2 VEC_CALL proj_slope(float fovy, float aspect)
     return slope;
 }
 
-pim_inline float3 VEC_CALL proj_dir(
-    float3 right,
-    float3 up,
-    float3 fwd,
+pim_inline float4 VEC_CALL proj_dir(
+    float4 right,
+    float4 up,
+    float4 fwd,
     float2 slope,
     float2 coord)
 {
     coord = f2_mul(coord, slope);
-    right = f3_mulvs(right, coord.x);
-    up = f3_mulvs(up, coord.y);
-    fwd = f3_add(fwd, right);
-    fwd = f3_add(fwd, up);
-    return f3_normalize(fwd);
+    right = f4_mulvs(right, coord.x);
+    up = f4_mulvs(up, coord.y);
+    fwd = f4_add(fwd, right);
+    fwd = f4_add(fwd, up);
+    fwd = f4_normalize3(fwd);
+    fwd.w = 1.0f;
+    return fwd;
 }
 
-pim_inline float3 VEC_CALL proj_pt(
-    float3 eye,
-    float3 right,
-    float3 up,
-    float3 fwd,
+pim_inline float4 VEC_CALL proj_pt(
+    float4 eye,
+    float4 right,
+    float4 up,
+    float4 fwd,
     float2 slope,
     float3 coord)
 {
-    float3 rd = proj_dir(right, up, fwd, slope, f2_v(coord.x, coord.y));
-    return f3_add(eye, f3_mulvs(rd, coord.z));
+    float4 rd = proj_dir(right, up, fwd, slope, f2_v(coord.x, coord.y));
+    return f4_add(eye, f4_mulvs(rd, coord.z));
 }
 
 pim_inline frus_t VEC_CALL frus_new(
-    float3 eye,     // frustum origin
-    float3 right,
-    float3 up,
-    float3 fwd,
+    float4 eye,     // frustum origin
+    float4 right,
+    float4 up,
+    float4 fwd,
     float2 lo,      // minX, minY in [-1, 1]
     float2 hi,      // maxX, maxY in [-1, 1]
     float2 slope,
     float2 nearFar) // clipping plane
 {
-    float3 LBN = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, lo.y, nearFar.x));
-    float3 LBF = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, lo.y, nearFar.y));
-    float3 LTN = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, hi.y, nearFar.x));
-    float3 LTF = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, hi.y, nearFar.y));
-    float3 RBN = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, lo.y, nearFar.x));
-    float3 RBF = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, lo.y, nearFar.y));
-    float3 RTN = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, nearFar.x));
-    float3 RTF = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, nearFar.y));
+    float4 LBN = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, lo.y, nearFar.x));
+    float4 LBF = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, lo.y, nearFar.y));
+    float4 LTN = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, hi.y, nearFar.x));
+    float4 LTF = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, hi.y, nearFar.y));
+    float4 RBN = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, lo.y, nearFar.x));
+    float4 RBF = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, lo.y, nearFar.y));
+    float4 RTN = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, nearFar.x));
+    float4 RTF = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, nearFar.y));
 
-    float3 lN = f3_normalize(f3_cross(f3_sub(LTN, LBN), f3_sub(LBF, LBN)));
-    float lD = f3_dot(lN, LBN);
+    float4 lN = f4_normalize3(f4_cross3(f4_sub(LTN, LBN), f4_sub(LBF, LBN)));
+    float lD = f4_dot3(lN, LBN);
 
-    float3 rN = f3_normalize(f3_cross(f3_sub(RTF, RBF), f3_sub(RBN, RBF)));
-    float rD = f3_dot(rN, RBF);
+    float4 rN = f4_normalize3(f4_cross3(f4_sub(RTF, RBF), f4_sub(RBN, RBF)));
+    float rD = f4_dot3(rN, RBF);
 
-    float3 tN = f3_normalize(f3_cross(f3_sub(RTF, RTN), f3_sub(LTN, RTN)));
-    float tD = f3_dot(tN, RTN);
+    float4 tN = f4_normalize3(f4_cross3(f4_sub(RTF, RTN), f4_sub(LTN, RTN)));
+    float tD = f4_dot3(tN, RTN);
 
-    float3 bN = f3_normalize(f3_cross(f3_sub(LBF, LBN), f3_sub(RBN, LBN)));
-    float bD = f3_dot(bN, LBN);
+    float4 bN = f4_normalize3(f4_cross3(f4_sub(LBF, LBN), f4_sub(RBN, LBN)));
+    float bD = f4_dot3(bN, LBN);
 
-    float3 nN = f3_normalize(f3_cross(f3_sub(RTN, RBN), f3_sub(LBN, RBN)));
-    float nD = f3_dot(nN, RBN);
+    float4 nN = f4_normalize3(f4_cross3(f4_sub(RTN, RBN), f4_sub(LBN, RBN)));
+    float nD = f4_dot3(nN, RBN);
 
-    float3 fN = f3_normalize(f3_cross(f3_sub(LTF, LBF), f3_sub(RBF, LBF)));
-    float fD = f3_dot(fN, LBF);
+    float4 fN = f4_normalize3(f4_cross3(f4_sub(LTF, LBF), f4_sub(RBF, LBF)));
+    float fD = f4_dot3(fN, LBF);
 
     frus_t frus =
     {

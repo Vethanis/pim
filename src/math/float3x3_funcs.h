@@ -5,7 +5,7 @@
 PIM_C_BEGIN
 
 #include "math/scalar.h"
-#include "math/float3_funcs.h"
+#include "math/float4_funcs.h"
 
 static const float3x3 f3x3_0 =
 {
@@ -21,13 +21,13 @@ static const float3x3 f3x3_id =
     { 0.0f, 0.0f, 1.0f }
 };
 
-pim_inline float3x3 VEC_CALL f3x3_angle_axis(float angle, float3 axis)
+pim_inline float3x3 VEC_CALL f3x3_angle_axis(float angle, float4 axis)
 {
     float s = sinf(angle);
     float c = cosf(angle);
 
-    axis = f3_normalize(axis);
-    float3 t = f3_mulvs(axis, 1.0f - c);
+    axis = f4_normalize3(axis);
+    float4 t = f4_mulvs(axis, 1.0f - c);
 
     float3x3 m;
     m.c0.x = c + t.x * axis.x;
@@ -45,15 +45,15 @@ pim_inline float3x3 VEC_CALL f3x3_angle_axis(float angle, float3 axis)
     return m;
 }
 
-pim_inline float3x3 VEC_CALL f3x3_lookat(float3 eye, float3 at, float3 up)
+pim_inline float3x3 VEC_CALL f3x3_lookat(float4 eye, float4 at, float4 up)
 {
     // forward: index finger, straight
     // up: middle finger, bent 90 degrees
     // right: thumb, extended and flat
     // => this is right-handed aka GL
-    float3 f = f3_normalize(f3_sub(at, eye));
-    float3 s = f3_normalize(f3_cross(f, up));
-    float3 u = f3_cross(s, f);
+    float4 f = f4_normalize3(f4_sub(at, eye));
+    float4 s = f4_normalize3(f4_cross3(f, up));
+    float4 u = f4_cross3(s, f);
     float3x3 m;
     m.c0.x = s.x;
     m.c1.x = s.y;
@@ -67,12 +67,12 @@ pim_inline float3x3 VEC_CALL f3x3_lookat(float3 eye, float3 at, float3 up)
     return m;
 }
 
-pim_inline float3 VEC_CALL f3x3_mul_col(float3x3 m, float3 col)
+pim_inline float4 VEC_CALL f3x3_mul_col(float3x3 m, float4 col)
 {
-    float3 a = f3_mulvs(m.c0, col.x);
-    float3 b = f3_mulvs(m.c1, col.y);
-    float3 c = f3_mulvs(m.c2, col.z);
-    return f3_add(a, f3_add(b, c));
+    float4 a = f4_mulvs(m.c0, col.x);
+    float4 b = f4_mulvs(m.c1, col.y);
+    float4 c = f4_mulvs(m.c2, col.z);
+    return f4_add(a, f4_add(b, c));
 }
 
 PIM_C_END

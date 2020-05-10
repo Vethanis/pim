@@ -38,9 +38,9 @@ static void Compose_R(ecs_foreach_t* task, void** rows, const i32* indices, i32 
     if (length > 0)
     {
         float4x4* pim_noalias matrices = rows[CompId_LocalToWorld];
-        const float3 T = f3_0;
+        const float4 T = f4_0;
         const rotation_t* pim_noalias rotations = rows[CompId_Rotation];
-        const float3 S = f3_1;
+        const float4 S = f4_1;
         for (i32 i = 0; i < length; ++i)
         {
             const i32 e = indices[i];
@@ -54,7 +54,7 @@ static void Compose_S(ecs_foreach_t* task, void** rows, const i32* indices, i32 
     if (length > 0)
     {
         float4x4* pim_noalias matrices = rows[CompId_LocalToWorld];
-        const float3 T = f3_0;
+        const float4 T = f4_0;
         const quat R = quat_id;
         const scale_t* pim_noalias scales = rows[CompId_Scale];
         for (i32 i = 0; i < length; ++i)
@@ -72,7 +72,7 @@ static void Compose_TR(ecs_foreach_t* task, void** rows, const i32* indices, i32
         float4x4* pim_noalias matrices = rows[CompId_LocalToWorld];
         const translation_t* pim_noalias translations = rows[CompId_Translation];
         const rotation_t* pim_noalias rotations = rows[CompId_Rotation];
-        const float3 S = f3_1;
+        const float4 S = f4_1;
         for (i32 i = 0; i < length; ++i)
         {
             const i32 e = indices[i];
@@ -102,7 +102,7 @@ static void Compose_RS(ecs_foreach_t* task, void** rows, const i32* indices, i32
     if (length > 0)
     {
         float4x4* pim_noalias matrices = rows[CompId_LocalToWorld];
-        const float3 T = f3_0;
+        const float4 T = f4_0;
         const rotation_t* pim_noalias rotations = rows[CompId_Rotation];
         const scale_t* pim_noalias scales = rows[CompId_Scale];
         for (i32 i = 0; i < length; ++i)
