@@ -1,4 +1,4 @@
-#include "quake/packfile.h"
+#include "quake/q_packfile.h"
 #include "io/fmap.h"
 #include "io/fnd.h"
 #include "common/stringutil.h"
@@ -11,7 +11,6 @@ pack_t pack_load(const char* path, EAlloc allocator)
     ASSERT(path);
 
     pack_t pack = { 0 };
-    StrCpy(ARGS(pack.path), path);
 
     fd_t fd = fd_open(path, 0);
     if (!fd_isopen(fd))
@@ -28,44 +27,40 @@ pack_t pack_load(const char* path, EAlloc allocator)
         return pack;
     }
 
-    pack.header = map.ptr;
-    pack.bytes = map.size;
+    pack.path = StrDup(path, allocator);
+    pack.mapped = map;
+    const dpackheader_t* header = map.ptr;
 
-    ASSERT(pack.bytes >= sizeof(pack.header));
-    ASSERT(memcmp(pack.header->id, "PACK", 4) == 0);
-    ASSERT(pack.header->length >= 0);
+    ASSERT(map.size >= sizeof(*header));
+    ASSERT(memcmp(header->id, "PACK", 4) == 0);
+    ASSERT(header->length >= 0);
 
     const u8* buffer = map.ptr;
-    pack.files = (const dpackfile_t*)(buffer + pack.header->offset);
-    pack.filecount = pack.header->length / sizeof(dpackfile_t);
+    pack.files = (const dpackfile_t*)(buffer + header->offset);
+    pack.filecount = header->length / sizeof(dpackfile_t);
 
     return pack;
 }
 
 void pack_free(pack_t* pack)
 {
-    if (pack->header)
-    {
-        void* ptr = (void*)(pack->header);
-        fmap_t map = { ptr, pack->bytes };
-        fmap_destroy(&map);
-        pack->header = NULL;
-        pack->files = NULL;
-        pack->filecount = 0;
-        pack->bytes = 0;
-    }
+    fmap_destroy(&(pack->mapped));
+    pack->filecount = 0;
+    pack->files = NULL;
+    pim_free(pack->path);
+    pack->path = NULL;
 }
 
 folder_t folder_load(const char* path, EAlloc allocator)
 {
     ASSERT(path);
 
-    folder_t folder = { 0 };
-    StrCpy(ARGS(folder.path), path);
-
     char packDir[PIM_PATH];
     SPrintf(ARGS(packDir), "%s/*.pak", path);
     StrPath(ARGS(packDir));
+
+    pack_t* packs = NULL;
+    i32 length = 0;
 
     fnd_t fnd = { -1 };
     fnd_data_t fndData;
@@ -75,12 +70,20 @@ folder_t folder_load(const char* path, EAlloc allocator)
         SPrintf(ARGS(subdir), "%s/%s", path, fndData.name);
         StrPath(ARGS(subdir));
         pack_t pack = pack_load(subdir, allocator);
-        if (pack.header != NULL)
+        if (fmap_isopen(pack.mapped))
         {
-            i32 back = folder.length++;
-            folder.packs = pim_realloc(allocator, folder.packs, sizeof(pack_t) * (back + 1));
-            folder.packs[back] = pack;
+            ++length;
+            packs = pim_realloc(allocator, packs, sizeof(packs[0]) * length);
+            packs[length - 1] = pack;
         }
+    }
+
+    folder_t folder = { 0 };
+    if (length > 0)
+    {
+        folder.path = StrDup(path, allocator);
+        folder.packs = packs;
+        folder.length = length;
     }
 
     return folder;
@@ -97,4 +100,6 @@ void folder_free(folder_t* folder)
     pim_free(folder->packs);
     folder->packs = NULL;
     folder->length = 0;
+    pim_free(folder->path);
+    folder->path = NULL;
 }

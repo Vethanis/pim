@@ -17,6 +17,7 @@
 #include "math/float2_funcs.h"
 #include "math/float4x4_funcs.h"
 #include "math/color.h"
+#include "math/sdf.h"
 
 #include "rendering/framebuffer.h"
 #include "rendering/constants.h"
@@ -29,6 +30,9 @@
 #include "rendering/fragment_stage.h"
 #include "rendering/resolve_tile.h"
 #include "rendering/path_tracer.h"
+
+#include "quake/q_model.h"
+#include "assets/asset_system.h"
 
 #include <string.h>
 
@@ -62,6 +66,148 @@ static i32 ms_sampleCount;
 
 // ----------------------------------------------------------------------------
 
+static float4* UnrollPolygon(
+    float4 plane,
+    float4* polygon,
+    i32 length,
+    i32* lenOut)
+{
+    float4* result = NULL;
+    i32 resLen = 0;
+
+    i32 i = 0;
+    while (length >= 3)
+    {
+        i32 i0 = (i + 0) % length;
+        i32 i1 = (i + 1) % length;
+        i32 i2 = (i + 2) % length;
+        float4 v0 = polygon[i0];
+        float4 v1 = polygon[i1];
+        float4 v2 = polygon[i2];
+
+        resLen += 3;
+        result = tmp_realloc(result, sizeof(result[0]) * resLen);
+        result[resLen - 3] = v0;
+        result[resLen - 2] = v1;
+        result[resLen - 1] = v2;
+        --length;
+        for (i32 j = i1; j < length; ++j)
+        {
+            polygon[j] = polygon[j + 1];
+        }
+    }
+
+    *lenOut = resLen;
+    return result;
+}
+
+static meshid_t FlattenModel(mmodel_t* model)
+{
+    ASSERT(model);
+    ASSERT(model->vertices);
+
+    i32 vertCount = 0;
+    float4* positions = NULL;
+    i32 polyLen = 0;
+    float4* polygon = NULL;
+    float2* uvs = NULL;
+    for (i32 i = 0; i < model->numsurfaces; ++i)
+    {
+        const msurface_t* surface = model->surfaces + i;
+        polyLen = 0;
+        for (i32 j = 0; j < surface->numedges; ++j)
+        {
+            const i32 e = model->surfedges[surface->firstedge + j];
+            i32 v;
+            if (e >= 0)
+            {
+                v = model->edges[e].v[0];
+            }
+            else
+            {
+                v = model->edges[-e].v[1];
+            }
+            ++polyLen;
+            polygon = tmp_realloc(polygon, sizeof(polygon[0]) * polyLen);
+            polygon[polyLen - 1] = model->vertices[v];
+        }
+
+        const float4 plane = surface->plane->Value;
+        float4 s, t;
+        {
+            const float4 kX = { 1.0f, 0.0f, 0.0f, 0.0f };
+            const float4 kY = { 0.0f, 1.0f, 0.0f, 0.0f };
+            const float4 kZ = { 0.0f, 0.0f, 1.0f, 0.0f };
+            float4 n = f4_abs(plane);
+            float k = f4_hmax3(n);
+            if (k == n.x)
+            {
+                s = kZ;
+                t = kY;
+            }
+            else if (k == n.y)
+            {
+                s = kX;
+                t = kZ;
+            }
+            else
+            {
+                s = kX;
+                t = kY;
+            }
+        }
+
+        i32 triLen = 0;
+        float4* tris = UnrollPolygon(plane, polygon, polyLen, &triLen);
+        const i32 back = vertCount;
+        vertCount += triLen;
+        positions = perm_realloc(positions, sizeof(positions[0]) * vertCount);
+        uvs = perm_realloc(uvs, sizeof(uvs[0]) * vertCount);
+        for (i32 i = 0; i < triLen; ++i)
+        {
+            positions[back + i] = tris[i];
+            float u = f4_dot3(tris[i], s);
+            float v = f4_dot3(tris[i], t);
+            uvs[back + i] = f2_fmod(f2_v(u, v), f2_1);
+        }
+    }
+
+    mesh_t* mesh = perm_calloc(sizeof(*mesh));
+    mesh->positions = positions;
+    mesh->length = vertCount;
+    mesh->uvs = uvs;
+    mesh->normals = perm_malloc(sizeof(mesh->normals[0]) * vertCount);
+    const float scale = 0.02f; // quake maps are big
+    quat rot = quat_angleaxis(-kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
+    float4x4 M = f4x4_trs(f4_0, rot, f4_s(scale));
+    for (i32 i = 0; (i + 3) <= vertCount; i += 3)
+    {
+        float4 A = mesh->positions[i];
+        float4 B = mesh->positions[i + 1];
+        float4 C = mesh->positions[i + 2];
+        A = f4x4_mul_pt(M, A);
+        B = f4x4_mul_pt(M, B);
+        C = f4x4_mul_pt(M, C);
+        {
+            // counterclockwise
+            float4 tmp = C;
+            C = B;
+            B = tmp;
+        }
+        mesh->positions[i] = A;
+        mesh->positions[i + 1] = B;
+        mesh->positions[i + 2] = C;
+        float4 AB = f4_sub(A, B);
+        float4 AC = f4_sub(A, C);
+        float4 N = f4_cross3(AB, AC);
+        mesh->normals[i] = N;
+        mesh->normals[i + 1] = N;
+        mesh->normals[i + 2] = N;
+    }
+
+    return mesh_create(mesh);
+}
+
 void render_sys_init(void)
 {
     cvar_reg(&cv_pathtrace);
@@ -80,13 +226,24 @@ void render_sys_init(void)
     FragmentStage_Init();
 
     ms_flatAlbedo = f4_s(1.0f);
-    ms_flatRome = f4_v(0.143f, 1.0f, 0.0f, 0.0f);
+    ms_flatRome = f4_v(0.25f, 1.0f, 0.0f, 0.0f);
     ms_material.flatAlbedo = LinearToColor(ms_flatAlbedo);
     ms_material.flatRome = LinearToColor(ms_flatRome);
     ms_material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
     ms_material.albedo = GenCheckerTex();
 
-    ms_meshid = GenSphereMesh(1.0, 8);
+    asset_t mapasset = { 0 };
+    if (asset_get("maps/start.bsp", &mapasset))
+    {
+        mmodel_t* model = LoadModel(mapasset.pData, EAlloc_Perm);
+        ms_meshid = FlattenModel(model);
+        FreeModel(model);
+    }
+
+    if (ms_meshid.handle == NULL)
+    {
+        ms_meshid = GenSphereMesh(1.0, 8);
+    }
 
     CreateEntities(ms_meshid, ms_material, 2);
 
@@ -234,7 +391,7 @@ void render_sys_gui(bool* pEnabled)
                 }
             }
         }
-}
+    }
     igEnd();
 
     ProfileEnd(pm_gui);

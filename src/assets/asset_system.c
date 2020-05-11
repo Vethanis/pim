@@ -7,7 +7,7 @@
 #include "common/sort.h"
 #include "common/stringutil.h"
 #include "containers/dict.h"
-#include "quake/packfile.h"
+#include "quake/q_packfile.h"
 #include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
 #include "containers/text.h"
@@ -33,7 +33,7 @@ void asset_sys_init(void)
     for (i32 i = 0; i < folder.length; ++i)
     {
         const pack_t* pack = folder.packs + i;
-        const u8* packBase = (const u8*)(pack->header);
+        const u8* packBase = (const u8*)(pack->mapped.ptr);
         for (i32 j = 0; j < pack->filecount; ++j)
         {
             const dpackfile_t* file = pack->files + j;
@@ -164,33 +164,34 @@ void asset_gui(bool* pEnabled)
             const pack_t* packs = ms_folder.packs;
             for (i32 i = 0; i < numPacks; ++i)
             {
-                if (!igCollapsingHeader1(packs[i].path))
+                const pack_t pack = packs[i];
+                if (!igCollapsingHeader1(pack.path))
                 {
                     continue;
                 }
 
-                igPushIDStr(packs[i].path);
+                igPushIDStr(pack.path);
 
-                const i32 fileCount = packs[i].filecount;
-                const dpackfile_t* files = packs[i].files;
+                const i32 fileCount = pack.filecount;
+                const dpackfile_t* files = pack.files;
                 i32 used = 0;
                 for (i32 i = 0; i < fileCount; ++i)
                 {
                     used += files[i].length;
                 }
                 const i32 overhead = (sizeof(dpackfile_t) * fileCount) + sizeof(dpackheader_t);
-                const i32 empty = (packs[i].bytes - used) - overhead;
-                const dpackheader_t* hdr = packs[i].header;
+                const i32 empty = (pack.mapped.size - used) - overhead;
+                const dpackheader_t* hdr = pack.mapped.ptr;
 
                 igValueInt("File Count", fileCount);
-                igValueInt("Bytes", packs[i].bytes);
+                igValueInt("Bytes", pack.mapped.size);
                 igValueInt("Used", used);
                 igValueInt("Empty", empty);
                 igValueInt("Header Offset", hdr->offset);
                 igValueInt("Header Length", hdr->length);
                 igText("Header ID: %.4s", hdr->id);
 
-                const char* titles[] =
+                static const char* const titles[] =
                 {
                     "Index",
                     "Name",
@@ -209,12 +210,11 @@ void asset_gui(bool* pEnabled)
                 {
                     const i32 k = indices[j];
                     const dpackfile_t* file = files + k;
-                    const double len = file->length;
                     igText("%d", k); igNextColumn();
                     igText("%s", file->name); igNextColumn();
                     igText("%d", file->offset); igNextColumn();
                     igText("%d", file->length); igNextColumn();
-                    igText("%2.2f%%", len * rcpUsed); igNextColumn();
+                    igText("%2.2f%%", file->length * rcpUsed); igNextColumn();
                 }
                 pim_free(indices);
                 igTableFooter();

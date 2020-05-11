@@ -1,7 +1,7 @@
 #include "ui/cimgui_ext.h"
 #include "ui/cimgui.h"
 
-bool igTableHeader(i32 count, const char** titles, i32* pSelection)
+bool igTableHeader(i32 count, const char* const* titles, i32* pSelection)
 {
     ASSERT(titles);
     ASSERT(count >= 1);

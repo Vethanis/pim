@@ -205,9 +205,6 @@
     <ClCompile Include="..\src\containers\graph.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\quake\packfile.c">
-      <Filter>Source Files\quake</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\containers\hash_set.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
@@ -334,6 +331,15 @@
     <ClCompile Include="..\src\rendering\path_tracer.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\quake\q_packfile.c">
+      <Filter>Source Files\quake</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\sort.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\quake\q_model.c">
+      <Filter>Source Files\quake</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -413,9 +419,6 @@
     </ClInclude>
     <ClInclude Include="..\src\os\socket.h">
       <Filter>Source Files\os</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\quake\packfile.h">
-      <Filter>Source Files\quake</Filter>
     </ClInclude>
     <ClInclude Include="..\src\ui\imgui.h">
       <Filter>Source Files\ui</Filter>
@@ -582,9 +585,6 @@
     <ClInclude Include="..\src\rendering\constants.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\quake\bsp.h">
-      <Filter>Source Files\quake</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\ui\cimgui.h">
       <Filter>Source Files\ui</Filter>
     </ClInclude>
@@ -728,6 +728,15 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\path_tracer.h">
       <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\quake\q_packfile.h">
+      <Filter>Source Files\quake</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\quake\q_model.h">
+      <Filter>Source Files\quake</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\quake\q_bspfile.h">
+      <Filter>Source Files\quake</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
