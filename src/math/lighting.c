@@ -16,7 +16,6 @@ float4 VEC_CALL DirectBRDF(
 {
     const float4 H = f4_normalize3(f4_add(V, L));
     const float NoH = f1_max(0.0f, f4_dot3(N, H));
-    const float HoV = f1_max(0.0f, f4_dot3(H, V));
     const float NoV = f1_max(0.0f, f4_dot3(N, V));
     const float NoL = f1_max(0.0f, f4_dot3(N, L));
 

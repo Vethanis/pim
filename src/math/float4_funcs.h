@@ -552,12 +552,12 @@ pim_inline float VEC_CALL f4_length3(float4 x)
 
 pim_inline float4 VEC_CALL f4_normalize(float4 x)
 {
-    return f4_mul(x, f4_s(1.0f / f4_length(x)));
+    return f4_mulvs(x, 1.0f / f4_length(x));
 }
 
 pim_inline float4 VEC_CALL f4_normalize3(float4 x)
 {
-    return f4_mul(x, f4_s(1.0f / f4_length3(x)));
+    return f4_mulvs(x, 1.0f / f4_length3(x));
 }
 
 pim_inline float VEC_CALL f4_distance(float4 a, float4 b)

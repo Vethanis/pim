@@ -27,17 +27,14 @@ pim_inline float VEC_CALL GGX_a(float roughness)
 // k constant under direct lighting
 pim_inline float VEC_CALL GGX_kDirect(float roughness)
 {
-    float k = roughness + 1.0f;
-    k = k * k;
-    return k * 0.125f;
+    float r = roughness + 1.0f;
+    return r * r * 0.125f;
 }
 
 // k constant under image based lighting
 pim_inline float VEC_CALL GGX_kIBL(float roughness)
 {
-    float a = GGX_a(roughness);
-    float k = (a * a) * 0.5f;
-    return k;
+    return (roughness * roughness) * 0.5f;
 }
 
 // geometry term
@@ -45,9 +42,8 @@ pim_inline float VEC_CALL GGX_kIBL(float roughness)
 // Schlick approximation fit to Smith's GGX model
 pim_inline float VEC_CALL GGX_G(float NoV, float NoL, float k)
 {
-    float invK = 1.0f - k;
-    float t1 = NoV / (NoV * invK + k);
-    float t2 = NoL / (NoL * invK + k);
+    float t1 = NoV / f1_lerp(k, 1.0f, NoV);
+    float t2 = NoL / f1_lerp(k, 1.0f, NoL);
     return t1 * t2;
 }
 
@@ -57,8 +53,7 @@ pim_inline float VEC_CALL GGX_G(float NoV, float NoL, float k)
 pim_inline float VEC_CALL GGX_D(float NoH, float a)
 {
     float a2 = a * a;
-    float NoH2 = NoH * NoH;
-    float d = NoH2 * (a2 - 1.0f) + 1.0f;
+    float d = f1_lerp(1.0f, a2, NoH * NoH);
     return a2 / (kPi * d * d);
 }
 

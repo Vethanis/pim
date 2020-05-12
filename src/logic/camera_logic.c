@@ -9,7 +9,7 @@
 
 static float ms_pitchScale = 720.0f;
 static float ms_yawScale = 720.0f;
-static float ms_moveScale = 2.0f;
+static float ms_moveScale = 5.0f;
 
 void camera_logic_init(void)
 {

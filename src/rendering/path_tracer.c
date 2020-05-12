@@ -20,13 +20,113 @@
 #include "threading/task.h"
 #include "common/random.h"
 
+typedef struct ray_s
+{
+    float4 ro;
+    float4 rd;
+} ray_t;
+
+typedef struct surfhit_s
+{
+    float4 P;
+    float4 N;
+    float4 albedo;
+    float4 rome;
+} surfhit_t;
+
+static i32 CalcNodeCount(i32 maxDepth)
+{
+    i32 nodeCount = 0;
+    for (i32 i = 0; i < maxDepth; ++i)
+    {
+        nodeCount += 1 << (3 * i);
+    }
+    return nodeCount;
+}
+
+static i32 GetChild(i32 parent, i32 i)
+{
+    return (parent << 3) | (i + 1);
+}
+
+static i32 GetParent(i32 i)
+{
+    return (i - 1) >> 3;
+}
+
+static void SetupBounds(box_t* boxes, i32 p, i32 nodeCount)
+{
+    const i32 c0 = GetChild(p, 0);
+    if ((c0 + 8) <= nodeCount)
+    {
+        {
+            const float4 pcenter = boxes[p].center;
+            const float4 extents = f4_mulvs(boxes[p].extents, 0.5f);
+            for (i32 i = 0; i < 8; ++i)
+            {
+                float4 sign;
+                sign.x = (i & 1) ? -1.0f : 1.0f;
+                sign.y = (i & 2) ? -1.0f : 1.0f;
+                sign.z = (i & 4) ? -1.0f : 1.0f;
+                boxes[c0 + i].center = f4_add(pcenter, f4_mul(sign, extents));
+                boxes[c0 + i].extents = extents;
+            }
+        }
+        for (i32 i = 0; i < 8; ++i)
+        {
+            SetupBounds(boxes, c0 + i, nodeCount);
+        }
+    }
+}
+
+// tests whether the given box fully contains the entire triangle
+static bool VEC_CALL BoxHoldsTri(box_t box, float4 A, float4 B, float4 C)
+{
+    return
+        (sdBox3D(box.center, box.extents, A) <= 0.0f) &&
+        (sdBox3D(box.center, box.extents, B) <= 0.0f) &&
+        (sdBox3D(box.center, box.extents, C) <= 0.0f);
+}
+
+static bool InsertTriangle(
+    const box_t* boxes,
+    i32** lists,
+    const float4* vertices,
+    i32 iVert,
+    i32 n,
+    i32 nodeCount)
+{
+    if (n < nodeCount)
+    {
+        if (BoxHoldsTri(boxes[n], vertices[iVert + 0], vertices[iVert + 1], vertices[iVert + 2]))
+        {
+            for (i32 i = 0; i < 8; ++i)
+            {
+                if (InsertTriangle(boxes, lists, vertices, iVert, GetChild(n, i), nodeCount))
+                {
+                    return true;
+                }
+            }
+            i32* list = lists[n];
+            {
+                i32 len = list ? list[0] : 0;
+                ++len;
+                list = perm_realloc(list, sizeof(list[0]) * (1 + len));
+                list[0] = len;
+                list[len] = iVert;
+            }
+            lists[n] = list;
+            return true;
+        }
+    }
+    return false;
+}
+
 pt_scene_t* pt_scene_new(void)
 {
     pt_scene_t* pim_noalias scene = perm_calloc(sizeof(*scene));
 
-    const u32 meshQuery =
-        (1 << CompId_Drawable) |
-        (1 << CompId_LocalToWorld);
+    const u32 meshQuery = (1 << CompId_Drawable) | (1 << CompId_LocalToWorld);
 
     i32 meshCount = 0;
     i32 vertCount = 0;
@@ -82,7 +182,7 @@ pt_scene_t* pt_scene_new(void)
 
             for (i32 j = 0; j < mesh.length; ++j)
             {
-                normals[vertBack + j] = f4x4_mul_dir(IM, mesh.positions[j]);
+                normals[vertBack + j] = f4x4_mul_dir(IM, mesh.normals[j]);
                 normals[vertBack + j].w = (float)matBack;
             }
 
@@ -108,11 +208,53 @@ pt_scene_t* pt_scene_new(void)
     scene->matCount = matCount;
     scene->materials = materials;
 
-    sceneMax = f4_addvs(sceneMax, 0.01f);
-    sceneMin = f4_addvs(sceneMin, -0.01f);
-    box_t bounds;
-    bounds.center = f4_lerp(sceneMin, sceneMax, 0.5f);
-    bounds.extents = f4_sub(sceneMax, bounds.center);
+    {
+        sceneMax = f4_addvs(sceneMax, 0.01f);
+        sceneMin = f4_addvs(sceneMin, -0.01f);
+        box_t bounds;
+        bounds.center = f4_lerp(sceneMin, sceneMax, 0.5f);
+        bounds.extents = f4_sub(sceneMax, bounds.center);
+
+        const i32 maxDepth = 5;
+        const i32 nodeCount = CalcNodeCount(maxDepth);
+        const i32 root = 0;
+
+        box_t* boxes = perm_calloc(sizeof(boxes[0]) * nodeCount);
+        i32** lists = perm_calloc(sizeof(lists[0]) * nodeCount);
+
+        boxes[root] = bounds;
+        SetupBounds(boxes, root, nodeCount);
+
+        for (i32 i = 0; (i + 3) <= vertCount; i += 3)
+        {
+            InsertTriangle(boxes, lists, positions, i, root, nodeCount);
+        }
+
+        scene->nodeCount = nodeCount;
+        scene->boxes = boxes;
+        scene->lists = lists;
+    }
+
+    {
+        const u32 lightQuery = (1 << CompId_Light) | (1 << CompId_Translation);
+        i32 lightCount = 0;
+        ent_t* lightEnts = ecs_query(lightQuery, 0, &lightCount);
+        float4* lightPos = perm_malloc(sizeof(lightPos[0]) * lightCount);
+        float4* lightRad = perm_malloc(sizeof(lightRad[0]) * lightCount);
+
+        for (i32 i = 0; i < lightCount; ++i)
+        {
+            ent_t ent = lightEnts[i];
+            const light_t* light = ecs_get(ent, CompId_Light);
+            const translation_t* translation = ecs_get(ent, CompId_Translation);
+            lightPos[i] = translation->Value;
+            lightRad[i] = light->radiance;
+        }
+
+        scene->lightCount = lightCount;
+        scene->lightPos = lightPos;
+        scene->lightRad = lightRad;
+    }
 
     return scene;
 }
@@ -126,6 +268,16 @@ void pt_scene_del(pt_scene_t* scene)
     pim_free(scene->uvs);
 
     pim_free(scene->materials);
+
+    pim_free(scene->lightPos);
+    pim_free(scene->lightRad);
+
+    pim_free(scene->boxes);
+    for (i32 i = 0; i < scene->nodeCount; ++i)
+    {
+        pim_free(scene->lists[i]);
+    }
+    pim_free(scene->lists);
 
     memset(scene, 0, sizeof(*scene));
     pim_free(scene);
@@ -143,55 +295,84 @@ typedef struct trace_task_s
 } trace_task_t;
 
 static i32 VEC_CALL TraceRay(
-    i32 vertCount,
-    const float4* pim_noalias vertices,
-    float4 ro,
-    float4 rd,
+    const pt_scene_t* scene,
+    i32 n,
+    ray_t ray,
+    float4 rcpRd,
+    float t,
     float4* wuvtOut)
 {
+    if (n >= scene->nodeCount)
+    {
+        return -1;
+    }
+
+    // test box
+    const float2 nearFar = isectBox3D(ray.ro, rcpRd, scene->boxes[n]);
+    if ((nearFar.y <= nearFar.x) || // miss
+        (nearFar.x > t) || // further away, culled
+        (nearFar.y < 0.0f)) // behind eye
+    {
+        return -1;
+    }
+
     i32 index = -1;
     float4 wuvt = f4_s(-1.0f);
-    float t = 1 << 20;
-    for (i32 i = 0; (i + 3) <= vertCount; i += 3)
+
+    // test children
+    for (i32 i = 0; i < 8; ++i)
     {
-        float4 tri = isectTri3D(ro, rd, vertices[i], vertices[i + 1], vertices[i + 2]);
-        if (f4_any(f4_ltvs(tri, 0.0f)))
+        float4 tri;
+        i32 ci = TraceRay(scene, GetChild(n, i), ray, rcpRd, t, &tri);
+        if (ci != -1)
+        {
+            if (tri.w < t)
+            {
+                t = tri.w;
+                wuvt = tri;
+                index = ci;
+            }
+        }
+    }
+
+    // test triangles
+    const i32* list = scene->lists[n];
+    const i32 len = list ? list[0] : 0;
+    const float4* pim_noalias vertices = scene->positions;
+    for (i32 i = 0; i < len; ++i)
+    {
+        const i32 j = list[1 + i];
+
+        float4 tri = isectTri3D(
+            ray.ro, ray.rd, vertices[j + 0], vertices[j + 1], vertices[j + 2]);
+        if (tri.w > t)
         {
             continue;
         }
-        if (tri.w > t)
+        if (f4_any(f4_ltvs(tri, 0.0f)))
         {
             continue;
         }
         t = tri.w;
         wuvt = tri;
-        index = i;
+        index = j;
     }
+
     *wuvtOut = wuvt;
     return index;
 }
 
-pim_inline float4 VEC_CALL RandomRayDir(
-    prng_t* pim_noalias rng,
-    float4 N)
+pim_inline float2 VEC_CALL prng_float2(prng_t* rng)
 {
-    float4 dir;
-    do
-    {
-        dir = (float4){ prng_f32(rng), prng_f32(rng), prng_f32(rng), 0.0f };
-        dir = f4_snorm(dir);
-        if (f4_lengthsq3(dir) >= 1.0f)
-        {
-            continue;
-        }
-    } while (f4_dot3(N, dir) <= 0.0f);
-    return f4_normalize3(dir);
+    return f2_v(prng_f32(rng), prng_f32(rng));
 }
 
-static float4 VEC_CALL GetVert4(
-    const float4* pim_noalias vertices,
-    i32 iVert,
-    float4 wuvt)
+pim_inline float4 VEC_CALL RandomInUnitSphere(prng_t* rng)
+{
+    return SampleUnitSphere(prng_float2(rng));
+}
+
+pim_inline float4 VEC_CALL GetVert4(const float4* vertices, i32 iVert, float4 wuvt)
 {
     return f4_blend(
         vertices[iVert + 0],
@@ -200,10 +381,7 @@ static float4 VEC_CALL GetVert4(
         wuvt);
 }
 
-static float2 VEC_CALL GetVert2(
-    const float2* pim_noalias vertices,
-    i32 iVert,
-    float4 wuvt)
+pim_inline float2 VEC_CALL GetVert2(const float2* vertices, i32 iVert, float4 wuvt)
 {
     return f2_blend(
         vertices[iVert + 0],
@@ -212,8 +390,7 @@ static float2 VEC_CALL GetVert2(
         wuvt);
 }
 
-static const material_t* VEC_CALL GetMaterial(
-    const pt_scene_t* scene, i32 iVert)
+pim_inline const material_t* VEC_CALL GetMaterial(const pt_scene_t* scene, i32 iVert)
 {
     i32 iMat = (i32)(scene->normals[iVert].w);
     ASSERT(iMat >= 0);
@@ -221,7 +398,7 @@ static const material_t* VEC_CALL GetMaterial(
     return scene->materials + iMat;
 }
 
-static float4 VEC_CALL GetAlbedo(const material_t* mat, float2 uv)
+pim_inline float4 VEC_CALL GetAlbedo(const material_t* mat, float2 uv)
 {
     float4 value = ColorToLinear(mat->flatAlbedo);
     texture_t tex;
@@ -232,7 +409,7 @@ static float4 VEC_CALL GetAlbedo(const material_t* mat, float2 uv)
     return value;
 }
 
-static float4 VEC_CALL GetRome(const material_t* mat, float2 uv)
+pim_inline float4 VEC_CALL GetRome(const material_t* mat, float2 uv)
 {
     float4 value = ColorToLinear(mat->flatRome);
     texture_t tex;
@@ -243,61 +420,135 @@ static float4 VEC_CALL GetRome(const material_t* mat, float2 uv)
     return value;
 }
 
+pim_inline bool VEC_CALL ScatterLambertian(
+    prng_t* rng,
+    ray_t rin,
+    const surfhit_t* surf,
+    float4* attenuation,
+    ray_t* scattered)
+{
+    scattered->ro = surf->P;
+    scattered->rd = f4_normalize3(f4_add(surf->N, RandomInUnitSphere(rng)));
+    *attenuation = surf->albedo;
+    return true;
+}
+
+pim_inline bool VEC_CALL ScatterMetallic(
+    prng_t* rng,
+    ray_t rin,
+    const surfhit_t* surf,
+    float4* attenuation,
+    ray_t* scattered)
+{
+    float4 R = f4_normalize3(f4_reflect3(rin.rd, surf->N));
+    float4 dir = f4_add(R, f4_mulvs(RandomInUnitSphere(rng), surf->rome.x));
+    scattered->ro = surf->P;
+    scattered->rd = f4_normalize3(dir);
+    *attenuation = surf->albedo;
+    return f4_dot3(scattered->rd, surf->N) > 0.0f;
+}
+
+pim_inline bool VEC_CALL Scatter(
+    prng_t* rng,
+    ray_t rin,
+    const surfhit_t* surf,
+    float4* attenuation,
+    ray_t* scattered)
+{
+    if (surf->rome.z < 0.5f)
+    {
+        return ScatterLambertian(rng, rin, surf, attenuation, scattered);
+    }
+    return ScatterMetallic(rng, rin, surf, attenuation, scattered);
+}
+
+static void GetSurface(
+    const pt_scene_t* scene,
+    i32 iVert,
+    float4 wuvt,
+    surfhit_t* surf)
+{
+    ASSERT(iVert < scene->vertCount);
+    const material_t* mat = GetMaterial(scene, iVert);
+    const float2 uv = GetVert2(scene->uvs, iVert, wuvt);
+    surf->P = GetVert4(scene->positions, iVert, wuvt);
+    surf->N = f4_normalize3(GetVert4(scene->normals, iVert, wuvt));
+    surf->albedo = GetAlbedo(mat, uv);
+    surf->rome = GetRome(mat, uv);
+    // offset to avoid self-intersection
+    surf->P = f4_add(surf->P, f4_mulvs(surf->N, 0.001f));
+}
+
+static float4 VEC_CALL SampleLights(
+    const pt_scene_t* scene,
+    const surfhit_t* surf)
+{
+    float4 reflected = f4_s(0.0f);
+
+    const i32 lightCount = scene->lightCount;
+    const float4* pim_noalias lightPositions = scene->lightPos;
+    const float4* pim_noalias lightRadiances = scene->lightRad;
+    for (i32 i = 0; i < lightCount; ++i)
+    {
+        float4 L = f4_sub(lightPositions[i], surf->P);
+        float lDist = f4_length3(L);
+        L = f4_divvs(L, lDist);
+        float cosTheta = f4_dot3(L, surf->N);
+        if (cosTheta > 0.0f)
+        {
+            float4 wuvt;
+            ray_t ray = { surf->P, L };
+            i32 iRay = TraceRay(
+                scene,
+                0,
+                ray,
+                f4_rcp(ray.rd),
+                lDist,
+                &wuvt);
+            if (iRay == -1)
+            {
+                float attenuation = cosTheta / (lDist*lDist);
+                reflected = f4_add(
+                    reflected, f4_mulvs(lightRadiances[i], attenuation));
+            }
+        }
+    }
+
+    return f4_mul(reflected, surf->albedo);
+}
+
 static float4 VEC_CALL TracePixel(
     prng_t* rng,
     const pt_scene_t* scene,
-    float4 ro,
-    float4 rd,
+    ray_t ray,
     i32 b,
     i32 bounces)
 {
+    float4 light = f4_s(0.0f);
     if (b > bounces)
     {
-        return f4_s(0.0f);
+        return light;
     }
 
     float4 wuvt;
-    const i32 iVert = TraceRay(
-        scene->vertCount,
-        scene->positions,
-        ro,
-        rd,
-        &wuvt);
-    if (iVert == -1)
+    i32 iVert = TraceRay(scene, 0, ray, f4_rcp(ray.rd), 1 << 20, &wuvt);
+    if (iVert >= 0)
     {
-        return f4_s(0.0f);
+        surfhit_t surf;
+        GetSurface(scene, iVert, wuvt, &surf);
+
+        light = f4_add(light, SampleLights(scene, &surf));
+
+        ray_t scattered;
+        float4 attenuation;
+        if (Scatter(rng, ray, &surf, &attenuation, &scattered))
+        {
+            float4 incoming = TracePixel(rng, scene, scattered, b + 1, bounces);
+            light = f4_add(light, f4_mul(incoming, attenuation));
+        }
     }
 
-    ASSERT(iVert >= 0);
-    ASSERT(iVert < scene->vertCount);
-    const float4 P = GetVert4(scene->positions, iVert, wuvt);
-    const float4 N = f4_normalize3(GetVert4(scene->normals, iVert, wuvt));
-    const float2 uv = GetVert2(scene->uvs, iVert, wuvt);
-
-    const material_t* mat = GetMaterial(scene, iVert);
-    const float4 albedo = GetAlbedo(mat, uv);
-    const float4 rome = GetRome(mat, uv);
-    const float4 emission = UnpackEmission(albedo, rome.w);
-
-    const float4 ro2 = f4_add(P, f4_mulvs(N, 0.001f));
-
-    const float4 lPt = f4_v(0.0f, 10.0f, 0.5f, 0.0f);
-    float4 L = f4_sub(lPt, P);
-    float lDist = f4_length(L);
-    L = f4_divvs(L, lDist);
-    float cosTheta = f1_saturate(f4_dot3(L, N));
-    float4 reflected = f4_s(3.0f * cosTheta / (lDist*lDist));
-
-    const float4 rd2 = RandomRayDir(rng, N);
-    cosTheta = f4_dot3(N, rd2);
-    if (cosTheta > 0.0f)
-    {
-        float4 incoming = TracePixel(rng, scene, ro2, rd2, b + 1, bounces);
-        f4_mulvs(incoming, cosTheta);
-        f4_add(reflected, incoming);
-    }
-
-    return f4_add(emission, f4_mul(reflected, albedo));
+    return light;
 }
 
 static void TraceFn(task_t* task, i32 begin, i32 end)
@@ -326,7 +577,8 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
         const float2 jitter = { prng_f32(&rng), prng_f32(&rng) };
         const float2 coord = f2_snorm(f2_mul(f2_add(i2_f2(xy), jitter), dSize));
         const float4 rd = proj_dir(right, up, fwd, slope, coord);
-        float4 sample = TracePixel(&rng, scene, ro, rd, 0, bounces);
+        ray_t ray = { ro, rd };
+        float4 sample = TracePixel(&rng, scene, ray, 0, bounces);
         image[i] = f4_lerp(image[i], sample, sampleWeight);
     }
 }

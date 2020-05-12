@@ -66,32 +66,23 @@ static i32 ms_sampleCount;
 
 // ----------------------------------------------------------------------------
 
-static float4* UnrollPolygon(
-    float4 plane,
-    float4* polygon,
+static float4* VEC_CALL UnrollPolygon(
+    float4* pim_noalias polygon,
     i32 length,
     i32* lenOut)
 {
-    float4* result = NULL;
+    float4* pim_noalias result = tmp_malloc(sizeof(result[0]) * length * 3);
     i32 resLen = 0;
 
-    i32 i = 0;
     while (length >= 3)
     {
-        i32 i0 = (i + 0) % length;
-        i32 i1 = (i + 1) % length;
-        i32 i2 = (i + 2) % length;
-        float4 v0 = polygon[i0];
-        float4 v1 = polygon[i1];
-        float4 v2 = polygon[i2];
-
+        result[resLen + 0] = polygon[0];
+        result[resLen + 1] = polygon[1];
+        result[resLen + 2] = polygon[2];
         resLen += 3;
-        result = tmp_realloc(result, sizeof(result[0]) * resLen);
-        result[resLen - 3] = v0;
-        result[resLen - 2] = v1;
-        result[resLen - 1] = v2;
+
         --length;
-        for (i32 j = i1; j < length; ++j)
+        for (i32 j = 1; j < length; ++j)
         {
             polygon[j] = polygon[j + 1];
         }
@@ -101,109 +92,119 @@ static float4* UnrollPolygon(
     return result;
 }
 
+static float2 VEC_CALL CalcUv(float4 s, float4 t, float4 p)
+{
+    return f2_fmod(f2_abs(f2_v(f4_dot3(p, s), f4_dot3(p, t))), f2_s(1.0f));
+}
+
+static void VEC_CALL CalcST(float4 N, float4* pim_noalias s, float4* pim_noalias t)
+{
+    const float4 kX = { 1.0f, 0.0f, 0.0f, 0.0f };
+    const float4 kY = { 0.0f, 1.0f, 0.0f, 0.0f };
+    const float4 kZ = { 0.0f, 0.0f, 1.0f, 0.0f };
+    float4 n = f4_abs(N);
+    float k = f4_hmax3(n);
+    if (k == n.x)
+    {
+        *s = kZ;
+        *t = kY;
+    }
+    else if (k == n.y)
+    {
+        *s = kX;
+        *t = kZ;
+    }
+    else
+    {
+        *s = kX;
+        *t = kY;
+    }
+}
+
 static meshid_t FlattenModel(mmodel_t* model)
 {
     ASSERT(model);
     ASSERT(model->vertices);
 
+    const float scale = 0.02f; // quake maps are big
+    const quat rot = quat_angleaxis(-kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
+    const float4x4 M = f4x4_trs(f4_0, rot, f4_s(scale));
+
     i32 vertCount = 0;
     float4* positions = NULL;
-    i32 polyLen = 0;
-    float4* polygon = NULL;
+    float4* normals = NULL;
     float2* uvs = NULL;
-    for (i32 i = 0; i < model->numsurfaces; ++i)
+
+    const i32 numSurfaces = model->numsurfaces;
+    const msurface_t* surfaces = model->surfaces;
+    const i32* surfEdges = model->surfedges;
+    const float4* vertices = model->vertices;
+    const medge_t* edges = model->edges;
+
+    float4* polygon = NULL;
+    for (i32 i = 0; i < numSurfaces; ++i)
     {
-        const msurface_t* surface = model->surfaces + i;
-        polyLen = 0;
-        for (i32 j = 0; j < surface->numedges; ++j)
+        const msurface_t* surface = surfaces + i;
+        const i32 numEdges = surface->numedges;
+        const i32 firstEdge = surface->firstedge;
+
+        polygon = tmp_realloc(polygon, sizeof(polygon[0]) * numEdges);
+
+        i32 polyLen = 0;
+        for (i32 j = 0; j < numEdges; ++j)
         {
-            const i32 e = model->surfedges[surface->firstedge + j];
+            i32 e = surfEdges[firstEdge + j];
             i32 v;
             if (e >= 0)
             {
-                v = model->edges[e].v[0];
+                v = edges[e].v[0];
             }
             else
             {
-                v = model->edges[-e].v[1];
+                v = edges[-e].v[1];
             }
+            polygon[polyLen] = vertices[v];
             ++polyLen;
-            polygon = tmp_realloc(polygon, sizeof(polygon[0]) * polyLen);
-            polygon[polyLen - 1] = model->vertices[v];
-        }
-
-        const float4 plane = surface->plane->Value;
-        float4 s, t;
-        {
-            const float4 kX = { 1.0f, 0.0f, 0.0f, 0.0f };
-            const float4 kY = { 0.0f, 1.0f, 0.0f, 0.0f };
-            const float4 kZ = { 0.0f, 0.0f, 1.0f, 0.0f };
-            float4 n = f4_abs(plane);
-            float k = f4_hmax3(n);
-            if (k == n.x)
-            {
-                s = kZ;
-                t = kY;
-            }
-            else if (k == n.y)
-            {
-                s = kX;
-                t = kZ;
-            }
-            else
-            {
-                s = kX;
-                t = kY;
-            }
         }
 
         i32 triLen = 0;
-        float4* tris = UnrollPolygon(plane, polygon, polyLen, &triLen);
+        const float4* tris = UnrollPolygon(polygon, polyLen, &triLen);
+
         const i32 back = vertCount;
         vertCount += triLen;
         positions = perm_realloc(positions, sizeof(positions[0]) * vertCount);
+        normals = perm_realloc(normals, sizeof(normals[0]) * vertCount);
         uvs = perm_realloc(uvs, sizeof(uvs[0]) * vertCount);
-        for (i32 i = 0; i < triLen; ++i)
+
+        for (i32 i = 0; (i + 3) <= triLen; i += 3)
         {
-            positions[back + i] = tris[i];
-            float u = f4_dot3(tris[i], s);
-            float v = f4_dot3(tris[i], t);
-            uvs[back + i] = f2_fmod(f2_v(u, v), f2_1);
+            const int3 abc = { back + i + 0, back + i + 2, back + i + 1 };
+            const float4 A = f4x4_mul_pt(M, tris[i + 0]);
+            const float4 B = f4x4_mul_pt(M, tris[i + 1]);
+            const float4 C = f4x4_mul_pt(M, tris[i + 2]);
+
+            const float4 N = f4_normalize3(f4_cross3(f4_sub(C, A), f4_sub(B, A)));
+            float4 s, t;
+            CalcST(N, &s, &t);
+
+            positions[abc.x] = A;
+            positions[abc.y] = B;
+            positions[abc.z] = C;
+            uvs[abc.x] = CalcUv(s, t, A);
+            uvs[abc.y] = CalcUv(s, t, B);
+            uvs[abc.z] = CalcUv(s, t, C);
+
+            normals[abc.x] = N;
+            normals[abc.y] = N;
+            normals[abc.z] = N;
         }
     }
 
     mesh_t* mesh = perm_calloc(sizeof(*mesh));
-    mesh->positions = positions;
     mesh->length = vertCount;
+    mesh->positions = positions;
+    mesh->normals = normals;
     mesh->uvs = uvs;
-    mesh->normals = perm_malloc(sizeof(mesh->normals[0]) * vertCount);
-    const float scale = 0.02f; // quake maps are big
-    quat rot = quat_angleaxis(-kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
-    float4x4 M = f4x4_trs(f4_0, rot, f4_s(scale));
-    for (i32 i = 0; (i + 3) <= vertCount; i += 3)
-    {
-        float4 A = mesh->positions[i];
-        float4 B = mesh->positions[i + 1];
-        float4 C = mesh->positions[i + 2];
-        A = f4x4_mul_pt(M, A);
-        B = f4x4_mul_pt(M, B);
-        C = f4x4_mul_pt(M, C);
-        {
-            // counterclockwise
-            float4 tmp = C;
-            C = B;
-            B = tmp;
-        }
-        mesh->positions[i] = A;
-        mesh->positions[i + 1] = B;
-        mesh->positions[i + 2] = C;
-        float4 AB = f4_sub(A, B);
-        float4 AC = f4_sub(A, C);
-        float4 N = f4_cross3(AB, AC);
-        mesh->normals[i] = N;
-        mesh->normals[i + 1] = N;
-        mesh->normals[i + 2] = N;
-    }
 
     return mesh_create(mesh);
 }
@@ -245,7 +246,7 @@ void render_sys_init(void)
         ms_meshid = GenSphereMesh(1.0, 8);
     }
 
-    CreateEntities(ms_meshid, ms_material, 2);
+    CreateEntities(ms_meshid, ms_material, 1);
 
     TransformCompose();
     SetEntityMaterials();
@@ -277,6 +278,14 @@ void render_sys_update(void)
         ms_trace.dstImage = ms_buffer.light;
         ms_trace.imageSize = i2_v(ms_buffer.width, ms_buffer.height);
         ms_trace.scene = ms_ptscene;
+
+        float4 lightPt = f4_add(camera.position, f4_mulvs(quat_fwd(camera.rotation), 2.0f));
+        for (i32 i = 0; i < ms_ptscene->lightCount; ++i)
+        {
+            ms_ptscene->lightPos[i] = lightPt;
+            ms_ptscene->lightRad[i] = *LightRad();
+        }
+
         task_t* traceTask = pt_trace(&ms_trace);
         task_sys_schedule();
         task_await(traceTask);
@@ -451,11 +460,9 @@ static void CreateEntities(meshid_t mesh, material_t material, i32 count)
     drawable.material = material;
     bounds = CalcMeshBounds(mesh);
 
-    translation.Value.x = -1.0f;
+    translation.Value.x = 0.0f;
     translation.Value.z = 0.0f;
     translation.Value.y = 0.0f;
-    ecs_create(rows);
-    translation.Value.x = 1.0f;
     ecs_create(rows);
 
     memset(rows, 0, sizeof(rows));
@@ -501,6 +508,7 @@ static void SetLightFn(
 {
     light_t* pim_noalias lights = rows[CompId_Light];
     rotation_t* pim_noalias rotations = rows[CompId_Rotation];
+    translation_t* pim_noalias translations = rows[CompId_Translation];
 
     const float4 lDir = *LightDir();
     const float4 lRad = *LightRad();
@@ -518,7 +526,7 @@ static task_t* SetLights(void)
     ecs_foreach_t* task = tmp_calloc(sizeof(*task));
     ecs_foreach(
         task,
-        (1 << CompId_Light) | (1 << CompId_Rotation),
+        (1 << CompId_Light) | (1 << CompId_Rotation) | (1 << CompId_Translation),
         0,
         SetLightFn);
     return (task_t*)task;
