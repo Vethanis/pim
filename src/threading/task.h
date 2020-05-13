@@ -28,8 +28,9 @@ i32 task_thread_id(void);
 i32 task_num_active(void);
 
 void task_submit(task_t* task, task_execute_fn execute, i32 worksize);
-TaskStatus task_stat(task_t* task);
-void task_await(task_t* task);
+TaskStatus task_stat(const task_t* task);
+void task_await(const task_t* task);
+i32 task_poll(const task_t* task);
 
 void task_sys_schedule(void);
 

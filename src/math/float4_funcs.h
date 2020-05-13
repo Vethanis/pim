@@ -111,12 +111,6 @@ pim_inline float4 VEC_CALL f4_mulvs(float4 lhs, float rhs)
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_mulsv(float lhs, float4 rhs)
-{
-    float4 vec = { lhs * rhs.x, lhs * rhs.y, lhs * rhs.z, lhs * rhs.w };
-    return vec;
-}
-
 pim_inline float4 VEC_CALL f4_div(float4 lhs, float4 rhs)
 {
     float4 vec = { lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z, lhs.w / rhs.w };
@@ -134,218 +128,146 @@ pim_inline float4 VEC_CALL f4_divsv(float lhs, float4 rhs)
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_eq(float4 lhs, float4 rhs)
+pim_inline bool4 VEC_CALL f4_eq(float4 lhs, float4 rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs.x == rhs.x ? 1.0f : 0.0f,
-        lhs.y == rhs.y ? 1.0f : 0.0f,
-        lhs.z == rhs.z ? 1.0f : 0.0f,
-        lhs.w == rhs.w ? 1.0f : 0.0f,
+        lhs.x == rhs.x,
+        lhs.y == rhs.y,
+        lhs.z == rhs.z,
+        lhs.w == rhs.w,
     };
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_eqvs(float4 lhs, float rhs)
+pim_inline bool4 VEC_CALL f4_eqvs(float4 lhs, float rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs.x == rhs ? 1.0f : 0.0f,
-        lhs.y == rhs ? 1.0f : 0.0f,
-        lhs.z == rhs ? 1.0f : 0.0f,
-        lhs.w == rhs ? 1.0f : 0.0f,
+        lhs.x == rhs,
+        lhs.y == rhs,
+        lhs.z == rhs,
+        lhs.w == rhs,
     };
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_eqsv(float lhs, float4 rhs)
+pim_inline bool4 VEC_CALL f4_neq(float4 lhs, float4 rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs == rhs.x ? 1.0f : 0.0f,
-        lhs == rhs.y ? 1.0f : 0.0f,
-        lhs == rhs.z ? 1.0f : 0.0f,
-        lhs == rhs.w ? 1.0f : 0.0f,
+        lhs.x != rhs.x,
+        lhs.y != rhs.y,
+        lhs.z != rhs.z,
+        lhs.w != rhs.w,
     };
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_neq(float4 lhs, float4 rhs)
+pim_inline bool4 VEC_CALL f4_neqvs(float4 lhs, float rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs.x != rhs.x ? 1.0f : 0.0f,
-        lhs.y != rhs.y ? 1.0f : 0.0f,
-        lhs.z != rhs.z ? 1.0f : 0.0f,
-        lhs.w != rhs.w ? 1.0f : 0.0f,
+        lhs.x != rhs,
+        lhs.y != rhs,
+        lhs.z != rhs,
+        lhs.w != rhs,
     };
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_neqvs(float4 lhs, float rhs)
+pim_inline bool4 VEC_CALL f4_lt(float4 lhs, float4 rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs.x != rhs ? 1.0f : 0.0f,
-        lhs.y != rhs ? 1.0f : 0.0f,
-        lhs.z != rhs ? 1.0f : 0.0f,
-        lhs.w != rhs ? 1.0f : 0.0f,
+        lhs.x < rhs.x,
+        lhs.y < rhs.y,
+        lhs.z < rhs.z,
+        lhs.w < rhs.w,
     };
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_neqsv(float lhs, float4 rhs)
+pim_inline bool4 VEC_CALL f4_ltvs(float4 lhs, float rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs != rhs.x ? 1.0f : 0.0f,
-        lhs != rhs.y ? 1.0f : 0.0f,
-        lhs != rhs.z ? 1.0f : 0.0f,
-        lhs != rhs.w ? 1.0f : 0.0f,
+        lhs.x < rhs,
+        lhs.y < rhs,
+        lhs.z < rhs,
+        lhs.w < rhs,
     };
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_lt(float4 lhs, float4 rhs)
+pim_inline bool4 VEC_CALL f4_gt(float4 lhs, float4 rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs.x < rhs.x ? 1.0f : 0.0f,
-        lhs.y < rhs.y ? 1.0f : 0.0f,
-        lhs.z < rhs.z ? 1.0f : 0.0f,
-        lhs.w < rhs.w ? 1.0f : 0.0f,
+        lhs.x > rhs.x,
+        lhs.y > rhs.y,
+        lhs.z > rhs.z,
+        lhs.w > rhs.w,
     };
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_ltvs(float4 lhs, float rhs)
+pim_inline bool4 VEC_CALL f4_gtvs(float4 lhs, float rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs.x < rhs ? 1.0f : 0.0f,
-        lhs.y < rhs ? 1.0f : 0.0f,
-        lhs.z < rhs ? 1.0f : 0.0f,
-        lhs.w < rhs ? 1.0f : 0.0f,
+        lhs.x > rhs,
+        lhs.y > rhs,
+        lhs.z > rhs,
+        lhs.w > rhs,
     };
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_ltsv(float lhs, float4 rhs)
+pim_inline bool4 VEC_CALL f4_lteq(float4 lhs, float4 rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs < rhs.x ? 1.0f : 0.0f,
-        lhs < rhs.y ? 1.0f : 0.0f,
-        lhs < rhs.z ? 1.0f : 0.0f,
-        lhs < rhs.w ? 1.0f : 0.0f,
+        lhs.x <= rhs.x,
+        lhs.y <= rhs.y,
+        lhs.z <= rhs.z,
+        lhs.w <= rhs.w,
     };
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_gt(float4 lhs, float4 rhs)
+pim_inline bool4 VEC_CALL f4_lteqvs(float4 lhs, float rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs.x > rhs.x ? 1.0f : 0.0f,
-        lhs.y > rhs.y ? 1.0f : 0.0f,
-        lhs.z > rhs.z ? 1.0f : 0.0f,
-        lhs.w > rhs.w ? 1.0f : 0.0f,
+        lhs.x <= rhs,
+        lhs.y <= rhs,
+        lhs.z <= rhs,
+        lhs.w <= rhs,
     };
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_gtvs(float4 lhs, float rhs)
+pim_inline bool4 VEC_CALL f4_gteq(float4 lhs, float4 rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs.x > rhs ? 1.0f : 0.0f,
-        lhs.y > rhs ? 1.0f : 0.0f,
-        lhs.z > rhs ? 1.0f : 0.0f,
-        lhs.w > rhs ? 1.0f : 0.0f,
+        lhs.x >= rhs.x,
+        lhs.y >= rhs.y,
+        lhs.z >= rhs.z,
+        lhs.w >= rhs.w,
     };
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_gtsv(float lhs, float4 rhs)
+pim_inline bool4 VEC_CALL f4_gteqvs(float4 lhs, float rhs)
 {
-    float4 vec =
+    bool4 vec =
     {
-        lhs > rhs.x ? 1.0f : 0.0f,
-        lhs > rhs.y ? 1.0f : 0.0f,
-        lhs > rhs.z ? 1.0f : 0.0f,
-        lhs > rhs.w ? 1.0f : 0.0f,
-    };
-    return vec;
-}
-
-pim_inline float4 VEC_CALL f4_lteq(float4 lhs, float4 rhs)
-{
-    float4 vec =
-    {
-        lhs.x <= rhs.x ? 1.0f : 0.0f,
-        lhs.y <= rhs.y ? 1.0f : 0.0f,
-        lhs.z <= rhs.z ? 1.0f : 0.0f,
-        lhs.w <= rhs.w ? 1.0f : 0.0f,
-    };
-    return vec;
-}
-
-pim_inline float4 VEC_CALL f4_lteqvs(float4 lhs, float rhs)
-{
-    float4 vec =
-    {
-        lhs.x <= rhs ? 1.0f : 0.0f,
-        lhs.y <= rhs ? 1.0f : 0.0f,
-        lhs.z <= rhs ? 1.0f : 0.0f,
-        lhs.w <= rhs ? 1.0f : 0.0f,
-    };
-    return vec;
-}
-
-pim_inline float4 VEC_CALL f4_lteqsv(float lhs, float4 rhs)
-{
-    float4 vec =
-    {
-        lhs <= rhs.x ? 1.0f : 0.0f,
-        lhs <= rhs.y ? 1.0f : 0.0f,
-        lhs <= rhs.z ? 1.0f : 0.0f,
-        lhs <= rhs.w ? 1.0f : 0.0f,
-    };
-    return vec;
-}
-
-pim_inline float4 VEC_CALL f4_gteq(float4 lhs, float4 rhs)
-{
-    float4 vec =
-    {
-        lhs.x >= rhs.x ? 1.0f : 0.0f,
-        lhs.y >= rhs.y ? 1.0f : 0.0f,
-        lhs.z >= rhs.z ? 1.0f : 0.0f,
-        lhs.w >= rhs.w ? 1.0f : 0.0f,
-    };
-    return vec;
-}
-
-pim_inline float4 VEC_CALL f4_gteqvs(float4 lhs, float rhs)
-{
-    float4 vec =
-    {
-        lhs.x >= rhs ? 1.0f : 0.0f,
-        lhs.y >= rhs ? 1.0f : 0.0f,
-        lhs.z >= rhs ? 1.0f : 0.0f,
-        lhs.w >= rhs ? 1.0f : 0.0f,
-    };
-    return vec;
-}
-
-pim_inline float4 VEC_CALL f4_gteqsv(float lhs, float4 rhs)
-{
-    float4 vec =
-    {
-        lhs >= rhs.x ? 1.0f : 0.0f,
-        lhs >= rhs.y ? 1.0f : 0.0f,
-        lhs >= rhs.z ? 1.0f : 0.0f,
-        lhs >= rhs.w ? 1.0f : 0.0f,
+        lhs.x >= rhs,
+        lhs.y >= rhs,
+        lhs.z >= rhs,
+        lhs.w >= rhs,
     };
     return vec;
 }
@@ -360,19 +282,76 @@ pim_inline float VEC_CALL f4_sum3(float4 v)
     return v.x + v.y + v.z;
 }
 
-pim_inline bool VEC_CALL f4_any(float4 b)
+pim_inline bool VEC_CALL b4_any(bool4 b)
 {
-    return f4_sum(b) != 0.0f;
+    return b.x | b.y | b.z | b.w;
 }
 
-pim_inline bool VEC_CALL f4_all(float4 b)
+pim_inline bool VEC_CALL b4_any3(bool4 b)
 {
-    return f4_sum(b) == 4.0f;
+    return b.x | b.y | b.z;
 }
 
-pim_inline float4 VEC_CALL f4_not(float4 b)
+pim_inline bool VEC_CALL b4_all(bool4 b)
 {
-    return f4_subsv(1.0f, b);
+    return b.x & b.y & b.z & b.w;
+}
+
+pim_inline bool VEC_CALL b4_all3(bool4 b)
+{
+    return b.x & b.y & b.z;
+}
+
+pim_inline bool4 VEC_CALL b4_not(bool4 b)
+{
+    bool4 y = { ~b.x, ~b.y, ~b.z, ~b.w };
+    return y;
+}
+
+pim_inline bool4 VEC_CALL b4_and(bool4 lhs, bool4 rhs)
+{
+    bool4 y =
+    {
+        lhs.x & rhs.x,
+        lhs.y & rhs.y,
+        lhs.z & rhs.z,
+        lhs.w & rhs.w
+    };
+    return y;
+}
+
+pim_inline bool4 VEC_CALL b4_or(bool4 lhs, bool4 rhs)
+{
+    bool4 y =
+    {
+        lhs.x | rhs.x,
+        lhs.y | rhs.y,
+        lhs.z | rhs.z,
+        lhs.w | rhs.w
+    };
+    return y;
+}
+
+pim_inline bool4 VEC_CALL b4_xor(bool4 lhs, bool4 rhs)
+{
+    bool4 y =
+    {
+        lhs.x ^ rhs.x,
+        lhs.y ^ rhs.y,
+        lhs.z ^ rhs.z,
+        lhs.w ^ rhs.w
+    };
+    return y;
+}
+
+pim_inline bool4 VEC_CALL b4_nand(bool4 lhs, bool4 rhs)
+{
+    return b4_not(b4_and(lhs, rhs));
+}
+
+pim_inline bool4 VEC_CALL b4_nor(bool4 lhs, bool4 rhs)
+{
+    return b4_not(b4_or(lhs, rhs));
 }
 
 pim_inline float4 VEC_CALL f4_min(float4 a, float4 b)
@@ -447,38 +426,31 @@ pim_inline float4 VEC_CALL f4_maxsv(float a, float4 b)
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_select(float4 a, float4 b, float4 t)
+pim_inline float4 VEC_CALL f4_select(float4 a, float4 b, bool4 t)
 {
     float4 c =
     {
-        t.x != 0.0f ? b.x : a.x,
-        t.y != 0.0f ? b.y : a.y,
-        t.z != 0.0f ? b.z : a.z,
-        t.w != 0.0f ? b.w : a.w,
+        t.x ? b.x : a.x,
+        t.y ? b.y : a.y,
+        t.z ? b.z : a.z,
+        t.w ? b.w : a.w,
     };
     return c;
 }
 
-pim_inline float4 VEC_CALL f4_selectvs(float4 a, float4 b, float t)
+pim_inline float4 VEC_CALL f4_selectvs(float4 a, float4 b, bool t)
 {
-    float4 c =
-    {
-        t != 0.0f ? b.x : a.x,
-        t != 0.0f ? b.y : a.y,
-        t != 0.0f ? b.z : a.z,
-        t != 0.0f ? b.w : a.w,
-    };
-    return c;
+    return t ? b : a;
 }
 
-pim_inline float4 VEC_CALL f4_selectsv(float a, float b, float4 t)
+pim_inline float4 VEC_CALL f4_selectsv(float a, float b, bool4 t)
 {
     float4 c =
     {
-        t.x != 0.0f ? b : a,
-        t.y != 0.0f ? b : a,
-        t.z != 0.0f ? b : a,
-        t.w != 0.0f ? b : a,
+        t.x ? b : a,
+        t.y ? b : a,
+        t.z ? b : a,
+        t.w ? b : a,
     };
     return c;
 }
@@ -597,7 +569,7 @@ pim_inline float4 VEC_CALL f4_lerp(float4 a, float4 b, float t)
 
 pim_inline float4 VEC_CALL f4_lerpsv(float a, float b, float4 t)
 {
-    return f4_addsv(a, f4_mulsv(b - a, t));
+    return f4_addsv(a, f4_mulvs(t, b - a));
 }
 
 pim_inline float4 VEC_CALL f4_saturate(float4 a)
@@ -613,21 +585,21 @@ pim_inline float4 VEC_CALL f4_step(float4 a, float4 b)
 pim_inline float4 VEC_CALL f4_smoothstep(float4 a, float4 b, float4 x)
 {
     float4 t = f4_saturate(f4_div(f4_sub(x, a), f4_sub(b, a)));
-    float4 s = f4_subsv(3.0f, f4_mulsv(2.0f, t));
+    float4 s = f4_subsv(3.0f, f4_mulvs(t, 2.0f));
     return f4_mul(f4_mul(t, t), s);
 }
 
 pim_inline float4 VEC_CALL f4_smoothstepvs(float4 a, float4 b, float x)
 {
     float4 t = f4_saturate(f4_div(f4_subsv(x, a), f4_sub(b, a)));
-    float4 s = f4_subsv(3.0f, f4_mulsv(2.0f, t));
+    float4 s = f4_subsv(3.0f, f4_mulvs(t, 2.0f));
     return f4_mul(f4_mul(t, t), s);
 }
 
 pim_inline float4 VEC_CALL f4_smoothstepsv(float a, float b, float4 x)
 {
     float4 t = f4_saturate(f4_divvs(f4_subvs(x, a), b - a));
-    float4 s = f4_subsv(3.0f, f4_mulsv(2.0f, t));
+    float4 s = f4_subsv(3.0f, f4_mulvs(t, 2.0f));
     return f4_mul(f4_mul(t, t), s);
 }
 
@@ -650,7 +622,7 @@ pim_inline float4 VEC_CALL f4_refract(float4 i, float4 n, float ior)
     float ior2 = ior * ior;
     float k = 1.0f - (ior2 * (1.0f - ndi2));
     float l = ior * ndi + sqrtf(k);
-    float4 m = f4_sub(f4_mulsv(ior, i), f4_mulsv(l, n));
+    float4 m = f4_sub(f4_mulvs(i, ior), f4_mulvs(n, l));
     return f4_mulvs(m, k >= 0.0f ? 1.0f : 0.0f);
 }
 

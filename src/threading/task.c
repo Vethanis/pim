@@ -115,7 +115,7 @@ i32 task_num_active(void)
     return load_i32(&ms_numThreadsRunning, MO_Relaxed) - load_i32(&ms_numThreadsSleeping, MO_Relaxed);
 }
 
-TaskStatus task_stat(task_t* task)
+TaskStatus task_stat(const task_t* task)
 {
     ASSERT(task);
     return (TaskStatus)load_i32(&(task->status), MO_Acquire);
@@ -147,7 +147,7 @@ void task_submit(task_t* task, task_execute_fn execute, i32 worksize)
 }
 
 ProfileMark(pm_await, task_await)
-void task_await(task_t* task)
+void task_await(const task_t* task)
 {
     ProfileBegin(pm_await);
 
@@ -157,7 +157,11 @@ void task_await(task_t* task)
     u64 spins = 0;
     while (task_stat(task) == TaskStatus_Exec)
     {
-        if (!TryRunTask(tid))
+        if (TryRunTask(tid))
+        {
+            spins = 0;
+        }
+        else
         {
             // trying to wait on an event here sometimes introduces
             // a permanently slept main thread.
@@ -167,6 +171,11 @@ void task_await(task_t* task)
     }
 
     ProfileEnd(pm_await);
+}
+
+i32 task_poll(const task_t* task)
+{
+    return task_stat(task) != TaskStatus_Exec;
 }
 
 ProfileMark(pm_schedule, task_sys_schedule)

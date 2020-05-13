@@ -6,14 +6,21 @@
 #include "math/quat_funcs.h"
 #include "common/time.h"
 #include "common/profiler.h"
+#include "common/cvar.h"
 
 static float ms_pitchScale = 720.0f;
 static float ms_yawScale = 720.0f;
 static float ms_moveScale = 5.0f;
 
+static cvar_t cv_pitchScale = { cvart_float, 0, "pitchScale", "720", "pitch input sensitivity" };
+static cvar_t cv_yawScale = { cvart_float, 0, "yawScale", "720", "yaw input sensitivity" };
+static cvar_t cv_moveScale = { cvart_float, 0, "moveScale", "5", "movement input sensitivity" };
+
 void camera_logic_init(void)
 {
-
+    cvar_reg(&cv_pitchScale);
+    cvar_reg(&cv_yawScale);
+    cvar_reg(&cv_moveScale);
 }
 
 ProfileMark(pm_update, camera_logic_update)

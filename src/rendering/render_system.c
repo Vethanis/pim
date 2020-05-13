@@ -218,7 +218,7 @@ void render_sys_init(void)
     ms_toneParams = Tonemap_DefParams();
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
     *LightDir() = f4_normalize3(f4_1);
-    *LightRad() = f4_v(9.593f, 7.22f, 5.458f, 0.0f);
+    *LightRad() = f4_v(1.0f, 1.0f, 1.0f, 0.0f);
     *DiffuseGI() = f4_v(0.074f, 0.074f, 0.142f, 0.0f);
     *SpecularGI() = f4_v(0.299f, 0.266f, 0.236f, 0.0f);
 
@@ -227,11 +227,11 @@ void render_sys_init(void)
     FragmentStage_Init();
 
     ms_flatAlbedo = f4_s(1.0f);
-    ms_flatRome = f4_v(0.25f, 1.0f, 0.0f, 0.0f);
+    ms_flatRome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
     ms_material.flatAlbedo = LinearToColor(ms_flatAlbedo);
     ms_material.flatRome = LinearToColor(ms_flatRome);
     ms_material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
-    ms_material.albedo = GenCheckerTex();
+    //ms_material.albedo = GenCheckerTex();
 
     asset_t mapasset = { 0 };
     if (asset_get("maps/start.bsp", &mapasset))
@@ -254,7 +254,8 @@ void render_sys_init(void)
     task_sys_schedule();
     task_await(setLightsTask);
 
-    ms_ptscene = pt_scene_new();
+    const i32 maxDepth = 5;
+    ms_ptscene = pt_scene_new(maxDepth);
 }
 
 ProfileMark(pm_update, render_sys_update)
@@ -265,6 +266,7 @@ void render_sys_update(void)
     camera_t camera;
     camera_get(&camera);
 
+    task_t* drawTask = NULL;
     if (cv_pathtrace.asFloat != 0.0f)
     {
         if (memcmp(&camera, &ms_ptcamera, sizeof(camera)) != 0)
@@ -272,6 +274,7 @@ void render_sys_update(void)
             ms_sampleCount = 0;
         }
         ms_ptcamera = camera;
+
         ms_trace.bounces = 3;
         ms_trace.sampleWeight = 1.0f / ++ms_sampleCount;
         ms_trace.camera = &ms_ptcamera;
@@ -286,9 +289,8 @@ void render_sys_update(void)
             ms_ptscene->lightRad[i] = *LightRad();
         }
 
-        task_t* traceTask = pt_trace(&ms_trace);
+        drawTask = pt_trace(&ms_trace);
         task_sys_schedule();
-        task_await(traceTask);
     }
     else
     {
@@ -302,20 +304,17 @@ void render_sys_update(void)
         task_sys_schedule();
 
         task_await(vertexTask);
-        task_t* fragTask = FragmentStage(&ms_buffer);
+        drawTask = FragmentStage(&ms_buffer);
         task_sys_schedule();
-
-        task_await(fragTask);
     }
 
+    task_await(drawTask);
     task_t* resolveTask = ResolveTile(&ms_buffer, ms_tonemapper, ms_toneParams);
-    task_sys_schedule();
-
-    task_await(resolveTask);
-    screenblit_blit(ms_buffer.color, kDrawWidth, kDrawHeight);
-
     SetEntityMaterials();
     SetLights();
+    task_sys_schedule();
+    task_await(resolveTask);
+    screenblit_blit(ms_buffer.color, kDrawWidth, kDrawHeight);
 
     ProfileEnd(pm_update);
 }
@@ -327,14 +326,15 @@ void render_sys_present(void)
 void render_sys_shutdown(void)
 {
     task_sys_schedule();
+
+    pt_scene_del(ms_ptscene);
+    ms_ptscene = NULL;
+
     screenblit_shutdown();
     framebuf_destroy(&ms_buffer);
     mesh_destroy(ms_meshid);
     texture_destroy(ms_material.albedo);
     FragmentStage_Shutdown();
-
-    pt_scene_del(ms_ptscene);
-    ms_ptscene = NULL;
 }
 
 ProfileMark(pm_gui, render_sys_gui)

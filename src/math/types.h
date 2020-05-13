@@ -46,6 +46,14 @@ typedef pim_alignas(16) struct int4_s
     i32 w;
 } int4;
 
+typedef pim_alignas(16) struct bool4_s
+{
+    i32 x;
+    i32 y;
+    i32 z;
+    i32 w;
+} bool4;
+
 typedef struct quat_s
 {
     float4 v;

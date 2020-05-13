@@ -44,12 +44,12 @@ static i32 CalcNodeCount(i32 maxDepth)
     return nodeCount;
 }
 
-static i32 GetChild(i32 parent, i32 i)
+pim_inline i32 GetChild(i32 parent, i32 i)
 {
     return (parent << 3) | (i + 1);
 }
 
-static i32 GetParent(i32 i)
+pim_inline i32 GetParent(i32 i)
 {
     return (i - 1) >> 3;
 }
@@ -91,6 +91,7 @@ static bool VEC_CALL BoxHoldsTri(box_t box, float4 A, float4 B, float4 C)
 static bool InsertTriangle(
     const box_t* boxes,
     i32** lists,
+    int2* lenpops,
     const float4* vertices,
     i32 iVert,
     i32 n,
@@ -100,29 +101,25 @@ static bool InsertTriangle(
     {
         if (BoxHoldsTri(boxes[n], vertices[iVert + 0], vertices[iVert + 1], vertices[iVert + 2]))
         {
+            lenpops[n].y += 1;
             for (i32 i = 0; i < 8; ++i)
             {
-                if (InsertTriangle(boxes, lists, vertices, iVert, GetChild(n, i), nodeCount))
+                if (InsertTriangle(boxes, lists, lenpops, vertices, iVert, GetChild(n, i), nodeCount))
                 {
                     return true;
                 }
             }
-            i32* list = lists[n];
-            {
-                i32 len = list ? list[0] : 0;
-                ++len;
-                list = perm_realloc(list, sizeof(list[0]) * (1 + len));
-                list[0] = len;
-                list[len] = iVert;
-            }
-            lists[n] = list;
+            i32 len = 1 + lenpops[n].x;
+            lenpops[n].x = len;
+            lists[n] = perm_realloc(lists[n], sizeof(lists[n][0]) * len);
+            lists[n][len - 1] = iVert;
             return true;
         }
     }
     return false;
 }
 
-pt_scene_t* pt_scene_new(void)
+pt_scene_t* pt_scene_new(i32 maxDepth)
 {
     pt_scene_t* pim_noalias scene = perm_calloc(sizeof(*scene));
 
@@ -170,12 +167,8 @@ pt_scene_t* pt_scene_new(void)
 
             for (i32 j = 0; j < mesh.length; ++j)
             {
-                positions[vertBack + j] = f4x4_mul_pt(M, mesh.positions[j]);
-            }
-
-            for (i32 j = 0; j < mesh.length; ++j)
-            {
-                const float4 position = positions[vertBack + j];
+                float4 position = f4x4_mul_pt(M, mesh.positions[j]);
+                positions[vertBack + j] = position;
                 sceneMin = f4_min(sceneMin, position);
                 sceneMax = f4_max(sceneMax, position);
             }
@@ -209,30 +202,36 @@ pt_scene_t* pt_scene_new(void)
     scene->materials = materials;
 
     {
-        sceneMax = f4_addvs(sceneMax, 0.01f);
-        sceneMin = f4_addvs(sceneMin, -0.01f);
+        // scale bounds up a little bit, to account for fp precision
+        // abs required when scene is not centered at origin
+        sceneMax = f4_add(sceneMax, f4_mulvs(f4_abs(sceneMax), 0.01f));
+        sceneMin = f4_sub(sceneMin, f4_mulvs(f4_abs(sceneMin), 0.01f));
         box_t bounds;
         bounds.center = f4_lerp(sceneMin, sceneMax, 0.5f);
         bounds.extents = f4_sub(sceneMax, bounds.center);
 
-        const i32 maxDepth = 5;
         const i32 nodeCount = CalcNodeCount(maxDepth);
         const i32 root = 0;
 
         box_t* boxes = perm_calloc(sizeof(boxes[0]) * nodeCount);
         i32** lists = perm_calloc(sizeof(lists[0]) * nodeCount);
+        int2* lenpops = perm_calloc(sizeof(lenpops[0]) * nodeCount);
 
         boxes[root] = bounds;
         SetupBounds(boxes, root, nodeCount);
 
         for (i32 i = 0; (i + 3) <= vertCount; i += 3)
         {
-            InsertTriangle(boxes, lists, positions, i, root, nodeCount);
+            if (!InsertTriangle(boxes, lists, lenpops, positions, i, root, nodeCount))
+            {
+                ASSERT(false);
+            }
         }
 
         scene->nodeCount = nodeCount;
         scene->boxes = boxes;
         scene->lists = lists;
+        scene->lenpops = lenpops;
     }
 
     {
@@ -278,6 +277,7 @@ void pt_scene_del(pt_scene_t* scene)
         pim_free(scene->lists[i]);
     }
     pim_free(scene->lists);
+    pim_free(scene->lenpops);
 
     memset(scene, 0, sizeof(*scene));
     pim_free(scene);
@@ -294,6 +294,7 @@ typedef struct trace_task_s
     i32 bounces;
 } trace_task_t;
 
+pim_optimize
 static i32 VEC_CALL TraceRay(
     const pt_scene_t* scene,
     i32 n,
@@ -302,7 +303,7 @@ static i32 VEC_CALL TraceRay(
     float t,
     float4* wuvtOut)
 {
-    if (n >= scene->nodeCount)
+    if ((n >= scene->nodeCount) || (scene->lenpops[n].y == 0))
     {
         return -1;
     }
@@ -319,6 +320,25 @@ static i32 VEC_CALL TraceRay(
     i32 index = -1;
     float4 wuvt = f4_s(-1.0f);
 
+    // test triangles
+    const i32* list = scene->lists[n];
+    const i32 len = scene->lenpops[n].x;
+    const float4* pim_noalias vertices = scene->positions;
+    for (i32 i = 0; i < len; ++i)
+    {
+        const i32 j = list[i];
+
+        float4 tri = isectTri3D(
+            ray.ro, ray.rd, vertices[j + 0], vertices[j + 1], vertices[j + 2]);
+        if (b4_any(f4_ltvs(tri, 0.0f)) || (tri.w > t))
+        {
+            continue;
+        }
+        t = tri.w;
+        wuvt = tri;
+        index = j;
+    }
+
     // test children
     for (i32 i = 0; i < 8; ++i)
     {
@@ -333,29 +353,6 @@ static i32 VEC_CALL TraceRay(
                 index = ci;
             }
         }
-    }
-
-    // test triangles
-    const i32* list = scene->lists[n];
-    const i32 len = list ? list[0] : 0;
-    const float4* pim_noalias vertices = scene->positions;
-    for (i32 i = 0; i < len; ++i)
-    {
-        const i32 j = list[1 + i];
-
-        float4 tri = isectTri3D(
-            ray.ro, ray.rd, vertices[j + 0], vertices[j + 1], vertices[j + 2]);
-        if (tri.w > t)
-        {
-            continue;
-        }
-        if (f4_any(f4_ltvs(tri, 0.0f)))
-        {
-            continue;
-        }
-        t = tri.w;
-        wuvt = tri;
-        index = j;
     }
 
     *wuvtOut = wuvt;
@@ -462,7 +459,7 @@ pim_inline bool VEC_CALL Scatter(
     return ScatterMetallic(rng, rin, surf, attenuation, scattered);
 }
 
-static void GetSurface(
+static void VEC_CALL GetSurface(
     const pt_scene_t* scene,
     i32 iVert,
     float4 wuvt,
@@ -479,6 +476,7 @@ static void GetSurface(
     surf->P = f4_add(surf->P, f4_mulvs(surf->N, 0.001f));
 }
 
+pim_optimize
 static float4 VEC_CALL SampleLights(
     const pt_scene_t* scene,
     const surfhit_t* surf)
@@ -517,6 +515,7 @@ static float4 VEC_CALL SampleLights(
     return f4_mul(reflected, surf->albedo);
 }
 
+pim_optimize
 static float4 VEC_CALL TracePixel(
     prng_t* rng,
     const pt_scene_t* scene,
@@ -551,6 +550,7 @@ static float4 VEC_CALL TracePixel(
     return light;
 }
 
+pim_optimize
 static void TraceFn(task_t* task, i32 begin, i32 end)
 {
     trace_task_t* trace = (trace_task_t*)task;

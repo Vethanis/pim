@@ -54,7 +54,7 @@ pim_inline float VEC_CALL sdBox2D(float2 c, float2 e, float2 pt)
 pim_inline float VEC_CALL sdBox3D(float4 c, float4 e, float4 pt)
 {
     float4 d = f4_sub(f4_abs(f4_sub(pt, c)), e);
-    return f4_length3(f4_max(d, f4_0)) + f1_min(f4_hmax(d), 0.0f);
+    return f4_length3(f4_max(d, f4_0)) + f1_min(f4_hmax3(d), 0.0f);
 }
 
 pim_inline float VEC_CALL sdPlaneCircle(float2 n, float d, float2 c, float r)

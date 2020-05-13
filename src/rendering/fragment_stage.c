@@ -174,11 +174,14 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
 {
     mesh_t mesh;
     texture_t albedoMap;
-    // texture_t romeMap;
-    if (!mesh_get(draw->mesh, &mesh) || !texture_get(draw->material.albedo, &albedoMap))
+    texture_t romeMap;
+    if (!mesh_get(draw->mesh, &mesh))
     {
         return;
     }
+    
+    const bool hasAlbedo = texture_get(draw->material.albedo, &albedoMap);
+    const bool hasRome = texture_get(draw->material.rome, &romeMap);
 
     float4* pim_noalias dstLight = target->light;
     float* pim_noalias dstDepth = target->depth;
@@ -310,9 +313,18 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
 
                     // lighting
                     const float4 V = f4_normalize3(f4_sub(eye, P));
-                    const float4 albedo = f4_mul(flatAlbedo, Tex_Bilinearf2(albedoMap, U));
-                    const float4 direct = DirectBRDF(V, L, radiance, N, albedo, flatRome.x, flatRome.z);
-                    const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, flatRome.x, flatRome.z, flatRome.y);
+                    float4 albedo = flatAlbedo;
+                    if (hasAlbedo)
+                    {
+                        albedo = f4_mul(albedo, Tex_Bilinearf2(albedoMap, U));
+                    }
+                    float4 rome = flatRome;
+                    if (hasRome)
+                    {
+                        rome = f4_mul(rome, Tex_Bilinearf2(romeMap, U));
+                    }
+                    const float4 direct = DirectBRDF(V, L, radiance, N, albedo, rome.x, rome.z);
+                    const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
                     light = f4_add(direct, indirect);
                     light.w = 1.0f;
                 }

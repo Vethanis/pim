@@ -27,7 +27,8 @@ typedef struct pt_scene_s
     // full octree
     // child(p, i) = 8 * p + i + 1
     box_t* boxes; // aabb of node
-    i32** lists; // [N, f0v0, f1v0, f2v0, ..., fN-1v0]
+    i32** lists; // [f0v0, f1v0, f2v0, ..., fN-1v0]
+    int2* lenpops; // [list len, subtree count]
 
     i32 vertCount;
     i32 matCount;
@@ -46,7 +47,7 @@ typedef struct pt_trace_s
 } pt_trace_t;
 
 // creates a scene from the current contents of the ECS
-pt_scene_t* pt_scene_new(void);
+pt_scene_t* pt_scene_new(i32 maxDepth);
 void pt_scene_del(pt_scene_t* scene);
 
 struct task_s* pt_trace(pt_trace_t* traceDesc);
