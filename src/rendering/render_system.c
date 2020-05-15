@@ -19,16 +19,17 @@
 #include "math/color.h"
 #include "math/sdf.h"
 
-#include "rendering/framebuffer.h"
 #include "rendering/constants.h"
-#include "rendering/camera.h"
 #include "rendering/window.h"
-#include "rendering/screenblit.h"
+#include "rendering/framebuffer.h"
+#include "rendering/camera.h"
+#include "rendering/lights.h"
 #include "rendering/transform_compose.h"
 #include "rendering/clear_tile.h"
 #include "rendering/vertex_stage.h"
 #include "rendering/fragment_stage.h"
 #include "rendering/resolve_tile.h"
+#include "rendering/screenblit.h"
 #include "rendering/path_tracer.h"
 
 #include "quake/q_model.h"
@@ -37,20 +38,16 @@
 #include <string.h>
 
 static cvar_t cv_pathtrace = { cvart_bool, 0, "pathtrace", "0", "enable path tracing of scene" };
+static cvar_t cv_ptbounces = { cvart_int, 0, "ptbounces", "4", "number of bounces in the path tracer" };
 
 // ----------------------------------------------------------------------------
 
-static void CreateEntities(meshid_t mesh, material_t material, i32 count);
-static task_t* SetEntityMaterials(void);
-static task_t* SetLights(void);
 static meshid_t GenSphereMesh(float r, i32 steps);
 static textureid_t GenCheckerTex(void);
 
 // ----------------------------------------------------------------------------
 
 static framebuf_t ms_buffer;
-static meshid_t ms_meshid;
-static material_t ms_material;
 static float4 ms_flatAlbedo;
 static float4 ms_flatRome;
 static prng_t ms_prng;
@@ -67,18 +64,19 @@ static i32 ms_sampleCount;
 // ----------------------------------------------------------------------------
 
 static float4* VEC_CALL UnrollPolygon(
+    float4* pim_noalias vertices,
     float4* pim_noalias polygon,
     i32 length,
     i32* lenOut)
 {
-    float4* pim_noalias result = tmp_malloc(sizeof(result[0]) * length * 3);
+    vertices = tmp_realloc(vertices, sizeof(vertices[0]) * length * 3);
     i32 resLen = 0;
 
     while (length >= 3)
     {
-        result[resLen + 0] = polygon[0];
-        result[resLen + 1] = polygon[1];
-        result[resLen + 2] = polygon[2];
+        vertices[resLen + 0] = polygon[0];
+        vertices[resLen + 1] = polygon[1];
+        vertices[resLen + 2] = polygon[2];
         resLen += 3;
 
         --length;
@@ -89,15 +87,18 @@ static float4* VEC_CALL UnrollPolygon(
     }
 
     *lenOut = resLen;
-    return result;
+    return vertices;
 }
 
 static float2 VEC_CALL CalcUv(float4 s, float4 t, float4 p)
 {
-    return f2_fmod(f2_abs(f2_v(f4_dot3(p, s), f4_dot3(p, t))), f2_s(1.0f));
+    return f2_v(f4_dot3(p, s) + s.w, f4_dot3(p, t) + t.w);
 }
 
-static void VEC_CALL CalcST(float4 N, float4* pim_noalias s, float4* pim_noalias t)
+static void VEC_CALL CalcST(
+    float4 N,
+    float4* pim_noalias s,
+    float4* pim_noalias t)
 {
     const float4 kX = { 1.0f, 0.0f, 0.0f, 0.0f };
     const float4 kY = { 0.0f, 1.0f, 0.0f, 0.0f };
@@ -112,16 +113,16 @@ static void VEC_CALL CalcST(float4 N, float4* pim_noalias s, float4* pim_noalias
     else if (k == n.y)
     {
         *s = kX;
-        *t = kZ;
+        *t = f4_neg(kZ);
     }
     else
     {
-        *s = kX;
+        *s = f4_neg(kX);
         *t = kY;
     }
 }
 
-static meshid_t FlattenModel(mmodel_t* model)
+static ent_t* FlattenModel(mmodel_t* model, i32* entCountOut)
 {
     ASSERT(model);
     ASSERT(model->vertices);
@@ -130,27 +131,52 @@ static meshid_t FlattenModel(mmodel_t* model)
     const quat rot = quat_angleaxis(-kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
     const float4x4 M = f4x4_trs(f4_0, rot, f4_s(scale));
 
-    i32 vertCount = 0;
-    float4* positions = NULL;
-    float4* normals = NULL;
-    float2* uvs = NULL;
-
     const i32 numSurfaces = model->numsurfaces;
     const msurface_t* surfaces = model->surfaces;
     const i32* surfEdges = model->surfedges;
     const float4* vertices = model->vertices;
     const medge_t* edges = model->edges;
 
+    drawable_t drawable = { 0 };
+    localtoworld_t l2w = { 0 };
+    bounds_t bounds = { 0 };
+    void* rows[CompId_COUNT] = { 0 };
+    rows[CompId_Bounds] = &bounds;
+    rows[CompId_LocalToWorld] = &l2w;
+    rows[CompId_Drawable] = &drawable;
+
     float4* polygon = NULL;
+    float4* tris = NULL;
+    i32 entCount = 0;
+    ent_t* ents = NULL;
+
     for (i32 i = 0; i < numSurfaces; ++i)
     {
         const msurface_t* surface = surfaces + i;
-        const i32 numEdges = surface->numedges;
+        i32 numEdges = surface->numedges;
         const i32 firstEdge = surface->firstedge;
+        const mtexinfo_t* texinfo = surface->texinfo;
+        const mtexture_t* mtex = texinfo->texture;
+
+        if (numEdges <= 0 || firstEdge < 0)
+        {
+            continue;
+        }
+
+        {
+            textureid_t texid = texture_lookup(mtex->name);
+            if (!texid.handle)
+            {
+                const u8* mip0 = (u8*)mtex + mtex->offsets[0];
+                ASSERT(mtex->offsets[0] == sizeof(mtexture_t));
+                texid = texture_unpalette(mip0, i2_v(mtex->width, mtex->height));
+                texture_register(mtex->name, texid);
+            }
+            drawable.material.albedo = texid;
+            //drawable.material.rome = texid;
+        }
 
         polygon = tmp_realloc(polygon, sizeof(polygon[0]) * numEdges);
-
-        i32 polyLen = 0;
         for (i32 j = 0; j < numEdges; ++j)
         {
             i32 e = surfEdges[firstEdge + j];
@@ -163,64 +189,101 @@ static meshid_t FlattenModel(mmodel_t* model)
             {
                 v = edges[-e].v[1];
             }
-            polygon[polyLen] = vertices[v];
-            ++polyLen;
+            polygon[j] = vertices[v];
         }
 
-        i32 triLen = 0;
-        const float4* tris = UnrollPolygon(polygon, polyLen, &triLen);
+        i32 vertCount = 0;
+        tris = UnrollPolygon(tris, polygon, numEdges, &vertCount);
 
-        const i32 back = vertCount;
-        vertCount += triLen;
-        positions = perm_realloc(positions, sizeof(positions[0]) * vertCount);
-        normals = perm_realloc(normals, sizeof(normals[0]) * vertCount);
-        uvs = perm_realloc(uvs, sizeof(uvs[0]) * vertCount);
+        float4* positions = perm_malloc(sizeof(positions[0]) * vertCount);
+        float4* normals = perm_malloc(sizeof(normals[0]) * vertCount);
+        float2* uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
 
-        for (i32 i = 0; (i + 3) <= triLen; i += 3)
+        // u = dot(P.xyz, s.xyz) + s.w
+        // v = dot(P.xyz, t.xyz) + t.w
+        float4 s = texinfo->vecs[0];
+        float4 t = texinfo->vecs[1];
+        float2 uvScale = { 1.0f / mtex->width, 1.0f / mtex->height };
+
+        for (i32 i = 0; (i + 3) <= vertCount; i += 3)
         {
-            const int3 abc = { back + i + 0, back + i + 2, back + i + 1 };
-            const float4 A = f4x4_mul_pt(M, tris[i + 0]);
-            const float4 B = f4x4_mul_pt(M, tris[i + 1]);
-            const float4 C = f4x4_mul_pt(M, tris[i + 2]);
+            float4 A0 = tris[i + 0];
+            float4 B0 = tris[i + 1];
+            float4 C0 = tris[i + 2];
+            float4 A = f4x4_mul_pt(M, A0);
+            float4 B = f4x4_mul_pt(M, B0);
+            float4 C = f4x4_mul_pt(M, C0);
 
-            const float4 N = f4_normalize3(f4_cross3(f4_sub(C, A), f4_sub(B, A)));
-            float4 s, t;
-            CalcST(N, &s, &t);
+            positions[i + 0] = A;
+            positions[i + 2] = B;
+            positions[i + 1] = C;
 
-            positions[abc.x] = A;
-            positions[abc.y] = B;
-            positions[abc.z] = C;
-            uvs[abc.x] = CalcUv(s, t, A);
-            uvs[abc.y] = CalcUv(s, t, B);
-            uvs[abc.z] = CalcUv(s, t, C);
+            uvs[i + 0] = f2_mul(CalcUv(s, t, A0), uvScale);
+            uvs[i + 2] = f2_mul(CalcUv(s, t, B0), uvScale);
+            uvs[i + 1] = f2_mul(CalcUv(s, t, C0), uvScale);
 
-            normals[abc.x] = N;
-            normals[abc.y] = N;
-            normals[abc.z] = N;
+            float4 N = f4_normalize3(f4_cross3(f4_sub(C, A), f4_sub(B, A)));
+
+            normals[i + 0] = N;
+            normals[i + 2] = N;
+            normals[i + 1] = N;
         }
+
+        mesh_t* mesh = perm_calloc(sizeof(*mesh));
+        mesh->length = vertCount;
+        mesh->positions = positions;
+        mesh->normals = normals;
+        mesh->uvs = uvs;
+        drawable.mesh = mesh_create(mesh);
+
+        drawable.material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
+        drawable.material.flatAlbedo = LinearToColor(f4_1);
+        drawable.material.flatRome = LinearToColor(f4_v(0.5f, 1.0f, 0.0f, 0.0f));
+
+        bounds.box = mesh_calcbounds(drawable.mesh);
+        l2w.Value = f4x4_id;
+
+        ++entCount;
+        ents = tmp_realloc(ents, sizeof(ents[0]) * entCount);
+        ents[entCount - 1] = ecs_create(rows);
     }
 
-    mesh_t* mesh = perm_calloc(sizeof(*mesh));
-    mesh->length = vertCount;
-    mesh->positions = positions;
-    mesh->normals = normals;
-    mesh->uvs = uvs;
+    *entCountOut = entCount;
+    return ents;
+}
 
-    return mesh_create(mesh);
+static void UpdateMaterialsFn(ecs_foreach_t* task, void** rows, const i32* indices, i32 length)
+{
+    drawable_t* drawables = rows[CompId_Drawable];
+
+    u32 flatAlbedo = LinearToColor(ms_flatAlbedo);
+    u32 flatRome = LinearToColor(ms_flatRome);
+    for (i32 i = 0; i < length; ++i)
+    {
+        i32 iEnt = indices[i];
+        drawables[iEnt].material.flatAlbedo = flatAlbedo;
+        drawables[iEnt].material.flatRome = flatRome;
+    }
+}
+
+static task_t* UpdateMaterials(void)
+{
+    ecs_foreach_t* task = tmp_calloc(sizeof(*task));
+    ecs_foreach(task, (1 << CompId_Drawable), 0, UpdateMaterialsFn);
+    return (task_t*)task;
 }
 
 void render_sys_init(void)
 {
     cvar_reg(&cv_pathtrace);
+    cvar_reg(&cv_ptbounces);
 
     ms_prng = prng_create();
-    ms_tonemapper = TMap_Hable;
+    ms_tonemapper = TMap_Reinhard;
     ms_toneParams = Tonemap_DefParams();
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
-    *LightDir() = f4_normalize3(f4_1);
-    *LightRad() = f4_v(1.0f, 1.0f, 1.0f, 0.0f);
-    *DiffuseGI() = f4_v(0.074f, 0.074f, 0.142f, 0.0f);
-    *SpecularGI() = f4_v(0.299f, 0.266f, 0.236f, 0.0f);
+    *DiffuseGI() = f4_s(0.01f);
+    *SpecularGI() = f4_s(0.01f);
 
     framebuf_create(&ms_buffer, kDrawWidth, kDrawHeight);
     screenblit_init(kDrawWidth, kDrawHeight);
@@ -228,31 +291,26 @@ void render_sys_init(void)
 
     ms_flatAlbedo = f4_s(1.0f);
     ms_flatRome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
-    ms_material.flatAlbedo = LinearToColor(ms_flatAlbedo);
-    ms_material.flatRome = LinearToColor(ms_flatRome);
-    ms_material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
-    //ms_material.albedo = GenCheckerTex();
+
+    i32 entCount = 0;
+    ent_t* ents = NULL;
 
     asset_t mapasset = { 0 };
     if (asset_get("maps/start.bsp", &mapasset))
     {
-        mmodel_t* model = LoadModel(mapasset.pData, EAlloc_Perm);
-        ms_meshid = FlattenModel(model);
+        mmodel_t* model = LoadModel(mapasset.pData, EAlloc_Temp);
+        ents = FlattenModel(model, &entCount);
         FreeModel(model);
     }
 
-    if (ms_meshid.handle == NULL)
+    if (lights_pt_count() == 0)
     {
-        ms_meshid = GenSphereMesh(1.0, 8);
+        lights_add_pt((pt_light_t) { f4_0, f4_s(2.0f) });
     }
 
-    CreateEntities(ms_meshid, ms_material, 1);
-
-    TransformCompose();
-    SetEntityMaterials();
-    task_t* setLightsTask = SetLights();
+    task_t* compose = TransformCompose();
     task_sys_schedule();
-    task_await(setLightsTask);
+    task_await(compose);
 
     const i32 maxDepth = 5;
     ms_ptscene = pt_scene_new(maxDepth);
@@ -266,6 +324,12 @@ void render_sys_update(void)
     camera_t camera;
     camera_get(&camera);
 
+    {
+        pt_light_t light = lights_get_pt(0);
+        light.pos = f4_add(camera.position, f4_mulvs(quat_fwd(camera.rotation), 4.0f));
+        lights_set_pt(0, light);
+    }
+
     task_t* drawTask = NULL;
     if (cv_pathtrace.asFloat != 0.0f)
     {
@@ -275,19 +339,25 @@ void render_sys_update(void)
         }
         ms_ptcamera = camera;
 
-        ms_trace.bounces = 3;
+        pt_scene_t* scene = ms_ptscene;
+        if (scene)
+        {
+            u32 flatAlbedo = LinearToColor(ms_flatAlbedo);
+            u32 flatRome = LinearToColor(ms_flatRome);
+            for (i32 i = 0; i < scene->matCount; ++i)
+            {
+                scene->materials[i].flatAlbedo = flatAlbedo;
+                scene->materials[i].flatRome = flatRome;
+                scene->materials[i].rome = (textureid_t) { 0 };
+            }
+        }
+
+        ms_trace.bounces = i1_clamp((i32)cv_ptbounces.asFloat, 0, 20);
         ms_trace.sampleWeight = 1.0f / ++ms_sampleCount;
         ms_trace.camera = &ms_ptcamera;
         ms_trace.dstImage = ms_buffer.light;
         ms_trace.imageSize = i2_v(ms_buffer.width, ms_buffer.height);
         ms_trace.scene = ms_ptscene;
-
-        float4 lightPt = f4_add(camera.position, f4_mulvs(quat_fwd(camera.rotation), 2.0f));
-        for (i32 i = 0; i < ms_ptscene->lightCount; ++i)
-        {
-            ms_ptscene->lightPos[i] = lightPt;
-            ms_ptscene->lightRad[i] = *LightRad();
-        }
 
         drawTask = pt_trace(&ms_trace);
         task_sys_schedule();
@@ -310,8 +380,7 @@ void render_sys_update(void)
 
     task_await(drawTask);
     task_t* resolveTask = ResolveTile(&ms_buffer, ms_tonemapper, ms_toneParams);
-    SetEntityMaterials();
-    SetLights();
+    UpdateMaterials();
     task_sys_schedule();
     task_await(resolveTask);
     screenblit_blit(ms_buffer.color, kDrawWidth, kDrawHeight);
@@ -332,8 +401,6 @@ void render_sys_shutdown(void)
 
     screenblit_shutdown();
     framebuf_destroy(&ms_buffer);
-    mesh_destroy(ms_meshid);
-    texture_destroy(ms_material.albedo);
     FragmentStage_Shutdown();
 }
 
@@ -373,164 +440,26 @@ void render_sys_gui(bool* pEnabled)
             igIndent(0.0f);
 
             igColorEdit3("Albedo", &ms_flatAlbedo.x, ldrPicker);
-            ms_material.flatAlbedo = LinearToColor(ms_flatAlbedo);
-
             igSliderFloat("Roughness", &ms_flatRome.x, 0.0f, 1.0f);
             igSliderFloat("Occlusion", &ms_flatRome.y, 0.0f, 1.0f);
             igSliderFloat("Metallic", &ms_flatRome.z, 0.0f, 1.0f);
             igSliderFloat("Emission", &ms_flatRome.w, 0.0f, 1.0f);
-            ms_material.flatRome = LinearToColor(ms_flatRome);
 
-            float4 L = *LightDir();
-            igSliderFloat3("Light Dir", &L.x, -1.0f, 1.0f);
-            *LightDir() = f4_normalize3(L);
-
-            igColorEdit3("Light Radiance", &LightRad()->x, hdrPicker);
+            pt_light_t light = lights_get_pt(0);
+            igColorEdit3("Light Radiance", &light.rad.x, hdrPicker);
+            lights_set_pt(0, light);
             igColorEdit3("Diffuse GI", &DiffuseGI()->x, hdrPicker);
             igColorEdit3("Specular GI", &SpecularGI()->x, hdrPicker);
-            igUnindent(0.0f);
 
-            // lazy hack
-            pt_scene_t* scene = ms_ptscene;
-            if (scene)
-            {
-                for (i32 i = 0; i < scene->matCount; ++i)
-                {
-                    scene->materials[i] = ms_material;
-                }
-            }
+            igUnindent(0.0f);
         }
-    }
+}
     igEnd();
 
     ProfileEnd(pm_gui);
 }
 
 // ----------------------------------------------------------------------------
-
-static bounds_t CalcMeshBounds(meshid_t id)
-{
-    mesh_t mesh = { 0 };
-    if (mesh_get(id, &mesh))
-    {
-        const float kBig = 1 << 20;
-        const float kSmall = 1.0f / (1 << 20);
-
-        float4 lo = f4_s(kBig);
-        float4 hi = f4_s(kSmall);
-
-        const i32 len = mesh.length;
-        const float4* pim_noalias positions = mesh.positions;
-        for (i32 i = 0; i < len; ++i)
-        {
-            const float4 pos = positions[i];
-            lo = f4_min(lo, pos);
-            hi = f4_max(hi, pos);
-        }
-
-        if (len > 0)
-        {
-            float4 center = f4_lerp(lo, hi, 0.5f);
-            float4 extents = f4_sub(hi, center);
-
-            bounds_t bounds;
-            bounds.box.center = center;
-            bounds.box.extents = extents;
-            return bounds;
-        }
-    }
-
-    bounds_t bounds = { 0.0f, 0.0f, 0.0f, 0.0f };
-    return bounds;
-}
-
-static void CreateEntities(meshid_t mesh, material_t material, i32 count)
-{
-    localtoworld_t localToWorld = { f4x4_id };
-    bounds_t bounds = { 0.0f, 0.0f, 0.0f, 1.0f };
-    drawable_t drawable = { 0 };
-    translation_t translation = { 0.0f, 0.0f, 0.0f };
-    void* rows[CompId_COUNT] = { 0 };
-    rows[CompId_Translation] = &translation;
-    rows[CompId_LocalToWorld] = &localToWorld;
-    rows[CompId_Drawable] = &drawable;
-    rows[CompId_Bounds] = &bounds;
-
-    drawable.mesh = mesh;
-    drawable.material = material;
-    bounds = CalcMeshBounds(mesh);
-
-    translation.Value.x = 0.0f;
-    translation.Value.z = 0.0f;
-    translation.Value.y = 0.0f;
-    ecs_create(rows);
-
-    memset(rows, 0, sizeof(rows));
-    light_t light;
-    rotation_t rotation;
-    rows[CompId_Light] = &light;
-    rows[CompId_Rotation] = &rotation;
-    rows[CompId_Translation] = &translation;
-
-    light.radiance = *LightRad();
-    rotation.Value = quat_lookat(*LightDir(), f4_v(0.0f, 1.0f, 0.0f, 0.0f));
-    translation.Value = f4_0;
-    ecs_create(rows);
-}
-
-static void SetEntityMaterialsFn(
-    ecs_foreach_t* task,
-    void** rows,
-    const i32* indices,
-    i32 length)
-{
-    drawable_t* pim_noalias drawables = rows[CompId_Drawable];
-    const material_t mat = ms_material;
-    for (i32 i = 0; i < length; ++i)
-    {
-        const i32 e = indices[i];
-        drawables[e].material = mat;
-    }
-}
-
-static task_t* SetEntityMaterials(void)
-{
-    ecs_foreach_t* task = tmp_calloc(sizeof(*task));
-    ecs_foreach(task, 1 << CompId_Drawable, 0, SetEntityMaterialsFn);
-    return (task_t*)task;
-}
-
-static void SetLightFn(
-    ecs_foreach_t* task,
-    void** rows,
-    const i32* indices,
-    i32 length)
-{
-    light_t* pim_noalias lights = rows[CompId_Light];
-    rotation_t* pim_noalias rotations = rows[CompId_Rotation];
-    translation_t* pim_noalias translations = rows[CompId_Translation];
-
-    const float4 lDir = *LightDir();
-    const float4 lRad = *LightRad();
-    const quat rotation = quat_lookat(lDir, f4_v(0.0f, 1.0f, 0.0f, 0.0f));
-    for (i32 i = 0; i < length; ++i)
-    {
-        const i32 e = indices[i];
-        lights[e].radiance = lRad;
-        rotations[e].Value = rotation;
-    }
-}
-
-static task_t* SetLights(void)
-{
-    ecs_foreach_t* task = tmp_calloc(sizeof(*task));
-    ecs_foreach(
-        task,
-        (1 << CompId_Light) | (1 << CompId_Rotation) | (1 << CompId_Translation),
-        0,
-        SetLightFn);
-    return (task_t*)task;
-}
 
 static meshid_t GenSphereMesh(float r, i32 steps)
 {

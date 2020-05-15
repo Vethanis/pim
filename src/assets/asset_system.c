@@ -8,6 +8,7 @@
 #include "common/stringutil.h"
 #include "containers/dict.h"
 #include "quake/q_packfile.h"
+#include "quake/q_bspfile.h"
 #include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
 #include "containers/text.h"

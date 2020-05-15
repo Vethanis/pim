@@ -59,15 +59,6 @@ typedef enum
     LightType_COUNT
 } LightType;
 
-typedef struct light_s
-{
-    // xyz: radiance of light, HDR value in [0, 1024]
-    // w: LightType
-    float4 radiance;
-    // direction: rotation_t forward vector
-    // position: translation_t
-} light_t;
-
 typedef enum
 {
     CompId_Tag,
@@ -77,7 +68,6 @@ typedef enum
     CompId_LocalToWorld,
     CompId_Drawable,
     CompId_Bounds,
-    CompId_Light,
 
     CompId_COUNT
 } compid_t;

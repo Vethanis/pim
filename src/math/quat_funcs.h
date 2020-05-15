@@ -45,7 +45,7 @@ pim_inline quat VEC_CALL quat_inverse(quat q)
 
 pim_inline quat VEC_CALL quat_lerp(quat a, quat b, float t)
 {
-    return f4_quat(f4_lerp(a.v, b.v, t));
+    return f4_quat(f4_lerpvs(a.v, b.v, t));
 }
 
 pim_inline quat VEC_CALL quat_slerp(quat a, quat b, float t)

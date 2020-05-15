@@ -287,7 +287,7 @@ u32* dict_sort(const dict_t* dict, DictCmpFn cmp, void* usr)
     const u32 length = dict->count;
     const u32 width = dict->width;
     const u32* hashes = dict->hashes;
-    u32* indices = pim_malloc(EAlloc_Temp, length * sizeof(indices[0]));
+    u32* indices = pim_calloc(EAlloc_Temp, length * sizeof(indices[0]));
     u32 j = 0;
     for (u32 i = 0; i < width; ++i)
     {

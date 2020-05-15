@@ -63,16 +63,6 @@ typedef enum
 // ----------------------------------------------------------------------------
 // Brush Models (static bsp)
 
-typedef struct
-{
-    float3 position;
-} mvertex_t;
-
-typedef struct
-{
-    float4 Value;
-} mplane_t;
-
 typedef struct mtexture_s
 {
     char name[16];
@@ -107,7 +97,7 @@ typedef struct
     i32 dlightframe;
     i32 dlightbits;
 
-    mplane_t* plane;
+    float4 plane;
     i32 flags;
 
     i32 firstedge; // model->surfedges[]
@@ -146,7 +136,7 @@ typedef struct mnode_s
     struct mnode_s* parent;
 
 // node specific
-    mplane_t* plane;
+    float4* plane;
     struct mnode_s* children[2];
 
     u16 firstsurface;
@@ -177,7 +167,7 @@ typedef struct mleaf_s
 typedef struct
 {
     dclipnode_t* clipnodes;
-    mplane_t* planes;
+    float4* planes;
     i32 firstclipnode;
     i32 lastclipnode;
     float3 clip_mins;
@@ -414,7 +404,7 @@ typedef struct
     dmodel_t* submodels;
 
     i32 numplanes;
-    mplane_t* planes;
+    float4* planes;
 
     i32 numleafs;
     mleaf_t* leafs;

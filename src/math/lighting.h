@@ -60,7 +60,7 @@ pim_inline float VEC_CALL GGX_D(float NoH, float a)
 // base reflectivity for a surface viewed head-on
 pim_inline float4 VEC_CALL GGX_F0(float4 albedo, float metallic)
 {
-    return f4_lerp(f4_s(0.04f), albedo, metallic);
+    return f4_lerpvs(f4_s(0.04f), albedo, metallic);
 }
 
 // direct fresnel term
@@ -70,7 +70,7 @@ pim_inline float4 VEC_CALL GGX_F(float cosTheta, float4 F0)
 {
     float t = 1.0f - cosTheta;
     float t5 = t * t * t * t * t;
-    return f4_lerp(F0, f4_s(1.0f), t5);
+    return f4_lerpvs(F0, f4_s(1.0f), t5);
 }
 
 // indirect fresnel term
@@ -80,7 +80,7 @@ pim_inline float4 VEC_CALL GGX_FI(float cosTheta, float4 F0, float roughness)
 {
     float t = 1.0f - cosTheta;
     float t5 = t * t * t * t * t;
-    return f4_lerp(F0, f4_max(f4_s(1.0f - roughness), F0), t5);
+    return f4_lerpvs(F0, f4_max(f4_s(1.0f - roughness), F0), t5);
 }
 
 // Cook-Torrance BRDF

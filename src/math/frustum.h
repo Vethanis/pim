@@ -126,39 +126,15 @@ pim_inline float VEC_CALL sdFrusSph(frus_t frus, float4 sphere)
     return f1_max(g, f1_max(h, i));
 }
 
-pim_inline float VEC_CALL sdFrusBoxTest(frus_t frus, box_t box)
+pim_inline float VEC_CALL sdFrusBox(frus_t frus, box_t box)
 {
     float a = sdPlaneBox3D(frus.x0, box.center, box.extents);
-    if (a > 0.0f)
-    {
-        return a;
-    }
     float b = sdPlaneBox3D(frus.x1, box.center, box.extents);
-    if (b > 0.0f)
-    {
-        return b;
-    }
     float c = sdPlaneBox3D(frus.y0, box.center, box.extents);
-    if (c > 0.0f)
-    {
-        return c;
-    }
     float d = sdPlaneBox3D(frus.y1, box.center, box.extents);
-    if (d > 0.0f)
-    {
-        return d;
-    }
     float e = sdPlaneBox3D(frus.z0, box.center, box.extents);
-    if (e > 0.0f)
-    {
-        return e;
-    }
     float f = sdPlaneBox3D(frus.z1, box.center, box.extents);
-    if (f > 0.0f)
-    {
-        return f;
-    }
-    return -1.0f;
+    return f1_max(a, f1_max(b, f1_max(c, f1_max(d, f1_max(e, f)))));
 }
 
 pim_inline float4 VEC_CALL triToSphere(float4 A, float4 B, float4 C)
@@ -176,7 +152,7 @@ pim_inline box_t VEC_CALL triToBox(float4 A, float4 B, float4 C)
 {
     float4 lo = f4_min(A, f4_min(B, C));
     float4 hi = f4_max(A, f4_max(B, C));
-    float4 center = f4_lerp(lo, hi, 0.5f);
+    float4 center = f4_lerpvs(lo, hi, 0.5f);
     float4 extents = f4_sub(hi, center);
     box_t box = { center, extents };
     return box;

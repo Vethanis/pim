@@ -58,6 +58,8 @@
     <ClCompile Include="..\src\rendering\camera.c" />
     <ClCompile Include="..\src\rendering\clear_tile.c" />
     <ClCompile Include="..\src\rendering\fragment_stage.c" />
+    <ClCompile Include="..\src\rendering\lights.c" />
+    <ClCompile Include="..\src\rendering\material.c" />
     <ClCompile Include="..\src\rendering\mesh.c" />
     <ClCompile Include="..\src\rendering\path_tracer.c" />
     <ClCompile Include="..\src\rendering\resolve_tile.c" />
@@ -169,6 +171,7 @@
     <ClInclude Include="..\src\rendering\fragment_stage.h" />
     <ClInclude Include="..\src\rendering\constants.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />
+    <ClInclude Include="..\src\rendering\lights.h" />
     <ClInclude Include="..\src\rendering\path_tracer.h" />
     <ClInclude Include="..\src\rendering\resolve_tile.h" />
     <ClInclude Include="..\src\rendering\sampler.h" />

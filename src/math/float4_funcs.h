@@ -562,14 +562,54 @@ pim_inline float VEC_CALL f4_distancesq3(float4 a, float4 b)
     return f4_lengthsq3(f4_sub(a, b));
 }
 
-pim_inline float4 VEC_CALL f4_lerp(float4 a, float4 b, float t)
+pim_inline float4 VEC_CALL f4_lerp(float4 a, float4 b, float4 t)
+{
+    return f4_add(a, f4_mul(f4_sub(b, a), t));
+}
+pim_inline float4 VEC_CALL f4_lerpvs(float4 a, float4 b, float t)
 {
     return f4_add(a, f4_mulvs(f4_sub(b, a), t));
 }
-
 pim_inline float4 VEC_CALL f4_lerpsv(float a, float b, float4 t)
 {
     return f4_addsv(a, f4_mulvs(t, b - a));
+}
+
+// normalizes x into [a, b] range
+pim_inline float4 VEC_CALL f4_unlerp(float4 a, float4 b, float4 x)
+{
+    return f4_div(f4_sub(x, a), f4_sub(b, a));
+}
+pim_inline float4 VEC_CALL f4_unlerpvs(float4 a, float4 b, float x)
+{
+    return f4_div(f4_subsv(x, a), f4_sub(b, a));
+}
+pim_inline float4 VEC_CALL f4_unlerpsv(float a, float b, float4 x)
+{
+    return f4_divvs(f4_subvs(x, a), b - a);
+}
+
+// remaps x from [a, b] to [c, d] range, without clamping
+pim_inline float4 VEC_CALL f4_remap(
+    float4 a, float4 b,
+    float4 c, float4 d,
+    float4 x)
+{
+    return f4_lerp(c, d, f4_unlerp(a, b, x));
+}
+pim_inline float4 VEC_CALL f4_remapvs(
+    float4 a, float4 b,
+    float4 c, float4 d,
+    float x)
+{
+    return f4_lerp(c, d, f4_unlerpvs(a, b, x));
+}
+pim_inline float4 VEC_CALL f4_remapsv(
+    float a, float b,
+    float c, float d,
+    float4 x)
+{
+    return f4_lerpsv(c, d, f4_unlerpsv(a, b, x));
 }
 
 pim_inline float4 VEC_CALL f4_saturate(float4 a)

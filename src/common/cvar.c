@@ -4,10 +4,13 @@
 #include "common/fnv1a.h"
 #include "common/stringutil.h"
 #include "common/profiler.h"
+#include "common/sort.h"
 #include "containers/dict.h"
 #include "containers/text.h"
 #include "ui/cimgui.h"
 #include <stdlib.h> // atof
+
+typedef text32 cvar_key_t;
 
 static dict_t ms_dict;
 
@@ -15,7 +18,7 @@ static void EnsureInit(void)
 {
     if (!ms_dict.valueSize)
     {
-        dict_new(&ms_dict, sizeof(text32), sizeof(cvar_t*), EAlloc_Perm);
+        dict_new(&ms_dict, sizeof(cvar_key_t), sizeof(cvar_t*), EAlloc_Perm);
     }
 }
 
@@ -28,7 +31,7 @@ void cvar_reg(cvar_t* ptr)
     ASSERT(ptr->description);
     ptr->asFloat = (float)atof(ptr->value);
 
-    text32 txt;
+    cvar_key_t txt;
     text_new(&txt, sizeof(txt), ptr->name);
     bool added = dict_add(&ms_dict, &txt, &ptr);
     ASSERT(added);
@@ -39,7 +42,7 @@ cvar_t* cvar_find(const char* name)
     EnsureInit();
 
     ASSERT(name);
-    text32 txt;
+    cvar_key_t txt;
     text_new(&txt, sizeof(txt), name);
     const i32 i = dict_find(&ms_dict, &txt);
     if (i != -1)
@@ -57,7 +60,7 @@ const char* cvar_complete(const char* namePart)
     ASSERT(namePart);
     const i32 partLen = StrLen(namePart);
     const u32 width = ms_dict.width;
-    const text32* names = ms_dict.keys;
+    const cvar_key_t* names = ms_dict.keys;
     for (u32 i = 0; i < width; ++i)
     {
         const char* name = names[i].c;
@@ -100,6 +103,16 @@ bool cvar_check_dirty(cvar_t* ptr)
     return false;
 }
 
+static i32 CmpCvarDict(
+    const void* lKey, const void* rKey,
+    const void* lVal, const void* rVal,
+    void* usr)
+{
+    return StrCmp(lKey, sizeof(cvar_key_t), rKey);
+}
+
+static char ms_search[sizeof(cvar_key_t)];
+
 ProfileMark(pm_gui, cvar_gui)
 void cvar_gui(bool* pEnabled)
 {
@@ -108,17 +121,29 @@ void cvar_gui(bool* pEnabled)
 
     if (igBegin("Config Vars", pEnabled, 0))
     {
-        const u32 width = ms_dict.width;
         cvar_t** cvars = ms_dict.values;
+        const i32 length = ms_dict.count;
+        const u32* indices = dict_sort(&ms_dict, CmpCvarDict, NULL);
+
+        igInputText("Search", ARGS(ms_search), 0, NULL, NULL);
+
+        igSeparator();
 
         igColumns(2);
-        for (u32 i = 0; i < width; ++i)
+        for (i32 i = 0; i < length; ++i)
         {
-            cvar_t* cvar = cvars[i];
+            u32 j = indices[i];
+            cvar_t* cvar = cvars[j];
             if (!cvar)
             {
                 continue;
             }
+
+            if (ms_search[0] && !StrIStr(cvar->name, sizeof(cvar_key_t), ms_search))
+            {
+                continue;
+            }
+
             switch (cvar->type)
             {
             default: ASSERT(false); break;
@@ -159,7 +184,7 @@ void cvar_gui(bool* pEnabled)
             break;
             }
             igNextColumn();
-            igText(cvars[i]->description); igNextColumn();
+            igText(cvar->description); igNextColumn();
         }
         igColumns(1);
     }

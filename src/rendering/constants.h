@@ -18,4 +18,6 @@ enum
 SASSERT((kDrawWidth % kTilesPerDim) == 0);
 SASSERT((kDrawHeight % kTilesPerDim) == 0);
 
+static const float kDrawAspect = (float)kDrawWidth / kDrawHeight;
+
 PIM_C_END

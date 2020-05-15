@@ -19,7 +19,6 @@ static const i32 kComponentSize[] =
     sizeof(localtoworld_t),
     sizeof(drawable_t),
     sizeof(bounds_t),
-    sizeof(light_t),
 };
 SASSERT(NELEM(kComponentSize) == CompId_COUNT);
 
@@ -77,8 +76,8 @@ ent_t ecs_create(const void** data)
         ms_flags = perm_realloc(ms_flags, sizeof(ms_flags[0]) * len);
         for (i32 c = 0; c < CompId_COUNT; ++c)
         {
-            ms_versions[c] = perm_realloc(ms_versions, sizeof(ms_versions[0]) * len);
-            ms_components[c] = perm_realloc(ms_components, kComponentSize[c] * len);
+            ms_versions[c] = perm_realloc(ms_versions[c], sizeof(ms_versions[c][0]) * len);
+            ms_components[c] = perm_realloc(ms_components[c], kComponentSize[c] * len);
         }
         ms_entities[e] = 0;
     }

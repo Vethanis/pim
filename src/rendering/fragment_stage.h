@@ -13,9 +13,6 @@ void FragmentStage_Init(void);
 void FragmentStage_Shutdown(void);
 struct task_s* FragmentStage(struct framebuf_s* target);
 
-// temporary until we have a better scene data structure
-float4* LightDir(void);
-float4* LightRad(void);
 float4* DiffuseGI(void);
 float4* SpecularGI(void);
 u64 Frag_TrisCulled(void);

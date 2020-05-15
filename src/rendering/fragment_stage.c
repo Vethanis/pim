@@ -22,14 +22,12 @@
 #include "rendering/material.h"
 #include "rendering/camera.h"
 #include "rendering/framebuffer.h"
+#include "rendering/lights.h"
 
 typedef struct fragstage_s
 {
     task_t task;
     framebuf_t* target;
-    i32 lightCount;
-    const float4* lightDirs;
-    const float4* lightRads;
 } fragstage_t;
 
 typedef struct drawmesh_s
@@ -38,40 +36,56 @@ typedef struct drawmesh_s
     meshid_t mesh;
 } drawmesh_t;
 
-static ptrqueue_t ms_queues[kTileCount];
+typedef struct tile_ctx_s
+{
+    frus_t frus;
+    float4x4 VP;
+    float4 tileNormal;
+    float4 eye;
+    float4 right;
+    float4 up;
+    float4 fwd;
+    float2 slope;
+    float2 tileMin;
+    float2 tileMax;
+    float nearClip;
+    float farClip;
+} tile_ctx_t;
+
+static ptrqueue_t ms_fragQueues[kTileCount];
 static BrdfLut ms_lut;
-static float4 ms_lightDir;
-static float4 ms_lightRad;
 static float4 ms_diffuseGI;
 static float4 ms_specularGI;
 static u64 ms_trisCulled;
 static u64 ms_trisDrawn;
 
-float4* LightDir(void) { return &ms_lightDir; }
-float4* LightRad(void) { return &ms_lightRad; }
 float4* DiffuseGI(void) { return &ms_diffuseGI; }
 float4* SpecularGI(void) { return &ms_specularGI; }
 u64 Frag_TrisCulled(void) { return ms_trisCulled; }
 u64 Frag_TrisDrawn(void) { return ms_trisDrawn; }
 
+static void SetupTile(tile_ctx_t* ctx, i32 iTile);
 static float4 VEC_CALL TriBounds(float4x4 VP, float4 A, float4 B, float4 C, float2 tileMin, float2 tileMax);
-static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile);
+static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const drawmesh_t* draw);
 
 pim_optimize
 static void FragmentStageFn(task_t* task, i32 begin, i32 end)
 {
     fragstage_t* stage = (fragstage_t*)task;
     framebuf_t* pim_noalias target = stage->target;
+    tile_ctx_t ctx;
 
     for (i32 i = begin; i < end; ++i)
     {
-        ptrqueue_t* queue = ms_queues + i;
+        SetupTile(&ctx, i);
+
+        ptrqueue_t* queue = ms_fragQueues + i;
         drawmesh_t* draw = NULL;
     trypop:
         draw = ptrqueue_trypop(queue);
         if (draw)
         {
-            DrawMesh(target, draw, i);
+            DrawMesh(&ctx, target, draw);
             goto trypop;
         }
     }
@@ -85,7 +99,7 @@ void SubmitMesh(meshid_t worldMesh, material_t material)
 
     for (i32 i = 0; i < kTileCount; ++i)
     {
-        bool pushed = ptrqueue_trypush(ms_queues + i, draw);
+        bool pushed = ptrqueue_trypush(ms_fragQueues + i, draw);
         ASSERT(pushed);
     }
 }
@@ -94,7 +108,7 @@ void FragmentStage_Init(void)
 {
     for (i32 i = 0; i < kTileCount; ++i)
     {
-        ptrqueue_create(ms_queues + i, EAlloc_Perm, 256);
+        ptrqueue_create(ms_fragQueues + i, EAlloc_Perm, 8192);
     }
     ms_lut = BakeBRDF(i2_s(256), 1024);
 }
@@ -103,7 +117,7 @@ void FragmentStage_Shutdown(void)
 {
     for (i32 i = 0; i < kTileCount; ++i)
     {
-        ptrqueue_destroy(ms_queues + i);
+        ptrqueue_destroy(ms_fragQueues + i);
     }
     FreeBrdfLut(&ms_lut);
 }
@@ -120,24 +134,8 @@ struct task_s* FragmentStage(struct framebuf_s* target)
     store_u64(&ms_trisDrawn, 0, MO_Release);
 #endif // CULLING_STATS
 
-    i32 lightCount = 0;
-    const u32 lightQuery = (1 << CompId_Light) | (1 << CompId_Rotation);
-    const ent_t* lightEnts = ecs_query(lightQuery, 0, &lightCount);
-
-    light_t* lights = ecs_gather(CompId_Light, lightEnts, lightCount);
-    rotation_t* lightRots = ecs_gather(CompId_Rotation, lightEnts, lightCount);
-
-    for (i32 i = 0; i < lightCount; ++i)
-    {
-        quat rot = lightRots[i].Value;
-        lightRots[i].Value.v = quat_fwd(rot);
-    }
-
     fragstage_t* stage = tmp_calloc(sizeof(*stage));
     stage->target = target;
-    stage->lightCount = lightCount;
-    stage->lightRads = (float4*)lights;
-    stage->lightDirs = (float4*)lightRots;
     task_submit((task_t*)stage, FragmentStageFn, kTileCount);
 
     ProfileEnd(pm_FragmentStage);
@@ -169,8 +167,34 @@ static float4 VEC_CALL TriBounds(float4x4 VP, float4 A, float4 B, float4 C, floa
     return bounds;
 }
 
+
+static void SetupTile(tile_ctx_t* ctx, i32 iTile)
+{
+    camera_t camera;
+    camera_get(&camera);
+
+    const int2 tile = GetTile(iTile);
+    ctx->nearClip = camera.nearFar.x;
+    ctx->farClip = camera.nearFar.y;
+    ctx->slope = proj_slope(f1_radians(camera.fovy), kDrawAspect);
+
+    ctx->fwd = quat_fwd(camera.rotation);
+    ctx->right = quat_right(camera.rotation);
+    ctx->up = quat_up(camera.rotation);
+    ctx->eye = camera.position;
+
+    ctx->tileMin = TileMin(tile);
+    ctx->tileMax = TileMax(tile);
+    ctx->tileNormal = proj_dir(ctx->right, ctx->up, ctx->fwd, ctx->slope, f2_lerp(ctx->tileMin, ctx->tileMax, 0.5f));
+    ctx->frus = frus_new(ctx->eye, ctx->right, ctx->up, ctx->fwd, ctx->tileMin, ctx->tileMax, ctx->slope, camera.nearFar);
+
+    float4x4 V = f4x4_lookat(ctx->eye, f4_add(ctx->eye, ctx->fwd), ctx->up);
+    float4x4 P = f4x4_perspective(f1_radians(camera.fovy), kDrawAspect, ctx->nearClip, ctx->farClip);
+    ctx->VP = f4x4_mul(P, V);
+}
+
 pim_optimize
-static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
+static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const drawmesh_t* draw)
 {
     mesh_t mesh;
     texture_t albedoMap;
@@ -179,9 +203,34 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
     {
         return;
     }
-    
+
+    const float dx = 1.0f / kDrawWidth;
+    const float dy = 1.0f / kDrawHeight;
+    const float e = 1.0f / (1 << 10);
+
+    const BrdfLut lut = ms_lut;
+    const float4 flatAlbedo = ColorToLinear(draw->material.flatAlbedo);
+    const float4 flatRome = ColorToLinear(draw->material.flatRome);
     const bool hasAlbedo = texture_get(draw->material.albedo, &albedoMap);
     const bool hasRome = texture_get(draw->material.rome, &romeMap);
+    const float4 diffuseGI = ms_diffuseGI;
+    const float4 specularGI = ms_specularGI;
+
+    const float4 eye = ctx->eye;
+    const float4 fwd = ctx->fwd;
+    const float4 right = ctx->right;
+    const float4 up = ctx->up;
+    const float2 slope = ctx->slope;
+    const float nearClip = ctx->nearClip;
+    const float farClip = ctx->farClip;
+    const float2 tileMin = ctx->tileMin;
+    const float2 tileMax = ctx->tileMax;
+
+    const lights_t* lights = lights_get();
+    const i32 dirCount = lights->dirCount;
+    const dir_light_t* pim_noalias dirLights = lights->dirLights;
+    const i32 ptCount = lights->ptCount;
+    const pt_light_t* pim_noalias ptLights = lights->ptLights;
 
     float4* pim_noalias dstLight = target->light;
     float* pim_noalias dstDepth = target->depth;
@@ -190,44 +239,6 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
     const float4* pim_noalias normals = mesh.normals;
     const float2* pim_noalias uvs = mesh.uvs;
     const i32 vertCount = mesh.length;
-
-    camera_t camera;
-    camera_get(&camera);
-
-    const BrdfLut lut = ms_lut;
-
-    const int2 tile = GetTile(iTile);
-    const float aspect = (float)kDrawWidth / kDrawHeight;
-    const float dx = 1.0f / kDrawWidth;
-    const float dy = 1.0f / kDrawHeight;
-    const float e = 1.0f / (1 << 10);
-    const float nearClip = camera.nearFar.x;
-    const float farClip = camera.nearFar.y;
-    const float2 slope = proj_slope(f1_radians(camera.fovy), aspect);
-
-    const float4 fwd = quat_fwd(camera.rotation);
-    const float4 right = quat_right(camera.rotation);
-    const float4 up = quat_up(camera.rotation);
-    const float4 eye = camera.position;
-
-    const float2 tileMin = TileMin(tile);
-    const float2 tileMax = TileMax(tile);
-    const float4 tileNormal = proj_dir(right, up, fwd, slope, f2_lerp(tileMin, tileMax, 0.5f));
-    const frus_t frus = frus_new(eye, right, up, fwd, tileMin, tileMax, slope, camera.nearFar);
-
-    float4x4 VP;
-    {
-        const float4x4 V = f4x4_lookat(eye, f4_add(eye, fwd), up);
-        const float4x4 P = f4x4_perspective(f1_radians(camera.fovy), aspect, nearClip, farClip);
-        VP = f4x4_mul(P, V);
-    }
-
-    const float4 diffuseGI = ms_diffuseGI;
-    const float4 specularGI = ms_specularGI;
-    const float4 L = f4_normalize3(ms_lightDir);
-    const float4 radiance = ms_lightRad;
-    const float4 flatAlbedo = ColorToLinear(draw->material.flatAlbedo);
-    const float4 flatRome = ColorToLinear(draw->material.flatRome);
 
     for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
     {
@@ -239,14 +250,14 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
         const float4 CA = f4_sub(C, A);
 
         // backface culling
-        if (f4_dot3(tileNormal, f4_cross3(CA, BA)) < 0.0f)
+        if (f4_dot3(ctx->tileNormal, f4_cross3(CA, BA)) < 0.0f)
         {
             continue;
         }
 
         // tile-frustum-triangle culling
         const box_t triBox = triToBox(A, B, C);
-        const float boxDist = sdFrusBoxTest(frus, triBox);
+        const float boxDist = sdFrusBox(ctx->frus, triBox);
         if (boxDist > 0.0f)
         {
 #if CULLING_STATS
@@ -270,7 +281,8 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
         const float4 Q = f4_cross3(T, BA);
         const float t0 = f4_dot3(CA, Q);
 
-        const float4 bounds = TriBounds(VP, A, B, C, tileMin, tileMax);
+        // bounds is broken by triangle clipping / clip space
+        const float4 bounds = TriBounds(ctx->VP, A, B, C, tileMin, tileMax);
         for (float y = bounds.y; y < bounds.w; y += dy)
         {
             for (float x = bounds.x; x < bounds.z; x += dx)
@@ -289,27 +301,27 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
                 {
                     // barycentric and depth clipping
                     const float rcpDet = 1.0f / det;
-                    wuvt.w = t0 * rcpDet;
-                    if (wuvt.w < nearClip || wuvt.w > farClip || wuvt.w > dstDepth[iTexel])
+                    float t = t0 * rcpDet;
+                    if ((t < nearClip) || (t > dstDepth[iTexel]))
                     {
                         continue;
                     }
                     wuvt.y = f4_dot3(T, rdXca) * rcpDet;
                     wuvt.z = f4_dot3(rd, Q) * rcpDet;
                     wuvt.x = 1.0f - wuvt.y - wuvt.z;
-                    if (wuvt.x < 0.0f || wuvt.y < 0.0f || wuvt.z < 0.0f)
+                    if ((wuvt.x < 0.0f) || (wuvt.y < 0.0f) || (wuvt.z < 0.0f))
                     {
                         continue;
                     }
-                    dstDepth[iTexel] = wuvt.w;
+                    dstDepth[iTexel] = t;
                 }
 
-                float4 light;
+                float4 lighting = f4_0;
                 {
                     // blend interpolators
                     const float4 P = f4_blend(A, B, C, wuvt);
                     const float4 N = f4_normalize3(f4_blend(NA, NB, NC, wuvt));
-                    const float2 U = f2_blend(UA, UB, UC, wuvt);
+                    const float2 U = f2_frac(f2_blend(UA, UB, UC, wuvt));
 
                     // lighting
                     const float4 V = f4_normalize3(f4_sub(eye, P));
@@ -323,13 +335,28 @@ static void VEC_CALL DrawMesh(framebuf_t* target, drawmesh_t* draw, i32 iTile)
                     {
                         rome = f4_mul(rome, Tex_Bilinearf2(romeMap, U));
                     }
-                    const float4 direct = DirectBRDF(V, L, radiance, N, albedo, rome.x, rome.z);
-                    const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
-                    light = f4_add(direct, indirect);
-                    light.w = 1.0f;
+                    for (i32 iLight = 0; iLight < dirCount; ++iLight)
+                    {
+                        dir_light_t light = dirLights[iLight];
+                        const float4 direct = DirectBRDF(V, light.dir, light.rad, N, albedo, rome.x, rome.z);
+                        const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
+                        lighting = f4_add(lighting, f4_add(direct, indirect));
+                    }
+                    for (i32 iLight = 0; iLight < ptCount; ++iLight)
+                    {
+                        pt_light_t light = ptLights[iLight];
+                        float4 dir = f4_sub(light.pos, P);
+                        float dist = f4_length3(dir);
+                        dir = f4_divvs(dir, dist);
+                        float attenuation = 1.0f / (0.01f + dist * dist);
+                        light.rad = f4_mulvs(light.rad, attenuation);
+                        const float4 direct = DirectBRDF(V, dir, light.rad, N, albedo, rome.x, rome.z);
+                        const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
+                        lighting = f4_add(lighting, f4_add(direct, indirect));
+                    }
                 }
 
-                dstLight[iTexel] = light;
+                dstLight[iTexel] = lighting;
             }
         }
     }

@@ -21,9 +21,6 @@ typedef struct pt_scene_s
     // surface description, indexed by normal.w
     struct material_s* materials;
 
-    float4* lightPos;
-    float4* lightRad;
-
     // full octree
     // child(p, i) = 8 * p + i + 1
     box_t* boxes; // aabb of node

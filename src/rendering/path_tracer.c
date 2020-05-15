@@ -3,6 +3,7 @@
 #include "rendering/mesh.h"
 #include "rendering/camera.h"
 #include "rendering/sampler.h"
+#include "rendering/lights.h"
 
 #include "math/float2_funcs.h"
 #include "math/float4_funcs.h"
@@ -207,7 +208,7 @@ pt_scene_t* pt_scene_new(i32 maxDepth)
         sceneMax = f4_add(sceneMax, f4_mulvs(f4_abs(sceneMax), 0.01f));
         sceneMin = f4_sub(sceneMin, f4_mulvs(f4_abs(sceneMin), 0.01f));
         box_t bounds;
-        bounds.center = f4_lerp(sceneMin, sceneMax, 0.5f);
+        bounds.center = f4_lerpvs(sceneMin, sceneMax, 0.5f);
         bounds.extents = f4_sub(sceneMax, bounds.center);
 
         const i32 nodeCount = CalcNodeCount(maxDepth);
@@ -234,27 +235,6 @@ pt_scene_t* pt_scene_new(i32 maxDepth)
         scene->lenpops = lenpops;
     }
 
-    {
-        const u32 lightQuery = (1 << CompId_Light) | (1 << CompId_Translation);
-        i32 lightCount = 0;
-        ent_t* lightEnts = ecs_query(lightQuery, 0, &lightCount);
-        float4* lightPos = perm_malloc(sizeof(lightPos[0]) * lightCount);
-        float4* lightRad = perm_malloc(sizeof(lightRad[0]) * lightCount);
-
-        for (i32 i = 0; i < lightCount; ++i)
-        {
-            ent_t ent = lightEnts[i];
-            const light_t* light = ecs_get(ent, CompId_Light);
-            const translation_t* translation = ecs_get(ent, CompId_Translation);
-            lightPos[i] = translation->Value;
-            lightRad[i] = light->radiance;
-        }
-
-        scene->lightCount = lightCount;
-        scene->lightPos = lightPos;
-        scene->lightRad = lightRad;
-    }
-
     return scene;
 }
 
@@ -267,9 +247,6 @@ void pt_scene_del(pt_scene_t* scene)
     pim_free(scene->uvs);
 
     pim_free(scene->materials);
-
-    pim_free(scene->lightPos);
-    pim_free(scene->lightRad);
 
     pim_free(scene->boxes);
     for (i32 i = 0; i < scene->nodeCount; ++i)
@@ -395,28 +372,6 @@ pim_inline const material_t* VEC_CALL GetMaterial(const pt_scene_t* scene, i32 i
     return scene->materials + iMat;
 }
 
-pim_inline float4 VEC_CALL GetAlbedo(const material_t* mat, float2 uv)
-{
-    float4 value = ColorToLinear(mat->flatAlbedo);
-    texture_t tex;
-    if (texture_get(mat->albedo, &tex))
-    {
-        value = f4_mul(value, Tex_Bilinearf2(tex, uv));
-    }
-    return value;
-}
-
-pim_inline float4 VEC_CALL GetRome(const material_t* mat, float2 uv)
-{
-    float4 value = ColorToLinear(mat->flatRome);
-    texture_t tex;
-    if (texture_get(mat->rome, &tex))
-    {
-        value = f4_mul(value, Tex_Bilinearf2(tex, uv));
-    }
-    return value;
-}
-
 pim_inline bool VEC_CALL ScatterLambertian(
     prng_t* rng,
     ray_t rin,
@@ -470,49 +425,61 @@ static void VEC_CALL GetSurface(
     const float2 uv = GetVert2(scene->uvs, iVert, wuvt);
     surf->P = GetVert4(scene->positions, iVert, wuvt);
     surf->N = f4_normalize3(GetVert4(scene->normals, iVert, wuvt));
-    surf->albedo = GetAlbedo(mat, uv);
-    surf->rome = GetRome(mat, uv);
+    surf->albedo = material_albedo(mat, uv);
+    surf->rome = material_rome(mat, uv);
     // offset to avoid self-intersection
     surf->P = f4_add(surf->P, f4_mulvs(surf->N, 0.001f));
 }
 
 pim_optimize
 static float4 VEC_CALL SampleLights(
+    prng_t* rng,
+    ray_t rin,
     const pt_scene_t* scene,
     const surfhit_t* surf)
 {
     float4 reflected = f4_s(0.0f);
 
-    const i32 lightCount = scene->lightCount;
-    const float4* pim_noalias lightPositions = scene->lightPos;
-    const float4* pim_noalias lightRadiances = scene->lightRad;
-    for (i32 i = 0; i < lightCount; ++i)
+    const lights_t* lights = lights_get();
+    const i32 ptLightCount = lights->ptCount;
+    const pt_light_t* ptLights = lights->ptLights;
+
+    for (i32 i = 0; i < ptLightCount; ++i)
     {
-        float4 L = f4_sub(lightPositions[i], surf->P);
-        float lDist = f4_length3(L);
-        L = f4_divvs(L, lDist);
-        float cosTheta = f4_dot3(L, surf->N);
-        if (cosTheta > 0.0f)
+        float4 attenuation;
+        ray_t scattered;
+        if (Scatter(rng, rin, surf, &attenuation, &scattered))
         {
-            float4 wuvt;
-            ray_t ray = { surf->P, L };
-            i32 iRay = TraceRay(
-                scene,
-                0,
-                ray,
-                f4_rcp(ray.rd),
-                lDist,
-                &wuvt);
-            if (iRay == -1)
+            float4 pos = ptLights[i].pos;
+            float4 L = f4_sub(pos, scattered.ro);
+            float dist = f4_length3(L);
+            L = f4_divvs(L, dist);
+
+            const float radius = 1.0f;
+            float t = isectSphere3D(scattered.ro, scattered.rd, pos, radius);
+
+            float cosTheta = f4_dot3(L, surf->N);
+            if (t >= 0.0f && cosTheta > 0.0f)
             {
-                float attenuation = cosTheta / (lDist*lDist);
-                reflected = f4_add(
-                    reflected, f4_mulvs(lightRadiances[i], attenuation));
+                float4 wuvt;
+                ray_t ray = { surf->P, L };
+                i32 iRay = TraceRay(
+                    scene,
+                    0,
+                    ray,
+                    f4_rcp(ray.rd),
+                    dist,
+                    &wuvt);
+                if (iRay == -1)
+                {
+                    reflected = f4_add(reflected,
+                        f4_mul(ptLights[i].rad, attenuation));
+                }
             }
         }
     }
 
-    return f4_mul(reflected, surf->albedo);
+    return reflected;
 }
 
 pim_optimize
@@ -536,7 +503,7 @@ static float4 VEC_CALL TracePixel(
         surfhit_t surf;
         GetSurface(scene, iVert, wuvt, &surf);
 
-        light = f4_add(light, SampleLights(scene, &surf));
+        light = f4_add(light, SampleLights(rng, ray, scene, &surf));
 
         ray_t scattered;
         float4 attenuation;
@@ -549,6 +516,8 @@ static float4 VEC_CALL TracePixel(
 
     return light;
 }
+
+static prng_t ms_rngs[kNumThreads];
 
 pim_optimize
 static void TraceFn(task_t* task, i32 begin, i32 end)
@@ -568,7 +537,12 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
     const float4 fwd = quat_fwd(rot);
     const float2 slope = proj_slope(f1_radians(camera.fovy), (float)size.x / (float)size.y);
 
-    prng_t rng = prng_create();
+    const i32 tid = task_thread_id();
+    prng_t rng = ms_rngs[tid];
+    if (rng.state == 0)
+    {
+        rng = prng_create();
+    }
 
     const float2 dSize = f2_rcp(i2_f2(size));
     for (i32 i = begin; i < end; ++i)
@@ -579,8 +553,10 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
         const float4 rd = proj_dir(right, up, fwd, slope, coord);
         ray_t ray = { ro, rd };
         float4 sample = TracePixel(&rng, scene, ray, 0, bounces);
-        image[i] = f4_lerp(image[i], sample, sampleWeight);
+        image[i] = f4_lerpvs(image[i], sample, sampleWeight);
     }
+
+    ms_rngs[tid] = rng;
 }
 
 struct task_s* pt_trace(pt_trace_t* desc)

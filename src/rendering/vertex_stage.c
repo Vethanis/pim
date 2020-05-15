@@ -52,7 +52,7 @@ static void VertexStageForEach(ecs_foreach_t* task, void** rows, const i32* indi
     {
         const i32 e = indices[i];
         const box_t box = TransformBox(matrices[e], bounds[e].box);
-        const bool visible = sdFrusBoxTest(frus, box) <= 0.0f;
+        const bool visible = sdFrusBox(frus, box) <= 0.0f;
         drawables[e].visible = visible;
 
 #if CULLING_STATS

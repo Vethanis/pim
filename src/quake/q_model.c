@@ -169,6 +169,8 @@ static mmodel_t* LoadBrushModel(const void* buffer, EAlloc allocator)
 
                 ASSERT((mt->width & 15) == 0);
                 ASSERT((mt->height & 15) == 0);
+                // equivalent to (x*x) + (x/2 * x/2) + (x/4 * x/4) + (x/8 * x/8)
+                // each texel is a single byte. decodable to a color by using a palette.
                 const i32 pixels = (mt->width * mt->height / 64) * 85;
                 ASSERT(pixels > 0);
 
@@ -216,11 +218,11 @@ static mmodel_t* LoadBrushModel(const void* buffer, EAlloc allocator)
         ASSERT((lump.filelen % sizeof(*src)) == 0);
         ASSERT(count >= 0);
 
-        mplane_t* dst = pim_malloc(allocator, sizeof(*dst) * count);
+        float4* dst = pim_malloc(allocator, sizeof(*dst) * count);
 
         for (i32 i = 0; i < count; ++i)
         {
-            dst[i].Value = f4_v(
+            dst[i] = f4_v(
                 src[i].normal.x,
                 src[i].normal.y,
                 src[i].normal.z,
@@ -302,7 +304,7 @@ static mmodel_t* LoadBrushModel(const void* buffer, EAlloc allocator)
                 dst[i].flags |= SURF_PLANEBACK;
             }
 
-            dst[i].plane = model->planes + src[i].planenum;
+            dst[i].plane = model->planes[src[i].planenum];
             dst[i].texinfo = model->texinfo + src[i].texinfo;
 
             for (i32 j = 0; j < MAXLIGHTMAPS; ++j)

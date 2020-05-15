@@ -25,4 +25,9 @@ bool texture_destroy(textureid_t id);
 bool texture_current(textureid_t id);
 bool texture_get(textureid_t id, texture_t* dst);
 
+bool texture_register(const char* name, textureid_t id);
+textureid_t texture_lookup(const char* name);
+
+textureid_t texture_unpalette(const u8* bytes, int2 size);
+
 PIM_C_END

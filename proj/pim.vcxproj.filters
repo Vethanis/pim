@@ -340,6 +340,12 @@
     <ClCompile Include="..\src\quake\q_model.c">
       <Filter>Source Files\quake</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\lights.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\material.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -737,6 +743,9 @@
     </ClInclude>
     <ClInclude Include="..\src\quake\q_bspfile.h">
       <Filter>Source Files\quake</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\lights.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

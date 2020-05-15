@@ -16,4 +16,7 @@ typedef struct material_s
     textureid_t rome;       // rgba8 srgb (roughness, occlusion, metallic, emission)
 } material_t;
 
+float4 VEC_CALL material_albedo(const material_t* mat, float2 uv);
+float4 VEC_CALL material_rome(const material_t* mat, float2 uv);
+
 PIM_C_END

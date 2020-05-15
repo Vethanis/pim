@@ -25,6 +25,9 @@ static void ResolveTileFn(task_t* task, i32 begin, i32 end)
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
 
+    const float kDitherScale = 1.0f / 256.0f;
+    prng_t rng = prng_create();
+
     for (i32 iTile = begin; iTile < end; ++iTile)
     {
         const int2 tile = GetTile(iTile);
@@ -33,7 +36,9 @@ static void ResolveTileFn(task_t* task, i32 begin, i32 end)
             for (i32 tx = 0; tx < kTileWidth; ++tx)
             {
                 i32 i = (tile.x + tx) + (tile.y + ty) * kDrawWidth;
-                color[i] = f4_rgba8(tmap(light[i], tmapParams));
+                float4 ldr = tmap(light[i], tmapParams);
+                ldr = f4_lerpvs(ldr, f4_rand(&rng), kDitherScale);
+                color[i] = f4_rgba8(ldr);
             }
         }
     }

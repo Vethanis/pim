@@ -33,6 +33,13 @@ pim_inline int2 VEC_CALL Tex_ClampCoord(int2 size, int2 coord)
     return i2_clamp(coord, i2_s(0), i2_add(size, i2_s(-1)));
 }
 
+pim_inline int2 VEC_CALL Tex_WrapCoord(int2 size, int2 coord)
+{
+    coord = i2_abs(coord);
+    int2 y = { coord.x & size.x, coord.y % size.y };
+    return y;
+}
+
 pim_inline i32 VEC_CALL Tex_CoordToIndex(int2 size, int2 coord)
 {
     return coord.x + coord.y * size.x;
@@ -40,7 +47,7 @@ pim_inline i32 VEC_CALL Tex_CoordToIndex(int2 size, int2 coord)
 
 pim_inline float4 VEC_CALL Tex_Nearesti2(texture_t texture, int2 coord)
 {
-    coord = Tex_ClampCoord(texture.size, coord);
+    coord = Tex_WrapCoord(texture.size, coord);
     i32 i = Tex_CoordToIndex(texture.size, coord);
     return ColorToLinear(texture.texels[i]);
 }
@@ -62,7 +69,7 @@ pim_inline float4 VEC_CALL Tex_Bilinearf2(texture_t texture, float2 uv)
     float4 b = Tex_Nearesti2(texture, ib);
     float4 c = Tex_Nearesti2(texture, ic);
     float4 d = Tex_Nearesti2(texture, id);
-    float4 e = f4_lerp(f4_lerp(a, b, frac.x), f4_lerp(c, d, frac.x), frac.y);
+    float4 e = f4_lerpvs(f4_lerpvs(a, b, frac.x), f4_lerpvs(c, d, frac.x), frac.y);
     return e;
 }
 
