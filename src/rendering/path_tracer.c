@@ -376,11 +376,13 @@ static rayhit_t VEC_CALL TraceRay(
         return hit;
     }
 
+    const float e = 0.001f;
+
     // test box
     const float2 nearFar = isectBox3D(ray.ro, rcpRd, scene->boxes[n]);
     if ((nearFar.y <= nearFar.x) || // miss
         (nearFar.x > limit) || // further away, culled
-        (nearFar.y < 0.0f)) // behind eye
+        (nearFar.y < e)) // behind eye
     {
         return hit;
     }
@@ -397,7 +399,12 @@ static rayhit_t VEC_CALL TraceRay(
 
             float4 tri = isectTri3D(
                 ray.ro, ray.rd, vertices[j + 0], vertices[j + 1], vertices[j + 2]);
-            if (b4_any(f4_ltvs(tri, 0.0f)) || (hit.wuvt.w < tri.w))
+            float t = tri.w;
+            if (t < e || t > hit.wuvt.w)
+            {
+                continue;
+            }
+            if (b4_any(f4_ltvs(tri, 0.0f)))
             {
                 continue;
             }
@@ -419,13 +426,14 @@ static rayhit_t VEC_CALL TraceRay(
             ASSERT(j < lights_pt_count());
             const pt_light_t light = lights[j];
 
-            float s = isectSphere3D(ray.ro, ray.rd, light.pos, light.pos.w);
-            if ((s > 0.0f) && (s < hit.wuvt.w))
+            float t = isectSphere3D(ray.ro, ray.rd, light.pos, light.pos.w);
+            if (t < e || t > hit.wuvt.w)
             {
-                hit.type = hit_ptlight;
-                hit.index = j;
-                hit.wuvt.w = s;
+                continue;
             }
+            hit.type = hit_ptlight;
+            hit.index = j;
+            hit.wuvt.w = t;
         }
     }
 
@@ -560,9 +568,6 @@ static surfhit_t VEC_CALL GetSurface(
     break;
     }
 
-    // offset to avoid self-intersection
-    surf.P = f4_add(surf.P, f4_mulvs(surf.N, 0.001f));
-
     return surf;
 }
 
@@ -594,7 +599,7 @@ static float4 VEC_CALL TracePixel(
         {
             ray = newRay;
             attenuation = f4_mul(attenuation, newAtten);
-            const float e = 1.0f / (1 << 20);
+            const float e = 3.0f / (1 << 18);
             if (f4_sum3(attenuation) < e)
             {
                 break;
