@@ -38,7 +38,7 @@
 #include <string.h>
 
 static cvar_t cv_pathtrace = { cvart_bool, 0, "pathtrace", "0", "enable path tracing of scene" };
-static cvar_t cv_ptbounces = { cvart_int, 0, "ptbounces", "4", "number of bounces in the path tracer" };
+static cvar_t cv_ptbounces = { cvart_int, 0, "ptbounces", "6", "number of bounces in the path tracer" };
 
 // ----------------------------------------------------------------------------
 
@@ -279,7 +279,7 @@ void render_sys_init(void)
     cvar_reg(&cv_ptbounces);
 
     ms_prng = prng_create();
-    ms_tonemapper = TMap_Reinhard;
+    ms_tonemapper = TMap_Uncharted2;
     ms_toneParams = Tonemap_DefParams();
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
     *DiffuseGI() = f4_s(0.01f);
@@ -305,15 +305,15 @@ void render_sys_init(void)
 
     if (lights_pt_count() == 0)
     {
-        lights_add_pt((pt_light_t) { f4_0, f4_s(2.0f) });
+        lights_add_pt((pt_light_t) { f4_v(0.0f, 0.0f, 0.0f, 1.0f), f4_s(20.0f) });
     }
 
     task_t* compose = TransformCompose();
     task_sys_schedule();
     task_await(compose);
 
-    const i32 maxDepth = 5;
-    ms_ptscene = pt_scene_new(maxDepth);
+    ms_ptscene = pt_scene_new(5);
+    camera_get(&ms_ptcamera);
 }
 
 ProfileMark(pm_update, render_sys_update)
@@ -327,6 +327,7 @@ void render_sys_update(void)
     {
         pt_light_t light = lights_get_pt(0);
         light.pos = f4_add(camera.position, f4_mulvs(quat_fwd(camera.rotation), 4.0f));
+        light.pos.w = 1.0f;
         lights_set_pt(0, light);
     }
 
@@ -336,8 +337,10 @@ void render_sys_update(void)
         if (memcmp(&camera, &ms_ptcamera, sizeof(camera)) != 0)
         {
             ms_sampleCount = 0;
+            pt_scene_del(ms_ptscene);
+            ms_ptscene = pt_scene_new(5);
+            ms_ptcamera = camera;
         }
-        ms_ptcamera = camera;
 
         pt_scene_t* scene = ms_ptscene;
         if (scene)

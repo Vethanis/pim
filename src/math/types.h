@@ -102,6 +102,12 @@ typedef struct int4x4_s
     int4 c3;
 } int4x4;
 
+typedef struct ray_s
+{
+    float4 ro;
+    float4 rd;
+} ray_t;
+
 // inward facing plane normals and positive distances
 typedef struct frus_s
 {

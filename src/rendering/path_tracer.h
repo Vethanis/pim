@@ -24,8 +24,9 @@ typedef struct pt_scene_s
     // full octree
     // child(p, i) = 8 * p + i + 1
     box_t* boxes; // aabb of node
-    i32** lists; // [f0v0, f1v0, f2v0, ..., fN-1v0]
-    int2* lenpops; // [list len, subtree count]
+    i32** trilists; // [N, f0v0, f1v0, f2v0, ..., fN-1v0]
+    i32** lightlists; // [N, L0, L1, L2, ...]
+    i32* pops; // object population in subtree
 
     i32 vertCount;
     i32 matCount;

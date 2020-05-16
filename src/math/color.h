@@ -22,7 +22,7 @@ pim_inline u16 VEC_CALL f4_rgb5a1(float4 v)
 pim_inline u32 VEC_CALL f4_rgba8(float4 v)
 {
     v = f4_saturate(v);
-    v = f4_mulvs(v, 255.0f);
+    v = f4_addvs(f4_mulvs(v, 255.0f), 0.5f);
     u32 r = (u32)v.x;
     u32 g = (u32)v.y;
     u32 b = (u32)v.z;
