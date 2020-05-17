@@ -5,19 +5,19 @@
 PIM_C_BEGIN
 
 #include "math/types.h"
-#include "math/float3_funcs.h"
+#include "math/float4_funcs.h"
 
 // returns the value of the spherical gaussian when
 // sampled at the point on a unit sphere given by normal vector 'dir'
-pim_inline float3 VEC_CALL SGEval(SG_t sg, float3 dir)
+pim_inline float4 VEC_CALL SG_Eval(SG_t sg, float4 dir)
 {
     // gaussian in form of: e^(s * (x-1))
     // (a form of the normal distribution)
-    float w = expf(sg.sharpness * (f3_dot(dir, sg.axis) - 1.0f));
-    return f3_mulvs(sg.amplitude, w);
+    float w = expf(sg.sharpness * (f4_dot3(dir, sg.axis) - 1.0f));
+    return f4_mulvs(sg.amplitude, w);
 }
 
-pim_inline float VEC_CALL SGBasisIntegral(SG_t sg)
+pim_inline float VEC_CALL SG_BasisIntegral(SG_t sg)
 {
     // integral of the surface of the unit sphere: tau
     // integral of e^(s * (x-1)) = (1 - e^-2s)/s
@@ -26,15 +26,15 @@ pim_inline float VEC_CALL SGBasisIntegral(SG_t sg)
     return (kTau * e) / sg.sharpness;
 }
 
-pim_inline float VEC_CALL SGBasisIntegralSq(SG_t sg)
+pim_inline float VEC_CALL SG_BasisIntegralSq(SG_t sg)
 {
     return (1.0f - expf(-4.0f * sg.sharpness)) / (4.0f * sg.sharpness);
 }
 
 // returns the total energy of the spherical gaussian
-pim_inline float3 VEC_CALL SGIntegral(SG_t sg)
+pim_inline float4 VEC_CALL SG_Integral(SG_t sg)
 {
-    return f3_mulvs(sg.amplitude, SGBasisIntegral(sg));
+    return f4_mulvs(sg.amplitude, sg.basisIntegral);
 }
 
 // approximates the total energy of the spherical gaussian
@@ -42,17 +42,17 @@ pim_inline float3 VEC_CALL SGIntegral(SG_t sg)
 // 90% accurate with sharpness = 1.2
 // 85% accurate with sharpness = 1.0
 // 65% accurate with sharpness = 0.5
-pim_inline float3 VEC_CALL SGFastIntegral(SG_t sg)
+pim_inline float4 VEC_CALL SG_FastIntegral(SG_t sg)
 {
-    return f3_mulvs(sg.amplitude, kTau / sg.sharpness);
+    return f4_mulvs(sg.amplitude, kTau / sg.sharpness);
 }
 
 // returns the irradiance (watts per square meter)
 // received by a surface (with the given normal)
 // from the spherical gaussian
-pim_inline float3 SGIrradiance(SG_t sg, float3 normal)
+pim_inline float4 SG_Irradiance(SG_t sg, float4 normal)
 {
-    const float muDotN = f3_dot(sg.axis, normal);
+    const float muDotN = f4_dot3(sg.axis, normal);
     const float lambda = sg.sharpness;
     const float c0 = 0.36f;
     const float c1 = 1.0f / (4.0f * 0.36f);
@@ -67,17 +67,17 @@ pim_inline float3 SGIrradiance(SG_t sg, float3 normal)
     float n = x0 + x1;
     float y = (f1_abs(x0) <= x1) ? (n * n) / x : f1_saturate(muDotN);
     float normalizedIrradiance = scale * y + bias;
-    return f3_mulvs(SGIntegral(sg), normalizedIrradiance);
+    return f4_mulvs(SG_Integral(sg), normalizedIrradiance);
 }
 
 // returns the diffuse lighting of a surface
 // with the given normal and albedo
 // from the given spherical gaussian.
-pim_inline float3 SGDiffuse(SG_t sg, float3 normal, float3 albedo)
+pim_inline float4 SG_Diffuse(SG_t sg, float4 normal, float4 albedo)
 {
     const float scale = 1.0f / kPi;
-    float3 brdf = f3_mulvs(albedo, scale);
-    return f3_mul(SGIrradiance(sg, normal), brdf);
+    float4 brdf = f4_mulvs(albedo, scale);
+    return f4_mul(SG_Irradiance(sg, normal), brdf);
 }
 
 // SGSpecular not implemented; use a prefiltered cubemap for that.
@@ -86,12 +86,21 @@ pim_inline float3 SGDiffuse(SG_t sg, float3 normal, float3 albedo)
 // that are being progressively fit to your data set.
 // Ensure the sample directions are not correlated (do a uniform shuffle).
 // Note that axis and sharpness are not modified, only amplitude.
-void SGAccumulate(
+void VEC_CALL SG_Accumulate(
     i32 iSample,        // sample sequence number
-    float3 sampleDir,   // sample direction
-    float3 sampleLight, // sample radiance
+    float4 sampleDir,   // sample direction
+    float4 sampleLight, // sample radiance
     SG_t* sgs,          // array of spherical gaussians to fit
-    float* weights,     // working memory between accumulations. init to 0.
     i32 length);        // number of spherical gaussians
+
+typedef enum
+{
+    SGDist_Hemi = 0,
+    SGDist_Sphere,
+
+    SGDist_COUNT
+} SG_Dist;
+
+void SG_Generate(SG_t* sgs, i32 count, SG_Dist dist);
 
 PIM_C_END

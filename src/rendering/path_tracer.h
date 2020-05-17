@@ -50,4 +50,6 @@ void pt_scene_del(pt_scene_t* scene);
 
 struct task_s* pt_trace(pt_trace_t* traceDesc);
 
+float4 VEC_CALL pt_trace_frag(struct prng_s* rng, const pt_scene_t* scene, ray_t ray, i32 bounces);
+
 PIM_C_END

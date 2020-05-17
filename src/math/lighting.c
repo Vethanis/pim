@@ -3,6 +3,67 @@
 #include "rendering/sampler.h"
 #include "allocator/allocator.h"
 
+// alpha constant
+pim_inline float VEC_CALL GGX_a(float roughness)
+{
+    // default parameterization
+    return roughness;
+    // disney reparameterization:
+    // return roughness * roughness;
+}
+
+// k constant
+pim_inline float VEC_CALL GGX_k(float a)
+{
+    return (a * a) * 0.5f;
+}
+
+// geometry term
+// self shadowing effect from rough surfaces
+// Schlick approximation fit to Smith's GGX model
+pim_inline float VEC_CALL GGX_G(float NoV, float NoL, float k)
+{
+    float t1 = NoV / f1_lerp(k, 1.0f, NoV);
+    float t2 = NoL / f1_lerp(k, 1.0f, NoL);
+    return t1 * t2;
+}
+
+// normal distribution function
+// amount of surface's microfacets are facing the H vector
+// Trowbridge-Reitz GGX
+pim_inline float VEC_CALL GGX_D(float NoH, float a)
+{
+    float a2 = a * a;
+    float d = f1_lerp(1.0f, a2, NoH * NoH);
+    return a2 / (kPi * d * d);
+}
+
+// base reflectivity for a surface viewed head-on
+pim_inline float4 VEC_CALL GGX_F0(float4 albedo, float metallic)
+{
+    return f4_lerpvs(f4_s(0.04f), albedo, metallic);
+}
+
+// direct fresnel term
+// ratio of light reflection vs refraction, at a given angle
+// Fresnel-Schlick approximation
+pim_inline float4 VEC_CALL GGX_F(float cosTheta, float4 F0)
+{
+    float t = 1.0f - cosTheta;
+    float t5 = t * t * t * t * t;
+    return f4_lerpvs(F0, f4_s(1.0f), t5);
+}
+
+// indirect fresnel term
+// ratio of light reflection vs refraction, at a given angle
+// Fresnel-Schlick approximation
+pim_inline float4 VEC_CALL GGX_FI(float cosTheta, float4 F0, float roughness)
+{
+    float t = 1.0f - cosTheta;
+    float t5 = t * t * t * t * t;
+    return f4_lerpvs(F0, f4_max(f4_s(1.0f - roughness), F0), t5);
+}
+
 // Cook-Torrance BRDF
 pim_optimize
 float4 VEC_CALL DirectBRDF(
@@ -20,7 +81,7 @@ float4 VEC_CALL DirectBRDF(
     const float NoL = f1_max(0.0f, f4_dot3(N, L));
 
     const float a = GGX_a(roughness);
-    const float k = GGX_kDirect(roughness);
+    const float k = GGX_k(a);
 
     const float D = GGX_D(NoH, a);
     const float G = GGX_G(NoV, NoL, k);
@@ -50,7 +111,7 @@ static float2 VEC_CALL IntegrateBRDF(
     };
 
     const float a = GGX_a(roughness);
-    const float k = GGX_kIBL(roughness);
+    const float k = GGX_k(a);
 
     float2 result = { 0.0f, 0.0f };
 

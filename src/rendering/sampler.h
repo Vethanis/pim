@@ -20,7 +20,7 @@ pim_inline float2 VEC_CALL TransformUv(float2 uv, float4 st)
 
 pim_inline float2 VEC_CALL Tex_UvToCoordf(int2 size, float2 uv)
 {
-    return f2_add(f2_mul(uv, i2_f2(size)), f2_s(-0.5f));
+    return f2_add(f2_mul(uv, i2_f2(size)), f2_s(0.5f));
 }
 
 pim_inline int2 VEC_CALL Tex_UvToCoord(int2 size, float2 uv)

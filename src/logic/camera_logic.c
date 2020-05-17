@@ -7,14 +7,43 @@
 #include "common/time.h"
 #include "common/profiler.h"
 #include "common/cvar.h"
+#include "rendering/lights.h"
 
 static float ms_pitchScale = 720.0f;
 static float ms_yawScale = 720.0f;
 static float ms_moveScale = 5.0f;
+static bool ms_placing = true;
 
 static cvar_t cv_pitchScale = { cvart_float, 0, "pitchScale", "720", "pitch input sensitivity" };
 static cvar_t cv_yawScale = { cvart_float, 0, "yawScale", "720", "yaw input sensitivity" };
 static cvar_t cv_moveScale = { cvart_float, 0, "moveScale", "5", "movement input sensitivity" };
+
+static void LightLogic(const camera_t* cam)
+{
+    if (input_buttonup(MouseButton_Right))
+    {
+        ms_placing = !ms_placing;
+    }
+    if (ms_placing)
+    {
+        pt_light_t light = lights_get_pt(0);
+        light.pos = f4_add(cam->position, f4_mulvs(quat_fwd(cam->rotation), 4.0f));
+        light.pos.w = 1.0f;
+        lights_set_pt(0, light);
+        if (input_buttonup(MouseButton_Left))
+        {
+            lights_add_pt(light);
+        }
+        if (input_buttonup(MouseButton_Middle))
+        {
+            i32 ct = lights_pt_count();
+            if (ct > 1)
+            {
+                lights_rm_pt(ct - 1);
+            }
+        }
+    }
+}
 
 void camera_logic_init(void)
 {
@@ -103,6 +132,8 @@ void camera_logic_update(void)
     camera.rotation = rot;
 
     camera_set(&camera);
+
+    LightLogic(&camera);
 
     ProfileEnd(pm_update);
 }

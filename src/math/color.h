@@ -11,7 +11,7 @@ PIM_C_BEGIN
 pim_inline u16 VEC_CALL f4_rgb5a1(float4 v)
 {
     v = f4_saturate(v);
-    v = f4_mulvs(v, 31.0f);
+    v = f4_addvs(f4_mulvs(v, 31.0f), 0.5f);
     u16 r = (u16)v.x;
     u16 g = (u16)v.y;
     u16 b = (u16)v.z;
@@ -41,7 +41,10 @@ pim_inline float4 VEC_CALL rgba8_f4(u32 c)
     u32 b = c & 0xff;
     c >>= 8;
     u32 a = c & 0xff;
-    return f4_v(r * s, g * s, b * s, a * s);
+    float4 v = f4_v((float)r, (float)g, (float)b, (float)a);
+    v = f4_addvs(v, 0.5f);
+    v = f4_mulvs(v, s);
+    return v;
 }
 
 // reference sRGB -> Linear conversion (no approximation)

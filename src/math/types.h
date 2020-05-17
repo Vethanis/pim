@@ -126,11 +126,14 @@ typedef struct box_s
 } box_t;
 
 // spherical gaussian
-typedef pim_alignas(16) struct SG_s
+typedef struct SG_s
 {
-    float3 axis;
+    float4 axis;
+    float4 amplitude;
     float sharpness;
-    float3 amplitude;
+    float basisIntegral;
+    float basisSqIntegral;
+    float lobeWeight;
 } SG_t;
 
 PIM_C_END

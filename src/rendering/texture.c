@@ -133,8 +133,6 @@ textureid_t texture_unpalette(const u8* bytes, int2 size)
 {
     EnsurePalette();
 
-    const bool convertToAlbedo = true;
-
     u32* texels = perm_malloc(size.x * size.y * sizeof(texels[0]));
     for (i32 y = 0; y < size.y; ++y)
     {
@@ -146,7 +144,7 @@ textureid_t texture_unpalette(const u8* bytes, int2 size)
             u32 g = ms_palette[encoded * 3 + 1];
             u32 b = ms_palette[encoded * 3 + 2];
             u32 color = r | (g << 8) | (b << 16);
-            if (convertToAlbedo)
+            if (true)
             {
                 // attempt to turn diffuse map into albedo map
                 float4 lin = ColorToLinear(color);

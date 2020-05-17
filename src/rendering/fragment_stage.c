@@ -14,6 +14,7 @@
 #include "math/color.h"
 #include "math/frustum.h"
 #include "math/sdf.h"
+#include "math/sphgauss.h"
 
 #include "rendering/sampler.h"
 #include "rendering/tile.h"
@@ -59,6 +60,12 @@ static float4 ms_specularGI;
 static u64 ms_trisCulled;
 static u64 ms_trisDrawn;
 
+static i32 ms_sgcount;
+static SG_t ms_sgs[256];
+
+SG_t* SG_Get(void) { return ms_sgs; }
+i32 SG_GetCount(void) { return ms_sgcount; }
+void SG_SetCount(i32 ct) { ms_sgcount = i1_clamp(ct, 0, NELEM(ms_sgs)); }
 float4* DiffuseGI(void) { return &ms_diffuseGI; }
 float4* SpecularGI(void) { return &ms_specularGI; }
 u64 Frag_TrisCulled(void) { return ms_trisCulled; }
@@ -213,8 +220,6 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
     const float4 flatRome = ColorToLinear(draw->material.flatRome);
     const bool hasAlbedo = texture_get(draw->material.albedo, &albedoMap);
     const bool hasRome = texture_get(draw->material.rome, &romeMap);
-    const float4 diffuseGI = ms_diffuseGI;
-    const float4 specularGI = ms_specularGI;
 
     const float4 eye = ctx->eye;
     const float4 fwd = ctx->fwd;
@@ -334,6 +339,20 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                     if (hasRome)
                     {
                         rome = f4_mul(rome, Tex_Bilinearf2(romeMap, U));
+                    }
+                    float4 diffuseGI = f4_0;
+                    float4 specularGI = f4_0;
+                    float4 R = f4_normalize3(f4_reflect(f4_neg(V), N));
+                    {
+                        const i32 sgcount = ms_sgcount;
+                        const SG_t* pim_noalias sgs = ms_sgs;
+                        for (i32 i = 0; i < sgcount; ++i)
+                        {
+                            float4 diffuse = SG_Irradiance(sgs[i], N);
+                            float4 specular = SG_Eval(sgs[i], R);
+                            diffuseGI = f4_add(diffuseGI, diffuse);
+                            specularGI = f4_add(specularGI, specular);
+                        }
                     }
                     for (i32 iLight = 0; iLight < dirCount; ++iLight)
                     {

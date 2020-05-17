@@ -13,6 +13,9 @@ void FragmentStage_Init(void);
 void FragmentStage_Shutdown(void);
 struct task_s* FragmentStage(struct framebuf_s* target);
 
+SG_t* SG_Get(void);
+i32 SG_GetCount(void);
+void SG_SetCount(i32 ct);
 float4* DiffuseGI(void);
 float4* SpecularGI(void);
 u64 Frag_TrisCulled(void);

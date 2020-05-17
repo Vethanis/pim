@@ -10,7 +10,6 @@
 #include "math/int2_funcs.h"
 #include "math/quat_funcs.h"
 #include "math/float4x4_funcs.h"
-#include "math/lighting.h"
 #include "math/sampling.h"
 #include "math/sdf.h"
 #include "math/frustum.h"
@@ -338,26 +337,27 @@ pt_scene_t* pt_scene_new(i32 maxDepth)
 
 void pt_scene_del(pt_scene_t* scene)
 {
-    ASSERT(scene);
-
-    pim_free(scene->positions);
-    pim_free(scene->normals);
-    pim_free(scene->uvs);
-
-    pim_free(scene->materials);
-
-    pim_free(scene->boxes);
-    for (i32 i = 0; i < scene->nodeCount; ++i)
+    if (scene)
     {
-        pim_free(scene->trilists[i]);
-        pim_free(scene->lightlists[i]);
-    }
-    pim_free(scene->trilists);
-    pim_free(scene->lightlists);
-    pim_free(scene->pops);
+        pim_free(scene->positions);
+        pim_free(scene->normals);
+        pim_free(scene->uvs);
 
-    memset(scene, 0, sizeof(*scene));
-    pim_free(scene);
+        pim_free(scene->materials);
+
+        pim_free(scene->boxes);
+        for (i32 i = 0; i < scene->nodeCount; ++i)
+        {
+            pim_free(scene->trilists[i]);
+            pim_free(scene->lightlists[i]);
+        }
+        pim_free(scene->trilists);
+        pim_free(scene->lightlists);
+        pim_free(scene->pops);
+
+        memset(scene, 0, sizeof(*scene));
+        pim_free(scene);
+    }
 }
 
 pim_optimize
@@ -572,8 +572,8 @@ static surfhit_t VEC_CALL GetSurface(
 }
 
 pim_optimize
-static float4 VEC_CALL TracePixel(
-    prng_t* rng,
+float4 VEC_CALL pt_trace_frag(
+    struct prng_s* rng,
     const pt_scene_t* scene,
     ray_t ray,
     i32 bounces)
@@ -598,9 +598,20 @@ static float4 VEC_CALL TracePixel(
         if (Scatter(rng, ray, &surf, &newAtten, &newRay))
         {
             ray = newRay;
+            if (b >= 3)
+            {
+                const float p = f4_hmax3(newAtten);
+                if (prng_f32(rng) < p)
+                {
+                    newAtten = f4_mulvs(newAtten, 1.0f / p);
+                }
+                else
+                {
+                    break;
+                }
+            }
             attenuation = f4_mul(attenuation, newAtten);
-            const float e = 3.0f / (1 << 18);
-            if (f4_sum3(attenuation) < e)
+            if (f4_hmax3(attenuation) == 0.0f)
             {
                 break;
             }
@@ -611,6 +622,15 @@ static float4 VEC_CALL TracePixel(
         }
     }
     return light;
+}
+
+static float2 f2_tent(prng_t* rng)
+{
+    float2 t = { prng_f32(rng), prng_f32(rng) };
+    t = f2_mulvs(t, 2.0f);
+    t.x = t.x < 1.0f ? sqrtf(t.x) - 1.0f : 1.0f - sqrtf(2.0f - t.x);
+    t.y = t.y < 1.0f ? sqrtf(t.y) - 1.0f : 1.0f - sqrtf(2.0f - t.x);
+    return t;
 }
 
 pim_optimize
@@ -641,12 +661,15 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
     const float2 dSize = f2_rcp(i2_f2(size));
     for (i32 i = begin; i < end; ++i)
     {
-        const int2 xy = { i % size.x, i / size.x };
-        const float2 jitter = { prng_f32(&rng), prng_f32(&rng) };
-        const float2 coord = f2_snorm(f2_mul(f2_add(i2_f2(xy), jitter), dSize));
-        const float4 rd = proj_dir(right, up, fwd, slope, coord);
+        int2 xy = { i % size.x, i / size.x };
+
+        float2 coord = f2_addvs(i2_f2(xy), 0.5f);
+        coord = f2_add(coord, f2_tent(&rng));
+        coord = f2_snorm(f2_mul(coord, dSize));
+
+        float4 rd = proj_dir(right, up, fwd, slope, coord);
         ray_t ray = { ro, rd };
-        float4 sample = TracePixel(&rng, scene, ray, bounces);
+        float4 sample = pt_trace_frag(&rng, scene, ray, bounces);
         image[i] = f4_lerpvs(image[i], sample, sampleWeight);
     }
 
