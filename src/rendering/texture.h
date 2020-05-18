@@ -12,12 +12,14 @@ typedef struct texture_s
     int2 size;
     u32* pim_noalias texels;
 } texture_t;
+static const u32 texture_t_hash = 2393313439u;
 
 typedef struct textureid_s
 {
     u64 version;
     void* handle;
 } textureid_t;
+static const u32 textureid_t_hash = 3843543442u;
 
 textureid_t texture_load(const char* path);
 textureid_t texture_create(texture_t* src);

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+    <Type Name="row_s">
+        <DisplayString>{stride} x {length}</DisplayString>
+        <Expand>
+            <Item Name="stride">stride</Item>
+            <Item Name="length">length</Item>
+            <Item Name="ptr">ptr,[length * stride]</Item>
+        </Expand>
+    </Type>
+</AutoVisualizer>

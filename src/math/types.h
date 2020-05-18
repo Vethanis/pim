@@ -125,6 +125,13 @@ typedef struct box_s
     float4 extents;
 } box_t;
 
+typedef struct sphere_s
+{
+    // xyz: center
+    // w: radius
+    float4 value;
+} sphere_t;
+
 // spherical gaussian
 typedef struct SG_s
 {

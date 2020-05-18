@@ -51,7 +51,7 @@ void VEC_CALL SG_Accumulate(
         SG_t sg = sgs[i];
 
         sg.lobeWeight += ((sampleWeight * sampleWeight) - sg.lobeWeight) * sampleScale;
-        float integral = f1_max(sg.lobeWeight, SG_BasisIntegralSq(sg));
+        float integral = f1_max(sg.lobeWeight, sg.basisSqIntegral);
         float4 otherLight = f4_sub(est, f4_mulvs(sg.amplitude, sampleWeight));
         float4 newEst = f4_mulvs(
             f4_sub(sampleLight, otherLight),

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+    <Type Name="tables_s">
+        <DisplayString>{this->count} tables</DisplayString>
+        <Expand>
+            <Item Name="count">count</Item>
+            <Item Name="hashes">hashes,[count]</Item>
+            <Item Name="tables">tables,[count]</Item>
+        </Expand>
+    </Type>
+</AutoVisualizer>

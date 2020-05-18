@@ -28,6 +28,7 @@
     <ClCompile Include="..\src\common\time.c" />
     <ClCompile Include="..\src\components\compflag.c" />
     <ClCompile Include="..\src\components\ecs.c" />
+    <ClCompile Include="..\src\components\table.c" />
     <ClCompile Include="..\src\containers\dict.c" />
     <ClCompile Include="..\src\containers\graph.c" />
     <ClCompile Include="..\src\containers\hash_set.c" />
@@ -63,7 +64,6 @@
     <ClCompile Include="..\src\rendering\mesh.c" />
     <ClCompile Include="..\src\rendering\path_tracer.c" />
     <ClCompile Include="..\src\rendering\resolve_tile.c" />
-    <ClCompile Include="..\src\rendering\tile.c" />
     <ClCompile Include="..\src\rendering\tonemap.c" />
     <ClCompile Include="..\src\rendering\transform_compose.c" />
     <ClCompile Include="..\src\rendering\vertex_stage.c" />
@@ -121,6 +121,7 @@
     <ClInclude Include="..\src\components\compflag.h" />
     <ClInclude Include="..\src\components\components.h" />
     <ClInclude Include="..\src\components\ecs.h" />
+    <ClInclude Include="..\src\components\table.h" />
     <ClInclude Include="..\src\containers\carray.h" />
     <ClInclude Include="..\src\containers\carray.c" />
     <ClInclude Include="..\src\containers\int_queue.h" />
@@ -134,8 +135,6 @@
     <ClInclude Include="..\src\containers\text.h" />
     <ClInclude Include="..\src\editor\editor.h" />
     <ClInclude Include="..\src\editor\menubar.h" />
-    <ClInclude Include="..\src\geometry\distance.h" />
-    <ClInclude Include="..\src\geometry\types.h" />
     <ClInclude Include="..\src\input\input_system.h" />
     <ClInclude Include="..\src\io\dir.h" />
     <ClInclude Include="..\src\io\env.h" />
@@ -233,10 +232,12 @@
     <ClInclude Include="..\submodules\stb\stretchy_buffer.h" />
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="natvis\array.natvis" />
-    <Natvis Include="natvis\chunkallocator.natvis" />
-    <Natvis Include="natvis\dict.natvis" />
-    <Natvis Include="natvis\slice.natvis" />
+    <Natvis Include="natvis\row.natvis" />
+    <Natvis Include="natvis\table.natvis" />
+    <Natvis Include="natvis\tables.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\src\tools\prehash.py" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

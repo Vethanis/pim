@@ -6,3 +6,4 @@ data/
 build/
 imgui.ini
 *.log
+__pycache__

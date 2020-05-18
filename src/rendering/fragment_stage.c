@@ -2,6 +2,7 @@
 #include "allocator/allocator.h"
 #include "common/atomics.h"
 #include "common/profiler.h"
+#include "common/cvar.h"
 #include "components/ecs.h"
 #include "containers/ptrqueue.h"
 #include "threading/task.h"
@@ -52,6 +53,9 @@ typedef struct tile_ctx_s
     float nearClip;
     float farClip;
 } tile_ctx_t;
+
+static cvar_t cv_sg_dbgirad = { cvart_bool, 0, "sg_dbgirad", "0", "display a debug view of diffuse GI" };
+static cvar_t cv_sg_dbgeval = { cvart_bool, 0, "sg_dbgeval", "0", "display a debug view of specular GI" };
 
 static ptrqueue_t ms_fragQueues[kTileCount];
 static BrdfLut ms_lut;
@@ -113,6 +117,9 @@ void SubmitMesh(meshid_t worldMesh, material_t material)
 
 void FragmentStage_Init(void)
 {
+    cvar_reg(&cv_sg_dbgirad);
+    cvar_reg(&cv_sg_dbgeval);
+
     for (i32 i = 0; i < kTileCount; ++i)
     {
         ptrqueue_create(ms_fragQueues + i, EAlloc_Perm, 8192);
@@ -210,6 +217,9 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
     {
         return;
     }
+
+    const bool dbgdiffGI = cv_sg_dbgirad.asFloat != 0.0f;
+    const bool dbgspecGI = cv_sg_dbgeval.asFloat != 0.0f;
 
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
@@ -372,6 +382,27 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                         const float4 direct = DirectBRDF(V, dir, light.rad, N, albedo, rome.x, rome.z);
                         const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
                         lighting = f4_add(lighting, f4_add(direct, indirect));
+                    }
+
+                    if (dbgdiffGI)
+                    {
+                        lighting = f4_0;
+                        const i32 sgcount = ms_sgcount;
+                        const SG_t* pim_noalias sgs = ms_sgs;
+                        for (i32 i = 0; i < sgcount; ++i)
+                        {
+                            lighting = f4_add(lighting, SG_Irradiance(sgs[i], N));
+                        }
+                    }
+                    else if (dbgspecGI)
+                    {
+                        lighting = f4_0;
+                        const i32 sgcount = ms_sgcount;
+                        const SG_t* pim_noalias sgs = ms_sgs;
+                        for (i32 i = 0; i < sgcount; ++i)
+                        {
+                            lighting = f4_add(lighting, SG_Eval(sgs[i], R));
+                        }
                     }
                 }
 

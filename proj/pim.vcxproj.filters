@@ -65,9 +65,6 @@
     <Filter Include="Source Files\assets">
       <UniqueIdentifier>{4d54bb06-ee32-4c09-a404-749041fe8847}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\geometry">
-      <UniqueIdentifier>{b7d1122f-5798-4b19-8920-edcd7dad3554}</UniqueIdentifier>
-    </Filter>
     <Filter Include="submodules\stackwalker">
       <UniqueIdentifier>{e0456328-7388-42da-a262-d62c91264225}</UniqueIdentifier>
     </Filter>
@@ -88,6 +85,9 @@
     </Filter>
     <Filter Include="Source Files\stb">
       <UniqueIdentifier>{f3ae00c2-b0e0-474e-89ce-c21c348648da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\tools">
+      <UniqueIdentifier>{3fe89d79-6fd4-4597-b02f-272e0421ff2c}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -319,9 +319,6 @@
     <ClCompile Include="..\src\rendering\resolve_tile.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\tile.c">
-      <Filter>Source Files\rendering</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\rendering\tonemap.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
@@ -345,6 +342,9 @@
     </ClCompile>
     <ClCompile Include="..\src\rendering\material.c">
       <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\components\table.c">
+      <Filter>Source Files\components</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -470,12 +470,6 @@
     </ClInclude>
     <ClInclude Include="..\src\common\round.h">
       <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\geometry\types.h">
-      <Filter>Source Files\geometry</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\geometry\distance.h">
-      <Filter>Source Files\geometry</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\hash_set.h">
       <Filter>Source Files\containers</Filter>
@@ -747,19 +741,24 @@
     <ClInclude Include="..\src\rendering\lights.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\components\table.h">
+      <Filter>Source Files\components</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="natvis\array.natvis">
+    <Natvis Include="natvis\tables.natvis">
       <Filter>natvis</Filter>
     </Natvis>
-    <Natvis Include="natvis\dict.natvis">
+    <Natvis Include="natvis\table.natvis">
       <Filter>natvis</Filter>
     </Natvis>
-    <Natvis Include="natvis\slice.natvis">
+    <Natvis Include="natvis\row.natvis">
       <Filter>natvis</Filter>
     </Natvis>
-    <Natvis Include="natvis\chunkallocator.natvis">
-      <Filter>natvis</Filter>
-    </Natvis>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\src\tools\prehash.py">
+      <Filter>Source Files\tools</Filter>
+    </None>
   </ItemGroup>
 </Project>

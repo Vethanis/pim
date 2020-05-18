@@ -110,3 +110,55 @@ i32 HashRFind(const void* arr, i32 stride, const u32* hashes, i32 length, const 
     }
     return -1;
 }
+
+i32 Find_i32(const i32* values, i32 length, i32 key)
+{
+    ASSERT(values || !length);
+    for (i32 i = 0; i < length; ++i)
+    {
+        if (values[i] == key)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+i32 Find_u32(const u32* values, i32 length, u32 key)
+{
+    ASSERT(values || !length);
+    for (i32 i = 0; i < length; ++i)
+    {
+        if (values[i] == key)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+i32 Find_u64(const u64* values, i32 length, u64 key)
+{
+    ASSERT(values || !length);
+    for (i32 i = 0; i < length; ++i)
+    {
+        if (values[i] == key)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+i32 Find_ptr(const void** values, i32 length, const void* key)
+{
+    ASSERT(values || !length);
+    for (i32 i = 0; i < length; ++i)
+    {
+        if (values[i] == key)
+        {
+            return i;
+        }
+    }
+    return -1;
+}

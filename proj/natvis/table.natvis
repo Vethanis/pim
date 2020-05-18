@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+    <Type Name="table_s">
+        <DisplayString>{rowct} rows; {columnct} columns</DisplayString>
+        <Expand>
+            <Item Name="column count">columnct</Item>
+            <Item Name="column names">entnames,[columnct]</Item>
+            <Item Name="row count">rowct</Item>
+            <Item Name="row names">rownames,[rowct]</Item>
+            <Item Name="rows">rows,[rowct]</Item>
+        </Expand>
+    </Type>
+</AutoVisualizer>

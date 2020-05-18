@@ -13,6 +13,7 @@ typedef struct camera_s
     float2 nearFar;
     float fovy;
 } camera_t;
+static const u32 camera_t_hash = 2034616629u;
 
 void camera_get(camera_t* dst);
 void camera_set(const camera_t* src);

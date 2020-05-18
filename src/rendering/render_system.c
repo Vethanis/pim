@@ -2,6 +2,7 @@
 
 #include "allocator/allocator.h"
 #include "components/ecs.h"
+#include "components/table.h"
 #include "threading/task.h"
 #include "ui/cimgui.h"
 
@@ -347,6 +348,28 @@ void render_sys_init(void)
     ms_flatAlbedo = f4_s(1.0f);
     ms_flatRome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
 
+    table_t* drawables = tables_add_s(tables_main(), "Drawables");
+    table_add_h(drawables, TYPE_ARGS(drawable_t));
+    table_add_h(drawables, TYPE_ARGS(bounds_t));
+    table_add_h(drawables, TYPE_ARGS(localtoworld_t));
+    table_add_h(drawables, TYPE_ARGS(translation_t));
+    table_add_h(drawables, TYPE_ARGS(rotation_t));
+    table_add_h(drawables, TYPE_ARGS(scale_t));
+
+    table_t* lights = tables_add_s(tables_main(), "Lights");
+    table_add_h(lights, TYPE_ARGS(radiance_t));
+    table_add_h(lights, TYPE_ARGS(translation_t));
+    table_add_h(lights, TYPE_ARGS(rotation_t));
+
+    table_t* cameras = tables_add_s(tables_main(), "Cameras");
+    table_add_h(cameras, TYPE_ARGS(camera_t));
+
+    table_t* meshes = tables_add_s(tables_main(), "Meshes");
+    table_add_h(meshes, TYPE_ARGS(meshid_t));
+
+    table_t* textures = tables_add_s(tables_main(), "Textures");
+    table_add_h(textures, TYPE_ARGS(textureid_t));
+
     i32 entCount = 0;
     ent_t* ents = NULL;
 
@@ -388,7 +411,7 @@ void render_sys_update(void)
         CleanPtScene();
         ray_t ray;
         ray.ro = camera.position;
-        for (i32 i = 0; i < 256; ++i)
+        for (i32 i = 0; i < 1024; ++i)
         {
             ray.rd = f4_normalize3(SampleUnitSphere(f2_rand(&ms_prng)));
             float4 rad = pt_trace_frag(&ms_prng, ms_ptscene, ray, 10);
