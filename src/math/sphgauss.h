@@ -13,7 +13,7 @@ pim_inline float4 VEC_CALL SG_Eval(SG_t sg, float4 dir)
 {
     // gaussian in form of: e^(s * (x-1))
     // (a form of the normal distribution)
-    float w = expf(sg.sharpness * (f4_dot3(dir, sg.axis) - 1.0f));
+    float w = expf(sg.axis.w * (f4_dot3(dir, sg.axis) - 1.0f));
     return f4_mulvs(sg.amplitude, w);
 }
 
@@ -22,19 +22,19 @@ pim_inline float VEC_CALL SG_BasisIntegral(SG_t sg)
     // integral of the surface of the unit sphere: tau
     // integral of e^(s * (x-1)) = (1 - e^-2s)/s
     // thus: (1 - e^-2s) * tau/s
-    float e = 1.0f - expf(sg.sharpness * -2.0f);
-    return (kTau * e) / sg.sharpness;
+    float e = 1.0f - expf(sg.axis.w * -2.0f);
+    return (kTau * e) / sg.axis.w;
 }
 
 pim_inline float VEC_CALL SG_BasisIntegralSq(SG_t sg)
 {
-    return (1.0f - expf(-4.0f * sg.sharpness)) / (4.0f * sg.sharpness);
+    return (1.0f - expf(-4.0f * sg.axis.w)) / (4.0f * sg.axis.w);
 }
 
 // returns the total energy of the spherical gaussian
 pim_inline float4 VEC_CALL SG_Integral(SG_t sg)
 {
-    return f4_mulvs(sg.amplitude, sg.basisIntegral);
+    return f4_mulvs(sg.amplitude, SG_BasisIntegral(sg));
 }
 
 // approximates the total energy of the spherical gaussian
@@ -44,30 +44,28 @@ pim_inline float4 VEC_CALL SG_Integral(SG_t sg)
 // 65% accurate with sharpness = 0.5
 pim_inline float4 VEC_CALL SG_FastIntegral(SG_t sg)
 {
-    return f4_mulvs(sg.amplitude, kTau / sg.sharpness);
+    return f4_mulvs(sg.amplitude, kTau / sg.axis.w);
 }
 
 // returns the irradiance (watts per square meter)
 // received by a surface (with the given normal)
 // from the spherical gaussian
+pim_optimize
 pim_inline float4 SG_Irradiance(SG_t sg, float4 normal)
 {
     const float muDotN = f4_dot3(sg.axis, normal);
-    const float lambda = sg.sharpness;
-    const float c0 = 0.36f;
-    const float c1 = 1.0f / (4.0f * 0.36f);
+    const float lambda = sg.axis.w;
     float eml = expf(-lambda);
     float eml2 = eml * eml;
     float rl = 1.0f / lambda;
     float scale = 1.0f + 2.0f * eml2 - rl;
     float bias = (eml - eml2) * rl - eml2;
     float x = sqrtf(1.0f - scale);
-    float x0 = c0 * muDotN;
-    float x1 = c1 * x;
+    float x0 = 0.36f * muDotN;
+    float x1 = x / (4.0f * 0.36f);
     float n = x0 + x1;
     float y = (f1_abs(x0) <= x1) ? (n * n) / x : f1_saturate(muDotN);
-    float normalizedIrradiance = scale * y + bias;
-    return f4_mulvs(SG_Integral(sg), normalizedIrradiance);
+    return f4_mulvs(SG_Integral(sg), scale * y + bias);
 }
 
 // returns the diffuse lighting of a surface
@@ -87,11 +85,13 @@ pim_inline float4 SG_Diffuse(SG_t sg, float4 normal, float4 albedo)
 // Ensure the sample directions are not correlated (do a uniform shuffle).
 // Note that axis and sharpness are not modified, only amplitude.
 void VEC_CALL SG_Accumulate(
-    i32 iSample,        // sample sequence number
-    float4 sampleDir,   // sample direction
-    float4 sampleLight, // sample radiance
-    SG_t* sgs,          // array of spherical gaussians to fit
-    i32 length);        // number of spherical gaussians
+    i32 iSample,            // sample sequence number
+    float4 sampleDir,       // sample direction
+    float4 sampleLight,     // sample radiance
+    SG_t* sgs,              // array of spherical gaussians to fit
+    float* weights,         // lobe weights scratch memory
+    const float* integrals, // basis sq integrals from SG_Generate
+    i32 length);            // number of spherical gaussians
 
 typedef enum
 {
@@ -101,6 +101,6 @@ typedef enum
     SGDist_COUNT
 } SG_Dist;
 
-void SG_Generate(SG_t* sgs, i32 count, SG_Dist dist);
+void SG_Generate(SG_t* sgs, float* integrals, i32 count, SG_Dist dist);
 
 PIM_C_END

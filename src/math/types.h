@@ -108,22 +108,31 @@ typedef struct ray_s
     float4 rd;
 } ray_t;
 
-// inward facing plane normals and positive distances
-typedef struct frus_s
+typedef struct capsule_s
 {
-    float4 x0;
-    float4 x1;
-    float4 y0;
-    float4 y1;
-    float4 z0;
-    float4 z1;
-} frus_t;
+    // xyz: point 0
+    // w: capsule radius
+    float4 p0r;
+    float4 p1;
+} capsule_t;
+
+typedef struct line2d_s
+{
+    float2 p0;
+    float2 p1;
+} line2d_t;
 
 typedef struct box_s
 {
     float4 center;
     float4 extents;
 } box_t;
+
+typedef struct box2d_s
+{
+    float2 center;
+    float2 extents;
+} box2d_t;
 
 typedef struct sphere_s
 {
@@ -132,15 +141,50 @@ typedef struct sphere_s
     float4 value;
 } sphere_t;
 
+typedef struct circle_s
+{
+    float2 center;
+    float radius;
+} circle_t;
+
+typedef struct plane_s
+{
+    // xyz: plane's normal
+    // z: plane's distance from origin
+    float4 value;
+} plane_t;
+
+typedef struct plane2d_s
+{
+    float2 normal;
+    float distance;
+} plane2d_t;
+
+// inward facing plane normals and positive distances
+typedef struct frus_s
+{
+    plane_t x0;
+    plane_t x1;
+    plane_t y0;
+    plane_t y1;
+    plane_t z0;
+    plane_t z1;
+} frus_t;
+
 // spherical gaussian
 typedef struct SG_s
 {
+    // axis.xyz: axis direction
+    // axis.w: sharpness
+    // amplitude.xyz: radiance
     float4 axis;
     float4 amplitude;
-    float sharpness;
-    float basisIntegral;
-    float basisSqIntegral;
-    float lobeWeight;
 } SG_t;
+
+typedef struct AmbCube_s
+{
+    // radiance along normals of a cube
+    float4 x0, x1, y0, y1, z0, z1;
+} AmbCube_t;
 
 PIM_C_END

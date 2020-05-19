@@ -7,6 +7,8 @@ PIM_C_BEGIN
 typedef struct prng_s { u64 state; } prng_t;
 
 prng_t prng_create(void);
+prng_t prng_get(void);
+void prng_set(prng_t rng);
 
 #pragma warning(push)
 #pragma warning(disable : 4146)

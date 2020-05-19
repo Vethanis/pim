@@ -108,7 +108,7 @@ void _ProfileBegin(profmark_t* mark)
         top = &ms_roots[tid];
     }
 
-    node_t* next = pim_calloc(EAlloc_Temp, sizeof(*next));
+    node_t* next = tmp_calloc(sizeof(*next));
     next->mark = mark;
     next->parent = top;
     if (top->lchild)

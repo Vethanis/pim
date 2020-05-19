@@ -16,7 +16,9 @@
 #include "math/color.h"
 
 #include "allocator/allocator.h"
-#include "components/ecs.h"
+#include "components/table.h"
+#include "components/components.h"
+#include "components/drawables.h"
 #include "threading/task.h"
 #include "common/random.h"
 
@@ -67,8 +69,6 @@ static i32 VEC_CALL CalcNodeCount(i32 maxDepth)
     }
     return nodeCount;
 }
-
-static prng_t ms_rngs[kNumThreads];
 
 pim_inline i32 VEC_CALL GetChild(i32 parent, i32 i)
 {
@@ -216,87 +216,80 @@ static bool InsertPtLight(
     return false;
 }
 
-pt_scene_t* pt_scene_new(i32 maxDepth)
+pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth)
 {
-    pt_scene_t* pim_noalias scene = perm_calloc(sizeof(*scene));
+    table_t* drawTable = Drawables_Get(tables);
+    if (!drawTable)
+    {
+        return NULL;
+    }
 
-    const u32 meshQuery = (1 << CompId_Drawable) | (1 << CompId_LocalToWorld);
-
-    i32 meshCount = 0;
-    i32 vertCount = 0;
+    pt_scene_t* scene = perm_calloc(sizeof(*scene));
+    float4 sceneMin = f4_s(1 << 20);
+    float4 sceneMax = f4_s(-(1 << 20));
     i32 matCount = 0;
-    ent_t* pim_noalias meshEnts = ecs_query(meshQuery, 0, &meshCount);
-    for (i32 i = 0; i < meshCount; ++i)
+    i32 vertCount = 0;
+
     {
-        const ent_t ent = meshEnts[i];
-        const drawable_t* drawable = ecs_get(ent, CompId_Drawable);
-        ASSERT(drawable);
-        mesh_t mesh;
-        if (mesh_get(drawable->mesh, &mesh))
+        const i32 drawCount = table_width(drawTable);
+        const drawable_t* drawables = table_row(drawTable, TYPE_ARGS(drawable_t));
+        const localtoworld_t* l2ws = table_row(drawTable, TYPE_ARGS(localtoworld_t));
+
+        float4* positions = NULL;
+        float4* normals = NULL;
+        float2* uvs = NULL;
+        material_t* materials = NULL;
+
+        for (i32 i = 0; i < drawCount; ++i)
         {
-            vertCount += mesh.length;
-            ++matCount;
+            mesh_t mesh;
+            if (mesh_get(drawables[i].mesh, &mesh))
+            {
+                const i32 vertBack = vertCount;
+                const i32 matBack = matCount;
+                vertCount += mesh.length;
+                matCount += 1;
+
+                const float4x4 M = l2ws[i].Value;
+                const float4x4 IM = f4x4_inverse(f4x4_transpose(M));
+                const material_t material = drawables[i].material;
+
+                positions = perm_realloc(positions, sizeof(positions[0]) * vertCount);
+                normals = perm_realloc(normals, sizeof(normals[0]) * vertCount);
+                uvs = perm_realloc(uvs, sizeof(uvs[0]) * vertCount);
+                materials = perm_realloc(materials, sizeof(materials[0]) * matCount);
+
+                for (i32 j = 0; j < mesh.length; ++j)
+                {
+                    float4 position = f4x4_mul_pt(M, mesh.positions[j]);
+                    positions[vertBack + j] = position;
+                    sceneMin = f4_min(sceneMin, position);
+                    sceneMax = f4_max(sceneMax, position);
+                }
+
+                for (i32 j = 0; j < mesh.length; ++j)
+                {
+                    normals[vertBack + j] = f4x4_mul_dir(IM, mesh.normals[j]);
+                    normals[vertBack + j].w = (float)matBack;
+                }
+
+                for (i32 j = 0; j < mesh.length; ++j)
+                {
+                    uvs[vertBack + j] = TransformUv(mesh.uvs[j], material.st);
+                }
+
+                materials[matBack] = material;
+            }
         }
+
+        scene->vertCount = vertCount;
+        scene->positions = positions;
+        scene->normals = normals;
+        scene->uvs = uvs;
+
+        scene->matCount = matCount;
+        scene->materials = materials;
     }
-
-    float4* pim_noalias positions = perm_malloc(sizeof(positions[0]) * vertCount);
-    float4* pim_noalias normals = perm_malloc(sizeof(normals[0]) * vertCount);
-    float2* pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
-    material_t* pim_noalias materials = perm_malloc(sizeof(materials[0]) * matCount);
-
-    const float kBigNum = 1 << 20;
-    float4 sceneMin = f4_s(kBigNum);
-    float4 sceneMax = f4_s(-kBigNum);
-    i32 vertBack = 0;
-    i32 matBack = 0;
-    for (i32 i = 0; i < meshCount; ++i)
-    {
-        const ent_t ent = meshEnts[i];
-        const drawable_t* drawable = ecs_get(ent, CompId_Drawable);
-
-        mesh_t mesh;
-        if (mesh_get(drawable->mesh, &mesh))
-        {
-            const localtoworld_t* l2w = ecs_get(ent, CompId_LocalToWorld);
-            const float4x4 M = l2w->Value;
-            const float4x4 IM = f4x4_inverse(f4x4_transpose(M));
-            const material_t material = drawable->material;
-
-            for (i32 j = 0; j < mesh.length; ++j)
-            {
-                float4 position = f4x4_mul_pt(M, mesh.positions[j]);
-                positions[vertBack + j] = position;
-                sceneMin = f4_min(sceneMin, position);
-                sceneMax = f4_max(sceneMax, position);
-            }
-
-            for (i32 j = 0; j < mesh.length; ++j)
-            {
-                normals[vertBack + j] = f4x4_mul_dir(IM, mesh.normals[j]);
-                normals[vertBack + j].w = (float)matBack;
-            }
-
-            for (i32 j = 0; j < mesh.length; ++j)
-            {
-                uvs[vertBack + j] = TransformUv(mesh.uvs[j], material.st);
-            }
-
-            vertBack += mesh.length;
-            materials[matBack] = material;
-            ++matBack;
-        }
-    }
-
-    ASSERT(vertBack == vertCount);
-    ASSERT(matBack == matCount);
-
-    scene->vertCount = vertCount;
-    scene->positions = positions;
-    scene->normals = normals;
-    scene->uvs = uvs;
-
-    scene->matCount = matCount;
-    scene->materials = materials;
 
     {
         const i32 nodeCount = CalcNodeCount(maxDepth);
@@ -397,8 +390,7 @@ static rayhit_t VEC_CALL TraceRay(
         {
             const i32 j = SublistGet(list, i);
 
-            float4 tri = isectTri3D(
-                ray.ro, ray.rd, vertices[j + 0], vertices[j + 1], vertices[j + 2]);
+            float4 tri = isectTri3D(ray, vertices[j + 0], vertices[j + 1], vertices[j + 2]);
             float t = tri.w;
             if (t < e || t > hit.wuvt.w)
             {
@@ -426,7 +418,7 @@ static rayhit_t VEC_CALL TraceRay(
             ASSERT(j < lights_pt_count());
             const pt_light_t light = lights[j];
 
-            float t = isectSphere3D(ray.ro, ray.rd, light.pos, light.pos.w);
+            float t = isectSphere3D(ray, (sphere_t) { light.pos });
             if (t < e || t > hit.wuvt.w)
             {
                 continue;
@@ -598,7 +590,8 @@ float4 VEC_CALL pt_trace_frag(
         if (Scatter(rng, ray, &surf, &newAtten, &newRay))
         {
             ray = newRay;
-            if (b >= 3)
+            // russian roulette
+            if (b >= 5)
             {
                 const float p = f4_hmax3(newAtten);
                 if (prng_f32(rng) < p)
@@ -651,12 +644,7 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
     const float4 fwd = quat_fwd(rot);
     const float2 slope = proj_slope(f1_radians(camera.fovy), (float)size.x / (float)size.y);
 
-    const i32 tid = task_thread_id();
-    prng_t rng = ms_rngs[tid];
-    if (rng.state == 0)
-    {
-        rng = prng_create();
-    }
+    prng_t rng = prng_get();
 
     const float2 dSize = f2_rcp(i2_f2(size));
     for (i32 i = begin; i < end; ++i)
@@ -673,7 +661,7 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
         image[i] = f4_lerpvs(image[i], sample, sampleWeight);
     }
 
-    ms_rngs[tid] = rng;
+    prng_set(rng);
 }
 
 struct task_s* pt_trace(pt_trace_t* desc)

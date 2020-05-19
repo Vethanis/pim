@@ -5,6 +5,7 @@
 PIM_C_BEGIN
 
 #include "rendering/constants.h"
+#include "rendering/framebuffer.h"
 #include "math/float2_funcs.h"
 #include "math/int2_funcs.h"
 
@@ -14,6 +15,32 @@ pim_inline int2 VEC_CALL GetTile(i32 i)
     i32 y = (i / kTilesPerDim);
     int2 result = { x * kTileWidth, y * kTileHeight };
     return result;
+}
+
+pim_inline i32 VEC_CALL IndexTile(int2 tile, i32 d, i32 x, i32 y)
+{
+    return (tile.x + x) + (tile.y + y) * d;
+}
+
+pim_inline float VEC_CALL TileDepth(const framebuf_t* buf, int2 tile)
+{
+    i32 w = buf->width;
+    i32 h = buf->height;
+    i32 m = 0;
+    while ((w*h) >= (kTileCount * 2))
+    {
+        ++m;
+        w = w >> 1;
+        h = h >> 1;
+    }
+    ASSERT(m < buf->mipCount);
+    i32 offset = buf->offsets[m];
+    tile.x = tile.x >> m;
+    tile.y = tile.y >> m;
+    i32 i = IndexTile(tile, kDrawWidth >> m, 0, 0);
+    ASSERT(i >= 0);
+    ASSERT(i < (w*h));
+    return buf->depth[offset + i];
 }
 
 pim_inline float2 VEC_CALL ScreenToUnorm(int2 screen)

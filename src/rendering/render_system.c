@@ -1,8 +1,9 @@
 #include "rendering/render_system.h"
 
 #include "allocator/allocator.h"
-#include "components/ecs.h"
 #include "components/table.h"
+#include "components/components.h"
+#include "components/drawables.h"
 #include "threading/task.h"
 #include "ui/cimgui.h"
 
@@ -10,6 +11,8 @@
 #include "common/cvar.h"
 #include "common/profiler.h"
 #include "common/console.h"
+#include "common/stringutil.h"
+#include "common/sort.h"
 
 #include "math/types.h"
 #include "math/int2_funcs.h"
@@ -21,13 +24,13 @@
 #include "math/sdf.h"
 #include "math/sphgauss.h"
 #include "math/sampling.h"
+#include "math/frustum.h"
 
 #include "rendering/constants.h"
 #include "rendering/window.h"
 #include "rendering/framebuffer.h"
 #include "rendering/camera.h"
 #include "rendering/lights.h"
-#include "rendering/transform_compose.h"
 #include "rendering/clear_tile.h"
 #include "rendering/vertex_stage.h"
 #include "rendering/fragment_stage.h"
@@ -40,9 +43,10 @@
 
 #include <string.h>
 
-static cvar_t cv_pathtrace = { cvart_bool, 0, "pathtrace", "0", "enable path tracing of scene" };
-static cvar_t cv_ptbounces = { cvart_int, 0, "ptbounces", "10", "number of bounces in the path tracer" };
-static cvar_t cv_gensg = { cvart_bool, 0, "gensg", "0", "enable spherical gaussian light accumulation" };
+static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing of scene" };
+static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "10", "number of bounces in the path tracer" };
+static cvar_t cv_sg_gen = { cvart_bool, 0, "sg_gen", "0", "enable spherical gaussian light accumulation" };
+static cvar_t cv_sg_count = { cvart_int, 0, "sg_count", "9", "number of spherical gaussian lobes to use" };
 
 // ----------------------------------------------------------------------------
 
@@ -51,10 +55,10 @@ static textureid_t GenCheckerTex(void);
 
 // ----------------------------------------------------------------------------
 
-static framebuf_t ms_buffer;
+static framebuf_t ms_buffers[2];
+static i32 ms_iFrame;
 static float4 ms_flatAlbedo;
 static float4 ms_flatRome;
-static prng_t ms_prng;
 
 static TonemapId ms_tonemapper;
 static float4 ms_toneParams;
@@ -224,35 +228,35 @@ static meshid_t VEC_CALL TrisToMesh(
     return mesh_create(mesh);
 }
 
-static ent_t* FlattenModel(mmodel_t* model, i32* entCountOut)
+static void FlattenModel(tables_t* tables, const mmodel_t* model)
 {
+    ASSERT(tables);
     ASSERT(model);
     ASSERT(model->vertices);
 
-    const float scale = 0.02f; // quake maps are big
     const quat rot = quat_angleaxis(-kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
-    const float4x4 M = f4x4_trs(f4_0, rot, f4_s(scale));
+    const float4x4 M = f4x4_trs(f4_0, rot, f4_s(0.02f));
 
+    const char* name = model->name;
     const i32 numSurfaces = model->numsurfaces;
     const msurface_t* surfaces = model->surfaces;
     const i32* surfEdges = model->surfedges;
     const float4* vertices = model->vertices;
     const medge_t* edges = model->edges;
 
+    table_t* table = Drawables_Get(tables);
+
     drawable_t drawable = { 0 };
-    localtoworld_t l2w = { 0 };
-    bounds_t bounds = { 0 };
-    void* rows[CompId_COUNT] = { 0 };
-    rows[CompId_Bounds] = &bounds;
-    rows[CompId_LocalToWorld] = &l2w;
-    rows[CompId_Drawable] = &drawable;
+    localtoworld_t l2w = { f4x4_id };
+    translation_t translation = { f4_0 };
+    rotation_t rotation = { quat_id };
+    scale_t scale = { f4_1 };
 
     textureid_t* textures = GenTextures(surfaces, numSurfaces);
 
     float4* polygon = NULL;
     float4* tris = NULL;
     i32 entCount = 0;
-    ent_t* ents = NULL;
 
     for (i32 i = 0; i < numSurfaces; ++i)
     {
@@ -270,160 +274,150 @@ static ent_t* FlattenModel(mmodel_t* model, i32* entCountOut)
         drawable.material.albedo = textures[i];
         //drawable.material.rome = textures[i];
 
-        const i32 vertCount = FlattenSurface(model, surface, &tris, &polygon);
-
+        i32 vertCount = FlattenSurface(model, surface, &tris, &polygon);
         drawable.mesh = TrisToMesh(M, surface, tris, vertCount);
 
         drawable.material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
         drawable.material.flatAlbedo = LinearToColor(f4_1);
         drawable.material.flatRome = LinearToColor(f4_v(0.5f, 1.0f, 0.0f, 0.0f));
 
-        bounds.box = mesh_calcbounds(drawable.mesh);
-        l2w.Value = f4x4_id;
-
         ++entCount;
-        ents = tmp_realloc(ents, sizeof(ents[0]) * entCount);
-        ents[entCount - 1] = ecs_create(rows);
-    }
 
-    *entCountOut = entCount;
-    return ents;
+        char namebuf[64];
+        SPrintf(ARGS(namebuf), "%s_%d", name, i);
+        i32 c = col_add_s(table, namebuf);
+
+        drawable_t* drawables = table_row(table, TYPE_ARGS(drawable_t));
+        drawables[c] = drawable;
+
+        translation_t* translations = table_row(table, TYPE_ARGS(translation_t));
+        translations[c] = translation;
+
+        rotation_t* rotations = table_row(table, TYPE_ARGS(rotation_t));
+        rotations[c] = rotation;
+
+        scale_t* scales = table_row(table, TYPE_ARGS(scale_t));
+        scales[c] = scale;
+
+
+        ASSERT(drawables[c].mesh.handle);
+    }
 }
 
-static void UpdateMaterialsFn(ecs_foreach_t* task, void** rows, const i32* indices, i32 length)
+static void UpdateMaterials(tables_t* tables)
 {
-    drawable_t* drawables = rows[CompId_Drawable];
-
-    u32 flatAlbedo = LinearToColor(ms_flatAlbedo);
-    u32 flatRome = LinearToColor(ms_flatRome);
-    for (i32 i = 0; i < length; ++i)
+    table_t* table = Drawables_Get(tables);
+    if (table)
     {
-        i32 iEnt = indices[i];
-        drawables[iEnt].material.flatAlbedo = flatAlbedo;
-        drawables[iEnt].material.flatRome = flatRome;
+        u32 flatAlbedo = LinearToColor(ms_flatAlbedo);
+        u32 flatRome = LinearToColor(ms_flatRome);
+
+        const i32 len = table_width(table);
+        drawable_t* drawables = table_row(table, TYPE_ARGS(drawable_t));
+        for(i32 i = 0; i < len; ++i)
+        {
+            drawables[i].material.flatAlbedo = flatAlbedo;
+            drawables[i].material.flatRome = flatRome;
+        }
     }
 }
 
-static task_t* UpdateMaterials(void)
-{
-    ecs_foreach_t* task = tmp_calloc(sizeof(*task));
-    ecs_foreach(task, (1 << CompId_Drawable), 0, UpdateMaterialsFn);
-    return (task_t*)task;
-}
-
-static void CleanPtScene(void)
+static void CleanPtScene(tables_t* tables)
 {
     bool dirty = false;
     camera_t camera;
     camera_get(&camera);
-    dirty |= cvar_check_dirty(&cv_pathtrace);
-    dirty |= cvar_check_dirty(&cv_gensg);
+    dirty |= cvar_check_dirty(&cv_pt_trace);
+    dirty |= cvar_check_dirty(&cv_sg_gen);
     dirty |= memcmp(&camera, &ms_ptcamera, sizeof(camera)) != 0;
     if (dirty)
     {
         ms_sampleCount = 0;
         pt_scene_del(ms_ptscene);
-        ms_ptscene = pt_scene_new(5);
+        ms_ptscene = pt_scene_new(tables, 5);
         ms_ptcamera = camera;
     }
 }
 
-void render_sys_init(void)
+typedef struct sgtrace_s
 {
-    cvar_reg(&cv_pathtrace);
-    cvar_reg(&cv_ptbounces);
-    cvar_reg(&cv_gensg);
+    task_t task;
+    float4 origin;
+    float4* radiances;
+    float4* directions;
+} sgtrace_t;
 
-    ms_prng = prng_create();
-    ms_tonemapper = TMap_Reinhard;
-    ms_toneParams = Tonemap_DefParams();
-    ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
-    *DiffuseGI() = f4_s(0.01f);
-    *SpecularGI() = f4_s(0.01f);
-
-    framebuf_create(&ms_buffer, kDrawWidth, kDrawHeight);
-    screenblit_init(kDrawWidth, kDrawHeight);
-    FragmentStage_Init();
-
-    ms_flatAlbedo = f4_s(1.0f);
-    ms_flatRome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
-
-    table_t* drawables = tables_add_s(tables_main(), "Drawables");
-    table_add_h(drawables, TYPE_ARGS(drawable_t));
-    table_add_h(drawables, TYPE_ARGS(bounds_t));
-    table_add_h(drawables, TYPE_ARGS(localtoworld_t));
-    table_add_h(drawables, TYPE_ARGS(translation_t));
-    table_add_h(drawables, TYPE_ARGS(rotation_t));
-    table_add_h(drawables, TYPE_ARGS(scale_t));
-
-    table_t* lights = tables_add_s(tables_main(), "Lights");
-    table_add_h(lights, TYPE_ARGS(radiance_t));
-    table_add_h(lights, TYPE_ARGS(translation_t));
-    table_add_h(lights, TYPE_ARGS(rotation_t));
-
-    table_t* cameras = tables_add_s(tables_main(), "Cameras");
-    table_add_h(cameras, TYPE_ARGS(camera_t));
-
-    table_t* meshes = tables_add_s(tables_main(), "Meshes");
-    table_add_h(meshes, TYPE_ARGS(meshid_t));
-
-    table_t* textures = tables_add_s(tables_main(), "Textures");
-    table_add_h(textures, TYPE_ARGS(textureid_t));
-
-    i32 entCount = 0;
-    ent_t* ents = NULL;
-
-    asset_t mapasset = { 0 };
-    if (asset_get("maps/start.bsp", &mapasset))
+static void SGTraceFn(task_t* pBase, i32 begin, i32 end)
+{
+    sgtrace_t* task = (sgtrace_t*)pBase;
+    prng_t rng = prng_get();
+    ray_t ray;
+    ray.ro = task->origin;
+    for (i32 i = begin; i < end; ++i)
     {
-        mmodel_t* model = LoadModel(mapasset.pData, EAlloc_Temp);
-        ents = FlattenModel(model, &entCount);
-        FreeModel(model);
+        ray.rd = f4_normalize3(SampleUnitSphere(f2_rand(&rng)));
+        float4 rad = pt_trace_frag(&rng, ms_ptscene, ray, 10);
+        task->directions[i] = ray.rd;
+        task->radiances[i] = rad;
     }
-
-    if (lights_pt_count() == 0)
-    {
-        lights_add_pt((pt_light_t) { f4_v(0.0f, 0.0f, 0.0f, 1.0f), f4_s(3.0f) });
-    }
-
-    task_t* compose = TransformCompose();
-    task_sys_schedule();
-    task_await(compose);
-
-    SG_SetCount(9);
-    SG_Generate(SG_Get(), SG_GetCount(), SGDist_Sphere);
-
-    CleanPtScene();
+    prng_set(rng);
 }
 
-ProfileMark(pm_sgtrace, sg_trace)
-ProfileMark(pm_update, render_sys_update)
-void render_sys_update(void)
+ProfileMark(pm_sgtrace, SGTrace)
+static void SGTrace(tables_t* tables)
 {
-    ProfileBegin(pm_update);
-
-    camera_t camera;
-    camera_get(&camera);
-
-    if (cv_gensg.asFloat != 0.0f)
+    if (cvar_check_dirty(&cv_sg_count))
+    {
+        SG_SetCount((i32)cv_sg_count.asFloat);
+        SG_Generate(SG_Get(), SG_GetIntegrals(), SG_GetCount(), SGDist_Sphere);
+        ms_sampleCount = 0;
+    }
+    if (cv_sg_gen.asFloat != 0.0f)
     {
         ProfileBegin(pm_sgtrace);
-        CleanPtScene();
-        ray_t ray;
-        ray.ro = camera.position;
-        for (i32 i = 0; i < 1024; ++i)
+        CleanPtScene(tables);
+
+        camera_t camera;
+        camera_get(&camera);
+
+        const i32 sampleCount = 1024;
+        float4* pim_noalias directions = tmp_malloc(sizeof(directions[0]) * sampleCount);
+        float4* pim_noalias radiances = tmp_malloc(sizeof(radiances[0]) * sampleCount);
+
+        sgtrace_t* task = tmp_calloc(sizeof(*task));
+        task->origin = camera.position;
+        task->directions = directions;
+        task->radiances = radiances;
+
+        task_submit((task_t*)task, SGTraceFn, sampleCount);
+        task_sys_schedule();
+        task_await((task_t*)task);
+
+        SG_t* sgs = SG_Get();
+        float* weights = SG_GetWeights();
+        const float* integrals = SG_GetIntegrals();
+        const i32 sgCount = SG_GetCount();
+
+        const i32 s = ms_sampleCount;
+        for (i32 i = 0; i < sampleCount; ++i)
         {
-            ray.rd = f4_normalize3(SampleUnitSphere(f2_rand(&ms_prng)));
-            float4 rad = pt_trace_frag(&ms_prng, ms_ptscene, ray, 10);
-            SG_Accumulate(++ms_sampleCount, ray.rd, rad, SG_Get(), SG_GetCount());
+            SG_Accumulate(s + i, directions[i], radiances[i], sgs, weights, integrals, sgCount);
         }
+        ms_sampleCount += sampleCount;
+
         ProfileEnd(pm_sgtrace);
     }
+}
 
-    task_t* drawTask = NULL;
-    if (cv_pathtrace.asFloat != 0.0f)
+ProfileMark(pm_PathTrace, PathTrace)
+static task_t* PathTrace(tables_t* tables)
+{
+    task_t* task = NULL;
+    if (cv_pt_trace.asFloat != 0.0f)
     {
-        CleanPtScene();
+        ProfileBegin(pm_PathTrace);
+
+        CleanPtScene(tables);
 
         pt_scene_t* scene = ms_ptscene;
         if (scene)
@@ -438,43 +432,134 @@ void render_sys_update(void)
             }
         }
 
-        ms_trace.bounces = i1_clamp((i32)cv_ptbounces.asFloat, 0, 100);
+        framebuf_t* fbuf = &(ms_buffers[ms_iFrame & 1]);
+
+        ms_trace.bounces = i1_clamp((i32)cv_pt_bounces.asFloat, 0, 100);
         ms_trace.sampleWeight = 1.0f / ++ms_sampleCount;
         ms_trace.camera = &ms_ptcamera;
-        ms_trace.dstImage = ms_buffer.light;
-        ms_trace.imageSize = i2_v(ms_buffer.width, ms_buffer.height);
+        ms_trace.dstImage = fbuf->light;
+        ms_trace.imageSize = i2_v(fbuf->width, fbuf->height);
         ms_trace.scene = ms_ptscene;
 
-        drawTask = pt_trace(&ms_trace);
+        task = pt_trace(&ms_trace);
         task_sys_schedule();
+
+        ProfileEnd(pm_PathTrace);
     }
-    else
+    return task;
+}
+
+void render_sys_init(void)
+{
+    cvar_reg(&cv_pt_trace);
+    cvar_reg(&cv_pt_bounces);
+    cvar_reg(&cv_sg_gen);
+    cvar_reg(&cv_sg_count);
+
+    ms_iFrame = 0;
+    framebuf_create(&(ms_buffers[0]), kDrawWidth, kDrawHeight);
+    framebuf_create(&(ms_buffers[1]), kDrawWidth, kDrawHeight);
+    screenblit_init(kDrawWidth, kDrawHeight);
+
+    ms_tonemapper = TMap_Reinhard;
+    ms_toneParams = Tonemap_DefParams();
+    ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
+    ms_flatAlbedo = f4_s(1.0f);
+    ms_flatRome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
+
+    tables_t* tables = tables_main();
+
+    Drawables_New(tables);
+
+    table_t* lights = tables_add_s(tables, "Lights");
+    table_add_h(lights, TYPE_ARGS(radiance_t));
+    table_add_h(lights, TYPE_ARGS(translation_t));
+    table_add_h(lights, TYPE_ARGS(rotation_t));
+
+    table_t* cameras = tables_add_s(tables, "Cameras");
+    table_add_h(cameras, TYPE_ARGS(camera_t));
+
+    table_t* meshes = tables_add_s(tables, "Meshes");
+    table_add_h(meshes, TYPE_ARGS(meshid_t));
+
+    table_t* textures = tables_add_s(tables, "Textures");
+    table_add_h(textures, TYPE_ARGS(textureid_t));
+
+    asset_t mapasset = { 0 };
+    if (asset_get("maps/start.bsp", &mapasset))
     {
-        task_t* xformTask = TransformCompose();
-        task_t* clearTask = ClearTile(&ms_buffer, ms_clearColor, camera.nearFar.y);
-        task_sys_schedule();
-        task_await(xformTask);
+        mmodel_t* model = LoadModel(mapasset.pData, EAlloc_Temp);
+        StrCpy(ARGS(model->name), "maps/start.bsp");
+        FlattenModel(tables, model);
+        FreeModel(model);
+    }
 
-        task_t* vertexTask = VertexStage(&ms_buffer);
-        task_sys_schedule();
+    if (lights_pt_count() == 0)
+    {
+        lights_add_pt((pt_light_t) { f4_v(0.0f, 0.0f, 0.0f, 1.0f), f4_s(3.0f) });
+    }
 
+    task_t* compose = Drawables_TRS(tables);
+    task_sys_schedule();
+    task_await(compose);
+
+    SG_SetCount((i32)cv_sg_count.asFloat);
+    SG_Generate(SG_Get(), SG_GetIntegrals(), SG_GetCount(), SGDist_Sphere);
+
+    CleanPtScene(tables);
+}
+
+ProfileMark(pm_update, render_sys_update)
+void render_sys_update(void)
+{
+    ProfileBegin(pm_update);
+
+    ++ms_iFrame;
+    const i32 iFront = ms_iFrame & 1;
+    const i32 iBack = (ms_iFrame + 1) & 1;
+
+    framebuf_t* frontBuf = &(ms_buffers[iFront]);
+    framebuf_t* backBuf = &(ms_buffers[iBack]);
+
+    tables_t* tables = tables_main();
+    camera_t camera;
+    camera_get(&camera);
+
+    UpdateMaterials(tables);
+    SGTrace(tables);
+
+    task_t* xformTask = Drawables_TRS(tables);
+    task_sys_schedule();
+    task_await(xformTask);
+
+    task_t* boundsTask = Drawables_Bounds(tables);
+    task_sys_schedule();
+    task_await(boundsTask);
+
+    task_t* cullTask = Drawables_Cull(tables, &camera, backBuf);
+    task_sys_schedule();
+    task_await(cullTask);
+
+    task_t* drawTask = PathTrace(tables);
+    if (!drawTask)
+    {
+        task_t* vertexTask = Drawables_Vertex(tables, &camera);
+        task_sys_schedule();
+        ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
         task_await(vertexTask);
-        drawTask = FragmentStage(&ms_buffer);
+
+        drawTask = Drawables_Fragment(tables, frontBuf, backBuf);
         task_sys_schedule();
     }
 
     task_await(drawTask);
-    task_t* resolveTask = ResolveTile(&ms_buffer, ms_tonemapper, ms_toneParams);
-    UpdateMaterials();
+    task_t* resolveTask = ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
+
     task_sys_schedule();
     task_await(resolveTask);
-    screenblit_blit(ms_buffer.color, kDrawWidth, kDrawHeight);
+    screenblit_blit(frontBuf->color, kDrawWidth, kDrawHeight);
 
     ProfileEnd(pm_update);
-}
-
-void render_sys_present(void)
-{
 }
 
 void render_sys_shutdown(void)
@@ -485,8 +570,21 @@ void render_sys_shutdown(void)
     ms_ptscene = NULL;
 
     screenblit_shutdown();
-    framebuf_destroy(&ms_buffer);
-    FragmentStage_Shutdown();
+    framebuf_destroy(&(ms_buffers[0]));
+    framebuf_destroy(&(ms_buffers[1]));
+
+    Drawables_Del(tables_main());
+}
+
+static i32 CmpFloat(const void* lhs, const void* rhs, void* usr)
+{
+    const float a = *(float*)lhs;
+    const float b = *(float*)rhs;
+    if (a != b)
+    {
+        return a < b ? -1 : 1;
+    }
+    return 0;
 }
 
 ProfileMark(pm_gui, render_sys_gui)
@@ -499,13 +597,6 @@ void render_sys_gui(bool* pEnabled)
 
     if (igBegin("RenderSystem", pEnabled, 0))
     {
-#if CULLING_STATS
-        igText("Vert Ents Culled: %I64u", Vert_EntsCulled());
-        igText("Vert Ents Drawn: %I64u", Vert_EntsDrawn());
-        igText("Frag Tris Culled: %I64u", Frag_TrisCulled());
-        igText("Frag Tris Drawn: %I64u", Frag_TrisDrawn());
-#endif // CULLING_STATS
-
         if (igCollapsingHeader1("Tonemapping"))
         {
             igIndent(0.0f);
@@ -533,10 +624,63 @@ void render_sys_gui(bool* pEnabled)
             pt_light_t light = lights_get_pt(0);
             igColorEdit3("Light Radiance", &light.rad.x, hdrPicker);
             lights_set_pt(0, light);
-            igColorEdit3("Diffuse GI", &DiffuseGI()->x, hdrPicker);
-            igColorEdit3("Specular GI", &SpecularGI()->x, hdrPicker);
 
             igUnindent(0.0f);
+        }
+
+        if (igCollapsingHeader1("Culling Stats"))
+        {
+            table_t* table = Drawables_Get(tables_main());
+            if (table)
+            {
+                const i32 width = table_width(table);
+                const drawable_t* drawables = table_row(table, TYPE_ARGS(drawable_t));
+                const bounds_t* bounds = table_row(table, TYPE_ARGS(bounds_t));
+                i32 numVisible = 0;
+                for (i32 i = 0; i < width; ++i)
+                {
+                    if (drawables[i].tilemask)
+                    {
+                        ++numVisible;
+                    }
+                }
+                igText("Drawables: %d", width);
+                igText("Visible: %d", numVisible);
+                igText("Culled: %d", width - numVisible);
+                igSeparator();
+
+                camera_t camera;
+                camera_get(&camera);
+                frus_t frus;
+                camera_frustum(&camera, &frus);
+
+                float* distances = tmp_malloc(sizeof(distances[0]) * width);
+                for (i32 i = 0; i < width; ++i)
+                {
+                    distances[i] = sdFrusSph(frus, bounds[i].Value);
+                }
+                i32* indices = indsort(distances, width, sizeof(distances[0]), CmpFloat, NULL);
+                igColumns(4);
+                igText("Visible"); igNextColumn();
+                igText("Distance"); igNextColumn();
+                igText("Center"); igNextColumn();
+                igText("Radius"); igNextColumn();
+                igSeparator();
+                for (i32 i = 0; i < width; ++i)
+                {
+                    i32 j = indices[i];
+                    float4 sph = bounds[j].Value.value;
+                    u64 tilemask = drawables[j].tilemask;
+                    float dist = distances[j];
+                    const char* tag = (tilemask) ? "Visible" : "Culled";
+
+                    igText(tag); igNextColumn();
+                    igText("%.2f", dist); igNextColumn();
+                    igText("%.2f %.2f %.2f", sph.x, sph.y, sph.z); igNextColumn();
+                    igText("%.2f", sph.w); igNextColumn();
+                }
+                igColumns(1);
+            }
         }
 }
     igEnd();
@@ -683,7 +827,7 @@ static textureid_t GenCheckerTex(void)
 
     const float4 a = f4_s(1.0f);
     const float4 b = f4_s(0.01f);
-    prng_t rng = ms_prng;
+    prng_t rng = prng_get();
     for (i32 y = 0; y < size; ++y)
     {
         for (i32 x = 0; x < size; ++x)
@@ -697,7 +841,7 @@ static textureid_t GenCheckerTex(void)
         }
     }
     albedo->texels = texels;
-    ms_prng = rng;
+    prng_set(rng);
 
     return texture_create(albedo);
 }

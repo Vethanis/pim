@@ -177,6 +177,17 @@ bool table_rm_h(table_t* table, u32 typeHash)
     return false;
 }
 
+void* table_row(table_t* table, u32 typeHash, i32 typeSize)
+{
+    row_t* row = table_get_h(table, typeHash);
+    if (row)
+    {
+        ASSERT(row->stride == typeSize);
+        return row->ptr;
+    }
+    return NULL;
+}
+
 // ----------------------------------------------------------------------------
 // Column API
 
@@ -198,24 +209,32 @@ i32 col_add_h(table_t* table, u32 entName)
     i32 e = col_get_h(table, entName);
     if (e == -1)
     {
-        const i32 len = table->columnct + 1;
-        table->columnct = len;
-        e = len - 1;
+        const i32 width = ++table->columnct;
+        const i32 height = table->rowct;
+        e = width - 1;
 
-        table->entnames = perm_realloc(table->entnames, sizeof(table->entnames[0]) * len);
+        table->entnames = perm_realloc(table->entnames, sizeof(table->entnames[0]) * width);
         table->entnames[e] = entName;
 
-        const i32 rowct = table->rowct;
         row_t* rows = table->rows;
-        for (i32 i = 0; i < rowct; ++i)
+        for (i32 i = 0; i < height; ++i)
         {
-            rows[i].length = len;
-            i32 stride = rows[i].stride;
+            row_t* row = rows + i;
+            row->length = width;
+            i32 stride = row->stride;
             ASSERT(stride > 0);
 
-            rows[i].ptr = perm_realloc(rows[i].ptr, stride * len);
-            memset(rows[i].ptr + e * stride, 0, stride);
+            ASSERT(e * stride < stride * width);
+            ASSERT(e * stride >= 0);
+
+            row->ptr = perm_realloc(row->ptr, stride * width);
+            memset(row->ptr + e * stride, 0, stride);
         }
+    }
+    else
+    {
+        ASSERT(false);
+        return -1;
     }
     return e;
 }

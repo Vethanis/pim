@@ -3,7 +3,10 @@
 #include "allocator/allocator.h"
 #include "common/atomics.h"
 #include "common/profiler.h"
-#include "components/ecs.h"
+#include "components/table.h"
+#include "components/components.h"
+#include "components/drawables.h"
+#include "threading/task.h"
 
 #include "math/types.h"
 #include "math/float2_funcs.h"
@@ -17,14 +20,6 @@
 #include "rendering/camera.h"
 #include "rendering/constants.h"
 #include "rendering/framebuffer.h"
-#include "rendering/fragment_stage.h"
-#include "rendering/sampler.h"
-
-typedef struct vertexstage_s
-{
-    ecs_foreach_t task;
-    framebuf_t* target;
-} vertexstage_t;
 
 static u64 ms_entsCulled;
 static u64 ms_entsDrawn;
@@ -32,120 +27,134 @@ static u64 ms_entsDrawn;
 u64 Vert_EntsCulled(void) { return ms_entsCulled; }
 u64 Vert_EntsDrawn(void) { return ms_entsDrawn; }
 
-pim_optimize
-static void VertexStageForEach(ecs_foreach_t* task, void** rows, const i32* indices, i32 length)
+typedef struct verttask_s
 {
-    vertexstage_t* vertTask = (vertexstage_t*)task;
-    ASSERT(vertTask->target);
-
-    const float4x4* pim_noalias matrices = rows[CompId_LocalToWorld];
-    const bounds_t* pim_noalias bounds = rows[CompId_Bounds];
-    drawable_t* pim_noalias drawables = rows[CompId_Drawable];
-
-    camera_t camera;
-    camera_get(&camera);
+    task_t task;
     frus_t frus;
-    camera_frustum(&camera, &frus);
+    drawable_t* drawables;
+    const localtoworld_t* matrices;
+} verttask_t;
 
-    // frustum-mesh culling
-    for (i32 i = 0; i < length; ++i)
+pim_inline float2 VEC_CALL TransformUv(float2 uv, float4 ST)
+{
+    uv.x = uv.x * ST.x + ST.z;
+    uv.y = uv.y * ST.y + ST.w;
+    return uv;
+}
+
+static meshid_t VEC_CALL TransformMesh(frus_t frus, meshid_t local, float4x4 M, float4 ST)
+{
+    meshid_t result = { 0 };
+
+    mesh_t mesh;
+    if (mesh_get(local, &mesh) && mesh.length > 0)
     {
-        const i32 e = indices[i];
-        const box_t box = TransformBox(matrices[e], bounds[e].box);
-        const bool visible = sdFrusBox(frus, box) <= 0.0f;
-        drawables[e].visible = visible;
+        i32 vertCount = 0;
+        float4* pim_noalias positions = tmp_malloc(sizeof(positions[0]) * mesh.length);
+        float4* pim_noalias normals = tmp_malloc(sizeof(normals[0]) * mesh.length);
+        float2* pim_noalias uvs = tmp_malloc(sizeof(uvs[0]) * mesh.length);
 
-#if CULLING_STATS
-        if (visible)
+        const float4x4 IM = f4x4_inverse(f4x4_transpose(M)); // TODO: use f3x3, faster inverse
+        for (i32 j = 0; (j + 3) <= mesh.length; j += 3)
         {
-            inc_u64(&ms_entsDrawn, MO_Relaxed);
+            float4 A = f4x4_mul_pt(M, mesh.positions[j + 0]);
+            float4 B = f4x4_mul_pt(M, mesh.positions[j + 1]);
+            float4 C = f4x4_mul_pt(M, mesh.positions[j + 2]);
+            sphere_t sph = triToSphere(A, B, C);
+            float dist = sdFrusSph(frus, sph);
+            if (dist <= 0.0f)
+            {
+                i32 a = vertCount++;
+                i32 b = vertCount++;
+                i32 c = vertCount++;
+
+                positions[a] = A;
+                positions[b] = B;
+                positions[c] = C;
+
+                normals[a] = f4_normalize3(f4x4_mul_dir(IM, mesh.normals[j + 0]));
+                normals[b] = f4_normalize3(f4x4_mul_dir(IM, mesh.normals[j + 1]));
+                normals[c] = f4_normalize3(f4x4_mul_dir(IM, mesh.normals[j + 2]));
+
+                uvs[a] = TransformUv(mesh.uvs[j + 0], ST);
+                uvs[b] = TransformUv(mesh.uvs[j + 1], ST);
+                uvs[c] = TransformUv(mesh.uvs[j + 2], ST);
+            }
         }
-        else
+
+        if (vertCount > 0)
         {
-            inc_u64(&ms_entsCulled, MO_Relaxed);
+            mesh_t* tmpmesh = tmp_calloc(sizeof(*tmpmesh));
+            tmpmesh->length = vertCount;
+            tmpmesh->positions = positions;
+            tmpmesh->normals = normals;
+            tmpmesh->uvs = uvs;
+            ASSERT(tmpmesh->version == 0);
+            ASSERT(tmpmesh->length == vertCount);
+            ASSERT(tmpmesh->positions == positions);
+            ASSERT(tmpmesh->normals == normals);
+            ASSERT(tmpmesh->uvs == uvs);
+            result = mesh_create(tmpmesh);
         }
-#endif // CULLING_STATS
+    }
+    else
+    {
+        // shouldn't happen unless a visible mesh is destroyed mid-draw.
+        // isn't fatal, just want to catch cases where this occurs.
+        // might want to assert that the mesh is occluded or very far away
+        ASSERT(false);
     }
 
-    // vertex transform + frustum-triangle culling
-    for (i32 i = 0; i < length; ++i)
+    return result;
+}
+
+static void VertexFn(task_t* pBase, i32 begin, i32 end)
+{
+    verttask_t* pTask = (verttask_t*)pBase;
+    drawable_t* pim_noalias drawables = pTask->drawables;
+    const localtoworld_t* pim_noalias matrices = pTask->matrices;
+
+    for (i32 i = begin; i < end; ++i)
     {
-        const i32 e = indices[i];
-        if (!drawables[e].visible)
+        drawables[i].tmpmesh.handle = NULL;
+        drawables[i].tmpmesh.version = 0;
+
+        if (!drawables[i].tilemask)
         {
             continue;
         }
 
-        mesh_t meshIn = { 0 };
-        if (!mesh_get(drawables[e].mesh, &meshIn))
+        meshid_t tmpmesh = TransformMesh(
+            pTask->frus,
+            drawables[i].mesh,
+            matrices[i].Value,
+            drawables[i].material.st);
+        drawables[i].tmpmesh = tmpmesh;
+        if (!tmpmesh.handle)
         {
-            drawables[e].visible = false;
-            continue;
+            drawables[i].tilemask = 0;
         }
-
-        // TODO: float3x3, inverse, transpose, and mul_dir.
-        const float4x4 M = matrices[e];
-        const float4x4 IM = f4x4_inverse(f4x4_transpose(M));
-        const float4 ST = drawables[e].material.st;
-        const i32 numVerts = meshIn.length;
-
-        const float4* pim_noalias positionsIn = meshIn.positions;
-        const float4* pim_noalias normalsIn = meshIn.normals;
-        const float2* pim_noalias uvsIn = meshIn.uvs;
-
-        // hopefully this doesn't blow up the linear allocator.
-        // if it does, grow the hell out of it and shrink the persistent allocator.
-        float4* pim_noalias positionsOut = tmp_malloc(sizeof(positionsOut[0]) * numVerts);
-        float4* pim_noalias normalsOut = tmp_malloc(sizeof(normalsOut[0]) * numVerts);
-        float2* pim_noalias uvsOut = tmp_malloc(sizeof(uvsOut[0]) * numVerts);
-
-        for (i32 j = 0; j < numVerts; ++j)
-        {
-            positionsOut[j] = f4x4_mul_pt(M, positionsIn[j]);
-        }
-        for (i32 j = 0; j < numVerts; ++j)
-        {
-            normalsOut[j] = f4_normalize3(f4x4_mul_dir(IM, normalsIn[j]));
-        }
-        for(i32 j = 0; j < numVerts; ++j)
-        {
-            uvsOut[j] = TransformUv(uvsIn[j], ST);
-        }
-
-        mesh_t* meshOut = tmp_calloc(sizeof(*meshOut));
-        meshOut->length = numVerts;
-        meshOut->positions = positionsOut;
-        meshOut->normals = normalsOut;
-        meshOut->uvs = uvsOut;
-        meshid_t worldMesh = mesh_create(meshOut);
-
-        SubmitMesh(worldMesh, drawables[e].material);
     }
 }
 
-static const u32 kAll =
+ProfileMark(pm_Vertex, Drawables_Vertex)
+task_t* Drawables_Vertex(struct tables_s* tables, const struct camera_s* camera)
 {
-    (1 << CompId_Drawable) |
-    (1 << CompId_Bounds) |
-    (1 << CompId_LocalToWorld)
-};
+    ProfileBegin(pm_Vertex);
+    ASSERT(camera);
+    task_t* result = NULL;
 
-ProfileMark(pm_VertexStage, VertexStage)
-task_t* VertexStage(struct framebuf_s* target)
-{
-    ProfileBegin(pm_VertexStage);
+    table_t* table = Drawables_Get(tables);
+    if (table)
+    {
+        verttask_t* task = tmp_calloc(sizeof(*task));
+        camera_frustum(camera, &(task->frus));
+        task->drawables = table_row(table, TYPE_ARGS(drawable_t));
+        task->matrices = table_row(table, TYPE_ARGS(localtoworld_t));
+        task_submit((task_t*)task, VertexFn, table_width(table));
+        result = (task_t*)task;
+    }
 
-#if CULLING_STATS
-    store_u64(&ms_entsCulled, 0, MO_Release);
-    store_u64(&ms_entsDrawn, 0, MO_Release);
-    store_u64(&ms_trisCulled, 0, MO_Release);
-    store_u64(&ms_trisDrawn, 0, MO_Release);
-#endif // CULLING_STATS
-
-    vertexstage_t* task = tmp_calloc(sizeof(*task));
-    task->target = target;
-    ecs_foreach((ecs_foreach_t*)task, kAll, 0, VertexStageForEach);
-
-    ProfileEnd(pm_VertexStage);
-    return (task_t*)task;
+    ProfileEnd(pm_Vertex);
+    return result;
 }

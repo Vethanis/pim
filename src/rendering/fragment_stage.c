@@ -3,8 +3,6 @@
 #include "common/atomics.h"
 #include "common/profiler.h"
 #include "common/cvar.h"
-#include "components/ecs.h"
-#include "containers/ptrqueue.h"
 #include "threading/task.h"
 
 #include "math/types.h"
@@ -26,17 +24,20 @@
 #include "rendering/framebuffer.h"
 #include "rendering/lights.h"
 
+#include "components/table.h"
+#include "components/drawables.h"
+#include "components/components.h"
+
+static cvar_t cv_sg_dbg_diff = { cvart_bool, 0, "sg_dbg_diff", "0", "display a debug view of diffuse GI" };
+static cvar_t cv_sg_dbg_spec = { cvart_bool, 0, "sg_dbg_spec", "0", "display a debug view of specular GI" };
+
 typedef struct fragstage_s
 {
     task_t task;
-    framebuf_t* target;
+    framebuf_t* frontBuf;
+    const framebuf_t* backBuf;
+    table_t* table;
 } fragstage_t;
-
-typedef struct drawmesh_s
-{
-    material_t material;
-    meshid_t mesh;
-} drawmesh_t;
 
 typedef struct tile_ctx_s
 {
@@ -52,108 +53,96 @@ typedef struct tile_ctx_s
     float2 tileMax;
     float nearClip;
     float farClip;
+    float tileDepth;
 } tile_ctx_t;
 
-static cvar_t cv_sg_dbgirad = { cvart_bool, 0, "sg_dbgirad", "0", "display a debug view of diffuse GI" };
-static cvar_t cv_sg_dbgeval = { cvart_bool, 0, "sg_dbgeval", "0", "display a debug view of specular GI" };
-
-static ptrqueue_t ms_fragQueues[kTileCount];
 static BrdfLut ms_lut;
 static float4 ms_diffuseGI;
 static float4 ms_specularGI;
-static u64 ms_trisCulled;
-static u64 ms_trisDrawn;
 
+#define MAX_SGS 256
 static i32 ms_sgcount;
-static SG_t ms_sgs[256];
+static SG_t ms_sgs[MAX_SGS];
+static float ms_sgintegrals[MAX_SGS];
+static float ms_sgweights[MAX_SGS];
 
 SG_t* SG_Get(void) { return ms_sgs; }
+float* SG_GetIntegrals(void) { return ms_sgintegrals; }
+float* SG_GetWeights(void) { return ms_sgweights; }
 i32 SG_GetCount(void) { return ms_sgcount; }
-void SG_SetCount(i32 ct) { ms_sgcount = i1_clamp(ct, 0, NELEM(ms_sgs)); }
+void SG_SetCount(i32 ct) { ms_sgcount = i1_clamp(ct, 0, MAX_SGS); }
 float4* DiffuseGI(void) { return &ms_diffuseGI; }
 float4* SpecularGI(void) { return &ms_specularGI; }
-u64 Frag_TrisCulled(void) { return ms_trisCulled; }
-u64 Frag_TrisDrawn(void) { return ms_trisDrawn; }
 
-static void SetupTile(tile_ctx_t* ctx, i32 iTile);
+static void EnsureInit(void);
+static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf);
 static float4 VEC_CALL TriBounds(float4x4 VP, float4 A, float4 B, float4 C, float2 tileMin, float2 tileMax);
-static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const drawmesh_t* draw);
+static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const drawable_t* drawable);
 
 pim_optimize
 static void FragmentStageFn(task_t* task, i32 begin, i32 end)
 {
     fragstage_t* stage = (fragstage_t*)task;
-    framebuf_t* pim_noalias target = stage->target;
-    tile_ctx_t ctx;
 
+    table_t* table = stage->table;
+    ASSERT(table);
+    const i32 drawCount = table_width(table);
+    const drawable_t* drawables = table_row(table, TYPE_ARGS(drawable_t));
+
+    tile_ctx_t ctx;
     for (i32 i = begin; i < end; ++i)
     {
-        SetupTile(&ctx, i);
+        SetupTile(&ctx, i, stage->backBuf);
 
-        ptrqueue_t* queue = ms_fragQueues + i;
-        drawmesh_t* draw = NULL;
-    trypop:
-        draw = ptrqueue_trypop(queue);
-        if (draw)
+        u64 tilemask = 1;
+        tilemask <<= i;
+
+        for (i32 j = 0; j < drawCount; ++j)
         {
-            DrawMesh(&ctx, target, draw);
-            goto trypop;
+            if (drawables[j].tilemask & tilemask)
+            {
+                DrawMesh(&ctx, stage->frontBuf, drawables + j);
+            }
         }
     }
 }
 
-void SubmitMesh(meshid_t worldMesh, material_t material)
+static void EnsureInit(void)
 {
-    drawmesh_t* draw = tmp_calloc(sizeof(*draw));
-    draw->material = material;
-    draw->mesh = worldMesh;
-
-    for (i32 i = 0; i < kTileCount; ++i)
+    if (!ms_lut.texels)
     {
-        bool pushed = ptrqueue_trypush(ms_fragQueues + i, draw);
-        ASSERT(pushed);
+        cvar_reg(&cv_sg_dbg_diff);
+        cvar_reg(&cv_sg_dbg_spec);
+
+        ms_lut = BakeBRDF(i2_s(256), 1024);
     }
 }
 
-void FragmentStage_Init(void)
-{
-    cvar_reg(&cv_sg_dbgirad);
-    cvar_reg(&cv_sg_dbgeval);
-
-    for (i32 i = 0; i < kTileCount; ++i)
-    {
-        ptrqueue_create(ms_fragQueues + i, EAlloc_Perm, 8192);
-    }
-    ms_lut = BakeBRDF(i2_s(256), 1024);
-}
-
-void FragmentStage_Shutdown(void)
-{
-    for (i32 i = 0; i < kTileCount; ++i)
-    {
-        ptrqueue_destroy(ms_fragQueues + i);
-    }
-    FreeBrdfLut(&ms_lut);
-}
-
-ProfileMark(pm_FragmentStage, FragmentStage)
-struct task_s* FragmentStage(struct framebuf_s* target)
+ProfileMark(pm_FragmentStage, Drawables_Fragment)
+task_t* Drawables_Fragment(struct tables_s* tables, struct framebuf_s* frontBuf, const struct framebuf_s* backBuf)
 {
     ProfileBegin(pm_FragmentStage);
+    ASSERT(tables);
+    ASSERT(frontBuf);
+    ASSERT(backBuf);
 
-    ASSERT(target);
+    task_t* result = NULL;
 
-#if CULLING_STATS
-    store_u64(&ms_trisCulled, 0, MO_Release);
-    store_u64(&ms_trisDrawn, 0, MO_Release);
-#endif // CULLING_STATS
+    EnsureInit();
 
-    fragstage_t* stage = tmp_calloc(sizeof(*stage));
-    stage->target = target;
-    task_submit((task_t*)stage, FragmentStageFn, kTileCount);
+    table_t* table = Drawables_Get(tables);
+    if (table)
+    {
+        fragstage_t* stage = tmp_calloc(sizeof(*stage));
+        stage->frontBuf = frontBuf;
+        stage->backBuf = backBuf;
+        stage->table = table;
+        task_submit((task_t*)stage, FragmentStageFn, kTileCount);
+        result = (task_t*)stage;
+    }
 
     ProfileEnd(pm_FragmentStage);
-    return (task_t*)stage;
+    return result;
 }
 
 pim_optimize
@@ -181,8 +170,8 @@ static float4 VEC_CALL TriBounds(float4x4 VP, float4 A, float4 B, float4 C, floa
     return bounds;
 }
 
-
-static void SetupTile(tile_ctx_t* ctx, i32 iTile)
+pim_optimize
+static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf)
 {
     camera_t camera;
     camera_get(&camera);
@@ -199,6 +188,7 @@ static void SetupTile(tile_ctx_t* ctx, i32 iTile)
 
     ctx->tileMin = TileMin(tile);
     ctx->tileMax = TileMax(tile);
+    ctx->tileDepth = TileDepth(backBuf, tile);
     ctx->tileNormal = proj_dir(ctx->right, ctx->up, ctx->fwd, ctx->slope, f2_lerp(ctx->tileMin, ctx->tileMax, 0.5f));
     ctx->frus = frus_new(ctx->eye, ctx->right, ctx->up, ctx->fwd, ctx->tileMin, ctx->tileMax, ctx->slope, camera.nearFar);
 
@@ -208,28 +198,28 @@ static void SetupTile(tile_ctx_t* ctx, i32 iTile)
 }
 
 pim_optimize
-static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const drawmesh_t* draw)
+static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const drawable_t* drawable)
 {
     mesh_t mesh;
-    texture_t albedoMap;
-    texture_t romeMap;
-    if (!mesh_get(draw->mesh, &mesh))
+    texture_t albedoMap = { 0 };
+    texture_t romeMap = { 0 };
+    if (!mesh_get(drawable->tmpmesh, &mesh))
     {
         return;
     }
 
-    const bool dbgdiffGI = cv_sg_dbgirad.asFloat != 0.0f;
-    const bool dbgspecGI = cv_sg_dbgeval.asFloat != 0.0f;
+    const bool dbgdiffGI = cv_sg_dbg_diff.asFloat != 0.0f;
+    const bool dbgspecGI = cv_sg_dbg_spec.asFloat != 0.0f;
 
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
     const float e = 1.0f / (1 << 10);
 
     const BrdfLut lut = ms_lut;
-    const float4 flatAlbedo = ColorToLinear(draw->material.flatAlbedo);
-    const float4 flatRome = ColorToLinear(draw->material.flatRome);
-    const bool hasAlbedo = texture_get(draw->material.albedo, &albedoMap);
-    const bool hasRome = texture_get(draw->material.rome, &romeMap);
+    const float4 flatAlbedo = ColorToLinear(drawable->material.flatAlbedo);
+    const float4 flatRome = ColorToLinear(drawable->material.flatRome);
+    texture_get(drawable->material.albedo, &albedoMap);
+    texture_get(drawable->material.rome, &romeMap);
 
     const float4 eye = ctx->eye;
     const float4 fwd = ctx->fwd;
@@ -238,8 +228,13 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
     const float2 slope = ctx->slope;
     const float nearClip = ctx->nearClip;
     const float farClip = ctx->farClip;
+    const float4 tileNormal = ctx->tileNormal;
     const float2 tileMin = ctx->tileMin;
     const float2 tileMax = ctx->tileMax;
+    const float tileDepth = ctx->tileDepth;
+    plane_t fwdPlane;
+    fwdPlane.value = fwd;
+    fwdPlane.value.w = f4_dot3(fwd, eye);
 
     const lights_t* lights = lights_get();
     const i32 dirCount = lights->dirCount;
@@ -264,25 +259,24 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
         const float4 BA = f4_sub(B, A);
         const float4 CA = f4_sub(C, A);
 
-        // backface culling
-        if (f4_dot3(ctx->tileNormal, f4_cross3(CA, BA)) < 0.0f)
         {
-            continue;
+            // backface culling
+            if (f4_dot3(tileNormal, f4_cross3(CA, BA)) < 0.0f)
+            {
+                continue;
+            }
+            const sphere_t sph = triToSphere(A, B, C);
+            // occlusion culling
+            if (sdPlaneSphere(fwdPlane, sph) > tileDepth)
+            {
+                continue;
+            }
+            // tile-frustum-triangle culling
+            if (sdFrusSph(ctx->frus, sph) > 0.0f)
+            {
+                continue;
+            }
         }
-
-        // tile-frustum-triangle culling
-        const box_t triBox = triToBox(A, B, C);
-        const float boxDist = sdFrusBox(ctx->frus, triBox);
-        if (boxDist > 0.0f)
-        {
-#if CULLING_STATS
-            inc_u64(&ms_trisCulled, MO_Relaxed);
-#endif // CULLING_STATS
-            continue;
-        }
-#if CULLING_STATS
-        inc_u64(&ms_trisDrawn, MO_Relaxed);
-#endif // CULLING_STATS
 
         const float4 NA = normals[iVert + 0];
         const float4 NB = normals[iVert + 1];
@@ -340,36 +334,35 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
 
                     // lighting
                     const float4 V = f4_normalize3(f4_sub(eye, P));
+                    const float4 R = f4_normalize3(f4_reflect(f4_neg(V), N));
                     float4 albedo = flatAlbedo;
-                    if (hasAlbedo)
+                    if (albedoMap.texels)
                     {
                         albedo = f4_mul(albedo, Tex_Bilinearf2(albedoMap, U));
                     }
                     float4 rome = flatRome;
-                    if (hasRome)
+                    if (romeMap.texels)
                     {
                         rome = f4_mul(rome, Tex_Bilinearf2(romeMap, U));
                     }
-                    float4 diffuseGI = f4_0;
-                    float4 specularGI = f4_0;
-                    float4 R = f4_normalize3(f4_reflect(f4_neg(V), N));
                     {
+                        float4 diffuseGI = f4_0;
+                        float4 specularGI = f4_0;
                         const i32 sgcount = ms_sgcount;
                         const SG_t* pim_noalias sgs = ms_sgs;
                         for (i32 i = 0; i < sgcount; ++i)
                         {
-                            float4 diffuse = SG_Irradiance(sgs[i], N);
-                            float4 specular = SG_Eval(sgs[i], R);
-                            diffuseGI = f4_add(diffuseGI, diffuse);
-                            specularGI = f4_add(specularGI, specular);
+                            diffuseGI = f4_add(diffuseGI, SG_Irradiance(sgs[i], N));
+                            specularGI = f4_add(specularGI, SG_Eval(sgs[i], R));
                         }
+                        const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
+                        lighting = f4_add(lighting, indirect);
                     }
                     for (i32 iLight = 0; iLight < dirCount; ++iLight)
                     {
                         dir_light_t light = dirLights[iLight];
                         const float4 direct = DirectBRDF(V, light.dir, light.rad, N, albedo, rome.x, rome.z);
-                        const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
-                        lighting = f4_add(lighting, f4_add(direct, indirect));
+                        lighting = f4_add(lighting, direct);
                     }
                     for (i32 iLight = 0; iLight < ptCount; ++iLight)
                     {
@@ -380,8 +373,7 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                         float attenuation = 1.0f / (0.01f + dist * dist);
                         light.rad = f4_mulvs(light.rad, attenuation);
                         const float4 direct = DirectBRDF(V, dir, light.rad, N, albedo, rome.x, rome.z);
-                        const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
-                        lighting = f4_add(lighting, f4_add(direct, indirect));
+                        lighting = f4_add(lighting, direct);
                     }
 
                     if (dbgdiffGI)

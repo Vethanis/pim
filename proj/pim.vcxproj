@@ -27,7 +27,7 @@
     <ClCompile Include="..\src\common\stringutil.c" />
     <ClCompile Include="..\src\common\time.c" />
     <ClCompile Include="..\src\components\compflag.c" />
-    <ClCompile Include="..\src\components\ecs.c" />
+    <ClCompile Include="..\src\components\drawables.c" />
     <ClCompile Include="..\src\components\table.c" />
     <ClCompile Include="..\src\containers\dict.c" />
     <ClCompile Include="..\src\containers\graph.c" />
@@ -65,7 +65,6 @@
     <ClCompile Include="..\src\rendering\path_tracer.c" />
     <ClCompile Include="..\src\rendering\resolve_tile.c" />
     <ClCompile Include="..\src\rendering\tonemap.c" />
-    <ClCompile Include="..\src\rendering\transform_compose.c" />
     <ClCompile Include="..\src\rendering\vertex_stage.c" />
     <ClCompile Include="..\src\rendering\framebuffer.c" />
     <ClCompile Include="..\src\rendering\render_system.c" />
@@ -120,7 +119,7 @@
     <ClInclude Include="..\src\common\valist.h" />
     <ClInclude Include="..\src\components\compflag.h" />
     <ClInclude Include="..\src\components\components.h" />
-    <ClInclude Include="..\src\components\ecs.h" />
+    <ClInclude Include="..\src\components\drawables.h" />
     <ClInclude Include="..\src\components\table.h" />
     <ClInclude Include="..\src\containers\carray.h" />
     <ClInclude Include="..\src\containers\carray.c" />
@@ -178,7 +177,6 @@
     <ClInclude Include="..\src\rendering\texture.h" />
     <ClInclude Include="..\src\rendering\tile.h" />
     <ClInclude Include="..\src\rendering\tonemap.h" />
-    <ClInclude Include="..\src\rendering\transform_compose.h" />
     <ClInclude Include="..\src\rendering\vertex_stage.h" />
     <ClInclude Include="..\src\rendering\window.h" />
     <ClInclude Include="..\src\sokol\sokol_audio.h" />

@@ -1,12 +1,11 @@
 #pragma once
 
 #include "common/macro.h"
-
-PIM_C_BEGIN
-
 #include "math/types.h"
 #include "rendering/mesh.h"
 #include "rendering/material.h"
+
+PIM_C_BEGIN
 
 typedef struct ent_s
 {
@@ -49,13 +48,14 @@ typedef struct drawable_s
 {
     meshid_t mesh;          // local space immutable mesh
     material_t material;    // textures and surface properties
-    bool visible;           // cull result
+    meshid_t tmpmesh;       // world space temporary mesh
+    u64 tilemask;           // bitmask of tile visibility
 } drawable_t;
 static const u32 drawable_t_hash = 4217122476u;
 
 typedef struct bounds_s
 {
-    box_t box;
+    sphere_t Value;
 } bounds_t;
 static const u32 bounds_t_hash = 3603783155u;
 

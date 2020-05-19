@@ -151,9 +151,6 @@
     <ClCompile Include="..\src\threading\task.c">
       <Filter>Source Files\threading</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\components\ecs.c">
-      <Filter>Source Files\components</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\components\compflag.c">
       <Filter>Source Files\components</Filter>
     </ClCompile>
@@ -307,9 +304,6 @@
     <ClCompile Include="..\src\rendering\vertex_stage.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\transform_compose.c">
-      <Filter>Source Files\rendering</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\rendering\clear_tile.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
@@ -344,6 +338,9 @@
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
     <ClCompile Include="..\src\components\table.c">
+      <Filter>Source Files\components</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\components\drawables.c">
       <Filter>Source Files\components</Filter>
     </ClCompile>
   </ItemGroup>
@@ -440,9 +437,6 @@
     </ClInclude>
     <ClInclude Include="..\src\audio\audio_system.h">
       <Filter>Source Files\audio</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\ecs.h">
-      <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\src\input\input_system.h">
       <Filter>Source Files\input</Filter>
@@ -702,9 +696,6 @@
     <ClInclude Include="..\src\rendering\vertex_stage.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\transform_compose.h">
-      <Filter>Source Files\rendering</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\rendering\tile.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
@@ -742,6 +733,9 @@
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
     <ClInclude Include="..\src\components\table.h">
+      <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\drawables.h">
       <Filter>Source Files\components</Filter>
     </ClInclude>
   </ItemGroup>

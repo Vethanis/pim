@@ -64,33 +64,14 @@ pim_inline frus_t VEC_CALL frus_new(
     float4 RTN = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, nearFar.x));
     float4 RTF = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, nearFar.y));
 
-    float4 lN = f4_normalize3(f4_cross3(f4_sub(LTN, LBN), f4_sub(LBF, LBN)));
-    float lD = f4_dot3(lN, LBN);
+    frus_t frus;
+    frus.x0 = triToPlane(LBN, LTN, LBF);
+    frus.x1 = triToPlane(RBF, RTF, RBN);
+    frus.y0 = triToPlane(LBN, LBF, RBN);
+    frus.y1 = triToPlane(RTN, RTF, LTN);
+    frus.z0 = triToPlane(RBN, RTN, LBN);
+    frus.z1 = triToPlane(LBF, LTF, RBF);
 
-    float4 rN = f4_normalize3(f4_cross3(f4_sub(RTF, RBF), f4_sub(RBN, RBF)));
-    float rD = f4_dot3(rN, RBF);
-
-    float4 tN = f4_normalize3(f4_cross3(f4_sub(RTF, RTN), f4_sub(LTN, RTN)));
-    float tD = f4_dot3(tN, RTN);
-
-    float4 bN = f4_normalize3(f4_cross3(f4_sub(LBF, LBN), f4_sub(RBN, LBN)));
-    float bD = f4_dot3(bN, LBN);
-
-    float4 nN = f4_normalize3(f4_cross3(f4_sub(RTN, RBN), f4_sub(LBN, RBN)));
-    float nD = f4_dot3(nN, RBN);
-
-    float4 fN = f4_normalize3(f4_cross3(f4_sub(LTF, LBF), f4_sub(RBF, LBF)));
-    float fD = f4_dot3(fN, LBF);
-
-    frus_t frus =
-    {
-        { lN.x, lN.y, lN.z, lD },
-        { rN.x, rN.y, rN.z, rD },
-        { bN.x, bN.y, bN.z, bD },
-        { tN.x, tN.y, tN.z, tD },
-        { nN.x, nN.y, nN.z, nD },
-        { fN.x, fN.y, fN.z, fD },
-    };
     return frus;
 }
 
@@ -98,77 +79,60 @@ pim_inline float VEC_CALL sdFrus(frus_t frus, float4 pt)
 {
     float a = sdPlane3D(frus.x0, pt);
     float b = sdPlane3D(frus.x1, pt);
+    float g = f1_max(a, b);
+
     float c = sdPlane3D(frus.y0, pt);
     float d = sdPlane3D(frus.y1, pt);
+    float h = f1_max(c, d);
+
     float e = sdPlane3D(frus.z0, pt);
     float f = sdPlane3D(frus.z1, pt);
-
-    float g = f1_max(a, b);
-    float h = f1_max(c, d);
     float i = f1_max(e, f);
 
     return f1_max(g, f1_max(h, i));
 }
 
-pim_inline float VEC_CALL sdFrusSph(frus_t frus, float4 sphere)
+pim_inline float VEC_CALL sdFrusSph(frus_t frus, sphere_t sphere)
 {
     float a = sdPlaneSphere(frus.x0, sphere);
     float b = sdPlaneSphere(frus.x1, sphere);
+    float g = f1_max(a, b);
+
     float c = sdPlaneSphere(frus.y0, sphere);
     float d = sdPlaneSphere(frus.y1, sphere);
+    float h = f1_max(c, d);
+
     float e = sdPlaneSphere(frus.z0, sphere);
     float f = sdPlaneSphere(frus.z1, sphere);
-
-    float g = f1_max(a, b);
-    float h = f1_max(c, d);
     float i = f1_max(e, f);
 
     return f1_max(g, f1_max(h, i));
+}
+
+pim_inline float VEC_CALL sdFrusBoxSubplane(plane_t plane, box_t box)
+{
+    return sdPlane3D(plane, box.center) - f4_dot3(f4_abs(plane.value), box.extents);
 }
 
 pim_inline float VEC_CALL sdFrusBox(frus_t frus, box_t box)
 {
-    float a = sdPlaneBox3D(frus.x0, box.center, box.extents);
-    float b = sdPlaneBox3D(frus.x1, box.center, box.extents);
-    float c = sdPlaneBox3D(frus.y0, box.center, box.extents);
-    float d = sdPlaneBox3D(frus.y1, box.center, box.extents);
-    float e = sdPlaneBox3D(frus.z0, box.center, box.extents);
-    float f = sdPlaneBox3D(frus.z1, box.center, box.extents);
-    return f1_max(a, f1_max(b, f1_max(c, f1_max(d, f1_max(e, f)))));
-}
+    // factor out abs
+    // box extents should always be in octant 0, but just in case.
+    box.extents = f4_abs(box.extents);
 
-pim_inline float4 VEC_CALL triToSphere(float4 A, float4 B, float4 C)
-{
-    float4 center = f4_mulvs(f4_add(A, f4_add(B, C)), 0.33333333f);
-    float da = f4_distancesq3(A, center);
-    float db = f4_distancesq3(B, center);
-    float dc = f4_distancesq3(C, center);
-    float dsq = f1_max(da, f1_max(db, dc));
-    center.w = sqrtf(dsq);
-    return center;
-}
+    float a = sdFrusBoxSubplane(frus.x0, box);
+    float b = sdFrusBoxSubplane(frus.x1, box);
+    float g = f1_max(a, b);
 
-pim_inline box_t VEC_CALL triToBox(float4 A, float4 B, float4 C)
-{
-    float4 lo = f4_min(A, f4_min(B, C));
-    float4 hi = f4_max(A, f4_max(B, C));
-    float4 center = f4_lerpvs(lo, hi, 0.5f);
-    float4 extents = f4_sub(hi, center);
-    box_t box = { center, extents };
-    return box;
-}
+    float c = sdFrusBoxSubplane(frus.y0, box);
+    float d = sdFrusBoxSubplane(frus.y1, box);
+    float h = f1_max(c, d);
 
-pim_inline box_t VEC_CALL TransformBox(float4x4 M, box_t x)
-{
-    box_t y;
+    float e = sdFrusBoxSubplane(frus.z0, box);
+    float f = sdFrusBoxSubplane(frus.z1, box);
+    float i = f1_max(e, f);
 
-    float4 a = f4_abs(f4_mulvs(M.c0, x.extents.x));
-    float4 b = f4_abs(f4_mulvs(M.c1, x.extents.y));
-    float4 c = f4_abs(f4_mulvs(M.c2, x.extents.z));
-    y.extents = f4_add(f4_add(a, b), c);
-
-    y.center = f4x4_mul_pt(M, x.center);
-    return y;
+    return f1_max(g, f1_max(h, i));
 }
 
 PIM_C_END

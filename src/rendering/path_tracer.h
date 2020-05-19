@@ -45,7 +45,7 @@ typedef struct pt_trace_s
 } pt_trace_t;
 
 // creates a scene from the current contents of the ECS
-pt_scene_t* pt_scene_new(i32 maxDepth);
+pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth);
 void pt_scene_del(pt_scene_t* scene);
 
 struct task_s* pt_trace(pt_trace_t* traceDesc);

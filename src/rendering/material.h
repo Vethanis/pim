@@ -1,11 +1,10 @@
 #pragma once
 
 #include "common/macro.h"
-
-PIM_C_BEGIN
-
 #include "math/types.h"
 #include "rendering/texture.h"
+
+PIM_C_BEGIN
 
 typedef struct material_s
 {

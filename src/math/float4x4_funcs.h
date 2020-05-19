@@ -71,6 +71,15 @@ pim_inline float4 VEC_CALL f4x4_mul_dir(float4x4 m, float4 dir)
     return f4_add(a, f4_add(b, c));
 }
 
+pim_inline float4 VEC_CALL f4x4_mul_extents(float4x4 M, float4 extents)
+{
+    // f4x4_mul_dir + abs before adding
+    float4 a = f4_abs(f4_mulvs(M.c0, extents.x));
+    float4 b = f4_abs(f4_mulvs(M.c1, extents.y));
+    float4 c = f4_abs(f4_mulvs(M.c2, extents.z));
+    return f4_add(f4_add(a, b), c);
+}
+
 // assumes pt.w == 1.0f
 pim_inline float4 VEC_CALL f4x4_mul_pt(float4x4 m, float4 pt)
 {
@@ -88,6 +97,14 @@ pim_inline float4 VEC_CALL f4x4_mul_col(float4x4 m, float4 col)
     float4 c = f4_mulvs(m.c2, col.z);
     float4 d = f4_mulvs(m.c3, col.w);
     return f4_add(f4_add(a, b), f4_add(c, d));
+}
+
+pim_inline box_t VEC_CALL f4x4_mul_box(float4x4 M, box_t x)
+{
+    box_t y;
+    y.center = f4x4_mul_pt(M, x.center);
+    y.extents = f4x4_mul_extents(M, x.extents);
+    return y;
 }
 
 pim_inline float4x4 VEC_CALL f4x4_translate(float4x4 m, float4 v)

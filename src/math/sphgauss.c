@@ -25,8 +25,18 @@ void VEC_CALL SG_Accumulate(
     float4 sampleDir,
     float4 sampleLight,
     SG_t* sgs,
+    float* lobeWeights,
+    const float* basisSqIntegrals,
     i32 length)
 {
+    if (iSample == 0)
+    {
+        for (i32 i = 0; i < length; ++i)
+        {
+            lobeWeights[i] = 0.0f;
+        }
+    }
+
     const float sampleScale = 1.0f / (iSample + 1.0f);
     const i32 pushBytes = sizeof(float) * length;
     float* sampleWeights = pim_pusha(pushBytes);
@@ -36,7 +46,7 @@ void VEC_CALL SG_Accumulate(
     {
         const SG_t sg = sgs[i];
         float cosTheta = f4_dot3(sg.axis, sampleDir);
-        float sampleWeight = expf(sg.sharpness * (cosTheta - 1.0f));
+        float sampleWeight = expf(sg.axis.w * (cosTheta - 1.0f));
         est = f4_add(est, f4_mulvs(sg.amplitude, sampleWeight));
         sampleWeights[i] = sampleWeight;
     }
@@ -50,8 +60,8 @@ void VEC_CALL SG_Accumulate(
         }
         SG_t sg = sgs[i];
 
-        sg.lobeWeight += ((sampleWeight * sampleWeight) - sg.lobeWeight) * sampleScale;
-        float integral = f1_max(sg.lobeWeight, sg.basisSqIntegral);
+        lobeWeights[i] += ((sampleWeight * sampleWeight) - lobeWeights[i]) * sampleScale;
+        float integral = f1_max(lobeWeights[i], basisSqIntegrals[i]);
         float4 otherLight = f4_sub(est, f4_mulvs(sg.amplitude, sampleWeight));
         float4 newEst = f4_mulvs(
             f4_sub(sampleLight, otherLight),
@@ -68,7 +78,7 @@ void VEC_CALL SG_Accumulate(
 }
 
 pim_optimize
-void SG_Generate(SG_t* sgs, i32 count, SG_Dist dist)
+void SG_Generate(SG_t* sgs, float* basisSqIntegrals, i32 count, SG_Dist dist)
 {
     ASSERT(sgs);
     ASSERT(count >= 0);
@@ -101,11 +111,9 @@ void SG_Generate(SG_t* sgs, i32 count, SG_Dist dist)
     float sharpness = (logf(0.65f) * count) / (minCosTheta - 1.0f);
     for (i32 i = 0; i < count; ++i)
     {
-        sgs[i].sharpness = sharpness;
-        sgs[i].basisIntegral = SG_BasisIntegral(sgs[i]);
-        sgs[i].basisSqIntegral = 0.0f;
+        sgs[i].axis.w = sharpness;
         sgs[i].amplitude = f4_0;
-        sgs[i].lobeWeight = 0.0f;
+        basisSqIntegrals[i] = 0.0f;
     }
 
     const i32 sampleCount = 2048;
@@ -117,9 +125,9 @@ void SG_Generate(SG_t* sgs, i32 count, SG_Dist dist)
         for (i32 j = 0; j < count; ++j)
         {
             float cosTheta = f4_dot3(dir, sgs[j].axis);
-            float weight = expf(sgs[j].sharpness * (cosTheta - 1.0f));
-            float diff = weight * weight - sgs[j].basisSqIntegral;
-            sgs[j].basisSqIntegral += diff * sampleWeight;
+            float weight = expf(sgs[j].axis.w * (cosTheta - 1.0f));
+            float diff = weight * weight - basisSqIntegrals[j];
+            basisSqIntegrals[j] += diff * sampleWeight;
         }
     }
 }

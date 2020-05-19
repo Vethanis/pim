@@ -3,7 +3,6 @@
 #include "allocator/allocator.h"
 #include "input/input_system.h"
 #include "threading/task.h"
-#include "components/ecs.h"
 #include "rendering/render_system.h"
 #include "audio/audio_system.h"
 #include "assets/asset_system.h"
@@ -41,7 +40,6 @@ static void Init(void)
     cmd_sys_init();
     con_sys_init();
     task_sys_init();            // enable async work
-    ecs_sys_init();             // place to store data
     asset_sys_init();           // means of loading data
     network_sys_init();         // setup sockets
     render_sys_init();          // setup rendering resources
@@ -62,7 +60,6 @@ static void Shutdown(void)
     render_sys_shutdown();
     network_sys_shutdown();
     asset_sys_shutdown();
-    ecs_sys_shutdown();
     task_sys_shutdown();
     con_sys_shutdown();
     cmd_sys_shutdown();
@@ -89,7 +86,6 @@ static void SimulatePhase(void)
     cmd_sys_update();
     logic_sys_update();         // update game simulation
     task_sys_update();          // schedule tasks
-    ecs_sys_update();           // noop?
     ProfileEnd(pm_simulate);
 }
 
@@ -97,9 +93,8 @@ ProfileMark(pm_present, PresentPhase)
 static void PresentPhase(void)
 {
     ProfileBegin(pm_present);
-    render_sys_update();        // begin draw tasks
+    render_sys_update();        // draw tasks
     audio_sys_update();         // handle audio events
-    render_sys_present();       // clear framebuffer, draw results
     ProfileEnd(pm_present);
 }
 

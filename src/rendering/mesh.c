@@ -31,6 +31,7 @@ meshid_t mesh_create(mesh_t* mesh)
 
     mesh->version = version;
     meshid_t id = { version, mesh };
+    mesh->bounds = mesh_calcbounds(id);
 
     return id;
 }
@@ -90,16 +91,13 @@ meshid_t mesh_lookup(const char* name)
     return value;
 }
 
-box_t mesh_calcbounds(meshid_t id)
+sphere_t mesh_calcbounds(meshid_t id)
 {
     mesh_t mesh = { 0 };
     if (mesh_get(id, &mesh))
     {
-        const float kBig = 1 << 20;
-        const float kSmall = 1.0f / (1 << 20);
-
-        float4 lo = f4_s(kBig);
-        float4 hi = f4_s(kSmall);
+        float4 lo = f4_s(1 << 20);
+        float4 hi = f4_s(-(1 << 20));
 
         const i32 len = mesh.length;
         const float4* pim_noalias positions = mesh.positions;
@@ -110,15 +108,17 @@ box_t mesh_calcbounds(meshid_t id)
             hi = f4_max(hi, pos);
         }
 
-        if (len > 0)
+        float4 center = f4_lerpvs(lo, hi, 0.5f);
+        float r = 0.0f;
+        for (i32 i = 0; i < len; ++i)
         {
-            float4 center = f4_lerpvs(lo, hi, 0.5f);
-            float4 extents = f4_sub(hi, center);
-            box_t box = { center, extents };
-            return box;
+            r = f1_max(r, f4_distancesq3(center, positions[i]));
         }
+        center.w = sqrtf(r);
+        sphere_t sph = { center };
+        return sph;
     }
 
-    box_t box = { f4_0, f4_0 };
-    return box;
+    sphere_t sph = { 0 };
+    return sph;
 }

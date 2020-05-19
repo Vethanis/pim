@@ -1,10 +1,9 @@
 #pragma once
 
 #include "common/macro.h"
+#include "math/types.h"
 
 PIM_C_BEGIN
-
-#include "math/types.h"
 
 typedef struct mesh_s
 {
@@ -12,6 +11,7 @@ typedef struct mesh_s
     float4* positions;
     float4* normals;
     float2* uvs;
+    sphere_t bounds;
     i32 length;
 } mesh_t;
 static const u32 mesh_t_hash = 3179450039u;
@@ -35,6 +35,6 @@ bool mesh_get(meshid_t id, mesh_t* dst);
 bool mesh_register(const char* name, meshid_t id);
 meshid_t mesh_lookup(const char* name);
 
-box_t mesh_calcbounds(meshid_t id);
+sphere_t mesh_calcbounds(meshid_t id);
 
 PIM_C_END

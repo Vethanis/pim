@@ -1,10 +1,9 @@
 #pragma once
 
 #include "common/macro.h"
+#include "common/fnv1a.h"
 
 PIM_C_BEGIN
-
-#include "common/fnv1a.h"
 
 #define TYPE_NAME(T) #T
 #define TYPE_ARGS(T) T##_hash, sizeof(T)
@@ -56,6 +55,12 @@ row_t* table_get_h(table_t* table, u32 typeHash);
 bool table_has_h(const table_t* table, u32 typeHash);
 bool table_add_h(table_t* table, u32 typeHash, i32 typeSize);
 bool table_rm_h(table_t* table, u32 typeHash);
+
+// table_get + row_begin
+void* table_row(table_t* table, u32 typeHash, i32 typeSize);
+
+static i32 table_width(const table_t* table) { return table->columnct; }
+static i32 table_height(const table_t* table) { return table->rowct; }
 
 // ----------------------------------------------------------------------------
 // Column API
@@ -117,7 +122,7 @@ static bool col_has_s(const table_t* table, const char* entName)
 {
     return col_has_h(table, HashStr(entName));
 }
-static bool col_add_s(table_t* table, const char* entName)
+static i32 col_add_s(table_t* table, const char* entName)
 {
     return col_add_h(table, HashStr(entName));
 }
