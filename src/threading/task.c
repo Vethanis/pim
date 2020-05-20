@@ -126,20 +126,22 @@ void task_submit(task_t* task, task_execute_fn execute, i32 worksize)
 {
     ProfileBegin(pm_submit);
 
-    ASSERT(execute);
-    ASSERT(worksize > 0);
-    task_await(task);
-    store_i32(&(task->status), TaskStatus_Exec, MO_Release);
-    task->execute = execute;
-    store_i32(&(task->worksize), worksize, MO_Release);
-    store_i32(&(task->head), 0, MO_Release);
-    store_i32(&(task->tail), 0, MO_Release);
-
-    for (i32 t = 0; t < kNumThreads; ++t)
+    if (task && worksize > 0)
     {
-        if (!ptrqueue_trypush(ms_queues + t, task))
+        ASSERT(execute);
+        task_await(task);
+        store_i32(&(task->status), TaskStatus_Exec, MO_Release);
+        task->execute = execute;
+        store_i32(&(task->worksize), worksize, MO_Release);
+        store_i32(&(task->head), 0, MO_Release);
+        store_i32(&(task->tail), 0, MO_Release);
+
+        for (i32 t = 0; t < kNumThreads; ++t)
         {
-            ASSERT(false);
+            if (!ptrqueue_trypush(ms_queues + t, task))
+            {
+                ASSERT(false);
+            }
         }
     }
 
@@ -151,22 +153,23 @@ void task_await(const task_t* task)
 {
     ProfileBegin(pm_await);
 
-    ASSERT(task);
-
-    const i32 tid = ms_tid;
-    u64 spins = 0;
-    while (task_stat(task) == TaskStatus_Exec)
+    if (task)
     {
-        if (TryRunTask(tid))
+        const i32 tid = ms_tid;
+        u64 spins = 0;
+        while (task_stat(task) == TaskStatus_Exec)
         {
-            spins = 0;
-        }
-        else
-        {
-            // trying to wait on an event here sometimes introduces
-            // a permanently slept main thread.
-            // so instead we do a few spins then yield.
-            intrin_spin(++spins);
+            if (TryRunTask(tid))
+            {
+                spins = 0;
+            }
+            else
+            {
+                // trying to wait on an event here sometimes introduces
+                // a permanently slept main thread.
+                // so instead we do a few spins then yield.
+                intrin_spin(++spins);
+            }
         }
     }
 
