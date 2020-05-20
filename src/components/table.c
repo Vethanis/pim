@@ -1,8 +1,10 @@
 #include "components/table.h"
 #include "allocator/allocator.h"
 #include "common/find.h"
+#include "common/atomics.h"
 #include <string.h>
 
+static u32 ms_instanceid;
 static tables_t ms_tablesmain;
 
 tables_t* tables_main(void)
@@ -32,7 +34,7 @@ void tables_del(tables_t* tables)
     }
 }
 
-table_t* tables_get_h(tables_t* tables, u32 hash)
+table_t* tables_get(tables_t* tables, u32 hash)
 {
     ASSERT(tables);
     ASSERT(hash);
@@ -44,16 +46,16 @@ table_t* tables_get_h(tables_t* tables, u32 hash)
     return NULL;
 }
 
-bool tables_has_h(const tables_t* tables, u32 hash)
+bool tables_has(const tables_t* tables, u32 hash)
 {
     ASSERT(tables);
     ASSERT(hash);
     return Find_u32(tables->hashes, tables->count, hash) != -1;
 }
 
-table_t* tables_add_h(tables_t* tables, u32 hash)
+table_t* tables_add(tables_t* tables, u32 hash)
 {
-    table_t* table = tables_get_h(tables, hash);
+    table_t* table = tables_get(tables, hash);
     if (!table)
     {
         i32 len = tables->count + 1;
@@ -68,7 +70,7 @@ table_t* tables_add_h(tables_t* tables, u32 hash)
     return table;
 }
 
-bool tables_rm_h(tables_t* tables, u32 hash)
+bool tables_rm(tables_t* tables, u32 hash)
 {
     ASSERT(tables);
     ASSERT(hash);
@@ -92,24 +94,28 @@ bool tables_rm_h(tables_t* tables, u32 hash)
 
 table_t* table_new(void)
 {
-    return perm_calloc(sizeof(table_t));
+    table_t* table = perm_calloc(sizeof(table_t));
+    idtable_new(&(table->colidt), EAlloc_Perm);
+    return table;
 }
+
 void table_del(table_t* table)
 {
     if (table)
     {
+        idtable_del(&(table->colidt));
         for (i32 i = 0; i < table->rowct; ++i)
         {
             pim_free(table->rows[i].ptr);
         }
         pim_free(table->rows);
-        pim_free(table->entnames);
+        pim_free(table->ids);
         pim_free(table->rownames);
         pim_free(table);
     }
 }
 
-row_t* table_get_h(table_t* table, u32 typeHash)
+row_t* table_get(table_t* table, u32 typeHash)
 {
     ASSERT(table);
     ASSERT(typeHash);
@@ -122,7 +128,7 @@ row_t* table_get_h(table_t* table, u32 typeHash)
     return NULL;
 }
 
-bool table_has_h(const table_t* table, u32 typeHash)
+bool table_has(const table_t* table, u32 typeHash)
 {
     ASSERT(table);
     ASSERT(typeHash);
@@ -130,7 +136,7 @@ bool table_has_h(const table_t* table, u32 typeHash)
     return Find_u32(table->rownames, table->rowct, typeHash) != -1;
 }
 
-bool table_add_h(table_t* table, u32 typeHash, i32 typeSize)
+bool table_add(table_t* table, u32 typeHash, i32 typeSize)
 {
     ASSERT(table);
     ASSERT(typeHash);
@@ -144,20 +150,20 @@ bool table_add_h(table_t* table, u32 typeHash, i32 typeSize)
         row.stride = typeSize;
         row.ptr = perm_calloc(row.length * row.stride);
 
-        i32 len = table->rowct + 1;
-        table->rowct = len;
-        table->rownames = perm_realloc(table->rownames, sizeof(table->rownames[0]) * len);
-        table->rows = perm_realloc(table->rows, sizeof(table->rows[0]) * len);
+        const i32 height = table->rowct + 1;
+        table->rowct = height;
+        table->rownames = perm_realloc(table->rownames, sizeof(table->rownames[0]) * height);
+        table->rows = perm_realloc(table->rows, sizeof(table->rows[0]) * height);
 
-        table->rownames[len - 1] = typeHash;
-        table->rows[len - 1] = row;
+        table->rownames[height - 1] = typeHash;
+        table->rows[height - 1] = row;
 
         return true;
     }
     return false;
 }
 
-bool table_rm_h(table_t* table, u32 typeHash)
+bool table_rm(table_t* table, u32 typeHash)
 {
     ASSERT(table);
     ASSERT(typeHash);
@@ -179,7 +185,7 @@ bool table_rm_h(table_t* table, u32 typeHash)
 
 void* table_row(table_t* table, u32 typeHash, i32 typeSize)
 {
-    row_t* row = table_get_h(table, typeHash);
+    row_t* row = table_get(table, typeHash);
     if (row)
     {
         ASSERT(row->stride == typeSize);
@@ -191,76 +197,120 @@ void* table_row(table_t* table, u32 typeHash, i32 typeSize)
 // ----------------------------------------------------------------------------
 // Column API
 
-i32 col_get_h(const table_t* table, u32 entName)
+i32 col_get(const table_t* table, u32 id)
 {
     ASSERT(table);
-    ASSERT(entName);
+    ASSERT(id);
 
-    return Find_u32(table->entnames, table->columnct, entName);
-}
-
-bool col_has_h(const table_t* table, u32 entName)
-{
-    return col_get_h(table, entName) != -1;
-}
-
-i32 col_add_h(table_t* table, u32 entName)
-{
-    i32 e = col_get_h(table, entName);
-    if (e == -1)
+    i32 index;
+    if (idtable_get(&(table->colidt), id, &index))
     {
-        const i32 width = ++table->columnct;
-        const i32 height = table->rowct;
-        e = width - 1;
-
-        table->entnames = perm_realloc(table->entnames, sizeof(table->entnames[0]) * width);
-        table->entnames[e] = entName;
-
-        row_t* rows = table->rows;
-        for (i32 i = 0; i < height; ++i)
-        {
-            row_t* row = rows + i;
-            row->length = width;
-            i32 stride = row->stride;
-            ASSERT(stride > 0);
-
-            ASSERT(e * stride < stride * width);
-            ASSERT(e * stride >= 0);
-
-            row->ptr = perm_realloc(row->ptr, stride * width);
-            memset(row->ptr + e * stride, 0, stride);
-        }
+        return index;
     }
-    else
+    return -1;
+}
+
+bool col_has(const table_t* table, u32 id)
+{
+    return col_get(table, id) != -1;
+}
+
+i32 col_add(table_t* table, u32* idOut)
+{
+    ASSERT(table);
+
+    const i32 width = ++table->columnct;
+    const i32 height = table->rowct;
+    const i32 e = width - 1;
+
+    const u32 id = 1u + inc_u32(&ms_instanceid, MO_Relaxed);
+    table->ids = perm_realloc(table->ids, sizeof(table->ids[0]) * width);
+    table->ids[e] = id;
+
+    row_t* rows = table->rows;
+    for (i32 i = 0; i < height; ++i)
+    {
+        row_t* row = rows + i;
+        row->length = width;
+        const i32 stride = row->stride;
+        ASSERT(stride > 0);
+
+        ASSERT(e * stride < stride * width);
+        ASSERT(e * stride >= 0);
+
+        row->ptr = perm_realloc(row->ptr, stride * width);
+        memset(row->ptr + e * stride, 0, stride);
+    }
+
+    if (!idtable_add(&(table->colidt), id, e))
     {
         ASSERT(false);
         return -1;
     }
+
+    if (idOut)
+    {
+        *idOut = id;
+    }
     return e;
 }
 
-bool col_rm_h(table_t* table, u32 entName)
+bool col_rm(table_t* table, u32 id)
 {
-    i32 e = col_get_h(table, entName);
-    if (e != -1)
+    ASSERT(table);
+
+    i32 e;
+    if (idtable_rm(&(table->colidt), id, &e))
     {
-        i32 b = table->columnct - 1;
+        const i32 b = table->columnct - 1;
         table->columnct = b;
 
-        table->entnames[e] = table->entnames[b];
+        const u32 idb = table->ids[b];
+        ASSERT(id == table->ids[e]);
+        table->ids[e] = idb;
+
+        if (!idtable_set(&(table->colidt), idb, e))
+        {
+            ASSERT(false);
+            return false;
+        }
 
         const i32 rowct = table->rowct;
         row_t* rows = table->rows;
         for (i32 i = 0; i < rowct; ++i)
         {
-            rows[i].length = b;
-            i32 stride = rows[i].stride;
+            row_t* row = rows + i;
+            row->length = b;
+            const i32 stride = row->stride;
             ASSERT(stride > 0);
 
-            memcpy(rows[i].ptr + e * stride, rows[i].ptr + b * stride, stride);
+            u8* ptr = row->ptr;
+            memcpy(ptr + i * stride, ptr + b * stride, stride);
         }
 
         return true;
     }
     return false;
+}
+
+void row_set(row_t* row, i32 i, const void* src)
+{
+    ASSERT(row);
+    ASSERT(i >= 0);
+    ASSERT(i < row->length);
+    ASSERT(src);
+    const i32 stride = row->stride;
+    ASSERT(stride > 0);
+    memcpy(row->ptr + i * stride, src, stride);
+}
+
+void row_get(const row_t* row, i32 i, void* dst)
+{
+    ASSERT(row);
+    ASSERT(i >= 0);
+    ASSERT(i < row->length);
+    ASSERT(dst);
+    const i32 stride = row->stride;
+    ASSERT(stride > 0);
+    memcpy(dst, row->ptr + i * stride, stride);
 }

@@ -118,7 +118,10 @@ static void OnKey(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mod
         ms_keys[key] = state;
         ms_keyTimes[key] = time_now();
     }
-    ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
+    if (!window_cursor_captured())
+    {
+        ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
+    }
 }
 
 static void OnClick(GLFWwindow* window, i32 button, i32 action, i32 mods)
@@ -129,19 +132,28 @@ static void OnClick(GLFWwindow* window, i32 button, i32 action, i32 mods)
         ms_buttons[button] = state;
         ms_buttonTimes[button] = time_now();
     }
-    ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+    if (!window_cursor_captured())
+    {
+        ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+    }
 }
 
 static void OnScroll(GLFWwindow* window, double xoffset, double yoffset)
 {
     ms_axis[MouseAxis_ScrollX] += (float)xoffset;
     ms_axis[MouseAxis_ScrollY] += (float)yoffset;
-    ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
+    if (!window_cursor_captured())
+    {
+        ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
+    }
 }
 
 static void OnChar(GLFWwindow* window, u32 c)
 {
-    ImGui_ImplGlfw_CharCallback(window, c);
+    if (!window_cursor_captured())
+    {
+        ImGui_ImplGlfw_CharCallback(window, c);
+    }
 }
 
 static void OnMove(GLFWwindow* window, double cursorX, double cursorY)

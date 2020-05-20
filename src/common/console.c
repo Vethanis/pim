@@ -8,6 +8,7 @@
 #include "io/fstr.h"
 #include "input/input_system.h"
 #include "ui/cimgui.h"
+#include "rendering/window.h"
 
 #include <string.h>
 
@@ -38,6 +39,7 @@ static u32 ms_colors[MAX_LINES];
 static bool ms_autoscroll = true;
 static bool ms_scrollToBottom;
 static bool ms_showGui;
+static bool ms_recapture;
 
 static i32 ms_iHistory;
 static char* ms_history[MAX_HISTORY];
@@ -83,6 +85,19 @@ static void con_gui(void)
         ms_showGui = !ms_showGui;
         grabFocus = true;
         ms_buffer[0] = 0;
+        if (ms_showGui)
+        {
+            ms_recapture = window_cursor_captured();
+            window_capture_cursor(false);
+        }
+        else
+        {
+            if (ms_recapture)
+            {
+                window_capture_cursor(true);
+            }
+            ms_recapture = false;
+        }
     }
     if (!ms_showGui)
     {

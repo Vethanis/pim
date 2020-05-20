@@ -6,17 +6,16 @@
 #include "common/profiler.h"
 #include "common/sort.h"
 #include "common/stringutil.h"
-#include "containers/dict.h"
+#include "containers/sdict.h"
 #include "quake/q_packfile.h"
 #include "quake/q_bspfile.h"
 #include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
-#include "containers/text.h"
 
 static cvar_t cv_basedir = { cvart_text, 0x0, "basedir", "data", "base directory for game data" };
 static cvar_t cv_game = { cvart_text, 0x0, "game", "id1", "name of the active game" };
 
-static dict_t ms_assets;
+static sdict_t ms_assets;
 static folder_t ms_folder;
 
 void asset_sys_init(void)
@@ -24,8 +23,8 @@ void asset_sys_init(void)
     cvar_reg(&cv_basedir);
     cvar_reg(&cv_game);
 
-    dict_t assets;
-    dict_new(&assets, sizeof(text64), sizeof(asset_t), EAlloc_Perm);
+    sdict_t assets;
+    sdict_new(&assets, sizeof(asset_t), EAlloc_Perm);
 
     char path[PIM_PATH];
     SPrintf(ARGS(path), "%s/%s", cv_basedir.value, cv_game.value);
@@ -44,11 +43,9 @@ void asset_sys_init(void)
                 .pData = packBase + file->offset,
             };
 
-            text64 name;
-            text_new(&name, sizeof(name), file->name);
-            if (!dict_add(&assets, &name, &asset))
+            if (!sdict_add(&assets, file->name, &asset))
             {
-                dict_set(&assets, &name, &asset);
+                sdict_set(&assets, file->name, &asset);
             }
         }
     }
@@ -67,7 +64,7 @@ void asset_sys_update()
 
 void asset_sys_shutdown(void)
 {
-    dict_del(&ms_assets);
+    sdict_del(&ms_assets);
     folder_free(&ms_folder);
 }
 
@@ -75,9 +72,7 @@ bool asset_get(const char* name, asset_t* asset)
 {
     ASSERT(name);
     ASSERT(asset);
-    text64 txt;
-    text_new(&txt, sizeof(txt), name);
-    return dict_get(&ms_assets, &txt, asset);
+    return sdict_get(&ms_assets, name, asset);
 }
 
 // ----------------------------------------------------------------------------
@@ -131,7 +126,7 @@ static i32 CmpFile(const void* lhs, const void* rhs, void* usr)
 }
 
 static i32 CmpAsset(
-    const void* lKey, const void* rKey,
+    const char* lKey, const char* rKey,
     const void* lVal, const void* rVal,
     void* usr)
 {
@@ -236,14 +231,14 @@ void asset_gui(bool* pEnabled)
                 gs_revSort = !gs_revSort;
             }
 
-            const dict_t dict = ms_assets;
-            const text64* names = dict.keys;
+            const sdict_t dict = ms_assets;
+            const char** names = dict.keys;
             const asset_t* assets = dict.values;
-            u32* indices = dict_sort(&dict, CmpAsset, NULL);
+            u32* indices = sdict_sort(&dict, CmpAsset, NULL);
             for (u32 i = 0; i < dict.count; ++i)
             {
                 u32 j = indices[i];
-                igText(names[j].c); igNextColumn();
+                igText(names[j]); igNextColumn();
                 igText("%d", assets[j].length); igNextColumn();
             }
             pim_free(indices);

@@ -4,6 +4,7 @@
 #include "common/valist.h"
 #include "allocator/allocator.h"
 #include "stb/stb_sprintf.h"
+#include <string.h>
 
 static i32 min_i32(i32 a, i32 b)
 {
@@ -262,6 +263,24 @@ i32 StrICmp(const char* lhs, i32 size, const char* rhs)
     return c;
 }
 
+i32 MemICmp(const char* lhs, const char* rhs, i32 size)
+{
+    i32 c = 0;
+    ASSERT((lhs && rhs) || !size);
+    ASSERT(size >= 0);
+    for (i32 i = 0; i < size; ++i)
+    {
+        char L = lhs[i];
+        char R = rhs[i];
+        c = ChrLo(L) - ChrLo(R);
+        if (c)
+        {
+            break;
+        }
+    }
+    return c;
+}
+
 // ----------------------------------------------------------------------------
 // string searching
 
@@ -314,98 +333,78 @@ const char* StrIChr(const char* hay, i32 size, char needle)
 
 const char* StrStr(const char* hay, i32 size, const char* needle)
 {
-    const char* ptr = 0;
-
     ASSERT((hay && needle) || !size);
     ASSERT(size >= 0);
 
-    for (i32 i = 0; i < size; ++i)
+    i32 hlen = StrNLen(hay, size);
+    i32 nlen = StrLen(needle);
+    while (hlen >= nlen)
     {
-        i32 c = 0;
-        for (i32 j = 0; !c && needle[j]; ++j)
+        if (!memcmp(hay, needle, nlen))
         {
-            c = hay[i + j] - needle[j];
+            return hay;
         }
-        if (!c)
-        {
-            ptr = hay + i;
-            break;
-        }
+        ++hay;
+        --hlen;
     }
 
-    return ptr;
+    return NULL;
 }
 
 const char* StrIStr(const char* hay, i32 size, const char* needle)
 {
-    const char* ptr = 0;
-
     ASSERT((hay && needle) || !size);
     ASSERT(size >= 0);
 
-    for (i32 i = 0; i < size; ++i)
+    i32 hlen = StrNLen(hay, size);
+    i32 nlen = StrLen(needle);
+    while (hlen >= nlen)
     {
-        i32 c = 0;
-        for (i32 j = 0; !c && needle[j]; ++j)
+        if (!MemICmp(hay, needle, nlen))
         {
-            c = ChrLo(hay[i + j]) - ChrLo(needle[j]);
+            return hay;
         }
-        if (!c)
-        {
-            ptr = hay + i;
-            break;
-        }
+        ++hay;
+        --hlen;
     }
 
-    return ptr;
+    return NULL;
 }
 
 const char* StartsWith(const char* hay, i32 size, const char* needle)
 {
-    const char* ptr = 0;
-
     ASSERT((hay && needle) || !size);
     ASSERT(size >= 0);
 
-    for (i32 i = 0; i < size; ++i)
+    i32 hlen = StrNLen(hay, size);
+    i32 nlen = StrLen(needle);
+    if (hlen < nlen)
     {
-        char H = hay[i];
-        char N = needle[i];
-        if (!N)
-        {
-            ptr = hay;
-            break;
-        }
-        if (H != N)
-        {
-            break;
-        }
+        return NULL;
     }
-    return ptr;
+    if (!StrCmp(hay, nlen, needle))
+    {
+        return hay;
+    }
+    return NULL;
 }
 
 const char* IStartsWith(const char* hay, i32 size, const char* needle)
 {
-    const char* ptr = 0;
-
     ASSERT((hay && needle) || !size);
     ASSERT(size >= 0);
 
-    for (i32 i = 0; i < size; ++i)
+    i32 hlen = StrNLen(hay, size);
+    i32 nlen = StrLen(needle);
+    if (hlen < nlen)
     {
-        char H = ChrLo(hay[i]);
-        char N = ChrLo(needle[i]);
-        if (!N)
-        {
-            ptr = hay;
-            break;
-        }
-        if (H != N)
-        {
-            break;
-        }
+        return NULL;
     }
-    return ptr;
+    if (!StrICmp(hay, nlen, needle))
+    {
+        return hay;
+    }
+    return NULL;
 }
 
 const char* EndsWith(const char* hay, i32 size, const char* needle)

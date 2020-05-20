@@ -71,6 +71,21 @@ static i32 ms_sampleCount;
 
 // ----------------------------------------------------------------------------
 
+static framebuf_t* GetFrontBuf(void)
+{
+    return &(ms_buffers[ms_iFrame & 1]);
+}
+
+static framebuf_t* GetBackBuf(void)
+{
+    return &(ms_buffers[(ms_iFrame + 1) & 1]);
+}
+
+static void SwapBuffers(void)
+{
+    ++ms_iFrame;
+}
+
 static float2 VEC_CALL CalcUv(float4 s, float4 t, float4 p)
 {
     return f2_v(f4_dot3(p, s) + s.w, f4_dot3(p, t) + t.w);
@@ -244,7 +259,13 @@ static void FlattenModel(tables_t* tables, const mmodel_t* model)
     const float4* vertices = model->vertices;
     const medge_t* edges = model->edges;
 
+    textureid_t* textures = GenTextures(surfaces, numSurfaces);
+
     table_t* table = Drawables_Get(tables);
+    row_t* drawables = table_get(table, drawable_t_hash);
+    row_t* translations = table_get(table, translation_t_hash);
+    row_t* rotations = table_get(table, rotation_t_hash);
+    row_t* scales = table_get(table, scale_t_hash);
 
     drawable_t drawable = { 0 };
     localtoworld_t l2w = { f4x4_id };
@@ -252,12 +273,8 @@ static void FlattenModel(tables_t* tables, const mmodel_t* model)
     rotation_t rotation = { quat_id };
     scale_t scale = { f4_1 };
 
-    textureid_t* textures = GenTextures(surfaces, numSurfaces);
-
     float4* polygon = NULL;
     float4* tris = NULL;
-    i32 entCount = 0;
-
     for (i32 i = 0; i < numSurfaces; ++i)
     {
         const msurface_t* surface = surfaces + i;
@@ -281,26 +298,11 @@ static void FlattenModel(tables_t* tables, const mmodel_t* model)
         drawable.material.flatAlbedo = LinearToColor(f4_1);
         drawable.material.flatRome = LinearToColor(f4_v(0.5f, 1.0f, 0.0f, 0.0f));
 
-        ++entCount;
-
-        char namebuf[64];
-        SPrintf(ARGS(namebuf), "%s_%d", name, i);
-        i32 c = col_add_s(table, namebuf);
-
-        drawable_t* drawables = table_row(table, TYPE_ARGS(drawable_t));
-        drawables[c] = drawable;
-
-        translation_t* translations = table_row(table, TYPE_ARGS(translation_t));
-        translations[c] = translation;
-
-        rotation_t* rotations = table_row(table, TYPE_ARGS(rotation_t));
-        rotations[c] = rotation;
-
-        scale_t* scales = table_row(table, TYPE_ARGS(scale_t));
-        scales[c] = scale;
-
-
-        ASSERT(drawables[c].mesh.handle);
+        i32 c = col_add(table, NULL);
+        row_set(drawables, c, &drawable);
+        row_set(translations, c, &translation);
+        row_set(rotations, c, &rotation);
+        row_set(scales, c, &scale);
     }
 }
 
@@ -314,7 +316,7 @@ static void UpdateMaterials(tables_t* tables)
 
         const i32 len = table_width(table);
         drawable_t* drawables = table_row(table, TYPE_ARGS(drawable_t));
-        for(i32 i = 0; i < len; ++i)
+        for (i32 i = 0; i < len; ++i)
         {
             drawables[i].material.flatAlbedo = flatAlbedo;
             drawables[i].material.flatRome = flatRome;
@@ -410,9 +412,8 @@ static void SGTrace(tables_t* tables)
 }
 
 ProfileMark(pm_PathTrace, PathTrace)
-static task_t* PathTrace(tables_t* tables)
+static bool PathTrace(tables_t* tables)
 {
-    task_t* task = NULL;
     if (cv_pt_trace.asFloat != 0.0f)
     {
         ProfileBegin(pm_PathTrace);
@@ -441,12 +442,63 @@ static task_t* PathTrace(tables_t* tables)
         ms_trace.imageSize = i2_v(fbuf->width, fbuf->height);
         ms_trace.scene = ms_ptscene;
 
-        task = pt_trace(&ms_trace);
+        task_t* task = pt_trace(&ms_trace);
         task_sys_schedule();
+        task_await(task);
 
         ProfileEnd(pm_PathTrace);
+        return true;
     }
-    return task;
+    return false;
+}
+
+ProfileMark(pm_Rasterize, Rasterize)
+static void Rasterize(tables_t* tables)
+{
+    ProfileBegin(pm_Rasterize);
+
+    SwapBuffers();
+
+    framebuf_t* frontBuf = GetFrontBuf();
+    framebuf_t* backBuf = GetBackBuf();
+
+    camera_t camera;
+    camera_get(&camera);
+
+    task_t* xformTask = Drawables_TRS(tables);
+    task_sys_schedule();
+    task_await(xformTask);
+
+    task_t* boundsTask = Drawables_Bounds(tables);
+    task_sys_schedule();
+    task_await(boundsTask);
+
+    task_t* cullTask = Drawables_Cull(tables, &camera, backBuf);
+    task_sys_schedule();
+    task_await(cullTask);
+
+    task_t* vertexTask = Drawables_Vertex(tables, &camera);
+    task_sys_schedule();
+    ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
+    task_await(vertexTask);
+
+    task_t* fragTask = Drawables_Fragment(tables, frontBuf, backBuf);
+    task_sys_schedule();
+    task_await(fragTask);
+
+    ProfileEnd(pm_Rasterize);
+}
+
+ProfileMark(pm_Present, Present)
+static void Present(void)
+{
+    ProfileBegin(pm_Present);
+    framebuf_t* frontBuf = GetFrontBuf();
+    task_t* resolveTask = ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
+    task_sys_schedule();
+    task_await(resolveTask);
+    screenblit_blit(frontBuf->color, frontBuf->width, frontBuf->height);
+    ProfileEnd(pm_Present);
 }
 
 void render_sys_init(void)
@@ -457,8 +509,8 @@ void render_sys_init(void)
     cvar_reg(&cv_sg_count);
 
     ms_iFrame = 0;
-    framebuf_create(&(ms_buffers[0]), kDrawWidth, kDrawHeight);
-    framebuf_create(&(ms_buffers[1]), kDrawWidth, kDrawHeight);
+    framebuf_create(GetFrontBuf(), kDrawWidth, kDrawHeight);
+    framebuf_create(GetBackBuf(), kDrawWidth, kDrawHeight);
     screenblit_init(kDrawWidth, kDrawHeight);
 
     ms_tonemapper = TMap_Reinhard;
@@ -472,18 +524,18 @@ void render_sys_init(void)
     Drawables_New(tables);
 
     table_t* lights = tables_add_s(tables, "Lights");
-    table_add_h(lights, TYPE_ARGS(radiance_t));
-    table_add_h(lights, TYPE_ARGS(translation_t));
-    table_add_h(lights, TYPE_ARGS(rotation_t));
+    table_add(lights, TYPE_ARGS(radiance_t));
+    table_add(lights, TYPE_ARGS(translation_t));
+    table_add(lights, TYPE_ARGS(rotation_t));
 
     table_t* cameras = tables_add_s(tables, "Cameras");
-    table_add_h(cameras, TYPE_ARGS(camera_t));
+    table_add(cameras, TYPE_ARGS(camera_t));
 
     table_t* meshes = tables_add_s(tables, "Meshes");
-    table_add_h(meshes, TYPE_ARGS(meshid_t));
+    table_add(meshes, TYPE_ARGS(meshid_t));
 
     table_t* textures = tables_add_s(tables, "Textures");
-    table_add_h(textures, TYPE_ARGS(textureid_t));
+    table_add(textures, TYPE_ARGS(textureid_t));
 
     asset_t mapasset = { 0 };
     if (asset_get("maps/start.bsp", &mapasset))
@@ -514,50 +566,14 @@ void render_sys_update(void)
 {
     ProfileBegin(pm_update);
 
-    ++ms_iFrame;
-    const i32 iFront = ms_iFrame & 1;
-    const i32 iBack = (ms_iFrame + 1) & 1;
-
-    framebuf_t* frontBuf = &(ms_buffers[iFront]);
-    framebuf_t* backBuf = &(ms_buffers[iBack]);
-
     tables_t* tables = tables_main();
-    camera_t camera;
-    camera_get(&camera);
-
     UpdateMaterials(tables);
     SGTrace(tables);
-
-    task_t* xformTask = Drawables_TRS(tables);
-    task_sys_schedule();
-    task_await(xformTask);
-
-    task_t* boundsTask = Drawables_Bounds(tables);
-    task_sys_schedule();
-    task_await(boundsTask);
-
-    task_t* cullTask = Drawables_Cull(tables, &camera, backBuf);
-    task_sys_schedule();
-    task_await(cullTask);
-
-    task_t* drawTask = PathTrace(tables);
-    if (!drawTask)
+    if (!PathTrace(tables))
     {
-        task_t* vertexTask = Drawables_Vertex(tables, &camera);
-        task_sys_schedule();
-        ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
-        task_await(vertexTask);
-
-        drawTask = Drawables_Fragment(tables, frontBuf, backBuf);
-        task_sys_schedule();
+        Rasterize(tables);
     }
-
-    task_await(drawTask);
-    task_t* resolveTask = ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
-
-    task_sys_schedule();
-    task_await(resolveTask);
-    screenblit_blit(frontBuf->color, kDrawWidth, kDrawHeight);
+    Present();
 
     ProfileEnd(pm_update);
 }
@@ -570,8 +586,8 @@ void render_sys_shutdown(void)
     ms_ptscene = NULL;
 
     screenblit_shutdown();
-    framebuf_destroy(&(ms_buffers[0]));
-    framebuf_destroy(&(ms_buffers[1]));
+    framebuf_destroy(GetFrontBuf());
+    framebuf_destroy(GetBackBuf());
 
     Drawables_Del(tables_main());
 }
@@ -682,7 +698,7 @@ void render_sys_gui(bool* pEnabled)
                 igColumns(1);
             }
         }
-}
+    }
     igEnd();
 
     ProfileEnd(pm_gui);

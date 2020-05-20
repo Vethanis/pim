@@ -15,19 +15,19 @@ static const u32 drawables_hash = 3322283348u;
 
 table_t* Drawables_New(struct tables_s* tables)
 {
-    table_t* table = tables_add_h(tables, drawables_hash);
-    table_add_h(table, TYPE_ARGS(drawable_t));
-    table_add_h(table, TYPE_ARGS(bounds_t));
-    table_add_h(table, TYPE_ARGS(localtoworld_t));
-    table_add_h(table, TYPE_ARGS(translation_t));
-    table_add_h(table, TYPE_ARGS(rotation_t));
-    table_add_h(table, TYPE_ARGS(scale_t));
+    table_t* table = tables_add(tables, drawables_hash);
+    table_add(table, TYPE_ARGS(drawable_t));
+    table_add(table, TYPE_ARGS(bounds_t));
+    table_add(table, TYPE_ARGS(localtoworld_t));
+    table_add(table, TYPE_ARGS(translation_t));
+    table_add(table, TYPE_ARGS(rotation_t));
+    table_add(table, TYPE_ARGS(scale_t));
     return table;
 }
 
 void Drawables_Del(struct tables_s* tables)
 {
-    table_t* table = tables_get_h(tables, drawables_hash);
+    table_t* table = tables_get(tables, drawables_hash);
     if (table)
     {
         const i32 len = table_width(table);
@@ -44,13 +44,13 @@ void Drawables_Del(struct tables_s* tables)
             }
         }
 
-        tables_rm_h(tables, drawables_hash);
+        tables_rm(tables, drawables_hash);
     }
 }
 
 table_t* Drawables_Get(struct tables_s* tables)
 {
-    return tables_get_h(tables, drawables_hash);
+    return tables_get(tables, drawables_hash);
 }
 
 typedef struct trstask_s

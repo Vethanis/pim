@@ -2,14 +2,12 @@
 #include "allocator/allocator.h"
 #include "common/stringutil.h"
 #include "common/cvar.h"
-#include "containers/dict.h"
+#include "containers/sdict.h"
 #include "containers/queue.h"
 #include "assets/asset_system.h"
 #include "common/time.h"
 #include "common/profiler.h"
 #include "common/console.h"
-#include "containers/text.h"
-
 #include <string.h>
 
 // ----------------------------------------------------------------------------
@@ -36,16 +34,16 @@ static cmdstat_t cmd_wait_fn(i32 argc, const char** argv);
 
 // ----------------------------------------------------------------------------
 
-static dict_t ms_cmds;
-static dict_t ms_aliases;
+static sdict_t ms_cmds;
+static sdict_t ms_aliases;
 static queue_t ms_cmdqueue;
 
 // ----------------------------------------------------------------------------
 
 void cmd_sys_init(void)
 {
-    dict_new(&ms_cmds, sizeof(text32), sizeof(cmdfn_t), EAlloc_Perm);
-    dict_new(&ms_aliases, sizeof(text32), sizeof(cmdalias_t), EAlloc_Perm);
+    sdict_new(&ms_cmds, sizeof(cmdfn_t), EAlloc_Perm);
+    sdict_new(&ms_aliases, sizeof(cmdalias_t), EAlloc_Perm);
     queue_create(&ms_cmdqueue, sizeof(cmdbrain_t), EAlloc_Perm);
     cmd_reg("alias", cmd_alias_fn);
     cmd_reg("exec", cmd_execfile_fn);
@@ -79,8 +77,8 @@ void cmd_sys_update(void)
 
 void cmd_sys_shutdown(void)
 {
-    dict_del(&ms_cmds);
-    dict_del(&ms_aliases);
+    sdict_del(&ms_cmds);
+    sdict_del(&ms_aliases);
     cmdbrain_t brain;
     while (queue_trypop(&ms_cmdqueue, &brain, sizeof(brain)))
     {
@@ -233,20 +231,16 @@ void cmd_reg(const char* name, cmdfn_t fn)
 {
     ASSERT(name);
     ASSERT(fn);
-    text32 txt;
-    text_new(&txt, sizeof(txt), name);
-    if (!dict_add(&ms_cmds, &txt, &fn))
+    if (!sdict_add(&ms_cmds, name, &fn))
     {
-        dict_set(&ms_cmds, &txt, &fn);
+        sdict_set(&ms_cmds, name, &fn);
     }
 }
 
 bool cmd_exists(const char* name)
 {
     ASSERT(name);
-    text32 txt;
-    text_new(&txt, sizeof(txt), name);
-    return dict_find(&ms_cmds, &txt) != -1;
+    return sdict_find(&ms_cmds, name) != -1;
 }
 
 const char* cmd_complete(const char* namePart)
@@ -254,11 +248,11 @@ const char* cmd_complete(const char* namePart)
     ASSERT(namePart);
     const i32 partLen = StrLen(namePart);
     const u32 width = ms_cmds.width;
-    const text32* names = ms_cmds.keys;
+    const char** names = ms_cmds.keys;
     for (u32 i = 0; i < width; ++i)
     {
-        const char* name = names[i].c;
-        if (name[0] && !StrCmp(namePart, partLen, name))
+        const char* name = names[i];
+        if (name && !StrCmp(namePart, partLen, name))
         {
             return name;
         }
@@ -273,32 +267,33 @@ cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
 
     i32 argc = 0;
     char** argv = cmd_tokenize(line, &argc);
-    if (!argc)
+    if (argc < 1)
     {
+        // whitespace, comments, newlines, etc
         return cmdstat_ok;
     }
     ASSERT(argv);
 
-    text32 txt;
-    text_new(&txt, sizeof(txt), argv[0]);
+    const char* name = argv[0];
+    ASSERT(name);
 
     // commands
     cmdfn_t cmd = NULL;
-    if (dict_get(&ms_cmds, &txt, &cmd))
+    if (sdict_get(&ms_cmds, name, &cmd))
     {
         return cmd(argc, argv);
     }
 
     // aliases (macros to expand into front of cbuf)
     cmdalias_t alias = { 0 };
-    if (dict_get(&ms_aliases, &txt, &alias))
+    if (sdict_get(&ms_aliases, name, &alias))
     {
         cbuf_pushfront(buf, alias.value);
         return cmdstat_ok;
     }
 
     // cvars
-    cvar_t* cvar = cvar_find(txt.c);
+    cvar_t* cvar = cvar_find(name);
     if (cvar)
     {
         if (argc == 1)
@@ -314,7 +309,7 @@ cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
         }
     }
 
-    con_printf(C32_RED, "Unknown command \"%s\"", txt.c);
+    con_printf(C32_RED, "Unknown command \"%s\"", name);
     return cmdstat_err;
 }
 
@@ -452,12 +447,12 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
     {
         con_puts(C32_RED, "Current alias commands:");
         const u32 width = ms_aliases.width;
-        const text32* names = ms_aliases.keys;
+        const char** names = ms_aliases.keys;
         const cmdalias_t* aliases = ms_aliases.values;
         for (u32 i = 0; i < width; ++i)
         {
-            const char* name = names[i].c;
-            if (name[0])
+            const char* name = names[i];
+            if (name)
             {
                 con_printf(C32_RED, "%s : %s", name, aliases[i].value);
             }
@@ -465,18 +460,16 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
         return cmdstat_err;
     }
 
-    text32 name;
-    text_new(&name, sizeof(name), argv[1]);
+    const char* aliasKey = argv[1];
 
     cmdalias_t alias = { 0 };
-    if (dict_rm(&ms_aliases, &name, &alias))
+    if (sdict_rm(&ms_aliases, aliasKey, &alias))
     {
         pim_free(alias.value);
         alias.value = NULL;
     }
 
-    char cmd[1024];
-    cmd[0] = 0;
+    char cmd[1024] = { 0 };
     for (i32 i = 2; i < argc; ++i)
     {
         StrCat(ARGS(cmd), argv[i]);
@@ -488,7 +481,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
     StrCat(ARGS(cmd), ";");
 
     alias.value = StrDup(cmd, EAlloc_Perm);
-    bool added = dict_add(&ms_aliases, &name, &alias);
+    bool added = sdict_add(&ms_aliases, aliasKey, &alias);
     ASSERT(added);
 
     return cmdstat_ok;
@@ -501,8 +494,9 @@ static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv)
         con_puts(C32_RED, "exec <filename> : executes a script file");
         return cmdstat_err;
     }
+    const char* filename = argv[1];
     asset_t asset;
-    if (asset_get(argv[1], &asset))
+    if (asset_get(filename, &asset))
     {
         cbuf_t cbuf;
         cbuf_new(&cbuf, EAlloc_Perm);

@@ -151,9 +151,6 @@
     <ClCompile Include="..\src\threading\task.c">
       <Filter>Source Files\threading</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\components\compflag.c">
-      <Filter>Source Files\components</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\containers\int_queue.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
@@ -343,6 +340,12 @@
     <ClCompile Include="..\src\components\drawables.c">
       <Filter>Source Files\components</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\containers\idtable.c">
+      <Filter>Source Files\containers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\sdict.c">
+      <Filter>Source Files\containers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -517,9 +520,6 @@
       <Filter>Source Files\threading</Filter>
     </ClInclude>
     <ClInclude Include="..\src\components\components.h">
-      <Filter>Source Files\components</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\compflag.h">
       <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\int_queue.h">
@@ -737,6 +737,12 @@
     </ClInclude>
     <ClInclude Include="..\src\components\drawables.h">
       <Filter>Source Files\components</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\idtable.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\sdict.h">
+      <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -9,8 +9,8 @@ typedef struct dict_s
     u32* hashes;
     void* keys;
     void* values;
-    u32 count;
     u32 width;
+    u32 count;
     u32 keySize;
     u32 valueSize;
     EAlloc allocator;
@@ -23,7 +23,7 @@ void dict_clear(dict_t* dict);
 void dict_reserve(dict_t* dict, i32 count);
 
 i32 dict_find(const dict_t* dict, const void* key);
-bool dict_get(dict_t* dict, const void* key, void* valueOut);
+bool dict_get(const dict_t* dict, const void* key, void* valueOut);
 bool dict_set(dict_t* dict, const void* key, const void* valueIn);
 bool dict_add(dict_t* dict, const void* key, const void* valueIn);
 bool dict_rm(dict_t* dict, const void* key, void* valueOut);

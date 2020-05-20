@@ -5,20 +5,17 @@
 #include "common/stringutil.h"
 #include "common/profiler.h"
 #include "common/sort.h"
-#include "containers/dict.h"
-#include "containers/text.h"
+#include "containers/sdict.h"
 #include "ui/cimgui.h"
 #include <stdlib.h> // atof
 
-typedef text32 cvar_key_t;
-
-static dict_t ms_dict;
+static sdict_t ms_dict;
 
 static void EnsureInit(void)
 {
     if (!ms_dict.valueSize)
     {
-        dict_new(&ms_dict, sizeof(cvar_key_t), sizeof(cvar_t*), EAlloc_Perm);
+        sdict_new(&ms_dict, sizeof(cvar_t*), EAlloc_Perm);
     }
 }
 
@@ -31,9 +28,7 @@ void cvar_reg(cvar_t* ptr)
     ASSERT(ptr->description);
     ptr->asFloat = (float)atof(ptr->value);
 
-    cvar_key_t txt;
-    text_new(&txt, sizeof(txt), ptr->name);
-    bool added = dict_add(&ms_dict, &txt, &ptr);
+    bool added = sdict_add(&ms_dict, ptr->name, &ptr);
     ASSERT(added);
 }
 
@@ -41,16 +36,9 @@ cvar_t* cvar_find(const char* name)
 {
     EnsureInit();
 
-    ASSERT(name);
-    cvar_key_t txt;
-    text_new(&txt, sizeof(txt), name);
-    const i32 i = dict_find(&ms_dict, &txt);
-    if (i != -1)
-    {
-        cvar_t** cvars = ms_dict.values;
-        return cvars[i];
-    }
-    return NULL;
+    cvar_t* value = NULL;
+    sdict_get(&ms_dict, name, &value);
+    return value;
 }
 
 const char* cvar_complete(const char* namePart)
@@ -60,11 +48,11 @@ const char* cvar_complete(const char* namePart)
     ASSERT(namePart);
     const i32 partLen = StrLen(namePart);
     const u32 width = ms_dict.width;
-    const cvar_key_t* names = ms_dict.keys;
+    const char** names = ms_dict.keys;
     for (u32 i = 0; i < width; ++i)
     {
-        const char* name = names[i].c;
-        if (name[0] && !StrCmp(namePart, partLen, name))
+        const char* name = names[i];
+        if (name && !StrCmp(namePart, partLen, name))
         {
             return name;
         }
@@ -103,15 +91,7 @@ bool cvar_check_dirty(cvar_t* ptr)
     return false;
 }
 
-static i32 CmpCvarDict(
-    const void* lKey, const void* rKey,
-    const void* lVal, const void* rVal,
-    void* usr)
-{
-    return StrCmp(lKey, sizeof(cvar_key_t), rKey);
-}
-
-static char ms_search[sizeof(cvar_key_t)];
+static char ms_search[PIM_PATH];
 
 ProfileMark(pm_gui, cvar_gui)
 void cvar_gui(bool* pEnabled)
@@ -123,7 +103,7 @@ void cvar_gui(bool* pEnabled)
     {
         cvar_t** cvars = ms_dict.values;
         const i32 length = ms_dict.count;
-        const u32* indices = dict_sort(&ms_dict, CmpCvarDict, NULL);
+        const u32* indices = sdict_sort(&ms_dict, SDictStrCmp, NULL);
 
         igInputText("Search", ARGS(ms_search), 0, NULL, NULL);
 
@@ -139,7 +119,7 @@ void cvar_gui(bool* pEnabled)
                 continue;
             }
 
-            if (ms_search[0] && !StrIStr(cvar->name, sizeof(cvar_key_t), ms_search))
+            if (ms_search[0] && !StrIStr(cvar->name, PIM_PATH, ms_search))
             {
                 continue;
             }
@@ -158,9 +138,9 @@ void cvar_gui(bool* pEnabled)
             break;
             case cvart_text:
             {
-                if (igInputText(cvar->name, ARGS(cvar->value), 0, NULL, NULL) && (StrLen(cvar->value) > 0))
+                if (igInputText(cvar->name, ARGS(cvar->value), 0, NULL, NULL))
                 {
-                    cvar->asFloat = (float)atof(cvar->value);
+                    cvar->flags |= cvarf_dirty;
                 }
             }
             break;
