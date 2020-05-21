@@ -13,7 +13,7 @@
 #include "math/color.h"
 #include "math/frustum.h"
 #include "math/sdf.h"
-#include "math/sphgauss.h"
+#include "math/ambcube.h"
 
 #include "rendering/sampler.h"
 #include "rendering/tile.h"
@@ -28,8 +28,9 @@
 #include "components/drawables.h"
 #include "components/components.h"
 
-static cvar_t cv_sg_dbg_diff = { cvart_bool, 0, "sg_dbg_diff", "0", "display a debug view of diffuse GI" };
-static cvar_t cv_sg_dbg_spec = { cvart_bool, 0, "sg_dbg_spec", "0", "display a debug view of specular GI" };
+static cvar_t cv_gi_dbg_diff = { cvart_bool, 0, "gi_dbg_diff", "0", "display a debug view of diffuse GI" };
+static cvar_t cv_gi_dbg_spec = { cvart_bool, 0, "gi_dbg_spec", "0", "display a debug view of specular GI" };
+static cvar_t cv_gi_dbg_view = { cvart_bool, 0, "gi_dbg_view", "0", "display a debug view of GI" };
 
 typedef struct fragstage_s
 {
@@ -57,22 +58,9 @@ typedef struct tile_ctx_s
 } tile_ctx_t;
 
 static BrdfLut ms_lut;
-static float4 ms_diffuseGI;
-static float4 ms_specularGI;
-
-#define MAX_SGS 256
-static i32 ms_sgcount;
-static SG_t ms_sgs[MAX_SGS];
-static float ms_sgintegrals[MAX_SGS];
-static float ms_sgweights[MAX_SGS];
-
-SG_t* SG_Get(void) { return ms_sgs; }
-float* SG_GetIntegrals(void) { return ms_sgintegrals; }
-float* SG_GetWeights(void) { return ms_sgweights; }
-i32 SG_GetCount(void) { return ms_sgcount; }
-void SG_SetCount(i32 ct) { ms_sgcount = i1_clamp(ct, 0, MAX_SGS); }
-float4* DiffuseGI(void) { return &ms_diffuseGI; }
-float4* SpecularGI(void) { return &ms_specularGI; }
+static AmbCube_t ms_ambcube;
+AmbCube_t VEC_CALL AmbCube_Get(void) { return ms_ambcube; };
+void VEC_CALL AmbCube_Set(AmbCube_t cube) { ms_ambcube = cube; }
 
 static void EnsureInit(void);
 static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf);
@@ -111,8 +99,9 @@ static void EnsureInit(void)
 {
     if (!ms_lut.texels)
     {
-        cvar_reg(&cv_sg_dbg_diff);
-        cvar_reg(&cv_sg_dbg_spec);
+        cvar_reg(&cv_gi_dbg_diff);
+        cvar_reg(&cv_gi_dbg_spec);
+        cvar_reg(&cv_gi_dbg_view);
 
         ms_lut = BakeBRDF(i2_s(256), 1024);
     }
@@ -208,8 +197,9 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
         return;
     }
 
-    const bool dbgdiffGI = cv_sg_dbg_diff.asFloat != 0.0f;
-    const bool dbgspecGI = cv_sg_dbg_spec.asFloat != 0.0f;
+    const bool dbgdiffGI = cv_gi_dbg_diff.asFloat != 0.0f;
+    const bool dbgspecGI = cv_gi_dbg_spec.asFloat != 0.0f;
+    const bool dbgviewGI = cv_gi_dbg_view.asFloat != 0.0f;
 
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
@@ -346,15 +336,8 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                         rome = f4_mul(rome, Tex_Bilinearf2(romeMap, U));
                     }
                     {
-                        float4 diffuseGI = f4_0;
-                        float4 specularGI = f4_0;
-                        const i32 sgcount = ms_sgcount;
-                        const SG_t* pim_noalias sgs = ms_sgs;
-                        for (i32 i = 0; i < sgcount; ++i)
-                        {
-                            diffuseGI = f4_add(diffuseGI, SG_Irradiance(sgs[i], N));
-                            specularGI = f4_add(specularGI, SG_Eval(sgs[i], R));
-                        }
+                        float4 diffuseGI = AmbCube_Irradiance(ms_ambcube, N);
+                        float4 specularGI = AmbCube_Eval(ms_ambcube, R);
                         const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
                         lighting = f4_add(lighting, indirect);
                     }
@@ -376,25 +359,17 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                         lighting = f4_add(lighting, direct);
                     }
 
-                    if (dbgdiffGI)
+                    if (dbgviewGI)
                     {
-                        lighting = f4_0;
-                        const i32 sgcount = ms_sgcount;
-                        const SG_t* pim_noalias sgs = ms_sgs;
-                        for (i32 i = 0; i < sgcount; ++i)
-                        {
-                            lighting = f4_add(lighting, SG_Irradiance(sgs[i], N));
-                        }
+                        lighting = AmbCube_Eval(ms_ambcube, f4_neg(V));
+                    }
+                    else if (dbgdiffGI)
+                    {
+                        lighting = AmbCube_Irradiance(ms_ambcube, N);
                     }
                     else if (dbgspecGI)
                     {
-                        lighting = f4_0;
-                        const i32 sgcount = ms_sgcount;
-                        const SG_t* pim_noalias sgs = ms_sgs;
-                        for (i32 i = 0; i < sgcount; ++i)
-                        {
-                            lighting = f4_add(lighting, SG_Eval(sgs[i], R));
-                        }
+                        lighting = AmbCube_Eval(ms_ambcube, R);
                     }
                 }
 

@@ -53,8 +53,9 @@ pim_inline float4 VEC_CALL SampleUnitHemisphere(float2 Xi)
 
 // returns a microfacet normal of the GGX NDF for given roughness
 // tangent space
-pim_inline float4 VEC_CALL ImportanceSampleGGX(float2 Xi, float a)
+pim_inline float4 VEC_CALL ImportanceSampleGGX(float2 Xi, float roughness)
 {
+    float a = roughness * roughness;
     float phi = kTau * Xi.x;
     float cosTheta = sqrtf((1.0f - Xi.y) / (1.0f + (a * a - 1.0f) * Xi.y));
     float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);

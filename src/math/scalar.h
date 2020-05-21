@@ -65,6 +65,7 @@ pim_inline float VEC_CALL f1_saturate(float x)
 {
     return f1_clamp(x, 0.0f, 1.0f);
 }
+#define f1_sat(x) f1_saturate(x)
 
 pim_inline float VEC_CALL f1_abs(float x)
 {
@@ -144,6 +145,11 @@ pim_inline float VEC_CALL f1_reflect(float i, float n)
 pim_inline float VEC_CALL f1_distance(float a, float b)
 {
     return f1_abs(b - a);
+}
+
+pim_inline float VEC_CALL f1_sq(float x)
+{
+    return x * x;
 }
 
 pim_inline i32 VEC_CALL i1_min(i32 a, i32 b)

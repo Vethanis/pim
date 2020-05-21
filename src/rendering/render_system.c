@@ -22,7 +22,7 @@
 #include "math/float4x4_funcs.h"
 #include "math/color.h"
 #include "math/sdf.h"
-#include "math/sphgauss.h"
+#include "math/ambcube.h"
 #include "math/sampling.h"
 #include "math/frustum.h"
 
@@ -45,8 +45,7 @@
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing of scene" };
 static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "10", "number of bounces in the path tracer" };
-static cvar_t cv_sg_gen = { cvart_bool, 0, "sg_gen", "0", "enable spherical gaussian light accumulation" };
-static cvar_t cv_sg_count = { cvart_int, 0, "sg_count", "9", "number of spherical gaussian lobes to use" };
+static cvar_t cv_ac_gen  = { cvart_bool, 0, "ac_gen", "0", "enable ambient cube light accumulation" };
 
 // ----------------------------------------------------------------------------
 
@@ -330,7 +329,6 @@ static void CleanPtScene(tables_t* tables)
     camera_t camera;
     camera_get(&camera);
     dirty |= cvar_check_dirty(&cv_pt_trace);
-    dirty |= cvar_check_dirty(&cv_sg_gen);
     dirty |= memcmp(&camera, &ms_ptcamera, sizeof(camera)) != 0;
     if (dirty)
     {
@@ -341,17 +339,17 @@ static void CleanPtScene(tables_t* tables)
     }
 }
 
-typedef struct sgtrace_s
+typedef struct raygen_s
 {
     task_t task;
     float4 origin;
     float4* radiances;
     float4* directions;
-} sgtrace_t;
+} raygen_t;
 
-static void SGTraceFn(task_t* pBase, i32 begin, i32 end)
+static void RayGenFn(task_t* pBase, i32 begin, i32 end)
 {
-    sgtrace_t* task = (sgtrace_t*)pBase;
+    raygen_t* task = (raygen_t*)pBase;
     prng_t rng = prng_get();
     ray_t ray;
     ray.ro = task->origin;
@@ -365,49 +363,40 @@ static void SGTraceFn(task_t* pBase, i32 begin, i32 end)
     prng_set(rng);
 }
 
-ProfileMark(pm_sgtrace, SGTrace)
-static void SGTrace(tables_t* tables)
+ProfileMark(pm_AmbCube_Trace, AmbCube_Trace)
+static void AmbCube_Trace(tables_t* tables)
 {
-    if (cvar_check_dirty(&cv_sg_count))
+    if (cv_ac_gen.asFloat != 0.0f)
     {
-        SG_SetCount((i32)cv_sg_count.asFloat);
-        SG_Generate(SG_Get(), SG_GetIntegrals(), SG_GetCount(), SGDist_Sphere);
-        ms_sampleCount = 0;
-    }
-    if (cv_sg_gen.asFloat != 0.0f)
-    {
-        ProfileBegin(pm_sgtrace);
+        ProfileBegin(pm_AmbCube_Trace);
         CleanPtScene(tables);
 
         camera_t camera;
         camera_get(&camera);
 
-        const i32 sampleCount = 1024;
+        const i32 sampleCount = 4096;
         float4* pim_noalias directions = tmp_malloc(sizeof(directions[0]) * sampleCount);
         float4* pim_noalias radiances = tmp_malloc(sizeof(radiances[0]) * sampleCount);
 
-        sgtrace_t* task = tmp_calloc(sizeof(*task));
+        raygen_t* task = tmp_calloc(sizeof(*task));
         task->origin = camera.position;
         task->directions = directions;
         task->radiances = radiances;
 
-        task_submit((task_t*)task, SGTraceFn, sampleCount);
+        task_submit((task_t*)task, RayGenFn, sampleCount);
         task_sys_schedule();
         task_await((task_t*)task);
 
-        SG_t* sgs = SG_Get();
-        float* weights = SG_GetWeights();
-        const float* integrals = SG_GetIntegrals();
-        const i32 sgCount = SG_GetCount();
-
-        const i32 s = ms_sampleCount;
+        AmbCube_t cube = AmbCube_Get();
+        i32 s = ms_sampleCount;
         for (i32 i = 0; i < sampleCount; ++i)
         {
-            SG_Accumulate(s + i, directions[i], radiances[i], sgs, weights, integrals, sgCount);
+            cube = AmbCube_Fit(cube, s++, directions[i], radiances[i]);
         }
-        ms_sampleCount += sampleCount;
+        ms_sampleCount = s;
+        AmbCube_Set(cube);
 
-        ProfileEnd(pm_sgtrace);
+        ProfileEnd(pm_AmbCube_Trace);
     }
 }
 
@@ -505,8 +494,7 @@ void render_sys_init(void)
 {
     cvar_reg(&cv_pt_trace);
     cvar_reg(&cv_pt_bounces);
-    cvar_reg(&cv_sg_gen);
-    cvar_reg(&cv_sg_count);
+    cvar_reg(&cv_ac_gen);
 
     ms_iFrame = 0;
     framebuf_create(GetFrontBuf(), kDrawWidth, kDrawHeight);
@@ -548,15 +536,12 @@ void render_sys_init(void)
 
     if (lights_pt_count() == 0)
     {
-        lights_add_pt((pt_light_t) { f4_v(0.0f, 0.0f, 0.0f, 1.0f), f4_s(3.0f) });
+        lights_add_pt((pt_light_t) { f4_v(0.0f, 0.0f, 0.0f, 1.0f), f4_s(30.0f) });
     }
 
     task_t* compose = Drawables_TRS(tables);
     task_sys_schedule();
     task_await(compose);
-
-    SG_SetCount((i32)cv_sg_count.asFloat);
-    SG_Generate(SG_Get(), SG_GetIntegrals(), SG_GetCount(), SGDist_Sphere);
 
     CleanPtScene(tables);
 }
@@ -568,7 +553,7 @@ void render_sys_update(void)
 
     tables_t* tables = tables_main();
     UpdateMaterials(tables);
-    SGTrace(tables);
+    AmbCube_Trace(tables);
     if (!PathTrace(tables))
     {
         Rasterize(tables);

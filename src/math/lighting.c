@@ -3,26 +3,13 @@
 #include "rendering/sampler.h"
 #include "allocator/allocator.h"
 
-// alpha constant
-pim_inline float VEC_CALL GGX_a(float roughness)
-{
-    // default parameterization
-    return roughness;
-    // disney reparameterization:
-    // return roughness * roughness;
-}
-
-// k constant
-pim_inline float VEC_CALL GGX_k(float a)
-{
-    return (a * a) * 0.5f;
-}
-
 // geometry term
 // self shadowing effect from rough surfaces
 // Schlick approximation fit to Smith's GGX model
-pim_inline float VEC_CALL GGX_G(float NoV, float NoL, float k)
+pim_inline float VEC_CALL GGX_G(float NoV, float NoL, float roughness)
 {
+    float a = roughness * roughness;
+    float k = a * 0.5f;
     float t1 = NoV / f1_lerp(k, 1.0f, NoV);
     float t2 = NoL / f1_lerp(k, 1.0f, NoL);
     return t1 * t2;
@@ -31,8 +18,9 @@ pim_inline float VEC_CALL GGX_G(float NoV, float NoL, float k)
 // normal distribution function
 // amount of surface's microfacets are facing the H vector
 // Trowbridge-Reitz GGX
-pim_inline float VEC_CALL GGX_D(float NoH, float a)
+pim_inline float VEC_CALL GGX_D(float NoH, float roughness)
 {
+    float a = roughness * roughness;
     float a2 = a * a;
     float d = f1_lerp(1.0f, a2, NoH * NoH);
     return a2 / (kPi * d * d);
@@ -80,11 +68,8 @@ float4 VEC_CALL DirectBRDF(
     const float NoV = f1_max(0.0f, f4_dot3(N, V));
     const float NoL = f1_max(0.0f, f4_dot3(N, L));
 
-    const float a = GGX_a(roughness);
-    const float k = GGX_k(a);
-
-    const float D = GGX_D(NoH, a);
-    const float G = GGX_G(NoV, NoL, k);
+    const float D = GGX_D(NoH, roughness);
+    const float G = GGX_G(NoV, NoL, roughness);
     const float4 F = GGX_F(NoV, GGX_F0(albedo, metallic));
 
     const float4 DGF = f4_mulvs(F, D * G);
@@ -110,16 +95,13 @@ static float2 VEC_CALL IntegrateBRDF(
         0.0f,
     };
 
-    const float a = GGX_a(roughness);
-    const float k = GGX_k(a);
-
     float2 result = { 0.0f, 0.0f };
 
     const float weight = 1.0f / numSamples;
     for (u32 i = 0; i < numSamples; ++i)
     {
         const float2 Xi = Hammersley2D(i, numSamples);
-        const float4 H = ImportanceSampleGGX(Xi, a);
+        const float4 H = ImportanceSampleGGX(Xi, roughness);
         const float VoH = f1_max(0.0f, f4_dot3(V, H));
         const float NoH = f1_max(0.0f, H.z);
         const float4 L = f4_reflect(f4_neg(V), H);
@@ -127,7 +109,7 @@ static float2 VEC_CALL IntegrateBRDF(
 
         if (NoL > 0.0f)
         {
-            const float G = GGX_G(NoV, NoL, k);
+            const float G = GGX_G(NoV, NoL, roughness);
             const float GVis = (G * VoH) / (NoH * NoV);
             float Fc = 1.0f - VoH;
             Fc = Fc * Fc * Fc * Fc * Fc;

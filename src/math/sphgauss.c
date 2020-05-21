@@ -22,8 +22,8 @@ static float4 VEC_CALL SampleDir(float2 Xi, SG_Dist dist)
 pim_optimize
 void VEC_CALL SG_Accumulate(
     i32 iSample,
-    float4 sampleDir,
-    float4 sampleLight,
+    float4 dir,
+    float4 rad,
     SG_t* sgs,
     float* lobeWeights,
     const float* basisSqIntegrals,
@@ -45,10 +45,9 @@ void VEC_CALL SG_Accumulate(
     for (i32 i = 0; i < length; ++i)
     {
         const SG_t sg = sgs[i];
-        float cosTheta = f4_dot3(sg.axis, sampleDir);
-        float sampleWeight = expf(sg.axis.w * (cosTheta - 1.0f));
-        est = f4_add(est, f4_mulvs(sg.amplitude, sampleWeight));
-        sampleWeights[i] = sampleWeight;
+        float w = SG_BasisEval(sg, dir);
+        est = f4_add(est, f4_mulvs(sg.amplitude, w));
+        sampleWeights[i] = w;
     }
 
     for (i32 i = 0; i < length; ++i)
@@ -63,13 +62,8 @@ void VEC_CALL SG_Accumulate(
         lobeWeights[i] += ((sampleWeight * sampleWeight) - lobeWeights[i]) * sampleScale;
         float integral = f1_max(lobeWeights[i], basisSqIntegrals[i]);
         float4 otherLight = f4_sub(est, f4_mulvs(sg.amplitude, sampleWeight));
-        float4 newEst = f4_mulvs(
-            f4_sub(sampleLight, otherLight),
-            sampleWeight / integral);
-        float4 diff = f4_mulvs(f4_sub(newEst, sg.amplitude), sampleScale);
-        sg.amplitude = f4_add(sg.amplitude, diff);
-        // non-negative fit
-        sg.amplitude = f4_max(sg.amplitude, f4_0);
+        float4 newEst = f4_mulvs(f4_sub(rad, otherLight), sampleWeight / integral);
+        sg.amplitude = f4_max(f4_lerpvs(sg.amplitude, newEst, sampleScale), f4_0);
 
         sgs[i] = sg;
     }
@@ -105,7 +99,7 @@ void SG_Generate(SG_t* sgs, float* basisSqIntegrals, i32 count, SG_Dist dist)
     for (i32 i = 1; i < count; ++i)
     {
         float4 H = f4_normalize3(f4_add(sgs[i].axis, sgs[0].axis));
-        minCosTheta = f1_min(minCosTheta, f4_dot3(H, sgs[0].axis));
+        minCosTheta = f1_min(minCosTheta, f1_sat(f4_dot3(H, sgs[0].axis)));
     }
 
     float sharpness = (logf(0.65f) * count) / (minCosTheta - 1.0f);
@@ -124,9 +118,8 @@ void SG_Generate(SG_t* sgs, float* basisSqIntegrals, i32 count, SG_Dist dist)
 
         for (i32 j = 0; j < count; ++j)
         {
-            float cosTheta = f4_dot3(dir, sgs[j].axis);
-            float weight = expf(sgs[j].axis.w * (cosTheta - 1.0f));
-            float diff = weight * weight - basisSqIntegrals[j];
+            float w = SG_BasisEval(sgs[j], dir);
+            float diff = w * w - basisSqIntegrals[j];
             basisSqIntegrals[j] += diff * sampleWeight;
         }
     }

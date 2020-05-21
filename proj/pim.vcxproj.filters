@@ -744,6 +744,9 @@
     <ClInclude Include="..\src\containers\sdict.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\math\ambcube.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">

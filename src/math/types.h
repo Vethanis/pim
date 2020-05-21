@@ -184,7 +184,7 @@ typedef struct SG_s
 typedef struct AmbCube_s
 {
     // radiance along normals of a cube
-    float4 x0, x1, y0, y1, z0, z1;
+    float4 xp, xn, yp, yn, zp, zn;
 } AmbCube_t;
 
 PIM_C_END

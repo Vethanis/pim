@@ -145,6 +145,7 @@
     <ClInclude Include="..\src\io\fstr.h" />
     <ClInclude Include="..\src\logic\camera_logic.h" />
     <ClInclude Include="..\src\logic\logic.h" />
+    <ClInclude Include="..\src\math\ambcube.h" />
     <ClInclude Include="..\src\math\color.h" />
     <ClInclude Include="..\src\math\cubic_fit.h" />
     <ClInclude Include="..\src\math\float2_funcs.h" />

@@ -9,21 +9,30 @@ PIM_C_BEGIN
 
 // returns the value of the spherical gaussian when
 // sampled at the point on a unit sphere given by normal vector 'dir'
-pim_inline float4 VEC_CALL SG_Eval(SG_t sg, float4 dir)
+pim_inline float VEC_CALL SG_BasisEval(SG_t sg, float4 dir)
 {
     // gaussian in form of: e^(s * (x-1))
     // (a form of the normal distribution)
-    float w = expf(sg.axis.w * (f4_dot3(dir, sg.axis) - 1.0f));
-    return f4_mulvs(sg.amplitude, w);
+    float x = f1_sat(f4_dot3(dir, sg.axis));
+    float s = sg.axis.w;
+    float w = expf(s * (x - 1.0f));
+    return w;
+}
+
+// returns the value of the spherical gaussian when
+// sampled at the point on a unit sphere given by normal vector 'dir'
+pim_inline float4 VEC_CALL SG_Eval(SG_t sg, float4 dir)
+{
+    return f4_mulvs(sg.amplitude, SG_BasisEval(sg, dir));
 }
 
 pim_inline float VEC_CALL SG_BasisIntegral(SG_t sg)
 {
     // integral of the surface of the unit sphere: tau
     // integral of e^(s * (x-1)) = (1 - e^-2s)/s
-    // thus: (1 - e^-2s) * tau/s
-    float e = 1.0f - expf(sg.axis.w * -2.0f);
-    return (kTau * e) / sg.axis.w;
+    float s = sg.axis.w;
+    float e = 1.0f - expf(s * -2.0f);
+    return kTau * (e / s);
 }
 
 pim_inline float VEC_CALL SG_BasisIntegralSq(SG_t sg)
@@ -37,23 +46,13 @@ pim_inline float4 VEC_CALL SG_Integral(SG_t sg)
     return f4_mulvs(sg.amplitude, SG_BasisIntegral(sg));
 }
 
-// approximates the total energy of the spherical gaussian
-// 95% accurate with sharpness = 1.6
-// 90% accurate with sharpness = 1.2
-// 85% accurate with sharpness = 1.0
-// 65% accurate with sharpness = 0.5
-pim_inline float4 VEC_CALL SG_FastIntegral(SG_t sg)
-{
-    return f4_mulvs(sg.amplitude, kTau / sg.axis.w);
-}
-
 // returns the irradiance (watts per square meter)
 // received by a surface (with the given normal)
 // from the spherical gaussian
 pim_optimize
 pim_inline float4 SG_Irradiance(SG_t sg, float4 normal)
 {
-    const float muDotN = f4_dot3(sg.axis, normal);
+    const float muDotN = f1_sat(f4_dot3(sg.axis, normal));
     const float lambda = sg.axis.w;
     float eml = expf(-lambda);
     float eml2 = eml * eml;
@@ -64,21 +63,9 @@ pim_inline float4 SG_Irradiance(SG_t sg, float4 normal)
     float x0 = 0.36f * muDotN;
     float x1 = x / (4.0f * 0.36f);
     float n = x0 + x1;
-    float y = (f1_abs(x0) <= x1) ? (n * n) / x : f1_saturate(muDotN);
+    float y = (f1_abs(x0) <= x1) ? (n * n) / x : muDotN;
     return f4_mulvs(SG_Integral(sg), scale * y + bias);
 }
-
-// returns the diffuse lighting of a surface
-// with the given normal and albedo
-// from the given spherical gaussian.
-pim_inline float4 SG_Diffuse(SG_t sg, float4 normal, float4 albedo)
-{
-    const float scale = 1.0f / kPi;
-    float4 brdf = f4_mulvs(albedo, scale);
-    return f4_mul(SG_Irradiance(sg, normal), brdf);
-}
-
-// SGSpecular not implemented; use a prefiltered cubemap for that.
 
 // Averages in a new sample into the set of spherical gaussians
 // that are being progressively fit to your data set.
