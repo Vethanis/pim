@@ -1,6 +1,7 @@
 #include "rendering/resolve_tile.h"
 #include "threading/task.h"
 #include "rendering/framebuffer.h"
+#include "rendering/sampler.h"
 #include "math/color.h"
 #include "rendering/constants.h"
 #include "rendering/tonemap.h"
@@ -20,14 +21,13 @@ pim_optimize
 static void ResolveTileFn(task_t* task, i32 begin, i32 end)
 {
     resolve_t* resolve = (resolve_t*)task;
+
     framebuf_t* target = resolve->target;
-    const float4 tmapParams = resolve->toneParams;
-    const TonemapFn tmap = resolve->tonemapper;
-    const i32 mipCount = target->mipCount;
-    const i32* offsets = target->offsets;
-    float* pim_noalias depth = target->depth;
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
+
+    const float4 tmapParams = resolve->toneParams;
+    const TonemapFn tmap = resolve->tonemapper;
 
     const float kDitherScale = 1.0f / 256.0f;
     prng_t rng = prng_get();
@@ -46,6 +46,7 @@ static void ResolveTileFn(task_t* task, i32 begin, i32 end)
             }
         }
     }
+
     prng_set(rng);
 }
 
@@ -66,8 +67,8 @@ struct task_s* ResolveTile(struct framebuf_s* target, TonemapId tonemapper, floa
     // DONT BUGS
     // OPEN INSIDE
     float* pim_noalias depth = target->depth;
-    const i32 mipCount = target->mipCount;
-    const i32* offsets = target->offsets;
+    const int2 kDrawSize = { kDrawWidth, kDrawHeight };
+    const i32 mipCount = CalcMipCount(kDrawSize);
     for (i32 m = 0; (m + 1) < mipCount; ++m)
     {
         const i32 n = m + 1;
@@ -77,13 +78,13 @@ struct task_s* ResolveTile(struct framebuf_s* target, TonemapId tonemapper, floa
         const i32 nw = target->width >> n;
         const i32 nh = target->height >> n;
 
-        const i32 m0 = offsets[m];
-        const i32 n0 = offsets[n];
+        const i32 m0 = CalcMipOffset(kDrawSize, m);
+        const i32 n0 = CalcMipOffset(kDrawSize, n);
         const i32 n1 = n0 + (nw*nh);
 
-        for (i32 y = 0; (y + 2) < mh; y += 2)
+        for (i32 y = 0; (y + 2) <= mh; y += 2)
         {
-            for (i32 x = 0; (x + 2) < mw; x += 2)
+            for (i32 x = 0; (x + 2) <= mw; x += 2)
             {
                 i32 a = m0 + (x + 0) + (y + 0) * mw;
                 i32 b = m0 + (x + 1) + (y + 0) * mw;

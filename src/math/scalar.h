@@ -182,4 +182,35 @@ pim_inline i32 VEC_CALL i1_distance(i32 a, i32 b)
     return i1_abs(b - a);
 }
 
+pim_inline i32 VEC_CALL i1_log2(i32 x)
+{
+    i32 y = -(x == 0);
+    if (x >= (1 << 16))
+    {
+        y += 16;
+        x >>= 16;
+    }
+    if (x >= (1 << 8))
+    {
+        y += 8;
+        x >>= 8;
+    }
+    if (x >= (1 << 4))
+    {
+        y += 4;
+        x >>= 4;
+    }
+    if (x >= (1 << 2))
+    {
+        y += 2;
+        x >>= 2;
+    }
+    if (x >= (1 << 1))
+    {
+        y += 1;
+        x >>= 1;
+    }
+    return y;
+}
+
 PIM_C_END

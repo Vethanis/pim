@@ -456,23 +456,25 @@ static void Rasterize(tables_t* tables)
 
     task_t* xformTask = Drawables_TRS(tables);
     task_sys_schedule();
-    task_await(xformTask);
 
+    task_await(xformTask);
     task_t* boundsTask = Drawables_Bounds(tables);
     task_sys_schedule();
-    task_await(boundsTask);
 
+    task_await(boundsTask);
     task_t* cullTask = Drawables_Cull(tables, &camera, backBuf);
     task_sys_schedule();
-    task_await(cullTask);
 
+    task_await(cullTask);
     task_t* vertexTask = Drawables_Vertex(tables, &camera);
     task_sys_schedule();
-    ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
-    task_await(vertexTask);
 
+    ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
+
+    task_await(vertexTask);
     task_t* fragTask = Drawables_Fragment(tables, frontBuf, backBuf);
     task_sys_schedule();
+
     task_await(fragTask);
 
     ProfileEnd(pm_Rasterize);

@@ -9,6 +9,7 @@
 #include "rendering/constants.h"
 #include "rendering/tile.h"
 #include "common/profiler.h"
+#include "rendering/sampler.h"
 
 // HashStr("Drawables"); see tools/prehash.py
 static const u32 drawables_hash = 3322283348u;
@@ -181,7 +182,8 @@ static void CullFn(task_t* pBase, i32 begin, i32 end)
     float tileZs[kTileCount];
     for (i32 t = 0; t < kTileCount; ++t)
     {
-        tileZs[t] = TileDepth(backBuf, GetTile(t));
+        int2 tile = GetTile(t);
+        tileZs[t] = TileDepth(tile, backBuf->depth);
     }
 
     for (i32 i = begin; i < end; ++i)
@@ -217,7 +219,10 @@ static void CullFn(task_t* pBase, i32 begin, i32 end)
 
 ProfileMark(pm_Cull, Drawables_Cull)
 pim_optimize
-task_t* Drawables_Cull(struct tables_s* tables, const struct camera_s* camera, const struct framebuf_s* backBuf)
+task_t* Drawables_Cull(
+    struct tables_s* tables,
+    const struct camera_s* camera,
+    const struct framebuf_s* backBuf)
 {
     ProfileBegin(pm_Cull);
     ASSERT(camera);

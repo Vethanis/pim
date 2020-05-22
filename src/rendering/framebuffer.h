@@ -10,8 +10,6 @@ typedef struct framebuf_s
 {
     i32 width;
     i32 height;
-    i32 mipCount;
-    i32* offsets; // mip offsets for depth pyramid
     float4* light; // linear HDR light buffer (before tonemap, sRGB, dither, and convert)
     float* depth; // depth buffer with mips (for occlusion culling)
     u32* color; // sRGB LDR rgba8 color buffer

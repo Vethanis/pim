@@ -177,7 +177,7 @@ static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf)
 
     ctx->tileMin = TileMin(tile);
     ctx->tileMax = TileMax(tile);
-    ctx->tileDepth = TileDepth(backBuf, tile);
+    ctx->tileDepth = TileDepth(tile, backBuf->depth);
     ctx->tileNormal = proj_dir(ctx->right, ctx->up, ctx->fwd, ctx->slope, f2_lerp(ctx->tileMin, ctx->tileMax, 0.5f));
     ctx->frus = frus_new(ctx->eye, ctx->right, ctx->up, ctx->fwd, ctx->tileMin, ctx->tileMax, ctx->slope, camera.nearFar);
 

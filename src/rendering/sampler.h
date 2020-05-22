@@ -18,6 +18,43 @@ pim_inline float2 VEC_CALL TransformUv(float2 uv, float4 st)
     return uv;
 }
 
+pim_inline i32 VEC_CALL CalcMipCount(int2 size)
+{
+    return 1 + i1_log2(i1_max(size.x, size.y));
+}
+
+pim_inline int2 VEC_CALL CalcMipSize(int2 size, i32 m)
+{
+    int2 y;
+    y.x = i1_max(1, size.x >> m);
+    y.y = i1_max(1, size.y >> m);
+    return y;
+}
+
+pim_inline i32 VEC_CALL CalcMipOffset(int2 size, i32 m)
+{
+    i32 y = 0;
+    m = i1_clamp(m, 0, CalcMipCount(size) - 1);
+    for (i32 i = 0; i < m; ++i)
+    {
+        int2 s = CalcMipSize(size, i);
+        y += s.x * s.y;
+    }
+    return y;
+}
+
+// stride: number of texels traveled per sample in x and y
+pim_inline float VEC_CALL CalcMipLevel(float2 stride)
+{
+    return f1_max(0.0f, 0.5f * log2f(f2_dot(stride, stride)));
+}
+
+pim_inline i32 VEC_CALL CalcTileMip(int2 tileSize)
+{
+    float m = CalcMipLevel(i2_f2(tileSize));
+    return (i32)(m + 0.5f);
+}
+
 pim_inline float2 VEC_CALL Tex_UvToCoordf(int2 size, float2 uv)
 {
     return f2_add(f2_mul(uv, i2_f2(size)), f2_s(0.5f));
@@ -43,6 +80,14 @@ pim_inline int2 VEC_CALL Tex_WrapCoord(int2 size, int2 coord)
 pim_inline i32 VEC_CALL Tex_CoordToIndex(int2 size, int2 coord)
 {
     return coord.x + coord.y * size.x;
+}
+
+pim_inline i32 VEC_CALL Tex_UvToIndexC(int2 size, float2 uv)
+{
+    int2 coord = Tex_UvToCoord(size, uv);
+    coord = Tex_ClampCoord(size, coord);
+    i32 i = Tex_CoordToIndex(size, coord);
+    return i;
 }
 
 pim_inline float4 VEC_CALL Tex_Nearesti2(texture_t texture, int2 coord)

@@ -8,6 +8,7 @@ PIM_C_BEGIN
 #include "rendering/framebuffer.h"
 #include "math/float2_funcs.h"
 #include "math/int2_funcs.h"
+#include "rendering/sampler.h"
 
 pim_inline int2 VEC_CALL GetTile(i32 i)
 {
@@ -20,27 +21,6 @@ pim_inline int2 VEC_CALL GetTile(i32 i)
 pim_inline i32 VEC_CALL IndexTile(int2 tile, i32 d, i32 x, i32 y)
 {
     return (tile.x + x) + (tile.y + y) * d;
-}
-
-pim_inline float VEC_CALL TileDepth(const framebuf_t* buf, int2 tile)
-{
-    i32 w = buf->width;
-    i32 h = buf->height;
-    i32 m = 0;
-    while ((w*h) >= (kTileCount * 2))
-    {
-        ++m;
-        w = w >> 1;
-        h = h >> 1;
-    }
-    ASSERT(m < buf->mipCount);
-    i32 offset = buf->offsets[m];
-    tile.x = tile.x >> m;
-    tile.y = tile.y >> m;
-    i32 i = IndexTile(tile, kDrawWidth >> m, 0, 0);
-    ASSERT(i >= 0);
-    ASSERT(i < (w*h));
-    return buf->depth[offset + i];
 }
 
 pim_inline float2 VEC_CALL ScreenToUnorm(int2 screen)
@@ -56,13 +36,8 @@ pim_inline float2 VEC_CALL ScreenToSnorm(int2 screen)
 
 pim_inline i32 VEC_CALL SnormToIndex(float2 s)
 {
-    const float2 kScale = { kDrawWidth, kDrawHeight };
-    s = f2_mul(f2_unorm(s), kScale);
-    s = f2_subvs(s, 0.5f); // pixel center offset
-    int2 i2 = f2_i2(s); // TODO: clamp to within tile. data race when s underflows tile.
-    i32 i = i2.x + i2.y * kDrawWidth;
-    ASSERT((u32)i < (u32)kDrawPixels);
-    return i;
+    const int2 kSize = { kDrawWidth, kDrawHeight };
+    return Tex_UvToIndexC(kSize, f2_unorm(s));
 }
 
 pim_inline float2 VEC_CALL TileMin(int2 tile)
@@ -82,6 +57,24 @@ pim_inline float2 VEC_CALL TileCenter(int2 tile)
     tile.x += (kTileWidth >> 1);
     tile.y += (kTileHeight >> 1);
     return ScreenToSnorm(tile);
+}
+
+pim_inline float VEC_CALL TileDepth(int2 tile, const float* depthBuffer)
+{
+    const int2 kDrawSize = { kDrawWidth, kDrawHeight };
+    const int2 kTileSize = { kTileWidth, kTileHeight };
+    const float2 kRcpDrawSize = { 1.0f / kDrawWidth, 1.0f / kDrawHeight };
+
+    const i32 mip = CalcTileMip(kTileSize);
+    const i32 mipOffset = CalcMipOffset(kDrawSize, mip);
+    const int2 mipSize = CalcMipSize(kDrawSize, mip);
+    const float* pim_noalias mipBuffer = depthBuffer + mipOffset;
+
+    float2 uv = f2_addvs(i2_f2(tile), 0.5f);
+    uv = f2_mul(uv, kRcpDrawSize);
+    i32 i = Tex_UvToIndexC(mipSize, uv);
+
+    return mipBuffer[i];
 }
 
 PIM_C_END
