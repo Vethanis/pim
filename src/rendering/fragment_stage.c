@@ -355,7 +355,7 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                         rome = f4_mul(rome,
                             UvBilinearWrap_c32(romeMap.texels, romeMap.size, U));
                     }
-                    float mip = rome.x * rome.x * 4.0f;
+                    float mip = rome.x * 4.0f;
                     {
                         float4 diffuseGI = AmbCube_Irradiance(ms_ambcube, N);
                         float NoR = f1_max(0.0f, f4_dot3(N, R));
