@@ -24,6 +24,13 @@ pim_inline float VEC_CALL sdPlane2D(plane2d_t plane, float2 pt)
     return f2_dot(plane.normal, pt) - plane.distance;
 }
 
+pim_inline plane_t VEC_CALL plane_new(float4 dir, float4 pt)
+{
+    dir.w = f4_dot3(dir, pt);
+    plane_t y = { dir };
+    return y;
+}
+
 pim_inline float VEC_CALL sdPlane3D(plane_t plane, float4 pt)
 {
     return f4_dot3(plane.value, pt) - plane.value.w;

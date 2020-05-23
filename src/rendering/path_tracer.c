@@ -617,15 +617,6 @@ float4 VEC_CALL pt_trace_frag(
     return light;
 }
 
-static float2 f2_tent(prng_t* rng)
-{
-    float2 t = { prng_f32(rng), prng_f32(rng) };
-    t = f2_mulvs(t, 2.0f);
-    t.x = t.x < 1.0f ? sqrtf(t.x) - 1.0f : 1.0f - sqrtf(2.0f - t.x);
-    t.y = t.y < 1.0f ? sqrtf(t.y) - 1.0f : 1.0f - sqrtf(2.0f - t.x);
-    return t;
-}
-
 pim_optimize
 static void TraceFn(task_t* task, i32 begin, i32 end)
 {
@@ -646,16 +637,19 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
 
     prng_t rng = prng_get();
 
-    const float2 dSize = f2_rcp(i2_f2(size));
+    const float2 rcpSize = f2_rcp(i2_f2(size));
     for (i32 i = begin; i < end; ++i)
     {
-        int2 xy = { i % size.x, i / size.x };
+        int2 coord = { i % size.x, i / size.x };
 
-        float2 coord = f2_addvs(i2_f2(xy), 0.5f);
-        coord = f2_add(coord, f2_tent(&rng));
-        coord = f2_snorm(f2_mul(coord, dSize));
+        float2 Xi = f2_tent(f2_rand(&rng));
+        Xi = f2_mul(Xi, rcpSize);
 
-        float4 rd = proj_dir(right, up, fwd, slope, coord);
+        float2 uv = CoordToUv(size, coord);
+        uv = f2_add(uv, Xi);
+        uv = f2_snorm(uv);
+
+        float4 rd = proj_dir(right, up, fwd, slope, uv);
         ray_t ray = { ro, rd };
         float4 sample = pt_trace_frag(&rng, scene, ray, bounces);
         image[i] = f4_lerpvs(image[i], sample, sampleWeight);

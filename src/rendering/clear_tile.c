@@ -12,23 +12,13 @@ void ClearTile(struct framebuf_s* target, float4 color, float depth)
     ProfileBegin(pm_ClearTile);
     ASSERT(target);
 
+    const i32 len = kDrawWidth * kDrawHeight;
+    float4* pim_noalias lightBuf = target->light;
+    float* pim_noalias depthBuf = target->depth;
+    for (i32 i = 0; i < len; ++i)
     {
-        const i32 len = kDrawWidth * kDrawHeight;
-        float4* pim_noalias lightBuf = target->light;
-        for (i32 i = 0; i < len; ++i)
-        {
-            lightBuf[i] = color;
-        }
-    }
-
-    {
-        const int2 size = { kDrawWidth, kDrawHeight };
-        const i32 len = 1 + CalcMipOffset(size, CalcMipCount(size));
-        float* pim_noalias depthBuf = target->depth;
-        for (i32 i = 0; i < len; ++i)
-        {
-            depthBuf[i] = depth;
-        }
+        lightBuf[i] = color;
+        depthBuf[i] = depth;
     }
 
     ProfileEnd(pm_ClearTile);

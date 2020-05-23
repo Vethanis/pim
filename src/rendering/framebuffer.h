@@ -1,10 +1,9 @@
 #pragma once
 
 #include "common/macro.h"
+#include "math/types.h"
 
 PIM_C_BEGIN
-
-#include "math/types.h"
 
 typedef struct framebuf_s
 {

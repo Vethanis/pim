@@ -1,12 +1,12 @@
 #pragma once
 
 #include "common/macro.h"
-
-PIM_C_BEGIN
-
 #include "math/types.h"
 #include "math/float4_funcs.h"
 #include "rendering/texture.h"
+#include "rendering/cubemap.h"
+
+PIM_C_BEGIN
 
 typedef struct BrdfLut_s
 {
@@ -16,6 +16,8 @@ typedef struct BrdfLut_s
 
 BrdfLut BakeBRDF(int2 size, u32 numSamples);
 void FreeBrdfLut(BrdfLut* lut);
+
+void Prefilter(const Cubemap* src, Cubemap* dst, u32 sampleCount);
 
 // Cook-Torrance BRDF
 float4 VEC_CALL DirectBRDF(

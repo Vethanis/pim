@@ -76,9 +76,21 @@ pim_inline int2 VEC_CALL i2_add(int2 lhs, int2 rhs)
     return vec;
 }
 
+pim_inline int2 VEC_CALL i2_addvs(int2 lhs, i32 rhs)
+{
+    int2 vec = { lhs.x + rhs, lhs.y + rhs };
+    return vec;
+}
+
 pim_inline int2 VEC_CALL i2_sub(int2 lhs, int2 rhs)
 {
     int2 vec = { lhs.x - rhs.x, lhs.y - rhs.y };
+    return vec;
+}
+
+pim_inline int2 VEC_CALL i2_subvs(int2 lhs, i32 rhs)
+{
+    int2 vec = { lhs.x - rhs, lhs.y - rhs };
     return vec;
 }
 
@@ -88,9 +100,37 @@ pim_inline int2 VEC_CALL i2_mul(int2 lhs, int2 rhs)
     return vec;
 }
 
+pim_inline int2 VEC_CALL i2_mulvs(int2 lhs, i32 rhs)
+{
+    int2 vec = { lhs.x * rhs, lhs.y * rhs };
+    return vec;
+}
+
 pim_inline int2 VEC_CALL i2_div(int2 lhs, int2 rhs)
 {
     int2 vec = { lhs.x / rhs.x, lhs.y / rhs.y };
+    return vec;
+}
+
+pim_inline int2 VEC_CALL i2_divvs(int2 lhs, i32 rhs)
+{
+    int2 vec = { lhs.x / rhs, lhs.y / rhs };
+    return vec;
+}
+
+// 'remainder' operator; can yield negative values
+pim_inline int2 VEC_CALL i2_rem(int2 lhs, int2 rhs)
+{
+    int2 vec = { lhs.x % rhs.x, lhs.y % rhs.y };
+    return vec;
+}
+
+// euclidean modulus; always positive
+pim_inline int2 VEC_CALL i2_mod(int2 lhs, int2 rhs)
+{
+    int2 vec = i2_rem(lhs, rhs);
+    vec.x = vec.x < 0 ? vec.x + rhs.x : vec.x;
+    vec.y = vec.y < 0 ? vec.y + rhs.y : vec.y;
     return vec;
 }
 

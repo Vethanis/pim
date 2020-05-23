@@ -346,6 +346,9 @@
     <ClCompile Include="..\src\containers\sdict.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\cubemap.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -746,6 +749,9 @@
     </ClInclude>
     <ClInclude Include="..\src\math\ambcube.h">
       <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\cubemap.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

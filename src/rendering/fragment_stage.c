@@ -23,14 +23,17 @@
 #include "rendering/camera.h"
 #include "rendering/framebuffer.h"
 #include "rendering/lights.h"
+#include "rendering/cubemap.h"
 
 #include "components/table.h"
 #include "components/drawables.h"
 #include "components/components.h"
 
-static cvar_t cv_gi_dbg_diff = { cvart_bool, 0, "gi_dbg_diff", "0", "display a debug view of diffuse GI" };
-static cvar_t cv_gi_dbg_spec = { cvart_bool, 0, "gi_dbg_spec", "0", "display a debug view of specular GI" };
-static cvar_t cv_gi_dbg_view = { cvart_bool, 0, "gi_dbg_view", "0", "display a debug view of GI" };
+static cvar_t cv_gi_dbg_diff = { cvart_bool, 0, "gi_dbg_diff", "0", "view ambient cube with normal vector" };
+static cvar_t cv_gi_dbg_spec = { cvart_bool, 0, "gi_dbg_spec", "0", "view cubemap with reflect vector" };
+static cvar_t cv_gi_dbg_diffview = { cvart_bool, 0, "gi_dbg_diffview", "0", "view ambient cube with forward vector" };
+static cvar_t cv_gi_dbg_specview = { cvart_bool, 0, "gi_dbg_specview", "0", "view cubemap with forward vector" };
+static cvar_t cv_gi_dbg_specmip = { cvart_float, 0, "gi_dbg_specmip", "0", "mip level of cubemap debug views" };
 
 typedef struct fragstage_s
 {
@@ -59,8 +62,14 @@ typedef struct tile_ctx_s
 
 static BrdfLut ms_lut;
 static AmbCube_t ms_ambcube;
+static Cubemap* ms_envMap;
+static Cubemap* ms_convMap;
+
 AmbCube_t VEC_CALL AmbCube_Get(void) { return ms_ambcube; };
 void VEC_CALL AmbCube_Set(AmbCube_t cube) { ms_ambcube = cube; }
+
+Cubemap* EnvMap_Get(void) { return ms_envMap; }
+Cubemap* ConvMap_Get(void) { return ms_convMap; }
 
 static void EnsureInit(void);
 static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf);
@@ -101,14 +110,22 @@ static void EnsureInit(void)
     {
         cvar_reg(&cv_gi_dbg_diff);
         cvar_reg(&cv_gi_dbg_spec);
-        cvar_reg(&cv_gi_dbg_view);
+        cvar_reg(&cv_gi_dbg_diffview);
+        cvar_reg(&cv_gi_dbg_specview);
+        cvar_reg(&cv_gi_dbg_specmip);
 
         ms_lut = BakeBRDF(i2_s(256), 1024);
+
+        ms_envMap = Cubemap_New(64);
+        ms_convMap = Cubemap_New(64);
     }
 }
 
 ProfileMark(pm_FragmentStage, Drawables_Fragment)
-task_t* Drawables_Fragment(struct tables_s* tables, struct framebuf_s* frontBuf, const struct framebuf_s* backBuf)
+task_t* Drawables_Fragment(
+    struct tables_s* tables,
+    struct framebuf_s* frontBuf,
+    const struct framebuf_s* backBuf)
 {
     ProfileBegin(pm_FragmentStage);
     ASSERT(tables);
@@ -199,13 +216,16 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
 
     const bool dbgdiffGI = cv_gi_dbg_diff.asFloat != 0.0f;
     const bool dbgspecGI = cv_gi_dbg_spec.asFloat != 0.0f;
-    const bool dbgviewGI = cv_gi_dbg_view.asFloat != 0.0f;
+    const bool dbgdiffviewGI = cv_gi_dbg_diffview.asFloat != 0.0f;
+    const bool dbgspecviewGI = cv_gi_dbg_specview.asFloat != 0.0f;
+    const float dbgspecmip = cv_gi_dbg_specmip.asFloat;
 
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
     const float e = 1.0f / (1 << 10);
 
     const BrdfLut lut = ms_lut;
+    const Cubemap* cm = ms_convMap;
     const float4 flatAlbedo = ColorToLinear(drawable->material.flatAlbedo);
     const float4 flatRome = ColorToLinear(drawable->material.flatRome);
     texture_get(drawable->material.albedo, &albedoMap);
@@ -222,9 +242,7 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
     const float2 tileMin = ctx->tileMin;
     const float2 tileMax = ctx->tileMax;
     const float tileDepth = ctx->tileDepth;
-    plane_t fwdPlane;
-    fwdPlane.value = fwd;
-    fwdPlane.value.w = f4_dot3(fwd, eye);
+    const plane_t fwdPlane = plane_new(fwd, eye);
 
     const lights_t* lights = lights_get();
     const i32 dirCount = lights->dirCount;
@@ -328,16 +346,20 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                     float4 albedo = flatAlbedo;
                     if (albedoMap.texels)
                     {
-                        albedo = f4_mul(albedo, Tex_Bilinearf2(albedoMap, U));
+                        albedo = f4_mul(albedo,
+                            UvBilinearWrap_c32(albedoMap.texels, albedoMap.size, U));
                     }
                     float4 rome = flatRome;
                     if (romeMap.texels)
                     {
-                        rome = f4_mul(rome, Tex_Bilinearf2(romeMap, U));
+                        rome = f4_mul(rome,
+                            UvBilinearWrap_c32(romeMap.texels, romeMap.size, U));
                     }
+                    float mip = rome.x * rome.x * 4.0f;
                     {
                         float4 diffuseGI = AmbCube_Irradiance(ms_ambcube, N);
-                        float4 specularGI = AmbCube_Eval(ms_ambcube, R);
+                        float NoR = f1_max(0.0f, f4_dot3(N, R));
+                        float4 specularGI = Cubemap_Read(cm, R, mip);
                         const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
                         lighting = f4_add(lighting, indirect);
                     }
@@ -359,9 +381,13 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                         lighting = f4_add(lighting, direct);
                     }
 
-                    if (dbgviewGI)
+                    if (dbgdiffviewGI)
                     {
                         lighting = AmbCube_Eval(ms_ambcube, f4_neg(V));
+                    }
+                    else if (dbgspecviewGI)
+                    {
+                        lighting = Cubemap_Read(cm, f4_neg(V), dbgspecmip);
                     }
                     else if (dbgdiffGI)
                     {
@@ -369,7 +395,7 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                     }
                     else if (dbgspecGI)
                     {
-                        lighting = AmbCube_Eval(ms_ambcube, R);
+                        lighting = Cubemap_Read(cm, R, mip);
                     }
                 }
 

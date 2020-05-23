@@ -59,6 +59,7 @@
     <ClCompile Include="..\src\quake\q_packfile.c" />
     <ClCompile Include="..\src\rendering\camera.c" />
     <ClCompile Include="..\src\rendering\clear_tile.c" />
+    <ClCompile Include="..\src\rendering\cubemap.c" />
     <ClCompile Include="..\src\rendering\fragment_stage.c" />
     <ClCompile Include="..\src\rendering\lights.c" />
     <ClCompile Include="..\src\rendering\material.c" />
@@ -169,6 +170,7 @@
     <ClInclude Include="..\src\quake\q_packfile.h" />
     <ClInclude Include="..\src\rendering\camera.h" />
     <ClInclude Include="..\src\rendering\clear_tile.h" />
+    <ClInclude Include="..\src\rendering\cubemap.h" />
     <ClInclude Include="..\src\rendering\fragment_stage.h" />
     <ClInclude Include="..\src\rendering\constants.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />

@@ -25,6 +25,7 @@
 #include "math/ambcube.h"
 #include "math/sampling.h"
 #include "math/frustum.h"
+#include "math/lighting.h"
 
 #include "rendering/constants.h"
 #include "rendering/window.h"
@@ -37,6 +38,7 @@
 #include "rendering/resolve_tile.h"
 #include "rendering/screenblit.h"
 #include "rendering/path_tracer.h"
+#include "rendering/cubemap.h"
 
 #include "quake/q_model.h"
 #include "assets/asset_system.h"
@@ -44,8 +46,12 @@
 #include <string.h>
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing of scene" };
+
 static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "10", "number of bounces in the path tracer" };
-static cvar_t cv_ac_gen  = { cvart_bool, 0, "ac_gen", "0", "enable ambient cube light accumulation" };
+
+static cvar_t cv_ac_gen  = { cvart_bool, 0, "ac_gen", "0", "enable diffuse cube light accumulation" };
+
+static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable specular cube light accumulation" };
 
 // ----------------------------------------------------------------------------
 
@@ -66,7 +72,10 @@ static float4 ms_clearColor;
 static pt_scene_t* ms_ptscene;
 static pt_trace_t ms_trace;
 static camera_t ms_ptcamera;
-static i32 ms_sampleCount;
+
+static i32 ms_acSampleCount;
+static i32 ms_ptSampleCount;
+static i32 ms_cmapSampleCount;
 
 // ----------------------------------------------------------------------------
 
@@ -330,9 +339,12 @@ static void CleanPtScene(tables_t* tables)
     camera_get(&camera);
     dirty |= cvar_check_dirty(&cv_pt_trace);
     dirty |= memcmp(&camera, &ms_ptcamera, sizeof(camera)) != 0;
+    dirty |= !ms_ptscene;
     if (dirty)
     {
-        ms_sampleCount = 0;
+        ms_ptSampleCount = 0;
+        ms_acSampleCount = 0;
+        ms_cmapSampleCount = 0;
         pt_scene_del(ms_ptscene);
         ms_ptscene = pt_scene_new(tables, 5);
         ms_ptcamera = camera;
@@ -388,15 +400,46 @@ static void AmbCube_Trace(tables_t* tables)
         task_await((task_t*)task);
 
         AmbCube_t cube = AmbCube_Get();
-        i32 s = ms_sampleCount;
+        i32 s = ms_acSampleCount;
         for (i32 i = 0; i < sampleCount; ++i)
         {
             cube = AmbCube_Fit(cube, s++, directions[i], radiances[i]);
         }
-        ms_sampleCount = s;
+        ms_acSampleCount = s;
         AmbCube_Set(cube);
 
         ProfileEnd(pm_AmbCube_Trace);
+    }
+}
+
+ProfileMark(pm_CubemapTrace, Cubemap_Trace)
+static void Cubemap_Trace(tables_t* tables)
+{
+    if (cv_cm_gen.asFloat != 0.0f)
+    {
+        ProfileBegin(pm_CubemapTrace);
+
+        CleanPtScene(tables);
+
+        camera_t camera;
+        camera_get(&camera);
+
+        Cubemap* envMap = EnvMap_Get();
+        if (envMap)
+        {
+            float sampleWeight = 1.0f / ++ms_cmapSampleCount;
+            task_t* envTask = Cubemap_Bake(envMap, ms_ptscene, camera.position, sampleWeight);
+            task_sys_schedule();
+            task_await(envTask);
+
+            Cubemap* convMap = ConvMap_Get();
+            if (convMap)
+            {
+                Prefilter(envMap, convMap, 1024);
+            }
+        }
+
+        ProfileEnd(pm_CubemapTrace);
     }
 }
 
@@ -425,7 +468,7 @@ static bool PathTrace(tables_t* tables)
         framebuf_t* fbuf = &(ms_buffers[ms_iFrame & 1]);
 
         ms_trace.bounces = i1_clamp((i32)cv_pt_bounces.asFloat, 0, 100);
-        ms_trace.sampleWeight = 1.0f / ++ms_sampleCount;
+        ms_trace.sampleWeight = 1.0f / ++ms_ptSampleCount;
         ms_trace.camera = &ms_ptcamera;
         ms_trace.dstImage = fbuf->light;
         ms_trace.imageSize = i2_v(fbuf->width, fbuf->height);
@@ -497,6 +540,7 @@ void render_sys_init(void)
     cvar_reg(&cv_pt_trace);
     cvar_reg(&cv_pt_bounces);
     cvar_reg(&cv_ac_gen);
+    cvar_reg(&cv_cm_gen);
 
     ms_iFrame = 0;
     framebuf_create(GetFrontBuf(), kDrawWidth, kDrawHeight);
@@ -556,6 +600,7 @@ void render_sys_update(void)
     tables_t* tables = tables_main();
     UpdateMaterials(tables);
     AmbCube_Trace(tables);
+    Cubemap_Trace(tables);
     if (!PathTrace(tables))
     {
         Rasterize(tables);

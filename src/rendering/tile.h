@@ -37,7 +37,7 @@ pim_inline float2 VEC_CALL ScreenToSnorm(int2 screen)
 pim_inline i32 VEC_CALL SnormToIndex(float2 s)
 {
     const int2 kSize = { kDrawWidth, kDrawHeight };
-    return Tex_UvToIndexC(kSize, f2_unorm(s));
+    return UvClamp(kSize, f2_unorm(s));
 }
 
 pim_inline float2 VEC_CALL TileMin(int2 tile)
@@ -70,9 +70,8 @@ pim_inline float VEC_CALL TileDepth(int2 tile, const float* depthBuffer)
     const int2 mipSize = CalcMipSize(kDrawSize, mip);
     const float* pim_noalias mipBuffer = depthBuffer + mipOffset;
 
-    float2 uv = f2_addvs(i2_f2(tile), 0.5f);
-    uv = f2_mul(uv, kRcpDrawSize);
-    i32 i = Tex_UvToIndexC(mipSize, uv);
+    float2 uv = CoordToUv(kDrawSize, tile);
+    i32 i = UvClamp(mipSize, uv);
 
     return mipBuffer[i];
 }

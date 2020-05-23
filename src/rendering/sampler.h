@@ -55,87 +55,318 @@ pim_inline i32 VEC_CALL CalcTileMip(int2 tileSize)
     return (i32)(m + 0.5f);
 }
 
-pim_inline float2 VEC_CALL Tex_UvToCoordf(int2 size, float2 uv)
+pim_inline float2 VEC_CALL UvToCoordf(int2 size, float2 uv)
 {
-    return f2_add(f2_mul(uv, i2_f2(size)), f2_s(0.5f));
+    return f2_addvs(f2_mul(uv, i2_f2(size)), 0.5f);
+}
+pim_inline int2 VEC_CALL UvToCoord(int2 size, float2 uv)
+{
+    return f2_i2(UvToCoordf(size, uv));
 }
 
-pim_inline int2 VEC_CALL Tex_UvToCoord(int2 size, float2 uv)
+pim_inline float2 VEC_CALL CoordToUv(int2 size, int2 coord)
 {
-    return f2_i2(Tex_UvToCoordf(size, uv));
+    float2 uv = f2_addvs(i2_f2(coord), 0.5f);
+    return f2_div(uv, i2_f2(size));
 }
 
-pim_inline int2 VEC_CALL Tex_ClampCoord(int2 size, int2 coord)
+pim_inline int2 VEC_CALL ClampCoord(int2 size, int2 coord)
 {
-    return i2_clamp(coord, i2_s(0), i2_add(size, i2_s(-1)));
+    return i2_clamp(coord, i2_0, i2_subvs(size, 1));
+}
+pim_inline int2 VEC_CALL WrapCoord(int2 size, int2 coord)
+{
+    return i2_mod(coord, size);
 }
 
-pim_inline int2 VEC_CALL Tex_WrapCoord(int2 size, int2 coord)
-{
-    coord = i2_abs(coord);
-    int2 y = { coord.x & size.x, coord.y % size.y };
-    return y;
-}
-
-pim_inline i32 VEC_CALL Tex_CoordToIndex(int2 size, int2 coord)
+pim_inline i32 VEC_CALL CoordToIndex(int2 size, int2 coord)
 {
     return coord.x + coord.y * size.x;
 }
 
-pim_inline i32 VEC_CALL Tex_UvToIndexC(int2 size, float2 uv)
+pim_inline i32 VEC_CALL Clamp(int2 size, int2 coord)
 {
-    int2 coord = Tex_UvToCoord(size, uv);
-    coord = Tex_ClampCoord(size, coord);
-    i32 i = Tex_CoordToIndex(size, coord);
-    return i;
+    return CoordToIndex(size, ClampCoord(size, coord));
+}
+pim_inline i32 VEC_CALL Wrap(int2 size, int2 coord)
+{
+    return CoordToIndex(size, WrapCoord(size, coord));
+}
+pim_inline i32 VEC_CALL UvClamp(int2 size, float2 uv)
+{
+    return Clamp(size, UvToCoord(size, uv));
+}
+pim_inline i32 VEC_CALL UvWrap(int2 size, float2 uv)
+{
+    return Wrap(size, UvToCoord(size, uv));
 }
 
-pim_inline float4 VEC_CALL Tex_Nearesti2(texture_t texture, int2 coord)
+pim_inline float4 VEC_CALL Clamp_c32(const u32* buffer, int2 size, int2 coord)
 {
-    coord = Tex_WrapCoord(texture.size, coord);
-    i32 i = Tex_CoordToIndex(texture.size, coord);
-    return ColorToLinear(texture.texels[i]);
+    return ColorToLinear(buffer[Clamp(size, coord)]);
+}
+pim_inline float4 VEC_CALL Wrap_c32(const u32* buffer, int2 size, int2 coord)
+{
+    return ColorToLinear(buffer[Wrap(size, coord)]);
+}
+pim_inline float4 VEC_CALL UvClamp_c32(const u32* buffer, int2 size, float2 uv)
+{
+    return ColorToLinear(buffer[UvClamp(size, uv)]);
+}
+pim_inline float4 VEC_CALL UvWrap_c32(const u32* buffer, int2 size, float2 uv)
+{
+    return ColorToLinear(buffer[UvWrap(size, uv)]);
 }
 
-pim_inline float4 VEC_CALL Tex_Nearestf2(texture_t texture, float2 uv)
+typedef struct bilinear_s
 {
-    return Tex_Nearesti2(texture, Tex_UvToCoord(texture.size, uv));
+    int2 a;
+    int2 b;
+    int2 c;
+    int2 d;
+    float2 frac;
+} bilinear_t;
+
+pim_inline bilinear_t VEC_CALL Bilinear(int2 size, float2 uv)
+{
+    bilinear_t b;
+    float2 coordf = UvToCoordf(size, uv);
+    b.frac = f2_frac(coordf);
+    b.a = f2_i2(coordf);
+    b.b = i2_v(b.a.x + 1, b.a.y + 0);
+    b.c = i2_v(b.a.x + 0, b.a.y + 1);
+    b.d = i2_v(b.a.x + 1, b.a.y + 1);
+    return b;
 }
 
-pim_inline float4 VEC_CALL Tex_Bilinearf2(texture_t texture, float2 uv)
+pim_inline float4 VEC_CALL BilinearBlend_f4(
+    float4 a, float4 b, float4 c, float4 d,
+    float2 frac)
 {
-    float2 coordf = Tex_UvToCoordf(texture.size, uv);
-    float2 frac = f2_frac(coordf);
-    int2 ia = f2_i2(coordf);
-    int2 ib = { ia.x + 1, ia.y + 0 };
-    int2 ic = { ia.x + 0, ia.y + 1 };
-    int2 id = { ia.x + 1, ia.y + 1 };
-    float4 a = Tex_Nearesti2(texture, ia);
-    float4 b = Tex_Nearesti2(texture, ib);
-    float4 c = Tex_Nearesti2(texture, ic);
-    float4 d = Tex_Nearesti2(texture, id);
-    float4 e = f4_lerpvs(f4_lerpvs(a, b, frac.x), f4_lerpvs(c, d, frac.x), frac.y);
-    return e;
+    return f4_lerpvs(f4_lerpvs(a, b, frac.x), f4_lerpvs(c, d, frac.x), frac.y);
 }
 
-pim_inline void VEC_CALL Tex_Writei1(
-    texture_t texture, i32 i, float4 value)
+pim_inline float2 VEC_CALL BilinearBlend_f2(
+    float2 a, float2 b, float2 c, float2 d,
+    float2 frac)
 {
-    texture.texels[i] = LinearToColor(value);
+    return f2_lerp(f2_lerp(a, b, frac.x), f2_lerp(c, d, frac.x), frac.y);
 }
 
-pim_inline void VEC_CALL Tex_Writei2(
-    texture_t texture, int2 coord, float4 value)
+pim_inline float4 VEC_CALL BilinearClamp_f4(const float4* buffer, int2 size, bilinear_t bi)
 {
-    coord = Tex_ClampCoord(texture.size, coord);
-    i32 i = Tex_CoordToIndex(texture.size, coord);
-    Tex_Writei1(texture, i, value);
+    float4 a = buffer[Clamp(size, bi.a)];
+    float4 b = buffer[Clamp(size, bi.b)];
+    float4 c = buffer[Clamp(size, bi.c)];
+    float4 d = buffer[Clamp(size, bi.d)];
+    return BilinearBlend_f4(a, b, c, d, bi.frac);
+}
+pim_inline float4 VEC_CALL BilinearWrap_f4(const float4* buffer, int2 size, bilinear_t bi)
+{
+    float4 a = buffer[Wrap(size, bi.a)];
+    float4 b = buffer[Wrap(size, bi.b)];
+    float4 c = buffer[Wrap(size, bi.c)];
+    float4 d = buffer[Wrap(size, bi.d)];
+    return BilinearBlend_f4(a, b, c, d, bi.frac);
 }
 
-pim_inline void VEC_CALL Tex_Writef2(
-    texture_t texture, float2 uv, float4 value)
+pim_inline float2 VEC_CALL BilinearClamp_f2(const float2* buffer, int2 size, bilinear_t bi)
 {
-    Tex_Writei2(texture, Tex_UvToCoord(texture.size, uv), value);
+    float2 a = buffer[Clamp(size, bi.a)];
+    float2 b = buffer[Clamp(size, bi.b)];
+    float2 c = buffer[Clamp(size, bi.c)];
+    float2 d = buffer[Clamp(size, bi.d)];
+    return BilinearBlend_f2(a, b, c, d, bi.frac);
+}
+
+pim_inline float4 VEC_CALL BilinearClamp_c32(const u32* buffer, int2 size, bilinear_t bi)
+{
+    float4 a = Clamp_c32(buffer, size, bi.a);
+    float4 b = Clamp_c32(buffer, size, bi.b);
+    float4 c = Clamp_c32(buffer, size, bi.c);
+    float4 d = Clamp_c32(buffer, size, bi.d);
+    return BilinearBlend_f4(a, b, c, d, bi.frac);
+}
+pim_inline float4 VEC_CALL BilinearWrap_c32(const u32* buffer, int2 size, bilinear_t bi)
+{
+    float4 a = Wrap_c32(buffer, size, bi.a);
+    float4 b = Wrap_c32(buffer, size, bi.b);
+    float4 c = Wrap_c32(buffer, size, bi.c);
+    float4 d = Wrap_c32(buffer, size, bi.d);
+    return BilinearBlend_f4(a, b, c, d, bi.frac);
+}
+
+pim_inline float4 VEC_CALL UvBilinearClamp_f4(const float4* buffer, int2 size, float2 uv)
+{
+    return BilinearClamp_f4(buffer, size, Bilinear(size, uv));
+}
+pim_inline float4 VEC_CALL UvBilinearWrap_f4(const float4* buffer, int2 size, float2 uv)
+{
+    return BilinearWrap_f4(buffer, size, Bilinear(size, uv));
+}
+
+pim_inline float2 VEC_CALL UvBilinearClamp_f2(const float2* buffer, int2 size, float2 uv)
+{
+    return BilinearClamp_f2(buffer, size, Bilinear(size, uv));
+}
+
+pim_inline float4 VEC_CALL UvBilinearClamp_c32(const u32* buffer, int2 size, float2 uv)
+{
+    return BilinearClamp_c32(buffer, size, Bilinear(size, uv));
+}
+pim_inline float4 VEC_CALL UvBilinearWrap_c32(const u32* buffer, int2 size, float2 uv)
+{
+    return BilinearWrap_c32(buffer, size, Bilinear(size, uv));
+}
+
+pim_inline float4 VEC_CALL TrilinearClamp_f4(
+    const float4* buffer,
+    int2 size,
+    float2 uv,
+    float mip)
+{
+    i32 m0 = (i32)f1_floor(mip);
+    i32 m1 = (i32)f1_ceil(mip);
+    float mfrac = f1_frac(mip);
+
+    int2 size0 = CalcMipSize(size, m0);
+    int2 size1 = CalcMipSize(size, m1);
+
+    i32 i0 = CalcMipOffset(size, m0);
+    i32 i1 = CalcMipOffset(size, m1);
+
+    float4 s0 = UvBilinearClamp_f4(buffer + i0, size0, uv);
+    float4 s1 = UvBilinearClamp_f4(buffer + i1, size1, uv);
+
+    return f4_lerpvs(s0, s1, mfrac);
+}
+pim_inline float4 VEC_CALL TrilinearWrap_f4(
+    const float4* buffer,
+    int2 size,
+    float2 uv,
+    float mip)
+{
+    i32 m0 = (i32)f1_floor(mip);
+    i32 m1 = (i32)f1_ceil(mip);
+    float mfrac = f1_frac(mip);
+
+    int2 size0 = CalcMipSize(size, m0);
+    int2 size1 = CalcMipSize(size, m1);
+
+    i32 i0 = CalcMipOffset(size, m0);
+    i32 i1 = CalcMipOffset(size, m1);
+
+    float4 s0 = UvBilinearWrap_f4(buffer + i0, size0, uv);
+    float4 s1 = UvBilinearWrap_f4(buffer + i1, size1, uv);
+
+    return f4_lerpvs(s0, s1, mfrac);
+}
+
+pim_inline float4 VEC_CALL TrilinearClamp_c32(
+    const u32* buffer,
+    int2 size,
+    float2 uv,
+    float mip)
+{
+    i32 m0 = (i32)f1_floor(mip);
+    i32 m1 = (i32)f1_ceil(mip);
+    float mfrac = f1_frac(mip);
+
+    int2 size0 = CalcMipSize(size, m0);
+    int2 size1 = CalcMipSize(size, m1);
+
+    i32 i0 = CalcMipOffset(size, m0);
+    i32 i1 = CalcMipOffset(size, m1);
+
+    float4 s0 = UvBilinearClamp_c32(buffer + i0, size0, uv);
+    float4 s1 = UvBilinearClamp_c32(buffer + i1, size1, uv);
+
+    return f4_lerpvs(s0, s1, mfrac);
+}
+pim_inline float4 VEC_CALL TrilinearWrap_c32(
+    const u32* buffer,
+    int2 size,
+    float2 uv,
+    float mip)
+{
+    i32 m0 = (i32)f1_floor(mip);
+    i32 m1 = (i32)f1_ceil(mip);
+    float mfrac = f1_frac(mip);
+
+    int2 size0 = CalcMipSize(size, m0);
+    int2 size1 = CalcMipSize(size, m1);
+
+    i32 i0 = CalcMipOffset(size, m0);
+    i32 i1 = CalcMipOffset(size, m1);
+
+    float4 s0 = UvBilinearWrap_c32(buffer + i0, size0, uv);
+    float4 s1 = UvBilinearWrap_c32(buffer + i1, size1, uv);
+
+    return f4_lerpvs(s0, s1, mfrac);
+}
+
+pim_inline void VEC_CALL Write_f4(float4* dst, int2 size, int2 coord, float4 src)
+{
+    i32 i = Clamp(size, coord);
+    dst[i] = src;
+}
+
+pim_inline void VEC_CALL Write_c32(u32* dst, int2 size, int2 coord, float4 src)
+{
+    i32 i = Clamp(size, coord);
+    dst[i] = LinearToColor(src);
+}
+
+pim_inline float4 VEC_CALL MipAvg_f4(const float4* mipBuffer, int2 mipSize, int2 coord)
+{
+    int2 ca = coord;
+    int2 cb = i2_add(ca, i2_v(0, 1));
+    int2 cc = i2_add(ca, i2_v(1, 0));
+    int2 cd = i2_add(ca, i2_v(1, 1));
+    float4 a = mipBuffer[Clamp(mipSize, ca)];
+    float4 b = mipBuffer[Clamp(mipSize, cb)];
+    float4 c = mipBuffer[Clamp(mipSize, cc)];
+    float4 d = mipBuffer[Clamp(mipSize, cd)];
+    return f4_mulvs(f4_add(f4_add(a, b), f4_add(c, d)), 0.25f);
+}
+
+pim_inline u32 VEC_CALL MipAvg_c32(const u32* mipBuffer, int2 mipSize, int2 coord)
+{
+    int2 ca = coord;
+    int2 cb = i2_add(ca, i2_v(0, 1));
+    int2 cc = i2_add(ca, i2_v(1, 0));
+    int2 cd = i2_add(ca, i2_v(1, 1));
+    float4 a = Clamp_c32(mipBuffer, mipSize, ca);
+    float4 b = Clamp_c32(mipBuffer, mipSize, cb);
+    float4 c = Clamp_c32(mipBuffer, mipSize, cc);
+    float4 d = Clamp_c32(mipBuffer, mipSize, cd);
+    return LinearToColor(f4_mulvs(f4_add(f4_add(a, b), f4_add(c, d)), 0.25f));
+}
+
+pim_inline float VEC_CALL MipMax_f1(const float* mipBuffer, int2 mipSize, int2 coord)
+{
+    int2 ca = coord;
+    int2 cb = i2_add(ca, i2_v(0, 1));
+    int2 cc = i2_add(ca, i2_v(1, 0));
+    int2 cd = i2_add(ca, i2_v(1, 1));
+    float a = mipBuffer[Clamp(mipSize, ca)];
+    float b = mipBuffer[Clamp(mipSize, cb)];
+    float c = mipBuffer[Clamp(mipSize, cc)];
+    float d = mipBuffer[Clamp(mipSize, cd)];
+    return f1_max(f1_max(a, b), f1_max(c, d));
+}
+
+pim_inline float VEC_CALL MipMin_f1(const float* mipBuffer, int2 mipSize, int2 coord)
+{
+    int2 ca = coord;
+    int2 cb = i2_add(ca, i2_v(0, 1));
+    int2 cc = i2_add(ca, i2_v(1, 0));
+    int2 cd = i2_add(ca, i2_v(1, 1));
+    float a = mipBuffer[Clamp(mipSize, ca)];
+    float b = mipBuffer[Clamp(mipSize, cb)];
+    float c = mipBuffer[Clamp(mipSize, cc)];
+    float d = mipBuffer[Clamp(mipSize, cd)];
+    return f1_min(f1_min(a, b), f1_min(c, d));
 }
 
 PIM_C_END

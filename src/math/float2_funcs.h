@@ -129,6 +129,11 @@ pim_inline float2 VEC_CALL f2_div(float2 lhs, float2 rhs)
     return vec;
 }
 
+pim_inline float2 VEC_CALL f2_divvs(float2 lhs, float rhs)
+{
+    return f2_mulvs(lhs, 1.0f / rhs);
+}
+
 pim_inline float2 VEC_CALL f2_neg(float2 v)
 {
     float2 vec = { -v.x, -v.y };
@@ -516,6 +521,14 @@ pim_inline float2 VEC_CALL f2_snorm(float2 u)
 pim_inline float2 VEC_CALL f2_unorm(float2 s)
 {
     return f2_addvs(f2_mulvs(s, 0.5f), 0.5f);
+}
+
+pim_inline float2 VEC_CALL f2_tent(float2 Xi)
+{
+    Xi = f2_mulvs(Xi, 2.0f);
+    Xi.x = Xi.x < 1.0f ? sqrtf(Xi.x) - 1.0f : 1.0f - sqrtf(2.0f - Xi.x);
+    Xi.y = Xi.y < 1.0f ? sqrtf(Xi.y) - 1.0f : 1.0f - sqrtf(2.0f - Xi.x);
+    return Xi;
 }
 
 PIM_C_END

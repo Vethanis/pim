@@ -70,19 +70,29 @@ pim_inline float4 VEC_CALL ImportanceSampleGGX(float2 Xi, float roughness)
     return f4_normalize3(H);
 }
 
-// transforms the tangent space normal to the half-basis provided by normalWS.
-// if you have a TBN matrix, use that instead.
-pim_inline float4 VEC_CALL TanToWorld(float4 normalWS, float4 normalTS)
+pim_inline float3x3 VEC_CALL NormalToTBN(float4 N)
 {
     const float4 kX = { 1.0f, 0.0f, 0.0f, 0.0f };
     const float4 kZ = { 0.0f, 0.0f, 1.0f, 0.0f };
-    float4 up = f1_abs(normalWS.z) < 0.99f ? kZ : kX;
-    float4 tanX = f4_normalize3(f4_cross3(up, normalWS));
-    float4 tanY = f4_cross3(normalWS, tanX);
-    tanX = f4_mulvs(tanX, normalTS.x);
-    tanY = f4_mulvs(tanY, normalTS.y);
-    float4 tanZ = f4_mulvs(normalWS, normalTS.z);
-    return f4_normalize3(f4_add(tanX, f4_add(tanY, tanZ)));
+    float4 up = f1_abs(N.z) < 0.99f ? kZ : kX;
+    float4 T = f4_normalize3(f4_cross3(up, N));
+    float4 B = f4_normalize3(f4_cross3(N, T));
+    return (float3x3) { T, B, N };
 }
+
+pim_inline float4 VEC_CALL TbnToWorld(float3x3 TBN, float4 nTS)
+{
+    float4 right = f4_mulvs(TBN.c0, nTS.x);
+    float4 up = f4_mulvs(TBN.c1, nTS.y);
+    float4 fwd = f4_mulvs(TBN.c2, nTS.z);
+    return f4_normalize3(f4_add(fwd, f4_add(right, up)));
+}
+
+pim_inline float4 VEC_CALL TanToWorld(float4 normalWS, float4 normalTS)
+{
+    float3x3 TBN = NormalToTBN(normalWS);
+    return TbnToWorld(TBN, normalTS);
+}
+
 
 PIM_C_END
