@@ -261,7 +261,8 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
         float2 Xi = f2_tent(f2_rand(&rng));
         ray.rd = Cubemap_CalcDir(size, face, coord, Xi);
 
-        float4 rad = pt_trace_frag(&rng, scene, ray, 10);
+        pt_result_t result = pt_trace_frag(&rng, scene, ray, 10);
+        float4 rad = f4_v(result.color.x, result.color.y, result.color.z, 0.0f);
 
         float4* pim_noalias buffer = cm->faces[face];
         ASSERT(buffer);

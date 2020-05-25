@@ -349,6 +349,12 @@
     <ClCompile Include="..\src\rendering\cubemap.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\denoise.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\library.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -752,6 +758,12 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\cubemap.h">
       <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\denoise.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\library.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

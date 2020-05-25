@@ -21,6 +21,7 @@
     <ClCompile Include="..\src\common\find.c" />
     <ClCompile Include="..\src\common\fnv1a.c" />
     <ClCompile Include="..\src\common\guid.c" />
+    <ClCompile Include="..\src\common\library.c" />
     <ClCompile Include="..\src\common\profiler.c" />
     <ClCompile Include="..\src\common\random.c" />
     <ClCompile Include="..\src\common\sort.c" />
@@ -60,6 +61,7 @@
     <ClCompile Include="..\src\rendering\camera.c" />
     <ClCompile Include="..\src\rendering\clear_tile.c" />
     <ClCompile Include="..\src\rendering\cubemap.c" />
+    <ClCompile Include="..\src\rendering\denoise.c" />
     <ClCompile Include="..\src\rendering\fragment_stage.c" />
     <ClCompile Include="..\src\rendering\lights.c" />
     <ClCompile Include="..\src\rendering\material.c" />
@@ -107,6 +109,7 @@
     <ClInclude Include="..\src\common\console.h" />
     <ClInclude Include="..\src\common\cvar.h" />
     <ClInclude Include="..\src\common\find.h" />
+    <ClInclude Include="..\src\common\library.h" />
     <ClInclude Include="..\src\common\nextpow2.h" />
     <ClInclude Include="..\src\common\profiler.h" />
     <ClInclude Include="..\src\common\round.h" />
@@ -171,6 +174,7 @@
     <ClInclude Include="..\src\rendering\camera.h" />
     <ClInclude Include="..\src\rendering\clear_tile.h" />
     <ClInclude Include="..\src\rendering\cubemap.h" />
+    <ClInclude Include="..\src\rendering\denoise.h" />
     <ClInclude Include="..\src\rendering\fragment_stage.h" />
     <ClInclude Include="..\src\rendering\constants.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />
@@ -310,8 +314,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)..\lib\win64\debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;OpenImageDenoise.lib;dnnl.lib;common.lib;tbb_debug.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)..\lib\win64\debug;$(ProjectDir)..\lib\win64\debug\oidn;$(ProjectDir)..\lib\win64\debug\tbb;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <FxCompile>
       <ShaderModel>5.0</ShaderModel>
@@ -350,8 +354,8 @@
       <SubSystem>Console</SubSystem>
       <Profile>true</Profile>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <AdditionalDependencies>glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)..\lib\win64\release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;OpenImageDenoise.lib;dnnl.lib;common.lib;tbb.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)..\lib\win64\release;$(ProjectDir)..\lib\win64\release\oidn;$(ProjectDir)..\lib\win64\release\tbb;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
     <FxCompile>

@@ -1,0 +1,25 @@
+// Copyright 2009-2020 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#include "vec.ih"
+
+struct TransferFunction
+{
+  // Forward and inverse functions
+  vec3f (*uniform forward)(const uniform TransferFunction* uniform self, vec3f y);
+  vec3f (*uniform inverse)(const uniform TransferFunction* uniform self, vec3f x);
+
+  // Normalization (HDR only)
+  uniform float xScale;
+  uniform float xRcpScale;
+
+  // Exposure (HDR only)
+  uniform float yScale;
+  uniform float yRcpScale;
+};
+
+// Computes the luminance of an RGB color
+inline float luminance(vec3f c)
+{
+  return 0.212671f * c.x + 0.715160f * c.y + 0.072169f * c.z;
+}

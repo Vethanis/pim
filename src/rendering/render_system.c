@@ -39,6 +39,7 @@
 #include "rendering/screenblit.h"
 #include "rendering/path_tracer.h"
 #include "rendering/cubemap.h"
+#include "rendering/denoise.h"
 
 #include "quake/q_model.h"
 #include "assets/asset_system.h"
@@ -52,6 +53,8 @@ static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "10", "number of bou
 static cvar_t cv_ac_gen  = { cvart_bool, 0, "ac_gen", "0", "enable diffuse cube light accumulation" };
 
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable specular cube light accumulation" };
+
+static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
 
 // ----------------------------------------------------------------------------
 
@@ -72,6 +75,7 @@ static float4 ms_clearColor;
 static pt_scene_t* ms_ptscene;
 static pt_trace_t ms_trace;
 static camera_t ms_ptcamera;
+static denoise_t ms_denoise;
 
 static i32 ms_acSampleCount;
 static i32 ms_ptSampleCount;
@@ -339,15 +343,24 @@ static void CleanPtScene(tables_t* tables)
     camera_get(&camera);
     dirty |= cvar_check_dirty(&cv_pt_trace);
     dirty |= memcmp(&camera, &ms_ptcamera, sizeof(camera)) != 0;
-    dirty |= !ms_ptscene;
     if (dirty)
     {
         ms_ptSampleCount = 0;
         ms_acSampleCount = 0;
         ms_cmapSampleCount = 0;
-        pt_scene_del(ms_ptscene);
-        ms_ptscene = pt_scene_new(tables, 5);
         ms_ptcamera = camera;
+    }
+    if (!ms_ptscene)
+    {
+        ms_ptscene = pt_scene_new(tables, 5);
+    }
+    if (!ms_trace.color)
+    {
+        const i32 len = kDrawWidth * kDrawHeight;
+        ms_trace.imageSize = i2_v(kDrawWidth, kDrawHeight);
+        ms_trace.color = perm_calloc(sizeof(ms_trace.color[0]) * len);
+        ms_trace.albedo = perm_calloc(sizeof(ms_trace.albedo[0]) * len);
+        ms_trace.normals = perm_calloc(sizeof(ms_trace.normals[0]) * len);
     }
 }
 
@@ -368,9 +381,9 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
     for (i32 i = begin; i < end; ++i)
     {
         ray.rd = f4_normalize3(SampleUnitSphere(f2_rand(&rng)));
-        float4 rad = pt_trace_frag(&rng, ms_ptscene, ray, 10);
         task->directions[i] = ray.rd;
-        task->radiances[i] = rad;
+        pt_result_t result = pt_trace_frag(&rng, ms_ptscene, ray, 10);
+        task->radiances[i] = f3_f4(result.color, 0.0f);
     }
     prng_set(rng);
 }
@@ -444,6 +457,8 @@ static void Cubemap_Trace(tables_t* tables)
 }
 
 ProfileMark(pm_PathTrace, PathTrace)
+ProfileMark(pm_ptDenoise, Denoise)
+ProfileMark(pm_ptBlit, Blit)
 static bool PathTrace(tables_t* tables)
 {
     if (cv_pt_trace.asFloat != 0.0f)
@@ -465,18 +480,46 @@ static bool PathTrace(tables_t* tables)
             }
         }
 
-        framebuf_t* fbuf = &(ms_buffers[ms_iFrame & 1]);
-
         ms_trace.bounces = i1_clamp((i32)cv_pt_bounces.asFloat, 0, 100);
         ms_trace.sampleWeight = 1.0f / ++ms_ptSampleCount;
         ms_trace.camera = &ms_ptcamera;
-        ms_trace.dstImage = fbuf->light;
-        ms_trace.imageSize = i2_v(fbuf->width, fbuf->height);
         ms_trace.scene = ms_ptscene;
 
         task_t* task = pt_trace(&ms_trace);
         task_sys_schedule();
         task_await(task);
+
+        float3* pim_noalias pPresent = ms_trace.color;
+        if (cv_pt_denoise.asFloat != 0.0f)
+        {
+            ProfileBegin(pm_ptDenoise);
+            float3* denoised = tmp_malloc(sizeof(denoised[0]) * kDrawPixels);
+            Denoise_Execute(
+                &ms_denoise,
+                DenoiseType_Image,
+                ms_trace.imageSize,
+                true,
+                ms_trace.color,
+                ms_trace.albedo,
+                ms_trace.normals,
+                denoised);
+            pPresent = denoised;
+            ProfileEnd(pm_ptDenoise);
+        }
+
+        {
+            ProfileBegin(pm_ptBlit);
+            framebuf_t* buf = GetFrontBuf();
+            float4* pim_noalias dst = buf->light;
+            const float3* pim_noalias src = pPresent;
+            for (i32 i = 0; i < kDrawPixels; ++i)
+            {
+                float3 a = src[i];
+                float4 b = { a.x, a.y, a.z };
+                dst[i] = b;
+            }
+            ProfileEnd(pm_ptBlit);
+        }
 
         ProfileEnd(pm_PathTrace);
         return true;
@@ -488,8 +531,6 @@ ProfileMark(pm_Rasterize, Rasterize)
 static void Rasterize(tables_t* tables)
 {
     ProfileBegin(pm_Rasterize);
-
-    SwapBuffers();
 
     framebuf_t* frontBuf = GetFrontBuf();
     framebuf_t* backBuf = GetBackBuf();
@@ -532,6 +573,7 @@ static void Present(void)
     task_sys_schedule();
     task_await(resolveTask);
     screenblit_blit(frontBuf->color, frontBuf->width, frontBuf->height);
+    SwapBuffers();
     ProfileEnd(pm_Present);
 }
 
@@ -541,6 +583,7 @@ void render_sys_init(void)
     cvar_reg(&cv_pt_bounces);
     cvar_reg(&cv_ac_gen);
     cvar_reg(&cv_cm_gen);
+    cvar_reg(&cv_pt_denoise);
 
     ms_iFrame = 0;
     framebuf_create(GetFrontBuf(), kDrawWidth, kDrawHeight);
@@ -589,6 +632,8 @@ void render_sys_init(void)
     task_sys_schedule();
     task_await(compose);
 
+    Denoise_New(&ms_denoise);
+
     CleanPtScene(tables);
 }
 
@@ -622,6 +667,7 @@ void render_sys_shutdown(void)
     framebuf_destroy(GetBackBuf());
 
     Drawables_Del(tables_main());
+    Denoise_Del(&ms_denoise);
 }
 
 static i32 CmpFloat(const void* lhs, const void* rhs, void* usr)

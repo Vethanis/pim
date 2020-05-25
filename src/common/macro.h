@@ -82,6 +82,7 @@
 
 #define _CAT_TOK(x, y)              x ## y
 #define CAT_TOK(x, y)               _CAT_TOK(x, y)
+#define STR_TOK(x)                  #x
 
 #define SASSERT(x)                  typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
 

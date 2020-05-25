@@ -5,55 +5,6 @@
 #include "threading/task.h"
 #include "rendering/cubemap.h"
 
-// geometry term
-// self shadowing effect from rough surfaces
-// Schlick approximation fit to Smith's GGX model
-pim_inline float VEC_CALL GGX_G(float NoV, float NoL, float roughness)
-{
-    float a = roughness * roughness;
-    float k = a * 0.5f;
-    float t1 = NoV / f1_lerp(k, 1.0f, NoV);
-    float t2 = NoL / f1_lerp(k, 1.0f, NoL);
-    return t1 * t2;
-}
-
-// normal distribution function
-// amount of surface's microfacets are facing the H vector
-// Trowbridge-Reitz GGX
-pim_inline float VEC_CALL GGX_D(float NoH, float roughness)
-{
-    float a = roughness * roughness;
-    float a2 = a * a;
-    float d = f1_lerp(1.0f, a2, NoH * NoH);
-    return a2 / (kPi * d * d);
-}
-
-// base reflectivity for a surface viewed head-on
-pim_inline float4 VEC_CALL GGX_F0(float4 albedo, float metallic)
-{
-    return f4_lerpvs(f4_s(0.04f), albedo, metallic);
-}
-
-// direct fresnel term
-// ratio of light reflection vs refraction, at a given angle
-// Fresnel-Schlick approximation
-pim_inline float4 VEC_CALL GGX_F(float cosTheta, float4 F0)
-{
-    float t = 1.0f - cosTheta;
-    float t5 = t * t * t * t * t;
-    return f4_lerpvs(F0, f4_s(1.0f), t5);
-}
-
-// indirect fresnel term
-// ratio of light reflection vs refraction, at a given angle
-// Fresnel-Schlick approximation
-pim_inline float4 VEC_CALL GGX_FI(float cosTheta, float4 F0, float roughness)
-{
-    float t = 1.0f - cosTheta;
-    float t5 = t * t * t * t * t;
-    return f4_lerpvs(F0, f4_max(f4_s(1.0f - roughness), F0), t5);
-}
-
 // Cook-Torrance BRDF
 float4 VEC_CALL DirectBRDF(
     float4 V,           // unit view vector, points from position to eye
@@ -72,11 +23,12 @@ float4 VEC_CALL DirectBRDF(
     const float D = GGX_D(NoH, roughness);
     const float G = GGX_G(NoV, NoL, roughness);
     const float4 F = GGX_F(NoV, GGX_F0(albedo, metallic));
-
     const float4 DGF = f4_mulvs(F, D * G);
+
     const float4 specular = f4_divvs(DGF, f1_max(0.001f, 4.0f * NoV * NoL));
     const float4 kD = f4_mulvs(f4_sub(f4_1, F), 1.0f - metallic);
     const float4 diffuse = f4_divvs(f4_mul(kD, albedo), kPi);
+
     return f4_mul(f4_add(diffuse, specular), f4_mulvs(radiance, NoL));
 }
 
@@ -101,7 +53,7 @@ static float2 VEC_CALL IntegrateBRDF(
     for (u32 i = 0; i < numSamples; ++i)
     {
         const float2 Xi = Hammersley2D(i, numSamples);
-        const float4 H = ImportanceSampleGGX(Xi, roughness);
+        const float4 H = SampleGGXMicrofacet(Xi, roughness);
         const float VoH = f1_max(0.0f, f4_dot3(V, H));
         const float NoH = f1_max(0.0f, H.z);
         const float4 L = f4_normalize3(f4_reflect3(f4_neg(V), H));
@@ -129,12 +81,14 @@ static float4 VEC_CALL PrefilterEnvMap(
     u32 sampleCount,
     float roughness)
 {
+    // N=V approximation
+
     float weight = 0.0f;
     float4 light = f4_0;
     for (u32 i = 0; i < sampleCount; ++i)
     {
         float2 Xi = Hammersley2D(i, sampleCount);
-        float4 H = TbnToWorld(TBN, ImportanceSampleGGX(Xi, roughness));
+        float4 H = TbnToWorld(TBN, SampleGGXMicrofacet(Xi, roughness));
         const float4 L = f4_normalize3(f4_reflect3(f4_neg(N), H));
         const float NoL = f4_dot3(L, N);
         if (NoL > 0.0f)

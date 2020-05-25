@@ -14,6 +14,7 @@
 #include "math/sdf.h"
 #include "math/frustum.h"
 #include "math/color.h"
+#include "math/lighting.h"
 
 #include "allocator/allocator.h"
 #include "components/table.h"
@@ -54,7 +55,9 @@ typedef struct trace_task_s
     task_t task;
     const pt_scene_t* scene;
     camera_t camera;
-    float4* image;
+    float3* albedo;
+    float3* normals;
+    float3* color;
     int2 imageSize;
     float sampleWeight;
     i32 bounces;
@@ -187,35 +190,6 @@ static bool InsertTriangle(
     return false;
 }
 
-static bool InsertPtLight(
-    pt_scene_t* scene,
-    i32 iLight,
-    i32 n)
-{
-    if (n < scene->nodeCount)
-    {
-        if (BoxHoldsSph(
-            scene->boxes[n],
-            lights_get_pt(iLight).pos))
-        {
-            scene->pops[n] += 1;
-            for (i32 i = 0; i < 8; ++i)
-            {
-                if (InsertPtLight(
-                    scene,
-                    iLight,
-                    GetChild(n, i)))
-                {
-                    return true;
-                }
-            }
-            scene->lightlists[n] = SublistPush(scene->lightlists[n], iLight);
-            return true;
-        }
-    }
-    return false;
-}
-
 pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth)
 {
     table_t* drawTable = Drawables_Get(tables);
@@ -296,7 +270,6 @@ pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth)
         scene->nodeCount = nodeCount;
         scene->boxes = perm_calloc(sizeof(scene->boxes[0]) * nodeCount);;
         scene->trilists = perm_calloc(sizeof(scene->trilists[0]) * nodeCount);
-        scene->lightlists = perm_calloc(sizeof(scene->lightlists[0]) * nodeCount);
         scene->pops = perm_calloc(sizeof(scene->pops[0]) * nodeCount);
 
         // scale bounds up a little bit, to account for fp precision
@@ -316,13 +289,6 @@ pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth)
                 ASSERT(false);
             }
         }
-
-        const i32 ptLightCount = lights_pt_count();
-        for (i32 i = 0; i < ptLightCount; ++i)
-        {
-            InsertPtLight(scene, i, 0);
-        }
-
     }
 
     return scene;
@@ -342,10 +308,8 @@ void pt_scene_del(pt_scene_t* scene)
         for (i32 i = 0; i < scene->nodeCount; ++i)
         {
             pim_free(scene->trilists[i]);
-            pim_free(scene->lightlists[i]);
         }
         pim_free(scene->trilists);
-        pim_free(scene->lightlists);
         pim_free(scene->pops);
 
         memset(scene, 0, sizeof(*scene));
@@ -380,6 +344,25 @@ static rayhit_t VEC_CALL TraceRay(
         return hit;
     }
 
+    // test lights
+    {
+        const lights_t* lights = lights_get();
+        const i32 ptCount = lights->ptCount;
+        const pt_light_t* ptLights = lights->ptLights;
+        for (i32 i = 0; i < ptCount; ++i)
+        {
+            sphere_t sph = { ptLights[i].pos };
+            float t = isectSphere3D(ray, sph);
+            if (t < e || t > hit.wuvt.w)
+            {
+                continue;
+            }
+            hit.type = hit_ptlight;
+            hit.index = i;
+            hit.wuvt.w = t;
+        }
+    }
+
     // test triangles
     {
         const i32* list = scene->trilists[n];
@@ -406,29 +389,6 @@ static rayhit_t VEC_CALL TraceRay(
         }
     }
 
-    // test pt lights
-    {
-        const i32* list = scene->lightlists[n];
-        const i32 len = SublistLen(list);
-        const pt_light_t* lights = lights_get()->ptLights;
-
-        for (i32 i = 0; i < len; ++i)
-        {
-            const i32 j = SublistGet(list, i);
-            ASSERT(j < lights_pt_count());
-            const pt_light_t light = lights[j];
-
-            float t = isectSphere3D(ray, (sphere_t) { light.pos });
-            if (t < e || t > hit.wuvt.w)
-            {
-                continue;
-            }
-            hit.type = hit_ptlight;
-            hit.index = j;
-            hit.wuvt.w = t;
-        }
-    }
-
     // test children
     for (i32 i = 0; i < 8; ++i)
     {
@@ -444,11 +404,6 @@ static rayhit_t VEC_CALL TraceRay(
     }
 
     return hit;
-}
-
-pim_inline float4 VEC_CALL RandomInUnitSphere(prng_t* rng)
-{
-    return SampleUnitSphere(f2_v(prng_f32(rng), prng_f32(rng)));
 }
 
 pim_inline float4 VEC_CALL GetVert4(const float4* vertices, rayhit_t hit)
@@ -477,46 +432,64 @@ pim_inline const material_t* VEC_CALL GetMaterial(const pt_scene_t* scene, rayhi
     return scene->materials + iMat;
 }
 
-pim_inline bool VEC_CALL ScatterLambertian(
-    prng_t* rng,
-    ray_t rin,
-    const surfhit_t* surf,
-    float4* attenuation,
-    ray_t* scattered)
+pim_inline float VEC_CALL LambertianPdf(float4 N, float4 dir)
 {
-    scattered->ro = surf->P;
-    scattered->rd = f4_normalize3(f4_add(surf->N, RandomInUnitSphere(rng)));
-    *attenuation = surf->albedo;
-    return true;
+    return f1_max(0.0f, f4_dot3(N, dir) / kPi);
 }
 
-pim_inline bool VEC_CALL ScatterMetallic(
-    prng_t* rng,
-    ray_t rin,
-    const surfhit_t* surf,
-    float4* attenuation,
-    ray_t* scattered)
+pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float roughness)
 {
-    float4 R = f4_normalize3(f4_reflect3(rin.rd, surf->N));
-    float4 dir = f4_add(R, f4_mulvs(RandomInUnitSphere(rng), surf->roughness));
-    scattered->ro = surf->P;
-    scattered->rd = f4_normalize3(dir);
-    *attenuation = surf->albedo;
-    return f4_dot3(scattered->rd, surf->N) > 0.0f;
+    float d = GGX_D(NoH, roughness);
+    return (d * NoH) / f1_max(f16_eps, (4.0f * HoV));
 }
 
-pim_inline bool VEC_CALL Scatter(
+pim_inline float VEC_CALL ScatterLambertian(
     prng_t* rng,
-    ray_t rin,
+    float4 dirIn,
     const surfhit_t* surf,
-    float4* attenuation,
-    ray_t* scattered)
+    float4* dirOut)
 {
-    if (surf->metallic < 0.5f)
+    float4 N = surf->N;
+    float4 dir = TanToWorld(N, SampleCosineHemisphere(f2_rand(rng)));
+    *dirOut = dir;
+    return LambertianPdf(N, dir);
+}
+
+pim_inline float VEC_CALL ScatterGGX(
+    prng_t* rng,
+    float4 dirIn,
+    const surfhit_t* surf,
+    float4* dirOut)
+{
+    float4 V = f4_neg(dirIn);
+    float4 N = surf->N;
+    float roughness = surf->roughness;
+
+    float4 H = SampleGGXMicrofacet(f2_rand(rng), roughness);
+    H = TanToWorld(N, H);
+
+    float NoH = f1_max(0.0f, f4_dot3(N, H));
+    float HoV = f1_max(0.0f, f4_dot3(H, V));
+
+    float4 dir = f4_reflect3(dirIn, H);
+    ASSERT(IsUnitLength(dir));
+    *dirOut = dir;
+
+    float pdf = GGXPdf(NoH, HoV, roughness);
+    return pdf;
+}
+
+pim_inline float VEC_CALL Scatter(
+    prng_t* rng,
+    float4 dirIn,
+    const surfhit_t* surf,
+    float4* dirOut)
+{
+    if (prng_bool(rng))
     {
-        return ScatterLambertian(rng, rin, surf, attenuation, scattered);
+        return ScatterLambertian(rng, dirIn, surf, dirOut);
     }
-    return ScatterMetallic(rng, rin, surf, attenuation, scattered);
+    return ScatterGGX(rng, dirIn, surf, dirOut);
 }
 
 pim_optimize
@@ -529,7 +502,9 @@ static surfhit_t VEC_CALL GetSurface(
 
     switch (hit.type)
     {
-    default: return surf;
+    default:
+        ASSERT(false);
+        break;
     case hit_triangle:
     {
         ASSERT(hit.index < scene->vertCount);
@@ -547,15 +522,14 @@ static surfhit_t VEC_CALL GetSurface(
     break;
     case hit_ptlight:
     {
-        ASSERT(hit.index < lights_pt_count());
         pt_light_t light = lights_get_pt(hit.index);
-        surf.emission = light.rad;
         surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
         surf.N = f4_normalize3(f4_sub(surf.P, light.pos));
+        surf.albedo = f4_1;
         surf.roughness = 1.0f;
-        surf.occlusion = 1.0f;
+        surf.occlusion = 0.0f;
         surf.metallic = 0.0f;
-        surf.albedo = f4_0;
+        surf.emission = light.rad;
     }
     break;
     }
@@ -564,36 +538,50 @@ static surfhit_t VEC_CALL GetSurface(
 }
 
 pim_optimize
-float4 VEC_CALL pt_trace_frag(
+pt_result_t VEC_CALL pt_trace_frag(
     struct prng_s* rng,
     const pt_scene_t* scene,
     ray_t ray,
     i32 bounces)
 {
+    float4 albedo = f4_0;
+    float4 normal = f4_0;
     float4 light = f4_0;
     float4 attenuation = f4_1;
-    surfhit_t surf;
-    rayhit_t hit;
+    float pdf = 1.0f;
+
     for (i32 b = 0; b < bounces; ++b)
     {
-        hit = TraceRay(scene, 0, ray, f4_rcp(ray.rd), 1 << 20);
+        rayhit_t hit = TraceRay(scene, 0, ray, f4_rcp(ray.rd), 1 << 20);
         if (hit.type == hit_nothing)
         {
             break;
         }
 
-        surf = GetSurface(scene, ray, hit);
-        light = f4_add(light, f4_mul(attenuation, surf.emission));
-
-        ray_t newRay;
-        float4 newAtten;
-        if (Scatter(rng, ray, &surf, &newAtten, &newRay))
+        surfhit_t surf = GetSurface(scene, ray, hit);
+        if (b == 0)
         {
-            ray = newRay;
-            // russian roulette
-            if (b >= 5)
+            albedo = surf.albedo;
+            normal = surf.N;
+        }
+
+        float4 emission = surf.emission;
+        emission = f4_divvs(emission, pdf);
+        emission = f4_mul(emission, attenuation);
+        light = f4_add(light, emission);
+
+        float4 dirOut;
+        pdf = Scatter(rng, ray.rd, &surf, &dirOut);
+        if (pdf > 0.0f)
+        {
+            ray.ro = surf.P;
+            ray.rd = dirOut;
+
+            float4 newAtten = surf.albedo;
+            newAtten = f4_mulvs(newAtten, pdf);
+            if (b >= 3)
             {
-                const float p = f4_hmax3(newAtten);
+                float p = f4_hmax3(newAtten);
                 if (prng_f32(rng) < p)
                 {
                     newAtten = f4_mulvs(newAtten, 1.0f / p);
@@ -603,6 +591,7 @@ float4 VEC_CALL pt_trace_frag(
                     break;
                 }
             }
+
             attenuation = f4_mul(attenuation, newAtten);
             if (f4_hmax3(attenuation) == 0.0f)
             {
@@ -614,7 +603,12 @@ float4 VEC_CALL pt_trace_frag(
             break;
         }
     }
-    return light;
+
+    pt_result_t result;
+    result.albedo = f4_f3(albedo);
+    result.normal = f4_f3(normal);
+    result.color = f4_f3(light);
+    return result;
 }
 
 pim_optimize
@@ -623,7 +617,11 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
     trace_task_t* trace = (trace_task_t*)task;
 
     const pt_scene_t* scene = trace->scene;
-    float4* pim_noalias image = trace->image;
+
+    float3* pim_noalias colors = trace->color;
+    float3* pim_noalias albedos = trace->albedo;
+    float3* pim_noalias normals = trace->normals;
+
     const int2 size = trace->imageSize;
     const float sampleWeight = trace->sampleWeight;
     const i32 bounces = trace->bounces;
@@ -651,8 +649,17 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
 
         float4 rd = proj_dir(right, up, fwd, slope, uv);
         ray_t ray = { ro, rd };
-        float4 sample = pt_trace_frag(&rng, scene, ray, bounces);
-        image[i] = f4_lerpvs(image[i], sample, sampleWeight);
+        pt_result_t result = pt_trace_frag(&rng, scene, ray, bounces);
+
+        colors[i] = f3_lerp(colors[i], result.color, sampleWeight);
+        if (albedos)
+        {
+            albedos[i] = f3_lerp(albedos[i], result.albedo, sampleWeight);
+        }
+        if (normals)
+        {
+            normals[i] = f3_lerp(normals[i], result.normal, sampleWeight);
+        }
     }
 
     prng_set(rng);
@@ -662,13 +669,15 @@ struct task_s* pt_trace(pt_trace_t* desc)
 {
     ASSERT(desc);
     ASSERT(desc->scene);
-    ASSERT(desc->dstImage);
+    ASSERT(desc->color);
     ASSERT(desc->camera);
 
     trace_task_t* task = tmp_calloc(sizeof(*task));
     task->scene = desc->scene;
     task->camera = desc->camera[0];
-    task->image = desc->dstImage;
+    task->color = desc->color;
+    task->albedo = desc->albedo;
+    task->normals = desc->normals;
     task->imageSize = desc->imageSize;
     task->sampleWeight = desc->sampleWeight;
     task->bounces = desc->bounces;
