@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include "math/types.h"
+#include "rendering/path_tracer.h"
 
 PIM_C_BEGIN
 
@@ -25,11 +26,7 @@ void Denoise_Del(denoise_t* denoise);
 void Denoise_Execute(
     denoise_t* denoise,
     DenoiseType type,
-    int2 size,
-    bool hdr,
-    const float3* color,
-    const float3* albedo, // optional
-    const float3* normal, // optional
+    trace_img_t img,
     float3* output);
 
 PIM_C_END

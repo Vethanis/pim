@@ -151,7 +151,6 @@ typedef struct denoise_filter_s
     const float3* normal;
     float3* output;
     DenoiseType type;
-    bool hdr;
 } denoise_filter_t;
 
 static const char* const kFilterNames[] =
@@ -314,11 +313,7 @@ void Denoise_Del(denoise_t* denoise)
 void Denoise_Execute(
     denoise_t* denoise,
     DenoiseType type,
-    int2 size,
-    bool hdr,
-    const float3* color,
-    const float3* albedo, // optional
-    const float3* normal, // optional
+    trace_img_t img,
     float3* output)
 {
     ASSERT(denoise);
@@ -343,21 +338,17 @@ void Denoise_Execute(
     OIDNFilter filter = pFilter->handle;
 
     bool dirty = filter == NULL;
-    if (!dirty)
+    denoise_filter_t args =
     {
-        denoise_filter_t args =
-        {
-            .handle = filter,
-            .size = size,
-            .color = color,
-            .albedo = albedo,
-            .normal = normal,
-            .output = output,
-            .type = type,
-            .hdr = hdr,
-        };
-        dirty = memcmp(&args, pFilter, sizeof(args)) != 0;
-    }
+        .handle = filter,
+        .size = img.size,
+        .color = img.colors,
+        .albedo = img.albedos,
+        .normal = img.normals,
+        .output = output,
+        .type = type,
+    };
+    dirty |= memcmp(&args, pFilter, sizeof(args)) != 0;
 
     if (dirty)
     {
@@ -370,31 +361,18 @@ void Denoise_Execute(
 
         filter = oidn.NewFilter(device, kFilterNames[type]);
 
-        SetImage(filter, "color", (float3*)color, size);
-        if (albedo)
-        {
-            SetImage(filter, "albedo", (float3*)albedo, size);
-        }
-        if (normal)
-        {
-            SetImage(filter, "normal", (float3*)normal, size);
-        }
-        SetImage(filter, "output", output, size);
-
-        oidn.SetFilter1b(filter, "hdr", hdr);
+        SetImage(filter, "color", (float3*)img.colors, img.size);
+        SetImage(filter, "albedo", (float3*)img.albedos, img.size);
+        SetImage(filter, "normal", (float3*)img.normals, img.size);
+        SetImage(filter, "output", output, img.size);
+        oidn.SetFilter1b(filter, "hdr", true);
 
         oidn.CommitFilter(filter);
 
         PrintErrors(device);
 
-        pFilter->albedo = albedo;
-        pFilter->color = color;
+        *pFilter = args;
         pFilter->handle = filter;
-        pFilter->hdr = hdr;
-        pFilter->normal = normal;
-        pFilter->output = output;
-        pFilter->size = size;
-        pFilter->type = type;
     }
 
     oidn.ExecuteFilter(filter);

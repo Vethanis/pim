@@ -12,5 +12,6 @@ void VEC_CALL AmbCube_Set(AmbCube_t cube);
 
 struct Cubemap_s* EnvMap_Get(void);
 struct Cubemap_s* ConvMap_Get(void);
+struct SphereMap_s* SphereMap_Get();
 
 PIM_C_END

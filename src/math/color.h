@@ -119,13 +119,13 @@ pim_inline float4 VEC_CALL ColorToLinear(u32 c)
 pim_inline float VEC_CALL tmap1_reinhard(float x)
 {
     float y = x / (1.0f + x);
-    return y; // take to srgb in tmap4
+    return y;
 }
 
 pim_inline float4 VEC_CALL tmap4_reinhard(float4 x)
 {
     float4 y = f4_div(x, f4_addvs(x, 1.0f));
-    return f4_tosrgb(y);
+    return y;
 }
 
 pim_inline float VEC_CALL tmap1_aces(float x)
@@ -136,7 +136,7 @@ pim_inline float VEC_CALL tmap1_aces(float x)
     const float d = 0.59f;
     const float e = 0.14f;
     float y = (x * (a * x + b)) / (x * (c * x + d) + e);
-    return y; // take to srgb in tmap4
+    return y;
 }
 
 pim_inline float4 VEC_CALL tmap4_aces(float4 x)
@@ -146,14 +146,14 @@ pim_inline float4 VEC_CALL tmap4_aces(float4 x)
     y.y = tmap1_aces(x.y);
     y.z = tmap1_aces(x.z);
     y.w = tmap1_aces(x.w);
-    return f4_tosrgb(y);
+    return y;
 }
 
 pim_inline float VEC_CALL tmap1_filmic(float x)
 {
     x = f1_max(0.0f, x - 0.004f);
     float y = (x * (6.2f * x + 0.5f)) / (x * (6.2f * x + 1.7f) + 0.06f);
-    return y; // originally fit to gamma2.2
+    return powf(y, 2.2f); // originally fit to gamma2.2
 }
 
 pim_inline float4 VEC_CALL tmap4_filmic(float4 x)
@@ -163,7 +163,6 @@ pim_inline float4 VEC_CALL tmap4_filmic(float4 x)
     y.y = tmap1_filmic(x.y);
     y.z = tmap1_filmic(x.z);
     y.w = tmap1_filmic(x.w);
-    // filmic is fit to gamma2.2
     return y;
 }
 
@@ -176,7 +175,7 @@ pim_inline float VEC_CALL tmap1_uchart2(float x)
     const float e = 0.02f;
     const float f = 0.30f;
     float y = ((x * (a * x + c * b) + d * e) / (x * (a * x + b) + d * f)) - e / f;
-    return y; // take to srgb in tmap4
+    return y;
 }
 
 pim_inline float4 VEC_CALL tmap4_uchart2(float4 x)
@@ -189,7 +188,7 @@ pim_inline float4 VEC_CALL tmap4_uchart2(float4 x)
     y.z = tmap1_uchart2(x.z);
     y.w = tmap1_uchart2(w);
     y = f4_divvs(y, y.w);
-    return f4_tosrgb(y);
+    return y;
 }
 
 // params: Shoulder Strength, Linear Strength, Linear Angle, Toe Strength
@@ -202,7 +201,7 @@ pim_inline float VEC_CALL tmap1_hable(float x, float4 params)
     const float E = 0.02f;
     const float F = 0.3f;
     float y = ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
-    return y; // take to srgb in tmap4
+    return y;
 }
 
 pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
@@ -215,7 +214,7 @@ pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
     y.z = tmap1_hable(x.z, params);
     y.w = tmap1_hable(w, params);
     y = f4_divvs(y, y.w);
-    return f4_tosrgb(y);
+    return y;
 }
 
 pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)

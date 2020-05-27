@@ -355,6 +355,12 @@
     <ClCompile Include="..\src\common\library.c">
       <Filter>Source Files\common</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\math\ambcube.c">
+      <Filter>Source Files\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\spheremap.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -764,6 +770,9 @@
     </ClInclude>
     <ClInclude Include="..\src\common\library.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\spheremap.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

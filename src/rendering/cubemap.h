@@ -27,6 +27,8 @@ typedef struct Cubemap_s
 Cubemap* Cubemap_New(i32 size);
 void Cubemap_Del(Cubemap* cm);
 
+Cubeface VEC_CALL Cubemap_CalcUv(float4 dir, float2* uvOut);
+
 float4 VEC_CALL Cubemap_Read(const Cubemap* cm, float4 dir, float mip);
 void VEC_CALL Cubemap_Write(Cubemap* cm, Cubeface face, int2 coord, float4 value);
 
@@ -38,10 +40,14 @@ float4 VEC_CALL Cubemap_FaceDir(Cubeface face);
 
 void Cubemap_GenMips(Cubemap* cm);
 
-struct task_s* Cubemap_Bake(
+i32 Cubemap_Bake(
     Cubemap* cm,
     const struct pt_scene_s* scene,
     float4 origin,
-    float sampleWeight);
+    i32 samples,
+    i32 prevSampleCount,
+    i32 bounces);
+
+void Cubemap_Prefilter(const Cubemap* src, Cubemap* dst, u32 sampleCount);
 
 PIM_C_END

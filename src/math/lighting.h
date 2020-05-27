@@ -17,8 +17,6 @@ typedef struct BrdfLut_s
 BrdfLut BakeBRDF(int2 size, u32 numSamples);
 void FreeBrdfLut(BrdfLut* lut);
 
-void Prefilter(const Cubemap* src, Cubemap* dst, u32 sampleCount);
-
 // geometry term
 // self shadowing effect from rough surfaces
 // Schlick approximation fit to Smith's GGX model

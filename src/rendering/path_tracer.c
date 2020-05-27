@@ -55,10 +55,7 @@ typedef struct trace_task_s
     task_t task;
     const pt_scene_t* scene;
     camera_t camera;
-    float3* albedo;
-    float3* normals;
-    float3* color;
-    int2 imageSize;
+    trace_img_t img;
     float sampleWeight;
     i32 bounces;
 } trace_task_t;
@@ -538,7 +535,7 @@ static surfhit_t VEC_CALL GetSurface(
 }
 
 pim_optimize
-pt_result_t VEC_CALL pt_trace_frag(
+pt_result_t VEC_CALL pt_trace_ray(
     struct prng_s* rng,
     const pt_scene_t* scene,
     ray_t ray,
@@ -618,11 +615,11 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
 
     const pt_scene_t* scene = trace->scene;
 
-    float3* pim_noalias colors = trace->color;
-    float3* pim_noalias albedos = trace->albedo;
-    float3* pim_noalias normals = trace->normals;
+    float3* pim_noalias colors = trace->img.colors;
+    float3* pim_noalias albedos = trace->img.albedos;
+    float3* pim_noalias normals = trace->img.normals;
 
-    const int2 size = trace->imageSize;
+    const int2 size = trace->img.size;
     const float sampleWeight = trace->sampleWeight;
     const i32 bounces = trace->bounces;
     const camera_t camera = trace->camera;
@@ -649,7 +646,7 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
 
         float4 rd = proj_dir(right, up, fwd, slope, uv);
         ray_t ray = { ro, rd };
-        pt_result_t result = pt_trace_frag(&rng, scene, ray, bounces);
+        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
 
         colors[i] = f3_lerp(colors[i], result.color, sampleWeight);
         if (albedos)
@@ -665,7 +662,7 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
     prng_set(rng);
 }
 
-struct task_s* pt_trace(pt_trace_t* desc)
+task_t* pt_trace(pt_trace_t* desc)
 {
     ASSERT(desc);
     ASSERT(desc->scene);
@@ -675,14 +672,77 @@ struct task_s* pt_trace(pt_trace_t* desc)
     trace_task_t* task = tmp_calloc(sizeof(*task));
     task->scene = desc->scene;
     task->camera = desc->camera[0];
-    task->color = desc->color;
-    task->albedo = desc->albedo;
-    task->normals = desc->normals;
-    task->imageSize = desc->imageSize;
+    task->img = desc->img;
     task->sampleWeight = desc->sampleWeight;
     task->bounces = desc->bounces;
 
-    const i32 workSize = desc->imageSize.x * desc->imageSize.y;
+    const i32 workSize = desc->img.size.x * desc->img.size.y;
     task_submit((task_t*)task, TraceFn, workSize);
     return (task_t*)task;
+}
+
+static void RayGenFn(task_t* pBase, i32 begin, i32 end)
+{
+    pt_raygen_t* task = (pt_raygen_t*)pBase;
+    const pt_scene_t* scene = task->scene;
+    const pt_dist_t dist = task->dist;
+    const i32 bounces = task->bounces;
+    const ray_t origin = task->origin;
+    float3x3 TBN;
+    if (dist != ptdist_sphere)
+    {
+        TBN = NormalToTBN(origin.rd);
+    }
+
+    float3* pim_noalias colors = task->colors;
+    float3* pim_noalias albedos = task->albedos;
+    float3* pim_noalias normals = task->normals;
+    float4* pim_noalias directions = task->directions;
+
+    ray_t ray;
+    ray.ro = origin.ro;
+
+    prng_t rng = prng_get();
+    for (i32 i = begin; i < end; ++i)
+    {
+        float2 Xi = f2_rand(&rng);
+        switch (dist)
+        {
+        default:
+        case ptdist_sphere:
+            ray.rd = SampleUnitSphere(Xi);
+            break;
+        case ptdist_hemi:
+            ray.rd = TbnToWorld(TBN, SampleUnitHemisphere(Xi));
+            break;
+        }
+
+        directions[i] = ray.rd;
+
+        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+
+        colors[i] = result.color;
+        albedos[i] = result.albedo;
+        normals[i] = result.normal;
+    }
+    prng_set(rng);
+}
+
+pt_raygen_t* pt_raygen(const pt_scene_t* scene, ray_t origin, pt_dist_t dist, i32 count, i32 bounces)
+{
+    ASSERT(scene);
+    ASSERT(count >= 0);
+
+    pt_raygen_t* task = tmp_calloc(sizeof(*task));
+    task->scene = scene;
+    task->origin = origin;
+    task->colors = tmp_malloc(sizeof(task->colors[0]) * count);
+    task->albedos = tmp_malloc(sizeof(task->albedos[0]) * count);
+    task->normals = tmp_malloc(sizeof(task->normals[0]) * count);
+    task->directions = tmp_malloc(sizeof(task->directions[0]) * count);
+    task->dist = dist;
+    task->bounces = bounces;
+    task_submit((task_t*)task, RayGenFn, count);
+
+    return task;
 }

@@ -29,7 +29,7 @@ static void ResolveTileFn(task_t* task, i32 begin, i32 end)
     const float4 tmapParams = resolve->toneParams;
     const TonemapFn tmap = resolve->tonemapper;
 
-    const float kDitherScale = 1.0f / 256.0f;
+    const float kDitherScale = 1.0f / 512.0f;
     prng_t rng = prng_get();
 
     for (i32 iTile = begin; iTile < end; ++iTile)
@@ -41,8 +41,9 @@ static void ResolveTileFn(task_t* task, i32 begin, i32 end)
             {
                 i32 i = IndexTile(tile, kDrawWidth, tx, ty);
                 float4 ldr = tmap(light[i], tmapParams);
-                ldr = f4_lerpvs(ldr, f4_rand(&rng), kDitherScale);
-                color[i] = f4_rgba8(ldr);
+                float4 srgb = f4_tosrgb(ldr);
+                srgb = f4_lerpvs(srgb, f4_rand(&rng), kDitherScale);
+                color[i] = f4_rgba8(srgb);
             }
         }
     }

@@ -52,6 +52,7 @@
     <ClCompile Include="..\src\logic\camera_logic.c" />
     <ClCompile Include="..\src\logic\logic.c" />
     <ClCompile Include="..\src\main.c" />
+    <ClCompile Include="..\src\math\ambcube.c" />
     <ClCompile Include="..\src\math\cubic_fit.c" />
     <ClCompile Include="..\src\math\lighting.c" />
     <ClCompile Include="..\src\math\sphgauss.c" />
@@ -68,6 +69,7 @@
     <ClCompile Include="..\src\rendering\mesh.c" />
     <ClCompile Include="..\src\rendering\path_tracer.c" />
     <ClCompile Include="..\src\rendering\resolve_tile.c" />
+    <ClCompile Include="..\src\rendering\spheremap.c" />
     <ClCompile Include="..\src\rendering\tonemap.c" />
     <ClCompile Include="..\src\rendering\vertex_stage.c" />
     <ClCompile Include="..\src\rendering\framebuffer.c" />
@@ -183,6 +185,7 @@
     <ClInclude Include="..\src\rendering\resolve_tile.h" />
     <ClInclude Include="..\src\rendering\sampler.h" />
     <ClInclude Include="..\src\rendering\screenblit.h" />
+    <ClInclude Include="..\src\rendering\spheremap.h" />
     <ClInclude Include="..\src\rendering\texture.h" />
     <ClInclude Include="..\src\rendering\tile.h" />
     <ClInclude Include="..\src\rendering\tonemap.h" />

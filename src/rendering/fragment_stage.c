@@ -24,6 +24,7 @@
 #include "rendering/framebuffer.h"
 #include "rendering/lights.h"
 #include "rendering/cubemap.h"
+#include "rendering/spheremap.h"
 
 #include "components/table.h"
 #include "components/drawables.h"
@@ -34,6 +35,7 @@ static cvar_t cv_gi_dbg_spec = { cvart_bool, 0, "gi_dbg_spec", "0", "view cubema
 static cvar_t cv_gi_dbg_diffview = { cvart_bool, 0, "gi_dbg_diffview", "0", "view ambient cube with forward vector" };
 static cvar_t cv_gi_dbg_specview = { cvart_bool, 0, "gi_dbg_specview", "0", "view cubemap with forward vector" };
 static cvar_t cv_gi_dbg_specmip = { cvart_float, 0, "gi_dbg_specmip", "0", "mip level of cubemap debug views" };
+static cvar_t cv_gi_spheremap = { cvart_bool, 0, "gi_spheremap", "0", "use spheremap for specgi" };
 
 typedef struct fragstage_s
 {
@@ -64,12 +66,14 @@ static BrdfLut ms_lut;
 static AmbCube_t ms_ambcube;
 static Cubemap* ms_envMap;
 static Cubemap* ms_convMap;
+static SphereMap ms_sphereMap;
 
 AmbCube_t VEC_CALL AmbCube_Get(void) { return ms_ambcube; };
 void VEC_CALL AmbCube_Set(AmbCube_t cube) { ms_ambcube = cube; }
 
 Cubemap* EnvMap_Get(void) { return ms_envMap; }
 Cubemap* ConvMap_Get(void) { return ms_convMap; }
+struct SphereMap_s* SphereMap_Get() { return &ms_sphereMap; }
 
 static void EnsureInit(void);
 static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf);
@@ -113,11 +117,13 @@ static void EnsureInit(void)
         cvar_reg(&cv_gi_dbg_diffview);
         cvar_reg(&cv_gi_dbg_specview);
         cvar_reg(&cv_gi_dbg_specmip);
+        cvar_reg(&cv_gi_spheremap);
 
         ms_lut = BakeBRDF(i2_s(256), 1024);
 
         ms_envMap = Cubemap_New(64);
         ms_convMap = Cubemap_New(64);
+        SphereMap_New(&ms_sphereMap, i2_s(256));
     }
 }
 
@@ -218,6 +224,7 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
     const bool dbgspecGI = cv_gi_dbg_spec.asFloat != 0.0f;
     const bool dbgdiffviewGI = cv_gi_dbg_diffview.asFloat != 0.0f;
     const bool dbgspecviewGI = cv_gi_dbg_specview.asFloat != 0.0f;
+    const bool useSpheremap = cv_gi_spheremap.asFloat != 0.0f;
     const float dbgspecmip = cv_gi_dbg_specmip.asFloat;
 
     const float dx = 1.0f / kDrawWidth;
@@ -355,11 +362,20 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                         rome = f4_mul(rome,
                             UvBilinearWrap_c32(romeMap.texels, romeMap.size, U));
                     }
-                    float mip = rome.x * 4.0f;
+                    const float mip = rome.x * 4.0f;
                     {
-                        float4 diffuseGI = AmbCube_Irradiance(ms_ambcube, N);
-                        float NoR = f1_max(0.0f, f4_dot3(N, R));
-                        float4 specularGI = Cubemap_Read(cm, R, mip);
+                        float4 specularGI;
+                        float4 diffuseGI;
+
+                        diffuseGI = AmbCube_Irradiance(ms_ambcube, N);
+                        if (useSpheremap)
+                        {
+                            specularGI = SphereMap_Read(&ms_sphereMap, R);
+                        }
+                        else
+                        {
+                            specularGI = Cubemap_Read(cm, R, mip);
+                        }
                         const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
                         lighting = f4_add(lighting, indirect);
                     }
@@ -387,7 +403,15 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                     }
                     else if (dbgspecviewGI)
                     {
-                        lighting = Cubemap_Read(cm, f4_neg(V), dbgspecmip);
+                        float4 I = f4_neg(V);
+                        if (useSpheremap)
+                        {
+                            lighting = SphereMap_Read(&ms_sphereMap, I);
+                        }
+                        else
+                        {
+                            lighting = Cubemap_Read(cm, I, mip);
+                        }
                     }
                     else if (dbgdiffGI)
                     {
@@ -395,7 +419,14 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                     }
                     else if (dbgspecGI)
                     {
-                        lighting = Cubemap_Read(cm, R, mip);
+                        if (useSpheremap)
+                        {
+                            lighting = SphereMap_Read(&ms_sphereMap, R);
+                        }
+                        else
+                        {
+                            lighting = Cubemap_Read(cm, R, mip);
+                        }
                     }
                 }
 

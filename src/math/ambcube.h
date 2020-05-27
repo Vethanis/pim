@@ -34,9 +34,9 @@ pim_inline float4 VEC_CALL AmbCube_Irradiance(AmbCube_t c, float4 dir)
     return f4_mulvs(AmbCube_Eval(c, dir), kTau);
 }
 
-pim_inline AmbCube_t VEC_CALL AmbCube_Fit(AmbCube_t c, i32 i, float4 dir, float4 rad)
+pim_inline AmbCube_t VEC_CALL AmbCube_Fit(AmbCube_t c, float weight, float4 dir, float4 rad)
 {
-    dir = f4_mulvs(dir, 1.0f / (i + 1.0f));
+    dir = f4_mulvs(dir, weight);
     bool4 face = f4_gtvs(dir, 0.0f);
 
     if (face.x)
@@ -56,5 +56,13 @@ pim_inline AmbCube_t VEC_CALL AmbCube_Fit(AmbCube_t c, i32 i, float4 dir, float4
 
     return c;
 }
+
+i32 AmbCube_Bake(
+    const struct pt_scene_s* scene,
+    AmbCube_t* pCube,
+    float4 origin,
+    i32 samples,
+    i32 prevSampleCount,
+    i32 bounces);
 
 PIM_C_END

@@ -74,111 +74,12 @@ static float2 VEC_CALL IntegrateBRDF(
     return result;
 }
 
-static float4 VEC_CALL PrefilterEnvMap(
-    const Cubemap* cm,
-    float3x3 TBN,
-    float4 N,
-    u32 sampleCount,
-    float roughness)
-{
-    // N=V approximation
-
-    float weight = 0.0f;
-    float4 light = f4_0;
-    for (u32 i = 0; i < sampleCount; ++i)
-    {
-        float2 Xi = Hammersley2D(i, sampleCount);
-        float4 H = TbnToWorld(TBN, SampleGGXMicrofacet(Xi, roughness));
-        const float4 L = f4_normalize3(f4_reflect3(f4_neg(N), H));
-        const float NoL = f4_dot3(L, N);
-        if (NoL > 0.0f)
-        {
-            float4 sample = Cubemap_Read(cm, L, 0.0f);
-            sample = f4_mulvs(sample, NoL);
-            light = f4_add(light, sample);
-            weight += NoL;
-        }
-    }
-    if (weight > 0.0f)
-    {
-        light = f4_divvs(light, weight);
-    }
-    return light;
-}
-
 typedef struct bakebrdf_s
 {
     task_t task;
     BrdfLut lut;
     u32 numSamples;
 } bakebrdf_t;
-
-typedef struct prefilter_s
-{
-    task_t task;
-    const Cubemap* src;
-    Cubemap* dst;
-    i32 mip;
-    i32 size;
-    u32 sampleCount;
-} prefilter_t;
-
-static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
-{
-    prefilter_t* task = (prefilter_t*)pBase;
-    const Cubemap* src = task->src;
-    Cubemap* dst = task->dst;
-
-    const u32 sampleCount = task->sampleCount;
-    const i32 mipCount = i1_min(src->mipCount, dst->mipCount);
-    const i32 size = task->size;
-    const i32 mip = task->mip;
-    const i32 len = size * size;
-    const float roughness = (float)mip / (float)(mipCount - 1);
-
-    for (i32 i = begin; i < end; ++i)
-    {
-        i32 face = i / len;
-        i32 fi = i % len;
-        int2 coord = { fi % size, fi / size };
-
-        float4 N = Cubemap_CalcDir(size, face, coord, f2_0);
-        float3x3 TBN = NormalToTBN(N);
-        float4 light = PrefilterEnvMap(src, TBN, N, sampleCount, roughness);
-        Cubemap_WriteMip(dst, face, coord, mip, light);
-    }
-}
-
-void Prefilter(const Cubemap* src, Cubemap* dst, u32 sampleCount)
-{
-    ASSERT(src);
-    ASSERT(dst);
-
-    const i32 mipCount = i1_min(5, i1_min(src->mipCount, dst->mipCount));
-    const i32 size = i1_min(src->size, dst->size);
-
-    prefilter_t* last = NULL;
-    for (i32 m = 0; m < mipCount; ++m)
-    {
-        i32 mSize = size >> m;
-        i32 len = mSize * mSize * 6;
-
-        prefilter_t* task = tmp_calloc(sizeof(*task));
-        task->src = src;
-        task->dst = dst;
-        task->mip = m;
-        task->size = mSize;
-        task->sampleCount = sampleCount;
-        task_submit((task_t*)task, PrefilterFn, len);
-        last = task;
-    }
-
-    if (last)
-    {
-        task_sys_schedule();
-        task_await((task_t*)last);
-    }
-}
 
 static void BrdfBakeFn(task_t* pBase, i32 begin, i32 end)
 {
