@@ -319,10 +319,6 @@ void Denoise_Execute(
     ASSERT(denoise);
     ASSERT(type >= 0);
     ASSERT(type < DenoiseType_COUNT);
-    ASSERT(size.x > 0);
-    ASSERT(size.y > 0);
-    ASSERT((size.x * size.y) > 0);
-    ASSERT(color);
     ASSERT(output);
 
     if (!EnsureInit())

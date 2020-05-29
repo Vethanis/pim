@@ -4,6 +4,7 @@
 #include "components/table.h"
 #include "components/components.h"
 #include "components/drawables.h"
+#include "components/cubemaps.h"
 #include "threading/task.h"
 #include "ui/cimgui.h"
 
@@ -51,7 +52,7 @@ static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path traci
 static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "10", "path tracing bounces" };
 static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
 
-static cvar_t cv_ac_gen  = { cvart_bool, 0, "ac_gen", "0", "enable ambientcube generation" };
+static cvar_t cv_ac_gen = { cvart_bool, 0, "ac_gen", "0", "enable ambientcube generation" };
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
 static cvar_t cv_sm_gen = { cvart_bool, 0, "sm_gen", "0", "enable spheremap generation" };
 
@@ -100,7 +101,7 @@ static void SwapBuffers(void)
     ++ms_iFrame;
 }
 
-static float2 VEC_CALL CalcUv(float4 s, float4 t, float4 p)
+pim_inline float2 VEC_CALL CalcUv(float4 s, float4 t, float4 p)
 {
     return f2_v(f4_dot3(p, s) + s.w, f4_dot3(p, t) + t.w);
 }
@@ -357,14 +358,6 @@ static void CleanPtScene(tables_t* tables)
     {
         ms_ptscene = pt_scene_new(tables, 5);
     }
-    if (!ms_trace.img.colors)
-    {
-        const i32 len = kDrawWidth * kDrawHeight;
-        ms_trace.img.size = i2_v(kDrawWidth, kDrawHeight);
-        ms_trace.img.colors = perm_calloc(sizeof(ms_trace.img.colors[0]) * len);
-        ms_trace.img.albedos = perm_calloc(sizeof(ms_trace.img.albedos[0]) * len);
-        ms_trace.img.normals = perm_calloc(sizeof(ms_trace.img.normals[0]) * len);
-    }
 }
 
 ProfileMark(pm_AmbCube_Trace, AmbCube_Trace)
@@ -395,21 +388,42 @@ static void Cubemap_Trace(tables_t* tables)
         ProfileBegin(pm_CubemapTrace);
         CleanPtScene(tables);
 
-        camera_t camera;
-        camera_get(&camera);
+        table_t* table = Cubemaps_Get(tables);
+        const i32 len = table_width(table);
+        Cubemap* cubemaps = table_row(table, TYPE_ARGS(Cubemap));
+        BCubemap* bakemaps = table_row(table, TYPE_ARGS(BCubemap));
+        const bounds_t* bounds = table_row(table, TYPE_ARGS(bounds_t));
 
-        Cubemap* envMap = EnvMap_Get();
-        if (envMap)
+        float weight = 1.0f / (1.0f + ms_cmapSampleCount++);
+        for (i32 i = 0; i < len; ++i)
         {
-            Cubemap_Bake(
-                envMap, ms_ptscene, camera.position, 4096, ms_cmapSampleCount++, 10);
-
-            Cubemap* convMap = ConvMap_Get();
-            if (convMap)
+            float4 pos = bounds[i].Value.value;
+            task_t* task = Cubemap_Bake(bakemaps + i, ms_ptscene, pos, weight, 10);
+            if (task)
             {
-                Cubemap_Prefilter(envMap, convMap, 1024);
+                task_sys_schedule();
+                task_await(task);
             }
         }
+
+        for (i32 i = 0; i < len; ++i)
+        {
+            Cubemap_Denoise(bakemaps + i, cubemaps + i);
+        }
+
+        Cubemap tmp = { 0 };
+        for (i32 i = 0; i < len; ++i)
+        {
+            Cubemap* cm = cubemaps + i;
+            if (cm->size != tmp.size)
+            {
+                Cubemap_Del(&tmp);
+                Cubemap_New(&tmp, cm->size);
+            }
+            Cubemap_Prefilter(cm, &tmp, 4096);
+            Cubemap_Cpy(&tmp, cm);
+        }
+        Cubemap_Del(&tmp);
 
         ProfileEnd(pm_CubemapTrace);
     }
@@ -437,10 +451,7 @@ static void Spheremap_Trace(tables_t* tables)
             const float weight = 1.0f / (1.0f + ms_smapSampleCount++);
             task_t* task = SphereMap_Bake(
                 ms_ptscene,
-                size,
-                img.colors,
-                img.albedos,
-                img.normals,
+                img,
                 camera.position,
                 weight,
                 bounces);
@@ -606,6 +617,9 @@ void render_sys_init(void)
 
     Drawables_New(tables);
 
+    Cubemaps_New(tables);
+    Cubemaps_Add(tables, 64, f4_0, 10.0f);
+
     table_t* lights = tables_add_s(tables, "Lights");
     table_add(lights, TYPE_ARGS(radiance_t));
     table_add(lights, TYPE_ARGS(translation_t));
@@ -641,12 +655,8 @@ void render_sys_init(void)
     Denoise_New(&ms_ptdenoise);
     Denoise_New(&ms_smdenoise);
 
-    const i32 len = 256 * 256;
-    ms_smimg.size.x = 256;
-    ms_smimg.size.y = 256;
-    ms_smimg.albedos = perm_calloc(sizeof(ms_smimg.albedos[0]) * len);
-    ms_smimg.colors = perm_calloc(sizeof(ms_smimg.colors[0]) * len);
-    ms_smimg.normals = perm_calloc(sizeof(ms_smimg.normals[0]) * len);
+    trace_img_new(&ms_trace.img, i2_v(kDrawWidth, kDrawHeight));
+    trace_img_new(&ms_smimg, i2_s(256));
 
     CleanPtScene(tables);
 }

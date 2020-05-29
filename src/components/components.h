@@ -7,13 +7,6 @@
 
 PIM_C_BEGIN
 
-typedef struct ent_s
-{
-    i32 index;
-    i32 version;
-} ent_t;
-static const u32 ent_t_hash = 3006851633u;
-
 typedef struct tag_s
 {
     u32 Value;

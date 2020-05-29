@@ -2,26 +2,61 @@
 #include "allocator/allocator.h"
 #include "rendering/sampler.h"
 #include "math/float4_funcs.h"
+#include "math/float3_funcs.h"
+#include "math/quat_funcs.h"
 #include "common/random.h"
 #include "threading/task.h"
 #include "rendering/path_tracer.h"
 #include "math/sampling.h"
+#include "math/frustum.h"
+#include "rendering/denoise.h"
+#include "common/profiler.h"
 #include <string.h>
 
-Cubemap* Cubemap_New(i32 size)
+static const float4 kForwards[] =
 {
+    {1.0f, 0.0f, 0.0f},
+    {-1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, -1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f},
+    {0.0f, 0.0f, -1.0f},
+};
+
+static const float4 kUps[] =
+{
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, -1.0f},
+    {0.0f, 0.0f, -1.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+};
+
+static const float4 kRights[] =
+{
+    {0.0f, 0.0f, -1.0f},
+    {0.0f, 0.0f, 1.0f},
+    {1.0f, 0.0f, 0.0f},
+    {-1.0f, 0.0f, 0.0f},
+    {1.0f, 0.0f, 0.0f},
+    {-1.0f, 0.0f, 0.0f},
+};
+
+void Cubemap_New(Cubemap* cm, i32 size)
+{
+    ASSERT(cm);
+
     const int2 s = { size, size };
     const i32 mipCount = CalcMipCount(s);
     const i32 elemCount = CalcMipOffset(s, mipCount) + 1;
 
-    Cubemap* cm = perm_calloc(sizeof(*cm));
     cm->size = size;
     cm->mipCount = mipCount;
     for (i32 i = 0; i < Cubeface_COUNT; ++i)
     {
         cm->faces[i] = perm_calloc(sizeof(cm->faces[0][0]) * elemCount);
     }
-    return cm;
 }
 
 void Cubemap_Del(Cubemap* cm)
@@ -33,7 +68,49 @@ void Cubemap_Del(Cubemap* cm)
             pim_free(cm->faces[i]);
         }
         memset(cm, 0, sizeof(*cm));
-        pim_free(cm);
+    }
+}
+
+void BCubemap_New(BCubemap* cm, i32 size)
+{
+    ASSERT(cm);
+    ASSERT(size >= 0);
+
+    cm->size = size;
+    for (i32 i = 0; i < Cubeface_COUNT; ++i)
+    {
+        trace_img_t img = { 0 };
+        trace_img_new(&img, i2_s(size));
+        cm->faces[i] = img;
+    }
+}
+
+void BCubemap_Del(BCubemap* cm)
+{
+    if (cm)
+    {
+        for (i32 i = 0; i < Cubeface_COUNT; ++i)
+        {
+            trace_img_del(cm->faces + i);
+        }
+        memset(cm, 0, sizeof(*cm));
+    }
+}
+
+void Cubemap_Cpy(const Cubemap* src, Cubemap* dst)
+{
+    ASSERT(src);
+    ASSERT(dst);
+    ASSERT(src->size == dst->size);
+    i32 len = CalcMipOffset(i2_s(src->size), src->mipCount) + 1;
+    for (i32 f = 0; f < Cubeface_COUNT; ++f)
+    {
+        const float4* pim_noalias srcTexels = src->faces[f];
+        float4* pim_noalias dstTexels = dst->faces[f];
+        for (i32 i = 0; i < len; ++i)
+        {
+            dstTexels[i] = srcTexels[i];
+        }
     }
 }
 
@@ -43,31 +120,26 @@ Cubeface VEC_CALL Cubemap_CalcUv(float4 dir, float2* uvOut)
 
     float4 absdir = f4_abs(dir);
     float v = f4_hmax3(absdir);
+    float ma = 0.5f / v;
 
-    float2 uv;
     Cubeface face;
     if (v == absdir.x)
     {
-        // z, y
-        uv.x = dir.z;
-        uv.y = dir.y;
-        face = dir.x > 0.0f ? Cubeface_XP : Cubeface_XM;
+        face = dir.x < 0.0f ? Cubeface_XM : Cubeface_XP;
     }
     else if (v == absdir.y)
     {
-        // x, z
-        uv.x = dir.x;
-        uv.y = dir.z;
-        face = dir.y > 0.0f ? Cubeface_YP : Cubeface_YM;
+        face = dir.y < 0.0f ? Cubeface_YM : Cubeface_YP;
     }
     else
     {
-        // -x, y
-        uv.x = -dir.x;
-        uv.y = dir.y;
-        face = dir.z > 0.0f ? Cubeface_ZP : Cubeface_ZM;
+        face = dir.z < 0.0f ? Cubeface_ZM : Cubeface_ZP;
     }
-    uv = f2_unorm(uv);
+
+    float2 uv;
+    uv.x = f4_dot3(kRights[face], dir);
+    uv.y = f4_dot3(kUps[face], dir);
+    uv = f2_addvs(f2_mulvs(uv, ma), 0.5f);
 
     *uvOut = uv;
     return face;
@@ -124,77 +196,17 @@ float4 VEC_CALL Cubemap_CalcDir(
     uv = f2_add(uv, Xi);
     uv = f2_snorm(uv);
 
-    float4 pos = f4_0;
+    float4 fwd = kForwards[face];
+    float4 right = kRights[face];
+    float4 up = kUps[face];
+    float4 dir = proj_dir(right, up, fwd, f2_1, uv);
 
-    switch (face)
-    {
-        default:
-            ASSERT(false);
-            break;
-
-        case Cubeface_XP:
-            pos.z = uv.x;
-            pos.y = uv.y;
-            pos.x = 1.0f;
-            break;
-        case Cubeface_XM:
-            pos.z = -uv.x;
-            pos.y = uv.y;
-            pos.x = -1.0f;
-            break;
-
-        case Cubeface_YP:
-            pos.x = uv.x;
-            pos.z = uv.y;
-            pos.y = 1.0f;
-            break;
-        case Cubeface_YM:
-            pos.x = uv.x;
-            pos.z = -uv.y;
-            pos.y = -1.0f;
-            break;
-
-        case Cubeface_ZP:
-            pos.x = -uv.x;
-            pos.y = uv.y;
-            pos.z = 1.0f;
-            break;
-        case Cubeface_ZM:
-            pos.x = uv.x;
-            pos.y = uv.y;
-            pos.z = -1.0f;
-            break;
-    }
-
-    return f4_normalize3(pos);
+    return dir;
 }
 
 float4 VEC_CALL Cubemap_FaceDir(Cubeface face)
 {
-    float4 N = f4_0;
-    switch (face)
-    {
-    default:
-    case Cubeface_XP:
-        N.x = 1.0f;
-        break;
-    case Cubeface_XM:
-        N.x = -1.0f;
-        break;
-    case Cubeface_YP:
-        N.y = 1.0f;
-        break;
-    case Cubeface_YM:
-        N.y = -1.0f;
-        break;
-    case Cubeface_ZP:
-        N.z = 1.0f;
-        break;
-    case Cubeface_ZM:
-        N.z = -1.0f;
-        break;
-    }
-    return N;
+    return kForwards[face];
 }
 
 void Cubemap_GenMips(Cubemap* cm)
@@ -236,45 +248,110 @@ void Cubemap_GenMips(Cubemap* cm)
     }
 }
 
-i32 Cubemap_Bake(
-    Cubemap* cm,
-    const struct pt_scene_s* scene,
+typedef struct cmbake_s
+{
+    task_t;
+    BCubemap* bakemap;
+    const pt_scene_t* scene;
+    float4 origin;
+    float weight;
+    i32 bounces;
+} cmbake_t;
+
+static void BakeFn(task_t* pBase, i32 begin, i32 end)
+{
+    cmbake_t* task = (cmbake_t*)pBase;
+
+    BCubemap* bakemap = task->bakemap;
+    const pt_scene_t* scene = task->scene;
+    const float4 origin = task->origin;
+    const float weight = task->weight;
+    const i32 bounces = task->bounces;
+
+    const i32 size = bakemap->size;
+    const i32 flen = size * size;
+
+    prng_t rng = prng_get();
+    for (i32 i = begin; i < end; ++i)
+    {
+        i32 face = i / flen;
+        i32 fi = i % flen;
+        int2 coord = { fi % size, fi / size };
+        float4 dir = Cubemap_CalcDir(size, face, coord, f2_tent(f2_rand(&rng)));
+        ray_t ray = { .ro = origin,.rd = dir };
+        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+        trace_img_t img = bakemap->faces[face];
+        img.colors[fi] = f3_lerp(img.colors[fi], result.color, weight);
+        img.albedos[fi] = f3_lerp(img.albedos[fi], result.albedo, weight);
+        img.normals[fi] = f3_lerp(img.normals[fi], result.normal, weight);
+    }
+    prng_set(rng);
+}
+
+ProfileMark(pm_Bake, Cubemap_Bake)
+task_t* Cubemap_Bake(
+    BCubemap* bakemap,
+    const pt_scene_t* scene,
     float4 origin,
-    i32 samples,
-    i32 prevSampleCount,
+    float weight,
     i32 bounces)
 {
-    ASSERT(cm);
+    ASSERT(bakemap);
     ASSERT(scene);
-    ASSERT(samples >= 0);
-    ASSERT(prevSampleCount >= 0);
+    ASSERT(weight > 0.0f);
     ASSERT(bounces >= 0);
 
-    ray_t ray = { .ro = origin };
-    pt_raygen_t* raygen = pt_raygen(scene, ray, ptdist_sphere, samples, bounces);
-    task_sys_schedule();
-    task_await((task_t*)raygen);
-
-    const int2 size = i2_s(cm->size);
-    const float4* pim_noalias directions = raygen->directions;
-    const float3* pim_noalias colors = raygen->colors;
-    for (i32 i = 0; i < samples; ++i)
+    i32 size = bakemap->size;
+    if (size > 0)
     {
-        const float weight = 1.0f / (1.0f + prevSampleCount);
-        float4 dir = directions[i];
-        float4 rad = { colors[i].x, colors[i].y, colors[i].z };
+        ProfileBegin(pm_Bake);
 
-        float2 uv;
-        Cubeface face = Cubemap_CalcUv(dir, &uv);
+        cmbake_t* task = tmp_calloc(sizeof(*task));
+        task->bakemap = bakemap;
+        task->scene = scene;
+        task->origin = origin;
+        task->weight = weight;
+        task->bounces = bounces;
 
-        float4* pim_noalias buffer = cm->faces[face];
-        ASSERT(buffer);
+        task_submit((task_t*)task, BakeFn, size * size * 6);
 
-        i32 offset = UvClamp(size, uv);
-        buffer[offset] = f4_lerpvs(buffer[offset], rad, weight);
+        ProfileEnd(pm_Bake);
+        return (task_t*)task;
     }
 
-    return samples + prevSampleCount;
+    return NULL;
+}
+
+static denoise_t ms_denoise;
+ProfileMark(pm_Denoise, Cubemap_Denoise)
+void Cubemap_Denoise(BCubemap* src, Cubemap* dst)
+{
+    ASSERT(src);
+    ASSERT(dst);
+
+    ProfileBegin(pm_Denoise);
+
+    if (!ms_denoise.device)
+    {
+        Denoise_New(&ms_denoise);
+    }
+
+    i32 size = dst->size;
+    i32 len = size * size;
+
+    float3* pim_noalias output = tmp_malloc(sizeof(output[0]) * len);
+    for (i32 i = 0; i < Cubeface_COUNT; ++i)
+    {
+        Denoise_Execute(&ms_denoise, DenoiseType_Image, src->faces[i], output);
+
+        float4* pim_noalias texels = dst->faces[i];
+        for (i32 j = 0; j < len; ++j)
+        {
+            texels[j] = f3_f4(output[j], 1.0f);
+        }
+    }
+
+    ProfileEnd(pm_Denoise);
 }
 
 static float4 VEC_CALL PrefilterEnvMap(
@@ -292,8 +369,8 @@ static float4 VEC_CALL PrefilterEnvMap(
     {
         float2 Xi = Hammersley2D(i, sampleCount);
         float4 H = TbnToWorld(TBN, SampleGGXMicrofacet(Xi, roughness));
-        const float4 L = f4_normalize3(f4_reflect3(f4_neg(N), H));
-        const float NoL = f4_dot3(L, N);
+        float4 L = f4_normalize3(f4_reflect3(f4_neg(N), H));
+        float NoL = f4_dot3(L, N);
         if (NoL > 0.0f)
         {
             float4 sample = Cubemap_Read(cm, L, 0.0f);
@@ -330,48 +407,62 @@ static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
     const i32 size = task->size;
     const i32 mip = task->mip;
     const i32 len = size * size;
-    const float roughness = (float)mip / (float)(mipCount - 1);
+    const float roughness = Cubemap_Mip2Rough((float)mip);
 
     for (i32 i = begin; i < end; ++i)
     {
         i32 face = i / len;
+        ASSERT(face < Cubeface_COUNT);
         i32 fi = i % len;
         int2 coord = { fi % size, fi / size };
 
         float4 N = Cubemap_CalcDir(size, face, coord, f2_0);
         float3x3 TBN = NormalToTBN(N);
+
         float4 light = PrefilterEnvMap(src, TBN, N, sampleCount, roughness);
         Cubemap_WriteMip(dst, face, coord, mip, light);
     }
 }
 
+ProfileMark(pm_Prefilter, Cubemap_Prefilter)
 void Cubemap_Prefilter(const Cubemap* src, Cubemap* dst, u32 sampleCount)
 {
     ASSERT(src);
     ASSERT(dst);
 
-    const i32 mipCount = i1_min(5, i1_min(src->mipCount, dst->mipCount));
+    ProfileBegin(pm_Prefilter);
+
+    const i32 mipCount = i1_min(7, i1_min(src->mipCount, dst->mipCount));
     const i32 size = i1_min(src->size, dst->size);
 
-    prefilter_t* last = NULL;
+    task_t** tasks = tmp_calloc(sizeof(tasks[0]) * mipCount);
     for (i32 m = 0; m < mipCount; ++m)
     {
         i32 mSize = size >> m;
-        i32 len = mSize * mSize * 6;
+        i32 len = mSize * mSize * Cubeface_COUNT;
 
-        prefilter_t* task = tmp_calloc(sizeof(*task));
-        task->src = src;
-        task->dst = dst;
-        task->mip = m;
-        task->size = mSize;
-        task->sampleCount = sampleCount;
-        task_submit((task_t*)task, PrefilterFn, len);
-        last = task;
+        if (len > 0)
+        {
+            prefilter_t* task = tmp_calloc(sizeof(*task));
+            task->src = src;
+            task->dst = dst;
+            task->mip = m;
+            task->size = mSize;
+            task->sampleCount = sampleCount;
+            task_submit((task_t*)task, PrefilterFn, len);
+            tasks[m] = (task_t*)task;
+        }
     }
 
-    if (last)
+    task_sys_schedule();
+
+    for (i32 m = 0; m < mipCount; ++m)
     {
-        task_sys_schedule();
-        task_await((task_t*)last);
+        if (tasks[m])
+        {
+            task_await(tasks[m]);
+        }
     }
+
+    ProfileEnd(pm_Prefilter);
 }

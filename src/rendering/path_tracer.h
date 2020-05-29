@@ -78,6 +78,9 @@ typedef struct pt_raygen_s
     i32 bounces;
 } pt_raygen_t;
 
+void trace_img_new(trace_img_t* img, int2 size);
+void trace_img_del(trace_img_t* img);
+
 // creates a scene from the current contents of the ECS
 pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth);
 void pt_scene_del(pt_scene_t* scene);

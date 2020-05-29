@@ -1,15 +1,22 @@
 #pragma once
 
 #include "common/macro.h"
+#include "components/table.h"
+#include "threading/task.h"
+#include "rendering/camera.h"
+#include "rendering/framebuffer.h"
 
 PIM_C_BEGIN
 
-struct table_s* Drawables_New(struct tables_s* tables);
-void Drawables_Del(struct tables_s* tables);
-struct table_s* Drawables_Get(struct tables_s* tables);
+table_t* Drawables_New(tables_t* tables);
+void Drawables_Del(tables_t* tables);
+table_t* Drawables_Get(tables_t* tables);
 
-struct task_s* Drawables_TRS(struct tables_s* tables);
-struct task_s* Drawables_Bounds(struct tables_s* tables);
-struct task_s* Drawables_Cull(struct tables_s* tables, const struct camera_s* camera, const struct framebuf_s* backBuf);
+task_t* Drawables_TRS(tables_t* tables);
+task_t* Drawables_Bounds(tables_t* tables);
+task_t* Drawables_Cull(
+    tables_t* tables,
+    const camera_t* camera,
+    const framebuf_t* backBuf);
 
 PIM_C_END

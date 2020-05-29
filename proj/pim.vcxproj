@@ -27,6 +27,7 @@
     <ClCompile Include="..\src\common\sort.c" />
     <ClCompile Include="..\src\common\stringutil.c" />
     <ClCompile Include="..\src\common\time.c" />
+    <ClCompile Include="..\src\components\cubemaps.c" />
     <ClCompile Include="..\src\components\drawables.c" />
     <ClCompile Include="..\src\components\table.c" />
     <ClCompile Include="..\src\containers\dict.c" />
@@ -125,6 +126,7 @@
     <ClInclude Include="..\src\common\unroll.h" />
     <ClInclude Include="..\src\common\valist.h" />
     <ClInclude Include="..\src\components\components.h" />
+    <ClInclude Include="..\src\components\cubemaps.h" />
     <ClInclude Include="..\src\components\drawables.h" />
     <ClInclude Include="..\src\components\table.h" />
     <ClInclude Include="..\src\containers\carray.h" />

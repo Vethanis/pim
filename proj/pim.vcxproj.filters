@@ -361,6 +361,9 @@
     <ClCompile Include="..\src\rendering\spheremap.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\components\cubemaps.c">
+      <Filter>Source Files\components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -773,6 +776,9 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\spheremap.h">
       <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\components\cubemaps.h">
+      <Filter>Source Files\components</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

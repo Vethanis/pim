@@ -2,6 +2,8 @@
 
 #include "common/macro.h"
 #include "math/types.h"
+#include "rendering/path_tracer.h"
+#include "threading/task.h"
 
 PIM_C_BEGIN
 
@@ -21,12 +23,9 @@ float4 VEC_CALL SphereMap_Read(const SphereMap* map, float4 dir);
 void VEC_CALL SphereMap_Write(SphereMap* map, float4 dir, float4 color);
 
 void VEC_CALL SphereMap_Fit(SphereMap* map, float4 dir, float4 color, float weight);
-struct task_s* SphereMap_Bake(
-    const struct pt_scene_s* scene,
-    int2 size,
-    float3* colors,
-    float3* albedos,
-    float3* normals,
+task_t* SphereMap_Bake(
+    const pt_scene_t* scene,
+    trace_img_t img,
     float4 origin,
     float weight,
     i32 bounces);

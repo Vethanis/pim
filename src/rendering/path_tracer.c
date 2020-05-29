@@ -23,6 +23,8 @@
 #include "threading/task.h"
 #include "common/random.h"
 
+#include <string.h>
+
 typedef enum
 {
     hit_nothing = 0,
@@ -185,6 +187,31 @@ static bool InsertTriangle(
         }
     }
     return false;
+}
+
+void trace_img_new(trace_img_t* img, int2 size)
+{
+    ASSERT(img);
+    ASSERT(size.x >= 0);
+    ASSERT(size.y >= 0);
+    ASSERT(size.x * size.y >= 0);
+
+    i32 len = size.x * size.y;
+    img->size = size;
+    img->colors = perm_calloc(sizeof(img->colors[0]) * len);
+    img->albedos = perm_calloc(sizeof(img->albedos[0]) * len);
+    img->normals = perm_calloc(sizeof(img->normals[0]) * len);
+}
+
+void trace_img_del(trace_img_t* img)
+{
+    if (img)
+    {
+        pim_free(img->colors);
+        pim_free(img->albedos);
+        pim_free(img->normals);
+        memset(img, 0, sizeof(*img));
+    }
 }
 
 pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth)
@@ -666,7 +693,6 @@ task_t* pt_trace(pt_trace_t* desc)
 {
     ASSERT(desc);
     ASSERT(desc->scene);
-    ASSERT(desc->color);
     ASSERT(desc->camera);
 
     trace_task_t* task = tmp_calloc(sizeof(*task));

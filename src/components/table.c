@@ -63,7 +63,7 @@ table_t* tables_add(tables_t* tables, u32 hash)
         tables->hashes = perm_realloc(tables->hashes, sizeof(tables->hashes[0]) * len);
         tables->tables = perm_realloc(tables->tables, sizeof(tables->tables[0]) * len);
 
-        table = table_new();
+        table = table_new(hash);
         tables->hashes[len - 1] = hash;
         tables->tables[len - 1] = table;
     }
@@ -92,9 +92,11 @@ bool tables_rm(tables_t* tables, u32 hash)
 // ----------------------------------------------------------------------------
 // Table API
 
-table_t* table_new(void)
+table_t* table_new(u32 nameHash)
 {
+    ASSERT(nameHash);
     table_t* table = perm_calloc(sizeof(table_t));
+    table->hash = nameHash;
     idtable_new(&(table->colidt), EAlloc_Perm);
     return table;
 }
@@ -197,25 +199,26 @@ void* table_row(table_t* table, u32 typeHash, i32 typeSize)
 // ----------------------------------------------------------------------------
 // Column API
 
-i32 col_get(const table_t* table, u32 id)
+i32 col_get(const table_t* table, ent_t ent)
 {
     ASSERT(table);
-    ASSERT(id);
+    ASSERT(ent.id);
+    ASSERT(table->hash == ent.table);
 
     i32 index;
-    if (idtable_get(&(table->colidt), id, &index))
+    if (idtable_get(&(table->colidt), ent.id, &index))
     {
         return index;
     }
     return -1;
 }
 
-bool col_has(const table_t* table, u32 id)
+bool col_has(const table_t* table, ent_t ent)
 {
-    return col_get(table, id) != -1;
+    return col_get(table, ent) != -1;
 }
 
-i32 col_add(table_t* table, u32* idOut)
+i32 col_add(table_t* table, ent_t* entOut)
 {
     ASSERT(table);
 
@@ -248,25 +251,27 @@ i32 col_add(table_t* table, u32* idOut)
         return -1;
     }
 
-    if (idOut)
+    if (entOut)
     {
-        *idOut = id;
+        entOut->id = id;
+        entOut->table = table->hash;
     }
     return e;
 }
 
-bool col_rm(table_t* table, u32 id)
+bool col_rm(table_t* table, ent_t ent)
 {
     ASSERT(table);
+    ASSERT(table->hash == ent.table);
 
     i32 e;
-    if (idtable_rm(&(table->colidt), id, &e))
+    if (idtable_rm(&(table->colidt), ent.id, &e))
     {
         const i32 b = table->columnct - 1;
         table->columnct = b;
 
         const u32 idb = table->ids[b];
-        ASSERT(id == table->ids[e]);
+        ASSERT(ent.id == table->ids[e]);
         table->ids[e] = idb;
 
         if (!idtable_set(&(table->colidt), idb, e))

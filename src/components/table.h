@@ -9,6 +9,12 @@ PIM_C_BEGIN
 #define TYPE_NAME(T) #T
 #define TYPE_ARGS(T) T##_hash, sizeof(T)
 
+typedef struct ent_s
+{
+    u32 table;
+    u32 id;
+} ent_t;
+
 typedef struct row_s
 {
     u8* ptr;
@@ -18,6 +24,7 @@ typedef struct row_s
 
 typedef struct table_s
 {
+    u32 hash;           // hashname of table
     i32 rowct;          // number of rows per table
     i32 columnct;       // number of columns per row
     u32* ids;           // id for each column / entity
@@ -50,7 +57,7 @@ bool tables_rm(tables_t* tables, u32 hash);
 // ----------------------------------------------------------------------------
 // Table API
 
-table_t* table_new(void);
+table_t* table_new(u32 nameHash);
 void table_del(table_t* table);
 
 row_t* table_get(table_t* table, u32 typeHash);
@@ -67,10 +74,10 @@ static i32 table_height(const table_t* table) { return table->rowct; }
 // ----------------------------------------------------------------------------
 // Column API
 
-i32 col_get(const table_t* table, u32 id);
-bool col_has(const table_t* table, u32 id);
-i32 col_add(table_t* table, u32* idOut);
-bool col_rm(table_t* table, u32 id);
+i32 col_get(const table_t* table, ent_t ent);
+bool col_has(const table_t* table, ent_t ent);
+i32 col_add(table_t* table, ent_t* entOut);
+bool col_rm(table_t* table, ent_t ent);
 
 // ----------------------------------------------------------------------------
 // Row API

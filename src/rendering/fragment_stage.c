@@ -28,6 +28,7 @@
 
 #include "components/table.h"
 #include "components/drawables.h"
+#include "components/cubemaps.h"
 #include "components/components.h"
 
 static cvar_t cv_gi_dbg_diff = { cvart_bool, 0, "gi_dbg_diff", "0", "view ambient cube with normal vector" };
@@ -42,7 +43,7 @@ typedef struct fragstage_s
     task_t task;
     framebuf_t* frontBuf;
     const framebuf_t* backBuf;
-    table_t* table;
+    tables_t* tables;
 } fragstage_t;
 
 typedef struct tile_ctx_s
@@ -64,45 +65,52 @@ typedef struct tile_ctx_s
 
 static BrdfLut ms_lut;
 static AmbCube_t ms_ambcube;
-static Cubemap* ms_envMap;
-static Cubemap* ms_convMap;
 static SphereMap ms_sphereMap;
 
 AmbCube_t VEC_CALL AmbCube_Get(void) { return ms_ambcube; };
 void VEC_CALL AmbCube_Set(AmbCube_t cube) { ms_ambcube = cube; }
 
-Cubemap* EnvMap_Get(void) { return ms_envMap; }
-Cubemap* ConvMap_Get(void) { return ms_convMap; }
 struct SphereMap_s* SphereMap_Get() { return &ms_sphereMap; }
 
 static void EnsureInit(void);
 static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf);
 static float4 VEC_CALL TriBounds(float4x4 VP, float4 A, float4 B, float4 C, float2 tileMin, float2 tileMax);
-static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const drawable_t* drawable);
+static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const drawable_t* drawable, const Cubemap* cm);
+static i32 VEC_CALL FindBounds(bounds_t self, const bounds_t* others, i32 len);
 
 pim_optimize
 static void FragmentStageFn(task_t* task, i32 begin, i32 end)
 {
     fragstage_t* stage = (fragstage_t*)task;
 
-    table_t* table = stage->table;
-    ASSERT(table);
-    const i32 drawCount = table_width(table);
-    const drawable_t* drawables = table_row(table, TYPE_ARGS(drawable_t));
+    tables_t* tables = stage->tables;
+    ASSERT(tables);
+
+    table_t* cmTable = Cubemaps_Get(tables);
+    const i32 cubemapCount = table_width(cmTable);
+    const Cubemap* cubemaps = table_row(cmTable, TYPE_ARGS(Cubemap));
+    const bounds_t* cubeBounds = table_row(cmTable, TYPE_ARGS(bounds_t));
+
+    table_t* drawTable = Drawables_Get(tables);
+    const i32 drawCount = table_width(drawTable);
+    const drawable_t* drawables = table_row(drawTable, TYPE_ARGS(drawable_t));
+    const bounds_t* drawBounds = table_row(drawTable, TYPE_ARGS(bounds_t));
 
     tile_ctx_t ctx;
-    for (i32 i = begin; i < end; ++i)
+    for (i32 iTile = begin; iTile < end; ++iTile)
     {
-        SetupTile(&ctx, i, stage->backBuf);
+        SetupTile(&ctx, iTile, stage->backBuf);
 
         u64 tilemask = 1;
-        tilemask <<= i;
+        tilemask <<= iTile;
 
-        for (i32 j = 0; j < drawCount; ++j)
+        for (i32 iDraw = 0; iDraw < drawCount; ++iDraw)
         {
-            if (drawables[j].tilemask & tilemask)
+            if (drawables[iDraw].tilemask & tilemask)
             {
-                DrawMesh(&ctx, stage->frontBuf, drawables + j);
+                i32 iCube = FindBounds(drawBounds[iDraw], cubeBounds, cubemapCount);
+                const Cubemap* cm = iCube >= 0 ? cubemaps + iCube : NULL;
+                DrawMesh(&ctx, stage->frontBuf, drawables + iDraw, cm);
             }
         }
     }
@@ -121,8 +129,6 @@ static void EnsureInit(void)
 
         ms_lut = BakeBRDF(i2_s(256), 1024);
 
-        ms_envMap = Cubemap_New(64);
-        ms_convMap = Cubemap_New(64);
         SphereMap_New(&ms_sphereMap, i2_s(256));
     }
 }
@@ -138,23 +144,16 @@ task_t* Drawables_Fragment(
     ASSERT(frontBuf);
     ASSERT(backBuf);
 
-    task_t* result = NULL;
-
     EnsureInit();
 
-    table_t* table = Drawables_Get(tables);
-    if (table)
-    {
-        fragstage_t* stage = tmp_calloc(sizeof(*stage));
-        stage->frontBuf = frontBuf;
-        stage->backBuf = backBuf;
-        stage->table = table;
-        task_submit((task_t*)stage, FragmentStageFn, kTileCount);
-        result = (task_t*)stage;
-    }
+    fragstage_t* task = tmp_calloc(sizeof(*task));
+    task->frontBuf = frontBuf;
+    task->backBuf = backBuf;
+    task->tables = tables;
+    task_submit((task_t*)task, FragmentStageFn, kTileCount);
 
     ProfileEnd(pm_FragmentStage);
-    return result;
+    return (task_t*)task;
 }
 
 pim_optimize
@@ -210,7 +209,11 @@ static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf)
 }
 
 pim_optimize
-static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const drawable_t* drawable)
+static void VEC_CALL DrawMesh(
+    const tile_ctx_t* ctx,
+    framebuf_t* target,
+    const drawable_t* drawable,
+    const Cubemap* cm)
 {
     mesh_t mesh;
     texture_t albedoMap = { 0 };
@@ -232,7 +235,6 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
     const float e = 1.0f / (1 << 10);
 
     const BrdfLut lut = ms_lut;
-    const Cubemap* cm = ms_convMap;
     const float4 flatAlbedo = ColorToLinear(drawable->material.flatAlbedo);
     const float4 flatRome = ColorToLinear(drawable->material.flatRome);
     texture_get(drawable->material.albedo, &albedoMap);
@@ -362,10 +364,10 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                         rome = f4_mul(rome,
                             UvBilinearWrap_c32(romeMap.texels, romeMap.size, U));
                     }
-                    const float mip = rome.x * 4.0f;
+                    const float mip = Cubemap_Rough2Mip(rome.x);
                     {
-                        float4 specularGI;
-                        float4 diffuseGI;
+                        float4 specularGI = f4_0;
+                        float4 diffuseGI = f4_0;
 
                         diffuseGI = AmbCube_Irradiance(ms_ambcube, N);
                         if (useSpheremap)
@@ -374,7 +376,10 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                         }
                         else
                         {
-                            specularGI = Cubemap_Read(cm, R, mip);
+                            if (cm)
+                            {
+                                specularGI = Cubemap_Read(cm, R, mip);
+                            }
                         }
                         const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
                         lighting = f4_add(lighting, indirect);
@@ -410,7 +415,10 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                         }
                         else
                         {
-                            lighting = Cubemap_Read(cm, I, mip);
+                            if (cm)
+                            {
+                                lighting = Cubemap_Read(cm, I, mip);
+                            }
                         }
                     }
                     else if (dbgdiffGI)
@@ -425,7 +433,10 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
                         }
                         else
                         {
-                            lighting = Cubemap_Read(cm, R, mip);
+                            if (cm)
+                            {
+                                lighting = Cubemap_Read(cm, R, mip);
+                            }
                         }
                     }
                 }
@@ -434,4 +445,24 @@ static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const d
             }
         }
     }
+}
+
+static i32 VEC_CALL FindBounds(bounds_t self, const bounds_t* others, i32 len)
+{
+    i32 chosen = -1;
+    float chosenDist = 1 << 20;
+    float4 a = self.Value.value;
+    float ar2 = a.w * a.w;
+    for (i32 i = 0; i < len; ++i)
+    {
+        float4 b = others[i].Value.value;
+        float br2 = b.w * b.w;
+        float dist = f4_distancesq3(a, b) - ar2 - br2;
+        if (dist < chosenDist)
+        {
+            chosen = i;
+            chosenDist = dist;
+        }
+    }
+    return chosen;
 }

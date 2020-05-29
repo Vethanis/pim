@@ -78,10 +78,7 @@ typedef struct smbake_s
 {
     task_t task;
     const pt_scene_t* scene;
-    int2 size;
-    float3* colors;
-    float3* albedos;
-    float3* normals;
+    trace_img_t img;
     float4 origin;
     float weight;
     i32 bounces;
@@ -94,10 +91,11 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
     const float4 origin = task->origin;
     const float weight = task->weight;
     const i32 bounces = task->bounces;
-    const int2 size = task->size;
-    float3* pim_noalias colors = task->colors;
-    float3* pim_noalias albedos = task->albedos;
-    float3* pim_noalias normals = task->normals;
+    trace_img_t img = task->img;
+    const int2 size = img.size;
+    float3* pim_noalias colors = img.colors;
+    float3* pim_noalias albedos = img.albedos;
+    float3* pim_noalias normals = img.normals;
 
     prng_t rng = prng_get();
     for (i32 i = begin; i < end; ++i)
@@ -119,31 +117,23 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
     prng_set(rng);
 }
 
-struct task_s* SphereMap_Bake(
-    const struct pt_scene_s* scene,
-    int2 size,
-    float3* colors,
-    float3* albedos,
-    float3* normals,
+task_t* SphereMap_Bake(
+    const pt_scene_t* scene,
+    trace_img_t img,
     float4 origin,
     float weight,
     i32 bounces)
 {
     ASSERT(scene);
-    ASSERT(map);
-    ASSERT(map->texels);
     ASSERT(weight >= 0.0f);
     ASSERT(bounces >= 0);
 
-    const i32 len = size.x * size.y;
+    const i32 len = img.size.x * img.size.y;
     ASSERT(len >= 0);
 
     smbake_t* task = tmp_calloc(sizeof(*task));
     task->bounces = bounces;
-    task->size = size;
-    task->colors = colors;
-    task->albedos = albedos;
-    task->normals = normals;
+    task->img = img;
     task->origin = origin;
     task->scene = scene;
     task->weight = weight;

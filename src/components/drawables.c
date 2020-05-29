@@ -14,7 +14,7 @@
 // HashStr("Drawables"); see tools/prehash.py
 static const u32 drawables_hash = 3322283348u;
 
-table_t* Drawables_New(struct tables_s* tables)
+table_t* Drawables_New(tables_t* tables)
 {
     table_t* table = tables_add(tables, drawables_hash);
     table_add(table, TYPE_ARGS(drawable_t));
@@ -26,9 +26,9 @@ table_t* Drawables_New(struct tables_s* tables)
     return table;
 }
 
-void Drawables_Del(struct tables_s* tables)
+void Drawables_Del(tables_t* tables)
 {
-    table_t* table = tables_get(tables, drawables_hash);
+    table_t* table = Drawables_Get(tables);
     if (table)
     {
         const i32 len = table_width(table);
@@ -49,7 +49,7 @@ void Drawables_Del(struct tables_s* tables)
     }
 }
 
-table_t* Drawables_Get(struct tables_s* tables)
+table_t* Drawables_Get(tables_t* tables)
 {
     return tables_get(tables, drawables_hash);
 }
@@ -79,7 +79,7 @@ static void TRSFn(task_t* pBase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_TRS, Drawables_TRS)
-task_t* Drawables_TRS(struct tables_s* tables)
+task_t* Drawables_TRS(tables_t* tables)
 {
     ProfileBegin(pm_TRS);
     task_t* result = NULL;
@@ -134,7 +134,7 @@ static void BoundsFn(task_t* pBase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_Bounds, Drawables_Bounds)
-task_t* Drawables_Bounds(struct tables_s* tables)
+task_t* Drawables_Bounds(tables_t* tables)
 {
     ProfileBegin(pm_Bounds);
 
@@ -220,9 +220,9 @@ static void CullFn(task_t* pBase, i32 begin, i32 end)
 ProfileMark(pm_Cull, Drawables_Cull)
 pim_optimize
 task_t* Drawables_Cull(
-    struct tables_s* tables,
-    const struct camera_s* camera,
-    const struct framebuf_s* backBuf)
+    tables_t* tables,
+    const camera_t* camera,
+    const framebuf_t* backBuf)
 {
     ProfileBegin(pm_Cull);
     ASSERT(camera);
