@@ -25,11 +25,7 @@
 #include "rendering/lights.h"
 #include "rendering/cubemap.h"
 #include "rendering/spheremap.h"
-
-#include "components/table.h"
-#include "components/drawables.h"
-#include "components/cubemaps.h"
-#include "components/components.h"
+#include "rendering/drawable.h"
 
 static cvar_t cv_gi_dbg_diff = { cvart_bool, 0, "gi_dbg_diff", "0", "view ambient cube with normal vector" };
 static cvar_t cv_gi_dbg_spec = { cvart_bool, 0, "gi_dbg_spec", "0", "view cubemap with reflect vector" };
@@ -43,7 +39,6 @@ typedef struct fragstage_s
     task_t task;
     framebuf_t* frontBuf;
     const framebuf_t* backBuf;
-    tables_t* tables;
 } fragstage_t;
 
 typedef struct tile_ctx_s
@@ -75,26 +70,23 @@ struct SphereMap_s* SphereMap_Get() { return &ms_sphereMap; }
 static void EnsureInit(void);
 static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf);
 static float4 VEC_CALL TriBounds(float4x4 VP, float4 A, float4 B, float4 C, float2 tileMin, float2 tileMax);
-static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, const drawable_t* drawable, const Cubemap* cm);
-static i32 VEC_CALL FindBounds(bounds_t self, const bounds_t* others, i32 len);
+static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, i32 iDraw, const Cubemap* cm);
+static i32 VEC_CALL FindBounds(sphere_t self, const sphere_t* pim_noalias others, i32 len);
 
 pim_optimize
 static void FragmentStageFn(task_t* task, i32 begin, i32 end)
 {
     fragstage_t* stage = (fragstage_t*)task;
 
-    tables_t* tables = stage->tables;
-    ASSERT(tables);
+    const Cubemaps_t* cubeTable = Cubemaps_Get();
+    const i32 cubemapCount = cubeTable->count;
+    const Cubemap* pim_noalias convmaps = cubeTable->convmaps;
+    const sphere_t* pim_noalias cubeBounds = cubeTable->bounds;
 
-    table_t* cmTable = Cubemaps_Get(tables);
-    const i32 cubemapCount = table_width(cmTable);
-    const Cubemap* cubemaps = table_row(cmTable, TYPE_ARGS(Cubemap));
-    const bounds_t* cubeBounds = table_row(cmTable, TYPE_ARGS(bounds_t));
-
-    table_t* drawTable = Drawables_Get(tables);
-    const i32 drawCount = table_width(drawTable);
-    const drawable_t* drawables = table_row(drawTable, TYPE_ARGS(drawable_t));
-    const bounds_t* drawBounds = table_row(drawTable, TYPE_ARGS(bounds_t));
+    const drawables_t* drawTable = drawables_get();
+    const i32 drawCount = drawTable->count;
+    const u64* pim_noalias tileMasks = drawTable->tileMasks;
+    const sphere_t* pim_noalias drawBounds = drawTable->bounds;
 
     tile_ctx_t ctx;
     for (i32 iTile = begin; iTile < end; ++iTile)
@@ -106,11 +98,11 @@ static void FragmentStageFn(task_t* task, i32 begin, i32 end)
 
         for (i32 iDraw = 0; iDraw < drawCount; ++iDraw)
         {
-            if (drawables[iDraw].tilemask & tilemask)
+            if (tileMasks[iDraw] & tilemask)
             {
                 i32 iCube = FindBounds(drawBounds[iDraw], cubeBounds, cubemapCount);
-                const Cubemap* cm = iCube >= 0 ? cubemaps + iCube : NULL;
-                DrawMesh(&ctx, stage->frontBuf, drawables + iDraw, cm);
+                const Cubemap* cm = iCube >= 0 ? convmaps + iCube : NULL;
+                DrawMesh(&ctx, stage->frontBuf, iDraw, cm);
             }
         }
     }
@@ -135,12 +127,10 @@ static void EnsureInit(void)
 
 ProfileMark(pm_FragmentStage, Drawables_Fragment)
 task_t* Drawables_Fragment(
-    struct tables_s* tables,
-    struct framebuf_s* frontBuf,
-    const struct framebuf_s* backBuf)
+    framebuf_t* frontBuf,
+    const framebuf_t* backBuf)
 {
     ProfileBegin(pm_FragmentStage);
-    ASSERT(tables);
     ASSERT(frontBuf);
     ASSERT(backBuf);
 
@@ -149,7 +139,6 @@ task_t* Drawables_Fragment(
     fragstage_t* task = tmp_calloc(sizeof(*task));
     task->frontBuf = frontBuf;
     task->backBuf = backBuf;
-    task->tables = tables;
     task_submit((task_t*)task, FragmentStageFn, kTileCount);
 
     ProfileEnd(pm_FragmentStage);
@@ -212,13 +201,15 @@ pim_optimize
 static void VEC_CALL DrawMesh(
     const tile_ctx_t* ctx,
     framebuf_t* target,
-    const drawable_t* drawable,
+    i32 iDraw,
     const Cubemap* cm)
 {
+    const drawables_t* drawTable = drawables_get();
+
     mesh_t mesh;
     texture_t albedoMap = { 0 };
     texture_t romeMap = { 0 };
-    if (!mesh_get(drawable->tmpmesh, &mesh))
+    if (!mesh_get(drawTable->tmpMeshes[iDraw], &mesh))
     {
         return;
     }
@@ -235,10 +226,11 @@ static void VEC_CALL DrawMesh(
     const float e = 1.0f / (1 << 10);
 
     const BrdfLut lut = ms_lut;
-    const float4 flatAlbedo = ColorToLinear(drawable->material.flatAlbedo);
-    const float4 flatRome = ColorToLinear(drawable->material.flatRome);
-    texture_get(drawable->material.albedo, &albedoMap);
-    texture_get(drawable->material.rome, &romeMap);
+    const material_t material = drawTable->materials[iDraw];
+    const float4 flatAlbedo = ColorToLinear(material.flatAlbedo);
+    const float4 flatRome = ColorToLinear(material.flatRome);
+    texture_get(material.albedo, &albedoMap);
+    texture_get(material.rome, &romeMap);
 
     const float4 eye = ctx->eye;
     const float4 fwd = ctx->fwd;
@@ -447,15 +439,15 @@ static void VEC_CALL DrawMesh(
     }
 }
 
-static i32 VEC_CALL FindBounds(bounds_t self, const bounds_t* others, i32 len)
+static i32 VEC_CALL FindBounds(sphere_t self, const sphere_t* pim_noalias others, i32 len)
 {
     i32 chosen = -1;
     float chosenDist = 1 << 20;
-    float4 a = self.Value.value;
+    float4 a = self.value;
     float ar2 = a.w * a.w;
     for (i32 i = 0; i < len; ++i)
     {
-        float4 b = others[i].Value.value;
+        float4 b = others[i].value;
         float br2 = b.w * b.w;
         float dist = f4_distancesq3(a, b) - ar2 - br2;
         if (dist < chosenDist)

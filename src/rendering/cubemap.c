@@ -11,6 +11,7 @@
 #include "math/frustum.h"
 #include "rendering/denoise.h"
 #include "common/profiler.h"
+#include "common/find.h"
 #include <string.h>
 
 static const float4 kForwards[] =
@@ -42,6 +43,55 @@ static const float4 kRights[] =
     {1.0f, 0.0f, 0.0f},
     {-1.0f, 0.0f, 0.0f},
 };
+
+static Cubemaps_t ms_cubemaps;
+
+Cubemaps_t* Cubemaps_Get(void) { return &ms_cubemaps; }
+
+i32 Cubemaps_Add(u32 name, i32 size, sphere_t bounds)
+{
+    const i32 back = ms_cubemaps.count;
+    const i32 len = back + 1;
+    ms_cubemaps.count = len;
+
+    PermGrow(ms_cubemaps.names, len);
+    PermGrow(ms_cubemaps.bounds, len);
+    PermGrow(ms_cubemaps.convmaps, len);
+    PermGrow(ms_cubemaps.bakemaps, len);
+
+    ms_cubemaps.names[back] = name;
+    ms_cubemaps.bounds[back] = bounds;
+    Cubemap_New(ms_cubemaps.convmaps + back, size);
+    BCubemap_New(ms_cubemaps.bakemaps + back, size);
+
+    return back;
+}
+
+bool Cubemaps_Rm(u32 name)
+{
+    const i32 i = Cubemaps_Find(name);
+    if (i == -1)
+    {
+        return false;
+    }
+
+    Cubemap_Del(ms_cubemaps.convmaps + i);
+    BCubemap_Del(ms_cubemaps.bakemaps + i);
+    const i32 len = ms_cubemaps.count;
+    ms_cubemaps.count = len - 1;
+
+    PopSwap(ms_cubemaps.names, i, len);
+    PopSwap(ms_cubemaps.bounds, i, len);
+    PopSwap(ms_cubemaps.convmaps, i, len);
+    PopSwap(ms_cubemaps.bakemaps, i, len);
+
+    return true;
+}
+
+i32 Cubemaps_Find(u32 name)
+{
+    return Find_u32(ms_cubemaps.names, ms_cubemaps.count, name);
+}
 
 void Cubemap_New(Cubemap* cm, i32 size)
 {
@@ -97,6 +147,7 @@ void BCubemap_Del(BCubemap* cm)
     }
 }
 
+pim_optimize
 void Cubemap_Cpy(const Cubemap* src, Cubemap* dst)
 {
     ASSERT(src);
@@ -114,6 +165,7 @@ void Cubemap_Cpy(const Cubemap* src, Cubemap* dst)
     }
 }
 
+pim_optimize
 Cubeface VEC_CALL Cubemap_CalcUv(float4 dir, float2* uvOut)
 {
     ASSERT(uvOut);
@@ -145,6 +197,7 @@ Cubeface VEC_CALL Cubemap_CalcUv(float4 dir, float2* uvOut)
     return face;
 }
 
+pim_optimize
 float4 VEC_CALL Cubemap_Read(const Cubemap* cm, float4 dir, float mip)
 {
     ASSERT(cm);
@@ -160,6 +213,7 @@ float4 VEC_CALL Cubemap_Read(const Cubemap* cm, float4 dir, float mip)
     return TrilinearClamp_f4(buffer, size, uv, mip);
 }
 
+pim_optimize
 void VEC_CALL Cubemap_Write(Cubemap* cm, Cubeface face, int2 coord, float4 value)
 {
     ASSERT(cm);
@@ -168,6 +222,7 @@ void VEC_CALL Cubemap_Write(Cubemap* cm, Cubeface face, int2 coord, float4 value
     Write_f4(buffer, i2_s(cm->size), coord, value);
 }
 
+pim_optimize
 void VEC_CALL Cubemap_WriteMip(
     Cubemap* cm,
     Cubeface face,
@@ -188,6 +243,7 @@ void VEC_CALL Cubemap_WriteMip(
     Write_f4(buffer, mipSize, coord, value);
 }
 
+pim_optimize
 float4 VEC_CALL Cubemap_CalcDir(
     i32 size, Cubeface face, int2 coord, float2 Xi)
 {
@@ -204,11 +260,13 @@ float4 VEC_CALL Cubemap_CalcDir(
     return dir;
 }
 
+pim_optimize
 float4 VEC_CALL Cubemap_FaceDir(Cubeface face)
 {
     return kForwards[face];
 }
 
+pim_optimize
 void Cubemap_GenMips(Cubemap* cm)
 {
     ASSERT(cm);
@@ -258,6 +316,7 @@ typedef struct cmbake_s
     i32 bounces;
 } cmbake_t;
 
+pim_optimize
 static void BakeFn(task_t* pBase, i32 begin, i32 end)
 {
     cmbake_t* task = (cmbake_t*)pBase;
@@ -354,6 +413,7 @@ void Cubemap_Denoise(BCubemap* src, Cubemap* dst)
     ProfileEnd(pm_Denoise);
 }
 
+pim_optimize
 static float4 VEC_CALL PrefilterEnvMap(
     const Cubemap* cm,
     float3x3 TBN,
@@ -396,6 +456,7 @@ typedef struct prefilter_s
     u32 sampleCount;
 } prefilter_t;
 
+pim_optimize
 static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
 {
     prefilter_t* task = (prefilter_t*)pBase;

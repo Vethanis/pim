@@ -8,8 +8,7 @@
 #include "common/profiler.h"
 #include "common/cvar.h"
 #include "rendering/lights.h"
-#include "components/cubemaps.h"
-#include "components/components.h"
+#include "rendering/cubemap.h"
 
 static float ms_pitchScale = 720.0f;
 static float ms_yawScale = 720.0f;
@@ -50,20 +49,16 @@ static void LightLogic(const camera_t* cam)
 static void CubemapLogic(const camera_t* cam)
 {
     float4 pos = cam->position;
-    tables_t* tables = tables_main();
-    table_t* table = Cubemaps_Get(tables);
-    if (table)
+    Cubemaps_t* cubemaps = Cubemaps_Get();
+    i32 len = cubemaps->count;
+    sphere_t* bounds = cubemaps->bounds;
+    if (len > 0)
     {
-        i32 len = table_width(table);
-        bounds_t* bounds = table_row(table, TYPE_ARGS(bounds_t));
-        if (len > 0)
-        {
-            float4 sph = bounds[0].Value.value;
-            float r = sph.w;
-            sph = pos;
-            sph.w = r;
-            bounds[0].Value.value = sph;
-        }
+        float4 sph = bounds[0].value;
+        float r = sph.w;
+        sph = pos;
+        sph.w = r;
+        bounds[0].value = sph;
     }
 }
 

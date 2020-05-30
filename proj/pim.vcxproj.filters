@@ -41,9 +41,6 @@
     <Filter Include="Source Files\math">
       <UniqueIdentifier>{271e761d-17f4-4faa-9c1f-7f758b86cb0e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\components">
-      <UniqueIdentifier>{fb33a5cf-c0cf-428a-923f-9cd6261e1e5a}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\audio">
       <UniqueIdentifier>{a6ffd75a-038e-4c61-a4a3-ff4d0a4983ee}</UniqueIdentifier>
     </Filter>
@@ -334,12 +331,6 @@
     <ClCompile Include="..\src\rendering\material.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\components\table.c">
-      <Filter>Source Files\components</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\components\drawables.c">
-      <Filter>Source Files\components</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\containers\idtable.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
@@ -361,8 +352,8 @@
     <ClCompile Include="..\src\rendering\spheremap.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\components\cubemaps.c">
-      <Filter>Source Files\components</Filter>
+    <ClCompile Include="..\src\rendering\drawable.c">
+      <Filter>Source Files\rendering</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -536,9 +527,6 @@
     </ClInclude>
     <ClInclude Include="..\src\threading\rwlock.h">
       <Filter>Source Files\threading</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\components.h">
-      <Filter>Source Files\components</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\int_queue.h">
       <Filter>Source Files\containers</Filter>
@@ -750,12 +738,6 @@
     <ClInclude Include="..\src\rendering\lights.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\components\table.h">
-      <Filter>Source Files\components</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\components\drawables.h">
-      <Filter>Source Files\components</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\idtable.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -777,8 +759,8 @@
     <ClInclude Include="..\src\rendering\spheremap.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\components\cubemaps.h">
-      <Filter>Source Files\components</Filter>
+    <ClInclude Include="..\src\rendering\drawable.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -1,10 +1,6 @@
 #include "rendering/render_system.h"
 
 #include "allocator/allocator.h"
-#include "components/table.h"
-#include "components/components.h"
-#include "components/drawables.h"
-#include "components/cubemaps.h"
 #include "threading/task.h"
 #include "ui/cimgui.h"
 
@@ -42,6 +38,7 @@
 #include "rendering/cubemap.h"
 #include "rendering/denoise.h"
 #include "rendering/spheremap.h"
+#include "rendering/drawable.h"
 
 #include "quake/q_model.h"
 #include "assets/asset_system.h"
@@ -258,9 +255,8 @@ static meshid_t VEC_CALL TrisToMesh(
     return mesh_create(mesh);
 }
 
-static void FlattenModel(tables_t* tables, const mmodel_t* model)
+static void FlattenModel(const mmodel_t* model)
 {
-    ASSERT(tables);
     ASSERT(model);
     ASSERT(model->vertices);
 
@@ -275,18 +271,7 @@ static void FlattenModel(tables_t* tables, const mmodel_t* model)
     const medge_t* edges = model->edges;
 
     textureid_t* textures = GenTextures(surfaces, numSurfaces);
-
-    table_t* table = Drawables_Get(tables);
-    row_t* drawables = table_get(table, drawable_t_hash);
-    row_t* translations = table_get(table, translation_t_hash);
-    row_t* rotations = table_get(table, rotation_t_hash);
-    row_t* scales = table_get(table, scale_t_hash);
-
-    drawable_t drawable = { 0 };
-    localtoworld_t l2w = { f4x4_id };
-    translation_t translation = { f4_0 };
-    rotation_t rotation = { quat_id };
-    scale_t scale = { f4_1 };
+    drawables_t* drawTable = drawables_get();
 
     float4* polygon = NULL;
     float4* tris = NULL;
@@ -303,43 +288,44 @@ static void FlattenModel(tables_t* tables, const mmodel_t* model)
             continue;
         }
 
-        drawable.material.albedo = textures[i];
+        material_t material = {0};
+        material.albedo = textures[i];
         //drawable.material.rome = textures[i];
 
         i32 vertCount = FlattenSurface(model, surface, &tris, &polygon);
-        drawable.mesh = TrisToMesh(M, surface, tris, vertCount);
+        meshid_t mesh = TrisToMesh(M, surface, tris, vertCount);
 
-        drawable.material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
-        drawable.material.flatAlbedo = LinearToColor(f4_1);
-        drawable.material.flatRome = LinearToColor(f4_v(0.5f, 1.0f, 0.0f, 0.0f));
+        material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
+        material.flatAlbedo = LinearToColor(f4_1);
+        material.flatRome = LinearToColor(f4_v(0.5f, 1.0f, 0.0f, 0.0f));
 
-        i32 c = col_add(table, NULL);
-        row_set(drawables, c, &drawable);
-        row_set(translations, c, &translation);
-        row_set(rotations, c, &rotation);
-        row_set(scales, c, &scale);
+        i32 c = drawables_add(i+1);
+        drawTable->meshes[c] = mesh;
+        drawTable->materials[c] = material;
+        drawTable->translations[c] = f4_0;
+        drawTable->scales[c] = f4_1;
+        drawTable->rotations[c] = quat_id;
+        drawTable->matrices[c] = f4x4_id;
     }
 }
 
-static void UpdateMaterials(tables_t* tables)
+static void UpdateMaterials(void)
 {
-    table_t* table = Drawables_Get(tables);
-    if (table)
-    {
-        u32 flatAlbedo = LinearToColor(ms_flatAlbedo);
-        u32 flatRome = LinearToColor(ms_flatRome);
+    u32 flatAlbedo = LinearToColor(ms_flatAlbedo);
+    u32 flatRome = LinearToColor(ms_flatRome);
 
-        const i32 len = table_width(table);
-        drawable_t* drawables = table_row(table, TYPE_ARGS(drawable_t));
-        for (i32 i = 0; i < len; ++i)
-        {
-            drawables[i].material.flatAlbedo = flatAlbedo;
-            drawables[i].material.flatRome = flatRome;
-        }
+    drawables_t* drawTable = drawables_get();
+    const i32 len = drawTable->count;
+    material_t* pim_noalias materials = drawTable->materials;
+
+    for (i32 i = 0; i < len; ++i)
+    {
+        materials[i].flatAlbedo = flatAlbedo;
+        materials[i].flatRome = flatRome;
     }
 }
 
-static void CleanPtScene(tables_t* tables)
+static void CleanPtScene(void)
 {
     bool dirty = false;
     camera_t camera;
@@ -356,17 +342,17 @@ static void CleanPtScene(tables_t* tables)
     }
     if (!ms_ptscene)
     {
-        ms_ptscene = pt_scene_new(tables, 5);
+        ms_ptscene = pt_scene_new(5);
     }
 }
 
 ProfileMark(pm_AmbCube_Trace, AmbCube_Trace)
-static void AmbCube_Trace(tables_t* tables)
+static void AmbCube_Trace(void)
 {
     if (cv_ac_gen.asFloat != 0.0f)
     {
         ProfileBegin(pm_AmbCube_Trace);
-        CleanPtScene(tables);
+        CleanPtScene();
 
         camera_t camera;
         camera_get(&camera);
@@ -381,24 +367,23 @@ static void AmbCube_Trace(tables_t* tables)
 }
 
 ProfileMark(pm_CubemapTrace, Cubemap_Trace)
-static void Cubemap_Trace(tables_t* tables)
+static void Cubemap_Trace(void)
 {
     if (cv_cm_gen.asFloat != 0.0f)
     {
         ProfileBegin(pm_CubemapTrace);
-        CleanPtScene(tables);
+        CleanPtScene();
 
-        table_t* table = Cubemaps_Get(tables);
-        const i32 len = table_width(table);
-        Cubemap* cubemaps = table_row(table, TYPE_ARGS(Cubemap));
-        BCubemap* bakemaps = table_row(table, TYPE_ARGS(BCubemap));
-        const bounds_t* bounds = table_row(table, TYPE_ARGS(bounds_t));
+        Cubemaps_t* table = Cubemaps_Get();
+        const i32 len = table->count;
+        Cubemap* convmaps = table->convmaps;
+        BCubemap* bakemaps = table->bakemaps;
+        const sphere_t* bounds = table->bounds;
 
         float weight = 1.0f / (1.0f + ms_cmapSampleCount++);
         for (i32 i = 0; i < len; ++i)
         {
-            float4 pos = bounds[i].Value.value;
-            task_t* task = Cubemap_Bake(bakemaps + i, ms_ptscene, pos, weight, 10);
+            task_t* task = Cubemap_Bake(bakemaps + i, ms_ptscene, bounds[i].value, weight, 10);
             if (task)
             {
                 task_sys_schedule();
@@ -408,13 +393,13 @@ static void Cubemap_Trace(tables_t* tables)
 
         for (i32 i = 0; i < len; ++i)
         {
-            Cubemap_Denoise(bakemaps + i, cubemaps + i);
+            Cubemap_Denoise(bakemaps + i, convmaps + i);
         }
 
         Cubemap tmp = { 0 };
         for (i32 i = 0; i < len; ++i)
         {
-            Cubemap* cm = cubemaps + i;
+            Cubemap* cm = convmaps + i;
             if (cm->size != tmp.size)
             {
                 Cubemap_Del(&tmp);
@@ -430,12 +415,12 @@ static void Cubemap_Trace(tables_t* tables)
 }
 
 ProfileMark(pm_SpheremapTrace, Spheremap_Trace)
-static void Spheremap_Trace(tables_t* tables)
+static void Spheremap_Trace(void)
 {
     if (cv_sm_gen.asFloat != 0.0f)
     {
         ProfileBegin(pm_SpheremapTrace);
-        CleanPtScene(tables);
+        CleanPtScene();
 
         camera_t camera;
         camera_get(&camera);
@@ -479,13 +464,13 @@ static void Spheremap_Trace(tables_t* tables)
 ProfileMark(pm_PathTrace, PathTrace)
 ProfileMark(pm_ptDenoise, Denoise)
 ProfileMark(pm_ptBlit, Blit)
-static bool PathTrace(tables_t* tables)
+static bool PathTrace(void)
 {
     if (cv_pt_trace.asFloat != 0.0f)
     {
         ProfileBegin(pm_PathTrace);
 
-        CleanPtScene(tables);
+        CleanPtScene();
 
         pt_scene_t* scene = ms_ptscene;
         if (scene)
@@ -544,7 +529,7 @@ static bool PathTrace(tables_t* tables)
 }
 
 ProfileMark(pm_Rasterize, Rasterize)
-static void Rasterize(tables_t* tables)
+static void Rasterize(void)
 {
     ProfileBegin(pm_Rasterize);
 
@@ -554,25 +539,25 @@ static void Rasterize(tables_t* tables)
     camera_t camera;
     camera_get(&camera);
 
-    task_t* xformTask = Drawables_TRS(tables);
+    task_t* xformTask = drawables_trs();
     task_sys_schedule();
 
     task_await(xformTask);
-    task_t* boundsTask = Drawables_Bounds(tables);
+    task_t* boundsTask = drawables_bounds();
     task_sys_schedule();
 
     task_await(boundsTask);
-    task_t* cullTask = Drawables_Cull(tables, &camera, backBuf);
+    task_t* cullTask = drawables_cull(&camera, backBuf);
     task_sys_schedule();
 
     task_await(cullTask);
-    task_t* vertexTask = Drawables_Vertex(tables, &camera);
+    task_t* vertexTask = drawables_vertex(&camera);
     task_sys_schedule();
 
     ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
 
     task_await(vertexTask);
-    task_t* fragTask = Drawables_Fragment(tables, frontBuf, backBuf);
+    task_t* fragTask = Drawables_Fragment(frontBuf, backBuf);
     task_sys_schedule();
 
     task_await(fragTask);
@@ -613,33 +598,14 @@ void render_sys_init(void)
     ms_flatAlbedo = f4_s(1.0f);
     ms_flatRome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
 
-    tables_t* tables = tables_main();
-
-    Drawables_New(tables);
-
-    Cubemaps_New(tables);
-    Cubemaps_Add(tables, 64, f4_0, 10.0f);
-
-    table_t* lights = tables_add_s(tables, "Lights");
-    table_add(lights, TYPE_ARGS(radiance_t));
-    table_add(lights, TYPE_ARGS(translation_t));
-    table_add(lights, TYPE_ARGS(rotation_t));
-
-    table_t* cameras = tables_add_s(tables, "Cameras");
-    table_add(cameras, TYPE_ARGS(camera_t));
-
-    table_t* meshes = tables_add_s(tables, "Meshes");
-    table_add(meshes, TYPE_ARGS(meshid_t));
-
-    table_t* textures = tables_add_s(tables, "Textures");
-    table_add(textures, TYPE_ARGS(textureid_t));
+    Cubemaps_Add(420, 64, (sphere_t){ 0.0f, 0.0f, 0.0f, 10.0f});
 
     asset_t mapasset = { 0 };
     if (asset_get("maps/start.bsp", &mapasset))
     {
         mmodel_t* model = LoadModel(mapasset.pData, EAlloc_Temp);
         StrCpy(ARGS(model->name), "maps/start.bsp");
-        FlattenModel(tables, model);
+        FlattenModel(model);
         FreeModel(model);
     }
 
@@ -648,7 +614,7 @@ void render_sys_init(void)
         lights_add_pt((pt_light_t) { f4_v(0.0f, 0.0f, 0.0f, 1.0f), f4_s(30.0f) });
     }
 
-    task_t* compose = Drawables_TRS(tables);
+    task_t* compose = drawables_trs();
     task_sys_schedule();
     task_await(compose);
 
@@ -658,7 +624,7 @@ void render_sys_init(void)
     trace_img_new(&ms_trace.img, i2_v(kDrawWidth, kDrawHeight));
     trace_img_new(&ms_smimg, i2_s(256));
 
-    CleanPtScene(tables);
+    CleanPtScene();
 }
 
 ProfileMark(pm_update, render_sys_update)
@@ -666,14 +632,13 @@ void render_sys_update(void)
 {
     ProfileBegin(pm_update);
 
-    tables_t* tables = tables_main();
-    UpdateMaterials(tables);
-    AmbCube_Trace(tables);
-    Cubemap_Trace(tables);
-    Spheremap_Trace(tables);
-    if (!PathTrace(tables))
+    UpdateMaterials();
+    AmbCube_Trace();
+    Cubemap_Trace();
+    Spheremap_Trace();
+    if (!PathTrace())
     {
-        Rasterize(tables);
+        Rasterize();
     }
     Present();
 
@@ -691,7 +656,6 @@ void render_sys_shutdown(void)
     framebuf_destroy(GetFrontBuf());
     framebuf_destroy(GetBackBuf());
 
-    Drawables_Del(tables_main());
     Denoise_Del(&ms_ptdenoise);
     Denoise_Del(&ms_smdenoise);
 }
@@ -750,57 +714,56 @@ void render_sys_gui(bool* pEnabled)
 
         if (igCollapsingHeader1("Culling Stats"))
         {
-            table_t* table = Drawables_Get(tables_main());
-            if (table)
+            const drawables_t* drawTable = drawables_get();
+            const i32 width = drawTable->count;
+            const sphere_t* bounds = drawTable->bounds;
+            const u64* tileMasks = drawTable->tileMasks;
+
+            i32 numVisible = 0;
+            for (i32 i = 0; i < width; ++i)
             {
-                const i32 width = table_width(table);
-                const drawable_t* drawables = table_row(table, TYPE_ARGS(drawable_t));
-                const bounds_t* bounds = table_row(table, TYPE_ARGS(bounds_t));
-                i32 numVisible = 0;
-                for (i32 i = 0; i < width; ++i)
+                if (tileMasks[i])
                 {
-                    if (drawables[i].tilemask)
-                    {
-                        ++numVisible;
-                    }
+                    ++numVisible;
                 }
-                igText("Drawables: %d", width);
-                igText("Visible: %d", numVisible);
-                igText("Culled: %d", width - numVisible);
-                igSeparator();
-
-                camera_t camera;
-                camera_get(&camera);
-                frus_t frus;
-                camera_frustum(&camera, &frus);
-
-                float* distances = tmp_malloc(sizeof(distances[0]) * width);
-                for (i32 i = 0; i < width; ++i)
-                {
-                    distances[i] = sdFrusSph(frus, bounds[i].Value);
-                }
-                i32* indices = indsort(distances, width, sizeof(distances[0]), CmpFloat, NULL);
-                igColumns(4);
-                igText("Visible"); igNextColumn();
-                igText("Distance"); igNextColumn();
-                igText("Center"); igNextColumn();
-                igText("Radius"); igNextColumn();
-                igSeparator();
-                for (i32 i = 0; i < width; ++i)
-                {
-                    i32 j = indices[i];
-                    float4 sph = bounds[j].Value.value;
-                    u64 tilemask = drawables[j].tilemask;
-                    float dist = distances[j];
-                    const char* tag = (tilemask) ? "Visible" : "Culled";
-
-                    igText(tag); igNextColumn();
-                    igText("%.2f", dist); igNextColumn();
-                    igText("%.2f %.2f %.2f", sph.x, sph.y, sph.z); igNextColumn();
-                    igText("%.2f", sph.w); igNextColumn();
-                }
-                igColumns(1);
             }
+
+            igText("Drawables: %d", width);
+            igText("Visible: %d", numVisible);
+            igText("Culled: %d", width - numVisible);
+            igSeparator();
+
+            camera_t camera;
+            camera_get(&camera);
+            frus_t frus;
+            camera_frustum(&camera, &frus);
+
+            float* distances = tmp_malloc(sizeof(distances[0]) * width);
+            for (i32 i = 0; i < width; ++i)
+            {
+                distances[i] = sdFrusSph(frus, bounds[i]);
+            }
+            i32* indices = indsort(distances, width, sizeof(distances[0]), CmpFloat, NULL);
+            igColumns(4);
+            igText("Visible"); igNextColumn();
+            igText("Distance"); igNextColumn();
+            igText("Center"); igNextColumn();
+            igText("Radius"); igNextColumn();
+            igSeparator();
+            for (i32 i = 0; i < width; ++i)
+            {
+                i32 j = indices[i];
+                float4 sph = bounds[j].value;
+                u64 tilemask = tileMasks[j];
+                float dist = distances[j];
+                const char* tag = (tilemask) ? "Visible" : "Culled";
+
+                igText(tag); igNextColumn();
+                igText("%.2f", dist); igNextColumn();
+                igText("%.2f %.2f %.2f", sph.x, sph.y, sph.z); igNextColumn();
+                igText("%.2f", sph.w); igNextColumn();
+            }
+            igColumns(1);
         }
     }
     igEnd();

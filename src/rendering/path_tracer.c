@@ -17,9 +17,7 @@
 #include "math/lighting.h"
 
 #include "allocator/allocator.h"
-#include "components/table.h"
-#include "components/components.h"
-#include "components/drawables.h"
+#include "rendering/drawable.h"
 #include "threading/task.h"
 #include "common/random.h"
 
@@ -214,14 +212,8 @@ void trace_img_del(trace_img_t* img)
     }
 }
 
-pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth)
+pt_scene_t* pt_scene_new(i32 maxDepth)
 {
-    table_t* drawTable = Drawables_Get(tables);
-    if (!drawTable)
-    {
-        return NULL;
-    }
-
     pt_scene_t* scene = perm_calloc(sizeof(*scene));
     float4 sceneMin = f4_s(1 << 20);
     float4 sceneMax = f4_s(-(1 << 20));
@@ -229,33 +221,35 @@ pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth)
     i32 vertCount = 0;
 
     {
-        const i32 drawCount = table_width(drawTable);
-        const drawable_t* drawables = table_row(drawTable, TYPE_ARGS(drawable_t));
-        const localtoworld_t* l2ws = table_row(drawTable, TYPE_ARGS(localtoworld_t));
+        const drawables_t* drawTable = drawables_get();
+        const i32 drawCount = drawTable->count;
+        const meshid_t* meshes = drawTable->meshes;
+        const float4x4* matrices = drawTable->matrices;
+        const material_t* materials = drawTable->materials;
 
         float4* positions = NULL;
         float4* normals = NULL;
         float2* uvs = NULL;
-        material_t* materials = NULL;
+        material_t* ptMaterials = NULL;
 
         for (i32 i = 0; i < drawCount; ++i)
         {
             mesh_t mesh;
-            if (mesh_get(drawables[i].mesh, &mesh))
+            if (mesh_get(meshes[i], &mesh))
             {
                 const i32 vertBack = vertCount;
                 const i32 matBack = matCount;
                 vertCount += mesh.length;
                 matCount += 1;
 
-                const float4x4 M = l2ws[i].Value;
+                const float4x4 M = matrices[i];
                 const float4x4 IM = f4x4_inverse(f4x4_transpose(M));
-                const material_t material = drawables[i].material;
+                const material_t material = materials[i];
 
-                positions = perm_realloc(positions, sizeof(positions[0]) * vertCount);
-                normals = perm_realloc(normals, sizeof(normals[0]) * vertCount);
-                uvs = perm_realloc(uvs, sizeof(uvs[0]) * vertCount);
-                materials = perm_realloc(materials, sizeof(materials[0]) * matCount);
+                PermReserve(positions, vertCount);
+                PermReserve(normals, vertCount);
+                PermReserve(uvs, vertCount);
+                PermReserve(ptMaterials, matCount);
 
                 for (i32 j = 0; j < mesh.length; ++j)
                 {
@@ -276,7 +270,7 @@ pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth)
                     uvs[vertBack + j] = TransformUv(mesh.uvs[j], material.st);
                 }
 
-                materials[matBack] = material;
+                ptMaterials[matBack] = material;
             }
         }
 
@@ -286,7 +280,7 @@ pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth)
         scene->uvs = uvs;
 
         scene->matCount = matCount;
-        scene->materials = materials;
+        scene->materials = ptMaterials;
     }
 
     {
@@ -563,7 +557,7 @@ static surfhit_t VEC_CALL GetSurface(
 
 pim_optimize
 pt_result_t VEC_CALL pt_trace_ray(
-    struct prng_s* rng,
+    prng_t* rng,
     const pt_scene_t* scene,
     ray_t ray,
     i32 bounces)

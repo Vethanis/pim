@@ -5,11 +5,15 @@
 
 PIM_C_BEGIN
 
-struct task_s* Drawables_Fragment(struct tables_s* tables, struct framebuf_s* frontBuf, const struct framebuf_s* backBuf);
+typedef struct framebuf_s framebuf_t;
+typedef struct task_s task_t;
+typedef struct SphereMap_s SphereMap;
+
+task_t* Drawables_Fragment(framebuf_t* frontBuf, const framebuf_t* backBuf);
 
 AmbCube_t VEC_CALL AmbCube_Get(void);
 void VEC_CALL AmbCube_Set(AmbCube_t cube);
 
-struct SphereMap_s* SphereMap_Get();
+SphereMap* SphereMap_Get();
 
 PIM_C_END

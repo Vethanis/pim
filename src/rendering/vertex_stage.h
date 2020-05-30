@@ -4,8 +4,9 @@
 
 PIM_C_BEGIN
 
-struct task_s* Drawables_Vertex(struct tables_s* tables, const struct camera_s* camera);
-u64 Vert_EntsCulled(void);
-u64 Vert_EntsDrawn(void);
+typedef struct camera_s camera_t;
+typedef struct task_s task_t;
+
+task_t* drawables_vertex(const camera_t* camera);
 
 PIM_C_END

@@ -25,14 +25,27 @@ typedef struct Cubemap_s
     i32 mipCount;
     float4* faces[Cubeface_COUNT];
 } Cubemap;
-static const u32 Cubemap_hash = 3773973750u;
 
 typedef struct BCubemap_s
 {
     i32 size;
     trace_img_t faces[Cubeface_COUNT];
 } BCubemap;
-static const u32 BCubemap_hash = 1293427894u;
+
+typedef struct Cubemaps_s
+{
+    i32 count;
+    u32* names;
+    Cubemap* convmaps;
+    BCubemap* bakemaps;
+    sphere_t* bounds;
+} Cubemaps_t;
+
+Cubemaps_t* Cubemaps_Get(void);
+
+i32 Cubemaps_Add(u32 name, i32 size, sphere_t bounds);
+bool Cubemaps_Rm(u32 name);
+i32 Cubemaps_Find(u32 name);
 
 void Cubemap_New(Cubemap* cm, i32 size);
 void Cubemap_Del(Cubemap* cm);

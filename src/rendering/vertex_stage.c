@@ -3,9 +3,6 @@
 #include "allocator/allocator.h"
 #include "common/atomics.h"
 #include "common/profiler.h"
-#include "components/table.h"
-#include "components/components.h"
-#include "components/drawables.h"
 #include "threading/task.h"
 
 #include "math/types.h"
@@ -20,19 +17,12 @@
 #include "rendering/camera.h"
 #include "rendering/constants.h"
 #include "rendering/framebuffer.h"
-
-static u64 ms_entsCulled;
-static u64 ms_entsDrawn;
-
-u64 Vert_EntsCulled(void) { return ms_entsCulled; }
-u64 Vert_EntsDrawn(void) { return ms_entsDrawn; }
+#include "rendering/drawable.h"
 
 typedef struct verttask_s
 {
     task_t task;
     frus_t frus;
-    drawable_t* drawables;
-    const localtoworld_t* matrices;
 } verttask_t;
 
 pim_inline float2 VEC_CALL TransformUv(float2 uv, float4 ST)
@@ -111,50 +101,46 @@ static meshid_t VEC_CALL TransformMesh(frus_t frus, meshid_t local, float4x4 M, 
 static void VertexFn(task_t* pBase, i32 begin, i32 end)
 {
     verttask_t* pTask = (verttask_t*)pBase;
-    drawable_t* pim_noalias drawables = pTask->drawables;
-    const localtoworld_t* pim_noalias matrices = pTask->matrices;
+    drawables_t* drawTable = drawables_get();
+    const float4x4* pim_noalias matrices = drawTable->matrices;
+    const meshid_t* pim_noalias meshes = drawTable->meshes;
+    const material_t* pim_noalias materials = drawTable->materials;
+    meshid_t* pim_noalias tmpMeshes = drawTable->tmpMeshes;
+    u64* pim_noalias tileMasks = drawTable->tileMasks;
 
     for (i32 i = begin; i < end; ++i)
     {
-        drawables[i].tmpmesh.handle = NULL;
-        drawables[i].tmpmesh.version = 0;
+        tmpMeshes[i].handle = NULL;
+        tmpMeshes[i].version = 0;
 
-        if (!drawables[i].tilemask)
+        if (!tileMasks[i])
         {
             continue;
         }
 
         meshid_t tmpmesh = TransformMesh(
             pTask->frus,
-            drawables[i].mesh,
-            matrices[i].Value,
-            drawables[i].material.st);
-        drawables[i].tmpmesh = tmpmesh;
+            meshes[i],
+            matrices[i],
+            materials[i].st);
+        tmpMeshes[i] = tmpmesh;
         if (!tmpmesh.handle)
         {
-            drawables[i].tilemask = 0;
+            tileMasks[i] = 0;
         }
     }
 }
 
-ProfileMark(pm_Vertex, Drawables_Vertex)
-task_t* Drawables_Vertex(struct tables_s* tables, const struct camera_s* camera)
+ProfileMark(pm_Vertex, drawables_vertex)
+task_t* drawables_vertex(const camera_t* camera)
 {
     ProfileBegin(pm_Vertex);
     ASSERT(camera);
-    task_t* result = NULL;
 
-    table_t* table = Drawables_Get(tables);
-    if (table)
-    {
-        verttask_t* task = tmp_calloc(sizeof(*task));
-        camera_frustum(camera, &(task->frus));
-        task->drawables = table_row(table, TYPE_ARGS(drawable_t));
-        task->matrices = table_row(table, TYPE_ARGS(localtoworld_t));
-        task_submit((task_t*)task, VertexFn, table_width(table));
-        result = (task_t*)task;
-    }
+    verttask_t* task = tmp_calloc(sizeof(*task));
+    camera_frustum(camera, &(task->frus));
+    task_submit((task_t*)task, VertexFn, drawables_get()->count);
 
     ProfileEnd(pm_Vertex);
-    return result;
+    return (task_t*)task;
 }

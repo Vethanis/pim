@@ -6,6 +6,10 @@
 
 PIM_C_BEGIN
 
+typedef struct material_s material_t;
+typedef struct camera_s camera_t;
+typedef struct prng_s prng_t;
+
 typedef enum
 {
     ptdist_sphere,
@@ -34,7 +38,7 @@ typedef struct pt_scene_s
     float2* uvs;
 
     // surface description, indexed by normal.w
-    struct material_s* materials;
+    material_t* materials;
 
     // full octree
     // child(p, i) = 8 * p + i + 1
@@ -51,8 +55,7 @@ typedef struct pt_scene_s
 typedef struct pt_trace_s
 {
     const pt_scene_t* scene;
-    const struct tables_s* tables;
-    const struct camera_s* camera;
+    const camera_t* camera;
     trace_img_t img;
     float sampleWeight;
     i32 bounces;
@@ -81,11 +84,10 @@ typedef struct pt_raygen_s
 void trace_img_new(trace_img_t* img, int2 size);
 void trace_img_del(trace_img_t* img);
 
-// creates a scene from the current contents of the ECS
-pt_scene_t* pt_scene_new(struct tables_s* tables, i32 maxDepth);
+pt_scene_t* pt_scene_new(i32 maxDepth);
 void pt_scene_del(pt_scene_t* scene);
 
-pt_result_t VEC_CALL pt_trace_ray(struct prng_s* rng, const pt_scene_t* scene, ray_t ray, i32 bounces);
+pt_result_t VEC_CALL pt_trace_ray(prng_t* rng, const pt_scene_t* scene, ray_t ray, i32 bounces);
 task_t* pt_trace(pt_trace_t* traceDesc);
 pt_raygen_t* pt_raygen(const pt_scene_t* scene, ray_t origin, pt_dist_t dist, i32 count, i32 bounces);
 

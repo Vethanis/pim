@@ -27,9 +27,6 @@
     <ClCompile Include="..\src\common\sort.c" />
     <ClCompile Include="..\src\common\stringutil.c" />
     <ClCompile Include="..\src\common\time.c" />
-    <ClCompile Include="..\src\components\cubemaps.c" />
-    <ClCompile Include="..\src\components\drawables.c" />
-    <ClCompile Include="..\src\components\table.c" />
     <ClCompile Include="..\src\containers\dict.c" />
     <ClCompile Include="..\src\containers\graph.c" />
     <ClCompile Include="..\src\containers\hash_set.c" />
@@ -64,6 +61,7 @@
     <ClCompile Include="..\src\rendering\clear_tile.c" />
     <ClCompile Include="..\src\rendering\cubemap.c" />
     <ClCompile Include="..\src\rendering\denoise.c" />
+    <ClCompile Include="..\src\rendering\drawable.c" />
     <ClCompile Include="..\src\rendering\fragment_stage.c" />
     <ClCompile Include="..\src\rendering\lights.c" />
     <ClCompile Include="..\src\rendering\material.c" />
@@ -125,10 +123,6 @@
     <ClInclude Include="..\src\common\time.h" />
     <ClInclude Include="..\src\common\unroll.h" />
     <ClInclude Include="..\src\common\valist.h" />
-    <ClInclude Include="..\src\components\components.h" />
-    <ClInclude Include="..\src\components\cubemaps.h" />
-    <ClInclude Include="..\src\components\drawables.h" />
-    <ClInclude Include="..\src\components\table.h" />
     <ClInclude Include="..\src\containers\carray.h" />
     <ClInclude Include="..\src\containers\carray.c" />
     <ClInclude Include="..\src\containers\idtable.h" />
@@ -179,6 +173,7 @@
     <ClInclude Include="..\src\rendering\clear_tile.h" />
     <ClInclude Include="..\src\rendering\cubemap.h" />
     <ClInclude Include="..\src\rendering\denoise.h" />
+    <ClInclude Include="..\src\rendering\drawable.h" />
     <ClInclude Include="..\src\rendering\fragment_stage.h" />
     <ClInclude Include="..\src\rendering\constants.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />

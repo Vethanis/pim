@@ -47,4 +47,9 @@ static void* tmp_calloc(i32 bytes)
     return pim_calloc(EAlloc_Temp, bytes);
 }
 
+#define ZeroElem(ptr, i)        memset((ptr) + (i), 0, sizeof((ptr)[0]))
+#define PopSwap(ptr, i, len)    memcpy((ptr) + (i), (ptr) + (len) - 1, sizeof((ptr)[0]))
+#define PermReserve(ptr, len)   ptr = perm_realloc((ptr), sizeof((ptr)[0]) * (len))
+#define PermGrow(ptr, len)      PermReserve(ptr, len); ZeroElem(ptr, (len) - 1)
+
 PIM_C_END
