@@ -7,11 +7,11 @@ PIM_C_BEGIN
 #include "math/scalar.h"
 #include "common/random.h"
 
-static const float4 f4_0 = { 0.0f, 0.0f, 0.0f, 0.0f };
-static const float4 f4_1 = { 1.0f, 1.0f, 1.0f, 1.0f };
-static const float4 f4_2 = { 2.0f, 2.0f, 2.0f, 2.0f };
-static const float4 f4_rcp2 = { 0.5f, 0.5f, 0.5f, 0.5f };
-static const float4 f4_rcp3 = { 0.33333333f, 0.33333333f, 0.33333333f, 0.33333333f };
+#define f4_0    f4_s(0.0f)
+#define f4_1    f4_s(1.0f)
+#define f4_2    f4_s(2.0f)
+#define f4_rcp2 f4_s(0.5f)
+#define f4_rcp3 f4_s(0.33333333f)
 
 pim_inline float4 VEC_CALL f4_v(float x, float y, float z, float w)
 {
@@ -126,6 +126,11 @@ pim_inline float4 VEC_CALL f4_divsv(float lhs, float4 rhs)
 {
     float4 vec = { lhs / rhs.x, lhs / rhs.y, lhs / rhs.z, lhs / rhs.w };
     return vec;
+}
+
+pim_inline float4 VEC_CALL f4_inv(float4 x)
+{
+    return f4_sub(f4_1, x);
 }
 
 pim_inline bool4 VEC_CALL f4_eq(float4 lhs, float4 rhs)
@@ -617,6 +622,7 @@ pim_inline float4 VEC_CALL f4_saturate(float4 a)
     return f4_clampvs(a, 0.0f, 1.0f);
 }
 
+// https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-step
 pim_inline float4 VEC_CALL f4_step(float4 a, float4 b)
 {
     return f4_selectsv(0.0f, 1.0f, f4_gteq(a, b));

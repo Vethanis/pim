@@ -23,3 +23,14 @@ float4 VEC_CALL material_rome(const material_t* mat, float2 uv)
     }
     return value;
 }
+
+float4 VEC_CALL material_normal(const material_t* mat, float2 uv)
+{
+    float4 value = { 0.0f, 0.0f, 1.0f, 0.0f };
+    texture_t tex;
+    if (texture_get(mat->normal, &tex))
+    {
+        value = UvBilinearWrap_dir8(tex.texels, tex.size, uv);
+    }
+    return value;
+}

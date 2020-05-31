@@ -230,6 +230,7 @@ pt_scene_t* pt_scene_new(i32 maxDepth)
         float4* positions = NULL;
         float4* normals = NULL;
         float2* uvs = NULL;
+        i32* matIds = NULL;
         material_t* ptMaterials = NULL;
 
         for (i32 i = 0; i < drawCount; ++i)
@@ -249,6 +250,7 @@ pt_scene_t* pt_scene_new(i32 maxDepth)
                 PermReserve(positions, vertCount);
                 PermReserve(normals, vertCount);
                 PermReserve(uvs, vertCount);
+                PermReserve(matIds, vertCount);
                 PermReserve(ptMaterials, matCount);
 
                 for (i32 j = 0; j < mesh.length; ++j)
@@ -262,12 +264,16 @@ pt_scene_t* pt_scene_new(i32 maxDepth)
                 for (i32 j = 0; j < mesh.length; ++j)
                 {
                     normals[vertBack + j] = f4x4_mul_dir(IM, mesh.normals[j]);
-                    normals[vertBack + j].w = (float)matBack;
                 }
 
                 for (i32 j = 0; j < mesh.length; ++j)
                 {
                     uvs[vertBack + j] = TransformUv(mesh.uvs[j], material.st);
+                }
+
+                for (i32 j = 0; j < mesh.length; ++j)
+                {
+                    matIds[vertBack + j] = matBack;
                 }
 
                 ptMaterials[matBack] = material;
@@ -278,6 +284,7 @@ pt_scene_t* pt_scene_new(i32 maxDepth)
         scene->positions = positions;
         scene->normals = normals;
         scene->uvs = uvs;
+        scene->matIds = matIds;
 
         scene->matCount = matCount;
         scene->materials = ptMaterials;
@@ -319,6 +326,7 @@ void pt_scene_del(pt_scene_t* scene)
         pim_free(scene->positions);
         pim_free(scene->normals);
         pim_free(scene->uvs);
+        pim_free(scene->matIds);
 
         pim_free(scene->materials);
 
@@ -444,10 +452,11 @@ pim_inline float2 VEC_CALL GetVert2(const float2* vertices, rayhit_t hit)
 
 pim_inline const material_t* VEC_CALL GetMaterial(const pt_scene_t* scene, rayhit_t hit)
 {
-    i32 iMat = (i32)(scene->normals[hit.index].w);
-    ASSERT(iMat >= 0);
-    ASSERT(iMat < scene->matCount);
-    return scene->materials + iMat;
+    i32 triIndex = hit.index;
+    i32 matIndex = scene->matIds[triIndex];
+    ASSERT(matIndex >= 0);
+    ASSERT(matIndex < scene->matCount);
+    return scene->materials + matIndex;
 }
 
 pim_inline float VEC_CALL LambertianPdf(float4 N, float4 dir)
@@ -530,6 +539,8 @@ static surfhit_t VEC_CALL GetSurface(
         const float2 uv = GetVert2(scene->uvs, hit);
         surf.P = GetVert4(scene->positions, hit);
         surf.N = f4_normalize3(GetVert4(scene->normals, hit));
+        float4 tN = material_normal(mat, uv);
+        surf.N = TanToWorld(surf.N, tN);
         surf.albedo = material_albedo(mat, uv);
         float4 rome = material_rome(mat, uv);
         surf.roughness = rome.x;
@@ -658,7 +669,7 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
     {
         int2 coord = { i % size.x, i / size.x };
 
-        float2 Xi = f2_tent(f2_rand(&rng));
+        float2 Xi = f2_snorm(f2_tent(f2_rand(&rng)));
         Xi = f2_mul(Xi, rcpSize);
 
         float2 uv = CoordToUv(size, coord);
@@ -670,14 +681,10 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
         pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
 
         colors[i] = f3_lerp(colors[i], result.color, sampleWeight);
-        if (albedos)
-        {
-            albedos[i] = f3_lerp(albedos[i], result.albedo, sampleWeight);
-        }
-        if (normals)
-        {
-            normals[i] = f3_lerp(normals[i], result.normal, sampleWeight);
-        }
+        albedos[i] = f3_lerp(albedos[i], result.albedo, sampleWeight);
+        float3 N = normals[i];
+        N = f3_lerp(N, result.normal, sampleWeight);
+        normals[i] = N;
     }
 
     prng_set(rng);

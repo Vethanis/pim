@@ -219,6 +219,17 @@ pim_inline float4 VEC_CALL UvBilinearWrap_c32(const u32* buffer, int2 size, floa
     return BilinearWrap_c32(buffer, size, Bilinear(size, uv));
 }
 
+pim_inline float4 VEC_CALL UvBilinearWrap_dir8(const u32* buffer, int2 size, float2 uv)
+{
+    bilinear_t bi = Bilinear(size, uv);
+    float4 a = rgba8_dir(buffer[Wrap(size, bi.a)]);
+    float4 b = rgba8_dir(buffer[Wrap(size, bi.b)]);
+    float4 c = rgba8_dir(buffer[Wrap(size, bi.c)]);
+    float4 d = rgba8_dir(buffer[Wrap(size, bi.d)]);
+    float4 N = BilinearBlend_f4(a, b, c, d, bi.frac);
+    return f4_normalize3(N);
+}
+
 pim_inline float4 VEC_CALL TrilinearClamp_f4(
     const float4* buffer,
     int2 size,

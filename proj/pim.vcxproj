@@ -21,6 +21,7 @@
     <ClCompile Include="..\src\common\find.c" />
     <ClCompile Include="..\src\common\fnv1a.c" />
     <ClCompile Include="..\src\common\guid.c" />
+    <ClCompile Include="..\src\common\iid.c" />
     <ClCompile Include="..\src\common\library.c" />
     <ClCompile Include="..\src\common\profiler.c" />
     <ClCompile Include="..\src\common\random.c" />
@@ -36,6 +37,7 @@
     <ClCompile Include="..\src\containers\ptrqueue.c" />
     <ClCompile Include="..\src\containers\queue.c" />
     <ClCompile Include="..\src\containers\sdict.c" />
+    <ClCompile Include="..\src\containers\strlist.c" />
     <ClCompile Include="..\src\containers\text.c" />
     <ClCompile Include="..\src\editor\editor.c" />
     <ClCompile Include="..\src\editor\menubar.c" />
@@ -66,6 +68,7 @@
     <ClCompile Include="..\src\rendering\lights.c" />
     <ClCompile Include="..\src\rendering\material.c" />
     <ClCompile Include="..\src\rendering\mesh.c" />
+    <ClCompile Include="..\src\rendering\model.c" />
     <ClCompile Include="..\src\rendering\path_tracer.c" />
     <ClCompile Include="..\src\rendering\resolve_tile.c" />
     <ClCompile Include="..\src\rendering\spheremap.c" />
@@ -75,6 +78,7 @@
     <ClCompile Include="..\src\rendering\render_system.c" />
     <ClCompile Include="..\src\rendering\screenblit.c" />
     <ClCompile Include="..\src\rendering\texture.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkrenderer.c" />
     <ClCompile Include="..\src\rendering\window.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
@@ -110,6 +114,7 @@
     <ClInclude Include="..\src\common\console.h" />
     <ClInclude Include="..\src\common\cvar.h" />
     <ClInclude Include="..\src\common\find.h" />
+    <ClInclude Include="..\src\common\iid.h" />
     <ClInclude Include="..\src\common\library.h" />
     <ClInclude Include="..\src\common\nextpow2.h" />
     <ClInclude Include="..\src\common\profiler.h" />
@@ -135,6 +140,7 @@
     <ClInclude Include="..\src\containers\ptrqueue.h" />
     <ClInclude Include="..\src\containers\queue.h" />
     <ClInclude Include="..\src\containers\sdict.h" />
+    <ClInclude Include="..\src\containers\strlist.h" />
     <ClInclude Include="..\src\containers\text.h" />
     <ClInclude Include="..\src\editor\editor.h" />
     <ClInclude Include="..\src\editor\menubar.h" />
@@ -148,6 +154,7 @@
     <ClInclude Include="..\src\logic\camera_logic.h" />
     <ClInclude Include="..\src\logic\logic.h" />
     <ClInclude Include="..\src\math\ambcube.h" />
+    <ClInclude Include="..\src\math\blending.h" />
     <ClInclude Include="..\src\math\color.h" />
     <ClInclude Include="..\src\math\cubic_fit.h" />
     <ClInclude Include="..\src\math\float2_funcs.h" />
@@ -177,6 +184,7 @@
     <ClInclude Include="..\src\rendering\fragment_stage.h" />
     <ClInclude Include="..\src\rendering\constants.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />
+    <ClInclude Include="..\src\rendering\model.h" />
     <ClInclude Include="..\src\rendering\lights.h" />
     <ClInclude Include="..\src\rendering\path_tracer.h" />
     <ClInclude Include="..\src\rendering\resolve_tile.h" />
@@ -187,6 +195,7 @@
     <ClInclude Include="..\src\rendering\tile.h" />
     <ClInclude Include="..\src\rendering\tonemap.h" />
     <ClInclude Include="..\src\rendering\vertex_stage.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkrenderer.h" />
     <ClInclude Include="..\src\rendering\window.h" />
     <ClInclude Include="..\src\sokol\sokol_audio.h" />
     <ClInclude Include="..\src\sokol\sokol_time.h" />
@@ -290,7 +299,7 @@
       <PreprocessorDefinitions>NOMINMAX;_DEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb;$(ProjectDir)..\submodules\pthread_w32\include;$(ProjectDir)..\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb;$(ProjectDir)..\submodules\pthread_w32\include;$(ProjectDir)..\include;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <CompileAsManaged>false</CompileAsManaged>
@@ -314,8 +323,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>glfw3.lib;OpenImageDenoise.lib;dnnl.lib;common.lib;tbb_debug.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)..\lib\win64\debug;$(ProjectDir)..\lib\win64\debug\oidn;$(ProjectDir)..\lib\win64\debug\tbb;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;OpenImageDenoise.lib;dnnl.lib;common.lib;vulkan-1.lib;tbb_debug.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)..\lib\win64\debug;$(ProjectDir)..\lib\win64\debug\oidn;$(ProjectDir)..\lib\win64\debug\tbb;$(VK_SDK_PATH)\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <FxCompile>
       <ShaderModel>5.0</ShaderModel>
@@ -327,7 +336,7 @@
       <WarningLevel>Level3</WarningLevel>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NOMINMAX;NDEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb;$(ProjectDir)..\submodules\pthread_w32\include;$(ProjectDir)..\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb;$(ProjectDir)..\submodules\pthread_w32\include;$(ProjectDir)..\include;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <CompileAsManaged>false</CompileAsManaged>
@@ -354,8 +363,8 @@
       <SubSystem>Console</SubSystem>
       <Profile>true</Profile>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <AdditionalDependencies>glfw3.lib;OpenImageDenoise.lib;dnnl.lib;common.lib;tbb.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)..\lib\win64\release;$(ProjectDir)..\lib\win64\release\oidn;$(ProjectDir)..\lib\win64\release\tbb;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;OpenImageDenoise.lib;dnnl.lib;common.lib;vulkan-1.lib;tbb.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)..\lib\win64\release;$(ProjectDir)..\lib\win64\release\oidn;$(ProjectDir)..\lib\win64\release\tbb;$(VK_SDK_PATH)\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
     <FxCompile>

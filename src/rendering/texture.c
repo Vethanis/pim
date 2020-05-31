@@ -5,6 +5,8 @@
 #include "common/guid.h"
 #include "common/fnv1a.h"
 #include "math/color.h"
+#include "math/blending.h"
+#include "rendering/sampler.h"
 #include "assets/asset_system.h"
 #include "quake/q_bspfile.h"
 #include "stb/stb_image.h"
@@ -116,19 +118,11 @@ static void EnsurePalette(void)
             const u8* palette = (const u8*)asset.pData;
             ASSERT(asset.length == sizeof(ms_palette));
             memcpy(ms_palette, palette, sizeof(ms_palette));
-
-            // avoid completely black colors, they don't do well with PBR
-            for (i32 i = 0; i < sizeof(ms_palette); ++i)
-            {
-                if (ms_palette[i] == 0)
-                {
-                    ms_palette[i] = 1;
-                }
-            }
         }
     }
 }
 
+// https://quakewiki.org/wiki/Quake_palette
 textureid_t texture_unpalette(const u8* bytes, int2 size)
 {
     EnsurePalette();
@@ -144,17 +138,9 @@ textureid_t texture_unpalette(const u8* bytes, int2 size)
             u32 g = ms_palette[encoded * 3 + 1];
             u32 b = ms_palette[encoded * 3 + 2];
             u32 color = r | (g << 8) | (b << 16);
-            if (true)
-            {
-                // attempt to turn diffuse map into albedo map
-                float4 lin = ColorToLinear(color);
-                lin = f4_lerpvs(lin, f4_sqrt(lin), 0.1f);
-                texels[i] = LinearToColor(lin);
-            }
-            else
-            {
-                texels[i] = color;
-            }
+            float4 lin = ColorToLinear(color);
+            lin = DiffuseToAlbedo(lin);
+            texels[i] = LinearToColor(lin);
         }
     }
 
@@ -162,4 +148,44 @@ textureid_t texture_unpalette(const u8* bytes, int2 size)
     tex->size = size;
     tex->texels = texels;
     return texture_create(tex);
+}
+
+pim_inline float VEC_CALL SampleLuma(texture_t tex, int2 c)
+{
+    return f4_avglum(Wrap_c32(tex.texels, tex.size, c));
+}
+
+textureid_t texture_lumtonormal(textureid_t src, float scale)
+{
+    const float rcpScale = 1.0f / f1_max(scale, f16_eps);
+    texture_t tex = { 0 };
+    if (texture_get(src, &tex))
+    {
+        int2 size = tex.size;
+        u32* texels = perm_malloc(size.x * size.y * sizeof(texels[0]));
+        for (i32 y = 0; y < size.y; ++y)
+        {
+            for (i32 x = 0; x < size.x; ++x)
+            {
+                i32 i = x + y * size.x;
+                int2 r = { x + 1, y };
+                int2 l = { x - 1, y };
+                int2 u = { x, y + 1 };
+                int2 d = { x, y - 1 };
+
+                float dx = SampleLuma(tex, r) - SampleLuma(tex, l);
+                float dy = SampleLuma(tex, u) - SampleLuma(tex, d);
+                float z = (1.0f - sqrtf(dx * dx + dy * dy)) * rcpScale;
+                float4 N = { dx, dy, z, 0.0f };
+                u32 n = f4_rgba8(f4_unorm(f4_normalize3(N)));
+
+                texels[i] = n;
+            }
+        }
+        texture_t* tex = perm_calloc(sizeof(*tex));
+        tex->size = size;
+        tex->texels = texels;
+        return texture_create(tex);
+    }
+    return (textureid_t) { 0 };
 }

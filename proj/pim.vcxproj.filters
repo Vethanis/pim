@@ -86,6 +86,9 @@
     <Filter Include="Source Files\tools">
       <UniqueIdentifier>{3fe89d79-6fd4-4597-b02f-272e0421ff2c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\rendering\vulkan">
+      <UniqueIdentifier>{fb1eb6df-deb9-4930-a51f-3707a65a959a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -354,6 +357,18 @@
     </ClCompile>
     <ClCompile Include="..\src\rendering\drawable.c">
       <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkrenderer.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\model.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\iid.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\strlist.c">
+      <Filter>Source Files\containers</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -761,6 +776,21 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\drawable.h">
       <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkrenderer.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\model.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\iid.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\blending.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\strlist.h">
+      <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

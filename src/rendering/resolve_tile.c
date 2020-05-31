@@ -29,7 +29,7 @@ static void ResolveTileFn(task_t* task, i32 begin, i32 end)
     const float4 tmapParams = resolve->toneParams;
     const TonemapFn tmap = resolve->tonemapper;
 
-    const float kDitherScale = 1.0f / 512.0f;
+    const float kDitherScale = 1.0f / 255.0f;
     prng_t rng = prng_get();
 
     for (i32 iTile = begin; iTile < end; ++iTile)

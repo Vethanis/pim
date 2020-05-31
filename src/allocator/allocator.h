@@ -52,4 +52,6 @@ static void* tmp_calloc(i32 bytes)
 #define PermReserve(ptr, len)   ptr = perm_realloc((ptr), sizeof((ptr)[0]) * (len))
 #define PermGrow(ptr, len)      PermReserve(ptr, len); ZeroElem(ptr, (len) - 1)
 
+#define TempReserve(ptr, len)   ptr = tmp_realloc((ptr), sizeof((ptr)[0]) * (len))
+
 PIM_C_END

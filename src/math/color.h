@@ -35,16 +35,18 @@ pim_inline float4 VEC_CALL rgba8_f4(u32 c)
 {
     const float s = 1.0f / 255.0f;
     u32 r = c & 0xff;
-    c >>= 8;
-    u32 g = c & 0xff;
-    c >>= 8;
-    u32 b = c & 0xff;
-    c >>= 8;
-    u32 a = c & 0xff;
+    u32 g = (c >> 8) & 0xff;
+    u32 b = (c >> 16) & 0xff;
+    u32 a = (c >> 24) & 0xff;
     float4 v = f4_v((float)r, (float)g, (float)b, (float)a);
     v = f4_addvs(v, 0.5f);
     v = f4_mulvs(v, s);
     return v;
+}
+
+pim_inline float4 VEC_CALL rgba8_dir(u32 c)
+{
+    return f4_normalize3(f4_snorm(rgba8_f4(c)));
 }
 
 // reference sRGB -> Linear conversion (no approximation)
@@ -219,8 +221,12 @@ pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
 
 pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)
 {
-    e = 8.0f * e * e * e;
-    return f4_mulvs(albedo, e);
+    e = e * e * e;
+    e = e * 100.0f;
+    // only 'fullbrights' are emissive
+    //float m = f1_saturate(f4_hmax3(albedo) - 0.5f);
+    float m = f1_smoothstep(0.5f, 1.0f, f4_hmax3(albedo));
+    return f4_mulvs(albedo, e * m);
 }
 
 PIM_C_END

@@ -32,10 +32,11 @@ typedef struct pt_scene_s
     //   w: 1
     float4* positions;
     // xyz: vertex normal
-    //   w: material index
     float4* normals;
     //  xy: texture coordinate
     float2* uvs;
+    // material indices
+    i32* matIds;
 
     // surface description, indexed by normal.w
     material_t* materials;

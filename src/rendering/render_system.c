@@ -39,6 +39,9 @@
 #include "rendering/denoise.h"
 #include "rendering/spheremap.h"
 #include "rendering/drawable.h"
+#include "rendering/model.h"
+
+#include "rendering/vulkan/vkrenderer.h"
 
 #include "quake/q_model.h"
 #include "assets/asset_system.h"
@@ -48,10 +51,14 @@
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
 static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "10", "path tracing bounces" };
 static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
+static cvar_t cv_pt_dbg_albedo = { cvart_bool, 0, "pt_dbg_albedo", "0", "display path tracing albedo" };
+static cvar_t cv_pt_dbg_normal = { cvart_bool, 0, "pt_dbg_normal", "0", "display path tracing normal" };
 
 static cvar_t cv_ac_gen = { cvart_bool, 0, "ac_gen", "0", "enable ambientcube generation" };
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
 static cvar_t cv_sm_gen = { cvart_bool, 0, "sm_gen", "0", "enable spheremap generation" };
+
+static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
 
 // ----------------------------------------------------------------------------
 
@@ -62,8 +69,6 @@ static textureid_t GenCheckerTex(void);
 
 static framebuf_t ms_buffers[2];
 static i32 ms_iFrame;
-static float4 ms_flatAlbedo;
-static float4 ms_flatRome;
 
 static TonemapId ms_tonemapper;
 static float4 ms_toneParams;
@@ -96,233 +101,6 @@ static framebuf_t* GetBackBuf(void)
 static void SwapBuffers(void)
 {
     ++ms_iFrame;
-}
-
-pim_inline float2 VEC_CALL CalcUv(float4 s, float4 t, float4 p)
-{
-    return f2_v(f4_dot3(p, s) + s.w, f4_dot3(p, t) + t.w);
-}
-
-static void VEC_CALL CalcST(
-    float4 N,
-    float4* pim_noalias s,
-    float4* pim_noalias t)
-{
-    const float4 kX = { 1.0f, 0.0f, 0.0f, 0.0f };
-    const float4 kY = { 0.0f, 1.0f, 0.0f, 0.0f };
-    const float4 kZ = { 0.0f, 0.0f, 1.0f, 0.0f };
-    float4 n = f4_abs(N);
-    float k = f4_hmax3(n);
-    if (k == n.x)
-    {
-        *s = kZ;
-        *t = kY;
-    }
-    else if (k == n.y)
-    {
-        *s = kX;
-        *t = f4_neg(kZ);
-    }
-    else
-    {
-        *s = f4_neg(kX);
-        *t = kY;
-    }
-}
-
-static i32 VEC_CALL FlattenSurface(
-    const mmodel_t* model,
-    const msurface_t* surface,
-    float4** pim_noalias pTris,
-    float4** pim_noalias pPolys)
-{
-    i32 numEdges = surface->numedges;
-    const i32 firstEdge = surface->firstedge;
-    const i32* pim_noalias surfEdges = model->surfedges;
-    const medge_t* pim_noalias edges = model->edges;
-    const float4* pim_noalias vertices = model->vertices;
-
-    float4* pim_noalias polygon = tmp_realloc(*pPolys, sizeof(polygon[0]) * numEdges);
-    *pPolys = polygon;
-
-    for (i32 i = 0; i < numEdges; ++i)
-    {
-        i32 e = surfEdges[firstEdge + i];
-        i32 v;
-        if (e >= 0)
-        {
-            v = edges[e].v[0];
-        }
-        else
-        {
-            v = edges[-e].v[1];
-        }
-        polygon[i] = vertices[v];
-    }
-
-    float4* pim_noalias triangles = tmp_realloc(*pTris, sizeof(triangles[0]) * numEdges * 3);
-    *pTris = triangles;
-
-    i32 resLen = 0;
-    while (numEdges >= 3)
-    {
-        triangles[resLen + 0] = polygon[0];
-        triangles[resLen + 1] = polygon[1];
-        triangles[resLen + 2] = polygon[2];
-        resLen += 3;
-
-        --numEdges;
-        for (i32 j = 1; j < numEdges; ++j)
-        {
-            polygon[j] = polygon[j + 1];
-        }
-    }
-
-    return resLen;
-}
-
-static textureid_t* GenTextures(const msurface_t* surfaces, i32 surfCount)
-{
-    textureid_t* ids = tmp_calloc(sizeof(ids[0]) * surfCount);
-
-    for (i32 i = 0; i < surfCount; ++i)
-    {
-        const msurface_t* surface = surfaces + i;
-        const mtexinfo_t* texinfo = surface->texinfo;
-        const mtexture_t* mtex = texinfo->texture;
-
-        textureid_t texid = texture_lookup(mtex->name);
-        if (!texid.handle)
-        {
-            const u8* mip0 = (u8*)mtex + mtex->offsets[0];
-            ASSERT(mtex->offsets[0] == sizeof(mtexture_t));
-            texid = texture_unpalette(mip0, i2_v(mtex->width, mtex->height));
-            texture_register(mtex->name, texid);
-        }
-        ids[i] = texid;
-    }
-
-    return ids;
-}
-
-static meshid_t VEC_CALL TrisToMesh(
-    float4x4 M,
-    const msurface_t* surface,
-    const float4* pim_noalias tris,
-    i32 vertCount)
-{
-    float4* pim_noalias positions = perm_malloc(sizeof(positions[0]) * vertCount);
-    float4* pim_noalias normals = perm_malloc(sizeof(normals[0]) * vertCount);
-    float2* pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
-
-    // u = dot(P.xyz, s.xyz) + s.w
-    // v = dot(P.xyz, t.xyz) + t.w
-    const mtexinfo_t* texinfo = surface->texinfo;
-    const mtexture_t* mtex = texinfo->texture;
-    float4 s = texinfo->vecs[0];
-    float4 t = texinfo->vecs[1];
-    float2 uvScale = { 1.0f / mtex->width, 1.0f / mtex->height };
-
-    for (i32 i = 0; (i + 3) <= vertCount; i += 3)
-    {
-        float4 A0 = tris[i + 0];
-        float4 B0 = tris[i + 1];
-        float4 C0 = tris[i + 2];
-        float4 A = f4x4_mul_pt(M, A0);
-        float4 B = f4x4_mul_pt(M, B0);
-        float4 C = f4x4_mul_pt(M, C0);
-
-        positions[i + 0] = A;
-        positions[i + 2] = B;
-        positions[i + 1] = C;
-
-        uvs[i + 0] = f2_mul(CalcUv(s, t, A0), uvScale);
-        uvs[i + 2] = f2_mul(CalcUv(s, t, B0), uvScale);
-        uvs[i + 1] = f2_mul(CalcUv(s, t, C0), uvScale);
-
-        float4 N = f4_normalize3(f4_cross3(f4_sub(C, A), f4_sub(B, A)));
-
-        normals[i + 0] = N;
-        normals[i + 2] = N;
-        normals[i + 1] = N;
-    }
-
-    mesh_t* mesh = perm_calloc(sizeof(*mesh));
-    mesh->length = vertCount;
-    mesh->positions = positions;
-    mesh->normals = normals;
-    mesh->uvs = uvs;
-    return mesh_create(mesh);
-}
-
-static void FlattenModel(const mmodel_t* model)
-{
-    ASSERT(model);
-    ASSERT(model->vertices);
-
-    const quat rot = quat_angleaxis(-kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
-    const float4x4 M = f4x4_trs(f4_0, rot, f4_s(0.02f));
-
-    const char* name = model->name;
-    const i32 numSurfaces = model->numsurfaces;
-    const msurface_t* surfaces = model->surfaces;
-    const i32* surfEdges = model->surfedges;
-    const float4* vertices = model->vertices;
-    const medge_t* edges = model->edges;
-
-    textureid_t* textures = GenTextures(surfaces, numSurfaces);
-    drawables_t* drawTable = drawables_get();
-
-    float4* polygon = NULL;
-    float4* tris = NULL;
-    for (i32 i = 0; i < numSurfaces; ++i)
-    {
-        const msurface_t* surface = surfaces + i;
-        i32 numEdges = surface->numedges;
-        const i32 firstEdge = surface->firstedge;
-        const mtexinfo_t* texinfo = surface->texinfo;
-        const mtexture_t* mtex = texinfo->texture;
-
-        if (numEdges <= 0 || firstEdge < 0)
-        {
-            continue;
-        }
-
-        material_t material = {0};
-        material.albedo = textures[i];
-        //drawable.material.rome = textures[i];
-
-        i32 vertCount = FlattenSurface(model, surface, &tris, &polygon);
-        meshid_t mesh = TrisToMesh(M, surface, tris, vertCount);
-
-        material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
-        material.flatAlbedo = LinearToColor(f4_1);
-        material.flatRome = LinearToColor(f4_v(0.5f, 1.0f, 0.0f, 0.0f));
-
-        i32 c = drawables_add(i+1);
-        drawTable->meshes[c] = mesh;
-        drawTable->materials[c] = material;
-        drawTable->translations[c] = f4_0;
-        drawTable->scales[c] = f4_1;
-        drawTable->rotations[c] = quat_id;
-        drawTable->matrices[c] = f4x4_id;
-    }
-}
-
-static void UpdateMaterials(void)
-{
-    u32 flatAlbedo = LinearToColor(ms_flatAlbedo);
-    u32 flatRome = LinearToColor(ms_flatRome);
-
-    drawables_t* drawTable = drawables_get();
-    const i32 len = drawTable->count;
-    material_t* pim_noalias materials = drawTable->materials;
-
-    for (i32 i = 0; i < len; ++i)
-    {
-        materials[i].flatAlbedo = flatAlbedo;
-        materials[i].flatRome = flatRome;
-    }
 }
 
 static void CleanPtScene(void)
@@ -472,19 +250,6 @@ static bool PathTrace(void)
 
         CleanPtScene();
 
-        pt_scene_t* scene = ms_ptscene;
-        if (scene)
-        {
-            u32 flatAlbedo = LinearToColor(ms_flatAlbedo);
-            u32 flatRome = LinearToColor(ms_flatRome);
-            for (i32 i = 0; i < scene->matCount; ++i)
-            {
-                scene->materials[i].flatAlbedo = flatAlbedo;
-                scene->materials[i].flatRome = flatRome;
-                scene->materials[i].rome = (textureid_t) { 0 };
-            }
-        }
-
         ms_trace.bounces = i1_clamp((i32)cv_pt_bounces.asFloat, 0, 100);
         ms_trace.sampleWeight = 1.0f / ++ms_ptSampleCount;
         ms_trace.camera = &ms_ptcamera;
@@ -506,6 +271,15 @@ static bool PathTrace(void)
                 denoised);
             pPresent = denoised;
             ProfileEnd(pm_ptDenoise);
+        }
+
+        if (cv_pt_dbg_albedo.asFloat != 0.0f)
+        {
+            pPresent = ms_trace.img.albedos;
+        }
+        if (cv_pt_dbg_normal.asFloat != 0.0f)
+        {
+            pPresent = ms_trace.img.normals;
         }
 
         {
@@ -557,7 +331,7 @@ static void Rasterize(void)
     ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
 
     task_await(vertexTask);
-    task_t* fragTask = Drawables_Fragment(frontBuf, backBuf);
+    task_t* fragTask = drawables_fragment(frontBuf, backBuf);
     task_sys_schedule();
 
     task_await(fragTask);
@@ -583,9 +357,14 @@ void render_sys_init(void)
     cvar_reg(&cv_pt_trace);
     cvar_reg(&cv_pt_bounces);
     cvar_reg(&cv_pt_denoise);
+    cvar_reg(&cv_pt_dbg_albedo);
+    cvar_reg(&cv_pt_dbg_normal);
     cvar_reg(&cv_ac_gen);
     cvar_reg(&cv_cm_gen);
     cvar_reg(&cv_sm_gen);
+    cvar_reg(&cv_r_sw);
+
+    vkrenderer_init();
 
     ms_iFrame = 0;
     framebuf_create(GetFrontBuf(), kDrawWidth, kDrawHeight);
@@ -595,19 +374,11 @@ void render_sys_init(void)
     ms_tonemapper = TMap_Reinhard;
     ms_toneParams = Tonemap_DefParams();
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
-    ms_flatAlbedo = f4_s(1.0f);
-    ms_flatRome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
 
     Cubemaps_Add(420, 64, (sphere_t){ 0.0f, 0.0f, 0.0f, 10.0f});
 
-    asset_t mapasset = { 0 };
-    if (asset_get("maps/start.bsp", &mapasset))
-    {
-        mmodel_t* model = LoadModel(mapasset.pData, EAlloc_Temp);
-        StrCpy(ARGS(model->name), "maps/start.bsp");
-        FlattenModel(model);
-        FreeModel(model);
-    }
+    u32* ids = LoadModelAsDrawables("maps/start.bsp");
+    pim_free(ids);
 
     if (lights_pt_count() == 0)
     {
@@ -632,13 +403,19 @@ void render_sys_update(void)
 {
     ProfileBegin(pm_update);
 
-    UpdateMaterials();
     AmbCube_Trace();
     Cubemap_Trace();
     Spheremap_Trace();
     if (!PathTrace())
     {
-        Rasterize();
+        if (cv_r_sw.asFloat != 0.0f)
+        {
+            Rasterize();
+        }
+        else
+        {
+            vkrenderer_update();
+        }
     }
     Present();
 
@@ -658,6 +435,8 @@ void render_sys_shutdown(void)
 
     Denoise_Del(&ms_ptdenoise);
     Denoise_Del(&ms_smdenoise);
+
+    vkrenderer_shutdown();
 }
 
 static i32 CmpFloat(const void* lhs, const void* rhs, void* usr)
@@ -698,12 +477,6 @@ void render_sys_gui(bool* pEnabled)
         if (igCollapsingHeader1("Material"))
         {
             igIndent(0.0f);
-
-            igColorEdit3("Albedo", &ms_flatAlbedo.x, ldrPicker);
-            igSliderFloat("Roughness", &ms_flatRome.x, 0.0f, 1.0f);
-            igSliderFloat("Occlusion", &ms_flatRome.y, 0.0f, 1.0f);
-            igSliderFloat("Metallic", &ms_flatRome.z, 0.0f, 1.0f);
-            igSliderFloat("Emission", &ms_flatRome.w, 0.0f, 1.0f);
 
             pt_light_t light = lights_get_pt(0);
             igColorEdit3("Light Radiance", &light.rad.x, hdrPicker);

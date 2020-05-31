@@ -379,7 +379,7 @@ typedef enum
     mod_alias,  // movable character model
 } modtype_t;
 
-typedef struct
+typedef struct mmodel_s
 {
 // metadata
     char name[64];

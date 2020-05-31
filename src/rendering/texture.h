@@ -31,4 +31,6 @@ textureid_t texture_lookup(const char* name);
 
 textureid_t texture_unpalette(const u8* bytes, int2 size);
 
+textureid_t texture_lumtonormal(textureid_t src, float scale);
+
 PIM_C_END

@@ -14,6 +14,7 @@
 #include "math/frustum.h"
 #include "math/sdf.h"
 #include "math/ambcube.h"
+#include "math/sampling.h"
 
 #include "rendering/sampler.h"
 #include "rendering/tile.h"
@@ -125,8 +126,8 @@ static void EnsureInit(void)
     }
 }
 
-ProfileMark(pm_FragmentStage, Drawables_Fragment)
-task_t* Drawables_Fragment(
+ProfileMark(pm_FragmentStage, drawables_fragment)
+task_t* drawables_fragment(
     framebuf_t* frontBuf,
     const framebuf_t* backBuf)
 {
@@ -207,8 +208,6 @@ static void VEC_CALL DrawMesh(
     const drawables_t* drawTable = drawables_get();
 
     mesh_t mesh;
-    texture_t albedoMap = { 0 };
-    texture_t romeMap = { 0 };
     if (!mesh_get(drawTable->tmpMeshes[iDraw], &mesh))
     {
         return;
@@ -229,8 +228,12 @@ static void VEC_CALL DrawMesh(
     const material_t material = drawTable->materials[iDraw];
     const float4 flatAlbedo = ColorToLinear(material.flatAlbedo);
     const float4 flatRome = ColorToLinear(material.flatRome);
+    texture_t albedoMap = { 0 };
     texture_get(material.albedo, &albedoMap);
+    texture_t romeMap = { 0 };
     texture_get(material.rome, &romeMap);
+    texture_t normalMap = { 0 };
+    texture_get(material.normal, &normalMap);
 
     const float4 eye = ctx->eye;
     const float4 fwd = ctx->fwd;
@@ -338,8 +341,14 @@ static void VEC_CALL DrawMesh(
                 {
                     // blend interpolators
                     const float4 P = f4_blend(A, B, C, wuvt);
-                    const float4 N = f4_normalize3(f4_blend(NA, NB, NC, wuvt));
+                    float4 N = f4_normalize3(f4_blend(NA, NB, NC, wuvt));
                     const float2 U = f2_frac(f2_blend(UA, UB, UC, wuvt));
+
+                    if (normalMap.texels)
+                    {
+                        float4 tN = UvBilinearWrap_dir8(normalMap.texels, normalMap.size, U);
+                        N = TanToWorld(N, tN);
+                    }
 
                     // lighting
                     const float4 V = f4_normalize3(f4_sub(eye, P));
@@ -355,6 +364,10 @@ static void VEC_CALL DrawMesh(
                     {
                         rome = f4_mul(rome,
                             UvBilinearWrap_c32(romeMap.texels, romeMap.size, U));
+                    }
+                    {
+                        float4 emission = UnpackEmission(albedo, rome.w);
+                        lighting = f4_add(lighting, emission);
                     }
                     const float mip = Cubemap_Rough2Mip(rome.x);
                     {

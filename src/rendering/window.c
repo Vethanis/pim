@@ -174,10 +174,6 @@ static GLFWwindow* CreateGlfwWindow(
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
-    glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);
-    glfwWindowHint(GLFW_REFRESH_RATE, GLFW_DONT_CARE);
-    glfwWindowHint(GLFW_SAMPLES, 0);
-    glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_FALSE);
     glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_TRUE);
 
     i32 xpos, ypos;

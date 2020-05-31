@@ -93,6 +93,7 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
     const i32 bounces = task->bounces;
     trace_img_t img = task->img;
     const int2 size = img.size;
+    const float2 rcpSize = f2_rcp(i2_f2(size));
     float3* pim_noalias colors = img.colors;
     float3* pim_noalias albedos = img.albedos;
     float3* pim_noalias normals = img.normals;
@@ -103,10 +104,7 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
         const i32 x = i % size.x;
         const i32 y = i / size.x;
         float2 jit = f2_tent(f2_rand(&rng));
-        jit = f2_mulvs(jit, 0.5f);
-        jit = f2_div(jit, f2_iv(x, y));
-        float2 uv = { (float)x / size.x, (float)y / size.y };
-        uv = f2_add(uv, jit);
+        float2 uv = { (x + jit.x) * rcpSize.x, (y + jit.y) * rcpSize.y };
         const float4 dir = SphereMap_UvToDir(uv);
         ray_t ray = { .ro = origin, .rd = dir };
         pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);

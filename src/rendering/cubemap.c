@@ -247,7 +247,7 @@ pim_optimize
 float4 VEC_CALL Cubemap_CalcDir(
     i32 size, Cubeface face, int2 coord, float2 Xi)
 {
-    Xi = f2_mulvs(Xi, 1.0f / size);
+    Xi = f2_mulvs(Xi, 0.5f / size);
     float2 uv = CoordToUv(i2_s(size), coord);
     uv = f2_add(uv, Xi);
     uv = f2_snorm(uv);

@@ -11,6 +11,9 @@ PIM_C_BEGIN
 #define C32_RED     0xff0000ff
 #define C32_GREEN   0xff00ff00
 #define C32_BLUE    0xffff0000
+#define C32_YELLOW  (C32_RED | C32_GREEN)
+#define C32_MAGENTA (C32_BLUE | C32_RED)
+#define C32_CYAN    (C32_BLUE | C32_GREEN)
 
 void con_sys_init(void);
 void con_sys_update(void);

@@ -9,7 +9,7 @@ typedef struct framebuf_s framebuf_t;
 typedef struct task_s task_t;
 typedef struct SphereMap_s SphereMap;
 
-task_t* Drawables_Fragment(framebuf_t* frontBuf, const framebuf_t* backBuf);
+task_t* drawables_fragment(framebuf_t* frontBuf, const framebuf_t* backBuf);
 
 AmbCube_t VEC_CALL AmbCube_Get(void);
 void VEC_CALL AmbCube_Set(AmbCube_t cube);
