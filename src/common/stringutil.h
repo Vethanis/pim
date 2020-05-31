@@ -69,6 +69,7 @@ const char* IEndsWith(const char* hay, i32 size, const char* needle);
 
 i32 VSPrintf(char* dst, i32 size, const char* fmt, VaList va);
 i32 SPrintf(char* dst, i32 size, const char* fmt, ...);
+i32 VStrCatf(char* dst, i32 size, const char* fmt, VaList va);
 i32 StrCatf(char* dst, i32 size, const char* fmt, ...);
 
 // ----------------------------------------------------------------------------

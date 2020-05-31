@@ -23,4 +23,16 @@ void con_puts(u32 color, const char* line);
 void con_printf(u32 color, const char* fmt, ...);
 void con_clear(void);
 
+typedef enum
+{
+    LogSev_Error,
+    LogSev_Warning,
+    LogSev_Info,
+    LogSev_Verbose,
+
+    LogSev_COUNT
+} LogSev;
+
+void con_logf(LogSev sev, const char* tag, const char* fmt, ...);
+
 PIM_C_END

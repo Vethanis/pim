@@ -89,6 +89,9 @@
     <Filter Include="Source Files\rendering\vulkan">
       <UniqueIdentifier>{fb1eb6df-deb9-4930-a51f-3707a65a959a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="submodules\volk">
+      <UniqueIdentifier>{d7b9c75b-9e91-47df-94bc-47c003fcb8d3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -358,9 +361,6 @@
     <ClCompile Include="..\src\rendering\drawable.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\vulkan\vkrenderer.c">
-      <Filter>Source Files\rendering\vulkan</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\rendering\model.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
@@ -369,6 +369,12 @@
     </ClCompile>
     <ClCompile Include="..\src\containers\strlist.c">
       <Filter>Source Files\containers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\volk\volk.c">
+      <Filter>submodules\volk</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -777,9 +783,6 @@
     <ClInclude Include="..\src\rendering\drawable.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\vulkan\vkrenderer.h">
-      <Filter>Source Files\rendering\vulkan</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\rendering\model.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
@@ -791,6 +794,12 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\strlist.h">
       <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\volk\volk.h">
+      <Filter>submodules\volk</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

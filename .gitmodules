@@ -10,3 +10,6 @@
 [submodule "submodules/tlsf"]
 	path = submodules/tlsf
 	url = https://github.com/mattconte/tlsf
+[submodule "submodules/volk"]
+	path = submodules/volk
+	url = https://github.com/zeux/volk

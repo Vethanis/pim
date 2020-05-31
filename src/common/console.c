@@ -9,8 +9,10 @@
 #include "input/input_system.h"
 #include "ui/cimgui.h"
 #include "rendering/window.h"
+#include "common/time.h"
 
 #include <string.h>
+#include <math.h>
 
 #define MAX_LINES       256
 #define MAX_HISTORY     64
@@ -58,7 +60,7 @@ void con_sys_update(void)
 {
     ProfileBegin(pm_update);
 
-    if(cvar_check_dirty(&cv_conlogpath))
+    if (cvar_check_dirty(&cv_conlogpath))
     {
         fstr_close(&ms_file);
         ms_file = fstr_open(cv_conlogpath.value, "wb");
@@ -249,6 +251,68 @@ void con_clear(void)
     ms_iLine = 0;
 }
 
+static u32 LogSevToColor(LogSev sev)
+{
+    switch (sev)
+    {
+    default:
+    case LogSev_Error:
+        return C32_RED;
+    case LogSev_Warning:
+        return C32_YELLOW;
+    case LogSev_Info:
+        return C32_WHITE;
+    case LogSev_Verbose:
+        return C32_GRAY;
+    }
+}
+
+static const char* LogSevToTag(LogSev sev)
+{
+    switch (sev)
+    {
+    default:
+    case LogSev_Error:
+        return "ERROR";
+    case LogSev_Warning:
+        return "WARN";
+    case LogSev_Info:
+        return "INFO";
+    case LogSev_Verbose:
+        return "VERBOSE";
+    }
+}
+
+void con_logf(LogSev sev, const char* tag, const char* fmt, ...)
+{
+    ASSERT(fmt);
+    if (fmt)
+    {
+        double ms = time_milli(time_now() - time_appstart());
+        double seconds = ms / 1000.0;
+        double minutes = seconds / 60.0;
+        double hours = minutes / 60.0;
+        ms = fmod(ms, 1000.0);
+        seconds = fmod(seconds, 1.0);
+        minutes = fmod(minutes, 60.0);
+
+        u32 sevColor = LogSevToColor(sev);
+        const char* sevTag = LogSevToTag(sev);
+
+        char msg[1024];
+        SPrintf(ARGS(msg), "[%02d:%02d:%02d:%03d]", (i32)hours, (i32)minutes, (i32)seconds, (i32)ms);
+        StrCatf(ARGS(msg), "[%s]", sevTag);
+        if (tag)
+        {
+            StrCatf(ARGS(msg), "[%s]", tag);
+        }
+        StrCatf(ARGS(msg), " ");
+        VStrCatf(ARGS(msg), fmt, VA_START(fmt));
+
+        con_puts(sevColor, msg);
+    }
+}
+
 static i32 OnTextComplete(ImGuiInputTextCallbackData* data)
 {
     char* buffer = data->Buf;
@@ -295,10 +359,10 @@ static i32 OnTextHistory(ImGuiInputTextCallbackData* data)
     default:
     case ImGuiKey_UpArrow:
         iHistory = --iHistory & mask;
-    break;
+        break;
     case ImGuiKey_DownArrow:
         iHistory = ++iHistory & mask;
-    break;
+        break;
     }
 
     const char* hist = ms_history[iHistory];

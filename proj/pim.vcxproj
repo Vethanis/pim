@@ -78,7 +78,7 @@
     <ClCompile Include="..\src\rendering\render_system.c" />
     <ClCompile Include="..\src\rendering\screenblit.c" />
     <ClCompile Include="..\src\rendering\texture.c" />
-    <ClCompile Include="..\src\rendering\vulkan\vkrenderer.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr.c" />
     <ClCompile Include="..\src\rendering\window.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
@@ -104,6 +104,7 @@
     <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp" />
     <ClCompile Include="..\submodules\stb\stb_vorbis.c" />
     <ClCompile Include="..\submodules\tlsf\tlsf.c" />
+    <ClCompile Include="..\submodules\volk\volk.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\allocator\allocator.h" />
@@ -195,7 +196,7 @@
     <ClInclude Include="..\src\rendering\tile.h" />
     <ClInclude Include="..\src\rendering\tonemap.h" />
     <ClInclude Include="..\src\rendering\vertex_stage.h" />
-    <ClInclude Include="..\src\rendering\vulkan\vkrenderer.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr.h" />
     <ClInclude Include="..\src\rendering\window.h" />
     <ClInclude Include="..\src\sokol\sokol_audio.h" />
     <ClInclude Include="..\src\sokol\sokol_time.h" />
@@ -246,6 +247,7 @@
     <ClInclude Include="..\submodules\stb\stb_truetype.h" />
     <ClInclude Include="..\submodules\stb\stb_voxel_render.h" />
     <ClInclude Include="..\submodules\stb\stretchy_buffer.h" />
+    <ClInclude Include="..\submodules\volk\volk.h" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\row.natvis" />
@@ -296,7 +298,7 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>NOMINMAX;_DEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;VK_USE_PLATFORM_WIN32_KHR;_DEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb;$(ProjectDir)..\submodules\pthread_w32\include;$(ProjectDir)..\include;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
@@ -335,7 +337,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>NOMINMAX;NDEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;VK_USE_PLATFORM_WIN32_KHR;NDEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb;$(ProjectDir)..\submodules\pthread_w32\include;$(ProjectDir)..\include;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>

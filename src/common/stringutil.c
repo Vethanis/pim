@@ -477,6 +477,12 @@ i32 SPrintf(char* dst, i32 size, const char* fmt, ...)
     return VSPrintf(dst, size, fmt, VA_START(fmt));
 }
 
+i32 VStrCatf(char* dst, i32 size, const char* fmt, VaList va)
+{
+    i32 len = StrNLen(dst, size);
+    return VSPrintf(dst + len, size - len, fmt, va) + len;
+}
+
 i32 StrCatf(char* dst, i32 size, const char* fmt, ...)
 {
     i32 len = StrNLen(dst, size);

@@ -41,7 +41,7 @@
 #include "rendering/drawable.h"
 #include "rendering/model.h"
 
-#include "rendering/vulkan/vkrenderer.h"
+#include "rendering/vulkan/vkr.h"
 
 #include "quake/q_model.h"
 #include "assets/asset_system.h"
@@ -364,7 +364,7 @@ void render_sys_init(void)
     cvar_reg(&cv_sm_gen);
     cvar_reg(&cv_r_sw);
 
-    vkrenderer_init();
+    vkr_init();
 
     ms_iFrame = 0;
     framebuf_create(GetFrontBuf(), kDrawWidth, kDrawHeight);
@@ -414,7 +414,7 @@ void render_sys_update(void)
         }
         else
         {
-            vkrenderer_update();
+            vkr_update();
         }
     }
     Present();
@@ -436,7 +436,7 @@ void render_sys_shutdown(void)
     Denoise_Del(&ms_ptdenoise);
     Denoise_Del(&ms_smdenoise);
 
-    vkrenderer_shutdown();
+    vkr_shutdown();
 }
 
 static i32 CmpFloat(const void* lhs, const void* rhs, void* usr)

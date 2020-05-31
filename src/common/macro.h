@@ -87,6 +87,8 @@
 #define SASSERT(x)                  typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
 
 #define PIM_PATH                    256
+#define PIM_FWD_DECL(name)          typedef struct name name
+#define PIM_DECL_HANDLE(name)       typedef struct name##_T* name
 
 PIM_C_BEGIN
 
