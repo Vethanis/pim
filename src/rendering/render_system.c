@@ -76,9 +76,8 @@ static float4 ms_clearColor;
 
 static pt_scene_t* ms_ptscene;
 static pt_trace_t ms_trace;
+static float3* ms_ptdenoised;
 static camera_t ms_ptcamera;
-static denoise_t ms_ptdenoise;
-static denoise_t ms_smdenoise;
 static trace_img_t ms_smimg;
 
 static i32 ms_acSampleCount;
@@ -223,7 +222,6 @@ static void Spheremap_Trace(void)
 
             float3* denoised = tmp_malloc(sizeof(denoised[0]) * len);
             Denoise_Execute(
-                &ms_smdenoise,
                 DenoiseType_Image,
                 img,
                 denoised);
@@ -263,13 +261,11 @@ static bool PathTrace(void)
         if (cv_pt_denoise.asFloat != 0.0f)
         {
             ProfileBegin(pm_ptDenoise);
-            float3* denoised = tmp_malloc(sizeof(denoised[0]) * kDrawPixels);
             Denoise_Execute(
-                &ms_ptdenoise,
                 DenoiseType_Image,
                 ms_trace.img,
-                denoised);
-            pPresent = denoised;
+                ms_ptdenoised);
+            pPresent = ms_ptdenoised;
             ProfileEnd(pm_ptDenoise);
         }
 
@@ -389,10 +385,8 @@ void render_sys_init(void)
     task_sys_schedule();
     task_await(compose);
 
-    Denoise_New(&ms_ptdenoise);
-    Denoise_New(&ms_smdenoise);
-
     trace_img_new(&ms_trace.img, i2_v(kDrawWidth, kDrawHeight));
+    ms_ptdenoised = perm_calloc(sizeof(ms_ptdenoised[0]) * kDrawPixels);
     trace_img_new(&ms_smimg, i2_s(256));
 
     CleanPtScene();
@@ -433,8 +427,10 @@ void render_sys_shutdown(void)
     framebuf_destroy(GetFrontBuf());
     framebuf_destroy(GetBackBuf());
 
-    Denoise_Del(&ms_ptdenoise);
-    Denoise_Del(&ms_smdenoise);
+    trace_img_del(&ms_trace.img);
+    pim_free(ms_ptdenoised);
+    ms_ptdenoised = NULL;
+    trace_img_del(&ms_smimg);
 
     vkr_shutdown();
 }

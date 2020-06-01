@@ -381,7 +381,6 @@ task_t* Cubemap_Bake(
     return NULL;
 }
 
-static denoise_t ms_denoise;
 ProfileMark(pm_Denoise, Cubemap_Denoise)
 void Cubemap_Denoise(BCubemap* src, Cubemap* dst)
 {
@@ -390,18 +389,13 @@ void Cubemap_Denoise(BCubemap* src, Cubemap* dst)
 
     ProfileBegin(pm_Denoise);
 
-    if (!ms_denoise.device)
-    {
-        Denoise_New(&ms_denoise);
-    }
-
     i32 size = dst->size;
     i32 len = size * size;
 
     float3* pim_noalias output = tmp_malloc(sizeof(output[0]) * len);
     for (i32 i = 0; i < Cubeface_COUNT; ++i)
     {
-        Denoise_Execute(&ms_denoise, DenoiseType_Image, src->faces[i], output);
+        Denoise_Execute(DenoiseType_Image, src->faces[i], output);
 
         float4* pim_noalias texels = dst->faces[i];
         for (i32 j = 0; j < len; ++j)

@@ -144,13 +144,10 @@ typedef struct oidnlib_s
 
 typedef struct denoise_filter_s
 {
-    void* handle;
-    int2 size;
-    const float3* color;
-    const float3* albedo;
-    const float3* normal;
-    float3* output;
+    OIDNFilter handle;
     DenoiseType type;
+    trace_img_t img;
+    const void* output;
 } denoise_filter_t;
 
 static const char* const kFilterNames[] =
@@ -159,8 +156,13 @@ static const char* const kFilterNames[] =
     "RTLightmap",
 };
 
+#define kMaxCachedFilters 4
+
 static bool ms_once;
 static oidnlib_t oidn;
+static OIDNDevice ms_device;
+static u32 ms_iFilt;
+static denoise_filter_t ms_filters[kMaxCachedFilters];
 
 static void LoadLib(library_t lib)
 {
@@ -199,54 +201,54 @@ static void LoadLib(library_t lib)
     LOAD_FN(oidn, lib, ExecuteFilter);
 }
 
+static bool PrintErrors(void)
+{
+    bool hadErrors = false;
+#ifdef _DEBUG
+    ASSERT(ms_device);
+    ASSERT(oidn.GetDeviceError);
+    const char* errorMessage = NULL;
+    while (oidn.GetDeviceError(ms_device, &errorMessage) != OIDN_ERROR_NONE)
+    {
+        hadErrors = true;
+        ASSERT(errorMessage);
+        con_logf(LogSev_Error, "OIDN", errorMessage);
+    }
+#endif // _DEBUG
+    return hadErrors;
+}
+
 static bool EnsureInit(void)
 {
     if (!ms_once)
     {
         ms_once = true;
 
-        #if (DENOISE_DYNAMIC)
-        {
-            library_t lib = Library_Open("oidn/OpenImageDenoise");
+#if DENOISE_DYNAMIC
+        library_t lib = Library_Open("oidn/OpenImageDenoise");
 
-            ASSERT(lib.handle);
-            if (lib.handle)
+        ASSERT(lib.handle);
+        if (lib.handle)
+        {
+            oidn.lib = lib;
+            LoadLib(lib);
+        }
+#else
+        LoadLib((library_t){0});
+#endif // DENOISE_DYNAMIC
+
+        bool success = DENOISE_DYNAMIC ? oidn.lib.handle != NULL : true;
+        if (success)
+        {
+            ms_device = oidn.NewDevice(OIDN_DEVICE_TYPE_DEFAULT);
+            if (ms_device)
             {
-                oidn.lib = lib;
-                LoadLib(lib);
+                oidn.CommitDevice(ms_device);
             }
         }
-        #else
-        {
-            LoadLib((library_t){0});
-        }
-        #endif
     }
 
-    #if (DENOISE_DYNAMIC)
-    {
-        return oidn.lib.handle != NULL;
-    }
-    #else
-    {
-        return true;
-    }
-    #endif
-}
-
-static bool PrintErrors(OIDNDevice device)
-{
-    bool hadErrors = false;
-    ASSERT(device);
-    ASSERT(oidn.GetDeviceError);
-    const char* errorMessage = NULL;
-    while (oidn.GetDeviceError(device, &errorMessage) != OIDN_ERROR_NONE)
-    {
-        hadErrors = true;
-        ASSERT(errorMessage);
-        con_printf(C32_RED, "[OIDN][Error]: %s", errorMessage);
-    }
-    return hadErrors;
+    return ms_device != NULL;
 }
 
 static void SetImage(
@@ -259,64 +261,70 @@ static void SetImage(
         filter, channel, buffer, OIDN_FORMAT_FLOAT3, size.x, size.y, 0, 0, 0);
 }
 
-void Denoise_New(denoise_t* denoise)
+static OIDNFilter GetCachedFilter(DenoiseType type, const trace_img_t* img, void* output)
 {
-    ASSERT(denoise);
+    ASSERT(img);
+    ASSERT(output);
 
-    if (!EnsureInit())
+    u32 iFilt = ms_iFilt;
+    denoise_filter_t* filters = ms_filters;
+    OIDNDevice device = ms_device;
+
+    for (u32 i = 0; i < kMaxCachedFilters; ++i)
     {
-        ASSERT(false);
-        return;
-    }
-
-    memset(denoise, 0, sizeof(*denoise));
-
-    OIDNDevice device = oidn.NewDevice(OIDN_DEVICE_TYPE_DEFAULT);
-    oidn.CommitDevice(device);
-    PrintErrors(device);
-
-    denoise->device = device;
-    denoise->filter = perm_calloc(sizeof(denoise_filter_t));
-}
-
-void Denoise_Del(denoise_t* denoise)
-{
-    if (!EnsureInit())
-    {
-        ASSERT(false);
-        return;
-    }
-
-    if (denoise)
-    {
-        denoise_filter_t* pFilter = denoise->filter;
-        if (pFilter)
+        u32 j = (iFilt + i) % kMaxCachedFilters;
+        if (filters[j].handle)
         {
-            OIDNFilter filter = pFilter->handle;
-            if (filter)
+            if ((filters[j].type == type) && (filters[j].output == output))
             {
-                oidn.ReleaseFilter(filter);
+                if (memcmp(&filters[j].img, img, sizeof(img)) == 0)
+                {
+                    return filters[j].handle;
+                }
             }
         }
+    }
 
-        if (denoise->device)
+    ++iFilt;
+    ms_iFilt = iFilt;
+
+    {
+        u32 j = iFilt % kMaxCachedFilters;
+
+        OIDNFilter handle = filters[j].handle;
+        filters[j].handle = NULL;
+
+        if (handle)
         {
-            oidn.ReleaseDevice(denoise->device);
+            oidn.ReleaseFilter(handle);
+            handle = NULL;
         }
 
-        pim_free(denoise->filter);
-        denoise->filter = NULL;
-        denoise->device = NULL;
+        handle = oidn.NewFilter(device, kFilterNames[type]);
+        PrintErrors();
+        ASSERT(handle);
+        SetImage(handle, "color", img->colors, img->size);
+        SetImage(handle, "albedo", img->albedos, img->size);
+        SetImage(handle, "normal", img->normals, img->size);
+        SetImage(handle, "output", output, img->size);
+        oidn.SetFilter1b(handle, "hdr", true);
+        oidn.CommitFilter(handle);
+        PrintErrors();
+
+        filters[j].handle = handle;
+        filters[j].img = *img;
+        filters[j].output = output;
+        filters[j].type = type;
+
+        return handle;
     }
 }
 
 void Denoise_Execute(
-    denoise_t* denoise,
     DenoiseType type,
     trace_img_t img,
     float3* output)
 {
-    ASSERT(denoise);
     ASSERT(type >= 0);
     ASSERT(type < DenoiseType_COUNT);
     ASSERT(output);
@@ -327,51 +335,7 @@ void Denoise_Execute(
         return;
     }
 
-    OIDNDevice device = denoise->device;
-    ASSERT(device);
-    denoise_filter_t* pFilter = denoise->filter;
-    ASSERT(pFilter);
-    OIDNFilter filter = pFilter->handle;
-
-    bool dirty = filter == NULL;
-    denoise_filter_t args =
-    {
-        .handle = filter,
-        .size = img.size,
-        .color = img.colors,
-        .albedo = img.albedos,
-        .normal = img.normals,
-        .output = output,
-        .type = type,
-    };
-    dirty |= memcmp(&args, pFilter, sizeof(args)) != 0;
-
-    if (dirty)
-    {
-        if (filter)
-        {
-            oidn.ReleaseFilter(filter);
-            filter = NULL;
-            pFilter->handle = NULL;
-        }
-
-        filter = oidn.NewFilter(device, kFilterNames[type]);
-
-        SetImage(filter, "color", (float3*)img.colors, img.size);
-        SetImage(filter, "albedo", (float3*)img.albedos, img.size);
-        SetImage(filter, "normal", (float3*)img.normals, img.size);
-        SetImage(filter, "output", output, img.size);
-        oidn.SetFilter1b(filter, "hdr", true);
-
-        oidn.CommitFilter(filter);
-
-        PrintErrors(device);
-
-        *pFilter = args;
-        pFilter->handle = filter;
-    }
-
+    OIDNFilter filter = GetCachedFilter(type, &img, output);
     oidn.ExecuteFilter(filter);
-
-    PrintErrors(device);
+    PrintErrors();
 }

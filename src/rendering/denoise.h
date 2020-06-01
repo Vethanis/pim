@@ -14,17 +14,7 @@ typedef enum
     DenoiseType_COUNT
 } DenoiseType;
 
-typedef struct denoise_s
-{
-    void* device;
-    void* filter;
-} denoise_t;
-
-void Denoise_New(denoise_t* denoise);
-void Denoise_Del(denoise_t* denoise);
-
 void Denoise_Execute(
-    denoise_t* denoise,
     DenoiseType type,
     trace_img_t img,
     float3* output);

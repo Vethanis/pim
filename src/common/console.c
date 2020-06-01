@@ -293,7 +293,7 @@ void con_logf(LogSev sev, const char* tag, const char* fmt, ...)
         double minutes = seconds / 60.0;
         double hours = minutes / 60.0;
         ms = fmod(ms, 1000.0);
-        seconds = fmod(seconds, 1.0);
+        seconds = fmod(seconds, 60.0);
         minutes = fmod(minutes, 60.0);
 
         u32 sevColor = LogSevToColor(sev);
