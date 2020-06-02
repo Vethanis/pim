@@ -26,18 +26,12 @@ typedef struct Cubemap_s
     float4* faces[Cubeface_COUNT];
 } Cubemap;
 
-typedef struct BCubemap_s
-{
-    i32 size;
-    trace_img_t faces[Cubeface_COUNT];
-} BCubemap;
-
 typedef struct Cubemaps_s
 {
     i32 count;
     u32* names;
+    Cubemap* bakemaps;
     Cubemap* convmaps;
-    BCubemap* bakemaps;
     sphere_t* bounds;
 } Cubemaps_t;
 
@@ -49,9 +43,6 @@ i32 Cubemaps_Find(u32 name);
 
 void Cubemap_New(Cubemap* cm, i32 size);
 void Cubemap_Del(Cubemap* cm);
-
-void BCubemap_New(BCubemap* cm, i32 size);
-void BCubemap_Del(BCubemap* cm);
 
 void Cubemap_Cpy(const Cubemap* src, Cubemap* dst);
 
@@ -79,13 +70,11 @@ float4 VEC_CALL Cubemap_FaceDir(Cubeface face);
 void Cubemap_GenMips(Cubemap* cm);
 
 task_t* Cubemap_Bake(
-    BCubemap* bakemap,
+    Cubemap* cm,
     const pt_scene_t* scene,
     float4 origin,
     float weight,
     i32 bounces);
-
-void Cubemap_Denoise(BCubemap* src, Cubemap* dst);
 
 void Cubemap_Prefilter(const Cubemap* src, Cubemap* dst, u32 sampleCount);
 

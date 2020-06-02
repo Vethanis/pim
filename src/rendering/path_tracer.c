@@ -55,7 +55,8 @@ typedef struct trace_task_s
     task_t task;
     const pt_scene_t* scene;
     camera_t camera;
-    trace_img_t img;
+    float4* image;
+    int2 size;
     float sampleWeight;
     i32 bounces;
 } trace_task_t;
@@ -185,31 +186,6 @@ static bool InsertTriangle(
         }
     }
     return false;
-}
-
-void trace_img_new(trace_img_t* img, int2 size)
-{
-    ASSERT(img);
-    ASSERT(size.x >= 0);
-    ASSERT(size.y >= 0);
-    ASSERT(size.x * size.y >= 0);
-
-    i32 len = size.x * size.y;
-    img->size = size;
-    img->colors = perm_calloc(sizeof(img->colors[0]) * len);
-    img->albedos = perm_calloc(sizeof(img->albedos[0]) * len);
-    img->normals = perm_calloc(sizeof(img->normals[0]) * len);
-}
-
-void trace_img_del(trace_img_t* img)
-{
-    if (img)
-    {
-        pim_free(img->colors);
-        pim_free(img->albedos);
-        pim_free(img->normals);
-        memset(img, 0, sizeof(*img));
-    }
 }
 
 pt_scene_t* pt_scene_new(i32 maxDepth)
@@ -567,14 +543,12 @@ static surfhit_t VEC_CALL GetSurface(
 }
 
 pim_optimize
-pt_result_t VEC_CALL pt_trace_ray(
+float4 VEC_CALL pt_trace_ray(
     prng_t* rng,
     const pt_scene_t* scene,
     ray_t ray,
     i32 bounces)
 {
-    float4 albedo = f4_0;
-    float4 normal = f4_0;
     float4 light = f4_0;
     float4 attenuation = f4_1;
     float pdf = 1.0f;
@@ -588,11 +562,6 @@ pt_result_t VEC_CALL pt_trace_ray(
         }
 
         surfhit_t surf = GetSurface(scene, ray, hit);
-        if (b == 0)
-        {
-            albedo = surf.albedo;
-            normal = surf.N;
-        }
 
         float4 emission = surf.emission;
         emission = f4_divvs(emission, pdf);
@@ -633,11 +602,7 @@ pt_result_t VEC_CALL pt_trace_ray(
         }
     }
 
-    pt_result_t result;
-    result.albedo = f4_f3(albedo);
-    result.normal = f4_f3(normal);
-    result.color = f4_f3(light);
-    return result;
+    return light;
 }
 
 pim_optimize
@@ -647,11 +612,9 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
 
     const pt_scene_t* scene = trace->scene;
 
-    float3* pim_noalias colors = trace->img.colors;
-    float3* pim_noalias albedos = trace->img.albedos;
-    float3* pim_noalias normals = trace->img.normals;
+    float4* pim_noalias image = trace->image;
 
-    const int2 size = trace->img.size;
+    const int2 size = trace->size;
     const float sampleWeight = trace->sampleWeight;
     const i32 bounces = trace->bounces;
     const camera_t camera = trace->camera;
@@ -678,13 +641,8 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
 
         float4 rd = proj_dir(right, up, fwd, slope, uv);
         ray_t ray = { ro, rd };
-        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
-
-        colors[i] = f3_lerp(colors[i], result.color, sampleWeight);
-        albedos[i] = f3_lerp(albedos[i], result.albedo, sampleWeight);
-        float3 N = normals[i];
-        N = f3_lerp(N, result.normal, sampleWeight);
-        normals[i] = N;
+        float4 result = pt_trace_ray(&rng, scene, ray, bounces);
+        image[i] = f4_lerpvs(image[i], result, sampleWeight);
     }
 
     prng_set(rng);
@@ -699,11 +657,12 @@ task_t* pt_trace(pt_trace_t* desc)
     trace_task_t* task = tmp_calloc(sizeof(*task));
     task->scene = desc->scene;
     task->camera = desc->camera[0];
-    task->img = desc->img;
+    task->image = desc->image;
+    task->size = desc->imageSize;
     task->sampleWeight = desc->sampleWeight;
     task->bounces = desc->bounces;
 
-    const i32 workSize = desc->img.size.x * desc->img.size.y;
+    const i32 workSize = task->size.x * task->size.y;
     task_submit((task_t*)task, TraceFn, workSize);
     return (task_t*)task;
 }
@@ -721,9 +680,7 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
         TBN = NormalToTBN(origin.rd);
     }
 
-    float3* pim_noalias colors = task->colors;
-    float3* pim_noalias albedos = task->albedos;
-    float3* pim_noalias normals = task->normals;
+    float4* pim_noalias colors = task->colors;
     float4* pim_noalias directions = task->directions;
 
     ray_t ray;
@@ -745,12 +702,7 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
         }
 
         directions[i] = ray.rd;
-
-        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
-
-        colors[i] = result.color;
-        albedos[i] = result.albedo;
-        normals[i] = result.normal;
+        colors[i] = pt_trace_ray(&rng, scene, ray, bounces);
     }
     prng_set(rng);
 }
@@ -764,8 +716,6 @@ pt_raygen_t* pt_raygen(const pt_scene_t* scene, ray_t origin, pt_dist_t dist, i3
     task->scene = scene;
     task->origin = origin;
     task->colors = tmp_malloc(sizeof(task->colors[0]) * count);
-    task->albedos = tmp_malloc(sizeof(task->albedos[0]) * count);
-    task->normals = tmp_malloc(sizeof(task->normals[0]) * count);
     task->directions = tmp_malloc(sizeof(task->directions[0]) * count);
     task->dist = dist;
     task->bounces = bounces;

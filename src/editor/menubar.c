@@ -1,7 +1,7 @@
 #include "editor/menubar.h"
 #include "common/profiler.h"
 #include "ui/cimgui.h"
-#include "rendering/window.h"
+#include "rendering/r_window.h"
 #include "common/cvar.h"
 #include "rendering/render_system.h"
 #include "assets/asset_system.h"

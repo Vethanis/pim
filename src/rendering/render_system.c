@@ -25,7 +25,7 @@
 #include "math/lighting.h"
 
 #include "rendering/constants.h"
-#include "rendering/window.h"
+#include "rendering/r_window.h"
 #include "rendering/framebuffer.h"
 #include "rendering/camera.h"
 #include "rendering/lights.h"
@@ -36,8 +36,6 @@
 #include "rendering/screenblit.h"
 #include "rendering/path_tracer.h"
 #include "rendering/cubemap.h"
-#include "rendering/denoise.h"
-#include "rendering/spheremap.h"
 #include "rendering/drawable.h"
 #include "rendering/model.h"
 
@@ -50,13 +48,9 @@
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
 static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "10", "path tracing bounces" };
-static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
-static cvar_t cv_pt_dbg_albedo = { cvart_bool, 0, "pt_dbg_albedo", "0", "display path tracing albedo" };
-static cvar_t cv_pt_dbg_normal = { cvart_bool, 0, "pt_dbg_normal", "0", "display path tracing normal" };
 
 static cvar_t cv_ac_gen = { cvart_bool, 0, "ac_gen", "0", "enable ambientcube generation" };
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
-static cvar_t cv_sm_gen = { cvart_bool, 0, "sm_gen", "0", "enable spheremap generation" };
 
 static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
 
@@ -76,14 +70,11 @@ static float4 ms_clearColor;
 
 static pt_scene_t* ms_ptscene;
 static pt_trace_t ms_trace;
-static float3* ms_ptdenoised;
 static camera_t ms_ptcamera;
-static trace_img_t ms_smimg;
 
 static i32 ms_acSampleCount;
 static i32 ms_ptSampleCount;
 static i32 ms_cmapSampleCount;
-static i32 ms_smapSampleCount;
 
 // ----------------------------------------------------------------------------
 
@@ -114,7 +105,6 @@ static void CleanPtScene(void)
         ms_ptSampleCount = 0;
         ms_acSampleCount = 0;
         ms_cmapSampleCount = 0;
-        ms_smapSampleCount = 0;
         ms_ptcamera = camera;
     }
     if (!ms_ptscene)
@@ -153,9 +143,9 @@ static void Cubemap_Trace(void)
 
         Cubemaps_t* table = Cubemaps_Get();
         const i32 len = table->count;
-        Cubemap* convmaps = table->convmaps;
-        BCubemap* bakemaps = table->bakemaps;
         const sphere_t* bounds = table->bounds;
+        Cubemap* bakemaps = table->bakemaps;
+        Cubemap* convmaps = table->convmaps;
 
         float weight = 1.0f / (1.0f + ms_cmapSampleCount++);
         for (i32 i = 0; i < len; ++i)
@@ -170,70 +160,10 @@ static void Cubemap_Trace(void)
 
         for (i32 i = 0; i < len; ++i)
         {
-            Cubemap_Denoise(bakemaps + i, convmaps + i);
+            Cubemap_Prefilter(bakemaps + i, convmaps + i, 1024);
         }
-
-        Cubemap tmp = { 0 };
-        for (i32 i = 0; i < len; ++i)
-        {
-            Cubemap* cm = convmaps + i;
-            if (cm->size != tmp.size)
-            {
-                Cubemap_Del(&tmp);
-                Cubemap_New(&tmp, cm->size);
-            }
-            Cubemap_Prefilter(cm, &tmp, 4096);
-            Cubemap_Cpy(&tmp, cm);
-        }
-        Cubemap_Del(&tmp);
 
         ProfileEnd(pm_CubemapTrace);
-    }
-}
-
-ProfileMark(pm_SpheremapTrace, Spheremap_Trace)
-static void Spheremap_Trace(void)
-{
-    if (cv_sm_gen.asFloat != 0.0f)
-    {
-        ProfileBegin(pm_SpheremapTrace);
-        CleanPtScene();
-
-        camera_t camera;
-        camera_get(&camera);
-
-        SphereMap* map = SphereMap_Get();
-        if (map->texels)
-        {
-            trace_img_t img = ms_smimg;
-            const int2 size = img.size;
-            const i32 len = size.x * size.y;
-
-            const i32 bounces = 10;
-            const float weight = 1.0f / (1.0f + ms_smapSampleCount++);
-            task_t* task = SphereMap_Bake(
-                ms_ptscene,
-                img,
-                camera.position,
-                weight,
-                bounces);
-            task_sys_schedule();
-            task_await(task);
-
-            float3* denoised = tmp_malloc(sizeof(denoised[0]) * len);
-            Denoise_Execute(
-                DenoiseType_Image,
-                img,
-                denoised);
-
-            float4* pim_noalias texels = map->texels;
-            for (i32 i = 0; i < len; ++i)
-            {
-                texels[i] = f3_f4(denoised[i], 1.0f);
-            }
-        }
-
-        ProfileEnd(pm_SpheremapTrace);
     }
 }
 
@@ -252,42 +182,23 @@ static bool PathTrace(void)
         ms_trace.sampleWeight = 1.0f / ++ms_ptSampleCount;
         ms_trace.camera = &ms_ptcamera;
         ms_trace.scene = ms_ptscene;
+        ms_trace.imageSize = i2_v(kDrawWidth, kDrawHeight);
+        if (!ms_trace.image)
+        {
+            ms_trace.image = perm_calloc(sizeof(ms_trace.image[0]) * kDrawPixels);
+        }
 
         task_t* task = pt_trace(&ms_trace);
         task_sys_schedule();
         task_await(task);
 
-        float3* pim_noalias pPresent = ms_trace.img.colors;
-        if (cv_pt_denoise.asFloat != 0.0f)
-        {
-            ProfileBegin(pm_ptDenoise);
-            Denoise_Execute(
-                DenoiseType_Image,
-                ms_trace.img,
-                ms_ptdenoised);
-            pPresent = ms_ptdenoised;
-            ProfileEnd(pm_ptDenoise);
-        }
-
-        if (cv_pt_dbg_albedo.asFloat != 0.0f)
-        {
-            pPresent = ms_trace.img.albedos;
-        }
-        if (cv_pt_dbg_normal.asFloat != 0.0f)
-        {
-            pPresent = ms_trace.img.normals;
-        }
-
         {
             ProfileBegin(pm_ptBlit);
-            framebuf_t* buf = GetFrontBuf();
-            float4* pim_noalias dst = buf->light;
-            const float3* pim_noalias src = pPresent;
+            float4* pim_noalias dst = GetFrontBuf()->light;
+            const float4* pim_noalias src = ms_trace.image;
             for (i32 i = 0; i < kDrawPixels; ++i)
             {
-                float3 a = src[i];
-                float4 b = { a.x, a.y, a.z };
-                dst[i] = b;
+                dst[i] = src[i];
             }
             ProfileEnd(pm_ptBlit);
         }
@@ -352,12 +263,8 @@ void render_sys_init(void)
 {
     cvar_reg(&cv_pt_trace);
     cvar_reg(&cv_pt_bounces);
-    cvar_reg(&cv_pt_denoise);
-    cvar_reg(&cv_pt_dbg_albedo);
-    cvar_reg(&cv_pt_dbg_normal);
     cvar_reg(&cv_ac_gen);
     cvar_reg(&cv_cm_gen);
-    cvar_reg(&cv_sm_gen);
     cvar_reg(&cv_r_sw);
 
     vkr_init();
@@ -385,10 +292,6 @@ void render_sys_init(void)
     task_sys_schedule();
     task_await(compose);
 
-    trace_img_new(&ms_trace.img, i2_v(kDrawWidth, kDrawHeight));
-    ms_ptdenoised = perm_calloc(sizeof(ms_ptdenoised[0]) * kDrawPixels);
-    trace_img_new(&ms_smimg, i2_s(256));
-
     CleanPtScene();
 }
 
@@ -399,7 +302,6 @@ void render_sys_update(void)
 
     AmbCube_Trace();
     Cubemap_Trace();
-    Spheremap_Trace();
     if (!PathTrace())
     {
         if (cv_r_sw.asFloat != 0.0f)
@@ -426,11 +328,6 @@ void render_sys_shutdown(void)
     screenblit_shutdown();
     framebuf_destroy(GetFrontBuf());
     framebuf_destroy(GetBackBuf());
-
-    trace_img_del(&ms_trace.img);
-    pim_free(ms_ptdenoised);
-    ms_ptdenoised = NULL;
-    trace_img_del(&ms_smimg);
 
     vkr_shutdown();
 }

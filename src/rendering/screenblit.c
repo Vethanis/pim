@@ -1,5 +1,5 @@
 #include "screenblit.h"
-#include "rendering/window.h"
+#include "rendering/r_window.h"
 #include "io/fd.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"

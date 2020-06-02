@@ -74,9 +74,6 @@
     <Filter Include="Source Files\logic">
       <UniqueIdentifier>{5c0aac3a-9ecf-4f94-90e6-20926650d973}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\glad">
-      <UniqueIdentifier>{d5176a6b-93d5-4121-85d3-09ab2e84b471}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\editor">
       <UniqueIdentifier>{a70292de-f5f7-457a-8dfc-6d748d575523}</UniqueIdentifier>
     </Filter>
@@ -91,6 +88,12 @@
     </Filter>
     <Filter Include="submodules\volk">
       <UniqueIdentifier>{d7b9c75b-9e91-47df-94bc-47c003fcb8d3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="submodules\glad">
+      <UniqueIdentifier>{396c73fa-c860-4ef4-be38-d20035ce35aa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="submodules\glfw">
+      <UniqueIdentifier>{f25fabc8-b42f-4178-a964-a09644376f41}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -235,17 +238,11 @@
     <ClCompile Include="..\src\logic\camera_logic.c">
       <Filter>Source Files\logic</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\glad\glad.c">
-      <Filter>Source Files\glad</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\ui\imgui_impl_glfw.cpp">
       <Filter>Source Files\ui</Filter>
     </ClCompile>
     <ClCompile Include="..\src\ui\imgui_impl_opengl3.cpp">
       <Filter>Source Files\ui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\rendering\window.c">
-      <Filter>Source Files\rendering</Filter>
     </ClCompile>
     <ClCompile Include="..\src\ui\ui.c">
       <Filter>Source Files\ui</Filter>
@@ -346,17 +343,11 @@
     <ClCompile Include="..\src\rendering\cubemap.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\denoise.c">
-      <Filter>Source Files\rendering</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\common\library.c">
       <Filter>Source Files\common</Filter>
     </ClCompile>
     <ClCompile Include="..\src\math\ambcube.c">
       <Filter>Source Files\math</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\rendering\spheremap.c">
-      <Filter>Source Files\rendering</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\drawable.c">
       <Filter>Source Files\rendering</Filter>
@@ -375,6 +366,60 @@
     </ClCompile>
     <ClCompile Include="..\src\rendering\vulkan\vkr.c">
       <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkrcompiler.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glad\glad.c">
+      <Filter>submodules\glad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\context.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\init.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\input.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\monitor.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\vulkan.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\win32_init.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\win32_joystick.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\win32_monitor.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\win32_thread.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\win32_time.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\win32_window.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\window.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\r_window.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\egl_context.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\osmesa_context.c">
+      <Filter>submodules\glfw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\glfw\src\wgl_context.c">
+      <Filter>submodules\glfw</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -657,9 +702,6 @@
     <ClInclude Include="..\src\ui\imgui_impl_opengl3.h">
       <Filter>Source Files\ui</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\window.h">
-      <Filter>Source Files\rendering</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\ui\ui.h">
       <Filter>Source Files\ui</Filter>
     </ClInclude>
@@ -771,14 +813,8 @@
     <ClInclude Include="..\src\rendering\cubemap.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\denoise.h">
-      <Filter>Source Files\rendering</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\library.h">
       <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\rendering\spheremap.h">
-      <Filter>Source Files\rendering</Filter>
     </ClInclude>
     <ClInclude Include="..\src\rendering\drawable.h">
       <Filter>Source Files\rendering</Filter>
@@ -800,6 +836,42 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr.h">
       <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkrcompiler.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\glad\glad.h">
+      <Filter>submodules\glad</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\glfw\src\internal.h">
+      <Filter>submodules\glfw</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\glfw\src\mappings.h">
+      <Filter>submodules\glfw</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\glfw\src\win32_joystick.h">
+      <Filter>submodules\glfw</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\glfw\src\win32_platform.h">
+      <Filter>submodules\glfw</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\glfw\include\GLFW\glfw3.h">
+      <Filter>submodules\glfw</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\glfw\include\GLFW\glfw3native.h">
+      <Filter>submodules\glfw</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\r_window.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\glfw\src\egl_context.h">
+      <Filter>submodules\glfw</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\glfw\src\osmesa_context.h">
+      <Filter>submodules\glfw</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\glfw\src\wgl_context.h">
+      <Filter>submodules\glfw</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

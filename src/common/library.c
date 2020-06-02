@@ -58,32 +58,21 @@ void* Library_Sym(library_t lib, const char* name)
 }
 
 #if PLAT_WINDOWS
-    #define PLAT_STR "win64"
-    #define LIB_EXT ".dll"
+    #define LIB_EXT
 #elif PLAT_LINUX
-    #define PLAT_STR "linux"
     #define LIB_EXT ".so"
 #elif PLAT_MAC
-    #define PLAT_STR "mac"
     #define LIB_EXT ".dylib"
 #elif PLAT_ANDROID
-    #define PLAT_STR "android"
     #define LIB_EXT ".so"
 #elif PLAT_IOS
-    #define PLAT_STR "ios"
     #define LIB_EXT ".dylib"
     #error iOS AppStore does not accept anything but static linkage
 #endif // PLAT_STR
 
-#if _DEBUG
-    #define BUILD_STR "debug"
-#else
-    #define BUILD_STR "release"
-#endif // _DEBUG
-
 static void OS_libfmt(char* buffer, i32 size, const char* name)
 {
-    SPrintf(buffer, size, "lib/"PLAT_STR"/"BUILD_STR"/%s"LIB_EXT, name);
+    SPrintf(buffer, size, "%s"LIB_EXT, name);
     StrPath(buffer, size);
 }
 

@@ -17,14 +17,6 @@ typedef enum
 
 } pt_dist_t;
 
-typedef struct trace_img_s
-{
-    int2 size;
-    float3* colors;
-    float3* albedos;
-    float3* normals;
-} trace_img_t;
-
 typedef struct pt_scene_s
 {
     // all meshes within the scene
@@ -57,38 +49,27 @@ typedef struct pt_trace_s
 {
     const pt_scene_t* scene;
     const camera_t* camera;
-    trace_img_t img;
+    float4* image;
+    int2 imageSize;
     float sampleWeight;
     i32 bounces;
 } pt_trace_t;
-
-typedef struct pt_result_s
-{
-    float3 color;
-    float3 albedo;
-    float3 normal;
-} pt_result_t;
 
 typedef struct pt_raygen_s
 {
     task_t task;
     const pt_scene_t* scene;
     ray_t origin;
-    float3* colors;
-    float3* albedos;
-    float3* normals;
+    float4* colors;
     float4* directions;
     pt_dist_t dist;
     i32 bounces;
 } pt_raygen_t;
 
-void trace_img_new(trace_img_t* img, int2 size);
-void trace_img_del(trace_img_t* img);
-
 pt_scene_t* pt_scene_new(i32 maxDepth);
 void pt_scene_del(pt_scene_t* scene);
 
-pt_result_t VEC_CALL pt_trace_ray(prng_t* rng, const pt_scene_t* scene, ray_t ray, i32 bounces);
+float4 VEC_CALL pt_trace_ray(prng_t* rng, const pt_scene_t* scene, ray_t ray, i32 bounces);
 task_t* pt_trace(pt_trace_t* traceDesc);
 pt_raygen_t* pt_raygen(const pt_scene_t* scene, ray_t origin, pt_dist_t dist, i32 count, i32 bounces);
 

@@ -15,6 +15,7 @@ PIM_DECL_HANDLE(VkQueue);
 PIM_DECL_HANDLE(VkSurfaceKHR);
 PIM_DECL_HANDLE(VkSwapchainKHR);
 PIM_DECL_HANDLE(VkImage);
+PIM_DECL_HANDLE(VkImageView);
 
 typedef enum
 {
@@ -32,14 +33,24 @@ typedef struct vkr_t
     VkPhysicalDevice phdev;
     VkDevice dev;
     VkQueue queues[vkrQueueId_COUNT];
+} vkr_t;
+
+typedef struct vkrDisplay
+{
     GLFWwindow* win;
     VkSurfaceKHR surf;
     VkSwapchainKHR swap;
     u32 imgCount;
     VkImage* images;
-} vkr_t;
+    VkImageView* views;
+    i32 format;
+    i32 colorSpace;
+    i32 width;
+    i32 height;
+} vkrDisplay;
 
 extern vkr_t g_vkr;
+extern vkrDisplay g_vkrdisp;
 
 const VkPhysicalDeviceFeatures* vkrPhDevFeats(void);
 const VkPhysicalDeviceProperties* vkrPhDevProps(void);

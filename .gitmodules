@@ -13,3 +13,6 @@
 [submodule "submodules/volk"]
 	path = submodules/volk
 	url = https://github.com/zeux/volk
+[submodule "submodules/glfw"]
+	path = submodules/glfw
+	url = https://github.com/glfw/glfw

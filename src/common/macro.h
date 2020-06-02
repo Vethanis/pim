@@ -74,10 +74,12 @@
     #define IF_DEBUG(x)             x
     #define IFN_DEBUG(x)            (void)0
     #define ASSERT(x)               IF_FALSE(x, INTERRUPT())
+    #define CONFIG_STR              "Debug"
 #else
     #define IF_DEBUG(x)             (void)0
     #define IFN_DEBUG(x)            x
     #define ASSERT(x)               (void)0
+    #define CONFIG_STR              "Release"
 #endif // def _DEBUG
 
 #define _CAT_TOK(x, y)              x ## y

@@ -9,7 +9,6 @@
 #include "rendering/path_tracer.h"
 #include "math/sampling.h"
 #include "math/frustum.h"
-#include "rendering/denoise.h"
 #include "common/profiler.h"
 #include "common/find.h"
 #include <string.h>
@@ -56,13 +55,13 @@ i32 Cubemaps_Add(u32 name, i32 size, sphere_t bounds)
 
     PermGrow(ms_cubemaps.names, len);
     PermGrow(ms_cubemaps.bounds, len);
-    PermGrow(ms_cubemaps.convmaps, len);
     PermGrow(ms_cubemaps.bakemaps, len);
+    PermGrow(ms_cubemaps.convmaps, len);
 
     ms_cubemaps.names[back] = name;
     ms_cubemaps.bounds[back] = bounds;
+    Cubemap_New(ms_cubemaps.bakemaps + back, size);
     Cubemap_New(ms_cubemaps.convmaps + back, size);
-    BCubemap_New(ms_cubemaps.bakemaps + back, size);
 
     return back;
 }
@@ -75,15 +74,15 @@ bool Cubemaps_Rm(u32 name)
         return false;
     }
 
+    Cubemap_Del(ms_cubemaps.bakemaps + i);
     Cubemap_Del(ms_cubemaps.convmaps + i);
-    BCubemap_Del(ms_cubemaps.bakemaps + i);
     const i32 len = ms_cubemaps.count;
     ms_cubemaps.count = len - 1;
 
     PopSwap(ms_cubemaps.names, i, len);
     PopSwap(ms_cubemaps.bounds, i, len);
-    PopSwap(ms_cubemaps.convmaps, i, len);
     PopSwap(ms_cubemaps.bakemaps, i, len);
+    PopSwap(ms_cubemaps.convmaps, i, len);
 
     return true;
 }
@@ -116,32 +115,6 @@ void Cubemap_Del(Cubemap* cm)
         for (i32 i = 0; i < Cubeface_COUNT; ++i)
         {
             pim_free(cm->faces[i]);
-        }
-        memset(cm, 0, sizeof(*cm));
-    }
-}
-
-void BCubemap_New(BCubemap* cm, i32 size)
-{
-    ASSERT(cm);
-    ASSERT(size >= 0);
-
-    cm->size = size;
-    for (i32 i = 0; i < Cubeface_COUNT; ++i)
-    {
-        trace_img_t img = { 0 };
-        trace_img_new(&img, i2_s(size));
-        cm->faces[i] = img;
-    }
-}
-
-void BCubemap_Del(BCubemap* cm)
-{
-    if (cm)
-    {
-        for (i32 i = 0; i < Cubeface_COUNT; ++i)
-        {
-            trace_img_del(cm->faces + i);
         }
         memset(cm, 0, sizeof(*cm));
     }
@@ -309,7 +282,7 @@ void Cubemap_GenMips(Cubemap* cm)
 typedef struct cmbake_s
 {
     task_t;
-    BCubemap* bakemap;
+    Cubemap* cm;
     const pt_scene_t* scene;
     float4 origin;
     float weight;
@@ -321,13 +294,13 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
 {
     cmbake_t* task = (cmbake_t*)pBase;
 
-    BCubemap* bakemap = task->bakemap;
+    Cubemap* cm = task->cm;
     const pt_scene_t* scene = task->scene;
     const float4 origin = task->origin;
     const float weight = task->weight;
     const i32 bounces = task->bounces;
 
-    const i32 size = bakemap->size;
+    const i32 size = cm->size;
     const i32 flen = size * size;
 
     prng_t rng = prng_get();
@@ -338,35 +311,33 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
         int2 coord = { fi % size, fi / size };
         float4 dir = Cubemap_CalcDir(size, face, coord, f2_tent(f2_rand(&rng)));
         ray_t ray = { .ro = origin,.rd = dir };
-        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
-        trace_img_t img = bakemap->faces[face];
-        img.colors[fi] = f3_lerp(img.colors[fi], result.color, weight);
-        img.albedos[fi] = f3_lerp(img.albedos[fi], result.albedo, weight);
-        img.normals[fi] = f3_lerp(img.normals[fi], result.normal, weight);
+        float4 result = pt_trace_ray(&rng, scene, ray, bounces);
+        float4* img = cm->faces[face];
+        img[fi] = f4_lerpvs(img[fi], result, weight);
     }
     prng_set(rng);
 }
 
 ProfileMark(pm_Bake, Cubemap_Bake)
 task_t* Cubemap_Bake(
-    BCubemap* bakemap,
+    Cubemap* cm,
     const pt_scene_t* scene,
     float4 origin,
     float weight,
     i32 bounces)
 {
-    ASSERT(bakemap);
+    ASSERT(cm);
     ASSERT(scene);
     ASSERT(weight > 0.0f);
     ASSERT(bounces >= 0);
 
-    i32 size = bakemap->size;
+    i32 size = cm->size;
     if (size > 0)
     {
         ProfileBegin(pm_Bake);
 
         cmbake_t* task = tmp_calloc(sizeof(*task));
-        task->bakemap = bakemap;
+        task->cm = cm;
         task->scene = scene;
         task->origin = origin;
         task->weight = weight;
@@ -379,32 +350,6 @@ task_t* Cubemap_Bake(
     }
 
     return NULL;
-}
-
-ProfileMark(pm_Denoise, Cubemap_Denoise)
-void Cubemap_Denoise(BCubemap* src, Cubemap* dst)
-{
-    ASSERT(src);
-    ASSERT(dst);
-
-    ProfileBegin(pm_Denoise);
-
-    i32 size = dst->size;
-    i32 len = size * size;
-
-    float3* pim_noalias output = tmp_malloc(sizeof(output[0]) * len);
-    for (i32 i = 0; i < Cubeface_COUNT; ++i)
-    {
-        Denoise_Execute(DenoiseType_Image, src->faces[i], output);
-
-        float4* pim_noalias texels = dst->faces[i];
-        for (i32 j = 0; j < len; ++j)
-        {
-            texels[j] = f3_f4(output[j], 1.0f);
-        }
-    }
-
-    ProfileEnd(pm_Denoise);
 }
 
 pim_optimize

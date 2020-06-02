@@ -41,6 +41,7 @@ static const char* const kDesiredDevExtensions[] =
 };
 
 vkr_t g_vkr;
+vkrDisplay g_vkrdisp;
 
 static VkDebugUtilsMessengerEXT ms_messenger;
 static VkPhysicalDeviceProperties ms_phdevProps;
@@ -108,15 +109,12 @@ static vkrSwapchainSupport vkrQuerySwapchainSupport(
 static i32 vkrSelectSwapFormat(const VkSurfaceFormatKHR* formats, u32 formatCount);
 static i32 vkrSelectSwapMode(const VkPresentModeKHR* modes, u32 count);
 
-static VkSwapchainKHR vkrCreateSwapchain(
-    VkSurfaceKHR surf,
-    VkSwapchainKHR prev); // optional
-
-static void vkrGetSwapchainImages(VkSwapchainKHR swap);
+static void vkrCreateSwapchain(VkSurfaceKHR surf,  VkSwapchainKHR prev);
 
 void vkr_init(void)
 {
     memset(&g_vkr, 0, sizeof(g_vkr));
+    memset(&g_vkrdisp, 0, sizeof(g_vkrdisp));
 
     VkCheck(volkInitialize());
 
@@ -125,8 +123,8 @@ void vkr_init(void)
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    g_vkr.win = glfwCreateWindow(320, 240, "pimvk", NULL, NULL);
-    ASSERT(g_vkr.win);
+    g_vkrdisp.win = glfwCreateWindow(320, 240, "pimvk", NULL, NULL);
+    ASSERT(g_vkrdisp.win);
 
     vkrListInstExtensions();
     g_vkr.inst = vkrCreateInstance(vkrGetInstExtensions(), vkrGetLayers());
@@ -136,8 +134,8 @@ void vkr_init(void)
 
     ms_messenger = vkrCreateDebugMessenger();
 
-    g_vkr.surf = vkrCreateSurface(g_vkr.inst, g_vkr.win);
-    ASSERT(g_vkr.surf);
+    g_vkrdisp.surf = vkrCreateSurface(g_vkr.inst, g_vkrdisp.win);
+    ASSERT(g_vkrdisp.surf);
 
     g_vkr.phdev = vkrSelectPhysicalDevice(&ms_phdevProps, &ms_phdevFeats);
     ASSERT(g_vkr.phdev);
@@ -153,10 +151,8 @@ void vkr_init(void)
 
     volkLoadDevice(g_vkr.dev);
 
-    g_vkr.swap = vkrCreateSwapchain(g_vkr.surf, NULL);
-    ASSERT(g_vkr.swap);
-
-    vkrGetSwapchainImages(g_vkr.swap);
+    vkrCreateSwapchain(g_vkrdisp.surf, NULL);
+    ASSERT(g_vkrdisp.swap);
 }
 
 void vkr_update(void)
@@ -166,14 +162,18 @@ void vkr_update(void)
 
 void vkr_shutdown(void)
 {
-    vkDestroySwapchainKHR(g_vkr.dev, g_vkr.swap, NULL);
-    g_vkr.swap = NULL;
+    for (u32 i = 0; i < g_vkrdisp.imgCount; ++i)
+    {
+        vkDestroyImageView(g_vkr.dev, g_vkrdisp.views[i], NULL);
+    }
+    vkDestroySwapchainKHR(g_vkr.dev, g_vkrdisp.swap, NULL);
+    g_vkrdisp.swap = NULL;
 
     vkDestroyDevice(g_vkr.dev, NULL);
     g_vkr.dev = NULL;
 
-    vkDestroySurfaceKHR(g_vkr.inst, g_vkr.surf, NULL);
-    g_vkr.surf = NULL;
+    vkDestroySurfaceKHR(g_vkr.inst, g_vkrdisp.surf, NULL);
+    g_vkrdisp.surf = NULL;
 
 #ifdef _DEBUG
     vkDestroyDebugUtilsMessengerEXT(g_vkr.inst, ms_messenger, NULL);
@@ -183,8 +183,8 @@ void vkr_shutdown(void)
     vkDestroyInstance(g_vkr.inst, NULL);
     g_vkr.inst = NULL;
 
-    glfwDestroyWindow(g_vkr.win);
-    g_vkr.win = NULL;
+    glfwDestroyWindow(g_vkrdisp.win);
+    g_vkrdisp.win = NULL;
 }
 
 static VkDebugUtilsMessengerEXT vkrCreateDebugMessenger()
@@ -485,7 +485,7 @@ static VkPhysicalDevice vkrSelectPhysicalDevice(
     VkPhysicalDeviceFeatures* featuresOut)
 {
     VkInstance inst = g_vkr.inst;
-    VkSurfaceKHR surf = g_vkr.surf;
+    VkSurfaceKHR surf = g_vkrdisp.surf;
     ASSERT(inst);
     ASSERT(surf);
 
@@ -698,7 +698,7 @@ static VkDevice vkrCreateDevice(
     VkQueueFamilyProperties* propsOut)
 {
     VkPhysicalDevice phdev = g_vkr.phdev;
-    VkSurfaceKHR surf = g_vkr.surf;
+    VkSurfaceKHR surf = g_vkrdisp.surf;
     ASSERT(phdev);
     ASSERT(surf);
 
@@ -894,9 +894,7 @@ static VkExtent2D vkrSelectSwapExtent(const VkSurfaceCapabilitiesKHR* caps)
     return ext;
 }
 
-static VkSwapchainKHR vkrCreateSwapchain(
-    VkSurfaceKHR surf,
-    VkSwapchainKHR prev)
+static void vkrCreateSwapchain(VkSurfaceKHR surf, VkSwapchainKHR prev)
 {
     VkPhysicalDevice phdev = g_vkr.phdev;
     VkDevice dev = g_vkr.dev;
@@ -923,7 +921,7 @@ static VkSwapchainKHR vkrCreateSwapchain(
     };
     bool concurrent = families[0] != families[1];
 
-    const VkSwapchainCreateInfoKHR info =
+    const VkSwapchainCreateInfoKHR swapInfo =
     {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         .surface = surf,
@@ -948,21 +946,41 @@ static VkSwapchainKHR vkrCreateSwapchain(
         .oldSwapchain = prev,
     };
 
-    VkSwapchainKHR swapchain = NULL;
-    VkCheck(vkCreateSwapchainKHR(dev, &info, NULL, &swapchain));
-
-    return swapchain;
-}
-
-static void vkrGetSwapchainImages(VkSwapchainKHR swap)
-{
-    VkDevice dev = g_vkr.dev;
+    VkSwapchainKHR swap = NULL;
+    VkCheck(vkCreateSwapchainKHR(dev, &swapInfo, NULL, &swap));
     ASSERT(swap);
-    ASSERT(dev);
+    if (!swap)
+    {
+        con_logf(LogSev_Error, "Vk", "Failed to create swapchain");
+        return;
+    }
 
-    u32 count = 0;
-    VkCheck(vkGetSwapchainImagesKHR(dev, swap, &count, NULL));
-    PermReserve(g_vkr.images, count);
-    VkCheck(vkGetSwapchainImagesKHR(dev, swap, &count, g_vkr.images));
-    g_vkr.imgCount = count;
+    g_vkrdisp.swap = swap;
+    g_vkrdisp.format = sup.formats[iFormat].format;
+    g_vkrdisp.colorSpace = sup.formats[iFormat].colorSpace;
+    g_vkrdisp.width = ext.width;
+    g_vkrdisp.height = ext.height;
+
+    VkCheck(vkGetSwapchainImagesKHR(dev, swap, &imgCount, NULL));
+    PermReserve(g_vkrdisp.images, imgCount);
+    PermReserve(g_vkrdisp.views, imgCount);
+    VkCheck(vkGetSwapchainImagesKHR(dev, swap, &imgCount, g_vkrdisp.images));
+    g_vkrdisp.imgCount = imgCount;
+
+    for (u32 i = 0; i < imgCount; ++i)
+    {
+        const VkImageViewCreateInfo viewInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = g_vkrdisp.images[i],
+            .format = g_vkrdisp.format,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .subresourceRange.levelCount = 1,
+            .subresourceRange.layerCount = 1,
+        };
+        g_vkrdisp.views[i] = NULL;
+        VkCheck(vkCreateImageView(dev, &viewInfo, NULL, g_vkrdisp.views + i));
+        ASSERT(g_vkrdisp.views[i]);
+    }
 }

@@ -2,7 +2,7 @@
 
 #include "input/input_system.h"
 #include "rendering/camera.h"
-#include "rendering/window.h"
+#include "rendering/r_window.h"
 #include "math/quat_funcs.h"
 #include "common/time.h"
 #include "common/profiler.h"

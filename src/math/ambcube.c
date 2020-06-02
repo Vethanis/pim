@@ -22,7 +22,7 @@ i32 AmbCube_Bake(
     task_sys_schedule();
     task_await((task_t*)task);
 
-    const float3* pim_noalias colors = task->colors;
+    const float4* pim_noalias colors = task->colors;
     const float4* pim_noalias directions = task->directions;
 
     AmbCube_t cube = *pCube;
@@ -31,7 +31,7 @@ i32 AmbCube_Bake(
     w = w / (1.0f + s);
     for (i32 i = 0; i < samples; ++i)
     {
-        cube = AmbCube_Fit(cube, w, directions[i], f3_f4(colors[i], 1.0f));
+        cube = AmbCube_Fit(cube, w, directions[i], colors[i]);
     }
     *pCube = cube;
 

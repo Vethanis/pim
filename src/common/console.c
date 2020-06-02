@@ -8,7 +8,7 @@
 #include "io/fstr.h"
 #include "input/input_system.h"
 #include "ui/cimgui.h"
-#include "rendering/window.h"
+#include "rendering/r_window.h"
 #include "common/time.h"
 
 #include <string.h>
