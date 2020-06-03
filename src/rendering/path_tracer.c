@@ -553,7 +553,7 @@ float4 VEC_CALL pt_trace_ray(
     float4 attenuation = f4_1;
     float pdf = 1.0f;
 
-    for (i32 b = 0; b < bounces; ++b)
+    for (i32 b = 0; b < 10; ++b)
     {
         rayhit_t hit = TraceRay(scene, 0, ray, f4_rcp(ray.rd), 1 << 20);
         if (hit.type == hit_nothing)
@@ -577,7 +577,7 @@ float4 VEC_CALL pt_trace_ray(
 
             float4 newAtten = surf.albedo;
             newAtten = f4_mulvs(newAtten, pdf);
-            if (b >= 3)
+            if (b >= bounces)
             {
                 float p = f4_hmax3(newAtten);
                 if (prng_f32(rng) < p)
@@ -632,7 +632,7 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
     {
         int2 coord = { i % size.x, i / size.x };
 
-        float2 Xi = f2_snorm(f2_tent(f2_rand(&rng)));
+        float2 Xi = f2_tent(f2_rand(&rng));
         Xi = f2_mul(Xi, rcpSize);
 
         float2 uv = CoordToUv(size, coord);

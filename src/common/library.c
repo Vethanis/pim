@@ -58,7 +58,7 @@ void* Library_Sym(library_t lib, const char* name)
 }
 
 #if PLAT_WINDOWS
-    #define LIB_EXT
+    #define LIB_EXT ".dll"
 #elif PLAT_LINUX
     #define LIB_EXT ".so"
 #elif PLAT_MAC
@@ -72,7 +72,8 @@ void* Library_Sym(library_t lib, const char* name)
 
 static void OS_libfmt(char* buffer, i32 size, const char* name)
 {
-    SPrintf(buffer, size, "%s"LIB_EXT, name);
+    StrCpy(buffer, size, name);
+    StrCat(buffer, size, LIB_EXT);
     StrPath(buffer, size);
 }
 

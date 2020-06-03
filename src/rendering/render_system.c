@@ -47,7 +47,7 @@
 #include <string.h>
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
-static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "10", "path tracing bounces" };
+static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "1", "path tracing bounces, before russian roulette" };
 
 static cvar_t cv_ac_gen = { cvart_bool, 0, "ac_gen", "0", "enable ambientcube generation" };
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
@@ -70,7 +70,6 @@ static float4 ms_clearColor;
 
 static pt_scene_t* ms_ptscene;
 static pt_trace_t ms_trace;
-static camera_t ms_ptcamera;
 
 static i32 ms_acSampleCount;
 static i32 ms_ptSampleCount;
@@ -93,20 +92,8 @@ static void SwapBuffers(void)
     ++ms_iFrame;
 }
 
-static void CleanPtScene(void)
+static void EnsurePtScene(void)
 {
-    bool dirty = false;
-    camera_t camera;
-    camera_get(&camera);
-    dirty |= cvar_check_dirty(&cv_pt_trace);
-    dirty |= memcmp(&camera, &ms_ptcamera, sizeof(camera)) != 0;
-    if (dirty)
-    {
-        ms_ptSampleCount = 0;
-        ms_acSampleCount = 0;
-        ms_cmapSampleCount = 0;
-        ms_ptcamera = camera;
-    }
     if (!ms_ptscene)
     {
         ms_ptscene = pt_scene_new(5);
@@ -119,7 +106,12 @@ static void AmbCube_Trace(void)
     if (cv_ac_gen.asFloat != 0.0f)
     {
         ProfileBegin(pm_AmbCube_Trace);
-        CleanPtScene();
+        EnsurePtScene();
+
+        if (cvar_check_dirty(&cv_ac_gen))
+        {
+            ms_acSampleCount = 0;
+        }
 
         camera_t camera;
         camera_get(&camera);
@@ -139,7 +131,12 @@ static void Cubemap_Trace(void)
     if (cv_cm_gen.asFloat != 0.0f)
     {
         ProfileBegin(pm_CubemapTrace);
-        CleanPtScene();
+        EnsurePtScene();
+
+        if (cvar_check_dirty(&cv_cm_gen))
+        {
+            ms_cmapSampleCount = 0;
+        }
 
         Cubemaps_t* table = Cubemaps_Get();
         const i32 len = table->count;
@@ -176,11 +173,19 @@ static bool PathTrace(void)
     {
         ProfileBegin(pm_PathTrace);
 
-        CleanPtScene();
+        EnsurePtScene();
+
+        camera_t camera;
+        camera_get(&camera);
+
+        if (cvar_check_dirty(&cv_pt_trace))
+        {
+            ms_ptSampleCount = 0;
+        }
 
         ms_trace.bounces = i1_clamp((i32)cv_pt_bounces.asFloat, 0, 100);
         ms_trace.sampleWeight = 1.0f / ++ms_ptSampleCount;
-        ms_trace.camera = &ms_ptcamera;
+        ms_trace.camera = &camera;
         ms_trace.scene = ms_ptscene;
         ms_trace.imageSize = i2_v(kDrawWidth, kDrawHeight);
         if (!ms_trace.image)
@@ -280,7 +285,7 @@ void render_sys_init(void)
 
     Cubemaps_Add(420, 64, (sphere_t){ 0.0f, 0.0f, 0.0f, 10.0f});
 
-    u32* ids = LoadModelAsDrawables("maps/start.bsp");
+    u32* ids = LoadModelAsDrawables("maps/e1m1.bsp");
     pim_free(ids);
 
     if (lights_pt_count() == 0)
@@ -291,8 +296,6 @@ void render_sys_init(void)
     task_t* compose = drawables_trs();
     task_sys_schedule();
     task_await(compose);
-
-    CleanPtScene();
 }
 
 ProfileMark(pm_update, render_sys_update)

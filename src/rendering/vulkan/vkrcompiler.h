@@ -15,22 +15,21 @@ typedef enum
 
 typedef struct vkrCompileInput
 {
-    const char* const* text;
-    i32 lineCount;
-    vkrShaderType type;
-    // key and value: #define KEY VALUE
-    // null value: #define KEY
-    const char* const* macroKeys;
-    const char* const* macroValues;
+    char* filename;
+    char* entrypoint;
+    char* text;
+    char** macroKeys;
+    char** macroValues;
     i32 macroCount;
+    vkrShaderType type;
 } vkrCompileInput;
 
 typedef struct vkrCompileOutput
 {
-    u32* spvDwords;
+    u32* dwords;
     i32 dwordCount;
-    char* errorText;
-    char* infoText;
+    char* errors;
+    char* disassembly;
 } vkrCompileOutput;
 
 bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output);

@@ -528,7 +528,6 @@ pim_inline float2 VEC_CALL f2_tent(float2 Xi)
     Xi = f2_mulvs(Xi, 2.0f);
     Xi.x = Xi.x < 1.0f ? sqrtf(Xi.x) - 1.0f : 1.0f - sqrtf(2.0f - Xi.x);
     Xi.y = Xi.y < 1.0f ? sqrtf(Xi.y) - 1.0f : 1.0f - sqrtf(2.0f - Xi.x);
-    Xi = f2_mulvs(Xi, 0.5f);
     return Xi;
 }
 

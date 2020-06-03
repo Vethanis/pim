@@ -1,5 +1,4 @@
 #include "common/sort.h"
-
 #include "allocator/allocator.h"
 #include <string.h>
 

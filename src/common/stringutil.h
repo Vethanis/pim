@@ -1,10 +1,9 @@
 #pragma once
 
 #include "common/macro.h"
+#include "common/valist.h"
 
 PIM_C_BEGIN
-
-#include "common/valist.h"
 
 // ----------------------------------------------------------------------------
 // null termination
@@ -89,8 +88,5 @@ i32 StrIRep(char* dst, i32 size, const char* fnd, const char* rep);
 
 char ChrPath(char c);
 i32 StrPath(char* dst, i32 size);
-
-i32 PathCpy(char* dst, i32 size, const char* src);
-i32 PathCat(char* dst, i32 size, const char* src);
 
 PIM_C_END

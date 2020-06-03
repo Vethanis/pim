@@ -593,14 +593,19 @@ i32 StrIRep(char* dst, i32 size, const char* fnd, const char* rep)
 // ----------------------------------------------------------------------------
 // paths
 
+static bool IsPathSeparator(char c)
+{
+    return (c == '/') || (c == '\\');
+}
+
 char ChrPath(char c)
 {
-    switch (c)
+    if (IsPathSeparator(c))
     {
-    IF_WIN(case '/': return '\\';)
-    IF_UNIX(case '\\': return '/';)
-    default: return c;
-    };
+        IF_WIN(return '\\');
+        IF_UNIX(return '/');
+    }
+    return c;
 }
 
 i32 StrPath(char* dst, i32 size)
@@ -608,28 +613,25 @@ i32 StrPath(char* dst, i32 size)
     ASSERT(dst || !size);
     ASSERT(size >= 0);
 
-    i32 i = 0;
-    for (; i < size && dst[i]; ++i)
+    i32 len = StrNLen(dst, size);
+    if (len > 0)
+    {
+        dst[0] = ChrPath(dst[0]);
+    }
+    for (i32 i = 1; i < len; ++i)
     {
         dst[i] = ChrPath(dst[i]);
+        // this nukes network paths; make/use StrNetPath() if network path is desired
+        if (IsPathSeparator(dst[i - 1]) && IsPathSeparator(dst[i]))
+        {
+            for (i32 j = i; j < len; ++j)
+            {
+                dst[j - 1] = dst[j];
+            }
+            --i;
+            --len;
+        }
     }
-    return NullTerminate(dst, size, i);
-}
 
-i32 PathCpy(char* dst, i32 size, const char* src)
-{
-    ASSERT((dst && src) || !size);
-    ASSERT(size >= 0);
-
-    StrCpy(dst, size, src);
-    return StrPath(dst, size);
-}
-
-i32 PathCat(char* dst, i32 size, const char* src)
-{
-    ASSERT((dst && src) || !size);
-    ASSERT(size >= 0);
-
-    i32 len = StrNLen(dst, size);
-    return PathCpy(dst + len, size - len, src) + len;
+    return NullTerminate(dst, size, len);
 }

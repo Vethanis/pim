@@ -421,6 +421,9 @@
     <ClCompile Include="..\submodules\glfw\src\wgl_context.c">
       <Filter>submodules\glfw</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\shaderc_table.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -538,9 +541,6 @@
       <Filter>Source Files\assets</Filter>
     </ClInclude>
     <ClInclude Include="..\src\common\valist.h">
-      <Filter>Source Files\common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\common\round.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\hash_set.h">
@@ -872,6 +872,9 @@
     </ClInclude>
     <ClInclude Include="..\submodules\glfw\src\wgl_context.h">
       <Filter>submodules\glfw</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\shaderc_table.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

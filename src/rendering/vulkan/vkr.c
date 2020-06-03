@@ -1,4 +1,5 @@
 #include "rendering/vulkan/vkr.h"
+#include "rendering/vulkan/vkrcompiler.h"
 #include <volk/volk.h>
 #include <GLFW/glfw3.h>
 #include "allocator/allocator.h"
@@ -153,6 +154,24 @@ void vkr_init(void)
 
     vkrCreateSwapchain(g_vkrdisp.surf, NULL);
     ASSERT(g_vkrdisp.swap);
+
+    const vkrCompileInput input =
+    {
+        .filename="example.hlsl",
+        .entrypoint="PSMain",
+        .text="struct PSInput{float4 color : COLOR; }; float4 PSMain(PSInput input) : SV_TARGET { return input.color; }",
+        .type=vkrShaderType_Fragment,
+    };
+    vkrCompileOutput output = {0};
+    vkrCompile(&input, &output);
+    if (output.errors)
+    {
+        con_logf(LogSev_Error, "Vkc", "%s", output.errors);
+    }
+    if (output.disassembly)
+    {
+        con_logf(LogSev_Info, "Vkc", "%s", output.disassembly);
+    }
 }
 
 void vkr_update(void)
