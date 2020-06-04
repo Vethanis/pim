@@ -449,5 +449,5 @@ typedef struct mmodel_s
 
 } mmodel_t;
 
-mmodel_t* LoadModel(const void* buffer, EAlloc allocator);
+mmodel_t* LoadModel(const char* name, const void* buffer, EAlloc allocator);
 void FreeModel(mmodel_t* model);

@@ -14,14 +14,12 @@ typedef struct mesh_s
     sphere_t bounds;
     i32 length;
 } mesh_t;
-static const u32 mesh_t_hash = 3179450039u;
 
 typedef struct meshid_s
 {
     u64 version;
     void* handle;
 } meshid_t;
-static const u32 meshid_t_hash = 3280851546u;
 
 // creates a versioned handle to your mesh pointer
 meshid_t mesh_create(mesh_t* mesh);

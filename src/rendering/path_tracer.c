@@ -435,64 +435,14 @@ pim_inline const material_t* VEC_CALL GetMaterial(const pt_scene_t* scene, rayhi
     return scene->materials + matIndex;
 }
 
-pim_inline float VEC_CALL LambertianPdf(float4 N, float4 dir)
-{
-    return f1_max(0.0f, f4_dot3(N, dir) / kPi);
-}
-
-pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float roughness)
-{
-    float d = GGX_D(NoH, roughness);
-    return (d * NoH) / f1_max(f16_eps, (4.0f * HoV));
-}
-
-pim_inline float VEC_CALL ScatterLambertian(
-    prng_t* rng,
-    float4 dirIn,
-    const surfhit_t* surf,
-    float4* dirOut)
-{
-    float4 N = surf->N;
-    float4 dir = TanToWorld(N, SampleCosineHemisphere(f2_rand(rng)));
-    *dirOut = dir;
-    return LambertianPdf(N, dir);
-}
-
-pim_inline float VEC_CALL ScatterGGX(
-    prng_t* rng,
-    float4 dirIn,
-    const surfhit_t* surf,
-    float4* dirOut)
-{
-    float4 V = f4_neg(dirIn);
-    float4 N = surf->N;
-    float roughness = surf->roughness;
-
-    float4 H = SampleGGXMicrofacet(f2_rand(rng), roughness);
-    H = TanToWorld(N, H);
-
-    float NoH = f1_max(0.0f, f4_dot3(N, H));
-    float HoV = f1_max(0.0f, f4_dot3(H, V));
-
-    float4 dir = f4_reflect3(dirIn, H);
-    ASSERT(IsUnitLength(dir));
-    *dirOut = dir;
-
-    float pdf = GGXPdf(NoH, HoV, roughness);
-    return pdf;
-}
-
 pim_inline float VEC_CALL Scatter(
     prng_t* rng,
     float4 dirIn,
-    const surfhit_t* surf,
-    float4* dirOut)
+    float4 N,
+    float4* dirOut,
+    float roughness)
 {
-    if (prng_bool(rng))
-    {
-        return ScatterLambertian(rng, dirIn, surf, dirOut);
-    }
-    return ScatterGGX(rng, dirIn, surf, dirOut);
+    return ScatterGGX(rng, dirIn, N, dirOut, roughness);
 }
 
 pim_optimize
@@ -542,6 +492,17 @@ static surfhit_t VEC_CALL GetSurface(
     return surf;
 }
 
+static float4 VEC_CALL pt_trace_albedo(prng_t* rng, const pt_scene_t* scene, ray_t ray)
+{
+    rayhit_t hit = TraceRay(scene, 0, ray, f4_rcp(ray.rd), 1 << 20);
+    if (hit.type != hit_nothing)
+    {
+        surfhit_t surf = GetSurface(scene, ray, hit);
+        return surf.albedo;
+    }
+    return f4_0;
+}
+
 pim_optimize
 float4 VEC_CALL pt_trace_ray(
     prng_t* rng,
@@ -553,7 +514,7 @@ float4 VEC_CALL pt_trace_ray(
     float4 attenuation = f4_1;
     float pdf = 1.0f;
 
-    for (i32 b = 0; b < 10; ++b)
+    for (i32 b = 0; b < bounces; ++b)
     {
         rayhit_t hit = TraceRay(scene, 0, ray, f4_rcp(ray.rd), 1 << 20);
         if (hit.type == hit_nothing)
@@ -562,39 +523,18 @@ float4 VEC_CALL pt_trace_ray(
         }
 
         surfhit_t surf = GetSurface(scene, ray, hit);
-
-        float4 emission = surf.emission;
-        emission = f4_divvs(emission, pdf);
-        emission = f4_mul(emission, attenuation);
-        light = f4_add(light, emission);
+        float4 emission = f4_divvs(surf.emission, pdf);
+        light = f4_add(light, f4_mul(emission, attenuation));
 
         float4 dirOut;
-        pdf = Scatter(rng, ray.rd, &surf, &dirOut);
+        pdf = Scatter(rng, ray.rd, surf.N, &dirOut, surf.roughness);
         if (pdf > 0.0f)
         {
             ray.ro = surf.P;
             ray.rd = dirOut;
-
             float4 newAtten = surf.albedo;
             newAtten = f4_mulvs(newAtten, pdf);
-            if (b >= bounces)
-            {
-                float p = f4_hmax3(newAtten);
-                if (prng_f32(rng) < p)
-                {
-                    newAtten = f4_mulvs(newAtten, 1.0f / p);
-                }
-                else
-                {
-                    break;
-                }
-            }
-
             attenuation = f4_mul(attenuation, newAtten);
-            if (f4_hmax3(attenuation) == 0.0f)
-            {
-                break;
-            }
         }
         else
         {
@@ -641,8 +581,15 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
 
         float4 rd = proj_dir(right, up, fwd, slope, uv);
         ray_t ray = { ro, rd };
-        float4 result = pt_trace_ray(&rng, scene, ray, bounces);
-        image[i] = f4_lerpvs(image[i], result, sampleWeight);
+        if (sampleWeight == 1.0f)
+        {
+            image[i] = pt_trace_albedo(&rng, scene, ray);
+        }
+        else
+        {
+            float4 result = pt_trace_ray(&rng, scene, ray, bounces);
+            image[i] = f4_lerpvs(image[i], result, sampleWeight);
+        }
     }
 
     prng_set(rng);

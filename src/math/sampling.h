@@ -1,13 +1,15 @@
 #pragma once
 
 #include "common/macro.h"
-
-PIM_C_BEGIN
-
 #include "math/types.h"
 #include "math/scalar.h"
 #include "math/float2_funcs.h"
 #include "math/float4_funcs.h"
+#include "math/lighting.h"
+
+PIM_C_BEGIN
+
+typedef float (VEC_CALL *ScatterFn)(prng_t* rng, float4 dirIn, float4 N, float4* dirOut, float roughness);
 
 pim_inline bool VEC_CALL IsUnitLength(float4 dir)
 {
@@ -145,6 +147,23 @@ pim_inline float4 VEC_CALL SampleCosineHemisphere(float2 Xi)
     return dir;
 }
 
+pim_inline float VEC_CALL LambertianPdf(float4 N, float4 dir)
+{
+    return f1_max(0.0f, f4_dot3(N, dir) / kPi);
+}
+
+pim_inline float VEC_CALL ScatterLambertian(
+    prng_t* rng,
+    float4 dirIn,
+    float4 N,
+    float4* dirOut,
+    float roughness)
+{
+    float4 dir = TanToWorld(N, SampleCosineHemisphere(f2_rand(rng)));
+    *dirOut = dir;
+    return LambertianPdf(N, dir);
+}
+
 // returns a microfacet normal of the GGX NDF for given roughness
 // tangent space
 pim_inline float4 VEC_CALL SampleGGXMicrofacet(float2 Xi, float roughness)
@@ -164,15 +183,32 @@ pim_inline float4 VEC_CALL SampleGGXMicrofacet(float2 Xi, float roughness)
     return dir;
 }
 
-// world space
-pim_inline float4 VEC_CALL SampleGGXDir(float2 Xi, float4 V, float4 N, float roughness)
+pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float roughness)
 {
-    float4 H = SampleGGXMicrofacet(Xi, roughness);
+    float d = GGX_D(NoH, roughness);
+    return (d * NoH) / f1_max(0.001f, (4.0f * HoV));
+}
+
+pim_inline float VEC_CALL ScatterGGX(
+    prng_t* rng,
+    float4 dirIn,
+    float4 N,
+    float4* dirOut,
+    float roughness)
+{
+    float4 V = f4_neg(dirIn);
+    float4 H = SampleGGXMicrofacet(f2_rand(rng), roughness);
     H = TanToWorld(N, H);
+
+    float NoH = f1_max(0.0f, f4_dot3(N, H));
     float HoV = f1_max(0.0f, f4_dot3(H, V));
-    float4 dir = f4_reflect3(f4_neg(V), H);
+
+    float4 dir = f4_reflect3(dirIn, H);
     ASSERT(IsUnitLength(dir));
-    return dir;
+    *dirOut = dir;
+
+    float pdf = GGXPdf(NoH, HoV, roughness);
+    return pdf;
 }
 
 PIM_C_END

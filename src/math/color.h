@@ -118,6 +118,27 @@ pim_inline float4 VEC_CALL ColorToLinear(u32 c)
     return f4_tolinear(rgba8_f4(c));
 }
 
+// average luminosity
+pim_inline float VEC_CALL f4_avglum(float4 x)
+{
+    const float w = 1.0f / 3.0f;
+    return (x.x + x.y + x.z) * w;
+}
+
+// perceptual luminosity
+pim_inline float VEC_CALL f4_perlum(float4 x)
+{
+    // weighted using cone density in human eye along rgb spectrum
+    // 30% red, 59% green, 11% blue
+    return x.x * 0.3f + x.y * 0.59f + x.z * 0.11f;
+}
+
+pim_inline float4 VEC_CALL f4_desaturate(float4 src, float amt)
+{
+    float lum = f4_perlum(src);
+    return f4_lerpvs(src, f4_s(lum), amt);
+}
+
 pim_inline float VEC_CALL tmap1_reinhard(float x)
 {
     float y = x / (1.0f + x);

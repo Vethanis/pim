@@ -39,6 +39,7 @@
     <ClCompile Include="..\src\containers\sdict.c" />
     <ClCompile Include="..\src\containers\strlist.c" />
     <ClCompile Include="..\src\containers\text.c" />
+    <ClCompile Include="..\src\containers\vhandle.c" />
     <ClCompile Include="..\src\editor\editor.c" />
     <ClCompile Include="..\src\editor\menubar.c" />
     <ClCompile Include="..\src\input\input_system.c" />
@@ -82,6 +83,7 @@
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
     <ClCompile Include="..\src\stb\stb_image.c" />
+    <ClCompile Include="..\src\stb\stb_image_write.c" />
     <ClCompile Include="..\src\threading\event.c" />
     <ClCompile Include="..\src\threading\intrin.c" />
     <ClCompile Include="..\src\threading\mutex.c" />
@@ -157,6 +159,7 @@
     <ClInclude Include="..\src\containers\sdict.h" />
     <ClInclude Include="..\src\containers\strlist.h" />
     <ClInclude Include="..\src\containers\text.h" />
+    <ClInclude Include="..\src\containers\vhandle.h" />
     <ClInclude Include="..\src\editor\editor.h" />
     <ClInclude Include="..\src\editor\menubar.h" />
     <ClInclude Include="..\src\input\input_system.h" />

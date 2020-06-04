@@ -3,6 +3,7 @@
 #include "common/macro.h"
 #include "math/types.h"
 #include "math/float4_funcs.h"
+#include "math/color.h"
 
 PIM_C_BEGIN
 
@@ -131,27 +132,6 @@ pim_inline float4 VEC_CALL f4_exclusion(float4 src, float4 blend)
     float4 b = f4_subvs(blend, 0.5f);
     float4 c = f4_mulvs(f4_mul(a, b), 2.0f);
     return f4_subsv(0.5f, c);
-}
-
-// average luminosity
-pim_inline float VEC_CALL f4_avglum(float4 x)
-{
-    const float w = 1.0f / 3.0f;
-    return (x.x + x.y + x.z) * w;
-}
-
-// perceptual luminosity
-pim_inline float VEC_CALL f4_perlum(float4 x)
-{
-    // weighted using cone density in human eye along rgb spectrum
-    // 30% red, 59% green, 11% blue
-    return x.x * 0.3f + x.y * 0.59f + x.z * 0.11f;
-}
-
-pim_inline float4 VEC_CALL f4_desaturate(float4 src, float amt)
-{
-    float lum = f4_perlum(src);
-    return f4_lerpvs(src, f4_s(lum), amt);
 }
 
 pim_inline float4 VEC_CALL DiffuseToAlbedo(float4 diffuse)

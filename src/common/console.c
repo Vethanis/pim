@@ -203,6 +203,14 @@ static void con_gui(void)
     ProfileEnd(pm_gui);
 }
 
+void con_exec(const char* cmdText)
+{
+    if (cmdText)
+    {
+        ExecCmd(cmdText);
+    }
+}
+
 void con_puts(u32 color, const char* line)
 {
     const i32 numLines = NELEM(ms_lines);

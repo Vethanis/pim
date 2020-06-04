@@ -468,8 +468,7 @@ u32* LoadModelAsDrawables(const char* name)
     asset_t asset = { 0 };
     if (asset_get(name, &asset))
     {
-        mmodel_t* model = LoadModel(asset.pData, EAlloc_Temp);
-        StrCpy(ARGS(model->name), name);
+        mmodel_t* model = LoadModel(name, asset.pData, EAlloc_Temp);
         u32* ids = ModelToDrawables(model);
         FreeModel(model);
         return ids;

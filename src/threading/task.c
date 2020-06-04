@@ -197,10 +197,10 @@ void task_sys_init(void)
     event_create(&ms_waitPush);
     store_i32(&ms_running, 1, MO_Release);
 
-    ptrqueue_create(ms_queues + 0, EAlloc_Perm, 256);
+    ptrqueue_create(ms_queues + 0, EAlloc_Perm, 32);
     for (i32 t = 1; t < kNumThreads; ++t)
     {
-        ptrqueue_create(ms_queues + t, EAlloc_Perm, 256);
+        ptrqueue_create(ms_queues + t, EAlloc_Perm, 32);
         thread_create(ms_threads + t, TaskLoop, (void*)((isize)t));
     }
 }

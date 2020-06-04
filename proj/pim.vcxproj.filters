@@ -424,6 +424,12 @@
     <ClCompile Include="..\src\rendering\vulkan\shaderc_table.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\stb\stb_image_write.c">
+      <Filter>Source Files\stb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\vhandle.c">
+      <Filter>Source Files\containers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -875,6 +881,9 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\shaderc_table.h">
       <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\vhandle.h">
+      <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

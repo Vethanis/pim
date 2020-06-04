@@ -10,6 +10,8 @@
 #include "common/console.h"
 #include "common/stringutil.h"
 #include "common/sort.h"
+#include "common/cmd.h"
+#include "input/input_system.h"
 
 #include "math/types.h"
 #include "math/int2_funcs.h"
@@ -44,10 +46,12 @@
 #include "quake/q_model.h"
 #include "assets/asset_system.h"
 
+#include <stb/stb_image_write.h>
 #include <string.h>
+#include <time.h>
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
-static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "1", "path tracing bounces, before russian roulette" };
+static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "3", "path tracing bounces" };
 
 static cvar_t cv_ac_gen = { cvart_bool, 0, "ac_gen", "0", "enable ambientcube generation" };
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
@@ -116,9 +120,10 @@ static void AmbCube_Trace(void)
         camera_t camera;
         camera_get(&camera);
 
+        i32 bounces = (i32)cv_pt_bounces.asFloat;
         AmbCube_t cube = AmbCube_Get();
         ms_acSampleCount = AmbCube_Bake(
-            ms_ptscene, &cube, camera.position, 1024, ms_acSampleCount, 10);
+            ms_ptscene, &cube, camera.position, 4096, ms_acSampleCount, bounces);
         AmbCube_Set(cube);
 
         ProfileEnd(pm_AmbCube_Trace);
@@ -145,9 +150,11 @@ static void Cubemap_Trace(void)
         Cubemap* convmaps = table->convmaps;
 
         float weight = 1.0f / (1.0f + ms_cmapSampleCount++);
+        i32 bounces = (i32)cv_pt_bounces.asFloat;
         for (i32 i = 0; i < len; ++i)
         {
-            task_t* task = Cubemap_Bake(bakemaps + i, ms_ptscene, bounds[i].value, weight, 10);
+            task_t* task = Cubemap_Bake(
+                bakemaps + i, ms_ptscene, bounds[i].value, weight, bounces);
             if (task)
             {
                 task_sys_schedule();
@@ -157,7 +164,7 @@ static void Cubemap_Trace(void)
 
         for (i32 i = 0; i < len; ++i)
         {
-            Cubemap_Prefilter(bakemaps + i, convmaps + i, 1024);
+            Cubemap_Prefilter(bakemaps + i, convmaps + i, 256);
         }
 
         ProfileEnd(pm_CubemapTrace);
@@ -183,7 +190,7 @@ static bool PathTrace(void)
             ms_ptSampleCount = 0;
         }
 
-        ms_trace.bounces = i1_clamp((i32)cv_pt_bounces.asFloat, 0, 100);
+        ms_trace.bounces = i1_clamp((i32)cv_pt_bounces.asFloat, 0, 20);
         ms_trace.sampleWeight = 1.0f / ++ms_ptSampleCount;
         ms_trace.camera = &camera;
         ms_trace.scene = ms_ptscene;
@@ -251,6 +258,62 @@ static void Rasterize(void)
     ProfileEnd(pm_Rasterize);
 }
 
+static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
+{
+    char filename[PIM_PATH] = {0};
+    if (argc > 1 && argv[1])
+    {
+        StrCpy(ARGS(filename), argv[1]);
+    }
+    else
+    {
+        time_t ticks = time(NULL);
+        struct tm* local = localtime(&ticks);
+        char timestr[PIM_PATH] ={0};
+        strftime(ARGS(timestr), "%Y_%m_%d_%H_%M_%S", local);
+        SPrintf(ARGS(filename), "screenshot_%s.png", timestr);
+    }
+
+    const framebuf_t* buf = GetFrontBuf();
+    const u32* flippedColor = buf->color;
+    ASSERT(flippedColor);
+    const int2 size = { buf->width, buf->height };
+    const i32 stride = sizeof(flippedColor[0]) * size.x;
+    const i32 len = size.x * size.y;
+
+    u32* color = tmp_calloc(len * sizeof(color[0]));
+    for (i32 y = 0; y < size.y; ++y)
+    {
+        i32 y2 = (size.y - y) - 1;
+        for (i32 x = 0; x < size.x; ++x)
+        {
+            i32 i1 = y * size.x + x;
+            i32 i2 = y2 * size.x + x;
+            color[i2] = flippedColor[i1];
+            color[i2] |= 0xff << 24;
+        }
+    }
+
+    if (stbi_write_png(filename, size.x, size.y, 4, color, stride))
+    {
+        con_logf(LogSev_Info, "Sc", "Took screenshot '%s'", filename);
+        return cmdstat_ok;
+    }
+    else
+    {
+        con_logf(LogSev_Error, "Sc", "Failed to take screenshot");
+        return cmdstat_err;
+    }
+}
+
+static void TakeScreenshot(void)
+{
+    if (input_keydown(KeyCode_F10))
+    {
+        con_exec("screenshot");
+    }
+}
+
 ProfileMark(pm_Present, Present)
 static void Present(void)
 {
@@ -260,6 +323,7 @@ static void Present(void)
     task_sys_schedule();
     task_await(resolveTask);
     screenblit_blit(frontBuf->color, frontBuf->width, frontBuf->height);
+    TakeScreenshot();
     SwapBuffers();
     ProfileEnd(pm_Present);
 }
@@ -271,6 +335,7 @@ void render_sys_init(void)
     cvar_reg(&cv_ac_gen);
     cvar_reg(&cv_cm_gen);
     cvar_reg(&cv_r_sw);
+    cmd_reg("screenshot", CmdScreenshot);
 
     vkr_init();
 

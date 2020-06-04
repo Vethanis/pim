@@ -7,8 +7,4 @@ build/
 imgui.ini
 *.log
 __pycache__
-/submodules/oidn/mkl-dnn/doc
-/submodules/oidn/mkl-dnn/examples
-/submodules/oidn/mkl-dnn/.gitlab
-/submodules/oidn/mkl-dnn/.github
-/submodules/oidn/mkl-dnn/tests
+screenshot_????_??_??_??_??_??.png

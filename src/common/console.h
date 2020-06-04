@@ -19,6 +19,8 @@ void con_sys_init(void);
 void con_sys_update(void);
 void con_sys_shutdown(void);
 
+void con_exec(const char* cmdText);
+
 void con_puts(u32 color, const char* line);
 void con_printf(u32 color, const char* fmt, ...);
 void con_clear(void);

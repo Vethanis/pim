@@ -1,9 +1,7 @@
 #include "rendering/texture.h"
 #include "allocator/allocator.h"
 #include "common/atomics.h"
-#include "containers/dict.h"
-#include "common/guid.h"
-#include "common/fnv1a.h"
+#include "containers/sdict.h"
 #include "math/color.h"
 #include "math/blending.h"
 #include "rendering/sampler.h"
@@ -12,13 +10,13 @@
 #include "stb/stb_image.h"
 
 static u64 ms_version;
-static dict_t ms_dict;
+static sdict_t ms_dict;
 
 static void EnsureInit(void)
 {
-    if (!ms_dict.keySize)
+    if (!ms_dict.valueSize)
     {
-        dict_new(&ms_dict, sizeof(guid_t), sizeof(textureid_t), EAlloc_Perm);
+        sdict_new(&ms_dict, sizeof(textureid_t), EAlloc_Perm);
     }
 }
 
@@ -91,17 +89,15 @@ bool texture_register(const char* name, textureid_t value)
     EnsureInit();
 
     ASSERT(value.handle);
-    guid_t key = StrToGuid(name, Fnv64Bias);
-    return dict_add(&ms_dict, &key, &value);
+    return sdict_add(&ms_dict, name, &value);
 }
 
 textureid_t texture_lookup(const char* name)
 {
     EnsureInit();
 
-    guid_t key = StrToGuid(name, Fnv64Bias);
     textureid_t value = { 0 };
-    dict_get(&ms_dict, &key, &value);
+    sdict_get(&ms_dict, name, &value);
     return value;
 }
 

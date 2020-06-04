@@ -2,11 +2,14 @@
 #include "quake/q_packfile.h"
 #include "allocator/allocator.h"
 #include "math/float4_funcs.h"
+#include "common/console.h"
+#include "common/stringutil.h"
 
-static mmodel_t* LoadBrushModel(const void* buffer, EAlloc allocator);
+static mmodel_t* LoadBrushModel(const char* name, const void* buffer, EAlloc allocator);
 
-mmodel_t* LoadModel(const void* buffer, EAlloc allocator)
+mmodel_t* LoadModel(const char* name, const void* buffer, EAlloc allocator)
 {
+    ASSERT(name);
     ASSERT(buffer);
     const i32 id = *(const i32*)buffer;
     switch (id)
@@ -22,7 +25,7 @@ mmodel_t* LoadModel(const void* buffer, EAlloc allocator)
         return NULL;
     case BSPVERSION:
         // brush model
-        return LoadBrushModel(buffer, allocator);
+        return LoadBrushModel(name, buffer, allocator);
     }
 }
 
@@ -75,13 +78,13 @@ static const void* OffsetPtr(const void* ptr, i32 bytes)
     return (const u8*)ptr + bytes;
 }
 
-static mmodel_t* LoadBrushModel(const void* buffer, EAlloc allocator)
+static mmodel_t* LoadBrushModel(const char* name, const void* buffer, EAlloc allocator)
 {
-    ASSERT(buffer);
     const dheader_t* header = buffer;
     ASSERT(header->version == BSPVERSION);
 
     mmodel_t* model = pim_calloc(allocator, sizeof(*model));
+    StrCpy(ARGS(model->name), name);
 
     // load vertices
     {
@@ -274,7 +277,10 @@ static mmodel_t* LoadBrushModel(const void* buffer, EAlloc allocator)
             if (model->numtextures > 0)
             {
                 dst[i].texture = model->textures[miptex];
-                ASSERT(dst[i].texture);
+                if (!dst[i].texture)
+                {
+                    con_logf(LogSev_Error, "qMdl", "Null texture found in model '%s' at index %d", model->name, miptex);
+                }
             }
         }
 

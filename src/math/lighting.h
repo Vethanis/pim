@@ -3,8 +3,6 @@
 #include "common/macro.h"
 #include "math/types.h"
 #include "math/float4_funcs.h"
-#include "rendering/texture.h"
-#include "rendering/cubemap.h"
 
 PIM_C_BEGIN
 

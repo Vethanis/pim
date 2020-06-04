@@ -1,19 +1,17 @@
 #include "rendering/mesh.h"
 #include "allocator/allocator.h"
 #include "common/atomics.h"
-#include "containers/dict.h"
-#include "common/guid.h"
-#include "common/fnv1a.h"
+#include "containers/sdict.h"
 #include "math/float4_funcs.h"
 
 static u64 ms_version;
-static dict_t ms_dict;
+static sdict_t ms_dict;
 
 static void EnsureInit(void)
 {
-    if (!ms_dict.keySize)
+    if (!ms_dict.valueSize)
     {
-        dict_new(&ms_dict, sizeof(guid_t), sizeof(meshid_t), EAlloc_Perm);
+        sdict_new(&ms_dict, sizeof(meshid_t), EAlloc_Perm);
     }
 }
 
@@ -77,17 +75,15 @@ bool mesh_register(const char* name, meshid_t value)
     EnsureInit();
 
     ASSERT(value.handle);
-    guid_t key = StrToGuid(name, Fnv64Bias);
-    return dict_add(&ms_dict, &key, &value);
+    return sdict_add(&ms_dict, name, &value);
 }
 
 meshid_t mesh_lookup(const char* name)
 {
     EnsureInit();
 
-    guid_t key = StrToGuid(name, Fnv64Bias);
     meshid_t value = { 0 };
-    dict_get(&ms_dict, &key, &value);
+    sdict_get(&ms_dict, name, &value);
     return value;
 }
 
