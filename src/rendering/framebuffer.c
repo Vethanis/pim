@@ -1,9 +1,5 @@
 #include "rendering/framebuffer.h"
-
 #include "allocator/allocator.h"
-#include "common/random.h"
-#include "rendering/constants.h"
-#include "rendering/sampler.h"
 
 void framebuf_create(framebuf_t* buf, i32 width, i32 height)
 {
@@ -15,11 +11,7 @@ void framebuf_create(framebuf_t* buf, i32 width, i32 height)
     const i32 len = width * height;
     buf->light = perm_malloc(len * sizeof(buf->light[0]));
     buf->color = perm_malloc(len * sizeof(buf->color[0]));
-
-    int2 size = { width, height };
-    i32 mipCount = CalcMipCount(size);
-    i32 count = 1 + CalcMipOffset(size, mipCount);
-    buf->depth = perm_malloc(count * sizeof(buf->depth[0]));
+    buf->depth = perm_malloc(len * sizeof(buf->depth[0]));
 }
 
 void framebuf_destroy(framebuf_t* buf)

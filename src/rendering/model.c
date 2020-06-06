@@ -138,7 +138,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "city", // ???
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
@@ -153,7 +153,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "wizwood", // wizard wood? is that innuendo?
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
@@ -201,7 +201,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "rune",
-        0.5f,
+        0.75f,
         1.0f,
         1.0f,
     },
@@ -238,17 +238,17 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "dem",
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
         "wiz",
-        0.35f,
+        0.75f,
         1.0f,
     },
     {
         "m5",
-        0.5f,
+        0.75f,
         1.0f,
     },
 };
@@ -298,7 +298,7 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         char normalName[PIM_PATH];
         SPrintf(ARGS(normalName), "%s_norm", albedoName);
 
-        float roughness = 0.5f;
+        float roughness = 0.75f;
         float occlusion = 1.0f;
         float metallic = 0.0f;
         float emission = 0.0f;
@@ -353,6 +353,7 @@ static meshid_t VEC_CALL TrisToMesh(
     float4* pim_noalias positions = perm_malloc(sizeof(positions[0]) * vertCount);
     float4* pim_noalias normals = perm_malloc(sizeof(normals[0]) * vertCount);
     float2* pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
+    float4* pim_noalias bakedGI = perm_calloc(sizeof(bakedGI[0]) * vertCount);
 
     // u = dot(P.xyz, s.xyz) + s.w
     // v = dot(P.xyz, t.xyz) + t.w
@@ -379,11 +380,25 @@ static meshid_t VEC_CALL TrisToMesh(
         uvs[i + 2] = f2_mul(CalcUv(s, t, B0), uvScale);
         uvs[i + 1] = f2_mul(CalcUv(s, t, C0), uvScale);
 
-        float4 N = f4_normalize3(f4_cross3(f4_sub(C, A), f4_sub(B, A)));
+        float4 N = f4_cross3(f4_sub(C, A), f4_sub(B, A));
+        float lenSq = f4_dot3(N, N);
+        if (lenSq > 0.0f)
+        {
+            N = f4_divvs(N, sqrtf(lenSq));
+        }
+        else
+        {
+            N = f4_v(0.0f, 0.0f, 1.0f, 0.0f);
+        }
 
         normals[i + 0] = N;
         normals[i + 2] = N;
         normals[i + 1] = N;
+
+        float4 ambient = f4_s(0.1f);
+        bakedGI[i + 0] = ambient;
+        bakedGI[i + 1] = ambient;
+        bakedGI[i + 2] = ambient;
     }
 
     mesh_t* mesh = perm_calloc(sizeof(*mesh));
@@ -391,6 +406,7 @@ static meshid_t VEC_CALL TrisToMesh(
     mesh->positions = positions;
     mesh->normals = normals;
     mesh->uvs = uvs;
+    mesh->bakedGI = bakedGI;
     return mesh_create(mesh);
 }
 

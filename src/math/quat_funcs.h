@@ -101,9 +101,8 @@ pim_inline quat VEC_CALL quat_mul(quat a, quat b)
 
 pim_inline float4 VEC_CALL quat_mul_dir(quat q, float4 dir)
 {
-    float4 q3 = f4_v(q.v.x, q.v.y, q.v.z, 0.0f);
-    float4 uv = f4_cross3(q3, dir);
-    float4 uuv = f4_cross3(q3, uv);
+    float4 uv = f4_cross3(q.v, dir);
+    float4 uuv = f4_cross3(q.v, uv);
 
     float4 y = f4_mulvs(uv, q.v.w);
     y = f4_add(y, uuv);

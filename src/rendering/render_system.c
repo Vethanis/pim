@@ -53,6 +53,7 @@
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
 static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "3", "path tracing bounces" };
 
+static cvar_t cv_lm_gen = { cvart_bool, 0, "lm_gen", "0", "enable lightmap generation" };
 static cvar_t cv_ac_gen = { cvart_bool, 0, "ac_gen", "0", "enable ambientcube generation" };
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
 
@@ -75,6 +76,7 @@ static float4 ms_clearColor;
 static pt_scene_t* ms_ptscene;
 static pt_trace_t ms_trace;
 
+static i32 ms_lmSampleCount;
 static i32 ms_acSampleCount;
 static i32 ms_ptSampleCount;
 static i32 ms_cmapSampleCount;
@@ -101,6 +103,32 @@ static void EnsurePtScene(void)
     if (!ms_ptscene)
     {
         ms_ptscene = pt_scene_new(5);
+    }
+}
+
+ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
+static void Lightmap_Trace(void)
+{
+    if (cv_lm_gen.asFloat != 0.0f)
+    {
+        ProfileBegin(pm_Lightmap_Trace);
+        EnsurePtScene();
+
+        if (cvar_check_dirty(&cv_lm_gen))
+        {
+            ms_lmSampleCount = 0;
+        }
+
+        float weight = 1.0f / ++ms_lmSampleCount;
+        i32 bounces = (i32)cv_pt_bounces.asFloat;
+        task_t* task = drawables_bake(ms_ptscene, weight, bounces);
+        if (task)
+        {
+            task_sys_schedule();
+            task_await(task);
+        }
+
+        ProfileEnd(pm_Lightmap_Trace);
     }
 }
 
@@ -149,7 +177,7 @@ static void Cubemap_Trace(void)
         Cubemap* bakemaps = table->bakemaps;
         Cubemap* convmaps = table->convmaps;
 
-        float weight = 1.0f / (1.0f + ms_cmapSampleCount++);
+        float weight = 1.0f / ++ms_cmapSampleCount;
         i32 bounces = (i32)cv_pt_bounces.asFloat;
         for (i32 i = 0; i < len; ++i)
         {
@@ -244,12 +272,12 @@ static void Rasterize(void)
     task_sys_schedule();
 
     task_await(cullTask);
-    task_t* vertexTask = drawables_vertex(&camera);
+    task_t* vertexTask = drawables_vertex();
+    task_t* clearTask = ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
     task_sys_schedule();
 
-    ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
-
     task_await(vertexTask);
+    task_await(clearTask);
     task_t* fragTask = drawables_fragment(frontBuf, backBuf);
     task_sys_schedule();
 
@@ -332,6 +360,7 @@ void render_sys_init(void)
 {
     cvar_reg(&cv_pt_trace);
     cvar_reg(&cv_pt_bounces);
+    cvar_reg(&cv_lm_gen);
     cvar_reg(&cv_ac_gen);
     cvar_reg(&cv_cm_gen);
     cvar_reg(&cv_r_sw);
@@ -368,6 +397,7 @@ void render_sys_update(void)
 {
     ProfileBegin(pm_update);
 
+    Lightmap_Trace();
     AmbCube_Trace();
     Cubemap_Trace();
     if (!PathTrace())

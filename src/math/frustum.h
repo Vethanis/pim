@@ -46,31 +46,39 @@ pim_inline float4 VEC_CALL proj_pt(
 }
 
 pim_inline frus_t VEC_CALL frus_new(
-    float4 eye,     // frustum origin
-    float4 right,
-    float4 up,
-    float4 fwd,
+    float4 e,       // eye point
+    float4 r,       // right vector
+    float4 u,       // up vector
+    float4 f,       // forward vector
     float2 lo,      // minX, minY in [-1, 1]
     float2 hi,      // maxX, maxY in [-1, 1]
-    float2 slope,
+    float2 s,       // slope
     float2 nearFar) // clipping plane
 {
-    float4 LBN = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, lo.y, nearFar.x));
-    float4 LBF = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, lo.y, nearFar.y));
-    float4 LTN = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, hi.y, nearFar.x));
-    float4 LTF = proj_pt(eye, right, up, fwd, slope, f3_v(lo.x, hi.y, nearFar.y));
-    float4 RBN = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, lo.y, nearFar.x));
-    float4 RBF = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, lo.y, nearFar.y));
-    float4 RTN = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, nearFar.x));
-    float4 RTF = proj_pt(eye, right, up, fwd, slope, f3_v(hi.x, hi.y, nearFar.y));
+    float x0 = lo.x;
+    float x1 = hi.x;
+    float y0 = lo.y;
+    float y1 = hi.y;
+    float z0 = nearFar.x;
+    float z1 = nearFar.y;
+
+    float4 p[8];
+    for (i32 i = 0; i < 8; ++i)
+    {
+        float3 v;
+        v.x = (i & 1) ? x1 : x0;
+        v.z = (i & 2) ? z1 : z0;
+        v.y = (i & 4) ? y1 : y0;
+        p[i] = proj_pt(e, r, u, f, s, v);
+    }
 
     frus_t frus;
-    frus.x0 = triToPlane(LBN, LTN, LBF);
-    frus.x1 = triToPlane(RBF, RTF, RBN);
-    frus.y0 = triToPlane(LBN, LBF, RBN);
-    frus.y1 = triToPlane(RTN, RTF, LTN);
-    frus.z0 = triToPlane(RBN, RTN, LBN);
-    frus.z1 = triToPlane(LBF, LTF, RBF);
+    frus.x0 = triToPlane(p[4], p[6], p[0]);
+    frus.x1 = triToPlane(p[1], p[3], p[5]);
+    frus.y0 = triToPlane(p[0], p[2], p[1]);
+    frus.y1 = triToPlane(p[5], p[7], p[4]);
+    frus.z0 = triToPlane(p[1], p[5], p[0]);
+    frus.z1 = triToPlane(p[7], p[3], p[6]);
 
     return frus;
 }

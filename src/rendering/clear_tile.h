@@ -1,11 +1,13 @@
 #pragma once
 
 #include "common/macro.h"
+#include "math/types.h"
 
 PIM_C_BEGIN
 
-#include "math/types.h"
+typedef struct framebuf_s framebuf_t;
+typedef struct task_s task_t;
 
-void ClearTile(struct framebuf_s* target, float4 color, float depth);
+task_t* ClearTile(framebuf_t* target, float4 color, float depth);
 
 PIM_C_END

@@ -28,10 +28,6 @@
 #include "rendering/drawable.h"
 
 static cvar_t cv_gi_dbg_diff = { cvart_bool, 0, "gi_dbg_diff", "0", "view ambient cube with normal vector" };
-static cvar_t cv_gi_dbg_spec = { cvart_bool, 0, "gi_dbg_spec", "0", "view cubemap with reflect vector" };
-static cvar_t cv_gi_dbg_diffview = { cvart_bool, 0, "gi_dbg_diffview", "0", "view ambient cube with forward vector" };
-static cvar_t cv_gi_dbg_specview = { cvart_bool, 0, "gi_dbg_specview", "0", "view cubemap with forward vector" };
-static cvar_t cv_gi_dbg_specmip = { cvart_float, 0, "gi_dbg_specmip", "0", "mip level of cubemap debug views" };
 
 typedef struct fragstage_s
 {
@@ -43,7 +39,7 @@ typedef struct fragstage_s
 typedef struct tile_ctx_s
 {
     frus_t frus;
-    float4x4 VP;
+    float4x4 V;
     float4 tileNormal;
     float4 eye;
     float4 right;
@@ -54,7 +50,6 @@ typedef struct tile_ctx_s
     float2 tileMax;
     float nearClip;
     float farClip;
-    float tileDepth;
 } tile_ctx_t;
 
 static BrdfLut ms_lut;
@@ -65,7 +60,6 @@ void VEC_CALL AmbCube_Set(AmbCube_t cube) { ms_ambcube = cube; }
 
 static void EnsureInit(void);
 static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf);
-static float4 VEC_CALL TriBounds(float4x4 VP, float4 A, float4 B, float4 C, float2 tileMin, float2 tileMax);
 static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, i32 iDraw, const Cubemap* cm);
 static i32 VEC_CALL FindBounds(sphere_t self, const sphere_t* pim_noalias others, i32 len);
 
@@ -109,10 +103,6 @@ static void EnsureInit(void)
     if (!ms_lut.texels)
     {
         cvar_reg(&cv_gi_dbg_diff);
-        cvar_reg(&cv_gi_dbg_spec);
-        cvar_reg(&cv_gi_dbg_diffview);
-        cvar_reg(&cv_gi_dbg_specview);
-        cvar_reg(&cv_gi_dbg_specmip);
 
         ms_lut = BakeBRDF(i2_s(256), 1024);
     }
@@ -139,15 +129,27 @@ task_t* drawables_fragment(
 }
 
 pim_optimize
-static float4 VEC_CALL TriBounds(float4x4 VP, float4 A, float4 B, float4 C, float2 tileMin, float2 tileMax)
+static float4 VEC_CALL TriBounds(
+    float4x4 V,
+    float2 slope,
+    float zNear, float zFar,
+    float4 A, float4 B, float4 C,
+    float2 tileMin, float2 tileMax)
 {
-    A = f4x4_mul_pt(VP, A);
-    B = f4x4_mul_pt(VP, B);
-    C = f4x4_mul_pt(VP, C);
+    A = f4x4_mul_pt(V, A);
+    B = f4x4_mul_pt(V, B);
+    C = f4x4_mul_pt(V, C);
 
-    A = f4_divvs(A, A.w);
-    B = f4_divvs(B, B.w);
-    C = f4_divvs(C, C.w);
+    float4 scale = { 1.0f / slope.x, 1.0f / slope.y, 1.0f, 1.0f };
+    A = f4_mul(A, scale);
+    B = f4_mul(B, scale);
+    C = f4_mul(C, scale);
+    A.z = f1_max(-A.z, f32_eps);
+    B.z = f1_max(-B.z, f32_eps);
+    C.z = f1_max(-C.z, f32_eps);
+    A = f4_divvs(A, A.z);
+    B = f4_divvs(B, B.z);
+    C = f4_divvs(C, C.z);
 
     float4 bounds;
     bounds.x = f1_min(A.x, f1_min(B.x, C.x));
@@ -181,13 +183,11 @@ static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf)
 
     ctx->tileMin = TileMin(tile);
     ctx->tileMax = TileMax(tile);
-    ctx->tileDepth = TileDepth(tile, backBuf->depth);
     ctx->tileNormal = proj_dir(ctx->right, ctx->up, ctx->fwd, ctx->slope, f2_lerp(ctx->tileMin, ctx->tileMax, 0.5f));
     ctx->frus = frus_new(ctx->eye, ctx->right, ctx->up, ctx->fwd, ctx->tileMin, ctx->tileMax, ctx->slope, camera.nearFar);
 
     float4x4 V = f4x4_lookat(ctx->eye, f4_add(ctx->eye, ctx->fwd), ctx->up);
-    float4x4 P = f4x4_perspective(f1_radians(camera.fovy), kDrawAspect, ctx->nearClip, ctx->farClip);
-    ctx->VP = f4x4_mul(P, V);
+    ctx->V = V;
 }
 
 pim_optimize
@@ -206,16 +206,11 @@ static void VEC_CALL DrawMesh(
     }
 
     const bool dbgdiffGI = cv_gi_dbg_diff.asFloat != 0.0f;
-    const bool dbgspecGI = cv_gi_dbg_spec.asFloat != 0.0f;
-    const bool dbgdiffviewGI = cv_gi_dbg_diffview.asFloat != 0.0f;
-    const bool dbgspecviewGI = cv_gi_dbg_specview.asFloat != 0.0f;
-    const float dbgspecmip = cv_gi_dbg_specmip.asFloat;
 
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
     const float e = 1.0f / (1 << 10);
 
-    const BrdfLut lut = ms_lut;
     const material_t material = drawTable->materials[iDraw];
     const float4 flatAlbedo = ColorToLinear(material.flatAlbedo);
     const float4 flatRome = ColorToLinear(material.flatRome);
@@ -236,14 +231,6 @@ static void VEC_CALL DrawMesh(
     const float4 tileNormal = ctx->tileNormal;
     const float2 tileMin = ctx->tileMin;
     const float2 tileMax = ctx->tileMax;
-    const float tileDepth = ctx->tileDepth;
-    const plane_t fwdPlane = plane_new(fwd, eye);
-
-    const lights_t* lights = lights_get();
-    const i32 dirCount = lights->dirCount;
-    const dir_light_t* pim_noalias dirLights = lights->dirLights;
-    const i32 ptCount = lights->ptCount;
-    const pt_light_t* pim_noalias ptLights = lights->ptLights;
 
     float4* pim_noalias dstLight = target->light;
     float* pim_noalias dstDepth = target->depth;
@@ -251,6 +238,7 @@ static void VEC_CALL DrawMesh(
     const float4* pim_noalias positions = mesh.positions;
     const float4* pim_noalias normals = mesh.normals;
     const float2* pim_noalias uvs = mesh.uvs;
+    const float4* pim_noalias bakedGI = mesh.bakedGI;
     const i32 vertCount = mesh.length;
 
     for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
@@ -269,21 +257,12 @@ static void VEC_CALL DrawMesh(
                 continue;
             }
             const sphere_t sph = triToSphere(A, B, C);
-            // occlusion culling
-            if (sdPlaneSphere(fwdPlane, sph) > tileDepth)
-            {
-                continue;
-            }
             // tile-frustum-triangle culling
             if (sdFrusSph(ctx->frus, sph) > 0.0f)
             {
                 continue;
             }
         }
-
-        const float4 NA = normals[iVert + 0];
-        const float4 NB = normals[iVert + 1];
-        const float4 NC = normals[iVert + 2];
 
         const float2 UA = uvs[iVert + 0];
         const float2 UB = uvs[iVert + 1];
@@ -293,8 +272,7 @@ static void VEC_CALL DrawMesh(
         const float4 Q = f4_cross3(T, BA);
         const float t0 = f4_dot3(CA, Q);
 
-        // bounds is broken by triangle clipping / clip space
-        const float4 bounds = TriBounds(ctx->VP, A, B, C, tileMin, tileMax);
+        const float4 bounds = TriBounds(ctx->V, slope, nearClip, farClip, A, B, C, tileMin, tileMax);
         for (float y = bounds.y; y < bounds.w; y += dy)
         {
             for (float x = bounds.x; x < bounds.z; x += dx)
@@ -331,87 +309,35 @@ static void VEC_CALL DrawMesh(
                 float4 lighting = f4_0;
                 {
                     // blend interpolators
-                    const float4 P = f4_blend(A, B, C, wuvt);
-                    float4 N = f4_normalize3(f4_blend(NA, NB, NC, wuvt));
                     const float2 U = f2_frac(f2_blend(UA, UB, UC, wuvt));
 
-                    if (normalMap.texels)
-                    {
-                        float4 tN = UvBilinearWrap_dir8(normalMap.texels, normalMap.size, U);
-                        N = TanToWorld(N, tN);
-                    }
-
-                    // lighting
-                    const float4 V = f4_normalize3(f4_sub(eye, P));
-                    const float4 R = f4_normalize3(f4_reflect(f4_neg(V), N));
                     float4 albedo = flatAlbedo;
                     if (albedoMap.texels)
                     {
                         albedo = f4_mul(albedo,
                             UvBilinearWrap_c32(albedoMap.texels, albedoMap.size, U));
                     }
-                    float4 rome = flatRome;
-                    if (romeMap.texels)
+
                     {
-                        rome = f4_mul(rome,
-                            UvBilinearWrap_c32(romeMap.texels, romeMap.size, U));
-                    }
-                    {
-                        float4 emission = UnpackEmission(albedo, rome.w);
+                        float4 emission = UnpackEmission(albedo, flatRome.w);
                         lighting = f4_add(lighting, emission);
                     }
-                    const float mip = Cubemap_Rough2Mip(rome.x);
+
                     {
-                        float4 specularGI = f4_0;
                         float4 diffuseGI = f4_0;
-
-                        diffuseGI = AmbCube_Irradiance(ms_ambcube, N);
-                        if (cm)
+                        if (bakedGI)
                         {
-                            specularGI = Cubemap_Read(cm, R, mip);
+                            diffuseGI = f4_blend(
+                                bakedGI[iVert+0],
+                                bakedGI[iVert+1],
+                                bakedGI[iVert+2],
+                                wuvt);
                         }
-                        const float4 indirect = IndirectBRDF(lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
-                        lighting = f4_add(lighting, indirect);
-                    }
-                    for (i32 iLight = 0; iLight < dirCount; ++iLight)
-                    {
-                        dir_light_t light = dirLights[iLight];
-                        const float4 direct = DirectBRDF(V, light.dir, light.rad, N, albedo, rome.x, rome.z);
-                        lighting = f4_add(lighting, direct);
-                    }
-                    for (i32 iLight = 0; iLight < ptCount; ++iLight)
-                    {
-                        pt_light_t light = ptLights[iLight];
-                        float4 dir = f4_sub(light.pos, P);
-                        float dist = f4_length3(dir);
-                        dir = f4_divvs(dir, dist);
-                        float attenuation = 1.0f / (0.01f + dist * dist);
-                        light.rad = f4_mulvs(light.rad, attenuation);
-                        const float4 direct = DirectBRDF(V, dir, light.rad, N, albedo, rome.x, rome.z);
-                        lighting = f4_add(lighting, direct);
-                    }
 
-                    if (dbgdiffviewGI)
-                    {
-                        lighting = AmbCube_Eval(ms_ambcube, f4_neg(V));
-                    }
-                    else if (dbgspecviewGI)
-                    {
-                        float4 I = f4_neg(V);
-                        if (cm)
+                        lighting = f4_add(lighting, f4_mul(diffuseGI, albedo));
+                        if (dbgdiffGI)
                         {
-                            lighting = Cubemap_Read(cm, I, mip);
-                        }
-                    }
-                    else if (dbgdiffGI)
-                    {
-                        lighting = AmbCube_Irradiance(ms_ambcube, N);
-                    }
-                    else if (dbgspecGI)
-                    {
-                        if (cm)
-                        {
-                            lighting = Cubemap_Read(cm, R, mip);
+                            lighting = diffuseGI;
                         }
                     }
                 }

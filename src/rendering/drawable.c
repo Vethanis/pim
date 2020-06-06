@@ -9,6 +9,8 @@
 #include "rendering/tile.h"
 #include "common/profiler.h"
 #include "rendering/sampler.h"
+#include "math/sampling.h"
+#include "rendering/path_tracer.h"
 #include <string.h>
 
 static drawables_t ms_drawables;
@@ -78,7 +80,6 @@ typedef struct trstask_s
     task_t task;
 } trstask_t;
 
-pim_optimize
 static void TRSFn(task_t* pBase, i32 begin, i32 end)
 {
     trstask_t* pTask = (trstask_t*)pBase;
@@ -110,7 +111,6 @@ typedef struct boundstask_s
     task_t task;
 } boundstask_t;
 
-pim_optimize
 static void BoundsFn(task_t* pBase, i32 begin, i32 end)
 {
     const meshid_t* pim_noalias meshes = ms_drawables.meshes;
@@ -152,28 +152,63 @@ typedef struct culltask_s
     frus_t frus;
     frus_t subfrus[kTileCount];
     plane_t fwdPlane;
+    float4 eye;
     const framebuf_t* backBuf;
 } culltask_t;
 
 SASSERT((sizeof(u64) * 8) == kTileCount);
 
-pim_optimize
+static bool DepthCullTest(
+    const float* pim_noalias depthBuf,
+    int2 size,
+    i32 iTile,
+    float4 eye,
+    sphere_t sph)
+{
+    const float radius = sph.value.w;
+    const float4 rd = f4_normalize3(f4_sub(sph.value, eye));
+    const float t = isectSphere3D((ray_t) { eye, rd }, sph);
+    if (t == -1.0f)
+    {
+        return false;
+    }
+    if (t < -radius)
+    {
+        return false;
+    }
+
+    const int2 tile = GetTile(iTile);
+    for (i32 y = 0; y < kTileHeight; ++y)
+    {
+        for (i32 x = 0; x < kTileWidth; ++x)
+        {
+            i32 sy = y + tile.y;
+            i32 sx = x + tile.x;
+            i32 i = sx + sy * kDrawWidth;
+            if (t <= depthBuf[i])
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 static void CullFn(task_t* pBase, i32 begin, i32 end)
 {
     culltask_t* pTask = (culltask_t*)pBase;
     const frus_t frus = pTask->frus;
     const framebuf_t* backBuf = pTask->backBuf;
-    const plane_t fwdPlane = pTask->fwdPlane;
     const frus_t* pim_noalias subfrus = pTask->subfrus;
     const sphere_t* pim_noalias bounds = ms_drawables.bounds;
+    const float* pim_noalias depthBuf = backBuf->depth;
+    const int2 bufSize = { backBuf->width, backBuf->height };
     u64* pim_noalias tileMasks = ms_drawables.tileMasks;
 
-    float tileZs[kTileCount];
-    for (i32 t = 0; t < kTileCount; ++t)
-    {
-        int2 tile = GetTile(t);
-        tileZs[t] = TileDepth(tile, backBuf->depth);
-    }
+    camera_t camera;
+    camera_get(&camera);
+    float4 eye = camera.position;
 
     for (i32 i = begin; i < end; ++i)
     {
@@ -183,20 +218,19 @@ static void CullFn(task_t* pBase, i32 begin, i32 end)
         }
 
         u64 tilemask = 0;
-        const sphere_t sph = bounds[i];
-        float frusDist = sdFrusSph(frus, sph);
+        const sphere_t sphWS = bounds[i];
+        float frusDist = sdFrusSph(frus, sphWS);
         if (frusDist <= 0.0f)
         {
-            for (i32 t = 0; t < kTileCount; ++t)
+            for (i32 iTile = 0; iTile < kTileCount; ++iTile)
             {
-                float sphZ = sdPlaneSphere(fwdPlane, sph);
-                if (sphZ <= tileZs[t])
+                float subFrusDist = sdFrusSph(subfrus[iTile], sphWS);
+                if (subFrusDist <= 0.0f)
                 {
-                    float subFrusDist = sdFrusSph(subfrus[t], sph);
-                    if (subFrusDist <= 0.0f)
+                    if (DepthCullTest(depthBuf, bufSize, iTile, eye, sphWS))
                     {
                         u64 mask = 1;
-                        mask <<= t;
+                        mask <<= iTile;
                         tilemask |= mask;
                     }
                 }
@@ -207,7 +241,6 @@ static void CullFn(task_t* pBase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_Cull, drawables_cull)
-pim_optimize
 task_t* drawables_cull(
     const camera_t* camera,
     const framebuf_t* backBuf)
@@ -228,9 +261,98 @@ task_t* drawables_cull(
     float4 fwd = quat_fwd(camera->rotation);
     fwd.w = f4_dot3(fwd, camera->position);
     task->fwdPlane.value = fwd;
+    task->eye = camera->position;
 
     task_submit((task_t*)task, CullFn, ms_drawables.count);
 
     ProfileEnd(pm_Cull);
+    return (task_t*)task;
+}
+
+typedef struct bake_s
+{
+    task_t task;
+    const pt_scene_t* scene;
+    float weight;
+    i32 bounces;
+} bake_t;
+
+static void BakeFn(task_t* pbase, i32 begin, i32 end)
+{
+    bake_t* task = (bake_t*)pbase;
+    const pt_scene_t* scene = task->scene;
+    const float weight = task->weight;
+    const i32 bounces = task->bounces;
+
+    const float4x4* pim_noalias matrices = ms_drawables.matrices;
+    const meshid_t* pim_noalias meshids = ms_drawables.meshes;
+
+    prng_t rng = prng_get();
+    for (i32 i = begin; i < end; ++i)
+    {
+        mesh_t mesh;
+        if (mesh_get(meshids[i], &mesh))
+        {
+            const float4x4 M = matrices[i];
+            const float4x4 IM = f4x4_inverse(f4x4_transpose(M));
+
+            const i32 vertCount = mesh.length;
+            const float4* pim_noalias positions = mesh.positions;
+            const float4* pim_noalias normals = mesh.normals;
+            float4* pim_noalias bakedGI = mesh.bakedGI;
+
+            for (i32 j = 0; (j + 3) <= vertCount; j += 3)
+            {
+                float4 A = f4x4_mul_pt(M, positions[j + 0]);
+                float4 B = f4x4_mul_pt(M, positions[j + 1]);
+                float4 C = f4x4_mul_pt(M, positions[j + 2]);
+
+                float4 NA = f4_normalize3(f4x4_mul_dir(IM, normals[j + 0]));
+                float4 NB = f4_normalize3(f4x4_mul_dir(IM, normals[j + 1]));
+                float4 NC = f4_normalize3(f4x4_mul_dir(IM, normals[j + 2]));
+
+                for (i32 k = 0; k < 3; ++k)
+                {
+                    float w, u, v;
+                    do
+                    {
+                        u = prng_f32(&rng);
+                        v = prng_f32(&rng);
+                        w = 1.0f - (u + v);
+                    } while ((u + v) > 1.0f);
+
+                    float4 wuvt = { w, u, v, 0.0f };
+                    float4 ro = f4_blend(A, B, C, wuvt);
+                    float4 N = f4_normalize3(f4_blend(NA, NB, NC, wuvt));
+
+                    float4 rd;
+                    float pdf = ScatterLambertian(&rng, N, N, &rd, 1.0f);
+                    ray_t ray = { ro, rd };
+                    float4 light = pt_trace_ray(&rng, scene, ray, bounces);
+                    light = f4_mulvs(light, pdf);
+
+                    bakedGI[j + 0] = f4_lerpvs(bakedGI[j + 0], light, weight * w);
+                    bakedGI[j + 1] = f4_lerpvs(bakedGI[j + 1], light, weight * u);
+                    bakedGI[j + 2] = f4_lerpvs(bakedGI[j + 2], light, weight * v);
+                }
+            }
+        }
+    }
+    prng_set(rng);
+}
+
+ProfileMark(pm_Bake, drawables_bake)
+task_t* drawables_bake(const pt_scene_t* scene, float weight, i32 bounces)
+{
+    ProfileBegin(pm_Bake);
+    ASSERT(scene);
+
+    bake_t* task = tmp_calloc(sizeof(*task));
+    task->scene = scene;
+    task->weight = weight;
+    task->bounces = bounces;
+    task_submit((task_t*)task, BakeFn, ms_drawables.count);
+
+    ProfileEnd(pm_Bake);
     return (task_t*)task;
 }

@@ -10,6 +10,7 @@ PIM_C_BEGIN
 typedef struct task_s task_t;
 typedef struct camera_s camera_t;
 typedef struct framebuf_s framebuf_t;
+typedef struct pt_scene_s pt_scene_t;
 
 typedef struct drawables_s
 {
@@ -37,5 +38,7 @@ task_t* drawables_bounds(void);
 task_t* drawables_cull(
     const camera_t* camera,
     const framebuf_t* backBuf);
+
+task_t* drawables_bake(const pt_scene_t* scene, float weight, i32 bounces);
 
 PIM_C_END

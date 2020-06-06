@@ -239,46 +239,6 @@ float4 VEC_CALL Cubemap_FaceDir(Cubeface face)
     return kForwards[face];
 }
 
-pim_optimize
-void Cubemap_GenMips(Cubemap* cm)
-{
-    ASSERT(cm);
-
-    const i32 mipCount = cm->mipCount;
-    const int2 size = i2_s(cm->size);
-
-    for (i32 i = 0; i < Cubeface_COUNT; ++i)
-    {
-        float4* buffer = cm->faces[i];
-        ASSERT(buffer);
-
-        for (i32 m = 1; m < mipCount; ++m)
-        {
-            const i32 n = m - 1;
-
-            const int2 mSize = CalcMipSize(size, m);
-            const int2 nSize = CalcMipSize(size, n);
-
-            const i32 mOffset = CalcMipOffset(size, m);
-            const i32 nOffset = CalcMipOffset(size, n);
-
-            float4* pim_noalias mBuffer = buffer + mOffset;
-            const float4* pim_noalias nBuffer = buffer + nOffset;
-
-            for (i32 y = 0; y < mSize.y; ++y)
-            {
-                for (i32 x = 0; x < mSize.x; ++x)
-                {
-                    int2 mCoord = i2_v(x, y);
-                    int2 nCoord = i2_mulvs(mCoord, 2);
-                    float4 nAvg = MipAvg_f4(nBuffer, nSize, nCoord);
-                    Write_f4(mBuffer, mSize, mCoord, nAvg);
-                }
-            }
-        }
-    }
-}
-
 typedef struct cmbake_s
 {
     task_t;

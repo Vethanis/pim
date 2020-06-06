@@ -79,11 +79,7 @@ static meshid_t VEC_CALL TransformMesh(frus_t frus, meshid_t local, float4x4 M, 
             tmpmesh->positions = positions;
             tmpmesh->normals = normals;
             tmpmesh->uvs = uvs;
-            ASSERT(tmpmesh->version == 0);
-            ASSERT(tmpmesh->length == vertCount);
-            ASSERT(tmpmesh->positions == positions);
-            ASSERT(tmpmesh->normals == normals);
-            ASSERT(tmpmesh->uvs == uvs);
+            tmpmesh->bakedGI = mesh.bakedGI;
             result = mesh_create(tmpmesh);
         }
     }
@@ -132,13 +128,14 @@ static void VertexFn(task_t* pBase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_Vertex, drawables_vertex)
-task_t* drawables_vertex(const camera_t* camera)
+task_t* drawables_vertex(void)
 {
     ProfileBegin(pm_Vertex);
-    ASSERT(camera);
 
     verttask_t* task = tmp_calloc(sizeof(*task));
-    camera_frustum(camera, &(task->frus));
+    camera_t camera;
+    camera_get(&camera);
+    camera_frustum(&camera, &(task->frus));
     task_submit((task_t*)task, VertexFn, drawables_get()->count);
 
     ProfileEnd(pm_Vertex);

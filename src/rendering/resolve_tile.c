@@ -65,55 +65,6 @@ struct task_s* ResolveTile(struct framebuf_s* target, TonemapId tonemapper, floa
     task_submit((task_t*)task, ResolveTileFn, kTileCount);
     task_sys_schedule();
 
-    // DONT BUGS
-    // OPEN INSIDE
-    float* pim_noalias depth = target->depth;
-    const int2 kDrawSize = { kDrawWidth, kDrawHeight };
-    const i32 mipCount = CalcMipCount(kDrawSize);
-    for (i32 m = 0; (m + 1) < mipCount; ++m)
-    {
-        const i32 n = m + 1;
-
-        const i32 mw = target->width >> m;
-        const i32 mh = target->height >> m;
-        const i32 nw = target->width >> n;
-        const i32 nh = target->height >> n;
-
-        const i32 m0 = CalcMipOffset(kDrawSize, m);
-        const i32 n0 = CalcMipOffset(kDrawSize, n);
-        const i32 n1 = n0 + (nw*nh);
-
-        for (i32 y = 0; (y + 2) <= mh; y += 2)
-        {
-            for (i32 x = 0; (x + 2) <= mw; x += 2)
-            {
-                i32 a = m0 + (x + 0) + (y + 0) * mw;
-                i32 b = m0 + (x + 1) + (y + 0) * mw;
-                i32 c = m0 + (x + 0) + (y + 1) * mw;
-                i32 d = m0 + (x + 1) + (y + 1) * mw;
-
-                i32 e = n0 + ((x >> 1) + (y >> 1) * nw);
-
-                ASSERT(a < n0);
-                ASSERT(a >= m0);
-                ASSERT(b < n0);
-                ASSERT(b >= m0);
-                ASSERT(c < n0);
-                ASSERT(c > m0);
-                ASSERT(d < n0);
-                ASSERT(d >= m0);
-                ASSERT(e < n1);
-                ASSERT(e >= n0);
-
-                float da = depth[a];
-                float db = depth[b];
-                float dc = depth[c];
-                float dd = depth[d];
-                depth[e] = f1_max(f1_max(da, db), f1_max(dc, dd));
-            }
-        }
-    }
-
     ProfileEnd(pm_ResolveTile);
     return (task_t*)task;
 }

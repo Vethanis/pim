@@ -442,7 +442,8 @@ pim_inline float VEC_CALL Scatter(
     float4* dirOut,
     float roughness)
 {
-    return ScatterGGX(rng, dirIn, N, dirOut, roughness);
+    return ScatterLambertian(rng, dirIn, N, dirOut, roughness);
+    //return ScatterGGX(rng, dirIn, N, dirOut, roughness);
 }
 
 pim_optimize

@@ -67,8 +67,6 @@ float4 VEC_CALL Cubemap_CalcDir(i32 size, Cubeface face, int2 coord, float2 Xi);
 
 float4 VEC_CALL Cubemap_FaceDir(Cubeface face);
 
-void Cubemap_GenMips(Cubemap* cm);
-
 task_t* Cubemap_Bake(
     Cubemap* cm,
     const pt_scene_t* scene,
