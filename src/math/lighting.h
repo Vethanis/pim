@@ -15,18 +15,6 @@ typedef struct BrdfLut_s
 BrdfLut BakeBRDF(int2 size, u32 numSamples);
 void FreeBrdfLut(BrdfLut* lut);
 
-// geometry term
-// self shadowing effect from rough surfaces
-// Schlick approximation fit to Smith's GGX model
-pim_inline float VEC_CALL GGX_G(float NoV, float NoL, float roughness)
-{
-    float a = roughness * roughness;
-    float k = a * 0.5f;
-    float t1 = NoV / f1_lerp(k, 1.0f, NoV);
-    float t2 = NoL / f1_lerp(k, 1.0f, NoL);
-    return t1 * t2;
-}
-
 // normal distribution function
 // amount of surface's microfacets are facing the H vector
 // Trowbridge-Reitz GGX
@@ -38,6 +26,29 @@ pim_inline float VEC_CALL GGX_D(float NoH, float roughness)
     return a2 / (kPi * d * d);
 }
 
+// indirect geometry term
+// self shadowing effect from rough surfaces
+// Schlick approximation fit to Smith's GGX model
+pim_inline float VEC_CALL GGX_GI(float NoV, float NoL, float roughness)
+{
+    float a = roughness;
+    float k = (a * a) / 2.0f;
+    float t1 = NoV / f1_lerp(k, 1.0f, NoV);
+    float t2 = NoL / f1_lerp(k, 1.0f, NoL);
+    return t1 * t2;
+}
+
+// direct geometry term
+// self shadowing effect from rough surfaces
+// Schlick approximation fit to Smith's GGX model
+pim_inline float VEC_CALL GGX_GD(float NoV, float NoL, float roughness)
+{
+    float r = roughness + 1.0f;
+    float k = (r * r) / 8.0f;
+    float t1 = NoV / f1_lerp(k, 1.0f, NoV);
+    float t2 = NoL / f1_lerp(k, 1.0f, NoL);
+    return t1 * t2;
+}
 // base reflectivity for a surface viewed head-on
 pim_inline float4 VEC_CALL GGX_F0(float4 albedo, float metallic)
 {

@@ -103,17 +103,17 @@ pim_inline float VEC_CALL sdEdge2D(float2 A, float2 B, float2 P)
 
 // calculates barycentric coordinates of p on triangle abc
 // rcpArea = 1.0f / tri_area2D(a, b, c);
-pim_inline float3 VEC_CALL bary2D(
+pim_inline float4 VEC_CALL bary2D(
     float2 a,
     float2 b,
     float2 c,
     float rcpArea,
     float2 p)
 {
-    const float w = sdEdge2D(b, c, p) * rcpArea;
-    const float u = sdEdge2D(c, a, p) * rcpArea;
-    const float v = sdEdge2D(a, b, p) * rcpArea;
-    return f3_v(w, u, v);
+    float w = sdEdge2D(b, c, p) * rcpArea;
+    float u = sdEdge2D(c, a, p) * rcpArea;
+    float v = sdEdge2D(a, b, p) * rcpArea;
+    return f4_v(w, u, v, 0.0f);
 }
 
 pim_inline float VEC_CALL sdTriangle2D(

@@ -430,6 +430,9 @@
     <ClCompile Include="..\src\containers\vhandle.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\lightmap.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -884,6 +887,9 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\vhandle.h">
       <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\lightmap.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

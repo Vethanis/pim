@@ -39,6 +39,4 @@ task_t* drawables_cull(
     const camera_t* camera,
     const framebuf_t* backBuf);
 
-task_t* drawables_bake(const pt_scene_t* scene, float weight, i32 bounces);
-
 PIM_C_END

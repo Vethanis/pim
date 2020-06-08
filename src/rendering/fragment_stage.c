@@ -26,8 +26,10 @@
 #include "rendering/lights.h"
 #include "rendering/cubemap.h"
 #include "rendering/drawable.h"
+#include "rendering/lightmap.h"
 
 static cvar_t cv_gi_dbg_diff = { cvart_bool, 0, "gi_dbg_diff", "0", "view ambient cube with normal vector" };
+static cvar_t cv_r_uv = { cvart_bool, 0, "r_uv", "0", "view texture uvs" };
 
 typedef struct fragstage_s
 {
@@ -103,8 +105,9 @@ static void EnsureInit(void)
     if (!ms_lut.texels)
     {
         cvar_reg(&cv_gi_dbg_diff);
+        cvar_reg(&cv_r_uv);
 
-        ms_lut = BakeBRDF(i2_s(256), 1024);
+        ms_lut = BakeBRDF(i2_s(512), 1024);
     }
 }
 
@@ -198,6 +201,7 @@ static void VEC_CALL DrawMesh(
     const Cubemap* cm)
 {
     const drawables_t* drawTable = drawables_get();
+    const lmpack_t* lmpack = lmpack_get();
 
     mesh_t mesh;
     if (!mesh_get(drawTable->tmpMeshes[iDraw], &mesh))
@@ -206,6 +210,7 @@ static void VEC_CALL DrawMesh(
     }
 
     const bool dbgdiffGI = cv_gi_dbg_diff.asFloat != 0.0f;
+    const bool dbgUv = cv_r_uv.asFloat != 0.0f;
 
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
@@ -238,7 +243,7 @@ static void VEC_CALL DrawMesh(
     const float4* pim_noalias positions = mesh.positions;
     const float4* pim_noalias normals = mesh.normals;
     const float2* pim_noalias uvs = mesh.uvs;
-    const float4* pim_noalias bakedGI = mesh.bakedGI;
+    const float3* pim_noalias lmUvs = mesh.lmUvs;
     const i32 vertCount = mesh.length;
 
     for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
@@ -263,10 +268,6 @@ static void VEC_CALL DrawMesh(
                 continue;
             }
         }
-
-        const float2 UA = uvs[iVert + 0];
-        const float2 UB = uvs[iVert + 1];
-        const float2 UC = uvs[iVert + 2];
 
         const float4 T = f4_sub(eye, A);
         const float4 Q = f4_cross3(T, BA);
@@ -309,8 +310,13 @@ static void VEC_CALL DrawMesh(
                 float4 lighting = f4_0;
                 {
                     // blend interpolators
-                    const float2 U = f2_frac(f2_blend(UA, UB, UC, wuvt));
+                    const float2 U = f2_frac(f2_blend(uvs[iVert + 0], uvs[iVert + 1], uvs[iVert + 2], wuvt));
+                    float4 P = f4_blend(A, B, C, wuvt);
+                    float4 N = f4_normalize3(f4_blend(normals[iVert + 0], normals[iVert + 1], normals[iVert + 2], wuvt));
+                    float4 V = f4_normalize3(f4_sub(eye, P));
+                    float4 R = f4_reflect3(f4_neg(V), N);
 
+                    float4 rome = flatRome;
                     float4 albedo = flatAlbedo;
                     if (albedoMap.texels)
                     {
@@ -318,26 +324,51 @@ static void VEC_CALL DrawMesh(
                             UvBilinearWrap_c32(albedoMap.texels, albedoMap.size, U));
                     }
 
+                    if (romeMap.texels)
                     {
-                        float4 emission = UnpackEmission(albedo, flatRome.w);
+                        rome = f4_mul(rome,
+                            UvBilinearWrap_c32(romeMap.texels, romeMap.size, U));
+                    }
+
+                    if (normalMap.texels)
+                    {
+                        float4 tN = UvBilinearWrap_dir8(normalMap.texels, normalMap.size, U);
+                        N = TanToWorld(N, tN);
+                    }
+
+                    {
+                        float4 emission = UnpackEmission(albedo, rome.w);
                         lighting = f4_add(lighting, emission);
                     }
 
                     {
-                        float4 diffuseGI = f4_0;
-                        if (bakedGI)
+                        float4 diffuseGI = f4_s(0.1f);
+                        i32 lmIndex = (i32)lmUvs[iVert + 0].z;
+                        ASSERT(lmIndex < lmpack->lmCount);
+                        if (lmIndex >= 0)
                         {
-                            diffuseGI = f4_blend(
-                                bakedGI[iVert+0],
-                                bakedGI[iVert+1],
-                                bakedGI[iVert+2],
-                                wuvt);
+                            const float3 lmUv3 = f3_blend(lmUvs[iVert + 0], lmUvs[iVert + 1], lmUvs[iVert + 2], wuvt);
+                            const float2 lmUv = { lmUv3.x, lmUv3.y };
+                            const lightmap_t lmap = lmpack->lightmaps[lmIndex];
+                            diffuseGI = UvBilinearClamp_f4(lmap.texels, i2_s(lmap.size), lmUv);
                         }
 
-                        lighting = f4_add(lighting, f4_mul(diffuseGI, albedo));
+                        float4 specularGI = f4_0;
+                        if (cm)
+                        {
+                            specularGI = Cubemap_Read(cm, R, Cubemap_Rough2Mip(rome.x));
+                        }
+
+                        float4 indirect = IndirectBRDF(ms_lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
+
+                        lighting = f4_add(lighting, indirect);
                         if (dbgdiffGI)
                         {
                             lighting = diffuseGI;
+                        }
+                        else if (dbgUv)
+                        {
+                            lighting = f4_v(U.x, U.y, 0.0f, 0.0f);
                         }
                     }
                 }

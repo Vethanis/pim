@@ -53,7 +53,7 @@ pim_inline float VEC_CALL f1_max(float a, float b)
 
 pim_inline float VEC_CALL f1_sign(float x)
 {
-    return ((x > 0.0f) ? 1.0f : 0.0f) - ((x < 0.0f) ? -1.0f : 0.0f);
+    return ((x > 0.0f) ? 1.0f : 0.0f) - ((x < 0.0f) ? 1.0f : 0.0f);
 }
 
 pim_inline float VEC_CALL f1_clamp(float x, float lo, float hi)

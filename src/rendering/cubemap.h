@@ -50,12 +50,12 @@ Cubeface VEC_CALL Cubemap_CalcUv(float4 dir, float2* uvOut);
 
 pim_inline float VEC_CALL Cubemap_Rough2Mip(float roughness)
 {
-    return roughness * 6.0f;
+    return roughness * 4.0f;
 }
 
 pim_inline float VEC_CALL Cubemap_Mip2Rough(float mip)
 {
-    return mip / 6.0f;
+    return mip / 4.0f;
 }
 
 float4 VEC_CALL Cubemap_Read(const Cubemap* cm, float4 dir, float mip);
@@ -74,6 +74,10 @@ task_t* Cubemap_Bake(
     float weight,
     i32 bounces);
 
-void Cubemap_Prefilter(const Cubemap* src, Cubemap* dst, u32 sampleCount);
+void Cubemap_Prefilter(
+    const Cubemap* src,
+    Cubemap* dst,
+    u32 sampleCount,
+    float weight);
 
 PIM_C_END

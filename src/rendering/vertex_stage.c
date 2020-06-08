@@ -79,7 +79,7 @@ static meshid_t VEC_CALL TransformMesh(frus_t frus, meshid_t local, float4x4 M, 
             tmpmesh->positions = positions;
             tmpmesh->normals = normals;
             tmpmesh->uvs = uvs;
-            tmpmesh->bakedGI = mesh.bakedGI;
+            tmpmesh->lmUvs = mesh.lmUvs;
             result = mesh_create(tmpmesh);
         }
     }

@@ -40,6 +40,7 @@
 #include "rendering/cubemap.h"
 #include "rendering/drawable.h"
 #include "rendering/model.h"
+#include "rendering/lightmap.h"
 
 #include "rendering/vulkan/vkr.h"
 
@@ -58,6 +59,8 @@ static cvar_t cv_ac_gen = { cvart_bool, 0, "ac_gen", "0", "enable ambientcube ge
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
 
 static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
+
+static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "2", "lightmap texels per unit" };
 
 // ----------------------------------------------------------------------------
 
@@ -106,22 +109,28 @@ static void EnsurePtScene(void)
     }
 }
 
+static void LightmapRepack(void)
+{
+    lmpack_del(lmpack_get());
+    lmpack_t pack = lmpack_pack(1024, cv_lm_density.asFloat);
+    *lmpack_get() = pack;
+}
+
 ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
 static void Lightmap_Trace(void)
 {
+    if (cvar_check_dirty(&cv_lm_density))
+    {
+        LightmapRepack();
+    }
+
     if (cv_lm_gen.asFloat != 0.0f)
     {
         ProfileBegin(pm_Lightmap_Trace);
         EnsurePtScene();
 
-        if (cvar_check_dirty(&cv_lm_gen))
-        {
-            ms_lmSampleCount = 0;
-        }
-
-        float weight = 1.0f / ++ms_lmSampleCount;
         i32 bounces = (i32)cv_pt_bounces.asFloat;
-        task_t* task = drawables_bake(ms_ptscene, weight, bounces);
+        task_t* task = lmpack_bake(ms_ptscene, bounces);
         if (task)
         {
             task_sys_schedule();
@@ -190,9 +199,10 @@ static void Cubemap_Trace(void)
             }
         }
 
+        float pfweight = f1_min(1.0f, weight * 2.0f);
         for (i32 i = 0; i < len; ++i)
         {
-            Cubemap_Prefilter(bakemaps + i, convmaps + i, 256);
+            Cubemap_Prefilter(bakemaps + i, convmaps + i, 64, pfweight);
         }
 
         ProfileEnd(pm_CubemapTrace);
@@ -364,6 +374,7 @@ void render_sys_init(void)
     cvar_reg(&cv_ac_gen);
     cvar_reg(&cv_cm_gen);
     cvar_reg(&cv_r_sw);
+    cvar_reg(&cv_lm_density);
     cmd_reg("screenshot", CmdScreenshot);
 
     vkr_init();
@@ -381,6 +392,8 @@ void render_sys_init(void)
 
     u32* ids = LoadModelAsDrawables("maps/e1m1.bsp");
     pim_free(ids);
+
+    LightmapRepack();
 
     if (lights_pt_count() == 0)
     {

@@ -160,6 +160,13 @@ typedef struct plane2d_s
     float distance;
 } plane2d_t;
 
+typedef struct tri2d_s
+{
+    float2 a;
+    float2 b;
+    float2 c;
+} tri2d_t;
+
 // inward facing plane normals and positive distances
 typedef struct frus_s
 {

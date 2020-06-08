@@ -204,7 +204,7 @@ void VEC_CALL Cubemap_WriteMip(
     float4 value)
 {
     ASSERT(cm);
-    float4* buffer = cm->faces[face];
+    float4* pim_noalias buffer = cm->faces[face];
     ASSERT(buffer);
 
     int2 size = i2_s(cm->size);
@@ -212,16 +212,38 @@ void VEC_CALL Cubemap_WriteMip(
     buffer += offset;
 
     int2 mipSize = CalcMipSize(size, mip);
+    i32 i = Clamp(mipSize, coord);
+    buffer[i] = value;
+}
 
-    Write_f4(buffer, mipSize, coord, value);
+pim_optimize
+static void VEC_CALL Cubemap_BlendMip(
+    Cubemap* cm,
+    Cubeface face,
+    int2 coord,
+    i32 mip,
+    float4 value,
+    float weight)
+{
+    ASSERT(cm);
+    float4* pim_noalias buffer = cm->faces[face];
+    ASSERT(buffer);
+
+    int2 size = i2_s(cm->size);
+    i32 offset = CalcMipOffset(size, mip);
+    buffer += offset;
+
+    int2 mipSize = CalcMipSize(size, mip);
+    i32 i = Clamp(mipSize, coord);
+    buffer[i] = f4_lerpvs(buffer[i], value, weight);
 }
 
 pim_optimize
 float4 VEC_CALL Cubemap_CalcDir(
     i32 size, Cubeface face, int2 coord, float2 Xi)
 {
-    Xi = f2_mulvs(Xi, 1.0f / size);
     float2 uv = CoordToUv(i2_s(size), coord);
+    Xi = f2_mulvs(Xi, 1.0f / size);
     uv = f2_add(uv, Xi);
     uv = f2_snorm(uv);
 
@@ -270,7 +292,7 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
         i32 fi = i % flen;
         int2 coord = { fi % size, fi / size };
         float4 dir = Cubemap_CalcDir(size, face, coord, f2_tent(f2_rand(&rng)));
-        ray_t ray = { .ro = origin,.rd = dir };
+        ray_t ray = { origin, dir };
         float4 result = pt_trace_ray(&rng, scene, ray, bounces);
         float4* img = cm->faces[face];
         img[fi] = f4_lerpvs(img[fi], result, weight);
@@ -321,14 +343,17 @@ static float4 VEC_CALL PrefilterEnvMap(
     float roughness)
 {
     // N=V approximation
+    float4 I = f4_neg(N);
 
     float weight = 0.0f;
     float4 light = f4_0;
+    prng_t rng = prng_get();
     for (u32 i = 0; i < sampleCount; ++i)
     {
-        float2 Xi = Hammersley2D(i, sampleCount);
+        //float2 Xi = Hammersley2D(i, sampleCount);
+        float2 Xi = f2_rand(&rng);
         float4 H = TbnToWorld(TBN, SampleGGXMicrofacet(Xi, roughness));
-        float4 L = f4_normalize3(f4_reflect3(f4_neg(N), H));
+        float4 L = f4_normalize3(f4_reflect3(I, H));
         float NoL = f4_dot3(L, N);
         if (NoL > 0.0f)
         {
@@ -338,6 +363,7 @@ static float4 VEC_CALL PrefilterEnvMap(
             weight += NoL;
         }
     }
+    prng_set(rng);
     if (weight > 0.0f)
     {
         light = f4_divvs(light, weight);
@@ -353,6 +379,7 @@ typedef struct prefilter_s
     i32 mip;
     i32 size;
     u32 sampleCount;
+    float weight;
 } prefilter_t;
 
 pim_optimize
@@ -363,7 +390,7 @@ static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
     Cubemap* pim_noalias dst = task->dst;
 
     const u32 sampleCount = task->sampleCount;
-    const i32 mipCount = i1_min(src->mipCount, dst->mipCount);
+    const float weight = task->weight;
     const i32 size = task->size;
     const i32 mip = task->mip;
     const i32 len = size * size;
@@ -372,27 +399,31 @@ static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
     for (i32 i = begin; i < end; ++i)
     {
         i32 face = i / len;
-        ASSERT(face < Cubeface_COUNT);
         i32 fi = i % len;
+        ASSERT(face < Cubeface_COUNT);
         int2 coord = { fi % size, fi / size };
 
         float4 N = Cubemap_CalcDir(size, face, coord, f2_0);
         float3x3 TBN = NormalToTBN(N);
 
         float4 light = PrefilterEnvMap(src, TBN, N, sampleCount, roughness);
-        Cubemap_WriteMip(dst, face, coord, mip, light);
+        Cubemap_BlendMip(dst, face, coord, mip, light, weight);
     }
 }
 
 ProfileMark(pm_Prefilter, Cubemap_Prefilter)
-void Cubemap_Prefilter(const Cubemap* src, Cubemap* dst, u32 sampleCount)
+void Cubemap_Prefilter(
+    const Cubemap* src,
+    Cubemap* dst,
+    u32 sampleCount,
+    float weight)
 {
     ASSERT(src);
     ASSERT(dst);
 
     ProfileBegin(pm_Prefilter);
 
-    const i32 mipCount = i1_min(7, i1_min(src->mipCount, dst->mipCount));
+    const i32 mipCount = i1_min(5, i1_min(src->mipCount, dst->mipCount));
     const i32 size = i1_min(src->size, dst->size);
 
     task_t** tasks = tmp_calloc(sizeof(tasks[0]) * mipCount);
@@ -409,6 +440,7 @@ void Cubemap_Prefilter(const Cubemap* src, Cubemap* dst, u32 sampleCount)
             task->mip = m;
             task->size = mSize;
             task->sampleCount = sampleCount;
+            task->weight = weight;
             task_submit((task_t*)task, PrefilterFn, len);
             tasks[m] = (task_t*)task;
         }

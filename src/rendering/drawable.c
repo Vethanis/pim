@@ -11,6 +11,7 @@
 #include "rendering/sampler.h"
 #include "math/sampling.h"
 #include "rendering/path_tracer.h"
+#include "rendering/lightmap.h"
 #include <string.h>
 
 static drawables_t ms_drawables;
@@ -266,93 +267,5 @@ task_t* drawables_cull(
     task_submit((task_t*)task, CullFn, ms_drawables.count);
 
     ProfileEnd(pm_Cull);
-    return (task_t*)task;
-}
-
-typedef struct bake_s
-{
-    task_t task;
-    const pt_scene_t* scene;
-    float weight;
-    i32 bounces;
-} bake_t;
-
-static void BakeFn(task_t* pbase, i32 begin, i32 end)
-{
-    bake_t* task = (bake_t*)pbase;
-    const pt_scene_t* scene = task->scene;
-    const float weight = task->weight;
-    const i32 bounces = task->bounces;
-
-    const float4x4* pim_noalias matrices = ms_drawables.matrices;
-    const meshid_t* pim_noalias meshids = ms_drawables.meshes;
-
-    prng_t rng = prng_get();
-    for (i32 i = begin; i < end; ++i)
-    {
-        mesh_t mesh;
-        if (mesh_get(meshids[i], &mesh))
-        {
-            const float4x4 M = matrices[i];
-            const float4x4 IM = f4x4_inverse(f4x4_transpose(M));
-
-            const i32 vertCount = mesh.length;
-            const float4* pim_noalias positions = mesh.positions;
-            const float4* pim_noalias normals = mesh.normals;
-            float4* pim_noalias bakedGI = mesh.bakedGI;
-
-            for (i32 j = 0; (j + 3) <= vertCount; j += 3)
-            {
-                float4 A = f4x4_mul_pt(M, positions[j + 0]);
-                float4 B = f4x4_mul_pt(M, positions[j + 1]);
-                float4 C = f4x4_mul_pt(M, positions[j + 2]);
-
-                float4 NA = f4_normalize3(f4x4_mul_dir(IM, normals[j + 0]));
-                float4 NB = f4_normalize3(f4x4_mul_dir(IM, normals[j + 1]));
-                float4 NC = f4_normalize3(f4x4_mul_dir(IM, normals[j + 2]));
-
-                for (i32 k = 0; k < 3; ++k)
-                {
-                    float w, u, v;
-                    do
-                    {
-                        u = prng_f32(&rng);
-                        v = prng_f32(&rng);
-                        w = 1.0f - (u + v);
-                    } while ((u + v) > 1.0f);
-
-                    float4 wuvt = { w, u, v, 0.0f };
-                    float4 ro = f4_blend(A, B, C, wuvt);
-                    float4 N = f4_normalize3(f4_blend(NA, NB, NC, wuvt));
-
-                    float4 rd;
-                    float pdf = ScatterLambertian(&rng, N, N, &rd, 1.0f);
-                    ray_t ray = { ro, rd };
-                    float4 light = pt_trace_ray(&rng, scene, ray, bounces);
-                    light = f4_mulvs(light, pdf);
-
-                    bakedGI[j + 0] = f4_lerpvs(bakedGI[j + 0], light, weight * w);
-                    bakedGI[j + 1] = f4_lerpvs(bakedGI[j + 1], light, weight * u);
-                    bakedGI[j + 2] = f4_lerpvs(bakedGI[j + 2], light, weight * v);
-                }
-            }
-        }
-    }
-    prng_set(rng);
-}
-
-ProfileMark(pm_Bake, drawables_bake)
-task_t* drawables_bake(const pt_scene_t* scene, float weight, i32 bounces)
-{
-    ProfileBegin(pm_Bake);
-    ASSERT(scene);
-
-    bake_t* task = tmp_calloc(sizeof(*task));
-    task->scene = scene;
-    task->weight = weight;
-    task->bounces = bounces;
-    task_submit((task_t*)task, BakeFn, ms_drawables.count);
-
-    ProfileEnd(pm_Bake);
     return (task_t*)task;
 }

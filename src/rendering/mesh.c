@@ -24,7 +24,7 @@ meshid_t mesh_create(mesh_t* mesh)
     ASSERT(mesh->positions);
     ASSERT(mesh->normals);
     ASSERT(mesh->uvs);
-    ASSERT(mesh->bakedGI);
+    ASSERT(mesh->lmUvs);
 
     const u64 version = 1099511628211ull + fetch_add_u64(&ms_version, 3, MO_Relaxed);
 
@@ -48,8 +48,8 @@ bool mesh_destroy(meshid_t id)
         mesh->normals = NULL;
         pim_free(mesh->uvs);
         mesh->uvs = NULL;
-        pim_free(mesh->bakedGI);
-        mesh->bakedGI = NULL;
+        pim_free(mesh->lmUvs);
+        mesh->lmUvs = NULL;
         pim_free(mesh);
         return true;
     }

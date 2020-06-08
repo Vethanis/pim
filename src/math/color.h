@@ -125,17 +125,9 @@ pim_inline float VEC_CALL f4_avglum(float4 x)
     return (x.x + x.y + x.z) * w;
 }
 
-// perceptual luminosity
-pim_inline float VEC_CALL f4_perlum(float4 x)
-{
-    // weighted using cone density in human eye along rgb spectrum
-    // 30% red, 59% green, 11% blue
-    return x.x * 0.3f + x.y * 0.59f + x.z * 0.11f;
-}
-
 pim_inline float4 VEC_CALL f4_desaturate(float4 src, float amt)
 {
-    float lum = f4_perlum(src);
+    float lum = f4_avglum(src);
     return f4_lerpvs(src, f4_s(lum), amt);
 }
 
@@ -243,10 +235,10 @@ pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
 pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)
 {
     e = e * e * e;
-    e = e * 100.0f;
+    e = e * 1000.0f;
     // only 'fullbrights' are emissive
-    //float m = f1_saturate(f4_hmax3(albedo) - 0.5f);
-    float m = f1_smoothstep(0.5f, 1.0f, f4_hmax3(albedo));
+    float m = f1_smoothstep(0.3333f, 1.0f, f4_hmax3(albedo));
+    m = m * m;
     return f4_mulvs(albedo, e * m);
 }
 

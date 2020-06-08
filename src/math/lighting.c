@@ -21,7 +21,7 @@ float4 VEC_CALL DirectBRDF(
     const float NoL = f1_max(0.0f, f4_dot3(N, L));
 
     const float D = GGX_D(NoH, roughness);
-    const float G = GGX_G(NoV, NoL, roughness);
+    const float G = GGX_GD(NoV, NoL, roughness);
     const float4 F = GGX_F(NoV, GGX_F0(albedo, metallic));
     const float4 DGF = f4_mulvs(F, D * G);
 
@@ -33,7 +33,6 @@ float4 VEC_CALL DirectBRDF(
 }
 
 // https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
-// ideally this should be baked into a LUT
 static float2 VEC_CALL IntegrateBRDF(
     float roughness,
     float NoV,
@@ -46,23 +45,28 @@ static float2 VEC_CALL IntegrateBRDF(
         NoV,
         0.0f,
     };
+    const float4 I = f4_neg(V);
 
+    const float4 N = { 0.0f, 0.0f, 1.0f, 0.0f };
+    const float3x3 TBN = NormalToTBN(N);
     float2 result = { 0.0f, 0.0f };
 
     const float weight = 1.0f / numSamples;
+    prng_t rng = prng_get();
     for (u32 i = 0; i < numSamples; ++i)
     {
-        const float2 Xi = Hammersley2D(i, numSamples);
-        const float4 H = SampleGGXMicrofacet(Xi, roughness);
-        const float VoH = f1_max(0.0f, f4_dot3(V, H));
-        const float NoH = f1_max(0.0f, H.z);
-        const float4 L = f4_normalize3(f4_reflect3(f4_neg(V), H));
-        const float NoL = L.z;
+        float2 Xi = Hammersley2D(i, numSamples);
+        float4 H = TbnToWorld(TBN, SampleGGXMicrofacet(Xi, roughness));
+        float4 L = f4_normalize3(f4_reflect3(I, H));
+
+        float NoL = L.z;
+        float NoH = f1_max(0.0f, H.z);
+        float VoH = f1_max(0.0f, f4_dot3(V, H));
 
         if (NoL > 0.0f)
         {
-            const float G = GGX_G(NoV, NoL, roughness);
-            const float GVis = (G * VoH) / (NoH * NoV);
+            float G = GGX_GI(NoV, NoL, roughness);
+            float GVis = (G * VoH) / (NoH * NoV);
             float Fc = 1.0f - VoH;
             Fc = Fc * Fc * Fc * Fc * Fc;
 
@@ -70,6 +74,7 @@ static float2 VEC_CALL IntegrateBRDF(
             result.y += weight * (Fc * GVis);
         }
     }
+    prng_set(rng);
 
     return result;
 }
@@ -88,15 +93,12 @@ static void BrdfBakeFn(task_t* pBase, i32 begin, i32 end)
     const int2 size = task->lut.size;
     const u32 numSamples = task->numSamples;
 
-    const float dx = 1.0f / size.x;
-    const float dy = 1.0f / size.y;
     for (i32 i = begin; i < end; ++i)
     {
         i32 x = i % size.x;
         i32 y = i / size.x;
-        float u = (x + 0.5f) * dx;
-        float v = (y + 0.5f) * dy;
-        texels[i] = IntegrateBRDF(u, v, numSamples);
+        float2 uv = CoordToUv(size, i2_v(x, y));
+        texels[i] = IntegrateBRDF(uv.x, uv.y, numSamples);
     }
 }
 
@@ -147,7 +149,7 @@ float4 VEC_CALL IndirectBRDF(
 
     const float4 F = GGX_FI(NoV, GGX_F0(albedo, metallic), roughness);
 
-    const float4 kD = f4_mulvs(f4_sub(f4_1, F), 1.0f - metallic);
+    const float4 kD = f4_mulvs(f4_inv(F), 1.0f - metallic);
     const float4 diffuse = f4_mul(albedo, diffuseGI);
 
     const float2 brdf = SampleBrdf(lut, roughness, NoV);

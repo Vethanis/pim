@@ -564,11 +564,11 @@ pim_inline float3 VEC_CALL f3_deg(float3 x)
     return f3_mul(x, f3_s(kDegreesPerRadian));
 }
 
-pim_inline float3 VEC_CALL f3_blend(float3 a, float3 b, float3 c, float3 wuv)
+pim_inline float3 VEC_CALL f3_blend(float3 a, float3 b, float3 c, float4 wuvt)
 {
-    float3 p = f3_mulvs(a, wuv.x);
-    p = f3_add(p, f3_mulvs(b, wuv.y));
-    p = f3_add(p, f3_mulvs(c, wuv.z));
+    float3 p = f3_mulvs(a, wuvt.x);
+    p = f3_add(p, f3_mulvs(b, wuvt.y));
+    p = f3_add(p, f3_mulvs(c, wuvt.z));
     return p;
 }
 

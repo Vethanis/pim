@@ -6,6 +6,8 @@
 #include "math/float4x4_funcs.h"
 #include "math/quat_funcs.h"
 #include "math/color.h"
+#include "math/sdf.h"
+#include "math/sampling.h"
 #include "rendering/texture.h"
 #include "rendering/mesh.h"
 #include "rendering/material.h"
@@ -20,6 +22,8 @@
 
 pim_inline float2 VEC_CALL CalcUv(float4 s, float4 t, float4 p)
 {
+    // u = dot(P.xyz, s.xyz) + s.w
+    // v = dot(P.xyz, t.xyz) + t.w
     return f2_v(f4_dot3(p, s) + s.w, f4_dot3(p, t) + t.w);
 }
 
@@ -267,6 +271,39 @@ static i32 FindPreset(const char* name)
     return -1;
 }
 
+static float4 VEC_CALL HueToRgb(float h)
+{
+    float r = f1_abs(h * 6.0f - 3.0f) - 1.0f;
+    float g = 2.0f - f1_abs(h * 6.0f - 2.0f);
+    float b = 2.0f - f1_abs(h * 6.0f - 4.0f);
+    return f4_saturate(f4_v(r, g, b, 1.0f));
+}
+
+static float4 VEC_CALL HsvToRgb(float4 hsv)
+{
+    float4 rgb = HueToRgb(hsv.x);
+    float4 a = f4_subvs(rgb, 1.0f);
+    float4 b = f4_mulvs(a, hsv.y);
+    float4 c = f4_addvs(b, 1.0f);
+    float4 d = f4_mulvs(c, hsv.z);
+    return d;
+}
+
+static float4 VEC_CALL IntToColor(i32 i, i32 count)
+{
+    float h = (i + 0.5f) / count;
+    for (i32 b = 0; b < 4; ++b)
+    {
+        i32 m = 1 << b;
+        if (i & m)
+        {
+            h += 0.5f / m;
+        }
+    }
+    h = fmodf(h, 1.0f);
+    return HsvToRgb(f4_v(h, 0.75f, 0.9f, 1.0f));
+}
+
 static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
 {
     material_t* materials = tmp_calloc(sizeof(materials[0]) * surfCount);
@@ -318,7 +355,8 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         }
 
         material_t material = { 0 };
-        material.flatAlbedo = ~0u;
+
+        material.flatAlbedo = LinearToColor(f4_1); // IntToColor(i, surfCount));
         material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
 
         textureid_t albedo = texture_lookup(albedoName);
@@ -337,7 +375,6 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         }
         material.normal = normal;
 
-
         materials[i] = material;
     }
 
@@ -345,6 +382,7 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
 }
 
 static meshid_t VEC_CALL TrisToMesh(
+    const char* name,
     float4x4 M,
     const msurface_t* surface,
     const float4* pim_noalias tris,
@@ -353,16 +391,15 @@ static meshid_t VEC_CALL TrisToMesh(
     float4* pim_noalias positions = perm_malloc(sizeof(positions[0]) * vertCount);
     float4* pim_noalias normals = perm_malloc(sizeof(normals[0]) * vertCount);
     float2* pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
-    float4* pim_noalias bakedGI = perm_calloc(sizeof(bakedGI[0]) * vertCount);
+    float3* pim_noalias lmUvs = perm_calloc(sizeof(lmUvs[0]) * vertCount);
 
-    // u = dot(P.xyz, s.xyz) + s.w
-    // v = dot(P.xyz, t.xyz) + t.w
     const mtexinfo_t* texinfo = surface->texinfo;
     const mtexture_t* mtex = texinfo->texture;
     float4 s = texinfo->vecs[0];
     float4 t = texinfo->vecs[1];
     float2 uvScale = { 1.0f / mtex->width, 1.0f / mtex->height };
 
+    i32 vertsEmit = 0;
     for (i32 i = 0; (i + 3) <= vertCount; i += 3)
     {
         float4 A0 = tris[i + 0];
@@ -372,41 +409,43 @@ static meshid_t VEC_CALL TrisToMesh(
         float4 B = f4x4_mul_pt(M, B0);
         float4 C = f4x4_mul_pt(M, C0);
 
-        positions[i + 0] = A;
-        positions[i + 2] = B;
-        positions[i + 1] = C;
-
-        uvs[i + 0] = f2_mul(CalcUv(s, t, A0), uvScale);
-        uvs[i + 2] = f2_mul(CalcUv(s, t, B0), uvScale);
-        uvs[i + 1] = f2_mul(CalcUv(s, t, C0), uvScale);
+        // reverse winding order
+        i32 a = vertsEmit + 0;
+        i32 b = vertsEmit + 2;
+        i32 c = vertsEmit + 1;
 
         float4 N = f4_cross3(f4_sub(C, A), f4_sub(B, A));
         float lenSq = f4_dot3(N, N);
-        if (lenSq > 0.0f)
+        if (lenSq > f32_eps)
         {
+            vertsEmit += 3;
             N = f4_divvs(N, sqrtf(lenSq));
         }
         else
         {
-            N = f4_v(0.0f, 0.0f, 1.0f, 0.0f);
+            // line, discard.
+            continue;
         }
 
-        normals[i + 0] = N;
-        normals[i + 2] = N;
-        normals[i + 1] = N;
+        positions[a] = A;
+        positions[b] = B;
+        positions[c] = C;
 
-        float4 ambient = f4_s(0.1f);
-        bakedGI[i + 0] = ambient;
-        bakedGI[i + 1] = ambient;
-        bakedGI[i + 2] = ambient;
+        uvs[a] = f2_mul(CalcUv(s, t, A0), uvScale);
+        uvs[b] = f2_mul(CalcUv(s, t, B0), uvScale);
+        uvs[c] = f2_mul(CalcUv(s, t, C0), uvScale);
+
+        normals[a] = N;
+        normals[b] = N;
+        normals[c] = N;
     }
 
     mesh_t* mesh = perm_calloc(sizeof(*mesh));
-    mesh->length = vertCount;
+    mesh->length = vertsEmit;
     mesh->positions = positions;
     mesh->normals = normals;
     mesh->uvs = uvs;
-    mesh->bakedGI = bakedGI;
+    mesh->lmUvs = lmUvs;
     return mesh_create(mesh);
 }
 
@@ -453,7 +492,7 @@ u32* ModelToDrawables(const mmodel_t* model)
         material_t material = materials[i];
 
         i32 vertCount = FlattenSurface(model, surface, &tris, &polygon);
-        meshid_t mesh = TrisToMesh(M, surface, tris, vertCount);
+        meshid_t mesh = TrisToMesh(model->name, M, surface, tris, vertCount);
 
         material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
 
