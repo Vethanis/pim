@@ -235,7 +235,7 @@ pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
 pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)
 {
     e = e * e * e;
-    e = e * 1000.0f;
+    e = e * 300.0f;
     // only 'fullbrights' are emissive
     float m = f1_smoothstep(0.3333f, 1.0f, f4_hmax3(albedo));
     m = m * m;

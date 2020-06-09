@@ -60,7 +60,7 @@ static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap genera
 
 static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
 
-static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "2", "lightmap texels per unit" };
+static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "8", "lightmap texels per unit" };
 
 // ----------------------------------------------------------------------------
 
