@@ -41,6 +41,7 @@
 #include "rendering/drawable.h"
 #include "rendering/model.h"
 #include "rendering/lightmap.h"
+#include "rendering/denoise.h"
 
 #include "rendering/vulkan/vkr.h"
 
@@ -53,6 +54,7 @@
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
 static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "3", "path tracing bounces" };
+static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
 
 static cvar_t cv_lm_gen = { cvart_bool, 0, "lm_gen", "0", "enable lightmap generation" };
 static cvar_t cv_ac_gen = { cvart_bool, 0, "ac_gen", "0", "enable ambientcube generation" };
@@ -242,6 +244,32 @@ static bool PathTrace(void)
         task_sys_schedule();
         task_await(task);
 
+        if (cv_pt_denoise.asFloat != 0.0f)
+        {
+            int2 size = { kDrawWidth, kDrawHeight };
+            const float4* pim_noalias color4 = ms_trace.image;
+            float3* pim_noalias color3 = tmp_malloc(sizeof(color3[0]) * kDrawPixels);
+            float3* pim_noalias output3 = tmp_calloc(sizeof(output3[0]) * kDrawPixels);
+            for (i32 i = 0; i < kDrawPixels; ++i)
+            {
+                color3[i] = f4_f3(color4[i]);
+            }
+            if (Denoise(size, color3, NULL, NULL, output3))
+            {
+                ProfileBegin(pm_ptBlit);
+                float4* pim_noalias output4 = GetFrontBuf()->light;
+                for (i32 i = 0; i < kDrawPixels; ++i)
+                {
+                    output4[i] = f3_f4(output3[i], 1.0);
+                }
+                ProfileEnd(pm_ptBlit);
+            }
+            else
+            {
+                cvar_set_float(&cv_pt_denoise, 0.0f);
+            }
+        }
+        else
         {
             ProfileBegin(pm_ptBlit);
             float4* pim_noalias dst = GetFrontBuf()->light;
@@ -370,6 +398,7 @@ void render_sys_init(void)
 {
     cvar_reg(&cv_pt_trace);
     cvar_reg(&cv_pt_bounces);
+    cvar_reg(&cv_pt_denoise);
     cvar_reg(&cv_lm_gen);
     cvar_reg(&cv_ac_gen);
     cvar_reg(&cv_cm_gen);

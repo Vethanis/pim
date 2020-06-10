@@ -62,6 +62,7 @@
     <ClCompile Include="..\src\rendering\camera.c" />
     <ClCompile Include="..\src\rendering\clear_tile.c" />
     <ClCompile Include="..\src\rendering\cubemap.c" />
+    <ClCompile Include="..\src\rendering\denoise.c" />
     <ClCompile Include="..\src\rendering\drawable.c" />
     <ClCompile Include="..\src\rendering\fragment_stage.c" />
     <ClCompile Include="..\src\rendering\lightmap.c" />
@@ -198,6 +199,7 @@
     <ClInclude Include="..\src\rendering\camera.h" />
     <ClInclude Include="..\src\rendering\clear_tile.h" />
     <ClInclude Include="..\src\rendering\cubemap.h" />
+    <ClInclude Include="..\src\rendering\denoise.h" />
     <ClInclude Include="..\src\rendering\drawable.h" />
     <ClInclude Include="..\src\rendering\fragment_stage.h" />
     <ClInclude Include="..\src\rendering\constants.h" />
@@ -330,12 +332,12 @@
       <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;VK_USE_PLATFORM_WIN32_KHR;_GLFW_WIN32;_DEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\glad;$(ProjectDir)..\submodules\glfw\include;$(ProjectDir)..\submodules\stb;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\glad;$(ProjectDir)..\submodules\glfw\include;$(ProjectDir)..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include;$(ProjectDir)..\submodules\stb;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <CompileAsManaged>false</CompileAsManaged>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <SupportJustMyCode>false</SupportJustMyCode>
@@ -368,12 +370,12 @@
       <WarningLevel>Level3</WarningLevel>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;VK_USE_PLATFORM_WIN32_KHR;_GLFW_WIN32;NDEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\glad;$(ProjectDir)..\submodules\glfw\include;$(ProjectDir)..\submodules\stb;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\glad;$(ProjectDir)..\submodules\glfw\include;$(ProjectDir)..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include;$(ProjectDir)..\submodules\stb;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <CompileAsManaged>false</CompileAsManaged>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <PrecompiledHeaderFile />
       <TreatWarningAsError>true</TreatWarningAsError>

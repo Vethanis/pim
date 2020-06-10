@@ -433,6 +433,9 @@
     <ClCompile Include="..\src\rendering\lightmap.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\denoise.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -889,6 +892,9 @@
       <Filter>Source Files\containers</Filter>
     </ClInclude>
     <ClInclude Include="..\src\rendering\lightmap.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\denoise.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
