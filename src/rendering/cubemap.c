@@ -293,9 +293,10 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
         int2 coord = { fi % size, fi / size };
         float4 dir = Cubemap_CalcDir(size, face, coord, f2_tent(f2_rand(&rng)));
         ray_t ray = { origin, dir };
-        float4 result = pt_trace_ray(&rng, scene, ray, bounces);
+        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+        float4 light = f3_f4(result.color, 1.0f);
         float4* img = cm->faces[face];
-        img[fi] = f4_lerpvs(img[fi], result, weight);
+        img[fi] = f4_lerpvs(img[fi], light, weight);
     }
     prng_set(rng);
 }

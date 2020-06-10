@@ -235,9 +235,11 @@ static bool PathTrace(void)
         ms_trace.camera = &camera;
         ms_trace.scene = ms_ptscene;
         ms_trace.imageSize = i2_v(kDrawWidth, kDrawHeight);
-        if (!ms_trace.image)
+        if (!ms_trace.color)
         {
-            ms_trace.image = perm_calloc(sizeof(ms_trace.image[0]) * kDrawPixels);
+            ms_trace.color = perm_calloc(sizeof(ms_trace.color[0]) * kDrawPixels);
+            ms_trace.albedo = perm_calloc(sizeof(ms_trace.albedo[0]) * kDrawPixels);
+            ms_trace.normal = perm_calloc(sizeof(ms_trace.normal[0]) * kDrawPixels);
         }
 
         task_t* task = pt_trace(&ms_trace);
@@ -247,14 +249,8 @@ static bool PathTrace(void)
         if (cv_pt_denoise.asFloat != 0.0f)
         {
             int2 size = { kDrawWidth, kDrawHeight };
-            const float4* pim_noalias color4 = ms_trace.image;
-            float3* pim_noalias color3 = tmp_malloc(sizeof(color3[0]) * kDrawPixels);
             float3* pim_noalias output3 = tmp_calloc(sizeof(output3[0]) * kDrawPixels);
-            for (i32 i = 0; i < kDrawPixels; ++i)
-            {
-                color3[i] = f4_f3(color4[i]);
-            }
-            if (Denoise(size, color3, NULL, NULL, output3))
+            if (Denoise(size, ms_trace.color, ms_trace.albedo, ms_trace.normal, output3))
             {
                 ProfileBegin(pm_ptBlit);
                 float4* pim_noalias output4 = GetFrontBuf()->light;
@@ -273,10 +269,10 @@ static bool PathTrace(void)
         {
             ProfileBegin(pm_ptBlit);
             float4* pim_noalias dst = GetFrontBuf()->light;
-            const float4* pim_noalias src = ms_trace.image;
+            const float3* pim_noalias src = ms_trace.color;
             for (i32 i = 0; i < kDrawPixels; ++i)
             {
-                dst[i] = src[i];
+                dst[i] = f3_f4(src[i], 1.0f);
             }
             ProfileEnd(pm_ptBlit);
         }

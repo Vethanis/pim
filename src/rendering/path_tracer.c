@@ -53,12 +53,8 @@ typedef struct rayhit_s
 typedef struct trace_task_s
 {
     task_t task;
-    const pt_scene_t* scene;
+    pt_trace_t trace;
     camera_t camera;
-    float4* image;
-    int2 size;
-    float sampleWeight;
-    i32 bounces;
 } trace_task_t;
 
 static i32 VEC_CALL CalcNodeCount(i32 maxDepth)
@@ -442,8 +438,8 @@ pim_inline float VEC_CALL Scatter(
     float4* dirOut,
     float roughness)
 {
-    return ScatterLambertian(rng, dirIn, N, dirOut, roughness);
-    //return ScatterGGX(rng, dirIn, N, dirOut, roughness);
+    //return ScatterLambertian(rng, dirIn, N, dirOut, roughness);
+    return ScatterGGX(rng, dirIn, N, dirOut, roughness);
 }
 
 pim_optimize
@@ -505,12 +501,14 @@ static float4 VEC_CALL pt_trace_albedo(prng_t* rng, const pt_scene_t* scene, ray
 }
 
 pim_optimize
-float4 VEC_CALL pt_trace_ray(
+pt_result_t VEC_CALL pt_trace_ray(
     prng_t* rng,
     const pt_scene_t* scene,
     ray_t ray,
     i32 bounces)
 {
+    float4 albedo = f4_0;
+    float4 normal = f4_0;
     float4 light = f4_0;
     float4 attenuation = f4_1;
     float pdf = 1.0f;
@@ -526,6 +524,12 @@ float4 VEC_CALL pt_trace_ray(
         surfhit_t surf = GetSurface(scene, ray, hit);
         float4 emission = f4_divvs(surf.emission, pdf);
         light = f4_add(light, f4_mul(emission, attenuation));
+
+        if (b == 0)
+        {
+            albedo = surf.albedo;
+            normal = surf.N;
+        }
 
         float4 dirOut;
         pdf = Scatter(rng, ray.rd, surf.N, &dirOut, surf.roughness);
@@ -543,22 +547,29 @@ float4 VEC_CALL pt_trace_ray(
         }
     }
 
-    return light;
+    return (pt_result_t)
+    {
+        .color = f4_f3(light),
+        .albedo = f4_f3(albedo),
+        .normal = f4_f3(normal),
+    };
 }
 
 pim_optimize
-static void TraceFn(task_t* task, i32 begin, i32 end)
+static void TraceFn(task_t* pbase, i32 begin, i32 end)
 {
-    trace_task_t* trace = (trace_task_t*)task;
+    trace_task_t* task = (trace_task_t*)pbase;
 
-    const pt_scene_t* scene = trace->scene;
+    const pt_scene_t* scene = task->trace.scene;
 
-    float4* pim_noalias image = trace->image;
+    float3* pim_noalias color = task->trace.color;
+    float3* pim_noalias albedo = task->trace.albedo;
+    float3* pim_noalias normal = task->trace.normal;
 
-    const int2 size = trace->size;
-    const float sampleWeight = trace->sampleWeight;
-    const i32 bounces = trace->bounces;
-    const camera_t camera = trace->camera;
+    const int2 size = task->trace.imageSize;
+    const float sampleWeight = task->trace.sampleWeight;
+    const i32 bounces = task->trace.bounces;
+    const camera_t camera = task->camera;
     const quat rot = camera.rotation;
     const float4 ro = camera.position;
     const float4 right = quat_right(rot);
@@ -582,15 +593,10 @@ static void TraceFn(task_t* task, i32 begin, i32 end)
 
         float4 rd = proj_dir(right, up, fwd, slope, uv);
         ray_t ray = { ro, rd };
-        if (sampleWeight == 1.0f)
-        {
-            image[i] = pt_trace_albedo(&rng, scene, ray);
-        }
-        else
-        {
-            float4 result = pt_trace_ray(&rng, scene, ray, bounces);
-            image[i] = f4_lerpvs(image[i], result, sampleWeight);
-        }
+        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+        color[i] = f3_lerp(color[i], result.color, sampleWeight);
+        albedo[i] = f3_lerp(albedo[i], result.albedo, sampleWeight);
+        normal[i] = f3_lerp(normal[i], result.normal, sampleWeight);
     }
 
     prng_set(rng);
@@ -601,16 +607,15 @@ task_t* pt_trace(pt_trace_t* desc)
     ASSERT(desc);
     ASSERT(desc->scene);
     ASSERT(desc->camera);
+    ASSERT(desc->color);
+    ASSERT(desc->albedo);
+    ASSERT(desc->normal);
 
     trace_task_t* task = tmp_calloc(sizeof(*task));
-    task->scene = desc->scene;
+    task->trace = *desc;
     task->camera = desc->camera[0];
-    task->image = desc->image;
-    task->size = desc->imageSize;
-    task->sampleWeight = desc->sampleWeight;
-    task->bounces = desc->bounces;
 
-    const i32 workSize = task->size.x * task->size.y;
+    const i32 workSize = desc->imageSize.x * desc->imageSize.y;
     task_submit((task_t*)task, TraceFn, workSize);
     return (task_t*)task;
 }
@@ -622,11 +627,7 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
     const pt_dist_t dist = task->dist;
     const i32 bounces = task->bounces;
     const ray_t origin = task->origin;
-    float3x3 TBN;
-    if (dist != ptdist_sphere)
-    {
-        TBN = NormalToTBN(origin.rd);
-    }
+    const float3x3 TBN = NormalToTBN(origin.rd);
 
     float4* pim_noalias colors = task->colors;
     float4* pim_noalias directions = task->directions;
@@ -648,9 +649,9 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
             ray.rd = TbnToWorld(TBN, SampleUnitHemisphere(Xi));
             break;
         }
-
         directions[i] = ray.rd;
-        colors[i] = pt_trace_ray(&rng, scene, ray, bounces);
+        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+        colors[i] = f3_f4(result.color, 1.0f);
     }
     prng_set(rng);
 }

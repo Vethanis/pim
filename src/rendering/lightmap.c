@@ -709,7 +709,8 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
                 float4 rd;
                 float pdf = ScatterLambertian(&rng, N, N, &rd, 1.0f);
                 ray_t ray = { P, rd };
-                float4 light = pt_trace_ray(&rng, scene, ray, bounces);
+                pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+                float4 light = f3_f4(result.color, 1.0f);
                 light = f4_mulvs(light, pdf);
 
                 bilinear_t bi = Bilinear(lmSize, LM);

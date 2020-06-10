@@ -49,7 +49,9 @@ typedef struct pt_trace_s
 {
     const pt_scene_t* scene;
     const camera_t* camera;
-    float4* image;
+    float3* color;
+    float3* albedo;
+    float3* normal;
     int2 imageSize;
     float sampleWeight;
     i32 bounces;
@@ -69,7 +71,14 @@ typedef struct pt_raygen_s
 pt_scene_t* pt_scene_new(i32 maxDepth);
 void pt_scene_del(pt_scene_t* scene);
 
-float4 VEC_CALL pt_trace_ray(prng_t* rng, const pt_scene_t* scene, ray_t ray, i32 bounces);
+typedef struct pt_result_s
+{
+    float3 color;
+    float3 albedo;
+    float3 normal;
+} pt_result_t;
+
+pt_result_t VEC_CALL pt_trace_ray(prng_t* rng, const pt_scene_t* scene, ray_t ray, i32 bounces);
 task_t* pt_trace(pt_trace_t* traceDesc);
 pt_raygen_t* pt_raygen(const pt_scene_t* scene, ray_t origin, pt_dist_t dist, i32 count, i32 bounces);
 
