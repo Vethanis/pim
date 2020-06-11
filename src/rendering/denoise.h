@@ -5,7 +5,16 @@
 
 PIM_C_BEGIN
 
+typedef enum
+{
+    DenoiseType_Image,
+    DenoiseType_Lightmap,
+
+    DenoiseType_COUNT
+} DenoiseType;
+
 bool Denoise(
+    DenoiseType type,
     int2 size,
     const float3* color,
     const float3* albedo,

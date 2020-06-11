@@ -10,7 +10,8 @@ typedef struct pt_scene_s pt_scene_t;
 
 typedef struct chartnode_s
 {
-    tri2d_t tri;
+    tri2d_t triCoord;
+    tri2d_t triUv;
     float area;
     i32 drawableIndex;
     i32 vertIndex;
@@ -19,7 +20,10 @@ typedef struct chartnode_s
 
 typedef struct lightmap_s
 {
-    float4* texels;
+    float3* color;
+    float3* denoised;
+    float3* position;
+    float3* normal;
     float* sampleCounts;
     i32 size;
 } lightmap_t;
@@ -39,6 +43,8 @@ lmpack_t* lmpack_get(void);
 lmpack_t lmpack_pack(i32 atlasSize, float texelsPerUnit);
 void lmpack_del(lmpack_t* pack);
 
-task_t* lmpack_bake(const pt_scene_t* scene, i32 bounces);
+void lmpack_bake(const pt_scene_t* scene, i32 bounces, i32 tile);
+
+void lmpack_denoise(void);
 
 PIM_C_END

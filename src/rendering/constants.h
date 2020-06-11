@@ -6,8 +6,8 @@ PIM_C_BEGIN
 
 enum
 {
-    kDrawWidth = 320 << 1,
-    kDrawHeight = 240 << 1,
+    kDrawWidth = 320 << 0,
+    kDrawHeight = 240 << 0,
     kDrawPixels = kDrawWidth * kDrawHeight,
     kTilesPerDim = 8,
     kTileCount = kTilesPerDim * kTilesPerDim,

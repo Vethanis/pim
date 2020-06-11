@@ -7,6 +7,7 @@ PIM_C_BEGIN
 #include "math/types.h"
 #include "math/int2_funcs.h"
 #include "math/float2_funcs.h"
+#include "math/float3_funcs.h"
 #include "math/float4_funcs.h"
 #include "math/color.h"
 #include "rendering/texture.h"
@@ -146,6 +147,13 @@ pim_inline float4 VEC_CALL BilinearBlend_f4(
     return f4_lerpvs(f4_lerpvs(a, b, frac.x), f4_lerpvs(c, d, frac.x), frac.y);
 }
 
+pim_inline float3 VEC_CALL BilinearBlend_f3(
+    float3 a, float3 b, float3 c, float3 d,
+    float2 frac)
+{
+    return f3_lerp(f3_lerp(a, b, frac.x), f3_lerp(c, d, frac.x), frac.y);
+}
+
 pim_inline float2 VEC_CALL BilinearBlend_f2(
     float2 a, float2 b, float2 c, float2 d,
     float2 frac)
@@ -168,6 +176,23 @@ pim_inline float4 VEC_CALL BilinearWrap_f4(const float4* buffer, int2 size, bili
     float4 c = buffer[Wrap(size, bi.c)];
     float4 d = buffer[Wrap(size, bi.d)];
     return BilinearBlend_f4(a, b, c, d, bi.frac);
+}
+
+pim_inline float3 VEC_CALL BilinearClamp_f3(const float3* buffer, int2 size, bilinear_t bi)
+{
+    float3 a = buffer[Clamp(size, bi.a)];
+    float3 b = buffer[Clamp(size, bi.b)];
+    float3 c = buffer[Clamp(size, bi.c)];
+    float3 d = buffer[Clamp(size, bi.d)];
+    return BilinearBlend_f3(a, b, c, d, bi.frac);
+}
+pim_inline float3 VEC_CALL BilinearWrap_f3(const float3* buffer, int2 size, bilinear_t bi)
+{
+    float3 a = buffer[Wrap(size, bi.a)];
+    float3 b = buffer[Wrap(size, bi.b)];
+    float3 c = buffer[Wrap(size, bi.c)];
+    float3 d = buffer[Wrap(size, bi.d)];
+    return BilinearBlend_f3(a, b, c, d, bi.frac);
 }
 
 pim_inline float2 VEC_CALL BilinearClamp_f2(const float2* buffer, int2 size, bilinear_t bi)
@@ -203,6 +228,15 @@ pim_inline float4 VEC_CALL UvBilinearClamp_f4(const float4* buffer, int2 size, f
 pim_inline float4 VEC_CALL UvBilinearWrap_f4(const float4* buffer, int2 size, float2 uv)
 {
     return BilinearWrap_f4(buffer, size, Bilinear(size, uv));
+}
+
+pim_inline float3 VEC_CALL UvBilinearClamp_f3(const float3* buffer, int2 size, float2 uv)
+{
+    return BilinearClamp_f3(buffer, size, Bilinear(size, uv));
+}
+pim_inline float3 VEC_CALL UvBilinearWrap_f3(const float3* buffer, int2 size, float2 uv)
+{
+    return BilinearWrap_f3(buffer, size, Bilinear(size, uv));
 }
 
 pim_inline float2 VEC_CALL UvBilinearClamp_f2(const float2* buffer, int2 size, float2 uv)

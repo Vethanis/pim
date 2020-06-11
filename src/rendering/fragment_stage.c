@@ -29,7 +29,9 @@
 #include "rendering/lightmap.h"
 
 static cvar_t cv_gi_dbg_diff = { cvart_bool, 0, "gi_dbg_diff", "0", "view ambient cube with normal vector" };
+static cvar_t cv_gi_dbg_spec = { cvart_bool, 0, "gi_dbg_spec", "0", "view cubemap with reflect vector" };
 static cvar_t cv_r_uv = { cvart_bool, 0, "r_uv", "0", "view texture uvs" };
+static cvar_t cv_r_lm_denoised = { cvart_bool, 0, "r_lm_denoised", "0", "render denoised lightmaps" };
 
 typedef struct fragstage_s
 {
@@ -72,7 +74,7 @@ static void FragmentStageFn(task_t* task, i32 begin, i32 end)
 
     const Cubemaps_t* cubeTable = Cubemaps_Get();
     const i32 cubemapCount = cubeTable->count;
-    const Cubemap* pim_noalias convmaps = cubeTable->convmaps;
+    const Cubemap* pim_noalias cubemaps = cubeTable->cubemaps;
     const sphere_t* pim_noalias cubeBounds = cubeTable->bounds;
 
     const drawables_t* drawTable = drawables_get();
@@ -93,7 +95,7 @@ static void FragmentStageFn(task_t* task, i32 begin, i32 end)
             if (tileMasks[iDraw] & tilemask)
             {
                 i32 iCube = FindBounds(drawBounds[iDraw], cubeBounds, cubemapCount);
-                const Cubemap* cm = iCube >= 0 ? convmaps + iCube : NULL;
+                const Cubemap* cm = iCube >= 0 ? cubemaps + iCube : NULL;
                 DrawMesh(&ctx, stage->frontBuf, iDraw, cm);
             }
         }
@@ -105,7 +107,9 @@ static void EnsureInit(void)
     if (!ms_lut.texels)
     {
         cvar_reg(&cv_gi_dbg_diff);
+        cvar_reg(&cv_gi_dbg_spec);
         cvar_reg(&cv_r_uv);
+        cvar_reg(&cv_r_lm_denoised);
 
         ms_lut = BakeBRDF(i2_s(512), 1024);
     }
@@ -210,7 +214,9 @@ static void VEC_CALL DrawMesh(
     }
 
     const bool dbgdiffGI = cv_gi_dbg_diff.asFloat != 0.0f;
+    const bool dbgspecGI = cv_gi_dbg_spec.asFloat != 0.0f;
     const bool dbgUv = cv_r_uv.asFloat != 0.0f;
+    const bool denoisedLM = cv_r_lm_denoised.asFloat != 0.0f;
 
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
@@ -350,13 +356,15 @@ static void VEC_CALL DrawMesh(
                             const float3 lmUv3 = f3_blend(lmUvs[iVert + 0], lmUvs[iVert + 1], lmUvs[iVert + 2], wuvt);
                             const float2 lmUv = { lmUv3.x, lmUv3.y };
                             const lightmap_t lmap = lmpack->lightmaps[lmIndex];
-                            diffuseGI = UvBilinearClamp_f4(lmap.texels, i2_s(lmap.size), lmUv);
+                            const float3* pim_noalias lmBuffer = denoisedLM ? lmap.denoised : lmap.color;
+                            float3 denoised = UvBilinearClamp_f3(lmBuffer, i2_s(lmap.size), lmUv);
+                            diffuseGI = f3_f4(denoised, 1.0f);
                         }
 
                         float4 specularGI = f4_0;
                         if (cm)
                         {
-                            specularGI = Cubemap_Read(cm, R, Cubemap_Rough2Mip(rome.x));
+                            specularGI = Cubemap_ReadConvolved(cm, R, Cubemap_Rough2Mip(rome.x));
                         }
 
                         float4 indirect = IndirectBRDF(ms_lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
@@ -365,6 +373,10 @@ static void VEC_CALL DrawMesh(
                         if (dbgdiffGI)
                         {
                             lighting = diffuseGI;
+                        }
+                        else if (dbgspecGI)
+                        {
+                            lighting = specularGI;
                         }
                         else if (dbgUv)
                         {

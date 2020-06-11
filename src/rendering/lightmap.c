@@ -13,6 +13,7 @@
 #include "threading/mutex.h"
 #include "rendering/path_tracer.h"
 #include "rendering/sampler.h"
+#include "rendering/denoise.h"
 #include "common/profiler.h"
 #include "common/cmd.h"
 #include "common/stringutil.h"
@@ -34,24 +35,23 @@ void lightmap_new(lightmap_t* lm, i32 size)
     ASSERT(len > 0);
 
     lm->size = size;
-    lm->texels = perm_malloc(sizeof(lm->texels[0]) * len);
-    lm->sampleCounts = perm_malloc(sizeof(lm->sampleCounts[0]) * len);
-    for (i32 i = 0; i < len; ++i)
-    {
-        lm->texels[i] = f4_s(0.1f);
-        lm->sampleCounts[i] = 0.0f;
-    }
+    lm->color = perm_calloc(sizeof(lm->color[0]) * len);
+    lm->denoised = perm_calloc(sizeof(lm->denoised[0]) * len);
+    lm->sampleCounts = perm_calloc(sizeof(lm->sampleCounts[0]) * len);
+    lm->position = perm_calloc(sizeof(lm->position[0]) * len);
+    lm->normal = perm_calloc(sizeof(lm->normal[0]) * len);
 }
 
 void lightmap_del(lightmap_t* lm)
 {
     if (lm)
     {
-        lm->size = 0;
-        pim_free(lm->texels);
-        lm->texels = NULL;
+        pim_free(lm->color);
+        pim_free(lm->denoised);
         pim_free(lm->sampleCounts);
-        lm->sampleCounts = NULL;
+        pim_free(lm->position);
+        pim_free(lm->normal);
+        memset(lm, 0, sizeof(*lm));
     }
 }
 
@@ -99,6 +99,19 @@ static void VEC_CALL mask_del(mask_t* mask)
     mask->ptr = NULL;
     mask->size.x = 0;
     mask->size.y = 0;
+}
+
+static float4 VEC_CALL norm_blend(float4 A, float4 B, float4 C, float4 wuv)
+{
+    float4 N = f4_blend(A, B, C, wuv);
+    return f4_normalize3(N);
+}
+
+static float2 VEC_CALL lm_blend(float3 a, float3 b, float3 c, float4 wuv)
+{
+    float3 lm3 = f3_blend(a, b, c, wuv);
+    float2 lm = { lm3.x, lm3.y };
+    return lm;
 }
 
 static bool VEC_CALL mask_fits(mask_t a, mask_t b, int2 tr)
@@ -161,18 +174,31 @@ static int2 VEC_CALL tri_size(tri2d_t tri)
     return size;
 }
 
+static bool VEC_CALL TriTest(tri2d_t tri, float2 pt)
+{
+    for (i32 s = 0; s < 1024; ++s)
+    {
+        float2 Xi = Hammersley2D(s, 1024);
+        Xi = f2_subvs(Xi, 0.5f);
+        float2 pt2 = { pt.x + Xi.x, pt.y + Xi.y };
+        float dist = sdTriangle2D(tri.a, tri.b, tri.c, pt2);
+        if (dist <= 1.0f)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void VEC_CALL mask_tri(mask_t mask, tri2d_t tri)
 {
-    // assumes tri_size == mask.size
     const int2 size = mask.size;
     for (i32 y = 0; y < size.y; ++y)
     {
         for (i32 x = 0; x < size.x; ++x)
         {
             const i32 i = x + y * size.x;
-            float2 pt = { x + 0.5f, y + 0.5f };
-            float dist = sdTriangle2D(tri.a, tri.b, tri.c, pt);
-            if (dist < 1.0f)
+            if (TriTest(tri, f2_iv(x, y)))
             {
                 mask.ptr[i] = 0xff;
             }
@@ -252,11 +278,21 @@ static tri2d_t VEC_CALL ProjTri(float4 A, float4 B, float4 C, float texelsPerUni
     tri.a = f2_mulvs(tri.a, texelsPerUnit);
     tri.b = f2_mulvs(tri.b, texelsPerUnit);
     tri.c = f2_mulvs(tri.c, texelsPerUnit);
-    if (TriArea2D(tri) < 1.0f)
+    lo = f2_min(f2_min(tri.a, tri.b), tri.c);
+    float2 hi = f2_max(f2_max(tri.a, tri.b), tri.c);
+    if ((hi.x - lo.x) < 1.0f)
     {
-        tri.a = f2_0;
-        tri.b = f2_0;
-        tri.c = f2_0;
+        float x = (hi.x + lo.x) * 0.5f;
+        tri.a.x = x;
+        tri.b.x = x;
+        tri.c.x = x;
+    }
+    if ((hi.y - lo.y) < 1.0f)
+    {
+        float y = (hi.y + lo.y) * 0.5f;
+        tri.a.y = y;
+        tri.b.y = y;
+        tri.c.y = y;
     }
     tri.a = f2_ceil(tri.a);
     tri.b = f2_ceil(tri.b);
@@ -270,8 +306,8 @@ static tri2d_t VEC_CALL ProjTri(float4 A, float4 B, float4 C, float texelsPerUni
 static chartnode_t VEC_CALL chartnode_new(float4 A, float4 B, float4 C, float texelsPerUnit, i32 iDrawable, i32 iVert)
 {
     chartnode_t node = { 0 };
-    node.tri = ProjTri(A, B, C, texelsPerUnit);
-    node.area = TriArea2D(node.tri);
+    node.triCoord = ProjTri(A, B, C, texelsPerUnit);
+    node.area = TriArea2D(node.triCoord);
     node.drawableIndex = iDrawable;
     node.vertIndex = iVert;
     node.atlasIndex = -1;
@@ -324,11 +360,18 @@ static bool atlas_search(
                 int2 size = atlas->mask.size;
                 float2 trf = { (float)tr.x, (float)tr.y };
                 float2 scf = { 1.0f / size.x, 1.0f / size.y };
-                tri2d_t tri = node->tri;
-                tri.a = f2_mul(f2_add(tri.a, trf), scf);
-                tri.b = f2_mul(f2_add(tri.b, trf), scf);
-                tri.c = f2_mul(f2_add(tri.c, trf), scf);
-                node->tri = tri;
+
+                tri2d_t triCoord = node->triCoord;
+                triCoord.a = f2_add(triCoord.a, trf);
+                triCoord.b = f2_add(triCoord.b, trf);
+                triCoord.c = f2_add(triCoord.c, trf);
+                tri2d_t triUv;
+                triUv.a = f2_mul(triCoord.a, scf);
+                triUv.b = f2_mul(triCoord.b, scf);
+                triUv.c = f2_mul(triCoord.c, scf);
+
+                node->triCoord = triCoord;
+                node->triUv = triUv;
             }
             mutex_unlock(&atlas->mtx);
             if (fits)
@@ -420,7 +463,7 @@ static void AtlasFn(task_t* pbase, i32 begin, i32 end)
             break;
         }
         chartnode_t node = nodes[iNode];
-        mask_t nodemask = mask_fromtri(node.tri);
+        mask_t nodemask = mask_fromtri(node.triCoord);
 
         if (node.area < (prevArea * 0.9f))
         {
@@ -449,7 +492,7 @@ static i32 atlas_estimate(i32 atlasSize, const chartnode_t* nodes, i32 nodeCount
     i32 areaRequired = 0;
     for (i32 i = 0; i < nodeCount; ++i)
     {
-        i32 area = (i32)ceilf(TriArea2D(nodes[i].tri) * fitMult);
+        i32 area = (i32)ceilf(TriArea2D(nodes[i].triCoord) * fitMult);
         areaRequired += area;
     }
     ASSERT(areaRequired >= 0);
@@ -497,7 +540,7 @@ static i32 atlases_create(i32 atlasSize, chartnode_t* nodes, i32 nodeCount)
     return usedAtlases;
 }
 
-static void chartnodes_assign(chartnode_t* nodes, i32 nodeCount)
+static void chartnodes_assign(chartnode_t* nodes, i32 nodeCount, lightmap_t* lightmaps, i32 lightmapCount)
 {
     const drawables_t* drawables = drawables_get();
     const i32 numDrawables = drawables->count;
@@ -516,9 +559,9 @@ static void chartnodes_assign(chartnode_t* nodes, i32 nodeCount)
             const i32 vertCount = mesh.length;
             ASSERT((node.vertIndex + 2) < vertCount);
             float3* lmUvs = mesh.lmUvs;
-            float3 a = { node.tri.a.x, node.tri.a.y, (float)node.atlasIndex };
-            float3 b = { node.tri.b.x, node.tri.b.y, (float)node.atlasIndex };
-            float3 c = { node.tri.c.x, node.tri.c.y, (float)node.atlasIndex };
+            float3 a = { node.triUv.a.x, node.triUv.a.y, (float)node.atlasIndex };
+            float3 b = { node.triUv.b.x, node.triUv.b.y, (float)node.atlasIndex };
+            float3 c = { node.triUv.c.x, node.triUv.c.y, (float)node.atlasIndex };
             lmUvs[node.vertIndex + 0] = a;
             lmUvs[node.vertIndex + 1] = b;
             lmUvs[node.vertIndex + 2] = c;
@@ -530,9 +573,136 @@ static void chartnodes_assign(chartnode_t* nodes, i32 nodeCount)
     }
 }
 
+typedef struct embed_s
+{
+    task_t task;
+    lightmap_t* lightmaps;
+    i32 lmCount;
+} embed_t;
+
+pim_optimize
+static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
+{
+    embed_t* task = (embed_t*)pbase;
+    lightmap_t* lightmaps = task->lightmaps;
+    const i32 lmCount = task->lmCount;
+
+    const drawables_t* drawables = drawables_get();
+    const i32 drawablesCount = drawables->count;
+    const meshid_t* pim_noalias meshids = drawables->meshes;
+    const float4x4* pim_noalias matrices = drawables->matrices;
+
+    for (i32 iDrawable = begin; iDrawable < end; ++iDrawable)
+    {
+        if (iDrawable >= drawablesCount)
+        {
+            return;
+        }
+
+        meshid_t meshid = meshids[iDrawable];
+        mesh_t mesh;
+        if (!mesh_get(meshid, &mesh))
+        {
+            continue;
+        }
+
+        const float4x4 M = matrices[iDrawable];
+        const float4x4 IM = f4x4_inverse(f4x4_transpose(M));
+        const float4* pim_noalias positions = mesh.positions;
+        const float4* pim_noalias normals = mesh.normals;
+        const float3* pim_noalias lmUvs = mesh.lmUvs;
+        const i32 vertCount = mesh.length;
+
+        for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
+        {
+            const i32 a = iVert + 0;
+            const i32 b = iVert + 1;
+            const i32 c = iVert + 2;
+
+            float3 LMA3 = lmUvs[a];
+            float3 LMB3 = lmUvs[b];
+            float3 LMC3 = lmUvs[c];
+
+            const i32 iLightmap = (i32)LMA3.z;
+            ASSERT(iLightmap < lmCount);
+            if (iLightmap < 0)
+            {
+                continue;
+            }
+
+            lightmap_t lightmap = lightmaps[iLightmap];
+            ASSERT(lightmap.size > 0);
+            ASSERT(lightmap.position);
+            ASSERT(lightmap.normal);
+
+            const float lmSizef = (float)lightmap.size;
+
+            float4 A = f4x4_mul_pt(M, positions[a]);
+            float4 B = f4x4_mul_pt(M, positions[b]);
+            float4 C = f4x4_mul_pt(M, positions[c]);
+
+            float4 NA = f4_normalize3(f4x4_mul_dir(IM, normals[a]));
+            float4 NB = f4_normalize3(f4x4_mul_dir(IM, normals[b]));
+            float4 NC = f4_normalize3(f4x4_mul_dir(IM, normals[c]));
+
+            float2 LMA = { LMA3.x * lmSizef, LMA3.y * lmSizef };
+            float2 LMB = { LMB3.x * lmSizef, LMB3.y * lmSizef };
+            float2 LMC = { LMC3.x * lmSizef, LMC3.y * lmSizef };
+            tri2d_t tri = { LMA, LMB, LMC };
+            float2 lo = f2_min(f2_min(LMA, LMB), LMC);
+            float2 hi = f2_max(f2_max(LMA, LMB), LMC);
+            lo = f2_subvs(lo, 2.0f);
+            hi = f2_addvs(hi, 2.0f);
+            lo = f2_floor(lo);
+            hi = f2_ceil(hi);
+            lo = f2_max(lo, f2_0);
+            hi = f2_min(hi, f2_s(lmSizef - 1.0f));
+
+            float area = sdEdge2D(LMA, LMB, LMC);
+            float rcpArea = 1.0f / area;
+            const float4 wuvAvg = { 1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f, 0.0f };
+
+            for (float y = lo.y; y <= hi.y; ++y)
+            {
+                for (float x = lo.x; x <= hi.x; ++x)
+                {
+                    float2 pt = { x + 0.0f, y + 0.0f };
+                    if (TriTest(tri, pt))
+                    {
+                        float4 wuv = area > 0.0f ? bary2D(LMA, LMB, LMC, rcpArea, pt) : wuvAvg;
+                        float3 P = f4_f3(f4_blend(A, B, C, wuv));
+                        float3 N = f4_f3(norm_blend(NA, NB, NC, wuv));
+                        i32 iTexel = (i32)x + (i32)y * lightmap.size;
+                        lightmap.position[iTexel] = P;
+                        lightmap.normal[iTexel] = N;
+                        lightmap.sampleCounts[iTexel] = 1.0f;
+                    }
+                }
+            }
+        }
+    }
+}
+
+static void EmbedAttributes(lightmap_t* lightmaps, i32 lmCount)
+{
+    if (lmCount > 0)
+    {
+        embed_t* task = tmp_calloc(sizeof(*task));
+        task->lightmaps = lightmaps;
+        task->lmCount = lmCount;
+        task_run(&task->task, EmbedAttributesFn, drawables_get()->count);
+    }
+}
+
 lmpack_t lmpack_pack(i32 atlasSize, float texelsPerUnit)
 {
     ASSERT(atlasSize > 0);
+
+    if (!ms_once)
+    {
+        ms_once = true;
+        cmd_reg("lm_print", CmdPrintLm);
+    }
 
     i32 nodeCount = 0;
     chartnode_t* nodes = chartnodes_create(texelsPerUnit, &nodeCount);
@@ -540,8 +710,6 @@ lmpack_t lmpack_pack(i32 atlasSize, float texelsPerUnit)
     chartnode_sort(nodes, nodeCount);
 
     i32 atlasCount = atlases_create(atlasSize, nodes, nodeCount);
-
-    chartnodes_assign(nodes, nodeCount);
 
     lmpack_t pack = { 0 };
     pack.lmCount = atlasCount;
@@ -553,6 +721,10 @@ lmpack_t lmpack_pack(i32 atlasSize, float texelsPerUnit)
     {
         lightmap_new(pack.lightmaps + i, atlasSize);
     }
+
+    chartnodes_assign(nodes, nodeCount, pack.lightmaps, atlasCount);
+
+    EmbedAttributes(pack.lightmaps, atlasCount);
 
     return pack;
 }
@@ -606,24 +778,15 @@ static float4 VEC_CALL rand_wuv(prng_t* rng)
     return wuv;
 }
 
-static float4 VEC_CALL norm_blend(float4 A, float4 B, float4 C, float4 wuv)
-{
-    float4 N = f4_blend(A, B, C, wuv);
-    return f4_normalize3(N);
-}
-
-static float2 VEC_CALL lm_blend(float3 a, float3 b, float3 c, float4 wuv)
-{
-    float3 lm3 = f3_blend(a, b, c, wuv);
-    float2 lm = { lm3.x, lm3.y };
-    return lm;
-}
-
 typedef struct bake_s
 {
     task_t task;
     const pt_scene_t* scene;
     i32 bounces;
+    i32 lmSize;
+    i32 lmLen;
+    i32 start;
+    i32 texelCount;
 } bake_t;
 
 static void BakeFn(task_t* pbase, i32 begin, i32 end)
@@ -631,156 +794,141 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
     bake_t* task = (bake_t*)pbase;
     const pt_scene_t* scene = task->scene;
     const i32 bounces = task->bounces;
-
-    const drawables_t* drawables = drawables_get();
-    const meshid_t* pim_noalias meshids = drawables->meshes;
-    const float4x4* pim_noalias matrices = drawables->matrices;
+    const i32 lmSize = task->lmSize;
+    const i32 lmLen = task->lmLen;
+    const i32 start = task->start;
+    const i32 texelCount = task->texelCount;
+    const float rcpSize = 1.0f / lmSize;
+    const int2 size = { lmSize, lmSize };
 
     lmpack_t* pack = lmpack_get();
-    lightmap_t* pim_noalias lightmaps = pack->lightmaps;
-    const i32 lmCount = pack->lmCount;
 
     prng_t rng = prng_get();
-    for (i32 iMesh = begin; iMesh < end; ++iMesh)
+    for (i32 iWork = begin; iWork < end; ++iWork)
     {
-        meshid_t meshid = meshids[iMesh];
-        mesh_t mesh;
-        if (!mesh_get(meshid, &mesh))
+        i32 iGroup = (iWork + start) % texelCount;
+        i32 iLightmap = iGroup / lmLen;
+        i32 iTexel = iGroup % lmLen;
+        lightmap_t lightmap = pack->lightmaps[iLightmap];
+
+        if (lightmap.sampleCounts[iTexel] > 0.0f)
         {
-            continue;
-        }
+            i32 x = iTexel % lmSize;
+            i32 y = iTexel / lmSize;
+            float2 jit = f2_rand(&rng);
+            float2 uv = { (x + jit.x) * rcpSize, (y + jit.y) * rcpSize };
+            float3 P3 = UvBilinearClamp_f3(lightmap.position, size, uv);
+            float3 N3 = UvBilinearClamp_f3(lightmap.normal, size, uv);
+            float4 P = f3_f4(P3, 1.0f);
+            float4 N = f4_normalize3(f3_f4(N3, 0.0f));
 
-        const float4x4 M = matrices[iMesh];
-        const float4x4 IM = f4x4_inverse(f4x4_transpose(M));
-        const float4* pim_noalias positions = mesh.positions;
-        const float4* pim_noalias normals = mesh.normals;
-        const float3* pim_noalias lmUvs = mesh.lmUvs;
-        const i32 vertCount = mesh.length;
+            float4 rd;
+            float pdf = ScatterLambertian(&rng, N, N, &rd, 1.0f);
+            ray_t ray = { P, rd };
+            pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+            result.color = f3_mulvs(result.color, pdf);
 
-        for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
-        {
-            const i32 a = iVert + 0;
-            const i32 b = iVert + 1;
-            const i32 c = iVert + 2;
-
-            float3 LMA = lmUvs[a];
-            float3 LMB = lmUvs[b];
-            float3 LMC = lmUvs[c];
-
-            const i32 iLightmap = (i32)LMA.z;
-            ASSERT(iLightmap < lmCount);
-            if (iLightmap < 0)
-            {
-                continue;
-            }
-
-            lightmap_t lightmap = lightmaps[iLightmap];
-            ASSERT(lightmap.size > 0);
-            ASSERT(lightmap.texels);
-            ASSERT(lightmap.sampleCounts);
-
-            float4* pim_noalias texels = lightmap.texels;
-            float* pim_noalias sampleCounts = lightmap.sampleCounts;
-            const int2 lmSize = { lightmap.size, lightmap.size };
-
-            float4 A = f4x4_mul_pt(M, positions[a]);
-            float4 B = f4x4_mul_pt(M, positions[b]);
-            float4 C = f4x4_mul_pt(M, positions[c]);
-
-            float4 NA = f4_normalize3(f4x4_mul_dir(IM, normals[a]));
-            float4 NB = f4_normalize3(f4x4_mul_dir(IM, normals[b]));
-            float4 NC = f4_normalize3(f4x4_mul_dir(IM, normals[c]));
-
-            float area = TriArea3D(A, B, C);
-            area *= 4.0f;
-            i32 samplesToTake = (i32)area;
-            if (prng_f32(&rng) < area)
-            {
-                ++samplesToTake;
-            }
-
-            for (i32 iSample = 0; iSample < samplesToTake; ++iSample)
-            {
-                float4 wuv = rand_wuv(&rng);
-                float4 P = f4_blend(A, B, C, wuv);
-                float4 N = norm_blend(NA, NB, NC, wuv);
-                float2 LM = lm_blend(LMA, LMB, LMC, wuv);
-
-                float4 rd;
-                float pdf = ScatterLambertian(&rng, N, N, &rd, 1.0f);
-                ray_t ray = { P, rd };
-                pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
-                float4 light = f3_f4(result.color, 1.0f);
-                light = f4_mulvs(light, pdf);
-
-                bilinear_t bi = Bilinear(lmSize, LM);
-
-                i32 a = Clamp(lmSize, bi.a);
-                i32 b = Clamp(lmSize, bi.b);
-                i32 c = Clamp(lmSize, bi.c);
-                i32 d = Clamp(lmSize, bi.d);
-
-                float aw = (1.0f - bi.frac.x) * (1.0f - bi.frac.y);
-                float bw = bi.frac.x * (1.0f - bi.frac.y);
-                float cw = (1.0f - bi.frac.x) * bi.frac.y;
-                float dw = bi.frac.x * bi.frac.y;
-
-                float as = 1.0f / (1.0f + sampleCounts[a]);
-                float bs = 1.0f / (1.0f + sampleCounts[b]);
-                float cs = 1.0f / (1.0f + sampleCounts[c]);
-                float ds = 1.0f / (1.0f + sampleCounts[d]);
-
-                sampleCounts[a] += aw;
-                sampleCounts[b] += bw;
-                sampleCounts[c] += cw;
-                sampleCounts[d] += dw;
-
-                aw *= as;
-                bw *= bs;
-                cw *= cs;
-                dw *= ds;
-
-                texels[a] = f4_lerpvs(texels[a], light, aw);
-                texels[b] = f4_lerpvs(texels[b], light, bw);
-                texels[c] = f4_lerpvs(texels[c], light, cw);
-                texels[d] = f4_lerpvs(texels[d], light, dw);
-            }
+            float weight = 1.0f / lightmap.sampleCounts[iTexel];
+            lightmap.sampleCounts[iTexel] += 1.0f;
+            lightmap.color[iTexel] = f3_lerp(lightmap.color[iTexel], result.color, weight);
         }
     }
     prng_set(rng);
 }
 
 ProfileMark(pm_Bake, lmpack_bake)
-task_t* lmpack_bake(const pt_scene_t* scene, i32 bounces)
+void lmpack_bake(const pt_scene_t* scene, i32 bounces, i32 tile)
 {
     ProfileBegin(pm_Bake);
     ASSERT(scene);
 
-    if (!ms_once)
+    const lmpack_t* pack = lmpack_get();
+    i32 lmCount = pack->lmCount;
+    i32 lmSize = 0;
+    if (lmCount > 0)
     {
-        ms_once = true;
-        cmd_reg("lm_print", CmdPrintLm);
+        lmSize = pack->lightmaps[0].size;
+    }
+    i32 lmLen = lmSize * lmSize;
+    i32 texelCount = lmLen * lmCount;
+
+    if (texelCount > 0)
+    {
+        const i32 groupSize = 64 * 64;
+        tile *= groupSize;
+        tile %= texelCount;
+        tile = tile < 0 ? tile + texelCount : tile;
+        i32 start = tile;
+
+        bake_t* task = perm_calloc(sizeof(*task));
+        task->scene = scene;
+        task->bounces = bounces;
+        task->lmSize = lmSize;
+        task->lmLen = lmLen;
+        task->start = start;
+        task->texelCount = texelCount;
+        task_run(&task->task, BakeFn, groupSize);
     }
 
-    bake_t* task = perm_calloc(sizeof(*task));
-    task->scene = scene;
-    task->bounces = bounces;
-    task_submit(&task->task, BakeFn, drawables_get()->count);
-
     ProfileEnd(pm_Bake);
-    return &task->task;
 }
+
+ProfileMark(pm_Denoise, lmpack_denoise)
+void lmpack_denoise(void)
+{
+    ProfileBegin(pm_Denoise);
+
+    lmpack_t* pack = lmpack_get();
+    ASSERT(pack);
+    for (i32 i = 0; i < pack->lmCount; ++i)
+    {
+        lightmap_t lm = pack->lightmaps[i];
+        Denoise(DenoiseType_Lightmap, i2_s(lm.size), lm.color, NULL, NULL, lm.denoised);
+    }
+
+    ProfileEnd(pm_Denoise);
+}
+
+typedef enum
+{
+    LmChannel_Color,
+    LmChannel_Position,
+    LmChannel_Normal,
+    LmChannel_Denoised,
+
+    LmChannel_COUNT
+} LmChannel;
 
 static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
 {
-    char filename[PIM_PATH] = {0};
+    char filename[PIM_PATH] = { 0 };
     const char* prefix = "lightmap";
+    LmChannel channel = LmChannel_Color;
     if (argc > 1)
     {
         const char* arg1 = argv[1];
         if (arg1)
         {
-            prefix = arg1;
+            if (StrICmp(arg1, 16, "denoised") == 0)
+            {
+                channel = LmChannel_Denoised;
+            }
+            else if (StrICmp(arg1, 16, "color") == 0)
+            {
+                channel = LmChannel_Color;
+            }
+            else if (StrICmp(arg1, 16, "position") == 0)
+            {
+                channel = LmChannel_Position;
+            }
+            else if (StrICmp(arg1, 16, "normal") == 0)
+            {
+                channel = LmChannel_Normal;
+            }
+            else
+            {
+                prefix = arg1;
+            }
         }
     }
 
@@ -791,13 +939,59 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
         const lightmap_t lm = pack->lightmaps[i];
         const i32 len = lm.size * lm.size;
         buffer = tmp_realloc(buffer, sizeof(buffer[0]) * len);
-        for (i32 j = 0; j < len; ++j)
+
+        const float3* pim_noalias srcBuffer = lm.color;
+        switch (channel)
         {
-            float4 ldr = tmap4_reinhard(lm.texels[j]);
-            u32 color = LinearToColor(ldr);
-            color |= 0xff << 24;
-            buffer[j] = color;
+        default:
+        case LmChannel_Color:
+            srcBuffer = lm.color;
+            break;
+        case LmChannel_Denoised:
+            srcBuffer = lm.denoised;
+            break;
+        case LmChannel_Position:
+            srcBuffer = lm.position;
+            break;
+        case LmChannel_Normal:
+            srcBuffer = lm.normal;
+            break;
         }
+
+        if ((channel == LmChannel_Color) || (channel == LmChannel_Denoised))
+        {
+            for (i32 j = 0; j < len; ++j)
+            {
+                float4 ldr = tmap4_reinhard(f3_f4(srcBuffer[j], 1.0f));
+                u32 color = LinearToColor(ldr);
+                color |= 0xff << 24;
+                buffer[j] = color;
+            }
+        }
+        if (channel == LmChannel_Position)
+        {
+            for (i32 j = 0; j < len; ++j)
+            {
+                float3 pos = srcBuffer[j];
+                pos = f3_divvs(pos, 100.0f);
+                u32 color = f4_rgba8(f3_f4(pos, 1.0f));
+                color |= 0xff << 24;
+                buffer[j] = color;
+            }
+        }
+        if (channel == LmChannel_Normal)
+        {
+            for (i32 j = 0; j < len; ++j)
+            {
+                float3 norm = srcBuffer[j];
+                norm = f3_mulvs(norm, 0.5f);
+                norm = f3_addvs(norm, 0.5f);
+                u32 color = f4_rgba8(f3_f4(norm, 1.0f));
+                color |= 0xff << 24;
+                buffer[j] = color;
+            }
+        }
+
         SPrintf(ARGS(filename), "%s_%d.png", prefix, i);
         if (!stbi_write_png(filename, lm.size, lm.size, 4, buffer, lm.size * sizeof(buffer[0])))
         {

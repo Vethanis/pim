@@ -2,6 +2,7 @@
 
 #include "allocator/allocator.h"
 #include "threading/task.h"
+#include "threading/taskcpy.h"
 #include "ui/cimgui.h"
 
 #include "common/time.h"
@@ -57,6 +58,7 @@ static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "3", "path tracing b
 static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
 
 static cvar_t cv_lm_gen = { cvart_bool, 0, "lm_gen", "0", "enable lightmap generation" };
+static cvar_t cv_lm_denoise = { cvart_bool, 0, "lm_denoise", "0", "denoise lightmaps" };
 static cvar_t cv_ac_gen = { cvart_bool, 0, "ac_gen", "0", "enable ambientcube generation" };
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
 
@@ -118,6 +120,7 @@ static void LightmapRepack(void)
     *lmpack_get() = pack;
 }
 
+static i32 ms_lmtile;
 ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
 static void Lightmap_Trace(void)
 {
@@ -132,14 +135,20 @@ static void Lightmap_Trace(void)
         EnsurePtScene();
 
         i32 bounces = (i32)cv_pt_bounces.asFloat;
-        task_t* task = lmpack_bake(ms_ptscene, bounces);
-        if (task)
-        {
-            task_sys_schedule();
-            task_await(task);
-        }
+        lmpack_bake(ms_ptscene, bounces, ms_lmtile++);
 
         ProfileEnd(pm_Lightmap_Trace);
+    }
+
+    if (cv_lm_denoise.asFloat != 0.0f)
+    {
+        cvar_set_float(&cv_lm_denoise, 0.0f);
+        lmpack_denoise();
+        cvar_t* cv_r_lm_denoised = cvar_find("r_lm_denoised");
+        if (cv_r_lm_denoised)
+        {
+            cvar_set_float(cv_r_lm_denoised, 1.0f);
+        }
     }
 }
 
@@ -183,28 +192,16 @@ static void Cubemap_Trace(void)
         }
 
         Cubemaps_t* table = Cubemaps_Get();
-        const i32 len = table->count;
-        const sphere_t* bounds = table->bounds;
-        Cubemap* bakemaps = table->bakemaps;
-        Cubemap* convmaps = table->convmaps;
-
         float weight = 1.0f / ++ms_cmapSampleCount;
-        i32 bounces = (i32)cv_pt_bounces.asFloat;
-        for (i32 i = 0; i < len; ++i)
-        {
-            task_t* task = Cubemap_Bake(
-                bakemaps + i, ms_ptscene, bounds[i].value, weight, bounces);
-            if (task)
-            {
-                task_sys_schedule();
-                task_await(task);
-            }
-        }
-
         float pfweight = f1_min(1.0f, weight * 2.0f);
-        for (i32 i = 0; i < len; ++i)
+        i32 bounces = (i32)cv_pt_bounces.asFloat;
+        for (i32 i = 0; i < table->count; ++i)
         {
-            Cubemap_Prefilter(bakemaps + i, convmaps + i, 64, pfweight);
+            Cubemap* cubemap = table->cubemaps + i;
+            sphere_t bounds = table->bounds[i];
+            Cubemap_Bake(cubemap, ms_ptscene, bounds.value, weight, bounces);
+            Cubemap_Denoise(cubemap);
+            Cubemap_Convolve(cubemap, 256, pfweight);
         }
 
         ProfileEnd(pm_CubemapTrace);
@@ -230,11 +227,12 @@ static bool PathTrace(void)
             ms_ptSampleCount = 0;
         }
 
+        const int2 size = { kDrawWidth, kDrawHeight };
         ms_trace.bounces = i1_clamp((i32)cv_pt_bounces.asFloat, 0, 20);
         ms_trace.sampleWeight = 1.0f / ++ms_ptSampleCount;
         ms_trace.camera = &camera;
         ms_trace.scene = ms_ptscene;
-        ms_trace.imageSize = i2_v(kDrawWidth, kDrawHeight);
+        ms_trace.imageSize = size;
         if (!ms_trace.color)
         {
             ms_trace.color = perm_calloc(sizeof(ms_trace.color[0]) * kDrawPixels);
@@ -248,16 +246,11 @@ static bool PathTrace(void)
 
         if (cv_pt_denoise.asFloat != 0.0f)
         {
-            int2 size = { kDrawWidth, kDrawHeight };
-            float3* pim_noalias output3 = tmp_calloc(sizeof(output3[0]) * kDrawPixels);
-            if (Denoise(size, ms_trace.color, ms_trace.albedo, ms_trace.normal, output3))
+            float3* pim_noalias output3 = tmp_malloc(sizeof(output3[0]) * kDrawPixels);
+            if (Denoise(DenoiseType_Image, size, ms_trace.color, ms_trace.albedo, ms_trace.normal, output3))
             {
                 ProfileBegin(pm_ptBlit);
-                float4* pim_noalias output4 = GetFrontBuf()->light;
-                for (i32 i = 0; i < kDrawPixels; ++i)
-                {
-                    output4[i] = f3_f4(output3[i], 1.0);
-                }
+                blit_3to4(size, GetFrontBuf()->light, output3);
                 ProfileEnd(pm_ptBlit);
             }
             else
@@ -268,12 +261,7 @@ static bool PathTrace(void)
         else
         {
             ProfileBegin(pm_ptBlit);
-            float4* pim_noalias dst = GetFrontBuf()->light;
-            const float3* pim_noalias src = ms_trace.color;
-            for (i32 i = 0; i < kDrawPixels; ++i)
-            {
-                dst[i] = f3_f4(src[i], 1.0f);
-            }
+            blit_3to4(size, GetFrontBuf()->light, ms_trace.color);
             ProfileEnd(pm_ptBlit);
         }
 
@@ -396,6 +384,7 @@ void render_sys_init(void)
     cvar_reg(&cv_pt_bounces);
     cvar_reg(&cv_pt_denoise);
     cvar_reg(&cv_lm_gen);
+    cvar_reg(&cv_lm_denoise);
     cvar_reg(&cv_ac_gen);
     cvar_reg(&cv_cm_gen);
     cvar_reg(&cv_r_sw);

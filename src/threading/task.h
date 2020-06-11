@@ -32,6 +32,8 @@ TaskStatus task_stat(const task_t* task);
 void task_await(const task_t* task);
 i32 task_poll(const task_t* task);
 
+void task_run(task_t* task, task_execute_fn fn, i32 worksize);
+
 void task_sys_schedule(void);
 
 void task_sys_init(void);

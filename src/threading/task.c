@@ -121,11 +121,8 @@ TaskStatus task_stat(const task_t* task)
     return (TaskStatus)load_i32(&(task->status), MO_Acquire);
 }
 
-ProfileMark(pm_submit, task_submit)
 void task_submit(task_t* task, task_execute_fn execute, i32 worksize)
 {
-    ProfileBegin(pm_submit);
-
     if (task && worksize > 0)
     {
         ASSERT(execute);
@@ -144,17 +141,15 @@ void task_submit(task_t* task, task_execute_fn execute, i32 worksize)
             }
         }
     }
-
-    ProfileEnd(pm_submit);
 }
 
 ProfileMark(pm_await, task_await)
 void task_await(const task_t* task)
 {
-    ProfileBegin(pm_await);
-
     if (task)
     {
+        ProfileBegin(pm_await);
+
         const i32 tid = ms_tid;
         u64 spins = 0;
         while (task_stat(task) == TaskStatus_Exec)
@@ -171,14 +166,27 @@ void task_await(const task_t* task)
                 intrin_spin(++spins);
             }
         }
-    }
 
-    ProfileEnd(pm_await);
+        ProfileEnd(pm_await);
+    }
 }
 
 i32 task_poll(const task_t* task)
 {
     return task_stat(task) != TaskStatus_Exec;
+}
+
+void task_run(task_t* task, task_execute_fn fn, i32 worksize)
+{
+    ASSERT(task);
+    ASSERT(fn);
+    ASSERT(worksize >= 0);
+    if (worksize > 0)
+    {
+        task_submit(task, fn, worksize);
+        task_sys_schedule();
+        task_await(task);
+    }
 }
 
 ProfileMark(pm_schedule, task_sys_schedule)

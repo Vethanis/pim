@@ -23,15 +23,18 @@ typedef struct Cubemap_s
 {
     i32 size;
     i32 mipCount;
-    float4* faces[Cubeface_COUNT];
+    float3* color[Cubeface_COUNT];
+    float3* albedo[Cubeface_COUNT];
+    float3* normal[Cubeface_COUNT];
+    float3* denoised[Cubeface_COUNT];
+    float4* convolved[Cubeface_COUNT];
 } Cubemap;
 
 typedef struct Cubemaps_s
 {
     i32 count;
     u32* names;
-    Cubemap* bakemaps;
-    Cubemap* convmaps;
+    Cubemap* cubemaps;
     sphere_t* bounds;
 } Cubemaps_t;
 
@@ -43,8 +46,6 @@ i32 Cubemaps_Find(u32 name);
 
 void Cubemap_New(Cubemap* cm, i32 size);
 void Cubemap_Del(Cubemap* cm);
-
-void Cubemap_Cpy(const Cubemap* src, Cubemap* dst);
 
 Cubeface VEC_CALL Cubemap_CalcUv(float4 dir, float2* uvOut);
 
@@ -58,25 +59,29 @@ pim_inline float VEC_CALL Cubemap_Mip2Rough(float mip)
     return mip / 4.0f;
 }
 
-float4 VEC_CALL Cubemap_Read(const Cubemap* cm, float4 dir, float mip);
+float4 VEC_CALL Cubemap_ReadConvolved(const Cubemap* cm, float4 dir, float mip);
 void VEC_CALL Cubemap_Write(Cubemap* cm, Cubeface face, int2 coord, float4 value);
+
+float3 VEC_CALL Cubemap_ReadColor(const Cubemap* cm, float4 dir);
+float3 VEC_CALL Cubemap_ReadAlbedo(const Cubemap* cm, float4 dir);
+float3 VEC_CALL Cubemap_ReadNormal(const Cubemap* cm, float4 dir);
+float3 VEC_CALL Cubemap_ReadDenoised(const Cubemap* cm, float4 dir);
 
 void VEC_CALL Cubemap_WriteMip(Cubemap* cm, Cubeface face, int2 coord, i32 mip, float4 value);
 
 float4 VEC_CALL Cubemap_CalcDir(i32 size, Cubeface face, int2 coord, float2 Xi);
 
-float4 VEC_CALL Cubemap_FaceDir(Cubeface face);
-
-task_t* Cubemap_Bake(
+void Cubemap_Bake(
     Cubemap* cm,
     const pt_scene_t* scene,
     float4 origin,
     float weight,
     i32 bounces);
 
-void Cubemap_Prefilter(
-    const Cubemap* src,
-    Cubemap* dst,
+void Cubemap_Denoise(Cubemap* cm);
+
+void Cubemap_Convolve(
+    Cubemap* cm,
     u32 sampleCount,
     float weight);
 

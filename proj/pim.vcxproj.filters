@@ -436,6 +436,9 @@
     <ClCompile Include="..\src\rendering\denoise.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\threading\taskcpy.c">
+      <Filter>Source Files\threading</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -896,6 +899,9 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\denoise.h">
       <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\taskcpy.h">
+      <Filter>Source Files\threading</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
