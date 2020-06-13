@@ -20,6 +20,39 @@
 #include "common/atomics.h"
 #include <stb/stb_image_write.h>
 
+typedef struct mask_s
+{
+    int2 size;
+    u8* ptr;
+} mask_t;
+
+typedef struct chartnode_s
+{
+    plane_t plane;
+    tri2d_t triCoord;
+    tri2d_t triUv;
+    float area;
+    i32 drawableIndex;
+    i32 vertIndex;
+} chartnode_t;
+
+typedef struct chart_s
+{
+    mask_t mask;
+    chartnode_t* nodes;
+    i32 nodeCount;
+    i32 atlasIndex;
+    int2 translation;
+    float area;
+} chart_t;
+
+typedef struct atlas_s
+{
+    mutex_t mtx;
+    mask_t mask;
+    i32 chartCount;
+} atlas_t;
+
 static lmpack_t ms_pack;
 static bool ms_once;
 
@@ -55,19 +88,6 @@ void lightmap_del(lightmap_t* lm)
     }
 }
 
-typedef struct mask_s
-{
-    int2 size;
-    u8* ptr;
-} mask_t;
-
-typedef struct atlas_s
-{
-    mutex_t mtx;
-    mask_t mask;
-    i32 nodecount;
-} atlas_t;
-
 static i32 chartnode_cmp(const void* lhs, const void* rhs, void* usr)
 {
     const chartnode_t* a = lhs;
@@ -89,7 +109,7 @@ static mask_t VEC_CALL mask_new(int2 size)
     i32 len = size.x * size.y;
     mask_t mask;
     mask.size = size;
-    mask.ptr = pim_calloc(EAlloc_Task, sizeof(u8) * len);
+    mask.ptr = perm_calloc(sizeof(u8) * len);
     return mask;
 }
 
@@ -176,15 +196,19 @@ static int2 VEC_CALL tri_size(tri2d_t tri)
 
 static bool VEC_CALL TriTest(tri2d_t tri, float2 pt)
 {
-    for (i32 s = 0; s < 1024; ++s)
+    for (i32 s = 0; s < 64; ++s)
     {
-        float2 Xi = Hammersley2D(s, 1024);
+        float2 Xi = Hammersley2D(s, 64);
         Xi = f2_subvs(Xi, 0.5f);
         float2 pt2 = { pt.x + Xi.x, pt.y + Xi.y };
         float dist = sdTriangle2D(tri.a, tri.b, tri.c, pt2);
         if (dist <= 1.0f)
         {
             return true;
+        }
+        if (dist >= 4.0f)
+        {
+            return false;
         }
     }
     return false;
@@ -263,55 +287,411 @@ static float VEC_CALL TriArea2D(tri2d_t tri)
     return 0.5f * cr;
 }
 
-static tri2d_t VEC_CALL ProjTri(float4 A, float4 B, float4 C, float texelsPerUnit)
+static tri2d_t VEC_CALL ProjTri(float4 A, float4 B, float4 C, float texelsPerUnit, plane_t* planeOut)
 {
     plane_t plane = triToPlane(A, B, C);
+    *planeOut = plane;
     float3x3 TBN = NormalToTBN(plane.value);
     tri2d_t tri;
     tri.a = ProjUv(TBN, A);
     tri.b = ProjUv(TBN, B);
     tri.c = ProjUv(TBN, C);
-    float2 lo = f2_min(f2_min(tri.a, tri.b), tri.c);
-    tri.a = f2_sub(tri.a, lo);
-    tri.b = f2_sub(tri.b, lo);
-    tri.c = f2_sub(tri.c, lo);
     tri.a = f2_mulvs(tri.a, texelsPerUnit);
     tri.b = f2_mulvs(tri.b, texelsPerUnit);
     tri.c = f2_mulvs(tri.c, texelsPerUnit);
-    lo = f2_min(f2_min(tri.a, tri.b), tri.c);
-    float2 hi = f2_max(f2_max(tri.a, tri.b), tri.c);
-    if ((hi.x - lo.x) < 1.0f)
-    {
-        float x = (hi.x + lo.x) * 0.5f;
-        tri.a.x = x;
-        tri.b.x = x;
-        tri.c.x = x;
-    }
-    if ((hi.y - lo.y) < 1.0f)
-    {
-        float y = (hi.y + lo.y) * 0.5f;
-        tri.a.y = y;
-        tri.b.y = y;
-        tri.c.y = y;
-    }
-    tri.a = f2_ceil(tri.a);
-    tri.b = f2_ceil(tri.b);
-    tri.c = f2_ceil(tri.c);
-    tri.a = f2_addvs(tri.a, 2.0f);
-    tri.b = f2_addvs(tri.b, 2.0f);
-    tri.c = f2_addvs(tri.c, 2.0f);
     return tri;
 }
 
 static chartnode_t VEC_CALL chartnode_new(float4 A, float4 B, float4 C, float texelsPerUnit, i32 iDrawable, i32 iVert)
 {
     chartnode_t node = { 0 };
-    node.triCoord = ProjTri(A, B, C, texelsPerUnit);
+    node.triCoord = ProjTri(A, B, C, texelsPerUnit, &node.plane);
     node.area = TriArea2D(node.triCoord);
     node.drawableIndex = iDrawable;
     node.vertIndex = iVert;
-    node.atlasIndex = -1;
     return node;
+}
+
+static void chart_del(chart_t* chart)
+{
+    if (chart)
+    {
+        mask_del(&chart->mask);
+        pim_free(chart->nodes);
+        chart->nodes = NULL;
+        chart->nodeCount = 0;
+    }
+}
+
+static bool VEC_CALL plane_equal(
+    plane_t lhs, plane_t rhs, float distThresh, float minCosTheta)
+{
+    float dist = f1_distance(lhs.value.w, rhs.value.w);
+    float cosTheta = f4_dot3(lhs.value, rhs.value);
+    return (dist < distThresh) && (cosTheta >= minCosTheta);
+}
+
+static i32 plane_find(
+    const plane_t* planes,
+    i32 planeCount,
+    plane_t plane,
+    float distThresh,
+    float degreeThresh)
+{
+    const float minCosTheta = cosf(degreeThresh * kRadiansPerDegree);
+    for (i32 i = 0; i < planeCount; ++i)
+    {
+        if (plane_equal(planes[i], plane, distThresh, minCosTheta))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void chart_minmax(chart_t chart, float2* loOut, float2* hiOut)
+{
+    const float bigNum = 1 << 20;
+    float2 lo = f2_s(bigNum);
+    float2 hi = f2_s(-bigNum);
+    for (i32 i = 0; i < chart.nodeCount; ++i)
+    {
+        tri2d_t tri = chart.nodes[i].triCoord;
+        lo = f2_min(lo, tri.a);
+        hi = f2_max(hi, tri.a);
+        lo = f2_min(lo, tri.b);
+        hi = f2_max(hi, tri.b);
+        lo = f2_min(lo, tri.c);
+        hi = f2_max(hi, tri.c);
+    }
+    *loOut = lo;
+    *hiOut = hi;
+}
+
+static float chart_area(chart_t chart)
+{
+    float2 lo, hi;
+    chart_minmax(chart, &lo, &hi);
+    float2 size = f2_sub(hi, lo);
+    return size.x * size.y;
+}
+
+static float chart_width(chart_t chart)
+{
+    float2 lo, hi;
+    chart_minmax(chart, &lo, &hi);
+    float2 size = f2_sub(hi, lo);
+    return f2_hmax(size);
+}
+
+static float chart_triarea(chart_t chart)
+{
+    float sum = 0.0f;
+    for (i32 i = 0; i < chart.nodeCount; ++i)
+    {
+        tri2d_t tri = chart.nodes[i].triCoord;
+        float area = TriArea2D(tri);
+        sum += area;
+    }
+    return sum;
+}
+
+static float chart_density(chart_t chart)
+{
+    float fromTri = chart_triarea(chart);
+    float fromBounds = chart_area(chart);
+    return fromTri / f1_max(fromBounds, f16_eps);
+}
+
+static float2 VEC_CALL tri_center(tri2d_t tri)
+{
+    const float scale = 1.0f / 3;
+    float2 center = f2_mulvs(tri.a, scale);
+    center = f2_add(center, f2_mulvs(tri.b, scale));
+    center = f2_add(center, f2_mulvs(tri.c, scale));
+    return center;
+}
+
+static float2 cluster_mean(const tri2d_t* tris, i32 count)
+{
+    const float scale = 1.0f / count;
+    float2 mean = f2_0;
+    for (i32 i = 0; i < count; ++i)
+    {
+        float2 center = tri_center(tris[i]);
+        mean = f2_add(mean, f2_mulvs(center, scale));
+    }
+    return mean;
+}
+
+static i32 cluster_nearest(const float2* means, i32 k, tri2d_t tri)
+{
+    i32 chosen = -1;
+    float chosenDist = 1 << 20;
+    for (i32 i = 0; i < k; ++i)
+    {
+        float dist = sdTriangle2D(tri.a, tri.b, tri.c, means[i]);
+        if (dist < chosenDist)
+        {
+            chosenDist = dist;
+            chosen = i;
+        }
+    }
+    return chosen;
+}
+
+static float cluster_cost(const tri2d_t* tris, i32 count)
+{
+    float2 mean = cluster_mean(tris, count);
+    float cost = 0.0f;
+    for (i32 i = 0; i < count; ++i)
+    {
+        tri2d_t tri = tris[i];
+        float dist = sdTriangle2D(tri.a, tri.b, tri.c, mean);
+        cost += dist * dist;
+    }
+    return cost;
+}
+
+static void chart_split(chart_t chart, chart_t* split)
+{
+    const i32 nodeCount = chart.nodeCount;
+    const chartnode_t* nodes = chart.nodes;
+
+    float2 means[4] = { 0 };
+    float2 prevMeans[NELEM(means)] = { 0 };
+    i32 counts[NELEM(means)] = { 0 };
+    tri2d_t* triLists[NELEM(means)] = { 0 };
+    i32* nodeLists[NELEM(means)] = { 0 };
+    const i32 k = NELEM(means);
+
+    // create k initial means
+    prng_t rng = prng_get();
+    for (i32 i = 0; i < k; ++i)
+    {
+        i32 j = prng_i32(&rng) % nodeCount;
+        tri2d_t tri = nodes[j].triCoord;
+        means[i] = tri_center(tri);
+        triLists[i] = tmp_malloc(sizeof(tri2d_t) * nodeCount);
+        nodeLists[i] = tmp_malloc(sizeof(i32) * nodeCount);
+    }
+    prng_set(rng);
+
+    do
+    {
+        // reset cluster lists
+        for (i32 i = 0; i < k; ++i)
+        {
+            counts[i] = 0;
+        }
+
+        // associate each node with nearest mean
+        for (i32 i = 0; i < nodeCount; ++i)
+        {
+            tri2d_t tri = nodes[i].triCoord;
+            i32 cl = cluster_nearest(means, k, tri);
+
+            i32 back = counts[cl]++;
+            triLists[cl][back] = tri;
+            nodeLists[cl][back] = i;
+        }
+
+        // update means
+        for (i32 i = 0; i < k; ++i)
+        {
+            prevMeans[i] = means[i];
+            means[i] = cluster_mean(triLists[i], counts[i]);
+        }
+
+    } while (memcmp(means, prevMeans, sizeof(means)));
+
+    for (i32 i = 0; i < k; ++i)
+    {
+        chart_t ch = { 0 };
+        ch.nodeCount = counts[i];
+        if (ch.nodeCount > 0)
+        {
+            PermReserve(ch.nodes, ch.nodeCount);
+            const i32* nodeList = nodeLists[i];
+            for (i32 j = 0; j < ch.nodeCount; ++j)
+            {
+                i32 iNode = nodeList[j];
+                ch.nodes[j] = nodes[iNode];
+            }
+        }
+        split[i] = ch;
+    }
+}
+
+typedef struct chartmask_s
+{
+    task_t task;
+    chart_t* charts;
+    i32 chartCount;
+} chartmask_t;
+
+static void ChartMaskFn(task_t* pbase, i32 begin, i32 end)
+{
+    chartmask_t* task = (chartmask_t*)pbase;
+    chart_t* charts = task->charts;
+    i32 chartCount = task->chartCount;
+
+    for (i32 i = begin; i < end; ++i)
+    {
+        chart_t chart = charts[i];
+
+        float2 lo, hi;
+        chart_minmax(chart, &lo, &hi);
+        lo = f2_floor(lo);
+        lo = f2_subvs(lo, 2.0f);
+        for (i32 iNode = 0; iNode < chart.nodeCount; ++iNode)
+        {
+            tri2d_t tri = chart.nodes[iNode].triCoord;
+            tri.a = f2_sub(tri.a, lo);
+            tri.b = f2_sub(tri.b, lo);
+            tri.c = f2_sub(tri.c, lo);
+            chart.nodes[iNode].triCoord = tri;
+        }
+        chart_minmax(chart, &lo, &hi);
+        float2 size = f2_sub(hi, lo);
+        chart.area = size.x * size.y;
+        hi = f2_addvs(hi, 2.0f);
+        hi = f2_ceil(hi);
+
+        chart.mask = mask_new(f2_i2(hi));
+        for (i32 iNode = 0; iNode < chart.nodeCount; ++iNode)
+        {
+            tri2d_t tri = chart.nodes[iNode].triCoord;
+            mask_tri(chart.mask, tri);
+        }
+
+        charts[i] = chart;
+    }
+}
+
+static chart_t* chart_group(
+    const chartnode_t* nodes,
+    i32 nodeCount,
+    i32* countOut,
+    float distThresh,
+    float degreeThresh,
+    float maxWidth)
+{
+    ASSERT(nodes);
+    ASSERT(nodeCount >= 0);
+    ASSERT(countOut);
+
+    i32 chartCount = 0;
+    chart_t* charts = NULL;
+    plane_t* planes = NULL;
+
+    // assign nodes to charts by triangle plane
+    for (i32 iNode = 0; iNode < nodeCount; ++iNode)
+    {
+        chartnode_t node = nodes[iNode];
+        i32 iChart = plane_find(
+            planes, chartCount, node.plane,
+            distThresh, degreeThresh);
+        if (iChart == -1)
+        {
+            iChart = chartCount;
+            ++chartCount;
+            PermGrow(charts, chartCount);
+            PermGrow(planes, chartCount);
+            planes[iChart] = node.plane;
+        }
+        chart_t chart = charts[iChart];
+        chart.nodeCount += 1;
+        PermReserve(chart.nodes, chart.nodeCount);
+        chart.nodes[chart.nodeCount - 1] = node;
+        charts[iChart] = chart;
+    }
+
+    pim_free(planes);
+    planes = NULL;
+
+    // split big charts
+    for (i32 iChart = 0; iChart < chartCount; ++iChart)
+    {
+        chart_t chart = charts[iChart];
+        if (chart.nodeCount > 1)
+        {
+            float width = chart_width(chart);
+            float density = chart_density(chart);
+            if ((width >= maxWidth) || (density < 0.1f))
+            {
+                chart_t split[4] = { 0 };
+                chart_split(chart, split);
+                for (i32 j = 0; j < NELEM(split); ++j)
+                {
+                    if (split[j].nodeCount > 0)
+                    {
+                        ++chartCount;
+                        PermReserve(charts, chartCount);
+                        charts[chartCount - 1] = split[j];
+                    }
+                }
+                chart_del(&chart);
+
+                charts[iChart] = charts[chartCount - 1];
+                --chartCount;
+                --iChart;
+            }
+        }
+    }
+
+    // move chart to origin and create mask
+    chartmask_t* task = tmp_calloc(sizeof(*task));
+    task->charts = charts;
+    task->chartCount = chartCount;
+    task_run(&task->task, ChartMaskFn, chartCount);
+
+    *countOut = chartCount;
+    return charts;
+}
+
+static void chart_apply(chart_t chart, int2 atlasSize)
+{
+    int2 tr = chart.translation;
+    int2 size = atlasSize;
+
+    float2 trf = { (float)tr.x, (float)tr.y };
+    float2 scf = { 1.0f / size.x, 1.0f / size.y };
+
+    for (i32 i = 0; i < chart.nodeCount; ++i)
+    {
+        chartnode_t* node = chart.nodes + i;
+
+        tri2d_t triCoord = node->triCoord;
+        triCoord.a = f2_add(triCoord.a, trf);
+        triCoord.b = f2_add(triCoord.b, trf);
+        triCoord.c = f2_add(triCoord.c, trf);
+        tri2d_t triUv;
+        triUv.a = f2_mul(triCoord.a, scf);
+        triUv.b = f2_mul(triCoord.b, scf);
+        triUv.c = f2_mul(triCoord.c, scf);
+
+        node->triCoord = triCoord;
+        node->triUv = triUv;
+    }
+}
+
+static i32 chart_cmp(const void* plhs, const void* prhs, void* usr)
+{
+    const chart_t* lhs = plhs;
+    const chart_t* rhs = prhs;
+    float a = lhs->area;
+    float b = rhs->area;
+    if (a != b)
+    {
+        return a > b ? -1 : 1;
+    }
+    return 0;
+}
+
+static void chart_sort(chart_t* charts, i32 chartCount)
+{
+    pimsort(charts, chartCount, sizeof(charts[0]), chart_cmp, NULL);
 }
 
 static atlas_t atlas_new(i32 size)
@@ -335,8 +715,7 @@ static void atlas_del(atlas_t* atlas)
 static bool atlas_search(
     atlas_t* pim_noalias atlases,
     i32 atlasCount,
-    chartnode_t* pim_noalias node,
-    mask_t mask,
+    chart_t* chart,
     i32* pim_noalias prevAtlas,
     i32* pim_noalias prevRow)
 {
@@ -345,33 +724,18 @@ static bool atlas_search(
     {
         atlas_t* pim_noalias atlas = atlases + i;
     retry:
-        if (mask_find(atlas->mask, mask, &tr, *prevRow))
+        if (mask_find(atlas->mask, chart->mask, &tr, *prevRow))
         {
             *prevAtlas = i;
             *prevRow = tr.y;
             mutex_lock(&atlas->mtx);
-            bool fits = mask_fits(atlas->mask, mask, tr);
+            bool fits = mask_fits(atlas->mask, chart->mask, tr);
             if (fits)
             {
-                mask_write(atlas->mask, mask, tr);
-                node->atlasIndex = i;
-                atlas->nodecount++;
-
-                int2 size = atlas->mask.size;
-                float2 trf = { (float)tr.x, (float)tr.y };
-                float2 scf = { 1.0f / size.x, 1.0f / size.y };
-
-                tri2d_t triCoord = node->triCoord;
-                triCoord.a = f2_add(triCoord.a, trf);
-                triCoord.b = f2_add(triCoord.b, trf);
-                triCoord.c = f2_add(triCoord.c, trf);
-                tri2d_t triUv;
-                triUv.a = f2_mul(triCoord.a, scf);
-                triUv.b = f2_mul(triCoord.b, scf);
-                triUv.c = f2_mul(triCoord.c, scf);
-
-                node->triCoord = triCoord;
-                node->triUv = triUv;
+                mask_write(atlas->mask, chart->mask, tr);
+                chart->translation = tr;
+                chart->atlasIndex = i;
+                atlas->chartCount++;
             }
             mutex_unlock(&atlas->mtx);
             if (fits)
@@ -435,18 +799,18 @@ typedef struct atlastask_s
 {
     task_t task;
     i32 nodeHead;
-    i32 nodeCount;
+    i32 chartCount;
     i32 atlasCount;
-    chartnode_t* nodes;
+    chart_t* charts;
     atlas_t* atlases;
 } atlastask_t;
 
 static void AtlasFn(task_t* pbase, i32 begin, i32 end)
 {
     atlastask_t* task = (atlastask_t*)pbase;
-    chartnode_t* pim_noalias nodes = task->nodes;
+    chart_t* pim_noalias charts = task->charts;
     const i32 atlasCount = task->atlasCount;
-    const i32 nodeCount = task->nodeCount;
+    const i32 chartCount = task->chartCount;
     i32* pim_noalias pHead = &task->nodeHead;
     atlas_t* pim_noalias atlases = task->atlases;
 
@@ -457,42 +821,51 @@ static void AtlasFn(task_t* pbase, i32 begin, i32 end)
     float prevArea = 1 << 20;
     for (i32 i = begin; i < end; ++i)
     {
-        i32 iNode = inc_i32(pHead, MO_Relaxed);
-        if (iNode >= nodeCount)
+        i32 iChart = inc_i32(pHead, MO_Relaxed);
+        if (iChart >= chartCount)
         {
             break;
         }
-        chartnode_t node = nodes[iNode];
-        mask_t nodemask = mask_fromtri(node.triCoord);
+        chart_t chart = charts[iChart];
+        chart.atlasIndex = -1;
 
-        if (node.area < (prevArea * 0.9f))
+        if (chart.area < (prevArea * 0.9f))
         {
-            prevArea = node.area;
+            prevArea = chart.area;
             prevAtlas = 0;
             prevRow = 0;
         }
 
-        while (!atlas_search(atlases, atlasCount, &node, nodemask, &prevAtlas, &prevRow))
+        while (!atlas_search(
+            atlases,
+            atlasCount,
+            &chart,
+            &prevAtlas,
+            &prevRow))
         {
-            prevArea = node.area;
+            prevArea = chart.area;
             prevAtlas = 0;
             prevRow = 0;
         }
 
-        mask_del(&nodemask);
-        nodes[iNode] = node;
+        if (chart.atlasIndex != -1)
+        {
+            chart_apply(chart, atlases[chart.atlasIndex].mask.size);
+        }
+
+        mask_del(&chart.mask);
+        charts[iChart] = chart;
     }
 
     prng_set(rng);
 }
 
-static i32 atlas_estimate(i32 atlasSize, const chartnode_t* nodes, i32 nodeCount)
+static i32 atlas_estimate(i32 atlasSize, const chart_t* charts, i32 chartCount)
 {
-    const float fitMult = 1.0f / 0.5f;
     i32 areaRequired = 0;
-    for (i32 i = 0; i < nodeCount; ++i)
+    for (i32 i = 0; i < chartCount; ++i)
     {
-        i32 area = (i32)ceilf(TriArea2D(nodes[i].triCoord) * fitMult);
+        i32 area = (i32)ceilf(chart_area(charts[i]));
         areaRequired += area;
     }
     ASSERT(areaRequired >= 0);
@@ -507,9 +880,9 @@ static i32 atlas_estimate(i32 atlasSize, const chartnode_t* nodes, i32 nodeCount
     return i1_max(1, atlasCount);
 }
 
-static i32 atlases_create(i32 atlasSize, chartnode_t* nodes, i32 nodeCount)
+static i32 atlases_create(i32 atlasSize, chart_t* charts, i32 chartCount)
 {
-    i32 atlasCount = atlas_estimate(atlasSize, nodes, nodeCount);
+    i32 atlasCount = atlas_estimate(atlasSize, charts, chartCount);
     atlas_t* atlases = perm_calloc(sizeof(atlases[0]) * atlasCount);
     for (i32 i = 0; i < atlasCount; ++i)
     {
@@ -519,17 +892,17 @@ static i32 atlases_create(i32 atlasSize, chartnode_t* nodes, i32 nodeCount)
     atlastask_t* task = tmp_calloc(sizeof(*task));
     task->atlasCount = atlasCount;
     task->atlases = atlases;
-    task->nodes = nodes;
-    task->nodeCount = nodeCount;
+    task->charts = charts;
+    task->chartCount = chartCount;
     task->nodeHead = 0;
-    task_submit(&task->task, AtlasFn, nodeCount);
+    task_submit(&task->task, AtlasFn, chartCount);
     task_sys_schedule();
     task_await(&task->task);
 
     i32 usedAtlases = 0;
     for (i32 i = 0; i < atlasCount; ++i)
     {
-        if (atlases[i].nodecount > 0)
+        if (atlases[i].chartCount > 0)
         {
             ++usedAtlases;
         }
@@ -540,35 +913,47 @@ static i32 atlases_create(i32 atlasSize, chartnode_t* nodes, i32 nodeCount)
     return usedAtlases;
 }
 
-static void chartnodes_assign(chartnode_t* nodes, i32 nodeCount, lightmap_t* lightmaps, i32 lightmapCount)
+static void chartnodes_assign(
+    chart_t* charts,
+    i32 chartCount,
+    lightmap_t* lightmaps,
+    i32 lightmapCount)
 {
     const drawables_t* drawables = drawables_get();
     const i32 numDrawables = drawables->count;
     const meshid_t* meshids = drawables->meshes;
 
-    for (i32 i = 0; i < nodeCount; ++i)
+    for (i32 iChart = 0; iChart < chartCount; ++iChart)
     {
-        chartnode_t node = nodes[i];
-        ASSERT(node.drawableIndex >= 0);
-        ASSERT(node.drawableIndex < numDrawables);
-        ASSERT(node.vertIndex >= 0);
-        meshid_t meshid = meshids[node.drawableIndex];
-        mesh_t mesh;
-        if (mesh_get(meshid, &mesh))
+        chart_t chart = charts[iChart];
+        chartnode_t* nodes = chart.nodes;
+        i32 nodeCount = chart.nodeCount;
+        float atlasIndex = (float)chart.atlasIndex;
+
+        for (i32 i = 0; i < nodeCount; ++i)
         {
-            const i32 vertCount = mesh.length;
-            ASSERT((node.vertIndex + 2) < vertCount);
-            float3* lmUvs = mesh.lmUvs;
-            float3 a = { node.triUv.a.x, node.triUv.a.y, (float)node.atlasIndex };
-            float3 b = { node.triUv.b.x, node.triUv.b.y, (float)node.atlasIndex };
-            float3 c = { node.triUv.c.x, node.triUv.c.y, (float)node.atlasIndex };
-            lmUvs[node.vertIndex + 0] = a;
-            lmUvs[node.vertIndex + 1] = b;
-            lmUvs[node.vertIndex + 2] = c;
-        }
-        else
-        {
-            ASSERT(false);
+            chartnode_t node = nodes[i];
+            ASSERT(node.drawableIndex >= 0);
+            ASSERT(node.drawableIndex < numDrawables);
+            ASSERT(node.vertIndex >= 0);
+            meshid_t meshid = meshids[node.drawableIndex];
+            mesh_t mesh;
+            if (mesh_get(meshid, &mesh))
+            {
+                const i32 vertCount = mesh.length;
+                ASSERT((node.vertIndex + 2) < vertCount);
+                float3* lmUvs = mesh.lmUvs;
+                float3 a = { node.triUv.a.x, node.triUv.a.y, atlasIndex };
+                float3 b = { node.triUv.b.x, node.triUv.b.y, atlasIndex };
+                float3 c = { node.triUv.c.x, node.triUv.c.y, atlasIndex };
+                lmUvs[node.vertIndex + 0] = a;
+                lmUvs[node.vertIndex + 1] = b;
+                lmUvs[node.vertIndex + 2] = c;
+            }
+            else
+            {
+                ASSERT(false);
+            }
         }
     }
 }
@@ -694,7 +1079,11 @@ static void EmbedAttributes(lightmap_t* lightmaps, i32 lmCount)
     }
 }
 
-lmpack_t lmpack_pack(i32 atlasSize, float texelsPerUnit)
+lmpack_t lmpack_pack(
+    i32 atlasSize,
+    float texelsPerUnit,
+    float distThresh,
+    float degThresh)
 {
     ASSERT(atlasSize > 0);
 
@@ -704,27 +1093,38 @@ lmpack_t lmpack_pack(i32 atlasSize, float texelsPerUnit)
         cmd_reg("lm_print", CmdPrintLm);
     }
 
+    float maxWidth = (float)(atlasSize / 4);
+
     i32 nodeCount = 0;
     chartnode_t* nodes = chartnodes_create(texelsPerUnit, &nodeCount);
 
-    chartnode_sort(nodes, nodeCount);
+    i32 chartCount = 0;
+    chart_t* charts = chart_group(
+        nodes, nodeCount, &chartCount, distThresh, degThresh, maxWidth);
 
-    i32 atlasCount = atlases_create(atlasSize, nodes, nodeCount);
+    chart_sort(charts, chartCount);
+
+    i32 atlasCount = atlases_create(atlasSize, charts, chartCount);
 
     lmpack_t pack = { 0 };
     pack.lmCount = atlasCount;
     pack.lightmaps = perm_calloc(sizeof(pack.lightmaps[0]) * atlasCount);
-    pack.nodeCount = nodeCount;
-    pack.nodes = nodes;
 
     for (i32 i = 0; i < atlasCount; ++i)
     {
         lightmap_new(pack.lightmaps + i, atlasSize);
     }
 
-    chartnodes_assign(nodes, nodeCount, pack.lightmaps, atlasCount);
+    chartnodes_assign(charts, chartCount, pack.lightmaps, atlasCount);
 
     EmbedAttributes(pack.lightmaps, atlasCount);
+
+    pim_free(nodes);
+    for (i32 i = 0; i < chartCount; ++i)
+    {
+        chart_del(charts + i);
+    }
+    pim_free(charts);
 
     return pack;
 }
@@ -738,7 +1138,6 @@ void lmpack_del(lmpack_t* pack)
             lightmap_del(pack->lightmaps + i);
         }
         pim_free(pack->lightmaps);
-        pim_free(pack->nodes);
         memset(pack, 0, sizeof(*pack));
     }
 }
@@ -800,6 +1199,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
     const i32 texelCount = task->texelCount;
     const float rcpSize = 1.0f / lmSize;
     const int2 size = { lmSize, lmSize };
+    const i32 spp = 4;
 
     lmpack_t* pack = lmpack_get();
 
@@ -815,22 +1215,26 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
         {
             i32 x = iTexel % lmSize;
             i32 y = iTexel / lmSize;
-            float2 jit = f2_rand(&rng);
-            float2 uv = { (x + jit.x) * rcpSize, (y + jit.y) * rcpSize };
-            float3 P3 = UvBilinearClamp_f3(lightmap.position, size, uv);
-            float3 N3 = UvBilinearClamp_f3(lightmap.normal, size, uv);
-            float4 P = f3_f4(P3, 1.0f);
-            float4 N = f4_normalize3(f3_f4(N3, 0.0f));
 
-            float4 rd;
-            float pdf = ScatterLambertian(&rng, N, N, &rd, 1.0f);
-            ray_t ray = { P, rd };
-            pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
-            result.color = f3_mulvs(result.color, pdf);
+            for (i32 iSample = 0; iSample < spp; ++iSample)
+            {
+                float2 jit = f2_rand(&rng);
+                float2 uv = { (x + jit.x) * rcpSize, (y + jit.y) * rcpSize };
+                float3 P3 = UvBilinearClamp_f3(lightmap.position, size, uv);
+                float3 N3 = UvBilinearClamp_f3(lightmap.normal, size, uv);
+                float4 P = f3_f4(P3, 1.0f);
+                float4 N = f4_normalize3(f3_f4(N3, 0.0f));
 
-            float weight = 1.0f / lightmap.sampleCounts[iTexel];
-            lightmap.sampleCounts[iTexel] += 1.0f;
-            lightmap.color[iTexel] = f3_lerp(lightmap.color[iTexel], result.color, weight);
+                float4 rd;
+                float pdf = ScatterLambertian(&rng, N, N, &rd, 1.0f);
+                ray_t ray = { P, rd };
+                pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+                result.color = f3_mulvs(result.color, pdf);
+
+                float weight = 1.0f / lightmap.sampleCounts[iTexel];
+                lightmap.sampleCounts[iTexel] += 1.0f;
+                lightmap.color[iTexel] = f3_lerp(lightmap.color[iTexel], result.color, weight);
+            }
         }
     }
     prng_set(rng);

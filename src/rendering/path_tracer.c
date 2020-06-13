@@ -331,7 +331,7 @@ static rayhit_t VEC_CALL TraceRay(
         return hit;
     }
 
-    const float e = 0.001f;
+    const float e = 0.0001f;
 
     // test box
     const float2 nearFar = isectBox3D(ray.ro, rcpRd, scene->boxes[n]);

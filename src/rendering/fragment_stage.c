@@ -56,7 +56,7 @@ typedef struct tile_ctx_s
     float farClip;
 } tile_ctx_t;
 
-static BrdfLut ms_lut;
+static bool ms_once;
 static AmbCube_t ms_ambcube;
 
 AmbCube_t VEC_CALL AmbCube_Get(void) { return ms_ambcube; };
@@ -94,9 +94,9 @@ static void FragmentStageFn(task_t* task, i32 begin, i32 end)
         {
             if (tileMasks[iDraw] & tilemask)
             {
-                i32 iCube = FindBounds(drawBounds[iDraw], cubeBounds, cubemapCount);
-                const Cubemap* cm = iCube >= 0 ? cubemaps + iCube : NULL;
-                DrawMesh(&ctx, stage->frontBuf, iDraw, cm);
+                //i32 iCube = FindBounds(drawBounds[iDraw], cubeBounds, cubemapCount);
+                //const Cubemap* cm = iCube >= 0 ? cubemaps + iCube : NULL;
+                DrawMesh(&ctx, stage->frontBuf, iDraw, NULL);
             }
         }
     }
@@ -104,14 +104,13 @@ static void FragmentStageFn(task_t* task, i32 begin, i32 end)
 
 static void EnsureInit(void)
 {
-    if (!ms_lut.texels)
+    if (!ms_once)
     {
+        ms_once = true;
         cvar_reg(&cv_gi_dbg_diff);
         cvar_reg(&cv_gi_dbg_spec);
         cvar_reg(&cv_r_uv);
         cvar_reg(&cv_r_lm_denoised);
-
-        ms_lut = BakeBRDF(i2_s(512), 1024);
     }
 }
 
@@ -361,13 +360,10 @@ static void VEC_CALL DrawMesh(
                             diffuseGI = f3_f4(denoised, 1.0f);
                         }
 
-                        float4 specularGI = f4_0;
-                        if (cm)
-                        {
-                            specularGI = Cubemap_ReadConvolved(cm, R, Cubemap_Rough2Mip(rome.x));
-                        }
+                        float NoR = f1_max(0.0f, f4_dot3(N, R));
+                        float4 specularGI = f4_mulvs(diffuseGI, 2.0f * NoR * NoR);
 
-                        float4 indirect = IndirectBRDF(ms_lut, V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
+                        float4 indirect = IndirectBRDF(V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
 
                         lighting = f4_add(lighting, indirect);
                         if (dbgdiffGI)

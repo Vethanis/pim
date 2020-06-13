@@ -34,8 +34,8 @@ float4 VEC_CALL DirectBRDF(
 
 // https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
 static float2 VEC_CALL IntegrateBRDF(
-    float roughness,
     float NoV,
+    float roughness,
     u32 numSamples)
 {
     const float4 V =
@@ -52,7 +52,6 @@ static float2 VEC_CALL IntegrateBRDF(
     float2 result = { 0.0f, 0.0f };
 
     const float weight = 1.0f / numSamples;
-    prng_t rng = prng_get();
     for (u32 i = 0; i < numSamples; ++i)
     {
         float2 Xi = Hammersley2D(i, numSamples);
@@ -66,7 +65,7 @@ static float2 VEC_CALL IntegrateBRDF(
         if (NoL > 0.0f)
         {
             float G = GGX_GI(NoV, NoL, roughness);
-            float GVis = (G * VoH) / (NoH * NoV);
+            float GVis = (G * VoH) / f1_max(NoH * NoV, f16_eps);
             float Fc = 1.0f - VoH;
             Fc = Fc * Fc * Fc * Fc * Fc;
 
@@ -74,7 +73,6 @@ static float2 VEC_CALL IntegrateBRDF(
             result.y += weight * (Fc * GVis);
         }
     }
-    prng_set(rng);
 
     return result;
 }
@@ -98,7 +96,9 @@ static void BrdfBakeFn(task_t* pBase, i32 begin, i32 end)
         i32 x = i % size.x;
         i32 y = i / size.x;
         float2 uv = CoordToUv(size, i2_v(x, y));
-        texels[i] = IntegrateBRDF(uv.x, uv.y, numSamples);
+        float NoV = uv.x;
+        float roughness = uv.y;
+        texels[i] = IntegrateBRDF(NoV, roughness, numSamples);
     }
 }
 
@@ -129,13 +129,40 @@ void FreeBrdfLut(BrdfLut* lut)
     lut->size = i2_s(0);
 }
 
-pim_inline float2 VEC_CALL SampleBrdf(BrdfLut lut, float roughness, float NoV)
+pim_inline float2 VEC_CALL SampleBrdf(BrdfLut lut, float NoV, float roughness)
 {
-    return UvBilinearClamp_f2(lut.texels, lut.size, f2_v(roughness, NoV));
+    return UvBilinearClamp_f2(lut.texels, lut.size, f2_v(NoV, roughness));
+}
+
+// https://knarkowicz.wordpress.com/2014/12/27/analytical-dfg-term-for-ibl/
+static float4 VEC_CALL EnvDFGPolynomial(float4 specular, float NoV, float roughness)
+{
+    float x = 1.0f - roughness;
+    float y = NoV;
+
+    const float b1 = -0.1688f;
+    const float b2 = 1.895f;
+    const float b3 = 0.9903f;
+    const float b4 = -4.853f;
+    const float b5 = 8.404f;
+    const float b6 = -5.069f;
+    float bias = f1_saturate(f1_min(b1 * x + b2 * x * x, b3 + b4 * y + b5 * y * y + b6 * y * y * y));
+
+    float d0 = 0.6045f;
+    float d1 = 1.699f;
+    float d2 = -0.5228f;
+    float d3 = -3.603f;
+    float d4 = 1.404f;
+    float d5 = 0.1939f;
+    float d6 = 2.661f;
+    float delta = f1_saturate(d0 + d1 * x + d2 * y + d3 * x * x + d4 * x * y + d5 * y * y + d6 * x * x * x);
+    float scale = delta - bias;
+
+    bias *= f1_saturate(50.0f * specular.y);
+    return f4_addvs(f4_mulvs(specular, scale), bias);
 }
 
 float4 VEC_CALL IndirectBRDF(
-    BrdfLut lut,
     float4 V,           // unit view vector pointing from surface to eye
     float4 N,           // unit normal vector pointing outward from surface
     float4 diffuseGI,   // low frequency scene irradiance
@@ -145,15 +172,14 @@ float4 VEC_CALL IndirectBRDF(
     float metallic,     // surface metalness
     float ao)           // 1 - ambient occlusion (affects gi only)
 {
-    const float NoV = f1_max(0.0f, f4_dot3(N, V));
+    float NoV = f1_max(0.0f, f4_dot3(N, V));
 
-    const float4 F = GGX_FI(NoV, GGX_F0(albedo, metallic), roughness);
+    float4 F = GGX_FI(NoV, GGX_F0(albedo, metallic), roughness);
+    F = f4_mulvs(F, 0.075f); // fresnel too stronk
 
-    const float4 kD = f4_mulvs(f4_inv(F), 1.0f - metallic);
-    const float4 diffuse = f4_mul(albedo, diffuseGI);
-
-    const float2 brdf = SampleBrdf(lut, roughness, NoV);
-    const float4 specular = f4_mul(specularGI, f4_addvs(f4_mulvs(F, brdf.x), brdf.y));
+    float4 kD = f4_mulvs(f4_inv(F), 1.0f - metallic);
+    float4 diffuse = f4_mul(albedo, diffuseGI);
+    float4 specular = EnvDFGPolynomial(f4_mul(specularGI, F), NoV, roughness);
 
     return f4_mulvs(f4_add(f4_mul(kD, diffuse), specular), ao);
 }

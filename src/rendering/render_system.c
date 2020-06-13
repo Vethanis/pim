@@ -116,7 +116,7 @@ static void EnsurePtScene(void)
 static void LightmapRepack(void)
 {
     lmpack_del(lmpack_get());
-    lmpack_t pack = lmpack_pack(1024, cv_lm_density.asFloat);
+    lmpack_t pack = lmpack_pack(1024, cv_lm_density.asFloat, 0.1f, 15.0f);
     *lmpack_get() = pack;
 }
 
@@ -404,7 +404,7 @@ void render_sys_init(void)
 
     Cubemaps_Add(420, 64, (sphere_t){ 0.0f, 0.0f, 0.0f, 10.0f});
 
-    u32* ids = LoadModelAsDrawables("maps/e1m1.bsp");
+    u32* ids = LoadModelAsDrawables("maps/start.bsp");
     pim_free(ids);
 
     LightmapRepack();

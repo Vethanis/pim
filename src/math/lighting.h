@@ -86,7 +86,6 @@ float4 VEC_CALL DirectBRDF(
     float metallic);     // perceptual metalness
 
 float4 VEC_CALL IndirectBRDF(
-    BrdfLut lut,
     float4 V,           // unit view vector pointing from surface to eye
     float4 N,           // unit normal vector pointing outward from surface
     float4 diffuseGI,   // low frequency scene irradiance

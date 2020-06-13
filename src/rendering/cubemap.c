@@ -381,6 +381,7 @@ static float4 VEC_CALL PrefilterEnvMap(
     const Cubemap* cm,
     float3x3 TBN,
     float4 N,
+    float2 offset,
     u32 sampleCount,
     float roughness)
 {
@@ -392,8 +393,10 @@ static float4 VEC_CALL PrefilterEnvMap(
     prng_t rng = prng_get();
     for (u32 i = 0; i < sampleCount; ++i)
     {
-        //float2 Xi = Hammersley2D(i, sampleCount);
-        float2 Xi = f2_rand(&rng);
+        float2 Xi = Hammersley2D(i, sampleCount);
+        Xi.x = fmodf(Xi.x + offset.x, 1.0f);
+        Xi.y = fmodf(Xi.y + offset.y, 1.0f);
+
         float4 H = TbnToWorld(TBN, SampleGGXMicrofacet(Xi, roughness));
         float4 L = f4_normalize3(f4_reflect3(I, H));
         float NoL = f4_dot3(L, N);
@@ -421,6 +424,7 @@ typedef struct prefilter_s
     i32 size;
     u32 sampleCount;
     float weight;
+    float2 offset;
 } prefilter_t;
 
 pim_optimize
@@ -431,6 +435,7 @@ static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
 
     const u32 sampleCount = task->sampleCount;
     const float weight = task->weight;
+    const float2 offset = task->offset;
     const i32 size = task->size;
     const i32 mip = task->mip;
     const i32 len = size * size;
@@ -446,7 +451,7 @@ static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
         float4 N = Cubemap_CalcDir(size, face, coord, f2_0);
         float3x3 TBN = NormalToTBN(N);
 
-        float4 light = PrefilterEnvMap(cm, TBN, N, sampleCount, roughness);
+        float4 light = PrefilterEnvMap(cm, TBN, N, offset, sampleCount, roughness);
         Cubemap_BlendMip(cm, face, coord, mip, light, weight);
     }
 }
@@ -464,6 +469,10 @@ void Cubemap_Convolve(
     const i32 mipCount = cm->mipCount;
     const i32 size = cm->size;
 
+    prng_t rng = prng_get();
+    float2 offset = f2_rand(&rng);
+    prng_set(rng);
+
     task_t** tasks = tmp_calloc(sizeof(tasks[0]) * mipCount);
     for (i32 m = 0; m < mipCount; ++m)
     {
@@ -478,6 +487,7 @@ void Cubemap_Convolve(
             task->size = mSize;
             task->sampleCount = sampleCount;
             task->weight = weight;
+            task->offset = offset;
             tasks[m] = (task_t*)task;
             task_submit((task_t*)task, PrefilterFn, len);
         }
