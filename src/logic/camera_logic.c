@@ -98,7 +98,7 @@ void camera_logic_update(void)
         return;
     }
 
-    const float dt = f1_clamp((float)time_dtf(), 0.0f, 1.0f / 15.0f);
+    const float dt = f1_clamp((float)time_dtf(), 0.0f, 1.0f / 5.0f);
     float moveScale = ms_moveScale * dt;
     float pitchScale = f1_radians(ms_pitchScale * dt);
     float yawScale = f1_radians(ms_yawScale * dt);

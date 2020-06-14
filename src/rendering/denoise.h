@@ -21,4 +21,6 @@ bool Denoise(
     const float3* normal,
     float3* output);
 
+void Denoise_Evict(void);
+
 PIM_C_END

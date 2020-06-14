@@ -140,84 +140,113 @@ pim_inline float2 VEC_CALL f2_neg(float2 v)
     return vec;
 }
 
-pim_inline float2 VEC_CALL f2_eq(float2 lhs, float2 rhs)
+pim_inline bool2 VEC_CALL f2_eq(float2 lhs, float2 rhs)
 {
-    float2 vec =
+    bool2 vec =
     {
-        lhs.x == rhs.x ? 1.0f : 0.0f,
-        lhs.y == rhs.y ? 1.0f : 0.0f,
+        lhs.x == rhs.x,
+        lhs.y == rhs.y,
     };
     return vec;
 }
 
-pim_inline float2 VEC_CALL f2_neq(float2 lhs, float2 rhs)
+pim_inline bool2 VEC_CALL f2_neq(float2 lhs, float2 rhs)
 {
-    float2 vec =
+    bool2 vec =
     {
-        lhs.x != rhs.x ? 1.0f : 0.0f,
-        lhs.y != rhs.y ? 1.0f : 0.0f,
+        lhs.x != rhs.x,
+        lhs.y != rhs.y,
     };
     return vec;
 }
 
-pim_inline float2 VEC_CALL f2_lt(float2 lhs, float2 rhs)
+pim_inline bool2 VEC_CALL f2_lt(float2 lhs, float2 rhs)
 {
-    float2 vec =
+    bool2 vec =
     {
-        lhs.x < rhs.x ? 1.0f : 0.0f,
-        lhs.y < rhs.y ? 1.0f : 0.0f,
+        lhs.x < rhs.x,
+        lhs.y < rhs.y,
     };
     return vec;
 }
 
-pim_inline float2 VEC_CALL f2_gt(float2 lhs, float2 rhs)
+pim_inline bool2 VEC_CALL f2_gt(float2 lhs, float2 rhs)
 {
-    float2 vec =
+    bool2 vec =
     {
-        lhs.x > rhs.x ? 1.0f : 0.0f,
-        lhs.y > rhs.y ? 1.0f : 0.0f,
+        lhs.x > rhs.x,
+        lhs.y > rhs.y,
     };
     return vec;
 }
 
-pim_inline float2 VEC_CALL f2_lteq(float2 lhs, float2 rhs)
+pim_inline bool2 VEC_CALL f2_lteq(float2 lhs, float2 rhs)
 {
-    float2 vec =
+    bool2 vec =
     {
-        lhs.x <= rhs.x ? 1.0f : 0.0f,
-        lhs.y <= rhs.y ? 1.0f : 0.0f,
+        lhs.x <= rhs.x,
+        lhs.y <= rhs.y,
     };
     return vec;
 }
 
-pim_inline float2 VEC_CALL f2_gteq(float2 lhs, float2 rhs)
+pim_inline bool2 VEC_CALL f2_gteq(float2 lhs, float2 rhs)
 {
-    float2 vec =
+    bool2 vec =
     {
-        lhs.x >= rhs.x ? 1.0f : 0.0f,
-        lhs.y >= rhs.y ? 1.0f : 0.0f,
+        lhs.x >= rhs.x,
+        lhs.y >= rhs.y,
     };
     return vec;
+}
+
+pim_inline bool2 VEC_CALL b2_not(bool2 b)
+{
+    bool2 y = { ~b.x, ~b.y };
+    return y;
+}
+
+pim_inline bool2 VEC_CALL b2_and(bool2 lhs, bool2 rhs)
+{
+    bool2 vec = { lhs.x & rhs.x, lhs.y & rhs.y };
+    return vec;
+}
+
+pim_inline bool2 VEC_CALL b2_or(bool2 lhs, bool2 rhs)
+{
+    bool2 vec = { lhs.x | rhs.x, lhs.y | rhs.y };
+    return vec;
+}
+
+pim_inline bool2 VEC_CALL b2_xor(bool2 lhs, bool2 rhs)
+{
+    bool2 vec = { lhs.x ^ rhs.x, lhs.y ^ rhs.y };
+    return vec;
+}
+
+pim_inline bool2 VEC_CALL b2_nand(bool2 lhs, bool2 rhs)
+{
+    return b2_not(b2_and(lhs, rhs));
+}
+
+pim_inline bool2 VEC_CALL b2_nor(bool2 lhs, bool2 rhs)
+{
+    return b2_not(b2_or(lhs, rhs));
+}
+
+pim_inline bool VEC_CALL b2_any(bool2 b)
+{
+    return b.x | b.y;
+}
+
+pim_inline bool VEC_CALL b2_all(bool2 b)
+{
+    return b.x & b.y;
 }
 
 pim_inline float VEC_CALL f2_sum(float2 v)
 {
     return v.x + v.y;
-}
-
-pim_inline bool VEC_CALL f2_any(float2 b)
-{
-    return f2_sum(b) != 0.0f;
-}
-
-pim_inline bool VEC_CALL f2_all(float2 b)
-{
-    return f2_sum(b) == 2.0f;
-}
-
-pim_inline float2 VEC_CALL f2_not(float2 b)
-{
-    return f2_sub(f2_1, b);
 }
 
 pim_inline float2 VEC_CALL f2_rcp(float2 v)
@@ -258,12 +287,12 @@ pim_inline float2 VEC_CALL f2_max(float2 a, float2 b)
     return vec;
 }
 
-pim_inline float2 VEC_CALL f2_select(float2 a, float2 b, float2 t)
+pim_inline float2 VEC_CALL f2_select(float2 a, float2 b, bool2 t)
 {
     float2 c =
     {
-        t.x != 0.0f ? b.x : a.x,
-        t.y != 0.0f ? b.y : a.y,
+        t.x ? b.x : a.x,
+        t.y ? b.y : a.y,
     };
     return c;
 }

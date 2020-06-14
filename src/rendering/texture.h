@@ -7,30 +7,30 @@ PIM_C_BEGIN
 
 typedef struct texture_s
 {
-    u64 version;
     int2 size;
     u32* pim_noalias texels;
 } texture_t;
-static const u32 texture_t_hash = 2393313439u;
 
 typedef struct textureid_s
 {
-    u64 version;
-    void* handle;
+    i32 index;
+    i32 version;
 } textureid_t;
-static const u32 textureid_t_hash = 3843543442u;
 
 textureid_t texture_load(const char* path);
-textureid_t texture_create(texture_t* src);
-bool texture_destroy(textureid_t id);
-bool texture_current(textureid_t id);
-bool texture_get(textureid_t id, texture_t* dst);
+textureid_t texture_new(int2 size, u32* texels, const char* name);
 
-bool texture_register(const char* name, textureid_t id);
+bool texture_exists(textureid_t id);
+
+void texture_retain(textureid_t id);
+void texture_release(textureid_t id);
+
+bool texture_get(textureid_t id, texture_t* dst);
+bool texture_set(textureid_t id, int2 size, u32* texels);
+
 textureid_t texture_lookup(const char* name);
 
-textureid_t texture_unpalette(const u8* bytes, int2 size);
-
-textureid_t texture_lumtonormal(textureid_t src, float scale);
+textureid_t texture_unpalette(const u8* bytes, int2 size, const char* name);
+textureid_t texture_lumtonormal(textureid_t src, float scale, const char* name);
 
 PIM_C_END

@@ -30,6 +30,7 @@
     <ClCompile Include="..\src\common\time.c" />
     <ClCompile Include="..\src\containers\dict.c" />
     <ClCompile Include="..\src\containers\graph.c" />
+    <ClCompile Include="..\src\containers\table.c" />
     <ClCompile Include="..\src\containers\hash_set.c" />
     <ClCompile Include="..\src\containers\idset.c" />
     <ClCompile Include="..\src\containers\idtable.c" />
@@ -65,6 +66,7 @@
     <ClCompile Include="..\src\rendering\denoise.c" />
     <ClCompile Include="..\src\rendering\drawable.c" />
     <ClCompile Include="..\src\rendering\fragment_stage.c" />
+    <ClCompile Include="..\src\rendering\librtc.c" />
     <ClCompile Include="..\src\rendering\lightmap.c" />
     <ClCompile Include="..\src\rendering\lights.c" />
     <ClCompile Include="..\src\rendering\material.c" />
@@ -150,6 +152,7 @@
     <ClInclude Include="..\src\common\valist.h" />
     <ClInclude Include="..\src\containers\carray.h" />
     <ClInclude Include="..\src\containers\carray.c" />
+    <ClInclude Include="..\src\containers\table.h" />
     <ClInclude Include="..\src\containers\idtable.h" />
     <ClInclude Include="..\src\containers\int_queue.h" />
     <ClInclude Include="..\src\containers\graph.h" />
@@ -205,6 +208,7 @@
     <ClInclude Include="..\src\rendering\fragment_stage.h" />
     <ClInclude Include="..\src\rendering\constants.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />
+    <ClInclude Include="..\src\rendering\librtc.h" />
     <ClInclude Include="..\src\rendering\lightmap.h" />
     <ClInclude Include="..\src\rendering\model.h" />
     <ClInclude Include="..\src\rendering\lights.h" />
@@ -239,6 +243,16 @@
     <ClInclude Include="..\src\ui\imstb_textedit.h" />
     <ClInclude Include="..\src\ui\imstb_truetype.h" />
     <ClInclude Include="..\src\ui\ui.h" />
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore.h" />
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_buffer.h" />
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_builder.h" />
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_common.h" />
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_config.h" />
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_device.h" />
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_geometry.h" />
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_quaternion.h" />
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_ray.h" />
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_scene.h" />
     <ClInclude Include="..\submodules\glad\glad.h" />
     <ClInclude Include="..\submodules\glfw\include\GLFW\glfw3.h" />
     <ClInclude Include="..\submodules\glfw\include\GLFW\glfw3native.h" />
@@ -249,6 +263,8 @@
     <ClInclude Include="..\submodules\glfw\src\wgl_context.h" />
     <ClInclude Include="..\submodules\glfw\src\win32_joystick.h" />
     <ClInclude Include="..\submodules\glfw\src\win32_platform.h" />
+    <ClInclude Include="..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include\OpenImageDenoise\oidn.h" />
+    <ClInclude Include="..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include\OpenImageDenoise\version.h" />
     <ClInclude Include="..\submodules\tlsf\tlsf.h" />
     <ClInclude Include="..\src\rendering\material.h" />
     <ClInclude Include="..\src\rendering\mesh.h" />
@@ -334,7 +350,7 @@
       <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;VK_USE_PLATFORM_WIN32_KHR;_GLFW_WIN32;_DEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\glad;$(ProjectDir)..\submodules\glfw\include;$(ProjectDir)..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include;$(ProjectDir)..\submodules\stb;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb;$(ProjectDir)..\submodules\glad;$(ProjectDir)..\submodules\glfw\include;$(ProjectDir)..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include;$(ProjectDir)..\submodules\embree\embree-3.10.0.x64.vc14.windows\include;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <CompileAsManaged>false</CompileAsManaged>
@@ -372,7 +388,7 @@
       <WarningLevel>Level3</WarningLevel>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;VK_USE_PLATFORM_WIN32_KHR;_GLFW_WIN32;NDEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\glad;$(ProjectDir)..\submodules\glfw\include;$(ProjectDir)..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include;$(ProjectDir)..\submodules\stb;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb;$(ProjectDir)..\submodules\glad;$(ProjectDir)..\submodules\glfw\include;$(ProjectDir)..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include;$(ProjectDir)..\submodules\embree\embree-3.10.0.x64.vc14.windows\include;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <CompileAsManaged>false</CompileAsManaged>

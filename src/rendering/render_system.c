@@ -64,7 +64,7 @@ static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap genera
 
 static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
 
-static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "8", "lightmap texels per unit" };
+static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "7.5", "lightmap texels per unit" };
 
 // ----------------------------------------------------------------------------
 
@@ -282,28 +282,12 @@ static void Rasterize(void)
     camera_t camera;
     camera_get(&camera);
 
-    task_t* xformTask = drawables_trs();
-    task_sys_schedule();
-
-    task_await(xformTask);
-    task_t* boundsTask = drawables_bounds();
-    task_sys_schedule();
-
-    task_await(boundsTask);
-    task_t* cullTask = drawables_cull(&camera, backBuf);
-    task_sys_schedule();
-
-    task_await(cullTask);
-    task_t* vertexTask = drawables_vertex();
-    task_t* clearTask = ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
-    task_sys_schedule();
-
-    task_await(vertexTask);
-    task_await(clearTask);
-    task_t* fragTask = drawables_fragment(frontBuf, backBuf);
-    task_sys_schedule();
-
-    task_await(fragTask);
+    ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
+    drawables_trs();
+    drawables_bounds();
+    drawables_cull(&camera, backBuf);
+    drawables_vertex();
+    drawables_fragment(frontBuf, backBuf);
 
     ProfileEnd(pm_Rasterize);
 }
@@ -369,13 +353,63 @@ static void Present(void)
 {
     ProfileBegin(pm_Present);
     framebuf_t* frontBuf = GetFrontBuf();
-    task_t* resolveTask = ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
-    task_sys_schedule();
-    task_await(resolveTask);
+    ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
     screenblit_blit(frontBuf->color, frontBuf->width, frontBuf->height);
     TakeScreenshot();
     SwapBuffers();
     ProfileEnd(pm_Present);
+}
+
+static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
+{
+    if (argc != 2)
+    {
+        con_logf(LogSev_Error, "cmd", "mapload <map name>; map name is missing.");
+        return cmdstat_err;
+    }
+    const char* name = argv[1];
+    if (!name)
+    {
+        con_logf(LogSev_Error, "cmd", "mapload <map name>; map name is null.");
+        return cmdstat_err;
+    }
+
+    char mapname[PIM_PATH] = {0};
+    SPrintf(ARGS(mapname), "maps/%s.bsp", name);
+
+    asset_t asset = { 0 };
+    if (!asset_get(mapname, &asset))
+    {
+        con_logf(LogSev_Error, "cmd", "mapload <map name>; could not find map named '%s'.", name);
+        return cmdstat_err;
+    }
+
+    con_logf(LogSev_Info, "cmd", "mapload is clearing drawables.");
+    drawables_clear();
+    pt_scene_del(ms_ptscene);
+    ms_ptscene = NULL;
+
+    con_logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
+
+    u32* ids = LoadModelAsDrawables(mapname);
+    if (ids)
+    {
+        pim_free(ids);
+
+        LightmapRepack();
+
+        if (lights_pt_count() == 0)
+        {
+            lights_add_pt((pt_light_t) { f4_v(0.0f, 0.0f, 0.0f, 1.0f), f4_s(30.0f) });
+        }
+
+        drawables_trs();
+
+        con_logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
+
+        return cmdstat_ok;
+    }
+    return cmdstat_err;
 }
 
 void render_sys_init(void)
@@ -390,6 +424,7 @@ void render_sys_init(void)
     cvar_reg(&cv_r_sw);
     cvar_reg(&cv_lm_density);
     cmd_reg("screenshot", CmdScreenshot);
+    cmd_reg("mapload", CmdLoadMap);
 
     vkr_init();
 
@@ -402,21 +437,7 @@ void render_sys_init(void)
     ms_toneParams = Tonemap_DefParams();
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
 
-    Cubemaps_Add(420, 64, (sphere_t){ 0.0f, 0.0f, 0.0f, 10.0f});
-
-    u32* ids = LoadModelAsDrawables("maps/start.bsp");
-    pim_free(ids);
-
-    LightmapRepack();
-
-    if (lights_pt_count() == 0)
-    {
-        lights_add_pt((pt_light_t) { f4_v(0.0f, 0.0f, 0.0f, 1.0f), f4_s(30.0f) });
-    }
-
-    task_t* compose = drawables_trs();
-    task_sys_schedule();
-    task_await(compose);
+    con_exec("mapload start");
 }
 
 ProfileMark(pm_update, render_sys_update)
@@ -439,6 +460,7 @@ void render_sys_update(void)
         }
     }
     Present();
+    Denoise_Evict();
 
     ProfileEnd(pm_update);
 }
@@ -694,14 +716,18 @@ static meshid_t GenSphereMesh(float r, i32 steps)
 
 static textureid_t GenCheckerTex(void)
 {
-    texture_t* albedo = perm_calloc(sizeof(*albedo));
+    textureid_t id = texture_lookup("checkertex");
+    if (id.version)
+    {
+        texture_retain(id);
+        return id;
+    }
+
     const i32 size = 1 << 8;
-    albedo->size = i2_s(size);
     u32* pim_noalias texels = perm_malloc(sizeof(texels[0]) * size * size);
 
     const float4 a = f4_s(1.0f);
     const float4 b = f4_s(0.01f);
-    prng_t rng = prng_get();
     for (i32 y = 0; y < size; ++y)
     {
         for (i32 x = 0; x < size; ++x)
@@ -714,8 +740,6 @@ static textureid_t GenCheckerTex(void)
             texels[i] = LinearToColor(c);
         }
     }
-    albedo->texels = texels;
-    prng_set(rng);
 
-    return texture_create(albedo);
+    return texture_new(i2_s(size), texels, "checkertex");
 }

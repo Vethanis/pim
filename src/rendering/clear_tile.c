@@ -1,9 +1,6 @@
 #include "rendering/clear_tile.h"
-#include "math/float4_funcs.h"
 #include "rendering/framebuffer.h"
 #include "common/profiler.h"
-#include "rendering/sampler.h"
-#include "rendering/constants.h"
 #include "threading/task.h"
 #include "allocator/allocator.h"
 
@@ -37,8 +34,7 @@ static void ClearFn(task_t* pbase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_ClearTile, ClearTile)
-pim_optimize
-task_t* ClearTile(framebuf_t* target, float4 color, float depth)
+void ClearTile(framebuf_t* target, float4 color, float depth)
 {
     ProfileBegin(pm_ClearTile);
     ASSERT(target);
@@ -47,9 +43,7 @@ task_t* ClearTile(framebuf_t* target, float4 color, float depth)
     task->target = target;
     task->color = color;
     task->depth = depth;
-    task_submit(&task->task, ClearFn, target->width * target->height);
+    task_run(&task->task, ClearFn, target->width * target->height);
 
     ProfileEnd(pm_ClearTile);
-
-    return &task->task;
 }

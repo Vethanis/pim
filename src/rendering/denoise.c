@@ -254,3 +254,26 @@ bool Denoise(
     }
     return true;
 }
+
+void Denoise_Evict(void)
+{
+    if (!EnsureInit())
+    {
+        return;
+    }
+
+    u64 now = time_now();
+    for (i32 i = 0; i < kMaxCachedFilters; ++i)
+    {
+        if (ms_cacheValues[i])
+        {
+            u64 duration = now - ms_cacheTicks[i];
+            if (time_sec(duration) > 5.0)
+            {
+                oidn.oidnReleaseFilter(ms_cacheValues[i]);
+                ms_cacheValues[i] = NULL;
+                memset(ms_cacheKeys + i, 0, sizeof(ms_cacheKeys[0]));
+            }
+        }
+    }
+}

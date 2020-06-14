@@ -52,8 +52,7 @@ static void ResolveTileFn(task_t* task, i32 begin, i32 end)
 }
 
 ProfileMark(pm_ResolveTile, ResolveTile)
-pim_optimize
-struct task_s* ResolveTile(struct framebuf_s* target, TonemapId tonemapper, float4 toneParams)
+void ResolveTile(framebuf_t* target, TonemapId tonemapper, float4 toneParams)
 {
     ProfileBegin(pm_ResolveTile);
 
@@ -62,9 +61,7 @@ struct task_s* ResolveTile(struct framebuf_s* target, TonemapId tonemapper, floa
     task->target = target;
     task->tonemapper = Tonemap_GetFunc(tonemapper);
     task->toneParams = toneParams;
-    task_submit((task_t*)task, ResolveTileFn, kTileCount);
-    task_sys_schedule();
+    task_run(&task->task, ResolveTileFn, kTileCount);
 
     ProfileEnd(pm_ResolveTile);
-    return (task_t*)task;
 }

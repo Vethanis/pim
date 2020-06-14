@@ -95,6 +95,12 @@
     <Filter Include="submodules\glfw">
       <UniqueIdentifier>{f25fabc8-b42f-4178-a964-a09644376f41}</UniqueIdentifier>
     </Filter>
+    <Filter Include="submodules\oidn">
+      <UniqueIdentifier>{6139d478-1b51-480e-843f-481a900aee71}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="submodules\embree">
+      <UniqueIdentifier>{c52b45d7-a05a-4f39-8943-31ea31899e56}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -438,6 +444,12 @@
     </ClCompile>
     <ClCompile Include="..\src\threading\taskcpy.c">
       <Filter>Source Files\threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\librtc.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\table.c">
+      <Filter>Source Files\containers</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -902,6 +914,48 @@
     </ClInclude>
     <ClInclude Include="..\src\threading\taskcpy.h">
       <Filter>Source Files\threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include\OpenImageDenoise\oidn.h">
+      <Filter>submodules\oidn</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include\OpenImageDenoise\version.h">
+      <Filter>submodules\oidn</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore.h">
+      <Filter>submodules\embree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_buffer.h">
+      <Filter>submodules\embree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_builder.h">
+      <Filter>submodules\embree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_common.h">
+      <Filter>submodules\embree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_config.h">
+      <Filter>submodules\embree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_device.h">
+      <Filter>submodules\embree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_geometry.h">
+      <Filter>submodules\embree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_quaternion.h">
+      <Filter>submodules\embree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_ray.h">
+      <Filter>submodules\embree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_scene.h">
+      <Filter>submodules\embree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\librtc.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\table.h">
+      <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -44,7 +44,7 @@ static meshid_t VEC_CALL TransformMesh(frus_t frus, meshid_t local, float4x4 M, 
         float4* pim_noalias normals = tmp_malloc(sizeof(normals[0]) * mesh.length);
         float2* pim_noalias uvs = tmp_malloc(sizeof(uvs[0]) * mesh.length);
 
-        const float4x4 IM = f4x4_inverse(f4x4_transpose(M)); // TODO: use f3x3, faster inverse
+        const float3x3 IM = f3x3_IM(M);
         for (i32 j = 0; (j + 3) <= mesh.length; j += 3)
         {
             float4 A = f4x4_mul_pt(M, mesh.positions[j + 0]);
@@ -62,9 +62,9 @@ static meshid_t VEC_CALL TransformMesh(frus_t frus, meshid_t local, float4x4 M, 
                 positions[b] = B;
                 positions[c] = C;
 
-                normals[a] = f4_normalize3(f4x4_mul_dir(IM, mesh.normals[j + 0]));
-                normals[b] = f4_normalize3(f4x4_mul_dir(IM, mesh.normals[j + 1]));
-                normals[c] = f4_normalize3(f4x4_mul_dir(IM, mesh.normals[j + 2]));
+                normals[a] = f4_normalize3(f3x3_mul_col(IM, mesh.normals[j + 0]));
+                normals[b] = f4_normalize3(f3x3_mul_col(IM, mesh.normals[j + 1]));
+                normals[c] = f4_normalize3(f3x3_mul_col(IM, mesh.normals[j + 2]));
 
                 uvs[a] = TransformUv(mesh.uvs[j + 0], ST);
                 uvs[b] = TransformUv(mesh.uvs[j + 1], ST);
@@ -128,7 +128,7 @@ static void VertexFn(task_t* pBase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_Vertex, drawables_vertex)
-task_t* drawables_vertex(void)
+void drawables_vertex(void)
 {
     ProfileBegin(pm_Vertex);
 
@@ -136,8 +136,7 @@ task_t* drawables_vertex(void)
     camera_t camera;
     camera_get(&camera);
     camera_frustum(&camera, &(task->frus));
-    task_submit((task_t*)task, VertexFn, drawables_get()->count);
+    task_run(&task->task, VertexFn, drawables_get()->count);
 
     ProfileEnd(pm_Vertex);
-    return (task_t*)task;
 }

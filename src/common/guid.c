@@ -16,33 +16,36 @@ i32 guid_find(const guid_t* ptr, i32 count, guid_t key)
     return -1;
 }
 
-guid_t StrToGuid(const char* str, u64 seed)
+guid_t guid_str(const char* str, u64 seed)
 {
-    ASSERT(str);
-    u64 a = Fnv64String(str, seed);
-    a = a ? a : 1;
-    u64 b = Fnv64String(str, a);
-    b = b ? b : 1;
-    return (guid_t) { a, b };
+    if (str)
+    {
+        u64 a = Fnv64String(str, seed);
+        a = a ? a : 1;
+        u64 b = Fnv64String(str, a);
+        b = b ? b : 1;
+        return (guid_t) { a, b };
+    }
+    return (guid_t) { 0 };
 }
 
-guid_t BytesToGuid(const void* ptr, i32 nBytes, u64 seed)
+guid_t guid_bytes(const void* ptr, i32 nBytes, u64 seed)
 {
-    ASSERT(ptr);
-    ASSERT(nBytes >= 0);
-    u64 a = Fnv64Bytes(ptr, nBytes, seed);
-    a = a ? a : 1;
-    u64 b = Fnv64Bytes(ptr, nBytes, a);
-    b = b ? b : 1;
-    return (guid_t) { a, b };
+    if (ptr && nBytes > 0)
+    {
+        u64 a = Fnv64Bytes(ptr, nBytes, seed);
+        a = a ? a : 1;
+        u64 b = Fnv64Bytes(ptr, nBytes, a);
+        b = b ? b : 1;
+        return (guid_t) { a, b };
+    }
+    return (guid_t) { 0 };
 }
 
-guid_t RandGuid(struct prng_s* rng)
+guid_t guid_rand(prng_t* rng)
 {
-    u64 a = prng_u32(rng);
-    a = (a << 32) | prng_u32(rng);
-    u64 b = prng_u32(rng);
-    b = (b << 32) | prng_u32(rng);
+    u64 a = prng_u64(rng);
+    u64 b = prng_u64(rng);
     a = a ? a : 1;
     b = b ? b : 1;
     return (guid_t) { a, b };

@@ -4,6 +4,27 @@
 
 PIM_C_BEGIN
 
+typedef pim_alignas(8) struct bool2_s
+{
+    i32 x;
+    i32 y;
+} bool2;
+
+typedef struct bool3_s
+{
+    i32 x;
+    i32 y;
+    i32 z;
+} bool3;
+
+typedef pim_alignas(16) struct bool4_s
+{
+    i32 x;
+    i32 y;
+    i32 z;
+    i32 w;
+} bool4;
+
 typedef pim_alignas(8) struct float2_s
 {
     float x;
@@ -45,14 +66,6 @@ typedef pim_alignas(16) struct int4_s
     i32 z;
     i32 w;
 } int4;
-
-typedef pim_alignas(16) struct bool4_s
-{
-    i32 x;
-    i32 y;
-    i32 z;
-    i32 w;
-} bool4;
 
 typedef struct quat_s
 {

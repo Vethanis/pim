@@ -55,6 +55,12 @@ pim_inline float4 VEC_CALL f3_f4(float3 v, float w)
     return f4;
 }
 
+pim_inline float2 VEC_CALL f3_f2(float3 v)
+{
+    float2 f2 = { v.x, v.y };
+    return f2;
+}
+
 pim_inline float3 VEC_CALL f3_neg(float3 v)
 {
     float3 vec = { -v.x, -v.y, -v.z };
@@ -336,7 +342,7 @@ pim_inline float VEC_CALL f3_length(float3 x)
 
 pim_inline float3 VEC_CALL f3_normalize(float3 x)
 {
-    return f3_mulvs(x, 1.0f / f3_length(x));
+    return f3_mulvs(x, 1.0f / f1_max(f32_eps, f3_length(x)));
 }
 
 pim_inline float VEC_CALL f3_distance(float3 a, float3 b)

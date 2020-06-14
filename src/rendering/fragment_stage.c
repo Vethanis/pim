@@ -28,8 +28,9 @@
 #include "rendering/drawable.h"
 #include "rendering/lightmap.h"
 
-static cvar_t cv_gi_dbg_diff = { cvart_bool, 0, "gi_dbg_diff", "0", "view ambient cube with normal vector" };
-static cvar_t cv_gi_dbg_spec = { cvart_bool, 0, "gi_dbg_spec", "0", "view cubemap with reflect vector" };
+static cvar_t cv_gi_dbg_diff = { cvart_bool, 0, "gi_dbg_diff", "0", "view lightmap diffuse" };
+static cvar_t cv_gi_dbg_spec = { cvart_bool, 0, "gi_dbg_spec", "0", "view lightmap specular" };
+static cvar_t cv_gi_dbg_norm = { cvart_bool, 0, "gi_dbg_norm", "0", "view lightmap normal" };
 static cvar_t cv_r_uv = { cvart_bool, 0, "r_uv", "0", "view texture uvs" };
 static cvar_t cv_r_lm_denoised = { cvart_bool, 0, "r_lm_denoised", "0", "render denoised lightmaps" };
 
@@ -109,13 +110,14 @@ static void EnsureInit(void)
         ms_once = true;
         cvar_reg(&cv_gi_dbg_diff);
         cvar_reg(&cv_gi_dbg_spec);
+        cvar_reg(&cv_gi_dbg_norm);
         cvar_reg(&cv_r_uv);
         cvar_reg(&cv_r_lm_denoised);
     }
 }
 
 ProfileMark(pm_FragmentStage, drawables_fragment)
-task_t* drawables_fragment(
+void drawables_fragment(
     framebuf_t* frontBuf,
     const framebuf_t* backBuf)
 {
@@ -128,10 +130,9 @@ task_t* drawables_fragment(
     fragstage_t* task = tmp_calloc(sizeof(*task));
     task->frontBuf = frontBuf;
     task->backBuf = backBuf;
-    task_submit((task_t*)task, FragmentStageFn, kTileCount);
+    task_run(&task->task, FragmentStageFn, kTileCount);
 
     ProfileEnd(pm_FragmentStage);
-    return (task_t*)task;
 }
 
 pim_optimize
@@ -212,10 +213,11 @@ static void VEC_CALL DrawMesh(
         return;
     }
 
-    const bool dbgdiffGI = cv_gi_dbg_diff.asFloat != 0.0f;
+    const bool dbgnormGI = cv_gi_dbg_norm.asFloat != 0.0f;
+    const bool dbgdiffGI = (cv_gi_dbg_diff.asFloat != 0.0f) || dbgnormGI;
     const bool dbgspecGI = cv_gi_dbg_spec.asFloat != 0.0f;
     const bool dbgUv = cv_r_uv.asFloat != 0.0f;
-    const bool denoisedLM = cv_r_lm_denoised.asFloat != 0.0f;
+    const bool denoisedLM = (cv_r_lm_denoised.asFloat != 0.0f) && !dbgnormGI;
 
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
@@ -355,7 +357,15 @@ static void VEC_CALL DrawMesh(
                             const float3 lmUv3 = f3_blend(lmUvs[iVert + 0], lmUvs[iVert + 1], lmUvs[iVert + 2], wuvt);
                             const float2 lmUv = { lmUv3.x, lmUv3.y };
                             const lightmap_t lmap = lmpack->lightmaps[lmIndex];
-                            const float3* pim_noalias lmBuffer = denoisedLM ? lmap.denoised : lmap.color;
+                            const float3* pim_noalias lmBuffer = lmap.color;
+                            if (denoisedLM)
+                            {
+                                lmBuffer = lmap.denoised;
+                            }
+                            else if (dbgnormGI)
+                            {
+                                lmBuffer = lmap.normal;
+                            }
                             float3 denoised = UvBilinearClamp_f3(lmBuffer, i2_s(lmap.size), lmUv);
                             diffuseGI = f3_f4(denoised, 1.0f);
                         }

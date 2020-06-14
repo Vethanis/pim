@@ -44,18 +44,24 @@ i32 drawables_add(u32 name)
     return back;
 }
 
-bool drawables_rm(u32 name)
+static void DestroyAtIndex(i32 i)
 {
-    const i32 i = drawables_find(name);
-    if (i == -1)
-    {
-        return false;
-    }
+    ASSERT(i >= 0);
+    ASSERT(i < ms_drawables.count);
+    mesh_destroy(ms_drawables.meshes[i]);
+    material_t material = ms_drawables.materials[i];
+    texture_release(material.albedo);
+    texture_release(material.rome);
+    texture_release(material.normal);
+}
+
+static void RemoveAtIndex(i32 i)
+{
+    DestroyAtIndex(i);
 
     const i32 len = ms_drawables.count;
-    ASSERT(len > 0);
-    ASSERT(i < len);
     ms_drawables.count = len - 1;
+    ASSERT(len > 0);
 
     PopSwap(ms_drawables.names, i, len);
     PopSwap(ms_drawables.meshes, i, len);
@@ -67,13 +73,32 @@ bool drawables_rm(u32 name)
     PopSwap(ms_drawables.translations, i, len);
     PopSwap(ms_drawables.rotations, i, len);
     PopSwap(ms_drawables.scales, i, len);
+}
 
+bool drawables_rm(u32 name)
+{
+    const i32 i = drawables_find(name);
+    if (i == -1)
+    {
+        return false;
+    }
+    RemoveAtIndex(i);
     return true;
 }
 
 i32 drawables_find(u32 name)
 {
     return Find_u32(ms_drawables.names, ms_drawables.count, name);
+}
+
+void drawables_clear(void)
+{
+    i32 len = ms_drawables.count;
+    for (i32 i = 0; i < len; ++i)
+    {
+        DestroyAtIndex(i);
+    }
+    ms_drawables.count = 0;
 }
 
 typedef struct trstask_s
@@ -96,15 +121,14 @@ static void TRSFn(task_t* pBase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_TRS, drawables_trs)
-task_t* drawables_trs(void)
+void drawables_trs(void)
 {
     ProfileBegin(pm_TRS);
 
     trstask_t* task = tmp_calloc(sizeof(*task));
-    task_submit((task_t*)task, TRSFn, ms_drawables.count);
+    task_run(&task->task, TRSFn, ms_drawables.count);
 
     ProfileEnd(pm_TRS);
-    return (task_t*)task;
 }
 
 typedef struct boundstask_s
@@ -136,15 +160,14 @@ static void BoundsFn(task_t* pBase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_Bounds, drawables_bounds)
-task_t* drawables_bounds(void)
+void drawables_bounds(void)
 {
     ProfileBegin(pm_Bounds);
 
     boundstask_t* task = tmp_calloc(sizeof(*task));
-    task_submit((task_t*)task, BoundsFn, ms_drawables.count);
+    task_run(&task->task, BoundsFn, ms_drawables.count);
 
     ProfileEnd(pm_Bounds);
-    return (task_t*)task;
 }
 
 typedef struct culltask_s
@@ -242,7 +265,7 @@ static void CullFn(task_t* pBase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_Cull, drawables_cull)
-task_t* drawables_cull(
+void drawables_cull(
     const camera_t* camera,
     const framebuf_t* backBuf)
 {
@@ -264,8 +287,7 @@ task_t* drawables_cull(
     task->fwdPlane.value = fwd;
     task->eye = camera->position;
 
-    task_submit((task_t*)task, CullFn, ms_drawables.count);
+    task_run(&task->task, CullFn, ms_drawables.count);
 
     ProfileEnd(pm_Cull);
-    return (task_t*)task;
 }

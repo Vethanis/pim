@@ -1,116 +1,30 @@
 #include "rendering/texture.h"
 #include "allocator/allocator.h"
-#include "common/atomics.h"
-#include "containers/sdict.h"
+#include "containers/table.h"
 #include "math/color.h"
 #include "math/blending.h"
 #include "rendering/sampler.h"
 #include "assets/asset_system.h"
 #include "quake/q_bspfile.h"
 #include "stb/stb_image.h"
+#include <string.h>
 
-static u64 ms_version;
-static sdict_t ms_dict;
+static bool ms_once;
+static table_t ms_table;
+
+static u8 ms_palette[256 * 3];
 
 static void EnsureInit(void)
 {
-    if (!ms_dict.valueSize)
+    if (!ms_once)
     {
-        sdict_new(&ms_dict, sizeof(textureid_t), EAlloc_Perm);
-    }
-}
+        ms_once = true;
 
-textureid_t texture_load(const char* path)
-{
-    i32 width = 0;
-    i32 height = 0;
-    i32 channels = 0;
-    u8* texels = stbi_load(path, &width, &height, &channels, 4);
-    if (texels)
-    {
-        texture_t* tex = perm_calloc(sizeof(*tex));
-        tex->size = (int2) { width, height };
-        tex->texels = (u32*)texels;
-        return texture_create(tex);
-    }
-    return (textureid_t) { 0 };
-}
+        table_new(&ms_table, sizeof(texture_t));
 
-textureid_t texture_create(texture_t* tex)
-{
-    ASSERT(tex);
-    ASSERT(tex->version == 0);
-    ASSERT(tex->size.x > 0);
-    ASSERT(tex->size.y > 0);
-    ASSERT(tex->texels);
-
-    const u64 version = 1099511628211ull + fetch_add_u64(&ms_version, 3, MO_Relaxed);
-
-    tex->version = version;
-    textureid_t id = { version, tex };
-
-    return id;
-}
-
-bool texture_destroy(textureid_t id)
-{
-    u64 version = id.version;
-    texture_t* tex = id.handle;
-    if (tex && cmpex_u64(&(tex->version), &version, version + 1, MO_Release))
-    {
-        tex->size = (int2) { 0 };
-        pim_free(tex->texels);
-        tex->texels = NULL;
-        pim_free(tex);
-        return true;
-    }
-    return false;
-}
-
-bool texture_current(textureid_t id)
-{
-    texture_t* tex = id.handle;
-    return (tex != NULL) && (id.version == load_u64(&(tex->version), MO_Relaxed));
-}
-
-bool texture_get(textureid_t id, texture_t* dst)
-{
-    ASSERT(dst);
-    if (texture_current(id))
-    {
-        *dst = *(texture_t*)id.handle;
-        return true;
-    }
-    return false;
-}
-
-bool texture_register(const char* name, textureid_t value)
-{
-    EnsureInit();
-
-    ASSERT(value.handle);
-    return sdict_add(&ms_dict, name, &value);
-}
-
-textureid_t texture_lookup(const char* name)
-{
-    EnsureInit();
-
-    textureid_t value = { 0 };
-    sdict_get(&ms_dict, name, &value);
-    return value;
-}
-
-static bool ms_paletteLoaded;
-static u8 ms_palette[256 * 3];
-static void EnsurePalette(void)
-{
-    if (!ms_paletteLoaded)
-    {
         asset_t asset = { 0 };
         if (asset_get("gfx/palette.lmp", &asset))
         {
-            ms_paletteLoaded = true;
             const u8* palette = (const u8*)asset.pData;
             ASSERT(asset.length == sizeof(ms_palette));
             memcpy(ms_palette, palette, sizeof(ms_palette));
@@ -118,10 +32,120 @@ static void EnsurePalette(void)
     }
 }
 
-// https://quakewiki.org/wiki/Quake_palette
-textureid_t texture_unpalette(const u8* bytes, int2 size)
+static genid ToGenId(textureid_t id)
 {
-    EnsurePalette();
+    return (genid) { .index = id.index, .version = id.version };
+}
+
+static textureid_t ToTexId(genid id)
+{
+    return (textureid_t) { .index = id.index, .version = id.version };
+}
+
+static bool IsCurrent(textureid_t id)
+{
+    return table_exists(&ms_table, ToGenId(id));
+}
+
+static void FreeTexture(texture_t* tex)
+{
+    ASSERT(tex);
+    pim_free(tex->texels);
+    memset(tex, 0, sizeof(*tex));
+}
+
+textureid_t texture_load(const char* path)
+{
+    EnsureInit();
+
+    i32 width = 0;
+    i32 height = 0;
+    i32 channels = 0;
+    u8* texels = stbi_load(path, &width, &height, &channels, 4);
+    if (texels)
+    {
+        int2 size = { width, height };
+        return texture_new(size, (u32*)texels, path);
+    }
+    return (textureid_t) { 0 };
+}
+
+textureid_t texture_new(int2 size, u32* texels, const char* name)
+{
+    EnsureInit();
+
+    ASSERT(size.x > 0);
+    ASSERT(size.y > 0);
+    ASSERT(texels);
+
+    genid id = { 0 };
+    if (texels)
+    {
+        texture_t tex = { .size = size,.texels = texels };
+        bool added = table_add(&ms_table, name, &tex, &id);
+        ASSERT(added);
+    }
+    return ToTexId(id);
+}
+
+bool texture_exists(textureid_t id)
+{
+    EnsureInit();
+    return IsCurrent(id);
+}
+
+void texture_retain(textureid_t id)
+{
+    EnsureInit();
+    table_retain(&ms_table, ToGenId(id));
+}
+
+void texture_release(textureid_t id)
+{
+    EnsureInit();
+
+    texture_t tex = {0};
+    if (table_release(&ms_table, ToGenId(id), &tex))
+    {
+        pim_free(tex.texels);
+    }
+}
+
+bool texture_get(textureid_t id, texture_t* dst)
+{
+    EnsureInit();
+    return table_get(&ms_table, ToGenId(id), dst);
+}
+
+bool texture_set(textureid_t id, int2 size, u32* texels)
+{
+    EnsureInit();
+    if (IsCurrent(id))
+    {
+        texture_t* texture = ms_table.values;
+        texture += id.index;
+        pim_free(texture->texels);
+        texture->texels = texels;
+        texture->size = size;
+        return true;
+    }
+    return false;
+}
+
+textureid_t texture_lookup(const char* name)
+{
+    EnsureInit();
+    return ToTexId(table_lookup(&ms_table, name));
+}
+
+// https://quakewiki.org/wiki/Quake_palette
+textureid_t texture_unpalette(const u8* bytes, int2 size, const char* name)
+{
+    textureid_t id = texture_lookup(name);
+    if (id.version)
+    {
+        return id;
+    }
 
     u32* texels = perm_malloc(size.x * size.y * sizeof(texels[0]));
     for (i32 y = 0; y < size.y; ++y)
@@ -140,10 +164,7 @@ textureid_t texture_unpalette(const u8* bytes, int2 size)
         }
     }
 
-    texture_t* tex = perm_calloc(sizeof(*tex));
-    tex->size = size;
-    tex->texels = texels;
-    return texture_create(tex);
+    return texture_new(size, texels, name);
 }
 
 pim_inline float VEC_CALL SampleLuma(texture_t tex, int2 c)
@@ -151,8 +172,14 @@ pim_inline float VEC_CALL SampleLuma(texture_t tex, int2 c)
     return f4_avglum(Wrap_c32(tex.texels, tex.size, c));
 }
 
-textureid_t texture_lumtonormal(textureid_t src, float scale)
+textureid_t texture_lumtonormal(textureid_t src, float scale, const char* name)
 {
+    textureid_t id = texture_lookup(name);
+    if (id.version)
+    {
+        return id;
+    }
+
     const float rcpScale = 1.0f / f1_max(scale, f16_eps);
     texture_t tex = { 0 };
     if (texture_get(src, &tex))
@@ -178,10 +205,7 @@ textureid_t texture_lumtonormal(textureid_t src, float scale)
                 texels[i] = n;
             }
         }
-        texture_t* tex = perm_calloc(sizeof(*tex));
-        tex->size = size;
-        tex->texels = texels;
-        return texture_create(tex);
+        return texture_new(size, texels, name);
     }
     return (textureid_t) { 0 };
 }

@@ -333,14 +333,14 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         char albedoName[PIM_PATH];
         SPrintf(ARGS(albedoName), "%s_alb", mtex->name);
         char normalName[PIM_PATH];
-        SPrintf(ARGS(normalName), "%s_norm", albedoName);
+        SPrintf(ARGS(normalName), "%s_norm", mtex->name);
 
         float roughness = 0.5f;
         float occlusion = 1.0f;
         float metallic = 0.0f;
         float emission = 0.0f;
 
-        i32 iPreset = FindPreset(albedoName);
+        i32 iPreset = FindPreset(mtex->name);
         if (iPreset != -1)
         {
             roughness = ms_matPresets[iPreset].roughness;
@@ -355,26 +355,10 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         }
 
         material_t material = { 0 };
-
         material.flatAlbedo = LinearToColor(f4_1); // IntToColor(i, surfCount));
         material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
-
-        textureid_t albedo = texture_lookup(albedoName);
-        if (!albedo.handle)
-        {
-            albedo = texture_unpalette(mip0, size);
-            texture_register(albedoName, albedo);
-        }
-        material.albedo = albedo;
-
-        textureid_t normal = texture_lookup(normalName);
-        if (!normal.handle)
-        {
-            normal = texture_lumtonormal(albedo, 2.5f);
-            texture_register(normalName, normal);
-        }
-        material.normal = normal;
-
+        material.albedo = texture_unpalette(mip0, size, albedoName);
+        material.normal = texture_lumtonormal(material.albedo, 2.5f, normalName);
         materials[i] = material;
     }
 

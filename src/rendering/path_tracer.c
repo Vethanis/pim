@@ -216,7 +216,7 @@ pt_scene_t* pt_scene_new(i32 maxDepth)
                 matCount += 1;
 
                 const float4x4 M = matrices[i];
-                const float4x4 IM = f4x4_inverse(f4x4_transpose(M));
+                const float3x3 IM = f3x3_IM(M);
                 const material_t material = materials[i];
 
                 PermReserve(positions, vertCount);
@@ -235,7 +235,7 @@ pt_scene_t* pt_scene_new(i32 maxDepth)
 
                 for (i32 j = 0; j < mesh.length; ++j)
                 {
-                    normals[vertBack + j] = f4x4_mul_dir(IM, mesh.normals[j]);
+                    normals[vertBack + j] = f4_normalize3(f3x3_mul_col(IM, mesh.normals[j]));
                 }
 
                 for (i32 j = 0; j < mesh.length; ++j)

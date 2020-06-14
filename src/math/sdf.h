@@ -130,14 +130,18 @@ pim_inline float VEC_CALL sdTriangle2D(
     float2 pb = f2_sub(p, b);
     float2 pc = f2_sub(p, c);
 
-    float2 pq0 = f2_sub(pa, f2_mulvs(ba, f1_saturate(f2_dot(pa, ba) / f2_lengthsq(ba))));
-    float2 pq1 = f2_sub(pb, f2_mulvs(cb, f1_saturate(f2_dot(pb, cb) / f2_lengthsq(cb))));
-    float2 pq2 = f2_sub(pc, f2_mulvs(ac, f1_saturate(f2_dot(pc, ac) / f2_lengthsq(ac))));
+    float h0 = f1_saturate(f2_dot(pa, ba) / f2_dot(ba, ba));
+    float h1 = f1_saturate(f2_dot(pb, cb) / f2_dot(cb, cb));
+    float h2 = f1_saturate(f2_dot(pc, ac) / f2_dot(ac, ac));
+
+    float2 pq0 = f2_sub(pa, f2_mulvs(ba, h0));
+    float2 pq1 = f2_sub(pb, f2_mulvs(cb, h1));
+    float2 pq2 = f2_sub(pc, f2_mulvs(ac, h2));
 
     float s = f1_sign(ba.x * ac.y - ba.y * ac.x);
-    float2 t0 = f2_v(f2_lengthsq(pq0), s * (pa.x * ba.y - pa.y * ba.x));
-    float2 t1 = f2_v(f2_lengthsq(pq1), s * (pb.x * cb.y - pb.y * cb.x));
-    float2 t2 = f2_v(f2_lengthsq(pq2), s * (pc.x * ac.y - pc.y * ac.x));
+    float2 t0 = f2_v(f2_dot(pq0, pq0), s * (pa.x * ba.y - pa.y * ba.x));
+    float2 t1 = f2_v(f2_dot(pq1, pq1), s * (pb.x * cb.y - pb.y * cb.x));
+    float2 t2 = f2_v(f2_dot(pq2, pq2), s * (pc.x * ac.y - pc.y * ac.x));
 
     float2 d = f2_min(t0, f2_min(t1, t2));
 

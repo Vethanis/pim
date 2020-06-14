@@ -41,6 +41,7 @@ static node_t ms_roots[kNumThreads];
 static node_t* ms_top[kNumThreads];
 
 static i32 ms_gui_tid;
+static i32 ms_avgWindow = 20;
 static dict_t ms_node_dict;
 
 // ----------------------------------------------------------------------------
@@ -62,6 +63,8 @@ void profile_gui(bool* pEnabled)
     if (igBegin("Profiler", pEnabled, 0))
     {
         igSliderInt("thread", &ms_gui_tid, 0, kNumThreads - 1, "%d");
+        igSliderInt("avg over # frames", &ms_avgWindow, 1, 120, "%d");
+
         node_t* root = ms_prevroots[ms_gui_tid].fchild;
 
         igSeparator();
@@ -225,7 +228,7 @@ static double UpdateNodeAvgMs(const node_t* node)
     ASSERT(mark);
     if (dict_get(&ms_node_dict, &key, &avgMs))
     {
-        const double alpha = 1.0 / 60.0;
+        double alpha = 1.0 / ms_avgWindow;
         avgMs += (ms - avgMs) * alpha;
         dict_set(&ms_node_dict, &key, &avgMs);
     }
