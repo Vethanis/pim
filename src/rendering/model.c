@@ -96,63 +96,63 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "brick",
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
         "church",
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
         "metal",
-        0.5f,
+        0.75f,
         1.0f,
-        0.5f,
+        1.0f,
     },
     {
         "quake",
-        0.5f,
+        0.75f,
         1.0f,
-        0.5f,
+        1.0f,
     },
     {
         "wmet", // wet metal? white metal? wizard metal?
         0.5f,
         1.0f,
-        0.5f,
+        1.0f,
     },
     {
         "wizmet", // wizard metal, my favorite genre
         0.5f,
         1.0f,
-        0.5f,
+        1.0f,
     },
     {
         "cop", // copper
-        0.5f,
+        0.75f,
         1.0f,
-        0.5f,
+        1.0f,
     },
     {
         "tech", // technology?
-        0.5f,
+        0.65f,
         1.0f,
-        0.0f,
+        1.0f,
     },
     {
         "city", // ???
-        0.5f,
+        0.65f,
         1.0f,
     },
     {
         "rock",
-        0.5f,
+        0.85f,
         1.0f,
     },
     {
         "wood",
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
@@ -162,77 +162,77 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "ceiling",
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
         "sky", // sky texture (purple stuff)
-        0.5f,
+        0.75f,
         1.0f,
         0.0f,
         1.0f,
     },
     {
         "slip", // slipgate
-        0.5f,
+        0.75f,
         1.0f,
         0.0f,
         1.0f,
     },
     {
         "teleport",
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
         "light",
-        0.5f,
+        1.0f,
         1.0f,
         0.0f,
         1.0f,
     },
     {
         "lava",
-        0.5f,
+        1.0f,
         1.0f,
         0.0f,
         1.0f,
     },
     {
         "water",
-        0.125f,
+        0.1f,
         1.0f,
     },
     {
         "rune",
-        0.5f,
+        0.65f,
         1.0f,
-        0.5f,
+        1.0f,
     },
     {
         "wall",
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
         "floor",
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
         "door",
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
         "exit",
-        0.5f,
+        0.75f,
         1.0f,
         0.5f,
     },
     {
         "skill",
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
@@ -242,7 +242,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "dem",
-        0.5f,
+        0.75f,
         1.0f,
     },
     {
@@ -252,7 +252,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "m5",
-        0.5f,
+        0.75f,
         1.0f,
     },
 };
@@ -358,7 +358,7 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         material.flatAlbedo = LinearToColor(f4_1); // IntToColor(i, surfCount));
         material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
         material.albedo = texture_unpalette(mip0, size, albedoName);
-        material.normal = texture_lumtonormal(material.albedo, 2.5f, normalName);
+        material.normal = texture_lumtonormal(material.albedo, 1.0f, normalName);
         materials[i] = material;
     }
 

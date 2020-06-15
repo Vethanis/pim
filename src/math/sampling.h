@@ -185,7 +185,8 @@ pim_inline float4 VEC_CALL SampleGGXMicrofacet(float2 Xi, float roughness)
 
 pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float roughness)
 {
-    float d = GGX_D(NoH, roughness);
+    float alpha = roughness * roughness;
+    float d = D_GTR(NoH, alpha);
     return (d * NoH) / f1_max(0.001f, (4.0f * HoV));
 }
 

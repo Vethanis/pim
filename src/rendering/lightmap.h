@@ -21,6 +21,7 @@ typedef struct lightmap_s
 typedef struct lmpack_s
 {
     i32 lmCount;
+    i32 lmSize;
     lightmap_t* lightmaps;
 } lmpack_t;
 
@@ -35,7 +36,7 @@ lmpack_t lmpack_pack(
     float degThresh);
 void lmpack_del(lmpack_t* pack);
 
-void lmpack_bake(const pt_scene_t* scene, i32 bounces, i32 tile);
+void lmpack_bake(const pt_scene_t* scene, i32 bounces, float timeSlice);
 
 void lmpack_denoise(void);
 

@@ -57,20 +57,6 @@ typedef struct pt_trace_s
     i32 bounces;
 } pt_trace_t;
 
-typedef struct pt_raygen_s
-{
-    task_t task;
-    const pt_scene_t* scene;
-    ray_t origin;
-    float4* colors;
-    float4* directions;
-    pt_dist_t dist;
-    i32 bounces;
-} pt_raygen_t;
-
-pt_scene_t* pt_scene_new(i32 maxDepth);
-void pt_scene_del(pt_scene_t* scene);
-
 typedef struct pt_result_s
 {
     float3 color;
@@ -78,8 +64,28 @@ typedef struct pt_result_s
     float3 normal;
 } pt_result_t;
 
-pt_result_t VEC_CALL pt_trace_ray(prng_t* rng, const pt_scene_t* scene, ray_t ray, i32 bounces);
-task_t* pt_trace(pt_trace_t* traceDesc);
-pt_raygen_t* pt_raygen(const pt_scene_t* scene, ray_t origin, pt_dist_t dist, i32 count, i32 bounces);
+typedef struct pt_results_s
+{
+    float4* colors;
+    float4* directions;
+} pt_results_t;
+
+pt_scene_t* pt_scene_new(i32 maxDepth);
+void pt_scene_del(pt_scene_t* scene);
+
+pt_result_t VEC_CALL pt_trace_ray(
+    prng_t* rng,
+    const pt_scene_t* scene,
+    ray_t ray,
+    i32 bounces);
+
+void pt_trace(pt_trace_t* traceDesc);
+
+pt_results_t pt_raygen(
+    const pt_scene_t* scene,
+    ray_t origin,
+    pt_dist_t dist,
+    i32 count,
+    i32 bounces);
 
 PIM_C_END

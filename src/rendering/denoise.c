@@ -2,6 +2,7 @@
 #include "common/console.h"
 #include "common/library.h"
 #include "common/time.h"
+#include "common/profiler.h"
 #include <OpenImageDenoise/oidn.h>
 #include <string.h>
 
@@ -212,6 +213,7 @@ static OIDNFilter GetFilter(const CacheKey* key)
     return ms_cacheValues[i];
 }
 
+ProfileMark(pm_Denoise, Denoise)
 bool Denoise(
     DenoiseType type,
     int2 size,
@@ -220,14 +222,16 @@ bool Denoise(
     const float3* normal,
     float3* output)
 {
+    ProfileBegin(pm_Denoise);
+
     if (!EnsureInit())
     {
-        return false;
+        goto onfail;
     }
 
     if (!color || !output)
     {
-        return false;
+        goto onfail;
     }
 
     const CacheKey key =
@@ -243,16 +247,22 @@ bool Denoise(
     OIDNFilter filter = GetFilter(&key);
     if (!filter)
     {
-        return false;
+        goto onfail;
     }
 
     oidn.oidnExecuteFilter(filter);
 
     if (LogErrors())
     {
-        return false;
+        goto onfail;
     }
+
+    ProfileEnd(pm_Denoise);
     return true;
+
+onfail:
+    ProfileEnd(pm_Denoise);
+    return false;
 }
 
 void Denoise_Evict(void)

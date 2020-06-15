@@ -2,10 +2,13 @@
 
 #include "common/macro.h"
 #include "math/types.h"
-#include "rendering/path_tracer.h"
-#include "threading/task.h"
 
 PIM_C_BEGIN
+
+#define CUBEMAP_DEFAULT_SIZE    64      // pow2(CUBEMAP_MAX_MIP)
+#define CUBEMAP_MAX_MIP         6.0f    // log2(CUBEMAP_DEFAULT_SIZE)
+
+typedef struct pt_scene_s pt_scene_t;
 
 typedef enum
 {
@@ -49,27 +52,42 @@ void Cubemap_Del(Cubemap* cm);
 
 Cubeface VEC_CALL Cubemap_CalcUv(float4 dir, float2* uvOut);
 
-pim_inline float VEC_CALL Cubemap_Rough2Mip(float roughness)
+// note: input is roughness, not alpha (aka roughness^2)
+pim_inline float VEC_CALL RoughnessToMip(float roughness)
 {
-    return roughness * 4.0f;
+    return roughness * CUBEMAP_MAX_MIP;
 }
 
-pim_inline float VEC_CALL Cubemap_Mip2Rough(float mip)
+// note: output is roughness, not alpha (aka roughness^2)
+pim_inline float VEC_CALL MipToRoughness(float mip)
 {
-    return mip / 4.0f;
+    return mip / CUBEMAP_MAX_MIP;
 }
-
-float4 VEC_CALL Cubemap_ReadConvolved(const Cubemap* cm, float4 dir, float mip);
-void VEC_CALL Cubemap_Write(Cubemap* cm, Cubeface face, int2 coord, float4 value);
 
 float3 VEC_CALL Cubemap_ReadColor(const Cubemap* cm, float4 dir);
 float3 VEC_CALL Cubemap_ReadAlbedo(const Cubemap* cm, float4 dir);
 float3 VEC_CALL Cubemap_ReadNormal(const Cubemap* cm, float4 dir);
 float3 VEC_CALL Cubemap_ReadDenoised(const Cubemap* cm, float4 dir);
+float4 VEC_CALL Cubemap_ReadConvolved(const Cubemap* cm, float4 dir, float mip);
 
-void VEC_CALL Cubemap_WriteMip(Cubemap* cm, Cubeface face, int2 coord, i32 mip, float4 value);
+void VEC_CALL Cubemap_Write(
+    Cubemap* cm,
+    Cubeface face,
+    int2 coord,
+    float4 value);
 
-float4 VEC_CALL Cubemap_CalcDir(i32 size, Cubeface face, int2 coord, float2 Xi);
+void VEC_CALL Cubemap_WriteMip(
+    Cubemap* cm,
+    Cubeface face,
+    int2 coord,
+    i32 mip,
+    float4 value);
+
+float4 VEC_CALL Cubemap_CalcDir(
+    i32 size,
+    Cubeface face,
+    int2 coord,
+    float2 Xi);
 
 void Cubemap_Bake(
     Cubemap* cm,

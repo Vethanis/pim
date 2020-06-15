@@ -18,12 +18,10 @@ i32 AmbCube_Bake(
 
     ray_t ray = { .ro = origin };
 
-    pt_raygen_t* task = pt_raygen(scene, ray, ptdist_sphere, samples, bounces);
-    task_sys_schedule();
-    task_await((task_t*)task);
+    pt_results_t results = pt_raygen(scene, ray, ptdist_sphere, samples, bounces);
 
-    const float4* pim_noalias colors = task->colors;
-    const float4* pim_noalias directions = task->directions;
+    const float4* pim_noalias colors = results.colors;
+    const float4* pim_noalias directions = results.directions;
 
     AmbCube_t cube = *pCube;
     i32 s = prevSampleCount;

@@ -118,6 +118,13 @@ pim_inline float4 VEC_CALL ColorToLinear(u32 c)
     return f4_tolinear(rgba8_f4(c));
 }
 
+// https://alienryderflex.com/hsp.html
+pim_inline float VEC_CALL f4_perlum(float4 x)
+{
+    const float4 coeff = { 0.299f, 0.587f, 0.114f, 0.0f };
+    return sqrtf(f4_sum3(f4_mul(f4_mul(x, x), coeff)));
+}
+
 // average luminosity
 pim_inline float VEC_CALL f4_avglum(float4 x)
 {
@@ -127,7 +134,7 @@ pim_inline float VEC_CALL f4_avglum(float4 x)
 
 pim_inline float4 VEC_CALL f4_desaturate(float4 src, float amt)
 {
-    float lum = f4_avglum(src);
+    float lum = f4_perlum(src);
     return f4_lerpvs(src, f4_s(lum), amt);
 }
 

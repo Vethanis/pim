@@ -10,8 +10,6 @@
 
 #include <string.h>
 
-#define kTaskSplit      (kNumThreads * (kNumThreads / 2))
-
 typedef struct range_s
 {
     i32 begin;

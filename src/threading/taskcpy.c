@@ -3,6 +3,7 @@
 #include "allocator/allocator.h"
 #include "math/float3_funcs.h"
 #include "math/float4_funcs.h"
+#include "common/profiler.h"
 #include <string.h>
 
 typedef struct taskcpy_s
@@ -26,10 +27,13 @@ static void CpyFn(task_t* pbase, i32 begin, i32 end)
     memcpy(dst + offset, src + offset, bytes);
 }
 
+ProfileMark(pm_taskcpy, taskcpy)
 void taskcpy(void* dst, const void* src, i32 sizeOf, i32 length)
 {
     if (length > 0)
     {
+        ProfileBegin(pm_taskcpy);
+
         ASSERT(dst);
         ASSERT(src);
         ASSERT(sizeOf > 0);
@@ -39,6 +43,8 @@ void taskcpy(void* dst, const void* src, i32 sizeOf, i32 length)
         task->src = src;
         task->sizeOf = sizeOf;
         task_run(&task->task, CpyFn, length);
+
+        ProfileEnd(pm_taskcpy);
     }
 }
 
@@ -60,11 +66,14 @@ static void Blit34Fn(task_t* pbase, i32 begin, i32 end)
     }
 }
 
+ProfileMark(pm_blit3to4, blit_3to4)
 void blit_3to4(int2 size, float4* dst, const float3* src)
 {
     i32 len = size.x * size.y;
     if (len > 0)
     {
+        ProfileBegin(pm_blit3to4);
+
         ASSERT(dst);
         ASSERT(src);
 
@@ -72,6 +81,8 @@ void blit_3to4(int2 size, float4* dst, const float3* src)
         task->dst = dst;
         task->src = src;
         task_run(&task->task, Blit34Fn, len);
+
+        ProfileEnd(pm_blit3to4);
     }
 }
 
@@ -93,11 +104,14 @@ static void Blit43Fn(task_t* pbase, i32 begin, i32 end)
     }
 }
 
+ProfileMark(pm_blit4to3, blit_4to3)
 void blit_4to3(int2 size, float3* dst, const float4* src)
 {
     i32 len = size.x * size.y;
     if (len > 0)
     {
+        ProfileBegin(pm_blit4to3);
+
         ASSERT(dst);
         ASSERT(src);
 
@@ -105,6 +119,8 @@ void blit_4to3(int2 size, float3* dst, const float4* src)
         task->dst = dst;
         task->src = src;
         task_run(&task->task, Blit43Fn, len);
+
+        ProfileEnd(pm_blit4to3);
     }
 }
 

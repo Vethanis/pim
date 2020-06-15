@@ -206,6 +206,8 @@ static void VEC_CALL DrawMesh(
 {
     const drawables_t* drawTable = drawables_get();
     const lmpack_t* lmpack = lmpack_get();
+    const i32 lmCount = lmpack->lmCount;
+    const lightmap_t* lightmaps = lmpack->lightmaps;
 
     mesh_t mesh;
     if (!mesh_get(drawTable->tmpMeshes[iDraw], &mesh))
@@ -232,6 +234,10 @@ static void VEC_CALL DrawMesh(
     texture_get(material.rome, &romeMap);
     texture_t normalMap = { 0 };
     texture_get(material.normal, &normalMap);
+
+    const lights_t* lights = lights_get();
+    const pt_light_t* pim_noalias ptLights = lights->ptLights;
+    const i32 ptCount = lights->ptCount;
 
     const float4 eye = ctx->eye;
     const float4 fwd = ctx->fwd;
@@ -349,10 +355,9 @@ static void VEC_CALL DrawMesh(
                     }
 
                     {
-                        float4 diffuseGI = f4_s(0.1f);
+                        float4 diffuseGI = f4_0;
                         i32 lmIndex = (i32)lmUvs[iVert + 0].z;
-                        ASSERT(lmIndex < lmpack->lmCount);
-                        if (lmIndex >= 0)
+                        if (lmIndex >= 0 && lmIndex < lmCount)
                         {
                             const float3 lmUv3 = f3_blend(lmUvs[iVert + 0], lmUvs[iVert + 1], lmUvs[iVert + 2], wuvt);
                             const float2 lmUv = { lmUv3.x, lmUv3.y };
@@ -366,16 +371,31 @@ static void VEC_CALL DrawMesh(
                             {
                                 lmBuffer = lmap.normal;
                             }
+                            ASSERT(lmBuffer);
                             float3 denoised = UvBilinearClamp_f3(lmBuffer, i2_s(lmap.size), lmUv);
                             diffuseGI = f3_f4(denoised, 1.0f);
                         }
 
                         float NoR = f1_max(0.0f, f4_dot3(N, R));
-                        float4 specularGI = f4_mulvs(diffuseGI, 2.0f * NoR * NoR);
+                        float4 specularGI = f4_mulvs(diffuseGI, NoR);
 
                         float4 indirect = IndirectBRDF(V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
-
                         lighting = f4_add(lighting, indirect);
+
+                        float4 direct = f4_0;
+                        for (i32 i = 0; i < ptCount; ++i)
+                        {
+                            float4 lightPos = ptLights[i].pos;
+                            float4 lightRad = ptLights[i].rad;
+                            float4 L = f4_sub(lightPos, P);
+                            float lDist = f1_max(1e-5f, f4_length3(L));
+                            L = f4_divvs(L, lDist);
+                            lightRad = f4_mulvs(lightRad, 1.0f / (lDist * lDist));
+                            float4 brdf = DirectBRDF(V, L, N, albedo, rome.x, rome.z);
+                            direct = f4_add(direct, f4_mul(brdf, lightRad));
+                        }
+                        lighting = f4_add(lighting, direct);
+
                         if (dbgdiffGI)
                         {
                             lighting = diffuseGI;

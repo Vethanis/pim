@@ -20,6 +20,7 @@
 #include "rendering/drawable.h"
 #include "threading/task.h"
 #include "common/random.h"
+#include "common/profiler.h"
 
 #include <string.h>
 
@@ -550,8 +551,8 @@ pt_result_t VEC_CALL pt_trace_ray(
     return (pt_result_t)
     {
         .color = f4_f3(light),
-        .albedo = f4_f3(albedo),
-        .normal = f4_f3(normal),
+            .albedo = f4_f3(albedo),
+            .normal = f4_f3(normal),
     };
 }
 
@@ -602,8 +603,11 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
     prng_set(rng);
 }
 
-task_t* pt_trace(pt_trace_t* desc)
+ProfileMark(pm_trace, pt_trace)
+void pt_trace(pt_trace_t* desc)
 {
+    ProfileBegin(pm_trace);
+
     ASSERT(desc);
     ASSERT(desc->scene);
     ASSERT(desc->camera);
@@ -616,9 +620,21 @@ task_t* pt_trace(pt_trace_t* desc)
     task->camera = desc->camera[0];
 
     const i32 workSize = desc->imageSize.x * desc->imageSize.y;
-    task_submit((task_t*)task, TraceFn, workSize);
-    return (task_t*)task;
+    task_run(&task->task, TraceFn, workSize);
+
+    ProfileEnd(pm_trace);
 }
+
+typedef struct pt_raygen_s
+{
+    task_t task;
+    const pt_scene_t* scene;
+    ray_t origin;
+    float4* colors;
+    float4* directions;
+    pt_dist_t dist;
+    i32 bounces;
+} pt_raygen_t;
 
 static void RayGenFn(task_t* pBase, i32 begin, i32 end)
 {
@@ -656,8 +672,16 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
     prng_set(rng);
 }
 
-pt_raygen_t* pt_raygen(const pt_scene_t* scene, ray_t origin, pt_dist_t dist, i32 count, i32 bounces)
+ProfileMark(pm_raygen, pt_raygen)
+pt_results_t pt_raygen(
+    const pt_scene_t* scene,
+    ray_t origin,
+    pt_dist_t dist,
+    i32 count,
+    i32 bounces)
 {
+    ProfileBegin(pm_raygen);
+
     ASSERT(scene);
     ASSERT(count >= 0);
 
@@ -668,7 +692,15 @@ pt_raygen_t* pt_raygen(const pt_scene_t* scene, ray_t origin, pt_dist_t dist, i3
     task->directions = tmp_malloc(sizeof(task->directions[0]) * count);
     task->dist = dist;
     task->bounces = bounces;
-    task_submit((task_t*)task, RayGenFn, count);
+    task_run(&task->task, RayGenFn, count);
 
-    return task;
+    pt_results_t results =
+    {
+        .colors = task->colors,
+        .directions = task->directions,
+    };
+
+    ProfileEnd(pm_raygen);
+
+    return results;
 }

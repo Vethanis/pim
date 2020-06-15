@@ -21,7 +21,7 @@
 #include <stb/stb_image_write.h>
 #include <string.h>
 
-#define CHART_SPLITS    4
+#define CHART_SPLITS    2
 #define ROW_RESET       -(1<<20)
 
 typedef enum
@@ -849,7 +849,7 @@ static void AtlasFn(task_t* pbase, i32 begin, i32 end)
         chart_t chart = charts[iChart];
         chart.atlasIndex = -1;
 
-        if (chart.area <= (prevArea * 0.9f))
+        if (chart.area <= (prevArea * 0.95f))
         {
             prevArea = chart.area;
             prevAtlas = 0;
@@ -1293,104 +1293,6 @@ static void EmbedAttributes(lightmap_t* lightmaps, i32 lmCount)
     }
 }
 
-typedef struct flood_s
-{
-    task_t task;
-    lightmap_t* lightmaps;
-    i32 lmCount;
-    const float** prevSampleCounts;
-} flood_t;
-
-static void lmfloodfn(task_t* pbase, i32 begin, i32 end)
-{
-    flood_t* task = (flood_t*)pbase;
-    lightmap_t* lightmaps = task->lightmaps;
-    const float** prevSampleCounts = task->prevSampleCounts;
-    const i32 lmCount = task->lmCount;
-    const i32 lmSize = lightmaps[0].size;
-    const i32 lmLen = lmSize * lmSize;
-    const int2 size = { lmSize, lmSize };
-
-    for (i32 iWork = begin; iWork < end; ++iWork)
-    {
-        const i32 iLightmap = iWork / lmLen;
-        const i32 iTexel = iWork % lmLen;
-        const i32 x = iTexel % lmSize;
-        const i32 y = iTexel / lmSize;
-        const float* pim_noalias sampleCounts = prevSampleCounts[iLightmap];
-
-        if (sampleCounts[iTexel] < 1.0f)
-        {
-            const i32 a = Clamp(size, i2_v(x + 1, y + 0));
-            const i32 b = Clamp(size, i2_v(x - 1, y + 0));
-            const i32 c = Clamp(size, i2_v(x + 0, y + 1));
-            const i32 d = Clamp(size, i2_v(x + 0, y - 1));
-
-            float aw = sampleCounts[a];
-            float bw = sampleCounts[b];
-            float cw = sampleCounts[c];
-            float dw = sampleCounts[d];
-            const float sum = aw + bw + cw + dw;
-            if (sum > 0.0f)
-            {
-                float weight = 1.0f / sum;
-                aw *= weight;
-                bw *= weight;
-                cw *= weight;
-                dw *= weight;
-
-                lightmap_t lightmap = lightmaps[iLightmap];
-
-                float3 P = f3_0;
-                P = f3_add(P, f3_mulvs(lightmap.position[a], aw));
-                P = f3_add(P, f3_mulvs(lightmap.position[b], bw));
-                P = f3_add(P, f3_mulvs(lightmap.position[c], cw));
-                P = f3_add(P, f3_mulvs(lightmap.position[d], dw));
-                lightmap.position[iTexel] = P;
-
-                float3 N = f3_0;
-                N = f3_add(N, f3_mulvs(lightmap.normal[a], aw));
-                N = f3_add(N, f3_mulvs(lightmap.normal[b], bw));
-                N = f3_add(N, f3_mulvs(lightmap.normal[c], cw));
-                N = f3_add(N, f3_mulvs(lightmap.normal[d], dw));
-                N = f3_normalize(N);
-                lightmap.normal[iTexel] = N;
-
-                lightmap.sampleCounts[iTexel] = 1.0f;
-            }
-        }
-    }
-}
-
-static void lmflood(lightmap_t* lightmaps, i32 lmCount)
-{
-    if (lmCount > 0)
-    {
-        flood_t* task = tmp_calloc(sizeof(*task));
-        task->lightmaps = lightmaps;
-        task->lmCount = lmCount;
-        i32 workSize = TexelCount(lightmaps, lmCount);
-        float** prevSampleCounts = tmp_calloc(sizeof(prevSampleCounts[0]) * lmCount);
-        task->prevSampleCounts = prevSampleCounts;
-        for (i32 i = 0; i < lmCount; ++i)
-        {
-            i32 lmSize = lightmaps[i].size;
-            i32 lmLen = lmSize * lmSize;
-            prevSampleCounts[i] = tmp_malloc(sizeof(float) * lmLen);
-        }
-        for (i32 it = 0; it < 4; ++it)
-        {
-            for (i32 i = 0; i < lmCount; ++i)
-            {
-                i32 lmSize = lightmaps[i].size;
-                i32 lmLen = lmSize * lmSize;
-                memcpy(prevSampleCounts[i], lightmaps[i].sampleCounts, sizeof(float) * lmLen);
-            }
-            task_run(&task->task, lmfloodfn, workSize);
-        }
-    }
-}
-
 lmpack_t lmpack_pack(
     i32 atlasSize,
     float texelsPerUnit,
@@ -1405,7 +1307,7 @@ lmpack_t lmpack_pack(
         cmd_reg("lm_print", CmdPrintLm);
     }
 
-    float maxWidth = (float)(atlasSize / 4);
+    float maxWidth = atlasSize / 3.0f;
 
     i32 nodeCount = 0;
     chartnode_t* nodes = chartnodes_create(texelsPerUnit, &nodeCount);
@@ -1420,6 +1322,7 @@ lmpack_t lmpack_pack(
 
     lmpack_t pack = { 0 };
     pack.lmCount = atlasCount;
+    pack.lmSize = atlasSize;
     pack.lightmaps = perm_calloc(sizeof(pack.lightmaps[0]) * atlasCount);
 
     for (i32 i = 0; i < atlasCount; ++i)
@@ -1430,8 +1333,6 @@ lmpack_t lmpack_pack(
     chartnodes_assign(charts, chartCount, pack.lightmaps, atlasCount);
 
     EmbedAttributes(pack.lightmaps, atlasCount);
-
-    //lmflood(pack.lightmaps, atlasCount);
 
     pim_free(nodes);
     for (i32 i = 0; i < chartCount; ++i)
@@ -1496,10 +1397,7 @@ typedef struct bake_s
     task_t task;
     const pt_scene_t* scene;
     i32 bounces;
-    i32 lmSize;
-    i32 lmLen;
-    i32 start;
-    i32 texelCount;
+    float timeSlice;
 } bake_t;
 
 static void BakeFn(task_t* pbase, i32 begin, i32 end)
@@ -1507,32 +1405,34 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
     bake_t* task = (bake_t*)pbase;
     const pt_scene_t* scene = task->scene;
     const i32 bounces = task->bounces;
-    const i32 lmSize = task->lmSize;
-    const i32 lmLen = task->lmLen;
-    const i32 start = task->start;
-    const i32 texelCount = task->texelCount;
-    const float rcpSize = 1.0f / lmSize;
-    const int2 size = { lmSize, lmSize };
-    const i32 spp = 4;
+    const float timeSlice = task->timeSlice;
 
     lmpack_t* pack = lmpack_get();
+    const i32 lmSize = pack->lmSize;
+    const i32 lmLen = lmSize * lmSize;
+    const float rcpSize = 1.0f / lmSize;
+    const int2 size = { lmSize, lmSize };
 
     prng_t rng = prng_get();
     for (i32 iWork = begin; iWork < end; ++iWork)
     {
-        i32 iGroup = (iWork + start) % texelCount;
-        i32 iLightmap = iGroup / lmLen;
-        i32 iTexel = iGroup % lmLen;
+        i32 iLightmap = iWork / lmLen;
+        i32 iTexel = iWork % lmLen;
         lightmap_t lightmap = pack->lightmaps[iLightmap];
 
-        if (lightmap.sampleCounts[iTexel] > 0.0f)
+        float sampleCount = lightmap.sampleCounts[iTexel];
+        if (sampleCount > 0.0f)
         {
-            i32 x = iTexel % lmSize;
-            i32 y = iTexel / lmSize;
-
-            for (i32 iSample = 0; iSample < spp; ++iSample)
+            float weight = 1.0f / sampleCount;
+            float prob = f1_lerp(timeSlice, timeSlice * 2.0f, weight);
+            if (prng_f32(&rng) < prob)
             {
+                sampleCount += 1.0f;
+                lightmap.sampleCounts[iTexel] = sampleCount;
+
                 float2 jit = f2_rand(&rng);
+                i32 x = iTexel % lmSize;
+                i32 y = iTexel / lmSize;
                 float2 uv = { (x + jit.x) * rcpSize, (y + jit.y) * rcpSize };
                 float3 P3 = UvBilinearClamp_f3(lightmap.position, size, uv);
                 float3 N3 = UvBilinearClamp_f3(lightmap.normal, size, uv);
@@ -1545,8 +1445,6 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
                 pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
                 result.color = f3_mulvs(result.color, pdf);
 
-                float weight = 1.0f / lightmap.sampleCounts[iTexel];
-                lightmap.sampleCounts[iTexel] += 1.0f;
                 lightmap.color[iTexel] = f3_lerp(lightmap.color[iTexel], result.color, weight);
             }
         }
@@ -1555,37 +1453,20 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_Bake, lmpack_bake)
-void lmpack_bake(const pt_scene_t* scene, i32 bounces, i32 tile)
+void lmpack_bake(const pt_scene_t* scene, i32 bounces, float timeSlice)
 {
     ProfileBegin(pm_Bake);
     ASSERT(scene);
 
     const lmpack_t* pack = lmpack_get();
-    i32 lmCount = pack->lmCount;
-    i32 lmSize = 0;
-    if (lmCount > 0)
-    {
-        lmSize = pack->lightmaps[0].size;
-    }
-    i32 lmLen = lmSize * lmSize;
-    i32 texelCount = lmLen * lmCount;
-
+    i32 texelCount = TexelCount(pack->lightmaps, pack->lmCount);
     if (texelCount > 0)
     {
-        const i32 groupSize = 64 * 64;
-        tile *= groupSize;
-        tile %= texelCount;
-        tile = tile < 0 ? tile + texelCount : tile;
-        i32 start = tile;
-
         bake_t* task = perm_calloc(sizeof(*task));
         task->scene = scene;
         task->bounces = bounces;
-        task->lmSize = lmSize;
-        task->lmLen = lmLen;
-        task->start = start;
-        task->texelCount = texelCount;
-        task_run(&task->task, BakeFn, groupSize);
+        task->timeSlice = timeSlice;
+        task_run(&task->task, BakeFn, texelCount);
     }
 
     ProfileEnd(pm_Bake);

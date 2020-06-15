@@ -64,7 +64,8 @@ static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap genera
 
 static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
 
-static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "7.5", "lightmap texels per unit" };
+static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "8", "lightmap texels per unit" };
+static cvar_t cv_lm_timeslice = { cvart_int, 0, "lm_timeslice", "120", "number of frames required to add 1 lighting sample to all lightmap texels" };
 
 // ----------------------------------------------------------------------------
 
@@ -120,8 +121,8 @@ static void LightmapRepack(void)
     *lmpack_get() = pack;
 }
 
-static i32 ms_lmtile;
 ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
+ProfileMark(pm_Lightmap_Denoise, Lightmap_Denoise)
 static void Lightmap_Trace(void)
 {
     if (cvar_check_dirty(&cv_lm_density))
@@ -132,16 +133,24 @@ static void Lightmap_Trace(void)
     if (cv_lm_gen.asFloat != 0.0f)
     {
         ProfileBegin(pm_Lightmap_Trace);
-        EnsurePtScene();
 
+        if (lmpack_get()->lmCount == 0)
+        {
+            LightmapRepack();
+        }
+
+        EnsurePtScene();
         i32 bounces = (i32)cv_pt_bounces.asFloat;
-        lmpack_bake(ms_ptscene, bounces, ms_lmtile++);
+        i32 timeSlice = (i32)cv_lm_timeslice.asFloat;
+        lmpack_bake(ms_ptscene, bounces, 1.0f / timeSlice);
 
         ProfileEnd(pm_Lightmap_Trace);
     }
 
     if (cv_lm_denoise.asFloat != 0.0f)
     {
+        ProfileBegin(pm_Lightmap_Denoise);
+
         cvar_set_float(&cv_lm_denoise, 0.0f);
         lmpack_denoise();
         cvar_t* cv_r_lm_denoised = cvar_find("r_lm_denoised");
@@ -149,6 +158,8 @@ static void Lightmap_Trace(void)
         {
             cvar_set_float(cv_r_lm_denoised, 1.0f);
         }
+
+        ProfileEnd(pm_Lightmap_Denoise);
     }
 }
 
@@ -240,30 +251,30 @@ static bool PathTrace(void)
             ms_trace.normal = perm_calloc(sizeof(ms_trace.normal[0]) * kDrawPixels);
         }
 
-        task_t* task = pt_trace(&ms_trace);
-        task_sys_schedule();
-        task_await(task);
+        pt_trace(&ms_trace);
 
+        float3* pim_noalias output3 = ms_trace.color;
         if (cv_pt_denoise.asFloat != 0.0f)
         {
-            float3* pim_noalias output3 = tmp_malloc(sizeof(output3[0]) * kDrawPixels);
-            if (Denoise(DenoiseType_Image, size, ms_trace.color, ms_trace.albedo, ms_trace.normal, output3))
-            {
-                ProfileBegin(pm_ptBlit);
-                blit_3to4(size, GetFrontBuf()->light, output3);
-                ProfileEnd(pm_ptBlit);
-            }
-            else
+            output3 = tmp_malloc(sizeof(output3[0]) * kDrawPixels);
+
+            bool denoised = Denoise(
+                DenoiseType_Image,
+                size,
+                ms_trace.color,
+                ms_trace.albedo,
+                ms_trace.normal,
+                output3);
+
+            if (!denoised)
             {
                 cvar_set_float(&cv_pt_denoise, 0.0f);
             }
         }
-        else
-        {
-            ProfileBegin(pm_ptBlit);
-            blit_3to4(size, GetFrontBuf()->light, ms_trace.color);
-            ProfileEnd(pm_ptBlit);
-        }
+
+        ProfileBegin(pm_ptBlit);
+        blit_3to4(size, GetFrontBuf()->light, output3);
+        ProfileEnd(pm_ptBlit);
 
         ProfileEnd(pm_PathTrace);
         return true;
@@ -396,8 +407,6 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     {
         pim_free(ids);
 
-        LightmapRepack();
-
         if (lights_pt_count() == 0)
         {
             lights_add_pt((pt_light_t) { f4_v(0.0f, 0.0f, 0.0f, 1.0f), f4_s(30.0f) });
@@ -423,6 +432,7 @@ void render_sys_init(void)
     cvar_reg(&cv_cm_gen);
     cvar_reg(&cv_r_sw);
     cvar_reg(&cv_lm_density);
+    cvar_reg(&cv_lm_timeslice);
     cmd_reg("screenshot", CmdScreenshot);
     cmd_reg("mapload", CmdLoadMap);
 

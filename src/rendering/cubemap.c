@@ -439,7 +439,7 @@ static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
     const i32 size = task->size;
     const i32 mip = task->mip;
     const i32 len = size * size;
-    const float roughness = Cubemap_Mip2Rough((float)mip);
+    const float roughness = MipToRoughness((float)mip);
 
     for (i32 i = begin; i < end; ++i)
     {
