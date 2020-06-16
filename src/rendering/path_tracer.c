@@ -332,7 +332,7 @@ static rayhit_t VEC_CALL TraceRay(
         return hit;
     }
 
-    const float e = 0.0001f;
+    const float e = 1.0f / (1 << 20);
 
     // test box
     const float2 nearFar = isectBox3D(ray.ro, rcpRd, scene->boxes[n]);
@@ -434,13 +434,25 @@ pim_inline const material_t* VEC_CALL GetMaterial(const pt_scene_t* scene, rayhi
 
 pim_inline float VEC_CALL Scatter(
     prng_t* rng,
+    const surfhit_t* surf,
     float4 dirIn,
-    float4 N,
-    float4* dirOut,
-    float roughness)
+    float4* dirOut)
 {
-    //return ScatterLambertian(rng, dirIn, N, dirOut, roughness);
-    return ScatterGGX(rng, dirIn, N, dirOut, roughness);
+    // ggx pdf is breaking conservation of energy law atm
+    //bool specular = (surf->metallic > 0.5f) || prng_bool(rng);
+    //if (specular)
+    //{
+    //    return ScatterGGX(
+    //        rng,
+    //        dirIn,
+    //        surf->N,
+    //        dirOut,
+    //        surf->roughness);
+    //}
+    //else
+    {
+        return ScatterLambertian(rng, dirIn, surf->N, dirOut, surf->roughness);
+    }
 }
 
 pim_optimize
@@ -533,13 +545,12 @@ pt_result_t VEC_CALL pt_trace_ray(
         }
 
         float4 dirOut;
-        pdf = Scatter(rng, ray.rd, surf.N, &dirOut, surf.roughness);
+        pdf = Scatter(rng, &surf, ray.rd, &dirOut);
         if (pdf > 0.0f)
         {
             ray.ro = surf.P;
             ray.rd = dirOut;
-            float4 newAtten = surf.albedo;
-            newAtten = f4_mulvs(newAtten, pdf);
+            float4 newAtten = f4_mulvs(surf.albedo, pdf);
             attenuation = f4_mul(attenuation, newAtten);
         }
         else

@@ -150,7 +150,7 @@ pim_inline float VEC_CALL sdTriangle2D(
 
 pim_inline float4 VEC_CALL isectTri3D(ray_t ray, float4 A, float4 B, float4 C)
 {
-    const float e = 1.0f / (1 << 10);
+    const float e = 1.0f / (1 << 20);
 
     float4 BA = f4_sub(B, A);
     float4 CA = f4_sub(C, A);

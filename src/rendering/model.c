@@ -358,7 +358,7 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         material.flatAlbedo = LinearToColor(f4_1); // IntToColor(i, surfCount));
         material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
         material.albedo = texture_unpalette(mip0, size, albedoName);
-        material.normal = texture_lumtonormal(material.albedo, 1.0f, normalName);
+        material.normal = texture_lumtonormal(material.albedo, 1.5f, normalName);
         materials[i] = material;
     }
 

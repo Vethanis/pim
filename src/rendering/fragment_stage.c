@@ -286,6 +286,20 @@ static void VEC_CALL DrawMesh(
         const float4 Q = f4_cross3(T, BA);
         const float t0 = f4_dot3(CA, Q);
 
+        const float2 UA = uvs[iVert + 0];
+        const float2 UB = uvs[iVert + 1];
+        const float2 UC = uvs[iVert + 2];
+
+        const float4 NA = normals[iVert + 0];
+        const float4 NB = normals[iVert + 1];
+        const float4 NC = normals[iVert + 2];
+
+        const i32 lmIndex = (i32)lmUvs[iVert + 0].z;
+        const bool hasLM = (lmIndex >= 0) && (lmIndex < lmCount);
+        const float2 LMA = f3_f2(lmUvs[iVert + 0]);
+        const float2 LMB = f3_f2(lmUvs[iVert + 1]);
+        const float2 LMC = f3_f2(lmUvs[iVert + 2]);
+
         const float4 bounds = TriBounds(ctx->V, slope, nearClip, farClip, A, B, C, tileMin, tileMax);
         for (float y = bounds.y; y < bounds.w; y += dy)
         {
@@ -323,9 +337,11 @@ static void VEC_CALL DrawMesh(
                 float4 lighting = f4_0;
                 {
                     // blend interpolators
-                    const float2 U = f2_frac(f2_blend(uvs[iVert + 0], uvs[iVert + 1], uvs[iVert + 2], wuvt));
                     float4 P = f4_blend(A, B, C, wuvt);
-                    float4 N = f4_normalize3(f4_blend(normals[iVert + 0], normals[iVert + 1], normals[iVert + 2], wuvt));
+                    float4 N = f4_normalize3(f4_blend(NA, NB, NC, wuvt));
+                    float2 U = f2_frac(f2_blend(UA, UB, UC, wuvt));
+                    float2 LM = f2_blend(LMA, LMB, LMC, wuvt);
+
                     float4 V = f4_normalize3(f4_sub(eye, P));
                     float4 R = f4_reflect3(f4_neg(V), N);
 
@@ -356,12 +372,9 @@ static void VEC_CALL DrawMesh(
 
                     {
                         float4 diffuseGI = f4_0;
-                        i32 lmIndex = (i32)lmUvs[iVert + 0].z;
-                        if (lmIndex >= 0 && lmIndex < lmCount)
+                        if (hasLM)
                         {
-                            const float3 lmUv3 = f3_blend(lmUvs[iVert + 0], lmUvs[iVert + 1], lmUvs[iVert + 2], wuvt);
-                            const float2 lmUv = { lmUv3.x, lmUv3.y };
-                            const lightmap_t lmap = lmpack->lightmaps[lmIndex];
+                            const lightmap_t lmap = lightmaps[lmIndex];
                             const float3* pim_noalias lmBuffer = lmap.color;
                             if (denoisedLM)
                             {
@@ -372,11 +385,11 @@ static void VEC_CALL DrawMesh(
                                 lmBuffer = lmap.normal;
                             }
                             ASSERT(lmBuffer);
-                            float3 denoised = UvBilinearClamp_f3(lmBuffer, i2_s(lmap.size), lmUv);
-                            diffuseGI = f3_f4(denoised, 1.0f);
+                            float3 denoised = UvBilinearClamp_f3(lmBuffer, i2_s(lmap.size), LM);
+                            diffuseGI = f3_f4(denoised, 0.0f);
                         }
 
-                        float NoR = f1_max(0.0f, f4_dot3(N, R));
+                        float NoR = f1_saturate(f4_dot3(N, R));
                         float4 specularGI = f4_mulvs(diffuseGI, NoR);
 
                         float4 indirect = IndirectBRDF(V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
@@ -390,7 +403,7 @@ static void VEC_CALL DrawMesh(
                             float4 L = f4_sub(lightPos, P);
                             float lDist = f1_max(1e-5f, f4_length3(L));
                             L = f4_divvs(L, lDist);
-                            lightRad = f4_mulvs(lightRad, 1.0f / (lDist * lDist));
+                            lightRad = f4_divvs(lightRad, lDist * lDist);
                             float4 brdf = DirectBRDF(V, L, N, albedo, rome.x, rome.z);
                             direct = f4_add(direct, f4_mul(brdf, lightRad));
                         }

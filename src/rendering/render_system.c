@@ -12,6 +12,7 @@
 #include "common/stringutil.h"
 #include "common/sort.h"
 #include "common/cmd.h"
+#include "common/fnv1a.h"
 #include "input/input_system.h"
 
 #include "math/types.h"
@@ -71,6 +72,7 @@ static cvar_t cv_lm_timeslice = { cvart_int, 0, "lm_timeslice", "120", "number o
 
 static meshid_t GenSphereMesh(float r, i32 steps);
 static textureid_t GenCheckerTex(void);
+static cmdstat_t CmdCornellBox(i32 argc, const char** argv);
 
 // ----------------------------------------------------------------------------
 
@@ -435,6 +437,7 @@ void render_sys_init(void)
     cvar_reg(&cv_lm_timeslice);
     cmd_reg("screenshot", CmdScreenshot);
     cmd_reg("mapload", CmdLoadMap);
+    cmd_reg("cornell_box", CmdCornellBox);
 
     vkr_init();
 
@@ -608,6 +611,12 @@ static meshid_t GenSphereMesh(float r, i32 steps)
     float4* pim_noalias positions = perm_malloc(sizeof(*positions) * maxlen);
     float4* pim_noalias normals = perm_malloc(sizeof(*normals) * maxlen);
     float2* pim_noalias uvs = perm_malloc(sizeof(*uvs) * maxlen);
+    float3* pim_noalias lmUvs = perm_malloc(sizeof(lmUvs[0]) * maxlen);
+
+    for (i32 i = 0; i < maxlen; ++i)
+    {
+        lmUvs[i].z = -1.0f;
+    }
 
     for (i32 v = 0; v < vsteps; ++v)
     {
@@ -721,7 +730,208 @@ static meshid_t GenSphereMesh(float r, i32 steps)
     mesh->positions = positions;
     mesh->normals = normals;
     mesh->uvs = uvs;
+    mesh->lmUvs = lmUvs;
     return mesh_create(mesh);
+}
+
+// N = (0, 0, 1)
+// centered at origin, [-0.5, 0.5]
+static meshid_t GenQuadMesh(void)
+{
+    const float4 tl = { -0.5f, 0.5f, 0.0f };
+    const float4 tr = { 0.5f, 0.5f, 0.0f };
+    const float4 bl = { -0.5f, -0.5f, 0.0f };
+    const float4 br = { 0.5f, -0.5f, 0.0f };
+    const float4 N = { 0.0f, 0.0f, 1.0f };
+
+    const i32 length = 6;
+    float4* positions = perm_malloc(sizeof(positions[0]) * length);
+    float4* normals = perm_malloc(sizeof(normals[0]) * length);
+    float2* uvs = perm_malloc(sizeof(uvs[0]) * length);
+    float3* lmUvs = perm_malloc(sizeof(lmUvs[0]) * length);
+
+    // counter clockwise
+    positions[0] = tl; uvs[0] = f2_v(0.0f, 1.0f);
+    positions[1] = bl; uvs[1] = f2_v(0.0f, 0.0f);
+    positions[2] = tr; uvs[2] = f2_v(1.0f, 1.0f);
+    positions[3] = tr; uvs[3] = f2_v(1.0f, 1.0f);
+    positions[4] = bl; uvs[4] = f2_v(0.0f, 0.0f);
+    positions[5] = br; uvs[5] = f2_v(1.0f, 0.0f);
+    for (i32 i = 0; i < length; ++i)
+    {
+        normals[i] = N;
+        lmUvs[i].z = -1.0f;
+    }
+
+    mesh_t* mesh = perm_calloc(sizeof(*mesh));
+    mesh->length = length;
+    mesh->positions = positions;
+    mesh->normals = normals;
+    mesh->uvs = uvs;
+    mesh->lmUvs = lmUvs;
+    return mesh_create(mesh);
+}
+
+static meshid_t ms_quadmesh;
+static meshid_t ms_spheremesh;
+static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
+{
+    drawables_clear();
+    pt_scene_del(ms_ptscene);
+    ms_ptscene = NULL;
+    lmpack_del(lmpack_get());
+
+    while (lights_pt_count() > 0)
+    {
+        lights_rm_pt(0);
+    }
+    while (lights_dir_count() > 0)
+    {
+        lights_rm_dir(0);
+    }
+
+    if (!ms_quadmesh.handle)
+    {
+        ms_quadmesh = GenQuadMesh();
+        ms_spheremesh = GenSphereMesh(1.0f, 32);
+    }
+
+    meshid_t quad = ms_quadmesh;
+    meshid_t sphere = ms_spheremesh;
+
+    i32 iFloor = drawables_add(HashStr("CornellBox_Floor"));
+    i32 iCeil = drawables_add(HashStr("CornellBox_Ceiling"));
+    i32 iLeft = drawables_add(HashStr("CornellBox_LeftWall"));
+    i32 iRight = drawables_add(HashStr("CornellBox_RightWall"));
+    i32 iNear = drawables_add(HashStr("CornellBox_NearWall"));
+    i32 iFar = drawables_add(HashStr("CornellBox_FarWall"));
+    i32 iLight = drawables_add(HashStr("CornellBox_Light"));
+    i32 iMetal = drawables_add(HashStr("CornellBox_MetalSphere"));
+    i32 iPlastic = drawables_add(HashStr("CornellBox_PlasticSphere"));
+    drawables_t* drawables = drawables_get();
+    
+    drawables->meshes[iFloor] = quad;
+    drawables->meshes[iCeil] = quad;
+    drawables->meshes[iLeft] = quad;
+    drawables->meshes[iRight] = quad;
+    drawables->meshes[iNear] = quad;
+    drawables->meshes[iFar] = quad;
+    drawables->meshes[iLight] = quad;
+    drawables->meshes[iMetal] = sphere;
+    drawables->meshes[iPlastic] = sphere;
+
+    const float wallExtents = 2.0f;
+    const float sphereRad = 0.3f;
+    const float lightExtents = 0.5f;
+
+    const float wallScale = 2.0f * wallExtents;
+    const float sphereDiam = 2.0f * sphereRad;
+    const float lightScale = 2.0f * lightExtents;
+
+    const float4 x4 = { 1.0f, 0.0f, 0.0f };
+    const float4 y4 = { 0.0f, 1.0f, 0.0f };
+    const float4 z4 = { 0.0f, 0.0f, 1.0f };
+
+    drawables->translations[iFloor] = f4_v(0.0f, -wallExtents, 0.0f, 0.0f);
+    drawables->translations[iCeil] = f4_v(0.0f, wallExtents, 0.0f, 0.0f);
+    drawables->translations[iLeft] = f4_v(-wallExtents, 0.0f, 0.0f, 0.0f);
+    drawables->translations[iRight] = f4_v(wallExtents, 0.0f, 0.0f, 0.0f);
+    drawables->translations[iNear] = f4_v(0.0f, 0.0f, wallExtents, 0.0f);
+    drawables->translations[iFar] = f4_v(0.0f, 0.0f, -wallExtents, 0.0f);
+
+    drawables->translations[iLight] = f4_v(0.0f, wallExtents - 0.01f, 0.0f, 0.0f);
+
+    drawables->translations[iMetal] = f4_v(-sphereDiam, -wallExtents + sphereDiam, sphereDiam, 0.0f);
+    drawables->translations[iPlastic] = f4_v(sphereDiam, -wallExtents + sphereDiam, -sphereDiam, 0.0f);
+
+    drawables->scales[iFloor] = f4_s(wallScale);
+    drawables->scales[iCeil] = f4_s(wallScale);
+    drawables->scales[iLeft] = f4_s(wallScale);
+    drawables->scales[iRight] = f4_s(wallScale);
+    drawables->scales[iNear] = f4_s(wallScale);
+    drawables->scales[iFar] = f4_s(wallScale);
+
+    drawables->scales[iLight] = f4_s(lightScale);
+
+    drawables->scales[iMetal] = f4_s(sphereDiam);
+    drawables->scales[iPlastic] = f4_s(sphereDiam);
+
+    drawables->rotations[iCeil] = quat_lookat(y4, z4);
+    drawables->rotations[iFloor] = quat_lookat(f4_neg(y4), f4_neg(z4));
+
+    drawables->rotations[iRight] = quat_lookat(x4, y4);
+    drawables->rotations[iLeft] = quat_lookat(f4_neg(x4), y4);
+
+    drawables->rotations[iFar] = quat_lookat(f4_neg(z4), y4);
+    drawables->rotations[iNear] = quat_lookat(z4, y4);
+
+    drawables->rotations[iLight] = drawables->rotations[iCeil];
+
+    drawables->rotations[iMetal] = quat_id;
+    drawables->rotations[iPlastic] = quat_id;
+
+    const float4 st = { 1.0f, 1.0f, 0.0f, 0.0f };
+    const u32 white = LinearToColor(f4_v(1.0f, 1.0f, 1.0f, 1.0f));
+    const u32 red = LinearToColor(f4_v(1.0f, 0.0f, 0.0f, 1.0f));
+    const u32 green = LinearToColor(f4_v(0.0f, 1.0f, 0.0f, 1.0f));
+    const u32 blue = LinearToColor(f4_v(0.0f, 0.0f, 1.0f, 1.0f));
+    const u32 boxRome = LinearToColor(f4_v(0.9f, 1.0f, 0.0f, 0.0f));
+    const u32 lightRome = LinearToColor(f4_v(0.5f, 1.0f, 0.0f, 0.35f));
+    const u32 plasticRome = LinearToColor(f4_v(1.0f, 1.0f, 0.0f, 0.0f));
+    const u32 metalRome = LinearToColor(f4_v(0.25f, 1.0f, 1.0f, 0.0f));
+
+    const material_t whiteBoxMat = (material_t)
+    {
+        .st = st,
+        .flatAlbedo = white,
+        .flatRome = boxRome,
+    };
+    const material_t greenBoxMat = (material_t)
+    {
+        .st = st,
+        .flatAlbedo = green,
+        .flatRome = boxRome,
+    };
+    const material_t redBoxMat = (material_t)
+    {
+        .st = st,
+        .flatAlbedo = red,
+        .flatRome = boxRome,
+    };
+    const material_t lightMat = (material_t)
+    {
+        .st = st,
+        .flatAlbedo = white,
+        .flatRome = lightRome,
+    };
+    const material_t plasticMat = (material_t)
+    {
+        .st = st,
+        .flatAlbedo = white,
+        .flatRome = plasticRome,
+    };
+    const material_t metalMat = (material_t)
+    {
+        .st = st,
+        .flatAlbedo = white,
+        .flatRome = metalRome,
+    };
+
+    drawables->materials[iFloor] = whiteBoxMat;
+    drawables->materials[iCeil] = whiteBoxMat;
+    drawables->materials[iNear] = whiteBoxMat;
+    drawables->materials[iFar] = whiteBoxMat;
+    drawables->materials[iLeft] = redBoxMat;
+    drawables->materials[iRight] = greenBoxMat;
+
+    drawables->materials[iLight] = lightMat;
+
+    drawables->materials[iPlastic] = plasticMat;
+    drawables->materials[iMetal] = metalMat;
+
+    drawables_trs();
+
+    return cmdstat_ok;
 }
 
 static textureid_t GenCheckerTex(void)
