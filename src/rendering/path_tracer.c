@@ -332,13 +332,11 @@ static rayhit_t VEC_CALL TraceRay(
         return hit;
     }
 
-    const float e = 1.0f / (1 << 20);
-
     // test box
     const float2 nearFar = isectBox3D(ray.ro, rcpRd, scene->boxes[n]);
     if ((nearFar.y <= nearFar.x) || // miss
         (nearFar.x > limit) || // further away, culled
-        (nearFar.y < e)) // behind eye
+        (nearFar.y < kEpsilon)) // behind eye
     {
         return hit;
     }
@@ -352,7 +350,7 @@ static rayhit_t VEC_CALL TraceRay(
         {
             sphere_t sph = { ptLights[i].pos };
             float t = isectSphere3D(ray, sph);
-            if (t < e || t > hit.wuvt.w)
+            if (t < kEpsilon || t > hit.wuvt.w)
             {
                 continue;
             }
@@ -374,7 +372,7 @@ static rayhit_t VEC_CALL TraceRay(
 
             float4 tri = isectTri3D(ray, vertices[j + 0], vertices[j + 1], vertices[j + 2]);
             float t = tri.w;
-            if (t < e || t > hit.wuvt.w)
+            if (t < kEpsilon || t > hit.wuvt.w)
             {
                 continue;
             }
@@ -432,27 +430,45 @@ pim_inline const material_t* VEC_CALL GetMaterial(const pt_scene_t* scene, rayhi
     return scene->materials + matIndex;
 }
 
-pim_inline float VEC_CALL Scatter(
+typedef struct scatter_s
+{
+    float4 dir;
+    float4 attenuation;
+    float pdf;
+    bool specular;
+} scatter_t;
+
+pim_inline scatter_t VEC_CALL Scatter(
     prng_t* rng,
     const surfhit_t* surf,
-    float4 dirIn,
-    float4* dirOut)
+    float4 I)
 {
-    // ggx pdf is breaking conservation of energy law atm
-    //bool specular = (surf->metallic > 0.5f) || prng_bool(rng);
-    //if (specular)
-    //{
-    //    return ScatterGGX(
-    //        rng,
-    //        dirIn,
-    //        surf->N,
-    //        dirOut,
-    //        surf->roughness);
-    //}
-    //else
+    scatter_t result;
+    float4 N = surf->N;
+    float4 V = f4_neg(I);
+    float roughness = surf->roughness;
+    float alpha = roughness * roughness;
+    result.specular = prng_f32(rng) < (0.5f + surf->metallic);
+    if (result.specular)
     {
-        return ScatterLambertian(rng, dirIn, surf->N, dirOut, surf->roughness);
+        float4 L = ScatterGGX(rng, I, N, alpha);
+        float4 H = f4_normalize3(f4_add(V, L));
+        float NoH = f1_saturate(f4_dot3(N, H));
+        float HoV = f1_saturate(f4_dot3(H, V));
+        float4 f0 = F_0(surf->albedo, surf->metallic);
+        float4 F = F_Schlick(f0, f4_1, HoV);
+        result.dir = L;
+        result.pdf = GGXPdf(NoH, HoV, alpha);
+        result.attenuation = F;
     }
+    else
+    {
+        float4 L = ScatterCosine(rng, N);
+        result.dir = L;
+        result.pdf = LambertPdf(N, L);
+        result.attenuation = surf->albedo;
+    }
+    return result;
 }
 
 pim_optimize
@@ -544,13 +560,13 @@ pt_result_t VEC_CALL pt_trace_ray(
             normal = surf.N;
         }
 
-        float4 dirOut;
-        pdf = Scatter(rng, &surf, ray.rd, &dirOut);
-        if (pdf > 0.0f)
+        scatter_t scatter = Scatter(rng, &surf, ray.rd);
+        pdf = scatter.pdf;
+        if (pdf > kEpsilon)
         {
             ray.ro = surf.P;
-            ray.rd = dirOut;
-            float4 newAtten = f4_mulvs(surf.albedo, pdf);
+            ray.rd = scatter.dir;
+            float4 newAtten = f4_mulvs(scatter.attenuation, pdf);
             attenuation = f4_mul(attenuation, newAtten);
         }
         else
@@ -562,8 +578,8 @@ pt_result_t VEC_CALL pt_trace_ray(
     return (pt_result_t)
     {
         .color = f4_f3(light),
-            .albedo = f4_f3(albedo),
-            .normal = f4_f3(normal),
+        .albedo = f4_f3(albedo),
+        .normal = f4_f3(normal),
     };
 }
 

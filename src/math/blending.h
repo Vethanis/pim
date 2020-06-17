@@ -40,7 +40,7 @@ pim_inline float4 VEC_CALL f4_screen(float4 src, float4 blend)
 
 pim_inline float4 VEC_CALL f4_colordodge(float4 src, float4 blend)
 {
-    return f4_div(src, f4_max(f4_inv(blend), f4_s(f16_eps)));
+    return f4_div(src, f4_maxvs(f4_inv(blend), kEpsilon));
 }
 
 pim_inline float4 VEC_CALL f4_lineardodge(float4 src, float4 blend)
@@ -91,10 +91,10 @@ pim_inline float4 VEC_CALL f4_vividlight(float4 src, float4 blend)
     // a = 1-(1-src)/(2*(blend-0.5))
     float4 a0 = f4_inv(src);
     float4 a1 = f4_mulvs(f4_subvs(blend, 0.5f), 2.0f);
-    float4 a = f4_inv(f4_div(a0, f4_maxvs(a1, f16_eps)));
+    float4 a = f4_inv(f4_div(a0, f4_maxvs(a1, kEpsilon)));
     // b = src/(1-2*blend)
     float4 b0 = f4_inv(f4_mulvs(blend, 2.0f));
-    float4 b = f4_div(src, f4_maxvs(b0, f16_eps));
+    float4 b = f4_div(src, f4_maxvs(b0, kEpsilon));
     // src > 0.5 ? a : b
     return f4_select(b, a, f4_gtvs(blend, 0.5f));
 }

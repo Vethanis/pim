@@ -30,6 +30,7 @@
     <ClCompile Include="..\src\common\time.c" />
     <ClCompile Include="..\src\containers\dict.c" />
     <ClCompile Include="..\src\containers\graph.c" />
+    <ClCompile Include="..\src\containers\sset.c" />
     <ClCompile Include="..\src\containers\table.c" />
     <ClCompile Include="..\src\containers\hash_set.c" />
     <ClCompile Include="..\src\containers\idset.c" />
@@ -152,6 +153,7 @@
     <ClInclude Include="..\src\common\valist.h" />
     <ClInclude Include="..\src\containers\carray.h" />
     <ClInclude Include="..\src\containers\carray.c" />
+    <ClInclude Include="..\src\containers\sset.h" />
     <ClInclude Include="..\src\containers\table.h" />
     <ClInclude Include="..\src\containers\idtable.h" />
     <ClInclude Include="..\src\containers\int_queue.h" />

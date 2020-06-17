@@ -9,17 +9,11 @@ PIM_C_BEGIN
 
 #pragma intrinsic(pow, sqrt, exp, log, sin, cos, tan, fmod)
 
-#ifndef kPi
 #define kPi                 3.141592653f
 #define kTau                6.283185307f
 #define kRadiansPerDegree   (kTau / 360.0f)
 #define kDegreesPerRadian   (360.0f / kTau)
-#endif // kPi
-
-// https://en.wikipedia.org/wiki/Machine_epsilon
-static const float f16_eps = 1.0f / (1 << 10);
-static const float f32_eps = 1.0f / (1 << 23);
-static const double f64_eps = 1.0 / (1ll << 52);
+#define kEpsilon            (1.0f / (1<<20))
 
 pim_inline float VEC_CALL f1_radians(float x)
 {

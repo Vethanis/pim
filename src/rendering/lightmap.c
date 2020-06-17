@@ -422,7 +422,7 @@ static float chart_density(chart_t chart)
 {
     float fromTri = chart_triarea(chart);
     float fromBounds = chart_area(chart);
-    return fromTri / f1_max(fromBounds, f16_eps);
+    return fromTri / f1_max(fromBounds, kEpsilon);
 }
 
 static float2 VEC_CALL tri_center(tri2d_t tri)
@@ -1439,9 +1439,9 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
                 float4 P = f3_f4(P3, 1.0f);
                 float4 N = f4_normalize3(f3_f4(N3, 0.0f));
 
-                float4 rd;
-                float pdf = ScatterLambertian(&rng, N, N, &rd, 1.0f);
-                ray_t ray = { P, rd };
+                float4 dir = ScatterCosine(&rng, N);
+                float pdf = LambertPdf(N, dir);
+                ray_t ray = { P, dir };
                 pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
                 result.color = f3_mulvs(result.color, pdf);
 

@@ -299,7 +299,6 @@ static void Rasterize(void)
     drawables_trs();
     drawables_bounds();
     drawables_cull(&camera, backBuf);
-    drawables_vertex();
     drawables_fragment(frontBuf, backBuf);
 
     ProfileEnd(pm_Rasterize);
@@ -601,6 +600,16 @@ void render_sys_gui(bool* pEnabled)
 
 static meshid_t GenSphereMesh(float r, i32 steps)
 {
+    char name[PIM_PATH];
+    SPrintf(ARGS(name), "SphereMesh_%f_%d", r, steps);
+
+    meshid_t id;
+    if (mesh_find(name, &id))
+    {
+        mesh_retain(id);
+        return id;
+    }
+
     const i32 vsteps = steps;       // divisions along y axis
     const i32 hsteps = steps * 2;   // divisions along x-z plane
     const float dv = kPi / vsteps;
@@ -725,19 +734,28 @@ static meshid_t GenSphereMesh(float r, i32 steps)
         }
     }
 
-    mesh_t* mesh = perm_calloc(sizeof(*mesh));
-    mesh->length = length;
-    mesh->positions = positions;
-    mesh->normals = normals;
-    mesh->uvs = uvs;
-    mesh->lmUvs = lmUvs;
-    return mesh_create(mesh);
+
+    mesh_t mesh = {0};
+    mesh.length = length;
+    mesh.positions = positions;
+    mesh.normals = normals;
+    mesh.uvs = uvs;
+    mesh.lmUvs = lmUvs;
+    return mesh_new(&mesh, name);
 }
 
 // N = (0, 0, 1)
 // centered at origin, [-0.5, 0.5]
 static meshid_t GenQuadMesh(void)
 {
+    const char* name = "QuadMesh";
+    meshid_t id;
+    if (mesh_find(name, &id))
+    {
+        mesh_retain(id);
+        return id;
+    }
+
     const float4 tl = { -0.5f, 0.5f, 0.0f };
     const float4 tr = { 0.5f, 0.5f, 0.0f };
     const float4 bl = { -0.5f, -0.5f, 0.0f };
@@ -763,13 +781,13 @@ static meshid_t GenQuadMesh(void)
         lmUvs[i].z = -1.0f;
     }
 
-    mesh_t* mesh = perm_calloc(sizeof(*mesh));
-    mesh->length = length;
-    mesh->positions = positions;
-    mesh->normals = normals;
-    mesh->uvs = uvs;
-    mesh->lmUvs = lmUvs;
-    return mesh_create(mesh);
+    mesh_t mesh = {0};
+    mesh.length = length;
+    mesh.positions = positions;
+    mesh.normals = normals;
+    mesh.uvs = uvs;
+    mesh.lmUvs = lmUvs;
+    return mesh_new(&mesh, name);
 }
 
 static meshid_t ms_quadmesh;
@@ -781,16 +799,7 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     ms_ptscene = NULL;
     lmpack_del(lmpack_get());
 
-    while (lights_pt_count() > 0)
-    {
-        lights_rm_pt(0);
-    }
-    while (lights_dir_count() > 0)
-    {
-        lights_rm_dir(0);
-    }
-
-    if (!ms_quadmesh.handle)
+    if (!ms_quadmesh.version)
     {
         ms_quadmesh = GenQuadMesh();
         ms_spheremesh = GenSphereMesh(1.0f, 32);
@@ -877,8 +886,8 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     const u32 blue = LinearToColor(f4_v(0.0f, 0.0f, 1.0f, 1.0f));
     const u32 boxRome = LinearToColor(f4_v(0.9f, 1.0f, 0.0f, 0.0f));
     const u32 lightRome = LinearToColor(f4_v(0.5f, 1.0f, 0.0f, 0.35f));
-    const u32 plasticRome = LinearToColor(f4_v(1.0f, 1.0f, 0.0f, 0.0f));
-    const u32 metalRome = LinearToColor(f4_v(0.25f, 1.0f, 1.0f, 0.0f));
+    const u32 plasticRome = LinearToColor(f4_v(0.125f, 1.0f, 0.0f, 0.0f));
+    const u32 metalRome = LinearToColor(f4_v(0.125f, 1.0f, 1.0f, 0.0f));
 
     const material_t whiteBoxMat = (material_t)
     {
@@ -936,10 +945,9 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 
 static textureid_t GenCheckerTex(void)
 {
-    textureid_t id = texture_lookup("checkertex");
-    if (id.version)
+    textureid_t id;
+    if (texture_find("checkertex", &id))
     {
-        texture_retain(id);
         return id;
     }
 

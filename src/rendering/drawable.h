@@ -17,7 +17,6 @@ typedef struct drawables_s
     u32* names;             // hashstring identifier
     meshid_t* meshes;       // immutable object space mesh
     material_t* materials;  // material description
-    meshid_t* tmpMeshes;    // per-frame world space mesh
     sphere_t* bounds;       // world space bounds
     u64* tileMasks;         // bitmask of tile visibility
     float4x4* matrices;     // local to world matrix

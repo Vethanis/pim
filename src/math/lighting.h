@@ -88,6 +88,7 @@ pim_inline float VEC_CALL D_GTR(float NoH, float alpha)
 }
 
 // Specular 'G' term
+// Correlated Smith
 // represents the self shadowing and masking of microfacets in rough materials
 // [Lagarde15, Page 12, Listing 2]
 pim_inline float VEC_CALL G_SmithGGX(float NoL, float NoV, float alpha)
@@ -141,14 +142,11 @@ pim_inline float4 VEC_CALL DirectBRDF(
     float4 F = F_Schlick(f0, f4_1, LoH); // LoH or VoH work as difference angle
     float G = G_SmithGGX(NoL, NoV, alpha);
     float D = D_GTR(NoH, alpha);
-    float4 Fr = f4_divvs(f4_mulvs(F, D * G), f1_max(1e-5f, 4.0f * NoL * NoV));
+    float4 Fr = f4_divvs(f4_mulvs(F, D * G), f1_max(kEpsilon, 4.0f * NoL * NoV));
 
-    float4 kD = f4_mul(albedo, f4_mulvs(f4_inv(F), 1.0f - metallic));
-    float4 Fd = f4_mulvs(kD, Fd_Burley(NoL, NoV, LoH, alpha));
+    float4 Fd = f4_mul(albedo, f4_mulvs(f4_inv(F), (1.0f - metallic) / kPi));
 
-    float4 brdf = f4_add(Fr, Fd);
-
-    return f4_mulvs(brdf, NoL);
+    return f4_mulvs(f4_add(Fr, Fd), NoL);
 }
 
 // polynomial approximation for convolved specular DFG
@@ -180,7 +178,7 @@ pim_inline float4 VEC_CALL IndirectBRDF(
     float cosTheta = f1_saturate(f4_dot3(N, V));
 
     float4 f0 = F_0(albedo, metallic);
-    float4 F = F_Schlick(f0, f4_s(1.0f - alpha), cosTheta);
+    float4 F = F_Schlick(f0, f4_1, cosTheta);
     float4 Fr = EnvDFG(f0, cosTheta, alpha);
     Fr = f4_mul(Fr, specularGI);
 

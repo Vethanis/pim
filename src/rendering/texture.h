@@ -28,9 +28,10 @@ void texture_release(textureid_t id);
 bool texture_get(textureid_t id, texture_t* dst);
 bool texture_set(textureid_t id, int2 size, u32* texels);
 
-textureid_t texture_lookup(const char* name);
+bool texture_find(const char* name, textureid_t* idOut);
 
 textureid_t texture_unpalette(const u8* bytes, int2 size, const char* name);
+void texture_diffuse_to_albedo(textureid_t id);
 textureid_t texture_lumtonormal(textureid_t src, float scale, const char* name);
 
 PIM_C_END

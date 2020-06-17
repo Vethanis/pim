@@ -7,7 +7,6 @@ PIM_C_BEGIN
 
 typedef struct mesh_s
 {
-    u64 version;
     float4* positions;
     float4* normals;
     float2* uvs;
@@ -18,21 +17,21 @@ typedef struct mesh_s
 
 typedef struct meshid_s
 {
-    u64 version;
-    void* handle;
+    i32 index;
+    i32 version;
 } meshid_t;
 
-// creates a versioned handle to your mesh pointer
-meshid_t mesh_create(mesh_t* mesh);
+meshid_t mesh_new(mesh_t* mesh, const char* name);
 
-// atomically releases the handle, freeing the mesh buffers and mesh pointer only once
-bool mesh_destroy(meshid_t id);
+bool mesh_exists(meshid_t id);
 
-bool mesh_current(meshid_t id);
+void mesh_retain(meshid_t id);
+void mesh_release(meshid_t id);
+
 bool mesh_get(meshid_t id, mesh_t* dst);
+bool mesh_set(meshid_t id, mesh_t* src);
 
-bool mesh_register(const char* name, meshid_t id);
-meshid_t mesh_lookup(const char* name);
+bool mesh_find(const char* name, meshid_t* idOut);
 
 sphere_t mesh_calcbounds(meshid_t id);
 

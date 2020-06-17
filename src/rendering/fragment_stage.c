@@ -151,9 +151,9 @@ static float4 VEC_CALL TriBounds(
     A = f4_mul(A, scale);
     B = f4_mul(B, scale);
     C = f4_mul(C, scale);
-    A.z = f1_max(-A.z, f32_eps);
-    B.z = f1_max(-B.z, f32_eps);
-    C.z = f1_max(-C.z, f32_eps);
+    A.z = f1_max(-A.z, kEpsilon);
+    B.z = f1_max(-B.z, kEpsilon);
+    C.z = f1_max(-C.z, kEpsilon);
     A = f4_divvs(A, A.z);
     B = f4_divvs(B, B.z);
     C = f4_divvs(C, C.z);
@@ -210,7 +210,7 @@ static void VEC_CALL DrawMesh(
     const lightmap_t* lightmaps = lmpack->lightmaps;
 
     mesh_t mesh;
-    if (!mesh_get(drawTable->tmpMeshes[iDraw], &mesh))
+    if (!mesh_get(drawTable->meshes[iDraw], &mesh))
     {
         return;
     }
@@ -223,8 +223,9 @@ static void VEC_CALL DrawMesh(
 
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
-    const float e = 1.0f / (1 << 10);
 
+    const float4x4 M = drawTable->matrices[iDraw];
+    const float3x3 IM = f3x3_IM(M);
     const material_t material = drawTable->materials[iDraw];
     const float4 flatAlbedo = ColorToLinear(material.flatAlbedo);
     const float4 flatRome = ColorToLinear(material.flatRome);
@@ -261,9 +262,9 @@ static void VEC_CALL DrawMesh(
 
     for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
     {
-        const float4 A = positions[iVert + 0];
-        const float4 B = positions[iVert + 1];
-        const float4 C = positions[iVert + 2];
+        const float4 A = f4x4_mul_pt(M, positions[iVert + 0]);
+        const float4 B = f4x4_mul_pt(M, positions[iVert + 1]);
+        const float4 C = f4x4_mul_pt(M, positions[iVert + 2]);
 
         const float4 BA = f4_sub(B, A);
         const float4 CA = f4_sub(C, A);
@@ -286,13 +287,13 @@ static void VEC_CALL DrawMesh(
         const float4 Q = f4_cross3(T, BA);
         const float t0 = f4_dot3(CA, Q);
 
-        const float2 UA = uvs[iVert + 0];
-        const float2 UB = uvs[iVert + 1];
-        const float2 UC = uvs[iVert + 2];
+        const float2 UA = TransformUv(uvs[iVert + 0], material.st);
+        const float2 UB = TransformUv(uvs[iVert + 1], material.st);
+        const float2 UC = TransformUv(uvs[iVert + 2], material.st);
 
-        const float4 NA = normals[iVert + 0];
-        const float4 NB = normals[iVert + 1];
-        const float4 NC = normals[iVert + 2];
+        const float4 NA = f3x3_mul_col(IM, normals[iVert + 0]);
+        const float4 NB = f3x3_mul_col(IM, normals[iVert + 1]);
+        const float4 NC = f3x3_mul_col(IM, normals[iVert + 2]);
 
         const i32 lmIndex = (i32)lmUvs[iVert + 0].z;
         const bool hasLM = (lmIndex >= 0) && (lmIndex < lmCount);
@@ -309,7 +310,7 @@ static void VEC_CALL DrawMesh(
                 const float4 rd = proj_dir(right, up, fwd, slope, coord);
                 const float4 rdXca = f4_cross3(rd, CA);
                 const float det = f4_dot3(BA, rdXca);
-                if (det < e)
+                if (det < kEpsilon)
                 {
                     continue;
                 }

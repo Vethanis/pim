@@ -150,13 +150,11 @@ pim_inline float VEC_CALL sdTriangle2D(
 
 pim_inline float4 VEC_CALL isectTri3D(ray_t ray, float4 A, float4 B, float4 C)
 {
-    const float e = 1.0f / (1 << 20);
-
     float4 BA = f4_sub(B, A);
     float4 CA = f4_sub(C, A);
     float4 P = f4_cross3(ray.rd, CA);
     float det = f4_dot3(BA, P);
-    if (det > e)
+    if (det > kEpsilon)
     {
         float rcpDet = 1.0f / det;
         float4 T = f4_sub(ray.ro, A);

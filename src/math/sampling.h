@@ -9,11 +9,9 @@
 
 PIM_C_BEGIN
 
-typedef float (VEC_CALL *ScatterFn)(prng_t* rng, float4 dirIn, float4 N, float4* dirOut, float roughness);
-
 pim_inline bool VEC_CALL IsUnitLength(float4 dir)
 {
-    return f1_distance(f4_length3(dir), 1.0f) < f16_eps;
+    return f1_distance(f4_length3(dir), 1.0f) < kEpsilon;
 }
 
 pim_inline float3x3 VEC_CALL NormalToTBN(float4 N)
@@ -21,13 +19,9 @@ pim_inline float3x3 VEC_CALL NormalToTBN(float4 N)
     const float4 kX = { 1.0f, 0.0f, 0.0f, 0.0f };
     const float4 kZ = { 0.0f, 0.0f, 1.0f, 0.0f };
 
-    ASSERT(IsUnitLength(N));
-
     float4 a = f1_abs(N.z) < 0.9f ? kZ : kX;
     float4 T = f4_normalize3(f4_cross3(a, N));
-    float4 B = f4_cross3(N, T);
-
-    ASSERT(IsUnitLength(B));
+    float4 B = f4_normalize3(f4_cross3(N, T));
 
     return (float3x3) { T, B, N };
 }
@@ -38,8 +32,7 @@ pim_inline float4 VEC_CALL TbnToWorld(float3x3 TBN, float4 nTS)
     float4 u = f4_mulvs(TBN.c1, nTS.y);
     float4 f = f4_mulvs(TBN.c2, nTS.z);
     float4 dir = f4_add(f, f4_add(r, u));
-    ASSERT(IsUnitLength(dir));
-    return dir;
+    return f4_normalize3(dir);
 }
 
 pim_inline float4 VEC_CALL TanToWorld(float4 normalWS, float4 normalTS)
@@ -147,69 +140,57 @@ pim_inline float4 VEC_CALL SampleCosineHemisphere(float2 Xi)
     return dir;
 }
 
-pim_inline float VEC_CALL LambertianPdf(float4 N, float4 dir)
+pim_inline float VEC_CALL LambertPdf(float4 N, float4 dir)
 {
-    return f1_max(0.0f, f4_dot3(N, dir) / kPi);
+    return f1_saturate(f4_dot3(N, dir)) / kPi;
 }
 
-pim_inline float VEC_CALL ScatterLambertian(
-    prng_t* rng,
-    float4 dirIn,
-    float4 N,
-    float4* dirOut,
-    float roughness)
+pim_inline float4 VEC_CALL ScatterHemisphere(prng_t* rng, float4 N)
 {
-    float4 dir = TanToWorld(N, SampleCosineHemisphere(f2_rand(rng)));
-    *dirOut = dir;
-    return LambertianPdf(N, dir);
+    return TanToWorld(N, SampleUnitHemisphere(f2_rand(rng)));
+}
+
+pim_inline float4 VEC_CALL ScatterCosine(prng_t* rng, float4 N)
+{
+    return TanToWorld(N, SampleCosineHemisphere(f2_rand(rng)));
 }
 
 // returns a microfacet normal of the GGX NDF for given roughness
 // tangent space
-pim_inline float4 VEC_CALL SampleGGXMicrofacet(float2 Xi, float roughness)
+pim_inline float4 VEC_CALL SampleGGXMicrofacet(float2 Xi, float alpha)
 {
-    float a = roughness * roughness;
-    float phi = kTau * Xi.x;
-    float cosTheta = sqrtf((1.0f - Xi.y) / (1.0f + (a * a - 1.0f) * Xi.y));
-    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
-    const float4 dir =
-    {
-        cosf(phi) * sinTheta,
-        sinf(phi) * sinTheta,
-        cosTheta,
-        0.0f,
-    };
-    ASSERT(IsUnitLength(dir));
-    return dir;
+    float theta = atan2f(alpha * sqrtf(Xi.x), sqrtf(1.0f - Xi.x));
+    float phi = kTau * Xi.y;
+
+    float sinTheta = sinf(theta);
+    float cosTheta = cosf(theta);
+    float sinPhi = sinf(phi);
+    float cosPhi = cosf(phi);
+
+    float4 m;
+    m.x = sinTheta * cosPhi;
+    m.y = cosTheta * sinPhi;
+    m.z = cosTheta;
+    m.w = 0.0f;
+
+    return f4_normalize3(m);
 }
 
-pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float roughness)
+pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)
 {
-    float alpha = roughness * roughness;
-    float ndf = D_GTR(NoH, alpha);
-    return (ndf * NoH) / f1_max(0.001f, 4.0f * HoV);
+    float d = D_GTR(NoH, alpha);
+    return (d * NoH) / f1_max(kEpsilon, 4.0f * HoV);
 }
 
-pim_inline float VEC_CALL ScatterGGX(
+pim_inline float4 VEC_CALL ScatterGGX(
     prng_t* rng,
-    float4 dirIn,
+    float4 I,
     float4 N,
-    float4* dirOut,
-    float roughness)
+    float alpha)
 {
-    float4 V = f4_neg(dirIn);
-    float4 H = SampleGGXMicrofacet(f2_rand(rng), roughness);
+    float4 H = SampleGGXMicrofacet(f2_rand(rng), alpha);
     H = TanToWorld(N, H);
-
-    float NoH = f1_max(0.0f, f4_dot3(N, H));
-    float HoV = f1_max(0.0f, f4_dot3(H, V));
-
-    float4 dir = f4_reflect3(dirIn, H);
-    ASSERT(IsUnitLength(dir));
-    *dirOut = dir;
-
-    float pdf = GGXPdf(NoH, HoV, roughness);
-    return pdf;
+    return f4_normalize3(f4_reflect3(I, H));
 }
 
 PIM_C_END

@@ -27,7 +27,6 @@ i32 drawables_add(u32 name)
     PermGrow(ms_drawables.names, len);
     PermGrow(ms_drawables.meshes, len);
     PermGrow(ms_drawables.materials, len);
-    PermGrow(ms_drawables.tmpMeshes, len);
     PermGrow(ms_drawables.bounds, len);
     PermGrow(ms_drawables.tileMasks, len);
     PermGrow(ms_drawables.matrices, len);
@@ -48,7 +47,7 @@ static void DestroyAtIndex(i32 i)
 {
     ASSERT(i >= 0);
     ASSERT(i < ms_drawables.count);
-    mesh_destroy(ms_drawables.meshes[i]);
+    mesh_release(ms_drawables.meshes[i]);
     material_t material = ms_drawables.materials[i];
     texture_release(material.albedo);
     texture_release(material.rome);
@@ -66,7 +65,6 @@ static void RemoveAtIndex(i32 i)
     PopSwap(ms_drawables.names, i, len);
     PopSwap(ms_drawables.meshes, i, len);
     PopSwap(ms_drawables.materials, i, len);
-    PopSwap(ms_drawables.tmpMeshes, i, len);
     PopSwap(ms_drawables.bounds, i, len);
     PopSwap(ms_drawables.tileMasks, i, len);
     PopSwap(ms_drawables.matrices, i, len);

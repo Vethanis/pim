@@ -40,7 +40,7 @@ static float2 VEC_CALL IntegrateBRDF(
         if (NoL > 0.0f)
         {
             float G = G_SmithGGX(NoL, NoV, alpha);
-            float GVis = (G * VoH) / f1_max(NoH * NoV, f16_eps);
+            float GVis = (G * VoH) / f1_max(NoH * NoV, kEpsilon);
             float Fc = 1.0f - VoH;
             Fc = Fc * Fc * Fc * Fc * Fc;
 

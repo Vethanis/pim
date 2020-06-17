@@ -357,8 +357,20 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         material_t material = { 0 };
         material.flatAlbedo = LinearToColor(f4_1); // IntToColor(i, surfCount));
         material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
-        material.albedo = texture_unpalette(mip0, size, albedoName);
-        material.normal = texture_lumtonormal(material.albedo, 1.5f, normalName);
+        if (!texture_find(albedoName, &material.albedo))
+        {
+            material.albedo = texture_unpalette(mip0, size, albedoName);
+            // use diffuse texture for normals, since occlusion is baked in
+            material.normal = texture_lumtonormal(material.albedo, 2.0f, normalName);
+            // convert in-place to albedo
+            texture_diffuse_to_albedo(material.albedo);
+        }
+        else
+        {
+            texture_retain(material.albedo);
+            texture_find(normalName, &material.normal);
+            texture_retain(material.normal);
+        }
         materials[i] = material;
     }
 
@@ -400,7 +412,7 @@ static meshid_t VEC_CALL TrisToMesh(
 
         float4 N = f4_cross3(f4_sub(C, A), f4_sub(B, A));
         float lenSq = f4_dot3(N, N);
-        if (lenSq > f32_eps)
+        if (lenSq > kEpsilon)
         {
             vertsEmit += 3;
             N = f4_divvs(N, sqrtf(lenSq));
@@ -424,13 +436,20 @@ static meshid_t VEC_CALL TrisToMesh(
         normals[c] = N;
     }
 
-    mesh_t* mesh = perm_calloc(sizeof(*mesh));
-    mesh->length = vertsEmit;
-    mesh->positions = positions;
-    mesh->normals = normals;
-    mesh->uvs = uvs;
-    mesh->lmUvs = lmUvs;
-    return mesh_create(mesh);
+    if (vertsEmit > 0)
+    {
+        mesh_t mesh = {0};
+        mesh.length = vertsEmit;
+        mesh.positions = positions;
+        mesh.normals = normals;
+        mesh.uvs = uvs;
+        mesh.lmUvs = lmUvs;
+        return mesh_new(&mesh, name);
+    }
+    else
+    {
+        return (meshid_t) { 0 };
+    }
 }
 
 u32* ModelToDrawables(const mmodel_t* model)
@@ -475,8 +494,10 @@ u32* ModelToDrawables(const mmodel_t* model)
 
         material_t material = materials[i];
 
+        char name[PIM_PATH];
+        SPrintf(ARGS(name), "%s_surf_%d", model->name, i);
         i32 vertCount = FlattenSurface(model, surface, &tris, &polygon);
-        meshid_t mesh = TrisToMesh(model->name, M, surface, tris, vertCount);
+        meshid_t mesh = TrisToMesh(name, M, surface, tris, vertCount);
 
         material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
 

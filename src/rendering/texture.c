@@ -11,7 +11,6 @@
 
 static bool ms_once;
 static table_t ms_table;
-
 static u8 ms_palette[256 * 3];
 
 static void EnsureInit(void)
@@ -47,13 +46,6 @@ static bool IsCurrent(textureid_t id)
     return table_exists(&ms_table, ToGenId(id));
 }
 
-static void FreeTexture(texture_t* tex)
-{
-    ASSERT(tex);
-    pim_free(tex->texels);
-    memset(tex, 0, sizeof(*tex));
-}
-
 textureid_t texture_load(const char* path)
 {
     EnsureInit();
@@ -78,7 +70,7 @@ textureid_t texture_new(int2 size, u32* texels, const char* name)
     ASSERT(size.y > 0);
     ASSERT(texels);
 
-    genid id = { 0 };
+    genid id = { -1, 0 };
     if (texels)
     {
         texture_t tex = { .size = size,.texels = texels };
@@ -104,7 +96,7 @@ void texture_release(textureid_t id)
 {
     EnsureInit();
 
-    texture_t tex = {0};
+    texture_t tex = { 0 };
     if (table_release(&ms_table, ToGenId(id), &tex))
     {
         pim_free(tex.texels);
@@ -119,6 +111,7 @@ bool texture_get(textureid_t id, texture_t* dst)
 
 bool texture_set(textureid_t id, int2 size, u32* texels)
 {
+    ASSERT(texels);
     EnsureInit();
     if (IsCurrent(id))
     {
@@ -132,21 +125,19 @@ bool texture_set(textureid_t id, int2 size, u32* texels)
     return false;
 }
 
-textureid_t texture_lookup(const char* name)
+bool texture_find(const char* name, textureid_t* idOut)
 {
+    ASSERT(idOut);
     EnsureInit();
-    return ToTexId(table_lookup(&ms_table, name));
+    genid id;
+    bool found = table_find(&ms_table, name, &id);
+    *idOut = ToTexId(id);
+    return found;
 }
 
 // https://quakewiki.org/wiki/Quake_palette
 textureid_t texture_unpalette(const u8* bytes, int2 size, const char* name)
 {
-    textureid_t id = texture_lookup(name);
-    if (id.version)
-    {
-        return id;
-    }
-
     u32* texels = perm_malloc(size.x * size.y * sizeof(texels[0]));
     for (i32 y = 0; y < size.y; ++y)
     {
@@ -158,13 +149,28 @@ textureid_t texture_unpalette(const u8* bytes, int2 size, const char* name)
             u32 g = ms_palette[encoded * 3 + 1];
             u32 b = ms_palette[encoded * 3 + 2];
             u32 color = r | (g << 8) | (b << 16);
-            float4 lin = ColorToLinear(color);
-            lin = DiffuseToAlbedo(lin);
-            texels[i] = LinearToColor(lin);
+            texels[i] = color;
         }
     }
 
     return texture_new(size, texels, name);
+}
+
+void texture_diffuse_to_albedo(textureid_t id)
+{
+    texture_t tex;
+    if (texture_get(id, &tex))
+    {
+        const i32 len = tex.size.x * tex.size.y;
+        for (i32 i = 0; i < len; ++i)
+        {
+            u32 diffuseColor = tex.texels[i];
+            float4 diffuse = ColorToLinear(diffuseColor);
+            float4 albedo = DiffuseToAlbedo(diffuse);
+            u32 albedoColor = LinearToColor(albedo);
+            tex.texels[i] = albedoColor;
+        }
+    }
 }
 
 pim_inline float VEC_CALL SampleLuma(texture_t tex, int2 c)
@@ -174,13 +180,7 @@ pim_inline float VEC_CALL SampleLuma(texture_t tex, int2 c)
 
 textureid_t texture_lumtonormal(textureid_t src, float scale, const char* name)
 {
-    textureid_t id = texture_lookup(name);
-    if (id.version)
-    {
-        return id;
-    }
-
-    const float rcpScale = 1.0f / f1_max(scale, f16_eps);
+    const float rcpScale = 1.0f / f1_max(scale, kEpsilon);
     texture_t tex = { 0 };
     if (texture_get(src, &tex))
     {

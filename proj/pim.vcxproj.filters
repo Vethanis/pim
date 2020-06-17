@@ -451,6 +451,9 @@
     <ClCompile Include="..\src\containers\table.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\containers\sset.c">
+      <Filter>Source Files\containers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -955,6 +958,9 @@
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\table.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\sset.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>

@@ -257,13 +257,12 @@ pim_inline float4x4 VEC_CALL f4x4_inf_perspective(
     float bottom = -range;
     float top = range;
 
-    const float e = 1.0f / (1 << 15);
     float4x4 m = f4x4_0;
     m.c0.x = (2.0f * near) / (right - left);
     m.c1.y = (2.0f * near) / (top - bottom);
-    m.c2.z = e - 1.0f;
+    m.c2.z = kEpsilon - 1.0f;
     m.c2.w = -1.0f;
-    m.c3.z = (e - 2.0f) * near;
+    m.c3.z = (kEpsilon - 2.0f) * near;
     return m;
 }
 
