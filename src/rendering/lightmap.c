@@ -44,7 +44,6 @@ typedef struct chartnode_s
 {
     plane_t plane;
     tri2d_t triCoord;
-    tri2d_t triUv;
     float area;
     i32 drawableIndex;
     i32 vertIndex;
@@ -309,26 +308,32 @@ static float VEC_CALL TriArea2D(tri2d_t tri)
     return 0.5f * cr;
 }
 
-static tri2d_t VEC_CALL ProjTri(float4 A, float4 B, float4 C, float texelsPerUnit, plane_t* planeOut)
+static tri2d_t VEC_CALL ProjTri(float4 A, float4 B, float4 C)
 {
     plane_t plane = triToPlane(A, B, C);
-    *planeOut = plane;
     float3x3 TBN = NormalToTBN(plane.value);
     tri2d_t tri;
     tri.a = ProjUv(TBN, A);
     tri.b = ProjUv(TBN, B);
     tri.c = ProjUv(TBN, C);
-    tri.a = f2_mulvs(tri.a, texelsPerUnit);
-    tri.b = f2_mulvs(tri.b, texelsPerUnit);
-    tri.c = f2_mulvs(tri.c, texelsPerUnit);
     return tri;
 }
 
-static chartnode_t VEC_CALL chartnode_new(float4 A, float4 B, float4 C, float texelsPerUnit, i32 iDrawable, i32 iVert)
+static chartnode_t VEC_CALL chartnode_new(
+    float4 A,
+    float4 B,
+    float4 C,
+    float texelsPerUnit,
+    i32 iDrawable,
+    i32 iVert)
 {
     chartnode_t node = { 0 };
-    node.triCoord = ProjTri(A, B, C, texelsPerUnit, &node.plane);
-    node.area = TriArea2D(node.triCoord);
+    node.plane = triToPlane(A, B, C);
+    node.triCoord = ProjTri(A, B, C);
+    node.triCoord.a = f2_mulvs(node.triCoord.a, texelsPerUnit);
+    node.triCoord.b = f2_mulvs(node.triCoord.b, texelsPerUnit);
+    node.triCoord.c = f2_mulvs(node.triCoord.c, texelsPerUnit);
+    node.area = TriArea3D(A, B, C);
     node.drawableIndex = iDrawable;
     node.vertIndex = iVert;
     return node;
@@ -590,7 +595,7 @@ static void ChartMaskFn(task_t* pbase, i32 begin, i32 end)
 }
 
 static chart_t* chart_group(
-    const chartnode_t* nodes,
+    chartnode_t* nodes,
     i32 nodeCount,
     i32* countOut,
     float distThresh,
@@ -610,8 +615,11 @@ static chart_t* chart_group(
     {
         chartnode_t node = nodes[iNode];
         i32 iChart = plane_find(
-            planes, chartCount, node.plane,
-            distThresh, degreeThresh);
+            planes,
+            chartCount,
+            node.plane,
+            distThresh,
+            degreeThresh);
         if (iChart == -1)
         {
             iChart = chartCount;
@@ -620,6 +628,7 @@ static chart_t* chart_group(
             PermGrow(planes, chartCount);
             planes[iChart] = node.plane;
         }
+
         chart_t chart = charts[iChart];
         chart.nodeCount += 1;
         PermReserve(chart.nodes, chart.nodeCount);
@@ -670,14 +679,10 @@ static chart_t* chart_group(
     return charts;
 }
 
-static void chart_apply(chart_t chart, int2 atlasSize)
+static void chart_apply(chart_t chart)
 {
     int2 tr = chart.translation;
-    int2 size = atlasSize;
-
     float2 trf = { (float)tr.x, (float)tr.y };
-    float2 scf = { 1.0f / size.x, 1.0f / size.y };
-
     for (i32 i = 0; i < chart.nodeCount; ++i)
     {
         chartnode_t* node = chart.nodes + i;
@@ -686,13 +691,8 @@ static void chart_apply(chart_t chart, int2 atlasSize)
         triCoord.a = f2_add(triCoord.a, trf);
         triCoord.b = f2_add(triCoord.b, trf);
         triCoord.c = f2_add(triCoord.c, trf);
-        tri2d_t triUv;
-        triUv.a = f2_mul(triCoord.a, scf);
-        triUv.b = f2_mul(triCoord.b, scf);
-        triUv.c = f2_mul(triCoord.c, scf);
 
         node->triCoord = triCoord;
-        node->triUv = triUv;
     }
 }
 
@@ -870,7 +870,7 @@ static void AtlasFn(task_t* pbase, i32 begin, i32 end)
 
         if (chart.atlasIndex != -1)
         {
-            chart_apply(chart, atlases[chart.atlasIndex].mask.size);
+            chart_apply(chart);
         }
 
         mask_del(&chart.mask);
@@ -942,13 +942,13 @@ static void chartnodes_assign(
     const drawables_t* drawables = drawables_get();
     const i32 numDrawables = drawables->count;
     const meshid_t* meshids = drawables->meshes;
+    lm_uvs_t* uvArray = drawables->lmUvs;
 
     for (i32 iChart = 0; iChart < chartCount; ++iChart)
     {
         chart_t chart = charts[iChart];
         chartnode_t* nodes = chart.nodes;
         i32 nodeCount = chart.nodeCount;
-        float atlasIndex = (float)chart.atlasIndex;
 
         for (i32 i = 0; i < nodeCount; ++i)
         {
@@ -962,13 +962,19 @@ static void chartnodes_assign(
             {
                 const i32 vertCount = mesh.length;
                 ASSERT((node.vertIndex + 2) < vertCount);
-                float3* lmUvs = mesh.lmUvs;
-                float3 a = { node.triUv.a.x, node.triUv.a.y, atlasIndex };
-                float3 b = { node.triUv.b.x, node.triUv.b.y, atlasIndex };
-                float3 c = { node.triUv.c.x, node.triUv.c.y, atlasIndex };
-                lmUvs[node.vertIndex + 0] = a;
-                lmUvs[node.vertIndex + 1] = b;
-                lmUvs[node.vertIndex + 2] = c;
+
+                lm_uvs_t* lmUvs = uvArray + node.drawableIndex;
+                if (lmUvs->length != vertCount)
+                {
+                    lm_uvs_del(lmUvs);
+                    lm_uvs_new(lmUvs, vertCount);
+                }
+                i32 size = lightmaps[chart.atlasIndex].size;
+                const float scale = 1.0f / size;
+                lmUvs->indices[node.vertIndex / 3] = chart.atlasIndex;
+                lmUvs->uvs[node.vertIndex + 0] = f2_mulvs(node.triCoord.a, scale);
+                lmUvs->uvs[node.vertIndex + 1] = f2_mulvs(node.triCoord.b, scale);
+                lmUvs->uvs[node.vertIndex + 2] = f2_mulvs(node.triCoord.c, scale);
             }
             else
             {
@@ -1179,6 +1185,7 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
     const i32 drawablesCount = drawables->count;
     const meshid_t* pim_noalias meshids = drawables->meshes;
     const float4x4* pim_noalias matrices = drawables->matrices;
+    const lm_uvs_t* pim_noalias uvArray = drawables->lmUvs;
 
     for (i32 iWork = begin; iWork < end; ++iWork)
     {
@@ -1202,12 +1209,15 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
 
             if (mesh_get(meshids[iDraw], &mesh))
             {
+                const lm_uvs_t lmUvs = uvArray[iDraw];
                 const i32 a = iVert + 0;
                 const i32 b = iVert + 1;
                 const i32 c = iVert + 2;
-                float2 LMA = f3_f2(mesh.lmUvs[a]);
-                float2 LMB = f3_f2(mesh.lmUvs[b]);
-                float2 LMC = f3_f2(mesh.lmUvs[c]);
+                ASSERT(c < lmUvs.length);
+                ASSERT(lmUvs.indices[iVert / 3] == iLightmap);
+                float2 LMA = lmUvs.uvs[a];
+                float2 LMB = lmUvs.uvs[b];
+                float2 LMC = lmUvs.uvs[c];
                 float area = sdEdge2D(LMA, LMB, LMC);
                 if (area > 0.0f)
                 {
@@ -1257,22 +1267,27 @@ static void EmbedAttributes(lightmap_t* lightmaps, i32 lmCount)
             const drawables_t* drawables = drawables_get();
             const i32 dwCount = drawables->count;
             const meshid_t* meshids = drawables->meshes;
-            for (i32 d = 0; d < dwCount; ++d)
+            const lm_uvs_t* uvArray = drawables->lmUvs;
+            for (i32 iDraw = 0; iDraw < dwCount; ++iDraw)
             {
                 mesh_t mesh;
-                if (mesh_get(meshids[d], &mesh))
+                if (mesh_get(meshids[iDraw], &mesh))
                 {
-                    for (i32 v = 0; (v + 3) <= mesh.length; v += 3)
+                    const lm_uvs_t lmUvs = uvArray[iDraw];
+                    for (i32 iVert = 0; (iVert + 3) <= mesh.length; iVert += 3)
                     {
-                        i32 l = (i32)mesh.lmUvs[v + 0].z;
-                        if ((l >= 0) && (l < lmCount))
+                        const i32 iFace = iVert / 3;
+                        ASSERT(iFace < lmUvs.length);
+                        ASSERT((iVert + 2) < lmUvs.length);
+                        const i32 iMap = lmUvs.indices[iFace];
+                        if ((iMap >= 0) && (iMap < lmCount))
                         {
-                            float2 A = f3_f2(mesh.lmUvs[v + 0]);
-                            float2 B = f3_f2(mesh.lmUvs[v + 1]);
-                            float2 C = f3_f2(mesh.lmUvs[v + 2]);
+                            float2 A = lmUvs.uvs[iVert + 0];
+                            float2 B = lmUvs.uvs[iVert + 1];
+                            float2 C = lmUvs.uvs[iVert + 2];
                             tri2d_t tri = { A, B, C };
-                            quadtree_t* tree = trees + l;
-                            bool inserted = quadtree_insert(tree, 0, tri, d, v);
+                            quadtree_t* tree = trees + iMap;
+                            bool inserted = quadtree_insert(tree, 0, tri, iDraw, iVert);
                             ASSERT(inserted);
                         }
                     }
@@ -1355,41 +1370,6 @@ void lmpack_del(lmpack_t* pack)
         pim_free(pack->lightmaps);
         memset(pack, 0, sizeof(*pack));
     }
-}
-
-static float4 VEC_CALL rand_wuv(prng_t* rng)
-{
-    float a;
-    float b;
-    float c;
-    do
-    {
-        a = prng_f32(rng);
-        b = prng_f32(rng);
-        c = 1.0f - (a + b);
-    } while (c < 0.0f);
-
-    float4 wuv;
-    switch (prng_i32(rng) % 3)
-    {
-    case 0:
-        wuv.x = a;
-        wuv.y = b;
-        wuv.z = c;
-        break;
-    case 1:
-        wuv.x = b;
-        wuv.y = c;
-        wuv.z = a; // ll
-        break;
-    case 2:
-        wuv.x = c; // ops
-        wuv.y = a; // re
-        wuv.z = b; // astards
-        break;
-    }
-
-    return wuv;
 }
 
 typedef struct bake_s
@@ -1591,4 +1571,35 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
     }
 
     return cmdstat_ok;
+}
+
+void lm_uvs_new(lm_uvs_t* uvs, i32 length)
+{
+    ASSERT(uvs);
+    ASSERT(length >= 0);
+    uvs->length = length;
+
+    const i32 vertCount = length;
+    uvs->uvs = perm_malloc(sizeof(uvs->uvs[0]) * vertCount);
+    for (i32 i = 0; i < vertCount; ++i)
+    {
+        uvs->uvs[i] = f2_0;
+    }
+
+    const i32 faceCount = vertCount / 3;
+    uvs->indices = perm_malloc(sizeof(uvs->indices[0]) * faceCount);
+    for (i32 i = 0; i < faceCount; ++i)
+    {
+        uvs->indices[i] = -1;
+    }
+}
+
+void lm_uvs_del(lm_uvs_t* uvs)
+{
+    if (uvs)
+    {
+        pim_free(uvs->uvs);
+        pim_free(uvs->indices);
+        memset(uvs, 0, sizeof(*uvs));
+    }
 }

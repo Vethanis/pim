@@ -42,7 +42,6 @@ meshid_t mesh_new(mesh_t* mesh, const char* name)
     ASSERT(mesh->positions);
     ASSERT(mesh->normals);
     ASSERT(mesh->uvs);
-    ASSERT(mesh->lmUvs);
 
     genid id = { -1, 0 };
     if (mesh->length > 0)
@@ -80,7 +79,6 @@ void mesh_release(meshid_t id)
         pim_free(mesh.positions);
         pim_free(mesh.normals);
         pim_free(mesh.uvs);
-        pim_free(mesh.lmUvs);
     }
 }
 
@@ -102,7 +100,6 @@ bool mesh_set(meshid_t id, mesh_t* src)
         pim_free(dst->positions);
         pim_free(dst->normals);
         pim_free(dst->uvs);
-        pim_free(dst->lmUvs);
         memcpy(dst, src, sizeof(*dst));
         memset(src, 0, sizeof(*src));
         return true;

@@ -10,7 +10,6 @@ typedef struct mesh_s
     float4* positions;
     float4* normals;
     float2* uvs;
-    float3* lmUvs; // x: u, y: v, z: lm index
     sphere_t bounds;
     i32 length;
 } mesh_t;

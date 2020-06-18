@@ -227,6 +227,7 @@ static void VEC_CALL DrawMesh(
     const float4x4 M = drawTable->matrices[iDraw];
     const float3x3 IM = f3x3_IM(M);
     const material_t material = drawTable->materials[iDraw];
+    const lm_uvs_t lmUvs = drawTable->lmUvs[iDraw];
     const float4 flatAlbedo = ColorToLinear(material.flatAlbedo);
     const float4 flatRome = ColorToLinear(material.flatRome);
     texture_t albedoMap = { 0 };
@@ -257,7 +258,6 @@ static void VEC_CALL DrawMesh(
     const float4* pim_noalias positions = mesh.positions;
     const float4* pim_noalias normals = mesh.normals;
     const float2* pim_noalias uvs = mesh.uvs;
-    const float3* pim_noalias lmUvs = mesh.lmUvs;
     const i32 vertCount = mesh.length;
 
     for (i32 iVert = 0; (iVert + 3) <= vertCount; iVert += 3)
@@ -295,11 +295,12 @@ static void VEC_CALL DrawMesh(
         const float4 NB = f3x3_mul_col(IM, normals[iVert + 1]);
         const float4 NC = f3x3_mul_col(IM, normals[iVert + 2]);
 
-        const i32 lmIndex = (i32)lmUvs[iVert + 0].z;
+        const i32 iFace = iVert / 3;
+        const i32 lmIndex = (iFace < lmUvs.length) ? lmUvs.indices[iFace] : -1;
         const bool hasLM = (lmIndex >= 0) && (lmIndex < lmCount);
-        const float2 LMA = f3_f2(lmUvs[iVert + 0]);
-        const float2 LMB = f3_f2(lmUvs[iVert + 1]);
-        const float2 LMC = f3_f2(lmUvs[iVert + 2]);
+        const float2 LMA = hasLM ? lmUvs.uvs[iVert + 0] : f2_0;
+        const float2 LMB = hasLM ? lmUvs.uvs[iVert + 1] : f2_0;
+        const float2 LMC = hasLM ? lmUvs.uvs[iVert + 2] : f2_0;
 
         const float4 bounds = TriBounds(ctx->V, slope, nearClip, farClip, A, B, C, tileMin, tileMax);
         for (float y = bounds.y; y < bounds.w; y += dy)

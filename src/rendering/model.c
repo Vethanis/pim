@@ -387,7 +387,6 @@ static meshid_t VEC_CALL TrisToMesh(
     float4* pim_noalias positions = perm_malloc(sizeof(positions[0]) * vertCount);
     float4* pim_noalias normals = perm_malloc(sizeof(normals[0]) * vertCount);
     float2* pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
-    float3* pim_noalias lmUvs = perm_calloc(sizeof(lmUvs[0]) * vertCount);
 
     const mtexinfo_t* texinfo = surface->texinfo;
     const mtexture_t* mtex = texinfo->texture;
@@ -443,7 +442,6 @@ static meshid_t VEC_CALL TrisToMesh(
         mesh.positions = positions;
         mesh.normals = normals;
         mesh.uvs = uvs;
-        mesh.lmUvs = lmUvs;
         return mesh_new(&mesh, name);
     }
     else

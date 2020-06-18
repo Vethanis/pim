@@ -620,12 +620,6 @@ static meshid_t GenSphereMesh(float r, i32 steps)
     float4* pim_noalias positions = perm_malloc(sizeof(*positions) * maxlen);
     float4* pim_noalias normals = perm_malloc(sizeof(*normals) * maxlen);
     float2* pim_noalias uvs = perm_malloc(sizeof(*uvs) * maxlen);
-    float3* pim_noalias lmUvs = perm_malloc(sizeof(lmUvs[0]) * maxlen);
-
-    for (i32 i = 0; i < maxlen; ++i)
-    {
-        lmUvs[i].z = -1.0f;
-    }
 
     for (i32 v = 0; v < vsteps; ++v)
     {
@@ -740,7 +734,6 @@ static meshid_t GenSphereMesh(float r, i32 steps)
     mesh.positions = positions;
     mesh.normals = normals;
     mesh.uvs = uvs;
-    mesh.lmUvs = lmUvs;
     return mesh_new(&mesh, name);
 }
 
@@ -778,7 +771,6 @@ static meshid_t GenQuadMesh(void)
     for (i32 i = 0; i < length; ++i)
     {
         normals[i] = N;
-        lmUvs[i].z = -1.0f;
     }
 
     mesh_t mesh = {0};
@@ -786,7 +778,6 @@ static meshid_t GenQuadMesh(void)
     mesh.positions = positions;
     mesh.normals = normals;
     mesh.uvs = uvs;
-    mesh.lmUvs = lmUvs;
     return mesh_new(&mesh, name);
 }
 

@@ -10,6 +10,7 @@ PIM_C_BEGIN
 typedef struct camera_s camera_t;
 typedef struct framebuf_s framebuf_t;
 typedef struct pt_scene_s pt_scene_t;
+typedef struct lm_uvs_s lm_uvs_t;
 
 typedef struct drawables_s
 {
@@ -17,6 +18,7 @@ typedef struct drawables_s
     u32* names;             // hashstring identifier
     meshid_t* meshes;       // immutable object space mesh
     material_t* materials;  // material description
+    lm_uvs_t* lmUvs;        // lightmap uvs (must be per-instance)
     sphere_t* bounds;       // world space bounds
     u64* tileMasks;         // bitmask of tile visibility
     float4x4* matrices;     // local to world matrix
