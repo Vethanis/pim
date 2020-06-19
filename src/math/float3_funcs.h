@@ -380,6 +380,16 @@ pim_inline float3 VEC_CALL f3_smoothstep(float3 a, float3 b, float3 x)
     return f3_mul(f3_mul(t, t), s);
 }
 
+pim_inline float3 VEC_CALL f3_unorm(float3 s)
+{
+    return f3_addvs(f3_mulvs(s, 0.5f), 0.5f);
+}
+
+pim_inline float3 VEC_CALL f3_snorm(float3 u)
+{
+    return f3_addvs(f3_mulvs(u, 2.0f), -1.0f);
+}
+
 pim_inline float3 VEC_CALL f3_reflect(float3 I, float3 N)
 {
     // V = I - 2 * N * dot(I, N)

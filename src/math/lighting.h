@@ -144,9 +144,13 @@ pim_inline float4 VEC_CALL DirectBRDF(
     float D = D_GTR(NoH, alpha);
     float4 Fr = f4_divvs(f4_mulvs(F, D * G), f1_max(kEpsilon, 4.0f * NoL * NoV));
 
-    float4 Fd = f4_mul(albedo, f4_mulvs(f4_inv(F), (1.0f - metallic) / kPi));
+    float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, LoH, alpha));
+    Fd = f4_mul(Fd, f4_inv(F));
+    Fd = f4_mulvs(Fd, 1.0f - metallic);
 
-    return f4_mulvs(f4_add(Fr, Fd), NoL);
+    float4 brdf = f4_mulvs(f4_add(Fr, Fd), NoL);
+
+    return brdf;
 }
 
 // polynomial approximation for convolved specular DFG

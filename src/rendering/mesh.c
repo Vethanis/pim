@@ -5,17 +5,7 @@
 #include "math/float4_funcs.h"
 #include <string.h>
 
-static bool ms_once;
 static table_t ms_table;
-
-static void EnsureInit(void)
-{
-    if (!ms_once)
-    {
-        ms_once = true;
-        table_new(&ms_table, sizeof(mesh_t));
-    }
-}
 
 static genid ToGenId(meshid_t id)
 {
@@ -32,10 +22,41 @@ static bool IsCurrent(meshid_t id)
     return table_exists(&ms_table, ToGenId(id));
 }
 
-meshid_t mesh_new(mesh_t* mesh, const char* name)
+static void FreeMesh(mesh_t* mesh)
 {
-    EnsureInit();
+    pim_free(mesh->positions);
+    pim_free(mesh->normals);
+    pim_free(mesh->uvs);
+    memset(mesh, 0, sizeof(*mesh));
+}
 
+void mesh_sys_init(void)
+{
+    table_new(&ms_table, sizeof(mesh_t));
+}
+
+void mesh_sys_update(void)
+{
+
+}
+
+void mesh_sys_shutdown(void)
+{
+    const char** names = ms_table.names;
+    mesh_t* meshes = ms_table.values;
+    i32 width = ms_table.width;
+    for (i32 i = 0; i < width; ++i)
+    {
+        if (names[i])
+        {
+            FreeMesh(meshes + i);
+        }
+    }
+    table_del(&ms_table);
+}
+
+bool mesh_new(mesh_t* mesh, const char* name, meshid_t* idOut)
+{
     ASSERT(mesh);
     ASSERT(mesh->length > 0);
     ASSERT((mesh->length % 3) == 0);
@@ -43,10 +64,11 @@ meshid_t mesh_new(mesh_t* mesh, const char* name)
     ASSERT(mesh->normals);
     ASSERT(mesh->uvs);
 
-    genid id = { -1, 0 };
+    bool added = false;
+    genid id = { 0, 0 };
     if (mesh->length > 0)
     {
-        bool added = table_add(&ms_table, name, mesh, &id);
+        added = table_add(&ms_table, name, mesh, &id);
         ASSERT(added);
         if (added)
         {
@@ -54,52 +76,47 @@ meshid_t mesh_new(mesh_t* mesh, const char* name)
             meshes[id.index].bounds = mesh_calcbounds(ToMeshId(id));
         }
     }
-    return ToMeshId(id);
+    *idOut = ToMeshId(id);
+    if (!added)
+    {
+        FreeMesh(mesh);
+    }
+    return added;
 }
 
 bool mesh_exists(meshid_t id)
 {
-    EnsureInit();
     return IsCurrent(id);
 }
 
 void mesh_retain(meshid_t id)
 {
-    EnsureInit();
     table_retain(&ms_table, ToGenId(id));
 }
 
 void mesh_release(meshid_t id)
 {
-    EnsureInit();
-
     mesh_t mesh = {0};
     if (table_release(&ms_table, ToGenId(id), &mesh))
     {
-        pim_free(mesh.positions);
-        pim_free(mesh.normals);
-        pim_free(mesh.uvs);
+        FreeMesh(&mesh);
     }
 }
 
 bool mesh_get(meshid_t id, mesh_t* dst)
 {
     ASSERT(dst);
-    EnsureInit();
     return table_get(&ms_table, ToGenId(id), dst);
 }
 
 bool mesh_set(meshid_t id, mesh_t* src)
 {
     ASSERT(src);
-    EnsureInit();
     if (IsCurrent(id))
     {
         mesh_t* dst = ms_table.values;
         dst += id.index;
-        pim_free(dst->positions);
-        pim_free(dst->normals);
-        pim_free(dst->uvs);
+        FreeMesh(dst);
         memcpy(dst, src, sizeof(*dst));
         memset(src, 0, sizeof(*src));
         return true;
@@ -110,7 +127,6 @@ bool mesh_set(meshid_t id, mesh_t* src)
 bool mesh_find(const char* name, meshid_t* idOut)
 {
     ASSERT(idOut);
-    EnsureInit();
     genid id;
     bool found = table_find(&ms_table, name, &id);
     *idOut = ToMeshId(id);

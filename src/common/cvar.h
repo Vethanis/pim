@@ -50,4 +50,7 @@ bool cvar_check_dirty(cvar_t* ptr);
 // displays the cvar gui
 void cvar_gui(bool* pEnabled);
 
+pim_inline bool cvar_get_bool(const cvar_t* ptr) { return ptr->asFloat != 0.0f; }
+pim_inline void cvar_set_bool(cvar_t* ptr, bool value) { cvar_set_float(ptr, value ? 1.0f : 0.0f); }
+
 PIM_C_END

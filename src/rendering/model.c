@@ -357,19 +357,23 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         material_t material = { 0 };
         material.flatAlbedo = LinearToColor(f4_1); // IntToColor(i, surfCount));
         material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
-        if (!texture_find(albedoName, &material.albedo))
+        if (texture_unpalette(mip0, size, albedoName, &material.albedo))
         {
-            material.albedo = texture_unpalette(mip0, size, albedoName);
             // use diffuse texture for normals, since occlusion is baked in
-            material.normal = texture_lumtonormal(material.albedo, 2.0f, normalName);
+            texture_lumtonormal(material.albedo, 2.0f, normalName, &material.normal);
             // convert in-place to albedo
             texture_diffuse_to_albedo(material.albedo);
         }
         else
         {
-            texture_retain(material.albedo);
-            texture_find(normalName, &material.normal);
-            texture_retain(material.normal);
+            if (texture_find(normalName, &material.normal))
+            {
+                texture_retain(material.normal);
+            }
+            else
+            {
+                ASSERT(false);
+            }
         }
         materials[i] = material;
     }
@@ -435,6 +439,7 @@ static meshid_t VEC_CALL TrisToMesh(
         normals[c] = N;
     }
 
+    meshid_t id = { 0 };
     if (vertsEmit > 0)
     {
         mesh_t mesh = {0};
@@ -442,12 +447,10 @@ static meshid_t VEC_CALL TrisToMesh(
         mesh.positions = positions;
         mesh.normals = normals;
         mesh.uvs = uvs;
-        return mesh_new(&mesh, name);
+        bool created = mesh_new(&mesh, name, &id);
+        ASSERT(created);
     }
-    else
-    {
-        return (meshid_t) { 0 };
-    }
+    return id;
 }
 
 u32* ModelToDrawables(const mmodel_t* model)

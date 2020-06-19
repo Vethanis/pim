@@ -20,7 +20,11 @@ typedef struct meshid_s
     i32 version;
 } meshid_t;
 
-meshid_t mesh_new(mesh_t* mesh, const char* name);
+void mesh_sys_init(void);
+void mesh_sys_update(void);
+void mesh_sys_shutdown(void);
+
+bool mesh_new(mesh_t* mesh, const char* name, meshid_t* idOut);
 
 bool mesh_exists(meshid_t id);
 

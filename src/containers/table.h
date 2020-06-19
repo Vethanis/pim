@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/macro.h"
-#include "containers/int_queue.h"
+#include "containers/queue.h"
 
 PIM_C_BEGIN
 
@@ -20,7 +20,11 @@ typedef struct table_s
     i32* refcounts;
     u32* hashes;
     char** names;
-    intQ_t freelist;
+    queue_t freelist;
+
+    u32 lookupWidth;
+    i32 itemCount;
+    i32* lookup;
 } table_t;
 
 void table_new(table_t* table, i32 valueSize);

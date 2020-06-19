@@ -140,19 +140,14 @@ pim_inline float4 VEC_CALL SampleCosineHemisphere(float2 Xi)
     return dir;
 }
 
-pim_inline float VEC_CALL LambertPdf(float4 N, float4 dir)
+pim_inline float4 VEC_CALL ScatterHemisphere(float2 Xi, float4 N)
 {
-    return f1_saturate(f4_dot3(N, dir)) / kPi;
+    return TanToWorld(N, SampleUnitHemisphere(Xi));
 }
 
-pim_inline float4 VEC_CALL ScatterHemisphere(prng_t* rng, float4 N)
+pim_inline float4 VEC_CALL ScatterCosine(float2 Xi, float4 N)
 {
-    return TanToWorld(N, SampleUnitHemisphere(f2_rand(rng)));
-}
-
-pim_inline float4 VEC_CALL ScatterCosine(prng_t* rng, float4 N)
-{
-    return TanToWorld(N, SampleCosineHemisphere(f2_rand(rng)));
+    return TanToWorld(N, SampleCosineHemisphere(Xi));
 }
 
 // returns a microfacet normal of the GGX NDF for given roughness
@@ -176,21 +171,25 @@ pim_inline float4 VEC_CALL SampleGGXMicrofacet(float2 Xi, float alpha)
     return f4_normalize3(m);
 }
 
-pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)
-{
-    float d = D_GTR(NoH, alpha);
-    return (d * NoH) / f1_max(kEpsilon, 4.0f * HoV);
-}
-
 pim_inline float4 VEC_CALL ScatterGGX(
-    prng_t* rng,
+    float2 Xi,
     float4 I,
     float4 N,
     float alpha)
 {
-    float4 H = SampleGGXMicrofacet(f2_rand(rng), alpha);
-    H = TanToWorld(N, H);
+    float4 H = TanToWorld(N, SampleGGXMicrofacet(Xi, alpha));
     return f4_normalize3(f4_reflect3(I, H));
+}
+
+pim_inline float VEC_CALL LambertPdf(float4 N, float4 dir)
+{
+    return f1_saturate(f4_dot3(N, dir)) / kPi;
+}
+
+pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)
+{
+    float d = D_GTR(NoH, alpha);
+    return (d * NoH) / f1_max(kEpsilon, 4.0f * HoV);
 }
 
 PIM_C_END

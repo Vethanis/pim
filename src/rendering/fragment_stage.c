@@ -28,11 +28,24 @@
 #include "rendering/drawable.h"
 #include "rendering/lightmap.h"
 
-static cvar_t cv_gi_dbg_diff = { cvart_bool, 0, "gi_dbg_diff", "0", "view lightmap diffuse" };
-static cvar_t cv_gi_dbg_spec = { cvart_bool, 0, "gi_dbg_spec", "0", "view lightmap specular" };
-static cvar_t cv_gi_dbg_norm = { cvart_bool, 0, "gi_dbg_norm", "0", "view lightmap normal" };
-static cvar_t cv_r_uv = { cvart_bool, 0, "r_uv", "0", "view texture uvs" };
-static cvar_t cv_r_lm_denoised = { cvart_bool, 0, "r_lm_denoised", "0", "render denoised lightmaps" };
+typedef enum
+{
+    DrawMode_Lit = 0,
+    DrawMode_Albedo,
+    DrawMode_Normal,
+    DrawMode_Roughness,
+    DrawMode_Occlusion,
+    DrawMode_Metallic,
+    DrawMode_Emission,
+    DrawMode_Uv0,
+    DrawMode_Uv1,
+    DrawMode_GiDiffuse,
+    DrawMode_GiSpecular,
+    DrawMode_GiPosition,
+    DrawMode_GiNormal,
+
+    DrawMode_COUNT
+} DrawMode;
 
 typedef struct fragstage_s
 {
@@ -55,15 +68,101 @@ typedef struct tile_ctx_s
     float2 tileMax;
     float nearClip;
     float farClip;
+    DrawMode mode;
 } tile_ctx_t;
 
+static cvar_t cv_r_albedo = { cvart_bool, 0, "r_albedo", "0", "view albedo" };
+static cvar_t cv_r_normal = { cvart_bool, 0, "r_normal", "0", "view normals" };
+static cvar_t cv_r_roughness = { cvart_bool, 0, "r_roughness", "0", "view roughness" };
+static cvar_t cv_r_occlusion = { cvart_bool, 0, "r_occlusion", "0", "view occlusion" };
+static cvar_t cv_r_metallic = { cvart_bool, 0, "r_metallic", "0", "view metallic" };
+static cvar_t cv_r_emission = { cvart_bool, 0, "r_emission", "0", "view emission" };
+static cvar_t cv_r_uv0 = { cvart_bool, 0, "r_uv0", "0", "view uv0" };
+static cvar_t cv_r_uv1 = { cvart_bool, 0, "r_uv1", "0", "view uv1" };
+static cvar_t cv_r_gi_diff = { cvart_bool, 0, "r_gi_diff", "0", "view GI diffuse" };
+static cvar_t cv_r_gi_spec = { cvart_bool, 0, "r_gi_spec", "0", "view GI specular" };
+static cvar_t cv_r_gi_pos = { cvart_bool, 0, "r_gi_pos", "0", "view GI position" };
+static cvar_t cv_r_gi_norm = { cvart_bool, 0, "r_gi_norm", "0", "view GI normal" };
+
+static cvar_t cv_r_lm_denoised = { cvart_bool, 0, "r_lm_denoised", "0", "use denoised lightmaps" };
+
 static bool ms_once;
-static AmbCube_t ms_ambcube;
+static void EnsureInit(void)
+{
+    if (!ms_once)
+    {
+        ms_once = true;
+        cvar_reg(&cv_r_albedo);
+        cvar_reg(&cv_r_normal);
+        cvar_reg(&cv_r_roughness);
+        cvar_reg(&cv_r_occlusion);
+        cvar_reg(&cv_r_metallic);
+        cvar_reg(&cv_r_emission);
+        cvar_reg(&cv_r_uv0);
+        cvar_reg(&cv_r_uv1);
+        cvar_reg(&cv_r_gi_diff);
+        cvar_reg(&cv_r_gi_spec);
+        cvar_reg(&cv_r_gi_pos);
+        cvar_reg(&cv_r_gi_norm);
 
-AmbCube_t VEC_CALL AmbCube_Get(void) { return ms_ambcube; };
-void VEC_CALL AmbCube_Set(AmbCube_t cube) { ms_ambcube = cube; }
+        cvar_reg(&cv_r_lm_denoised);
+    }
+}
 
-static void EnsureInit(void);
+static DrawMode GetDrawMode(void)
+{
+    DrawMode mode = DrawMode_Lit;
+    if (cvar_get_bool(&cv_r_albedo))
+    {
+        mode = DrawMode_Albedo;
+    }
+    else if (cvar_get_bool(&cv_r_normal))
+    {
+        mode = DrawMode_Normal;
+    }
+    else if (cvar_get_bool(&cv_r_roughness))
+    {
+        mode = DrawMode_Roughness;
+    }
+    else if (cvar_get_bool(&cv_r_occlusion))
+    {
+        mode = DrawMode_Occlusion;
+    }
+    else if (cvar_get_bool(&cv_r_metallic))
+    {
+        mode = DrawMode_Metallic;
+    }
+    else if (cvar_get_bool(&cv_r_emission))
+    {
+        mode = DrawMode_Emission;
+    }
+    else if (cvar_get_bool(&cv_r_uv0))
+    {
+        mode = DrawMode_Uv0;
+    }
+    else if (cvar_get_bool(&cv_r_uv1))
+    {
+        mode = DrawMode_Uv1;
+    }
+    else if (cvar_get_bool(&cv_r_gi_diff))
+    {
+        mode = DrawMode_GiDiffuse;
+    }
+    else if (cvar_get_bool(&cv_r_gi_spec))
+    {
+        mode = DrawMode_GiSpecular;
+    }
+    else if (cvar_get_bool(&cv_r_gi_pos))
+    {
+        mode = DrawMode_GiPosition;
+    }
+    else if (cvar_get_bool(&cv_r_gi_norm))
+    {
+        mode = DrawMode_GiNormal;
+    }
+    return mode;
+}
+
 static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf);
 static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, i32 iDraw, const Cubemap* cm);
 static i32 VEC_CALL FindBounds(sphere_t self, const sphere_t* pim_noalias others, i32 len);
@@ -100,19 +199,6 @@ static void FragmentStageFn(task_t* task, i32 begin, i32 end)
                 DrawMesh(&ctx, stage->frontBuf, iDraw, NULL);
             }
         }
-    }
-}
-
-static void EnsureInit(void)
-{
-    if (!ms_once)
-    {
-        ms_once = true;
-        cvar_reg(&cv_gi_dbg_diff);
-        cvar_reg(&cv_gi_dbg_spec);
-        cvar_reg(&cv_gi_dbg_norm);
-        cvar_reg(&cv_r_uv);
-        cvar_reg(&cv_r_lm_denoised);
     }
 }
 
@@ -195,6 +281,8 @@ static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf)
 
     float4x4 V = f4x4_lookat(ctx->eye, f4_add(ctx->eye, ctx->fwd), ctx->up);
     ctx->V = V;
+
+    ctx->mode = GetDrawMode();
 }
 
 pim_optimize
@@ -215,11 +303,8 @@ static void VEC_CALL DrawMesh(
         return;
     }
 
-    const bool dbgnormGI = cv_gi_dbg_norm.asFloat != 0.0f;
-    const bool dbgdiffGI = (cv_gi_dbg_diff.asFloat != 0.0f) || dbgnormGI;
-    const bool dbgspecGI = cv_gi_dbg_spec.asFloat != 0.0f;
-    const bool dbgUv = cv_r_uv.asFloat != 0.0f;
-    const bool denoisedLM = (cv_r_lm_denoised.asFloat != 0.0f) && !dbgnormGI;
+    const DrawMode mode = ctx->mode;
+    const bool denoisedLM = cvar_get_bool(&cv_r_lm_denoised);
 
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
@@ -345,7 +430,6 @@ static void VEC_CALL DrawMesh(
                     float2 LM = f2_blend(LMA, LMB, LMC, wuvt);
 
                     float4 V = f4_normalize3(f4_sub(eye, P));
-                    float4 R = f4_reflect3(f4_neg(V), N);
 
                     float4 rome = flatRome;
                     float4 albedo = flatAlbedo;
@@ -367,37 +451,26 @@ static void VEC_CALL DrawMesh(
                         N = TanToWorld(N, tN);
                     }
 
+                    float4 emission = UnpackEmission(albedo, rome.w);
+
+                    float4 diffuseGI = f4_0;
+                    if (hasLM)
                     {
-                        float4 emission = UnpackEmission(albedo, rome.w);
-                        lighting = f4_add(lighting, emission);
+                        const lightmap_t lmap = lightmaps[lmIndex];
+                        diffuseGI = f3_f4(UvBilinearClamp_f3(denoisedLM ? lmap.denoised : lmap.color, i2_s(lmap.size), LM), 0.0f);
                     }
 
+                    float4 specularGI = f4_0;
                     {
-                        float4 diffuseGI = f4_0;
-                        if (hasLM)
-                        {
-                            const lightmap_t lmap = lightmaps[lmIndex];
-                            const float3* pim_noalias lmBuffer = lmap.color;
-                            if (denoisedLM)
-                            {
-                                lmBuffer = lmap.denoised;
-                            }
-                            else if (dbgnormGI)
-                            {
-                                lmBuffer = lmap.normal;
-                            }
-                            ASSERT(lmBuffer);
-                            float3 denoised = UvBilinearClamp_f3(lmBuffer, i2_s(lmap.size), LM);
-                            diffuseGI = f3_f4(denoised, 0.0f);
-                        }
-
+                        float4 R = f4_reflect3(f4_neg(V), N);
                         float NoR = f1_saturate(f4_dot3(N, R));
-                        float4 specularGI = f4_mulvs(diffuseGI, NoR);
+                        specularGI = f4_mulvs(diffuseGI, NoR);
+                    }
 
-                        float4 indirect = IndirectBRDF(V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
-                        lighting = f4_add(lighting, indirect);
+                    float4 indirectLight = IndirectBRDF(V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
 
-                        float4 direct = f4_0;
+                    float4 directLight = f4_0;
+                    {
                         for (i32 i = 0; i < ptCount; ++i)
                         {
                             float4 lightPos = ptLights[i].pos;
@@ -407,22 +480,66 @@ static void VEC_CALL DrawMesh(
                             L = f4_divvs(L, lDist);
                             lightRad = f4_divvs(lightRad, lDist * lDist);
                             float4 brdf = DirectBRDF(V, L, N, albedo, rome.x, rome.z);
-                            direct = f4_add(direct, f4_mul(brdf, lightRad));
+                            directLight = f4_add(directLight, f4_mul(brdf, lightRad));
                         }
-                        lighting = f4_add(lighting, direct);
+                    }
 
-                        if (dbgdiffGI)
-                        {
-                            lighting = diffuseGI;
-                        }
-                        else if (dbgspecGI)
-                        {
-                            lighting = specularGI;
-                        }
-                        else if (dbgUv)
-                        {
+                    switch (mode)
+                    {
+                        default:
+                        case DrawMode_Lit:
+                            lighting = f4_add(emission, f4_add(directLight, indirectLight));
+                        break;
+                        case DrawMode_Albedo:
+                            lighting = albedo;
+                        break;
+                        case DrawMode_Normal:
+                            lighting = f4_unorm(N);
+                        break;
+                        case DrawMode_Roughness:
+                            lighting = f4_s(rome.x);
+                        break;
+                        case DrawMode_Occlusion:
+                            lighting = f4_s(rome.y);
+                        break;
+                        case DrawMode_Metallic:
+                            lighting = f4_s(rome.z);
+                        break;
+                        case DrawMode_Emission:
+                            lighting = f4_s(rome.w);
+                        break;
+                        case DrawMode_Uv0:
                             lighting = f4_v(U.x, U.y, 0.0f, 0.0f);
+                        break;
+                        case DrawMode_Uv1:
+                            lighting = f4_v(LM.x, LM.y, 0.0f, 0.0f);
+                        break;
+                        case DrawMode_GiDiffuse:
+                            lighting = diffuseGI;
+                        break;
+                        case DrawMode_GiSpecular:
+                            lighting = specularGI;
+                        break;
+                        case DrawMode_GiPosition:
+                        {
+                            if (hasLM)
+                            {
+                                const lightmap_t lmap = lightmaps[lmIndex];
+                                lighting = f3_f4(UvBilinearClamp_f3(lmap.position, i2_s(lmap.size), LM), 0.0f);
+                                lighting = f4_divvs(f4_addvs(lighting, 20.0f), 40.0f);
+                            }
                         }
+                        break;
+                        case DrawMode_GiNormal:
+                        {
+                            if (hasLM)
+                            {
+                                const lightmap_t lmap = lightmaps[lmIndex];
+                                lighting = f3_f4(UvBilinearClamp_f3(lmap.normal, i2_s(lmap.size), LM), 0.0f);
+                                lighting = f4_unorm(lighting);
+                            }
+                        }
+                        break;
                     }
                 }
 

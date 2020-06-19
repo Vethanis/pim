@@ -9,27 +9,8 @@
 #include "stb/stb_image.h"
 #include <string.h>
 
-static bool ms_once;
 static table_t ms_table;
 static u8 ms_palette[256 * 3];
-
-static void EnsureInit(void)
-{
-    if (!ms_once)
-    {
-        ms_once = true;
-
-        table_new(&ms_table, sizeof(texture_t));
-
-        asset_t asset = { 0 };
-        if (asset_get("gfx/palette.lmp", &asset))
-        {
-            const u8* palette = (const u8*)asset.pData;
-            ASSERT(asset.length == sizeof(ms_palette));
-            memcpy(ms_palette, palette, sizeof(ms_palette));
-        }
-    }
-}
 
 static genid ToGenId(textureid_t id)
 {
@@ -46,10 +27,47 @@ static bool IsCurrent(textureid_t id)
     return table_exists(&ms_table, ToGenId(id));
 }
 
-textureid_t texture_load(const char* path)
+static void FreeTexture(texture_t* tex)
 {
-    EnsureInit();
+    pim_free(tex->texels);
+    memset(tex, 0, sizeof(*tex));
+}
 
+void texture_sys_init(void)
+{
+    table_new(&ms_table, sizeof(texture_t));
+
+    asset_t asset = { 0 };
+    if (asset_get("gfx/palette.lmp", &asset))
+    {
+        const u8* palette = (const u8*)asset.pData;
+        ASSERT(asset.length == sizeof(ms_palette));
+        memcpy(ms_palette, palette, sizeof(ms_palette));
+    }
+}
+
+void texture_sys_update(void)
+{
+
+}
+
+void texture_sys_shutdown(void)
+{
+    i32 width = ms_table.width;
+    const char** names = ms_table.names;
+    texture_t* textures = ms_table.values;
+    for (i32 i = 0; i < ms_table.width; ++i)
+    {
+        if (names[i])
+        {
+            FreeTexture(textures + i);
+        }
+    }
+    table_del(&ms_table);
+}
+
+bool texture_load(const char* path, textureid_t* idOut)
+{
     i32 width = 0;
     i32 height = 0;
     i32 channels = 0;
@@ -57,69 +75,71 @@ textureid_t texture_load(const char* path)
     if (texels)
     {
         int2 size = { width, height };
-        return texture_new(size, (u32*)texels, path);
+        texture_t tex = { 0 };
+        tex.size = size;
+        tex.texels = (u32*)texels;
+        return texture_new(&tex, path, idOut);
     }
-    return (textureid_t) { 0 };
+    return false;
 }
 
-textureid_t texture_new(int2 size, u32* texels, const char* name)
+bool texture_new(texture_t* tex, const char* name, textureid_t* idOut)
 {
-    EnsureInit();
+    ASSERT(tex);
+    ASSERT(idOut);
+    ASSERT(tex->size.x > 0);
+    ASSERT(tex->size.y > 0);
+    ASSERT(tex->texels);
 
-    ASSERT(size.x > 0);
-    ASSERT(size.y > 0);
-    ASSERT(texels);
-
-    genid id = { -1, 0 };
-    if (texels)
+    bool added = false;
+    genid id = { 0, 0 };
+    if (tex->texels)
     {
-        texture_t tex = { .size = size,.texels = texels };
-        bool added = table_add(&ms_table, name, &tex, &id);
+        added = table_add(&ms_table, name, tex, &id);
         ASSERT(added);
     }
-    return ToTexId(id);
+    *idOut = ToTexId(id);
+    if (!added)
+    {
+        FreeTexture(tex);
+    }
+    return added;
 }
 
 bool texture_exists(textureid_t id)
 {
-    EnsureInit();
     return IsCurrent(id);
 }
 
 void texture_retain(textureid_t id)
 {
-    EnsureInit();
     table_retain(&ms_table, ToGenId(id));
 }
 
 void texture_release(textureid_t id)
 {
-    EnsureInit();
-
     texture_t tex = { 0 };
     if (table_release(&ms_table, ToGenId(id), &tex))
     {
-        pim_free(tex.texels);
+        FreeTexture(&tex);
     }
 }
 
 bool texture_get(textureid_t id, texture_t* dst)
 {
-    EnsureInit();
     return table_get(&ms_table, ToGenId(id), dst);
 }
 
-bool texture_set(textureid_t id, int2 size, u32* texels)
+bool texture_set(textureid_t id, texture_t* src)
 {
-    ASSERT(texels);
-    EnsureInit();
+    ASSERT(src);
     if (IsCurrent(id))
     {
-        texture_t* texture = ms_table.values;
-        texture += id.index;
-        pim_free(texture->texels);
-        texture->texels = texels;
-        texture->size = size;
+        texture_t* dst = ms_table.values;
+        dst += id.index;
+        FreeTexture(dst);
+        memcpy(dst, src, sizeof(*dst));
+        memset(src, 0, sizeof(*src));
         return true;
     }
     return false;
@@ -128,7 +148,6 @@ bool texture_set(textureid_t id, int2 size, u32* texels)
 bool texture_find(const char* name, textureid_t* idOut)
 {
     ASSERT(idOut);
-    EnsureInit();
     genid id;
     bool found = table_find(&ms_table, name, &id);
     *idOut = ToTexId(id);
@@ -136,8 +155,14 @@ bool texture_find(const char* name, textureid_t* idOut)
 }
 
 // https://quakewiki.org/wiki/Quake_palette
-textureid_t texture_unpalette(const u8* bytes, int2 size, const char* name)
+bool texture_unpalette(const u8* bytes, int2 size, const char* name, textureid_t* idOut)
 {
+    if (texture_find(name, idOut))
+    {
+        texture_retain(*idOut);
+        return false;
+    }
+
     u32* texels = perm_malloc(size.x * size.y * sizeof(texels[0]));
     for (i32 y = 0; y < size.y; ++y)
     {
@@ -153,10 +178,13 @@ textureid_t texture_unpalette(const u8* bytes, int2 size, const char* name)
         }
     }
 
-    return texture_new(size, texels, name);
+    texture_t tex = { 0 };
+    tex.size = size;
+    tex.texels = texels;
+    return texture_new(&tex, name, idOut);
 }
 
-void texture_diffuse_to_albedo(textureid_t id)
+bool texture_diffuse_to_albedo(textureid_t id)
 {
     texture_t tex;
     if (texture_get(id, &tex))
@@ -170,21 +198,29 @@ void texture_diffuse_to_albedo(textureid_t id)
             u32 albedoColor = LinearToColor(albedo);
             tex.texels[i] = albedoColor;
         }
+        return true;
     }
+    return false;
 }
 
 pim_inline float VEC_CALL SampleLuma(texture_t tex, int2 c)
 {
-    return f4_avglum(Wrap_c32(tex.texels, tex.size, c));
+    return f4_perlum(Wrap_c32(tex.texels, tex.size, c));
 }
 
-textureid_t texture_lumtonormal(textureid_t src, float scale, const char* name)
+bool texture_lumtonormal(textureid_t src, float scale, const char* name, textureid_t* idOut)
 {
-    const float rcpScale = 1.0f / f1_max(scale, kEpsilon);
-    texture_t tex = { 0 };
-    if (texture_get(src, &tex))
+    if (texture_find(name, idOut))
     {
-        int2 size = tex.size;
+        texture_retain(*idOut);
+        return false;
+    }
+
+    const float rcpScale = 1.0f / f1_max(scale, kEpsilon);
+    texture_t srcTex = { 0 };
+    if (texture_get(src, &srcTex))
+    {
+        int2 size = srcTex.size;
         u32* texels = perm_malloc(size.x * size.y * sizeof(texels[0]));
         for (i32 y = 0; y < size.y; ++y)
         {
@@ -196,8 +232,8 @@ textureid_t texture_lumtonormal(textureid_t src, float scale, const char* name)
                 int2 u = { x, y + 1 };
                 int2 d = { x, y - 1 };
 
-                float dx = SampleLuma(tex, r) - SampleLuma(tex, l);
-                float dy = SampleLuma(tex, u) - SampleLuma(tex, d);
+                float dx = SampleLuma(srcTex, r) - SampleLuma(srcTex, l);
+                float dy = SampleLuma(srcTex, u) - SampleLuma(srcTex, d);
                 float z = (1.0f - sqrtf(dx * dx + dy * dy)) * rcpScale;
                 float4 N = { dx, dy, z, 0.0f };
                 u32 n = f4_rgba8(f4_unorm(f4_normalize3(N)));
@@ -205,7 +241,10 @@ textureid_t texture_lumtonormal(textureid_t src, float scale, const char* name)
                 texels[i] = n;
             }
         }
-        return texture_new(size, texels, name);
+        texture_t dstTex = { 0 };
+        dstTex.size = size;
+        dstTex.texels = texels;
+        return texture_new(&dstTex, name, idOut);
     }
-    return (textureid_t) { 0 };
+    return false;
 }

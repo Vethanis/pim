@@ -435,7 +435,6 @@ typedef struct scatter_s
     float4 dir;
     float4 attenuation;
     float pdf;
-    bool specular;
 } scatter_t;
 
 pim_inline scatter_t VEC_CALL Scatter(
@@ -443,31 +442,65 @@ pim_inline scatter_t VEC_CALL Scatter(
     const surfhit_t* surf,
     float4 I)
 {
-    scatter_t result;
+    scatter_t result = { 0 };
+
     float4 N = surf->N;
     float4 V = f4_neg(I);
+    float4 albedo = surf->albedo;
+    float metallic = surf->metallic;
     float roughness = surf->roughness;
     float alpha = roughness * roughness;
-    result.specular = prng_f32(rng) < (0.5f + surf->metallic);
-    if (result.specular)
+
+    // don't sample diffuse on metals
+    const bool enableDiffuse = metallic < 1.0f;
+    const bool enableSpecular = true;
+
+    // mixture pdf coin flips between diffuse and specular directions
+    const bool specular = prng_f32(rng) < (0.5f + metallic);
+    float2 Xi = f2_rand(rng);
+    float4 L = specular ? ScatterGGX(Xi, I, N, alpha) : ScatterCosine(Xi, N);
+
+    float4 H = f4_normalize3(f4_add(V, L));
+    float NoH = f1_saturate(f4_dot3(N, H));
+    float HoV = f1_saturate(f4_dot3(H, V));
+    float NoV = f1_saturate(f4_dot3(N, V));
+    float NoL = f1_saturate(f4_dot3(N, L));
+    float LoH = f1_saturate(f4_dot3(L, H));
+
+    float diffusePdf = enableDiffuse ? LambertPdf(N, L) : 0.0f;
+    float specularPdf = GGXPdf(NoH, HoV, alpha);
+
+    float pdf = diffusePdf + specularPdf;
+    if (enableDiffuse && enableSpecular)
     {
-        float4 L = ScatterGGX(rng, I, N, alpha);
-        float4 H = f4_normalize3(f4_add(V, L));
-        float NoH = f1_saturate(f4_dot3(N, H));
-        float HoV = f1_saturate(f4_dot3(H, V));
-        float4 f0 = F_0(surf->albedo, surf->metallic);
+        pdf *= 0.5f;
+    }
+
+    if ((pdf < kEpsilon) || (NoL < kEpsilon))
+    {
+        return result;
+    }
+
+    float4 brdf = f4_0;
+    if (enableSpecular)
+    {
+        float4 f0 = F_0(albedo, metallic);
         float4 F = F_Schlick(f0, f4_1, HoV);
-        result.dir = L;
-        result.pdf = GGXPdf(NoH, HoV, alpha);
-        result.attenuation = F;
+        float D = D_GTR(NoH, alpha);
+        float G = G_SmithGGX(NoL, NoV, alpha);
+        float4 Fr = f4_mulvs(F, D * G);
+        brdf = f4_add(brdf, Fr);
     }
-    else
+    if (enableDiffuse)
     {
-        float4 L = ScatterCosine(rng, N);
-        result.dir = L;
-        result.pdf = LambertPdf(N, L);
-        result.attenuation = surf->albedo;
+        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, LoH, alpha));
+        brdf = f4_add(brdf, Fd);
     }
+
+    result.dir = L;
+    result.attenuation = f4_divvs(f4_mulvs(brdf, NoL), pdf);
+    result.pdf = pdf;
+
     return result;
 }
 
@@ -518,7 +551,10 @@ static surfhit_t VEC_CALL GetSurface(
     return surf;
 }
 
-static float4 VEC_CALL pt_trace_albedo(prng_t* rng, const pt_scene_t* scene, ray_t ray)
+static float4 VEC_CALL pt_trace_albedo(
+    prng_t* rng,
+    const pt_scene_t* scene,
+    ray_t ray)
 {
     rayhit_t hit = TraceRay(scene, 0, ray, f4_rcp(ray.rd), 1 << 20);
     if (hit.type != hit_nothing)
@@ -540,9 +576,8 @@ pt_result_t VEC_CALL pt_trace_ray(
     float4 normal = f4_0;
     float4 light = f4_0;
     float4 attenuation = f4_1;
-    float pdf = 1.0f;
 
-    for (i32 b = 0; b < bounces; ++b)
+    for (i32 b = 0; b < 20; ++b)
     {
         rayhit_t hit = TraceRay(scene, 0, ray, f4_rcp(ray.rd), 1 << 20);
         if (hit.type == hit_nothing)
@@ -551,8 +586,7 @@ pt_result_t VEC_CALL pt_trace_ray(
         }
 
         surfhit_t surf = GetSurface(scene, ray, hit);
-        float4 emission = f4_divvs(surf.emission, pdf);
-        light = f4_add(light, f4_mul(emission, attenuation));
+        light = f4_add(light, f4_mul(surf.emission, attenuation));
 
         if (b == 0)
         {
@@ -561,25 +595,34 @@ pt_result_t VEC_CALL pt_trace_ray(
         }
 
         scatter_t scatter = Scatter(rng, &surf, ray.rd);
-        pdf = scatter.pdf;
-        if (pdf > kEpsilon)
-        {
-            ray.ro = surf.P;
-            ray.rd = scatter.dir;
-            float4 newAtten = f4_mulvs(scatter.attenuation, pdf);
-            attenuation = f4_mul(attenuation, newAtten);
-        }
-        else
+        if (scatter.pdf < kEpsilon)
         {
             break;
+        }
+
+        ray.ro = surf.P;
+        ray.rd = scatter.dir;
+        attenuation = f4_mul(attenuation, scatter.attenuation);
+
+        if (b >= bounces)
+        {
+            float p = f4_perlum(attenuation);
+            if (prng_f32(rng) < p)
+            {
+                attenuation = f4_divvs(attenuation, p);
+            }
+            else
+            {
+                break;
+            }
         }
     }
 
     return (pt_result_t)
     {
         .color = f4_f3(light),
-        .albedo = f4_f3(albedo),
-        .normal = f4_f3(normal),
+            .albedo = f4_f3(albedo),
+            .normal = f4_f3(normal),
     };
 }
 

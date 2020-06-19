@@ -17,8 +17,12 @@ typedef struct textureid_s
     i32 version;
 } textureid_t;
 
-textureid_t texture_load(const char* path);
-textureid_t texture_new(int2 size, u32* texels, const char* name);
+void texture_sys_init(void);
+void texture_sys_update(void);
+void texture_sys_shutdown(void);
+
+bool texture_load(const char* path, textureid_t* idOut);
+bool texture_new(texture_t* tex, const char* name, textureid_t* idOut);
 
 bool texture_exists(textureid_t id);
 
@@ -26,12 +30,12 @@ void texture_retain(textureid_t id);
 void texture_release(textureid_t id);
 
 bool texture_get(textureid_t id, texture_t* dst);
-bool texture_set(textureid_t id, int2 size, u32* texels);
+bool texture_set(textureid_t id, texture_t* src);
 
 bool texture_find(const char* name, textureid_t* idOut);
 
-textureid_t texture_unpalette(const u8* bytes, int2 size, const char* name);
-void texture_diffuse_to_albedo(textureid_t id);
-textureid_t texture_lumtonormal(textureid_t src, float scale, const char* name);
+bool texture_unpalette(const u8* bytes, int2 size, const char* name, textureid_t* idOut);
+bool texture_diffuse_to_albedo(textureid_t id);
+bool texture_lumtonormal(textureid_t src, float scale, const char* name, textureid_t* idOut);
 
 PIM_C_END

@@ -55,12 +55,13 @@
 #include <time.h>
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
-static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "3", "path tracing bounces" };
+static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "4", "path tracing bounces" };
 static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
+static cvar_t cv_pt_normal = { cvart_bool, 0, "pt_normal", "0", "output path tracer normals" };
+static cvar_t cv_pt_albedo = { cvart_bool, 0, "pt_albedo", "0", "output path tracer albedo" };
 
 static cvar_t cv_lm_gen = { cvart_bool, 0, "lm_gen", "0", "enable lightmap generation" };
 static cvar_t cv_lm_denoise = { cvart_bool, 0, "lm_denoise", "0", "denoise lightmaps" };
-static cvar_t cv_ac_gen = { cvart_bool, 0, "ac_gen", "0", "enable ambientcube generation" };
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
 
 static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
@@ -70,8 +71,7 @@ static cvar_t cv_lm_timeslice = { cvart_int, 0, "lm_timeslice", "120", "number o
 
 // ----------------------------------------------------------------------------
 
-static meshid_t GenSphereMesh(float r, i32 steps);
-static textureid_t GenCheckerTex(void);
+static meshid_t GenSphereMesh(i32 steps);
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv);
 
 // ----------------------------------------------------------------------------
@@ -165,32 +165,6 @@ static void Lightmap_Trace(void)
     }
 }
 
-ProfileMark(pm_AmbCube_Trace, AmbCube_Trace)
-static void AmbCube_Trace(void)
-{
-    if (cv_ac_gen.asFloat != 0.0f)
-    {
-        ProfileBegin(pm_AmbCube_Trace);
-        EnsurePtScene();
-
-        if (cvar_check_dirty(&cv_ac_gen))
-        {
-            ms_acSampleCount = 0;
-        }
-
-        camera_t camera;
-        camera_get(&camera);
-
-        i32 bounces = (i32)cv_pt_bounces.asFloat;
-        AmbCube_t cube = AmbCube_Get();
-        ms_acSampleCount = AmbCube_Bake(
-            ms_ptscene, &cube, camera.position, 4096, ms_acSampleCount, bounces);
-        AmbCube_Set(cube);
-
-        ProfileEnd(pm_AmbCube_Trace);
-    }
-}
-
 ProfileMark(pm_CubemapTrace, Cubemap_Trace)
 static void Cubemap_Trace(void)
 {
@@ -273,10 +247,30 @@ static bool PathTrace(void)
                 cvar_set_float(&cv_pt_denoise, 0.0f);
             }
         }
+        if (cv_pt_albedo.asFloat != 0.0f)
+        {
+            output3 = ms_trace.albedo;
+        }
+        if (cv_pt_normal.asFloat != 0.0f)
+        {
+            output3 = NULL;
 
-        ProfileBegin(pm_ptBlit);
-        blit_3to4(size, GetFrontBuf()->light, output3);
-        ProfileEnd(pm_ptBlit);
+            const float3* pim_noalias input3 = ms_trace.normal;
+            float4* pim_noalias output4 = GetFrontBuf()->light;
+
+            const i32 len = ms_trace.imageSize.x * ms_trace.imageSize.y;
+            for (i32 i = 0; i < len; ++i)
+            {
+                output4[i] = f3_f4(f3_unorm(input3[i]), 1.0f);
+            }
+        }
+
+        if (output3)
+        {
+            ProfileBegin(pm_ptBlit);
+            blit_3to4(size, GetFrontBuf()->light, output3);
+            ProfileEnd(pm_ptBlit);
+        }
 
         ProfileEnd(pm_PathTrace);
         return true;
@@ -424,12 +418,15 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
 
 void render_sys_init(void)
 {
+    ms_iFrame = 0;
+
     cvar_reg(&cv_pt_trace);
     cvar_reg(&cv_pt_bounces);
     cvar_reg(&cv_pt_denoise);
+    cvar_reg(&cv_pt_normal);
+    cvar_reg(&cv_pt_albedo);
     cvar_reg(&cv_lm_gen);
     cvar_reg(&cv_lm_denoise);
-    cvar_reg(&cv_ac_gen);
     cvar_reg(&cv_cm_gen);
     cvar_reg(&cv_r_sw);
     cvar_reg(&cv_lm_density);
@@ -440,7 +437,9 @@ void render_sys_init(void)
 
     vkr_init();
 
-    ms_iFrame = 0;
+    texture_sys_init();
+    mesh_sys_init();
+
     framebuf_create(GetFrontBuf(), kDrawWidth, kDrawHeight);
     framebuf_create(GetBackBuf(), kDrawWidth, kDrawHeight);
     screenblit_init(kDrawWidth, kDrawHeight);
@@ -457,8 +456,10 @@ void render_sys_update(void)
 {
     ProfileBegin(pm_update);
 
+    texture_sys_update();
+    mesh_sys_update();
+
     Lightmap_Trace();
-    AmbCube_Trace();
     Cubemap_Trace();
     if (!PathTrace())
     {
@@ -487,6 +488,9 @@ void render_sys_shutdown(void)
     screenblit_shutdown();
     framebuf_destroy(GetFrontBuf());
     framebuf_destroy(GetBackBuf());
+
+    mesh_sys_shutdown();
+    texture_sys_shutdown();
 
     vkr_shutdown();
 }
@@ -598,18 +602,19 @@ void render_sys_gui(bool* pEnabled)
 
 // ----------------------------------------------------------------------------
 
-static meshid_t GenSphereMesh(float r, i32 steps)
+static meshid_t GenSphereMesh(i32 steps)
 {
     char name[PIM_PATH];
-    SPrintf(ARGS(name), "SphereMesh_%f_%d", r, steps);
+    SPrintf(ARGS(name), "SphereMesh_%d", steps);
 
-    meshid_t id;
+    meshid_t id = {0};
     if (mesh_find(name, &id))
     {
         mesh_retain(id);
         return id;
     }
 
+    const float r = 1.0f;
     const i32 vsteps = steps;       // divisions along y axis
     const i32 hsteps = steps * 2;   // divisions along x-z plane
     const float dv = kPi / vsteps;
@@ -734,7 +739,9 @@ static meshid_t GenSphereMesh(float r, i32 steps)
     mesh.positions = positions;
     mesh.normals = normals;
     mesh.uvs = uvs;
-    return mesh_new(&mesh, name);
+    bool added = mesh_new(&mesh, name, &id);
+    ASSERT(added);
+    return id;
 }
 
 // N = (0, 0, 1)
@@ -742,7 +749,7 @@ static meshid_t GenSphereMesh(float r, i32 steps)
 static meshid_t GenQuadMesh(void)
 {
     const char* name = "QuadMesh";
-    meshid_t id;
+    meshid_t id = {0};
     if (mesh_find(name, &id))
     {
         mesh_retain(id);
@@ -778,7 +785,9 @@ static meshid_t GenQuadMesh(void)
     mesh.positions = positions;
     mesh.normals = normals;
     mesh.uvs = uvs;
-    return mesh_new(&mesh, name);
+    bool added = mesh_new(&mesh, name, &id);
+    ASSERT(added);
+    return id;
 }
 
 static meshid_t ms_quadmesh;
@@ -793,7 +802,7 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     if (!ms_quadmesh.version)
     {
         ms_quadmesh = GenQuadMesh();
-        ms_spheremesh = GenSphereMesh(1.0f, 32);
+        ms_spheremesh = GenSphereMesh(32);
     }
 
     meshid_t quad = ms_quadmesh;
@@ -932,33 +941,4 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     drawables_trs();
 
     return cmdstat_ok;
-}
-
-static textureid_t GenCheckerTex(void)
-{
-    textureid_t id;
-    if (texture_find("checkertex", &id))
-    {
-        return id;
-    }
-
-    const i32 size = 1 << 8;
-    u32* pim_noalias texels = perm_malloc(sizeof(texels[0]) * size * size);
-
-    const float4 a = f4_s(1.0f);
-    const float4 b = f4_s(0.01f);
-    for (i32 y = 0; y < size; ++y)
-    {
-        for (i32 x = 0; x < size; ++x)
-        {
-            const i32 i = x + y * size;
-            bool c0 = (x & 7) < 4;
-            bool c1 = (y & 7) < 4;
-            bool c2 = c0 != c1;
-            float4 c = c2 ? a : b;
-            texels[i] = LinearToColor(c);
-        }
-    }
-
-    return texture_new(i2_s(size), texels, "checkertex");
 }

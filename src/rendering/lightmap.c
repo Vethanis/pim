@@ -1419,7 +1419,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
                 float4 P = f3_f4(P3, 1.0f);
                 float4 N = f4_normalize3(f3_f4(N3, 0.0f));
 
-                float4 dir = ScatterCosine(&rng, N);
+                float4 dir = ScatterCosine(f2_rand(&rng), N);
                 float pdf = LambertPdf(N, dir);
                 ray_t ray = { P, dir };
                 pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
