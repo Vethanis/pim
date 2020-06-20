@@ -9,13 +9,23 @@
 
 PIM_C_BEGIN
 
-pim_inline bool VEC_CALL IsUnitLength(float4 dir)
+static bool VEC_CALL IsUnitLength(float4 dir)
 {
-    return f1_distance(f4_length3(dir), 1.0f) < kEpsilon;
+    float len = f4_length3(dir);
+    float dist = f1_distance(len, 1.0f);
+    // kEpsilon is a bit too strict in this case
+    if (dist > 0.0001f)
+    {
+        INTERRUPT();
+        return false;
+    }
+    return true;
 }
 
 pim_inline float3x3 VEC_CALL NormalToTBN(float4 N)
 {
+    ASSERT(IsUnitLength(N));
+
     const float4 kX = { 1.0f, 0.0f, 0.0f, 0.0f };
     const float4 kZ = { 0.0f, 0.0f, 1.0f, 0.0f };
 
@@ -112,8 +122,7 @@ pim_inline float4 VEC_CALL SampleUnitSphere(float2 Xi)
     float x = r * cosf(phi);
     float y = r * sinf(phi);
     float4 dir = { x, y, z, 0.0f };
-    ASSERT(IsUnitLength(dir));
-    return dir;
+    return f4_normalize3(dir);
 }
 
 // samples unit hemisphere with N = (0, 0, 1)
@@ -125,8 +134,7 @@ pim_inline float4 VEC_CALL SampleUnitHemisphere(float2 Xi)
     float x = r * cosf(phi);
     float y = r * sinf(phi);
     float4 dir = { x, y, z, 0.0f };
-    ASSERT(IsUnitLength(dir));
-    return dir;
+    return f4_normalize3(dir);
 }
 
 // samples cosine-weighted hemisphere with N = (0, 0, 1)
@@ -136,8 +144,7 @@ pim_inline float4 VEC_CALL SampleCosineHemisphere(float2 Xi)
     float r = f2_lengthsq(Xi);
     float z = sqrtf(f1_max(0.0f, 1.0f - r));
     float4 dir = { Xi.x, Xi.y, z, 0.0f };
-    ASSERT(IsUnitLength(dir));
-    return dir;
+    return f4_normalize3(dir);
 }
 
 pim_inline float4 VEC_CALL ScatterHemisphere(float2 Xi, float4 N)
@@ -154,21 +161,17 @@ pim_inline float4 VEC_CALL ScatterCosine(float2 Xi, float4 N)
 // tangent space
 pim_inline float4 VEC_CALL SampleGGXMicrofacet(float2 Xi, float alpha)
 {
-    float theta = atan2f(alpha * sqrtf(Xi.x), sqrtf(1.0f - Xi.x));
-    float phi = kTau * Xi.y;
-
-    float sinTheta = sinf(theta);
-    float cosTheta = cosf(theta);
-    float sinPhi = sinf(phi);
-    float cosPhi = cosf(phi);
-
-    float4 m;
-    m.x = sinTheta * cosPhi;
-    m.y = cosTheta * sinPhi;
-    m.z = cosTheta;
-    m.w = 0.0f;
-
-    return f4_normalize3(m);
+    float a2 = alpha * alpha;
+    float phi = kTau * Xi.x;
+    float cosTheta = sqrtf((1.0f - Xi.y) / (1.0f + (a2 - 1.0f) * Xi.y));
+    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+    const float4 dir =
+    {
+        cosf(phi) * sinTheta,
+        sinf(phi) * sinTheta,
+        cosTheta,
+    };
+    return f4_normalize3(dir);
 }
 
 pim_inline float4 VEC_CALL ScatterGGX(
@@ -181,9 +184,9 @@ pim_inline float4 VEC_CALL ScatterGGX(
     return f4_normalize3(f4_reflect3(I, H));
 }
 
-pim_inline float VEC_CALL LambertPdf(float4 N, float4 dir)
+pim_inline float VEC_CALL LambertPdf(float NoL)
 {
-    return f1_saturate(f4_dot3(N, dir)) / kPi;
+    return NoL / kPi;
 }
 
 pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)

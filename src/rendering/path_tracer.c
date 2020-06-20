@@ -316,7 +316,6 @@ void pt_scene_del(pt_scene_t* scene)
     }
 }
 
-pim_optimize
 static rayhit_t VEC_CALL TraceRay(
     const pt_scene_t* scene,
     i32 n,
@@ -437,7 +436,7 @@ typedef struct scatter_s
     float pdf;
 } scatter_t;
 
-pim_inline scatter_t VEC_CALL Scatter(
+static scatter_t VEC_CALL Scatter(
     prng_t* rng,
     const surfhit_t* surf,
     float4 I)
@@ -449,11 +448,10 @@ pim_inline scatter_t VEC_CALL Scatter(
     float4 albedo = surf->albedo;
     float metallic = surf->metallic;
     float roughness = surf->roughness;
-    float alpha = roughness * roughness;
+    float alpha = BrdfAlpha(roughness);
 
     // don't sample diffuse on metals
     const bool enableDiffuse = metallic < 1.0f;
-    const bool enableSpecular = true;
 
     // mixture pdf coin flips between diffuse and specular directions
     const bool specular = prng_f32(rng) < (0.5f + metallic);
@@ -465,13 +463,12 @@ pim_inline scatter_t VEC_CALL Scatter(
     float HoV = f1_saturate(f4_dot3(H, V));
     float NoV = f1_saturate(f4_dot3(N, V));
     float NoL = f1_saturate(f4_dot3(N, L));
-    float LoH = f1_saturate(f4_dot3(L, H));
 
-    float diffusePdf = enableDiffuse ? LambertPdf(N, L) : 0.0f;
+    float diffusePdf = enableDiffuse ? (NoL / kPi) : 0.0f;
     float specularPdf = GGXPdf(NoH, HoV, alpha);
 
     float pdf = diffusePdf + specularPdf;
-    if (enableDiffuse && enableSpecular)
+    if (enableDiffuse)
     {
         pdf *= 0.5f;
     }
@@ -482,7 +479,6 @@ pim_inline scatter_t VEC_CALL Scatter(
     }
 
     float4 brdf = f4_0;
-    if (enableSpecular)
     {
         float4 f0 = F_0(albedo, metallic);
         float4 F = F_Schlick(f0, f4_1, HoV);
@@ -493,7 +489,7 @@ pim_inline scatter_t VEC_CALL Scatter(
     }
     if (enableDiffuse)
     {
-        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, LoH, alpha));
+        float4 Fd = f4_mulvs(albedo, Fd_Lambert());
         brdf = f4_add(brdf, Fd);
     }
 
@@ -504,7 +500,6 @@ pim_inline scatter_t VEC_CALL Scatter(
     return result;
 }
 
-pim_optimize
 static surfhit_t VEC_CALL GetSurface(
     const pt_scene_t* scene,
     ray_t rin,
@@ -552,7 +547,6 @@ static surfhit_t VEC_CALL GetSurface(
 }
 
 static float4 VEC_CALL pt_trace_albedo(
-    prng_t* rng,
     const pt_scene_t* scene,
     ray_t ray)
 {
@@ -565,7 +559,6 @@ static float4 VEC_CALL pt_trace_albedo(
     return f4_0;
 }
 
-pim_optimize
 pt_result_t VEC_CALL pt_trace_ray(
     prng_t* rng,
     const pt_scene_t* scene,
@@ -626,7 +619,6 @@ pt_result_t VEC_CALL pt_trace_ray(
     };
 }
 
-pim_optimize
 static void TraceFn(task_t* pbase, i32 begin, i32 end)
 {
     trace_task_t* task = (trace_task_t*)pbase;
@@ -708,6 +700,8 @@ typedef struct pt_raygen_s
 
 static void RayGenFn(task_t* pBase, i32 begin, i32 end)
 {
+    prng_t rng = prng_get();
+
     pt_raygen_t* task = (pt_raygen_t*)pBase;
     const pt_scene_t* scene = task->scene;
     const pt_dist_t dist = task->dist;
@@ -721,7 +715,6 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
     ray_t ray;
     ray.ro = origin.ro;
 
-    prng_t rng = prng_get();
     for (i32 i = begin; i < end; ++i)
     {
         float2 Xi = f2_rand(&rng);
@@ -739,6 +732,7 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
         pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
         colors[i] = f3_f4(result.color, 1.0f);
     }
+
     prng_set(rng);
 }
 

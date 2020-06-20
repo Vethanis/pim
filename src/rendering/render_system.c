@@ -55,7 +55,7 @@
 #include <time.h>
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
-static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "4", "path tracing bounces" };
+static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "3", "path tracing bounces" };
 static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
 static cvar_t cv_pt_normal = { cvart_bool, 0, "pt_normal", "0", "output path tracer normals" };
 static cvar_t cv_pt_albedo = { cvart_bool, 0, "pt_albedo", "0", "output path tracer albedo" };
@@ -880,14 +880,14 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     drawables->rotations[iPlastic] = quat_id;
 
     const float4 st = { 1.0f, 1.0f, 0.0f, 0.0f };
-    const u32 white = LinearToColor(f4_v(1.0f, 1.0f, 1.0f, 1.0f));
-    const u32 red = LinearToColor(f4_v(1.0f, 0.0f, 0.0f, 1.0f));
-    const u32 green = LinearToColor(f4_v(0.0f, 1.0f, 0.0f, 1.0f));
-    const u32 blue = LinearToColor(f4_v(0.0f, 0.0f, 1.0f, 1.0f));
+    const u32 white = LinearToColor(f4_s(0.9f));
+    const u32 red = LinearToColor(f4_v(0.9f, 0.1f, 0.1f, 1.0f));
+    const u32 green = LinearToColor(f4_v(0.1f, 0.9f, 0.1f, 1.0f));
+    const u32 blue = LinearToColor(f4_v(0.1f, 0.1f, 0.9f, 1.0f));
     const u32 boxRome = LinearToColor(f4_v(0.9f, 1.0f, 0.0f, 0.0f));
     const u32 lightRome = LinearToColor(f4_v(0.5f, 1.0f, 0.0f, 0.35f));
-    const u32 plasticRome = LinearToColor(f4_v(0.125f, 1.0f, 0.0f, 0.0f));
-    const u32 metalRome = LinearToColor(f4_v(0.125f, 1.0f, 1.0f, 0.0f));
+    const u32 plasticRome = LinearToColor(f4_v(0.01f, 1.0f, 0.0f, 0.0f));
+    const u32 metalRome = LinearToColor(f4_v(0.01f, 1.0f, 1.0f, 0.0f));
 
     const material_t whiteBoxMat = (material_t)
     {

@@ -191,16 +191,6 @@ typedef struct frus_s
     plane_t z1;
 } frus_t;
 
-// spherical gaussian
-typedef struct SG_s
-{
-    // axis.xyz: axis direction
-    // axis.w: sharpness
-    // amplitude.xyz: radiance
-    float4 axis;
-    float4 amplitude;
-} SG_t;
-
 typedef struct AmbCube_s
 {
     // radiance along normals of a cube

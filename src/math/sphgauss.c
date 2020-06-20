@@ -3,28 +3,24 @@
 #include "math/sampling.h"
 #include "common/random.h"
 
-static float4 VEC_CALL SampleDir(float2 Xi, SG_Dist dist)
+pim_inline float4 VEC_CALL SampleDir(float2 Xi, SGDist dist)
 {
-    float4 dir;
     switch (dist)
     {
     default:
     case SGDist_Sphere:
-        dir = SampleUnitSphere(Xi);
-        break;
+        return SampleUnitSphere(Xi);
     case SGDist_Hemi:
-        dir = SampleUnitHemisphere(Xi);
-        break;
+        return SampleUnitHemisphere(Xi);
     }
-    return f4_normalize3(dir);
 }
 
-pim_optimize
-void VEC_CALL SG_Accumulate(
+void SG_Accumulate(
     i32 iSample,
     float4 dir,
     float4 rad,
-    SG_t* sgs,
+    const float4* axii,
+    float4* amplitudes,
     float* lobeWeights,
     const float* basisSqIntegrals,
     i32 length)
@@ -35,21 +31,23 @@ void VEC_CALL SG_Accumulate(
         {
             lobeWeights[i] = 0.0f;
         }
+        for (i32 i = 0; i < length; ++i)
+        {
+            amplitudes[i] = f4_0;
+        }
     }
 
-    const float sampleScale = 1.0f / (iSample + 1.0f);
-    const i32 pushBytes = sizeof(float) * length;
-    float* sampleWeights = pim_pusha(pushBytes);
+    float* sampleWeights = tmp_malloc(sizeof(sampleWeights[0]) * length);
 
     float4 est = f4_0;
     for (i32 i = 0; i < length; ++i)
     {
-        const SG_t sg = sgs[i];
-        float w = SG_BasisEval(sg, dir);
-        est = f4_add(est, f4_mulvs(sg.amplitude, w));
+        float w = SG_BasisEval(axii[i], dir);
+        est = f4_add(est, f4_mulvs(amplitudes[i], w));
         sampleWeights[i] = w;
     }
 
+    const float sampleScale = 1.0f / (iSample + 1.0f);
     for (i32 i = 0; i < length; ++i)
     {
         float sampleWeight = sampleWeights[i];
@@ -57,70 +55,79 @@ void VEC_CALL SG_Accumulate(
         {
             continue;
         }
-        SG_t sg = sgs[i];
 
         lobeWeights[i] += ((sampleWeight * sampleWeight) - lobeWeights[i]) * sampleScale;
         float integral = f1_max(lobeWeights[i], basisSqIntegrals[i]);
-        float4 otherLight = f4_sub(est, f4_mulvs(sg.amplitude, sampleWeight));
+        float4 otherLight = f4_sub(est, f4_mulvs(amplitudes[i], sampleWeight));
         float4 newEst = f4_mulvs(f4_sub(rad, otherLight), sampleWeight / integral);
-        sg.amplitude = f4_max(f4_lerpvs(sg.amplitude, newEst, sampleScale), f4_0);
-
-        sgs[i] = sg;
+        amplitudes[i] = f4_max(f4_lerpvs(amplitudes[i], newEst, sampleScale), f4_0);
     }
-
-    pim_popa(pushBytes);
 }
 
-pim_optimize
-void SG_Generate(SG_t* sgs, float* basisSqIntegrals, i32 count, SG_Dist dist)
+void SG_Generate(float4* axii, float* basisSqIntegrals, i32 count, SGDist dist)
 {
-    ASSERT(sgs);
+    ASSERT(axii);
+    ASSERT(basisSqIntegrals);
     ASSERT(count >= 0);
-
-    prng_t rng = prng_create();
 
     for (i32 i = 0; i < count; ++i)
     {
-        sgs[i].axis = SampleDir(Hammersley2D(i, count), dist);
+        axii[i] = SampleDir(Hammersley2D(i, count), dist);
     }
 
     // shuffle directions
+    prng_t rng = prng_get();
     for (i32 i = 0; i < count; ++i)
     {
         i32 j = prng_i32(&rng) % count;
         ASSERT(j >= 0);
         ASSERT(j < count);
-        SG_t tmp = sgs[i];
-        sgs[i] = sgs[j];
-        sgs[j] = tmp;
+        float4 tmp = axii[i];
+        axii[i] = axii[j];
+        axii[j] = tmp;
     }
+    prng_set(rng);
 
+    // find cosine of the smallest half-angle between axii
     float minCosTheta = 1.0f;
+    const float4 axii0 = axii[0];
     for (i32 i = 1; i < count; ++i)
     {
-        float4 H = f4_normalize3(f4_add(sgs[i].axis, sgs[0].axis));
-        minCosTheta = f1_min(minCosTheta, f1_sat(f4_dot3(H, sgs[0].axis)));
+        float4 H = f4_normalize3(f4_add(axii[i], axii0));
+        minCosTheta = f1_min(minCosTheta, f1_sat(f4_dot3(H, axii0)));
     }
 
     float sharpness = (logf(0.65f) * count) / (minCosTheta - 1.0f);
     for (i32 i = 0; i < count; ++i)
     {
-        sgs[i].axis.w = sharpness;
-        sgs[i].amplitude = f4_0;
+        axii[i].w = sharpness;
         basisSqIntegrals[i] = 0.0f;
     }
 
-    const i32 sampleCount = 2048;
+    const i32 sampleCount = 4096;
+    const float sampleWeight = 1.0f / sampleCount;
     for (i32 i = 0; i < sampleCount; ++i)
     {
-        const float4 dir = SampleDir(Hammersley2D(i, sampleCount), dist);
-        const float sampleWeight = 1.0f / (i + 1.0f);
-
+        float4 dir = SampleDir(Hammersley2D(i, sampleCount), dist);
         for (i32 j = 0; j < count; ++j)
         {
-            float w = SG_BasisEval(sgs[j], dir);
-            float diff = w * w - basisSqIntegrals[j];
-            basisSqIntegrals[j] += diff * sampleWeight;
+            float basis = SG_BasisEval(axii[j], dir);
+            basisSqIntegrals[j] = f1_lerp(basisSqIntegrals[j], basis * basis, sampleWeight);
+        }
+    }
+
+    // I think the spherical case has a closed form?
+    // Worth testing with an assert.
+    // if it passes, use it instead of sampling directions and integrating
+    if (dist == SGDist_Sphere)
+    {
+        for (i32 i = 0; i < count; ++i)
+        {
+            float closedForm = SG_BasisIntegralSq(axii[i].w);
+            float analytic = basisSqIntegrals[i];
+            float dist = f1_distance(analytic, closedForm);
+            float threshold = 0.01f * analytic;
+            ASSERT(dist < threshold);
         }
     }
 }

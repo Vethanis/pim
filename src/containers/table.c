@@ -109,7 +109,7 @@ static bool LookupFind(
             break;
         }
         // if not a tombstone
-        if (iTable > 0)
+        if (iTable >= 0)
         {
             ASSERT(iTable < table->width);
             if (hash == hashes[iTable])

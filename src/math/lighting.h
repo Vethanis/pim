@@ -41,6 +41,11 @@ typedef struct BrdfLut_s
 BrdfLut BakeBRDF(int2 size, u32 numSamples);
 void FreeBrdfLut(BrdfLut* lut);
 
+pim_inline float VEC_CALL BrdfAlpha(float roughness)
+{
+    return f1_max(roughness * roughness, 0.001f);
+}
+
 // Specular reflectance at normal incidence (N==L)
 // """
 //   [Burley12, Page 16, Section 5.5]
@@ -111,11 +116,11 @@ pim_inline float VEC_CALL Fd_Burley(
     float NoL,
     float NoV,
     float LoH,
-    float roughness) // perceptually linear roughness
+    float alpha)
 {
-    float energyBias = f1_lerp(0.0f, 0.5f, roughness);
-    float energyFactor = f1_lerp(1.0f, 1.0f / 1.51f, roughness);
-    float fd90 = energyBias + 2.0f * LoH * LoH * roughness;
+    float energyBias = f1_lerp(0.0f, 0.5f, alpha);
+    float energyFactor = f1_lerp(1.0f, 1.0f / 1.51f, alpha);
+    float fd90 = energyBias + 2.0f * LoH * LoH * alpha;
     float lightScatter = F_Schlick1(1.0f, fd90, NoL);
     float viewScatter = F_Schlick1(1.0f, fd90, NoV);
     return (lightScatter * viewScatter * energyFactor) / kPi;
@@ -130,7 +135,7 @@ pim_inline float4 VEC_CALL DirectBRDF(
     float roughness,
     float metallic)
 {
-    float alpha = roughness * roughness;
+    float alpha = BrdfAlpha(roughness);
 
     float4 H = f4_normalize3(f4_add(V, L));
     float NoV = f1_saturate(f4_dot3(N, V));
@@ -178,7 +183,7 @@ pim_inline float4 VEC_CALL IndirectBRDF(
     float metallic,     // surface metalness
     float ao)           // 1 - ambient occlusion (affects gi only)
 {
-    float alpha = roughness * roughness;
+    float alpha = BrdfAlpha(roughness);
     float cosTheta = f1_saturate(f4_dot3(N, V));
 
     float4 f0 = F_0(albedo, metallic);

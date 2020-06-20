@@ -67,6 +67,7 @@
     <ClCompile Include="..\src\rendering\denoise.c" />
     <ClCompile Include="..\src\rendering\drawable.c" />
     <ClCompile Include="..\src\rendering\fragment_stage.c" />
+    <ClCompile Include="..\src\rendering\gi_grid.c" />
     <ClCompile Include="..\src\rendering\librtc.c" />
     <ClCompile Include="..\src\rendering\lightmap.c" />
     <ClCompile Include="..\src\rendering\lights.c" />
@@ -210,6 +211,7 @@
     <ClInclude Include="..\src\rendering\fragment_stage.h" />
     <ClInclude Include="..\src\rendering\constants.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />
+    <ClInclude Include="..\src\rendering\gi_grid.h" />
     <ClInclude Include="..\src\rendering\librtc.h" />
     <ClInclude Include="..\src\rendering\lightmap.h" />
     <ClInclude Include="..\src\rendering\model.h" />

@@ -11,7 +11,7 @@ static float2 VEC_CALL IntegrateBRDF(
     float roughness,
     u32 numSamples)
 {
-    float alpha = roughness * roughness;
+    float alpha = BrdfAlpha(roughness);
 
     const float4 V =
     {
