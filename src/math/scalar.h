@@ -45,6 +45,11 @@ pim_inline float VEC_CALL f1_max(float a, float b)
     return a > b ? a : b;
 }
 
+pim_inline float VEC_CALL f1_divsafe(float a, float b)
+{
+    return a / f1_max(kEpsilon, b);
+}
+
 pim_inline float VEC_CALL f1_sign(float x)
 {
     return ((x > 0.0f) ? 1.0f : 0.0f) - ((x < 0.0f) ? 1.0f : 0.0f);

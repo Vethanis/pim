@@ -29,7 +29,8 @@ static void LightLogic(const camera_t* cam)
     {
         pt_light_t light = lights_get_pt(0);
         light.pos = f4_add(cam->position, f4_mulvs(quat_fwd(cam->rotation), 4.0f));
-        light.pos.w = 1.0f;
+
+        light.pos.w = 0.3f;
         lights_set_pt(0, light);
         if (input_buttonup(MouseButton_Left))
         {

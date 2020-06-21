@@ -21,21 +21,17 @@ static float2 VEC_CALL IntegrateBRDF(
         0.0f,
     };
     const float4 I = f4_neg(V);
-
-    const float4 N = { 0.0f, 0.0f, 1.0f, 0.0f };
-    const float3x3 TBN = NormalToTBN(N);
     float2 result = { 0.0f, 0.0f };
-
     const float weight = 1.0f / numSamples;
     for (u32 i = 0; i < numSamples; ++i)
     {
         float2 Xi = Hammersley2D(i, numSamples);
-        float4 H = TbnToWorld(TBN, SampleGGXMicrofacet(Xi, roughness));
+        float4 H = SampleGGXMicrofacet(Xi, alpha);
         float4 L = f4_normalize3(f4_reflect3(I, H));
 
         float NoL = L.z;
-        float NoH = f1_max(0.0f, H.z);
-        float VoH = f1_max(0.0f, f4_dot3(V, H));
+        float NoH = f1_sat(H.z);
+        float VoH = f1_sat(f4_dot3(V, H));
 
         if (NoL > 0.0f)
         {

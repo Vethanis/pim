@@ -451,6 +451,9 @@ static void VEC_CALL DrawMesh(
                         N = TanToWorld(N, tN);
                     }
 
+                    float roughness = rome.x;
+                    float occlusion = rome.y;
+                    float metallic = rome.z;
                     float4 emission = UnpackEmission(albedo, rome.w);
 
                     float4 diffuseGI = f4_0;
@@ -467,7 +470,15 @@ static void VEC_CALL DrawMesh(
                         specularGI = f4_mulvs(diffuseGI, NoR);
                     }
 
-                    float4 indirectLight = IndirectBRDF(V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
+                    float4 indirectLight = IndirectBRDF(
+                        V,
+                        N,
+                        diffuseGI,
+                        specularGI,
+                        albedo,
+                        roughness,
+                        metallic,
+                        occlusion);
 
                     float4 directLight = f4_0;
                     {
@@ -475,12 +486,17 @@ static void VEC_CALL DrawMesh(
                         {
                             float4 lightPos = ptLights[i].pos;
                             float4 lightRad = ptLights[i].rad;
-                            float4 L = f4_sub(lightPos, P);
-                            float lDist = f1_max(1e-5f, f4_length3(L));
-                            L = f4_divvs(L, lDist);
-                            lightRad = f4_divvs(lightRad, lDist * lDist);
-                            float4 brdf = DirectBRDF(V, L, N, albedo, rome.x, rome.z);
-                            directLight = f4_add(directLight, f4_mul(brdf, lightRad));
+                            float4 Li = EvalPointLight(
+                                V,
+                                P,
+                                N,
+                                albedo,
+                                roughness,
+                                metallic,
+                                lightPos,
+                                lightRad,
+                                50.0f);
+                            directLight = f4_add(directLight, Li);
                         }
                     }
 

@@ -91,22 +91,22 @@ static const mat_preset_t ms_matPresets[] =
 {
     {
         "wbrick", // wet brick, white brick? wizard brick?
-        0.5f,
+        0.35f,
         1.0f,
     },
     {
         "brick",
-        0.75f,
+        0.65f,
         1.0f,
     },
     {
         "church",
-        0.75f,
+        0.65f,
         1.0f,
     },
     {
         "metal",
-        0.75f,
+        0.5f,
         1.0f,
         1.0f,
     },
@@ -118,31 +118,31 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "wmet", // wet metal? white metal? wizard metal?
-        0.5f,
+        0.35f,
         1.0f,
         1.0f,
     },
     {
         "wizmet", // wizard metal, my favorite genre
-        0.5f,
+        0.35f,
         1.0f,
         1.0f,
     },
     {
         "cop", // copper
-        0.75f,
+        0.5f,
         1.0f,
         1.0f,
     },
     {
         "tech", // technology?
-        0.65f,
+        0.5f,
         1.0f,
-        1.0f,
+        0.0f,
     },
     {
         "city", // ???
-        0.65f,
+        0.5f,
         1.0f,
     },
     {
@@ -152,44 +152,46 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "wood",
-        0.75f,
-        1.0f,
-    },
-    {
-        "wizwood", // wizard wood? is that innuendo?
         0.5f,
         1.0f,
     },
     {
+        "wizwood", // wizard wood? is that innuendo?
+        0.35f,
+        1.0f,
+    },
+    {
         "ceiling",
-        0.75f,
+        0.5f,
         1.0f,
     },
     {
         "sky", // sky texture (purple stuff)
-        0.75f,
+        0.5f,
         1.0f,
         0.0f,
         1.0f,
     },
     {
         "slip", // slipgate
-        0.75f,
+        0.5f,
         1.0f,
         0.0f,
         1.0f,
     },
     {
         "teleport",
-        0.75f,
+        0.5f,
         1.0f,
+        1.0f,
+        0.0f,
     },
     {
         "light",
         1.0f,
         1.0f,
         0.0f,
-        1.0f,
+        0.35f,
     },
     {
         "lava",
@@ -200,28 +202,28 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "water",
-        0.1f,
+        0.01f,
         1.0f,
     },
     {
         "rune",
-        0.65f,
+        0.5f,
         1.0f,
         1.0f,
     },
     {
         "wall",
-        0.75f,
+        0.5f,
         1.0f,
     },
     {
         "floor",
-        0.75f,
+        0.5f,
         1.0f,
     },
     {
         "door",
-        0.75f,
+        0.5f,
         1.0f,
     },
     {
@@ -232,7 +234,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "skill",
-        0.75f,
+        0.5f,
         1.0f,
     },
     {
@@ -247,7 +249,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "wiz",
-        0.5f,
+        0.25f,
         1.0f,
     },
     {

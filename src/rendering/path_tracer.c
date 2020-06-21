@@ -450,28 +450,26 @@ static scatter_t VEC_CALL Scatter(
     float roughness = surf->roughness;
     float alpha = BrdfAlpha(roughness);
 
-    // don't sample diffuse on metals
-    const bool enableDiffuse = metallic < 1.0f;
+    // metals are only specular
+    const float amtDiffuse = 1.0f - metallic;
+    const float amtSpecular = 1.0f;
+    const float specProb = 1.0f / (amtSpecular + amtDiffuse);
 
-    // mixture pdf coin flips between diffuse and specular directions
-    const bool specular = prng_f32(rng) < (0.5f + metallic);
     float2 Xi = f2_rand(rng);
-    float4 L = specular ? ScatterGGX(Xi, I, N, alpha) : ScatterCosine(Xi, N);
+    // mixture pdf coin flips between diffuse and specular directions
+    float4 L = (prng_f32(rng) < specProb) ?
+        ScatterGGX(Xi, I, N, alpha) :
+        ScatterCosine(Xi, N);
 
     float4 H = f4_normalize3(f4_add(V, L));
-    float NoH = f1_saturate(f4_dot3(N, H));
-    float HoV = f1_saturate(f4_dot3(H, V));
-    float NoV = f1_saturate(f4_dot3(N, V));
-    float NoL = f1_saturate(f4_dot3(N, L));
+    float NoH = f4_dotsat(N, H);
+    float HoV = f4_dotsat(H, V);
+    float NoV = f4_dotsat(N, V);
+    float NoL = f4_dotsat(N, L);
 
-    float diffusePdf = enableDiffuse ? (NoL / kPi) : 0.0f;
-    float specularPdf = GGXPdf(NoH, HoV, alpha);
-
-    float pdf = diffusePdf + specularPdf;
-    if (enableDiffuse)
-    {
-        pdf *= 0.5f;
-    }
+    float diffusePdf = amtDiffuse * LambertPdf(NoL);
+    float specularPdf = amtSpecular * GGXPdf(NoH, HoV, alpha);
+    float pdf = (diffusePdf + specularPdf) * specProb;
 
     if ((pdf < kEpsilon) || (NoL < kEpsilon))
     {
@@ -485,12 +483,11 @@ static scatter_t VEC_CALL Scatter(
         float D = D_GTR(NoH, alpha);
         float G = G_SmithGGX(NoL, NoV, alpha);
         float4 Fr = f4_mulvs(F, D * G);
-        brdf = f4_add(brdf, Fr);
+        brdf = f4_add(brdf, f4_mulvs(Fr, amtSpecular));
     }
-    if (enableDiffuse)
     {
-        float4 Fd = f4_mulvs(albedo, Fd_Lambert());
-        brdf = f4_add(brdf, Fd);
+        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, HoV, alpha));
+        brdf = f4_add(brdf, f4_mulvs(Fd, amtDiffuse));
     }
 
     result.dir = L;
@@ -570,7 +567,7 @@ pt_result_t VEC_CALL pt_trace_ray(
     float4 light = f4_0;
     float4 attenuation = f4_1;
 
-    for (i32 b = 0; b < 20; ++b)
+    for (i32 b = 0; b < bounces; ++b)
     {
         rayhit_t hit = TraceRay(scene, 0, ray, f4_rcp(ray.rd), 1 << 20);
         if (hit.type == hit_nothing)
@@ -597,7 +594,7 @@ pt_result_t VEC_CALL pt_trace_ray(
         ray.rd = scatter.dir;
         attenuation = f4_mul(attenuation, scatter.attenuation);
 
-        if (b >= bounces)
+        if (b >= 1)
         {
             float p = f4_perlum(attenuation);
             if (prng_f32(rng) < p)
@@ -614,8 +611,8 @@ pt_result_t VEC_CALL pt_trace_ray(
     return (pt_result_t)
     {
         .color = f4_f3(light),
-            .albedo = f4_f3(albedo),
-            .normal = f4_f3(normal),
+        .albedo = f4_f3(albedo),
+        .normal = f4_f3(normal),
     };
 }
 

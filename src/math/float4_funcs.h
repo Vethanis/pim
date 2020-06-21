@@ -509,6 +509,11 @@ pim_inline float VEC_CALL f4_dot3(float4 a, float4 b)
     return f4_sum3(f4_mul(a, b));
 }
 
+pim_inline float VEC_CALL f4_dotsat(float4 a, float4 b)
+{
+    return f1_saturate(f4_dot3(a, b));
+}
+
 pim_inline float4 VEC_CALL f4_cross3(float4 a, float4 b)
 {
     return f4_zxy(
