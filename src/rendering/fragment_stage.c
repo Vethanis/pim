@@ -163,8 +163,9 @@ static DrawMode GetDrawMode(void)
     return mode;
 }
 
-static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf);
+static void SetupTile(tile_ctx_t* ctx, i32 iTile);
 static void VEC_CALL DrawMesh(const tile_ctx_t* ctx, framebuf_t* target, i32 iDraw, const Cubemap* cm);
+static void VEC_CALL DrawLights(const tile_ctx_t* ctx, framebuf_t* target);
 static i32 VEC_CALL FindBounds(sphere_t self, const sphere_t* pim_noalias others, i32 len);
 
 pim_optimize
@@ -185,7 +186,7 @@ static void FragmentStageFn(task_t* task, i32 begin, i32 end)
     tile_ctx_t ctx;
     for (i32 iTile = begin; iTile < end; ++iTile)
     {
-        SetupTile(&ctx, iTile, stage->backBuf);
+        SetupTile(&ctx, iTile);
 
         u64 tilemask = 1;
         tilemask <<= iTile;
@@ -199,6 +200,8 @@ static void FragmentStageFn(task_t* task, i32 begin, i32 end)
                 DrawMesh(&ctx, stage->frontBuf, iDraw, NULL);
             }
         }
+
+        DrawLights(&ctx, stage->frontBuf);
     }
 }
 
@@ -259,7 +262,7 @@ static float4 VEC_CALL TriBounds(
 }
 
 pim_optimize
-static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf)
+static void SetupTile(tile_ctx_t* ctx, i32 iTile)
 {
     camera_t camera;
     camera_get(&camera);
@@ -283,6 +286,60 @@ static void SetupTile(tile_ctx_t* ctx, i32 iTile, const framebuf_t* backBuf)
     ctx->V = V;
 
     ctx->mode = GetDrawMode();
+}
+
+static void VEC_CALL DrawLights(const tile_ctx_t* ctx, framebuf_t* target)
+{
+    const float dx = 1.0f / kDrawWidth;
+    const float dy = 1.0f / kDrawHeight;
+
+    const lights_t* lights = lights_get();
+    const pt_light_t* pim_noalias ptLights = lights->ptLights;
+    const i32 ptCount = lights->ptCount;
+
+    const float4 eye = ctx->eye;
+    const float4 fwd = ctx->fwd;
+    const float4 right = ctx->right;
+    const float4 up = ctx->up;
+    const float2 slope = ctx->slope;
+    const float nearClip = ctx->nearClip;
+    const float farClip = ctx->farClip;
+    const float2 tileMin = ctx->tileMin;
+    const float2 tileMax = ctx->tileMax;
+
+    float4* pim_noalias dstLight = target->light;
+    float* pim_noalias dstDepth = target->depth;
+
+    for (i32 iLight = 0; iLight < ptCount; ++iLight)
+    {
+        float4 center = ptLights[iLight].pos;
+        float4 rad = ptLights[iLight].rad;
+        sphere_t sph = { center };
+        if (sdFrusSph(ctx->frus, sph) > 0.0f)
+        {
+            continue;
+        }
+        for (float y = tileMin.y; y < tileMax.y; y += dy)
+        {
+            for (float x = tileMin.x; x < tileMax.x; x += dx)
+            {
+                float2 coord = { x, y };
+                float4 rd = proj_dir(right, up, fwd, slope, coord);
+                ray_t ray = { eye, rd };
+                float t = isectSphere3D(ray, sph);
+                if ((t <= nearClip) || (t >= farClip))
+                {
+                    continue;
+                }
+                i32 iTexel = SnormToIndex(coord);
+                if (t < dstDepth[iTexel])
+                {
+                    dstDepth[iTexel] = t;
+                    dstLight[iTexel] = rad;
+                }
+            }
+        }
+    }
 }
 
 pim_optimize
@@ -466,6 +523,8 @@ static void VEC_CALL DrawMesh(
                     float4 specularGI = f4_0;
                     {
                         float4 R = f4_reflect3(f4_neg(V), N);
+                        float alpha = BrdfAlpha(roughness);
+                        R = SpecularDominantDir(N, R, alpha);
                         float NoR = f1_saturate(f4_dot3(N, R));
                         specularGI = f4_mulvs(diffuseGI, NoR);
                     }
@@ -486,7 +545,7 @@ static void VEC_CALL DrawMesh(
                         {
                             float4 lightPos = ptLights[i].pos;
                             float4 lightRad = ptLights[i].rad;
-                            float4 Li = EvalPointLight(
+                            float4 Li = EvalSphereLight(
                                 V,
                                 P,
                                 N,
@@ -495,7 +554,7 @@ static void VEC_CALL DrawMesh(
                                 metallic,
                                 lightPos,
                                 lightRad,
-                                50.0f);
+                                lightPos.w);
                             directLight = f4_add(directLight, Li);
                         }
                     }

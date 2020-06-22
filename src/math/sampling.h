@@ -116,25 +116,40 @@ pim_inline float2 VEC_CALL MapSquareToDisk(float2 Xi)
 // samples unit sphere with N = (0, 0, 1)
 pim_inline float4 VEC_CALL SampleUnitSphere(float2 Xi)
 {
-    float z = Xi.x * 2.0f - 1.0f;
-    float r = sqrtf(f1_max(0.0f, 1.0f - z * z));
     float phi = kTau * Xi.y;
-    float x = r * cosf(phi);
-    float y = r * sinf(phi);
-    float4 dir = { x, y, z, 0.0f };
+    float cosTheta = Xi.x * 2.0f - 1.0f;
+    float sinTheta = sqrtf(f1_max(0.0f, 1.0f - cosTheta * cosTheta));
+    float x = sinTheta * cosf(phi);
+    float y = sinTheta * sinf(phi);
+    float4 dir = { x, y, cosTheta, 0.0f };
     return f4_normalize3(dir);
 }
 
 // samples unit hemisphere with N = (0, 0, 1)
 pim_inline float4 VEC_CALL SampleUnitHemisphere(float2 Xi)
 {
-    float z = Xi.x;
-    float r = sqrtf(f1_max(0.0f, 1.0f - z * z));
     float phi = kTau * Xi.y;
-    float x = r * cosf(phi);
-    float y = r * sinf(phi);
-    float4 dir = { x, y, z, 0.0f };
+    float cosTheta = Xi.x;
+    float sinTheta = sqrtf(f1_max(0.0f, 1.0f - cosTheta * cosTheta));
+    float x = sinTheta * cosf(phi);
+    float y = sinTheta * sinf(phi);
+    float4 dir = { x, y, cosTheta, 0.0f };
     return f4_normalize3(dir);
+}
+
+pim_inline float4 VEC_CALL SamplePointOnSphere(
+    float2 Xi,
+    float4 center,
+    float radius,
+    float* pdfOut,
+    float4* Nout)
+{
+    float4 N = SampleUnitSphere(Xi);
+    float4 P = f4_add(center, f4_mulvs(N, radius));
+    float pdf = 1.0f / (4.0f * kPi * radius * radius);
+    *pdfOut = pdf;
+    *Nout = N;
+    return P;
 }
 
 // samples cosine-weighted hemisphere with N = (0, 0, 1)

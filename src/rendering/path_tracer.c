@@ -594,7 +594,7 @@ pt_result_t VEC_CALL pt_trace_ray(
         ray.rd = scatter.dir;
         attenuation = f4_mul(attenuation, scatter.attenuation);
 
-        if (b >= 1)
+        if (b >= 3)
         {
             float p = f4_perlum(attenuation);
             if (prng_f32(rng) < p)

@@ -136,6 +136,12 @@ pim_inline float VEC_CALL f1_smoothstep(float a, float b, float x)
     return (t * t) * (3.0f - 2.0f * t);
 }
 
+// assumes x is already within [0, 1] range
+pim_inline float VEC_CALL f1_unormstep(float t)
+{
+    return t * t * (3.0f - (2.0f * t));
+}
+
 pim_inline float VEC_CALL f1_reflect(float i, float n)
 {
     return i - 2.0f * (n * i * n);

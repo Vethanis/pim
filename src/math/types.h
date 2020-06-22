@@ -78,7 +78,6 @@ typedef struct float2x2_s
     float2 c1;
 } float2x2;
 
-
 typedef struct float3x3_s
 {
     float4 c0;
@@ -93,6 +92,12 @@ typedef struct float4x4_s
     float4 c2;
     float4 c3;
 } float4x4;
+
+typedef struct float4x2_s
+{
+    float4 c0;
+    float4 c1;
+} float4x2;
 
 typedef struct int2x2_s
 {

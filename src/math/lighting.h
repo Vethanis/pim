@@ -32,6 +32,11 @@ PIM_C_BEGIN
 //     smooth material would always produce a rough result.
 //   """
 
+#define kMinDenom       (1.0f / (1<<10))
+#define kMinLightDist   0.01f
+#define kMinLightDistSq 0.001f
+#define kMinAlpha       kMinDenom
+
 typedef struct BrdfLut_s
 {
     int2 size;
@@ -43,7 +48,7 @@ void FreeBrdfLut(BrdfLut* lut);
 
 pim_inline float VEC_CALL BrdfAlpha(float roughness)
 {
-    return f1_max(roughness * roughness, 0.001f);
+    return f1_max(roughness * roughness, kMinAlpha);
 }
 
 // Specular reflectance at normal incidence (N==L)
@@ -56,6 +61,12 @@ pim_inline float VEC_CALL BrdfAlpha(float roughness)
 pim_inline float4 VEC_CALL F_0(float4 albedo, float metallic)
 {
     return f4_lerpvs(f4_s(0.04f), albedo, metallic);
+}
+
+// any F0 lower than 0.02 can be assumed as a form of pre-baked occlusion
+pim_inline float VEC_CALL F_90(float4 F0)
+{
+    return f1_sat(50.0f * f4_dot3(F0, f4_s(0.33f)));
 }
 
 // Specular 'F' term
@@ -82,18 +93,52 @@ pim_inline float VEC_CALL F_Schlick1(float f0, float f90, float cosTheta)
     return f1_lerp(f0, f90, t5);
 }
 
+// aka 'Specular Color'
+pim_inline float4 VEC_CALL F_SchlickEx(
+    float4 albedo,
+    float metallic,
+    float cosTheta)
+{
+    float4 f0 = F_0(albedo, metallic);
+    float4 f90 = f4_s(F_90(f0));
+    return F_Schlick(f0, f90, cosTheta);
+}
+
+pim_inline float4 VEC_CALL DiffuseColor(
+    float4 F,
+    float4 albedo,
+    float metallic)
+{
+    return f4_mulvs(f4_mul(albedo, f4_inv(F)), 1.0f - metallic);
+}
+
 // Specular 'D' term
 // represents the normal distribution function
 // GGX Trowbridge-Reitz approximation
 // [Karis13, Page 3, Figure 3]
 pim_inline float VEC_CALL D_GTR(float NoH, float alpha)
 {
-    float m2 = alpha * alpha;
-    float f = 1.0f + NoH * (NoH * m2 - NoH);
-    return m2 / f1_max(f * f * kPi, 0.001f);
+    float a2 = alpha * alpha;
+    float f = f1_lerp(1.0f, a2, NoH * NoH);
+    return a2 / (f * f * kPi);
 }
 
-// Specular 'G' term
+// D term with SphereNormalization applied
+// [Karis13, Page 16, Equation 14]
+pim_inline float VEC_CALL D_GTR_Sphere(
+    float NoH,
+    float alpha,
+    float alphaPrime)
+{
+    // original normalization factor: 1 / (pi * a^2)
+    // sphere normalization factor: (a / a')^2
+    float a2 = alpha * alpha;
+    float ap2 = alphaPrime * alphaPrime;
+    float f = f1_lerp(1.0f, a2, NoH * NoH);
+    return (a2 * ap2) / (f * f);
+}
+
+// Specular 'V' term
 // Correlated Smith
 // represents the self shadowing and masking of microfacets in rough materials
 // [Lagarde15, Page 12, Listing 2]
@@ -102,21 +147,7 @@ pim_inline float VEC_CALL G_SmithGGX(float NoL, float NoV, float alpha)
     float a2 = alpha * alpha;
     float v = NoL * sqrtf(a2 + (NoV - NoV * a2) * NoV);
     float l = NoV * sqrtf(a2 + (NoL - NoL * a2) * NoL);
-    return 0.5f / f1_max(0.001f, v + l);
-}
-
-pim_inline float4 VEC_CALL SpecularBRDF(
-    float4 F,
-    float NoL,
-    float NoV,
-    float NoH,
-    float alpha)
-{
-    float G = G_SmithGGX(NoL, NoV, alpha);
-    float D = D_GTR(NoH, alpha);
-    float4 DFG = f4_mulvs(F, D * G);
-    float denom = f1_max(0.001f, 4.0f * NoL * NoV);
-    return f4_divvs(DFG, denom);
+    return 0.5f / (v + l);
 }
 
 pim_inline float VEC_CALL Fd_Lambert()
@@ -141,23 +172,6 @@ pim_inline float VEC_CALL Fd_Burley(
     return (lightScatter * viewScatter * energyFactor) / kPi;
 }
 
-pim_inline float4 VEC_CALL DiffuseBRDF(
-    float4 albedo,
-    float4 F,
-    float alpha,
-    float metallic,
-    float NoL,
-    float NoV,
-    float HoV)
-{
-    // metals are specular only
-    float s = 1.0f - metallic;
-    s *= Fd_Burley(NoL, NoV, HoV, alpha);
-    // multiply by inverse of specular color, to remain energy conserving
-    float4 c = f4_mul(albedo, f4_inv(F));
-    return f4_mulvs(c, s);
-}
-
 // multiply output by radiance of light
 pim_inline float4 VEC_CALL DirectBRDF(
     float4 V,
@@ -174,12 +188,56 @@ pim_inline float4 VEC_CALL DirectBRDF(
     float HoV = f4_dotsat(H, V);
 
     float alpha = BrdfAlpha(roughness);
-    // LoH or VoH work as difference angle
-    float4 F = F_Schlick(F_0(albedo, metallic), f4_1, HoV);
-    float4 Fr = SpecularBRDF(F, NoL, NoV, NoH, alpha);
-    float4 Fd = DiffuseBRDF(albedo, F, alpha, metallic, NoL, NoV, HoV);
+    float4 F = F_SchlickEx(albedo, metallic, HoV);
+    float G = G_SmithGGX(NoL, NoV, alpha);
+    float D = D_GTR(NoH, alpha);
+    float4 Fr = f4_mulvs(F, D * G);
+
+    float4 Fd = f4_mulvs(
+        DiffuseColor(F, albedo, metallic),
+        Fd_Lambert());
 
     return f4_add(Fr, Fd);
+}
+
+// for area lights with varying diffuse and specular light directions
+pim_inline float4x2 VEC_CALL DirectBRDFSplit(
+    float4 V,
+    float4 Ld,
+    float4 Ls,
+    float4 N,
+    float4 albedo,
+    float roughness,
+    float metallic)
+{
+    float alpha = BrdfAlpha(roughness);
+    float NoV = f4_dotsat(N, V);
+
+    float4 Fr;
+    {
+        float4 H = f4_normalize3(f4_add(V, Ls));
+        float NoH = f4_dotsat(N, H);
+        float NoL = f4_dotsat(N, Ls);
+        float HoV = f4_dotsat(H, V);
+        float4 F = F_SchlickEx(albedo, metallic, HoV);
+        float G = G_SmithGGX(NoL, NoV, alpha);
+        float D = D_GTR(NoH, alpha);
+        Fr = f4_mulvs(F, D * G);
+    }
+
+    float4 Fd;
+    {
+        float4 H = f4_normalize3(f4_add(V, Ld));
+        float NoL = f4_dotsat(N, Ld);
+        float HoV = f4_dotsat(H, V);
+        float4 F = F_SchlickEx(albedo, metallic, HoV);
+        Fd = f4_mulvs(
+            DiffuseColor(F, albedo, metallic),
+            Fd_Lambert());
+    }
+
+    float4x2 result = { Fd, Fr };
+    return result;
 }
 
 // polynomial approximation for convolved specular DFG
@@ -211,13 +269,11 @@ pim_inline float4 VEC_CALL IndirectBRDF(
     float alpha = BrdfAlpha(roughness);
     float NoV = f4_dotsat(N, V);
 
-    float4 F = F_Schlick(F_0(albedo, metallic), f4_1, NoV);
+    float4 F = F_SchlickEx(albedo, metallic, NoV);
     float4 Fr = EnvBRDF(F, NoV, alpha);
     Fr = f4_mul(Fr, specularGI);
 
-    float4 Fd = f4_mul(albedo, f4_inv(F));
-    Fd = f4_mulvs(Fd, 1.0f - metallic);
-    Fd = f4_mul(Fd, diffuseGI);
+    float4 Fd = f4_mul(DiffuseColor(F, albedo, metallic), diffuseGI);
 
     return f4_mulvs(f4_add(Fd, Fr), ao);
 }
@@ -226,19 +282,14 @@ pim_inline float VEC_CALL SmoothDistanceAtt(
     float distSq, // distance squared between surface and light
     float attRadius) // attenuation radius
 {
-    float f1 = distSq / f1_max(0.001f, attRadius * attRadius);
+    float f1 = distSq / f1_max(1.0f, attRadius * attRadius);
     float f2 = f1_saturate(1.0f - f1 * f1);
     return f2 * f2;
 }
 
-pim_inline float VEC_CALL DistanceAtt(
-    float4 L0, // unnormalized light vector
-    float attRadius) // attenuation radius
+pim_inline float VEC_CALL DistanceAtt(float distance)
 {
-    float distSq = f4_lengthsq3(L0);
-    float att = 1.0f / f1_max(0.001f, distSq);
-    att *= SmoothDistanceAtt(distSq, attRadius);
-    return att;
+    return 1.0f / f1_max(kMinLightDistSq, distance * distance);
 }
 
 pim_inline float VEC_CALL AngleAtt(
@@ -248,7 +299,7 @@ pim_inline float VEC_CALL AngleAtt(
     float cosOuter, // cosine of outer angle
     float angleScale) // width of inner to outer transition
 {
-    float scale = 1.0f / f1_max(0.001f, cosInner - cosOuter);
+    float scale = 1.0f / (cosInner - cosOuter);
     float offset = -cosOuter * angleScale;
     float cd = f4_dot3(Ldir, L);
     float att = f1_saturate(cd * scale + offset);
@@ -262,15 +313,17 @@ pim_inline float4 VEC_CALL EvalPointLight(
     float4 albedo,
     float roughness,
     float metallic,
-    float4 Lp, // light position
-    float4 Lc, // light color
-    float attRadius)
+    float4 lightPos,
+    float4 lightColor)
 {
-    float4 L0 = f4_sub(Lp, P);
-    float4 L = f4_normalize3(L0);
+    float4 L0 = f4_sub(lightPos, P);
+    float distance = f4_length3(L0);
+    distance = f1_max(kMinLightDist, distance);
+    float4 L = f4_divvs(L0, distance);
+
     float4 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
-    float att = f4_dotsat(N, L) * DistanceAtt(L0, attRadius);
-    return f4_mul(brdf, f4_mulvs(Lc, att));
+    float att = f4_dotsat(N, L) * DistanceAtt(distance);
+    return f4_mul(brdf, f4_mulvs(lightColor, att));
 }
 
 pim_inline float4 VEC_CALL EvalSunLight(
@@ -309,7 +362,8 @@ pim_inline float4 VEC_CALL EvalSunLight(
     }
 
     float illuminance = kSunLux * f4_dotsat(N, D);
-    float4 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
+    float4x2 FdFr = DirectBRDFSplit(V, D, L, N, albedo, roughness, metallic);
+    float4 brdf = f4_add(FdFr.c0, FdFr.c1);
 
     return f4_mulvs(brdf, illuminance);
 }
@@ -360,46 +414,89 @@ pim_inline float VEC_CALL RectLumensToNits(
     return lumens / (RectArea(width, height) * kPi);
 }
 
-// [Lagarde15, Page 44, Listing 7]
-pim_inline float VEC_CALL SphereIlluminance(
-    float4 N, // unit surface normal
-    float4 L,
-    float distance,
-    float radius)
+pim_inline float VEC_CALL SphereSinSigmaSq(float radius, float distance)
 {
-    // do not saturate, needed for horizon handling.
-    float c = f4_dot3(N, L);
+    radius = f1_max(kMinLightDist, radius);
+    distance = f1_max(radius, distance);
 
-    float h = distance / radius;
-    h = f1_max(h, 1.0f);
-    float h2 = h * h;
+    float r2 = radius * radius;
+    float d2 = distance * distance;
+    float sinSigmaSq = r2 / d2;
+    sinSigmaSq = f1_min(sinSigmaSq, 1.0f - kMinDenom);
+    return sinSigmaSq;
+}
 
-    if ((h * c) >= 1.0f)
+pim_inline float VEC_CALL DiskSinSigmaSq(float radius, float distance)
+{
+    radius = f1_max(kMinLightDist, radius);
+    distance = f1_max(radius, distance);
+
+    float r2 = radius * radius;
+    float d2 = distance * distance;
+    float sinSigmaSq = r2 / (r2 + d2);
+    sinSigmaSq = f1_min(sinSigmaSq, 1.0f - kMinDenom);
+    return sinSigmaSq;
+}
+
+// [Lagarde15, Page 47, Listing 10]
+pim_inline float VEC_CALL SphereDiskIlluminance(
+    float cosTheta,
+    float sinSigmaSqr)
+{
+    cosTheta = f1_clamp(cosTheta, -0.999f, 0.999f);
+
+    float c2 = cosTheta * cosTheta;
+
+    float illuminance = 0.0f;
+    if (c2 > sinSigmaSqr)
     {
-        return kPi * (c / h2);
+        illuminance = kPi * sinSigmaSqr * f1_sat(cosTheta);
     }
     else
     {
-        // https://www.desmos.com/calculator/t10vnyq13k
-        // cos(t) = dot(a, b)
-        // 1. sin(t) = length(cross(a, b))
-        // 2. sin(t) = sqrt(1 - cos(t)^2)
+        float sinTheta = sqrtf(1.0f - c2);
+        float x = sqrtf(1.0f / sinSigmaSqr - 1.0f);
+        float y = -x * (cosTheta / sinTheta);
+        float sinThetaSqrtY = sinTheta * sqrtf(1.0f - y * y);
 
-        float s = sqrtf(1.0f - c * c);
-        s = f1_max(s, 0.001f);
-
-        float u = sqrtf(h2 - 1.0f);
-        u = f1_max(u, 0.001f);
-
-        float v = -u * (c / s);
-        float w = s * sqrtf(1.0f - v * v);
-
-        float t1 = 1.0f / h2;
-        float t2 = c * acosf(v) - u * w;
-        float t3 = atanf(w / u);
-
-        return t1 * t2 + t3;
+        float t1 = (cosTheta * acosf(y) - x * sinThetaSqrtY) * sinSigmaSqr;
+        float t2 = atanf(sinThetaSqrtY / x);
+        illuminance = t1 + t2;
     }
+
+    return f1_max(illuminance, 0.0f);
+}
+
+// [Karis13, Page 14, Equation 10]
+pim_inline float VEC_CALL AlphaPrime(
+    float alpha,
+    float radius,
+    float distance)
+{
+    return f1_saturate(alpha + (radius / (2.0f * distance)));
+}
+
+pim_inline float4 VEC_CALL SpecularDominantDir(
+    float4 N,
+    float4 R,
+    float alpha)
+{
+    return f4_normalize3(f4_lerpvs(R, N, alpha));
+}
+
+// [Karis13, page 15, equation 11]
+pim_inline float4 VEC_CALL SphereRepresentativePoint(
+    float4 R,
+    float4 N,
+    float4 L0, // unnormalized vector from surface to center of sphere
+    float radius,
+    float alpha)
+{
+    //R = SpecularDominantDir(N, R, alpha);
+    float4 c2r = f4_sub(f4_mulvs(R, f4_dot3(L0, R)), L0);
+    float t = f1_sat(radius / f4_length3(c2r));
+    float4 cp = f4_add(L0, f4_mulvs(c2r, t));
+    return cp;
 }
 
 pim_inline float4 VEC_CALL EvalSphereLight(
@@ -409,21 +506,106 @@ pim_inline float4 VEC_CALL EvalSphereLight(
     float4 albedo,
     float roughness,
     float metallic,
-    float4 lightPos, // light position
-    float4 lightColor, // light color
-    float lightRadius)
+    float4 lightPos,
+    float4 lightColor,
+    float radius)
 {
     float4 L0 = f4_sub(lightPos, P);
-    float distance = f4_distance3(lightPos, P);
-    float4 L = f4_divvs(L0, distance);
+    float distance = f4_length3(L0);
 
-    lightRadius = f1_max(0.01f, lightRadius);
-    distance = f1_max(distance, lightRadius);
+    radius = f1_max(kMinLightDist, radius);
+    distance = f1_max(distance, radius);
 
-    float4 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
-    float att = SphereIlluminance(N, L, distance, lightRadius);
+    float alpha = BrdfAlpha(roughness);
+    float NoV = f4_dotsat(N, V);
 
-    return f4_mul(brdf, f4_mulvs(lightColor, att));
+    float4 Fr = f4_0;
+    #if (1)
+    {
+        float4 R = f4_normalize3(f4_reflect3(f4_neg(V), N));
+        float4 L = SphereRepresentativePoint(R, N, L0, radius, alpha);
+        float specDist = f4_length3(L);
+        L = f4_divvs(L, specDist);
+
+        float alphaPrime = AlphaPrime(alpha, radius, distance);
+
+        float4 H = f4_normalize3(f4_add(V, L));
+        float NoH = f4_dotsat(N, H);
+        float HoV = f4_dotsat(H, V);
+        float NoL = f4_dotsat(N, L);
+        float D = D_GTR_Sphere(NoH, alpha, alphaPrime);
+        float G = G_SmithGGX(NoL, NoV, alpha);
+        float4 F = F_SchlickEx(albedo, metallic, HoV);
+        Fr = f4_mulvs(F, D * G);
+
+        float I = NoL * DistanceAtt(distance);
+        Fr = f4_mulvs(Fr, I);
+    }
+    #endif
+
+    float4 Fd = f4_0;
+    #if (1)
+    {
+        float4 L = f4_divvs(L0, distance);
+        float4 H = f4_normalize3(f4_add(V, L));
+        float HoV = f4_dotsat(H, V);
+        float NoL = f4_dot3(N, L);
+        float4 F = F_SchlickEx(albedo, metallic, HoV);
+
+        Fd = f4_mulvs(
+            DiffuseColor(F, albedo, metallic),
+            Fd_Lambert());
+
+        float sinSigmaSqr = SphereSinSigmaSq(radius, distance);
+        float I = SphereDiskIlluminance(NoL, sinSigmaSqr);
+        Fd = f4_mulvs(Fd, I);
+    }
+    #endif
+
+    float4 light = f4_mul(f4_add(Fd, Fr), lightColor);
+
+    return light;
+}
+
+// [Lagarde15, Page 85, Listing 28]
+pim_inline float VEC_CALL CompEV100(
+    float aperture,
+    float shutterTime,
+    float ISO)
+{
+    float a = aperture * aperture;
+    float b = 1.0f / shutterTime;
+    float c = 100.0f / ISO;
+    return log2f(a * b * c);
+}
+
+pim_inline float VEC_CALL CompEV100FromAvgLum(float avgLum)
+{
+    const float c = 100.0f / 12.5;
+    return log2f(avgLum * c);
+}
+
+pim_inline float VEC_CALL ConvEV100ToExposure(float EV100)
+{
+    float maxLum = 1.2f * exp2f(EV100);
+    return 1.0f / maxLum;
+}
+
+pim_inline float4 VEC_CALL CompBloomLuminance(
+    float4 bloomColor,
+    float bloomEC,
+    float currentEV)
+{
+    float bloomEV = currentEV + bloomEC;
+    float t = exp2f(bloomEV - 3.0f);
+    return f4_mulvs(bloomColor, t);
+}
+
+pim_inline float4 VEC_CALL ExposeColor(float4 color, float avgLum)
+{
+    float ev100 = CompEV100FromAvgLum(avgLum);
+    float exposure = ConvEV100ToExposure(ev100);
+    return f4_mulvs(color, exposure);
 }
 
 PIM_C_END

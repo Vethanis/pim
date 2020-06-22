@@ -796,7 +796,57 @@ static meshid_t GenQuadMesh(void)
 }
 
 static meshid_t ms_quadmesh;
+static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up, float scale, float4 albedo, float4 rome)
+{
+    if (!ms_quadmesh.version)
+    {
+        ms_quadmesh = GenQuadMesh();
+    }
+
+    i32 i = drawables_add(HashStr(name));
+    drawables_t* drawables = drawables_get();
+    drawables->meshes[i] = ms_quadmesh;
+    drawables->translations[i] = center;
+    drawables->scales[i] = f4_s(scale);
+    drawables->rotations[i] = quat_lookat(forward, up);
+
+    material_t mat = (material_t)
+    {
+        .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
+        .flatAlbedo = LinearToColor(albedo),
+        .flatRome = LinearToColor(rome),
+    };
+    drawables->materials[i] = mat;
+
+    return i;
+}
+
 static meshid_t ms_spheremesh;
+static i32 CreateSphere(const char* name, float4 center, float radius, float4 albedo, float4 rome)
+{
+    if (!ms_spheremesh.version)
+    {
+        ms_spheremesh = GenSphereMesh(32);
+    }
+
+    i32 i = drawables_add(HashStr(name));
+    drawables_t* drawables = drawables_get();
+    drawables->meshes[i] = ms_spheremesh;
+    drawables->translations[i] = center;
+    drawables->scales[i] = f4_s(radius);
+    drawables->rotations[i] = quat_id;
+
+    material_t mat = (material_t)
+    {
+        .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
+        .flatAlbedo = LinearToColor(albedo),
+        .flatRome = LinearToColor(rome),
+    };
+    drawables->materials[i] = mat;
+
+    return i;
+}
+
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 {
     drawables_clear();
@@ -804,144 +854,93 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     ms_ptscene = NULL;
     lmpack_del(lmpack_get());
 
-    if (!ms_quadmesh.version)
-    {
-        ms_quadmesh = GenQuadMesh();
-        ms_spheremesh = GenSphereMesh(32);
-    }
-
-    meshid_t quad = ms_quadmesh;
-    meshid_t sphere = ms_spheremesh;
-
-    i32 iFloor = drawables_add(HashStr("CornellBox_Floor"));
-    i32 iCeil = drawables_add(HashStr("CornellBox_Ceiling"));
-    i32 iLeft = drawables_add(HashStr("CornellBox_LeftWall"));
-    i32 iRight = drawables_add(HashStr("CornellBox_RightWall"));
-    i32 iNear = drawables_add(HashStr("CornellBox_NearWall"));
-    i32 iFar = drawables_add(HashStr("CornellBox_FarWall"));
-    i32 iLight = drawables_add(HashStr("CornellBox_Light"));
-    i32 iMetal = drawables_add(HashStr("CornellBox_MetalSphere"));
-    i32 iPlastic = drawables_add(HashStr("CornellBox_PlasticSphere"));
-    drawables_t* drawables = drawables_get();
-    
-    drawables->meshes[iFloor] = quad;
-    drawables->meshes[iCeil] = quad;
-    drawables->meshes[iLeft] = quad;
-    drawables->meshes[iRight] = quad;
-    drawables->meshes[iNear] = quad;
-    drawables->meshes[iFar] = quad;
-    drawables->meshes[iLight] = quad;
-    drawables->meshes[iMetal] = sphere;
-    drawables->meshes[iPlastic] = sphere;
-
-    const float wallExtents = 2.0f;
+    const float wallExtents = 10.0f;
     const float sphereRad = 0.3f;
     const float lightExtents = 0.5f;
 
     const float wallScale = 2.0f * wallExtents;
-    const float sphereDiam = 2.0f * sphereRad;
+    const float sphereScale = 2.0f * sphereRad;
     const float lightScale = 2.0f * lightExtents;
 
-    const float4 x4 = { 1.0f, 0.0f, 0.0f };
-    const float4 y4 = { 0.0f, 1.0f, 0.0f };
-    const float4 z4 = { 0.0f, 0.0f, 1.0f };
+    const float4 x = { 1.0f, 0.0f, 0.0f };
+    const float4 y = { 0.0f, 1.0f, 0.0f };
+    const float4 z = { 0.0f, 0.0f, 1.0f };
 
-    drawables->translations[iFloor] = f4_v(0.0f, -wallExtents, 0.0f, 0.0f);
-    drawables->translations[iCeil] = f4_v(0.0f, wallExtents, 0.0f, 0.0f);
-    drawables->translations[iLeft] = f4_v(-wallExtents, 0.0f, 0.0f, 0.0f);
-    drawables->translations[iRight] = f4_v(wallExtents, 0.0f, 0.0f, 0.0f);
-    drawables->translations[iNear] = f4_v(0.0f, 0.0f, wallExtents, 0.0f);
-    drawables->translations[iFar] = f4_v(0.0f, 0.0f, -wallExtents, 0.0f);
+    const float4 white = f4_s(0.9f);
+    const float4 red = f4_v(0.9f, 0.1f, 0.1f, 1.0f);
+    const float4 green = f4_v(0.1f, 0.9f, 0.1f, 1.0f);
+    //const float4 blue = f4_v(0.1f, 0.1f, 0.9f, 1.0f);
+    const float4 boxRome = f4_v(0.9f, 1.0f, 0.0f, 0.0f);
+    const float4 lightRome = f4_v(0.9f, 1.0f, 0.0f, 0.0f);
+    const float4 plasticRome = f4_v(0.35f, 1.0f, 0.0f, 0.0f);
+    const float4 metalRome = f4_v(0.125f, 1.0f, 1.0f, 0.0f);
+    const float4 floorRome = f4_v(0.1f, 1.0f, 0.0f, 0.0f);
 
-    drawables->translations[iLight] = f4_v(0.0f, wallExtents - 0.01f, 0.0f, 0.0f);
+    CreateQuad(
+        "Cornell_Floor",
+        f4_mulvs(y, -wallExtents),
+        f4_neg(y), f4_neg(z),
+        wallScale,
+        white,
+        floorRome);
+    CreateQuad(
+        "Cornell_Ceil",
+        f4_mulvs(y, wallExtents),
+        y, z,
+        wallScale,
+        white,
+        boxRome);
+    CreateQuad(
+        "Cornell_Light",
+        f4_mulvs(y, wallExtents - 0.01f),
+        y, z,
+        wallScale,
+        white,
+        lightRome);
 
-    drawables->translations[iMetal] = f4_v(-sphereDiam, -wallExtents + sphereDiam, sphereDiam, 0.0f);
-    drawables->translations[iPlastic] = f4_v(sphereDiam, -wallExtents + sphereDiam, -sphereDiam, 0.0f);
+    CreateQuad(
+        "Cornell_Left",
+        f4_mulvs(x, -wallExtents),
+        f4_neg(x), y,
+        wallScale,
+        red,
+        boxRome);
+    CreateQuad(
+        "Cornell_Right",
+        f4_mulvs(x, wallExtents),
+        x, y,
+        wallScale,
+        green,
+        boxRome);
 
-    drawables->scales[iFloor] = f4_s(wallScale);
-    drawables->scales[iCeil] = f4_s(wallScale);
-    drawables->scales[iLeft] = f4_s(wallScale);
-    drawables->scales[iRight] = f4_s(wallScale);
-    drawables->scales[iNear] = f4_s(wallScale);
-    drawables->scales[iFar] = f4_s(wallScale);
+    CreateQuad(
+        "Cornell_Near",
+        f4_mulvs(z, wallExtents),
+        z, y,
+        wallScale,
+        white,
+        boxRome);
+    CreateQuad(
+        "Cornell_Far",
+        f4_mulvs(z, -wallExtents),
+        f4_neg(z), y,
+        wallScale,
+        white,
+        boxRome);
 
-    drawables->scales[iLight] = f4_s(lightScale);
+    CreateSphere(
+        "Cornell_MetalSphere",
+        f4_v(-sphereScale, -wallExtents + sphereScale, sphereScale, 0.0f),
+        sphereScale,
+        white,
+        metalRome);
 
-    drawables->scales[iMetal] = f4_s(sphereDiam);
-    drawables->scales[iPlastic] = f4_s(sphereDiam);
-
-    drawables->rotations[iCeil] = quat_lookat(y4, z4);
-    drawables->rotations[iFloor] = quat_lookat(f4_neg(y4), f4_neg(z4));
-
-    drawables->rotations[iRight] = quat_lookat(x4, y4);
-    drawables->rotations[iLeft] = quat_lookat(f4_neg(x4), y4);
-
-    drawables->rotations[iFar] = quat_lookat(f4_neg(z4), y4);
-    drawables->rotations[iNear] = quat_lookat(z4, y4);
-
-    drawables->rotations[iLight] = drawables->rotations[iCeil];
-
-    drawables->rotations[iMetal] = quat_id;
-    drawables->rotations[iPlastic] = quat_id;
-
-    const float4 st = { 1.0f, 1.0f, 0.0f, 0.0f };
-    const u32 white = LinearToColor(f4_s(0.9f));
-    const u32 red = LinearToColor(f4_v(0.9f, 0.1f, 0.1f, 1.0f));
-    const u32 green = LinearToColor(f4_v(0.1f, 0.9f, 0.1f, 1.0f));
-    const u32 blue = LinearToColor(f4_v(0.1f, 0.1f, 0.9f, 1.0f));
-    const u32 boxRome = LinearToColor(f4_v(0.9f, 1.0f, 0.0f, 0.0f));
-    const u32 lightRome = LinearToColor(f4_v(0.5f, 1.0f, 0.0f, 0.0f));
-    const u32 plasticRome = LinearToColor(f4_v(1.0f, 1.0f, 0.0f, 0.0f));
-    const u32 metalRome = LinearToColor(f4_v(0.1f, 1.0f, 1.0f, 0.0f));
-
-    const material_t whiteBoxMat = (material_t)
-    {
-        .st = st,
-        .flatAlbedo = white,
-        .flatRome = boxRome,
-    };
-    const material_t greenBoxMat = (material_t)
-    {
-        .st = st,
-        .flatAlbedo = green,
-        .flatRome = boxRome,
-    };
-    const material_t redBoxMat = (material_t)
-    {
-        .st = st,
-        .flatAlbedo = red,
-        .flatRome = boxRome,
-    };
-    const material_t lightMat = (material_t)
-    {
-        .st = st,
-        .flatAlbedo = white,
-        .flatRome = lightRome,
-    };
-    const material_t plasticMat = (material_t)
-    {
-        .st = st,
-        .flatAlbedo = white,
-        .flatRome = plasticRome,
-    };
-    const material_t metalMat = (material_t)
-    {
-        .st = st,
-        .flatAlbedo = white,
-        .flatRome = metalRome,
-    };
-
-    drawables->materials[iFloor] = whiteBoxMat;
-    drawables->materials[iCeil] = whiteBoxMat;
-    drawables->materials[iNear] = whiteBoxMat;
-    drawables->materials[iFar] = whiteBoxMat;
-    drawables->materials[iLeft] = redBoxMat;
-    drawables->materials[iRight] = greenBoxMat;
-
-    drawables->materials[iLight] = lightMat;
-
-    drawables->materials[iPlastic] = plasticMat;
-    drawables->materials[iMetal] = metalMat;
+    CreateSphere(
+        "Cornell_PlasticSphere",
+        f4_v(sphereScale, -wallExtents + sphereScale, -sphereScale, 0.0f),
+        sphereScale,
+        white,
+        plasticRome);
 
     drawables_trs();
 
