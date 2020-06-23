@@ -13,7 +13,7 @@ PIM_C_BEGIN
 #define kTau                6.283185307f
 #define kRadiansPerDegree   (kTau / 360.0f)
 #define kDegreesPerRadian   (360.0f / kTau)
-#define kEpsilon            (1.0f / (1<<20))
+#define kEpsilon            (1.0f / (1<<22))
 
 pim_inline float VEC_CALL f1_radians(float x)
 {

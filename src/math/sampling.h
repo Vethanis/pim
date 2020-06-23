@@ -69,6 +69,16 @@ pim_inline float2 VEC_CALL Hammersley2D(u32 i, u32 N)
     return c;
 }
 
+// http://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling.html
+pim_inline float VEC_CALL PowerHeuristic(
+    i32 fCt, float fPdf,
+    i32 gCt, float gPdf)
+{
+    float f = fCt * fPdf;
+    float g = gCt * gPdf;
+    return (f * f) / (f * f + g * g);
+}
+
 // Maps a value in unorm square to a value in snorm circle
 // "A Low Distortion Map Between Disk and Square" by Peter Shirley and Kenneth Chiu.
 pim_inline float2 VEC_CALL MapSquareToDisk(float2 Xi)
@@ -140,15 +150,10 @@ pim_inline float4 VEC_CALL SampleUnitHemisphere(float2 Xi)
 pim_inline float4 VEC_CALL SamplePointOnSphere(
     float2 Xi,
     float4 center,
-    float radius,
-    float* pdfOut,
-    float4* Nout)
+    float radius)
 {
     float4 N = SampleUnitSphere(Xi);
     float4 P = f4_add(center, f4_mulvs(N, radius));
-    float pdf = 1.0f / (4.0f * kPi * radius * radius);
-    *pdfOut = pdf;
-    *Nout = N;
     return P;
 }
 
@@ -160,16 +165,6 @@ pim_inline float4 VEC_CALL SampleCosineHemisphere(float2 Xi)
     float z = sqrtf(f1_max(0.0f, 1.0f - r));
     float4 dir = { Xi.x, Xi.y, z, 0.0f };
     return f4_normalize3(dir);
-}
-
-pim_inline float4 VEC_CALL ScatterHemisphere(float2 Xi, float4 N)
-{
-    return TanToWorld(N, SampleUnitHemisphere(Xi));
-}
-
-pim_inline float4 VEC_CALL ScatterCosine(float2 Xi, float4 N)
-{
-    return TanToWorld(N, SampleCosineHemisphere(Xi));
 }
 
 // returns a microfacet normal of the GGX NDF for given roughness
@@ -189,16 +184,6 @@ pim_inline float4 VEC_CALL SampleGGXMicrofacet(float2 Xi, float alpha)
     return f4_normalize3(dir);
 }
 
-pim_inline float4 VEC_CALL ScatterGGX(
-    float2 Xi,
-    float4 I,
-    float4 N,
-    float alpha)
-{
-    float4 H = TanToWorld(N, SampleGGXMicrofacet(Xi, alpha));
-    return f4_normalize3(f4_reflect3(I, H));
-}
-
 pim_inline float VEC_CALL LambertPdf(float NoL)
 {
     return NoL / kPi;
@@ -208,6 +193,15 @@ pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)
 {
     float d = D_GTR(NoH, alpha);
     return (d * NoH) / f1_max(kEpsilon, 4.0f * HoV);
+}
+
+// returns pdf of an area light that passes the intersection test
+// area: area of the light
+// cosTheta: saturate(dot(LNorm, normalize(LPos - SurfPos)))
+// distSq: dot(LPos - SurfPos, LPos - SurfPos)
+pim_inline float VEC_CALL LightPdf(float area, float cosTheta, float distSq)
+{
+    return distSq / f1_max(kMinDenom, cosTheta * area);
 }
 
 PIM_C_END

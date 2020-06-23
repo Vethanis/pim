@@ -21,6 +21,10 @@ static cvar_t cv_moveScale = { cvart_float, 0, "moveScale", "5", "movement input
 
 static void LightLogic(const camera_t* cam)
 {
+    if (lights_pt_count() < 1)
+    {
+        return;
+    }
     if (input_buttonup(MouseButton_Right))
     {
         ms_placing = !ms_placing;

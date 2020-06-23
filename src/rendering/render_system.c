@@ -127,14 +127,14 @@ ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
 ProfileMark(pm_Lightmap_Denoise, Lightmap_Denoise)
 static void Lightmap_Trace(void)
 {
-    if (cvar_check_dirty(&cv_lm_density))
-    {
-        LightmapRepack();
-    }
-
     if (cv_lm_gen.asFloat != 0.0f)
     {
         ProfileBegin(pm_Lightmap_Trace);
+
+        if (cvar_check_dirty(&cv_lm_density))
+        {
+            LightmapRepack();
+        }
 
         if (lmpack_get()->lmCount == 0)
         {
@@ -394,6 +394,8 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     drawables_clear();
     pt_scene_del(ms_ptscene);
     ms_ptscene = NULL;
+    lmpack_del(lmpack_get());
+    cv_lm_density.flags |= cvarf_dirty;
 
     con_logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
@@ -535,13 +537,19 @@ void render_sys_gui(bool* pEnabled)
             igUnindent(0.0f);
         }
 
-        if (igCollapsingHeader1("Material"))
+        if (igCollapsingHeader1("Lights"))
         {
             igIndent(0.0f);
 
-            pt_light_t light = lights_get_pt(0);
-            igColorEdit3("Light Radiance", &light.rad.x, hdrPicker);
-            lights_set_pt(0, light);
+            const i32 ptLightCount = lights_pt_count();
+            for (i32 i = 0; i < ptLightCount; ++i)
+            {
+                char label[PIM_PATH];
+                SPrintf(ARGS(label), "%d: Light Radiance", i);
+                pt_light_t light = lights_get_pt(i);
+                igColorEdit3(label, &light.rad.x, hdrPicker);
+                lights_set_pt(i, light);
+            }
 
             igUnindent(0.0f);
         }

@@ -335,7 +335,10 @@ static void VEC_CALL DrawLights(const tile_ctx_t* ctx, framebuf_t* target)
                 if (t < dstDepth[iTexel])
                 {
                     dstDepth[iTexel] = t;
-                    dstLight[iTexel] = rad;
+                    float4 hitPt = f4_add(eye, f4_mulvs(rd, t));
+                    float4 N = f4_normalize3(f4_sub(hitPt, center));
+                    float NoL = f1_abs(f4_dot(N, rd));
+                    dstLight[iTexel] = f4_mulvs(rad, NoL);
                 }
             }
         }

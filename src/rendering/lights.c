@@ -54,36 +54,26 @@ void lights_rm_dir(i32 i)
 
 void lights_set_pt(i32 i, pt_light_t pt)
 {
-    if (i >= 0 && i < ms_lights.ptCount)
-    {
-        ms_lights.ptLights[i] = pt;
-    }
+    ASSERT(i >= 0 && i < ms_lights.ptCount);
+    ms_lights.ptLights[i] = pt;
 }
 
 void lights_set_dir(i32 i, dir_light_t dir)
 {
-    if (i >= 0 && i < ms_lights.dirCount)
-    {
-        ms_lights.dirLights[i] = dir;
-    }
+    ASSERT(i >= 0 && i < ms_lights.dirCount);
+    ms_lights.dirLights[i] = dir;
 }
 
 pt_light_t lights_get_pt(i32 i)
 {
-    if (i >= 0 && i < ms_lights.ptCount)
-    {
-        return ms_lights.ptLights[i];
-    }
-    return (pt_light_t) { 0 };
+    ASSERT(i >= 0 && i < ms_lights.ptCount);
+    return ms_lights.ptLights[i];
 }
 
 dir_light_t lights_get_dir(i32 i)
 {
-    if (i >= 0 && i < ms_lights.dirCount)
-    {
-        return ms_lights.dirLights[i];
-    }
-    return (dir_light_t) { 0 };
+    ASSERT(i >= 0 && i < ms_lights.dirCount);
+    return ms_lights.dirLights[i];
 }
 
 i32 lights_pt_count(void)

@@ -120,7 +120,7 @@ pim_inline float VEC_CALL D_GTR(float NoH, float alpha)
 {
     float a2 = alpha * alpha;
     float f = f1_lerp(1.0f, a2, NoH * NoH);
-    return a2 / (f * f * kPi);
+    return a2 / f1_max(kEpsilon, f * f * kPi);
 }
 
 // D term with SphereNormalization applied
@@ -135,7 +135,7 @@ pim_inline float VEC_CALL D_GTR_Sphere(
     float a2 = alpha * alpha;
     float ap2 = alphaPrime * alphaPrime;
     float f = f1_lerp(1.0f, a2, NoH * NoH);
-    return (a2 * ap2) / (f * f);
+    return (a2 * ap2) / f1_max(kEpsilon, f * f);
 }
 
 // Specular 'V' term
@@ -147,7 +147,7 @@ pim_inline float VEC_CALL G_SmithGGX(float NoL, float NoV, float alpha)
     float a2 = alpha * alpha;
     float v = NoL * sqrtf(a2 + (NoV - NoV * a2) * NoV);
     float l = NoV * sqrtf(a2 + (NoL - NoL * a2) * NoL);
-    return 0.5f / (v + l);
+    return 0.5f / f1_max(kEpsilon, v + l);
 }
 
 pim_inline float VEC_CALL Fd_Lambert()
@@ -443,7 +443,7 @@ pim_inline float VEC_CALL SphereDiskIlluminance(
     float cosTheta,
     float sinSigmaSqr)
 {
-    cosTheta = f1_clamp(cosTheta, -0.999f, 0.999f);
+    cosTheta = f1_clamp(cosTheta, -0.9999f, 0.9999f);
 
     float c2 = cosTheta * cosTheta;
 
