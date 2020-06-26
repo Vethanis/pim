@@ -6,11 +6,13 @@ typedef struct adapter_s
 {
     thread_fn entrypoint;
     void* arg;
+    void* OShandle;
     semaphore_t sema;
 } adapter_t;
 
 #if PLAT_WINDOWS
 
+#include <Windows.h>
 #include <process.h>
 
 static void __cdecl Win32ThreadFn(void* arg)
@@ -27,16 +29,18 @@ void thread_create(thread_t* tr, thread_fn entrypoint, void* arg)
     ASSERT(tr);
     ASSERT(entrypoint);
 
-    adapter_t* adapter = pim_malloc(EAlloc_Perm, sizeof(adapter_t));
+    adapter_t* adapter = perm_calloc(sizeof(*adapter));
     adapter->entrypoint = entrypoint;
     adapter->arg = arg;
     semaphore_create(&(adapter->sema), 0);
 
-    usize handle = _beginthread(
+    uintptr_t handle = _beginthread(
         Win32ThreadFn,
         0,
         adapter);
     ASSERT(handle);
+
+    adapter->OShandle = (void*)handle;
 
     tr->handle = adapter;
 }
@@ -45,10 +49,27 @@ void thread_join(thread_t* tr)
 {
     ASSERT(tr);
     adapter_t* adapter = tr->handle;
+    ASSERT(adapter);
+
     semaphore_wait(adapter->sema);
     semaphore_destroy(&(adapter->sema));
+
     pim_free(adapter);
     tr->handle = NULL;
+}
+
+void thread_set_aff(thread_t* tr, u64 mask)
+{
+    ASSERT(tr);
+    ASSERT(mask);
+    adapter_t* adapter = tr->handle;
+    ASSERT(adapter);
+
+    HANDLE hThread = adapter->OShandle;
+    ASSERT(hThread);
+
+    DWORD_PTR rval = SetThreadAffinityMask(hThread, mask);
+    ASSERT(rval != 0);
 }
 
 #else

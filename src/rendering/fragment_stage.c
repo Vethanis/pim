@@ -69,6 +69,8 @@ typedef struct tile_ctx_s
     float nearClip;
     float farClip;
     DrawMode mode;
+    pt_light_t* lights;
+    i32 lightCount;
 } tile_ctx_t;
 
 static cvar_t cv_r_albedo = { cvart_bool, 0, "r_albedo", "0", "view albedo" };
@@ -195,8 +197,6 @@ static void FragmentStageFn(task_t* task, i32 begin, i32 end)
         {
             if (tileMasks[iDraw] & tilemask)
             {
-                //i32 iCube = FindBounds(drawBounds[iDraw], cubeBounds, cubemapCount);
-                //const Cubemap* cm = iCube >= 0 ? cubemaps + iCube : NULL;
                 DrawMesh(&ctx, stage->frontBuf, iDraw, NULL);
             }
         }
@@ -286,6 +286,28 @@ static void SetupTile(tile_ctx_t* ctx, i32 iTile)
     ctx->V = V;
 
     ctx->mode = GetDrawMode();
+
+    i32 lightCount = 0;
+    pt_light_t* lights = NULL;
+    const i32 ptCount = lights_pt_count();
+    for (i32 i = 0; i < ptCount; ++i)
+    {
+        pt_light_t light = lights_get_pt(i);
+        sphere_t sph = { light.pos };
+        float lum = f4_perlum(light.rad);
+        float radius = sph.value.w;
+        const float lumCutoff = 0.05f;
+        float attenRadius = radius * (sqrtf(lum / lumCutoff) - 1.0f);
+        sph.value.w = attenRadius;
+        if (sdFrusSph(ctx->frus, sph) < 0.0f)
+        {
+            ++lightCount;
+            lights = tmp_realloc(lights, sizeof(lights[0]) * lightCount);
+            lights[lightCount - 1] = light;
+        }
+    }
+    ctx->lights = lights;
+    ctx->lightCount = lightCount;
 }
 
 static void VEC_CALL DrawLights(const tile_ctx_t* ctx, framebuf_t* target)
@@ -293,9 +315,8 @@ static void VEC_CALL DrawLights(const tile_ctx_t* ctx, framebuf_t* target)
     const float dx = 1.0f / kDrawWidth;
     const float dy = 1.0f / kDrawHeight;
 
-    const lights_t* lights = lights_get();
-    const pt_light_t* pim_noalias ptLights = lights->ptLights;
-    const i32 ptCount = lights->ptCount;
+    const pt_light_t* pim_noalias ptLights = ctx->lights;
+    const i32 ptCount = ctx->lightCount;
 
     const float4 eye = ctx->eye;
     const float4 fwd = ctx->fwd;
@@ -381,10 +402,6 @@ static void VEC_CALL DrawMesh(
     texture_get(material.rome, &romeMap);
     texture_t normalMap = { 0 };
     texture_get(material.normal, &normalMap);
-
-    const lights_t* lights = lights_get();
-    const pt_light_t* pim_noalias ptLights = lights->ptLights;
-    const i32 ptCount = lights->ptCount;
 
     const float4 eye = ctx->eye;
     const float4 fwd = ctx->fwd;
@@ -544,10 +561,12 @@ static void VEC_CALL DrawMesh(
 
                     float4 directLight = f4_0;
                     {
-                        for (i32 i = 0; i < ptCount; ++i)
+                        const pt_light_t* pim_noalias lights = ctx->lights;
+                        const i32 lightCount = ctx->lightCount;
+                        for (i32 i = 0; i < lightCount; ++i)
                         {
-                            float4 lightPos = ptLights[i].pos;
-                            float4 lightRad = ptLights[i].rad;
+                            float4 lightPos = lights[i].pos;
+                            float4 lightRad = lights[i].rad;
                             float4 Li = EvalSphereLight(
                                 V,
                                 P,

@@ -20,6 +20,154 @@
 
 #include "quake/q_model.h"
 
+typedef struct mat_preset_s
+{
+    const char* name;
+    float roughness;
+    float occlusion;
+    float metallic;
+    float emission;
+} mat_preset_t;
+
+#define kMatGen     0.5f, 1.0f, 0.0f, 0.0f,
+#define kMatRough   0.75f, 1.0f, 0.0f, 0.0f,
+#define kMatSmooth  0.25f, 1.0f, 0.0f, 0.0f,
+#define kMatMetal   0.75f, 1.0f, 1.0f, 0.0f,
+
+static const mat_preset_t ms_matPresets[] =
+{
+    {
+        "wbrick", // wet brick, white brick? wizard brick?
+        kMatSmooth
+    },
+    {
+        "brick",
+        kMatRough
+    },
+    {
+        "church",
+        kMatRough
+    },
+    {
+        "metal",
+        kMatMetal
+    },
+    {
+        "quake",
+        kMatMetal
+    },
+    {
+        "wmet", // wet metal? white metal? wizard metal?
+        kMatMetal
+    },
+    {
+        "wizmet", // wizard metal, my favorite genre
+        kMatMetal
+    },
+    {
+        "cop", // copper
+        kMatMetal
+    },
+    {
+        "tech", // technology?
+        kMatGen
+    },
+    {
+        "city", // ???
+        kMatGen
+    },
+    {
+        "rock",
+        kMatRough
+    },
+    {
+        "wood",
+        kMatGen
+    },
+    {
+        "wizwood", // wizard wood? is that innuendo?
+        kMatSmooth
+    },
+    {
+        "ceiling",
+        kMatGen
+    },
+    {
+        "sky", // sky texture (purple stuff)
+        0.5f,
+        1.0f,
+        0.0f,
+        1.0f,
+    },
+    {
+        "slip", // slipgate
+        kMatRough
+    },
+    {
+        "teleport",
+        kMatRough
+    },
+    {
+        "light",
+        1.0f,
+        1.0f,
+        0.0f,
+        0.5f,
+    },
+    {
+        "lava",
+        1.0f,
+        1.0f,
+        0.0f,
+        1.0f,
+    },
+    {
+        "water",
+        0.125f,
+        1.0f,
+    },
+    {
+        "rune",
+        kMatMetal
+    },
+    {
+        "wall",
+        kMatGen
+    },
+    {
+        "floor",
+        kMatGen
+    },
+    {
+        "door",
+        kMatGen
+    },
+    {
+        "exit",
+        kMatMetal
+    },
+    {
+        "skill",
+        kMatMetal
+    },
+    {
+        "trigger",
+        kMatGen
+    },
+    {
+        "dem",
+        kMatGen
+    },
+    {
+        "wiz",
+        kMatSmooth
+    },
+    {
+        "m5",
+        kMatGen
+    },
+};
+
 pim_inline float2 VEC_CALL CalcUv(float4 s, float4 t, float4 p)
 {
     // u = dot(P.xyz, s.xyz) + s.w
@@ -78,187 +226,6 @@ static i32 VEC_CALL FlattenSurface(
     return resLen;
 }
 
-typedef struct mat_preset_s
-{
-    const char* name;
-    float roughness;
-    float occlusion;
-    float metallic;
-    float emission;
-} mat_preset_t;
-
-static const mat_preset_t ms_matPresets[] =
-{
-    {
-        "wbrick", // wet brick, white brick? wizard brick?
-        0.35f,
-        1.0f,
-    },
-    {
-        "brick",
-        0.65f,
-        1.0f,
-    },
-    {
-        "church",
-        0.65f,
-        1.0f,
-    },
-    {
-        "metal",
-        0.5f,
-        1.0f,
-        1.0f,
-    },
-    {
-        "quake",
-        0.75f,
-        1.0f,
-        1.0f,
-    },
-    {
-        "wmet", // wet metal? white metal? wizard metal?
-        0.35f,
-        1.0f,
-        1.0f,
-    },
-    {
-        "wizmet", // wizard metal, my favorite genre
-        0.35f,
-        1.0f,
-        1.0f,
-    },
-    {
-        "cop", // copper
-        0.5f,
-        1.0f,
-        1.0f,
-    },
-    {
-        "tech", // technology?
-        0.5f,
-        1.0f,
-        0.0f,
-    },
-    {
-        "city", // ???
-        0.5f,
-        1.0f,
-    },
-    {
-        "rock",
-        0.85f,
-        1.0f,
-    },
-    {
-        "wood",
-        0.5f,
-        1.0f,
-    },
-    {
-        "wizwood", // wizard wood? is that innuendo?
-        0.35f,
-        1.0f,
-    },
-    {
-        "ceiling",
-        0.5f,
-        1.0f,
-    },
-    {
-        "sky", // sky texture (purple stuff)
-        0.5f,
-        1.0f,
-        0.0f,
-        1.0f,
-    },
-    {
-        "slip", // slipgate
-        0.5f,
-        1.0f,
-        0.0f,
-        1.0f,
-    },
-    {
-        "teleport",
-        0.5f,
-        1.0f,
-        1.0f,
-        0.0f,
-    },
-    {
-        "light",
-        1.0f,
-        1.0f,
-        0.0f,
-        0.35f,
-    },
-    {
-        "lava",
-        1.0f,
-        1.0f,
-        0.0f,
-        1.0f,
-    },
-    {
-        "water",
-        0.01f,
-        1.0f,
-    },
-    {
-        "rune",
-        0.5f,
-        1.0f,
-        1.0f,
-    },
-    {
-        "wall",
-        0.5f,
-        1.0f,
-    },
-    {
-        "floor",
-        0.5f,
-        1.0f,
-    },
-    {
-        "door",
-        0.5f,
-        1.0f,
-    },
-    {
-        "exit",
-        0.75f,
-        1.0f,
-        0.5f,
-    },
-    {
-        "skill",
-        0.5f,
-        1.0f,
-    },
-    {
-        "trigger",
-        1.0f,
-        1.0f,
-    },
-    {
-        "dem",
-        0.75f,
-        1.0f,
-    },
-    {
-        "wiz",
-        0.25f,
-        1.0f,
-    },
-    {
-        "m5",
-        0.75f,
-        1.0f,
-    },
-};
-
 static i32 FindPreset(const char* name)
 {
     const mat_preset_t* presets = ms_matPresets;
@@ -316,26 +283,54 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         const mtexinfo_t* texinfo = surface->texinfo;
         const mtexture_t* mtex = texinfo->texture;
 
-        bool emissive = false;
-        const u8* mip0 = (u8*)mtex + mtex->offsets[0];
+        u32 flags = 0;
+        if (!StrIStr(ARGS(mtex->name), "light"))
+        {
+            flags |= matflag_emissive;
+        }
+        if (!StrIStr(ARGS(mtex->name), "sky"))
+        {
+            flags |= matflag_sky;
+            flags |= matflag_emissive;
+        }
+        if (!StrIStr(ARGS(mtex->name), "lava"))
+        {
+            flags |= matflag_lava;
+            flags |= matflag_emissive;
+        }
+        if (!StrIStr(ARGS(mtex->name), "water"))
+        {
+            flags |= matflag_water;
+        }
+        if (mtex->name[0] == '*')
+        {
+            // 'turbulent'
+            flags |= matflag_animated;
+        }
+
+        const u8* pim_noalias mip0 = (u8*)mtex + mtex->offsets[0];
         ASSERT(mtex->offsets[0] == sizeof(mtexture_t));
         const int2 size = i2_v(mtex->width, mtex->height);
         const i32 texelCount = size.x * size.y;
-        for (i32 i = 0; i < texelCount; ++i)
+
+        if (!(flags & matflag_emissive))
         {
-            // 224: fire
-            // 240: brights
-            if (mip0[i] >= 224)
+            for (i32 i = 0; i < texelCount; ++i)
             {
-                emissive = true;
-                break;
+                // 224: fire
+                // 240: brights
+                if (mip0[i] >= 224)
+                {
+                    flags |= matflag_emissive;
+                    break;
+                }
             }
         }
 
         char albedoName[PIM_PATH];
         SPrintf(ARGS(albedoName), "%s_alb", mtex->name);
         char normalName[PIM_PATH];
-        SPrintf(ARGS(normalName), "%s_norm", mtex->name);
+        SPrintf(ARGS(normalName), "%s_nor", mtex->name);
 
         float roughness = 0.5f;
         float occlusion = 1.0f;
@@ -351,13 +346,18 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
             emission = ms_matPresets[iPreset].emission;
         }
 
-        if (emissive)
+        if (emission > 0.0f)
+        {
+            flags |= matflag_emissive;
+        }
+        if ((emission == 0.0f) && (flags & matflag_emissive))
         {
             emission = 1.0f;
         }
 
         material_t material = { 0 };
-        material.flatAlbedo = LinearToColor(f4_1); // IntToColor(i, surfCount));
+        material.flags = flags;
+        material.flatAlbedo = LinearToColor(f4_1);
         material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
         if (texture_unpalette(mip0, size, albedoName, &material.albedo))
         {

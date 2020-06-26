@@ -269,7 +269,7 @@ pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)
     e = e * e * e;
     e = e * 300.0f;
     // only 'fullbrights' are emissive
-    float m = f1_smoothstep(0.3333f, 1.0f, f4_hmax3(albedo));
+    float m = f1_smoothstep(0.4f, 1.0f, f4_hmax3(albedo));
     m = m * m;
     return f4_mulvs(albedo, e * m);
 }

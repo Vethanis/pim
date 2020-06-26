@@ -33,16 +33,21 @@ typedef struct pt_scene_s
     // surface description, indexed by normal.w
     material_t* materials;
 
+    sphere_t* lights;
+    float4* lightRads;
+
     // full octree
     // child(p, i) = 8 * p + i + 1
     box_t* boxes; // aabb of node
     i32** trilists; // [N, f0v0, f1v0, f2v0, ..., fN-1v0]
+    i32** lightLists;
     i32* pops; // object population in subtree
 
     i32 vertCount;
     i32 matCount;
     i32 lightCount;
     i32 nodeCount;
+    bool nextEventEstimation;
 } pt_scene_t;
 
 typedef struct pt_trace_s
@@ -70,7 +75,7 @@ typedef struct pt_results_s
     float4* directions;
 } pt_results_t;
 
-pt_scene_t* pt_scene_new(i32 maxDepth);
+pt_scene_t* pt_scene_new(i32 maxDepth, bool nee, float emThresh, float maxDist);
 void pt_scene_del(pt_scene_t* scene);
 
 pt_result_t VEC_CALL pt_trace_ray(

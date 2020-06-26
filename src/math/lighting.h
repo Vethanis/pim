@@ -123,7 +123,7 @@ pim_inline float VEC_CALL D_GTR(float NoH, float alpha)
     return a2 / f1_max(kEpsilon, f * f * kPi);
 }
 
-// D term with SphereNormalization applied
+// Specular 'D' term with SphereNormalization applied
 // [Karis13, Page 16, Equation 14]
 pim_inline float VEC_CALL D_GTR_Sphere(
     float NoH,
@@ -138,7 +138,7 @@ pim_inline float VEC_CALL D_GTR_Sphere(
     return (a2 * ap2) / f1_max(kEpsilon, f * f);
 }
 
-// Specular 'V' term
+// Specular 'V' term (G term / denominator)
 // Correlated Smith
 // represents the self shadowing and masking of microfacets in rough materials
 // [Lagarde15, Page 12, Listing 2]
@@ -278,11 +278,20 @@ pim_inline float4 VEC_CALL IndirectBRDF(
     return f4_mulvs(f4_add(Fd, Fr), ao);
 }
 
+pim_inline float VEC_CALL SphereAttenRadius(float4 color, float radius)
+{
+    float lum = f4_dot3(color, f4_v(0.2126f, 0.7152f, 0.0722f, 0.0f));
+    lum = f1_max(lum, kEpsilon);
+    const float lumCutoff = 0.05f; // hopefully temporary hardcoding
+    return radius * sqrtf(lum / lumCutoff);
+}
+
 pim_inline float VEC_CALL SmoothDistanceAtt(
-    float distSq, // distance squared between surface and light
+    float distance, // distance squared between surface and light
     float attRadius) // attenuation radius
 {
-    float f1 = distSq / f1_max(1.0f, attRadius * attRadius);
+    float d2 = distance * distance;
+    float f1 = d2 / f1_max(1.0f, attRadius * attRadius);
     float f2 = f1_saturate(1.0f - f1 * f1);
     return f2 * f2;
 }
@@ -323,6 +332,7 @@ pim_inline float4 VEC_CALL EvalPointLight(
 
     float4 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
     float att = f4_dotsat(N, L) * DistanceAtt(distance);
+    att *= SmoothDistanceAtt(distance, SphereAttenRadius(lightColor, kMinLightDist));
     return f4_mul(brdf, f4_mulvs(lightColor, att));
 }
 
@@ -518,6 +528,7 @@ pim_inline float4 VEC_CALL EvalSphereLight(
 
     float alpha = BrdfAlpha(roughness);
     float NoV = f4_dotsat(N, V);
+    float attSmooth = SmoothDistanceAtt(distance, SphereAttenRadius(lightColor, radius));
 
     float4 Fr = f4_0;
     #if (1)
@@ -538,7 +549,7 @@ pim_inline float4 VEC_CALL EvalSphereLight(
         float4 F = F_SchlickEx(albedo, metallic, HoV);
         Fr = f4_mulvs(F, D * G);
 
-        float I = NoL * DistanceAtt(distance);
+        float I = NoL * DistanceAtt(distance) * attSmooth;
         Fr = f4_mulvs(Fr, I);
     }
     #endif
@@ -557,7 +568,7 @@ pim_inline float4 VEC_CALL EvalSphereLight(
             Fd_Lambert());
 
         float sinSigmaSqr = SphereSinSigmaSq(radius, distance);
-        float I = SphereDiskIlluminance(NoL, sinSigmaSqr);
+        float I = SphereDiskIlluminance(NoL, sinSigmaSqr) * attSmooth;
         Fd = f4_mulvs(Fd, I);
     }
     #endif
