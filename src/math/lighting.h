@@ -4,6 +4,7 @@
 #include "math/types.h"
 #include "math/float4_funcs.h"
 #include "math/float2_funcs.h"
+#include "math/area.h"
 
 PIM_C_BEGIN
 
@@ -282,7 +283,7 @@ pim_inline float VEC_CALL SphereAttenRadius(float4 color, float radius)
 {
     float lum = f4_dot3(color, f4_v(0.2126f, 0.7152f, 0.0722f, 0.0f));
     lum = f1_max(lum, kEpsilon);
-    const float lumCutoff = 0.05f; // hopefully temporary hardcoding
+    const float lumCutoff = 0.03f; // hopefully temporary hardcoding
     return radius * sqrtf(lum / lumCutoff);
 }
 
@@ -376,26 +377,6 @@ pim_inline float4 VEC_CALL EvalSunLight(
     float4 brdf = f4_add(FdFr.c0, FdFr.c1);
 
     return f4_mulvs(brdf, illuminance);
-}
-
-pim_inline float VEC_CALL SphereArea(float radius)
-{
-    return 4.0f * kPi * (radius * radius);
-}
-
-pim_inline float VEC_CALL DiskArea(float radius)
-{
-    return kPi * (radius * radius);
-}
-
-pim_inline float VEC_CALL TubeArea(float radius, float width)
-{
-    return (2.0f * kPi * radius * width) + (4.0f * kPi * radius * radius);
-}
-
-pim_inline float VEC_CALL RectArea(float width, float height)
-{
-    return width * height;
 }
 
 pim_inline float VEC_CALL SphereLumensToNits(float lumens, float radius)

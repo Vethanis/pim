@@ -294,11 +294,7 @@ static void SetupTile(tile_ctx_t* ctx, i32 iTile)
     {
         pt_light_t light = lights_get_pt(i);
         sphere_t sph = { light.pos };
-        float lum = f4_perlum(light.rad);
-        float radius = sph.value.w;
-        const float lumCutoff = 0.05f;
-        float attenRadius = radius * (sqrtf(lum / lumCutoff) - 1.0f);
-        sph.value.w = attenRadius;
+        sph.value.w = SphereAttenRadius(light.rad, light.pos.w);
         if (sdFrusSph(ctx->frus, sph) < 0.0f)
         {
             ++lightCount;

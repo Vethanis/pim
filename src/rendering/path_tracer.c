@@ -12,6 +12,7 @@
 #include "math/float4x4_funcs.h"
 #include "math/sampling.h"
 #include "math/sdf.h"
+#include "math/area.h"
 #include "math/frustum.h"
 #include "math/color.h"
 #include "math/lighting.h"
@@ -24,11 +25,13 @@
 
 #include <string.h>
 
+#define kRejectionSamples       5
+#define kRejectionThreshhold    0.1f
+
 typedef enum
 {
     hit_nothing = 0,
     hit_triangle,
-    hit_light,
 
     hit_COUNT
 } hittype_t;
@@ -55,8 +58,8 @@ typedef struct scatter_s
 {
     float4 dir;
     float4 attenuation;
+    float4 irradiance;
     float pdf;
-    bool specularBounce;
 } scatter_t;
 
 typedef struct trace_task_s
@@ -204,496 +207,89 @@ static bool InsertTriangle(
     return false;
 }
 
-static bool InsertLight(
-    pt_scene_t* scene,
-    i32 iLight,
-    i32 n)
+pim_inline float4 VEC_CALL SampleBaryCoord(prng_t* rng)
 {
-    if (n < scene->nodeCount)
-    {
-        if (BoxHoldsSph(
-            scene->boxes[n],
-            scene->lights[iLight].value))
-        {
-            scene->pops[n] += 1;
-            for (i32 i = 0; i < 8; ++i)
-            {
-                if (InsertLight(
-                    scene,
-                    iLight,
-                    GetChild(n, i)))
-                {
-                    return true;
-                }
-            }
-            scene->lightLists[n] = SublistPush(scene->lightLists[n], iLight);
-            return true;
-        }
-    }
-    return false;
-}
-
-pim_inline bool VEC_CALL i2_edgefn(int2 a, int2 b, int2 c)
-{
-    int2 e1 = i2_sub(b, a);
-    int2 e2 = i2_sub(c, a);
-    i32 t1 = e2.x * e1.y;
-    i32 t2 = e2.y * e1.x;
-    return (t1 * t2) >= 0;
-}
-
-pim_inline bool VEC_CALL i2_inside(int2 a, int2 b, int2 c, int2 p)
-{
-    return i2_edgefn(a, b, p) && i2_edgefn(b, c, p) && i2_edgefn(c, a, p);
-}
-
-static bool VEC_CALL IsMaterialEmissive(material_t mat)
-{
-    float4 flatAlbedo = ColorToLinear(mat.flatAlbedo);
-    float flatEmission = ColorToLinear(mat.flatRome).w;
-    if (f4_perlum(UnpackEmission(flatAlbedo, flatEmission)) < 0.01f)
-    {
-        return false;
-    }
-
-    texture_t albedoMap = { 0 };
-    if (!texture_get(mat.albedo, &albedoMap))
-    {
-        return false;
-    }
-
-    const int2 size = albedoMap.size;
-    const u32* pim_noalias texels = albedoMap.texels;
-    ASSERT(texels);
-
-    const i32 numTexels = size.x * size.y;
-    for (i32 j = 0; j < numTexels; ++j)
-    {
-        float4 albedo = ColorToLinear(texels[j]);
-        albedo = f4_mul(flatAlbedo, albedo);
-        float4 emission = UnpackEmission(albedo, flatEmission);
-        float lum = f4_perlum(emission);
-        if (lum >= 0.1f)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-typedef struct empt_s
-{
-    float4 position;
-    float4 normal;
-    float4 emission;
-} empt_t;
-
-static float VEC_CALL empt_dist(empt_t a, empt_t b)
-{
-    return f4_distance3(a.position, b.position);
-    //float aLum = f4_perlum(a.emission);
-    //float bLum = f4_perlum(b.emission);
-    //float lumDist = f1_distance(aLum, bLum);
-    //float cosTheta = f4_dot3(a.normal, b.normal);
-    //float norDist = f1_distance(1.0f, cosTheta);
-    //float dist = posDist + lumDist + norDist;
-    //return dist;
-}
-
-static empt_t VEC_CALL ClusterMean(
-    const empt_t* pim_noalias points,
-    i32 ptCount,
-    const i32* pim_noalias nearests,
-    i32 iMean)
-{
-    empt_t mean = { f4_0, f4_0, f4_0 };
-    i32 population = 0;
-    for (i32 i = 0; i < ptCount; ++i)
-    {
-        if (nearests[i] == iMean)
-        {
-            ++population;
-        }
-    }
-    if (population > 0)
-    {
-        const float scale = 1.0f / population;
-        for (i32 i = 0; i < ptCount; ++i)
-        {
-            if (nearests[i] == iMean)
-            {
-                empt_t pt = points[i];
-                mean.position = f4_add(mean.position, f4_mulvs(pt.position, scale));
-                mean.normal = f4_add(mean.normal, f4_mulvs(pt.normal, scale));
-                mean.emission = f4_add(mean.emission, f4_mulvs(pt.emission, scale));
-            }
-        }
-        mean.normal = f4_normalize3(mean.normal);
-        float radius = 0.0f;
-        for (i32 i = 0; i < ptCount; ++i)
-        {
-            if (nearests[i] == iMean)
-            {
-                float dist = f4_distance3(mean.position, points[i].position);
-                radius = f1_max(radius, dist);
-            }
-        }
-        mean.position.w = radius;
-    }
-    return mean;
-}
-
-static i32 VEC_CALL ClusterNearest(
-    i32 meanCount,
-    const empt_t* pim_noalias means,
-    empt_t pt)
-{
-    i32 chosen = -1;
-    float chosenDist = 1 << 20;
-    for (i32 i = 0; i < meanCount; ++i)
-    {
-        float dist = empt_dist(pt, means[i]);
-        if (dist < chosenDist)
-        {
-            chosen = i;
-            chosenDist = dist;
-        }
-    }
-    return chosen;
-}
-
-typedef struct task_ClusterNearest
-{
-    task_t task;
-    const empt_t* means;
-    const empt_t* points;
-    i32* nearests;
-    i32 numMeans;
-    i32 numPoints;
-} task_ClusterNearest;
-
-static void ClusterNearestFn(task_t* pbase, i32 begin, i32 end)
-{
-    task_ClusterNearest* task = (task_ClusterNearest*)pbase;
-    const empt_t* pim_noalias means = task->means;
-    const empt_t* pim_noalias points = task->points;
-    const i32 numMeans = task->numMeans;
-    const i32 numPoints = task->numPoints;
-    i32* pim_noalias nearests = task->nearests;
-
-    for (i32 i = begin; i < end; ++i)
-    {
-        nearests[i] = ClusterNearest(numMeans, means, points[i]);
-    }
-}
-
-typedef struct task_ClusterMean
-{
-    task_t task;
-    empt_t* means;
-    const empt_t* points;
-    const i32* nearests;
-    i32 ptCount;
-} task_ClusterMean;
-
-static void ClusterMeanFn(task_t* pbase, i32 begin, i32 end)
-{
-    task_ClusterMean* task = (task_ClusterMean*)pbase;
-    empt_t* pim_noalias means = task->means;
-    const empt_t* pim_noalias points = task->points;
-    const i32* pim_noalias nearests = task->nearests;
-    const i32 ptCount = task->ptCount;
-
-    for (i32 i = begin; i < end; ++i)
-    {
-        means[i] = ClusterMean(points, ptCount, nearests, i);
-    }
-}
-
-static float VEC_CALL ClusterCost(
-    const empt_t* pim_noalias points,
-    i32 ptCount,
-    const i32* pim_noalias nearests,
-    i32 iMean,
-    empt_t mean)
-{
-    float cost = 0.0f;
-    i32 population = 0;
-    for (i32 i = 0; i < ptCount; ++i)
-    {
-        if (nearests[i] == iMean)
-        {
-            float dist = empt_dist(points[i], mean);
-            cost = f1_max(cost, dist);
-        }
-    }
-    return cost;
-}
-
-typedef struct task_ClusterCost
-{
-    task_t task;
-    const empt_t* points;
-    i32 ptCount;
-    const i32* nearests;
-    const empt_t* means;
-    float* costs;
-} task_ClusterCost;
-
-static void ClusterCostFn(task_t* pbase, i32 begin, i32 end)
-{
-    task_ClusterCost* task = (task_ClusterCost*)pbase;
-    const empt_t* points = task->points;
-    const i32 ptCount = task->ptCount;
-    const i32* nearests = task->nearests;
-    const empt_t* means = task->means;
-    float* costs = task->costs;
-
-    for (i32 i = begin; i < end; ++i)
-    {
-        costs[i] = ClusterCost(points, ptCount, nearests, i, means[i]);
-    }
-}
-
-static empt_t* ClusterPoints(i32 ptCount, const empt_t* points, i32 k, float* costOut)
-{
-    empt_t* pim_noalias means = perm_calloc(sizeof(means[0]) * k);
-    empt_t* pim_noalias prevMeans = perm_calloc(sizeof(prevMeans[0]) * k);
-    float* pim_noalias costs = perm_calloc(sizeof(costs[0]) * k);
-    i32* pim_noalias nearests = perm_calloc(sizeof(nearests[0]) * ptCount);
-
-    prng_t rng = prng_get();
-    for (i32 i = 0; i < k; ++i)
-    {
-        i32 j = prng_i32(&rng) % ptCount;
-        empt_t pt = points[j];
-        means[i] = pt;
-    }
-    prng_set(rng);
-
-    task_ClusterNearest* clusterNearest = tmp_calloc(sizeof(*clusterNearest));
-    clusterNearest->means = means;
-    clusterNearest->nearests = nearests;
-    clusterNearest->points = points;
-    clusterNearest->numMeans = k;
-    clusterNearest->numPoints = ptCount;
-
-    task_ClusterMean* clusterMean = tmp_calloc(sizeof(*clusterMean));
-    clusterMean->means = means;
-    clusterMean->nearests = nearests;
-    clusterMean->points = points;
-    clusterMean->ptCount = ptCount;
-
-    task_ClusterCost* clusterCost = tmp_calloc(sizeof(*clusterCost));
-    clusterCost->costs = costs;
-    clusterCost->means = means;
-    clusterCost->nearests = nearests;
-    clusterCost->points = points;
-    clusterCost->ptCount = ptCount;
-
-    i32 iterations = 0;
+    float4 wuv = f4_0;
     do
     {
-        // associate each node with nearest mean
-        task_run(&clusterNearest->task, ClusterNearestFn, ptCount);
+        wuv.x = prng_f32(rng);
+        wuv.y = prng_f32(rng);
+        wuv.z = 1.0f - (wuv.x + wuv.y);
+    } while (wuv.z < 0.0f);
+    return wuv;
+}
 
-        // update means
-        for (i32 i = 0; i < k; ++i)
-        {
-            prevMeans[i] = means[i];
-        }
-        task_run(&clusterMean->task, ClusterMeanFn, k);
+static float EmissionPdf(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    i32 iLight,
+    i32 attempts)
+{
+    const i32 iMat = scene->matIds[iLight];
+    const material_t mat = scene->materials[iMat];
+    const float4 albedo = ColorToLinear(mat.flatAlbedo);
+    const float4 rome = ColorToLinear(mat.flatRome);
+    texture_t albedoMap = { 0 };
+    i32 hits = 0;
+    if (texture_get(mat.albedo, &albedoMap))
+    {
+        float2 UA = scene->uvs[iLight + 0];
+        float2 UB = scene->uvs[iLight + 1];
+        float2 UC = scene->uvs[iLight + 2];
 
-        ++iterations;
-        if (iterations > 10)
+        for (i32 i = 0; i < attempts; ++i)
         {
-            task_run(&clusterCost->task, ClusterCostFn, k);
-            float cost = 0.0f;
-            for (i32 i = 0; i < k; ++i)
+            for (i32 j = 0; j < kRejectionSamples; ++j)
             {
-                cost = f1_max(cost, costs[i]);
+                float4 wuv = SampleBaryCoord(rng);
+                float2 uv = f2_blend(UA, UB, UC, wuv);
+                float4 sample = UvBilinearWrap_c32(albedoMap.texels, albedoMap.size, uv);
+                sample = f4_mul(albedo, sample);
+                float4 em = UnpackEmission(sample, rome.w);
+                float lum = f4_perlum(em);
+                if (lum > kRejectionThreshhold)
+                {
+                    ++hits;
+                    j = kRejectionSamples;
+                }
             }
-            if (cost > 1.0f)
+        }
+    }
+    return (float)hits / (float)attempts;
+}
+
+static float4 VEC_CALL SelectEmissiveCoord(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    i32 iLight)
+{
+    const i32 iMat = scene->matIds[iLight];
+    const material_t mat = scene->materials[iMat];
+    const float4 albedo = ColorToLinear(mat.flatAlbedo);
+    const float4 rome = ColorToLinear(mat.flatRome);
+    texture_t albedoMap = { 0 };
+    float4 wuv = SampleBaryCoord(rng);
+    if (texture_get(mat.albedo, &albedoMap))
+    {
+        float2 UA = scene->uvs[iLight + 0];
+        float2 UB = scene->uvs[iLight + 1];
+        float2 UC = scene->uvs[iLight + 2];
+
+        for (i32 i = 0; i < kRejectionSamples; ++i)
+        {
+            float2 uv = f2_blend(UA, UB, UC, wuv);
+            float4 sample = UvBilinearWrap_c32(albedoMap.texels, albedoMap.size, uv);
+            sample = f4_mul(albedo, sample);
+            float4 em = UnpackEmission(sample, rome.w);
+            float lum = f4_perlum(em);
+            if (lum > kRejectionThreshhold)
             {
                 break;
             }
-        }
-
-    } while (memcmp(means, prevMeans, sizeof(means[0]) * k));
-
-    task_run(&clusterCost->task, ClusterCostFn, k);
-    float cost = 0.0f;
-    for (i32 i = 0; i < k; ++i)
-    {
-        cost = f1_max(cost, costs[i]);
-    }
-    *costOut = cost;
-
-    pim_free(costs);
-    pim_free(prevMeans);
-    pim_free(nearests);
-
-    return means;
-}
-
-static void CreateLights(
-    pt_scene_t* scene,
-    i32 ptCount,
-    const empt_t* points,
-    float maxRadius)
-{
-    if (ptCount < 1)
-    {
-        return;
-    }
-
-    float prevCost = 1 << 20;
-    float curCost = prevCost;
-    i32 k = 2;
-
-    empt_t* means = NULL;
-recluster:
-    means = ClusterPoints(ptCount, points, k, &curCost);
-    if (curCost > maxRadius)
-    {
-        pim_free(means);
-        k += k / 2;
-        prevCost = curCost;
-        goto recluster;
-    }
-
-    sphere_t* spheres = perm_malloc(sizeof(spheres[0]) * k);
-    float4* rads = perm_malloc(sizeof(rads[0]) * k);
-    for (i32 i = 0; i < k; ++i)
-    {
-        empt_t mean = means[i];
-        spheres[i].value = mean.position;
-        rads[i] = mean.emission;
-    }
-    pim_free(means);
-
-    scene->lights = spheres;
-    scene->lightRads = rads;
-    scene->lightCount = k;
-}
-
-static empt_t* CreateEmissionPoints(
-    const pt_scene_t* scene,
-    i32* countOut,
-    float threshold)
-{
-    empt_t* points = NULL;
-    i32 ptCount = 0;
-
-    const i32 vertCount = scene->vertCount;
-    const float4* pim_noalias positions = scene->positions;
-    const float4* pim_noalias normals = scene->normals;
-    const float2* pim_noalias uvs = scene->uvs;
-    const i32* pim_noalias matIds = scene->matIds;
-
-    const i32 matCount = scene->matCount;
-    const material_t* pim_noalias mats = scene->materials;
-
-    i32 prevNonEmissiveMatId = -1;
-    for (i32 i = 0; (i + 3) <= vertCount; i += 3)
-    {
-        const i32 a = i + 0;
-        const i32 b = i + 1;
-        const i32 c = i + 2;
-
-        const i32 matId = matIds[i];
-        if (matId == prevNonEmissiveMatId)
-        {
-            continue;
-        }
-
-        const material_t mat = mats[matId];
-        if (!IsMaterialEmissive(mat))
-        {
-            prevNonEmissiveMatId = matId;
-            continue;
-        }
-
-        texture_t albedoMap = { 0 };
-        if (!texture_get(mat.albedo, &albedoMap))
-        {
-            continue;
-        }
-
-        float2 UA = uvs[a];
-        float2 UB = uvs[b];
-        float2 UC = uvs[c];
-
-        const float wLen = f1_max(f2_distance(UB, UA), f2_distance(UB, UC));
-        if (wLen < kEpsilon)
-        {
-            continue;
-        }
-
-        const int2 size = albedoMap.size;
-        const i32 maxExtent = i1_max(size.x, size.y);
-        const u32* pim_noalias texels = albedoMap.texels;
-        ASSERT(texels);
-
-        float4 flatAlbedo = ColorToLinear(mat.flatAlbedo);
-        float flatEmission = ColorToLinear(mat.flatRome).w;
-
-        float4 A = positions[a];
-        float4 B = positions[b];
-        float4 C = positions[c];
-        float4 NA = normals[a];
-        float4 NB = normals[b];
-        float4 NC = normals[c];
-
-        const float dw = 1.0f / (wLen * maxExtent);
-        for (float w = 0.0f; w <= 1.0f; w += dw)
-        {
-            float2 p1 = f2_lerp(UA, UB, w);
-            float2 p2 = f2_lerp(UC, UB, w);
-            float uLen = f2_distance(p1, p2);
-            if (uLen < kEpsilon)
-            {
-                continue;
-            }
-            const float du = 1.0f / (uLen * maxExtent);
-            for (float u = 0.0f; u <= 1.0f; u += du)
-            {
-                if ((w + u) > 1.0f)
-                {
-                    u = 2.0f;
-                    continue;
-                }
-                float2 uv = f2_lerp(p1, p2, u);
-                float4 albedo = UvBilinearWrap_c32(texels, size, uv);
-                albedo = f4_mul(albedo, flatAlbedo);
-                float4 emission = UnpackEmission(albedo, flatEmission);
-                float lum = f4_perlum(emission);
-                if (lum < threshold)
-                {
-                    continue;
-                }
-
-                float4 position = f4_lerpvs(f4_lerpvs(A, B, w), f4_lerpvs(C, B, w), u);
-                float4 normal = f4_lerpvs(f4_lerpvs(NA, NB, w), f4_lerpvs(NC, NB, w), u);
-                normal = f4_normalize3(normal);
-
-                const empt_t empt =
-                {
-                    .position = position,
-                    .normal = normal,
-                    .emission = emission,
-                };
-
-                ++ptCount;
-                PermReserve(points, ptCount);
-                points[ptCount - 1] = empt;
-            }
+            wuv = SampleBaryCoord(rng);
         }
     }
-
-    *countOut = ptCount;
-    return points;
+    return wuv;
 }
 
 static void FlattenDrawables(pt_scene_t* scene)
@@ -803,12 +399,16 @@ static void BuildBVH(pt_scene_t* scene, i32 maxDepth)
     scene->nodeCount = nodeCount;
     scene->boxes = perm_calloc(sizeof(scene->boxes[0]) * nodeCount);;
     scene->trilists = perm_calloc(sizeof(scene->trilists[0]) * nodeCount);
-    scene->lightLists = perm_calloc(sizeof(scene->lightLists[0]) * nodeCount);
     scene->pops = perm_calloc(sizeof(scene->pops[0]) * nodeCount);
 
     scene->boxes[0] = CalcSceneBounds(scene);
     SetupBounds(scene->boxes, 0, nodeCount);
 
+    i32 emissiveCount = 0;
+    i32* emissives = NULL;
+    float* emPdfs = NULL;
+
+    prng_t rng = prng_get();
     const i32 vertCount = scene->vertCount;
     for (i32 i = 0; (i + 3) <= vertCount; i += 3)
     {
@@ -816,33 +416,29 @@ static void BuildBVH(pt_scene_t* scene, i32 maxDepth)
         {
             ASSERT(false);
         }
-    }
 
-    const i32 lightCount = scene->lightCount;
-    for (i32 i = 0; i < lightCount; ++i)
-    {
-        if (!InsertLight(scene, i, 0))
+        float emPdf = EmissionPdf(scene, &rng, i, 100);
+        if (emPdf >= 0.1f)
         {
-            ASSERT(false);
+            ++emissiveCount;
+            PermReserve(emissives, emissiveCount);
+            PermReserve(emPdfs, emissiveCount);
+            emissives[emissiveCount - 1] = i;
+            emPdfs[emissiveCount - 1] = emPdf;
         }
     }
+    prng_set(rng);
+
+    scene->emissiveCount = emissiveCount;
+    scene->emissives = emissives;
+    scene->emPdfs = emPdfs;
 }
 
-pt_scene_t* pt_scene_new(i32 maxDepth, bool nee, float emThresh, float maxDist)
+pt_scene_t* pt_scene_new(i32 maxDepth)
 {
     pt_scene_t* scene = perm_calloc(sizeof(*scene));
-    scene->nextEventEstimation = nee;
 
     FlattenDrawables(scene);
-
-    if (nee)
-    {
-        i32 ptCount = 0;
-        empt_t* points = CreateEmissionPoints(scene, &ptCount, emThresh);
-        CreateLights(scene, ptCount, points, maxDist);
-        pim_free(points);
-    }
-
     BuildBVH(scene, maxDepth);
 
     return scene;
@@ -859,17 +455,15 @@ void pt_scene_del(pt_scene_t* scene)
 
         pim_free(scene->materials);
 
-        pim_free(scene->lights);
-        pim_free(scene->lightRads);
+        pim_free(scene->emissives);
+        pim_free(scene->emPdfs);
 
         pim_free(scene->boxes);
         for (i32 i = 0; i < scene->nodeCount; ++i)
         {
             pim_free(scene->trilists[i]);
-            pim_free(scene->lightLists[i]);
         }
         pim_free(scene->trilists);
-        pim_free(scene->lightLists);
         pim_free(scene->pops);
 
         memset(scene, 0, sizeof(*scene));
@@ -900,27 +494,6 @@ static rayhit_t VEC_CALL TraceRay(
         (nearFar.y < kNearThresh)) // behind eye
     {
         return hit;
-    }
-
-    // test lights
-    {
-        const i32* list = scene->lightLists[n];
-        const i32 len = SublistLen(list);
-        const sphere_t* pim_noalias lights = scene->lights;
-
-        for (i32 i = 0; i < len; ++i)
-        {
-            const i32 j = SublistGet(list, i);
-
-            float t = isectSphere3D(ray, lights[j]);
-            if (t < kNearThresh || t > hit.wuvt.w)
-            {
-                continue;
-            }
-            hit.type = hit_light;
-            hit.index = j;
-            hit.wuvt.w = t;
-        }
     }
 
     // test triangles
@@ -1169,7 +742,6 @@ static scatter_t VEC_CALL BrdfScatter(
     result.dir = L;
     result.pdf = pdf;
     result.attenuation = f4_mulvs(brdf, NoL);
-    result.specularBounce = specular;
 
     return result;
 }
@@ -1178,28 +750,57 @@ static bool LightSelect(
     const pt_scene_t* scene,
     prng_t* rng,
     i32* idOut,
-    float* weightOut)
+    float* pdfOut)
 {
-    i32 lightCount = scene->lightCount;
+    i32 lightCount = scene->emissiveCount;
     if (lightCount > 0)
     {
-        *idOut = prng_i32(rng) % lightCount;
-        *weightOut = 1.0f / lightCount;
+        i32 iList = prng_i32(rng) % lightCount;
+        i32 iVert = scene->emissives[iList];
+        float emPdf = scene->emPdfs[iList];
+        *idOut = iVert;
+        *pdfOut = emPdf / lightCount;
         return true;
     }
     *idOut = -1;
-    *weightOut = 0.0f;
+    *pdfOut = 0.0f;
     return false;
+}
+
+static float4 VEC_CALL LightRad(const pt_scene_t* scene, i32 iLight, float4 wuv)
+{
+    i32 iMat = scene->matIds[iLight];
+    const material_t mat = scene->materials[iMat];
+    float4 albedo = ColorToLinear(mat.flatAlbedo);
+    float4 rome = ColorToLinear(mat.flatRome);
+    texture_t albedoMap = { 0 };
+    if (texture_get(mat.albedo, &albedoMap))
+    {
+        float2 UA = scene->uvs[iLight + 0];
+        float2 UB = scene->uvs[iLight + 1];
+        float2 UC = scene->uvs[iLight + 2];
+        float2 uv = f2_blend(UA, UB, UC, wuv);
+        float4 sample = UvBilinearWrap_c32(albedoMap.texels, albedoMap.size, uv);
+        albedo = f4_mul(albedo, sample);
+    }
+    float4 emission = UnpackEmission(albedo, rome.w);
+    return emission;
 }
 
 static float4 VEC_CALL LightSample(
     const pt_scene_t* scene,
     prng_t* rng,
     const surfhit_t* surf,
-    i32 iLight)
+    i32 iLight,
+    float4* wuvOut)
 {
-    float4 pos = scene->lights[iLight].value;
-    float4 pt = SamplePointOnSphere(f2_rand(rng), pos, pos.w);
+    float4 wuv = SelectEmissiveCoord(scene, rng, iLight);
+
+    *wuvOut = wuv;
+    float4 A = scene->positions[iLight + 0];
+    float4 B = scene->positions[iLight + 1];
+    float4 C = scene->positions[iLight + 2];
+    float4 pt = f4_blend(A, B, C, wuv);
     return f4_normalize3(f4_sub(pt, surf->P));
 }
 
@@ -1208,21 +809,29 @@ static float VEC_CALL LightEvalPdf(
     prng_t* rng,
     const surfhit_t* surf,
     i32 iLight,
+    float4* wuvOut,
     float4 L)
 {
     ray_t ray = { surf->P, L };
     rayhit_t hit = TraceRay(scene, 0, ray, f4_rcp(L), 1 << 20);
-    if ((hit.type != hit_light) || (hit.index != iLight))
+    if (hit.index != iLight)
     {
         return 0.0f;
     }
 
-    float4 light = scene->lights[iLight].value;
+    *wuvOut = hit.wuvt;
+
+    float4 A = scene->positions[iLight + 0];
+    float4 B = scene->positions[iLight + 1];
+    float4 C = scene->positions[iLight + 2];
+    float4 N = f4_cross3(f4_sub(B, A), f4_sub(C, A));
+    float area = f4_length3(N);
+    N = f4_divvs(N, area);
+    area *= 0.5f;
+
     float t = hit.wuvt.w;
-    float4 hitPt = f4_add(surf->P, f4_mulvs(L, t));
-    float4 sphNorm = f4_normalize3(f4_sub(hitPt, light));
-    float cosTheta = f1_abs(f4_dot3(sphNorm, L));
-    float pdf = LightPdf(SphereArea(light.w), cosTheta, t * t);
+    float cosTheta = f1_abs(f4_dot3(N, L));
+    float pdf = LightPdf(area, cosTheta, t * t);
 
     return pdf;
 }
@@ -1236,16 +845,22 @@ static scatter_t VEC_CALL LightScatter(
     float4 I)
 {
     scatter_t result = { 0 };
-    bool choseSelf =
-        (hit->type == hit_light) &&
-        (hit->index == iLight);
-    if (!choseSelf)
+    if (hit->index != iLight)
     {
-        float4 L = LightSample(scene, rng, surf, iLight);
-        float lightPdf = LightEvalPdf(scene, rng, surf, iLight, L);
+        float4 wuv;
+        float4 L = LightSample(scene, rng, surf, iLight, &wuv);
+        float lightPdf = LightEvalPdf(scene, rng, surf, iLight, &wuv, L);
+        float4 irradiance = f4_0;
+        float4 attenuation = f4_0;
+        if (lightPdf > kEpsilon)
+        {
+            irradiance = LightRad(scene, iLight, wuv);
+            attenuation = BrdfEval(I, surf, L);
+        }
         result.dir = L;
         result.pdf = lightPdf;
-        result.attenuation = BrdfEval(I, surf, L);
+        result.attenuation = attenuation;
+        result.irradiance = irradiance;
     }
     return result;
 }
@@ -1267,13 +882,18 @@ static scatter_t VEC_CALL MIScatter(
         return BrdfScatter(rng, surf, I);
     }
 
-    if (prng_f32(rng) < 0.5f)
+    if (prng_bool(rng))
     {
         result = BrdfScatter(rng, surf, I);
-        float lightPdf = LightEvalPdf(scene, rng, surf, iLight, result.dir);
+        float4 wuv;
+        float lightPdf = LightEvalPdf(scene, rng, surf, iLight, &wuv, result.dir);
         lightPdf *= lightPdfWeight;
         float weight = PowerHeuristic(1, result.pdf, 1, lightPdf);
         result.attenuation = f4_mulvs(result.attenuation, weight);
+        if (lightPdf > kEpsilon)
+        {
+            result.irradiance = LightRad(scene, iLight, wuv);
+        }
     }
     else
     {
@@ -1296,7 +916,6 @@ static float4 VEC_CALL EstimateDirect(
     float4 I)
 {
     float4 direct = f4_0;
-    float4 rad = scene->lightRads[iLight];
 
     if (prng_bool(rng))
     {
@@ -1310,7 +929,7 @@ static float4 VEC_CALL EstimateDirect(
                 float weight = PowerHeuristic(1, scatter.pdf, 1, brdfPdf);
                 scatter.attenuation = f4_mulvs(scatter.attenuation, weight);
                 float4 Li = f4_divvs(
-                    f4_mul(rad, scatter.attenuation),
+                    f4_mul(scatter.irradiance, scatter.attenuation),
                     scatter.pdf);
                 direct = f4_add(direct, Li);
             }
@@ -1322,13 +941,15 @@ static float4 VEC_CALL EstimateDirect(
         scatter_t scatter = BrdfScatter(rng, surf, I);
         if (scatter.pdf > kEpsilon)
         {
-            float lightPdf = LightEvalPdf(scene, rng, surf, iLight, scatter.dir);
+            float4 wuv;
+            float lightPdf = LightEvalPdf(scene, rng, surf, iLight, &wuv, scatter.dir);
             if (lightPdf > kEpsilon)
             {
                 float weight = PowerHeuristic(1, scatter.pdf, 1, lightPdf);
                 scatter.attenuation = f4_mulvs(scatter.attenuation, weight);
+                scatter.irradiance = LightRad(scene, iLight, wuv);
                 float4 Li = f4_divvs(
-                    f4_mul(rad, scatter.attenuation),
+                    f4_mul(scatter.irradiance, scatter.attenuation),
                     scatter.pdf);
                 direct = f4_add(direct, Li);
             }
@@ -1350,8 +971,7 @@ static float4 VEC_CALL SampleLights(
     float lightPdfWeight;
     if (LightSelect(scene, rng, &iLight, &lightPdfWeight))
     {
-        bool isSelf = (hit->type == hit_light) && (hit->index == iLight);
-        if (!isSelf)
+        if (hit->index != iLight)
         {
             float4 direct = EstimateDirect(
                 scene, rng, surf, hit, iLight, I);
@@ -1369,42 +989,20 @@ static surfhit_t VEC_CALL GetSurface(
 {
     surfhit_t surf = { 0 };
 
-    switch (hit.type)
-    {
-    default:
-        ASSERT(false);
-        break;
-    case hit_triangle:
-    {
-        ASSERT(hit.index < scene->vertCount);
-        const material_t* mat = GetMaterial(scene, hit);
-        const float2 uv = GetVert2(scene->uvs, hit);
-        surf.P = GetVert4(scene->positions, hit);
-        surf.N = f4_normalize3(GetVert4(scene->normals, hit));
-        float4 tN = material_normal(mat, uv);
-        surf.N = TanToWorld(surf.N, tN);
-        surf.albedo = material_albedo(mat, uv);
-        float4 rome = material_rome(mat, uv);
-        surf.roughness = rome.x;
-        surf.occlusion = rome.y;
-        surf.metallic = rome.z;
-        surf.emission = UnpackEmission(surf.albedo, rome.w);
-    }
-    break;
-    case hit_light:
-    {
-        float4 lPos = scene->lights[hit.index].value;
-        float4 lRad = scene->lightRads[hit.index];
-        surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
-        surf.N = f4_normalize3(f4_sub(surf.P, lPos));
-        surf.albedo = f4_1;
-        surf.roughness = 1.0f;
-        surf.occlusion = 0.0f;
-        surf.metallic = 0.0f;
-        surf.emission = lRad;
-    }
-    break;
-    }
+    ASSERT(hit.type == hit_triangle);
+    ASSERT(hit.index < scene->vertCount);
+    const material_t* mat = GetMaterial(scene, hit);
+    float2 uv = GetVert2(scene->uvs, hit);
+    surf.P = GetVert4(scene->positions, hit);
+    float4 Nws = f4_normalize3(GetVert4(scene->normals, hit));
+    surf.N = TanToWorld(Nws, material_normal(mat, uv));
+    float4 albedo = material_albedo(mat, uv);
+    float4 rome = material_rome(mat, uv);
+    surf.albedo = albedo;
+    surf.roughness = rome.x;
+    surf.occlusion = rome.y;
+    surf.metallic = rome.z;
+    surf.emission = UnpackEmission(albedo, rome.w);
 
     return surf;
 }
@@ -1432,8 +1030,6 @@ pt_result_t VEC_CALL pt_trace_ray(
     float4 normal = f4_0;
     float4 light = f4_0;
     float4 attenuation = f4_1;
-    const bool nee = scene->nextEventEstimation;
-    const bool rrBegin = nee ? 0 : 3;
 
     for (i32 b = 0; b < bounces; ++b)
     {
@@ -1450,7 +1046,6 @@ pt_result_t VEC_CALL pt_trace_ray(
             normal = surf.N;
         }
 
-        if (nee)
         {
             if (b == 0)
             {
@@ -1458,10 +1053,6 @@ pt_result_t VEC_CALL pt_trace_ray(
             }
             float4 direct = SampleLights(scene, rng, &surf, &hit, ray.rd);
             light = f4_add(light, f4_mul(direct, attenuation));
-        }
-        else
-        {
-            light = f4_add(light, f4_mul(surf.emission, attenuation));
         }
 
         scatter_t scatter = BrdfScatter(rng, &surf, ray.rd);
@@ -1477,7 +1068,7 @@ pt_result_t VEC_CALL pt_trace_ray(
         ray.ro = surf.P;
         ray.rd = scatter.dir;
 
-        if (b >= rrBegin)
+        if (b >= 3)
         {
             float p = f4_perlum(attenuation);
             if (prng_f32(rng) < p)

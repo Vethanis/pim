@@ -55,14 +55,11 @@
 #include <time.h>
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
-static cvar_t cv_pt_depth = { cvart_int, 0, "pt_depth", "7", "max bvh depth" };
+static cvar_t cv_pt_depth = { cvart_int, 0, "pt_depth", "5", "max bvh depth" };
 static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "15", "path tracing bounces" };
 static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
 static cvar_t cv_pt_normal = { cvart_bool, 0, "pt_normal", "0", "output path tracer normals" };
 static cvar_t cv_pt_albedo = { cvart_bool, 0, "pt_albedo", "0", "output path tracer albedo" };
-static cvar_t cv_pt_nee = { cvart_bool, 0, "pt_nee", "0", "enable next event estimation" };
-static cvar_t cv_pt_emthresh = { cvart_float, 0, "pt_emthresh", "5", "emission threshold for texel to light conversion" };
-static cvar_t cv_pt_maxdist = { cvart_float, 0, "pt_maxdist", "0.2", "max distance between points in a light cluster" };
 
 static cvar_t cv_lm_gen = { cvart_bool, 0, "lm_gen", "0", "enable lightmap generation" };
 static cvar_t cv_lm_denoise = { cvart_bool, 0, "lm_denoise", "0", "denoise lightmaps" };
@@ -116,9 +113,6 @@ static void EnsurePtScene(void)
 {
     bool dirty = false;
     dirty |= cvar_check_dirty(&cv_pt_depth);
-    dirty |= cvar_check_dirty(&cv_pt_nee);
-    dirty |= cvar_check_dirty(&cv_pt_emthresh);
-    dirty |= cvar_check_dirty(&cv_pt_maxdist);
     if (dirty)
     {
         pt_scene_del(ms_ptscene);
@@ -127,10 +121,7 @@ static void EnsurePtScene(void)
     if (!ms_ptscene)
     {
         ms_ptscene = pt_scene_new(
-            (i32)f1_clamp(cv_pt_depth.asFloat, 1.0f, 8.0f),
-            cv_pt_nee.asFloat != 0.0f,
-            cv_pt_emthresh.asFloat,
-            cv_pt_maxdist.asFloat);
+            (i32)f1_clamp(cv_pt_depth.asFloat, 1.0f, 8.0f));
         ms_ptSampleCount = 0;
         ms_acSampleCount = 0;
         ms_cmapSampleCount = 0;
@@ -456,9 +447,6 @@ void render_sys_init(void)
     cvar_reg(&cv_pt_denoise);
     cvar_reg(&cv_pt_normal);
     cvar_reg(&cv_pt_albedo);
-    cvar_reg(&cv_pt_nee);
-    cvar_reg(&cv_pt_emthresh);
-    cvar_reg(&cv_pt_maxdist);
 
     cvar_reg(&cv_lm_gen);
     cvar_reg(&cv_lm_denoise);

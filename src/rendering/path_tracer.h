@@ -19,35 +19,46 @@ typedef enum
 
 typedef struct pt_scene_s
 {
-    // all meshes within the scene
+    // all geometry within the scene
     // xyz: vertex position
     //   w: 1
-    float4* positions;
+    // [vertCount]
+    float4* pim_noalias positions;
     // xyz: vertex normal
-    float4* normals;
+    // [vertCount]
+    float4* pim_noalias normals;
     //  xy: texture coordinate
-    float2* uvs;
+    // [vertCount]
+    float2* pim_noalias uvs;
     // material indices
-    i32* matIds;
+    // [vertCount]
+    i32* pim_noalias matIds;
 
-    // surface description, indexed by normal.w
-    material_t* materials;
+    // emissive triangle indices
+    // [emissiveCount]
+    i32* pim_noalias emissives;
+    // emissive texel chance of triangle
+    // [emissiveCount]
+    float* pim_noalias emPdfs;
 
-    sphere_t* lights;
-    float4* lightRads;
+    // surface description, indexed by matIds
+    // [matCount]
+    material_t* pim_noalias materials;
 
     // full octree
     // child(p, i) = 8 * p + i + 1
-    box_t* boxes; // aabb of node
-    i32** trilists; // [N, f0v0, f1v0, f2v0, ..., fN-1v0]
-    i32** lightLists;
-    i32* pops; // object population in subtree
+    // [nodeCount]
+    box_t* pim_noalias boxes; // aabb of node
+    // [nodeCount]
+    i32** pim_noalias trilists; // [N, f0v0, f1v0, f2v0, ..., fN-1v0]
+    // [nodeCount]
+    i32* pim_noalias pops; // object population in subtree
 
+    // array lengths
     i32 vertCount;
     i32 matCount;
-    i32 lightCount;
+    i32 emissiveCount;
     i32 nodeCount;
-    bool nextEventEstimation;
 } pt_scene_t;
 
 typedef struct pt_trace_s
@@ -75,7 +86,7 @@ typedef struct pt_results_s
     float4* directions;
 } pt_results_t;
 
-pt_scene_t* pt_scene_new(i32 maxDepth, bool nee, float emThresh, float maxDist);
+pt_scene_t* pt_scene_new(i32 maxDepth);
 void pt_scene_del(pt_scene_t* scene);
 
 pt_result_t VEC_CALL pt_trace_ray(

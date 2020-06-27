@@ -6,6 +6,7 @@
 #include "math/float4_funcs.h"
 #include "math/float4x4_funcs.h"
 #include "math/sdf.h"
+#include "math/area.h"
 #include "math/sampling.h"
 #include "common/console.h"
 #include "common/sort.h"
@@ -293,19 +294,6 @@ static float2 VEC_CALL ProjUv(float3x3 TBN, float4 pt)
     float u = f4_dot3(TBN.c0, pt);
     float v = f4_dot3(TBN.c1, pt);
     return f2_v(u, v);
-}
-
-static float VEC_CALL TriArea3D(float4 A, float4 B, float4 C)
-{
-    return 0.5f * f4_length3(f4_cross3(f4_sub(B, A), f4_sub(C, A)));
-}
-
-static float VEC_CALL TriArea2D(tri2d_t tri)
-{
-    float2 ab = f2_sub(tri.b, tri.a);
-    float2 ac = f2_sub(tri.c, tri.a);
-    float cr = ab.x * ac.y - ac.x * ab.y;
-    return 0.5f * cr;
 }
 
 static tri2d_t VEC_CALL ProjTri(float4 A, float4 B, float4 C)
