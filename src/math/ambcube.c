@@ -7,18 +7,16 @@ i32 AmbCube_Bake(
     AmbCube_t* pCube,
     float4 origin,
     i32 samples,
-    i32 prevSampleCount,
-    i32 bounces)
+    i32 prevSampleCount)
 {
     ASSERT(scene);
     ASSERT(pCube);
     ASSERT(samples >= 0);
     ASSERT(prevSampleCount >= 0);
-    ASSERT(bounces >= 0);
 
     ray_t ray = { .ro = origin };
 
-    pt_results_t results = pt_raygen(scene, ray, ptdist_sphere, samples, bounces);
+    pt_results_t results = pt_raygen(scene, ray, ptdist_sphere, samples);
 
     const float4* pim_noalias colors = results.colors;
     const float4* pim_noalias directions = results.directions;

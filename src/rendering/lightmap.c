@@ -1364,7 +1364,6 @@ typedef struct bake_s
 {
     task_t task;
     const pt_scene_t* scene;
-    i32 bounces;
     float timeSlice;
 } bake_t;
 
@@ -1372,7 +1371,6 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
 {
     bake_t* task = (bake_t*)pbase;
     const pt_scene_t* scene = task->scene;
-    const i32 bounces = task->bounces;
     const float timeSlice = task->timeSlice;
 
     lmpack_t* pack = lmpack_get();
@@ -1410,7 +1408,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
                 float4 dir = TanToWorld(N, SampleCosineHemisphere(f2_rand(&rng)));
                 float pdf = LambertPdf(f1_sat(f4_dot3(N, dir)));
                 ray_t ray = { P, dir };
-                pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+                pt_result_t result = pt_trace_ray(&rng, scene, ray);
                 result.color = f3_mulvs(result.color, pdf);
 
                 lightmap.color[iTexel] = f3_lerp(lightmap.color[iTexel], result.color, weight);
@@ -1421,7 +1419,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_Bake, lmpack_bake)
-void lmpack_bake(const pt_scene_t* scene, i32 bounces, float timeSlice)
+void lmpack_bake(const pt_scene_t* scene, float timeSlice)
 {
     ProfileBegin(pm_Bake);
     ASSERT(scene);
@@ -1432,7 +1430,6 @@ void lmpack_bake(const pt_scene_t* scene, i32 bounces, float timeSlice)
     {
         bake_t* task = perm_calloc(sizeof(*task));
         task->scene = scene;
-        task->bounces = bounces;
         task->timeSlice = timeSlice;
         task_run(&task->task, BakeFn, texelCount);
     }

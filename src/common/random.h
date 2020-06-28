@@ -25,6 +25,16 @@ pim_inline u32 prng_u32(prng_t* rng)
 
 #pragma warning(pop)
 
+pim_inline bool prng_bool(prng_t* rng)
+{
+    return prng_u32(rng) & 1u;
+}
+
+pim_inline i32 prng_i32(prng_t* rng)
+{
+    return (i32)(0x7fffffff & prng_u32(rng));
+}
+
 pim_inline u64 prng_u64(prng_t* rng)
 {
     u64 y = prng_u32(rng);
@@ -33,17 +43,11 @@ pim_inline u64 prng_u64(prng_t* rng)
     return y;
 }
 
-pim_inline i32 prng_i32(prng_t* rng)
+pim_inline float VEC_CALL prng_f32(prng_t* rng)
 {
-    return (i32)(0x7fffffff & prng_u32(rng));
-}
-pim_inline float prng_f32(prng_t* rng)
-{
-    u32 x = prng_u32(rng) & 0xffff;
-    const float kScale = 1.0f / (1 << 16);
+    u32 x = prng_u32(rng) & 0xffffff;
+    const float kScale = 1.0f / (1 << 24);
     return (float)x * kScale;
 }
-
-pim_inline bool prng_bool(prng_t* rng) { return prng_u32(rng) & 1u; }
 
 PIM_C_END

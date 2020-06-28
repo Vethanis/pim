@@ -4,6 +4,8 @@
 #include "rendering/camera.h"
 #include "rendering/sampler.h"
 #include "rendering/lights.h"
+#include "rendering/drawable.h"
+#include "rendering/librtc.h"
 
 #include "math/float2_funcs.h"
 #include "math/float4_funcs.h"
@@ -18,15 +20,14 @@
 #include "math/lighting.h"
 
 #include "allocator/allocator.h"
-#include "rendering/drawable.h"
 #include "threading/task.h"
 #include "common/random.h"
 #include "common/profiler.h"
+#include "common/console.h"
 
 #include <string.h>
 
-#define kRejectionSamples       5
-#define kRejectionThreshhold    0.1f
+#define PIM_USE_RTC 1
 
 typedef enum
 {
@@ -77,134 +78,153 @@ typedef struct pt_raygen_s
     float4* colors;
     float4* directions;
     pt_dist_t dist;
-    i32 bounces;
 } pt_raygen_t;
 
-static i32 VEC_CALL CalcNodeCount(i32 maxDepth)
+static bool ms_once;
+static RTCDevice ms_device;
+
+static void OnRtcError(void* user, RTCError error, const char* msg)
 {
-    i32 nodeCount = 0;
-    for (i32 i = 0; i < maxDepth; ++i)
+    if (error != RTC_ERROR_NONE)
     {
-        nodeCount += 1 << (3 * i);
-    }
-    return nodeCount;
-}
-
-pim_inline i32 VEC_CALL GetChild(i32 parent, i32 i)
-{
-    return (parent << 3) | (i + 1);
-}
-
-pim_inline i32 VEC_CALL GetParent(i32 i)
-{
-    return (i - 1) >> 3;
-}
-
-static void SetupBounds(box_t* boxes, i32 p, i32 nodeCount)
-{
-    const i32 c0 = GetChild(p, 0);
-    if ((c0 + 8) <= nodeCount)
-    {
-        {
-            const float4 pcenter = boxes[p].center;
-            const float4 extents = f4_mulvs(boxes[p].extents, 0.5f);
-            for (i32 i = 0; i < 8; ++i)
-            {
-                float4 sign;
-                sign.x = (i & 1) ? -1.0f : 1.0f;
-                sign.y = (i & 2) ? -1.0f : 1.0f;
-                sign.z = (i & 4) ? -1.0f : 1.0f;
-                boxes[c0 + i].center = f4_add(pcenter, f4_mul(sign, extents));
-                boxes[c0 + i].extents = extents;
-            }
-        }
-        for (i32 i = 0; i < 8; ++i)
-        {
-            SetupBounds(boxes, c0 + i, nodeCount);
-        }
+        con_logf(LogSev_Error, "rtc", "%s", msg);
+        ASSERT(false);
     }
 }
 
-// tests whether the given box fully contains the entire triangle
-static bool VEC_CALL BoxHoldsTri(box_t box, float4 A, float4 B, float4 C)
+static bool EnsureInit(void)
 {
-    float4 blo = f4_sub(box.center, box.extents);
-    float4 bhi = f4_add(box.center, box.extents);
-    blo.w = 0.0f;
-    bhi.w = 0.0f;
-    A.w = 0.0f;
-    B.w = 0.0f;
-    C.w = 0.0f;
-    bool4 lo = b4_and(b4_and(f4_gteq(A, blo), f4_gteq(B, blo)), f4_gteq(C, blo));
-    bool4 hi = b4_and(b4_and(f4_lteq(A, bhi), f4_lteq(B, bhi)), f4_lteq(C, bhi));
-    return b4_all(b4_and(lo, hi));
-}
-
-// tests whether the given box fully contains the entire sphere
-static bool VEC_CALL BoxHoldsSph(box_t box, float4 sph)
-{
-    float4 blo = f4_sub(box.center, box.extents);
-    float4 bhi = f4_add(box.center, box.extents);
-    float4 slo = f4_subvs(sph, sph.w);
-    float4 shi = f4_addvs(sph, sph.w);
-    blo.w = 0.0f;
-    bhi.w = 0.0f;
-    slo.w = 0.0f;
-    shi.w = 0.0f;
-    return b4_all(b4_and(f4_gteq(slo, blo), f4_lteq(shi, bhi)));
-}
-
-static i32 SublistLen(const i32* sublist)
-{
-    return sublist ? sublist[0] : 0;
-}
-
-static i32* SublistPush(i32* sublist, i32 x)
-{
-    i32 len = SublistLen(sublist);
-    ++len;
-    sublist = perm_realloc(sublist, sizeof(sublist[0]) * (1 + len));
-    sublist[0] = len;
-    sublist[len] = x;
-    return sublist;
-}
-
-static i32 SublistGet(const i32* sublist, i32 i)
-{
-    ASSERT(i >= 0);
-    ASSERT(i < SublistLen(sublist));
-    return sublist[1 + i];
-}
-
-static bool InsertTriangle(
-    pt_scene_t* scene,
-    i32 iVert,
-    i32 n)
-{
-    if (n < scene->nodeCount)
+    if (!ms_once)
     {
-        if (BoxHoldsTri(
-            scene->boxes[n],
-            scene->positions[iVert + 0],
-            scene->positions[iVert + 1],
-            scene->positions[iVert + 2]))
+        ms_once = true;
+        bool hasInit = rtc_init();
+        if (!hasInit)
         {
-            scene->pops[n] += 1;
-            for (i32 i = 0; i < 8; ++i)
-            {
-                if (InsertTriangle(
-                    scene,
-                    iVert,
-                    GetChild(n, i)))
-                {
-                    return true;
-                }
-            }
-            scene->trilists[n] = SublistPush(scene->trilists[n], iVert);
-            return true;
+            return false;
         }
+        ms_device = rtc.NewDevice(NULL);
+        if (!ms_device)
+        {
+            OnRtcError(NULL, rtc.GetDeviceError(NULL), "Failed to create device");
+            return false;
+        }
+        rtc.SetDeviceErrorFunction(ms_device, OnRtcError, NULL);
     }
-    return false;
+    return ms_device != NULL;
+}
+
+pim_inline RTCRay VEC_CALL RtcNewRay(ray_t ray, float tNear, float tFar)
+{
+    ASSERT(tFar > tNear);
+    ASSERT(tNear > 0.0f);
+    RTCRay rtcRay = { 0 };
+    rtcRay.org_x = ray.ro.x;
+    rtcRay.org_y = ray.ro.y;
+    rtcRay.org_z = ray.ro.z;
+    rtcRay.tnear = tNear;
+    rtcRay.dir_x = ray.rd.x;
+    rtcRay.dir_y = ray.rd.y;
+    rtcRay.dir_z = ray.rd.z;
+    rtcRay.tfar = tFar;
+    rtcRay.mask = -1;
+    rtcRay.flags = 0;
+    return rtcRay;
+}
+
+pim_inline RTCRayHit VEC_CALL RtcIntersect(
+    RTCScene scene,
+    ray_t ray,
+    float tNear,
+    float tFar)
+{
+    RTCIntersectContext ctx;
+    rtcInitIntersectContext(&ctx);
+    RTCRayHit rayHit = { 0 };
+    rayHit.ray = RtcNewRay(ray, tNear, tFar);
+    rayHit.hit.primID = RTC_INVALID_GEOMETRY_ID; // triangle index
+    rayHit.hit.geomID = RTC_INVALID_GEOMETRY_ID; // object id
+    rayHit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID; // instance id
+    rtc.Intersect1(scene, &ctx, &rayHit);
+    return rayHit;
+}
+
+pim_inline bool VEC_CALL RtcOccluded(
+    RTCScene scene,
+    ray_t ray,
+    float tNear,
+    float tFar)
+{
+    RTCIntersectContext ctx;
+    rtcInitIntersectContext(&ctx);
+    RTCRay rtcRay = RtcNewRay(ray, tNear, tFar);
+    rtc.Occluded1(scene, &ctx, &rtcRay);
+    // tfar == -inf on hit
+    return rtcRay.tfar >= 0.0f;
+}
+
+static RTCScene RtcNewScene(const pt_scene_t* scene)
+{
+    RTCScene rtcScene = rtc.NewScene(ms_device);
+    ASSERT(rtcScene);
+    if (!rtcScene)
+    {
+        return NULL;
+    }
+
+    RTCGeometry geom = rtc.NewGeometry(ms_device, RTC_GEOMETRY_TYPE_TRIANGLE);
+    ASSERT(geom);
+
+    const i32 vertCount = scene->vertCount;
+    const i32 triCount = vertCount / 3;
+
+    float3* pim_noalias dstPositions = rtc.SetNewGeometryBuffer(
+        geom,
+        RTC_BUFFER_TYPE_VERTEX,
+        0,
+        RTC_FORMAT_FLOAT3,
+        sizeof(float3),
+        vertCount);
+    if (!dstPositions)
+    {
+        ASSERT(false);
+        rtc.ReleaseGeometry(geom);
+        rtc.ReleaseScene(rtcScene);
+        return NULL;
+    }
+    const float4* pim_noalias srcPositions = scene->positions;
+    for (i32 i = 0; i < vertCount; ++i)
+    {
+        dstPositions[i] = f4_f3(srcPositions[i]);
+    }
+
+    // kind of wasteful
+    i32* pim_noalias dstIndices = rtc.SetNewGeometryBuffer(
+        geom,
+        RTC_BUFFER_TYPE_INDEX,
+        0,
+        RTC_FORMAT_UINT3,
+        sizeof(int3),
+        triCount);
+    if (!dstIndices)
+    {
+        ASSERT(false);
+        rtc.ReleaseGeometry(geom);
+        rtc.ReleaseScene(rtcScene);
+        return NULL;
+    }
+    for (i32 i = 0; i < vertCount; ++i)
+    {
+        dstIndices[i] = i;
+    }
+
+    rtc.CommitGeometry(geom);
+    rtc.AttachGeometry(rtcScene, geom);
+    rtc.ReleaseGeometry(geom);
+    geom = NULL;
+
+    rtc.CommitScene(rtcScene);
+
+    return rtcScene;
 }
 
 pim_inline float4 VEC_CALL SampleBaryCoord(prng_t* rng)
@@ -237,9 +257,11 @@ static float EmissionPdf(
         float2 UB = scene->uvs[iLight + 1];
         float2 UC = scene->uvs[iLight + 2];
 
+        const i32 rejectionSamples = scene->rejectionSamples;
+        const float rejectionThreshold = scene->rejectionThreshold;
         for (i32 i = 0; i < attempts; ++i)
         {
-            for (i32 j = 0; j < kRejectionSamples; ++j)
+            for (i32 j = 0; j < rejectionSamples; ++j)
             {
                 float4 wuv = SampleBaryCoord(rng);
                 float2 uv = f2_blend(UA, UB, UC, wuv);
@@ -247,10 +269,10 @@ static float EmissionPdf(
                 sample = f4_mul(albedo, sample);
                 float4 em = UnpackEmission(sample, rome.w);
                 float lum = f4_perlum(em);
-                if (lum > kRejectionThreshhold)
+                if (lum > rejectionThreshold)
                 {
                     ++hits;
-                    j = kRejectionSamples;
+                    j = rejectionSamples;
                 }
             }
         }
@@ -275,14 +297,16 @@ static float4 VEC_CALL SelectEmissiveCoord(
         float2 UB = scene->uvs[iLight + 1];
         float2 UC = scene->uvs[iLight + 2];
 
-        for (i32 i = 0; i < kRejectionSamples; ++i)
+        const i32 rejectionSamples = scene->rejectionSamples;
+        const float rejectionThreshold = scene->rejectionThreshold;
+        for (i32 i = 0; i < rejectionSamples; ++i)
         {
             float2 uv = f2_blend(UA, UB, UC, wuv);
             float4 sample = UvBilinearWrap_c32(albedoMap.texels, albedoMap.size, uv);
             sample = f4_mul(albedo, sample);
             float4 em = UnpackEmission(sample, rome.w);
             float lum = f4_perlum(em);
-            if (lum > kRejectionThreshhold)
+            if (lum > rejectionThreshold)
             {
                 break;
             }
@@ -368,42 +392,8 @@ static void FlattenDrawables(pt_scene_t* scene)
     scene->materials = sceneMats;
 }
 
-static box_t VEC_CALL CalcSceneBounds(const pt_scene_t* scene)
+static void SetupEmissives(pt_scene_t* scene)
 {
-    float4 sceneMin = f4_s(1 << 20);
-    float4 sceneMax = f4_s(-(1 << 20));
-
-    const i32 vertCount = scene->vertCount;
-    const float4* pim_noalias positions = scene->positions;
-    for (i32 i = 0; i < vertCount; ++i)
-    {
-        float4 position = positions[i];
-        sceneMin = f4_min(sceneMin, position);
-        sceneMax = f4_max(sceneMax, position);
-    }
-
-    // scale bounds up a little bit, to account for fp precision
-    // abs required when scene is not centered at origin
-    sceneMax = f4_add(sceneMax, f4_mulvs(f4_abs(sceneMax), 0.01f));
-    sceneMin = f4_sub(sceneMin, f4_mulvs(f4_abs(sceneMin), 0.01f));
-    box_t bounds;
-    bounds.center = f4_lerpvs(sceneMin, sceneMax, 0.5f);
-    bounds.extents = f4_sub(sceneMax, bounds.center);
-
-    return bounds;
-}
-
-static void BuildBVH(pt_scene_t* scene, i32 maxDepth)
-{
-    const i32 nodeCount = CalcNodeCount(maxDepth);
-    scene->nodeCount = nodeCount;
-    scene->boxes = perm_calloc(sizeof(scene->boxes[0]) * nodeCount);;
-    scene->trilists = perm_calloc(sizeof(scene->trilists[0]) * nodeCount);
-    scene->pops = perm_calloc(sizeof(scene->pops[0]) * nodeCount);
-
-    scene->boxes[0] = CalcSceneBounds(scene);
-    SetupBounds(scene->boxes, 0, nodeCount);
-
     i32 emissiveCount = 0;
     i32* emissives = NULL;
     float* emPdfs = NULL;
@@ -412,12 +402,7 @@ static void BuildBVH(pt_scene_t* scene, i32 maxDepth)
     const i32 vertCount = scene->vertCount;
     for (i32 i = 0; (i + 3) <= vertCount; i += 3)
     {
-        if (!InsertTriangle(scene, i, 0))
-        {
-            ASSERT(false);
-        }
-
-        float emPdf = EmissionPdf(scene, &rng, i, 100);
+        float emPdf = EmissionPdf(scene, &rng, i, 300);
         if (emPdf >= 0.1f)
         {
             ++emissiveCount;
@@ -434,12 +419,20 @@ static void BuildBVH(pt_scene_t* scene, i32 maxDepth)
     scene->emPdfs = emPdfs;
 }
 
-pt_scene_t* pt_scene_new(i32 maxDepth)
+pt_scene_t* pt_scene_new(i32 maxDepth, i32 rejectionSamples, float rejectionThreshold)
 {
+    if (!EnsureInit())
+    {
+        return NULL;
+    }
+
     pt_scene_t* scene = perm_calloc(sizeof(*scene));
+    scene->rejectionSamples = rejectionSamples;
+    scene->rejectionThreshold = rejectionThreshold;
 
     FlattenDrawables(scene);
-    BuildBVH(scene, maxDepth);
+    SetupEmissives(scene);
+    scene->rtcScene = RtcNewScene(scene);
 
     return scene;
 }
@@ -448,6 +441,13 @@ void pt_scene_del(pt_scene_t* scene)
 {
     if (scene)
     {
+        if (scene->rtcScene)
+        {
+            RTCScene rtcScene = scene->rtcScene;
+            rtc.ReleaseScene(rtcScene);
+            scene->rtcScene = NULL;
+        }
+
         pim_free(scene->positions);
         pim_free(scene->normals);
         pim_free(scene->uvs);
@@ -458,14 +458,6 @@ void pt_scene_del(pt_scene_t* scene)
         pim_free(scene->emissives);
         pim_free(scene->emPdfs);
 
-        pim_free(scene->boxes);
-        for (i32 i = 0; i < scene->nodeCount; ++i)
-        {
-            pim_free(scene->trilists[i]);
-        }
-        pim_free(scene->trilists);
-        pim_free(scene->pops);
-
         memset(scene, 0, sizeof(*scene));
         pim_free(scene);
     }
@@ -473,68 +465,32 @@ void pt_scene_del(pt_scene_t* scene)
 
 static rayhit_t VEC_CALL TraceRay(
     const pt_scene_t* scene,
-    i32 n,
     ray_t ray,
-    float4 rcpRd,
-    float limit)
+    float tFar)
 {
     rayhit_t hit = { 0 };
-    hit.wuvt.w = limit;
+    hit.wuvt.w = tFar;
 
-    if ((n >= scene->nodeCount) || (scene->pops[n] == 0))
+    RTCRayHit rtcHit = RtcIntersect(scene->rtcScene, ray, 0.0001f, tFar);
+    bool hitNothing = (rtcHit.hit.geomID == RTC_INVALID_GEOMETRY_ID) || (rtcHit.ray.tfar < 0.0f);
+    if (hitNothing)
     {
+        hit.index = -1;
+        hit.type = hit_nothing;
         return hit;
     }
+    ASSERT(rtcHit.hit.primID != RTC_INVALID_GEOMETRY_ID);
+    i32 iVert = rtcHit.hit.primID * 3;
+    ASSERT(iVert >= 0);
+    ASSERT(iVert < scene->vertCount);
+    float u = rtcHit.hit.u;
+    float v = rtcHit.hit.v;
+    float w = 1.0f - (u + v);
+    float t = rtcHit.ray.tfar;
 
-    const float kNearThresh = 0.0001f;
-    // test box
-    const float2 nearFar = isectBox3D(ray.ro, rcpRd, scene->boxes[n]);
-    if ((nearFar.y <= nearFar.x) || // miss
-        (nearFar.x > limit) || // further away, culled
-        (nearFar.y < kNearThresh)) // behind eye
-    {
-        return hit;
-    }
-
-    // test triangles
-    {
-        const i32* list = scene->trilists[n];
-        const i32 len = SublistLen(list);
-        const float4* pim_noalias vertices = scene->positions;
-
-        for (i32 i = 0; i < len; ++i)
-        {
-            const i32 j = SublistGet(list, i);
-
-            float4 tri = isectTri3D(ray, vertices[j + 0], vertices[j + 1], vertices[j + 2]);
-            float t = tri.w;
-            if (t < kNearThresh || t > hit.wuvt.w)
-            {
-                continue;
-            }
-            if (b4_any(f4_ltvs(tri, 0.0f)))
-            {
-                continue;
-            }
-            hit.type = hit_triangle;
-            hit.index = j;
-            hit.wuvt = tri;
-        }
-    }
-
-    // test children
-    for (i32 i = 0; i < 8; ++i)
-    {
-        rayhit_t child = TraceRay(
-            scene, GetChild(n, i), ray, rcpRd, hit.wuvt.w);
-        if (child.type != hit_nothing)
-        {
-            if (child.wuvt.w < hit.wuvt.w)
-            {
-                hit = child;
-            }
-        }
-    }
+    hit.type = hit_triangle;
+    hit.wuvt = f4_v(w, u, v, t);
+    hit.index = iVert;
 
     return hit;
 }
@@ -564,6 +520,32 @@ pim_inline const material_t* VEC_CALL GetMaterial(const pt_scene_t* scene, rayhi
     ASSERT(matIndex >= 0);
     ASSERT(matIndex < scene->matCount);
     return scene->materials + matIndex;
+}
+
+static surfhit_t VEC_CALL GetSurface(
+    const pt_scene_t* scene,
+    ray_t rin,
+    rayhit_t hit)
+{
+    surfhit_t surf = { 0 };
+
+    ASSERT(hit.type == hit_triangle);
+    ASSERT(hit.index < scene->vertCount);
+    const material_t* mat = GetMaterial(scene, hit);
+    float2 uv = GetVert2(scene->uvs, hit);
+    surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
+    float4 Nws = f4_normalize3(GetVert4(scene->normals, hit));
+    surf.N = TanToWorld(Nws, material_normal(mat, uv));
+    surf.P = f4_add(surf.P, f4_mulvs(Nws, 0.0001f));
+    float4 albedo = material_albedo(mat, uv);
+    float4 rome = material_rome(mat, uv);
+    surf.albedo = albedo;
+    surf.roughness = rome.x;
+    surf.occlusion = rome.y;
+    surf.metallic = rome.z;
+    surf.emission = UnpackEmission(albedo, rome.w);
+
+    return surf;
 }
 
 pim_inline float4 VEC_CALL SampleSpecular(
@@ -813,7 +795,7 @@ static float VEC_CALL LightEvalPdf(
     float4 L)
 {
     ray_t ray = { surf->P, L };
-    rayhit_t hit = TraceRay(scene, 0, ray, f4_rcp(L), 1 << 20);
+    rayhit_t hit = TraceRay(scene, ray, 1 << 20);
     if (hit.index != iLight)
     {
         return 0.0f;
@@ -917,7 +899,6 @@ static float4 VEC_CALL EstimateDirect(
 {
     float4 direct = f4_0;
 
-    if (prng_bool(rng))
     {
         // sample a light direction against the brdf
         scatter_t scatter = LightScatter(scene, rng, surf, hit, iLight, I);
@@ -928,26 +909,6 @@ static float4 VEC_CALL EstimateDirect(
             {
                 float weight = PowerHeuristic(1, scatter.pdf, 1, brdfPdf);
                 scatter.attenuation = f4_mulvs(scatter.attenuation, weight);
-                float4 Li = f4_divvs(
-                    f4_mul(scatter.irradiance, scatter.attenuation),
-                    scatter.pdf);
-                direct = f4_add(direct, Li);
-            }
-        }
-    }
-    else
-    {
-        // sample a brdf direction against the light
-        scatter_t scatter = BrdfScatter(rng, surf, I);
-        if (scatter.pdf > kEpsilon)
-        {
-            float4 wuv;
-            float lightPdf = LightEvalPdf(scene, rng, surf, iLight, &wuv, scatter.dir);
-            if (lightPdf > kEpsilon)
-            {
-                float weight = PowerHeuristic(1, scatter.pdf, 1, lightPdf);
-                scatter.attenuation = f4_mulvs(scatter.attenuation, weight);
-                scatter.irradiance = LightRad(scene, iLight, wuv);
                 float4 Li = f4_divvs(
                     f4_mul(scatter.irradiance, scatter.attenuation),
                     scatter.pdf);
@@ -967,51 +928,31 @@ static float4 VEC_CALL SampleLights(
     float4 I)
 {
     float4 light = f4_0;
+    const i32 kLightSamples = 5;
     i32 iLight;
     float lightPdfWeight;
-    if (LightSelect(scene, rng, &iLight, &lightPdfWeight))
+    for (i32 i = 0; i < kLightSamples; ++i)
     {
-        if (hit->index != iLight)
+        if (LightSelect(scene, rng, &iLight, &lightPdfWeight))
         {
-            float4 direct = EstimateDirect(
-                scene, rng, surf, hit, iLight, I);
-            direct = f4_divvs(direct, lightPdfWeight);
-            light = f4_add(light, direct);
+            if (hit->index != iLight)
+            {
+                float4 direct = EstimateDirect(
+                    scene, rng, surf, hit, iLight, I);
+                lightPdfWeight *= kLightSamples;
+                direct = f4_divvs(direct, lightPdfWeight);
+                light = f4_add(light, direct);
+            }
         }
     }
     return light;
-}
-
-static surfhit_t VEC_CALL GetSurface(
-    const pt_scene_t* scene,
-    ray_t rin,
-    rayhit_t hit)
-{
-    surfhit_t surf = { 0 };
-
-    ASSERT(hit.type == hit_triangle);
-    ASSERT(hit.index < scene->vertCount);
-    const material_t* mat = GetMaterial(scene, hit);
-    float2 uv = GetVert2(scene->uvs, hit);
-    surf.P = GetVert4(scene->positions, hit);
-    float4 Nws = f4_normalize3(GetVert4(scene->normals, hit));
-    surf.N = TanToWorld(Nws, material_normal(mat, uv));
-    float4 albedo = material_albedo(mat, uv);
-    float4 rome = material_rome(mat, uv);
-    surf.albedo = albedo;
-    surf.roughness = rome.x;
-    surf.occlusion = rome.y;
-    surf.metallic = rome.z;
-    surf.emission = UnpackEmission(albedo, rome.w);
-
-    return surf;
 }
 
 static float4 VEC_CALL pt_trace_albedo(
     const pt_scene_t* scene,
     ray_t ray)
 {
-    rayhit_t hit = TraceRay(scene, 0, ray, f4_rcp(ray.rd), 1 << 20);
+    rayhit_t hit = TraceRay(scene, ray, 1 << 20);
     if (hit.type != hit_nothing)
     {
         surfhit_t surf = GetSurface(scene, ray, hit);
@@ -1023,17 +964,16 @@ static float4 VEC_CALL pt_trace_albedo(
 pt_result_t VEC_CALL pt_trace_ray(
     prng_t* rng,
     const pt_scene_t* scene,
-    ray_t ray,
-    i32 bounces)
+    ray_t ray)
 {
     float4 albedo = f4_0;
     float4 normal = f4_0;
     float4 light = f4_0;
     float4 attenuation = f4_1;
 
-    for (i32 b = 0; b < bounces; ++b)
+    for (i32 b = 0; b < 20; ++b)
     {
-        rayhit_t hit = TraceRay(scene, 0, ray, f4_rcp(ray.rd), 1 << 20);
+        rayhit_t hit = TraceRay(scene, ray, 1 << 20);
         if (hit.type == hit_nothing)
         {
             break;
@@ -1044,13 +984,10 @@ pt_result_t VEC_CALL pt_trace_ray(
         {
             albedo = surf.albedo;
             normal = surf.N;
+            light = f4_add(light, f4_mul(surf.emission, attenuation));
         }
 
         {
-            if (b == 0)
-            {
-                light = f4_add(light, f4_mul(surf.emission, attenuation));
-            }
             float4 direct = SampleLights(scene, rng, &surf, &hit, ray.rd);
             light = f4_add(light, f4_mul(direct, attenuation));
         }
@@ -1068,7 +1005,6 @@ pt_result_t VEC_CALL pt_trace_ray(
         ray.ro = surf.P;
         ray.rd = scatter.dir;
 
-        if (b >= 3)
         {
             float p = f4_perlum(attenuation);
             if (prng_f32(rng) < p)
@@ -1101,7 +1037,6 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
 
     const int2 size = task->trace.imageSize;
     const float sampleWeight = task->trace.sampleWeight;
-    const i32 bounces = task->trace.bounces;
     const camera_t camera = task->camera;
     const quat rot = camera.rotation;
     const float4 ro = camera.position;
@@ -1126,7 +1061,7 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
 
         float4 rd = proj_dir(right, up, fwd, slope, uv);
         ray_t ray = { ro, rd };
-        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+        pt_result_t result = pt_trace_ray(&rng, scene, ray);
         color[i] = f3_lerp(color[i], result.color, sampleWeight);
         albedo[i] = f3_lerp(albedo[i], result.albedo, sampleWeight);
         normal[i] = f3_lerp(normal[i], result.normal, sampleWeight);
@@ -1165,7 +1100,6 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
     pt_raygen_t* task = (pt_raygen_t*)pBase;
     const pt_scene_t* scene = task->scene;
     const pt_dist_t dist = task->dist;
-    const i32 bounces = task->bounces;
     const ray_t origin = task->origin;
     const float3x3 TBN = NormalToTBN(origin.rd);
 
@@ -1189,7 +1123,7 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
             break;
         }
         directions[i] = ray.rd;
-        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+        pt_result_t result = pt_trace_ray(&rng, scene, ray);
         colors[i] = f3_f4(result.color, 1.0f);
     }
 
@@ -1201,8 +1135,7 @@ pt_results_t pt_raygen(
     const pt_scene_t* scene,
     ray_t origin,
     pt_dist_t dist,
-    i32 count,
-    i32 bounces)
+    i32 count)
 {
     ProfileBegin(pm_raygen);
 
@@ -1215,7 +1148,6 @@ pt_results_t pt_raygen(
     task->colors = tmp_malloc(sizeof(task->colors[0]) * count);
     task->directions = tmp_malloc(sizeof(task->directions[0]) * count);
     task->dist = dist;
-    task->bounces = bounces;
     task_run(&task->task, RayGenFn, count);
 
     pt_results_t results =

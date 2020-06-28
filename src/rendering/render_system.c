@@ -56,7 +56,8 @@
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
 static cvar_t cv_pt_depth = { cvart_int, 0, "pt_depth", "5", "max bvh depth" };
-static cvar_t cv_pt_bounces = { cvart_int, 0, "pt_bounces", "15", "path tracing bounces" };
+static cvar_t cv_pt_rejsamples = { cvart_int, 0, "pt_rejsamples", "10", "emissive texel rejection samples" };
+static cvar_t cv_pt_rejthresh = { cvart_float, 0, "pt_rejthresh", "0.1", "emissive texel rejection threshold" };
 static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
 static cvar_t cv_pt_normal = { cvart_bool, 0, "pt_normal", "0", "output path tracer normals" };
 static cvar_t cv_pt_albedo = { cvart_bool, 0, "pt_albedo", "0", "output path tracer albedo" };
@@ -113,6 +114,8 @@ static void EnsurePtScene(void)
 {
     bool dirty = false;
     dirty |= cvar_check_dirty(&cv_pt_depth);
+    dirty |= cvar_check_dirty(&cv_pt_rejsamples);
+    dirty |= cvar_check_dirty(&cv_pt_rejthresh);
     if (dirty)
     {
         pt_scene_del(ms_ptscene);
@@ -120,8 +123,13 @@ static void EnsurePtScene(void)
     }
     if (!ms_ptscene)
     {
+        i32 maxDepth = (i32)f1_clamp(cv_pt_depth.asFloat, 1.0f, 8.0f);
+        i32 rejSamples = (i32)f1_clamp(cv_pt_rejsamples.asFloat, 1.0f, 100.0f);
+        float rejThresh = f1_clamp(cv_pt_rejthresh.asFloat, 1.0f / (1 << 10), 1 << 10);
         ms_ptscene = pt_scene_new(
-            (i32)f1_clamp(cv_pt_depth.asFloat, 1.0f, 8.0f));
+            maxDepth,
+            rejSamples,
+            rejThresh);
         ms_ptSampleCount = 0;
         ms_acSampleCount = 0;
         ms_cmapSampleCount = 0;
@@ -155,9 +163,8 @@ static void Lightmap_Trace(void)
             LightmapRepack();
         }
 
-        i32 bounces = (i32)cv_pt_bounces.asFloat;
         i32 timeSlice = (i32)cv_lm_timeslice.asFloat;
-        lmpack_bake(ms_ptscene, bounces, 1.0f / timeSlice);
+        lmpack_bake(ms_ptscene, 1.0f / timeSlice);
 
         ProfileEnd(pm_Lightmap_Trace);
     }
@@ -194,12 +201,11 @@ static void Cubemap_Trace(void)
         Cubemaps_t* table = Cubemaps_Get();
         float weight = 1.0f / ++ms_cmapSampleCount;
         float pfweight = f1_min(1.0f, weight * 2.0f);
-        i32 bounces = (i32)cv_pt_bounces.asFloat;
         for (i32 i = 0; i < table->count; ++i)
         {
             Cubemap* cubemap = table->cubemaps + i;
             sphere_t bounds = table->bounds[i];
-            Cubemap_Bake(cubemap, ms_ptscene, bounds.value, weight, bounces);
+            Cubemap_Bake(cubemap, ms_ptscene, bounds.value, weight);
             Cubemap_Denoise(cubemap);
             Cubemap_Convolve(cubemap, 256, pfweight);
         }
@@ -227,7 +233,6 @@ static bool PathTrace(void)
         }
 
         const int2 size = { kDrawWidth, kDrawHeight };
-        ms_trace.bounces = i1_clamp((i32)cv_pt_bounces.asFloat, 0, 20);
         ms_trace.sampleWeight = 1.0f / ++ms_ptSampleCount;
         ms_trace.camera = &camera;
         ms_trace.scene = ms_ptscene;
@@ -312,7 +317,7 @@ static void Rasterize(void)
 
 static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
 {
-    char filename[PIM_PATH] = {0};
+    char filename[PIM_PATH] = { 0 };
     if (argc > 1 && argv[1])
     {
         StrCpy(ARGS(filename), argv[1]);
@@ -321,7 +326,7 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     {
         time_t ticks = time(NULL);
         struct tm* local = localtime(&ticks);
-        char timestr[PIM_PATH] ={0};
+        char timestr[PIM_PATH] = { 0 };
         strftime(ARGS(timestr), "%Y_%m_%d_%H_%M_%S", local);
         SPrintf(ARGS(filename), "screenshot_%s.png", timestr);
     }
@@ -392,7 +397,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
         return cmdstat_err;
     }
 
-    char mapname[PIM_PATH] = {0};
+    char mapname[PIM_PATH] = { 0 };
     SPrintf(ARGS(mapname), "maps/%s.bsp", name);
 
     asset_t asset = { 0 };
@@ -419,10 +424,10 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
         if (lights_pt_count() == 0)
         {
             lights_add_pt(
-            (pt_light_t)
+                (pt_light_t)
             {
                 f4_v(0.0f, 0.0f, 0.0f, 1.0f),
-                f4_s(30.0f),
+                    f4_s(30.0f),
             });
         }
 
@@ -443,7 +448,8 @@ void render_sys_init(void)
 
     cvar_reg(&cv_pt_trace);
     cvar_reg(&cv_pt_depth);
-    cvar_reg(&cv_pt_bounces);
+    cvar_reg(&cv_pt_rejsamples);
+    cvar_reg(&cv_pt_rejthresh);
     cvar_reg(&cv_pt_denoise);
     cvar_reg(&cv_pt_normal);
     cvar_reg(&cv_pt_albedo);
@@ -637,7 +643,7 @@ static meshid_t GenSphereMesh(i32 steps)
     char name[PIM_PATH];
     SPrintf(ARGS(name), "SphereMesh_%d", steps);
 
-    meshid_t id = {0};
+    meshid_t id = { 0 };
     if (mesh_find(name, &id))
     {
         mesh_retain(id);
@@ -764,7 +770,7 @@ static meshid_t GenSphereMesh(i32 steps)
     }
 
 
-    mesh_t mesh = {0};
+    mesh_t mesh = { 0 };
     mesh.length = length;
     mesh.positions = positions;
     mesh.normals = normals;
@@ -779,7 +785,7 @@ static meshid_t GenSphereMesh(i32 steps)
 static meshid_t GenQuadMesh(void)
 {
     const char* name = "QuadMesh";
-    meshid_t id = {0};
+    meshid_t id = { 0 };
     if (mesh_find(name, &id))
     {
         mesh_retain(id);
@@ -810,7 +816,7 @@ static meshid_t GenQuadMesh(void)
         normals[i] = N;
     }
 
-    mesh_t mesh = {0};
+    mesh_t mesh = { 0 };
     mesh.length = length;
     mesh.positions = positions;
     mesh.normals = normals;
@@ -838,8 +844,8 @@ static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up
     material_t mat = (material_t)
     {
         .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
-        .flatAlbedo = LinearToColor(albedo),
-        .flatRome = LinearToColor(rome),
+            .flatAlbedo = LinearToColor(albedo),
+            .flatRome = LinearToColor(rome),
     };
     drawables->materials[i] = mat;
 
@@ -864,8 +870,8 @@ static i32 CreateSphere(const char* name, float4 center, float radius, float4 al
     material_t mat = (material_t)
     {
         .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
-        .flatAlbedo = LinearToColor(albedo),
-        .flatRome = LinearToColor(rome),
+            .flatAlbedo = LinearToColor(albedo),
+            .flatRome = LinearToColor(rome),
     };
     drawables->materials[i] = mat;
 

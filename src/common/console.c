@@ -318,6 +318,14 @@ void con_logf(LogSev sev, const char* tag, const char* fmt, ...)
         VStrCatf(ARGS(msg), fmt, VA_START(fmt));
 
         con_puts(sevColor, msg);
+
+        if (sev == LogSev_Error)
+        {
+            if (fstr_isopen(ms_file))
+            {
+                fstr_flush(ms_file);
+            }
+        }
     }
 }
 

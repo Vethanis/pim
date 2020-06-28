@@ -93,8 +93,7 @@ void Cubemap_Bake(
     Cubemap* cm,
     const pt_scene_t* scene,
     float4 origin,
-    float weight,
-    i32 bounces);
+    float weight);
 
 void Cubemap_Denoise(Cubemap* cm);
 

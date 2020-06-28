@@ -64,7 +64,6 @@ i32 AmbCube_Bake(
     AmbCube_t* pCube,
     float4 origin,
     i32 samples,
-    i32 prevSampleCount,
-    i32 bounces);
+    i32 prevSampleCount);
 
 PIM_C_END

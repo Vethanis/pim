@@ -312,7 +312,6 @@ typedef struct cmbake_s
     const pt_scene_t* scene;
     float4 origin;
     float weight;
-    i32 bounces;
 } cmbake_t;
 
 pim_optimize
@@ -324,7 +323,6 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
     const pt_scene_t* scene = task->scene;
     const float4 origin = task->origin;
     const float weight = task->weight;
-    const i32 bounces = task->bounces;
 
     const i32 size = cm->size;
     const i32 flen = size * size;
@@ -337,7 +335,7 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
         int2 coord = { fi % size, fi / size };
         float4 dir = Cubemap_CalcDir(size, face, coord, f2_tent(f2_rand(&rng)));
         ray_t ray = { origin, dir };
-        pt_result_t result = pt_trace_ray(&rng, scene, ray, bounces);
+        pt_result_t result = pt_trace_ray(&rng, scene, ray);
         cm->color[face][fi] = f3_lerp(cm->color[face][fi], result.color, weight);
         cm->albedo[face][fi] = f3_lerp(cm->albedo[face][fi], result.albedo, weight);
         cm->normal[face][fi] = f3_lerp(cm->normal[face][fi], result.normal, weight);
@@ -350,13 +348,11 @@ void Cubemap_Bake(
     Cubemap* cm,
     const pt_scene_t* scene,
     float4 origin,
-    float weight,
-    i32 bounces)
+    float weight)
 {
     ASSERT(cm);
     ASSERT(scene);
     ASSERT(weight > 0.0f);
-    ASSERT(bounces >= 0);
 
     i32 size = cm->size;
     if (size > 0)
@@ -368,7 +364,6 @@ void Cubemap_Bake(
         task->scene = scene;
         task->origin = origin;
         task->weight = weight;
-        task->bounces = bounces;
 
         task_run((task_t*)task, BakeFn, size * size * Cubeface_COUNT);
 

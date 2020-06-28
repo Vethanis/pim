@@ -14,6 +14,8 @@ PIM_C_BEGIN
 #define kRadiansPerDegree   (kTau / 360.0f)
 #define kDegreesPerRadian   (360.0f / kTau)
 #define kEpsilon            (1.0f / (1<<22))
+#define kGoldenRatio        1.618034f
+#define kGoldenConj         0.618034f
 
 pim_inline float VEC_CALL f1_radians(float x)
 {

@@ -123,7 +123,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "water",
-        0.125f,
+        0.1f,
         1.0f,
     },
     {
@@ -352,7 +352,7 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         }
         if ((emission == 0.0f) && (flags & matflag_emissive))
         {
-            emission = 1.0f;
+            emission = 0.5f;
         }
 
         material_t material = { 0 };
