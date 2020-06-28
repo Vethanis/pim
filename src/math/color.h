@@ -175,8 +175,10 @@ pim_inline float4 VEC_CALL tmap4_reinhard(float4 x)
     return y;
 }
 
+// https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
 pim_inline float VEC_CALL tmap1_aces(float x)
 {
+    x *= 0.6f;
     const float a = 2.51f;
     const float b = 0.03f;
     const float c = 2.43f;
@@ -196,6 +198,7 @@ pim_inline float4 VEC_CALL tmap4_aces(float4 x)
     return y;
 }
 
+// http://filmicworlds.com/blog/filmic-tonemapping-operators/
 pim_inline float VEC_CALL tmap1_filmic(float x)
 {
     x = f1_max(0.0f, x - 0.004f);
@@ -213,6 +216,7 @@ pim_inline float4 VEC_CALL tmap4_filmic(float4 x)
     return y;
 }
 
+// http://filmicworlds.com/blog/filmic-tonemapping-operators/
 pim_inline float VEC_CALL tmap1_uchart2(float x)
 {
     const float a = 0.15f;
@@ -238,6 +242,7 @@ pim_inline float4 VEC_CALL tmap4_uchart2(float4 x)
     return y;
 }
 
+// http://filmicworlds.com/blog/filmic-tonemapping-with-piecewise-power-curves/
 // params: Shoulder Strength, Linear Strength, Linear Angle, Toe Strength
 pim_inline float VEC_CALL tmap1_hable(float x, float4 params)
 {
@@ -266,11 +271,8 @@ pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
 
 pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)
 {
-    e = e * e * 300.0f;
-    // only 'fullbrights' are emissive
-    float m = f1_smoothstep(0.4f, 1.0f, f4_hmax3(albedo));
-    m = m * m;
-    return f4_mulvs(albedo, e * m);
+    e = e * e * e * 50.0f;
+    return f4_mulvs(albedo, e);
 }
 
 PIM_C_END

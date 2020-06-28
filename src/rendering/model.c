@@ -93,31 +93,9 @@ static const mat_preset_t ms_matPresets[] =
         kMatGen
     },
     {
-        "sky", // sky texture (purple stuff)
-        0.5f,
+        "sky", // sky texture (purple or light blue stuff)
         1.0f,
         0.0f,
-        1.0f,
-    },
-    {
-        "slip", // slipgate
-        kMatRough
-    },
-    {
-        "teleport",
-        kMatRough
-    },
-    {
-        "light",
-        1.0f,
-        1.0f,
-        0.0f,
-        0.5f,
-    },
-    {
-        "lava",
-        1.0f,
-        1.0f,
         0.0f,
         1.0f,
     },
@@ -327,8 +305,6 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
             }
         }
 
-        char albedoName[PIM_PATH];
-        SPrintf(ARGS(albedoName), "%s_alb", mtex->name);
         char normalName[PIM_PATH];
         SPrintf(ARGS(normalName), "%s_nor", mtex->name);
 
@@ -359,24 +335,13 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         material.flags = flags;
         material.flatAlbedo = LinearToColor(f4_1);
         material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
-        if (texture_unpalette(mip0, size, albedoName, &material.albedo))
-        {
-            // use diffuse texture for normals, since occlusion is baked in
-            texture_lumtonormal(material.albedo, 2.0f, normalName, &material.normal);
-            // convert in-place to albedo
-            texture_diffuse_to_albedo(material.albedo);
-        }
-        else
-        {
-            if (texture_find(normalName, &material.normal))
-            {
-                texture_retain(material.normal);
-            }
-            else
-            {
-                ASSERT(false);
-            }
-        }
+        texture_unpalette(
+            mip0,
+            size,
+            mtex->name,
+            &material.albedo,
+            &material.rome,
+            &material.normal);
         materials[i] = material;
     }
 

@@ -245,31 +245,28 @@ static float EmissionPdf(
     i32 iLight,
     i32 attempts)
 {
+    i32 hits = 0;
     const i32 iMat = scene->matIds[iLight];
     const material_t mat = scene->materials[iMat];
-    const float4 albedo = ColorToLinear(mat.flatAlbedo);
-    const float4 rome = ColorToLinear(mat.flatRome);
-    texture_t albedoMap = { 0 };
-    i32 hits = 0;
-    if (texture_get(mat.albedo, &albedoMap))
+    const float4 flatRome = ColorToLinear(mat.flatRome);
+    texture_t romeMap = { 0 };
+    if (texture_get(mat.rome, &romeMap))
     {
         float2 UA = scene->uvs[iLight + 0];
         float2 UB = scene->uvs[iLight + 1];
         float2 UC = scene->uvs[iLight + 2];
 
         const i32 rejectionSamples = scene->rejectionSamples;
-        const float rejectionThreshold = scene->rejectionThreshold;
+        const float threshold = 1.0f / 255.0f;
         for (i32 i = 0; i < attempts; ++i)
         {
             for (i32 j = 0; j < rejectionSamples; ++j)
             {
                 float4 wuv = SampleBaryCoord(rng);
                 float2 uv = f2_blend(UA, UB, UC, wuv);
-                float4 sample = UvBilinearWrap_c32(albedoMap.texels, albedoMap.size, uv);
-                sample = f4_mul(albedo, sample);
-                float4 em = UnpackEmission(sample, rome.w);
-                float lum = f4_perlum(em);
-                if (lum > rejectionThreshold)
+                float4 rome = f4_mul(flatRome,
+                    UvBilinearWrap_c32(romeMap.texels, romeMap.size, uv));
+                if (rome.w > threshold)
                 {
                     ++hits;
                     j = rejectionSamples;
@@ -287,26 +284,23 @@ static float4 VEC_CALL SelectEmissiveCoord(
 {
     const i32 iMat = scene->matIds[iLight];
     const material_t mat = scene->materials[iMat];
-    const float4 albedo = ColorToLinear(mat.flatAlbedo);
-    const float4 rome = ColorToLinear(mat.flatRome);
-    texture_t albedoMap = { 0 };
+    const float4 flatRome = ColorToLinear(mat.flatRome);
+    texture_t romeMap = { 0 };
     float4 wuv = SampleBaryCoord(rng);
-    if (texture_get(mat.albedo, &albedoMap))
+    if (texture_get(mat.rome, &romeMap))
     {
         float2 UA = scene->uvs[iLight + 0];
         float2 UB = scene->uvs[iLight + 1];
         float2 UC = scene->uvs[iLight + 2];
 
         const i32 rejectionSamples = scene->rejectionSamples;
-        const float rejectionThreshold = scene->rejectionThreshold;
+        const float threshold = 1.0f / 255.0f;
         for (i32 i = 0; i < rejectionSamples; ++i)
         {
             float2 uv = f2_blend(UA, UB, UC, wuv);
-            float4 sample = UvBilinearWrap_c32(albedoMap.texels, albedoMap.size, uv);
-            sample = f4_mul(albedo, sample);
-            float4 em = UnpackEmission(sample, rome.w);
-            float lum = f4_perlum(em);
-            if (lum > rejectionThreshold)
+            float4 rome = f4_mul(flatRome,
+                UvBilinearWrap_c32(romeMap.texels, romeMap.size, uv));
+            if (rome.w > threshold)
             {
                 break;
             }
@@ -392,27 +386,58 @@ static void FlattenDrawables(pt_scene_t* scene)
     scene->materials = sceneMats;
 }
 
-static void SetupEmissives(pt_scene_t* scene)
+typedef struct task_CalcEmissionPdf
 {
-    i32 emissiveCount = 0;
-    i32* emissives = NULL;
-    float* emPdfs = NULL;
+    task_t task;
+    const pt_scene_t* scene;
+    float* pdfs;
+    i32 attempts;
+} task_CalcEmissionPdf;
+
+static void CalcEmissionPdfFn(task_t* pbase, i32 begin, i32 end)
+{
+    task_CalcEmissionPdf* task = (task_CalcEmissionPdf*)pbase;
+    const pt_scene_t* scene = task->scene;
+    const i32 attempts = task->attempts;
+    float* pim_noalias pdfs = task->pdfs;
 
     prng_t rng = prng_get();
-    const i32 vertCount = scene->vertCount;
-    for (i32 i = 0; (i + 3) <= vertCount; i += 3)
+    for (i32 i = begin; i < end; ++i)
     {
-        float emPdf = EmissionPdf(scene, &rng, i, 300);
-        if (emPdf >= 0.1f)
+        pdfs[i] = EmissionPdf(scene, &rng, i * 3, attempts);
+    }
+    prng_set(rng);
+}
+
+static void SetupEmissives(pt_scene_t* scene)
+{
+    const i32 vertCount = scene->vertCount;
+    const i32 triCount = vertCount / 3;
+
+    task_CalcEmissionPdf* task = tmp_calloc(sizeof(*task));
+    task->scene = scene;
+    task->pdfs = tmp_malloc(sizeof(task->pdfs[0]) * triCount);
+    task->attempts = 1000;
+
+    task_run(&task->task, CalcEmissionPdfFn, triCount);
+
+    i32 emissiveCount = 0;
+    i32* emissives = NULL;
+    float* pim_noalias emPdfs = NULL;
+
+    const float* pim_noalias taskPdfs = task->pdfs;
+    for (i32 iTri = 0; iTri < triCount; ++iTri)
+    {
+        float pdf = taskPdfs[iTri];
+        if (pdf >= 0.1f)
         {
             ++emissiveCount;
             PermReserve(emissives, emissiveCount);
             PermReserve(emPdfs, emissiveCount);
-            emissives[emissiveCount - 1] = i;
-            emPdfs[emissiveCount - 1] = emPdf;
+            emissives[emissiveCount - 1] = iTri * 3;
+            emPdfs[emissiveCount - 1] = pdf;
         }
     }
-    prng_set(rng);
 
     scene->emissiveCount = emissiveCount;
     scene->emissives = emissives;
@@ -471,8 +496,10 @@ static rayhit_t VEC_CALL TraceRay(
     rayhit_t hit = { 0 };
     hit.wuvt.w = tFar;
 
-    RTCRayHit rtcHit = RtcIntersect(scene->rtcScene, ray, 0.0001f, tFar);
-    bool hitNothing = (rtcHit.hit.geomID == RTC_INVALID_GEOMETRY_ID) || (rtcHit.ray.tfar < 0.0f);
+    RTCRayHit rtcHit = RtcIntersect(scene->rtcScene, ray, kMillimeter, tFar);
+    bool hitNothing =
+        (rtcHit.hit.geomID == RTC_INVALID_GEOMETRY_ID) ||
+        (rtcHit.ray.tfar <= 0.0f);
     if (hitNothing)
     {
         hit.index = -1;
@@ -495,7 +522,9 @@ static rayhit_t VEC_CALL TraceRay(
     return hit;
 }
 
-pim_inline float4 VEC_CALL GetVert4(const float4* vertices, rayhit_t hit)
+pim_inline float4 VEC_CALL GetVert4(
+    const float4* vertices,
+    rayhit_t hit)
 {
     return f4_blend(
         vertices[hit.index + 0],
@@ -504,7 +533,9 @@ pim_inline float4 VEC_CALL GetVert4(const float4* vertices, rayhit_t hit)
         hit.wuvt);
 }
 
-pim_inline float2 VEC_CALL GetVert2(const float2* vertices, rayhit_t hit)
+pim_inline float2 VEC_CALL GetVert2(
+    const float2* vertices,
+    rayhit_t hit)
 {
     return f2_blend(
         vertices[hit.index + 0],
@@ -513,7 +544,9 @@ pim_inline float2 VEC_CALL GetVert2(const float2* vertices, rayhit_t hit)
         hit.wuvt);
 }
 
-pim_inline const material_t* VEC_CALL GetMaterial(const pt_scene_t* scene, rayhit_t hit)
+pim_inline const material_t* VEC_CALL GetMaterial(
+    const pt_scene_t* scene,
+    rayhit_t hit)
 {
     i32 triIndex = hit.index;
     i32 matIndex = scene->matIds[triIndex];
@@ -536,7 +569,7 @@ static surfhit_t VEC_CALL GetSurface(
     surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
     float4 Nws = f4_normalize3(GetVert4(scene->normals, hit));
     surf.N = TanToWorld(Nws, material_normal(mat, uv));
-    surf.P = f4_add(surf.P, f4_mulvs(Nws, 0.0001f));
+    surf.P = f4_add(surf.P, f4_mulvs(Nws, kMillimeter));
     float4 albedo = material_albedo(mat, uv);
     float4 rome = material_rome(mat, uv);
     surf.albedo = albedo;

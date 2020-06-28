@@ -34,8 +34,12 @@ bool texture_set(textureid_t id, texture_t* src);
 
 bool texture_find(const char* name, textureid_t* idOut);
 
-bool texture_unpalette(const u8* bytes, int2 size, const char* name, textureid_t* idOut);
-bool texture_diffuse_to_albedo(textureid_t id);
-bool texture_lumtonormal(textureid_t src, float scale, const char* name, textureid_t* idOut);
+bool texture_unpalette(
+    const u8* bytes,
+    int2 size,
+    const char* name,
+    textureid_t* albedoOut,
+    textureid_t* romeOut,
+    textureid_t* normalOut);
 
 PIM_C_END

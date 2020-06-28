@@ -7,6 +7,7 @@
 #include "assets/asset_system.h"
 #include "quake/q_bspfile.h"
 #include "stb/stb_image.h"
+#include "common/stringutil.h"
 #include <string.h>
 
 static table_t ms_table;
@@ -154,97 +155,192 @@ bool texture_find(const char* name, textureid_t* idOut)
     return found;
 }
 
-// https://quakewiki.org/wiki/Quake_palette
-bool texture_unpalette(const u8* bytes, int2 size, const char* name, textureid_t* idOut)
+typedef enum
 {
-    if (texture_find(name, idOut))
-    {
-        texture_retain(*idOut);
-        return false;
-    }
+    PalRow_White,
+    PalRow_Brown,
+    PalRow_LightBlue,
+    PalRow_Green,
+    PalRow_Red,
+    PalRow_Orange,
+    PalRow_Gold,
+    PalRow_Peach,
+    PalRow_Purple,
+    PalRow_Magenta,
+    PalRow_Tan,
+    PalRow_LightGreen,
+    PalRow_Yellow,
+    PalRow_Blue,
+    PalRow_Fire,
+    PalRow_Brights,
 
-    u32* texels = perm_malloc(size.x * size.y * sizeof(texels[0]));
-    for (i32 y = 0; y < size.y; ++y)
-    {
-        for (i32 x = 0; x < size.x; ++x)
-        {
-            i32 i = x + y * size.x;
-            u8 encoded = bytes[i];
-            u32 r = ms_palette[encoded * 3 + 0];
-            u32 g = ms_palette[encoded * 3 + 1];
-            u32 b = ms_palette[encoded * 3 + 2];
-            u32 color = r | (g << 8) | (b << 16);
-            texels[i] = color;
-        }
-    }
+    PalRow_COUNT
+} PalRow;
 
-    texture_t tex = { 0 };
-    tex.size = size;
-    tex.texels = texels;
-    return texture_new(&tex, name, idOut);
+pim_inline u32 DecodeTexel(u8 encoded)
+{
+    const u8* pim_noalias palette = ms_palette;
+    u32 r = palette[encoded * 3 + 0];
+    u32 g = palette[encoded * 3 + 1];
+    u32 b = palette[encoded * 3 + 2];
+    const u32 a = 0xff;
+    u32 color = r | (g << 8) | (b << 16) | (a << 24);
+    return color;
 }
 
-bool texture_diffuse_to_albedo(textureid_t id)
+pim_inline float DecodeEmission(u8 encoded)
 {
-    texture_t tex;
-    if (texture_get(id, &tex))
+    u8 row = encoded / 16;
+    u8 column = encoded % 16;
+    if (row == PalRow_Fire)
     {
-        const i32 len = tex.size.x * tex.size.y;
+        return (0.5f + column) / 16.0f;
+    }
+    if (row == PalRow_Brights)
+    {
+        return 1.0f;
+    }
+    return 0.0f;
+}
+
+// https://quakewiki.org/wiki/Quake_palette
+bool texture_unpalette(
+    const u8* bytes,
+    int2 size,
+    const char* name,
+    textureid_t* albedoOut,
+    textureid_t* romeOut,
+    textureid_t* normalOut)
+{
+    const bool isSky = StrIStr(name, 16, "sky") != NULL;
+
+    bool albedoExists = false;
+    bool albedoAdded = false;
+    char albedoName[PIM_PATH];
+    SPrintf(ARGS(albedoName), "%s_albedo", name);
+    if (texture_find(albedoName, albedoOut))
+    {
+        albedoExists = true;
+        texture_retain(*albedoOut);
+    }
+
+    bool romeExists = false;
+    bool romeAdded = false;
+    char romeName[PIM_PATH];
+    SPrintf(ARGS(romeName), "%s_rome", name);
+    if (texture_find(romeName, romeOut))
+    {
+        romeExists = true;
+        texture_retain(*romeOut);
+    }
+
+    bool normalExists = false;
+    bool normalAdded = false;
+    char normalName[PIM_PATH];
+    SPrintf(ARGS(normalName), "%s_normal", name);
+    if (texture_find(normalName, normalOut))
+    {
+        normalExists = true;
+        texture_retain(*normalOut);
+    }
+
+    const i32 len = size.x * size.y;
+    if (!albedoExists || !romeExists || !normalExists)
+    {
+        u32* pim_noalias albedo = perm_malloc(len * sizeof(albedo[0]));
+        u32* pim_noalias rome = perm_malloc(len * sizeof(rome[0]));
+        u32* pim_noalias normal = perm_malloc(len * sizeof(normal[0]));
+
+        float2* pim_noalias gray = perm_malloc(len * sizeof(gray[0]));
+
+        float2 min = f2_1;
+        float2 max = f2_0;
         for (i32 i = 0; i < len; ++i)
         {
-            u32 diffuseColor = tex.texels[i];
-            float4 diffuse = ColorToLinear(diffuseColor);
-            float4 albedo = DiffuseToAlbedo(diffuse);
-            u32 albedoColor = LinearToColor(albedo);
-            tex.texels[i] = albedoColor;
+            u32 color = DecodeTexel(bytes[i]);
+            float4 diffuse = ColorToLinear(color);
+            float4 linear = DiffuseToAlbedo(diffuse);
+            float2 grayscale = f2_v(f4_perlum(diffuse), f4_perlum(linear));
+            min = f2_min(min, grayscale);
+            max = f2_max(max, grayscale);
+
+            gray[i] = grayscale;
+            albedo[i] = LinearToColor(linear);
         }
-        return true;
-    }
-    return false;
-}
 
-pim_inline float VEC_CALL SampleLuma(texture_t tex, int2 c)
-{
-    return f4_perlum(Wrap_c32(tex.texels, tex.size, c));
-}
+        // TODO: make a node graph tool, setup some rules
+        // for surface properties for each texture.
+        for (i32 i = 0; i < len; ++i)
+        {
+            u8 encoded = bytes[i];
+            float2 grayscale = gray[i];
+            float2 t = f2_smoothstep(min, max, grayscale);
 
-bool texture_lumtonormal(textureid_t src, float scale, const char* name, textureid_t* idOut)
-{
-    if (texture_find(name, idOut))
-    {
-        texture_retain(*idOut);
-        return false;
-    }
+            float roughness;
+            float occlusion;
+            float metallic;
+            float emission;
+            if (isSky)
+            {
+                roughness = 1.0f;
+                occlusion = 0.0f;
+                metallic = 0.0f;
+                emission = 0.1f + 0.5f * t.y;
+            }
+            else
+            {
+                roughness = f1_lerp(1.0f, 0.9f, t.x);
+                occlusion = f1_lerp(0.9f, 1.0f, t.x);
+                metallic = 1.0f;
+                emission = DecodeEmission(encoded);
+            }
 
-    const float rcpScale = 1.0f / f1_max(scale, kEpsilon);
-    texture_t srcTex = { 0 };
-    if (texture_get(src, &srcTex))
-    {
-        int2 size = srcTex.size;
-        u32* texels = perm_malloc(size.x * size.y * sizeof(texels[0]));
+            rome[i] = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
+        }
+
         for (i32 y = 0; y < size.y; ++y)
         {
             for (i32 x = 0; x < size.x; ++x)
             {
                 i32 i = x + y * size.x;
-                int2 r = { x + 1, y };
-                int2 l = { x - 1, y };
-                int2 u = { x, y + 1 };
-                int2 d = { x, y - 1 };
+                float r = gray[Wrap(size, i2_v(x+1, y+0))].x;
+                float l = gray[Wrap(size, i2_v(x-1, y+0))].x;
+                float u = gray[Wrap(size, i2_v(x+0, y-1))].x;
+                float d = gray[Wrap(size, i2_v(x+0, y+1))].x;
 
-                float dx = SampleLuma(srcTex, r) - SampleLuma(srcTex, l);
-                float dy = SampleLuma(srcTex, u) - SampleLuma(srcTex, d);
-                float z = (1.0f - sqrtf(dx * dx + dy * dy)) * rcpScale;
+                r = f1_smoothstep(min.x, max.x, r);
+                l = f1_smoothstep(min.x, max.x, l);
+                u = f1_smoothstep(min.x, max.x, u);
+                d = f1_smoothstep(min.x, max.x, d);
+
+                float dx = r - l;
+                float dy = u - d;
+                float z = 2.0f;
                 float4 N = { dx, dy, z, 0.0f };
                 u32 n = f4_rgba8(f4_unorm(f4_normalize3(N)));
 
-                texels[i] = n;
+                normal[i] = n;
             }
         }
-        texture_t dstTex = { 0 };
-        dstTex.size = size;
-        dstTex.texels = texels;
-        return texture_new(&dstTex, name, idOut);
+
+        pim_free(gray);
+        gray = NULL;
+
+        texture_t albedoMap = { 0 };
+        albedoMap.size = size;
+        albedoMap.texels = albedo;
+        albedoAdded = texture_new(&albedoMap, albedoName, albedoOut);
+
+        texture_t romeMap = { 0 };
+        romeMap.size = size;
+        romeMap.texels = rome;
+        romeAdded = texture_new(&romeMap, romeName, romeOut);
+
+        texture_t normalMap = { 0 };
+        normalMap.size = size;
+        normalMap.texels = normal;
+        normalAdded = texture_new(&normalMap, normalName, normalOut);
     }
-    return false;
+
+    return albedoAdded && romeAdded && normalAdded;
 }
