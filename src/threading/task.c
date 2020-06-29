@@ -208,10 +208,6 @@ void task_sys_init(void)
     {
         ptrqueue_create(ms_queues + t, EAlloc_Perm, 32);
         thread_create(ms_threads + t, TaskLoop, (void*)((isize)t));
-
-        u64 affMask = 1;
-        affMask = affMask << t;
-        thread_set_aff(ms_threads + t, affMask);
     }
 }
 

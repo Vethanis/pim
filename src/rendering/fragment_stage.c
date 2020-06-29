@@ -85,7 +85,6 @@ static cvar_t cv_r_gi_diff = { cvart_bool, 0, "r_gi_diff", "0", "view GI diffuse
 static cvar_t cv_r_gi_spec = { cvart_bool, 0, "r_gi_spec", "0", "view GI specular" };
 static cvar_t cv_r_gi_pos = { cvart_bool, 0, "r_gi_pos", "0", "view GI position" };
 static cvar_t cv_r_gi_norm = { cvart_bool, 0, "r_gi_norm", "0", "view GI normal" };
-
 static cvar_t cv_r_lm_denoised = { cvart_bool, 0, "r_lm_denoised", "0", "use denoised lightmaps" };
 
 static bool ms_once;

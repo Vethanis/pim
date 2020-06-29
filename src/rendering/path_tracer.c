@@ -131,7 +131,7 @@ pim_inline RTCRay VEC_CALL RtcNewRay(ray_t ray, float tNear, float tFar)
     return rtcRay;
 }
 
-pim_inline RTCRayHit VEC_CALL RtcIntersect(
+static RTCRayHit VEC_CALL RtcIntersect(
     RTCScene scene,
     ray_t ray,
     float tNear,
@@ -148,7 +148,7 @@ pim_inline RTCRayHit VEC_CALL RtcIntersect(
     return rayHit;
 }
 
-pim_inline bool VEC_CALL RtcOccluded(
+static bool VEC_CALL RtcOccluded(
     RTCScene scene,
     ray_t ray,
     float tNear,

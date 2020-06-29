@@ -457,6 +457,9 @@
     <ClCompile Include="..\src\rendering\gi_grid.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\rtcdraw.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -971,6 +974,9 @@
     </ClInclude>
     <ClInclude Include="..\src\math\area.h">
       <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\rtcdraw.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

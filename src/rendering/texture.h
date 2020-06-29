@@ -21,6 +21,8 @@ void texture_sys_init(void);
 void texture_sys_update(void);
 void texture_sys_shutdown(void);
 
+void texture_sys_gui(bool* pEnabled);
+
 bool texture_load(const char* path, textureid_t* idOut);
 bool texture_new(texture_t* tex, const char* name, textureid_t* idOut);
 

@@ -262,23 +262,33 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         const mtexture_t* mtex = texinfo->texture;
 
         u32 flags = 0;
-        if (!StrIStr(ARGS(mtex->name), "light"))
+        if (StrIStr(ARGS(mtex->name), "light"))
         {
             flags |= matflag_emissive;
         }
-        if (!StrIStr(ARGS(mtex->name), "sky"))
+        if (StrIStr(ARGS(mtex->name), "sky"))
         {
             flags |= matflag_sky;
             flags |= matflag_emissive;
         }
-        if (!StrIStr(ARGS(mtex->name), "lava"))
+        if (StrIStr(ARGS(mtex->name), "lava"))
         {
             flags |= matflag_lava;
             flags |= matflag_emissive;
         }
-        if (!StrIStr(ARGS(mtex->name), "water"))
+        if (StrIStr(ARGS(mtex->name), "water"))
         {
             flags |= matflag_water;
+            flags |= matflag_animated;
+        }
+        if (StrIStr(ARGS(mtex->name), "teleport"))
+        {
+            flags |= matflag_emissive;
+            flags |= matflag_animated;
+        }
+        if (StrIStr(ARGS(mtex->name), "window"))
+        {
+            flags |= matflag_emissive;
         }
         if (mtex->name[0] == '*')
         {

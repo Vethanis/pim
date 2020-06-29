@@ -44,6 +44,7 @@
 #include "rendering/model.h"
 #include "rendering/lightmap.h"
 #include "rendering/denoise.h"
+#include "rendering/rtcdraw.h"
 
 #include "rendering/vulkan/vkr.h"
 
@@ -85,6 +86,7 @@ static TonemapId ms_tonemapper;
 static float4 ms_toneParams;
 static float4 ms_clearColor;
 
+static camera_t ms_ptcam;
 static pt_scene_t* ms_ptscene;
 static pt_trace_t ms_trace;
 
@@ -227,8 +229,13 @@ static bool PathTrace(void)
         camera_t camera;
         camera_get(&camera);
 
-        if (cvar_check_dirty(&cv_pt_trace))
+        bool dirty = false;
+        dirty |= cvar_check_dirty(&cv_pt_trace);
+        dirty |= memcmp(&camera, &ms_ptcam, sizeof(camera));
+
+        if (dirty)
         {
+            ms_ptcam = camera;
             ms_ptSampleCount = 0;
         }
 
@@ -308,9 +315,10 @@ static void Rasterize(void)
 
     ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
     drawables_trs();
-    drawables_bounds();
-    drawables_cull(&camera, backBuf);
-    drawables_fragment(frontBuf, backBuf);
+    //drawables_bounds();
+    //drawables_cull(&camera, backBuf);
+    //drawables_fragment(frontBuf, backBuf);
+    RtcDraw(frontBuf, &camera);
 
     ProfileEnd(pm_Rasterize);
 }
@@ -479,6 +487,8 @@ void render_sys_init(void)
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
 
     con_exec("mapload start");
+
+    RtcDrawInit();
 }
 
 ProfileMark(pm_update, render_sys_update)
@@ -510,7 +520,7 @@ void render_sys_update(void)
 
 void render_sys_shutdown(void)
 {
-    task_sys_schedule();
+    RtcDrawShutdown();
 
     pt_scene_del(ms_ptscene);
     ms_ptscene = NULL;

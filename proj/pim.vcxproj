@@ -76,6 +76,7 @@
     <ClCompile Include="..\src\rendering\model.c" />
     <ClCompile Include="..\src\rendering\path_tracer.c" />
     <ClCompile Include="..\src\rendering\resolve_tile.c" />
+    <ClCompile Include="..\src\rendering\rtcdraw.c" />
     <ClCompile Include="..\src\rendering\tonemap.c" />
     <ClCompile Include="..\src\rendering\vertex_stage.c" />
     <ClCompile Include="..\src\rendering\framebuffer.c" />
@@ -219,6 +220,7 @@
     <ClInclude Include="..\src\rendering\lights.h" />
     <ClInclude Include="..\src\rendering\path_tracer.h" />
     <ClInclude Include="..\src\rendering\resolve_tile.h" />
+    <ClInclude Include="..\src\rendering\rtcdraw.h" />
     <ClInclude Include="..\src\rendering\sampler.h" />
     <ClInclude Include="..\src\rendering\screenblit.h" />
     <ClInclude Include="..\src\rendering\texture.h" />
