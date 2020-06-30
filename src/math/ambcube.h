@@ -6,6 +6,8 @@
 
 PIM_C_BEGIN
 
+typedef struct pt_scene_s pt_scene_t;
+
 pim_inline float4 VEC_CALL AmbCube_Eval(AmbCube_t c, float4 dir)
 {
     bool4 face = f4_gtvs(dir, 0.0f);
@@ -60,7 +62,7 @@ pim_inline AmbCube_t VEC_CALL AmbCube_Fit(AmbCube_t c, float weight, float4 dir,
 }
 
 i32 AmbCube_Bake(
-    const struct pt_scene_s* scene,
+    pt_scene_t* scene,
     AmbCube_t* pCube,
     float4 origin,
     i32 samples,

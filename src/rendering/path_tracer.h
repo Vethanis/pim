@@ -55,11 +55,13 @@ typedef struct pt_scene_s
     // hyperparameters
     i32 rejectionSamples;
     float rejectionThreshold;
+    float3 sunDirection;
+    float sunIntensity;
 } pt_scene_t;
 
 typedef struct pt_trace_s
 {
-    const pt_scene_t* scene;
+    pt_scene_t* scene;
     const camera_t* camera;
     float3* color;
     float3* albedo;
@@ -92,7 +94,7 @@ pt_result_t VEC_CALL pt_trace_ray(
 void pt_trace(pt_trace_t* traceDesc);
 
 pt_results_t pt_raygen(
-    const pt_scene_t* scene,
+    pt_scene_t* scene,
     ray_t origin,
     pt_dist_t dist,
     i32 count);

@@ -3,7 +3,7 @@
 #include "math/float3_funcs.h"
 
 i32 AmbCube_Bake(
-    const struct pt_scene_s* scene,
+    pt_scene_t* scene,
     AmbCube_t* pCube,
     float4 origin,
     i32 samples,

@@ -18,21 +18,22 @@
 #include "math/frustum.h"
 #include "math/color.h"
 #include "math/lighting.h"
+#include "math/atmosphere.h"
 
 #include "allocator/allocator.h"
 #include "threading/task.h"
 #include "common/random.h"
 #include "common/profiler.h"
 #include "common/console.h"
+#include "common/cvar.h"
 
 #include <string.h>
-
-#define PIM_USE_RTC 1
 
 typedef enum
 {
     hit_nothing = 0,
     hit_triangle,
+    hit_sky,
 
     hit_COUNT
 } hittype_t;
@@ -83,6 +84,10 @@ typedef struct pt_raygen_s
 static bool ms_once;
 static RTCDevice ms_device;
 
+static cvar_t* cv_r_sun_az;
+static cvar_t* cv_r_sun_ze;
+static cvar_t* cv_r_sun_rad;
+
 static void OnRtcError(void* user, RTCError error, const char* msg)
 {
     if (error != RTC_ERROR_NONE)
@@ -109,6 +114,10 @@ static bool EnsureInit(void)
             return false;
         }
         rtc.SetDeviceErrorFunction(ms_device, OnRtcError, NULL);
+
+        cv_r_sun_az = cvar_find("r_sun_az");
+        cv_r_sun_ze = cvar_find("r_sun_ze");
+        cv_r_sun_rad = cvar_find("r_sun_rad");
     }
     return ms_device != NULL;
 }
@@ -248,6 +257,10 @@ static float EmissionPdf(
     i32 hits = 0;
     const i32 iMat = scene->matIds[iLight];
     const material_t mat = scene->materials[iMat];
+    if (mat.flags & matflag_sky)
+    {
+        return 1.0f;
+    }
     const float4 flatRome = ColorToLinear(mat.flatRome);
     texture_t romeMap = { 0 };
     if (texture_get(mat.rome, &romeMap))
@@ -282,11 +295,15 @@ static float4 VEC_CALL SelectEmissiveCoord(
     prng_t* rng,
     i32 iLight)
 {
+    float4 wuv = SampleBaryCoord(rng);
     const i32 iMat = scene->matIds[iLight];
     const material_t mat = scene->materials[iMat];
+    if (mat.flags & matflag_sky)
+    {
+        return wuv;
+    }
     const float4 flatRome = ColorToLinear(mat.flatRome);
     texture_t romeMap = { 0 };
-    float4 wuv = SampleBaryCoord(rng);
     if (texture_get(mat.rome, &romeMap))
     {
         float2 UA = scene->uvs[iLight + 0];
@@ -444,6 +461,18 @@ static void SetupEmissives(pt_scene_t* scene)
     scene->emPdfs = emPdfs;
 }
 
+static void UpdateSun(pt_scene_t* scene)
+{
+    float azimuth = cv_r_sun_az ? f1_sat(cv_r_sun_az->asFloat) : 0.0f;
+    float zenith = cv_r_sun_ze ? f1_sat(cv_r_sun_ze->asFloat) : 0.5f;
+    float irradiance = cv_r_sun_rad ? cv_r_sun_rad->asFloat : 100.0f;
+    const float4 kUp = { 0.0f, 1.0f, 0.0f, 0.0f };
+
+    float4 sunDir = TanToWorld(kUp, SampleUnitSphere(f2_v(zenith, azimuth)));
+    scene->sunDirection = f4_f3(sunDir);
+    scene->sunIntensity = irradiance;
+}
+
 pt_scene_t* pt_scene_new(i32 maxDepth, i32 rejectionSamples, float rejectionThreshold)
 {
     if (!EnsureInit())
@@ -454,6 +483,7 @@ pt_scene_t* pt_scene_new(i32 maxDepth, i32 rejectionSamples, float rejectionThre
     pt_scene_t* scene = perm_calloc(sizeof(*scene));
     scene->rejectionSamples = rejectionSamples;
     scene->rejectionThreshold = rejectionThreshold;
+    UpdateSun(scene);
 
     FlattenDrawables(scene);
     SetupEmissives(scene);
@@ -486,40 +516,6 @@ void pt_scene_del(pt_scene_t* scene)
         memset(scene, 0, sizeof(*scene));
         pim_free(scene);
     }
-}
-
-static rayhit_t VEC_CALL TraceRay(
-    const pt_scene_t* scene,
-    ray_t ray,
-    float tFar)
-{
-    rayhit_t hit = { 0 };
-    hit.wuvt.w = tFar;
-
-    RTCRayHit rtcHit = RtcIntersect(scene->rtcScene, ray, kMillimeter, tFar);
-    bool hitNothing =
-        (rtcHit.hit.geomID == RTC_INVALID_GEOMETRY_ID) ||
-        (rtcHit.ray.tfar <= 0.0f);
-    if (hitNothing)
-    {
-        hit.index = -1;
-        hit.type = hit_nothing;
-        return hit;
-    }
-    ASSERT(rtcHit.hit.primID != RTC_INVALID_GEOMETRY_ID);
-    i32 iVert = rtcHit.hit.primID * 3;
-    ASSERT(iVert >= 0);
-    ASSERT(iVert < scene->vertCount);
-    float u = rtcHit.hit.u;
-    float v = rtcHit.hit.v;
-    float w = 1.0f - (u + v);
-    float t = rtcHit.ray.tfar;
-
-    hit.type = hit_triangle;
-    hit.wuvt = f4_v(w, u, v, t);
-    hit.index = iVert;
-
-    return hit;
 }
 
 pim_inline float4 VEC_CALL GetVert4(
@@ -558,27 +554,78 @@ pim_inline const material_t* VEC_CALL GetMaterial(
 static surfhit_t VEC_CALL GetSurface(
     const pt_scene_t* scene,
     ray_t rin,
-    rayhit_t hit)
+    rayhit_t hit,
+    i32 bounce)
 {
     surfhit_t surf = { 0 };
 
     ASSERT(hit.type == hit_triangle);
     ASSERT(hit.index < scene->vertCount);
     const material_t* mat = GetMaterial(scene, hit);
-    float2 uv = GetVert2(scene->uvs, hit);
-    surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
-    float4 Nws = f4_normalize3(GetVert4(scene->normals, hit));
-    surf.N = TanToWorld(Nws, material_normal(mat, uv));
-    surf.P = f4_add(surf.P, f4_mulvs(Nws, kMillimeter));
-    float4 albedo = material_albedo(mat, uv);
-    float4 rome = material_rome(mat, uv);
-    surf.albedo = albedo;
-    surf.roughness = rome.x;
-    surf.occlusion = rome.y;
-    surf.metallic = rome.z;
-    surf.emission = UnpackEmission(albedo, rome.w);
+
+    if (hit.type == hit_sky)
+    {
+        if (bounce == 0)
+        {
+            surf.emission = f3_f4(EarthAtmosphere(f4_f3(rin.ro), f4_f3(rin.rd), scene->sunDirection, scene->sunIntensity), 0.0f);
+        }
+    }
+    else
+    {
+        float2 uv = GetVert2(scene->uvs, hit);
+        surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
+        float4 Nws = f4_normalize3(GetVert4(scene->normals, hit));
+        surf.N = TanToWorld(Nws, material_normal(mat, uv));
+        surf.P = f4_add(surf.P, f4_mulvs(Nws, kMillimeter));
+        float4 albedo = material_albedo(mat, uv);
+        float4 rome = material_rome(mat, uv);
+        surf.albedo = albedo;
+        surf.roughness = rome.x;
+        surf.occlusion = rome.y;
+        surf.metallic = rome.z;
+        surf.emission = UnpackEmission(albedo, rome.w);
+    }
 
     return surf;
+}
+
+static rayhit_t VEC_CALL TraceRay(
+    const pt_scene_t* scene,
+    ray_t ray,
+    float tFar)
+{
+    rayhit_t hit = { 0 };
+    hit.wuvt.w = tFar;
+
+    RTCRayHit rtcHit = RtcIntersect(scene->rtcScene, ray, kMillimeter, tFar);
+    bool hitNothing =
+        (rtcHit.hit.geomID == RTC_INVALID_GEOMETRY_ID) ||
+        (rtcHit.ray.tfar <= 0.0f);
+    if (hitNothing)
+    {
+        hit.index = -1;
+        hit.type = hit_nothing;
+        return hit;
+    }
+    ASSERT(rtcHit.hit.primID != RTC_INVALID_GEOMETRY_ID);
+    i32 iVert = rtcHit.hit.primID * 3;
+    ASSERT(iVert >= 0);
+    ASSERT(iVert < scene->vertCount);
+    float u = rtcHit.hit.u;
+    float v = rtcHit.hit.v;
+    float w = 1.0f - (u + v);
+    float t = rtcHit.ray.tfar;
+
+    hit.type = hit_triangle;
+    hit.wuvt = f4_v(w, u, v, t);
+    hit.index = iVert;
+
+    if (GetMaterial(scene, hit)->flags & matflag_sky)
+    {
+        hit.type = hit_sky;
+    }
+
+    return hit;
 }
 
 pim_inline float4 VEC_CALL SampleSpecular(
@@ -782,10 +829,14 @@ static bool LightSelect(
     return false;
 }
 
-static float4 VEC_CALL LightRad(const pt_scene_t* scene, i32 iLight, float4 wuv)
+static float4 VEC_CALL LightRad(const pt_scene_t* scene, i32 iLight, float4 wuv, float4 P, float4 L)
 {
     i32 iMat = scene->matIds[iLight];
     const material_t mat = scene->materials[iMat];
+    if (mat.flags & matflag_sky)
+    {
+        return f3_f4(EarthAtmosphere(f4_f3(P), f4_f3(L), scene->sunDirection, scene->sunIntensity), 0.0f);
+    }
     float4 albedo = ColorToLinear(mat.flatAlbedo);
     float4 rome = ColorToLinear(mat.flatRome);
     texture_t albedoMap = { 0 };
@@ -806,12 +857,10 @@ static float4 VEC_CALL LightSample(
     const pt_scene_t* scene,
     prng_t* rng,
     const surfhit_t* surf,
-    i32 iLight,
-    float4* wuvOut)
+    i32 iLight)
 {
     float4 wuv = SelectEmissiveCoord(scene, rng, iLight);
 
-    *wuvOut = wuv;
     float4 A = scene->positions[iLight + 0];
     float4 B = scene->positions[iLight + 1];
     float4 C = scene->positions[iLight + 2];
@@ -851,77 +900,6 @@ static float VEC_CALL LightEvalPdf(
     return pdf;
 }
 
-static scatter_t VEC_CALL LightScatter(
-    const pt_scene_t* scene,
-    prng_t* rng,
-    const surfhit_t* surf,
-    const rayhit_t* hit,
-    i32 iLight,
-    float4 I)
-{
-    scatter_t result = { 0 };
-    if (hit->index != iLight)
-    {
-        float4 wuv;
-        float4 L = LightSample(scene, rng, surf, iLight, &wuv);
-        float lightPdf = LightEvalPdf(scene, rng, surf, iLight, &wuv, L);
-        float4 irradiance = f4_0;
-        float4 attenuation = f4_0;
-        if (lightPdf > kEpsilon)
-        {
-            irradiance = LightRad(scene, iLight, wuv);
-            attenuation = BrdfEval(I, surf, L);
-        }
-        result.dir = L;
-        result.pdf = lightPdf;
-        result.attenuation = attenuation;
-        result.irradiance = irradiance;
-    }
-    return result;
-}
-
-// scatter along brdf or towards a light
-static scatter_t VEC_CALL MIScatter(
-    const pt_scene_t* scene,
-    prng_t* rng,
-    const surfhit_t* surf,
-    const rayhit_t* hit,
-    float4 I)
-{
-    scatter_t result = { 0 };
-
-    float lightPdfWeight;
-    i32 iLight;
-    if (!LightSelect(scene, rng, &iLight, &lightPdfWeight))
-    {
-        return BrdfScatter(rng, surf, I);
-    }
-
-    if (prng_bool(rng))
-    {
-        result = BrdfScatter(rng, surf, I);
-        float4 wuv;
-        float lightPdf = LightEvalPdf(scene, rng, surf, iLight, &wuv, result.dir);
-        lightPdf *= lightPdfWeight;
-        float weight = PowerHeuristic(1, result.pdf, 1, lightPdf);
-        result.attenuation = f4_mulvs(result.attenuation, weight);
-        if (lightPdf > kEpsilon)
-        {
-            result.irradiance = LightRad(scene, iLight, wuv);
-        }
-    }
-    else
-    {
-        result = LightScatter(scene, rng, surf, hit, iLight, I);
-        result.pdf *= lightPdfWeight;
-        float brdfPdf = BrdfEvalPdf(I, surf, result.dir);
-        float weight = PowerHeuristic(1, result.pdf, 1, brdfPdf);
-        result.attenuation = f4_mulvs(result.attenuation, weight);
-    }
-
-    return result;
-}
-
 static float4 VEC_CALL EstimateDirect(
     const pt_scene_t* scene,
     prng_t* rng,
@@ -930,27 +908,23 @@ static float4 VEC_CALL EstimateDirect(
     i32 iLight,
     float4 I)
 {
-    float4 direct = f4_0;
-
+    float4 L = LightSample(scene, rng, surf, iLight);
+    float4 wuv;
+    float lightPdf = LightEvalPdf(scene, rng, surf, iLight, &wuv, L);
+    if (lightPdf > kEpsilon)
     {
-        // sample a light direction against the brdf
-        scatter_t scatter = LightScatter(scene, rng, surf, hit, iLight, I);
-        if (scatter.pdf > kEpsilon)
+        float brdfPdf = BrdfEvalPdf(I, surf, L);
+        if (brdfPdf > kEpsilon)
         {
-            float brdfPdf = BrdfEvalPdf(I, surf, scatter.dir);
-            if (brdfPdf > kEpsilon)
-            {
-                float weight = PowerHeuristic(1, scatter.pdf, 1, brdfPdf);
-                scatter.attenuation = f4_mulvs(scatter.attenuation, weight);
-                float4 Li = f4_divvs(
-                    f4_mul(scatter.irradiance, scatter.attenuation),
-                    scatter.pdf);
-                direct = f4_add(direct, Li);
-            }
+            float weight = PowerHeuristic(1, lightPdf, 1, brdfPdf);
+            float4 attenuation = BrdfEval(I, surf, L);
+            attenuation = f4_mulvs(attenuation, weight);
+            float4 irradiance = LightRad(scene, iLight, wuv, surf->P, L);
+            float4 Li = f4_divvs(f4_mul(irradiance, attenuation), lightPdf);
+            return Li;
         }
     }
-
-    return direct;
+    return f4_0;
 }
 
 static float4 VEC_CALL SampleLights(
@@ -988,7 +962,7 @@ static float4 VEC_CALL pt_trace_albedo(
     rayhit_t hit = TraceRay(scene, ray, 1 << 20);
     if (hit.type != hit_nothing)
     {
-        surfhit_t surf = GetSurface(scene, ray, hit);
+        surfhit_t surf = GetSurface(scene, ray, hit, 0);
         return surf.albedo;
     }
     return f4_0;
@@ -1012,11 +986,21 @@ pt_result_t VEC_CALL pt_trace_ray(
             break;
         }
 
-        surfhit_t surf = GetSurface(scene, ray, hit);
+        surfhit_t surf = GetSurface(scene, ray, hit, b);
         if (b == 0)
         {
             albedo = surf.albedo;
             normal = surf.N;
+        }
+
+        if (hit.type == hit_sky)
+        {
+            light = f4_add(light, f4_mul(surf.emission, attenuation));
+            break;
+        }
+
+        if (b == 0)
+        {
             light = f4_add(light, f4_mul(surf.emission, attenuation));
         }
 
@@ -1116,6 +1100,8 @@ void pt_trace(pt_trace_t* desc)
     ASSERT(desc->albedo);
     ASSERT(desc->normal);
 
+    UpdateSun(desc->scene);
+
     trace_task_t* task = tmp_calloc(sizeof(*task));
     task->trace = *desc;
     task->camera = desc->camera[0];
@@ -1165,7 +1151,7 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
 
 ProfileMark(pm_raygen, pt_raygen)
 pt_results_t pt_raygen(
-    const pt_scene_t* scene,
+    pt_scene_t* scene,
     ray_t origin,
     pt_dist_t dist,
     i32 count)
@@ -1174,6 +1160,8 @@ pt_results_t pt_raygen(
 
     ASSERT(scene);
     ASSERT(count >= 0);
+
+    UpdateSun(scene);
 
     pt_raygen_t* task = tmp_calloc(sizeof(*task));
     task->scene = scene;

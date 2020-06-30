@@ -6,6 +6,7 @@
 #include "math/lighting.h"
 #include "math/frustum.h"
 #include "math/sampling.h"
+#include "math/atmosphere.h"
 
 #include "rendering/framebuffer.h"
 #include "rendering/sampler.h"
@@ -32,9 +33,14 @@ typedef struct drawhash_s
     u64 scales;
 } drawhash_t;
 
+static cvar_t cv_r_sun_az = { cvart_float, 0, "r_sun_az", "0.75", "Sun Direction Azimuth" };
+static cvar_t cv_r_sun_ze = { cvart_float, 0, "r_sun_ze", "0.666f", "Sun Direction Zenith" };
+static cvar_t cv_r_sun_rad = { cvart_float, 0, "r_sun_rad", "300", "Sun Irradiance" };
+
 static RTCDevice ms_device;
 static RTCScene ms_scene;
 static drawhash_t ms_hash;
+static float4 ms_sunDir;
 
 static drawhash_t HashDrawables(void);
 static RTCScene CreateScene(void);
@@ -51,6 +57,10 @@ static void DrawScene(framebuf_t* target, const camera_t* camera, RTCScene scene
 
 void RtcDrawInit(void)
 {
+    cvar_reg(&cv_r_sun_az);
+    cvar_reg(&cv_r_sun_ze);
+    cvar_reg(&cv_r_sun_rad);
+
     if (rtc_init())
     {
         ms_device = rtc.NewDevice(NULL);
@@ -144,6 +154,12 @@ static void UpdateScene(void)
         rtc.ReleaseScene(ms_scene);
         ms_scene = CreateScene();
     }
+
+    float azimuth = f1_sat(cv_r_sun_az.asFloat);
+    float zenith = f1_sat(cv_r_sun_ze.asFloat);
+    ms_sunDir = TanToWorld(
+        f4_v(0.0f, 1.0f, 0.0f, 0.0f),
+        SampleUnitSphere(f2_v(zenith, azimuth)));
 }
 
 static bool AddDrawable(
@@ -159,13 +175,15 @@ static bool AddDrawable(
     ASSERT(device);
     ASSERT(scene);
 
+    RTCGeometry geom = NULL;
+
     mesh_t mesh = { 0 };
     if (!mesh_get(meshid, &mesh))
     {
         goto onfail;
     }
 
-    RTCGeometry geom = rtc.NewGeometry(device, RTC_GEOMETRY_TYPE_TRIANGLE);
+    geom = rtc.NewGeometry(device, RTC_GEOMETRY_TYPE_TRIANGLE);
     ASSERT(geom);
     if (!geom)
     {
@@ -175,7 +193,7 @@ static bool AddDrawable(
     const i32 vertCount = mesh.length;
     const i32 triCount = vertCount / 3;
 
-    float3* pim_noalias dstPositions = rtc.SetNewGeometryBuffer(
+    float3* dstPositions = rtc.SetNewGeometryBuffer(
         geom,
         RTC_BUFFER_TYPE_VERTEX,
         0,
@@ -189,7 +207,7 @@ static bool AddDrawable(
     }
 
     float4x4 M = f4x4_trs(translation, rotation, scale);
-    const float4* pim_noalias srcPositions = mesh.positions;
+    const float4* srcPositions = mesh.positions;
     for (i32 i = 0; i < vertCount; ++i)
     {
         float4 position = f4x4_mul_pt(M, srcPositions[i]);
@@ -197,7 +215,7 @@ static bool AddDrawable(
     }
 
     // kind of wasteful
-    i32* pim_noalias dstIndices = rtc.SetNewGeometryBuffer(
+    i32* dstIndices = rtc.SetNewGeometryBuffer(
         geom,
         RTC_BUFFER_TYPE_INDEX,
         0,
@@ -395,6 +413,17 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
 
         float3x3 IM = f3x3_IM(matrices[hit.iDrawable]);
         material_t material = materials[hit.iDrawable];
+
+        if (material.flags & matflag_sky)
+        {
+            float3 atmos = EarthAtmosphere(
+                f4_f3(ro),
+                f4_f3(rd),
+                f4_f3(ms_sunDir),
+                cv_r_sun_rad.asFloat);
+            dstLight[i] = f3_f4(atmos, 1.0f);
+            continue;
+        }
 
         const i32 a = hit.iVert + 0;
         const i32 b = hit.iVert + 1;
