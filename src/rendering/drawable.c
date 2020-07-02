@@ -31,6 +31,7 @@ i32 drawables_add(u32 name)
     PermGrow(ms_drawables.bounds, len);
     PermGrow(ms_drawables.tileMasks, len);
     PermGrow(ms_drawables.matrices, len);
+    PermGrow(ms_drawables.invMatrices, len);
     PermGrow(ms_drawables.translations, len);
     PermGrow(ms_drawables.rotations, len);
     PermGrow(ms_drawables.scales, len);
@@ -40,6 +41,7 @@ i32 drawables_add(u32 name)
     ms_drawables.scales[back] = f4_1;
     ms_drawables.rotations[back] = quat_id;
     ms_drawables.matrices[back] = f4x4_id;
+    ms_drawables.invMatrices[back] = f3x3_id;
 
     return back;
 }
@@ -71,6 +73,7 @@ static void RemoveAtIndex(i32 i)
     PopSwap(ms_drawables.bounds, i, len);
     PopSwap(ms_drawables.tileMasks, i, len);
     PopSwap(ms_drawables.matrices, i, len);
+    PopSwap(ms_drawables.invMatrices, i, len);
     PopSwap(ms_drawables.translations, i, len);
     PopSwap(ms_drawables.rotations, i, len);
     PopSwap(ms_drawables.scales, i, len);
@@ -114,10 +117,12 @@ static void TRSFn(task_t* pBase, i32 begin, i32 end)
     const quat* pim_noalias rotations = ms_drawables.rotations;
     const float4* pim_noalias scales = ms_drawables.scales;
     float4x4* pim_noalias matrices = ms_drawables.matrices;
+    float3x3* pim_noalias invMatrices = ms_drawables.invMatrices;
 
     for (i32 i = begin; i < end; ++i)
     {
         matrices[i] = f4x4_trs(translations[i], rotations[i], scales[i]);
+        invMatrices[i] = f3x3_IM(matrices[i]);
     }
 }
 

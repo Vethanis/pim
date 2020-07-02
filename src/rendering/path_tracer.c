@@ -236,6 +236,26 @@ static RTCScene RtcNewScene(const pt_scene_t* scene)
     return rtcScene;
 }
 
+#define rngseq_len 4096
+
+typedef struct rngseq_s
+{
+    float2 jit;
+    i32 cur;
+} rngseq_t;
+
+pim_inline float2 VEC_CALL rngseq_next(prng_t* pim_noalias rng, rngseq_t* pim_noalias seq)
+{
+    i32 c = seq->cur++ & (rngseq_len - 1);
+    if (c == 0)
+    {
+        seq->jit = f2_rand(rng);
+    }
+    // de-corrolates brdf samples
+    c = prng_i32(rng) & (rngseq_len - 1);
+    return f2_frac(f2_add(seq->jit, Hammersley2D(c, rngseq_len)));
+}
+
 pim_inline float4 VEC_CALL SampleBaryCoord(prng_t* rng)
 {
     float4 wuv = f4_0;
@@ -473,7 +493,7 @@ static void UpdateSun(pt_scene_t* scene)
     scene->sunIntensity = irradiance;
 }
 
-pt_scene_t* pt_scene_new(i32 maxDepth, i32 rejectionSamples, float rejectionThreshold)
+pt_scene_t* pt_scene_new(i32 maxDepth, i32 rejectionSamples)
 {
     if (!EnsureInit())
     {
@@ -482,7 +502,6 @@ pt_scene_t* pt_scene_new(i32 maxDepth, i32 rejectionSamples, float rejectionThre
 
     pt_scene_t* scene = perm_calloc(sizeof(*scene));
     scene->rejectionSamples = rejectionSamples;
-    scene->rejectionThreshold = rejectionThreshold;
     UpdateSun(scene);
 
     FlattenDrawables(scene);
@@ -567,6 +586,8 @@ static surfhit_t VEC_CALL GetSurface(
     {
         if (bounce == 0)
         {
+            // only 0th bounce accesses emission from surfhit
+            // later bounces use EstimateDirect
             surf.emission = f3_f4(EarthAtmosphere(f4_f3(rin.ro), f4_f3(rin.rd), scene->sunDirection, scene->sunIntensity), 0.0f);
         }
     }
@@ -576,7 +597,6 @@ static surfhit_t VEC_CALL GetSurface(
         surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
         float4 Nws = f4_normalize3(GetVert4(scene->normals, hit));
         surf.N = TanToWorld(Nws, material_normal(mat, uv));
-        surf.P = f4_add(surf.P, f4_mulvs(Nws, kMillimeter));
         float4 albedo = material_albedo(mat, uv);
         float4 rome = material_rome(mat, uv);
         surf.albedo = albedo;
@@ -597,7 +617,7 @@ static rayhit_t VEC_CALL TraceRay(
     rayhit_t hit = { 0 };
     hit.wuvt.w = tFar;
 
-    RTCRayHit rtcHit = RtcIntersect(scene->rtcScene, ray, kMillimeter, tFar);
+    RTCRayHit rtcHit = RtcIntersect(scene->rtcScene, ray, kMicrometer, tFar);
     bool hitNothing =
         (rtcHit.hit.geomID == RTC_INVALID_GEOMETRY_ID) ||
         (rtcHit.ray.tfar <= 0.0f);
@@ -628,20 +648,24 @@ static rayhit_t VEC_CALL TraceRay(
     return hit;
 }
 
+static rngseq_t rngseq_SampleSpecular[kNumThreads];
 pim_inline float4 VEC_CALL SampleSpecular(
     prng_t* rng,
     float4 I,
     float4 N,
     float alpha)
 {
-    float4 H = TanToWorld(N, SampleGGXMicrofacet(f2_rand(rng), alpha));
+    float2 Xi = rngseq_next(rng, rngseq_SampleSpecular + task_thread_id());
+    float4 H = TanToWorld(N, SampleGGXMicrofacet(Xi, alpha));
     float4 L = f4_normalize3(f4_reflect3(I, H));
     return L;
 }
 
+static rngseq_t rngseq_SampleDiffuse[kNumThreads];
 pim_inline float4 VEC_CALL SampleDiffuse(prng_t* rng, float4 N)
 {
-    float4 L = TanToWorld(N, SampleCosineHemisphere(f2_rand(rng)));
+    float2 Xi = rngseq_next(rng, rngseq_SampleDiffuse + task_thread_id());
+    float4 L = TanToWorld(N, SampleCosineHemisphere(Xi));
     return L;
 }
 
@@ -894,7 +918,7 @@ static float VEC_CALL LightEvalPdf(
     area *= 0.5f;
 
     float t = hit.wuvt.w;
-    float cosTheta = f1_abs(f4_dot3(N, L));
+    float cosTheta = f4_dotsat(N, f4_neg(L));
     float pdf = LightPdf(area, cosTheta, t * t);
 
     return pdf;
@@ -935,7 +959,7 @@ static float4 VEC_CALL SampleLights(
     float4 I)
 {
     float4 light = f4_0;
-    const i32 kLightSamples = 5;
+    const i32 kLightSamples = 3;
     i32 iLight;
     float lightPdfWeight;
     for (i32 i = 0; i < kLightSamples; ++i)
@@ -1042,6 +1066,12 @@ pt_result_t VEC_CALL pt_trace_ray(
     return result;
 }
 
+pim_inline float3 VEC_CALL KillFireflies(float3 x)
+{
+    float lum = f3_hmax(x);
+    return f3_divvs(x, 1.0f + (lum / 1000.0f));
+}
+
 static void TraceFn(task_t* pbase, i32 begin, i32 end)
 {
     trace_task_t* task = (trace_task_t*)pbase;
@@ -1079,6 +1109,7 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
         float4 rd = proj_dir(right, up, fwd, slope, uv);
         ray_t ray = { ro, rd };
         pt_result_t result = pt_trace_ray(&rng, scene, ray);
+        result.color = KillFireflies(result.color);
         color[i] = f3_lerp(color[i], result.color, sampleWeight);
         albedo[i] = f3_lerp(albedo[i], result.albedo, sampleWeight);
         normal[i] = f3_lerp(normal[i], result.normal, sampleWeight);

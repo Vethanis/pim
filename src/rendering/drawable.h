@@ -22,6 +22,7 @@ typedef struct drawables_s
     sphere_t* bounds;       // world space bounds
     u64* tileMasks;         // bitmask of tile visibility
     float4x4* matrices;     // local to world matrix
+    float3x3* invMatrices;  // world to local rotation matrix
     float4* translations;
     quat* rotations;
     float4* scales;

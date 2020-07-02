@@ -14,8 +14,81 @@ typedef struct resolve_s
     task_t task;
     float4 toneParams;
     framebuf_t* target;
-    TonemapFn tonemapper;
+    TonemapId tmapId;
 } resolve_t;
+
+pim_inline float4 VEC_CALL f4_dither(prng_t* rng, float4 x)
+{
+    return f4_lerpvs(x, f4_rand(rng), 1.0f / 255.0f);
+}
+
+pim_inline u32 VEC_CALL ToColor(prng_t* rng, float4 linear)
+{
+    float4 srgb = f4_tosrgb(linear);
+    srgb = f4_dither(rng, srgb);
+    u32 color = f4_rgba8(srgb);
+    return color;
+}
+
+static void VEC_CALL ResolveReinhard(i32 begin, i32 end, framebuf_t* target)
+{
+    float4* pim_noalias light = target->light;
+    u32* pim_noalias color = target->color;
+    prng_t rng = prng_get();
+    for (i32 i = begin; i < end; ++i)
+    {
+        color[i] = ToColor(&rng, tmap4_reinhard(light[i]));
+    }
+    prng_set(rng);
+}
+
+static void VEC_CALL ResolveUncharted2(i32 begin, i32 end, framebuf_t* target)
+{
+    float4* pim_noalias light = target->light;
+    u32* pim_noalias color = target->color;
+    prng_t rng = prng_get();
+    for (i32 i = begin; i < end; ++i)
+    {
+        color[i] = ToColor(&rng, tmap4_uchart2(light[i]));
+    }
+    prng_set(rng);
+}
+
+static void VEC_CALL ResolveHable(i32 begin, i32 end, framebuf_t* target, float4 params)
+{
+    float4* pim_noalias light = target->light;
+    u32* pim_noalias color = target->color;
+    prng_t rng = prng_get();
+    for (i32 i = begin; i < end; ++i)
+    {
+        color[i] = ToColor(&rng, tmap4_hable(light[i], params));
+    }
+    prng_set(rng);
+}
+
+static void VEC_CALL ResolveFilmic(i32 begin, i32 end, framebuf_t* target)
+{
+    float4* pim_noalias light = target->light;
+    u32* pim_noalias color = target->color;
+    prng_t rng = prng_get();
+    for (i32 i = begin; i < end; ++i)
+    {
+        color[i] = ToColor(&rng, tmap4_filmic(light[i]));
+    }
+    prng_set(rng);
+}
+
+static void VEC_CALL ResolveACES(i32 begin, i32 end, framebuf_t* target)
+{
+    float4* pim_noalias light = target->light;
+    u32* pim_noalias color = target->color;
+    prng_t rng = prng_get();
+    for (i32 i = begin; i < end; ++i)
+    {
+        color[i] = ToColor(&rng, tmap4_aces(light[i]));
+    }
+    prng_set(rng);
+}
 
 pim_optimize
 static void ResolveTileFn(task_t* task, i32 begin, i32 end)
@@ -23,45 +96,42 @@ static void ResolveTileFn(task_t* task, i32 begin, i32 end)
     resolve_t* resolve = (resolve_t*)task;
 
     framebuf_t* target = resolve->target;
-    float4* pim_noalias light = target->light;
-    u32* pim_noalias color = target->color;
+    const float4 params = resolve->toneParams;
+    const TonemapId id = resolve->tmapId;
 
-    const float4 tmapParams = resolve->toneParams;
-    const TonemapFn tmap = resolve->tonemapper;
-
-    const float kDitherScale = 1.0f / 255.0f;
-    prng_t rng = prng_get();
-
-    for (i32 iTile = begin; iTile < end; ++iTile)
+    switch (id)
     {
-        const int2 tile = GetTile(iTile);
-        for (i32 ty = 0; ty < kTileHeight; ++ty)
-        {
-            for (i32 tx = 0; tx < kTileWidth; ++tx)
-            {
-                i32 i = IndexTile(tile, kDrawWidth, tx, ty);
-                float4 ldr = tmap(light[i], tmapParams);
-                float4 srgb = f4_tosrgb(ldr);
-                srgb = f4_lerpvs(srgb, f4_rand(&rng), kDitherScale);
-                color[i] = f4_rgba8(srgb);
-            }
-        }
+        default:
+        case TMap_Reinhard:
+        ResolveReinhard(begin, end, target);
+        break;
+        case TMap_Uncharted2:
+        ResolveUncharted2(begin, end, target);
+        break;
+        case TMap_Hable:
+        ResolveHable(begin, end, target, params);
+        break;
+        case TMap_Filmic:
+        ResolveFilmic(begin, end, target);
+        break;
+        case TMap_ACES:
+        ResolveACES(begin, end, target);
+        break;
     }
 
-    prng_set(rng);
 }
 
 ProfileMark(pm_ResolveTile, ResolveTile)
-void ResolveTile(framebuf_t* target, TonemapId tonemapper, float4 toneParams)
+void ResolveTile(framebuf_t* target, TonemapId tmapId, float4 toneParams)
 {
     ProfileBegin(pm_ResolveTile);
 
     ASSERT(target);
     resolve_t* task = tmp_calloc(sizeof(*task));
     task->target = target;
-    task->tonemapper = Tonemap_GetFunc(tonemapper);
+    task->tmapId = tmapId;
     task->toneParams = toneParams;
-    task_run(&task->task, ResolveTileFn, kTileCount);
+    task_run(&task->task, ResolveTileFn, target->width * target->height);
 
     ProfileEnd(pm_ResolveTile);
 }

@@ -123,11 +123,8 @@ pim_inline float2 VEC_CALL MapSquareToDisk(float2 Xi)
     return f2_v(r * cosf(phi), r * sinf(phi));
 }
 
-// samples unit sphere with N = (0, 0, 1)
-pim_inline float4 VEC_CALL SampleUnitSphere(float2 Xi)
+pim_inline float4 VEC_CALL SphericalToCartesian(float cosTheta, float phi)
 {
-    float phi = kTau * Xi.y;
-    float cosTheta = Xi.x * 2.0f - 1.0f;
     float sinTheta = sqrtf(f1_max(0.0f, 1.0f - cosTheta * cosTheta));
     float x = sinTheta * cosf(phi);
     float y = sinTheta * sinf(phi);
@@ -135,16 +132,20 @@ pim_inline float4 VEC_CALL SampleUnitSphere(float2 Xi)
     return f4_normalize3(dir);
 }
 
+// samples unit sphere with N = (0, 0, 1)
+pim_inline float4 VEC_CALL SampleUnitSphere(float2 Xi)
+{
+    float phi = kTau * Xi.x;
+    float cosTheta = Xi.y * 2.0f - 1.0f;
+    return SphericalToCartesian(cosTheta, phi);
+}
+
 // samples unit hemisphere with N = (0, 0, 1)
 pim_inline float4 VEC_CALL SampleUnitHemisphere(float2 Xi)
 {
-    float phi = kTau * Xi.y;
-    float cosTheta = Xi.x;
-    float sinTheta = sqrtf(f1_max(0.0f, 1.0f - cosTheta * cosTheta));
-    float x = sinTheta * cosf(phi);
-    float y = sinTheta * sinf(phi);
-    float4 dir = { x, y, cosTheta, 0.0f };
-    return f4_normalize3(dir);
+    float phi = kTau * Xi.x;
+    float cosTheta = Xi.y;
+    return SphericalToCartesian(cosTheta, phi);
 }
 
 pim_inline float4 VEC_CALL SamplePointOnSphere(
@@ -155,6 +156,29 @@ pim_inline float4 VEC_CALL SamplePointOnSphere(
     float4 N = SampleUnitSphere(Xi);
     float4 P = f4_add(center, f4_mulvs(N, radius));
     return P;
+}
+
+pim_inline float4 VEC_CALL SampleSphereSolidAngle(
+    float2 Xi,
+    float4 center,
+    float radius,
+    float4 ro)
+{
+    float4 rd = f4_sub(center, ro);
+    float dist = f4_length3(rd);
+    dist = f1_max(dist, kCentimeter);
+    rd = f4_divvs(rd, dist);
+    float sinTheta0 = radius / dist;
+    float cosTheta0 = sqrtf(f1_max(0.0f, 1.0f - sinTheta0 * sinTheta0));
+
+    float cosTheta1 = 1.0f - Xi.y + Xi.y * cosTheta0;
+    float phi = kTau * Xi.x;
+    float4 dirTs = SphericalToCartesian(cosTheta1, phi);
+    float4 dirWs = TanToWorld(f4_neg(rd), dirTs);
+    float4 ptWs = f4_add(center, f4_mulvs(dirWs, radius));
+    float pdf = 1.0f / (kTau * (1.0f - cosTheta0));
+    ptWs.w = pdf;
+    return ptWs;
 }
 
 // samples cosine-weighted hemisphere with N = (0, 0, 1)
@@ -174,14 +198,7 @@ pim_inline float4 VEC_CALL SampleGGXMicrofacet(float2 Xi, float alpha)
     float a2 = alpha * alpha;
     float phi = kTau * Xi.x;
     float cosTheta = sqrtf((1.0f - Xi.y) / (1.0f + (a2 - 1.0f) * Xi.y));
-    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
-    const float4 dir =
-    {
-        cosf(phi) * sinTheta,
-        sinf(phi) * sinTheta,
-        cosTheta,
-    };
-    return f4_normalize3(dir);
+    return SphericalToCartesian(cosTheta, phi);
 }
 
 pim_inline float VEC_CALL LambertPdf(float NoL)

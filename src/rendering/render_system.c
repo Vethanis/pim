@@ -57,8 +57,7 @@
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
 static cvar_t cv_pt_depth = { cvart_int, 0, "pt_depth", "5", "max bvh depth" };
-static cvar_t cv_pt_rejsamples = { cvart_int, 0, "pt_rejsamples", "10", "emissive texel rejection samples" };
-static cvar_t cv_pt_rejthresh = { cvart_float, 0, "pt_rejthresh", "0.1", "emissive texel rejection threshold" };
+static cvar_t cv_pt_rejsamples = { cvart_int, 0, "pt_rejsamples", "2", "emissive texel rejection samples" };
 static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
 static cvar_t cv_pt_normal = { cvart_bool, 0, "pt_normal", "0", "output path tracer normals" };
 static cvar_t cv_pt_albedo = { cvart_bool, 0, "pt_albedo", "0", "output path tracer albedo" };
@@ -117,7 +116,6 @@ static void EnsurePtScene(void)
     bool dirty = false;
     dirty |= cvar_check_dirty(&cv_pt_depth);
     dirty |= cvar_check_dirty(&cv_pt_rejsamples);
-    dirty |= cvar_check_dirty(&cv_pt_rejthresh);
     if (dirty)
     {
         pt_scene_del(ms_ptscene);
@@ -127,11 +125,9 @@ static void EnsurePtScene(void)
     {
         i32 maxDepth = (i32)f1_clamp(cv_pt_depth.asFloat, 1.0f, 8.0f);
         i32 rejSamples = (i32)f1_clamp(cv_pt_rejsamples.asFloat, 1.0f, 100.0f);
-        float rejThresh = f1_clamp(cv_pt_rejthresh.asFloat, 1.0f / (1 << 10), 1 << 10);
         ms_ptscene = pt_scene_new(
             maxDepth,
-            rejSamples,
-            rejThresh);
+            rejSamples);
         ms_ptSampleCount = 0;
         ms_acSampleCount = 0;
         ms_cmapSampleCount = 0;
@@ -457,7 +453,6 @@ void render_sys_init(void)
     cvar_reg(&cv_pt_trace);
     cvar_reg(&cv_pt_depth);
     cvar_reg(&cv_pt_rejsamples);
-    cvar_reg(&cv_pt_rejthresh);
     cvar_reg(&cv_pt_denoise);
     cvar_reg(&cv_pt_normal);
     cvar_reg(&cv_pt_albedo);

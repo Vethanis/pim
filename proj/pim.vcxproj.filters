@@ -979,7 +979,7 @@
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
     <ClInclude Include="..\src\math\atmosphere.h">
-      <Filter>Source Files\rendering</Filter>
+      <Filter>Source Files\math</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

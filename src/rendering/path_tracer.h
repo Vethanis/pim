@@ -54,7 +54,6 @@ typedef struct pt_scene_s
     i32 nodeCount;
     // hyperparameters
     i32 rejectionSamples;
-    float rejectionThreshold;
     float3 sunDirection;
     float sunIntensity;
 } pt_scene_t;
@@ -83,7 +82,7 @@ typedef struct pt_results_s
     float4* directions;
 } pt_results_t;
 
-pt_scene_t* pt_scene_new(i32 maxDepth, i32 rejectionSamples, float rejectionThreshold);
+pt_scene_t* pt_scene_new(i32 maxDepth, i32 rejectionSamples);
 void pt_scene_del(pt_scene_t* scene);
 
 pt_result_t VEC_CALL pt_trace_ray(

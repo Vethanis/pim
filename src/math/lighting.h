@@ -333,7 +333,6 @@ pim_inline float4 VEC_CALL EvalPointLight(
 
     float4 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
     float att = f4_dotsat(N, L) * DistanceAtt(distance);
-    att *= SmoothDistanceAtt(distance, SphereAttenRadius(lightColor, kMinLightDist));
     return f4_mul(brdf, f4_mulvs(lightColor, att));
 }
 
