@@ -236,7 +236,7 @@ static RTCScene RtcNewScene(const pt_scene_t* scene)
     return rtcScene;
 }
 
-#define rngseq_len 4096
+#define rngseq_len 64
 
 typedef struct rngseq_s
 {
@@ -258,14 +258,13 @@ pim_inline float2 VEC_CALL rngseq_next(prng_t* pim_noalias rng, rngseq_t* pim_no
 
 pim_inline float4 VEC_CALL SampleBaryCoord(prng_t* rng)
 {
-    float4 wuv = f4_0;
-    do
-    {
-        wuv.x = prng_f32(rng);
-        wuv.y = prng_f32(rng);
-        wuv.z = 1.0f - (wuv.x + wuv.y);
-    } while (wuv.z < 0.0f);
-    return wuv;
+    float r1 = prng_f32(rng);
+    float r2 = prng_f32(rng);
+    float sqrtR1 = sqrtf(r1);
+    float u = sqrtR1 * (1.0f - r2);
+    float v = r2 * sqrtR1;
+    float w = 1.0f - (u + v);
+    return f4_v(w, u, v, 0.0f);
 }
 
 static float EmissionPdf(

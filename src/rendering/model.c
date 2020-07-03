@@ -260,6 +260,10 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         const msurface_t* surface = surfaces + i;
         const mtexinfo_t* texinfo = surface->texinfo;
         const mtexture_t* mtex = texinfo->texture;
+        if (!mtex)
+        {
+            continue;
+        }
 
         u32 flags = 0;
         if (StrIStr(ARGS(mtex->name), "light"))
@@ -371,6 +375,10 @@ static meshid_t VEC_CALL TrisToMesh(
 
     const mtexinfo_t* texinfo = surface->texinfo;
     const mtexture_t* mtex = texinfo->texture;
+    if (!mtex)
+    {
+        return (meshid_t) { 0 };
+    }
     float4 s = texinfo->vecs[0];
     float4 t = texinfo->vecs[1];
     float2 uvScale = { 1.0f / mtex->width, 1.0f / mtex->height };
@@ -419,7 +427,7 @@ static meshid_t VEC_CALL TrisToMesh(
     meshid_t id = { 0 };
     if (vertsEmit > 0)
     {
-        mesh_t mesh = {0};
+        mesh_t mesh = { 0 };
         mesh.length = vertsEmit;
         mesh.positions = positions;
         mesh.normals = normals;
