@@ -497,18 +497,16 @@ pim_inline float4 VEC_CALL EvalSphereLight(
     float roughness,
     float metallic,
     float4 lightPos,
-    float4 lightColor,
-    float radius)
+    float4 lightColor)
 {
     float4 L0 = f4_sub(lightPos, P);
     float distance = f4_length3(L0);
 
-    radius = f1_max(kMinLightDist, radius);
+    float radius = f1_max(kMinLightDist, lightPos.w);
     distance = f1_max(distance, radius);
 
     float alpha = BrdfAlpha(roughness);
     float NoV = f4_dotsat(N, V);
-    float attSmooth = SmoothDistanceAtt(distance, SphereAttenRadius(lightColor, radius));
 
     float4 Fr = f4_0;
     #if (1)
@@ -529,7 +527,7 @@ pim_inline float4 VEC_CALL EvalSphereLight(
         float4 F = F_SchlickEx(albedo, metallic, HoV);
         Fr = f4_mulvs(F, D * G);
 
-        float I = NoL * DistanceAtt(distance) * attSmooth;
+        float I = NoL * DistanceAtt(distance);
         Fr = f4_mulvs(Fr, I);
     }
     #endif
@@ -548,7 +546,7 @@ pim_inline float4 VEC_CALL EvalSphereLight(
             Fd_Lambert());
 
         float sinSigmaSqr = SphereSinSigmaSq(radius, distance);
-        float I = SphereDiskIlluminance(NoL, sinSigmaSqr) * attSmooth;
+        float I = SphereDiskIlluminance(NoL, sinSigmaSqr);
         Fd = f4_mulvs(Fd, I);
     }
     #endif
@@ -556,47 +554,6 @@ pim_inline float4 VEC_CALL EvalSphereLight(
     float4 light = f4_mul(f4_add(Fd, Fr), lightColor);
 
     return light;
-}
-
-// [Lagarde15, Page 85, Listing 28]
-pim_inline float VEC_CALL CompEV100(
-    float aperture,
-    float shutterTime,
-    float ISO)
-{
-    float a = aperture * aperture;
-    float b = 1.0f / shutterTime;
-    float c = 100.0f / ISO;
-    return log2f(a * b * c);
-}
-
-pim_inline float VEC_CALL CompEV100FromAvgLum(float avgLum)
-{
-    const float c = 100.0f / 12.5;
-    return log2f(avgLum * c);
-}
-
-pim_inline float VEC_CALL ConvEV100ToExposure(float EV100)
-{
-    float maxLum = 1.2f * exp2f(EV100);
-    return 1.0f / maxLum;
-}
-
-pim_inline float4 VEC_CALL CompBloomLuminance(
-    float4 bloomColor,
-    float bloomEC,
-    float currentEV)
-{
-    float bloomEV = currentEV + bloomEC;
-    float t = exp2f(bloomEV - 3.0f);
-    return f4_mulvs(bloomColor, t);
-}
-
-pim_inline float4 VEC_CALL ExposeColor(float4 color, float avgLum)
-{
-    float ev100 = CompEV100FromAvgLum(avgLum);
-    float exposure = ConvEV100ToExposure(ev100);
-    return f4_mulvs(color, exposure);
 }
 
 PIM_C_END

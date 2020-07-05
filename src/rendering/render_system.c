@@ -35,7 +35,6 @@
 #include "rendering/lights.h"
 #include "rendering/clear_tile.h"
 #include "rendering/vertex_stage.h"
-#include "rendering/fragment_stage.h"
 #include "rendering/resolve_tile.h"
 #include "rendering/screenblit.h"
 #include "rendering/path_tracer.h"
@@ -45,6 +44,8 @@
 #include "rendering/lightmap.h"
 #include "rendering/denoise.h"
 #include "rendering/rtcdraw.h"
+#include "rendering/exposure.h"
+#include "rendering/gi_grid.h"
 
 #include "rendering/vulkan/vkr.h"
 
@@ -65,11 +66,14 @@ static cvar_t cv_pt_albedo = { cvart_bool, 0, "pt_albedo", "0", "output path tra
 static cvar_t cv_lm_gen = { cvart_bool, 0, "lm_gen", "0", "enable lightmap generation" };
 static cvar_t cv_lm_denoise = { cvart_bool, 0, "lm_denoise", "0", "denoise lightmaps" };
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
+static cvar_t cv_gi_gen = { cvart_bool, 0, "gi_gen", "0", "generate gi grid" };
+static cvar_t cv_gi_ppm = { cvart_float, 0, "gi_ppm", "2", "gi probes per meter" };
+static cvar_t cv_gi_spp = { cvart_int, 0, "gi_spp", "1", "samples per gi probe" };
 
 static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
 
 static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "8", "lightmap texels per unit" };
-static cvar_t cv_lm_timeslice = { cvart_int, 0, "lm_timeslice", "120", "number of frames required to add 1 lighting sample to all lightmap texels" };
+static cvar_t cv_lm_timeslice = { cvart_int, 0, "lm_timeslice", "10", "number of frames required to add 1 lighting sample to all lightmap texels" };
 
 // ----------------------------------------------------------------------------
 
@@ -84,6 +88,7 @@ static i32 ms_iFrame;
 static TonemapId ms_tonemapper;
 static float4 ms_toneParams;
 static float4 ms_clearColor;
+static exposure_t ms_exposure;
 
 static camera_t ms_ptcam;
 static pt_scene_t* ms_ptscene;
@@ -93,6 +98,7 @@ static i32 ms_lmSampleCount;
 static i32 ms_acSampleCount;
 static i32 ms_ptSampleCount;
 static i32 ms_cmapSampleCount;
+static i32 ms_gigridsamples;
 
 // ----------------------------------------------------------------------------
 
@@ -135,6 +141,71 @@ static void EnsurePtScene(void)
     }
 }
 
+static box_t VEC_CALL CalcSceneBounds(void)
+{
+    const drawables_t* drawables = drawables_get();
+    const i32 count = drawables->count;
+    const float4x4* pim_noalias matrices = drawables->matrices;
+    const meshid_t* pim_noalias meshes = drawables->meshes;
+
+    float4 lo = f4_s(1 << 20);
+    float4 hi = f4_s(-(1 << 20));
+    for (i32 i = 0; i < count; ++i)
+    {
+        mesh_t mesh;
+        if (mesh_get(meshes[i], &mesh))
+        {
+            const float4x4 localToWorld = matrices[i];
+            const i32 vertCount = mesh.length;
+            const float4* pim_noalias positions = mesh.positions;
+            for (i32 j = 0; j < vertCount; ++j)
+            {
+                float4 position = f4x4_mul_pt(localToWorld, positions[j]);
+                lo = f4_min(lo, position);
+                hi = f4_max(hi, position);
+            }
+        }
+    }
+
+    // expand slightly to avoid precision issues on outermost vertices
+    lo = f4_mulvs(lo, 1.0f + kMicro);
+    hi = f4_mulvs(hi, 1.0f + kMicro);
+
+    box_t box;
+    box.center = f4_lerpvs(lo, hi, 0.5f);
+    box.extents = f4_sub(hi, box.center);
+    return box;
+}
+
+ProfileMark(pm_GiGrid_Trace, GiGrid_Trace)
+static void GiGrid_Trace(void)
+{
+    if (cv_gi_gen.asFloat != 0.0f)
+    {
+        ProfileBegin(pm_GiGrid_Trace);
+        EnsurePtScene();
+
+        gigrid_t* grid = gigrid_get();
+
+        bool dirty = grid->probes == NULL;
+        dirty |= cvar_check_dirty(&cv_gi_ppm);
+        if (dirty)
+        {
+            float ppm = cv_gi_ppm.asFloat;
+            box_t bounds = CalcSceneBounds();
+            gigrid_del(grid);
+            gigrid_new(grid, ppm, bounds);
+            ms_gigridsamples = 0;
+        }
+
+        i32 spp = (i32)cv_gi_spp.asFloat;
+        gigrid_bake(grid, ms_ptscene, ms_gigridsamples, spp);
+        ms_gigridsamples += spp;
+
+        ProfileEnd(pm_GiGrid_Trace);
+    }
+}
+
 static void LightmapRepack(void)
 {
     lmpack_del(lmpack_get());
@@ -151,18 +222,15 @@ static void Lightmap_Trace(void)
         ProfileBegin(pm_Lightmap_Trace);
         EnsurePtScene();
 
-        if (cvar_check_dirty(&cv_lm_density))
+        bool dirty = lmpack_get()->lmCount == 0;
+        dirty |= cvar_check_dirty(&cv_lm_density);
+        if (dirty)
         {
             LightmapRepack();
         }
 
-        if (lmpack_get()->lmCount == 0)
-        {
-            LightmapRepack();
-        }
-
-        i32 timeSlice = (i32)cv_lm_timeslice.asFloat;
-        lmpack_bake(ms_ptscene, 1.0f / timeSlice);
+        float timeslice = 1.0f / f1_max(1.0f, cv_lm_timeslice.asFloat);
+        lmpack_bake(ms_ptscene, timeslice);
 
         ProfileEnd(pm_Lightmap_Trace);
     }
@@ -311,9 +379,6 @@ static void Rasterize(void)
 
     ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
     drawables_trs();
-    //drawables_bounds();
-    //drawables_cull(&camera, backBuf);
-    //drawables_fragment(frontBuf, backBuf);
     RtcDraw(frontBuf, &camera);
 
     ProfileEnd(pm_Rasterize);
@@ -380,6 +445,9 @@ static void Present(void)
 {
     ProfileBegin(pm_Present);
     framebuf_t* frontBuf = GetFrontBuf();
+    int2 size = { frontBuf->width, frontBuf->height };
+    ms_exposure.deltaTime = (float)time_dtf();
+    ExposeImage(size, frontBuf->light, &ms_exposure);
     ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
     screenblit_blit(frontBuf->color, frontBuf->width, frontBuf->height);
     TakeScreenshot();
@@ -416,7 +484,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     pt_scene_del(ms_ptscene);
     ms_ptscene = NULL;
     lmpack_del(lmpack_get());
-    cv_lm_density.flags |= cvarf_dirty;
+    gigrid_del(gigrid_get());
 
     con_logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
@@ -463,6 +531,9 @@ void render_sys_init(void)
     cvar_reg(&cv_lm_timeslice);
 
     cvar_reg(&cv_cm_gen);
+    cvar_reg(&cv_gi_gen);
+    cvar_reg(&cv_gi_ppm);
+    cvar_reg(&cv_gi_spp);
 
     cmd_reg("screenshot", CmdScreenshot);
     cmd_reg("mapload", CmdLoadMap);
@@ -477,9 +548,19 @@ void render_sys_init(void)
     framebuf_create(GetBackBuf(), kDrawWidth, kDrawHeight);
     screenblit_init(kDrawWidth, kDrawHeight);
 
-    ms_tonemapper = TMap_Reinhard;
+    ms_tonemapper = TMap_Uncharted2;
     ms_toneParams = Tonemap_DefParams();
+    ms_toneParams.x = 0.25f;
+    ms_toneParams.w = 0.25f;
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
+    ms_exposure.adaptRate = 1.0f;
+    ms_exposure.avgLum = 1.0f;
+    ms_exposure.minEV100 = 0.5f;
+    ms_exposure.maxEV100 = 20.0f;
+    ms_exposure.offset = 0.0f;
+    ms_exposure.manual = false;
+    ms_exposure.aperture = 4.0f;
+    ms_exposure.shutterTime = 1.0f / 10.0f;
 
     con_exec("mapload start");
 
@@ -495,6 +576,7 @@ void render_sys_update(void)
     mesh_sys_update();
 
     Lightmap_Trace();
+    GiGrid_Trace();
     Cubemap_Trace();
     if (!PathTrace())
     {
@@ -565,6 +647,25 @@ void render_sys_gui(bool* pEnabled)
             igUnindent(0.0f);
         }
 
+        if (igCollapsingHeader1("Exposure"))
+        {
+            igIndent(0.0f);
+            igCheckbox("Manual", &ms_exposure.manual);
+            if (ms_exposure.manual)
+            {
+                igSliderFloat("Aperture", &ms_exposure.aperture, 1.4f, 22.0f);
+                igSliderFloat("Shutter Speed", &ms_exposure.shutterTime, 1.0f / 2000.0f, 1.0f);
+            }
+            else
+            {
+                igSliderFloat("Adapt Rate", &ms_exposure.adaptRate, 0.1f, 10.0f);
+                igSliderFloat("Min EV100", &ms_exposure.minEV100, 0.1f, ms_exposure.maxEV100);
+                igSliderFloat("Max EV100", &ms_exposure.maxEV100, ms_exposure.minEV100, 20.0f);
+            }
+            igSliderFloat("Offset", &ms_exposure.offset, -5.0f, 5.0f);
+            igUnindent(0.0f);
+        }
+
         if (igCollapsingHeader1("Lights"))
         {
             igIndent(0.0f);
@@ -572,68 +673,14 @@ void render_sys_gui(bool* pEnabled)
             const i32 ptLightCount = lights_pt_count();
             for (i32 i = 0; i < ptLightCount; ++i)
             {
-                char label[PIM_PATH];
-                SPrintf(ARGS(label), "%d: Light Radiance", i);
+                igPushIDInt(i);
                 pt_light_t light = lights_get_pt(i);
-                igColorEdit3(label, &light.rad.x, hdrPicker);
+                igColorEdit3("Radiance", &light.rad.x, hdrPicker);
                 lights_set_pt(i, light);
+                igPopID();
             }
 
             igUnindent(0.0f);
-        }
-
-        if (igCollapsingHeader1("Culling Stats"))
-        {
-            const drawables_t* drawTable = drawables_get();
-            const i32 width = drawTable->count;
-            const sphere_t* bounds = drawTable->bounds;
-            const u64* tileMasks = drawTable->tileMasks;
-
-            i32 numVisible = 0;
-            for (i32 i = 0; i < width; ++i)
-            {
-                if (tileMasks[i])
-                {
-                    ++numVisible;
-                }
-            }
-
-            igText("Drawables: %d", width);
-            igText("Visible: %d", numVisible);
-            igText("Culled: %d", width - numVisible);
-            igSeparator();
-
-            camera_t camera;
-            camera_get(&camera);
-            frus_t frus;
-            camera_frustum(&camera, &frus);
-
-            float* distances = tmp_malloc(sizeof(distances[0]) * width);
-            for (i32 i = 0; i < width; ++i)
-            {
-                distances[i] = sdFrusSph(frus, bounds[i]);
-            }
-            i32* indices = indsort(distances, width, sizeof(distances[0]), CmpFloat, NULL);
-            igColumns(4);
-            igText("Visible"); igNextColumn();
-            igText("Distance"); igNextColumn();
-            igText("Center"); igNextColumn();
-            igText("Radius"); igNextColumn();
-            igSeparator();
-            for (i32 i = 0; i < width; ++i)
-            {
-                i32 j = indices[i];
-                float4 sph = bounds[j].value;
-                u64 tilemask = tileMasks[j];
-                float dist = distances[j];
-                const char* tag = (tilemask) ? "Visible" : "Culled";
-
-                igText(tag); igNextColumn();
-                igText("%.2f", dist); igNextColumn();
-                igText("%.2f %.2f %.2f", sph.x, sph.y, sph.z); igNextColumn();
-                igText("%.2f", sph.w); igNextColumn();
-            }
-            igColumns(1);
         }
     }
     igEnd();

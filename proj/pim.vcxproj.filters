@@ -310,9 +310,6 @@
     <ClCompile Include="..\src\rendering\clear_tile.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\fragment_stage.c">
-      <Filter>Source Files\rendering</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\rendering\resolve_tile.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
@@ -458,6 +455,12 @@
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\rtcdraw.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\mipmap.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\exposure.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
   </ItemGroup>
@@ -801,13 +804,7 @@
     <ClInclude Include="..\src\rendering\vertex_stage.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\tile.h">
-      <Filter>Source Files\rendering</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\rendering\clear_tile.h">
-      <Filter>Source Files\rendering</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\rendering\fragment_stage.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
     <ClInclude Include="..\src\rendering\resolve_tile.h">
@@ -980,6 +977,12 @@
     </ClInclude>
     <ClInclude Include="..\src\math\atmosphere.h">
       <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\mipmap.h">
+      <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\exposure.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

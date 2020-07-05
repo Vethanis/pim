@@ -34,7 +34,7 @@ pim_inline int3 VEC_CALL i3_fs(float s)
     return vec;
 }
 
-pim_inline float3 VEC_CALL i3_f2(int3 v)
+pim_inline float3 VEC_CALL i3_f3(int3 v)
 {
     float3 f = { (float)v.x, (float)v.y, (float)v.z };
     return f;

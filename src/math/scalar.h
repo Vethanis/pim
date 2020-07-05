@@ -17,13 +17,13 @@ PIM_C_BEGIN
 #define kGoldenRatio        1.618034f
 #define kGoldenConj         0.618034f
 
-// standard units of length
-#define kKilometer          1000.0f
+// SI units
+#define kKilo               1000.0f
 #define kMeter              1.0f
-#define kCentimeter         0.01f
-#define kMillimeter         0.001f
-#define kMicrometer         1e-6f
-#define kNanometer          1e-9f
+#define kCenti              0.01f
+#define kMilli              0.001f
+#define kMicro              1e-6f
+#define kNano               1e-9f
 
 pim_inline float VEC_CALL f1_radians(float x)
 {

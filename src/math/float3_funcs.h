@@ -24,6 +24,12 @@ pim_inline float3 VEC_CALL f3_s(float s)
     return vec;
 }
 
+pim_inline int3 VEC_CALL f3_i3(float3 f)
+{
+    int3 i = { (i32)f.x, (i32)f.y, (i32)f.z };
+    return i;
+}
+
 pim_inline float3 VEC_CALL f3_load(const float* src)
 {
     float3 vec = { src[0], src[1], src[2] };

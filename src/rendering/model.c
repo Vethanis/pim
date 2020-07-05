@@ -253,12 +253,18 @@ static float4 VEC_CALL IntToColor(i32 i, i32 count)
 
 static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
 {
+    ASSERT(surfaces);
+
     material_t* materials = tmp_calloc(sizeof(materials[0]) * surfCount);
 
     for (i32 i = 0; i < surfCount; ++i)
     {
         const msurface_t* surface = surfaces + i;
         const mtexinfo_t* texinfo = surface->texinfo;
+        if (!texinfo)
+        {
+            continue;
+        }
         const mtexture_t* mtex = texinfo->texture;
         if (!mtex)
         {
@@ -369,19 +375,20 @@ static meshid_t VEC_CALL TrisToMesh(
     const float4* pim_noalias tris,
     i32 vertCount)
 {
-    float4* pim_noalias positions = perm_malloc(sizeof(positions[0]) * vertCount);
-    float4* pim_noalias normals = perm_malloc(sizeof(normals[0]) * vertCount);
-    float2* pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
+    meshid_t id = { 0 };
 
     const mtexinfo_t* texinfo = surface->texinfo;
+    ASSERT(texinfo);
     const mtexture_t* mtex = texinfo->texture;
-    if (!mtex)
-    {
-        return (meshid_t) { 0 };
-    }
+    ASSERT(mtex);
+
     float4 s = texinfo->vecs[0];
     float4 t = texinfo->vecs[1];
     float2 uvScale = { 1.0f / mtex->width, 1.0f / mtex->height };
+
+    float4* pim_noalias positions = perm_malloc(sizeof(positions[0]) * vertCount);
+    float4* pim_noalias normals = perm_malloc(sizeof(normals[0]) * vertCount);
+    float2* pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
 
     i32 vertsEmit = 0;
     for (i32 i = 0; (i + 3) <= vertCount; i += 3)
@@ -424,7 +431,6 @@ static meshid_t VEC_CALL TrisToMesh(
         normals[c] = N;
     }
 
-    meshid_t id = { 0 };
     if (vertsEmit > 0)
     {
         mesh_t mesh = { 0 };
@@ -464,11 +470,18 @@ u32* ModelToDrawables(const mmodel_t* model)
     for (i32 i = 0; i < numSurfaces; ++i)
     {
         const msurface_t* surface = surfaces + i;
-        i32 numEdges = surface->numedges;
+        const i32 numEdges = surface->numedges;
         const i32 firstEdge = surface->firstedge;
         const mtexinfo_t* texinfo = surface->texinfo;
+        if (!texinfo)
+        {
+            continue;
+        }
         const mtexture_t* mtex = texinfo->texture;
-
+        if (!mtex)
+        {
+            continue;
+        }
         if (numEdges <= 0 || firstEdge < 0)
         {
             continue;

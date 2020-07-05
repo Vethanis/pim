@@ -5,7 +5,6 @@
 #include "math/color.h"
 #include "rendering/constants.h"
 #include "rendering/tonemap.h"
-#include "rendering/tile.h"
 #include "common/profiler.h"
 #include "allocator/allocator.h"
 
@@ -17,20 +16,17 @@ typedef struct resolve_s
     TonemapId tmapId;
 } resolve_t;
 
-pim_inline float4 VEC_CALL f4_dither(prng_t* rng, float4 x)
-{
-    return f4_lerpvs(x, f4_rand(rng), 1.0f / 255.0f);
-}
-
 pim_inline u32 VEC_CALL ToColor(prng_t* rng, float4 linear)
 {
+    const float4 kWeight = { 1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f, 0.0f };
     float4 srgb = f4_tosrgb(linear);
-    srgb = f4_dither(rng, srgb);
+    srgb = f4_lerp(srgb, f4_rand(rng), kWeight);
     u32 color = f4_rgba8(srgb);
     return color;
 }
 
-static void VEC_CALL ResolveReinhard(i32 begin, i32 end, framebuf_t* target)
+static void VEC_CALL ResolveReinhard(
+    i32 begin, i32 end, framebuf_t* target)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
@@ -42,31 +38,38 @@ static void VEC_CALL ResolveReinhard(i32 begin, i32 end, framebuf_t* target)
     prng_set(rng);
 }
 
-static void VEC_CALL ResolveUncharted2(i32 begin, i32 end, framebuf_t* target)
+static void VEC_CALL ResolveUncharted2(
+    i32 begin, i32 end, framebuf_t* target)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
     prng_t rng = prng_get();
     for (i32 i = begin; i < end; ++i)
     {
-        color[i] = ToColor(&rng, tmap4_uchart2(light[i]));
+        float4 hdr = light[i];
+        hdr.w = 1.0f;
+        color[i] = ToColor(&rng, tmap4_uchart2(hdr));
     }
     prng_set(rng);
 }
 
-static void VEC_CALL ResolveHable(i32 begin, i32 end, framebuf_t* target, float4 params)
+static void VEC_CALL ResolveHable(
+    i32 begin, i32 end, framebuf_t* target, float4 params)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
     prng_t rng = prng_get();
     for (i32 i = begin; i < end; ++i)
     {
-        color[i] = ToColor(&rng, tmap4_hable(light[i], params));
+        float4 hdr = light[i];
+        hdr.w = 1.0f;
+        color[i] = ToColor(&rng, tmap4_hable(hdr, params));
     }
     prng_set(rng);
 }
 
-static void VEC_CALL ResolveFilmic(i32 begin, i32 end, framebuf_t* target)
+static void VEC_CALL ResolveFilmic(
+    i32 begin, i32 end, framebuf_t* target)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
@@ -78,7 +81,8 @@ static void VEC_CALL ResolveFilmic(i32 begin, i32 end, framebuf_t* target)
     prng_set(rng);
 }
 
-static void VEC_CALL ResolveACES(i32 begin, i32 end, framebuf_t* target)
+static void VEC_CALL ResolveACES(
+    i32 begin, i32 end, framebuf_t* target)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
@@ -101,24 +105,23 @@ static void ResolveTileFn(task_t* task, i32 begin, i32 end)
 
     switch (id)
     {
-        default:
-        case TMap_Reinhard:
+    default:
+    case TMap_Reinhard:
         ResolveReinhard(begin, end, target);
         break;
-        case TMap_Uncharted2:
+    case TMap_Uncharted2:
         ResolveUncharted2(begin, end, target);
         break;
-        case TMap_Hable:
+    case TMap_Hable:
         ResolveHable(begin, end, target, params);
         break;
-        case TMap_Filmic:
+    case TMap_Filmic:
         ResolveFilmic(begin, end, target);
         break;
-        case TMap_ACES:
+    case TMap_ACES:
         ResolveACES(begin, end, target);
         break;
     }
-
 }
 
 ProfileMark(pm_ResolveTile, ResolveTile)

@@ -32,16 +32,32 @@ pim_inline int2 VEC_CALL CalcMipSize(int2 size, i32 m)
     return y;
 }
 
+pim_inline i32 VEC_CALL CalcMipLen(int2 size, i32 m)
+{
+    int2 mipSize = CalcMipSize(size, m);
+    return mipSize.x * mipSize.y;
+}
+
 pim_inline i32 VEC_CALL CalcMipOffset(int2 size, i32 m)
 {
     i32 y = 0;
     m = i1_clamp(m, 0, CalcMipCount(size) - 1);
     for (i32 i = 0; i < m; ++i)
     {
-        int2 s = CalcMipSize(size, i);
-        y += s.x * s.y;
+        y += CalcMipLen(size, i);
     }
     return y;
+}
+
+pim_inline i32 VEC_CALL MipChainLen(int2 size)
+{
+    i32 len = 0;
+    i32 mipCount = CalcMipCount(size);
+    for (i32 i = 0; i < mipCount; ++i)
+    {
+        len += CalcMipLen(size, i);
+    }
+    return len;
 }
 
 // stride: number of texels traveled per sample in x and y
@@ -83,6 +99,21 @@ pim_inline int2 VEC_CALL WrapCoord(int2 size, int2 coord)
 pim_inline i32 VEC_CALL CoordToIndex(int2 size, int2 coord)
 {
     return coord.x + coord.y * size.x;
+}
+
+pim_inline int2 VEC_CALL IndexToCoord(int2 size, i32 index)
+{
+    return i2_v(index % size.x, index / size.x);
+}
+
+pim_inline float2 VEC_CALL IndexToUv(int2 size, i32 index)
+{
+    return CoordToUv(size, IndexToCoord(size, index));
+}
+
+pim_inline i32 VEC_CALL UvToIndex(int2 size, float2 uv)
+{
+    return CoordToIndex(size, UvToCoord(size, uv));
 }
 
 pim_inline i32 VEC_CALL Clamp(int2 size, int2 coord)
@@ -161,6 +192,13 @@ pim_inline float2 VEC_CALL BilinearBlend_f2(
     return f2_lerp(f2_lerp(a, b, frac.x), f2_lerp(c, d, frac.x), frac.y);
 }
 
+pim_inline float VEC_CALL BilinearBlend_f1(
+    float a, float b, float c, float d,
+    float2 frac)
+{
+    return f1_lerp(f1_lerp(a, b, frac.x), f1_lerp(c, d, frac.x), frac.y);
+}
+
 pim_inline float4 VEC_CALL BilinearClamp_f4(const float4* buffer, int2 size, bilinear_t bi)
 {
     float4 a = buffer[Clamp(size, bi.a)];
@@ -204,6 +242,16 @@ pim_inline float2 VEC_CALL BilinearClamp_f2(const float2* buffer, int2 size, bil
     return BilinearBlend_f2(a, b, c, d, bi.frac);
 }
 
+pim_inline float VEC_CALL BilinearClamp_f1(const float* buffer, int2 size, bilinear_t bi)
+{
+    float a = buffer[Clamp(size, bi.a)];
+    float b = buffer[Clamp(size, bi.b)];
+    float c = buffer[Clamp(size, bi.c)];
+    float d = buffer[Clamp(size, bi.d)];
+    return BilinearBlend_f1(a, b, c, d, bi.frac);
+}
+
+
 pim_inline float4 VEC_CALL BilinearClamp_c32(const u32* buffer, int2 size, bilinear_t bi)
 {
     float4 a = Clamp_c32(buffer, size, bi.a);
@@ -242,6 +290,11 @@ pim_inline float3 VEC_CALL UvBilinearWrap_f3(const float3* buffer, int2 size, fl
 pim_inline float2 VEC_CALL UvBilinearClamp_f2(const float2* buffer, int2 size, float2 uv)
 {
     return BilinearClamp_f2(buffer, size, Bilinear(size, uv));
+}
+
+pim_inline float VEC_CALL UvBilinearClamp_f1(const float* buffer, int2 size, float2 uv)
+{
+    return BilinearClamp_f1(buffer, size, Bilinear(size, uv));
 }
 
 pim_inline float4 VEC_CALL UvBilinearClamp_c32(const u32* buffer, int2 size, float2 uv)

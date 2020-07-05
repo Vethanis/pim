@@ -37,9 +37,5 @@ i32 drawables_find(u32 name);
 void drawables_clear(void);
 
 void drawables_trs(void);
-void drawables_bounds(void);
-void drawables_cull(
-    const camera_t* camera,
-    const framebuf_t* backBuf);
 
 PIM_C_END

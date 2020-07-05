@@ -125,7 +125,7 @@ static bool EnsureInit(void)
 pim_inline RTCRay VEC_CALL RtcNewRay(ray_t ray, float tNear, float tFar)
 {
     ASSERT(tFar > tNear);
-    ASSERT(tNear > 0.0f);
+    ASSERT(tNear >= 0.0f);
     RTCRay rtcRay = { 0 };
     rtcRay.org_x = ray.ro.x;
     rtcRay.org_y = ray.ro.y;
@@ -236,37 +236,6 @@ static RTCScene RtcNewScene(const pt_scene_t* scene)
     return rtcScene;
 }
 
-#define rngseq_len 64
-
-typedef struct rngseq_s
-{
-    float2 jit;
-    i32 cur;
-} rngseq_t;
-
-pim_inline float2 VEC_CALL rngseq_next(prng_t* pim_noalias rng, rngseq_t* pim_noalias seq)
-{
-    i32 c = seq->cur++ & (rngseq_len - 1);
-    if (c == 0)
-    {
-        seq->jit = f2_rand(rng);
-    }
-    // de-corrolates brdf samples
-    c = prng_i32(rng) & (rngseq_len - 1);
-    return f2_frac(f2_add(seq->jit, Hammersley2D(c, rngseq_len)));
-}
-
-pim_inline float4 VEC_CALL SampleBaryCoord(prng_t* rng)
-{
-    float r1 = prng_f32(rng);
-    float r2 = prng_f32(rng);
-    float sqrtR1 = sqrtf(r1);
-    float u = sqrtR1 * (1.0f - r2);
-    float v = r2 * sqrtR1;
-    float w = 1.0f - (u + v);
-    return f4_v(w, u, v, 0.0f);
-}
-
 static float EmissionPdf(
     const pt_scene_t* scene,
     prng_t* rng,
@@ -294,7 +263,7 @@ static float EmissionPdf(
         {
             for (i32 j = 0; j < rejectionSamples; ++j)
             {
-                float4 wuv = SampleBaryCoord(rng);
+                float4 wuv = SampleBaryCoord(f2_rand(rng));
                 float2 uv = f2_blend(UA, UB, UC, wuv);
                 float4 rome = f4_mul(flatRome,
                     UvBilinearWrap_c32(romeMap.texels, romeMap.size, uv));
@@ -314,7 +283,7 @@ static float4 VEC_CALL SelectEmissiveCoord(
     prng_t* rng,
     i32 iLight)
 {
-    float4 wuv = SampleBaryCoord(rng);
+    float4 wuv = SampleBaryCoord(f2_rand(rng));
     const i32 iMat = scene->matIds[iLight];
     const material_t mat = scene->materials[iMat];
     if (mat.flags & matflag_sky)
@@ -340,7 +309,7 @@ static float4 VEC_CALL SelectEmissiveCoord(
             {
                 break;
             }
-            wuv = SampleBaryCoord(rng);
+            wuv = SampleBaryCoord(f2_rand(rng));
         }
     }
     return wuv;
@@ -562,8 +531,10 @@ pim_inline const material_t* VEC_CALL GetMaterial(
     const pt_scene_t* scene,
     rayhit_t hit)
 {
-    i32 triIndex = hit.index;
-    i32 matIndex = scene->matIds[triIndex];
+    i32 iVert = hit.index;
+    ASSERT(iVert >= 0);
+    ASSERT(iVert < scene->vertCount);
+    i32 matIndex = scene->matIds[iVert];
     ASSERT(matIndex >= 0);
     ASSERT(matIndex < scene->matCount);
     return scene->materials + matIndex;
@@ -577,10 +548,7 @@ static surfhit_t VEC_CALL GetSurface(
 {
     surfhit_t surf = { 0 };
 
-    ASSERT(hit.type == hit_triangle);
-    ASSERT(hit.index < scene->vertCount);
     const material_t* mat = GetMaterial(scene, hit);
-
     if (hit.type == hit_sky)
     {
         if (bounce == 0)
@@ -595,6 +563,7 @@ static surfhit_t VEC_CALL GetSurface(
         float2 uv = GetVert2(scene->uvs, hit);
         surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
         float4 Nws = f4_normalize3(GetVert4(scene->normals, hit));
+        surf.P = f4_add(surf.P, f4_mulvs(Nws, kMilli));
         surf.N = TanToWorld(Nws, material_normal(mat, uv));
         float4 albedo = material_albedo(mat, uv);
         float4 rome = material_rome(mat, uv);
@@ -616,7 +585,7 @@ static rayhit_t VEC_CALL TraceRay(
     rayhit_t hit = { 0 };
     hit.wuvt.w = tFar;
 
-    RTCRayHit rtcHit = RtcIntersect(scene->rtcScene, ray, kMicrometer, tFar);
+    RTCRayHit rtcHit = RtcIntersect(scene->rtcScene, ray, 0.0f, tFar);
     bool hitNothing =
         (rtcHit.hit.geomID == RTC_INVALID_GEOMETRY_ID) ||
         (rtcHit.ray.tfar <= 0.0f);
@@ -654,7 +623,7 @@ pim_inline float4 VEC_CALL SampleSpecular(
     float4 N,
     float alpha)
 {
-    float2 Xi = rngseq_next(rng, rngseq_SampleSpecular + task_thread_id());
+    float2 Xi = rngseq_next(rng, rngseq_SampleSpecular + task_thread_id(), 64);
     float4 H = TanToWorld(N, SampleGGXMicrofacet(Xi, alpha));
     float4 L = f4_normalize3(f4_reflect3(I, H));
     return L;
@@ -663,7 +632,7 @@ pim_inline float4 VEC_CALL SampleSpecular(
 static rngseq_t rngseq_SampleDiffuse[kNumThreads];
 pim_inline float4 VEC_CALL SampleDiffuse(prng_t* rng, float4 N)
 {
-    float2 Xi = rngseq_next(rng, rngseq_SampleDiffuse + task_thread_id());
+    float2 Xi = rngseq_next(rng, rngseq_SampleDiffuse + task_thread_id(), 64);
     float4 L = TanToWorld(N, SampleCosineHemisphere(Xi));
     return L;
 }
@@ -1065,12 +1034,6 @@ pt_result_t VEC_CALL pt_trace_ray(
     return result;
 }
 
-pim_inline float3 VEC_CALL KillFireflies(float3 x)
-{
-    float lum = f3_hmax(x);
-    return f3_divvs(x, 1.0f + (lum / 1000.0f));
-}
-
 static void TraceFn(task_t* pbase, i32 begin, i32 end)
 {
     trace_task_t* task = (trace_task_t*)pbase;
@@ -1108,7 +1071,6 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
         float4 rd = proj_dir(right, up, fwd, slope, uv);
         ray_t ray = { ro, rd };
         pt_result_t result = pt_trace_ray(&rng, scene, ray);
-        result.color = KillFireflies(result.color);
         color[i] = f3_lerp(color[i], result.color, sampleWeight);
         albedo[i] = f3_lerp(albedo[i], result.albedo, sampleWeight);
         normal[i] = f3_lerp(normal[i], result.normal, sampleWeight);

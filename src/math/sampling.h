@@ -69,6 +69,24 @@ pim_inline float2 VEC_CALL Hammersley2D(u32 i, u32 N)
     return c;
 }
 
+typedef struct rngseq_s
+{
+    float2 jit;
+    i32 cur;
+} rngseq_t;
+
+pim_inline float2 VEC_CALL rngseq_next(prng_t* pim_noalias rng, rngseq_t* pim_noalias seq, i32 len)
+{
+    i32 c = seq->cur++ & (len - 1);
+    if (c == 0)
+    {
+        seq->jit = f2_rand(rng);
+    }
+    // de-corrolates brdf samples
+    c = prng_i32(rng) & (len - 1);
+    return f2_frac(f2_add(seq->jit, Hammersley2D(c, len)));
+}
+
 // http://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling.html
 pim_inline float VEC_CALL PowerHeuristic(
     i32 fCt, float fPdf,
@@ -123,6 +141,15 @@ pim_inline float2 VEC_CALL MapSquareToDisk(float2 Xi)
     return f2_v(r * cosf(phi), r * sinf(phi));
 }
 
+pim_inline float4 VEC_CALL SampleBaryCoord(float2 Xi)
+{
+    float sqrtR1 = sqrtf(Xi.x);
+    float u = sqrtR1 * (1.0f - Xi.y);
+    float v = Xi.y * sqrtR1;
+    float w = 1.0f - (u + v);
+    return f4_v(w, u, v, 0.0f);
+}
+
 pim_inline float4 VEC_CALL SphericalToCartesian(float cosTheta, float phi)
 {
     float sinTheta = sqrtf(f1_max(0.0f, 1.0f - cosTheta * cosTheta));
@@ -158,26 +185,50 @@ pim_inline float4 VEC_CALL SamplePointOnSphere(
     return P;
 }
 
-pim_inline float4 VEC_CALL SampleSphereSolidAngle(
-    float2 Xi,
-    float4 center,
-    float radius,
-    float4 ro)
+typedef struct SphereSA
 {
-    float4 rd = f4_sub(center, ro);
-    float dist = f4_length3(rd);
-    dist = f1_max(dist, kCentimeter);
-    rd = f4_divvs(rd, dist);
-    float sinTheta0 = radius / dist;
-    float cosTheta0 = sqrtf(f1_max(0.0f, 1.0f - sinTheta0 * sinTheta0));
+    float3x3 Vonb;
+    float4 sphere;
+    float cosTheta;
+    float distance;
+} SphereSA;
 
-    float cosTheta1 = 1.0f - Xi.y + Xi.y * cosTheta0;
+// https://en.wikipedia.org/wiki/Angular_diameter
+pim_inline float VEC_CALL CosAngularRadius(float distanceToCenter, float radius)
+{
+    float sinTheta = radius / distanceToCenter;
+    float cosTheta = sqrtf(f1_max(0.0f, 1.0f - sinTheta * sinTheta));
+    return cosTheta;
+}
+
+pim_inline float VEC_CALL SolidAngleArea(float cosTheta)
+{
+    return kTau * (1.0f - cosTheta);
+}
+
+pim_inline SphereSA VEC_CALL SphereSA_New(float4 sphere, float4 ro)
+{
+    float4 rd = f4_sub(sphere, ro);
+    float dist = f4_length3(rd);
+    dist = f1_max(dist, kCenti);
+    rd = f4_divvs(rd, dist);
+    float4 V = f4_neg(rd);
+
+    SphereSA sa;
+    sa.Vonb = NormalToTBN(V);
+    sa.sphere = sphere;
+    sa.cosTheta = CosAngularRadius(dist, sphere.w);
+    sa.distance = dist;
+    return sa;
+}
+
+pim_inline float4 VEC_CALL SampleSphereSA(SphereSA sa, float2 Xi)
+{
+    float cosTheta = 1.0f - Xi.y + Xi.y * sa.cosTheta;
     float phi = kTau * Xi.x;
-    float4 dirTs = SphericalToCartesian(cosTheta1, phi);
-    float4 dirWs = TanToWorld(f4_neg(rd), dirTs);
-    float4 ptWs = f4_add(center, f4_mulvs(dirWs, radius));
-    float pdf = 1.0f / (kTau * (1.0f - cosTheta0));
-    ptWs.w = pdf;
+    float4 dirTs = SphericalToCartesian(cosTheta, phi);
+    float4 dirWs = TbnToWorld(sa.Vonb, dirTs);
+    float4 ptWs = f4_add(sa.sphere, f4_mulvs(dirWs, sa.sphere.w));
     return ptWs;
 }
 

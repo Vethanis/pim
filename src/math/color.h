@@ -194,7 +194,7 @@ pim_inline float4 VEC_CALL tmap4_aces(float4 x)
     y.x = tmap1_aces(x.x);
     y.y = tmap1_aces(x.y);
     y.z = tmap1_aces(x.z);
-    y.w = tmap1_aces(x.w);
+    y.w = 1.0f;
     return y;
 }
 
@@ -212,7 +212,7 @@ pim_inline float4 VEC_CALL tmap4_filmic(float4 x)
     y.x = tmap1_filmic(x.x);
     y.y = tmap1_filmic(x.y);
     y.z = tmap1_filmic(x.z);
-    y.w = tmap1_filmic(x.w);
+    y.w = 1.0f;
     return y;
 }
 
@@ -231,13 +231,11 @@ pim_inline float VEC_CALL tmap1_uchart2(float x)
 
 pim_inline float4 VEC_CALL tmap4_uchart2(float4 x)
 {
-    const float w = 11.2f;
-    x = f4_mulvs(x, 2.0f);
     float4 y;
     y.x = tmap1_uchart2(x.x);
     y.y = tmap1_uchart2(x.y);
     y.z = tmap1_uchart2(x.z);
-    y.w = tmap1_uchart2(w);
+    y.w = tmap1_uchart2(x.w);
     y = f4_divvs(y, y.w);
     return y;
 }
@@ -258,20 +256,18 @@ pim_inline float VEC_CALL tmap1_hable(float x, float4 params)
 
 pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
 {
-    const float w = 11.2f;
-    x = f4_mulvs(x, 2.0f);
     float4 y;
     y.x = tmap1_hable(x.x, params);
     y.y = tmap1_hable(x.y, params);
     y.z = tmap1_hable(x.z, params);
-    y.w = tmap1_hable(w, params);
+    y.w = tmap1_hable(x.w, params);
     y = f4_divvs(y, y.w);
     return y;
 }
 
 pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)
 {
-    e = e * e * e * 50.0f;
+    e = e * e * e * 300.0f;
     return f4_mulvs(albedo, e);
 }
 

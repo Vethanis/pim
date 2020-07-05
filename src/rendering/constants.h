@@ -6,17 +6,15 @@ PIM_C_BEGIN
 
 enum
 {
-    kDrawWidth = 320 << 1,
-    kDrawHeight = 240 << 1,
+#ifdef _DEBUG
+    kDrawWidth = 1920 / 4,
+    kDrawHeight = 1080 / 4,
+#else
+    kDrawWidth = 1920 / 2,
+    kDrawHeight = 1080 / 2,
+#endif // _DEBUG
     kDrawPixels = kDrawWidth * kDrawHeight,
-    kTilesPerDim = 8,
-    kTileCount = kTilesPerDim * kTilesPerDim,
-    kTileWidth = kDrawWidth / kTilesPerDim,
-    kTileHeight = kDrawHeight / kTilesPerDim,
-    kTilePixels = kTileWidth * kTileHeight,
 };
-SASSERT((kDrawWidth % kTilesPerDim) == 0);
-SASSERT((kDrawHeight % kTilesPerDim) == 0);
 
 static const float kDrawAspect = (float)kDrawWidth / kDrawHeight;
 

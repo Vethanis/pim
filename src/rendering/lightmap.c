@@ -1367,6 +1367,8 @@ typedef struct bake_s
     float timeSlice;
 } bake_t;
 
+static rngseq_t rngseq_BakeFn1[kNumThreads];
+static rngseq_t rngseq_BakeFn2[kNumThreads];
 static void BakeFn(task_t* pbase, i32 begin, i32 end)
 {
     bake_t* task = (bake_t*)pbase;
@@ -1379,7 +1381,11 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
     const float rcpSize = 1.0f / lmSize;
     const int2 size = { lmSize, lmSize };
 
+    const i32 tid = task_thread_id();
     prng_t rng = prng_get();
+    rngseq_t* pim_noalias seq1 = rngseq_BakeFn1 + tid;
+    rngseq_t* pim_noalias seq2 = rngseq_BakeFn2 + tid;
+
     for (i32 iWork = begin; iWork < end; ++iWork)
     {
         i32 iLightmap = iWork / lmLen;
@@ -1396,20 +1402,25 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
                 sampleCount += 1.0f;
                 lightmap.sampleCounts[iTexel] = sampleCount;
 
-                float2 jit = f2_rand(&rng);
+                float2 Xi1 = rngseq_next(&rng, seq1, 64);
+                float2 Xi2 = rngseq_next(&rng, seq2, 64);
+
                 i32 x = iTexel % lmSize;
                 i32 y = iTexel / lmSize;
-                float2 uv = { (x + jit.x) * rcpSize, (y + jit.y) * rcpSize };
+                float2 uv = { (x + Xi1.x) * rcpSize, (y + Xi1.y) * rcpSize };
                 float3 P3 = UvBilinearClamp_f3(lightmap.position, size, uv);
                 float3 N3 = UvBilinearClamp_f3(lightmap.normal, size, uv);
                 float4 P = f3_f4(P3, 1.0f);
                 float4 N = f4_normalize3(f3_f4(N3, 0.0f));
+                P = f4_add(P, f4_mulvs(N, kMilli));
 
-                float4 dir = TanToWorld(N, SampleCosineHemisphere(f2_rand(&rng)));
-                float pdf = LambertPdf(f1_sat(f4_dot3(N, dir)));
-                ray_t ray = { P, dir };
+                float4 Lts = SampleCosineHemisphere(Xi2);
+                float4 Lws = TanToWorld(N, Lts);
+                float NoL = f4_dotsat(N, Lws);
+
+                ray_t ray = { P, Lws };
                 pt_result_t result = pt_trace_ray(&rng, scene, ray);
-                result.color = f3_mulvs(result.color, pdf);
+                result.color = f3_mulvs(result.color, NoL);
 
                 lightmap.color[iTexel] = f3_lerp(lightmap.color[iTexel], result.color, weight);
             }
