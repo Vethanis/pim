@@ -178,7 +178,6 @@ pim_inline float4 VEC_CALL tmap4_reinhard(float4 x)
 // https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
 pim_inline float VEC_CALL tmap1_aces(float x)
 {
-    x *= 0.6f;
     const float a = 2.51f;
     const float b = 0.03f;
     const float c = 2.43f;
@@ -267,7 +266,7 @@ pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
 
 pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)
 {
-    e = e * e * e * 300.0f;
+    e = e * e * e * 100.0f;
     return f4_mulvs(albedo, e);
 }
 

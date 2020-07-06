@@ -45,7 +45,6 @@
 #include "rendering/denoise.h"
 #include "rendering/rtcdraw.h"
 #include "rendering/exposure.h"
-#include "rendering/gi_grid.h"
 
 #include "rendering/vulkan/vkr.h"
 
@@ -57,7 +56,6 @@
 #include <time.h>
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
-static cvar_t cv_pt_depth = { cvart_int, 0, "pt_depth", "5", "max bvh depth" };
 static cvar_t cv_pt_rejsamples = { cvart_int, 0, "pt_rejsamples", "2", "emissive texel rejection samples" };
 static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
 static cvar_t cv_pt_normal = { cvart_bool, 0, "pt_normal", "0", "output path tracer normals" };
@@ -66,9 +64,6 @@ static cvar_t cv_pt_albedo = { cvart_bool, 0, "pt_albedo", "0", "output path tra
 static cvar_t cv_lm_gen = { cvart_bool, 0, "lm_gen", "0", "enable lightmap generation" };
 static cvar_t cv_lm_denoise = { cvart_bool, 0, "lm_denoise", "0", "denoise lightmaps" };
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
-static cvar_t cv_gi_gen = { cvart_bool, 0, "gi_gen", "0", "generate gi grid" };
-static cvar_t cv_gi_ppm = { cvart_float, 0, "gi_ppm", "2", "gi probes per meter" };
-static cvar_t cv_gi_spp = { cvart_int, 0, "gi_spp", "1", "samples per gi probe" };
 
 static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
 
@@ -85,10 +80,23 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv);
 static framebuf_t ms_buffers[2];
 static i32 ms_iFrame;
 
-static TonemapId ms_tonemapper;
+static TonemapId ms_tonemapper = TMap_Uncharted2;
 static float4 ms_toneParams;
 static float4 ms_clearColor;
-static exposure_t ms_exposure;
+static exposure_t ms_exposure =
+{
+    .manual = false,
+    .standard = false,
+
+    .aperture = 4.0f,
+    .shutterTime = 1.0f / 10.0f,
+    .ISO = 100.0f,
+
+    .adaptRate = 1.0f,
+    .offsetEV = 0.0f,
+    .histMinProb = 0.05f,
+    .histMaxProb = 0.95f,
+};
 
 static camera_t ms_ptcam;
 static pt_scene_t* ms_ptscene;
@@ -120,7 +128,6 @@ static void SwapBuffers(void)
 static void EnsurePtScene(void)
 {
     bool dirty = false;
-    dirty |= cvar_check_dirty(&cv_pt_depth);
     dirty |= cvar_check_dirty(&cv_pt_rejsamples);
     if (dirty)
     {
@@ -129,11 +136,8 @@ static void EnsurePtScene(void)
     }
     if (!ms_ptscene)
     {
-        i32 maxDepth = (i32)f1_clamp(cv_pt_depth.asFloat, 1.0f, 8.0f);
         i32 rejSamples = (i32)f1_clamp(cv_pt_rejsamples.asFloat, 1.0f, 100.0f);
-        ms_ptscene = pt_scene_new(
-            maxDepth,
-            rejSamples);
+        ms_ptscene = pt_scene_new(rejSamples);
         ms_ptSampleCount = 0;
         ms_acSampleCount = 0;
         ms_cmapSampleCount = 0;
@@ -175,35 +179,6 @@ static box_t VEC_CALL CalcSceneBounds(void)
     box.center = f4_lerpvs(lo, hi, 0.5f);
     box.extents = f4_sub(hi, box.center);
     return box;
-}
-
-ProfileMark(pm_GiGrid_Trace, GiGrid_Trace)
-static void GiGrid_Trace(void)
-{
-    if (cv_gi_gen.asFloat != 0.0f)
-    {
-        ProfileBegin(pm_GiGrid_Trace);
-        EnsurePtScene();
-
-        gigrid_t* grid = gigrid_get();
-
-        bool dirty = grid->probes == NULL;
-        dirty |= cvar_check_dirty(&cv_gi_ppm);
-        if (dirty)
-        {
-            float ppm = cv_gi_ppm.asFloat;
-            box_t bounds = CalcSceneBounds();
-            gigrid_del(grid);
-            gigrid_new(grid, ppm, bounds);
-            ms_gigridsamples = 0;
-        }
-
-        i32 spp = (i32)cv_gi_spp.asFloat;
-        gigrid_bake(grid, ms_ptscene, ms_gigridsamples, spp);
-        ms_gigridsamples += spp;
-
-        ProfileEnd(pm_GiGrid_Trace);
-    }
 }
 
 static void LightmapRepack(void)
@@ -484,7 +459,6 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     pt_scene_del(ms_ptscene);
     ms_ptscene = NULL;
     lmpack_del(lmpack_get());
-    gigrid_del(gigrid_get());
 
     con_logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
@@ -519,7 +493,6 @@ void render_sys_init(void)
     cvar_reg(&cv_r_sw);
 
     cvar_reg(&cv_pt_trace);
-    cvar_reg(&cv_pt_depth);
     cvar_reg(&cv_pt_rejsamples);
     cvar_reg(&cv_pt_denoise);
     cvar_reg(&cv_pt_normal);
@@ -531,9 +504,6 @@ void render_sys_init(void)
     cvar_reg(&cv_lm_timeslice);
 
     cvar_reg(&cv_cm_gen);
-    cvar_reg(&cv_gi_gen);
-    cvar_reg(&cv_gi_ppm);
-    cvar_reg(&cv_gi_spp);
 
     cmd_reg("screenshot", CmdScreenshot);
     cmd_reg("mapload", CmdLoadMap);
@@ -548,19 +518,10 @@ void render_sys_init(void)
     framebuf_create(GetBackBuf(), kDrawWidth, kDrawHeight);
     screenblit_init(kDrawWidth, kDrawHeight);
 
-    ms_tonemapper = TMap_Uncharted2;
     ms_toneParams = Tonemap_DefParams();
     ms_toneParams.x = 0.25f;
     ms_toneParams.w = 0.25f;
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
-    ms_exposure.adaptRate = 1.0f;
-    ms_exposure.avgLum = 1.0f;
-    ms_exposure.minEV100 = 0.5f;
-    ms_exposure.maxEV100 = 20.0f;
-    ms_exposure.offset = 0.0f;
-    ms_exposure.manual = false;
-    ms_exposure.aperture = 4.0f;
-    ms_exposure.shutterTime = 1.0f / 10.0f;
 
     con_exec("mapload start");
 
@@ -576,7 +537,6 @@ void render_sys_update(void)
     mesh_sys_update();
 
     Lightmap_Trace();
-    GiGrid_Trace();
     Cubemap_Trace();
     if (!PathTrace())
     {
@@ -651,18 +611,22 @@ void render_sys_gui(bool* pEnabled)
         {
             igIndent(0.0f);
             igCheckbox("Manual", &ms_exposure.manual);
+            igCheckbox("Standard", &ms_exposure.standard);
+            igSliderFloat("Output Offset EV", &ms_exposure.offsetEV, -5.0f, 5.0f);
             if (ms_exposure.manual)
             {
                 igSliderFloat("Aperture", &ms_exposure.aperture, 1.4f, 22.0f);
                 igSliderFloat("Shutter Speed", &ms_exposure.shutterTime, 1.0f / 2000.0f, 1.0f);
+                float S = log2f(ms_exposure.ISO / 100.0f);
+                igSliderFloat("log2(ISO)", &S, 0.0f, 10.0f);
+                ms_exposure.ISO = exp2f(S) * 100.0f;
             }
             else
             {
                 igSliderFloat("Adapt Rate", &ms_exposure.adaptRate, 0.1f, 10.0f);
-                igSliderFloat("Min EV100", &ms_exposure.minEV100, 0.1f, ms_exposure.maxEV100);
-                igSliderFloat("Max EV100", &ms_exposure.maxEV100, ms_exposure.minEV100, 20.0f);
+                igSliderFloat("Hist Cdf Min", &ms_exposure.histMinProb, 0.0f, ms_exposure.histMaxProb);
+                igSliderFloat("Hist Cdf Max", &ms_exposure.histMaxProb, ms_exposure.histMinProb, 1.0f);
             }
-            igSliderFloat("Offset", &ms_exposure.offset, -5.0f, 5.0f);
             igUnindent(0.0f);
         }
 

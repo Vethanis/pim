@@ -15,19 +15,19 @@ pim_inline float4 VEC_CALL AmbCube_Eval(AmbCube_t c, float4 dir)
     float4 v = f4_0;
 
     if (face.x)
-        v = f4_add(v, f4_mulvs(c.xp, dir.x));
+        v = f4_add(v, f4_mulvs(c.Values[0], dir.x));
     else
-        v = f4_add(v, f4_mulvs(c.xn, dir.x));
+        v = f4_add(v, f4_mulvs(c.Values[1], dir.x));
 
     if (face.y)
-        v = f4_add(v, f4_mulvs(c.yp, dir.y));
+        v = f4_add(v, f4_mulvs(c.Values[2], dir.y));
     else
-        v = f4_add(v, f4_mulvs(c.yn, dir.y));
+        v = f4_add(v, f4_mulvs(c.Values[3], dir.y));
 
     if (face.z)
-        v = f4_add(v, f4_mulvs(c.zp, dir.z));
+        v = f4_add(v, f4_mulvs(c.Values[4], dir.z));
     else
-        v = f4_add(v, f4_mulvs(c.zn, dir.z));
+        v = f4_add(v, f4_mulvs(c.Values[5], dir.z));
 
     return v;
 }
@@ -44,19 +44,19 @@ pim_inline AmbCube_t VEC_CALL AmbCube_Fit(AmbCube_t c, float weight, float4 dir,
     dir = f4_mulvs(dir, weight);
 
     if (face.x)
-        c.xp = f4_lerpvs(c.xp, rad, dir.x);
+        c.Values[0] = f4_lerpvs(c.Values[0], rad, dir.x);
     else
-        c.xn = f4_lerpvs(c.xn, rad, dir.x);
+        c.Values[1] = f4_lerpvs(c.Values[1], rad, dir.x);
 
     if (face.y)
-        c.yp = f4_lerpvs(c.yp, rad, dir.y);
+        c.Values[2] = f4_lerpvs(c.Values[2], rad, dir.y);
     else
-        c.yn = f4_lerpvs(c.yn, rad, dir.y);
+        c.Values[3] = f4_lerpvs(c.Values[3], rad, dir.y);
 
     if (face.z)
-        c.zp = f4_lerpvs(c.zp, rad, dir.z);
+        c.Values[4] = f4_lerpvs(c.Values[4], rad, dir.z);
     else
-        c.zn = f4_lerpvs(c.zn, rad, dir.z);
+        c.Values[5] = f4_lerpvs(c.Values[5], rad, dir.z);
 
     return c;
 }

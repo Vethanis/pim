@@ -1399,9 +1399,6 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
             float prob = f1_lerp(timeSlice, timeSlice * 2.0f, weight);
             if (prng_f32(&rng) < prob)
             {
-                sampleCount += 1.0f;
-                lightmap.sampleCounts[iTexel] = sampleCount;
-
                 float2 Xi1 = rngseq_next(&rng, seq1, 64);
                 float2 Xi2 = rngseq_next(&rng, seq2, 64);
 
@@ -1410,6 +1407,12 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
                 float2 uv = { (x + Xi1.x) * rcpSize, (y + Xi1.y) * rcpSize };
                 float3 P3 = UvBilinearClamp_f3(lightmap.position, size, uv);
                 float3 N3 = UvBilinearClamp_f3(lightmap.normal, size, uv);
+                if (f3_lengthsq(N3) < 0.9f)
+                {
+                    lightmap.sampleCounts[iTexel] = 0.0f;
+                    lightmap.color[iTexel] = f3_v(100.0f, 0.0f, 0.0f);
+                    continue;
+                }
                 float4 P = f3_f4(P3, 1.0f);
                 float4 N = f4_normalize3(f3_f4(N3, 0.0f));
                 P = f4_add(P, f4_mulvs(N, kMilli));
@@ -1423,6 +1426,8 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
                 result.color = f3_mulvs(result.color, NoL);
 
                 lightmap.color[iTexel] = f3_lerp(lightmap.color[iTexel], result.color, weight);
+                sampleCount += 1.0f;
+                lightmap.sampleCounts[iTexel] = sampleCount;
             }
         }
     }

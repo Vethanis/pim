@@ -199,7 +199,7 @@ typedef struct frus_s
 typedef struct AmbCube_s
 {
     // radiance along normals of a cube
-    float4 xp, xn, yp, yn, zp, zn;
+    float4 Values[6];
 } AmbCube_t;
 
 PIM_C_END

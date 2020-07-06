@@ -125,6 +125,11 @@ pim_inline float VEC_CALL f1_lerp(float a, float b, float t)
     return a + (b - a) * t;
 }
 
+pim_inline float VEC_CALL f1_unlerp(float a, float b, float x)
+{
+    return f1_saturate((x - a) / (b - a));
+}
+
 pim_inline float VEC_CALL f1_qbezier(float a, float b, float c, float t)
 {
     return f1_lerp(f1_lerp(a, b, t), f1_lerp(b, c, t), t);
@@ -142,7 +147,7 @@ pim_inline float VEC_CALL f1_step(float a, float b)
 
 pim_inline float VEC_CALL f1_smoothstep(float a, float b, float x)
 {
-    float t = f1_saturate((x - a) / (b - a));
+    float t = f1_unlerp(a, b, x);
     return (t * t) * (3.0f - 2.0f * t);
 }
 

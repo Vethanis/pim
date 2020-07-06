@@ -14,17 +14,14 @@ i32 AmbCube_Bake(
     ASSERT(samples >= 0);
     ASSERT(prevSampleCount >= 0);
 
-    ray_t ray = { .ro = origin };
-
-    pt_results_t results = pt_raygen(scene, ray, ptdist_sphere, samples);
+    pt_results_t results = pt_raygen(scene, origin, samples);
 
     const float4* pim_noalias colors = results.colors;
     const float4* pim_noalias directions = results.directions;
 
     AmbCube_t cube = *pCube;
-    i32 s = prevSampleCount;
     float w = 6.0f / (1.0f + samples);
-    w = w / (1.0f + s);
+    w = w / (1.0f + prevSampleCount);
     for (i32 i = 0; i < samples; ++i)
     {
         cube = AmbCube_Fit(cube, w, directions[i], colors[i]);

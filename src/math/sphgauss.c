@@ -48,15 +48,12 @@ void SG_Accumulate(
         float basis = SG_BasisEval(axis, dir);
         if (basis > 0.0f)
         {
-            float integral = basis * basis;
-            integral = f1_lerp(weights[i], integral, sampleWeight);
-            weights[i] = integral;
-
-            integral = f1_max(integral, SG_BasisIntegralSq(axis.w));
+            float basisSq = basis * basis;
+            basisSq = f1_lerp(weights[i], basisSq, sampleWeight);
+            weights[i] = basisSq;
 
             float4 otherLobes = f4_sub(estimate, f4_mulvs(amplitude, basis));
-
-            float4 thisLobe = f4_mulvs(f4_sub(rad, otherLobes), basis / integral);
+            float4 thisLobe = f4_mulvs(f4_sub(rad, otherLobes), basis / basisSq);
             amplitude = f4_lerpvs(amplitude, thisLobe, sampleWeight);
             amplitude = f4_max(amplitude, f4_0);
             amplitudes[i] = amplitude;

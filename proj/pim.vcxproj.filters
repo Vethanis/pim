@@ -451,9 +451,6 @@
     <ClCompile Include="..\src\containers\sset.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\gi_grid.c">
-      <Filter>Source Files\rendering</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\rendering\rtcdraw.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
@@ -965,9 +962,6 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\sset.h">
       <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\rendering\gi_grid.h">
-      <Filter>Source Files\rendering</Filter>
     </ClInclude>
     <ClInclude Include="..\src\math\area.h">
       <Filter>Source Files\math</Filter>

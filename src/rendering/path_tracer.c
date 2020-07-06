@@ -29,6 +29,47 @@
 
 #include <string.h>
 
+typedef struct pt_scene_s
+{
+    RTCScene rtcScene;
+
+    // all geometry within the scene
+    // xyz: vertex position
+    //   w: 1
+    // [vertCount]
+    float4* pim_noalias positions;
+    // xyz: vertex normal
+    // [vertCount]
+    float4* pim_noalias normals;
+    //  xy: texture coordinate
+    // [vertCount]
+    float2* pim_noalias uvs;
+    // material indices
+    // [vertCount]
+    i32* pim_noalias matIds;
+
+    // emissive triangle indices
+    // [emissiveCount]
+    i32* pim_noalias emissives;
+    // emissive texel chance of triangle
+    // [emissiveCount]
+    float* pim_noalias emPdfs;
+
+    // surface description, indexed by matIds
+    // [matCount]
+    material_t* pim_noalias materials;
+
+    // array lengths
+    i32 vertCount;
+    i32 matCount;
+    i32 emissiveCount;
+    i32 nodeCount;
+    // hyperparameters
+    i32 rejectionSamples;
+    float3 sunDirection;
+    float sunIntensity;
+} pt_scene_t;
+
 typedef enum
 {
     hit_nothing = 0,
@@ -75,10 +116,9 @@ typedef struct pt_raygen_s
 {
     task_t task;
     const pt_scene_t* scene;
-    ray_t origin;
+    float4 origin;
     float4* colors;
     float4* directions;
-    pt_dist_t dist;
 } pt_raygen_t;
 
 static bool ms_once;
@@ -456,12 +496,12 @@ static void UpdateSun(pt_scene_t* scene)
     float irradiance = cv_r_sun_rad ? cv_r_sun_rad->asFloat : 100.0f;
     const float4 kUp = { 0.0f, 1.0f, 0.0f, 0.0f };
 
-    float4 sunDir = TanToWorld(kUp, SampleUnitSphere(f2_v(zenith, azimuth)));
+    float4 sunDir = TanToWorld(kUp, SampleUnitHemisphere(f2_v(azimuth, zenith)));
     scene->sunDirection = f4_f3(sunDir);
     scene->sunIntensity = irradiance;
 }
 
-pt_scene_t* pt_scene_new(i32 maxDepth, i32 rejectionSamples)
+pt_scene_t* pt_scene_new(i32 rejectionSamples)
 {
     if (!EnsureInit())
     {
@@ -1110,31 +1150,17 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
 
     pt_raygen_t* task = (pt_raygen_t*)pBase;
     const pt_scene_t* scene = task->scene;
-    const pt_dist_t dist = task->dist;
-    const ray_t origin = task->origin;
-    const float3x3 TBN = NormalToTBN(origin.rd);
+    const float4 ro = task->origin;
 
     float4* pim_noalias colors = task->colors;
     float4* pim_noalias directions = task->directions;
 
-    ray_t ray;
-    ray.ro = origin.ro;
-
     for (i32 i = begin; i < end; ++i)
     {
         float2 Xi = f2_rand(&rng);
-        switch (dist)
-        {
-        default:
-        case ptdist_sphere:
-            ray.rd = SampleUnitSphere(Xi);
-            break;
-        case ptdist_hemi:
-            ray.rd = TbnToWorld(TBN, SampleUnitHemisphere(Xi));
-            break;
-        }
-        directions[i] = ray.rd;
-        pt_result_t result = pt_trace_ray(&rng, scene, ray);
+        float4 rd = SampleUnitSphere(Xi);
+        directions[i] = rd;
+        pt_result_t result = pt_trace_ray(&rng, scene, (ray_t) { ro, rd });
         colors[i] = f3_f4(result.color, 1.0f);
     }
 
@@ -1144,8 +1170,7 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
 ProfileMark(pm_raygen, pt_raygen)
 pt_results_t pt_raygen(
     pt_scene_t* scene,
-    ray_t origin,
-    pt_dist_t dist,
+    float4 origin,
     i32 count)
 {
     ProfileBegin(pm_raygen);
@@ -1160,7 +1185,6 @@ pt_results_t pt_raygen(
     task->origin = origin;
     task->colors = tmp_malloc(sizeof(task->colors[0]) * count);
     task->directions = tmp_malloc(sizeof(task->directions[0]) * count);
-    task->dist = dist;
     task_run(&task->task, RayGenFn, count);
 
     pt_results_t results =

@@ -7,7 +7,7 @@
 #include "math/frustum.h"
 #include "math/sampling.h"
 #include "math/atmosphere.h"
-#include "math/sphgauss.h"
+#include "math/ambcube.h"
 
 #include "rendering/framebuffer.h"
 #include "rendering/sampler.h"
@@ -15,7 +15,6 @@
 #include "rendering/drawable.h"
 #include "rendering/lights.h"
 #include "rendering/lightmap.h"
-#include "rendering/gi_grid.h"
 
 #include "common/cvar.h"
 #include "common/profiler.h"
@@ -256,7 +255,7 @@ static void UpdateScene(world_t* world)
     float zenith = f1_sat(cv_r_sun_ze.asFloat);
     world->sunDir = TanToWorld(
         f4_v(0.0f, 1.0f, 0.0f, 0.0f),
-        SampleUnitSphere(f2_v(zenith, azimuth)));
+        SampleUnitHemisphere(f2_v(azimuth, zenith)));
 
     ProfileEnd(pm_updatescene);
 }
@@ -509,75 +508,6 @@ typedef struct task_DrawScene
     world_t* world;
 } task_DrawScene;
 
-pim_inline float4 VEC_CALL ProbeEval(
-    const float4* pim_noalias axii,
-    giprobe_t probe,
-    float4 dir)
-{
-    float4 sum = f4_0;
-    for (i32 i = 0; i < kGiDirections; ++i)
-    {
-        float4 value = SG_Eval(axii[i], probe.Values[i], dir);
-        sum = f4_add(sum, value);
-    }
-    return sum;
-}
-
-pim_inline float4 VEC_CALL ProbeIrrad(
-    const float4* pim_noalias axii,
-    giprobe_t probe,
-    float4 dir)
-{
-    float4 sum = f4_0;
-    for (i32 i = 0; i < kGiDirections; ++i)
-    {
-        float4 value = SG_Irradiance(axii[i], probe.Values[i], dir);
-        sum = f4_add(sum, value);
-    }
-    return sum;
-}
-
-static float4 VEC_CALL DrawGiGrid(float4 ro, float4 rd)
-{
-    float4 color = f4_0;
-    const gigrid_t* grid = gigrid_get();
-    if (!grid->probes)
-    {
-        return color;
-    }
-    const float4* pim_noalias positions = grid->positions;
-    const giprobe_t* pim_noalias probes = grid->probes;
-    const float4* pim_noalias axii = grid->axii;
-    const float radius = f4_hmax3(grid->rcpRange);
-    const int3 size = grid->size;
-    const i32 len = size.x * size.y * size.z;
-    const ray_t ray = { ro, rd };
-    float tMin = 1<<20;
-    i32 iMin = -1;
-    for (i32 i = 0; i < len; ++i)
-    {
-        sphere_t sphere = { positions[i] };
-        sphere.value.w = radius;
-        float t = isectSphere3D(ray, sphere);
-        if (t <= 0.0f)
-        {
-            continue;
-        }
-        if (t < tMin)
-        {
-            tMin = t;
-            iMin = i;
-        }
-    }
-    if (iMin != -1)
-    {
-        float4 hit = f4_add(ro, f4_mulvs(rd, tMin));
-        float4 N = f4_normalize3(f4_sub(hit, positions[iMin]));
-        color = ProbeEval(axii, probes[iMin], N);
-    }
-    return color;
-}
-
 static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
 {
     task_DrawScene* task = (task_DrawScene*)pbase;
@@ -600,7 +530,6 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     const lm_uvs_t* pim_noalias lmUvList = drawables->lmUvs;
 
     const lmpack_t* lmpack = lmpack_get();
-    const gigrid_t* gigrid = gigrid_get();
 
     const int2 size = { target->width, target->height };
     const float2 rcpSize = { 1.0f / size.x, 1.0f / size.y };
@@ -696,7 +625,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
         const float3x3 TBN = NormalToTBN(Nws);
         const float4 N = f3x3_mul_col(TBN, Nts);
 
-        float4 lighting = f4_0;
+        float4 lighting = f4_mulvs(albedo, kMicro);
 
         // emission
         lighting = f4_add(lighting, UnpackEmission(albedo, rome.w));
@@ -795,36 +724,6 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
                         rome.y);
                     lighting = f4_add(lighting, indirect);
                 }
-            }
-
-            if (gigrid->probes)
-            {
-                giprobe_t probe = gigrid_sample(gigrid, P, N);
-                const float4* pim_noalias axii = gigrid->axii;
-                float4 R = f4_reflect3(rd, N);
-                R = SpecularDominantDir(N, R, BrdfAlpha(rome.x));
-                float4 diffuseGI = f4_0;
-                float4 specularGI = f4_0;
-                for (i32 iDir = 0; iDir < kGiDirections; ++iDir)
-                {
-                    float4 axis = axii[iDir];
-                    float4 amplitude = probe.Values[iDir];
-                    float4 diff = SG_Irradiance(axis, amplitude, N);
-                    float4 spec = SG_Irradiance(axis, amplitude, R);
-                    diffuseGI = f4_add(diffuseGI, diff);
-                    specularGI = f4_add(specularGI, spec);
-                }
-                //lighting = diffuseGI;
-                float4 indirect = IndirectBRDF(
-                    f4_neg(rd),
-                    N,
-                    diffuseGI,
-                    specularGI,
-                    albedo,
-                    rome.x,
-                    rome.z,
-                    rome.y);
-                lighting = f4_add(lighting, indirect);
             }
         }
 
