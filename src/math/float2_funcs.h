@@ -367,6 +367,18 @@ pim_inline float2 VEC_CALL f2_smoothstep(float2 a, float2 b, float2 x)
     return f2_mul(f2_mul(t, t), s);
 }
 
+pim_inline float2 VEC_CALL f2_unormstep(float2 t)
+{
+    float2 s = f2_sub(f2_s(3.0f), f2_mul(f2_2, t));
+    return f2_mul(f2_mul(t, t), s);
+}
+
+pim_inline float2 VEC_CALL f2_unormerstep(float2 t)
+{
+    float2 y = { f1_unormerstep(t.x), f1_unormerstep(t.y) };
+    return y;
+}
+
 pim_inline float2 VEC_CALL f2_reflect(float2 i, float2 n)
 {
     float2 nidn = f2_mul(n, f2_s(f2_dot(i, n)));

@@ -163,7 +163,7 @@ pim_inline bilinear_t VEC_CALL Bilinear(int2 size, float2 uv)
 {
     bilinear_t b;
     float2 coordf = UvToCoordf(size, uv);
-    b.frac = f2_frac(coordf);
+    b.frac = f2_unormstep(f2_frac(coordf));
     b.a = f2_i2(coordf);
     b.b = i2_v(b.a.x + 1, b.a.y + 0);
     b.c = i2_v(b.a.x + 0, b.a.y + 1);
@@ -401,6 +401,89 @@ pim_inline float4 VEC_CALL TrilinearWrap_c32(
     float4 s1 = UvBilinearWrap_c32(buffer + i1, size1, uv);
 
     return f4_lerpvs(s0, s1, mfrac);
+}
+
+pim_inline float4 VEC_CALL CubicEq(float t)
+{
+    float4 n = f4_subvs(f4_v(1.0f, 2.0f, 3.0f, 4.0f), t);
+    float4 s = f4_mul(f4_mul(n, n), n);
+    float x = s.x;
+    float y = s.y - 4.0f * s.x;
+    float z = s.z - 4.0f * s.y + 6.0f * s.x;
+    float w = 6.0f - x - y - z;
+    return f4_mulvs(f4_v(x, y, z, w), 1.0f / 6.0f);
+}
+
+// https://gist.github.com/TheRealMJP/c83b8c0f46b63f3a88a5986f4fa982b1
+pim_inline float3 VEC_CALL UvBicubic_f3(
+    const float3* pim_noalias texels,
+    int2 size,
+    float2 uv)
+{
+    const float2 sizef = { (float)size.x, (float)size.y };
+    const float2 rcpSize = f2_rcp(sizef);
+
+    float2 samplePos = f2_mul(uv, sizef);
+    float2 texPos1 = f2_addvs(f2_floor(f2_subvs(samplePos, 0.5f)), 0.5f);
+    float2 f = f2_sub(samplePos, texPos1);
+
+    float2 w0 =
+    {
+        f.x * (-0.5f + f.x * (1.0f - 0.5f * f.x)),
+        f.y * (-0.5f + f.y * (1.0f - 0.5f * f.y)),
+    };
+    float2 w1 =
+    {
+        1.0f + f.x * f.x * (-2.5f + 1.5f * f.x),
+        1.0f + f.y * f.y * (-2.5f + 1.5f * f.y),
+    };
+    float2 w2 =
+    {
+        f.x * (0.5f + f.x * (2.0f - 1.5f * f.x)),
+        f.y * (0.5f + f.y * (2.0f - 1.5f * f.y)),
+    };
+    float2 w3 =
+    {
+        f.x * f.x * (-0.5f + 0.5f * f.x),
+        f.y * f.y * (-0.5f + 0.5f * f.y),
+    };
+
+    float2 w12 = f2_add(w1, w2);
+    float2 offset12 = f2_div(w2, w12);
+
+    float2 texPos0 = f2_subvs(texPos1, 1.0f);
+    float2 texPos3 = f2_addvs(texPos1, 2.0f);
+    float2 texPos12 = f2_add(texPos1, offset12);
+
+    texPos0 = f2_mul(texPos0, rcpSize);
+    texPos3 = f2_mul(texPos3, rcpSize);
+    texPos12 = f2_mul(texPos12, rcpSize);
+
+    float3 result = f3_0;
+    float3 sample;
+
+    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos0.x, texPos0.y));
+    result = f3_add(result, f3_mulvs(sample, w0.x * w0.y));
+    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos12.x, texPos0.y));
+    result = f3_add(result, f3_mulvs(sample, w12.x * w0.y));
+    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos3.x, texPos0.y));
+    result = f3_add(result, f3_mulvs(sample, w3.x * w0.y));
+
+    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos0.x, texPos12.y));
+    result = f3_add(result, f3_mulvs(sample, w0.x * w12.y));
+    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos12.x, texPos12.y));
+    result = f3_add(result, f3_mulvs(sample, w12.x * w12.y));
+    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos3.x, texPos12.y));
+    result = f3_add(result, f3_mulvs(sample, w3.x * w12.y));
+
+    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos0.x, texPos3.y));
+    result = f3_add(result, f3_mulvs(sample, w0.x * w3.y));
+    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos12.x, texPos3.y));
+    result = f3_add(result, f3_mulvs(sample, w12.x * w3.y));
+    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos3.x, texPos3.y));
+    result = f3_add(result, f3_mulvs(sample, w3.x * w3.y));
+
+    return result;
 }
 
 pim_inline void VEC_CALL Write_f4(float4* dst, int2 size, int2 coord, float4 src)

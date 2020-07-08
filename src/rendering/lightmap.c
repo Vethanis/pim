@@ -221,19 +221,13 @@ static int2 VEC_CALL tri_size(tri2d_t tri)
 
 static bool VEC_CALL TriTest(tri2d_t tri, float2 pt)
 {
-    const i32 count = 8;
-    for (i32 s = 0; s < count; ++s)
+    for (i32 s = 0; s < 16; ++s)
     {
-        float2 Xi = Hammersley2D(s, count);
-        float2 pt2 = { pt.x + Xi.x, pt.y + Xi.y };
-        float dist = sdTriangle2D(tri.a, tri.b, tri.c, pt2);
-        if (dist <= 1.5f)
+        float2 Xi = Hammersley2D(s, 16);
+        float2 subPt = { pt.x + Xi.x, pt.y + Xi.y };
+        if (sdTriangle2D(tri.a, tri.b, tri.c, subPt) < 2.0f)
         {
             return true;
-        }
-        if (dist >= 4.0f)
-        {
-            return false;
         }
     }
     return false;
@@ -247,7 +241,8 @@ static void VEC_CALL mask_tri(mask_t mask, tri2d_t tri)
         for (i32 x = 0; x < size.x; ++x)
         {
             const i32 i = x + y * size.x;
-            if (TriTest(tri, f2_iv(x, y)))
+            float2 pt = { (float)x, (float)y };
+            if (TriTest(tri, pt))
             {
                 mask.ptr[i] = 0xff;
             }
@@ -557,7 +552,7 @@ static void ChartMaskFn(task_t* pbase, i32 begin, i32 end)
 
         float2 lo, hi;
         chart_minmax(chart, &lo, &hi);
-        lo = f2_subvs(lo, 8.0f);
+        lo = f2_subvs(lo, 2.0f);
         for (i32 iNode = 0; iNode < chart.nodeCount; ++iNode)
         {
             tri2d_t tri = chart.nodes[iNode].triCoord;
@@ -569,7 +564,7 @@ static void ChartMaskFn(task_t* pbase, i32 begin, i32 end)
         chart_minmax(chart, &lo, &hi);
         float2 size = f2_sub(hi, lo);
         chart.area = size.x * size.y;
-        hi = f2_addvs(hi, 8.0f);
+        hi = f2_addvs(hi, 2.0f);
 
         chart.mask = mask_new(f2_i2(hi));
         for (i32 iNode = 0; iNode < chart.nodeCount; ++iNode)
@@ -665,23 +660,6 @@ static chart_t* chart_group(
 
     *countOut = chartCount;
     return charts;
-}
-
-static void chart_apply(chart_t chart)
-{
-    int2 tr = chart.translation;
-    float2 trf = { (float)tr.x, (float)tr.y };
-    for (i32 i = 0; i < chart.nodeCount; ++i)
-    {
-        chartnode_t* node = chart.nodes + i;
-
-        tri2d_t triCoord = node->triCoord;
-        triCoord.a = f2_add(triCoord.a, trf);
-        triCoord.b = f2_add(triCoord.b, trf);
-        triCoord.c = f2_add(triCoord.c, trf);
-
-        node->triCoord = triCoord;
-    }
 }
 
 static i32 chart_cmp(const void* plhs, const void* prhs, void* usr)
@@ -837,7 +815,7 @@ static void AtlasFn(task_t* pbase, i32 begin, i32 end)
         chart_t chart = charts[iChart];
         chart.atlasIndex = -1;
 
-        if (chart.area <= (prevArea * 0.95f))
+        if (chart.area < (prevArea * 0.9f))
         {
             prevArea = chart.area;
             prevAtlas = 0;
@@ -854,11 +832,6 @@ static void AtlasFn(task_t* pbase, i32 begin, i32 end)
             prevArea = chart.area;
             prevAtlas = 0;
             prevRow = ROW_RESET;
-        }
-
-        if (chart.atlasIndex != -1)
-        {
-            chart_apply(chart);
         }
 
         mask_del(&chart.mask);
@@ -937,6 +910,9 @@ static void chartnodes_assign(
         chart_t chart = charts[iChart];
         chartnode_t* nodes = chart.nodes;
         i32 nodeCount = chart.nodeCount;
+        i32 size = lightmaps[chart.atlasIndex].size;
+        const float scale = 1.0f / size;
+        const float2 tr = i2_f2(chart.translation);
 
         for (i32 i = 0; i < nodeCount; ++i)
         {
@@ -957,12 +933,10 @@ static void chartnodes_assign(
                     lm_uvs_del(lmUvs);
                     lm_uvs_new(lmUvs, vertCount);
                 }
-                i32 size = lightmaps[chart.atlasIndex].size;
-                const float scale = 1.0f / size;
                 lmUvs->indices[node.vertIndex / 3] = chart.atlasIndex;
-                lmUvs->uvs[node.vertIndex + 0] = f2_mulvs(node.triCoord.a, scale);
-                lmUvs->uvs[node.vertIndex + 1] = f2_mulvs(node.triCoord.b, scale);
-                lmUvs->uvs[node.vertIndex + 2] = f2_mulvs(node.triCoord.c, scale);
+                lmUvs->uvs[node.vertIndex + 0] = f2_mulvs(f2_add(node.triCoord.a, tr), scale);
+                lmUvs->uvs[node.vertIndex + 1] = f2_mulvs(f2_add(node.triCoord.b, tr), scale);
+                lmUvs->uvs[node.vertIndex + 2] = f2_mulvs(f2_add(node.triCoord.c, tr), scale);
             }
             else
             {
@@ -1223,6 +1197,9 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
                     NC = f4_normalize3(NC);
 
                     float4 wuv = bary2D(LMA, LMB, LMC, rcpArea, uv);
+                    wuv = f4_clampvs(wuv, 0.0f, 1.0f);
+                    wuv = f4_divvs(wuv, f4_sum3(wuv));
+
                     float4 P = f4_blend(A, B, C, wuv);
                     float4 N = f4_blend(NA, NB, NC, wuv);
                     N = f4_normalize3(N);
@@ -1367,8 +1344,7 @@ typedef struct bake_s
     float timeSlice;
 } bake_t;
 
-static rngseq_t rngseq_BakeFn1[kNumThreads];
-static rngseq_t rngseq_BakeFn2[kNumThreads];
+static rngseq_t rngseq_BakeFn[kNumThreads];
 static void BakeFn(task_t* pbase, i32 begin, i32 end)
 {
     bake_t* task = (bake_t*)pbase;
@@ -1383,8 +1359,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
 
     const i32 tid = task_thread_id();
     prng_t rng = prng_get();
-    rngseq_t* pim_noalias seq1 = rngseq_BakeFn1 + tid;
-    rngseq_t* pim_noalias seq2 = rngseq_BakeFn2 + tid;
+    rngseq_t* pim_noalias seq = rngseq_BakeFn + tid;
 
     for (i32 iWork = begin; iWork < end; ++iWork)
     {
@@ -1399,14 +1374,8 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
             float prob = f1_lerp(timeSlice, timeSlice * 2.0f, weight);
             if (prng_f32(&rng) < prob)
             {
-                float2 Xi1 = rngseq_next(&rng, seq1, 64);
-                float2 Xi2 = rngseq_next(&rng, seq2, 64);
-
-                i32 x = iTexel % lmSize;
-                i32 y = iTexel / lmSize;
-                float2 uv = { (x + Xi1.x) * rcpSize, (y + Xi1.y) * rcpSize };
-                float3 P3 = UvBilinearClamp_f3(lightmap.position, size, uv);
-                float3 N3 = UvBilinearClamp_f3(lightmap.normal, size, uv);
+                float3 P3 = lightmap.position[iTexel];
+                float3 N3 = lightmap.normal[iTexel];
                 if (f3_lengthsq(N3) < 0.9f)
                 {
                     lightmap.sampleCounts[iTexel] = 0.0f;
@@ -1417,7 +1386,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
                 float4 N = f4_normalize3(f3_f4(N3, 0.0f));
                 P = f4_add(P, f4_mulvs(N, kMilli));
 
-                float4 Lts = SampleCosineHemisphere(Xi2);
+                float4 Lts = SampleCosineHemisphere(rngseq_next(&rng, seq, 64));
                 float4 Lws = TanToWorld(N, Lts);
                 float NoL = f4_dotsat(N, Lws);
 
