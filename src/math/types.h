@@ -202,4 +202,14 @@ typedef struct AmbCube_s
     float4 Values[6];
 } AmbCube_t;
 
+typedef struct SH4s
+{
+    float v[4];
+} SH4s;
+
+typedef struct SH4v
+{
+    float3 v[4];
+} SH4v;
+
 PIM_C_END

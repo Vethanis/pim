@@ -8,13 +8,17 @@ PIM_C_BEGIN
 typedef struct task_s task_t;
 typedef struct pt_scene_s pt_scene_t;
 
+#define kGiDirections 9
+
 typedef struct lightmap_s
 {
-    float3* color;
-    float3* denoised;
-    float3* position;
-    float3* normal;
-    float* sampleCounts;
+    float4* pim_noalias probes;
+    float* pim_noalias weights;
+    float3* pim_noalias color;
+    float3* pim_noalias denoised;
+    float3* pim_noalias position;
+    float3* pim_noalias normal;
+    float* pim_noalias sampleCounts;
     i32 size;
 } lightmap_t;
 
@@ -22,14 +26,15 @@ typedef struct lmpack_s
 {
     i32 lmCount;
     i32 lmSize;
-    lightmap_t* lightmaps;
+    lightmap_t* pim_noalias lightmaps;
+    float4 axii[kGiDirections];
 } lmpack_t;
 
 typedef struct lm_uvs_s
 {
     i32 length;
-    float2* uvs;
-    i32* indices;
+    float2* pim_noalias uvs;
+    i32* pim_noalias indices;
 } lm_uvs_t;
 
 void lightmap_new(lightmap_t* lm, i32 size);
@@ -37,6 +42,7 @@ void lightmap_del(lightmap_t* lm);
 
 lmpack_t* lmpack_get(void);
 lmpack_t lmpack_pack(
+    const pt_scene_t* scene,
     i32 atlasSize,
     float texelsPerUnit,
     float distThresh,

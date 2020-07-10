@@ -31,6 +31,20 @@ pim_inline float4 VEC_CALL SG_Eval(float4 axis, float4 amplitude, float4 dir)
     return f4_mulvs(amplitude, SG_BasisEval(axis, dir));
 }
 
+pim_inline float4 VEC_CALL SGv_Eval(
+    i32 length,
+    const float4* pim_noalias axii,
+    const float4* pim_noalias amplitudes,
+    float4 normal)
+{
+    float4 sum = f4_0;
+    for (i32 i = 0; i < length; ++i)
+    {
+        sum = f4_add(sum, SG_Eval(axii[i], amplitudes[i], normal));
+    }
+    return sum;
+}
+
 pim_inline float VEC_CALL SG_BasisIntegral(float sharpness)
 {
     // integral of the surface of the unit sphere: tau
@@ -85,12 +99,26 @@ pim_inline float4 VEC_CALL SG_Irradiance(
     return f4_mulvs(SG_Integral(axis, amplitude), normalizedIrradiance);
 }
 
+pim_inline float4 VEC_CALL SGv_Irradiance(
+    i32 length,
+    const float4* pim_noalias axii,
+    const float4* pim_noalias amplitudes,
+    float4 normal)
+{
+    float4 sum = f4_0;
+    for (i32 i = 0; i < length; ++i)
+    {
+        sum = f4_add(sum, SG_Irradiance(axii[i], amplitudes[i], normal));
+    }
+    return sum;
+}
+
 // Averages in a new sample into the set of spherical gaussians
 // that are being progressively fit to your data set.
 // Ensure the sample directions are not correlated (do a uniform shuffle).
 // Note that axis and sharpness are not modified, only amplitude.
 void SG_Accumulate(
-    i32 iSample,                    // sample sequence number
+    float weight,
     float4 sampleDir,               // sample direction
     float4 sampleLight,             // sample radiance
     const float4* pim_noalias axii, // sg axii

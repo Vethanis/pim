@@ -16,7 +16,7 @@ pim_inline float4 VEC_CALL SampleDir(float2 Xi, SGDist dist)
 }
 
 void SG_Accumulate(
-    i32 iSample,
+    float sampleWeight,
     float4 dir,
     float4 rad,
     const float4* pim_noalias axii,
@@ -24,7 +24,7 @@ void SG_Accumulate(
     float* pim_noalias weights,
     i32 length)
 {
-    if (iSample == 0)
+    if (sampleWeight == 0.0f)
     {
         for (i32 i = 0; i < length; ++i)
         {
@@ -39,7 +39,6 @@ void SG_Accumulate(
         estimate = f4_add(estimate, SG_Eval(axii[i], amplitudes[i], dir));
     }
 
-    const float sampleWeight = 1.0f / (1.0f + iSample);
     for (i32 i = 0; i < length; ++i)
     {
         float4 axis = axii[i];
@@ -93,4 +92,15 @@ void SG_Generate(float4* pim_noalias axii, i32 count, SGDist dist)
     {
         axii[i].w = sharpness;
     }
+
+    // de-correlate directions
+    prng_t rng = prng_get();
+    for (i32 i = 0; i < count; ++i)
+    {
+        i32 j = prng_i32(&rng) % count;
+        float4 tmp = axii[i];
+        axii[i] = axii[j];
+        axii[j] = tmp;
+    }
+    prng_set(rng);
 }

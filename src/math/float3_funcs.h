@@ -6,11 +6,11 @@ PIM_C_BEGIN
 
 #include "math/scalar.h"
 
-static const float3 f3_0 = { 0.0f, 0.0f, 0.0f };
-static const float3 f3_1 = { 1.0f, 1.0f, 1.0f };
-static const float3 f3_2 = { 2.0f, 2.0f, 2.0f };
-static const float3 f3_rcp2 = { 0.5f, 0.5f, 0.5f };
-static const float3 f3_rcp3 = { 0.33333333f, 0.33333333f, 0.33333333f };
+#define f3_0        f3_s(0.0f)
+#define f3_1        f3_s(1.0f)
+#define f3_2        f3_s(2.0f)
+#define f3_rcp2     f3_s(0.5f)
+#define f3_rcp3     f3_s(0.33333333f)
 
 pim_inline float3 VEC_CALL f3_v(float x, float y, float z)
 {
@@ -368,10 +368,7 @@ pim_inline float VEC_CALL f3_distancesq(float3 a, float3 b)
 
 pim_inline float3 VEC_CALL f3_lerp(float3 a, float3 b, float t)
 {
-    float3 vt = f3_s(t);
-    float3 ba = f3_sub(b, a);
-    b = f3_mul(ba, vt);
-    return f3_add(a, b);
+    return f3_add(a, f3_mulvs(f3_sub(b, a), t));
 }
 
 pim_inline float3 VEC_CALL f3_step(float3 a, float3 b)

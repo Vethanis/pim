@@ -70,15 +70,6 @@ typedef struct pt_scene_s
     float sunIntensity;
 } pt_scene_t;
 
-typedef enum
-{
-    hit_nothing = 0,
-    hit_triangle,
-    hit_sky,
-
-    hit_COUNT
-} hittype_t;
-
 typedef struct surfhit_s
 {
     float4 P;
@@ -89,13 +80,6 @@ typedef struct surfhit_s
     float metallic;
     float4 emission;
 } surfhit_t;
-
-typedef struct rayhit_s
-{
-    float4 wuvt;
-    hittype_t type;
-    i32 index;
-} rayhit_t;
 
 typedef struct scatter_s
 {
@@ -617,36 +601,44 @@ static surfhit_t VEC_CALL GetSurface(
     return surf;
 }
 
-static rayhit_t VEC_CALL TraceRay(
+rayhit_t VEC_CALL pt_intersect(
     const pt_scene_t* scene,
     ray_t ray,
+    float tNear,
     float tFar)
 {
     rayhit_t hit = { 0 };
-    hit.wuvt.w = tFar;
+    hit.wuvt.w = -1.0f;
+    hit.index = -1;
 
-    RTCRayHit rtcHit = RtcIntersect(scene->rtcScene, ray, 0.0f, tFar);
+    RTCRayHit rtcHit = RtcIntersect(scene->rtcScene, ray, tNear, tFar);
+    hit.normal = f4_v(rtcHit.hit.Ng_x, rtcHit.hit.Ng_y, rtcHit.hit.Ng_z, 0.0f);
     bool hitNothing =
         (rtcHit.hit.geomID == RTC_INVALID_GEOMETRY_ID) ||
         (rtcHit.ray.tfar <= 0.0f);
     if (hitNothing)
     {
-        hit.index = -1;
         hit.type = hit_nothing;
+        return hit;
+    }
+    hit.normal = f4_normalize3(hit.normal);
+    if (f4_dot3(hit.normal, ray.rd) > 0.0f)
+    {
+        hit.type = hit_backface;
         return hit;
     }
     ASSERT(rtcHit.hit.primID != RTC_INVALID_GEOMETRY_ID);
     i32 iVert = rtcHit.hit.primID * 3;
     ASSERT(iVert >= 0);
     ASSERT(iVert < scene->vertCount);
-    float u = rtcHit.hit.u;
-    float v = rtcHit.hit.v;
-    float w = 1.0f - (u + v);
+    float u = f1_sat(rtcHit.hit.u);
+    float v = f1_sat(rtcHit.hit.v);
+    float w = f1_sat(1.0f - (u + v));
     float t = rtcHit.ray.tfar;
 
     hit.type = hit_triangle;
-    hit.wuvt = f4_v(w, u, v, t);
     hit.index = iVert;
+    hit.wuvt = f4_v(w, u, v, t);
 
     if (GetMaterial(scene, hit)->flags & matflag_sky)
     {
@@ -909,7 +901,7 @@ static float VEC_CALL LightEvalPdf(
     float4 L)
 {
     ray_t ray = { surf->P, L };
-    rayhit_t hit = TraceRay(scene, ray, 1 << 20);
+    rayhit_t hit = pt_intersect(scene, ray, 0.0f, 1 << 20);
     if (hit.index != iLight)
     {
         return 0.0f;
@@ -920,13 +912,10 @@ static float VEC_CALL LightEvalPdf(
     float4 A = scene->positions[iLight + 0];
     float4 B = scene->positions[iLight + 1];
     float4 C = scene->positions[iLight + 2];
-    float4 N = f4_cross3(f4_sub(B, A), f4_sub(C, A));
-    float area = f4_length3(N);
-    N = f4_divvs(N, area);
-    area *= 0.5f;
+    float area = TriArea3D(A, B, C);
 
     float t = hit.wuvt.w;
-    float cosTheta = f4_dotsat(N, f4_neg(L));
+    float cosTheta = f4_dotsat(hit.normal, f4_neg(L));
     float pdf = LightPdf(area, cosTheta, t * t);
 
     return pdf;
@@ -987,19 +976,6 @@ static float4 VEC_CALL SampleLights(
     return light;
 }
 
-static float4 VEC_CALL pt_trace_albedo(
-    const pt_scene_t* scene,
-    ray_t ray)
-{
-    rayhit_t hit = TraceRay(scene, ray, 1 << 20);
-    if (hit.type != hit_nothing)
-    {
-        surfhit_t surf = GetSurface(scene, ray, hit, 0);
-        return surf.albedo;
-    }
-    return f4_0;
-}
-
 pt_result_t VEC_CALL pt_trace_ray(
     prng_t* rng,
     const pt_scene_t* scene,
@@ -1012,8 +988,12 @@ pt_result_t VEC_CALL pt_trace_ray(
 
     for (i32 b = 0; b < 20; ++b)
     {
-        rayhit_t hit = TraceRay(scene, ray, 1 << 20);
+        rayhit_t hit = pt_intersect(scene, ray, 0.0f, 1 << 20);
         if (hit.type == hit_nothing)
+        {
+            break;
+        }
+        if (hit.type == hit_backface)
         {
             break;
         }

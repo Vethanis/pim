@@ -200,6 +200,7 @@
     <ClInclude Include="..\src\math\scalar.h" />
     <ClInclude Include="..\src\math\int2_funcs.h" />
     <ClInclude Include="..\src\math\sdf.h" />
+    <ClInclude Include="..\src\math\sh.h" />
     <ClInclude Include="..\src\math\sphgauss.h" />
     <ClInclude Include="..\src\math\types.h" />
     <ClInclude Include="..\src\os\socket.h" />

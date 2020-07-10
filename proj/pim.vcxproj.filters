@@ -978,6 +978,9 @@
     <ClInclude Include="..\src\rendering\exposure.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\math\sh.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">

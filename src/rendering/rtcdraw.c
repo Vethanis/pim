@@ -8,6 +8,8 @@
 #include "math/sampling.h"
 #include "math/atmosphere.h"
 #include "math/ambcube.h"
+#include "math/sh.h"
+#include "math/sphgauss.h"
 
 #include "rendering/framebuffer.h"
 #include "rendering/sampler.h"
@@ -408,7 +410,7 @@ typedef enum
 typedef struct rayhit_s
 {
     float4 wuvt;
-    float4 N;
+    float4 normal;
     hittype_t type;
     i32 iDrawable;
     i32 iVert;
@@ -460,10 +462,12 @@ static rayhit_t VEC_CALL TraceRay(
     rayhit_t hit = { 0 };
     hit.wuvt.w = tFar;
 
-    struct RTCRayHit rtcHit = RtcIntersect(world->scene, ro, rd, tNear, tFar);
+    RTCRayHit rtcHit = RtcIntersect(world->scene, ro, rd, tNear, tFar);
+
     bool hitNothing =
         (rtcHit.hit.geomID == RTC_INVALID_GEOMETRY_ID) ||
         (rtcHit.ray.tfar <= 0.0f);
+
     if (hitNothing)
     {
         hit.type = hit_nothing;
@@ -473,12 +477,14 @@ static rayhit_t VEC_CALL TraceRay(
     }
 
     ASSERT(rtcHit.hit.primID != RTC_INVALID_GEOMETRY_ID);
-    float u = rtcHit.hit.u;
-    float v = rtcHit.hit.v;
-    float w = 1.0f - (u + v);
+
+    hit.normal = f4_v(rtcHit.hit.Ng_x, rtcHit.hit.Ng_y, rtcHit.hit.Ng_z, 0.0f);
+    hit.normal = f4_normalize3(hit.normal);
+    float u = f1_saturate(rtcHit.hit.u);
+    float v = f1_saturate(rtcHit.hit.v);
+    float w = f1_saturate(1.0f - (u + v));
     float t = rtcHit.ray.tfar;
     hit.wuvt = f4_v(w, u, v, t);
-    hit.N = f4_v(rtcHit.hit.Ng_x, rtcHit.hit.Ng_y, rtcHit.hit.Ng_z, 0.0f);
 
     const u32 numDrawables = world->numDrawables;
     if (rtcHit.hit.geomID >= numDrawables)
@@ -548,7 +554,6 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     const float2 slope = proj_slope(fov, aspect);
 
     float4* pim_noalias dstLight = target->light;
-    float* pim_noalias dstDepth = target->depth;
 
     prng_t rng = prng_get();
     for (i32 iTexel = begin; iTexel < end; ++iTexel)
@@ -565,19 +570,10 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
             continue;
         }
 
-        if (hit.wuvt.w < dstDepth[iTexel])
-        {
-            dstDepth[iTexel] = hit.wuvt.w;
-        }
-        else
-        {
-            continue;
-        }
-
         if (hit.type == hit_light)
         {
             pt_light_t light = ptLights[hit.iVert];
-            float VoN = f1_abs(f4_dot3(rd, hit.N));
+            float VoN = f4_dotsat(f4_neg(rd), hit.normal);
             float4 rad = f4_mulvs(light.rad, VoN);
             dstLight[iTexel] = rad;
             continue;
@@ -591,7 +587,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
                 f4_f3(rd),
                 f4_f3(sunDir),
                 sunRad);
-            dstLight[iTexel] = f3_f4(atmos, 1.0f);
+            dstLight[iTexel] = f3_f4(atmos, 0.0f);
             continue;
         }
 
@@ -700,19 +696,17 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
                 {
                     ASSERT(lmIndex < lmpack->lmCount);
                     const lightmap_t lmap = lmpack->lightmaps[lmIndex];
-                    const float3* pim_noalias lmBuf = r_lm_denoised ? lmap.denoised : lmap.color;
                     float2 lmUv = f2_blend(
                         lmUvs.uvs[a],
                         lmUvs.uvs[b],
                         lmUvs.uvs[c],
                         hit.wuvt);
-                    float4 diffuseGI = f3_f4(UvBilinearClamp_f3(
-                        lmBuf,
-                        i2_s(lmap.size),
-                        lmUv), 0.0f);
+                    lmUv = f2_subvs(lmUv, 0.5f / lmap.size);
+                    i32 iProbe = UvClamp(i2_s(lmap.size), lmUv) * kGiDirections;
+                    float4 diffuseGI = SGv_Irradiance(kGiDirections, lmpack->axii, lmap.probes + iProbe, N);
                     float4 R = f4_reflect3(rd, N);
                     R = SpecularDominantDir(N, R, BrdfAlpha(rome.x));
-                    float4 specularGI = f4_mulvs(diffuseGI, f4_dotsat(N, R));
+                    float4 specularGI = SGv_Eval(kGiDirections, lmpack->axii, lmap.probes + iProbe, R);
                     float4 indirect = IndirectBRDF(
                         f4_neg(rd),
                         N,

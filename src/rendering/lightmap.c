@@ -8,6 +8,8 @@
 #include "math/sdf.h"
 #include "math/area.h"
 #include "math/sampling.h"
+#include "math/sh.h"
+#include "math/sphgauss.h"
 #include "common/console.h"
 #include "common/sort.h"
 #include "threading/task.h"
@@ -82,6 +84,8 @@ void lightmap_new(lightmap_t* lm, i32 size)
     ASSERT(len > 0);
 
     lm->size = size;
+    lm->probes = perm_calloc(sizeof(lm->probes[0]) * len * kGiDirections);
+    lm->weights = perm_calloc(sizeof(lm->weights[0]) * len * kGiDirections);
     lm->color = perm_calloc(sizeof(lm->color[0]) * len);
     lm->denoised = perm_calloc(sizeof(lm->denoised[0]) * len);
     lm->sampleCounts = perm_calloc(sizeof(lm->sampleCounts[0]) * len);
@@ -93,6 +97,8 @@ void lightmap_del(lightmap_t* lm)
 {
     if (lm)
     {
+        pim_free(lm->probes);
+        pim_free(lm->weights);
         pim_free(lm->color);
         pim_free(lm->denoised);
         pim_free(lm->sampleCounts);
@@ -221,13 +227,20 @@ static int2 VEC_CALL tri_size(tri2d_t tri)
 
 static bool VEC_CALL TriTest(tri2d_t tri, float2 pt)
 {
-    for (i32 s = 0; s < 16; ++s)
+    const i32 kSamples = 64;
+    const float kThresh = 2.0f;
+    for (i32 s = 0; s < kSamples; ++s)
     {
-        float2 Xi = Hammersley2D(s, 16);
+        float2 Xi = Hammersley2D(s, kSamples);
         float2 subPt = { pt.x + Xi.x, pt.y + Xi.y };
-        if (sdTriangle2D(tri.a, tri.b, tri.c, subPt) < 2.0f)
+        float dist = sdTriangle2D(tri.a, tri.b, tri.c, subPt);
+        if (dist < kThresh)
         {
             return true;
+        }
+        if (dist > (kThresh * 2.0f))
+        {
+            return false;
         }
     }
     return false;
@@ -448,19 +461,6 @@ static i32 cluster_nearest(const float2* means, i32 k, tri2d_t tri)
         }
     }
     return chosen;
-}
-
-static float cluster_cost(const tri2d_t* tris, i32 count)
-{
-    float2 mean = cluster_mean(tris, count);
-    float cost = 0.0f;
-    for (i32 i = 0; i < count; ++i)
-    {
-        tri2d_t tri = tris[i];
-        float dist = sdTriangle2D(tri.a, tri.b, tri.c, mean);
-        cost += dist * dist;
-    }
-    return cost;
 }
 
 static void chart_split(chart_t chart, chart_t* split)
@@ -745,14 +745,22 @@ static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
 {
     const drawables_t* drawables = drawables_get();
     const i32 numDrawables = drawables->count;
-    const meshid_t* meshids = drawables->meshes;
-    const float4x4* matrices = drawables->matrices;
+    const material_t* pim_noalias materials = drawables->materials;
+    const meshid_t* pim_noalias meshids = drawables->meshes;
+    const float4x4* pim_noalias matrices = drawables->matrices;
 
     chartnode_t* nodes = NULL;
     i32 nodeCount = 0;
 
+    const u32 unmapped = matflag_sky | matflag_lava | matflag_water | matflag_animated;
     for (i32 d = 0; d < numDrawables; ++d)
     {
+        const material_t material = materials[d];
+        if (material.flags & unmapped)
+        {
+            continue;
+        }
+
         mesh_t mesh;
         if (!mesh_get(meshids[d], &mesh))
         {
@@ -761,11 +769,11 @@ static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
 
         const float4x4 M = matrices[d];
         const i32 vertCount = mesh.length;
-        const float4* positions = mesh.positions;
+        const float4* pim_noalias positions = mesh.positions;
 
         i32 nodeBack = nodeCount;
         nodeCount += vertCount / 3;
-        nodes = perm_realloc(nodes, sizeof(nodes[0]) * nodeCount);
+        PermReserve(nodes, nodeCount);
 
         for (i32 v = 0; (v + 3) <= vertCount; v += 3)
         {
@@ -799,8 +807,6 @@ static void AtlasFn(task_t* pbase, i32 begin, i32 end)
     const i32 chartCount = task->chartCount;
     i32* pim_noalias pHead = &task->nodeHead;
     atlas_t* pim_noalias atlases = task->atlases;
-
-    prng_t rng = prng_get();
 
     i32 prevAtlas = 0;
     i32 prevRow = ROW_RESET;
@@ -837,8 +843,6 @@ static void AtlasFn(task_t* pbase, i32 begin, i32 end)
         mask_del(&chart.mask);
         charts[iChart] = chart;
     }
-
-    prng_set(rng);
 }
 
 static i32 atlas_estimate(i32 atlasSize, const chart_t* charts, i32 chartCount)
@@ -902,13 +906,13 @@ static void chartnodes_assign(
 {
     const drawables_t* drawables = drawables_get();
     const i32 numDrawables = drawables->count;
-    const meshid_t* meshids = drawables->meshes;
-    lm_uvs_t* uvArray = drawables->lmUvs;
+    const meshid_t* pim_noalias meshids = drawables->meshes;
+    lm_uvs_t* pim_noalias uvArray = drawables->lmUvs;
 
     for (i32 iChart = 0; iChart < chartCount; ++iChart)
     {
         chart_t chart = charts[iChart];
-        chartnode_t* nodes = chart.nodes;
+        chartnode_t* pim_noalias nodes = chart.nodes;
         i32 nodeCount = chart.nodeCount;
         i32 size = lightmaps[chart.atlasIndex].size;
         const float scale = 1.0f / size;
@@ -927,7 +931,7 @@ static void chartnodes_assign(
                 const i32 vertCount = mesh.length;
                 ASSERT((node.vertIndex + 2) < vertCount);
 
-                lm_uvs_t* lmUvs = uvArray + node.drawableIndex;
+                lm_uvs_t* pim_noalias lmUvs = uvArray + node.drawableIndex;
                 if (lmUvs->length != vertCount)
                 {
                     lm_uvs_del(lmUvs);
@@ -950,10 +954,10 @@ typedef struct quadtree_s
 {
     i32 maxDepth;
     i32 nodeCount;
-    box2d_t* boxes;         // bounding box of node
-    i32* listLens;          // number of triangles in this node
-    tri2d_t** triLists;     // lightmap UV
-    int2** indexLists;      // iDrawable, iVert
+    box2d_t* pim_noalias boxes;         // bounding box of node
+    i32* pim_noalias listLens;          // number of triangles in this node
+    tri2d_t** pim_noalias triLists;     // lightmap UV
+    int2** pim_noalias indexLists;      // iDrawable, iVert
 } quadtree_t;
 
 static i32 CalcNodeCount(i32 maxDepth)
@@ -976,7 +980,7 @@ static i32 GetParent(i32 c)
     return (c - 1) >> 2;
 }
 
-static void SetupBounds(box2d_t* boxes, i32 p, i32 nodeCount)
+static void SetupBounds(box2d_t* pim_noalias boxes, i32 p, i32 nodeCount)
 {
     const i32 c0 = GetChild(p, 0);
     if ((c0 + 4) <= nodeCount)
@@ -1050,7 +1054,7 @@ static bool VEC_CALL BoxHoldsPt(box2d_t box, float2 pt)
     return b2_all(b2_and(f2_gteq(pt, lo), f2_lteq(pt, hi)));
 }
 
-static bool quadtree_insert(quadtree_t* qt, i32 n, tri2d_t tri, i32 iDrawable, i32 iVert)
+static bool quadtree_insert(quadtree_t* pim_noalias qt, i32 n, tri2d_t tri, i32 iDrawable, i32 iVert)
 {
     if (n < qt->nodeCount)
     {
@@ -1080,7 +1084,7 @@ static float quadtree_find(
     i32 n,
     float2 pt,
     float limit,
-    int2* indOut)
+    int2* pim_noalias indOut)
 {
     if (n < qt->nodeCount)
     {
@@ -1130,14 +1134,19 @@ typedef struct embed_s
     lightmap_t* lightmaps;
     const quadtree_t* trees;
     i32 lmCount;
+    float texelsPerMeter;
+    const pt_scene_t* scene;
 } embed_t;
 
 static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
 {
     embed_t* task = (embed_t*)pbase;
-    lightmap_t* lightmaps = task->lightmaps;
-    const quadtree_t* trees = task->trees;
+    lightmap_t* pim_noalias lightmaps = task->lightmaps;
+    const quadtree_t* pim_noalias trees = task->trees;
+    const pt_scene_t* scene = task->scene;
     const i32 lmCount = task->lmCount;
+    const float texelsPerMeter = task->texelsPerMeter;
+    const float metersPerTexel = 1.0f / texelsPerMeter;
     const i32 lmSize = lightmaps[0].size;
     const i32 lmLen = lmSize * lmSize;
     const int2 size = { lmSize, lmSize };
@@ -1167,53 +1176,69 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
         {
             i32 iDraw = ind.x;
             i32 iVert = ind.y;
-            mesh_t mesh;
 
-            if (mesh_get(meshids[iDraw], &mesh))
+            const lm_uvs_t lmUvs = uvArray[iDraw];
+            if (!lmUvs.length)
             {
-                const lm_uvs_t lmUvs = uvArray[iDraw];
-                const i32 a = iVert + 0;
-                const i32 b = iVert + 1;
-                const i32 c = iVert + 2;
-                ASSERT(c < lmUvs.length);
-                ASSERT(lmUvs.indices[iVert / 3] == iLightmap);
-                float2 LMA = lmUvs.uvs[a];
-                float2 LMB = lmUvs.uvs[b];
-                float2 LMC = lmUvs.uvs[c];
-                float area = sdEdge2D(LMA, LMB, LMC);
-                if (area > 0.0f)
-                {
-                    const float rcpArea = 1.0f / area;
-                    const float4x4 M = matrices[iDraw];
-                    float4 A = f4x4_mul_pt(M, mesh.positions[a]);
-                    float4 B = f4x4_mul_pt(M, mesh.positions[b]);
-                    float4 C = f4x4_mul_pt(M, mesh.positions[c]);
-                    const float3x3 IM = f3x3_IM(M);
-                    float4 NA = f3x3_mul_col(IM, mesh.normals[a]);
-                    float4 NB = f3x3_mul_col(IM, mesh.normals[a]);
-                    float4 NC = f3x3_mul_col(IM, mesh.normals[a]);
-                    NA = f4_normalize3(NA);
-                    NB = f4_normalize3(NB);
-                    NC = f4_normalize3(NC);
-
-                    float4 wuv = bary2D(LMA, LMB, LMC, rcpArea, uv);
-                    wuv = f4_clampvs(wuv, 0.0f, 1.0f);
-                    wuv = f4_divvs(wuv, f4_sum3(wuv));
-
-                    float4 P = f4_blend(A, B, C, wuv);
-                    float4 N = f4_blend(NA, NB, NC, wuv);
-                    N = f4_normalize3(N);
-
-                    lightmap.position[iTexel] = f4_f3(P);
-                    lightmap.normal[iTexel] = f4_f3(N);
-                    lightmap.sampleCounts[iTexel] = 1.0f;
-                }
+                continue;
             }
+
+            mesh_t mesh;
+            if (!mesh_get(meshids[iDraw], &mesh))
+            {
+                continue;
+            }
+
+            const i32 a = iVert + 0;
+            const i32 b = iVert + 1;
+            const i32 c = iVert + 2;
+            ASSERT(c < lmUvs.length);
+            ASSERT(lmUvs.indices[iVert / 3] == iLightmap);
+
+            float2 LMA = lmUvs.uvs[a];
+            float2 LMB = lmUvs.uvs[b];
+            float2 LMC = lmUvs.uvs[c];
+            float area = sdEdge2D(LMA, LMB, LMC);
+            if (area <= 0.0f)
+            {
+                continue;
+            }
+
+            const float rcpArea = 1.0f / area;
+            float4 wuv = bary2D(LMA, LMB, LMC, rcpArea, uv);
+            wuv = f4_clampvs(wuv, 0.0f, 1.0f);
+            wuv = f4_divvs(wuv, f4_sum3(wuv));
+
+            const float4x4 M = matrices[iDraw];
+            const float3x3 IM = f3x3_IM(M);
+
+            float4 A = f4x4_mul_pt(M, mesh.positions[a]);
+            float4 B = f4x4_mul_pt(M, mesh.positions[b]);
+            float4 C = f4x4_mul_pt(M, mesh.positions[c]);
+            float4 P = f4_blend(A, B, C, wuv);
+
+            float4 NA = f3x3_mul_col(IM, mesh.normals[a]);
+            float4 NB = f3x3_mul_col(IM, mesh.normals[a]);
+            float4 NC = f3x3_mul_col(IM, mesh.normals[a]);
+
+            NA = f4_normalize3(NA);
+            NB = f4_normalize3(NB);
+            NC = f4_normalize3(NC);
+            float4 N = f4_blend(NA, NB, NC, wuv);
+            N = f4_normalize3(N);
+
+            lightmap.position[iTexel] = f4_f3(P);
+            lightmap.normal[iTexel] = f4_f3(N);
+            lightmap.sampleCounts[iTexel] = 1.0f;
         }
     }
 }
 
-static void EmbedAttributes(lightmap_t* lightmaps, i32 lmCount)
+static void EmbedAttributes(
+    const pt_scene_t* scene,
+    lightmap_t* lightmaps,
+    i32 lmCount,
+    float texelsPerMeter)
 {
     if (lmCount > 0)
     {
@@ -1231,30 +1256,35 @@ static void EmbedAttributes(lightmap_t* lightmaps, i32 lmCount)
         {
             const drawables_t* drawables = drawables_get();
             const i32 dwCount = drawables->count;
-            const meshid_t* meshids = drawables->meshes;
-            const lm_uvs_t* uvArray = drawables->lmUvs;
+            const meshid_t* pim_noalias meshids = drawables->meshes;
+            const lm_uvs_t* pim_noalias uvArray = drawables->lmUvs;
             for (i32 iDraw = 0; iDraw < dwCount; ++iDraw)
             {
-                mesh_t mesh;
-                if (mesh_get(meshids[iDraw], &mesh))
+                const lm_uvs_t lmUvs = uvArray[iDraw];
+                if (!lmUvs.length)
                 {
-                    const lm_uvs_t lmUvs = uvArray[iDraw];
-                    for (i32 iVert = 0; (iVert + 3) <= mesh.length; iVert += 3)
+                    continue;
+                }
+                mesh_t mesh;
+                if (!mesh_get(meshids[iDraw], &mesh))
+                {
+                    continue;
+                }
+                for (i32 iVert = 0; (iVert + 3) <= mesh.length; iVert += 3)
+                {
+                    const i32 iFace = iVert / 3;
+                    ASSERT(iFace < lmUvs.length);
+                    ASSERT((iVert + 2) < lmUvs.length);
+                    const i32 iMap = lmUvs.indices[iFace];
+                    if ((iMap >= 0) && (iMap < lmCount))
                     {
-                        const i32 iFace = iVert / 3;
-                        ASSERT(iFace < lmUvs.length);
-                        ASSERT((iVert + 2) < lmUvs.length);
-                        const i32 iMap = lmUvs.indices[iFace];
-                        if ((iMap >= 0) && (iMap < lmCount))
-                        {
-                            float2 A = lmUvs.uvs[iVert + 0];
-                            float2 B = lmUvs.uvs[iVert + 1];
-                            float2 C = lmUvs.uvs[iVert + 2];
-                            tri2d_t tri = { A, B, C };
-                            quadtree_t* tree = trees + iMap;
-                            bool inserted = quadtree_insert(tree, 0, tri, iDraw, iVert);
-                            ASSERT(inserted);
-                        }
+                        float2 A = lmUvs.uvs[iVert + 0];
+                        float2 B = lmUvs.uvs[iVert + 1];
+                        float2 C = lmUvs.uvs[iVert + 2];
+                        tri2d_t tri = { A, B, C };
+                        quadtree_t* tree = trees + iMap;
+                        bool inserted = quadtree_insert(tree, 0, tri, iDraw, iVert);
+                        ASSERT(inserted);
                     }
                 }
             }
@@ -1264,6 +1294,8 @@ static void EmbedAttributes(lightmap_t* lightmaps, i32 lmCount)
         task->lightmaps = lightmaps;
         task->trees = trees;
         task->lmCount = lmCount;
+        task->texelsPerMeter = texelsPerMeter;
+        task->scene = scene;
         task_run(&task->task, EmbedAttributesFn, TexelCount(lightmaps, lmCount));
 
         for (i32 i = 0; i < lmCount; ++i)
@@ -1274,11 +1306,13 @@ static void EmbedAttributes(lightmap_t* lightmaps, i32 lmCount)
 }
 
 lmpack_t lmpack_pack(
+    const pt_scene_t* scene,
     i32 atlasSize,
     float texelsPerUnit,
     float distThresh,
     float degThresh)
 {
+    ASSERT(scene);
     ASSERT(atlasSize > 0);
 
     if (!ms_once)
@@ -1304,6 +1338,7 @@ lmpack_t lmpack_pack(
     pack.lmCount = atlasCount;
     pack.lmSize = atlasSize;
     pack.lightmaps = perm_calloc(sizeof(pack.lightmaps[0]) * atlasCount);
+    SG_Generate(pack.axii, kGiDirections, SGDist_Sphere);
 
     for (i32 i = 0; i < atlasCount; ++i)
     {
@@ -1312,7 +1347,7 @@ lmpack_t lmpack_pack(
 
     chartnodes_assign(charts, chartCount, pack.lightmaps, atlasCount);
 
-    EmbedAttributes(pack.lightmaps, atlasCount);
+    EmbedAttributes(scene, pack.lightmaps, atlasCount, texelsPerUnit);
 
     pim_free(nodes);
     for (i32 i = 0; i < chartCount; ++i)
@@ -1368,37 +1403,39 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
         lightmap_t lightmap = pack->lightmaps[iLightmap];
 
         float sampleCount = lightmap.sampleCounts[iTexel];
-        if (sampleCount > 0.0f)
+        if (sampleCount == 0.0f)
         {
-            float weight = 1.0f / sampleCount;
-            float prob = f1_lerp(timeSlice, timeSlice * 2.0f, weight);
-            if (prng_f32(&rng) < prob)
-            {
-                float3 P3 = lightmap.position[iTexel];
-                float3 N3 = lightmap.normal[iTexel];
-                if (f3_lengthsq(N3) < 0.9f)
-                {
-                    lightmap.sampleCounts[iTexel] = 0.0f;
-                    lightmap.color[iTexel] = f3_v(100.0f, 0.0f, 0.0f);
-                    continue;
-                }
-                float4 P = f3_f4(P3, 1.0f);
-                float4 N = f4_normalize3(f3_f4(N3, 0.0f));
-                P = f4_add(P, f4_mulvs(N, kMilli));
-
-                float4 Lts = SampleCosineHemisphere(rngseq_next(&rng, seq, 64));
-                float4 Lws = TanToWorld(N, Lts);
-                float NoL = f4_dotsat(N, Lws);
-
-                ray_t ray = { P, Lws };
-                pt_result_t result = pt_trace_ray(&rng, scene, ray);
-                result.color = f3_mulvs(result.color, NoL);
-
-                lightmap.color[iTexel] = f3_lerp(lightmap.color[iTexel], result.color, weight);
-                sampleCount += 1.0f;
-                lightmap.sampleCounts[iTexel] = sampleCount;
-            }
+            continue;
         }
+
+        float weight = 1.0f / sampleCount;
+        float prob = f1_lerp(timeSlice, timeSlice * 2.0f, weight);
+        if (prng_f32(&rng) >= prob)
+        {
+            continue;
+        }
+
+        float3 P3 = lightmap.position[iTexel];
+        float3 N3 = lightmap.normal[iTexel];
+
+        float4 P = f3_f4(P3, 1.0f);
+        float4 N = f4_normalize3(f3_f4(N3, 0.0f));
+        P = f4_add(P, f4_mulvs(N, kMilli));
+
+        float4 Lts = SampleCosineHemisphere(rngseq_next(&rng, seq, 64));
+        float4 Lws = TanToWorld(N, Lts);
+        float NoL = f4_dotsat(N, Lws);
+
+        ray_t ray = { P, Lws };
+        pt_result_t result = pt_trace_ray(&rng, scene, ray);
+        result.color = f3_mulvs(result.color, NoL);
+
+        const i32 iProbe = iTexel * kGiDirections;
+        float4 rad = f3_f4(result.color, 0.0f);
+        SG_Accumulate(weight, Lws, rad, pack->axii, lightmap.probes + iProbe, lightmap.weights + iProbe, kGiDirections);
+
+        lightmap.color[iTexel] = f3_lerp(lightmap.color[iTexel], result.color, weight);
+        lightmap.sampleCounts[iTexel] = sampleCount + 1.0f;
     }
     prng_set(rng);
 }

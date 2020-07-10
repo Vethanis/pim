@@ -12,7 +12,7 @@
 #define kAlign          16
 #define kAlignMask      (kAlign - 1)
 
-#define kPermCapacity   (512 << 20)
+#define kPermCapacity   (1024 << 20)
 #define kTempCapacity   (256 << 20)
 #define kTlsCapacity    (16 << 20)
 

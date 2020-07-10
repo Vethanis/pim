@@ -11,6 +11,24 @@ typedef struct prng_s prng_t;
 
 typedef struct pt_scene_s pt_scene_t;
 
+typedef enum
+{
+    hit_nothing = 0,
+    hit_backface,
+    hit_triangle,
+    hit_sky,
+
+    hit_COUNT
+} hittype_t;
+
+typedef struct rayhit_s
+{
+    float4 wuvt;
+    float4 normal;
+    hittype_t type;
+    i32 index;
+} rayhit_t;
+
 typedef struct pt_trace_s
 {
     pt_scene_t* scene;
@@ -37,6 +55,8 @@ typedef struct pt_results_s
 
 pt_scene_t* pt_scene_new(i32 rejectionSamples);
 void pt_scene_del(pt_scene_t* scene);
+
+rayhit_t VEC_CALL pt_intersect(const pt_scene_t* scene, ray_t ray, float tNear, float tFar);
 
 pt_result_t VEC_CALL pt_trace_ray(
     prng_t* rng,

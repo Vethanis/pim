@@ -86,7 +86,7 @@ static float4 ms_clearColor;
 static exposure_t ms_exposure =
 {
     .manual = false,
-    .standard = false,
+    .standard = true,
 
     .aperture = 4.0f,
     .shutterTime = 1.0f / 10.0f,
@@ -183,8 +183,10 @@ static box_t VEC_CALL CalcSceneBounds(void)
 
 static void LightmapRepack(void)
 {
+    EnsurePtScene();
+
     lmpack_del(lmpack_get());
-    lmpack_t pack = lmpack_pack(1024, cv_lm_density.asFloat, 0.1f, 15.0f);
+    lmpack_t pack = lmpack_pack(ms_ptscene, 1024, cv_lm_density.asFloat, 0.1f, 15.0f);
     *lmpack_get() = pack;
 }
 
