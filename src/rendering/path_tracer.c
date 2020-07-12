@@ -29,6 +29,8 @@
 
 #include <string.h>
 
+#define kRejectionSamples 5
+
 typedef struct pt_scene_s
 {
     RTCScene rtcScene;
@@ -65,7 +67,6 @@ typedef struct pt_scene_s
     i32 emissiveCount;
     i32 nodeCount;
     // hyperparameters
-    i32 rejectionSamples;
     float3 sunDirection;
     float sunIntensity;
 } pt_scene_t;
@@ -281,11 +282,10 @@ static float EmissionPdf(
         float2 UB = scene->uvs[iLight + 1];
         float2 UC = scene->uvs[iLight + 2];
 
-        const i32 rejectionSamples = scene->rejectionSamples;
         const float threshold = 1.0f / 255.0f;
         for (i32 i = 0; i < attempts; ++i)
         {
-            for (i32 j = 0; j < rejectionSamples; ++j)
+            for (i32 j = 0; j < kRejectionSamples; ++j)
             {
                 float4 wuv = SampleBaryCoord(f2_rand(rng));
                 float2 uv = f2_blend(UA, UB, UC, wuv);
@@ -294,7 +294,7 @@ static float EmissionPdf(
                 if (rome.w > threshold)
                 {
                     ++hits;
-                    j = rejectionSamples;
+                    j = kRejectionSamples;
                 }
             }
         }
@@ -302,13 +302,13 @@ static float EmissionPdf(
     return (float)hits / (float)attempts;
 }
 
-static float4 VEC_CALL SelectEmissiveCoord(
+static float4 VEC_CALL SampleEmissiveCoord(
     const pt_scene_t* scene,
     prng_t* rng,
-    i32 iLight)
+    i32 iVert)
 {
     float4 wuv = SampleBaryCoord(f2_rand(rng));
-    const i32 iMat = scene->matIds[iLight];
+    const i32 iMat = scene->matIds[iVert];
     const material_t mat = scene->materials[iMat];
     if (mat.flags & matflag_sky)
     {
@@ -318,17 +318,15 @@ static float4 VEC_CALL SelectEmissiveCoord(
     texture_t romeMap = { 0 };
     if (texture_get(mat.rome, &romeMap))
     {
-        float2 UA = scene->uvs[iLight + 0];
-        float2 UB = scene->uvs[iLight + 1];
-        float2 UC = scene->uvs[iLight + 2];
+        float2 UA = scene->uvs[iVert + 0];
+        float2 UB = scene->uvs[iVert + 1];
+        float2 UC = scene->uvs[iVert + 2];
 
-        const i32 rejectionSamples = scene->rejectionSamples;
         const float threshold = 1.0f / 255.0f;
-        for (i32 i = 0; i < rejectionSamples; ++i)
+        for (i32 i = 0; i < kRejectionSamples; ++i)
         {
             float2 uv = f2_blend(UA, UB, UC, wuv);
-            float4 rome = f4_mul(flatRome,
-                UvBilinearWrap_c32(romeMap.texels, romeMap.size, uv));
+            float4 rome = f4_mul(flatRome, UvBilinearWrap_c32(romeMap.texels, romeMap.size, uv));
             if (rome.w > threshold)
             {
                 break;
@@ -473,7 +471,7 @@ static void SetupEmissives(pt_scene_t* scene)
     scene->emPdfs = emPdfs;
 }
 
-static void UpdateSun(pt_scene_t* scene)
+static void UpdateScene(pt_scene_t* scene)
 {
     float azimuth = cv_r_sun_az ? f1_sat(cv_r_sun_az->asFloat) : 0.0f;
     float zenith = cv_r_sun_ze ? f1_sat(cv_r_sun_ze->asFloat) : 0.5f;
@@ -485,7 +483,7 @@ static void UpdateSun(pt_scene_t* scene)
     scene->sunIntensity = irradiance;
 }
 
-pt_scene_t* pt_scene_new(i32 rejectionSamples)
+pt_scene_t* pt_scene_new(void)
 {
     if (!EnsureInit())
     {
@@ -493,8 +491,7 @@ pt_scene_t* pt_scene_new(i32 rejectionSamples)
     }
 
     pt_scene_t* scene = perm_calloc(sizeof(*scene));
-    scene->rejectionSamples = rejectionSamples;
-    UpdateSun(scene);
+    UpdateScene(scene);
 
     FlattenDrawables(scene);
     SetupEmissives(scene);
@@ -564,6 +561,11 @@ pim_inline const material_t* VEC_CALL GetMaterial(
     return scene->materials + matIndex;
 }
 
+static float4 VEC_CALL GetSky(const pt_scene_t* scene, ray_t rin)
+{
+    return f3_f4(EarthAtmosphere(f4_f3(rin.ro), f4_f3(rin.rd), scene->sunDirection, scene->sunIntensity), 0.0f);
+}
+
 static surfhit_t VEC_CALL GetSurface(
     const pt_scene_t* scene,
     ray_t rin,
@@ -573,30 +575,18 @@ static surfhit_t VEC_CALL GetSurface(
     surfhit_t surf = { 0 };
 
     const material_t* mat = GetMaterial(scene, hit);
-    if (hit.type == hit_sky)
-    {
-        if (bounce == 0)
-        {
-            // only 0th bounce accesses emission from surfhit
-            // later bounces use EstimateDirect
-            surf.emission = f3_f4(EarthAtmosphere(f4_f3(rin.ro), f4_f3(rin.rd), scene->sunDirection, scene->sunIntensity), 0.0f);
-        }
-    }
-    else
-    {
-        float2 uv = GetVert2(scene->uvs, hit);
-        surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
-        float4 Nws = f4_normalize3(GetVert4(scene->normals, hit));
-        surf.P = f4_add(surf.P, f4_mulvs(Nws, kMilli));
-        surf.N = TanToWorld(Nws, material_normal(mat, uv));
-        float4 albedo = material_albedo(mat, uv);
-        float4 rome = material_rome(mat, uv);
-        surf.albedo = albedo;
-        surf.roughness = rome.x;
-        surf.occlusion = rome.y;
-        surf.metallic = rome.z;
-        surf.emission = UnpackEmission(albedo, rome.w);
-    }
+    float2 uv = GetVert2(scene->uvs, hit);
+    surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
+    float4 Nws = f4_normalize3(GetVert4(scene->normals, hit));
+    surf.P = f4_add(surf.P, f4_mulvs(Nws, kMilli));
+    surf.N = TanToWorld(Nws, material_normal(mat, uv));
+    float4 albedo = material_albedo(mat, uv);
+    float4 rome = material_rome(mat, uv);
+    surf.albedo = albedo;
+    surf.roughness = rome.x;
+    surf.occlusion = rome.y;
+    surf.metallic = rome.z;
+    surf.emission = UnpackEmission(albedo, rome.w);
 
     return surf;
 }
@@ -883,7 +873,7 @@ static float4 VEC_CALL LightSample(
     const surfhit_t* surf,
     i32 iLight)
 {
-    float4 wuv = SelectEmissiveCoord(scene, rng, iLight);
+    float4 wuv = SampleEmissiveCoord(scene, rng, iLight);
 
     float4 A = scene->positions[iLight + 0];
     float4 B = scene->positions[iLight + 1];
@@ -900,6 +890,11 @@ static float VEC_CALL LightEvalPdf(
     float4* wuvOut,
     float4 L)
 {
+    if (f4_dot3(surf->N, L) < kEpsilon)
+    {
+        return 0.0f;
+    }
+
     ray_t ray = { surf->P, L };
     rayhit_t hit = pt_intersect(scene, ray, 0.0f, 1 << 20);
     if (hit.index != iLight)
@@ -929,20 +924,44 @@ static float4 VEC_CALL EstimateDirect(
     i32 iLight,
     float4 I)
 {
-    float4 L = LightSample(scene, rng, surf, iLight);
-    float4 wuv;
-    float lightPdf = LightEvalPdf(scene, rng, surf, iLight, &wuv, L);
-    if (lightPdf > kEpsilon)
+    const float lightChance = 0.5f;
+    const float brdfChance = 1.0f - lightChance;
+    if (prng_f32(rng) < lightChance)
     {
+        float4 L = LightSample(scene, rng, surf, iLight);
         float brdfPdf = BrdfEvalPdf(I, surf, L);
         if (brdfPdf > kEpsilon)
         {
-            float weight = PowerHeuristic(1, lightPdf, 1, brdfPdf);
-            float4 attenuation = BrdfEval(I, surf, L);
-            attenuation = f4_mulvs(attenuation, weight);
-            float4 irradiance = LightRad(scene, iLight, wuv, surf->P, L);
-            float4 Li = f4_divvs(f4_mul(irradiance, attenuation), lightPdf);
-            return Li;
+            float4 wuv;
+            float lightPdf = LightEvalPdf(scene, rng, surf, iLight, &wuv, L);
+            if (lightPdf > kEpsilon)
+            {
+                float weight = PowerHeuristic(lightPdf, brdfPdf);
+                float4 attenuation = BrdfEval(I, surf, L);
+                attenuation = f4_mulvs(attenuation, weight);
+                float4 irradiance = LightRad(scene, iLight, wuv, surf->P, L);
+                float4 Li = f4_divvs(f4_mul(irradiance, attenuation), lightPdf);
+                return f4_divvs(Li, lightChance);
+            }
+        }
+    }
+    else
+    {
+        float4 L = BrdfSample(rng, surf, I);
+        float brdfPdf = BrdfEvalPdf(I, surf, L);
+        if (brdfPdf > kEpsilon)
+        {
+            float4 wuv;
+            float lightPdf = LightEvalPdf(scene, rng, surf, iLight, &wuv, L);
+            if (lightPdf > kEpsilon)
+            {
+                float weight = PowerHeuristic(brdfPdf, lightPdf);
+                float4 attenuation = BrdfEval(I, surf, L);
+                attenuation = f4_mulvs(attenuation, weight);
+                float4 irradiance = LightRad(scene, iLight, wuv, surf->P, L);
+                float4 Li = f4_divvs(f4_mul(irradiance, attenuation), brdfPdf);
+                return f4_divvs(Li, brdfChance);
+            }
         }
     }
     return f4_0;
@@ -956,19 +975,17 @@ static float4 VEC_CALL SampleLights(
     float4 I)
 {
     float4 light = f4_0;
-    const i32 kLightSamples = 3;
-    i32 iLight;
-    float lightPdfWeight;
+    const i32 kLightSamples = 30;
     for (i32 i = 0; i < kLightSamples; ++i)
     {
+        i32 iLight;
+        float lightPdfWeight;
         if (LightSelect(scene, rng, &iLight, &lightPdfWeight))
         {
             if (hit->index != iLight)
             {
-                float4 direct = EstimateDirect(
-                    scene, rng, surf, hit, iLight, I);
-                lightPdfWeight *= kLightSamples;
-                direct = f4_divvs(direct, lightPdfWeight);
+                float4 direct = EstimateDirect(scene, rng, surf, hit, iLight, I);
+                direct = f4_divvs(direct, lightPdfWeight * kLightSamples);
                 light = f4_add(light, direct);
             }
         }
@@ -988,7 +1005,7 @@ pt_result_t VEC_CALL pt_trace_ray(
 
     for (i32 b = 0; b < 20; ++b)
     {
-        rayhit_t hit = pt_intersect(scene, ray, 0.0f, 1 << 20);
+        const rayhit_t hit = pt_intersect(scene, ray, 0.0f, 1 << 20);
         if (hit.type == hit_nothing)
         {
             break;
@@ -997,18 +1014,17 @@ pt_result_t VEC_CALL pt_trace_ray(
         {
             break;
         }
+        if (hit.type == hit_sky)
+        {
+            light = f4_add(light, f4_mul(GetSky(scene, ray), attenuation));
+            break;
+        }
 
-        surfhit_t surf = GetSurface(scene, ray, hit, b);
+        const surfhit_t surf = GetSurface(scene, ray, hit, b);
         if (b == 0)
         {
             albedo = surf.albedo;
             normal = surf.N;
-        }
-
-        if (hit.type == hit_sky)
-        {
-            light = f4_add(light, f4_mul(surf.emission, attenuation));
-            break;
         }
 
         if (b == 0)
@@ -1021,7 +1037,7 @@ pt_result_t VEC_CALL pt_trace_ray(
             light = f4_add(light, f4_mul(direct, attenuation));
         }
 
-        scatter_t scatter = BrdfScatter(rng, &surf, ray.rd);
+        const scatter_t scatter = BrdfScatter(rng, &surf, ray.rd);
         if (scatter.pdf < kEpsilon)
         {
             break;
@@ -1094,7 +1110,6 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
         color[i] = f3_lerp(color[i], result.color, sampleWeight);
         albedo[i] = f3_lerp(albedo[i], result.albedo, sampleWeight);
         normal[i] = f3_lerp(normal[i], result.normal, sampleWeight);
-        normal[i] = f3_normalize(normal[i]);
     }
 
     prng_set(rng);
@@ -1112,7 +1127,7 @@ void pt_trace(pt_trace_t* desc)
     ASSERT(desc->albedo);
     ASSERT(desc->normal);
 
-    UpdateSun(desc->scene);
+    UpdateScene(desc->scene);
 
     trace_task_t* task = tmp_calloc(sizeof(*task));
     task->trace = *desc;
@@ -1158,7 +1173,7 @@ pt_results_t pt_raygen(
     ASSERT(scene);
     ASSERT(count >= 0);
 
-    UpdateSun(scene);
+    UpdateScene(scene);
 
     pt_raygen_t* task = tmp_calloc(sizeof(*task));
     task->scene = scene;

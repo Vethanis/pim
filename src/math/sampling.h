@@ -89,11 +89,9 @@ pim_inline float2 VEC_CALL rngseq_next(prng_t* pim_noalias rng, rngseq_t* pim_no
 
 // http://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling.html
 pim_inline float VEC_CALL PowerHeuristic(
-    i32 fCt, float fPdf,
-    i32 gCt, float gPdf)
+    float f,
+    float g)
 {
-    float f = fCt * fPdf;
-    float g = gCt * gPdf;
     return (f * f) / (f * f + g * g);
 }
 

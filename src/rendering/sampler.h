@@ -163,7 +163,7 @@ pim_inline bilinear_t VEC_CALL Bilinear(int2 size, float2 uv)
 {
     bilinear_t b;
     float2 coordf = UvToCoordf(size, uv);
-    b.frac = f2_unormstep(f2_frac(coordf));
+    b.frac = f2_frac(coordf);
     b.a = f2_i2(coordf);
     b.b = i2_v(b.a.x + 1, b.a.y + 0);
     b.c = i2_v(b.a.x + 0, b.a.y + 1);

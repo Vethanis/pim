@@ -10,7 +10,7 @@ float4 VEC_CALL material_albedo(const material_t* mat, float2 uv)
     {
         value = f4_mul(value, UvBilinearWrap_c32(tex.texels, tex.size, uv));
     }
-    return value;
+    return f4_saturate(value);
 }
 
 float4 VEC_CALL material_rome(const material_t* mat, float2 uv)
@@ -21,7 +21,7 @@ float4 VEC_CALL material_rome(const material_t* mat, float2 uv)
     {
         value = f4_mul(value, UvBilinearWrap_c32(tex.texels, tex.size, uv));
     }
-    return value;
+    return f4_saturate(value);
 }
 
 float4 VEC_CALL material_normal(const material_t* mat, float2 uv)

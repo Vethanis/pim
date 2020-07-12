@@ -53,7 +53,7 @@ typedef struct pt_results_s
     float4* directions;
 } pt_results_t;
 
-pt_scene_t* pt_scene_new(i32 rejectionSamples);
+pt_scene_t* pt_scene_new(void);
 void pt_scene_del(pt_scene_t* scene);
 
 rayhit_t VEC_CALL pt_intersect(const pt_scene_t* scene, ray_t ray, float tNear, float tFar);

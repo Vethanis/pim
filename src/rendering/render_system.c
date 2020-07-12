@@ -56,7 +56,6 @@
 #include <time.h>
 
 static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
-static cvar_t cv_pt_rejsamples = { cvart_int, 0, "pt_rejsamples", "2", "emissive texel rejection samples" };
 static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
 static cvar_t cv_pt_normal = { cvart_bool, 0, "pt_normal", "0", "output path tracer normals" };
 static cvar_t cv_pt_albedo = { cvart_bool, 0, "pt_albedo", "0", "output path tracer albedo" };
@@ -127,17 +126,9 @@ static void SwapBuffers(void)
 
 static void EnsurePtScene(void)
 {
-    bool dirty = false;
-    dirty |= cvar_check_dirty(&cv_pt_rejsamples);
-    if (dirty)
-    {
-        pt_scene_del(ms_ptscene);
-        ms_ptscene = NULL;
-    }
     if (!ms_ptscene)
     {
-        i32 rejSamples = (i32)f1_clamp(cv_pt_rejsamples.asFloat, 1.0f, 100.0f);
-        ms_ptscene = pt_scene_new(rejSamples);
+        ms_ptscene = pt_scene_new();
         ms_ptSampleCount = 0;
         ms_acSampleCount = 0;
         ms_cmapSampleCount = 0;
@@ -495,7 +486,6 @@ void render_sys_init(void)
     cvar_reg(&cv_r_sw);
 
     cvar_reg(&cv_pt_trace);
-    cvar_reg(&cv_pt_rejsamples);
     cvar_reg(&cv_pt_denoise);
     cvar_reg(&cv_pt_normal);
     cvar_reg(&cv_pt_albedo);

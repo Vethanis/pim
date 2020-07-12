@@ -280,11 +280,13 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         {
             flags |= matflag_sky;
             flags |= matflag_emissive;
+            flags |= matflag_animated;
         }
         if (StrIStr(ARGS(mtex->name), "lava"))
         {
             flags |= matflag_lava;
             flags |= matflag_emissive;
+            flags |= matflag_animated;
         }
         if (StrIStr(ARGS(mtex->name), "water"))
         {
@@ -444,6 +446,21 @@ static meshid_t VEC_CALL TrisToMesh(
     return id;
 }
 
+static void FixZFighting(meshid_t meshid)
+{
+    mesh_t mesh;
+    if (mesh_get(meshid, &mesh))
+    {
+        for (i32 iVert = 0; iVert <= mesh.length; ++iVert)
+        {
+            float4 P = mesh.positions[iVert];
+            float4 N = mesh.normals[iVert];
+            P = f4_add(P, f4_mulvs(N, kMilli * 0.5f));
+            mesh.positions[iVert] = P;
+        }
+    }
+}
+
 u32* ModelToDrawables(const mmodel_t* model)
 {
     ASSERT(model);
@@ -499,6 +516,11 @@ u32* ModelToDrawables(const mmodel_t* model)
         meshid_t mesh = TrisToMesh(name, M, surface, tris, vertCount);
 
         material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
+
+        if (material.flags & matflag_animated)
+        {
+            FixZFighting(mesh);
+        }
 
         u32 id = iid_new();
         ++idCount;
