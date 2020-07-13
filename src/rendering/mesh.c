@@ -3,6 +3,7 @@
 #include "common/atomics.h"
 #include "containers/table.h"
 #include "math/float4_funcs.h"
+#include "math/box.h"
 #include <string.h>
 
 static table_t ms_table;
@@ -72,15 +73,14 @@ bool mesh_new(mesh_t* mesh, const char* name, meshid_t* idOut)
         ASSERT(added);
         if (added)
         {
-            mesh_t* meshes = ms_table.values;
-            meshes[id.index].bounds = mesh_calcbounds(ToMeshId(id));
+            mesh_calcbounds(ToMeshId(id));
         }
     }
-    *idOut = ToMeshId(id);
     if (!added)
     {
         FreeMesh(mesh);
     }
+    *idOut = ToMeshId(id);
     return added;
 }
 
@@ -96,7 +96,7 @@ void mesh_retain(meshid_t id)
 
 void mesh_release(meshid_t id)
 {
-    mesh_t mesh = {0};
+    mesh_t mesh = { 0 };
     if (table_release(&ms_table, ToGenId(id), &mesh))
     {
         FreeMesh(&mesh);
@@ -116,7 +116,10 @@ bool mesh_set(meshid_t id, mesh_t* src)
     {
         mesh_t* dst = ms_table.values;
         dst += id.index;
-        FreeMesh(dst);
+        if (dst->positions != src->positions)
+        {
+            FreeMesh(dst);
+        }
         memcpy(dst, src, sizeof(*dst));
         memset(src, 0, sizeof(*src));
         return true;
@@ -133,34 +136,18 @@ bool mesh_find(const char* name, meshid_t* idOut)
     return found;
 }
 
-sphere_t mesh_calcbounds(meshid_t id)
+box_t mesh_calcbounds(meshid_t id)
 {
-    mesh_t mesh = { 0 };
+    box_t bounds = { 0 };
+
+    mesh_t mesh;
     if (mesh_get(id, &mesh))
     {
-        float4 lo = f4_s(1 << 20);
-        float4 hi = f4_s(-(1 << 20));
-
-        const i32 len = mesh.length;
-        const float4* pim_noalias positions = mesh.positions;
-        for (i32 i = 0; i < len; ++i)
-        {
-            const float4 pos = positions[i];
-            lo = f4_min(lo, pos);
-            hi = f4_max(hi, pos);
-        }
-
-        float4 center = f4_lerpvs(lo, hi, 0.5f);
-        float r = 0.0f;
-        for (i32 i = 0; i < len; ++i)
-        {
-            r = f1_max(r, f4_distancesq3(center, positions[i]));
-        }
-        center.w = sqrtf(r);
-        sphere_t sph = { center };
-        return sph;
+        bounds = box_from_pts(mesh.positions, mesh.length);
+        mesh_t* dst = ms_table.values;
+        dst += id.index;
+        dst->bounds = bounds;
     }
 
-    sphere_t sph = { 0 };
-    return sph;
+    return bounds;
 }

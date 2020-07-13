@@ -986,15 +986,17 @@ static void SetupBounds(box2d_t* pim_noalias boxes, i32 p, i32 nodeCount)
     if ((c0 + 4) <= nodeCount)
     {
         {
-            const float2 pcenter = boxes[p].center;
-            const float2 extents = f2_mulvs(boxes[p].extents, 0.5f);
+            float2 pcenter = f2_lerp(boxes[p].lo, boxes[p].hi, 0.5f);
+            float2 pextents = f2_sub(boxes[p].hi, pcenter);
+            float2 cextents = f2_mulvs(pextents, 0.5f);
             for (i32 i = 0; i < 4; ++i)
             {
                 float2 sign;
                 sign.x = (i & 1) ? -1.0f : 1.0f;
                 sign.y = (i & 2) ? -1.0f : 1.0f;
-                boxes[c0 + i].center = f2_add(pcenter, f2_mul(sign, extents));
-                boxes[c0 + i].extents = extents;
+                float2 ccenter = f2_add(pcenter, f2_mul(sign, cextents));
+                boxes[c0 + i].lo = f2_sub(ccenter, cextents);
+                boxes[c0 + i].hi = f2_add(ccenter, cextents);
             }
         }
         for (i32 i = 0; i < 4; ++i)
@@ -1040,8 +1042,8 @@ static void quadtree_del(quadtree_t* qt)
 
 static bool VEC_CALL BoxHoldsTri(box2d_t box, tri2d_t tri)
 {
-    float2 lo = f2_sub(box.center, box.extents);
-    float2 hi = f2_add(box.center, box.extents);
+    float2 lo = box.lo;
+    float2 hi = box.hi;
     bool2 a = b2_and(b2_and(f2_gteq(tri.a, lo), f2_gteq(tri.b, lo)), f2_gteq(tri.c, lo));
     bool2 b = b2_and(b2_and(f2_lteq(tri.a, hi), f2_lteq(tri.b, hi)), f2_lteq(tri.c, hi));
     return b2_all(b2_and(a, b));
@@ -1049,9 +1051,7 @@ static bool VEC_CALL BoxHoldsTri(box2d_t box, tri2d_t tri)
 
 static bool VEC_CALL BoxHoldsPt(box2d_t box, float2 pt)
 {
-    float2 lo = f2_sub(box.center, box.extents);
-    float2 hi = f2_add(box.center, box.extents);
-    return b2_all(b2_and(f2_gteq(pt, lo), f2_lteq(pt, hi)));
+    return b2_all(b2_and(f2_gteq(pt, box.lo), f2_lteq(pt, box.hi)));
 }
 
 static bool quadtree_insert(quadtree_t* pim_noalias qt, i32 n, tri2d_t tri, i32 iDrawable, i32 iVert)
@@ -1244,9 +1244,8 @@ static void EmbedAttributes(
     {
         quadtree_t* trees = tmp_calloc(sizeof(trees[0]) * lmCount);
         {
-            box2d_t bounds;
-            bounds.center = f2_s(0.5f);
-            bounds.extents = f2_s(0.51f);
+            const float eps = 0.01f;
+            box2d_t bounds = { f2_s(0.0f - eps), f2_s(1.0f + eps) };
             for (i32 i = 0; i < lmCount; ++i)
             {
                 quadtree_new(trees + i, 5, bounds);

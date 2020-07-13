@@ -99,14 +99,6 @@ pim_inline float4 VEC_CALL f4x4_mul_col(float4x4 m, float4 col)
     return f4_add(f4_add(a, b), f4_add(c, d));
 }
 
-pim_inline box_t VEC_CALL f4x4_mul_box(float4x4 M, box_t x)
-{
-    box_t y;
-    y.center = f4x4_mul_pt(M, x.center);
-    y.extents = f4x4_mul_extents(M, x.extents);
-    return y;
-}
-
 pim_inline float4x4 VEC_CALL f4x4_translate(float4x4 m, float4 v)
 {
     float4 a = f4_mulvs(m.c0, v.x);

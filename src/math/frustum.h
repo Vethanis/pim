@@ -117,27 +117,28 @@ pim_inline float VEC_CALL sdFrusSph(frus_t frus, sphere_t sphere)
     return f1_max(g, f1_max(h, i));
 }
 
-pim_inline float VEC_CALL sdFrusBoxSubplane(plane_t plane, box_t box)
+pim_inline float VEC_CALL sdFrusBoxSubplane(plane_t plane, float4 center, float4 extents)
 {
-    return sdPlane3D(plane, box.center) - f4_dot3(f4_abs(plane.value), box.extents);
+    return sdPlane3D(plane, center) - f4_dot3(f4_abs(plane.value), extents);
 }
 
 pim_inline float VEC_CALL sdFrusBox(frus_t frus, box_t box)
 {
     // factor out abs
     // box extents should always be in octant 0, but just in case.
-    box.extents = f4_abs(box.extents);
+    float4 center = f4_lerpvs(box.lo, box.hi, 0.5f);
+    float4 extents = f4_abs(f4_sub(box.hi, center));
 
-    float a = sdFrusBoxSubplane(frus.x0, box);
-    float b = sdFrusBoxSubplane(frus.x1, box);
+    float a = sdFrusBoxSubplane(frus.x0, center, extents);
+    float b = sdFrusBoxSubplane(frus.x1, center, extents);
     float g = f1_max(a, b);
 
-    float c = sdFrusBoxSubplane(frus.y0, box);
-    float d = sdFrusBoxSubplane(frus.y1, box);
+    float c = sdFrusBoxSubplane(frus.y0, center, extents);
+    float d = sdFrusBoxSubplane(frus.y1, center, extents);
     float h = f1_max(c, d);
 
-    float e = sdFrusBoxSubplane(frus.z0, box);
-    float f = sdFrusBoxSubplane(frus.z1, box);
+    float e = sdFrusBoxSubplane(frus.z0, center, extents);
+    float f = sdFrusBoxSubplane(frus.z1, center, extents);
     float i = f1_max(e, f);
 
     return f1_max(g, f1_max(h, i));

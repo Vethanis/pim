@@ -558,6 +558,8 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     prng_t rng = prng_get();
     for (i32 iTexel = begin; iTexel < end; ++iTexel)
     {
+        dstLight[iTexel] = f4_0;
+
         const i32 x = iTexel % size.x;
         const i32 y = iTexel / size.x;
         float2 coord = { (x + 0.5f) * rcpSize.x, (y + 0.5f) * rcpSize.y };

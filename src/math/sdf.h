@@ -54,13 +54,17 @@ pim_inline float VEC_CALL sdLine3D(capsule_t cap, float4 pt)
 
 pim_inline float VEC_CALL sdBox2D(box2d_t box, float2 pt)
 {
-    float2 d = f2_sub(f2_abs(f2_sub(pt, box.center)), box.extents);
+    float2 center = f2_lerp(box.lo, box.hi, 0.5f);
+    float2 extents = f2_sub(box.hi, center);
+    float2 d = f2_sub(f2_abs(f2_sub(pt, center)), extents);
     return f2_length(f2_max(d, f2_0)) + f1_min(f2_hmax(d), 0.0f);
 }
 
 pim_inline float VEC_CALL sdBox3D(box_t box, float4 pt)
 {
-    float4 d = f4_sub(f4_abs(f4_sub(pt, box.center)), box.extents);
+    float4 center = f4_lerpvs(box.lo, box.hi, 0.5f);
+    float4 extents = f4_sub(box.hi, center);
+    float4 d = f4_sub(f4_abs(f4_sub(pt, center)), extents);
     return f4_length3(f4_max(d, f4_0)) + f1_min(f4_hmax3(d), 0.0f);
 }
 
@@ -76,12 +80,16 @@ pim_inline float VEC_CALL sdPlaneSphere(plane_t plane, sphere_t sphere)
 
 pim_inline float VEC_CALL sdPlaneBox2D(plane2d_t plane, box2d_t box)
 {
-    return sdPlane2D(plane, box.center) - f2_dot(f2_abs(plane.normal), f2_abs(box.extents));
+    float2 center = f2_lerp(box.lo, box.hi, 0.5f);
+    float2 extents = f2_sub(box.hi, center);
+    return sdPlane2D(plane, center) - f2_dot(f2_abs(plane.normal), f2_abs(extents));
 }
 
 pim_inline float VEC_CALL sdPlaneBox3D(plane_t plane, box_t box)
 {
-    return sdPlane3D(plane, box.center) - f4_dot3(f4_abs(plane.value), f4_abs(box.extents));
+    float4 center = f4_lerpvs(box.lo, box.hi, 0.5f);
+    float4 extents = f4_sub(box.hi, center);
+    return sdPlane3D(plane, center) - f4_dot3(f4_abs(plane.value), f4_abs(extents));
 }
 
 // pineda edge function (flipped for right handedness)
@@ -195,10 +203,8 @@ pim_inline float2 VEC_CALL isectBox3D(
     float4 rcpRd,   // 1 / ray direction
     box_t box)
 {
-    float4 lo = f4_sub(box.center, box.extents);
-    float4 hi = f4_add(box.center, box.extents);
-    float4 tx1 = f4_mul(f4_sub(lo, ro), rcpRd);
-    float4 tx2 = f4_mul(f4_sub(hi, ro), rcpRd);
+    float4 tx1 = f4_mul(f4_sub(box.lo, ro), rcpRd);
+    float4 tx2 = f4_mul(f4_sub(box.hi, ro), rcpRd);
     float tmin = f4_hmax3(f4_min(tx1, tx2));
     float tmax = f4_hmin3(f4_max(tx1, tx2));
     return f2_v(tmin, tmax);

@@ -307,9 +307,6 @@
     <ClCompile Include="..\src\rendering\vertex_stage.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\clear_tile.c">
-      <Filter>Source Files\rendering</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\rendering\resolve_tile.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
@@ -801,9 +798,6 @@
     <ClInclude Include="..\src\rendering\vertex_stage.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\clear_tile.h">
-      <Filter>Source Files\rendering</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\rendering\resolve_tile.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
@@ -979,6 +973,9 @@
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
     <ClInclude Include="..\src\math\sh.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\box.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
   </ItemGroup>

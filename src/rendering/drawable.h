@@ -19,8 +19,6 @@ typedef struct drawables_s
     meshid_t* meshes;       // immutable object space mesh
     material_t* materials;  // material description
     lm_uvs_t* lmUvs;        // lightmap uvs (must be per-instance)
-    sphere_t* bounds;       // world space bounds
-    u64* tileMasks;         // bitmask of tile visibility
     float4x4* matrices;     // local to world matrix
     float3x3* invMatrices;  // world to local rotation matrix
     float4* translations;
@@ -37,5 +35,7 @@ i32 drawables_find(u32 name);
 void drawables_clear(void);
 
 void drawables_trs(void);
+
+box_t drawables_bounds(void);
 
 PIM_C_END

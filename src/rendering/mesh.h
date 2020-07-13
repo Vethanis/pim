@@ -7,10 +7,10 @@ PIM_C_BEGIN
 
 typedef struct mesh_s
 {
+    box_t bounds;
     float4* positions;
     float4* normals;
     float2* uvs;
-    sphere_t bounds;
     i32 length;
 } mesh_t;
 
@@ -36,6 +36,6 @@ bool mesh_set(meshid_t id, mesh_t* src);
 
 bool mesh_find(const char* name, meshid_t* idOut);
 
-sphere_t mesh_calcbounds(meshid_t id);
+box_t mesh_calcbounds(meshid_t id);
 
 PIM_C_END

@@ -62,7 +62,6 @@
     <ClCompile Include="..\src\quake\q_model.c" />
     <ClCompile Include="..\src\quake\q_packfile.c" />
     <ClCompile Include="..\src\rendering\camera.c" />
-    <ClCompile Include="..\src\rendering\clear_tile.c" />
     <ClCompile Include="..\src\rendering\cubemap.c" />
     <ClCompile Include="..\src\rendering\denoise.c" />
     <ClCompile Include="..\src\rendering\drawable.c" />
@@ -185,6 +184,7 @@
     <ClInclude Include="..\src\math\area.h" />
     <ClInclude Include="..\src\math\atmosphere.h" />
     <ClInclude Include="..\src\math\blending.h" />
+    <ClInclude Include="..\src\math\box.h" />
     <ClInclude Include="..\src\math\color.h" />
     <ClInclude Include="..\src\math\cubic_fit.h" />
     <ClInclude Include="..\src\math\float2_funcs.h" />
@@ -208,7 +208,6 @@
     <ClInclude Include="..\src\quake\q_model.h" />
     <ClInclude Include="..\src\quake\q_packfile.h" />
     <ClInclude Include="..\src\rendering\camera.h" />
-    <ClInclude Include="..\src\rendering\clear_tile.h" />
     <ClInclude Include="..\src\rendering\cubemap.h" />
     <ClInclude Include="..\src\rendering\denoise.h" />
     <ClInclude Include="..\src\rendering\drawable.h" />

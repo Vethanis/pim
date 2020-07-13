@@ -142,14 +142,14 @@ typedef struct line2d_s
 
 typedef struct box_s
 {
-    float4 center;
-    float4 extents;
+    float4 lo;
+    float4 hi;
 } box_t;
 
 typedef struct box2d_s
 {
-    float2 center;
-    float2 extents;
+    float2 lo;
+    float2 hi;
 } box2d_t;
 
 typedef struct sphere_s

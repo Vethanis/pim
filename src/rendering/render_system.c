@@ -33,7 +33,6 @@
 #include "rendering/framebuffer.h"
 #include "rendering/camera.h"
 #include "rendering/lights.h"
-#include "rendering/clear_tile.h"
 #include "rendering/vertex_stage.h"
 #include "rendering/resolve_tile.h"
 #include "rendering/screenblit.h"
@@ -79,7 +78,7 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv);
 static framebuf_t ms_buffers[2];
 static i32 ms_iFrame;
 
-static TonemapId ms_tonemapper = TMap_Uncharted2;
+static TonemapId ms_tonemapper = TMap_Hable;
 static float4 ms_toneParams;
 static float4 ms_clearColor;
 static exposure_t ms_exposure =
@@ -134,42 +133,6 @@ static void EnsurePtScene(void)
         ms_cmapSampleCount = 0;
         ms_lmSampleCount = 0;
     }
-}
-
-static box_t VEC_CALL CalcSceneBounds(void)
-{
-    const drawables_t* drawables = drawables_get();
-    const i32 count = drawables->count;
-    const float4x4* pim_noalias matrices = drawables->matrices;
-    const meshid_t* pim_noalias meshes = drawables->meshes;
-
-    float4 lo = f4_s(1 << 20);
-    float4 hi = f4_s(-(1 << 20));
-    for (i32 i = 0; i < count; ++i)
-    {
-        mesh_t mesh;
-        if (mesh_get(meshes[i], &mesh))
-        {
-            const float4x4 localToWorld = matrices[i];
-            const i32 vertCount = mesh.length;
-            const float4* pim_noalias positions = mesh.positions;
-            for (i32 j = 0; j < vertCount; ++j)
-            {
-                float4 position = f4x4_mul_pt(localToWorld, positions[j]);
-                lo = f4_min(lo, position);
-                hi = f4_max(hi, position);
-            }
-        }
-    }
-
-    // expand slightly to avoid precision issues on outermost vertices
-    lo = f4_mulvs(lo, 1.0f + kMicro);
-    hi = f4_mulvs(hi, 1.0f + kMicro);
-
-    box_t box;
-    box.center = f4_lerpvs(lo, hi, 0.5f);
-    box.extents = f4_sub(hi, box.center);
-    return box;
 }
 
 static void LightmapRepack(void)
@@ -345,7 +308,6 @@ static void Rasterize(void)
     camera_t camera;
     camera_get(&camera);
 
-    ClearTile(frontBuf, ms_clearColor, camera.nearFar.y);
     drawables_trs();
     RtcDraw(frontBuf, &camera);
 

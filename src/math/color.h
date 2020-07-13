@@ -142,21 +142,6 @@ pim_inline float VEC_CALL f4_maxlum(float4 x)
     return f4_hmax3(x);
 }
 
-// midway between average and max component
-pim_inline float VEC_CALL f4_midlum(float4 x)
-{
-    return (f4_maxlum(x) + f4_avglum(x)) * 0.5f;
-}
-
-// shotgun luminosity
-pim_inline float VEC_CALL f4_shotlum(float4 x)
-{
-    float a = f4_perlum(x);
-    float b = f4_avglum(x);
-    float c = f4_maxlum(x);
-    return (a + b + c) / 3.0f;
-}
-
 pim_inline float4 VEC_CALL f4_desaturate(float4 src, float amt)
 {
     float lum = f4_perlum(src);

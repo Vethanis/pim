@@ -5,6 +5,7 @@
 #include "math/float4x4_funcs.h"
 #include "rendering/camera.h"
 #include "math/frustum.h"
+#include "math/box.h"
 #include "rendering/constants.h"
 #include "common/profiler.h"
 #include "rendering/sampler.h"
@@ -27,8 +28,6 @@ i32 drawables_add(u32 name)
     PermGrow(ms_drawables.meshes, len);
     PermGrow(ms_drawables.materials, len);
     PermGrow(ms_drawables.lmUvs, len);
-    PermGrow(ms_drawables.bounds, len);
-    PermGrow(ms_drawables.tileMasks, len);
     PermGrow(ms_drawables.matrices, len);
     PermGrow(ms_drawables.invMatrices, len);
     PermGrow(ms_drawables.translations, len);
@@ -69,8 +68,6 @@ static void RemoveAtIndex(i32 i)
     PopSwap(ms_drawables.meshes, i, len);
     PopSwap(ms_drawables.materials, i, len);
     PopSwap(ms_drawables.lmUvs, i, len);
-    PopSwap(ms_drawables.bounds, i, len);
-    PopSwap(ms_drawables.tileMasks, i, len);
     PopSwap(ms_drawables.matrices, i, len);
     PopSwap(ms_drawables.invMatrices, i, len);
     PopSwap(ms_drawables.translations, i, len);
@@ -134,4 +131,23 @@ void drawables_trs(void)
     task_run(&task->task, TRSFn, ms_drawables.count);
 
     ProfileEnd(pm_TRS);
+}
+
+box_t drawables_bounds(void)
+{
+    const i32 length = ms_drawables.count;
+    const meshid_t* pim_noalias meshids = ms_drawables.meshes;
+    const float4x4* pim_noalias matrices = ms_drawables.matrices;
+
+    box_t box = box_empty();
+    for (i32 i = 0; i < length; ++i)
+    {
+        mesh_t mesh;
+        if (mesh_get(meshids[i], &mesh))
+        {
+            box = box_union(box, box_transform(matrices[i], mesh.bounds));
+        }
+    }
+
+    return box;
 }

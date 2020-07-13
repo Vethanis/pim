@@ -96,44 +96,22 @@ pim_inline float VEC_CALL PowerHeuristic(
 }
 
 // Maps a value in unorm square to a value in snorm circle
-// "A Low Distortion Map Between Disk and Square" by Peter Shirley and Kenneth Chiu.
+// https://psgraphics.blogspot.com/2011/01/improved-code-for-concentric-map.html
 pim_inline float2 VEC_CALL MapSquareToDisk(float2 Xi)
 {
-    const float kPiD4 = kPi / 4.0f;
-
-    float phi = 0.0f;
-    float r = 0.0f;
+    float phi, r;
 
     float a = 2.0f * Xi.x - 1.0f;
     float b = 2.0f * Xi.y - 1.0f;
-    if (a > -b)
+    if ((a*a) > (b*b))
     {
-        if (a > b)
-        {
-            r = a;
-            phi = kPiD4 * (b / a);
-        }
-        else
-        {
-            r = b;
-            phi = kPiD4 * (2.0f - (a / b));
-        }
+        r = a;
+        phi = (kPi / 4.0f) * (b / a);
     }
     else
     {
-        if (a < b)
-        {
-            r = -a;
-            phi = kPiD4 * (4.0f + (b / a));
-        }
-        else
-        {
-            r = -b;
-            if (b != 0.0f)
-            {
-                phi = kPiD4 * (6.0f - (a / b));
-            }
-        }
+        r = b;
+        phi = (kPi / 2.0f) - (kPi / 4.0f) * (a / b);
     }
 
     return f2_v(r * cosf(phi), r * sinf(phi));
@@ -267,7 +245,7 @@ pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)
 // distSq: dot(LPos - SurfPos, LPos - SurfPos)
 pim_inline float VEC_CALL LightPdf(float area, float cosTheta, float distSq)
 {
-    return distSq / f1_max(kMinDenom, cosTheta * area);
+    return distSq / f1_max(kEpsilon, cosTheta * area);
 }
 
 PIM_C_END
