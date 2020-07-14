@@ -32,7 +32,7 @@
 #define NEE                 1
 #define MIS                 0
 #define kRejectionSamples   3
-#define kRngSeqLen          64
+#define kRngSeqLen          256
 
 typedef struct pt_scene_s
 {
