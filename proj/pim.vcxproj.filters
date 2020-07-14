@@ -457,6 +457,9 @@
     <ClCompile Include="..\src\rendering\exposure.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\math\dist1d.c">
+      <Filter>Source Files\math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -976,6 +979,9 @@
       <Filter>Source Files\math</Filter>
     </ClInclude>
     <ClInclude Include="..\src\math\box.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\dist1d.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
   </ItemGroup>

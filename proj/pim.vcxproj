@@ -56,6 +56,7 @@
     <ClCompile Include="..\src\main.c" />
     <ClCompile Include="..\src\math\ambcube.c" />
     <ClCompile Include="..\src\math\cubic_fit.c" />
+    <ClCompile Include="..\src\math\dist1d.c" />
     <ClCompile Include="..\src\math\lighting.c" />
     <ClCompile Include="..\src\math\sphgauss.c" />
     <ClCompile Include="..\src\os\socket.c" />
@@ -187,6 +188,7 @@
     <ClInclude Include="..\src\math\box.h" />
     <ClInclude Include="..\src\math\color.h" />
     <ClInclude Include="..\src\math\cubic_fit.h" />
+    <ClInclude Include="..\src\math\dist1d.h" />
     <ClInclude Include="..\src\math\float2_funcs.h" />
     <ClInclude Include="..\src\math\float3x3_funcs.h" />
     <ClInclude Include="..\src\math\float3_funcs.h" />

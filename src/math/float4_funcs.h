@@ -41,13 +41,13 @@ pim_inline void VEC_CALL f4_store(float4 src, float* dst)
 
 pim_inline float4 VEC_CALL f4_zxy(float4 v)
 {
-    float4 vec = { v.z, v.x, v.y, v.w };
+    float4 vec = { v.z, v.x, v.y, 0.0f };
     return vec;
 }
 
 pim_inline float4 VEC_CALL f4_yzx(float4 v)
 {
-    float4 vec = { v.y, v.z, v.x, v.w };
+    float4 vec = { v.y, v.z, v.x, 0.0f };
     return vec;
 }
 

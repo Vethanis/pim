@@ -4,9 +4,6 @@
 
 PIM_C_BEGIN
 
-#define kNumThreads     32
-#define kTaskSplit      (kNumThreads * (kNumThreads / 2))
-
 typedef enum
 {
     TaskStatus_Init = 0,

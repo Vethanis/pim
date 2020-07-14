@@ -38,10 +38,7 @@ pim_inline float4 VEC_CALL rgba8_f4(u32 c)
     u32 g = (c >> 8) & 0xff;
     u32 b = (c >> 16) & 0xff;
     u32 a = (c >> 24) & 0xff;
-    float4 v = f4_v((float)r, (float)g, (float)b, (float)a);
-    v = f4_addvs(v, 0.5f);
-    v = f4_mulvs(v, s);
-    return v;
+    return f4_v((r + 0.5f) * s, (g + 0.5f) * s, (b + 0.5f) * s, (a + 0.5f) * s);
 }
 
 pim_inline float4 VEC_CALL rgba8_dir(u32 c)
@@ -72,20 +69,13 @@ pim_inline float VEC_CALL LinearTosRGB(float c)
 // cubic fit sRGB -> Linear conversion
 pim_inline float VEC_CALL f1_tolinear(float c)
 {
-    float c2 = c * c;
-    float c3 = c2 * c;
-    return 0.016124f * c + 0.667737f * c2 + 0.317955f * c3;
+    return 0.016124f * c + 0.667737f * (c*c) + 0.317955f * (c*c*c);
 }
 
 // cubic fit sRGB -> Linear conversion
-pim_inline float4 VEC_CALL f4_tolinear(float4 srgb)
+pim_inline float4 VEC_CALL f4_tolinear(float4 c)
 {
-    float4 lin;
-    lin.x = f1_tolinear(srgb.x);
-    lin.y = f1_tolinear(srgb.y);
-    lin.z = f1_tolinear(srgb.z);
-    lin.w = f1_tolinear(srgb.w);
-    return lin;
+    return f4_add(f4_add(f4_mulvs(c, 0.016124f), f4_mulvs(f4_mul(c, c), 0.667737f)), f4_mulvs(f4_mul(c, f4_mul(c, c)), 0.317955f));
 }
 
 // cubic root fit Linear -> sRGB conversion
@@ -98,24 +88,26 @@ pim_inline float VEC_CALL f1_tosrgb(float c)
 }
 
 // cubic root fit Linear -> sRGB conversion
-pim_inline float4 VEC_CALL f4_tosrgb(float4 lin)
+pim_inline float4 VEC_CALL f4_tosrgb(float4 c)
 {
-    float4 srgb;
-    srgb.x = f1_tosrgb(lin.x);
-    srgb.y = f1_tosrgb(lin.y);
-    srgb.z = f1_tosrgb(lin.z);
-    srgb.w = f1_tosrgb(lin.w);
-    return srgb;
+    float4 s1 = f4_sqrt(c);
+    float4 s2 = f4_sqrt(s1);
+    float4 s3 = f4_sqrt(s2);
+    return f4_add(f4_add(f4_mulvs(s1, 0.582176f), f4_mulvs(s2, 0.789747f)), f4_mulvs(s3, -0.371449f));
 }
 
 pim_inline u32 VEC_CALL LinearToColor(float4 lin)
 {
-    return f4_rgba8(f4_tosrgb(lin));
+    float4 sRGB = f4_tosrgb(lin);
+    u32 color = f4_rgba8(sRGB);
+    return color;
 }
 
 pim_inline float4 VEC_CALL ColorToLinear(u32 c)
 {
-    return f4_tolinear(rgba8_f4(c));
+    float4 sRGB = rgba8_f4(c);
+    float4 linear = f4_tolinear(sRGB);
+    return linear;
 }
 
 // https://alienryderflex.com/hsp.html

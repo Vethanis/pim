@@ -31,7 +31,7 @@ pim_inline float3x3 VEC_CALL NormalToTBN(float4 N)
 
     float4 a = f1_abs(N.z) < 0.9f ? kZ : kX;
     float4 T = f4_normalize3(f4_cross3(a, N));
-    float4 B = f4_normalize3(f4_cross3(N, T));
+    float4 B = f4_cross3(N, T);
 
     return (float3x3) { T, B, N };
 }
@@ -42,7 +42,7 @@ pim_inline float4 VEC_CALL TbnToWorld(float3x3 TBN, float4 nTS)
     float4 u = f4_mulvs(TBN.c1, nTS.y);
     float4 f = f4_mulvs(TBN.c2, nTS.z);
     float4 dir = f4_add(f, f4_add(r, u));
-    return f4_normalize3(dir);
+    return dir;
 }
 
 pim_inline float4 VEC_CALL TanToWorld(float4 normalWS, float4 normalTS)
@@ -69,28 +69,26 @@ pim_inline float2 VEC_CALL Hammersley2D(u32 i, u32 N)
     return c;
 }
 
-typedef struct rngseq_s
+pim_inline float2 VEC_CALL rngseq_next(prng_t* pim_noalias rng, rngseq_t* pim_noalias pSeq, i32 len)
 {
-    float2 jit;
-    i32 cur;
-} rngseq_t;
-
-pim_inline float2 VEC_CALL rngseq_next(prng_t* pim_noalias rng, rngseq_t* pim_noalias seq, i32 len)
-{
-    i32 c = seq->cur++ & (len - 1);
+    rngseq_t seq = *pSeq;
+    i32 c = seq.cur++ & (len - 1);
     if (c == 0)
     {
-        seq->jit = f2_rand(rng);
+        seq.jit = f2_rand(rng);
     }
+    *pSeq = seq;
+
     // de-corrolates brdf samples
     c = prng_i32(rng) & (len - 1);
-    return f2_frac(f2_add(seq->jit, Hammersley2D(c, len)));
+    float2 Xi = Hammersley2D(c, len);
+    Xi = f2_add(seq.jit, Xi);
+    Xi = f2_frac(Xi);
+    return Xi;
 }
 
 // http://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling.html
-pim_inline float VEC_CALL PowerHeuristic(
-    float f,
-    float g)
+pim_inline float VEC_CALL PowerHeuristic(float f, float g)
 {
     return (f * f) / (f * f + g * g);
 }
@@ -119,9 +117,10 @@ pim_inline float2 VEC_CALL MapSquareToDisk(float2 Xi)
 
 pim_inline float4 VEC_CALL SampleBaryCoord(float2 Xi)
 {
-    float sqrtR1 = sqrtf(Xi.x);
-    float u = sqrtR1 * (1.0f - Xi.y);
-    float v = Xi.y * sqrtR1;
+    float r1 = sqrtf(Xi.x);
+    float r2 = Xi.y;
+    float u = r1 * (1.0f - r2);
+    float v = r2 * r1;
     float w = 1.0f - (u + v);
     return f4_v(w, u, v, 0.0f);
 }
@@ -132,7 +131,7 @@ pim_inline float4 VEC_CALL SphericalToCartesian(float cosTheta, float phi)
     float x = sinTheta * cosf(phi);
     float y = sinTheta * sinf(phi);
     float4 dir = { x, y, cosTheta, 0.0f };
-    return f4_normalize3(dir);
+    return dir;
 }
 
 // samples unit sphere with N = (0, 0, 1)

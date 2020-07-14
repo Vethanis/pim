@@ -59,8 +59,20 @@ pim_inline float VEC_CALL MiePhase(float mu, float g)
     float g2 = g * g;
     float nom = (1.0f - g2) * (1.0f + mu2);
     float denomBase = (1.0f + g2) - (2.0f * g * mu);
-    float denom = (2.0f + g2) * powf(denomBase, 3.0f / 2.0f);
+    float denom = (2.0f + g2) * denomBase * sqrtf(denomBase);
     return (3.0f / (8.0f * kPi)) * (nom / denom);
+}
+
+// henyey-greenstein phase function
+// g: anisotropy in (-1, 1) => (back-scattering, forward-scattering)
+// cosTheta: dot(wo, wi)
+pim_inline float VEC_CALL HGPhase(float g, float cosTheta)
+{
+    float g2 = g * g;
+    float nom = 1.0f - g2;
+    float denom = 1.0f + g2 + 2.0f * g * cosTheta;
+    denom = denom * sqrtf(denom);
+    return nom / (4.0f * kPi * denom);
 }
 
 pim_inline float3 VEC_CALL Atmosphere(
@@ -133,7 +145,7 @@ pim_inline float3 VEC_CALL EarthAtmosphere(
     float3 L,
     float sunIntensity)
 {
-    ro = f3_add(ro, f3_v(0.0f, kEarthAtmosphere.crustRadius, 0.0f));
+    ro.y += kEarthAtmosphere.crustRadius;
     return Atmosphere(
         kEarthAtmosphere,
         ro,

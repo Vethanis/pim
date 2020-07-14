@@ -29,9 +29,10 @@
 
 #include <string.h>
 
-#define NEE 1
-#define MIS 0
-#define kRejectionSamples 3
+#define NEE                 1
+#define MIS                 0
+#define kRejectionSamples   3
+#define kRngSeqLen          64
 
 typedef struct pt_scene_s
 {
@@ -95,7 +96,7 @@ typedef struct scatter_s
 typedef struct trace_task_s
 {
     task_t task;
-    pt_trace_t trace;
+    pt_trace_t* trace;
     camera_t camera;
 } trace_task_t;
 
@@ -108,8 +109,11 @@ typedef struct pt_raygen_s
     float4* directions;
 } pt_raygen_t;
 
+
 static bool ms_once;
 static RTCDevice ms_device;
+static pt_sampler_t ms_samplers[kNumThreads];
+static float2 ms_hammersley[kRngSeqLen];
 
 static cvar_t* cv_r_sun_az;
 static cvar_t* cv_r_sun_ze;
@@ -145,8 +149,37 @@ static bool EnsureInit(void)
         cv_r_sun_az = cvar_find("r_sun_az");
         cv_r_sun_ze = cvar_find("r_sun_ze");
         cv_r_sun_rad = cvar_find("r_sun_rad");
+
+        prng_t rng = prng_get();
+        for (i32 i = 0; i < kRngSeqLen; ++i)
+        {
+            ms_hammersley[i] = Hammersley2D(i, kRngSeqLen);
+        }
+        for (i32 i = 0; i < kRngSeqLen; ++i)
+        {
+            i32 j = prng_i32(&rng) & (kRngSeqLen - 1);
+            float2 tmp = ms_hammersley[i];
+            ms_hammersley[i] = ms_hammersley[j];
+            ms_hammersley[j] = tmp;
+        }
+        prng_set(rng);
     }
     return ms_device != NULL;
+}
+
+pim_inline float2 VEC_CALL pt_sampler_next2(pt_sampler_t* sampler)
+{
+    float2 jit = sampler->seq.jit;
+    i32 c = sampler->seq.cur++ & (kRngSeqLen - 1);
+    if (c == 0)
+    {
+        jit = f2_rand(&sampler->rng);
+        sampler->seq.jit = jit;
+    }
+    float2 Xi = ms_hammersley[c];
+    Xi = f2_add(Xi, jit);
+    Xi = f2_frac(Xi);
+    return Xi;
 }
 
 pim_inline RTCRay VEC_CALL RtcNewRay(ray_t ray, float tNear, float tFar)
@@ -265,20 +298,20 @@ static RTCScene RtcNewScene(const pt_scene_t* scene)
 
 static float EmissionPdf(
     const pt_scene_t* scene,
-    prng_t* rng,
+    pt_sampler_t* sampler,
     i32 iVert,
     i32 attempts)
 {
     i32 hits = 0;
     const i32 iMat = scene->matIds[iVert];
-    const material_t mat = scene->materials[iMat];
+    const material_t* mat = scene->materials + iMat;
     const float2* pim_noalias uvs = scene->uvs;
-    if (mat.flags & matflag_sky)
+    if (mat->flags & matflag_sky)
     {
         return 1.0f;
     }
     texture_t romeMap = { 0 };
-    if (texture_get(mat.rome, &romeMap))
+    if (texture_get(mat->rome, &romeMap))
     {
         const float2 UA = uvs[iVert + 0];
         const float2 UB = uvs[iVert + 1];
@@ -290,7 +323,7 @@ static float EmissionPdf(
         {
             for (i32 j = 0; j < kRejectionSamples; ++j)
             {
-                float4 wuv = SampleBaryCoord(f2_rand(rng));
+                float4 wuv = SampleBaryCoord(f2_rand(&sampler->rng));
                 float2 uv = f2_blend(UA, UB, UC, wuv);
                 float2 coordf = f2_addvs(f2_mul(sizef, uv), 0.5f);
                 int2 coord = { (i32)coordf.x, (i32)coordf.y };
@@ -311,16 +344,16 @@ static float EmissionPdf(
 
 pim_inline float4 VEC_CALL SampleEmissiveCoord(
     const pt_scene_t* scene,
-    prng_t* rng,
+    pt_sampler_t* sampler,
     i32 iVert)
 {
     const i32 iMat = scene->matIds[iVert];
-    const material_t mat = scene->materials[iMat];
+    const material_t* mat = scene->materials + iMat;
     const float2* pim_noalias uvs = scene->uvs;
-    if (!(mat.flags & matflag_sky))
+    if (!(mat->flags & matflag_sky))
     {
         texture_t romeMap = { 0 };
-        if (texture_get(mat.rome, &romeMap))
+        if (texture_get(mat->rome, &romeMap))
         {
             const float2 UA = uvs[iVert + 0];
             const float2 UB = uvs[iVert + 1];
@@ -330,7 +363,7 @@ pim_inline float4 VEC_CALL SampleEmissiveCoord(
 
             for (i32 i = 0; i < kRejectionSamples; ++i)
             {
-                float4 wuv = SampleBaryCoord(f2_rand(rng));
+                float4 wuv = SampleBaryCoord(f2_rand(&sampler->rng));
                 float2 uv = f2_blend(UA, UB, UC, wuv);
                 float2 coordf = f2_addvs(f2_mul(sizef, uv), 0.5f);
                 int2 coord = { (i32)coordf.x, (i32)coordf.y };
@@ -346,7 +379,7 @@ pim_inline float4 VEC_CALL SampleEmissiveCoord(
         }
     }
 
-    return SampleBaryCoord(f2_rand(rng));
+    return SampleBaryCoord(f2_rand(&sampler->rng));
 }
 
 static void FlattenDrawables(pt_scene_t* scene)
@@ -440,12 +473,12 @@ static void CalcEmissionPdfFn(task_t* pbase, i32 begin, i32 end)
     const i32 attempts = task->attempts;
     float* pim_noalias pdfs = task->pdfs;
 
-    prng_t rng = prng_get();
+    pt_sampler_t sampler = pt_sampler_get();
     for (i32 i = begin; i < end; ++i)
     {
-        pdfs[i] = EmissionPdf(scene, &rng, i * 3, attempts);
+        pdfs[i] = EmissionPdf(scene, &sampler, i * 3, attempts);
     }
-    prng_set(rng);
+    pt_sampler_set(sampler);
 }
 
 static void SetupEmissives(pt_scene_t* scene)
@@ -493,6 +526,19 @@ static void UpdateScene(pt_scene_t* scene)
     float4 sunDir = TanToWorld(kUp, SampleUnitHemisphere(f2_v(azimuth, zenith)));
     scene->sunDirection = f4_f3(sunDir);
     scene->sunIntensity = irradiance;
+}
+
+
+pt_sampler_t pt_sampler_get(void)
+{
+    const i32 tid = task_thread_id();
+    return ms_samplers[tid];
+}
+
+void pt_sampler_set(pt_sampler_t sampler)
+{
+    const i32 tid = task_thread_id();
+    ms_samplers[tid] = sampler;
 }
 
 pt_scene_t* pt_scene_new(void)
@@ -666,30 +712,28 @@ rayhit_t VEC_CALL pt_intersect(
     return pt_intersect_local(scene, ray, tNear, tFar);
 }
 
-static rngseq_t rngseq_SampleSpecular[kNumThreads];
 pim_inline float4 VEC_CALL SampleSpecular(
-    prng_t* rng,
+    pt_sampler_t* sampler,
     float4 I,
     float4 N,
     float alpha)
 {
-    float2 Xi = rngseq_next(rng, rngseq_SampleSpecular + task_thread_id(), 64);
+    float2 Xi = pt_sampler_next2(sampler);
     float4 H = TanToWorld(N, SampleGGXMicrofacet(Xi, alpha));
     float4 L = f4_normalize3(f4_reflect3(I, H));
     return L;
 }
 
-static rngseq_t rngseq_SampleDiffuse[kNumThreads];
-pim_inline float4 VEC_CALL SampleDiffuse(prng_t* rng, float4 N)
+pim_inline float4 VEC_CALL SampleDiffuse(pt_sampler_t* sampler, float4 N)
 {
-    float2 Xi = rngseq_next(rng, rngseq_SampleDiffuse + task_thread_id(), 64);
+    float2 Xi = pt_sampler_next2(sampler);
     float4 L = TanToWorld(N, SampleCosineHemisphere(Xi));
     return L;
 }
 
 // samples a light direction of the brdf
 pim_inline float4 VEC_CALL BrdfSample(
-    prng_t* rng,
+    pt_sampler_t* sampler,
     const surfhit_t* surf,
     float4 I)
 {
@@ -703,13 +747,13 @@ pim_inline float4 VEC_CALL BrdfSample(
     const float specProb = 1.0f / (amtSpecular + amtDiffuse);
 
     float4 L;
-    if (prng_f32(rng) < specProb)
+    if (prng_f32(&sampler->rng) < specProb)
     {
-        L = SampleSpecular(rng, I, N, alpha);
+        L = SampleSpecular(sampler, I, N, alpha);
     }
     else
     {
-        L = SampleDiffuse(rng, N);
+        L = SampleDiffuse(sampler, N);
     }
 
     return L;
@@ -767,7 +811,7 @@ pim_inline float4 VEC_CALL BrdfEval(
 }
 
 pim_inline scatter_t VEC_CALL BrdfScatter(
-    prng_t* rng,
+    pt_sampler_t* sampler,
     const surfhit_t* surf,
     float4 I)
 {
@@ -785,12 +829,17 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
     const float amtSpecular = 1.0f;
     const float rcpProb = 1.0f / (amtSpecular + amtDiffuse);
 
-    bool specular = prng_f32(rng) < rcpProb;
-    float4 L = specular ?
-        SampleSpecular(rng, I, N, alpha) :
-        SampleDiffuse(rng, N);
+    float4 L;
+    if (prng_f32(&sampler->rng) < rcpProb)
+    {
+        L = SampleSpecular(sampler, I, N, alpha);
+    }
+    else
+    {
+        L = SampleDiffuse(sampler, N);
+    }
 
-    float NoL = f4_dotsat(N, L);
+    float NoL = f4_dot3(N, L);
     if (NoL <= 0.0f)
     {
         return result;
@@ -832,14 +881,14 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
 
 pim_inline bool LightSelect(
     const pt_scene_t* scene,
-    prng_t* rng,
+    pt_sampler_t* sampler,
     i32* idOut,
     float* pdfOut)
 {
     i32 lightCount = scene->emissiveCount;
     if (lightCount > 0)
     {
-        i32 iList = prng_i32(rng) % lightCount;
+        i32 iList = prng_i32(&sampler->rng) % lightCount;
         i32 iVert = scene->emissives[iList];
         float emPdf = scene->emPdfs[iList];
         *idOut = iVert;
@@ -854,15 +903,15 @@ pim_inline bool LightSelect(
 pim_inline float4 VEC_CALL LightRad(const pt_scene_t* scene, i32 iLight, float4 wuv, float4 ro, float4 rd)
 {
     i32 iMat = scene->matIds[iLight];
-    const material_t mat = scene->materials[iMat];
-    if (mat.flags & matflag_sky)
+    const material_t* mat = scene->materials + iMat;
+    if (mat->flags & matflag_sky)
     {
         return f3_f4(EarthAtmosphere(f4_f3(ro), f4_f3(rd), scene->sunDirection, scene->sunIntensity), 0.0f);
     }
-    float4 albedo = ColorToLinear(mat.flatAlbedo);
-    float4 rome = ColorToLinear(mat.flatRome);
+    float4 albedo = ColorToLinear(mat->flatAlbedo);
+    float4 rome = ColorToLinear(mat->flatRome);
     texture_t albedoMap = { 0 };
-    if (texture_get(mat.albedo, &albedoMap))
+    if (texture_get(mat->albedo, &albedoMap))
     {
         float2 uv = GetVert2(scene->uvs, iLight, wuv);
         float4 sample = UvBilinearWrap_c32(albedoMap.texels, albedoMap.size, uv);
@@ -882,13 +931,13 @@ typedef struct lightsample_s
 
 pim_inline lightsample_t VEC_CALL LightSample(
     const pt_scene_t* scene,
-    prng_t* rng,
+    pt_sampler_t* sampler,
     const surfhit_t* surf,
     i32 iLight)
 {
     lightsample_t sample = { 0 };
 
-    float4 wuv = SampleEmissiveCoord(scene, rng, iLight);
+    float4 wuv = SampleEmissiveCoord(scene, sampler, iLight);
 
     const float4* pim_noalias positions = scene->positions;
     float4 A = positions[iLight + 0];
@@ -927,7 +976,12 @@ pim_inline lightsample_t VEC_CALL LightSample(
     return sample;
 }
 
-pim_inline float VEC_CALL LightEvalPdf(const pt_scene_t* scene, i32 iLight, float4 ro, float4 rd, float4* wuvOut)
+pim_inline float VEC_CALL LightEvalPdf(
+    const pt_scene_t* scene,
+    i32 iLight,
+    float4 ro,
+    float4 rd,
+    float4* wuvOut)
 {
     ray_t ray = { ro, rd };
     rayhit_t hit = pt_intersect_local(scene, ray, 0.0f, 1 << 20);
@@ -950,7 +1004,7 @@ pim_inline float VEC_CALL LightEvalPdf(const pt_scene_t* scene, i32 iLight, floa
 
 pim_inline float4 VEC_CALL EstimateDirect(
     const pt_scene_t* scene,
-    prng_t* rng,
+    pt_sampler_t* sampler,
     const surfhit_t* surf,
     const rayhit_t* hit,
     i32 iLight,
@@ -958,7 +1012,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
 {
     float4 result = f4_0;
     {
-        lightsample_t sample = LightSample(scene, rng, surf, iLight);
+        lightsample_t sample = LightSample(scene, sampler, surf, iLight);
         if (sample.pdf > kEpsilon)
         {
             float4 brdf = BrdfEval(I, surf, sample.direction);
@@ -998,18 +1052,18 @@ pim_inline float4 VEC_CALL EstimateDirect(
 
 pim_inline float4 VEC_CALL SampleLights(
     const pt_scene_t* scene,
-    prng_t* rng,
+    pt_sampler_t* sampler,
     const surfhit_t* surf,
     const rayhit_t* hit,
     float4 I)
 {
     i32 iLight;
     float lightPdfWeight;
-    if (LightSelect(scene, rng, &iLight, &lightPdfWeight))
+    if (LightSelect(scene, sampler, &iLight, &lightPdfWeight))
     {
         if (hit->index != iLight)
         {
-            float4 direct = EstimateDirect(scene, rng, surf, hit, iLight, I);
+            float4 direct = EstimateDirect(scene, sampler, surf, hit, iLight, I);
             return f4_divvs(direct, lightPdfWeight);
         }
     }
@@ -1017,7 +1071,7 @@ pim_inline float4 VEC_CALL SampleLights(
 }
 
 pt_result_t VEC_CALL pt_trace_ray(
-    prng_t* rng,
+    pt_sampler_t* sampler,
     const pt_scene_t* scene,
     ray_t ray)
 {
@@ -1056,14 +1110,14 @@ pt_result_t VEC_CALL pt_trace_ray(
             light = f4_add(light, f4_mul(surf.emission, attenuation));
         }
         {
-            float4 direct = SampleLights(scene, rng, &surf, &hit, ray.rd);
+            float4 direct = SampleLights(scene, sampler, &surf, &hit, ray.rd);
             light = f4_add(light, f4_mul(direct, attenuation));
         }
 #else
         light = f4_add(light, f4_mul(surf.emission, attenuation));
 #endif // NEE
 
-        const scatter_t scatter = BrdfScatter(rng, &surf, ray.rd);
+        const scatter_t scatter = BrdfScatter(sampler, &surf, ray.rd);
         if (scatter.pdf <= 0.0f)
         {
             break;
@@ -1078,7 +1132,7 @@ pt_result_t VEC_CALL pt_trace_ray(
 
         {
             float p = f1_lerp(0.01f, 0.99f, f1_sat(f4_hmax3(attenuation)));
-            if (prng_f32(rng) < p)
+            if (prng_f32(&sampler->rng) < p)
             {
                 attenuation = f4_divvs(attenuation, p);
             }
@@ -1100,30 +1154,31 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
 {
     trace_task_t* task = (trace_task_t*)pbase;
 
-    const pt_scene_t* scene = task->trace.scene;
-
-    float3* pim_noalias color = task->trace.color;
-    float3* pim_noalias albedo = task->trace.albedo;
-    float3* pim_noalias normal = task->trace.normal;
-
-    const int2 size = task->trace.imageSize;
-    const float sampleWeight = task->trace.sampleWeight;
+    pt_trace_t* trace = task->trace;
     const camera_t camera = task->camera;
+
+    const pt_scene_t* scene = trace->scene;
+    float3* pim_noalias color = trace->color;
+    float3* pim_noalias albedo = trace->albedo;
+    float3* pim_noalias normal = trace->normal;
+
+    const int2 size = trace->imageSize;
+    const float sampleWeight = trace->sampleWeight;
+
     const quat rot = camera.rotation;
     const float4 ro = camera.position;
     const float4 right = quat_right(rot);
     const float4 up = quat_up(rot);
     const float4 fwd = quat_fwd(rot);
     const float2 slope = proj_slope(f1_radians(camera.fovy), (float)size.x / (float)size.y);
-
-    prng_t rng = prng_get();
-
     const float2 rcpSize = f2_rcp(i2_f2(size));
+
+    pt_sampler_t sampler = pt_sampler_get();
     for (i32 i = begin; i < end; ++i)
     {
         int2 coord = { i % size.x, i / size.x };
 
-        float2 Xi = f2_tent(f2_rand(&rng));
+        float2 Xi = f2_tent(f2_rand(&sampler.rng));
         Xi = f2_mul(Xi, rcpSize);
 
         float2 uv = CoordToUv(size, coord);
@@ -1132,13 +1187,12 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
 
         float4 rd = proj_dir(right, up, fwd, slope, uv);
         ray_t ray = { ro, rd };
-        pt_result_t result = pt_trace_ray(&rng, scene, ray);
+        pt_result_t result = pt_trace_ray(&sampler, scene, ray);
         color[i] = f3_lerp(color[i], result.color, sampleWeight);
         albedo[i] = f3_lerp(albedo[i], result.albedo, sampleWeight);
         normal[i] = f3_lerp(normal[i], result.normal, sampleWeight);
     }
-
-    prng_set(rng);
+    pt_sampler_set(sampler);
 }
 
 ProfileMark(pm_trace, pt_trace)
@@ -1156,7 +1210,7 @@ void pt_trace(pt_trace_t* desc)
     UpdateScene(desc->scene);
 
     trace_task_t* task = tmp_calloc(sizeof(*task));
-    task->trace = *desc;
+    task->trace = desc;
     task->camera = desc->camera[0];
 
     const i32 workSize = desc->imageSize.x * desc->imageSize.y;
@@ -1167,8 +1221,6 @@ void pt_trace(pt_trace_t* desc)
 
 static void RayGenFn(task_t* pBase, i32 begin, i32 end)
 {
-    prng_t rng = prng_get();
-
     pt_raygen_t* task = (pt_raygen_t*)pBase;
     const pt_scene_t* scene = task->scene;
     const float4 ro = task->origin;
@@ -1176,16 +1228,16 @@ static void RayGenFn(task_t* pBase, i32 begin, i32 end)
     float4* pim_noalias colors = task->colors;
     float4* pim_noalias directions = task->directions;
 
+    pt_sampler_t sampler = pt_sampler_get();
     for (i32 i = begin; i < end; ++i)
     {
-        float2 Xi = f2_rand(&rng);
+        float2 Xi = f2_rand(&sampler.rng);
         float4 rd = SampleUnitSphere(Xi);
         directions[i] = rd;
-        pt_result_t result = pt_trace_ray(&rng, scene, (ray_t) { ro, rd });
+        pt_result_t result = pt_trace_ray(&sampler, scene, (ray_t) { ro, rd });
         colors[i] = f3_f4(result.color, 1.0f);
     }
-
-    prng_set(rng);
+    pt_sampler_set(sampler);
 }
 
 ProfileMark(pm_raygen, pt_raygen)

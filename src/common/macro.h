@@ -36,7 +36,7 @@
     #define PIM_IMPORT              __declspec(dllimport)
     #define PIM_CDECL               __cdecl
     #define VEC_CALL                __vectorcall
-    #define pim_inline              __forceinline
+    #define pim_inline              static
     #define pim_noalias             __restrict
     #define pim_alignas(x)          __declspec(align(x))
     #define pim_optimize            __pragma(optimize("gt", on))
@@ -58,7 +58,7 @@
     #define PIM_IMPORT              
     #define PIM_CDECL               
     #define VEC_CALL                
-    #define pim_inline              
+    #define pim_inline              static
     #define pim_noalias             
     #define pim_alignas(x)          
     #define pim_optimize            
@@ -130,5 +130,8 @@ typedef enum
     EAlloc_Task,
     EAlloc_Count
 } EAlloc;
+
+#define kNumThreads     32
+#define kTaskSplit      (kNumThreads * (kNumThreads / 2))
 
 PIM_C_END

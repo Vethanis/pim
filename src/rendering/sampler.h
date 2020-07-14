@@ -135,11 +135,17 @@ pim_inline i32 VEC_CALL UvWrap(int2 size, float2 uv)
 
 pim_inline float4 VEC_CALL Clamp_c32(const u32* buffer, int2 size, int2 coord)
 {
-    return ColorToLinear(buffer[Clamp(size, coord)]);
+    i32 index = Clamp(size, coord);
+    u32 color = buffer[index];
+    float4 linear = ColorToLinear(color);
+    return linear;
 }
 pim_inline float4 VEC_CALL Wrap_c32(const u32* buffer, int2 size, int2 coord)
 {
-    return ColorToLinear(buffer[Wrap(size, coord)]);
+    i32 index = Wrap(size, coord);
+    u32 color = buffer[index];
+    float4 linear = ColorToLinear(color);
+    return linear;
 }
 pim_inline float4 VEC_CALL UvClamp_c32(const u32* buffer, int2 size, float2 uv)
 {
