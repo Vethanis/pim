@@ -26,8 +26,4 @@ typedef struct material_s
     u32 flags;
 } material_t;
 
-float4 VEC_CALL material_albedo(const material_t* mat, float2 uv);
-float4 VEC_CALL material_rome(const material_t* mat, float2 uv);
-float4 VEC_CALL material_normal(const material_t* mat, float2 uv);
-
 PIM_C_END

@@ -155,6 +155,10 @@ pim_inline float4 VEC_CALL UvWrap_c32(const u32* buffer, int2 size, float2 uv)
 {
     return ColorToLinear(buffer[UvWrap(size, uv)]);
 }
+pim_inline float4 VEC_CALL UvWrap_dir8(const u32* buffer, int2 size, float2 uv)
+{
+    return rgba8_dir(buffer[UvWrap(size, uv)]);
+}
 
 typedef struct bilinear_s
 {

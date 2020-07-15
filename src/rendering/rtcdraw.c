@@ -608,20 +608,31 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
 
         float4 P = f4_add(ro, f4_mulvs(rd, hit.wuvt.w));
         const float3x3 IM = invMatrices[hit.iDrawable];
-        float4 Nws = f4_blend(
+        float4 N = f4_blend(
             f3x3_mul_col(IM, mesh.normals[a]),
             f3x3_mul_col(IM, mesh.normals[b]),
             f3x3_mul_col(IM, mesh.normals[c]),
             hit.wuvt);
-        Nws = f4_normalize3(Nws);
-        P = f4_add(P, f4_mulvs(Nws, kMilli));
+        N = f4_normalize3(N);
+        P = f4_add(P, f4_mulvs(N, kMilli));
         const float2 uv = f2_blend(mesh.uvs[a], mesh.uvs[b], mesh.uvs[c], hit.wuvt);
 
-        const float4 albedo = material_albedo(&material, uv);
-        const float4 rome = material_rome(&material, uv);
-        const float4 Nts = material_normal(&material, uv);
-        const float3x3 TBN = NormalToTBN(Nws);
-        const float4 N = f3x3_mul_col(TBN, Nts);
+        float4 albedo = ColorToLinear(material.flatAlbedo);
+        texture_t tex;
+        if (texture_get(material.albedo, &tex))
+        {
+            albedo = f4_mul(albedo, UvBilinearWrap_c32(tex.texels, tex.size, uv));
+        }
+        float4 rome = ColorToLinear(material.flatRome);
+        if (texture_get(material.rome, &tex))
+        {
+            rome = f4_mul(rome, UvBilinearWrap_c32(tex.texels, tex.size, uv));
+        }
+        if (texture_get(material.normal, &tex))
+        {
+            float4 Nts = UvBilinearWrap_dir8(tex.texels, tex.size, uv);
+            N = TanToWorld(N, Nts);
+        }
 
         float4 lighting = f4_mulvs(albedo, kMicro);
 

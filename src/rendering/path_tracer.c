@@ -31,8 +31,8 @@
 
 #define NEE                 1
 #define MIS                 0
-#define kRejectionSamples   3
-#define kRngSeqLen          256
+#define kRngSeqLen          1024
+#define kLightSamples       10
 
 typedef struct pt_scene_s
 {
@@ -56,8 +56,6 @@ typedef struct pt_scene_s
     // emissive triangle indices
     // [emissiveCount]
     i32* pim_noalias emissives;
-    // emissive texel chance of triangle
-    // [emissiveCount]
     float* pim_noalias emPdfs;
 
     // surface description, indexed by matIds
@@ -296,92 +294,6 @@ static RTCScene RtcNewScene(const pt_scene_t* scene)
     return rtcScene;
 }
 
-static float EmissionPdf(
-    const pt_scene_t* scene,
-    pt_sampler_t* sampler,
-    i32 iVert,
-    i32 attempts)
-{
-    i32 hits = 0;
-    const i32 iMat = scene->matIds[iVert];
-    const material_t* mat = scene->materials + iMat;
-    const float2* pim_noalias uvs = scene->uvs;
-    if (mat->flags & matflag_sky)
-    {
-        return 1.0f;
-    }
-    texture_t romeMap = { 0 };
-    if (texture_get(mat->rome, &romeMap))
-    {
-        const float2 UA = uvs[iVert + 0];
-        const float2 UB = uvs[iVert + 1];
-        const float2 UC = uvs[iVert + 2];
-        const int2 size = romeMap.size;
-        const float2 sizef = { (float)size.x, (float)size.y };
-
-        for (i32 i = 0; i < attempts; ++i)
-        {
-            for (i32 j = 0; j < kRejectionSamples; ++j)
-            {
-                float4 wuv = SampleBaryCoord(f2_rand(&sampler->rng));
-                float2 uv = f2_blend(UA, UB, UC, wuv);
-                float2 coordf = f2_addvs(f2_mul(sizef, uv), 0.5f);
-                int2 coord = { (i32)coordf.x, (i32)coordf.y };
-                coord = i2_mod(coord, size);
-                i32 iTexel = coord.x + coord.y * size.x;
-                u32 texel = romeMap.texels[iTexel];
-                u32 a = (texel >> 24) & 0xff;
-                if (a)
-                {
-                    ++hits;
-                    j = kRejectionSamples;
-                }
-            }
-        }
-    }
-    return (float)hits / (float)attempts;
-}
-
-pim_inline float4 VEC_CALL SampleEmissiveCoord(
-    const pt_scene_t* scene,
-    pt_sampler_t* sampler,
-    i32 iVert)
-{
-    const i32 iMat = scene->matIds[iVert];
-    const material_t* mat = scene->materials + iMat;
-    const float2* pim_noalias uvs = scene->uvs;
-    if (!(mat->flags & matflag_sky))
-    {
-        texture_t romeMap = { 0 };
-        if (texture_get(mat->rome, &romeMap))
-        {
-            const float2 UA = uvs[iVert + 0];
-            const float2 UB = uvs[iVert + 1];
-            const float2 UC = uvs[iVert + 2];
-            const int2 size = romeMap.size;
-            const float2 sizef = { (float)size.x, (float)size.y };
-
-            for (i32 i = 0; i < kRejectionSamples; ++i)
-            {
-                float4 wuv = SampleBaryCoord(f2_rand(&sampler->rng));
-                float2 uv = f2_blend(UA, UB, UC, wuv);
-                float2 coordf = f2_addvs(f2_mul(sizef, uv), 0.5f);
-                int2 coord = { (i32)coordf.x, (i32)coordf.y };
-                coord = i2_mod(coord, size);
-                i32 iTexel = coord.x + coord.y * size.x;
-                u32 texel = romeMap.texels[iTexel];
-                u32 a = (texel >> 24) & 0xff;
-                if (a)
-                {
-                    return wuv;
-                }
-            }
-        }
-    }
-
-    return SampleBaryCoord(f2_rand(&sampler->rng));
-}
-
 static void FlattenDrawables(pt_scene_t* scene)
 {
     const drawables_t* drawTable = drawables_get();
@@ -458,6 +370,61 @@ static void FlattenDrawables(pt_scene_t* scene)
     scene->materials = sceneMats;
 }
 
+static float EmissionPdf(
+    const pt_scene_t* scene,
+    pt_sampler_t* sampler,
+    i32 iVert,
+    i32 attempts)
+{
+    const i32 iMat = scene->matIds[iVert];
+    const material_t* mat = scene->materials + iMat;
+
+    if (!(mat->flags & matflag_emissive))
+    {
+        return 0.0f;
+    }
+    if (mat->flags & matflag_sky)
+    {
+        return 1.0f;
+    }
+
+    const float kThreshold = 0.01f;
+    float4 rome = ColorToLinear(mat->flatRome);
+    if (rome.w > kThreshold)
+    {
+        texture_t romeMap = { 0 };
+        if (texture_get(mat->rome, &romeMap))
+        {
+            const float2* pim_noalias uvs = scene->uvs;
+            const float2 UA = uvs[iVert + 0];
+            const float2 UB = uvs[iVert + 1];
+            const float2 UC = uvs[iVert + 2];
+
+            i32 hits = 0;
+            for (i32 i = 0; i < attempts; ++i)
+            {
+                float4 wuv = SampleBaryCoord(f2_rand(&sampler->rng));
+                float2 uv = f2_blend(UA, UB, UC, wuv);
+                float4 sample = UvWrap_c32(romeMap.texels, romeMap.size, uv);
+                float em = sample.w * rome.w;
+                if (em > kThreshold)
+                {
+                    ++hits;
+                }
+            }
+            return (float)hits / (float)attempts;
+        }
+        else
+        {
+            return 1.0f;
+        }
+    }
+    else
+    {
+        return 0.0f;
+    }
+}
+
 typedef struct task_CalcEmissionPdf
 {
     task_t task;
@@ -489,7 +456,7 @@ static void SetupEmissives(pt_scene_t* scene)
     task_CalcEmissionPdf* task = tmp_calloc(sizeof(*task));
     task->scene = scene;
     task->pdfs = tmp_malloc(sizeof(task->pdfs[0]) * triCount);
-    task->attempts = 1000;
+    task->attempts = 100000;
 
     task_run(&task->task, CalcEmissionPdfFn, triCount);
 
@@ -527,7 +494,6 @@ static void UpdateScene(pt_scene_t* scene)
     scene->sunDirection = f4_f3(sunDir);
     scene->sunIntensity = irradiance;
 }
-
 
 pt_sampler_t pt_sampler_get(void)
 {
@@ -641,18 +607,55 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     surfhit_t surf = { 0 };
 
     const material_t* mat = GetMaterial(scene, hit);
+
     float2 uv = GetVert2(scene->uvs, hit.index, hit.wuvt);
+    surf.N = f4_normalize3(GetVert4(scene->normals, hit.index, hit.wuvt));
     surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
-    float4 Nws = f4_normalize3(GetVert4(scene->normals, hit.index, hit.wuvt));
-    surf.P = f4_add(surf.P, f4_mulvs(Nws, kMilli));
-    surf.N = TanToWorld(Nws, material_normal(mat, uv));
-    float4 albedo = material_albedo(mat, uv);
-    float4 rome = material_rome(mat, uv);
-    surf.albedo = albedo;
+    surf.P = f4_add(surf.P, f4_mulvs(surf.N, kMilli));
+
+    texture_t tex;
+    if (bounce == 0)
+    {
+        if (texture_get(mat->normal, &tex))
+        {
+            float4 Nts = UvBilinearWrap_dir8(tex.texels, tex.size, uv);
+            surf.N = TanToWorld(surf.N, Nts);
+        }
+    }
+
+    surf.albedo = ColorToLinear(mat->flatAlbedo);
+    if (texture_get(mat->albedo, &tex))
+    {
+        float4 sample;
+        if (bounce == 0)
+        {
+            sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
+        }
+        else
+        {
+            sample = UvWrap_c32(tex.texels, tex.size, uv);
+        }
+        surf.albedo = f4_mul(surf.albedo, sample);
+    }
+
+    float4 rome = ColorToLinear(mat->flatRome);
+    if (texture_get(mat->rome, &tex))
+    {
+        float4 sample;
+        if (bounce == 0)
+        {
+            sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
+        }
+        else
+        {
+            sample = UvWrap_c32(tex.texels, tex.size, uv);
+        }
+        rome = f4_mul(rome, sample);
+    }
     surf.roughness = rome.x;
     surf.occlusion = rome.y;
     surf.metallic = rome.z;
-    surf.emission = UnpackEmission(albedo, rome.w);
+    surf.emission = UnpackEmission(surf.albedo, rome.w);
 
     return surf;
 }
@@ -890,9 +893,9 @@ pim_inline bool LightSelect(
     {
         i32 iList = prng_i32(&sampler->rng) % lightCount;
         i32 iVert = scene->emissives[iList];
-        float emPdf = scene->emPdfs[iList];
+        float pdf = scene->emPdfs[iList];
         *idOut = iVert;
-        *pdfOut = emPdf / lightCount;
+        *pdfOut = pdf / lightCount;
         return true;
     }
     *idOut = -1;
@@ -908,17 +911,19 @@ pim_inline float4 VEC_CALL LightRad(const pt_scene_t* scene, i32 iLight, float4 
     {
         return f3_f4(EarthAtmosphere(f4_f3(ro), f4_f3(rd), scene->sunDirection, scene->sunIntensity), 0.0f);
     }
+    float2 uv = GetVert2(scene->uvs, iLight, wuv);
     float4 albedo = ColorToLinear(mat->flatAlbedo);
-    float4 rome = ColorToLinear(mat->flatRome);
-    texture_t albedoMap = { 0 };
-    if (texture_get(mat->albedo, &albedoMap))
+    texture_t tex;
+    if (texture_get(mat->albedo, &tex))
     {
-        float2 uv = GetVert2(scene->uvs, iLight, wuv);
-        float4 sample = UvBilinearWrap_c32(albedoMap.texels, albedoMap.size, uv);
-        albedo = f4_mul(albedo, sample);
-        return UnpackEmission(albedo, rome.w);
+        albedo = f4_mul(albedo, UvWrap_c32(tex.texels, tex.size, uv));
     }
-    return f4_0;
+    float4 rome = ColorToLinear(mat->flatRome);
+    if (texture_get(mat->rome, &tex))
+    {
+        rome = f4_mul(rome, UvWrap_c32(tex.texels, tex.size, uv));
+    }
+    return UnpackEmission(albedo, rome.w);
 }
 
 typedef struct lightsample_s
@@ -937,7 +942,7 @@ pim_inline lightsample_t VEC_CALL LightSample(
 {
     lightsample_t sample = { 0 };
 
-    float4 wuv = SampleEmissiveCoord(scene, sampler, iLight);
+    float4 wuv = SampleBaryCoord(f2_rand(&sampler->rng));
 
     const float4* pim_noalias positions = scene->positions;
     float4 A = positions[iLight + 0];
@@ -995,7 +1000,8 @@ pim_inline float VEC_CALL LightEvalPdf(
             float cosTheta = f4_dot3(f4_neg(rd), N);
             if (cosTheta > kEpsilon)
             {
-                return LightPdf(GetArea(scene, iLight), cosTheta, distance * distance);
+                float area = GetArea(scene, iLight);
+                return LightPdf(area, cosTheta, distance * distance);
             }
         }
     }
@@ -1057,17 +1063,22 @@ pim_inline float4 VEC_CALL SampleLights(
     const rayhit_t* hit,
     float4 I)
 {
-    i32 iLight;
-    float lightPdfWeight;
-    if (LightSelect(scene, sampler, &iLight, &lightPdfWeight))
+    float4 sum = f4_0;
+    for (i32 i = 0; i < kLightSamples; ++i)
     {
-        if (hit->index != iLight)
+        i32 iLight;
+        float lightPdfWeight;
+        if (LightSelect(scene, sampler, &iLight, &lightPdfWeight))
         {
-            float4 direct = EstimateDirect(scene, sampler, surf, hit, iLight, I);
-            return f4_divvs(direct, lightPdfWeight);
+            if (hit->index != iLight)
+            {
+                float4 direct = EstimateDirect(scene, sampler, surf, hit, iLight, I);
+                direct = f4_divvs(direct, lightPdfWeight * kLightSamples);
+                sum = f4_add(sum, direct);
+            }
         }
     }
-    return f4_0;
+    return sum;
 }
 
 pt_result_t VEC_CALL pt_trace_ray(
