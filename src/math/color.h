@@ -69,31 +69,35 @@ pim_inline float VEC_CALL LinearTosRGB(float c)
 // cubic fit sRGB -> Linear conversion
 pim_inline float VEC_CALL f1_tolinear(float c)
 {
-    return 0.016124f * c + 0.667737f * (c*c) + 0.317955f * (c*c*c);
+    // max error = 0.001214
+    return 0.020883f * c + 0.656075f * (c*c) + 0.324285f * (c*c*c);
 }
 
 // cubic fit sRGB -> Linear conversion
 pim_inline float4 VEC_CALL f4_tolinear(float4 c)
 {
-    return f4_add(f4_add(f4_mulvs(c, 0.016124f), f4_mulvs(f4_mul(c, c), 0.667737f)), f4_mulvs(f4_mul(c, f4_mul(c, c)), 0.317955f));
+    // max error = 0.001214
+    return f4_add(f4_add(f4_mulvs(c, 0.020883f), f4_mulvs(f4_mul(c, c), 0.656075f)), f4_mulvs(f4_mul(c, f4_mul(c, c)), 0.324285f));
 }
 
 // cubic root fit Linear -> sRGB conversion
 pim_inline float VEC_CALL f1_tosrgb(float c)
 {
+    // max error = 0.003662
     float s1 = sqrtf(c);
     float s2 = sqrtf(s1);
     float s3 = sqrtf(s2);
-    return 0.582176f * s1 + 0.789747f * s2 - 0.371449f * s3;
+    return 0.658444f * s1 + 0.643378f * s2 - 0.298148f * s3;
 }
 
 // cubic root fit Linear -> sRGB conversion
 pim_inline float4 VEC_CALL f4_tosrgb(float4 c)
 {
+    // max error = 0.003662
     float4 s1 = f4_sqrt(c);
     float4 s2 = f4_sqrt(s1);
     float4 s3 = f4_sqrt(s2);
-    return f4_add(f4_add(f4_mulvs(s1, 0.582176f), f4_mulvs(s2, 0.789747f)), f4_mulvs(s3, -0.371449f));
+    return f4_add(f4_add(f4_mulvs(s1, 0.658444f), f4_mulvs(s2, 0.643378f)), f4_mulvs(s3, -0.298148f));
 }
 
 pim_inline u32 VEC_CALL LinearToColor(float4 lin)

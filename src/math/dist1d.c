@@ -29,7 +29,16 @@ void dist1d_del(dist1d_t* dist)
 
 void dist1d_fill(dist1d_t* dist, float(*pdfFn)(float x))
 {
-
+    const i32 len = dist->length;
+    const float rcpLen = 1.0f / len;
+    float* pim_noalias pdf = dist->pdf;
+    for (i32 i = 0; i < len; ++i)
+    {
+        float x = i * rcpLen;
+        float y = pdfFn(x);
+        pdf[i] = y;
+    }
+    dist1d_bake(dist);
 }
 
 void dist1d_bake(dist1d_t* dist)

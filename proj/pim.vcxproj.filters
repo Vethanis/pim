@@ -984,6 +984,9 @@
     <ClInclude Include="..\src\math\dist1d.h">
       <Filter>Source Files\math</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\math\grid.h">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">

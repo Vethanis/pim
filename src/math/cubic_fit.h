@@ -26,9 +26,7 @@ float TMapFit(dataset_t data, fit_t* fit, i32 iterations);
 
 pim_inline float VEC_CALL CubicEval(float x, fit_t fit)
 {
-    float x2 = x * x;
-    float x3 = x2 * x;
-    return fit.value[0] * x + fit.value[1] * x2 + fit.value[2] * x3;
+    return fit.value[0] * x + fit.value[1] * x * x + fit.value[2] * x * x * x;
 }
 
 pim_inline float VEC_CALL SqrticEval(float x, fit_t fit)

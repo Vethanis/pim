@@ -19,6 +19,9 @@
 #include "math/color.h"
 #include "math/lighting.h"
 #include "math/atmosphere.h"
+#include "math/dist1d.h"
+#include "math/grid.h"
+#include "math/box.h"
 
 #include "allocator/allocator.h"
 #include "threading/task.h"
@@ -31,8 +34,8 @@
 
 #define NEE                 1
 #define MIS                 0
-#define kRngSeqLen          1024
-#define kLightSamples       10
+#define kRngSeqLen          8192
+#define kLightSamples       1
 
 typedef struct pt_scene_s
 {
@@ -56,7 +59,13 @@ typedef struct pt_scene_s
     // emissive triangle indices
     // [emissiveCount]
     i32* pim_noalias emissives;
+    // [emissiveCount]
     float* pim_noalias emPdfs;
+
+    // grid of discrete light distributions
+    grid_t lightGrid;
+    // [lightGrid.size]
+    dist1d_t* lightDists;
 
     // surface description, indexed by matIds
     // [matCount]
@@ -483,6 +492,82 @@ static void SetupEmissives(pt_scene_t* scene)
     scene->emPdfs = emPdfs;
 }
 
+typedef struct task_SetupLightGrid
+{
+    task_t task;
+    pt_scene_t* scene;
+} task_SetupLightGrid;
+
+static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
+{
+    task_SetupLightGrid* task = (task_SetupLightGrid*)pbase;
+
+    pt_scene_t* scene = task->scene;
+
+    const grid_t grid = scene->lightGrid;
+    dist1d_t* dists = scene->lightDists;
+
+    const float4* pim_noalias positions = scene->positions;
+    const i32* pim_noalias matIds = scene->matIds;
+    const material_t* pim_noalias materials = scene->materials;
+
+    const i32 emissiveCount = scene->emissiveCount;
+    const i32* pim_noalias emissives = scene->emissives;
+
+    for (i32 i = begin; i < end; ++i)
+    {
+        dist1d_t dist;
+        dist1d_new(&dist, emissiveCount);
+
+        float4 position = grid_position(&grid, i);
+        for (i32 iList = 0; iList < emissiveCount; ++iList)
+        {
+            i32 iVert = emissives[iList];
+            float4 A = positions[iVert + 0];
+            float4 B = positions[iVert + 1];
+            float4 C = positions[iVert + 2];
+            float4 mid = f4_divvs(f4_add(f4_add(A, B), C), 3.0f);
+
+            float distA = f4_distancesq3(A, position);
+            float distB = f4_distancesq3(B, position);
+            float distC = f4_distancesq3(C, position);
+            float distMid = f4_distancesq3(mid, position);
+            float distSq = f1_min(distA, f1_min(distB, f1_min(distC, distMid)));
+            distSq = f1_max(kMinLightDistSq, distSq);
+
+            float area = TriArea3D(A, B, C);
+            float importance = 1.0f / LightPdf(area, 1.0f, distSq);
+
+            const material_t* material = materials + matIds[iVert];
+            if (material->flags & matflag_sky)
+            {
+                importance *= 2.0f;
+            }
+
+            dist.pdf[iList] = importance;
+        }
+
+        dist1d_bake(&dist);
+        dists[i] = dist;
+    }
+}
+
+static void SetupLightGrid(pt_scene_t* scene)
+{
+    box_t bounds = box_from_pts(scene->positions, scene->vertCount);
+    grid_t grid;
+    const float metersPerCell = 2.0f;
+    grid_new(&grid, bounds, 1.0f / metersPerCell);
+    const i32 len = grid_len(&grid);
+    scene->lightGrid = grid;
+    scene->lightDists = perm_calloc(sizeof(scene->lightDists[0]) * len);
+
+    task_SetupLightGrid* task = tmp_calloc(sizeof(*task));
+    task->scene = scene;
+
+    task_run(&task->task, SetupLightGridFn, len);
+}
+
 static void UpdateScene(pt_scene_t* scene)
 {
     float azimuth = cv_r_sun_az ? f1_sat(cv_r_sun_az->asFloat) : 0.0f;
@@ -519,6 +604,7 @@ pt_scene_t* pt_scene_new(void)
 
     FlattenDrawables(scene);
     SetupEmissives(scene);
+    SetupLightGrid(scene);
     scene->rtcScene = RtcNewScene(scene);
 
     return scene;
@@ -544,6 +630,16 @@ void pt_scene_del(pt_scene_t* scene)
 
         pim_free(scene->emissives);
         pim_free(scene->emPdfs);
+
+        {
+            const i32 gridLen = grid_len(&scene->lightGrid);
+            dist1d_t* lightDists = scene->lightDists;
+            for (i32 i = 0; i < gridLen; ++i)
+            {
+                dist1d_del(lightDists + i);
+            }
+            pim_free(scene->lightDists);
+        }
 
         memset(scene, 0, sizeof(*scene));
         pim_free(scene);
@@ -885,22 +981,29 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
 pim_inline bool LightSelect(
     const pt_scene_t* scene,
     pt_sampler_t* sampler,
-    i32* idOut,
+    float4 position,
+    i32* iVertOut,
     float* pdfOut)
 {
-    i32 lightCount = scene->emissiveCount;
-    if (lightCount > 0)
+    if (scene->emissiveCount == 0)
     {
-        i32 iList = prng_i32(&sampler->rng) % lightCount;
-        i32 iVert = scene->emissives[iList];
-        float pdf = scene->emPdfs[iList];
-        *idOut = iVert;
-        *pdfOut = pdf / lightCount;
-        return true;
+        *iVertOut = -1;
+        *pdfOut = 0.0f;
+        return false;
     }
-    *idOut = -1;
-    *pdfOut = 0.0f;
-    return false;
+
+    i32 iCell = grid_index(&scene->lightGrid, position);
+    const dist1d_t* dist = scene->lightDists + iCell;
+
+    i32 iList = dist1d_sampled(dist, prng_f32(&sampler->rng));
+    float pdf = dist1d_pdfd(dist, iList);
+
+    i32 iVert = scene->emissives[iList];
+    //float emPdf = scene->emPdfs[iList];
+
+    *iVertOut = iVert;
+    *pdfOut = pdf;// * emPdf;
+    return true;
 }
 
 pim_inline float4 VEC_CALL LightRad(const pt_scene_t* scene, i32 iLight, float4 wuv, float4 ro, float4 rd)
@@ -1049,9 +1152,9 @@ pim_inline float4 VEC_CALL EstimateDirect(
                 sample.attenuation = f4_mulvs(sample.attenuation, weight);
                 float4 Li = f4_divvs(f4_mul(irradiance, sample.attenuation), sample.pdf);
                 result = f4_add(result, Li);
-            }
         }
     }
+}
 #endif // MIS
     return result;
 }
@@ -1068,7 +1171,7 @@ pim_inline float4 VEC_CALL SampleLights(
     {
         i32 iLight;
         float lightPdfWeight;
-        if (LightSelect(scene, sampler, &iLight, &lightPdfWeight))
+        if (LightSelect(scene, sampler, surf->P, &iLight, &lightPdfWeight))
         {
             if (hit->index != iLight)
             {
@@ -1123,7 +1226,7 @@ pt_result_t VEC_CALL pt_trace_ray(
         {
             float4 direct = SampleLights(scene, sampler, &surf, &hit, ray.rd);
             light = f4_add(light, f4_mul(direct, attenuation));
-        }
+    }
 #else
         light = f4_add(light, f4_mul(surf.emission, attenuation));
 #endif // NEE
@@ -1142,7 +1245,7 @@ pt_result_t VEC_CALL pt_trace_ray(
         ray.rd = scatter.dir;
 
         {
-            float p = f1_lerp(0.01f, 0.99f, f1_sat(f4_hmax3(attenuation)));
+            float p = f4_perlum(attenuation);
             if (prng_f32(&sampler->rng) < p)
             {
                 attenuation = f4_divvs(attenuation, p);
@@ -1152,7 +1255,7 @@ pt_result_t VEC_CALL pt_trace_ray(
                 break;
             }
         }
-    }
+}
 
     pt_result_t result;
     result.color = f4_f3(light);

@@ -27,6 +27,7 @@
 #include "math/sampling.h"
 #include "math/frustum.h"
 #include "math/lighting.h"
+#include "math/cubic_fit.h"
 
 #include "rendering/constants.h"
 #include "rendering/r_window.h"
@@ -480,6 +481,28 @@ void render_sys_init(void)
     con_exec("mapload start");
 
     RtcDrawInit();
+
+    //const i32 len = 1 << 10;
+    //float* xs = tmp_malloc(sizeof(xs[0]) * len);
+    //float* ys = tmp_malloc(sizeof(ys[0]) * len);
+    //for (i32 i = 0; i < len; ++i)
+    //{
+    //    float x = (i + 0.0f) / len;
+    //    float y = LinearTosRGB(x);
+    //    xs[i] = x;
+    //    ys[i] = y;
+    //}
+    //dataset_t dataset = { 0 };
+    //dataset.len = len;
+    //dataset.xs = xs;
+    //dataset.ys = ys;
+    //fit_t fit;
+    //float error = SqrticFit(dataset, &fit, len << 8);
+    //con_logf(LogSev_Info, "fit", "Error: %f", error);
+    //for (i32 i = 0; i < NELEM(fit.value); ++i)
+    //{
+    //    con_logf(LogSev_Info, "fit", "fit[%d] = %f", i, fit.value[i]);
+    //}
 }
 
 ProfileMark(pm_update, render_sys_update)
