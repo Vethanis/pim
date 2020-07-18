@@ -327,22 +327,20 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
     const i32 size = cm->size;
     const i32 flen = size * size;
 
-    pt_sampler_t sampler = { prng_get(), 0 };
-    sampler.seq.jit = f2_rand(&sampler.rng);
-
+    prng_t rng = prng_get();
     for (i32 i = begin; i < end; ++i)
     {
         i32 face = i / flen;
         i32 fi = i % flen;
         int2 coord = { fi % size, fi / size };
-        float4 dir = Cubemap_CalcDir(size, face, coord, f2_tent(f2_rand(&sampler.rng)));
+        float4 dir = Cubemap_CalcDir(size, face, coord, f2_tent(f2_rand(&rng)));
         ray_t ray = { origin, dir };
-        pt_result_t result = pt_trace_ray(&sampler, scene, ray);
+        pt_result_t result = pt_trace_ray(&rng, scene, ray);
         cm->color[face][fi] = f3_lerp(cm->color[face][fi], result.color, weight);
         cm->albedo[face][fi] = f3_lerp(cm->albedo[face][fi], result.albedo, weight);
         cm->normal[face][fi] = f3_lerp(cm->normal[face][fi], result.normal, weight);
     }
-    prng_set(sampler.rng);
+    prng_set(rng);
 }
 
 ProfileMark(pm_Bake, Cubemap_Bake)

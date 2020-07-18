@@ -193,17 +193,36 @@ pim_inline u32 DecodeTexel(u8 encoded)
     return color;
 }
 
-pim_inline float DecodeEmission(u8 encoded)
+pim_inline float DecodeEmission(u8 encoded, bool isLight)
 {
     u8 row = encoded / 16;
     u8 column = encoded % 16;
-    if (row == PalRow_Fire)
+    switch (row)
     {
-        return (0.5f + column) / 16.0f;
-    }
-    if (row == PalRow_Brights)
-    {
+    case PalRow_White:
+        return column >= 13 ? 1.0f : 0.0f;
+    case PalRow_Gold:
+        return column >= 13 ? 1.0f : 0.0f;
+    case PalRow_Yellow:
+        return column <= 2 ? 1.0f : 0.0f;
+    case PalRow_Blue:
+        return column <= 2 ? 1.0f : 0.0f;
+    case PalRow_Fire:
         return 1.0f;
+    case PalRow_Brights:
+        return 1.0f;
+    }
+    if (isLight)
+    {
+        if (row < 8)
+        {
+            return column >= 12 ? 1.0f : 0.0f;
+        }
+        if (row >= PalRow_Fire)
+        {
+            return 1.0f;
+        }
+        return column <= 3 ? 1.0f : 0.0f;
     }
     return 0.0f;
 }
@@ -220,6 +239,8 @@ bool texture_unpalette(
     const bool isSky = StrIStr(name, 16, "sky");
     const bool isTeleport = StrIStr(name, 16, "teleport");
     const bool isWindow = StrIStr(name, 16, "window");
+    const bool isLight = StrIStr(name, 16, "light");
+    const bool fullEmit = isSky || isTeleport || isWindow;
 
     bool albedoExists = false;
     bool albedoAdded = false;
@@ -284,37 +305,17 @@ bool texture_unpalette(
             float2 grayscale = gray[i];
             float2 t = f2_smoothstep(min, max, grayscale);
 
-            float roughness;
-            float occlusion;
-            float metallic;
+            float roughness = f1_lerp(1.0f, 0.9f, t.y);
+            float occlusion = f1_lerp(0.9f, 1.0f, t.y);
+            float metallic = 1.0f;
             float emission;
-            if (isWindow)
+            if (fullEmit)
             {
-                roughness = 0.25f;
-                occlusion = 1.0f;
-                metallic = 0.0f;
-                emission = 0.5f + 0.5f * t.y;
-            }
-            else if (isTeleport)
-            {
-                roughness = 1.0f;
-                occlusion = 0.0f;
-                metallic = 0.0f;
-                emission = 0.5f + 0.5f * t.x;
-            }
-            else if (isSky)
-            {
-                roughness = 1.0f;
-                occlusion = 0.0f;
-                metallic = 0.0f;
-                emission = t.y;
+                emission = 1.0f;
             }
             else
             {
-                roughness = f1_lerp(1.0f, 0.9f, t.y);
-                occlusion = f1_lerp(0.9f, 1.0f, t.y);
-                metallic = 1.0f;
-                emission = DecodeEmission(encoded);
+                emission = DecodeEmission(encoded, isLight);
             }
 
             rome[i] = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
@@ -465,7 +466,7 @@ static void igTexture(const texture_t* tex)
     ASSERT(!glGetError());
 
 
-    ImVec2 winSize = {0};
+    ImVec2 winSize = { 0 };
     igGetContentRegionAvail(&winSize);
     float winAspect = winSize.x / winSize.y;
     float texAspect = (float)width / (float)height;

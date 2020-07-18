@@ -69,24 +69,6 @@ pim_inline float2 VEC_CALL Hammersley2D(u32 i, u32 N)
     return c;
 }
 
-pim_inline float2 VEC_CALL rngseq_next(prng_t* pim_noalias rng, rngseq_t* pim_noalias pSeq, i32 len)
-{
-    rngseq_t seq = *pSeq;
-    i32 c = seq.cur++ & (len - 1);
-    if (c == 0)
-    {
-        seq.jit = f2_rand(rng);
-    }
-    *pSeq = seq;
-
-    // de-corrolates brdf samples
-    c = prng_i32(rng) & (len - 1);
-    float2 Xi = Hammersley2D(c, len);
-    Xi = f2_add(seq.jit, Xi);
-    Xi = f2_frac(Xi);
-    return Xi;
-}
-
 // http://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling.html
 pim_inline float VEC_CALL PowerHeuristic(float f, float g)
 {

@@ -83,7 +83,7 @@ void dist1d_bake(dist1d_t* dist)
     }
 }
 
-static i32 FindInterval(const float* cdf, i32 size, float u)
+pim_inline i32 FindInterval(const float* cdf, i32 size, float u)
 {
     i32 first = 0;
     i32 len = size;

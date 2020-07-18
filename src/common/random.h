@@ -1,17 +1,10 @@
 #pragma once
 
 #include "common/macro.h"
-#include "math/types.h"
 
 PIM_C_BEGIN
 
 typedef struct prng_s { u64 state; } prng_t;
-
-typedef struct rngseq_s
-{
-    float2 jit;
-    i32 cur;
-} rngseq_t;
 
 prng_t prng_create(void);
 prng_t prng_get(void);

@@ -106,11 +106,10 @@ pim_inline float4 VEC_CALL F_SchlickEx(
 }
 
 pim_inline float4 VEC_CALL DiffuseColor(
-    float4 F,
     float4 albedo,
     float metallic)
 {
-    return f4_mulvs(f4_mul(albedo, f4_inv(F)), 1.0f - metallic);
+    return f4_mulvs(albedo, 1.0f - metallic);
 }
 
 // Specular 'D' term
@@ -157,20 +156,17 @@ pim_inline float VEC_CALL Fd_Lambert()
 }
 
 // Diffuse term
-// normalized Burley diffuse brdf
-// [Lagarde15, Page 10, Listing 1]
+// Burley diffuse brdf
 pim_inline float VEC_CALL Fd_Burley(
     float NoL,
     float NoV,
-    float HoV,
-    float alpha)
+    float LoH,
+    float roughness)
 {
-    float energyBias = 0.5f * alpha;
-    float energyFactor = f1_lerp(1.0f, 1.0f / 1.51f, alpha);
-    float fd90 = energyBias + 2.0f * HoV * HoV * alpha;
+    float fd90 = 0.5f + 2.0f * LoH * LoH * roughness;
     float lightScatter = F_Schlick1(1.0f, fd90, NoL);
     float viewScatter = F_Schlick1(1.0f, fd90, NoV);
-    return (lightScatter * viewScatter * energyFactor) / kPi;
+    return (lightScatter * viewScatter) / kPi;
 }
 
 // multiply output by radiance of light
@@ -187,6 +183,7 @@ pim_inline float4 VEC_CALL DirectBRDF(
     float NoH = f4_dotsat(N, H);
     float NoL = f4_dotsat(N, L);
     float HoV = f4_dotsat(H, V);
+    float LoH = f4_dotsat(L, H);
 
     float alpha = BrdfAlpha(roughness);
     float4 F = F_SchlickEx(albedo, metallic, HoV);
@@ -195,8 +192,8 @@ pim_inline float4 VEC_CALL DirectBRDF(
     float4 Fr = f4_mulvs(F, D * G);
 
     float4 Fd = f4_mulvs(
-        DiffuseColor(F, albedo, metallic),
-        Fd_Lambert());
+        DiffuseColor(albedo, metallic),
+        Fd_Burley(NoL, NoV, LoH, roughness));
 
     return f4_add(Fr, Fd);
 }
@@ -230,11 +227,10 @@ pim_inline float4x2 VEC_CALL DirectBRDFSplit(
     {
         float4 H = f4_normalize3(f4_add(V, Ld));
         float NoL = f4_dotsat(N, Ld);
-        float HoV = f4_dotsat(H, V);
-        float4 F = F_SchlickEx(albedo, metallic, HoV);
+        float LoH = f4_dotsat(Ld, H);
         Fd = f4_mulvs(
-            DiffuseColor(F, albedo, metallic),
-            Fd_Lambert());
+            DiffuseColor(albedo, metallic),
+            Fd_Burley(NoL, NoV, LoH, roughness));
     }
 
     float4x2 result = { Fd, Fr };
@@ -274,7 +270,7 @@ pim_inline float4 VEC_CALL IndirectBRDF(
     float4 Fr = EnvBRDF(F, NoV, alpha);
     Fr = f4_mul(Fr, specularGI);
 
-    float4 Fd = f4_mul(DiffuseColor(F, albedo, metallic), diffuseGI);
+    float4 Fd = f4_mul(DiffuseColor(albedo, metallic), diffuseGI);
 
     return f4_mulvs(f4_add(Fd, Fr), ao);
 }
@@ -509,7 +505,7 @@ pim_inline float4 VEC_CALL EvalSphereLight(
     float NoV = f4_dotsat(N, V);
 
     float4 Fr = f4_0;
-    #if (1)
+#if (1)
     {
         float4 R = f4_normalize3(f4_reflect3(f4_neg(V), N));
         float4 L = SphereRepresentativePoint(R, N, L0, radius, alpha);
@@ -530,26 +526,25 @@ pim_inline float4 VEC_CALL EvalSphereLight(
         float I = NoL * DistanceAtt(distance);
         Fr = f4_mulvs(Fr, I);
     }
-    #endif
+#endif
 
     float4 Fd = f4_0;
-    #if (1)
+#if (1)
     {
         float4 L = f4_divvs(L0, distance);
         float4 H = f4_normalize3(f4_add(V, L));
-        float HoV = f4_dotsat(H, V);
         float NoL = f4_dot3(N, L);
-        float4 F = F_SchlickEx(albedo, metallic, HoV);
+        float LoH = f4_dotsat(L, H);
 
         Fd = f4_mulvs(
-            DiffuseColor(F, albedo, metallic),
-            Fd_Lambert());
+            DiffuseColor(albedo, metallic),
+            Fd_Burley(f1_sat(NoL), NoV, LoH, roughness));
 
         float sinSigmaSqr = SphereSinSigmaSq(radius, distance);
         float I = SphereDiskIlluminance(NoL, sinSigmaSqr);
         Fd = f4_mulvs(Fd, I);
     }
-    #endif
+#endif
 
     float4 light = f4_mul(f4_add(Fd, Fr), lightColor);
 

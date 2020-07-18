@@ -29,12 +29,6 @@
 
 #include <string.h>
 
-static cvar_t cv_r_sun_az = { cvart_float, 0, "r_sun_az", "0.75", "Sun Direction Azimuth" };
-static cvar_t cv_r_sun_ze = { cvart_float, 0, "r_sun_ze", "0.666f", "Sun Direction Zenith" };
-static cvar_t cv_r_sun_rad = { cvart_float, 0, "r_sun_rad", "1365", "Sun Irradiance" };
-
-static cvar_t cv_r_lm_denoised = { cvart_bool, 0, "r_lm_denoised", "0", "Render denoised lightmap" };
-
 typedef struct drawhash_s
 {
     u64 meshes;
@@ -62,10 +56,16 @@ typedef struct world_s
     float4 sunDir;
 } world_t;
 
+static cvar_t* cv_r_sun_az;
+static cvar_t* cv_r_sun_ze;
+static cvar_t* cv_r_sun_rad;
+static cvar_t* cv_r_lm_denoised;
+
 static world_t ms_world;
 
 static drawhash_t HashDrawables(void);
 static void CreateScene(world_t* world);
+static void DestroyScene(world_t* world);
 static void UpdateScene(world_t* world);
 static bool AddDrawable(
     world_t* world,
@@ -84,16 +84,19 @@ static void DrawScene(
 
 void RtcDrawInit(void)
 {
-    cvar_reg(&cv_r_sun_az);
-    cvar_reg(&cv_r_sun_ze);
-    cvar_reg(&cv_r_sun_rad);
-    cvar_reg(&cv_r_lm_denoised);
-
     if (rtc_init())
     {
+        cv_r_sun_az = cvar_find("r_sun_az");
+        cv_r_sun_ze = cvar_find("r_sun_ze");
+        cv_r_sun_rad = cvar_find("r_sun_rad");
+        cv_r_lm_denoised = cvar_find("r_lm_denoised");
+        ASSERT(cv_r_sun_az);
+        ASSERT(cv_r_sun_ze);
+        ASSERT(cv_r_sun_rad);
+        ASSERT(cv_r_lm_denoised);
+
         ms_world.device = rtc.NewDevice(NULL);
         ASSERT(ms_world.device);
-        CreateScene(&ms_world);
     }
 }
 
@@ -101,8 +104,7 @@ void RtcDrawShutdown(void)
 {
     if (ms_world.device)
     {
-        rtc.ReleaseScene(ms_world.scene);
-        ms_world.scene = NULL;
+        DestroyScene(&ms_world);
         rtc.ReleaseDevice(ms_world.device);
         ms_world.device = NULL;
     }
@@ -253,8 +255,8 @@ static void UpdateScene(world_t* world)
 
     UpdateLights(world);
 
-    float azimuth = f1_sat(cv_r_sun_az.asFloat);
-    float zenith = f1_sat(cv_r_sun_ze.asFloat);
+    float azimuth = f1_sat(cv_r_sun_az->asFloat);
+    float zenith = f1_sat(cv_r_sun_ze->asFloat);
     world->sunDir = TanToWorld(
         f4_v(0.0f, 1.0f, 0.0f, 0.0f),
         SampleUnitHemisphere(f2_v(azimuth, zenith)));
@@ -543,8 +545,8 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     const float fov = f1_radians(camera->fovy);
     const float tNear = camera->nearFar.x;
     const float tFar = camera->nearFar.y;
-    const float sunRad = cv_r_sun_rad.asFloat;
-    const bool r_lm_denoised = cv_r_lm_denoised.asFloat != 0.0f;
+    const float sunRad = cv_r_sun_rad->asFloat;
+    const bool r_lm_denoised = cv_r_lm_denoised->asFloat != 0.0f;
 
     const float4 ro = camera->position;
     const quat rotation = camera->rotation;

@@ -59,6 +59,7 @@ static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path traci
 static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
 static cvar_t cv_pt_normal = { cvart_bool, 0, "pt_normal", "0", "output path tracer normals" };
 static cvar_t cv_pt_albedo = { cvart_bool, 0, "pt_albedo", "0", "output path tracer albedo" };
+static cvar_t cv_pt_lgrid_mpc = { cvart_float, 0, "pt_lgrid_mpc", "2", "light grid meters per cell" };
 
 static cvar_t cv_lm_gen = { cvart_bool, 0, "lm_gen", "0", "enable lightmap generation" };
 static cvar_t cv_lm_denoise = { cvart_bool, 0, "lm_denoise", "0", "denoise lightmaps" };
@@ -68,6 +69,34 @@ static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
 
 static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "8", "lightmap texels per unit" };
 static cvar_t cv_lm_timeslice = { cvart_int, 0, "lm_timeslice", "10", "number of frames required to add 1 lighting sample to all lightmap texels" };
+
+static cvar_t cv_r_sun_az = { cvart_float, 0, "r_sun_az", "0.75", "Sun Direction Azimuth" };
+static cvar_t cv_r_sun_ze = { cvart_float, 0, "r_sun_ze", "0.666f", "Sun Direction Zenith" };
+static cvar_t cv_r_sun_rad = { cvart_float, 0, "r_sun_rad", "1365", "Sun Irradiance" };
+static cvar_t cv_r_lm_denoised = { cvart_bool, 0, "r_lm_denoised", "0", "Render denoised lightmap" };
+
+static void RegCVars(void)
+{
+    cvar_reg(&cv_r_sw);
+
+    cvar_reg(&cv_pt_trace);
+    cvar_reg(&cv_pt_denoise);
+    cvar_reg(&cv_pt_normal);
+    cvar_reg(&cv_pt_albedo);
+    cvar_reg(&cv_pt_lgrid_mpc);
+
+    cvar_reg(&cv_lm_gen);
+    cvar_reg(&cv_lm_denoise);
+    cvar_reg(&cv_lm_density);
+    cvar_reg(&cv_lm_timeslice);
+
+    cvar_reg(&cv_cm_gen);
+
+    cvar_reg(&cv_r_sun_az);
+    cvar_reg(&cv_r_sun_ze);
+    cvar_reg(&cv_r_sun_rad);
+    cvar_reg(&cv_r_lm_denoised);
+}
 
 // ----------------------------------------------------------------------------
 
@@ -445,20 +474,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
 void render_sys_init(void)
 {
     ms_iFrame = 0;
-
-    cvar_reg(&cv_r_sw);
-
-    cvar_reg(&cv_pt_trace);
-    cvar_reg(&cv_pt_denoise);
-    cvar_reg(&cv_pt_normal);
-    cvar_reg(&cv_pt_albedo);
-
-    cvar_reg(&cv_lm_gen);
-    cvar_reg(&cv_lm_denoise);
-    cvar_reg(&cv_lm_density);
-    cvar_reg(&cv_lm_timeslice);
-
-    cvar_reg(&cv_cm_gen);
+    RegCVars();
 
     cmd_reg("screenshot", CmdScreenshot);
     cmd_reg("mapload", CmdLoadMap);
@@ -472,6 +488,8 @@ void render_sys_init(void)
     framebuf_create(GetFrontBuf(), kDrawWidth, kDrawHeight);
     framebuf_create(GetBackBuf(), kDrawWidth, kDrawHeight);
     screenblit_init(kDrawWidth, kDrawHeight);
+    pt_sys_init();
+    RtcDrawInit();
 
     ms_toneParams = Tonemap_DefParams();
     ms_toneParams.x = 0.25f;
@@ -479,8 +497,6 @@ void render_sys_init(void)
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
 
     con_exec("mapload start");
-
-    RtcDrawInit();
 
     //const i32 len = 1 << 10;
     //float* xs = tmp_malloc(sizeof(xs[0]) * len);
@@ -512,6 +528,7 @@ void render_sys_update(void)
 
     texture_sys_update();
     mesh_sys_update();
+    pt_sys_update();
 
     Lightmap_Trace();
     Cubemap_Trace();
@@ -539,6 +556,7 @@ void render_sys_shutdown(void)
     pt_scene_del(ms_ptscene);
     ms_ptscene = NULL;
 
+    pt_sys_shutdown();
     screenblit_shutdown();
     framebuf_destroy(GetFrontBuf());
     framebuf_destroy(GetBackBuf());
@@ -878,9 +896,9 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     ms_ptscene = NULL;
     lmpack_del(lmpack_get());
 
-    const float wallExtents = 10.0f;
+    const float wallExtents = 5.0f;
     const float sphereRad = 0.3f;
-    const float lightExtents = 0.5f;
+    const float lightExtents = 0.25f;
 
     const float wallScale = 2.0f * wallExtents;
     const float sphereScale = 2.0f * sphereRad;
@@ -895,7 +913,7 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     const float4 green = f4_v(0.1f, 0.9f, 0.1f, 1.0f);
     //const float4 blue = f4_v(0.1f, 0.1f, 0.9f, 1.0f);
     const float4 boxRome = f4_v(0.9f, 1.0f, 0.0f, 0.0f);
-    const float4 lightRome = f4_v(0.9f, 1.0f, 0.0f, 0.0f);
+    const float4 lightRome = f4_v(0.9f, 1.0f, 0.0f, 1.0f);
     const float4 plasticRome = f4_v(0.35f, 1.0f, 0.0f, 0.0f);
     const float4 metalRome = f4_v(0.125f, 1.0f, 1.0f, 0.0f);
     const float4 floorRome = f4_v(0.1f, 1.0f, 0.0f, 0.0f);
@@ -918,7 +936,7 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
         "Cornell_Light",
         f4_mulvs(y, wallExtents - 0.01f),
         y, z,
-        wallScale,
+        lightScale,
         white,
         lightRome);
 

@@ -21,12 +21,6 @@ typedef enum
     hit_COUNT
 } hittype_t;
 
-typedef struct pt_sampler_s
-{
-    prng_t rng;
-    rngseq_t seq;
-} pt_sampler_t;
-
 typedef struct rayhit_s
 {
     float4 wuvt;
@@ -59,8 +53,9 @@ typedef struct pt_results_s
     float4* directions;
 } pt_results_t;
 
-pt_sampler_t pt_sampler_get(void);
-void pt_sampler_set(pt_sampler_t sampler);
+void pt_sys_init(void);
+void pt_sys_update(void);
+void pt_sys_shutdown(void);
 
 pt_scene_t* pt_scene_new(void);
 void pt_scene_del(pt_scene_t* scene);
@@ -68,7 +63,7 @@ void pt_scene_del(pt_scene_t* scene);
 rayhit_t VEC_CALL pt_intersect(const pt_scene_t* scene, ray_t ray, float tNear, float tFar);
 
 pt_result_t VEC_CALL pt_trace_ray(
-    pt_sampler_t* sampler,
+    prng_t* rng,
     const pt_scene_t* scene,
     ray_t ray);
 
