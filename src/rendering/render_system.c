@@ -526,6 +526,11 @@ void render_sys_update(void)
 {
     ProfileBegin(pm_update);
 
+    if (input_keydown(KeyCode_F9))
+    {
+        cvar_toggle(&cv_pt_trace);
+    }
+
     texture_sys_update();
     mesh_sys_update();
     pt_sys_update();

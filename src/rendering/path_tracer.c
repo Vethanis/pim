@@ -32,9 +32,6 @@
 
 #include <string.h>
 
-#define NEE                 1
-#define MIS                 0
-
 typedef struct pt_scene_s
 {
     RTCScene rtcScene;
@@ -999,6 +996,36 @@ pim_inline float4 VEC_CALL LightRad(const pt_scene_t* scene, i32 iLight, float4 
     return UnpackEmission(albedo, rome.w);
 }
 
+pim_inline float2 VEC_CALL GetParticipatingMedia(float4 P)
+{
+    float heightFog = 0.3f * f1_sat(1.0f - f1_distance(P.y, 0.0f));
+    const float constantFog = 0.05f;
+    float sigmaS = constantFog + heightFog;
+    const float sigmaA = 0.0f;
+    float sigmaE = f1_max(kMicro, sigmaA + sigmaS);
+    return f2_v(sigmaS, sigmaE);
+}
+
+pim_inline float VEC_CALL CalcTransmittance(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    float4 ro,
+    float4 rd,
+    float rayLen)
+{
+    const i32 kSteps = 8;
+    const float dt = rayLen / kSteps;
+    float transmittance = 1.0f;
+    for (i32 i = 0; i < kSteps; ++i)
+    {
+        float t = (i + prng_f32(rng)) * dt;
+        float4 P = f4_add(ro, f4_mulvs(rd, t));
+        float2 sigmaSE = GetParticipatingMedia(P);
+        transmittance *= expf(-sigmaSE.y * dt);
+    }
+    return transmittance;
+}
+
 typedef struct lightsample_s
 {
     float4 direction;
@@ -1010,7 +1037,7 @@ typedef struct lightsample_s
 pim_inline lightsample_t VEC_CALL LightSample(
     const pt_scene_t* scene,
     prng_t* rng,
-    const surfhit_t* surf,
+    float4 ro,
     i32 iLight)
 {
     lightsample_t sample = { 0 };
@@ -1024,7 +1051,6 @@ pim_inline lightsample_t VEC_CALL LightSample(
     float4 pt = f4_blend(A, B, C, wuv);
     float area = TriArea3D(A, B, C);
 
-    float4 ro = surf->P;
     float4 rd = f4_sub(pt, ro);
     float distSq = f4_dot3(rd, rd);
     float distance = sqrtf(distSq);
@@ -1034,20 +1060,18 @@ pim_inline lightsample_t VEC_CALL LightSample(
     sample.direction = rd;
     sample.wuvt = wuv;
 
-    float LoNs = f4_dot3(rd, surf->N);
-    if (LoNs > kEpsilon)
+    float4 N = f4_normalize3(GetVert4(scene->normals, iLight, wuv));
+    float VoNl = f4_dot3(f4_neg(rd), N);
+    if (VoNl > kEpsilon)
     {
-        float4 N = f4_normalize3(GetVert4(scene->normals, iLight, wuv));
-        float VoNl = f4_dot3(f4_neg(rd), N);
-        if (VoNl > kEpsilon)
+        ray_t ray = { ro, rd };
+        rayhit_t hit = pt_intersect_local(scene, ray, 0.0f, 1 << 20);
+        if ((hit.type != hit_nothing) && (hit.index == iLight))
         {
-            ray_t ray = { ro, rd };
-            rayhit_t hit = pt_intersect_local(scene, ray, 0.0f, 1 << 20);
-            if ((hit.type != hit_nothing) && (hit.index == iLight))
-            {
-                sample.pdf = LightPdf(area, VoNl, distSq);
-                sample.irradiance = LightRad(scene, iLight, wuv, ro, rd);
-            }
+            sample.pdf = LightPdf(area, VoNl, distSq);
+            sample.irradiance = LightRad(scene, iLight, wuv, ro, rd);
+            float Tr = CalcTransmittance(scene, rng, ro, rd, hit.wuvt.w);
+            sample.irradiance = f4_mulvs(sample.irradiance, Tr);
         }
     }
 
@@ -1091,41 +1115,18 @@ pim_inline float4 VEC_CALL EstimateDirect(
 {
     float4 result = f4_0;
     {
-        lightsample_t sample = LightSample(scene, rng, surf, iLight);
+        lightsample_t sample = LightSample(scene, rng, surf->P, iLight);
         if (sample.pdf > kEpsilon)
         {
             float4 brdf = BrdfEval(I, surf, sample.direction);
             float brdfPdf = brdf.w;
             if (brdf.w > kEpsilon)
             {
-                float4 irradiance = LightRad(scene, iLight, sample.wuvt, surf->P, sample.direction);
-#if MIS
-                float weight = PowerHeuristic(sample.pdf, brdf.w);
-                brdf = f4_mulvs(brdf, weight);
-#endif // MIS
-                float4 Li = f4_divvs(f4_mul(irradiance, brdf), sample.pdf);
+                float4 Li = f4_divvs(f4_mul(sample.irradiance, brdf), sample.pdf);
                 result = f4_add(result, Li);
             }
         }
     }
-#if MIS
-    {
-        scatter_t sample = BrdfScatter(rng, surf, I);
-        if (sample.pdf > kEpsilon)
-        {
-            float4 wuv;
-            float lightPdf = LightEvalPdf(scene, iLight, surf->P, sample.dir, &wuv);
-            if (lightPdf > kEpsilon)
-            {
-                float4 irradiance = LightRad(scene, iLight, wuv, surf->P, sample.dir);
-                float weight = PowerHeuristic(sample.pdf, lightPdf);
-                sample.attenuation = f4_mulvs(sample.attenuation, weight);
-                float4 Li = f4_divvs(f4_mul(irradiance, sample.attenuation), sample.pdf);
-                result = f4_add(result, Li);
-            }
-        }
-    }
-#endif // MIS
     return result;
 }
 
@@ -1138,17 +1139,74 @@ pim_inline float4 VEC_CALL SampleLights(
 {
     float4 sum = f4_0;
     i32 iLight;
-    float lightPdfWeight;
-    if (LightSelect(scene, rng, surf->P, &iLight, &lightPdfWeight))
+    float lightPdf;
+    if (LightSelect(scene, rng, surf->P, &iLight, &lightPdf))
     {
         if (hit->index != iLight)
         {
             float4 direct = EstimateDirect(scene, rng, surf, hit, iLight, I);
-            direct = f4_divvs(direct, lightPdfWeight);
+            direct = f4_divvs(direct, lightPdf);
             sum = f4_add(sum, direct);
         }
     }
     return sum;
+}
+
+pim_inline bool VEC_CALL EvaluateLight(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    float4 P,
+    float4* lightOut,
+    float4* dirOut)
+{
+    i32 iLight;
+    float lightPdf;
+    if (LightSelect(scene, rng, P, &iLight, &lightPdf))
+    {
+        lightsample_t sample = LightSample(scene, rng, P, iLight);
+        if (sample.pdf > 0.0f)
+        {
+            *lightOut = f4_divvs(sample.irradiance, sample.pdf * lightPdf);
+            *dirOut = sample.direction;
+            return true;
+        }
+    }
+    return false;
+}
+
+pim_inline float4 VEC_CALL IntegrateRay(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    float4 ro,
+    float4 rd,
+    float rayLen)
+{
+    const float4 mColor = { 0.3f, 0.5f, 0.5f, 0.0f };
+    const float4 rColor = { 0.5f, 0.1f, 0.7f, 0.0f };
+    float transmittance = 1.0f;
+    float4 scatteredLight = f4_0;
+    const i32 kSteps = 8;
+    const float dt = rayLen / kSteps;
+    for(i32 i = 0; i < kSteps; ++i)
+    {
+        float t = (i + prng_f32(rng)) * dt;
+        float4 P = f4_add(ro, f4_mulvs(rd, t));
+        float2 sigmaSE = GetParticipatingMedia(P);
+        transmittance *= expf(-sigmaSE.y * dt);
+        float4 light, dir;
+        if (EvaluateLight(scene, rng, P, &light, &dir))
+        {
+            float cosTheta = f4_dot3(dir, rd);
+            float m = MiePhase(cosTheta, 0.758f);
+            float r = RayleighPhase(cosTheta);
+            float4 c = f4_add(f4_mulvs(mColor, m), f4_mulvs(rColor, r));
+            float4 atten = f4_mulvs(c, sigmaSE.x * dt);
+            light = f4_mul(light, atten);
+            scatteredLight = f4_add(scatteredLight, f4_mulvs(light, transmittance));
+        }
+    }
+    scatteredLight.w = transmittance;
+    return scatteredLight;
 }
 
 pt_result_t VEC_CALL pt_trace_ray(
@@ -1172,6 +1230,13 @@ pt_result_t VEC_CALL pt_trace_ray(
         {
             break;
         }
+
+        {
+            float4 scattering = IntegrateRay(scene, rng, ray.ro, ray.rd, hit.wuvt.w);
+            light = f4_add(light, f4_mul(scattering, attenuation));
+            attenuation = f4_mulvs(attenuation, scattering.w);
+        }
+
         if (hit.type == hit_sky)
         {
             light = f4_add(light, f4_mul(GetSky(scene, ray), attenuation));
@@ -1184,7 +1249,7 @@ pt_result_t VEC_CALL pt_trace_ray(
             result.albedo = f4_f3(surf.albedo);
             result.normal = f4_f3(surf.N);
         }
-#if NEE
+
         if (b == 0)
         {
             light = f4_add(light, f4_mul(surf.emission, attenuation));
@@ -1193,9 +1258,6 @@ pt_result_t VEC_CALL pt_trace_ray(
             float4 direct = SampleLights(scene, rng, &surf, &hit, ray.rd);
             light = f4_add(light, f4_mul(direct, attenuation));
         }
-#else
-        light = f4_add(light, f4_mul(surf.emission, attenuation));
-#endif // NEE
 
         scatter_t scatter = BrdfScatter(rng, &surf, ray.rd);
         if (scatter.pdf <= 0.0f)
@@ -1206,12 +1268,16 @@ pt_result_t VEC_CALL pt_trace_ray(
         ray.rd = scatter.dir;
 
         attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
-        float p = f1_sat(f4_hmax3(attenuation));
+        float p = f1_clamp(f4_hmax3(attenuation), 0.05f, 0.95f);
         if (prng_f32(rng) < p)
         {
             attenuation = f4_divvs(attenuation, p);
         }
         else
+        {
+            break;
+        }
+        if (f4_hmax3(attenuation) == 0.0f)
         {
             break;
         }

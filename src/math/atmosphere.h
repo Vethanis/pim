@@ -47,18 +47,18 @@ pim_inline float2 VEC_CALL RaySphereIntersect(float3 ro, float3 rd, float radius
     return f2_v((-b - sqrtd) * rcp2a, (-b + sqrtd) * rcp2a);
 }
 
-pim_inline float VEC_CALL RayleighPhase(float mu)
+pim_inline float VEC_CALL RayleighPhase(float cosTheta)
 {
-    float mu2 = mu * mu;
+    float mu2 = cosTheta * cosTheta;
     return (3.0f / (16.0f * kPi)) * (1.0f + mu2);
 }
 
-pim_inline float VEC_CALL MiePhase(float mu, float g)
+pim_inline float VEC_CALL MiePhase(float cosTheta, float g)
 {
-    float mu2 = mu * mu;
+    float mu2 = cosTheta * cosTheta;
     float g2 = g * g;
     float nom = (1.0f - g2) * (1.0f + mu2);
-    float denomBase = (1.0f + g2) - (2.0f * g * mu);
+    float denomBase = (1.0f + g2) - (2.0f * g * cosTheta);
     float denom = (2.0f + g2) * denomBase * sqrtf(denomBase);
     return (3.0f / (8.0f * kPi)) * (nom / denom);
 }
@@ -66,7 +66,7 @@ pim_inline float VEC_CALL MiePhase(float mu, float g)
 // henyey-greenstein phase function
 // g: anisotropy in (-1, 1) => (back-scattering, forward-scattering)
 // cosTheta: dot(wo, wi)
-pim_inline float VEC_CALL HGPhase(float g, float cosTheta)
+pim_inline float VEC_CALL HGPhase(float cosTheta, float g)
 {
     float g2 = g * g;
     float nom = 1.0f - g2;
@@ -99,15 +99,15 @@ pim_inline float3 VEC_CALL Atmosphere(
 
     float3 totalRlh = f3_0;
     float3 totalMie = f3_0;
-    float iOdRlh = 0.0;
-    float iOdMie = 0.0;
+    float iOdRlh = 0.0f;
+    float iOdMie = 0.0f;
     for (i32 i = 0; i < iSteps; i++)
     {
         float3 iPos = f3_add(ro, f3_mulvs(rd, (i + 0.5f) * iStepSize));
         float jStepSize = RaySphereIntersect(iPos, L, atmos.atmosphereRadius).y * deltaJ;
 
-        float jOdRlh = 0.0;
-        float jOdMie = 0.0;
+        float jOdRlh = 0.0f;
+        float jOdMie = 0.0f;
         for (i32 j = 0; j < jSteps; j++)
         {
             float3 jPos = f3_add(iPos, f3_mulvs(L, (j + 0.5f) * jStepSize));
@@ -132,9 +132,9 @@ pim_inline float3 VEC_CALL Atmosphere(
         totalMie = f3_add(totalMie, f3_mulvs(attn, odStepMie));
     }
 
-    float mu = f3_dot(rd, L);
-    totalRlh = f3_mul(totalRlh, f3_mulvs(atmos.Br, RayleighPhase(mu)));
-    totalMie = f3_mulvs(totalMie, atmos.Bm * MiePhase(mu, atmos.g));
+    float cosTheta = f3_dot(rd, L);
+    totalRlh = f3_mul(totalRlh, f3_mulvs(atmos.Br, RayleighPhase(cosTheta)));
+    totalMie = f3_mulvs(totalMie, atmos.Bm * MiePhase(cosTheta, atmos.g));
 
     return f3_mulvs(f3_add(totalRlh, totalMie), sunIntensity);
 }

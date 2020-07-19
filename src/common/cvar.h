@@ -52,5 +52,6 @@ void cvar_gui(bool* pEnabled);
 
 pim_inline bool cvar_get_bool(const cvar_t* ptr) { return ptr->asFloat != 0.0f; }
 pim_inline void cvar_set_bool(cvar_t* ptr, bool value) { cvar_set_float(ptr, value ? 1.0f : 0.0f); }
+pim_inline void cvar_toggle(cvar_t* ptr) { cvar_set_bool(ptr, !cvar_get_bool(ptr)); }
 
 PIM_C_END
