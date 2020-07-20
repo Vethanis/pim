@@ -545,7 +545,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     const float fov = f1_radians(camera->fovy);
     const float tNear = camera->nearFar.x;
     const float tFar = camera->nearFar.y;
-    const float sunRad = cv_r_sun_rad->asFloat;
+    const float3 sunRad = f3_s(cv_r_sun_rad->asFloat);
     const bool r_lm_denoised = cv_r_lm_denoised->asFloat != 0.0f;
 
     const float4 ro = camera->position;

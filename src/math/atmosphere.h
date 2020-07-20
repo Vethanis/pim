@@ -79,8 +79,8 @@ pim_inline float3 VEC_CALL Atmosphere(
     atmos_t atmos,
     float3 ro,
     float3 rd,
-    float3 L,
-    float sunIntensity)
+    float3 lightDir,
+    float3 lightColor)
 {
     const i32 iSteps = 8;
     const i32 jSteps = 4;
@@ -104,13 +104,13 @@ pim_inline float3 VEC_CALL Atmosphere(
     for (i32 i = 0; i < iSteps; i++)
     {
         float3 iPos = f3_add(ro, f3_mulvs(rd, (i + 0.5f) * iStepSize));
-        float jStepSize = RaySphereIntersect(iPos, L, atmos.atmosphereRadius).y * deltaJ;
+        float jStepSize = RaySphereIntersect(iPos, lightDir, atmos.atmosphereRadius).y * deltaJ;
 
         float jOdRlh = 0.0f;
         float jOdMie = 0.0f;
         for (i32 j = 0; j < jSteps; j++)
         {
-            float3 jPos = f3_add(iPos, f3_mulvs(L, (j + 0.5f) * jStepSize));
+            float3 jPos = f3_add(iPos, f3_mulvs(lightDir, (j + 0.5f) * jStepSize));
             float jHeight = f3_length(jPos) - atmos.crustRadius;
 
             jOdRlh += expf(-jHeight * rcpHr) * jStepSize;
@@ -132,18 +132,18 @@ pim_inline float3 VEC_CALL Atmosphere(
         totalMie = f3_add(totalMie, f3_mulvs(attn, odStepMie));
     }
 
-    float cosTheta = f3_dot(rd, L);
+    float cosTheta = f3_dot(rd, lightDir);
     totalRlh = f3_mul(totalRlh, f3_mulvs(atmos.Br, RayleighPhase(cosTheta)));
     totalMie = f3_mulvs(totalMie, atmos.Bm * MiePhase(cosTheta, atmos.g));
 
-    return f3_mulvs(f3_add(totalRlh, totalMie), sunIntensity);
+    return f3_mul(f3_add(totalRlh, totalMie), lightColor);
 }
 
 pim_inline float3 VEC_CALL EarthAtmosphere(
     float3 ro,
     float3 rd,
     float3 L,
-    float sunIntensity)
+    float3 sunIntensity)
 {
     ro.y += kEarthAtmosphere.crustRadius;
     return Atmosphere(

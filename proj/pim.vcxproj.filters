@@ -460,6 +460,9 @@
     <ClCompile Include="..\src\math\dist1d.c">
       <Filter>Source Files\math</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\stb\stb_perlin.c">
+      <Filter>Source Files\stb</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">

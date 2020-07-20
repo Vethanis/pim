@@ -30,7 +30,11 @@
 #include "common/console.h"
 #include "common/cvar.h"
 
+#include <stb/stb_perlin.h>
 #include <string.h>
+
+#define kStepsPerMeter      4.0f
+#define kMinSteps           8
 
 typedef struct pt_scene_s
 {
@@ -89,6 +93,7 @@ typedef struct surfhit_s
 
 typedef struct scatter_s
 {
+    float4 pos;
     float4 dir;
     float4 attenuation;
     float4 irradiance;
@@ -656,9 +661,14 @@ pim_inline const material_t* VEC_CALL GetMaterial(
     return scene->materials + matIndex;
 }
 
-pim_inline float4 VEC_CALL GetSky(const pt_scene_t* scene, ray_t rin)
+pim_inline float4 VEC_CALL GetSky(
+    const pt_scene_t* scene,
+    float4 ro,
+    float4 rd)
 {
-    return f3_f4(EarthAtmosphere(f4_f3(rin.ro), f4_f3(rin.rd), scene->sunDirection, scene->sunIntensity), 0.0f);
+    float3 sunColor = f3_s(scene->sunIntensity);
+    float3 sunDir = scene->sunDirection;
+    return f3_f4(EarthAtmosphere(f4_f3(ro), f4_f3(rd), sunDir, sunColor), 0.0f);
 }
 
 pim_inline surfhit_t VEC_CALL GetSurface(
@@ -973,13 +983,18 @@ pim_inline bool LightSelect(
     return true;
 }
 
-pim_inline float4 VEC_CALL LightRad(const pt_scene_t* scene, i32 iLight, float4 wuv, float4 ro, float4 rd)
+pim_inline float4 VEC_CALL LightRad(
+    const pt_scene_t* scene,
+    i32 iLight,
+    float4 wuv,
+    float4 ro,
+    float4 rd)
 {
     i32 iMat = scene->matIds[iLight];
     const material_t* mat = scene->materials + iMat;
     if (mat->flags & matflag_sky)
     {
-        return f3_f4(EarthAtmosphere(f4_f3(ro), f4_f3(rd), scene->sunDirection, scene->sunIntensity), 0.0f);
+        return GetSky(scene, ro, rd);
     }
     float2 uv = GetVert2(scene->uvs, iLight, wuv);
     float4 albedo = ColorToLinear(mat->flatAlbedo);
@@ -996,14 +1011,42 @@ pim_inline float4 VEC_CALL LightRad(const pt_scene_t* scene, i32 iLight, float4 
     return UnpackEmission(albedo, rome.w);
 }
 
-pim_inline float2 VEC_CALL GetParticipatingMedia(float4 P)
+pim_inline float VEC_CALL NoiseFbm(float4 P)
 {
-    float heightFog = 0.3f * f1_sat(1.0f - f1_distance(P.y, 0.0f));
-    const float constantFog = 0.05f;
-    float sigmaS = constantFog + heightFog;
-    const float sigmaA = 0.0f;
-    float sigmaE = f1_max(kMicro, sigmaA + sigmaS);
-    return f2_v(sigmaS, sigmaE);
+    return stb_perlin_fbm_noise3(P.x, P.y, P.z, 2.03f, 0.5f, 5);
+}
+
+typedef struct media_s
+{
+    float4 albedo;
+    float scattering;
+    float extinction;
+} media_t;
+
+pim_inline media_t VEC_CALL GetParticipatingMedia(float4 P)
+{
+    float floorHeight = 0.0f + NoiseFbm(f4_mulvs(P, 0.666f));
+    float heightFog = 1.0f - f1_min(1.0f, f1_distance(floorHeight, P.y));
+
+    const float constantFog = 0.025f;
+    const float absorption = 0.1f;
+
+    const float4 cColor1 = { 0.9f, 0.9f, 0.9f, 0.0f };
+    const float4 hColor1 = { 0.9f, 0.1f, 0.9f, 0.758f };
+    float t = heightFog / (constantFog + heightFog);
+    float4 albedo = f4_lerpvs(cColor1, hColor1, t);
+
+    media_t result;
+    result.albedo = albedo;
+    result.scattering = constantFog + heightFog;
+    result.extinction = result.scattering * (1.0f + absorption);
+
+    return result;
+}
+
+pim_inline i32 VEC_CALL CalcStepCount(float rayLen)
+{
+    return i1_max(kMinSteps, (i32)(rayLen * kStepsPerMeter + 0.5f));
 }
 
 pim_inline float VEC_CALL CalcTransmittance(
@@ -1013,15 +1056,18 @@ pim_inline float VEC_CALL CalcTransmittance(
     float4 rd,
     float rayLen)
 {
-    const i32 kSteps = 8;
-    const float dt = rayLen / kSteps;
+    const i32 kSteps = CalcStepCount(rayLen);
+    const float dt0 = rayLen / kSteps;
     float transmittance = 1.0f;
+    float tprev = 0.0f;
     for (i32 i = 0; i < kSteps; ++i)
     {
-        float t = (i + prng_f32(rng)) * dt;
+        float t = (i + prng_f32(rng)) * dt0;
+        float dt = t - tprev;
+        tprev = t;
         float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float2 sigmaSE = GetParticipatingMedia(P);
-        transmittance *= expf(-sigmaSE.y * dt);
+        media_t media = GetParticipatingMedia(P);
+        transmittance *= expf(-media.extinction * dt);
     }
     return transmittance;
 }
@@ -1174,39 +1220,62 @@ pim_inline bool VEC_CALL EvaluateLight(
     return false;
 }
 
-pim_inline float4 VEC_CALL IntegrateRay(
+pim_inline scatter_t VEC_CALL ScatterRay(
     const pt_scene_t* scene,
     prng_t* rng,
     float4 ro,
     float4 rd,
     float rayLen)
 {
-    const float4 mColor = { 0.3f, 0.5f, 0.5f, 0.0f };
-    const float4 rColor = { 0.5f, 0.1f, 0.7f, 0.0f };
+    scatter_t result;
+    result.dir = rd;
+    result.pos = f4_add(ro, f4_mulvs(rd, rayLen));
+    result.pdf = 0.0f;
+
     float transmittance = 1.0f;
     float4 scatteredLight = f4_0;
-    const i32 kSteps = 8;
-    const float dt = rayLen / kSteps;
-    for(i32 i = 0; i < kSteps; ++i)
+    const i32 kSteps = CalcStepCount(rayLen);
+    const float dt0 = rayLen / kSteps;
+    const float dProb = 1.0f / kSteps;
+    float tprev = 0.0f;
+    float pScatter = prng_f32(rng);
+
+    for (i32 i = 0; i < kSteps; ++i)
     {
-        float t = (i + prng_f32(rng)) * dt;
+        float t = (i + prng_f32(rng)) * dt0;
+        float dt = t - tprev;
+        tprev = t;
+
         float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float2 sigmaSE = GetParticipatingMedia(P);
-        transmittance *= expf(-sigmaSE.y * dt);
-        float4 light, dir;
-        if (EvaluateLight(scene, rng, P, &light, &dir))
+        media_t media = GetParticipatingMedia(P);
+        float segment = expf(-media.extinction * dt);
+        transmittance *= segment;
+
+        if (pScatter > transmittance)
         {
-            float cosTheta = f4_dot3(dir, rd);
-            float m = MiePhase(cosTheta, 0.758f);
-            float r = RayleighPhase(cosTheta);
-            float4 c = f4_add(f4_mulvs(mColor, m), f4_mulvs(rColor, r));
-            float4 atten = f4_mulvs(c, sigmaSE.x * dt);
-            light = f4_mul(light, atten);
-            scatteredLight = f4_add(scatteredLight, f4_mulvs(light, transmittance));
+            float4 light, dir;
+            if (EvaluateLight(scene, rng, P, &light, &dir))
+            {
+                float cosTheta = f4_dot3(dir, rd);
+                float4 ph = f4_mulvs(media.albedo, HGPhase(cosTheta, media.albedo.w));
+                float4 scattering = f4_mulvs(ph, media.scattering * dt);
+                light = f4_mul(light, scattering);
+                light = f4_mulvs(light, transmittance);
+                light = f4_divvs(light, pScatter);
+                scatteredLight = f4_add(scatteredLight, light);
+            }
+
+            result.pos = P;
+            result.dir = SampleUnitSphere(f2_rand(rng));
+            result.pdf = 1.0f / (4.0f * kPi);
+            break;
         }
     }
-    scatteredLight.w = transmittance;
-    return scatteredLight;
+
+    result.attenuation = f4_s(transmittance);
+    result.irradiance = scatteredLight;
+
+    return result;
 }
 
 pt_result_t VEC_CALL pt_trace_ray(
@@ -1221,6 +1290,11 @@ pt_result_t VEC_CALL pt_trace_ray(
 
     for (i32 b = 0; b < 666; ++b)
     {
+        if (f4_hmax3(attenuation) == 0.0f)
+        {
+            break;
+        }
+
         rayhit_t hit = pt_intersect_local(scene, ray, 0.0f, 1 << 20);
         if (hit.type == hit_nothing)
         {
@@ -1232,14 +1306,21 @@ pt_result_t VEC_CALL pt_trace_ray(
         }
 
         {
-            float4 scattering = IntegrateRay(scene, rng, ray.ro, ray.rd, hit.wuvt.w);
-            light = f4_add(light, f4_mul(scattering, attenuation));
-            attenuation = f4_mulvs(attenuation, scattering.w);
+            scatter_t scatter = ScatterRay(scene, rng, ray.ro, ray.rd, hit.wuvt.w);
+            light = f4_add(light, f4_mul(scatter.irradiance, attenuation));
+            attenuation = f4_mul(attenuation, scatter.attenuation);
+            if (scatter.pdf > 0.0f)
+            {
+                // scatter event occurred before reaching surface
+                ray.ro = scatter.pos;
+                ray.rd = scatter.dir;
+                continue;
+            }
         }
 
         if (hit.type == hit_sky)
         {
-            light = f4_add(light, f4_mul(GetSky(scene, ray), attenuation));
+            light = f4_add(light, f4_mul(GetSky(scene, ray.ro, ray.rd), attenuation));
             break;
         }
 
@@ -1268,16 +1349,12 @@ pt_result_t VEC_CALL pt_trace_ray(
         ray.rd = scatter.dir;
 
         attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
-        float p = f1_clamp(f4_hmax3(attenuation), 0.05f, 0.95f);
+        float p = f1_clamp(f4_hmax3(attenuation), 0.1f, 0.9f);
         if (prng_f32(rng) < p)
         {
             attenuation = f4_divvs(attenuation, p);
         }
         else
-        {
-            break;
-        }
-        if (f4_hmax3(attenuation) == 0.0f)
         {
             break;
         }

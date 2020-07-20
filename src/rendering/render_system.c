@@ -530,6 +530,10 @@ void render_sys_update(void)
     {
         cvar_toggle(&cv_pt_trace);
     }
+    if (input_keydown(KeyCode_F8))
+    {
+        cvar_toggle(&cv_pt_denoise);
+    }
 
     texture_sys_update();
     mesh_sys_update();

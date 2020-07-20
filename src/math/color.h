@@ -138,6 +138,11 @@ pim_inline float VEC_CALL f4_maxlum(float4 x)
     return f4_hmax3(x);
 }
 
+pim_inline float VEC_CALL f4_midlum(float4 x)
+{
+    return 0.5f * (f4_maxlum(x) + f4_avglum(x));
+}
+
 pim_inline float4 VEC_CALL f4_desaturate(float4 src, float amt)
 {
     float lum = f4_perlum(src);

@@ -91,6 +91,7 @@
     <ClCompile Include="..\src\sokol\sokol_time.c" />
     <ClCompile Include="..\src\stb\stb_image.c" />
     <ClCompile Include="..\src\stb\stb_image_write.c" />
+    <ClCompile Include="..\src\stb\stb_perlin.c" />
     <ClCompile Include="..\src\threading\event.c" />
     <ClCompile Include="..\src\threading\intrin.c" />
     <ClCompile Include="..\src\threading\mutex.c" />
