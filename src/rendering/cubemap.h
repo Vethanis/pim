@@ -2,6 +2,8 @@
 
 #include "common/macro.h"
 #include "math/types.h"
+#include "rendering/sampler.h"
+#include "math/frustum.h"
 
 PIM_C_BEGIN
 
@@ -27,9 +29,6 @@ typedef struct Cubemap_s
     i32 size;
     i32 mipCount;
     float3* color[Cubeface_COUNT];
-    float3* albedo[Cubeface_COUNT];
-    float3* normal[Cubeface_COUNT];
-    float3* denoised[Cubeface_COUNT];
     float4* convolved[Cubeface_COUNT];
 } Cubemap;
 
@@ -64,38 +63,179 @@ pim_inline float VEC_CALL MipToRoughness(float mip)
     return mip / CUBEMAP_MAX_MIP;
 }
 
-float3 VEC_CALL Cubemap_ReadColor(const Cubemap* cm, float4 dir);
-float3 VEC_CALL Cubemap_ReadAlbedo(const Cubemap* cm, float4 dir);
-float3 VEC_CALL Cubemap_ReadNormal(const Cubemap* cm, float4 dir);
-float3 VEC_CALL Cubemap_ReadDenoised(const Cubemap* cm, float4 dir);
-float4 VEC_CALL Cubemap_ReadConvolved(const Cubemap* cm, float4 dir, float mip);
+static const float4 Cubemap_kForwards[] =
+{
+    {1.0f, 0.0f, 0.0f},
+    {-1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, -1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f},
+    {0.0f, 0.0f, -1.0f},
+};
 
-void VEC_CALL Cubemap_Write(
-    Cubemap* cm,
-    Cubeface face,
-    int2 coord,
-    float4 value);
+static const float4 Cubemap_kUps[] =
+{
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, -1.0f},
+    {0.0f, 0.0f, -1.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+};
 
-void VEC_CALL Cubemap_WriteMip(
+static const float4 Cubemap_kRights[] =
+{
+    {0.0f, 0.0f, -1.0f},
+    {0.0f, 0.0f, 1.0f},
+    {1.0f, 0.0f, 0.0f},
+    {-1.0f, 0.0f, 0.0f},
+    {1.0f, 0.0f, 0.0f},
+    {-1.0f, 0.0f, 0.0f},
+};
+
+pim_inline Cubeface VEC_CALL Cubemap_CalcUv(float4 dir, float2* uvOut)
+{
+    ASSERT(uvOut);
+
+    float4 absdir = f4_abs(dir);
+    float v = f4_hmax3(absdir);
+    float ma = 0.5f / v;
+
+    Cubeface face;
+    if (v == absdir.x)
+    {
+        face = dir.x < 0.0f ? Cubeface_XM : Cubeface_XP;
+    }
+    else if (v == absdir.y)
+    {
+        face = dir.y < 0.0f ? Cubeface_YM : Cubeface_YP;
+    }
+    else
+    {
+        face = dir.z < 0.0f ? Cubeface_ZM : Cubeface_ZP;
+    }
+
+    float2 uv;
+    uv.x = f4_dot3(Cubemap_kRights[face], dir);
+    uv.y = f4_dot3(Cubemap_kUps[face], dir);
+    uv = f2_addvs(f2_mulvs(uv, ma), 0.5f);
+
+    *uvOut = uv;
+    return face;
+}
+
+pim_inline float4 VEC_CALL Cubemap_ReadConvolved(const Cubemap* cm, float4 dir, float mip)
+{
+    ASSERT(cm);
+
+    float2 uv;
+    Cubeface face = Cubemap_CalcUv(dir, &uv);
+
+    mip = f1_clamp(mip, 0.0f, (float)(cm->mipCount - 1));
+    int2 size = { cm->size, cm->size };
+    const float4* pim_noalias buffer = cm->convolved[face];
+    ASSERT(buffer);
+
+    return TrilinearClamp_f4(buffer, size, uv, mip);
+}
+
+pim_inline float3 VEC_CALL Cubemap_ReadColor(const Cubemap* cm, float4 dir)
+{
+    ASSERT(cm);
+
+    float2 uv;
+    Cubeface face = Cubemap_CalcUv(dir, &uv);
+
+    int2 size = { cm->size, cm->size };
+    const float3* pim_noalias buffer = cm->color[face];
+    ASSERT(buffer);
+
+    return UvBilinearClamp_f3(buffer, size, uv);
+}
+
+pim_inline void VEC_CALL Cubemap_WriteColor(Cubemap* cm, Cubeface face, int2 coord, float3 value)
+{
+    ASSERT(cm);
+    float3* pim_noalias buffer = cm->color[face];
+    ASSERT(buffer);
+    i32 i = Clamp(i2_s(cm->size), coord);
+    buffer[i] = value;
+}
+
+pim_inline void VEC_CALL Cubemap_WriteConvolved(Cubemap* cm, Cubeface face, int2 coord, float4 value)
+{
+    ASSERT(cm);
+    float4* pim_noalias buffer = cm->convolved[face];
+    ASSERT(buffer);
+    i32 i = Clamp(i2_s(cm->size), coord);
+    buffer[i] = value;
+}
+
+pim_inline void VEC_CALL Cubemap_WriteMip(
     Cubemap* cm,
     Cubeface face,
     int2 coord,
     i32 mip,
-    float4 value);
+    float4 value)
+{
+    ASSERT(cm);
+    float4* pim_noalias buffer = cm->convolved[face];
+    ASSERT(buffer);
 
-float4 VEC_CALL Cubemap_CalcDir(
+    int2 size = i2_s(cm->size);
+    i32 offset = CalcMipOffset(size, mip);
+    buffer += offset;
+
+    int2 mipSize = CalcMipSize(size, mip);
+    i32 i = Clamp(mipSize, coord);
+    buffer[i] = value;
+}
+
+pim_inline void VEC_CALL Cubemap_BlendMip(
+    Cubemap* cm,
+    Cubeface face,
+    int2 coord,
+    i32 mip,
+    float4 value,
+    float weight)
+{
+    ASSERT(cm);
+    float4* pim_noalias buffer = cm->convolved[face];
+    ASSERT(buffer);
+
+    int2 size = i2_s(cm->size);
+    i32 offset = CalcMipOffset(size, mip);
+    buffer += offset;
+
+    int2 mipSize = CalcMipSize(size, mip);
+    i32 i = Clamp(mipSize, coord);
+    buffer[i] = f4_lerpvs(buffer[i], value, weight);
+}
+
+pim_inline float4 VEC_CALL Cubemap_CalcDir(
     i32 size,
     Cubeface face,
     int2 coord,
-    float2 Xi);
+    float2 Xi)
+{
+    float2 uv = CoordToUv(i2_s(size), coord);
+    Xi = f2_mulvs(Xi, 1.0f / size);
+    uv = f2_add(uv, Xi);
+    uv = f2_snorm(uv);
+
+    float4 fwd = Cubemap_kForwards[face];
+    float4 right = Cubemap_kRights[face];
+    float4 up = Cubemap_kUps[face];
+    float4 dir = proj_dir(right, up, fwd, f2_1, uv);
+
+    return dir;
+}
 
 void Cubemap_Bake(
     Cubemap* cm,
     const pt_scene_t* scene,
     float4 origin,
     float weight);
-
-void Cubemap_Denoise(Cubemap* cm);
 
 void Cubemap_Convolve(
     Cubemap* cm,

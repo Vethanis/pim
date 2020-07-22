@@ -6,6 +6,7 @@
 #include "rendering/lights.h"
 #include "rendering/drawable.h"
 #include "rendering/librtc.h"
+#include "rendering/cubemap.h"
 
 #include "math/float2_funcs.h"
 #include "math/float4_funcs.h"
@@ -34,7 +35,7 @@
 #include <string.h>
 
 #define kStepsPerMeter      4.0f
-#define kMinSteps           8
+#define kMinSteps           4
 
 typedef struct pt_scene_s
 {
@@ -69,6 +70,8 @@ typedef struct pt_scene_s
     // surface description, indexed by matIds
     // [matCount]
     material_t* pim_noalias materials;
+
+    Cubemap* sky;
 
     // array lengths
     i32 vertCount;
@@ -561,6 +564,17 @@ static void UpdateScene(pt_scene_t* scene)
     float4 sunDir = TanToWorld(kUp, SampleUnitHemisphere(f2_v(azimuth, zenith)));
     scene->sunDirection = f4_f3(sunDir);
     scene->sunIntensity = irradiance;
+
+    const u32 kSkyName = 1;
+    i32 iSky = Cubemaps_Find(kSkyName);
+    if (iSky != -1)
+    {
+        scene->sky = Cubemaps_Get()->cubemaps + iSky;
+    }
+    else
+    {
+        scene->sky = NULL;
+    }
 }
 
 pt_scene_t* pt_scene_new(void)
@@ -666,9 +680,11 @@ pim_inline float4 VEC_CALL GetSky(
     float4 ro,
     float4 rd)
 {
-    float3 sunColor = f3_s(scene->sunIntensity);
-    float3 sunDir = scene->sunDirection;
-    return f3_f4(EarthAtmosphere(f4_f3(ro), f4_f3(rd), sunDir, sunColor), 0.0f);
+    if (scene->sky)
+    {
+        return f3_f4(Cubemap_ReadColor(scene->sky, rd), 1.0f);
+    }
+    return f4_0;
 }
 
 pim_inline surfhit_t VEC_CALL GetSurface(
@@ -1013,7 +1029,7 @@ pim_inline float4 VEC_CALL LightRad(
 
 pim_inline float VEC_CALL NoiseFbm(float4 P)
 {
-    return stb_perlin_fbm_noise3(P.x, P.y, P.z, 2.03f, 0.5f, 5);
+    return stb_perlin_fbm_noise3(P.x, P.y, P.z, 2.03f, 0.5f, 3);
 }
 
 typedef struct media_s
@@ -1025,21 +1041,29 @@ typedef struct media_s
 
 pim_inline media_t VEC_CALL GetParticipatingMedia(float4 P)
 {
-    float floorHeight = 0.0f + NoiseFbm(f4_mulvs(P, 0.666f));
-    float heightFog = 1.0f - f1_min(1.0f, f1_distance(floorHeight, P.y));
+    float heightFog = 0.0f;
+    if (f1_distance(P.y, 0.0f) < 2.0f)
+    {
+        float heightDensity = 1.0f - f1_distance(NoiseFbm(f4_mulvs(P, 0.666f)), P.y);
+        heightFog = f1_sat(heightDensity);
+    }
 
-    const float constantFog = 0.025f;
-    const float absorption = 0.1f;
+    const float constantFog = 0.02f;
+    const float absorption = 2.0f;
 
-    const float4 cColor1 = { 0.9f, 0.9f, 0.9f, 0.0f };
-    const float4 hColor1 = { 0.9f, 0.1f, 0.9f, 0.758f };
-    float t = heightFog / (constantFog + heightFog);
+    float totalFog = constantFog + heightFog;
+    float totalExtinction = totalFog + heightFog * absorption;
+    float totalScattering = totalFog * 0.5f;
+
+    const float4 cColor1 = { 0.9f, 0.45f, 0.275f, 0.0f };
+    const float4 hColor1 = { 0.9f, 0.2f, 0.9f, 0.758f };
+    float t = heightFog / totalFog;
     float4 albedo = f4_lerpvs(cColor1, hColor1, t);
 
     media_t result;
     result.albedo = albedo;
-    result.scattering = constantFog + heightFog;
-    result.extinction = result.scattering * (1.0f + absorption);
+    result.scattering = totalScattering;
+    result.extinction = totalExtinction;
 
     return result;
 }
@@ -1049,25 +1073,27 @@ pim_inline i32 VEC_CALL CalcStepCount(float rayLen)
     return i1_max(kMinSteps, (i32)(rayLen * kStepsPerMeter + 0.5f));
 }
 
-pim_inline float VEC_CALL CalcTransmittance(
+pim_inline float4 VEC_CALL CalcTransmittance(
     const pt_scene_t* scene,
     prng_t* rng,
     float4 ro,
     float4 rd,
     float rayLen)
 {
+    float4 transmittance = f4_1;
     const i32 kSteps = CalcStepCount(rayLen);
     const float dt0 = rayLen / kSteps;
-    float transmittance = 1.0f;
-    float tprev = 0.0f;
-    for (i32 i = 0; i < kSteps; ++i)
+    float prevt = 0.0f;
+    for (i32 i = 0; i <= kSteps; ++i)
     {
-        float t = (i + prng_f32(rng)) * dt0;
-        float dt = t - tprev;
-        tprev = t;
+        float t = (i == 0) ? kMilli : ((i - 1) + prng_f32(rng)) * dt0;
+        float dt = t - prevt;
+        prevt = t;
+
         float4 P = f4_add(ro, f4_mulvs(rd, t));
         media_t media = GetParticipatingMedia(P);
-        transmittance *= expf(-media.extinction * dt);
+        float4 extinction = f4_mulvs(f4_inv(media.albedo), media.extinction * -dt);
+        transmittance = f4_mul(transmittance, f4_exp3(extinction));
     }
     return transmittance;
 }
@@ -1116,8 +1142,8 @@ pim_inline lightsample_t VEC_CALL LightSample(
         {
             sample.pdf = LightPdf(area, VoNl, distSq);
             sample.irradiance = LightRad(scene, iLight, wuv, ro, rd);
-            float Tr = CalcTransmittance(scene, rng, ro, rd, hit.wuvt.w);
-            sample.irradiance = f4_mulvs(sample.irradiance, Tr);
+            float4 Tr = CalcTransmittance(scene, rng, ro, rd, hit.wuvt.w);
+            sample.irradiance = f4_mul(sample.irradiance, Tr);
         }
     }
 
@@ -1232,47 +1258,42 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     result.pos = f4_add(ro, f4_mulvs(rd, rayLen));
     result.pdf = 0.0f;
 
-    float transmittance = 1.0f;
+    float4 transmittance = f4_1;
     float4 scatteredLight = f4_0;
-    const i32 kSteps = CalcStepCount(rayLen);
-    const float dt0 = rayLen / kSteps;
-    const float dProb = 1.0f / kSteps;
-    float tprev = 0.0f;
     float pScatter = prng_f32(rng);
 
-    for (i32 i = 0; i < kSteps; ++i)
+    const i32 kSteps = CalcStepCount(rayLen);
+    const float dt0 = rayLen / kSteps;
+    float prevt = 0.0f;
+    for (i32 i = 0; i <= kSteps; ++i)
     {
-        float t = (i + prng_f32(rng)) * dt0;
-        float dt = t - tprev;
-        tprev = t;
+        float t = (i == 0) ? kMilli : ((i - 1) + prng_f32(rng)) * dt0;
+        float dt = t - prevt;
+        prevt = t;
 
         float4 P = f4_add(ro, f4_mulvs(rd, t));
         media_t media = GetParticipatingMedia(P);
-        float segment = expf(-media.extinction * dt);
-        transmittance *= segment;
+        float4 extinction = f4_mulvs(f4_inv(media.albedo), media.extinction * -dt);
+        transmittance = f4_mul(transmittance, f4_exp3(extinction));
 
-        if (pScatter > transmittance)
+        if (prng_f32(rng) < media.scattering)
         {
             float4 light, dir;
             if (EvaluateLight(scene, rng, P, &light, &dir))
             {
-                float cosTheta = f4_dot3(dir, rd);
-                float4 ph = f4_mulvs(media.albedo, HGPhase(cosTheta, media.albedo.w));
-                float4 scattering = f4_mulvs(ph, media.scattering * dt);
-                light = f4_mul(light, scattering);
-                light = f4_mulvs(light, transmittance);
-                light = f4_divvs(light, pScatter);
+                light = f4_mulvs(light, MiePhase(f4_dot3(dir, rd), media.albedo.w) * dt);
+                light = f4_mul(light, transmittance);
                 scatteredLight = f4_add(scatteredLight, light);
             }
 
             result.pos = P;
             result.dir = SampleUnitSphere(f2_rand(rng));
-            result.pdf = 1.0f / (4.0f * kPi);
+            result.pdf = 1.0f;
             break;
         }
     }
 
-    result.attenuation = f4_s(transmittance);
+    result.attenuation = transmittance;
     result.irradiance = scatteredLight;
 
     return result;
@@ -1290,10 +1311,6 @@ pt_result_t VEC_CALL pt_trace_ray(
 
     for (i32 b = 0; b < 666; ++b)
     {
-        if (f4_hmax3(attenuation) == 0.0f)
-        {
-            break;
-        }
 
         rayhit_t hit = pt_intersect_local(scene, ray, 0.0f, 1 << 20);
         if (hit.type == hit_nothing)
@@ -1314,7 +1331,7 @@ pt_result_t VEC_CALL pt_trace_ray(
                 // scatter event occurred before reaching surface
                 ray.ro = scatter.pos;
                 ray.rd = scatter.dir;
-                continue;
+                goto roulette;
             }
         }
 
@@ -1349,14 +1366,23 @@ pt_result_t VEC_CALL pt_trace_ray(
         ray.rd = scatter.dir;
 
         attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
-        float p = f1_clamp(f4_hmax3(attenuation), 0.1f, 0.9f);
-        if (prng_f32(rng) < p)
+
+    roulette:
         {
-            attenuation = f4_divvs(attenuation, p);
-        }
-        else
-        {
-            break;
+            float p = f4_hmax3(attenuation);
+            if (p == 0.0f)
+            {
+                break;
+            }
+            p = f1_clamp(p, 0.0f, 0.99f);
+            if (prng_f32(rng) < p)
+            {
+                attenuation = f4_divvs(attenuation, p);
+            }
+            else
+            {
+                break;
+            }
         }
     }
 
@@ -1392,12 +1418,8 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
     {
         int2 coord = { i % size.x, i / size.x };
 
-        float2 Xi = f2_tent(f2_rand(&rng));
-        Xi = f2_mul(Xi, rcpSize);
-
-        float2 uv = CoordToUv(size, coord);
-        uv = f2_add(uv, Xi);
-        uv = f2_snorm(uv);
+        float2 Xi = f2_mul(f2_tent(f2_rand(&rng)), rcpSize);
+        float2 uv = f2_snorm(f2_add(CoordToUv(size, coord), Xi));
 
         float4 rd = proj_dir(right, up, fwd, slope, uv);
         ray_t ray = { ro, rd };

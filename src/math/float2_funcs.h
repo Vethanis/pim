@@ -7,11 +7,11 @@ PIM_C_BEGIN
 #include "math/scalar.h"
 #include "common/random.h"
 
-static const float2 f2_0 = { 0.0f, 0.0f };
-static const float2 f2_1 = { 1.0f, 1.0f };
-static const float2 f2_2 = { 2.0f, 2.0f };
-static const float2 f2_rcp2 = { 0.5f, 0.5f };
-static const float2 f2_rcp3 = { 0.33333333f, 0.33333333f };
+#define f2_0 f2_s(0.0f)
+#define f2_1 f2_s(1.0f)
+#define f2_2 f2_s(2.0f)
+#define f2_rcp2 f2_s(0.5f)
+#define f2_rcp3 f2_s(0.33333333f)
 
 pim_inline float2 VEC_CALL f2_v(float x, float y)
 {

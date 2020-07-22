@@ -82,8 +82,8 @@ pim_inline float3 VEC_CALL Atmosphere(
     float3 lightDir,
     float3 lightColor)
 {
-    const i32 iSteps = 8;
-    const i32 jSteps = 4;
+    const i32 iSteps = 16;
+    const i32 jSteps = 8;
 
     const float rcpHr = 1.0f / atmos.Hr;
     const float rcpHm = 1.0f / atmos.Hm;

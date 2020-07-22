@@ -17,6 +17,7 @@
 #include "rendering/drawable.h"
 #include "rendering/lights.h"
 #include "rendering/lightmap.h"
+#include "rendering/cubemap.h"
 
 #include "common/cvar.h"
 #include "common/profiler.h"
@@ -54,6 +55,7 @@ typedef struct world_s
     drawhash_t drawablesHash;
     u64 lightHash;
     float4 sunDir;
+    Cubemap* sky;
 } world_t;
 
 static cvar_t* cv_r_sun_az;
@@ -254,6 +256,17 @@ static void UpdateScene(world_t* world)
     }
 
     UpdateLights(world);
+
+    const u32 kSkyName = 1;
+    i32 iSky = Cubemaps_Find(kSkyName);
+    if (iSky != -1)
+    {
+        world->sky = Cubemaps_Get()->cubemaps + iSky;
+    }
+    else
+    {
+        world->sky = NULL;
+    }
 
     float azimuth = f1_sat(cv_r_sun_az->asFloat);
     float zenith = f1_sat(cv_r_sun_ze->asFloat);
@@ -523,7 +536,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     const camera_t* camera = task->camera;
     world_t* world = task->world;
     RTCScene scene = world->scene;
-    const float4 sunDir = world->sunDir;
+    const Cubemap* pim_noalias sky = world->sky;
 
     const lights_t* lights = lights_get();
     const pt_light_t* pim_noalias ptLights = lights->ptLights;
@@ -545,7 +558,6 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     const float fov = f1_radians(camera->fovy);
     const float tNear = camera->nearFar.x;
     const float tFar = camera->nearFar.y;
-    const float3 sunRad = f3_s(cv_r_sun_rad->asFloat);
     const bool r_lm_denoised = cv_r_lm_denoised->asFloat != 0.0f;
 
     const float4 ro = camera->position;
@@ -586,12 +598,11 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
         const material_t material = materials[hit.iDrawable];
         if (material.flags & matflag_sky)
         {
-            float3 atmos = EarthAtmosphere(
-                f4_f3(ro),
-                f4_f3(rd),
-                f4_f3(sunDir),
-                sunRad);
-            dstLight[iTexel] = f3_f4(atmos, 0.0f);
+            if (sky)
+            {
+                float3 atmos = Cubemap_ReadColor(sky, rd);
+                dstLight[iTexel] = f3_f4(atmos, 0.0f);
+            }
             continue;
         }
 

@@ -28,6 +28,7 @@
 #include "math/frustum.h"
 #include "math/lighting.h"
 #include "math/cubic_fit.h"
+#include "math/atmosphere.h"
 
 #include "rendering/constants.h"
 #include "rendering/r_window.h"
@@ -233,7 +234,6 @@ static void Cubemap_Trace(void)
             Cubemap* cubemap = table->cubemaps + i;
             sphere_t bounds = table->bounds[i];
             Cubemap_Bake(cubemap, ms_ptscene, bounds.value, weight);
-            Cubemap_Denoise(cubemap);
             Cubemap_Convolve(cubemap, 256, pfweight);
         }
 
@@ -471,6 +471,50 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     return cmdstat_err;
 }
 
+static void BakeSky(void)
+{
+    bool dirty = false;
+
+    const u32 kSkyName = 1;
+    i32 iCube = Cubemaps_Find(kSkyName);
+    Cubemaps_t* cubemaps = Cubemaps_Get();
+    if (iCube == -1)
+    {
+        dirty = true;
+        iCube = Cubemaps_Add(kSkyName, CUBEMAP_DEFAULT_SIZE, (sphere_t) { 0 });
+    }
+
+    dirty |= cvar_check_dirty(&cv_r_sun_az);
+    dirty |= cvar_check_dirty(&cv_r_sun_ze);
+    dirty |= cvar_check_dirty(&cv_r_sun_rad);
+
+    if (dirty)
+    {
+        float azimuth = f1_sat(cv_r_sun_az.asFloat);
+        float zenith = f1_sat(cv_r_sun_ze.asFloat);
+        float3 sunRad = f3_s(cv_r_sun_rad.asFloat);
+        const float4 kUp = { 0.0f, 1.0f, 0.0f, 0.0f };
+
+        float3 sunDir = f4_f3(TanToWorld(kUp, SampleUnitHemisphere(f2_v(azimuth, zenith))));
+
+        Cubemap* pim_noalias cm = cubemaps->cubemaps + iCube;
+        const i32 size = cm->size;
+        for (i32 face = 0; face < Cubeface_COUNT; ++face)
+        {
+            float3* pim_noalias image = cm->color[face];
+            for (i32 y = 0; y < size; ++y)
+            {
+                for (i32 x = 0; x < size; ++x)
+                {
+                    i32 i = x + y * size;
+                    float4 rd = Cubemap_CalcDir(size, face, i2_v(x, y), f2_0);
+                    image[i] = EarthAtmosphere(f3_0, f4_f3(rd), sunDir, sunRad);
+                }
+            }
+        }
+    }
+}
+
 void render_sys_init(void)
 {
     ms_iFrame = 0;
@@ -539,6 +583,7 @@ void render_sys_update(void)
     mesh_sys_update();
     pt_sys_update();
 
+    BakeSky();
     Lightmap_Trace();
     Cubemap_Trace();
     if (!PathTrace())
