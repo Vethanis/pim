@@ -1044,16 +1044,16 @@ pim_inline media_t VEC_CALL GetParticipatingMedia(float4 P)
     float heightFog = 0.0f;
     if (f1_distance(P.y, 0.0f) < 2.0f)
     {
-        float heightDensity = 1.0f - f1_distance(NoiseFbm(f4_mulvs(P, 0.666f)), P.y);
-        heightFog = f1_sat(heightDensity);
+        float heightDensity = f1_sat(1.0f - f1_distance(NoiseFbm(f4_mulvs(P, 0.666f)), P.y));
+        heightFog = 0.5f * heightDensity;
     }
 
-    const float constantFog = 0.02f;
-    const float absorption = 2.0f;
+    const float constantFog = 0.01f;
+    const float absorption = 0.1f;
 
     float totalFog = constantFog + heightFog;
     float totalExtinction = totalFog + heightFog * absorption;
-    float totalScattering = totalFog * 0.5f;
+    float totalScattering = totalFog;
 
     const float4 cColor1 = { 0.9f, 0.45f, 0.275f, 0.0f };
     const float4 hColor1 = { 0.9f, 0.2f, 0.9f, 0.758f };
@@ -1276,12 +1276,12 @@ pim_inline scatter_t VEC_CALL ScatterRay(
         float4 extinction = f4_mulvs(f4_inv(media.albedo), media.extinction * -dt);
         transmittance = f4_mul(transmittance, f4_exp3(extinction));
 
-        if (prng_f32(rng) < media.scattering)
+        if (prng_f32(rng) > expf(-media.scattering))
         {
             float4 light, dir;
             if (EvaluateLight(scene, rng, P, &light, &dir))
             {
-                light = f4_mulvs(light, MiePhase(f4_dot3(dir, rd), media.albedo.w) * dt);
+                light = f4_mulvs(light, HGPhase(f4_dot3(dir, rd), media.albedo.w) * dt);
                 light = f4_mul(light, transmittance);
                 scatteredLight = f4_add(scatteredLight, light);
             }
@@ -1369,12 +1369,7 @@ pt_result_t VEC_CALL pt_trace_ray(
 
     roulette:
         {
-            float p = f4_hmax3(attenuation);
-            if (p == 0.0f)
-            {
-                break;
-            }
-            p = f1_clamp(p, 0.0f, 0.99f);
+            float p = f1_sat(f4_hmax3(attenuation));
             if (prng_f32(rng) < p)
             {
                 attenuation = f4_divvs(attenuation, p);
