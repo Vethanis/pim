@@ -59,6 +59,7 @@ void pt_sys_shutdown(void);
 
 pt_scene_t* pt_scene_new(void);
 void pt_scene_del(pt_scene_t* scene);
+void pt_scene_gui(pt_scene_t* scene);
 
 rayhit_t VEC_CALL pt_intersect(const pt_scene_t* scene, ray_t ray, float tNear, float tFar);
 

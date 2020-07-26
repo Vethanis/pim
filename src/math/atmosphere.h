@@ -75,6 +75,27 @@ pim_inline float VEC_CALL HGPhase(float cosTheta, float g)
     return nom / (4.0f * kPi * denom);
 }
 
+pim_inline float4 VEC_CALL ImportanceSampleHGPhase(float2 Xi, float g)
+{
+    float cosTheta;
+    if (f1_abs(g) > kMilli)
+    {
+        float a = -1.0f / (2.0f * g);
+        float b = 1.0f + (g * g);
+        float nom = 1.0f - g * g;
+        float denom = 1.0f + g - 2.0f * g * Xi.x;
+        float c = nom / denom;
+        float u = a * (b - c * c);
+        cosTheta = f1_clamp(u, -1.0f, 1.0f);
+    }
+    else
+    {
+        cosTheta = 2.0f * Xi.x - 1.0f;
+    }
+    float phi = kTau * Xi.y;
+    return SphericalToCartesian(cosTheta, phi);
+}
+
 pim_inline float3 VEC_CALL Atmosphere(
     atmos_t atmos,
     float3 ro,

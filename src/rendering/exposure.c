@@ -117,8 +117,8 @@ static float AdaptLuminance(
 }
 
 #define kHistogramSize  64
-#define kHistogramMin   0.0f
-#define kHistogramMax   30.0f
+#define kHistogramMin   -10.0f
+#define kHistogramMax   10.0f
 
 static float BinToEV(i32 bin)
 {
@@ -268,6 +268,8 @@ void ExposeImage(
     float4* pim_noalias light,
     exposure_t* parameters)
 {
+    ProfileBegin(pm_exposeimg);
+
     float minProb = parameters->histMinProb;
     float maxProb = parameters->histMaxProb;
     const i32 numObservations = size.x * size.y;
@@ -287,8 +289,6 @@ void ExposeImage(
         parameters->adaptRate);
     parameters->avgLum = avgLum;
     float exposure = CalcExposure(*parameters);
-
-    ProfileBegin(pm_exposeimg);
 
     task_Expose* task = tmp_calloc(sizeof(*task));
     task->light = light;

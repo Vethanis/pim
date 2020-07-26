@@ -109,7 +109,7 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv);
 static framebuf_t ms_buffers[2];
 static i32 ms_iFrame;
 
-static TonemapId ms_tonemapper = TMap_Hable;
+static TonemapId ms_tonemapper = TMap_ACES;
 static float4 ms_toneParams;
 static float4 ms_clearColor;
 static exposure_t ms_exposure =
@@ -661,7 +661,7 @@ void render_sys_gui(bool* pEnabled)
             igIndent(0.0f);
             igCheckbox("Manual", &ms_exposure.manual);
             igCheckbox("Standard", &ms_exposure.standard);
-            igSliderFloat("Output Offset EV", &ms_exposure.offsetEV, -5.0f, 5.0f);
+            igSliderFloat("Output Offset EV", &ms_exposure.offsetEV, -10.0f, 10.0f);
             if (ms_exposure.manual)
             {
                 igSliderFloat("Aperture", &ms_exposure.aperture, 1.4f, 22.0f);
@@ -695,6 +695,8 @@ void render_sys_gui(bool* pEnabled)
 
             igUnindent(0.0f);
         }
+
+        pt_scene_gui(ms_ptscene);
     }
     igEnd();
 

@@ -30,12 +30,70 @@
 #include "common/profiler.h"
 #include "common/console.h"
 #include "common/cvar.h"
+#include "ui/cimgui.h"
+#include "io/fd.h"
+#include "common/stringutil.h"
 
 #include <stb/stb_perlin.h>
 #include <string.h>
 
-#define kStepsPerMeter      4.0f
-#define kMinSteps           4
+// ----------------------------------------------------------------------------
+
+#define kStepsPerMeter      2.0f
+#define kMinSteps           3
+
+// ----------------------------------------------------------------------------
+
+typedef struct surfhit_s
+{
+    float4 P;
+    float4 N;
+    float4 albedo;
+    float roughness;
+    float occlusion;
+    float metallic;
+    float4 emission;
+} surfhit_t;
+
+typedef struct scatter_s
+{
+    float4 pos;
+    float4 dir;
+    float4 attenuation;
+    float4 irradiance;
+    float pdf;
+} scatter_t;
+
+typedef struct lightsample_s
+{
+    float4 direction;
+    float4 irradiance;
+    float4 wuvt;
+    float pdf;
+} lightsample_t;
+
+typedef struct media_desc_s
+{
+    float4 constantAlbedo;
+    float4 noiseAlbedo;
+    float absorption;
+    float constantAmt;
+    float noiseAmt;
+    i32 noiseOctaves;
+    float noiseGain;
+    float noiseLacunarity;
+    float noiseFreq;
+    float noiseScale;
+    float noiseHeight;
+    float noiseRange;
+} media_desc_t;
+
+typedef struct media_s
+{
+    float4 albedo;
+    float scattering;
+    float extinction;
+} media_t;
 
 typedef struct pt_scene_s
 {
@@ -77,47 +135,147 @@ typedef struct pt_scene_s
     i32 vertCount;
     i32 matCount;
     i32 emissiveCount;
-    i32 nodeCount;
     // hyperparameters
     float3 sunDirection;
     float sunIntensity;
+    media_desc_t mediaDesc;
 } pt_scene_t;
 
-typedef struct surfhit_s
-{
-    float4 P;
-    float4 N;
-    float4 albedo;
-    float roughness;
-    float occlusion;
-    float metallic;
-    float4 emission;
-} surfhit_t;
+// ----------------------------------------------------------------------------
 
-typedef struct scatter_s
-{
-    float4 pos;
-    float4 dir;
-    float4 attenuation;
-    float4 irradiance;
-    float pdf;
-} scatter_t;
+static void OnRtcError(void* user, RTCError error, const char* msg);
+static bool InitRTC(void);
+pim_inline RTCRay VEC_CALL RtcNewRay(ray_t ray, float tNear, float tFar);
+pim_inline RTCRayHit VEC_CALL RtcIntersect(
+    RTCScene scene,
+    ray_t ray,
+    float tNear,
+    float tFar);
+static RTCScene RtcNewScene(const pt_scene_t* scene);
+static void FlattenDrawables(pt_scene_t* scene);
+static float EmissionPdf(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    i32 iVert,
+    i32 attempts);
+static void CalcEmissionPdfFn(task_t* pbase, i32 begin, i32 end);
+static void SetupEmissives(pt_scene_t* scene);
+static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end);
+static void SetupLightGrid(pt_scene_t* scene);
+static void UpdateScene(pt_scene_t* scene);
+pim_inline float4 VEC_CALL GetVert4(
+    const float4* vertices,
+    i32 iVert,
+    float4 wuv);
+pim_inline float2 VEC_CALL GetVert2(
+    const float2* vertices,
+    i32 iVert,
+    float4 wuv);
+pim_inline float VEC_CALL GetArea(const pt_scene_t* scene, i32 iLight);
+pim_inline const material_t* VEC_CALL GetMaterial(
+    const pt_scene_t* scene,
+    rayhit_t hit);
+pim_inline float4 VEC_CALL GetSky(
+    const pt_scene_t* scene,
+    float4 ro,
+    float4 rd);
+pim_inline surfhit_t VEC_CALL GetSurface(
+    const pt_scene_t* scene,
+    ray_t rin,
+    rayhit_t hit,
+    i32 bounce);
+pim_inline rayhit_t VEC_CALL pt_intersect_local(
+    const pt_scene_t* scene,
+    ray_t ray,
+    float tNear,
+    float tFar);
+pim_inline float4 VEC_CALL SampleSpecular(
+    prng_t* rng,
+    float4 I,
+    float4 N,
+    float alpha);
+pim_inline float4 VEC_CALL SampleDiffuse(prng_t* rng, float4 N);
+pim_inline float4 VEC_CALL BrdfSample(
+    prng_t* rng,
+    const surfhit_t* surf,
+    float4 I);
+pim_inline float4 VEC_CALL BrdfEval(
+    float4 I,
+    const surfhit_t* surf,
+    float4 L);
+pim_inline scatter_t VEC_CALL BrdfScatter(
+    prng_t* rng,
+    const surfhit_t* surf,
+    float4 I);
+pim_inline bool VEC_CALL LightSelect(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    float4 position,
+    i32* iVertOut,
+    float* pdfOut);
+pim_inline float4 VEC_CALL LightRad(
+    const pt_scene_t* scene,
+    i32 iLight,
+    float4 wuv,
+    float4 ro,
+    float4 rd);
+pim_inline lightsample_t VEC_CALL LightSample(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    float4 ro,
+    i32 iLight);
+pim_inline float VEC_CALL LightEvalPdf(
+    const pt_scene_t* scene,
+    i32 iLight,
+    float4 ro,
+    float4 rd,
+    float4* wuvOut);
+pim_inline float4 VEC_CALL EstimateDirect(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    const surfhit_t* surf,
+    const rayhit_t* hit,
+    i32 iLight,
+    float4 I);
+pim_inline float4 VEC_CALL SampleLights(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    const surfhit_t* surf,
+    const rayhit_t* hit,
+    float4 I);
+pim_inline bool VEC_CALL EvaluateLight(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    float4 P,
+    float4* lightOut,
+    float4* dirOut);
+static void media_desc_new(media_desc_t* desc);
+static void media_desc_update(media_desc_t* desc);
+static void media_desc_gui(media_desc_t* desc);
+static void media_desc_load(media_desc_t* desc, const char* name);
+static void media_desc_save(const media_desc_t* desc, const char* name);
+pim_inline float2 VEC_CALL Media_Density(const media_desc_t* desc, float4 P);
+pim_inline media_t VEC_CALL Media_Sample(const media_desc_t* desc, float4 P);
+pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P);
+pim_inline float4 VEC_CALL Media_Normal(const media_desc_t* desc, float4 P);
+pim_inline media_t VEC_CALL Media_Lerp(media_t lhs, media_t rhs, float t);
+pim_inline i32 VEC_CALL CalcStepCount(float rayLen);
+pim_inline float4 VEC_CALL CalcTransmittance(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    float4 ro,
+    float4 rd,
+    float rayLen);
+pim_inline scatter_t VEC_CALL ScatterRay(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    float4 ro,
+    float4 rd,
+    float rayLen);
+static void TraceFn(task_t* pbase, i32 begin, i32 end);
+static void RayGenFn(task_t* pBase, i32 begin, i32 end);
 
-typedef struct trace_task_s
-{
-    task_t task;
-    pt_trace_t* trace;
-    camera_t camera;
-} trace_task_t;
-
-typedef struct pt_raygen_s
-{
-    task_t task;
-    const pt_scene_t* scene;
-    float4 origin;
-    float4* colors;
-    float4* directions;
-} pt_raygen_t;
+// ----------------------------------------------------------------------------
 
 static cvar_t* cv_pt_lgrid_mpc;
 static cvar_t* cv_r_sun_az;
@@ -125,6 +283,8 @@ static cvar_t* cv_r_sun_ze;
 static cvar_t* cv_r_sun_rad;
 
 static RTCDevice ms_device;
+
+// ----------------------------------------------------------------------------
 
 static void OnRtcError(void* user, RTCError error, const char* msg)
 {
@@ -190,7 +350,7 @@ pim_inline RTCRay VEC_CALL RtcNewRay(ray_t ray, float tNear, float tFar)
     return rtcRay;
 }
 
-static RTCRayHit VEC_CALL RtcIntersect(
+pim_inline RTCRayHit VEC_CALL RtcIntersect(
     RTCScene scene,
     ray_t ray,
     float tNear,
@@ -205,20 +365,6 @@ static RTCRayHit VEC_CALL RtcIntersect(
     rayHit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID; // instance id
     rtc.Intersect1(scene, &ctx, &rayHit);
     return rayHit;
-}
-
-static bool VEC_CALL RtcOccluded(
-    RTCScene scene,
-    ray_t ray,
-    float tNear,
-    float tFar)
-{
-    RTCIntersectContext ctx;
-    rtcInitIntersectContext(&ctx);
-    RTCRay rtcRay = RtcNewRay(ray, tNear, tFar);
-    rtc.Occluded1(scene, &ctx, &rtcRay);
-    // tfar == -inf on hit
-    return rtcRay.tfar >= 0.0f;
 }
 
 static RTCScene RtcNewScene(const pt_scene_t* scene)
@@ -591,6 +737,7 @@ pt_scene_t* pt_scene_new(void)
     FlattenDrawables(scene);
     SetupEmissives(scene);
     SetupLightGrid(scene);
+    media_desc_new(&scene->mediaDesc);
     scene->rtcScene = RtcNewScene(scene);
 
     return scene;
@@ -629,6 +776,30 @@ void pt_scene_del(pt_scene_t* scene)
 
         memset(scene, 0, sizeof(*scene));
         pim_free(scene);
+    }
+}
+
+/*
+    i32 vertCount;
+    i32 matCount;
+    i32 emissiveCount;
+    // hyperparameters
+    float3 sunDirection;
+    float sunIntensity;
+    media_desc_t mediaDesc;
+*/
+void pt_scene_gui(pt_scene_t* scene)
+{
+    if (scene && igCollapsingHeader1("pt scene"))
+    {
+        igIndent(0.0f);
+        igText("Vertex Count: %d", scene->vertCount);
+        igText("Material Count: %d", scene->matCount);
+        igText("Emissive Count: %d", scene->emissiveCount);
+        igText("Sun Direction: %f %f %f", scene->sunDirection.x, scene->sunDirection.y, scene->sunDirection.z);
+        igText("Sun Intensity: %f", scene->sunIntensity);
+        media_desc_gui(&scene->mediaDesc);
+        igUnindent(0.0f);
     }
 }
 
@@ -971,7 +1142,7 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
     return result;
 }
 
-pim_inline bool LightSelect(
+pim_inline bool VEC_CALL LightSelect(
     const pt_scene_t* scene,
     prng_t* rng,
     float4 position,
@@ -1026,85 +1197,6 @@ pim_inline float4 VEC_CALL LightRad(
     }
     return UnpackEmission(albedo, rome.w);
 }
-
-pim_inline float VEC_CALL NoiseFbm(float4 P)
-{
-    return stb_perlin_fbm_noise3(P.x, P.y, P.z, 2.03f, 0.5f, 3);
-}
-
-typedef struct media_s
-{
-    float4 albedo;
-    float scattering;
-    float extinction;
-} media_t;
-
-pim_inline media_t VEC_CALL GetParticipatingMedia(float4 P)
-{
-    float heightFog = 0.0f;
-    if (f1_distance(P.y, 0.0f) < 2.0f)
-    {
-        float heightDensity = f1_sat(1.0f - f1_distance(NoiseFbm(f4_mulvs(P, 0.666f)), P.y));
-        heightFog = 0.5f * heightDensity;
-    }
-
-    const float constantFog = 0.01f;
-    const float absorption = 0.1f;
-
-    float totalFog = constantFog + heightFog;
-    float totalExtinction = totalFog + heightFog * absorption;
-    float totalScattering = totalFog;
-
-    const float4 cColor1 = { 0.9f, 0.45f, 0.275f, 0.0f };
-    const float4 hColor1 = { 0.9f, 0.2f, 0.9f, 0.758f };
-    float t = heightFog / totalFog;
-    float4 albedo = f4_lerpvs(cColor1, hColor1, t);
-
-    media_t result;
-    result.albedo = albedo;
-    result.scattering = totalScattering;
-    result.extinction = totalExtinction;
-
-    return result;
-}
-
-pim_inline i32 VEC_CALL CalcStepCount(float rayLen)
-{
-    return i1_max(kMinSteps, (i32)(rayLen * kStepsPerMeter + 0.5f));
-}
-
-pim_inline float4 VEC_CALL CalcTransmittance(
-    const pt_scene_t* scene,
-    prng_t* rng,
-    float4 ro,
-    float4 rd,
-    float rayLen)
-{
-    float4 transmittance = f4_1;
-    const i32 kSteps = CalcStepCount(rayLen);
-    const float dt0 = rayLen / kSteps;
-    float prevt = 0.0f;
-    for (i32 i = 0; i <= kSteps; ++i)
-    {
-        float t = (i == 0) ? kMilli : ((i - 1) + prng_f32(rng)) * dt0;
-        float dt = t - prevt;
-        prevt = t;
-
-        float4 P = f4_add(ro, f4_mulvs(rd, t));
-        media_t media = GetParticipatingMedia(P);
-        float4 extinction = f4_mulvs(f4_inv(media.albedo), media.extinction * -dt);
-        transmittance = f4_mul(transmittance, f4_exp3(extinction));
-    }
-    return transmittance;
-}
-
-typedef struct lightsample_s
-{
-    float4 direction;
-    float4 irradiance;
-    float4 wuvt;
-    float pdf;
-} lightsample_t;
 
 pim_inline lightsample_t VEC_CALL LightSample(
     const pt_scene_t* scene,
@@ -1246,6 +1338,226 @@ pim_inline bool VEC_CALL EvaluateLight(
     return false;
 }
 
+static void media_desc_new(media_desc_t* desc)
+{
+    desc->constantAlbedo = f4_v(0.941f, 0.782f, 0.720f, -0.5f);
+    desc->noiseAlbedo = f4_v(0.579f, 0.628f, 0.691f, 0.758f);
+    desc->absorption = exp2f(0.0f);
+    desc->constantAmt = exp2f(-7.0f);
+    desc->noiseAmt = exp2f(1.5f);
+    desc->noiseOctaves = 2;
+    desc->noiseGain = 0.5f;
+    desc->noiseLacunarity = 2.03f;
+    desc->noiseFreq = exp2f(-1.0f);
+    desc->noiseHeight = 6.0f;
+    desc->noiseScale = exp2f(0.0f);
+    media_desc_update(desc);
+}
+
+static void media_desc_update(media_desc_t* desc)
+{
+    const i32 noiseOctaves = desc->noiseOctaves;
+    const float noiseGain = desc->noiseGain;
+    const float noiseScale = desc->noiseScale;
+
+    float range = 0.0f;
+    float amplitude = noiseScale;
+    for (i32 i = 0; i < noiseOctaves; ++i)
+    {
+        range += amplitude;
+        amplitude *= noiseGain;
+    }
+
+    desc->noiseRange = range;
+}
+
+static void media_desc_load(media_desc_t* desc, const char* name)
+{
+    if (!desc || !name)
+    {
+        return;
+    }
+    char filename[PIM_PATH];
+    SPrintf(ARGS(filename), "%s_media_desc", name);
+    fd_t fd = fd_open(filename, false);
+    if (!fd_isopen(fd))
+    {
+        con_logf(LogSev_Error, "pt", "Failed to load media desc '%s'", filename);
+        return;
+    }
+    memset(desc, 0, sizeof(*desc));
+    fd_read(fd, desc, sizeof(*desc));
+    fd_close(&fd);
+}
+
+static void media_desc_save(const media_desc_t* desc, const char* name)
+{
+    if (!desc || !name)
+    {
+        return;
+    }
+    char filename[PIM_PATH];
+    SPrintf(ARGS(filename), "%s_media_desc", name);
+    fd_t fd = fd_open(filename, true);
+    if (!fd_isopen(fd))
+    {
+        fd = fd_create(filename);
+    }
+    if (!fd_isopen(fd))
+    {
+        con_logf(LogSev_Error, "pt", "Failed to save media desc '%s'", filename);
+        return;
+    }
+    fd_write(fd, desc, sizeof(*desc));
+    fd_close(&fd);
+}
+
+static void igLog2SliderFloat(const char* label, float* pLinear, float log2Lo, float log2Hi)
+{
+    float asLog2 = log2f(*pLinear);
+    igSliderFloat(label, &asLog2, log2Lo, log2Hi);
+    *pLinear = exp2f(asLog2);
+}
+
+static char gui_mediadesc_name[PIM_PATH];
+
+static void media_desc_gui(media_desc_t* desc)
+{
+    const u32 hdrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_InputRGB;
+    const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
+
+    if (desc && igCollapsingHeader1("MediaDesc"))
+    {
+        igIndent(0.0f);
+        igInputText("Preset Name", gui_mediadesc_name, sizeof(gui_mediadesc_name), 0, NULL, NULL);
+        if (igButton("Load Preset"))
+        {
+            media_desc_load(desc, gui_mediadesc_name);
+        }
+        if (igButton("Save Preset"))
+        {
+            media_desc_save(desc, gui_mediadesc_name);
+        }
+        igColorEdit3("Constant Albedo", &desc->constantAlbedo.x, ldrPicker);
+        igSliderFloat("Constant Scatter Dir", &desc->constantAlbedo.w, -1.0f, 1.0f);
+        igColorEdit3("Noise Albedo", &desc->noiseAlbedo.x, ldrPicker);
+        igSliderFloat("Noise Scatter Dir", &desc->noiseAlbedo.w, -1.0f, 1.0f);
+        igLog2SliderFloat("Log2 Absorption", &desc->absorption, -10.0f, 10.0f);
+        igLog2SliderFloat("Log2 Constant Amount", &desc->constantAmt, -10.0f, 10.0f);
+        igLog2SliderFloat("Log2 Noise Amount", &desc->noiseAmt, -10.0f, 10.0f);
+        igSliderInt("Noise Octaves", &desc->noiseOctaves, 1, 10, "%d");
+        igSliderFloat("Noise Gain", &desc->noiseGain, 0.0f, 1.0f);
+        igSliderFloat("Noise Lacunarity", &desc->noiseLacunarity, 1.0f, 3.0f);
+        igLog2SliderFloat("Log2 Noise Frequency", &desc->noiseFreq, -10.0f, 10.0f);
+        igSliderFloat("Noise Height", &desc->noiseHeight, -20.0f, 20.0f);
+        igLog2SliderFloat("Log2 Noise Scale", &desc->noiseScale, -5.0f, 5.0f);
+        igUnindent(0.0f);
+
+        media_desc_update(desc);
+    }
+}
+
+pim_inline float2 VEC_CALL Media_Density(const media_desc_t* desc, float4 P)
+{
+    float heightFog = 0.0f;
+    if (f1_distance(P.y, desc->noiseHeight) <= desc->noiseRange)
+    {
+        float noiseFreq = desc->noiseFreq;
+        float noise = stb_perlin_fbm_noise3(
+            P.x * noiseFreq,
+            P.y * noiseFreq,
+            P.z * noiseFreq,
+            desc->noiseLacunarity,
+            desc->noiseGain,
+            desc->noiseOctaves);
+        float height = desc->noiseHeight + desc->noiseScale * noise;
+        float heightDensity = f1_sat(1.0f - f1_distance(height, P.y));
+        heightFog = desc->noiseAmt * heightDensity;
+    }
+
+    float totalFog = desc->constantAmt + heightFog;
+    float t = heightFog / totalFog;
+    return f2_v(totalFog, t);
+}
+
+pim_inline media_t VEC_CALL Media_Sample(const media_desc_t* desc, float4 P)
+{
+    float2 density = Media_Density(desc, P);
+    float totalScattering = density.x;
+    float totalExtinction = totalScattering * (1.0f + desc->absorption);
+    float4 albedo = f4_lerpvs(desc->constantAlbedo, desc->noiseAlbedo, density.y);
+
+    media_t result;
+    result.albedo = albedo;
+    result.scattering = totalScattering;
+    result.extinction = totalExtinction;
+
+    return result;
+}
+
+pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P)
+{
+    return Media_Sample(desc, P).albedo;
+}
+
+pim_inline float4 VEC_CALL Media_Normal(const media_desc_t* desc, float4 P)
+{
+    const float e = kMicro;
+    float dx =
+        Media_Density(desc, f4_add(P, f4_v(e, 0.0f, 0.0f, 0.0f))).x -
+        Media_Density(desc, f4_add(P, f4_v(-e, 0.0f, 0.0f, 0.0f))).x;
+    float dy =
+        Media_Density(desc, f4_add(P, f4_v(0.0f, e, 0.0f, 0.0f))).x -
+        Media_Density(desc, f4_add(P, f4_v(0.0f, -e, 0.0f, 0.0f))).x;
+    float dz =
+        Media_Density(desc, f4_add(P, f4_v(0.0f, 0.0f, e, 0.0f))).x -
+        Media_Density(desc, f4_add(P, f4_v(0.0f, 0.0f, -e, 0.0f))).x;
+    return f4_normalize3(f4_v(-dx, -dy, -dz, 0.0f));
+}
+
+pim_inline media_t VEC_CALL Media_Lerp(media_t lhs, media_t rhs, float t)
+{
+    media_t result;
+    result.albedo = f4_lerpvs(lhs.albedo, rhs.albedo, t);
+    result.scattering = f1_lerp(lhs.scattering, rhs.scattering, t);
+    result.extinction = f1_lerp(lhs.extinction, rhs.extinction, t);
+    return result;
+}
+
+pim_inline i32 VEC_CALL CalcStepCount(float rayLen)
+{
+    return i1_max(kMinSteps, (i32)(rayLen * kStepsPerMeter + 0.5f));
+}
+
+pim_inline float4 VEC_CALL CalcTransmittance(
+    const pt_scene_t* scene,
+    prng_t* rng,
+    float4 ro,
+    float4 rd,
+    float rayLen)
+{
+    float4 transmittance = f4_1;
+    media_t prevMedia = Media_Sample(&scene->mediaDesc, ro);
+    const i32 kSteps = CalcStepCount(rayLen);
+    const float dt0 = rayLen / kSteps;
+    float t = 0.0f;
+    while (t < rayLen)
+    {
+        float dt = prng_f32(rng) * dt0;
+        t = f1_min(t + dt, rayLen);
+
+        float4 P = f4_add(ro, f4_mulvs(rd, t));
+
+        media_t newMedia = Media_Sample(&scene->mediaDesc, P);
+        media_t media = Media_Lerp(prevMedia, newMedia, 0.5f);
+        prevMedia = newMedia;
+
+        float4 extinction = f4_mulvs(f4_inv(media.albedo), media.extinction * -dt);
+        transmittance = f4_mul(transmittance, f4_exp3(extinction));
+    }
+    return transmittance;
+}
+
 pim_inline scatter_t VEC_CALL ScatterRay(
     const pt_scene_t* scene,
     prng_t* rng,
@@ -1261,34 +1573,44 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     float4 transmittance = f4_1;
     float4 scatteredLight = f4_0;
     float pScatter = prng_f32(rng);
+    float scattering = 1.0f;
+    media_t prevMedia = Media_Sample(&scene->mediaDesc, ro);
 
     const i32 kSteps = CalcStepCount(rayLen);
     const float dt0 = rayLen / kSteps;
-    float prevt = 0.0f;
-    for (i32 i = 0; i <= kSteps; ++i)
+    float t = 0.0f;
+    while (t < rayLen)
     {
-        float t = (i == 0) ? kMilli : ((i - 1) + prng_f32(rng)) * dt0;
-        float dt = t - prevt;
-        prevt = t;
+        float dt = prng_f32(rng) * dt0;
+        t = f1_min(t + dt, rayLen);
 
         float4 P = f4_add(ro, f4_mulvs(rd, t));
-        media_t media = GetParticipatingMedia(P);
+
+        media_t newMedia = Media_Sample(&scene->mediaDesc, P);
+        media_t media = Media_Lerp(prevMedia, newMedia, 0.5f);
+        prevMedia = newMedia;
+
         float4 extinction = f4_mulvs(f4_inv(media.albedo), media.extinction * -dt);
         transmittance = f4_mul(transmittance, f4_exp3(extinction));
+        scattering *= expf(media.scattering * -dt);
 
-        if (prng_f32(rng) > expf(-media.scattering))
+        if (pScatter > scattering)
         {
-            float4 light, dir;
-            if (EvaluateLight(scene, rng, P, &light, &dir))
+            float g = media.albedo.w;
+            float4 V = f4_neg(rd);
+
+            float4 light, L;
+            if (EvaluateLight(scene, rng, P, &light, &L))
             {
-                light = f4_mulvs(light, HGPhase(f4_dot3(dir, rd), media.albedo.w) * dt);
+                light = f4_mulvs(light, MiePhase(f4_dot3(V, L), g));
                 light = f4_mul(light, transmittance);
                 scatteredLight = f4_add(scatteredLight, light);
             }
 
             result.pos = P;
             result.dir = SampleUnitSphere(f2_rand(rng));
-            result.pdf = 1.0f;
+            result.pdf = 1.0f / (4.0f * kPi);
+            transmittance = f4_mulvs(transmittance, MiePhase(f4_dot3(V, result.dir), g));
             break;
         }
     }
@@ -1329,6 +1651,12 @@ pt_result_t VEC_CALL pt_trace_ray(
             if (scatter.pdf > 0.0f)
             {
                 // scatter event occurred before reaching surface
+                if (b == 0)
+                {
+                    result.albedo = f4_f3(Media_Albedo(&scene->mediaDesc, scatter.pos));
+                    result.normal = f4_f3(Media_Normal(&scene->mediaDesc, scatter.pos));
+                }
+                attenuation = f4_divvs(attenuation, scatter.pdf);
                 ray.ro = scatter.pos;
                 ray.rd = scatter.dir;
                 goto roulette;
@@ -1369,7 +1697,7 @@ pt_result_t VEC_CALL pt_trace_ray(
 
     roulette:
         {
-            float p = f1_sat(f4_hmax3(attenuation));
+            float p = f1_clamp(f4_hmax3(attenuation), 0.0f, 0.95f);
             if (prng_f32(rng) < p)
             {
                 attenuation = f4_divvs(attenuation, p);
@@ -1384,6 +1712,13 @@ pt_result_t VEC_CALL pt_trace_ray(
     result.color = f4_f3(light);
     return result;
 }
+
+typedef struct trace_task_s
+{
+    task_t task;
+    pt_trace_t* trace;
+    camera_t camera;
+} trace_task_t;
 
 static void TraceFn(task_t* pbase, i32 begin, i32 end)
 {
@@ -1449,6 +1784,15 @@ void pt_trace(pt_trace_t* desc)
 
     ProfileEnd(pm_trace);
 }
+
+typedef struct pt_raygen_s
+{
+    task_t task;
+    const pt_scene_t* scene;
+    float4 origin;
+    float4* colors;
+    float4* directions;
+} pt_raygen_t;
 
 static void RayGenFn(task_t* pBase, i32 begin, i32 end)
 {
