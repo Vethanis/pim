@@ -925,7 +925,7 @@ static i32 CreateSphere(const char* name, float4 center, float radius, float4 al
 {
     if (!ms_spheremesh.version)
     {
-        ms_spheremesh = GenSphereMesh(32);
+        ms_spheremesh = GenSphereMesh(12);
     }
 
     i32 i = drawables_add(HashStr(name));

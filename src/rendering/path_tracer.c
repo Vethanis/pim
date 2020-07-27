@@ -1221,7 +1221,7 @@ pim_inline lightsample_t VEC_CALL LightSample(
 
     float4 N = f4_normalize3(GetVert4(scene->normals, iLight, wuv));
     float VoNl = f4_dot3(f4_neg(rd), N);
-    if (VoNl > kEpsilon)
+    if (VoNl > 0.0f)
     {
         ray_t ray = { ro, rd };
         rayhit_t hit = pt_intersect_local(scene, ray, 0.0f, 1 << 20);
@@ -1250,11 +1250,11 @@ pim_inline float VEC_CALL LightEvalPdf(
     {
         *wuvOut = hit.wuvt;
         float distance = hit.wuvt.w;
-        if (distance > kEpsilon)
+        if (distance > 0.0f)
         {
             float4 N = f4_normalize3(GetVert4(scene->normals, iLight, hit.wuvt));
             float cosTheta = f4_dot3(f4_neg(rd), N);
-            if (cosTheta > kEpsilon)
+            if (cosTheta > 0.0f)
             {
                 float area = GetArea(scene, iLight);
                 return LightPdf(area, cosTheta, distance * distance);
@@ -1275,11 +1275,11 @@ pim_inline float4 VEC_CALL EstimateDirect(
     float4 result = f4_0;
     {
         lightsample_t sample = LightSample(scene, rng, surf->P, iLight);
-        if (sample.pdf > kEpsilon)
+        if (sample.pdf > 0.0f)
         {
             float4 brdf = BrdfEval(I, surf, sample.direction);
             float brdfPdf = brdf.w;
-            if (brdf.w > kEpsilon)
+            if (brdf.w > 0.0f)
             {
                 float4 Li = f4_divvs(f4_mul(sample.irradiance, brdf), sample.pdf);
                 result = f4_add(result, Li);
@@ -1594,7 +1594,7 @@ pim_inline float4 VEC_CALL CalcTransmittance(
             float pReal = uT * rcpU;
             if (prng_f32(rng) < pReal)
             {
-                attenuation *= expf(-uT * dt);
+                attenuation *= expf(-u * dt);
             }
             t += dt;
         }
@@ -1634,7 +1634,7 @@ pim_inline scatter_t VEC_CALL ScatterRay(
         float pReal = uT * rcpU;
         if (prng_f32(rng) < pReal)
         {
-            attenuation *= expf(-uT * dt);
+            attenuation *= expf(-u * dt);
         }
 
         float uS = albedo * media.scattering;
@@ -1645,14 +1645,14 @@ pim_inline scatter_t VEC_CALL ScatterRay(
             float4 L;
             if (EvaluateLight(scene, rng, P, &rad, &L))
             {
-                float ph = HGPhase(f4_dot3(V, L), media.albedo.w);
-                irradiance = f4_get(rad, c) * ph * attenuation;
+                float ph = MiePhase(f4_dot3(V, L), media.albedo.w);
+                irradiance = f4_get(rad, c) * ph * attenuation * dt;
             }
 
             result.pos = P;
-            result.dir = TanToWorld(V, ImportanceSampleHGPhase(f2_rand(rng), media.albedo.w));
-            float ph = HGPhase(f4_dot3(V, result.dir), media.albedo.w);
-            result.pdf = ph * (1.0f / 3.0f);
+            result.dir = SampleUnitSphere(f2_rand(rng));
+            float ph = MiePhase(f4_dot3(V, result.dir), media.albedo.w);
+            result.pdf = 1.0f / (4.0f * kPi * 3.0f);
             attenuation *= ph;
             break;
         }
