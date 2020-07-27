@@ -266,7 +266,8 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     prng_t* rng,
     float4 ro,
     float4 rd,
-    float rayLen);
+    float rayLen,
+    i32 c);
 static void TraceFn(task_t* pbase, i32 begin, i32 end);
 static void RayGenFn(task_t* pBase, i32 begin, i32 end);
 
@@ -1494,12 +1495,12 @@ pim_inline media_t VEC_CALL Media_Sample(const media_desc_t* desc, float4 P)
 
 pim_inline float VEC_CALL Media_Extinction(media_t media, i32 c)
 {
-    return (1.0f - f4_get(media.albedo, c)) * media.extinction;
+    return (1.0f - 0.5f * f4_get(media.albedo, c)) * media.extinction;
 }
 
 pim_inline float VEC_CALL Media_Scattering(media_t media, i32 c)
 {
-    return (1.0f - f4_get(media.albedo, c)) * media.scattering;
+    return (0.5f + 0.5f * f4_get(media.albedo, c)) * media.scattering;
 }
 
 pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P)
@@ -1552,7 +1553,7 @@ pim_inline float VEC_CALL CalculateMajorant(const media_desc_t* desc, i32 c)
 {
     float albC = f4_get(desc->constantAlbedo, c);
     float albN = f4_get(desc->noiseAlbedo, c);
-    return (1.0f - albC) * desc->constantAmt + (1.0f - albN) * desc->noiseAmt;
+    return (1.0f - 0.5f * albC) * desc->constantAmt + (1.0f - 0.5f * albN) * desc->noiseAmt;
 }
 
 // returns the probability of a real collision in a virtual medium
@@ -1608,13 +1609,13 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     prng_t* rng,
     float4 ro,
     float4 rd,
-    float rayLen)
+    float rayLen,
+    i32 c)
 {
     scatter_t result;
     result.pdf = 0.0f;
 
     const media_desc_t* desc = &scene->mediaDesc;
-    const i32 c = SelectComponent(rng);
     const float u = CalculateMajorant(desc, c);
     const float rcpU = 1.0f / u;
     const float4 V = f4_neg(rd);
@@ -1626,35 +1627,34 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
         media_t media = Media_Sample(desc, P);
-        float albedo = f4_get(media.albedo, c);
         float dt = f1_min(SampleFreePath(prng_f32(rng), u), rayLen - t);
         t += dt;
 
-        float uT = (1.0f - albedo) * media.extinction;
+        float uT = Media_Extinction(media, c);
         float pReal = uT * rcpU;
         if (prng_f32(rng) < pReal)
         {
             attenuation *= expf(-u * dt);
-        }
 
-        float uS = albedo * media.scattering;
-        float tS = SampleFreePath(prng_f32(rng), uS);
-        if (tS < dt)
-        {
-            float4 rad;
-            float4 L;
-            if (EvaluateLight(scene, rng, P, &rad, &L))
+            float uS = Media_Scattering(media, c);
+            float tS = SampleFreePath(prng_f32(rng), uS);
+            if (tS < dt)
             {
-                float ph = MiePhase(f4_dot3(V, L), media.albedo.w);
-                irradiance = f4_get(rad, c) * ph * attenuation * dt;
-            }
+                float4 rad;
+                float4 L;
+                if (EvaluateLight(scene, rng, P, &rad, &L))
+                {
+                    float ph = MiePhase(f4_dot3(V, L), media.albedo.w);
+                    irradiance = f4_get(rad, c) * ph * attenuation * dt;
+                }
 
-            result.pos = P;
-            result.dir = SampleUnitSphere(f2_rand(rng));
-            float ph = MiePhase(f4_dot3(V, result.dir), media.albedo.w);
-            result.pdf = 1.0f / (4.0f * kPi * 3.0f);
-            attenuation *= ph;
-            break;
+                result.pos = P;
+                result.dir = SampleUnitSphere(f2_rand(rng));
+                float ph = MiePhase(f4_dot3(V, result.dir), media.albedo.w);
+                result.pdf = 1.0f / (4.0f * kPi * 3.0f);
+                attenuation *= ph;
+                break;
+            }
         }
     }
 
@@ -1673,6 +1673,7 @@ pt_result_t VEC_CALL pt_trace_ray(
 
     float4 light = f4_0;
     float4 attenuation = f4_1;
+    i32 c = SelectComponent(rng);
 
     for (i32 b = 0; b < 666; ++b)
     {
@@ -1688,7 +1689,7 @@ pt_result_t VEC_CALL pt_trace_ray(
         }
 
         {
-            scatter_t scatter = ScatterRay(scene, rng, ray.ro, ray.rd, hit.wuvt.w);
+            scatter_t scatter = ScatterRay(scene, rng, ray.ro, ray.rd, hit.wuvt.w, c);
             light = f4_add(light, f4_mul(scatter.irradiance, attenuation));
             attenuation = f4_mul(attenuation, scatter.attenuation);
             if (scatter.pdf > 0.0f)
