@@ -109,13 +109,13 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv);
 static framebuf_t ms_buffers[2];
 static i32 ms_iFrame;
 
-static TonemapId ms_tonemapper = TMap_ACES;
+static TonemapId ms_tonemapper = TMap_Hable;
 static float4 ms_toneParams;
 static float4 ms_clearColor;
 static exposure_t ms_exposure =
 {
     .manual = false,
-    .standard = true,
+    .standard = false,
 
     .aperture = 4.0f,
     .shutterTime = 1.0f / 10.0f,
@@ -535,9 +535,10 @@ void render_sys_init(void)
     pt_sys_init();
     RtcDrawInit();
 
-    ms_toneParams = Tonemap_DefParams();
-    ms_toneParams.x = 0.25f;
-    ms_toneParams.w = 0.25f;
+    ms_toneParams.x = 0.3f; // shoulder
+    ms_toneParams.y = 0.5f; // linear str
+    ms_toneParams.z = 0.1f; // linear ang
+    ms_toneParams.w = 0.3f; // toe
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
 
     con_exec("mapload start");
@@ -648,10 +649,10 @@ void render_sys_gui(bool* pEnabled)
             igComboStr_arr("Operator", (i32*)&ms_tonemapper, Tonemap_Names(), TMap_COUNT);
             if (ms_tonemapper == TMap_Hable)
             {
-                igSliderFloat("Shoulder Strength", &ms_toneParams.x, 0.0f, 1.0f);
-                igSliderFloat("Linear Strength", &ms_toneParams.y, 0.0f, 1.0f);
-                igSliderFloat("Linear Angle", &ms_toneParams.z, 0.0f, 1.0f);
-                igSliderFloat("Toe Strength", &ms_toneParams.w, 0.0f, 1.0f);
+                igSliderFloat("Shoulder Strength", &ms_toneParams.x, 0.01f, 0.99f);
+                igSliderFloat("Linear Strength", &ms_toneParams.y, 0.01f, 0.99f);
+                igSliderFloat("Linear Angle", &ms_toneParams.z, 0.01f, 0.99f);
+                igSliderFloat("Toe Strength", &ms_toneParams.w, 0.01f, 0.99f);
             }
             igUnindent(0.0f);
         }

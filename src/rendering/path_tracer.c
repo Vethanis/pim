@@ -39,11 +39,6 @@
 
 // ----------------------------------------------------------------------------
 
-#define kStepsPerMeter      2.0f
-#define kMinSteps           3
-
-// ----------------------------------------------------------------------------
-
 typedef struct surfhit_s
 {
     float4 P;
@@ -1470,8 +1465,10 @@ pim_inline float2 VEC_CALL Media_Density(const media_desc_t* desc, float4 P)
             desc->noiseLacunarity,
             desc->noiseGain,
             desc->noiseOctaves);
-        float height = desc->noiseHeight + desc->noiseScale * noise;
-        float heightDensity = f1_sat(1.0f - f1_distance(height, P.y));
+        float noiseScale = desc->noiseScale;
+        float height = desc->noiseHeight + noiseScale * noise;
+        float dist = f1_distance(P.y, height) / noiseScale;
+        float heightDensity = f1_sat(1.0f - dist);
         heightFog = desc->noiseAmt * heightDensity;
     }
 
@@ -1493,6 +1490,16 @@ pim_inline media_t VEC_CALL Media_Sample(const media_desc_t* desc, float4 P)
     result.extinction = totalExtinction;
 
     return result;
+}
+
+pim_inline float VEC_CALL Media_Extinction(media_t media, i32 c)
+{
+    return (1.0f - f4_get(media.albedo, c)) * media.extinction;
+}
+
+pim_inline float VEC_CALL Media_Scattering(media_t media, i32 c)
+{
+    return (1.0f - f4_get(media.albedo, c)) * media.scattering;
 }
 
 pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P)
@@ -1524,9 +1531,43 @@ pim_inline media_t VEC_CALL Media_Lerp(media_t lhs, media_t rhs, float t)
     return result;
 }
 
-pim_inline i32 VEC_CALL CalcStepCount(float rayLen)
+// samples a free path in a given media
+// Xi: random variable in [0, 1)
+// u: extinction coefficient, or majorant in woodcock sampling
+pim_inline float VEC_CALL SampleFreePath(float Xi, float u)
 {
-    return i1_max(kMinSteps, (i32)(rayLen * kStepsPerMeter + 0.5f));
+    return -logf(1.0f - Xi) / u;
+}
+
+// returns probability of a free path at t
+// t: ray time
+// u: extinction coefficient, or majorant in woodcock sampling
+pim_inline float VEC_CALL FreePathPdf(float t, float u)
+{
+    return u * expf(-t * u);
+}
+
+// maximum extinction coefficient of the media
+pim_inline float VEC_CALL CalculateMajorant(const media_desc_t* desc, i32 c)
+{
+    float albC = f4_get(desc->constantAlbedo, c);
+    float albN = f4_get(desc->noiseAlbedo, c);
+    return (1.0f - albC) * desc->constantAmt + (1.0f - albN) * desc->noiseAmt;
+}
+
+// returns the probability of a real collision in a virtual medium
+// u: majorant
+// uT: extinction coefficient
+pim_inline float VEC_CALL RealCollisionProb(float u, float uT)
+{
+    return uT / u;
+}
+
+// randomly selects a wavelength to trace free paths along
+// component pdf is 1/3
+pim_inline i32 VEC_CALL SelectComponent(prng_t* rng)
+{
+    return prng_i32(rng) % 3;
 }
 
 pim_inline float4 VEC_CALL CalcTransmittance(
@@ -1536,24 +1577,28 @@ pim_inline float4 VEC_CALL CalcTransmittance(
     float4 rd,
     float rayLen)
 {
+    const media_desc_t* desc = &scene->mediaDesc;
     float4 transmittance = f4_1;
-    media_t prevMedia = Media_Sample(&scene->mediaDesc, ro);
-    const i32 kSteps = CalcStepCount(rayLen);
-    const float dt0 = rayLen / kSteps;
-    float t = 0.0f;
-    while (t < rayLen)
+    for (i32 c = 0; c < 3; ++c)
     {
-        float dt = prng_f32(rng) * dt0;
-        t = f1_min(t + dt, rayLen);
-
-        float4 P = f4_add(ro, f4_mulvs(rd, t));
-
-        media_t newMedia = Media_Sample(&scene->mediaDesc, P);
-        media_t media = Media_Lerp(prevMedia, newMedia, 0.5f);
-        prevMedia = newMedia;
-
-        float4 extinction = f4_mulvs(f4_inv(media.albedo), media.extinction * -dt);
-        transmittance = f4_mul(transmittance, f4_exp3(extinction));
+        float u = CalculateMajorant(desc, c);
+        float rcpU = 1.0f / u;
+        float t = 0.0f;
+        float attenuation = 1.0f;
+        while (t < rayLen)
+        {
+            float4 P = f4_add(ro, f4_mulvs(rd, t));
+            media_t media = Media_Sample(desc, P);
+            float uT = Media_Extinction(media, c);
+            float dt = f1_min(SampleFreePath(prng_f32(rng), u), rayLen - t);
+            float pReal = uT * rcpU;
+            if (prng_f32(rng) < pReal)
+            {
+                attenuation *= expf(-uT * dt);
+            }
+            t += dt;
+        }
+        transmittance = f4_set(transmittance, c, attenuation);
     }
     return transmittance;
 }
@@ -1566,57 +1611,55 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     float rayLen)
 {
     scatter_t result;
-    result.dir = rd;
-    result.pos = f4_add(ro, f4_mulvs(rd, rayLen));
     result.pdf = 0.0f;
 
-    float4 transmittance = f4_1;
-    float4 scatteredLight = f4_0;
-    float pScatter = prng_f32(rng);
-    float scattering = 1.0f;
-    media_t prevMedia = Media_Sample(&scene->mediaDesc, ro);
+    const media_desc_t* desc = &scene->mediaDesc;
+    const i32 c = SelectComponent(rng);
+    const float u = CalculateMajorant(desc, c);
+    const float rcpU = 1.0f / u;
+    const float4 V = f4_neg(rd);
 
-    const i32 kSteps = CalcStepCount(rayLen);
-    const float dt0 = rayLen / kSteps;
     float t = 0.0f;
+    float irradiance = 0.0f;
+    float attenuation = 1.0f;
     while (t < rayLen)
     {
-        float dt = prng_f32(rng) * dt0;
-        t = f1_min(t + dt, rayLen);
-
         float4 P = f4_add(ro, f4_mulvs(rd, t));
+        media_t media = Media_Sample(desc, P);
+        float albedo = f4_get(media.albedo, c);
+        float dt = f1_min(SampleFreePath(prng_f32(rng), u), rayLen - t);
+        t += dt;
 
-        media_t newMedia = Media_Sample(&scene->mediaDesc, P);
-        media_t media = Media_Lerp(prevMedia, newMedia, 0.5f);
-        prevMedia = newMedia;
-
-        float4 extinction = f4_mulvs(f4_inv(media.albedo), media.extinction * -dt);
-        transmittance = f4_mul(transmittance, f4_exp3(extinction));
-        scattering *= expf(media.scattering * -dt);
-
-        if (pScatter > scattering)
+        float uT = (1.0f - albedo) * media.extinction;
+        float pReal = uT * rcpU;
+        if (prng_f32(rng) < pReal)
         {
-            float g = media.albedo.w;
-            float4 V = f4_neg(rd);
+            attenuation *= expf(-uT * dt);
+        }
 
-            float4 light, L;
-            if (EvaluateLight(scene, rng, P, &light, &L))
+        float uS = albedo * media.scattering;
+        float tS = SampleFreePath(prng_f32(rng), uS);
+        if (tS < dt)
+        {
+            float4 rad;
+            float4 L;
+            if (EvaluateLight(scene, rng, P, &rad, &L))
             {
-                light = f4_mulvs(light, MiePhase(f4_dot3(V, L), g));
-                light = f4_mul(light, transmittance);
-                scatteredLight = f4_add(scatteredLight, light);
+                float ph = HGPhase(f4_dot3(V, L), media.albedo.w);
+                irradiance = f4_get(rad, c) * ph * attenuation;
             }
 
             result.pos = P;
-            result.dir = SampleUnitSphere(f2_rand(rng));
-            result.pdf = 1.0f / (4.0f * kPi);
-            transmittance = f4_mulvs(transmittance, MiePhase(f4_dot3(V, result.dir), g));
+            result.dir = TanToWorld(V, ImportanceSampleHGPhase(f2_rand(rng), media.albedo.w));
+            float ph = HGPhase(f4_dot3(V, result.dir), media.albedo.w);
+            result.pdf = ph * (1.0f / 3.0f);
+            attenuation *= ph;
             break;
         }
     }
 
-    result.attenuation = transmittance;
-    result.irradiance = scatteredLight;
+    result.attenuation = f4_set(f4_0, c, attenuation);
+    result.irradiance = f4_set(f4_0, c, irradiance);
 
     return result;
 }
@@ -1654,7 +1697,7 @@ pt_result_t VEC_CALL pt_trace_ray(
                 if (b == 0)
                 {
                     result.albedo = f4_f3(Media_Albedo(&scene->mediaDesc, scatter.pos));
-                    result.normal = f4_f3(Media_Normal(&scene->mediaDesc, scatter.pos));
+                    result.normal = f4_f3(scatter.dir);
                 }
                 attenuation = f4_divvs(attenuation, scatter.pdf);
                 ray.ro = scatter.pos;
@@ -1697,7 +1740,7 @@ pt_result_t VEC_CALL pt_trace_ray(
 
     roulette:
         {
-            float p = f1_clamp(f4_hmax3(attenuation), 0.0f, 0.95f);
+            float p = f1_clamp(f4_avglum(attenuation), 0.0f, 0.95f);
             if (prng_f32(rng) < p)
             {
                 attenuation = f4_divvs(attenuation, p);

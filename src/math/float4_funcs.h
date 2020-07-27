@@ -39,6 +39,47 @@ pim_inline void VEC_CALL f4_store(float4 src, float* dst)
     dst[3] = src.w;
 }
 
+pim_inline float VEC_CALL f4_get(float4 v, i32 i)
+{
+    float y = 0.0f;
+    switch (i & 3)
+    {
+    case 0:
+        y = v.x;
+        break;
+    case 1:
+        y = v.y;
+        break;
+    case 2:
+        y = v.z;
+        break;
+    case 3:
+        y = v.w;
+        break;
+    }
+    return y;
+}
+
+pim_inline float4 VEC_CALL f4_set(float4 v, i32 i, float x)
+{
+    switch (i & 3)
+    {
+    case 0:
+        v.x = x;
+        break;
+    case 1:
+        v.y = x;
+        break;
+    case 2:
+        v.z = x;
+        break;
+    case 3:
+        v.w = x;
+        break;
+    }
+    return v;
+}
+
 pim_inline float4 VEC_CALL f4_zxy(float4 v)
 {
     float4 vec = { v.z, v.x, v.y, 0.0f };
