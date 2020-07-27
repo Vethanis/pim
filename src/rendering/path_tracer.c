@@ -1635,26 +1635,26 @@ pim_inline scatter_t VEC_CALL ScatterRay(
         if (prng_f32(rng) < pReal)
         {
             attenuation *= expf(-u * dt);
+        }
 
-            float uS = Media_Scattering(media, c);
-            float tS = SampleFreePath(prng_f32(rng), uS);
-            if (tS < dt)
+        float uS = Media_Scattering(media, c);
+        float tS = SampleFreePath(prng_f32(rng), uS);
+        if (tS < dt)
+        {
+            float4 rad;
+            float4 L;
+            if (EvaluateLight(scene, rng, P, &rad, &L))
             {
-                float4 rad;
-                float4 L;
-                if (EvaluateLight(scene, rng, P, &rad, &L))
-                {
-                    float ph = MiePhase(f4_dot3(V, L), media.albedo.w);
-                    irradiance = f4_get(rad, c) * ph * attenuation * dt;
-                }
-
-                result.pos = P;
-                result.dir = SampleUnitSphere(f2_rand(rng));
-                float ph = MiePhase(f4_dot3(V, result.dir), media.albedo.w);
-                result.pdf = 1.0f / (4.0f * kPi * 3.0f);
-                attenuation *= ph;
-                break;
+                float ph = MiePhase(f4_dot3(V, L), media.albedo.w);
+                irradiance = f4_get(rad, c) * ph * attenuation * dt;
             }
+
+            result.pos = P;
+            result.dir = SampleUnitSphere(f2_rand(rng));
+            float ph = MiePhase(f4_dot3(V, result.dir), media.albedo.w);
+            result.pdf = 1.0f / (4.0f * kPi * 3.0f);
+            attenuation *= ph;
+            break;
         }
     }
 
