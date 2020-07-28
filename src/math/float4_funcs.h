@@ -246,6 +246,18 @@ pim_inline bool4 VEC_CALL f4_ltvs(float4 lhs, float rhs)
     return vec;
 }
 
+pim_inline bool4 VEC_CALL f4_ltsv(float lhs, float4 rhs)
+{
+    bool4 vec =
+    {
+        lhs < rhs.x,
+        lhs < rhs.y,
+        lhs < rhs.z,
+        lhs < rhs.w,
+    };
+    return vec;
+}
+
 pim_inline bool4 VEC_CALL f4_gt(float4 lhs, float4 rhs)
 {
     bool4 vec =
@@ -266,6 +278,18 @@ pim_inline bool4 VEC_CALL f4_gtvs(float4 lhs, float rhs)
         lhs.y > rhs,
         lhs.z > rhs,
         lhs.w > rhs,
+    };
+    return vec;
+}
+
+pim_inline bool4 VEC_CALL f4_gtsv(float lhs, float4 rhs)
+{
+    bool4 vec =
+    {
+        lhs > rhs.x,
+        lhs > rhs.y,
+        lhs > rhs.z,
+        lhs > rhs.w,
     };
     return vec;
 }
