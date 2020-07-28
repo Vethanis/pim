@@ -1493,14 +1493,14 @@ pim_inline media_t VEC_CALL Media_Sample(const media_desc_t* desc, float4 P)
     return result;
 }
 
-pim_inline float VEC_CALL Media_Extinction(media_t media, i32 c)
+pim_inline float4 VEC_CALL Media_Extinction(media_t media)
 {
-    return (1.0f - 0.5f * f4_get(media.albedo, c)) * media.extinction;
+    return f4_mulvs(f4_lerpsv(1.0f, 0.5f, media.albedo), media.extinction);
 }
 
-pim_inline float VEC_CALL Media_Scattering(media_t media, i32 c)
+pim_inline float4 VEC_CALL Media_Scattering(media_t media)
 {
-    return (0.5f + 0.5f * f4_get(media.albedo, c)) * media.scattering;
+    return f4_mulvs(f4_lerpsv(0.5f, 1.0f, media.albedo), media.scattering);
 }
 
 pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P)
@@ -1540,6 +1540,15 @@ pim_inline float VEC_CALL SampleFreePath(float Xi, float u)
     return -logf(1.0f - Xi) / u;
 }
 
+// samples a free path in a given media
+// Xi: random variable in [0, 1)
+// u: extinction coefficient, or majorant in woodcock sampling
+pim_inline float4 VEC_CALL SampleFreePath4(float Xi, float4 u)
+{
+    float t = -logf(1.0f - Xi);
+    return f4_v(t / u.x, t / u.y, t / u.z, 0.0f);
+}
+
 // returns probability of a free path at t
 // t: ray time
 // u: extinction coefficient, or majorant in woodcock sampling
@@ -1548,12 +1557,20 @@ pim_inline float VEC_CALL FreePathPdf(float t, float u)
     return u * expf(-t * u);
 }
 
-// maximum extinction coefficient of the media
-pim_inline float VEC_CALL CalculateMajorant(const media_desc_t* desc, i32 c)
+// returns probability of a free path at t
+// t: ray time
+// u: extinction coefficient, or majorant in woodcock sampling
+pim_inline float4 VEC_CALL FreePathPdf4(float t, float4 u)
 {
-    float albC = f4_get(desc->constantAlbedo, c);
-    float albN = f4_get(desc->noiseAlbedo, c);
-    return (1.0f - 0.5f * albC) * desc->constantAmt + (1.0f - 0.5f * albN) * desc->noiseAmt;
+    return f4_mul(u, f4_exp3(f4_mulvs(u, -t)));
+}
+
+// maximum extinction coefficient of the media
+pim_inline float4 VEC_CALL CalculateMajorant(const media_desc_t* desc)
+{
+    float4 ca = f4_mulvs(f4_lerpsv(1.0f, 0.5f, desc->constantAlbedo), desc->constantAmt);
+    float4 na = f4_mulvs(f4_lerpsv(1.0f, 0.5f, desc->noiseAlbedo), desc->noiseAmt);
+    return f4_add(ca, na);
 }
 
 // returns the probability of a real collision in a virtual medium
@@ -1579,29 +1596,34 @@ pim_inline float4 VEC_CALL CalcTransmittance(
     float rayLen)
 {
     const media_desc_t* desc = &scene->mediaDesc;
-    float4 transmittance = f4_1;
-    for (i32 c = 0; c < 3; ++c)
+    float4 attenuation = f4_1;
+    float4 u = CalculateMajorant(desc);
+    float4 rcpU = f4_rcp(u);
+    float uMax = f4_hmax3(u);
+    float t = 0.0f;
+    while (t < rayLen)
     {
-        float u = CalculateMajorant(desc, c);
-        float rcpU = 1.0f / u;
-        float t = 0.0f;
-        float attenuation = 1.0f;
-        while (t < rayLen)
+        float4 P = f4_add(ro, f4_mulvs(rd, t));
+        media_t media = Media_Sample(desc, P);
+        float4 uT = Media_Extinction(media);
+        float dt = f1_min(SampleFreePath(prng_f32(rng), uMax), rayLen - t);
+        float4 pReal = f4_mul(uT, rcpU);
+        float pTakeReal = prng_f32(rng);
+        if (pTakeReal < pReal.x)
         {
-            float4 P = f4_add(ro, f4_mulvs(rd, t));
-            media_t media = Media_Sample(desc, P);
-            float uT = Media_Extinction(media, c);
-            float dt = f1_min(SampleFreePath(prng_f32(rng), u), rayLen - t);
-            float pReal = uT * rcpU;
-            if (prng_f32(rng) < pReal)
-            {
-                attenuation *= expf(-u * dt);
-            }
-            t += dt;
+            attenuation.x *= expf(-u.x * dt);
         }
-        transmittance = f4_set(transmittance, c, attenuation);
+        if (pTakeReal < pReal.y)
+        {
+            attenuation.y *= expf(-u.y * dt);
+        }
+        if (pTakeReal < pReal.z)
+        {
+            attenuation.z *= expf(-u.z * dt);
+        }
+        t += dt;
     }
-    return transmittance;
+    return attenuation;
 }
 
 pim_inline scatter_t VEC_CALL ScatterRay(
@@ -1616,28 +1638,38 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     result.pdf = 0.0f;
 
     const media_desc_t* desc = &scene->mediaDesc;
-    const float u = CalculateMajorant(desc, c);
-    const float rcpU = 1.0f / u;
+    const float4 u = CalculateMajorant(desc);
+    const float4 rcpU = f4_rcp(u);
+    const float uMax = f4_hmax3(u);
     const float4 V = f4_neg(rd);
 
     float t = 0.0f;
-    float irradiance = 0.0f;
-    float attenuation = 1.0f;
+    float4 irradiance = f4_0;
+    float4 attenuation = f4_1;
     while (t < rayLen)
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
         media_t media = Media_Sample(desc, P);
-        float dt = f1_min(SampleFreePath(prng_f32(rng), u), rayLen - t);
+        float dt = f1_min(SampleFreePath(prng_f32(rng), uMax), rayLen - t);
         t += dt;
 
-        float uT = Media_Extinction(media, c);
-        float pReal = uT * rcpU;
-        if (prng_f32(rng) < pReal)
+        float4 uT = Media_Extinction(media);
+        float4 pReal = f4_mul(uT, rcpU);
+        float pTakeReal = prng_f32(rng);
+        if (pTakeReal < pReal.x)
         {
-            attenuation *= expf(-u * dt);
+            attenuation.x *= expf(-u.x * dt);
+        }
+        if (pTakeReal < pReal.y)
+        {
+            attenuation.y *= expf(-u.y * dt);
+        }
+        if (pTakeReal < pReal.x)
+        {
+            attenuation.z *= expf(-u.z * dt);
         }
 
-        float uS = Media_Scattering(media, c);
+        float uS = f4_avglum(Media_Scattering(media));
         float tS = SampleFreePath(prng_f32(rng), uS);
         if (tS < dt)
         {
@@ -1646,20 +1678,22 @@ pim_inline scatter_t VEC_CALL ScatterRay(
             if (EvaluateLight(scene, rng, P, &rad, &L))
             {
                 float ph = MiePhase(f4_dot3(V, L), media.albedo.w);
-                irradiance = f4_get(rad, c) * ph * attenuation * dt;
+                rad = f4_mulvs(rad, ph * dt);
+                rad = f4_mul(rad, attenuation);
+                irradiance = f4_add(irradiance, rad);
             }
 
             result.pos = P;
             result.dir = SampleUnitSphere(f2_rand(rng));
             float ph = MiePhase(f4_dot3(V, result.dir), media.albedo.w);
-            result.pdf = 1.0f / (4.0f * kPi * 3.0f);
-            attenuation *= ph;
+            attenuation = f4_mulvs(attenuation, ph);
+            result.pdf = 1.0f / (4.0f * kPi);
             break;
         }
     }
 
-    result.attenuation = f4_set(f4_0, c, attenuation);
-    result.irradiance = f4_set(f4_0, c, irradiance);
+    result.attenuation = attenuation;
+    result.irradiance = irradiance;
 
     return result;
 }
