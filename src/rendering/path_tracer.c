@@ -83,6 +83,8 @@ typedef struct media_desc_s
     float noiseScale;
     float noiseHeight;
     float noiseRange;
+    float amtMie;
+    float amtRayleigh;
 } media_desc_t;
 
 typedef struct media_s
@@ -1338,17 +1340,19 @@ pim_inline bool VEC_CALL EvaluateLight(
 
 static void media_desc_new(media_desc_t* desc)
 {
-    desc->constantAlbedo = f4_v(0.941f, 0.782f, 0.720f, -0.5f);
-    desc->noiseAlbedo = f4_v(0.579f, 0.628f, 0.691f, 0.758f);
-    desc->absorption = exp2f(0.0f);
-    desc->constantAmt = exp2f(-7.0f);
+    desc->constantAlbedo = f4_v(0.5f, 0.5f, 0.5f, 0.0f);
+    desc->noiseAlbedo = f4_v(0.5f, 0.5f, 0.5f, 0.758f);
+    desc->absorption = 0.1f;
+    desc->constantAmt = exp2f(-6.0f);
     desc->noiseAmt = exp2f(1.5f);
     desc->noiseOctaves = 2;
     desc->noiseGain = 0.5f;
-    desc->noiseLacunarity = 2.03f;
-    desc->noiseFreq = exp2f(-1.0f);
-    desc->noiseHeight = 6.0f;
-    desc->noiseScale = exp2f(0.0f);
+    desc->noiseLacunarity = 2.0666f;
+    desc->noiseFreq = exp2f(-1.407f);
+    desc->noiseHeight = 0.0f;
+    desc->noiseScale = exp2f(0.901f);
+    desc->amtMie = 0.5f;
+    desc->amtRayleigh = 0.05f;
     media_desc_update(desc);
 }
 
@@ -1356,6 +1360,13 @@ static void media_desc_update(media_desc_t* desc)
 {
     desc->logConstantAlbedo = AlbedoToLogAlbedo(desc->constantAlbedo);
     desc->logNoiseAlbedo = AlbedoToLogAlbedo(desc->noiseAlbedo);
+    float totalAmt = desc->amtMie + desc->amtRayleigh;
+    if (totalAmt > 1.0f)
+    {
+        desc->amtMie /= totalAmt;
+        desc->amtRayleigh /= totalAmt;
+    }
+
     const i32 noiseOctaves = desc->noiseOctaves;
     const float noiseGain = desc->noiseGain;
     const float noiseScale = desc->noiseScale;
@@ -1438,6 +1449,8 @@ static void media_desc_gui(media_desc_t* desc)
         {
             media_desc_save(desc, gui_mediadesc_name);
         }
+        igSliderFloat("Rayleigh Amount", &desc->amtRayleigh, 0.0f, 1.0f);
+        igSliderFloat("Mie Amount", &desc->amtMie, 0.0f, 1.0f);
         igColorEdit3("Constant Albedo", &desc->constantAlbedo.x, ldrPicker);
         igSliderFloat("Constant Scatter Dir", &desc->constantAlbedo.w, -1.0f, 1.0f);
         igColorEdit3("Noise Albedo", &desc->noiseAlbedo.x, ldrPicker);
@@ -1589,6 +1602,13 @@ pim_inline float4 VEC_CALL CalculateMajorant(const media_desc_t* desc)
     return f4_add(ca, na);
 }
 
+pim_inline float VEC_CALL CalcPhase(const media_desc_t* desc, float cosTheta, float g)
+{
+    float mie = MiePhase(cosTheta, g) * desc->amtMie;
+    float ray = RayleighPhase(cosTheta) * desc->amtRayleigh;
+    return mie + ray;
+}
+
 pim_inline float4 VEC_CALL CalcTransmittance(
     const pt_scene_t* scene,
     prng_t* rng,
@@ -1634,7 +1654,6 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     const float4 rcpU = f4_rcp(u);
     const float uMax = f4_hmax3(u);
     const float rcpUmax = 1.0f / uMax;
-    const float4 V = f4_neg(rd);
 
     float t = 0.0f;
     float4 irradiance = f4_0;
@@ -1658,12 +1677,14 @@ pim_inline scatter_t VEC_CALL ScatterRay(
         if (prng_f32(rng) < pScatter)
         {
             P = f4_add(ro, f4_mulvs(rd, t));
+            float g = media.logAlbedo.w;
 
             float4 rad;
             float4 L;
             if (EvaluateLight(scene, rng, P, &rad, &L))
             {
-                float ph = MiePhase(f4_dot3(V, L), media.logAlbedo.w);
+                float cosTheta = f4_dot3(rd, L);
+                float ph = CalcPhase(desc, cosTheta, g);
                 rad = f4_mulvs(rad, ph * dt);
                 rad = f4_mul(rad, attenuation);
                 irradiance = f4_add(irradiance, rad);
@@ -1671,7 +1692,8 @@ pim_inline scatter_t VEC_CALL ScatterRay(
 
             result.pos = P;
             result.dir = SampleUnitSphere(f2_rand(rng));
-            float ph = MiePhase(f4_dot3(V, result.dir), media.logAlbedo.w);
+            float cosTheta = f4_dot3(rd, result.dir);
+            float ph = CalcPhase(desc, cosTheta, g);
             attenuation = f4_mulvs(attenuation, ph);
             result.pdf = 1.0f / (4.0f * kPi);
             break;

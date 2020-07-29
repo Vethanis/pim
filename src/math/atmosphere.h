@@ -25,7 +25,7 @@ static const atmos_t kEarthAtmosphere =
 {
     6360e3f,
     6420e3f,
-    { 33.1e-6f, 13.5e-6f, 5.8e-6f },
+    { 5.5e-6f, 13.0e-6f, 22.4e-6f },
     21e-6f,
     7994.0f,
     1200.0f,
@@ -101,10 +101,11 @@ pim_inline float3 VEC_CALL Atmosphere(
     float3 ro,
     float3 rd,
     float3 lightDir,
-    float3 lightColor)
+    float3 lightColor,
+    i32 steps)
 {
-    const i32 iSteps = 16;
-    const i32 jSteps = 8;
+    const i32 iSteps = steps;
+    const i32 jSteps = steps >> 1;
 
     const float rcpHr = 1.0f / atmos.Hr;
     const float rcpHm = 1.0f / atmos.Hm;
@@ -164,7 +165,8 @@ pim_inline float3 VEC_CALL EarthAtmosphere(
     float3 ro,
     float3 rd,
     float3 L,
-    float3 sunIntensity)
+    float3 sunIntensity,
+    i32 steps)
 {
     ro.y += kEarthAtmosphere.crustRadius;
     return Atmosphere(
@@ -172,7 +174,8 @@ pim_inline float3 VEC_CALL EarthAtmosphere(
         ro,
         rd,
         L,
-        sunIntensity);
+        sunIntensity,
+        steps);
 }
 
 PIM_C_END

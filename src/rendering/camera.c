@@ -22,6 +22,12 @@ void camera_set(const camera_t* src)
     ms_camera = *src;
 }
 
+void camera_reset(void)
+{
+    ms_camera.position = f4_0;
+    ms_camera.rotation = quat_id;
+}
+
 void camera_frustum(const camera_t* src, struct frus_s* dst)
 {
     camera_subfrustum(src, dst, f2_s(-1.0f), f2_s(1.0f));

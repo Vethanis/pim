@@ -71,8 +71,8 @@ static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
 static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "8", "lightmap texels per unit" };
 static cvar_t cv_lm_timeslice = { cvart_int, 0, "lm_timeslice", "10", "number of frames required to add 1 lighting sample to all lightmap texels" };
 
-static cvar_t cv_r_sun_az = { cvart_float, 0, "r_sun_az", "0.75", "Sun Direction Azimuth" };
-static cvar_t cv_r_sun_ze = { cvart_float, 0, "r_sun_ze", "0.666f", "Sun Direction Zenith" };
+static cvar_t cv_r_sun_az = { cvart_float, 0, "r_sun_az", "0.75", "Sun Heading" };
+static cvar_t cv_r_sun_ze = { cvart_float, 0, "r_sun_ze", "0.05", "Sun Altitude" };
 static cvar_t cv_r_sun_rad = { cvart_float, 0, "r_sun_rad", "1365", "Sun Irradiance" };
 static cvar_t cv_r_lm_denoised = { cvart_bool, 0, "r_lm_denoised", "0", "Render denoised lightmap" };
 
@@ -109,7 +109,7 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv);
 static framebuf_t ms_buffers[2];
 static i32 ms_iFrame;
 
-static TonemapId ms_tonemapper = TMap_Hable;
+static TonemapId ms_tonemapper = TMap_ACES;
 static float4 ms_toneParams;
 static float4 ms_clearColor;
 static exposure_t ms_exposure =
@@ -445,6 +445,8 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     ms_ptscene = NULL;
     lmpack_del(lmpack_get());
 
+    camera_reset();
+
     con_logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
     u32* ids = LoadModelAsDrawables(mapname);
@@ -458,7 +460,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
                 (pt_light_t)
             {
                 f4_v(0.0f, 0.0f, 0.0f, 1.0f),
-                    f4_s(30.0f),
+                f4_s(30.0f),
             });
         }
 
@@ -471,6 +473,37 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     return cmdstat_err;
 }
 
+typedef struct task_BakeSky
+{
+    task_t task;
+    Cubemap* cm;
+    float3 sunDir;
+    float3 sunRad;
+    i32 steps;
+} task_BakeSky;
+
+static void BakeSkyFn(task_t* pbase, i32 begin, i32 end)
+{
+    task_BakeSky* task = (task_BakeSky*)pbase;
+    Cubemap* pim_noalias cm = task->cm;
+    const i32 size = cm->size;
+    float3** pim_noalias faces = cm->color;
+    const float3 sunDir = task->sunDir;
+    const float3 sunRad = task->sunRad;
+    const i32 len = size * size;
+    const i32 steps = task->steps;
+
+    for (i32 iWork = begin; iWork < end; ++iWork)
+    {
+        i32 iFace = iWork / len;
+        i32 iTexel = iWork % len;
+        i32 x = iTexel % size;
+        i32 y = iTexel / size;
+        float4 rd = Cubemap_CalcDir(size, iFace, i2_v(x, y), f2_0);
+        faces[iFace][iTexel] = EarthAtmosphere(f3_0, f4_f3(rd), sunDir, sunRad, steps);
+    }
+}
+
 static void BakeSky(void)
 {
     bool dirty = false;
@@ -481,7 +514,7 @@ static void BakeSky(void)
     if (iCube == -1)
     {
         dirty = true;
-        iCube = Cubemaps_Add(kSkyName, CUBEMAP_DEFAULT_SIZE, (sphere_t) { 0 });
+        iCube = Cubemaps_Add(kSkyName, 256, (sphere_t) { 0 });
     }
 
     dirty |= cvar_check_dirty(&cv_r_sun_az);
@@ -494,24 +527,16 @@ static void BakeSky(void)
         float zenith = f1_sat(cv_r_sun_ze.asFloat);
         float3 sunRad = f3_s(cv_r_sun_rad.asFloat);
         const float4 kUp = { 0.0f, 1.0f, 0.0f, 0.0f };
-
         float3 sunDir = f4_f3(TanToWorld(kUp, SampleUnitHemisphere(f2_v(azimuth, zenith))));
+        Cubemap* cm = cubemaps->cubemaps + iCube;
+        i32 size = cm->size;
 
-        Cubemap* pim_noalias cm = cubemaps->cubemaps + iCube;
-        const i32 size = cm->size;
-        for (i32 face = 0; face < Cubeface_COUNT; ++face)
-        {
-            float3* pim_noalias image = cm->color[face];
-            for (i32 y = 0; y < size; ++y)
-            {
-                for (i32 x = 0; x < size; ++x)
-                {
-                    i32 i = x + y * size;
-                    float4 rd = Cubemap_CalcDir(size, face, i2_v(x, y), f2_0);
-                    image[i] = EarthAtmosphere(f3_0, f4_f3(rd), sunDir, sunRad);
-                }
-            }
-        }
+        task_BakeSky* task = tmp_calloc(sizeof(*task));
+        task->cm = cm;
+        task->sunDir = sunDir;
+        task->sunRad = sunRad;
+        task->steps = 128;
+        task_run(&task->task, BakeSkyFn, Cubeface_COUNT * size * size);
     }
 }
 
@@ -952,6 +977,8 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     pt_scene_del(ms_ptscene);
     ms_ptscene = NULL;
     lmpack_del(lmpack_get());
+
+    camera_reset();
 
     const float wallExtents = 5.0f;
     const float sphereRad = 0.3f;
