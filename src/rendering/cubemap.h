@@ -233,7 +233,7 @@ pim_inline float4 VEC_CALL Cubemap_CalcDir(
 
 void Cubemap_Bake(
     Cubemap* cm,
-    const pt_scene_t* scene,
+    pt_scene_t* scene,
     float4 origin,
     float weight);
 

@@ -428,8 +428,5 @@ static void ExecCmd(const char* cmd)
     pim_free(ms_history[slot]);
     ms_history[slot] = StrDup(cmd, EAlloc_Perm);
 
-    cbuf_t buf;
-    cbuf_new(&buf, EAlloc_Perm);
-    cbuf_pushback(&buf, cmd);
-    cbuf_exec(&buf);
+    cmd_text(cmd);
 }

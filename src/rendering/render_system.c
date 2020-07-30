@@ -103,6 +103,10 @@ static void RegCVars(void)
 
 static meshid_t GenSphereMesh(i32 steps);
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv);
+static cmdstat_t CmdTeleport(i32 argc, const char** argv);
+static cmdstat_t CmdLookat(i32 argc, const char** argv);
+static cmdstat_t CmdPtTest(i32 argc, const char** argv);
+static cmdstat_t CmdPtStdDev(i32 argc, const char** argv);
 
 // ----------------------------------------------------------------------------
 
@@ -173,6 +177,44 @@ static void LightmapRepack(void)
     lmpack_del(lmpack_get());
     lmpack_t pack = lmpack_pack(ms_ptscene, 1024, cv_lm_density.asFloat, 0.1f, 15.0f);
     *lmpack_get() = pack;
+}
+
+static float CalcStdDev(const float3* pim_noalias color, int2 size)
+{
+    const i32 len = size.x * size.y;
+    const float meanWeight = 1.0f / len;
+    const float varianceWeight = 1.0f / (len - 1);
+    float mean = 0.0f;
+    for (i32 i = 0; i < len; ++i)
+    {
+        float lum = f4_perlum(f3_f4(color[i], 0.0f));
+        mean += lum * meanWeight;
+    }
+    float variance = 0.0f;
+    for (i32 i = 0; i < len; ++i)
+    {
+        float lum = f4_perlum(f3_f4(color[i], 0.0f));
+        float err = lum - mean;
+        variance += varianceWeight * (err * err);
+    }
+    float stddev = sqrtf(variance);
+    return stddev;
+}
+
+static cmdstat_t CmdPtStdDev(i32 argc, const char** argv)
+{
+    const float3* color = ms_trace.color;
+    int2 size = ms_trace.imageSize;
+    if (color)
+    {
+        float stddev = CalcStdDev(color, size);
+        con_logf(LogSev_Info, "pt", "StdDev: %f", stddev);
+        char cmd[PIM_PATH] = { 0 };
+        SPrintf(ARGS(cmd), "screenshot pt_stddev_%f.png", stddev);
+        con_exec(cmd);
+        return cmdstat_ok;
+    }
+    return cmdstat_err;
 }
 
 ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
@@ -344,6 +386,12 @@ static void Rasterize(void)
     ProfileEnd(pm_Rasterize);
 }
 
+static cmdstat_t CmdQuit(i32 argc, const char** argv)
+{
+    window_close(true);
+    return cmdstat_ok;
+}
+
 static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
 {
     char filename[PIM_PATH] = { 0 };
@@ -460,7 +508,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
                 (pt_light_t)
             {
                 f4_v(0.0f, 0.0f, 0.0f, 1.0f),
-                f4_s(30.0f),
+                    f4_s(30.0f),
             });
         }
 
@@ -514,7 +562,7 @@ static void BakeSky(void)
     if (iCube == -1)
     {
         dirty = true;
-        iCube = Cubemaps_Add(kSkyName, 256, (sphere_t) { 0 });
+        iCube = Cubemaps_Add(kSkyName, 64, (sphere_t) { 0 });
     }
 
     dirty |= cvar_check_dirty(&cv_r_sun_az);
@@ -535,7 +583,7 @@ static void BakeSky(void)
         task->cm = cm;
         task->sunDir = sunDir;
         task->sunRad = sunRad;
-        task->steps = 128;
+        task->steps = 64;
         task_run(&task->task, BakeSkyFn, Cubeface_COUNT * size * size);
     }
 }
@@ -548,6 +596,11 @@ void render_sys_init(void)
     cmd_reg("screenshot", CmdScreenshot);
     cmd_reg("mapload", CmdLoadMap);
     cmd_reg("cornell_box", CmdCornellBox);
+    cmd_reg("teleport", CmdTeleport);
+    cmd_reg("lookat", CmdLookat);
+    cmd_reg("quit", CmdQuit);
+    cmd_reg("pt_test", CmdPtTest);
+    cmd_reg("pt_stddev", CmdPtStdDev);
 
     vkr_init();
 
@@ -567,28 +620,6 @@ void render_sys_init(void)
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
 
     con_exec("mapload start");
-
-    //const i32 len = 1 << 10;
-    //float* xs = tmp_malloc(sizeof(xs[0]) * len);
-    //float* ys = tmp_malloc(sizeof(ys[0]) * len);
-    //for (i32 i = 0; i < len; ++i)
-    //{
-    //    float x = (i + 0.0f) / len;
-    //    float y = LinearTosRGB(x);
-    //    xs[i] = x;
-    //    ys[i] = y;
-    //}
-    //dataset_t dataset = { 0 };
-    //dataset.len = len;
-    //dataset.xs = xs;
-    //dataset.ys = ys;
-    //fit_t fit;
-    //float error = SqrticFit(dataset, &fit, len << 8);
-    //con_logf(LogSev_Info, "fit", "Error: %f", error);
-    //for (i32 i = 0; i < NELEM(fit.value); ++i)
-    //{
-    //    con_logf(LogSev_Info, "fit", "fit[%d] = %f", i, fit.value[i]);
-    //}
 }
 
 ProfileMark(pm_update, render_sys_update)
@@ -739,7 +770,6 @@ static meshid_t GenSphereMesh(i32 steps)
     meshid_t id = { 0 };
     if (mesh_find(name, &id))
     {
-        mesh_retain(id);
         return id;
     }
 
@@ -881,7 +911,6 @@ static meshid_t GenQuadMesh(void)
     meshid_t id = { 0 };
     if (mesh_find(name, &id))
     {
-        mesh_retain(id);
         return id;
     }
 
@@ -922,10 +951,11 @@ static meshid_t GenQuadMesh(void)
 static meshid_t ms_quadmesh;
 static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up, float scale, float4 albedo, float4 rome)
 {
-    if (!ms_quadmesh.version)
+    if (!mesh_exists(ms_quadmesh))
     {
         ms_quadmesh = GenQuadMesh();
     }
+    mesh_retain(ms_quadmesh);
 
     i32 i = drawables_add(HashStr(name));
     drawables_t* drawables = drawables_get();
@@ -948,10 +978,11 @@ static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up
 static meshid_t ms_spheremesh;
 static i32 CreateSphere(const char* name, float4 center, float radius, float4 albedo, float4 rome)
 {
-    if (!ms_spheremesh.version)
+    if (!mesh_exists(ms_spheremesh))
     {
         ms_spheremesh = GenSphereMesh(12);
     }
+    mesh_retain(ms_spheremesh);
 
     i32 i = drawables_add(HashStr(name));
     drawables_t* drawables = drawables_get();
@@ -979,6 +1010,16 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     lmpack_del(lmpack_get());
 
     camera_reset();
+
+    if (lights_pt_count() == 0)
+    {
+        lights_add_pt(
+            (pt_light_t)
+        {
+            f4_v(0.0f, 0.0f, 0.0f, 1.0f),
+                f4_s(30.0f),
+        });
+    }
 
     const float wallExtents = 5.0f;
     const float sphereRad = 0.3f;
@@ -1070,5 +1111,58 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 
     drawables_trs();
 
+    return cmdstat_ok;
+}
+
+static cmdstat_t CmdTeleport(i32 argc, const char** argv)
+{
+    if (argc < 4)
+    {
+        con_logf(LogSev_Error, "cmd", "usage: teleport x y z");
+        return cmdstat_err;
+    }
+    float x = (float)atof(argv[1]);
+    float y = (float)atof(argv[2]);
+    float z = (float)atof(argv[3]);
+    camera_t cam;
+    camera_get(&cam);
+    cam.position.x = x;
+    cam.position.y = y;
+    cam.position.z = z;
+    camera_set(&cam);
+    return cmdstat_ok;
+}
+
+static cmdstat_t CmdLookat(i32 argc, const char** argv)
+{
+    if (argc < 4)
+    {
+        con_logf(LogSev_Error, "cmd", "usage: lookat x y z");
+        return cmdstat_err;
+    }
+    float x = (float)atof(argv[1]);
+    float y = (float)atof(argv[2]);
+    float z = (float)atof(argv[3]);
+    camera_t cam;
+    camera_get(&cam);
+    float4 ro = cam.position;
+    float4 at = { x, y, z };
+    float4 rd = f4_normalize3(f4_sub(at, ro));
+    const float4 up = { 0.0f, 1.0f, 0.0f, 0.0f };
+    quat rot = quat_lookat(rd, up);
+    cam.rotation = rot;
+    camera_set(&cam);
+    return cmdstat_ok;
+}
+
+static cmdstat_t CmdPtTest(i32 argc, const char** argv)
+{
+    con_exec("cornell_box");
+    con_exec("teleport -4 4 -4");
+    con_exec("lookat 0 2 0");
+    con_exec("pt_trace 1");
+    con_exec("wait 500");
+    con_exec("pt_stddev");
+    con_exec("quit");
     return cmdstat_ok;
 }

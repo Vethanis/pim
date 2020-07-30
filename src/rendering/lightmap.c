@@ -1374,14 +1374,16 @@ void lmpack_del(lmpack_t* pack)
 typedef struct bake_s
 {
     task_t task;
-    const pt_scene_t* scene;
+    pt_scene_t* scene;
     float timeSlice;
 } bake_t;
 
 static void BakeFn(task_t* pbase, i32 begin, i32 end)
 {
+    const i32 tid = task_thread_id();
+
     bake_t* task = (bake_t*)pbase;
-    const pt_scene_t* scene = task->scene;
+    pt_scene_t* scene = task->scene;
     const float timeSlice = task->timeSlice;
 
     lmpack_t* pack = lmpack_get();
@@ -1390,7 +1392,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
     const float rcpSize = 1.0f / lmSize;
     const int2 size = { lmSize, lmSize };
 
-    prng_t rng = prng_get();
+    pt_sampler_t sampler = pt_sampler_get();
     for (i32 iWork = begin; iWork < end; ++iWork)
     {
         i32 iLightmap = iWork / lmLen;
@@ -1405,7 +1407,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
 
         float weight = 1.0f / sampleCount;
         float prob = f1_lerp(timeSlice, timeSlice * 2.0f, weight);
-        if (prng_f32(&rng) >= prob)
+        if (pt_sample_1d(&sampler) >= prob)
         {
             continue;
         }
@@ -1417,12 +1419,12 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
         float4 N = f4_normalize3(f3_f4(N3, 0.0f));
         P = f4_add(P, f4_mulvs(N, kMilli));
 
-        float4 Lts = SampleCosineHemisphere(f2_rand(&rng));
+        float4 Lts = SampleCosineHemisphere(pt_sample_2d(&sampler));
         float4 Lws = TanToWorld(N, Lts);
         float NoL = f4_dotsat(N, Lws);
 
         ray_t ray = { P, Lws };
-        pt_result_t result = pt_trace_ray(&rng, scene, ray);
+        pt_result_t result = pt_trace_ray(&sampler, scene, ray);
         result.color = f3_mulvs(result.color, NoL);
 
         const i32 iProbe = iTexel * kGiDirections;
@@ -1432,11 +1434,11 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
         lightmap.color[iTexel] = f3_lerp(lightmap.color[iTexel], result.color, weight);
         lightmap.sampleCounts[iTexel] = sampleCount + 1.0f;
     }
-    prng_set(rng);
+    pt_sampler_set(sampler);
 }
 
 ProfileMark(pm_Bake, lmpack_bake)
-void lmpack_bake(const pt_scene_t* scene, float timeSlice)
+void lmpack_bake(pt_scene_t* scene, float timeSlice)
 {
     ProfileBegin(pm_Bake);
     ASSERT(scene);

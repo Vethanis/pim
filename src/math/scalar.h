@@ -16,6 +16,7 @@ PIM_C_BEGIN
 #define kEpsilon            (1.0f / (1<<22))
 #define kGoldenRatio        1.618034f
 #define kGoldenConj         0.618034f
+#define kSqrtTwo            1.414213f
 
 // SI units
 #define kKilo               1000.0f

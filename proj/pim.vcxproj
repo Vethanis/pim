@@ -91,7 +91,7 @@
     <ClCompile Include="..\src\sokol\sokol_time.c" />
     <ClCompile Include="..\src\stb\stb_image.c" />
     <ClCompile Include="..\src\stb\stb_image_write.c" />
-    <ClCompile Include="..\src\stb\stb_perlin.c" />
+    <ClCompile Include="..\src\stb\stb_perlin_fork.c" />
     <ClCompile Include="..\src\threading\event.c" />
     <ClCompile Include="..\src\threading\intrin.c" />
     <ClCompile Include="..\src\threading\mutex.c" />
@@ -237,6 +237,7 @@
     <ClInclude Include="..\src\rendering\r_window.h" />
     <ClInclude Include="..\src\sokol\sokol_audio.h" />
     <ClInclude Include="..\src\sokol\sokol_time.h" />
+    <ClInclude Include="..\src\stb\stb_perlin_fork.h" />
     <ClInclude Include="..\src\threading\event.h" />
     <ClInclude Include="..\src\threading\intrin.h" />
     <ClInclude Include="..\src\threading\mutex.h" />

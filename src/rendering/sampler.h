@@ -74,7 +74,7 @@ pim_inline i32 VEC_CALL CalcTileMip(int2 tileSize)
 
 pim_inline float2 VEC_CALL UvToCoordf(int2 size, float2 uv)
 {
-    return f2_addvs(f2_mul(uv, i2_f2(size)), 0.5f);
+    return f2_addvs(f2_mul(uv, i2_f2(size)), -0.5f);
 }
 pim_inline int2 VEC_CALL UvToCoord(int2 size, float2 uv)
 {

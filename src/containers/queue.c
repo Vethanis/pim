@@ -86,6 +86,32 @@ void queue_push(queue_t* q, const void* src, u32 itemSize)
     memcpy(dst + iWrite * stride, src, stride);
 }
 
+void queue_pushfront(queue_t* q, const void* src, u32 itemSize)
+{
+    ASSERT(q);
+    ASSERT(src);
+    const u32 stride = q->stride;
+    ASSERT(itemSize == stride);
+
+    queue_reserve(q, queue_size(q) + 1);
+    q->iWrite++;
+
+    const u32 mask = q->width - 1;
+    const u32 len = queue_size(q);
+    const u32 iRead = q->iRead;
+    u8* ptr = q->ptr;
+
+    for (u32 i = 1; i < len; ++i)
+    {
+        u32 iSrc = (iRead + i - 1) & mask;
+        u32 iDst = (iRead + i) & mask;
+        memcpy(ptr + iDst * stride, ptr + iSrc * stride, stride);
+    }
+
+    u32 iDst = iRead & mask;
+    memcpy(ptr + iDst * stride, src, stride);
+}
+
 bool queue_trypop(queue_t* q, void* dst, u32 itemSize)
 {
     ASSERT(q);

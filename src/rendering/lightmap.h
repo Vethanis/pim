@@ -49,7 +49,7 @@ lmpack_t lmpack_pack(
     float degThresh);
 void lmpack_del(lmpack_t* pack);
 
-void lmpack_bake(const pt_scene_t* scene, float timeSlice);
+void lmpack_bake(pt_scene_t* scene, float timeSlice);
 
 void lmpack_denoise(void);
 

@@ -11,6 +11,13 @@ typedef struct camera_s camera_t;
 
 typedef struct pt_scene_s pt_scene_t;
 
+typedef struct pt_sampler_s
+{
+    prng_t rng;
+    float2 f2;
+    float f1;
+} pt_sampler_t;
+
 typedef enum
 {
     hit_nothing = 0,
@@ -57,6 +64,11 @@ void pt_sys_init(void);
 void pt_sys_update(void);
 void pt_sys_shutdown(void);
 
+pt_sampler_t VEC_CALL pt_sampler_get(void);
+void VEC_CALL pt_sampler_set(pt_sampler_t sampler);
+float2 VEC_CALL pt_sample_2d(pt_sampler_t* sampler);
+float VEC_CALL pt_sample_1d(pt_sampler_t* sampler);
+
 pt_scene_t* pt_scene_new(void);
 void pt_scene_del(pt_scene_t* scene);
 void pt_scene_gui(pt_scene_t* scene);
@@ -64,7 +76,7 @@ void pt_scene_gui(pt_scene_t* scene);
 rayhit_t VEC_CALL pt_intersect(const pt_scene_t* scene, ray_t ray, float tNear, float tFar);
 
 pt_result_t VEC_CALL pt_trace_ray(
-    prng_t* rng,
+    pt_sampler_t* sampler,
     const pt_scene_t* scene,
     ray_t ray);
 

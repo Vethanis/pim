@@ -93,7 +93,7 @@ typedef struct cmbake_s
 {
     task_t;
     Cubemap* cm;
-    const pt_scene_t* scene;
+    pt_scene_t* scene;
     float4 origin;
     float weight;
 } cmbake_t;
@@ -101,34 +101,37 @@ typedef struct cmbake_s
 pim_optimize
 static void BakeFn(task_t* pBase, i32 begin, i32 end)
 {
+    const i32 tid = task_thread_id();
+
     cmbake_t* task = (cmbake_t*)pBase;
 
     Cubemap* cm = task->cm;
-    const pt_scene_t* scene = task->scene;
+    pt_scene_t* scene = task->scene;
     const float4 origin = task->origin;
     const float weight = task->weight;
 
     const i32 size = cm->size;
     const i32 flen = size * size;
 
-    prng_t rng = prng_get();
+    pt_sampler_t sampler = pt_sampler_get();
     for (i32 i = begin; i < end; ++i)
     {
         i32 face = i / flen;
         i32 fi = i % flen;
         int2 coord = { fi % size, fi / size };
-        float4 dir = Cubemap_CalcDir(size, face, coord, f2_tent(f2_rand(&rng)));
+        float2 Xi = f2_tent(pt_sample_2d(&sampler));
+        float4 dir = Cubemap_CalcDir(size, face, coord, Xi);
         ray_t ray = { origin, dir };
-        pt_result_t result = pt_trace_ray(&rng, scene, ray);
+        pt_result_t result = pt_trace_ray(&sampler, scene, ray);
         cm->color[face][fi] = f3_lerp(cm->color[face][fi], result.color, weight);
     }
-    prng_set(rng);
+    pt_sampler_set(sampler);
 }
 
 ProfileMark(pm_Bake, Cubemap_Bake)
 void Cubemap_Bake(
     Cubemap* cm,
-    const pt_scene_t* scene,
+    pt_scene_t* scene,
     float4 origin,
     float weight)
 {

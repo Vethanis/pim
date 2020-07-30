@@ -43,6 +43,10 @@ pim_inline float VEC_CALL box_area(box_t box)
 
 pim_inline box_t VEC_CALL box_from_pts(const float4* pim_noalias pts, i32 length)
 {
+    if (length == 0)
+    {
+        return box_new(f4_0, f4_0);
+    }
     float4 lo = f4_s(1 << 20);
     float4 hi = f4_s(-(1 << 20));
     for (i32 i = 0; i < length; ++i)

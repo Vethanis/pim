@@ -9,6 +9,7 @@
 #include "common/profiler.h"
 #include "common/console.h"
 #include <string.h>
+#include <stdlib.h>
 
 // ----------------------------------------------------------------------------
 
@@ -17,14 +18,9 @@ typedef struct cmdalias_s
     char* value;
 } cmdalias_t;
 
-typedef struct cmdbrain_s
-{
-    cbuf_t cbuf;
-    i32 yieldframe;
-} cmdbrain_t;
-
 // ----------------------------------------------------------------------------
 
+static void ExecCmds(void);
 static bool IsSpecialChar(char c);
 static char** cmd_tokenize(const char* text, i32* argcOut);
 static const char* cmd_parse(const char* text, char** tokenOut);
@@ -36,7 +32,8 @@ static cmdstat_t cmd_wait_fn(i32 argc, const char** argv);
 
 static sdict_t ms_cmds;
 static sdict_t ms_aliases;
-static queue_t ms_cmdqueue;
+static queue_t ms_queue;
+static i32 ms_waits;
 
 // ----------------------------------------------------------------------------
 
@@ -44,187 +41,32 @@ void cmd_sys_init(void)
 {
     sdict_new(&ms_cmds, sizeof(cmdfn_t), EAlloc_Perm);
     sdict_new(&ms_aliases, sizeof(cmdalias_t), EAlloc_Perm);
-    queue_create(&ms_cmdqueue, sizeof(cmdbrain_t), EAlloc_Perm);
+    queue_create(&ms_queue, sizeof(char*), EAlloc_Perm);
     cmd_reg("alias", cmd_alias_fn);
     cmd_reg("exec", cmd_execfile_fn);
     cmd_reg("wait", cmd_wait_fn);
 }
 
-ProfileMark(pm_update, cmd_sys_update)
 void cmd_sys_update(void)
 {
-    ProfileBegin(pm_update);
-
-    const i32 curFrame = time_framecount();
-
-    cmdbrain_t brain;
-    while (queue_trypop(&ms_cmdqueue, &brain, sizeof(brain)))
+    if (ms_waits > 0)
     {
-        if (brain.yieldframe == curFrame)
-        {
-            queue_push(&ms_cmdqueue, &brain, sizeof(brain));
-            break;
-        }
-        else
-        {
-            brain.yieldframe = curFrame;
-            cbuf_exec(&brain.cbuf);
-        }
+        --ms_waits;
     }
 
-    ProfileEnd(pm_update);
+    ExecCmds();
 }
 
 void cmd_sys_shutdown(void)
 {
     sdict_del(&ms_cmds);
     sdict_del(&ms_aliases);
-    cmdbrain_t brain;
-    while (queue_trypop(&ms_cmdqueue, &brain, sizeof(brain)))
+    char* line = NULL;
+    while (queue_trypop(&ms_queue, &line, sizeof(line)))
     {
-        cbuf_del(&brain.cbuf);
+        pim_free(line);
     }
-    queue_destroy(&ms_cmdqueue);
-}
-
-void cbuf_new(cbuf_t* buf, EAlloc allocator)
-{
-    ASSERT(buf);
-    buf->ptr = NULL;
-    buf->length = 0;
-    buf->allocator = allocator;
-}
-
-void cbuf_del(cbuf_t* buf)
-{
-    ASSERT(buf);
-    pim_free(buf->ptr);
-    buf->ptr = NULL;
-    buf->length = 0;
-}
-
-void cbuf_clear(cbuf_t* buf)
-{
-    ASSERT(buf);
-    buf->length = 0;
-    char* ptr = buf->ptr;
-    if (ptr)
-    {
-        ptr[0] = 0;
-    }
-}
-
-void cbuf_reserve(cbuf_t* buf, i32 size)
-{
-    ASSERT(buf);
-    ASSERT(size >= 0);
-    if (size > buf->length)
-    {
-        buf->ptr = pim_realloc(buf->allocator, buf->ptr, size + 1);
-    }
-}
-
-void cbuf_pushfront(cbuf_t* buf, const char* text)
-{
-    ASSERT(buf);
-    ASSERT(text);
-
-    const i32 textLen = StrLen(text);
-    const i32 bufLen = buf->length;
-    const i32 newLen = bufLen + textLen;
-    cbuf_reserve(buf, newLen);
-    char* ptr = buf->ptr;
-    memmove(ptr + bufLen, ptr, bufLen);
-    memcpy(ptr, text, textLen);
-    ptr[newLen] = 0;
-    buf->length = newLen;
-}
-
-void cbuf_pushback(cbuf_t* buf, const char* text)
-{
-    ASSERT(buf);
-    ASSERT(text);
-
-    const i32 textLen = StrLen(text);
-    const i32 bufLen = buf->length;
-    const i32 newLen = bufLen + textLen;
-    cbuf_reserve(buf, newLen);
-    char* ptr = buf->ptr;
-    memcpy(ptr + bufLen, text, textLen);
-    ptr[newLen] = 0;
-    buf->length = newLen;
-}
-
-cmdstat_t cbuf_exec(cbuf_t* buf)
-{
-    cmdstat_t status = cmdstat_ok;
-    ASSERT(buf);
-
-    while (buf->length > 0)
-    {
-        char* text = buf->ptr;
-        i32 i = 0;
-        i32 q = 0;
-
-        const i32 len = buf->length;
-        for (; i < len; ++i)
-        {
-            char c = text[i];
-            if (c == '"')
-            {
-                ++q;
-            }
-            else if (!(q & 1) && (c == ';'))
-            {
-                break;
-            }
-            else if (c == '\n')
-            {
-                break;
-            }
-        }
-
-        char line[1024] = { 0 };
-        ASSERT(i < NELEM(line));
-        memcpy(line, text, i);
-        line[i] = 0;
-
-        if (i == len)
-        {
-            cbuf_clear(buf);
-        }
-        else
-        {
-            ++i; // consume line ending
-            buf->length -= i;
-            memmove(text, text + i, buf->length);
-            text[buf->length] = 0;
-        }
-
-        status = cmd_exec(buf, line, cmdsrc_buffer);
-        if (status == cmdstat_err)
-        {
-            con_printf(C32_RED, "Error executing line: %s", line);
-        }
-        if (status != cmdstat_ok)
-        {
-            break;
-        }
-    }
-
-    if (status == cmdstat_yield)
-    {
-        cmdbrain_t brain = { 0 };
-        brain.cbuf = *buf;
-        brain.yieldframe = time_framecount();
-        queue_push(&ms_cmdqueue, &brain, sizeof(brain));
-    }
-    else
-    {
-        cbuf_del(buf);
-    }
-
-    return status;
+    queue_destroy(&ms_queue);
 }
 
 void cmd_reg(const char* name, cmdfn_t fn)
@@ -260,9 +102,8 @@ const char* cmd_complete(const char* namePart)
     return NULL;
 }
 
-cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
+cmdstat_t cmd_exec(const char* line)
 {
-    ASSERT(buf);
     ASSERT(line);
 
     i32 argc = 0;
@@ -288,7 +129,8 @@ cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
     cmdalias_t alias = { 0 };
     if (sdict_get(&ms_aliases, name, &alias))
     {
-        cbuf_pushfront(buf, alias.value);
+        char* toPush = StrDup(alias.value, EAlloc_Perm);
+        queue_pushfront(&ms_queue, &toPush, sizeof(toPush));
         return cmdstat_ok;
     }
 
@@ -313,7 +155,70 @@ cmdstat_t cmd_exec(cbuf_t* buf, const char* line, cmdsrc_t src)
     return cmdstat_err;
 }
 
+void cmd_text(const char* text)
+{
+    if (!text)
+    {
+        return;
+    }
+
+    i32 i = 0;
+    i32 q = 0;
+
+parseline:
+    while (text[i])
+    {
+        char c = text[i];
+        ++i;
+        if (c == '"')
+        {
+            ++q;
+        }
+        else if (!(q & 1) && (c == '\n'))
+        {
+            break;
+        }
+        else if (c == ';')
+        {
+            break;
+        }
+    }
+
+    i32 len = i;
+    if (len > 0)
+    {
+        char* line = perm_malloc(len + 1);
+        memcpy(line, text, len);
+        line[len] = 0;
+        queue_push(&ms_queue, &line, sizeof(line));
+
+        i = 0;
+        q = 0;
+        text += len;
+        goto parseline;
+    }
+
+    ExecCmds();
+}
+
 // ----------------------------------------------------------------------------
+
+static void ExecCmds(void)
+{
+    if (!ms_waits)
+    {
+        char* line = NULL;
+        while (queue_trypop(&ms_queue, &line, sizeof(line)))
+        {
+            cmd_exec(line);
+            pim_free(line);
+            if (ms_waits)
+            {
+                break;
+            }
+        }
+    }
+}
 
 static bool IsSpecialChar(char c)
 {
@@ -498,20 +403,32 @@ static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv)
     asset_t asset;
     if (asset_get(filename, &asset))
     {
-        cbuf_t cbuf;
-        cbuf_new(&cbuf, EAlloc_Perm);
-        cbuf_pushback(&cbuf, asset.pData);
-        return cbuf_exec(&cbuf);
+        const char* text = asset.pData;
+        cmd_text(text);
+        return cmdstat_ok;
     }
     return cmdstat_err;
 }
 
 static cmdstat_t cmd_wait_fn(i32 argc, const char** argv)
 {
-    if (argc != 1)
+    if (argc > 1)
     {
-        con_puts(C32_RED, "wait : yields execution for one frame");
-        return cmdstat_err;
+        i32 count = atoi(argv[1]);
+        if (count > 0)
+        {
+            ms_waits += count;
+            return cmdstat_ok;
+        }
+        else
+        {
+            con_puts(C32_RED, "unidentified wait count");
+            return cmdstat_err;
+        }
     }
-    return cmdstat_yield;
+    else
+    {
+        ++ms_waits;
+        return cmdstat_ok;
+    }
 }
