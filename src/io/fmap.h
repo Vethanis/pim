@@ -10,14 +10,18 @@ typedef struct fmap_s
 {
     void* ptr;
     i32 size;
+    fd_t fd;
 } fmap_t;
 
-static i32 fmap_isopen(fmap_t fmap) { return fmap.ptr != NULL; }
+static bool fmap_isopen(fmap_t fmap) { return fmap.ptr != NULL; }
 
-i32 fmap_errno(void);
+// memory maps the file descriptor
+bool fmap_create(fmap_t* fmap, fd_t fd, bool writable);
 
-void fmap_create(fmap_t* fmap, fd_t fd, i32 writable);
+// does not close file descriptor
 void fmap_destroy(fmap_t* map);
-void fmap_flush(fmap_t map);
+
+// writes changes in mapped memory back to source
+bool fmap_flush(fmap_t map);
 
 PIM_C_END

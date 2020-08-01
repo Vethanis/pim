@@ -463,6 +463,9 @@
     <ClCompile Include="..\src\stb\stb_perlin_fork.c">
       <Filter>Source Files\stb</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\common\serialize.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -992,6 +995,9 @@
     </ClInclude>
     <ClInclude Include="..\src\stb\stb_perlin_fork.h">
       <Filter>Source Files\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\serialize.h">
+      <Filter>Source Files\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

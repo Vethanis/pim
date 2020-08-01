@@ -25,6 +25,7 @@
     <ClCompile Include="..\src\common\library.c" />
     <ClCompile Include="..\src\common\profiler.c" />
     <ClCompile Include="..\src\common\random.c" />
+    <ClCompile Include="..\src\common\serialize.c" />
     <ClCompile Include="..\src\common\sort.c" />
     <ClCompile Include="..\src\common\stringutil.c" />
     <ClCompile Include="..\src\common\time.c" />
@@ -149,6 +150,7 @@
     <ClInclude Include="..\src\common\fnv1a.h" />
     <ClInclude Include="..\src\common\macro.h" />
     <ClInclude Include="..\src\common\random.h" />
+    <ClInclude Include="..\src\common\serialize.h" />
     <ClInclude Include="..\src\common\sort.h" />
     <ClInclude Include="..\src\common\stringutil.h" />
     <ClInclude Include="..\src\common\time.h" />

@@ -30,9 +30,9 @@
 #include "common/profiler.h"
 #include "common/console.h"
 #include "common/cvar.h"
-#include "ui/cimgui.h"
-#include "io/fd.h"
 #include "common/stringutil.h"
+#include "common/serialize.h"
+#include "ui/cimgui.h"
 
 #include "stb/stb_perlin_fork.h"
 #include <string.h>
@@ -1425,17 +1425,31 @@ static void media_desc_load(media_desc_t* desc, const char* name)
     {
         return;
     }
+    memset(desc, 0, sizeof(*desc));
     char filename[PIM_PATH];
-    SPrintf(ARGS(filename), "%s_media_desc", name);
-    fd_t fd = fd_open(filename, false);
-    if (!fd_isopen(fd))
+    SPrintf(ARGS(filename), "%s.json", name);
+    ser_obj_t* root = ser_fromfile(filename);
+    if (root)
+    {
+        ser_getfield_f4(desc, root, constantAlbedo);
+        ser_getfield_f4(desc, root, noiseAlbedo);
+        ser_getfield_f32(desc, root, absorption);
+        ser_getfield_f32(desc, root, constantAmt);
+        ser_getfield_f32(desc, root, noiseAmt);
+        ser_getfield_i32(desc, root, noiseOctaves);
+        ser_getfield_f32(desc, root, noiseGain);
+        ser_getfield_f32(desc, root, noiseLacunarity);
+        ser_getfield_f32(desc, root, noiseFreq);
+        ser_getfield_f32(desc, root, noiseScale);
+        ser_getfield_f32(desc, root, noiseHeight);
+        ser_getfield_f32(desc, root, amtMie);
+        ser_getfield_f32(desc, root, amtRayleigh);
+    }
+    else
     {
         con_logf(LogSev_Error, "pt", "Failed to load media desc '%s'", filename);
-        return;
     }
-    memset(desc, 0, sizeof(*desc));
-    fd_read(fd, desc, sizeof(*desc));
-    fd_close(&fd);
+    ser_obj_del(root);
 }
 
 static void media_desc_save(const media_desc_t* desc, const char* name)
@@ -1445,19 +1459,29 @@ static void media_desc_save(const media_desc_t* desc, const char* name)
         return;
     }
     char filename[PIM_PATH];
-    SPrintf(ARGS(filename), "%s_media_desc", name);
-    fd_t fd = fd_open(filename, true);
-    if (!fd_isopen(fd))
+    SPrintf(ARGS(filename), "%s.json", name);
+    ser_obj_t* root = ser_obj_dict();
+    if (root)
     {
-        fd = fd_create(filename);
+        ser_addfield_f4(desc, root, constantAlbedo);
+        ser_addfield_f4(desc, root, noiseAlbedo);
+        ser_addfield_f32(desc, root, absorption);
+        ser_addfield_f32(desc, root, constantAmt);
+        ser_addfield_f32(desc, root, noiseAmt);
+        ser_addfield_i32(desc, root, noiseOctaves);
+        ser_addfield_f32(desc, root, noiseGain);
+        ser_addfield_f32(desc, root, noiseLacunarity);
+        ser_addfield_f32(desc, root, noiseFreq);
+        ser_addfield_f32(desc, root, noiseScale);
+        ser_addfield_f32(desc, root, noiseHeight);
+        ser_addfield_f32(desc, root, amtMie);
+        ser_addfield_f32(desc, root, amtRayleigh);
+        if (!ser_tofile(filename, root))
+        {
+            con_logf(LogSev_Error, "pt", "Failed to save media desc '%s'", filename);
+        }
+        ser_obj_del(root);
     }
-    if (!fd_isopen(fd))
-    {
-        con_logf(LogSev_Error, "pt", "Failed to save media desc '%s'", filename);
-        return;
-    }
-    fd_write(fd, desc, sizeof(*desc));
-    fd_close(&fd);
 }
 
 static void igLog2SliderFloat(const char* label, float* pLinear, float log2Lo, float log2Hi)
