@@ -638,7 +638,7 @@ static const char* ParseNumber(tokarr_t* arr, const char* text)
             }
             else
             {
-                return NULL;
+                goto onfail;
             }
         }
         else if (c == '.')
@@ -651,6 +651,7 @@ static const char* ParseNumber(tokarr_t* arr, const char* text)
         }
         return EndToken(arr, mark, text);
     }
+onfail:
     return EndToken(arr, mark, NULL);
 }
 
