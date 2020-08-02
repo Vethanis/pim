@@ -37,6 +37,8 @@
 #include "stb/stb_perlin_fork.h"
 #include <string.h>
 
+#define kPixelRadius    2.0f
+
 // ----------------------------------------------------------------------------
 
 typedef struct surfhit_s
@@ -145,6 +147,8 @@ typedef struct pt_scene_s
 static void OnRtcError(void* user, RTCError error, const char* msg);
 static bool InitRTC(void);
 static void InitSamplers(void);
+static void InitPixelDist(void);
+static void ShutdownPixelDist(void);
 pim_inline RTCRay VEC_CALL RtcNewRay(ray_t ray, float tNear, float tFar);
 pim_inline RTCRayHit VEC_CALL RtcIntersect(
     RTCScene scene,
@@ -292,6 +296,7 @@ static cvar_t* cv_r_sun_rad;
 
 static RTCDevice ms_device;
 static pt_sampler_t ms_samplers[kNumThreads];
+static dist1d_t ms_pixeldist;
 
 // ----------------------------------------------------------------------------
 
@@ -320,6 +325,26 @@ static bool InitRTC(void)
     return true;
 }
 
+static void InitPixelDist(void)
+{
+    const i32 kSamples = 16;
+    const float dt = 1.0f / kSamples;
+    dist1d_t dist;
+    dist1d_new(&dist, kSamples);
+    for (i32 i = 0; i < kSamples; ++i)
+    {
+        float x = f1_lerp(0.0f, kPixelRadius, i * dt);
+        dist.pdf[i] = f1_gauss(x);
+    }
+    dist1d_bake(&dist);
+    ms_pixeldist = dist;
+}
+
+static void ShutdownPixelDist(void)
+{
+    dist1d_del(&ms_pixeldist);
+}
+
 static void InitSamplers(void)
 {
     prng_t rng = prng_get();
@@ -339,6 +364,7 @@ void pt_sys_init(void)
 
     InitRTC();
     InitSamplers();
+    InitPixelDist();
 }
 
 void pt_sys_update(void)
@@ -350,6 +376,7 @@ void pt_sys_shutdown(void)
 {
     rtc.ReleaseDevice(ms_device);
     ms_device = NULL;
+    ShutdownPixelDist();
 }
 
 pt_sampler_t VEC_CALL pt_sampler_get(void) { return GetSampler(); }
@@ -813,15 +840,6 @@ void pt_scene_del(pt_scene_t* scene)
     }
 }
 
-/*
-    i32 vertCount;
-    i32 matCount;
-    i32 emissiveCount;
-    // hyperparameters
-    float3 sunDirection;
-    float sunIntensity;
-    media_desc_t mediaDesc;
-*/
 void pt_scene_gui(pt_scene_t* scene)
 {
     if (scene && igCollapsingHeader1("pt scene"))
@@ -833,6 +851,18 @@ void pt_scene_gui(pt_scene_t* scene)
         igText("Sun Direction: %f %f %f", scene->sunDirection.x, scene->sunDirection.y, scene->sunDirection.z);
         igText("Sun Intensity: %f", scene->sunIntensity);
         media_desc_gui(&scene->mediaDesc);
+        igUnindent(0.0f);
+    }
+}
+
+void pt_trace_gui(pt_trace_t* trace)
+{
+    if (trace && igCollapsingHeader1("pt trace"))
+    {
+        igIndent(0.0f);
+        igSliderFloat("Aperture", &trace->aperture, 0.0f, 1.0f);
+        igSliderFloat("Focal Length", &trace->focalLength, 0.0f, 100.0f);
+        pt_scene_gui(trace->scene);
         igUnindent(0.0f);
     }
 }
@@ -1859,6 +1889,23 @@ pt_result_t VEC_CALL pt_trace_ray(
     return result;
 }
 
+pim_inline float2 VEC_CALL SampleUv(
+    pt_sampler_t* sampler,
+    const dist1d_t* dist)
+{
+    float2 Xi = Sample2D(sampler);
+    Xi.x = dist1d_samplec(dist, Xi.x);
+    Xi.y = dist1d_samplec(dist, Xi.y);
+    Xi = f2_mulvs(Xi, kPixelRadius);
+    float2 b =
+    {
+        prng_bool(&sampler->rng) ? 1.0f : -1.0f,
+        prng_bool(&sampler->rng) ? 1.0f : -1.0f,
+    };
+    Xi = f2_mul(Xi, b);
+    return Xi;
+}
+
 typedef struct trace_task_s
 {
     task_t task;
@@ -1879,25 +1926,44 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
     float3* pim_noalias normal = trace->normal;
 
     const int2 size = trace->imageSize;
+    const float2 rcpSize = f2_rcp(i2_f2(size));
     const float sampleWeight = trace->sampleWeight;
 
     const quat rot = camera.rotation;
-    const float4 ro = camera.position;
+    const float4 eye = camera.position;
     const float4 right = quat_right(rot);
     const float4 up = quat_up(rot);
     const float4 fwd = quat_fwd(rot);
     const float2 slope = proj_slope(f1_radians(camera.fovy), (float)size.x / (float)size.y);
-    const float2 rcpSize = f2_rcp(i2_f2(size));
+    const float aperture = trace->aperture;
+    const float focalLength = trace->focalLength;
+    const dist1d_t dist = ms_pixeldist;
 
     pt_sampler_t sampler = GetSampler();
     for (i32 i = begin; i < end; ++i)
     {
         int2 coord = { i % size.x, i / size.x };
 
-        float2 Xi = f2_mul(f2_tent(Sample2D(&sampler)), rcpSize);
-        float2 uv = f2_snorm(f2_add(CoordToUv(size, coord), Xi));
+        // gaussian AA filter
+        float2 uv = { (coord.x + 0.5f), (coord.y + 0.5f) };
+        float2 Xi = SampleUv(&sampler, &dist);
+        uv = f2_mul(f2_add(uv, Xi), rcpSize);
+        uv = f2_snorm(uv); // [-1, 1]
 
         float4 rd = proj_dir(right, up, fwd, slope, uv);
+        float4 ro = eye;
+
+        // DOF
+        {
+            float2 offset = MapSquareToDisk(Sample2D(&sampler));
+            offset = f2_mulvs(offset, aperture);
+            float t = focalLength / f4_dot3(rd, fwd);
+            float4 focusPos = f4_add(eye, f4_mulvs(rd, t));
+            float4 aperturePos = f4_add(eye, f4_add(f4_mulvs(right, offset.x), f4_mulvs(up, offset.y)));
+            ro = aperturePos;
+            rd = f4_normalize3(f4_sub(focusPos, aperturePos));
+        }
+
         ray_t ray = { ro, rd };
         pt_result_t result = pt_trace_ray(&sampler, scene, ray);
         color[i] = f3_lerp(color[i], result.color, sampleWeight);

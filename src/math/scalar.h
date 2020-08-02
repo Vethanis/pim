@@ -177,6 +177,29 @@ pim_inline float VEC_CALL f1_distance(float a, float b)
     return f1_abs(b - a);
 }
 
+pim_inline float VEC_CALL f1_sinc(float x)
+{
+    x = f1_abs(x);
+    float xp = x * kPi;
+    return sinf(xp) / xp;
+}
+
+pim_inline float VEC_CALL f1_wsinc(float x, float r, float t)
+{
+    x = f1_abs(x);
+    if (x > r)
+    {
+        return 0.0f;
+    }
+    return f1_sinc(x) * f1_sinc(x / t);
+}
+
+// https://www.desmos.com/calculator/yubtic8naq
+pim_inline float VEC_CALL f1_gauss(float x)
+{
+    return f1_max(0.0f, expf(-2.0f * x * x) - 0.000335462627903f);
+}
+
 pim_inline float VEC_CALL f1_sq(float x)
 {
     return x * x;

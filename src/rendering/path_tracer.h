@@ -45,6 +45,8 @@ typedef struct pt_trace_s
     float3* normal;
     int2 imageSize;
     float sampleWeight;
+    float aperture;
+    float focalLength;
 } pt_trace_t;
 
 typedef struct pt_result_s
@@ -72,6 +74,7 @@ float VEC_CALL pt_sample_1d(pt_sampler_t* sampler);
 pt_scene_t* pt_scene_new(void);
 void pt_scene_del(pt_scene_t* scene);
 void pt_scene_gui(pt_scene_t* scene);
+void pt_trace_gui(pt_trace_t* trace);
 
 rayhit_t VEC_CALL pt_intersect(const pt_scene_t* scene, ray_t ray, float tNear, float tFar);
 

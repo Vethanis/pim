@@ -119,7 +119,7 @@ static float4 ms_clearColor;
 static exposure_t ms_exposure =
 {
     .manual = false,
-    .standard = false,
+    .standard = true,
 
     .aperture = 4.0f,
     .shutterTime = 1.0f / 10.0f,
@@ -313,6 +313,8 @@ static bool PathTrace(void)
         ms_trace.imageSize = size;
         if (!ms_trace.color)
         {
+            ms_trace.aperture = 1.0f / 8.0f;
+            ms_trace.focalLength = 4.0f;
             ms_trace.color = perm_calloc(sizeof(ms_trace.color[0]) * kDrawPixels);
             ms_trace.albedo = perm_calloc(sizeof(ms_trace.albedo[0]) * kDrawPixels);
             ms_trace.normal = perm_calloc(sizeof(ms_trace.normal[0]) * kDrawPixels);
@@ -753,7 +755,14 @@ void render_sys_gui(bool* pEnabled)
             igUnindent(0.0f);
         }
 
-        pt_scene_gui(ms_ptscene);
+        if (ms_trace.scene)
+        {
+            pt_trace_gui(&ms_trace);
+        }
+        else if (ms_ptscene)
+        {
+            pt_scene_gui(ms_ptscene);
+        }
     }
     igEnd();
 

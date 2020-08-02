@@ -593,7 +593,7 @@ static const char* EndToken(tokarr_t* arr, i32 mark, const char* end)
 
 static const char* SkipWhitespace(const char* text)
 {
-    while (*text && IsSpace(*text))
+    while (*text && (*text <= 32))
     {
         ++text;
     }

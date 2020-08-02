@@ -13,7 +13,6 @@ typedef struct dist1d_s
 void dist1d_new(dist1d_t* dist, i32 length);
 void dist1d_del(dist1d_t* dist);
 
-void dist1d_fill(dist1d_t* dist, float(*pdfFn)(float x));
 void dist1d_bake(dist1d_t* dist);
 
 // continuous

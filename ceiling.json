@@ -1,0 +1,22 @@
+
+{
+    "constantAlbedo.x": 0.730392,
+    "constantAlbedo.y": 0.730385,
+    "constantAlbedo.z": 0.730385,
+    "constantAlbedo.w": 0.500000,
+    "noiseAlbedo.x": 0.740189,
+    "noiseAlbedo.y": 0.740194,
+    "noiseAlbedo.z": 0.740196,
+    "noiseAlbedo.w": -0.401000,
+    "absorption": 1.035265,
+    "constantAmt": 0.015625,
+    "noiseAmt": 7.071420,
+    "noiseOctaves": 3.000000,
+    "noiseGain": 0.500000,
+    "noiseLacunarity": 2.066600,
+    "noiseFreq": 1.315854,
+    "noiseScale": 2.239226,
+    "noiseHeight": 6.535000,
+    "amtMie": 0.750000,
+    "amtRayleigh": 0.100000
+}

@@ -116,131 +116,49 @@ static float AdaptLuminance(
     return f1_lerp(lum0, lum1, f1_sat(t));
 }
 
-#define kHistogramSize  64
-#define kHistogramMin   -10.0f
-#define kHistogramMax   10.0f
-
-static float BinToEV(i32 bin)
-{
-    float t = (bin + 0.5f) / kHistogramSize;
-    t = f1_saturate(t);
-    return f1_lerp(kHistogramMin, kHistogramMax, t);
-}
-
-static i32 EVToBin(float ev100)
-{
-    float t = f1_unlerp(kHistogramMin, kHistogramMax, ev100);
-    return i1_clamp((i32)(t * kHistogramSize), 0, kHistogramSize - 1);
-}
-
-typedef struct histogram_s
-{
-    i32 Values[kHistogramSize];
-} histogram_t;
-
 typedef struct task_ToLum
 {
     task_t task;
     const float4* light;
     i32 lenPerJob;
-    float minEV;
-    float maxEV;
-    histogram_t histograms[kNumThreads];
+    float averages[kNumThreads];
 } task_ToLum;
 
-static histogram_t HistLum(
-    const float4* pim_noalias light,
-    i32 length)
-{
-    histogram_t hist = { 0 };
-    for (i32 i = 0; i < length; ++i)
-    {
-        i32 bin = EVToBin(LumToEV100(f4_perlum(light[i])));
-        hist.Values[bin] += 1;
-    }
-    return hist;
-}
-
-static histogram_t MergeHistograms(const histogram_t* hists, i32 len)
-{
-    histogram_t result = { 0 };
-    for (i32 j = 0; j < len; ++j)
-    {
-        const u32* pim_noalias src = hists[j].Values;
-        for (i32 i = 0; i < kHistogramSize; ++i)
-        {
-            result.Values[i] += src[i];
-        }
-    }
-    return result;
-}
-
-static void ToLumFn(task_t* pbase, i32 begin, i32 end)
+static void CalcAverageFn(task_t* pbase, i32 begin, i32 end)
 {
     task_ToLum* task = (task_ToLum*)pbase;
+    float* pim_noalias averages = task->averages;
     const float4* pim_noalias light = task->light;
-    histogram_t* pim_noalias histograms = task->histograms;
     const i32 lenPerJob = task->lenPerJob;
-
+    const float weight = 1.0f / lenPerJob;
     for (i32 i = begin; i < end; ++i)
     {
-        histograms[i] = HistLum(light + i * lenPerJob, lenPerJob);
+        const float4* pim_noalias jobLight = light + lenPerJob * i;
+        float sum = 0.0f;
+        for (i32 j = 0; j < lenPerJob; ++j)
+        {
+            float lum = f4_perlum(jobLight[j]);
+            sum = weight * lum + sum;
+        }
+        averages[i] = sum;
     }
 }
 
-ProfileMark(pm_toluminance, BinLuminance)
-static histogram_t BinLuminance(
-    int2 size,
-    const float4* light)
+static float CalcAverage(const float4* light, int2 size)
 {
-    ProfileBegin(pm_toluminance);
-
+    const i32 lenPerJob = (size.x * size.y) / kNumThreads;
     task_ToLum* task = tmp_calloc(sizeof(*task));
     task->light = light;
-    task->lenPerJob = (size.x * size.y) / kNumThreads;
-    task_run(&task->task, ToLumFn, kNumThreads);
-
-    histogram_t result = MergeHistograms(task->histograms, kNumThreads);
-
-    ProfileEnd(pm_toluminance);
-
-    return result;
-}
-
-static float HistToAvgLum(
-    histogram_t hist,
-    float lo,
-    float hi,
-    i32 numObservations)
-{
-    const float rcpN = 1.0f / numObservations;
-    float evSum = 0.0f;
-    i32 sum = 0;
-    i32 total = 0;
-    for (i32 i = 0; i < kHistogramSize; ++i)
+    task->lenPerJob = lenPerJob;
+    task_run(&task->task, CalcAverageFn, kNumThreads);
+    const float* pim_noalias averages = task->averages;
+    float sum = 0.0f;
+    const float weight = 1.0f / kNumThreads;
+    for (i32 i = 0; i < kNumThreads; ++i)
     {
-        i32 binCount = hist.Values[i];
-        float cdf = total * rcpN;
-        total += binCount;
-
-        bool smallOutlier = cdf < lo;
-        bool largeOutlier = cdf > hi;
-        if (smallOutlier || largeOutlier)
-        {
-            continue;
-        }
-
-        float ev = BinToEV(i);
-        evSum += ev * binCount;
-        sum += binCount;
+        sum = weight * averages[i] + sum;
     }
-
-    if (sum > 0)
-    {
-        return EV100ToLum(evSum / sum);
-    }
-
-    return 0.0f;
+    return sum;
 }
 
 typedef struct task_Expose
@@ -270,18 +188,7 @@ void ExposeImage(
 {
     ProfileBegin(pm_exposeimg);
 
-    float minProb = parameters->histMinProb;
-    float maxProb = parameters->histMaxProb;
-    const i32 numObservations = size.x * size.y;
-
-    histogram_t hist = BinLuminance(
-        size,
-        light);
-    float avgLum = HistToAvgLum(
-        hist,
-        minProb,
-        maxProb,
-        numObservations);
+    float avgLum = CalcAverage(light, size);
     avgLum = AdaptLuminance(
         parameters->avgLum,
         avgLum,
