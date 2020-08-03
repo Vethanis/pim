@@ -97,6 +97,38 @@ pim_inline float2 VEC_CALL MapSquareToDisk(float2 Xi)
     return f2_v(r * cosf(phi), r * sinf(phi));
 }
 
+pim_inline float2 VEC_CALL MapSquareToNGon(float2 Xi, float N, float amt)
+{
+    float phi, r;
+
+    // Shirley, 2011
+    {
+        float a = 2.0f * Xi.x - 1.0f;
+        float b = 2.0f * Xi.y - 1.0f;
+        if ((a*a) > (b*b))
+        {
+            r = a;
+            phi = (kPi / 4.0f) * (b / a);
+        }
+        else
+        {
+            r = b;
+            phi = (kPi / 2.0f) - (kPi / 4.0f) * (a / b);
+        }
+    }
+
+    // CryEngine 3 Graphics Gems, slide 36, Sousa 2013
+    {
+        float nom = cosf(kPi / N);
+        float d1 = cosf(phi - (kTau / N));
+        float d2 = floorf((N * phi + kPi) / kTau);
+        float modifier = f1_sat(nom / (d1*d2));
+        r *= f1_lerp(1.0f, modifier, amt);
+    }
+
+    return f2_v(r * cosf(phi), r * sinf(phi));
+}
+
 pim_inline float4 VEC_CALL SampleBaryCoord(float2 Xi)
 {
     float r1 = sqrtf(Xi.x);

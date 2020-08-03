@@ -36,6 +36,16 @@ typedef struct rayhit_s
     i32 index;
 } rayhit_t;
 
+typedef struct dofinfo_s
+{
+    float aperture;
+    float focalLength;
+    i32 bladeCount;
+    float bladeRot;
+    float bladeAmt;
+    float focalPlaneCurvature;
+} dofinfo_t;
+
 typedef struct pt_trace_s
 {
     pt_scene_t* scene;
@@ -45,8 +55,7 @@ typedef struct pt_trace_s
     float3* normal;
     int2 imageSize;
     float sampleWeight;
-    float aperture;
-    float focalLength;
+    dofinfo_t dofinfo;
 } pt_trace_t;
 
 typedef struct pt_result_s
@@ -74,7 +83,13 @@ float VEC_CALL pt_sample_1d(pt_sampler_t* sampler);
 pt_scene_t* pt_scene_new(void);
 void pt_scene_del(pt_scene_t* scene);
 void pt_scene_gui(pt_scene_t* scene);
+
+void pt_trace_new(pt_trace_t* trace, pt_scene_t* scene, const camera_t* camera, int2 imageSize);
+void pt_trace_del(pt_trace_t* trace);
 void pt_trace_gui(pt_trace_t* trace);
+
+void dofinfo_new(dofinfo_t* dof);
+void dofinfo_gui(dofinfo_t* dof);
 
 rayhit_t VEC_CALL pt_intersect(const pt_scene_t* scene, ray_t ray, float tNear, float tFar);
 

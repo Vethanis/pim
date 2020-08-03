@@ -69,7 +69,6 @@ bool ser_array_rm(ser_obj_t* obj, i32 index, ser_obj_t** valueOut);
 
 ser_obj_t* ser_dict_get(ser_obj_t* obj, const char* key);
 bool ser_dict_set(ser_obj_t* obj, const char* key, ser_obj_t* value);
-bool ser_dict_add(ser_obj_t* obj, const char* key, ser_obj_t* value);
 bool ser_dict_rm(ser_obj_t* obj, const char* key, ser_obj_t** valueOut);
 const char** ser_dict_keys(ser_obj_t* obj, i32* lenOut);
 ser_obj_t** ser_dict_values(ser_obj_t* obj, i32* lenOut);
@@ -83,20 +82,31 @@ bool ser_tofile(const char* filename, ser_obj_t* obj);
 static float ser_get_f32(ser_obj_t* obj, const char* key) { return (float)ser_num_get(ser_dict_get(obj, key)); }
 static i32 ser_get_i32(ser_obj_t* obj, const char* key) { return (i32)ser_num_get(ser_dict_get(obj, key)); }
 
-static bool ser_set_f32(ser_obj_t* obj, const char* key, float value) { return ser_num_set(ser_dict_get(obj, key), value); }
-static bool ser_set_i32(ser_obj_t* obj, const char* key, i32 value) { return ser_num_set(ser_dict_get(obj, key), value); }
+static bool ser_set_f32(ser_obj_t* obj, const char* key, float value)
+{
+    ser_obj_t* dst = ser_dict_get(obj, key);
+    if (!dst)
+    {
+        return ser_dict_set(obj, key, ser_obj_num(value));
+    }
+    return ser_num_set(dst, value);
+}
 
-static bool ser_add_f32(ser_obj_t* obj, const char* key, float value) { return ser_dict_add(obj, key, ser_obj_num(value)); }
-static bool ser_add_i32(ser_obj_t* obj, const char* key, i32 value) { return ser_dict_add(obj, key, ser_obj_num(value)); }
+static bool ser_set_i32(ser_obj_t* obj, const char* key, i32 value)
+{
+    ser_obj_t* dst = ser_dict_get(obj, key);
+    if (!dst)
+    {
+        return ser_dict_set(obj, key, ser_obj_num(value));
+    }
+    return ser_num_set(dst, value);
+}
 
 #define ser_getfield_f32(ptr, obj, name)        (ptr)->name = ser_get_f32((obj), #name)
 #define ser_getfield_i32(ptr, obj, name)        (ptr)->name = ser_get_i32((obj), #name)
 
 #define ser_setfield_f32(ptr, obj, name)        ser_set_f32((obj), #name, (ptr)->name)
 #define ser_setfield_i32(ptr, obj, name)        ser_set_i32((obj), #name, (ptr)->name)
-
-#define ser_addfield_f32(ptr, obj, name)        ser_add_f32((obj), #name, (ptr)->name)
-#define ser_addfield_i32(ptr, obj, name)        ser_add_i32((obj), #name, (ptr)->name)
 
 #define ser_getfield_f4(ptr, obj, name) \
     (ptr)->name.x = ser_get_f32((obj), STR_TOK(name##.x)); \
@@ -109,11 +119,5 @@ static bool ser_add_i32(ser_obj_t* obj, const char* key, i32 value) { return ser
     ser_set_f32((obj), STR_TOK(name##.y), (ptr)->name.y); \
     ser_set_f32((obj), STR_TOK(name##.z), (ptr)->name.z); \
     ser_set_f32((obj), STR_TOK(name##.w), (ptr)->name.w)
-
-#define ser_addfield_f4(ptr, obj, name) \
-    ser_add_f32((obj), STR_TOK(name##.x), (ptr)->name.x); \
-    ser_add_f32((obj), STR_TOK(name##.y), (ptr)->name.y); \
-    ser_add_f32((obj), STR_TOK(name##.z), (ptr)->name.z); \
-    ser_add_f32((obj), STR_TOK(name##.w), (ptr)->name.w)
 
 PIM_C_END

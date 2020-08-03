@@ -855,15 +855,78 @@ void pt_scene_gui(pt_scene_t* scene)
     }
 }
 
+void pt_trace_new(
+    pt_trace_t* trace,
+    pt_scene_t* scene,
+    const camera_t* camera,
+    int2 imageSize)
+{
+    ASSERT(trace);
+    ASSERT(scene);
+    ASSERT(camera);
+    if (trace)
+    {
+        const i32 texelCount = imageSize.x * imageSize.y;
+        ASSERT(texelCount > 0);
+
+        trace->imageSize = imageSize;
+        trace->camera = camera;
+        trace->scene = scene;
+        trace->sampleWeight = 1.0f;
+        trace->color = perm_calloc(sizeof(trace->color[0]) * texelCount);
+        trace->albedo = perm_calloc(sizeof(trace->albedo[0]) * texelCount);
+        trace->normal = perm_calloc(sizeof(trace->normal[0]) * texelCount);
+        dofinfo_new(&trace->dofinfo);
+    }
+}
+
+void pt_trace_del(pt_trace_t* trace)
+{
+    if (trace)
+    {
+        pim_free(trace->color);
+        pim_free(trace->albedo);
+        pim_free(trace->normal);
+        memset(trace, 0, sizeof(*trace));
+    }
+}
+
 void pt_trace_gui(pt_trace_t* trace)
 {
     if (trace && igCollapsingHeader1("pt trace"))
     {
         igIndent(0.0f);
-        igSliderFloat("Aperture", &trace->aperture, 0.0f, 1.0f);
-        igSliderFloat("Focal Length", &trace->focalLength, 0.0f, 100.0f);
+        dofinfo_gui(&trace->dofinfo);
         pt_scene_gui(trace->scene);
         igUnindent(0.0f);
+    }
+}
+
+void dofinfo_new(dofinfo_t* dof)
+{
+    if (dof)
+    {
+        dof->aperture = 20.0f * kMilli;
+        dof->focalLength = 4.0f;
+        dof->bladeCount = 5;
+        dof->bladeRot = kPi / 10.0f;
+        dof->bladeAmt = 0.9f;
+        dof->focalPlaneCurvature = 0.5f;
+    }
+}
+
+void dofinfo_gui(dofinfo_t* dof)
+{
+    if (dof && igCollapsingHeader1("dofinfo"))
+    {
+        float aperture = dof->aperture / kMilli;
+        igSliderFloat("Aperture, millimeters", &aperture, 0.1f, 300.0f);
+        dof->aperture = aperture * kMilli;
+        igSliderFloat("Focal Length, meters", &dof->focalLength, 0.01f, 100.0f);
+        igSliderFloat("Focal Plane Curvature", &dof->focalPlaneCurvature, 0.0f, 1.0f);
+        igSliderInt("Blade Count", &dof->bladeCount, 2, 666, "%d");
+        igSliderFloat("Blade Rotation", &dof->bladeRot, 0.0f, kTau);
+        igSliderFloat("Blade Amount", &dof->bladeAmt, 0.0f, 1.0f);
     }
 }
 
@@ -1493,19 +1556,19 @@ static void media_desc_save(const media_desc_t* desc, const char* name)
     ser_obj_t* root = ser_obj_dict();
     if (root)
     {
-        ser_addfield_f4(desc, root, constantAlbedo);
-        ser_addfield_f4(desc, root, noiseAlbedo);
-        ser_addfield_f32(desc, root, absorption);
-        ser_addfield_f32(desc, root, constantAmt);
-        ser_addfield_f32(desc, root, noiseAmt);
-        ser_addfield_i32(desc, root, noiseOctaves);
-        ser_addfield_f32(desc, root, noiseGain);
-        ser_addfield_f32(desc, root, noiseLacunarity);
-        ser_addfield_f32(desc, root, noiseFreq);
-        ser_addfield_f32(desc, root, noiseScale);
-        ser_addfield_f32(desc, root, noiseHeight);
-        ser_addfield_f32(desc, root, amtMie);
-        ser_addfield_f32(desc, root, amtRayleigh);
+        ser_setfield_f4(desc, root, constantAlbedo);
+        ser_setfield_f4(desc, root, noiseAlbedo);
+        ser_setfield_f32(desc, root, absorption);
+        ser_setfield_f32(desc, root, constantAmt);
+        ser_setfield_f32(desc, root, noiseAmt);
+        ser_setfield_i32(desc, root, noiseOctaves);
+        ser_setfield_f32(desc, root, noiseGain);
+        ser_setfield_f32(desc, root, noiseLacunarity);
+        ser_setfield_f32(desc, root, noiseFreq);
+        ser_setfield_f32(desc, root, noiseScale);
+        ser_setfield_f32(desc, root, noiseHeight);
+        ser_setfield_f32(desc, root, amtMie);
+        ser_setfield_f32(desc, root, amtRayleigh);
         if (!ser_tofile(filename, root))
         {
             con_logf(LogSev_Error, "pt", "Failed to save media desc '%s'", filename);
@@ -1713,19 +1776,20 @@ pim_inline float4 VEC_CALL CalcTransmittance(
     float4 rcpU = f4_rcp(u);
     float uMax = f4_hmax3(u);
     float t = 0.0f;
-    while (t < rayLen)
+    while (true)
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float dt = f1_min(
-            SampleFreePath(Sample1D(sampler), uMax),
-            rayLen - t);
+        float dt = SampleFreePath(Sample1D(sampler), uMax);
+        float tRem = rayLen - t;
+        if (dt > tRem)
+        {
+            break;
+        }
         t += dt;
 
         media_t media = Media_Sample(desc, P);
         float4 uT = Media_Extinction(media);
-        float4 pReal = f4_mul(uT, rcpU);
-        float pTakeReal = Sample1D(sampler);
-        bool4 tookReal = f4_ltsv(pTakeReal, pReal);
+        bool4 tookReal = f4_ltsv(Sample1D(sampler), f4_mul(uT, rcpU));
         float4 segment = f4_exp3(f4_mulvs(u, -dt));
         attenuation = f4_mul(attenuation, f4_select(f4_1, segment, tookReal));
     }
@@ -1746,29 +1810,30 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     const float4 u = CalculateMajorant(desc);
     const float4 rcpU = f4_rcp(u);
     const float uMax = f4_hmax3(u);
-    const float rcpUmax = 1.0f / uMax;
+    const float rcpUAvg = 1.0f / f4_avglum(u);
 
     float t = 0.0f;
     float4 irradiance = f4_0;
     float4 attenuation = f4_1;
-    while (t < rayLen)
+    while (true)
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float dt = f1_min(
-            SampleFreePath(Sample1D(sampler), uMax),
-            rayLen - t);
+        float dt = SampleFreePath(Sample1D(sampler), uMax);
+        float tRem = rayLen - t;
+        if (dt > tRem)
+        {
+            break;
+        }
         t += dt;
 
         media_t media = Media_Sample(desc, P);
         float4 uT = Media_Extinction(media);
-        float4 pReal = f4_mul(uT, rcpU);
-        float pTakeReal = Sample1D(sampler);
-        bool4 tookReal = f4_ltsv(pTakeReal, pReal);
+        bool4 tookReal = f4_ltsv(Sample1D(sampler), f4_mul(uT, rcpU));
         float4 segment = f4_exp3(f4_mulvs(u, -dt));
         attenuation = f4_mul(attenuation, f4_select(f4_1, segment, tookReal));
 
         float uS = Media_Scattering(media);
-        float pScatter = uS * rcpUmax;
+        float pScatter = uS * rcpUAvg;
         if (Sample1D(sampler) < pScatter)
         {
             P = f4_add(ro, f4_mulvs(rd, t));
@@ -1906,6 +1971,80 @@ pim_inline float2 VEC_CALL SampleUv(
     return Xi;
 }
 
+pim_inline float2 VEC_CALL SampleNGon(pt_sampler_t* sampler, i32 N, float rot)
+{
+    const i32 side = prng_i32(&sampler->rng) % N;
+    const float R = kTau / N;
+    const float a = rot + (1 + side) * R;
+    const float b = rot + (2 + side) * R;
+    const float2 A = { cosf(a), sinf(a) };
+    const float2 B = { cosf(b), sinf(b) };
+    const float4 wuv = SampleBaryCoord(Sample2D(sampler));
+    return f2_blend(f2_0, A, B, wuv);
+}
+
+pim_inline float2 VEC_CALL SamplePentagram(pt_sampler_t* sampler)
+{
+    // https://www.desmos.com/calculator/go871yxrwa
+    //const float R = kTau / 5.0f;
+    //const float t = kPi * -0.1f;
+    //const float s = kPi * 0.1f;
+    // outer vertices
+    const float2 A = { 0.5878f, 0.809f };
+    const float2 B = { -0.5878f, 0.809f };
+    const float2 C = { -0.9511f, -0.309f };
+    const float2 D = { 0.0f, -1.0f };
+    const float2 E = { 0.9511f, -0.309f };
+    // inner vertices
+    const float2 F = { 0.0f, kPi * 0.1f };
+    const float2 G = { -0.2988f, 0.0971f };
+    const float2 H = { -0.1847f, -0.2542f };
+    const float2 I = { 0.1847f, -0.2542f };
+    const float2 J = { 0.2988f, 0.0971f };
+
+    const float4 wuv = SampleBaryCoord(Sample2D(sampler));
+    const i32 side = prng_i32(&sampler->rng) % 5;
+
+    //const float pentagonArea = 0.23466f;
+    //const float triArea = 0.13773f;
+    //const float totalArea = 0.23466f + 5.0f * 0.13773f;
+    const float pPentagon = 0.23466f / (0.23466f + 5.0f * 0.13773f);
+    if (Sample1D(sampler) < pPentagon)
+    {
+        switch (side)
+        {
+        default:
+        case 0:
+            return f2_blend(f2_0, F, J, wuv);
+        case 1:
+            return f2_blend(f2_0, G, F, wuv);
+        case 2:
+            return f2_blend(f2_0, H, G, wuv);
+        case 3:
+            return f2_blend(f2_0, I, H, wuv);
+        case 4:
+            return f2_blend(f2_0, J, I, wuv);
+        }
+    }
+    else
+    {
+        switch (side)
+        {
+        default:
+        case 0:
+            return f2_blend(A, F, J, wuv);
+        case 1:
+            return f2_blend(B, G, F, wuv);
+        case 2:
+            return f2_blend(C, H, G, wuv);
+        case 3:
+            return f2_blend(D, I, H, wuv);
+        case 4:
+            return f2_blend(E, J, I, wuv);
+        }
+    }
+}
+
 typedef struct trace_task_s
 {
     task_t task;
@@ -1935,8 +2074,7 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
     const float4 up = quat_up(rot);
     const float4 fwd = quat_fwd(rot);
     const float2 slope = proj_slope(f1_radians(camera.fovy), (float)size.x / (float)size.y);
-    const float aperture = trace->aperture;
-    const float focalLength = trace->focalLength;
+    const dofinfo_t dof = trace->dofinfo;
     const dist1d_t dist = ms_pixeldist;
 
     pt_sampler_t sampler = GetSampler();
@@ -1955,9 +2093,22 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
 
         // DOF
         {
-            float2 offset = MapSquareToDisk(Sample2D(&sampler));
-            offset = f2_mulvs(offset, aperture);
-            float t = focalLength / f4_dot3(rd, fwd);
+            float2 diskOffset = MapSquareToDisk(Sample2D(&sampler));
+            float2 bladeOffset;
+            if (dof.bladeCount == 666)
+            {
+                bladeOffset = SamplePentagram(&sampler);
+            }
+            else
+            {
+                bladeOffset = SampleNGon(&sampler, dof.bladeCount, dof.bladeRot);
+            }
+            float2 offset = f2_lerp(diskOffset, bladeOffset, dof.bladeAmt);
+            offset = f2_mulvs(offset, dof.aperture);
+            float t = f1_lerp(
+                dof.focalLength / f4_dot3(rd, fwd),
+                dof.focalLength,
+                dof.focalPlaneCurvature);
             float4 focusPos = f4_add(eye, f4_mulvs(rd, t));
             float4 aperturePos = f4_add(eye, f4_add(f4_mulvs(right, offset.x), f4_mulvs(up, offset.y)));
             ro = aperturePos;

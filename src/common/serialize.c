@@ -3,7 +3,6 @@
 #include "common/fnv1a.h"
 #include "allocator/allocator.h"
 #include "io/fd.h"
-#include "io/fmap.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -14,7 +13,7 @@ static ser_array_t* GetArray(ser_obj_t* obj);
 static ser_dict_t* GetDict(ser_obj_t* obj);
 static void ser_array_del(ser_obj_t* obj);
 static void ser_dict_del(ser_obj_t* obj);
-static i32 ser_dict_find(const ser_dict_t* dict, const char* key);
+static i32 ser_dict_find(const ser_dict_t* dict, const char* key, u32 keyHash);
 
 // ----------------------------------------------------------------------------
 
@@ -119,10 +118,10 @@ static void ser_dict_del(ser_obj_t* obj)
     dict->values = NULL;
 }
 
-static i32 ser_dict_find(const ser_dict_t* dict, const char* key)
+static i32 ser_dict_find(const ser_dict_t* dict, const char* key, u32 keyHash)
 {
     ASSERT(dict);
-    if (!key || !key[0])
+    if (!key || !key[0] || !keyHash)
     {
         return -1;
     }
@@ -131,7 +130,6 @@ static i32 ser_dict_find(const ser_dict_t* dict, const char* key)
     {
         return -1;
     }
-    const u32 keyHash = HashStr(key);
     const u32* pim_noalias hashes = dict->hashes;
     const char** pim_noalias keys = dict->keys;
     for (i32 i = len - 1; i >= 0; --i)
@@ -397,11 +395,12 @@ bool ser_array_rm(ser_obj_t* obj, i32 index, ser_obj_t** valueOut)
 ser_obj_t* ser_dict_get(ser_obj_t* obj, const char* key)
 {
     ser_dict_t* dict = GetDict(obj);
-    if (!dict)
+    if (!dict || !key || !key[0])
     {
         return NULL;
     }
-    i32 index = ser_dict_find(dict, key);
+    u32 keyHash = HashStr(key);
+    i32 index = ser_dict_find(dict, key, keyHash);
     if (index >= 0)
     {
         return dict->values[index];
@@ -412,50 +411,36 @@ ser_obj_t* ser_dict_get(ser_obj_t* obj, const char* key)
 bool ser_dict_set(ser_obj_t* obj, const char* key, ser_obj_t* value)
 {
     ser_dict_t* dict = GetDict(obj);
-    if (!dict)
-    {
-        return false;
-    }
-    i32 index = ser_dict_find(dict, key);
-    if (index < 0)
-    {
-        return false;
-    }
-    ser_obj_t** values = dict->values;
-    ser_obj_t* prev = values[index];
-    if (prev != value)
-    {
-        values[index] = value;
-        ser_obj_del(prev);
-    }
-    return true;
-}
-
-bool ser_dict_add(ser_obj_t* obj, const char* key, ser_obj_t* value)
-{
-    ser_dict_t* dict = GetDict(obj);
     if (!dict || !key || !key[0] || !value)
     {
         return false;
     }
 
-    i32 index = ser_dict_find(dict, key);
-    if (index >= 0)
+    u32 keyHash = HashStr(key);
+    i32 index = ser_dict_find(dict, key, keyHash);
+    if (index < 0)
     {
-        return false;
+        i32 len = dict->itemCount + 1;
+        index = len - 1;
+        dict->itemCount = len;
+        dict->hashes = perm_realloc(dict->hashes, sizeof(dict->hashes[0]) * len);
+        dict->keys = perm_realloc(dict->keys, sizeof(dict->keys[0]) * len);
+        dict->values = perm_realloc(dict->values, sizeof(dict->values[0]) * len);
+
+        dict->hashes[index] = keyHash;
+        dict->keys[index] = StrDup(key, EAlloc_Perm);
+        dict->values[index] = value;
     }
-
-    i32 len = dict->itemCount + 1;
-    index = len - 1;
-    dict->itemCount = len;
-    dict->hashes = perm_realloc(dict->hashes, sizeof(dict->hashes[0]) * len);
-    dict->keys = perm_realloc(dict->keys, sizeof(dict->keys[0]) * len);
-    dict->values = perm_realloc(dict->values, sizeof(dict->values[0]) * len);
-
-    dict->hashes[index] = HashStr(key);
-    dict->keys[index] = StrDup(key, EAlloc_Perm);
-    dict->values[index] = value;
-
+    else
+    {
+        ser_obj_t** values = dict->values;
+        ser_obj_t* prev = values[index];
+        if (prev != value)
+        {
+            values[index] = value;
+            ser_obj_del(prev);
+        }
+    }
     return true;
 }
 
@@ -467,7 +452,8 @@ bool ser_dict_rm(ser_obj_t* obj, const char* key, ser_obj_t** valueOut)
         return false;
     }
 
-    i32 index = ser_dict_find(dict, key);
+    u32 keyHash = HashStr(key);
+    i32 index = ser_dict_find(dict, key, keyHash);
     if (index < 0)
     {
         return false;
@@ -1010,7 +996,7 @@ static ser_obj_t* ReadDict(tokarr_t arr, i32* pCursor)
                     {
                         goto onfail;
                     }
-                    if (!ser_dict_add(parent, key, value))
+                    if (!ser_dict_set(parent, key, value))
                     {
                         ASSERT(false);
                         goto onfail;
@@ -1205,7 +1191,7 @@ static void textbuf_str(textbuf_t* buf, const char* str)
 static void textbuf_num(textbuf_t* buf, double num)
 {
     char stack[PIM_PATH];
-    SPrintf(ARGS(stack), "%f", num);
+    SPrintf(ARGS(stack), "%g", num);
     textbuf_str(buf, stack);
 }
 
@@ -1380,12 +1366,18 @@ ser_obj_t* ser_fromfile(const char* filename)
         fd_t fd = fd_open(filename, false);
         if (fd_isopen(fd))
         {
-            fmap_t map = { 0 };
-            if (fmap_create(&map, fd, false))
+            i32 size = (i32)fd_size(fd);
+            if (size > 0)
             {
-                const char* text = map.ptr;
-                result = ser_read(text);
-                fmap_destroy(&map);
+                char* text = perm_malloc(size + 1);
+                i32 readSize = fd_read(fd, text, size);
+                text[size] = 0;
+                ASSERT(readSize == size);
+                if (readSize == size)
+                {
+                    result = ser_read(text);
+                }
+                pim_free(text);
             }
             fd_close(&fd);
         }
@@ -1407,9 +1399,10 @@ bool ser_tofile(const char* filename, ser_obj_t* obj)
             fd_t fd = fd_create(filename);
             if (fd_isopen(fd))
             {
-                i32 bytesWritten = fd_write(fd, text, len);
+                i32 writeSize = fd_write(fd, text, len);
+                wrote = writeSize == len;
+                ASSERT(wrote);
                 fd_close(&fd);
-                wrote = bytesWritten == len;
             }
             pim_free(text);
         }

@@ -170,11 +170,26 @@ static void EnsurePtScene(void)
     }
 }
 
+static void ShutdownPtScene(void)
+{
+    if (ms_ptscene)
+    {
+        pt_scene_del(ms_ptscene);
+        ms_ptscene = NULL;
+        pt_trace_del(&ms_trace);
+    }
+}
+
+static void LightmapShutdown(void)
+{
+    lmpack_del(lmpack_get());
+}
+
 static void LightmapRepack(void)
 {
     EnsurePtScene();
 
-    lmpack_del(lmpack_get());
+    LightmapShutdown();
     lmpack_t pack = lmpack_pack(ms_ptscene, 1024, cv_lm_density.asFloat, 0.1f, 15.0f);
     *lmpack_get() = pack;
 }
@@ -293,33 +308,27 @@ static bool PathTrace(void)
         ProfileBegin(pm_PathTrace);
         EnsurePtScene();
 
-        camera_t camera;
-        camera_get(&camera);
-
-        bool dirty = false;
-        dirty |= cvar_check_dirty(&cv_pt_trace);
-        dirty |= memcmp(&camera, &ms_ptcam, sizeof(camera));
-
-        if (dirty)
         {
-            ms_ptcam = camera;
-            ms_ptSampleCount = 0;
+            camera_t camera;
+            camera_get(&camera);
+
+            bool dirty = false;
+            dirty |= cvar_check_dirty(&cv_pt_trace);
+            dirty |= memcmp(&camera, &ms_ptcam, sizeof(camera));
+
+            if (dirty)
+            {
+                ms_ptcam = camera;
+                ms_ptSampleCount = 0;
+            }
         }
 
         const int2 size = { kDrawWidth, kDrawHeight };
         ms_trace.sampleWeight = 1.0f / ++ms_ptSampleCount;
-        ms_trace.camera = &camera;
-        ms_trace.scene = ms_ptscene;
-        ms_trace.imageSize = size;
         if (!ms_trace.color)
         {
-            ms_trace.aperture = 1.0f / 8.0f;
-            ms_trace.focalLength = 4.0f;
-            ms_trace.color = perm_calloc(sizeof(ms_trace.color[0]) * kDrawPixels);
-            ms_trace.albedo = perm_calloc(sizeof(ms_trace.albedo[0]) * kDrawPixels);
-            ms_trace.normal = perm_calloc(sizeof(ms_trace.normal[0]) * kDrawPixels);
+            pt_trace_new(&ms_trace, ms_ptscene, &ms_ptcam, size);
         }
-
         pt_trace(&ms_trace);
 
         float3* pim_noalias output3 = ms_trace.color;
@@ -491,9 +500,8 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
 
     con_logf(LogSev_Info, "cmd", "mapload is clearing drawables.");
     drawables_clear();
-    pt_scene_del(ms_ptscene);
-    ms_ptscene = NULL;
-    lmpack_del(lmpack_get());
+    ShutdownPtScene();
+    LightmapShutdown();
 
     camera_reset();
 
@@ -666,8 +674,7 @@ void render_sys_shutdown(void)
 {
     RtcDrawShutdown();
 
-    pt_scene_del(ms_ptscene);
-    ms_ptscene = NULL;
+    ShutdownPtScene();
 
     pt_sys_shutdown();
     screenblit_shutdown();
@@ -1014,9 +1021,8 @@ static i32 CreateSphere(const char* name, float4 center, float radius, float4 al
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 {
     drawables_clear();
-    pt_scene_del(ms_ptscene);
-    ms_ptscene = NULL;
-    lmpack_del(lmpack_get());
+    ShutdownPtScene();
+    LightmapShutdown();
 
     camera_reset();
 
