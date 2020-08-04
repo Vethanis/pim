@@ -752,7 +752,7 @@ static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
     chartnode_t* nodes = NULL;
     i32 nodeCount = 0;
 
-    const u32 unmapped = matflag_sky | matflag_lava | matflag_water | matflag_animated;
+    const u32 unmapped = matflag_sky | matflag_lava | matflag_refractive | matflag_animated;
     for (i32 d = 0; d < numDrawables; ++d)
     {
         const material_t material = materials[d];

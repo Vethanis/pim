@@ -36,7 +36,7 @@
     #define PIM_IMPORT              __declspec(dllimport)
     #define PIM_CDECL               __cdecl
     #define VEC_CALL                __vectorcall
-    #define pim_inline              __forceinline
+    #define pim_inline              static //__forceinline
     #define pim_noalias             __restrict
     #define pim_alignas(x)          __declspec(align(x))
     #define pim_optimize            __pragma(optimize("gt", on))

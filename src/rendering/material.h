@@ -11,7 +11,7 @@ typedef enum
     matflag_emissive = 1 << 0,
     matflag_sky = 1 << 1,
     matflag_lava = 1 << 2,
-    matflag_water = 1 << 3,
+    matflag_refractive = 1 << 3,
     matflag_animated = 1 << 4,
 } matflags_t;
 

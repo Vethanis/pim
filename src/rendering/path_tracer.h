@@ -14,8 +14,6 @@ typedef struct pt_scene_s pt_scene_t;
 typedef struct pt_sampler_s
 {
     prng_t rng;
-    float2 f2;
-    float f1;
 } pt_sampler_t;
 
 typedef enum
@@ -23,7 +21,6 @@ typedef enum
     hit_nothing = 0,
     hit_backface,
     hit_triangle,
-    hit_sky,
 
     hit_COUNT
 } hittype_t;
@@ -34,6 +31,7 @@ typedef struct rayhit_s
     float4 normal;
     hittype_t type;
     i32 index;
+    u32 flags;
 } rayhit_t;
 
 typedef struct dofinfo_s
@@ -42,7 +40,6 @@ typedef struct dofinfo_s
     float focalLength;
     i32 bladeCount;
     float bladeRot;
-    float bladeAmt;
     float focalPlaneCurvature;
 } dofinfo_t;
 

@@ -434,7 +434,7 @@ typedef struct rayhit_s
 static struct RTCRay VEC_CALL RtcNewRay(float4 ro, float4 rd, float tNear, float tFar)
 {
     ASSERT(tFar > tNear);
-    ASSERT(tNear > 0.0f);
+    ASSERT(tNear >= 0.0f);
     struct RTCRay rtcRay = { 0 };
     rtcRay.org_x = ro.x;
     rtcRay.org_y = ro.y;
@@ -521,6 +521,7 @@ static rayhit_t VEC_CALL TraceRay(
 
     return hit;
 }
+
 typedef struct task_DrawScene
 {
     task_t task;
@@ -655,59 +656,13 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
         // direct light
         for (i32 iLight = 0; iLight < ptLightCount; ++iLight)
         {
-            const i32 kSamples = 4;
-            const float kWeight = 1.0f / kSamples;
             pt_light_t light = lights_get_pt(iLight);
-            SphereSA sa = SphereSA_New(light.pos, P);
 
-            int4 valid;
-            RTCRay4 occRay = { 0 };
-            RTCIntersectContext ctx = { 0 };
-            rtcInitIntersectContext(&ctx);
-
-            for (i32 iSample = 0; iSample < kSamples; ++iSample)
-            {
-                float2 Xi = Hammersley2D(iSample, kSamples);
-                float4 Lpt = SampleSphereSA(sa, Xi);
-
-                float4 L = f4_sub(Lpt, P);
-                float dist = f4_length3(L);
-                L = f4_divvs(L, dist);
-                bool isValid = f4_dot3(N, L) > 0.0f;
-
-                (&valid.x)[iSample] = isValid ? -1 : 0;
-                if (isValid)
-                {
-                    occRay.dir_x[iSample] = L.x;
-                    occRay.dir_y[iSample] = L.y;
-                    occRay.dir_z[iSample] = L.z;
-                    occRay.mask[iSample] = -1;
-                    occRay.org_x[iSample] = P.x;
-                    occRay.org_y[iSample] = P.y;
-                    occRay.org_z[iSample] = P.z;
-                    occRay.tnear[iSample] = 0.0f;
-                    occRay.tfar[iSample] = dist - kMilli;
-                }
-                else
-                {
-                    occRay.tfar[iSample] = -1.0f;
-                }
-            }
-
-            rtc.Occluded4(&valid.x, scene, &ctx, &occRay);
-
-            i32 hits = 0;
-            for (i32 iSample = 0; iSample < kSamples; ++iSample)
-            {
-                if (occRay.tfar[iSample] > 0.0f)
-                {
-                    ++hits;
-                }
-            }
-            if (hits)
+            float4 L = f4_normalize3(f4_sub(light.pos, P));
+            rayhit_t lhit = TraceRay(world, P, L, 0.0f, 1<<20);
+            if (lhit.iDrawable == iLight)
             {
                 float4 direct = EvalSphereLight(f4_neg(rd), P, N, albedo, rome.x, rome.z, light.pos, light.rad);
-                direct = f4_mulvs(direct, hits * kWeight);
                 lighting = f4_add(lighting, direct);
             }
         }

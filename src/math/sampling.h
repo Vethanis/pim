@@ -97,38 +97,6 @@ pim_inline float2 VEC_CALL MapSquareToDisk(float2 Xi)
     return f2_v(r * cosf(phi), r * sinf(phi));
 }
 
-pim_inline float2 VEC_CALL MapSquareToNGon(float2 Xi, float N, float amt)
-{
-    float phi, r;
-
-    // Shirley, 2011
-    {
-        float a = 2.0f * Xi.x - 1.0f;
-        float b = 2.0f * Xi.y - 1.0f;
-        if ((a*a) > (b*b))
-        {
-            r = a;
-            phi = (kPi / 4.0f) * (b / a);
-        }
-        else
-        {
-            r = b;
-            phi = (kPi / 2.0f) - (kPi / 4.0f) * (a / b);
-        }
-    }
-
-    // CryEngine 3 Graphics Gems, slide 36, Sousa 2013
-    {
-        float nom = cosf(kPi / N);
-        float d1 = cosf(phi - (kTau / N));
-        float d2 = floorf((N * phi + kPi) / kTau);
-        float modifier = f1_sat(nom / (d1*d2));
-        r *= f1_lerp(1.0f, modifier, amt);
-    }
-
-    return f2_v(r * cosf(phi), r * sinf(phi));
-}
-
 pim_inline float4 VEC_CALL SampleBaryCoord(float2 Xi)
 {
     float r1 = sqrtf(Xi.x);
@@ -137,6 +105,40 @@ pim_inline float4 VEC_CALL SampleBaryCoord(float2 Xi)
     float v = r2 * r1;
     float w = 1.0f - (u + v);
     return f4_v(w, u, v, 0.0f);
+}
+
+pim_inline float2 VEC_CALL SampleNGon(prng_t* rng, i32 N, float rot)
+{
+    const i32 side = prng_i32(rng) % N;
+    const float R = kTau / N;
+    const float a = rot + (1 + side) * R;
+    const float b = rot + (2 + side) * R;
+    const float2 A = { cosf(a), sinf(a) };
+    const float2 B = { cosf(b), sinf(b) };
+    const float4 wuv = SampleBaryCoord(f2_rand(rng));
+    return f2_blend(f2_0, A, B, wuv);
+}
+
+pim_inline float2 VEC_CALL SamplePentagram(prng_t* rng)
+{
+    // https://mathworld.wolfram.com/Pentagram.html
+    // https://www.desmos.com/calculator/ptfwlfemow
+    const float R = kTau / 5.0f;
+    const float s = kPi * 0.1f;
+    // (3-sqrt(5))/2
+    const float q = 0.38196601125f;
+    const float2 Xi = f2_rand(rng);
+    const i32 side = prng_i32(rng) % 5;
+    const float a = s + (1.0f + side) * R;
+    const float b = s + (1.5f + side) * R;
+    const float c = s + (2.0f + side) * R;
+    const float2 A = { q * cosf(a), q * sinf(a) };
+    const float2 B = { cosf(b), sinf(b) };
+    const float2 C = { q * cosf(c), q * sinf(c) };
+    return f2_lerp(
+        f2_lerp(A, B, Xi.x),
+        f2_lerp(f2_0, C, Xi.x),
+        Xi.y);
 }
 
 pim_inline float4 VEC_CALL SphericalToCartesian(float cosTheta, float phi)

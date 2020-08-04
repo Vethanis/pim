@@ -290,7 +290,12 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         }
         if (StrIStr(ARGS(mtex->name), "water"))
         {
-            flags |= matflag_water;
+            flags |= matflag_refractive;
+            flags |= matflag_animated;
+        }
+        if (StrIStr(ARGS(mtex->name), "slime"))
+        {
+            flags |= matflag_refractive;
             flags |= matflag_animated;
         }
         if (StrIStr(ARGS(mtex->name), "teleport"))
@@ -301,6 +306,7 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         if (StrIStr(ARGS(mtex->name), "window"))
         {
             flags |= matflag_emissive;
+            flags |= matflag_refractive;
         }
         if (mtex->name[0] == '*')
         {

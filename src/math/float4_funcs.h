@@ -742,6 +742,18 @@ pim_inline float4 VEC_CALL f4_refract(float4 i, float4 n, float ior)
     return f4_mulvs(m, k >= 0.0f ? 1.0f : 0.0f);
 }
 
+pim_inline float4 VEC_CALL f4_refract3(float4 i, float4 n, float ior)
+{
+    float ndi = f4_dot3(n, i);
+    float ndi2 = ndi * ndi;
+    float ior2 = ior * ior;
+    float k = 1.0f - (ior2 * (1.0f - ndi2));
+    float l = ior * ndi + sqrtf(k);
+    float4 m = f4_sub(f4_mulvs(i, ior), f4_mulvs(n, l));
+    return f4_mulvs(m, k >= 0.0f ? 1.0f : 0.0f);
+}
+
+
 pim_inline float4 VEC_CALL f4_sqrt(float4 v)
 {
     float4 vec = { sqrtf(v.x), sqrtf(v.y), sqrtf(v.z), sqrtf(v.w) };
