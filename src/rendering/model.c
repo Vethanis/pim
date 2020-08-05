@@ -271,47 +271,51 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
             continue;
         }
 
-        u32 flags = 0;
+        material_t material = { 0 };
+        material.ior = 1.0f;
         if (StrIStr(ARGS(mtex->name), "light"))
         {
-            flags |= matflag_emissive;
+            material.flags |= matflag_emissive;
         }
         if (StrIStr(ARGS(mtex->name), "sky"))
         {
-            flags |= matflag_sky;
-            flags |= matflag_emissive;
-            flags |= matflag_animated;
+            material.flags |= matflag_sky;
+            material.flags |= matflag_emissive;
+            material.flags |= matflag_animated;
         }
         if (StrIStr(ARGS(mtex->name), "lava"))
         {
-            flags |= matflag_lava;
-            flags |= matflag_emissive;
-            flags |= matflag_animated;
+            material.flags |= matflag_lava;
+            material.flags |= matflag_emissive;
+            material.flags |= matflag_animated;
         }
         if (StrIStr(ARGS(mtex->name), "water"))
         {
-            flags |= matflag_refractive;
-            flags |= matflag_animated;
+            material.ior = 1.333f;
+            material.flags |= matflag_refractive;
+            material.flags |= matflag_animated;
         }
         if (StrIStr(ARGS(mtex->name), "slime"))
         {
-            flags |= matflag_refractive;
-            flags |= matflag_animated;
+            material.ior = 1.4394f;
+            material.flags |= matflag_refractive;
+            material.flags |= matflag_animated;
         }
         if (StrIStr(ARGS(mtex->name), "teleport"))
         {
-            flags |= matflag_emissive;
-            flags |= matflag_animated;
+            material.flags |= matflag_emissive;
+            material.flags |= matflag_animated;
         }
         if (StrIStr(ARGS(mtex->name), "window"))
         {
-            flags |= matflag_emissive;
-            flags |= matflag_refractive;
+            material.ior = 1.52f;
+            material.flags |= matflag_refractive;
+            material.flags |= matflag_emissive;
         }
         if (mtex->name[0] == '*')
         {
             // 'turbulent'
-            flags |= matflag_animated;
+            material.flags |= matflag_animated;
         }
 
         const u8* pim_noalias mip0 = (u8*)mtex + mtex->offsets[0];
@@ -319,7 +323,7 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
         const int2 size = i2_v(mtex->width, mtex->height);
         const i32 texelCount = size.x * size.y;
 
-        if (!(flags & matflag_emissive))
+        if (!(material.flags & matflag_emissive))
         {
             for (i32 i = 0; i < texelCount; ++i)
             {
@@ -327,14 +331,11 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
                 // 240: brights
                 if (mip0[i] >= 224)
                 {
-                    flags |= matflag_emissive;
+                    material.flags |= matflag_emissive;
                     break;
                 }
             }
         }
-
-        char normalName[PIM_PATH];
-        SPrintf(ARGS(normalName), "%s_nor", mtex->name);
 
         float roughness = 0.5f;
         float occlusion = 1.0f;
@@ -352,15 +353,13 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
 
         if (emission > 0.0f)
         {
-            flags |= matflag_emissive;
+            material.flags |= matflag_emissive;
         }
-        if ((emission == 0.0f) && (flags & matflag_emissive))
+        if ((emission == 0.0f) && (material.flags & matflag_emissive))
         {
             emission = 0.5f;
         }
 
-        material_t material = { 0 };
-        material.flags = flags;
         material.flatAlbedo = LinearToColor(f4_1);
         material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
         texture_unpalette(

@@ -24,6 +24,7 @@ typedef struct material_s
     textureid_t rome;       // rgba8 srgb (roughness, occlusion, metallic, emission)
     textureid_t normal;     // rgba8 (tangent space xyz, packed as unorm)
     u32 flags;
+    float ior;              // index of refraction
 } material_t;
 
 PIM_C_END

@@ -44,14 +44,14 @@
 typedef struct surfhit_s
 {
     float4 P;
-    float4 N;
+    float4 M; // macro normal
+    float4 N; // micro normal
     float4 albedo;
     float4 emission;
     float roughness;
     float occlusion;
     float metallic;
-    u32 flags;
-    hittype_t type;
+    const material_t* material;
 } surfhit_t;
 
 typedef struct scatter_s
@@ -996,15 +996,14 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     i32 bounce)
 {
     surfhit_t surf = { 0 };
-    surf.flags = hit.flags;
-    surf.type = hit.type;
 
     const material_t* mat = GetMaterial(scene, hit);
-
+    surf.material = mat;
     float2 uv = GetVert2(scene->uvs, hit.index, hit.wuvt);
-    surf.N = f4_normalize3(GetVert4(scene->normals, hit.index, hit.wuvt));
+    surf.M = f4_normalize3(GetVert4(scene->normals, hit.index, hit.wuvt));
+    surf.N = surf.M;
     surf.P = f4_add(rin.ro, f4_mulvs(rin.rd, hit.wuvt.w));
-    surf.P = f4_add(surf.P, f4_mulvs(surf.N, kMilli));
+    surf.P = f4_add(surf.P, f4_mulvs(surf.M, kMilli));
 
     texture_t tex;
     if (bounce == 0)
@@ -1124,50 +1123,12 @@ pim_inline float4 VEC_CALL SampleDiffuse(
     return L;
 }
 
-pim_inline float4 VEC_CALL RefractBrdfEval(
-    float4 I,
-    const surfhit_t* surf,
-    float4 L)
-{
-    float4 N = surf->N;
-    float NoL = f4_dot3(N, L);
-    if (NoL <= 0.0f)
-    {
-        return f4_0;
-    }
-
-    float4 V = f4_neg(I);
-    float4 albedo = surf->albedo;
-    float roughness = surf->roughness;
-    float alpha = BrdfAlpha(roughness);
-    float4 H = f4_normalize3(f4_add(V, L));
-    float NoH = f4_dotsat(N, H);
-    float HoV = f4_dotsat(H, V);
-    float NoV = f4_dotsat(N, V);
-
-    float4 brdf = f4_0;
-    {
-        float4 F = F_SchlickEx(albedo, 0.0f, HoV);
-        float D = D_GTR(NoH, alpha);
-        float G = G_SmithGGX(NoL, NoV, alpha);
-        brdf = f4_mulvs(F, D * G);
-    }
-
-    brdf = f4_mulvs(brdf, NoL);
-    brdf.w = GGXPdf(NoH, HoV, alpha);;
-    return brdf;
-}
-
 // returns attenuation value for the given interaction
 pim_inline float4 VEC_CALL BrdfEval(
     float4 I,
     const surfhit_t* surf,
     float4 L)
 {
-    if (surf->flags & matflag_refractive)
-    {
-        return RefractBrdfEval(I, surf, L);
-    }
     float4 N = surf->N;
     float NoL = f4_dot3(N, L);
     if (NoL <= 0.0f)
@@ -1222,6 +1183,38 @@ pim_inline float VEC_CALL Schlick(float cosTheta, float k)
     return f1_lerp(r0, 1.0f, t);
 }
 
+// http://www.pbr-book.org/3ed-2018/Reflection_Models/Specular_Reflection_and_Transmission.html#FrDielectric
+// cosThetaI: dot(V, N)
+// etaI: index of refraction for media on incident side
+// etaT: index of refraction for media on transmitted side
+pim_inline float VEC_CALL FrDielectric(
+    float cosThetaI,
+    float etaI,
+    float etaT)
+{
+    cosThetaI = f1_clamp(cosThetaI, -1.0f, 1.0f);
+    if (cosThetaI < 0.0f)
+    {
+        float tmp = etaI;
+        etaI = etaT;
+        etaT = tmp;
+        cosThetaI = -cosThetaI;
+    }
+    float sinThetaI = sqrtf(f1_max(0.0f, 1.0f - cosThetaI*cosThetaI));
+    float sinThetaT = etaI / etaT * sinThetaI;
+    if (sinThetaT >= 1.0f)
+    {
+        // total internal reflection
+        return 1.0f;
+    }
+    float cosThetaT = sqrtf(f1_max(0.0f, 1.0f - sinThetaT * sinThetaT));
+    float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
+        ((etaT * cosThetaI) + (etaI * cosThetaT));
+    float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
+        ((etaI * cosThetaI) + (etaT * cosThetaT));
+    return (Rparl * Rparl + Rperp * Rperp) * 0.5f;
+}
+
 pim_inline scatter_t VEC_CALL RefractScatter(
     pt_sampler_t* sampler,
     const surfhit_t* surf,
@@ -1229,31 +1222,57 @@ pim_inline scatter_t VEC_CALL RefractScatter(
 {
     scatter_t result = { 0 };
 
-    float k = (surf->type == hit_backface) ? 1.333f : 1.0f / 1.333f;
+    // quake's surface albedo is too dark for refraction
+    float4 albedo = f4_lerpvs(f4_s(0.99f), surf->albedo, 0.5f);
+    const float kAir = 1.000277f;
+    const float matIor = surf->material->ior;
+
     float4 V = f4_neg(I);
     float4 N = surf->N;
+    float cosTheta = f4_dot3(V, N);
+    float F = FrDielectric(cosTheta, kAir, matIor);
     float alpha = BrdfAlpha(surf->roughness);
-    float cosTheta = f1_min(1.0f, f4_dot3(V, N));
-    float pReflect = Schlick(cosTheta, k);
-    float4 Fr = F_SchlickEx(surf->albedo, 0.0f, cosTheta);
     float4 dirRough = SampleCosineHemisphere(Sample2D(sampler));
-    if (Sample1D(sampler) < pReflect)
+    if (Sample1D(sampler) < F)
     {
         dirRough = TanToWorld(N, dirRough);
+        result.pos = surf->P;
+
         result.dir = f4_reflect3(I, N);
         result.dir = f4_normalize3(f4_lerpvs(result.dir, dirRough, alpha));
-        result.pdf = pReflect;
-        result.pos = surf->P;
-        result.attenuation = Fr;
+        float NoL = f1_abs(f4_dot3(result.dir, N));
+        if (NoL > 0.0f)
+        {
+            float pdf = f1_lerp(1.0f, LambertPdf(NoL), alpha);
+            result.pdf = F * pdf;
+            result.attenuation = f4_mulvs(albedo, F / NoL);
+        }
     }
     else
     {
         dirRough = TanToWorld(f4_neg(N), dirRough);
-        result.dir = f4_refract3(I, N, k);
+        // quake + embree has z fighting on animated surfaces from two planes
+        // with opposing normals.
+        // P already has 1mm toward M
+        // each plane is offset 1mm toward their normal
+        // we want to be 1mm past far plane
+        // thus, 4mm
+        result.pos = f4_add(surf->P, f4_mulvs(surf->M, -4.0f * kMilli));
+
+        bool entering = cosTheta > 0.0f;
+        float etaI = entering ? kAir : matIor;
+        float etaT = entering ? matIor : kAir;
+        result.dir = f4_refract3(I, N, etaI / etaT);
         result.dir = f4_normalize3(f4_lerpvs(result.dir, dirRough, alpha));
-        result.pdf = 1.0f - pReflect;
-        result.pos = f4_add(surf->P, f4_mulvs(N, -3.0f * kMilli));
-        result.attenuation = f4_inv(Fr);
+        float NoL = f1_abs(f4_dot3(result.dir, N));
+        if (NoL > 0.0f)
+        {
+            float pdf = f1_lerp(1.0f, LambertPdf(NoL), alpha);
+            result.pdf = (1.0f - F) * pdf;
+            float4 ft = f4_mulvs(albedo, 1.0f - F);
+            ft = f4_mulvs(ft, (etaI * etaI) / (etaT * etaT));
+            result.attenuation = f4_divvs(ft, NoL);
+        }
     }
     return result;
 }
@@ -1263,7 +1282,7 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
     const surfhit_t* surf,
     float4 I)
 {
-    if (surf->flags & matflag_refractive)
+    if (surf->material->flags & matflag_refractive)
     {
         return RefractScatter(sampler, surf, I);
     }
@@ -1972,12 +1991,13 @@ pt_result_t VEC_CALL pt_trace_ray(
         }
 
         surfhit_t surf = GetSurface(scene, ray, hit, b);
-        hitRefractive |= surf.flags & matflag_refractive;
+        hitRefractive |= surf.material->flags & matflag_refractive;
         if (b == 0)
         {
             result.albedo = f4_f3(surf.albedo);
             result.normal = f4_f3(surf.N);
         }
+
         if ((b == 0) || hitRefractive)
         {
             // poor refractive support with NEE atm

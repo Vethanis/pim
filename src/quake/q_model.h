@@ -441,8 +441,12 @@ typedef struct mmodel_s
     i32 numtextures;
     mtexture_t** textures;
 
+    i32 visdatasize;
     u8* visdata;
+
+    i32 lightdatasize;
     u8* lightdata;
+
     char* entities;
 
 // additional model data
