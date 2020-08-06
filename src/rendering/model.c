@@ -156,46 +156,57 @@ pim_inline float2 VEC_CALL CalcUv(float4 s, float4 t, float4 p)
 static i32 VEC_CALL FlattenSurface(
     const mmodel_t* model,
     const msurface_t* surface,
-    float4** pim_noalias pTris,
-    float4** pim_noalias pPolys)
+    i32** pim_noalias pTris,
+    i32** pim_noalias pPolys)
 {
-    i32 numEdges = surface->numedges;
-    const i32 firstEdge = surface->firstedge;
-    const i32* pim_noalias surfEdges = model->surfedges;
+    const i32 surfnumedges = surface->numedges;
+    const i32 surffirstedge = surface->firstedge;
+
+    const i32 modnumsurfedges = model->numsurfedges;
+    const i32* pim_noalias surfedges = model->surfedges;
+    const i32 modnumedges = model->numedges;
     const medge_t* pim_noalias edges = model->edges;
+    const i32 modnumvertices = model->numvertices;
     const float4* pim_noalias vertices = model->vertices;
 
-    float4* pim_noalias polygon = tmp_realloc(*pPolys, sizeof(polygon[0]) * numEdges);
+    i32* pim_noalias polygon = tmp_realloc(*pPolys, sizeof(polygon[0]) * surfnumedges);
+    i32* pim_noalias tris = tmp_realloc(*pTris, sizeof(tris[0]) * surfnumedges * 3);
     *pPolys = polygon;
+    *pTris = tris;
 
-    for (i32 i = 0; i < numEdges; ++i)
+    for (i32 i = 0; i < surfnumedges; ++i)
     {
-        i32 e = surfEdges[firstEdge + i];
+        i32 j = surffirstedge + i;
+        ASSERT(j < modnumsurfedges);
+        i32 e = surfedges[j];
         i32 v;
         if (e >= 0)
         {
+            ASSERT(e < modnumedges);
             v = edges[e].v[0];
         }
         else
         {
+            ASSERT(-e < modnumedges);
             v = edges[-e].v[1];
         }
-        polygon[i] = vertices[v];
+        ASSERT(v >= 0);
+        ASSERT(v < modnumvertices);
+        polygon[i] = v;
     }
 
-    float4* pim_noalias triangles = tmp_realloc(*pTris, sizeof(triangles[0]) * numEdges * 3);
-    *pTris = triangles;
-
+    i32 count = surfnumedges;
     i32 resLen = 0;
-    while (numEdges >= 3)
+    while (count >= 3)
     {
-        triangles[resLen + 0] = polygon[0];
-        triangles[resLen + 1] = polygon[1];
-        triangles[resLen + 2] = polygon[2];
+        tris[resLen + 0] = polygon[0];
+        tris[resLen + 1] = polygon[1];
+        tris[resLen + 2] = polygon[2];
         resLen += 3;
+        ASSERT(resLen <= (surfnumedges * 3));
 
-        --numEdges;
-        for (i32 j = 1; j < numEdges; ++j)
+        --count;
+        for (i32 j = 1; j < count; ++j)
         {
             polygon[j] = polygon[j + 1];
         }
@@ -251,13 +262,16 @@ static float4 VEC_CALL IntToColor(i32 i, i32 count)
     return HsvToRgb(f4_v(h, 0.75f, 0.9f, 1.0f));
 }
 
-static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
+static material_t* GenMaterials(const mmodel_t* model)
 {
-    ASSERT(surfaces);
+    const msurface_t* surfaces = model->surfaces;
+    const i32 numsurfaces = model->numsurfaces;
 
-    material_t* materials = tmp_calloc(sizeof(materials[0]) * surfCount);
+    ASSERT(surfaces || !numsurfaces);
 
-    for (i32 i = 0; i < surfCount; ++i)
+    material_t* materials = tmp_calloc(sizeof(materials[0]) * numsurfaces);
+
+    for (i32 i = 0; i < numsurfaces; ++i)
     {
         const msurface_t* surface = surfaces + i;
         const mtexinfo_t* texinfo = surface->texinfo;
@@ -376,47 +390,62 @@ static material_t* GenMaterials(const msurface_t* surfaces, i32 surfCount)
 }
 
 static meshid_t VEC_CALL TrisToMesh(
+    const mmodel_t* model,
     const char* name,
     float4x4 M,
     const msurface_t* surface,
-    const float4* pim_noalias tris,
+    const i32* pim_noalias inds,
     i32 vertCount)
 {
     meshid_t id = { 0 };
 
-    const mtexinfo_t* texinfo = surface->texinfo;
-    ASSERT(texinfo);
-    const mtexture_t* mtex = texinfo->texture;
-    ASSERT(mtex);
+    const i32 numverts = model->numvertices;
+    const float4* pim_noalias verts = model->vertices;
 
-    float4 s = texinfo->vecs[0];
-    float4 t = texinfo->vecs[1];
-    float2 uvScale = { 1.0f / mtex->width, 1.0f / mtex->height };
+    // memory corruption here :( possibly due to vectorization?
+    // extending memory region mitigates it
+    ASSERT((vertCount % 3) == 0);
+    float4* pim_noalias positions = perm_malloc(1 + sizeof(positions[0]) * vertCount);
+    float4* pim_noalias normals = perm_malloc(1 + sizeof(normals[0]) * vertCount);
+    float2* pim_noalias uvs = perm_malloc(1 + sizeof(uvs[0]) * vertCount);
 
-    float4* pim_noalias positions = perm_malloc(sizeof(positions[0]) * vertCount);
-    float4* pim_noalias normals = perm_malloc(sizeof(normals[0]) * vertCount);
-    float2* pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
+    float4 s = f4_0;
+    float4 t = f4_0;
+    float2 uvScale = f2_0;
+    {
+        const mtexinfo_t* texinfo = surface->texinfo;
+        if (texinfo)
+        {
+            s = texinfo->vecs[0];
+            t = texinfo->vecs[1];
+            const mtexture_t* mtex = texinfo->texture;
+            if (mtex)
+            {
+                uvScale = f2_v(1.0f / mtex->width, 1.0f / mtex->height);
+            }
+        }
+    }
 
     i32 vertsEmit = 0;
     for (i32 i = 0; (i + 3) <= vertCount; i += 3)
     {
-        float4 A0 = tris[i + 0];
-        float4 B0 = tris[i + 1];
-        float4 C0 = tris[i + 2];
+        i32 a = inds[i + 0];
+        i32 b = inds[i + 1];
+        i32 c = inds[i + 2];
+        ASSERT(a >= 0);
+        ASSERT(c < numverts);
+
+        float4 A0 = verts[a];
+        float4 B0 = verts[b];
+        float4 C0 = verts[c];
         float4 A = f4x4_mul_pt(M, A0);
         float4 B = f4x4_mul_pt(M, B0);
         float4 C = f4x4_mul_pt(M, C0);
-
-        // reverse winding order
-        i32 a = vertsEmit + 0;
-        i32 b = vertsEmit + 2;
-        i32 c = vertsEmit + 1;
 
         float4 N = f4_cross3(f4_sub(C, A), f4_sub(B, A));
         float lenSq = f4_dot3(N, N);
         if (lenSq > kEpsilon)
         {
-            vertsEmit += 3;
             N = f4_divvs(N, sqrtf(lenSq));
         }
         else
@@ -425,17 +454,26 @@ static meshid_t VEC_CALL TrisToMesh(
             continue;
         }
 
+        // reverse winding order
+        a = vertsEmit + 0;
+        b = vertsEmit + 2;
+        c = vertsEmit + 1;
+
+        ASSERT(b < vertCount);
+
         positions[a] = A;
         positions[b] = B;
         positions[c] = C;
+
+        normals[a] = N;
+        normals[b] = N;
+        normals[c] = N;
 
         uvs[a] = f2_mul(CalcUv(s, t, A0), uvScale);
         uvs[b] = f2_mul(CalcUv(s, t, B0), uvScale);
         uvs[c] = f2_mul(CalcUv(s, t, C0), uvScale);
 
-        normals[a] = N;
-        normals[b] = N;
-        normals[c] = N;
+        vertsEmit += 3;
     }
 
     if (vertsEmit > 0)
@@ -475,50 +513,55 @@ u32* ModelToDrawables(const mmodel_t* model)
     const float4x4 M = f4x4_trs(f4_0, rot, f4_s(0.02f));
 
     const char* name = model->name;
-    const i32 numSurfaces = model->numsurfaces;
+    const i32 numsurfaces = model->numsurfaces;
     const msurface_t* surfaces = model->surfaces;
-    const i32* surfEdges = model->surfedges;
+    const i32 numsurfedges = model->numsurfedges;
     const float4* vertices = model->vertices;
-    const medge_t* edges = model->edges;
 
-    material_t* materials = GenMaterials(surfaces, numSurfaces);
+    material_t* materials = GenMaterials(model);
     drawables_t* drawTable = drawables_get();
 
     u32 idCount = 0;
     u32* ids = NULL;
 
-    float4* polygon = NULL;
-    float4* tris = NULL;
-    for (i32 i = 0; i < numSurfaces; ++i)
+    i32* polygon = NULL;
+    i32* tris = NULL;
+    for (i32 i = 0; i < numsurfaces; ++i)
     {
         const msurface_t* surface = surfaces + i;
-        const i32 numEdges = surface->numedges;
-        const i32 firstEdge = surface->firstedge;
+        const i32 numedges = surface->numedges;
+        const i32 firstedge = surface->firstedge;
         const mtexinfo_t* texinfo = surface->texinfo;
-        if (!texinfo)
+
+        if ((numedges <= 0) || (firstedge < 0))
         {
             continue;
         }
-        const mtexture_t* mtex = texinfo->texture;
-        if (!mtex)
+        if ((firstedge + numedges) > numsurfedges)
         {
             continue;
         }
-        if (numEdges <= 0 || firstEdge < 0)
+
+        const char* surfname = "surf";
+        if (texinfo)
         {
-            continue;
-        }
-        if (StrIStr(ARGS(mtex->name), "trigger"))
-        {
-            continue;
+            const mtexture_t* mtex = texinfo->texture;
+            if (mtex)
+            {
+                surfname = mtex->name;
+                if (StrIStr(ARGS(mtex->name), "trigger"))
+                {
+                    continue;
+                }
+            }
         }
 
         material_t material = materials[i];
 
         char name[PIM_PATH];
-        SPrintf(ARGS(name), "%s_surf_%d", model->name, i);
+        SPrintf(ARGS(name), "%s_%s_%d", model->name, surfname, i);
         i32 vertCount = FlattenSurface(model, surface, &tris, &polygon);
-        meshid_t mesh = TrisToMesh(name, M, surface, tris, vertCount);
+        meshid_t mesh = TrisToMesh(model, name, M, surface, tris, vertCount);
 
         material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
 

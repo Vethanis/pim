@@ -134,7 +134,7 @@ static void LookupRemove(table_t* table, i32 iTable, i32 iLookup)
         ASSERT(iTable >= 0);
         ASSERT((u32)iLookup < table->lookupWidth);
         // tombstone is anything less than -1
-        table->lookup[iLookup] = -2 - iTable;
+        table->lookup[iLookup] = -2;
         table->itemCount -= 1;
     }
 }

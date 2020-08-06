@@ -107,6 +107,7 @@ static cmdstat_t CmdTeleport(i32 argc, const char** argv);
 static cmdstat_t CmdLookat(i32 argc, const char** argv);
 static cmdstat_t CmdPtTest(i32 argc, const char** argv);
 static cmdstat_t CmdPtStdDev(i32 argc, const char** argv);
+static cmdstat_t CmdLoadTest(i32 argc, const char** argv);
 
 // ----------------------------------------------------------------------------
 
@@ -230,6 +231,32 @@ static cmdstat_t CmdPtStdDev(i32 argc, const char** argv)
         return cmdstat_ok;
     }
     return cmdstat_err;
+}
+
+static cmdstat_t CmdLoadTest(i32 argc, const char** argv)
+{
+    char cmd[PIM_PATH];
+    con_exec("mapload start");
+    for (i32 e = 1; ; ++e)
+    {
+        for (i32 m = 1; ; ++m)
+        {
+            SPrintf(ARGS(cmd), "mapload e%dm%d", e, m);
+            cmdstat_t status = cmd_exec(cmd);
+            if (status != cmdstat_ok)
+            {
+                if (m == 1)
+                {
+                    goto end;
+                }
+                break;
+            }
+        }
+    }
+end:
+    con_exec("mapload end");
+    con_exec("mapload start");
+    return cmdstat_ok;
 }
 
 ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
@@ -611,6 +638,7 @@ void render_sys_init(void)
     cmd_reg("quit", CmdQuit);
     cmd_reg("pt_test", CmdPtTest);
     cmd_reg("pt_stddev", CmdPtStdDev);
+    cmd_reg("loadtest", CmdLoadTest);
 
     vkr_init();
 

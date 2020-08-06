@@ -21,7 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "common/macro.h"
-#include "math/types.h"
+
+PIM_C_BEGIN
 
 typedef enum
 {
@@ -132,9 +133,9 @@ typedef struct
 {
     // bounds of entire model
     // in object space?
-    float3 mins;
-    float3 maxs;
-    float3 origin;
+    float mins[3];
+    float maxs[3];
+    float origin[3];
     // for each hull, the index of the root node of its bsp tree
     i32 headnode[MAX_MAP_HULLS];
     // might point to leaf data, or to the PVS
@@ -173,13 +174,13 @@ typedef struct
 // vertex position
 typedef struct
 {
-    float3 point;
+    float point[3];
 } dvertex_t;
 
 // bsp plane, subdivides space
 typedef struct
 {
-    float3 normal;
+    float normal[3];
     float dist; // dist == dot(normal, pointOnPlane)
     i32 type; // PLANE_X enum
 } dplane_t;
@@ -199,6 +200,27 @@ typedef struct
     u16 firstface;
     u16 numfaces;
 } dnode_t;
+
+// leaf 0 is the generic CONTENTS_SOLID leaf, used for all solid areas
+// all other leafs need visibility info
+typedef struct
+{
+    // content type
+    i32 contents;
+    // index into PVS
+    i32 visofs; // -1 = no visibility info
+
+    // bounds for frustum culling
+    i16 mins[3];
+    i16 maxs[3];
+
+    // array of mark surfaces
+    u16 firstmarksurface;
+    u16 nummarksurfaces;
+
+    // ambient sound associated with this leaf
+    u8 ambient_level[NUM_AMBIENTS];
+} dleaf_t;
 
 // lighter bsp node
 // probably used for visibility
@@ -247,27 +269,6 @@ typedef struct
     i32 lightofs;
 } dface_t;
 
-// leaf 0 is the generic CONTENTS_SOLID leaf, used for all solid areas
-// all other leafs need visibility info
-typedef struct
-{
-    // content type
-    i32 contents;
-    // index into PVS
-    i32 visofs; // -1 = no visibility info
-
-    // bounds for frustum culling
-    i16 mins[3];
-    i16 maxs[3];
-
-    // array of mark surfaces
-    u16 firstmarksurface;
-    u16 nummarksurfaces;
-
-    // ambient sound associated with this leaf
-    u8 ambient_level[NUM_AMBIENTS];
-} dleaf_t;
-
 typedef struct bsp_epair_s
 {
     struct bsp_epair_s* next;
@@ -277,7 +278,7 @@ typedef struct bsp_epair_s
 
 typedef struct
 {
-    float3 origin;
+    float origin[3];
     // array of brushes
     i32 firstbrush;
     i32 numbrushes;
@@ -385,4 +386,5 @@ typedef struct
     bsp_ent_t arr[MAX_MAP_ENTITIES];
 } tool_bsp_ents_t;
 
-// ----------------------------------------------------------------------------
+PIM_C_END
+

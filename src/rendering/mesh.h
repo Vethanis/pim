@@ -23,6 +23,7 @@ typedef struct meshid_s
 void mesh_sys_init(void);
 void mesh_sys_update(void);
 void mesh_sys_shutdown(void);
+void mesh_sys_gui(bool* pEnabled);
 
 bool mesh_new(mesh_t* mesh, const char* name, meshid_t* idOut);
 

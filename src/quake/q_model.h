@@ -22,6 +22,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "common/macro.h"
 #include "quake/q_bspfile.h"
+#include "math/types.h"
+
+PIM_C_BEGIN
 
 typedef enum
 {
@@ -67,20 +70,20 @@ typedef enum
 typedef struct mtexture_s
 {
     char name[16];
-    u32 width;
-    u32 height;
+    i32 width;
+    i32 height;
     i32 anim_total; // total tenths in sequence (0 == no sequence)
     i32 anim_min; // keyframe begin
     i32 anim_max; // keyframe end
     struct mtexture_s* anim_next; // texture animation sequence
     struct mtexture_s* alternate_anims; // bmodels in frame 1 use these
-    u32 offsets[MIPLEVELS]; // offset from end of this struct
+    i32 offsets[MIPLEVELS]; // offset from end of this struct
 } mtexture_t;
 
 typedef struct
 {
-    u16 v[2];
-    u32 cachededgeoffset;
+    i32 v[2];
+    i32 cachededgeoffset;
 } medge_t;
 
 typedef struct
@@ -93,33 +96,27 @@ typedef struct
 
 typedef struct
 {
-    i32 visframe;
-
-    i32 dlightframe;
-    i32 dlightbits;
-
-    float4 plane;
-    i32 flags;
-
+    // index of plane this face is on
+    i32 planenum;
+    // which side of the plane this face is on
+    i32 side;
     i32 firstedge; // model->surfedges[]
     i32 numedges; // negative numbers are backwards edges
-
-    // surface data
-    struct surfcache_s* cachespots[MIPLEVELS];
-
-    i16 texturemins[2];
-    i16 extents[2];
-
+    // index of the texture info for this face
     mtexinfo_t* texinfo;
-
     // lighting info
     u8 styles[MAXLIGHTMAPS];
-    u8* samples; // [numstyles * surfsize]
+    // start offset of [numstyles * surfsize] lightmap samples
+    u8* samples;
+
+    i32 texturemins[2];
+    i32 extents[2];
+    i32 flags;
 } msurface_t;
 
 typedef struct efrag_s
 {
-    struct mleaf_s* leaf;
+    struct mnode_s* leaf;
     struct efrag_s* leafnext;
     struct entity_s* entity;
     struct efrag_s* entnext;
@@ -127,43 +124,34 @@ typedef struct efrag_s
 
 typedef struct mnode_s
 {
-// common with leaf
-    i32 contents;
-    i32 visframe;
-
-    i16 mins[3];
-    i16 maxs[3];
-
-    struct mnode_s* parent;
-
-// node specific
-    float4* plane;
-    struct mnode_s* children[2];
-
-    u16 firstsurface;
-    u16 numsurfaces;
+    struct
+    {
+        struct mnode_s* parent;
+        i32 contents; // < 0 == leaf
+        i32 visframe;
+        i16 mins[3];
+        i16 maxs[3];
+    } c;
+    union
+    {
+        struct
+        {
+            struct mnode_s* children[2];
+            i32 planenum;
+            i32 firstface;
+            i32 numfaces;
+        } node;
+        struct
+        {
+            efrag_t* efrags;
+            i32 visofs;
+            i32 key; // bsp sequence number for leaf contents
+            i32 firstmarksurface;
+            i32 nummarksurfaces;
+            u8 ambient_level[NUM_AMBIENTS];
+        } leaf;
+    } u;
 } mnode_t;
-
-typedef struct mleaf_s
-{
-// common with node
-    i32 contents; // will be negative
-    i32 visframe;
-
-    i16 mins[3];
-    i16 maxs[3];
-
-    struct mnode_s* parent;
-
-// leaf specific
-    u8* compressed_vis;
-    efrag_t* efrags;
-
-    msurface_t** firstmarksurface;
-    i32 nummarksurfaces;
-    i32 key; // bsp sequence number for leaf contents
-    u8 ambient_sound_level[NUM_AMBIENTS];
-} mleaf_t;
 
 typedef struct
 {
@@ -385,16 +373,14 @@ typedef struct mmodel_s
 // metadata
     char name[64];
     i32 needload;
-
     modtype_t type;
     i32 numframes;
     synctype_t synctype;
-
     i32 flags;
 
 // model bounds
-    float3 mins;
-    float3 maxs;
+    float mins[3];
+    float maxs[3];
     float radius;
 
 // brush model data
@@ -402,13 +388,11 @@ typedef struct mmodel_s
     i32 nummodelsurfaces;
 
     i32 numsubmodels;
-    dmodel_t* submodels;
+    dmodel_t* dsubmodels;
+    struct mmodel_s* msubmodels;
 
     i32 numplanes;
     float4* planes;
-
-    i32 numleafs;
-    mleaf_t* leafs;
 
     i32 numvertices;
     float4* vertices;
@@ -417,6 +401,7 @@ typedef struct mmodel_s
     medge_t* edges;
 
     i32 numnodes;
+    i32 numleafs;
     mnode_t* nodes;
 
     i32 numtexinfo;
@@ -447,12 +432,16 @@ typedef struct mmodel_s
     i32 lightdatasize;
     u8* lightdata;
 
+    i32 entitiessize;
     char* entities;
 
 // additional model data
+    i32 cachesize;
     void* cache;
 
 } mmodel_t;
 
 mmodel_t* LoadModel(const char* name, const void* buffer, EAlloc allocator);
 void FreeModel(mmodel_t* model);
+
+PIM_C_END

@@ -5,6 +5,7 @@
 #include "common/cvar.h"
 #include "rendering/render_system.h"
 #include "rendering/texture.h"
+#include "rendering/mesh.h"
 #include "assets/asset_system.h"
 
 // ----------------------------------------------------------------------------
@@ -33,6 +34,7 @@ static edwin_t ms_windows[] =
     { "Profiler", false, profile_gui },
     { "Renderer", false, render_sys_gui },
     { "Textures", false, texture_sys_gui },
+    { "Meshes", false, mesh_sys_gui },
     { "ImGui Demo", false, igShowDemoWindow },
 };
 
