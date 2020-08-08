@@ -14,14 +14,20 @@
 
 static table_t ms_table;
 
-static genid ToGenId(meshid_t id)
+pim_inline genid ToGenId(meshid_t mid)
 {
-    return (genid) { .index = id.index, .version = id.version };
+    genid gid;
+    gid.index = mid.index;
+    gid.version = mid.version;
+    return gid;
 }
 
-static meshid_t ToMeshId(genid id)
+pim_inline meshid_t ToMeshId(genid gid)
 {
-    return (meshid_t) { .index = id.index, .version = id.version };
+    meshid_t mid;
+    mid.index = gid.index;
+    mid.version = gid.version;
+    return mid;
 }
 
 static bool IsCurrent(meshid_t id)

@@ -7,9 +7,12 @@
 #include "math/int2_funcs.h"
 #include <string.h>
 
+#define kEmpty  -1
+#define kTomb   -2
+
 static void LookupReserve(table_t* table, i32 capacity)
 {
-    const u32 newWidth = NextPow2(capacity);
+    const u32 newWidth = NextPow2(capacity) * 4;
     const u32 oldWidth = table->lookupWidth;
     if (newWidth <= oldWidth)
     {
@@ -21,14 +24,14 @@ static void LookupReserve(table_t* table, i32 capacity)
 
     for (u32 i = 0; i < newWidth; ++i)
     {
-        newIndices[i] = -1;
+        newIndices[i] = kEmpty;
     }
 
     const u32 newMask = newWidth - 1u;
     for (u32 i = 0; i < oldWidth; ++i)
     {
         i32 index = oldIndices[i];
-        if (index == -1)
+        if (index == kEmpty)
         {
             continue;
         }
@@ -104,7 +107,7 @@ static bool LookupFind(
         const u32 iLookup = (hash + i) & mask;
         const i32 iTable = lookup[iLookup];
         // if empty
-        if (iTable == -1)
+        if (iTable == kEmpty)
         {
             break;
         }
@@ -133,19 +136,18 @@ static void LookupRemove(table_t* table, i32 iTable, i32 iLookup)
     {
         ASSERT(iTable >= 0);
         ASSERT((u32)iLookup < table->lookupWidth);
-        // tombstone is anything less than -1
-        table->lookup[iLookup] = -2;
+        table->lookup[iLookup] = kTomb;
         table->itemCount -= 1;
     }
 }
 
 static void LookupClear(table_t* table)
 {
-    u32 width = table->lookupWidth;
+    const u32 width = table->lookupWidth;
     i32* pim_noalias lookup = table->lookup;
     for (u32 i = 0; i < width; ++i)
     {
-        lookup[i] = -1;
+        lookup[i] = kEmpty;
     }
 }
 
@@ -181,7 +183,7 @@ void table_del(table_t* table)
 
 void table_clear(table_t* table)
 {
-    i32 len = table->width;
+    const i32 len = table->width;
     table->width = 0;
     table->itemCount = 0;
     memset(table->versions, 0, sizeof(table->versions[0]) * len);
@@ -198,8 +200,12 @@ void table_clear(table_t* table)
 
 bool table_exists(const table_t* table, genid id)
 {
+    const u8* pim_noalias versions = table->versions;
+    i32 index = id.index;
+    u8 version = id.version;
     ASSERT(table->valueSize > 0);
-    return (id.index < table->width) && (table->versions[id.index] == id.version);
+    ASSERT(index < table->width);
+    return versions[index] == version;
 }
 
 bool table_add(table_t* table, const char* name, const void* valueIn, genid* idOut)
@@ -208,11 +214,10 @@ bool table_add(table_t* table, const char* name, const void* valueIn, genid* idO
     ASSERT(valueIn);
     ASSERT(idOut);
 
-    genid id = { 0 };
-
     if (!name || !name[0])
     {
-        *idOut = id;
+        idOut->index = 0;
+        idOut->version = 0;
         return false;
     }
 
@@ -223,34 +228,37 @@ bool table_add(table_t* table, const char* name, const void* valueIn, genid* idO
     }
 
     const i32 stride = table->valueSize;
-    if (!queue_trypop(&table->freelist, &id.index, sizeof(id.index)))
+    i32 index = 0;
+    u8 version = 0;
+    if (!queue_trypop(&table->freelist, &index, sizeof(index)))
     {
         table->width += 1;
-        i32 len = table->width;
+        const i32 len = table->width;
         PermReserve(table->versions, len);
         PermReserve(table->refcounts, len);
         PermReserve(table->hashes, len);
         PermReserve(table->names, len);
         table->values = perm_realloc(table->values, len * stride);
 
-        id.index = len - 1;
-        id.version = 1;
-        table->versions[id.index] = id.version;
+        index = len - 1;
+        version = 1;
+        table->versions[index] = version;
     }
-    ASSERT(id.index >= 0);
-    ASSERT(id.index < table->width);
+    ASSERT(index >= 0);
+    ASSERT(index < table->width);
 
-    id.version = table->versions[id.index];
-    table->refcounts[id.index] = 1;
-    table->hashes[id.index] = HashStr(name);
-    table->names[id.index] = StrDup(name, EAlloc_Perm);
+    version = table->versions[index];
+    table->refcounts[index] = 1;
+    table->hashes[index] = HashStr(name);
+    table->names[index] = StrDup(name, EAlloc_Perm);
 
     u8* pValues = table->values;
-    memcpy(pValues + id.index * stride, valueIn, stride);
+    memcpy(pValues + index * stride, valueIn, stride);
 
-    *idOut = id;
+    LookupInsert(table, index);
 
-    LookupInsert(table, id.index);
+    idOut->index = index;
+    idOut->version = version;
 
     return true;
 }
@@ -270,33 +278,36 @@ bool table_release(table_t* table, genid id, void* valueOut)
 {
     if (table_exists(table, id))
     {
-        ASSERT(table->refcounts[id.index] > 0);
-        table->refcounts[id.index] -= 1;
-        if (table->refcounts[id.index] == 0)
+        const i32 index = id.index;
+        const i32 version = id.version;
+
+        ASSERT(table->refcounts[index] > 0);
+        table->refcounts[index] -= 1;
+        if (table->refcounts[index] == 0)
         {
-            ASSERT(table->names[id.index]);
-            ASSERT(table->hashes[id.index]);
+            ASSERT(table->names[index]);
+            ASSERT(table->hashes[index]);
 
             i32 iTable, iLookup;
             bool found = LookupFind(
                 table,
-                table->names[id.index],
-                table->hashes[id.index],
+                table->names[index],
+                table->hashes[index],
                 &iTable,
                 &iLookup);
             ASSERT(found);
-            ASSERT(iTable == id.index);
+            ASSERT(iTable == index);
 
             LookupRemove(table, iTable, iLookup);
 
-            pim_free(table->names[id.index]);
-            table->names[id.index] = NULL;
-            table->hashes[id.index] = 0u;
-            table->versions[id.index] += 1;
+            pim_free(table->names[index]);
+            table->names[index] = NULL;
+            table->hashes[index] = 0u;
+            table->versions[index] += 1;
             {
                 i32 stride = table->valueSize;
                 u8* pValue = table->values;
-                pValue += id.index * stride;
+                pValue += index * stride;
                 if (valueOut)
                 {
                     memcpy(valueOut, pValue, stride);
@@ -304,7 +315,7 @@ bool table_release(table_t* table, genid id, void* valueOut)
                 memset(pValue, 0, stride);
             }
 
-            queue_push(&table->freelist, &id.index, sizeof(id.index));
+            queue_push(&table->freelist, &index, sizeof(index));
 
             return true;
         }
@@ -317,9 +328,10 @@ bool table_get(const table_t* table, genid id, void* valueOut)
     ASSERT(valueOut);
     if (table_exists(table, id))
     {
+        i32 index = id.index;
         i32 stride = table->valueSize;
         const u8* pValues = table->values;
-        memcpy(valueOut, pValues + stride * id.index, stride);
+        memcpy(valueOut, pValues + stride * index, stride);
         return true;
     }
     return false;
@@ -330,9 +342,10 @@ bool table_set(table_t* table, genid id, const void* valueIn)
     ASSERT(valueIn);
     if (table_exists(table, id))
     {
+        i32 index = id.index;
         i32 stride = table->valueSize;
         u8* pValues = table->values;
-        memcpy(pValues + stride * id.index, valueIn, stride);
+        memcpy(pValues + stride * index, valueIn, stride);
         return true;
     }
     return false;

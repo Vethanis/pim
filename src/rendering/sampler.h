@@ -149,15 +149,24 @@ pim_inline float4 VEC_CALL Wrap_c32(const u32* buffer, int2 size, int2 coord)
 }
 pim_inline float4 VEC_CALL UvClamp_c32(const u32* buffer, int2 size, float2 uv)
 {
-    return ColorToLinear(buffer[UvClamp(size, uv)]);
+    i32 index = UvClamp(size, uv);
+    u32 color = buffer[index];
+    float4 linear = ColorToLinear(color);
+    return linear;
 }
 pim_inline float4 VEC_CALL UvWrap_c32(const u32* buffer, int2 size, float2 uv)
 {
-    return ColorToLinear(buffer[UvWrap(size, uv)]);
+    i32 index = UvWrap(size, uv);
+    u32 color = buffer[index];
+    float4 linear = ColorToLinear(color);
+    return linear;
 }
 pim_inline float4 VEC_CALL UvWrap_dir8(const u32* buffer, int2 size, float2 uv)
 {
-    return rgba8_dir(buffer[UvWrap(size, uv)]);
+    i32 index = UvWrap(size, uv);
+    u32 dir8 = buffer[index];
+    float4 dir = rgba8_dir(dir8);
+    return dir;
 }
 
 typedef struct bilinear_s
@@ -185,84 +194,120 @@ pim_inline float4 VEC_CALL BilinearBlend_f4(
     float4 a, float4 b, float4 c, float4 d,
     float2 frac)
 {
-    return f4_lerpvs(f4_lerpvs(a, b, frac.x), f4_lerpvs(c, d, frac.x), frac.y);
+    a = f4_lerpvs(a, b, frac.x);
+    b = f4_lerpvs(c, d, frac.x);
+    c = f4_lerpvs(a, b, frac.y);
+    return c;
 }
 
 pim_inline float3 VEC_CALL BilinearBlend_f3(
     float3 a, float3 b, float3 c, float3 d,
     float2 frac)
 {
-    return f3_lerp(f3_lerp(a, b, frac.x), f3_lerp(c, d, frac.x), frac.y);
+    a = f3_lerp(a, b, frac.x);
+    b = f3_lerp(c, d, frac.x);
+    c = f3_lerp(a, b, frac.y);
+    return c;
 }
 
 pim_inline float2 VEC_CALL BilinearBlend_f2(
     float2 a, float2 b, float2 c, float2 d,
     float2 frac)
 {
-    return f2_lerp(f2_lerp(a, b, frac.x), f2_lerp(c, d, frac.x), frac.y);
+    a = f2_lerp(a, b, frac.x);
+    b = f2_lerp(c, d, frac.x);
+    c = f2_lerp(a, b, frac.y);
+    return c;
 }
 
 pim_inline float VEC_CALL BilinearBlend_f1(
     float a, float b, float c, float d,
     float2 frac)
 {
-    return f1_lerp(f1_lerp(a, b, frac.x), f1_lerp(c, d, frac.x), frac.y);
+    a = f1_lerp(a, b, frac.x);
+    b = f1_lerp(c, d, frac.x);
+    c = f1_lerp(a, b, frac.y);
+    return c;
 }
 
-pim_inline float4 VEC_CALL BilinearClamp_f4(const float4* buffer, int2 size, bilinear_t bi)
+pim_inline float4 VEC_CALL BilinearClamp_f4(const float4* pim_noalias buffer, int2 size, bilinear_t bi)
 {
-    float4 a = buffer[Clamp(size, bi.a)];
-    float4 b = buffer[Clamp(size, bi.b)];
-    float4 c = buffer[Clamp(size, bi.c)];
-    float4 d = buffer[Clamp(size, bi.d)];
+    i32 ia = Clamp(size, bi.a);
+    i32 ib = Clamp(size, bi.b);
+    i32 ic = Clamp(size, bi.c);
+    i32 id = Clamp(size, bi.d);
+    float4 a = buffer[ia];
+    float4 b = buffer[ib];
+    float4 c = buffer[ic];
+    float4 d = buffer[id];
     return BilinearBlend_f4(a, b, c, d, bi.frac);
 }
-pim_inline float4 VEC_CALL BilinearWrap_f4(const float4* buffer, int2 size, bilinear_t bi)
+pim_inline float4 VEC_CALL BilinearWrap_f4(const float4* pim_noalias buffer, int2 size, bilinear_t bi)
 {
-    float4 a = buffer[Wrap(size, bi.a)];
-    float4 b = buffer[Wrap(size, bi.b)];
-    float4 c = buffer[Wrap(size, bi.c)];
-    float4 d = buffer[Wrap(size, bi.d)];
+    i32 ia = Wrap(size, bi.a);
+    i32 ib = Wrap(size, bi.b);
+    i32 ic = Wrap(size, bi.c);
+    i32 id = Wrap(size, bi.d);
+    float4 a = buffer[ia];
+    float4 b = buffer[ib];
+    float4 c = buffer[ic];
+    float4 d = buffer[id];
     return BilinearBlend_f4(a, b, c, d, bi.frac);
 }
 
-pim_inline float3 VEC_CALL BilinearClamp_f3(const float3* buffer, int2 size, bilinear_t bi)
+pim_inline float3 VEC_CALL BilinearClamp_f3(const float3* pim_noalias buffer, int2 size, bilinear_t bi)
 {
-    float3 a = buffer[Clamp(size, bi.a)];
-    float3 b = buffer[Clamp(size, bi.b)];
-    float3 c = buffer[Clamp(size, bi.c)];
-    float3 d = buffer[Clamp(size, bi.d)];
+    i32 ia = Clamp(size, bi.a);
+    i32 ib = Clamp(size, bi.b);
+    i32 ic = Clamp(size, bi.c);
+    i32 id = Clamp(size, bi.d);
+    float3 a = buffer[ia];
+    float3 b = buffer[ib];
+    float3 c = buffer[ic];
+    float3 d = buffer[id];
     return BilinearBlend_f3(a, b, c, d, bi.frac);
 }
-pim_inline float3 VEC_CALL BilinearWrap_f3(const float3* buffer, int2 size, bilinear_t bi)
+pim_inline float3 VEC_CALL BilinearWrap_f3(const float3* pim_noalias buffer, int2 size, bilinear_t bi)
 {
-    float3 a = buffer[Wrap(size, bi.a)];
-    float3 b = buffer[Wrap(size, bi.b)];
-    float3 c = buffer[Wrap(size, bi.c)];
-    float3 d = buffer[Wrap(size, bi.d)];
+    i32 ia = Wrap(size, bi.a);
+    i32 ib = Wrap(size, bi.b);
+    i32 ic = Wrap(size, bi.c);
+    i32 id = Wrap(size, bi.d);
+    float3 a = buffer[ia];
+    float3 b = buffer[ib];
+    float3 c = buffer[ic];
+    float3 d = buffer[id];
     return BilinearBlend_f3(a, b, c, d, bi.frac);
 }
 
-pim_inline float2 VEC_CALL BilinearClamp_f2(const float2* buffer, int2 size, bilinear_t bi)
+pim_inline float2 VEC_CALL BilinearClamp_f2(const float2* pim_noalias buffer, int2 size, bilinear_t bi)
 {
-    float2 a = buffer[Clamp(size, bi.a)];
-    float2 b = buffer[Clamp(size, bi.b)];
-    float2 c = buffer[Clamp(size, bi.c)];
-    float2 d = buffer[Clamp(size, bi.d)];
+    i32 ia = Clamp(size, bi.a);
+    i32 ib = Clamp(size, bi.b);
+    i32 ic = Clamp(size, bi.c);
+    i32 id = Clamp(size, bi.d);
+    float2 a = buffer[ia];
+    float2 b = buffer[ib];
+    float2 c = buffer[ic];
+    float2 d = buffer[id];
     return BilinearBlend_f2(a, b, c, d, bi.frac);
 }
 
-pim_inline float VEC_CALL BilinearClamp_f1(const float* buffer, int2 size, bilinear_t bi)
+pim_inline float VEC_CALL BilinearClamp_f1(const float* pim_noalias buffer, int2 size, bilinear_t bi)
 {
-    float a = buffer[Clamp(size, bi.a)];
-    float b = buffer[Clamp(size, bi.b)];
-    float c = buffer[Clamp(size, bi.c)];
-    float d = buffer[Clamp(size, bi.d)];
+    i32 ia = Clamp(size, bi.a);
+    i32 ib = Clamp(size, bi.b);
+    i32 ic = Clamp(size, bi.c);
+    i32 id = Clamp(size, bi.d);
+    float a = buffer[ia];
+    float b = buffer[ib];
+    float c = buffer[ic];
+    float d = buffer[id];
     return BilinearBlend_f1(a, b, c, d, bi.frac);
 }
 
 
-pim_inline float4 VEC_CALL BilinearClamp_c32(const u32* buffer, int2 size, bilinear_t bi)
+pim_inline float4 VEC_CALL BilinearClamp_c32(const u32* pim_noalias buffer, int2 size, bilinear_t bi)
 {
     float4 a = Clamp_c32(buffer, size, bi.a);
     float4 b = Clamp_c32(buffer, size, bi.b);
@@ -270,7 +315,7 @@ pim_inline float4 VEC_CALL BilinearClamp_c32(const u32* buffer, int2 size, bilin
     float4 d = Clamp_c32(buffer, size, bi.d);
     return BilinearBlend_f4(a, b, c, d, bi.frac);
 }
-pim_inline float4 VEC_CALL BilinearWrap_c32(const u32* buffer, int2 size, bilinear_t bi)
+pim_inline float4 VEC_CALL BilinearWrap_c32(const u32* pim_noalias buffer, int2 size, bilinear_t bi)
 {
     float4 a = Wrap_c32(buffer, size, bi.a);
     float4 b = Wrap_c32(buffer, size, bi.b);
@@ -279,56 +324,80 @@ pim_inline float4 VEC_CALL BilinearWrap_c32(const u32* buffer, int2 size, biline
     return BilinearBlend_f4(a, b, c, d, bi.frac);
 }
 
-pim_inline float4 VEC_CALL UvBilinearClamp_f4(const float4* buffer, int2 size, float2 uv)
-{
-    return BilinearClamp_f4(buffer, size, Bilinear(size, uv));
-}
-pim_inline float4 VEC_CALL UvBilinearWrap_f4(const float4* buffer, int2 size, float2 uv)
-{
-    return BilinearWrap_f4(buffer, size, Bilinear(size, uv));
-}
-
-pim_inline float3 VEC_CALL UvBilinearClamp_f3(const float3* buffer, int2 size, float2 uv)
-{
-    return BilinearClamp_f3(buffer, size, Bilinear(size, uv));
-}
-pim_inline float3 VEC_CALL UvBilinearWrap_f3(const float3* buffer, int2 size, float2 uv)
-{
-    return BilinearWrap_f3(buffer, size, Bilinear(size, uv));
-}
-
-pim_inline float2 VEC_CALL UvBilinearClamp_f2(const float2* buffer, int2 size, float2 uv)
-{
-    return BilinearClamp_f2(buffer, size, Bilinear(size, uv));
-}
-
-pim_inline float VEC_CALL UvBilinearClamp_f1(const float* buffer, int2 size, float2 uv)
-{
-    return BilinearClamp_f1(buffer, size, Bilinear(size, uv));
-}
-
-pim_inline float4 VEC_CALL UvBilinearClamp_c32(const u32* buffer, int2 size, float2 uv)
-{
-    return BilinearClamp_c32(buffer, size, Bilinear(size, uv));
-}
-pim_inline float4 VEC_CALL UvBilinearWrap_c32(const u32* buffer, int2 size, float2 uv)
-{
-    return BilinearWrap_c32(buffer, size, Bilinear(size, uv));
-}
-
-pim_inline float4 VEC_CALL UvBilinearWrap_dir8(const u32* buffer, int2 size, float2 uv)
+pim_inline float4 VEC_CALL UvBilinearClamp_f4(const float4* pim_noalias buffer, int2 size, float2 uv)
 {
     bilinear_t bi = Bilinear(size, uv);
-    float4 a = rgba8_dir(buffer[Wrap(size, bi.a)]);
-    float4 b = rgba8_dir(buffer[Wrap(size, bi.b)]);
-    float4 c = rgba8_dir(buffer[Wrap(size, bi.c)]);
-    float4 d = rgba8_dir(buffer[Wrap(size, bi.d)]);
+    float4 value = BilinearClamp_f4(buffer, size, bi);
+    return value;
+}
+pim_inline float4 VEC_CALL UvBilinearWrap_f4(const float4* pim_noalias buffer, int2 size, float2 uv)
+{
+    bilinear_t bi = Bilinear(size, uv);
+    float4 value = BilinearWrap_f4(buffer, size, bi);
+    return value;
+}
+
+pim_inline float3 VEC_CALL UvBilinearClamp_f3(const float3* pim_noalias buffer, int2 size, float2 uv)
+{
+    bilinear_t bi = Bilinear(size, uv);
+    float3 value = BilinearClamp_f3(buffer, size, bi);
+    return value;
+}
+pim_inline float3 VEC_CALL UvBilinearWrap_f3(const float3* pim_noalias buffer, int2 size, float2 uv)
+{
+    bilinear_t bi = Bilinear(size, uv);
+    float3 value = BilinearWrap_f3(buffer, size, bi);
+    return value;
+}
+
+pim_inline float2 VEC_CALL UvBilinearClamp_f2(const float2* pim_noalias buffer, int2 size, float2 uv)
+{
+    bilinear_t bi = Bilinear(size, uv);
+    float2 value = BilinearClamp_f2(buffer, size, bi);
+    return value;
+}
+
+pim_inline float VEC_CALL UvBilinearClamp_f1(const float* pim_noalias buffer, int2 size, float2 uv)
+{
+    bilinear_t bi = Bilinear(size, uv);
+    float value = BilinearClamp_f1(buffer, size, bi);
+    return value;
+}
+
+pim_inline float4 VEC_CALL UvBilinearClamp_c32(const u32* pim_noalias buffer, int2 size, float2 uv)
+{
+    bilinear_t bi = Bilinear(size, uv);
+    float4 value = BilinearClamp_c32(buffer, size, bi);
+    return value;
+}
+pim_inline float4 VEC_CALL UvBilinearWrap_c32(const u32* pim_noalias buffer, int2 size, float2 uv)
+{
+    bilinear_t bi = Bilinear(size, uv);
+    float4 value = BilinearWrap_c32(buffer, size, bi);
+    return value;
+}
+
+pim_inline float4 VEC_CALL UvBilinearWrap_dir8(const u32* pim_noalias buffer, int2 size, float2 uv)
+{
+    bilinear_t bi = Bilinear(size, uv);
+    i32 ia = Wrap(size, bi.a);
+    i32 ib = Wrap(size, bi.b);
+    i32 ic = Wrap(size, bi.c);
+    i32 id = Wrap(size, bi.d);
+    u32 ca = buffer[ia];
+    u32 cb = buffer[ib];
+    u32 cc = buffer[ic];
+    u32 cd = buffer[id];
+    float4 a = rgba8_dir(ca);
+    float4 b = rgba8_dir(cb);
+    float4 c = rgba8_dir(cc);
+    float4 d = rgba8_dir(cd);
     float4 N = BilinearBlend_f4(a, b, c, d, bi.frac);
     return f4_normalize3(N);
 }
 
 pim_inline float4 VEC_CALL TrilinearClamp_f4(
-    const float4* buffer,
+    const float4* pim_noalias buffer,
     int2 size,
     float2 uv,
     float mip)
@@ -349,7 +418,7 @@ pim_inline float4 VEC_CALL TrilinearClamp_f4(
     return f4_lerpvs(s0, s1, mfrac);
 }
 pim_inline float4 VEC_CALL TrilinearWrap_f4(
-    const float4* buffer,
+    const float4* pim_noalias buffer,
     int2 size,
     float2 uv,
     float mip)
@@ -371,7 +440,7 @@ pim_inline float4 VEC_CALL TrilinearWrap_f4(
 }
 
 pim_inline float4 VEC_CALL TrilinearClamp_c32(
-    const u32* buffer,
+    const u32* pim_noalias buffer,
     int2 size,
     float2 uv,
     float mip)
@@ -392,7 +461,7 @@ pim_inline float4 VEC_CALL TrilinearClamp_c32(
     return f4_lerpvs(s0, s1, mfrac);
 }
 pim_inline float4 VEC_CALL TrilinearWrap_c32(
-    const u32* buffer,
+    const u32* pim_noalias buffer,
     int2 size,
     float2 uv,
     float mip)
@@ -413,96 +482,13 @@ pim_inline float4 VEC_CALL TrilinearWrap_c32(
     return f4_lerpvs(s0, s1, mfrac);
 }
 
-pim_inline float4 VEC_CALL CubicEq(float t)
-{
-    float4 n = f4_subvs(f4_v(1.0f, 2.0f, 3.0f, 4.0f), t);
-    float4 s = f4_mul(f4_mul(n, n), n);
-    float x = s.x;
-    float y = s.y - 4.0f * s.x;
-    float z = s.z - 4.0f * s.y + 6.0f * s.x;
-    float w = 6.0f - x - y - z;
-    return f4_mulvs(f4_v(x, y, z, w), 1.0f / 6.0f);
-}
-
-// https://gist.github.com/TheRealMJP/c83b8c0f46b63f3a88a5986f4fa982b1
-pim_inline float3 VEC_CALL UvBicubic_f3(
-    const float3* pim_noalias texels,
-    int2 size,
-    float2 uv)
-{
-    const float2 sizef = { (float)size.x, (float)size.y };
-    const float2 rcpSize = f2_rcp(sizef);
-
-    float2 samplePos = f2_mul(uv, sizef);
-    float2 texPos1 = f2_addvs(f2_floor(f2_subvs(samplePos, 0.5f)), 0.5f);
-    float2 f = f2_sub(samplePos, texPos1);
-
-    float2 w0 =
-    {
-        f.x * (-0.5f + f.x * (1.0f - 0.5f * f.x)),
-        f.y * (-0.5f + f.y * (1.0f - 0.5f * f.y)),
-    };
-    float2 w1 =
-    {
-        1.0f + f.x * f.x * (-2.5f + 1.5f * f.x),
-        1.0f + f.y * f.y * (-2.5f + 1.5f * f.y),
-    };
-    float2 w2 =
-    {
-        f.x * (0.5f + f.x * (2.0f - 1.5f * f.x)),
-        f.y * (0.5f + f.y * (2.0f - 1.5f * f.y)),
-    };
-    float2 w3 =
-    {
-        f.x * f.x * (-0.5f + 0.5f * f.x),
-        f.y * f.y * (-0.5f + 0.5f * f.y),
-    };
-
-    float2 w12 = f2_add(w1, w2);
-    float2 offset12 = f2_div(w2, w12);
-
-    float2 texPos0 = f2_subvs(texPos1, 1.0f);
-    float2 texPos3 = f2_addvs(texPos1, 2.0f);
-    float2 texPos12 = f2_add(texPos1, offset12);
-
-    texPos0 = f2_mul(texPos0, rcpSize);
-    texPos3 = f2_mul(texPos3, rcpSize);
-    texPos12 = f2_mul(texPos12, rcpSize);
-
-    float3 result = f3_0;
-    float3 sample;
-
-    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos0.x, texPos0.y));
-    result = f3_add(result, f3_mulvs(sample, w0.x * w0.y));
-    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos12.x, texPos0.y));
-    result = f3_add(result, f3_mulvs(sample, w12.x * w0.y));
-    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos3.x, texPos0.y));
-    result = f3_add(result, f3_mulvs(sample, w3.x * w0.y));
-
-    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos0.x, texPos12.y));
-    result = f3_add(result, f3_mulvs(sample, w0.x * w12.y));
-    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos12.x, texPos12.y));
-    result = f3_add(result, f3_mulvs(sample, w12.x * w12.y));
-    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos3.x, texPos12.y));
-    result = f3_add(result, f3_mulvs(sample, w3.x * w12.y));
-
-    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos0.x, texPos3.y));
-    result = f3_add(result, f3_mulvs(sample, w0.x * w3.y));
-    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos12.x, texPos3.y));
-    result = f3_add(result, f3_mulvs(sample, w12.x * w3.y));
-    sample = UvBilinearClamp_f3(texels, size, f2_v(texPos3.x, texPos3.y));
-    result = f3_add(result, f3_mulvs(sample, w3.x * w3.y));
-
-    return result;
-}
-
-pim_inline void VEC_CALL Write_f4(float4* dst, int2 size, int2 coord, float4 src)
+pim_inline void VEC_CALL Write_f4(float4* pim_noalias dst, int2 size, int2 coord, float4 src)
 {
     i32 i = Clamp(size, coord);
     dst[i] = src;
 }
 
-pim_inline void VEC_CALL Write_c32(u32* dst, int2 size, int2 coord, float4 src)
+pim_inline void VEC_CALL Write_c32(u32* pim_noalias dst, int2 size, int2 coord, float4 src)
 {
     i32 i = Clamp(size, coord);
     dst[i] = LinearToColor(src);

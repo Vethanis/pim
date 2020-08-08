@@ -5,6 +5,12 @@
 
 PIM_C_BEGIN
 
+typedef struct meshid_s
+{
+    u32 index : 24;
+    u32 version : 8;
+} meshid_t;
+
 typedef struct mesh_s
 {
     box_t bounds;
@@ -13,12 +19,6 @@ typedef struct mesh_s
     float2* uvs;
     i32 length;
 } mesh_t;
-
-typedef struct meshid_s
-{
-    i32 index;
-    i32 version;
-} meshid_t;
 
 void mesh_sys_init(void);
 void mesh_sys_update(void);

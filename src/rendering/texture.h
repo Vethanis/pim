@@ -5,17 +5,17 @@
 
 PIM_C_BEGIN
 
+typedef struct textureid_s
+{
+    u32 index : 24;
+    u32 version : 8;
+} textureid_t;
+
 typedef struct texture_s
 {
     int2 size;
-    u32* pim_noalias texels;
+    float4* pim_noalias texels;
 } texture_t;
-
-typedef struct textureid_s
-{
-    i32 index;
-    i32 version;
-} textureid_t;
 
 void texture_sys_init(void);
 void texture_sys_update(void);

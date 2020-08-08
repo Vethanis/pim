@@ -263,7 +263,7 @@ i32 StrICmp(const char* lhs, i32 size, const char* rhs)
     return c;
 }
 
-i32 MemICmp(const char* lhs, const char* rhs, i32 size)
+i32 MemICmp(const char* pim_noalias lhs, const char* pim_noalias rhs, i32 size)
 {
     i32 c = 0;
     ASSERT((lhs && rhs) || !size);

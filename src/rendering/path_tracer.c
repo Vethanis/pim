@@ -603,8 +603,8 @@ static float EmissionPdf(
             {
                 float4 wuv = SampleBaryCoord(Sample2D(sampler));
                 float2 uv = f2_blend(UA, UB, UC, wuv);
-                float4 sample = UvWrap_c32(romeMap.texels, romeMap.size, uv);
-                float em = sample.w * rome.w;
+                float sample = romeMap.texels[UvWrap(romeMap.size, uv)].w;
+                float em = sample * rome.w;
                 if (em > kThreshold)
                 {
                     ++hits;
@@ -1010,7 +1010,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     {
         if (texture_get(mat->normal, &tex))
         {
-            float4 Nts = UvBilinearWrap_dir8(tex.texels, tex.size, uv);
+            float4 Nts = f4_normalize3(UvBilinearWrap_f4(tex.texels, tex.size, uv));
             surf.N = TanToWorld(surf.N, Nts);
         }
     }
@@ -1021,11 +1021,11 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         float4 sample;
         if (bounce == 0)
         {
-            sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
+            sample = UvBilinearWrap_f4(tex.texels, tex.size, uv);
         }
         else
         {
-            sample = UvWrap_c32(tex.texels, tex.size, uv);
+            sample = tex.texels[UvWrap(tex.size, uv)];
         }
         surf.albedo = f4_mul(surf.albedo, sample);
     }
@@ -1036,11 +1036,11 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         float4 sample;
         if (bounce == 0)
         {
-            sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
+            sample = UvBilinearWrap_f4(tex.texels, tex.size, uv);
         }
         else
         {
-            sample = UvWrap_c32(tex.texels, tex.size, uv);
+            sample = tex.texels[UvWrap(tex.size, uv)];
         }
         rome = f4_mul(rome, sample);
     }
@@ -1183,38 +1183,6 @@ pim_inline float VEC_CALL Schlick(float cosTheta, float k)
     return f1_lerp(r0, 1.0f, t);
 }
 
-// http://www.pbr-book.org/3ed-2018/Reflection_Models/Specular_Reflection_and_Transmission.html#FrDielectric
-// cosThetaI: dot(V, N)
-// etaI: index of refraction for media on incident side
-// etaT: index of refraction for media on transmitted side
-pim_inline float VEC_CALL FrDielectric(
-    float cosThetaI,
-    float etaI,
-    float etaT)
-{
-    cosThetaI = f1_clamp(cosThetaI, -1.0f, 1.0f);
-    if (cosThetaI < 0.0f)
-    {
-        float tmp = etaI;
-        etaI = etaT;
-        etaT = tmp;
-        cosThetaI = -cosThetaI;
-    }
-    float sinThetaI = sqrtf(f1_max(0.0f, 1.0f - cosThetaI*cosThetaI));
-    float sinThetaT = etaI / etaT * sinThetaI;
-    if (sinThetaT >= 1.0f)
-    {
-        // total internal reflection
-        return 1.0f;
-    }
-    float cosThetaT = sqrtf(f1_max(0.0f, 1.0f - sinThetaT * sinThetaT));
-    float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
-        ((etaT * cosThetaI) + (etaI * cosThetaT));
-    float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
-        ((etaI * cosThetaI) + (etaT * cosThetaT));
-    return (Rparl * Rparl + Rperp * Rperp) * 0.5f;
-}
-
 pim_inline scatter_t VEC_CALL RefractScatter(
     pt_sampler_t* sampler,
     const surfhit_t* surf,
@@ -1222,57 +1190,47 @@ pim_inline scatter_t VEC_CALL RefractScatter(
 {
     scatter_t result = { 0 };
 
-    // quake's surface albedo is too dark for refraction
-    float4 albedo = f4_lerpvs(f4_s(0.99f), surf->albedo, 0.5f);
     const float kAir = 1.000277f;
     const float matIor = surf->material->ior;
 
     float4 V = f4_neg(I);
     float4 N = surf->N;
     float cosTheta = f4_dot3(V, N);
-    float F = FrDielectric(cosTheta, kAir, matIor);
+    float sinTheta = sqrtf(f1_max(0.0f, 1.0f - cosTheta * cosTheta));
+    bool entering = cosTheta > 0.0f;
+    float etaI = entering ? kAir : matIor;
+    float etaT = entering ? matIor : kAir;
+    float k = etaI / etaT;
+    float F = Schlick(cosTheta, k);
+
     float alpha = BrdfAlpha(surf->roughness);
-    float4 dirRough = SampleCosineHemisphere(Sample2D(sampler));
-    if (Sample1D(sampler) < F)
+    float4 albedo = f4_lerpvs(surf->albedo, f4_s(0.5f), 0.5f);
+    float4 L = SampleCosineHemisphere(Sample2D(sampler));
+    if (((k*sinTheta) > 1.0f) || (Sample1D(sampler) < F))
     {
-        dirRough = TanToWorld(N, dirRough);
         result.pos = surf->P;
 
-        result.dir = f4_reflect3(I, N);
-        result.dir = f4_normalize3(f4_lerpvs(result.dir, dirRough, alpha));
-        float NoL = f1_abs(f4_dot3(result.dir, N));
-        if (NoL > 0.0f)
-        {
-            float pdf = f1_lerp(1.0f, LambertPdf(NoL), alpha);
-            result.pdf = F * pdf;
-            result.attenuation = f4_mulvs(albedo, F / NoL);
-        }
+        L = TanToWorld(N, L);
+        float4 R = f4_reflect3(I, N);
+        result.dir = f4_normalize3(f4_lerpvs(R, L, alpha));
+        result.pdf = f1_lerp(F, LambertPdf(f1_abs(cosTheta)), alpha);
+        result.attenuation = F_SchlickEx(albedo, 0.5f, f1_abs(cosTheta));
     }
     else
     {
-        dirRough = TanToWorld(f4_neg(N), dirRough);
         // quake + embree has z fighting on animated surfaces from two planes
         // with opposing normals.
         // P already has 1mm toward M
-        // each plane is offset 1mm toward their normal
+        // each plane is offset 0.5mm toward their normal
         // we want to be 1mm past far plane
-        // thus, 4mm
-        result.pos = f4_add(surf->P, f4_mulvs(surf->M, -4.0f * kMilli));
+        // thus, 3mm
+        result.pos = f4_add(surf->P, f4_mulvs(surf->M, -3.0f * kMilli));
 
-        bool entering = cosTheta > 0.0f;
-        float etaI = entering ? kAir : matIor;
-        float etaT = entering ? matIor : kAir;
-        result.dir = f4_refract3(I, N, etaI / etaT);
-        result.dir = f4_normalize3(f4_lerpvs(result.dir, dirRough, alpha));
-        float NoL = f1_abs(f4_dot3(result.dir, N));
-        if (NoL > 0.0f)
-        {
-            float pdf = f1_lerp(1.0f, LambertPdf(NoL), alpha);
-            result.pdf = (1.0f - F) * pdf;
-            float4 ft = f4_mulvs(albedo, 1.0f - F);
-            ft = f4_mulvs(ft, (etaI * etaI) / (etaT * etaT));
-            result.attenuation = f4_divvs(ft, NoL);
-        }
+        L = TanToWorld(f4_neg(N), L);
+        float4 R = f4_refract3(I, N, k);
+        result.dir = f4_normalize3(f4_lerpvs(R, L, alpha));
+        result.pdf = f1_lerp((1.0f - F), LambertPdf(f1_abs(cosTheta)), alpha);
+        result.attenuation = f4_inv(F_SchlickEx(albedo, 0.5f, f1_abs(cosTheta)));
     }
     return result;
 }
@@ -1397,12 +1355,14 @@ pim_inline float4 VEC_CALL LightRad(
     texture_t tex;
     if (texture_get(mat->albedo, &tex))
     {
-        albedo = f4_mul(albedo, UvWrap_c32(tex.texels, tex.size, uv));
+        float4 sample = tex.texels[UvWrap(tex.size, uv)];
+        albedo = f4_mul(albedo, sample);
     }
     float4 rome = ColorToLinear(mat->flatRome);
     if (texture_get(mat->rome, &tex))
     {
-        rome = f4_mul(rome, UvWrap_c32(tex.texels, tex.size, uv));
+        float4 sample = tex.texels[UvWrap(tex.size, uv)];
+        rome = f4_mul(rome, sample);
     }
     return UnpackEmission(albedo, rome.w);
 }
@@ -1798,18 +1758,9 @@ pim_inline media_t VEC_CALL Media_Lerp(media_t lhs, media_t rhs, float t)
 // samples a free path in a given media
 // Xi: random variable in [0, 1)
 // u: extinction coefficient, or majorant in woodcock sampling
-pim_inline float VEC_CALL SampleFreePath(float Xi, float u)
+pim_inline float VEC_CALL SampleFreePath(float Xi, float rcpU)
 {
-    return -logf(1.0f - Xi) / u;
-}
-
-// samples a free path in a given media
-// Xi: random variable in [0, 1)
-// u: extinction coefficient, or majorant in woodcock sampling
-pim_inline float4 VEC_CALL SampleFreePath4(float Xi, float4 u)
-{
-    float t = -logf(1.0f - Xi);
-    return f4_v(t / u.x, t / u.y, t / u.z, 0.0f);
+    return -logf(1.0f - Xi) * rcpU;
 }
 
 // returns probability of a free path at t
@@ -1818,14 +1769,6 @@ pim_inline float4 VEC_CALL SampleFreePath4(float Xi, float4 u)
 pim_inline float VEC_CALL FreePathPdf(float t, float u)
 {
     return u * expf(-t * u);
-}
-
-// returns probability of a free path at t
-// t: ray time
-// u: extinction coefficient, or majorant in woodcock sampling
-pim_inline float4 VEC_CALL FreePathPdf4(float t, float4 u)
-{
-    return f4_mul(u, f4_exp3(f4_mulvs(u, -t)));
 }
 
 // maximum extinction coefficient of the media
@@ -1851,15 +1794,15 @@ pim_inline float4 VEC_CALL CalcTransmittance(
     float rayLen)
 {
     const media_desc_t* desc = &scene->mediaDesc;
+    const float4 u = CalculateMajorant(desc);
+    const float4 rcpU = f4_rcp(u);
+    const float rcpUmax = 1.0f / f4_hmax3(u);
     float4 attenuation = f4_1;
-    float4 u = CalculateMajorant(desc);
-    float4 rcpU = f4_rcp(u);
-    float uMax = f4_hmax3(u);
     float t = 0.0f;
     while (true)
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float dt = SampleFreePath(Sample1D(sampler), uMax);
+        float dt = SampleFreePath(Sample1D(sampler), rcpUmax);
         float tRem = rayLen - t;
         if (dt > tRem)
         {
@@ -1889,8 +1832,8 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     const media_desc_t* desc = &scene->mediaDesc;
     const float4 u = CalculateMajorant(desc);
     const float4 rcpU = f4_rcp(u);
-    const float uMax = f4_hmax3(u);
-    const float rcpUAvg = 1.0f / f4_avglum(u);
+    const float rcpUmax = 1.0f / f4_hmax3(u);
+    const float rcpU1 = 1.0f / f4_avglum(u);
 
     float t = 0.0f;
     float4 irradiance = f4_0;
@@ -1898,7 +1841,7 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     while (true)
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float dt = SampleFreePath(Sample1D(sampler), uMax);
+        float dt = SampleFreePath(Sample1D(sampler), rcpUmax);
         float tRem = rayLen - t;
         if (dt > tRem)
         {
@@ -1913,7 +1856,7 @@ pim_inline scatter_t VEC_CALL ScatterRay(
         attenuation = f4_mul(attenuation, f4_select(f4_1, segment, tookReal));
 
         float uS = Media_Scattering(media);
-        float pScatter = uS * rcpUAvg;
+        float pScatter = uS * rcpU1;
         if (Sample1D(sampler) < pScatter)
         {
             P = f4_add(ro, f4_mulvs(rd, t));
@@ -1984,6 +1927,7 @@ pt_result_t VEC_CALL pt_trace_ray(
             }
         }
 
+        hitRefractive |= hit.flags & matflag_refractive;
         if (hit.flags & matflag_sky)
         {
             light = f4_add(light, f4_mul(GetSky(scene, ray.ro, ray.rd), attenuation));
@@ -1991,7 +1935,6 @@ pt_result_t VEC_CALL pt_trace_ray(
         }
 
         surfhit_t surf = GetSurface(scene, ray, hit, b);
-        hitRefractive |= surf.material->flags & matflag_refractive;
         if (b == 0)
         {
             result.albedo = f4_f3(surf.albedo);

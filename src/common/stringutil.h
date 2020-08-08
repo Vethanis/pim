@@ -46,7 +46,7 @@ i32 Shift(char* dst, i32 size, i32 shifts);
 
 i32 StrCmp(const char* lhs, i32 size, const char* rhs);
 i32 StrICmp(const char* lhs, i32 size, const char* rhs);
-i32 MemICmp(const char* lhs, const char* rhs, i32 size);
+i32 MemICmp(const char* pim_noalias lhs, const char* pim_noalias rhs, i32 size);
 
 // ----------------------------------------------------------------------------
 // string searching

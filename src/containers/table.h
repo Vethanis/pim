@@ -7,15 +7,15 @@ PIM_C_BEGIN
 
 typedef struct genid_s
 {
-    i32 index;
-    i32 version;
+    u32 index : 24;
+    u32 version : 8;
 } genid;
 
 typedef struct table_s
 {
     i32 width;
     i32 valueSize;
-    i32* versions;
+    u8* versions;
     void* values;
     i32* refcounts;
     u32* hashes;

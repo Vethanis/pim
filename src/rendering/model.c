@@ -17,8 +17,11 @@
 #include "assets/asset_system.h"
 #include "common/stringutil.h"
 #include "common/console.h"
+#include "common/sort.h"
 
 #include "quake/q_model.h"
+
+#include <string.h>
 
 typedef struct mat_preset_s
 {
@@ -262,152 +265,135 @@ static float4 VEC_CALL IntToColor(i32 i, i32 count)
     return HsvToRgb(f4_v(h, 0.75f, 0.9f, 1.0f));
 }
 
-static material_t* GenMaterials(const mmodel_t* model)
+static material_t GenMaterial(const mtexture_t* mtex)
 {
-    const msurface_t* surfaces = model->surfaces;
-    const i32 numsurfaces = model->numsurfaces;
+    material_t material = { 0 };
+    material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
 
-    ASSERT(surfaces || !numsurfaces);
-
-    material_t* materials = tmp_calloc(sizeof(materials[0]) * numsurfaces);
-
-    for (i32 i = 0; i < numsurfaces; ++i)
+    if (!mtex)
     {
-        const msurface_t* surface = surfaces + i;
-        const mtexinfo_t* texinfo = surface->texinfo;
-        if (!texinfo)
-        {
-            continue;
-        }
-        const mtexture_t* mtex = texinfo->texture;
-        if (!mtex)
-        {
-            continue;
-        }
-
-        material_t material = { 0 };
-        material.ior = 1.0f;
-        if (StrIStr(ARGS(mtex->name), "light"))
-        {
-            material.flags |= matflag_emissive;
-        }
-        if (StrIStr(ARGS(mtex->name), "sky"))
-        {
-            material.flags |= matflag_sky;
-            material.flags |= matflag_emissive;
-            material.flags |= matflag_animated;
-        }
-        if (StrIStr(ARGS(mtex->name), "lava"))
-        {
-            material.flags |= matflag_lava;
-            material.flags |= matflag_emissive;
-            material.flags |= matflag_animated;
-        }
-        if (StrIStr(ARGS(mtex->name), "water"))
-        {
-            material.ior = 1.333f;
-            material.flags |= matflag_refractive;
-            material.flags |= matflag_animated;
-        }
-        if (StrIStr(ARGS(mtex->name), "slime"))
-        {
-            material.ior = 1.4394f;
-            material.flags |= matflag_refractive;
-            material.flags |= matflag_animated;
-        }
-        if (StrIStr(ARGS(mtex->name), "teleport"))
-        {
-            material.flags |= matflag_emissive;
-            material.flags |= matflag_animated;
-        }
-        if (StrIStr(ARGS(mtex->name), "window"))
-        {
-            material.ior = 1.52f;
-            material.flags |= matflag_refractive;
-            material.flags |= matflag_emissive;
-        }
-        if (mtex->name[0] == '*')
-        {
-            // 'turbulent'
-            material.flags |= matflag_animated;
-        }
-
-        const u8* pim_noalias mip0 = (u8*)mtex + mtex->offsets[0];
-        ASSERT(mtex->offsets[0] == sizeof(mtexture_t));
-        const int2 size = i2_v(mtex->width, mtex->height);
-        const i32 texelCount = size.x * size.y;
-
-        if (!(material.flags & matflag_emissive))
-        {
-            for (i32 i = 0; i < texelCount; ++i)
-            {
-                // 224: fire
-                // 240: brights
-                if (mip0[i] >= 224)
-                {
-                    material.flags |= matflag_emissive;
-                    break;
-                }
-            }
-        }
-
-        float roughness = 0.5f;
-        float occlusion = 1.0f;
-        float metallic = 0.0f;
-        float emission = 0.0f;
-
-        i32 iPreset = FindPreset(mtex->name);
-        if (iPreset != -1)
-        {
-            roughness = ms_matPresets[iPreset].roughness;
-            occlusion = ms_matPresets[iPreset].occlusion;
-            metallic = ms_matPresets[iPreset].metallic;
-            emission = ms_matPresets[iPreset].emission;
-        }
-
-        if (emission > 0.0f)
-        {
-            material.flags |= matflag_emissive;
-        }
-        if ((emission == 0.0f) && (material.flags & matflag_emissive))
-        {
-            emission = 0.5f;
-        }
-
-        material.flatAlbedo = LinearToColor(f4_1);
-        material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
-        texture_unpalette(
-            mip0,
-            size,
-            mtex->name,
-            &material.albedo,
-            &material.rome,
-            &material.normal);
-        materials[i] = material;
+        return material;
     }
 
-    return materials;
+    material.ior = 1.0f;
+    if (StrIStr(ARGS(mtex->name), "light"))
+    {
+        material.flags |= matflag_emissive;
+    }
+    if (StrIStr(ARGS(mtex->name), "sky"))
+    {
+        material.flags |= matflag_sky;
+        material.flags |= matflag_emissive;
+    }
+    if (StrIStr(ARGS(mtex->name), "lava"))
+    {
+        material.flags |= matflag_lava;
+        material.flags |= matflag_emissive;
+        material.flags |= matflag_animated;
+    }
+    if (StrIStr(ARGS(mtex->name), "water"))
+    {
+        material.ior = 1.333f;
+        material.flags |= matflag_water;
+        material.flags |= matflag_refractive;
+    }
+    if (StrIStr(ARGS(mtex->name), "slime"))
+    {
+        material.ior = 1.4394f;
+        material.flags |= matflag_slime;
+        material.flags |= matflag_refractive;
+    }
+    if (StrIStr(ARGS(mtex->name), "teleport"))
+    {
+        material.flags |= matflag_emissive;
+    }
+    if (StrIStr(ARGS(mtex->name), "window"))
+    {
+        material.ior = 1.52f;
+        material.flags |= matflag_refractive;
+        material.flags |= matflag_emissive;
+    }
+    if (mtex->name[0] == '*')
+    {
+        // uv animated
+        material.flags |= matflag_warped;
+    }
+    if (mtex->name[0] == '+')
+    {
+        // keyframe animated
+        material.flags |= matflag_animated;
+    }
+
+    const u8* pim_noalias mip0 = (u8*)mtex + mtex->offsets[0];
+    ASSERT(mtex->offsets[0] == sizeof(mtexture_t));
+    const int2 size = i2_v(mtex->width, mtex->height);
+    const i32 texelCount = size.x * size.y;
+
+    if (!(material.flags & matflag_emissive))
+    {
+        for (i32 i = 0; i < texelCount; ++i)
+        {
+            // 224: fire
+            // 240: brights
+            if (mip0[i] >= 224)
+            {
+                material.flags |= matflag_emissive;
+                break;
+            }
+        }
+    }
+
+    float roughness = 0.5f;
+    float occlusion = 1.0f;
+    float metallic = 0.0f;
+    float emission = 0.0f;
+
+    i32 iPreset = FindPreset(mtex->name);
+    if (iPreset != -1)
+    {
+        roughness = ms_matPresets[iPreset].roughness;
+        occlusion = ms_matPresets[iPreset].occlusion;
+        metallic = ms_matPresets[iPreset].metallic;
+        emission = ms_matPresets[iPreset].emission;
+    }
+
+    if (emission > 0.0f)
+    {
+        material.flags |= matflag_emissive;
+    }
+    if ((emission == 0.0f) && (material.flags & matflag_emissive))
+    {
+        emission = 0.5f;
+    }
+
+    material.flatAlbedo = LinearToColor(f4_1);
+    material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
+    texture_unpalette(
+        mip0,
+        size,
+        mtex->name,
+        &material.albedo,
+        &material.rome,
+        &material.normal);
+
+    return material;
 }
 
-static meshid_t VEC_CALL TrisToMesh(
+static mesh_t VEC_CALL TrisToMesh(
     const mmodel_t* model,
-    const char* name,
     float4x4 M,
     const msurface_t* surface,
     const i32* pim_noalias inds,
     i32 vertCount)
 {
-    meshid_t id = { 0 };
+    ASSERT((vertCount % 3) == 0);
 
     const i32 numverts = model->numvertices;
     const float4* pim_noalias verts = model->vertices;
 
-    // memory corruption here :( possibly due to vectorization?
-    // extending memory region mitigates it
-    ASSERT((vertCount % 3) == 0);
-    float4* pim_noalias positions = perm_malloc(1 + sizeof(positions[0]) * vertCount);
-    float4* pim_noalias normals = perm_malloc(1 + sizeof(normals[0]) * vertCount);
-    float2* pim_noalias uvs = perm_malloc(1 + sizeof(uvs[0]) * vertCount);
+    float4* pim_noalias positions = perm_malloc(sizeof(positions[0]) * vertCount);
+    float4* pim_noalias normals = perm_malloc(sizeof(normals[0]) * vertCount);
+    float2* pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
 
     float4 s = f4_0;
     float4 t = f4_0;
@@ -476,35 +462,165 @@ static meshid_t VEC_CALL TrisToMesh(
         vertsEmit += 3;
     }
 
+    mesh_t mesh = { 0 };
     if (vertsEmit > 0)
     {
-        mesh_t mesh = { 0 };
+        ASSERT(vertsEmit <= vertCount);
         mesh.length = vertsEmit;
         mesh.positions = positions;
         mesh.normals = normals;
         mesh.uvs = uvs;
-        bool created = mesh_new(&mesh, name, &id);
-        ASSERT(created);
     }
-    return id;
-}
-
-static void FixZFighting(meshid_t meshid)
-{
-    mesh_t mesh;
-    if (mesh_get(meshid, &mesh))
+    else
     {
-        for (i32 iVert = 0; iVert <= mesh.length; ++iVert)
-        {
-            float4 P = mesh.positions[iVert];
-            float4 N = mesh.normals[iVert];
-            P = f4_add(P, f4_mulvs(N, kMilli * 0.5f));
-            mesh.positions[iVert] = P;
-        }
+        pim_free(positions);
+        pim_free(normals);
+        pim_free(uvs);
+    }
+
+    return mesh;
+}
+
+static void FixZFighting(mesh_t mesh)
+{
+    const i32 len = mesh.length;
+    const float4* pim_noalias normals = mesh.normals;
+    float4* pim_noalias positions = mesh.positions;
+    for (i32 i = 0; i < len; ++i)
+    {
+        float4 P = positions[i];
+        float4 N = normals[i];
+        P = f4_add(P, f4_mulvs(N, kMilli * 0.5f));
+        positions[i] = P;
     }
 }
 
-u32* ModelToDrawables(const mmodel_t* model)
+typedef struct batch_s
+{
+    i32 length;
+    const msurface_t* surfaces;
+    const mtexinfo_t** texinfos;
+    const mtexture_t** textures;
+    const char** texnames;
+    i32* batchids;
+    i32* indices;
+} batch_t;
+
+static i32 BatchSortFn(i32 lhs, i32 rhs, void* usr)
+{
+    const batch_t* batch = usr;
+
+    i32 namecmp = StrCmp(batch->texnames[lhs], 16, batch->texnames[rhs]);
+    if (namecmp)
+    {
+        return namecmp;
+    }
+
+    const msurface_t* lsurf = batch->surfaces + lhs;
+    const msurface_t* rsurf = batch->surfaces + rhs;
+
+    i32 lflags = lsurf->flags;
+    i32 rflags = rsurf->flags;
+    if (lflags != rflags)
+    {
+        return lflags < rflags ? -1 : 1;
+    }
+
+    i32 lplane = lsurf->planenum;
+    i32 rplane = rsurf->planenum;
+    if (lplane != rplane)
+    {
+        return lplane < rplane ? -1 : 1;
+    }
+
+    i32 lside = lsurf->side;
+    i32 rside = rsurf->side;
+    if (lside != rside)
+    {
+        return lside < rside ? -1 : 1;
+    }
+
+    i32 ledge = lsurf->firstedge;
+    i32 redge = rsurf->firstedge;
+    if (ledge != redge)
+    {
+        return ledge < redge ? -1 : 1;
+    }
+
+    return 0;
+}
+
+static batch_t ModelToBatch(const mmodel_t* model)
+{
+    batch_t batch = { 0 };
+
+    const i32 len = model->numsurfaces;
+    batch.length = len;
+    batch.surfaces = model->surfaces;
+    batch.texinfos = tmp_malloc(sizeof(batch.texinfos[0]) * len);
+    batch.textures = tmp_malloc(sizeof(batch.textures[0]) * len);
+    batch.texnames = tmp_malloc(sizeof(batch.texnames[0]) * len);
+    batch.batchids = tmp_malloc(sizeof(batch.batchids[0]) * len);
+    batch.indices = tmp_malloc(sizeof(batch.indices[0]) * len);
+
+    const i32 numsurfedges = model->numsurfedges;
+    for (i32 i = 0; i < len; ++i)
+    {
+        const msurface_t* surface = batch.surfaces + i;
+        const i32 numedges = surface->numedges;
+        const i32 firstedge = surface->firstedge;
+        const mtexinfo_t* texinfo = surface->texinfo;
+
+        batch.texinfos[i] = texinfo;
+        batch.textures[i] = NULL;
+        batch.texnames[i] = "null";
+        batch.batchids[i] = -1;
+        batch.indices[i] = i;
+
+        if ((numedges <= 0) || (firstedge < 0))
+        {
+            continue;
+        }
+        if ((firstedge + numedges) > numsurfedges)
+        {
+            continue;
+        }
+        if (!texinfo)
+        {
+            continue;
+        }
+        const mtexture_t* mtex = texinfo->texture;
+        batch.textures[i] = mtex;
+        if (!mtex)
+        {
+            continue;
+        }
+        batch.texnames[i] = mtex->name;
+    }
+
+    sort_i32(batch.indices, len, BatchSortFn, &batch);
+
+    i32 curbatch = 0;
+    if (len > 0)
+    {
+        i32 j = batch.indices[0];
+        batch.batchids[j] = curbatch;
+    }
+    for (i32 i = 1; i < len; ++i)
+    {
+        i32 prev = batch.indices[i - 1];
+        i32 cur = batch.indices[i];
+        if (StrCmp(batch.texnames[prev], 16, batch.texnames[cur]))
+        {
+            ++curbatch;
+        }
+        batch.batchids[cur] = curbatch;
+    }
+
+    return batch;
+}
+
+void ModelToDrawables(const mmodel_t* model)
 {
     ASSERT(model);
     ASSERT(model->vertices);
@@ -518,20 +634,54 @@ u32* ModelToDrawables(const mmodel_t* model)
     const i32 numsurfedges = model->numsurfedges;
     const float4* vertices = model->vertices;
 
-    material_t* materials = GenMaterials(model);
     drawables_t* drawTable = drawables_get();
-
-    u32 idCount = 0;
-    u32* ids = NULL;
+    batch_t batch = ModelToBatch(model);
 
     i32* polygon = NULL;
     i32* tris = NULL;
-    for (i32 i = 0; i < numsurfaces; ++i)
+
+    const mtexture_t* batchtex = NULL;
+    i32 curbatch = -1;
+    mesh_t mesh = { 0 };
+    for (i32 i = 0; i < batch.length; ++i)
     {
-        const msurface_t* surface = surfaces + i;
+        const i32 j = batch.indices[i];
+
+        const msurface_t* surface = batch.surfaces + j;
         const i32 numedges = surface->numedges;
         const i32 firstedge = surface->firstedge;
-        const mtexinfo_t* texinfo = surface->texinfo;
+        const mtexinfo_t* texinfo = batch.texinfos[j];
+        const mtexture_t* mtex = batch.textures[j];
+        const char* texname = batch.texnames[j];
+        const i32 batchid = batch.batchids[j];
+
+        if (batchid != curbatch)
+        {
+            if (mesh.length > 0)
+            {
+                char name[PIM_PATH];
+                SPrintf(ARGS(name), "%s_batch_%d", model->name, curbatch);
+                meshid_t meshid;
+                if (mesh_new(&mesh, name, &meshid))
+                {
+                    u32 id = iid_new();
+                    i32 c = drawables_add(id);
+                    drawTable->meshes[c] = meshid;
+                    drawTable->materials[c] = GenMaterial(batchtex);
+                    drawTable->translations[c] = f4_0;
+                    drawTable->scales[c] = f4_1;
+                    drawTable->rotations[c] = quat_id;
+                    drawTable->matrices[c] = f4x4_id;
+                }
+                else
+                {
+                    ASSERT(false);
+                }
+            }
+            memset(&mesh, 0, sizeof(mesh));
+            curbatch = batchid;
+            batchtex = mtex;
+        }
 
         if ((numedges <= 0) || (firstedge < 0))
         {
@@ -541,66 +691,47 @@ u32* ModelToDrawables(const mmodel_t* model)
         {
             continue;
         }
-
-        const char* surfname = "surf";
-        if (texinfo)
+        if (StrIStr(texname, 16, "trigger"))
         {
-            const mtexture_t* mtex = texinfo->texture;
-            if (mtex)
-            {
-                surfname = mtex->name;
-                if (StrIStr(ARGS(mtex->name), "trigger"))
-                {
-                    continue;
-                }
-            }
+            continue;
         }
 
-        material_t material = materials[i];
-
-        char name[PIM_PATH];
-        SPrintf(ARGS(name), "%s_%s_%d", model->name, surfname, i);
         i32 vertCount = FlattenSurface(model, surface, &tris, &polygon);
-        meshid_t mesh = TrisToMesh(model, name, M, surface, tris, vertCount);
-
-        material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
-
-        if (material.flags & matflag_animated)
+        mesh_t submesh = TrisToMesh(model, M, surface, tris, vertCount);
+        if ((texname[0] == '*') || (texname[0] == '+'))
         {
-            FixZFighting(mesh);
+            FixZFighting(submesh);
         }
 
-        u32 id = iid_new();
-        ++idCount;
-        PermReserve(ids, idCount + 1);
-        ids[idCount] = id;
-
-        i32 c = drawables_add(id);
-        drawTable->meshes[c] = mesh;
-        drawTable->materials[c] = material;
-        drawTable->translations[c] = f4_0;
-        drawTable->scales[c] = f4_1;
-        drawTable->rotations[c] = quat_id;
-        drawTable->matrices[c] = f4x4_id;
+        const i32 addlen = submesh.length;
+        const i32 back = mesh.length;
+        const i32 newlen = back + addlen;
+        mesh.length = newlen;
+        PermReserve(mesh.positions, newlen);
+        PermReserve(mesh.normals, newlen);
+        PermReserve(mesh.uvs, newlen);
+        for (i32 i = 0; i < addlen; ++i)
+        {
+            mesh.positions[back + i] = submesh.positions[i];
+            mesh.normals[back + i] = submesh.normals[i];
+            mesh.uvs[back + i] = submesh.uvs[i];
+        }
+        pim_free(submesh.positions);
+        pim_free(submesh.normals);
+        pim_free(submesh.uvs);
+        memset(&submesh, 0, sizeof(submesh));
     }
-
-    if (ids)
-    {
-        ids[0] = idCount;
-    }
-
-    return ids;
 }
 
-u32* LoadModelAsDrawables(const char* name)
+bool LoadModelAsDrawables(const char* name)
 {
     asset_t asset = { 0 };
     if (asset_get(name, &asset))
     {
         mmodel_t* model = LoadModel(name, asset.pData, EAlloc_Temp);
-        u32* ids = ModelToDrawables(model);
+        ModelToDrawables(model);
         FreeModel(model);
-        return ids;
+        return true;
     }
-    return NULL;
+    return false;
 }

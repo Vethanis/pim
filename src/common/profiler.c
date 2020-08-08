@@ -63,7 +63,7 @@ void profile_gui(bool* pEnabled)
     if (igBegin("Profiler", pEnabled, 0))
     {
         igSliderInt("thread", &ms_gui_tid, 0, kNumThreads - 1, "%d");
-        igSliderInt("avg over # frames", &ms_avgWindow, 1, 120, "%d");
+        igSliderInt("avg over # frames", &ms_avgWindow, 1, 1000, "%d");
 
         node_t* root = ms_prevroots[ms_gui_tid].fchild;
 

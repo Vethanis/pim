@@ -635,16 +635,16 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
         texture_t tex;
         if (texture_get(material.albedo, &tex))
         {
-            albedo = f4_mul(albedo, UvBilinearWrap_c32(tex.texels, tex.size, uv));
+            albedo = f4_mul(albedo, UvBilinearWrap_f4(tex.texels, tex.size, uv));
         }
         float4 rome = ColorToLinear(material.flatRome);
         if (texture_get(material.rome, &tex))
         {
-            rome = f4_mul(rome, UvBilinearWrap_c32(tex.texels, tex.size, uv));
+            rome = f4_mul(rome, UvBilinearWrap_f4(tex.texels, tex.size, uv));
         }
         if (texture_get(material.normal, &tex))
         {
-            float4 Nts = UvBilinearWrap_dir8(tex.texels, tex.size, uv);
+            float4 Nts = UvBilinearWrap_f4(tex.texels, tex.size, uv);
             N = TanToWorld(N, Nts);
         }
 

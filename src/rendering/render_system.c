@@ -534,11 +534,8 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
 
     con_logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
-    u32* ids = LoadModelAsDrawables(mapname);
-    if (ids)
+    if (LoadModelAsDrawables(mapname))
     {
-        pim_free(ids);
-
         if (lights_pt_count() == 0)
         {
             lights_add_pt(
