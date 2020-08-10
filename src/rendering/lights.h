@@ -28,6 +28,8 @@ typedef struct lights_s
 
 lights_t* lights_get(void);
 
+void lights_clear(void);
+
 i32 lights_add_pt(pt_light_t pt);
 i32 lights_add_dir(dir_light_t dir);
 

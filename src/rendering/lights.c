@@ -8,6 +8,12 @@ lights_t* lights_get(void)
     return &ms_lights;
 }
 
+void lights_clear(void)
+{
+    ms_lights.ptCount = 0;
+    ms_lights.dirCount = 0;
+}
+
 i32 lights_add_pt(pt_light_t pt)
 {
     i32 len = ++ms_lights.ptCount;

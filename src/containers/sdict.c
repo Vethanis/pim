@@ -25,7 +25,7 @@ void sdict_del(sdict_t* dict)
     ASSERT(dict);
     pim_free(dict->hashes);
     char** keys = dict->keys;
-    u32 width = dict->width;
+    const u32 width = dict->width;
     for (u32 i = 0; i < width; ++i)
     {
         pim_free(keys[i]);
@@ -40,7 +40,7 @@ void sdict_clear(sdict_t* dict)
 {
     ASSERT(dict);
     dict->count = 0;
-    u32 width = dict->width;
+    const u32 width = dict->width;
     char** keys = dict->keys;
     for (u32 i = 0; i < width; ++i)
     {
@@ -56,7 +56,7 @@ void sdict_reserve(sdict_t* dict, i32 count)
     ASSERT(dict);
 
     count = count > 16 ? count : 16;
-    const u32 newWidth = NextPow2((u32)count);
+    const u32 newWidth = NextPow2((u32)count) * 2;
     const u32 oldWidth = dict->width;
     if (newWidth <= oldWidth)
     {
@@ -71,9 +71,13 @@ void sdict_reserve(sdict_t* dict, i32 count)
     char** oldKeys = dict->keys;
     u8* oldValues = dict->values;
 
-    u32* newHashes = pim_calloc(allocator, sizeof(u32) * newWidth);
-    char** newKeys = pim_calloc(allocator, sizeof(newKeys[0]) * newWidth);
-    u8* newValues = pim_calloc(allocator, valueSize * newWidth);
+    u32* newHashes = pim_malloc(allocator, sizeof(newHashes[0]) * newWidth);
+    char** newKeys = pim_malloc(allocator, sizeof(newKeys[0]) * newWidth);
+    u8* newValues = pim_malloc(allocator, valueSize * newWidth);
+
+    memset(newHashes, 0, sizeof(newHashes[0]) * newWidth);
+    memset(newKeys, 0, sizeof(newKeys[0]) * newWidth);
+    memset(newValues, 0, valueSize * newWidth);
 
     const u32 newMask = newWidth - 1u;
     for (u32 i = 0; i < oldWidth;)
@@ -151,6 +155,9 @@ bool sdict_get(const sdict_t* dict, const char* key, void* valueOut)
 {
     ASSERT(dict);
     ASSERT(valueOut);
+    const u32 valueSize = dict->valueSize;
+    ASSERT(valueSize > 0);
+    memset(valueOut, 0, valueSize);
 
     const i32 i = sdict_find(dict, key);
     if (i == -1)
@@ -158,9 +165,7 @@ bool sdict_get(const sdict_t* dict, const char* key, void* valueOut)
         return false;
     }
 
-    const u32 valueSize = dict->valueSize;
     const u8* values = dict->values;
-    ASSERT(valueSize);
     memcpy(valueOut, values + i * valueSize, valueSize);
 
     return true;

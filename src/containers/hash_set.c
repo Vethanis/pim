@@ -33,7 +33,7 @@ void hashset_clear(hashset_t* set)
 
 void hashset_reserve(hashset_t* set, u32 minCount)
 {
-    const u32 newWidth = NextPow2(minCount);
+    const u32 newWidth = NextPow2(minCount) * 2;
     const u32 oldWidth = set->width;
     if (newWidth <= oldWidth)
     {

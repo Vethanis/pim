@@ -1,0 +1,362 @@
+#include "logic/progs.h"
+#include "common/stringutil.h"
+#include "allocator/allocator.h"
+#include "containers/sdict.h"
+#include "math/float3_funcs.h"
+
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+static char const *const kClassnames[] =
+{
+    "worldspawn",
+
+    // info
+    "info_player_start",
+    "info_player_start2",
+    "info_teleport_destination",
+    "info_player_deathmatch",
+    "info_player_coop",
+    "info_intermission",
+    "info_null",
+
+    // lights
+    "light",
+    "light_fluoro",
+    "light_fluorospark",
+    "light_flame_large_yellow",
+    "light_torch_small_walltorch",
+
+    // triggers
+    "trigger_multiple",
+    "trigger_teleport",
+    "trigger_changelevel",
+    "trigger_setskill",
+    "trigger_onlyregistered",
+
+    // funcs
+    "func_door",
+    "func_wall",
+    "func_bossgate",
+    "func_episodegate",
+
+    // monsters
+    "monster_zombie",
+
+    // items and weapons
+    "item_health",
+    "item_armorInv",
+    "item_armor2",
+    "item_spikes",
+    "item_rockets",
+    "item_shells",
+    "item_cells",
+    "item_artifact_super_damage",
+    "weapon_nailgun",
+    "weapon_supernailgun",
+    "weapon_rocketlauncher",
+    "weapon_grenadelauncher",
+    "weapon_supershotgun",
+    "weapon_lightning",
+
+    // ambients
+    "ambient_drip",
+    "ambient_drone",
+
+    // misc
+    "misc_fireball",
+};
+SASSERT(NELEM(kClassnames) == pr_classname_COUNT);
+
+static i32 FindClass(const char* txt)
+{
+    for (i32 i = 0; i < NELEM(kClassnames); ++i)
+    {
+        if (StrCmp(txt, PIM_PATH, kClassnames[i]) == 0)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static pr_string_t FindString(progs_t* progs, const char* str)
+{
+    i32 len = progs->numstrings;
+    char** strings = progs->strings;
+    for (i32 i = 0; i < len; ++i)
+    {
+        if (StrCmp(strings[i], PIM_PATH, str) == 0)
+        {
+            return (pr_string_t) { i };
+        }
+    }
+    PermReserve(strings, len + 1);
+    strings[len] = StrDup(str, EAlloc_Perm);
+    progs->numstrings = len + 1;
+    progs->strings = strings;
+    return (pr_string_t) { len };
+}
+
+static void AddEntity(progs_t* progs, pr_entity_t ent)
+{
+    i32 back = progs->numentities++;
+    i32 len = back + 1;
+    PermReserve(progs->entities, len);
+    progs->entities[back] = ent;
+}
+
+static float3 ParseOrigin(const sdict_t* dict)
+{
+    float3 origin = f3_0;
+    char* value = NULL;
+    if (sdict_get(dict, "origin", &value))
+    {
+        sscanf(value, "%f %f %f", &origin.x, &origin.y, &origin.z);
+    }
+    return origin;
+}
+
+static void ParseWorldspawn(progs_t* progs, const sdict_t* dict)
+{
+    pr_worldspawn_t ws = { 0 };
+    ws.message.index = -1;
+    ws.wad.index = -1;
+    ws.sounds = -1;
+    ws.worldtype = -1;
+
+    char* value = NULL;
+    if (sdict_get(dict, "wad", &value))
+    {
+        ws.wad = FindString(progs, value);
+    }
+    if (sdict_get(dict, "message", &value))
+    {
+        ws.message = FindString(progs, value);
+    }
+    if (sdict_get(dict, "worldtype", &value))
+    {
+        ws.worldtype = (i16)atoi(value);
+    }
+    if (sdict_get(dict, "sounds", &value))
+    {
+        ws.sounds = (i16)atoi(value);
+    }
+
+    pr_entity_t ent = { 0 };
+    ent.type = pr_classname_worldspawn;
+    ent.worldspawn = ws;
+    AddEntity(progs, ent);
+}
+
+static void ParsePlayerStart(progs_t* progs, const sdict_t* dict)
+{
+    pr_player_start_t ps = { 0 };
+    ps.angle = 0.0f;
+    ps.origin = ParseOrigin(dict);
+    pr_entity_t ent = { 0 };
+    ent.type = pr_classname_info_player_start;
+    ent.playerstart = ps;
+    AddEntity(progs, ent);
+}
+
+static void ParseLight(progs_t* progs, const sdict_t* dict, i32 iclass)
+{
+    pr_light_t light = { 0 };
+    light.origin = ParseOrigin(dict);
+    light.light = 200.0f;
+    light.style = 0;
+
+    char* value = NULL;
+    if (sdict_get(dict, "light", &value))
+    {
+        light.light = (float)atof(value);
+    }
+    if (sdict_get(dict, "style", &value))
+    {
+        light.style = (i16)atoi(value);
+    }
+
+    pr_entity_t ent = { 0 };
+    ent.type = iclass;
+    ent.light = light;
+    AddEntity(progs, ent);
+}
+
+static void ParseClass(progs_t* progs, const sdict_t* dict, i32 iclass)
+{
+    switch (iclass)
+    {
+    default:
+        break;
+    case pr_classname_worldspawn:
+        ParseWorldspawn(progs, dict);
+        break;
+    case pr_classname_info_player_start:
+        ParsePlayerStart(progs, dict);
+        break;
+    case pr_classname_light:
+    case pr_classname_light_fluoro:
+    case pr_classname_light_fluorospark:
+    case pr_classname_light_flame_large_yellow:
+    case pr_classname_light_torch_small_walltorch:
+        ParseLight(progs, dict, iclass);
+        break;
+    }
+}
+
+static void ParseDict(progs_t* progs, sdict_t* dict)
+{
+    char* value = NULL;
+    if (sdict_get(dict, "classname", &value))
+    {
+        ASSERT(value);
+        i32 iclass = FindClass(value);
+        if (iclass < 0)
+        {
+            ASSERT(false);
+            return;
+        }
+        ParseClass(progs, dict, iclass);
+    }
+    sdict_clear(dict);
+}
+
+void progs_parse(progs_t* progs, const char* text)
+{
+    ASSERT(progs);
+    ASSERT(text);
+    if (!progs)
+    {
+        return;
+    }
+    memset(progs, 0, sizeof(*progs));
+    if (!text)
+    {
+        return;
+    }
+
+    sdict_t dict;
+    sdict_new(&dict, sizeof(char*), EAlloc_Temp);
+    sdict_reserve(&dict, 16);
+
+    char key[PIM_PATH] = { 0 };
+    char value[PIM_PATH] = { 0 };
+    i32 braces = 0;
+    i32 quotes = 0;
+    while (true)
+    {
+        while (IsSpace(*text))
+        {
+            ++text;
+        }
+        char c = *text++;
+        if (!c)
+        {
+            break;
+        }
+        if (c == '{')
+        {
+            ++braces;
+            continue;
+        }
+        if (c == '}')
+        {
+            --braces;
+            if (braces == 0)
+            {
+                ParseDict(progs, &dict);
+            }
+            continue;
+        }
+        if ((braces > 2) || (braces < 0))
+        {
+            // malformed file
+            break;
+        }
+        if (braces == 2)
+        {
+            // brush not yet handled
+            continue;
+        }
+        if (c == '"')
+        {
+            ++quotes;
+            if (quotes & 1)
+            {
+                char* dst = key;
+                if (quotes & 2)
+                {
+                    dst = value;
+                }
+                const char* p = text;
+                i32 i = 0;
+                for (; i < (PIM_PATH - 1); ++i, ++p)
+                {
+                    c = *p;
+                    if (!c)
+                    {
+                        break;
+                    }
+                    if (c == '"')
+                    {
+                        break;
+                    }
+                    if (c == '\\')
+                    {
+                        ++p;
+                        c = *p;
+                        if (!c)
+                        {
+                            break;
+                        }
+                        if (c == 'n')
+                        {
+                            c = '\n';
+                        }
+                        if (c == 't')
+                        {
+                            c = '\t';
+                        }
+                        if (c == 'r')
+                        {
+                            c = '\r';
+                        }
+                    }
+                    dst[i] = c;
+                }
+                dst[i] = 0;
+                text = p;
+                if (dst == value)
+                {
+                    char* valdup = StrDup(value, EAlloc_Temp);
+                    if (!sdict_add(&dict, key, &valdup))
+                    {
+                        ASSERT(false);
+                    }
+                    memset(key, 0, sizeof(key));
+                    memset(value, 0, sizeof(value));
+                }
+            }
+        }
+    }
+}
+
+void progs_del(progs_t* progs)
+{
+    if (progs)
+    {
+        const i32 numstrings = progs->numstrings;
+        char** strings = progs->strings;
+        for (i32 i = 0; i < numstrings; ++i)
+        {
+            pim_free(strings[i]);
+            strings[i] = NULL;
+        }
+        pim_free(strings);
+        pim_free(progs->entities);
+        pim_free(progs->names);
+        memset(progs, 0, sizeof(*progs));
+    }
+}

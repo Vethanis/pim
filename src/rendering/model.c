@@ -12,12 +12,16 @@
 #include "rendering/mesh.h"
 #include "rendering/material.h"
 #include "rendering/drawable.h"
+#include "rendering/lights.h"
 #include "allocator/allocator.h"
 #include "common/iid.h"
 #include "assets/asset_system.h"
 #include "common/stringutil.h"
 #include "common/console.h"
 #include "common/sort.h"
+#include "io/fd.h"
+#include "logic/progs.h"
+#include "rendering/camera.h"
 
 #include "quake/q_model.h"
 
@@ -519,25 +523,11 @@ static i32 BatchSortFn(i32 lhs, i32 rhs, void* usr)
     const msurface_t* lsurf = batch->surfaces + lhs;
     const msurface_t* rsurf = batch->surfaces + rhs;
 
-    i32 lflags = lsurf->flags;
-    i32 rflags = rsurf->flags;
-    if (lflags != rflags)
-    {
-        return lflags < rflags ? -1 : 1;
-    }
-
     i32 lplane = lsurf->planenum;
     i32 rplane = rsurf->planenum;
     if (lplane != rplane)
     {
         return lplane < rplane ? -1 : 1;
-    }
-
-    i32 lside = lsurf->side;
-    i32 rside = rsurf->side;
-    if (lside != rside)
-    {
-        return lside < rside ? -1 : 1;
     }
 
     i32 ledge = lsurf->firstedge;
@@ -620,13 +610,19 @@ static batch_t ModelToBatch(const mmodel_t* model)
     return batch;
 }
 
+static float4x4 QuakeToRhsMeters(void)
+{
+    const quat rot = quat_angleaxis(-kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
+    const float4x4 M = f4x4_trs(f4_0, rot, f4_s(0.02f));
+    return M;
+}
+
 void ModelToDrawables(const mmodel_t* model)
 {
     ASSERT(model);
     ASSERT(model->vertices);
 
-    const quat rot = quat_angleaxis(-kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
-    const float4x4 M = f4x4_trs(f4_0, rot, f4_s(0.02f));
+    const float4x4 M = QuakeToRhsMeters();
 
     const char* name = model->name;
     const i32 numsurfaces = model->numsurfaces;
@@ -721,6 +717,69 @@ void ModelToDrawables(const mmodel_t* model)
         pim_free(submesh.uvs);
         memset(&submesh, 0, sizeof(submesh));
     }
+
+    if (mesh.length > 0)
+    {
+        char name[PIM_PATH];
+        SPrintf(ARGS(name), "%s_batch_%d", model->name, curbatch);
+        meshid_t meshid;
+        if (mesh_new(&mesh, name, &meshid))
+        {
+            u32 id = iid_new();
+            i32 c = drawables_add(id);
+            drawTable->meshes[c] = meshid;
+            drawTable->materials[c] = GenMaterial(batchtex);
+            drawTable->translations[c] = f4_0;
+            drawTable->scales[c] = f4_1;
+            drawTable->rotations[c] = quat_id;
+            drawTable->matrices[c] = f4x4_id;
+        }
+        else
+        {
+            ASSERT(false);
+        }
+    }
+    memset(&mesh, 0, sizeof(mesh));
+}
+
+static void LoadProgs(const mmodel_t* model)
+{
+    progs_t progs = { 0 };
+    progs_parse(&progs, model->entities);
+
+    lights_clear();
+    const float4x4 M = QuakeToRhsMeters();
+    const i32 numentities = progs.numentities;
+    const pr_entity_t* entities = progs.entities;
+    for (i32 i = 0; i < numentities; ++i)
+    {
+        pr_entity_t ent = entities[i];
+        if ((ent.type >= pr_classname_light) && (ent.type <= pr_classname_light_torch_small_walltorch))
+        {
+            pt_light_t pt = { 0 };
+            pt.pos = f3_f4(ent.light.origin, 1.0f);
+            pt.pos = f4x4_mul_pt(M, pt.pos);
+            pt.pos.w = PowerToAttRadius(ent.light.light, 1.0f);
+            pt.rad = f4_s(ent.light.light);
+            pt.rad.w = 10.0f * kCenti;
+            lights_add_pt(pt);
+        }
+        else if (ent.type == pr_classname_worldspawn)
+        {
+            
+        }
+        else if (ent.type == pr_classname_info_player_start)
+        {
+            float4 pt = f3_f4(ent.playerstart.origin, 1.0f);
+            pt = f4x4_mul_pt(M, pt);
+            camera_t camera;
+            camera_get(&camera);
+            camera.position = pt;
+            camera_set(&camera);
+        }
+    }
+
+    progs_del(&progs);
 }
 
 bool LoadModelAsDrawables(const char* name)
@@ -730,6 +789,7 @@ bool LoadModelAsDrawables(const char* name)
     {
         mmodel_t* model = LoadModel(name, asset.pData, EAlloc_Temp);
         ModelToDrawables(model);
+        LoadProgs(model);
         FreeModel(model);
         return true;
     }

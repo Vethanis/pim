@@ -53,7 +53,7 @@ void dict_reserve(dict_t* dict, i32 count)
     ASSERT(dict);
 
     count = count > 16 ? count : 16;
-    const u32 newWidth = NextPow2((u32)count);
+    const u32 newWidth = NextPow2((u32)count) * 2;
     const u32 oldWidth = dict->width;
     if (newWidth <= oldWidth)
     {

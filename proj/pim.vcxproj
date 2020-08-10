@@ -54,6 +54,7 @@
     <ClCompile Include="..\src\io\fstr.c" />
     <ClCompile Include="..\src\logic\camera_logic.c" />
     <ClCompile Include="..\src\logic\logic.c" />
+    <ClCompile Include="..\src\logic\progs.c" />
     <ClCompile Include="..\src\main.c" />
     <ClCompile Include="..\src\math\ambcube.c" />
     <ClCompile Include="..\src\math\cubic_fit.c" />
@@ -184,6 +185,7 @@
     <ClInclude Include="..\src\io\fstr.h" />
     <ClInclude Include="..\src\logic\camera_logic.h" />
     <ClInclude Include="..\src\logic\logic.h" />
+    <ClInclude Include="..\src\logic\progs.h" />
     <ClInclude Include="..\src\math\ambcube.h" />
     <ClInclude Include="..\src\math\area.h" />
     <ClInclude Include="..\src\math\atmosphere.h" />

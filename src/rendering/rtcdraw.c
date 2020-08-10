@@ -10,6 +10,8 @@
 #include "math/ambcube.h"
 #include "math/sh.h"
 #include "math/sphgauss.h"
+#include "math/sdf.h"
+#include "math/box.h"
 
 #include "rendering/framebuffer.h"
 #include "rendering/sampler.h"
@@ -30,6 +32,23 @@
 
 #include <string.h>
 
+#define kFroxelRes      8
+#define kFroxelCount    (8*8*8)
+
+typedef struct lightlist_s
+{
+    i32* ptr;
+    i32 len;
+} lightlist_t;
+
+typedef struct froxels_s
+{
+    float4x4 worldToClip;
+    float4x4 clipToWorld;
+    float4 eye;
+    lightlist_t lights[kFroxelCount];
+} froxels_t;
+
 typedef struct drawhash_s
 {
     u64 meshes;
@@ -38,13 +57,6 @@ typedef struct drawhash_s
     u64 rotations;
     u64 scales;
 } drawhash_t;
-
-typedef struct lightbuf_s
-{
-    i32 begin;
-    i32 length;
-    u64 hash;
-} lightbuf_t;
 
 typedef struct world_s
 {
@@ -56,6 +68,7 @@ typedef struct world_s
     u64 lightHash;
     float4 sunDir;
     Cubemap* sky;
+    froxels_t froxels;
 } world_t;
 
 static cvar_t* cv_r_sun_az;
@@ -77,9 +90,13 @@ static bool AddDrawable(
     float4 translation,
     quat rotation,
     float4 scale);
-static bool AddLight(world_t* world, u32 geomId, float4 posRad);
+static bool AddLight(world_t* world, u32 geomId, float4 center, float radius);
 static void UpdateLights(world_t* world);
 static void DrawScene(
+    world_t* world,
+    framebuf_t* target,
+    const camera_t* camera);
+static void ClusterLights(
     world_t* world,
     framebuf_t* target,
     const camera_t* camera);
@@ -192,7 +209,7 @@ static void CreateLights(world_t* world)
 
     for (i32 i = 0; i < numLights; ++i)
     {
-        AddLight(world, numDrawables + i, ptLights[i].pos);
+        AddLight(world, numDrawables + i, ptLights[i].pos, ptLights[i].rad.w);
     }
 
     world->numLights = numLights;
@@ -359,7 +376,7 @@ onfail:
     return false;
 }
 
-static bool AddLight(world_t* world, u32 geomId, float4 posRad)
+static bool AddLight(world_t* world, u32 geomId, float4 center, float radius)
 {
     ASSERT(world->device);
     ASSERT(world->scene);
@@ -385,7 +402,8 @@ static bool AddLight(world_t* world, u32 geomId, float4 posRad)
     {
         goto onfail;
     }
-    dstPositions[0] = posRad;
+    center.w = radius;
+    dstPositions[0] = center;
 
     rtc.CommitGeometry(geom);
     rtc.AttachGeometryByID(world->scene, geom, geomId);
@@ -522,6 +540,23 @@ static rayhit_t VEC_CALL TraceRay(
     return hit;
 }
 
+pim_inline i32 VEC_CALL PositionToFroxel(float4x4 worldToClip, float4 P)
+{
+    float4 Pclip = f4x4_mul_pt(worldToClip, P);
+    float4 Pfroxel = f4_mulvs(f4_unorm(Pclip), kFroxelRes);
+    i32 x = i1_clamp((i32)Pfroxel.x, 0, kFroxelRes - 1);
+    i32 y = i1_clamp((i32)Pfroxel.y, 0, kFroxelRes - 1);
+    i32 z = i1_clamp((i32)Pfroxel.z, 0, kFroxelRes - 1);
+    i32 i = x + y * kFroxelRes + z * kFroxelRes * kFroxelRes;
+    return i;
+}
+
+pim_inline lightlist_t VEC_CALL GetLightList(const froxels_t* froxels, float4 P)
+{
+    i32 i = PositionToFroxel(froxels->worldToClip, P);
+    return froxels->lights[i];
+}
+
 typedef struct task_DrawScene
 {
     task_t task;
@@ -538,10 +573,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     world_t* world = task->world;
     RTCScene scene = world->scene;
     const Cubemap* pim_noalias sky = world->sky;
-
-    const lights_t* lights = lights_get();
-    const pt_light_t* pim_noalias ptLights = lights->ptLights;
-    const i32 ptLightCount = lights->ptCount;
+    const froxels_t* pim_noalias froxels = &world->froxels;
 
     const drawables_t* drawables = drawables_get();
     const i32 drawableCount = drawables->count;
@@ -557,8 +589,8 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     const float2 rcpSize = { 1.0f / size.x, 1.0f / size.y };
     const float aspect = (float)size.x / size.y;
     const float fov = f1_radians(camera->fovy);
-    const float tNear = camera->nearFar.x;
-    const float tFar = camera->nearFar.y;
+    const float tNear = camera->zNear;
+    const float tFar = camera->zFar;
     const bool r_lm_denoised = cv_r_lm_denoised->asFloat != 0.0f;
 
     const float4 ro = camera->position;
@@ -589,7 +621,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
 
         if (hit.type == hit_light)
         {
-            pt_light_t light = ptLights[hit.iVert];
+            pt_light_t light = lights_get_pt(hit.iVert);
             float VoN = f4_dotsat(f4_neg(rd), hit.normal);
             float4 rad = f4_mulvs(light.rad, VoN);
             dstLight[iTexel] = rad;
@@ -654,15 +686,17 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
         lighting = f4_add(lighting, UnpackEmission(albedo, rome.w));
 
         // direct light
-        for (i32 iLight = 0; iLight < ptLightCount; ++iLight)
+        const lightlist_t lights = GetLightList(froxels, P);
+        for (i32 iList = 0; iList < lights.len; ++iList)
         {
+            i32 iLight = lights.ptr[iList];
             pt_light_t light = lights_get_pt(iLight);
 
             float4 L = f4_normalize3(f4_sub(light.pos, P));
-            rayhit_t lhit = TraceRay(world, P, L, 0.0f, 1<<20);
+            rayhit_t lhit = TraceRay(world, P, L, 0.0f, 1 << 20);
             if (lhit.iDrawable == iLight)
             {
-                float4 direct = EvalSphereLight(f4_neg(rd), P, N, albedo, rome.x, rome.z, light.pos, light.rad);
+                float4 direct = EvalPointLight(f4_neg(rd), P, N, albedo, rome.x, rome.z, light.pos, light.rad);
                 lighting = f4_add(lighting, direct);
             }
         }
@@ -686,7 +720,6 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
                     i32 iProbe = UvClamp(i2_s(lmap.size), lmUv) * kGiDirections;
                     float4 diffuseGI = SGv_Irradiance(kGiDirections, lmpack->axii, lmap.probes + iProbe, N);
                     float4 R = f4_reflect3(rd, N);
-                    R = SpecularDominantDir(N, R, BrdfAlpha(rome.x));
                     float4 specularGI = SGv_Eval(kGiDirections, lmpack->axii, lmap.probes + iProbe, R);
                     float4 indirect = IndirectBRDF(
                         f4_neg(rd),
@@ -713,6 +746,8 @@ static void DrawScene(
     framebuf_t* target,
     const camera_t* camera)
 {
+    ClusterLights(world, target, camera);
+
     ProfileBegin(pm_drawscene);
     task_DrawScene* task = tmp_calloc(sizeof(*task));
     task->target = target;
@@ -720,4 +755,109 @@ static void DrawScene(
     task->world = world;
     task_run(&task->task, DrawSceneFn, target->width * target->height);
     ProfileEnd(pm_drawscene);
+}
+
+typedef struct task_ClusterLights
+{
+    task_t task;
+    froxels_t* froxels;
+    const lights_t* lights;
+    float tanHalfFovy;
+} task_ClusterLights;
+
+pim_inline float VEC_CALL RadiusCS(
+    float tanHalfFovy,
+    float distWS,
+    float radiusWS)
+{
+    return radiusWS / f1_max(kEpsilon, tanHalfFovy * distWS);
+}
+
+pim_inline box_t VEC_CALL FroxelToBox(float4x4 clipToWorld, int3 coord)
+{
+    float4 hi = f4_s(-(1 << 20));
+    float4 lo = f4_s(1 << 20);
+    const float rcpRes = 1.0f / kFroxelRes;
+    for (i32 i = 0; i < 8; ++i)
+    {
+        i32 x = (i & 1) ? 1 : 0;
+        i32 y = (i & 2) ? 1 : 0;
+        i32 z = (i & 4) ? 1 : 0;
+        float4 pt = { (coord.x + x)*rcpRes, (coord.y + y)*rcpRes, (coord.z + z)*rcpRes };
+        pt.x = f1_snorm(pt.x);
+        pt.y = f1_snorm(pt.y);
+        pt = f4x4_mul_pt(clipToWorld, pt);
+        hi = f4_max(hi, pt);
+        lo = f4_min(lo, pt);
+    }
+    box_t box = box_new(lo, hi);
+    return box;
+}
+
+static void ClusterLightsFn(task_t* pbase, i32 begin, i32 end)
+{
+    task_ClusterLights* task = (task_ClusterLights*)pbase;
+    froxels_t* froxels = task->froxels;
+    const lights_t* lights = task->lights;
+    const pt_light_t* ptLights = lights->ptLights;
+    const i32 ptCount = lights->ptCount;
+    //const float4x4 worldToClip = froxels->worldToClip;
+    const float4x4 clipToWorld = froxels->clipToWorld;
+    //const float4 eye = froxels->eye;
+    //const float tanHalfFovy = task->tanHalfFovy;
+
+    const float rcpRes = 1.0f / kFroxelRes;
+    for (i32 iFroxel = begin; iFroxel < end; ++iFroxel)
+    {
+        i32 x = iFroxel % kFroxelRes;
+        i32 y = (iFroxel / kFroxelRes) % kFroxelRes;
+        i32 z = iFroxel / (kFroxelRes * kFroxelRes);
+        box_t box = FroxelToBox(clipToWorld, (int3) { x, y, z });
+        lightlist_t list = { 0 };
+        for (i32 iLight = 0; iLight < ptCount; ++iLight)
+        {
+            float4 pos = ptLights[iLight].pos;
+            float attradiusWS = pos.w;
+            float distWS = sdBox3D(box, pos) - attradiusWS;
+            if (distWS <= 0.0f)
+            {
+                list.len++;
+                list.ptr = tmp_realloc(list.ptr, sizeof(list.ptr[0]) * list.len);
+                list.ptr[list.len - 1] = iLight;
+            }
+        }
+        froxels->lights[iFroxel] = list;
+    }
+}
+
+ProfileMark(pm_ClusterLights, ClusterLights)
+static void ClusterLights(
+    world_t* world,
+    framebuf_t* target,
+    const camera_t* camera)
+{
+    ProfileBegin(pm_ClusterLights);
+
+    froxels_t* froxels = &world->froxels;
+    memset(froxels, 0, sizeof(*froxels));
+
+    float aspect = (float)target->width / (float)target->height;
+    float fovy = f1_radians(camera->fovy);
+    float4 eye = camera->position;
+    quat rot = camera->rotation;
+    float4 fwd = quat_fwd(rot);
+    float4 up = quat_up(rot);
+    float4x4 V = f4x4_lookat(eye, f4_add(eye, fwd), up);
+    float4x4 P = f4x4_perspective(fovy, aspect, camera->zNear, camera->zFar);
+    froxels->worldToClip = f4x4_mul(P, V);
+    froxels->clipToWorld = f4x4_inverse(froxels->worldToClip);
+    froxels->eye = eye;
+
+    task_ClusterLights* task = tmp_calloc(sizeof(*task));
+    task->froxels = &world->froxels;
+    task->lights = lights_get();
+    task->tanHalfFovy = tanf(fovy * 0.5f);
+    task_run(&task->task, ClusterLightsFn, kFroxelCount);
+
+    ProfileEnd(pm_ClusterLights);
 }

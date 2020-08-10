@@ -35,7 +35,7 @@ void idtable_reserve(idtable_t* table, i32 count)
     ASSERT(table);
 
     count = count > 16 ? count : 16;
-    const u32 newWidth = NextPow2((u32)count);
+    const u32 newWidth = NextPow2((u32)count) * 2;
     const u32 oldWidth = table->width;
     if (newWidth <= oldWidth)
     {

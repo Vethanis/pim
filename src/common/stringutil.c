@@ -100,16 +100,7 @@ bool IsDigit(char c)
 
 bool IsSpace(char c)
 {
-    switch (c)
-    {
-    default:
-        return false;
-    case ' ':
-    case '\t':
-    case '\r':
-    case '\n':
-        return true;
-    }
+    return (c > 0) && (c <= 32);
 }
 
 // ----------------------------------------------------------------------------
@@ -173,10 +164,7 @@ char* StrDup(const char* src, EAlloc allocator)
     ASSERT(src);
     const i32 len = StrLen(src);
     char* dst = pim_malloc(allocator, len + 1);
-    for (i32 i = 0; i < len; ++i)
-    {
-        dst[i] = src[i];
-    }
+    memcpy(dst, src, len);
     dst[len] = 0;
     return dst;
 }
@@ -204,10 +192,7 @@ i32 ShiftLeft(char* dst, i32 size, i32 shifts)
 
     const i32 len = max_i32(0, StrNLen(dst, size) - shifts);
     const char* src = dst + shifts;
-    for (i32 i = 0; i < len; ++i)
-    {
-        dst[i] = src[i];
-    }
+    memmove(dst, src, len);
     return NullTerminate(dst, size, len);
 }
 

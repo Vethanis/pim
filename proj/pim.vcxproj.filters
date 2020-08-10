@@ -466,6 +466,9 @@
     <ClCompile Include="..\src\common\serialize.c">
       <Filter>Source Files\common</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\logic\progs.c">
+      <Filter>Source Files\logic</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -998,6 +1001,9 @@
     </ClInclude>
     <ClInclude Include="..\src\common\serialize.h">
       <Filter>Source Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\logic\progs.h">
+      <Filter>Source Files\logic</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

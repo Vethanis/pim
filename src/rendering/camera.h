@@ -9,7 +9,8 @@ typedef struct camera_s
 {
     quat rotation;
     float4 position;
-    float2 nearFar;
+    float zNear;
+    float zFar;
     float fovy;
 } camera_t;
 static const u32 camera_t_hash = 2034616629u;

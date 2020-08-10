@@ -53,14 +53,15 @@ pim_inline frus_t VEC_CALL frus_new(
     float2 lo,      // minX, minY in [-1, 1]
     float2 hi,      // maxX, maxY in [-1, 1]
     float2 s,       // slope
-    float2 nearFar) // clipping plane
+    float zNear,
+    float zFar) // clipping plane
 {
     float x0 = lo.x;
     float x1 = hi.x;
     float y0 = lo.y;
     float y1 = hi.y;
-    float z0 = nearFar.x;
-    float z1 = nearFar.y;
+    float z0 = zNear;
+    float z1 = zFar;
 
     float4 p[8];
     for (i32 i = 0; i < 8; ++i)

@@ -293,6 +293,11 @@ pim_inline float VEC_CALL SmoothDistanceAtt(
     return f2 * f2;
 }
 
+pim_inline float VEC_CALL PowerToAttRadius(float power, float thresh)
+{
+    return sqrtf(power / thresh);
+}
+
 pim_inline float VEC_CALL DistanceAtt(float distance)
 {
     return 1.0f / f1_max(kMinLightDistSq, distance * distance);
@@ -329,6 +334,7 @@ pim_inline float4 VEC_CALL EvalPointLight(
 
     float4 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
     float att = f4_dotsat(N, L) * DistanceAtt(distance);
+    att *= SmoothDistanceAtt(distance, lightPos.w);
     return f4_mul(brdf, f4_mulvs(lightColor, att));
 }
 

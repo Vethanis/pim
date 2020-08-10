@@ -6,8 +6,9 @@ static camera_t ms_camera =
 {
     .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
     .position = { 0.0f, 0.0f, 5.0f },
-    .fovy = 80.0f,
-    .nearFar = { 0.1f, 500.0f },
+    .zNear = 0.1f,
+    .zFar = 500.0f,
+    .fovy = 90.0f,
 };
 
 void camera_get(camera_t* dst)
@@ -40,10 +41,16 @@ void camera_subfrustum(const camera_t* src, struct frus_s* dst, float2 lo, float
 
     const float aspect = (float)kDrawWidth / (float)kDrawHeight;
     const float fov = f1_radians(src->fovy);
-    const float2 slope = proj_slope(fov, aspect);
-    const float4 eye = src->position;
     const quat rot = src->rotation;
-    const float2 nearFar = src->nearFar;
 
-    *dst = frus_new(eye, quat_right(rot), quat_up(rot), quat_fwd(rot), lo, hi, slope, nearFar);
+    *dst = frus_new(
+        src->position,
+        quat_right(rot),
+        quat_up(rot),
+        quat_fwd(rot),
+        lo,
+        hi,
+        proj_slope(fov, aspect),
+        src->zNear,
+        src->zFar);
 }
