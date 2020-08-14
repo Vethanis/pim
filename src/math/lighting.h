@@ -275,14 +275,6 @@ pim_inline float4 VEC_CALL IndirectBRDF(
     return f4_mulvs(f4_add(Fd, Fr), ao);
 }
 
-pim_inline float VEC_CALL SphereAttenRadius(float4 color, float radius)
-{
-    float lum = f4_dot3(color, f4_v(0.2126f, 0.7152f, 0.0722f, 0.0f));
-    lum = f1_max(lum, kEpsilon);
-    const float lumCutoff = 0.03f; // hopefully temporary hardcoding
-    return radius * sqrtf(lum / lumCutoff);
-}
-
 pim_inline float VEC_CALL SmoothDistanceAtt(
     float distance, // distance squared between surface and light
     float attRadius) // attenuation radius
@@ -324,17 +316,27 @@ pim_inline float4 VEC_CALL EvalPointLight(
     float4 albedo,
     float roughness,
     float metallic,
-    float4 lightPos,
-    float4 lightColor)
+    float4 lightPos,    // w: attenuation radius
+    float4 lightColor)  // w: actual radius
 {
-    float4 L0 = f4_sub(lightPos, P);
-    float distance = f4_length3(L0);
+    float4 L = f4_sub(lightPos, P);
+    if (f4_dot3(L, N) <= 0.0f)
+    {
+        return f4_0;
+    }
+    float distance = f4_length3(L);
+    L = f4_divvs(L, distance);
     distance = f1_max(kMinLightDist, distance);
-    float4 L = f4_divvs(L0, distance);
 
+    float NoL = f4_dotsat(N, L);
+    float distAtt = DistanceAtt(distance);
+    float windowing = SmoothDistanceAtt(distance, lightPos.w);
+    float att = NoL * distAtt * windowing;
+    if (att < kEpsilon)
+    {
+        return f4_0;
+    }
     float4 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
-    float att = f4_dotsat(N, L) * DistanceAtt(distance);
-    att *= SmoothDistanceAtt(distance, lightPos.w);
     return f4_mul(brdf, f4_mulvs(lightColor, att));
 }
 

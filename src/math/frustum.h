@@ -9,6 +9,22 @@ PIM_C_BEGIN
 #include "math/quat_funcs.h"
 #include "math/float4x4_funcs.h"
 
+// returns value between zNear and zFar
+// t is in [0, 1] range
+// http://advances.realtimerendering.com/s2016/Siggraph2016_idTech6.pdf
+pim_inline float VEC_CALL LerpZ(float zNear, float zFar, float t)
+{
+    return zNear * powf(zFar / zNear, t);
+}
+
+// returns value between 0 and 1
+// z is in [zNear, zFar] range
+// http://advances.realtimerendering.com/s2016/Siggraph2016_idTech6.pdf
+pim_inline float VEC_CALL UnlerpZ(float zNear, float zFar, float z)
+{
+    return log2f(z / zNear) / log2f(zFar / zNear);
+}
+
 pim_inline float2 VEC_CALL proj_slope(float fovy, float aspect)
 {
     float tanHalfFov = tanf(fovy * 0.5f);
@@ -29,7 +45,6 @@ pim_inline float4 VEC_CALL proj_dir(
     fwd = f4_add(fwd, right);
     fwd = f4_add(fwd, up);
     fwd = f4_normalize3(fwd);
-    fwd.w = 1.0f;
     return fwd;
 }
 
@@ -43,6 +58,35 @@ pim_inline float4 VEC_CALL proj_pt(
 {
     float4 rd = proj_dir(right, up, fwd, slope, f2_v(coord.x, coord.y));
     return f4_add(eye, f4_mulvs(rd, coord.z));
+}
+
+pim_inline float2 VEC_CALL unproj_dir(
+    float4 right,
+    float4 up,
+    float2 slope,
+    float4 rd)
+{
+    float r = f4_dot3(rd, right);
+    float u = f4_dot3(rd, up);
+    float x = r / slope.x;
+    float y = u / slope.y;
+    return f2_v(x, y);
+}
+
+pim_inline float3 VEC_CALL unproj_pt(
+    float4 eye,
+    float4 right,
+    float4 up,
+    float4 fwd,
+    float2 slope,
+    float4 pt)
+{
+    float4 rd = f4_sub(pt, eye);
+    float z = f4_length3(rd);
+    rd = f4_divvs(rd, z);
+    z *= f1_sign(f4_dot3(rd, fwd));
+    float2 xy = unproj_dir(right, up, slope, rd);
+    return f3_v(xy.x, xy.y, z);
 }
 
 pim_inline frus_t VEC_CALL frus_new(

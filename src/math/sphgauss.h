@@ -123,7 +123,6 @@ void SG_Accumulate(
     float4 sampleLight,             // sample radiance
     const float4* pim_noalias axii, // sg axii
     float4* pim_noalias amplitudes, // sg amplitudes to fit
-    float* pim_noalias weights,     // per-lobe weights
     i32 length);                    // number of spherical gaussians
 
 float SG_CalcSharpness(const float4* pim_noalias axii, i32 count);

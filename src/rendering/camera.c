@@ -31,10 +31,10 @@ void camera_reset(void)
 
 void camera_frustum(const camera_t* src, struct frus_s* dst)
 {
-    camera_subfrustum(src, dst, f2_s(-1.0f), f2_s(1.0f));
+    camera_subfrustum(src, dst, f2_s(-1.0f), f2_s(1.0f), src->zNear, src->zFar);
 }
 
-void camera_subfrustum(const camera_t* src, struct frus_s* dst, float2 lo, float2 hi)
+void camera_subfrustum(const camera_t* src, struct frus_s* dst, float2 lo, float2 hi, float zNear, float zFar)
 {
     ASSERT(src);
     ASSERT(dst);
@@ -51,6 +51,6 @@ void camera_subfrustum(const camera_t* src, struct frus_s* dst, float2 lo, float
         lo,
         hi,
         proj_slope(fov, aspect),
-        src->zNear,
-        src->zFar);
+        zNear,
+        zFar);
 }

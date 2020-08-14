@@ -63,7 +63,6 @@ static cvar_t cv_pt_albedo = { cvart_bool, 0, "pt_albedo", "0", "output path tra
 static cvar_t cv_pt_lgrid_mpc = { cvart_float, 0, "pt_lgrid_mpc", "2", "light grid meters per cell" };
 
 static cvar_t cv_lm_gen = { cvart_bool, 0, "lm_gen", "0", "enable lightmap generation" };
-static cvar_t cv_lm_denoise = { cvart_bool, 0, "lm_denoise", "0", "denoise lightmaps" };
 static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
 
 static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
@@ -74,7 +73,8 @@ static cvar_t cv_lm_timeslice = { cvart_int, 0, "lm_timeslice", "10", "number of
 static cvar_t cv_r_sun_az = { cvart_float, 0, "r_sun_az", "0.75", "Sun Heading" };
 static cvar_t cv_r_sun_ze = { cvart_float, 0, "r_sun_ze", "0.05", "Sun Altitude" };
 static cvar_t cv_r_sun_rad = { cvart_float, 0, "r_sun_rad", "1365", "Sun Irradiance" };
-static cvar_t cv_r_lm_denoised = { cvart_bool, 0, "r_lm_denoised", "0", "Render denoised lightmap" };
+
+static cvar_t cv_r_qlights = { cvart_bool, 0, "r_qlights", "0", "Load quake light entities" };
 
 static void RegCVars(void)
 {
@@ -87,7 +87,6 @@ static void RegCVars(void)
     cvar_reg(&cv_pt_lgrid_mpc);
 
     cvar_reg(&cv_lm_gen);
-    cvar_reg(&cv_lm_denoise);
     cvar_reg(&cv_lm_density);
     cvar_reg(&cv_lm_timeslice);
 
@@ -96,7 +95,8 @@ static void RegCVars(void)
     cvar_reg(&cv_r_sun_az);
     cvar_reg(&cv_r_sun_ze);
     cvar_reg(&cv_r_sun_rad);
-    cvar_reg(&cv_r_lm_denoised);
+
+    cvar_reg(&cv_r_qlights);
 }
 
 // ----------------------------------------------------------------------------
@@ -260,7 +260,6 @@ end:
 }
 
 ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
-ProfileMark(pm_Lightmap_Denoise, Lightmap_Denoise)
 static void Lightmap_Trace(void)
 {
     if (cv_lm_gen.asFloat != 0.0f)
@@ -279,21 +278,6 @@ static void Lightmap_Trace(void)
         lmpack_bake(ms_ptscene, timeslice);
 
         ProfileEnd(pm_Lightmap_Trace);
-    }
-
-    if (cv_lm_denoise.asFloat != 0.0f)
-    {
-        ProfileBegin(pm_Lightmap_Denoise);
-
-        cvar_set_float(&cv_lm_denoise, 0.0f);
-        lmpack_denoise();
-        cvar_t* cv_r_lm_denoised = cvar_find("r_lm_denoised");
-        if (cv_r_lm_denoised)
-        {
-            cvar_set_float(cv_r_lm_denoised, 1.0f);
-        }
-
-        ProfileEnd(pm_Lightmap_Denoise);
     }
 }
 
@@ -534,18 +518,9 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
 
     con_logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
-    if (LoadModelAsDrawables(mapname))
+    bool loadlights = cvar_get_bool(&cv_r_qlights);
+    if (LoadModelAsDrawables(mapname, loadlights))
     {
-        if (lights_pt_count() == 0)
-        {
-            lights_add_pt(
-                (pt_light_t)
-            {
-                f4_v(0.0f, 0.0f, 0.0f, 1.0f),
-                    f4_s(30.0f),
-            });
-        }
-
         drawables_trs();
 
         con_logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
@@ -1050,16 +1025,6 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     LightmapShutdown();
 
     camera_reset();
-
-    if (lights_pt_count() == 0)
-    {
-        lights_add_pt(
-            (pt_light_t)
-        {
-            f4_v(0.0f, 0.0f, 0.0f, 1.0f),
-                f4_s(30.0f),
-        });
-    }
 
     const float wallExtents = 5.0f;
     const float sphereRad = 0.3f;

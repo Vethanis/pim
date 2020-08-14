@@ -84,10 +84,10 @@ void lightmap_new(lightmap_t* lm, i32 size)
     ASSERT(len > 0);
 
     lm->size = size;
-    lm->probes = perm_calloc(sizeof(lm->probes[0]) * len * kGiDirections);
-    lm->weights = perm_calloc(sizeof(lm->weights[0]) * len * kGiDirections);
-    lm->color = perm_calloc(sizeof(lm->color[0]) * len);
-    lm->denoised = perm_calloc(sizeof(lm->denoised[0]) * len);
+    for (i32 i = 0; i < kGiDirections; ++i)
+    {
+        lm->probes[i] = perm_calloc(sizeof(lm->probes[i][0]) * len);
+    }
     lm->sampleCounts = perm_calloc(sizeof(lm->sampleCounts[0]) * len);
     lm->position = perm_calloc(sizeof(lm->position[0]) * len);
     lm->normal = perm_calloc(sizeof(lm->normal[0]) * len);
@@ -97,10 +97,10 @@ void lightmap_del(lightmap_t* lm)
 {
     if (lm)
     {
-        pim_free(lm->probes);
-        pim_free(lm->weights);
-        pim_free(lm->color);
-        pim_free(lm->denoised);
+        for (i32 i = 0; i < kGiDirections; ++i)
+        {
+            pim_free(lm->probes[i]);
+        }
         pim_free(lm->sampleCounts);
         pim_free(lm->position);
         pim_free(lm->normal);
@@ -108,7 +108,7 @@ void lightmap_del(lightmap_t* lm)
     }
 }
 
-static i32 TexelCount(const lightmap_t* lightmaps, i32 lmCount)
+pim_inline i32 TexelCount(const lightmap_t* lightmaps, i32 lmCount)
 {
     i32 texelCount = 0;
     for (i32 i = 0; i < lmCount; ++i)
@@ -119,7 +119,7 @@ static i32 TexelCount(const lightmap_t* lightmaps, i32 lmCount)
     return texelCount;
 }
 
-static i32 chartnode_cmp(const void* lhs, const void* rhs, void* usr)
+pim_inline i32 chartnode_cmp(const void* lhs, const void* rhs, void* usr)
 {
     const chartnode_t* a = lhs;
     const chartnode_t* b = rhs;
@@ -130,12 +130,12 @@ static i32 chartnode_cmp(const void* lhs, const void* rhs, void* usr)
     return a->drawableIndex - b->drawableIndex;
 }
 
-static void chartnode_sort(chartnode_t* nodes, i32 count)
+pim_inline void chartnode_sort(chartnode_t* nodes, i32 count)
 {
     pimsort(nodes, count, sizeof(nodes[0]), chartnode_cmp, NULL);
 }
 
-static mask_t VEC_CALL mask_new(int2 size)
+pim_inline mask_t VEC_CALL mask_new(int2 size)
 {
     i32 len = size.x * size.y;
     mask_t mask;
@@ -144,7 +144,7 @@ static mask_t VEC_CALL mask_new(int2 size)
     return mask;
 }
 
-static void VEC_CALL mask_del(mask_t* mask)
+pim_inline void VEC_CALL mask_del(mask_t* mask)
 {
     pim_free(mask->ptr);
     mask->ptr = NULL;
@@ -152,20 +152,20 @@ static void VEC_CALL mask_del(mask_t* mask)
     mask->size.y = 0;
 }
 
-static float4 VEC_CALL norm_blend(float4 A, float4 B, float4 C, float4 wuv)
+pim_inline float4 VEC_CALL norm_blend(float4 A, float4 B, float4 C, float4 wuv)
 {
     float4 N = f4_blend(A, B, C, wuv);
     return f4_normalize3(N);
 }
 
-static float2 VEC_CALL lm_blend(float3 a, float3 b, float3 c, float4 wuv)
+pim_inline float2 VEC_CALL lm_blend(float3 a, float3 b, float3 c, float4 wuv)
 {
     float3 lm3 = f3_blend(a, b, c, wuv);
     float2 lm = { lm3.x, lm3.y };
     return lm;
 }
 
-static bool VEC_CALL mask_fits(mask_t a, mask_t b, int2 tr)
+pim_inline bool VEC_CALL mask_fits(mask_t a, mask_t b, int2 tr)
 {
     for (i32 by = 0; by < b.size.y; ++by)
     {
@@ -195,7 +195,7 @@ static bool VEC_CALL mask_fits(mask_t a, mask_t b, int2 tr)
     return true;
 }
 
-static void VEC_CALL mask_write(mask_t a, mask_t b, int2 tr)
+pim_inline void VEC_CALL mask_write(mask_t a, mask_t b, int2 tr)
 {
     for (i32 by = 0; by < b.size.y; ++by)
     {
@@ -218,14 +218,14 @@ static void VEC_CALL mask_write(mask_t a, mask_t b, int2 tr)
     }
 }
 
-static int2 VEC_CALL tri_size(tri2d_t tri)
+pim_inline int2 VEC_CALL tri_size(tri2d_t tri)
 {
     float2 hi = f2_max(f2_max(tri.a, tri.b), tri.c);
     int2 size = f2_i2(f2_ceil(hi));
     return size;
 }
 
-static bool VEC_CALL TriTest(tri2d_t tri, float2 pt)
+pim_inline bool VEC_CALL TriTest(tri2d_t tri, float2 pt)
 {
     const i32 kSamples = 64;
     const float kThresh = 2.0f;
@@ -246,7 +246,7 @@ static bool VEC_CALL TriTest(tri2d_t tri, float2 pt)
     return false;
 }
 
-static void VEC_CALL mask_tri(mask_t mask, tri2d_t tri)
+pim_inline void VEC_CALL mask_tri(mask_t mask, tri2d_t tri)
 {
     const int2 size = mask.size;
     for (i32 y = 0; y < size.y; ++y)
@@ -263,7 +263,7 @@ static void VEC_CALL mask_tri(mask_t mask, tri2d_t tri)
     }
 }
 
-static mask_t VEC_CALL mask_fromtri(tri2d_t tri)
+pim_inline mask_t VEC_CALL mask_fromtri(tri2d_t tri)
 {
     int2 size = tri_size(tri);
     size.x += 2;
@@ -273,7 +273,7 @@ static mask_t VEC_CALL mask_fromtri(tri2d_t tri)
     return mask;
 }
 
-static bool VEC_CALL mask_find(mask_t atlas, mask_t item, int2* trOut, i32 prevRow)
+pim_inline bool VEC_CALL mask_find(mask_t atlas, mask_t item, int2* trOut, i32 prevRow)
 {
     int2 lo = i2_addvs(i2_neg(item.size), 1);
     int2 hi = i2_subvs(atlas.size, 1);
@@ -297,14 +297,14 @@ static bool VEC_CALL mask_find(mask_t atlas, mask_t item, int2* trOut, i32 prevR
     return false;
 }
 
-static float2 VEC_CALL ProjUv(float3x3 TBN, float4 pt)
+pim_inline float2 VEC_CALL ProjUv(float3x3 TBN, float4 pt)
 {
     float u = f4_dot3(TBN.c0, pt);
     float v = f4_dot3(TBN.c1, pt);
     return f2_v(u, v);
 }
 
-static tri2d_t VEC_CALL ProjTri(float4 A, float4 B, float4 C)
+pim_inline tri2d_t VEC_CALL ProjTri(float4 A, float4 B, float4 C)
 {
     plane_t plane = triToPlane(A, B, C);
     float3x3 TBN = NormalToTBN(plane.value);
@@ -315,7 +315,7 @@ static tri2d_t VEC_CALL ProjTri(float4 A, float4 B, float4 C)
     return tri;
 }
 
-static chartnode_t VEC_CALL chartnode_new(
+pim_inline chartnode_t VEC_CALL chartnode_new(
     float4 A,
     float4 B,
     float4 C,
@@ -335,7 +335,7 @@ static chartnode_t VEC_CALL chartnode_new(
     return node;
 }
 
-static void chart_del(chart_t* chart)
+pim_inline void chart_del(chart_t* chart)
 {
     if (chart)
     {
@@ -346,7 +346,7 @@ static void chart_del(chart_t* chart)
     }
 }
 
-static bool VEC_CALL plane_equal(
+pim_inline bool VEC_CALL plane_equal(
     plane_t lhs, plane_t rhs, float distThresh, float minCosTheta)
 {
     float dist = f1_distance(lhs.value.w, rhs.value.w);
@@ -354,7 +354,7 @@ static bool VEC_CALL plane_equal(
     return (dist < distThresh) && (cosTheta >= minCosTheta);
 }
 
-static i32 plane_find(
+pim_inline i32 plane_find(
     const plane_t* planes,
     i32 planeCount,
     plane_t plane,
@@ -372,7 +372,7 @@ static i32 plane_find(
     return -1;
 }
 
-static void chart_minmax(chart_t chart, float2* loOut, float2* hiOut)
+pim_inline void VEC_CALL chart_minmax(chart_t chart, float2* loOut, float2* hiOut)
 {
     const float bigNum = 1 << 20;
     float2 lo = f2_s(bigNum);
@@ -391,7 +391,7 @@ static void chart_minmax(chart_t chart, float2* loOut, float2* hiOut)
     *hiOut = hi;
 }
 
-static float chart_area(chart_t chart)
+pim_inline float VEC_CALL chart_area(chart_t chart)
 {
     float2 lo, hi;
     chart_minmax(chart, &lo, &hi);
@@ -399,7 +399,7 @@ static float chart_area(chart_t chart)
     return size.x * size.y;
 }
 
-static float chart_width(chart_t chart)
+pim_inline float VEC_CALL chart_width(chart_t chart)
 {
     float2 lo, hi;
     chart_minmax(chart, &lo, &hi);
@@ -407,7 +407,7 @@ static float chart_width(chart_t chart)
     return f2_hmax(size);
 }
 
-static float chart_triarea(chart_t chart)
+pim_inline float VEC_CALL chart_triarea(chart_t chart)
 {
     float sum = 0.0f;
     for (i32 i = 0; i < chart.nodeCount; ++i)
@@ -419,14 +419,14 @@ static float chart_triarea(chart_t chart)
     return sum;
 }
 
-static float chart_density(chart_t chart)
+pim_inline float VEC_CALL chart_density(chart_t chart)
 {
     float fromTri = chart_triarea(chart);
     float fromBounds = chart_area(chart);
     return fromTri / f1_max(fromBounds, kEpsilon);
 }
 
-static float2 VEC_CALL tri_center(tri2d_t tri)
+pim_inline float2 VEC_CALL tri_center(tri2d_t tri)
 {
     const float scale = 1.0f / 3;
     float2 center = f2_mulvs(tri.a, scale);
@@ -435,7 +435,7 @@ static float2 VEC_CALL tri_center(tri2d_t tri)
     return center;
 }
 
-static float2 cluster_mean(const tri2d_t* tris, i32 count)
+pim_inline float2 VEC_CALL cluster_mean(const tri2d_t* tris, i32 count)
 {
     const float scale = 1.0f / count;
     float2 mean = f2_0;
@@ -447,7 +447,7 @@ static float2 cluster_mean(const tri2d_t* tris, i32 count)
     return mean;
 }
 
-static i32 cluster_nearest(const float2* means, i32 k, tri2d_t tri)
+pim_inline i32 cluster_nearest(const float2* means, i32 k, tri2d_t tri)
 {
     i32 chosen = -1;
     float chosenDist = 1 << 20;
@@ -662,7 +662,7 @@ static chart_t* chart_group(
     return charts;
 }
 
-static i32 chart_cmp(const void* plhs, const void* prhs, void* usr)
+pim_inline i32 chart_cmp(const void* plhs, const void* prhs, void* usr)
 {
     const chart_t* lhs = plhs;
     const chart_t* rhs = prhs;
@@ -675,12 +675,12 @@ static i32 chart_cmp(const void* plhs, const void* prhs, void* usr)
     return 0;
 }
 
-static void chart_sort(chart_t* charts, i32 chartCount)
+pim_inline void chart_sort(chart_t* charts, i32 chartCount)
 {
     pimsort(charts, chartCount, sizeof(charts[0]), chart_cmp, NULL);
 }
 
-static atlas_t atlas_new(i32 size)
+pim_inline atlas_t atlas_new(i32 size)
 {
     atlas_t atlas = { 0 };
     mutex_create(&atlas.mtx);
@@ -688,7 +688,7 @@ static atlas_t atlas_new(i32 size)
     return atlas;
 }
 
-static void atlas_del(atlas_t* atlas)
+pim_inline void atlas_del(atlas_t* atlas)
 {
     if (atlas)
     {
@@ -752,7 +752,7 @@ static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
     chartnode_t* nodes = NULL;
     i32 nodeCount = 0;
 
-    const u32 unmapped = matflag_sky | matflag_lava | matflag_refractive | matflag_animated;
+    const u32 unmapped = matflag_sky | matflag_lava;
     for (i32 d = 0; d < numDrawables; ++d)
     {
         const material_t material = materials[d];
@@ -845,7 +845,7 @@ static void AtlasFn(task_t* pbase, i32 begin, i32 end)
     }
 }
 
-static i32 atlas_estimate(i32 atlasSize, const chart_t* charts, i32 chartCount)
+pim_inline i32 atlas_estimate(i32 atlasSize, const chart_t* charts, i32 chartCount)
 {
     i32 areaRequired = 0;
     for (i32 i = 0; i < chartCount; ++i)
@@ -880,9 +880,7 @@ static i32 atlases_create(i32 atlasSize, chart_t* charts, i32 chartCount)
     task->charts = charts;
     task->chartCount = chartCount;
     task->nodeHead = 0;
-    task_submit(&task->task, AtlasFn, chartCount);
-    task_sys_schedule();
-    task_await(&task->task);
+    task_run(&task->task, AtlasFn, chartCount);
 
     i32 usedAtlases = 0;
     for (i32 i = 0; i < atlasCount; ++i)
@@ -960,7 +958,7 @@ typedef struct quadtree_s
     int2** pim_noalias indexLists;      // iDrawable, iVert
 } quadtree_t;
 
-static i32 CalcNodeCount(i32 maxDepth)
+pim_inline i32 CalcNodeCount(i32 maxDepth)
 {
     i32 nodeCount = 0;
     for (i32 i = 0; i < maxDepth; ++i)
@@ -970,12 +968,12 @@ static i32 CalcNodeCount(i32 maxDepth)
     return nodeCount;
 }
 
-static i32 GetChild(i32 parent, i32 i)
+pim_inline i32 GetChild(i32 parent, i32 i)
 {
     return (parent << 2) | (i + 1);
 }
 
-static i32 GetParent(i32 c)
+pim_inline i32 GetParent(i32 c)
 {
     return (c - 1) >> 2;
 }
@@ -1006,7 +1004,7 @@ static void SetupBounds(box2d_t* pim_noalias boxes, i32 p, i32 nodeCount)
     }
 }
 
-static void quadtree_new(quadtree_t* qt, i32 maxDepth, box2d_t bounds)
+pim_inline void quadtree_new(quadtree_t* qt, i32 maxDepth, box2d_t bounds)
 {
     i32 len = CalcNodeCount(maxDepth);
     qt->maxDepth = maxDepth;
@@ -1022,7 +1020,7 @@ static void quadtree_new(quadtree_t* qt, i32 maxDepth, box2d_t bounds)
     }
 }
 
-static void quadtree_del(quadtree_t* qt)
+pim_inline void quadtree_del(quadtree_t* qt)
 {
     if (qt)
     {
@@ -1040,7 +1038,7 @@ static void quadtree_del(quadtree_t* qt)
     }
 }
 
-static bool VEC_CALL BoxHoldsTri(box2d_t box, tri2d_t tri)
+pim_inline bool VEC_CALL BoxHoldsTri(box2d_t box, tri2d_t tri)
 {
     float2 lo = box.lo;
     float2 hi = box.hi;
@@ -1049,7 +1047,7 @@ static bool VEC_CALL BoxHoldsTri(box2d_t box, tri2d_t tri)
     return b2_all(b2_and(a, b));
 }
 
-static bool VEC_CALL BoxHoldsPt(box2d_t box, float2 pt)
+pim_inline bool VEC_CALL BoxHoldsPt(box2d_t box, float2 pt)
 {
     return b2_all(b2_and(f2_gteq(pt, box.lo), f2_lteq(pt, box.hi)));
 }
@@ -1156,6 +1154,7 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
     const i32 drawablesCount = drawables->count;
     const meshid_t* pim_noalias meshids = drawables->meshes;
     const float4x4* pim_noalias matrices = drawables->matrices;
+    const float3x3* pim_noalias invMatrices = drawables->invMatrices;
     const lm_uvs_t* pim_noalias uvArray = drawables->lmUvs;
 
     for (i32 iWork = begin; iWork < end; ++iWork)
@@ -1210,7 +1209,7 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
             wuv = f4_divvs(wuv, f4_sum3(wuv));
 
             const float4x4 M = matrices[iDraw];
-            const float3x3 IM = f3x3_IM(M);
+            const float3x3 IM = invMatrices[iDraw];
 
             float4 A = f4x4_mul_pt(M, mesh.positions[a]);
             float4 B = f4x4_mul_pt(M, mesh.positions[b]);
@@ -1337,7 +1336,7 @@ lmpack_t lmpack_pack(
     pack.lmCount = atlasCount;
     pack.lmSize = atlasSize;
     pack.lightmaps = perm_calloc(sizeof(pack.lightmaps[0]) * atlasCount);
-    SG_Generate(pack.axii, kGiDirections, SGDist_Sphere);
+    SG_Generate(pack.axii, kGiDirections, SGDist_Hemi);
 
     for (i32 i = 0; i < atlasCount; ++i)
     {
@@ -1407,7 +1406,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
 
         float weight = 1.0f / sampleCount;
         float prob = f1_lerp(timeSlice, timeSlice * 2.0f, weight);
-        if (pt_sample_1d(&sampler) >= prob)
+        if (pt_sample_1d(&sampler) > prob)
         {
             continue;
         }
@@ -1419,19 +1418,29 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
         float4 N = f4_normalize3(f3_f4(N3, 0.0f));
         P = f4_add(P, f4_mulvs(N, kMilli));
 
-        float4 Lts = SampleCosineHemisphere(pt_sample_2d(&sampler));
-        float4 Lws = TanToWorld(N, Lts);
-        float NoL = f4_dotsat(N, Lws);
+        float3x3 onb = NormalToTBN(N);
+        float4 Lts = SampleUnitHemisphere(pt_sample_2d(&sampler));
+        float4 Lws = TbnToWorld(onb, Lts);
 
         ray_t ray = { P, Lws };
         pt_result_t result = pt_trace_ray(&sampler, scene, ray);
-        result.color = f3_mulvs(result.color, NoL);
 
-        const i32 iProbe = iTexel * kGiDirections;
-        float4 rad = f3_f4(result.color, 0.0f);
-        SG_Accumulate(weight, Lws, rad, pack->axii, lightmap.probes + iProbe, lightmap.weights + iProbe, kGiDirections);
-
-        lightmap.color[iTexel] = f3_lerp(lightmap.color[iTexel], result.color, weight);
+        float4 probe[kGiDirections];
+        float4 axii[kGiDirections];
+        for (i32 i = 0; i < kGiDirections; ++i)
+        {
+            probe[i] = lightmap.probes[i][iTexel];
+            float4 ax = pack->axii[i];
+            float sharpness = ax.w;
+            ax = TbnToWorld(onb, ax);
+            ax.w = sharpness;
+            axii[i] = ax;
+        }
+        SG_Accumulate(weight, Lws, f3_f4(result.color, 0.0f), axii, probe, kGiDirections);
+        for (i32 i = 0; i < kGiDirections; ++i)
+        {
+            lightmap.probes[i][iTexel] = probe[i];
+        }
         lightmap.sampleCounts[iTexel] = sampleCount + 1.0f;
     }
     pt_sampler_set(sampler);
@@ -1454,22 +1463,6 @@ void lmpack_bake(pt_scene_t* scene, float timeSlice)
     }
 
     ProfileEnd(pm_Bake);
-}
-
-ProfileMark(pm_Denoise, lmpack_denoise)
-void lmpack_denoise(void)
-{
-    ProfileBegin(pm_Denoise);
-
-    lmpack_t* pack = lmpack_get();
-    ASSERT(pack);
-    for (i32 i = 0; i < pack->lmCount; ++i)
-    {
-        lightmap_t lm = pack->lightmaps[i];
-        Denoise(DenoiseType_Lightmap, i2_s(lm.size), lm.color, NULL, NULL, lm.denoised);
-    }
-
-    ProfileEnd(pm_Denoise);
 }
 
 static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
@@ -1513,16 +1506,10 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
         const i32 len = lm.size * lm.size;
         buffer = tmp_realloc(buffer, sizeof(buffer[0]) * len);
 
-        const float3* pim_noalias srcBuffer = lm.color;
+        const float3* pim_noalias srcBuffer = NULL;
         switch (channel)
         {
         default:
-        case LmChannel_Color:
-            srcBuffer = lm.color;
-            break;
-        case LmChannel_Denoised:
-            srcBuffer = lm.denoised;
-            break;
         case LmChannel_Position:
             srcBuffer = lm.position;
             break;

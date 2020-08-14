@@ -196,6 +196,17 @@ typedef struct frus_s
     plane_t z1;
 } frus_t;
 
+typedef struct frusbasis_s
+{
+    float4 eye;
+    float4 right;
+    float4 up;
+    float4 fwd;
+    float2 slope;
+    float zNear;
+    float zFar;
+} frusbasis_t;
+
 typedef struct AmbCube_s
 {
     // radiance along normals of a cube

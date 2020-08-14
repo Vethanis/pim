@@ -1,5 +1,6 @@
 #include "logic/progs.h"
 #include "common/stringutil.h"
+#include "common/cmd.h"
 #include "allocator/allocator.h"
 #include "containers/sdict.h"
 #include "math/float3_funcs.h"
@@ -118,6 +119,18 @@ static float3 ParseOrigin(const sdict_t* dict)
     return origin;
 }
 
+static float ParseAngle(const sdict_t* dict)
+{
+    float angle = 0.0f;
+    char* value = NULL;
+    if (sdict_get(dict, "angle", &value))
+    {
+        angle = f1_radians((float)atof(value)) - kPi * 0.5f;
+        angle = f1_mod(angle, kTau);
+    }
+    return angle;
+}
+
 static void ParseWorldspawn(progs_t* progs, const sdict_t* dict)
 {
     pr_worldspawn_t ws = { 0 };
@@ -153,7 +166,7 @@ static void ParseWorldspawn(progs_t* progs, const sdict_t* dict)
 static void ParsePlayerStart(progs_t* progs, const sdict_t* dict)
 {
     pr_player_start_t ps = { 0 };
-    ps.angle = 0.0f;
+    ps.angle = ParseAngle(dict);
     ps.origin = ParseOrigin(dict);
     pr_entity_t ent = { 0 };
     ent.type = pr_classname_info_player_start;
@@ -211,16 +224,61 @@ static void ParseDict(progs_t* progs, sdict_t* dict)
     char* value = NULL;
     if (sdict_get(dict, "classname", &value))
     {
-        ASSERT(value);
         i32 iclass = FindClass(value);
-        if (iclass < 0)
+        if (iclass >= 0)
         {
-            ASSERT(false);
-            return;
+            ParseClass(progs, dict, iclass);
         }
-        ParseClass(progs, dict, iclass);
     }
     sdict_clear(dict);
+}
+
+static void ExpandEscapes(char* text)
+{
+    i32 len = StrLen(text);
+    while (len > 0)
+    {
+        char c = text[0];
+        ASSERT(c);
+        char d = text[1];
+        if (c == '\\')
+        {
+            bool escapeValid = true;
+            switch (d)
+            {
+            default:
+                escapeValid = false;
+                break;
+            case 'n':
+                c = '\n';
+                break;
+            case 'r':
+                c = '\r';
+                break;
+            case 't':
+                c = '\t';
+                break;
+            case '\\':
+                c = '\\';
+                break;
+            case '\'':
+                c = '\'';
+                break;
+            case '\"':
+                c = '\"';
+                break;
+            }
+
+            if (escapeValid)
+            {
+                text[0] = c;
+                --len;
+                memmove(text + 1, text + 2, len);
+            }
+        }
+        ++text;
+        --len;
+    }
 }
 
 void progs_parse(progs_t* progs, const char* text)
@@ -242,16 +300,17 @@ void progs_parse(progs_t* progs, const char* text)
     sdict_reserve(&dict, 16);
 
     char key[PIM_PATH] = { 0 };
-    char value[PIM_PATH] = { 0 };
     i32 braces = 0;
-    i32 quotes = 0;
+    i32 count = 0;
     while (true)
     {
-        while (IsSpace(*text))
+        char* token = NULL;
+        text = cmd_parse(text, &token);
+        if (!text)
         {
-            ++text;
+            break;
         }
-        char c = *text++;
+        char c = *token;
         if (!c)
         {
             break;
@@ -280,64 +339,23 @@ void progs_parse(progs_t* progs, const char* text)
             // brush not yet handled
             continue;
         }
-        if (c == '"')
+
         {
-            ++quotes;
-            if (quotes & 1)
+            ++count;
+
+            ExpandEscapes(token);
+
+            if (count & 1)
             {
-                char* dst = key;
-                if (quotes & 2)
+                StrCpy(ARGS(key), token);
+            }
+            else
+            {
+                if (!sdict_add(&dict, key, &token))
                 {
-                    dst = value;
+                    ASSERT(false);
                 }
-                const char* p = text;
-                i32 i = 0;
-                for (; i < (PIM_PATH - 1); ++i, ++p)
-                {
-                    c = *p;
-                    if (!c)
-                    {
-                        break;
-                    }
-                    if (c == '"')
-                    {
-                        break;
-                    }
-                    if (c == '\\')
-                    {
-                        ++p;
-                        c = *p;
-                        if (!c)
-                        {
-                            break;
-                        }
-                        if (c == 'n')
-                        {
-                            c = '\n';
-                        }
-                        if (c == 't')
-                        {
-                            c = '\t';
-                        }
-                        if (c == 'r')
-                        {
-                            c = '\r';
-                        }
-                    }
-                    dst[i] = c;
-                }
-                dst[i] = 0;
-                text = p;
-                if (dst == value)
-                {
-                    char* valdup = StrDup(value, EAlloc_Temp);
-                    if (!sdict_add(&dict, key, &valdup))
-                    {
-                        ASSERT(false);
-                    }
-                    memset(key, 0, sizeof(key));
-                    memset(value, 0, sizeof(value));
-                }
+                memset(key, 0, sizeof(key));
             }
         }
     }

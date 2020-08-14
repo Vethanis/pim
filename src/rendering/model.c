@@ -742,7 +742,7 @@ void ModelToDrawables(const mmodel_t* model)
     memset(&mesh, 0, sizeof(mesh));
 }
 
-static void LoadProgs(const mmodel_t* model)
+void LoadProgs(const mmodel_t* model, bool loadlights)
 {
     progs_t progs = { 0 };
     progs_parse(&progs, model->entities);
@@ -756,13 +756,17 @@ static void LoadProgs(const mmodel_t* model)
         pr_entity_t ent = entities[i];
         if ((ent.type >= pr_classname_light) && (ent.type <= pr_classname_light_torch_small_walltorch))
         {
-            pt_light_t pt = { 0 };
-            pt.pos = f3_f4(ent.light.origin, 1.0f);
-            pt.pos = f4x4_mul_pt(M, pt.pos);
-            pt.pos.w = PowerToAttRadius(ent.light.light, 1.0f);
-            pt.rad = f4_s(ent.light.light);
-            pt.rad.w = 10.0f * kCenti;
-            lights_add_pt(pt);
+            if (loadlights)
+            {
+                float rad = ent.light.light * 0.01f;
+                pt_light_t pt = { 0 };
+                pt.pos = f3_f4(ent.light.origin, 1.0f);
+                pt.pos = f4x4_mul_pt(M, pt.pos);
+                pt.pos.w = PowerToAttRadius(rad, 0.1f);
+                pt.rad = f4_s(rad);
+                pt.rad.w = 10.0f * kCenti;
+                lights_add_pt(pt);
+            }
         }
         else if (ent.type == pr_classname_worldspawn)
         {
@@ -771,10 +775,13 @@ static void LoadProgs(const mmodel_t* model)
         else if (ent.type == pr_classname_info_player_start)
         {
             float4 pt = f3_f4(ent.playerstart.origin, 1.0f);
+            float yaw = ent.playerstart.angle;
+            quat rot = quat_angleaxis(yaw, f4_y);
             pt = f4x4_mul_pt(M, pt);
             camera_t camera;
             camera_get(&camera);
             camera.position = pt;
+            camera.rotation = rot;
             camera_set(&camera);
         }
     }
@@ -782,14 +789,14 @@ static void LoadProgs(const mmodel_t* model)
     progs_del(&progs);
 }
 
-bool LoadModelAsDrawables(const char* name)
+bool LoadModelAsDrawables(const char* name, bool loadlights)
 {
     asset_t asset = { 0 };
     if (asset_get(name, &asset))
     {
         mmodel_t* model = LoadModel(name, asset.pData, EAlloc_Temp);
         ModelToDrawables(model);
-        LoadProgs(model);
+        LoadProgs(model, loadlights);
         FreeModel(model);
         return true;
     }

@@ -24,4 +24,8 @@ const char* cmd_complete(const char* namePart);
 cmdstat_t cmd_exec(const char* line);
 void cmd_text(const char* text);
 
+// shared parsing functions
+const char* cmd_parse(const char* text, char** tokenOut);
+char** cmd_tokenize(const char* text, i32* argcOut);
+
 PIM_C_END

@@ -21,15 +21,13 @@ void SG_Accumulate(
     float4 rad,
     const float4* pim_noalias axii,
     float4* pim_noalias amplitudes,
-    float* pim_noalias weights,
     i32 length)
 {
-    if (sampleWeight == 0.0f)
+    if (sampleWeight == 1.0f)
     {
         for (i32 i = 0; i < length; ++i)
         {
             amplitudes[i] = f4_0;
-            weights[i] = 0.0f;
         }
     }
 
@@ -42,19 +40,17 @@ void SG_Accumulate(
     for (i32 i = 0; i < length; ++i)
     {
         float4 axis = axii[i];
-        float4 amplitude = amplitudes[i];
-
         float basis = SG_BasisEval(axis, dir);
         if (basis > 0.0f)
         {
-            float basisSq = basis * basis;
-            basisSq = f1_lerp(weights[i], basisSq, sampleWeight);
-            weights[i] = basisSq;
-
+            float4 amplitude = amplitudes[i];
+            float weight = amplitude.w;
+            weight = f1_lerp(weight, basis * basis, sampleWeight);
             float4 otherLobes = f4_sub(estimate, f4_mulvs(amplitude, basis));
-            float4 thisLobe = f4_mulvs(f4_sub(rad, otherLobes), basis / basisSq);
+            float4 thisLobe = f4_mulvs(f4_sub(rad, otherLobes), basis / weight);
             amplitude = f4_lerpvs(amplitude, thisLobe, sampleWeight);
             amplitude = f4_max(amplitude, f4_0);
+            amplitude.w = weight;
             amplitudes[i] = amplitude;
         }
     }

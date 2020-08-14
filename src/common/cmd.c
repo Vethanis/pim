@@ -22,8 +22,6 @@ typedef struct cmdalias_s
 
 static void ExecCmds(void);
 static bool IsSpecialChar(char c);
-static char** cmd_tokenize(const char* text, i32* argcOut);
-static const char* cmd_parse(const char* text, char** tokenOut);
 static cmdstat_t cmd_alias_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_wait_fn(i32 argc, const char** argv);
@@ -236,7 +234,7 @@ static bool IsSpecialChar(char c)
     }
 }
 
-static const char* cmd_parse(const char* text, char** tokenOut)
+const char* cmd_parse(const char* text, char** tokenOut)
 {
     ASSERT(text);
     ASSERT(tokenOut);
@@ -314,7 +312,7 @@ wspace:
     return text;
 }
 
-static char** cmd_tokenize(const char* text, i32* argcOut)
+char** cmd_tokenize(const char* text, i32* argcOut)
 {
     ASSERT(text);
     ASSERT(argcOut);

@@ -12,10 +12,7 @@ typedef struct pt_scene_s pt_scene_t;
 
 typedef struct lightmap_s
 {
-    float4* pim_noalias probes;
-    float* pim_noalias weights;
-    float3* pim_noalias color;
-    float3* pim_noalias denoised;
+    float4* pim_noalias probes[kGiDirections];
     float3* pim_noalias position;
     float3* pim_noalias normal;
     float* pim_noalias sampleCounts;
@@ -50,8 +47,6 @@ lmpack_t lmpack_pack(
 void lmpack_del(lmpack_t* pack);
 
 void lmpack_bake(pt_scene_t* scene, float timeSlice);
-
-void lmpack_denoise(void);
 
 void lm_uvs_new(lm_uvs_t* uvs, i32 length);
 void lm_uvs_del(lm_uvs_t* uvs);

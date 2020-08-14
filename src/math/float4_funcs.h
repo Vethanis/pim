@@ -7,11 +7,15 @@ PIM_C_BEGIN
 #include "math/scalar.h"
 #include "common/random.h"
 
-#define f4_0    f4_s(0.0f)
-#define f4_1    f4_s(1.0f)
-#define f4_2    f4_s(2.0f)
-#define f4_rcp2 f4_s(0.5f)
-#define f4_rcp3 f4_s(0.33333333f)
+#define f4_0        f4_s(0.0f)
+#define f4_1        f4_s(1.0f)
+#define f4_2        f4_s(2.0f)
+#define f4_rcp2     f4_s(0.5f)
+#define f4_rcp3     f4_s(0.33333333f)
+#define f4_x        f4_v(1.0f, 0.0f, 0.0f, 0.0f)
+#define f4_y        f4_v(0.0f, 1.0f, 0.0f, 0.0f)
+#define f4_z        f4_v(0.0f, 0.0f, 1.0f, 0.0f)
+#define f4_w        f4_v(0.0f, 0.0f, 0.0f, 1.0f)
 
 pim_inline float4 VEC_CALL f4_v(float x, float y, float z, float w)
 {
