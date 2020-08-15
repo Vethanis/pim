@@ -1,8 +1,9 @@
 #include "common/guid.h"
 #include "common/fnv1a.h"
 #include "common/random.h"
+#include "common/stringutil.h"
 
-i32 guid_find(const guid_t* ptr, i32 count, guid_t key)
+i32 guid_find(const guid_t* pim_noalias ptr, i32 count, guid_t key)
 {
     ASSERT(ptr);
     ASSERT(count >= 0);
@@ -49,4 +50,18 @@ guid_t guid_rand(prng_t* rng)
     a = a ? a : 1;
     b = b ? b : 1;
     return (guid_t) { a, b };
+}
+
+void guid_fmt(char* dst, i32 size, guid_t value)
+{
+    u32 a0 = (value.a >> 32) & 0xffffffff;
+    u32 a1 = (value.a >>  0) & 0xffffffff;
+    u32 b0 = (value.b >> 32) & 0xffffffff;
+    u32 b1 = (value.b >>  0) & 0xffffffff;
+    StrCatf(dst, size, "%x_%x_%x_%x", a0, a1, b0, b1);
+}
+
+u32 guid_hashof(guid_t x)
+{
+    return Fnv32Qword(x.b, Fnv32Qword(x.a, Fnv32Bias));
 }

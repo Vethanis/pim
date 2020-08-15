@@ -12,6 +12,7 @@
 #include "ui/cimgui_ext.h"
 #include "common/sort.h"
 #include "common/profiler.h"
+#include "io/fd.h"
 #include <glad/glad.h>
 #include <string.h>
 
@@ -65,12 +66,12 @@ void texture_sys_update(void)
 
 void texture_sys_shutdown(void)
 {
-    i32 width = ms_table.width;
-    const char** names = ms_table.names;
-    texture_t* textures = ms_table.values;
-    for (i32 i = 0; i < ms_table.width; ++i)
+    const guid_t* pim_noalias names = ms_table.names;
+    texture_t* pim_noalias textures = ms_table.values;
+    const i32 width = ms_table.width;
+    for (i32 i = 0; i < width; ++i)
     {
-        if (names[i])
+        if (!guid_isnull(names[i]))
         {
             FreeTexture(textures + i);
         }
@@ -78,7 +79,7 @@ void texture_sys_shutdown(void)
     table_del(&ms_table);
 }
 
-bool texture_load(const char* path, textureid_t* idOut)
+bool texture_loadat(const char* path, textureid_t* idOut)
 {
     i32 width = 0;
     i32 height = 0;
@@ -94,16 +95,16 @@ bool texture_load(const char* path, textureid_t* idOut)
         }
         stbi_image_free(texelsu8);
 
-        int2 size = { width, height };
         texture_t tex = { 0 };
-        tex.size = size;
+        tex.size = (int2) { width, height };
         tex.texels = texelsf4;
-        return texture_new(&tex, path, idOut);
+        guid_t name = guid_str(path, guid_seed);
+        return texture_new(&tex, name, idOut);
     }
     return false;
 }
 
-bool texture_new(texture_t* tex, const char* name, textureid_t* idOut)
+bool texture_new(texture_t* tex, guid_t name, textureid_t* idOut)
 {
     ASSERT(tex);
     ASSERT(idOut);
@@ -165,13 +166,74 @@ bool texture_set(textureid_t id, texture_t* src)
     return false;
 }
 
-bool texture_find(const char* name, textureid_t* idOut)
+bool texture_find(guid_t name, textureid_t* idOut)
 {
     ASSERT(idOut);
     genid id;
     bool found = table_find(&ms_table, name, &id);
     *idOut = ToTexId(id);
     return found;
+}
+
+bool texture_getname(textureid_t tid, guid_t* nameOut)
+{
+    genid gid = ToGenId(tid);
+    return table_getname(&ms_table, gid, nameOut);
+}
+
+#define kTextureVersion 1
+
+bool texture_save(textureid_t tid, guid_t* dst)
+{
+    if (texture_getname(tid, dst))
+    {
+        char filename[PIM_PATH] = { 0 };
+        guid_fmt(ARGS(filename), *dst);
+        StrCat(ARGS(filename), ".texture");
+        fd_t fd = fd_create(filename);
+        if (fd_isopen(fd))
+        {
+            const texture_t* textures = ms_table.values;
+            const texture_t texture = textures[tid.index];
+            const i32 len = texture.size.x * texture.size.y;
+            const i32 version = kTextureVersion;
+            fd_write(fd, &version, sizeof(version));
+            fd_write(fd, &texture.size, sizeof(texture.size));
+            fd_write(fd, texture.texels, sizeof(texture.texels[0]) * len);
+            fd_close(&fd);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool texture_load(guid_t name, textureid_t* dst)
+{
+    bool loaded = false;
+
+    char filename[PIM_PATH] = { 0 };
+    guid_fmt(ARGS(filename), name);
+    StrCat(ARGS(filename), ".texture");
+    fd_t fd = fd_open(filename, false);
+    if (fd_isopen(fd))
+    {
+        texture_t texture = { 0 };
+        i32 version = 0;
+        fd_read(fd, &version, sizeof(version));
+        if (version == kTextureVersion)
+        {
+            fd_read(fd, &texture.size, sizeof(texture.size));
+            if ((texture.size.x > 0) && (texture.size.y > 0))
+            {
+                const i32 len = texture.size.x * texture.size.y;
+                texture.texels = perm_malloc(sizeof(texture.texels[0]) * len);
+                fd_read(fd, texture.texels, sizeof(texture.texels[0]) * len);
+                loaded = texture_new(&texture, name, dst);
+            }
+        }
+        fd_close(&fd);
+    }
+    return loaded;
 }
 
 typedef enum
@@ -249,31 +311,37 @@ bool texture_unpalette(
     textureid_t* romeOut,
     textureid_t* normalOut)
 {
-    bool albedoExists = false;
-    bool albedoAdded = false;
     char albedoName[PIM_PATH];
+    char romeName[PIM_PATH];
+    char normalName[PIM_PATH];
+
     SPrintf(ARGS(albedoName), "%s_albedo", name);
-    if (texture_find(albedoName, albedoOut))
+    SPrintf(ARGS(romeName), "%s_rome", name);
+    SPrintf(ARGS(normalName), "%s_normal", name);
+
+    guid_t albedoguid = guid_str(albedoName, guid_seed);
+    guid_t romeguid = guid_str(romeName, guid_seed);
+    guid_t normalguid = guid_str(normalName, guid_seed);
+
+    bool albedoExists = false;
+    bool romeExists = false;
+    bool normalExists = false;
+
+    bool albedoAdded = false;
+    bool romeAdded = false;
+    bool normalAdded = false;
+
+    if (texture_find(albedoguid, albedoOut))
     {
         albedoExists = true;
         texture_retain(*albedoOut);
     }
-
-    bool romeExists = false;
-    bool romeAdded = false;
-    char romeName[PIM_PATH];
-    SPrintf(ARGS(romeName), "%s_rome", name);
-    if (texture_find(romeName, romeOut))
+    if (texture_find(romeguid, romeOut))
     {
         romeExists = true;
         texture_retain(*romeOut);
     }
-
-    bool normalExists = false;
-    bool normalAdded = false;
-    char normalName[PIM_PATH];
-    SPrintf(ARGS(normalName), "%s_normal", name);
-    if (texture_find(normalName, normalOut))
+    if (texture_find(normalguid, normalOut))
     {
         normalExists = true;
         texture_retain(*normalOut);
@@ -367,17 +435,17 @@ bool texture_unpalette(
         texture_t albedoMap = { 0 };
         albedoMap.size = size;
         albedoMap.texels = albedo;
-        albedoAdded = texture_new(&albedoMap, albedoName, albedoOut);
+        albedoAdded = texture_new(&albedoMap, albedoguid, albedoOut);
 
         texture_t romeMap = { 0 };
         romeMap.size = size;
         romeMap.texels = rome;
-        romeAdded = texture_new(&romeMap, romeName, romeOut);
+        romeAdded = texture_new(&romeMap, romeguid, romeOut);
 
         texture_t normalMap = { 0 };
         normalMap.size = size;
         normalMap.texels = normal;
-        normalAdded = texture_new(&normalMap, normalName, normalOut);
+        normalAdded = texture_new(&normalMap, normalguid, normalOut);
     }
 
     return albedoAdded && romeAdded && normalAdded;
@@ -394,18 +462,22 @@ static char gs_search[PIM_PATH];
 static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
 {
     const i32 width = ms_table.width;
-    const char** names = ms_table.names;
-    const texture_t* textures = ms_table.values;
-    const i32* refcounts = ms_table.refcounts;
+    const guid_t* pim_noalias names = ms_table.names;
+    const texture_t* pim_noalias textures = ms_table.values;
+    const i32* pim_noalias refcounts = ms_table.refcounts;
 
-    if (names[ilhs] && names[irhs])
+    guid_t lhs = names[ilhs];
+    guid_t rhs = names[irhs];
+    bool lvalid = !guid_isnull(lhs);
+    bool rvalid = !guid_isnull(rhs);
+    if (lvalid && rvalid)
     {
         i32 cmp = 0;
         switch (gs_cmpMode)
         {
         default:
         case 0:
-            cmp = StrCmp(names[ilhs], PIM_PATH, names[irhs]);
+            cmp = guid_cmp(lhs, rhs);
             break;
         case 1:
             cmp = textures[ilhs].size.x - textures[irhs].size.x;
@@ -419,11 +491,11 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
         }
         return gs_revSort ? -cmp : cmp;
     }
-    if (names[ilhs])
+    if (lvalid)
     {
         return -1;
     }
-    if (names[irhs])
+    if (rvalid)
     {
         return 1;
     }
@@ -512,24 +584,16 @@ void texture_sys_gui(bool* pEnabled)
 
     if (igBegin("Textures", pEnabled, 0))
     {
-        igInputText("Search", gs_search, NELEM(gs_search), 0, 0, 0);
-        const char* search = gs_search;
-
         const i32 width = ms_table.width;
-        const char** names = ms_table.names;
-        const texture_t* textures = ms_table.values;
-        const i32* refcounts = ms_table.refcounts;
+        const guid_t* pim_noalias names = ms_table.names;
+        const texture_t* pim_noalias textures = ms_table.values;
+        const i32* pim_noalias refcounts = ms_table.refcounts;
 
         i32 bytesUsed = 0;
         for (i32 i = 0; i < width; ++i)
         {
-            const char* name = names[i];
-            if (name)
+            if (!guid_isnull(names[i]))
             {
-                if (search[0] && !StrIStr(name, PIM_PATH, search))
-                {
-                    continue;
-                }
                 int2 size = textures[i].size;
                 bytesUsed += size.x * size.y * sizeof(u32);
             }
@@ -569,19 +633,17 @@ void texture_sys_gui(bool* pEnabled)
             i32 j = indices[i];
             ASSERT(j >= 0);
             ASSERT(j < width);
-            const char* name = names[j];
-            if (!name)
-            {
-                continue;
-            }
-            if (search[0] && !StrIStr(name, PIM_PATH, search))
+            guid_t name = names[j];
+            if (guid_isnull(name))
             {
                 continue;
             }
 
             int2 size = textures[j].size;
             i32 refcount = refcounts[j];
-            igText(name); igNextColumn();
+            char namestr[PIM_PATH] = { 0 };
+            guid_fmt(ARGS(namestr), name);
+            igText(namestr); igNextColumn();
             igText("%d", size.x); igNextColumn();
             igText("%d", size.y); igNextColumn();
             igText("%d", refcount); igNextColumn();
@@ -602,11 +664,11 @@ void texture_sys_gui(bool* pEnabled)
     if (pEnabled[0])
     {
         const i32 width = ms_table.width;
-        const char** names = ms_table.names;
+        const guid_t* names = ms_table.names;
         const texture_t* textures = ms_table.values;
         bool validSelection = (selection >= 0) &&
             (selection < width) &&
-            names[selection] &&
+            !guid_isnull(names[selection]) &&
             textures[selection].texels;
         if (validSelection)
         {

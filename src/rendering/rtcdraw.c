@@ -634,15 +634,14 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
         const i32 c = hit.iVert + 2;
 
         const float4 V = f4_neg(rd);
-        float4 P = f4_add(ro, f4_mulvs(rd, hit.wuvt.w));
         const float3x3 IM = invMatrices[hit.iDrawable];
-        float4 N = f4_blend(
+        const float4 N0 = f4_normalize3(f4_blend(
             f3x3_mul_col(IM, mesh.normals[a]),
             f3x3_mul_col(IM, mesh.normals[b]),
             f3x3_mul_col(IM, mesh.normals[c]),
-            hit.wuvt);
-        N = f4_normalize3(N);
-        P = f4_add(P, f4_mulvs(N, kMilli));
+            hit.wuvt));
+        const float3x3 TBN = NormalToTBN(N0);
+        const float4 P = f4_add(f4_add(ro, f4_mulvs(rd, hit.wuvt.w)), f4_mulvs(N0, kMilli));
         const float2 uv = f2_blend(mesh.uvs[a], mesh.uvs[b], mesh.uvs[c], hit.wuvt);
 
         float4 albedo = ColorToLinear(material.flatAlbedo);
@@ -656,10 +655,11 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
         {
             rome = f4_mul(rome, UvBilinearWrap_f4(tex.texels, tex.size, uv));
         }
+        float4 N = N0;
         if (texture_get(material.normal, &tex))
         {
             float4 Nts = UvBilinearWrap_f4(tex.texels, tex.size, uv);
-            N = TanToWorld(N, Nts);
+            N = TbnToWorld(TBN, Nts);
         }
 
         float4 lighting = f4_0;
@@ -693,7 +693,6 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
                         lmUvs.uvs[c],
                         hit.wuvt);
                     lmUv = f2_subvs(lmUv, 0.5f / lmap.size);
-                    float3x3 onb = NormalToTBN(N);
                     float4 probe[kGiDirections];
                     float4 axii[kGiDirections];
                     for (i32 i = 0; i < kGiDirections; ++i)
@@ -701,7 +700,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
                         probe[i] = UvBilinearClamp_f4(lmap.probes[i], i2_s(lmap.size), lmUv);
                         float4 ax = lmpack->axii[i];
                         float sharpness = ax.w;
-                        ax = TbnToWorld(onb, ax);
+                        ax = TbnToWorld(TBN, ax);
                         ax.w = sharpness;
                         axii[i] = ax;
                     }
@@ -755,9 +754,9 @@ typedef struct task_ClusterLights
 static void ClusterLightsFn(task_t* pbase, i32 begin, i32 end)
 {
     task_ClusterLights* task = (task_ClusterLights*)pbase;
-    froxels_t* froxels = task->froxels;
-    const lights_t* lights = task->lights;
-    const pt_light_t* ptLights = lights->ptLights;
+    froxels_t* pim_noalias froxels = task->froxels;
+    const lights_t* pim_noalias lights = task->lights;
+    const pt_light_t* pim_noalias ptLights = lights->ptLights;
     const i32 ptCount = lights->ptCount;
     const camera_t camera = task->camera;
     const frusbasis_t basis = froxels->basis;
@@ -822,11 +821,16 @@ static void ClusterLights(
     memset(froxels, 0, sizeof(*froxels));
     froxels->basis = CameraToBasis(camera, target->width, target->height);
 
-    task_ClusterLights* task = tmp_calloc(sizeof(*task));
-    task->camera = *camera;
-    task->froxels = &world->froxels;
-    task->lights = lights_get();
-    task_run(&task->task, ClusterLightsFn, kFroxelCount);
+    const lights_t* pim_noalias lights = lights_get();
+    const i32 ptCount = lights->ptCount;
+    if (ptCount > 0)
+    {
+        task_ClusterLights* task = tmp_calloc(sizeof(*task));
+        task->camera = *camera;
+        task->froxels = &world->froxels;
+        task->lights = lights;
+        task_run(&task->task, ClusterLightsFn, kFroxelCount);
+    }
 
     ProfileEnd(pm_ClusterLights);
 }

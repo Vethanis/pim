@@ -30,4 +30,16 @@ typedef struct material_s
     float ior;              // index of refraction
 } material_t;
 
+typedef struct dmaterial_s
+{
+    float4 st;
+    dtextureid_t albedo;
+    dtextureid_t rome;
+    dtextureid_t normal;
+    u32 flatAlbedo;
+    u32 flatRome;
+    u32 flags;
+    float ior;
+} dmaterial_t;
+
 PIM_C_END

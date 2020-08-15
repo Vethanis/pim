@@ -131,6 +131,12 @@ typedef enum
     EAlloc_Count
 } EAlloc;
 
+typedef struct dbytes_s
+{
+    i32 offset;
+    i32 size;
+} dbytes_t;
+
 #define kNumThreads     32
 #define kTaskSplit      (kNumThreads * (kNumThreads / 2))
 

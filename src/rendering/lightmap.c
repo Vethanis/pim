@@ -1337,6 +1337,8 @@ lmpack_t lmpack_pack(
     pack.lmSize = atlasSize;
     pack.lightmaps = perm_calloc(sizeof(pack.lightmaps[0]) * atlasCount);
     SG_Generate(pack.axii, kGiDirections, SGDist_Hemi);
+    pack.texelsPerMeter = texelsPerUnit;
+    pack.metersPerTexel = 1.0f / texelsPerUnit;
 
     for (i32 i = 0; i < atlasCount; ++i)
     {
@@ -1418,9 +1420,9 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
         float4 N = f4_normalize3(f3_f4(N3, 0.0f));
         P = f4_add(P, f4_mulvs(N, kMilli));
 
-        float3x3 onb = NormalToTBN(N);
+        const float3x3 TBN = NormalToTBN(N);
         float4 Lts = SampleUnitHemisphere(pt_sample_2d(&sampler));
-        float4 Lws = TbnToWorld(onb, Lts);
+        float4 Lws = TbnToWorld(TBN, Lts);
 
         ray_t ray = { P, Lws };
         pt_result_t result = pt_trace_ray(&sampler, scene, ray);
@@ -1432,7 +1434,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
             probe[i] = lightmap.probes[i][iTexel];
             float4 ax = pack->axii[i];
             float sharpness = ax.w;
-            ax = TbnToWorld(onb, ax);
+            ax = TbnToWorld(TBN, ax);
             ax.w = sharpness;
             axii[i] = ax;
         }

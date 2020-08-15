@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include "containers/queue.h"
+#include "common/guid.h"
 
 PIM_C_BEGIN
 
@@ -18,8 +19,7 @@ typedef struct table_s
     u8* versions;
     void* values;
     i32* refcounts;
-    u32* hashes;
-    char** names;
+    guid_t* names;
     queue_t freelist;
 
     u32 lookupWidth;
@@ -34,13 +34,14 @@ void table_clear(table_t* table);
 
 bool table_exists(const table_t* table, genid id);
 
-bool table_add(table_t* table, const char* name, const void* valueIn, genid* idOut);
+bool table_add(table_t* table, guid_t name, const void* valueIn, genid* idOut);
 bool table_retain(table_t* table, genid id);
 bool table_release(table_t* table, genid id, void* valueOut);
 
 bool table_get(const table_t* table, genid id, void* valueOut);
 bool table_set(table_t* table, genid id, const void* valueIn);
 
-bool table_find(const table_t* table, const char* name, genid* idOut);
+bool table_find(const table_t* table, guid_t name, genid* idOut);
+bool table_getname(const table_t* table, genid id, guid_t* nameOut);
 
 PIM_C_END

@@ -14,7 +14,6 @@
 #include "rendering/drawable.h"
 #include "rendering/lights.h"
 #include "allocator/allocator.h"
-#include "common/iid.h"
 #include "assets/asset_system.h"
 #include "common/stringutil.h"
 #include "common/console.h"
@@ -630,7 +629,7 @@ void ModelToDrawables(const mmodel_t* model)
     const i32 numsurfedges = model->numsurfedges;
     const float4* vertices = model->vertices;
 
-    drawables_t* drawTable = drawables_get();
+    drawables_t* dr = drawables_get();
     batch_t batch = ModelToBatch(model);
 
     i32* polygon = NULL;
@@ -657,17 +656,17 @@ void ModelToDrawables(const mmodel_t* model)
             {
                 char name[PIM_PATH];
                 SPrintf(ARGS(name), "%s_batch_%d", model->name, curbatch);
+                guid_t guid = guid_str(name, guid_seed);
                 meshid_t meshid;
-                if (mesh_new(&mesh, name, &meshid))
+                if (mesh_new(&mesh, guid, &meshid))
                 {
-                    u32 id = iid_new();
-                    i32 c = drawables_add(id);
-                    drawTable->meshes[c] = meshid;
-                    drawTable->materials[c] = GenMaterial(batchtex);
-                    drawTable->translations[c] = f4_0;
-                    drawTable->scales[c] = f4_1;
-                    drawTable->rotations[c] = quat_id;
-                    drawTable->matrices[c] = f4x4_id;
+                    i32 c = drawables_add(dr, guid);
+                    dr->meshes[c] = meshid;
+                    dr->materials[c] = GenMaterial(batchtex);
+                    dr->translations[c] = f4_0;
+                    dr->scales[c] = f4_1;
+                    dr->rotations[c] = quat_id;
+                    dr->matrices[c] = f4x4_id;
                 }
                 else
                 {
@@ -722,17 +721,17 @@ void ModelToDrawables(const mmodel_t* model)
     {
         char name[PIM_PATH];
         SPrintf(ARGS(name), "%s_batch_%d", model->name, curbatch);
+        guid_t guid = guid_str(name, guid_seed);
         meshid_t meshid;
-        if (mesh_new(&mesh, name, &meshid))
+        if (mesh_new(&mesh, guid, &meshid))
         {
-            u32 id = iid_new();
-            i32 c = drawables_add(id);
-            drawTable->meshes[c] = meshid;
-            drawTable->materials[c] = GenMaterial(batchtex);
-            drawTable->translations[c] = f4_0;
-            drawTable->scales[c] = f4_1;
-            drawTable->rotations[c] = quat_id;
-            drawTable->matrices[c] = f4x4_id;
+            i32 c = drawables_add(dr, guid);
+            dr->meshes[c] = meshid;
+            dr->materials[c] = GenMaterial(batchtex);
+            dr->translations[c] = f4_0;
+            dr->scales[c] = f4_1;
+            dr->rotations[c] = quat_id;
+            dr->matrices[c] = f4x4_id;
         }
         else
         {

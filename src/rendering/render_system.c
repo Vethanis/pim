@@ -402,7 +402,7 @@ static void Rasterize(void)
     camera_t camera;
     camera_get(&camera);
 
-    drawables_trs();
+    drawables_trs(drawables_get());
     RtcDraw(frontBuf, &camera);
 
     ProfileEnd(pm_Rasterize);
@@ -510,7 +510,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     }
 
     con_logf(LogSev_Info, "cmd", "mapload is clearing drawables.");
-    drawables_clear();
+    drawables_clear(drawables_get());
     ShutdownPtScene();
     LightmapShutdown();
 
@@ -521,7 +521,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     bool loadlights = cvar_get_bool(&cv_r_qlights);
     if (LoadModelAsDrawables(mapname, loadlights))
     {
-        drawables_trs();
+        drawables_trs(drawables_get());
 
         con_logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
 
@@ -782,9 +782,10 @@ static meshid_t GenSphereMesh(i32 steps)
 {
     char name[PIM_PATH];
     SPrintf(ARGS(name), "SphereMesh_%d", steps);
+    guid_t guid = guid_str(name, guid_seed);
 
     meshid_t id = { 0 };
-    if (mesh_find(name, &id))
+    if (mesh_find(guid, &id))
     {
         return id;
     }
@@ -914,7 +915,7 @@ static meshid_t GenSphereMesh(i32 steps)
     mesh.positions = positions;
     mesh.normals = normals;
     mesh.uvs = uvs;
-    bool added = mesh_new(&mesh, name, &id);
+    bool added = mesh_new(&mesh, guid, &id);
     ASSERT(added);
     return id;
 }
@@ -924,8 +925,9 @@ static meshid_t GenSphereMesh(i32 steps)
 static meshid_t GenQuadMesh(void)
 {
     const char* name = "QuadMesh";
+    guid_t guid = guid_str(name, guid_seed);
     meshid_t id = { 0 };
-    if (mesh_find(name, &id))
+    if (mesh_find(guid, &id))
     {
         return id;
     }
@@ -959,7 +961,7 @@ static meshid_t GenQuadMesh(void)
     mesh.positions = positions;
     mesh.normals = normals;
     mesh.uvs = uvs;
-    bool added = mesh_new(&mesh, name, &id);
+    bool added = mesh_new(&mesh, guid, &id);
     ASSERT(added);
     return id;
 }
@@ -973,20 +975,21 @@ static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up
     }
     mesh_retain(ms_quadmesh);
 
-    i32 i = drawables_add(HashStr(name));
-    drawables_t* drawables = drawables_get();
-    drawables->meshes[i] = ms_quadmesh;
-    drawables->translations[i] = center;
-    drawables->scales[i] = f4_s(scale);
-    drawables->rotations[i] = quat_lookat(forward, up);
+    guid_t guid = guid_str(name, guid_seed);
+    drawables_t* dr = drawables_get();
+    i32 i = drawables_add(dr, guid);
+    dr->meshes[i] = ms_quadmesh;
+    dr->translations[i] = center;
+    dr->scales[i] = f4_s(scale);
+    dr->rotations[i] = quat_lookat(forward, up);
 
     material_t mat = (material_t)
     {
         .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
-            .flatAlbedo = LinearToColor(albedo),
-            .flatRome = LinearToColor(rome),
+        .flatAlbedo = LinearToColor(albedo),
+        .flatRome = LinearToColor(rome),
     };
-    drawables->materials[i] = mat;
+    dr->materials[i] = mat;
 
     return i;
 }
@@ -1000,27 +1003,29 @@ static i32 CreateSphere(const char* name, float4 center, float radius, float4 al
     }
     mesh_retain(ms_spheremesh);
 
-    i32 i = drawables_add(HashStr(name));
-    drawables_t* drawables = drawables_get();
-    drawables->meshes[i] = ms_spheremesh;
-    drawables->translations[i] = center;
-    drawables->scales[i] = f4_s(radius);
-    drawables->rotations[i] = quat_id;
+    guid_t guid = guid_str(name, guid_seed);
+    drawables_t* dr = drawables_get();
+    i32 i = drawables_add(dr, guid);
+    dr->meshes[i] = ms_spheremesh;
+    dr->translations[i] = center;
+    dr->scales[i] = f4_s(radius);
+    dr->rotations[i] = quat_id;
 
     material_t mat = (material_t)
     {
         .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
-            .flatAlbedo = LinearToColor(albedo),
-            .flatRome = LinearToColor(rome),
+        .flatAlbedo = LinearToColor(albedo),
+        .flatRome = LinearToColor(rome),
     };
-    drawables->materials[i] = mat;
+    dr->materials[i] = mat;
 
     return i;
 }
 
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 {
-    drawables_clear();
+    drawables_t* dr = drawables_get();
+    drawables_clear(dr);
     ShutdownPtScene();
     LightmapShutdown();
 
@@ -1114,7 +1119,7 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
         white,
         plasticRome);
 
-    drawables_trs();
+    drawables_trs(dr);
 
     return cmdstat_ok;
 }

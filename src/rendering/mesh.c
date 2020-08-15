@@ -9,6 +9,7 @@
 #include "math/box.h"
 #include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
+#include "io/fd.h"
 
 #include <string.h>
 
@@ -55,12 +56,12 @@ void mesh_sys_update(void)
 
 void mesh_sys_shutdown(void)
 {
-    const char** names = ms_table.names;
-    mesh_t* meshes = ms_table.values;
-    i32 width = ms_table.width;
+    const guid_t* pim_noalias names = ms_table.names;
+    mesh_t* pim_noalias meshes = ms_table.values;
+    const i32 width = ms_table.width;
     for (i32 i = 0; i < width; ++i)
     {
-        if (names[i])
+        if (!guid_isnull(names[i]))
         {
             FreeMesh(meshes + i);
         }
@@ -68,7 +69,7 @@ void mesh_sys_shutdown(void)
     table_del(&ms_table);
 }
 
-bool mesh_new(mesh_t* mesh, const char* name, meshid_t* idOut)
+bool mesh_new(mesh_t* mesh, guid_t name, meshid_t* idOut)
 {
     ASSERT(mesh);
     ASSERT(mesh->length > 0);
@@ -140,13 +141,19 @@ bool mesh_set(meshid_t id, mesh_t* src)
     return false;
 }
 
-bool mesh_find(const char* name, meshid_t* idOut)
+bool mesh_find(guid_t name, meshid_t* idOut)
 {
     ASSERT(idOut);
     genid id;
     bool found = table_find(&ms_table, name, &id);
     *idOut = ToMeshId(id);
     return found;
+}
+
+bool mesh_getname(meshid_t mid, guid_t* dst)
+{
+    genid gid = ToGenId(mid);
+    return table_getname(&ms_table, gid, dst);
 }
 
 box_t mesh_calcbounds(meshid_t id)
@@ -165,6 +172,68 @@ box_t mesh_calcbounds(meshid_t id)
     return bounds;
 }
 
+#define kMeshVersion 1
+
+bool mesh_save(meshid_t id, guid_t* dst)
+{
+    if (mesh_getname(id, dst))
+    {
+        char filename[PIM_PATH] = { 0 };
+        guid_fmt(ARGS(filename), *dst);
+        StrCat(ARGS(filename), ".mesh");
+        fd_t fd = fd_create(filename);
+        if (fd_isopen(fd))
+        {
+            const mesh_t* meshes = ms_table.values;
+            const mesh_t mesh = meshes[id.index];
+            const i32 version = kMeshVersion;
+            fd_write(fd, &version, sizeof(version));
+            fd_write(fd, &mesh.length, sizeof(mesh.length));
+            fd_write(fd, mesh.positions, sizeof(mesh.positions[0]) * mesh.length);
+            fd_write(fd, mesh.normals, sizeof(mesh.normals[0]) * mesh.length);
+            fd_write(fd, mesh.uvs, sizeof(mesh.uvs[0]) * mesh.length);
+            fd_write(fd, &mesh.bounds, sizeof(mesh.bounds));
+            fd_close(&fd);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool mesh_load(guid_t name, meshid_t* dst)
+{
+    bool loaded = false;
+
+    char filename[PIM_PATH] = { 0 };
+    guid_fmt(ARGS(filename), name);
+    StrCat(ARGS(filename), ".mesh");
+    fd_t fd = fd_open(filename, false);
+    if (fd_isopen(fd))
+    {
+        mesh_t mesh = { 0 };
+        i32 version = 0;
+        fd_read(fd, &version, sizeof(version));
+        if (version == kMeshVersion)
+        {
+            fd_read(fd, &mesh.length, sizeof(mesh.length));
+            ASSERT(mesh.length >= 0);
+            if (mesh.length > 0)
+            {
+                mesh.positions = perm_malloc(sizeof(mesh.positions[0]) * mesh.length);
+                mesh.normals = perm_malloc(sizeof(mesh.normals[0]) * mesh.length);
+                mesh.uvs = perm_malloc(sizeof(mesh.uvs[0]) * mesh.length);
+                fd_read(fd, mesh.positions, sizeof(mesh.positions[0]) * mesh.length);
+                fd_read(fd, mesh.normals, sizeof(mesh.normals[0]) * mesh.length);
+                fd_read(fd, mesh.uvs, sizeof(mesh.uvs[0]) * mesh.length);
+                fd_read(fd, &mesh.bounds, sizeof(mesh.bounds));
+                loaded = mesh_new(&mesh, name, dst);
+            }
+        }
+        fd_close(&fd);
+    }
+    return loaded;
+}
+
 // ----------------------------------------------------------------------------
 
 static char gs_search[PIM_PATH];
@@ -174,19 +243,23 @@ static bool gs_revsort;
 
 static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
 {
-    const i32 width = ms_table.width;
-    const char** names = ms_table.names;
-    const mesh_t* meshes = ms_table.values;
-    const i32* refcounts = ms_table.refcounts;
+    const guid_t* pim_noalias names = ms_table.names;
+    const mesh_t* pim_noalias meshes = ms_table.values;
+    const i32* pim_noalias refcounts = ms_table.refcounts;
+    const i32 mode = gs_cmpmode;
 
-    if (names[ilhs] && names[irhs])
+    guid_t lhs = names[ilhs];
+    guid_t rhs = names[irhs];
+    bool lvalid = !guid_isnull(lhs);
+    bool rvalid = !guid_isnull(rhs);
+    if (lvalid && rvalid)
     {
         i32 cmp = 0;
-        switch (gs_cmpmode)
+        switch (mode)
         {
         default:
         case 0:
-            cmp = StrCmp(names[ilhs], PIM_PATH, names[irhs]);
+            cmp = guid_cmp(lhs, rhs);
             break;
         case 1:
             cmp = meshes[ilhs].length - meshes[irhs].length;
@@ -197,11 +270,11 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
         }
         return gs_revsort ? -cmp : cmp;
     }
-    if (names[ilhs])
+    if (lvalid)
     {
         return -1;
     }
-    if (names[irhs])
+    if (rvalid)
     {
         return 1;
     }
@@ -216,24 +289,16 @@ void mesh_sys_gui(bool* pEnabled)
     i32 selection = gs_selection;
     if (igBegin("Meshes", pEnabled, 0))
     {
-        igInputText("Search", gs_search, NELEM(gs_search), 0, 0, 0);
-        const char* search = gs_search;
-
         const i32 width = ms_table.width;
-        const char** names = ms_table.names;
+        const guid_t* names = ms_table.names;
         const mesh_t* meshes = ms_table.values;
         const i32* refcounts = ms_table.refcounts;
 
         i32 bytesUsed = 0;
         for (i32 i = 0; i < width; ++i)
         {
-            const char* name = names[i];
-            if (name)
+            if (!guid_isnull(names[i]))
             {
-                if (search[0] && !StrIStr(name, PIM_PATH, search))
-                {
-                    continue;
-                }
                 i32 length = meshes[i].length;
                 bytesUsed += sizeof(meshes[0]);
                 bytesUsed += length * sizeof(meshes[0].positions[0]);
@@ -275,19 +340,17 @@ void mesh_sys_gui(bool* pEnabled)
             i32 j = indices[i];
             ASSERT(j >= 0);
             ASSERT(j < width);
-            const char* name = names[j];
-            if (!name)
-            {
-                continue;
-            }
-            if (search[0] && !StrIStr(name, PIM_PATH, search))
+            guid_t name = names[j];
+            if (guid_isnull(name))
             {
                 continue;
             }
 
             i32 length = meshes[j].length;
             i32 refcount = refcounts[j];
-            igText(name); igNextColumn();
+            char namestr[PIM_PATH] = { 0 };
+            guid_fmt(ARGS(namestr), name);
+            igText(namestr); igNextColumn();
             igText("%d", length); igNextColumn();
             igText("%d", refcount); igNextColumn();
             const char* selectText = selection == j ? "Selected" : "Select";

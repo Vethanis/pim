@@ -1,41 +1,56 @@
 #pragma once
 
 #include "common/macro.h"
+#include "common/guid.h"
 #include "math/types.h"
 #include "rendering/mesh.h"
 #include "rendering/material.h"
 
 PIM_C_BEGIN
 
-typedef struct camera_s camera_t;
-typedef struct framebuf_s framebuf_t;
-typedef struct pt_scene_s pt_scene_t;
 typedef struct lm_uvs_s lm_uvs_t;
 
 typedef struct drawables_s
 {
     i32 count;
-    u32* names;             // hashstring identifier
-    meshid_t* meshes;       // immutable object space mesh
-    material_t* materials;  // material description
-    lm_uvs_t* lmUvs;        // lightmap uvs (must be per-instance)
-    float4x4* matrices;     // local to world matrix
-    float3x3* invMatrices;  // world to local rotation matrix
-    float4* translations;
-    quat* rotations;
-    float4* scales;
+    guid_t* pim_noalias names;          // hash identifier
+    meshid_t* pim_noalias meshes;       // immutable object space mesh
+    material_t* pim_noalias materials;  // material description
+    lm_uvs_t* pim_noalias lmUvs;        // lightmap uvs (must be per-instance)
+    float4x4* pim_noalias matrices;     // local to world matrix
+    float3x3* pim_noalias invMatrices;  // world to local rotation matrix
+    float4* pim_noalias translations;
+    quat* pim_noalias rotations;
+    float4* pim_noalias scales;
 } drawables_t;
+
+#define kDrawablesVersion 1
+
+typedef struct ddrawables_s
+{
+    i32 version;
+    i32 length;
+    dbytes_t names;
+    dbytes_t meshes;    // dmeshid_t
+    dbytes_t materials; // dmaterial_t
+    dbytes_t lmuvs;     // dlm_uvs_t
+    dbytes_t translations;
+    dbytes_t rotations;
+    dbytes_t scales;
+} ddrawables_t;
 
 drawables_t* drawables_get(void);
 
-i32 drawables_add(u32 name);
-bool drawables_rm(u32 name);
-i32 drawables_find(u32 name);
+i32 drawables_add(drawables_t* dr, guid_t name);
+bool drawables_rm(drawables_t* dr, guid_t name);
+i32 drawables_find(const drawables_t* dr, guid_t name);
+void drawables_clear(drawables_t* dr);
+void drawables_del(drawables_t* dr);
 
-void drawables_clear(void);
+void drawables_trs(drawables_t* dr);
+box_t drawables_bounds(const drawables_t* dr);
 
-void drawables_trs(void);
-
-box_t drawables_bounds(void);
+bool drawables_save(const drawables_t* src, const char* filename);
+bool drawables_load(drawables_t* dst, const char* filename);
 
 PIM_C_END
