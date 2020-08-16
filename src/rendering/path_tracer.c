@@ -305,8 +305,8 @@ static cvar_t* cv_r_sun_ze;
 static cvar_t* cv_r_sun_rad;
 
 static RTCDevice ms_device;
-static pt_sampler_t ms_samplers[kNumThreads];
 static dist1d_t ms_pixeldist;
+static pt_sampler_t ms_samplers[256];
 
 // ----------------------------------------------------------------------------
 
@@ -357,8 +357,10 @@ static void ShutdownPixelDist(void)
 
 static void InitSamplers(void)
 {
+    const i32 numthreads = task_thread_ct();
+
     prng_t rng = prng_get();
-    for (i32 i = 0; i < kNumThreads; ++i)
+    for (i32 i = 0; i < numthreads; ++i)
     {
         ms_samplers[i].rng.state = prng_u64(&rng);
     }

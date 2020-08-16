@@ -15,6 +15,17 @@ typedef struct adapter_s
 #include <Windows.h>
 #include <process.h>
 
+static HANDLE thread_to_handle(thread_t* tr)
+{
+    if (tr)
+    {
+        adapter_t* adapter = tr->handle;
+        ASSERT(adapter);
+        return adapter->OShandle;
+    }
+    return GetCurrentThread();
+}
+
 static void __cdecl Win32ThreadFn(void* arg)
 {
     ASSERT(arg);
@@ -60,16 +71,48 @@ void thread_join(thread_t* tr)
 
 void thread_set_aff(thread_t* tr, u64 mask)
 {
-    ASSERT(tr);
     ASSERT(mask);
-    adapter_t* adapter = tr->handle;
-    ASSERT(adapter);
-
-    HANDLE hThread = adapter->OShandle;
-    ASSERT(hThread);
-
+    HANDLE hThread = thread_to_handle(tr);
     DWORD_PTR rval = SetThreadAffinityMask(hThread, mask);
     ASSERT(rval != 0);
+}
+
+void thread_set_priority(thread_t* tr, i32 priority)
+{
+    i32 threadpriority = THREAD_PRIORITY_NORMAL;
+    i32 procpriority = NORMAL_PRIORITY_CLASS;
+    if (priority > 0)
+    {
+        threadpriority = THREAD_PRIORITY_ABOVE_NORMAL;
+        procpriority = ABOVE_NORMAL_PRIORITY_CLASS;
+    }
+    else if (priority < 0)
+    {
+        threadpriority = THREAD_PRIORITY_BELOW_NORMAL;
+        procpriority = BELOW_NORMAL_PRIORITY_CLASS;
+    }
+
+    if (tr == NULL)
+    {
+        HANDLE hProcess = GetCurrentProcess();
+        bool set = SetPriorityClass(hProcess, procpriority);
+        ASSERT(set);
+    }
+
+    HANDLE hThread = thread_to_handle(tr);
+    bool set = SetThreadPriority(hThread, threadpriority);
+    ASSERT(set);
+}
+
+i32 thread_hardware_count(void)
+{
+    SYSTEM_INFO systeminfo = { 0 };
+    GetSystemInfo(&systeminfo);
+    i32 count = systeminfo.dwNumberOfProcessors;
+    ASSERT(count > 0);
+    count = (count > 0) ? count : 1;
+    count = (count < kMaxThreads) ? count : kMaxThreads;
+    return count;
 }
 
 #else

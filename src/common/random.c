@@ -4,7 +4,7 @@
 #include "common/fnv1a.h"
 #include "threading/task.h"
 
-static prng_t ms_prngs[kNumThreads];
+static prng_t ms_prngs[kMaxThreads];
 
 prng_t prng_create(void)
 {

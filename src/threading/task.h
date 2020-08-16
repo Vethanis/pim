@@ -23,6 +23,7 @@ typedef struct task_s
 } task_t;
 
 i32 task_thread_id(void);
+i32 task_thread_ct(void);
 i32 task_num_active(void);
 
 void task_submit(task_t* task, task_execute_fn execute, i32 worksize);

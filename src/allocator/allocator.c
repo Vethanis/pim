@@ -36,7 +36,7 @@ static i32 ms_tempIndex;
 static mutex_t ms_perm_mtx;
 static tlsf_t ms_perm;
 static linear_allocator_t ms_temp[kTempFrames];
-static tlsf_t ms_local[kNumThreads];
+static tlsf_t ms_local[kMaxThreads];
 
 // ----------------------------------------------------------------------------
 
@@ -62,7 +62,7 @@ static bool valid_type(i32 type)
 
 static bool valid_tid(i32 tid)
 {
-    return (u32)tid < (u32)kNumThreads;
+    return (u32)tid < (u32)kMaxThreads;
 }
 
 static tlsf_t create_tlsf(i32 capacity)
@@ -300,8 +300,8 @@ typedef pim_alignas(kAlign) struct sframe_s
     u8 value[kAlign];
 } sframe_t;
 
-static i32 ms_iFrame[kNumThreads];
-static sframe_t ms_stack[kNumThreads][kFrameCount];
+static i32 ms_iFrame[kMaxThreads];
+static sframe_t ms_stack[kMaxThreads][kFrameCount];
 
 void* pim_pusha(i32 bytes)
 {

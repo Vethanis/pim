@@ -121,7 +121,7 @@ typedef struct task_ToLum
     task_t task;
     const float4* light;
     i32 lenPerJob;
-    float averages[kNumThreads];
+    float averages[kMaxThreads];
 } task_ToLum;
 
 static void CalcAverageFn(task_t* pbase, i32 begin, i32 end)
@@ -146,15 +146,16 @@ static void CalcAverageFn(task_t* pbase, i32 begin, i32 end)
 
 static float CalcAverage(const float4* light, int2 size)
 {
-    const i32 lenPerJob = (size.x * size.y) / kNumThreads;
+    const i32 numthreads = task_thread_ct();
+    const i32 lenPerJob = (size.x * size.y) / numthreads;
     task_ToLum* task = tmp_calloc(sizeof(*task));
     task->light = light;
     task->lenPerJob = lenPerJob;
-    task_run(&task->task, CalcAverageFn, kNumThreads);
+    task_run(&task->task, CalcAverageFn, numthreads);
     const float* pim_noalias averages = task->averages;
     float sum = 0.0f;
-    const float weight = 1.0f / kNumThreads;
-    for (i32 i = 0; i < kNumThreads; ++i)
+    const float weight = 1.0f / numthreads;
+    for (i32 i = 0; i < numthreads; ++i)
     {
         sum = weight * averages[i] + sum;
     }

@@ -63,8 +63,8 @@ typedef struct FitTask
     ErrFn errFn;
     dataset_t data;
     i32 iterations;
-    float errors[kNumThreads];
-    fit_t fits[kNumThreads];
+    float errors[kMaxThreads];
+    fit_t fits[kMaxThreads];
 } FitTask;
 
 pim_inline float randf32(prng_t* rng)
@@ -131,16 +131,17 @@ static float CreateFit(
     i32 iterations,
     FitType type)
 {
+    const i32 numthreads = task_thread_ct();
     FitTask* task = tmp_calloc(sizeof(*task));
     task->errFn = ms_errFns[type];
     task->data = data;
     task->iterations = iterations;
-    task_run(&task->task, FitFn, kNumThreads);
+    task_run(&task->task, FitFn, numthreads);
 
     i32 chosen = 0;
     float chosenError = 1 << 20;
     const float* pim_noalias errors = task->errors;
-    for (i32 i = 1; i < kNumThreads; ++i)
+    for (i32 i = 1; i < numthreads; ++i)
     {
         float error = errors[i];
         if (error < chosenError)

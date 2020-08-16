@@ -35,12 +35,11 @@ static void VisitGui(const node_t* node);
 
 // ----------------------------------------------------------------------------
 
-static u32 ms_frame[kNumThreads];
-static node_t ms_prevroots[kNumThreads];
-static node_t ms_roots[kNumThreads];
-static node_t* ms_top[kNumThreads];
+static u32 ms_frame[kMaxThreads];
+static node_t ms_prevroots[kMaxThreads];
+static node_t ms_roots[kMaxThreads];
+static node_t* ms_top[kMaxThreads];
 
-static i32 ms_gui_tid;
 static i32 ms_avgWindow = 20;
 static dict_t ms_node_dict;
 
@@ -62,10 +61,9 @@ void profile_gui(bool* pEnabled)
 
     if (igBegin("Profiler", pEnabled, 0))
     {
-        igSliderInt("thread", &ms_gui_tid, 0, kNumThreads - 1, "%d");
         igSliderInt("avg over # frames", &ms_avgWindow, 1, 1000, "%d");
 
-        node_t* root = ms_prevroots[ms_gui_tid].fchild;
+        node_t* root = ms_prevroots[0].fchild;
 
         igSeparator();
 
@@ -254,7 +252,7 @@ static void VisitGui(const node_t* node)
     double ms = UpdateNodeAvgMs(node);
 
     double pct = 0.0;
-    const node_t* root = ms_prevroots[ms_gui_tid].fchild;
+    const node_t* root = ms_prevroots[0].fchild;
     ASSERT(root);
 
     double rootMs = GetNodeAvgMs(root);

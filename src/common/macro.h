@@ -131,7 +131,6 @@ typedef enum
     EAlloc_Count
 } EAlloc;
 
-#define kNumThreads     32
-#define kTaskSplit      (kNumThreads * (kNumThreads / 2))
+#define kMaxThreads 256
 
 PIM_C_END
