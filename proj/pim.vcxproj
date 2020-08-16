@@ -142,6 +142,7 @@
     <ClInclude Include="..\src\common\cmd.h" />
     <ClInclude Include="..\src\common\console.h" />
     <ClInclude Include="..\src\common\cvar.h" />
+    <ClInclude Include="..\src\common\dbytes.h" />
     <ClInclude Include="..\src\common\find.h" />
     <ClInclude Include="..\src\common\iid.h" />
     <ClInclude Include="..\src\common\library.h" />

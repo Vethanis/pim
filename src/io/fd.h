@@ -37,8 +37,6 @@ typedef struct fd_status_s
     i64 st_ctime;
 } fd_status_t;
 
-i32 fd_errno(void);
-
 fd_t fd_create(const char* filename);
 fd_t fd_open(const char* filename, i32 writable);
 void fd_close(fd_t* hdl);

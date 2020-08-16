@@ -47,15 +47,10 @@ pim_inline float4 VEC_CALL SGv_Eval(
 
 pim_inline float VEC_CALL SG_BasisIntegral(float sharpness)
 {
-    // integral of the surface of the unit sphere: tau
+    // integral of the surface of the unit hemisphere: tau
     // integral of e^(s * (x-1)) = (1 - e^-2s)/s
     float e = 1.0f - expf(sharpness * -2.0f);
     return kTau * (e / sharpness);
-}
-
-pim_inline float VEC_CALL SG_BasisIntegralSq(float sharpness)
-{
-    return (1.0f - expf(-4.0f * sharpness)) / (4.0f * sharpness);
 }
 
 // returns the total energy of the spherical gaussian

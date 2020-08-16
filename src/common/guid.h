@@ -43,6 +43,7 @@ guid_t guid_bytes(const void* ptr, i32 nBytes, u64 seed);
 guid_t guid_rand(prng_t* rng);
 
 void guid_fmt(char* dst, i32 size, guid_t value);
+void guid_tofile(char* dst, i32 size, guid_t name, const char* extension);
 u32 guid_hashof(guid_t x);
 
 PIM_C_END

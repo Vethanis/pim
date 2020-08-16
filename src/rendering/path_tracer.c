@@ -146,6 +146,10 @@ typedef struct pt_scene_s
 
 // ----------------------------------------------------------------------------
 
+static cvar_t cv_pt_nee = { cvart_float, 0, "pt_nee", "0.5", "ratio of next event estimation to unidirectional tracing" };
+
+// ----------------------------------------------------------------------------
+
 static void OnRtcError(void* user, RTCError error, const char* msg);
 static bool InitRTC(void);
 static void InitSamplers(void);
@@ -363,6 +367,7 @@ static void InitSamplers(void)
 
 void pt_sys_init(void)
 {
+    cvar_reg(&cv_pt_nee);
     cv_pt_lgrid_mpc = cvar_find("pt_lgrid_mpc");
     cv_r_sun_az = cvar_find("r_sun_az");
     cv_r_sun_ze = cvar_find("r_sun_ze");
@@ -1049,6 +1054,11 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     surf.occlusion = rome.y;
     surf.metallic = rome.z;
 
+    if (hit.flags & matflag_sky)
+    {
+        surf.emission = GetSky(scene, rin.ro, rin.rd);
+    }
+
     return surf;
 }
 
@@ -1145,11 +1155,11 @@ pim_inline float4 VEC_CALL BrdfEval(
     float NoH = f4_dotsat(N, H);
     float HoV = f4_dotsat(H, V);
     float NoV = f4_dotsat(N, V);
+    float LoH = f4_dotsat(L, H);
 
     // metals are only specular
     const float amtDiffuse = 1.0f - metallic;
     const float amtSpecular = 1.0f;
-    const float rcpProb = 1.0f / (amtSpecular + amtDiffuse);
 
     float4 brdf = f4_0;
     {
@@ -1160,7 +1170,7 @@ pim_inline float4 VEC_CALL BrdfEval(
         brdf = f4_add(brdf, f4_mulvs(Fr, amtSpecular));
     }
     {
-        float4 Fd = f4_mulvs(albedo, Fd_Lambert());
+        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, LoH, roughness));
         brdf = f4_add(brdf, f4_mulvs(Fd, amtDiffuse));
     }
 
@@ -1168,7 +1178,7 @@ pim_inline float4 VEC_CALL BrdfEval(
 
     float diffusePdf = amtDiffuse * LambertPdf(NoL);
     float specularPdf = amtSpecular * GGXPdf(NoH, HoV, alpha);
-    float pdf = (diffusePdf + specularPdf) * rcpProb;
+    float pdf = diffusePdf + specularPdf;
 
     brdf.w = pdf;
     return brdf;
@@ -1204,7 +1214,7 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     float F = Schlick(cosTheta, k);
 
     float alpha = BrdfAlpha(surf->roughness);
-    float4 albedo = f4_lerpvs(surf->albedo, f4_s(0.5f), 0.5f);
+    float4 albedo = F_Schlick(surf->albedo, f4_1, f1_abs(cosTheta));
     float4 L = SampleCosineHemisphere(Sample2D(sampler));
     if (((k*sinTheta) > 1.0f) || (Sample1D(sampler) < F))
     {
@@ -1213,8 +1223,9 @@ pim_inline scatter_t VEC_CALL RefractScatter(
         L = TanToWorld(N, L);
         float4 R = f4_reflect3(I, N);
         result.dir = f4_normalize3(f4_lerpvs(R, L, alpha));
-        result.pdf = f1_lerp(F, LambertPdf(f1_abs(cosTheta)), alpha);
-        result.attenuation = F_SchlickEx(albedo, 0.5f, f1_abs(cosTheta));
+        float NoL = f4_dotsat(N, result.dir);
+        result.pdf = F * f1_lerp(1.0f, LambertPdf(NoL), alpha);
+        result.attenuation = albedo;
     }
     else
     {
@@ -1226,11 +1237,13 @@ pim_inline scatter_t VEC_CALL RefractScatter(
         // thus, 3mm
         result.pos = f4_add(surf->P, f4_mulvs(surf->M, -3.0f * kMilli));
 
-        L = TanToWorld(f4_neg(N), L);
+        float4 NT = f4_neg(N);
+        L = TanToWorld(NT, L);
         float4 R = f4_refract3(I, N, k);
         result.dir = f4_normalize3(f4_lerpvs(R, L, alpha));
-        result.pdf = f1_lerp((1.0f - F), LambertPdf(f1_abs(cosTheta)), alpha);
-        result.attenuation = f4_inv(F_SchlickEx(albedo, 0.5f, f1_abs(cosTheta)));
+        float NoL = f4_dotsat(NT, result.dir);
+        result.pdf = (1.0f - F) * f1_lerp(1.0f, LambertPdf(NoL), alpha);
+        result.attenuation = f4_inv(albedo);
     }
     return result;
 }
@@ -1280,10 +1293,11 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
     float NoH = f4_dotsat(N, H);
     float HoV = f4_dotsat(H, V);
     float NoV = f4_dotsat(N, V);
+    float LoH = f4_dotsat(L, H);
 
     float specularPdf = amtSpecular * GGXPdf(NoH, HoV, alpha);
     float diffusePdf = amtDiffuse * LambertPdf(NoL);
-    float pdf = rcpProb * (diffusePdf + specularPdf);
+    float pdf = diffusePdf + specularPdf;
 
     if (pdf <= 0.0f)
     {
@@ -1299,7 +1313,7 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
         brdf = f4_add(brdf, f4_mulvs(Fr, amtSpecular));
     }
     {
-        float4 Fd = f4_mulvs(albedo, Fd_Lambert());
+        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, LoH, roughness));
         brdf = f4_add(brdf, f4_mulvs(Fd, amtDiffuse));
     }
 
@@ -1513,7 +1527,7 @@ static void media_desc_new(media_desc_t* desc)
     desc->constantAlbedo = f4_v(0.75f, 0.75f, 0.75f, 0.5f);
     desc->noiseAlbedo = f4_v(0.75f, 0.75f, 0.75f, -0.5f);
     desc->absorption = 0.1f;
-    desc->constantAmt = exp2f(-6.0f);
+    desc->constantAmt = exp2f(-10.0f);
     desc->noiseAmt = exp2f(-10.0f);
     desc->noiseOctaves = 2;
     desc->noiseGain = 0.5f;
@@ -1521,7 +1535,7 @@ static void media_desc_new(media_desc_t* desc)
     desc->noiseFreq = 1.0f;
     desc->noiseHeight = 20.0f;
     desc->noiseScale = exp2f(-5.0f);
-    desc->amtMie = 0.5f;
+    desc->amtMie = 0.25f;
     desc->amtRayleigh = 0.125f;
     media_desc_update(desc);
 }
@@ -1898,6 +1912,7 @@ pt_result_t VEC_CALL pt_trace_ray(
     float4 light = f4_0;
     float4 attenuation = f4_1;
     bool hitRefractive = false;
+    const float amtNee = f1_sat(cv_pt_nee.asFloat);
 
     for (i32 b = 0; b < 666; ++b)
     {
@@ -1941,15 +1956,21 @@ pt_result_t VEC_CALL pt_trace_ray(
             result.normal = f4_f3(surf.N);
         }
 
+        float emAmt = 1.0f - amtNee;
         if ((b == 0) || hitRefractive)
         {
-            // poor refractive support with NEE atm
-            light = f4_add(light, f4_mul(surf.emission, attenuation));
+            emAmt = 1.0f;
+        }
+
+        {
+            float4 em = f4_mulvs(surf.emission, emAmt);
+            light = f4_add(light, f4_mul(em, attenuation));
         }
 
         if (!hitRefractive)
         {
             float4 direct = SampleLights(sampler, scene, &surf, &hit, ray.rd);
+            direct = f4_mulvs(direct, amtNee);
             light = f4_add(light, f4_mul(direct, attenuation));
         }
 

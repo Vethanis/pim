@@ -9,7 +9,7 @@
 #include "math/box.h"
 #include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
-#include "io/fd.h"
+#include "io/fstr.h"
 
 #include <string.h>
 
@@ -178,22 +178,21 @@ bool mesh_save(meshid_t id, guid_t* dst)
 {
     if (mesh_getname(id, dst))
     {
-        char filename[PIM_PATH] = { 0 };
-        guid_fmt(ARGS(filename), *dst);
-        StrCat(ARGS(filename), ".mesh");
-        fd_t fd = fd_create(filename);
-        if (fd_isopen(fd))
+        char filename[PIM_PATH] = "data/";
+        guid_tofile(ARGS(filename), *dst, ".mesh");
+        fstr_t fd = fstr_open(filename, "wb");
+        if (fstr_isopen(fd))
         {
             const mesh_t* meshes = ms_table.values;
             const mesh_t mesh = meshes[id.index];
             const i32 version = kMeshVersion;
-            fd_write(fd, &version, sizeof(version));
-            fd_write(fd, &mesh.length, sizeof(mesh.length));
-            fd_write(fd, mesh.positions, sizeof(mesh.positions[0]) * mesh.length);
-            fd_write(fd, mesh.normals, sizeof(mesh.normals[0]) * mesh.length);
-            fd_write(fd, mesh.uvs, sizeof(mesh.uvs[0]) * mesh.length);
-            fd_write(fd, &mesh.bounds, sizeof(mesh.bounds));
-            fd_close(&fd);
+            fstr_write(fd, &version, sizeof(version));
+            fstr_write(fd, &mesh.length, sizeof(mesh.length));
+            fstr_write(fd, mesh.positions, sizeof(mesh.positions[0]) * mesh.length);
+            fstr_write(fd, mesh.normals, sizeof(mesh.normals[0]) * mesh.length);
+            fstr_write(fd, mesh.uvs, sizeof(mesh.uvs[0]) * mesh.length);
+            fstr_write(fd, &mesh.bounds, sizeof(mesh.bounds));
+            fstr_close(&fd);
             return true;
         }
     }
@@ -204,32 +203,31 @@ bool mesh_load(guid_t name, meshid_t* dst)
 {
     bool loaded = false;
 
-    char filename[PIM_PATH] = { 0 };
-    guid_fmt(ARGS(filename), name);
-    StrCat(ARGS(filename), ".mesh");
-    fd_t fd = fd_open(filename, false);
-    if (fd_isopen(fd))
+    char filename[PIM_PATH] = "data/";
+    guid_tofile(ARGS(filename), name, ".mesh");
+    fstr_t fd = fstr_open(filename, "rb");
+    if (fstr_isopen(fd))
     {
         mesh_t mesh = { 0 };
         i32 version = 0;
-        fd_read(fd, &version, sizeof(version));
+        fstr_read(fd, &version, sizeof(version));
         if (version == kMeshVersion)
         {
-            fd_read(fd, &mesh.length, sizeof(mesh.length));
+            fstr_read(fd, &mesh.length, sizeof(mesh.length));
             ASSERT(mesh.length >= 0);
             if (mesh.length > 0)
             {
                 mesh.positions = perm_malloc(sizeof(mesh.positions[0]) * mesh.length);
                 mesh.normals = perm_malloc(sizeof(mesh.normals[0]) * mesh.length);
                 mesh.uvs = perm_malloc(sizeof(mesh.uvs[0]) * mesh.length);
-                fd_read(fd, mesh.positions, sizeof(mesh.positions[0]) * mesh.length);
-                fd_read(fd, mesh.normals, sizeof(mesh.normals[0]) * mesh.length);
-                fd_read(fd, mesh.uvs, sizeof(mesh.uvs[0]) * mesh.length);
-                fd_read(fd, &mesh.bounds, sizeof(mesh.bounds));
+                fstr_read(fd, mesh.positions, sizeof(mesh.positions[0]) * mesh.length);
+                fstr_read(fd, mesh.normals, sizeof(mesh.normals[0]) * mesh.length);
+                fstr_read(fd, mesh.uvs, sizeof(mesh.uvs[0]) * mesh.length);
+                fstr_read(fd, &mesh.bounds, sizeof(mesh.bounds));
                 loaded = mesh_new(&mesh, name, dst);
             }
         }
-        fd_close(&fd);
+        fstr_close(&fd);
     }
     return loaded;
 }

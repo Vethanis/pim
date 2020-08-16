@@ -12,15 +12,17 @@
 #include "math/sphgauss.h"
 #include "common/console.h"
 #include "common/sort.h"
+#include "common/stringutil.h"
 #include "threading/task.h"
 #include "threading/mutex.h"
 #include "rendering/path_tracer.h"
 #include "rendering/sampler.h"
-#include "rendering/denoise.h"
+#include "rendering/mesh.h"
+#include "rendering/material.h"
 #include "common/profiler.h"
 #include "common/cmd.h"
-#include "common/stringutil.h"
 #include "common/atomics.h"
+#include "io/fstr.h"
 #include <stb/stb_image_write.h>
 #include <string.h>
 
@@ -1338,7 +1340,6 @@ lmpack_t lmpack_pack(
     pack.lightmaps = perm_calloc(sizeof(pack.lightmaps[0]) * atlasCount);
     SG_Generate(pack.axii, kGiDirections, SGDist_Hemi);
     pack.texelsPerMeter = texelsPerUnit;
-    pack.metersPerTexel = 1.0f / texelsPerUnit;
 
     for (i32 i = 0; i < atlasCount; ++i)
     {
@@ -1465,6 +1466,163 @@ void lmpack_bake(pt_scene_t* scene, float timeSlice)
     }
 
     ProfileEnd(pm_Bake);
+}
+
+bool lmpack_save(const lmpack_t* pack, guid_t name)
+{
+    ASSERT(pack);
+    char filename[PIM_PATH] = "data/";
+    guid_tofile(ARGS(filename), name, ".lmpack");
+
+    fstr_t fd = fstr_open(filename, "wb");
+    if (fstr_isopen(fd))
+    {
+        const i32 lmcount = pack->lmCount;
+        i32 offset = 0;
+
+        // write pack header
+        dlmpack_t dpack = { 0 };
+        dbytes_new(1, sizeof(dpack), &offset);
+        dpack.version = kLmPackVersion;
+        dpack.directions = kGiDirections;
+        dpack.lmCount = lmcount;
+        dpack.lmSize = pack->lmSize;
+        dpack.texelsPerMeter = pack->texelsPerMeter;
+        memcpy(dpack.axii, pack->axii, sizeof(pack->axii));
+        i32 wrote = fstr_write(fd, &dpack, sizeof(dpack));
+        ASSERT(wrote == sizeof(dpack));
+
+        // write lightmap headers
+        dlightmap_t* dlms = tmp_malloc(sizeof(dlms[0]) * lmcount);
+        dbytes_new(lmcount, sizeof(dlms[0]), &offset);
+        for (i32 i = 0; i < lmcount; ++i)
+        {
+            const lightmap_t lm = pack->lightmaps[i];
+            const i32 len = lm.size * lm.size;
+            dlightmap_t dlm = { 0 };
+            dlm.version = kLightmapVersion;
+            dlm.directions = kGiDirections;
+            dlm.size = lm.size;
+            dlm.probes = dbytes_new(len * kGiDirections, sizeof(lm.probes[0][0]), &offset);
+            dlm.position = dbytes_new(len, sizeof(lm.position[0]), &offset);
+            dlm.normal = dbytes_new(len, sizeof(lm.normal[0]), &offset);
+            dlm.sampleCounts = dbytes_new(len, sizeof(lm.sampleCounts[0]), &offset);
+            dlms[i] = dlm;
+        }
+        wrote = fstr_write(fd, dlms, sizeof(dlms[0]) * lmcount);
+        ASSERT(wrote == sizeof(dlms[0]) * lmcount);
+
+        // write lightmap contents
+        for (i32 i = 0; i < lmcount; ++i)
+        {
+            const lightmap_t lm = pack->lightmaps[i];
+            const i32 texelcount = lm.size * lm.size;
+
+            ASSERT(fstr_tell(fd) == dlms[i].probes.offset);
+            for (i32 j = 0; j < kGiDirections; ++j)
+            {
+                wrote = fstr_write(fd, lm.probes[j], sizeof(lm.probes[j][0]) * texelcount);
+                ASSERT(wrote == sizeof(lm.probes[j][0]) * texelcount);
+            }
+
+            ASSERT(fstr_tell(fd) == dlms[i].position.offset);
+            wrote = fstr_write(fd, lm.position, sizeof(lm.position[0]) * texelcount);
+            ASSERT(wrote == sizeof(lm.position[0]) * texelcount);
+
+            ASSERT(fstr_tell(fd) == dlms[i].normal.offset);
+            wrote = fstr_write(fd, lm.normal, sizeof(lm.normal[0]) * texelcount);
+            ASSERT(wrote == sizeof(lm.normal[0]) * texelcount);
+
+            ASSERT(fstr_tell(fd) == dlms[i].sampleCounts.offset);
+            wrote = fstr_write(fd, lm.sampleCounts, sizeof(lm.sampleCounts[0]) * texelcount);
+            ASSERT(wrote == sizeof(lm.sampleCounts[0]) * texelcount);
+        }
+
+        fstr_close(&fd);
+        return true;
+    }
+    return false;
+}
+
+bool lmpack_load(lmpack_t* pack, guid_t name)
+{
+    bool loaded = false;
+
+    ASSERT(pack);
+    char filename[PIM_PATH] = "data/";
+    guid_tofile(ARGS(filename), name, ".lmpack");
+
+    lmpack_del(pack);
+
+    fstr_t fd = fstr_open(filename, "rb");
+    if (fstr_isopen(fd))
+    {
+        // read pack header
+        dlmpack_t dlmpack = { 0 };
+        fstr_read(fd, &dlmpack, sizeof(dlmpack));
+        if ((dlmpack.version == kLmPackVersion) && (dlmpack.directions == kGiDirections))
+        {
+            const i32 lmcount = dlmpack.lmCount;
+            pack->lmCount = lmcount;
+            pack->lmSize = dlmpack.lmSize;
+            pack->texelsPerMeter = dlmpack.texelsPerMeter;
+            memcpy(pack->axii, dlmpack.axii, sizeof(dlmpack.axii));
+            pack->lightmaps = perm_calloc(sizeof(pack->lightmaps[0]) * lmcount);
+
+            // read lightmap headers
+            dlightmap_t* dlms = tmp_calloc(sizeof(dlms[0]) * lmcount);
+            fstr_read(fd, dlms, sizeof(dlms[0]) * lmcount);
+
+            // read lightmaps
+            for (i32 i = 0; i < lmcount; ++i)
+            {
+                const dlightmap_t dlm = dlms[i];
+                lightmap_t lm = { 0 };
+                lm.size = dlm.size;
+                const i32 texelcount = dlm.size * dlm.size;
+                ASSERT(dlm.probes.size == (sizeof(lm.probes[0][0]) * kGiDirections * texelcount));
+                ASSERT(dlm.position.size == (sizeof(lm.position[0]) * texelcount));
+                ASSERT(dlm.normal.size == (sizeof(lm.normal[0]) * texelcount));
+                ASSERT(dlm.sampleCounts.size == (sizeof(lm.sampleCounts[0]) * texelcount));
+                dbytes_check(dlm.probes, sizeof(lm.probes[0][0]));
+                dbytes_check(dlm.position, sizeof(lm.position[0]));
+                dbytes_check(dlm.normal, sizeof(lm.normal[0]));
+                dbytes_check(dlm.sampleCounts, sizeof(lm.sampleCounts[0]));
+
+                fstr_seek(fd, dlm.probes.offset);
+                for (i32 j = 0; j < kGiDirections; ++j)
+                {
+                    const i32 bytes = sizeof(lm.probes[0][0]) * texelcount;
+                    lm.probes[j] = perm_malloc(bytes);
+                    fstr_read(fd, lm.probes[j], bytes);
+                }
+
+                fstr_seek(fd, dlm.position.offset);
+                lm.position = perm_malloc(sizeof(lm.position[0]) * texelcount);
+                fstr_read(fd, lm.position, sizeof(lm.position[0]) * texelcount);
+
+                fstr_seek(fd, dlm.normal.offset);
+                lm.normal = perm_malloc(sizeof(lm.normal[0]) * texelcount);
+                fstr_read(fd, lm.normal, sizeof(lm.normal[0]) * texelcount);
+
+                fstr_seek(fd, dlm.sampleCounts.offset);
+                lm.sampleCounts = perm_malloc(sizeof(lm.sampleCounts[0]) * texelcount);
+                fstr_read(fd, lm.sampleCounts, sizeof(lm.sampleCounts[0]) * texelcount);
+
+                pack->lightmaps[i] = lm;
+            }
+
+            loaded = true;
+        }
+    }
+
+cleanup:
+    fstr_close(&fd);
+    if (!loaded)
+    {
+        lmpack_del(pack);
+    }
+    return loaded;
 }
 
 static cmdstat_t CmdPrintLm(i32 argc, const char** argv)

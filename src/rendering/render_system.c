@@ -46,6 +46,8 @@
 #include "rendering/denoise.h"
 #include "rendering/rtcdraw.h"
 #include "rendering/exposure.h"
+#include "rendering/mesh.h"
+#include "rendering/material.h"
 
 #include "rendering/vulkan/vkr.h"
 
@@ -71,7 +73,7 @@ static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "8", "lightmap tex
 static cvar_t cv_lm_timeslice = { cvart_int, 0, "lm_timeslice", "10", "number of frames required to add 1 lighting sample to all lightmap texels" };
 
 static cvar_t cv_r_sun_az = { cvart_float, 0, "r_sun_az", "0.75", "Sun Heading" };
-static cvar_t cv_r_sun_ze = { cvart_float, 0, "r_sun_ze", "0.05", "Sun Altitude" };
+static cvar_t cv_r_sun_ze = { cvart_float, 0, "r_sun_ze", "0.5", "Sun Altitude" };
 static cvar_t cv_r_sun_rad = { cvart_float, 0, "r_sun_rad", "1365", "Sun Irradiance" };
 
 static cvar_t cv_r_qlights = { cvart_bool, 0, "r_qlights", "0", "Load quake light entities" };
@@ -108,6 +110,8 @@ static cmdstat_t CmdLookat(i32 argc, const char** argv);
 static cmdstat_t CmdPtTest(i32 argc, const char** argv);
 static cmdstat_t CmdPtStdDev(i32 argc, const char** argv);
 static cmdstat_t CmdLoadTest(i32 argc, const char** argv);
+static cmdstat_t CmdLoadMap(i32 argc, const char** argv);
+static cmdstat_t CmdSaveMap(i32 argc, const char** argv);
 
 // ----------------------------------------------------------------------------
 
@@ -127,7 +131,7 @@ static exposure_t ms_exposure =
     .ISO = 100.0f,
 
     .adaptRate = 1.0f,
-    .offsetEV = 0.0f,
+    .offsetEV = 1.0f,
     .histMinProb = 0.05f,
     .histMaxProb = 0.95f,
 };
@@ -519,7 +523,20 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     con_logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
     bool loadlights = cvar_get_bool(&cv_r_qlights);
-    if (LoadModelAsDrawables(mapname, loadlights))
+    guid_t guid = guid_str(mapname, guid_seed);
+
+    bool loaded = drawables_load(drawables_get(), guid);
+    if (loaded)
+    {
+        lmpack_load(lmpack_get(), guid);
+    }
+
+    if (!loaded)
+    {
+        loaded = LoadModelAsDrawables(mapname, loadlights);
+    }
+
+    if (loaded)
     {
         drawables_trs(drawables_get());
 
@@ -528,6 +545,53 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
         return cmdstat_ok;
     }
     return cmdstat_err;
+}
+
+static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
+{
+    if (argc != 2)
+    {
+        con_logf(LogSev_Error, "cmd", "mapsave <map name>; map name is missing.");
+        return cmdstat_err;
+    }
+    const char* name = argv[1];
+    if (!name)
+    {
+        con_logf(LogSev_Error, "cmd", "mapsave <map name>; map name is null.");
+        return cmdstat_err;
+    }
+
+    char mapname[PIM_PATH] = { 0 };
+    SPrintf(ARGS(mapname), "maps/%s.bsp", name);
+
+    con_logf(LogSev_Info, "cmd", "mapsave is saving '%s'.", mapname);
+
+    guid_t guid = guid_str(mapname, guid_seed);
+
+    bool saved = drawables_save(drawables_get(), guid);
+    if (saved)
+    {
+        con_logf(LogSev_Info, "cmd", "mapsave saved '%s' drawables.", mapname);
+    }
+    else
+    {
+        con_logf(LogSev_Error, "cmd", "mapsave failed to saved '%s' drawables.", mapname);
+    }
+
+    if (saved)
+    {
+        saved = lmpack_save(lmpack_get(), guid);
+        if (saved)
+        {
+            con_logf(LogSev_Info, "cmd", "mapsave saved '%s' lightmaps.", mapname);
+        }
+        else
+        {
+            con_logf(LogSev_Error, "cmd", "mapsave failed to saved '%s' lightmaps.", mapname);
+        }
+    }
+
+    return saved ? cmdstat_ok : cmdstat_err;
 }
 
 typedef struct task_BakeSky
@@ -584,7 +648,7 @@ static void BakeSky(void)
         float zenith = f1_sat(cv_r_sun_ze.asFloat);
         float3 sunRad = f3_s(cv_r_sun_rad.asFloat);
         const float4 kUp = { 0.0f, 1.0f, 0.0f, 0.0f };
-        float3 sunDir = f4_f3(TanToWorld(kUp, SampleUnitHemisphere(f2_v(azimuth, zenith))));
+        float3 sunDir = f4_f3(TanToWorld(kUp, SampleUnitSphere(f2_v(azimuth, zenith))));
         Cubemap* cm = cubemaps->cubemaps + iCube;
         i32 size = cm->size;
 
@@ -604,6 +668,7 @@ void render_sys_init(void)
 
     cmd_reg("screenshot", CmdScreenshot);
     cmd_reg("mapload", CmdLoadMap);
+    cmd_reg("mapsave", CmdSaveMap);
     cmd_reg("cornell_box", CmdCornellBox);
     cmd_reg("teleport", CmdTeleport);
     cmd_reg("lookat", CmdLookat);

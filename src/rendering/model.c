@@ -35,16 +35,18 @@ typedef struct mat_preset_s
     float emission;
 } mat_preset_t;
 
-#define kMatGen     0.5f, 1.0f, 0.0f, 0.0f,
-#define kMatRough   0.75f, 1.0f, 0.0f, 0.0f,
-#define kMatSmooth  0.25f, 1.0f, 0.0f, 0.0f,
-#define kMatMetal   0.75f, 1.0f, 1.0f, 0.0f,
+#define kMatGen             0.5f, 1.0f, 0.0f, 0.0f,
+#define kMatRough           0.75f, 1.0f, 0.0f, 0.0f,
+#define kMatSmooth          0.25f, 1.0f, 0.0f, 0.0f,
+#define kMatMetal           0.5f, 1.0f, 1.0f, 0.0f,
+#define kMatSMetal          0.15f, 1.0f, 1.0f, 0.0f,
+#define kMatRMetal          0.75f, 1.0f, 1.0f, 0.0f,
 
 static const mat_preset_t ms_matPresets[] =
 {
     {
         "wbrick", // wet brick, white brick? wizard brick?
-        kMatSmooth
+        kMatRough
     },
     {
         "brick",
@@ -72,19 +74,19 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "cop", // copper
-        kMatMetal
+        kMatSMetal
     },
     {
         "tech", // technology?
-        kMatGen
+        kMatRMetal
     },
     {
         "city", // ???
-        kMatGen
+        kMatRough
     },
     {
         "rock",
-        kMatRough
+        kMatGen
     },
     {
         "wood",
@@ -96,7 +98,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "ceiling",
-        kMatGen
+        kMatRough
     },
     {
         "sky", // sky texture (purple or light blue stuff)
@@ -111,44 +113,45 @@ static const mat_preset_t ms_matPresets[] =
         1.0f,
     },
     {
+        "slime",
+        0.5f,
+        1.0f,
+    },
+    {
+        "slip", // slipgate (warped starry void)
+        kMatGen
+    },
+    {
+        "teleport", // teleporter (map change, red lights)
+        kMatMetal
+    },
+    {
         "rune",
         kMatMetal
     },
     {
         "wall",
-        kMatGen
+        kMatRough
     },
     {
         "floor",
-        kMatGen
+        kMatRough
     },
     {
         "door",
-        kMatGen
+        kMatRough
     },
     {
         "exit",
-        kMatMetal
+        kMatSMetal
     },
     {
         "skill",
         kMatMetal
     },
     {
-        "trigger",
-        kMatGen
-    },
-    {
-        "dem",
-        kMatGen
-    },
-    {
         "wiz",
         kMatSmooth
-    },
-    {
-        "m5",
-        kMatGen
     },
 };
 

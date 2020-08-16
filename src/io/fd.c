@@ -6,20 +6,11 @@
 #include <string.h>
 #include "common/stringutil.h"
 
-static pim_thread_local i32 ms_errno = 0;
-
-i32 fd_errno(void)
-{
-    i32 rv = ms_errno;
-    ms_errno = 0;
-    return rv;
-}
-
 static i32 NotNeg(i32 x)
 {
     if (x < 0)
     {
-        ms_errno = 1;
+        ASSERT(false);
     }
     return x;
 }
@@ -28,7 +19,7 @@ static void* NotNull(void* x)
 {
     if (!x)
     {
-        ms_errno = 1;
+        ASSERT(false);
     }
     return x;
 }
@@ -37,7 +28,7 @@ static i32 IsZero(i32 x)
 {
     if (x)
     {
-        ms_errno = 1;
+        ASSERT(false);
     }
     return x;
 }
@@ -86,7 +77,7 @@ i32 fd_read(fd_t fd, void* dst, i32 size)
 {
     i32 handle = fd.handle;
     ASSERT(handle >= 0);
-    ASSERT(dst);
+    ASSERT(dst || !size);
     ASSERT(size >= 0);
     return NotNeg(_read(handle, dst, (u32)size));
 }
@@ -95,7 +86,7 @@ i32 fd_write(fd_t fd, const void* src, i32 size)
 {
     i32 handle = fd.handle;
     ASSERT(handle >= 0);
-    ASSERT(src);
+    ASSERT(src || !size);
     ASSERT(size >= 0);
     return NotNeg(_write(handle, src, (u32)size));
 }
@@ -131,7 +122,8 @@ i32 fd_printf(fd_t fd, const char* fmt, ...)
 i32 fd_seek(fd_t fd, i32 offset)
 {
     ASSERT(fd.handle >= 0);
-    return NotNeg((i32)_lseek(fd.handle, (i32)offset, 0));
+    ASSERT(offset >= 0);
+    return NotNeg((i32)_lseek(fd.handle, offset, 0));
 }
 
 i32 fd_tell(fd_t fd)

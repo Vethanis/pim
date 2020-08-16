@@ -2,20 +2,11 @@
 
 #include <stdio.h>
 
-static pim_thread_local i32 ms_errno;
-
-i32 fstr_errno(void)
-{
-    i32 rv = ms_errno;
-    ms_errno = 0;
-    return rv;
-}
-
 static i32 NotNeg(i32 x)
 {
     if (x < 0)
     {
-        ms_errno = 1;
+        ASSERT(false);
     }
     return x;
 }
@@ -24,7 +15,7 @@ static void* NotNull(void* x)
 {
     if (!x)
     {
-        ms_errno = 1;
+        ASSERT(false);
     }
     return x;
 }
@@ -33,7 +24,7 @@ static i32 IsZero(i32 x)
 {
     if (x)
     {
-        ms_errno = 1;
+        ASSERT(false);
     }
     return x;
 }
@@ -69,12 +60,12 @@ i32 fstr_read(fstr_t stream, void* dst, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
-    ASSERT(dst);
+    ASSERT(dst || !size);
     ASSERT(size >= 0);
     i32 ct = (i32)fread(dst, 1, size, file);
     if (ct != size)
     {
-        ms_errno = 1;
+        ASSERT(false);
     }
     return ct;
 }
@@ -83,12 +74,12 @@ i32 fstr_write(fstr_t stream, const void* src, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
-    ASSERT(src);
+    ASSERT(src || !size);
     ASSERT(size >= 0);
     i32 ct = (i32)fwrite(src, 1, size, file);
     if (ct != size)
     {
-        ms_errno = 1;
+        ASSERT(false);
     }
     return ct;
 }

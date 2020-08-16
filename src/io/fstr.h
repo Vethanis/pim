@@ -9,8 +9,6 @@ PIM_C_BEGIN
 typedef struct fstr_s { void* handle; } fstr_t;
 static i32 fstr_isopen(fstr_t fstr) { return fstr.handle != NULL; }
 
-i32 fstr_errno(void);
-
 fstr_t fstr_open(const char* filename, const char* mode);
 void fstr_close(fstr_t* stream);
 void fstr_flush(fstr_t stream);

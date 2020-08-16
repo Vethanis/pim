@@ -1005,6 +1005,9 @@
     <ClInclude Include="..\src\logic\progs.h">
       <Filter>Source Files\logic</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\common\dbytes.h">
+      <Filter>Source Files\common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">

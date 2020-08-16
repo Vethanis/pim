@@ -1,14 +1,17 @@
 #pragma once
 
 #include "common/macro.h"
+#include "common/dbytes.h"
 #include "common/guid.h"
 #include "math/types.h"
-#include "rendering/mesh.h"
-#include "rendering/material.h"
 
 PIM_C_BEGIN
 
+#define kDrawablesVersion 1
+
 typedef struct lm_uvs_s lm_uvs_t;
+typedef struct meshid_s meshid_t;
+typedef struct material_s material_t;
 
 typedef struct drawables_s
 {
@@ -24,8 +27,6 @@ typedef struct drawables_s
     float4* pim_noalias scales;
 } drawables_t;
 
-#define kDrawablesVersion 1
-
 typedef struct ddrawables_s
 {
     i32 version;
@@ -37,6 +38,7 @@ typedef struct ddrawables_s
     dbytes_t translations;
     dbytes_t rotations;
     dbytes_t scales;
+    guid_t lmpack;
 } ddrawables_t;
 
 drawables_t* drawables_get(void);
@@ -50,7 +52,7 @@ void drawables_del(drawables_t* dr);
 void drawables_trs(drawables_t* dr);
 box_t drawables_bounds(const drawables_t* dr);
 
-bool drawables_save(const drawables_t* src, const char* filename);
-bool drawables_load(drawables_t* dst, const char* filename);
+bool drawables_save(const drawables_t* src, guid_t name);
+bool drawables_load(drawables_t* dst, guid_t name);
 
 PIM_C_END

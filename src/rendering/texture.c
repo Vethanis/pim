@@ -12,7 +12,7 @@
 #include "ui/cimgui_ext.h"
 #include "common/sort.h"
 #include "common/profiler.h"
-#include "io/fd.h"
+#include "io/fstr.h"
 #include <glad/glad.h>
 #include <string.h>
 
@@ -187,20 +187,19 @@ bool texture_save(textureid_t tid, guid_t* dst)
 {
     if (texture_getname(tid, dst))
     {
-        char filename[PIM_PATH] = { 0 };
-        guid_fmt(ARGS(filename), *dst);
-        StrCat(ARGS(filename), ".texture");
-        fd_t fd = fd_create(filename);
-        if (fd_isopen(fd))
+        char filename[PIM_PATH] = "data/";
+        guid_tofile(ARGS(filename), *dst, ".texture");
+        fstr_t fd = fstr_open(filename, "wb");
+        if (fstr_isopen(fd))
         {
             const texture_t* textures = ms_table.values;
             const texture_t texture = textures[tid.index];
             const i32 len = texture.size.x * texture.size.y;
             const i32 version = kTextureVersion;
-            fd_write(fd, &version, sizeof(version));
-            fd_write(fd, &texture.size, sizeof(texture.size));
-            fd_write(fd, texture.texels, sizeof(texture.texels[0]) * len);
-            fd_close(&fd);
+            fstr_write(fd, &version, sizeof(version));
+            fstr_write(fd, &texture.size, sizeof(texture.size));
+            fstr_write(fd, texture.texels, sizeof(texture.texels[0]) * len);
+            fstr_close(&fd);
             return true;
         }
     }
@@ -211,27 +210,26 @@ bool texture_load(guid_t name, textureid_t* dst)
 {
     bool loaded = false;
 
-    char filename[PIM_PATH] = { 0 };
-    guid_fmt(ARGS(filename), name);
-    StrCat(ARGS(filename), ".texture");
-    fd_t fd = fd_open(filename, false);
-    if (fd_isopen(fd))
+    char filename[PIM_PATH] = "data/";
+    guid_tofile(ARGS(filename), name, ".texture");
+    fstr_t fd = fstr_open(filename, "rb");
+    if (fstr_isopen(fd))
     {
         texture_t texture = { 0 };
         i32 version = 0;
-        fd_read(fd, &version, sizeof(version));
+        fstr_read(fd, &version, sizeof(version));
         if (version == kTextureVersion)
         {
-            fd_read(fd, &texture.size, sizeof(texture.size));
+            fstr_read(fd, &texture.size, sizeof(texture.size));
             if ((texture.size.x > 0) && (texture.size.y > 0))
             {
                 const i32 len = texture.size.x * texture.size.y;
                 texture.texels = perm_malloc(sizeof(texture.texels[0]) * len);
-                fd_read(fd, texture.texels, sizeof(texture.texels[0]) * len);
+                fstr_read(fd, texture.texels, sizeof(texture.texels[0]) * len);
                 loaded = texture_new(&texture, name, dst);
             }
         }
-        fd_close(&fd);
+        fstr_close(&fd);
     }
     return loaded;
 }

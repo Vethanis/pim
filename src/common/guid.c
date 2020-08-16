@@ -61,6 +61,15 @@ void guid_fmt(char* dst, i32 size, guid_t value)
     StrCatf(dst, size, "%x_%x_%x_%x", a0, a1, b0, b1);
 }
 
+void guid_tofile(char* dst, i32 size, guid_t name, const char* extension)
+{
+    if (size > 0)
+    {
+        guid_fmt(dst, size, name);
+        StrCat(dst, size, extension);
+    }
+}
+
 u32 guid_hashof(guid_t x)
 {
     return Fnv32Qword(x.b, Fnv32Qword(x.a, Fnv32Bias));

@@ -20,6 +20,8 @@
 #include "rendering/lights.h"
 #include "rendering/lightmap.h"
 #include "rendering/cubemap.h"
+#include "rendering/mesh.h"
+#include "rendering/material.h"
 
 #include "common/cvar.h"
 #include "common/profiler.h"
@@ -704,8 +706,8 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
                         ax.w = sharpness;
                         axii[i] = ax;
                     }
-                    float4 diffuseGI = SGv_Irradiance(kGiDirections, axii, probe, N);
                     float4 R = f4_normalize3(f4_reflect3(rd, N));
+                    float4 diffuseGI = SGv_Irradiance(kGiDirections, axii, probe, N);
                     float4 specularGI = SGv_Eval(kGiDirections, axii, probe, R);
                     float4 indirect = IndirectBRDF(
                         V,

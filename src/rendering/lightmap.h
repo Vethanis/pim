@@ -1,14 +1,18 @@
 #pragma once
 
 #include "common/macro.h"
+#include "common/dbytes.h"
 #include "math/types.h"
+#include "common/guid.h"
 
 PIM_C_BEGIN
 
+#define kLightmapVersion    1
+#define kLmPackVersion      1
+#define kGiDirections       5
+
 typedef struct task_s task_t;
 typedef struct pt_scene_s pt_scene_t;
-
-#define kGiDirections 9
 
 typedef struct lightmap_s
 {
@@ -21,8 +25,9 @@ typedef struct lightmap_s
 
 typedef struct dlightmap_s
 {
-    i32 size;
+    i32 version;
     i32 directions;
+    i32 size;
     dbytes_t probes;
     dbytes_t position;
     dbytes_t normal;
@@ -36,21 +41,16 @@ typedef struct lmpack_s
     i32 lmCount;
     i32 lmSize;
     float texelsPerMeter;
-    float metersPerTexel;
 } lmpack_t;
-
-#define kLmPackVersion 1
 
 typedef struct dlmpack_s
 {
     i32 version;
     i32 directions;
+    i32 lmCount;
+    i32 lmSize;
     float4 axii[kGiDirections];
     float texelsPerMeter;
-    float metersPerTexel;
-    i32 lmSize;
-    i32 lmCount;
-    //dlightmap_t* lightmaps;
 } dlmpack_t;
 
 typedef struct lm_uvs_s
@@ -80,6 +80,9 @@ lmpack_t lmpack_pack(
 void lmpack_del(lmpack_t* pack);
 
 void lmpack_bake(pt_scene_t* scene, float timeSlice);
+
+bool lmpack_save(const lmpack_t* src, guid_t name);
+bool lmpack_load(lmpack_t* dst, guid_t name);
 
 void lm_uvs_new(lm_uvs_t* uvs, i32 length);
 void lm_uvs_del(lm_uvs_t* uvs);
