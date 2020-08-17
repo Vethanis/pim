@@ -51,7 +51,8 @@ typedef struct surfhit_s
     float roughness;
     float occlusion;
     float metallic;
-    const material_t* material;
+    float ior;
+    i32 flags;
 } surfhit_t;
 
 typedef struct scatter_s
@@ -229,12 +230,6 @@ pim_inline bool VEC_CALL LightSelect(
     float4 position,
     i32* iVertOut,
     float* pdfOut);
-pim_inline float4 VEC_CALL LightRad(
-    const pt_scene_t* scene,
-    i32 iLight,
-    float4 wuv,
-    float4 ro,
-    float4 rd);
 pim_inline lightsample_t VEC_CALL LightSample(
     pt_sampler_t* sampler,
     const pt_scene_t* scene,
@@ -251,8 +246,8 @@ pim_inline float4 VEC_CALL EstimateDirect(
     pt_sampler_t* sampler,
     const pt_scene_t* scene,
     const surfhit_t* surf,
-    const rayhit_t* hit,
     i32 iLight,
+    float selectPdf,
     float4 I);
 pim_inline float4 VEC_CALL SampleLights(
     pt_sampler_t* sampler,
@@ -1005,7 +1000,8 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     surfhit_t surf = { 0 };
 
     const material_t* mat = GetMaterial(scene, hit);
-    surf.material = mat;
+    surf.flags = mat->flags;
+    surf.ior = mat->ior;
     float2 uv = GetVert2(scene->uvs, hit.index, hit.wuvt);
     surf.M = f4_normalize3(GetVert4(scene->normals, hit.index, hit.wuvt));
     surf.N = surf.M;
@@ -1135,6 +1131,15 @@ pim_inline float4 VEC_CALL SampleDiffuse(
     return L;
 }
 
+pim_inline float VEC_CALL Schlick(float cosTheta, float k)
+{
+    float r0 = (1.0f - k) / (1.0f + k);
+    r0 = r0 * r0;
+    float t = 1.0f - cosTheta;
+    t = t * t * t * t * t;
+    return f1_lerp(r0, 1.0f, t);
+}
+
 // returns attenuation value for the given interaction
 pim_inline float4 VEC_CALL BrdfEval(
     float4 I,
@@ -1186,15 +1191,6 @@ pim_inline float4 VEC_CALL BrdfEval(
     return brdf;
 }
 
-pim_inline float VEC_CALL Schlick(float cosTheta, float k)
-{
-    float r0 = (1.0f - k) / (1.0f + k);
-    r0 = r0 * r0;
-    float t = 1.0f - cosTheta;
-    t = t * t * t * t * t;
-    return f1_lerp(r0, 1.0f, t);
-}
-
 pim_inline scatter_t VEC_CALL RefractScatter(
     pt_sampler_t* sampler,
     const surfhit_t* surf,
@@ -1203,7 +1199,7 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     scatter_t result = { 0 };
 
     const float kAir = 1.000277f;
-    const float matIor = surf->material->ior;
+    const float matIor = surf->ior;
 
     float4 V = f4_neg(I);
     float4 N = surf->N;
@@ -1255,7 +1251,7 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
     const surfhit_t* surf,
     float4 I)
 {
-    if (surf->material->flags & matflag_refractive)
+    if (surf->flags & matflag_refractive)
     {
         return RefractScatter(sampler, surf, I);
     }
@@ -1353,36 +1349,6 @@ pim_inline bool VEC_CALL LightSelect(
     return true;
 }
 
-pim_inline float4 VEC_CALL LightRad(
-    const pt_scene_t* scene,
-    i32 iLight,
-    float4 wuv,
-    float4 ro,
-    float4 rd)
-{
-    i32 iMat = scene->matIds[iLight];
-    const material_t* mat = scene->materials + iMat;
-    if (mat->flags & matflag_sky)
-    {
-        return GetSky(scene, ro, rd);
-    }
-    float2 uv = GetVert2(scene->uvs, iLight, wuv);
-    float4 albedo = ColorToLinear(mat->flatAlbedo);
-    texture_t tex;
-    if (texture_get(mat->albedo, &tex))
-    {
-        float4 sample = tex.texels[UvWrap(tex.size, uv)];
-        albedo = f4_mul(albedo, sample);
-    }
-    float4 rome = ColorToLinear(mat->flatRome);
-    if (texture_get(mat->rome, &tex))
-    {
-        float4 sample = tex.texels[UvWrap(tex.size, uv)];
-        rome = f4_mul(rome, sample);
-    }
-    return UnpackEmission(albedo, rome.w);
-}
-
 pim_inline lightsample_t VEC_CALL LightSample(
     pt_sampler_t* sampler,
     const pt_scene_t* scene,
@@ -1418,7 +1384,8 @@ pim_inline lightsample_t VEC_CALL LightSample(
         if ((hit.type != hit_nothing) && (hit.index == iLight))
         {
             sample.pdf = LightPdf(area, VoNl, distSq);
-            sample.irradiance = LightRad(scene, iLight, wuv, ro, rd);
+            surfhit_t surf = GetSurface(scene, ray, hit, 1);
+            sample.irradiance = surf.emission;
             float4 Tr = CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w);
             sample.irradiance = f4_mul(sample.irradiance, Tr);
         }
@@ -1443,7 +1410,7 @@ pim_inline float VEC_CALL LightEvalPdf(
         float distance = hit.wuvt.w;
         if (distance > 0.0f)
         {
-            float4 N = f4_normalize3(GetVert4(scene->normals, iLight, hit.wuvt));
+            float4 N = f4_normalize3(hit.normal);
             float cosTheta = f4_dot3(f4_neg(rd), N);
             if (cosTheta > 0.0f)
             {
@@ -1459,20 +1426,46 @@ pim_inline float4 VEC_CALL EstimateDirect(
     pt_sampler_t* sampler,
     const pt_scene_t* scene,
     const surfhit_t* surf,
-    const rayhit_t* hit,
     i32 iLight,
+    float selectPdf,
     float4 I)
 {
     float4 result = f4_0;
+    const bool refractive = surf->flags & matflag_refractive;
+    const float pLight = refractive ? 0.0f : 0.5f;
+    const float pBrdf = 1.0f - pLight;
+    if (Sample1D(sampler) < pLight)
     {
         lightsample_t sample = LightSample(sampler, scene, surf->P, iLight);
-        if (sample.pdf > 0.0f)
+        float lightPdf = sample.pdf * selectPdf;
+        if (lightPdf > 0.0f)
         {
             float4 brdf = BrdfEval(I, surf, sample.direction);
             float brdfPdf = brdf.w;
-            if (brdf.w > 0.0f)
+            if (brdfPdf > 0.0f)
             {
-                float4 Li = f4_divvs(f4_mul(sample.irradiance, brdf), sample.pdf);
+                float4 Li = f4_mul(sample.irradiance, brdf);
+                Li = f4_divvs(Li, lightPdf * pLight);
+                result = f4_add(result, Li);
+            }
+        }
+    }
+    else
+    {
+        scatter_t sample = BrdfScatter(sampler, surf, I);
+        float brdfPdf = sample.pdf;
+        if (brdfPdf > 0.0f)
+        {
+            ray_t ray = { surf->P, sample.dir };
+            rayhit_t hit = pt_intersect_local(scene, ray, 0.0f, 1 << 20);
+            if (hit.type != hit_nothing)
+            {
+                surfhit_t surf = GetSurface(scene, ray, hit, 1);
+                float4 Li = surf.emission;
+                float4 Tr = CalcTransmittance(sampler, scene, ray.ro, ray.rd, hit.wuvt.w);
+                Li = f4_mul(Li, Tr);
+                Li = f4_mul(Li, sample.attenuation);
+                Li = f4_divvs(Li, brdfPdf * pBrdf);
                 result = f4_add(result, Li);
             }
         }
@@ -1489,13 +1482,12 @@ pim_inline float4 VEC_CALL SampleLights(
 {
     float4 sum = f4_0;
     i32 iLight;
-    float lightPdf;
-    if (LightSelect(sampler, scene, surf->P, &iLight, &lightPdf))
+    float selectPdf;
+    if (LightSelect(sampler, scene, surf->P, &iLight, &selectPdf))
     {
         if (hit->index != iLight)
         {
-            float4 direct = EstimateDirect(sampler, scene, surf, hit, iLight, I);
-            direct = f4_divvs(direct, lightPdf);
+            float4 direct = EstimateDirect(sampler, scene, surf, iLight, selectPdf, I);
             sum = f4_add(sum, direct);
         }
     }
@@ -1913,8 +1905,8 @@ pt_result_t VEC_CALL pt_trace_ray(
     pt_result_t result = { 0 };
     float4 light = f4_0;
     float4 attenuation = f4_1;
-    bool hitRefractive = false;
     const float amtNee = f1_sat(cv_pt_nee.asFloat);
+    const bool useNEE = Sample1D(sampler) < amtNee;
 
     for (i32 b = 0; b < 666; ++b)
     {
@@ -1944,7 +1936,6 @@ pt_result_t VEC_CALL pt_trace_ray(
             }
         }
 
-        hitRefractive |= hit.flags & matflag_refractive;
         if (hit.flags & matflag_sky)
         {
             light = f4_add(light, f4_mul(GetSky(scene, ray.ro, ray.rd), attenuation));
@@ -1958,21 +1949,13 @@ pt_result_t VEC_CALL pt_trace_ray(
             result.normal = f4_f3(surf.N);
         }
 
-        float emAmt = 1.0f - amtNee;
-        if ((b == 0) || hitRefractive)
+        if ((b == 0) || !useNEE)
         {
-            emAmt = 1.0f;
+            light = f4_add(light, f4_mul(surf.emission, attenuation));
         }
-
-        {
-            float4 em = f4_mulvs(surf.emission, emAmt);
-            light = f4_add(light, f4_mul(em, attenuation));
-        }
-
-        if (!hitRefractive)
+        if (useNEE)
         {
             float4 direct = SampleLights(sampler, scene, &surf, &hit, ray.rd);
-            direct = f4_mulvs(direct, amtNee);
             light = f4_add(light, f4_mul(direct, attenuation));
         }
 
