@@ -677,7 +677,7 @@ void render_sys_init(void)
     cmd_reg("pt_stddev", CmdPtStdDev);
     cmd_reg("loadtest", CmdLoadTest);
 
-    vkr_init();
+    vkr_init(kDrawWidth, kDrawHeight);
 
     texture_sys_init();
     mesh_sys_init();

@@ -89,6 +89,11 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkrcompiler.c" />
     <ClCompile Include="..\src\rendering\r_window.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_debug.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_device.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_pipeline.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_shader.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_swapchain.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
     <ClCompile Include="..\src\stb\stb_image.c" />
@@ -240,6 +245,11 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkrcompiler.h" />
     <ClInclude Include="..\src\rendering\r_window.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_debug.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_device.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_pipeline.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_shader.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_swapchain.h" />
     <ClInclude Include="..\src\sokol\sokol_audio.h" />
     <ClInclude Include="..\src\sokol\sokol_time.h" />
     <ClInclude Include="..\src\stb\stb_perlin_fork.h" />

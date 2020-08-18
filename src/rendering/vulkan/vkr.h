@@ -1,21 +1,14 @@
 #pragma once
 
 #include "common/macro.h"
+#include <volk/volk.h>
+#include "containers/strlist.h"
 
 PIM_C_BEGIN
 
 PIM_FWD_DECL(GLFWwindow);
-PIM_FWD_DECL(VkPhysicalDeviceFeatures);
-PIM_FWD_DECL(VkPhysicalDeviceProperties);
-PIM_FWD_DECL(VkPhysicalDeviceLimits);
-PIM_DECL_HANDLE(VkInstance);
-PIM_DECL_HANDLE(VkPhysicalDevice);
-PIM_DECL_HANDLE(VkDevice);
-PIM_DECL_HANDLE(VkQueue);
-PIM_DECL_HANDLE(VkSurfaceKHR);
-PIM_DECL_HANDLE(VkSwapchainKHR);
-PIM_DECL_HANDLE(VkImage);
-PIM_DECL_HANDLE(VkImageView);
+
+#define VkCheck(expr) do { VkResult _res = (expr); ASSERT(_res == VK_SUCCESS); } while(0)
 
 typedef enum
 {
@@ -33,7 +26,12 @@ typedef struct vkr_t
     VkPhysicalDevice phdev;
     VkDevice dev;
     VkQueue queues[vkrQueueId_COUNT];
+    VkQueueFamilyProperties queueProps[vkrQueueId_COUNT];
+    VkPhysicalDeviceFeatures phdevFeats;
+    VkPhysicalDeviceProperties phdevProps;
+    VkDebugUtilsMessengerEXT messenger;
 } vkr_t;
+extern vkr_t g_vkr;
 
 typedef struct vkrDisplay
 {
@@ -48,15 +46,9 @@ typedef struct vkrDisplay
     i32 width;
     i32 height;
 } vkrDisplay;
-
-extern vkr_t g_vkr;
 extern vkrDisplay g_vkrdisp;
 
-const VkPhysicalDeviceFeatures* vkrPhDevFeats(void);
-const VkPhysicalDeviceProperties* vkrPhDevProps(void);
-const VkPhysicalDeviceLimits* vkrPhDevLimits(void);
-
-void vkr_init(void);
+void vkr_init(i32 width, i32 height);
 void vkr_update(void);
 void vkr_shutdown(void);
 
