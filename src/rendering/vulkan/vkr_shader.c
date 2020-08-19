@@ -2,7 +2,7 @@
 #include "allocator/allocator.h"
 #include <string.h>
 
-VkShaderModule vkrCreateShaderModule(const u32* dwords, i32 length)
+static VkShaderModule vkrCreateShaderModule(const u32* dwords, i32 length)
 {
     ASSERT(g_vkr.dev);
     VkShaderModule mod = NULL;
@@ -19,7 +19,7 @@ VkShaderModule vkrCreateShaderModule(const u32* dwords, i32 length)
     return mod;
 }
 
-void vkrDestroyShaderModule(VkShaderModule mod)
+static void vkrDestroyShaderModule(VkShaderModule mod)
 {
     ASSERT(g_vkr.dev);
     if (mod)
@@ -28,7 +28,7 @@ void vkrDestroyShaderModule(VkShaderModule mod)
     }
 }
 
-static vkrShaderTypeToStage(vkrShaderType type)
+i32 vkrShaderTypeToStage(vkrShaderType type)
 {
     switch (type)
     {
@@ -53,6 +53,10 @@ static vkrShaderTypeToStage(vkrShaderType type)
         return VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_INTERSECTION_BIT_NV;
     case vkrShaderType_Call:
         return VK_SHADER_STAGE_CALLABLE_BIT_KHR | VK_SHADER_STAGE_CALLABLE_BIT_NV;
+    case vkrShaderType_Task:
+        return VK_SHADER_STAGE_TASK_BIT_NV;
+    case vkrShaderType_Mesh:
+        return VK_SHADER_STAGE_MESH_BIT_NV;
     }
 }
 

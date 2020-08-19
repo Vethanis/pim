@@ -1,4 +1,5 @@
 #include "rendering/vulkan/vkr_pipeline.h"
+#include "rendering/vulkan/vkr_renderpass.h"
 #include "allocator/allocator.h"
 #include "math/types.h"
 #include <string.h>
@@ -55,26 +56,41 @@ VkFormat vkrVertTypeFormat(vkrVertType type)
     }
 }
 
-void vkrPipelineLayout_New(vkrPipelineLayout* layout)
+vkrPipelineLayout* vkrPipelineLayout_New(void)
 {
-    memset(layout, 0, sizeof(*layout));
+    vkrPipelineLayout* layout = perm_calloc(sizeof(*layout));
+    layout->refcount = 1;
+    return layout;
 }
 
-void vkrPipelineLayout_Del(vkrPipelineLayout* layout)
+void vkrPipelineLayout_Retain(vkrPipelineLayout* layout)
 {
-    if (layout)
+    if (layout && layout->refcount > 0)
     {
-        if (layout->layout)
+        layout->refcount += 1;
+    }
+}
+
+void vkrPipelineLayout_Release(vkrPipelineLayout* layout)
+{
+    if (layout && layout->refcount > 0)
+    {
+        layout->refcount -= 1;
+        if (layout->refcount == 0)
         {
-            vkDestroyPipelineLayout(g_vkr.dev, layout->layout, NULL);
+            if (layout->handle)
+            {
+                vkDestroyPipelineLayout(g_vkr.dev, layout->handle, NULL);
+            }
+            for (i32 i = 0; i < layout->setCount; ++i)
+            {
+                vkDestroyDescriptorSetLayout(g_vkr.dev, layout->sets[i], NULL);
+            }
+            pim_free(layout->sets);
+            pim_free(layout->ranges);
+            memset(layout, 0, sizeof(*layout));
+            pim_free(layout);
         }
-        for (i32 i = 0; i < layout->setCount; ++i)
-        {
-            vkDestroyDescriptorSetLayout(g_vkr.dev, layout->sets[i], NULL);
-        }
-        pim_free(layout->sets);
-        pim_free(layout->ranges);
-        memset(layout, 0, sizeof(*layout));
     }
 }
 
@@ -83,20 +99,23 @@ bool vkrPipelineLayout_AddSet(
     i32 bindingCount,
     const VkDescriptorSetLayoutBinding* pBindings)
 {
-    VkDescriptorSetLayout set = NULL;
-    const VkDescriptorSetLayoutCreateInfo createInfo =
+    ASSERT(layout && layout->refcount > 0);
     {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = bindingCount,
-        .pBindings = pBindings,
-    };
-    VkCheck(vkCreateDescriptorSetLayout(g_vkr.dev, &createInfo, NULL, &set));
-    if (set != NULL)
-    {
-        layout->setCount += 1;
-        PermReserve(layout->sets, layout->setCount);
-        layout->sets[layout->setCount - 1] = set;
-        return true;
+        VkDescriptorSetLayout set = NULL;
+        const VkDescriptorSetLayoutCreateInfo createInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = bindingCount,
+            .pBindings = pBindings,
+        };
+        VkCheck(vkCreateDescriptorSetLayout(g_vkr.dev, &createInfo, NULL, &set));
+        if (set != NULL)
+        {
+            layout->setCount += 1;
+            PermReserve(layout->sets, layout->setCount);
+            layout->sets[layout->setCount - 1] = set;
+            return true;
+        }
     }
     return false;
 }
@@ -105,22 +124,49 @@ void vkrPipelineLayout_AddRange(
     vkrPipelineLayout* layout,
     VkPushConstantRange range)
 {
-    layout->rangeCount += 1;
-    PermReserve(layout->ranges, layout->rangeCount);
-    layout->ranges[layout->rangeCount - 1] = range;
+    ASSERT(layout && layout->refcount > 0);
+    {
+        layout->rangeCount += 1;
+        PermReserve(layout->ranges, layout->rangeCount);
+        layout->ranges[layout->rangeCount - 1] = range;
+    }
 }
 
-bool vkrPipeline_NewGfx(
-    vkrPipeline* pipeline,
+bool vkrPipelineLayout_Compile(vkrPipelineLayout* layout)
+{
+    ASSERT(layout && layout->refcount > 0);
+    {
+        if (layout->handle)
+        {
+            return true;
+        }
+        const VkPipelineLayoutCreateInfo createInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            .setLayoutCount = layout->setCount,
+            .pSetLayouts = layout->sets,
+            .pushConstantRangeCount = layout->rangeCount,
+            .pPushConstantRanges = layout->ranges,
+        };
+        VkCheck(vkCreatePipelineLayout(g_vkr.dev, &createInfo, NULL, &layout->handle));
+        return layout->handle != NULL;
+    }
+    return false;
+}
+
+vkrPipeline* vkrPipeline_NewGfx(
     const vkrFixedFuncs* fixedfuncs,
     const vkrVertexLayout* vertLayout,
     vkrPipelineLayout* layout,
     i32 shaderCount,
     const VkPipelineShaderStageCreateInfo* shaders,
-    VkRenderPass renderPass,
+    vkrRenderPass* renderPass,
     i32 subpass)
 {
-    memset(pipeline, 0, sizeof(*pipeline));
+    if (!vkrPipelineLayout_Compile(layout))
+    {
+        return NULL;
+    }
 
     VkVertexInputBindingDescription vertBindings[8] = { 0 };
     VkVertexInputAttributeDescription vertAttribs[8] = { 0 };
@@ -213,20 +259,6 @@ bool vkrPipeline_NewGfx(
         .pDynamicStates = dynamicStates,
     };
 
-    const VkPipelineLayoutCreateInfo pipelineLayoutInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = layout->setCount,
-        .pSetLayouts = layout->sets,
-        .pushConstantRangeCount = layout->rangeCount,
-        .pPushConstantRanges = layout->ranges,
-    };
-    VkCheck(vkCreatePipelineLayout(g_vkr.dev, &pipelineLayoutInfo, NULL, &layout->layout));
-    if (layout->layout == NULL)
-    {
-        vkrPipelineLayout_Del(layout);
-        return false;
-    }
 
     const VkGraphicsPipelineCreateInfo pipelineInfo =
     {
@@ -242,8 +274,8 @@ bool vkrPipeline_NewGfx(
         .pDepthStencilState = &depthStencil,
         .pColorBlendState = &colorBlending,
         .pDynamicState = &dynamicStateInfo,
-        .layout = layout->layout,
-        .renderPass = renderPass,
+        .layout = layout->handle,
+        .renderPass = renderPass->handle,
         .subpass = subpass,
     };
 
@@ -252,32 +284,45 @@ bool vkrPipeline_NewGfx(
 
     if (!handle)
     {
-        vkrPipelineLayout_Del(layout);
-        return false;
+        return NULL;
     }
 
-    pipeline->pipeline = handle;
+    vkrPipeline* pipeline = perm_calloc(sizeof(*pipeline));
+    pipeline->refcount = 1;
+    pipeline->handle = handle;
     pipeline->renderPass = renderPass;
     pipeline->subpass = subpass;
-    pipeline->layout = *layout;
-    memset(layout, 0, sizeof(*layout));
+    pipeline->layout = layout;
 
-    return true;
+    vkrRenderPass_Retain(renderPass);
+    vkrPipelineLayout_Retain(layout);
+
+    return pipeline;
 }
 
-void vkrPipeline_Del(vkrPipeline* pipeline)
+void vkrPipeline_Retain(vkrPipeline* pipeline)
 {
-    if (pipeline)
+    if (pipeline && pipeline->refcount > 0)
     {
-        if (pipeline->pipeline)
+        pipeline->refcount += 1;
+    }
+}
+
+void vkrPipeline_Release(vkrPipeline* pipeline)
+{
+    if (pipeline && pipeline->refcount > 0)
+    {
+        pipeline->refcount -= 1;
+        if (pipeline->refcount == 0)
         {
-            vkDestroyPipeline(g_vkr.dev, pipeline->pipeline, NULL);
+            if (pipeline->handle)
+            {
+                vkDestroyPipeline(g_vkr.dev, pipeline->handle, NULL);
+            }
+            vkrRenderPass_Release(pipeline->renderPass);
+            vkrPipelineLayout_Release(pipeline->layout);
+            memset(pipeline, 0, sizeof(*pipeline));
+            pim_free(pipeline);
         }
-        if (pipeline->renderPass)
-        {
-            vkDestroyRenderPass(g_vkr.dev, pipeline->renderPass, NULL);
-        }
-        vkrPipelineLayout_Del(&pipeline->layout);
-        memset(pipeline, 0, sizeof(*pipeline));
     }
 }

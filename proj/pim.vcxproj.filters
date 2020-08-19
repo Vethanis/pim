@@ -484,6 +484,9 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_pipeline.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_renderpass.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -1036,6 +1039,9 @@
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr_pipeline.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_renderpass.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
   </ItemGroup>

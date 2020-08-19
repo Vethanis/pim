@@ -4,22 +4,6 @@
 
 PIM_C_BEGIN
 
-typedef struct vkrQueueSupport
-{
-    i32 family[vkrQueueId_COUNT];
-    u32 count;
-    VkQueueFamilyProperties* props;
-} vkrQueueSupport;
-
-typedef struct vkrSwapchainSupport
-{
-    VkSurfaceCapabilitiesKHR caps;
-    u32 formatCount;
-    VkSurfaceFormatKHR* formats;
-    u32 modeCount;
-    VkPresentModeKHR* modes;
-} vkrSwapchainSupport;
-
 VkSurfaceKHR vkrCreateSurface(VkInstance inst, GLFWwindow* win);
 
 void vkrSelectFamily(i32* fam, i32 i, const VkQueueFamilyProperties* props);

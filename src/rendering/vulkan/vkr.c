@@ -65,12 +65,14 @@ void vkr_init(i32 width, i32 height)
 
     const vkrCompileInput input =
     {
-        .filename="example.hlsl",
-        .entrypoint="PSMain",
-        .text="struct PSInput{float4 color : COLOR; }; float4 PSMain(PSInput input) : SV_TARGET { return input.color; }",
-        .type=vkrShaderType_Fragment,
+        .filename = "example.hlsl",
+        .entrypoint = "main",
+        .text = "struct PSInput{float4 color : COLOR; }; float4 main(PSInput input) : SV_TARGET { return input.color; }",
+        .type = vkrShaderType_Frag,
+        .compile = true,
+        .disassemble = true,
     };
-    vkrCompileOutput output = {0};
+    vkrCompileOutput output = { 0 };
     vkrCompile(&input, &output);
     if (output.errors)
     {
@@ -80,6 +82,7 @@ void vkr_init(i32 width, i32 height)
     {
         con_logf(LogSev_Info, "Vkc", "%s", output.disassembly);
     }
+    vkrCompileOutput_Del(&output);
 }
 
 void vkr_update(void)

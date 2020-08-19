@@ -2,7 +2,7 @@
 #include "allocator/allocator.h"
 #include "common/stringutil.h"
 #include "rendering/vulkan/shaderc_table.h"
-#include "io/fd.h"
+#include "io/fstr.h"
 #include "io/dir.h"
 #include <string.h>
 
@@ -17,27 +17,26 @@ static shaderc_include_result* vkrResolveInclude(
     ASSERT(srcFile);
 
     char path[PIM_PATH] = { 0 };
-    pim_getcwd(ARGS(path));
-    StrCatf(ARGS(path), "/src/shaders/%s", includeFile);
+    SPrintf(ARGS(path), "src/shaders/%s", includeFile);
     StrPath(ARGS(path));
 
     shaderc_include_result* result = perm_calloc(sizeof(*result));
 
-    fd_t fd = fd_open(path, false);
-    if (fd_isopen(fd))
+    fstr_t fd = fstr_open(path, "rb");
+    if (fstr_isopen(fd))
     {
-        i32 size = (i32)fd_size(fd);
+        i32 size = (i32)fstr_size(fd);
         if (size > 0)
         {
             result->source_name = StrDup(path, EAlloc_Perm);
             result->source_name_length = StrLen(result->source_name);
             void* contents = perm_malloc(size);
-            i32 readLen = fd_read(fd, contents, size);
+            i32 readLen = fstr_read(fd, contents, size);
             ASSERT(readLen == size);
             result->content = contents;
             result->content_length = size;
         }
-        fd_close(&fd);
+        fstr_close(&fd);
     }
 
     return result;
@@ -58,13 +57,32 @@ static shaderc_shader_kind vkrShaderTypeToShaderKind(vkrShaderType type)
     switch (type)
     {
     default:
+        ASSERT(false);
         return shaderc_glsl_infer_from_source;
-    case vkrShaderType_Vertex:
+
+    case vkrShaderType_Vert:
         return shaderc_vertex_shader;
-    case vkrShaderType_Fragment:
+    case vkrShaderType_Frag:
         return shaderc_fragment_shader;
-    case vkrShaderType_Compute:
+    case vkrShaderType_Comp:
         return shaderc_compute_shader;
+
+    case vkrShaderType_AnyHit:
+        return shaderc_anyhit_shader;
+    case vkrShaderType_Call:
+        return shaderc_callable_shader;
+    case vkrShaderType_ClosestHit:
+        return shaderc_closesthit_shader;
+    case vkrShaderType_Isect:
+        return shaderc_intersection_shader;
+    case vkrShaderType_Miss:
+        return shaderc_miss_shader;
+    case vkrShaderType_Raygen:
+        return shaderc_raygen_shader;
+    case vkrShaderType_Task:
+        return shaderc_task_shader;
+    case vkrShaderType_Mesh:
+        return shaderc_mesh_shader;
     }
 }
 
@@ -128,16 +146,17 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
     g_shaderc.compile_options_set_include_callbacks(
         options, vkrResolveInclude, vkrReleaseInclude, NULL);
 
-    const i32 textLen = StrLen(input->text);
+    const i32 inputLen = StrLen(input->text);
     const shaderc_shader_kind kind = vkrShaderTypeToShaderKind(input->type);
 
     shaderc_compilation_status status;
+    if (input->compile)
     {
         shaderc_compilation_result_t result =
             g_shaderc.compile_into_spv(
                 compiler,
                 input->text,
-                textLen,
+                inputLen,
                 kind,
                 input->filename,
                 input->entrypoint,
@@ -163,18 +182,20 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
 
         if (errorLen > 0)
         {
-            output->errors = perm_calloc(errorLen + 1);
+            output->errors = perm_malloc(errorLen + 1);
             memcpy(output->errors, errors, errorLen);
+            output->errors[errorLen] = 0;
         }
 
         g_shaderc.result_release(result);
     }
+    if (input->disassemble)
     {
         shaderc_compilation_result_t result =
             g_shaderc.compile_into_spv_assembly(
                 compiler,
                 input->text,
-                textLen,
+                inputLen,
                 kind,
                 input->filename,
                 input->entrypoint,
@@ -187,8 +208,9 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
 
         if (numBytes > 0)
         {
-            output->disassembly = perm_calloc(numBytes + 1);
+            output->disassembly = perm_malloc(numBytes + 1);
             memcpy(output->disassembly, disassembly, numBytes);
+            output->disassembly[numBytes] = 0;
         }
 
         g_shaderc.result_release(result);
@@ -197,5 +219,18 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
     g_shaderc.compile_options_release(options);
     g_shaderc.compiler_release(compiler);
 
+    output->type = input->type;
+
     return status == shaderc_compilation_status_success;
+}
+
+void vkrCompileOutput_Del(vkrCompileOutput* output)
+{
+    if (output)
+    {
+        pim_free(output->disassembly);
+        pim_free(output->dwords);
+        pim_free(output->errors);
+        memset(output, 0, sizeof(*output));
+    }
 }
