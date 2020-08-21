@@ -1,99 +1,189 @@
 #include "rendering/vulkan/vkr_swapchain.h"
+#include "rendering/vulkan/vkr_display.h"
+#include "rendering/vulkan/vkr_queue.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
+#include "math/scalar.h"
 #include <GLFW/glfw3.h>
 #include <string.h>
 
-VkSurfaceKHR vkrCreateSurface(VkInstance inst, GLFWwindow* win)
+vkrSwapchain* vkrSwapchain_New(vkrDisplay* display, vkrSwapchain* prev)
 {
-    ASSERT(inst);
-    ASSERT(win);
+    ASSERT(display);
 
-    VkSurfaceKHR surf = NULL;
-    VkCheck(glfwCreateWindowSurface(inst, win, NULL, &surf));
-
-    return surf;
-}
-
-void vkrSelectFamily(i32* fam, i32 i, const VkQueueFamilyProperties* props)
-{
-    i32 c = *fam;
-    if (c >= 0)
-    {
-        if (props[i].queueCount > props[c].queueCount)
-        {
-            c = i;
-        }
-    }
-    else
-    {
-        c = i;
-    }
-    *fam = c;
-}
-
-VkQueueFamilyProperties* vkrEnumQueueFamilyProperties(
-    VkPhysicalDevice phdev,
-    u32* countOut)
-{
+    VkPhysicalDevice phdev = g_vkr.phdev;
+    VkDevice dev = g_vkr.dev;
+    VkSurfaceKHR surface = display->surface;
     ASSERT(phdev);
-    ASSERT(countOut);
-    u32 count = 0;
-    VkQueueFamilyProperties* props = NULL;
-    vkGetPhysicalDeviceQueueFamilyProperties(phdev, &count, NULL);
-    props = tmp_calloc(sizeof(props[0]) * count);
-    vkGetPhysicalDeviceQueueFamilyProperties(phdev, &count, props);
-    *countOut = count;
-    return props;
+    ASSERT(dev);
+    ASSERT(surface);
+
+    vkrSwapchainSupport sup = vkrQuerySwapchainSupport(phdev, surface);
+    vkrQueueSupport qsup = vkrQueryQueueSupport(phdev, surface);
+
+    VkSurfaceFormatKHR format = vkrSelectSwapFormat(sup.formats, sup.formatCount);
+    VkPresentModeKHR mode = vkrSelectSwapMode(sup.modes, sup.modeCount);
+    VkExtent2D ext = vkrSelectSwapExtent(&sup.caps, display->width, display->height);
+
+    u32 maxImages = i1_min(kMaxSwapchainLength, sup.caps.maxImageCount);
+    u32 imgCount = i1_clamp(2, sup.caps.minImageCount, maxImages);
+
+    const u32 families[] =
+    {
+        qsup.family[vkrQueueId_Gfx],
+        qsup.family[vkrQueueId_Pres],
+    };
+    bool concurrent = families[0] != families[1];
+
+    const VkSwapchainCreateInfoKHR swapInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface = surface,
+        .presentMode = mode,
+        .minImageCount = imgCount,
+        .imageFormat = format.format,
+        .imageColorSpace = format.colorSpace,
+        .imageExtent = ext,
+        .imageArrayLayers = 1,
+        // use transfer_dst_bit if rendering offscreen
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .imageSharingMode = concurrent ?
+            VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = concurrent ? NELEM(families) : 0,
+        .pQueueFamilyIndices = families,
+        .preTransform = sup.caps.currentTransform,
+        // no compositing with window manager / desktop background
+        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        // don't render pixels behind other windows
+        .clipped = VK_TRUE,
+        // prev swapchain, if re-creating
+        .oldSwapchain = prev ? prev->handle : NULL,
+    };
+
+    VkSwapchainKHR handle = NULL;
+    VkCheck(vkCreateSwapchainKHR(dev, &swapInfo, NULL, &handle));
+    ASSERT(handle);
+    if (!handle)
+    {
+        con_logf(LogSev_Error, "Vk", "Failed to create swapchain");
+        return NULL;
+    }
+
+    vkrSwapchain* chain = perm_calloc(sizeof(*chain));
+    chain->refcount = 1;
+    chain->handle = handle;
+    chain->mode = mode;
+    chain->format = format.format;
+    chain->colorSpace = format.colorSpace;
+    chain->width = ext.width;
+    chain->height = ext.height;
+
+    vkrDisplay_Retain(display);
+    chain->display = display;
+
+    VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, NULL));
+    chain->length = imgCount;
+    ASSERT(imgCount <= kMaxSwapchainLength);
+    VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, chain->images));
+
+    for (u32 i = 0; i < imgCount; ++i)
+    {
+        ASSERT(chain->images[i]);
+        const VkImageViewCreateInfo viewInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = chain->images[i],
+            .format = chain->format,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .subresourceRange.levelCount = 1,
+            .subresourceRange.layerCount = 1,
+        };
+        VkCheck(vkCreateImageView(dev, &viewInfo, NULL, chain->views + i));
+        ASSERT(chain->views[i]);
+    }
+
+    return chain;
 }
 
-vkrQueueSupport vkrQueryQueueSupport(VkPhysicalDevice phdev, VkSurfaceKHR surf)
+void vkrSwapchain_Retain(vkrSwapchain* chain)
 {
-    vkrQueueSupport support = { 0 };
-    for (i32 i = 0; i < NELEM(support.family); ++i)
+    if (vkrAlive(chain))
     {
-        support.family[i] = -1;
+        chain->refcount += 1;
     }
-
-    ASSERT(phdev);
-    ASSERT(surf);
-
-    u32 count = 0;
-    VkQueueFamilyProperties* props = vkrEnumQueueFamilyProperties(phdev, &count);
-    support.count = count;
-    support.props = props;
-
-    for (u32 i = 0; i < count; ++i)
-    {
-        if (props[i].queueCount == 0)
-        {
-            continue;
-        }
-        u32 flags = props[i].queueFlags;
-
-        if (flags & VK_QUEUE_GRAPHICS_BIT)
-        {
-            vkrSelectFamily(&support.family[vkrQueueId_Gfx], i, props);
-        }
-        if (flags & VK_QUEUE_COMPUTE_BIT)
-        {
-            vkrSelectFamily(&support.family[vkrQueueId_Comp], i, props);
-        }
-        if (flags & VK_QUEUE_TRANSFER_BIT)
-        {
-            vkrSelectFamily(&support.family[vkrQueueId_Xfer], i, props);
-        }
-
-        VkBool32 presentable = false;
-        VkCheck(vkGetPhysicalDeviceSurfaceSupportKHR(phdev, i, surf, &presentable));
-        if (presentable)
-        {
-            vkrSelectFamily(&support.family[vkrQueueId_Pres], i, props);
-        }
-    }
-
-    return support;
 }
+
+void vkrSwapchain_Release(vkrSwapchain* chain)
+{
+    if (vkrAlive(chain))
+    {
+        chain->refcount -= 1;
+        if (chain->refcount == 0)
+        {
+            VkDevice dev = g_vkr.dev;
+
+            const i32 len = chain->length;
+            VkImageView* views = chain->views;
+            VkFramebuffer* buffers = chain->buffers;
+            for (i32 i = 0; i < len; ++i)
+            {
+                VkImageView view = views[i];
+                views[i] = NULL;
+                if (view)
+                {
+                    vkDestroyImageView(dev, view, NULL);
+                }
+                VkFramebuffer buffer = buffers[i];
+                buffers[i] = NULL;
+                if (buffer)
+                {
+                    vkDestroyFramebuffer(dev, buffer, NULL);
+                }
+            }
+            vkDestroySwapchainKHR(dev, chain->handle, NULL);
+            vkrDisplay_Release(chain->display);
+            memset(chain, 0, sizeof(*chain));
+            pim_free(chain);
+        }
+    }
+}
+
+void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, vkrRenderPass* presentPass)
+{
+    ASSERT(vkrAlive(chain));
+    ASSERT(vkrAlive(presentPass));
+    const i32 len = chain->length;
+    for (i32 i = 0; i < len; ++i)
+    {
+        ASSERT(chain->views[i]);
+        const VkImageView attachments[] =
+        {
+            chain->views[i],
+        };
+        const VkFramebufferCreateInfo bufferInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+            .renderPass = presentPass->handle,
+            .attachmentCount = NELEM(attachments),
+            .pAttachments = attachments,
+            .width = chain->width,
+            .height = chain->height,
+            .layers = 1,
+        };
+        if (chain->buffers[i])
+        {
+            vkDestroyFramebuffer(g_vkr.dev, chain->buffers[i], NULL);
+            chain->buffers[i] = NULL;
+        }
+        VkFramebuffer buffer = NULL;
+        VkCheck(vkCreateFramebuffer(g_vkr.dev, &bufferInfo, NULL, &buffer));
+        ASSERT(buffer);
+        chain->buffers[i] = buffer;
+    }
+}
+
+// ----------------------------------------------------------------------------
 
 vkrSwapchainSupport vkrQuerySwapchainSupport(
     VkPhysicalDevice phdev,
@@ -125,22 +215,28 @@ static const VkSurfaceFormatKHR kPreferredSurfaceFormats[] =
     },
 };
 
-i32 vkrSelectSwapFormat(const VkSurfaceFormatKHR* formats, u32 count)
+VkSurfaceFormatKHR vkrSelectSwapFormat(
+    const VkSurfaceFormatKHR* formats,
+    i32 count)
 {
     ASSERT(formats || !count);
-    for (u32 p = 0; p < NELEM(kPreferredSurfaceFormats); ++p)
+    for (i32 p = 0; p < NELEM(kPreferredSurfaceFormats); ++p)
     {
         VkSurfaceFormatKHR pref = kPreferredSurfaceFormats[p];
-        for (u32 i = 0; i < count; ++i)
+        for (i32 i = 0; i < count; ++i)
         {
             VkSurfaceFormatKHR sf = formats[i];
             if (memcmp(&sf, &pref, sizeof(sf)) == 0)
             {
-                return (i32)i;
+                return sf;
             }
         }
     }
-    return 0;
+    if (count > 0)
+    {
+        return formats[0];
+    }
+    return (VkSurfaceFormatKHR) { 0 };
 }
 
 // pim prefers low latency over tear protection
@@ -152,128 +248,43 @@ static const VkPresentModeKHR kPreferredPresentModes[] =
     VK_PRESENT_MODE_FIFO_KHR ,          // multi-entry queue; bad latency
 };
 
-i32 vkrSelectSwapMode(const VkPresentModeKHR* modes, u32 count)
+VkPresentModeKHR vkrSelectSwapMode(
+    const VkPresentModeKHR* modes,
+    i32 count)
 {
     ASSERT(modes || !count);
-    for (u32 p = 0; p < NELEM(kPreferredPresentModes); ++p)
+    for (i32 p = 0; p < NELEM(kPreferredPresentModes); ++p)
     {
         VkPresentModeKHR pref = kPreferredPresentModes[p];
-        for (u32 i = 0; i < count; ++i)
+        for (i32 i = 0; i < count; ++i)
         {
             VkPresentModeKHR mode = modes[i];
             if (pref == mode)
             {
-                return (i32)i;
+                return mode;
             }
         }
     }
-    return 0;
+    if (count > 0)
+    {
+        return modes[0];
+    }
+    return VK_PRESENT_MODE_IMMEDIATE_KHR;
 }
 
-VkExtent2D vkrSelectSwapExtent(const VkSurfaceCapabilitiesKHR* caps, i32 width, i32 height)
+VkExtent2D vkrSelectSwapExtent(
+    const VkSurfaceCapabilitiesKHR* caps,
+    i32 width,
+    i32 height)
 {
     if (caps->currentExtent.width != ~0u)
     {
         return caps->currentExtent;
     }
-    VkExtent2D ext = { width, height };
     VkExtent2D minExt = caps->minImageExtent;
     VkExtent2D maxExt = caps->maxImageExtent;
-    ext.width = ext.width > minExt.width ? ext.width : minExt.width;
-    ext.height = ext.height > minExt.height ? ext.height : minExt.height;
-    ext.width = ext.width < maxExt.width ? ext.width : maxExt.width;
-    ext.height = ext.height < maxExt.height ? ext.height : maxExt.height;
+    VkExtent2D ext = { 0 };
+    ext.width = i1_clamp(width, minExt.width, maxExt.width);
+    ext.height = i1_clamp(height, minExt.height, maxExt.height);
     return ext;
-}
-
-void vkrCreateSwapchain(vkrDisplay* display, VkSwapchainKHR prev)
-{
-    VkPhysicalDevice phdev = g_vkr.phdev;
-    VkDevice dev = g_vkr.dev;
-    VkSurfaceKHR surf = display->surf;
-    i32 width = display->width;
-    i32 height = display->height;
-    ASSERT(phdev);
-    ASSERT(dev);
-    ASSERT(surf);
-
-    vkrSwapchainSupport sup = vkrQuerySwapchainSupport(phdev, surf);
-    vkrQueueSupport qsup = vkrQueryQueueSupport(phdev, surf);
-
-    i32 iFormat = vkrSelectSwapFormat(sup.formats, sup.formatCount);
-    i32 iMode = vkrSelectSwapMode(sup.modes, sup.modeCount);
-    VkExtent2D ext = vkrSelectSwapExtent(&sup.caps, width, height);
-
-    // just the minimum, to minimize latency
-    u32 imgCount = sup.caps.minImageCount;
-
-    const u32 families[] =
-    {
-        qsup.family[vkrQueueId_Gfx],
-        qsup.family[vkrQueueId_Pres],
-    };
-    bool concurrent = families[0] != families[1];
-
-    const VkSwapchainCreateInfoKHR swapInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        .surface = surf,
-        .presentMode = sup.modes[iMode],
-        .minImageCount = imgCount,
-        .imageFormat = sup.formats[iFormat].format,
-        .imageColorSpace = sup.formats[iFormat].colorSpace,
-        .imageExtent = ext,
-        .imageArrayLayers = 1,
-        // use transfer_dst_bit if rendering offscreen
-        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        .imageSharingMode = concurrent ?
-            VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
-        .queueFamilyIndexCount = concurrent ? 2 : 0,
-        .pQueueFamilyIndices = concurrent ? families : NULL,
-        .preTransform = sup.caps.currentTransform,
-        // no compositing with window manager / desktop background
-        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        // don't render pixels behind other windows
-        .clipped = VK_TRUE,
-        // prev swapchain, if re-creating
-        .oldSwapchain = prev,
-    };
-
-    VkSwapchainKHR swap = NULL;
-    VkCheck(vkCreateSwapchainKHR(dev, &swapInfo, NULL, &swap));
-    ASSERT(swap);
-    if (!swap)
-    {
-        con_logf(LogSev_Error, "Vk", "Failed to create swapchain");
-        return;
-    }
-
-    display->swap = swap;
-    display->format = sup.formats[iFormat].format;
-    display->colorSpace = sup.formats[iFormat].colorSpace;
-    display->width = ext.width;
-    display->height = ext.height;
-
-    VkCheck(vkGetSwapchainImagesKHR(dev, swap, &imgCount, NULL));
-    PermReserve(display->images, imgCount);
-    PermReserve(display->views, imgCount);
-    VkCheck(vkGetSwapchainImagesKHR(dev, swap, &imgCount, display->images));
-    display->imgCount = imgCount;
-
-    for (u32 i = 0; i < imgCount; ++i)
-    {
-        const VkImageViewCreateInfo viewInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = display->images[i],
-            .format = display->format,
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .subresourceRange.levelCount = 1,
-            .subresourceRange.layerCount = 1,
-        };
-        display->views[i] = NULL;
-        VkCheck(vkCreateImageView(dev, &viewInfo, NULL, display->views + i));
-        ASSERT(display->views[i]);
-    }
 }

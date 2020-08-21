@@ -72,6 +72,7 @@ void con_sys_update(void)
 
 void con_sys_shutdown(void)
 {
+    con_logf(LogSev_Info, "con", "console shutting down...");
     fstr_close(&ms_file);
 
     con_clear();

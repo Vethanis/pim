@@ -101,6 +101,9 @@
     <Filter Include="submodules\embree">
       <UniqueIdentifier>{c52b45d7-a05a-4f39-8943-31ea31899e56}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\shaders">
+      <UniqueIdentifier>{bd919a66-3aa2-47d8-8fab-3c2c7d04e07d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -367,9 +370,6 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\vulkan\vkrcompiler.c">
-      <Filter>Source Files\rendering\vulkan</Filter>
-    </ClCompile>
     <ClCompile Include="..\submodules\glad\glad.c">
       <Filter>submodules\glad</Filter>
     </ClCompile>
@@ -485,6 +485,18 @@
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\vulkan\vkr_renderpass.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_compile.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_display.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_queue.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
   </ItemGroup>
@@ -891,9 +903,6 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\vulkan\vkrcompiler.h">
-      <Filter>Source Files\rendering\vulkan</Filter>
-    </ClInclude>
     <ClInclude Include="..\submodules\glad\glad.h">
       <Filter>submodules\glad</Filter>
     </ClInclude>
@@ -1044,6 +1053,18 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_renderpass.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_compile.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_display.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_instance.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_queue.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">
@@ -1060,5 +1081,10 @@
     <None Include="..\src\tools\prehash.py">
       <Filter>Source Files\tools</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="..\src\shaders\first_tri.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

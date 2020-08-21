@@ -2,17 +2,17 @@
 #include "allocator/allocator.h"
 #include <string.h>
 
-static VkShaderModule vkrCreateShaderModule(const u32* dwords, i32 length)
+static VkShaderModule vkrCreateShaderModule(const u32* dwords, i32 dwordCount)
 {
     ASSERT(g_vkr.dev);
     VkShaderModule mod = NULL;
-    if (dwords && length > 0)
+    if (dwords && dwordCount > 0)
     {
         const VkShaderModuleCreateInfo info =
         {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
             .pCode = dwords,
-            .codeSize = sizeof(dwords[0]) * length,
+            .codeSize = sizeof(dwords[0]) * dwordCount,
         };
         VkCheck(vkCreateShaderModule(g_vkr.dev, &info, NULL, &mod));
     }
@@ -60,14 +60,14 @@ i32 vkrShaderTypeToStage(vkrShaderType type)
     }
 }
 
-VkPipelineShaderStageCreateInfo vkrCreateShader(vkrShaderType type, const u32* dwords, i32 length)
+VkPipelineShaderStageCreateInfo vkrCreateShader(const vkrCompileOutput* output)
 {
     VkPipelineShaderStageCreateInfo info =
     {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = vkrShaderTypeToStage(type),
-        .module = vkrCreateShaderModule(dwords, length),
-        .pName = "main",
+        .stage = vkrShaderTypeToStage(output->type),
+        .module = vkrCreateShaderModule(output->dwords, output->dwordCount),
+        .pName = output->entrypoint,
     };
     return info;
 }
@@ -77,6 +77,6 @@ void vkrDestroyShader(VkPipelineShaderStageCreateInfo* info)
     if (info)
     {
         vkrDestroyShaderModule(info->module);
-        info->module = NULL;
+        memset(info, 0, sizeof(*info));
     }
 }

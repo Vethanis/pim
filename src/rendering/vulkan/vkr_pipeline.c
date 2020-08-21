@@ -65,7 +65,7 @@ vkrPipelineLayout* vkrPipelineLayout_New(void)
 
 void vkrPipelineLayout_Retain(vkrPipelineLayout* layout)
 {
-    if (layout && layout->refcount > 0)
+    if (vkrAlive(layout))
     {
         layout->refcount += 1;
     }
@@ -73,7 +73,7 @@ void vkrPipelineLayout_Retain(vkrPipelineLayout* layout)
 
 void vkrPipelineLayout_Release(vkrPipelineLayout* layout)
 {
-    if (layout && layout->refcount > 0)
+    if (vkrAlive(layout))
     {
         layout->refcount -= 1;
         if (layout->refcount == 0)
@@ -99,7 +99,7 @@ bool vkrPipelineLayout_AddSet(
     i32 bindingCount,
     const VkDescriptorSetLayoutBinding* pBindings)
 {
-    ASSERT(layout && layout->refcount > 0);
+    ASSERT(vkrAlive(layout));
     {
         VkDescriptorSetLayout set = NULL;
         const VkDescriptorSetLayoutCreateInfo createInfo =
@@ -124,7 +124,7 @@ void vkrPipelineLayout_AddRange(
     vkrPipelineLayout* layout,
     VkPushConstantRange range)
 {
-    ASSERT(layout && layout->refcount > 0);
+    ASSERT(vkrAlive(layout));
     {
         layout->rangeCount += 1;
         PermReserve(layout->ranges, layout->rangeCount);
@@ -134,7 +134,7 @@ void vkrPipelineLayout_AddRange(
 
 bool vkrPipelineLayout_Compile(vkrPipelineLayout* layout)
 {
-    ASSERT(layout && layout->refcount > 0);
+    ASSERT(vkrAlive(layout));
     {
         if (layout->handle)
         {
@@ -201,7 +201,7 @@ vkrPipeline* vkrPipeline_NewGfx(
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
         .viewportCount = 1,
         .pViewports = &fixedfuncs->viewport,
-        .scissorCount = fixedfuncs->scissorOn ? 1 : 0,
+        .scissorCount = 1,
         .pScissors = &fixedfuncs->scissor,
     };
     const VkPipelineRasterizationStateCreateInfo rasterizer =
@@ -259,7 +259,6 @@ vkrPipeline* vkrPipeline_NewGfx(
         .pDynamicStates = dynamicStates,
     };
 
-
     const VkGraphicsPipelineCreateInfo pipelineInfo =
     {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -290,19 +289,19 @@ vkrPipeline* vkrPipeline_NewGfx(
     vkrPipeline* pipeline = perm_calloc(sizeof(*pipeline));
     pipeline->refcount = 1;
     pipeline->handle = handle;
+    pipeline->layout = layout;
     pipeline->renderPass = renderPass;
     pipeline->subpass = subpass;
-    pipeline->layout = layout;
 
-    vkrRenderPass_Retain(renderPass);
     vkrPipelineLayout_Retain(layout);
+    vkrRenderPass_Retain(renderPass);
 
     return pipeline;
 }
 
 void vkrPipeline_Retain(vkrPipeline* pipeline)
 {
-    if (pipeline && pipeline->refcount > 0)
+    if (vkrAlive(pipeline))
     {
         pipeline->refcount += 1;
     }
@@ -310,7 +309,7 @@ void vkrPipeline_Retain(vkrPipeline* pipeline)
 
 void vkrPipeline_Release(vkrPipeline* pipeline)
 {
-    if (pipeline && pipeline->refcount > 0)
+    if (vkrAlive(pipeline))
     {
         pipeline->refcount -= 1;
         if (pipeline->refcount == 0)

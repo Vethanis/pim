@@ -4,42 +4,30 @@
 
 PIM_C_BEGIN
 
-VkExtensionProperties* vkrEnumInstExtensions(u32* countOut);
+bool vkrDevice_Init(vkr_t* vkr);
+void vkrDevice_Shutdown(vkr_t* vkr);
+
+// ----------------------------------------------------------------------------
+
 VkExtensionProperties* vkrEnumDevExtensions(
     VkPhysicalDevice phdev,
     u32* countOut);
+void vkrListDevExtensions(VkPhysicalDevice phdev);
+strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev);
 
 u32 vkrEnumPhysicalDevices(
     VkInstance inst,
     VkPhysicalDevice** pDevices, // optional
     VkPhysicalDeviceFeatures** pFeatures, // optional
     VkPhysicalDeviceProperties** pProps); // optional
-
-void vkrListInstExtensions(void);
-void vkrListDevExtensions(VkPhysicalDevice phdev);
-strlist_t vkrGetLayers(void);
-strlist_t vkrGetInstExtensions(void);
-strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev);
-i32 vkrFindExtension(
-    const VkExtensionProperties* props,
-    u32 count,
-    const char* extName);
-bool vkrTryAddExtension(
-    strlist_t* list,
-    const VkExtensionProperties* props,
-    u32 propCount,
-    const char* extName);
-
-VkInstance vkrCreateInstance(strlist_t extensions, strlist_t layers);
-
 VkPhysicalDevice vkrSelectPhysicalDevice(
+    const vkrDisplay* display,
     VkPhysicalDeviceProperties* propsOut, // optional
     VkPhysicalDeviceFeatures* featuresOut); // optional
 
 VkDevice vkrCreateDevice(
+    const vkrDisplay* display,
     strlist_t extensions,
-    strlist_t layers,
-    VkQueue* queuesOut, // optional
-    VkQueueFamilyProperties* propsOut); // optional
+    strlist_t layers);
 
 PIM_C_END

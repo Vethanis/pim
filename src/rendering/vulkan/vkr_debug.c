@@ -24,13 +24,12 @@ VkDebugUtilsMessengerEXT vkrCreateDebugMessenger()
     return messenger;
 }
 
-void vkrDestroyDebugMessenger(VkDebugUtilsMessengerEXT* pMessenger)
+void vkrDestroyDebugMessenger(VkDebugUtilsMessengerEXT messenger)
 {
 #ifdef _DEBUG
-    if (pMessenger)
+    if (messenger)
     {
-        vkDestroyDebugUtilsMessengerEXT(g_vkr.inst, *pMessenger, NULL);
-        *pMessenger = NULL;
+        vkDestroyDebugUtilsMessengerEXT(g_vkr.inst, messenger, NULL);
     }
 #endif // _DEBUG
 }

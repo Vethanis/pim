@@ -1,4 +1,4 @@
-#include "rendering/vulkan/vkrcompiler.h"
+#include "rendering/vulkan/vkr_compile.h"
 #include "allocator/allocator.h"
 #include "common/stringutil.h"
 #include "rendering/vulkan/shaderc_table.h"
@@ -30,8 +30,9 @@ static shaderc_include_result* vkrResolveInclude(
         {
             result->source_name = StrDup(path, EAlloc_Perm);
             result->source_name_length = StrLen(result->source_name);
-            void* contents = perm_malloc(size);
+            char* contents = perm_malloc(size + 1);
             i32 readLen = fstr_read(fd, contents, size);
+            contents[size] = 0;
             ASSERT(readLen == size);
             result->content = contents;
             result->content_length = size;
@@ -95,19 +96,23 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
 
     if (!shaderc_open())
     {
+        ASSERT(false);
         return false;
     }
 
     if (!input->text)
     {
+        ASSERT(false);
         return false;
     }
     if (!input->filename)
     {
+        ASSERT(false);
         return false;
     }
     if (!input->entrypoint)
     {
+        ASSERT(false);
         return false;
     }
 
@@ -120,8 +125,9 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
         options, shaderc_source_language_hlsl);
     g_shaderc.compile_options_set_optimization_level(
         options, shaderc_optimization_level_performance);
+    // might not match VK_VERSION, according to validation layers throwing errors
     g_shaderc.compile_options_set_target_env(
-        options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_2);
+        options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_1);
     g_shaderc.compile_options_set_warnings_as_errors(options);
     g_shaderc.compile_options_set_auto_bind_uniforms(options, true);
     g_shaderc.compile_options_set_auto_map_locations(options, true);
@@ -220,6 +226,7 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
     g_shaderc.compiler_release(compiler);
 
     output->type = input->type;
+    output->entrypoint = StrDup(input->entrypoint, EAlloc_Perm);
 
     return status == shaderc_compilation_status_success;
 }
@@ -231,6 +238,32 @@ void vkrCompileOutput_Del(vkrCompileOutput* output)
         pim_free(output->disassembly);
         pim_free(output->dwords);
         pim_free(output->errors);
+        pim_free(output->entrypoint);
         memset(output, 0, sizeof(*output));
     }
+}
+
+char* vkrLoadShader(const char* filename)
+{
+    char* contents = NULL;
+
+    char path[PIM_PATH] = { 0 };
+    SPrintf(ARGS(path), "src/shaders/%s", filename);
+    StrPath(ARGS(path));
+
+    fstr_t fd = fstr_open(path, "rb");
+    if (fstr_isopen(fd))
+    {
+        i32 size = (i32)fstr_size(fd);
+        if (size > 0)
+        {
+            contents = perm_malloc(size + 1);
+            i32 readLen = fstr_read(fd, contents, size);
+            contents[size] = 0;
+            ASSERT(readLen == size);
+        }
+        fstr_close(&fd);
+    }
+
+    return contents;
 }

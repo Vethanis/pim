@@ -1,4 +1,6 @@
 #include "rendering/vulkan/vkr_device.h"
+#include "rendering/vulkan/vkr_instance.h"
+#include "rendering/vulkan/vkr_queue.h"
 #include "rendering/vulkan/vkr_swapchain.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
@@ -6,17 +8,54 @@
 #include <GLFW/glfw3.h>
 #include <string.h>
 
-VkExtensionProperties* vkrEnumInstExtensions(u32* countOut)
+bool vkrDevice_Init(vkr_t* vkr)
 {
-    ASSERT(countOut);
-    u32 count = 0;
-    VkExtensionProperties* props = NULL;
-    VkCheck(vkEnumerateInstanceExtensionProperties(NULL, &count, NULL));
-    TempReserve(props, count);
-    VkCheck(vkEnumerateInstanceExtensionProperties(NULL, &count, props));
-    *countOut = count;
-    return props;
+    ASSERT(vkr);
+
+    vkr->phdev = vkrSelectPhysicalDevice(
+        vkr->display,
+        &vkr->phdevProps,
+        &vkr->phdevFeats);
+    ASSERT(vkr->phdev);
+    if (!vkr->phdev)
+    {
+        return false;
+    }
+
+    vkrListDevExtensions(vkr->phdev);
+
+    vkr->dev = vkrCreateDevice(
+        vkr->display,
+        vkrGetDevExtensions(vkr->phdev),
+        vkrGetLayers());
+    ASSERT(vkr->dev);
+    if (!vkr->dev)
+    {
+        return false;
+    }
+
+    volkLoadDevice(vkr->dev);
+
+    vkrCreateQueues(vkr);
+
+    return true;
 }
+
+void vkrDevice_Shutdown(vkr_t* vkr)
+{
+    if (vkr)
+    {
+        vkrDestroyQueues(vkr);
+        if (vkr->dev)
+        {
+            vkDestroyDevice(vkr->dev, NULL);
+            vkr->dev = NULL;
+        }
+        vkr->phdev = NULL;
+    }
+}
+
+// ----------------------------------------------------------------------------
 
 VkExtensionProperties* vkrEnumDevExtensions(
     VkPhysicalDevice phdev,
@@ -33,49 +72,6 @@ VkExtensionProperties* vkrEnumDevExtensions(
     return props;
 }
 
-i32 vkrFindExtension(
-    const VkExtensionProperties* props,
-    u32 count,
-    const char* extName)
-{
-    ASSERT(props || !count);
-    ASSERT(extName);
-    for (u32 i = 0; i < count; ++i)
-    {
-        if (StrCmp(ARGS(props[i].extensionName), extName) == 0)
-        {
-            return (i32)i;
-        }
-    }
-    return -1;
-}
-
-bool vkrTryAddExtension(
-    strlist_t* list,
-    const VkExtensionProperties* props,
-    u32 propCount,
-    const char* extName)
-{
-    ASSERT(list);
-    if (vkrFindExtension(props, propCount, extName) != -1)
-    {
-        strlist_add(list, extName);
-        return true;
-    }
-    return false;
-}
-
-void vkrListInstExtensions(void)
-{
-    u32 count = 0;
-    VkExtensionProperties* props = vkrEnumInstExtensions(&count);
-    con_logf(LogSev_Info, "Vk", "%d available instance extensions", count);
-    for (u32 i = 0; i < count; ++i)
-    {
-        con_logf(LogSev_Info, "Vk", props[i].extensionName);
-    }
-}
-
 void vkrListDevExtensions(VkPhysicalDevice phdev)
 {
     ASSERT(phdev);
@@ -87,39 +83,6 @@ void vkrListDevExtensions(VkPhysicalDevice phdev)
     {
         con_logf(LogSev_Info, "Vk", props[i].extensionName);
     }
-}
-
-strlist_t vkrGetLayers(void)
-{
-    strlist_t list;
-    strlist_new(&list, EAlloc_Temp);
-#ifdef _DEBUG
-    strlist_add(&list, "VK_LAYER_KHRONOS_validation");
-#endif // _DEBUG
-    return list;
-}
-
-strlist_t vkrGetInstExtensions(void)
-{
-    strlist_t list;
-    strlist_new(&list, EAlloc_Temp);
-
-    u32 count = 0;
-    VkExtensionProperties* props = vkrEnumInstExtensions(&count);
-
-    u32 glfwCount = 0;
-    const char** glfwList = glfwGetRequiredInstanceExtensions(&glfwCount);
-    for (u32 i = 0; i < glfwCount; ++i)
-    {
-        vkrTryAddExtension(&list, props, count, glfwList[i]);
-    }
-
-#ifdef _DEBUG
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_EXT_debug_utils.html
-    vkrTryAddExtension(&list, props, count, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif // _DEBUG
-
-    return list;
 }
 
 static const char* const kRequiredDevExtensions[] =
@@ -167,40 +130,6 @@ strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev)
     return list;
 }
 
-VkInstance vkrCreateInstance(strlist_t extensions, strlist_t layers)
-{
-    const VkApplicationInfo appInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pNext = NULL,
-        .pApplicationName = "pimquake",
-        .applicationVersion = 1,
-        .pEngineName = "pim",
-        .engineVersion = 1,
-        .apiVersion = VK_API_VERSION_1_2,
-    };
-
-    const VkInstanceCreateInfo instInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .pNext = NULL,
-        .flags = 0x0,
-        .pApplicationInfo = &appInfo,
-        .enabledLayerCount = layers.count,
-        .ppEnabledLayerNames = layers.ptr,
-        .enabledExtensionCount = extensions.count,
-        .ppEnabledExtensionNames = extensions.ptr,
-    };
-
-    VkInstance inst = NULL;
-    VkCheck(vkCreateInstance(&instInfo, NULL, &inst));
-
-    strlist_del(&extensions);
-    strlist_del(&layers);
-
-    return inst;
-}
-
 u32 vkrEnumPhysicalDevices(
     VkInstance inst,
     VkPhysicalDevice** pDevices,
@@ -245,13 +174,15 @@ u32 vkrEnumPhysicalDevices(
 }
 
 VkPhysicalDevice vkrSelectPhysicalDevice(
+    const vkrDisplay* display,
     VkPhysicalDeviceProperties* propsOut,
     VkPhysicalDeviceFeatures* featuresOut)
 {
     VkInstance inst = g_vkr.inst;
-    VkSurfaceKHR surf = g_vkrdisp.surf;
     ASSERT(inst);
-    ASSERT(surf);
+    ASSERT(display);
+    VkSurfaceKHR surface = display->surface;
+    ASSERT(surface);
 
     if (propsOut)
     {
@@ -301,18 +232,14 @@ VkPhysicalDevice vkrSelectPhysicalDevice(
     for (u32 i = 0; i < count; ++i)
     {
         VkPhysicalDevice phdev = devices[i];
-        vkrQueueSupport qsup = vkrQueryQueueSupport(phdev, surf);
+        vkrQueueSupport support = vkrQueryQueueSupport(phdev, surface);
 
         bool supportsAll = true;
-        for (i32 j = 0; j < vkrQueueId_COUNT; ++j)
+        for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
         {
-            if (qsup.family[j] < 0)
-            {
-                supportsAll = false;
-                break;
-            }
+            i32 family = support.family[id];
+            supportsAll &= (family >= 0);
         }
-
         hasQueueSupport[i] = supportsAll;
     }
 
@@ -376,44 +303,54 @@ VkPhysicalDevice vkrSelectPhysicalDevice(
 }
 
 VkDevice vkrCreateDevice(
+    const vkrDisplay* display,
     strlist_t extensions,
-    strlist_t layers,
-    VkQueue* queuesOut,
-    VkQueueFamilyProperties* propsOut)
+    strlist_t layers)
 {
     VkPhysicalDevice phdev = g_vkr.phdev;
-    VkSurfaceKHR surf = g_vkrdisp.surf;
     ASSERT(phdev);
-    ASSERT(surf);
+    ASSERT(display);
+    VkSurfaceKHR surface = display->surface;
+    ASSERT(surface);
 
-    const vkrQueueSupport support = vkrQueryQueueSupport(phdev, surf);
+    const vkrQueueSupport support = vkrQueryQueueSupport(phdev, surface);
 
-    i32 famCount = 0;
-    i32 fams[vkrQueueId_COUNT];
-
-    for (i32 i = 0; i < vkrQueueId_COUNT; ++i)
+    i32 familyCount = 0;
+    i32 families[vkrQueueId_COUNT] = { 0 };
+    i32 counts[vkrQueueId_COUNT] = { 0 };
+    for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
     {
-        i32 iFam = support.family[i];
-        ASSERT(iFam >= 0);
-        bool exists = false;
-        for (i32 j = 0; j < famCount; ++j)
+        i32 family = support.family[id];
+        ASSERT(family >= 0);
+        i32 location = -1;
+        for (i32 j = 0; j < familyCount; ++j)
         {
-            exists |= fams[j] == iFam;
+            if (families[j] == family)
+            {
+                location = j;
+                break;
+            }
         }
-        if (!exists)
+        if (location == -1)
         {
-            fams[famCount++] = iFam;
+            location = familyCount;
+            ++familyCount;
+            families[location] = family;
         }
+        counts[location] += 1;
     }
 
-    const float priority = 1.0f;
+    const float priorities[] =
+    {
+        1.0f, 1.0f, 1.0f, 1.0f,
+    };
     VkDeviceQueueCreateInfo queueInfos[vkrQueueId_COUNT] = { 0 };
-    for (i32 i = 0; i < famCount; ++i)
+    for (i32 i = 0; i < familyCount; ++i)
     {
         queueInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueInfos[i].queueFamilyIndex = fams[i];
-        queueInfos[i].queueCount = 1;
-        queueInfos[i].pQueuePriorities = &priority;
+        queueInfos[i].queueFamilyIndex = families[i];
+        queueInfos[i].queueCount = counts[i];
+        queueInfos[i].pQueuePriorities = priorities;
     }
 
     const VkPhysicalDeviceFeatures* availableFeatures = &g_vkr.phdevFeats;
@@ -455,7 +392,7 @@ VkDevice vkrCreateDevice(
     const VkDeviceCreateInfo devInfo =
     {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .queueCreateInfoCount = famCount,
+        .queueCreateInfoCount = familyCount,
         .pQueueCreateInfos = queueInfos,
         .pEnabledFeatures = &phDevFeatures,
         .enabledLayerCount = layers.count,
@@ -466,25 +403,10 @@ VkDevice vkrCreateDevice(
 
     VkDevice device = NULL;
     VkCheck(vkCreateDevice(g_vkr.phdev, &devInfo, NULL, &device));
+    ASSERT(device);
 
     strlist_del(&extensions);
     strlist_del(&layers);
-
-    if (device)
-    {
-        for (i32 i = 0; i < vkrQueueId_COUNT; ++i)
-        {
-            i32 fam = support.family[i];
-            if (queuesOut)
-            {
-                vkGetDeviceQueue(device, fam, 0, queuesOut + i);
-            }
-            if (propsOut)
-            {
-                propsOut[i] = support.props[fam];
-            }
-        }
-    }
 
     return device;
 }

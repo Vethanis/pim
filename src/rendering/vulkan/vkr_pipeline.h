@@ -22,10 +22,10 @@ bool vkrPipelineLayout_Compile(vkrPipelineLayout* layout);
 vkrPipeline* vkrPipeline_NewGfx(
     const vkrFixedFuncs* fixedfuncs,
     const vkrVertexLayout* vertLayout,
-    vkrPipelineLayout* layout, // moved into pipeline's ownership
+    vkrPipelineLayout* layout,
     i32 shaderCount,
     const VkPipelineShaderStageCreateInfo* shaders,
-    vkrRenderPass* renderPass, // moved into pipeline's ownership
+    vkrRenderPass* renderPass,
     i32 subpass);
 
 void vkrPipeline_Retain(vkrPipeline* pipeline);

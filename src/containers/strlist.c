@@ -13,9 +13,9 @@ void strlist_new(strlist_t* list, EAlloc allocator)
 void strlist_del(strlist_t* list)
 {
     ASSERT(list);
-    u32 len = list->count;
+    i32 len = list->count;
     char** pim_noalias ptr = list->ptr;
-    for (u32 i = 0; i < len; ++i)
+    for (i32 i = 0; i < len; ++i)
     {
         pim_free(ptr[i]);
         ptr[i] = NULL;
@@ -28,7 +28,7 @@ void strlist_add(strlist_t* list, const char* item)
 {
     ASSERT(list);
     ASSERT(item);
-    u32 len = ++(list->count);
+    i32 len = ++(list->count);
     PermReserve(list->ptr, len);
     list->ptr[len - 1] = StrDup(item, list->allocator);
 }
@@ -36,9 +36,9 @@ void strlist_add(strlist_t* list, const char* item)
 void strlist_rm(strlist_t* list, i32 i)
 {
     ASSERT(list);
-    u32 len = list->count;
-    u32 back = len - 1u;
-    ASSERT((u32)i < len);
+    i32 len = list->count;
+    i32 back = len - 1;
+    ASSERT(i < len);
     ASSERT(back >= 0);
     list->count = back;
     char** pim_noalias ptr = list->ptr;
@@ -51,13 +51,13 @@ i32 strlist_find(const strlist_t* list, const char* key)
 {
     ASSERT(list);
     ASSERT(key);
-    const u32 len = list->count;
+    const i32 len = list->count;
     const char** pim_noalias ptr = list->ptr;
-    for (u32 i = 0; i < len; ++i)
+    for (i32 i = 0; i < len; ++i)
     {
         if (StrCmp(ptr[i], PIM_PATH, key) == 0)
         {
-            return (i32)i;
+            return i;
         }
     }
     return -1;

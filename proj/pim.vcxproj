@@ -87,11 +87,14 @@
     <ClCompile Include="..\src\rendering\texture.c" />
     <ClCompile Include="..\src\rendering\vulkan\shaderc_table.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr.c" />
-    <ClCompile Include="..\src\rendering\vulkan\vkrcompiler.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_compile.c" />
     <ClCompile Include="..\src\rendering\r_window.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_debug.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_device.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_display.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_pipeline.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_queue.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_renderpass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_shader.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_swapchain.c" />
@@ -244,11 +247,14 @@
     <ClInclude Include="..\src\rendering\vertex_stage.h" />
     <ClInclude Include="..\src\rendering\vulkan\shaderc_table.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr.h" />
-    <ClInclude Include="..\src\rendering\vulkan\vkrcompiler.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_compile.h" />
     <ClInclude Include="..\src\rendering\r_window.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_debug.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_device.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_display.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_instance.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_pipeline.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_queue.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_renderpass.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_shader.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_swapchain.h" />
@@ -334,6 +340,16 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\src\tools\prehash.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="..\src\shaders\first_tri.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

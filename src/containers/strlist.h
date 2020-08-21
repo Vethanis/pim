@@ -7,7 +7,7 @@ PIM_C_BEGIN
 typedef struct strlist_s
 {
     char** ptr;
-    u32 count;
+    i32 count;
     EAlloc allocator;
 } strlist_t;
 

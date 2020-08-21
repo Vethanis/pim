@@ -6,9 +6,12 @@
 
 PIM_C_BEGIN
 
-PIM_FWD_DECL(GLFWwindow);
-
 #define VkCheck(expr) do { VkResult _res = (expr); ASSERT(_res == VK_SUCCESS); } while(0)
+
+#define kMaxSwapchainLength     3
+#define vkrAlive(ptr)           ((ptr) && ((ptr)->refcount > 0))
+
+typedef struct GLFWwindow GLFWwindow;
 
 typedef enum
 {
@@ -19,40 +22,6 @@ typedef enum
 
     vkrQueueId_COUNT
 } vkrQueueId;
-
-typedef struct vkr_t
-{
-    VkInstance inst;
-    VkPhysicalDevice phdev;
-    VkDevice dev;
-    VkQueue queues[vkrQueueId_COUNT];
-    VkQueueFamilyProperties queueProps[vkrQueueId_COUNT];
-    VkPhysicalDeviceFeatures phdevFeats;
-    VkPhysicalDeviceProperties phdevProps;
-    VkDebugUtilsMessengerEXT messenger;
-} vkr_t;
-extern vkr_t g_vkr;
-
-typedef struct vkrDisplay
-{
-    GLFWwindow* win;
-    VkSurfaceKHR surf;
-    VkSwapchainKHR swap;
-    u32 imgCount;
-    VkImage* images;
-    VkImageView* views;
-    i32 format;
-    i32 colorSpace;
-    i32 width;
-    i32 height;
-} vkrDisplay;
-extern vkrDisplay g_vkrdisp;
-
-void vkr_init(i32 width, i32 height);
-void vkr_update(void);
-void vkr_shutdown(void);
-
-// ----------------------------------------------------------------------------
 
 typedef enum
 {
@@ -99,6 +68,7 @@ typedef struct vkrCompileOutput
     vkrShaderType type;
     u32* dwords;
     i32 dwordCount;
+    char* entrypoint;
     char* errors;
     char* disassembly;
 } vkrCompileOutput;
@@ -106,8 +76,9 @@ typedef struct vkrCompileOutput
 typedef struct vkrQueueSupport
 {
     i32 family[vkrQueueId_COUNT];
+    i32 index[vkrQueueId_COUNT];
     u32 count;
-    VkQueueFamilyProperties* props;
+    VkQueueFamilyProperties* properties;
 } vkrQueueSupport;
 
 typedef struct vkrSwapchainSupport
@@ -145,7 +116,7 @@ typedef struct vkrFixedFuncs
     VkRect2D scissor;
     VkPrimitiveTopology topology;
     VkPolygonMode polygonMode;
-    VkCullModeFlags cullMode;
+    VkCullModeFlagBits cullMode;
     VkFrontFace frontFace;
     VkCompareOp depthCompareOp;
     bool scissorOn;
@@ -182,5 +153,61 @@ typedef struct vkrPipeline
     vkrRenderPass* renderPass;
     i32 subpass;
 } vkrPipeline;
+
+typedef struct vkrDisplay
+{
+    i32 refcount;
+    GLFWwindow* window;
+    VkSurfaceKHR surface;
+    i32 width;
+    i32 height;
+} vkrDisplay;
+
+typedef struct vkrSwapchain
+{
+    i32 refcount;
+    VkSwapchainKHR handle;
+    vkrDisplay* display;
+    i32 length;
+    VkImage images[kMaxSwapchainLength];
+    VkImageView views[kMaxSwapchainLength];
+    VkFramebuffer buffers[kMaxSwapchainLength];
+    VkFormat format;
+    VkColorSpaceKHR colorSpace;
+    VkPresentModeKHR mode;
+    i32 width;
+    i32 height;
+} vkrSwapchain;
+
+typedef struct vkrQueue
+{
+    VkQueue handle;
+    i32 family;
+    i32 index;
+    i32 poolcount; // == thread count
+    VkCommandPool* pools[kMaxSwapchainLength];
+    VkExtent3D granularity;
+} vkrQueue;
+
+// ----------------------------------------------------------------------------
+
+typedef struct vkr_t
+{
+    VkInstance inst;
+    VkPhysicalDevice phdev;
+    VkDevice dev;
+    VkPhysicalDeviceFeatures phdevFeats;
+    VkPhysicalDeviceProperties phdevProps;
+    VkDebugUtilsMessengerEXT messenger;
+
+    vkrDisplay* display;
+    vkrSwapchain* chain;
+    vkrQueue queues[vkrQueueId_COUNT];
+} vkr_t;
+extern vkr_t g_vkr;
+
+bool vkr_init(i32 width, i32 height);
+void vkr_update(void);
+void vkr_shutdown(void);
 
 PIM_C_END

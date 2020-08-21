@@ -22,21 +22,21 @@ vkrRenderPass* vkrRenderPass_New(
     };
     VkRenderPass handle = NULL;
     VkCheck(vkCreateRenderPass(g_vkr.dev, &createInfo, NULL, &handle));
-    if (handle)
+    if (!handle)
     {
-        vkrRenderPass* pass = perm_calloc(sizeof(*pass));
-        pass->refcount = 1;
-        pass->handle = handle;
-        pass->attachmentCount = attachmentCount;
-        pass->subpassCount = subpassCount;
-        return pass;
+        return NULL;
     }
-    return NULL;
+    vkrRenderPass* pass = perm_calloc(sizeof(*pass));
+    pass->refcount = 1;
+    pass->handle = handle;
+    pass->attachmentCount = attachmentCount;
+    pass->subpassCount = subpassCount;
+    return pass;
 }
 
 void vkrRenderPass_Retain(vkrRenderPass* pass)
 {
-    if (pass && pass->refcount > 0)
+    if (vkrAlive(pass))
     {
         pass->refcount += 1;
     }
@@ -44,7 +44,7 @@ void vkrRenderPass_Retain(vkrRenderPass* pass)
 
 void vkrRenderPass_Release(vkrRenderPass* pass)
 {
-    if (pass && pass->refcount > 0)
+    if (vkrAlive(pass))
     {
         pass->refcount -= 1;
         if (pass->refcount == 0)
