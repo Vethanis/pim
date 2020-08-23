@@ -147,7 +147,7 @@ typedef struct pt_scene_s
 
 // ----------------------------------------------------------------------------
 
-static cvar_t cv_pt_nee = { cvart_float, 0, "pt_nee", "0.5", "ratio of next event estimation to unidirectional tracing" };
+static cvar_t cv_pt_nee = { cvart_float, 0, "pt_nee", "1", "ratio of next event estimation to unidirectional tracing" };
 
 // ----------------------------------------------------------------------------
 
@@ -209,10 +209,12 @@ pim_inline float4 VEC_CALL SampleDiffuse(
     pt_sampler_t* sampler,
     float4 N);
 pim_inline float4 VEC_CALL RefractBrdfEval(
+    pt_sampler_t* sampler,
     float4 I,
     const surfhit_t* surf,
     float4 L);
 pim_inline float4 VEC_CALL BrdfEval(
+    pt_sampler_t* sampler,
     float4 I,
     const surfhit_t* surf,
     float4 L);
@@ -238,10 +240,9 @@ pim_inline lightsample_t VEC_CALL LightSample(
 pim_inline float VEC_CALL LightEvalPdf(
     pt_sampler_t* sampler,
     const pt_scene_t* scene,
-    i32 iLight,
     float4 ro,
     float4 rd,
-    float4* wuvOut);
+    rayhit_t* hitOut);
 pim_inline float4 VEC_CALL EstimateDirect(
     pt_sampler_t* sampler,
     const pt_scene_t* scene,
@@ -931,7 +932,7 @@ void dofinfo_gui(dofinfo_t* dof)
         dof->aperture = aperture * kMilli;
         igSliderFloat("Focal Length, meters", &dof->focalLength, 0.01f, 100.0f);
         igSliderFloat("Focal Plane Curvature", &dof->focalPlaneCurvature, 0.0f, 1.0f);
-        igSliderInt("Blade Count", &dof->bladeCount, 2, 16, "%d");
+        igSliderInt("Blade Count", &dof->bladeCount, 3, 666, "%d");
         igSliderFloat("Blade Rotation", &dof->bladeRot, 0.0f, kTau);
     }
 }
@@ -960,10 +961,10 @@ pim_inline float2 VEC_CALL GetVert2(
         wuv);
 }
 
-pim_inline float VEC_CALL GetArea(const pt_scene_t* scene, i32 iLight)
+pim_inline float VEC_CALL GetArea(const pt_scene_t* scene, i32 iVert)
 {
     const float4* pim_noalias positions = scene->positions;
-    return TriArea3D(positions[iLight + 0], positions[iLight + 1], positions[iLight + 2]);
+    return TriArea3D(positions[iVert + 0], positions[iVert + 1], positions[iVert + 2]);
 }
 
 pim_inline const material_t* VEC_CALL GetMaterial(
@@ -1140,12 +1141,57 @@ pim_inline float VEC_CALL Schlick(float cosTheta, float k)
     return f1_lerp(r0, 1.0f, t);
 }
 
-// returns attenuation value for the given interaction
-pim_inline float4 VEC_CALL BrdfEval(
+pim_inline float4 VEC_CALL RefractBrdfEval(
+    pt_sampler_t* sampler,
     float4 I,
     const surfhit_t* surf,
     float4 L)
 {
+    scatter_t result = { 0 };
+
+    const float kAir = 1.000277f;
+    const float matIor = surf->ior;
+
+    float4 V = f4_neg(I);
+    float4 N = surf->N;
+    float cosTheta = f4_dot3(V, N);
+    float sinTheta = sqrtf(f1_max(0.0f, 1.0f - cosTheta * cosTheta));
+    bool entering = cosTheta > 0.0f;
+    float etaI = entering ? kAir : matIor;
+    float etaT = entering ? matIor : kAir;
+    float k = etaI / etaT;
+    float F = Schlick(cosTheta, k);
+
+    float alpha = BrdfAlpha(surf->roughness);
+    float4 albedo = F_Schlick(surf->albedo, f4_1, f1_abs(cosTheta));
+    if (((k*sinTheta) > 1.0f) || (Sample1D(sampler) < F))
+    {
+        float NoL = f4_dotsat(N, L);
+        result.pdf = F * f1_lerp(1.0f, LambertPdf(NoL), alpha);
+        result.attenuation = albedo;
+    }
+    else
+    {
+        float4 NT = f4_neg(N);
+        float NoL = f4_dotsat(NT, L);
+        result.pdf = (1.0f - F) * f1_lerp(1.0f, LambertPdf(NoL), alpha);
+        result.attenuation = f4_inv(albedo);
+    }
+    result.attenuation.w = result.pdf;
+    return result.attenuation;
+}
+
+// returns attenuation value for the given interaction
+pim_inline float4 VEC_CALL BrdfEval(
+    pt_sampler_t* sampler,
+    float4 I,
+    const surfhit_t* surf,
+    float4 L)
+{
+    if (surf->flags & matflag_refractive)
+    {
+        return RefractBrdfEval(sampler, I, surf, L);
+    }
     float4 N = surf->N;
     float NoL = f4_dot3(N, L);
     if (NoL <= 0.0f)
@@ -1397,16 +1443,15 @@ pim_inline lightsample_t VEC_CALL LightSample(
 pim_inline float VEC_CALL LightEvalPdf(
     pt_sampler_t* sampler,
     const pt_scene_t* scene,
-    i32 iLight,
     float4 ro,
     float4 rd,
-    float4* wuvOut)
+    rayhit_t* hitOut)
 {
     ray_t ray = { ro, rd };
     rayhit_t hit = pt_intersect_local(scene, ray, 0.0f, 1 << 20);
-    if ((hit.type != hit_nothing) && (hit.index == iLight))
+    *hitOut = hit;
+    if ((hit.type != hit_nothing))
     {
-        *wuvOut = hit.wuvt;
         float distance = hit.wuvt.w;
         if (distance > 0.0f)
         {
@@ -1414,7 +1459,7 @@ pim_inline float VEC_CALL LightEvalPdf(
             float cosTheta = f4_dot3(f4_neg(rd), N);
             if (cosTheta > 0.0f)
             {
-                float area = GetArea(scene, iLight);
+                float area = GetArea(scene, hit.index);
                 return LightPdf(area, cosTheta, distance * distance);
             }
         }
@@ -1431,41 +1476,45 @@ pim_inline float4 VEC_CALL EstimateDirect(
     float4 I)
 {
     float4 result = f4_0;
-    const bool refractive = surf->flags & matflag_refractive;
-    const float pLight = refractive ? 0.0f : 0.5f;
-    const float pBrdf = 1.0f - pLight;
-    if (Sample1D(sampler) < pLight)
     {
         lightsample_t sample = LightSample(sampler, scene, surf->P, iLight);
         float lightPdf = sample.pdf * selectPdf;
         if (lightPdf > 0.0f)
         {
-            float4 brdf = BrdfEval(I, surf, sample.direction);
+            float4 brdf = BrdfEval(sampler, I, surf, sample.direction);
             float brdfPdf = brdf.w;
             if (brdfPdf > 0.0f)
             {
-                float4 Li = f4_mul(sample.irradiance, brdf);
-                Li = f4_divvs(Li, lightPdf * pLight);
+                float weight = PowerHeuristic(lightPdf, brdfPdf);
+                ray_t ray = { surf->P, sample.direction };
+                float4 Tr = CalcTransmittance(sampler, scene, ray.ro, ray.rd, sample.wuvt.w);
+                float4 Li = sample.irradiance;
+                Li = f4_mulvs(Li, weight);
+                Li = f4_mul(Li, Tr);
+                Li = f4_mul(Li, brdf);
+                Li = f4_divvs(Li, lightPdf);
                 result = f4_add(result, Li);
             }
         }
     }
-    else
     {
         scatter_t sample = BrdfScatter(sampler, surf, I);
         float brdfPdf = sample.pdf;
         if (brdfPdf > 0.0f)
         {
             ray_t ray = { surf->P, sample.dir };
-            rayhit_t hit = pt_intersect_local(scene, ray, 0.0f, 1 << 20);
-            if (hit.type != hit_nothing)
+            rayhit_t hit = { 0 };
+            float lightPdf = LightEvalPdf(sampler, scene, ray.ro, ray.rd, &hit);
+            if (lightPdf > 0.0f)
             {
+                float weight = PowerHeuristic(brdfPdf, lightPdf);
+                float4 Tr = CalcTransmittance(sampler, scene, ray.ro, ray.rd, hit.wuvt.w);
                 surfhit_t surf = GetSurface(scene, ray, hit, 1);
                 float4 Li = surf.emission;
-                float4 Tr = CalcTransmittance(sampler, scene, ray.ro, ray.rd, hit.wuvt.w);
+                Li = f4_mulvs(Li, weight);
                 Li = f4_mul(Li, Tr);
                 Li = f4_mul(Li, sample.attenuation);
-                Li = f4_divvs(Li, brdfPdf * pBrdf);
+                Li = f4_divvs(Li, brdfPdf);
                 result = f4_add(result, Li);
             }
         }
@@ -1906,7 +1955,7 @@ pt_result_t VEC_CALL pt_trace_ray(
     float4 light = f4_0;
     float4 attenuation = f4_1;
     const float amtNee = f1_sat(cv_pt_nee.asFloat);
-    const bool useNEE = Sample1D(sampler) < amtNee;
+    bool useNEE = Sample1D(sampler) < amtNee;
 
     for (i32 b = 0; b < 666; ++b)
     {
@@ -1947,6 +1996,11 @@ pt_result_t VEC_CALL pt_trace_ray(
         {
             result.albedo = f4_f3(surf.albedo);
             result.normal = f4_f3(surf.N);
+        }
+        // next event estimation is a bit wonky with refraction
+        if (surf.flags & matflag_refractive)
+        {
+            useNEE = false;
         }
 
         if ((b == 0) || !useNEE)
@@ -2013,7 +2067,7 @@ pim_inline ray_t VEC_CALL CalculateDof(
     ray_t ray)
 {
     float2 offset;
-    if (dof->bladeCount < 3)
+    if (dof->bladeCount == 666)
     {
         offset = SamplePentagram(&sampler->rng);
     }
