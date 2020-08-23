@@ -677,7 +677,7 @@ void render_sys_init(void)
     cmd_reg("pt_stddev", CmdPtStdDev);
     cmd_reg("loadtest", CmdLoadTest);
 
-    vkr_init(kDrawWidth, kDrawHeight);
+    vkr_init(1920, 1080);
 
     texture_sys_init();
     mesh_sys_init();
@@ -724,13 +724,11 @@ void render_sys_update(void)
         {
             Rasterize();
         }
-        else
-        {
-            vkr_update();
-        }
     }
     Present();
     Denoise_Evict();
+
+    vkr_update();
 
     ProfileEnd(pm_update);
 }

@@ -55,6 +55,12 @@ void vkrDevice_Shutdown(vkr_t* vkr)
     }
 }
 
+void vkrDevice_WaitIdle(void)
+{
+    ASSERT(g_vkr.dev);
+    VkCheck(vkDeviceWaitIdle(g_vkr.dev));
+}
+
 // ----------------------------------------------------------------------------
 
 VkExtensionProperties* vkrEnumDevExtensions(

@@ -8,8 +8,12 @@
 #include "rendering/vulkan/vkr_shader.h"
 #include "rendering/vulkan/vkr_pipeline.h"
 #include "rendering/vulkan/vkr_renderpass.h"
+#include "rendering/vulkan/vkr_cmd.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
+#include "common/profiler.h"
+#include "common/time.h"
+#include "threading/task.h"
 #include <string.h>
 
 vkr_t g_vkr;
@@ -182,23 +186,23 @@ bool vkr_init(i32 width, i32 height)
         },
     };
 
-    vkrRenderPass* renderPass = vkrRenderPass_New(
+    g_vkr.renderpass = vkrRenderPass_New(
         NELEM(attachments), attachments,
         NELEM(subpasses), subpasses,
         NELEM(dependencies), dependencies);
     const i32 subpass = 0;
 
-    vkrPipelineLayout* pipeLayout = vkrPipelineLayout_New();
+    vkrSwapchain_SetupBuffers(g_vkr.chain, g_vkr.renderpass);
 
-    vkrPipeline* pipeline = vkrPipeline_NewGfx(
+    g_vkr.layout = vkrPipelineLayout_New();
+
+    g_vkr.pipeline = vkrPipeline_NewGfx(
         &ffuncs,
         &vertLayout,
-        pipeLayout,
+        g_vkr.layout,
         NELEM(shaders), shaders,
-        renderPass,
+        g_vkr.renderpass,
         subpass);
-
-    vkrSwapchain_SetupBuffers(g_vkr.chain, renderPass);
 
     vkrCompileOutput_Del(&vertOutput);
     vkrCompileOutput_Del(&fragOutput);
@@ -207,26 +211,86 @@ bool vkr_init(i32 width, i32 height)
         vkrDestroyShader(shaders + i);
     }
 
-    // TODO: use these
-    vkrPipeline_Release(pipeline);
-    vkrRenderPass_Release(renderPass);
-    vkrPipelineLayout_Release(pipeLayout);
-
     return true;
 }
 
+ProfileMark(pm_update, vkr_update)
 void vkr_update(void)
 {
+    if (!g_vkr.inst)
+    {
+        return;
+    }
+    if (!vkrDisplay_IsOpen(g_vkr.display))
+    {
+        vkr_shutdown();
+        return;
+    }
 
+    if (vkrDisplay_UpdateSize(g_vkr.display))
+    {
+        g_vkr.chain = vkrSwapchain_Recreate(
+            g_vkr.display,
+            g_vkr.chain,
+            g_vkr.renderpass);
+    }
+    vkrSwapchain* chain = g_vkr.chain;
+    if (!chain)
+    {
+        return;
+    }
+
+    ProfileBegin(pm_update);
+
+    const i32 tid = task_thread_id();
+    vkrSwapFrame swapframe = { 0 };
+    VkRect2D rect = vkrSwapchain_GetRect(chain);
+    VkViewport viewport = vkrSwapchain_GetViewport(chain);
+    const VkClearValue clearValue =
+    {
+        .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+    };
+
+    u32 syncIndex = vkrSwapchain_Acquire(chain, &swapframe);
+    VkCommandBuffer cmd = vkrCmdGet(vkrQueueId_Gfx, tid);
+    {
+        vkrCmdReset(cmd, 0);
+        vkrCmdBegin(cmd, 0);
+        {
+            vkrCmdViewport(cmd, viewport, rect);
+            vkrCmdBeginRenderPass(
+                cmd,
+                g_vkr.renderpass,
+                swapframe.buffer,
+                rect,
+                clearValue);
+            vkrCmdBindPipeline(cmd, g_vkr.pipeline);
+            vkrCmdDraw(cmd, 3, 0);
+            vkrCmdEndRenderPass(cmd);
+        }
+        vkrCmdEnd(cmd);
+    }
+    vkrSwapchain_Present(chain, vkrQueueId_Gfx, cmd);
+
+    ProfileEnd(pm_update);
 }
 
 void vkr_shutdown(void)
 {
-    vkrSwapchain_Release(g_vkr.chain);
-    g_vkr.chain = NULL;
-    vkrDevice_Shutdown(&g_vkr);
-    vkrDisplay_Release(g_vkr.display);
-    g_vkr.display = NULL;
-    vkrInstance_Shutdown(&g_vkr);
+    if (g_vkr.inst)
+    {
+        vkrDevice_WaitIdle();
+
+        vkrPipeline_Release(g_vkr.pipeline);
+        vkrRenderPass_Release(g_vkr.renderpass);
+        vkrPipelineLayout_Release(g_vkr.layout);
+
+        vkrSwapchain_Release(g_vkr.chain);
+        g_vkr.chain = NULL;
+        vkrDevice_Shutdown(&g_vkr);
+        vkrDisplay_Release(g_vkr.display);
+        g_vkr.display = NULL;
+        vkrInstance_Shutdown(&g_vkr);
+    }
 }
 

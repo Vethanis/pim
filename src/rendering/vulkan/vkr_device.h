@@ -6,6 +6,7 @@ PIM_C_BEGIN
 
 bool vkrDevice_Init(vkr_t* vkr);
 void vkrDevice_Shutdown(vkr_t* vkr);
+void vkrDevice_WaitIdle(void);
 
 // ----------------------------------------------------------------------------
 

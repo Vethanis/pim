@@ -499,6 +499,12 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_queue.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_cmd.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_sync.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -1063,6 +1069,12 @@
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr_queue.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_cmd.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_sync.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
   </ItemGroup>

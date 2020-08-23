@@ -31,6 +31,7 @@ vkrRenderPass* vkrRenderPass_New(
     pass->handle = handle;
     pass->attachmentCount = attachmentCount;
     pass->subpassCount = subpassCount;
+    pass->dependencyCount = dependencyCount;
     return pass;
 }
 

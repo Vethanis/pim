@@ -11,4 +11,10 @@ void vkrDisplay_Release(vkrDisplay* display);
 // returns true when width or height has changed
 bool vkrDisplay_UpdateSize(vkrDisplay* display);
 
+// returns false when the display window should close
+bool vkrDisplay_IsOpen(const vkrDisplay* display);
+
+// processes windowing and input event queue
+void vkrDisplay_PollEvents(const vkrDisplay* display);
+
 PIM_C_END

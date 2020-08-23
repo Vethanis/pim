@@ -9,6 +9,20 @@ void vkrSwapchain_Retain(vkrSwapchain* chain);
 void vkrSwapchain_Release(vkrSwapchain* chain);
 void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, vkrRenderPass* presentPass);
 
+vkrSwapchain* vkrSwapchain_Recreate(
+    vkrDisplay* display,
+    vkrSwapchain* prev,
+    vkrRenderPass* presentPass);
+
+u32 vkrSwapchain_Acquire(vkrSwapchain* chain, vkrSwapFrame* dstFrame);
+void vkrSwapchain_Present(
+    vkrSwapchain* chain,
+    vkrQueueId cmdQueue,
+    VkCommandBuffer cmd);
+
+VkViewport vkrSwapchain_GetViewport(const vkrSwapchain* chain);
+VkRect2D vkrSwapchain_GetRect(const vkrSwapchain* chain);
+
 // ----------------------------------------------------------------------------
 
 vkrSwapchainSupport vkrQuerySwapchainSupport(

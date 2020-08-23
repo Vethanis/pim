@@ -1,8 +1,11 @@
 #include "rendering/vulkan/vkr_swapchain.h"
 #include "rendering/vulkan/vkr_display.h"
 #include "rendering/vulkan/vkr_queue.h"
+#include "rendering/vulkan/vkr_sync.h"
+#include "rendering/vulkan/vkr_device.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
+#include "common/profiler.h"
 #include "math/scalar.h"
 #include <GLFW/glfw3.h>
 #include <string.h>
@@ -25,8 +28,7 @@ vkrSwapchain* vkrSwapchain_New(vkrDisplay* display, vkrSwapchain* prev)
     VkPresentModeKHR mode = vkrSelectSwapMode(sup.modes, sup.modeCount);
     VkExtent2D ext = vkrSelectSwapExtent(&sup.caps, display->width, display->height);
 
-    u32 maxImages = i1_min(kMaxSwapchainLength, sup.caps.maxImageCount);
-    u32 imgCount = i1_clamp(2, sup.caps.minImageCount, maxImages);
+    u32 imgCount = i1_clamp(2, sup.caps.minImageCount, sup.caps.maxImageCount);
 
     const u32 families[] =
     {
@@ -82,25 +84,40 @@ vkrSwapchain* vkrSwapchain_New(vkrDisplay* display, vkrSwapchain* prev)
     chain->display = display;
 
     VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, NULL));
-    chain->length = imgCount;
-    ASSERT(imgCount <= kMaxSwapchainLength);
-    VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, chain->images));
+    VkImage* images = tmp_calloc(sizeof(images[0]) * imgCount);
+    VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, images));
 
+    vkrSwapFrame* frames = perm_calloc(sizeof(frames[0]) * imgCount);
     for (u32 i = 0; i < imgCount; ++i)
     {
-        ASSERT(chain->images[i]);
+        VkImage image = images[i];
+        ASSERT(image);
+
         const VkImageViewCreateInfo viewInfo =
         {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = chain->images[i],
+            .image = image,
             .format = chain->format,
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
             .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .subresourceRange.levelCount = 1,
             .subresourceRange.layerCount = 1,
         };
-        VkCheck(vkCreateImageView(dev, &viewInfo, NULL, chain->views + i));
-        ASSERT(chain->views[i]);
+        VkImageView view = NULL;
+        VkCheck(vkCreateImageView(dev, &viewInfo, NULL, &view));
+        ASSERT(view);
+
+        frames[i].image = image;
+        frames[i].view = view;
+    }
+    chain->length = imgCount;
+    chain->frames = frames;
+
+    for (i32 i = 0; i < kFramesInFlight; ++i)
+    {
+        chain->fences[i] = vkrCreateFence(true);
+        chain->availableSemas[i] = vkrCreateSemaphore();
+        chain->renderedSemas[i] = vkrCreateSemaphore();
     }
 
     return chain;
@@ -122,27 +139,43 @@ void vkrSwapchain_Release(vkrSwapchain* chain)
         if (chain->refcount == 0)
         {
             VkDevice dev = g_vkr.dev;
-
-            const i32 len = chain->length;
-            VkImageView* views = chain->views;
-            VkFramebuffer* buffers = chain->buffers;
-            for (i32 i = 0; i < len; ++i)
+            ASSERT(dev);
+            vkDeviceWaitIdle(dev);
+            for (i32 i = 0; i < kFramesInFlight; ++i)
             {
-                VkImageView view = views[i];
-                views[i] = NULL;
-                if (view)
-                {
-                    vkDestroyImageView(dev, view, NULL);
-                }
-                VkFramebuffer buffer = buffers[i];
-                buffers[i] = NULL;
-                if (buffer)
-                {
-                    vkDestroyFramebuffer(dev, buffer, NULL);
-                }
+                vkrDestroyFence(chain->fences[i]);
+                chain->fences[i] = NULL;
+                vkrDestroySemaphore(chain->availableSemas[i]);
+                chain->availableSemas[i] = NULL;
+                vkrDestroySemaphore(chain->renderedSemas[i]);
+                chain->renderedSemas[i] = NULL;
             }
+            {
+                const i32 len = chain->length;
+                vkrSwapFrame* images = chain->frames;
+                chain->length = 0;
+                chain->frames = NULL;
+                for (i32 i = 0; i < len; ++i)
+                {
+                    if (images[i].view)
+                    {
+                        vkDestroyImageView(dev, images[i].view, NULL);
+                    }
+                    if (images[i].buffer)
+                    {
+                        vkDestroyFramebuffer(dev, images[i].buffer, NULL);
+                    }
+                    images[i].view = NULL;
+                    images[i].buffer = NULL;
+                    images[i].image = NULL;
+                }
+                pim_free(images);
+            }
+
             vkDestroySwapchainKHR(dev, chain->handle, NULL);
+
             vkrDisplay_Release(chain->display);
+
             memset(chain, 0, sizeof(*chain));
             pim_free(chain);
         }
@@ -154,12 +187,21 @@ void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, vkrRenderPass* presentPass)
     ASSERT(vkrAlive(chain));
     ASSERT(vkrAlive(presentPass));
     const i32 len = chain->length;
+    vkrSwapFrame* images = chain->frames;
     for (i32 i = 0; i < len; ++i)
     {
-        ASSERT(chain->views[i]);
+        VkImageView view = images[i].view;
+        VkFramebuffer buffer = images[i].buffer;
+        if (buffer)
+        {
+            vkDestroyFramebuffer(g_vkr.dev, buffer, NULL);
+            buffer = NULL;
+        }
+
+        ASSERT(view);
         const VkImageView attachments[] =
         {
-            chain->views[i],
+            view,
         };
         const VkFramebufferCreateInfo bufferInfo =
         {
@@ -171,16 +213,172 @@ void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, vkrRenderPass* presentPass)
             .height = chain->height,
             .layers = 1,
         };
-        if (chain->buffers[i])
-        {
-            vkDestroyFramebuffer(g_vkr.dev, chain->buffers[i], NULL);
-            chain->buffers[i] = NULL;
-        }
-        VkFramebuffer buffer = NULL;
         VkCheck(vkCreateFramebuffer(g_vkr.dev, &bufferInfo, NULL, &buffer));
         ASSERT(buffer);
-        chain->buffers[i] = buffer;
+
+        images[i].buffer = buffer;
     }
+}
+
+vkrSwapchain* vkrSwapchain_Recreate(
+    vkrDisplay* display,
+    vkrSwapchain* prev,
+    vkrRenderPass* presentPass)
+{
+    ASSERT(vkrAlive(display));
+    ASSERT(vkrAlive(presentPass));
+    vkrSwapchain* chain = NULL;
+    vkrDevice_WaitIdle();
+    if ((display->width > 0) && (display->height > 0))
+    {
+        chain = vkrSwapchain_New(display, prev);
+        vkrSwapchain_SetupBuffers(chain, presentPass);
+    }
+    vkrSwapchain_Release(prev);
+    return chain;
+}
+
+ProfileMark(pm_acquire, vkrSwapchain_Acquire)
+u32 vkrSwapchain_Acquire(
+    vkrSwapchain* chain,
+    vkrSwapFrame* dstFrame)
+{
+    ProfileBegin(pm_acquire);
+
+    ASSERT(vkrAlive(chain));
+    ASSERT(chain->handle);
+    ASSERT(dstFrame);
+
+    const u32 syncIndex = chain->syncIndex;
+    VkSemaphore beginSema = chain->availableSemas[syncIndex];
+    ASSERT(beginSema);
+
+    const u32 imageCount = chain->length;
+    ASSERT(imageCount > 0);
+    u32 imageIndex = 0;
+    const u64 timeout = -1;
+    vkAcquireNextImageKHR(
+        g_vkr.dev,
+        chain->handle,
+        timeout,
+        beginSema,
+        NULL,
+        &imageIndex);
+
+    ASSERT(imageIndex < imageCount);
+    vkrSwapFrame* frames = chain->frames;
+    {
+        VkFence imageFence = frames[imageIndex].fence;
+        if (imageFence)
+        {
+            vkrWaitFence(imageFence);
+        }
+    }
+    frames[imageIndex].fence = chain->fences[syncIndex];
+    chain->imageIndex = imageIndex;
+
+    *dstFrame = frames[imageIndex];
+
+    ProfileEnd(pm_acquire);
+    return syncIndex;
+}
+
+ProfileMark(pm_present, vkrSwapchain_Present)
+ProfileMark(pm_submit, vkrSwapchain_Submit)
+void vkrSwapchain_Present(
+    vkrSwapchain* chain,
+    vkrQueueId cmdQueue,
+    VkCommandBuffer cmd)
+{
+ProfileBegin(pm_submit);
+
+    ASSERT(vkrAlive(chain));
+    ASSERT(chain->handle);
+    ASSERT(cmd);
+    VkQueue submitQueue = g_vkr.queues[cmdQueue].handle;
+    VkQueue presentQueue = g_vkr.queues[vkrQueueId_Pres].handle;
+    ASSERT(submitQueue);
+    ASSERT(presentQueue);
+
+    const u32 syncIndex = chain->syncIndex;
+    VkFence signalFence = chain->fences[syncIndex];
+    vkrResetFence(signalFence);
+    const VkSemaphore waitSemaphores[] =
+    {
+        chain->availableSemas[syncIndex],
+    };
+    const VkPipelineStageFlags waitMasks[] =
+    {
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    };
+    const VkSemaphore signalSemaphores[] =
+    {
+        chain->renderedSemas[syncIndex],
+    };
+    const VkSubmitInfo submitInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = NELEM(waitSemaphores),
+        .pWaitSemaphores = waitSemaphores,
+        .pWaitDstStageMask = waitMasks,
+        .signalSemaphoreCount = NELEM(signalSemaphores),
+        .pSignalSemaphores = signalSemaphores,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &cmd,
+    };
+    VkCheck(vkQueueSubmit(submitQueue, 1, &submitInfo, signalFence));
+
+ProfileEnd(pm_submit);
+ProfileBegin(pm_present);
+
+    const VkSwapchainKHR swapchains[] = 
+    {
+        chain->handle,
+    };
+    const uint32_t imageIndices[] =
+    {
+        chain->imageIndex,
+    };
+    const VkPresentInfoKHR presentInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = NELEM(signalSemaphores),
+        .pWaitSemaphores = signalSemaphores,
+        .swapchainCount = NELEM(swapchains),
+        .pSwapchains = swapchains,
+        .pImageIndices = imageIndices,
+    };
+    VkCheck(vkQueuePresentKHR(presentQueue, &presentInfo));
+
+    chain->syncIndex = (syncIndex + 1) % kFramesInFlight;
+
+ProfileEnd(pm_present);
+}
+
+VkViewport vkrSwapchain_GetViewport(const vkrSwapchain* chain)
+{
+    ASSERT(vkrAlive(chain));
+    VkViewport viewport =
+    {
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = (float)chain->width,
+        .height = (float)chain->height,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+    return viewport;
+}
+
+VkRect2D vkrSwapchain_GetRect(const vkrSwapchain* chain)
+{
+    ASSERT(vkrAlive(chain));
+    VkRect2D rect =
+    {
+        .extent.width = chain->width,
+        .extent.height = chain->height,
+    };
+    return rect;
 }
 
 // ----------------------------------------------------------------------------

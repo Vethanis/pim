@@ -87,6 +87,7 @@
     <ClCompile Include="..\src\rendering\texture.c" />
     <ClCompile Include="..\src\rendering\vulkan\shaderc_table.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_cmd.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_compile.c" />
     <ClCompile Include="..\src\rendering\r_window.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_debug.c" />
@@ -98,6 +99,7 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_renderpass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_shader.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_swapchain.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_sync.c" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
     <ClCompile Include="..\src\stb\stb_image.c" />
@@ -247,6 +249,7 @@
     <ClInclude Include="..\src\rendering\vertex_stage.h" />
     <ClInclude Include="..\src\rendering\vulkan\shaderc_table.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_cmd.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_compile.h" />
     <ClInclude Include="..\src\rendering\r_window.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_debug.h" />
@@ -258,6 +261,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_renderpass.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_shader.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_swapchain.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_sync.h" />
     <ClInclude Include="..\src\sokol\sokol_audio.h" />
     <ClInclude Include="..\src\sokol\sokol_time.h" />
     <ClInclude Include="..\src\stb\stb_perlin_fork.h" />

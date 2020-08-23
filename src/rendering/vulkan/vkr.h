@@ -8,7 +8,7 @@ PIM_C_BEGIN
 
 #define VkCheck(expr) do { VkResult _res = (expr); ASSERT(_res == VK_SUCCESS); } while(0)
 
-#define kMaxSwapchainLength     3
+#define kFramesInFlight         3
 #define vkrAlive(ptr)           ((ptr) && ((ptr)->refcount > 0))
 
 typedef struct GLFWwindow GLFWwindow;
@@ -143,12 +143,14 @@ typedef struct vkrRenderPass
     VkRenderPass handle;
     i32 subpassCount;
     i32 attachmentCount;
+    i32 dependencyCount;
 } vkrRenderPass;
 
 typedef struct vkrPipeline
 {
     i32 refcount;
     VkPipeline handle;
+    VkPipelineBindPoint bindpoint;
     vkrPipelineLayout* layout;
     vkrRenderPass* renderPass;
     i32 subpass;
@@ -163,20 +165,31 @@ typedef struct vkrDisplay
     i32 height;
 } vkrDisplay;
 
+typedef struct vkrSwapFrame
+{
+    VkImage image;
+    VkImageView view;
+    VkFramebuffer buffer;
+    VkFence fence; // copy of fences[i]
+} vkrSwapFrame;
+
 typedef struct vkrSwapchain
 {
     i32 refcount;
     VkSwapchainKHR handle;
     vkrDisplay* display;
-    i32 length;
-    VkImage images[kMaxSwapchainLength];
-    VkImageView views[kMaxSwapchainLength];
-    VkFramebuffer buffers[kMaxSwapchainLength];
     VkFormat format;
     VkColorSpaceKHR colorSpace;
     VkPresentModeKHR mode;
     i32 width;
     i32 height;
+    i32 length;
+    vkrSwapFrame* frames;
+    u32 syncIndex;
+    u32 imageIndex;
+    VkFence fences[kFramesInFlight];
+    VkSemaphore availableSemas[kFramesInFlight];
+    VkSemaphore renderedSemas[kFramesInFlight];
 } vkrSwapchain;
 
 typedef struct vkrQueue
@@ -184,10 +197,19 @@ typedef struct vkrQueue
     VkQueue handle;
     i32 family;
     i32 index;
-    i32 poolcount; // == thread count
-    VkCommandPool* pools[kMaxSwapchainLength];
+    i32 threadcount;
+    VkCommandPool* pools[kFramesInFlight];
+    VkCommandBuffer* buffers[kFramesInFlight];
     VkExtent3D granularity;
 } vkrQueue;
+
+typedef struct vkrCmdBuf
+{
+    VkCommandBuffer handle;
+    vkrQueue* queue;
+    i32 frame;
+    i32 tid;
+} vkrCmdBuf;
 
 // ----------------------------------------------------------------------------
 
@@ -203,6 +225,10 @@ typedef struct vkr_t
     vkrDisplay* display;
     vkrSwapchain* chain;
     vkrQueue queues[vkrQueueId_COUNT];
+
+    vkrPipeline* pipeline;
+    vkrRenderPass* renderpass;
+    vkrPipelineLayout* layout;
 } vkr_t;
 extern vkr_t g_vkr;
 

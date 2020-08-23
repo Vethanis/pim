@@ -289,6 +289,7 @@ vkrPipeline* vkrPipeline_NewGfx(
     vkrPipeline* pipeline = perm_calloc(sizeof(*pipeline));
     pipeline->refcount = 1;
     pipeline->handle = handle;
+    pipeline->bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     pipeline->layout = layout;
     pipeline->renderPass = renderPass;
     pipeline->subpass = subpass;
