@@ -203,14 +203,6 @@ typedef struct vkrQueue
     VkExtent3D granularity;
 } vkrQueue;
 
-typedef struct vkrCmdBuf
-{
-    VkCommandBuffer handle;
-    vkrQueue* queue;
-    i32 frame;
-    i32 tid;
-} vkrCmdBuf;
-
 // ----------------------------------------------------------------------------
 
 typedef struct vkr_t

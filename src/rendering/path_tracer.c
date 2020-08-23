@@ -1014,7 +1014,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     {
         if (texture_get(mat->normal, &tex))
         {
-            float4 Nts = f4_normalize3(UvBilinearWrap_dir8(tex.texels, tex.size, uv));
+            float4 Nts = UvBilinearWrap_dir8(tex.texels, tex.size, uv);
             surf.N = TanToWorld(surf.N, Nts);
         }
     }
