@@ -84,20 +84,13 @@ bool texture_loadat(const char* path, textureid_t* idOut)
     i32 width = 0;
     i32 height = 0;
     i32 channels = 0;
-    u8* pim_noalias texelsu8 = stbi_load(path, &width, &height, &channels, 4);
-    if (texelsu8)
+    // STBI_MALLOC => perm_malloc
+    u32* pim_noalias texels = (u32*)stbi_load(path, &width, &height, &channels, 4);
+    if (texels)
     {
-        const i32 len = width * height;
-        float4* pim_noalias texelsf4 = perm_malloc(sizeof(texelsf4[0]) * len);
-        for (i32 i = 0; i < len; ++i)
-        {
-            texelsf4[i] = ColorToLinear(texelsu8[i]);
-        }
-        stbi_image_free(texelsu8);
-
         texture_t tex = { 0 };
         tex.size = (int2) { width, height };
-        tex.texels = texelsf4;
+        tex.texels = texels;
         guid_t name = guid_str(path, guid_seed);
         return texture_new(&tex, name, idOut);
     }
@@ -354,9 +347,9 @@ bool texture_unpalette(
         const bool isLight = StrIStr(name, 16, "light");
         const bool fullEmit = isSky || isTeleport || isWindow;
 
-        float4* pim_noalias albedo = perm_malloc(len * sizeof(albedo[0]));
-        float4* pim_noalias rome = perm_malloc(len * sizeof(rome[0]));
-        float4* pim_noalias normal = perm_malloc(len * sizeof(normal[0]));
+        u32* pim_noalias albedo = perm_malloc(len * sizeof(albedo[0]));
+        u32* pim_noalias rome = perm_malloc(len * sizeof(rome[0]));
+        u32* pim_noalias normal = perm_malloc(len * sizeof(normal[0]));
 
         float2* pim_noalias gray = perm_malloc(len * sizeof(gray[0]));
 
@@ -373,7 +366,7 @@ bool texture_unpalette(
             max = f2_max(max, grayscale);
 
             gray[i] = grayscale;
-            albedo[i] = f4_saturate(linear);
+            albedo[i] = LinearToColor(linear);
         }
 
         // TODO: make a node graph tool, setup some rules
@@ -397,7 +390,7 @@ bool texture_unpalette(
                 emission = DecodeEmission(encoded, isLight);
             }
 
-            rome[i] = f4_saturate(f4_v(roughness, occlusion, metallic, emission));
+            rome[i] = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
         }
 
         for (i32 y = 0; y < size.y; ++y)
@@ -419,11 +412,7 @@ bool texture_unpalette(
                 float dy = u - d;
                 float z = 2.0f;
                 float4 N = { dx, dy, z, 1.0f };
-                N = f4_normalize3(N);
-                //u32 n = f4_rgba8(f4_unorm(f4_normalize3(N)));
-                //n |= 0xff << 24;
-
-                normal[i] = N;
+                normal[i] = DirectionToColor(N);
             }
         }
 
@@ -518,8 +507,8 @@ static void igTexture(const texture_t* tex)
 
     const i32 width = tex->size.x;
     const i32 height = tex->size.y;
-    const float4* data = tex->texels;
-    if (!data)
+    const u32* texels = tex->texels;
+    if (!texels)
     {
         ASSERT(false);
         return;
@@ -542,8 +531,8 @@ static void igTexture(const texture_t* tex)
         height,                     // height
         GL_FALSE,                   // border
         GL_RGBA,                    // format
-        GL_FLOAT,                   // type
-        data);                      // data
+        GL_UNSIGNED_BYTE,           // type
+        texels);                    // data
     ASSERT(!glGetError());
 
     glBindTexture(GL_TEXTURE_2D, 0);

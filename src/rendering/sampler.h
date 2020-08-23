@@ -165,7 +165,7 @@ pim_inline float4 VEC_CALL UvWrap_dir8(const u32* buffer, int2 size, float2 uv)
 {
     i32 index = UvWrap(size, uv);
     u32 dir8 = buffer[index];
-    float4 dir = rgba8_dir(dir8);
+    float4 dir = ColorToDirection(dir8);
     return dir;
 }
 
@@ -388,10 +388,10 @@ pim_inline float4 VEC_CALL UvBilinearWrap_dir8(const u32* pim_noalias buffer, in
     u32 cb = buffer[ib];
     u32 cc = buffer[ic];
     u32 cd = buffer[id];
-    float4 a = rgba8_dir(ca);
-    float4 b = rgba8_dir(cb);
-    float4 c = rgba8_dir(cc);
-    float4 d = rgba8_dir(cd);
+    float4 a = ColorToDirection(ca);
+    float4 b = ColorToDirection(cb);
+    float4 c = ColorToDirection(cc);
+    float4 d = ColorToDirection(cd);
     float4 N = BilinearBlend_f4(a, b, c, d, bi.frac);
     return f4_normalize3(N);
 }

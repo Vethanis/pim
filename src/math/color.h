@@ -41,11 +41,6 @@ pim_inline float4 VEC_CALL rgba8_f4(u32 c)
     return f4_v((r + 0.5f) * s, (g + 0.5f) * s, (b + 0.5f) * s, (a + 0.5f) * s);
 }
 
-pim_inline float4 VEC_CALL rgba8_dir(u32 c)
-{
-    return f4_normalize3(f4_snorm(rgba8_f4(c)));
-}
-
 // reference sRGB -> Linear conversion (no approximation)
 pim_inline float VEC_CALL sRGBToLinear(float c)
 {
@@ -98,6 +93,18 @@ pim_inline float4 VEC_CALL f4_tosrgb(float4 c)
     float4 s2 = f4_sqrt(s1);
     float4 s3 = f4_sqrt(s2);
     return f4_add(f4_add(f4_mulvs(s1, 0.658444f), f4_mulvs(s2, 0.643378f)), f4_mulvs(s3, -0.298148f));
+}
+
+pim_inline u32 VEC_CALL DirectionToColor(float4 dir)
+{
+    u32 c = f4_rgba8(f4_unorm(f4_normalize3(dir)));
+    c |= 0xff << 24; // *should* encode more info here, but for now alpha=1 for inspector
+    return c;
+}
+
+pim_inline float4 VEC_CALL ColorToDirection(u32 c)
+{
+    return f4_normalize3(f4_snorm(rgba8_f4(c)));
 }
 
 pim_inline u32 VEC_CALL LinearToColor(float4 lin)

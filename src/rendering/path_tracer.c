@@ -606,7 +606,7 @@ static float EmissionPdf(
             {
                 float4 wuv = SampleBaryCoord(Sample2D(sampler));
                 float2 uv = f2_blend(UA, UB, UC, wuv);
-                float sample = romeMap.texels[UvWrap(romeMap.size, uv)].w;
+                float sample = UvWrap_c32(romeMap.texels, romeMap.size, uv).w;
                 float em = sample * rome.w;
                 if (em > kThreshold)
                 {
@@ -1014,7 +1014,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     {
         if (texture_get(mat->normal, &tex))
         {
-            float4 Nts = f4_normalize3(UvBilinearWrap_f4(tex.texels, tex.size, uv));
+            float4 Nts = f4_normalize3(UvBilinearWrap_dir8(tex.texels, tex.size, uv));
             surf.N = TanToWorld(surf.N, Nts);
         }
     }
@@ -1025,11 +1025,11 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         float4 sample;
         if (bounce == 0)
         {
-            sample = UvBilinearWrap_f4(tex.texels, tex.size, uv);
+            sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
         }
         else
         {
-            sample = tex.texels[UvWrap(tex.size, uv)];
+            sample = UvWrap_c32(tex.texels, tex.size, uv);
         }
         surf.albedo = f4_mul(surf.albedo, sample);
     }
@@ -1040,11 +1040,11 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         float4 sample;
         if (bounce == 0)
         {
-            sample = UvBilinearWrap_f4(tex.texels, tex.size, uv);
+            sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
         }
         else
         {
-            sample = tex.texels[UvWrap(tex.size, uv)];
+            sample = UvWrap_c32(tex.texels, tex.size, uv);
         }
         rome = f4_mul(rome, sample);
     }

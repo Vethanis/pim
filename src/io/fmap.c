@@ -4,27 +4,21 @@
 #include <io.h>
 #include <string.h>
 
-bool fmap_create(fmap_t* fmap, fd_t fd, bool writable)
+fmap_t fmap_create(fd_t fd, bool writable)
 {
-    if (!fmap)
-    {
-        ASSERT(false);
-        return false;
-    }
+    fmap_t result = { 0 };
     if (!fd_isopen(fd))
     {
         ASSERT(false);
-        return false;
+        return result;
     }
-
-    memset(fmap, 0, sizeof(*fmap));
 
     HANDLE hdl = (HANDLE)_get_osfhandle(fd.handle);
     if (hdl == INVALID_HANDLE_VALUE)
     {
         // stale or closed file descriptor?
         ASSERT(false);
-        return false;
+        return result;
     }
 
     i32 size = (i32)fd_size(fd);
@@ -32,7 +26,7 @@ bool fmap_create(fmap_t* fmap, fd_t fd, bool writable)
     {
         // files bigger than 2GB are not supported
         ASSERT(false);
-        return false;
+        return result;
     }
 
     i32 flProtect = writable ? PAGE_READWRITE : PAGE_READONLY;
@@ -43,7 +37,7 @@ bool fmap_create(fmap_t* fmap, fd_t fd, bool writable)
     {
         // file descriptor is probably not writable
         ASSERT(false);
-        return false;
+        return result;
     }
 
     void* map = MapViewOfFile(fileMapping, dwDesiredAccess, 0, 0, size);
@@ -52,14 +46,14 @@ bool fmap_create(fmap_t* fmap, fd_t fd, bool writable)
     if (!map)
     {
         ASSERT(false);
-        return false;
+        return result;
     }
 
-    fmap->ptr = map;
-    fmap->size = size;
-    fmap->fd = fd;
+    result.ptr = map;
+    result.size = size;
+    result.fd = fd;
 
-    return true;
+    return result;
 }
 
 void fmap_destroy(fmap_t* fmap)

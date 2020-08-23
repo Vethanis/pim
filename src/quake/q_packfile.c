@@ -18,11 +18,10 @@ pack_t pack_load(const char* path, EAlloc allocator)
         return pack;
     }
 
-    fmap_t map;
-    fmap_create(&map, fd, 0);
+    fmap_t map = fmap_create(fd, false);
     fd_close(&fd);
 
-    if (!map.ptr)
+    if (!fmap_isopen(map))
     {
         return pack;
     }

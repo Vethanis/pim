@@ -20,7 +20,7 @@ typedef struct dtextureid_s
 typedef struct texture_s
 {
     int2 size;
-    float4* pim_noalias texels;
+    u32* pim_noalias texels;
 } texture_t;
 
 void texture_sys_init(void);
