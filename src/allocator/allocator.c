@@ -3,6 +3,7 @@
 #include "common/atomics.h"
 #include "threading/mutex.h"
 #include "threading/task.h"
+#include "threading/thread.h"
 #include "tlsf/tlsf.h"
 
 #include <string.h>
@@ -36,7 +37,6 @@ static i32 ms_tempIndex;
 static mutex_t ms_perm_mtx;
 static tlsf_t ms_perm;
 static linear_allocator_t ms_temp[kTempFrames];
-static tlsf_t ms_local[kMaxThreads];
 
 // ----------------------------------------------------------------------------
 
@@ -137,23 +137,15 @@ void alloc_sys_update(void)
 void alloc_sys_shutdown(void)
 {
     mutex_lock(&ms_perm_mtx);
-
     free(ms_perm);
     ms_perm = NULL;
-
-    for (i32 i = 0; i < NELEM(ms_local); ++i)
-    {
-        free(ms_local[i]);
-        ms_local[i] = NULL;
-    }
+    mutex_unlock(&ms_perm_mtx);
+    mutex_destroy(&ms_perm_mtx);
 
     for (i32 i = 0; i < NELEM(ms_temp); ++i)
     {
         destroy_linear(ms_temp + i);
     }
-
-    mutex_unlock(&ms_perm_mtx);
-    mutex_destroy(&ms_perm_mtx);
 }
 
 // ----------------------------------------------------------------------------
@@ -182,13 +174,6 @@ void* pim_malloc(EAlloc type, i32 bytes)
             break;
         case EAlloc_Temp:
             ptr = linear_alloc(ms_temp + ms_tempIndex, bytes);
-            break;
-        case EAlloc_Task:
-            if (!ms_local[tid])
-            {
-                ms_local[tid] = create_tlsf(kTlsCapacity);
-            }
-            ptr = tlsf_memalign(ms_local[tid], kAlign, bytes);
             break;
         }
 
@@ -238,11 +223,6 @@ void pim_free(void* ptr)
             mutex_unlock(&ms_perm_mtx);
             break;
         case EAlloc_Temp:
-            break;
-        case EAlloc_Task:
-            ASSERT(tid == task_thread_id());
-            ASSERT(ms_local[tid]);
-            tlsf_free(ms_local[tid], hdr);
             break;
         }
     }

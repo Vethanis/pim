@@ -6,6 +6,18 @@
 
 PIM_C_BEGIN
 
+/*
+    This file was made possible from the knowledge shared by the following people:
+    * Matt Pettineo for his blog series on spherical gaussians
+      - https://therealmjp.github.io/posts/new-blog-series-lightmap-baking-and-spherical-gaussians/
+    * Matt Pettineo and Dave Neubelt for The Baking Lab
+      - https://github.com/TheRealMJP/BakingLab
+    * Stephen Hill for the polynomial fit of the integral of a spherical gaussian's diffuse irradiance about a direction
+      - https://therealmjp.github.io/posts/sg-series-part-3-diffuse-lighting-from-an-sg-light-source/
+    * Thomas Roughton for the progressive fitting method of lighting samples onto an array of spherical gaussians
+      - https://torust.me/rendering/irradiance-caching/spherical-gaussians/2018/09/21/spherical-gaussians
+*/
+
 typedef enum
 {
     SGDist_Hemi = 0,
@@ -59,10 +71,10 @@ pim_inline float4 VEC_CALL SG_Integral(float4 axis, float4 amplitude)
     return f4_mulvs(amplitude, SG_BasisIntegral(axis.w));
 }
 
+// This polynomial fit is originally authored by Stephen Hill.
 // returns the irradiance (watts per square meter)
 // received by a surface (with the given normal)
 // from the spherical gaussian.
-// This polynomial fit is originally authored by Stephen Hill.
 pim_inline float4 VEC_CALL SG_Irradiance(
     float4 axis,
     float4 amplitude,
@@ -108,6 +120,8 @@ pim_inline float4 VEC_CALL SGv_Irradiance(
     return sum;
 }
 
+// This method of fitting spherical gaussians originates from Thomas Roughton
+// See https://torust.me/rendering/irradiance-caching/spherical-gaussians/2018/09/21/spherical-gaussians
 // Averages in a new sample into the set of spherical gaussians
 // that are being progressively fit to your data set.
 // Ensure the sample directions are not correlated (do a uniform shuffle).

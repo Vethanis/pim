@@ -1478,7 +1478,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
     float4 result = f4_0;
     {
         lightsample_t sample = LightSample(sampler, scene, surf->P, iLight);
-        float lightPdf = sample.pdf * selectPdf;
+        float lightPdf = sample.pdf;
         if (lightPdf > 0.0f)
         {
             float4 brdf = BrdfEval(sampler, I, surf, sample.direction);
@@ -1492,7 +1492,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
                 Li = f4_mulvs(Li, weight);
                 Li = f4_mul(Li, Tr);
                 Li = f4_mul(Li, brdf);
-                Li = f4_divvs(Li, lightPdf);
+                Li = f4_divvs(Li, lightPdf * selectPdf);
                 result = f4_add(result, Li);
             }
         }

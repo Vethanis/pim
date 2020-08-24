@@ -127,7 +127,6 @@ typedef enum
 {
     EAlloc_Perm = 0,
     EAlloc_Temp,
-    EAlloc_Task,
     EAlloc_Count
 } EAlloc;
 
