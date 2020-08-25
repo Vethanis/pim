@@ -104,6 +104,9 @@
     <Filter Include="Source Files\shaders">
       <UniqueIdentifier>{bd919a66-3aa2-47d8-8fab-3c2c7d04e07d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="submodules\vma">
+      <UniqueIdentifier>{17a2b635-7f71-41ca-8b8d-f15404b52a1a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -503,6 +506,12 @@
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\vulkan\vkr_sync.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_mem.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vk_mem_alloc.cpp">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
   </ItemGroup>
@@ -1075,6 +1084,12 @@
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr_sync.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\VulkanMemoryAllocator\src\vk_mem_alloc.h">
+      <Filter>submodules\vma</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_mem.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
   </ItemGroup>

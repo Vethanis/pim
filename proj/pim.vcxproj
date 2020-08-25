@@ -94,12 +94,14 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_device.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_display.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_mem.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_pipeline.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_queue.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_renderpass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_shader.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_swapchain.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_sync.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vk_mem_alloc.cpp" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
     <ClCompile Include="..\src\stb\stb_image.c" />
@@ -256,6 +258,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_device.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_display.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_instance.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_mem.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_pipeline.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_queue.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_renderpass.h" />
@@ -336,6 +339,7 @@
     <ClInclude Include="..\submodules\stb\stb_voxel_render.h" />
     <ClInclude Include="..\submodules\stb\stretchy_buffer.h" />
     <ClInclude Include="..\submodules\volk\volk.h" />
+    <ClInclude Include="..\submodules\VulkanMemoryAllocator\src\vk_mem_alloc.h" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\row.natvis" />

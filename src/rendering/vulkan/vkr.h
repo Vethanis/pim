@@ -13,6 +13,9 @@ PIM_C_BEGIN
 
 typedef struct GLFWwindow GLFWwindow;
 
+PIM_DECL_HANDLE(VmaAllocator);
+PIM_DECL_HANDLE(VmaAllocation);
+
 typedef enum
 {
     vkrQueueId_Pres,
@@ -49,6 +52,24 @@ typedef enum
     vkrVertType_int3,
     vkrVertType_int4,
 } vkrVertType;
+
+typedef struct vkrBuffer
+{
+    VkBuffer handle;
+    VmaAllocation allocation;
+    i32 size;
+} vkrBuffer;
+
+typedef struct vkrImage
+{
+    VkImage handle;
+    VmaAllocation allocation;
+    VkFormat format;
+    i32 width;
+    i32 height;
+    i32 depth;
+    i32 mips;
+} vkrImage;
 
 typedef struct vkrCompileInput
 {
@@ -210,6 +231,7 @@ typedef struct vkr_t
     VkInstance inst;
     VkPhysicalDevice phdev;
     VkDevice dev;
+    VmaAllocator allocator;
     VkPhysicalDeviceFeatures phdevFeats;
     VkPhysicalDeviceProperties phdevProps;
     VkDebugUtilsMessengerEXT messenger;

@@ -33,7 +33,7 @@ fstr_t fstr_open(const char* filename, const char* mode)
 {
     ASSERT(filename);
     ASSERT(mode);
-    void* ptr = NotNull(fopen(filename, mode));
+    void* ptr = fopen(filename, mode);
     return (fstr_t) { ptr };
 }
 
@@ -42,7 +42,6 @@ void fstr_close(fstr_t* stream)
     ASSERT(stream);
     FILE* file = stream->handle;
     stream->handle = NULL;
-    ASSERT(file);
     if (file)
     {
         IsZero(fclose(file));

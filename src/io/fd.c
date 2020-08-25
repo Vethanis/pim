@@ -42,7 +42,7 @@ fd_t fd_create(const char* filename)
         filename,
         flags,
         mode);
-    return (fd_t) { NotNeg(handle) };
+    return (fd_t) { handle };
 }
 
 fd_t fd_open(const char* filename, i32 writable)
@@ -59,7 +59,7 @@ fd_t fd_open(const char* filename, i32 writable)
     {
         flags |= _O_RDONLY;
     }
-    return (fd_t) { NotNeg(_open(filename, flags, mode)) };
+    return (fd_t) { _open(filename, flags, mode) };
 }
 
 void fd_close(fd_t* fd)

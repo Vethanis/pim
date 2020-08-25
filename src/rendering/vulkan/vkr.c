@@ -9,6 +9,7 @@
 #include "rendering/vulkan/vkr_pipeline.h"
 #include "rendering/vulkan/vkr_renderpass.h"
 #include "rendering/vulkan/vkr_cmd.h"
+#include "rendering/vulkan/vkr_mem.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
@@ -34,6 +35,11 @@ bool vkr_init(i32 width, i32 height)
     }
 
     if (!vkrDevice_Init(&g_vkr))
+    {
+        return false;
+    }
+
+    if (!vkrMem_Init(&g_vkr))
     {
         return false;
     }
@@ -287,6 +293,7 @@ void vkr_shutdown(void)
 
         vkrSwapchain_Release(g_vkr.chain);
         g_vkr.chain = NULL;
+        vkrMem_Shutdown(&g_vkr);
         vkrDevice_Shutdown(&g_vkr);
         vkrDisplay_Release(g_vkr.display);
         g_vkr.display = NULL;
