@@ -764,7 +764,7 @@ void LoadProgs(const mmodel_t* model, bool loadlights)
                 pt_light_t pt = { 0 };
                 pt.pos = f3_f4(ent.light.origin, 1.0f);
                 pt.pos = f4x4_mul_pt(M, pt.pos);
-                pt.pos.w = PowerToAttRadius(rad, 0.1f);
+                pt.pos.w = PowerToAttRadius(rad, 0.01f);
                 pt.rad = f4_s(rad);
                 pt.rad.w = 10.0f * kCenti;
                 lights_add_pt(pt);
