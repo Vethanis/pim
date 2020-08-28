@@ -28,11 +28,7 @@ bool vkr_init(i32 width, i32 height)
         return false;
     }
 
-    g_vkr.display = vkrDisplay_New(width, height, "pimvk");
-    if (!g_vkr.display)
-    {
-        return false;
-    }
+    vkrDisplay_New(&g_vkr.display, width, height, "pimvk");
 
     if (!vkrDevice_Init(&g_vkr))
     {
@@ -44,11 +40,7 @@ bool vkr_init(i32 width, i32 height)
         return false;
     }
 
-    g_vkr.chain = vkrSwapchain_New(g_vkr.display, NULL);
-    if (!g_vkr.chain)
-    {
-        return false;
-    }
+    vkrSwapchain_New(&g_vkr.chain, &g_vkr.display, NULL);
 
     char* shaderName = "first_tri.hlsl";
     char* firstTri = vkrLoadShader(shaderName);
@@ -106,20 +98,8 @@ bool vkr_init(i32 width, i32 height)
 
     const vkrFixedFuncs ffuncs =
     {
-        .viewport =
-        {
-            .x = 0.0f,
-            .y = 0.0f,
-            .width = (float)g_vkr.chain->width,
-            .height = (float)g_vkr.chain->height,
-            .minDepth = 0.0f,
-            .maxDepth = 1.0f,
-        },
-        .scissor =
-        {
-            .extent.width = g_vkr.chain->width,
-            .extent.height = g_vkr.chain->height,
-        },
+        .viewport = vkrSwapchain_GetViewport(&g_vkr.chain),
+        .scissor = vkrSwapchain_GetRect(&g_vkr.chain),
         .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
         .polygonMode = VK_POLYGON_MODE_FILL,
         .frontFace = VK_FRONT_FACE_CLOCKWISE,
@@ -155,7 +135,7 @@ bool vkr_init(i32 width, i32 height)
     const VkAttachmentDescription attachments[] =
     {
         {
-            .format = g_vkr.chain->format,
+            .format = g_vkr.chain.format,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -198,7 +178,7 @@ bool vkr_init(i32 width, i32 height)
         NELEM(dependencies), dependencies);
     const i32 subpass = 0;
 
-    vkrSwapchain_SetupBuffers(g_vkr.chain, g_vkr.renderpass);
+    vkrSwapchain_SetupBuffers(&g_vkr.chain, g_vkr.renderpass);
 
     g_vkr.layout = vkrPipelineLayout_New();
 
@@ -227,21 +207,21 @@ void vkr_update(void)
     {
         return;
     }
-    if (!vkrDisplay_IsOpen(g_vkr.display))
+    if (!vkrDisplay_IsOpen(&g_vkr.display))
     {
         vkr_shutdown();
         return;
     }
 
-    if (vkrDisplay_UpdateSize(g_vkr.display))
+    if (vkrDisplay_UpdateSize(&g_vkr.display))
     {
-        g_vkr.chain = vkrSwapchain_Recreate(
-            g_vkr.display,
-            g_vkr.chain,
+        vkrSwapchain_Recreate(
+            &g_vkr.chain,
+            &g_vkr.display,
             g_vkr.renderpass);
     }
-    vkrSwapchain* chain = g_vkr.chain;
-    if (!chain)
+    vkrSwapchain* chain = &g_vkr.chain;
+    if (!chain->handle)
     {
         return;
     }
@@ -249,7 +229,6 @@ void vkr_update(void)
     ProfileBegin(pm_update);
 
     const i32 tid = task_thread_id();
-    vkrSwapFrame swapframe = { 0 };
     VkRect2D rect = vkrSwapchain_GetRect(chain);
     VkViewport viewport = vkrSwapchain_GetViewport(chain);
     const VkClearValue clearValue =
@@ -257,7 +236,9 @@ void vkr_update(void)
         .color = { 0.0f, 0.0f, 0.0f, 1.0f },
     };
 
-    u32 syncIndex = vkrSwapchain_Acquire(chain, &swapframe);
+    u32 syncIndex = 0;
+    u32 imageIndex = 0;
+    vkrSwapchain_Acquire(chain, &syncIndex, &imageIndex);
     VkCommandBuffer cmd = vkrCmdGet(vkrQueueId_Gfx, tid);
     {
         vkrCmdReset(cmd, 0);
@@ -267,7 +248,7 @@ void vkr_update(void)
             vkrCmdBeginRenderPass(
                 cmd,
                 g_vkr.renderpass,
-                swapframe.buffer,
+                chain->buffers[imageIndex],
                 rect,
                 clearValue);
             vkrCmdBindPipeline(cmd, g_vkr.pipeline);
@@ -291,12 +272,10 @@ void vkr_shutdown(void)
         vkrRenderPass_Release(g_vkr.renderpass);
         vkrPipelineLayout_Release(g_vkr.layout);
 
-        vkrSwapchain_Release(g_vkr.chain);
-        g_vkr.chain = NULL;
+        vkrSwapchain_Del(&g_vkr.chain);
         vkrMem_Shutdown(&g_vkr);
         vkrDevice_Shutdown(&g_vkr);
-        vkrDisplay_Release(g_vkr.display);
-        g_vkr.display = NULL;
+        vkrDisplay_Del(&g_vkr.display);
         vkrInstance_Shutdown(&g_vkr);
     }
 }

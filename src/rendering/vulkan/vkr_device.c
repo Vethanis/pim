@@ -13,7 +13,7 @@ bool vkrDevice_Init(vkr_t* vkr)
     ASSERT(vkr);
 
     vkr->phdev = vkrSelectPhysicalDevice(
-        vkr->display,
+        &vkr->display,
         &vkr->phdevProps,
         &vkr->phdevFeats);
     ASSERT(vkr->phdev);
@@ -25,7 +25,7 @@ bool vkrDevice_Init(vkr_t* vkr)
     vkrListDevExtensions(vkr->phdev);
 
     vkr->dev = vkrCreateDevice(
-        vkr->display,
+        &vkr->display,
         vkrGetDevExtensions(vkr->phdev),
         vkrGetLayers());
     ASSERT(vkr->dev);

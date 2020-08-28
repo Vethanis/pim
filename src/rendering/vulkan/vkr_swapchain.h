@@ -4,17 +4,19 @@
 
 PIM_C_BEGIN
 
-vkrSwapchain* vkrSwapchain_New(vkrDisplay* display, vkrSwapchain* prev);
-void vkrSwapchain_Retain(vkrSwapchain* chain);
-void vkrSwapchain_Release(vkrSwapchain* chain);
+bool vkrSwapchain_New(vkrSwapchain* chain, vkrDisplay* display, vkrSwapchain* prev);
+void vkrSwapchain_Del(vkrSwapchain* chain);
 void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, vkrRenderPass* presentPass);
 
-vkrSwapchain* vkrSwapchain_Recreate(
+bool vkrSwapchain_Recreate(
+    vkrSwapchain* chain,
     vkrDisplay* display,
-    vkrSwapchain* prev,
     vkrRenderPass* presentPass);
 
-u32 vkrSwapchain_Acquire(vkrSwapchain* chain, vkrSwapFrame* dstFrame);
+void vkrSwapchain_Acquire(
+    vkrSwapchain* chain,
+    u32* pSyncIndex,
+    u32* pImageIndex);
 void vkrSwapchain_Present(
     vkrSwapchain* chain,
     vkrQueueId cmdQueue,

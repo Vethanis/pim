@@ -139,7 +139,7 @@ void vkrMem_Shutdown(vkr_t* vkr)
 }
 
 bool vkrBuffer_New(
-    vkrBuffer* buffer, 
+    vkrBuffer* buffer,
     i32 size,
     VkBufferUsageFlags bufferUsage,
     u32 memTypeBits,
@@ -174,7 +174,6 @@ bool vkrBuffer_New(
     {
         buffer->handle = handle;
         buffer->allocation = allocation;
-        buffer->size = size;
         return true;
     }
     return false;
@@ -195,46 +194,11 @@ void vkrBuffer_Del(vkrBuffer* buffer)
 
 bool vkrImage_New(
     vkrImage* image,
-    VkImageType type,
-    VkFormat format,
-    i32 width,
-    i32 height,
-    i32 depth,
-    bool mips,
-    VkImageUsageFlags imgUsage,
-    VkImageTiling tiling,
-    VkImageLayout initialLayout,
+    const VkImageCreateInfo* info,
     u32 memTypeBits,
     vkrMemUsage memUsage)
 {
     memset(image, 0, sizeof(*image));
-    i32 mipCount = 1;
-    if (mips)
-    {
-        i32 x = width > height ? width : height;
-        mipCount = 0;
-        while (x > 0)
-        {
-            ++mipCount;
-            x = x >> 1;
-        }
-    }
-    const VkImageCreateInfo imgInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType = type,
-        .format = format,
-        .extent.width = width,
-        .extent.height = height,
-        .extent.depth = depth,
-        .mipLevels = mipCount,
-        .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = tiling,
-        .usage = imgUsage,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .initialLayout = initialLayout,
-    };
     const VmaAllocationCreateInfo allocInfo =
     {
         .usage = memUsage,
@@ -244,7 +208,7 @@ bool vkrImage_New(
     VmaAllocation allocation = NULL;
     VkCheck(vmaCreateImage(
         g_vkr.allocator,
-        &imgInfo,
+        info,
         &allocInfo,
         &handle,
         &allocation,
@@ -253,11 +217,6 @@ bool vkrImage_New(
     {
         image->handle = handle;
         image->allocation = allocation;
-        image->format = format;
-        image->width = width;
-        image->height = height;
-        image->depth = depth;
-        image->mips = mipCount;
         return true;
     }
     return false;

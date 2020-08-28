@@ -150,13 +150,15 @@ pim_inline float VEC_CALL G_SmithGGX(float NoL, float NoV, float alpha)
     return 0.5f / f1_max(kEpsilon, v + l);
 }
 
+// Diffuse brdf
+// Lambert brdf is just a constant
 pim_inline float VEC_CALL Fd_Lambert()
 {
     return 1.0f / kPi;
 }
 
-// Diffuse term
-// Burley diffuse brdf
+// Diffuse brdf
+// Burley / Disney diffuse brdf
 pim_inline float VEC_CALL Fd_Burley(
     float NoL,
     float NoV,
@@ -195,7 +197,11 @@ pim_inline float4 VEC_CALL DirectBRDF(
         DiffuseColor(albedo, metallic),
         Fd_Burley(NoL, NoV, LoH, roughness));
 
-    return f4_add(Fr, Fd);
+    const float amtSpecular = 1.0f;
+    float amtDiffuse = 1.0f - metallic;
+    float scale = 1.0f / (amtSpecular + amtDiffuse);
+
+    return f4_mulvs(f4_add(Fr, Fd), scale);
 }
 
 // for area lights with varying diffuse and specular light directions
@@ -272,7 +278,11 @@ pim_inline float4 VEC_CALL IndirectBRDF(
 
     float4 Fd = f4_mul(DiffuseColor(albedo, metallic), diffuseGI);
 
-    return f4_mulvs(f4_add(Fd, Fr), ao);
+    const float amtSpecular = 1.0f;
+    float amtDiffuse = 1.0f - metallic;
+    float scale = 1.0f / (amtSpecular + amtDiffuse);
+
+    return f4_mulvs(f4_add(Fd, Fr), ao * scale);
 }
 
 pim_inline float VEC_CALL SmoothDistanceAtt(
