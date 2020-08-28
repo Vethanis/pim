@@ -389,6 +389,11 @@ pim_inline float4 VEC_CALL EvalSunLight(
     float4x2 FdFr = DirectBRDFSplit(V, D, L, N, albedo, roughness, metallic);
     float4 brdf = f4_add(FdFr.c0, FdFr.c1);
 
+    const float amtSpecular = 1.0f;
+    float amtDiffuse = 1.0f - metallic;
+    float scale = 1.0f / (amtSpecular + amtDiffuse);
+    brdf = f4_mulvs(brdf, scale);
+
     return f4_mulvs(brdf, illuminance);
 }
 
@@ -523,7 +528,6 @@ pim_inline float4 VEC_CALL EvalSphereLight(
     float NoV = f4_dotsat(N, V);
 
     float4 Fr = f4_0;
-#if (1)
     {
         float4 R = f4_normalize3(f4_reflect3(f4_neg(V), N));
         float4 L = SphereRepresentativePoint(R, N, L0, radius, alpha);
@@ -544,10 +548,8 @@ pim_inline float4 VEC_CALL EvalSphereLight(
         float I = NoL * DistanceAtt(distance);
         Fr = f4_mulvs(Fr, I);
     }
-#endif
 
     float4 Fd = f4_0;
-#if (1)
     {
         float4 L = f4_divvs(L0, distance);
         float4 H = f4_normalize3(f4_add(V, L));
@@ -562,9 +564,14 @@ pim_inline float4 VEC_CALL EvalSphereLight(
         float I = SphereDiskIlluminance(NoL, sinSigmaSqr);
         Fd = f4_mulvs(Fd, I);
     }
-#endif
 
-    float4 light = f4_mul(f4_add(Fd, Fr), lightColor);
+    const float amtSpecular = 1.0f;
+    float amtDiffuse = 1.0f - metallic;
+    float scale = 1.0f / (amtSpecular + amtDiffuse);
+    float4 brdf = f4_add(Fd, Fr);
+    brdf = f4_mulvs(brdf, scale);
+
+    float4 light = f4_mul(brdf, lightColor);
 
     return light;
 }
