@@ -95,6 +95,7 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_display.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_mem.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_mesh.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_pipeline.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_queue.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_renderpass.c" />
@@ -259,6 +260,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_display.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_instance.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_mem.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_mesh.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_pipeline.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_queue.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_renderpass.h" />
@@ -350,6 +352,14 @@
     <None Include="..\src\tools\prehash.py" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="..\src\shaders\first_mesh.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
     <FxCompile Include="..\src\shaders\first_tri.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>

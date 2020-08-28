@@ -10,6 +10,7 @@
 #include "rendering/vulkan/vkr_renderpass.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_mesh.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
@@ -42,7 +43,7 @@ bool vkr_init(i32 width, i32 height)
 
     vkrSwapchain_New(&g_vkr.chain, &g_vkr.display, NULL);
 
-    char* shaderName = "first_tri.hlsl";
+    char* shaderName = "first_mesh.hlsl";
     char* firstTri = vkrLoadShader(shaderName);
 
     const vkrCompileInput vertInput =
@@ -119,11 +120,10 @@ bool vkr_init(i32 width, i32 height)
 
     const vkrVertexLayout vertLayout =
     {
-        .streamCount = 0, // hardcoded triangle in shader for now
-        .types[0] = vkrVertType_float4, // positionOS
-        .types[1] = vkrVertType_float4, // normalOS
-        .types[2] = vkrVertType_float2, // texture uv
-        .types[3] = vkrVertType_float2, // lightmap uv
+        .streamCount = vkrMeshStream_COUNT,
+        .types[vkrMeshStream_Position] = vkrVertType_float4,
+        .types[vkrMeshStream_Normal] = vkrVertType_float4,
+        .types[vkrMeshStream_Uv01] = vkrVertType_float4,
     };
 
     VkPipelineShaderStageCreateInfo shaders[] =
@@ -197,6 +197,29 @@ bool vkr_init(i32 width, i32 height)
         vkrDestroyShader(shaders + i);
     }
 
+    const float4 positions[] =
+    {
+        { 0.0f, -0.5f, 0.0f, 1.0f },
+        { 0.5f, 0.5f, 0.0f, 1.0f },
+        { -0.5f, 0.5f, 0.0f, 1.0f },
+    };
+    const float4 normals[] =
+    {
+        { 0.0f, 0.0f, -1.0f },
+        { 0.0f, 0.0f, -1.0f },
+        { 0.0f, 0.0f, -1.0f },
+    };
+    const float4 uv01[] =
+    {
+        { 0.5f, 1.0f, 0.5f, 1.0f },
+        { 1.0f, 0.0f, 1.0f, 0.0f },
+        { 0.0f, 0.0f, 0.0f, 0.0f },
+    };
+    if (!vkrMesh_New(&g_vkr.mesh, NELEM(positions), positions, normals, uv01))
+    {
+        return false;
+    }
+
     return true;
 }
 
@@ -252,7 +275,7 @@ void vkr_update(void)
                 rect,
                 clearValue);
             vkrCmdBindPipeline(cmd, g_vkr.pipeline);
-            vkrCmdDraw(cmd, 3, 0);
+            vkrCmdDrawMesh(cmd, &g_vkr.mesh);
             vkrCmdEndRenderPass(cmd);
         }
         vkrCmdEnd(cmd);
@@ -267,6 +290,8 @@ void vkr_shutdown(void)
     if (g_vkr.inst)
     {
         vkrDevice_WaitIdle();
+
+        vkrMesh_Del(&g_vkr.mesh);
 
         vkrPipeline_Release(g_vkr.pipeline);
         vkrRenderPass_Release(g_vkr.renderpass);

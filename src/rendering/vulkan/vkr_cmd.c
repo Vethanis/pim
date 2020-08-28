@@ -186,3 +186,33 @@ void vkrCmdDraw(VkCommandBuffer cmdbuf, i32 vertexCount, i32 firstVertex)
     vkCmdDraw(cmdbuf, vertexCount, 1, firstVertex, 0);
     ProfileEnd(pm_draw);
 }
+
+ProfileMark(pm_drawmesh, vkrCmdDrawMesh)
+void vkrCmdDrawMesh(VkCommandBuffer cmd, const vkrMesh* mesh)
+{
+    ProfileBegin(pm_drawmesh);
+
+    ASSERT(mesh);
+    ASSERT(cmd);
+    ASSERT(mesh->length >= 0);
+    ASSERT(mesh->positions.handle);
+    ASSERT(mesh->normals.handle);
+    ASSERT(mesh->uv01.handle);
+
+    const VkBuffer buffers[] =
+    {
+        mesh->positions.handle,
+        mesh->normals.handle,
+        mesh->uv01.handle,
+    };
+    const VkDeviceSize offsets[] =
+    {
+        0,
+        0,
+        0,
+    };
+    vkCmdBindVertexBuffers(cmd, 0, NELEM(buffers), buffers, offsets);
+    vkCmdDraw(cmd, mesh->length, 1, 0, 0);
+
+    ProfileEnd(pm_drawmesh);
+}

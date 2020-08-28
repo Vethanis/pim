@@ -80,11 +80,6 @@ static const VkAllocationCallbacks kCpuCallbacks =
     .pfnInternalFree = vkrOnFree,
 };
 
-const VkAllocationCallbacks* vkrMem_Fns(void)
-{
-    return &kCpuCallbacks;
-}
-
 bool vkrMem_Init(vkr_t* vkr)
 {
     const VmaVulkanFunctions vulkanFns =
@@ -138,11 +133,39 @@ void vkrMem_Shutdown(vkr_t* vkr)
     }
 }
 
+const VkAllocationCallbacks* vkrMem_Fns(void)
+{
+    return &kCpuCallbacks;
+}
+
+void* vkrMem_Map(VmaAllocation allocation)
+{
+    void* result = NULL;
+    ASSERT(allocation);
+    VkCheck(vmaMapMemory(g_vkr.allocator, allocation, &result));
+    ASSERT(result);
+    return result;
+}
+
+void vkrMem_Unmap(VmaAllocation allocation)
+{
+    ASSERT(allocation);
+    vmaUnmapMemory(g_vkr.allocator, allocation);
+}
+
+void vkrMem_Flush(VmaAllocation allocation)
+{
+    ASSERT(allocation);
+    const VkDeviceSize offset = 0;
+    const VkDeviceSize size = VK_WHOLE_SIZE;
+    VkCheck(vmaFlushAllocation(g_vkr.allocator, allocation, offset, size));
+    VkCheck(vmaInvalidateAllocation(g_vkr.allocator, allocation, offset, size));
+}
+
 bool vkrBuffer_New(
     vkrBuffer* buffer,
     i32 size,
     VkBufferUsageFlags bufferUsage,
-    u32 memTypeBits,
     vkrMemUsage memUsage)
 {
     ASSERT(g_vkr.allocator);
@@ -158,7 +181,6 @@ bool vkrBuffer_New(
     const VmaAllocationCreateInfo allocInfo =
     {
         .usage = memUsage,
-        .memoryTypeBits = memTypeBits,
     };
     VkBuffer handle = NULL;
     VmaAllocation allocation = NULL;
@@ -192,17 +214,33 @@ void vkrBuffer_Del(vkrBuffer* buffer)
     }
 }
 
+void* vkrBuffer_Map(const vkrBuffer* buffer)
+{
+    ASSERT(buffer);
+    return vkrMem_Map(buffer->allocation);
+}
+
+void vkrBuffer_Unmap(const vkrBuffer* buffer)
+{
+    ASSERT(buffer);
+    vkrMem_Unmap(buffer->allocation);
+}
+
+void vkrBuffer_Flush(const vkrBuffer* buffer)
+{
+    ASSERT(buffer);
+    vkrMem_Flush(buffer->allocation);
+}
+
 bool vkrImage_New(
     vkrImage* image,
     const VkImageCreateInfo* info,
-    u32 memTypeBits,
     vkrMemUsage memUsage)
 {
     memset(image, 0, sizeof(*image));
     const VmaAllocationCreateInfo allocInfo =
     {
         .usage = memUsage,
-        .memoryTypeBits = memTypeBits,
     };
     VkImage handle = NULL;
     VmaAllocation allocation = NULL;
@@ -232,4 +270,22 @@ void vkrImage_Del(vkrImage* image)
         }
         memset(image, 0, sizeof(*image));
     }
+}
+
+void* vkrImage_Map(const vkrImage* image)
+{
+    ASSERT(image);
+    return vkrMem_Map(image->allocation);
+}
+
+void vkrImage_Unmap(const vkrImage* image)
+{
+    ASSERT(image);
+    vkrMem_Unmap(image->allocation);
+}
+
+void vkrImage_Flush(const vkrImage* image)
+{
+    ASSERT(image);
+    vkrMem_Flush(image->allocation);
 }
