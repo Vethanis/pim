@@ -57,19 +57,28 @@ void vkrMem_Shutdown(vkr_t* vkr);
 
 const VkAllocationCallbacks* vkrMem_Fns(void);
 
+void* vkrMem_Map(VmaAllocation allocation);
+void vkrMem_Unmap(VmaAllocation allocation);
+void vkrMem_Flush(VmaAllocation allocation);
+
 bool vkrBuffer_New(
     vkrBuffer* buffer,
     i32 size,
     VkBufferUsageFlags bufferUsage,
-    u32 memTypeBits,
     vkrMemUsage memUsage);
 void vkrBuffer_Del(vkrBuffer* buffer);
+void* vkrBuffer_Map(const vkrBuffer* buffer);
+void vkrBuffer_Unmap(const vkrBuffer* buffer);
+void vkrBuffer_Flush(const vkrBuffer* buffer);
 
 bool vkrImage_New(
     vkrImage* image,
     const VkImageCreateInfo* info,
-    u32 memTypeBits,
     vkrMemUsage memUsage);
 void vkrImage_Del(vkrImage* image);
+void* vkrImage_Map(const vkrImage* image);
+void vkrImage_Unmap(const vkrImage* image);
+void vkrImage_Flush(const vkrImage* image);
+
 
 PIM_C_END

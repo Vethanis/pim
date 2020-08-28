@@ -36,5 +36,6 @@ void vkrCmdViewport(
     VkRect2D scissor);
 
 void vkrCmdDraw(VkCommandBuffer cmdbuf, i32 vertexCount, i32 firstVertex);
+void vkrCmdDrawMesh(VkCommandBuffer cmd, const vkrMesh* mesh);
 
 PIM_C_END

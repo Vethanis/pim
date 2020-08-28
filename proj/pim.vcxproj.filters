@@ -514,6 +514,9 @@
     <ClCompile Include="..\src\rendering\vulkan\vk_mem_alloc.cpp">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_mesh.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -1092,6 +1095,9 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_mem.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_mesh.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">
@@ -1111,6 +1117,9 @@
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="..\src\shaders\first_tri.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\first_mesh.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
   </ItemGroup>

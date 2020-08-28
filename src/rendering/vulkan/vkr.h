@@ -54,6 +54,15 @@ typedef enum
     vkrVertType_int4,
 } vkrVertType;
 
+typedef enum
+{
+    vkrMeshStream_Position, // float4; xyz=positionOS
+    vkrMeshStream_Normal,   // float4; xyz=normalOS
+    vkrMeshStream_Uv01,     // float4; xy=uv0, zw=uv1
+
+    vkrMeshStream_COUNT
+} vkrMeshStream;
+
 typedef struct vkrBuffer
 {
     VkBuffer handle;
@@ -65,6 +74,15 @@ typedef struct vkrImage
     VkImage handle;
     VmaAllocation allocation;
 } vkrImage;
+
+typedef struct vkrMesh
+{
+    // TODO: allocate one memory range for these buffers
+    i32 length;
+    vkrBuffer positions;
+    vkrBuffer normals;
+    vkrBuffer uv01;
+} vkrMesh;
 
 typedef struct vkrCompileInput
 {
@@ -230,9 +248,12 @@ typedef struct vkr_t
     vkrSwapchain chain;
     vkrQueue queues[vkrQueueId_COUNT];
 
+    // TODO: put these somewhere else
     vkrPipeline* pipeline;
     vkrRenderPass* renderpass;
     vkrPipelineLayout* layout;
+    vkrMesh mesh;
+
 } vkr_t;
 extern vkr_t g_vkr;
 
