@@ -4,10 +4,10 @@
 #include <string.h>
 #include <GLFW/glfw3.h>
 
-vkrDisplay* vkrDisplay_New(i32 width, i32 height, const char* title)
+void vkrDisplay_New(vkrDisplay* display, i32 width, i32 height, const char* title)
 {
-    vkrDisplay* display = perm_calloc(sizeof(*display));
-    display->refcount = 1;
+    ASSERT(display);
+    memset(display, 0, sizeof(*display));
 
     i32 rv = glfwInit();
     ASSERT(rv == GLFW_TRUE);
@@ -25,36 +25,21 @@ vkrDisplay* vkrDisplay_New(i32 width, i32 height, const char* title)
     VkCheck(glfwCreateWindowSurface(g_vkr.inst, window, NULL, &surface));
     ASSERT(surface);
     display->surface = surface;
-
-    return display;
 }
 
-void vkrDisplay_Retain(vkrDisplay* display)
+void vkrDisplay_Del(vkrDisplay* display)
 {
-    if (vkrAlive(display))
+    if (display)
     {
-        display->refcount += 1;
-    }
-}
-
-void vkrDisplay_Release(vkrDisplay* display)
-{
-    if (vkrAlive(display))
-    {
-        display->refcount -= 1;
-        if (display->refcount == 0)
+        if (display->surface)
         {
-            if (display->surface)
-            {
-                vkDestroySurfaceKHR(g_vkr.inst, display->surface, NULL);
-            }
-            if (display->window)
-            {
-                glfwDestroyWindow(display->window);
-            }
-            memset(display, 0, sizeof(*display));
-            pim_free(display);
+            vkDestroySurfaceKHR(g_vkr.inst, display->surface, NULL);
         }
+        if (display->window)
+        {
+            glfwDestroyWindow(display->window);
+        }
+        memset(display, 0, sizeof(*display));
     }
 }
 
@@ -63,7 +48,7 @@ bool vkrDisplay_UpdateSize(vkrDisplay* display)
 {
     ProfileBegin(pm_updatesize);
 
-    ASSERT(vkrAlive(display));
+    ASSERT(display);
     ASSERT(display->window);
     i32 prevWidth = display->width;
     i32 prevHeight = display->height;
@@ -79,7 +64,7 @@ bool vkrDisplay_IsOpen(const vkrDisplay* display)
 {
     ProfileBegin(pm_isopen);
 
-    ASSERT(vkrAlive(display));
+    ASSERT(display);
     ASSERT(display->window);
     GLFWwindow* window = display->window;
     bool isopen = !glfwWindowShouldClose(window);
@@ -93,7 +78,7 @@ void vkrDisplay_PollEvents(const vkrDisplay* display)
 {
     ProfileBegin(pm_pollevents);
 
-    ASSERT(vkrAlive(display));
+    ASSERT(display);
     ASSERT(display->window);
     glfwPollEvents();
 

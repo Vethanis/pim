@@ -67,15 +67,7 @@ void vkrBuffer_Del(vkrBuffer* buffer);
 
 bool vkrImage_New(
     vkrImage* image,
-    VkImageType type,
-    VkFormat format,
-    i32 width,
-    i32 height,
-    i32 depth,
-    bool mips,
-    VkImageUsageFlags imgUsage,
-    VkImageTiling tiling,
-    VkImageLayout initialLayout,
+    const VkImageCreateInfo* info,
     u32 memTypeBits,
     vkrMemUsage memUsage);
 void vkrImage_Del(vkrImage* image);

@@ -8,8 +8,9 @@ ProfileMark(pm_cmdget, vkrCmdGet)
 VkCommandBuffer vkrCmdGet(vkrQueueId id, u32 tid)
 {
     ProfileBegin(pm_cmdget);
-    ASSERT(vkrAlive(g_vkr.chain));
-    u32 syncIndex = g_vkr.chain->syncIndex;
+    ASSERT(g_vkr.chain.handle);
+    ASSERT(tid < (u32)g_vkr.queues[id].threadcount);
+    u32 syncIndex = g_vkr.chain.syncIndex;
     VkCommandBuffer cmd = g_vkr.queues[id].buffers[syncIndex][tid];
     ProfileEnd(pm_cmdget);
     return cmd;

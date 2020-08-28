@@ -152,10 +152,10 @@ void vkrCreateQueues(vkr_t* vkr)
 {
     ASSERT(vkr);
     ASSERT(vkr->dev);
-    ASSERT(vkrAlive(vkr->display));
+    ASSERT(vkr->display.surface);
 
     VkDevice device = vkr->dev;
-    vkrQueueSupport support = vkrQueryQueueSupport(vkr->phdev, vkr->display->surface);
+    vkrQueueSupport support = vkrQueryQueueSupport(vkr->phdev, vkr->display.surface);
     for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
     {
         vkr->queues[id] = vkrCreateQueue(device, &support, id);

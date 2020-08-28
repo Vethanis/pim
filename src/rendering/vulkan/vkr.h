@@ -8,6 +8,7 @@ PIM_C_BEGIN
 
 #define VkCheck(expr) do { VkResult _res = (expr); ASSERT(_res == VK_SUCCESS); } while(0)
 
+#define kMaxSwapchainLen        4
 #define kFramesInFlight         3
 #define vkrAlive(ptr)           ((ptr) && ((ptr)->refcount > 0))
 
@@ -57,18 +58,12 @@ typedef struct vkrBuffer
 {
     VkBuffer handle;
     VmaAllocation allocation;
-    i32 size;
 } vkrBuffer;
 
 typedef struct vkrImage
 {
     VkImage handle;
     VmaAllocation allocation;
-    VkFormat format;
-    i32 width;
-    i32 height;
-    i32 depth;
-    i32 mips;
 } vkrImage;
 
 typedef struct vkrCompileInput
@@ -179,38 +174,33 @@ typedef struct vkrPipeline
 
 typedef struct vkrDisplay
 {
-    i32 refcount;
     GLFWwindow* window;
     VkSurfaceKHR surface;
     i32 width;
     i32 height;
 } vkrDisplay;
 
-typedef struct vkrSwapFrame
-{
-    VkImage image;
-    VkImageView view;
-    VkFramebuffer buffer;
-    VkFence fence; // copy of fences[i]
-} vkrSwapFrame;
-
 typedef struct vkrSwapchain
 {
-    i32 refcount;
     VkSwapchainKHR handle;
-    vkrDisplay* display;
     VkFormat format;
     VkColorSpaceKHR colorSpace;
     VkPresentModeKHR mode;
     i32 width;
     i32 height;
+
     i32 length;
-    vkrSwapFrame* frames;
-    u32 syncIndex;
     u32 imageIndex;
-    VkFence fences[kFramesInFlight];
+    VkImage images[kMaxSwapchainLen];
+    VkImageView views[kMaxSwapchainLen];
+    VkFramebuffer buffers[kMaxSwapchainLen];
+    VkFence imageFences[kMaxSwapchainLen];
+
+    u32 syncIndex;
+    VkFence syncFences[kFramesInFlight];
     VkSemaphore availableSemas[kFramesInFlight];
     VkSemaphore renderedSemas[kFramesInFlight];
+
 } vkrSwapchain;
 
 typedef struct vkrQueue
@@ -236,8 +226,8 @@ typedef struct vkr_t
     VkPhysicalDeviceProperties phdevProps;
     VkDebugUtilsMessengerEXT messenger;
 
-    vkrDisplay* display;
-    vkrSwapchain* chain;
+    vkrDisplay display;
+    vkrSwapchain chain;
     vkrQueue queues[vkrQueueId_COUNT];
 
     vkrPipeline* pipeline;

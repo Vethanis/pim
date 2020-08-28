@@ -193,8 +193,7 @@ pim_inline float4 VEC_CALL GetSky(
 pim_inline surfhit_t VEC_CALL GetSurface(
     const pt_scene_t* scene,
     ray_t rin,
-    rayhit_t hit,
-    i32 bounce);
+    rayhit_t hit);
 pim_inline rayhit_t VEC_CALL pt_intersect_local(
     const pt_scene_t* scene,
     ray_t ray,
@@ -995,8 +994,7 @@ pim_inline float4 VEC_CALL GetSky(
 pim_inline surfhit_t VEC_CALL GetSurface(
     const pt_scene_t* scene,
     ray_t rin,
-    rayhit_t hit,
-    i32 bounce)
+    rayhit_t hit)
 {
     surfhit_t surf = { 0 };
 
@@ -1010,42 +1008,23 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     surf.P = f4_add(surf.P, f4_mulvs(surf.M, kMilli));
 
     texture_t tex;
-    if (bounce == 0)
+    if (texture_get(mat->normal, &tex))
     {
-        if (texture_get(mat->normal, &tex))
-        {
-            float4 Nts = UvBilinearWrap_dir8(tex.texels, tex.size, uv);
-            surf.N = TanToWorld(surf.N, Nts);
-        }
+        float4 Nts = UvBilinearWrap_dir8(tex.texels, tex.size, uv);
+        surf.N = TanToWorld(surf.N, Nts);
     }
 
     surf.albedo = ColorToLinear(mat->flatAlbedo);
     if (texture_get(mat->albedo, &tex))
     {
-        float4 sample;
-        if (bounce == 0)
-        {
-            sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
-        }
-        else
-        {
-            sample = UvWrap_c32(tex.texels, tex.size, uv);
-        }
+        float4 sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
         surf.albedo = f4_mul(surf.albedo, sample);
     }
 
     float4 rome = ColorToLinear(mat->flatRome);
     if (texture_get(mat->rome, &tex))
     {
-        float4 sample;
-        if (bounce == 0)
-        {
-            sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
-        }
-        else
-        {
-            sample = UvWrap_c32(tex.texels, tex.size, uv);
-        }
+        float4 sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
         rome = f4_mul(rome, sample);
     }
     surf.emission = UnpackEmission(surf.albedo, rome.w);
@@ -1430,7 +1409,7 @@ pim_inline lightsample_t VEC_CALL LightSample(
         if ((hit.type != hit_nothing) && (hit.index == iLight))
         {
             sample.pdf = LightPdf(area, VoNl, distSq);
-            surfhit_t surf = GetSurface(scene, ray, hit, 1);
+            surfhit_t surf = GetSurface(scene, ray, hit);
             sample.irradiance = surf.emission;
             float4 Tr = CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w);
             sample.irradiance = f4_mul(sample.irradiance, Tr);
@@ -1509,7 +1488,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
             {
                 float weight = PowerHeuristic(brdfPdf, lightPdf);
                 float4 Tr = CalcTransmittance(sampler, scene, ray.ro, ray.rd, hit.wuvt.w);
-                surfhit_t surf = GetSurface(scene, ray, hit, 1);
+                surfhit_t surf = GetSurface(scene, ray, hit);
                 float4 Li = surf.emission;
                 Li = f4_mulvs(Li, weight);
                 Li = f4_mul(Li, Tr);
@@ -1991,7 +1970,7 @@ pt_result_t VEC_CALL pt_trace_ray(
             break;
         }
 
-        surfhit_t surf = GetSurface(scene, ray, hit, b);
+        surfhit_t surf = GetSurface(scene, ray, hit);
         if (b == 0)
         {
             result.albedo = f4_f3(surf.albedo);
