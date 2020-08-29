@@ -1,103 +1,141 @@
 #include "rendering/vulkan/vkr_mesh.h"
 #include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_cmd.h"
 #include "allocator/allocator.h"
+#include "common/profiler.h"
 #include <string.h>
 
+ProfileMark(pm_meshnew, vkrMesh_New)
 bool vkrMesh_New(
     vkrMesh* mesh,
-    i32 length,
+    i32 vertCount,
     const float4* pim_noalias positions,
     const float4* pim_noalias normals,
-    const float4* pim_noalias uv01)
+    const float4* pim_noalias uv01,
+    i32 indexCount,
+    const u16* pim_noalias indices)
 {
     ASSERT(mesh);
-    ASSERT(length >= 0);
-    ASSERT(positions || !length);
-    ASSERT(normals || !length);
-    ASSERT(uv01 || !length);
-
     memset(mesh, 0, sizeof(*mesh));
-    if (length <= 0)
+    if ((vertCount <= 0) || (indexCount <= 0))
     {
+        ASSERT(false);
         return false;
     }
-    if (!positions || !normals || !uv01)
+    if ((indexCount % 3))
     {
+        ASSERT(false);
+        return false;
+    }
+    if (!positions || !normals || !uv01 || !indices)
+    {
+        ASSERT(false);
         return false;
     }
 
-    mesh->length = length;
+    ProfileBegin(pm_meshnew);
+
+    SASSERT(sizeof(positions[0]) == sizeof(normals[0]));
+    SASSERT(sizeof(positions[0]) == sizeof(uv01[0]));
+
+    const i32 streamSize = sizeof(positions[0]) * vertCount;
+    const i32 indicesSize = sizeof(indices[0]) * indexCount;
+    const i32 totalSize = streamSize * vkrMeshStream_COUNT + indicesSize;
+
+    vkrBuffer stagebuf = { 0 };
+    vkrBuffer devbuf = { 0 };
+
     if (!vkrBuffer_New(
-        &mesh->positions,
-        sizeof(positions[0]) * length,
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        vkrMemUsage_CpuToGpu))
+        &stagebuf,
+        totalSize,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        vkrMemUsage_CpuOnly))
     {
         ASSERT(false);
         goto cleanup;
     }
     if (!vkrBuffer_New(
-        &mesh->normals,
-        sizeof(normals[0]) * length,
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        vkrMemUsage_CpuToGpu))
-    {
-        ASSERT(false);
-        goto cleanup;
-    }
-    if (!vkrBuffer_New(
-        &mesh->uv01,
-        sizeof(uv01[0]) * length,
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        vkrMemUsage_CpuToGpu))
+        &devbuf,
+        totalSize,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        vkrMemUsage_GpuOnly))
     {
         ASSERT(false);
         goto cleanup;
     }
 
     {
-        void* dst = vkrBuffer_Map(&mesh->positions);
+        u8* pim_noalias dst = vkrBuffer_Map(&stagebuf);
         ASSERT(dst);
         if (dst)
         {
-            memcpy(dst, positions, sizeof(positions[0]) * length);
+            memcpy(dst, positions, streamSize);
+            dst += streamSize;
+            memcpy(dst, normals, streamSize);
+            dst += streamSize;
+            memcpy(dst, uv01, streamSize);
+            dst += streamSize;
+            memcpy(dst, indices, indicesSize);
+            dst += indicesSize;
         }
-        vkrBuffer_Unmap(&mesh->positions);
+        vkrBuffer_Unmap(&stagebuf);
+        vkrBuffer_Flush(&stagebuf);
     }
-    {
-        void* dst = vkrBuffer_Map(&mesh->normals);
-        ASSERT(dst);
-        if (dst)
-        {
-            memcpy(dst, normals, sizeof(normals[0]) * length);
-        }
-        vkrBuffer_Unmap(&mesh->normals);
-    }
-    {
-        void* dst = vkrBuffer_Map(&mesh->uv01);
-        ASSERT(dst);
-        if (dst)
-        {
-            memcpy(dst, uv01, sizeof(uv01[0]) * length);
-        }
-        vkrBuffer_Unmap(&mesh->uv01);
-    }
-    vkrBuffer_Flush(&mesh->positions);
-    vkrBuffer_Flush(&mesh->normals);
-    vkrBuffer_Flush(&mesh->uv01);
 
+    vkrCmdBuf* cmdbuf = vkrCmdGet(vkrQueueId_Xfer);
+    vkrCmdBegin(cmdbuf);
+    vkrCmdCopyBuffer(cmdbuf, stagebuf, devbuf);
+    const VkBufferMemoryBarrier barrier =
+    {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask =
+            VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
+            VK_ACCESS_INDEX_READ_BIT,
+        .srcQueueFamilyIndex = g_vkr.queues[vkrQueueId_Xfer].family,
+        .dstQueueFamilyIndex = g_vkr.queues[vkrQueueId_Gfx].family,
+        .buffer = devbuf.handle,
+        .offset = 0,
+        .size = VK_WHOLE_SIZE,
+    };
+    vkrCmdBufferBarrier(
+        cmdbuf,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+        &barrier);
+    vkrCmdEnd(cmdbuf);
+    vkrCmdSubmit2(cmdbuf);
+
+    vkrCmdAwait(cmdbuf);
+
+    vkrBuffer_Del(&stagebuf);
+
+    mesh->buffer = devbuf;
+    mesh->vertCount = vertCount;
+    mesh->indexCount = indexCount;
+
+    ProfileEnd(pm_meshnew);
     return true;
 cleanup:
+    vkrBuffer_Del(&stagebuf);
+    vkrBuffer_Del(&devbuf);
     vkrMesh_Del(mesh);
+    ProfileEnd(pm_meshnew);
     return false;
 }
 
+ProfileMark(pm_meshdel, vkrMesh_Del)
 void vkrMesh_Del(vkrMesh* mesh)
 {
     if (mesh)
     {
-        vkrBuffer_Del(&mesh->uv01);
-        vkrBuffer_Del(&mesh->normals);
-        vkrBuffer_Del(&mesh->positions);
+        ProfileBegin(pm_meshdel);
+
+        vkrBuffer_Del(&mesh->buffer);
+        memset(mesh, 0, sizeof(*mesh));
+
+        ProfileEnd(pm_meshdel);
     }
 }

@@ -3,6 +3,7 @@
 #include "rendering/vulkan/vkr_queue.h"
 #include "rendering/vulkan/vkr_sync.h"
 #include "rendering/vulkan/vkr_device.h"
+#include "rendering/vulkan/vkr_cmd.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
@@ -10,7 +11,10 @@
 #include <GLFW/glfw3.h>
 #include <string.h>
 
-bool vkrSwapchain_New(vkrSwapchain* chain, vkrDisplay* display, vkrSwapchain* prev)
+bool vkrSwapchain_New(
+    vkrSwapchain* chain,
+    vkrDisplay* display,
+    vkrSwapchain* prev)
 {
     ASSERT(chain);
     ASSERT(display);
@@ -263,53 +267,33 @@ void vkrSwapchain_Acquire(
 }
 
 ProfileMark(pm_present, vkrSwapchain_Present)
-ProfileMark(pm_submit, vkrSwapchain_Submit)
 void vkrSwapchain_Present(
     vkrSwapchain* chain,
-    vkrQueueId cmdQueue,
-    VkCommandBuffer cmd)
+    vkrCmdBuf* cmdbuf)
 {
-    ProfileBegin(pm_submit);
-
     ASSERT(chain);
     ASSERT(chain->handle);
-    ASSERT(cmd);
-    VkQueue submitQueue = g_vkr.queues[cmdQueue].handle;
-    VkQueue presentQueue = g_vkr.queues[vkrQueueId_Pres].handle;
-    ASSERT(submitQueue);
-    ASSERT(presentQueue);
+    ASSERT(cmdbuf);
+    ASSERT(cmdbuf->handle);
 
     const u32 syncIndex = chain->syncIndex;
     VkFence signalFence = chain->syncFences[syncIndex];
     vkrResetFence(signalFence);
-    const VkSemaphore waitSemaphores[] =
-    {
-        chain->availableSemas[syncIndex],
-    };
-    const VkPipelineStageFlags waitMasks[] =
-    {
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-    };
-    const VkSemaphore signalSemaphores[] =
-    {
-        chain->renderedSemas[syncIndex],
-    };
-    const VkSubmitInfo submitInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount = NELEM(waitSemaphores),
-        .pWaitSemaphores = waitSemaphores,
-        .pWaitDstStageMask = waitMasks,
-        .signalSemaphoreCount = NELEM(signalSemaphores),
-        .pSignalSemaphores = signalSemaphores,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &cmd,
-    };
-    VkCheck(vkQueueSubmit(submitQueue, 1, &submitInfo, signalFence));
+    VkSemaphore waitSema = chain->availableSemas[syncIndex];
+    const VkPipelineStageFlags waitMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSemaphore signalSema = chain->renderedSemas[syncIndex];
+    vkrCmdSubmit(
+        cmdbuf->queue,
+        cmdbuf->handle,
+        signalFence,
+        waitSema,
+        waitMask,
+        signalSema);
 
-    ProfileEnd(pm_submit);
     ProfileBegin(pm_present);
 
+    VkQueue presentQueue = g_vkr.queues[vkrQueueId_Pres].handle;
+    ASSERT(presentQueue);
     const VkSwapchainKHR swapchains[] =
     {
         chain->handle,
@@ -321,8 +305,8 @@ void vkrSwapchain_Present(
     const VkPresentInfoKHR presentInfo =
     {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = NELEM(signalSemaphores),
-        .pWaitSemaphores = signalSemaphores,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &signalSema,
         .swapchainCount = NELEM(swapchains),
         .pSwapchains = swapchains,
         .pImageIndices = imageIndices,

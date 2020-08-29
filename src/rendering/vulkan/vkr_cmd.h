@@ -4,38 +4,60 @@
 
 PIM_C_BEGIN
 
-VkCommandBuffer vkrCmdGet(vkrQueueId id, u32 tid);
-
-// ----------------------------------------------------------------------------
-
 VkCommandPool vkrCmdPool_New(i32 family, VkCommandPoolCreateFlags flags);
 void vkrCmdPool_Del(VkCommandPool pool);
 void vkrCmdPool_Reset(VkCommandPool pool, VkCommandPoolResetFlagBits flags);
 
-VkCommandBuffer vkrCmdBuf_New(VkCommandPool pool);
-void vkrCmdBuf_Del(VkCommandPool pool, VkCommandBuffer buffer);
+// ----------------------------------------------------------------------------
 
-void vkrCmdBegin(VkCommandBuffer cmdbuf, VkCommandBufferUsageFlags flags);
-void vkrCmdEnd(VkCommandBuffer cmdbuf);
-void vkrCmdReset(VkCommandBuffer cmdbuf, VkCommandBufferResetFlags flags);
+vkrCmdBuf vkrCmdBuf_New(VkCommandPool pool, vkrQueueId id);
+void vkrCmdBuf_Del(vkrCmdBuf* cmdbuf);
+
+vkrCmdBuf* vkrCmdGet(vkrQueueId id);
+void vkrCmdBegin(vkrCmdBuf* cmdbuf);
+void vkrCmdEnd(vkrCmdBuf* cmdbuf);
+void vkrCmdReset(vkrCmdBuf* cmdbuf);
+void vkrCmdAwait(vkrCmdBuf* cmdbuf);
+
+void vkrCmdSubmit(
+    vkrQueueId id,
+    VkCommandBuffer cmd,
+    VkFence fence,                  // optional
+    VkSemaphore waitSema,           // optional
+    VkPipelineStageFlags waitMask,  // optional
+    VkSemaphore signalSema);        // optional
+void vkrCmdSubmit2(vkrCmdBuf* cmdbuf);
 
 void vkrCmdBeginRenderPass(
-    VkCommandBuffer cmdbuf,
+    vkrCmdBuf* cmdbuf,
     const vkrRenderPass* pass,
     VkFramebuffer framebuf,
     VkRect2D rect,
     VkClearValue clearValue);
-void vkrCmdNextSubpass(VkCommandBuffer cmdbuf);
-void vkrCmdEndRenderPass(VkCommandBuffer cmdbuf);
+void vkrCmdNextSubpass(vkrCmdBuf* cmdbuf);
+void vkrCmdEndRenderPass(vkrCmdBuf* cmdbuf);
 
-void vkrCmdBindPipeline(VkCommandBuffer cmdbuf, const vkrPipeline* pipeline);
+void vkrCmdBindPipeline(vkrCmdBuf* cmdbuf, const vkrPipeline* pipeline);
 
 void vkrCmdViewport(
-    VkCommandBuffer cmdbuf,
+    vkrCmdBuf* cmdbuf,
     VkViewport viewport,
     VkRect2D scissor);
 
-void vkrCmdDraw(VkCommandBuffer cmdbuf, i32 vertexCount, i32 firstVertex);
-void vkrCmdDrawMesh(VkCommandBuffer cmd, const vkrMesh* mesh);
+void vkrCmdDraw(vkrCmdBuf* cmdbuf, i32 vertexCount, i32 firstVertex);
+void vkrCmdDrawMesh(vkrCmdBuf* cmdbuf, const vkrMesh* mesh);
+
+void vkrCmdCopyBuffer(vkrCmdBuf* cmdbuf, vkrBuffer src, vkrBuffer dst);
+
+void vkrCmdBufferBarrier(
+    vkrCmdBuf* cmdbuf,
+    VkPipelineStageFlags srcStageMask,
+    VkPipelineStageFlags dstStageMask,
+    const VkBufferMemoryBarrier* barrier);
+void vkrCmdImageBarrier(
+    vkrCmdBuf* cmdbuf,
+    VkPipelineStageFlags srcStageMask,
+    VkPipelineStageFlags dstStageMask,
+    const VkImageMemoryBarrier* barrier);
 
 PIM_C_END

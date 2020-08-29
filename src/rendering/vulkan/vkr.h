@@ -63,10 +63,31 @@ typedef enum
     vkrMeshStream_COUNT
 } vkrMeshStream;
 
+// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#commandbuffers-lifecycle
+typedef enum
+{
+    vkrCmdState_Null = 0,   // freed or never allocated
+    vkrCmdState_Invalid,    // one time submit or invalidated
+    vkrCmdState_Initial,    // allocated or reset
+    vkrCmdState_Recording,  // began
+    vkrCmdState_Executable, // ended, or completed
+    vkrCmdState_Pending,    // submit
+} vkrCmdState;
+
+typedef struct vkrCmdBuf
+{
+    VkCommandBuffer handle;
+    VkCommandPool pool;
+    VkFence fence;
+    vkrQueueId queue;
+    vkrCmdState state;
+} vkrCmdBuf;
+
 typedef struct vkrBuffer
 {
     VkBuffer handle;
     VmaAllocation allocation;
+    i32 size;
 } vkrBuffer;
 
 typedef struct vkrImage
@@ -77,11 +98,9 @@ typedef struct vkrImage
 
 typedef struct vkrMesh
 {
-    // TODO: allocate one memory range for these buffers
-    i32 length;
-    vkrBuffer positions;
-    vkrBuffer normals;
-    vkrBuffer uv01;
+    vkrBuffer buffer;
+    i32 vertCount;
+    i32 indexCount;
 } vkrMesh;
 
 typedef struct vkrCompileInput
@@ -228,7 +247,7 @@ typedef struct vkrQueue
     i32 index;
     i32 threadcount;
     VkCommandPool* pools[kFramesInFlight];
-    VkCommandBuffer* buffers[kFramesInFlight];
+    vkrCmdBuf* buffers[kFramesInFlight];
     VkExtent3D granularity;
 } vkrQueue;
 
