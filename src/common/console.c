@@ -240,7 +240,7 @@ void con_printf(u32 color, const char* fmt, ...)
     ASSERT(fmt);
     if (fmt)
     {
-        char buffer[1024];
+        char buffer[4096];
         VSPrintf(ARGS(buffer), fmt, VA_START(fmt));
         con_puts(color, buffer);
     }
@@ -308,7 +308,7 @@ void con_logf(LogSev sev, const char* tag, const char* fmt, ...)
         u32 sevColor = LogSevToColor(sev);
         const char* sevTag = LogSevToTag(sev);
 
-        char msg[1024];
+        char msg[4096];
         SPrintf(ARGS(msg), "[%02d:%02d:%02d:%03d]", (i32)hours, (i32)minutes, (i32)seconds, (i32)ms);
         StrCatf(ARGS(msg), "[%s]", sevTag);
         if (tag)
