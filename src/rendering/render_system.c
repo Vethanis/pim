@@ -503,23 +503,14 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
         return cmdstat_err;
     }
 
-    char mapname[PIM_PATH] = { 0 };
-    SPrintf(ARGS(mapname), "maps/%s.bsp", name);
-
-    asset_t asset = { 0 };
-    if (!asset_get(mapname, &asset))
-    {
-        con_logf(LogSev_Error, "cmd", "mapload <map name>; could not find map named '%s'.", name);
-        return cmdstat_err;
-    }
-
     con_logf(LogSev_Info, "cmd", "mapload is clearing drawables.");
     drawables_clear(drawables_get());
     ShutdownPtScene();
     LightmapShutdown();
-
     camera_reset();
 
+    char mapname[PIM_PATH] = { 0 };
+    SPrintf(ARGS(mapname), "maps/%s.bsp", name);
     con_logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
     bool loadlights = cvar_get_bool(&cv_r_qlights);
@@ -530,21 +521,21 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     {
         lmpack_load(lmpack_get(), guid);
     }
-
-    if (!loaded)
+    else
     {
         loaded = LoadModelAsDrawables(mapname, loadlights);
     }
-
     if (loaded)
     {
         drawables_trs(drawables_get());
-
         con_logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
-
         return cmdstat_ok;
     }
-    return cmdstat_err;
+    else
+    {
+        con_logf(LogSev_Error, "cmd", "mapload failed to load '%s'.", mapname);
+        return cmdstat_err;
+    }
 }
 
 static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
