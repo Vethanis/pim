@@ -17,7 +17,7 @@ bool vkrMesh_New(
 {
     ASSERT(mesh);
     memset(mesh, 0, sizeof(*mesh));
-    if ((vertCount <= 0) || (indexCount <= 0))
+    if (vertCount <= 0)
     {
         ASSERT(false);
         return false;
@@ -27,7 +27,7 @@ bool vkrMesh_New(
         ASSERT(false);
         return false;
     }
-    if (!positions || !normals || !uv01 || !indices)
+    if (!positions || !normals || !uv01)
     {
         ASSERT(false);
         return false;
@@ -77,8 +77,11 @@ bool vkrMesh_New(
             dst += streamSize;
             memcpy(dst, uv01, streamSize);
             dst += streamSize;
-            memcpy(dst, indices, indicesSize);
-            dst += indicesSize;
+            if (indices)
+            {
+                memcpy(dst, indices, indicesSize);
+                dst += indicesSize;
+            }
         }
         vkrBuffer_Unmap(&stagebuf);
         vkrBuffer_Flush(&stagebuf);
