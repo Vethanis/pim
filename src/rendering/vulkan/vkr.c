@@ -215,11 +215,7 @@ bool vkr_init(i32 width, i32 height)
         { 1.0f, 0.0f, 1.0f, 0.0f },
         { 0.0f, 0.0f, 0.0f, 0.0f },
     };
-    const u16 indices[] =
-    {
-        0, 1, 2,
-    };
-    if (!vkrMesh_New(&g_vkr.mesh, NELEM(positions), positions, normals, uv01, NELEM(indices), indices))
+    if (!vkrMesh_New(&g_vkr.mesh, NELEM(positions), positions, normals, uv01, 0, NULL))
     {
         return false;
     }

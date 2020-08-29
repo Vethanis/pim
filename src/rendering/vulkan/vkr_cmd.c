@@ -312,23 +312,33 @@ void vkrCmdDrawMesh(vkrCmdBuf* cmdbuf, const vkrMesh* mesh)
     ASSERT(mesh->indexCount >= 0);
     ASSERT(mesh->buffer.handle);
 
-    const VkDeviceSize streamSize = sizeof(float4) * mesh->vertCount;
-    const VkDeviceSize indexOffset = streamSize * vkrMeshStream_COUNT;
-    const VkBuffer buffers[] =
+    if (mesh->vertCount > 0)
     {
-        mesh->buffer.handle,
-        mesh->buffer.handle,
-        mesh->buffer.handle,
-    };
-    const VkDeviceSize offsets[] =
-    {
-        streamSize * 0,
-        streamSize * 1,
-        streamSize * 2,
-    };
-    vkCmdBindVertexBuffers(cmdbuf->handle, 0, NELEM(buffers), buffers, offsets);
-    vkCmdBindIndexBuffer(cmdbuf->handle, mesh->buffer.handle, indexOffset, VK_INDEX_TYPE_UINT16);
-    vkCmdDrawIndexed(cmdbuf->handle, mesh->indexCount, 1, 0, 0, 0);
+        const VkDeviceSize streamSize = sizeof(float4) * mesh->vertCount;
+        const VkDeviceSize indexOffset = streamSize * vkrMeshStream_COUNT;
+        const VkBuffer buffers[] =
+        {
+            mesh->buffer.handle,
+            mesh->buffer.handle,
+            mesh->buffer.handle,
+        };
+        const VkDeviceSize offsets[] =
+        {
+            streamSize * 0,
+            streamSize * 1,
+            streamSize * 2,
+        };
+        vkCmdBindVertexBuffers(cmdbuf->handle, 0, NELEM(buffers), buffers, offsets);
+        if (mesh->indexCount > 0)
+        {
+            vkCmdBindIndexBuffer(cmdbuf->handle, mesh->buffer.handle, indexOffset, VK_INDEX_TYPE_UINT16);
+            vkCmdDrawIndexed(cmdbuf->handle, mesh->indexCount, 1, 0, 0, 0);
+        }
+        else
+        {
+            vkCmdDraw(cmdbuf->handle, mesh->vertCount, 1, 0, 0);
+        }
+    }
 
     ProfileEnd(pm_drawmesh);
 }
