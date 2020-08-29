@@ -132,13 +132,13 @@ vkrQueue vkrCreateQueue(
     for (i32 fr = 0; fr < kFramesInFlight; ++fr)
     {
         VkCommandPool* pools = perm_calloc(sizeof(pools[0]) * threadcount);
-        VkCommandBuffer* buffers = perm_calloc(sizeof(buffers[0]) * threadcount);
+        vkrCmdBuf* buffers = perm_calloc(sizeof(buffers[0]) * threadcount);
 
         for (i32 tr = 0; tr < threadcount; ++tr)
         {
             VkCommandPool pool = vkrCmdPool_New(family, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
             pools[tr] = pool;
-            buffers[tr] = vkrCmdBuf_New(pool);
+            buffers[tr] = vkrCmdBuf_New(pool, id);
         }
 
         queue.pools[fr] = pools;
@@ -172,17 +172,21 @@ void vkrDestroyQueue(VkDevice device, vkrQueue* queue)
         for (i32 fr = 0; fr < kFramesInFlight; ++fr)
         {
             VkCommandPool* pools = queue->pools[fr];
-            VkCommandBuffer* buffers = queue->buffers[fr];
-            queue->pools[fr] = NULL;
-            queue->buffers[fr] = NULL;
-            if (buffers && pools)
+            vkrCmdBuf* buffers = queue->buffers[fr];
+            if (buffers)
             {
                 for (i32 tr = 0; tr < threadcount; ++tr)
                 {
-                    vkrCmdBuf_Del(pools[tr], buffers[tr]);
-                    vkrCmdPool_Del(pools[tr]);
+                    vkrCmdBuf_Del(&buffers[tr]);
                 }
                 pim_free(buffers);
+            }
+            if (pools)
+            {
+                for (i32 tr = 0; tr < threadcount; ++tr)
+                {
+                    vkrCmdPool_Del(pools[tr]);
+                }
                 pim_free(pools);
             }
         }

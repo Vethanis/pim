@@ -1,6 +1,10 @@
 #include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_cmd.h"
+#include "rendering/vulkan/vkr_sync.h"
 #include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
 #include "allocator/allocator.h"
+#include "common/profiler.h"
+#include "threading/task.h"
 #include <string.h>
 
 static void* VKAPI_PTR vkrAllocFn(
@@ -138,36 +142,47 @@ const VkAllocationCallbacks* vkrMem_Fns(void)
     return &kCpuCallbacks;
 }
 
+ProfileMark(pm_memmap, vkrMem_Map)
 void* vkrMem_Map(VmaAllocation allocation)
 {
+    ProfileBegin(pm_memmap);
     void* result = NULL;
     ASSERT(allocation);
     VkCheck(vmaMapMemory(g_vkr.allocator, allocation, &result));
     ASSERT(result);
+    ProfileEnd(pm_memmap);
     return result;
 }
 
+ProfileMark(pm_memunmap, vkrMem_Unmap)
 void vkrMem_Unmap(VmaAllocation allocation)
 {
+    ProfileBegin(pm_memunmap);
     ASSERT(allocation);
     vmaUnmapMemory(g_vkr.allocator, allocation);
+    ProfileEnd(pm_memunmap);
 }
 
+ProfileMark(pm_memflush, vkrMem_Flush)
 void vkrMem_Flush(VmaAllocation allocation)
 {
+    ProfileBegin(pm_memflush);
     ASSERT(allocation);
     const VkDeviceSize offset = 0;
     const VkDeviceSize size = VK_WHOLE_SIZE;
     VkCheck(vmaFlushAllocation(g_vkr.allocator, allocation, offset, size));
     VkCheck(vmaInvalidateAllocation(g_vkr.allocator, allocation, offset, size));
+    ProfileEnd(pm_memflush);
 }
 
+ProfileMark(pm_bufnew, vkrBuffer_New)
 bool vkrBuffer_New(
     vkrBuffer* buffer,
     i32 size,
     VkBufferUsageFlags bufferUsage,
     vkrMemUsage memUsage)
 {
+    ProfileBegin(pm_bufnew);
     ASSERT(g_vkr.allocator);
     ASSERT(size >= 0);
     ASSERT(buffer);
@@ -192,17 +207,21 @@ bool vkrBuffer_New(
         &allocation,
         NULL));
     ASSERT(handle);
+    ProfileEnd(pm_bufnew);
     if (handle)
     {
         buffer->handle = handle;
         buffer->allocation = allocation;
+        buffer->size = size;
         return true;
     }
     return false;
 }
 
+ProfileMark(pm_bufdel, vkrBuffer_Del)
 void vkrBuffer_Del(vkrBuffer* buffer)
 {
+    ProfileBegin(pm_bufdel);
     ASSERT(g_vkr.allocator);
     if (buffer)
     {
@@ -212,6 +231,7 @@ void vkrBuffer_Del(vkrBuffer* buffer)
         }
         memset(buffer, 0, sizeof(*buffer));
     }
+    ProfileEnd(pm_bufdel);
 }
 
 void* vkrBuffer_Map(const vkrBuffer* buffer)
@@ -232,11 +252,13 @@ void vkrBuffer_Flush(const vkrBuffer* buffer)
     vkrMem_Flush(buffer->allocation);
 }
 
+ProfileMark(pm_imgnew, vkrImage_New)
 bool vkrImage_New(
     vkrImage* image,
     const VkImageCreateInfo* info,
     vkrMemUsage memUsage)
 {
+    ProfileBegin(pm_imgnew);
     memset(image, 0, sizeof(*image));
     const VmaAllocationCreateInfo allocInfo =
     {
@@ -251,6 +273,7 @@ bool vkrImage_New(
         &handle,
         &allocation,
         NULL));
+    ProfileEnd(pm_imgnew);
     if (handle)
     {
         image->handle = handle;
@@ -260,8 +283,10 @@ bool vkrImage_New(
     return false;
 }
 
+ProfileMark(pm_imgdel, vkrImage_Del)
 void vkrImage_Del(vkrImage* image)
 {
+    ProfileBegin(pm_imgdel);
     if (image)
     {
         if (image->handle)
@@ -270,6 +295,7 @@ void vkrImage_Del(vkrImage* image)
         }
         memset(image, 0, sizeof(*image));
     }
+    ProfileEnd(pm_imgdel);
 }
 
 void* vkrImage_Map(const vkrImage* image)

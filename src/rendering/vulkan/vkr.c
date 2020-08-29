@@ -215,7 +215,11 @@ bool vkr_init(i32 width, i32 height)
         { 1.0f, 0.0f, 1.0f, 0.0f },
         { 0.0f, 0.0f, 0.0f, 0.0f },
     };
-    if (!vkrMesh_New(&g_vkr.mesh, NELEM(positions), positions, normals, uv01))
+    const u16 indices[] =
+    {
+        0, 1, 2,
+    };
+    if (!vkrMesh_New(&g_vkr.mesh, NELEM(positions), positions, normals, uv01, NELEM(indices), indices))
     {
         return false;
     }
@@ -251,7 +255,6 @@ void vkr_update(void)
 
     ProfileBegin(pm_update);
 
-    const i32 tid = task_thread_id();
     VkRect2D rect = vkrSwapchain_GetRect(chain);
     VkViewport viewport = vkrSwapchain_GetViewport(chain);
     const VkClearValue clearValue =
@@ -262,10 +265,9 @@ void vkr_update(void)
     u32 syncIndex = 0;
     u32 imageIndex = 0;
     vkrSwapchain_Acquire(chain, &syncIndex, &imageIndex);
-    VkCommandBuffer cmd = vkrCmdGet(vkrQueueId_Gfx, tid);
+    vkrCmdBuf* cmd = vkrCmdGet(vkrQueueId_Gfx);
     {
-        vkrCmdReset(cmd, 0);
-        vkrCmdBegin(cmd, 0);
+        vkrCmdBegin(cmd);
         {
             vkrCmdViewport(cmd, viewport, rect);
             vkrCmdBeginRenderPass(
@@ -280,7 +282,7 @@ void vkr_update(void)
         }
         vkrCmdEnd(cmd);
     }
-    vkrSwapchain_Present(chain, vkrQueueId_Gfx, cmd);
+    vkrSwapchain_Present(chain, cmd);
 
     ProfileEnd(pm_update);
 }
