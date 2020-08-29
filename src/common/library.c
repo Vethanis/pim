@@ -99,6 +99,7 @@ static void* OS_dlsym(void* hdl, const char* name)
     HMODULE hmod = hdl;
     FARPROC ptr = GetProcAddress(hmod, name);
     void* result = NULL;
+    SASSERT(sizeof(ptr) == sizeof(result));
     memcpy(&result, &ptr, sizeof(result));
     return result;
 }
