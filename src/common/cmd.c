@@ -138,18 +138,18 @@ cmdstat_t cmd_exec(const char* line)
     {
         if (argc == 1)
         {
-            con_printf(C32_WHITE, "\"%s\" is \"%s\"", cvar->name, cvar->value);
+            con_logf(LogSev_Info, "cmd", "\"%s\" is \"%s\"", cvar->name, cvar->value);
             return cmdstat_ok;
         }
         if (argc >= 2)
         {
             cvar_set_str(cvar, argv[1]);
-            con_printf(C32_GREEN, "%s = %s", cvar->name, cvar->value);
+            con_logf(LogSev_Info, "cmd", "%s = %s", cvar->name, cvar->value);
             return cmdstat_ok;
         }
     }
 
-    con_printf(C32_RED, "Unknown command \"%s\"", name);
+    con_logf(LogSev_Error, "cmd", "Unknown command \"%s\"", name);
     return cmdstat_err;
 }
 
@@ -348,7 +348,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
 {
     if (argc <= 1)
     {
-        con_puts(C32_RED, "Current alias commands:");
+        con_logf(LogSev_Info, "cmd", "Current alias commands:");
         const u32 width = ms_aliases.width;
         const char** names = ms_aliases.keys;
         const cmdalias_t* aliases = ms_aliases.values;
@@ -357,10 +357,10 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
             const char* name = names[i];
             if (name)
             {
-                con_printf(C32_RED, "%s : %s", name, aliases[i].value);
+                con_logf(LogSev_Info, "cmd", "%s : %s", name, aliases[i].value);
             }
         }
-        return cmdstat_err;
+        return cmdstat_ok;
     }
 
     const char* aliasKey = argv[1];
@@ -394,7 +394,7 @@ static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv)
 {
     if (argc != 2)
     {
-        con_puts(C32_RED, "exec <filename> : executes a script file");
+        con_logf(LogSev_Error, "cmd", "exec <filename> : executes a script file");
         return cmdstat_err;
     }
     const char* filename = argv[1];
@@ -420,7 +420,7 @@ static cmdstat_t cmd_wait_fn(i32 argc, const char** argv)
         }
         else
         {
-            con_puts(C32_RED, "unidentified wait count");
+            con_logf(LogSev_Error, "cmd", "unidentified wait count");
             return cmdstat_err;
         }
     }
