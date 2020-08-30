@@ -3,6 +3,7 @@
 #include "common/macro.h"
 #include <volk/volk.h>
 #include "containers/strlist.h"
+#include "threading/mutex.h"
 
 PIM_C_BEGIN
 
@@ -73,6 +74,14 @@ typedef enum
     vkrCmdState_Executable, // ended, or completed
     vkrCmdState_Pending,    // submit
 } vkrCmdState;
+
+// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkGetFenceStatus.html
+typedef enum
+{
+    vkrFenceState_Signalled = VK_SUCCESS,
+    vkrFenceState_Unsignalled = VK_NOT_READY,
+    vkrFenceState_Lost = VK_ERROR_DEVICE_LOST,
+} vkrFenceState;
 
 typedef struct vkrCmdBuf
 {
@@ -251,6 +260,32 @@ typedef struct vkrQueue
     VkExtent3D granularity;
 } vkrQueue;
 
+typedef enum
+{
+    vkrReleasableType_Buffer,
+    vkrReleasableType_Image,
+} vkrReleasableType;
+
+typedef struct vkrReleasable
+{
+    u32 frame;              // frame that resource was released
+    vkrReleasableType type; // type of resource
+    VkFence fence;          // optional, used in place of frame
+    union
+    {
+        vkrBuffer buffer;
+        vkrImage image;
+    };
+} vkrReleasable;
+
+typedef struct vkrAllocator
+{
+    VmaAllocator handle;
+    vkrReleasable* releasables;
+    i32 numreleasable;
+    mutex_t releasemtx;
+} vkrAllocator;
+
 // ----------------------------------------------------------------------------
 
 typedef struct vkr_t
@@ -258,7 +293,7 @@ typedef struct vkr_t
     VkInstance inst;
     VkPhysicalDevice phdev;
     VkDevice dev;
-    VmaAllocator allocator;
+    vkrAllocator allocator;
     VkPhysicalDeviceFeatures phdevFeats;
     VkPhysicalDeviceProperties phdevProps;
     VkDebugUtilsMessengerEXT messenger;

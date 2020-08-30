@@ -3,8 +3,8 @@
 #include "common/profiler.h"
 #include <string.h>
 
-ProfileMark(pm_createsema, vkrCreateSemaphore)
-VkSemaphore vkrCreateSemaphore(void)
+ProfileMark(pm_createsema, vkrSemaphore_New)
+VkSemaphore vkrSemaphore_New(void)
 {
     ProfileBegin(pm_createsema);
     ASSERT(g_vkr.dev);
@@ -19,8 +19,8 @@ VkSemaphore vkrCreateSemaphore(void)
     return handle;
 }
 
-ProfileMark(pm_destroysema, vkrDestroySemaphore)
-void vkrDestroySemaphore(VkSemaphore sema)
+ProfileMark(pm_destroysema, vkrSemaphore_Del)
+void vkrSemaphore_Del(VkSemaphore sema)
 {
     ASSERT(g_vkr.dev);
     if (sema)
@@ -31,8 +31,8 @@ void vkrDestroySemaphore(VkSemaphore sema)
     }
 }
 
-ProfileMark(pm_createfence, vkrCreateFence)
-VkFence vkrCreateFence(bool signalled)
+ProfileMark(pm_createfence, vkrFence_New)
+VkFence vkrFence_New(bool signalled)
 {
     ProfileBegin(pm_createfence);
     ASSERT(g_vkr.dev);
@@ -48,8 +48,8 @@ VkFence vkrCreateFence(bool signalled)
     return handle;
 }
 
-ProfileMark(pm_destroyfence, vkrDestroyFence)
-void vkrDestroyFence(VkFence fence)
+ProfileMark(pm_destroyfence, vkrFence_Del)
+void vkrFence_Del(VkFence fence)
 {
     ASSERT(g_vkr.dev);
     if (fence)
@@ -60,8 +60,8 @@ void vkrDestroyFence(VkFence fence)
     }
 }
 
-ProfileMark(pm_resetfence, vkrResetFence)
-void vkrResetFence(VkFence fence)
+ProfileMark(pm_resetfence, vkrFence_Reset)
+void vkrFence_Reset(VkFence fence)
 {
     ProfileBegin(pm_resetfence);
     ASSERT(g_vkr.dev);
@@ -70,8 +70,8 @@ void vkrResetFence(VkFence fence)
     ProfileEnd(pm_resetfence);
 }
 
-ProfileMark(pm_waitfence, vkrWaitFence)
-void vkrWaitFence(VkFence fence)
+ProfileMark(pm_waitfence, vkrFence_Wait)
+void vkrFence_Wait(VkFence fence)
 {
     ProfileBegin(pm_waitfence);
     ASSERT(g_vkr.dev);
@@ -79,4 +79,15 @@ void vkrWaitFence(VkFence fence)
     const u64 timeout = -1;
     VkCheck(vkWaitForFences(g_vkr.dev, 1, &fence, true, timeout));
     ProfileEnd(pm_waitfence);
+}
+
+ProfileMark(pm_statfence, vkrFence_Stat)
+vkrFenceState vkrFence_Stat(VkFence fence)
+{
+    ProfileBegin(pm_statfence);
+    ASSERT(g_vkr.dev);
+    ASSERT(fence);
+    vkrFenceState state = vkGetFenceStatus(g_vkr.dev, fence);
+    ProfileEnd(pm_statfence);
+    return state;
 }

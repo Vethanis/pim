@@ -110,10 +110,7 @@ bool vkrMesh_New(
         &barrier);
     vkrCmdEnd(cmdbuf);
     vkrCmdSubmit2(cmdbuf);
-
-    vkrCmdAwait(cmdbuf);
-
-    vkrBuffer_Del(&stagebuf);
+    vkrBuffer_Release(&stagebuf, cmdbuf->fence);
 
     mesh->buffer = devbuf;
     mesh->vertCount = vertCount;
@@ -124,7 +121,6 @@ bool vkrMesh_New(
 cleanup:
     vkrBuffer_Del(&stagebuf);
     vkrBuffer_Del(&devbuf);
-    vkrMesh_Del(mesh);
     ProfileEnd(pm_meshnew);
     return false;
 }
@@ -136,7 +132,7 @@ void vkrMesh_Del(vkrMesh* mesh)
     {
         ProfileBegin(pm_meshdel);
 
-        vkrBuffer_Del(&mesh->buffer);
+        vkrBuffer_Release(&mesh->buffer, NULL);
         memset(mesh, 0, sizeof(*mesh));
 
         ProfileEnd(pm_meshdel);
