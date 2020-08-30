@@ -9,13 +9,14 @@
 #include "common/profiler.h"
 #include <math.h>
 
-static cvar_t cv_FpsLimit =
+static cvar_t cv_fpslimit =
 {
-    cvart_int,
-    0x0,
-    "fps_limit",
-    "125",
-    "limits fps when above this value"
+    .type = cvart_int,
+    .name = "fps_limit",
+    .value = "666",
+    .minInt = 1,
+    .maxInt = 666,
+    .desc = "limits fps when above this value"
 };
 
 static GLFWwindow* ms_window;
@@ -32,7 +33,7 @@ static void OnGlfwError(i32 error_code, const char* description);
 
 void window_sys_init(void)
 {
-    cvar_reg(&cv_FpsLimit);
+    cvar_reg(&cv_fpslimit);
     ms_lastSwap = time_now();
 
     glfwSetErrorCallback(OnGlfwError);
@@ -94,15 +95,14 @@ void window_close(bool shouldClose)
     glfwSetWindowShouldClose(ms_window, shouldClose);
 }
 
-float window_get_target(void)
+i32 window_get_target(void)
 {
-    return cv_FpsLimit.asFloat;
+    return cv_fpslimit.asInt;
 }
 
-void window_set_target(float fps)
+void window_set_target(i32 fps)
 {
-    ASSERT(fps >= 1.0f);
-    cvar_set_float(&cv_FpsLimit, fps);
+    cvar_set_int(&cv_fpslimit, fps);
 }
 
 ProfileMark(pm_waitfps, wait_for_target_fps)
@@ -110,7 +110,7 @@ static void wait_for_target_fps(void)
 {
     ProfileBegin(pm_waitfps);
 
-    const double targetMS = 1000.0 / cv_FpsLimit.asFloat;
+    const double targetMS = 1000.0 / cv_fpslimit.asInt;
     const double diffMS = targetMS - time_milli(time_now() - ms_lastSwap);
     if (diffMS >= 1.0)
     {

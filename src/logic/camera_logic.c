@@ -15,9 +15,9 @@ static float ms_yawScale = 720.0f;
 static float ms_moveScale = 5.0f;
 static bool ms_placing = true;
 
-static cvar_t cv_pitchScale = { cvart_float, 0, "pitchScale", "720", "pitch input sensitivity" };
-static cvar_t cv_yawScale = { cvart_float, 0, "yawScale", "720", "yaw input sensitivity" };
-static cvar_t cv_moveScale = { cvart_float, 0, "moveScale", "5", "movement input sensitivity" };
+static cvar_t cv_pitchscale = { .type = cvart_float,.name = "pitchscale",.value = "720",.minFloat = 0.0f,.maxFloat = 3600.0f,.desc = "pitch input sensitivity" };
+static cvar_t cv_yawscale = { .type = cvart_float,.name = "yawscale",.value = "720",.minFloat = 0.0f,.maxFloat = 3600.0f,.desc = "yaw input sensitivity" };
+static cvar_t cv_movescale = { .type = cvart_float,.name = "movescale",.value = "5",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
 
 static void LightLogic(const camera_t* cam)
 {
@@ -51,27 +51,11 @@ static void LightLogic(const camera_t* cam)
     }
 }
 
-static void CubemapLogic(const camera_t* cam)
-{
-    float4 pos = cam->position;
-    Cubemaps_t* cubemaps = Cubemaps_Get();
-    i32 len = cubemaps->count;
-    sphere_t* bounds = cubemaps->bounds;
-    if (len > 0)
-    {
-        float4 sph = bounds[0].value;
-        float r = sph.w;
-        sph = pos;
-        sph.w = r;
-        bounds[0].value = sph;
-    }
-}
-
 void camera_logic_init(void)
 {
-    cvar_reg(&cv_pitchScale);
-    cvar_reg(&cv_yawScale);
-    cvar_reg(&cv_moveScale);
+    cvar_reg(&cv_pitchscale);
+    cvar_reg(&cv_yawscale);
+    cvar_reg(&cv_movescale);
 }
 
 ProfileMark(pm_update, camera_logic_update)
@@ -156,7 +140,6 @@ void camera_logic_update(void)
     camera_set(&camera);
 
     LightLogic(&camera);
-    CubemapLogic(&camera);
 
     ProfileEnd(pm_update);
 }
