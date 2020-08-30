@@ -3,6 +3,7 @@
 #include "common/macro.h"
 #include "math/types.h"
 #include "common/guid.h"
+#include "common/dbytes.h"
 
 PIM_C_BEGIN
 
@@ -22,6 +23,14 @@ typedef struct texture_s
     int2 size;
     u32* pim_noalias texels;
 } texture_t;
+
+#define kTextureVersion 2
+typedef struct dtexture_s
+{
+    i32 version;
+    int2 size;
+    dbytes_t texels;
+} dtexture_t;
 
 void texture_sys_init(void);
 void texture_sys_update(void);

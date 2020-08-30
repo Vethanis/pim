@@ -84,10 +84,6 @@ bool mesh_new(mesh_t* mesh, guid_t name, meshid_t* idOut)
     {
         added = table_add(&ms_table, name, mesh, &id);
         ASSERT(added);
-        if (added)
-        {
-            mesh_calcbounds(ToMeshId(id));
-        }
     }
     if (!added)
     {
@@ -164,15 +160,10 @@ box_t mesh_calcbounds(meshid_t id)
     if (mesh_get(id, &mesh))
     {
         bounds = box_from_pts(mesh.positions, mesh.length);
-        mesh_t* dst = ms_table.values;
-        dst += id.index;
-        dst->bounds = bounds;
     }
 
     return bounds;
 }
-
-#define kMeshVersion 1
 
 bool mesh_save(meshid_t id, guid_t* dst)
 {
@@ -185,13 +176,23 @@ bool mesh_save(meshid_t id, guid_t* dst)
         {
             const mesh_t* meshes = ms_table.values;
             const mesh_t mesh = meshes[id.index];
-            const i32 version = kMeshVersion;
-            fstr_write(fd, &version, sizeof(version));
-            fstr_write(fd, &mesh.length, sizeof(mesh.length));
+            i32 offset = 0;
+            dmesh_t dmesh = { 0 };
+            dbytes_new(1, sizeof(dmesh), &offset);
+            dmesh.version = kMeshVersion;
+            dmesh.length = mesh.length;
+            dmesh.positions = dbytes_new(mesh.length, sizeof(mesh.positions[0]), &offset);
+            dmesh.normals = dbytes_new(mesh.length, sizeof(mesh.normals[0]), &offset);
+            dmesh.uvs = dbytes_new(mesh.length, sizeof(mesh.uvs[0]), &offset);
+            fstr_write(fd, &dmesh, sizeof(dmesh));
+
+            ASSERT(fstr_tell(fd) == dmesh.positions.offset);
             fstr_write(fd, mesh.positions, sizeof(mesh.positions[0]) * mesh.length);
+            ASSERT(fstr_tell(fd) == dmesh.normals.offset);
             fstr_write(fd, mesh.normals, sizeof(mesh.normals[0]) * mesh.length);
+            ASSERT(fstr_tell(fd) == dmesh.uvs.offset);
             fstr_write(fd, mesh.uvs, sizeof(mesh.uvs[0]) * mesh.length);
-            fstr_write(fd, &mesh.bounds, sizeof(mesh.bounds));
+
             fstr_close(&fd);
             return true;
         }
@@ -206,28 +207,40 @@ bool mesh_load(guid_t name, meshid_t* dst)
     char filename[PIM_PATH] = "data/";
     guid_tofile(ARGS(filename), name, ".mesh");
     fstr_t fd = fstr_open(filename, "rb");
+    mesh_t mesh = { 0 };
     if (fstr_isopen(fd))
     {
-        mesh_t mesh = { 0 };
-        i32 version = 0;
-        fstr_read(fd, &version, sizeof(version));
-        if (version == kMeshVersion)
+        dmesh_t dmesh = { 0 };
+        fstr_read(fd, &dmesh, sizeof(dmesh));
+        if (dmesh.version == kMeshVersion)
         {
-            fstr_read(fd, &mesh.length, sizeof(mesh.length));
-            ASSERT(mesh.length >= 0);
+            dbytes_check(dmesh.positions, sizeof(mesh.positions[0]));
+            dbytes_check(dmesh.normals, sizeof(mesh.normals[0]));
+            dbytes_check(dmesh.uvs, sizeof(mesh.uvs[0]));
+
+            mesh.length = dmesh.length;
             if (mesh.length > 0)
             {
                 mesh.positions = perm_malloc(sizeof(mesh.positions[0]) * mesh.length);
                 mesh.normals = perm_malloc(sizeof(mesh.normals[0]) * mesh.length);
                 mesh.uvs = perm_malloc(sizeof(mesh.uvs[0]) * mesh.length);
+
+                ASSERT(fstr_tell(fd) == dmesh.positions.offset);
                 fstr_read(fd, mesh.positions, sizeof(mesh.positions[0]) * mesh.length);
+                ASSERT(fstr_tell(fd) == dmesh.normals.offset);
                 fstr_read(fd, mesh.normals, sizeof(mesh.normals[0]) * mesh.length);
+                ASSERT(fstr_tell(fd) == dmesh.uvs.offset);
                 fstr_read(fd, mesh.uvs, sizeof(mesh.uvs[0]) * mesh.length);
-                fstr_read(fd, &mesh.bounds, sizeof(mesh.bounds));
+
                 loaded = mesh_new(&mesh, name, dst);
             }
         }
-        fstr_close(&fd);
+    }
+cleanup:
+    fstr_close(&fd);
+    if (!loaded)
+    {
+        FreeMesh(&mesh);
     }
     return loaded;
 }

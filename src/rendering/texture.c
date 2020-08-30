@@ -13,6 +13,7 @@
 #include "common/sort.h"
 #include "common/profiler.h"
 #include "io/fstr.h"
+#include "threading/task.h"
 #include <glad/glad.h>
 #include <string.h>
 
@@ -174,8 +175,6 @@ bool texture_getname(textureid_t tid, guid_t* nameOut)
     return table_getname(&ms_table, gid, nameOut);
 }
 
-#define kTextureVersion 1
-
 bool texture_save(textureid_t tid, guid_t* dst)
 {
     if (texture_getname(tid, dst))
@@ -188,10 +187,18 @@ bool texture_save(textureid_t tid, guid_t* dst)
             const texture_t* textures = ms_table.values;
             const texture_t texture = textures[tid.index];
             const i32 len = texture.size.x * texture.size.y;
-            const i32 version = kTextureVersion;
-            fstr_write(fd, &version, sizeof(version));
-            fstr_write(fd, &texture.size, sizeof(texture.size));
+
+            i32 offset = 0;
+            dtexture_t dtexture = { 0 };
+            dbytes_new(1, sizeof(dtexture), &offset);
+            dtexture.version = kTextureVersion;
+            dtexture.size = texture.size;
+            dtexture.texels = dbytes_new(len, sizeof(texture.texels[0]), &offset);
+            fstr_write(fd, &dtexture, sizeof(dtexture));
+
+            ASSERT(fstr_tell(fd) == dtexture.texels.offset);
             fstr_write(fd, texture.texels, sizeof(texture.texels[0]) * len);
+
             fstr_close(&fd);
             return true;
         }
@@ -206,23 +213,33 @@ bool texture_load(guid_t name, textureid_t* dst)
     char filename[PIM_PATH] = "data/";
     guid_tofile(ARGS(filename), name, ".texture");
     fstr_t fd = fstr_open(filename, "rb");
+    texture_t texture = { 0 };
+    dtexture_t dtexture = { 0 };
     if (fstr_isopen(fd))
     {
-        texture_t texture = { 0 };
-        i32 version = 0;
-        fstr_read(fd, &version, sizeof(version));
-        if (version == kTextureVersion)
+        fstr_read(fd, &dtexture, sizeof(dtexture));
+        if (dtexture.version == kTextureVersion)
         {
-            fstr_read(fd, &texture.size, sizeof(texture.size));
+            dbytes_check(dtexture.texels, sizeof(texture.texels[0]));
+
+            texture.size = dtexture.size;
             if ((texture.size.x > 0) && (texture.size.y > 0))
             {
                 const i32 len = texture.size.x * texture.size.y;
                 texture.texels = perm_malloc(sizeof(texture.texels[0]) * len);
+
+                ASSERT(fstr_tell(fd) == dtexture.texels.offset);
                 fstr_read(fd, texture.texels, sizeof(texture.texels[0]) * len);
+
                 loaded = texture_new(&texture, name, dst);
             }
         }
-        fstr_close(&fd);
+    }
+cleanup:
+    fstr_close(&fd);
+    if (!loaded)
+    {
+        FreeTexture(&texture);
     }
     return loaded;
 }
@@ -293,6 +310,112 @@ pim_inline float DecodeEmission(u8 encoded, bool isLight)
     return 0.0f;
 }
 
+typedef struct task_Unpalette
+{
+    task_t task;
+    int2 size;
+    float2 min;
+    float2 max;
+    const u8* bytes;
+    u32* albedo;
+    u32* rome;
+    u32* normal;
+    float2* gray;
+    bool fullEmit;
+    bool isLight;
+} task_Unpalette;
+
+static void UnpaletteStep1Fn(task_t* pbase, i32 begin, i32 end)
+{
+    task_Unpalette* task = (task_Unpalette*)pbase;
+    const u8* pim_noalias bytes = task->bytes;
+    u32* pim_noalias albedo = task->albedo;
+    float2* pim_noalias gray = task->gray;
+
+    for (i32 i = begin; i < end; ++i)
+    {
+        u32 color = DecodeTexel(bytes[i]);
+        float4 diffuse = ColorToLinear(color);
+        float4 linear = DiffuseToAlbedo(diffuse);
+        linear.w = 1.0f;
+        gray[i] = f2_v(f4_avglum(diffuse), f4_avglum(linear));
+        albedo[i] = LinearToColor(linear);
+    }
+}
+
+static void UnpaletteStep2Fn(task_t* pbase)
+{
+    task_Unpalette* task = (task_Unpalette*)pbase;
+    const int2 size = task->size;
+    const i32 len = size.x * size.y;
+    const float2* pim_noalias gray = task->gray;
+
+    float2 min = f2_1;
+    float2 max = f2_0;
+    for (i32 i = 0; i < len; ++i)
+    {
+        min = f2_min(min, gray[i]);
+        max = f2_max(max, gray[i]);
+    }
+    task->min = min;
+    task->max = max;
+}
+
+static void UnpaletteStep3Fn(task_t* pbase, i32 begin, i32 end)
+{
+    task_Unpalette* task = (task_Unpalette*)pbase;
+    const int2 size = task->size;
+    const float2 min = task->min;
+    const float2 max = task->max;
+    const u8* pim_noalias bytes = task->bytes;
+    const float2* pim_noalias gray = task->gray;
+    u32* pim_noalias rome = task->rome;
+    u32* pim_noalias normal = task->normal;
+    const bool fullEmit = task->fullEmit;
+    const bool isLight = task->isLight;
+
+    for (i32 i = begin; i < end; ++i)
+    {
+        u8 encoded = bytes[i];
+        float2 grayscale = gray[i];
+        float2 t = f2_smoothstep(min, max, grayscale);
+        float roughness = f1_lerp(1.0f, 0.9f, t.y);
+        float occlusion = f1_lerp(0.9f, 1.0f, t.y);
+        float metallic = 1.0f;
+        float emission;
+        if (fullEmit)
+        {
+            emission = 1.0f;
+        }
+        else
+        {
+            emission = DecodeEmission(encoded, isLight);
+        }
+        rome[i] = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
+    }
+
+    for (i32 i = begin; i < end; ++i)
+    {
+        i32 x = i % size.x;
+        i32 y = i / size.x;
+        float r = gray[Wrap(size, i2_v(x + 1, y + 0))].x;
+        float l = gray[Wrap(size, i2_v(x - 1, y + 0))].x;
+        float u = gray[Wrap(size, i2_v(x + 0, y - 1))].x;
+        float d = gray[Wrap(size, i2_v(x + 0, y + 1))].x;
+
+        r = f1_smoothstep(min.x, max.x, r);
+        l = f1_smoothstep(min.x, max.x, l);
+        u = f1_smoothstep(min.x, max.x, u);
+        d = f1_smoothstep(min.x, max.x, d);
+
+        float dx = r - l;
+        float dy = u - d;
+        float z = 2.0f;
+        float4 N = { dx, dy, z, 1.0f };
+        normal[i] = DirectionToColor(N);
+    }
+}
+
 // https://quakewiki.org/wiki/Quake_palette
 bool texture_unpalette(
     const u8* bytes,
@@ -350,71 +473,23 @@ bool texture_unpalette(
         u32* pim_noalias albedo = perm_malloc(len * sizeof(albedo[0]));
         u32* pim_noalias rome = perm_malloc(len * sizeof(rome[0]));
         u32* pim_noalias normal = perm_malloc(len * sizeof(normal[0]));
-
         float2* pim_noalias gray = perm_malloc(len * sizeof(gray[0]));
 
-        float2 min = f2_1;
-        float2 max = f2_0;
-        for (i32 i = 0; i < len; ++i)
-        {
-            u32 color = DecodeTexel(bytes[i]);
-            float4 diffuse = ColorToLinear(color);
-            float4 linear = DiffuseToAlbedo(diffuse);
-            linear.w = 1.0f;
-            float2 grayscale = f2_v(f4_perlum(diffuse), f4_perlum(linear));
-            min = f2_min(min, grayscale);
-            max = f2_max(max, grayscale);
+        task_Unpalette* task = tmp_calloc(sizeof(*task));
+        task->albedo = albedo;
+        task->bytes = bytes;
+        task->fullEmit = fullEmit;
+        task->gray = gray;
+        task->isLight = isLight;
+        task->max = f2_0;
+        task->min = f2_1;
+        task->normal = normal;
+        task->rome = rome;
+        task->size = size;
 
-            gray[i] = grayscale;
-            albedo[i] = LinearToColor(linear);
-        }
-
-        // TODO: make a node graph tool, setup some rules
-        // for surface properties for each texture.
-        for (i32 i = 0; i < len; ++i)
-        {
-            u8 encoded = bytes[i];
-            float2 grayscale = gray[i];
-            float2 t = f2_smoothstep(min, max, grayscale);
-
-            float roughness = f1_lerp(1.0f, 0.9f, t.y);
-            float occlusion = f1_lerp(0.9f, 1.0f, t.y);
-            float metallic = 1.0f;
-            float emission;
-            if (fullEmit)
-            {
-                emission = 1.0f;
-            }
-            else
-            {
-                emission = DecodeEmission(encoded, isLight);
-            }
-
-            rome[i] = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
-        }
-
-        for (i32 y = 0; y < size.y; ++y)
-        {
-            for (i32 x = 0; x < size.x; ++x)
-            {
-                i32 i = x + y * size.x;
-                float r = gray[Wrap(size, i2_v(x + 1, y + 0))].x;
-                float l = gray[Wrap(size, i2_v(x - 1, y + 0))].x;
-                float u = gray[Wrap(size, i2_v(x + 0, y - 1))].x;
-                float d = gray[Wrap(size, i2_v(x + 0, y + 1))].x;
-
-                r = f1_smoothstep(min.x, max.x, r);
-                l = f1_smoothstep(min.x, max.x, l);
-                u = f1_smoothstep(min.x, max.x, u);
-                d = f1_smoothstep(min.x, max.x, d);
-
-                float dx = r - l;
-                float dy = u - d;
-                float z = 2.0f;
-                float4 N = { dx, dy, z, 1.0f };
-                normal[i] = DirectionToColor(N);
-            }
-        }
+        task_run(&task->task, UnpaletteStep1Fn, len);
+        UnpaletteStep2Fn(&task->task);
+        task_run(&task->task, UnpaletteStep3Fn, len);
 
         pim_free(gray);
         gray = NULL;
