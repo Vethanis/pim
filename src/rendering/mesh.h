@@ -3,6 +3,7 @@
 #include "common/macro.h"
 #include "math/types.h"
 #include "common/guid.h"
+#include "common/dbytes.h"
 
 PIM_C_BEGIN
 
@@ -19,12 +20,21 @@ typedef struct dmeshid_s
 
 typedef struct mesh_s
 {
-    box_t bounds;
     float4* positions;
     float4* normals;
     float2* uvs;
     i32 length;
 } mesh_t;
+
+#define kMeshVersion 2
+typedef struct dmesh_s
+{
+    i32 version;
+    i32 length;
+    dbytes_t positions;
+    dbytes_t normals;
+    dbytes_t uvs;
+} dmesh_t;
 
 void mesh_sys_init(void);
 void mesh_sys_update(void);

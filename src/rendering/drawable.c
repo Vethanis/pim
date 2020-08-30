@@ -30,6 +30,7 @@ i32 drawables_add(drawables_t* dr, guid_t name)
 
     PermGrow(dr->names, len);
     PermGrow(dr->meshes, len);
+    PermGrow(dr->bounds, len);
     PermGrow(dr->materials, len);
     PermGrow(dr->lmUvs, len);
     PermGrow(dr->matrices, len);
@@ -70,6 +71,7 @@ static void RemoveAtIndex(drawables_t* dr, i32 i)
 
     PopSwap(dr->names, i, len);
     PopSwap(dr->meshes, i, len);
+    PopSwap(dr->bounds, i, len);
     PopSwap(dr->materials, i, len);
     PopSwap(dr->lmUvs, i, len);
     PopSwap(dr->matrices, i, len);
@@ -115,6 +117,7 @@ void drawables_del(drawables_t* dr)
         drawables_clear(dr);
         pim_free(dr->names);
         pim_free(dr->meshes);
+        pim_free(dr->bounds);
         pim_free(dr->materials);
         pim_free(dr->lmUvs);
         pim_free(dr->matrices);
@@ -126,15 +129,46 @@ void drawables_del(drawables_t* dr)
     }
 }
 
-typedef struct trstask_s
+typedef struct task_UpdateBounds
 {
     task_t task;
     drawables_t* dr;
-} trstask_t;
+} task_UpdateBounds;
 
-static void TRSFn(task_t* pbase, i32 begin, i32 end)
+static void UpdateBoundsFn(task_t* pbase, i32 begin, i32 end)
 {
-    trstask_t* task = (trstask_t*)pbase;
+    task_UpdateBounds* task = (task_UpdateBounds*)pbase;
+    drawables_t* dr = task->dr;
+    const meshid_t* pim_noalias meshes = dr->meshes;
+    box_t* pim_noalias bounds = dr->bounds;
+
+    for (i32 i = begin; i < end; ++i)
+    {
+        bounds[i] = mesh_calcbounds(meshes[i]);
+    }
+}
+
+ProfileMark(pm_updatebouns, drawables_updatebounds)
+void drawables_updatebounds(drawables_t* dr)
+{
+    ProfileBegin(pm_updatebouns);
+
+    task_UpdateBounds* task = tmp_calloc(sizeof(*task));
+    task->dr = dr;
+    task_run(&task->task, UpdateBoundsFn, dr->count);
+
+    ProfileEnd(pm_updatebouns);
+}
+
+typedef struct task_UpdateTransforms
+{
+    task_t task;
+    drawables_t* dr;
+} task_UpdateTransforms;
+
+static void UpdateTransformsFn(task_t* pbase, i32 begin, i32 end)
+{
+    task_UpdateTransforms* task = (task_UpdateTransforms*)pbase;
     drawables_t* dr = task->dr;
     const float4* pim_noalias translations = dr->translations;
     const quat* pim_noalias rotations = dr->rotations;
@@ -149,14 +183,14 @@ static void TRSFn(task_t* pbase, i32 begin, i32 end)
     }
 }
 
-ProfileMark(pm_TRS, drawables_trs)
-void drawables_trs(drawables_t* dr)
+ProfileMark(pm_TRS, drawables_updatetransforms)
+void drawables_updatetransforms(drawables_t* dr)
 {
     ProfileBegin(pm_TRS);
 
-    trstask_t* task = tmp_calloc(sizeof(*task));
+    task_UpdateTransforms* task = tmp_calloc(sizeof(*task));
     task->dr = dr;
-    task_run(&task->task, TRSFn, dr->count);
+    task_run(&task->task, UpdateTransformsFn, dr->count);
 
     ProfileEnd(pm_TRS);
 }
@@ -164,17 +198,13 @@ void drawables_trs(drawables_t* dr)
 box_t drawables_bounds(const drawables_t* dr)
 {
     const i32 length = dr->count;
-    const meshid_t* pim_noalias meshids = dr->meshes;
+    const box_t* pim_noalias bounds = dr->bounds;
     const float4x4* pim_noalias matrices = dr->matrices;
 
     box_t box = box_empty();
     for (i32 i = 0; i < length; ++i)
     {
-        mesh_t mesh;
-        if (mesh_get(meshids[i], &mesh))
-        {
-            box = box_union(box, box_transform(matrices[i], mesh.bounds));
-        }
+        box = box_union(box, box_transform(matrices[i], bounds[i]));
     }
 
     return box;
@@ -199,6 +229,7 @@ bool drawables_save(const drawables_t* src, guid_t name)
         hdr.length = length;
         hdr.names = dbytes_new(length, sizeof(src->names[0]), &offset);
         hdr.meshes = dbytes_new(length, sizeof(dmeshid_t), &offset);
+        hdr.bounds = dbytes_new(length, sizeof(src->bounds[0]), &offset);
         hdr.materials = dbytes_new(length, sizeof(dmaterial_t), &offset);
         hdr.lmuvs = dbytes_new(length, sizeof(dlm_uvs_t), &offset);
         hdr.translations = dbytes_new(length, sizeof(src->translations[0]), &offset);
@@ -223,6 +254,9 @@ bool drawables_save(const drawables_t* src, guid_t name)
             fstr_write(fd, dmeshids, sizeof(dmeshids[0]) * length);
             scratch = dmeshids;
         }
+        // write bounds
+        ASSERT(fstr_tell(fd) == hdr.bounds.offset);
+        fstr_write(fd, src->bounds, sizeof(src->bounds[0]) * length);
         // write materials
         {
             dmaterial_t* dmaterials = tmp_realloc(scratch, sizeof(dmaterials[0]) * length);
@@ -316,6 +350,7 @@ bool drawables_load(drawables_t* dst, guid_t name)
             {
                 dbytes_check(hdr.names, sizeof(dst->names[0]));
                 dbytes_check(hdr.meshes, sizeof(dmeshid_t));
+                dbytes_check(hdr.bounds, sizeof(dst->bounds[0]));
                 dbytes_check(hdr.materials, sizeof(dmaterial_t));
                 dbytes_check(hdr.lmuvs, sizeof(dlm_uvs_t));
                 dbytes_check(hdr.translations, sizeof(dst->translations[0]));
@@ -325,6 +360,7 @@ bool drawables_load(drawables_t* dst, guid_t name)
                 dst->count = len;
                 dst->names = perm_calloc(sizeof(dst->names[0]) * len);
                 dst->meshes = perm_calloc(sizeof(dst->meshes[0]) * len);
+                dst->bounds = perm_calloc(sizeof(dst->bounds[0]) * len);
                 dst->materials = perm_calloc(sizeof(dst->materials[0]) * len);
                 dst->lmUvs = perm_calloc(sizeof(dst->lmUvs[0]) * len);
                 dst->matrices = perm_calloc(sizeof(dst->matrices[0]) * len);
@@ -345,6 +381,8 @@ bool drawables_load(drawables_t* dst, guid_t name)
                     }
                     scratch = dmeshids;
                 }
+                fstr_seek(fd, hdr.bounds.offset);
+                fstr_read(fd, dst->bounds, hdr.bounds.size);
                 {
                     fstr_seek(fd, hdr.materials.offset);
                     dmaterial_t* pim_noalias dmats = tmp_realloc(scratch, hdr.materials.size);

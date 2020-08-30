@@ -7,8 +7,6 @@
 
 PIM_C_BEGIN
 
-#define kDrawablesVersion 1
-
 typedef struct lm_uvs_s lm_uvs_t;
 typedef struct meshid_s meshid_t;
 typedef struct material_s material_t;
@@ -18,6 +16,7 @@ typedef struct drawables_s
     i32 count;
     guid_t* pim_noalias names;          // hash identifier
     meshid_t* pim_noalias meshes;       // immutable object space mesh
+    box_t* pim_noalias bounds;          // object space bounds
     material_t* pim_noalias materials;  // material description
     lm_uvs_t* pim_noalias lmUvs;        // lightmap uvs (must be per-instance)
     float4x4* pim_noalias matrices;     // local to world matrix
@@ -27,12 +26,14 @@ typedef struct drawables_s
     float4* pim_noalias scales;
 } drawables_t;
 
+#define kDrawablesVersion 2
 typedef struct ddrawables_s
 {
     i32 version;
     i32 length;
     dbytes_t names;
     dbytes_t meshes;    // dmeshid_t
+    dbytes_t bounds;
     dbytes_t materials; // dmaterial_t
     dbytes_t lmuvs;     // dlm_uvs_t
     dbytes_t translations;
@@ -49,7 +50,8 @@ i32 drawables_find(const drawables_t* dr, guid_t name);
 void drawables_clear(drawables_t* dr);
 void drawables_del(drawables_t* dr);
 
-void drawables_trs(drawables_t* dr);
+void drawables_updatebounds(drawables_t* dr);
+void drawables_updatetransforms(drawables_t* dr);
 box_t drawables_bounds(const drawables_t* dr);
 
 bool drawables_save(const drawables_t* src, guid_t name);

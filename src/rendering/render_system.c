@@ -406,7 +406,7 @@ static void Rasterize(void)
     camera_t camera;
     camera_get(&camera);
 
-    drawables_trs(drawables_get());
+    drawables_updatetransforms(drawables_get());
     RtcDraw(frontBuf, &camera);
 
     ProfileEnd(pm_Rasterize);
@@ -527,7 +527,8 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     }
     if (loaded)
     {
-        drawables_trs(drawables_get());
+        drawables_updatetransforms(drawables_get());
+        drawables_updatebounds(drawables_get());
         con_logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
         return cmdstat_ok;
     }
@@ -1173,7 +1174,8 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
         white,
         plasticRome);
 
-    drawables_trs(dr);
+    drawables_updatetransforms(dr);
+    drawables_updatebounds(dr);
 
     return cmdstat_ok;
 }
