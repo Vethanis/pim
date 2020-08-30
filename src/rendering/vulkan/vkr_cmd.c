@@ -126,7 +126,7 @@ vkrCmdBuf vkrCmdBuf_New(VkCommandPool pool, vkrQueueId id)
     {
         .handle = handle,
         .pool = pool,
-        .fence = vkrCreateFence(false),
+        .fence = vkrFence_New(false),
         .queue = id,
         .state = vkrCmdState_Initial,
     };
@@ -146,7 +146,7 @@ void vkrCmdBuf_Del(vkrCmdBuf* cmdbuf)
             vkrCmdAwait(cmdbuf);
             vkFreeCommandBuffers(g_vkr.dev, cmdbuf->pool, 1, &cmdbuf->handle);
         }
-        vkrDestroyFence(cmdbuf->fence);
+        vkrFence_Del(cmdbuf->fence);
         memset(cmdbuf, 0, sizeof(*cmdbuf));
         ProfileEnd(pm_cmdbufdel);
     }
@@ -210,8 +210,8 @@ void vkrCmdAwait(vkrCmdBuf* cmdbuf)
     if (cmdbuf->state == vkrCmdState_Pending)
     {
         ProfileBegin(pm_await);
-        vkrWaitFence(cmdbuf->fence);
-        vkrResetFence(cmdbuf->fence);
+        vkrFence_Wait(cmdbuf->fence);
+        vkrFence_Reset(cmdbuf->fence);
         cmdbuf->state = vkrCmdState_Executable;
         ProfileEnd(pm_await);
     }

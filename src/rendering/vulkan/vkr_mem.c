@@ -1,9 +1,11 @@
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_sync.h"
+#include "rendering/vulkan/vkr_device.h"
 #include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
+#include "common/time.h"
 #include "threading/task.h"
 #include <string.h>
 
@@ -84,8 +86,11 @@ static const VkAllocationCallbacks kCpuCallbacks =
     .pfnInternalFree = vkrOnFree,
 };
 
-bool vkrMem_Init(vkr_t* vkr)
+bool vkrAllocator_New(vkrAllocator* allocator)
 {
+    ASSERT(allocator);
+    memset(allocator, 0, sizeof(*allocator));
+
     const VmaVulkanFunctions vulkanFns =
     {
         .vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties,
@@ -114,9 +119,9 @@ bool vkrMem_Init(vkr_t* vkr)
     const VmaAllocatorCreateInfo info =
     {
         .vulkanApiVersion = VK_API_VERSION_1_2,
-        .instance = vkr->inst,
-        .physicalDevice = vkr->phdev,
-        .device = vkr->dev,
+        .instance = g_vkr.inst,
+        .physicalDevice = g_vkr.phdev,
+        .device = g_vkr.dev,
         .pAllocationCallbacks = &kCpuCallbacks,
         .frameInUseCount = kFramesInFlight - 1,
         .pVulkanFunctions = &vulkanFns,
@@ -124,17 +129,112 @@ bool vkrMem_Init(vkr_t* vkr)
     VmaAllocator handle = NULL;
     VkCheck(vmaCreateAllocator(&info, &handle));
     ASSERT(handle);
-    vkr->allocator = handle;
+
+    if (handle)
+    {
+        allocator->handle = handle;
+        mutex_create(&allocator->releasemtx);
+    }
+
     return handle != NULL;
 }
 
-void vkrMem_Shutdown(vkr_t* vkr)
+void vkrAllocator_Del(vkrAllocator* allocator)
 {
-    if (vkr->allocator)
+    if (allocator)
     {
-        vmaDestroyAllocator(vkr->allocator);
-        vkr->allocator = NULL;
+        if (allocator->handle)
+        {
+            vkrDevice_WaitIdle();
+            {
+                const u32 frame = time_framecount() + kFramesInFlight + 1;
+                const i32 len = allocator->numreleasable;
+                vkrReleasable* releasables = allocator->releasables;
+                for (i32 i = 0; i < len; ++i)
+                {
+                    vkrReleasable_Del(&releasables[i], frame);
+                }
+                pim_free(allocator->releasables);
+                mutex_destroy(&allocator->releasemtx);
+            }
+            vmaDestroyAllocator(allocator->handle);
+        }
+        memset(allocator, 0, sizeof(*allocator));
     }
+}
+
+ProfileMark(pm_allocupdate, vkrAllocator_Update)
+void vkrAllocator_Update(vkrAllocator* allocator)
+{
+    ProfileBegin(pm_allocupdate);
+
+    ASSERT(allocator);
+    ASSERT(allocator->handle);
+
+    const u32 frame = time_framecount();
+    vmaSetCurrentFrameIndex(allocator->handle, frame);
+    {
+        mutex_lock(&allocator->releasemtx);
+        i32 len = allocator->numreleasable;
+        vkrReleasable* releasables = allocator->releasables;
+        for (i32 i = len - 1; i >= 0; --i)
+        {
+            if (vkrReleasable_Del(&releasables[i], frame))
+            {
+                --len;
+            }
+        }
+        allocator->numreleasable = len;
+        mutex_unlock(&allocator->releasemtx);
+    }
+
+    ProfileEnd(pm_allocupdate);
+}
+
+void vkrReleasable_Add(vkrAllocator* allocator, const vkrReleasable* releasable)
+{
+    ASSERT(allocator);
+    ASSERT(allocator->handle);
+    ASSERT(releasable);
+    mutex_lock(&allocator->releasemtx);
+    i32 back = allocator->numreleasable++;
+    PermReserve(allocator->releasables, back + 1);
+    allocator->releasables[back] = *releasable;
+    mutex_unlock(&allocator->releasemtx);
+}
+
+bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame)
+{
+    ASSERT(releasable);
+    bool ready = false;
+    VkFence fence = releasable->fence;
+    if (fence)
+    {
+        vkrFenceState state = vkrFence_Stat(fence);
+        ready = state != vkrFenceState_Unsignalled;
+    }
+    else
+    {
+        u32 duration = frame - releasable->frame;
+        ready = duration > kFramesInFlight;
+    }
+    if (ready)
+    {
+        switch (releasable->type)
+        {
+        default:
+            ASSERT(false);
+            break;
+        case vkrReleasableType_Buffer:
+            vkrBuffer_Del(&releasable->buffer);
+            break;
+        case vkrReleasableType_Image:
+            vkrImage_Del(&releasable->image);
+            break;
+        }
+        memset(releasable, 0, sizeof(*releasable));
+    }
+    return ready;
 }
 
 const VkAllocationCallbacks* vkrMem_Fns(void)
@@ -148,7 +248,7 @@ void* vkrMem_Map(VmaAllocation allocation)
     ProfileBegin(pm_memmap);
     void* result = NULL;
     ASSERT(allocation);
-    VkCheck(vmaMapMemory(g_vkr.allocator, allocation, &result));
+    VkCheck(vmaMapMemory(g_vkr.allocator.handle, allocation, &result));
     ASSERT(result);
     ProfileEnd(pm_memmap);
     return result;
@@ -159,7 +259,7 @@ void vkrMem_Unmap(VmaAllocation allocation)
 {
     ProfileBegin(pm_memunmap);
     ASSERT(allocation);
-    vmaUnmapMemory(g_vkr.allocator, allocation);
+    vmaUnmapMemory(g_vkr.allocator.handle, allocation);
     ProfileEnd(pm_memunmap);
 }
 
@@ -170,8 +270,8 @@ void vkrMem_Flush(VmaAllocation allocation)
     ASSERT(allocation);
     const VkDeviceSize offset = 0;
     const VkDeviceSize size = VK_WHOLE_SIZE;
-    VkCheck(vmaFlushAllocation(g_vkr.allocator, allocation, offset, size));
-    VkCheck(vmaInvalidateAllocation(g_vkr.allocator, allocation, offset, size));
+    VkCheck(vmaFlushAllocation(g_vkr.allocator.handle, allocation, offset, size));
+    VkCheck(vmaInvalidateAllocation(g_vkr.allocator.handle, allocation, offset, size));
     ProfileEnd(pm_memflush);
 }
 
@@ -183,7 +283,7 @@ bool vkrBuffer_New(
     vkrMemUsage memUsage)
 {
     ProfileBegin(pm_bufnew);
-    ASSERT(g_vkr.allocator);
+    ASSERT(g_vkr.allocator.handle);
     ASSERT(size >= 0);
     ASSERT(buffer);
     memset(buffer, 0, sizeof(*buffer));
@@ -200,7 +300,7 @@ bool vkrBuffer_New(
     VkBuffer handle = NULL;
     VmaAllocation allocation = NULL;
     VkCheck(vmaCreateBuffer(
-        g_vkr.allocator,
+        g_vkr.allocator.handle,
         &bufferInfo,
         &allocInfo,
         &handle,
@@ -222,12 +322,15 @@ ProfileMark(pm_bufdel, vkrBuffer_Del)
 void vkrBuffer_Del(vkrBuffer* buffer)
 {
     ProfileBegin(pm_bufdel);
-    ASSERT(g_vkr.allocator);
+    ASSERT(g_vkr.allocator.handle);
     if (buffer)
     {
         if (buffer->handle)
         {
-            vmaDestroyBuffer(g_vkr.allocator, buffer->handle, buffer->allocation);
+            vmaDestroyBuffer(
+                g_vkr.allocator.handle,
+                buffer->handle,
+                buffer->allocation);
         }
         memset(buffer, 0, sizeof(*buffer));
     }
@@ -252,6 +355,26 @@ void vkrBuffer_Flush(const vkrBuffer* buffer)
     vkrMem_Flush(buffer->allocation);
 }
 
+ProfileMark(pm_bufrelease, vkrBuffer_Release)
+void vkrBuffer_Release(vkrBuffer* buffer, VkFence fence)
+{
+    ProfileBegin(pm_bufrelease);
+    ASSERT(buffer);
+    if (buffer->handle)
+    {
+        const vkrReleasable releasable =
+        {
+            .frame = time_framecount(),
+            .type = vkrReleasableType_Buffer,
+            .fence = fence,
+            .buffer = *buffer,
+        };
+        vkrReleasable_Add(&g_vkr.allocator, &releasable);
+    }
+    memset(buffer, 0, sizeof(*buffer));
+    ProfileEnd(pm_bufrelease);
+}
+
 ProfileMark(pm_imgnew, vkrImage_New)
 bool vkrImage_New(
     vkrImage* image,
@@ -267,7 +390,7 @@ bool vkrImage_New(
     VkImage handle = NULL;
     VmaAllocation allocation = NULL;
     VkCheck(vmaCreateImage(
-        g_vkr.allocator,
+        g_vkr.allocator.handle,
         info,
         &allocInfo,
         &handle,
@@ -291,7 +414,10 @@ void vkrImage_Del(vkrImage* image)
     {
         if (image->handle)
         {
-            vmaDestroyImage(g_vkr.allocator, image->handle, image->allocation);
+            vmaDestroyImage(
+                g_vkr.allocator.handle,
+                image->handle,
+                image->allocation);
         }
         memset(image, 0, sizeof(*image));
     }
@@ -314,4 +440,25 @@ void vkrImage_Flush(const vkrImage* image)
 {
     ASSERT(image);
     vkrMem_Flush(image->allocation);
+}
+
+ProfileMark(pm_imgrelease, vkrImage_Release)
+void vkrImage_Release(vkrImage* image, VkFence fence)
+{
+    ProfileBegin(pm_imgrelease);
+    ASSERT(image);
+    ASSERT(fence);
+    if (image->handle)
+    {
+        const vkrReleasable releasable =
+        {
+            .frame = time_framecount(),
+            .type = vkrReleasableType_Image,
+            .fence = fence,
+            .image = *image,
+        };
+        vkrReleasable_Add(&g_vkr.allocator, &releasable);
+    }
+    memset(image, 0, sizeof(*image));
+    ProfileEnd(pm_imgrelease);
 }

@@ -4,12 +4,13 @@
 
 PIM_C_BEGIN
 
-VkSemaphore vkrCreateSemaphore(void);
-void vkrDestroySemaphore(VkSemaphore sema);
+VkSemaphore vkrSemaphore_New(void);
+void vkrSemaphore_Del(VkSemaphore sema);
 
-VkFence vkrCreateFence(bool signalled);
-void vkrDestroyFence(VkFence fence);
-void vkrResetFence(VkFence fence);
-void vkrWaitFence(VkFence fence);
+VkFence vkrFence_New(bool signalled);
+void vkrFence_Del(VkFence fence);
+void vkrFence_Reset(VkFence fence);
+void vkrFence_Wait(VkFence fence);
+vkrFenceState vkrFence_Stat(VkFence fence);
 
 PIM_C_END

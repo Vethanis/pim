@@ -52,8 +52,12 @@ typedef enum
     vkrMemUsage_CpuCopy = 5,
 } vkrMemUsage;
 
-bool vkrMem_Init(vkr_t* vkr);
-void vkrMem_Shutdown(vkr_t* vkr);
+bool vkrAllocator_New(vkrAllocator* allocator);
+void vkrAllocator_Del(vkrAllocator* allocator);
+void vkrAllocator_Update(vkrAllocator* allocator);
+
+void vkrReleasable_Add(vkrAllocator* allocator, const vkrReleasable* releasable);
+bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame);
 
 const VkAllocationCallbacks* vkrMem_Fns(void);
 
@@ -70,6 +74,9 @@ void vkrBuffer_Del(vkrBuffer* buffer);
 void* vkrBuffer_Map(const vkrBuffer* buffer);
 void vkrBuffer_Unmap(const vkrBuffer* buffer);
 void vkrBuffer_Flush(const vkrBuffer* buffer);
+// destroys the resource after kFramesInFlight
+// if fence is provided, it is used instead
+void vkrBuffer_Release(vkrBuffer* buffer, VkFence fence);
 
 bool vkrImage_New(
     vkrImage* image,
@@ -79,6 +86,9 @@ void vkrImage_Del(vkrImage* image);
 void* vkrImage_Map(const vkrImage* image);
 void vkrImage_Unmap(const vkrImage* image);
 void vkrImage_Flush(const vkrImage* image);
+// destroys the resource after kFramesInFlight
+// if fence is provided, it is used instead
+void vkrImage_Release(vkrImage* image, VkFence fence);
 
 
 PIM_C_END

@@ -36,7 +36,7 @@ bool vkr_init(i32 width, i32 height)
         return false;
     }
 
-    if (!vkrMem_Init(&g_vkr))
+    if (!vkrAllocator_New(&g_vkr.allocator))
     {
         return false;
     }
@@ -230,6 +230,7 @@ void vkr_update(void)
     {
         return;
     }
+
     if (!vkrDisplay_IsOpen(&g_vkr.display))
     {
         vkr_shutdown();
@@ -279,6 +280,7 @@ void vkr_update(void)
         vkrCmdEnd(cmd);
     }
     vkrSwapchain_Present(chain, cmd);
+    vkrAllocator_Update(&g_vkr.allocator);
 
     ProfileEnd(pm_update);
 }
@@ -296,7 +298,7 @@ void vkr_shutdown(void)
         vkrPipelineLayout_Release(g_vkr.layout);
 
         vkrSwapchain_Del(&g_vkr.chain);
-        vkrMem_Shutdown(&g_vkr);
+        vkrAllocator_Del(&g_vkr.allocator);
         vkrDevice_Shutdown(&g_vkr);
         vkrDisplay_Del(&g_vkr.display);
         vkrInstance_Shutdown(&g_vkr);

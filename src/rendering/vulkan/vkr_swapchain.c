@@ -116,9 +116,9 @@ bool vkrSwapchain_New(
 
     for (i32 i = 0; i < kFramesInFlight; ++i)
     {
-        chain->syncFences[i] = vkrCreateFence(true);
-        chain->availableSemas[i] = vkrCreateSemaphore();
-        chain->renderedSemas[i] = vkrCreateSemaphore();
+        chain->syncFences[i] = vkrFence_New(true);
+        chain->availableSemas[i] = vkrSemaphore_New();
+        chain->renderedSemas[i] = vkrSemaphore_New();
     }
 
     return true;
@@ -133,9 +133,9 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
         vkDeviceWaitIdle(dev);
         for (i32 i = 0; i < kFramesInFlight; ++i)
         {
-            vkrDestroyFence(chain->syncFences[i]);
-            vkrDestroySemaphore(chain->availableSemas[i]);
-            vkrDestroySemaphore(chain->renderedSemas[i]);
+            vkrFence_Del(chain->syncFences[i]);
+            vkrSemaphore_Del(chain->availableSemas[i]);
+            vkrSemaphore_Del(chain->renderedSemas[i]);
         }
         {
             const i32 len = chain->length;
@@ -247,7 +247,7 @@ void vkrSwapchain_Acquire(
         VkFence imageFence = chain->imageFences[imageIndex];
         if (imageFence)
         {
-            vkrWaitFence(imageFence);
+            vkrFence_Wait(imageFence);
         }
     }
     ASSERT(syncIndex < kFramesInFlight);
@@ -278,7 +278,7 @@ void vkrSwapchain_Present(
 
     const u32 syncIndex = chain->syncIndex;
     VkFence signalFence = chain->syncFences[syncIndex];
-    vkrResetFence(signalFence);
+    vkrFence_Reset(signalFence);
     VkSemaphore waitSema = chain->availableSemas[syncIndex];
     const VkPipelineStageFlags waitMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSemaphore signalSema = chain->renderedSemas[syncIndex];
