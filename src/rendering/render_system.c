@@ -21,6 +21,7 @@
 #include "math/float3_funcs.h"
 #include "math/float2_funcs.h"
 #include "math/float4x4_funcs.h"
+#include "math/box.h"
 #include "math/color.h"
 #include "math/sdf.h"
 #include "math/ambcube.h"
@@ -58,25 +59,25 @@
 #include <string.h>
 #include <time.h>
 
-static cvar_t cv_pt_trace = { cvart_bool, 0, "pt_trace", "0", "enable path tracing" };
-static cvar_t cv_pt_denoise = { cvart_bool, 0, "pt_denoise", "0", "denoise path tracing output" };
-static cvar_t cv_pt_normal = { cvart_bool, 0, "pt_normal", "0", "output path tracer normals" };
-static cvar_t cv_pt_albedo = { cvart_bool, 0, "pt_albedo", "0", "output path tracer albedo" };
-static cvar_t cv_pt_lgrid_mpc = { cvart_float, 0, "pt_lgrid_mpc", "2", "light grid meters per cell" };
+static cvar_t cv_pt_trace = { .type = cvart_bool,.name = "pt_trace",.value = "0",.desc = "enable path tracing" };
+static cvar_t cv_pt_denoise = { .type = cvart_bool,.name = "pt_denoise",.value = "0",.desc = "denoise path tracing output" };
+static cvar_t cv_pt_normal = { .type = cvart_bool,.name = "pt_normal",.value = "0",.desc = "output path tracer normals" };
+static cvar_t cv_pt_albedo = { .type = cvart_bool,.name = "pt_albedo",.value = "0",.desc = "output path tracer albedo" };
+static cvar_t cv_pt_lgrid_mpc = { .type = cvart_float,.name = "pt_lgrid_mpc",.value = "2",.minFloat = 0.1f,.maxFloat = 10.0f,.desc = "light grid meters per cell" };
 
-static cvar_t cv_lm_gen = { cvart_bool, 0, "lm_gen", "0", "enable lightmap generation" };
-static cvar_t cv_cm_gen = { cvart_bool, 0, "cm_gen", "0", "enable cubemap generation" };
+static cvar_t cv_lm_gen = { .type = cvart_bool,.name = "lm_gen",.value = "0",.desc = "enable lightmap generation" };
+static cvar_t cv_cm_gen = { .type = cvart_bool,.name = "cm_gen",.value = "0",.desc = "enable cubemap generation" };
 
-static cvar_t cv_r_sw = { cvart_bool, 0, "r_sw", "1", "use software renderer" };
+static cvar_t cv_r_sw = { .type = cvart_bool,.name = "r_sw",.value = "1",.desc = "use software renderer" };
 
-static cvar_t cv_lm_density = { cvart_float, 0, "lm_density", "8", "lightmap texels per unit" };
-static cvar_t cv_lm_timeslice = { cvart_int, 0, "lm_timeslice", "10", "number of frames required to add 1 lighting sample to all lightmap texels" };
+static cvar_t cv_lm_density = { .type = cvart_float,.name = "lm_density",.value = "8",.minFloat = 0.1f,.maxFloat = 32.0f,.desc = "lightmap texels per unit" };
+static cvar_t cv_lm_timeslice = { .type = cvart_int,.name = "lm_timeslice",.value = "3",.minInt = 0,.maxInt = 60,.desc = "number of frames required to add 1 lighting sample to all lightmap texels" };
 
-static cvar_t cv_r_sun_az = { cvart_float, 0, "r_sun_az", "0.75", "Sun Heading" };
-static cvar_t cv_r_sun_ze = { cvart_float, 0, "r_sun_ze", "0.5", "Sun Altitude" };
-static cvar_t cv_r_sun_rad = { cvart_float, 0, "r_sun_rad", "1365", "Sun Irradiance" };
+static cvar_t cv_r_sun_dir = { .type = cvart_vector,.name = "r_sun_dir",.value = "0.0 0.0 -1.0 0.0",.desc = "Sun Direction" };
+static cvar_t cv_r_sun_col = { .type = cvart_color,.name = "r_sun_col",.value = "1.0 0.9 0.8 1.0",.desc = "Sun Color" };
+static cvar_t cv_r_sun_lum = { .type = cvart_float,.name = "r_sun_lum",.value = "12.0",.minFloat = -20.0f,.maxFloat = 20.0f,.desc = "Log2 Sun Luminance" };
 
-static cvar_t cv_r_qlights = { cvart_bool, 0, "r_qlights", "0", "Load quake light entities" };
+static cvar_t cv_r_qlights = { .type = cvart_bool,.name = "r_qlights",.value = "0",.desc = "Load quake light entities" };
 
 static void RegCVars(void)
 {
@@ -94,9 +95,9 @@ static void RegCVars(void)
 
     cvar_reg(&cv_cm_gen);
 
-    cvar_reg(&cv_r_sun_az);
-    cvar_reg(&cv_r_sun_ze);
-    cvar_reg(&cv_r_sun_rad);
+    cvar_reg(&cv_r_sun_dir);
+    cvar_reg(&cv_r_sun_col);
+    cvar_reg(&cv_r_sun_lum);
 
     cvar_reg(&cv_r_qlights);
 }
@@ -195,7 +196,7 @@ static void LightmapRepack(void)
     EnsurePtScene();
 
     LightmapShutdown();
-    lmpack_t pack = lmpack_pack(ms_ptscene, 1024, cv_lm_density.asFloat, 0.1f, 15.0f);
+    lmpack_t pack = lmpack_pack(ms_ptscene, 1024, cvar_get_float(&cv_lm_density), 0.1f, 15.0f);
     *lmpack_get() = pack;
 }
 
@@ -266,7 +267,7 @@ end:
 ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
 static void Lightmap_Trace(void)
 {
-    if (cv_lm_gen.asFloat != 0.0f)
+    if (cvar_get_bool(&cv_lm_gen))
     {
         ProfileBegin(pm_Lightmap_Trace);
         EnsurePtScene();
@@ -278,7 +279,7 @@ static void Lightmap_Trace(void)
             LightmapRepack();
         }
 
-        float timeslice = 1.0f / f1_max(1.0f, cv_lm_timeslice.asFloat);
+        float timeslice = 1.0f / i1_max(1, cv_lm_timeslice.asInt);
         lmpack_bake(ms_ptscene, timeslice);
 
         ProfileEnd(pm_Lightmap_Trace);
@@ -288,7 +289,7 @@ static void Lightmap_Trace(void)
 ProfileMark(pm_CubemapTrace, Cubemap_Trace)
 static void Cubemap_Trace(void)
 {
-    if (cv_cm_gen.asFloat != 0.0f)
+    if (cvar_get_bool(&cv_cm_gen))
     {
         ProfileBegin(pm_CubemapTrace);
         EnsurePtScene();
@@ -298,15 +299,19 @@ static void Cubemap_Trace(void)
             ms_cmapSampleCount = 0;
         }
 
-        Cubemaps_t* table = Cubemaps_Get();
+        guid_t skyname = guid_str("sky", guid_seed);
+        cubemaps_t* maps = Cubemaps_Get();
         float weight = 1.0f / ++ms_cmapSampleCount;
-        float pfweight = f1_min(1.0f, weight * 2.0f);
-        for (i32 i = 0; i < table->count; ++i)
+        for (i32 i = 0; i < maps->count; ++i)
         {
-            Cubemap* cubemap = table->cubemaps + i;
-            sphere_t bounds = table->bounds[i];
-            Cubemap_Bake(cubemap, ms_ptscene, bounds.value, weight);
-            Cubemap_Convolve(cubemap, 256, pfweight);
+            cubemap_t* cubemap = maps->cubemaps + i;
+            box_t bounds = maps->bounds[i];
+            guid_t name = maps->names[i];
+            if (!guid_eq(name, skyname))
+            {
+                Cubemap_Bake(cubemap, ms_ptscene, box_center(bounds), weight);
+            }
+            Cubemap_Convolve(cubemap, 256, weight);
         }
 
         ProfileEnd(pm_CubemapTrace);
@@ -318,7 +323,7 @@ ProfileMark(pm_ptDenoise, Denoise)
 ProfileMark(pm_ptBlit, Blit)
 static bool PathTrace(void)
 {
-    if (cv_pt_trace.asFloat != 0.0f)
+    if (cvar_get_bool(&cv_pt_trace))
     {
         ProfileBegin(pm_PathTrace);
         EnsurePtScene();
@@ -347,7 +352,7 @@ static bool PathTrace(void)
         pt_trace(&ms_trace);
 
         float3* pim_noalias output3 = ms_trace.color;
-        if (cv_pt_denoise.asFloat != 0.0f)
+        if (cvar_get_bool(&cv_pt_denoise))
         {
             output3 = tmp_malloc(sizeof(output3[0]) * kDrawPixels);
 
@@ -361,14 +366,14 @@ static bool PathTrace(void)
 
             if (!denoised)
             {
-                cvar_set_float(&cv_pt_denoise, 0.0f);
+                cvar_set_bool(&cv_pt_denoise, false);
             }
         }
-        if (cv_pt_albedo.asFloat != 0.0f)
+        if (cvar_get_bool(&cv_pt_albedo))
         {
             output3 = ms_trace.albedo;
         }
-        if (cv_pt_normal.asFloat != 0.0f)
+        if (cvar_get_bool(&cv_pt_normal))
         {
             output3 = NULL;
 
@@ -589,7 +594,7 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
 typedef struct task_BakeSky
 {
     task_t task;
-    Cubemap* cm;
+    cubemap_t* cm;
     float3 sunDir;
     float3 sunRad;
     i32 steps;
@@ -598,7 +603,7 @@ typedef struct task_BakeSky
 static void BakeSkyFn(task_t* pbase, i32 begin, i32 end)
 {
     task_BakeSky* task = (task_BakeSky*)pbase;
-    Cubemap* pim_noalias cm = task->cm;
+    cubemap_t* pim_noalias cm = task->cm;
     const i32 size = cm->size;
     float3** pim_noalias faces = cm->color;
     const float3 sunDir = task->sunDir;
@@ -621,33 +626,32 @@ static void BakeSky(void)
 {
     bool dirty = false;
 
-    const u32 kSkyName = 1;
-    i32 iCube = Cubemaps_Find(kSkyName);
-    Cubemaps_t* cubemaps = Cubemaps_Get();
-    if (iCube == -1)
+    guid_t skyname = guid_str("sky", guid_seed);
+    cubemaps_t* maps = Cubemaps_Get();
+    i32 iSky = Cubemaps_Find(maps, skyname);
+    if (iSky == -1)
     {
         dirty = true;
-        iCube = Cubemaps_Add(kSkyName, 64, (sphere_t) { 0 });
+        iSky = Cubemaps_Add(maps, skyname, 64, (box_t) { 0 });
     }
 
-    dirty |= cvar_check_dirty(&cv_r_sun_az);
-    dirty |= cvar_check_dirty(&cv_r_sun_ze);
-    dirty |= cvar_check_dirty(&cv_r_sun_rad);
+    dirty |= cvar_check_dirty(&cv_r_sun_dir);
+    dirty |= cvar_check_dirty(&cv_r_sun_col);
+    dirty |= cvar_check_dirty(&cv_r_sun_lum);
 
     if (dirty)
     {
-        float azimuth = f1_sat(cv_r_sun_az.asFloat);
-        float zenith = f1_sat(cv_r_sun_ze.asFloat);
-        float3 sunRad = f3_s(cv_r_sun_rad.asFloat);
-        const float4 kUp = { 0.0f, 1.0f, 0.0f, 0.0f };
-        float3 sunDir = f4_f3(TanToWorld(kUp, SampleUnitSphere(f2_v(azimuth, zenith))));
-        Cubemap* cm = cubemaps->cubemaps + iCube;
+        float4 sunDir = cvar_get_vec(&cv_r_sun_dir);
+        float4 sunCol = cvar_get_vec(&cv_r_sun_col);
+        float log2lum = cvar_get_float(&cv_r_sun_lum);
+        float lum = exp2f(log2lum);
+        cubemap_t* cm = maps->cubemaps + iSky;
         i32 size = cm->size;
 
         task_BakeSky* task = tmp_calloc(sizeof(*task));
         task->cm = cm;
-        task->sunDir = sunDir;
-        task->sunRad = sunRad;
+        task->sunDir = f4_f3(sunDir);
+        task->sunRad = f4_f3(f4_mulvs(sunCol, lum));
         task->steps = 64;
         task_run(&task->task, BakeSkyFn, Cubeface_COUNT * size * size);
     }
@@ -712,7 +716,7 @@ void render_sys_update(void)
     Cubemap_Trace();
     if (!PathTrace())
     {
-        if (cv_r_sw.asFloat != 0.0f)
+        if (cvar_get_bool(&cv_r_sw))
         {
             Rasterize();
         }
@@ -1041,8 +1045,8 @@ static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up
     material_t mat = (material_t)
     {
         .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
-        .flatAlbedo = LinearToColor(albedo),
-        .flatRome = LinearToColor(rome),
+            .flatAlbedo = LinearToColor(albedo),
+            .flatRome = LinearToColor(rome),
     };
     dr->materials[i] = mat;
 
@@ -1069,8 +1073,8 @@ static i32 CreateSphere(const char* name, float4 center, float radius, float4 al
     material_t mat = (material_t)
     {
         .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
-        .flatAlbedo = LinearToColor(albedo),
-        .flatRome = LinearToColor(rome),
+            .flatAlbedo = LinearToColor(albedo),
+            .flatRome = LinearToColor(rome),
     };
     dr->materials[i] = mat;
 

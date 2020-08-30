@@ -178,17 +178,23 @@ pim_inline float4 VEC_CALL isectTri3D(ray_t ray, float4 A, float4 B, float4 C)
     return f4_s(-1.0f);
 }
 
-pim_inline float VEC_CALL isectSphere3D(ray_t ray, sphere_t sph)
+// returns [near, far] intersection distances
+// if near > far, the ray does not intersect
+pim_inline float2 VEC_CALL isectSphere3D(float4 ro, float4 rd, sphere_t sph)
 {
-    float4 roc = f4_sub(ray.ro, sph.value);
-    float b = f4_dot3(roc, ray.rd);
-    float s = f4_lengthsq3(roc) - sph.value.w * sph.value.w;
-    float h = b * b - s;
-    if (h < 0.0f)
+    // move to sphere local space
+    ro = f4_sub(ro, sph.value);
+    float radius = sph.value.w;
+    float b = 2.0f * f4_dot3(rd, ro);
+    float c = f4_dot3(ro, ro) - radius * radius;
+    float d = (b * b) - 4.0f * c;
+    if (d <= 0.0f)
     {
-        return -1.0f;
+        return f2_v(1.0f, -1.0f);
     }
-    return -b - sqrtf(h);
+    float nb = -b;
+    float sqrtd = sqrtf(d);
+    return f2_v((nb - sqrtd) * 0.5f, (nb + sqrtd) * 0.5f);
 }
 
 pim_inline float VEC_CALL isectPlane3D(ray_t ray, plane_t plane)
@@ -197,7 +203,7 @@ pim_inline float VEC_CALL isectPlane3D(ray_t ray, plane_t plane)
 }
 
 // returns [near, far] intersection distances
-// if far < near, the ray does not intersect the box
+// if near > far, the ray does not intersect
 pim_inline float2 VEC_CALL isectBox3D(
     float4 ro,      // ray origin
     float4 rcpRd,   // 1 / ray direction

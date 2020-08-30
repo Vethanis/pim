@@ -34,17 +34,16 @@ static const atmos_t kEarthAtmosphere =
 
 pim_inline float2 VEC_CALL RaySphereIntersect(float3 ro, float3 rd, float radius)
 {
-    float a = f3_dot(rd, rd);
     float b = 2.0f * f3_dot(rd, ro);
     float c = f3_dot(ro, ro) - (radius * radius);
-    float d = (b * b) - 4.0f * a * c;
-    if (d < 0.0f)
+    float d = (b * b) - 4.0f * c;
+    if (d <= 0.0f)
     {
-        return f2_v(1e5f, -1e5f);
+        return f2_v(1.0f, -1.0f);
     }
+    float nb = -b;
     float sqrtd = sqrtf(d);
-    float rcp2a = 1.0f / (2.0f * a);
-    return f2_v((-b - sqrtd) * rcp2a, (-b + sqrtd) * rcp2a);
+    return f2_v((nb - sqrtd) * 0.5f, (nb + sqrtd) * 0.5f);
 }
 
 pim_inline float VEC_CALL RayleighPhase(float cosTheta)
@@ -104,19 +103,21 @@ pim_inline float3 VEC_CALL Atmosphere(
     float3 lightColor,
     i32 steps)
 {
-    const i32 iSteps = steps;
-    const i32 jSteps = steps >> 1;
-
-    const float rcpHr = 1.0f / atmos.Hr;
-    const float rcpHm = 1.0f / atmos.Hm;
-
-    float2 p = RaySphereIntersect(ro, rd, atmos.atmosphereRadius);
-    if (p.x > p.y)
+    float2 nfAt = RaySphereIntersect(ro, rd, atmos.atmosphereRadius);
+    float2 nfCr = RaySphereIntersect(ro, rd, atmos.crustRadius);
+    if (nfCr.x < nfCr.y)
+    {
+        nfAt.y = f1_min(nfAt.y, nfCr.x);
+    }
+    if (nfAt.x >= nfAt.y)
     {
         return f3_0;
     }
-    p.y = f1_min(p.y, RaySphereIntersect(ro, rd, atmos.crustRadius).x);
-    const float iStepSize = (p.y - p.x) / iSteps;
+    const i32 iSteps = steps;
+    const i32 jSteps = steps >> 1;
+    const float rcpHr = 1.0f / atmos.Hr;
+    const float rcpHm = 1.0f / atmos.Hm;
+    const float iStepSize = (nfAt.y - nfAt.x) / iSteps;
     const float deltaJ = 1.0f / jSteps;
 
     float3 totalRlh = f3_0;

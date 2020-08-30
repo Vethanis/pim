@@ -6,6 +6,7 @@
 #include "math/float2_funcs.h"
 #include "math/float4_funcs.h"
 #include "math/lighting.h"
+#include "math/sdf.h"
 
 PIM_C_BEGIN
 
@@ -174,6 +175,36 @@ pim_inline float4 VEC_CALL SamplePointOnSphere(
     float4 N = SampleUnitSphere(Xi);
     float4 P = f4_add(center, f4_mulvs(N, radius));
     return P;
+}
+
+pim_inline float4 VEC_CALL SampleParallaxBox(box_t box, float4 ro, float4 rd)
+{
+    float2 nf = isectBox3D(ro, f4_rcp(rd), box);
+    if (nf.x < nf.y)
+    {
+        float t = nf.x > 0.0f ? nf.x : nf.y;
+        if (t > 0.0f)
+        {
+            float4 pt = f4_add(ro, f4_mulvs(rd, t));
+            rd = f4_normalize3(f4_sub(pt, ro));
+        }
+    }
+    return rd;
+}
+
+pim_inline float4 VEC_CALL SampleParallaxSphere(sphere_t sph, float4 ro, float4 rd)
+{
+    float2 nf = isectSphere3D(ro, rd, sph);
+    if (nf.x < nf.y)
+    {
+        float t = nf.x > 0.0f ? nf.x : nf.y;
+        if (t > 0.0f)
+        {
+            float4 pt = f4_add(ro, f4_mulvs(rd, t));
+            rd = f4_normalize3(f4_sub(pt, ro));
+        }
+    }
+    return rd;
 }
 
 typedef struct SphereSA

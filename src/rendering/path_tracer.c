@@ -133,21 +133,19 @@ typedef struct pt_scene_s
     // [matCount]
     material_t* pim_noalias materials;
 
-    Cubemap* sky;
+    cubemap_t* sky;
 
     // array lengths
     i32 vertCount;
     i32 matCount;
     i32 emissiveCount;
-    // hyperparameters
-    float3 sunDirection;
-    float sunIntensity;
+    // parameters
     media_desc_t mediaDesc;
 } pt_scene_t;
 
 // ----------------------------------------------------------------------------
 
-static cvar_t cv_pt_nee = { cvart_float, 0, "pt_nee", "1", "ratio of next event estimation to unidirectional tracing" };
+static cvar_t cv_pt_nee = { .type = cvart_float,.name = "pt_nee",.value = "1",.minFloat = 0.0f,.maxFloat = 1.0f,.desc = "ratio of next event estimation to unidirectional tracing" };
 
 // ----------------------------------------------------------------------------
 
@@ -295,9 +293,6 @@ pim_inline void VEC_CALL SetSampler(pt_sampler_t sampler);
 // ----------------------------------------------------------------------------
 
 static cvar_t* cv_pt_lgrid_mpc;
-static cvar_t* cv_r_sun_az;
-static cvar_t* cv_r_sun_ze;
-static cvar_t* cv_r_sun_rad;
 
 static RTCDevice ms_device;
 static dist1d_t ms_pixeldist;
@@ -366,9 +361,6 @@ void pt_sys_init(void)
 {
     cvar_reg(&cv_pt_nee);
     cv_pt_lgrid_mpc = cvar_find("pt_lgrid_mpc");
-    cv_r_sun_az = cvar_find("r_sun_az");
-    cv_r_sun_ze = cvar_find("r_sun_ze");
-    cv_r_sun_rad = cvar_find("r_sun_rad");
 
     InitRTC();
     InitSamplers();
@@ -706,7 +698,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
     const i32* pim_noalias emissives = scene->emissives;
 
     const float weight = 1.0f / emissiveCount;
-    const float metersPerCell = cv_pt_lgrid_mpc->asFloat;
+    const float metersPerCell = cvar_get_float(cv_pt_lgrid_mpc);
     const float minDist = f1_max(metersPerCell * 0.5f, kMinLightDist);
     const float minDistSq = minDist * minDist;
     const float surfIrradiance = UnpackEmission(f4_1, 1.0f).x;
@@ -756,7 +748,7 @@ static void SetupLightGrid(pt_scene_t* scene)
     {
         box_t bounds = box_from_pts(scene->positions, scene->vertCount);
         grid_t grid;
-        const float metersPerCell = cv_pt_lgrid_mpc->asFloat;
+        const float metersPerCell = cvar_get_float(cv_pt_lgrid_mpc);
         grid_new(&grid, bounds, 1.0f / metersPerCell);
         const i32 len = grid_len(&grid);
         scene->lightGrid = grid;
@@ -771,20 +763,12 @@ static void SetupLightGrid(pt_scene_t* scene)
 
 static void UpdateScene(pt_scene_t* scene)
 {
-    float azimuth = cv_r_sun_az ? f1_sat(cv_r_sun_az->asFloat) : 0.0f;
-    float zenith = cv_r_sun_ze ? f1_sat(cv_r_sun_ze->asFloat) : 0.5f;
-    float irradiance = cv_r_sun_rad ? cv_r_sun_rad->asFloat : 100.0f;
-    const float4 kUp = { 0.0f, 1.0f, 0.0f, 0.0f };
-
-    float4 sunDir = TanToWorld(kUp, SampleUnitHemisphere(f2_v(azimuth, zenith)));
-    scene->sunDirection = f4_f3(sunDir);
-    scene->sunIntensity = irradiance;
-
-    const u32 kSkyName = 1;
-    i32 iSky = Cubemaps_Find(kSkyName);
+    guid_t skyname = guid_str("sky", guid_seed);
+    cubemaps_t* maps = Cubemaps_Get();
+    i32 iSky = Cubemaps_Find(maps, skyname);
     if (iSky != -1)
     {
-        scene->sky = Cubemaps_Get()->cubemaps + iSky;
+        scene->sky = maps->cubemaps + iSky;
     }
     else
     {
@@ -856,8 +840,6 @@ void pt_scene_gui(pt_scene_t* scene)
         igText("Vertex Count: %d", scene->vertCount);
         igText("Material Count: %d", scene->matCount);
         igText("Emissive Count: %d", scene->emissiveCount);
-        igText("Sun Direction: %f %f %f", scene->sunDirection.x, scene->sunDirection.y, scene->sunDirection.z);
-        igText("Sun Intensity: %f", scene->sunIntensity);
         media_desc_gui(&scene->mediaDesc);
         igUnindent(0.0f);
     }
@@ -1098,7 +1080,11 @@ pim_inline float4 VEC_CALL SampleSpecular(
 {
     float2 Xi = Sample2D(sampler);
     float4 H = TanToWorld(N, SampleGGXMicrofacet(Xi, alpha));
-    float4 L = f4_normalize3(f4_reflect3(I, H));
+    float4 L = f4_reflect3(I, H);
+    ASSERT(IsUnitLength(I));
+    ASSERT(IsUnitLength(N));
+    ASSERT(IsUnitLength(L));
+    ASSERT(IsUnitLength(H));
     return L;
 }
 
@@ -1108,6 +1094,8 @@ pim_inline float4 VEC_CALL SampleDiffuse(
 {
     float2 Xi = Sample2D(sampler);
     float4 L = TanToWorld(N, SampleCosineHemisphere(Xi));
+    ASSERT(IsUnitLength(N));
+    ASSERT(IsUnitLength(L));
     return L;
 }
 
@@ -1167,11 +1155,14 @@ pim_inline float4 VEC_CALL BrdfEval(
     const surfhit_t* surf,
     float4 L)
 {
+    ASSERT(IsUnitLength(I));
+    ASSERT(IsUnitLength(L));
+    float4 N = surf->N;
+    ASSERT(IsUnitLength(N));
     if (surf->flags & matflag_refractive)
     {
         return RefractBrdfEval(sampler, I, surf, L);
     }
-    float4 N = surf->N;
     float NoL = f4_dot3(N, L);
     if (NoL <= 0.0f)
     {
@@ -1239,12 +1230,15 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     float alpha = BrdfAlpha(surf->roughness);
     float4 albedo = F_Schlick(surf->albedo, f4_1, f1_abs(cosTheta));
     float4 L = SampleCosineHemisphere(Sample2D(sampler));
+    ASSERT(IsUnitLength(L));
     if (((k*sinTheta) > 1.0f) || (Sample1D(sampler) < F))
     {
         result.pos = surf->P;
 
         L = TanToWorld(N, L);
+        ASSERT(IsUnitLength(L));
         float4 R = f4_reflect3(I, N);
+        ASSERT(IsUnitLength(R));
         result.dir = f4_normalize3(f4_lerpvs(R, L, alpha));
         float NoL = f4_dotsat(N, result.dir);
         result.pdf = F * f1_lerp(1.0f, LambertPdf(NoL), alpha);
@@ -1262,7 +1256,9 @@ pim_inline scatter_t VEC_CALL RefractScatter(
 
         float4 NT = f4_neg(N);
         L = TanToWorld(NT, L);
+        ASSERT(IsUnitLength(L));
         float4 R = f4_refract3(I, N, k);
+        ASSERT(IsUnitLength(R));
         result.dir = f4_normalize3(f4_lerpvs(R, L, alpha));
         float NoL = f4_dotsat(NT, result.dir);
         result.pdf = (1.0f - F) * f1_lerp(1.0f, LambertPdf(NoL), alpha);
@@ -1276,6 +1272,8 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
     const surfhit_t* surf,
     float4 I)
 {
+    ASSERT(IsUnitLength(I));
+    ASSERT(IsUnitLength(surf->N));
     if (surf->flags & matflag_refractive)
     {
         return RefractScatter(sampler, surf, I);
@@ -1426,6 +1424,7 @@ pim_inline float VEC_CALL LightEvalPdf(
     float4 rd,
     rayhit_t* hitOut)
 {
+    ASSERT(IsUnitLength(rd));
     ray_t ray = { ro, rd };
     rayhit_t hit = pt_intersect_local(scene, ray, 0.0f, 1 << 20);
     *hitOut = hit;

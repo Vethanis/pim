@@ -5,7 +5,7 @@
 
 i32 guid_find(const guid_t* pim_noalias ptr, i32 count, guid_t key)
 {
-    ASSERT(ptr);
+    ASSERT(ptr || !count);
     ASSERT(count >= 0);
     for (i32 i = 0; i < count; ++i)
     {

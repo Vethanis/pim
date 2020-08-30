@@ -19,11 +19,10 @@
 
 static cvar_t cv_conlogpath =
 {
-    cvart_text,
-    0x0,
-    "conlogpath",
-    "console.log",
-    "Path to the console log file"
+    .type=cvart_text,
+    .name="conlogpath",
+    .value="console.log",
+    .desc="Path to the console log file"
 };
 
 static void con_gui(void);

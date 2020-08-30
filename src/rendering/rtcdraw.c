@@ -68,7 +68,7 @@ typedef struct world_s
     i32 numLights;
     drawhash_t drawablesHash;
     u64 lightHash;
-    Cubemap* sky;
+    cubemap_t* sky;
     froxels_t froxels;
 } world_t;
 
@@ -261,8 +261,9 @@ static void UpdateScene(world_t* world)
 
     UpdateLights(world);
 
-    const u32 kSkyName = 1;
-    i32 iSky = Cubemaps_Find(kSkyName);
+    guid_t skyname = guid_str("sky", guid_seed);
+    cubemaps_t* maps = Cubemaps_Get();
+    i32 iSky = Cubemaps_Find(maps, skyname);
     if (iSky != -1)
     {
         world->sky = Cubemaps_Get()->cubemaps + iSky;
@@ -555,7 +556,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     const camera_t* camera = task->camera;
     world_t* world = task->world;
     RTCScene scene = world->scene;
-    const Cubemap* pim_noalias sky = world->sky;
+    const cubemap_t* pim_noalias sky = world->sky;
     const froxels_t* pim_noalias froxels = &world->froxels;
 
     const drawables_t* drawables = drawables_get();
