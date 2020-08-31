@@ -74,6 +74,8 @@ void vkrBuffer_Del(vkrBuffer* buffer);
 void* vkrBuffer_Map(const vkrBuffer* buffer);
 void vkrBuffer_Unmap(const vkrBuffer* buffer);
 void vkrBuffer_Flush(const vkrBuffer* buffer);
+// helper for map, unmap, flush
+void vkrBuffer_Write(const vkrBuffer* buffer, const void* src, i32 size);
 // destroys the resource after kFramesInFlight
 // if fence is provided, it is used instead
 void vkrBuffer_Release(vkrBuffer* buffer, VkFence fence);

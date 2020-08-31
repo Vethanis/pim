@@ -517,6 +517,12 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_mesh.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_context.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_desc.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -1098,6 +1104,12 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_mesh.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_context.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_desc.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">
@@ -1120,6 +1132,9 @@
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="..\src\shaders\first_mesh.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\first_cbuffer.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
   </ItemGroup>

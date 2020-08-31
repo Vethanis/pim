@@ -11,10 +11,13 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_mesh.h"
+#include "rendering/vulkan/vkr_context.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
 #include "common/time.h"
+#include "math/float4_funcs.h"
+#include "math/float4x4_funcs.h"
 #include "threading/task.h"
 #include <string.h>
 
@@ -41,7 +44,12 @@ bool vkr_init(i32 width, i32 height)
         return false;
     }
 
-    vkrSwapchain_New(&g_vkr.chain, &g_vkr.display, NULL);
+    if (!vkrSwapchain_New(&g_vkr.chain, &g_vkr.display, NULL))
+    {
+        return false;
+    }
+
+    vkrContext_New(&g_vkr.context);
 
     char* shaderName = "first_mesh.hlsl";
     char* firstTri = vkrLoadShader(shaderName);
@@ -181,6 +189,31 @@ bool vkr_init(i32 width, i32 height)
     vkrSwapchain_SetupBuffers(&g_vkr.chain, g_vkr.renderpass);
 
     g_vkr.layout = vkrPipelineLayout_New();
+    const VkDescriptorSetLayoutBinding bindings[] =
+    {
+        {
+            // per draw  structured buffer
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+        {
+            // per camera structured buffer
+            .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+    };
+    vkrPipelineLayout_AddSet(g_vkr.layout, NELEM(bindings), bindings);
+    const VkPushConstantRange range =
+    {
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        .offset = 0,
+        .size = sizeof(vkrPushConstants),
+    };
+    vkrPipelineLayout_AddRange(g_vkr.layout, range);
 
     g_vkr.pipeline = vkrPipeline_NewGfx(
         &ffuncs,
@@ -215,7 +248,14 @@ bool vkr_init(i32 width, i32 height)
         { 1.0f, 0.0f, 1.0f, 0.0f },
         { 0.0f, 0.0f, 0.0f, 0.0f },
     };
-    if (!vkrMesh_New(&g_vkr.mesh, NELEM(positions), positions, normals, uv01, 0, NULL))
+
+    if (!vkrMesh_New(
+        &g_vkr.mesh,
+        NELEM(positions),
+        positions,
+        normals,
+        uv01,
+        0, NULL))
     {
         return false;
     }
@@ -262,7 +302,8 @@ void vkr_update(void)
     u32 syncIndex = 0;
     u32 imageIndex = 0;
     vkrSwapchain_Acquire(chain, &syncIndex, &imageIndex);
-    vkrCmdBuf* cmd = vkrCmdGet(vkrQueueId_Gfx);
+    vkrFrameContext* ctx = vkrContext_Get();
+    vkrCmdBuf* cmd = &ctx->cmdbufs[vkrQueueId_Gfx];
     {
         vkrCmdBegin(cmd);
         {
@@ -297,6 +338,7 @@ void vkr_shutdown(void)
         vkrRenderPass_Release(g_vkr.renderpass);
         vkrPipelineLayout_Release(g_vkr.layout);
 
+        vkrContext_Del(&g_vkr.context);
         vkrSwapchain_Del(&g_vkr.chain);
         vkrAllocator_Del(&g_vkr.allocator);
         vkrDevice_Shutdown(&g_vkr);

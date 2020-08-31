@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include <volk/volk.h>
+#include "math/types.h"
 #include "containers/strlist.h"
 #include "threading/mutex.h"
 
@@ -11,6 +12,8 @@ PIM_C_BEGIN
 
 #define kMaxSwapchainLen        4
 #define kFramesInFlight         3
+#define kDrawsPerThread         128
+#define kCamerasPerThread       1
 #define vkrAlive(ptr)           ((ptr) && ((ptr)->refcount > 0))
 
 typedef struct GLFWwindow GLFWwindow;
@@ -254,11 +257,28 @@ typedef struct vkrQueue
     VkQueue handle;
     i32 family;
     i32 index;
-    i32 threadcount;
-    VkCommandPool* pools[kFramesInFlight];
-    vkrCmdBuf* buffers[kFramesInFlight];
     VkExtent3D granularity;
 } vkrQueue;
+
+typedef struct vkrFrameContext
+{
+    VkCommandPool cmdpools[vkrQueueId_COUNT];
+    vkrCmdBuf cmdbufs[vkrQueueId_COUNT];
+    VkDescriptorPool descpool;
+    vkrBuffer perdrawbuf;
+    vkrBuffer percambuf;
+} vkrFrameContext;
+
+typedef struct vkrThreadContext
+{
+    vkrFrameContext frames[kFramesInFlight];
+} vkrThreadContext;
+
+typedef struct vkrContext
+{
+    i32 threadcount;
+    vkrThreadContext* threads;
+} vkrContext;
 
 typedef enum
 {
@@ -286,6 +306,26 @@ typedef struct vkrAllocator
     mutex_t releasemtx;
 } vkrAllocator;
 
+typedef struct vkrPerDraw
+{
+    float4x4 localToWorld;
+    float4x4 worldToLocal;
+    float4 textureScale;
+    float4 textureBias;
+} vkrPerDraw;
+
+typedef struct vkrPerCamera
+{
+    float4x4 worldToCamera;
+    float4x4 cameraToClip;
+} vkrPerCamera;
+
+typedef struct vkrPushConstants
+{
+    u32 drawIndex;
+    u32 cameraIndex;
+} vkrPushConstants;
+
 // ----------------------------------------------------------------------------
 
 typedef struct vkr_t
@@ -301,6 +341,8 @@ typedef struct vkr_t
     vkrDisplay display;
     vkrSwapchain chain;
     vkrQueue queues[vkrQueueId_COUNT];
+
+    vkrContext context;
 
     // TODO: put these somewhere else
     vkrPipeline* pipeline;

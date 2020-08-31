@@ -82,9 +82,15 @@ void vkrPipelineLayout_Release(vkrPipelineLayout* layout)
             {
                 vkDestroyPipelineLayout(g_vkr.dev, layout->handle, NULL);
             }
-            for (i32 i = 0; i < layout->setCount; ++i)
+            const i32 setCount = layout->setCount;
+            VkDescriptorSetLayout* sets = layout->sets;
+            for (i32 i = 0; i < setCount; ++i)
             {
-                vkDestroyDescriptorSetLayout(g_vkr.dev, layout->sets[i], NULL);
+                VkDescriptorSetLayout set = sets[i];
+                if (set)
+                {
+                    vkDestroyDescriptorSetLayout(g_vkr.dev, set, NULL);
+                }
             }
             pim_free(layout->sets);
             pim_free(layout->ranges);
@@ -109,7 +115,8 @@ bool vkrPipelineLayout_AddSet(
             .pBindings = pBindings,
         };
         VkCheck(vkCreateDescriptorSetLayout(g_vkr.dev, &createInfo, NULL, &set));
-        if (set != NULL)
+        ASSERT(set);
+        if (set)
         {
             layout->setCount += 1;
             PermReserve(layout->sets, layout->setCount);
@@ -149,6 +156,7 @@ bool vkrPipelineLayout_Compile(vkrPipelineLayout* layout)
             .pPushConstantRanges = layout->ranges,
         };
         VkCheck(vkCreatePipelineLayout(g_vkr.dev, &createInfo, NULL, &layout->handle));
+        ASSERT(layout->handle);
         return layout->handle != NULL;
     }
     return false;
@@ -280,7 +288,7 @@ vkrPipeline* vkrPipeline_NewGfx(
 
     VkPipeline handle = NULL;
     VkCheck(vkCreateGraphicsPipelines(g_vkr.dev, NULL, 1, &pipelineInfo, NULL, &handle));
-
+    ASSERT(handle);
     if (!handle)
     {
         return NULL;

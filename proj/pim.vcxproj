@@ -90,7 +90,9 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_cmd.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_compile.c" />
     <ClCompile Include="..\src\rendering\r_window.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_context.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_debug.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_desc.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_device.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_display.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c" />
@@ -256,6 +258,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_compile.h" />
     <ClInclude Include="..\src\rendering\r_window.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_debug.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_desc.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_device.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_display.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_instance.h" />
@@ -267,6 +270,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_shader.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_swapchain.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_sync.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_context.h" />
     <ClInclude Include="..\src\sokol\sokol_audio.h" />
     <ClInclude Include="..\src\sokol\sokol_time.h" />
     <ClInclude Include="..\src\stb\stb_perlin_fork.h" />
@@ -352,6 +356,14 @@
     <None Include="..\src\tools\prehash.py" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="..\src\shaders\first_cbuffer.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
     <FxCompile Include="..\src\shaders\first_mesh.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
