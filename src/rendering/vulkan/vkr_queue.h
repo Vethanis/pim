@@ -9,11 +9,11 @@ void vkrDestroyQueues(vkr_t* vkr);
 
 // ----------------------------------------------------------------------------
 
-vkrQueue vkrCreateQueue(
-    VkDevice device,
+bool vkrQueue_New(
+    vkrQueue* queue,
     const vkrQueueSupport* support,
     vkrQueueId id);
-void vkrDestroyQueue(VkDevice device, vkrQueue* queue);
+void vkrQueue_Del(vkrQueue* queue);
 
 VkQueueFamilyProperties* vkrEnumQueueFamilyProperties(
     VkPhysicalDevice phdev,

@@ -355,6 +355,21 @@ void vkrBuffer_Flush(const vkrBuffer* buffer)
     vkrMem_Flush(buffer->allocation);
 }
 
+void vkrBuffer_Write(const vkrBuffer* buffer, const void* src, i32 size)
+{
+    ASSERT(buffer);
+    ASSERT(src);
+    ASSERT(size == buffer->size);
+    ASSERT(size >= 0);
+    void* dst = vkrBuffer_Map(buffer);
+    if (dst)
+    {
+        memcpy(dst, src, size);
+    }
+    vkrBuffer_Unmap(buffer);
+    vkrBuffer_Flush(buffer);
+}
+
 ProfileMark(pm_bufrelease, vkrBuffer_Release)
 void vkrBuffer_Release(vkrBuffer* buffer, VkFence fence)
 {

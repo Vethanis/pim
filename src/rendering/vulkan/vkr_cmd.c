@@ -45,21 +45,6 @@ void vkrCmdPool_Reset(VkCommandPool pool, VkCommandPoolResetFlagBits flags)
 
 // ----------------------------------------------------------------------------
 
-ProfileMark(pm_cmdget, vkrCmdGet)
-vkrCmdBuf* vkrCmdGet(vkrQueueId id)
-{
-    ProfileBegin(pm_cmdget);
-    ASSERT(g_vkr.chain.handle);
-    i32 tid = task_thread_id();
-    ASSERT(tid < g_vkr.queues[id].threadcount);
-    u32 syncIndex = g_vkr.chain.syncIndex;
-    ASSERT(syncIndex < kFramesInFlight);
-    vkrCmdBuf* cmdbuf = &(g_vkr.queues[id].buffers[syncIndex][tid]);
-    ASSERT(cmdbuf->handle);
-    ProfileEnd(pm_cmdget);
-    return cmdbuf;
-}
-
 ProfileMark(pm_cmdsubmit, vkrCmdSubmit)
 void vkrCmdSubmit(
     vkrQueueId id,

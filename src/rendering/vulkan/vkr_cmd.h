@@ -13,7 +13,6 @@ void vkrCmdPool_Reset(VkCommandPool pool, VkCommandPoolResetFlagBits flags);
 vkrCmdBuf vkrCmdBuf_New(VkCommandPool pool, vkrQueueId id);
 void vkrCmdBuf_Del(vkrCmdBuf* cmdbuf);
 
-vkrCmdBuf* vkrCmdGet(vkrQueueId id);
 void vkrCmdBegin(vkrCmdBuf* cmdbuf);
 void vkrCmdEnd(vkrCmdBuf* cmdbuf);
 void vkrCmdReset(vkrCmdBuf* cmdbuf);

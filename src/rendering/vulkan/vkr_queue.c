@@ -5,6 +5,71 @@
 #include "threading/task.h"
 #include <string.h>
 
+void vkrCreateQueues(vkr_t* vkr)
+{
+    ASSERT(vkr);
+    ASSERT(vkr->dev);
+    ASSERT(vkr->display.surface);
+
+    vkrQueueSupport support = vkrQueryQueueSupport(vkr->phdev, vkr->display.surface);
+    for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
+    {
+        vkrQueue_New(&vkr->queues[id], &support, id);
+    }
+}
+
+void vkrDestroyQueues(vkr_t* vkr)
+{
+    if (vkr)
+    {
+        VkCheck(vkDeviceWaitIdle(vkr->dev));
+        for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
+        {
+            vkrQueue_Del(&vkr->queues[id]);
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+bool vkrQueue_New(
+    vkrQueue* queue,
+    const vkrQueueSupport* support,
+    vkrQueueId id)
+{
+    ASSERT(queue);
+    ASSERT(support);
+    memset(queue, 0, sizeof(*queue));
+
+    i32 family = support->family[id];
+    i32 index = support->index[id];
+    ASSERT(family >= 0);
+    ASSERT(index >= 0);
+
+    VkQueue handle = NULL;
+    vkGetDeviceQueue(g_vkr.dev, family, index, &handle);
+    ASSERT(handle);
+
+    if (handle)
+    {
+        queue->family = family;
+        queue->index = index;
+        queue->granularity =
+            support->properties[family].minImageTransferGranularity;
+        queue->handle = handle;
+    }
+
+    return handle != NULL;
+}
+
+void vkrQueue_Del(vkrQueue* queue)
+{
+    if (queue)
+    {
+        memset(queue, 0, sizeof(*queue));
+    }
+}
+
 VkQueueFamilyProperties* vkrEnumQueueFamilyProperties(
     VkPhysicalDevice phdev,
     u32* countOut)
@@ -101,108 +166,4 @@ vkrQueueSupport vkrQueryQueueSupport(VkPhysicalDevice phdev, VkSurfaceKHR surf)
     }
 
     return support;
-}
-
-vkrQueue vkrCreateQueue(
-    VkDevice device,
-    const vkrQueueSupport* support,
-    vkrQueueId id)
-{
-    ASSERT(device);
-
-    vkrQueue queue = { 0 };
-
-    i32 family = support->family[id];
-    i32 index = support->index[id];
-    ASSERT(family >= 0);
-    ASSERT(index >= 0);
-
-    queue.family = family;
-    queue.index = index;
-    queue.granularity = support->properties[family].minImageTransferGranularity;
-
-    VkQueue handle = NULL;
-    vkGetDeviceQueue(device, family, index, &handle);
-    ASSERT(handle);
-    queue.handle = handle;
-
-    const i32 threadcount = task_thread_ct();
-    queue.threadcount = threadcount;
-
-    for (i32 fr = 0; fr < kFramesInFlight; ++fr)
-    {
-        VkCommandPool* pools = perm_calloc(sizeof(pools[0]) * threadcount);
-        vkrCmdBuf* buffers = perm_calloc(sizeof(buffers[0]) * threadcount);
-
-        for (i32 tr = 0; tr < threadcount; ++tr)
-        {
-            VkCommandPool pool = vkrCmdPool_New(family, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-            pools[tr] = pool;
-            buffers[tr] = vkrCmdBuf_New(pool, id);
-        }
-
-        queue.pools[fr] = pools;
-        queue.buffers[fr] = buffers;
-    }
-
-    return queue;
-}
-
-void vkrCreateQueues(vkr_t* vkr)
-{
-    ASSERT(vkr);
-    ASSERT(vkr->dev);
-    ASSERT(vkr->display.surface);
-
-    VkDevice device = vkr->dev;
-    vkrQueueSupport support = vkrQueryQueueSupport(vkr->phdev, vkr->display.surface);
-    for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
-    {
-        vkr->queues[id] = vkrCreateQueue(device, &support, id);
-    }
-}
-
-void vkrDestroyQueue(VkDevice device, vkrQueue* queue)
-{
-    ASSERT(device);
-    ASSERT(queue);
-    const i32 threadcount = queue->threadcount;
-    if (threadcount > 0)
-    {
-        for (i32 fr = 0; fr < kFramesInFlight; ++fr)
-        {
-            VkCommandPool* pools = queue->pools[fr];
-            vkrCmdBuf* buffers = queue->buffers[fr];
-            if (buffers)
-            {
-                for (i32 tr = 0; tr < threadcount; ++tr)
-                {
-                    vkrCmdBuf_Del(&buffers[tr]);
-                }
-                pim_free(buffers);
-            }
-            if (pools)
-            {
-                for (i32 tr = 0; tr < threadcount; ++tr)
-                {
-                    vkrCmdPool_Del(pools[tr]);
-                }
-                pim_free(pools);
-            }
-        }
-    }
-    memset(queue, 0, sizeof(*queue));
-}
-
-void vkrDestroyQueues(vkr_t* vkr)
-{
-    if (vkr)
-    {
-        VkDevice device = vkr->dev;
-        VkCheck(vkDeviceWaitIdle(device));
-        for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
-        {
-            vkrDestroyQueue(device, vkr->queues + id);
-        }
-    }
 }

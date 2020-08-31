@@ -1,6 +1,7 @@
 #include "rendering/vulkan/vkr_mesh.h"
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_cmd.h"
+#include "rendering/vulkan/vkr_context.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include <string.h>
@@ -87,7 +88,8 @@ bool vkrMesh_New(
         vkrBuffer_Flush(&stagebuf);
     }
 
-    vkrCmdBuf* cmdbuf = vkrCmdGet(vkrQueueId_Xfer);
+    vkrFrameContext* ctx = vkrContext_Get();
+    vkrCmdBuf* cmdbuf = &ctx->cmdbufs[vkrQueueId_Xfer];
     vkrCmdBegin(cmdbuf);
     vkrCmdCopyBuffer(cmdbuf, stagebuf, devbuf);
     const VkBufferMemoryBarrier barrier =
