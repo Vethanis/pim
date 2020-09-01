@@ -7,6 +7,7 @@
 #include "threading/intrin.h"
 #include "threading/sleep.h"
 #include "common/profiler.h"
+#include "input/input_system.h"
 #include <math.h>
 
 static cvar_t cv_fpslimit =
@@ -24,7 +25,6 @@ static i32 ms_width;
 static i32 ms_height;
 static i32 ms_target;
 static u64 ms_lastSwap;
-static bool ms_cursorCaptured;
 
 static GLFWwindow* CreateGlfwWindow(i32 width, i32 height, const char* title, bool fullscreen);
 static void OnGlfwError(i32 error_code, const char* description);
@@ -42,10 +42,10 @@ void window_sys_init(void)
 
     ms_window = CreateGlfwWindow(800, 600, "Pim", true);
     ASSERT(ms_window);
+    input_reg_window(ms_window);
     glfwMakeContextCurrent(ms_window);
     glfwSwapInterval(0);
     glfwGetWindowSize(ms_window, &ms_width, &ms_height);
-    ms_cursorCaptured = false;
 
     rv = gladLoadGL();
     ASSERT(rv);
@@ -134,26 +134,7 @@ void window_swapbuffers(void)
     ProfileEnd(pm_swapbuffers);
 }
 
-bool window_cursor_captured(void)
-{
-    ASSERT(ms_window);
-    return ms_cursorCaptured;
-}
-
-void window_capture_cursor(bool capture)
-{
-    ASSERT(ms_window);
-    if (capture != ms_cursorCaptured)
-    {
-        ms_cursorCaptured = capture;
-        glfwSetInputMode(
-            ms_window,
-            GLFW_CURSOR,
-            capture ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
-    }
-}
-
-GLFWwindow* window_ptr(void)
+GLFWwindow* window_get(void)
 {
     ASSERT(ms_window);
     return ms_window;

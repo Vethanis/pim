@@ -4,6 +4,8 @@
 
 PIM_C_BEGIN
 
+typedef struct GLFWwindow GLFWwindow;
+
 typedef enum
 {
     InputMod_Shift = (1 << 0),
@@ -157,6 +159,14 @@ typedef enum
 void input_sys_init(void);
 void input_sys_update(void);
 void input_sys_shutdown(void);
+
+void input_reg_window(GLFWwindow* window);
+
+GLFWwindow* input_get_focus(void);
+void input_set_focus(GLFWwindow* window);
+
+bool input_cursor_captured(GLFWwindow* window);
+void input_capture_cursor(GLFWwindow* window, bool capture);
 
 bool input_key(KeyCode key);
 bool input_button(MouseButton button);

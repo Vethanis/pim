@@ -5,6 +5,7 @@
 #include "common/time.h"
 #include "common/profiler.h"
 
+static GLFWwindow* ms_focused;
 static u64 ms_frametick;
 static u64 ms_keyTimes[KeyCode_COUNT];
 static u8 ms_keys[KeyCode_COUNT];
@@ -18,19 +19,13 @@ static void OnClick(GLFWwindow* window, i32 button, i32 action, i32 mods);
 static void OnScroll(GLFWwindow* window, double xoffset, double yoffset);
 static void OnChar(GLFWwindow* window, u32 c);
 static void OnMove(GLFWwindow* window, double cursorX, double cursorY);
+static void OnFocus(GLFWwindow* window, i32 focused);
 static bool IsRecent(u64 tick) { return tick >= ms_frametick; }
 
 // ----------------------------------------------------------------------------
 
 void input_sys_init(void)
 {
-    GLFWwindow* window = window_ptr();
-    ASSERT(window);
-    glfwSetKeyCallback(window, OnKey);
-    glfwSetMouseButtonCallback(window, OnClick);
-    glfwSetScrollCallback(window, OnScroll);
-    glfwSetCharCallback(window, OnChar);
-    glfwSetCursorPosCallback(window, OnMove);
     ms_frametick = time_now();
 }
 
@@ -51,7 +46,57 @@ void input_sys_update(void)
 
 void input_sys_shutdown(void)
 {
+    ms_focused = NULL;
+}
 
+void input_reg_window(GLFWwindow* window)
+{
+    if (window)
+    {
+        i32 focused = glfwGetWindowAttrib(window, GLFW_FOCUSED);
+        if (focused)
+        {
+            ms_focused = window;
+        }
+        glfwSetKeyCallback(window, OnKey);
+        glfwSetMouseButtonCallback(window, OnClick);
+        glfwSetScrollCallback(window, OnScroll);
+        glfwSetCharCallback(window, OnChar);
+        glfwSetCursorPosCallback(window, OnMove);
+        glfwSetWindowFocusCallback(window, OnFocus);
+    }
+}
+
+GLFWwindow* input_get_focus(void)
+{
+    return ms_focused;
+}
+
+void input_set_focus(GLFWwindow* window)
+{
+    if (window)
+    {
+        glfwFocusWindow(window);
+    }
+}
+
+bool input_cursor_captured(GLFWwindow* window)
+{
+    i32 mode = 0;
+    if (window)
+    {
+        mode = glfwGetInputMode(window, GLFW_CURSOR);
+    }
+    return mode == GLFW_CURSOR_DISABLED;
+}
+
+void input_capture_cursor(GLFWwindow* window, bool capture)
+{
+    if (window)
+    {
+        i32 mode = capture ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL;
+        glfwSetInputMode(window, GLFW_CURSOR, mode);
+    }
 }
 
 bool input_key(KeyCode key)
@@ -118,7 +163,7 @@ static void OnKey(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mod
         ms_keys[key] = state;
         ms_keyTimes[key] = time_now();
     }
-    if (!window_cursor_captured())
+    if (!input_cursor_captured(window))
     {
         ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
     }
@@ -132,7 +177,7 @@ static void OnClick(GLFWwindow* window, i32 button, i32 action, i32 mods)
         ms_buttons[button] = state;
         ms_buttonTimes[button] = time_now();
     }
-    if (!window_cursor_captured())
+    if (!input_cursor_captured(window))
     {
         ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
     }
@@ -142,7 +187,7 @@ static void OnScroll(GLFWwindow* window, double xoffset, double yoffset)
 {
     ms_axis[MouseAxis_ScrollX] += (float)xoffset;
     ms_axis[MouseAxis_ScrollY] += (float)yoffset;
-    if (!window_cursor_captured())
+    if (!input_cursor_captured(window))
     {
         ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
     }
@@ -150,7 +195,7 @@ static void OnScroll(GLFWwindow* window, double xoffset, double yoffset)
 
 static void OnChar(GLFWwindow* window, u32 c)
 {
-    if (!window_cursor_captured())
+    if (!input_cursor_captured(window))
     {
         ImGui_ImplGlfw_CharCallback(window, c);
     }
@@ -162,4 +207,12 @@ static void OnMove(GLFWwindow* window, double cursorX, double cursorY)
     float y = -2.0f * (float)(cursorY / window_height()) + 1.0f;
     ms_axis[MouseAxis_X] = x;
     ms_axis[MouseAxis_Y] = y;
+}
+
+static void OnFocus(GLFWwindow* window, i32 focused)
+{
+    if (focused)
+    {
+        ms_focused = window;
+    }
 }

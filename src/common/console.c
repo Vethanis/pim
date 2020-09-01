@@ -84,19 +84,20 @@ static void con_gui(void)
     bool grabFocus = false;
     if (input_keydown(KeyCode_GraveAccent))
     {
+        GLFWwindow* focus = input_get_focus();
         ms_showGui = !ms_showGui;
         grabFocus = true;
         ms_buffer[0] = 0;
         if (ms_showGui)
         {
-            ms_recapture = window_cursor_captured();
-            window_capture_cursor(false);
+            ms_recapture = input_cursor_captured(focus);
+            input_capture_cursor(focus, false);
         }
         else
         {
             if (ms_recapture)
             {
-                window_capture_cursor(true);
+                input_capture_cursor(focus, true);
             }
             ms_recapture = false;
         }
