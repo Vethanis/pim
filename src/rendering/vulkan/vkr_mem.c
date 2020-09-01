@@ -359,7 +359,7 @@ void vkrBuffer_Write(const vkrBuffer* buffer, const void* src, i32 size)
 {
     ASSERT(buffer);
     ASSERT(src);
-    ASSERT(size == buffer->size);
+    ASSERT(size <= buffer->size);
     ASSERT(size >= 0);
     void* dst = vkrBuffer_Map(buffer);
     if (dst)

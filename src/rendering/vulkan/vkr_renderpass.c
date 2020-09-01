@@ -2,7 +2,7 @@
 #include "allocator/allocator.h"
 #include <string.h>
 
-vkrRenderPass* vkrRenderPass_New(
+VkRenderPass vkrRenderPass_New(
     i32 attachmentCount,
     const VkAttachmentDescription* pAttachments,
     i32 subpassCount,
@@ -22,40 +22,14 @@ vkrRenderPass* vkrRenderPass_New(
     };
     VkRenderPass handle = NULL;
     VkCheck(vkCreateRenderPass(g_vkr.dev, &createInfo, NULL, &handle));
-    if (!handle)
-    {
-        return NULL;
-    }
-    vkrRenderPass* pass = perm_calloc(sizeof(*pass));
-    pass->refcount = 1;
-    pass->handle = handle;
-    pass->attachmentCount = attachmentCount;
-    pass->subpassCount = subpassCount;
-    pass->dependencyCount = dependencyCount;
-    return pass;
+    ASSERT(handle);
+    return handle;
 }
 
-void vkrRenderPass_Retain(vkrRenderPass* pass)
+void vkrRenderPass_Del(VkRenderPass pass)
 {
-    if (vkrAlive(pass))
+    if (pass)
     {
-        pass->refcount += 1;
-    }
-}
-
-void vkrRenderPass_Release(vkrRenderPass* pass)
-{
-    if (vkrAlive(pass))
-    {
-        pass->refcount -= 1;
-        if (pass->refcount == 0)
-        {
-            if (pass->handle)
-            {
-                vkDestroyRenderPass(g_vkr.dev, pass->handle, NULL);
-            }
-            memset(pass, 0, sizeof(*pass));
-            pim_free(pass);
-        }
+        vkDestroyRenderPass(g_vkr.dev, pass, NULL);
     }
 }

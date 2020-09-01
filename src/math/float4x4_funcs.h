@@ -9,6 +9,24 @@ PIM_C_BEGIN
 #include "float3x3_funcs.h"
 #include "math/quat_funcs.h"
 
+// [column][row]
+#define f4x4_00(m) (m).c0.x
+#define f4x4_01(m) (m).c0.y
+#define f4x4_02(m) (m).c0.z
+#define f4x4_03(m) (m).c0.w
+#define f4x4_10(m) (m).c1.x
+#define f4x4_11(m) (m).c1.y
+#define f4x4_12(m) (m).c1.z
+#define f4x4_13(m) (m).c1.w
+#define f4x4_20(m) (m).c2.x
+#define f4x4_21(m) (m).c2.y
+#define f4x4_22(m) (m).c2.z
+#define f4x4_23(m) (m).c2.w
+#define f4x4_30(m) (m).c3.x
+#define f4x4_31(m) (m).c3.y
+#define f4x4_32(m) (m).c3.z
+#define f4x4_33(m) (m).c3.w
+
 static const float4x4 f4x4_0 = 
 {
     { 0.0f, 0.0f, 0.0f, 0.0f },

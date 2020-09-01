@@ -7,9 +7,8 @@ PIM_C_BEGIN
 i32 vkrVertTypeSize(vkrVertType type);
 VkFormat vkrVertTypeFormat(vkrVertType type);
 
-vkrPipelineLayout* vkrPipelineLayout_New(void);
-void vkrPipelineLayout_Retain(vkrPipelineLayout* layout);
-void vkrPipelineLayout_Release(vkrPipelineLayout* layout);
+void vkrPipelineLayout_New(vkrPipelineLayout* layout);
+void vkrPipelineLayout_Del(vkrPipelineLayout* layout);
 bool vkrPipelineLayout_AddSet(
     vkrPipelineLayout* layout,
     i32 bindingCount,
@@ -19,17 +18,17 @@ void vkrPipelineLayout_AddRange(
     VkPushConstantRange range);
 bool vkrPipelineLayout_Compile(vkrPipelineLayout* layout);
 
-vkrPipeline* vkrPipeline_NewGfx(
+bool vkrPipeline_NewGfx(
+    vkrPipeline* pipeline,
     const vkrFixedFuncs* fixedfuncs,
     const vkrVertexLayout* vertLayout,
     vkrPipelineLayout* layout,
+    VkRenderPass renderPass,
+    i32 subpass,
     i32 shaderCount,
-    const VkPipelineShaderStageCreateInfo* shaders,
-    vkrRenderPass* renderPass,
-    i32 subpass);
+    const VkPipelineShaderStageCreateInfo* shaders);
 
-void vkrPipeline_Retain(vkrPipeline* pipeline);
-void vkrPipeline_Release(vkrPipeline* pipeline);
+void vkrPipeline_Del(vkrPipeline* pipeline);
 
 PIM_C_END
 

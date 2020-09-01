@@ -6,12 +6,12 @@ PIM_C_BEGIN
 
 bool vkrSwapchain_New(vkrSwapchain* chain, vkrDisplay* display, vkrSwapchain* prev);
 void vkrSwapchain_Del(vkrSwapchain* chain);
-void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, vkrRenderPass* presentPass);
+void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, VkRenderPass presentPass);
 
 bool vkrSwapchain_Recreate(
     vkrSwapchain* chain,
     vkrDisplay* display,
-    vkrRenderPass* presentPass);
+    VkRenderPass presentPass);
 
 void vkrSwapchain_Acquire(
     vkrSwapchain* chain,
