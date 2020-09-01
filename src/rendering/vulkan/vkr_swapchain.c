@@ -160,10 +160,10 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
     }
 }
 
-void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, vkrRenderPass* presentPass)
+void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, VkRenderPass presentPass)
 {
     ASSERT(chain);
-    ASSERT(vkrAlive(presentPass));
+    ASSERT(presentPass);
     const i32 len = chain->length;
     for (i32 i = 0; i < len; ++i)
     {
@@ -178,7 +178,7 @@ void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, vkrRenderPass* presentPass)
         const VkFramebufferCreateInfo bufferInfo =
         {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-            .renderPass = presentPass->handle,
+            .renderPass = presentPass,
             .attachmentCount = 1,
             .pAttachments = &view,
             .width = chain->width,
@@ -195,11 +195,11 @@ void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, vkrRenderPass* presentPass)
 bool vkrSwapchain_Recreate(
     vkrSwapchain* chain,
     vkrDisplay* display,
-    vkrRenderPass* presentPass)
+    VkRenderPass presentPass)
 {
     ASSERT(chain);
     ASSERT(display);
-    ASSERT(vkrAlive(presentPass));
+    ASSERT(presentPass);
     vkrSwapchain next = { 0 };
     vkrSwapchain prev = *chain;
     vkrDevice_WaitIdle();

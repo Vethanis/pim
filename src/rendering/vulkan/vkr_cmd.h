@@ -29,7 +29,7 @@ void vkrCmdSubmit2(vkrCmdBuf* cmdbuf);
 
 void vkrCmdBeginRenderPass(
     vkrCmdBuf* cmdbuf,
-    const vkrRenderPass* pass,
+    VkRenderPass pass,
     VkFramebuffer framebuf,
     VkRect2D rect,
     VkClearValue clearValue);
@@ -58,5 +58,17 @@ void vkrCmdImageBarrier(
     VkPipelineStageFlags srcStageMask,
     VkPipelineStageFlags dstStageMask,
     const VkImageMemoryBarrier* barrier);
+
+void vkrCmdPushConstants(
+    vkrCmdBuf* cmdbuf,
+    const vkrPipeline* pipeline,
+    const void* dwords,
+    i32 bytes);
+
+void vkrCmdBindDescSets(
+    vkrCmdBuf* cmdbuf,
+    const vkrPipeline* pipeline,
+    i32 setCount,
+    const VkDescriptorSet* sets);
 
 PIM_C_END

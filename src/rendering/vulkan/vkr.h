@@ -14,7 +14,6 @@ PIM_C_BEGIN
 #define kFramesInFlight         3
 #define kDrawsPerThread         128
 #define kCamerasPerThread       1
-#define vkrAlive(ptr)           ((ptr) && ((ptr)->refcount > 0))
 
 typedef struct GLFWwindow GLFWwindow;
 
@@ -194,7 +193,6 @@ typedef struct vkrFixedFuncs
 
 typedef struct vkrPipelineLayout
 {
-    i32 refcount;
     VkPipelineLayout handle;
     VkDescriptorSetLayout* sets;
     VkPushConstantRange* ranges;
@@ -202,22 +200,12 @@ typedef struct vkrPipelineLayout
     i32 rangeCount;
 } vkrPipelineLayout;
 
-typedef struct vkrRenderPass
-{
-    i32 refcount;
-    VkRenderPass handle;
-    i32 subpassCount;
-    i32 attachmentCount;
-    i32 dependencyCount;
-} vkrRenderPass;
-
 typedef struct vkrPipeline
 {
-    i32 refcount;
     VkPipeline handle;
+    VkRenderPass renderPass;
+    vkrPipelineLayout layout;
     VkPipelineBindPoint bindpoint;
-    vkrPipelineLayout* layout;
-    vkrRenderPass* renderPass;
     i32 subpass;
 } vkrPipeline;
 
@@ -345,9 +333,7 @@ typedef struct vkr_t
     vkrContext context;
 
     // TODO: put these somewhere else
-    vkrPipeline* pipeline;
-    vkrRenderPass* renderpass;
-    vkrPipelineLayout* layout;
+    vkrPipeline pipeline;
     vkrMesh mesh;
 
 } vkr_t;

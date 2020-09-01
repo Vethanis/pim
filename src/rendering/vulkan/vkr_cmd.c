@@ -205,21 +205,20 @@ void vkrCmdAwait(vkrCmdBuf* cmdbuf)
 ProfileMark(pm_beginrenderpass, vkrCmdBeginRenderPass)
 void vkrCmdBeginRenderPass(
     vkrCmdBuf* cmdbuf,
-    const vkrRenderPass* pass,
+    VkRenderPass pass,
     VkFramebuffer framebuf,
     VkRect2D rect,
     VkClearValue clearValue)
 {
     ProfileBegin(pm_beginrenderpass);
     ASSERT(cmdbuf->handle);
-    ASSERT(vkrAlive(pass));
-    ASSERT(pass->handle);
+    ASSERT(pass);
     ASSERT(framebuf);
     ASSERT(cmdbuf->state == vkrCmdState_Recording);
     const VkRenderPassBeginInfo info =
     {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = pass->handle,
+        .renderPass = pass,
         .framebuffer = framebuf,
         .renderArea = rect,
         .clearValueCount = 1,
@@ -255,7 +254,7 @@ void vkrCmdBindPipeline(vkrCmdBuf* cmdbuf, const vkrPipeline* pipeline)
     ProfileBegin(pm_bindpipeline);
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->state == vkrCmdState_Recording);
-    ASSERT(vkrAlive(pipeline));
+    ASSERT(pipeline);
     vkCmdBindPipeline(cmdbuf->handle, pipeline->bindpoint, pipeline->handle);
     ProfileEnd(pm_bindpipeline);
 }
@@ -382,4 +381,44 @@ void vkrCmdImageBarrier(vkrCmdBuf* cmdbuf,
         0, NULL,
         0, NULL,
         1, barrier);
+}
+
+void vkrCmdPushConstants(
+    vkrCmdBuf* cmdbuf,
+    const vkrPipeline* pipeline,
+    const void* dwords,
+    i32 bytes)
+{
+    ASSERT(cmdbuf);
+    ASSERT(cmdbuf->handle);
+    ASSERT(pipeline);
+    ASSERT(pipeline->layout.handle);
+    ASSERT(dwords || !bytes);
+    ASSERT(bytes >= 0);
+    if (bytes > 0)
+    {
+        const u32 stages = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT;
+        vkCmdPushConstants(cmdbuf->handle, pipeline->layout.handle, stages, 0, bytes, dwords);
+    }
+}
+
+void vkrCmdBindDescSets(
+    vkrCmdBuf* cmdbuf,
+    const vkrPipeline* pipeline,
+    i32 setCount,
+    const VkDescriptorSet* sets)
+{
+    ASSERT(cmdbuf);
+    ASSERT(pipeline);
+    ASSERT(sets || !setCount);
+    if (setCount > 0)
+    {
+        vkCmdBindDescriptorSets(
+            cmdbuf->handle,
+            pipeline->bindpoint,
+            pipeline->layout.handle,
+            0,
+            setCount, sets,
+            0, NULL);
+    }
 }

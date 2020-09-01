@@ -12,13 +12,16 @@
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_mesh.h"
 #include "rendering/vulkan/vkr_context.h"
+#include "rendering/vulkan/vkr_desc.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
 #include "common/time.h"
 #include "math/float4_funcs.h"
 #include "math/float4x4_funcs.h"
+#include "math/quat_funcs.h"
 #include "threading/task.h"
+#include "rendering/camera.h"
 #include <string.h>
 
 vkr_t g_vkr;
@@ -51,14 +54,14 @@ bool vkr_init(i32 width, i32 height)
 
     vkrContext_New(&g_vkr.context);
 
-    char* shaderName = "first_mesh.hlsl";
-    char* firstTri = vkrLoadShader(shaderName);
+    char* shaderName = "first_cbuffer.hlsl";
+    char* shaderText = vkrLoadShader(shaderName);
 
     const vkrCompileInput vertInput =
     {
         .filename = shaderName,
         .entrypoint = "VSMain",
-        .text = firstTri,
+        .text = shaderText,
         .type = vkrShaderType_Vert,
         .compile = true,
         .disassemble = true,
@@ -82,7 +85,7 @@ bool vkr_init(i32 width, i32 height)
     {
         .filename = shaderName,
         .entrypoint = "PSMain",
-        .text = firstTri,
+        .text = shaderText,
         .type = vkrShaderType_Frag,
         .compile = true,
         .disassemble = true,
@@ -102,8 +105,8 @@ bool vkr_init(i32 width, i32 height)
         }
     }
 
-    pim_free(firstTri);
-    firstTri = NULL;
+    pim_free(shaderText);
+    shaderText = NULL;
 
     const vkrFixedFuncs ffuncs =
     {
@@ -111,7 +114,7 @@ bool vkr_init(i32 width, i32 height)
         .scissor = vkrSwapchain_GetRect(&g_vkr.chain),
         .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
         .polygonMode = VK_POLYGON_MODE_FILL,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .cullMode = VK_CULL_MODE_BACK_BIT,
         .depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
         .scissorOn = false,
@@ -180,15 +183,16 @@ bool vkr_init(i32 width, i32 height)
         },
     };
 
-    g_vkr.renderpass = vkrRenderPass_New(
+    VkRenderPass renderPass = vkrRenderPass_New(
         NELEM(attachments), attachments,
         NELEM(subpasses), subpasses,
         NELEM(dependencies), dependencies);
     const i32 subpass = 0;
 
-    vkrSwapchain_SetupBuffers(&g_vkr.chain, g_vkr.renderpass);
+    vkrSwapchain_SetupBuffers(&g_vkr.chain, renderPass);
 
-    g_vkr.layout = vkrPipelineLayout_New();
+    vkrPipelineLayout pipeLayout = { 0 };
+    vkrPipelineLayout_New(&pipeLayout);
     const VkDescriptorSetLayoutBinding bindings[] =
     {
         {
@@ -206,22 +210,23 @@ bool vkr_init(i32 width, i32 height)
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         },
     };
-    vkrPipelineLayout_AddSet(g_vkr.layout, NELEM(bindings), bindings);
+    vkrPipelineLayout_AddSet(&pipeLayout, NELEM(bindings), bindings);
     const VkPushConstantRange range =
     {
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         .offset = 0,
         .size = sizeof(vkrPushConstants),
     };
-    vkrPipelineLayout_AddRange(g_vkr.layout, range);
+    vkrPipelineLayout_AddRange(&pipeLayout, range);
 
-    g_vkr.pipeline = vkrPipeline_NewGfx(
+    vkrPipeline_NewGfx(
+        &g_vkr.pipeline,
         &ffuncs,
         &vertLayout,
-        g_vkr.layout,
-        NELEM(shaders), shaders,
-        g_vkr.renderpass,
-        subpass);
+        &pipeLayout,
+        renderPass,
+        subpass,
+        NELEM(shaders), shaders);
 
     vkrCompileOutput_Del(&vertOutput);
     vkrCompileOutput_Del(&fragOutput);
@@ -282,7 +287,7 @@ void vkr_update(void)
         vkrSwapchain_Recreate(
             &g_vkr.chain,
             &g_vkr.display,
-            g_vkr.renderpass);
+            g_vkr.pipeline.renderPass);
     }
     vkrSwapchain* chain = &g_vkr.chain;
     if (!chain->handle)
@@ -299,22 +304,59 @@ void vkr_update(void)
         .color = { 0.0f, 0.0f, 0.0f, 1.0f },
     };
 
+    vkrPipeline* pipeline = &g_vkr.pipeline;
+
     u32 syncIndex = 0;
     u32 imageIndex = 0;
     vkrSwapchain_Acquire(chain, &syncIndex, &imageIndex);
     vkrFrameContext* ctx = vkrContext_Get();
     vkrCmdBuf* cmd = &ctx->cmdbufs[vkrQueueId_Gfx];
     {
+        vkrDescPool_Reset(ctx->descpool);
         vkrCmdBegin(cmd);
         {
+            float fovy = f1_radians(45.0f);
+            float aspect = (float)chain->width / chain->height;
+            camera_t camera;
+            camera_get(&camera);
+            float4x4 view = f4x4_lookat(f4_s(2.0f), f4_0, f4_v(0.0f, 1.0f, 0.0f, 0.0f));
+            float4x4 proj = f4x4_perspective(fovy, aspect, camera.zNear, camera.zFar);
+            f4x4_11(proj) *= -1.0f;
+            const vkrPerCamera perCamera =
+            {
+                .worldToCamera = view,
+                .cameraToClip = proj,
+            };
+            vkrContext_WritePerCamera(ctx, &perCamera, 1);
+
+            const vkrPerDraw perDraw =
+            {
+                .localToWorld = f4x4_id,
+                .worldToLocal = f4x4_id,
+                .textureScale = f4_1,
+                .textureBias = f4_0,
+            };
+            vkrContext_WritePerDraw(ctx, &perDraw, 1);
+
+            VkDescriptorSet descSet = vkrDesc_New(ctx, pipeline->layout.sets[0]);
+            vkrDesc_WriteSSBO(ctx, descSet, 0, ctx->perdrawbuf);
+            vkrDesc_WriteSSBO(ctx, descSet, 1, ctx->percambuf);
+
             vkrCmdViewport(cmd, viewport, rect);
             vkrCmdBeginRenderPass(
                 cmd,
-                g_vkr.renderpass,
+                pipeline->renderPass,
                 chain->buffers[imageIndex],
                 rect,
                 clearValue);
-            vkrCmdBindPipeline(cmd, g_vkr.pipeline);
+            vkrCmdBindPipeline(cmd, pipeline);
+            vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
+            const vkrPushConstants pushConsts =
+            {
+                .drawIndex = 0,
+                .cameraIndex = 0,
+            };
+            vkrCmdPushConstants(cmd, pipeline, &pushConsts, sizeof(pushConsts));
             vkrCmdDrawMesh(cmd, &g_vkr.mesh);
             vkrCmdEndRenderPass(cmd);
         }
@@ -334,9 +376,7 @@ void vkr_shutdown(void)
 
         vkrMesh_Del(&g_vkr.mesh);
 
-        vkrPipeline_Release(g_vkr.pipeline);
-        vkrRenderPass_Release(g_vkr.renderpass);
-        vkrPipelineLayout_Release(g_vkr.layout);
+        vkrPipeline_Del(&g_vkr.pipeline);
 
         vkrContext_Del(&g_vkr.context);
         vkrSwapchain_Del(&g_vkr.chain);
