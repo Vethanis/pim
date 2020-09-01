@@ -76,12 +76,14 @@ void camera_logic_update(void)
         return;
     }
 
+    GLFWwindow* focus = input_get_focus();
+
     if (input_keyup(KeyCode_F1))
     {
-        window_capture_cursor(!window_cursor_captured());
+        input_capture_cursor(focus, !input_cursor_captured(focus));
     }
 
-    if (!window_cursor_captured())
+    if (!input_cursor_captured(focus))
     {
         ProfileEnd(pm_update);
         return;

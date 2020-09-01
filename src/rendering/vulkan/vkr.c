@@ -28,31 +28,44 @@ vkr_t g_vkr;
 
 bool vkr_init(i32 width, i32 height)
 {
+    bool success = true;
     memset(&g_vkr, 0, sizeof(g_vkr));
 
     if (!vkrInstance_Init(&g_vkr))
     {
-        return false;
+        success = false;
+        goto cleanup;
     }
 
-    vkrDisplay_New(&g_vkr.display, width, height, "pimvk");
+    if (!vkrDisplay_New(&g_vkr.display, width, height, "pimvk"))
+    {
+        success = false;
+        goto cleanup;
+    }
 
     if (!vkrDevice_Init(&g_vkr))
     {
-        return false;
+        success = false;
+        goto cleanup;
     }
 
     if (!vkrAllocator_New(&g_vkr.allocator))
     {
-        return false;
+        success = false;
+        goto cleanup;
     }
 
     if (!vkrSwapchain_New(&g_vkr.chain, &g_vkr.display, NULL))
     {
-        return false;
+        success = false;
+        goto cleanup;
     }
 
-    vkrContext_New(&g_vkr.context);
+    if (!vkrContext_New(&g_vkr.context))
+    {
+        success = false;
+        goto cleanup;
+    }
 
     char* shaderName = "first_cbuffer.hlsl";
     char* shaderText = vkrLoadShader(shaderName);
@@ -80,6 +93,11 @@ bool vkr_init(i32 width, i32 height)
             con_logf(LogSev_Info, "Vkc", "%s", vertOutput.disassembly);
         }
     }
+    else
+    {
+        success = false;
+        goto cleanup;
+    }
 
     const vkrCompileInput fragInput =
     {
@@ -104,9 +122,11 @@ bool vkr_init(i32 width, i32 height)
             con_logf(LogSev_Info, "Vkc", "%s", fragOutput.disassembly);
         }
     }
-
-    pim_free(shaderText);
-    shaderText = NULL;
+    else
+    {
+        success = false;
+        goto cleanup;
+    }
 
     const vkrFixedFuncs ffuncs =
     {
@@ -187,6 +207,11 @@ bool vkr_init(i32 width, i32 height)
         NELEM(attachments), attachments,
         NELEM(subpasses), subpasses,
         NELEM(dependencies), dependencies);
+    if (!renderPass)
+    {
+        success = false;
+        goto cleanup;
+    }
     const i32 subpass = 0;
 
     vkrSwapchain_SetupBuffers(&g_vkr.chain, renderPass);
@@ -210,7 +235,11 @@ bool vkr_init(i32 width, i32 height)
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         },
     };
-    vkrPipelineLayout_AddSet(&pipeLayout, NELEM(bindings), bindings);
+    if (!vkrPipelineLayout_AddSet(&pipeLayout, NELEM(bindings), bindings))
+    {
+        success = false;
+        goto cleanup;
+    }
     const VkPushConstantRange range =
     {
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -219,20 +248,17 @@ bool vkr_init(i32 width, i32 height)
     };
     vkrPipelineLayout_AddRange(&pipeLayout, range);
 
-    vkrPipeline_NewGfx(
+    if (!vkrPipeline_NewGfx(
         &g_vkr.pipeline,
         &ffuncs,
         &vertLayout,
         &pipeLayout,
         renderPass,
         subpass,
-        NELEM(shaders), shaders);
-
-    vkrCompileOutput_Del(&vertOutput);
-    vkrCompileOutput_Del(&fragOutput);
-    for (i32 i = 0; i < NELEM(shaders); ++i)
+        NELEM(shaders), shaders))
     {
-        vkrDestroyShader(shaders + i);
+        success = false;
+        goto cleanup;
     }
 
     const float4 positions[] =
@@ -262,10 +288,25 @@ bool vkr_init(i32 width, i32 height)
         uv01,
         0, NULL))
     {
-        return false;
+        success = false;
+        goto cleanup;
     }
 
-    return true;
+cleanup:
+    vkrCompileOutput_Del(&vertOutput);
+    vkrCompileOutput_Del(&fragOutput);
+    for (i32 i = 0; i < NELEM(shaders); ++i)
+    {
+        vkrDestroyShader(shaders + i);
+    }
+    pim_free(shaderText);
+    shaderText = NULL;
+
+    if (!success)
+    {
+        vkr_shutdown();
+    }
+    return success;
 }
 
 ProfileMark(pm_update, vkr_update)
@@ -319,7 +360,9 @@ void vkr_update(void)
             float aspect = (float)chain->width / chain->height;
             camera_t camera;
             camera_get(&camera);
-            float4x4 view = f4x4_lookat(f4_s(2.0f), f4_0, f4_v(0.0f, 1.0f, 0.0f, 0.0f));
+            float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
+            float4 up = quat_up(camera.rotation);
+            float4x4 view = f4x4_lookat(camera.position, at, up);
             float4x4 proj = f4x4_perspective(fovy, aspect, camera.zNear, camera.zFar);
             f4x4_11(proj) *= -1.0f;
             const vkrPerCamera perCamera =

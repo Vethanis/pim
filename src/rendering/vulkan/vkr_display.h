@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-void vkrDisplay_New(vkrDisplay* display, i32 width, i32 height, const char* title);
+bool vkrDisplay_New(vkrDisplay* display, i32 width, i32 height, const char* title);
 void vkrDisplay_Del(vkrDisplay* display);
 
 // returns true when width or height has changed

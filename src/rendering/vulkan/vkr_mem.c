@@ -313,9 +313,8 @@ bool vkrBuffer_New(
         buffer->handle = handle;
         buffer->allocation = allocation;
         buffer->size = size;
-        return true;
     }
-    return false;
+    return handle != NULL;
 }
 
 ProfileMark(pm_bufdel, vkrBuffer_Del)

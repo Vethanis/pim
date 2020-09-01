@@ -136,7 +136,7 @@ void ui_sys_init(void)
     ASSERT(ms_ctx);
     igSetCurrentContext(ms_ctx);
     igStyleColorsDark(NULL);
-    ImGui_ImplGlfw_InitForOpenGL(window_ptr(), false);
+    ImGui_ImplGlfw_InitForOpenGL(window_get(), false);
     ImGui_ImplOpenGL3_Init();
     SetupStyle();
     UpdateOpacity();

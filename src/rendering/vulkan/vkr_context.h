@@ -6,13 +6,13 @@ PIM_C_BEGIN
 
 vkrFrameContext* vkrContext_Get(void);
 
-void vkrContext_New(vkrContext* ctx);
+bool vkrContext_New(vkrContext* ctx);
 void vkrContext_Del(vkrContext* ctx);
 
-void vkrThreadContext_New(vkrThreadContext* ctx);
+bool vkrThreadContext_New(vkrThreadContext* ctx);
 void vkrThreadContext_Del(vkrThreadContext* ctx);
 
-void vkrFrameContext_New(vkrFrameContext* ctx);
+bool vkrFrameContext_New(vkrFrameContext* ctx);
 void vkrFrameContext_Del(vkrFrameContext* ctx);
 
 void vkrContext_WritePerDraw(
