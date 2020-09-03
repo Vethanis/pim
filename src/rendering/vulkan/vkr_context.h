@@ -15,6 +15,19 @@ void vkrThreadContext_Del(vkrThreadContext* ctx);
 bool vkrFrameContext_New(vkrFrameContext* ctx);
 void vkrFrameContext_Del(vkrFrameContext* ctx);
 
+void vkrContext_GetCmd(
+    vkrFrameContext* ctx,
+    vkrQueueId id,
+    VkCommandBuffer* cmdOut,
+    VkFence* fenceOut,
+    VkQueue* queueOut);
+void vkrContext_GetSecCmd(
+    vkrFrameContext* ctx,
+    vkrQueueId id,
+    VkCommandBuffer* cmdOut,
+    VkFence* fenceOut,
+    VkQueue* queueOut);
+
 void vkrContext_WritePerDraw(
     vkrFrameContext* ctx,
     const vkrPerDraw* perDraws,

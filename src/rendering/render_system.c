@@ -119,7 +119,7 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv);
 static framebuf_t ms_buffers[2];
 static i32 ms_iFrame;
 
-static TonemapId ms_tonemapper = TMap_ACES;
+static TonemapId ms_tonemapper = TMap_Uncharted2;
 static float4 ms_toneParams;
 static float4 ms_clearColor;
 static exposure_t ms_exposure =
@@ -132,9 +132,7 @@ static exposure_t ms_exposure =
     .ISO = 100.0f,
 
     .adaptRate = 1.0f,
-    .offsetEV = 1.0f,
-    .histMinProb = 0.05f,
-    .histMaxProb = 0.95f,
+    .offsetEV = 0.0f,
 };
 
 static camera_t ms_ptcam;
@@ -686,7 +684,7 @@ void render_sys_init(void)
 
     ms_toneParams.x = 0.3f; // shoulder
     ms_toneParams.y = 0.5f; // linear str
-    ms_toneParams.z = 0.1f; // linear ang
+    ms_toneParams.z = 0.15f; // linear ang
     ms_toneParams.w = 0.3f; // toe
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
 

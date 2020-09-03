@@ -9,27 +9,34 @@
 #include "threading/task.h"
 #include <string.h>
 
+ProfileMark(pm_allocfn, vkrAllocFn)
 static void* VKAPI_PTR vkrAllocFn(
     void* usr,
     usize size,
     usize align,
     VkSystemAllocationScope scope)
 {
+    ProfileBegin(pm_allocfn);
+    void* ptr = NULL;
     i32 align32 = (i32)align;
     i32 size32 = (i32)size;
     if ((align32 < 1) || (align32 > 16))
     {
         ASSERT(false);
-        return NULL;
+        goto end;
     }
     if (size32 <= 0)
     {
         ASSERT(false);
-        return NULL;
+        goto end;
     }
-    return perm_malloc(size32);
+    ptr = perm_malloc(size32);
+end:
+    ProfileEnd(pm_allocfn);
+    return ptr;
 }
 
+ProfileMark(pm_reallocfn, vkrReallocFn)
 static void* VKAPI_PTR vkrReallocFn(
     void* usr,
     void* prev,
@@ -37,26 +44,34 @@ static void* VKAPI_PTR vkrReallocFn(
     usize align,
     VkSystemAllocationScope scope)
 {
+    ProfileBegin(pm_reallocfn);
+    void* ptr = NULL;
     i32 align32 = (i32)align;
     i32 size32 = (i32)size;
     ASSERT(size32 >= 0);
     if (size32 <= 0)
     {
         pim_free(prev);
-        return NULL;
+        goto end;
     }
     if ((align32 < 1) || (align32 > 16))
     {
         ASSERT(false);
         pim_free(prev);
-        return NULL;
+        goto end;
     }
-    return perm_realloc(prev, size32);
+    ptr = perm_realloc(prev, size32);
+end:
+    ProfileEnd(pm_reallocfn);
+    return ptr;
 }
 
+ProfileMark(pm_freefn, vkrFreeFn)
 static void VKAPI_PTR vkrFreeFn(void* usr, void* prev)
 {
+    ProfileBegin(pm_freefn);
     pim_free(prev);
+    ProfileEnd(pm_freefn);
 }
 
 static void VKAPI_PTR vkrOnAlloc(
@@ -191,8 +206,10 @@ void vkrAllocator_Update(vkrAllocator* allocator)
     ProfileEnd(pm_allocupdate);
 }
 
+ProfileMark(pm_releasableadd, vkrReleasable_Add)
 void vkrReleasable_Add(vkrAllocator* allocator, const vkrReleasable* releasable)
 {
+    ProfileBegin(pm_releasableadd);
     ASSERT(allocator);
     ASSERT(allocator->handle);
     ASSERT(releasable);
@@ -201,10 +218,13 @@ void vkrReleasable_Add(vkrAllocator* allocator, const vkrReleasable* releasable)
     PermReserve(allocator->releasables, back + 1);
     allocator->releasables[back] = *releasable;
     mutex_unlock(&allocator->releasemtx);
+    ProfileEnd(pm_releasableadd);
 }
 
+ProfileMark(pm_releasabledel, vkrReleasable_Del)
 bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame)
 {
+    ProfileBegin(pm_releasabledel);
     ASSERT(releasable);
     bool ready = false;
     VkFence fence = releasable->fence;
@@ -234,6 +254,7 @@ bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame)
         }
         memset(releasable, 0, sizeof(*releasable));
     }
+    ProfileEnd(pm_releasabledel);
     return ready;
 }
 
@@ -354,8 +375,10 @@ void vkrBuffer_Flush(const vkrBuffer* buffer)
     vkrMem_Flush(buffer->allocation);
 }
 
+ProfileMark(pm_bufferwrite, vkrBuffer_Write)
 void vkrBuffer_Write(const vkrBuffer* buffer, const void* src, i32 size)
 {
+    ProfileBegin(pm_bufferwrite);
     ASSERT(buffer);
     ASSERT(src);
     ASSERT(size <= buffer->size);
@@ -367,6 +390,7 @@ void vkrBuffer_Write(const vkrBuffer* buffer, const void* src, i32 size)
     }
     vkrBuffer_Unmap(buffer);
     vkrBuffer_Flush(buffer);
+    ProfileEnd(pm_bufferwrite);
 }
 
 ProfileMark(pm_bufrelease, vkrBuffer_Release)

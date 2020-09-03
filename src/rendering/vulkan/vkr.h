@@ -66,17 +66,6 @@ typedef enum
     vkrMeshStream_COUNT
 } vkrMeshStream;
 
-// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#commandbuffers-lifecycle
-typedef enum
-{
-    vkrCmdState_Null = 0,   // freed or never allocated
-    vkrCmdState_Invalid,    // one time submit or invalidated
-    vkrCmdState_Initial,    // allocated or reset
-    vkrCmdState_Recording,  // began
-    vkrCmdState_Executable, // ended, or completed
-    vkrCmdState_Pending,    // submit
-} vkrCmdState;
-
 // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkGetFenceStatus.html
 typedef enum
 {
@@ -84,15 +73,6 @@ typedef enum
     vkrFenceState_Unsignalled = VK_NOT_READY,
     vkrFenceState_Lost = VK_ERROR_DEVICE_LOST,
 } vkrFenceState;
-
-typedef struct vkrCmdBuf
-{
-    VkCommandBuffer handle;
-    VkCommandPool pool;
-    VkFence fence;
-    vkrQueueId queue;
-    vkrCmdState state;
-} vkrCmdBuf;
 
 typedef struct vkrBuffer
 {
@@ -248,10 +228,22 @@ typedef struct vkrQueue
     VkExtent3D granularity;
 } vkrQueue;
 
+typedef struct vkrCmdAlloc
+{
+    VkCommandPool pool;
+    VkQueue queue;
+    VkCommandBufferLevel level;
+    u32 frame;
+    u32 head;
+    u32 capacity;
+    VkCommandBuffer* buffers;
+    VkFence* fences;
+} vkrCmdAlloc;
+
 typedef struct vkrFrameContext
 {
-    VkCommandPool cmdpools[vkrQueueId_COUNT];
-    vkrCmdBuf cmdbufs[vkrQueueId_COUNT];
+    vkrCmdAlloc cmds[vkrQueueId_COUNT];     // primary level cmd buffers
+    vkrCmdAlloc seccmds[vkrQueueId_COUNT];  // secondary level cmd buffers
     VkDescriptorPool descpool;
     vkrBuffer perdrawbuf;
     vkrBuffer percambuf;
