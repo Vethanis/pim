@@ -1463,7 +1463,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
             float brdfPdf = brdf.w;
             if (brdfPdf > 0.0f)
             {
-                float weight = PowerHeuristic(lightPdf, brdfPdf);
+                float weight = PowerHeuristic(lightPdf, brdfPdf) * 0.5f;
                 ray_t ray = { surf->P, sample.direction };
                 float4 Tr = CalcTransmittance(sampler, scene, ray.ro, ray.rd, sample.wuvt.w);
                 float4 Li = sample.irradiance;
@@ -1485,7 +1485,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
             float lightPdf = LightEvalPdf(sampler, scene, ray.ro, ray.rd, &hit);
             if (lightPdf > 0.0f)
             {
-                float weight = PowerHeuristic(brdfPdf, lightPdf);
+                float weight = PowerHeuristic(brdfPdf, lightPdf) * 0.5f;
                 float4 Tr = CalcTransmittance(sampler, scene, ray.ro, ray.rd, hit.wuvt.w);
                 surfhit_t surf = GetSurface(scene, ray, hit);
                 float4 Li = surf.emission;
