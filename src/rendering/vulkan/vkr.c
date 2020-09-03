@@ -351,7 +351,9 @@ void vkr_update(void)
     u32 imageIndex = 0;
     vkrSwapchain_Acquire(chain, &syncIndex, &imageIndex);
     vkrFrameContext* ctx = vkrContext_Get();
-    vkrCmdBuf* cmd = &ctx->cmdbufs[vkrQueueId_Gfx];
+    VkCommandBuffer cmd = NULL;
+    VkQueue queue = NULL;
+    vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, &queue);
     {
         vkrDescPool_Reset(ctx->descpool);
         vkrCmdBegin(cmd);
@@ -405,7 +407,7 @@ void vkr_update(void)
         }
         vkrCmdEnd(cmd);
     }
-    vkrSwapchain_Present(chain, cmd);
+    vkrSwapchain_Present(chain, queue, cmd);
     vkrAllocator_Update(&g_vkr.allocator);
 
     ProfileEnd(pm_update);

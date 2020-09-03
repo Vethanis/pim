@@ -896,11 +896,11 @@ void dofinfo_new(dofinfo_t* dof)
 {
     if (dof)
     {
-        dof->aperture = 20.0f * kMilli;
-        dof->focalLength = 4.0f;
+        dof->aperture = 15.0f * kMilli;
+        dof->focalLength = 2.0f;
         dof->bladeCount = 5;
         dof->bladeRot = kPi / 10.0f;
-        dof->focalPlaneCurvature = 0.5f;
+        dof->focalPlaneCurvature = 0.1f;
     }
 }
 

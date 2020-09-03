@@ -508,9 +508,6 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_sync.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\vulkan\vkr_mem.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\rendering\vulkan\vk_mem_alloc.cpp">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
@@ -521,6 +518,9 @@
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\vulkan\vkr_desc.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_mem.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
   </ItemGroup>

@@ -89,9 +89,12 @@ bool vkrMesh_New(
     }
 
     vkrFrameContext* ctx = vkrContext_Get();
-    vkrCmdBuf* cmdbuf = &ctx->cmdbufs[vkrQueueId_Xfer];
-    vkrCmdBegin(cmdbuf);
-    vkrCmdCopyBuffer(cmdbuf, stagebuf, devbuf);
+    VkCommandBuffer cmd = NULL;
+    VkFence fence = NULL;
+    VkQueue queue = NULL;
+    vkrContext_GetCmd(ctx, vkrQueueId_Xfer, &cmd, &fence, &queue);
+    vkrCmdBegin(cmd);
+    vkrCmdCopyBuffer(cmd, stagebuf, devbuf);
     const VkBufferMemoryBarrier barrier =
     {
         .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
@@ -106,13 +109,13 @@ bool vkrMesh_New(
         .size = VK_WHOLE_SIZE,
     };
     vkrCmdBufferBarrier(
-        cmdbuf,
+        cmd,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
         &barrier);
-    vkrCmdEnd(cmdbuf);
-    vkrCmdSubmit2(cmdbuf);
-    vkrBuffer_Release(&stagebuf, cmdbuf->fence);
+    vkrCmdEnd(cmd);
+    vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
+    vkrBuffer_Release(&stagebuf, fence);
 
     mesh->buffer = devbuf;
     mesh->vertCount = vertCount;

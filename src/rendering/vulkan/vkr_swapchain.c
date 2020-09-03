@@ -269,12 +269,12 @@ void vkrSwapchain_Acquire(
 ProfileMark(pm_present, vkrSwapchain_Present)
 void vkrSwapchain_Present(
     vkrSwapchain* chain,
-    vkrCmdBuf* cmdbuf)
+    VkQueue submitQueue,
+    VkCommandBuffer cmdbuf)
 {
     ASSERT(chain);
     ASSERT(chain->handle);
     ASSERT(cmdbuf);
-    ASSERT(cmdbuf->handle);
 
     const u32 syncIndex = chain->syncIndex;
     VkFence signalFence = chain->syncFences[syncIndex];
@@ -283,8 +283,8 @@ void vkrSwapchain_Present(
     const VkPipelineStageFlags waitMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSemaphore signalSema = chain->renderedSemas[syncIndex];
     vkrCmdSubmit(
-        cmdbuf->queue,
-        cmdbuf->handle,
+        submitQueue,
+        cmdbuf,
         signalFence,
         waitSema,
         waitMask,

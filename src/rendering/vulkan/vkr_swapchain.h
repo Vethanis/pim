@@ -19,7 +19,8 @@ void vkrSwapchain_Acquire(
     u32* pImageIndex);
 void vkrSwapchain_Present(
     vkrSwapchain* chain,
-    vkrCmdBuf* cmd);
+    VkQueue submitQueue,
+    VkCommandBuffer cmd);
 
 VkViewport vkrSwapchain_GetViewport(const vkrSwapchain* chain);
 VkRect2D vkrSwapchain_GetRect(const vkrSwapchain* chain);

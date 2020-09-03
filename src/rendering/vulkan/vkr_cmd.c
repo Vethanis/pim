@@ -2,6 +2,7 @@
 #include "rendering/vulkan/vkr_sync.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
+#include "common/time.h"
 #include "math/types.h"
 #include "threading/task.h"
 #include <string.h>
@@ -45,9 +46,155 @@ void vkrCmdPool_Reset(VkCommandPool pool, VkCommandPoolResetFlagBits flags)
 
 // ----------------------------------------------------------------------------
 
+ProfileMark(pm_cmdallocnew, vkrCmdAlloc_New)
+bool vkrCmdAlloc_New(
+    vkrCmdAlloc* allocator,
+    const vkrQueue* queue,
+    VkCommandBufferLevel level)
+{
+    ProfileBegin(pm_cmdallocnew);
+    ASSERT(allocator);
+    ASSERT(queue);
+    ASSERT(queue->handle);
+
+    bool success = true;
+    memset(allocator, 0, sizeof(*allocator));
+
+    allocator->queue = queue->handle;
+    if (!allocator->queue)
+    {
+        success = false;
+        goto cleanup;
+    }
+    allocator->pool = vkrCmdPool_New(
+        queue->family,
+        VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    if (!allocator->pool)
+    {
+        success = false;
+        goto cleanup;
+    }
+    allocator->level = level;
+
+cleanup:
+    if (!success)
+    {
+        vkrCmdAlloc_Del(allocator);
+    }
+    ProfileEnd(pm_cmdallocnew);
+    return success;
+}
+
+ProfileMark(pm_cmdallocdel, vkrCmdAlloc_Del)
+void vkrCmdAlloc_Del(vkrCmdAlloc* allocator)
+{
+    ProfileBegin(pm_cmdallocdel);
+    if (allocator)
+    {
+        const u32 capacity = allocator->capacity;
+        VkFence* fences = allocator->fences;
+        VkCommandBuffer* buffers = allocator->buffers;
+        VkCommandPool pool = allocator->pool;
+        for (u32 i = 0; i < capacity; ++i)
+        {
+            vkrFence_Del(fences[i]);
+        }
+        if (pool)
+        {
+            vkDestroyCommandPool(g_vkr.dev, pool, NULL);
+        }
+        pim_free(fences);
+        pim_free(buffers);
+        memset(allocator, 0, sizeof(*allocator));
+    }
+    ProfileEnd(pm_cmdallocdel);
+}
+
+ProfileMark(pm_cmdallocreserve, vkrCmdAlloc_Reserve)
+void vkrCmdAlloc_Reserve(vkrCmdAlloc* allocator, u32 newcap)
+{
+    ProfileBegin(pm_cmdallocreserve);
+    ASSERT(allocator);
+    u32 oldcap = allocator->capacity;
+    if (newcap > oldcap)
+    {
+        newcap = (newcap > 4) ? newcap : 4;
+        newcap = (newcap > oldcap * 2) ? newcap : oldcap * 2;
+        u32 deltacap = newcap - oldcap;
+        PermReserve(allocator->fences, newcap);
+        PermReserve(allocator->buffers, newcap);
+        VkCommandBuffer* newbuffers = allocator->buffers + oldcap;
+        VkFence* newfences = allocator->fences + oldcap;
+        const VkCommandBufferAllocateInfo bufferInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = allocator->pool,
+            .level = allocator->level,
+            .commandBufferCount = deltacap,
+        };
+        VkCheck(vkAllocateCommandBuffers(g_vkr.dev, &bufferInfo, newbuffers));
+        for (u32 i = 0; i < deltacap; ++i)
+        {
+            newfences[i] = vkrFence_New(false);
+        }
+        allocator->capacity = newcap;
+    }
+    ProfileEnd(pm_cmdallocreserve);
+}
+
+ProfileMark(pm_cmdallocreset, vkrCmdAlloc_Reset)
+void vkrCmdAlloc_Reset(vkrCmdAlloc* allocator)
+{
+    ProfileBegin(pm_cmdallocreset);
+    ASSERT(allocator);
+    ASSERT(allocator->pool);
+    const u32 capacity = allocator->capacity;
+    if (capacity > 0)
+    {
+        VkCheck(vkResetCommandPool(g_vkr.dev, allocator->pool, 0x0));
+        VkFence* fences = allocator->fences;
+        for (u32 i = 0; i < capacity; ++i)
+        {
+            vkrFence_Reset(fences[i]);
+        }
+    }
+    allocator->head = 0;
+    allocator->frame = time_framecount();
+    ProfileEnd(pm_cmdallocreset);
+}
+
+ProfileMark(pm_cmdallocget, vkrCmdAlloc_Get)
+void vkrCmdAlloc_Get(vkrCmdAlloc* allocator, VkCommandBuffer* cmdOut, VkFence* fenceOut)
+{
+    ProfileBegin(pm_cmdallocget);
+    ASSERT(allocator);
+    ASSERT(allocator->pool);
+    if (allocator->frame != time_framecount())
+    {
+        vkrCmdAlloc_Reset(allocator);
+    }
+    u32 head = allocator->head;
+    vkrCmdAlloc_Reserve(allocator, head + 1);
+    allocator->head = head + 1;
+    ASSERT(head < allocator->capacity);
+    VkCommandBuffer buffer = allocator->buffers[head];
+    VkFence fence = allocator->fences[head];
+    ASSERT(buffer);
+    ASSERT(fence);
+    ASSERT(cmdOut);
+    *cmdOut = buffer;
+    if (fenceOut)
+    {
+        *fenceOut = fence;
+    }
+    ProfileEnd(pm_cmdallocget);
+}
+
+// ----------------------------------------------------------------------------
+
 ProfileMark(pm_cmdsubmit, vkrCmdSubmit)
 void vkrCmdSubmit(
-    vkrQueueId id,
+    VkQueue queue,
     VkCommandBuffer cmd,
     VkFence fence,
     VkSemaphore waitSema,
@@ -56,8 +203,7 @@ void vkrCmdSubmit(
 {
     ProfileBegin(pm_cmdsubmit);
     ASSERT(cmd);
-    VkQueue submitQueue = g_vkr.queues[id].handle;
-    ASSERT(submitQueue);
+    ASSERT(queue);
     const VkSubmitInfo submitInfo =
     {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -69,152 +215,54 @@ void vkrCmdSubmit(
         .commandBufferCount = 1,
         .pCommandBuffers = &cmd,
     };
-    VkCheck(vkQueueSubmit(submitQueue, 1, &submitInfo, fence));
+    VkCheck(vkQueueSubmit(queue, 1, &submitInfo, fence));
     ProfileEnd(pm_cmdsubmit);
 }
 
-void vkrCmdSubmit2(vkrCmdBuf* cmdbuf)
-{
-    vkrCmdAwait(cmdbuf);
-    if (cmdbuf->state == vkrCmdState_Executable)
-    {
-        vkrCmdSubmit(
-            cmdbuf->queue,
-            cmdbuf->handle,
-            cmdbuf->fence,
-            NULL,
-            0x0,
-            NULL);
-        cmdbuf->state = vkrCmdState_Pending;
-    }
-    else
-    {
-        ASSERT(false);
-    }
-}
-
-ProfileMark(pm_cmdbufnew, vkrCmdBuf_New)
-vkrCmdBuf vkrCmdBuf_New(VkCommandPool pool, vkrQueueId id)
-{
-    ProfileBegin(pm_cmdbufnew);
-    const VkCommandBufferAllocateInfo allocInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = pool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
-    };
-    VkCommandBuffer handle = NULL;
-    VkCheck(vkAllocateCommandBuffers(g_vkr.dev, &allocInfo, &handle));
-    ASSERT(handle);
-    vkrCmdBuf cmdbuf =
-    {
-        .handle = handle,
-        .pool = pool,
-        .fence = vkrFence_New(false),
-        .queue = id,
-        .state = vkrCmdState_Initial,
-    };
-    ProfileEnd(pm_cmdbufnew);
-    return cmdbuf;
-}
-
-ProfileMark(pm_cmdbufdel, vkrCmdBuf_Del)
-void vkrCmdBuf_Del(vkrCmdBuf* cmdbuf)
-{
-    if (cmdbuf)
-    {
-        ProfileBegin(pm_cmdbufdel);
-        if (cmdbuf->handle)
-        {
-            ASSERT(cmdbuf->pool);
-            vkrCmdAwait(cmdbuf);
-            vkFreeCommandBuffers(g_vkr.dev, cmdbuf->pool, 1, &cmdbuf->handle);
-        }
-        vkrFence_Del(cmdbuf->fence);
-        memset(cmdbuf, 0, sizeof(*cmdbuf));
-        ProfileEnd(pm_cmdbufdel);
-    }
-}
-
 ProfileMark(pm_begin, vkrCmdBegin)
-void vkrCmdBegin(vkrCmdBuf* cmdbuf)
+void vkrCmdBegin(VkCommandBuffer cmdbuf)
 {
-    vkrCmdAwait(cmdbuf);
-    if (cmdbuf->state != vkrCmdState_Recording)
+    ProfileBegin(pm_begin);
+    ASSERT(cmdbuf);
+    const VkCommandBufferBeginInfo beginInfo =
     {
-        ProfileBegin(pm_begin);
-        const VkCommandBufferBeginInfo beginInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .flags = 0x0,
-        };
-        VkCheck(vkBeginCommandBuffer(cmdbuf->handle, &beginInfo));
-        cmdbuf->state = vkrCmdState_Recording;
-        ProfileEnd(pm_begin);
-    }
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = 0x0,
+    };
+    VkCheck(vkBeginCommandBuffer(cmdbuf, &beginInfo));
+    ProfileEnd(pm_begin);
 }
 
 ProfileMark(pm_end, vkrCmdEnd)
-void vkrCmdEnd(vkrCmdBuf* cmdbuf)
+void vkrCmdEnd(VkCommandBuffer cmdbuf)
 {
     ASSERT(cmdbuf);
-    ASSERT(cmdbuf->handle);
-    if (cmdbuf->state == vkrCmdState_Recording)
-    {
-        ProfileBegin(pm_end);
-        VkCheck(vkEndCommandBuffer(cmdbuf->handle));
-        cmdbuf->state = vkrCmdState_Executable;
-        ProfileEnd(pm_end);
-    }
-    else
-    {
-        ASSERT(false);
-    }
+    ProfileBegin(pm_end);
+    VkCheck(vkEndCommandBuffer(cmdbuf));
+    ProfileEnd(pm_end);
 }
 
 ProfileMark(pm_reset, vkrCmdReset)
-void vkrCmdReset(vkrCmdBuf* cmdbuf)
+void vkrCmdReset(VkCommandBuffer cmdbuf)
 {
-    vkrCmdAwait(cmdbuf);
-    if (cmdbuf->state != vkrCmdState_Initial)
-    {
-        ProfileBegin(pm_reset);
-        VkCheck(vkResetCommandBuffer(cmdbuf->handle, 0x0));
-        cmdbuf->state = vkrCmdState_Initial;
-        ProfileEnd(pm_reset);
-    }
-}
-
-ProfileMark(pm_await, vkrCmdAwait)
-void vkrCmdAwait(vkrCmdBuf* cmdbuf)
-{
+    ProfileBegin(pm_reset);
     ASSERT(cmdbuf);
-    ASSERT(cmdbuf->handle);
-    ASSERT(cmdbuf->fence);
-    if (cmdbuf->state == vkrCmdState_Pending)
-    {
-        ProfileBegin(pm_await);
-        vkrFence_Wait(cmdbuf->fence);
-        vkrFence_Reset(cmdbuf->fence);
-        cmdbuf->state = vkrCmdState_Executable;
-        ProfileEnd(pm_await);
-    }
+    VkCheck(vkResetCommandBuffer(cmdbuf, 0x0));
+    ProfileEnd(pm_reset);
 }
 
 ProfileMark(pm_beginrenderpass, vkrCmdBeginRenderPass)
 void vkrCmdBeginRenderPass(
-    vkrCmdBuf* cmdbuf,
+    VkCommandBuffer cmdbuf,
     VkRenderPass pass,
     VkFramebuffer framebuf,
     VkRect2D rect,
     VkClearValue clearValue)
 {
     ProfileBegin(pm_beginrenderpass);
-    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf);
     ASSERT(pass);
     ASSERT(framebuf);
-    ASSERT(cmdbuf->state == vkrCmdState_Recording);
     const VkRenderPassBeginInfo info =
     {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -224,74 +272,68 @@ void vkrCmdBeginRenderPass(
         .clearValueCount = 1,
         .pClearValues = &clearValue,
     };
-    vkCmdBeginRenderPass(cmdbuf->handle, &info, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(cmdbuf, &info, VK_SUBPASS_CONTENTS_INLINE);
     ProfileEnd(pm_beginrenderpass);
 }
 
 ProfileMark(pm_nextsubpass, vkrCmdNextSubpass)
-void vkrCmdNextSubpass(vkrCmdBuf* cmdbuf)
+void vkrCmdNextSubpass(VkCommandBuffer cmdbuf)
 {
     ProfileBegin(pm_nextsubpass);
-    ASSERT(cmdbuf->handle);
-    ASSERT(cmdbuf->state == vkrCmdState_Recording);
-    vkCmdNextSubpass(cmdbuf->handle, VK_SUBPASS_CONTENTS_INLINE);
+    ASSERT(cmdbuf);
+    vkCmdNextSubpass(cmdbuf, VK_SUBPASS_CONTENTS_INLINE);
     ProfileEnd(pm_nextsubpass);
 }
 
 ProfileMark(pm_endrenderpass, vkrCmdEndRenderPass)
-void vkrCmdEndRenderPass(vkrCmdBuf* cmdbuf)
+void vkrCmdEndRenderPass(VkCommandBuffer cmdbuf)
 {
     ProfileBegin(pm_endrenderpass);
-    ASSERT(cmdbuf->handle);
-    ASSERT(cmdbuf->state == vkrCmdState_Recording);
-    vkCmdEndRenderPass(cmdbuf->handle);
+    ASSERT(cmdbuf);
+    vkCmdEndRenderPass(cmdbuf);
     ProfileEnd(pm_endrenderpass);
 }
 
 ProfileMark(pm_bindpipeline, vkrCmdBindPipeline)
-void vkrCmdBindPipeline(vkrCmdBuf* cmdbuf, const vkrPipeline* pipeline)
+void vkrCmdBindPipeline(VkCommandBuffer cmdbuf, const vkrPipeline* pipeline)
 {
     ProfileBegin(pm_bindpipeline);
-    ASSERT(cmdbuf->handle);
-    ASSERT(cmdbuf->state == vkrCmdState_Recording);
+    ASSERT(cmdbuf);
     ASSERT(pipeline);
-    vkCmdBindPipeline(cmdbuf->handle, pipeline->bindpoint, pipeline->handle);
+    vkCmdBindPipeline(cmdbuf, pipeline->bindpoint, pipeline->handle);
     ProfileEnd(pm_bindpipeline);
 }
 
 ProfileMark(pm_viewport, vkrCmdViewport)
 void vkrCmdViewport(
-    vkrCmdBuf* cmdbuf,
+    VkCommandBuffer cmdbuf,
     VkViewport viewport,
     VkRect2D scissor)
 {
     ProfileBegin(pm_viewport);
-    ASSERT(cmdbuf->handle);
-    ASSERT(cmdbuf->state == vkrCmdState_Recording);
-    vkCmdSetViewport(cmdbuf->handle, 0, 1, &viewport);
-    vkCmdSetScissor(cmdbuf->handle, 0, 1, &scissor);
+    ASSERT(cmdbuf);
+    vkCmdSetViewport(cmdbuf, 0, 1, &viewport);
+    vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
     ProfileEnd(pm_viewport);
 }
 
 ProfileMark(pm_draw, vkrCmdDraw)
-void vkrCmdDraw(vkrCmdBuf* cmdbuf, i32 vertexCount, i32 firstVertex)
+void vkrCmdDraw(VkCommandBuffer cmdbuf, i32 vertexCount, i32 firstVertex)
 {
     ProfileBegin(pm_draw);
-    ASSERT(cmdbuf->handle);
-    ASSERT(cmdbuf->state == vkrCmdState_Recording);
-    vkCmdDraw(cmdbuf->handle, vertexCount, 1, firstVertex, 0);
+    ASSERT(cmdbuf);
+    vkCmdDraw(cmdbuf, vertexCount, 1, firstVertex, 0);
     ProfileEnd(pm_draw);
 }
 
 ProfileMark(pm_drawmesh, vkrCmdDrawMesh)
-void vkrCmdDrawMesh(vkrCmdBuf* cmdbuf, const vkrMesh* mesh)
+void vkrCmdDrawMesh(VkCommandBuffer cmdbuf, const vkrMesh* mesh)
 {
     ProfileBegin(pm_drawmesh);
 
     ASSERT(mesh);
     ASSERT(cmdbuf);
-    ASSERT(cmdbuf->handle);
-    ASSERT(cmdbuf->state == vkrCmdState_Recording);
+    ASSERT(cmdbuf);
     ASSERT(mesh->vertCount >= 0);
     ASSERT(mesh->indexCount >= 0);
     ASSERT(mesh->buffer.handle);
@@ -312,15 +354,15 @@ void vkrCmdDrawMesh(vkrCmdBuf* cmdbuf, const vkrMesh* mesh)
             streamSize * 1,
             streamSize * 2,
         };
-        vkCmdBindVertexBuffers(cmdbuf->handle, 0, NELEM(buffers), buffers, offsets);
+        vkCmdBindVertexBuffers(cmdbuf, 0, NELEM(buffers), buffers, offsets);
         if (mesh->indexCount > 0)
         {
-            vkCmdBindIndexBuffer(cmdbuf->handle, mesh->buffer.handle, indexOffset, VK_INDEX_TYPE_UINT16);
-            vkCmdDrawIndexed(cmdbuf->handle, mesh->indexCount, 1, 0, 0, 0);
+            vkCmdBindIndexBuffer(cmdbuf, mesh->buffer.handle, indexOffset, VK_INDEX_TYPE_UINT16);
+            vkCmdDrawIndexed(cmdbuf, mesh->indexCount, 1, 0, 0, 0);
         }
         else
         {
-            vkCmdDraw(cmdbuf->handle, mesh->vertCount, 1, 0, 0);
+            vkCmdDraw(cmdbuf, mesh->vertCount, 1, 0, 0);
         }
     }
 
@@ -328,10 +370,9 @@ void vkrCmdDrawMesh(vkrCmdBuf* cmdbuf, const vkrMesh* mesh)
 }
 
 ProfileMark(pm_copybuffer, vkrCmdCopyBuffer)
-void vkrCmdCopyBuffer(vkrCmdBuf* cmdbuf, vkrBuffer src, vkrBuffer dst)
+void vkrCmdCopyBuffer(VkCommandBuffer cmdbuf, vkrBuffer src, vkrBuffer dst)
 {
-    ASSERT(cmdbuf->handle);
-    ASSERT(cmdbuf->state == vkrCmdState_Recording);
+    ASSERT(cmdbuf);
     ASSERT(src.handle);
     ASSERT(dst.handle);
     i32 size = src.size < dst.size ? src.size : dst.size;
@@ -343,54 +384,60 @@ void vkrCmdCopyBuffer(vkrCmdBuf* cmdbuf, vkrBuffer src, vkrBuffer dst)
         {
             .size = size,
         };
-        vkCmdCopyBuffer(cmdbuf->handle, src.handle, dst.handle, 1, &region);
+        vkCmdCopyBuffer(cmdbuf, src.handle, dst.handle, 1, &region);
         ProfileEnd(pm_copybuffer);
     }
 }
 
+ProfileMark(pm_bufferbarrier, vkrCmdBufferBarrier)
 void vkrCmdBufferBarrier(
-    vkrCmdBuf* cmdbuf,
+    VkCommandBuffer cmdbuf,
     VkPipelineStageFlags srcStageMask,
     VkPipelineStageFlags dstStageMask,
     const VkBufferMemoryBarrier* barrier)
 {
-    ASSERT(cmdbuf->handle);
-    ASSERT(cmdbuf->state == vkrCmdState_Recording);
+    ProfileBegin(pm_bufferbarrier);
+    ASSERT(cmdbuf);
     ASSERT(barrier);
     vkCmdPipelineBarrier(
-        cmdbuf->handle,
+        cmdbuf,
         srcStageMask, dstStageMask,
         0x0,
         0, NULL,
         1, barrier,
         0, NULL);
+    ProfileEnd(pm_bufferbarrier);
 }
 
-void vkrCmdImageBarrier(vkrCmdBuf* cmdbuf,
+ProfileMark(pm_imagebarrier, vkrCmdImageBarrier)
+void vkrCmdImageBarrier(
+    VkCommandBuffer cmdbuf,
     VkPipelineStageFlags srcStageMask,
     VkPipelineStageFlags dstStageMask,
     const VkImageMemoryBarrier* barrier)
 {
-    ASSERT(cmdbuf->handle);
-    ASSERT(cmdbuf->state == vkrCmdState_Recording);
+    ProfileBegin(pm_imagebarrier);
+    ASSERT(cmdbuf);
     ASSERT(barrier);
     vkCmdPipelineBarrier(
-        cmdbuf->handle,
+        cmdbuf,
         srcStageMask, dstStageMask,
         0x0,
         0, NULL,
         0, NULL,
         1, barrier);
+    ProfileEnd(pm_imagebarrier);
 }
 
+ProfileMark(pm_pushconstants, vkrCmdPushConstants)
 void vkrCmdPushConstants(
-    vkrCmdBuf* cmdbuf,
+    VkCommandBuffer cmdbuf,
     const vkrPipeline* pipeline,
     const void* dwords,
     i32 bytes)
 {
+    ProfileBegin(pm_pushconstants);
     ASSERT(cmdbuf);
-    ASSERT(cmdbuf->handle);
     ASSERT(pipeline);
     ASSERT(pipeline->layout.handle);
     ASSERT(dwords || !bytes);
@@ -398,27 +445,32 @@ void vkrCmdPushConstants(
     if (bytes > 0)
     {
         const u32 stages = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT;
-        vkCmdPushConstants(cmdbuf->handle, pipeline->layout.handle, stages, 0, bytes, dwords);
+        vkCmdPushConstants(cmdbuf, pipeline->layout.handle, stages, 0, bytes, dwords);
     }
+    ProfileEnd(pm_pushconstants);
 }
 
+ProfileMark(pm_binddescsets, vkrCmdBindDescSets)
 void vkrCmdBindDescSets(
-    vkrCmdBuf* cmdbuf,
+    VkCommandBuffer cmdbuf,
     const vkrPipeline* pipeline,
     i32 setCount,
     const VkDescriptorSet* sets)
 {
+    ProfileBegin(pm_binddescsets);
     ASSERT(cmdbuf);
     ASSERT(pipeline);
     ASSERT(sets || !setCount);
+    ASSERT(setCount >= 0);
     if (setCount > 0)
     {
         vkCmdBindDescriptorSets(
-            cmdbuf->handle,
+            cmdbuf,
             pipeline->bindpoint,
             pipeline->layout.handle,
             0,
             setCount, sets,
             0, NULL);
     }
+    ProfileEnd(pm_binddescsets);
 }
