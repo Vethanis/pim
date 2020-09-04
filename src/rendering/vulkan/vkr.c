@@ -13,6 +13,9 @@
 #include "rendering/vulkan/vkr_mesh.h"
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_desc.h"
+#include "rendering/drawable.h"
+#include "rendering/mesh.h"
+#include "rendering/material.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
@@ -346,48 +349,62 @@ void vkr_update(void)
     };
 
     vkrPipeline* pipeline = &g_vkr.pipeline;
+    const drawables_t* drawables = drawables_get();
+    const i32 drawcount = drawables->count;
+    const float4x4* pim_noalias localToWorlds = drawables->matrices;
+    const float3x3* pim_noalias worldToLocals = drawables->invMatrices;
+    const meshid_t* pim_noalias meshids = drawables->meshes;
+    const material_t* pim_noalias materials = drawables->materials;
 
-    u32 syncIndex = 0;
-    u32 imageIndex = 0;
-    vkrSwapchain_Acquire(chain, &syncIndex, &imageIndex);
     vkrFrameContext* ctx = vkrContext_Get();
+    vkrDescPool_Reset(ctx->descpool);
+    VkDescriptorSet descSet = vkrDesc_New(ctx, pipeline->layout.sets[0]);
+    {
+        float aspect = (float)chain->width / chain->height;
+        camera_t camera;
+        camera_get(&camera);
+        float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
+        float4 up = quat_up(camera.rotation);
+        float4x4 view = f4x4_lookat(camera.position, at, up);
+        float4x4 proj = f4x4_perspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
+        f4x4_11(proj) *= -1.0f;
+        const vkrPerCamera perCamera =
+        {
+            .worldToCamera = view,
+            .cameraToClip = proj,
+        };
+        vkrContext_WritePerCamera(ctx, &perCamera, 1);
+
+        vkrPerDraw* perDraws = tmp_malloc(sizeof(perDraws[0]) * drawcount);
+        for (i32 i = 0; i < drawcount; ++i)
+        {
+            perDraws[i].localToWorld = localToWorlds[i];
+            perDraws[i].worldToLocal.c0 = worldToLocals[i].c0;
+            perDraws[i].worldToLocal.c1 = worldToLocals[i].c1;
+            perDraws[i].worldToLocal.c2 = worldToLocals[i].c2;
+            perDraws[i].worldToLocal.c3 = f4_v(0.0f, 0.0f, 0.0f, 1.0f);
+            float4 st = materials[i].st;
+            perDraws[i].textureScale = f4_v(st.x, st.y, 1.0f, 1.0f);
+            perDraws[i].textureBias = f4_v(st.z, st.w, 0.0f, 0.0f);
+        }
+        vkrContext_WritePerDraw(ctx, perDraws, drawcount);
+
+        vkrDesc_WriteSSBO(ctx, descSet, 0, ctx->perdrawbuf);
+        vkrDesc_WriteSSBO(ctx, descSet, 1, ctx->percambuf);
+    }
+    ASSERT(descSet);
+
     VkCommandBuffer cmd = NULL;
     VkQueue queue = NULL;
     vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, &queue);
     {
-        vkrDescPool_Reset(ctx->descpool);
         vkrCmdBegin(cmd);
         {
-            float fovy = f1_radians(45.0f);
-            float aspect = (float)chain->width / chain->height;
-            camera_t camera;
-            camera_get(&camera);
-            float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
-            float4 up = quat_up(camera.rotation);
-            float4x4 view = f4x4_lookat(camera.position, at, up);
-            float4x4 proj = f4x4_perspective(fovy, aspect, camera.zNear, camera.zFar);
-            f4x4_11(proj) *= -1.0f;
-            const vkrPerCamera perCamera =
-            {
-                .worldToCamera = view,
-                .cameraToClip = proj,
-            };
-            vkrContext_WritePerCamera(ctx, &perCamera, 1);
-
-            const vkrPerDraw perDraw =
-            {
-                .localToWorld = f4x4_id,
-                .worldToLocal = f4x4_id,
-                .textureScale = f4_1,
-                .textureBias = f4_0,
-            };
-            vkrContext_WritePerDraw(ctx, &perDraw, 1);
-
-            VkDescriptorSet descSet = vkrDesc_New(ctx, pipeline->layout.sets[0]);
-            vkrDesc_WriteSSBO(ctx, descSet, 0, ctx->perdrawbuf);
-            vkrDesc_WriteSSBO(ctx, descSet, 1, ctx->percambuf);
-
             vkrCmdViewport(cmd, viewport, rect);
+
+            u32 syncIndex = 0;
+            u32 imageIndex = 0;
+            vkrSwapchain_Acquire(chain, &syncIndex, &imageIndex);
             vkrCmdBeginRenderPass(
                 cmd,
                 pipeline->renderPass,
@@ -396,13 +413,22 @@ void vkr_update(void)
                 clearValue);
             vkrCmdBindPipeline(cmd, pipeline);
             vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
-            const vkrPushConstants pushConsts =
+
+            for (i32 i = 0; i < drawcount; ++i)
             {
-                .drawIndex = 0,
-                .cameraIndex = 0,
-            };
-            vkrCmdPushConstants(cmd, pipeline, &pushConsts, sizeof(pushConsts));
-            vkrCmdDrawMesh(cmd, &g_vkr.mesh);
+                mesh_t mesh;
+                if (mesh_get(meshids[i], &mesh))
+                {
+                    const vkrPushConstants pushConsts =
+                    {
+                        .drawIndex = i,
+                        .cameraIndex = 0,
+                    };
+                    vkrCmdPushConstants(cmd, pipeline, &pushConsts, sizeof(pushConsts));
+                    vkrCmdDrawMesh(cmd, &mesh.vkrmesh);
+                }
+            }
+
             vkrCmdEndRenderPass(cmd);
         }
         vkrCmdEnd(cmd);

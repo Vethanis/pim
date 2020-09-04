@@ -15,8 +15,7 @@ PIM_C_BEGIN
 #define kDrawsPerThread         128
 #define kCamerasPerThread       1
 
-typedef struct GLFWwindow GLFWwindow;
-
+PIM_FWD_DECL(GLFWwindow);
 PIM_DECL_HANDLE(VmaAllocator);
 PIM_DECL_HANDLE(VmaAllocation);
 

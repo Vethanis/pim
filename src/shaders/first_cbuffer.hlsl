@@ -72,7 +72,7 @@ PSInput VSMain(VSInput input)
 PSOutput PSMain(PSInput input)
 {
     PSOutput output;
-    output.color.xy = input.uv01.xy;
+    output.color.xy = fmod(input.uv01.xy, 1.0);
     output.color.z = 0.0;
     output.color.w = 1.0;
     return output;

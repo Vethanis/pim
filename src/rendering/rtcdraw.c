@@ -645,7 +645,8 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
             hit.wuvt));
         const float3x3 TBN = NormalToTBN(N0);
         const float4 P = f4_add(f4_add(ro, f4_mulvs(rd, hit.wuvt.w)), f4_mulvs(N0, kMilli));
-        const float2 uv = f2_blend(mesh.uvs[a], mesh.uvs[b], mesh.uvs[c], hit.wuvt);
+        const float4 uv01 = f4_blend(mesh.uvs[a], mesh.uvs[b], mesh.uvs[c], hit.wuvt);
+        const float2 uv = f2_v(uv01.x, uv01.y);
 
         float4 albedo = ColorToLinear(material.flatAlbedo);
         texture_t tex;
