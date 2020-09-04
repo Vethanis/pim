@@ -15,6 +15,7 @@
 #include "rendering/vulkan/vkr_desc.h"
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
+#include "rendering/texture.h"
 #include "rendering/material.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
@@ -413,21 +414,9 @@ void vkr_shutdown(void)
     if (g_vkr.inst)
     {
         vkrDevice_WaitIdle();
-        {
-            const drawables_t* drawables = drawables_get();
-            const i32 drawcount = drawables->count;
-            const meshid_t* pim_noalias meshids = drawables->meshes;
-            for (i32 i = 0; i < drawcount; ++i)
-            {
-                mesh_t mesh;
-                if (mesh_get(meshids[i], &mesh))
-                {
-                    vkrMesh_Del(&mesh.vkrmesh);
-                    mesh_set(meshids[i], &mesh);
-                }
-            }
-        }
 
+        mesh_sys_vkfree();
+        texture_sys_vkfree();
         vkrPipeline_Del(&g_vkr.pipeline);
 
         vkrContext_Del(&g_vkr.context);
