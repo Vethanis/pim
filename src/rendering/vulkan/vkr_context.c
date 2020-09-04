@@ -38,6 +38,16 @@ bool vkrContext_New(vkrContext* ctx)
             goto cleanup;
         }
     }
+    if (!vkrBuffer_New(&ctx->percambuf, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, PIM_FILELINE))
+    {
+        success = false;
+        goto cleanup;
+    }
+    if (!vkrBuffer_New(&ctx->perdrawbuf, sizeof(vkrPerDraw) * 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, PIM_FILELINE))
+    {
+        success = false;
+        goto cleanup;
+    }
 cleanup:
     if (!success)
     {
@@ -59,6 +69,8 @@ void vkrContext_Del(vkrContext* ctx)
             vkrThreadContext_Del(&ctx->threads[tr]);
         }
         pim_free(ctx->threads);
+        vkrBuffer_Del(&ctx->percambuf);
+        vkrBuffer_Del(&ctx->perdrawbuf);
         memset(ctx, 0, sizeof(*ctx));
     }
     ProfileEnd(pm_ctxdel);
@@ -142,24 +154,6 @@ bool vkrFrameContext_New(vkrFrameContext* ctx)
         success = false;
         goto cleanup;
     }
-    if (!vkrBuffer_New(
-        &ctx->perdrawbuf,
-        sizeof(vkrPerDraw) * kDrawsPerThread,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        vkrMemUsage_CpuToGpu))
-    {
-        success = false;
-        goto cleanup;
-    }
-    if (!vkrBuffer_New(
-        &ctx->percambuf,
-        sizeof(vkrPerCamera) * kCamerasPerThread,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        vkrMemUsage_CpuToGpu))
-    {
-        success = false;
-        goto cleanup;
-    }
 cleanup:
     if (!success)
     {
@@ -175,8 +169,6 @@ void vkrFrameContext_Del(vkrFrameContext* ctx)
     ProfileBegin(pm_frctxdel);
     if (ctx)
     {
-        vkrBuffer_Del(&ctx->percambuf);
-        vkrBuffer_Del(&ctx->perdrawbuf);
         vkrDescPool_Del(ctx->descpool);
         for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
         {
@@ -218,44 +210,4 @@ void vkrContext_GetSecCmd(
         *queueOut = ctx->seccmds[id].queue;
         ASSERT(*queueOut);
     }
-}
-
-ProfileMark(pm_ctxwriteperdraw, vkrContext_WritePerDraw)
-void vkrContext_WritePerDraw(
-    vkrFrameContext* ctx,
-    const vkrPerDraw* perDraws,
-    i32 length)
-{
-    ProfileBegin(pm_ctxwriteperdraw);
-    ASSERT(ctx);
-    ASSERT(length <= kDrawsPerThread);
-    ASSERT(length >= 0);
-    if ((length > 0) && (length <= kDrawsPerThread))
-    {
-        vkrBuffer_Write(
-            &ctx->perdrawbuf,
-            perDraws,
-            sizeof(perDraws[0]) * length);
-    }
-    ProfileEnd(pm_ctxwriteperdraw);
-}
-
-ProfileMark(pm_ctxwritepercam, vkrContext_WritePerCamera)
-void vkrContext_WritePerCamera(
-    vkrFrameContext* ctx,
-    const vkrPerCamera* perCameras,
-    i32 length)
-{
-    ProfileBegin(pm_ctxwritepercam);
-    ASSERT(ctx);
-    ASSERT(length <= kCamerasPerThread);
-    ASSERT(length >= 0);
-    if ((length > 0) && (length <= kCamerasPerThread))
-    {
-        vkrBuffer_Write(
-            &ctx->percambuf,
-            perCameras,
-            sizeof(perCameras[0]) * length);
-    }
-    ProfileEnd(pm_ctxwritepercam);
 }

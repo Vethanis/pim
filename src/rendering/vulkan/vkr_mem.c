@@ -9,6 +9,49 @@
 #include "threading/task.h"
 #include <string.h>
 
+#define VKR_MEM_LEAK 0
+
+#if VKR_MEM_LEAK
+typedef struct vkrLeak
+{
+    VmaAllocation allocation;
+    const char* tag;
+} vkrLeak;
+
+static i32 ms_leakcount;
+static vkrLeak* ms_leaks;
+
+static void AddLeak(VmaAllocation allocation, const char* tag)
+{
+    ASSERT(allocation);
+    ASSERT(tag);
+    i32 leakback = ms_leakcount++;
+    PermReserve(ms_leaks, leakback + 1);
+    ms_leaks[leakback].allocation = allocation;
+    ms_leaks[leakback].tag = tag;
+}
+
+static void RemoveLeak(VmaAllocation allocation)
+{
+    ASSERT(allocation);
+    i32 len = ms_leakcount;
+    vkrLeak* leaks = ms_leaks;
+    for (i32 i = 0; i < len; ++i)
+    {
+        if (leaks[i].allocation == allocation)
+        {
+            --len;
+            leaks[i] = leaks[len];
+            break;
+        }
+    }
+    ms_leakcount = len;
+}
+#else
+#define AddLeak(allocation, tag)
+#define RemoveLeak(allocation)
+#endif // VKR_MEM_LEAK
+
 ProfileMark(pm_allocfn, vkrAllocFn)
 static void* VKAPI_PTR vkrAllocFn(
     void* usr,
@@ -134,6 +177,7 @@ bool vkrAllocator_New(vkrAllocator* allocator)
     const VmaAllocatorCreateInfo info =
     {
         .vulkanApiVersion = VK_API_VERSION_1_2,
+        .flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT,
         .instance = g_vkr.inst,
         .physicalDevice = g_vkr.phdev,
         .device = g_vkr.dev,
@@ -167,7 +211,10 @@ void vkrAllocator_Del(vkrAllocator* allocator)
                 vkrReleasable* releasables = allocator->releasables;
                 for (i32 i = 0; i < len; ++i)
                 {
-                    vkrReleasable_Del(&releasables[i], frame);
+                    if (!vkrReleasable_Del(&releasables[i], frame))
+                    {
+                        ASSERT(false);
+                    }
                 }
                 pim_free(allocator->releasables);
                 mutex_destroy(&allocator->releasemtx);
@@ -196,6 +243,7 @@ void vkrAllocator_Update(vkrAllocator* allocator)
         {
             if (vkrReleasable_Del(&releasables[i], frame))
             {
+                releasables[i] = releasables[len - 1];
                 --len;
             }
         }
@@ -301,7 +349,8 @@ bool vkrBuffer_New(
     vkrBuffer* buffer,
     i32 size,
     VkBufferUsageFlags bufferUsage,
-    vkrMemUsage memUsage)
+    vkrMemUsage memUsage,
+    const char* tag)
 {
     ProfileBegin(pm_bufnew);
     ASSERT(g_vkr.allocator.handle);
@@ -334,6 +383,7 @@ bool vkrBuffer_New(
         buffer->handle = handle;
         buffer->allocation = allocation;
         buffer->size = size;
+        AddLeak(allocation, tag);
     }
     return handle != NULL;
 }
@@ -351,10 +401,41 @@ void vkrBuffer_Del(vkrBuffer* buffer)
                 g_vkr.allocator.handle,
                 buffer->handle,
                 buffer->allocation);
+            RemoveLeak(buffer->allocation);
         }
         memset(buffer, 0, sizeof(*buffer));
     }
     ProfileEnd(pm_bufdel);
+}
+
+ProfileMark(pm_bufreserve, vkrBuffer_Reserve)
+bool vkrBuffer_Reserve(
+    vkrBuffer* buffer,
+    i32 size,
+    VkBufferUsageFlags bufferUsage,
+    vkrMemUsage memUsage,
+    VkFence fence,
+    const char* tag)
+{
+    ProfileBegin(pm_bufreserve);
+    bool success = true;
+    i32 oldsize = buffer->size;
+    ASSERT(buffer);
+    ASSERT(size >= 0);
+    ASSERT(oldsize >= 0);
+    if (oldsize < size)
+    {
+        vkrBuffer_Release(buffer, fence);
+        size = (size > oldsize * 2) ? size : oldsize * 2;
+        if (!vkrBuffer_New(buffer, size, bufferUsage, memUsage, tag))
+        {
+            success = false;
+            goto cleanup;
+        }
+    }
+cleanup:
+    ProfileEnd(pm_bufreserve);
+    return success;
 }
 
 void* vkrBuffer_Map(const vkrBuffer* buffer)
@@ -417,7 +498,8 @@ ProfileMark(pm_imgnew, vkrImage_New)
 bool vkrImage_New(
     vkrImage* image,
     const VkImageCreateInfo* info,
-    vkrMemUsage memUsage)
+    vkrMemUsage memUsage,
+    const char* tag)
 {
     ProfileBegin(pm_imgnew);
     memset(image, 0, sizeof(*image));
@@ -437,8 +519,10 @@ bool vkrImage_New(
     ProfileEnd(pm_imgnew);
     if (handle)
     {
+        AddLeak(allocation, tag);
         image->handle = handle;
         image->allocation = allocation;
+        AddLeak(allocation, PIM_FILELINE());
         return true;
     }
     return false;
@@ -452,6 +536,7 @@ void vkrImage_Del(vkrImage* image)
     {
         if (image->handle)
         {
+            RemoveLeak(image->allocation);
             vmaDestroyImage(
                 g_vkr.allocator.handle,
                 image->handle,

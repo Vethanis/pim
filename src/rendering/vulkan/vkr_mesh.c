@@ -50,7 +50,7 @@ bool vkrMesh_New(
         &stagebuf,
         totalSize,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        vkrMemUsage_CpuOnly))
+        vkrMemUsage_CpuOnly, PIM_FILELINE))
     {
         ASSERT(false);
         goto cleanup;
@@ -61,7 +61,7 @@ bool vkrMesh_New(
         VK_BUFFER_USAGE_TRANSFER_DST_BIT |
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        vkrMemUsage_GpuOnly))
+        vkrMemUsage_GpuOnly, PIM_FILELINE))
     {
         ASSERT(false);
         goto cleanup;

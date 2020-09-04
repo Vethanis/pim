@@ -142,7 +142,7 @@ bool texture_new(texture_t* tex, guid_t name, textureid_t* idOut)
             .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         };
-        added = vkrImage_New(&tex->vkrimage, &imginfo, vkrMemUsage_CpuToGpu);
+        added = vkrImage_New(&tex->vkrimage, &imginfo, vkrMemUsage_CpuToGpu, PIM_FILELINE);
         ASSERT(added);
         if (added)
         {

@@ -84,10 +84,12 @@
 
 #define _CAT_TOK(x, y)              x ## y
 #define CAT_TOK(x, y)               _CAT_TOK(x, y)
-#define STR_TOK(x)                  #x
+#define _STR_TOK(x)                  #x
+#define STR_TOK(x)                  _STR_TOK(x)
 
 #define SASSERT(x)                  typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
 
+#define PIM_FILELINE                CAT_TOK(__FILE__, STR_TOK(__LINE__))
 #define PIM_PATH                    256
 #define PIM_FWD_DECL(name)          typedef struct name name
 #define PIM_DECL_HANDLE(name)       typedef struct name##_T* name

@@ -69,6 +69,8 @@ strlist_t vkrGetInstExtensions(void)
         vkrTryAddExtension(&list, props, count, glfwList[i]);
     }
 
+    vkrTryAddExtension(&list, props, count, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+
 #ifdef _DEBUG
     // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_EXT_debug_utils.html
     vkrTryAddExtension(&list, props, count, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
