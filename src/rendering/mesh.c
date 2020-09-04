@@ -131,13 +131,9 @@ bool mesh_set(meshid_t id, mesh_t* src)
     ASSERT(src);
     if (IsCurrent(id))
     {
-        mesh_t* dst = ms_table.values;
-        dst += id.index;
-        if (memcmp(dst, src, sizeof(*dst)))
-        {
-            FreeMesh(dst);
-        }
-        memcpy(dst, src, sizeof(*dst));
+        mesh_t* meshes = ms_table.values;
+        i32 index = id.index;
+        memcpy(&meshes[index], src, sizeof(meshes[0]));
         memset(src, 0, sizeof(*src));
         return true;
     }
