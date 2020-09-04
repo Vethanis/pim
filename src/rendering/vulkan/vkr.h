@@ -100,6 +100,14 @@ typedef struct vkrTexture2D
     i32 height;
 } vkrTexture2D;
 
+typedef struct vkrBufferBinding
+{
+    vkrBuffer buffer;
+    VkDescriptorSet set;
+    i32 binding;
+    VkDescriptorType type;
+} vkrBufferBinding;
+
 typedef struct vkrCompileInput
 {
     char* filename;
@@ -251,8 +259,6 @@ typedef struct vkrFrameContext
     vkrCmdAlloc cmds[vkrQueueId_COUNT];     // primary level cmd buffers
     vkrCmdAlloc seccmds[vkrQueueId_COUNT];  // secondary level cmd buffers
     VkDescriptorPool descpool;
-    vkrBuffer perdrawbuf;
-    vkrBuffer percambuf;
 } vkrFrameContext;
 
 typedef struct vkrThreadContext
@@ -264,6 +270,8 @@ typedef struct vkrContext
 {
     i32 threadcount;
     vkrThreadContext* threads;
+    vkrBuffer perdrawbuf;
+    vkrBuffer percambuf;
 } vkrContext;
 
 typedef enum

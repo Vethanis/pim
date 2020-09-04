@@ -326,11 +326,8 @@ void vkrCmdDraw(VkCommandBuffer cmdbuf, i32 vertexCount, i32 firstVertex)
     ProfileEnd(pm_draw);
 }
 
-ProfileMark(pm_drawmesh, vkrCmdDrawMesh)
 void vkrCmdDrawMesh(VkCommandBuffer cmdbuf, const vkrMesh* mesh)
 {
-    ProfileBegin(pm_drawmesh);
-
     ASSERT(mesh);
     ASSERT(cmdbuf);
     ASSERT(cmdbuf);
@@ -365,8 +362,6 @@ void vkrCmdDrawMesh(VkCommandBuffer cmdbuf, const vkrMesh* mesh)
             vkCmdDraw(cmdbuf, mesh->vertCount, 1, 0, 0);
         }
     }
-
-    ProfileEnd(pm_drawmesh);
 }
 
 ProfileMark(pm_copybuffer, vkrCmdCopyBuffer)
@@ -429,14 +424,12 @@ void vkrCmdImageBarrier(
     ProfileEnd(pm_imagebarrier);
 }
 
-ProfileMark(pm_pushconstants, vkrCmdPushConstants)
 void vkrCmdPushConstants(
     VkCommandBuffer cmdbuf,
     const vkrPipeline* pipeline,
     const void* dwords,
     i32 bytes)
 {
-    ProfileBegin(pm_pushconstants);
     ASSERT(cmdbuf);
     ASSERT(pipeline);
     ASSERT(pipeline->layout.handle);
@@ -447,7 +440,6 @@ void vkrCmdPushConstants(
         const u32 stages = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT;
         vkCmdPushConstants(cmdbuf, pipeline->layout.handle, stages, 0, bytes, dwords);
     }
-    ProfileEnd(pm_pushconstants);
 }
 
 ProfileMark(pm_binddescsets, vkrCmdBindDescSets)

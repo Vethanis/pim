@@ -103,6 +103,7 @@ static const char* const kDesiredDevExtensions[] =
     VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME,
     // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_EXT_conditional_rendering
     VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
+    VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,
 };
 
 strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev)

@@ -481,12 +481,15 @@ ProfileMark(pm_Present, Present)
 static void Present(void)
 {
     ProfileBegin(pm_Present);
-    framebuf_t* frontBuf = GetFrontBuf();
-    int2 size = { frontBuf->width, frontBuf->height };
-    ms_exposure.deltaTime = (float)time_dtf();
-    ExposeImage(size, frontBuf->light, &ms_exposure);
-    ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
-    screenblit_blit(frontBuf->color, frontBuf->width, frontBuf->height);
+    if (cvar_get_bool(&cv_r_sw))
+    {
+        framebuf_t* frontBuf = GetFrontBuf();
+        int2 size = { frontBuf->width, frontBuf->height };
+        ms_exposure.deltaTime = (float)time_dtf();
+        ExposeImage(size, frontBuf->light, &ms_exposure);
+        ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
+        screenblit_blit(frontBuf->color, frontBuf->width, frontBuf->height);
+    }
     TakeScreenshot();
     SwapBuffers();
     ProfileEnd(pm_Present);

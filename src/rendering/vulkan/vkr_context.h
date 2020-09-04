@@ -28,14 +28,4 @@ void vkrContext_GetSecCmd(
     VkFence* fenceOut,
     VkQueue* queueOut);
 
-void vkrContext_WritePerDraw(
-    vkrFrameContext* ctx,
-    const vkrPerDraw* perDraws,
-    i32 length);
-
-void vkrContext_WritePerCamera(
-    vkrFrameContext* ctx,
-    const vkrPerCamera* perCameras,
-    i32 length);
-
 PIM_C_END

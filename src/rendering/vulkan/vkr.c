@@ -312,6 +312,7 @@ void vkr_update(void)
     ProfileBegin(pm_update);
 
     const u32 syncIndex = vkrSwapchain_AcquireSync(chain);
+    vkrAllocator_Update(&g_vkr.allocator);
     VkRect2D rect = vkrSwapchain_GetRect(chain);
     VkViewport viewport = vkrSwapchain_GetViewport(chain);
     const VkClearValue clearValue =
@@ -331,6 +332,28 @@ void vkr_update(void)
     vkrDescPool_Reset(ctx->descpool);
     VkDescriptorSet descSet = vkrDesc_New(ctx, pipeline->layout.sets[0]);
     {
+        vkrBuffer* perdrawbuf = &g_vkr.context.perdrawbuf;
+        vkrBuffer* percambuf = &g_vkr.context.percambuf;
+        vkrBuffer_Reserve(perdrawbuf, sizeof(vkrPerDraw) * drawcount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, NULL, PIM_FILELINE);
+        vkrBuffer_Reserve(percambuf, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, NULL, PIM_FILELINE);
+        const vkrBufferBinding bindings[] =
+        {
+            {
+                .set = descSet,
+                .buffer = *perdrawbuf,
+                .binding = 0,
+                .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            },
+            {
+                .set = descSet,
+                .buffer = *percambuf,
+                .binding = 1,
+                .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            },
+        };
+        // update descriptors in case of reserve changing buffer
+        vkrDesc_WriteBuffers(ctx, NELEM(bindings), bindings);
+
         float aspect = (float)chain->width / chain->height;
         camera_t camera;
         camera_get(&camera);
@@ -339,29 +362,33 @@ void vkr_update(void)
         float4x4 view = f4x4_lookat(camera.position, at, up);
         float4x4 proj = f4x4_perspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
         f4x4_11(proj) *= -1.0f;
-        const vkrPerCamera perCamera =
         {
-            .worldToCamera = view,
-            .cameraToClip = proj,
-        };
-        vkrContext_WritePerCamera(ctx, &perCamera, 1);
-
-        vkrPerDraw* perDraws = tmp_malloc(sizeof(perDraws[0]) * drawcount);
-        for (i32 i = 0; i < drawcount; ++i)
-        {
-            perDraws[i].localToWorld = localToWorlds[i];
-            perDraws[i].worldToLocal.c0 = worldToLocals[i].c0;
-            perDraws[i].worldToLocal.c1 = worldToLocals[i].c1;
-            perDraws[i].worldToLocal.c2 = worldToLocals[i].c2;
-            perDraws[i].worldToLocal.c3 = f4_v(0.0f, 0.0f, 0.0f, 1.0f);
-            float4 st = materials[i].st;
-            perDraws[i].textureScale = f4_v(st.x, st.y, 1.0f, 1.0f);
-            perDraws[i].textureBias = f4_v(st.z, st.w, 0.0f, 0.0f);
+            vkrPerCamera* perCamera = vkrBuffer_Map(percambuf);
+            ASSERT(perCamera);
+            perCamera->worldToCamera = view;
+            perCamera->cameraToClip = proj;
+            vkrBuffer_Unmap(percambuf);
         }
-        vkrContext_WritePerDraw(ctx, perDraws, drawcount);
 
-        vkrDesc_WriteSSBO(ctx, descSet, 0, ctx->perdrawbuf);
-        vkrDesc_WriteSSBO(ctx, descSet, 1, ctx->percambuf);
+        {
+            vkrPerDraw* perDraws = vkrBuffer_Map(perdrawbuf);
+            ASSERT(perDraws);
+            for (i32 i = 0; i < drawcount; ++i)
+            {
+                perDraws[i].localToWorld = localToWorlds[i];
+                perDraws[i].worldToLocal.c0 = worldToLocals[i].c0;
+                perDraws[i].worldToLocal.c1 = worldToLocals[i].c1;
+                perDraws[i].worldToLocal.c2 = worldToLocals[i].c2;
+                perDraws[i].worldToLocal.c3 = f4_v(0.0f, 0.0f, 0.0f, 1.0f);
+                float4 st = materials[i].st;
+                perDraws[i].textureScale = f4_v(st.x, st.y, 1.0f, 1.0f);
+                perDraws[i].textureBias = f4_v(st.z, st.w, 0.0f, 0.0f);
+            }
+            vkrBuffer_Unmap(perdrawbuf);
+        }
+
+        vkrBuffer_Flush(percambuf);
+        vkrBuffer_Flush(perdrawbuf);
     }
     ASSERT(descSet);
 
@@ -403,7 +430,6 @@ void vkr_update(void)
         vkrCmdEnd(cmd);
     }
     vkrSwapchain_Present(chain, queue, cmd);
-    vkrAllocator_Update(&g_vkr.allocator);
 
     ProfileEnd(pm_update);
 }
