@@ -4,6 +4,7 @@
 #include "math/types.h"
 #include "common/guid.h"
 #include "common/dbytes.h"
+#include "rendering/vulkan/vkr.h"
 
 PIM_C_BEGIN
 
@@ -22,6 +23,7 @@ typedef struct texture_s
 {
     int2 size;
     u32* pim_noalias texels;
+    vkrImage vkrimage;
 } texture_t;
 
 #define kTextureVersion 2
@@ -35,6 +37,8 @@ typedef struct dtexture_s
 void texture_sys_init(void);
 void texture_sys_update(void);
 void texture_sys_shutdown(void);
+// free vulkan resources
+void texture_sys_vkfree(void);
 
 void texture_sys_gui(bool* pEnabled);
 

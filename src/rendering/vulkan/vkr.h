@@ -93,6 +93,13 @@ typedef struct vkrMesh
     i32 indexCount;
 } vkrMesh;
 
+typedef struct vkrTexture2D
+{
+    vkrImage image;
+    i32 width;
+    i32 height;
+} vkrTexture2D;
+
 typedef struct vkrCompileInput
 {
     char* filename;

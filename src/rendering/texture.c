@@ -14,6 +14,7 @@
 #include "common/profiler.h"
 #include "io/fstr.h"
 #include "threading/task.h"
+#include "rendering/vulkan/vkr_mem.h"
 #include <glad/glad.h>
 #include <string.h>
 
@@ -44,6 +45,7 @@ static bool IsCurrent(textureid_t id)
 static void FreeTexture(texture_t* tex)
 {
     pim_free(tex->texels);
+    vkrImage_Del(&tex->vkrimage);
     memset(tex, 0, sizeof(*tex));
 }
 
@@ -80,6 +82,20 @@ void texture_sys_shutdown(void)
     table_del(&ms_table);
 }
 
+void texture_sys_vkfree(void)
+{
+    const guid_t* pim_noalias names = ms_table.names;
+    texture_t* pim_noalias textures = ms_table.values;
+    const i32 width = ms_table.width;
+    for (i32 i = 0; i < width; ++i)
+    {
+        if (!guid_isnull(names[i]))
+        {
+            vkrImage_Del(&textures[i].vkrimage);
+        }
+    }
+}
+
 bool texture_loadat(const char* path, textureid_t* idOut)
 {
     i32 width = 0;
@@ -110,7 +126,28 @@ bool texture_new(texture_t* tex, guid_t name, textureid_t* idOut)
     genid id = { 0, 0 };
     if (tex->texels)
     {
-        added = table_add(&ms_table, name, tex, &id);
+        const VkImageCreateInfo imginfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .extent.width = tex->size.x,
+            .extent.height = tex->size.y,
+            .extent.depth = 1,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .tiling = VK_IMAGE_TILING_LINEAR,
+            .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        };
+        added = vkrImage_New(&tex->vkrimage, &imginfo, vkrMemUsage_CpuToGpu);
+        ASSERT(added);
+        if (added)
+        {
+            added = table_add(&ms_table, name, tex, &id);
+        }
         ASSERT(added);
     }
     *idOut = ToTexId(id);
