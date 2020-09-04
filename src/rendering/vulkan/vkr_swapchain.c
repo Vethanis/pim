@@ -215,23 +215,41 @@ bool vkrSwapchain_Recreate(
     return recreated;
 }
 
-ProfileMark(pm_acquire, vkrSwapchain_Acquire)
-void vkrSwapchain_Acquire(
-    vkrSwapchain* chain,
-    u32* pSyncIndex,
-    u32* pImageIndex)
+ProfileMark(pm_acquiresync, vkrSwapchain_AcquireSync)
+u32 vkrSwapchain_AcquireSync(vkrSwapchain* chain)
 {
-    ProfileBegin(pm_acquire);
+    ProfileBegin(pm_acquiresync);
 
     ASSERT(chain);
     ASSERT(chain->handle);
+
+    const u32 syncIndex = (chain->syncIndex + 1) % kFramesInFlight;
+    VkFence fence = chain->syncFences[syncIndex];
+    if (fence)
+    {
+        // acquire resources associated with this frame in flight
+        vkrFence_Wait(fence);
+    }
+    chain->syncIndex = syncIndex;
+
+    ProfileEnd(pm_acquiresync);
+
+    return syncIndex;
+}
+
+ProfileMark(pm_acquireimg, vkrSwapchain_AcquireImage)
+u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain)
+{
+    ProfileBegin(pm_acquireimg);
+
+    ASSERT(chain);
+    ASSERT(chain->handle);
+    ASSERT(chain->length > 0);
 
     const u32 syncIndex = chain->syncIndex;
     VkSemaphore beginSema = chain->availableSemas[syncIndex];
     ASSERT(beginSema);
 
-    const u32 imageCount = chain->length;
-    ASSERT(imageCount > 0);
     u32 imageIndex = 0;
     const u64 timeout = -1;
     vkAcquireNextImageKHR(
@@ -242,28 +260,23 @@ void vkrSwapchain_Acquire(
         NULL,
         &imageIndex);
 
-    ASSERT(imageIndex < imageCount);
+    ASSERT(imageIndex < (u32)chain->length);
     {
-        VkFence imageFence = chain->imageFences[imageIndex];
-        if (imageFence)
+        // acquire resources associated with the frame in flight for this image
+        // driver might not use same ring buffer index as the application
+        VkFence fence = chain->imageFences[imageIndex];
+        if (fence)
         {
-            vkrFence_Wait(imageFence);
+            vkrFence_Wait(fence);
         }
     }
     ASSERT(syncIndex < kFramesInFlight);
     chain->imageFences[imageIndex] = chain->syncFences[syncIndex];
     chain->imageIndex = imageIndex;
 
-    if (pSyncIndex)
-    {
-        *pSyncIndex = syncIndex;
-    }
-    if (pImageIndex)
-    {
-        *pImageIndex = imageIndex;
-    }
+    ProfileEnd(pm_acquireimg);
 
-    ProfileEnd(pm_acquire);
+    return imageIndex;
 }
 
 ProfileMark(pm_present, vkrSwapchain_Present)
@@ -312,8 +325,6 @@ void vkrSwapchain_Present(
         .pImageIndices = imageIndices,
     };
     VkCheck(vkQueuePresentKHR(presentQueue, &presentInfo));
-
-    chain->syncIndex = (syncIndex + 1) % kFramesInFlight;
 
     ProfileEnd(pm_present);
 }

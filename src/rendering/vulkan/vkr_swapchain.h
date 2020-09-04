@@ -13,10 +13,13 @@ bool vkrSwapchain_Recreate(
     vkrDisplay* display,
     VkRenderPass presentPass);
 
-void vkrSwapchain_Acquire(
-    vkrSwapchain* chain,
-    u32* pSyncIndex,
-    u32* pImageIndex);
+// acquire synchronization index for a frame in flight
+// should be done at beginning of frame
+u32 vkrSwapchain_AcquireSync(vkrSwapchain* chain);
+// acquire image index for a swapchain image
+// should be done for presentation render pass
+u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain);
+// submits and presents final render pass to the swapchain
 void vkrSwapchain_Present(
     vkrSwapchain* chain,
     VkQueue submitQueue,

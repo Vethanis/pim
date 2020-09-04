@@ -311,6 +311,7 @@ void vkr_update(void)
 
     ProfileBegin(pm_update);
 
+    const u32 syncIndex = vkrSwapchain_AcquireSync(chain);
     VkRect2D rect = vkrSwapchain_GetRect(chain);
     VkViewport viewport = vkrSwapchain_GetViewport(chain);
     const VkClearValue clearValue =
@@ -372,9 +373,7 @@ void vkr_update(void)
         {
             vkrCmdViewport(cmd, viewport, rect);
 
-            u32 syncIndex = 0;
-            u32 imageIndex = 0;
-            vkrSwapchain_Acquire(chain, &syncIndex, &imageIndex);
+            const u32 imageIndex = vkrSwapchain_AcquireImage(chain);
             vkrCmdBeginRenderPass(
                 cmd,
                 pipeline->renderPass,
