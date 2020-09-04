@@ -73,8 +73,8 @@ static cvar_t cv_r_sw = { .type = cvart_bool,.name = "r_sw",.value = "1",.desc =
 static cvar_t cv_lm_density = { .type = cvart_float,.name = "lm_density",.value = "8",.minFloat = 0.1f,.maxFloat = 32.0f,.desc = "lightmap texels per unit" };
 static cvar_t cv_lm_timeslice = { .type = cvart_int,.name = "lm_timeslice",.value = "3",.minInt = 0,.maxInt = 60,.desc = "number of frames required to add 1 lighting sample to all lightmap texels" };
 
-static cvar_t cv_r_sun_dir = { .type = cvart_vector,.name = "r_sun_dir",.value = "0.0 0.0 -1.0 0.0",.desc = "Sun Direction" };
-static cvar_t cv_r_sun_col = { .type = cvart_color,.name = "r_sun_col",.value = "1.0 0.9 0.8 1.0",.desc = "Sun Color" };
+static cvar_t cv_r_sun_dir = { .type = cvart_vector,.name = "r_sun_dir",.value = "0.0 0.968 0.253 0.0",.desc = "Sun Direction" };
+static cvar_t cv_r_sun_col = { .type = cvart_color,.name = "r_sun_col",.value = "0.966 0.656 0.346 1.0",.desc = "Sun Color" };
 static cvar_t cv_r_sun_lum = { .type = cvart_float,.name = "r_sun_lum",.value = "12.0",.minFloat = -20.0f,.maxFloat = 20.0f,.desc = "Log2 Sun Luminance" };
 
 static cvar_t cv_r_qlights = { .type = cvart_bool,.name = "r_qlights",.value = "0",.desc = "Load quake light entities" };
@@ -857,7 +857,7 @@ static meshid_t GenSphereMesh(i32 steps)
     i32 length = 0;
     float4* pim_noalias positions = perm_malloc(sizeof(*positions) * maxlen);
     float4* pim_noalias normals = perm_malloc(sizeof(*normals) * maxlen);
-    float2* pim_noalias uvs = perm_malloc(sizeof(*uvs) * maxlen);
+    float4* pim_noalias uvs = perm_malloc(sizeof(*uvs) * maxlen);
 
     for (i32 v = 0; v < vsteps; ++v)
     {
@@ -884,10 +884,10 @@ static meshid_t GenSphereMesh(i32 steps)
             // | \ |
             // 3---4 -- t2
 
-            float2 u1 = f2_v(phi1 / kTau, 1.0f - theta1 / kPi);
-            float2 u2 = f2_v(phi2 / kTau, 1.0f - theta1 / kPi);
-            float2 u3 = f2_v(phi2 / kTau, 1.0f - theta2 / kPi);
-            float2 u4 = f2_v(phi1 / kTau, 1.0f - theta2 / kPi);
+            float4 u1 = f4_v(phi1 / kTau, 1.0f - theta1 / kPi, 0.0f, 0.0f);
+            float4 u2 = f4_v(phi2 / kTau, 1.0f - theta1 / kPi, 0.0f, 0.0f);
+            float4 u3 = f4_v(phi2 / kTau, 1.0f - theta2 / kPi, 0.0f, 0.0f);
+            float4 u4 = f4_v(phi1 / kTau, 1.0f - theta2 / kPi, 0.0f, 0.0f);
 
             float4 n1 = f4_v(st1 * cp1, ct1, st1 * sp1, 0.0f);
             float4 n2 = f4_v(st1 * cp2, ct1, st1 * sp2, 0.0f);
@@ -998,16 +998,15 @@ static meshid_t GenQuadMesh(void)
     const i32 length = 6;
     float4* positions = perm_malloc(sizeof(positions[0]) * length);
     float4* normals = perm_malloc(sizeof(normals[0]) * length);
-    float2* uvs = perm_malloc(sizeof(uvs[0]) * length);
-    float3* lmUvs = perm_malloc(sizeof(lmUvs[0]) * length);
+    float4* uvs = perm_malloc(sizeof(uvs[0]) * length);
 
     // counter clockwise
-    positions[0] = tl; uvs[0] = f2_v(0.0f, 1.0f);
-    positions[1] = bl; uvs[1] = f2_v(0.0f, 0.0f);
-    positions[2] = tr; uvs[2] = f2_v(1.0f, 1.0f);
-    positions[3] = tr; uvs[3] = f2_v(1.0f, 1.0f);
-    positions[4] = bl; uvs[4] = f2_v(0.0f, 0.0f);
-    positions[5] = br; uvs[5] = f2_v(1.0f, 0.0f);
+    positions[0] = tl; uvs[0] = f4_v(0.0f, 1.0f, 0.0f, 0.0f);
+    positions[1] = bl; uvs[1] = f4_v(0.0f, 0.0f, 0.0f, 0.0f);
+    positions[2] = tr; uvs[2] = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
+    positions[3] = tr; uvs[3] = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
+    positions[4] = bl; uvs[4] = f4_v(0.0f, 0.0f, 0.0f, 0.0f);
+    positions[5] = br; uvs[5] = f4_v(1.0f, 0.0f, 0.0f, 0.0f);
     for (i32 i = 0; i < length; ++i)
     {
         normals[i] = N;

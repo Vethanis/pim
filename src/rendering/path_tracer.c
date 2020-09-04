@@ -541,9 +541,12 @@ static void FlattenDrawables(pt_scene_t* scene)
 
             for (i32 j = 0; (j + 3) <= mesh.length; j += 3)
             {
-                float2 UA = TransformUv(mesh.uvs[j + 0], material.st);
-                float2 UB = TransformUv(mesh.uvs[j + 1], material.st);
-                float2 UC = TransformUv(mesh.uvs[j + 2], material.st);
+                float4 uva = mesh.uvs[j + 0];
+                float4 uvb = mesh.uvs[j + 1];
+                float4 uvc = mesh.uvs[j + 2];
+                float2 UA = TransformUv(f2_v(uva.x, uva.y), material.st);
+                float2 UB = TransformUv(f2_v(uvb.x, uvb.y), material.st);
+                float2 UC = TransformUv(f2_v(uvc.x, uvc.y), material.st);
                 uvs[vertBack + j + 0] = UA;
                 uvs[vertBack + j + 1] = UB;
                 uvs[vertBack + j + 2] = UC;

@@ -4,6 +4,7 @@
 #include "math/types.h"
 #include "common/guid.h"
 #include "common/dbytes.h"
+#include "rendering/vulkan/vkr.h"
 
 PIM_C_BEGIN
 
@@ -22,11 +23,12 @@ typedef struct mesh_s
 {
     float4* positions;
     float4* normals;
-    float2* uvs;
+    float4* uvs;
     i32 length;
+    vkrMesh vkrmesh;
 } mesh_t;
 
-#define kMeshVersion 2
+#define kMeshVersion 3
 typedef struct dmesh_s
 {
     i32 version;

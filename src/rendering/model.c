@@ -399,7 +399,7 @@ static mesh_t VEC_CALL TrisToMesh(
 
     float4* pim_noalias positions = perm_malloc(sizeof(positions[0]) * vertCount);
     float4* pim_noalias normals = perm_malloc(sizeof(normals[0]) * vertCount);
-    float2* pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
+    float4* pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * vertCount);
 
     float4 s = f4_0;
     float4 t = f4_0;
@@ -461,9 +461,12 @@ static mesh_t VEC_CALL TrisToMesh(
         normals[b] = N;
         normals[c] = N;
 
-        uvs[a] = f2_mul(CalcUv(s, t, A0), uvScale);
-        uvs[b] = f2_mul(CalcUv(s, t, B0), uvScale);
-        uvs[c] = f2_mul(CalcUv(s, t, C0), uvScale);
+        float2 uva = f2_mul(CalcUv(s, t, A0), uvScale);
+        float2 uvb = f2_mul(CalcUv(s, t, B0), uvScale);
+        float2 uvc = f2_mul(CalcUv(s, t, C0), uvScale);
+        uvs[a] = f4_v(uva.x, uva.y, 0.0f, 0.0f);
+        uvs[b] = f4_v(uvb.x, uvb.y, 0.0f, 0.0f);
+        uvs[c] = f4_v(uvc.x, uvc.y, 0.0f, 0.0f);
 
         vertsEmit += 3;
     }
