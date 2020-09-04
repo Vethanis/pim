@@ -150,10 +150,10 @@ bool texture_set(textureid_t id, texture_t* src)
     ASSERT(src);
     if (IsCurrent(id))
     {
-        texture_t* dst = ms_table.values;
-        dst += id.index;
-        FreeTexture(dst);
-        memcpy(dst, src, sizeof(*dst));
+        texture_t* textures = ms_table.values;
+        i32 index = id.index;
+        FreeTexture(&textures[index]);
+        memcpy(&textures[index], src, sizeof(textures[0]));
         memset(src, 0, sizeof(*src));
         return true;
     }

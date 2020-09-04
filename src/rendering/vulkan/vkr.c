@@ -264,37 +264,6 @@ bool vkr_init(i32 width, i32 height)
         goto cleanup;
     }
 
-    const float4 positions[] =
-    {
-        { 0.0f, -0.5f, 0.0f, 1.0f },
-        { 0.5f, 0.5f, 0.0f, 1.0f },
-        { -0.5f, 0.5f, 0.0f, 1.0f },
-    };
-    const float4 normals[] =
-    {
-        { 0.0f, 0.0f, -1.0f },
-        { 0.0f, 0.0f, -1.0f },
-        { 0.0f, 0.0f, -1.0f },
-    };
-    const float4 uv01[] =
-    {
-        { 0.5f, 1.0f, 0.5f, 1.0f },
-        { 1.0f, 0.0f, 1.0f, 0.0f },
-        { 0.0f, 0.0f, 0.0f, 0.0f },
-    };
-
-    if (!vkrMesh_New(
-        &g_vkr.mesh,
-        NELEM(positions),
-        positions,
-        normals,
-        uv01,
-        0, NULL))
-    {
-        success = false;
-        goto cleanup;
-    }
-
 cleanup:
     vkrCompileOutput_Del(&vertOutput);
     vkrCompileOutput_Del(&fragOutput);
@@ -444,8 +413,20 @@ void vkr_shutdown(void)
     if (g_vkr.inst)
     {
         vkrDevice_WaitIdle();
-
-        vkrMesh_Del(&g_vkr.mesh);
+        {
+            const drawables_t* drawables = drawables_get();
+            const i32 drawcount = drawables->count;
+            const meshid_t* pim_noalias meshids = drawables->meshes;
+            for (i32 i = 0; i < drawcount; ++i)
+            {
+                mesh_t mesh;
+                if (mesh_get(meshids[i], &mesh))
+                {
+                    vkrMesh_Del(&mesh.vkrmesh);
+                    mesh_set(meshids[i], &mesh);
+                }
+            }
+        }
 
         vkrPipeline_Del(&g_vkr.pipeline);
 

@@ -148,12 +148,12 @@ void vkrCmdAlloc_Reset(vkrCmdAlloc* allocator)
     ProfileBegin(pm_cmdallocreset);
     ASSERT(allocator);
     ASSERT(allocator->pool);
-    const u32 capacity = allocator->capacity;
-    if (capacity > 0)
+    const u32 head = allocator->head;
+    if (head > 0)
     {
         VkCheck(vkResetCommandPool(g_vkr.dev, allocator->pool, 0x0));
         VkFence* fences = allocator->fences;
-        for (u32 i = 0; i < capacity; ++i)
+        for (u32 i = 0; i < head; ++i)
         {
             vkrFence_Reset(fences[i]);
         }

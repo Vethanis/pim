@@ -323,9 +323,7 @@ typedef struct vkr_t
 
     vkrContext context;
 
-    // TODO: put these somewhere else
     vkrPipeline pipeline;
-    vkrMesh mesh;
 
 } vkr_t;
 extern vkr_t g_vkr;
