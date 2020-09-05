@@ -58,12 +58,11 @@ void mesh_sys_update(void)
 
 void mesh_sys_shutdown(void)
 {
-    const guid_t* pim_noalias names = ms_table.names;
     mesh_t* pim_noalias meshes = ms_table.values;
     const i32 width = ms_table.width;
     for (i32 i = 0; i < width; ++i)
     {
-        if (!guid_isnull(names[i]))
+        if (meshes[i].positions)
         {
             FreeMesh(meshes + i);
         }
@@ -73,12 +72,11 @@ void mesh_sys_shutdown(void)
 
 void mesh_sys_vkfree(void)
 {
-    const guid_t* pim_noalias names = ms_table.names;
     mesh_t* pim_noalias meshes = ms_table.values;
     const i32 width = ms_table.width;
     for (i32 i = 0; i < width; ++i)
     {
-        if (!guid_isnull(names[i]))
+        if (meshes[i].positions)
         {
             vkrMesh_Del(&meshes[i].vkrmesh);
         }

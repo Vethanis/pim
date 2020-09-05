@@ -49,6 +49,11 @@ static void FreeTexture(texture_t* tex)
     memset(tex, 0, sizeof(*tex));
 }
 
+const table_t* texture_table(void)
+{
+    return &ms_table;
+}
+
 void texture_sys_init(void)
 {
     table_new(&ms_table, sizeof(texture_t));
@@ -69,12 +74,11 @@ void texture_sys_update(void)
 
 void texture_sys_shutdown(void)
 {
-    const guid_t* pim_noalias names = ms_table.names;
     texture_t* pim_noalias textures = ms_table.values;
     const i32 width = ms_table.width;
     for (i32 i = 0; i < width; ++i)
     {
-        if (!guid_isnull(names[i]))
+        if (textures[i].texels)
         {
             FreeTexture(textures + i);
         }
@@ -84,19 +88,18 @@ void texture_sys_shutdown(void)
 
 void texture_sys_vkfree(void)
 {
-    const guid_t* pim_noalias names = ms_table.names;
     texture_t* pim_noalias textures = ms_table.values;
     const i32 width = ms_table.width;
     for (i32 i = 0; i < width; ++i)
     {
-        if (!guid_isnull(names[i]))
+        if (textures[i].texels)
         {
             vkrTexture2D_Del(&textures[i].vkrtex);
         }
     }
 }
 
-bool texture_loadat(const char* path, textureid_t* idOut)
+bool texture_loadat(const char* path, VkFormat format, textureid_t* idOut)
 {
     i32 width = 0;
     i32 height = 0;
@@ -109,12 +112,12 @@ bool texture_loadat(const char* path, textureid_t* idOut)
         tex.size = (int2) { width, height };
         tex.texels = texels;
         guid_t name = guid_str(path, guid_seed);
-        return texture_new(&tex, name, idOut);
+        return texture_new(&tex, format, name, idOut);
     }
     return false;
 }
 
-bool texture_new(texture_t* tex, guid_t name, textureid_t* idOut)
+bool texture_new(texture_t* tex, VkFormat format, guid_t name, textureid_t* idOut)
 {
     ASSERT(tex);
     ASSERT(idOut);
@@ -126,23 +129,30 @@ bool texture_new(texture_t* tex, guid_t name, textureid_t* idOut)
     genid id = { 0, 0 };
     if (tex->texels)
     {
-        i32 width = tex->size.x;
-        i32 height = tex->size.y;
-        i32 bytes = sizeof(tex->texels[0]) * width * height;
-        ASSERT(bytes > 0);
-        added = vkrTexture2D_New(
-            &tex->vkrtex,
-            width,
-            height,
-            VK_FORMAT_R8G8B8A8_SRGB,
-            tex->texels,
-            bytes);
-        ASSERT(added);
-        if (added)
+        if (table_find(&ms_table, name, &id))
         {
-            added = table_add(&ms_table, name, tex, &id);
+            table_retain(&ms_table, id);
         }
-        ASSERT(added);
+        else
+        {
+            i32 width = tex->size.x;
+            i32 height = tex->size.y;
+            i32 bytes = sizeof(tex->texels[0]) * width * height;
+            ASSERT(bytes > 0);
+            added = vkrTexture2D_New(
+                &tex->vkrtex,
+                width,
+                height,
+                format,
+                tex->texels,
+                bytes);
+            ASSERT(added);
+            if (added)
+            {
+                added = table_add(&ms_table, name, tex, &id);
+            }
+            ASSERT(added);
+        }
     }
     *idOut = ToTexId(id);
     if (!added)
@@ -223,6 +233,7 @@ bool texture_save(textureid_t tid, guid_t* dst)
             dtexture_t dtexture = { 0 };
             dbytes_new(1, sizeof(dtexture), &offset);
             dtexture.version = kTextureVersion;
+            dtexture.format = texture.vkrtex.format;
             dtexture.size = texture.size;
             dtexture.texels = dbytes_new(len, sizeof(texture.texels[0]), &offset);
             fstr_write(fd, &dtexture, sizeof(dtexture));
@@ -262,7 +273,7 @@ bool texture_load(guid_t name, textureid_t* dst)
                 ASSERT(fstr_tell(fd) == dtexture.texels.offset);
                 fstr_read(fd, texture.texels, sizeof(texture.texels[0]) * len);
 
-                loaded = texture_new(&texture, name, dst);
+                loaded = texture_new(&texture, dtexture.format, name, dst);
             }
         }
     }
@@ -528,17 +539,17 @@ bool texture_unpalette(
         texture_t albedoMap = { 0 };
         albedoMap.size = size;
         albedoMap.texels = albedo;
-        albedoAdded = texture_new(&albedoMap, albedoguid, albedoOut);
+        albedoAdded = texture_new(&albedoMap, VK_FORMAT_R8G8B8A8_SRGB, albedoguid, albedoOut);
 
         texture_t romeMap = { 0 };
         romeMap.size = size;
         romeMap.texels = rome;
-        romeAdded = texture_new(&romeMap, romeguid, romeOut);
+        romeAdded = texture_new(&romeMap, VK_FORMAT_R8G8B8A8_SRGB, romeguid, romeOut);
 
         texture_t normalMap = { 0 };
         normalMap.size = size;
         normalMap.texels = normal;
-        normalAdded = texture_new(&normalMap, normalguid, normalOut);
+        normalAdded = texture_new(&normalMap, VK_FORMAT_R8G8B8A8_UNORM, normalguid, normalOut);
     }
 
     return albedoAdded && romeAdded && normalAdded;

@@ -97,9 +97,9 @@ void vkrDesc_WriteBindings(
             case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
             case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
             {
-                bufferInfos[i].buffer = bindings[i].buffer.handle;
+                bufferInfos[i].buffer = bindings[i].buffer;
                 bufferInfos[i].offset = 0;
-                bufferInfos[i].range = bindings[i].buffer.size;
+                bufferInfos[i].range = VK_WHOLE_SIZE;
                 writeInfos[i].pBufferInfo = &bufferInfos[i];
                 ASSERT(bufferInfos[i].buffer);
                 ASSERT(bufferInfos[i].range);

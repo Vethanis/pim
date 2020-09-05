@@ -2,6 +2,7 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_sync.h"
 #include "rendering/vulkan/vkr_device.h"
+#include "rendering/vulkan/vkr_context.h"
 #include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
@@ -211,6 +212,11 @@ void vkrAllocator_Del(vkrAllocator* allocator)
                 vkrReleasable* releasables = allocator->releasables;
                 for (i32 i = 0; i < len; ++i)
                 {
+                    VkFence fence = releasables[i].fence;
+                    if (fence)
+                    {
+                        vkrFence_Wait(fence);
+                    }
                     if (!vkrReleasable_Del(&releasables[i], frame))
                     {
                         ASSERT(false);
@@ -225,6 +231,39 @@ void vkrAllocator_Del(vkrAllocator* allocator)
     }
 }
 
+void vkrAllocator_Finalize(vkrAllocator* allocator)
+{
+    vkrDevice_WaitIdle();
+    ASSERT(allocator);
+    ASSERT(allocator->handle);
+    // command fences must still be alive
+    ASSERT(g_vkr.context.threadcount);
+
+    mutex_lock(&allocator->releasemtx);
+    const u32 frame = time_framecount();
+    i32 len = allocator->numreleasable;
+    vkrReleasable* releasables = allocator->releasables;
+    for (i32 i = len - 1; i >= 0; --i)
+    {
+        VkFence fence = releasables[i].fence;
+        if (fence)
+        {
+            vkrFence_Wait(fence);
+            if (vkrReleasable_Del(&releasables[i], frame))
+            {
+                releasables[i] = releasables[len - 1];
+                --len;
+            }
+            else
+            {
+                ASSERT(false);
+            }
+        }
+    }
+    allocator->numreleasable = len;
+    mutex_unlock(&allocator->releasemtx);
+}
+
 ProfileMark(pm_allocupdate, vkrAllocator_Update)
 void vkrAllocator_Update(vkrAllocator* allocator)
 {
@@ -232,6 +271,8 @@ void vkrAllocator_Update(vkrAllocator* allocator)
 
     ASSERT(allocator);
     ASSERT(allocator->handle);
+    // command fences must still be alive
+    ASSERT(g_vkr.context.threadcount);
 
     const u32 frame = time_framecount();
     vmaSetCurrentFrameIndex(allocator->handle, frame);
@@ -260,7 +301,10 @@ void vkrReleasable_Add(vkrAllocator* allocator, const vkrReleasable* releasable)
     ProfileBegin(pm_releasableadd);
     ASSERT(allocator);
     ASSERT(allocator->handle);
+    // command fences must still be alive
+    ASSERT(g_vkr.context.threadcount);
     ASSERT(releasable);
+    ASSERT(releasable->fence);
     mutex_lock(&allocator->releasemtx);
     i32 back = allocator->numreleasable++;
     PermReserve(allocator->releasables, back + 1);
@@ -276,6 +320,7 @@ bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame)
     ASSERT(releasable);
     bool ready = false;
     VkFence fence = releasable->fence;
+    ASSERT(fence);
     if (fence)
     {
         vkrFenceState state = vkrFence_Stat(fence);
@@ -299,11 +344,55 @@ bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame)
         case vkrReleasableType_Image:
             vkrImage_Del(&releasable->image);
             break;
+        case vkrReleasableType_ImageView:
+        {
+            if (releasable->view)
+            {
+                vkDestroyImageView(g_vkr.dev, releasable->view, NULL);
+            }
+        }
+        break;
+        case vkrReleasableType_Sampler:
+        {
+            if (releasable->sampler)
+            {
+                vkDestroySampler(g_vkr.dev, releasable->sampler, NULL);
+            }
+        }
+        break;
         }
         memset(releasable, 0, sizeof(*releasable));
     }
     ProfileEnd(pm_releasabledel);
     return ready;
+}
+
+VkFence vkrMem_Barrier(
+    vkrQueueId id,
+    VkPipelineStageFlags srcStage,
+    VkPipelineStageFlags dstStage,
+    const VkMemoryBarrier* glob,
+    const VkBufferMemoryBarrier* buffer,
+    const VkImageMemoryBarrier* img)
+{
+    vkrFrameContext* ctx = vkrContext_Get();
+    VkCommandBuffer cmd = NULL;
+    VkFence fence = NULL;
+    VkQueue queue = NULL;
+    vkrContext_GetCmd(ctx, id, &cmd, &fence, &queue);
+    vkrCmdBegin(cmd);
+    {
+        vkCmdPipelineBarrier(
+            cmd,
+            srcStage, dstStage, 0x0,
+            glob ? 1 : 0, glob,
+            buffer ? 1 : 0, buffer,
+            img ? 1 : 0, img);
+    }
+    vkrCmdEnd(cmd);
+    vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
+    ASSERT(fence);
+    return fence;
 }
 
 const VkAllocationCallbacks* vkrMem_Fns(void)
@@ -480,6 +569,7 @@ void vkrBuffer_Release(vkrBuffer* buffer, VkFence fence)
 {
     ProfileBegin(pm_bufrelease);
     ASSERT(buffer);
+    ASSERT(fence);
     if (buffer->handle)
     {
         const vkrReleasable releasable =

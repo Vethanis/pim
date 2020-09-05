@@ -8,6 +8,8 @@
 
 PIM_C_BEGIN
 
+typedef struct table_s table_t;
+
 typedef struct textureid_s
 {
     u32 index : 24;
@@ -26,24 +28,26 @@ typedef struct texture_s
     vkrTexture2D vkrtex;
 } texture_t;
 
-#define kTextureVersion 2
+#define kTextureVersion 3
 typedef struct dtexture_s
 {
     i32 version;
+    VkFormat format;
     int2 size;
     dbytes_t texels;
 } dtexture_t;
+
+const table_t* texture_table(void);
 
 void texture_sys_init(void);
 void texture_sys_update(void);
 void texture_sys_shutdown(void);
 // free vulkan resources
 void texture_sys_vkfree(void);
-
 void texture_sys_gui(bool* pEnabled);
 
-bool texture_loadat(const char* path, textureid_t* idOut);
-bool texture_new(texture_t* tex, guid_t name, textureid_t* idOut);
+bool texture_loadat(const char* path, VkFormat format, textureid_t* idOut);
+bool texture_new(texture_t* tex, VkFormat format, guid_t name, textureid_t* idOut);
 
 bool texture_exists(textureid_t id);
 

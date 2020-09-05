@@ -22,6 +22,8 @@
 #include "common/console.h"
 #include "common/profiler.h"
 #include "common/time.h"
+#include "common/cvar.h"
+#include "containers/table.h"
 #include "math/float4_funcs.h"
 #include "math/float4x4_funcs.h"
 #include "math/quat_funcs.h"
@@ -29,17 +31,28 @@
 #include "rendering/camera.h"
 #include <string.h>
 
+static cvar_t* cv_r_sun_dir;
+static cvar_t* cv_r_sun_col;
+static cvar_t* cv_r_sun_lum;
+
 vkr_t g_vkr;
-static vkrBinding ms_textureBindings[kTextureDescriptors];
 
 bool vkr_init(i32 width, i32 height)
 {
+    memset(&g_vkr, 0, sizeof(g_vkr));
+
+    cv_r_sun_dir = cvar_find("r_sun_dir");
+    cv_r_sun_col = cvar_find("r_sun_col");
+    cv_r_sun_lum = cvar_find("r_sun_lum");
+    ASSERT(cv_r_sun_dir);
+    ASSERT(cv_r_sun_col);
+    ASSERT(cv_r_sun_lum);
+
     bool success = true;
     char* shaderName = "brush.hlsl";
     char* shaderText = vkrLoadShader(shaderName);
     vkrCompileOutput vertOutput = { 0 };
     vkrCompileOutput fragOutput = { 0 };
-    memset(&g_vkr, 0, sizeof(g_vkr));
 
     if (!vkrInstance_Init(&g_vkr))
     {
@@ -376,34 +389,37 @@ void vkr_update(void)
                 .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .set = descSet,
                 .binding = 0,
-                .buffer = *perdrawbuf,
+                .buffer = perdrawbuf->handle,
             },
             {
                 .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .set = descSet,
                 .binding = 1,
-                .buffer = *percambuf,
+                .buffer = percambuf->handle,
             },
         };
         vkrDesc_WriteBindings(ctx, NELEM(bufferBindings), bufferBindings);
 
+        const table_t* textable = texture_table();
+        const i32 tableWidth = textable->width;
+        const texture_t* textures = textable->values;
         const vkrTexture2D nullTexture = g_vkr.nullTexture;
-        vkrBinding* texBindings = ms_textureBindings;
+        vkrBinding* texBindings = g_vkr.bindings;
+        ASSERT(tableWidth <= kTextureDescriptors);
         for (i32 i = 0; i < kTextureDescriptors; ++i)
         {
             texBindings[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             texBindings[i].set = descSet;
             texBindings[i].binding = 2;
             texBindings[i].arrayElem = i;
-            texBindings[i].texture = nullTexture;
-            if (i < drawcount)
+            const vkrTexture2D* texture = &nullTexture;
+            if ((i < tableWidth) && textures[i].texels)
             {
-                texture_t texture = { 0 };
-                if (texture_get(materials[i].albedo, &texture))
-                {
-                    texBindings[i].texture = texture.vkrtex;
-                }
+                texture = &textures[i].vkrtex;
             }
+            texBindings[i].texture.sampler = texture->sampler;
+            texBindings[i].texture.view = texture->view;
+            texBindings[i].texture.layout = texture->layout;
         }
         vkrDesc_WriteBindings(ctx, kTextureDescriptors, texBindings);
 
@@ -420,6 +436,10 @@ void vkr_update(void)
             ASSERT(perCamera);
             perCamera->worldToCamera = view;
             perCamera->cameraToClip = proj;
+            perCamera->eye = camera.position;
+            perCamera->lightDir = cvar_get_vec(cv_r_sun_dir);
+            perCamera->lightColor =
+                f4_mulvs(cvar_get_vec(cv_r_sun_col), cvar_get_float(cv_r_sun_lum));
             vkrBuffer_Unmap(percambuf);
         }
 
@@ -469,10 +489,14 @@ void vkr_update(void)
                 mesh_t mesh;
                 if (mesh_get(meshids[i], &mesh))
                 {
+                    material_t material = materials[i];
                     const vkrPushConstants pushConsts =
                     {
                         .drawIndex = i,
                         .cameraIndex = 0,
+                        .albedoIndex = material.albedo.index,
+                        .romeIndex = material.rome.index,
+                        .normalIndex = material.normal.index,
                     };
                     vkrCmdPushConstants(cmd, pipeline, &pushConsts, sizeof(pushConsts));
                     vkrCmdDrawMesh(cmd, &mesh.vkrmesh);
@@ -494,11 +518,12 @@ void vkr_shutdown(void)
     {
         vkrDevice_WaitIdle();
 
+        vkrPipeline_Del(&g_vkr.pipeline);
         vkrTexture2D_Del(&g_vkr.nullTexture);
-
         mesh_sys_vkfree();
         texture_sys_vkfree();
-        vkrPipeline_Del(&g_vkr.pipeline);
+
+        vkrAllocator_Finalize(&g_vkr.allocator);
 
         vkrContext_Del(&g_vkr.context);
         vkrSwapchain_Del(&g_vkr.chain);
@@ -509,3 +534,18 @@ void vkr_shutdown(void)
     }
 }
 
+void vkr_onload(void)
+{
+    if (g_vkr.allocator.handle)
+    {
+        vkrAllocator_Update(&g_vkr.allocator);
+    }
+}
+
+void vkr_onunload(void)
+{
+    if (g_vkr.allocator.handle)
+    {
+        vkrAllocator_Update(&g_vkr.allocator);
+    }
+}

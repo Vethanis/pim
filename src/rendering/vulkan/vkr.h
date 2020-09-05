@@ -99,24 +99,32 @@ typedef struct vkrMesh
 typedef struct vkrTexture2D
 {
     vkrImage image;
-    VkImageView view;
     VkSampler sampler;
+    VkImageView view;
     VkImageLayout layout;
+    VkFormat format;
     i32 width;
     i32 height;
 } vkrTexture2D;
 
+typedef struct vkrTextureBinding
+{
+    VkSampler sampler;
+    VkImageView view;
+    VkImageLayout layout;
+} vkrTextureBinding;
+
 typedef struct vkrBinding
 {
-    VkDescriptorType type;
     VkDescriptorSet set;
-    i32 binding;
-    i32 arrayElem;
     union
     {
-        vkrBuffer buffer;
-        vkrTexture2D texture;
+        VkBuffer buffer;
+        vkrTextureBinding texture;
     };
+    VkDescriptorType type;
+    u16 arrayElem;
+    u8 binding;
 } vkrBinding;
 
 typedef struct vkrCompileInput
@@ -292,6 +300,8 @@ typedef enum
 {
     vkrReleasableType_Buffer,
     vkrReleasableType_Image,
+    vkrReleasableType_ImageView,
+    vkrReleasableType_Sampler,
 } vkrReleasableType;
 
 typedef struct vkrReleasable
@@ -303,6 +313,8 @@ typedef struct vkrReleasable
     {
         vkrBuffer buffer;
         vkrImage image;
+        VkImageView view;
+        VkSampler sampler;
     };
 } vkrReleasable;
 
@@ -326,12 +338,18 @@ typedef struct vkrPerCamera
 {
     float4x4 worldToCamera;
     float4x4 cameraToClip;
+    float4 eye;
+    float4 lightDir;
+    float4 lightColor;
 } vkrPerCamera;
 
 typedef struct vkrPushConstants
 {
     u32 drawIndex;
     u32 cameraIndex;
+    u32 albedoIndex;
+    u32 romeIndex;
+    u32 normalIndex;
 } vkrPushConstants;
 
 // ----------------------------------------------------------------------------
@@ -355,11 +373,15 @@ typedef struct vkr_t
     vkrPipeline pipeline;
     vkrTexture2D nullTexture;
 
+    vkrBinding bindings[kTextureDescriptors];
 } vkr_t;
 extern vkr_t g_vkr;
 
 bool vkr_init(i32 width, i32 height);
 void vkr_update(void);
 void vkr_shutdown(void);
+
+void vkr_onload(void);
+void vkr_onunload(void);
 
 PIM_C_END

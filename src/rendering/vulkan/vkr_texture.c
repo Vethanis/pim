@@ -3,6 +3,7 @@
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "allocator/allocator.h"
+#include "common/time.h"
 #include <string.h>
 
 bool vkrTexture2D_New(
@@ -69,6 +70,7 @@ bool vkrTexture2D_New(
         .pQueueFamilyIndices = queueFamilies,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
+    tex->format = format;
     if (!vkrImage_New(
         &tex->image,
         &imageInfo,
@@ -130,6 +132,22 @@ bool vkrTexture2D_New(
     vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, &fence, &queue);
     vkrCmdBegin(cmd);
     {
+        const VkBufferMemoryBarrier stageBarrier =
+        {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+            .srcAccessMask = 0x0,
+            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .buffer = stagebuf.handle,
+            .offset = 0,
+            .size = VK_WHOLE_SIZE,
+        };
+        vkrCmdBufferBarrier(
+            cmd,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            &stageBarrier);
         // transition from undefined to xfer dst
         VkImageMemoryBarrier barrier =
         {
@@ -202,15 +220,58 @@ void vkrTexture2D_Del(vkrTexture2D* tex)
 {
     if (tex)
     {
-        if (tex->sampler)
+        if (tex->image.handle)
         {
-            vkDestroySampler(g_vkr.dev, tex->sampler, NULL);
+            // create pipeline barrier to safely release resources
+            const VkImageMemoryBarrier barrier =
+            {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .srcAccessMask = 0x0,
+                .dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+                .oldLayout = tex->layout,
+                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = tex->image.handle,
+                .subresourceRange =
+                {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .levelCount = 1,
+                    .layerCount = 1,
+                },
+            };
+            VkFence fence = vkrMem_Barrier(
+                vkrQueueId_Gfx,
+                VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                VK_PIPELINE_STAGE_HOST_BIT,
+                NULL,
+                NULL,
+                &barrier);
+
+            if (tex->sampler)
+            {
+                const vkrReleasable releasable =
+                {
+                    .frame = time_framecount(),
+                    .type = vkrReleasableType_Sampler,
+                    .fence = fence,
+                    .sampler = tex->sampler,
+                };
+                vkrReleasable_Add(&g_vkr.allocator, &releasable);
+            }
+            if (tex->view)
+            {
+                const vkrReleasable releasable =
+                {
+                    .frame = time_framecount(),
+                    .type = vkrReleasableType_ImageView,
+                    .fence = fence,
+                    .view = tex->view,
+                };
+                vkrReleasable_Add(&g_vkr.allocator, &releasable);
+            }
+            vkrImage_Release(&tex->image, fence);
         }
-        if (tex->view)
-        {
-            vkDestroyImageView(g_vkr.dev, tex->view, NULL);
-        }
-        vkrImage_Release(&tex->image, NULL);
         memset(tex, 0, sizeof(*tex));
     }
 }
