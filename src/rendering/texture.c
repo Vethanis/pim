@@ -14,7 +14,7 @@
 #include "common/profiler.h"
 #include "io/fstr.h"
 #include "threading/task.h"
-#include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_texture.h"
 #include <glad/glad.h>
 #include <string.h>
 
@@ -45,7 +45,7 @@ static bool IsCurrent(textureid_t id)
 static void FreeTexture(texture_t* tex)
 {
     pim_free(tex->texels);
-    vkrImage_Del(&tex->vkrimage);
+    vkrTexture2D_Del(&tex->vkrtex);
     memset(tex, 0, sizeof(*tex));
 }
 
@@ -91,7 +91,7 @@ void texture_sys_vkfree(void)
     {
         if (!guid_isnull(names[i]))
         {
-            vkrImage_Del(&textures[i].vkrimage);
+            vkrTexture2D_Del(&textures[i].vkrtex);
         }
     }
 }
@@ -126,23 +126,17 @@ bool texture_new(texture_t* tex, guid_t name, textureid_t* idOut)
     genid id = { 0, 0 };
     if (tex->texels)
     {
-        const VkImageCreateInfo imginfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-            .imageType = VK_IMAGE_TYPE_2D,
-            .format = VK_FORMAT_R8G8B8A8_UNORM,
-            .extent.width = tex->size.x,
-            .extent.height = tex->size.y,
-            .extent.depth = 1,
-            .mipLevels = 1,
-            .arrayLayers = 1,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .tiling = VK_IMAGE_TILING_LINEAR,
-            .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        };
-        added = vkrImage_New(&tex->vkrimage, &imginfo, vkrMemUsage_CpuToGpu, PIM_FILELINE);
+        i32 width = tex->size.x;
+        i32 height = tex->size.y;
+        i32 bytes = sizeof(tex->texels[0]) * width * height;
+        ASSERT(bytes > 0);
+        added = vkrTexture2D_New(
+            &tex->vkrtex,
+            width,
+            height,
+            VK_FORMAT_R8G8B8A8_SRGB,
+            tex->texels,
+            bytes);
         ASSERT(added);
         if (added)
         {

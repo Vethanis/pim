@@ -23,7 +23,7 @@ typedef struct texture_s
 {
     int2 size;
     u32* pim_noalias texels;
-    vkrImage vkrimage;
+    vkrTexture2D vkrtex;
 } texture_t;
 
 #define kTextureVersion 2

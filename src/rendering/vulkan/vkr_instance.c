@@ -54,27 +54,41 @@ strlist_t vkrGetLayers(void)
     return list;
 }
 
+static const char* const kDesiredInstExtensions[] =
+{
+    VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+    VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME,
+#if _DEBUG
+    VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+#endif // _DEBUG
+};
+
 strlist_t vkrGetInstExtensions(void)
 {
     strlist_t list;
     strlist_new(&list, EAlloc_Temp);
 
     u32 count = 0;
-    VkExtensionProperties* props = vkrEnumInstExtensions(&count);
+    const VkExtensionProperties* props = vkrEnumInstExtensions(&count);
 
     u32 glfwCount = 0;
     const char** glfwList = glfwGetRequiredInstanceExtensions(&glfwCount);
     for (u32 i = 0; i < glfwCount; ++i)
     {
-        vkrTryAddExtension(&list, props, count, glfwList[i]);
+        if (!vkrTryAddExtension(&list, props, count, glfwList[i]))
+        {
+            con_logf(LogSev_Error, "vkr", "Failed to load required instance extension '%'", kDesiredInstExtensions[i]);
+            ASSERT(false);
+        }
     }
 
-    vkrTryAddExtension(&list, props, count, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-
-#ifdef _DEBUG
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_EXT_debug_utils.html
-    vkrTryAddExtension(&list, props, count, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif // _DEBUG
+    for (i32 i = 0; i < NELEM(kDesiredInstExtensions); ++i)
+    {
+        if (!vkrTryAddExtension(&list, props, count, kDesiredInstExtensions[i]))
+        {
+            con_logf(LogSev_Warning, "vkr", "Failed to load desired instance extension '%'", kDesiredInstExtensions[i]);
+        }
+    }
 
     return list;
 }
@@ -95,10 +109,10 @@ void vkrListInstExtensions(void)
 {
     u32 count = 0;
     VkExtensionProperties* props = vkrEnumInstExtensions(&count);
-    con_logf(LogSev_Info, "Vk", "%d available instance extensions", count);
+    con_logf(LogSev_Info, "vkr", "%d available instance extensions", count);
     for (u32 i = 0; i < count; ++i)
     {
-        con_logf(LogSev_Info, "Vk", props[i].extensionName);
+        con_logf(LogSev_Info, "vkr", props[i].extensionName);
     }
 }
 

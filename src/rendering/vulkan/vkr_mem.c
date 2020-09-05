@@ -362,6 +362,7 @@ bool vkrBuffer_New(
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = size,
         .usage = bufferUsage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
     const VmaAllocationCreateInfo allocInfo =
     {
@@ -570,7 +571,6 @@ void vkrImage_Release(vkrImage* image, VkFence fence)
 {
     ProfileBegin(pm_imgrelease);
     ASSERT(image);
-    ASSERT(fence);
     if (image->handle)
     {
         const vkrReleasable releasable =

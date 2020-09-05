@@ -84,10 +84,10 @@ void vkrListDevExtensions(VkPhysicalDevice phdev)
 
     u32 count = 0;
     VkExtensionProperties* props = vkrEnumDevExtensions(phdev, &count);
-    con_logf(LogSev_Info, "Vk", "%d available device extensions", count);
+    con_logf(LogSev_Info, "vkr", "%d available device extensions", count);
     for (u32 i = 0; i < count; ++i)
     {
-        con_logf(LogSev_Info, "Vk", props[i].extensionName);
+        con_logf(LogSev_Info, "vkr", props[i].extensionName);
     }
 }
 
@@ -95,15 +95,23 @@ static const char* const kRequiredDevExtensions[] =
 {
     // https://www.khronos.org/registry/vulkan/specs/1.0-wsi_extensions/html/vkspec.html#VK_KHR_swapchain
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,
+    VK_NV_RAY_TRACING_EXTENSION_NAME,
+    VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME,
+    VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
 };
 
 static const char* const kDesiredDevExtensions[] =
 {
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_KHR_performance_query
-    VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME,
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VK_EXT_conditional_rendering
+    VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
     VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
-    VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,
+    VK_KHR_DRAW_INDIRECT_COUNT_EXTENSION_NAME,
+    VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME,
+    VK_KHR_BIND_MEMORY_2_EXTENSION_NAME,
+    VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
+    VK_KHR_SPIRV_1_4_EXTENSION_NAME,
+    VK_NV_MESH_SHADER_EXTENSION_NAME,
+    VK_EXT_HDR_METADATA_EXTENSION_NAME,
 };
 
 strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev)
@@ -121,7 +129,7 @@ strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev)
         const char* name = kRequiredDevExtensions[i];
         if (!vkrTryAddExtension(&list, props, count, name))
         {
-            con_logf(LogSev_Error, "Vk", "Failed to load required extension '%s'", name);
+            con_logf(LogSev_Error, "vkr", "Failed to load required device extension '%s'", name);
         }
     }
 
@@ -130,7 +138,7 @@ strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev)
         const char* name = kDesiredDevExtensions[i];
         if (!vkrTryAddExtension(&list, props, count, name))
         {
-            con_logf(LogSev_Warning, "Vk", "Failed to load desired extension '%s'", name);
+            con_logf(LogSev_Warning, "vkr", "Failed to load desired device extension '%s'", name);
         }
     }
 

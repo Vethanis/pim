@@ -62,45 +62,13 @@ VkDescriptorSet vkrDesc_New(vkrFrameContext* ctx, VkDescriptorSetLayout layout)
     return handle;
 }
 
-ProfileMark(pm_desc_writebuffer, vkrDesc_WriteBuffer)
-void vkrDesc_WriteBuffer(
-    vkrFrameContext* ctx,
-    const vkrBufferBinding* binding)
-{
-    ProfileBegin(pm_desc_writebuffer);
-    ASSERT(ctx);
-    ASSERT(ctx->descpool);
-    ASSERT(binding);
-    ASSERT(binding->set);
-    ASSERT(binding->buffer.handle);
-
-    const VkDescriptorBufferInfo bufferInfo =
-    {
-        .buffer = binding->buffer.handle,
-        .offset = 0,
-        .range = binding->buffer.size,
-    };
-    const VkWriteDescriptorSet writeInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = binding->set,
-        .dstBinding = binding->binding,
-        .dstArrayElement = 0,
-        .descriptorCount = 1,
-        .descriptorType = binding->type,
-        .pBufferInfo = &bufferInfo,
-    };
-    vkUpdateDescriptorSets(g_vkr.dev, 1, &writeInfo, 0, NULL);
-    ProfileEnd(pm_desc_writebuffer);
-}
-
-ProfileMark(pm_desc_writebuffers, vkrDesc_WriteBuffers)
-void vkrDesc_WriteBuffers(
+ProfileMark(pm_desc_writebindings, vkrDesc_WriteBindings)
+void vkrDesc_WriteBindings(
     vkrFrameContext* ctx,
     i32 count,
-    const vkrBufferBinding* bindings)
+    const vkrBinding* bindings)
 {
-    ProfileBegin(pm_desc_writebuffers);
+    ProfileBegin(pm_desc_writebindings);
     ASSERT(ctx);
     ASSERT(ctx->descpool);
     ASSERT(count >= 0);
@@ -108,25 +76,51 @@ void vkrDesc_WriteBuffers(
     if (count > 0)
     {
         VkDescriptorBufferInfo* bufferInfos = tmp_calloc(sizeof(bufferInfos[0]) * count);
+        VkDescriptorImageInfo* imageInfos = tmp_calloc(sizeof(imageInfos[0]) * count);
         VkWriteDescriptorSet* writeInfos = tmp_calloc(sizeof(writeInfos[0]) * count);
         for (i32 i = 0; i < count; ++i)
         {
-            ASSERT(bindings[i].buffer.handle);
             ASSERT(bindings[i].set);
 
-            bufferInfos[i].buffer = bindings[i].buffer.handle;
-            bufferInfos[i].offset = 0;
-            bufferInfos[i].range = bindings[i].buffer.size;
-
             writeInfos[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writeInfos[i].descriptorType = bindings[i].type;
             writeInfos[i].dstSet = bindings[i].set;
             writeInfos[i].dstBinding = bindings[i].binding;
-            writeInfos[i].dstArrayElement = 0;
+            writeInfos[i].dstArrayElement = bindings[i].arrayElem;
             writeInfos[i].descriptorCount = 1;
-            writeInfos[i].descriptorType = bindings[i].type;
-            writeInfos[i].pBufferInfo = &bufferInfos[i];
+
+            switch (bindings[i].type)
+            {
+            default:
+                ASSERT(false);
+                break;
+            case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+            case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+            {
+                bufferInfos[i].buffer = bindings[i].buffer.handle;
+                bufferInfos[i].offset = 0;
+                bufferInfos[i].range = bindings[i].buffer.size;
+                writeInfos[i].pBufferInfo = &bufferInfos[i];
+                ASSERT(bufferInfos[i].buffer);
+                ASSERT(bufferInfos[i].range);
+            }
+            break;
+            case VK_DESCRIPTOR_TYPE_SAMPLER:
+            case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+            case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+            {
+                imageInfos[i].sampler = bindings[i].texture.sampler;
+                imageInfos[i].imageView = bindings[i].texture.view;
+                imageInfos[i].imageLayout = bindings[i].texture.layout;
+                writeInfos[i].pImageInfo = &imageInfos[i];
+                ASSERT(imageInfos[i].sampler);
+                ASSERT(imageInfos[i].imageView);
+                ASSERT(imageInfos[i].imageLayout);
+            }
+            break;
+            }
         }
         vkUpdateDescriptorSets(g_vkr.dev, count, writeInfos, 0, NULL);
     }
-    ProfileEnd(pm_desc_writebuffers);
+    ProfileEnd(pm_desc_writebindings);
 }

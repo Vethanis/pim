@@ -43,7 +43,7 @@ bool vkrContext_New(vkrContext* ctx)
         success = false;
         goto cleanup;
     }
-    if (!vkrBuffer_New(&ctx->perdrawbuf, sizeof(vkrPerDraw) * 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, PIM_FILELINE))
+    if (!vkrBuffer_New(&ctx->perdrawbuf, sizeof(vkrPerDraw) * 256, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, PIM_FILELINE))
     {
         success = false;
         goto cleanup;
@@ -142,8 +142,20 @@ bool vkrFrameContext_New(vkrFrameContext* ctx)
     const VkDescriptorPoolSize poolSizes[] =
     {
         {
+            .type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            .descriptorCount = 8,
+        },
+        {
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 8,
+        },
+        {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1, // one big ssbo?
+            .descriptorCount = 8,
+        },
+        {
+            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 8,
         },
     };
     VkDescriptorPool descpool = vkrDescPool_New(1, NELEM(poolSizes), poolSizes);
