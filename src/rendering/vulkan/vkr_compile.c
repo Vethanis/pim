@@ -29,7 +29,7 @@ static shaderc_include_result* vkrResolveInclude(
         if (size > 0)
         {
             result->source_name = StrDup(path, EAlloc_Perm);
-            result->source_name_length = StrLen(result->source_name);
+            result->source_name_length = StrLen(path);
             char* contents = perm_malloc(size + 1);
             i32 readLen = fstr_read(fd, contents, size);
             contents[size] = 0;
@@ -125,9 +125,11 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
         options, shaderc_source_language_hlsl);
     g_shaderc.compile_options_set_optimization_level(
         options, shaderc_optimization_level_performance);
-    // might not match VK_VERSION, according to validation layers throwing errors
     g_shaderc.compile_options_set_target_env(
-        options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_1);
+        options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_2);
+    // shaderc: internal error: compilation succeeded but failed to optimize: 2nd operand of Decorate: operand BufferBlock(3) requires SPIR-V version 1.3 or earlier
+    // shaderc breaks itself by using BufferBlock on SPIRV 1.4 :(
+    g_shaderc.compile_options_set_target_spirv(options, shaderc_spirv_version_1_3);
     g_shaderc.compile_options_set_warnings_as_errors(options);
     g_shaderc.compile_options_set_auto_bind_uniforms(options, true);
     g_shaderc.compile_options_set_auto_map_locations(options, true);

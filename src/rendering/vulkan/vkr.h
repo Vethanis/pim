@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/macro.h"
+#define VK_ENABLE_BETA_EXTENSIONS 1
 #include <volk/volk.h>
 #include "math/types.h"
 #include "containers/strlist.h"
@@ -10,14 +11,16 @@ PIM_C_BEGIN
 
 #define VkCheck(expr) do { VkResult _res = (expr); ASSERT(_res == VK_SUCCESS); } while(0)
 
-#define kMaxSwapchainLen        4
-#define kFramesInFlight         3
-#define kDrawsPerThread         128
-#define kCamerasPerThread       1
-
 PIM_FWD_DECL(GLFWwindow);
 PIM_DECL_HANDLE(VmaAllocator);
 PIM_DECL_HANDLE(VmaAllocation);
+
+typedef enum
+{
+    kMaxSwapchainLen = 4,
+    kFramesInFlight = 3,
+    kTextureDescriptors = 1024,
+} vkrLimits;
 
 typedef enum
 {
@@ -96,17 +99,25 @@ typedef struct vkrMesh
 typedef struct vkrTexture2D
 {
     vkrImage image;
+    VkImageView view;
+    VkSampler sampler;
+    VkImageLayout layout;
     i32 width;
     i32 height;
 } vkrTexture2D;
 
-typedef struct vkrBufferBinding
+typedef struct vkrBinding
 {
-    vkrBuffer buffer;
+    VkDescriptorType type;
     VkDescriptorSet set;
     i32 binding;
-    VkDescriptorType type;
-} vkrBufferBinding;
+    i32 arrayElem;
+    union
+    {
+        vkrBuffer buffer;
+        vkrTexture2D texture;
+    };
+} vkrBinding;
 
 typedef struct vkrCompileInput
 {
@@ -339,6 +350,7 @@ typedef struct vkr_t
     vkrContext context;
 
     vkrPipeline pipeline;
+    vkrTexture2D nullTexture;
 
 } vkr_t;
 extern vkr_t g_vkr;

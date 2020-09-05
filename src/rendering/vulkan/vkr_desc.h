@@ -13,13 +13,9 @@ void vkrDescPool_Reset(VkDescriptorPool pool);
 
 VkDescriptorSet vkrDesc_New(vkrFrameContext* ctx, VkDescriptorSetLayout layout);
 
-void vkrDesc_WriteBuffer(
-    vkrFrameContext* ctx,
-    const vkrBufferBinding* binding);
-
-void vkrDesc_WriteBuffers(
+void vkrDesc_WriteBindings(
     vkrFrameContext* ctx,
     i32 count,
-    const vkrBufferBinding* bindings);
+    const vkrBinding* bindings);
 
 PIM_C_END

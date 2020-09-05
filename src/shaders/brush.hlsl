@@ -24,6 +24,11 @@ StructuredBuffer<PerDraw> drawData;
 [[vk::binding(1)]]
 StructuredBuffer<PerCamera> cameraData;
 
+[[vk::binding(2)]]
+SamplerState samplers[];
+[[vk::binding(2)]]
+Texture2D textures[];
+
 [[vk::push_constant]]
 cbuffer push_constants
 {
@@ -71,9 +76,10 @@ PSInput VSMain(VSInput input)
 
 PSOutput PSMain(PSInput input)
 {
+    uint di = kDrawIndex;
+    float4 albedo = textures[di].Sample(samplers[di], input.uv01.xy);
     PSOutput output;
-    output.color.xy = fmod(input.uv01.xy, 1.0);
-    output.color.z = 0.0;
+    output.color = albedo;
     output.color.w = 1.0;
     return output;
 }

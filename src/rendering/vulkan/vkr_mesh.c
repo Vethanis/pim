@@ -92,7 +92,7 @@ bool vkrMesh_New(
     VkCommandBuffer cmd = NULL;
     VkFence fence = NULL;
     VkQueue queue = NULL;
-    vkrContext_GetCmd(ctx, vkrQueueId_Xfer, &cmd, &fence, &queue);
+    vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, &fence, &queue);
     vkrCmdBegin(cmd);
     vkrCmdCopyBuffer(cmd, stagebuf, devbuf);
     const VkBufferMemoryBarrier barrier =
@@ -102,11 +102,11 @@ bool vkrMesh_New(
         .dstAccessMask =
             VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
             VK_ACCESS_INDEX_READ_BIT,
-        .srcQueueFamilyIndex = g_vkr.queues[vkrQueueId_Xfer].family,
-        .dstQueueFamilyIndex = g_vkr.queues[vkrQueueId_Gfx].family,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .buffer = devbuf.handle,
         .offset = 0,
-        .size = VK_WHOLE_SIZE,
+        .size = devbuf.size,
     };
     vkrCmdBufferBarrier(
         cmd,

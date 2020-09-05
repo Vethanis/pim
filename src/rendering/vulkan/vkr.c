@@ -13,6 +13,7 @@
 #include "rendering/vulkan/vkr_mesh.h"
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_desc.h"
+#include "rendering/vulkan/vkr_texture.h"
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
 #include "rendering/texture.h"
@@ -29,10 +30,15 @@
 #include <string.h>
 
 vkr_t g_vkr;
+static vkrBinding ms_textureBindings[kTextureDescriptors];
 
 bool vkr_init(i32 width, i32 height)
 {
     bool success = true;
+    char* shaderName = "brush.hlsl";
+    char* shaderText = vkrLoadShader(shaderName);
+    vkrCompileOutput vertOutput = { 0 };
+    vkrCompileOutput fragOutput = { 0 };
     memset(&g_vkr, 0, sizeof(g_vkr));
 
     if (!vkrInstance_Init(&g_vkr))
@@ -71,9 +77,6 @@ bool vkr_init(i32 width, i32 height)
         goto cleanup;
     }
 
-    char* shaderName = "first_cbuffer.hlsl";
-    char* shaderText = vkrLoadShader(shaderName);
-
     const vkrCompileInput vertInput =
     {
         .filename = shaderName,
@@ -83,24 +86,19 @@ bool vkr_init(i32 width, i32 height)
         .compile = true,
         .disassemble = true,
     };
-    vkrCompileOutput vertOutput = { 0 };
-    if (vkrCompile(&vertInput, &vertOutput))
+    vkrCompile(&vertInput, &vertOutput);
+    if (vertOutput.errors)
     {
-        if (vertOutput.errors)
-        {
-            con_logf(LogSev_Error, "Vkc", "Errors while compiling %s %s", vertInput.filename, vertInput.entrypoint);
-            con_logf(LogSev_Error, "Vkc", "%s", vertOutput.errors);
-        }
-        if (vertOutput.disassembly)
-        {
-            con_logf(LogSev_Info, "Vkc", "Dissassembly of %s %s", vertInput.filename, vertInput.entrypoint);
-            con_logf(LogSev_Info, "Vkc", "%s", vertOutput.disassembly);
-        }
-    }
-    else
-    {
+        con_logf(LogSev_Error, "Vkc", "Errors while compiling %s %s", vertInput.filename, vertInput.entrypoint);
+        con_logf(LogSev_Error, "Vkc", "%s", vertOutput.errors);
+        ASSERT(false);
         success = false;
         goto cleanup;
+    }
+    if (vertOutput.disassembly)
+    {
+        con_logf(LogSev_Info, "Vkc", "Dissassembly of %s %s", vertInput.filename, vertInput.entrypoint);
+        con_logf(LogSev_Info, "Vkc", "%s", vertOutput.disassembly);
     }
 
     const vkrCompileInput fragInput =
@@ -112,24 +110,19 @@ bool vkr_init(i32 width, i32 height)
         .compile = true,
         .disassemble = true,
     };
-    vkrCompileOutput fragOutput = { 0 };
-    if (vkrCompile(&fragInput, &fragOutput))
+    vkrCompile(&fragInput, &fragOutput);
+    if (fragOutput.errors)
     {
-        if (fragOutput.errors)
-        {
-            con_logf(LogSev_Error, "Vkc", "Errors while compiling %s %s", fragInput.filename, fragInput.entrypoint);
-            con_logf(LogSev_Error, "Vkc", "%s", fragOutput.errors);
-        }
-        if (fragOutput.disassembly)
-        {
-            con_logf(LogSev_Info, "Vkc", "Dissassembly of %s %s", fragInput.filename, fragInput.entrypoint);
-            con_logf(LogSev_Info, "Vkc", "%s", fragOutput.disassembly);
-        }
-    }
-    else
-    {
+        con_logf(LogSev_Error, "Vkc", "Errors while compiling %s %s", fragInput.filename, fragInput.entrypoint);
+        con_logf(LogSev_Error, "Vkc", "%s", fragOutput.errors);
+        ASSERT(false);
         success = false;
         goto cleanup;
+    }
+    if (fragOutput.disassembly)
+    {
+        con_logf(LogSev_Info, "Vkc", "Dissassembly of %s %s", fragInput.filename, fragInput.entrypoint);
+        con_logf(LogSev_Info, "Vkc", "%s", fragOutput.disassembly);
     }
 
     const vkrFixedFuncs ffuncs =
@@ -238,6 +231,13 @@ bool vkr_init(i32 width, i32 height)
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         },
+        {
+            // albedo texture + sampler
+            .binding = 2,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 1024,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
     };
     if (!vkrPipelineLayout_AddSet(&pipeLayout, NELEM(bindings), bindings))
     {
@@ -260,6 +260,19 @@ bool vkr_init(i32 width, i32 height)
         renderPass,
         subpass,
         NELEM(shaders), shaders))
+    {
+        success = false;
+        goto cleanup;
+    }
+
+    u32 nullColor = 0x0;
+    if (!vkrTexture2D_New(
+        &g_vkr.nullTexture,
+        1,
+        1,
+        VK_FORMAT_R8G8B8A8_SRGB,
+        &nullColor,
+        sizeof(nullColor)))
     {
         success = false;
         goto cleanup;
@@ -336,23 +349,42 @@ void vkr_update(void)
         vkrBuffer* percambuf = &g_vkr.context.percambuf;
         vkrBuffer_Reserve(perdrawbuf, sizeof(vkrPerDraw) * drawcount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, NULL, PIM_FILELINE);
         vkrBuffer_Reserve(percambuf, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, NULL, PIM_FILELINE);
-        const vkrBufferBinding bindings[] =
+        const vkrBinding bufferBindings[] =
         {
             {
-                .set = descSet,
-                .buffer = *perdrawbuf,
-                .binding = 0,
                 .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .set = descSet,
+                .binding = 0,
+                .buffer = *perdrawbuf,
             },
             {
-                .set = descSet,
-                .buffer = *percambuf,
-                .binding = 1,
                 .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .set = descSet,
+                .binding = 1,
+                .buffer = *percambuf,
             },
         };
-        // update descriptors in case of reserve changing buffer
-        vkrDesc_WriteBuffers(ctx, NELEM(bindings), bindings);
+        vkrDesc_WriteBindings(ctx, NELEM(bufferBindings), bufferBindings);
+
+        const vkrTexture2D nullTexture = g_vkr.nullTexture;
+        vkrBinding* texBindings = ms_textureBindings;
+        for (i32 i = 0; i < kTextureDescriptors; ++i)
+        {
+            texBindings[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            texBindings[i].set = descSet;
+            texBindings[i].binding = 2;
+            texBindings[i].arrayElem = i;
+            texBindings[i].texture = nullTexture;
+            if (i < drawcount)
+            {
+                texture_t texture = { 0 };
+                if (texture_get(materials[i].albedo, &texture))
+                {
+                    texBindings[i].texture = texture.vkrtex;
+                }
+            }
+        }
+        vkrDesc_WriteBindings(ctx, kTextureDescriptors, texBindings);
 
         float aspect = (float)chain->width / chain->height;
         camera_t camera;
@@ -439,6 +471,8 @@ void vkr_shutdown(void)
     if (g_vkr.inst)
     {
         vkrDevice_WaitIdle();
+
+        vkrTexture2D_Del(&g_vkr.nullTexture);
 
         mesh_sys_vkfree();
         texture_sys_vkfree();

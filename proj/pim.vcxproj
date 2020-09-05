@@ -104,6 +104,7 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_shader.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_swapchain.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_sync.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_texture.c" />
     <ClCompile Include="..\src\rendering\vulkan\vk_mem_alloc.cpp" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
     <ClCompile Include="..\src\sokol\sokol_time.c" />
@@ -271,6 +272,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_swapchain.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_sync.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_context.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_texture.h" />
     <ClInclude Include="..\src\sokol\sokol_audio.h" />
     <ClInclude Include="..\src\sokol\sokol_time.h" />
     <ClInclude Include="..\src\stb\stb_perlin_fork.h" />
@@ -356,7 +358,7 @@
     <None Include="..\src\tools\prehash.py" />
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="..\src\shaders\first_cbuffer.hlsl">
+    <FxCompile Include="..\src\shaders\brush.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
