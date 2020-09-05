@@ -173,12 +173,33 @@ void vkrCmdAlloc_Get(vkrCmdAlloc* allocator, VkCommandBuffer* cmdOut, VkFence* f
     {
         vkrCmdAlloc_Reset(allocator);
     }
+    VkCommandBuffer buffer = NULL;
+    VkFence fence = NULL;
     u32 head = allocator->head;
-    vkrCmdAlloc_Reserve(allocator, head + 1);
-    allocator->head = head + 1;
-    ASSERT(head < allocator->capacity);
-    VkCommandBuffer buffer = allocator->buffers[head];
-    VkFence fence = allocator->fences[head];
+    if (head >= 16)
+    {
+        // reuse command buffers to avoid making more
+        const VkFence* fences = allocator->fences;
+        for (u32 i = 0; i < head; ++i)
+        {
+            if (vkrFence_Stat(fences[i]) == vkrFenceState_Signalled)
+            {
+                fence = fences[i];
+                buffer = allocator->buffers[i];
+                vkrFence_Reset(fence);
+                VkCheck(vkResetCommandBuffer(buffer, 0x0));
+                break;
+            }
+        }
+    }
+    if (!buffer)
+    {
+        vkrCmdAlloc_Reserve(allocator, head + 1);
+        allocator->head = head + 1;
+        ASSERT(head < allocator->capacity);
+        buffer = allocator->buffers[head];
+        fence = allocator->fences[head];
+    }
     ASSERT(buffer);
     ASSERT(fence);
     ASSERT(cmdOut);
