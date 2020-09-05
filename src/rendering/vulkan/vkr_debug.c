@@ -40,14 +40,17 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vkrOnVulkanMessage(
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData)
 {
+    bool shouldLog = false;
     LogSev sev = LogSev_Error;
     if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
     {
         sev = LogSev_Error;
+        shouldLog = true;
     }
     else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
         sev = LogSev_Warning;
+        shouldLog = true;
     }
     else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
     {
@@ -57,14 +60,19 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vkrOnVulkanMessage(
     {
         sev = LogSev_Verbose;
     }
+    if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
+    {
+        shouldLog = true;
+    }
+    if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)
+    {
+        shouldLog = true;
+    }
 
-    bool shouldLog =
-        (sev <= LogSev_Warning) ||
-        (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT);
-
+    ASSERT(sev != LogSev_Error);
     if (shouldLog)
     {
-        con_logf(sev, "Vk", pCallbackData->pMessage);
+        con_logf(sev, "vkr", pCallbackData->pMessage);
     }
 
     return VK_FALSE;

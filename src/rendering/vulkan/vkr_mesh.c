@@ -137,7 +137,29 @@ void vkrMesh_Del(vkrMesh* mesh)
     {
         ProfileBegin(pm_meshdel);
 
-        vkrBuffer_Release(&mesh->buffer, NULL);
+        if (mesh->buffer.handle)
+        {
+            const VkBufferMemoryBarrier barrier =
+            {
+                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                .srcAccessMask = 0x0,
+                .dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .buffer = mesh->buffer.handle,
+                .offset = 0,
+                .size = VK_WHOLE_SIZE,
+            };
+            VkFence fence = vkrMem_Barrier(
+                vkrQueueId_Gfx,
+                VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                VK_PIPELINE_STAGE_HOST_BIT,
+                NULL,
+                &barrier,
+                NULL);
+            vkrBuffer_Release(&mesh->buffer, fence);
+        }
+
         memset(mesh, 0, sizeof(*mesh));
 
         ProfileEnd(pm_meshdel);

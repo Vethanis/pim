@@ -13,7 +13,6 @@ vkrFrameContext* vkrContext_Get(void)
     ProfileBegin(pm_ctxget);
     i32 tid = task_thread_id();
     u32 syncIndex = g_vkr.chain.syncIndex;
-    ASSERT(g_vkr.chain.handle);
     ASSERT(tid < g_vkr.context.threadcount);
     vkrFrameContext* ctx = &g_vkr.context.threads[tid].frames[syncIndex];
     ProfileEnd(pm_ctxget);

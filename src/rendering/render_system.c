@@ -514,6 +514,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     ShutdownPtScene();
     LightmapShutdown();
     camera_reset();
+    vkr_onunload();
 
     char mapname[PIM_PATH] = { 0 };
     SPrintf(ARGS(mapname), "maps/%s.bsp", name);
@@ -535,6 +536,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     {
         drawables_updatetransforms(drawables_get());
         drawables_updatebounds(drawables_get());
+        vkr_onload();
         con_logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
         return cmdstat_ok;
     }

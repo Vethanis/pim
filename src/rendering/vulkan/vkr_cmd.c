@@ -176,7 +176,7 @@ void vkrCmdAlloc_Get(vkrCmdAlloc* allocator, VkCommandBuffer* cmdOut, VkFence* f
     VkCommandBuffer buffer = NULL;
     VkFence fence = NULL;
     u32 head = allocator->head;
-    if (head >= 16)
+    if (head >= 8)
     {
         // reuse command buffers to avoid making more
         const VkFence* fences = allocator->fences;

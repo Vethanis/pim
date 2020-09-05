@@ -55,9 +55,18 @@ typedef enum
 bool vkrAllocator_New(vkrAllocator* allocator);
 void vkrAllocator_Del(vkrAllocator* allocator);
 void vkrAllocator_Update(vkrAllocator* allocator);
+void vkrAllocator_Finalize(vkrAllocator* allocator);
 
 void vkrReleasable_Add(vkrAllocator* allocator, const vkrReleasable* releasable);
 bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame);
+
+VkFence vkrMem_Barrier(
+    vkrQueueId id,
+    VkPipelineStageFlags srcStage,
+    VkPipelineStageFlags dstStage,
+    const VkMemoryBarrier* glob,
+    const VkBufferMemoryBarrier* buffer,
+    const VkImageMemoryBarrier* img);
 
 const VkAllocationCallbacks* vkrMem_Fns(void);
 
