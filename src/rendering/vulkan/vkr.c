@@ -133,7 +133,7 @@ bool vkr_init(i32 width, i32 height)
         .polygonMode = VK_POLYGON_MODE_FILL,
         .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .cullMode = VK_CULL_MODE_BACK_BIT,
-        .depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
         .scissorOn = false,
         .depthClamp = false,
         .depthTestEnable = true,
@@ -172,20 +172,36 @@ bool vkr_init(i32 width, i32 height)
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         },
+        {
+            .format = g_vkr.chain.depthFormat,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        },
     };
-    const VkAttachmentReference attachmentRefs[] =
+    const VkAttachmentReference colorAttachRefs[] =
     {
         {
             .attachment = 0,
             .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         },
     };
+    const VkAttachmentReference depthAttachRef =
+    {
+        .attachment = 1,
+        .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    };
     const VkSubpassDescription subpasses[] =
     {
         {
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .colorAttachmentCount = NELEM(attachmentRefs),
-            .pColorAttachments = attachmentRefs,
+            .colorAttachmentCount = NELEM(colorAttachRefs),
+            .pColorAttachments = colorAttachRefs,
+            .pDepthStencilAttachment = &depthAttachRef,
         },
     };
     const VkSubpassDependency dependencies[] =
@@ -328,9 +344,14 @@ void vkr_update(void)
     vkrAllocator_Update(&g_vkr.allocator);
     VkRect2D rect = vkrSwapchain_GetRect(chain);
     VkViewport viewport = vkrSwapchain_GetViewport(chain);
-    const VkClearValue clearValue =
+    const VkClearValue clearValues[] =
     {
-        .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+        {
+            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+        },
+        {
+            .depthStencil = { 1.0f, 0 },
+        },
     };
 
     vkrPipeline* pipeline = &g_vkr.pipeline;
@@ -438,7 +459,8 @@ void vkr_update(void)
                 pipeline->renderPass,
                 chain->buffers[imageIndex],
                 rect,
-                clearValue);
+                NELEM(clearValues),
+                clearValues);
             vkrCmdBindPipeline(cmd, pipeline);
             vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
 

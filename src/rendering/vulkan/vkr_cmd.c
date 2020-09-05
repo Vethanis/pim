@@ -257,7 +257,8 @@ void vkrCmdBeginRenderPass(
     VkRenderPass pass,
     VkFramebuffer framebuf,
     VkRect2D rect,
-    VkClearValue clearValue)
+    i32 clearCount,
+    const VkClearValue* clearValues)
 {
     ProfileBegin(pm_beginrenderpass);
     ASSERT(cmdbuf);
@@ -269,8 +270,8 @@ void vkrCmdBeginRenderPass(
         .renderPass = pass,
         .framebuffer = framebuf,
         .renderArea = rect,
-        .clearValueCount = 1,
-        .pClearValues = &clearValue,
+        .clearValueCount = clearCount,
+        .pClearValues = clearValues,
     };
     vkCmdBeginRenderPass(cmdbuf, &info, VK_SUBPASS_CONTENTS_INLINE);
     ProfileEnd(pm_beginrenderpass);

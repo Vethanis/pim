@@ -226,6 +226,8 @@ bool vkrPipeline_NewGfx(
         .depthTestEnable = fixedfuncs->depthTestEnable,
         .depthWriteEnable = fixedfuncs->depthWriteEnable,
         .depthCompareOp = fixedfuncs->depthCompareOp,
+        .minDepthBounds = 0.0f,
+        .maxDepthBounds = 1.0f,
     };
     const i32 attachCount = fixedfuncs->attachmentCount;
     VkPipelineColorBlendAttachmentState* colorBlendAttachments = tmp_calloc(sizeof(colorBlendAttachments[0]) * attachCount);
