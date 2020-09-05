@@ -4,6 +4,7 @@
 #include "rendering/vulkan/vkr_sync.h"
 #include "rendering/vulkan/vkr_device.h"
 #include "rendering/vulkan/vkr_cmd.h"
+#include "rendering/vulkan/vkr_mem.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
@@ -114,6 +115,47 @@ bool vkrSwapchain_New(
         chain->views[i] = view;
     }
 
+    {
+        const VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
+        chain->depthFormat = depthFormat;
+        const VkImageCreateInfo depthInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = depthFormat,
+            .extent.width = chain->width,
+            .extent.height = chain->height,
+            .extent.depth = 1,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        };
+        vkrImage_New(
+            &chain->depthImage,
+            &depthInfo,
+            vkrMemUsage_GpuOnly,
+            PIM_FILELINE);
+        ASSERT(chain->depthImage.handle);
+        const VkImageViewCreateInfo viewInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = chain->depthImage.handle,
+            .format = depthFormat,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+            .subresourceRange.levelCount = 1,
+            .subresourceRange.layerCount = 1,
+        };
+        VkImageView view = NULL;
+        VkCheck(vkCreateImageView(dev, &viewInfo, NULL, &view));
+        ASSERT(view);
+        chain->depthView = view;
+    }
+
     for (i32 i = 0; i < kFramesInFlight; ++i)
     {
         chain->syncFences[i] = vkrFence_New(true);
@@ -130,13 +172,19 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
     {
         VkDevice dev = g_vkr.dev;
         ASSERT(dev);
+
         vkDeviceWaitIdle(dev);
+
         for (i32 i = 0; i < kFramesInFlight; ++i)
         {
             vkrFence_Del(chain->syncFences[i]);
             vkrSemaphore_Del(chain->availableSemas[i]);
             vkrSemaphore_Del(chain->renderedSemas[i]);
         }
+
+        vkDestroyImageView(dev, chain->depthView, NULL);
+        vkrImage_Del(&chain->depthImage);
+
         {
             const i32 len = chain->length;
             for (i32 i = 0; i < len; ++i)
@@ -167,9 +215,14 @@ void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, VkRenderPass presentPass)
     const i32 len = chain->length;
     for (i32 i = 0; i < len; ++i)
     {
-        VkImageView view = chain->views[i];
+        VkImageView attachments[] =
+        {
+            chain->views[i],
+            chain->depthView,
+        };
+        ASSERT(attachments[0]);
+        ASSERT(attachments[1]);
         VkFramebuffer buffer = chain->buffers[i];
-        ASSERT(view);
         if (buffer)
         {
             vkDestroyFramebuffer(g_vkr.dev, buffer, NULL);
@@ -179,8 +232,8 @@ void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, VkRenderPass presentPass)
         {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
             .renderPass = presentPass,
-            .attachmentCount = 1,
-            .pAttachments = &view,
+            .attachmentCount = NELEM(attachments),
+            .pAttachments = attachments,
             .width = chain->width,
             .height = chain->height,
             .layers = 1,

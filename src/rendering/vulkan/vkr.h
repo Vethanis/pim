@@ -226,6 +226,7 @@ typedef struct vkrSwapchain
 {
     VkSwapchainKHR handle;
     VkFormat format;
+    VkFormat depthFormat;
     VkColorSpaceKHR colorSpace;
     VkPresentModeKHR mode;
     i32 width;
@@ -237,6 +238,8 @@ typedef struct vkrSwapchain
     VkImageView views[kMaxSwapchainLen];
     VkFramebuffer buffers[kMaxSwapchainLen];
     VkFence imageFences[kMaxSwapchainLen];
+    vkrImage depthImage;
+    VkImageView depthView;
 
     u32 syncIndex;
     VkFence syncFences[kFramesInFlight];

@@ -44,7 +44,8 @@ void vkrCmdBeginRenderPass(
     VkRenderPass pass,
     VkFramebuffer framebuf,
     VkRect2D rect,
-    VkClearValue clearValue);
+    i32 clearCount,
+    const VkClearValue* clearValues);
 void vkrCmdNextSubpass(VkCommandBuffer cmdbuf);
 void vkrCmdEndRenderPass(VkCommandBuffer cmdbuf);
 
