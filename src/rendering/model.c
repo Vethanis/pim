@@ -271,7 +271,7 @@ static float4 VEC_CALL IntToColor(i32 i, i32 count)
     return HsvToRgb(f4_v(h, 0.75f, 0.9f, 1.0f));
 }
 
-static material_t GenMaterial(const mtexture_t* mtex)
+static material_t GenMaterial(const mtexture_t* mtex, const msurface_t* surf)
 {
     material_t material = { 0 };
     material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
@@ -281,7 +281,14 @@ static material_t GenMaterial(const mtexture_t* mtex)
         return material;
     }
 
+    i32 contents = surf ? surf->contents : 0;
+    i32 flags = surf ? surf->flags : 0;
+
     material.ior = 1.0f;
+    if (flags & SURF_UNDERWATER)
+    {
+        material.flags |= matflag_underwater;
+    }
     if (StrIStr(ARGS(mtex->name), "light"))
     {
         material.flags |= matflag_emissive;
@@ -528,6 +535,13 @@ static i32 BatchSortFn(i32 lhs, i32 rhs, void* usr)
     const msurface_t* lsurf = batch->surfaces + lhs;
     const msurface_t* rsurf = batch->surfaces + rhs;
 
+    i32 lcont = lsurf->contents;
+    i32 rcont = rsurf->contents;
+    if (lcont != rcont)
+    {
+        return lcont < rcont ? -1 : 1;
+    }
+
     i32 lplane = lsurf->planenum;
     i32 rplane = rsurf->planenum;
     if (lplane != rplane)
@@ -609,6 +623,10 @@ static batch_t ModelToBatch(const mmodel_t* model)
         {
             ++curbatch;
         }
+        else if (batch.surfaces[prev].contents != batch.surfaces[cur].contents)
+        {
+            ++curbatch;
+        }
         batch.batchids[cur] = curbatch;
     }
 
@@ -642,6 +660,7 @@ void ModelToDrawables(const mmodel_t* model)
     i32* tris = NULL;
 
     const mtexture_t* batchtex = NULL;
+    const msurface_t* batchsurf = NULL;
     i32 curbatch = -1;
     mesh_t mesh = { 0 };
     for (i32 i = 0; i < batch.length; ++i)
@@ -668,7 +687,7 @@ void ModelToDrawables(const mmodel_t* model)
                 {
                     i32 c = drawables_add(dr, guid);
                     dr->meshes[c] = meshid;
-                    dr->materials[c] = GenMaterial(batchtex);
+                    dr->materials[c] = GenMaterial(batchtex, batchsurf);
                     dr->translations[c] = f4_0;
                     dr->scales[c] = f4_1;
                     dr->rotations[c] = quat_id;
@@ -682,6 +701,7 @@ void ModelToDrawables(const mmodel_t* model)
             memset(&mesh, 0, sizeof(mesh));
             curbatch = batchid;
             batchtex = mtex;
+            batchsurf = surface;
         }
 
         if ((numedges <= 0) || (firstedge < 0))
@@ -733,7 +753,7 @@ void ModelToDrawables(const mmodel_t* model)
         {
             i32 c = drawables_add(dr, guid);
             dr->meshes[c] = meshid;
-            dr->materials[c] = GenMaterial(batchtex);
+            dr->materials[c] = GenMaterial(batchtex, batchsurf);
             dr->translations[c] = f4_0;
             dr->scales[c] = f4_1;
             dr->rotations[c] = quat_id;
