@@ -14,8 +14,9 @@ typedef enum
     matflag_slime = 1 << 3,
     matflag_lava = 1 << 4,
     matflag_refractive = 1 << 5,
-    matflag_warped = 1 << 6,    // uv animated
-    matflag_animated = 1 << 7,  // keyframe animated
+    matflag_warped = 1 << 6,        // uv animated
+    matflag_animated = 1 << 7,      // keyframe animated
+    matflag_underwater = 1 << 8,    // SURF_UNDERWATER
 } matflags_t;
 
 typedef struct material_s

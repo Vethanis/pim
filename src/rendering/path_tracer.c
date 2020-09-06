@@ -1117,38 +1117,7 @@ pim_inline float4 VEC_CALL RefractBrdfEval(
     const surfhit_t* surf,
     float4 L)
 {
-    scatter_t result = { 0 };
-
-    const float kAir = 1.000277f;
-    const float matIor = surf->ior;
-
-    float4 V = f4_neg(I);
-    float4 N = surf->N;
-    float cosTheta = f4_dot3(V, N);
-    float sinTheta = sqrtf(f1_max(0.0f, 1.0f - cosTheta * cosTheta));
-    bool entering = cosTheta > 0.0f;
-    float etaI = entering ? kAir : matIor;
-    float etaT = entering ? matIor : kAir;
-    float k = etaI / etaT;
-    float F = Schlick(cosTheta, k);
-
-    float alpha = BrdfAlpha(surf->roughness);
-    float4 albedo = F_Schlick(surf->albedo, f4_1, f1_abs(cosTheta));
-    if (((k*sinTheta) > 1.0f) || (Sample1D(sampler) < F))
-    {
-        float NoL = f4_dotsat(N, L);
-        result.pdf = F * f1_lerp(1.0f, LambertPdf(NoL), alpha);
-        result.attenuation = albedo;
-    }
-    else
-    {
-        float4 NT = f4_neg(N);
-        float NoL = f4_dotsat(NT, L);
-        result.pdf = (1.0f - F) * f1_lerp(1.0f, LambertPdf(NoL), alpha);
-        result.attenuation = f4_inv(albedo);
-    }
-    result.attenuation.w = result.pdf;
-    return result.attenuation;
+    return f4_0;
 }
 
 // returns attenuation value for the given interaction
@@ -1222,51 +1191,42 @@ pim_inline scatter_t VEC_CALL RefractScatter(
 
     float4 V = f4_neg(I);
     float4 N = surf->N;
-    float cosTheta = f4_dot3(V, N);
-    float sinTheta = sqrtf(f1_max(0.0f, 1.0f - cosTheta * cosTheta));
-    bool entering = cosTheta > 0.0f;
+    float4 M = surf->M;
+    float NoV = f4_dot3(N, V);
+    float sinTheta = sqrtf(f1_max(0.0f, 1.0f - NoV * NoV));
+    bool entering = NoV > 0.0f;
     float etaI = entering ? kAir : matIor;
     float etaT = entering ? matIor : kAir;
     float k = etaI / etaT;
-    float F = Schlick(cosTheta, k);
+    float F = Schlick(NoV, k);
 
     float alpha = BrdfAlpha(surf->roughness);
-    float4 albedo = F_Schlick(surf->albedo, f4_1, f1_abs(cosTheta));
-    float4 L = SampleCosineHemisphere(Sample2D(sampler));
-    ASSERT(IsUnitLength(L));
+    float4 albedo = f4_lerpvs(surf->albedo, f4_1, 0.5f);
     if (((k*sinTheta) > 1.0f) || (Sample1D(sampler) < F))
     {
-        result.pos = surf->P;
-
-        L = TanToWorld(N, L);
-        ASSERT(IsUnitLength(L));
+        float4 L = SampleDiffuse(sampler, N);
         float4 R = f4_reflect3(I, N);
-        ASSERT(IsUnitLength(R));
         result.dir = f4_normalize3(f4_lerpvs(R, L, alpha));
-        float NoL = f4_dotsat(N, result.dir);
+        float NoL = f1_abs(f4_dot3(N, result.dir));
+        NoL = f1_max(NoL, kEpsilon);
         result.pdf = F * f1_lerp(1.0f, LambertPdf(NoL), alpha);
-        result.attenuation = albedo;
+        result.attenuation = f4_mulvs(albedo, F);
+        result.attenuation = f4_divvs(result.attenuation, NoL);
     }
     else
     {
-        // quake + embree has z fighting on animated surfaces from two planes
-        // with opposing normals.
-        // P already has 1mm toward M
-        // each plane is offset 0.5mm toward their normal
-        // we want to be 1mm past far plane
-        // thus, 3mm
-        result.pos = f4_add(surf->P, f4_mulvs(surf->M, -3.0f * kMilli));
-
-        float4 NT = f4_neg(N);
-        L = TanToWorld(NT, L);
-        ASSERT(IsUnitLength(L));
+        float4 L = SampleDiffuse(sampler, N);
         float4 R = f4_refract3(I, N, k);
-        ASSERT(IsUnitLength(R));
         result.dir = f4_normalize3(f4_lerpvs(R, L, alpha));
-        float NoL = f4_dotsat(NT, result.dir);
+        float NoL = f1_abs(f4_dot3(N, result.dir));
+        NoL = f1_max(NoL, kEpsilon);
         result.pdf = (1.0f - F) * f1_lerp(1.0f, LambertPdf(NoL), alpha);
-        result.attenuation = f4_inv(albedo);
+        result.attenuation = f4_mulvs(albedo, 1.0f - F);
+        result.attenuation = f4_divvs(result.attenuation, NoL);
     }
+    result.attenuation = f4_saturate(result.attenuation);
+    float s = f1_sign(f4_dot3(M, result.dir));
+    result.pos = f4_add(surf->P, f4_mulvs(M, kMilli * 3.0f * s));
     return result;
 }
 
@@ -1936,7 +1896,7 @@ pt_result_t VEC_CALL pt_trace_ray(
     float4 light = f4_0;
     float4 attenuation = f4_1;
     const float amtNee = f1_sat(cv_pt_nee.asFloat);
-    bool useNEE = Sample1D(sampler) < amtNee;
+    bool neeTrace = Sample1D(sampler) < amtNee;
 
     for (i32 b = 0; b < 666; ++b)
     {
@@ -1954,6 +1914,7 @@ pt_result_t VEC_CALL pt_trace_ray(
                 if (b == 0)
                 {
                     result.albedo = f4_f3(Media_Albedo(&scene->mediaDesc, scatter.pos));
+                    result.normal = f4_f3(f4_neg(ray.rd));
                 }
                 attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
                 ray.ro = scatter.pos;
@@ -1978,17 +1939,19 @@ pt_result_t VEC_CALL pt_trace_ray(
             result.albedo = f4_f3(surf.albedo);
             result.normal = f4_f3(surf.N);
         }
+
+        bool neeBounce = neeTrace;
         // next event estimation is a bit wonky with refraction
-        if (surf.flags & matflag_refractive)
+        if (surf.flags & (matflag_refractive | matflag_underwater))
         {
-            useNEE = false;
+            neeBounce = false;
         }
 
-        if ((b == 0) || !useNEE)
+        if ((b == 0) || !neeBounce)
         {
             light = f4_add(light, f4_mul(surf.emission, attenuation));
         }
-        if (useNEE)
+        if (neeBounce)
         {
             float4 direct = SampleLights(sampler, scene, &surf, &hit, ray.rd);
             light = f4_add(light, f4_mul(direct, attenuation));

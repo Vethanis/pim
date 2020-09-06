@@ -809,18 +809,18 @@ static void LoadTree(
 
             if (nummarksurfaces > 0)
             {
-                if ((dstLeaf.c.contents == CONTENTS_WATER) ||
-                    (dstLeaf.c.contents == CONTENTS_SLIME))
+                bool underwater =
+                    (dstLeaf.c.contents == CONTENTS_WATER) ||
+                    (dstLeaf.c.contents == CONTENTS_SLIME);
+                i32 first = i1_clamp(srcLeaf.firstmarksurface, 0, nummarksurfaces - 1);
+                i32 num = i1_clamp(srcLeaf.nummarksurfaces, 0, nummarksurfaces - first);
+                for (i32 j = 0; j < num; ++j)
                 {
-                    i32 first = i1_clamp(srcLeaf.firstmarksurface, 0, nummarksurfaces - 1);
-                    i32 num = i1_clamp(srcLeaf.nummarksurfaces, 0, nummarksurfaces - first);
-                    for (i32 j = 0; j < num; ++j)
+                    msurface_t* mark = marksurfaces[first + j];
+                    if (mark)
                     {
-                        msurface_t* mark = marksurfaces[first + j];
-                        if (mark)
-                        {
-                            mark->flags |= SURF_UNDERWATER;
-                        }
+                        mark->flags |= underwater ? SURF_UNDERWATER : 0;
+                        mark->contents = dstLeaf.c.contents;
                     }
                 }
             }

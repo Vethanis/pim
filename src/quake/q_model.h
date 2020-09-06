@@ -112,6 +112,7 @@ typedef struct
     i32 texturemins[2];
     i32 extents[2];
     i32 flags;
+    i32 contents;
 } msurface_t;
 
 typedef struct efrag_s
