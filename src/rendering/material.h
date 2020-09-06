@@ -17,17 +17,18 @@ typedef enum
     matflag_warped = 1 << 6,        // uv animated
     matflag_animated = 1 << 7,      // keyframe animated
     matflag_underwater = 1 << 8,    // SURF_UNDERWATER
-} matflags_t;
+} matflagbits_t;
+typedef u32 matflag_t;
 
 typedef struct material_s
 {
-    float4 st;              // uv scale and translation
-    u32 flatAlbedo;         // rgba8 srgb (albedo, alpha)
-    u32 flatRome;           // rgba8 srgb (roughness, occlusion, metallic, emission)
+    float4 st;              // uv0 scale and translation
+    float4 flatAlbedo;      // albedo multiplier
+    float4 flatRome;        // rome multiplier
     textureid_t albedo;     // rgba8 srgb (albedo, alpha)
     textureid_t rome;       // rgba8 srgb (roughness, occlusion, metallic, emission)
     textureid_t normal;     // rgba8 (tangent space xyz, packed as unorm)
-    u32 flags;
+    matflag_t flags;
     float ior;              // index of refraction
 } material_t;
 
@@ -37,9 +38,9 @@ typedef struct dmaterial_s
     dtextureid_t albedo;
     dtextureid_t rome;
     dtextureid_t normal;
-    u32 flatAlbedo;
-    u32 flatRome;
-    u32 flags;
+    float4 flatAlbedo;
+    float4 flatRome;
+    matflag_t flags;
     float ior;
 } dmaterial_t;
 

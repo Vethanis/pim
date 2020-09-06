@@ -702,25 +702,29 @@ pim_inline float4 VEC_CALL f4_step(float4 a, float4 b)
     return f4_selectsv(0.0f, 1.0f, f4_gteq(a, b));
 }
 
+// assumes x is already within [0, 1] range
+pim_inline float4 VEC_CALL f4_unormstep(float4 t)
+{
+    float4 s = f4_subsv(3.0f, f4_mulvs(t, 2.0f));
+    return f4_mul(f4_mul(t, t), s);
+}
+
 pim_inline float4 VEC_CALL f4_smoothstep(float4 a, float4 b, float4 x)
 {
     float4 t = f4_saturate(f4_div(f4_sub(x, a), f4_sub(b, a)));
-    float4 s = f4_subsv(3.0f, f4_mulvs(t, 2.0f));
-    return f4_mul(f4_mul(t, t), s);
+    return f4_unormstep(t);
 }
 
 pim_inline float4 VEC_CALL f4_smoothstepvs(float4 a, float4 b, float x)
 {
     float4 t = f4_saturate(f4_div(f4_subsv(x, a), f4_sub(b, a)));
-    float4 s = f4_subsv(3.0f, f4_mulvs(t, 2.0f));
-    return f4_mul(f4_mul(t, t), s);
+    return f4_unormstep(t);
 }
 
 pim_inline float4 VEC_CALL f4_smoothstepsv(float a, float b, float4 x)
 {
     float4 t = f4_saturate(f4_divvs(f4_subvs(x, a), b - a));
-    float4 s = f4_subsv(3.0f, f4_mulvs(t, 2.0f));
-    return f4_mul(f4_mul(t, t), s);
+    return f4_unormstep(t);
 }
 
 pim_inline float4 VEC_CALL f4_reflect(float4 i, float4 n)

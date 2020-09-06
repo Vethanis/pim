@@ -8,6 +8,7 @@
 #include "math/color.h"
 #include "math/sdf.h"
 #include "math/sampling.h"
+#include "math/blending.h"
 #include "rendering/texture.h"
 #include "rendering/mesh.h"
 #include "rendering/material.h"
@@ -275,119 +276,118 @@ static material_t GenMaterial(const mtexture_t* mtex, const msurface_t* surf)
 {
     material_t material = { 0 };
     material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
-
-    if (!mtex)
-    {
-        return material;
-    }
-
-    i32 contents = surf ? surf->contents : 0;
-    i32 flags = surf ? surf->flags : 0;
-
+    material.flatAlbedo = f4_1;
     material.ior = 1.0f;
-    if (flags & SURF_UNDERWATER)
-    {
-        material.flags |= matflag_underwater;
-    }
-    if (StrIStr(ARGS(mtex->name), "light"))
-    {
-        material.flags |= matflag_emissive;
-    }
-    if (StrIStr(ARGS(mtex->name), "sky"))
-    {
-        material.flags |= matflag_sky;
-        material.flags |= matflag_emissive;
-    }
-    if (StrIStr(ARGS(mtex->name), "lava"))
-    {
-        material.flags |= matflag_lava;
-        material.flags |= matflag_emissive;
-        material.flags |= matflag_animated;
-    }
-    if (StrIStr(ARGS(mtex->name), "water"))
-    {
-        material.ior = 1.333f;
-        material.flags |= matflag_water;
-        material.flags |= matflag_refractive;
-    }
-    if (StrIStr(ARGS(mtex->name), "slime"))
-    {
-        material.ior = 1.4394f;
-        material.flags |= matflag_slime;
-        material.flags |= matflag_refractive;
-    }
-    if (StrIStr(ARGS(mtex->name), "teleport"))
-    {
-        material.flags |= matflag_emissive;
-    }
-    if (StrIStr(ARGS(mtex->name), "window"))
-    {
-        material.ior = 1.52f;
-        material.flags |= matflag_refractive;
-        material.flags |= matflag_emissive;
-    }
-    if (mtex->name[0] == '*')
-    {
-        // uv animated
-        material.flags |= matflag_warped;
-    }
-    if (mtex->name[0] == '+')
-    {
-        // keyframe animated
-        material.flags |= matflag_animated;
-    }
-
-    const u8* pim_noalias mip0 = (u8*)mtex + mtex->offsets[0];
-    ASSERT(mtex->offsets[0] == sizeof(mtexture_t));
-    const int2 size = i2_v(mtex->width, mtex->height);
-    const i32 texelCount = size.x * size.y;
-
-    if (!(material.flags & matflag_emissive))
-    {
-        for (i32 i = 0; i < texelCount; ++i)
-        {
-            // 224: fire
-            // 240: brights
-            if (mip0[i] >= 224)
-            {
-                material.flags |= matflag_emissive;
-                break;
-            }
-        }
-    }
 
     float roughness = 0.5f;
     float occlusion = 1.0f;
     float metallic = 0.0f;
     float emission = 0.0f;
 
-    i32 iPreset = FindPreset(mtex->name);
-    if (iPreset != -1)
+    if (mtex)
     {
-        roughness = ms_matPresets[iPreset].roughness;
-        occlusion = ms_matPresets[iPreset].occlusion;
-        metallic = ms_matPresets[iPreset].metallic;
-        emission = ms_matPresets[iPreset].emission;
+        i32 contents = surf ? surf->contents : 0;
+        i32 flags = surf ? surf->flags : 0;
+
+        i32 iPreset = FindPreset(mtex->name);
+        if (iPreset != -1)
+        {
+            roughness = ms_matPresets[iPreset].roughness;
+            occlusion = ms_matPresets[iPreset].occlusion;
+            metallic = ms_matPresets[iPreset].metallic;
+            emission = ms_matPresets[iPreset].emission;
+        }
+
+        if (flags & SURF_UNDERWATER)
+        {
+            material.flags |= matflag_underwater;
+        }
+        if (StrIStr(ARGS(mtex->name), "light"))
+        {
+            material.flags |= matflag_emissive;
+        }
+        if (StrIStr(ARGS(mtex->name), "sky"))
+        {
+            material.flags |= matflag_sky;
+            material.flags |= matflag_emissive;
+        }
+        if (StrIStr(ARGS(mtex->name), "lava"))
+        {
+            material.flags |= matflag_lava;
+            material.flags |= matflag_emissive;
+        }
+        if (StrIStr(ARGS(mtex->name), "slime"))
+        {
+            material.ior = 1.4394f;
+            material.flags |= matflag_slime;
+            material.flags |= matflag_refractive;
+        }
+        if (StrIStr(ARGS(mtex->name), "water"))
+        {
+            material.ior = 1.333f;
+            material.flags |= matflag_water;
+            material.flags |= matflag_refractive;
+        }
+        if (StrIStr(ARGS(mtex->name), "window"))
+        {
+            material.ior = 1.52f;
+            material.flags |= matflag_refractive;
+            material.flags |= matflag_emissive;
+        }
+        if (StrIStr(ARGS(mtex->name), "teleport"))
+        {
+            material.flags |= matflag_emissive;
+        }
+        if (mtex->name[0] == '*')
+        {
+            // uv animated
+            material.flags |= matflag_warped;
+        }
+        if (mtex->name[0] == '+')
+        {
+            // keyframe animated
+            material.flags |= matflag_animated;
+        }
+
+        const u8* pim_noalias mip0 = (u8*)mtex + mtex->offsets[0];
+        ASSERT(mtex->offsets[0] == sizeof(mtexture_t));
+        const int2 size = i2_v(mtex->width, mtex->height);
+        const i32 texelCount = size.x * size.y;
+
+        if (!(material.flags & matflag_emissive))
+        {
+            for (i32 i = 0; i < texelCount; ++i)
+            {
+                // 224: fire
+                // 240: brights
+                if (mip0[i] >= 224)
+                {
+                    material.flags |= matflag_emissive;
+                    break;
+                }
+            }
+        }
+
+        if (emission > 0.0f)
+        {
+            material.flags |= matflag_emissive;
+        }
+        if ((emission == 0.0f) && (material.flags & matflag_emissive))
+        {
+            emission = 0.5f;
+        }
+
+        texture_unpalette(
+            mip0,
+            size,
+            mtex->name,
+            material.flags,
+            &material.albedo,
+            &material.rome,
+            &material.normal);
     }
 
-    if (emission > 0.0f)
-    {
-        material.flags |= matflag_emissive;
-    }
-    if ((emission == 0.0f) && (material.flags & matflag_emissive))
-    {
-        emission = 0.5f;
-    }
-
-    material.flatAlbedo = LinearToColor(f4_1);
-    material.flatRome = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
-    texture_unpalette(
-        mip0,
-        size,
-        mtex->name,
-        &material.albedo,
-        &material.rome,
-        &material.normal);
+    material.flatRome = f4_v(roughness, occlusion, metallic, emission);
 
     return material;
 }

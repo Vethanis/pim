@@ -4,6 +4,7 @@
 #include "math/color.h"
 #include "math/blending.h"
 #include "rendering/sampler.h"
+#include "rendering/material.h"
 #include "assets/asset_system.h"
 #include "quake/q_bspfile.h"
 #include "stb/stb_image.h"
@@ -45,7 +46,10 @@ static bool IsCurrent(textureid_t id)
 static void FreeTexture(texture_t* tex)
 {
     pim_free(tex->texels);
-    vkrTexture2D_Del(&tex->vkrtex);
+    if (g_vkr.inst)
+    {
+        vkrTexture2D_Del(&tex->vkrtex);
+    }
     memset(tex, 0, sizeof(*tex));
 }
 
@@ -139,18 +143,18 @@ bool texture_new(texture_t* tex, VkFormat format, guid_t name, textureid_t* idOu
             i32 height = tex->size.y;
             i32 bytes = sizeof(tex->texels[0]) * width * height;
             ASSERT(bytes > 0);
-            added = vkrTexture2D_New(
-                &tex->vkrtex,
-                width,
-                height,
-                format,
-                tex->texels,
-                bytes);
-            ASSERT(added);
-            if (added)
+            if (g_vkr.inst)
             {
-                added = table_add(&ms_table, name, tex, &id);
+                added = vkrTexture2D_New(
+                    &tex->vkrtex,
+                    width,
+                    height,
+                    format,
+                    tex->texels,
+                    bytes);
+                ASSERT(added);
             }
+            added = table_add(&ms_table, name, tex, &id);
             ASSERT(added);
         }
     }
@@ -363,6 +367,7 @@ typedef struct task_Unpalette
     u32* rome;
     u32* normal;
     float2* gray;
+    matflag_t flags;
     bool fullEmit;
     bool isLight;
 } task_Unpalette;
@@ -370,6 +375,7 @@ typedef struct task_Unpalette
 static void UnpaletteStep1Fn(task_t* pbase, i32 begin, i32 end)
 {
     task_Unpalette* task = (task_Unpalette*)pbase;
+    const matflag_t flags = task->flags;
     const u8* pim_noalias bytes = task->bytes;
     u32* pim_noalias albedo = task->albedo;
     float2* pim_noalias gray = task->gray;
@@ -463,6 +469,7 @@ bool texture_unpalette(
     const u8* bytes,
     int2 size,
     const char* name,
+    u32 matflags,
     textureid_t* albedoOut,
     textureid_t* romeOut,
     textureid_t* normalOut)
@@ -520,6 +527,7 @@ bool texture_unpalette(
         task_Unpalette* task = tmp_calloc(sizeof(*task));
         task->albedo = albedo;
         task->bytes = bytes;
+        task->flags = matflags;
         task->fullEmit = fullEmit;
         task->gray = gray;
         task->isLight = isLight;

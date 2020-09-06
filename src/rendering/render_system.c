@@ -1044,11 +1044,11 @@ static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up
     dr->scales[i] = f4_s(scale);
     dr->rotations[i] = quat_lookat(forward, up);
 
-    material_t mat = (material_t)
+    material_t mat =
     {
         .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
-            .flatAlbedo = LinearToColor(albedo),
-            .flatRome = LinearToColor(rome),
+        .flatAlbedo = albedo,
+        .flatRome = rome,
     };
     dr->materials[i] = mat;
 
@@ -1072,11 +1072,11 @@ static i32 CreateSphere(const char* name, float4 center, float radius, float4 al
     dr->scales[i] = f4_s(radius);
     dr->rotations[i] = quat_id;
 
-    material_t mat = (material_t)
+    material_t mat =
     {
         .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
-            .flatAlbedo = LinearToColor(albedo),
-            .flatRome = LinearToColor(rome),
+        .flatAlbedo = albedo,
+        .flatRome = rome,
     };
     dr->materials[i] = mat;
 

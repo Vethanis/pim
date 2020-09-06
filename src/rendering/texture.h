@@ -67,6 +67,7 @@ bool texture_unpalette(
     const u8* bytes,
     int2 size,
     const char* name,
+    u32 matflags,
     textureid_t* albedoOut,
     textureid_t* romeOut,
     textureid_t* normalOut);

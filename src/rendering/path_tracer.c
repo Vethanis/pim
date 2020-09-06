@@ -584,7 +584,7 @@ static float EmissionPdf(
     }
 
     const float kThreshold = 0.01f;
-    float4 rome = ColorToLinear(mat->flatRome);
+    float4 rome = mat->flatRome;
     if (rome.w > kThreshold)
     {
         texture_t romeMap = { 0 };
@@ -999,14 +999,14 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         surf.N = TanToWorld(surf.N, Nts);
     }
 
-    surf.albedo = ColorToLinear(mat->flatAlbedo);
+    surf.albedo = mat->flatAlbedo;
     if (texture_get(mat->albedo, &tex))
     {
         float4 sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
         surf.albedo = f4_mul(surf.albedo, sample);
     }
 
-    float4 rome = ColorToLinear(mat->flatRome);
+    float4 rome = mat->flatRome;
     if (texture_get(mat->rome, &tex))
     {
         float4 sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
@@ -1184,8 +1184,6 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     const surfhit_t* surf,
     float4 I)
 {
-    scatter_t result = { 0 };
-
     const float kAir = 1.000277f;
     const float matIor = surf->ior;
 
@@ -1200,33 +1198,40 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     float k = etaI / etaT;
     float F = Schlick(NoV, k);
 
-    float alpha = BrdfAlpha(surf->roughness);
-    float4 albedo = f4_lerpvs(surf->albedo, f4_1, 0.5f);
+    float4 R;
     if (((k*sinTheta) > 1.0f) || (Sample1D(sampler) < F))
     {
-        float4 L = SampleDiffuse(sampler, N);
-        float4 R = f4_reflect3(I, N);
-        result.dir = f4_normalize3(f4_lerpvs(R, L, alpha));
-        float NoL = f1_abs(f4_dot3(N, result.dir));
-        NoL = f1_max(NoL, kEpsilon);
-        result.pdf = F * f1_lerp(1.0f, LambertPdf(NoL), alpha);
-        result.attenuation = f4_mulvs(albedo, F);
-        result.attenuation = f4_divvs(result.attenuation, NoL);
+        R = f4_reflect3(I, N);
     }
     else
     {
-        float4 L = SampleDiffuse(sampler, N);
-        float4 R = f4_refract3(I, N, k);
-        result.dir = f4_normalize3(f4_lerpvs(R, L, alpha));
-        float NoL = f1_abs(f4_dot3(N, result.dir));
-        NoL = f1_max(NoL, kEpsilon);
-        result.pdf = (1.0f - F) * f1_lerp(1.0f, LambertPdf(NoL), alpha);
-        result.attenuation = f4_mulvs(albedo, 1.0f - F);
-        result.attenuation = f4_divvs(result.attenuation, NoL);
+        R = f4_refract3(I, N, k);
+        F = 1.0f - F;
     }
-    result.attenuation = f4_saturate(result.attenuation);
-    float s = f1_sign(f4_dot3(M, result.dir));
-    result.pos = f4_add(surf->P, f4_mulvs(M, kMilli * 3.0f * s));
+
+    bool above = f4_dot3(R, M) > 0.0f;
+    float4 N2 = above ? N : f4_neg(N);
+    float4 P = above ? surf->P : f4_add(surf->P, f4_mulvs(M, -3.0f * kMilli));
+    float4 L = SampleDiffuse(sampler, N2);
+    float alpha = BrdfAlpha(surf->roughness);
+    L = f4_normalize3(f4_lerpvs(R, L, alpha));
+    float NoL = f1_max(f1_abs(f4_dot3(N, L)), kEpsilon);
+    float pdf = F * f1_lerp(1.0f, LambertPdf(NoL), alpha);
+
+
+    float4 albedo = surf->albedo;
+    float hi = f4_hmax3(albedo) + kEpsilon;
+    float4 norm = f4_mulvs(albedo, 1.0f / hi);
+    albedo = f4_lerpvs(f4_s(0.5f), norm, 0.5f);
+
+    float4 att = f4_saturate(f4_mulvs(albedo, F / NoL));
+
+    scatter_t result = { 0 };
+    result.pos = P;
+    result.dir = L;
+    result.pdf = pdf;
+    result.attenuation = att;
+
     return result;
 }
 

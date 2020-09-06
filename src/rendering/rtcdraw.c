@@ -648,13 +648,13 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
         const float4 uv01 = f4_blend(mesh.uvs[a], mesh.uvs[b], mesh.uvs[c], hit.wuvt);
         const float2 uv = f2_v(uv01.x, uv01.y);
 
-        float4 albedo = ColorToLinear(material.flatAlbedo);
+        float4 albedo = material.flatAlbedo;
         texture_t tex;
         if (texture_get(material.albedo, &tex))
         {
             albedo = f4_mul(albedo, UvBilinearWrap_c32(tex.texels, tex.size, uv));
         }
-        float4 rome = ColorToLinear(material.flatRome);
+        float4 rome = material.flatRome;
         if (texture_get(material.rome, &tex))
         {
             rome = f4_mul(rome, UvBilinearWrap_c32(tex.texels, tex.size, uv));
