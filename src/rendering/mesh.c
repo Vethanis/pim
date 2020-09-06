@@ -42,7 +42,10 @@ static void FreeMesh(mesh_t* mesh)
     pim_free(mesh->positions);
     pim_free(mesh->normals);
     pim_free(mesh->uvs);
-    vkrMesh_Del(&mesh->vkrmesh);
+    if (g_vkr.inst)
+    {
+        vkrMesh_Del(&mesh->vkrmesh);
+    }
     memset(mesh, 0, sizeof(*mesh));
 }
 
@@ -96,12 +99,12 @@ bool mesh_new(mesh_t* mesh, guid_t name, meshid_t* idOut)
     genid id = { 0, 0 };
     if (mesh->length > 0)
     {
-        added = vkrMesh_New(&mesh->vkrmesh, mesh->length, mesh->positions, mesh->normals, mesh->uvs, 0, NULL);
-        ASSERT(added);
-        if (added)
+        if (g_vkr.inst)
         {
-            added = table_add(&ms_table, name, mesh, &id);
+            added = vkrMesh_New(&mesh->vkrmesh, mesh->length, mesh->positions, mesh->normals, mesh->uvs, 0, NULL);
+            ASSERT(added);
         }
+        added = table_add(&ms_table, name, mesh, &id);
         ASSERT(added);
     }
     if (!added)
