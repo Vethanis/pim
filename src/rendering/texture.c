@@ -524,22 +524,25 @@ bool texture_unpalette(
         u32* pim_noalias normal = perm_malloc(len * sizeof(normal[0]));
         float2* pim_noalias gray = perm_malloc(len * sizeof(gray[0]));
 
-        task_Unpalette* task = tmp_calloc(sizeof(*task));
-        task->albedo = albedo;
-        task->bytes = bytes;
-        task->flags = matflags;
-        task->fullEmit = fullEmit;
-        task->gray = gray;
-        task->isLight = isLight;
-        task->max = f2_0;
-        task->min = f2_1;
-        task->normal = normal;
-        task->rome = rome;
-        task->size = size;
+        task_Unpalette* tasks = tmp_calloc(sizeof(tasks[0]) * 3);
+        tasks[0].albedo = albedo;
+        tasks[0].bytes = bytes;
+        tasks[0].flags = matflags;
+        tasks[0].fullEmit = fullEmit;
+        tasks[0].gray = gray;
+        tasks[0].isLight = isLight;
+        tasks[0].max = f2_0;
+        tasks[0].min = f2_1;
+        tasks[0].normal = normal;
+        tasks[0].rome = rome;
+        tasks[0].size = size;
 
-        task_run(&task->task, UnpaletteStep1Fn, len);
-        UnpaletteStep2Fn(&task->task);
-        task_run(&task->task, UnpaletteStep3Fn, len);
+        // cannot reuse same task across invocations, the signalling state gets corrupted
+        task_run(&tasks[0].task, UnpaletteStep1Fn, len);
+        tasks[1] = tasks[0];
+        UnpaletteStep2Fn(&tasks[1].task);
+        tasks[2] = tasks[1];
+        task_run(&tasks[2].task, UnpaletteStep3Fn, len);
 
         pim_free(gray);
         gray = NULL;
