@@ -68,7 +68,7 @@ void vkrPipelineLayout_Del(vkrPipelineLayout* layout)
     {
         if (layout->handle)
         {
-            vkDestroyPipelineLayout(g_vkr.dev, layout->handle, NULL);
+            vkDestroyPipelineLayout(g_vkr.dev, layout->handle, g_vkr.alloccb);
         }
         const i32 setCount = layout->setCount;
         VkDescriptorSetLayout* sets = layout->sets;
@@ -77,7 +77,7 @@ void vkrPipelineLayout_Del(vkrPipelineLayout* layout)
             VkDescriptorSetLayout set = sets[i];
             if (set)
             {
-                vkDestroyDescriptorSetLayout(g_vkr.dev, set, NULL);
+                vkDestroyDescriptorSetLayout(g_vkr.dev, set, g_vkr.alloccb);
             }
         }
         pim_free(layout->sets);
@@ -102,7 +102,7 @@ bool vkrPipelineLayout_AddSet(
         .bindingCount = bindingCount,
         .pBindings = pBindings,
     };
-    VkCheck(vkCreateDescriptorSetLayout(g_vkr.dev, &createInfo, NULL, &set));
+    VkCheck(vkCreateDescriptorSetLayout(g_vkr.dev, &createInfo, g_vkr.alloccb, &set));
     ASSERT(set);
     if (set)
     {
@@ -140,7 +140,7 @@ bool vkrPipelineLayout_Compile(vkrPipelineLayout* desc)
         .pPushConstantRanges = desc->ranges,
     };
     VkPipelineLayout handle = NULL;
-    VkCheck(vkCreatePipelineLayout(g_vkr.dev, &createInfo, NULL, &handle));
+    VkCheck(vkCreatePipelineLayout(g_vkr.dev, &createInfo, g_vkr.alloccb, &handle));
     ASSERT(handle);
     desc->handle = handle;
     return handle != NULL;
@@ -284,7 +284,7 @@ bool vkrPipeline_NewGfx(
     };
 
     VkPipeline handle = NULL;
-    VkCheck(vkCreateGraphicsPipelines(g_vkr.dev, NULL, 1, &pipelineInfo, NULL, &handle));
+    VkCheck(vkCreateGraphicsPipelines(g_vkr.dev, NULL, 1, &pipelineInfo, g_vkr.alloccb, &handle));
     ASSERT(handle);
     if (handle)
     {
@@ -305,7 +305,7 @@ void vkrPipeline_Del(vkrPipeline* pipeline)
     {
         if (pipeline->handle)
         {
-            vkDestroyPipeline(g_vkr.dev, pipeline->handle, NULL);
+            vkDestroyPipeline(g_vkr.dev, pipeline->handle, g_vkr.alloccb);
         }
         vkrRenderPass_Del(pipeline->renderPass);
         vkrPipelineLayout_Del(&pipeline->layout);

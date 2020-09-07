@@ -100,7 +100,7 @@ bool vkrTexture2D_New(
         .subresourceRange.levelCount = mipCount,
         .subresourceRange.layerCount = 1,
     };
-    VkCheck(vkCreateImageView(g_vkr.dev, &viewInfo, NULL, &tex->view));
+    VkCheck(vkCreateImageView(g_vkr.dev, &viewInfo, g_vkr.alloccb, &tex->view));
     ASSERT(tex->view);
     if (!tex->view)
     {
@@ -125,7 +125,7 @@ bool vkrTexture2D_New(
         .maxLod = (float)mipCount,
         .mipLodBias = 0.0f,
     };
-    VkCheck(vkCreateSampler(g_vkr.dev, &samplerInfo, NULL, &tex->sampler));
+    VkCheck(vkCreateSampler(g_vkr.dev, &samplerInfo, g_vkr.alloccb, &tex->sampler));
     ASSERT(tex->sampler);
     if (!tex->sampler)
     {

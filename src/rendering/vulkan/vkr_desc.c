@@ -19,7 +19,7 @@ VkDescriptorPool vkrDescPool_New(
         .pPoolSizes = sizes,
     };
     VkDescriptorPool handle = NULL;
-    VkCheck(vkCreateDescriptorPool(g_vkr.dev, &poolInfo, NULL, &handle));
+    VkCheck(vkCreateDescriptorPool(g_vkr.dev, &poolInfo, g_vkr.alloccb, &handle));
     ASSERT(handle);
     return handle;
 }
@@ -28,7 +28,7 @@ void vkrDescPool_Del(VkDescriptorPool pool)
 {
     if (pool)
     {
-        vkDestroyDescriptorPool(g_vkr.dev, pool, NULL);
+        vkDestroyDescriptorPool(g_vkr.dev, pool, g_vkr.alloccb);
     }
 }
 

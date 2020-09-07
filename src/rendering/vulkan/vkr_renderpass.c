@@ -21,7 +21,7 @@ VkRenderPass vkrRenderPass_New(
         .pDependencies = pDependencies,
     };
     VkRenderPass handle = NULL;
-    VkCheck(vkCreateRenderPass(g_vkr.dev, &createInfo, NULL, &handle));
+    VkCheck(vkCreateRenderPass(g_vkr.dev, &createInfo, g_vkr.alloccb, &handle));
     ASSERT(handle);
     return handle;
 }
@@ -30,6 +30,6 @@ void vkrRenderPass_Del(VkRenderPass pass)
 {
     if (pass)
     {
-        vkDestroyRenderPass(g_vkr.dev, pass, NULL);
+        vkDestroyRenderPass(g_vkr.dev, pass, g_vkr.alloccb);
     }
 }

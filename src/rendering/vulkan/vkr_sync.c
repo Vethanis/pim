@@ -13,7 +13,7 @@ VkSemaphore vkrSemaphore_New(void)
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     };
     VkSemaphore handle = NULL;
-    VkCheck(vkCreateSemaphore(g_vkr.dev, &info, NULL, &handle));
+    VkCheck(vkCreateSemaphore(g_vkr.dev, &info, g_vkr.alloccb, &handle));
     ASSERT(handle);
     ProfileEnd(pm_createsema);
     return handle;
@@ -26,7 +26,7 @@ void vkrSemaphore_Del(VkSemaphore sema)
     if (sema)
     {
         ProfileBegin(pm_destroysema);
-        vkDestroySemaphore(g_vkr.dev, sema, NULL);
+        vkDestroySemaphore(g_vkr.dev, sema, g_vkr.alloccb);
         ProfileEnd(pm_destroysema);
     }
 }
@@ -42,7 +42,7 @@ VkFence vkrFence_New(bool signalled)
         .flags = signalled ? VK_FENCE_CREATE_SIGNALED_BIT : 0,
     };
     VkFence handle = NULL;
-    VkCheck(vkCreateFence(g_vkr.dev, &info, NULL, &handle));
+    VkCheck(vkCreateFence(g_vkr.dev, &info, g_vkr.alloccb, &handle));
     ASSERT(handle);
     ProfileEnd(pm_createfence);
     return handle;
@@ -55,19 +55,16 @@ void vkrFence_Del(VkFence fence)
     if (fence)
     {
         ProfileBegin(pm_destroyfence);
-        vkDestroyFence(g_vkr.dev, fence, NULL);
+        vkDestroyFence(g_vkr.dev, fence, g_vkr.alloccb);
         ProfileEnd(pm_destroyfence);
     }
 }
 
-ProfileMark(pm_resetfence, vkrFence_Reset)
 void vkrFence_Reset(VkFence fence)
 {
-    ProfileBegin(pm_resetfence);
     ASSERT(g_vkr.dev);
     ASSERT(fence);
     VkCheck(vkResetFences(g_vkr.dev, 1, &fence));
-    ProfileEnd(pm_resetfence);
 }
 
 ProfileMark(pm_waitfence, vkrFence_Wait)
@@ -81,13 +78,10 @@ void vkrFence_Wait(VkFence fence)
     ProfileEnd(pm_waitfence);
 }
 
-ProfileMark(pm_statfence, vkrFence_Stat)
 vkrFenceState vkrFence_Stat(VkFence fence)
 {
-    ProfileBegin(pm_statfence);
     ASSERT(g_vkr.dev);
     ASSERT(fence);
     vkrFenceState state = vkGetFenceStatus(g_vkr.dev, fence);
-    ProfileEnd(pm_statfence);
     return state;
 }

@@ -14,7 +14,7 @@ static VkShaderModule vkrCreateShaderModule(const u32* dwords, i32 dwordCount)
             .pCode = dwords,
             .codeSize = sizeof(dwords[0]) * dwordCount,
         };
-        VkCheck(vkCreateShaderModule(g_vkr.dev, &info, NULL, &mod));
+        VkCheck(vkCreateShaderModule(g_vkr.dev, &info, g_vkr.alloccb, &mod));
     }
     return mod;
 }
@@ -24,7 +24,7 @@ static void vkrDestroyShaderModule(VkShaderModule mod)
     ASSERT(g_vkr.dev);
     if (mod)
     {
-        vkDestroyShaderModule(g_vkr.dev, mod, NULL);
+        vkDestroyShaderModule(g_vkr.dev, mod, g_vkr.alloccb);
     }
 }
 

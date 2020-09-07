@@ -233,7 +233,7 @@ typedef struct vkrDisplay
 typedef struct vkrSwapchain
 {
     VkSwapchainKHR handle;
-    VkFormat format;
+    VkFormat colorFormat;
     VkFormat depthFormat;
     VkColorSpaceKHR colorSpace;
     VkPresentModeKHR mode;
@@ -356,6 +356,7 @@ typedef struct vkrPushConstants
 
 typedef struct vkr_t
 {
+    const VkAllocationCallbacks* alloccb;
     VkInstance inst;
     VkPhysicalDevice phdev;
     VkDevice dev;
