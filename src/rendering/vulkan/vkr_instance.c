@@ -1,5 +1,6 @@
 #include "rendering/vulkan/vkr_instance.h"
 #include "rendering/vulkan/vkr_debug.h"
+#include "rendering/vulkan/vkr_mem.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/stringutil.h"
@@ -36,7 +37,7 @@ void vkrInstance_Shutdown(vkr_t* vkr)
         vkr->messenger = NULL;
         if (vkr->inst)
         {
-            vkDestroyInstance(vkr->inst, NULL);
+            vkDestroyInstance(vkr->inst, g_vkr.alloccb);
             vkr->inst = NULL;
         }
     }
@@ -153,7 +154,6 @@ VkInstance vkrCreateInstance(strlist_t extensions, strlist_t layers)
     const VkApplicationInfo appInfo =
     {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pNext = NULL,
         .pApplicationName = "pimquake",
         .applicationVersion = 1,
         .pEngineName = "pim",
@@ -164,7 +164,6 @@ VkInstance vkrCreateInstance(strlist_t extensions, strlist_t layers)
     const VkInstanceCreateInfo instInfo =
     {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .pNext = NULL,
         .flags = 0x0,
         .pApplicationInfo = &appInfo,
         .enabledLayerCount = layers.count,
@@ -174,7 +173,7 @@ VkInstance vkrCreateInstance(strlist_t extensions, strlist_t layers)
     };
 
     VkInstance inst = NULL;
-    VkCheck(vkCreateInstance(&instInfo, NULL, &inst));
+    VkCheck(vkCreateInstance(&instInfo, g_vkr.alloccb, &inst));
 
     strlist_del(&extensions);
     strlist_del(&layers);

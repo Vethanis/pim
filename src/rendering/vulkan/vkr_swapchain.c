@@ -70,7 +70,7 @@ bool vkrSwapchain_New(
     };
 
     VkSwapchainKHR handle = NULL;
-    VkCheck(vkCreateSwapchainKHR(dev, &swapInfo, NULL, &handle));
+    VkCheck(vkCreateSwapchainKHR(dev, &swapInfo, g_vkr.alloccb, &handle));
     ASSERT(handle);
     if (!handle)
     {
@@ -80,7 +80,7 @@ bool vkrSwapchain_New(
 
     chain->handle = handle;
     chain->mode = mode;
-    chain->format = format.format;
+    chain->colorFormat = format.format;
     chain->colorSpace = format.colorSpace;
     chain->width = ext.width;
     chain->height = ext.height;
@@ -90,7 +90,7 @@ bool vkrSwapchain_New(
     {
         ASSERT(false);
         con_logf(LogSev_Error, "Vk", "Failed to create swapchain, too many images (%d of %d)", imgCount, kMaxSwapchainLen);
-        vkDestroySwapchainKHR(dev, handle, NULL);
+        vkDestroySwapchainKHR(dev, handle, g_vkr.alloccb);
         memset(chain, 0, sizeof(*chain));
         return false;
     }
@@ -103,14 +103,14 @@ bool vkrSwapchain_New(
         {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = chain->images[i],
-            .format = chain->format,
+            .format = chain->colorFormat,
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
             .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .subresourceRange.levelCount = 1,
             .subresourceRange.layerCount = 1,
         };
         VkImageView view = NULL;
-        VkCheck(vkCreateImageView(dev, &viewInfo, NULL, &view));
+        VkCheck(vkCreateImageView(dev, &viewInfo, g_vkr.alloccb, &view));
         ASSERT(view);
         chain->views[i] = view;
     }
@@ -151,7 +151,7 @@ bool vkrSwapchain_New(
             .subresourceRange.layerCount = 1,
         };
         VkImageView view = NULL;
-        VkCheck(vkCreateImageView(dev, &viewInfo, NULL, &view));
+        VkCheck(vkCreateImageView(dev, &viewInfo, g_vkr.alloccb, &view));
         ASSERT(view);
         chain->depthView = view;
     }
@@ -182,7 +182,7 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
             vkrSemaphore_Del(chain->renderedSemas[i]);
         }
 
-        vkDestroyImageView(dev, chain->depthView, NULL);
+        vkDestroyImageView(dev, chain->depthView, g_vkr.alloccb);
         vkrImage_Del(&chain->depthImage);
 
         {
@@ -193,16 +193,16 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
                 VkFramebuffer buffer = chain->buffers[i];
                 if (view)
                 {
-                    vkDestroyImageView(dev, view, NULL);
+                    vkDestroyImageView(dev, view, g_vkr.alloccb);
                 }
                 if (buffer)
                 {
-                    vkDestroyFramebuffer(dev, buffer, NULL);
+                    vkDestroyFramebuffer(dev, buffer, g_vkr.alloccb);
                 }
             }
         }
 
-        vkDestroySwapchainKHR(dev, chain->handle, NULL);
+        vkDestroySwapchainKHR(dev, chain->handle, g_vkr.alloccb);
 
         memset(chain, 0, sizeof(*chain));
     }
@@ -225,7 +225,7 @@ void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, VkRenderPass presentPass)
         VkFramebuffer buffer = chain->buffers[i];
         if (buffer)
         {
-            vkDestroyFramebuffer(g_vkr.dev, buffer, NULL);
+            vkDestroyFramebuffer(g_vkr.dev, buffer, g_vkr.alloccb);
             buffer = NULL;
         }
         const VkFramebufferCreateInfo bufferInfo =
@@ -238,7 +238,7 @@ void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, VkRenderPass presentPass)
             .height = chain->height,
             .layers = 1,
         };
-        VkCheck(vkCreateFramebuffer(g_vkr.dev, &bufferInfo, NULL, &buffer));
+        VkCheck(vkCreateFramebuffer(g_vkr.dev, &bufferInfo, g_vkr.alloccb, &buffer));
         ASSERT(buffer);
 
         chain->buffers[i] = buffer;

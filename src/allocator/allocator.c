@@ -15,7 +15,6 @@
 
 #define kPermCapacity   (1024 << 20)
 #define kTempCapacity   (256 << 20)
-#define kTlsCapacity    (16 << 20)
 
 typedef pim_alignas(kAlign) struct hdr_s
 {

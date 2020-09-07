@@ -28,6 +28,11 @@ void vkrCmdAlloc_Get(
 // ----------------------------------------------------------------------------
 
 void vkrCmdBegin(VkCommandBuffer cmdbuf);
+void vkrCmdBeginSec(
+    VkCommandBuffer cmd,
+    VkRenderPass renderPass,
+    i32 subpass,
+    VkFramebuffer framebuffer);
 void vkrCmdEnd(VkCommandBuffer cmdbuf);
 void vkrCmdReset(VkCommandBuffer cmdbuf);
 
@@ -45,8 +50,10 @@ void vkrCmdBeginRenderPass(
     VkFramebuffer framebuf,
     VkRect2D rect,
     i32 clearCount,
-    const VkClearValue* clearValues);
-void vkrCmdNextSubpass(VkCommandBuffer cmdbuf);
+    const VkClearValue* clearValues,
+    VkSubpassContents contents);
+void vkrCmdExecCmds(VkCommandBuffer cmd, i32 count, const VkCommandBuffer* pSecondaries);
+void vkrCmdNextSubpass(VkCommandBuffer cmdbuf, VkSubpassContents contents);
 void vkrCmdEndRenderPass(VkCommandBuffer cmdbuf);
 
 void vkrCmdBindPipeline(VkCommandBuffer cmdbuf, const vkrPipeline* pipeline);
@@ -74,7 +81,8 @@ void vkrCmdImageBarrier(
 
 void vkrCmdPushConstants(
     VkCommandBuffer cmdbuf,
-    const vkrPipeline* pipeline,
+    VkPipelineLayout layout,
+    VkShaderStageFlags stages,
     const void* dwords,
     i32 bytes);
 

@@ -53,98 +53,6 @@ static void RemoveLeak(VmaAllocation allocation)
 #define RemoveLeak(allocation)
 #endif // VKR_MEM_LEAK
 
-ProfileMark(pm_allocfn, vkrAllocFn)
-static void* VKAPI_PTR vkrAllocFn(
-    void* usr,
-    usize size,
-    usize align,
-    VkSystemAllocationScope scope)
-{
-    ProfileBegin(pm_allocfn);
-    void* ptr = NULL;
-    i32 align32 = (i32)align;
-    i32 size32 = (i32)size;
-    if ((align32 < 1) || (align32 > 16))
-    {
-        ASSERT(false);
-        goto end;
-    }
-    if (size32 <= 0)
-    {
-        ASSERT(false);
-        goto end;
-    }
-    ptr = perm_malloc(size32);
-end:
-    ProfileEnd(pm_allocfn);
-    return ptr;
-}
-
-ProfileMark(pm_reallocfn, vkrReallocFn)
-static void* VKAPI_PTR vkrReallocFn(
-    void* usr,
-    void* prev,
-    usize size,
-    usize align,
-    VkSystemAllocationScope scope)
-{
-    ProfileBegin(pm_reallocfn);
-    void* ptr = NULL;
-    i32 align32 = (i32)align;
-    i32 size32 = (i32)size;
-    ASSERT(size32 >= 0);
-    if (size32 <= 0)
-    {
-        pim_free(prev);
-        goto end;
-    }
-    if ((align32 < 1) || (align32 > 16))
-    {
-        ASSERT(false);
-        pim_free(prev);
-        goto end;
-    }
-    ptr = perm_realloc(prev, size32);
-end:
-    ProfileEnd(pm_reallocfn);
-    return ptr;
-}
-
-ProfileMark(pm_freefn, vkrFreeFn)
-static void VKAPI_PTR vkrFreeFn(void* usr, void* prev)
-{
-    ProfileBegin(pm_freefn);
-    pim_free(prev);
-    ProfileEnd(pm_freefn);
-}
-
-static void VKAPI_PTR vkrOnAlloc(
-    void* usr,
-    usize size,
-    VkInternalAllocationType type,
-    VkSystemAllocationScope scope)
-{
-
-}
-
-static void VKAPI_PTR vkrOnFree(
-    void* usr,
-    usize size,
-    VkInternalAllocationType type,
-    VkSystemAllocationScope scope)
-{
-
-}
-
-static const VkAllocationCallbacks kCpuCallbacks =
-{
-    .pfnAllocation = vkrAllocFn,
-    .pfnReallocation = vkrReallocFn,
-    .pfnFree = vkrFreeFn,
-    .pfnInternalAllocation = vkrOnAlloc,
-    .pfnInternalFree = vkrOnFree,
-};
-
 bool vkrAllocator_New(vkrAllocator* allocator)
 {
     ASSERT(allocator);
@@ -182,7 +90,7 @@ bool vkrAllocator_New(vkrAllocator* allocator)
         .instance = g_vkr.inst,
         .physicalDevice = g_vkr.phdev,
         .device = g_vkr.dev,
-        .pAllocationCallbacks = &kCpuCallbacks,
+        .pAllocationCallbacks = g_vkr.alloccb,
         .frameInUseCount = kFramesInFlight - 1,
         .pVulkanFunctions = &vulkanFns,
     };
@@ -348,7 +256,7 @@ bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame)
         {
             if (releasable->view)
             {
-                vkDestroyImageView(g_vkr.dev, releasable->view, NULL);
+                vkDestroyImageView(g_vkr.dev, releasable->view, g_vkr.alloccb);
             }
         }
         break;
@@ -356,7 +264,7 @@ bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame)
         {
             if (releasable->sampler)
             {
-                vkDestroySampler(g_vkr.dev, releasable->sampler, NULL);
+                vkDestroySampler(g_vkr.dev, releasable->sampler, g_vkr.alloccb);
             }
         }
         break;
@@ -393,11 +301,6 @@ VkFence vkrMem_Barrier(
     vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
     ASSERT(fence);
     return fence;
-}
-
-const VkAllocationCallbacks* vkrMem_Fns(void)
-{
-    return &kCpuCallbacks;
 }
 
 ProfileMark(pm_memmap, vkrMem_Map)

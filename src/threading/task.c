@@ -37,7 +37,7 @@ static i32 max_i32(i32 a, i32 b) { return (a > b) ? a : b; }
 static i32 StealWork(task_t* task, range_t* range, i32 gran)
 {
     const i32 wsize = task->worksize;
-    const i32 a = fetch_add_i32(&(task->head), gran, MO_Acquire);
+    const i32 a = fetch_add_i32(&(task->head), gran, MO_AcqRel);
     const i32 b = min_i32(a + gran, wsize);
     range->begin = a;
     range->end = b;
@@ -48,7 +48,7 @@ static i32 UpdateProgress(task_t* task, range_t range)
 {
     const i32 wsize = task->worksize;
     const i32 count = range.end - range.begin;
-    const i32 prev = fetch_add_i32(&(task->tail), count, MO_Release);
+    const i32 prev = fetch_add_i32(&(task->tail), count, MO_AcqRel);
     ASSERT(prev < wsize);
     return (prev + count) >= wsize;
 }

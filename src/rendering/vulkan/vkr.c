@@ -23,6 +23,7 @@
 #include "common/profiler.h"
 #include "common/time.h"
 #include "common/cvar.h"
+#include "common/atomics.h"
 #include "containers/table.h"
 #include "math/float4_funcs.h"
 #include "math/float4x4_funcs.h"
@@ -31,11 +32,11 @@
 #include "rendering/camera.h"
 #include <string.h>
 
+vkr_t g_vkr;
+
 static cvar_t* cv_r_sun_dir;
 static cvar_t* cv_r_sun_col;
 static cvar_t* cv_r_sun_lum;
-
-vkr_t g_vkr;
 
 bool vkr_init(i32 width, i32 height)
 {
@@ -176,7 +177,7 @@ bool vkr_init(i32 width, i32 height)
     const VkAttachmentDescription attachments[] =
     {
         {
-            .format = g_vkr.chain.format,
+            .format = g_vkr.chain.colorFormat,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -324,49 +325,12 @@ cleanup:
     return success;
 }
 
-ProfileMark(pm_update, vkr_update)
-void vkr_update(void)
+ProfileMark(pm_updatedesc, vkrDraw_UpdateDescriptors)
+static VkDescriptorSet vkrDraw_UpdateDescriptors()
 {
-    if (!g_vkr.inst)
-    {
-        return;
-    }
+    ProfileBegin(pm_updatedesc);
 
-    if (!vkrDisplay_IsOpen(&g_vkr.display))
-    {
-        vkr_shutdown();
-        return;
-    }
-
-    if (vkrDisplay_UpdateSize(&g_vkr.display))
-    {
-        vkrSwapchain_Recreate(
-            &g_vkr.chain,
-            &g_vkr.display,
-            g_vkr.pipeline.renderPass);
-    }
     vkrSwapchain* chain = &g_vkr.chain;
-    if (!chain->handle)
-    {
-        return;
-    }
-
-    ProfileBegin(pm_update);
-
-    const u32 syncIndex = vkrSwapchain_AcquireSync(chain);
-    vkrAllocator_Update(&g_vkr.allocator);
-    VkRect2D rect = vkrSwapchain_GetRect(chain);
-    VkViewport viewport = vkrSwapchain_GetViewport(chain);
-    const VkClearValue clearValues[] =
-    {
-        {
-            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
-        },
-        {
-            .depthStencil = { 1.0f, 0 },
-        },
-    };
-
     vkrPipeline* pipeline = &g_vkr.pipeline;
     const drawables_t* drawables = drawables_get();
     const i32 drawcount = drawables->count;
@@ -463,48 +427,184 @@ void vkr_update(void)
         vkrBuffer_Flush(percambuf);
         vkrBuffer_Flush(perdrawbuf);
     }
-    ASSERT(descSet);
 
+    ProfileEnd(pm_updatedesc);
+
+    ASSERT(descSet);
+    return descSet;
+}
+
+typedef struct vkrTaskDraw
+{
+    task_t task;
+    const vkrPipeline* pipeline;
+    const vkrSwapchain* chain;
+    VkDescriptorSet descSet;
+    VkFramebuffer framebuffer;
+    const drawables_t* drawables;
+    VkCommandBuffer* buffers;
+    i32 buffercount;
+} vkrTaskDraw;
+
+static void vkrTaskDrawFn(task_t* pbase, i32 begin, i32 end)
+{
+    vkrTaskDraw* task = (vkrTaskDraw*)pbase;
+    const drawables_t* drawables = task->drawables;
+    const vkrPipeline* pipeline = task->pipeline;
+    const vkrSwapchain* chain = task->chain;
+    VkRenderPass renderPass = pipeline->renderPass;
+    const i32 subpass = pipeline->subpass;
+    VkFramebuffer framebuffer = task->framebuffer;
+    VkDescriptorSet descSet = task->descSet;
+    VkPipelineLayout layout = pipeline->layout.handle;
+    VkCommandBuffer* buffers = task->buffers;
+
+    VkRect2D rect = vkrSwapchain_GetRect(chain);
+    VkViewport viewport = vkrSwapchain_GetViewport(chain);
+    const VkClearValue clearValues[] =
+    {
+        {
+            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+        },
+        {
+            .depthStencil = { 1.0f, 0 },
+        },
+    };
+
+    const meshid_t* pim_noalias meshids = drawables->meshes;
+    const material_t* pim_noalias materials = drawables->materials;
+
+    vkrFrameContext* ctx = vkrContext_Get();
+    VkCommandBuffer cmd = NULL;
+    vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, NULL);
+    {
+        i32 bufferindex = inc_i32(&task->buffercount, MO_AcqRel);
+        ASSERT(bufferindex >= 0);
+        ASSERT(bufferindex < drawables->count);
+        buffers[bufferindex] = cmd;
+    }
+    vkrCmdBeginSec(cmd, renderPass, subpass, framebuffer);
+    vkrCmdViewport(cmd, viewport, rect);
+    vkrCmdBindPipeline(cmd, pipeline);
+    vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
+    {
+        for (i32 i = begin; i < end; ++i)
+        {
+            mesh_t mesh;
+            if (mesh_get(meshids[i], &mesh))
+            {
+                const vkrPushConstants pushConsts =
+                {
+                    .drawIndex = i,
+                    .cameraIndex = 0,
+                    .albedoIndex = materials[i].albedo.index,
+                    .romeIndex = materials[i].rome.index,
+                    .normalIndex = materials[i].normal.index,
+                };
+                const u32 stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+                vkrCmdPushConstants(cmd, layout, stages, &pushConsts, sizeof(pushConsts));
+                vkrCmdDrawMesh(cmd, &mesh.vkrmesh);
+            }
+        }
+    }
+    vkrCmdEnd(cmd);
+}
+
+ProfileMark(pm_mainpassparallel, vkrMainPassParallel)
+static void vkrMainPassParallel(vkr_t* vkr, VkCommandBuffer cmd, VkDescriptorSet descSet, const drawables_t* drawables)
+{
+    ProfileBegin(pm_mainpassparallel);
+
+    vkrSwapchain* chain = &vkr->chain;
+    vkrPipeline* pipeline = &vkr->pipeline;
+
+    VkRect2D rect = vkrSwapchain_GetRect(chain);
+    VkViewport viewport = vkrSwapchain_GetViewport(chain);
+    const VkClearValue clearValues[] =
+    {
+        {
+            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+        },
+        {
+            .depthStencil = { 1.0f, 0 },
+        },
+    };
+    vkrCmdViewport(cmd, viewport, rect);
+    vkrCmdBindPipeline(cmd, pipeline);
+    vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
+
+    const u32 imageIndex = vkrSwapchain_AcquireImage(chain);
+    VkFramebuffer framebuffer = chain->buffers[imageIndex];
+    vkrCmdBeginRenderPass(
+        cmd,
+        pipeline->renderPass,
+        framebuffer,
+        rect,
+        NELEM(clearValues),
+        clearValues,
+        VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+    {
+        const i32 drawcount = drawables->count;
+        VkCommandBuffer* seccmds = tmp_calloc(sizeof(seccmds[0]) * drawcount);
+        vkrTaskDraw* task = tmp_calloc(sizeof(*task));
+        task->drawables = drawables;
+        task->chain = chain;
+        task->pipeline = pipeline;
+        task->framebuffer = framebuffer;
+        task->descSet = descSet;
+        task->buffers = seccmds;
+        task->buffercount = 0;
+        task_run(&task->task, vkrTaskDrawFn, drawcount);
+
+        const i32 seccmdcount = task->buffercount;
+        vkrCmdExecCmds(cmd, seccmdcount, seccmds);
+    }
+    vkrCmdEndRenderPass(cmd);
+
+    ProfileEnd(pm_mainpassparallel);
+}
+
+ProfileMark(pm_update, vkr_update)
+void vkr_update(void)
+{
+    if (!g_vkr.inst)
+    {
+        return;
+    }
+
+    if (!vkrDisplay_IsOpen(&g_vkr.display))
+    {
+        vkr_shutdown();
+        return;
+    }
+
+    if (vkrDisplay_UpdateSize(&g_vkr.display))
+    {
+        vkrSwapchain_Recreate(
+            &g_vkr.chain,
+            &g_vkr.display,
+            g_vkr.pipeline.renderPass);
+    }
+    vkrSwapchain* chain = &g_vkr.chain;
+    if (!chain->handle)
+    {
+        return;
+    }
+
+    ProfileBegin(pm_update);
+
+    vkrSwapchain_AcquireSync(chain);
+    vkrAllocator_Update(&g_vkr.allocator);
+
+    const drawables_t* drawables = drawables_get();
+    VkDescriptorSet descSet = vkrDraw_UpdateDescriptors();
     VkCommandBuffer cmd = NULL;
     VkQueue queue = NULL;
+    vkrFrameContext* ctx = vkrContext_Get();
     vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, &queue);
     {
         vkrCmdBegin(cmd);
-        {
-            vkrCmdViewport(cmd, viewport, rect);
-
-            const u32 imageIndex = vkrSwapchain_AcquireImage(chain);
-            vkrCmdBeginRenderPass(
-                cmd,
-                pipeline->renderPass,
-                chain->buffers[imageIndex],
-                rect,
-                NELEM(clearValues),
-                clearValues);
-            vkrCmdBindPipeline(cmd, pipeline);
-            vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
-
-            for (i32 i = 0; i < drawcount; ++i)
-            {
-                mesh_t mesh;
-                if (mesh_get(meshids[i], &mesh))
-                {
-                    material_t material = materials[i];
-                    const vkrPushConstants pushConsts =
-                    {
-                        .drawIndex = i,
-                        .cameraIndex = 0,
-                        .albedoIndex = material.albedo.index,
-                        .romeIndex = material.rome.index,
-                        .normalIndex = material.normal.index,
-                    };
-                    vkrCmdPushConstants(cmd, pipeline, &pushConsts, sizeof(pushConsts));
-                    vkrCmdDrawMesh(cmd, &mesh.vkrmesh);
-                }
-            }
-
-            vkrCmdEndRenderPass(cmd);
-        }
+        vkrMainPassParallel(&g_vkr, cmd, descSet, drawables);
         vkrCmdEnd(cmd);
     }
     vkrSwapchain_Present(chain, queue, cmd);

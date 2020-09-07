@@ -48,7 +48,7 @@ void vkrDevice_Shutdown(vkr_t* vkr)
         vkrDestroyQueues(vkr);
         if (vkr->dev)
         {
-            vkDestroyDevice(vkr->dev, NULL);
+            vkDestroyDevice(vkr->dev, g_vkr.alloccb);
             vkr->dev = NULL;
         }
         vkr->phdev = NULL;
@@ -417,7 +417,7 @@ VkDevice vkrCreateDevice(
     };
 
     VkDevice device = NULL;
-    VkCheck(vkCreateDevice(g_vkr.phdev, &devInfo, NULL, &device));
+    VkCheck(vkCreateDevice(g_vkr.phdev, &devInfo, g_vkr.alloccb, &device));
     ASSERT(device);
 
     strlist_del(&extensions);

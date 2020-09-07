@@ -68,8 +68,6 @@ VkFence vkrMem_Barrier(
     const VkBufferMemoryBarrier* buffer,
     const VkImageMemoryBarrier* img);
 
-const VkAllocationCallbacks* vkrMem_Fns(void);
-
 void* vkrMem_Map(VmaAllocation allocation);
 void vkrMem_Unmap(VmaAllocation allocation);
 void vkrMem_Flush(VmaAllocation allocation);
