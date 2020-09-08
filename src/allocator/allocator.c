@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define kTempFrames     2
+#define kTempFrames     4
 #define kAlign          16
 #define kAlignMask      (kAlign - 1)
 

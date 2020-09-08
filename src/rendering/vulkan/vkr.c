@@ -18,6 +18,9 @@
 #include "rendering/mesh.h"
 #include "rendering/texture.h"
 #include "rendering/material.h"
+#include "ui/imgui_impl_vulkan.h"
+#include "ui/cimgui.h"
+#include "ui/ui.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
@@ -308,6 +311,9 @@ bool vkr_init(i32 width, i32 height)
         goto cleanup;
     }
 
+    ui_sys_init(g_vkr.display.window);
+    ImGui_ImplVulkan_Init(g_vkr.pipeline.renderPass);
+
 cleanup:
     vkrCompileOutput_Del(&vertOutput);
     vkrCompileOutput_Del(&fragOutput);
@@ -510,6 +516,21 @@ static void vkrTaskDrawFn(task_t* pbase, i32 begin, i32 end)
     vkrCmdEnd(cmd);
 }
 
+ProfileMark(pm_renderimgui, vkrRenderImGui)
+static VkCommandBuffer vkrRenderImGui(VkRenderPass renderPass)
+{
+    ProfileBegin(pm_renderimgui);
+    igRender();
+    vkrFrameContext* ctx = vkrContext_Get();
+    VkCommandBuffer igcmd = NULL;
+    vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, &igcmd, NULL, NULL);
+    vkrCmdBeginSec(igcmd, renderPass, 0, NULL);
+    ImGui_ImplVulkan_RenderDrawData(igGetDrawData(), igcmd);
+    vkrCmdEnd(igcmd);
+    ProfileEnd(pm_renderimgui);
+    return igcmd;
+}
+
 ProfileMark(pm_mainpassparallel, vkrMainPassParallel)
 static void vkrMainPassParallel(vkr_t* vkr, VkCommandBuffer cmd, VkDescriptorSet descSet, const drawables_t* drawables)
 {
@@ -533,6 +554,23 @@ static void vkrMainPassParallel(vkr_t* vkr, VkCommandBuffer cmd, VkDescriptorSet
     vkrCmdBindPipeline(cmd, pipeline);
     vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
 
+    const i32 drawcount = drawables->count;
+    VkCommandBuffer* seccmds = tmp_calloc(sizeof(seccmds[0]) * drawcount);
+    vkrTaskDraw* task = tmp_calloc(sizeof(*task));
+    task->drawables = drawables;
+    task->chain = chain;
+    task->pipeline = pipeline;
+    task->framebuffer = NULL; // spec says this is optional, but may yield perf speedup on some implementations at cmd buf exec time
+    task->descSet = descSet;
+    task->buffers = seccmds;
+    task->buffercount = 0;
+    task_submit(&task->task, vkrTaskDrawFn, drawcount);
+    task_sys_schedule();
+
+    VkCommandBuffer igcmd = vkrRenderImGui(pipeline->renderPass);
+
+    // help with task instead of sleeping on GPU fence
+    task_await(&task->task);
     const u32 imageIndex = vkrSwapchain_AcquireImage(chain);
     VkFramebuffer framebuffer = chain->buffers[imageIndex];
     vkrCmdBeginRenderPass(
@@ -543,22 +581,11 @@ static void vkrMainPassParallel(vkr_t* vkr, VkCommandBuffer cmd, VkDescriptorSet
         NELEM(clearValues),
         clearValues,
         VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-    {
-        const i32 drawcount = drawables->count;
-        VkCommandBuffer* seccmds = tmp_calloc(sizeof(seccmds[0]) * drawcount);
-        vkrTaskDraw* task = tmp_calloc(sizeof(*task));
-        task->drawables = drawables;
-        task->chain = chain;
-        task->pipeline = pipeline;
-        task->framebuffer = framebuffer;
-        task->descSet = descSet;
-        task->buffers = seccmds;
-        task->buffercount = 0;
-        task_run(&task->task, vkrTaskDrawFn, drawcount);
 
-        const i32 seccmdcount = task->buffercount;
-        vkrCmdExecCmds(cmd, seccmdcount, seccmds);
-    }
+    const i32 seccmdcount = task->buffercount;
+    vkrCmdExecCmds(cmd, seccmdcount, seccmds);
+    vkrCmdExecCmds(cmd, 1, &igcmd);
+
     vkrCmdEndRenderPass(cmd);
 
     ProfileEnd(pm_mainpassparallel);
@@ -617,6 +644,9 @@ void vkr_shutdown(void)
     if (g_vkr.inst)
     {
         vkrDevice_WaitIdle();
+
+        ImGui_ImplVulkan_Shutdown();
+        ui_sys_shutdown();
 
         vkrPipeline_Del(&g_vkr.pipeline);
         vkrTexture2D_Del(&g_vkr.nullTexture);

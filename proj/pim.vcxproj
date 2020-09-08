@@ -127,6 +127,7 @@
     <ClCompile Include="..\src\ui\imgui_draw.cpp" />
     <ClCompile Include="..\src\ui\imgui_impl_glfw.cpp" />
     <ClCompile Include="..\src\ui\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="..\src\ui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\src\ui\imgui_widgets.cpp" />
     <ClCompile Include="..\src\ui\ui.c" />
     <ClCompile Include="..\submodules\glad\glad.c" />
@@ -288,6 +289,7 @@
     <ClInclude Include="..\src\ui\cimgui_ext.h" />
     <ClInclude Include="..\src\ui\imgui_impl_glfw.h" />
     <ClInclude Include="..\src\ui\imgui_impl_opengl3.h" />
+    <ClInclude Include="..\src\ui\imgui_impl_vulkan.h" />
     <ClInclude Include="..\src\ui\imgui_internal.h" />
     <ClInclude Include="..\src\ui\imstb_rectpack.h" />
     <ClInclude Include="..\src\ui\imstb_textedit.h" />

@@ -45,7 +45,6 @@ static void Init(void)
     render_sys_init();          // setup rendering resources
     audio_sys_init();           // setup audio callback
     input_sys_init();           // setup glfw input callbacks
-    ui_sys_init();              // setup imgui
     logic_sys_init();           // setup game logic
     editor_sys_init();
 }
@@ -54,7 +53,6 @@ static void Shutdown(void)
 {
     editor_sys_shutdown();
     logic_sys_shutdown();
-    ui_sys_shutdown();
     input_sys_shutdown();
     audio_sys_shutdown();
     render_sys_shutdown();
@@ -107,8 +105,8 @@ static void Update(void)
 
     InitPhase();
     SimulatePhase();
-    PresentPhase();
     OnGui();
+    PresentPhase();
 
     window_swapbuffers();       // glfwSwapBuffers
     ProfileEnd(pm_update);

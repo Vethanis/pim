@@ -37,7 +37,7 @@ static i32 max_i32(i32 a, i32 b) { return (a > b) ? a : b; }
 static i32 StealWork(task_t* task, range_t* range, i32 gran)
 {
     const i32 wsize = task->worksize;
-    const i32 a = fetch_add_i32(&(task->head), gran, MO_AcqRel);
+    const i32 a = fetch_add_i32(&(task->head), gran, MO_Acquire);
     const i32 b = min_i32(a + gran, wsize);
     range->begin = a;
     range->end = b;
@@ -48,7 +48,7 @@ static i32 UpdateProgress(task_t* task, range_t range)
 {
     const i32 wsize = task->worksize;
     const i32 count = range.end - range.begin;
-    const i32 prev = fetch_add_i32(&(task->tail), count, MO_AcqRel);
+    const i32 prev = fetch_add_i32(&(task->tail), count, MO_Release);
     ASSERT(prev < wsize);
     return (prev + count) >= wsize;
 }
@@ -131,12 +131,12 @@ TaskStatus task_stat(const task_t* task)
 ProfileMark(pm_submit, task_submit)
 void task_submit(task_t* task, task_execute_fn execute, i32 worksize)
 {
+    ASSERT(execute);
     if (task && worksize > 0)
     {
         ProfileBegin(pm_submit);
 
-        ASSERT(execute);
-        task_await(task);
+        ASSERT(task_stat(task) == TaskStatus_Init);
         store_i32(&(task->status), TaskStatus_Exec, MO_Release);
         task->execute = execute;
         store_i32(&(task->worksize), worksize, MO_Release);
@@ -237,7 +237,12 @@ void task_sys_init(void)
 
 void task_sys_update(void)
 {
+    // clear out backlog, in case thread 0's queue piles up
+    i32 tid = task_thread_id();
+    while (TryRunTask(tid))
+    {
 
+    }
 }
 
 void task_sys_shutdown(void)

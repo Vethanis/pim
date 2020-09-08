@@ -526,6 +526,9 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_texture.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\ui\imgui_impl_vulkan.cpp">
+      <Filter>Source Files\ui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -1115,6 +1118,9 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr_texture.h">
       <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ui\imgui_impl_vulkan.h">
+      <Filter>Source Files\ui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

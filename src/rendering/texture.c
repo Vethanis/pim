@@ -540,8 +540,10 @@ bool texture_unpalette(
         // cannot reuse same task across invocations, the signalling state gets corrupted
         task_run(&tasks[0].task, UnpaletteStep1Fn, len);
         tasks[1] = tasks[0];
+        tasks[1].task = (task_t) { 0 };
         UnpaletteStep2Fn(&tasks[1].task);
         tasks[2] = tasks[1];
+        tasks[2].task = (task_t) { 0 };
         task_run(&tasks[2].task, UnpaletteStep3Fn, len);
 
         pim_free(gray);
