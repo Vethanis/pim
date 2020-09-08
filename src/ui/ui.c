@@ -6,15 +6,16 @@
 #include "rendering/r_window.h"
 #include "common/profiler.h"
 #include "common/cvar.h"
+#include "math/color.h"
 
 static cvar_t cv_ui_opacity =
 {
-    .type=cvart_float,
-    .name="ui_opacity",
-    .value="0.85",
-    .minFloat=0.1f,
-    .maxFloat=1.0f,
-    .desc="UI Opacity",
+    .type = cvart_float,
+    .name = "ui_opacity",
+    .value = "0.85",
+    .minFloat = 0.1f,
+    .maxFloat = 1.0f,
+    .desc = "UI Opacity",
 };
 
 static ImGuiContext* ms_ctx;
@@ -29,15 +30,12 @@ static void ImGuiFreeFn(void* ptr, void* userData)
     pim_free(ptr);
 }
 
-static ImVec4 VEC_CALL BytesToColor(u8 r, u8 g, u8 b)
+static ImVec4 VEC_CALL BytesToColor(u32 r, u32 g, u32 b)
 {
-    return (ImVec4)
-    {
-        (float)r / 255.0f,
-        (float)g / 255.0f,
-        (float)b / 255.0f,
-        0.9f,
-    };
+    u32 c = (r & 0xff) | ((g & 0xff) << 8) | ((b & 0xff) << 16) | (0xff << 24);
+    float4 lin = ColorToLinear(c);
+    lin.w = 0.9f;
+    return *(ImVec4*)&lin;
 }
 
 static void SetupStyle(void)

@@ -74,7 +74,7 @@ static cvar_t cv_lm_density = { .type = cvart_float,.name = "lm_density",.value 
 static cvar_t cv_lm_timeslice = { .type = cvart_int,.name = "lm_timeslice",.value = "3",.minInt = 0,.maxInt = 60,.desc = "number of frames required to add 1 lighting sample to all lightmap texels" };
 
 static cvar_t cv_r_sun_dir = { .type = cvart_vector,.name = "r_sun_dir",.value = "0.0 0.968 0.253 0.0",.desc = "Sun Direction" };
-static cvar_t cv_r_sun_col = { .type = cvart_color,.name = "r_sun_col",.value = "0.966 0.656 0.346 1.0",.desc = "Sun Color" };
+static cvar_t cv_r_sun_col = { .type = cvart_color,.name = "r_sun_col",.value = "1 1 1 1",.desc = "Sun Color" };
 static cvar_t cv_r_sun_lum = { .type = cvart_float,.name = "r_sun_lum",.value = "12.0",.minFloat = -20.0f,.maxFloat = 20.0f,.desc = "Log2 Sun Luminance" };
 
 static cvar_t cv_r_qlights = { .type = cvart_bool,.name = "r_qlights",.value = "0",.desc = "Load quake light entities" };

@@ -301,7 +301,6 @@ float4 PSMain(PSInput input) : SV_Target
     float3 emission = UnpackEmission(albedo, rome.w);
     float3 color = direct + ambient + emission;
     color = TonemapACES(color);
-    color = LinearTosRGB(color);
     color = saturate(color);
     return float4(color, 1.0);
 }
