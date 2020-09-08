@@ -35,7 +35,7 @@ bool vkrSwapchain_New(
     VkPresentModeKHR mode = vkrSelectSwapMode(sup.modes, sup.modeCount);
     VkExtent2D ext = vkrSelectSwapExtent(&sup.caps, display->width, display->height);
 
-    u32 imgCount = i1_clamp(2, sup.caps.minImageCount, i1_min(kMaxSwapchainLen, sup.caps.maxImageCount));
+    u32 imgCount = i1_clamp(3, sup.caps.minImageCount, i1_min(kMaxSwapchainLen, sup.caps.maxImageCount));
 
     const u32 families[] =
     {
