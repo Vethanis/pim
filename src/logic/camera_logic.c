@@ -10,14 +10,11 @@
 #include "rendering/lights.h"
 #include "rendering/cubemap.h"
 
-static float ms_pitchScale = 720.0f;
-static float ms_yawScale = 720.0f;
-static float ms_moveScale = 5.0f;
 static bool ms_placing = true;
 
 static cvar_t cv_pitchscale = { .type = cvart_float,.name = "pitchscale",.value = "720",.minFloat = 0.0f,.maxFloat = 3600.0f,.desc = "pitch input sensitivity" };
 static cvar_t cv_yawscale = { .type = cvart_float,.name = "yawscale",.value = "720",.minFloat = 0.0f,.maxFloat = 3600.0f,.desc = "yaw input sensitivity" };
-static cvar_t cv_movescale = { .type = cvart_float,.name = "movescale",.value = "5",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
+static cvar_t cv_movescale = { .type = cvart_float,.name = "movescale",.value = "10",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
 
 static void LightLogic(const camera_t* cam)
 {
@@ -90,9 +87,9 @@ void camera_logic_update(void)
     }
 
     const float dt = f1_clamp((float)time_dtf(), 0.0f, 1.0f / 5.0f);
-    float moveScale = ms_moveScale * dt;
-    float pitchScale = f1_radians(ms_pitchScale * dt);
-    float yawScale = f1_radians(ms_yawScale * dt);
+    float moveScale = cvar_get_float(&cv_movescale) * dt;
+    float pitchScale = f1_radians(cvar_get_float(&cv_pitchscale) * dt);
+    float yawScale = f1_radians(cvar_get_float(&cv_yawscale) * dt);
 
     quat rot = camera.rotation;
     float4 eye = camera.position;
@@ -125,7 +122,7 @@ void camera_logic_update(void)
     }
     if (input_key(KeyCode_LeftShift))
     {
-        eye = f4_add(eye, f4_mulvs(up, -dt * ms_moveScale));
+        eye = f4_add(eye, f4_mulvs(up, -moveScale));
     }
 
     float4 at = f4_add(eye, fwd);
