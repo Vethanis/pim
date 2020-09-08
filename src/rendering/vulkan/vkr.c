@@ -490,10 +490,10 @@ static void vkrTaskDrawFn(task_t* pbase, i32 begin, i32 end)
         buffers[bufferindex] = cmd;
     }
     vkrCmdBeginSec(cmd, renderPass, subpass, framebuffer);
-    vkrCmdViewport(cmd, viewport, rect);
-    vkrCmdBindPipeline(cmd, pipeline);
-    vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
     {
+        vkrCmdViewport(cmd, viewport, rect);
+        vkrCmdBindPipeline(cmd, pipeline);
+        vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
         for (i32 i = begin; i < end; ++i)
         {
             mesh_t mesh;
