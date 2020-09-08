@@ -418,7 +418,7 @@ static bool ImGui_ImplVulkan_CreateDeviceObjects()
 
         ASSERT(pixels);
         ASSERT(upload_size > 0);
-        vkrTexture2D_New(&g_FontImage, width, height, VK_FORMAT_R8G8B8A8_UNORM, pixels, upload_size);
+        vkrTexture2D_New(&g_FontImage, width, height, VK_FORMAT_R8G8B8A8_SRGB, pixels, upload_size);
 
         // Store our identifier
         io.Fonts->TexID = (ImTextureID)g_FontImage.image.handle;
