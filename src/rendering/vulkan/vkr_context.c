@@ -34,16 +34,6 @@ bool vkrContext_New(vkrContext* ctx)
             goto cleanup;
         }
     }
-    if (!vkrBuffer_New(&ctx->percambuf, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, PIM_FILELINE))
-    {
-        success = false;
-        goto cleanup;
-    }
-    if (!vkrBuffer_New(&ctx->perdrawbuf, sizeof(vkrPerDraw) * 256, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, PIM_FILELINE))
-    {
-        success = false;
-        goto cleanup;
-    }
 cleanup:
     if (!success)
     {
@@ -66,7 +56,9 @@ void vkrContext_Del(vkrContext* ctx)
         }
         pim_free(ctx->threads);
         vkrBuffer_Del(&ctx->percambuf);
+        vkrBuffer_Del(&ctx->percamstage);
         vkrBuffer_Del(&ctx->perdrawbuf);
+        vkrBuffer_Del(&ctx->perdrawstage);
         memset(ctx, 0, sizeof(*ctx));
     }
     ProfileEnd(pm_ctxdel);

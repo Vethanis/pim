@@ -332,7 +332,7 @@ cleanup:
 }
 
 ProfileMark(pm_updatedesc, vkrDraw_UpdateDescriptors)
-static VkDescriptorSet vkrDraw_UpdateDescriptors()
+static VkDescriptorSet vkrDraw_UpdateDescriptors(VkCommandBuffer cmd)
 {
     ProfileBegin(pm_updatedesc);
 
@@ -349,10 +349,84 @@ static VkDescriptorSet vkrDraw_UpdateDescriptors()
     vkrDescPool_Reset(ctx->descpool);
     VkDescriptorSet descSet = vkrDesc_New(ctx, pipeline->layout.sets[0]);
     {
+        vkrBuffer* perdrawstage = &g_vkr.context.perdrawstage;
+        vkrBuffer* percamstage = &g_vkr.context.percamstage;
         vkrBuffer* perdrawbuf = &g_vkr.context.perdrawbuf;
         vkrBuffer* percambuf = &g_vkr.context.percambuf;
-        vkrBuffer_Reserve(perdrawbuf, sizeof(vkrPerDraw) * drawcount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, NULL, PIM_FILELINE);
-        vkrBuffer_Reserve(percambuf, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu, NULL, PIM_FILELINE);
+
+        {
+            vkrBuffer_Reserve(perdrawstage, sizeof(vkrPerDraw) * drawcount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, vkrMemUsage_CpuOnly, NULL, PIM_FILELINE);
+            vkrBuffer_Reserve(perdrawbuf, sizeof(vkrPerDraw) * drawcount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vkrMemUsage_GpuOnly, NULL, PIM_FILELINE);
+            vkrBuffer_Reserve(percamstage, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, vkrMemUsage_CpuOnly, NULL, PIM_FILELINE);
+            vkrBuffer_Reserve(percambuf, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vkrMemUsage_GpuOnly, NULL, PIM_FILELINE);
+
+            float aspect = (float)chain->width / chain->height;
+            camera_t camera;
+            camera_get(&camera);
+            float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
+            float4 up = quat_up(camera.rotation);
+            float4x4 view = f4x4_lookat(camera.position, at, up);
+            float4x4 proj = f4x4_perspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
+            f4x4_11(proj) *= -1.0f;
+            {
+                vkrPerCamera* perCamera = vkrBuffer_Map(percamstage);
+                ASSERT(perCamera);
+                perCamera->worldToCamera = view;
+                perCamera->cameraToClip = proj;
+                perCamera->eye = camera.position;
+                perCamera->lightDir = cvar_get_vec(cv_r_sun_dir);
+                perCamera->lightColor =
+                    f4_mulvs(cvar_get_vec(cv_r_sun_col), cvar_get_float(cv_r_sun_lum));
+                vkrBuffer_Unmap(percamstage);
+            }
+
+            {
+                vkrPerDraw* perDraws = vkrBuffer_Map(perdrawstage);
+                ASSERT(perDraws);
+                for (i32 i = 0; i < drawcount; ++i)
+                {
+                    perDraws[i].localToWorld = localToWorlds[i];
+                    perDraws[i].worldToLocal.c0 = worldToLocals[i].c0;
+                    perDraws[i].worldToLocal.c1 = worldToLocals[i].c1;
+                    perDraws[i].worldToLocal.c2 = worldToLocals[i].c2;
+                    perDraws[i].worldToLocal.c3 = f4_v(0.0f, 0.0f, 0.0f, 1.0f);
+                    float4 st = materials[i].st;
+                    perDraws[i].textureScale = f4_v(st.x, st.y, 1.0f, 1.0f);
+                    perDraws[i].textureBias = f4_v(st.z, st.w, 0.0f, 0.0f);
+                }
+                vkrBuffer_Unmap(perdrawstage);
+            }
+
+            vkrBuffer_Flush(percamstage);
+            vkrBuffer_Flush(perdrawstage);
+
+            vkrCmdCopyBuffer(cmd, *percamstage, *percambuf);
+            vkrCmdCopyBuffer(cmd, *perdrawstage, *perdrawbuf);
+            VkBufferMemoryBarrier barrier =
+            {
+                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .buffer = percambuf->handle,
+                .offset = 0,
+                .size = percambuf->size,
+            };
+            vkrCmdBufferBarrier(
+                cmd,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                &barrier);
+            barrier.buffer = perdrawbuf->handle;
+            barrier.size = perdrawbuf->size;
+            vkrCmdBufferBarrier(
+                cmd,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                &barrier);
+        }
+
         const vkrBinding bufferBindings[] =
         {
             {
@@ -393,45 +467,6 @@ static VkDescriptorSet vkrDraw_UpdateDescriptors()
         }
         vkrDesc_WriteBindings(ctx, kTextureDescriptors, texBindings);
 
-        float aspect = (float)chain->width / chain->height;
-        camera_t camera;
-        camera_get(&camera);
-        float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
-        float4 up = quat_up(camera.rotation);
-        float4x4 view = f4x4_lookat(camera.position, at, up);
-        float4x4 proj = f4x4_perspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
-        f4x4_11(proj) *= -1.0f;
-        {
-            vkrPerCamera* perCamera = vkrBuffer_Map(percambuf);
-            ASSERT(perCamera);
-            perCamera->worldToCamera = view;
-            perCamera->cameraToClip = proj;
-            perCamera->eye = camera.position;
-            perCamera->lightDir = cvar_get_vec(cv_r_sun_dir);
-            perCamera->lightColor =
-                f4_mulvs(cvar_get_vec(cv_r_sun_col), cvar_get_float(cv_r_sun_lum));
-            vkrBuffer_Unmap(percambuf);
-        }
-
-        {
-            vkrPerDraw* perDraws = vkrBuffer_Map(perdrawbuf);
-            ASSERT(perDraws);
-            for (i32 i = 0; i < drawcount; ++i)
-            {
-                perDraws[i].localToWorld = localToWorlds[i];
-                perDraws[i].worldToLocal.c0 = worldToLocals[i].c0;
-                perDraws[i].worldToLocal.c1 = worldToLocals[i].c1;
-                perDraws[i].worldToLocal.c2 = worldToLocals[i].c2;
-                perDraws[i].worldToLocal.c3 = f4_v(0.0f, 0.0f, 0.0f, 1.0f);
-                float4 st = materials[i].st;
-                perDraws[i].textureScale = f4_v(st.x, st.y, 1.0f, 1.0f);
-                perDraws[i].textureBias = f4_v(st.z, st.w, 0.0f, 0.0f);
-            }
-            vkrBuffer_Unmap(perdrawbuf);
-        }
-
-        vkrBuffer_Flush(percambuf);
-        vkrBuffer_Flush(perdrawbuf);
     }
 
     ProfileEnd(pm_updatedesc);
@@ -516,11 +551,14 @@ static void vkrTaskDrawFn(task_t* pbase, i32 begin, i32 end)
     vkrCmdEnd(cmd);
 }
 
+ProfileMark(pm_igrender, igRender)
 ProfileMark(pm_renderimgui, vkrRenderImGui)
 static VkCommandBuffer vkrRenderImGui(VkRenderPass renderPass)
 {
-    ProfileBegin(pm_renderimgui);
+    ProfileBegin(pm_igrender);
     igRender();
+    ProfileEnd(pm_igrender);
+    ProfileBegin(pm_renderimgui);
     vkrFrameContext* ctx = vkrContext_Get();
     VkCommandBuffer igcmd = NULL;
     vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, &igcmd, NULL, NULL);
@@ -569,8 +607,6 @@ static void vkrMainPassParallel(vkr_t* vkr, VkCommandBuffer cmd, VkDescriptorSet
 
     VkCommandBuffer igcmd = vkrRenderImGui(pipeline->renderPass);
 
-    // help with task instead of sleeping on GPU fence
-    task_await(&task->task);
     const u32 imageIndex = vkrSwapchain_AcquireImage(chain);
     VkFramebuffer framebuffer = chain->buffers[imageIndex];
     vkrCmdBeginRenderPass(
@@ -582,6 +618,7 @@ static void vkrMainPassParallel(vkr_t* vkr, VkCommandBuffer cmd, VkDescriptorSet
         clearValues,
         VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
+    task_await(&task->task);
     const i32 seccmdcount = task->buffercount;
     vkrCmdExecCmds(cmd, seccmdcount, seccmds);
     vkrCmdExecCmds(cmd, 1, &igcmd);
@@ -623,17 +660,14 @@ void vkr_update(void)
     vkrSwapchain_AcquireSync(chain);
     vkrAllocator_Update(&g_vkr.allocator);
 
-    const drawables_t* drawables = drawables_get();
-    VkDescriptorSet descSet = vkrDraw_UpdateDescriptors();
     VkCommandBuffer cmd = NULL;
     VkQueue queue = NULL;
     vkrFrameContext* ctx = vkrContext_Get();
     vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, &queue);
-    {
-        vkrCmdBegin(cmd);
-        vkrMainPassParallel(&g_vkr, cmd, descSet, drawables);
-        vkrCmdEnd(cmd);
-    }
+    vkrCmdBegin(cmd);
+    VkDescriptorSet descSet = vkrDraw_UpdateDescriptors(cmd);
+    vkrMainPassParallel(&g_vkr, cmd, descSet, drawables_get());
+    vkrCmdEnd(cmd);
     vkrSwapchain_Present(chain, queue, cmd);
 
     ProfileEnd(pm_update);
