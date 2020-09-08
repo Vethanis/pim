@@ -120,8 +120,9 @@ static void UpdateOpacity(void)
     }
 }
 
-void ui_sys_init(void)
+void ui_sys_init(GLFWwindow* window)
 {
+    ASSERT(window);
     cvar_reg(&cv_ui_opacity);
     ASSERT(igDebugCheckVersionAndDataLayout(
         CIMGUI_VERSION,
@@ -136,8 +137,8 @@ void ui_sys_init(void)
     ASSERT(ms_ctx);
     igSetCurrentContext(ms_ctx);
     igStyleColorsDark(NULL);
-    ImGui_ImplGlfw_InitForOpenGL(window_get(), false);
-    ImGui_ImplOpenGL3_Init();
+    ImGui_ImplGlfw_InitForVulkan(window, false);
+    //ImGui_ImplOpenGL3_Init();
     SetupStyle();
     UpdateOpacity();
 }
@@ -152,7 +153,7 @@ void ui_sys_beginframe(void)
         UpdateOpacity();
     }
 
-    ImGui_ImplOpenGL3_NewFrame();
+    //ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     igNewFrame();
 
@@ -164,15 +165,15 @@ void ui_sys_endframe(void)
 {
     ProfileBegin(pm_endframe);
 
-    igRender();
-    ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
+    //igRender();
+    //ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
 
     ProfileEnd(pm_endframe);
 }
 
 void ui_sys_shutdown(void)
 {
-    ImGui_ImplOpenGL3_Shutdown();
+    //ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     igDestroyContext(ms_ctx);
     ms_ctx = NULL;

@@ -212,7 +212,6 @@ void vkrReleasable_Add(vkrAllocator* allocator, const vkrReleasable* releasable)
     // command fences must still be alive
     ASSERT(g_vkr.context.threadcount);
     ASSERT(releasable);
-    ASSERT(releasable->fence);
     mutex_lock(&allocator->releasemtx);
     i32 back = allocator->numreleasable++;
     PermReserve(allocator->releasables, back + 1);
@@ -228,7 +227,6 @@ bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame)
     ASSERT(releasable);
     bool ready = false;
     VkFence fence = releasable->fence;
-    ASSERT(fence);
     if (fence)
     {
         vkrFenceState state = vkrFence_Stat(fence);
@@ -472,7 +470,6 @@ void vkrBuffer_Release(vkrBuffer* buffer, VkFence fence)
 {
     ProfileBegin(pm_bufrelease);
     ASSERT(buffer);
-    ASSERT(fence);
     if (buffer->handle)
     {
         const vkrReleasable releasable =
