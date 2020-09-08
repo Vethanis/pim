@@ -293,7 +293,9 @@ typedef struct vkrContext
     i32 threadcount;
     vkrThreadContext* threads;
     vkrBuffer perdrawbuf;
+    vkrBuffer perdrawstage;
     vkrBuffer percambuf;
+    vkrBuffer percamstage;
 } vkrContext;
 
 typedef enum

@@ -53,6 +53,7 @@
 #include "rendering/vulkan/vkr_texture.h"
 #include "rendering/vulkan/vkr_desc.h"
 #include "allocator/allocator.h"
+#include "common/profiler.h"
 #include <string.h>
 
 // Reusable buffers used for rendering 1 current in-flight frame, for ImGui_ImplVulkan_RenderDrawData()
@@ -212,8 +213,10 @@ static void CreateOrResizeBuffer(vkrBuffer* buffer, i32 size, VkBufferUsageFlagB
     vkrBuffer_Reserve(buffer, size, usage, memUsage, NULL, PIM_FILELINE);
 }
 
+ProfileMark(pm_setuprenderstate, SetupRenderState)
 static void ImGui_ImplVulkan_SetupRenderState(ImDrawData* draw_data, VkCommandBuffer command_buffer, ImGui_ImplVulkanH_FrameRenderBuffers* rb, int fb_width, int fb_height)
 {
+    ProfileBegin(pm_setuprenderstate);
     // Bind pipeline and descriptor sets:
     {
         vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipeline);
@@ -254,10 +257,11 @@ static void ImGui_ImplVulkan_SetupRenderState(ImDrawData* draw_data, VkCommandBu
         };
         vkCmdPushConstants(command_buffer, g_PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(constants), constants);
     }
+    ProfileEnd(pm_setuprenderstate);
 }
 
-// Render function
-// (this used to be set in io.RenderDrawListsFn and called by ImGui::Render(), but you can now call this directly from your main loop)
+ProfileMark(pm_renderdrawdata, RenderDrawData)
+ProfileMark(pm_copydrawlists, CopyDrawLists)
 void ImGui_ImplVulkan_RenderDrawData(ImDrawData* draw_data, VkCommandBuffer command_buffer)
 {
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
@@ -274,7 +278,7 @@ void ImGui_ImplVulkan_RenderDrawData(ImDrawData* draw_data, VkCommandBuffer comm
     ImGui_ImplVulkanH_FrameRenderBuffers* rb = &wrb->FrameRenderBuffers[wrb->Index];
 
     const i32 cmdListCount = draw_data->CmdListsCount;
-    ImDrawList const * const * const cmdLists = draw_data->CmdLists;
+    ImDrawList const * const * const pim_noalias cmdLists = draw_data->CmdLists;
     const i32 totalVtxCount = draw_data->TotalVtxCount;
     const i32 totalIdxCount = draw_data->TotalIdxCount;
     if (totalVtxCount <= 0 || totalIdxCount <= 0)
@@ -292,18 +296,28 @@ void ImGui_ImplVulkan_RenderDrawData(ImDrawData* draw_data, VkCommandBuffer comm
         CreateOrResizeBuffer(indBuf, index_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, vkrMemUsage_CpuToGpu);
 
         // Upload vertex/index data into a single contiguous GPU buffer
-        ImDrawVert* vtx_dst = (ImDrawVert*)vkrBuffer_Map(&rb->VertexBuffer);
-        ImDrawIdx* idx_dst = (ImDrawIdx*)vkrBuffer_Map(&rb->IndexBuffer);
+        ImDrawVert * const pim_noalias vtx_dst = (ImDrawVert* pim_noalias)vkrBuffer_Map(&rb->VertexBuffer);
+        ImDrawIdx * const pim_noalias idx_dst = (ImDrawIdx* pim_noalias)vkrBuffer_Map(&rb->IndexBuffer);
         ASSERT(vtx_dst);
         ASSERT(idx_dst);
+        i32 vertOffset = 0;
+        i32 indOffset = 0;
+        ProfileBegin(pm_copydrawlists);
         for (i32 n = 0; n < cmdListCount; n++)
         {
-            const ImDrawList* pim_noalias cmd_list = cmdLists[n];
-            memcpy(vtx_dst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
-            memcpy(idx_dst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
-            vtx_dst += cmd_list->VtxBuffer.Size;
-            idx_dst += cmd_list->IdxBuffer.Size;
+            ImDrawList const * const pim_noalias cmd_list = cmdLists[n];
+            const ImVector<ImDrawVert>& vertSrc = cmd_list->VtxBuffer;
+            const ImVector<ImDrawIdx>& idxSrc = cmd_list->IdxBuffer;
+            ImDrawVert const *const pim_noalias pVertSrc = vertSrc.Data;
+            ImDrawIdx const *const pim_noalias pIdxSrc = idxSrc.Data;
+            i32 vlen = vertSrc.Size;
+            i32 ilen = idxSrc.Size;
+            memcpy(vtx_dst + vertOffset, pVertSrc, vlen * sizeof(ImDrawVert));
+            memcpy(idx_dst + indOffset, pIdxSrc, ilen * sizeof(ImDrawIdx));
+            vertOffset += vlen;
+            indOffset += ilen;
         }
+        ProfileEnd(pm_copydrawlists);
         vkrBuffer_Unmap(vertBuf);
         vkrBuffer_Unmap(indBuf);
         vkrBuffer_Flush(vertBuf);
@@ -312,6 +326,8 @@ void ImGui_ImplVulkan_RenderDrawData(ImDrawData* draw_data, VkCommandBuffer comm
 
     // Setup desired Vulkan state
     ImGui_ImplVulkan_SetupRenderState(draw_data, command_buffer, rb, fb_width, fb_height);
+
+    ProfileBegin(pm_renderdrawdata);
 
     // Will project scissor/clipping rectangles into framebuffer space
     ImVec2 clip_off = draw_data->DisplayPos;         // (0,0) unless using multi-viewports
@@ -371,6 +387,8 @@ void ImGui_ImplVulkan_RenderDrawData(ImDrawData* draw_data, VkCommandBuffer comm
         global_idx_offset += cmdList->IdxBuffer.Size;
         global_vtx_offset += cmdList->VtxBuffer.Size;
     }
+
+    ProfileEnd(pm_renderdrawdata);
 }
 
 static bool ImGui_ImplVulkan_CreateDeviceObjects()
