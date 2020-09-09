@@ -189,11 +189,11 @@ bool vkr_init(i32 width, i32 height)
         {
             .format = g_vkr.chain.colorFormat,
             .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
             .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         },
         {
@@ -324,7 +324,7 @@ bool vkr_init(i32 width, i32 height)
 
     ui_sys_init(g_vkr.display.window);
     ImGui_ImplVulkan_Init(g_vkr.mainPass);
-    screenblit_init(g_vkr.mainPass, 0);
+    screenblit_init();
 
 cleanup:
     vkrCompileOutput_Del(&vertOutput);
@@ -638,6 +638,17 @@ static void vkrMainPassParallel(
 
     const u32 imageIndex = vkrSwapchain_AcquireImage(chain);
     VkFramebuffer framebuffer = chain->buffers[imageIndex];
+
+    if (cvar_get_bool(cv_r_sw))
+    {
+        const framebuf_t* framebuf = render_sys_frontbuf();
+        screenblit_blit(
+            cmd,
+            framebuf->color,
+            framebuf->width,
+            framebuf->height);
+    }
+
     vkrCmdBeginRenderPass(
         cmd,
         renderPass,
@@ -651,17 +662,6 @@ static void vkrMainPassParallel(
     const i32 seccmdcount = task->buffercount;
     vkrCmdExecCmds(cmd, seccmdcount, seccmds);
     vkrCmdExecCmds(cmd, 1, &igcmd);
-
-    if (cvar_get_bool(cv_r_sw))
-    {
-        const framebuf_t* framebuf = render_sys_frontbuf();
-        VkCommandBuffer blitcmd = screenblit_blit(
-            framebuf->color,
-            framebuf->width,
-            framebuf->height,
-            renderPass);
-        vkrCmdExecCmds(cmd, 1, &blitcmd);
-    }
 
     vkrCmdEndRenderPass(cmd);
 
@@ -705,9 +705,12 @@ void vkr_update(void)
     vkrFrameContext* ctx = vkrContext_Get();
     vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, &queue);
     vkrCmdBegin(cmd);
-    VkDescriptorSet descSet = vkrDraw_UpdateDescriptors(cmd);
-    vkrMainPassParallel(cmd, descSet, drawables_get());
+    {
+        VkDescriptorSet descSet = vkrDraw_UpdateDescriptors(cmd);
+        vkrMainPassParallel(cmd, descSet, drawables_get());
+    }
     vkrCmdEnd(cmd);
+
     vkrSwapchain_Present(chain, queue, cmd);
 
     ProfileEnd(pm_update);
