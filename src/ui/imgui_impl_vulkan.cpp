@@ -49,7 +49,7 @@
 #include "ui/imgui.h"
 #include "ui/imgui_impl_vulkan.h"
 #include "rendering/vulkan/vkr.h"
-#include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_texture.h"
 #include "rendering/vulkan/vkr_desc.h"
 #include "allocator/allocator.h"

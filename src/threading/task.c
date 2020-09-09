@@ -122,26 +122,28 @@ i32 task_num_active(void)
     return load_i32(&ms_numThreadsRunning, MO_Relaxed) - load_i32(&ms_numThreadsSleeping, MO_Relaxed);
 }
 
-TaskStatus task_stat(const task_t* task)
+TaskStatus task_stat(const void* pbase)
 {
-    ASSERT(task);
-    return (TaskStatus)load_i32(&(task->status), MO_Acquire);
+    ASSERT(pbase);
+    const task_t* task = pbase;
+    return (TaskStatus)load_i32(&task->status, MO_Acquire);
 }
 
 ProfileMark(pm_submit, task_submit)
-void task_submit(task_t* task, task_execute_fn execute, i32 worksize)
+void task_submit(void* pbase, task_execute_fn execute, i32 worksize)
 {
     ASSERT(execute);
+    task_t* task = pbase;
     if (task && worksize > 0)
     {
         ProfileBegin(pm_submit);
 
         ASSERT(task_stat(task) == TaskStatus_Init);
-        store_i32(&(task->status), TaskStatus_Exec, MO_Release);
+        store_i32(&task->status, TaskStatus_Exec, MO_Release);
         task->execute = execute;
-        store_i32(&(task->worksize), worksize, MO_Release);
-        store_i32(&(task->head), 0, MO_Release);
-        store_i32(&(task->tail), 0, MO_Release);
+        store_i32(&task->worksize, worksize, MO_Release);
+        store_i32(&task->head, 0, MO_Release);
+        store_i32(&task->tail, 0, MO_Release);
 
         const i32 numthreads = ms_numthreads;
         ptrqueue_t* pim_noalias queues = ms_queues;
@@ -158,8 +160,9 @@ void task_submit(task_t* task, task_execute_fn execute, i32 worksize)
 }
 
 ProfileMark(pm_await, task_await)
-void task_await(const task_t* task)
+void task_await(const void* pbase)
 {
+    const task_t* task = pbase;
     if (task)
     {
         ProfileBegin(pm_await);
@@ -185,13 +188,14 @@ void task_await(const task_t* task)
     }
 }
 
-i32 task_poll(const task_t* task)
+i32 task_poll(const void* pbase)
 {
-    return task_stat(task) != TaskStatus_Exec;
+    return task_stat(pbase) != TaskStatus_Exec;
 }
 
-void task_run(task_t* task, task_execute_fn fn, i32 worksize)
+void task_run(void* pbase, task_execute_fn fn, i32 worksize)
 {
+    task_t* task = pbase;
     ASSERT(task);
     ASSERT(fn);
     ASSERT(worksize >= 0);
@@ -224,14 +228,14 @@ void task_sys_init(void)
 
     const i32 kQueueSize = 64;
     ptrqueue_create(ms_queues + 0, EAlloc_Perm, kQueueSize);
-    thread_set_priority(NULL, 1);
-    thread_set_aff(NULL, 1ull << 0);
+    //thread_set_priority(NULL, 1);
+    //thread_set_aff(NULL, 1ull << 0);
     for (i32 t = 1; t < numthreads; ++t)
     {
         ptrqueue_create(ms_queues + t, EAlloc_Perm, kQueueSize);
         thread_create(ms_threads + t, TaskLoop, (void*)((isize)t));
-        thread_set_priority(ms_threads + t, 1);
-        thread_set_aff(ms_threads + t, 1ull << t);
+        //thread_set_priority(ms_threads + t, 1);
+        //thread_set_aff(ms_threads + t, 1ull << t);
     }
 }
 

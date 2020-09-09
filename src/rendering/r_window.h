@@ -10,8 +10,6 @@ void window_sys_init(void);
 void window_sys_update(void);
 void window_sys_shutdown(void);
 
-// returns main window
-// not necessarily one with input focus, see input_system.h
 GLFWwindow* window_get(void);
 
 i32 window_width(void);

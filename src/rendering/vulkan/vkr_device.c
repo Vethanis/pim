@@ -48,7 +48,7 @@ void vkrDevice_Shutdown(vkr_t* vkr)
         vkrDestroyQueues(vkr);
         if (vkr->dev)
         {
-            vkDestroyDevice(vkr->dev, g_vkr.alloccb);
+            vkDestroyDevice(vkr->dev, NULL);
             vkr->dev = NULL;
         }
         vkr->phdev = NULL;
@@ -99,11 +99,11 @@ static const char* const kRequiredDevExtensions[] =
     VK_NV_RAY_TRACING_EXTENSION_NAME,
     VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME,
     VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
+    VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
 };
 
 static const char* const kDesiredDevExtensions[] =
 {
-    VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
     VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
     VK_KHR_DRAW_INDIRECT_COUNT_EXTENSION_NAME,
     VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME,
@@ -417,7 +417,7 @@ VkDevice vkrCreateDevice(
     };
 
     VkDevice device = NULL;
-    VkCheck(vkCreateDevice(g_vkr.phdev, &devInfo, g_vkr.alloccb, &device));
+    VkCheck(vkCreateDevice(g_vkr.phdev, &devInfo, NULL, &device));
     ASSERT(device);
 
     strlist_del(&extensions);

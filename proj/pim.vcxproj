@@ -87,6 +87,8 @@
     <ClCompile Include="..\src\rendering\texture.c" />
     <ClCompile Include="..\src\rendering\vulkan\shaderc_table.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_attachment.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_buffer.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_cmd.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_compile.c" />
     <ClCompile Include="..\src\rendering\r_window.c" />
@@ -95,6 +97,7 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_desc.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_device.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_display.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_image.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_mem.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_mesh.c" />
@@ -256,6 +259,8 @@
     <ClInclude Include="..\src\rendering\vertex_stage.h" />
     <ClInclude Include="..\src\rendering\vulkan\shaderc_table.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_attachment.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_buffer.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_cmd.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_compile.h" />
     <ClInclude Include="..\src\rendering\r_window.h" />
@@ -263,6 +268,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_desc.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_device.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_display.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_image.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_instance.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_mem.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_mesh.h" />
@@ -381,6 +387,14 @@
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\screenblit.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>

@@ -19,7 +19,7 @@ VkDescriptorPool vkrDescPool_New(
         .pPoolSizes = sizes,
     };
     VkDescriptorPool handle = NULL;
-    VkCheck(vkCreateDescriptorPool(g_vkr.dev, &poolInfo, g_vkr.alloccb, &handle));
+    VkCheck(vkCreateDescriptorPool(g_vkr.dev, &poolInfo, NULL, &handle));
     ASSERT(handle);
     return handle;
 }
@@ -28,7 +28,7 @@ void vkrDescPool_Del(VkDescriptorPool pool)
 {
     if (pool)
     {
-        vkDestroyDescriptorPool(g_vkr.dev, pool, g_vkr.alloccb);
+        vkDestroyDescriptorPool(g_vkr.dev, pool, NULL);
     }
 }
 
@@ -75,8 +75,6 @@ void vkrDesc_WriteBindings(
 
     if (count > 0)
     {
-        VkDescriptorBufferInfo* bufferInfos = tmp_calloc(sizeof(bufferInfos[0]) * count);
-        VkDescriptorImageInfo* imageInfos = tmp_calloc(sizeof(imageInfos[0]) * count);
         VkWriteDescriptorSet* writeInfos = tmp_calloc(sizeof(writeInfos[0]) * count);
         for (i32 i = 0; i < count; ++i)
         {
@@ -97,25 +95,14 @@ void vkrDesc_WriteBindings(
             case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
             case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
             {
-                bufferInfos[i].buffer = bindings[i].buffer;
-                bufferInfos[i].offset = 0;
-                bufferInfos[i].range = VK_WHOLE_SIZE;
-                writeInfos[i].pBufferInfo = &bufferInfos[i];
-                ASSERT(bufferInfos[i].buffer);
-                ASSERT(bufferInfos[i].range);
+                writeInfos[i].pBufferInfo = &bindings[i].buffer;
             }
             break;
             case VK_DESCRIPTOR_TYPE_SAMPLER:
             case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
             case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
             {
-                imageInfos[i].sampler = bindings[i].texture.sampler;
-                imageInfos[i].imageView = bindings[i].texture.view;
-                imageInfos[i].imageLayout = bindings[i].texture.layout;
-                writeInfos[i].pImageInfo = &imageInfos[i];
-                ASSERT(imageInfos[i].sampler);
-                ASSERT(imageInfos[i].imageView);
-                ASSERT(imageInfos[i].imageLayout);
+                writeInfos[i].pImageInfo = &bindings[i].image;
             }
             break;
             }

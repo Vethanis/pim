@@ -2,6 +2,7 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_desc.h"
 #include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_buffer.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include "threading/task.h"

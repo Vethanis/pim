@@ -13,7 +13,7 @@ VkSemaphore vkrSemaphore_New(void)
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     };
     VkSemaphore handle = NULL;
-    VkCheck(vkCreateSemaphore(g_vkr.dev, &info, g_vkr.alloccb, &handle));
+    VkCheck(vkCreateSemaphore(g_vkr.dev, &info, NULL, &handle));
     ASSERT(handle);
     ProfileEnd(pm_createsema);
     return handle;
@@ -26,7 +26,7 @@ void vkrSemaphore_Del(VkSemaphore sema)
     if (sema)
     {
         ProfileBegin(pm_destroysema);
-        vkDestroySemaphore(g_vkr.dev, sema, g_vkr.alloccb);
+        vkDestroySemaphore(g_vkr.dev, sema, NULL);
         ProfileEnd(pm_destroysema);
     }
 }
@@ -42,7 +42,7 @@ VkFence vkrFence_New(bool signalled)
         .flags = signalled ? VK_FENCE_CREATE_SIGNALED_BIT : 0,
     };
     VkFence handle = NULL;
-    VkCheck(vkCreateFence(g_vkr.dev, &info, g_vkr.alloccb, &handle));
+    VkCheck(vkCreateFence(g_vkr.dev, &info, NULL, &handle));
     ASSERT(handle);
     ProfileEnd(pm_createfence);
     return handle;
@@ -55,7 +55,7 @@ void vkrFence_Del(VkFence fence)
     if (fence)
     {
         ProfileBegin(pm_destroyfence);
-        vkDestroyFence(g_vkr.dev, fence, g_vkr.alloccb);
+        vkDestroyFence(g_vkr.dev, fence, NULL);
         ProfileEnd(pm_destroyfence);
     }
 }
