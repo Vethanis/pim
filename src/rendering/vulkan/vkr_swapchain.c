@@ -56,7 +56,9 @@ bool vkrSwapchain_New(
         .imageExtent = ext,
         .imageArrayLayers = 1,
         // use transfer_dst_bit if rendering offscreen
-        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .imageUsage =
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .imageSharingMode = concurrent ?
             VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
         .queueFamilyIndexCount = concurrent ? NELEM(families) : 0,
