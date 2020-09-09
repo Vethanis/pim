@@ -18,7 +18,7 @@ VkCommandPool vkrCmdPool_New(i32 family, VkCommandPoolCreateFlags flags)
         .queueFamilyIndex = family,
     };
     VkCommandPool pool = NULL;
-    VkCheck(vkCreateCommandPool(g_vkr.dev, &poolInfo, g_vkr.alloccb, &pool));
+    VkCheck(vkCreateCommandPool(g_vkr.dev, &poolInfo, NULL, &pool));
     ASSERT(pool);
     ProfileEnd(pm_cmdpoolnew);
     return pool;
@@ -30,7 +30,7 @@ void vkrCmdPool_Del(VkCommandPool pool)
     if (pool)
     {
         ProfileBegin(pm_cmdpooldel);
-        vkDestroyCommandPool(g_vkr.dev, pool, g_vkr.alloccb);
+        vkDestroyCommandPool(g_vkr.dev, pool, NULL);
         ProfileEnd(pm_cmdpooldel);
     }
 }
@@ -101,7 +101,7 @@ void vkrCmdAlloc_Del(vkrCmdAlloc* allocator)
         }
         if (pool)
         {
-            vkDestroyCommandPool(g_vkr.dev, pool, g_vkr.alloccb);
+            vkDestroyCommandPool(g_vkr.dev, pool, NULL);
         }
         pim_free(fences);
         pim_free(buffers);

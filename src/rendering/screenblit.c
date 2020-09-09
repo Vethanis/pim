@@ -1,430 +1,265 @@
 #include "screenblit.h"
-#include "rendering/r_window.h"
-#include "io/fd.h"
+#include "rendering/vulkan/vkr.h"
+#include "rendering/vulkan/vkr_texture.h"
+#include "rendering/vulkan/vkr_buffer.h"
+#include "rendering/vulkan/vkr_pipeline.h"
+#include "rendering/vulkan/vkr_renderpass.h"
+#include "rendering/vulkan/vkr_compile.h"
+#include "rendering/vulkan/vkr_shader.h"
+#include "rendering/vulkan/vkr_context.h"
+#include "rendering/vulkan/vkr_cmd.h"
+#include "rendering/vulkan/vkr_swapchain.h"
+#include "rendering/vulkan/vkr_sync.h"
+#include "rendering/constants.h"
+#include "common/console.h"
+#include "math/types.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
-#include <glad/glad.h>
+#include <string.h>
 
-// ----------------------------------------------------------------------------
-
-typedef GLuint glhandle;
-
-typedef struct glmesh_s
+static const float2 kScreenMesh[] =
 {
-    glhandle vao;
-    glhandle vbo;
-    i32 vertCount;
-} glmesh_t;
-
-typedef struct vert_attrib_s
-{
-    i32 dimension;
-    i32 offset;
-} vert_attrib_t;
-
-// ----------------------------------------------------------------------------
-
-static const float kScreenMesh[] =
-{
-    -1.0f, -1.0f,
-     1.0f, -1.0f,
-     1.0f,  1.0f,
-     1.0f,  1.0f,
-    -1.0f,  1.0f,
-    -1.0f, -1.0f
+    { -1.0f, -1.0f },
+    { 1.0f, -1.0f },
+    { 1.0f,  1.0f },
+    { 1.0f,  1.0f },
+    { -1.0f,  1.0f },
+    { -1.0f, -1.0f },
 };
 
-static const char* const kBlitVertShader[] =
-{
-    "#version 330 core\n",
-    "layout(location = 0) in vec2 mesh;\n",
-    "out vec2 uv;\n",
-    "void main()\n",
-    "{\n",
-    "   gl_Position = vec4(mesh.xy, 0.0, 1.0);\n",
-    "   uv = mesh * 0.5 + 0.5;\n",
-    "}\n",
-};
-
-static const char* const kBlitFragShader[] =
-{
-    "#version 330 core\n",
-    "in vec2 uv;\n",
-    "out vec4 outColor;\n",
-    "uniform sampler2D inColor;\n",
-    "void main()\n",
-    "{\n",
-    "   outColor = texture(inColor, uv);\n",
-    "}\n",
-};
+static vkrBuffer ms_blitMesh;
+static vkrPipeline ms_blitProgram;
+static vkrTexture2D ms_image;
 
 // ----------------------------------------------------------------------------
 
-static glhandle CreateGlProgram(
-    i32 vsLines, const char* const * const vs,
-    i32 fsLines, const char* const * const fs);
-static void DestroyGlProgram(glhandle* pProg);
-static void SetupTextureUnit(glhandle prog, const char* texName, i32 unit);
-
-static glhandle CreateGlTexture(i32 width, i32 height);
-static void UpdateGlTexture(
-    glhandle hdl, i32 width, i32 height, const void* data);
-static void DestroyGlTexture(glhandle* pHdl);
-static void BindGlTexture(glhandle hdl, i32 unit);
-
-static glmesh_t CreateGlMesh(
-    i32 bytes, const void* data,
-    i32 stride,
-    i32 attribCount, const vert_attrib_t* attribs);
-static void DrawGlMesh(glmesh_t mesh);
-static void DestroyGlMesh(glmesh_t* pMesh);
-
-// ----------------------------------------------------------------------------
-
-static glmesh_t ms_blitMesh;
-static glhandle ms_blitProgram;
-static glhandle ms_image;
-static i32 ms_width;
-static i32 ms_height;
-
-// ----------------------------------------------------------------------------
-
-void screenblit_init(i32 width, i32 height)
+bool screenblit_init(
+    VkRenderPass renderPass,
+    i32 subpass)
 {
-    ms_width = width;
-    ms_height = height;
-    ms_image = CreateGlTexture(width, height);
-    ASSERT(ms_image);
-    const vert_attrib_t attribs[] =
+    bool success = true;
+
+    vkrCompileOutput vertOutput = { 0 };
+    vkrCompileOutput fragOutput = { 0 };
+    char* shaderText = vkrLoadShader("screenblit.hlsl");
+
+    if (!vkrTexture2D_New(
+        &ms_image,
+        kDrawWidth,
+        kDrawHeight,
+        VK_FORMAT_R8G8B8A8_SRGB,
+        NULL, 0))
     {
-        {.dimension = 2,.offset = 0 },
+        ASSERT(false);
+        success = false;
+        goto cleanup;
+    }
+    if (!vkrBuffer_New(
+        &ms_blitMesh,
+        sizeof(kScreenMesh),
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        vkrMemUsage_CpuToGpu,
+        PIM_FILELINE))
+    {
+        ASSERT(false);
+        success = false;
+        goto cleanup;
+    }
+
+    const vkrCompileInput vertInput =
+    {
+        .filename = "screenblit.hlsl",
+        .entrypoint = "VSMain",
+        .text = shaderText,
+        .type = vkrShaderType_Vert,
+        .compile = true,
+        .disassemble = true,
     };
-    ms_blitMesh = CreateGlMesh(
-        sizeof(kScreenMesh), kScreenMesh,
-        sizeof(float) * 2,
-        NELEM(attribs), attribs);
-    ms_blitProgram = CreateGlProgram(
-        NELEM(kBlitVertShader), kBlitVertShader,
-        NELEM(kBlitFragShader), kBlitFragShader);
-    ASSERT(ms_blitProgram);
-    SetupTextureUnit(ms_blitProgram, "inColor", 0);
+    vkrCompile(&vertInput, &vertOutput);
+    if (vertOutput.errors)
+    {
+        con_logf(LogSev_Error, "Vkc", "Errors while compiling %s %s", vertInput.filename, vertInput.entrypoint);
+        con_logf(LogSev_Error, "Vkc", "%s", vertOutput.errors);
+        ASSERT(false);
+        success = false;
+        goto cleanup;
+    }
+    if (vertOutput.disassembly)
+    {
+        con_logf(LogSev_Info, "Vkc", "Dissassembly of %s %s", vertInput.filename, vertInput.entrypoint);
+        con_logf(LogSev_Info, "Vkc", "%s", vertOutput.disassembly);
+    }
+
+    const vkrCompileInput fragInput =
+    {
+        .filename = "screenblit.hlsl",
+        .entrypoint = "PSMain",
+        .text = shaderText,
+        .type = vkrShaderType_Frag,
+        .compile = true,
+        .disassemble = true,
+    };
+    vkrCompile(&fragInput, &fragOutput);
+    if (fragOutput.errors)
+    {
+        con_logf(LogSev_Error, "Vkc", "Errors while compiling %s %s", fragInput.filename, fragInput.entrypoint);
+        con_logf(LogSev_Error, "Vkc", "%s", fragOutput.errors);
+        ASSERT(false);
+        success = false;
+        goto cleanup;
+    }
+    if (fragOutput.disassembly)
+    {
+        con_logf(LogSev_Info, "Vkc", "Dissassembly of %s %s", fragInput.filename, fragInput.entrypoint);
+        con_logf(LogSev_Info, "Vkc", "%s", fragOutput.disassembly);
+    }
+
+    const vkrSwapchain* swapchain = &g_vkr.chain;
+    ASSERT(swapchain->handle);
+
+    const vkrFixedFuncs ffuncs =
+    {
+        .viewport = vkrSwapchain_GetViewport(swapchain),
+        .scissor = vkrSwapchain_GetRect(swapchain),
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .cullMode = VK_CULL_MODE_NONE,
+        .depthCompareOp = VK_COMPARE_OP_ALWAYS,
+        .scissorOn = false,
+        .depthClamp = false,
+        .depthTestEnable = true,
+        .depthWriteEnable = true,
+        .attachmentCount = 1,
+        .attachments[0] =
+        {
+            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .blendEnable = false,
+        },
+    };
+
+    const vkrVertexLayout vertLayout =
+    {
+        .streamCount = 1,
+        .types[0] = vkrVertType_float2,
+    };
+
+    VkPipelineShaderStageCreateInfo shaders[] =
+    {
+        vkrCreateShader(&vertOutput),
+        vkrCreateShader(&fragOutput),
+    };
+
+    vkrPipelineLayout pipeLayout = { 0 };
+    vkrPipelineLayout_New(&pipeLayout);
+    const VkDescriptorSetLayoutBinding bindings[] =
+    {
+        {
+            // texture + sampler
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+    };
+    if (!vkrPipelineLayout_AddSet(
+        &pipeLayout,
+        NELEM(bindings), bindings,
+        VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR))
+    {
+        success = false;
+        goto cleanup;
+    }
+
+    if (!vkrPipeline_NewGfx(
+        &ms_blitProgram,
+        &ffuncs,
+        &vertLayout,
+        &pipeLayout,
+        renderPass,
+        subpass,
+        NELEM(shaders), shaders))
+    {
+        success = false;
+        goto cleanup;
+    }
+
+cleanup:
+    vkrCompileOutput_Del(&vertOutput);
+    vkrCompileOutput_Del(&fragOutput);
+    pim_free(shaderText);
+    shaderText = NULL;
+    for (i32 i = 0; i < NELEM(shaders); ++i)
+    {
+        vkrDestroyShader(shaders + i);
+    }
+    if (!success)
+    {
+        screenblit_shutdown();
+    }
+    return success;
 }
 
 void screenblit_shutdown(void)
 {
-    DestroyGlTexture(&ms_image);
-    DestroyGlMesh(&ms_blitMesh);
-    DestroyGlProgram(&ms_blitProgram);
-    ms_width = 0;
-    ms_height = 0;
+    vkrTexture2D_Del(&ms_image);
+    vkrBuffer_Release(&ms_blitMesh, NULL);
+    vkrPipeline_Del(&ms_blitProgram);
 }
 
 ProfileMark(pm_blit, screenblit_blit)
-void screenblit_blit(const u32* texels, i32 width, i32 height)
+VkCommandBuffer screenblit_blit(
+    const u32* texels,
+    i32 width,
+    i32 height,
+    VkRenderPass renderPass)
 {
     ProfileBegin(pm_blit);
 
-    ASSERT(width == ms_width);
-    ASSERT(height == ms_height);
-    UpdateGlTexture(ms_image, width, height, texels);
+    ASSERT(renderPass);
+    ASSERT(ms_image.width == width);
+    ASSERT(ms_image.height == height);
+    const i32 bytes = width * height * sizeof(texels[0]);
+    vkrTexture2D_Upload(&ms_image, texels, bytes);
 
-    glDisable(GL_BLEND);
-    glDisable(GL_SCISSOR_TEST);
-    glViewport(0, 0, window_width(), window_height());
-    glClear(GL_COLOR_BUFFER_BIT);
-    glUseProgram(ms_blitProgram);
-    BindGlTexture(ms_image, 0);
-    DrawGlMesh(ms_blitMesh);
+    const vkrSwapchain* swapchain = &g_vkr.chain;
+    VkViewport viewport = vkrSwapchain_GetViewport(swapchain);
+    VkRect2D rect = vkrSwapchain_GetRect(swapchain);
+
+    vkrFrameContext* ctx = vkrContext_Get();
+    VkCommandBuffer cmd = NULL;
+    vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, NULL);
+    vkrCmdBeginSec(cmd, renderPass, 0, NULL);
+    vkrCmdViewport(cmd, viewport, rect);
+    vkrCmdBindPipeline(cmd, &ms_blitProgram);
+    const VkDescriptorImageInfo imgInfo =
+    {
+        .sampler = ms_image.sampler,
+        .imageView = ms_image.view,
+        .imageLayout = ms_image.layout,
+    };
+    const VkWriteDescriptorSet writes[] =
+    {
+        {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstBinding = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &imgInfo,
+        },
+    };
+    vkCmdPushDescriptorSetKHR(
+        cmd,
+        ms_blitProgram.bindpoint,
+        ms_blitProgram.layout.handle,
+        0,
+        NELEM(writes), writes);
+    const VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(cmd, 0, 1, &ms_blitMesh.handle, offsets);
+    vkCmdDraw(cmd, 6, 1, 0, 0);
+    vkrCmdEnd(cmd);
 
     ProfileEnd(pm_blit);
-}
 
-// ----------------------------------------------------------------------------
-
-static glhandle CreateGlTexture(i32 width, i32 height)
-{
-    glhandle hdl = 0;
-    glGenTextures(1, &hdl);
-    ASSERT(hdl);
-    ASSERT(!glGetError());
-    glBindTexture(GL_TEXTURE_2D, hdl);
-    ASSERT(!glGetError());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    ASSERT(!glGetError());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    ASSERT(!glGetError());
-    glTexImage2D(
-        GL_TEXTURE_2D,              // target
-        0,                          // level
-        GL_RGBA8,                   // internalformat
-        width,                      // width
-        height,                     // height
-        GL_FALSE,                   // border
-        GL_RGBA,                    // format
-        GL_UNSIGNED_BYTE,           // type
-        NULL);                      // data
-    ASSERT(!glGetError());
-    return hdl;
-}
-
-static void UpdateGlTexture(
-    glhandle hdl,
-    i32 width,
-    i32 height,
-    const void* data)
-{
-    ASSERT(hdl);
-    ASSERT(data);
-    glBindTexture(GL_TEXTURE_2D, hdl);
-    ASSERT(!glGetError());
-    glTexSubImage2D(
-        GL_TEXTURE_2D,              // target
-        0,                          // mip level
-        0,                          // xoffset
-        0,                          // yoffset
-        width,                      // width
-        height,                     // height
-        GL_RGBA,                    // format
-        GL_UNSIGNED_BYTE,           // type
-        data);                      // data
-    ASSERT(!glGetError());
-}
-
-static void DestroyGlTexture(glhandle* pHdl)
-{
-    ASSERT(pHdl);
-    glhandle hdl = *pHdl;
-    *pHdl = 0;
-    if (hdl)
-    {
-        glDeleteTextures(1, &hdl);
-        ASSERT(!glGetError());
-    }
-}
-
-static void BindGlTexture(glhandle hdl, i32 index)
-{
-    ASSERT(hdl);
-    ASSERT(index >= 0 && index < 8);
-    glActiveTexture(GL_TEXTURE0 + index);
-    ASSERT(!glGetError());
-    glBindTexture(GL_TEXTURE_2D, hdl);
-    ASSERT(!glGetError());
-}
-
-static glmesh_t CreateGlMesh(
-    i32 bytes, const void* data,
-    i32 stride,
-    i32 attribCount, const vert_attrib_t* attribs)
-{
-    ASSERT(bytes > 0);
-    ASSERT(data);
-    ASSERT(attribCount > 0);
-    ASSERT(attribs);
-
-    i32 vao = 0;
-    i32 vbo = 0;
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-    ASSERT(vao);
-    ASSERT(vbo);
-    ASSERT(!glGetError());
-
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    ASSERT(!glGetError());
-    for (i32 i = 0; i < attribCount; ++i)
-    {
-        glEnableVertexAttribArray(i);
-        ASSERT(!glGetError());
-        glVertexAttribPointer(
-            i,                              // index
-            attribs[i].dimension,           // dimension
-            GL_FLOAT,                       // type
-            GL_FALSE,                       // normalized
-            stride,                         // bytes between vertices
-            (void*)(isize)(attribs[i].offset));    // offset of attribute
-        ASSERT(!glGetError());
-    }
-    glBufferData(GL_ARRAY_BUFFER, bytes, data, GL_STATIC_DRAW);
-    ASSERT(!glGetError());
-
-    glmesh_t mesh;
-    mesh.vao = vao;
-    mesh.vbo = vbo;
-    mesh.vertCount = bytes / stride;
-
-    return mesh;
-}
-
-static void DrawGlMesh(glmesh_t mesh)
-{
-    ASSERT(mesh.vao);
-    ASSERT(mesh.vbo);
-    ASSERT(mesh.vertCount > 0);
-    glBindVertexArray(mesh.vao);
-    ASSERT(!glGetError());
-    glDrawArrays(GL_TRIANGLES, 0, mesh.vertCount);
-    ASSERT(!glGetError());
-}
-
-static void DestroyGlMesh(glmesh_t* pMesh)
-{
-    ASSERT(pMesh);
-    glhandle vao = pMesh->vao;
-    glhandle vbo = pMesh->vbo;
-    pMesh->vao = 0;
-    pMesh->vbo = 0;
-    pMesh->vertCount = 0;
-    if (vbo)
-    {
-        glDeleteBuffers(1, &vbo);
-        ASSERT(!glGetError());
-    }
-    if (vao)
-    {
-        glDeleteVertexArrays(1, &vao);
-        ASSERT(!glGetError());
-    }
-}
-
-static char* GetShaderLog(glhandle shader)
-{
-    ASSERT(shader);
-    i32 status = 0;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-    ASSERT(!glGetError());
-    if (!status)
-    {
-        i32 loglen = 0;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &loglen);
-        ASSERT(!glGetError());
-        char* infolog = pim_calloc(EAlloc_Temp, loglen + 1);
-        ASSERT(infolog);
-        glGetShaderInfoLog(shader, loglen, NULL, infolog);
-        ASSERT(!glGetError());
-        infolog[loglen] = 0;
-        return infolog;
-    }
-    return NULL;
-}
-
-static char* GetProgramLog(glhandle program)
-{
-    ASSERT(program);
-    i32 status = 0;
-    glGetProgramiv(program, GL_LINK_STATUS, &status);
-    ASSERT(!glGetError());
-    if (!status)
-    {
-        i32 loglen = 0;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &loglen);
-        ASSERT(!glGetError());
-        char* infolog = pim_calloc(EAlloc_Temp, loglen + 1);
-        glGetProgramInfoLog(program, loglen, NULL, infolog);
-        ASSERT(!glGetError());
-        infolog[loglen] = 0;
-        return infolog;
-    }
-    return NULL;
-}
-
-static glhandle CreateGlProgram(
-    i32 vsLines, const char* const * const vs,
-    i32 fsLines, const char* const * const fs)
-{
-    ASSERT(vsLines > 0);
-    ASSERT(fsLines > 0);
-    ASSERT(vs);
-    ASSERT(fs);
-
-    glhandle vso = glCreateShader(GL_VERTEX_SHADER);
-    ASSERT(vso);
-    ASSERT(!glGetError());
-    glShaderSource(vso, vsLines, vs, NULL);
-    ASSERT(!glGetError());
-    glCompileShader(vso);
-    ASSERT(!glGetError());
-    char* vsErrors = GetShaderLog(vso);
-    if (vsErrors)
-    {
-        fd_puts(fd_stderr, vsErrors);
-        pim_free(vsErrors);
-        glDeleteShader(vso);
-        ASSERT(!glGetError());
-        return 0;
-    }
-
-    glhandle fso = glCreateShader(GL_FRAGMENT_SHADER);
-    ASSERT(fso);
-    ASSERT(!glGetError());
-    glShaderSource(fso, fsLines, fs, NULL);
-    ASSERT(!glGetError());
-    glCompileShader(fso);
-    ASSERT(!glGetError());
-    char* fsErrors = GetShaderLog(vso);
-    if (fsErrors)
-    {
-        fd_puts(fd_stderr, fsErrors);
-        pim_free(fsErrors);
-        glDeleteShader(vso);
-        ASSERT(!glGetError());
-        glDeleteShader(fso);
-        ASSERT(!glGetError());
-        return 0;
-    }
-
-    glhandle prog = glCreateProgram();
-    ASSERT(prog);
-    ASSERT(!glGetError());
-    glAttachShader(prog, vso);
-    ASSERT(!glGetError());
-    glAttachShader(prog, fso);
-    ASSERT(!glGetError());
-    glLinkProgram(prog);
-    ASSERT(!glGetError());
-
-    char* progErrors = GetProgramLog(prog);
-    if (progErrors)
-    {
-        fd_puts(fd_stderr, progErrors);
-        pim_free(progErrors);
-        glDeleteProgram(prog);
-        ASSERT(!glGetError());
-        prog = 0;
-    }
-
-    glDeleteShader(vso);
-    ASSERT(!glGetError());
-    glDeleteShader(fso);
-    ASSERT(!glGetError());
-
-    return prog;
-}
-
-static void DestroyGlProgram(glhandle* pProg)
-{
-    ASSERT(pProg);
-    glhandle prog = *pProg;
-    *pProg = 0;
-    if (prog)
-    {
-        glUseProgram(0);
-        ASSERT(!glGetError());
-        glDeleteProgram(prog);
-        ASSERT(!glGetError());
-    }
-}
-
-static void SetupTextureUnit(glhandle prog, const char* texName, i32 unit)
-{
-    ASSERT(prog);
-    ASSERT(texName);
-    i32 location = glGetUniformLocation(prog, texName);
-    ASSERT(!glGetError());
-    ASSERT(location != -1);
-    glUseProgram(prog);
-    ASSERT(!glGetError());
-    glUniform1i(location, unit);
-    ASSERT(!glGetError());
+    return cmd;
 }

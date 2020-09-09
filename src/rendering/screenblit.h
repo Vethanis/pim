@@ -2,11 +2,20 @@
 
 #include "common/macro.h"
 
+PIM_DECL_HANDLE(VkCommandBuffer);
+PIM_DECL_HANDLE(VkRenderPass);
+
 PIM_C_BEGIN
 
-void screenblit_init(i32 width, i32 height);
+bool screenblit_init(
+    VkRenderPass renderPass,
+    i32 subpass);
 void screenblit_shutdown(void);
 
-void screenblit_blit(const u32* texels, i32 width, i32 height);
+VkCommandBuffer screenblit_blit(
+    const u32* texels,
+    i32 width,
+    i32 height,
+    VkRenderPass renderPass);
 
 PIM_C_END

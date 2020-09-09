@@ -19,7 +19,7 @@ VkDebugUtilsMessengerEXT vkrCreateDebugMessenger()
             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
             VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
             .pfnUserCallback = vkrOnVulkanMessage,
-    }, g_vkr.alloccb, &messenger));
+    }, NULL, &messenger));
 #endif // _DEBUG
     return messenger;
 }
@@ -29,7 +29,7 @@ void vkrDestroyDebugMessenger(VkDebugUtilsMessengerEXT messenger)
 #ifdef _DEBUG
     if (messenger)
     {
-        vkDestroyDebugUtilsMessengerEXT(g_vkr.inst, messenger, g_vkr.alloccb);
+        vkDestroyDebugUtilsMessengerEXT(g_vkr.inst, messenger, NULL);
     }
 #endif // _DEBUG
 }
@@ -69,11 +69,11 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vkrOnVulkanMessage(
         shouldLog = true;
     }
 
-    ASSERT(sev != LogSev_Error);
     if (shouldLog)
     {
         con_logf(sev, "vkr", pCallbackData->pMessage);
     }
+    ASSERT(sev != LogSev_Error);
 
     return VK_FALSE;
 }

@@ -33,7 +33,7 @@ bool vkrDisplay_New(vkrDisplay* display, i32 width, i32 height, const char* titl
     glfwGetFramebufferSize(window, &display->width, &display->height);
 
     VkSurfaceKHR surface = NULL;
-    VkCheck(glfwCreateWindowSurface(g_vkr.inst, window, g_vkr.alloccb, &surface));
+    VkCheck(glfwCreateWindowSurface(g_vkr.inst, window, NULL, &surface));
     display->surface = surface;
     ASSERT(surface);
     if (!surface)
@@ -52,7 +52,7 @@ void vkrDisplay_Del(vkrDisplay* display)
     {
         if (display->surface)
         {
-            vkDestroySurfaceKHR(g_vkr.inst, display->surface, g_vkr.alloccb);
+            vkDestroySurfaceKHR(g_vkr.inst, display->surface, NULL);
         }
         if (display->window)
         {

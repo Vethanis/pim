@@ -162,6 +162,16 @@ static void SwapBuffers(void)
     ++ms_iFrame;
 }
 
+framebuf_t* render_sys_frontbuf(void)
+{
+    return GetFrontBuf();
+}
+
+framebuf_t* render_sys_backbuf(void)
+{
+    return GetBackBuf();
+}
+
 static void EnsurePtScene(void)
 {
     if (!ms_ptscene)
@@ -401,18 +411,20 @@ static bool PathTrace(void)
 ProfileMark(pm_Rasterize, Rasterize)
 static void Rasterize(void)
 {
-    ProfileBegin(pm_Rasterize);
+    if (cvar_get_bool(&cv_r_sw))
+    {
+        ProfileBegin(pm_Rasterize);
 
-    framebuf_t* frontBuf = GetFrontBuf();
-    framebuf_t* backBuf = GetBackBuf();
+        framebuf_t* frontBuf = GetFrontBuf();
+        framebuf_t* backBuf = GetBackBuf();
 
-    camera_t camera;
-    camera_get(&camera);
+        camera_t camera;
+        camera_get(&camera);
 
-    drawables_updatetransforms(drawables_get());
-    RtcDraw(frontBuf, &camera);
+        RtcDraw(frontBuf, &camera);
 
-    ProfileEnd(pm_Rasterize);
+        ProfileEnd(pm_Rasterize);
+    }
 }
 
 static cmdstat_t CmdQuit(i32 argc, const char** argv)
@@ -478,21 +490,22 @@ static void TakeScreenshot(void)
 }
 
 ProfileMark(pm_Present, Present)
-static void Present(void)
+static bool Present(void)
 {
-    ProfileBegin(pm_Present);
+    bool sw_present = false;
     if (cvar_get_bool(&cv_r_sw))
     {
+        ProfileBegin(pm_Present);
+        sw_present = true;
         framebuf_t* frontBuf = GetFrontBuf();
         int2 size = { frontBuf->width, frontBuf->height };
         ms_exposure.deltaTime = (float)time_dtf();
         ExposeImage(size, frontBuf->light, &ms_exposure);
         ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
-        screenblit_blit(frontBuf->color, frontBuf->width, frontBuf->height);
+        TakeScreenshot();
+        ProfileEnd(pm_Present);
     }
-    TakeScreenshot();
-    SwapBuffers();
-    ProfileEnd(pm_Present);
+    return sw_present;
 }
 
 static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
@@ -683,7 +696,6 @@ void render_sys_init(void)
 
     framebuf_create(GetFrontBuf(), kDrawWidth, kDrawHeight);
     framebuf_create(GetBackBuf(), kDrawWidth, kDrawHeight);
-    screenblit_init(kDrawWidth, kDrawHeight);
     pt_sys_init();
     RtcDrawInit();
 
@@ -700,6 +712,9 @@ ProfileMark(pm_update, render_sys_update)
 void render_sys_update(void)
 {
     ProfileBegin(pm_update);
+
+    SwapBuffers();
+    drawables_updatetransforms(drawables_get());
 
     if (input_keydown(KeyCode_F9))
     {
@@ -719,15 +734,13 @@ void render_sys_update(void)
     Cubemap_Trace();
     if (!PathTrace())
     {
-        if (cvar_get_bool(&cv_r_sw))
-        {
-            Rasterize();
-        }
+        Rasterize();
     }
     Present();
-    Denoise_Evict();
 
     vkr_update();
+
+    Denoise_Evict();
 
     ProfileEnd(pm_update);
 }
@@ -739,7 +752,6 @@ void render_sys_shutdown(void)
     ShutdownPtScene();
 
     pt_sys_shutdown();
-    screenblit_shutdown();
     framebuf_destroy(GetFrontBuf());
     framebuf_destroy(GetBackBuf());
 

@@ -12,7 +12,8 @@ void vkrPipelineLayout_Del(vkrPipelineLayout* layout);
 bool vkrPipelineLayout_AddSet(
     vkrPipelineLayout* layout,
     i32 bindingCount,
-    const VkDescriptorSetLayoutBinding* pBindings);
+    const VkDescriptorSetLayoutBinding* pBindings,
+    VkDescriptorSetLayoutCreateFlags flags);
 void vkrPipelineLayout_AddRange(
     vkrPipelineLayout* layout,
     VkPushConstantRange range);

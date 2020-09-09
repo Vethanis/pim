@@ -529,6 +529,15 @@
     <ClCompile Include="..\src\ui\imgui_impl_vulkan.cpp">
       <Filter>Source Files\ui</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_attachment.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_image.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_buffer.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -1122,6 +1131,15 @@
     <ClInclude Include="..\src\ui\imgui_impl_vulkan.h">
       <Filter>Source Files\ui</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_attachment.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_image.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_buffer.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">
@@ -1147,6 +1165,9 @@
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="..\src\shaders\brush.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\screenblit.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
   </ItemGroup>

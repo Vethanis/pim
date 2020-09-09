@@ -12,8 +12,8 @@
 
 static bool ms_placing = true;
 
-static cvar_t cv_pitchscale = { .type = cvart_float,.name = "pitchscale",.value = "720",.minFloat = 0.0f,.maxFloat = 3600.0f,.desc = "pitch input sensitivity" };
-static cvar_t cv_yawscale = { .type = cvart_float,.name = "yawscale",.value = "720",.minFloat = 0.0f,.maxFloat = 3600.0f,.desc = "yaw input sensitivity" };
+static cvar_t cv_pitchscale = { .type = cvart_float,.name = "pitchscale",.value = "2",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "pitch input sensitivity" };
+static cvar_t cv_yawscale = { .type = cvart_float,.name = "yawscale",.value = "1",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "yaw input sensitivity" };
 static cvar_t cv_movescale = { .type = cvart_float,.name = "movescale",.value = "10",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
 
 static void LightLogic(const camera_t* cam)
@@ -60,8 +60,8 @@ void camera_logic_update(void)
 {
     ProfileBegin(pm_update);
 
-    const float dx = input_delta_axis(MouseAxis_X);
-    const float dy = input_delta_axis(MouseAxis_Y);
+    float dYaw = input_delta_axis(MouseAxis_X) * cvar_get_float(&cv_yawscale);
+    float dPitch = input_delta_axis(MouseAxis_Y) * cvar_get_float(&cv_pitchscale);
     const float dscroll = input_delta_axis(MouseAxis_ScrollY);
     camera_t camera;
     camera_get(&camera);
@@ -88,8 +88,6 @@ void camera_logic_update(void)
 
     const float dt = f1_clamp((float)time_dtf(), 0.0f, 1.0f / 5.0f);
     float moveScale = cvar_get_float(&cv_movescale) * dt;
-    float pitchScale = f1_radians(cvar_get_float(&cv_pitchscale) * dt);
-    float yawScale = f1_radians(cvar_get_float(&cv_yawscale) * dt);
 
     quat rot = camera.rotation;
     float4 eye = camera.position;
@@ -126,8 +124,8 @@ void camera_logic_update(void)
     }
 
     float4 at = f4_add(eye, fwd);
-    at = f4_add(at, f4_mulvs(right, dx));
-    at = f4_add(at, f4_mulvs(up, dy));
+    at = f4_add(at, f4_mulvs(right, dYaw));
+    at = f4_add(at, f4_mulvs(up, dPitch));
     fwd = f4_normalize3(f4_sub(at, eye));
     rot = quat_lookat(fwd, yAxis);
 

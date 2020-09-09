@@ -14,10 +14,15 @@
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_desc.h"
 #include "rendering/vulkan/vkr_texture.h"
+#include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
 #include "rendering/texture.h"
 #include "rendering/material.h"
+#include "rendering/render_system.h"
+#include "rendering/framebuffer.h"
+#include "rendering/camera.h"
+#include "rendering/screenblit.h"
 #include "ui/imgui_impl_vulkan.h"
 #include "ui/cimgui.h"
 #include "ui/ui.h"
@@ -32,7 +37,6 @@
 #include "math/float4x4_funcs.h"
 #include "math/quat_funcs.h"
 #include "threading/task.h"
-#include "rendering/camera.h"
 #include <string.h>
 
 vkr_t g_vkr;
@@ -40,6 +44,7 @@ vkr_t g_vkr;
 static cvar_t* cv_r_sun_dir;
 static cvar_t* cv_r_sun_col;
 static cvar_t* cv_r_sun_lum;
+static cvar_t* cv_r_sw;
 
 bool vkr_init(i32 width, i32 height)
 {
@@ -48,9 +53,11 @@ bool vkr_init(i32 width, i32 height)
     cv_r_sun_dir = cvar_find("r_sun_dir");
     cv_r_sun_col = cvar_find("r_sun_col");
     cv_r_sun_lum = cvar_find("r_sun_lum");
+    cv_r_sw = cvar_find("r_sw");
     ASSERT(cv_r_sun_dir);
     ASSERT(cv_r_sun_col);
     ASSERT(cv_r_sun_lum);
+    ASSERT(cv_r_sw);
 
     bool success = true;
     char* shaderName = "brush.hlsl";
@@ -237,6 +244,7 @@ bool vkr_init(i32 width, i32 height)
         NELEM(attachments), attachments,
         NELEM(subpasses), subpasses,
         NELEM(dependencies), dependencies);
+    g_vkr.mainPass = renderPass;
     if (!renderPass)
     {
         success = false;
@@ -265,14 +273,17 @@ bool vkr_init(i32 width, i32 height)
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         },
         {
-            // albedo texture + sampler
+            // texture + sampler table
             .binding = 2,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = 1024,
+            .descriptorCount = kTextureDescriptors,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         },
     };
-    if (!vkrPipelineLayout_AddSet(&pipeLayout, NELEM(bindings), bindings))
+    if (!vkrPipelineLayout_AddSet(
+        &pipeLayout,
+        NELEM(bindings), bindings,
+        0x0))
     {
         success = false;
         goto cleanup;
@@ -312,7 +323,8 @@ bool vkr_init(i32 width, i32 height)
     }
 
     ui_sys_init(g_vkr.display.window);
-    ImGui_ImplVulkan_Init(g_vkr.pipeline.renderPass);
+    ImGui_ImplVulkan_Init(g_vkr.mainPass);
+    screenblit_init(g_vkr.mainPass, 0);
 
 cleanup:
     vkrCompileOutput_Del(&vertOutput);
@@ -433,13 +445,21 @@ static VkDescriptorSet vkrDraw_UpdateDescriptors(VkCommandBuffer cmd)
                 .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .set = descSet,
                 .binding = 0,
-                .buffer = perdrawbuf->handle,
+                .buffer =
+                {
+                    .buffer = perdrawbuf->handle,
+                    .range = VK_WHOLE_SIZE,
+                },
             },
             {
                 .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .set = descSet,
                 .binding = 1,
-                .buffer = percambuf->handle,
+                .buffer = 
+                {
+                    .buffer = percambuf->handle,
+                    .range = VK_WHOLE_SIZE,
+                },
             },
         };
         vkrDesc_WriteBindings(ctx, NELEM(bufferBindings), bufferBindings);
@@ -461,9 +481,9 @@ static VkDescriptorSet vkrDraw_UpdateDescriptors(VkCommandBuffer cmd)
             {
                 texture = &textures[i].vkrtex;
             }
-            texBindings[i].texture.sampler = texture->sampler;
-            texBindings[i].texture.view = texture->view;
-            texBindings[i].texture.layout = texture->layout;
+            texBindings[i].image.sampler = texture->sampler;
+            texBindings[i].image.imageView = texture->view;
+            texBindings[i].image.imageLayout = texture->layout;
         }
         vkrDesc_WriteBindings(ctx, kTextureDescriptors, texBindings);
 
@@ -480,6 +500,7 @@ typedef struct vkrTaskDraw
     task_t task;
     const vkrPipeline* pipeline;
     const vkrSwapchain* chain;
+    VkRenderPass renderPass;
     VkDescriptorSet descSet;
     VkFramebuffer framebuffer;
     const drawables_t* drawables;
@@ -487,13 +508,13 @@ typedef struct vkrTaskDraw
     i32 buffercount;
 } vkrTaskDraw;
 
-static void vkrTaskDrawFn(task_t* pbase, i32 begin, i32 end)
+static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
 {
-    vkrTaskDraw* task = (vkrTaskDraw*)pbase;
+    vkrTaskDraw* task = pbase;
     const drawables_t* drawables = task->drawables;
     const vkrPipeline* pipeline = task->pipeline;
     const vkrSwapchain* chain = task->chain;
-    VkRenderPass renderPass = pipeline->renderPass;
+    VkRenderPass renderPass = task->renderPass;
     const i32 subpass = pipeline->subpass;
     VkFramebuffer framebuffer = task->framebuffer;
     VkDescriptorSet descSet = task->descSet;
@@ -560,22 +581,26 @@ static VkCommandBuffer vkrRenderImGui(VkRenderPass renderPass)
     ProfileEnd(pm_igrender);
     ProfileBegin(pm_renderimgui);
     vkrFrameContext* ctx = vkrContext_Get();
-    VkCommandBuffer igcmd = NULL;
-    vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, &igcmd, NULL, NULL);
-    vkrCmdBeginSec(igcmd, renderPass, 0, NULL);
-    ImGui_ImplVulkan_RenderDrawData(igGetDrawData(), igcmd);
-    vkrCmdEnd(igcmd);
+    VkCommandBuffer cmd = NULL;
+    vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, NULL);
+    vkrCmdBeginSec(cmd, renderPass, 0, NULL);
+    ImGui_ImplVulkan_RenderDrawData(igGetDrawData(), cmd);
+    vkrCmdEnd(cmd);
     ProfileEnd(pm_renderimgui);
-    return igcmd;
+    return cmd;
 }
 
 ProfileMark(pm_mainpassparallel, vkrMainPassParallel)
-static void vkrMainPassParallel(vkr_t* vkr, VkCommandBuffer cmd, VkDescriptorSet descSet, const drawables_t* drawables)
+static void vkrMainPassParallel(
+    VkCommandBuffer cmd,
+    VkDescriptorSet descSet,
+    const drawables_t* drawables)
 {
     ProfileBegin(pm_mainpassparallel);
 
-    vkrSwapchain* chain = &vkr->chain;
-    vkrPipeline* pipeline = &vkr->pipeline;
+    vkrSwapchain* chain = &g_vkr.chain;
+    vkrPipeline* pipeline = &g_vkr.pipeline;
+    VkRenderPass renderPass = g_vkr.mainPass;
 
     VkRect2D rect = vkrSwapchain_GetRect(chain);
     VkViewport viewport = vkrSwapchain_GetViewport(chain);
@@ -598,30 +623,45 @@ static void vkrMainPassParallel(vkr_t* vkr, VkCommandBuffer cmd, VkDescriptorSet
     task->drawables = drawables;
     task->chain = chain;
     task->pipeline = pipeline;
+    task->renderPass = renderPass;
     task->framebuffer = NULL; // spec says this is optional, but may yield perf speedup on some implementations at cmd buf exec time
     task->descSet = descSet;
     task->buffers = seccmds;
     task->buffercount = 0;
-    task_submit(&task->task, vkrTaskDrawFn, drawcount);
-    task_sys_schedule();
+    if (!cvar_get_bool(cv_r_sw))
+    {
+        task_submit(task, vkrTaskDrawFn, drawcount);
+        task_sys_schedule();
+    }
 
-    VkCommandBuffer igcmd = vkrRenderImGui(pipeline->renderPass);
+    VkCommandBuffer igcmd = vkrRenderImGui(renderPass);
 
     const u32 imageIndex = vkrSwapchain_AcquireImage(chain);
     VkFramebuffer framebuffer = chain->buffers[imageIndex];
     vkrCmdBeginRenderPass(
         cmd,
-        pipeline->renderPass,
+        renderPass,
         framebuffer,
         rect,
         NELEM(clearValues),
         clearValues,
         VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
-    task_await(&task->task);
+    task_await(task);
     const i32 seccmdcount = task->buffercount;
     vkrCmdExecCmds(cmd, seccmdcount, seccmds);
     vkrCmdExecCmds(cmd, 1, &igcmd);
+
+    if (cvar_get_bool(cv_r_sw))
+    {
+        const framebuf_t* framebuf = render_sys_frontbuf();
+        VkCommandBuffer blitcmd = screenblit_blit(
+            framebuf->color,
+            framebuf->width,
+            framebuf->height,
+            renderPass);
+        vkrCmdExecCmds(cmd, 1, &blitcmd);
+    }
 
     vkrCmdEndRenderPass(cmd);
 
@@ -647,7 +687,7 @@ void vkr_update(void)
         vkrSwapchain_Recreate(
             &g_vkr.chain,
             &g_vkr.display,
-            g_vkr.pipeline.renderPass);
+            g_vkr.mainPass);
     }
     vkrSwapchain* chain = &g_vkr.chain;
     if (!chain->handle)
@@ -666,7 +706,7 @@ void vkr_update(void)
     vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, &queue);
     vkrCmdBegin(cmd);
     VkDescriptorSet descSet = vkrDraw_UpdateDescriptors(cmd);
-    vkrMainPassParallel(&g_vkr, cmd, descSet, drawables_get());
+    vkrMainPassParallel(cmd, descSet, drawables_get());
     vkrCmdEnd(cmd);
     vkrSwapchain_Present(chain, queue, cmd);
 
@@ -679,10 +719,12 @@ void vkr_shutdown(void)
     {
         vkrDevice_WaitIdle();
 
+        screenblit_shutdown();
         ImGui_ImplVulkan_Shutdown();
         ui_sys_shutdown();
 
         vkrPipeline_Del(&g_vkr.pipeline);
+        vkrRenderPass_Del(g_vkr.mainPass);
         vkrTexture2D_Del(&g_vkr.nullTexture);
         mesh_sys_vkfree();
         texture_sys_vkfree();

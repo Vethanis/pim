@@ -37,7 +37,7 @@ void vkrInstance_Shutdown(vkr_t* vkr)
         vkr->messenger = NULL;
         if (vkr->inst)
         {
-            vkDestroyInstance(vkr->inst, g_vkr.alloccb);
+            vkDestroyInstance(vkr->inst, NULL);
             vkr->inst = NULL;
         }
     }
@@ -173,7 +173,7 @@ VkInstance vkrCreateInstance(strlist_t extensions, strlist_t layers)
     };
 
     VkInstance inst = NULL;
-    VkCheck(vkCreateInstance(&instInfo, g_vkr.alloccb, &inst));
+    VkCheck(vkCreateInstance(&instInfo, NULL, &inst));
 
     strlist_del(&extensions);
     strlist_del(&layers);

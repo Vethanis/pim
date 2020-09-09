@@ -1,11 +1,18 @@
 #include "rendering/vulkan/vkr_texture.h"
-#include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_image.h"
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_cmd.h"
+#include "rendering/vulkan/vkr_buffer.h"
+#include "rendering/vulkan/vkr_mem.h"
 #include "allocator/allocator.h"
 #include "common/time.h"
 #include "math/scalar.h"
 #include <string.h>
+
+i32 vkrTexture2D_MipCount(i32 width, i32 height)
+{
+    return 1 + (i32)floorf(log2f((float)i1_max(width, height)));
+}
 
 bool vkrTexture2D_New(
     vkrTexture2D* tex,
@@ -16,39 +23,21 @@ bool vkrTexture2D_New(
     i32 bytes)
 {
     bool success = true;
-    vkrBuffer stagebuf = { 0 };
     ASSERT(tex);
     memset(tex, 0, sizeof(*tex));
 
     if (bytes < 0)
     {
-        success = false;
-        goto cleanup;
+        ASSERT(false);
+        return false;
     }
 
-    if (!vkrBuffer_New(
-        &stagebuf,
-        bytes,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        vkrMemUsage_CpuOnly,
-        PIM_FILELINE))
-    {
-        success = false;
-        goto cleanup;
-    }
+    tex->width = width;
+    tex->height = height;
+    tex->format = format;
+    tex->layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    {
-        void* dst = vkrBuffer_Map(&stagebuf);
-        ASSERT(dst);
-        if (dst)
-        {
-            memcpy(dst, data, bytes);
-        }
-        vkrBuffer_Unmap(&stagebuf);
-        vkrBuffer_Flush(&stagebuf);
-    }
-
-    const i32 mipCount = 1 + (i32)floorf(log2f((float)i1_max(width, height)));
+    const i32 mipCount = vkrTexture2D_MipCount(width, height);
     const u32 queueFamilies[] =
     {
         g_vkr.queues[vkrQueueId_Gfx].family,
@@ -75,7 +64,6 @@ bool vkrTexture2D_New(
         .pQueueFamilyIndices = queueFamilies,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
-    tex->format = format;
     if (!vkrImage_New(
         &tex->image,
         &imageInfo,
@@ -89,49 +77,124 @@ bool vkrTexture2D_New(
     VkImage image = tex->image.handle;
     ASSERT(image);
 
-    // create image view
-    const VkImageViewCreateInfo viewInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = format,
-        .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .subresourceRange.levelCount = mipCount,
-        .subresourceRange.layerCount = 1,
-    };
-    VkCheck(vkCreateImageView(g_vkr.dev, &viewInfo, g_vkr.alloccb, &tex->view));
-    ASSERT(tex->view);
-    if (!tex->view)
+    VkImageView view = vkrImageView_New(
+        image,
+        VK_IMAGE_VIEW_TYPE_2D,
+        format,
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        0, mipCount,
+        0, 1);
+    tex->view = view;
+    ASSERT(view);
+    if (!view)
     {
         success = false;
         goto cleanup;
     }
 
-    // create image sampler
-    const VkSamplerCreateInfo samplerInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .flags = 0x0,
-        .magFilter = VK_FILTER_LINEAR,
-        .minFilter = VK_FILTER_LINEAR,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .anisotropyEnable = true,
-        .maxAnisotropy = 8.0f,
-        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .minLod = 0.0f,
-        .maxLod = (float)mipCount,
-        .mipLodBias = 0.0f,
-    };
-    VkCheck(vkCreateSampler(g_vkr.dev, &samplerInfo, g_vkr.alloccb, &tex->sampler));
-    ASSERT(tex->sampler);
-    if (!tex->sampler)
+    VkSampler sampler = vkrSampler_New(
+        VK_FILTER_LINEAR,
+        VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        VK_SAMPLER_ADDRESS_MODE_REPEAT, 
+        8.0f);
+    tex->sampler = sampler;
+    ASSERT(sampler);
+    if (!sampler)
     {
         success = false;
         goto cleanup;
     }
+
+    if (bytes > 0)
+    {
+        vkrTexture2D_Upload(tex, data, bytes);
+    }
+
+cleanup:
+    if (!success)
+    {
+        vkrTexture2D_Del(tex);
+    }
+    return success;
+}
+
+void vkrTexture2D_Del(vkrTexture2D* tex)
+{
+    if (tex)
+    {
+        if (tex->image.handle)
+        {
+            // create pipeline barrier to safely release resources
+            const VkImageMemoryBarrier barrier =
+            {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .srcAccessMask = 0x0,
+                .dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = tex->image.handle,
+                .subresourceRange =
+                {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .levelCount = VK_REMAINING_MIP_LEVELS,
+                    .layerCount = VK_REMAINING_ARRAY_LAYERS,
+                },
+            };
+            VkFence fence = vkrMem_Barrier(
+                vkrQueueId_Gfx,
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_PIPELINE_STAGE_HOST_BIT,
+                NULL,
+                NULL,
+                &barrier);
+
+            vkrSampler_Release(tex->sampler, fence);
+            vkrImageView_Release(tex->view, fence);
+            vkrImage_Release(&tex->image, fence);
+        }
+        memset(tex, 0, sizeof(*tex));
+    }
+}
+
+VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
+{
+    ASSERT(tex);
+    ASSERT(tex->image.handle);
+    ASSERT(bytes >= 0);
+    ASSERT(data || !bytes);
+    if (bytes <= 0)
+    {
+        return NULL;
+    }
+
+    vkrBuffer stagebuf = { 0 };
+    if (!vkrBuffer_New(
+        &stagebuf,
+        bytes,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        vkrMemUsage_CpuOnly,
+        PIM_FILELINE))
+    {
+        return NULL;
+    }
+
+    {
+        void* dst = vkrBuffer_Map(&stagebuf);
+        ASSERT(dst);
+        if (dst)
+        {
+            memcpy(dst, data, bytes);
+        }
+        vkrBuffer_Unmap(&stagebuf);
+        vkrBuffer_Flush(&stagebuf);
+    }
+
+    const i32 width = tex->width;
+    const i32 height = tex->height;
+    const i32 mipCount = vkrTexture2D_MipCount(width, height);
+    VkImage image = tex->image.handle;
 
     vkrFrameContext* ctx = vkrContext_Get();
     VkCommandBuffer cmd = NULL;
@@ -163,7 +226,7 @@ bool vkrTexture2D_New(
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcAccessMask = 0x0,
             .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .oldLayout = tex->layout,
             .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -171,8 +234,8 @@ bool vkrTexture2D_New(
             .subresourceRange =
             {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .levelCount = mipCount,
-                .layerCount = 1,
+                .levelCount = VK_REMAINING_MIP_LEVELS,
+                .layerCount = VK_REMAINING_ARRAY_LAYERS,
             },
         };
         vkrCmdImageBarrier(
@@ -180,6 +243,7 @@ bool vkrTexture2D_New(
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             &barrier);
+        tex->layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
         // copy buffer to image mip 0
         const VkBufferImageCopy region =
@@ -194,7 +258,7 @@ bool vkrTexture2D_New(
         vkCmdCopyBufferToImage(
             cmd,
             stagebuf.handle,
-            tex->image.handle,
+            image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1, &region);
 
@@ -273,74 +337,6 @@ bool vkrTexture2D_New(
     vkrBuffer_Release(&stagebuf, fence);
 
     tex->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    tex->width = width;
-    tex->height = height;
 
-cleanup:
-    if (!success)
-    {
-        vkrBuffer_Del(&stagebuf);
-        vkrTexture2D_Del(tex);
-    }
-    return success;
-}
-
-void vkrTexture2D_Del(vkrTexture2D* tex)
-{
-    if (tex)
-    {
-        if (tex->image.handle)
-        {
-            // create pipeline barrier to safely release resources
-            const VkImageMemoryBarrier barrier =
-            {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                .srcAccessMask = 0x0,
-                .dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
-                .oldLayout = tex->layout,
-                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = tex->image.handle,
-                .subresourceRange =
-                {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .levelCount = 1,
-                    .layerCount = 1,
-                },
-            };
-            VkFence fence = vkrMem_Barrier(
-                vkrQueueId_Gfx,
-                VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                VK_PIPELINE_STAGE_HOST_BIT,
-                NULL,
-                NULL,
-                &barrier);
-
-            if (tex->sampler)
-            {
-                const vkrReleasable releasable =
-                {
-                    .frame = time_framecount(),
-                    .type = vkrReleasableType_Sampler,
-                    .fence = fence,
-                    .sampler = tex->sampler,
-                };
-                vkrReleasable_Add(&g_vkr.allocator, &releasable);
-            }
-            if (tex->view)
-            {
-                const vkrReleasable releasable =
-                {
-                    .frame = time_framecount(),
-                    .type = vkrReleasableType_ImageView,
-                    .fence = fence,
-                    .view = tex->view,
-                };
-                vkrReleasable_Add(&g_vkr.allocator, &releasable);
-            }
-            vkrImage_Release(&tex->image, fence);
-        }
-        memset(tex, 0, sizeof(*tex));
-    }
+    return fence;
 }

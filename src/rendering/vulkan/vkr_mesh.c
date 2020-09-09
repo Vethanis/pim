@@ -1,5 +1,6 @@
 #include "rendering/vulkan/vkr_mesh.h"
 #include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_context.h"
 #include "allocator/allocator.h"
@@ -130,38 +131,11 @@ cleanup:
     return false;
 }
 
-ProfileMark(pm_meshdel, vkrMesh_Del)
 void vkrMesh_Del(vkrMesh* mesh)
 {
     if (mesh)
     {
-        ProfileBegin(pm_meshdel);
-
-        if (mesh->buffer.handle)
-        {
-            const VkBufferMemoryBarrier barrier =
-            {
-                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                .srcAccessMask = 0x0,
-                .dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .buffer = mesh->buffer.handle,
-                .offset = 0,
-                .size = VK_WHOLE_SIZE,
-            };
-            VkFence fence = vkrMem_Barrier(
-                vkrQueueId_Gfx,
-                VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                VK_PIPELINE_STAGE_HOST_BIT,
-                NULL,
-                &barrier,
-                NULL);
-            vkrBuffer_Release(&mesh->buffer, fence);
-        }
-
+        vkrBuffer_Release(&mesh->buffer, NULL);
         memset(mesh, 0, sizeof(*mesh));
-
-        ProfileEnd(pm_meshdel);
     }
 }
