@@ -4,6 +4,7 @@
 #include "common/dbytes.h"
 #include "math/types.h"
 #include "common/guid.h"
+#include "rendering/vulkan/vkr.h"
 
 PIM_C_BEGIN
 
@@ -21,6 +22,7 @@ typedef struct lightmap_s
     float3* pim_noalias normal;
     float* pim_noalias sampleCounts;
     i32 size;
+    vkrTexture2D vkrtex[kGiDirections];
 } lightmap_t;
 
 typedef struct dlightmap_s
@@ -53,22 +55,10 @@ typedef struct dlmpack_s
     float texelsPerMeter;
 } dlmpack_t;
 
-typedef struct lm_uvs_s
-{
-    i32 length;
-    float2* pim_noalias uvs;
-    i32* pim_noalias indices;
-} lm_uvs_t;
-
-typedef struct dlm_uvs_s
-{
-    i32 length;
-    dbytes_t uvs;
-    dbytes_t indices;
-} dlm_uvs_t;
-
 void lightmap_new(lightmap_t* lm, i32 size);
 void lightmap_del(lightmap_t* lm);
+// upload changes to the GPU copy
+void lightmap_upload(lightmap_t* lm);
 
 lmpack_t* lmpack_get(void);
 lmpack_t lmpack_pack(
@@ -83,8 +73,5 @@ void lmpack_bake(pt_scene_t* scene, float timeSlice);
 
 bool lmpack_save(const lmpack_t* src, guid_t name);
 bool lmpack_load(lmpack_t* dst, guid_t name);
-
-void lm_uvs_new(lm_uvs_t* uvs, i32 length);
-void lm_uvs_del(lm_uvs_t* uvs);
 
 PIM_C_END

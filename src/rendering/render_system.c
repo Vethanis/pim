@@ -1058,7 +1058,6 @@ static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up
 
     material_t mat =
     {
-        .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
         .flatAlbedo = albedo,
         .flatRome = rome,
     };
@@ -1086,7 +1085,6 @@ static i32 CreateSphere(const char* name, float4 center, float radius, float4 al
 
     material_t mat =
     {
-        .st = f4_v(1.0f, 1.0f, 0.0f, 0.0f),
         .flatAlbedo = albedo,
         .flatRome = rome,
     };

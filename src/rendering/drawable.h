@@ -18,7 +18,6 @@ typedef struct drawables_s
     meshid_t* pim_noalias meshes;       // immutable object space mesh
     box_t* pim_noalias bounds;          // object space bounds
     material_t* pim_noalias materials;  // material description
-    lm_uvs_t* pim_noalias lmUvs;        // lightmap uvs (must be per-instance)
     float4x4* pim_noalias matrices;     // local to world matrix
     float3x3* pim_noalias invMatrices;  // world to local rotation matrix
     float4* pim_noalias translations;
@@ -26,7 +25,7 @@ typedef struct drawables_s
     float4* pim_noalias scales;
 } drawables_t;
 
-#define kDrawablesVersion 2
+#define kDrawablesVersion 3
 typedef struct ddrawables_s
 {
     i32 version;
@@ -35,7 +34,6 @@ typedef struct ddrawables_s
     dbytes_t meshes;    // dmeshid_t
     dbytes_t bounds;
     dbytes_t materials; // dmaterial_t
-    dbytes_t lmuvs;     // dlm_uvs_t
     dbytes_t translations;
     dbytes_t rotations;
     dbytes_t scales;
