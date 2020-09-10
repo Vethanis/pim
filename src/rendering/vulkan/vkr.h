@@ -62,7 +62,7 @@ typedef enum
 typedef enum
 {
     vkrMeshStream_Position, // float4; xyz=positionOS
-    vkrMeshStream_Normal,   // float4; xyz=normalOS
+    vkrMeshStream_Normal,   // float4; xyz=normalOS, w=uv1 image index
     vkrMeshStream_Uv01,     // float4; xy=uv0, zw=uv1
 
     vkrMeshStream_COUNT
@@ -341,8 +341,6 @@ typedef struct vkrContext
 {
     i32 threadcount;
     vkrThreadContext* threads;
-    vkrBuffer perdrawbuf;
-    vkrBuffer perdrawstage;
     vkrBuffer percambuf;
     vkrBuffer percamstage;
 } vkrContext;
@@ -377,14 +375,6 @@ typedef struct vkrAllocator
     mutex_t releasemtx;
 } vkrAllocator;
 
-typedef struct vkrPerDraw
-{
-    float4x4 localToWorld;
-    float4x4 worldToLocal;
-    float4 textureScale;
-    float4 textureBias;
-} vkrPerDraw;
-
 typedef struct vkrPerCamera
 {
     float4x4 worldToCamera;
@@ -392,12 +382,16 @@ typedef struct vkrPerCamera
     float4 eye;
     float4 lightDir;
     float4 lightColor;
+    float4 giAxii[5];
+    u32 lmBegin;
 } vkrPerCamera;
 
 typedef struct vkrPushConstants
 {
-    u32 drawIndex;
-    u32 cameraIndex;
+    float4x4 localToWorld;
+    float4 IMc0;
+    float4 IMc1;
+    float4 IMc2;
     u32 albedoIndex;
     u32 romeIndex;
     u32 normalIndex;

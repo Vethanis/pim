@@ -22,7 +22,6 @@ typedef u32 matflag_t;
 
 typedef struct material_s
 {
-    float4 st;              // uv0 scale and translation
     float4 flatAlbedo;      // albedo multiplier
     float4 flatRome;        // rome multiplier
     textureid_t albedo;     // rgba8 srgb (albedo, alpha)
@@ -34,7 +33,6 @@ typedef struct material_s
 
 typedef struct dmaterial_s
 {
-    float4 st;
     dtextureid_t albedo;
     dtextureid_t rome;
     dtextureid_t normal;

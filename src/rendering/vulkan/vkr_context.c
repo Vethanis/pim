@@ -58,8 +58,6 @@ void vkrContext_Del(vkrContext* ctx)
         pim_free(ctx->threads);
         vkrBuffer_Del(&ctx->percambuf);
         vkrBuffer_Del(&ctx->percamstage);
-        vkrBuffer_Del(&ctx->perdrawbuf);
-        vkrBuffer_Del(&ctx->perdrawstage);
         memset(ctx, 0, sizeof(*ctx));
     }
     ProfileEnd(pm_ctxdel);

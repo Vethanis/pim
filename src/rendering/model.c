@@ -275,7 +275,6 @@ static float4 VEC_CALL IntToColor(i32 i, i32 count)
 static material_t GenMaterial(const mtexture_t* mtex, const msurface_t* surf)
 {
     material_t material = { 0 };
-    material.st = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
     material.flatAlbedo = f4_1;
     material.ior = 1.0f;
 

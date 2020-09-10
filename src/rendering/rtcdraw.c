@@ -565,7 +565,6 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     const material_t* pim_noalias materials = drawables->materials;
     const float4x4* pim_noalias matrices = drawables->matrices;
     const float3x3* pim_noalias invMatrices = drawables->invMatrices;
-    const lm_uvs_t* pim_noalias lmUvList = drawables->lmUvs;
     const pt_light_t* pim_noalias lights = lights_get()->ptLights;
 
     const lmpack_t* lmpack = lmpack_get();
@@ -636,6 +635,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
         const i32 b = hit.iVert + 1;
         const i32 c = hit.iVert + 2;
 
+        const i32 lmIndex = (i32)mesh.normals[a].w;
         const float4 V = f4_neg(rd);
         const float3x3 IM = invMatrices[hit.iDrawable];
         const float4 N0 = f4_normalize3(f4_blend(
@@ -683,45 +683,36 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
 
         // indirect light
         {
-            const lm_uvs_t lmUvs = lmUvList[hit.iDrawable];
-            if (lmUvs.length > c)
+            if (lmIndex < lmpack->lmCount)
             {
-                i32 lmIndex = lmUvs.indices[a / 3];
-                if (lmIndex >= 0)
+                ASSERT(lmIndex < lmpack->lmCount);
+                const lightmap_t lmap = lmpack->lightmaps[lmIndex];
+                float2 lmUv = f2_v(uv01.z, uv01.w);
+                lmUv = f2_subvs(lmUv, 0.5f / lmap.size);
+                float4 probe[kGiDirections];
+                float4 axii[kGiDirections];
+                for (i32 i = 0; i < kGiDirections; ++i)
                 {
-                    ASSERT(lmIndex < lmpack->lmCount);
-                    const lightmap_t lmap = lmpack->lightmaps[lmIndex];
-                    float2 lmUv = f2_blend(
-                        lmUvs.uvs[a],
-                        lmUvs.uvs[b],
-                        lmUvs.uvs[c],
-                        hit.wuvt);
-                    lmUv = f2_subvs(lmUv, 0.5f / lmap.size);
-                    float4 probe[kGiDirections];
-                    float4 axii[kGiDirections];
-                    for (i32 i = 0; i < kGiDirections; ++i)
-                    {
-                        probe[i] = UvBilinearClamp_f4(lmap.probes[i], i2_s(lmap.size), lmUv);
-                        float4 ax = lmpack->axii[i];
-                        float sharpness = ax.w;
-                        ax = TbnToWorld(TBN, ax);
-                        ax.w = sharpness;
-                        axii[i] = ax;
-                    }
-                    float4 R = f4_normalize3(f4_reflect3(rd, N));
-                    float4 diffuseGI = SGv_Irradiance(kGiDirections, axii, probe, N);
-                    float4 specularGI = SGv_Eval(kGiDirections, axii, probe, R);
-                    float4 indirect = IndirectBRDF(
-                        V,
-                        N,
-                        diffuseGI,
-                        specularGI,
-                        albedo,
-                        rome.x,
-                        rome.z,
-                        rome.y);
-                    lighting = f4_add(lighting, indirect);
+                    probe[i] = UvBilinearClamp_f4(lmap.probes[i], i2_s(lmap.size), lmUv);
+                    float4 ax = lmpack->axii[i];
+                    float sharpness = ax.w;
+                    ax = TbnToWorld(TBN, ax);
+                    ax.w = sharpness;
+                    axii[i] = ax;
                 }
+                float4 R = f4_normalize3(f4_reflect3(rd, N));
+                float4 diffuseGI = SGv_Irradiance(kGiDirections, axii, probe, N);
+                float4 specularGI = SGv_Eval(kGiDirections, axii, probe, R);
+                float4 indirect = IndirectBRDF(
+                    V,
+                    N,
+                    diffuseGI,
+                    specularGI,
+                    albedo,
+                    rome.x,
+                    rome.z,
+                    rome.y);
+                lighting = f4_add(lighting, indirect);
             }
         }
 

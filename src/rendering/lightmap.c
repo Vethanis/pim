@@ -19,6 +19,7 @@
 #include "rendering/sampler.h"
 #include "rendering/mesh.h"
 #include "rendering/material.h"
+#include "rendering/vulkan/vkr_texture.h"
 #include "common/profiler.h"
 #include "common/cmd.h"
 #include "common/atomics.h"
@@ -86,9 +87,16 @@ void lightmap_new(lightmap_t* lm, i32 size)
     ASSERT(len > 0);
 
     lm->size = size;
+    i32 bytes = len * sizeof(lm->probes[0][0]);
     for (i32 i = 0; i < kGiDirections; ++i)
     {
-        lm->probes[i] = perm_calloc(sizeof(lm->probes[i][0]) * len);
+        lm->probes[i] = perm_calloc(bytes);
+        vkrTexture2D_New(
+            &lm->vkrtex[i],
+            size,
+            size,
+            VK_FORMAT_R32G32B32A32_SFLOAT,
+            NULL, 0);
     }
     lm->sampleCounts = perm_calloc(sizeof(lm->sampleCounts[0]) * len);
     lm->position = perm_calloc(sizeof(lm->position[0]) * len);
@@ -102,11 +110,23 @@ void lightmap_del(lightmap_t* lm)
         for (i32 i = 0; i < kGiDirections; ++i)
         {
             pim_free(lm->probes[i]);
+            vkrTexture2D_Del(&lm->vkrtex[i]);
         }
         pim_free(lm->sampleCounts);
         pim_free(lm->position);
         pim_free(lm->normal);
         memset(lm, 0, sizeof(*lm));
+    }
+}
+
+void lightmap_upload(lightmap_t* lm)
+{
+    ASSERT(lm);
+    i32 len = lm->size * lm->size;
+    i32 bytes = len * sizeof(lm->probes[0][0]);
+    for (i32 i = 0; i < kGiDirections; ++i)
+    {
+        vkrTexture2D_Upload(&lm->vkrtex[i], lm->probes[i], bytes);
     }
 }
 
@@ -907,7 +927,6 @@ static void chartnodes_assign(
     const drawables_t* drawables = drawables_get();
     const i32 numDrawables = drawables->count;
     const meshid_t* pim_noalias meshids = drawables->meshes;
-    lm_uvs_t* pim_noalias uvArray = drawables->lmUvs;
 
     for (i32 iChart = 0; iChart < chartCount; ++iChart)
     {
@@ -931,16 +950,22 @@ static void chartnodes_assign(
                 const i32 vertCount = mesh.length;
                 ASSERT((node.vertIndex + 2) < vertCount);
 
-                lm_uvs_t* pim_noalias lmUvs = uvArray + node.drawableIndex;
-                if (lmUvs->length != vertCount)
-                {
-                    lm_uvs_del(lmUvs);
-                    lm_uvs_new(lmUvs, vertCount);
-                }
-                lmUvs->indices[node.vertIndex / 3] = chart.atlasIndex;
-                lmUvs->uvs[node.vertIndex + 0] = f2_mulvs(f2_add(node.triCoord.a, tr), scale);
-                lmUvs->uvs[node.vertIndex + 1] = f2_mulvs(f2_add(node.triCoord.b, tr), scale);
-                lmUvs->uvs[node.vertIndex + 2] = f2_mulvs(f2_add(node.triCoord.c, tr), scale);
+                i32 a = node.vertIndex + 0;
+                i32 b = node.vertIndex + 1;
+                i32 c = node.vertIndex + 2;
+                float fAtlasIndex = (float)chart.atlasIndex;
+                mesh.normals[a].w = fAtlasIndex;
+                mesh.normals[b].w = fAtlasIndex;
+                mesh.normals[c].w = fAtlasIndex;
+                float2 uvA = f2_mulvs(f2_add(node.triCoord.a, tr), scale);
+                float2 uvB = f2_mulvs(f2_add(node.triCoord.b, tr), scale);
+                float2 uvC = f2_mulvs(f2_add(node.triCoord.c, tr), scale);
+                mesh.uvs[a].z = uvA.x;
+                mesh.uvs[a].w = uvA.y;
+                mesh.uvs[b].z = uvB.x;
+                mesh.uvs[b].w = uvB.y;
+                mesh.uvs[c].z = uvC.x;
+                mesh.uvs[c].w = uvC.y;
             }
             else
             {
@@ -1157,7 +1182,6 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
     const meshid_t* pim_noalias meshids = drawables->meshes;
     const float4x4* pim_noalias matrices = drawables->matrices;
     const float3x3* pim_noalias invMatrices = drawables->invMatrices;
-    const lm_uvs_t* pim_noalias uvArray = drawables->lmUvs;
 
     for (i32 iWork = begin; iWork < end; ++iWork)
     {
@@ -1178,12 +1202,6 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
             i32 iDraw = ind.x;
             i32 iVert = ind.y;
 
-            const lm_uvs_t lmUvs = uvArray[iDraw];
-            if (!lmUvs.length)
-            {
-                continue;
-            }
-
             mesh_t mesh;
             if (!mesh_get(meshids[iDraw], &mesh))
             {
@@ -1193,12 +1211,12 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
             const i32 a = iVert + 0;
             const i32 b = iVert + 1;
             const i32 c = iVert + 2;
-            ASSERT(c < lmUvs.length);
-            ASSERT(lmUvs.indices[iVert / 3] == iLightmap);
+            ASSERT(c < mesh.length);
+            ASSERT((i32)mesh.normals[a].w == iLightmap);
 
-            float2 LMA = lmUvs.uvs[a];
-            float2 LMB = lmUvs.uvs[b];
-            float2 LMC = lmUvs.uvs[c];
+            float2 LMA = f2_v(mesh.uvs[a].z, mesh.uvs[a].w);
+            float2 LMB = f2_v(mesh.uvs[b].z, mesh.uvs[b].w);
+            float2 LMC = f2_v(mesh.uvs[c].z, mesh.uvs[c].w);
             float area = sdEdge2D(LMA, LMB, LMC);
             if (area <= 0.0f)
             {
@@ -1257,14 +1275,8 @@ static void EmbedAttributes(
             const drawables_t* drawables = drawables_get();
             const i32 dwCount = drawables->count;
             const meshid_t* pim_noalias meshids = drawables->meshes;
-            const lm_uvs_t* pim_noalias uvArray = drawables->lmUvs;
             for (i32 iDraw = 0; iDraw < dwCount; ++iDraw)
             {
-                const lm_uvs_t lmUvs = uvArray[iDraw];
-                if (!lmUvs.length)
-                {
-                    continue;
-                }
                 mesh_t mesh;
                 if (!mesh_get(meshids[iDraw], &mesh))
                 {
@@ -1272,15 +1284,15 @@ static void EmbedAttributes(
                 }
                 for (i32 iVert = 0; (iVert + 3) <= mesh.length; iVert += 3)
                 {
-                    const i32 iFace = iVert / 3;
-                    ASSERT(iFace < lmUvs.length);
-                    ASSERT((iVert + 2) < lmUvs.length);
-                    const i32 iMap = lmUvs.indices[iFace];
+                    const i32 a = iVert + 0;
+                    const i32 b = iVert + 1;
+                    const i32 c = iVert + 2;
+                    const i32 iMap = (i32)mesh.normals[a].w;
                     if ((iMap >= 0) && (iMap < lmCount))
                     {
-                        float2 A = lmUvs.uvs[iVert + 0];
-                        float2 B = lmUvs.uvs[iVert + 1];
-                        float2 C = lmUvs.uvs[iVert + 2];
+                        float2 A = f2_v(mesh.uvs[a].z, mesh.uvs[a].w);
+                        float2 B = f2_v(mesh.uvs[b].z, mesh.uvs[b].w);
+                        float2 C = f2_v(mesh.uvs[c].z, mesh.uvs[c].w);
                         tri2d_t tri = { A, B, C };
                         quadtree_t* tree = trees + iMap;
                         bool inserted = quadtree_insert(tree, 0, tri, iDraw, iVert);
@@ -1578,7 +1590,6 @@ bool lmpack_load(lmpack_t* pack, guid_t name)
             {
                 const dlightmap_t dlm = dlms[i];
                 lightmap_t lm = { 0 };
-                lm.size = dlm.size;
                 const i32 texelcount = dlm.size * dlm.size;
                 ASSERT(dlm.probes.size == (sizeof(lm.probes[0][0]) * kGiDirections * texelcount));
                 ASSERT(dlm.position.size == (sizeof(lm.position[0]) * texelcount));
@@ -1589,11 +1600,11 @@ bool lmpack_load(lmpack_t* pack, guid_t name)
                 dbytes_check(dlm.normal, sizeof(lm.normal[0]));
                 dbytes_check(dlm.sampleCounts, sizeof(lm.sampleCounts[0]));
 
+                lightmap_new(&lm, dlm.size);
                 fstr_seek(fd, dlm.probes.offset);
                 for (i32 j = 0; j < kGiDirections; ++j)
                 {
                     const i32 bytes = sizeof(lm.probes[0][0]) * texelcount;
-                    lm.probes[j] = perm_malloc(bytes);
                     fstr_read(fd, lm.probes[j], bytes);
                 }
 
@@ -1722,35 +1733,4 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
     }
 
     return cmdstat_ok;
-}
-
-void lm_uvs_new(lm_uvs_t* uvs, i32 length)
-{
-    ASSERT(uvs);
-    ASSERT(length >= 0);
-    uvs->length = length;
-
-    const i32 vertCount = length;
-    uvs->uvs = perm_malloc(sizeof(uvs->uvs[0]) * vertCount);
-    for (i32 i = 0; i < vertCount; ++i)
-    {
-        uvs->uvs[i] = f2_0;
-    }
-
-    const i32 faceCount = vertCount / 3;
-    uvs->indices = perm_malloc(sizeof(uvs->indices[0]) * faceCount);
-    for (i32 i = 0; i < faceCount; ++i)
-    {
-        uvs->indices[i] = -1;
-    }
-}
-
-void lm_uvs_del(lm_uvs_t* uvs)
-{
-    if (uvs)
-    {
-        pim_free(uvs->uvs);
-        pim_free(uvs->indices);
-        memset(uvs, 0, sizeof(*uvs));
-    }
 }

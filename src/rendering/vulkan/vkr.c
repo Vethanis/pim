@@ -23,6 +23,7 @@
 #include "rendering/framebuffer.h"
 #include "rendering/camera.h"
 #include "rendering/screenblit.h"
+#include "rendering/lightmap.h"
 #include "ui/imgui_impl_vulkan.h"
 #include "ui/cimgui.h"
 #include "ui/ui.h"
@@ -46,10 +47,19 @@ static cvar_t* cv_r_sun_col;
 static cvar_t* cv_r_sun_lum;
 static cvar_t* cv_r_sw;
 
+static cvar_t cv_lm_upload =
+{
+    .type = cvart_bool,
+    .name = "lm_upload",
+    .value = "0",
+    .desc = "upload lightmap data to GPU",
+};
+
 bool vkr_init(i32 width, i32 height)
 {
     memset(&g_vkr, 0, sizeof(g_vkr));
 
+    cvar_reg(&cv_lm_upload);
     cv_r_sun_dir = cvar_find("r_sun_dir");
     cv_r_sun_col = cvar_find("r_sun_col");
     cv_r_sun_lum = cvar_find("r_sun_lum");
@@ -361,14 +371,10 @@ static VkDescriptorSet vkrDraw_UpdateDescriptors(VkCommandBuffer cmd)
     vkrDescPool_Reset(ctx->descpool);
     VkDescriptorSet descSet = vkrDesc_New(ctx, pipeline->layout.sets[0]);
     {
-        vkrBuffer* perdrawstage = &g_vkr.context.perdrawstage;
         vkrBuffer* percamstage = &g_vkr.context.percamstage;
-        vkrBuffer* perdrawbuf = &g_vkr.context.perdrawbuf;
         vkrBuffer* percambuf = &g_vkr.context.percambuf;
 
         {
-            vkrBuffer_Reserve(perdrawstage, sizeof(vkrPerDraw) * drawcount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, vkrMemUsage_CpuOnly, NULL, PIM_FILELINE);
-            vkrBuffer_Reserve(perdrawbuf, sizeof(vkrPerDraw) * drawcount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vkrMemUsage_GpuOnly, NULL, PIM_FILELINE);
             vkrBuffer_Reserve(percamstage, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, vkrMemUsage_CpuOnly, NULL, PIM_FILELINE);
             vkrBuffer_Reserve(percambuf, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vkrMemUsage_GpuOnly, NULL, PIM_FILELINE);
 
@@ -380,6 +386,9 @@ static VkDescriptorSet vkrDraw_UpdateDescriptors(VkCommandBuffer cmd)
             float4x4 view = f4x4_lookat(camera.position, at, up);
             float4x4 proj = f4x4_perspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
             f4x4_11(proj) *= -1.0f;
+            const lmpack_t* lmpack = lmpack_get();
+            const table_t* textable = texture_table();
+            const i32 tableWidth = textable->width;
             {
                 vkrPerCamera* perCamera = vkrBuffer_Map(percamstage);
                 ASSERT(perCamera);
@@ -387,33 +396,18 @@ static VkDescriptorSet vkrDraw_UpdateDescriptors(VkCommandBuffer cmd)
                 perCamera->cameraToClip = proj;
                 perCamera->eye = camera.position;
                 perCamera->lightDir = cvar_get_vec(cv_r_sun_dir);
-                perCamera->lightColor =
-                    f4_mulvs(cvar_get_vec(cv_r_sun_col), cvar_get_float(cv_r_sun_lum));
+                perCamera->lightColor = f4_mulvs(cvar_get_vec(cv_r_sun_col), cvar_get_float(cv_r_sun_lum));
+                for (i32 i = 0; i < kGiDirections; ++i)
+                {
+                    perCamera->giAxii[i] = lmpack->axii[i];
+                }
+                perCamera->lmBegin = tableWidth;
                 vkrBuffer_Unmap(percamstage);
             }
 
-            {
-                vkrPerDraw* perDraws = vkrBuffer_Map(perdrawstage);
-                ASSERT(perDraws);
-                for (i32 i = 0; i < drawcount; ++i)
-                {
-                    perDraws[i].localToWorld = localToWorlds[i];
-                    perDraws[i].worldToLocal.c0 = worldToLocals[i].c0;
-                    perDraws[i].worldToLocal.c1 = worldToLocals[i].c1;
-                    perDraws[i].worldToLocal.c2 = worldToLocals[i].c2;
-                    perDraws[i].worldToLocal.c3 = f4_v(0.0f, 0.0f, 0.0f, 1.0f);
-                    float4 st = materials[i].st;
-                    perDraws[i].textureScale = f4_v(st.x, st.y, 1.0f, 1.0f);
-                    perDraws[i].textureBias = f4_v(st.z, st.w, 0.0f, 0.0f);
-                }
-                vkrBuffer_Unmap(perdrawstage);
-            }
-
             vkrBuffer_Flush(percamstage);
-            vkrBuffer_Flush(perdrawstage);
 
             vkrCmdCopyBuffer(cmd, *percamstage, *percambuf);
-            vkrCmdCopyBuffer(cmd, *perdrawstage, *perdrawbuf);
             VkBufferMemoryBarrier barrier =
             {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
@@ -430,27 +424,10 @@ static VkDescriptorSet vkrDraw_UpdateDescriptors(VkCommandBuffer cmd)
                 VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                 &barrier);
-            barrier.buffer = perdrawbuf->handle;
-            barrier.size = perdrawbuf->size;
-            vkrCmdBufferBarrier(
-                cmd,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                &barrier);
         }
 
         const vkrBinding bufferBindings[] =
         {
-            {
-                .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .set = descSet,
-                .binding = 0,
-                .buffer =
-                {
-                    .buffer = perdrawbuf->handle,
-                    .range = VK_WHOLE_SIZE,
-                },
-            },
             {
                 .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .set = descSet,
@@ -485,8 +462,33 @@ static VkDescriptorSet vkrDraw_UpdateDescriptors(VkCommandBuffer cmd)
             texBindings[i].image.imageView = texture->view;
             texBindings[i].image.imageLayout = texture->layout;
         }
+        {
+            const lmpack_t* lmpack = lmpack_get();
+            i32 iBinding = tableWidth;
+            for (i32 ilm = 0; ilm < lmpack->lmCount; ++ilm)
+            {
+                const lightmap_t* lm = lmpack->lightmaps + ilm;
+                for (i32 idir = 0; idir < kGiDirections; ++idir)
+                {
+                    if (iBinding < kTextureDescriptors)
+                    {
+                        const vkrTexture2D* texture = &lm->vkrtex[idir];
+                        if (texture->layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                        {
+                            texBindings[iBinding].image.sampler = texture->sampler;
+                            texBindings[iBinding].image.imageView = texture->view;
+                            texBindings[iBinding].image.imageLayout = texture->layout;
+                        }
+                    }
+                    else
+                    {
+                        ASSERT(false);
+                    }
+                    ++iBinding;
+                }
+            }
+        }
         vkrDesc_WriteBindings(ctx, kTextureDescriptors, texBindings);
-
     }
 
     ProfileEnd(pm_updatedesc);
@@ -535,6 +537,8 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
 
     const meshid_t* pim_noalias meshids = drawables->meshes;
     const material_t* pim_noalias materials = drawables->materials;
+    const float4x4* pim_noalias matrices = drawables->matrices;
+    const float3x3* pim_noalias invMatrices = drawables->invMatrices;
 
     vkrFrameContext* ctx = vkrContext_Get();
     VkCommandBuffer cmd = NULL;
@@ -557,8 +561,10 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
             {
                 const vkrPushConstants pushConsts =
                 {
-                    .drawIndex = i,
-                    .cameraIndex = 0,
+                    .localToWorld = matrices[i],
+                    .IMc0 = invMatrices[i].c0,
+                    .IMc1 = invMatrices[i].c1,
+                    .IMc2 = invMatrices[i].c2,
                     .albedoIndex = materials[i].albedo.index,
                     .romeIndex = materials[i].rome.index,
                     .normalIndex = materials[i].normal.index,
@@ -713,6 +719,17 @@ void vkr_update(void)
 
     vkrSwapchain_Present(chain, queue, cmd);
 
+    if (cvar_get_bool(&cv_lm_upload))
+    {
+        cvar_set_bool(&cv_lm_upload, false);
+        lmpack_t* pack = lmpack_get();
+        for (i32 i = 0; i < pack->lmCount; ++i)
+        {
+            lightmap_t* lm = pack->lightmaps + i;
+            lightmap_upload(lm);
+        }
+    }
+
     ProfileEnd(pm_update);
 }
 
@@ -722,6 +739,7 @@ void vkr_shutdown(void)
     {
         vkrDevice_WaitIdle();
 
+        lmpack_del(lmpack_get());
         screenblit_shutdown();
         ImGui_ImplVulkan_Shutdown();
         ui_sys_shutdown();

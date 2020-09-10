@@ -32,7 +32,6 @@ i32 drawables_add(drawables_t* dr, guid_t name)
     PermGrow(dr->meshes, len);
     PermGrow(dr->bounds, len);
     PermGrow(dr->materials, len);
-    PermGrow(dr->lmUvs, len);
     PermGrow(dr->matrices, len);
     PermGrow(dr->invMatrices, len);
     PermGrow(dr->translations, len);
@@ -58,7 +57,6 @@ static void DestroyAtIndex(drawables_t* dr, i32 i)
     texture_release(material.albedo);
     texture_release(material.rome);
     texture_release(material.normal);
-    lm_uvs_del(dr->lmUvs + i);
 }
 
 static void RemoveAtIndex(drawables_t* dr, i32 i)
@@ -73,7 +71,6 @@ static void RemoveAtIndex(drawables_t* dr, i32 i)
     PopSwap(dr->meshes, i, len);
     PopSwap(dr->bounds, i, len);
     PopSwap(dr->materials, i, len);
-    PopSwap(dr->lmUvs, i, len);
     PopSwap(dr->matrices, i, len);
     PopSwap(dr->invMatrices, i, len);
     PopSwap(dr->translations, i, len);
@@ -119,7 +116,6 @@ void drawables_del(drawables_t* dr)
         pim_free(dr->meshes);
         pim_free(dr->bounds);
         pim_free(dr->materials);
-        pim_free(dr->lmUvs);
         pim_free(dr->matrices);
         pim_free(dr->invMatrices);
         pim_free(dr->translations);
@@ -231,7 +227,6 @@ bool drawables_save(const drawables_t* src, guid_t name)
         hdr.meshes = dbytes_new(length, sizeof(dmeshid_t), &offset);
         hdr.bounds = dbytes_new(length, sizeof(src->bounds[0]), &offset);
         hdr.materials = dbytes_new(length, sizeof(dmaterial_t), &offset);
-        hdr.lmuvs = dbytes_new(length, sizeof(dlm_uvs_t), &offset);
         hdr.translations = dbytes_new(length, sizeof(src->translations[0]), &offset);
         hdr.rotations = dbytes_new(length, sizeof(src->rotations[0]), &offset);
         hdr.scales = dbytes_new(length, sizeof(src->scales[0]), &offset);
@@ -264,7 +259,6 @@ bool drawables_save(const drawables_t* src, guid_t name)
             {
                 const material_t mat = src->materials[i];
                 dmaterial_t dmat = { 0 };
-                dmat.st = mat.st;
                 dmat.flatAlbedo = mat.flatAlbedo;
                 dmat.flatRome = mat.flatRome;
                 dmat.flags = mat.flags;
@@ -278,22 +272,6 @@ bool drawables_save(const drawables_t* src, guid_t name)
             fstr_write(fd, dmaterials, sizeof(dmaterials[0]) * length);
             scratch = dmaterials;
         }
-        // write lightmap uv headers
-        dlm_uvs_t* dlmuvs = tmp_realloc(scratch, sizeof(dlmuvs[0]) * length);
-        {
-            for (i32 i = 0; i < length; ++i)
-            {
-                const lm_uvs_t lmuv = src->lmUvs[i];
-                dlm_uvs_t dlmuv = { 0 };
-                dlmuv.length = lmuv.length;
-                dlmuv.uvs = dbytes_new(lmuv.length, sizeof(lmuv.uvs[0]), &offset);
-                dlmuv.indices = dbytes_new(lmuv.length, sizeof(lmuv.indices[0]), &offset);
-                dlmuvs[i] = dlmuv;
-            }
-            ASSERT(fstr_tell(fd) == hdr.lmuvs.offset);
-            fstr_write(fd, dlmuvs, sizeof(dlmuvs[0]) * length);
-            scratch = NULL;
-        }
 
         // write translations
         ASSERT(fstr_tell(fd) == hdr.translations.offset);
@@ -306,21 +284,6 @@ bool drawables_save(const drawables_t* src, guid_t name)
         // write scales
         ASSERT(fstr_tell(fd) == hdr.scales.offset);
         fstr_write(fd, src->scales, sizeof(src->scales[0]) * length);
-
-        // write lightmap uv contents
-        for (i32 i = 0; i < length; ++i)
-        {
-            const lm_uvs_t lmuv = src->lmUvs[i];
-            ASSERT(lmuv.length == dlmuvs[i].length);
-            ASSERT(dlmuvs[i].uvs.size == sizeof(lmuv.uvs[0]) * lmuv.length);
-            ASSERT(dlmuvs[i].indices.size == sizeof(lmuv.indices[0]) * lmuv.length);
-
-            ASSERT(fstr_tell(fd) == dlmuvs[i].uvs.offset);
-            fstr_write(fd, lmuv.uvs, sizeof(lmuv.uvs[0]) * lmuv.length);
-
-            ASSERT(fstr_tell(fd) == dlmuvs[i].indices.offset);
-            fstr_write(fd, lmuv.indices, sizeof(lmuv.indices[0]) * lmuv.length);
-        }
 
         fstr_close(&fd);
         return true;
@@ -352,7 +315,6 @@ bool drawables_load(drawables_t* dst, guid_t name)
                 dbytes_check(hdr.meshes, sizeof(dmeshid_t));
                 dbytes_check(hdr.bounds, sizeof(dst->bounds[0]));
                 dbytes_check(hdr.materials, sizeof(dmaterial_t));
-                dbytes_check(hdr.lmuvs, sizeof(dlm_uvs_t));
                 dbytes_check(hdr.translations, sizeof(dst->translations[0]));
                 dbytes_check(hdr.rotations, sizeof(dst->rotations[0]));
                 dbytes_check(hdr.scales, sizeof(dst->scales[0]));
@@ -362,7 +324,6 @@ bool drawables_load(drawables_t* dst, guid_t name)
                 dst->meshes = perm_calloc(sizeof(dst->meshes[0]) * len);
                 dst->bounds = perm_calloc(sizeof(dst->bounds[0]) * len);
                 dst->materials = perm_calloc(sizeof(dst->materials[0]) * len);
-                dst->lmUvs = perm_calloc(sizeof(dst->lmUvs[0]) * len);
                 dst->matrices = perm_calloc(sizeof(dst->matrices[0]) * len);
                 dst->invMatrices = perm_calloc(sizeof(dst->invMatrices[0]) * len);
                 dst->translations = perm_calloc(sizeof(dst->translations[0]) * len);
@@ -391,7 +352,6 @@ bool drawables_load(drawables_t* dst, guid_t name)
                     {
                         material_t mat = { 0 };
                         const dmaterial_t dmat = dmats[i];
-                        mat.st = dmat.st;
                         texture_load(dmat.albedo.id, &mat.albedo);
                         texture_load(dmat.rome.id, &mat.rome);
                         texture_load(dmat.normal.id, &mat.normal);
@@ -402,31 +362,6 @@ bool drawables_load(drawables_t* dst, guid_t name)
                         dst->materials[i] = mat;
                     }
                     scratch = dmats;
-                }
-                {
-                    fstr_seek(fd, hdr.lmuvs.offset);
-                    dlm_uvs_t* pim_noalias dlmuvs = tmp_realloc(scratch, hdr.lmuvs.size);
-                    fstr_read(fd, dlmuvs, hdr.lmuvs.size);
-                    for (i32 i = 0; i < hdr.length; ++i)
-                    {
-                        const dlm_uvs_t dlmuv = dlmuvs[i];
-                        lm_uvs_t lmuv = { 0 };
-                        if (dlmuv.length < 0)
-                        {
-                            goto cleanup;
-                        }
-                        dbytes_check(dlmuv.uvs, sizeof(lmuv.uvs[0]));
-                        dbytes_check(dlmuv.indices, sizeof(lmuv.indices[0]));
-                        lmuv.length = dlmuv.length;
-                        lmuv.uvs = perm_calloc(dlmuv.uvs.size);
-                        lmuv.indices = perm_calloc(dlmuv.indices.size);
-                        fstr_seek(fd, dlmuv.uvs.offset);
-                        fstr_read(fd, lmuv.uvs, dlmuv.uvs.size);
-                        fstr_seek(fd, dlmuv.indices.offset);
-                        fstr_read(fd, lmuv.indices, dlmuv.indices.size);
-                        dst->lmUvs[i] = lmuv;
-                    }
-                    scratch = dlmuvs;
                 }
 
                 fstr_seek(fd, hdr.translations.offset);

@@ -8,6 +8,8 @@
 #define kTau            6.283185307
 #define kEpsilon        2.38418579e-7
 
+#define kGiDirections   5
+
 float dotsat(float3 a, float3 b)
 {
     return saturate(dot(a, b));
@@ -116,6 +118,46 @@ float3 DirectBRDF(
     return (Fr + Fd) * scale;
 }
 
+float3 EnvBRDF(
+    float3 F,
+    float NoV,
+    float alpha)
+{
+    const float4 c0 = { -1.0f, -0.0275f, -0.572f, 0.022f };
+    const float4 c1 = { 1.0f, 0.0425f, 1.04f, -0.04f };
+    float4 r = c0 * alpha + c1;
+    float a004 = min(r.x * r.x, exp2(-9.28f * NoV)) * r.x + r.y;
+    float a = -1.04f * a004 + r.z;
+    float b = 1.04f * a004 + r.w;
+    return F * a + b;
+}
+
+float3 IndirectBRDF(
+    float3 V,           // unit view vector pointing from surface to eye
+    float3 N,           // unit normal vector pointing outward from surface
+    float3 diffuseGI,   // low frequency scene irradiance
+    float3 specularGI,  // high frequency scene irradiance
+    float3 albedo,      // surface color
+    float roughness,    // surface roughness
+    float metallic,     // surface metalness
+    float ao)           // 1 - ambient occlusion (affects gi only)
+{
+    float alpha = BrdfAlpha(roughness);
+    float NoV = dotsat(N, V);
+
+    float3 F = F_SchlickEx(albedo, metallic, NoV);
+    float3 Fr = EnvBRDF(F, NoV, alpha);
+    Fr = Fr * specularGI;
+
+    float3 Fd = DiffuseColor(albedo, metallic) * diffuseGI;
+
+    const float amtSpecular = 1.0f;
+    float amtDiffuse = 1.0f - metallic;
+    float scale = 1.0f / (amtSpecular + amtDiffuse);
+
+    return (Fr + Fd) * scale * ao;
+}
+
 // ----------------------------------------------------------------------------
 
 float3 UnpackEmission(float3 albedo, float e)
@@ -186,13 +228,58 @@ float3 TanToWorld(float3 normalWS, float3 normalTS)
 
 // ----------------------------------------------------------------------------
 
-struct PerDraw
+float SG_BasisEval(float4 axis, float3 dir)
 {
-    float4x4 localToWorld;
-    float4x4 worldToLocal;
-    float4 textureScale;
-    float4 textureBias;
-};
+    float sharpness = axis.w;
+    float cosTheta = dot(dir, axis.xyz);
+    return exp(sharpness * (cosTheta - 1.0f));
+}
+
+float3 SG_Eval(float4 axis, float3 amplitude, float3 dir)
+{
+    return amplitude * SG_BasisEval(axis, dir);
+}
+
+float SG_BasisIntegral(float sharpness)
+{
+    float e = 1.0f - exp(sharpness * -2.0f);
+    return kTau * (e / sharpness);
+}
+
+float3 SG_Integral(float4 axis, float3 amplitude)
+{
+    return amplitude * SG_BasisIntegral(axis.w);
+}
+
+float3 SG_Irradiance(float4 axis, float3 amplitude, float3 normal)
+{
+    float muDotN = dot(axis.xyz, normal);
+    float lambda = axis.w;
+
+    const float c0 = 0.36f;
+    const float c1 = 1.0f / (4.0f * 0.36f);
+
+    float eml = exp(-lambda);
+    float eml2 = eml * eml;
+    float rl = 1.0f / lambda;
+
+    float scale = 1.0f + 2.0f * eml2 - rl;
+    float bias = (eml - eml2) * rl - eml2;
+
+    float x = sqrt(1.0f - scale);
+    float x0 = c0 * muDotN;
+    float x1 = c1 * x;
+
+    float n = x0 + x1;
+
+    float y = (abs(x0) <= x1) ? (n * n) / x : saturate(muDotN);
+
+    float normalizedIrradiance = scale * y + bias;
+
+    return SG_Integral(axis, amplitude) * normalizedIrradiance;
+}
+
+// ----------------------------------------------------------------------------
 
 struct PerCamera
 {
@@ -201,13 +288,17 @@ struct PerCamera
     float4 eye;
     float4 lightDir;
     float4 lightColor;
+    float4 giAxii[kGiDirections];
+    uint lmBegin;
 };
 
 [[vk::push_constant]]
 cbuffer push_constants
 {
-    uint kDrawIndex;
-    uint kCameraIndex;
+    float4x4 localToWorld;
+    float4 IMc0;
+    float4 IMc1;
+    float4 IMc2;
     uint kAlbedoIndex;
     uint kRomeIndex;
     uint kNormalIndex;
@@ -215,10 +306,6 @@ cbuffer push_constants
 
 // "One-Set Design"
 // https://gpuopen.com/wp-content/uploads/2016/03/VulkanFastPaths.pdf#page=10
-
-// binding 0 set 0
-[[vk::binding(0)]]
-StructuredBuffer<PerDraw> drawData;
 
 // binding 1 set 0
 [[vk::binding(1)]]
@@ -242,6 +329,7 @@ struct PSInput
     float3 positionWS : TEXCOORD0;
     float4 uv01 : TEXCOORD1;
     float3x3 TBN : TEXCOORD2;
+    uint lmIndex : TEXCOORD3;
 };
 
 float4 SampleTexture(uint index, float2 uv)
@@ -251,15 +339,10 @@ float4 SampleTexture(uint index, float2 uv)
 
 PSInput VSMain(VSInput input)
 {
-    PerDraw perDraw = drawData[kDrawIndex];
-    PerCamera perCamera = cameraData[kCameraIndex];
     float4 positionOS = float4(input.positionOS.xyz, 1.0);
-    float4 positionWS = mul(perDraw.localToWorld, positionOS);
-    float4 positionCS = mul(perCamera.cameraToClip, mul(perCamera.worldToCamera, positionWS));
-    float3x3 IM = float3x3(
-        perDraw.worldToLocal[0].xyz,
-        perDraw.worldToLocal[1].xyz,
-        perDraw.worldToLocal[2].xyz);
+    float4 positionWS = mul(localToWorld, positionOS);
+    float4 positionCS = mul(cameraData[0].cameraToClip, mul(cameraData[0].worldToCamera, positionWS));
+    float3x3 IM = float3x3(IMc0.xyz, IMc1.xyz, IMc2.xyz);
     float3 normalWS = mul(IM, input.normalOS.xyz);
     float3x3 TBN = NormalToTBN(normalWS);
 
@@ -267,13 +350,13 @@ PSInput VSMain(VSInput input)
     output.positionCS = positionCS;
     output.positionWS = positionWS.xyz;
     output.TBN = TBN;
-    output.uv01 = input.uv01 * perDraw.textureScale + perDraw.textureBias;
+    output.uv01 = input.uv01;
+    output.lmIndex = (uint)input.normalOS.w;
     return output;
 }
 
 float4 PSMain(PSInput input) : SV_Target
 {
-    uint ci = kCameraIndex;
     uint ai = kAlbedoIndex;
     uint ri = kRomeIndex;
     uint ni = kNormalIndex;
@@ -287,20 +370,35 @@ float4 PSMain(PSInput input) : SV_Target
     float3 N = TbnToWorld(input.TBN, normalTS);
     N = normalize(N);
 
-    PerCamera perCamera = cameraData[ci];
     float3 P = input.positionWS;
-    float3 V = normalize(perCamera.eye.xyz - P);
-    float3 L = perCamera.lightDir.xyz;
-    float3 lightColor = perCamera.lightColor.xyz;
-    float roughness = rome.x;
-    float metallic = rome.z;
+    float3 V = normalize(cameraData[0].eye.xyz - P);
 
-    float3 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
-    float3 direct = brdf * lightColor * dotsat(N, L);
-    float3 ambient = albedo * lightColor * 0.01;
-    float3 emission = UnpackEmission(albedo, rome.w);
-    float3 color = direct + ambient + emission;
-    color = TonemapACES(color);
-    color = saturate(color);
-    return float4(color, 1.0);
+    float3 light = UnpackEmission(albedo, rome.w);
+    //{
+    //    float3 L = cameraData[0].lightDir.xyz;
+    //    float3 lightColor = cameraData[0].lightColor.xyz;
+    //    float3 brdf = DirectBRDF(V, L, N, albedo, rome.x, rome.z);
+    //    light += brdf * lightColor * dotsat(N, L);
+    //}
+    {
+        float2 uv1 = input.uv01.zw;
+        uint lmIndex = cameraData[0].lmBegin + input.lmIndex;
+        float3 R = reflect(-V, N);
+        float3 diffuseGI = 0.0f;
+        float3 specularGI = 0.0f;
+        for (uint i = 0; i < kGiDirections; ++i)
+        {
+            float4 ax = cameraData[0].giAxii[i];
+            ax.w = max(ax.w, kEpsilon);
+            ax.xyz = TbnToWorld(input.TBN, ax.xyz);
+            float3 probe = SampleTexture(lmIndex + i, uv1).xyz;
+            diffuseGI += SG_Irradiance(ax, probe, N);
+            specularGI += SG_Eval(ax, probe, R);
+        }
+        light += IndirectBRDF(V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
+    }
+
+    light = TonemapACES(light);
+    light = saturate(light);
+    return float4(light, 1.0);
 }
