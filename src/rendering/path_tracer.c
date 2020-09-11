@@ -88,8 +88,10 @@ typedef struct media_desc_s
     float noiseScale;
     float noiseHeight;
     float noiseRange;
-    float amtMie;
-    float amtRayleigh;
+    i32 phaseOctaves;
+    float phaseLacunarity;
+    float phaseGain;
+    float phaseDir;
 } media_desc_t;
 
 typedef struct media_s
@@ -1524,8 +1526,10 @@ static void media_desc_new(media_desc_t* desc)
     desc->noiseFreq = 1.0f;
     desc->noiseHeight = 20.0f;
     desc->noiseScale = exp2f(-5.0f);
-    desc->amtMie = 0.25f;
-    desc->amtRayleigh = 0.125f;
+    desc->phaseOctaves = 4;
+    desc->phaseLacunarity = -0.5f;
+    desc->phaseGain = 0.5f;
+    desc->phaseDir = 0.5f;
     media_desc_update(desc);
 }
 
@@ -1533,26 +1537,24 @@ static void media_desc_update(media_desc_t* desc)
 {
     desc->logConstantAlbedo = AlbedoToLogAlbedo(desc->constantAlbedo);
     desc->logNoiseAlbedo = AlbedoToLogAlbedo(desc->noiseAlbedo);
-    float totalAmt = desc->amtMie + desc->amtRayleigh;
-    if (totalAmt > 1.0f)
-    {
-        desc->amtMie /= totalAmt;
-        desc->amtRayleigh /= totalAmt;
-    }
+    desc->phaseOctaves = i1_clamp(desc->phaseOctaves, 1, 10);
+    desc->phaseGain = f1_clamp(desc->phaseGain, 0.1f, 1.0f);
+    desc->phaseLacunarity = f1_clamp(desc->phaseLacunarity, -1.0f, 1.0f);
+    desc->phaseDir = f1_clamp(desc->phaseDir, -0.9f, 0.9f);
 
     const i32 noiseOctaves = desc->noiseOctaves;
     const float noiseGain = desc->noiseGain;
     const float noiseScale = desc->noiseScale;
 
-    float range = 0.0f;
-    float amplitude = noiseScale;
+    float sum = 0.0f;
+    float amplitude = 1.0f;
     for (i32 i = 0; i < noiseOctaves; ++i)
     {
-        range += amplitude;
+        sum += amplitude;
         amplitude *= noiseGain;
     }
 
-    desc->noiseRange = range;
+    desc->noiseRange = sum * noiseScale;
 }
 
 static void media_desc_load(media_desc_t* desc, const char* name)
@@ -1562,6 +1564,7 @@ static void media_desc_load(media_desc_t* desc, const char* name)
         return;
     }
     memset(desc, 0, sizeof(*desc));
+    media_desc_new(desc);
     char filename[PIM_PATH];
     SPrintf(ARGS(filename), "%s.json", name);
     ser_obj_t* root = ser_fromfile(filename);
@@ -1578,12 +1581,15 @@ static void media_desc_load(media_desc_t* desc, const char* name)
         ser_getfield_f32(desc, root, noiseFreq);
         ser_getfield_f32(desc, root, noiseScale);
         ser_getfield_f32(desc, root, noiseHeight);
-        ser_getfield_f32(desc, root, amtMie);
-        ser_getfield_f32(desc, root, amtRayleigh);
+        ser_getfield_i32(desc, root, phaseOctaves);
+        ser_getfield_f32(desc, root, phaseGain);
+        ser_getfield_f32(desc, root, phaseLacunarity);
+        ser_getfield_f32(desc, root, phaseDir);
     }
     else
     {
         con_logf(LogSev_Error, "pt", "Failed to load media desc '%s'", filename);
+        media_desc_new(desc);
     }
     ser_obj_del(root);
 }
@@ -1610,8 +1616,10 @@ static void media_desc_save(const media_desc_t* desc, const char* name)
         ser_setfield_f32(desc, root, noiseFreq);
         ser_setfield_f32(desc, root, noiseScale);
         ser_setfield_f32(desc, root, noiseHeight);
-        ser_setfield_f32(desc, root, amtMie);
-        ser_setfield_f32(desc, root, amtRayleigh);
+        ser_setfield_i32(desc, root, phaseOctaves);
+        ser_setfield_f32(desc, root, phaseGain);
+        ser_setfield_f32(desc, root, phaseLacunarity);
+        ser_setfield_f32(desc, root, phaseDir);
         if (!ser_tofile(filename, root))
         {
             con_logf(LogSev_Error, "pt", "Failed to save media desc '%s'", filename);
@@ -1646,14 +1654,14 @@ static void media_desc_gui(media_desc_t* desc)
         {
             media_desc_save(desc, gui_mediadesc_name);
         }
-        igSliderFloat("Rayleigh Amount", &desc->amtRayleigh, 0.0f, 1.0f);
-        igSliderFloat("Mie Amount", &desc->amtMie, 0.0f, 1.0f);
-        igColorEdit3("Constant Albedo", &desc->constantAlbedo.x, ldrPicker);
-        igSliderFloat("Constant Scatter Dir", &desc->constantAlbedo.w, -1.0f, 1.0f);
-        igColorEdit3("Noise Albedo", &desc->noiseAlbedo.x, ldrPicker);
-        igSliderFloat("Noise Scatter Dir", &desc->noiseAlbedo.w, -1.0f, 1.0f);
+        igSliderInt("Phase Octaves", &desc->phaseOctaves, 1, 10, "%d");
+        igSliderFloat("Phase Gain", &desc->phaseGain, 0.1f, 1.0f);
+        igSliderFloat("Phase Lacunarity", &desc->phaseLacunarity, -1.0f, 1.0f);
+        igSliderFloat("Phase Dir", &desc->phaseDir, -0.9f, 0.9f);
         igLog2SliderFloat("Log2 Absorption", &desc->absorption, -10.0f, 10.0f);
+        igColorEdit3("Constant Albedo", &desc->constantAlbedo.x, ldrPicker);
         igLog2SliderFloat("Log2 Constant Amount", &desc->constantAmt, -10.0f, 10.0f);
+        igColorEdit3("Noise Albedo", &desc->noiseAlbedo.x, ldrPicker);
         igLog2SliderFloat("Log2 Noise Amount", &desc->noiseAmt, -10.0f, 10.0f);
         igSliderInt("Noise Octaves", &desc->noiseOctaves, 1, 10, "%d");
         igSliderFloat("Noise Gain", &desc->noiseGain, 0.0f, 1.0f);
@@ -1714,8 +1722,6 @@ pim_inline float4 VEC_CALL AlbedoToLogAlbedo(float4 albedo)
     const float b = 0.6f;
     float4 x = f4_addvs(f4_mulvs(albedo, b), a);
     float4 y = f4_neg(f4_log(x));
-    // preserve g coefficient
-    y.w = albedo.w;
     return y;
 }
 
@@ -1726,7 +1732,7 @@ pim_inline float4 VEC_CALL Media_Extinction(media_t media)
 
 pim_inline float VEC_CALL Media_Scattering(media_t media)
 {
-    return f1_lerp(0.5f, 1.0f, f4_hmin3(media.logAlbedo)) * media.scattering;
+    return f1_lerp(0.5f, 1.0f, f4_hmax3(media.logAlbedo)) * media.scattering;
 }
 
 pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P)
@@ -1775,18 +1781,85 @@ pim_inline float VEC_CALL FreePathPdf(float t, float u)
 }
 
 // maximum extinction coefficient of the media
-pim_inline float4 VEC_CALL CalculateMajorant(const media_desc_t* desc)
+pim_inline float4 VEC_CALL CalcMajorant(const media_desc_t* desc)
 {
-    float4 ca = f4_mulvs(desc->logConstantAlbedo, desc->constantAmt);
-    float4 na = f4_mulvs(desc->logNoiseAlbedo, desc->noiseAmt);
+    i32 octaves = desc->noiseOctaves;
+    float gain = desc->noiseGain;
+    float sum = 0.0f;
+    float amplitude = 1.0f;
+    for (i32 i = 0; i < octaves; ++i)
+    {
+        sum += amplitude;
+        amplitude *= gain;
+    }
+    float a = 1.0f + desc->absorption;
+    float4 ca = f4_mulvs(desc->logConstantAlbedo, desc->constantAmt * a);
+    float4 na = f4_mulvs(desc->logNoiseAlbedo, desc->noiseAmt * a * sum);
     return f4_add(ca, na);
 }
 
-pim_inline float VEC_CALL CalcPhase(const media_desc_t* desc, float cosTheta, float g)
+pim_inline float4 VEC_CALL CalcControl(const media_desc_t* desc)
 {
-    float mie = MiePhase(cosTheta, g) * desc->amtMie;
-    float ray = RayleighPhase(cosTheta) * desc->amtRayleigh;
-    return mie + ray;
+    i32 octaves = desc->noiseOctaves;
+    float gain = desc->noiseGain;
+    float sum = 0.0f;
+    float amplitude = 1.0f;
+    for (i32 i = 0; i < octaves; ++i)
+    {
+        sum += amplitude;
+        amplitude *= gain;
+    }
+    float a = 1.0f + desc->absorption;
+    float4 ca = f4_mulvs(desc->logConstantAlbedo, desc->constantAmt * a);
+    float4 na = f4_mulvs(desc->logNoiseAlbedo, desc->noiseAmt * a * sum * 0.5f);
+    return f4_lerpvs(ca, na, 0.5f);
+}
+
+pim_inline float4 VEC_CALL CalcResidual(float4 control, float4 majorant)
+{
+    return f4_abs(f4_sub(majorant, control));
+}
+
+pim_inline float VEC_CALL CalcPhase(
+    const media_desc_t* desc,
+    float cosTheta,
+    float g)
+{
+    i32 octaves = desc->phaseOctaves;
+    float lacunarity = desc->phaseLacunarity;
+    float gain = desc->phaseGain;
+    float sum = 0.0f;
+    float amplitude = 1.0f;
+    float weight = 0.0f;
+    for (i32 i = 0; i < octaves; ++i)
+    {
+        float ph = MiePhase(cosTheta, g);
+        sum += amplitude * ph;
+        weight += amplitude;
+        amplitude *= 0.5f;
+        g *= lacunarity;
+    }
+    sum *= (1.0f / weight);
+    return sum;
+}
+
+pim_inline float4 VEC_CALL SamplePhaseDir(
+    pt_sampler_t* sampler,
+    const media_desc_t* desc,
+    float4 rd,
+    float g)
+{
+    while (true)
+    {
+        float4 L = SampleUnitSphere(Sample2D(sampler));
+        float cosTheta = f4_dot3(rd, L);
+        float f = CalcPhase(desc, cosTheta, g);
+        L.w = f;
+        if (Sample1D(sampler) < f)
+        {
+            return L;
+        }
+    }
 }
 
 pim_inline float4 VEC_CALL CalcTransmittance(
@@ -1797,8 +1870,7 @@ pim_inline float4 VEC_CALL CalcTransmittance(
     float rayLen)
 {
     const media_desc_t* desc = &scene->mediaDesc;
-    const float4 u = CalculateMajorant(desc);
-    const float4 rcpU = f4_rcp(u);
+    const float4 u = CalcMajorant(desc);
     const float rcpUmax = 1.0f / f4_hmax3(u);
     float4 attenuation = f4_1;
     float t = 0.0f;
@@ -1806,18 +1878,15 @@ pim_inline float4 VEC_CALL CalcTransmittance(
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
         float dt = SampleFreePath(Sample1D(sampler), rcpUmax);
-        float tRem = rayLen - t;
-        if (dt > tRem)
+        t += dt;
+        if (t >= rayLen)
         {
             break;
         }
-        t += dt;
-
         media_t media = Media_Sample(desc, P);
         float4 uT = Media_Extinction(media);
-        bool4 tookReal = f4_ltsv(Sample1D(sampler), f4_mul(uT, rcpU));
-        float4 segment = f4_exp3(f4_mulvs(u, -dt));
-        attenuation = f4_mul(attenuation, f4_select(f4_1, segment, tookReal));
+        float4 ratio = f4_inv(f4_mulvs(uT, rcpUmax));
+        attenuation = f4_mul(attenuation, ratio);
     }
     return attenuation;
 }
@@ -1829,41 +1898,35 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     float4 rd,
     float rayLen)
 {
-    scatter_t result;
+    scatter_t result = { 0 };
     result.pdf = 0.0f;
 
     const media_desc_t* desc = &scene->mediaDesc;
-    const float4 u = CalculateMajorant(desc);
-    const float4 rcpU = f4_rcp(u);
+    const float4 u = CalcMajorant(desc);
     const float rcpUmax = 1.0f / f4_hmax3(u);
-    const float rcpU1 = 1.0f / f4_avglum(u);
 
     float t = 0.0f;
-    float4 irradiance = f4_0;
-    float4 attenuation = f4_1;
+    result.attenuation = f4_1;
     while (true)
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
         float dt = SampleFreePath(Sample1D(sampler), rcpUmax);
-        float tRem = rayLen - t;
-        if (dt > tRem)
+        t += dt;
+        if (t >= rayLen)
         {
             break;
         }
-        t += dt;
 
         media_t media = Media_Sample(desc, P);
         float4 uT = Media_Extinction(media);
-        bool4 tookReal = f4_ltsv(Sample1D(sampler), f4_mul(uT, rcpU));
-        float4 segment = f4_exp3(f4_mulvs(u, -dt));
-        attenuation = f4_mul(attenuation, f4_select(f4_1, segment, tookReal));
+        float4 ratio = f4_inv(f4_mulvs(uT, rcpUmax));
+        result.attenuation = f4_mul(result.attenuation, ratio);
 
         float uS = Media_Scattering(media);
-        float pScatter = uS * rcpU1;
+        float pScatter = uS * rcpUmax;
         if (Sample1D(sampler) < pScatter)
         {
-            P = f4_add(ro, f4_mulvs(rd, t));
-            float g = media.logAlbedo.w;
+            float g = desc->phaseDir;
 
             float4 rad;
             float4 L;
@@ -1872,22 +1935,19 @@ pim_inline scatter_t VEC_CALL ScatterRay(
                 float cosTheta = f4_dot3(rd, L);
                 float ph = CalcPhase(desc, cosTheta, g);
                 rad = f4_mulvs(rad, ph * dt);
-                rad = f4_mul(rad, attenuation);
-                irradiance = f4_add(irradiance, rad);
+                rad = f4_mul(rad, result.attenuation);
+                result.irradiance = rad;
             }
 
             result.pos = P;
-            result.dir = SampleUnitSphere(Sample2D(sampler));
+            result.dir = SamplePhaseDir(sampler, desc, rd, g);
+            result.pdf = result.dir.w;
             float cosTheta = f4_dot3(rd, result.dir);
             float ph = CalcPhase(desc, cosTheta, g);
-            attenuation = f4_mulvs(attenuation, ph);
-            result.pdf = 1.0f / (4.0f * kPi);
+            result.attenuation = f4_mulvs(result.attenuation, ph);
             break;
         }
     }
-
-    result.attenuation = attenuation;
-    result.irradiance = irradiance;
 
     return result;
 }
