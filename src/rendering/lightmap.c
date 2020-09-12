@@ -20,6 +20,7 @@
 #include "rendering/mesh.h"
 #include "rendering/material.h"
 #include "rendering/vulkan/vkr_texture.h"
+#include "rendering/vulkan/vkr_mesh.h"
 #include "common/profiler.h"
 #include "common/cmd.h"
 #include "common/atomics.h"
@@ -943,9 +944,8 @@ static void chartnodes_assign(
             ASSERT(node.drawableIndex >= 0);
             ASSERT(node.drawableIndex < numDrawables);
             ASSERT(node.vertIndex >= 0);
-            meshid_t meshid = meshids[node.drawableIndex];
             mesh_t mesh;
-            if (mesh_get(meshid, &mesh))
+            if (mesh_get(meshids[node.drawableIndex], &mesh))
             {
                 const i32 vertCount = mesh.length;
                 ASSERT((node.vertIndex + 2) < vertCount);
@@ -971,6 +971,16 @@ static void chartnodes_assign(
             {
                 ASSERT(false);
             }
+        }
+    }
+
+    for (i32 i = 0; i < numDrawables; ++i)
+    {
+        mesh_t mesh;
+        if (mesh_get(meshids[i], &mesh))
+        {
+            vkrMesh_Upload(&mesh.vkrmesh, mesh.length, mesh.positions, mesh.normals, mesh.uvs, 0, NULL);
+            mesh_set(meshids[i], &mesh);
         }
     }
 }

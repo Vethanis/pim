@@ -329,7 +329,7 @@ struct PSInput
     float3 positionWS : TEXCOORD0;
     float4 uv01 : TEXCOORD1;
     float3x3 TBN : TEXCOORD2;
-    uint lmIndex : TEXCOORD3;
+    nointerpolation uint lmIndex : TEXCOORD3;
 };
 
 float4 SampleTexture(uint index, float2 uv)
@@ -382,7 +382,7 @@ float4 PSMain(PSInput input) : SV_Target
     //}
     {
         float2 uv1 = input.uv01.zw;
-        uint lmIndex = cameraData[0].lmBegin + input.lmIndex;
+        uint lmIndex = cameraData[0].lmBegin + input.lmIndex * kGiDirections;
         float3 R = reflect(-V, N);
         float3 diffuseGI = 0.0f;
         float3 specularGI = 0.0f;

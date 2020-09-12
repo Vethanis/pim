@@ -7,7 +7,6 @@
 #include "common/profiler.h"
 #include <string.h>
 
-ProfileMark(pm_meshnew, vkrMesh_New)
 bool vkrMesh_New(
     vkrMesh* mesh,
     i32 vertCount,
@@ -35,7 +34,73 @@ bool vkrMesh_New(
         return false;
     }
 
-    ProfileBegin(pm_meshnew);
+    SASSERT(sizeof(positions[0]) == sizeof(normals[0]));
+    SASSERT(sizeof(positions[0]) == sizeof(uv01[0]));
+
+    const i32 streamSize = sizeof(positions[0]) * vertCount;
+    const i32 indicesSize = sizeof(indices[0]) * indexCount;
+    const i32 totalSize = streamSize * vkrMeshStream_COUNT + indicesSize;
+
+    if (!vkrBuffer_New(
+        &mesh->buffer,
+        totalSize,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        vkrMemUsage_GpuOnly, PIM_FILELINE))
+    {
+        ASSERT(false);
+        return false;
+    }
+
+    mesh->vertCount = vertCount;
+    mesh->indexCount = indexCount;
+
+    if (!vkrMesh_Upload(mesh, vertCount, positions, normals, uv01, indexCount, indices))
+    {
+        ASSERT(false);
+        goto cleanup;
+    }
+
+    return true;
+cleanup:
+    vkrMesh_Del(mesh);
+    return false;
+}
+
+void vkrMesh_Del(vkrMesh* mesh)
+{
+    if (mesh)
+    {
+        vkrBuffer_Release(&mesh->buffer, NULL);
+        memset(mesh, 0, sizeof(*mesh));
+    }
+}
+
+bool vkrMesh_Upload(
+    vkrMesh* mesh,
+    i32 vertCount,
+    const float4* pim_noalias positions,
+    const float4* pim_noalias normals,
+    const float4* pim_noalias uv01,
+    i32 indexCount,
+    const u16* pim_noalias indices)
+{
+    if (vertCount <= 0)
+    {
+        ASSERT(false);
+        return false;
+    }
+    if ((indexCount % 3))
+    {
+        ASSERT(false);
+        return false;
+    }
+    if (!positions || !normals || !uv01)
+    {
+        ASSERT(false);
+        return false;
+    }
 
     SASSERT(sizeof(positions[0]) == sizeof(normals[0]));
     SASSERT(sizeof(positions[0]) == sizeof(uv01[0]));
@@ -44,9 +109,7 @@ bool vkrMesh_New(
     const i32 indicesSize = sizeof(indices[0]) * indexCount;
     const i32 totalSize = streamSize * vkrMeshStream_COUNT + indicesSize;
 
-    vkrBuffer stagebuf = { 0 };
-    vkrBuffer devbuf = { 0 };
-
+    vkrBuffer stagebuf = {0};
     if (!vkrBuffer_New(
         &stagebuf,
         totalSize,
@@ -54,18 +117,7 @@ bool vkrMesh_New(
         vkrMemUsage_CpuOnly, PIM_FILELINE))
     {
         ASSERT(false);
-        goto cleanup;
-    }
-    if (!vkrBuffer_New(
-        &devbuf,
-        totalSize,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        vkrMemUsage_GpuOnly, PIM_FILELINE))
-    {
-        ASSERT(false);
-        goto cleanup;
+        return false;
     }
 
     {
@@ -95,7 +147,7 @@ bool vkrMesh_New(
     VkQueue queue = NULL;
     vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, &fence, &queue);
     vkrCmdBegin(cmd);
-    vkrCmdCopyBuffer(cmd, stagebuf, devbuf);
+    vkrCmdCopyBuffer(cmd, stagebuf, mesh->buffer);
     const VkBufferMemoryBarrier barrier =
     {
         .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
@@ -105,9 +157,9 @@ bool vkrMesh_New(
             VK_ACCESS_INDEX_READ_BIT,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer = devbuf.handle,
+        .buffer = mesh->buffer.handle,
         .offset = 0,
-        .size = devbuf.size,
+        .size = VK_WHOLE_SIZE,
     };
     vkrCmdBufferBarrier(
         cmd,
@@ -118,24 +170,5 @@ bool vkrMesh_New(
     vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
     vkrBuffer_Release(&stagebuf, fence);
 
-    mesh->buffer = devbuf;
-    mesh->vertCount = vertCount;
-    mesh->indexCount = indexCount;
-
-    ProfileEnd(pm_meshnew);
     return true;
-cleanup:
-    vkrBuffer_Del(&stagebuf);
-    vkrBuffer_Del(&devbuf);
-    ProfileEnd(pm_meshnew);
-    return false;
-}
-
-void vkrMesh_Del(vkrMesh* mesh)
-{
-    if (mesh)
-    {
-        vkrBuffer_Release(&mesh->buffer, NULL);
-        memset(mesh, 0, sizeof(*mesh));
-    }
 }

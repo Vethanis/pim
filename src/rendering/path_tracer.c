@@ -88,10 +88,9 @@ typedef struct media_desc_s
     float noiseScale;
     float noiseHeight;
     float noiseRange;
-    i32 phaseOctaves;
-    float phaseLacunarity;
-    float phaseGain;
-    float phaseDir;
+    float phaseDirA;
+    float phaseDirB;
+    float phaseBlend;
 } media_desc_t;
 
 typedef struct media_s
@@ -1526,10 +1525,9 @@ static void media_desc_new(media_desc_t* desc)
     desc->noiseFreq = 1.0f;
     desc->noiseHeight = 20.0f;
     desc->noiseScale = exp2f(-5.0f);
-    desc->phaseOctaves = 4;
-    desc->phaseLacunarity = -0.5f;
-    desc->phaseGain = 0.5f;
-    desc->phaseDir = 0.5f;
+    desc->phaseDirA = 0.874f;
+    desc->phaseDirB = -0.5f;
+    desc->phaseBlend = 0.1f;
     media_desc_update(desc);
 }
 
@@ -1537,10 +1535,9 @@ static void media_desc_update(media_desc_t* desc)
 {
     desc->logConstantAlbedo = AlbedoToLogAlbedo(desc->constantAlbedo);
     desc->logNoiseAlbedo = AlbedoToLogAlbedo(desc->noiseAlbedo);
-    desc->phaseOctaves = i1_clamp(desc->phaseOctaves, 1, 10);
-    desc->phaseGain = f1_clamp(desc->phaseGain, 0.1f, 1.0f);
-    desc->phaseLacunarity = f1_clamp(desc->phaseLacunarity, -1.0f, 1.0f);
-    desc->phaseDir = f1_clamp(desc->phaseDir, -0.9f, 0.9f);
+    desc->phaseDirA = f1_clamp(desc->phaseDirA, -0.99f, 0.99f);
+    desc->phaseDirB = f1_clamp(desc->phaseDirB, -0.99f, 0.99f);
+    desc->phaseBlend = f1_sat(desc->phaseBlend);
 
     const i32 noiseOctaves = desc->noiseOctaves;
     const float noiseGain = desc->noiseGain;
@@ -1554,7 +1551,7 @@ static void media_desc_update(media_desc_t* desc)
         amplitude *= noiseGain;
     }
 
-    desc->noiseRange = sum * noiseScale;
+    desc->noiseRange = sum * noiseScale * 1.5f;
 }
 
 static void media_desc_load(media_desc_t* desc, const char* name)
@@ -1581,10 +1578,9 @@ static void media_desc_load(media_desc_t* desc, const char* name)
         ser_getfield_f32(desc, root, noiseFreq);
         ser_getfield_f32(desc, root, noiseScale);
         ser_getfield_f32(desc, root, noiseHeight);
-        ser_getfield_i32(desc, root, phaseOctaves);
-        ser_getfield_f32(desc, root, phaseGain);
-        ser_getfield_f32(desc, root, phaseLacunarity);
-        ser_getfield_f32(desc, root, phaseDir);
+        ser_getfield_f32(desc, root, phaseDirA);
+        ser_getfield_f32(desc, root, phaseDirB);
+        ser_getfield_f32(desc, root, phaseBlend);
     }
     else
     {
@@ -1616,10 +1612,9 @@ static void media_desc_save(const media_desc_t* desc, const char* name)
         ser_setfield_f32(desc, root, noiseFreq);
         ser_setfield_f32(desc, root, noiseScale);
         ser_setfield_f32(desc, root, noiseHeight);
-        ser_setfield_i32(desc, root, phaseOctaves);
-        ser_setfield_f32(desc, root, phaseGain);
-        ser_setfield_f32(desc, root, phaseLacunarity);
-        ser_setfield_f32(desc, root, phaseDir);
+        ser_setfield_f32(desc, root, phaseDirA);
+        ser_setfield_f32(desc, root, phaseDirB);
+        ser_setfield_f32(desc, root, phaseBlend);
         if (!ser_tofile(filename, root))
         {
             con_logf(LogSev_Error, "pt", "Failed to save media desc '%s'", filename);
@@ -1654,10 +1649,9 @@ static void media_desc_gui(media_desc_t* desc)
         {
             media_desc_save(desc, gui_mediadesc_name);
         }
-        igSliderInt("Phase Octaves", &desc->phaseOctaves, 1, 10, "%d");
-        igSliderFloat("Phase Gain", &desc->phaseGain, 0.1f, 1.0f);
-        igSliderFloat("Phase Lacunarity", &desc->phaseLacunarity, -1.0f, 1.0f);
-        igSliderFloat("Phase Dir", &desc->phaseDir, -0.9f, 0.9f);
+        igSliderFloat("Phase Dir A", &desc->phaseDirA, -0.99f, 0.99f);
+        igSliderFloat("Phase Dir B", &desc->phaseDirB, -0.99f, 0.99f);
+        igSliderFloat("Phase Blend", &desc->phaseBlend, 0.0f, 1.0f);
         igLog2SliderFloat("Log2 Absorption", &desc->absorption, -10.0f, 10.0f);
         igColorEdit3("Constant Albedo", &desc->constantAlbedo.x, ldrPicker);
         igLog2SliderFloat("Log2 Constant Amount", &desc->constantAmt, -10.0f, 10.0f);
@@ -1822,44 +1816,28 @@ pim_inline float4 VEC_CALL CalcResidual(float4 control, float4 majorant)
 
 pim_inline float VEC_CALL CalcPhase(
     const media_desc_t* desc,
-    float cosTheta,
-    float g)
+    float cosTheta)
 {
-    i32 octaves = desc->phaseOctaves;
-    float lacunarity = desc->phaseLacunarity;
-    float gain = desc->phaseGain;
-    float sum = 0.0f;
-    float amplitude = 1.0f;
-    float weight = 0.0f;
-    for (i32 i = 0; i < octaves; ++i)
-    {
-        float ph = MiePhase(cosTheta, g);
-        sum += amplitude * ph;
-        weight += amplitude;
-        amplitude *= 0.5f;
-        g *= lacunarity;
-    }
-    sum *= (1.0f / weight);
-    return sum;
+    return f1_lerp(MiePhase(cosTheta, desc->phaseDirA), MiePhase(cosTheta, desc->phaseDirB), desc->phaseBlend);
 }
 
-pim_inline float4 VEC_CALL SamplePhaseDir(
+pim_inline bool VEC_CALL RussianRoulette(
     pt_sampler_t* sampler,
-    const media_desc_t* desc,
-    float4 rd,
-    float g)
+    float4* pAttenuation)
 {
-    while (true)
+    float4 att = *pAttenuation;
+    float p = f1_sat(f4_avglum(att));
+    bool kept = Sample1D(sampler) < p;
+    if (kept)
     {
-        float4 L = SampleUnitSphere(Sample2D(sampler));
-        float cosTheta = f4_dot3(rd, L);
-        float f = CalcPhase(desc, cosTheta, g);
-        L.w = f;
-        if (Sample1D(sampler) < f)
-        {
-            return L;
-        }
+        att = f4_divvs(att, p);
     }
+    else
+    {
+        att = f4_0;
+    }
+    *pAttenuation = att;
+    return kept;
 }
 
 pim_inline float4 VEC_CALL CalcTransmittance(
@@ -1918,33 +1896,35 @@ pim_inline scatter_t VEC_CALL ScatterRay(
         }
 
         media_t media = Media_Sample(desc, P);
-        float4 uT = Media_Extinction(media);
-        float4 ratio = f4_inv(f4_mulvs(uT, rcpUmax));
-        result.attenuation = f4_mul(result.attenuation, ratio);
 
         float uS = Media_Scattering(media);
         float pScatter = uS * rcpUmax;
-        if (Sample1D(sampler) < pScatter)
+        bool scattered = Sample1D(sampler) < pScatter;
+        if (scattered)
         {
-            float g = desc->phaseDir;
-
             float4 rad;
             float4 L;
             if (EvaluateLight(sampler, scene, P, &rad, &L))
             {
-                float cosTheta = f4_dot3(rd, L);
-                float ph = CalcPhase(desc, cosTheta, g);
+                float ph = CalcPhase(desc, f4_dot3(rd, L));
                 rad = f4_mulvs(rad, ph * dt);
                 rad = f4_mul(rad, result.attenuation);
                 result.irradiance = rad;
             }
 
-            result.pos = P;
-            result.dir = SamplePhaseDir(sampler, desc, rd, g);
-            result.pdf = result.dir.w;
-            float cosTheta = f4_dot3(rd, result.dir);
-            float ph = CalcPhase(desc, cosTheta, g);
+            result.pos = f4_add(ro, f4_mulvs(rd, t));
+            result.dir = SampleUnitSphere(Sample2D(sampler));
+            result.pdf = 1.0f / (4.0f * kPi);
+            float ph = CalcPhase(desc, f4_dot3(rd, result.dir));
             result.attenuation = f4_mulvs(result.attenuation, ph);
+        }
+
+        float4 uT = Media_Extinction(media);
+        float4 ratio = f4_inv(f4_mulvs(uT, rcpUmax));
+        result.attenuation = f4_mul(result.attenuation, ratio);
+
+        if (scattered)
+        {
             break;
         }
     }
@@ -1965,6 +1945,11 @@ pt_result_t VEC_CALL pt_trace_ray(
 
     for (i32 b = 0; b < 666; ++b)
     {
+        if (!RussianRoulette(sampler, &attenuation))
+        {
+            break;
+        }
+
         rayhit_t hit = pt_intersect_local(scene, ray, 0.0f, 1 << 20);
         if (hit.type == hit_nothing)
         {
@@ -1984,7 +1969,7 @@ pt_result_t VEC_CALL pt_trace_ray(
                 attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
                 ray.ro = scatter.pos;
                 ray.rd = scatter.dir;
-                goto roulette;
+                continue;
             }
             else
             {
@@ -2001,8 +1986,10 @@ pt_result_t VEC_CALL pt_trace_ray(
         surfhit_t surf = GetSurface(scene, ray, hit);
         if (b == 0)
         {
+            float t = f4_avglum(attenuation);
+            float4 N = f4_lerpvs(f4_neg(ray.rd), surf.N, t);
             result.albedo = f4_f3(surf.albedo);
-            result.normal = f4_f3(surf.N);
+            result.normal = f4_f3(N);
         }
 
         bool neeBounce = neeTrace;
@@ -2031,19 +2018,6 @@ pt_result_t VEC_CALL pt_trace_ray(
         ray.rd = scatter.dir;
 
         attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
-
-    roulette:
-        {
-            float p = f1_clamp(f4_avglum(attenuation), 0.0f, 0.95f);
-            if (Sample1D(sampler) < p)
-            {
-                attenuation = f4_divvs(attenuation, p);
-            }
-            else
-            {
-                break;
-            }
-        }
     }
 
     result.color = f4_f3(light);
