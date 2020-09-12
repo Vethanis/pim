@@ -48,18 +48,16 @@ pim_inline float2 VEC_CALL RaySphereIntersect(float3 ro, float3 rd, float radius
 
 pim_inline float VEC_CALL RayleighPhase(float cosTheta)
 {
-    float mu2 = cosTheta * cosTheta;
-    return (3.0f / (16.0f * kPi)) * (1.0f + mu2);
+    return (3.0f / (16.0f * kPi)) * (1.0f + cosTheta * cosTheta);
 }
 
 pim_inline float VEC_CALL MiePhase(float cosTheta, float g)
 {
-    float mu2 = cosTheta * cosTheta;
-    float g2 = g * g;
-    float nom = (1.0f - g2) * (1.0f + mu2);
-    float denomBase = (1.0f + g2) - (2.0f * g * cosTheta);
-    float denom = (2.0f + g2) * denomBase * sqrtf(denomBase);
-    return (3.0f / (8.0f * kPi)) * (nom / denom);
+    float k = (3.0f / (8.0f * kPi)) * (1.0f - g*g) / (2.0f + g*g);
+    float l = 1.0f + g*g - 2.0f * g * cosTheta;
+    l = l * sqrtf(l);
+    // singularity at g=+-1
+    return k * (1.0f + cosTheta*cosTheta) / f1_max(kEpsilon, l);
 }
 
 // henyey-greenstein phase function

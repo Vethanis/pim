@@ -537,9 +537,10 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     guid_t guid = guid_str(mapname, guid_seed);
 
     bool loaded = drawables_load(drawables_get(), guid);
+    bool hasLightmaps = false;
     if (loaded)
     {
-        lmpack_load(lmpack_get(), guid);
+        hasLightmaps = lmpack_load(lmpack_get(), guid);
     }
     else
     {
@@ -550,6 +551,10 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
         drawables_updatetransforms(drawables_get());
         drawables_updatebounds(drawables_get());
         vkr_onload();
+        if (hasLightmaps)
+        {
+            con_exec("lm_upload 1");
+        }
         con_logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
         return cmdstat_ok;
     }

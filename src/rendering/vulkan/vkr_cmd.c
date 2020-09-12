@@ -160,7 +160,7 @@ void vkrCmdAlloc_Get(vkrCmdAlloc* allocator, VkCommandBuffer* cmdOut, VkFence* f
 {
     ASSERT(allocator);
     ASSERT(allocator->pool);
-    if (allocator->frame != time_framecount())
+    if ((time_framecount() - allocator->frame) >= kFramesInFlight)
     {
         vkrCmdAlloc_Reset(allocator);
     }
@@ -178,7 +178,6 @@ void vkrCmdAlloc_Get(vkrCmdAlloc* allocator, VkCommandBuffer* cmdOut, VkFence* f
                 fence = fences[i];
                 buffer = allocator->buffers[i];
                 vkrFence_Reset(fence);
-                VkCheck(vkResetCommandBuffer(buffer, 0x0));
                 break;
             }
         }
