@@ -114,13 +114,13 @@ ProfileMark(pm_blit, screenblit_blit)
 void screenblit_blit(
     VkCommandBuffer cmd,
     VkImage dstImage,
-    const u32* texels,
+    u32 const *const pim_noalias texels,
     i32 width,
     i32 height)
 {
     ProfileBegin(pm_blit);
 
-    const vkrSwapchain* chain = &g_vkr.chain;
+    vkrSwapchain const *const chain = &g_vkr.chain;
     VkImage srcImage = ms_image.handle;
     VkBuffer stageBuf = ms_stageBuf.handle;
 
@@ -128,7 +128,7 @@ void screenblit_blit(
     {
         const i32 bytes = width * height * sizeof(texels[0]);
         ASSERT(bytes == ms_stageBuf.size);
-        void* dst = vkrBuffer_Map(&ms_stageBuf);
+        void* const pim_noalias dst = vkrBuffer_Map(&ms_stageBuf);
         ASSERT(dst);
         if (dst)
         {
@@ -184,7 +184,7 @@ void screenblit_blit(
     }
     // transition src image to xfer src
     {
-        const VkImageMemoryBarrier imgBarrier =
+        const VkImageMemoryBarrier barrier =
         {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcAccessMask = 0x0,
@@ -204,11 +204,11 @@ void screenblit_blit(
         vkrCmdImageBarrier(cmd,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            &imgBarrier);
+            &barrier);
     }
     // transition dst image to xfer dst
     {
-        const VkImageMemoryBarrier imgBarrier =
+        const VkImageMemoryBarrier barrier =
         {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcAccessMask = 0x0,
@@ -226,9 +226,9 @@ void screenblit_blit(
             },
         };
         vkrCmdImageBarrier(cmd,
-            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            &imgBarrier);
+            &barrier);
     }
     // blit src image to dst image
     {
@@ -257,7 +257,7 @@ void screenblit_blit(
     }
     // transition dst image to attachment
     {
-        const VkImageMemoryBarrier imgBarrier =
+        const VkImageMemoryBarrier barrier =
         {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcAccessMask = 0x0,
@@ -277,7 +277,7 @@ void screenblit_blit(
         vkrCmdImageBarrier(cmd,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            &imgBarrier);
+            &barrier);
     }
 
     ProfileEnd(pm_blit);

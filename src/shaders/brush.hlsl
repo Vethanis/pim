@@ -60,7 +60,7 @@ float D_GTR(float NoH, float alpha)
 {
     float a2 = alpha * alpha;
     float f = lerp(1.0f, a2, NoH * NoH);
-    return a2 / max(kEpsilon, f * f * kPi);
+    return a2 / (f * f * kPi);
 }
 
 float G_SmithGGX(float NoL, float NoV, float alpha)
@@ -68,7 +68,7 @@ float G_SmithGGX(float NoL, float NoV, float alpha)
     float a2 = alpha * alpha;
     float v = NoL * sqrt(a2 + (NoV - NoV * a2) * NoV);
     float l = NoV * sqrt(a2 + (NoL - NoL * a2) * NoL);
-    return 0.5f / max(kEpsilon, v + l);
+    return 0.5f / (v + l);
 }
 
 float Fd_Lambert()
@@ -138,9 +138,9 @@ float3 IndirectBRDF(
     float3 diffuseGI,   // low frequency scene irradiance
     float3 specularGI,  // high frequency scene irradiance
     float3 albedo,      // surface color
-    float roughness,    // surface roughness
-    float metallic,     // surface metalness
-    float ao)           // 1 - ambient occlusion (affects gi only)
+    float roughness,    // perceptual roughness
+    float metallic,
+    float occlusion)
 {
     float alpha = BrdfAlpha(roughness);
     float NoV = dotsat(N, V);
@@ -155,7 +155,7 @@ float3 IndirectBRDF(
     float amtDiffuse = 1.0f - metallic;
     float scale = 1.0f / (amtSpecular + amtDiffuse);
 
-    return (Fr + Fd) * scale * ao;
+    return (Fr + Fd) * scale * occlusion;
 }
 
 // ----------------------------------------------------------------------------
@@ -283,11 +283,8 @@ float3 SG_Irradiance(float4 axis, float3 amplitude, float3 normal)
 
 struct PerCamera
 {
-    float4x4 worldToCamera;
-    float4x4 cameraToClip;
+    float4x4 worldToClip;
     float4 eye;
-    float4 lightDir;
-    float4 lightColor;
     float4 giAxii[kGiDirections];
     uint lmBegin;
 };
@@ -299,6 +296,7 @@ cbuffer push_constants
     float4 IMc0;
     float4 IMc1;
     float4 IMc2;
+    float4 flatRome;
     uint kAlbedoIndex;
     uint kRomeIndex;
     uint kNormalIndex;
@@ -309,7 +307,10 @@ cbuffer push_constants
 
 // binding 1 set 0
 [[vk::binding(1)]]
-StructuredBuffer<PerCamera> cameraData;
+cbuffer cameraData
+{
+    PerCamera cameraData;
+};
 
 [[vk::binding(2)]]
 SamplerState samplers[];
@@ -341,7 +342,7 @@ PSInput VSMain(VSInput input)
 {
     float4 positionOS = float4(input.positionOS.xyz, 1.0);
     float4 positionWS = mul(localToWorld, positionOS);
-    float4 positionCS = mul(cameraData[0].cameraToClip, mul(cameraData[0].worldToCamera, positionWS));
+    float4 positionCS = mul(cameraData.worldToClip, positionWS);
     float3x3 IM = float3x3(IMc0.xyz, IMc1.xyz, IMc2.xyz);
     float3 normalWS = mul(IM, input.normalOS.xyz);
     float3x3 TBN = NormalToTBN(normalWS);
@@ -363,7 +364,7 @@ float4 PSMain(PSInput input) : SV_Target
     float2 uv0 = input.uv01.xy;
 
     float3 albedo = SampleTexture(ai, uv0).xyz;
-    float4 rome = SampleTexture(ri, uv0);
+    float4 rome = SampleTexture(ri, uv0) * flatRome;
     float3 normalTS = SampleTexture(ni, uv0).xyz;
 
     normalTS = normalize(normalTS * 2.0 - 1.0);
@@ -371,31 +372,35 @@ float4 PSMain(PSInput input) : SV_Target
     N = normalize(N);
 
     float3 P = input.positionWS;
-    float3 V = normalize(cameraData[0].eye.xyz - P);
+    float3 V = normalize(cameraData.eye.xyz - P);
 
-    float3 light = UnpackEmission(albedo, rome.w);
+    float roughness = rome.x;
+    float occlusion = rome.y;
+    float metallic = rome.z;
+    float emission = rome.w;
+    float3 light = UnpackEmission(albedo, emission);
     //{
     //    float3 L = cameraData[0].lightDir.xyz;
     //    float3 lightColor = cameraData[0].lightColor.xyz;
-    //    float3 brdf = DirectBRDF(V, L, N, albedo, rome.x, rome.z);
+    //    float3 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
     //    light += brdf * lightColor * dotsat(N, L);
     //}
     {
         float2 uv1 = input.uv01.zw;
-        uint lmIndex = cameraData[0].lmBegin + input.lmIndex * kGiDirections;
-        float3 R = normalize(lerp(reflect(-V, N), N, rome.x * rome.x));
-        float3 diffuseGI = 0.0f;
-        float3 specularGI = 0.0f;
+        uint lmIndex = cameraData.lmBegin + input.lmIndex * kGiDirections;
+        float3 R = reflect(-V, N);
+        float3 diffuseGI = 0.0;
+        float3 specularGI = 0.0;
         for (uint i = 0; i < kGiDirections; ++i)
         {
-            float4 ax = cameraData[0].giAxii[i];
+            float4 ax = cameraData.giAxii[i];
             ax.w = max(ax.w, kEpsilon);
             ax.xyz = TbnToWorld(input.TBN, ax.xyz);
             float3 probe = SampleTexture(lmIndex + i, uv1).xyz;
             diffuseGI += SG_Irradiance(ax, probe, N);
             specularGI += SG_Eval(ax, probe, R);
         }
-        light += IndirectBRDF(V, N, diffuseGI, specularGI, albedo, rome.x, rome.z, rome.y);
+        light += IndirectBRDF(V, N, diffuseGI, specularGI, albedo, roughness, metallic, occlusion);
     }
 
     light = TonemapACES(light);

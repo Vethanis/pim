@@ -202,23 +202,6 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
     VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &fence, &queue);
     vkrCmdBegin(cmd);
     {
-        const VkBufferMemoryBarrier stageBarrier =
-        {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-            .srcAccessMask = 0x0,
-            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .buffer = stagebuf.handle,
-            .offset = 0,
-            .size = VK_WHOLE_SIZE,
-        };
-        vkrCmdBufferBarrier(
-            cmd,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            &stageBarrier);
-
         // transition all mips from undefined to xfer dst
         VkImageMemoryBarrier barrier =
         {
