@@ -18,6 +18,7 @@ PIM_DECL_HANDLE(VmaAllocation);
 typedef enum
 {
     kMaxSwapchainLen = 3,
+    kDesiredSwapchainLen = 2,
     kFramesInFlight = 3,
     kTextureDescriptors = 1024,
 } vkrLimits;
@@ -375,11 +376,8 @@ typedef struct vkrAllocator
 
 typedef struct vkrPerCamera
 {
-    float4x4 worldToCamera;
-    float4x4 cameraToClip;
+    float4x4 worldToClip;
     float4 eye;
-    float4 lightDir;
-    float4 lightColor;
     float4 giAxii[5];
     u32 lmBegin;
 } vkrPerCamera;
@@ -390,6 +388,7 @@ typedef struct vkrPushConstants
     float4 IMc0;
     float4 IMc1;
     float4 IMc2;
+    float4 flatRome;
     u32 albedoIndex;
     u32 romeIndex;
     u32 normalIndex;

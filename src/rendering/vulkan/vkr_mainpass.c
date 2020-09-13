@@ -230,9 +230,9 @@ bool vkrMainPass_New(vkrPipeline* pipeline)
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         },
         {
-            // per camera structured buffer
+            // per camera cbuffer
             .binding = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         },
@@ -346,6 +346,7 @@ void vkrMainPass_Draw(
 
     VkFramebuffer framebuffer = NULL;
     u32 imageIndex = vkrSwapchain_AcquireImage(chain, &framebuffer);
+    if (r_sw)
     {
         const framebuf_t *const swfb = render_sys_frontbuf();
         screenblit_blit(
@@ -354,6 +355,30 @@ void vkrMainPass_Draw(
             swfb->color,
             swfb->width,
             swfb->height);
+    }
+    else
+    {
+        const VkImageMemoryBarrier barrier =
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = 0x0,
+            .dstAccessMask = 0x0,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = chain->images[imageIndex],
+            .subresourceRange =
+            {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .levelCount = 1,
+                .layerCount = 1,
+            },
+        };
+        vkrCmdImageBarrier(cmd,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            &barrier);
     }
     vkrCmdBeginRenderPass(
         cmd,
@@ -401,8 +426,8 @@ static VkDescriptorSet vkrMainPass_UpdateDescriptors(VkCommandBuffer cmd)
         vkrBuffer* percambuf = &g_vkr.context.percambuf;
 
         {
-            vkrBuffer_Reserve(percamstage, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, vkrMemUsage_CpuOnly, NULL, PIM_FILELINE);
-            vkrBuffer_Reserve(percambuf, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vkrMemUsage_GpuOnly, NULL, PIM_FILELINE);
+            vkrBuffer_Reserve(percamstage, sizeof(vkrPerCamera), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, vkrMemUsage_CpuOnly, NULL, PIM_FILELINE);
+            vkrBuffer_Reserve(percambuf, sizeof(vkrPerCamera), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vkrMemUsage_GpuOnly, NULL, PIM_FILELINE);
 
             float aspect = (float)chain->width / chain->height;
             camera_t camera;
@@ -418,8 +443,7 @@ static VkDescriptorSet vkrMainPass_UpdateDescriptors(VkCommandBuffer cmd)
             {
                 vkrPerCamera* perCamera = vkrBuffer_Map(percamstage);
                 ASSERT(perCamera);
-                perCamera->worldToCamera = view;
-                perCamera->cameraToClip = proj;
+                perCamera->worldToClip = f4x4_mul(proj, view);
                 perCamera->eye = camera.position;
                 for (i32 i = 0; i < kGiDirections; ++i)
                 {
@@ -441,7 +465,7 @@ static VkDescriptorSet vkrMainPass_UpdateDescriptors(VkCommandBuffer cmd)
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .buffer = percambuf->handle,
                 .offset = 0,
-                .size = percambuf->size,
+                .size = VK_WHOLE_SIZE,
             };
             vkrCmdBufferBarrier(
                 cmd,
@@ -453,7 +477,7 @@ static VkDescriptorSet vkrMainPass_UpdateDescriptors(VkCommandBuffer cmd)
         const vkrBinding bufferBindings[] =
         {
             {
-                .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                 .set = descSet,
                 .binding = 1,
                 .buffer =
@@ -576,6 +600,7 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
                     .IMc0 = invMatrices[i].c0,
                     .IMc1 = invMatrices[i].c1,
                     .IMc2 = invMatrices[i].c2,
+                    .flatRome = materials[i].flatRome,
                     .albedoIndex = materials[i].albedo.index,
                     .romeIndex = materials[i].rome.index,
                     .normalIndex = materials[i].normal.index,
