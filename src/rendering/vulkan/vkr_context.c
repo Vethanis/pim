@@ -8,12 +8,11 @@
 #include "threading/task.h"
 #include <string.h>
 
-vkrFrameContext* vkrContext_Get(void)
+vkrThreadContext* vkrContext_Get(void)
 {
     i32 tid = task_thread_id();
-    u32 syncIndex = g_vkr.chain.syncIndex;
     ASSERT(tid < g_vkr.context.threadcount);
-    vkrFrameContext* ctx = &g_vkr.context.threads[tid].frames[syncIndex];
+    vkrThreadContext* ctx = &g_vkr.context.threads[tid];
     return ctx;
 }
 
@@ -69,44 +68,6 @@ bool vkrThreadContext_New(vkrThreadContext* ctx)
     ProfileBegin(pm_trctxnew);
     bool success = true;
     ASSERT(ctx);
-    for (i32 i = 0; i < kFramesInFlight; ++i)
-    {
-        if (!vkrFrameContext_New(&ctx->frames[i]))
-        {
-            success = false;
-            goto cleanup;
-        }
-    }
-cleanup:
-    if (!success)
-    {
-        vkrThreadContext_Del(ctx);
-    }
-    ProfileEnd(pm_trctxnew);
-    return success;
-}
-
-ProfileMark(pm_trctxdel, vkrThreadContext_Del)
-void vkrThreadContext_Del(vkrThreadContext* ctx)
-{
-    ProfileBegin(pm_trctxdel);
-    if (ctx)
-    {
-        for (i32 i = 0; i < kFramesInFlight; ++i)
-        {
-            vkrFrameContext_Del(&ctx->frames[i]);
-        }
-    }
-    ProfileEnd(pm_trctxdel);
-}
-
-ProfileMark(pm_frctxnew, vkrFrameContext_New)
-bool vkrFrameContext_New(vkrFrameContext* ctx)
-{
-    ProfileBegin(pm_frctxnew);
-    bool success = true;
-    ASSERT(ctx);
-    memset(ctx, 0, sizeof(*ctx));
     for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
     {
         if (!vkrCmdAlloc_New(
@@ -145,68 +106,65 @@ bool vkrFrameContext_New(vkrFrameContext* ctx)
             .descriptorCount = 8,
         },
     };
-    VkDescriptorPool descpool = vkrDescPool_New(1, NELEM(poolSizes), poolSizes);
-    ctx->descpool = descpool;
-    ASSERT(descpool);
-    if (!descpool)
+    for (i32 i = 0; i < kFramesInFlight; ++i)
     {
-        success = false;
-        goto cleanup;
+        VkDescriptorPool descpool = vkrDescPool_New(1, NELEM(poolSizes), poolSizes);
+        ctx->descpools[i] = descpool;
+        ASSERT(descpool);
+        if (!descpool)
+        {
+            success = false;
+            goto cleanup;
+        }
     }
 cleanup:
     if (!success)
     {
-        vkrFrameContext_Del(ctx);
+        vkrThreadContext_Del(ctx);
     }
-    ProfileEnd(pm_frctxnew);
+    ProfileEnd(pm_trctxnew);
     return success;
 }
 
-ProfileMark(pm_frctxdel, vkrFrameContext_Del)
-void vkrFrameContext_Del(vkrFrameContext* ctx)
+ProfileMark(pm_trctxdel, vkrThreadContext_Del)
+void vkrThreadContext_Del(vkrThreadContext* ctx)
 {
-    ProfileBegin(pm_frctxdel);
+    ProfileBegin(pm_trctxdel);
     if (ctx)
     {
-        vkrDescPool_Del(ctx->descpool);
+        for (i32 i = 0; i < kFramesInFlight; ++i)
+        {
+            vkrDescPool_Del(ctx->descpools[i]);
+        }
         for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
         {
             vkrCmdAlloc_Del(&ctx->cmds[id]);
             vkrCmdAlloc_Del(&ctx->seccmds[id]);
         }
-        memset(ctx, 0, sizeof(*ctx));
     }
-    ProfileEnd(pm_frctxdel);
+    ProfileEnd(pm_trctxdel);
 }
 
-void vkrContext_GetCmd(
-    vkrFrameContext* ctx,
+VkCommandBuffer vkrContext_GetTmpCmd(
+    vkrThreadContext* ctx,
     vkrQueueId id,
-    VkCommandBuffer* cmdOut,
     VkFence* fenceOut,
     VkQueue* queueOut)
 {
     ASSERT(ctx);
-    vkrCmdAlloc_Get(&ctx->cmds[id], cmdOut, fenceOut);
-    if (queueOut)
-    {
-        *queueOut = ctx->cmds[id].queue;
-        ASSERT(*queueOut);
-    }
+    ASSERT(queueOut);
+    VkQueue queue = ctx->cmds[id].queue;
+    ASSERT(queue);
+    *queueOut = queue;
+    return vkrCmdAlloc_GetTemp(&ctx->cmds[id], fenceOut);
 }
 
-void vkrContext_GetSecCmd(
-    vkrFrameContext* ctx,
+VkCommandBuffer vkrContext_GetSecCmd(
+    vkrThreadContext* ctx,
     vkrQueueId id,
-    VkCommandBuffer* cmdOut,
-    VkFence* fenceOut,
-    VkQueue* queueOut)
+    VkFence primaryFence)
 {
     ASSERT(ctx);
-    vkrCmdAlloc_Get(&ctx->seccmds[id], cmdOut, fenceOut);
-    if (queueOut)
-    {
-        *queueOut = ctx->seccmds[id].queue;
-        ASSERT(*queueOut);
-    }
+    ASSERT(primaryFence);
+    return vkrCmdAlloc_GetSecondary(&ctx->seccmds[id], primaryFence);
 }

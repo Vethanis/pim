@@ -18,12 +18,11 @@ void vkrCmdAlloc_Del(vkrCmdAlloc* allocator);
 
 void vkrCmdAlloc_Reserve(vkrCmdAlloc* allocator, u32 capacity);
 
-void vkrCmdAlloc_Reset(vkrCmdAlloc* allocator);
+// used for temporary primary command buffers (not the presentation command buffer)
+VkCommandBuffer vkrCmdAlloc_GetTemp(vkrCmdAlloc* allocator, VkFence* fenceOut);
 
-void vkrCmdAlloc_Get(
-    vkrCmdAlloc* allocator,
-    VkCommandBuffer* cmdOut,
-    VkFence* fenceOut);
+// for secondary command buffers executed within a primary buffer
+VkCommandBuffer vkrCmdAlloc_GetSecondary(vkrCmdAlloc* allocator, VkFence primaryFence);
 
 // ----------------------------------------------------------------------------
 

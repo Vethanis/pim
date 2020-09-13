@@ -89,9 +89,6 @@
     <Filter Include="submodules\volk">
       <UniqueIdentifier>{d7b9c75b-9e91-47df-94bc-47c003fcb8d3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="submodules\glad">
-      <UniqueIdentifier>{396c73fa-c860-4ef4-be38-d20035ce35aa}</UniqueIdentifier>
-    </Filter>
     <Filter Include="submodules\glfw">
       <UniqueIdentifier>{f25fabc8-b42f-4178-a964-a09644376f41}</UniqueIdentifier>
     </Filter>
@@ -253,9 +250,6 @@
     <ClCompile Include="..\src\ui\imgui_impl_glfw.cpp">
       <Filter>Source Files\ui</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\ui\imgui_impl_opengl3.cpp">
-      <Filter>Source Files\ui</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\ui\ui.c">
       <Filter>Source Files\ui</Filter>
     </ClCompile>
@@ -372,9 +366,6 @@
     </ClCompile>
     <ClCompile Include="..\src\rendering\vulkan\vkr.c">
       <Filter>Source Files\rendering\vulkan</Filter>
-    </ClCompile>
-    <ClCompile Include="..\submodules\glad\glad.c">
-      <Filter>submodules\glad</Filter>
     </ClCompile>
     <ClCompile Include="..\submodules\glfw\src\context.c">
       <Filter>submodules\glfw</Filter>
@@ -526,9 +517,6 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_texture.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\ui\imgui_impl_vulkan.cpp">
-      <Filter>Source Files\ui</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\rendering\vulkan\vkr_attachment.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
@@ -536,6 +524,12 @@
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\vulkan\vkr_buffer.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_mainpass.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_imgui.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
   </ItemGroup>
@@ -813,9 +807,6 @@
     <ClInclude Include="..\src\ui\imgui_impl_glfw.h">
       <Filter>Source Files\ui</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\ui\imgui_impl_opengl3.h">
-      <Filter>Source Files\ui</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\ui\ui.h">
       <Filter>Source Files\ui</Filter>
     </ClInclude>
@@ -941,9 +932,6 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr.h">
       <Filter>Source Files\rendering\vulkan</Filter>
-    </ClInclude>
-    <ClInclude Include="..\submodules\glad\glad.h">
-      <Filter>submodules\glad</Filter>
     </ClInclude>
     <ClInclude Include="..\submodules\glfw\src\internal.h">
       <Filter>submodules\glfw</Filter>
@@ -1128,9 +1116,6 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_texture.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\ui\imgui_impl_vulkan.h">
-      <Filter>Source Files\ui</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr_attachment.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
@@ -1138,6 +1123,12 @@
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr_buffer.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_mainpass.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_imgui.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
   </ItemGroup>

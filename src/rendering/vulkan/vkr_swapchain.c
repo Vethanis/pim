@@ -36,7 +36,7 @@ bool vkrSwapchain_New(
     VkPresentModeKHR mode = vkrSelectSwapMode(sup.modes, sup.modeCount);
     VkExtent2D ext = vkrSelectSwapExtent(&sup.caps, display->width, display->height);
 
-    u32 imgCount = i1_clamp(3, sup.caps.minImageCount, i1_min(kMaxSwapchainLen, sup.caps.maxImageCount));
+    u32 imgCount = i1_clamp(2, sup.caps.minImageCount, i1_min(kMaxSwapchainLen, sup.caps.maxImageCount));
 
     const u32 families[] =
     {
@@ -92,7 +92,6 @@ bool vkrSwapchain_New(
     if (imgCount > kMaxSwapchainLen)
     {
         ASSERT(false);
-        con_logf(LogSev_Error, "Vk", "Failed to create swapchain, too many images (%d of %d)", imgCount, kMaxSwapchainLen);
         vkDestroySwapchainKHR(dev, handle, NULL);
         memset(chain, 0, sizeof(*chain));
         return false;
@@ -165,47 +164,83 @@ bool vkrSwapchain_New(
         chain->availableSemas[i] = vkrSemaphore_New();
         chain->renderedSemas[i] = vkrSemaphore_New();
     }
+    const VkCommandPoolCreateInfo cmdpoolinfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = g_vkr.queues[vkrQueueId_Gfx].family,
+    };
+    VkCommandPool cmdpool = NULL;
+    VkCheck(vkCreateCommandPool(g_vkr.dev, &cmdpoolinfo, NULL, &cmdpool));
+    ASSERT(cmdpool);
+    chain->cmdpool = cmdpool;
+    const VkCommandBufferAllocateInfo cmdinfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = NELEM(chain->presCmds),
+        .commandPool = cmdpool,
+    };
+    VkCheck(vkAllocateCommandBuffers(g_vkr.dev, &cmdinfo, chain->presCmds));
 
     return true;
 }
 
 void vkrSwapchain_Del(vkrSwapchain* chain)
 {
-    if (chain && chain->handle)
+    if (chain)
     {
-        VkDevice dev = g_vkr.dev;
-        ASSERT(dev);
+        vkDeviceWaitIdle(g_vkr.dev);
 
-        vkDeviceWaitIdle(dev);
+        if (chain->cmdpool)
+        {
+            vkDestroyCommandPool(g_vkr.dev, chain->cmdpool, NULL);
+            chain->cmdpool = NULL;
+        }
 
         for (i32 i = 0; i < kFramesInFlight; ++i)
         {
             vkrFence_Del(chain->syncFences[i]);
             vkrSemaphore_Del(chain->availableSemas[i]);
             vkrSemaphore_Del(chain->renderedSemas[i]);
+            chain->syncFences[i] = NULL;
+            chain->availableSemas[i] = NULL;
+            chain->renderedSemas[i] = NULL;
+            chain->presCmds[i] = NULL;
         }
 
-        vkDestroyImageView(dev, chain->depthView, NULL);
+        if (chain->depthView)
+        {
+            vkDestroyImageView(g_vkr.dev, chain->depthView, NULL);
+            chain->depthView = NULL;
+        }
         vkrImage_Del(&chain->depthImage);
 
         {
             const i32 len = chain->length;
+            chain->length = 0;
             for (i32 i = 0; i < len; ++i)
             {
                 VkImageView view = chain->views[i];
                 VkFramebuffer buffer = chain->buffers[i];
+                chain->views[i] = NULL;
+                chain->buffers[i] = NULL;
                 if (view)
                 {
-                    vkDestroyImageView(dev, view, NULL);
+                    vkDestroyImageView(g_vkr.dev, view, NULL);
                 }
                 if (buffer)
                 {
-                    vkDestroyFramebuffer(dev, buffer, NULL);
+                    vkDestroyFramebuffer(g_vkr.dev, buffer, NULL);
                 }
             }
         }
 
-        vkDestroySwapchainKHR(dev, chain->handle, NULL);
+        if (chain->handle)
+        {
+            vkDestroySwapchainKHR(g_vkr.dev, chain->handle, NULL);
+            chain->handle = NULL;
+        }
 
         memset(chain, 0, sizeof(*chain));
     }
@@ -272,49 +307,55 @@ bool vkrSwapchain_Recreate(
 }
 
 ProfileMark(pm_acquiresync, vkrSwapchain_AcquireSync)
-u32 vkrSwapchain_AcquireSync(vkrSwapchain* chain)
+u32 vkrSwapchain_AcquireSync(vkrSwapchain* chain, VkCommandBuffer* cmdOut, VkFence* fenceOut)
 {
     ProfileBegin(pm_acquiresync);
 
     ASSERT(chain);
     ASSERT(chain->handle);
+    ASSERT(cmdOut);
+    ASSERT(fenceOut);
 
-    const u32 syncIndex = (chain->syncIndex + 1) % kFramesInFlight;
+    u32 syncIndex = (chain->syncIndex + 1) % kFramesInFlight;
     VkFence fence = chain->syncFences[syncIndex];
-    if (fence)
-    {
-        // acquire resources associated with this frame in flight
-        vkrFence_Wait(fence);
-    }
+    VkCommandBuffer cmd = chain->presCmds[syncIndex];
+    ASSERT(fence);
+    ASSERT(cmd);
+    // acquire resources associated with this frame in flight
+    vkrFence_Wait(fence);
     chain->syncIndex = syncIndex;
+
+    VkCheck(vkResetCommandBuffer(cmd, 0x0));
 
     ProfileEnd(pm_acquiresync);
 
+    *cmdOut = cmd;
+    *fenceOut = fence;
     return syncIndex;
 }
 
 ProfileMark(pm_acquireimg, vkrSwapchain_AcquireImage)
-u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain)
+u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain, VkFramebuffer* bufferOut)
 {
     ProfileBegin(pm_acquireimg);
 
     ASSERT(chain);
     ASSERT(chain->handle);
     ASSERT(chain->length > 0);
+    ASSERT(bufferOut);
 
-    const u32 syncIndex = chain->syncIndex;
-    VkSemaphore beginSema = chain->availableSemas[syncIndex];
-    ASSERT(beginSema);
+    u32 syncIndex = chain->syncIndex;
+    ASSERT(syncIndex < kFramesInFlight);
 
     u32 imageIndex = 0;
     const u64 timeout = -1;
-    vkAcquireNextImageKHR(
+    VkCheck(vkAcquireNextImageKHR(
         g_vkr.dev,
         chain->handle,
         timeout,
-        beginSema,
+        chain->availableSemas[syncIndex],
         NULL,
-        &imageIndex);
+        &imageIndex));
 
     ASSERT(imageIndex < (u32)chain->length);
     {
@@ -326,59 +367,49 @@ u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain)
             vkrFence_Wait(fence);
         }
     }
-    ASSERT(syncIndex < kFramesInFlight);
     chain->imageFences[imageIndex] = chain->syncFences[syncIndex];
     chain->imageIndex = imageIndex;
 
     ProfileEnd(pm_acquireimg);
 
+    *bufferOut = chain->buffers[imageIndex];
     return imageIndex;
 }
 
 ProfileMark(pm_present, vkrSwapchain_Present)
-void vkrSwapchain_Present(
-    vkrSwapchain* chain,
-    VkQueue submitQueue,
-    VkCommandBuffer cmdbuf)
+void vkrSwapchain_Present(vkrSwapchain* chain)
 {
     ASSERT(chain);
     ASSERT(chain->handle);
-    ASSERT(cmdbuf);
 
-    const u32 syncIndex = chain->syncIndex;
-    VkFence signalFence = chain->syncFences[syncIndex];
-    vkrFence_Reset(signalFence);
-    VkSemaphore waitSema = chain->availableSemas[syncIndex];
-    const VkPipelineStageFlags waitMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSemaphore signalSema = chain->renderedSemas[syncIndex];
+    u32 syncIndex = chain->syncIndex;
+    VkCommandBuffer cmd = chain->presCmds[syncIndex];
+    VkQueue gfxQueue = g_vkr.queues[vkrQueueId_Gfx].handle;
+    VkQueue presentQueue = g_vkr.queues[vkrQueueId_Pres].handle;
+
+    ASSERT(cmd);
+    ASSERT(gfxQueue);
+    ASSERT(presentQueue);
+
+    vkrFence_Reset(chain->syncFences[syncIndex]);
     vkrCmdSubmit(
-        submitQueue,
-        cmdbuf,
-        signalFence,
-        waitSema,
-        waitMask,
-        signalSema);
+        gfxQueue,
+        cmd,
+        chain->syncFences[syncIndex],
+        chain->availableSemas[syncIndex],
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        chain->renderedSemas[syncIndex]);
 
     ProfileBegin(pm_present);
 
-    VkQueue presentQueue = g_vkr.queues[vkrQueueId_Pres].handle;
-    ASSERT(presentQueue);
-    const VkSwapchainKHR swapchains[] =
-    {
-        chain->handle,
-    };
-    const uint32_t imageIndices[] =
-    {
-        chain->imageIndex,
-    };
     const VkPresentInfoKHR presentInfo =
     {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &signalSema,
-        .swapchainCount = NELEM(swapchains),
-        .pSwapchains = swapchains,
-        .pImageIndices = imageIndices,
+        .pWaitSemaphores = &chain->renderedSemas[syncIndex],
+        .swapchainCount = 1,
+        .pSwapchains = &chain->handle,
+        .pImageIndices = &chain->imageIndex,
     };
     VkCheck(vkQueuePresentKHR(presentQueue, &presentInfo));
 

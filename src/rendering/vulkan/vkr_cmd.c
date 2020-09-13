@@ -92,19 +92,21 @@ void vkrCmdAlloc_Del(vkrCmdAlloc* allocator)
     if (allocator)
     {
         const u32 capacity = allocator->capacity;
-        VkFence* fences = allocator->fences;
-        VkCommandBuffer* buffers = allocator->buffers;
-        VkCommandPool pool = allocator->pool;
-        for (u32 i = 0; i < capacity; ++i)
+        if (allocator->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY)
         {
-            vkrFence_Del(fences[i]);
+            VkFence* fences = allocator->fences;
+            for (u32 i = 0; i < capacity; ++i)
+            {
+                vkrFence_Del(fences[i]);
+            }
         }
-        if (pool)
+        if (allocator->pool)
         {
-            vkDestroyCommandPool(g_vkr.dev, pool, NULL);
+            vkDestroyCommandPool(g_vkr.dev, allocator->pool, NULL);
         }
-        pim_free(fences);
-        pim_free(buffers);
+        pim_free(allocator->fences);
+        pim_free(allocator->buffers);
+        pim_free(allocator->frames);
         memset(allocator, 0, sizeof(*allocator));
     }
     ProfileEnd(pm_cmdallocdel);
@@ -118,11 +120,16 @@ void vkrCmdAlloc_Reserve(vkrCmdAlloc* allocator, u32 newcap)
     {
         newcap = (newcap > 4) ? newcap : 4;
         newcap = (newcap > oldcap * 2) ? newcap : oldcap * 2;
-        u32 deltacap = newcap - oldcap;
-        PermReserve(allocator->fences, newcap);
+        const u32 deltacap = newcap - oldcap;
+
         PermReserve(allocator->buffers, newcap);
+        PermReserve(allocator->fences, newcap);
+        PermReserve(allocator->frames, newcap);
+
         VkCommandBuffer* newbuffers = allocator->buffers + oldcap;
         VkFence* newfences = allocator->fences + oldcap;
+        u32* newframes = allocator->frames + oldcap;
+
         const VkCommandBufferAllocateInfo bufferInfo =
         {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -131,75 +138,100 @@ void vkrCmdAlloc_Reserve(vkrCmdAlloc* allocator, u32 newcap)
             .commandBufferCount = deltacap,
         };
         VkCheck(vkAllocateCommandBuffers(g_vkr.dev, &bufferInfo, newbuffers));
+
+        bool primary = allocator->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         for (u32 i = 0; i < deltacap; ++i)
         {
-            newfences[i] = vkrFence_New(false);
+            newfences[i] = primary ? vkrFence_New(true) : NULL;
+            newframes[i] = 0;
         }
+
         allocator->capacity = newcap;
     }
 }
 
-void vkrCmdAlloc_Reset(vkrCmdAlloc* allocator)
+VkCommandBuffer vkrCmdAlloc_GetTemp(vkrCmdAlloc* allocator, VkFence* fenceOut)
 {
     ASSERT(allocator);
     ASSERT(allocator->pool);
-    const u32 head = allocator->head;
-    if (head > 0)
-    {
-        VkFence* fences = allocator->fences;
-        for (u32 i = 0; i < head; ++i)
-        {
-            vkrFence_Reset(fences[i]);
-        }
-    }
-    allocator->head = 0;
-    allocator->frame = time_framecount();
-}
+    ASSERT(allocator->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+    ASSERT(fenceOut);
 
-void vkrCmdAlloc_Get(vkrCmdAlloc* allocator, VkCommandBuffer* cmdOut, VkFence* fenceOut)
-{
-    ASSERT(allocator);
-    ASSERT(allocator->pool);
-    if ((time_framecount() - allocator->frame) >= kFramesInFlight)
-    {
-        vkrCmdAlloc_Reset(allocator);
-    }
-    VkCommandBuffer buffer = NULL;
+    u32 frame = time_framecount();
     VkFence fence = NULL;
-    u32 head = allocator->head;
-    if (head >= 8)
+    VkCommandBuffer buffer = NULL;
+    while (!buffer)
     {
-        // reuse command buffers to avoid making more
-        const VkFence* fences = allocator->fences;
-        for (u32 i = 0; i < head; ++i)
+        const u32 capacity = allocator->capacity;
+        VkCommandBuffer* const pim_noalias buffers = allocator->buffers;
+        VkFence* const pim_noalias fences = allocator->fences;
+        u32* const pim_noalias frames = allocator->frames;
+        for (u32 i = 0; i < capacity; ++i)
         {
+            ASSERT(fences[i]);
             if (vkrFence_Stat(fences[i]) == vkrFenceState_Signalled)
             {
                 fence = fences[i];
-                buffer = allocator->buffers[i];
-                vkrFence_Reset(fence);
+                buffer = buffers[i];
+                frames[i] = frame;
                 break;
             }
         }
+        if (!buffer)
+        {
+            u32 newcap = capacity ? capacity * 2 : 64;
+            vkrCmdAlloc_Reserve(allocator, newcap);
+        }
     }
-    if (!buffer)
-    {
-        vkrCmdAlloc_Reserve(allocator, head + 1);
-        allocator->head = head + 1;
-        ASSERT(head < allocator->capacity);
-        buffer = allocator->buffers[head];
-        fence = allocator->fences[head];
-    }
-    ASSERT(buffer);
+
     ASSERT(fence);
-    ASSERT(cmdOut);
-    *cmdOut = buffer;
-    if (fenceOut)
-    {
-        *fenceOut = fence;
-    }
+    ASSERT(buffer);
+
+    vkrFence_Reset(fence);
+    *fenceOut = fence;
+
+    return buffer;
 }
 
+VkCommandBuffer vkrCmdAlloc_GetSecondary(vkrCmdAlloc* allocator, VkFence primaryFence)
+{
+    ASSERT(allocator);
+    ASSERT(allocator->pool);
+    ASSERT(primaryFence);
+    ASSERT(allocator->level == VK_COMMAND_BUFFER_LEVEL_SECONDARY);
+
+    u32 frame = time_framecount();
+    VkCommandBuffer buffer = NULL;
+    while (!buffer)
+    {
+        const u32 capacity = allocator->capacity;
+        VkCommandBuffer* const pim_noalias buffers = allocator->buffers;
+        VkFence* const pim_noalias fences = allocator->fences;
+        u32* const pim_noalias frames = allocator->frames;
+        for (u32 i = 0; i < capacity; ++i)
+        {
+            if ((frames[i] - frame) >= kFramesInFlight)
+            {
+                if (!fences[i] || fences[i] == primaryFence)
+                {
+                    fences[i] = primaryFence;
+                    buffer = buffers[i];
+                    frames[i] = frame;
+                    break;
+                }
+            }
+        }
+        if (!buffer)
+        {
+            u32 newcap = capacity ? capacity * 2 : 64;
+            vkrCmdAlloc_Reserve(allocator, newcap);
+        }
+    }
+
+    ASSERT(buffer);
+
+    return buffer;
+}
 // ----------------------------------------------------------------------------
 
 ProfileMark(pm_cmdsubmit, vkrCmdSubmit)

@@ -65,11 +65,9 @@ static cvar_t cv_pt_normal = { .type = cvart_bool,.name = "pt_normal",.value = "
 static cvar_t cv_pt_albedo = { .type = cvart_bool,.name = "pt_albedo",.value = "0",.desc = "output path tracer albedo" };
 static cvar_t cv_pt_lgrid_mpc = { .type = cvart_float,.name = "pt_lgrid_mpc",.value = "2",.minFloat = 0.1f,.maxFloat = 10.0f,.desc = "light grid meters per cell" };
 
-static cvar_t cv_lm_gen = { .type = cvart_bool,.name = "lm_gen",.value = "0",.desc = "enable lightmap generation" };
 static cvar_t cv_cm_gen = { .type = cvart_bool,.name = "cm_gen",.value = "0",.desc = "enable cubemap generation" };
 
-static cvar_t cv_r_sw = { .type = cvart_bool,.name = "r_sw",.value = "1",.desc = "use software renderer" };
-
+static cvar_t cv_lm_gen = { .type = cvart_bool,.name = "lm_gen",.value = "0",.desc = "enable lightmap generation" };
 static cvar_t cv_lm_density = { .type = cvart_float,.name = "lm_density",.value = "8",.minFloat = 0.1f,.maxFloat = 32.0f,.desc = "lightmap texels per unit" };
 static cvar_t cv_lm_timeslice = { .type = cvart_int,.name = "lm_timeslice",.value = "3",.minInt = 0,.maxInt = 60,.desc = "number of frames required to add 1 lighting sample to all lightmap texels" };
 
@@ -81,8 +79,6 @@ static cvar_t cv_r_qlights = { .type = cvart_bool,.name = "r_qlights",.value = "
 
 static void RegCVars(void)
 {
-    cvar_reg(&cv_r_sw);
-
     cvar_reg(&cv_pt_trace);
     cvar_reg(&cv_pt_denoise);
     cvar_reg(&cv_pt_normal);
@@ -203,7 +199,7 @@ static void LightmapRepack(void)
 {
     EnsurePtScene();
 
-    LightmapShutdown();
+    lmpack_del(lmpack_get());
     lmpack_t pack = lmpack_pack(ms_ptscene, 1024, cvar_get_float(&cv_lm_density), 0.1f, 15.0f);
     *lmpack_get() = pack;
 }
@@ -275,6 +271,8 @@ end:
 ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
 static void Lightmap_Trace(void)
 {
+    static u64 s_lastUpload = 0;
+
     if (cvar_get_bool(&cv_lm_gen))
     {
         ProfileBegin(pm_Lightmap_Trace);
@@ -289,6 +287,17 @@ static void Lightmap_Trace(void)
 
         float timeslice = 1.0f / i1_max(1, cv_lm_timeslice.asInt);
         lmpack_bake(ms_ptscene, timeslice);
+
+        u64 now = time_now();
+        if (time_sec(now - s_lastUpload) > 5.0)
+        {
+            s_lastUpload = now;
+            lmpack_t* pack = lmpack_get();
+            for (i32 i = 0; i < pack->lmCount; ++i)
+            {
+                lightmap_upload(&pack->lightmaps[i]);
+            }
+        }
 
         ProfileEnd(pm_Lightmap_Trace);
     }
@@ -408,25 +417,6 @@ static bool PathTrace(void)
     return false;
 }
 
-ProfileMark(pm_Rasterize, Rasterize)
-static void Rasterize(void)
-{
-    if (cvar_get_bool(&cv_r_sw))
-    {
-        ProfileBegin(pm_Rasterize);
-
-        framebuf_t* frontBuf = GetFrontBuf();
-        framebuf_t* backBuf = GetBackBuf();
-
-        camera_t camera;
-        camera_get(&camera);
-
-        RtcDraw(frontBuf, &camera);
-
-        ProfileEnd(pm_Rasterize);
-    }
-}
-
 static cmdstat_t CmdQuit(i32 argc, const char** argv)
 {
     window_close(true);
@@ -490,13 +480,11 @@ static void TakeScreenshot(void)
 }
 
 ProfileMark(pm_Present, Present)
-static bool Present(void)
+static void Present(void)
 {
-    bool sw_present = false;
-    if (cvar_get_bool(&cv_r_sw))
+    if (cvar_get_bool(&cv_pt_trace))
     {
         ProfileBegin(pm_Present);
-        sw_present = true;
         framebuf_t* frontBuf = GetFrontBuf();
         int2 size = { frontBuf->width, frontBuf->height };
         ms_exposure.deltaTime = (float)time_dtf();
@@ -505,7 +493,6 @@ static bool Present(void)
         TakeScreenshot();
         ProfileEnd(pm_Present);
     }
-    return sw_present;
 }
 
 static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
@@ -551,10 +538,6 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
         drawables_updatetransforms(drawables_get());
         drawables_updatebounds(drawables_get());
         vkr_onload();
-        if (hasLightmaps)
-        {
-            con_exec("lm_upload 1");
-        }
         con_logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
         return cmdstat_ok;
     }
@@ -702,7 +685,6 @@ void render_sys_init(void)
     framebuf_create(GetFrontBuf(), kDrawWidth, kDrawHeight);
     framebuf_create(GetBackBuf(), kDrawWidth, kDrawHeight);
     pt_sys_init();
-    RtcDrawInit();
 
     ms_toneParams.x = 0.3f; // shoulder
     ms_toneParams.y = 0.5f; // linear str
@@ -737,10 +719,7 @@ void render_sys_update(void)
     BakeSky();
     Lightmap_Trace();
     Cubemap_Trace();
-    if (!PathTrace())
-    {
-        Rasterize();
-    }
+    PathTrace();
     Present();
 
     vkr_update();
@@ -752,8 +731,6 @@ void render_sys_update(void)
 
 void render_sys_shutdown(void)
 {
-    RtcDrawShutdown();
-
     ShutdownPtScene();
 
     pt_sys_shutdown();

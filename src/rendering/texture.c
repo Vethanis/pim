@@ -16,7 +16,6 @@
 #include "io/fstr.h"
 #include "threading/task.h"
 #include "rendering/vulkan/vkr_texture.h"
-#include <glad/glad.h>
 #include <string.h>
 
 static table_t ms_table;
@@ -572,7 +571,6 @@ bool texture_unpalette(
 
 static bool gs_revSort;
 static i32 gs_cmpMode;
-static i32 gs_texHandle;
 static i32 gs_selection;
 static char gs_search[PIM_PATH];
 
@@ -621,14 +619,6 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
 
 static void igTexture(const texture_t* tex)
 {
-    ASSERT(!glGetError());
-
-    if (!gs_texHandle)
-    {
-        glGenTextures(1, &gs_texHandle);
-        ASSERT(!glGetError());
-    }
-
     if (!tex)
     {
         ASSERT(false);
@@ -644,31 +634,6 @@ static void igTexture(const texture_t* tex)
         return;
     }
 
-    glBindTexture(GL_TEXTURE_2D, gs_texHandle);
-    ASSERT(!glGetError());
-
-    ASSERT(!glGetError());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    ASSERT(!glGetError());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    ASSERT(!glGetError());
-
-    glTexImage2D(
-        GL_TEXTURE_2D,              // target
-        0,                          // level
-        GL_RGBA,                    // internalformat
-        width,                      // width
-        height,                     // height
-        GL_FALSE,                   // border
-        GL_RGBA,                    // format
-        GL_UNSIGNED_BYTE,           // type
-        texels);                    // data
-    ASSERT(!glGetError());
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-    ASSERT(!glGetError());
-
-
     ImVec2 winSize = { 0 };
     igGetContentRegionAvail(&winSize);
     float winAspect = winSize.x / winSize.y;
@@ -683,7 +648,7 @@ static void igTexture(const texture_t* tex)
         scale = winSize.x / (float)width;
     }
 
-    const isize id = gs_texHandle;
+    const isize id = (isize)(tex->vkrtex.image.handle);
     const ImVec2 size = { width * scale, height * scale };
     const ImVec2 uv0 = { 0, 0 };
     const ImVec2 uv1 = { 1, 1 };

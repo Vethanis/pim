@@ -293,8 +293,9 @@ bool vkrPipeline_NewGfx(
         pipeline->handle = handle;
         pipeline->bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         pipeline->layout = *layout;
-        memset(layout, 0, sizeof(*layout));
+        pipeline->renderPass = renderPass;
         pipeline->subpass = subpass;
+        memset(layout, 0, sizeof(*layout));
     }
 
     return handle != NULL;
@@ -309,6 +310,7 @@ void vkrPipeline_Del(vkrPipeline* pipeline)
             vkDestroyPipeline(g_vkr.dev, pipeline->handle, NULL);
         }
         vkrPipelineLayout_Del(&pipeline->layout);
+        vkrRenderPass_Del(pipeline->renderPass);
         memset(pipeline, 0, sizeof(*pipeline));
     }
 }

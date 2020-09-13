@@ -42,16 +42,18 @@ void vkrDescPool_Reset(VkDescriptorPool pool)
 }
 
 ProfileMark(pm_desc_new, vkrDesc_New)
-VkDescriptorSet vkrDesc_New(vkrFrameContext* ctx, VkDescriptorSetLayout layout)
+VkDescriptorSet vkrDesc_New(vkrThreadContext* ctx, VkDescriptorSetLayout layout)
 {
     ProfileBegin(pm_desc_new);
     ASSERT(ctx);
-    ASSERT(ctx->descpool);
+    u32 syncIndex = g_vkr.chain.syncIndex;
+    VkDescriptorPool pool = ctx->descpools[syncIndex];
+    ASSERT(pool);
     ASSERT(layout);
     const VkDescriptorSetAllocateInfo info =
     {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = ctx->descpool,
+        .descriptorPool = pool,
         .descriptorSetCount = 1,
         .pSetLayouts = &layout,
     };
@@ -64,13 +66,12 @@ VkDescriptorSet vkrDesc_New(vkrFrameContext* ctx, VkDescriptorSetLayout layout)
 
 ProfileMark(pm_desc_writebindings, vkrDesc_WriteBindings)
 void vkrDesc_WriteBindings(
-    vkrFrameContext* ctx,
+    vkrThreadContext* ctx,
     i32 count,
     const vkrBinding* bindings)
 {
     ProfileBegin(pm_desc_writebindings);
     ASSERT(ctx);
-    ASSERT(ctx->descpool);
     ASSERT(count >= 0);
 
     if (count > 0)
