@@ -141,11 +141,10 @@ bool vkrMesh_Upload(
         vkrBuffer_Flush(&stagebuf);
     }
 
-    vkrFrameContext* ctx = vkrContext_Get();
-    VkCommandBuffer cmd = NULL;
+    vkrThreadContext* ctx = vkrContext_Get();
     VkFence fence = NULL;
     VkQueue queue = NULL;
-    vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, &fence, &queue);
+    VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &fence, &queue);
     vkrCmdBegin(cmd);
     vkrCmdCopyBuffer(cmd, stagebuf, mesh->buffer);
     const VkBufferMemoryBarrier barrier =

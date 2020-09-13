@@ -15,15 +15,12 @@ bool vkrSwapchain_Recreate(
 
 // acquire synchronization index for a frame in flight
 // should be done at beginning of frame
-u32 vkrSwapchain_AcquireSync(vkrSwapchain* chain);
+u32 vkrSwapchain_AcquireSync(vkrSwapchain* chain, VkCommandBuffer* cmdOut, VkFence* fenceOut);
 // acquire image index for a swapchain image
 // should be done for presentation render pass
-u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain);
+u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain, VkFramebuffer* bufferOut);
 // submits and presents final render pass to the swapchain
-void vkrSwapchain_Present(
-    vkrSwapchain* chain,
-    VkQueue submitQueue,
-    VkCommandBuffer cmd);
+void vkrSwapchain_Present(vkrSwapchain* chain);
 
 VkViewport vkrSwapchain_GetViewport(const vkrSwapchain* chain);
 VkRect2D vkrSwapchain_GetRect(const vkrSwapchain* chain);

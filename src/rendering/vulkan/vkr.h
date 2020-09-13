@@ -17,7 +17,7 @@ PIM_DECL_HANDLE(VmaAllocation);
 
 typedef enum
 {
-    kMaxSwapchainLen = 4,
+    kMaxSwapchainLen = 3,
     kFramesInFlight = 3,
     kTextureDescriptors = 1024,
 } vkrLimits;
@@ -268,6 +268,7 @@ typedef struct vkrPipeline
     VkPipeline handle;
     vkrPipelineLayout layout;
     VkPipelineBindPoint bindpoint;
+    VkRenderPass renderPass;
     i32 subpass;
 } vkrPipeline;
 
@@ -302,6 +303,8 @@ typedef struct vkrSwapchain
     VkFence syncFences[kFramesInFlight];
     VkSemaphore availableSemas[kFramesInFlight];
     VkSemaphore renderedSemas[kFramesInFlight];
+    VkCommandBuffer presCmds[kFramesInFlight];
+    VkCommandPool cmdpool;
 
 } vkrSwapchain;
 
@@ -318,23 +321,18 @@ typedef struct vkrCmdAlloc
     VkCommandPool pool;
     VkQueue queue;
     VkCommandBufferLevel level;
-    u32 frame;
     u32 head;
     u32 capacity;
     VkCommandBuffer* buffers;
     VkFence* fences;
+    u32* frames;
 } vkrCmdAlloc;
-
-typedef struct vkrFrameContext
-{
-    vkrCmdAlloc cmds[vkrQueueId_COUNT];     // primary level cmd buffers
-    vkrCmdAlloc seccmds[vkrQueueId_COUNT];  // secondary level cmd buffers
-    VkDescriptorPool descpool;
-} vkrFrameContext;
 
 typedef struct vkrThreadContext
 {
-    vkrFrameContext frames[kFramesInFlight];
+    VkDescriptorPool descpools[kFramesInFlight];
+    vkrCmdAlloc cmds[vkrQueueId_COUNT];     // primary level cmd buffers
+    vkrCmdAlloc seccmds[vkrQueueId_COUNT];  // secondary level cmd buffers
 } vkrThreadContext;
 
 typedef struct vkrContext
@@ -397,6 +395,18 @@ typedef struct vkrPushConstants
     u32 normalIndex;
 } vkrPushConstants;
 
+typedef struct vkrImGui
+{
+    VkDescriptorSetLayout descriptorSetLayout;
+    VkPipelineLayout pipelineLayout;
+    VkDescriptorPool descPool;
+    VkDescriptorSet descSet;
+    VkPipeline pipeline;
+    vkrTexture2D font;
+    vkrBuffer vertbufs[kFramesInFlight];
+    vkrBuffer indbufs[kFramesInFlight];
+} vkrImGui;
+
 // ----------------------------------------------------------------------------
 
 typedef struct vkr_t
@@ -415,10 +425,10 @@ typedef struct vkr_t
 
     vkrContext context;
 
-    VkRenderPass mainPass;
-    vkrPipeline pipeline;
-    vkrTexture2D nullTexture;
+    vkrPipeline mainPass;
+    vkrImGui imguiPass;
 
+    vkrTexture2D nullTexture;
     vkrBinding bindings[kTextureDescriptors];
 } vkr_t;
 extern vkr_t g_vkr;

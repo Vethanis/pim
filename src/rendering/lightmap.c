@@ -1630,6 +1630,7 @@ bool lmpack_load(lmpack_t* pack, guid_t name)
                 lm.sampleCounts = perm_malloc(sizeof(lm.sampleCounts[0]) * texelcount);
                 fstr_read(fd, lm.sampleCounts, sizeof(lm.sampleCounts[0]) * texelcount);
 
+                lightmap_upload(&lm);
                 pack->lightmaps[i] = lm;
             }
 

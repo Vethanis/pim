@@ -237,11 +237,10 @@ VkFence vkrMem_Barrier(
     const VkBufferMemoryBarrier* buffer,
     const VkImageMemoryBarrier* img)
 {
-    vkrFrameContext* ctx = vkrContext_Get();
-    VkCommandBuffer cmd = NULL;
+    vkrThreadContext* ctx = vkrContext_Get();
     VkFence fence = NULL;
     VkQueue queue = NULL;
-    vkrContext_GetCmd(ctx, id, &cmd, &fence, &queue);
+    VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, id, &fence, &queue);
     vkrCmdBegin(cmd);
     {
         vkCmdPipelineBarrier(

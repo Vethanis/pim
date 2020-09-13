@@ -196,11 +196,10 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
     const i32 mipCount = vkrTexture2D_MipCount(width, height);
     VkImage image = tex->image.handle;
 
-    vkrFrameContext* ctx = vkrContext_Get();
-    VkCommandBuffer cmd = NULL;
+    vkrThreadContext* ctx = vkrContext_Get();
     VkFence fence = NULL;
     VkQueue queue = NULL;
-    vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, &fence, &queue);
+    VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &fence, &queue);
     vkrCmdBegin(cmd);
     {
         const VkBufferMemoryBarrier stageBarrier =

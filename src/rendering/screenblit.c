@@ -113,14 +113,14 @@ void screenblit_shutdown(void)
 ProfileMark(pm_blit, screenblit_blit)
 void screenblit_blit(
     VkCommandBuffer cmd,
+    VkImage dstImage,
     const u32* texels,
     i32 width,
     i32 height)
 {
     ProfileBegin(pm_blit);
 
-    const vkrSwapchain* swapchain = &g_vkr.chain;
-    VkImage dstImage = swapchain->images[swapchain->imageIndex];
+    const vkrSwapchain* chain = &g_vkr.chain;
     VkImage srcImage = ms_image.handle;
     VkBuffer stageBuf = ms_stageBuf.handle;
 
@@ -138,25 +138,7 @@ void screenblit_blit(
         vkrBuffer_Flush(&ms_stageBuf);
     }
 
-    // transition buffer to xfer src
-    {
-        const VkBufferMemoryBarrier barrier = 
-        {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-            .srcAccessMask = 0x0,
-            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .buffer = stageBuf,
-            .size = VK_WHOLE_SIZE,
-        };
-        vkrCmdBufferBarrier(
-            cmd,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            &barrier);
-    }
-    // transition image to xfer dst
+    // transition src image to xfer dst
     {
         const VkImageMemoryBarrier imgBarrier =
         {
@@ -180,7 +162,7 @@ void screenblit_blit(
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             &imgBarrier);
     }
-    // copy buffer to image
+    // copy buffer to src image
     {
         const VkBufferImageCopy bufferRegion =
         {
@@ -200,7 +182,7 @@ void screenblit_blit(
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1, &bufferRegion);
     }
-    // transition image to xfer src
+    // transition src image to xfer src
     {
         const VkImageMemoryBarrier imgBarrier =
         {
@@ -248,13 +230,13 @@ void screenblit_blit(
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             &imgBarrier);
     }
-    // blit image to target
+    // blit src image to dst image
     {
         const VkImageBlit region =
         {
             .srcOffsets[0] = { 0, height, 0 },
             .srcOffsets[1] = { width, 0, 1 },
-            .dstOffsets[1] = { swapchain->width, swapchain->height, 1 },
+            .dstOffsets[1] = { chain->width, chain->height, 1 },
             .srcSubresource =
             {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -273,7 +255,7 @@ void screenblit_blit(
             1, &region,
             VK_FILTER_LINEAR);
     }
-    // transition dst image to present src
+    // transition dst image to attachment
     {
         const VkImageMemoryBarrier imgBarrier =
         {
@@ -281,7 +263,7 @@ void screenblit_blit(
             .srcAccessMask = 0x0,
             .dstAccessMask = 0x0,
             .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image = dstImage,
@@ -294,7 +276,7 @@ void screenblit_blit(
         };
         vkrCmdImageBarrier(cmd,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             &imgBarrier);
     }
 

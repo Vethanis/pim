@@ -383,7 +383,7 @@ float4 PSMain(PSInput input) : SV_Target
     {
         float2 uv1 = input.uv01.zw;
         uint lmIndex = cameraData[0].lmBegin + input.lmIndex * kGiDirections;
-        float3 R = reflect(-V, N);
+        float3 R = normalize(lerp(reflect(-V, N), N, rome.x * rome.x));
         float3 diffuseGI = 0.0f;
         float3 specularGI = 0.0f;
         for (uint i = 0; i < kGiDirections; ++i)

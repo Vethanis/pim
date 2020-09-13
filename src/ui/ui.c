@@ -1,7 +1,6 @@
 #include "ui/ui.h"
 #include "ui/cimgui.h"
 #include "ui/imgui_impl_glfw.h"
-#include "ui/imgui_impl_opengl3.h"
 #include "allocator/allocator.h"
 #include "rendering/r_window.h"
 #include "common/profiler.h"
@@ -12,7 +11,7 @@ static cvar_t cv_ui_opacity =
 {
     .type = cvart_float,
     .name = "ui_opacity",
-    .value = "0.85",
+    .value = "0.95",
     .minFloat = 0.1f,
     .maxFloat = 1.0f,
     .desc = "UI Opacity",
@@ -34,7 +33,7 @@ static ImVec4 VEC_CALL BytesToColor(u32 r, u32 g, u32 b)
 {
     u32 c = (r & 0xff) | ((g & 0xff) << 8) | ((b & 0xff) << 16) | (0xff << 24);
     float4 lin = ColorToLinear(c);
-    lin.w = 0.9f;
+    lin.w = 0.95f;
     return *(ImVec4*)&lin;
 }
 

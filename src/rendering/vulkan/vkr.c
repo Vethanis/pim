@@ -15,6 +15,8 @@
 #include "rendering/vulkan/vkr_desc.h"
 #include "rendering/vulkan/vkr_texture.h"
 #include "rendering/vulkan/vkr_buffer.h"
+#include "rendering/vulkan/vkr_mainpass.h"
+#include "rendering/vulkan/vkr_imgui.h"
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
 #include "rendering/texture.h"
@@ -24,7 +26,6 @@
 #include "rendering/camera.h"
 #include "rendering/screenblit.h"
 #include "rendering/lightmap.h"
-#include "ui/imgui_impl_vulkan.h"
 #include "ui/cimgui.h"
 #include "ui/ui.h"
 #include "allocator/allocator.h"
@@ -45,7 +46,6 @@ vkr_t g_vkr;
 static cvar_t* cv_r_sun_dir;
 static cvar_t* cv_r_sun_col;
 static cvar_t* cv_r_sun_lum;
-static cvar_t* cv_r_sw;
 
 static cvar_t cv_lm_upload =
 {
@@ -63,17 +63,11 @@ bool vkr_init(i32 width, i32 height)
     cv_r_sun_dir = cvar_find("r_sun_dir");
     cv_r_sun_col = cvar_find("r_sun_col");
     cv_r_sun_lum = cvar_find("r_sun_lum");
-    cv_r_sw = cvar_find("r_sw");
     ASSERT(cv_r_sun_dir);
     ASSERT(cv_r_sun_col);
     ASSERT(cv_r_sun_lum);
-    ASSERT(cv_r_sw);
 
     bool success = true;
-    char* shaderName = "brush.hlsl";
-    char* shaderText = vkrLoadShader(shaderName);
-    vkrCompileOutput vertOutput = { 0 };
-    vkrCompileOutput fragOutput = { 0 };
 
     if (!vkrInstance_Init(&g_vkr))
     {
@@ -86,6 +80,7 @@ bool vkr_init(i32 width, i32 height)
         success = false;
         goto cleanup;
     }
+    ui_sys_init(g_vkr.display.window);
 
     if (!vkrDevice_Init(&g_vkr))
     {
@@ -111,240 +106,36 @@ bool vkr_init(i32 width, i32 height)
         goto cleanup;
     }
 
-    const vkrCompileInput vertInput =
-    {
-        .filename = shaderName,
-        .entrypoint = "VSMain",
-        .text = shaderText,
-        .type = vkrShaderType_Vert,
-        .compile = true,
-        .disassemble = true,
-    };
-    vkrCompile(&vertInput, &vertOutput);
-    if (vertOutput.errors)
-    {
-        con_logf(LogSev_Error, "Vkc", "Errors while compiling %s %s", vertInput.filename, vertInput.entrypoint);
-        con_logf(LogSev_Error, "Vkc", "%s", vertOutput.errors);
-        ASSERT(false);
-        success = false;
-        goto cleanup;
-    }
-    if (vertOutput.disassembly)
-    {
-        con_logf(LogSev_Info, "Vkc", "Dissassembly of %s %s", vertInput.filename, vertInput.entrypoint);
-        con_logf(LogSev_Info, "Vkc", "%s", vertOutput.disassembly);
-    }
-
-    const vkrCompileInput fragInput =
-    {
-        .filename = shaderName,
-        .entrypoint = "PSMain",
-        .text = shaderText,
-        .type = vkrShaderType_Frag,
-        .compile = true,
-        .disassemble = true,
-    };
-    vkrCompile(&fragInput, &fragOutput);
-    if (fragOutput.errors)
-    {
-        con_logf(LogSev_Error, "Vkc", "Errors while compiling %s %s", fragInput.filename, fragInput.entrypoint);
-        con_logf(LogSev_Error, "Vkc", "%s", fragOutput.errors);
-        ASSERT(false);
-        success = false;
-        goto cleanup;
-    }
-    if (fragOutput.disassembly)
-    {
-        con_logf(LogSev_Info, "Vkc", "Dissassembly of %s %s", fragInput.filename, fragInput.entrypoint);
-        con_logf(LogSev_Info, "Vkc", "%s", fragOutput.disassembly);
-    }
-
-    const vkrFixedFuncs ffuncs =
-    {
-        .viewport = vkrSwapchain_GetViewport(&g_vkr.chain),
-        .scissor = vkrSwapchain_GetRect(&g_vkr.chain),
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .depthCompareOp = VK_COMPARE_OP_LESS,
-        .scissorOn = false,
-        .depthClamp = false,
-        .depthTestEnable = true,
-        .depthWriteEnable = true,
-        .attachmentCount = 1,
-        .attachments[0] =
-        {
-            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-            .blendEnable = false,
-        },
-    };
-
-    const vkrVertexLayout vertLayout =
-    {
-        .streamCount = vkrMeshStream_COUNT,
-        .types[vkrMeshStream_Position] = vkrVertType_float4,
-        .types[vkrMeshStream_Normal] = vkrVertType_float4,
-        .types[vkrMeshStream_Uv01] = vkrVertType_float4,
-    };
-
-    VkPipelineShaderStageCreateInfo shaders[] =
-    {
-        vkrCreateShader(&vertOutput),
-        vkrCreateShader(&fragOutput),
-    };
-
-    const VkAttachmentDescription attachments[] =
-    {
-        {
-            .format = g_vkr.chain.colorFormat,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        },
-        {
-            .format = g_vkr.chain.depthFormat,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        },
-    };
-    const VkAttachmentReference colorAttachRefs[] =
-    {
-        {
-            .attachment = 0,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        },
-    };
-    const VkAttachmentReference depthAttachRef =
-    {
-        .attachment = 1,
-        .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-    };
-    const VkSubpassDescription subpasses[] =
-    {
-        {
-            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .colorAttachmentCount = NELEM(colorAttachRefs),
-            .pColorAttachments = colorAttachRefs,
-            .pDepthStencilAttachment = &depthAttachRef,
-        },
-    };
-    const VkSubpassDependency dependencies[] =
-    {
-        {
-            .srcSubpass = VK_SUBPASS_EXTERNAL,
-            .dstSubpass = 0,
-            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask = 0,
-            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        },
-    };
-
-    VkRenderPass renderPass = vkrRenderPass_New(
-        NELEM(attachments), attachments,
-        NELEM(subpasses), subpasses,
-        NELEM(dependencies), dependencies);
-    g_vkr.mainPass = renderPass;
-    if (!renderPass)
-    {
-        success = false;
-        goto cleanup;
-    }
-    const i32 subpass = 0;
-
-    vkrSwapchain_SetupBuffers(&g_vkr.chain, renderPass);
-
-    vkrPipelineLayout pipeLayout = { 0 };
-    vkrPipelineLayout_New(&pipeLayout);
-    const VkDescriptorSetLayoutBinding bindings[] =
-    {
-        {
-            // per draw  structured buffer
-            .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            // per camera structured buffer
-            .binding = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            // texture + sampler table
-            .binding = 2,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = kTextureDescriptors,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-    };
-    if (!vkrPipelineLayout_AddSet(
-        &pipeLayout,
-        NELEM(bindings), bindings,
-        0x0))
-    {
-        success = false;
-        goto cleanup;
-    }
-    const VkPushConstantRange range =
-    {
-        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        .offset = 0,
-        .size = sizeof(vkrPushConstants),
-    };
-    vkrPipelineLayout_AddRange(&pipeLayout, range);
-
-    if (!vkrPipeline_NewGfx(
-        &g_vkr.pipeline,
-        &ffuncs,
-        &vertLayout,
-        &pipeLayout,
-        renderPass,
-        subpass,
-        NELEM(shaders), shaders))
-    {
-        success = false;
-        goto cleanup;
-    }
-
-    u32 nullColor = 0x0;
+    const u32 nullColor = 0x0;
     if (!vkrTexture2D_New(
         &g_vkr.nullTexture,
-        1,
-        1,
+        1, 1,
         VK_FORMAT_R8G8B8A8_SRGB,
-        &nullColor,
-        sizeof(nullColor)))
+        &nullColor, sizeof(nullColor)))
     {
         success = false;
         goto cleanup;
     }
 
-    ui_sys_init(g_vkr.display.window);
-    ImGui_ImplVulkan_Init(g_vkr.mainPass);
-    screenblit_init();
+    if (!vkrMainPass_New(&g_vkr.mainPass))
+    {
+        success = false;
+        goto cleanup;
+    }
+    if (!vkrImGuiPass_New(&g_vkr.imguiPass, g_vkr.mainPass.renderPass))
+    {
+        success = false;
+        goto cleanup;
+    }
+    if (!screenblit_init())
+    {
+        success = false;
+        goto cleanup;
+    }
+
+    vkrSwapchain_SetupBuffers(&g_vkr.chain, g_vkr.mainPass.renderPass);
 
 cleanup:
-    vkrCompileOutput_Del(&vertOutput);
-    vkrCompileOutput_Del(&fragOutput);
-    for (i32 i = 0; i < NELEM(shaders); ++i)
-    {
-        vkrDestroyShader(shaders + i);
-    }
-    pim_free(shaderText);
-    shaderText = NULL;
 
     if (!success)
     {
@@ -353,325 +144,14 @@ cleanup:
     return success;
 }
 
-ProfileMark(pm_updatedesc, vkrDraw_UpdateDescriptors)
-static VkDescriptorSet vkrDraw_UpdateDescriptors(VkCommandBuffer cmd)
+static void vkrUploadLightmaps(void)
 {
-    ProfileBegin(pm_updatedesc);
-
-    vkrSwapchain* chain = &g_vkr.chain;
-    vkrPipeline* pipeline = &g_vkr.pipeline;
-    const drawables_t* drawables = drawables_get();
-    const i32 drawcount = drawables->count;
-    const float4x4* pim_noalias localToWorlds = drawables->matrices;
-    const float3x3* pim_noalias worldToLocals = drawables->invMatrices;
-    const meshid_t* pim_noalias meshids = drawables->meshes;
-    const material_t* pim_noalias materials = drawables->materials;
-
-    vkrFrameContext* ctx = vkrContext_Get();
-    vkrDescPool_Reset(ctx->descpool);
-    VkDescriptorSet descSet = vkrDesc_New(ctx, pipeline->layout.sets[0]);
+    lmpack_t* pack = lmpack_get();
+    for (i32 i = 0; i < pack->lmCount; ++i)
     {
-        vkrBuffer* percamstage = &g_vkr.context.percamstage;
-        vkrBuffer* percambuf = &g_vkr.context.percambuf;
-
-        {
-            vkrBuffer_Reserve(percamstage, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, vkrMemUsage_CpuOnly, NULL, PIM_FILELINE);
-            vkrBuffer_Reserve(percambuf, sizeof(vkrPerCamera), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vkrMemUsage_GpuOnly, NULL, PIM_FILELINE);
-
-            float aspect = (float)chain->width / chain->height;
-            camera_t camera;
-            camera_get(&camera);
-            float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
-            float4 up = quat_up(camera.rotation);
-            float4x4 view = f4x4_lookat(camera.position, at, up);
-            float4x4 proj = f4x4_perspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
-            f4x4_11(proj) *= -1.0f;
-            const lmpack_t* lmpack = lmpack_get();
-            const table_t* textable = texture_table();
-            const i32 tableWidth = textable->width;
-            {
-                vkrPerCamera* perCamera = vkrBuffer_Map(percamstage);
-                ASSERT(perCamera);
-                perCamera->worldToCamera = view;
-                perCamera->cameraToClip = proj;
-                perCamera->eye = camera.position;
-                perCamera->lightDir = cvar_get_vec(cv_r_sun_dir);
-                perCamera->lightColor = f4_mulvs(cvar_get_vec(cv_r_sun_col), cvar_get_float(cv_r_sun_lum));
-                for (i32 i = 0; i < kGiDirections; ++i)
-                {
-                    perCamera->giAxii[i] = lmpack->axii[i];
-                }
-                perCamera->lmBegin = tableWidth;
-                vkrBuffer_Unmap(percamstage);
-            }
-
-            vkrBuffer_Flush(percamstage);
-
-            vkrCmdCopyBuffer(cmd, *percamstage, *percambuf);
-            VkBufferMemoryBarrier barrier =
-            {
-                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .buffer = percambuf->handle,
-                .offset = 0,
-                .size = percambuf->size,
-            };
-            vkrCmdBufferBarrier(
-                cmd,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                &barrier);
-        }
-
-        const vkrBinding bufferBindings[] =
-        {
-            {
-                .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .set = descSet,
-                .binding = 1,
-                .buffer = 
-                {
-                    .buffer = percambuf->handle,
-                    .range = VK_WHOLE_SIZE,
-                },
-            },
-        };
-        vkrDesc_WriteBindings(ctx, NELEM(bufferBindings), bufferBindings);
-
-        const table_t* textable = texture_table();
-        const i32 tableWidth = textable->width;
-        const texture_t* textures = textable->values;
-        const vkrTexture2D nullTexture = g_vkr.nullTexture;
-        vkrBinding* texBindings = g_vkr.bindings;
-        ASSERT(tableWidth <= kTextureDescriptors);
-        for (i32 i = 0; i < kTextureDescriptors; ++i)
-        {
-            texBindings[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            texBindings[i].set = descSet;
-            texBindings[i].binding = 2;
-            texBindings[i].arrayElem = i;
-            const vkrTexture2D* texture = &nullTexture;
-            if ((i < tableWidth) && textures[i].texels)
-            {
-                texture = &textures[i].vkrtex;
-            }
-            texBindings[i].image.sampler = texture->sampler;
-            texBindings[i].image.imageView = texture->view;
-            texBindings[i].image.imageLayout = texture->layout;
-        }
-        {
-            const lmpack_t* lmpack = lmpack_get();
-            i32 iBinding = tableWidth;
-            for (i32 ilm = 0; ilm < lmpack->lmCount; ++ilm)
-            {
-                const lightmap_t* lm = lmpack->lightmaps + ilm;
-                for (i32 idir = 0; idir < kGiDirections; ++idir)
-                {
-                    if (iBinding < kTextureDescriptors)
-                    {
-                        const vkrTexture2D* texture = &lm->vkrtex[idir];
-                        if (texture->layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-                        {
-                            texBindings[iBinding].image.sampler = texture->sampler;
-                            texBindings[iBinding].image.imageView = texture->view;
-                            texBindings[iBinding].image.imageLayout = texture->layout;
-                        }
-                    }
-                    else
-                    {
-                        ASSERT(false);
-                    }
-                    ++iBinding;
-                }
-            }
-        }
-        vkrDesc_WriteBindings(ctx, kTextureDescriptors, texBindings);
+        lightmap_t* lm = pack->lightmaps + i;
+        lightmap_upload(lm);
     }
-
-    ProfileEnd(pm_updatedesc);
-
-    ASSERT(descSet);
-    return descSet;
-}
-
-typedef struct vkrTaskDraw
-{
-    task_t task;
-    const vkrPipeline* pipeline;
-    const vkrSwapchain* chain;
-    VkRenderPass renderPass;
-    VkDescriptorSet descSet;
-    VkFramebuffer framebuffer;
-    const drawables_t* drawables;
-    VkCommandBuffer* buffers;
-    i32 buffercount;
-} vkrTaskDraw;
-
-static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
-{
-    vkrTaskDraw* task = pbase;
-    const drawables_t* drawables = task->drawables;
-    const vkrPipeline* pipeline = task->pipeline;
-    const vkrSwapchain* chain = task->chain;
-    VkRenderPass renderPass = task->renderPass;
-    const i32 subpass = pipeline->subpass;
-    VkFramebuffer framebuffer = task->framebuffer;
-    VkDescriptorSet descSet = task->descSet;
-    VkPipelineLayout layout = pipeline->layout.handle;
-    VkCommandBuffer* buffers = task->buffers;
-
-    VkRect2D rect = vkrSwapchain_GetRect(chain);
-    VkViewport viewport = vkrSwapchain_GetViewport(chain);
-    const VkClearValue clearValues[] =
-    {
-        {
-            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
-        },
-        {
-            .depthStencil = { 1.0f, 0 },
-        },
-    };
-
-    const meshid_t* pim_noalias meshids = drawables->meshes;
-    const material_t* pim_noalias materials = drawables->materials;
-    const float4x4* pim_noalias matrices = drawables->matrices;
-    const float3x3* pim_noalias invMatrices = drawables->invMatrices;
-
-    vkrFrameContext* ctx = vkrContext_Get();
-    VkCommandBuffer cmd = NULL;
-    vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, NULL);
-    {
-        i32 bufferindex = inc_i32(&task->buffercount, MO_AcqRel);
-        ASSERT(bufferindex >= 0);
-        ASSERT(bufferindex < drawables->count);
-        buffers[bufferindex] = cmd;
-    }
-    vkrCmdBeginSec(cmd, renderPass, subpass, framebuffer);
-    {
-        vkrCmdViewport(cmd, viewport, rect);
-        vkrCmdBindPipeline(cmd, pipeline);
-        vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
-        for (i32 i = begin; i < end; ++i)
-        {
-            mesh_t mesh;
-            if (mesh_get(meshids[i], &mesh))
-            {
-                const vkrPushConstants pushConsts =
-                {
-                    .localToWorld = matrices[i],
-                    .IMc0 = invMatrices[i].c0,
-                    .IMc1 = invMatrices[i].c1,
-                    .IMc2 = invMatrices[i].c2,
-                    .albedoIndex = materials[i].albedo.index,
-                    .romeIndex = materials[i].rome.index,
-                    .normalIndex = materials[i].normal.index,
-                };
-                const u32 stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-                vkrCmdPushConstants(cmd, layout, stages, &pushConsts, sizeof(pushConsts));
-                vkrCmdDrawMesh(cmd, &mesh.vkrmesh);
-            }
-        }
-    }
-    vkrCmdEnd(cmd);
-}
-
-ProfileMark(pm_igrender, igRender)
-ProfileMark(pm_renderimgui, vkrRenderImGui)
-static VkCommandBuffer vkrRenderImGui(VkRenderPass renderPass)
-{
-    ProfileBegin(pm_igrender);
-    igRender();
-    ProfileEnd(pm_igrender);
-    ProfileBegin(pm_renderimgui);
-    vkrFrameContext* ctx = vkrContext_Get();
-    VkCommandBuffer cmd = NULL;
-    vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, NULL);
-    vkrCmdBeginSec(cmd, renderPass, 0, NULL);
-    ImGui_ImplVulkan_RenderDrawData(igGetDrawData(), cmd);
-    vkrCmdEnd(cmd);
-    ProfileEnd(pm_renderimgui);
-    return cmd;
-}
-
-ProfileMark(pm_mainpassparallel, vkrMainPassParallel)
-static void vkrMainPassParallel(
-    VkCommandBuffer cmd,
-    VkDescriptorSet descSet,
-    const drawables_t* drawables)
-{
-    ProfileBegin(pm_mainpassparallel);
-
-    vkrSwapchain* chain = &g_vkr.chain;
-    vkrPipeline* pipeline = &g_vkr.pipeline;
-    VkRenderPass renderPass = g_vkr.mainPass;
-
-    VkRect2D rect = vkrSwapchain_GetRect(chain);
-    VkViewport viewport = vkrSwapchain_GetViewport(chain);
-    const VkClearValue clearValues[] =
-    {
-        {
-            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
-        },
-        {
-            .depthStencil = { 1.0f, 0 },
-        },
-    };
-    vkrCmdViewport(cmd, viewport, rect);
-    vkrCmdBindPipeline(cmd, pipeline);
-    vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
-
-    const i32 drawcount = drawables->count;
-    VkCommandBuffer* seccmds = tmp_calloc(sizeof(seccmds[0]) * drawcount);
-    vkrTaskDraw* task = tmp_calloc(sizeof(*task));
-    task->drawables = drawables;
-    task->chain = chain;
-    task->pipeline = pipeline;
-    task->renderPass = renderPass;
-    task->framebuffer = NULL; // spec says this is optional, but may yield perf speedup on some implementations at cmd buf exec time
-    task->descSet = descSet;
-    task->buffers = seccmds;
-    task->buffercount = 0;
-    if (!cvar_get_bool(cv_r_sw))
-    {
-        task_submit(task, vkrTaskDrawFn, drawcount);
-        task_sys_schedule();
-    }
-
-    VkCommandBuffer igcmd = vkrRenderImGui(renderPass);
-
-    const u32 imageIndex = vkrSwapchain_AcquireImage(chain);
-    VkFramebuffer framebuffer = chain->buffers[imageIndex];
-
-    if (cvar_get_bool(cv_r_sw))
-    {
-        const framebuf_t* framebuf = render_sys_frontbuf();
-        screenblit_blit(
-            cmd,
-            framebuf->color,
-            framebuf->width,
-            framebuf->height);
-    }
-
-    vkrCmdBeginRenderPass(
-        cmd,
-        renderPass,
-        framebuffer,
-        rect,
-        NELEM(clearValues),
-        clearValues,
-        VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-
-    task_await(task);
-    const i32 seccmdcount = task->buffercount;
-    vkrCmdExecCmds(cmd, seccmdcount, seccmds);
-    vkrCmdExecCmds(cmd, 1, &igcmd);
-
-    vkrCmdEndRenderPass(cmd);
-
-    ProfileEnd(pm_mainpassparallel);
 }
 
 ProfileMark(pm_update, vkr_update)
@@ -693,7 +173,7 @@ void vkr_update(void)
         vkrSwapchain_Recreate(
             &g_vkr.chain,
             &g_vkr.display,
-            g_vkr.mainPass);
+            g_vkr.mainPass.renderPass);
     }
     vkrSwapchain* chain = &g_vkr.chain;
     if (!chain->handle)
@@ -703,31 +183,19 @@ void vkr_update(void)
 
     ProfileBegin(pm_update);
 
-    vkrSwapchain_AcquireSync(chain);
-    vkrAllocator_Update(&g_vkr.allocator);
-
+    VkFence fence = NULL;
     VkCommandBuffer cmd = NULL;
-    VkQueue queue = NULL;
-    vkrFrameContext* ctx = vkrContext_Get();
-    vkrContext_GetCmd(ctx, vkrQueueId_Gfx, &cmd, NULL, &queue);
+    vkrSwapchain_AcquireSync(chain, &cmd, &fence);
+    vkrAllocator_Update(&g_vkr.allocator);
     vkrCmdBegin(cmd);
-    {
-        VkDescriptorSet descSet = vkrDraw_UpdateDescriptors(cmd);
-        vkrMainPassParallel(cmd, descSet, drawables_get());
-    }
+    vkrMainPass_Draw(&g_vkr.mainPass, cmd, fence);
     vkrCmdEnd(cmd);
-
-    vkrSwapchain_Present(chain, queue, cmd);
+    vkrSwapchain_Present(chain);
 
     if (cvar_get_bool(&cv_lm_upload))
     {
         cvar_set_bool(&cv_lm_upload, false);
-        lmpack_t* pack = lmpack_get();
-        for (i32 i = 0; i < pack->lmCount; ++i)
-        {
-            lightmap_t* lm = pack->lightmaps + i;
-            lightmap_upload(lm);
-        }
+        vkrUploadLightmaps();
     }
 
     ProfileEnd(pm_update);
@@ -739,16 +207,15 @@ void vkr_shutdown(void)
     {
         vkrDevice_WaitIdle();
 
-        lmpack_del(lmpack_get());
-        screenblit_shutdown();
-        ImGui_ImplVulkan_Shutdown();
-        ui_sys_shutdown();
-
-        vkrPipeline_Del(&g_vkr.pipeline);
-        vkrRenderPass_Del(g_vkr.mainPass);
-        vkrTexture2D_Del(&g_vkr.nullTexture);
         mesh_sys_vkfree();
+        vkrTexture2D_Del(&g_vkr.nullTexture);
         texture_sys_vkfree();
+        lmpack_del(lmpack_get());
+
+        screenblit_shutdown();
+        ui_sys_shutdown();
+        vkrImGuiPass_Del(&g_vkr.imguiPass);
+        vkrMainPass_Del(&g_vkr.mainPass);
 
         vkrAllocator_Finalize(&g_vkr.allocator);
 

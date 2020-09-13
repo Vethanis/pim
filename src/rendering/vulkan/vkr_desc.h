@@ -11,10 +11,10 @@ VkDescriptorPool vkrDescPool_New(
 void vkrDescPool_Del(VkDescriptorPool pool);
 void vkrDescPool_Reset(VkDescriptorPool pool);
 
-VkDescriptorSet vkrDesc_New(vkrFrameContext* ctx, VkDescriptorSetLayout layout);
+VkDescriptorSet vkrDesc_New(vkrThreadContext* ctx, VkDescriptorSetLayout layout);
 
 void vkrDesc_WriteBindings(
-    vkrFrameContext* ctx,
+    vkrThreadContext* ctx,
     i32 count,
     const vkrBinding* bindings);
 

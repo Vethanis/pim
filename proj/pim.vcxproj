@@ -98,7 +98,9 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_device.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_display.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_image.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_imgui.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_mainpass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_mem.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_mesh.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_pipeline.c" />
@@ -129,11 +131,8 @@
     <ClCompile Include="..\src\ui\imgui_demo.cpp" />
     <ClCompile Include="..\src\ui\imgui_draw.cpp" />
     <ClCompile Include="..\src\ui\imgui_impl_glfw.cpp" />
-    <ClCompile Include="..\src\ui\imgui_impl_opengl3.cpp" />
-    <ClCompile Include="..\src\ui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\src\ui\imgui_widgets.cpp" />
     <ClCompile Include="..\src\ui\ui.c" />
-    <ClCompile Include="..\submodules\glad\glad.c" />
     <ClCompile Include="..\submodules\glfw\src\context.c" />
     <ClCompile Include="..\submodules\glfw\src\egl_context.c" />
     <ClCompile Include="..\submodules\glfw\src\init.c" />
@@ -269,7 +268,9 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_device.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_display.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_image.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_imgui.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_instance.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_mainpass.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_mem.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_mesh.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_pipeline.h" />
@@ -294,8 +295,6 @@
     <ClInclude Include="..\src\ui\cimgui.h" />
     <ClInclude Include="..\src\ui\cimgui_ext.h" />
     <ClInclude Include="..\src\ui\imgui_impl_glfw.h" />
-    <ClInclude Include="..\src\ui\imgui_impl_opengl3.h" />
-    <ClInclude Include="..\src\ui\imgui_impl_vulkan.h" />
     <ClInclude Include="..\src\ui\imgui_internal.h" />
     <ClInclude Include="..\src\ui\imstb_rectpack.h" />
     <ClInclude Include="..\src\ui\imstb_textedit.h" />
@@ -311,7 +310,6 @@
     <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_quaternion.h" />
     <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_ray.h" />
     <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_scene.h" />
-    <ClInclude Include="..\submodules\glad\glad.h" />
     <ClInclude Include="..\submodules\glfw\include\GLFW\glfw3.h" />
     <ClInclude Include="..\submodules\glfw\include\GLFW\glfw3native.h" />
     <ClInclude Include="..\submodules\glfw\src\egl_context.h" />
