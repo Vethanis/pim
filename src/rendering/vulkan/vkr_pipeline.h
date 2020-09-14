@@ -7,29 +7,31 @@ PIM_C_BEGIN
 i32 vkrVertTypeSize(vkrVertType type);
 VkFormat vkrVertTypeFormat(vkrVertType type);
 
-void vkrPipelineLayout_New(vkrPipelineLayout* layout);
-void vkrPipelineLayout_Del(vkrPipelineLayout* layout);
-bool vkrPipelineLayout_AddSet(
-    vkrPipelineLayout* layout,
+VkDescriptorSetLayout vkrSetLayout_New(
     i32 bindingCount,
     const VkDescriptorSetLayoutBinding* pBindings,
     VkDescriptorSetLayoutCreateFlags flags);
-void vkrPipelineLayout_AddRange(
-    vkrPipelineLayout* layout,
-    VkPushConstantRange range);
-bool vkrPipelineLayout_Compile(vkrPipelineLayout* layout);
+void vkrSetLayout_Del(VkDescriptorSetLayout layout);
 
-bool vkrPipeline_NewGfx(
-    vkrPipeline* pipeline,
+VkPipelineLayout vkrPipelineLayout_New(
+    i32 setCount, const VkDescriptorSetLayout* setLayouts,
+    i32 rangeCount, const VkPushConstantRange* ranges);
+void vkrPipelineLayout_Del(VkPipelineLayout layout);
+
+VkPipeline vkrPipeline_NewGfx(
     const vkrFixedFuncs* fixedfuncs,
     const vkrVertexLayout* vertLayout,
-    vkrPipelineLayout* layout,
+    VkPipelineLayout layout,
     VkRenderPass renderPass,
     i32 subpass,
     i32 shaderCount,
     const VkPipelineShaderStageCreateInfo* shaders);
 
-void vkrPipeline_Del(vkrPipeline* pipeline);
+VkPipeline vkrPipeline_NewComp(
+    VkPipelineLayout layout,
+    const VkPipelineShaderStageCreateInfo* shader);
+
+void vkrPipeline_Del(VkPipeline pipeline);
 
 PIM_C_END
 

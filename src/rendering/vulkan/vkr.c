@@ -17,6 +17,7 @@
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_mainpass.h"
 #include "rendering/vulkan/vkr_imgui.h"
+#include "rendering/vulkan/vkr_exposurepass.h"
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
 #include "rendering/texture.h"
@@ -122,12 +123,17 @@ bool vkr_init(i32 width, i32 height)
         success = false;
         goto cleanup;
     }
+    if (!vkrExposurePass_New(&g_vkr.exposurePass))
+    {
+        success = false;
+        goto cleanup;
+    }
     if (!vkrImGuiPass_New(&g_vkr.imguiPass, g_vkr.mainPass.renderPass))
     {
         success = false;
         goto cleanup;
     }
-    if (!screenblit_init())
+    if (!vkrScreenBlit_New(&g_vkr.screenBlit))
     {
         success = false;
         goto cleanup;
@@ -164,7 +170,6 @@ void vkr_update(void)
 
     if (!vkrDisplay_IsOpen(&g_vkr.display))
     {
-        vkr_shutdown();
         return;
     }
 
@@ -192,6 +197,8 @@ void vkr_update(void)
     vkrCmdEnd(cmd);
     vkrSwapchain_Present(chain);
 
+    vkrExposurePass_Execute(&g_vkr.exposurePass);
+
     if (cvar_get_bool(&cv_lm_upload))
     {
         cvar_set_bool(&cv_lm_upload, false);
@@ -212,9 +219,10 @@ void vkr_shutdown(void)
         texture_sys_vkfree();
         lmpack_del(lmpack_get());
 
-        screenblit_shutdown();
+        vkrScreenBlit_Del(&g_vkr.screenBlit);
         ui_sys_shutdown();
         vkrImGuiPass_Del(&g_vkr.imguiPass);
+        vkrExposurePass_Del(&g_vkr.exposurePass);
         vkrMainPass_Del(&g_vkr.mainPass);
 
         vkrAllocator_Finalize(&g_vkr.allocator);

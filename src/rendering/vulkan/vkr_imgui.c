@@ -2,6 +2,7 @@
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_texture.h"
 #include "rendering/vulkan/vkr_desc.h"
+#include "rendering/vulkan/vkr_pipeline.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_swapchain.h"
 #include "rendering/vulkan/vkr_renderpass.h"
@@ -241,11 +242,7 @@ bool vkrImGuiPass_New(vkrImGui* imgui, VkRenderPass renderPass)
             .bindingCount = NELEM(bindings),
             .pBindings = bindings,
         };
-        VkCheck(vkCreateDescriptorSetLayout(
-            g_vkr.dev,
-            &info,
-            NULL,
-            &imgui->descriptorSetLayout));
+        imgui->setLayout = vkrSetLayout_New(NELEM(bindings), bindings, 0x0);
     }
 
     // Create Descriptor Set:
@@ -255,9 +252,9 @@ bool vkrImGuiPass_New(vkrImGui* imgui, VkRenderPass renderPass)
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool = imgui->descPool,
             .descriptorSetCount = 1,
-            .pSetLayouts = &imgui->descriptorSetLayout,
+            .pSetLayouts = &imgui->setLayout,
         };
-        VkCheck(vkAllocateDescriptorSets(g_vkr.dev, &alloc_info, &imgui->descSet));
+        imgui->set = vkrDesc_New(imgui->descPool, imgui->setLayout);
     }
 
     // Update the Descriptor Set:
@@ -274,7 +271,7 @@ bool vkrImGuiPass_New(vkrImGui* imgui, VkRenderPass renderPass)
         {
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = imgui->descSet,
+                .dstSet = imgui->set,
                 .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .descriptorCount = NELEM(desc_images),
                 .pImageInfo = desc_images,
@@ -285,24 +282,17 @@ bool vkrImGuiPass_New(vkrImGui* imgui, VkRenderPass renderPass)
 
     // Create Pipeline Layout:
     {
-        // Constants: we are using 'vec2 offset' and 'vec2 scale' instead of a full 3d projection matrix
-        const VkPushConstantRange push_constants[] =
+        const VkPushConstantRange ranges[] =
         {
             {
                 .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
                 .size = sizeof(float) * 4,
             },
         };
-        const VkDescriptorSetLayout set_layouts[] = { imgui->descriptorSetLayout };
-        const VkPipelineLayoutCreateInfo layout_info =
-        {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-            .setLayoutCount = NELEM(set_layouts),
-            .pSetLayouts = set_layouts,
-            .pushConstantRangeCount = NELEM(push_constants),
-            .pPushConstantRanges = push_constants,
-        };
-        VkCheck(vkCreatePipelineLayout(g_vkr.dev, &layout_info, NULL, &imgui->pipelineLayout));
+        const VkDescriptorSetLayout setLayouts[] = { imgui->setLayout };
+        imgui->layout = vkrPipelineLayout_New(
+            NELEM(setLayouts), setLayouts,
+            NELEM(ranges), ranges);
     }
 
     const VkPipelineShaderStageCreateInfo stages[] =
@@ -399,6 +389,16 @@ bool vkrImGuiPass_New(vkrImGui* imgui, VkRenderPass renderPass)
             .alphaBlendOp = VK_BLEND_OP_ADD,
             .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
         },
+        {
+            .blendEnable = false,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+            .colorBlendOp = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+            .alphaBlendOp = VK_BLEND_OP_ADD,
+            .colorWriteMask = 0x0,
+        },
     };
 
     const VkPipelineDepthStencilStateCreateInfo depth_info =
@@ -439,7 +439,7 @@ bool vkrImGuiPass_New(vkrImGui* imgui, VkRenderPass renderPass)
         .pDepthStencilState = &depth_info,
         .pColorBlendState = &blend_info,
         .pDynamicState = &dynamic_state,
-        .layout = imgui->pipelineLayout,
+        .layout = imgui->layout,
         .renderPass = renderPass,
     };
     VkCheck(vkCreateGraphicsPipelines(g_vkr.dev, NULL, 1, &info, NULL, &imgui->pipeline));
@@ -457,26 +457,16 @@ void vkrImGuiPass_Del(vkrImGui* imgui)
         ASSERT(g_vkr.dev);
         vkDeviceWaitIdle(g_vkr.dev);
 
+        vkrTexture2D_Del(&imgui->font);
         for (i32 i = 0; i < NELEM(imgui->vertbufs); ++i)
         {
             vkrBuffer_Del(&imgui->vertbufs[i]);
             vkrBuffer_Del(&imgui->indbufs[i]);
         }
-        vkrTexture2D_Del(&imgui->font);
         vkrDescPool_Del(imgui->descPool);
-
-        if (imgui->descriptorSetLayout)
-        {
-            vkDestroyDescriptorSetLayout(g_vkr.dev, imgui->descriptorSetLayout, NULL);
-        }
-        if (imgui->pipelineLayout)
-        {
-            vkDestroyPipelineLayout(g_vkr.dev, imgui->pipelineLayout, NULL);
-        }
-        if (imgui->pipeline)
-        {
-            vkDestroyPipeline(g_vkr.dev, imgui->pipeline, NULL);
-        }
+        vkrSetLayout_Del(imgui->setLayout);
+        vkrPipelineLayout_Del(imgui->layout);
+        vkrPipeline_Del(imgui->pipeline);
 
         memset(imgui, 0, sizeof(*imgui));
     }
@@ -516,11 +506,11 @@ static void vkrImGui_SetupRenderState(
             cmd,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             imgui->pipeline);
-        const VkDescriptorSet descSets[] = { imgui->descSet };
+        const VkDescriptorSet descSets[] = { imgui->set };
         vkCmdBindDescriptorSets(
             cmd,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            imgui->pipelineLayout,
+            imgui->layout,
             0, NELEM(descSets), descSets,
             0, NULL);
     }
@@ -566,7 +556,7 @@ static void vkrImGui_SetupRenderState(
         };
         vkCmdPushConstants(
             cmd,
-            imgui->pipelineLayout,
+            imgui->layout,
             VK_SHADER_STAGE_VERTEX_BIT,
             0, sizeof(constants), constants);
     }

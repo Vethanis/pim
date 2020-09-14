@@ -118,17 +118,21 @@ static i32 ms_iFrame;
 static TonemapId ms_tonemapper = TMap_ACES;
 static float4 ms_toneParams;
 static float4 ms_clearColor;
-static exposure_t ms_exposure =
+static vkrExposure ms_exposure =
 {
-    .manual = false,
+    .manual = true,
     .standard = true,
 
-    .aperture = 4.0f,
-    .shutterTime = 1.0f / 10.0f,
+    .aperture = 1.4f,
+    .shutterTime = 0.1f,
     .ISO = 100.0f,
 
     .adaptRate = 1.0f,
     .offsetEV = 0.0f,
+    .minCdf = 0.05f,
+    .maxCdf = 0.95f,
+    .minEV = -10.0f,
+    .maxEV = 10.0f,
 };
 
 static camera_t ms_ptcam;
@@ -678,6 +682,7 @@ void render_sys_init(void)
     cmd_reg("loadtest", CmdLoadTest);
 
     vkr_init(1920, 1080);
+    g_vkr.exposurePass.params = ms_exposure;
 
     texture_sys_init();
     mesh_sys_init();
@@ -781,22 +786,29 @@ void render_sys_gui(bool* pEnabled)
         if (igCollapsingHeader1("Exposure"))
         {
             igIndent(0.0f);
-            igCheckbox("Manual", &ms_exposure.manual);
-            igCheckbox("Standard", &ms_exposure.standard);
-            igSliderFloat("Output Offset EV", &ms_exposure.offsetEV, -10.0f, 10.0f);
-            if (ms_exposure.manual)
+
+            vkrExposure* exposure = &g_vkr.exposurePass.params;
+            bool manual = exposure->manual;
+            bool standard = exposure->standard;
+            igCheckbox("Manual", &manual);
+            igCheckbox("Standard", &standard);
+            exposure->manual = manual;
+            exposure->standard = standard;
+
+            igSliderFloat("Output Offset EV", &exposure->offsetEV, -10.0f, 10.0f);
+            if (exposure->manual)
             {
-                igSliderFloat("Aperture", &ms_exposure.aperture, 1.4f, 22.0f);
-                igSliderFloat("Shutter Speed", &ms_exposure.shutterTime, 1.0f / 2000.0f, 1.0f);
-                float S = log2f(ms_exposure.ISO / 100.0f);
+                igSliderFloat("Aperture", &exposure->aperture, 1.4f, 22.0f);
+                igSliderFloat("Shutter Speed", &exposure->shutterTime, 1.0f / 2000.0f, 1.0f);
+                float S = log2f(exposure->ISO / 100.0f);
                 igSliderFloat("log2(ISO)", &S, 0.0f, 10.0f);
-                ms_exposure.ISO = exp2f(S) * 100.0f;
+                exposure->ISO = exp2f(S) * 100.0f;
             }
             else
             {
-                igSliderFloat("Adapt Rate", &ms_exposure.adaptRate, 0.1f, 10.0f);
-                igSliderFloat("Hist Cdf Min", &ms_exposure.histMinProb, 0.0f, ms_exposure.histMaxProb);
-                igSliderFloat("Hist Cdf Max", &ms_exposure.histMaxProb, ms_exposure.histMinProb, 1.0f);
+                igSliderFloat("Adapt Rate", &exposure->adaptRate, 0.1f, 10.0f);
+                igSliderFloat("Hist Cdf Min", &exposure->minCdf, 0.0f, exposure->maxCdf - 0.01f);
+                igSliderFloat("Hist Cdf Max", &exposure->maxCdf, exposure->minCdf + 0.01f, 1.0f);
             }
             igUnindent(0.0f);
         }

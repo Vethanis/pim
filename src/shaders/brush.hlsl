@@ -1,6 +1,7 @@
 
 // ----------------------------------------------------------------------------
 
+#define i32             int
 #define kMinLightDist   0.01
 #define kMinLightDistSq 0.001
 #define kMinAlpha       0.00001525878
@@ -189,12 +190,9 @@ float3 TonemapACES(float3 x)
     return (x * (a * x + b)) / (x * (c * x + d) + e);
 }
 
-float3 LinearTosRGB(float3 x)
+float PerceptualLuminance(float3 color)
 {
-    float3 s1 = sqrt(x);
-    float3 s2 = sqrt(s1);
-    float3 s3 = sqrt(s2);
-    return s1 * 0.658444 + s2 * 0.643378 + s3 * -0.298148;
+    return dot(color, float3(0.2126, 0.7152, 0.0722));
 }
 
 // ----------------------------------------------------------------------------
@@ -287,6 +285,7 @@ struct PerCamera
     float4 eye;
     float4 giAxii[kGiDirections];
     uint lmBegin;
+    float exposure;
 };
 
 [[vk::push_constant]]
@@ -333,6 +332,12 @@ struct PSInput
     nointerpolation uint lmIndex : TEXCOORD3;
 };
 
+struct PSOutput
+{
+    float4 color : SV_Target0;
+    float luminance : SV_Target1;
+};
+
 float4 SampleTexture(uint index, float2 uv)
 {
     return textures[index].Sample(samplers[index], uv);
@@ -356,7 +361,7 @@ PSInput VSMain(VSInput input)
     return output;
 }
 
-float4 PSMain(PSInput input) : SV_Target
+PSOutput PSMain(PSInput input)
 {
     uint ai = kAlbedoIndex;
     uint ri = kRomeIndex;
@@ -403,7 +408,9 @@ float4 PSMain(PSInput input) : SV_Target
         light += IndirectBRDF(V, N, diffuseGI, specularGI, albedo, roughness, metallic, occlusion);
     }
 
-    light = TonemapACES(light);
-    light = saturate(light);
-    return float4(light, 1.0);
+    PSOutput output;
+    output.luminance = PerceptualLuminance(light / albedo);
+    light *= cameraData.exposure;
+    output.color = float4(saturate(TonemapACES(light)), 1.0);
+    return output;
 }

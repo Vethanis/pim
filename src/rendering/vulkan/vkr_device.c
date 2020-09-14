@@ -379,6 +379,7 @@ VkDevice vkrCreateDevice(
         .largePoints = availableFeatures->largePoints,
         .depthClamp = availableFeatures->depthClamp,
         .depthBounds = availableFeatures->depthBounds,
+        .independentBlend = availableFeatures->independentBlend,
 
         // anisotropic sampling
         .samplerAnisotropy = availableFeatures->samplerAnisotropy,

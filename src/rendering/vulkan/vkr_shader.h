@@ -4,9 +4,14 @@
 
 PIM_C_BEGIN
 
-i32 vkrShaderTypeToStage(vkrShaderType type);
+VkShaderStageFlags vkrShaderTypeToStage(vkrShaderType type);
 
-VkPipelineShaderStageCreateInfo vkrCreateShader(const vkrCompileOutput* output);
-void vkrDestroyShader(VkPipelineShaderStageCreateInfo* info);
+bool vkrShader_New(
+    VkPipelineShaderStageCreateInfo* shader,
+    const char* filename,
+    const char* entrypoint,
+    vkrShaderType type);
+
+void vkrShader_Del(VkPipelineShaderStageCreateInfo* shader);
 
 PIM_C_END

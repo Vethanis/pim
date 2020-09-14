@@ -1,16 +1,14 @@
 #pragma once
 
-#include "common/macro.h"
-
-PIM_DECL_HANDLE(VkCommandBuffer);
-PIM_DECL_HANDLE(VkImage);
+#include "rendering/vulkan/vkr.h"
 
 PIM_C_BEGIN
 
-bool screenblit_init(void);
-void screenblit_shutdown(void);
+bool vkrScreenBlit_New(vkrScreenBlit* blit);
+void vkrScreenBlit_Del(vkrScreenBlit* blit);
 
-void screenblit_blit(
+void vkrScreenBlit_Blit(
+    vkrScreenBlit* blit,
     VkCommandBuffer cmd,
     VkImage dstImage,
     u32 const *const pim_noalias texels,

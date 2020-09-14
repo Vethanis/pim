@@ -55,8 +55,6 @@ void vkrCmdExecCmds(VkCommandBuffer cmd, i32 count, const VkCommandBuffer* pSeco
 void vkrCmdNextSubpass(VkCommandBuffer cmdbuf, VkSubpassContents contents);
 void vkrCmdEndRenderPass(VkCommandBuffer cmdbuf);
 
-void vkrCmdBindPipeline(VkCommandBuffer cmdbuf, const vkrPipeline* pipeline);
-
 void vkrCmdViewport(
     VkCommandBuffer cmdbuf,
     VkViewport viewport,
@@ -87,7 +85,8 @@ void vkrCmdPushConstants(
 
 void vkrCmdBindDescSets(
     VkCommandBuffer cmdbuf,
-    const vkrPipeline* pipeline,
+    VkPipelineBindPoint bindpoint,
+    VkPipelineLayout layout,
     i32 setCount,
     const VkDescriptorSet* sets);
 
