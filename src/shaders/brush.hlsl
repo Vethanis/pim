@@ -61,7 +61,7 @@ float D_GTR(float NoH, float alpha)
 {
     float a2 = alpha * alpha;
     float f = lerp(1.0f, a2, NoH * NoH);
-    return a2 / (f * f * kPi);
+    return a2 / max(kEpsilon, f * f * kPi);
 }
 
 float G_SmithGGX(float NoL, float NoV, float alpha)
@@ -69,7 +69,7 @@ float G_SmithGGX(float NoL, float NoV, float alpha)
     float a2 = alpha * alpha;
     float v = NoL * sqrt(a2 + (NoV - NoV * a2) * NoV);
     float l = NoV * sqrt(a2 + (NoL - NoL * a2) * NoL);
-    return 0.5f / (v + l);
+    return 0.5f / max(kEpsilon, v + l);
 }
 
 float Fd_Lambert()
@@ -335,7 +335,7 @@ struct PSInput
 struct PSOutput
 {
     float4 color : SV_Target0;
-    float luminance : SV_Target1;
+    half luminance : SV_Target1;
 };
 
 float4 SampleTexture(uint index, float2 uv)
@@ -369,6 +369,7 @@ PSOutput PSMain(PSInput input)
     float2 uv0 = input.uv01.xy;
 
     float3 albedo = SampleTexture(ai, uv0).xyz;
+    albedo = max(kEpsilon, albedo);
     float4 rome = SampleTexture(ri, uv0) * flatRome;
     float3 normalTS = SampleTexture(ni, uv0).xyz;
 
@@ -383,13 +384,21 @@ PSOutput PSMain(PSInput input)
     float occlusion = rome.y;
     float metallic = rome.z;
     float emission = rome.w;
-    float3 light = UnpackEmission(albedo, emission);
-    //{
-    //    float3 L = cameraData[0].lightDir.xyz;
-    //    float3 lightColor = cameraData[0].lightColor.xyz;
-    //    float3 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
-    //    light += brdf * lightColor * dotsat(N, L);
-    //}
+    float3 light = 0.0;
+    half luminance = 0.0;
+    {
+        float3 emissive = UnpackEmission(albedo, emission);
+        light += emissive;
+        luminance += PerceptualLuminance(emissive);
+    }
+    {
+        //float3 L = cameraData[0].lightDir.xyz;
+        //float3 lightColor = cameraData[0].lightColor.xyz;
+        //float3 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
+        //float3 direct = brdf * lightColor * dotsat(N, L);
+        //light += direct;
+        //luminance += PerceptualLuminance(direct / albedo);
+    }
     {
         float2 uv1 = input.uv01.zw;
         uint lmIndex = cameraData.lmBegin + input.lmIndex * kGiDirections;
@@ -405,11 +414,13 @@ PSOutput PSMain(PSInput input)
             diffuseGI += SG_Irradiance(ax, probe, N);
             specularGI += SG_Eval(ax, probe, R);
         }
-        light += IndirectBRDF(V, N, diffuseGI, specularGI, albedo, roughness, metallic, occlusion);
+        float3 indirect = IndirectBRDF(V, N, diffuseGI, specularGI, albedo, roughness, metallic, occlusion);
+        light += indirect;
+        luminance += PerceptualLuminance(indirect / albedo);
     }
 
     PSOutput output;
-    output.luminance = PerceptualLuminance(light / albedo);
+    output.luminance = luminance;
     light *= cameraData.exposure;
     output.color = float4(saturate(TonemapACES(light)), 1.0);
     return output;

@@ -21,6 +21,7 @@ typedef enum
     kDesiredSwapchainLen = 2,
     kFramesInFlight = 3,
     kTextureDescriptors = 1024,
+    kHistogramSize = 256,
 } vkrLimits;
 
 typedef enum

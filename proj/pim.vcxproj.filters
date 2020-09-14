@@ -1173,5 +1173,8 @@
     <FxCompile Include="..\src\shaders\BuildHistogram.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
+    <FxCompile Include="..\src\shaders\imgui.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

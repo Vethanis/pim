@@ -95,15 +95,15 @@ static const char* const kRequiredDevExtensions[] =
 {
     // https://www.khronos.org/registry/vulkan/specs/1.0-wsi_extensions/html/vkspec.html#VK_KHR_swapchain
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+};
+
+static const char* const kDesiredDevExtensions[] =
+{
     VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,
     VK_NV_RAY_TRACING_EXTENSION_NAME,
     VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME,
     VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
     VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
-};
-
-static const char* const kDesiredDevExtensions[] =
-{
     VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
     VK_KHR_DRAW_INDIRECT_COUNT_EXTENSION_NAME,
     VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME,

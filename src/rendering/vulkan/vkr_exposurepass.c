@@ -17,7 +17,7 @@
 #include <string.h>
 
 static void vkrExposurePass_WriteDesc(const vkrAttachment* img, VkDescriptorSet set);
-static void vkrExposurePass_AdaptHistogram(vkrExposurePass* pass, const u32* histogram);
+static void vkrExposurePass_AdaptHistogram(vkrExposurePass* pass, u32* pim_noalias histogram);
 
 bool vkrExposurePass_New(vkrExposurePass* pass)
 {
@@ -108,7 +108,7 @@ bool vkrExposurePass_New(vkrExposurePass* pass)
 
     for (i32 i = 0; i < kFramesInFlight; ++i)
     {
-        const i32 bytes = sizeof(u32) * 256;
+        const i32 bytes = sizeof(u32) * kHistogramSize;
         if (!vkrBuffer_New(
             &pass->histBuffers[i],
             bytes,
@@ -187,7 +187,7 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
             {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
                 .srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
+                .dstAccessMask = VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .buffer = buffer->handle,
@@ -205,9 +205,10 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
             vkrFence_Wait(fence);
         }
         {
-            const u32* histogram = vkrBuffer_Map(buffer);
+            u32* histogram = vkrBuffer_Map(buffer);
             vkrExposurePass_AdaptHistogram(pass, histogram);
             vkrBuffer_Unmap(buffer);
+            vkrBuffer_Flush(buffer);
         }
         {
             // transition back to shader rw
@@ -218,7 +219,7 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
             const VkBufferMemoryBarrier barrier =
             {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                .srcAccessMask = VK_ACCESS_HOST_READ_BIT,
+                .srcAccessMask = VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT,
                 .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -446,30 +447,33 @@ static float CalcExposure(const vkrExposure* args)
     return exposure;
 }
 
-static void vkrExposurePass_AdaptHistogram(vkrExposurePass* pass, const u32* histogram)
+static void vkrExposurePass_AdaptHistogram(vkrExposurePass* pass, u32* pim_noalias histogram)
 {
     ASSERT(histogram);
+    i32 width = g_vkr.chain.width;
+    i32 height = g_vkr.chain.height;
+    const float rcpSamples = 1.0f / (width * height);
     const float minEV = pass->params.minEV;
     const float maxEV = pass->params.maxEV;
     const float minCdf = pass->params.minCdf;
     const float maxCdf = pass->params.maxCdf;
-    const float dEV = (maxEV - minEV) * (1.0f / 254.0f);
+    const float dEV = (maxEV - minEV) * (1.0f / (kHistogramSize - 2));
 
     // histogram seems to be in an odd memory region that is slow to access
     // copy it to stack before going further
-    u32 stackgram[256];
+    u32 stackgram[kHistogramSize];
     memcpy(stackgram, histogram, sizeof(stackgram));
+    memset(histogram, 0, sizeof(histogram[0]) * kHistogramSize);
 
     u32 samples = 0;
-    for (i32 i = 0; i < 256; ++i)
+    for (i32 i = 0; i < kHistogramSize; ++i)
     {
         samples += stackgram[i];
     }
-    float rcpSamples = 1.0f / (samples + 1);
 
     float avgLum = 0.0f;
     float cdf = 0.0f;
-    for (i32 i = 0; i < 256; ++i)
+    for (i32 i = 0; i < kHistogramSize; ++i)
     {
         u32 count = stackgram[i];
         float pdf = rcpSamples * count;
@@ -483,7 +487,7 @@ static void vkrExposurePass_AdaptHistogram(vkrExposurePass* pass, const u32* his
         float ev = BinToEV(i, minEV, dEV);
         float lum = EV100ToLum(ev);
 
-        avgLum += lum * w;
+        avgLum += lum * pdf;
         cdf += pdf;
     }
 
