@@ -14,6 +14,7 @@ VkDescriptorPool vkrDescPool_New(
     const VkDescriptorPoolCreateInfo poolInfo =
     {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
         .maxSets = maxSets,
         .poolSizeCount = sizeCount,
         .pPoolSizes = sizes,
@@ -42,12 +43,9 @@ void vkrDescPool_Reset(VkDescriptorPool pool)
 }
 
 ProfileMark(pm_desc_new, vkrDesc_New)
-VkDescriptorSet vkrDesc_New(vkrThreadContext* ctx, VkDescriptorSetLayout layout)
+VkDescriptorSet vkrDesc_New(VkDescriptorPool pool, VkDescriptorSetLayout layout)
 {
     ProfileBegin(pm_desc_new);
-    ASSERT(ctx);
-    u32 syncIndex = g_vkr.chain.syncIndex;
-    VkDescriptorPool pool = ctx->descpools[syncIndex];
     ASSERT(pool);
     ASSERT(layout);
     const VkDescriptorSetAllocateInfo info =
@@ -64,14 +62,21 @@ VkDescriptorSet vkrDesc_New(vkrThreadContext* ctx, VkDescriptorSetLayout layout)
     return handle;
 }
 
+void vkrDesc_Del(VkDescriptorPool pool, VkDescriptorSet set)
+{
+    ASSERT(pool);
+    if (set)
+    {
+        VkCheck(vkFreeDescriptorSets(g_vkr.dev, pool, 1, &set));
+    }
+}
+
 ProfileMark(pm_desc_writebindings, vkrDesc_WriteBindings)
 void vkrDesc_WriteBindings(
-    vkrThreadContext* ctx,
     i32 count,
     const vkrBinding* bindings)
 {
     ProfileBegin(pm_desc_writebindings);
-    ASSERT(ctx);
     ASSERT(count >= 0);
 
     if (count > 0)
@@ -102,6 +107,7 @@ void vkrDesc_WriteBindings(
             case VK_DESCRIPTOR_TYPE_SAMPLER:
             case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
             case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+            case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
             {
                 writeInfos[i].pImageInfo = &bindings[i].image;
             }
@@ -111,4 +117,58 @@ void vkrDesc_WriteBindings(
         vkUpdateDescriptorSets(g_vkr.dev, count, writeInfos, 0, NULL);
     }
     ProfileEnd(pm_desc_writebindings);
+}
+
+void vkrDesc_WriteImageTable(
+    VkDescriptorSet set,
+    i32 binding,
+    VkDescriptorType type,
+    i32 count,
+    const VkDescriptorImageInfo* bindings)
+{
+    ASSERT(set);
+    ASSERT(type >= VK_DESCRIPTOR_TYPE_SAMPLER);
+    ASSERT(type <= VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    if (count > 0)
+    {
+        ASSERT(bindings);
+        VkWriteDescriptorSet writeInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .descriptorType = type,
+            .dstSet = set,
+            .dstBinding = binding,
+            .dstArrayElement = 0,
+            .descriptorCount = count,
+            .pImageInfo = bindings,
+        };
+        vkUpdateDescriptorSets(g_vkr.dev, 1, &writeInfo, 0, NULL);
+    }
+}
+
+void vkrDesc_WriteBufferTable(
+    VkDescriptorSet set,
+    i32 binding,
+    VkDescriptorType type,
+    i32 count,
+    const VkDescriptorBufferInfo* bindings)
+{
+    ASSERT(set);
+    ASSERT(type >= VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER);
+    ASSERT(type <= VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC);
+    if (count > 0)
+    {
+        ASSERT(bindings);
+        VkWriteDescriptorSet writeInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .descriptorType = type,
+            .dstSet = set,
+            .dstBinding = binding,
+            .dstArrayElement = 0,
+            .descriptorCount = count,
+            .pBufferInfo = bindings,
+        };
+        vkUpdateDescriptorSets(g_vkr.dev, 1, &writeInfo, 0, NULL);
+    }
 }

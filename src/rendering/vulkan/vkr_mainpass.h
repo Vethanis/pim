@@ -4,11 +4,11 @@
 
 PIM_C_BEGIN
 
-bool vkrMainPass_New(vkrPipeline* pipeline);
-void vkrMainPass_Del(vkrPipeline* pipeline);
+bool vkrMainPass_New(vkrMainPass* pass);
+void vkrMainPass_Del(vkrMainPass* pass);
 
 void vkrMainPass_Draw(
-    vkrPipeline* pipeline,
+    vkrMainPass* pass,
     VkCommandBuffer cmd,
     VkFence fence);
 

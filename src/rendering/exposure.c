@@ -79,23 +79,22 @@ static float StandardExposure(float ev100)
     return midGrey / Lavg;
 }
 
-static float CalcExposure(exposure_t args)
+static float CalcExposure(const vkrExposure* args)
 {
     float ev100 = 0.0f;
-    if (args.manual)
+    if (args->manual)
     {
-        ev100 = ManualEV100(args.aperture, args.shutterTime, args.ISO);
+        ev100 = ManualEV100(args->aperture, args->shutterTime, args->ISO);
     }
     else
     {
-        ev100 = LumToEV100(args.avgLum);
+        ev100 = LumToEV100(args->avgLum);
     }
 
-    ev100 = f1_max(ev100, 0.0f);
-    ev100 = ev100 - args.offsetEV;
+    ev100 = ev100 - args->offsetEV;
 
     float exposure;
-    if (args.standard)
+    if (args->standard)
     {
         exposure = StandardExposure(ev100);
     }
@@ -185,22 +184,20 @@ ProfileMark(pm_exposeimg, ExposeImage)
 void ExposeImage(
     int2 size,
     float4* pim_noalias light,
-    exposure_t* parameters)
+    vkrExposure* parameters)
 {
     ProfileBegin(pm_exposeimg);
 
-    float avgLum = CalcAverage(light, size);
-    avgLum = AdaptLuminance(
+    parameters->avgLum = AdaptLuminance(
         parameters->avgLum,
-        avgLum,
+        CalcAverage(light, size),
         parameters->deltaTime,
         parameters->adaptRate);
-    parameters->avgLum = avgLum;
-    float exposure = CalcExposure(*parameters);
+    parameters->exposure = CalcExposure(parameters);
 
     task_Expose* task = tmp_calloc(sizeof(*task));
     task->light = light;
-    task->exposure = exposure;
+    task->exposure = parameters->exposure;
     task_run(&task->task, ExposeFn, size.x * size.y);
 
     ProfileEnd(pm_exposeimg);

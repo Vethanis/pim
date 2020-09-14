@@ -180,11 +180,11 @@ typedef struct vkrBinding
 
 typedef struct vkrCompileInput
 {
-    char* filename;
-    char* entrypoint;
-    char* text;
-    char** macroKeys;
-    char** macroValues;
+    const char* filename;
+    const char* entrypoint;
+    const char* text;
+    const char** macroKeys;
+    const char** macroValues;
     i32 macroCount;
     vkrShaderType type;
     bool compile;
@@ -193,10 +193,8 @@ typedef struct vkrCompileInput
 
 typedef struct vkrCompileOutput
 {
-    vkrShaderType type;
     u32* dwords;
     i32 dwordCount;
-    char* entrypoint;
     char* errors;
     char* disassembly;
 } vkrCompileOutput;
@@ -255,24 +253,6 @@ typedef struct vkrFixedFuncs
     vkrBlendState attachments[8];
 } vkrFixedFuncs;
 
-typedef struct vkrPipelineLayout
-{
-    VkPipelineLayout handle;
-    VkDescriptorSetLayout* sets;
-    VkPushConstantRange* ranges;
-    i32 setCount;
-    i32 rangeCount;
-} vkrPipelineLayout;
-
-typedef struct vkrPipeline
-{
-    VkPipeline handle;
-    vkrPipelineLayout layout;
-    VkPipelineBindPoint bindpoint;
-    VkRenderPass renderPass;
-    i32 subpass;
-} vkrPipeline;
-
 typedef struct vkrDisplay
 {
     GLFWwindow* window;
@@ -285,7 +265,6 @@ typedef struct vkrSwapchain
 {
     VkSwapchainKHR handle;
     VkFormat colorFormat;
-    VkFormat depthFormat;
     VkColorSpaceKHR colorSpace;
     VkPresentModeKHR mode;
     i32 width;
@@ -297,8 +276,8 @@ typedef struct vkrSwapchain
     VkImageView views[kMaxSwapchainLen];
     VkFramebuffer buffers[kMaxSwapchainLen];
     VkFence imageFences[kMaxSwapchainLen];
-    vkrImage depthImage;
-    VkImageView depthView;
+    vkrAttachment lumAttachments[kMaxSwapchainLen];
+    vkrAttachment depthAttachment;
 
     u32 syncIndex;
     VkFence syncFences[kFramesInFlight];
@@ -331,7 +310,6 @@ typedef struct vkrCmdAlloc
 
 typedef struct vkrThreadContext
 {
-    VkDescriptorPool descpools[kFramesInFlight];
     vkrCmdAlloc cmds[vkrQueueId_COUNT];     // primary level cmd buffers
     vkrCmdAlloc seccmds[vkrQueueId_COUNT];  // secondary level cmd buffers
 } vkrThreadContext;
@@ -340,8 +318,6 @@ typedef struct vkrContext
 {
     i32 threadcount;
     vkrThreadContext* threads;
-    vkrBuffer percambuf;
-    vkrBuffer percamstage;
 } vkrContext;
 
 typedef enum
@@ -380,9 +356,10 @@ typedef struct vkrPerCamera
     float4 eye;
     float4 giAxii[5];
     u32 lmBegin;
+    float exposure;
 } vkrPerCamera;
 
-typedef struct vkrPushConstants
+typedef struct vkrMainPassConstants
 {
     float4x4 localToWorld;
     float4 IMc0;
@@ -392,19 +369,83 @@ typedef struct vkrPushConstants
     u32 albedoIndex;
     u32 romeIndex;
     u32 normalIndex;
-} vkrPushConstants;
+} vkrMainPassConstants;
+
+typedef struct vkrMainPass
+{
+    VkRenderPass renderPass;
+    VkPipeline pipeline;
+    VkPipelineLayout layout;
+    VkDescriptorSetLayout setLayout;
+    VkDescriptorPool descPool;
+    VkDescriptorSet sets[kFramesInFlight];
+    vkrBuffer perCameraBuffer[kFramesInFlight];
+} vkrMainPass;
 
 typedef struct vkrImGui
 {
-    VkDescriptorSetLayout descriptorSetLayout;
-    VkPipelineLayout pipelineLayout;
-    VkDescriptorPool descPool;
-    VkDescriptorSet descSet;
     VkPipeline pipeline;
-    vkrTexture2D font;
+    VkPipelineLayout layout;
+    VkDescriptorSetLayout setLayout;
+    VkDescriptorPool descPool;
+    VkDescriptorSet set;
     vkrBuffer vertbufs[kFramesInFlight];
     vkrBuffer indbufs[kFramesInFlight];
+    vkrTexture2D font;
 } vkrImGui;
+
+typedef struct vkrExposure
+{
+    float exposure;
+    float avgLum;
+    float deltaTime;
+    float adaptRate;
+
+    float aperture;
+    float shutterTime;
+    float ISO;
+
+    // offsets the output exposure, in EV
+    float offsetEV;
+    // EV range to consider
+    float minEV;
+    float maxEV;
+    // range of the cdf to consider
+    float minCdf;
+    float maxCdf;
+
+    // manual: ev100 is based on camera parameters
+    // automatic: ev100 is based on luminance
+    i32 manual;
+    // standard output or saturation based exposure
+    i32 standard;
+} vkrExposure;
+
+typedef struct vkrExposureConstants
+{
+    u32 width;
+    u32 height;
+    float minEV;
+    float maxEV;
+} vkrExposureConstants;
+
+typedef struct vkrExposurePass
+{
+    VkPipeline pipeline;
+    VkPipelineLayout layout;
+    VkDescriptorSetLayout setLayout;
+    VkDescriptorPool descPool;
+    VkDescriptorSet sets[kFramesInFlight];
+    vkrBuffer histBuffers[kFramesInFlight];
+    vkrExposure params;
+} vkrExposurePass;
+
+typedef struct vkrScreenBlit
+{
+    vkrBuffer meshbuf;
+    vkrBuffer stagebuf;
+    vkrImage image;
+} vkrScreenBlit;
 
 // ----------------------------------------------------------------------------
 
@@ -424,11 +465,13 @@ typedef struct vkr_t
 
     vkrContext context;
 
-    vkrPipeline mainPass;
+    vkrMainPass mainPass;
     vkrImGui imguiPass;
+    vkrExposurePass exposurePass;
+    vkrScreenBlit screenBlit;
 
     vkrTexture2D nullTexture;
-    vkrBinding bindings[kTextureDescriptors];
+    VkDescriptorImageInfo texTable[kTextureDescriptors];
 } vkr_t;
 extern vkr_t g_vkr;
 

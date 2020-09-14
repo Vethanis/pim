@@ -10,7 +10,7 @@ bool vkrAttachment_New(
     i32 height,
     VkFormat format,
     VkImageUsageFlags usage);
-void vkrAttachment_Del(vkrAttachment* att, VkFence fence);
+void vkrAttachment_Del(vkrAttachment* att);
 
 VkAttachmentDescription vkrAttachment_Desc(
     VkAttachmentLoadOp loadOp,

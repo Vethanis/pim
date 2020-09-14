@@ -227,9 +227,6 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
     g_shaderc.compile_options_release(options);
     g_shaderc.compiler_release(compiler);
 
-    output->type = input->type;
-    output->entrypoint = StrDup(input->entrypoint, EAlloc_Perm);
-
     return status == shaderc_compilation_status_success;
 }
 
@@ -240,7 +237,6 @@ void vkrCompileOutput_Del(vkrCompileOutput* output)
         pim_free(output->disassembly);
         pim_free(output->dwords);
         pim_free(output->errors);
-        pim_free(output->entrypoint);
         memset(output, 0, sizeof(*output));
     }
 }

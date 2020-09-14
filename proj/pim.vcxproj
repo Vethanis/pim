@@ -97,6 +97,7 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_desc.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_device.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_display.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_exposurepass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_image.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_imgui.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c" />
@@ -267,6 +268,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_desc.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_device.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_display.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_exposurepass.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_image.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_imgui.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_instance.h" />
@@ -364,7 +366,23 @@
     <None Include="..\src\tools\prehash.py" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="..\src\shaders\AdaptHistogram.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
     <FxCompile Include="..\src\shaders\brush.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\BuildHistogram.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>

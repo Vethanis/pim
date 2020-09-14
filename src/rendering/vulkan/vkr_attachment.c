@@ -48,21 +48,24 @@ bool vkrAttachment_New(
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = usage | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .usage = usage,
     };
     if (!vkrImage_New(&att->image, &info, vkrMemUsage_GpuOnly, PIM_FILELINE))
     {
+        ASSERT(false);
         success = false;
         goto cleanup;
     }
-    if (!vkrImageView_New(
+    att->view = vkrImageView_New(
         att->image.handle,
         VK_IMAGE_VIEW_TYPE_2D,
         format,
         aspect,
         0, 1,
-        0, 1))
+        0, 1);
+    if (!att->view)
     {
+        ASSERT(false);
         success = false;
         goto cleanup;
     }
@@ -70,43 +73,18 @@ bool vkrAttachment_New(
 cleanup:
     if (!success)
     {
-        vkrAttachment_Del(att, NULL);
+        vkrAttachment_Del(att);
     }
     return success;
 }
 
-void vkrAttachment_Del(vkrAttachment* att, VkFence fence)
+void vkrAttachment_Del(vkrAttachment* att)
 {
-    if (att->image.handle)
+    if (att)
     {
-        // create pipeline barrier to safely release resources
-        const VkImageMemoryBarrier barrier =
-        {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask = 0x0,
-            .dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = att->image.handle,
-            .subresourceRange =
-            {
-                .aspectMask = att->aspect,
-                .levelCount = VK_REMAINING_MIP_LEVELS,
-                .layerCount = VK_REMAINING_ARRAY_LAYERS,
-            },
-        };
-        VkFence fence = vkrMem_Barrier(
-            vkrQueueId_Gfx,
-            VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-            VK_PIPELINE_STAGE_HOST_BIT,
-            NULL,
-            NULL,
-            &barrier);
-
-        vkrImageView_Release(att->view, fence);
-        vkrImage_Release(&att->image, fence);
+        vkrImageView_Del(att->view);
+        vkrImage_Del(&att->image);
+        memset(att, 0, sizeof(*att));
     }
 }
 

@@ -1,19 +1,10 @@
 #include "screenblit.h"
-#include "rendering/vulkan/vkr.h"
-#include "rendering/vulkan/vkr_texture.h"
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_image.h"
-#include "rendering/vulkan/vkr_pipeline.h"
-#include "rendering/vulkan/vkr_renderpass.h"
-#include "rendering/vulkan/vkr_compile.h"
-#include "rendering/vulkan/vkr_shader.h"
-#include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_swapchain.h"
-#include "rendering/vulkan/vkr_sync.h"
 #include "rendering/constants.h"
-#include "common/console.h"
 #include "math/types.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
@@ -29,15 +20,12 @@ static const float2 kScreenMesh[] =
     { -1.0f, -1.0f },
 };
 
-static vkrBuffer ms_blitMesh;
-static vkrBuffer ms_stageBuf;
-static vkrPipeline ms_blitProgram;
-static vkrImage ms_image;
-
 // ----------------------------------------------------------------------------
 
-bool screenblit_init(void)
+bool vkrScreenBlit_New(vkrScreenBlit* blit)
 {
+    ASSERT(blit);
+    memset(blit, 0, sizeof(*blit));
     bool success = true;
 
     const u32 queueFamilies[] =
@@ -65,14 +53,18 @@ bool screenblit_init(void)
         .pQueueFamilyIndices = queueFamilies,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
-    if (!vkrImage_New(&ms_image, &imageInfo, vkrMemUsage_GpuOnly, PIM_FILELINE))
+    if (!vkrImage_New(
+        &blit->image,
+        &imageInfo,
+        vkrMemUsage_GpuOnly,
+        PIM_FILELINE))
     {
         ASSERT(false);
         success = false;
         goto cleanup;
     }
     if (!vkrBuffer_New(
-        &ms_blitMesh,
+        &blit->meshbuf,
         sizeof(kScreenMesh),
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         vkrMemUsage_CpuToGpu,
@@ -83,7 +75,7 @@ bool screenblit_init(void)
         goto cleanup;
     }
     if (!vkrBuffer_New(
-        &ms_stageBuf,
+        &blit->stagebuf,
         kDrawWidth * kDrawHeight * 4,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         vkrMemUsage_CpuOnly,
@@ -97,21 +89,25 @@ bool screenblit_init(void)
 cleanup:
     if (!success)
     {
-        screenblit_shutdown();
+        vkrScreenBlit_Del(blit);
     }
     return success;
 }
 
-void screenblit_shutdown(void)
+void vkrScreenBlit_Del(vkrScreenBlit* blit)
 {
-    vkrImage_Release(&ms_image, NULL);
-    vkrBuffer_Release(&ms_blitMesh, NULL);
-    vkrBuffer_Release(&ms_stageBuf, NULL);
-    vkrPipeline_Del(&ms_blitProgram);
+    if (blit)
+    {
+        vkrImage_Del(&blit->image);
+        vkrBuffer_Del(&blit->meshbuf);
+        vkrBuffer_Del(&blit->stagebuf);
+        memset(blit, 0, sizeof(*blit));
+    }
 }
 
-ProfileMark(pm_blit, screenblit_blit)
-void screenblit_blit(
+ProfileMark(pm_blit, vkrScreenBlit_Blit)
+void vkrScreenBlit_Blit(
+    vkrScreenBlit* blit,
     VkCommandBuffer cmd,
     VkImage dstImage,
     u32 const *const pim_noalias texels,
@@ -121,26 +117,27 @@ void screenblit_blit(
     ProfileBegin(pm_blit);
 
     vkrSwapchain const *const chain = &g_vkr.chain;
-    VkImage srcImage = ms_image.handle;
-    VkBuffer stageBuf = ms_stageBuf.handle;
+    VkImage srcImage = blit->image.handle;
+    VkBuffer stageBuf = blit->stagebuf.handle;
 
     // copy input data to stage buffer
     {
+        vkrBuffer* buffer = &blit->stagebuf;
         const i32 bytes = width * height * sizeof(texels[0]);
-        ASSERT(bytes == ms_stageBuf.size);
-        void* const pim_noalias dst = vkrBuffer_Map(&ms_stageBuf);
+        ASSERT(bytes == buffer->size);
+        void* const pim_noalias dst = vkrBuffer_Map(buffer);
         ASSERT(dst);
         if (dst)
         {
             memcpy(dst, texels, bytes);
         }
-        vkrBuffer_Unmap(&ms_stageBuf);
-        vkrBuffer_Flush(&ms_stageBuf);
+        vkrBuffer_Unmap(buffer);
+        vkrBuffer_Flush(buffer);
     }
 
     // transition src image to xfer dst
     {
-        const VkImageMemoryBarrier imgBarrier =
+        const VkImageMemoryBarrier barrier =
         {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcAccessMask = 0x0,
@@ -160,7 +157,7 @@ void screenblit_blit(
         vkrCmdImageBarrier(cmd,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            &imgBarrier);
+            &barrier);
     }
     // copy buffer to src image
     {

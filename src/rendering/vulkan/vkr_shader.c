@@ -1,11 +1,13 @@
 #include "rendering/vulkan/vkr_shader.h"
+#include "rendering/vulkan/vkr_compile.h"
 #include "allocator/allocator.h"
+#include "common/console.h"
 #include <string.h>
 
-static VkShaderModule vkrCreateShaderModule(const u32* dwords, i32 dwordCount)
+static VkShaderModule vkrShaderModule_New(const u32* dwords, i32 dwordCount)
 {
     ASSERT(g_vkr.dev);
-    VkShaderModule mod = NULL;
+    VkShaderModule handle = NULL;
     if (dwords && dwordCount > 0)
     {
         const VkShaderModuleCreateInfo info =
@@ -14,21 +16,22 @@ static VkShaderModule vkrCreateShaderModule(const u32* dwords, i32 dwordCount)
             .pCode = dwords,
             .codeSize = sizeof(dwords[0]) * dwordCount,
         };
-        VkCheck(vkCreateShaderModule(g_vkr.dev, &info, NULL, &mod));
+        VkCheck(vkCreateShaderModule(g_vkr.dev, &info, NULL, &handle));
+        ASSERT(handle);
     }
-    return mod;
+    return handle;
 }
 
-static void vkrDestroyShaderModule(VkShaderModule mod)
+static void vkrShaderModule_Del(VkShaderModule handle)
 {
     ASSERT(g_vkr.dev);
-    if (mod)
+    if (handle)
     {
-        vkDestroyShaderModule(g_vkr.dev, mod, NULL);
+        vkDestroyShaderModule(g_vkr.dev, handle, NULL);
     }
 }
 
-i32 vkrShaderTypeToStage(vkrShaderType type)
+VkShaderStageFlags vkrShaderTypeToStage(vkrShaderType type)
 {
     switch (type)
     {
@@ -60,23 +63,74 @@ i32 vkrShaderTypeToStage(vkrShaderType type)
     }
 }
 
-VkPipelineShaderStageCreateInfo vkrCreateShader(const vkrCompileOutput* output)
+bool vkrShader_New(
+    VkPipelineShaderStageCreateInfo* shader,
+    const char* filename,
+    const char* entrypoint,
+    vkrShaderType type)
 {
-    VkPipelineShaderStageCreateInfo info =
+    bool success = true;
+    ASSERT(shader);
+    ASSERT(filename);
+    ASSERT(entrypoint);
+    memset(shader, 0, sizeof(*shader));
+
+    vkrCompileOutput output = { 0 };
+    char* text = NULL;
+
+    shader->sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader->stage = vkrShaderTypeToStage(type);
+    shader->pName = entrypoint;
+
+    text = vkrLoadShader(filename);
+    if (!text)
     {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = vkrShaderTypeToStage(output->type),
-        .module = vkrCreateShaderModule(output->dwords, output->dwordCount),
-        .pName = output->entrypoint,
+        ASSERT(false);
+        success = false;
+        goto cleanup;
+    }
+
+    const vkrCompileInput input =
+    {
+        .filename = filename,
+        .entrypoint = entrypoint,
+        .type = type,
+        .compile = true,
+        .text = text,
     };
-    return info;
+    if (!vkrCompile(&input, &output))
+    {
+        ASSERT(false);
+        if (output.errors)
+        {
+            con_logf(LogSev_Error, "vkr", "Shader compile errors:\n%s", output.errors);
+        }
+        success = false;
+        goto cleanup;
+    }
+
+    shader->module = vkrShaderModule_New(output.dwords, output.dwordCount);
+    if (!shader->module)
+    {
+        success = false;
+        goto cleanup;
+    }
+
+cleanup:
+    vkrCompileOutput_Del(&output);
+    pim_free(text);
+    if (!success)
+    {
+        vkrShader_Del(shader);
+    }
+    return success;
 }
 
-void vkrDestroyShader(VkPipelineShaderStageCreateInfo* info)
+void vkrShader_Del(VkPipelineShaderStageCreateInfo* info)
 {
     if (info)
     {
-        vkrDestroyShaderModule(info->module);
+        vkrShaderModule_Del(info->module);
         memset(info, 0, sizeof(*info));
     }
 }

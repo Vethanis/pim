@@ -359,13 +359,6 @@ void vkrCmdEndRenderPass(VkCommandBuffer cmdbuf)
     vkCmdEndRenderPass(cmdbuf);
 }
 
-void vkrCmdBindPipeline(VkCommandBuffer cmdbuf, const vkrPipeline* pipeline)
-{
-    ASSERT(cmdbuf);
-    ASSERT(pipeline);
-    vkCmdBindPipeline(cmdbuf, pipeline->bindpoint, pipeline->handle);
-}
-
 void vkrCmdViewport(
     VkCommandBuffer cmdbuf,
     VkViewport viewport,
@@ -491,20 +484,21 @@ void vkrCmdPushConstants(
 
 void vkrCmdBindDescSets(
     VkCommandBuffer cmdbuf,
-    const vkrPipeline* pipeline,
+    VkPipelineBindPoint bindpoint,
+    VkPipelineLayout layout,
     i32 setCount,
     const VkDescriptorSet* sets)
 {
     ASSERT(cmdbuf);
-    ASSERT(pipeline);
+    ASSERT(layout);
     ASSERT(sets || !setCount);
     ASSERT(setCount >= 0);
     if (setCount > 0)
     {
         vkCmdBindDescriptorSets(
             cmdbuf,
-            pipeline->bindpoint,
-            pipeline->layout.handle,
+            bindpoint,
+            layout,
             0,
             setCount, sets,
             0, NULL);

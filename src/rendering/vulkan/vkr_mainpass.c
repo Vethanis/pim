@@ -33,7 +33,7 @@
 typedef struct vkrTaskDraw
 {
     task_t task;
-    const vkrPipeline* pipeline;
+    vkrMainPass* pass;
     const vkrSwapchain* chain;
     VkDescriptorSet descSet;
     VkFramebuffer framebuffer;
@@ -41,11 +41,12 @@ typedef struct vkrTaskDraw
     const drawables_t* drawables;
     VkCommandBuffer* buffers;
     i32 buffercount;
+    i32 subpass;
 } vkrTaskDraw;
 
 // ----------------------------------------------------------------------------
 
-static VkDescriptorSet vkrMainPass_UpdateDescriptors(VkCommandBuffer cmd);
+static VkDescriptorSet vkrMainPass_UpdateDescriptors(vkrMainPass* pass, VkCommandBuffer cmd);
 static VkCommandBuffer vkrDrawImGui(VkRenderPass renderPass, VkFence fence);
 static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end);
 
@@ -55,87 +56,14 @@ static cvar_t* cv_pt_trace;
 
 // ----------------------------------------------------------------------------
 
-bool vkrMainPass_New(vkrPipeline* pipeline)
+bool vkrMainPass_New(vkrMainPass* pass)
 {
-    ASSERT(pipeline);
+    ASSERT(pass);
 
     cv_pt_trace = cvar_find("pt_trace");
     ASSERT(cv_pt_trace);
 
     bool success = true;
-    char* shaderName = "brush.hlsl";
-    char* shaderText = vkrLoadShader(shaderName);
-    vkrCompileOutput vertOutput = { 0 };
-    vkrCompileOutput fragOutput = { 0 };
-
-    const vkrCompileInput vertInput =
-    {
-        .filename = shaderName,
-        .entrypoint = "VSMain",
-        .text = shaderText,
-        .type = vkrShaderType_Vert,
-        .compile = true,
-        .disassemble = true,
-    };
-    vkrCompile(&vertInput, &vertOutput);
-    if (vertOutput.errors)
-    {
-        con_logf(LogSev_Error, "Vkc", "Errors while compiling %s %s", vertInput.filename, vertInput.entrypoint);
-        con_logf(LogSev_Error, "Vkc", "%s", vertOutput.errors);
-        ASSERT(false);
-        success = false;
-        goto cleanup;
-    }
-    if (vertOutput.disassembly)
-    {
-        con_logf(LogSev_Info, "Vkc", "Dissassembly of %s %s", vertInput.filename, vertInput.entrypoint);
-        con_logf(LogSev_Info, "Vkc", "%s", vertOutput.disassembly);
-    }
-
-    const vkrCompileInput fragInput =
-    {
-        .filename = shaderName,
-        .entrypoint = "PSMain",
-        .text = shaderText,
-        .type = vkrShaderType_Frag,
-        .compile = true,
-        .disassemble = true,
-    };
-    vkrCompile(&fragInput, &fragOutput);
-    if (fragOutput.errors)
-    {
-        con_logf(LogSev_Error, "Vkc", "Errors while compiling %s %s", fragInput.filename, fragInput.entrypoint);
-        con_logf(LogSev_Error, "Vkc", "%s", fragOutput.errors);
-        ASSERT(false);
-        success = false;
-        goto cleanup;
-    }
-    if (fragOutput.disassembly)
-    {
-        con_logf(LogSev_Info, "Vkc", "Dissassembly of %s %s", fragInput.filename, fragInput.entrypoint);
-        con_logf(LogSev_Info, "Vkc", "%s", fragOutput.disassembly);
-    }
-
-    const vkrFixedFuncs ffuncs =
-    {
-        .viewport = vkrSwapchain_GetViewport(&g_vkr.chain),
-        .scissor = vkrSwapchain_GetRect(&g_vkr.chain),
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .depthCompareOp = VK_COMPARE_OP_LESS,
-        .scissorOn = false,
-        .depthClamp = false,
-        .depthTestEnable = true,
-        .depthWriteEnable = true,
-        .attachmentCount = 1,
-        .attachments[0] =
-        {
-            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-            .blendEnable = false,
-        },
-    };
 
     const vkrVertexLayout vertLayout =
     {
@@ -145,11 +73,17 @@ bool vkrMainPass_New(vkrPipeline* pipeline)
         .types[vkrMeshStream_Uv01] = vkrVertType_float4,
     };
 
-    VkPipelineShaderStageCreateInfo shaders[] =
+    VkPipelineShaderStageCreateInfo shaders[2] = { 0 };
+    if (!vkrShader_New(&shaders[0], "brush.hlsl", "VSMain", vkrShaderType_Vert))
     {
-        vkrCreateShader(&vertOutput),
-        vkrCreateShader(&fragOutput),
-    };
+        success = false;
+        goto cleanup;
+    }
+    if (!vkrShader_New(&shaders[1], "brush.hlsl", "PSMain", vkrShaderType_Frag))
+    {
+        success = false;
+        goto cleanup;
+    }
 
     const VkAttachmentDescription attachments[] =
     {
@@ -164,7 +98,17 @@ bool vkrMainPass_New(vkrPipeline* pipeline)
             .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         },
         {
-            .format = g_vkr.chain.depthFormat,
+            .format = g_vkr.chain.lumAttachments[0].format,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        },
+        {
+            .format = g_vkr.chain.depthAttachment.format,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -180,10 +124,14 @@ bool vkrMainPass_New(vkrPipeline* pipeline)
             .attachment = 0,
             .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         },
+        {
+            .attachment = 1,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        },
     };
     const VkAttachmentReference depthAttachRef =
     {
-        .attachment = 1,
+        .attachment = 2,
         .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
     };
     const VkSubpassDescription subpasses[] =
@@ -211,6 +159,7 @@ bool vkrMainPass_New(vkrPipeline* pipeline)
         NELEM(attachments), attachments,
         NELEM(subpasses), subpasses,
         NELEM(dependencies), dependencies);
+    pass->renderPass = renderPass;
     if (!renderPass)
     {
         success = false;
@@ -218,8 +167,32 @@ bool vkrMainPass_New(vkrPipeline* pipeline)
     }
     const i32 subpass = 0;
 
-    vkrPipelineLayout pipeLayout = { 0 };
-    vkrPipelineLayout_New(&pipeLayout);
+    const vkrFixedFuncs ffuncs =
+    {
+        .viewport = vkrSwapchain_GetViewport(&g_vkr.chain),
+        .scissor = vkrSwapchain_GetRect(&g_vkr.chain),
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .scissorOn = false,
+        .depthClamp = false,
+        .depthTestEnable = true,
+        .depthWriteEnable = true,
+        .attachmentCount = NELEM(colorAttachRefs),
+        .attachments[0] =
+        {
+            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .blendEnable = false,
+        },
+        .attachments[1] =
+        {
+            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT,
+            .blendEnable = false,
+        },
+    };
+
     const VkDescriptorSetLayoutBinding bindings[] =
     {
         {
@@ -244,10 +217,9 @@ bool vkrMainPass_New(vkrPipeline* pipeline)
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         },
     };
-    if (!vkrPipelineLayout_AddSet(
-        &pipeLayout,
-        NELEM(bindings), bindings,
-        0x0))
+    VkDescriptorSetLayout setLayout = vkrSetLayout_New(NELEM(bindings), bindings, 0x0);
+    pass->setLayout = setLayout;
+    if (!setLayout)
     {
         success = false;
         goto cleanup;
@@ -256,71 +228,138 @@ bool vkrMainPass_New(vkrPipeline* pipeline)
     {
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         .offset = 0,
-        .size = sizeof(vkrPushConstants),
+        .size = sizeof(vkrMainPassConstants),
     };
-    vkrPipelineLayout_AddRange(&pipeLayout, range);
-
-    if (!vkrPipeline_NewGfx(
-        pipeline,
-        &ffuncs,
-        &vertLayout,
-        &pipeLayout,
-        renderPass,
-        subpass,
-        NELEM(shaders), shaders))
+    VkPipelineLayout layout = vkrPipelineLayout_New(1, &setLayout, 1, &range);
+    pass->layout = layout;
+    if (!layout)
     {
         success = false;
         goto cleanup;
     }
 
-cleanup:
-    vkrCompileOutput_Del(&vertOutput);
-    vkrCompileOutput_Del(&fragOutput);
-    for (i32 i = 0; i < NELEM(shaders); ++i)
+    VkPipeline pipeline = vkrPipeline_NewGfx(
+        &ffuncs,
+        &vertLayout,
+        layout,
+        renderPass,
+        subpass,
+        NELEM(shaders), shaders);
+    pass->pipeline = pipeline;
+    if (!pipeline)
     {
-        vkrDestroyShader(shaders + i);
+        success = false;
+        goto cleanup;
     }
-    pim_free(shaderText);
-    shaderText = NULL;
+
+    for (i32 i = 0; i < kFramesInFlight; ++i)
+    {
+        if (!vkrBuffer_New(
+            &pass->perCameraBuffer[i],
+            sizeof(vkrPerCamera),
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            vkrMemUsage_CpuToGpu,
+            PIM_FILELINE))
+        {
+            success = false;
+            goto cleanup;
+        }
+    }
+
+    {
+        const VkDescriptorPoolSize sizes[] =
+        {
+            {
+                .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+            },
+            {
+                .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptorCount = 1,
+            },
+            {
+                .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .descriptorCount = kTextureDescriptors,
+            },
+        };
+        VkDescriptorPool descPool = vkrDescPool_New(kFramesInFlight, NELEM(sizes), sizes);
+        pass->descPool = descPool;
+        if (!descPool)
+        {
+            success = false;
+            goto cleanup;
+        }
+    }
+
+    for (i32 i = 0; i < kFramesInFlight; ++i)
+    {
+        pass->sets[i] = vkrDesc_New(pass->descPool, setLayout);
+        if (!pass->sets[i])
+        {
+            success = false;
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    vkrShader_Del(&shaders[0]);
+    vkrShader_Del(&shaders[1]);
     if (!success)
     {
-        vkrMainPass_Del(pipeline);
+        vkrMainPass_Del(pass);
     }
     return success;
 }
 
-void vkrMainPass_Del(vkrPipeline* pipeline)
+void vkrMainPass_Del(vkrMainPass* pass)
 {
-    vkrPipeline_Del(pipeline);
+    if (pass)
+    {
+        vkrRenderPass_Del(pass->renderPass);
+        vkrPipeline_Del(pass->pipeline);
+        vkrPipelineLayout_Del(pass->layout);
+        vkrSetLayout_Del(pass->setLayout);
+        vkrDescPool_Del(pass->descPool);
+        for (i32 i = 0; i < kFramesInFlight; ++i)
+        {
+            vkrBuffer_Del(&pass->perCameraBuffer[i]);
+        }
+        memset(pass, 0, sizeof(*pass));
+    }
 }
 
 ProfileMark(pm_draw, vkrMainPass_Draw)
 void vkrMainPass_Draw(
-    vkrPipeline* pipeline,
+    vkrMainPass* pass,
     VkCommandBuffer cmd,
     VkFence fence)
 {
     ProfileBegin(pm_draw);
 
-    VkDescriptorSet descSet = vkrMainPass_UpdateDescriptors(cmd);
+    VkDescriptorSet descSet = vkrMainPass_UpdateDescriptors(pass, cmd);
 
     const bool r_sw = cvar_get_bool(cv_pt_trace);
 
     vkrSwapchain *const chain = &g_vkr.chain;
-    VkRenderPass renderPass = pipeline->renderPass;
+    VkRenderPass renderPass = pass->renderPass;
+    VkPipeline pipeline = pass->pipeline;
+    VkPipelineLayout layout = pass->layout;
+    const VkPipelineBindPoint bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
     const drawables_t* drawables = drawables_get();
     const i32 drawcount = drawables->count;
+
     VkCommandBuffer* seccmds = tmp_calloc(sizeof(seccmds[0]) * drawcount);
     vkrTaskDraw* task = tmp_calloc(sizeof(*task));
     task->drawables = drawables;
     task->chain = chain;
-    task->pipeline = pipeline;
+    task->pass = pass;
     task->framebuffer = NULL;
     task->primaryFence = fence;
     task->descSet = descSet;
     task->buffers = seccmds;
     task->buffercount = 0;
+
     if (!r_sw)
     {
         task_submit(task, vkrTaskDrawFn, drawcount);
@@ -337,19 +376,23 @@ void vkrMainPass_Draw(
             .color = { 0.0f, 0.0f, 0.0f, 1.0f },
         },
         {
+            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+        },
+        {
             .depthStencil = { 1.0f, 0 },
         },
     };
     vkrCmdViewport(cmd, viewport, rect);
-    vkrCmdBindPipeline(cmd, pipeline);
-    vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
+    vkCmdBindPipeline(cmd, bindpoint, pipeline);
+    vkrCmdBindDescSets(cmd, bindpoint, layout, 1, &descSet);
 
     VkFramebuffer framebuffer = NULL;
     u32 imageIndex = vkrSwapchain_AcquireImage(chain, &framebuffer);
     if (r_sw)
     {
         const framebuf_t *const swfb = render_sys_frontbuf();
-        screenblit_blit(
+        vkrScreenBlit_Blit(
+            &g_vkr.screenBlit,
             cmd,
             chain->images[imageIndex],
             swfb->color,
@@ -404,12 +447,13 @@ void vkrMainPass_Draw(
 }
 
 ProfileMark(pm_updatedesc, vkrMainPass_UpdateDescriptors)
-static VkDescriptorSet vkrMainPass_UpdateDescriptors(VkCommandBuffer cmd)
+static VkDescriptorSet vkrMainPass_UpdateDescriptors(
+    vkrMainPass* pass,
+    VkCommandBuffer cmd)
 {
     ProfileBegin(pm_updatedesc);
 
     vkrSwapchain* chain = &g_vkr.chain;
-    vkrPipeline* pipeline = &g_vkr.mainPass;
     const u32 syncIndex = g_vkr.chain.syncIndex;
     const drawables_t* drawables = drawables_get();
     const i32 drawcount = drawables->count;
@@ -419,16 +463,11 @@ static VkDescriptorSet vkrMainPass_UpdateDescriptors(VkCommandBuffer cmd)
     const material_t* pim_noalias materials = drawables->materials;
 
     vkrThreadContext* ctx = vkrContext_Get();
-    vkrDescPool_Reset(ctx->descpools[syncIndex]);
-    VkDescriptorSet descSet = vkrDesc_New(ctx, pipeline->layout.sets[0]);
+    VkDescriptorSet set = pass->sets[syncIndex];
+    ASSERT(set);
     {
-        vkrBuffer* percamstage = &g_vkr.context.percamstage;
-        vkrBuffer* percambuf = &g_vkr.context.percambuf;
-
+        vkrBuffer* percambuf = &pass->perCameraBuffer[syncIndex];
         {
-            vkrBuffer_Reserve(percamstage, sizeof(vkrPerCamera), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, vkrMemUsage_CpuOnly, NULL, PIM_FILELINE);
-            vkrBuffer_Reserve(percambuf, sizeof(vkrPerCamera), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vkrMemUsage_GpuOnly, NULL, PIM_FILELINE);
-
             float aspect = (float)chain->width / chain->height;
             camera_t camera;
             camera_get(&camera);
@@ -441,44 +480,26 @@ static VkDescriptorSet vkrMainPass_UpdateDescriptors(VkCommandBuffer cmd)
             const table_t* textable = texture_table();
             const i32 tableWidth = textable->width;
             {
-                vkrPerCamera* perCamera = vkrBuffer_Map(percamstage);
+                vkrPerCamera* perCamera = vkrBuffer_Map(percambuf);
                 ASSERT(perCamera);
                 perCamera->worldToClip = f4x4_mul(proj, view);
                 perCamera->eye = camera.position;
+                perCamera->exposure = g_vkr.exposurePass.params.exposure;
                 for (i32 i = 0; i < kGiDirections; ++i)
                 {
                     perCamera->giAxii[i] = lmpack->axii[i];
                 }
                 perCamera->lmBegin = tableWidth;
-                vkrBuffer_Unmap(percamstage);
+                vkrBuffer_Unmap(percambuf);
+                vkrBuffer_Flush(percambuf);
             }
-
-            vkrBuffer_Flush(percamstage);
-
-            vkrCmdCopyBuffer(cmd, *percamstage, *percambuf);
-            VkBufferMemoryBarrier barrier =
-            {
-                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .buffer = percambuf->handle,
-                .offset = 0,
-                .size = VK_WHOLE_SIZE,
-            };
-            vkrCmdBufferBarrier(
-                cmd,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                &barrier);
         }
 
         const vkrBinding bufferBindings[] =
         {
             {
                 .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .set = descSet,
+                .set = set,
                 .binding = 1,
                 .buffer =
                 {
@@ -487,28 +508,24 @@ static VkDescriptorSet vkrMainPass_UpdateDescriptors(VkCommandBuffer cmd)
                 },
             },
         };
-        vkrDesc_WriteBindings(ctx, NELEM(bufferBindings), bufferBindings);
+        vkrDesc_WriteBindings(NELEM(bufferBindings), bufferBindings);
 
         const table_t* textable = texture_table();
         const i32 tableWidth = textable->width;
         const texture_t* textures = textable->values;
         const vkrTexture2D nullTexture = g_vkr.nullTexture;
-        vkrBinding* texBindings = g_vkr.bindings;
+        VkDescriptorImageInfo* texBindings = g_vkr.texTable;
         ASSERT(tableWidth <= kTextureDescriptors);
         for (i32 i = 0; i < kTextureDescriptors; ++i)
         {
-            texBindings[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            texBindings[i].set = descSet;
-            texBindings[i].binding = 2;
-            texBindings[i].arrayElem = i;
             const vkrTexture2D* texture = &nullTexture;
             if ((i < tableWidth) && textures[i].texels)
             {
                 texture = &textures[i].vkrtex;
             }
-            texBindings[i].image.sampler = texture->sampler;
-            texBindings[i].image.imageView = texture->view;
-            texBindings[i].image.imageLayout = texture->layout;
+            texBindings[i].sampler = texture->sampler;
+            texBindings[i].imageView = texture->view;
+            texBindings[i].imageLayout = texture->layout;
         }
         {
             const lmpack_t* lmpack = lmpack_get();
@@ -523,9 +540,9 @@ static VkDescriptorSet vkrMainPass_UpdateDescriptors(VkCommandBuffer cmd)
                         const vkrTexture2D* texture = &lm->vkrtex[idir];
                         if (texture->layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
                         {
-                            texBindings[iBinding].image.sampler = texture->sampler;
-                            texBindings[iBinding].image.imageView = texture->view;
-                            texBindings[iBinding].image.imageLayout = texture->layout;
+                            texBindings[iBinding].sampler = texture->sampler;
+                            texBindings[iBinding].imageView = texture->view;
+                            texBindings[iBinding].imageLayout = texture->layout;
                         }
                     }
                     else
@@ -536,28 +553,34 @@ static VkDescriptorSet vkrMainPass_UpdateDescriptors(VkCommandBuffer cmd)
                 }
             }
         }
-        vkrDesc_WriteBindings(ctx, kTextureDescriptors, texBindings);
+        vkrDesc_WriteImageTable(
+            set,
+            2,
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            kTextureDescriptors,
+            texBindings);
     }
 
     ProfileEnd(pm_updatedesc);
 
-    ASSERT(descSet);
-    return descSet;
+    return set;
 }
 
 static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
 {
     vkrTaskDraw* task = pbase;
-    const vkrPipeline* pipeline = task->pipeline;
+    vkrMainPass* pass = task->pass;
     const vkrSwapchain* chain = task->chain;
-    VkRenderPass renderPass = pipeline->renderPass;
-    const i32 subpass = pipeline->subpass;
+    VkRenderPass renderPass = pass->renderPass;
+    VkPipeline pipeline = pass->pipeline;
+    VkPipelineLayout layout = pass->layout;
+    const i32 subpass = task->subpass;
     VkDescriptorSet descSet = task->descSet;
     VkFramebuffer framebuffer = task->framebuffer;
     VkFence primaryFence = task->primaryFence;
-    VkPipelineLayout layout = pipeline->layout.handle;
     const drawables_t* drawables = task->drawables;
     VkCommandBuffer* buffers = task->buffers;
+    const VkPipelineBindPoint bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
     VkRect2D rect = vkrSwapchain_GetRect(chain);
     VkViewport viewport = vkrSwapchain_GetViewport(chain);
@@ -587,14 +610,14 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
     vkrCmdBeginSec(cmd, renderPass, subpass, framebuffer);
     {
         vkrCmdViewport(cmd, viewport, rect);
-        vkrCmdBindPipeline(cmd, pipeline);
-        vkrCmdBindDescSets(cmd, pipeline, 1, &descSet);
+        vkCmdBindPipeline(cmd, bindpoint, pipeline);
+        vkrCmdBindDescSets(cmd, bindpoint, layout, 1, &descSet);
         for (i32 i = begin; i < end; ++i)
         {
             mesh_t mesh;
             if (mesh_get(meshids[i], &mesh))
             {
-                const vkrPushConstants pushConsts =
+                const vkrMainPassConstants pushConsts =
                 {
                     .localToWorld = matrices[i],
                     .IMc0 = invMatrices[i].c0,

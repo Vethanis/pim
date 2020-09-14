@@ -6,6 +6,7 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_image.h"
+#include "rendering/vulkan/vkr_attachment.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
@@ -88,17 +89,21 @@ bool vkrSwapchain_New(
     chain->width = ext.width;
     chain->height = ext.height;
 
-    VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, NULL));
-    if (imgCount > kMaxSwapchainLen)
+    // get swapchain images
     {
-        ASSERT(false);
-        vkDestroySwapchainKHR(dev, handle, NULL);
-        memset(chain, 0, sizeof(*chain));
-        return false;
+        VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, NULL));
+        if (imgCount > kMaxSwapchainLen)
+        {
+            ASSERT(false);
+            vkDestroySwapchainKHR(dev, handle, NULL);
+            memset(chain, 0, sizeof(*chain));
+            return false;
+        }
+        chain->length = imgCount;
+        VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, chain->images));
     }
-    chain->length = imgCount;
-    VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, chain->images));
 
+    // create image views
     for (u32 i = 0; i < imgCount; ++i)
     {
         const VkImageViewCreateInfo viewInfo =
@@ -117,53 +122,36 @@ bool vkrSwapchain_New(
         chain->views[i] = view;
     }
 
+    // create depth attachment
     {
-        const VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
-        chain->depthFormat = depthFormat;
-        const VkImageCreateInfo depthInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-            .imageType = VK_IMAGE_TYPE_2D,
-            .format = depthFormat,
-            .extent.width = chain->width,
-            .extent.height = chain->height,
-            .extent.depth = 1,
-            .mipLevels = 1,
-            .arrayLayers = 1,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .tiling = VK_IMAGE_TILING_OPTIMAL,
-            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        };
-        vkrImage_New(
-            &chain->depthImage,
-            &depthInfo,
-            vkrMemUsage_GpuOnly,
-            PIM_FILELINE);
-        ASSERT(chain->depthImage.handle);
-        const VkImageViewCreateInfo viewInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = chain->depthImage.handle,
-            .format = depthFormat,
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-            .subresourceRange.levelCount = 1,
-            .subresourceRange.layerCount = 1,
-        };
-        VkImageView view = NULL;
-        VkCheck(vkCreateImageView(dev, &viewInfo, NULL, &view));
-        ASSERT(view);
-        chain->depthView = view;
+        vkrAttachment_New(
+            &chain->depthAttachment,
+            chain->width,
+            chain->height,
+            VK_FORMAT_D32_SFLOAT,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
     }
 
+    // create luminance attachments
+    for(u32 i = 0; i < imgCount; ++i)
+    {
+        vkrAttachment_New(
+            &chain->lumAttachments[i],
+            chain->width,
+            chain->height,
+            VK_FORMAT_R16_SFLOAT,
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
+    }
+
+    // create synchronization objects
     for (i32 i = 0; i < kFramesInFlight; ++i)
     {
         chain->syncFences[i] = vkrFence_New(true);
         chain->availableSemas[i] = vkrSemaphore_New();
         chain->renderedSemas[i] = vkrSemaphore_New();
     }
+
+    // create presentation command buffers
     const VkCommandPoolCreateInfo cmdpoolinfo =
     {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -209,31 +197,18 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
             chain->presCmds[i] = NULL;
         }
 
-        if (chain->depthView)
-        {
-            vkDestroyImageView(g_vkr.dev, chain->depthView, NULL);
-            chain->depthView = NULL;
-        }
-        vkrImage_Del(&chain->depthImage);
+        vkrAttachment_Del(&chain->depthAttachment);
 
+        const i32 len = chain->length;
+        for (i32 i = 0; i < len; ++i)
         {
-            const i32 len = chain->length;
-            chain->length = 0;
-            for (i32 i = 0; i < len; ++i)
+            VkFramebuffer buffer = chain->buffers[i];
+            if (buffer)
             {
-                VkImageView view = chain->views[i];
-                VkFramebuffer buffer = chain->buffers[i];
-                chain->views[i] = NULL;
-                chain->buffers[i] = NULL;
-                if (view)
-                {
-                    vkDestroyImageView(g_vkr.dev, view, NULL);
-                }
-                if (buffer)
-                {
-                    vkDestroyFramebuffer(g_vkr.dev, buffer, NULL);
-                }
+                vkDestroyFramebuffer(g_vkr.dev, buffer, NULL);
             }
+            vkrImageView_Del(chain->views[i]);
+            vkrAttachment_Del(&chain->lumAttachments[i]);
         }
 
         if (chain->handle)
@@ -253,13 +228,12 @@ void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, VkRenderPass presentPass)
     const i32 len = chain->length;
     for (i32 i = 0; i < len; ++i)
     {
-        VkImageView attachments[] =
+        const VkImageView attachments[] =
         {
             chain->views[i],
-            chain->depthView,
+            chain->lumAttachments[i].view,
+            chain->depthAttachment.view,
         };
-        ASSERT(attachments[0]);
-        ASSERT(attachments[1]);
         VkFramebuffer buffer = chain->buffers[i];
         if (buffer)
         {

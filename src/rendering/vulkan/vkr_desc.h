@@ -11,11 +11,25 @@ VkDescriptorPool vkrDescPool_New(
 void vkrDescPool_Del(VkDescriptorPool pool);
 void vkrDescPool_Reset(VkDescriptorPool pool);
 
-VkDescriptorSet vkrDesc_New(vkrThreadContext* ctx, VkDescriptorSetLayout layout);
+VkDescriptorSet vkrDesc_New(VkDescriptorPool pool, VkDescriptorSetLayout layout);
+void vkrDesc_Del(VkDescriptorPool pool, VkDescriptorSet set);
 
 void vkrDesc_WriteBindings(
-    vkrThreadContext* ctx,
     i32 count,
     const vkrBinding* bindings);
+
+void vkrDesc_WriteImageTable(
+    VkDescriptorSet set,
+    i32 binding,
+    VkDescriptorType type,
+    i32 count,
+    const VkDescriptorImageInfo* bindings);
+
+void vkrDesc_WriteBufferTable(
+    VkDescriptorSet set,
+    i32 binding,
+    VkDescriptorType type,
+    i32 count,
+    const VkDescriptorBufferInfo* bindings);
 
 PIM_C_END

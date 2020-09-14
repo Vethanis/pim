@@ -55,8 +55,6 @@ void vkrContext_Del(vkrContext* ctx)
             vkrThreadContext_Del(&ctx->threads[tr]);
         }
         pim_free(ctx->threads);
-        vkrBuffer_Del(&ctx->percambuf);
-        vkrBuffer_Del(&ctx->percamstage);
         memset(ctx, 0, sizeof(*ctx));
     }
     ProfileEnd(pm_ctxdel);
@@ -87,36 +85,6 @@ bool vkrThreadContext_New(vkrThreadContext* ctx)
             goto cleanup;
         }
     }
-    const VkDescriptorPoolSize poolSizes[] =
-    {
-        {
-            .type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-            .descriptorCount = 8,
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 8,
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 8,
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = 8,
-        },
-    };
-    for (i32 i = 0; i < kFramesInFlight; ++i)
-    {
-        VkDescriptorPool descpool = vkrDescPool_New(1, NELEM(poolSizes), poolSizes);
-        ctx->descpools[i] = descpool;
-        ASSERT(descpool);
-        if (!descpool)
-        {
-            success = false;
-            goto cleanup;
-        }
-    }
 cleanup:
     if (!success)
     {
@@ -132,10 +100,6 @@ void vkrThreadContext_Del(vkrThreadContext* ctx)
     ProfileBegin(pm_trctxdel);
     if (ctx)
     {
-        for (i32 i = 0; i < kFramesInFlight; ++i)
-        {
-            vkrDescPool_Del(ctx->descpools[i]);
-        }
         for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
         {
             vkrCmdAlloc_Del(&ctx->cmds[id]);
