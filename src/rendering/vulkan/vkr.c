@@ -195,9 +195,9 @@ void vkr_update(void)
     vkrCmdBegin(cmd);
     vkrMainPass_Draw(&g_vkr.mainPass, cmd, fence);
     vkrCmdEnd(cmd);
-    vkrSwapchain_Present(chain);
-
+    vkrSwapchain_Submit(chain, cmd);
     vkrExposurePass_Execute(&g_vkr.exposurePass);
+    vkrSwapchain_Present(chain);
 
     if (cvar_get_bool(&cv_lm_upload))
     {

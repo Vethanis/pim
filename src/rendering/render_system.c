@@ -120,7 +120,7 @@ static float4 ms_toneParams;
 static float4 ms_clearColor;
 static vkrExposure ms_exposure =
 {
-    .manual = true,
+    .manual = false,
     .standard = true,
 
     .aperture = 1.4f,
@@ -810,6 +810,8 @@ void render_sys_gui(bool* pEnabled)
                 igSliderFloat("Hist Cdf Min", &exposure->minCdf, 0.0f, exposure->maxCdf - 0.01f);
                 igSliderFloat("Hist Cdf Max", &exposure->maxCdf, exposure->minCdf + 0.01f, 1.0f);
             }
+            float ptAvgLum = ms_exposure.avgLum;
+            ms_exposure = *exposure;
             igUnindent(0.0f);
         }
 

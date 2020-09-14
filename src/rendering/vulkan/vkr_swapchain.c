@@ -350,20 +350,16 @@ u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain, VkFramebuffer* bufferOut)
     return imageIndex;
 }
 
-ProfileMark(pm_present, vkrSwapchain_Present)
-void vkrSwapchain_Present(vkrSwapchain* chain)
+void vkrSwapchain_Submit(vkrSwapchain* chain, VkCommandBuffer cmd)
 {
     ASSERT(chain);
     ASSERT(chain->handle);
+    ASSERT(cmd);
 
     u32 syncIndex = chain->syncIndex;
-    VkCommandBuffer cmd = chain->presCmds[syncIndex];
+    ASSERT(cmd == chain->presCmds[syncIndex]);
     VkQueue gfxQueue = g_vkr.queues[vkrQueueId_Gfx].handle;
-    VkQueue presentQueue = g_vkr.queues[vkrQueueId_Pres].handle;
-
-    ASSERT(cmd);
     ASSERT(gfxQueue);
-    ASSERT(presentQueue);
 
     vkrFence_Reset(chain->syncFences[syncIndex]);
     vkrCmdSubmit(
@@ -373,6 +369,17 @@ void vkrSwapchain_Present(vkrSwapchain* chain)
         chain->availableSemas[syncIndex],
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         chain->renderedSemas[syncIndex]);
+}
+
+ProfileMark(pm_present, vkrSwapchain_Present)
+void vkrSwapchain_Present(vkrSwapchain* chain)
+{
+    ASSERT(chain);
+    ASSERT(chain->handle);
+
+    u32 syncIndex = chain->syncIndex;
+    VkQueue presentQueue = g_vkr.queues[vkrQueueId_Pres].handle;
+    ASSERT(presentQueue);
 
     ProfileBegin(pm_present);
 

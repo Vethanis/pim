@@ -19,7 +19,9 @@ u32 vkrSwapchain_AcquireSync(vkrSwapchain* chain, VkCommandBuffer* cmdOut, VkFen
 // acquire image index for a swapchain image
 // should be done for presentation render pass
 u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain, VkFramebuffer* bufferOut);
-// submits and presents final render pass to the swapchain
+// submits final render pass to the swapchain
+void vkrSwapchain_Submit(vkrSwapchain* chain, VkCommandBuffer cmd);
+// presents final render pass to the swapchain
 void vkrSwapchain_Present(vkrSwapchain* chain);
 
 VkViewport vkrSwapchain_GetViewport(const vkrSwapchain* chain);
