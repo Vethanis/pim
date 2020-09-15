@@ -18,7 +18,6 @@ static shaderc_include_result* vkrResolveInclude(
 
     char path[PIM_PATH] = { 0 };
     SPrintf(ARGS(path), "src/shaders/%s", includeFile);
-    StrPath(ARGS(path));
 
     shaderc_include_result* result = perm_calloc(sizeof(*result));
 
