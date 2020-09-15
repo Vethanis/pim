@@ -4,6 +4,8 @@
 
 PIM_C_BEGIN
 
+i32 vkrFormatToBpp(VkFormat format);
+
 i32 vkrTexture2D_MipCount(i32 width, i32 height);
 
 bool vkrTexture2D_New(

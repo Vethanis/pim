@@ -156,6 +156,39 @@ pim_inline float VEC_CALL sdTriangle2D(
     return -sqrtf(d.x) * f1_sign(d.y);
 }
 
+pim_inline float VEC_CALL sdTriangle3D(
+    float4 a,
+    float4 b,
+    float4 c,
+    float4 p)
+{
+    float4 ba = f4_sub(b, a); float4 pa = f4_sub(p, a);
+    float4 cb = f4_sub(c, b); float4 pb = f4_sub(p, b);
+    float4 ac = f4_sub(a, c); float4 pc = f4_sub(p, c);
+    float4 nor = f4_cross3(ba, ac);
+
+    float t0 = f1_sign(f4_dot3(f4_cross3(ba, nor), pa));
+    float t1 = f1_sign(f4_dot3(f4_cross3(cb, nor), pb));
+    float t2 = f1_sign(f4_dot3(f4_cross3(ac, nor), pc));
+    float t;
+    if ((t0 + t1 + t2) < 2.0f)
+    {
+        t0 = f1_sat(f4_dot3(ba, pa) / f4_lengthsq3(ba));
+        t1 = f1_sat(f4_dot3(cb, pb) / f4_lengthsq3(cb));
+        t2 = f1_sat(f4_dot3(ac, pc) / f4_lengthsq3(ac));
+        t0 = f4_lengthsq3(f4_sub(f4_mulvs(ba, t0), pa));
+        t1 = f4_lengthsq3(f4_sub(f4_mulvs(cb, t1), pb));
+        t2 = f4_lengthsq3(f4_sub(f4_mulvs(ac, t2), pc));
+        t = f1_min(t0, f1_min(t1, t2));
+    }
+    else
+    {
+        t0 = f4_dot3(nor, pa);
+        t = t0 * t0 / f4_lengthsq3(nor);
+    }
+    return sqrtf(t);
+}
+
 pim_inline float4 VEC_CALL isectTri3D(ray_t ray, float4 A, float4 B, float4 C)
 {
     float4 BA = f4_sub(B, A);
