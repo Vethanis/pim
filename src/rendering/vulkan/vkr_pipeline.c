@@ -124,29 +124,13 @@ VkPipeline vkrPipeline_NewGfx(
     ASSERT(layout);
     ASSERT(renderPass);
 
-    const i32 vertStreamCount = vertLayout->streamCount;
-    VkVertexInputBindingDescription* vertBindings = tmp_calloc(sizeof(vertBindings[0]) * vertStreamCount);
-    VkVertexInputAttributeDescription* vertAttribs = tmp_calloc(sizeof(vertAttribs[0]) * vertStreamCount);
-    for (i32 i = 0; i < vertStreamCount; ++i)
-    {
-        vkrVertType vtype = vertLayout->types[i];
-        i32 size = vkrVertTypeSize(vtype);
-        VkFormat format = vkrVertTypeFormat(vtype);
-        vertBindings[i].binding = i;
-        vertBindings[i].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        vertBindings[i].stride = size;
-        vertAttribs[i].binding = i;
-        vertAttribs[i].format = format;
-        vertAttribs[i].location = i;
-        vertAttribs[i].offset = 0;
-    }
     const VkPipelineVertexInputStateCreateInfo vertexInputInfo =
     {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = vertLayout->streamCount,
-        .pVertexBindingDescriptions = vertBindings,
-        .vertexAttributeDescriptionCount = vertLayout->streamCount,
-        .pVertexAttributeDescriptions = vertAttribs,
+        .vertexBindingDescriptionCount = vertLayout->bindingCount,
+        .pVertexBindingDescriptions = vertLayout->bindings,
+        .vertexAttributeDescriptionCount = vertLayout->attributeCount,
+        .pVertexAttributeDescriptions = vertLayout->attributes,
     };
     const VkPipelineInputAssemblyStateCreateInfo inputAssembly =
     {

@@ -16,7 +16,7 @@ struct PSInput
 struct PSOutput
 {
     float4 color : SV_Target0;
-    half luminance : SV_Target1;
+    //half luminance : SV_Target1;
 };
 
 [[vk::push_constant]]
@@ -45,6 +45,6 @@ PSOutput PSMain(PSInput input)
 {
     PSOutput output;
     output.color = MainTexture.Sample(MainSampler, input.uv) * input.color;
-    output.luminance = dot(output.color.xyz, 0.333333);
+    //output.luminance = dot(output.color.xyz, 0.333333);
     return output;
 }

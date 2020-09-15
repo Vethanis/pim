@@ -9,7 +9,6 @@
 #define kPi             3.141592653
 #define kTau            6.283185307
 #define kEpsilon        2.38418579e-7
-#define kGiDirections   5
 
 #define dotsat(a, b)    saturate(dot((a), (b)))
 

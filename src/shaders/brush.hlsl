@@ -1,13 +1,13 @@
 #include "Lighting.hlsl"
 #include "Color.hlsl"
 #include "Sampling.hlsl"
-#include "SG.hlsl"
+#include "TextureTable.hlsl"
+#include "GI.hlsl"
 
 struct PerCamera
 {
     float4x4 worldToClip;
     float4 eye;
-    float4 giAxii[kGiDirections];
     uint lmBegin;
     float exposure;
 };
@@ -53,16 +53,6 @@ cbuffer cameraData
     PerCamera cameraData;
 };
 
-[[vk::binding(2)]]
-SamplerState samplers[];
-[[vk::binding(2)]]
-Texture2D textures[];
-
-float4 SampleTexture(uint index, float2 uv)
-{
-    return textures[index].Sample(samplers[index], uv);
-}
-
 PSInput VSMain(VSInput input)
 {
     float4 positionOS = float4(input.positionOS.xyz, 1.0);
@@ -88,10 +78,10 @@ PSOutput PSMain(PSInput input)
     uint ni = kNormalIndex;
     float2 uv0 = input.uv01.xy;
 
-    float3 albedo = SampleTexture(ai, uv0).xyz;
+    float3 albedo = SampleTable(ai, uv0).xyz;
     albedo = max(kEpsilon, albedo);
-    float4 rome = SampleTexture(ri, uv0) * flatRome;
-    float3 normalTS = SampleTexture(ni, uv0).xyz;
+    float4 rome = SampleTable(ri, uv0) * flatRome;
+    float3 normalTS = SampleTable(ni, uv0).xyz;
 
     normalTS = normalize(normalTS * 2.0 - 1.0);
     float3 N = TbnToWorld(input.TBN, normalTS);
@@ -105,7 +95,6 @@ PSOutput PSMain(PSInput input)
     float metallic = rome.z;
     float emission = rome.w;
     float3 light = 0.0;
-    half luminance = 0.0;
     {
         float3 emissive = UnpackEmission(albedo, emission);
         light += emissive;
@@ -119,26 +108,15 @@ PSOutput PSMain(PSInput input)
     }
     {
         float2 uv1 = input.uv01.zw;
-        uint lmIndex = cameraData.lmBegin + input.lmIndex * kGiDirections;
+        uint lmIndex = GetLightmapIndex(cameraData.lmBegin, input.lmIndex);
         float3 R = reflect(-V, N);
-        float3 diffuseGI = 0.0;
-        float3 specularGI = 0.0;
-        for (uint i = 0; i < kGiDirections; ++i)
-        {
-            float4 ax = cameraData.giAxii[i];
-            ax.w = max(ax.w, kEpsilon);
-            ax.xyz = TbnToWorld(input.TBN, ax.xyz);
-            float3 probe = SampleTexture(lmIndex + i, uv1).xyz;
-            diffuseGI += SG_Irradiance(ax, probe, N);
-            specularGI += SG_Eval(ax, probe, R);
-        }
-        luminance += PerceptualLuminance(diffuseGI);
-        float3 indirect = IndirectBRDF(V, N, diffuseGI, specularGI, albedo, roughness, metallic, occlusion);
+        GISample gi = SampleLightmap(lmIndex, uv1, input.TBN, N, R);
+        float3 indirect = IndirectBRDF(V, N, gi.diffuse, gi.specular, albedo, roughness, metallic, occlusion);
         light += indirect;
     }
 
     PSOutput output;
-    output.luminance = luminance;
+    output.luminance = PerceptualLuminance(light);
     light *= cameraData.exposure;
     output.color = float4(saturate(TonemapACES(light)), 1.0);
     return output;

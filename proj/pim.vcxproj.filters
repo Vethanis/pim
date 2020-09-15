@@ -529,10 +529,22 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_mainpass.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\vulkan\vkr_imgui.c">
+    <ClCompile Include="..\src\rendering\vulkan\vkr_exposurepass.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\vulkan\vkr_exposurepass.c">
+    <ClCompile Include="..\src\rendering\vulkan\vkr_pass.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_opaquepass.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_textable.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_uipass.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_depthpass.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
   </ItemGroup>
@@ -1131,10 +1143,25 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_mainpass.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\vulkan\vkr_imgui.h">
+    <ClInclude Include="..\src\rendering\vulkan\vkr_exposurepass.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\vulkan\vkr_exposurepass.h">
+    <ClInclude Include="..\src\rendering\vulkan\vkr_depthpass.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_pass.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_textable.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_opaquepass.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_uipass.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_uipass.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
   </ItemGroup>
@@ -1192,6 +1219,12 @@
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="..\src\shaders\SG.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\TextureTable.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\GI.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
   </ItemGroup>

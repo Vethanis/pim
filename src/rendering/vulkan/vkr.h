@@ -126,6 +126,15 @@ typedef enum
     vkrMemUsage_CpuCopy = 5,
 } vkrMemUsage;
 
+typedef enum
+{
+    vkrPassId_Depth,
+    vkrPassId_Opaque,
+    vkrPassId_UI,
+
+    vkrPassId_COUNT
+} vkrPassId;
+
 typedef struct vkrBuffer
 {
     VkBuffer handle;
@@ -217,12 +226,12 @@ typedef struct vkrSwapchainSupport
     VkPresentModeKHR* modes;
 } vkrSwapchainSupport;
 
-// vkr supports 'SoA' layout (1 binding per attribute, no interleaving)
-// with a maximum of 8 streams, in sequential location
 typedef struct vkrVertexLayout
 {
-    i32 streamCount;
-    vkrVertType types[8];
+    i32 bindingCount;
+    const VkVertexInputBindingDescription* bindings;
+    i32 attributeCount;
+    const VkVertexInputAttributeDescription* attributes;
 } vkrVertexLayout;
 
 typedef struct vkrBlendState
@@ -351,16 +360,79 @@ typedef struct vkrAllocator
     mutex_t releasemtx;
 } vkrAllocator;
 
+typedef struct vkrTexTable
+{
+    vkrTexture2D black;
+    VkDescriptorImageInfo table[kTextureDescriptors];
+} vkrTexTable;
+
+typedef struct vkrPassContext
+{
+    VkRenderPass renderPass;
+    i32 subpass;
+    u32 syncIndex;
+    u32 imageIndex;
+    VkFramebuffer framebuffer;
+    VkCommandBuffer cmd;
+    VkFence fence;
+} vkrPassContext;
+
+typedef struct vkrPassDesc
+{
+// Graphics and Compute
+    VkPipelineBindPoint bindpoint;
+    i32 poolSizeCount;
+    const VkDescriptorPoolSize* poolSizes;
+    i32 bindingCount;
+    const VkDescriptorSetLayoutBinding* bindings;
+    i32 rangeCount;
+    const VkPushConstantRange* ranges;
+    i32 shaderCount;
+    const VkPipelineShaderStageCreateInfo* shaders;
+// Graphics only
+    VkRenderPass renderPass;
+    i32 subpass;
+    vkrVertexLayout vertLayout;
+    vkrFixedFuncs fixedFuncs;
+} vkrPassDesc;
+
+typedef struct vkrPass
+{
+    VkPipeline pipeline;
+    VkPipelineLayout layout;
+    VkDescriptorSetLayout setLayout;
+    VkDescriptorPool descPool;
+    VkDescriptorSet sets[kFramesInFlight];
+} vkrPass;
+
+// ----------------------------------------------------------------------------
+
+typedef struct vkrScreenBlit
+{
+    vkrBuffer meshbuf;
+    vkrBuffer stagebuf;
+    vkrImage image;
+} vkrScreenBlit;
+
+typedef struct vkrDepthPc
+{
+    float4x4 localToClip;
+} vkrDepthPc;
+
+typedef struct vkrDepthPass
+{
+    vkrPass pass;
+} vkrDepthPass;
+
 typedef struct vkrPerCamera
 {
     float4x4 worldToClip;
     float4 eye;
-    float4 giAxii[5];
     u32 lmBegin;
     float exposure;
 } vkrPerCamera;
 
-typedef struct vkrMainPassConstants
+typedef struct vkrOpaquePc
 {
     float4x4 localToWorld;
     float4 IMc0;
@@ -370,30 +442,21 @@ typedef struct vkrMainPassConstants
     u32 albedoIndex;
     u32 romeIndex;
     u32 normalIndex;
-} vkrMainPassConstants;
+} vkrOpaquePc;
 
-typedef struct vkrMainPass
+typedef struct vkrOpaquePass
 {
-    VkRenderPass renderPass;
-    VkPipeline pipeline;
-    VkPipelineLayout layout;
-    VkDescriptorSetLayout setLayout;
-    VkDescriptorPool descPool;
-    VkDescriptorSet sets[kFramesInFlight];
+    vkrPass pass;
     vkrBuffer perCameraBuffer[kFramesInFlight];
-} vkrMainPass;
+} vkrOpaquePass;
 
-typedef struct vkrImGui
+typedef struct vkrUIPass
 {
-    VkPipeline pipeline;
-    VkPipelineLayout layout;
-    VkDescriptorSetLayout setLayout;
-    VkDescriptorPool descPool;
-    VkDescriptorSet set;
+    vkrPass pass;
     vkrBuffer vertbufs[kFramesInFlight];
     vkrBuffer indbufs[kFramesInFlight];
     vkrTexture2D font;
-} vkrImGui;
+} vkrUIPass;
 
 typedef struct vkrExposure
 {
@@ -432,21 +495,19 @@ typedef struct vkrExposureConstants
 
 typedef struct vkrExposurePass
 {
-    VkPipeline pipeline;
-    VkPipelineLayout layout;
-    VkDescriptorSetLayout setLayout;
-    VkDescriptorPool descPool;
-    VkDescriptorSet sets[kFramesInFlight];
+    vkrPass pass;
     vkrBuffer histBuffers[kFramesInFlight];
     vkrExposure params;
 } vkrExposurePass;
 
-typedef struct vkrScreenBlit
+typedef struct vkrMainPass
 {
-    vkrBuffer meshbuf;
-    vkrBuffer stagebuf;
-    vkrImage image;
-} vkrScreenBlit;
+    VkRenderPass renderPass;
+    vkrScreenBlit blit;
+    vkrDepthPass depth;
+    vkrOpaquePass opaque;
+    vkrUIPass ui;
+} vkrMainPass;
 
 // ----------------------------------------------------------------------------
 
@@ -467,12 +528,8 @@ typedef struct vkr_t
     vkrContext context;
 
     vkrMainPass mainPass;
-    vkrImGui imguiPass;
     vkrExposurePass exposurePass;
-    vkrScreenBlit screenBlit;
-
-    vkrTexture2D nullTexture;
-    VkDescriptorImageInfo texTable[kTextureDescriptors];
+    vkrTexTable texTable;
 } vkr_t;
 extern vkr_t g_vkr;
 

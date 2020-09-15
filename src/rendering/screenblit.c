@@ -22,7 +22,7 @@ static const float2 kScreenMesh[] =
 
 // ----------------------------------------------------------------------------
 
-bool vkrScreenBlit_New(vkrScreenBlit* blit)
+bool vkrScreenBlit_New(vkrScreenBlit* blit, VkRenderPass renderPass)
 {
     ASSERT(blit);
     memset(blit, 0, sizeof(*blit));
@@ -107,18 +107,20 @@ void vkrScreenBlit_Del(vkrScreenBlit* blit)
 
 ProfileMark(pm_blit, vkrScreenBlit_Blit)
 void vkrScreenBlit_Blit(
+    const vkrPassContext* passCtx,
     vkrScreenBlit* blit,
-    VkCommandBuffer cmd,
-    VkImage dstImage,
-    u32 const *const pim_noalias texels,
-    i32 width,
-    i32 height)
+    const framebuf_t* fbuf)
 {
     ProfileBegin(pm_blit);
 
     vkrSwapchain const *const chain = &g_vkr.chain;
+    VkCommandBuffer cmd = passCtx->cmd;
+    VkImage dstImage = chain->images[passCtx->imageIndex];
     VkImage srcImage = blit->image.handle;
     VkBuffer stageBuf = blit->stagebuf.handle;
+    i32 width = fbuf->width;
+    i32 height = fbuf->height;
+    const u32* pim_noalias texels = fbuf->color;
 
     // copy input data to stage buffer
     {
