@@ -22,9 +22,11 @@
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
-#include "common/atomics.h"
 #include "common/cvar.h"
 #include "math/float4x4_funcs.h"
+#include "math/box.h"
+#include "math/frustum.h"
+#include "math/sdf.h"
 #include "threading/task.h"
 #include <string.h>
 
@@ -33,6 +35,7 @@
 typedef struct vkrTaskDraw
 {
     task_t task;
+    frus_t frustum;
     vkrMainPass* pass;
     const vkrSwapchain* chain;
     VkDescriptorSet descSet;
@@ -40,7 +43,7 @@ typedef struct vkrTaskDraw
     VkFence primaryFence;
     const drawables_t* drawables;
     VkCommandBuffer* buffers;
-    i32 buffercount;
+    float* distances;
     i32 subpass;
 } vkrTaskDraw;
 
@@ -90,7 +93,7 @@ bool vkrMainPass_New(vkrMainPass* pass)
         {
             .format = g_vkr.chain.colorFormat,
             .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
             .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -349,16 +352,21 @@ void vkrMainPass_Draw(
     const drawables_t* drawables = drawables_get();
     const i32 drawcount = drawables->count;
 
+    camera_t camera;
+    camera_get(&camera);
+
     VkCommandBuffer* seccmds = tmp_calloc(sizeof(seccmds[0]) * drawcount);
+    float* distances = tmp_calloc(sizeof(distances[0]) * drawcount);
     vkrTaskDraw* task = tmp_calloc(sizeof(*task));
+    camera_frustum(&camera, &task->frustum);
     task->drawables = drawables;
+    task->distances = distances;
     task->chain = chain;
     task->pass = pass;
     task->framebuffer = NULL;
     task->primaryFence = fence;
     task->descSet = descSet;
     task->buffers = seccmds;
-    task->buffercount = 0;
 
     if (!r_sw)
     {
@@ -435,8 +443,40 @@ void vkrMainPass_Draw(
     if (!r_sw)
     {
         task_await(task);
-        const i32 seccmdcount = task->buffercount;
-        vkrCmdExecCmds(cmd, seccmdcount, seccmds);
+        VkCommandBuffer* pim_noalias buffers = task->buffers;
+        float* pim_noalias distances = task->distances;
+        i32 drawcount = drawables->count;
+        for (i32 i = 0; i < drawcount; ++i)
+        {
+            if (!buffers[i])
+            {
+                buffers[i] = buffers[drawcount - 1];
+                distances[i] = distances[drawcount - 1];
+                --drawcount;
+                --i;
+            }
+        }
+        // TODO: use something faster than bubble sort
+        bool unsorted = true;
+        while (unsorted)
+        {
+            unsorted = false;
+            for (i32 i = 1; i < drawcount; ++i)
+            {
+                float a = distances[i - 1];
+                float b = distances[i];
+                if (a > b)
+                {
+                    distances[i - 1] = b;
+                    distances[i] = a;
+                    VkCommandBuffer t = buffers[i-1];
+                    buffers[i-1] = buffers[i];
+                    buffers[i] = t;
+                    unsorted = true;
+                }
+            }
+        }
+        vkrCmdExecCmds(cmd, drawcount, seccmds);
     }
 
     vkrCmdExecCmds(cmd, 1, &igcmd);
@@ -580,6 +620,7 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
     VkFence primaryFence = task->primaryFence;
     const drawables_t* drawables = task->drawables;
     VkCommandBuffer* buffers = task->buffers;
+    float* distances = task->distances;
     const VkPipelineBindPoint bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
     VkRect2D rect = vkrSwapchain_GetRect(chain);
@@ -598,43 +639,56 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
     const material_t* pim_noalias materials = drawables->materials;
     const float4x4* pim_noalias matrices = drawables->matrices;
     const float3x3* pim_noalias invMatrices = drawables->invMatrices;
+    const box_t* pim_noalias localBounds = drawables->bounds;
+
+    frus_t frustum = task->frustum;
+    plane_t fwd = frustum.z0;
+    {
+        // frustum has outward facing planes
+        // we want forward plane for depth sorting draw calls
+        float w = fwd.value.w;
+        fwd.value = f4_neg(fwd.value);
+        fwd.value.w = w;
+    }
 
     vkrThreadContext* ctx = vkrContext_Get();
-    VkCommandBuffer cmd = vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, primaryFence);
+    for (i32 i = begin; i < end; ++i)
     {
-        i32 bufferindex = inc_i32(&task->buffercount, MO_AcqRel);
-        ASSERT(bufferindex >= 0);
-        ASSERT(bufferindex < drawables->count);
-        buffers[bufferindex] = cmd;
-    }
-    vkrCmdBeginSec(cmd, renderPass, subpass, framebuffer);
-    {
-        vkrCmdViewport(cmd, viewport, rect);
-        vkCmdBindPipeline(cmd, bindpoint, pipeline);
-        vkrCmdBindDescSets(cmd, bindpoint, layout, 1, &descSet);
-        for (i32 i = begin; i < end; ++i)
+        buffers[i] = NULL;
+        distances[i] = 1 << 20;
+        float4x4 matrix = matrices[i];
+        box_t bounds = box_transform(matrices[i], localBounds[i]);
+        if (sdFrusBox(frustum, bounds) > 0.0f)
         {
-            mesh_t mesh;
-            if (mesh_get(meshids[i], &mesh))
+            continue;
+        }
+        mesh_t mesh;
+        if (mesh_get(meshids[i], &mesh))
+        {
+            distances[i] = sdPlaneBox3D(fwd, bounds);
+            VkCommandBuffer cmd = vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, primaryFence);
+            buffers[i] = cmd;
+            vkrCmdBeginSec(cmd, renderPass, subpass, framebuffer);
+            vkrCmdViewport(cmd, viewport, rect);
+            vkCmdBindPipeline(cmd, bindpoint, pipeline);
+            vkrCmdBindDescSets(cmd, bindpoint, layout, 1, &descSet);
+            const vkrMainPassConstants pushConsts =
             {
-                const vkrMainPassConstants pushConsts =
-                {
-                    .localToWorld = matrices[i],
-                    .IMc0 = invMatrices[i].c0,
-                    .IMc1 = invMatrices[i].c1,
-                    .IMc2 = invMatrices[i].c2,
-                    .flatRome = materials[i].flatRome,
-                    .albedoIndex = materials[i].albedo.index,
-                    .romeIndex = materials[i].rome.index,
-                    .normalIndex = materials[i].normal.index,
-                };
-                const u32 stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-                vkrCmdPushConstants(cmd, layout, stages, &pushConsts, sizeof(pushConsts));
-                vkrCmdDrawMesh(cmd, &mesh.vkrmesh);
-            }
+                .localToWorld = matrix,
+                .IMc0 = invMatrices[i].c0,
+                .IMc1 = invMatrices[i].c1,
+                .IMc2 = invMatrices[i].c2,
+                .flatRome = materials[i].flatRome,
+                .albedoIndex = materials[i].albedo.index,
+                .romeIndex = materials[i].rome.index,
+                .normalIndex = materials[i].normal.index,
+            };
+            const u32 stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+            vkrCmdPushConstants(cmd, layout, stages, &pushConsts, sizeof(pushConsts));
+            vkrCmdDrawMesh(cmd, &mesh.vkrmesh);
+            vkrCmdEnd(cmd);
         }
     }
-    vkrCmdEnd(cmd);
 }
 
 static VkCommandBuffer vkrDrawImGui(VkRenderPass renderPass, VkFence fence)
