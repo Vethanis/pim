@@ -16,8 +16,8 @@
 #include "rendering/vulkan/vkr_texture.h"
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_mainpass.h"
-#include "rendering/vulkan/vkr_imgui.h"
 #include "rendering/vulkan/vkr_exposurepass.h"
+#include "rendering/vulkan/vkr_textable.h"
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
 #include "rendering/texture.h"
@@ -107,12 +107,7 @@ bool vkr_init(i32 width, i32 height)
         goto cleanup;
     }
 
-    const u32 nullColor = 0x0;
-    if (!vkrTexture2D_New(
-        &g_vkr.nullTexture,
-        1, 1,
-        VK_FORMAT_R8G8B8A8_SRGB,
-        &nullColor, sizeof(nullColor)))
+    if (!vkrTexTable_New(&g_vkr.texTable))
     {
         success = false;
         goto cleanup;
@@ -123,17 +118,8 @@ bool vkr_init(i32 width, i32 height)
         success = false;
         goto cleanup;
     }
+
     if (!vkrExposurePass_New(&g_vkr.exposurePass))
-    {
-        success = false;
-        goto cleanup;
-    }
-    if (!vkrImGuiPass_New(&g_vkr.imguiPass, g_vkr.mainPass.renderPass))
-    {
-        success = false;
-        goto cleanup;
-    }
-    if (!vkrScreenBlit_New(&g_vkr.screenBlit))
     {
         success = false;
         goto cleanup;
@@ -192,6 +178,7 @@ void vkr_update(void)
     VkCommandBuffer cmd = NULL;
     vkrSwapchain_AcquireSync(chain, &cmd, &fence);
     vkrAllocator_Update(&g_vkr.allocator);
+    vkrTexTable_Update(&g_vkr.texTable);
     vkrCmdBegin(cmd);
     vkrMainPass_Draw(&g_vkr.mainPass, cmd, fence);
     vkrCmdEnd(cmd);
@@ -215,15 +202,13 @@ void vkr_shutdown(void)
         vkrDevice_WaitIdle();
 
         mesh_sys_vkfree();
-        vkrTexture2D_Del(&g_vkr.nullTexture);
         texture_sys_vkfree();
         lmpack_del(lmpack_get());
-
-        vkrScreenBlit_Del(&g_vkr.screenBlit);
         ui_sys_shutdown();
-        vkrImGuiPass_Del(&g_vkr.imguiPass);
+
         vkrExposurePass_Del(&g_vkr.exposurePass);
         vkrMainPass_Del(&g_vkr.mainPass);
+        vkrTexTable_Del(&g_vkr.texTable);
 
         vkrAllocator_Finalize(&g_vkr.allocator);
 

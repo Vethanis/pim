@@ -1455,7 +1455,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
         for (i32 i = 0; i < kGiDirections; ++i)
         {
             probe[i] = lightmap.probes[i][iTexel];
-            float4 ax = pack->axii[i];
+            float4 ax = kGiAxii[i];
             float sharpness = ax.w;
             ax = TbnToWorld(TBN, ax);
             ax.w = sharpness;
@@ -1510,7 +1510,6 @@ bool lmpack_save(const lmpack_t* pack, guid_t name)
         dpack.lmCount = lmcount;
         dpack.lmSize = pack->lmSize;
         dpack.texelsPerMeter = pack->texelsPerMeter;
-        memcpy(dpack.axii, pack->axii, sizeof(pack->axii));
         i32 wrote = fstr_write(fd, &dpack, sizeof(dpack));
         ASSERT(wrote == sizeof(dpack));
 
@@ -1588,7 +1587,6 @@ bool lmpack_load(lmpack_t* pack, guid_t name)
             pack->lmCount = lmcount;
             pack->lmSize = dlmpack.lmSize;
             pack->texelsPerMeter = dlmpack.texelsPerMeter;
-            memcpy(pack->axii, dlmpack.axii, sizeof(dlmpack.axii));
             pack->lightmaps = perm_calloc(sizeof(pack->lightmaps[0]) * lmcount);
 
             // read lightmap headers

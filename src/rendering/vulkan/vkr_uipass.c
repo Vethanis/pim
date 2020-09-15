@@ -1,4 +1,5 @@
-#include "rendering/vulkan/vkr_imgui.h"
+#include "rendering/vulkan/vkr_uipass.h"
+#include "rendering/vulkan/vkr_pass.h"
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_texture.h"
 #include "rendering/vulkan/vkr_desc.h"
@@ -7,6 +8,7 @@
 #include "rendering/vulkan/vkr_swapchain.h"
 #include "rendering/vulkan/vkr_renderpass.h"
 #include "rendering/vulkan/vkr_shader.h"
+#include "rendering/vulkan/vkr_context.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include "ui/cimgui.h"
@@ -15,49 +17,59 @@
 // ----------------------------------------------------------------------------
 
 static void vkrImGui_SetupRenderState(
-    vkrImGui* imgui,
+    vkrUIPass* imgui,
     const ImDrawData* draw_data,
     VkCommandBuffer command_buffer,
     i32 fb_width,
     i32 fb_height);
-static void vkrImGui_UploadRenderDrawData(vkrImGui* imgui, ImDrawData* draw_data);
+static void vkrImGui_UploadRenderDrawData(vkrUIPass* imgui, ImDrawData* draw_data);
 static void vkrImGui_RenderDrawData(
-    vkrImGui* imgui,
+    vkrUIPass* imgui,
     ImDrawData* draw_data,
     VkCommandBuffer command_buffer);
 
 // ----------------------------------------------------------------------------
 
-bool vkrImGuiPass_New(vkrImGui* imgui, VkRenderPass renderPass)
+bool vkrUIPass_New(vkrUIPass* imgui, VkRenderPass renderPass)
 {
     ASSERT(imgui);
-    ASSERT(g_vkr.dev);
     ASSERT(renderPass);
     memset(imgui, 0, sizeof(*imgui));
+
+    bool success = true;
 
     // Setup back-end capabilities flags
     {
         ImGuiIO* io = igGetIO();
+        ASSERT(io);
         io->BackendRendererName = "vkrImGui";
         io->BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
         io->ConfigFlags |= ImGuiConfigFlags_IsSRGB;
     }
 
     // Create Mesh Buffers:
-    for (i32 i = 0; i < NELEM(imgui->vertbufs); ++i)
+    for (i32 i = 0; i < kFramesInFlight; ++i)
     {
-        vkrBuffer_New(
+        if (!vkrBuffer_New(
             &imgui->vertbufs[i],
             1024,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             vkrMemUsage_CpuToGpu,
-            PIM_FILELINE);
-        vkrBuffer_New(
+            PIM_FILELINE))
+        {
+            success = false;
+            goto cleanup;
+        }
+        if (!vkrBuffer_New(
             &imgui->indbufs[i],
             1024,
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
             vkrMemUsage_CpuToGpu,
-            PIM_FILELINE);
+            PIM_FILELINE))
+        {
+            success = false;
+            goto cleanup;
+        }
     }
 
     // Create Font Texture:
@@ -73,111 +85,60 @@ bool vkrImGuiPass_New(vkrImGui* imgui, VkRenderPass renderPass)
 
         ASSERT(pixels);
         ASSERT(upload_size > 0);
-        vkrTexture2D_New(
+        if (!vkrTexture2D_New(
             &imgui->font,
             width,
             height,
             VK_FORMAT_R8G8B8A8_SRGB,
             pixels,
-            upload_size);
+            upload_size))
+        {
+            success = false;
+            goto cleanup;
+        }
 
         // Store our identifier
         io->Fonts->TexID = (ImTextureID)imgui->font.image.handle;
     }
 
-    // Create Descriptor Pool:
+    VkPipelineShaderStageCreateInfo shaders[2] = { 0 };
+    if (!vkrShader_New(&shaders[0], "imgui.hlsl", "VSMain", vkrShaderType_Vert))
     {
-        const VkDescriptorPoolSize sizes[] =
-        {
-            {
-                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                1,
-            },
-        };
-        imgui->descPool = vkrDescPool_New(1, NELEM(sizes), sizes);
+        success = false;
+        goto cleanup;
+    }
+    if (!vkrShader_New(&shaders[1], "imgui.hlsl", "PSMain", vkrShaderType_Frag))
+    {
+        success = false;
+        goto cleanup;
     }
 
-    // Create Descriptor Set Layout:
+    const VkDescriptorPoolSize poolSizes[] =
     {
-        const VkSampler samplers[] = { imgui->font.sampler };
-        const VkDescriptorSetLayoutBinding bindings[] =
         {
-            {
-                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .descriptorCount = NELEM(samplers),
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .pImmutableSamplers = samplers,
-            },
-        };
-        const VkDescriptorSetLayoutCreateInfo info =
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            1,
+        },
+    };
+    const VkSampler samplers[] = { imgui->font.sampler };
+    const VkDescriptorSetLayoutBinding bindings[] =
+    {
         {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = NELEM(bindings),
-            .pBindings = bindings,
-        };
-        imgui->setLayout = vkrSetLayout_New(NELEM(bindings), bindings, 0x0);
-    }
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = NELEM(samplers),
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = samplers,
+        },
+    };
+    const VkPushConstantRange ranges[] =
+    {
+        {
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+            .size = sizeof(float) * 4,
+        },
+    };
 
-    // Create Descriptor Set:
-    {
-        const VkDescriptorSetAllocateInfo alloc_info =
-        {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = imgui->descPool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &imgui->setLayout,
-        };
-        imgui->set = vkrDesc_New(imgui->descPool, imgui->setLayout);
-    }
-
-    // Update the Descriptor Set:
-    {
-        const VkDescriptorImageInfo desc_images[] =
-        {
-            {
-                .sampler = imgui->font.sampler,
-                .imageView = imgui->font.view,
-                .imageLayout = imgui->font.layout,
-            },
-        };
-        const VkWriteDescriptorSet write_descs[] =
-        {
-            {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = imgui->set,
-                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .descriptorCount = NELEM(desc_images),
-                .pImageInfo = desc_images,
-            },
-        };
-        vkUpdateDescriptorSets(g_vkr.dev, NELEM(write_descs), write_descs, 0, NULL);
-    }
-
-    // Create Pipeline Layout:
-    {
-        const VkPushConstantRange ranges[] =
-        {
-            {
-                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-                .size = sizeof(float) * 4,
-            },
-        };
-        const VkDescriptorSetLayout setLayouts[] = { imgui->setLayout };
-        imgui->layout = vkrPipelineLayout_New(
-            NELEM(setLayouts), setLayouts,
-            NELEM(ranges), ranges);
-    }
-
-    VkPipelineShaderStageCreateInfo stages[2] = {0};
-    if (!vkrShader_New(&stages[0], "imgui.hlsl", "VSMain", vkrShaderType_Vert))
-    {
-        return false;
-    }
-    if (!vkrShader_New(&stages[1], "imgui.hlsl", "PSMain", vkrShaderType_Frag))
-    {
-        return false;
-    }
-    const VkVertexInputBindingDescription binding_descs[] =
+    const VkVertexInputBindingDescription vertBindings[] =
     {
         {
             .stride = sizeof(ImDrawVert),
@@ -185,7 +146,7 @@ bool vkrImGuiPass_New(vkrImGui* imgui, VkRenderPass renderPass)
         },
     };
 
-    const VkVertexInputAttributeDescription attribute_descs[] =
+    const VkVertexInputAttributeDescription vertAttributes[] =
     {
         {
             .location = 0,
@@ -207,150 +168,125 @@ bool vkrImGuiPass_New(vkrImGui* imgui, VkRenderPass renderPass)
         },
     };
 
-    const VkPipelineVertexInputStateCreateInfo vertex_info =
+    const vkrPassDesc desc =
     {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = NELEM(binding_descs),
-        .pVertexBindingDescriptions = binding_descs,
-        .vertexAttributeDescriptionCount = NELEM(attribute_descs),
-        .pVertexAttributeDescriptions = attribute_descs,
-    };
-
-    const VkPipelineInputAssemblyStateCreateInfo ia_info =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-    };
-
-    const VkPipelineViewportStateCreateInfo viewport_info =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .scissorCount = 1,
-    };
-
-    const VkPipelineRasterizationStateCreateInfo raster_info =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_NONE,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .lineWidth = 1.0f,
-    };
-
-    const VkPipelineMultisampleStateCreateInfo ms_info =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-    };
-
-    const VkPipelineColorBlendAttachmentState color_attachments[] =
-    {
-        {
-            .blendEnable = true,
-            .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .colorBlendOp = VK_BLEND_OP_ADD,
-            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-            .alphaBlendOp = VK_BLEND_OP_ADD,
-            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-        },
-        {
-            .blendEnable = true,
-            .srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-            .colorBlendOp = VK_BLEND_OP_ADD,
-            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-            .alphaBlendOp = VK_BLEND_OP_ADD,
-            .colorWriteMask = 0x0,
-        },
-    };
-
-    const VkPipelineDepthStencilStateCreateInfo depth_info =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-    };
-
-    const VkPipelineColorBlendStateCreateInfo blend_info =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .attachmentCount = NELEM(color_attachments),
-        .pAttachments = color_attachments,
-    };
-
-    const VkDynamicState dynamic_states[] =
-    {
-        VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR,
-    };
-    const VkPipelineDynamicStateCreateInfo dynamic_state =
-    {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = NELEM(dynamic_states),
-        .pDynamicStates = dynamic_states,
-    };
-
-    const VkGraphicsPipelineCreateInfo info =
-    {
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .flags = 0x0,
-        .stageCount = NELEM(stages),
-        .pStages = stages,
-        .pVertexInputState = &vertex_info,
-        .pInputAssemblyState = &ia_info,
-        .pViewportState = &viewport_info,
-        .pRasterizationState = &raster_info,
-        .pMultisampleState = &ms_info,
-        .pDepthStencilState = &depth_info,
-        .pColorBlendState = &blend_info,
-        .pDynamicState = &dynamic_state,
-        .layout = imgui->layout,
+        .bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .renderPass = renderPass,
+        .subpass = vkrPassId_UI,
+        .vertLayout =
+        {
+            .bindingCount = NELEM(vertBindings),
+            .bindings = vertBindings,
+            .attributeCount = NELEM(vertAttributes),
+            .attributes = vertAttributes,
+        },
+        .fixedFuncs =
+        {
+            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            .polygonMode = VK_POLYGON_MODE_FILL,
+            .cullMode = VK_CULL_MODE_NONE,
+            .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+            .depthCompareOp = VK_COMPARE_OP_ALWAYS,
+            .scissorOn = true,
+            .depthClamp = false,
+            .depthTestEnable = false,
+            .depthWriteEnable = false,
+            .attachmentCount = 1,
+            .attachments[0] =
+            {
+                .blendEnable = true,
+                .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .colorBlendOp = VK_BLEND_OP_ADD,
+                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+                .alphaBlendOp = VK_BLEND_OP_ADD,
+                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            },
+        },
+        .poolSizeCount = NELEM(poolSizes),
+        .poolSizes = poolSizes,
+        .bindingCount = NELEM(bindings),
+        .bindings = bindings,
+        .rangeCount = NELEM(ranges),
+        .ranges = ranges,
+        .shaderCount = NELEM(shaders),
+        .shaders = shaders,
     };
-    VkCheck(vkCreateGraphicsPipelines(g_vkr.dev, NULL, 1, &info, NULL, &imgui->pipeline));
 
-    vkrShader_Del(&stages[0]);
-    vkrShader_Del(&stages[1]);
+    if (!vkrPass_New(&imgui->pass, &desc))
+    {
+        success = false;
+        goto cleanup;
+    }
 
-    return imgui->pipeline != NULL;
+    {
+        const VkDescriptorImageInfo desc_images[] =
+        {
+            {
+                .sampler = imgui->font.sampler,
+                .imageView = imgui->font.view,
+                .imageLayout = imgui->font.layout,
+            },
+        };
+        for (i32 i = 0; i < kFramesInFlight; ++i)
+        {
+            const VkWriteDescriptorSet write_descs[] =
+            {
+                {
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = imgui->pass.sets[i],
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = NELEM(desc_images),
+                    .pImageInfo = desc_images,
+                },
+            };
+            vkUpdateDescriptorSets(g_vkr.dev, NELEM(write_descs), write_descs, 0, NULL);
+        }
+    }
+
+cleanup:
+    for (i32 i = 0; i < NELEM(shaders); ++i)
+    {
+        vkrShader_Del(&shaders[i]);
+    }
+    if (!success)
+    {
+        vkrUIPass_Del(imgui);
+    }
+
+    return success;
 }
 
-void vkrImGuiPass_Del(vkrImGui* imgui)
+void vkrUIPass_Del(vkrUIPass* pass)
 {
-    if (imgui)
+    if (pass)
     {
-        ASSERT(g_vkr.dev);
-        vkDeviceWaitIdle(g_vkr.dev);
-
-        vkrTexture2D_Del(&imgui->font);
-        for (i32 i = 0; i < NELEM(imgui->vertbufs); ++i)
+        vkrTexture2D_Del(&pass->font);
+        for (i32 i = 0; i < kFramesInFlight; ++i)
         {
-            vkrBuffer_Del(&imgui->vertbufs[i]);
-            vkrBuffer_Del(&imgui->indbufs[i]);
+            vkrBuffer_Del(&pass->vertbufs[i]);
+            vkrBuffer_Del(&pass->indbufs[i]);
         }
-        vkrDescPool_Del(imgui->descPool);
-        vkrSetLayout_Del(imgui->setLayout);
-        vkrPipelineLayout_Del(imgui->layout);
-        vkrPipeline_Del(imgui->pipeline);
-
-        memset(imgui, 0, sizeof(*imgui));
+        vkrPass_Del(&pass->pass);
+        memset(pass, 0, sizeof(*pass));
     }
 }
 
 ProfileMark(pm_igrender, igRender)
-ProfileMark(pm_draw, vkrImGuiPass_Draw)
-void vkrImGuiPass_Draw(
-    vkrImGui* imgui,
-    VkCommandBuffer cmd)
+ProfileMark(pm_draw, vkrUIPass_Draw)
+void vkrUIPass_Draw(const vkrPassContext* ctx, vkrUIPass* pass)
 {
     ProfileBegin(pm_igrender);
     igRender();
     ProfileEnd(pm_igrender);
 
     ProfileBegin(pm_draw);
-    vkrImGui_RenderDrawData(imgui, igGetDrawData(), cmd);
+    VkCommandBuffer cmd = vkrContext_GetSecCmd(vkrContext_Get(), vkrQueueId_Gfx, ctx->fence);
+    vkrCmdBeginSec(cmd, ctx->renderPass, ctx->subpass, ctx->framebuffer);
+    vkrImGui_RenderDrawData(pass, igGetDrawData(), cmd);
+    vkrCmdEnd(cmd);
+    vkrCmdExecCmds(ctx->cmd, 1, &cmd);
     ProfileEnd(pm_draw);
 }
 
@@ -358,7 +294,7 @@ void vkrImGuiPass_Draw(
 
 ProfileMark(pm_setuprenderstate, vkrImGui_SetupRenderState)
 static void vkrImGui_SetupRenderState(
-    vkrImGui* imgui,
+    vkrUIPass* imgui,
     const ImDrawData* draw_data,
     VkCommandBuffer cmd,
     i32 fb_width,
@@ -372,12 +308,12 @@ static void vkrImGui_SetupRenderState(
         vkCmdBindPipeline(
             cmd,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            imgui->pipeline);
-        const VkDescriptorSet descSets[] = { imgui->set };
+            imgui->pass.pipeline);
+        const VkDescriptorSet descSets[] = { imgui->pass.sets[syncIndex] };
         vkCmdBindDescriptorSets(
             cmd,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            imgui->layout,
+            imgui->pass.layout,
             0, NELEM(descSets), descSets,
             0, NULL);
     }
@@ -423,7 +359,7 @@ static void vkrImGui_SetupRenderState(
         };
         vkCmdPushConstants(
             cmd,
-            imgui->layout,
+            imgui->pass.layout,
             VK_SHADER_STAGE_VERTEX_BIT,
             0, sizeof(constants), constants);
     }
@@ -431,7 +367,7 @@ static void vkrImGui_SetupRenderState(
 }
 
 ProfileMark(pm_upload, vkrImGui_UploadRenderDrawData)
-static void vkrImGui_UploadRenderDrawData(vkrImGui* imgui, ImDrawData* draw_data)
+static void vkrImGui_UploadRenderDrawData(vkrUIPass* imgui, ImDrawData* draw_data)
 {
     ProfileBegin(pm_upload);
 
@@ -491,7 +427,7 @@ static void vkrImGui_UploadRenderDrawData(vkrImGui* imgui, ImDrawData* draw_data
 
 ProfileMark(pm_render, vkrImGui_RenderDrawData)
 static void vkrImGui_RenderDrawData(
-    vkrImGui* imgui,
+    vkrUIPass* imgui,
     ImDrawData* draw_data,
     VkCommandBuffer command_buffer)
 {

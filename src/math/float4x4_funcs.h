@@ -239,7 +239,7 @@ pim_inline float4x4 VEC_CALL f4x4_ortho(
     return m;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_perspective(
+pim_inline float4x4 VEC_CALL f4x4_glperspective(
     float fovy,
     float aspect,
     float zNear,
@@ -253,6 +253,17 @@ pim_inline float4x4 VEC_CALL f4x4_perspective(
     m.c2.z = -1.0f * (zFar + zNear) / (zFar - zNear);
     m.c2.w = -1.0f;
     m.c3.z = -2.0f * (zFar * zNear) / (zFar - zNear);
+    return m;
+}
+
+pim_inline float4x4 VEC_CALL f4x4_vkperspective(
+    float fovy,
+    float aspect,
+    float zNear,
+    float zFar)
+{
+    float4x4 m = f4x4_glperspective(fovy, aspect, zNear, zFar);
+    f4x4_11(m) *= -1.0f;
     return m;
 }
 

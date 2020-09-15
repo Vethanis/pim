@@ -2,6 +2,7 @@
 #include "allocator/allocator.h"
 #include "math/sampling.h"
 #include "common/random.h"
+#include "common/console.h"
 
 pim_inline float4 VEC_CALL SampleDir(float2 Xi, SGDist dist)
 {
@@ -89,14 +90,9 @@ void SG_Generate(float4* pim_noalias axii, i32 count, SGDist dist)
         axii[i].w = sharpness;
     }
 
-    // de-correlate directions
-    prng_t rng = prng_get();
+    con_logf(LogSev_Info, "sg", "GI Directions: ");
     for (i32 i = 0; i < count; ++i)
     {
-        i32 j = prng_i32(&rng) % count;
-        float4 tmp = axii[i];
-        axii[i] = axii[j];
-        axii[j] = tmp;
+        con_logf(LogSev_Info, "sg", "%f, %f, %f, %f", axii[i].x, axii[i].y, axii[i].z, axii[i].w);
     }
-    prng_set(rng);
 }

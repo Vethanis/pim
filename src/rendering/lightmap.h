@@ -12,6 +12,15 @@ PIM_C_BEGIN
 #define kLmPackVersion      1
 #define kGiDirections       5
 
+static const float4 kGiAxii[kGiDirections] =
+{
+    { 1.000000f, 0.000000f, 0.000000f, 3.210700f },
+    { 0.267616f, 0.823639f, 0.500000f, 3.210700f },
+    { -0.783327f, 0.569121f, 0.250000f, 3.210700f },
+    { -0.535114f, -0.388783f, 0.750000f, 3.210700f },
+    { 0.306594f, -0.943597f, 0.125000f, 3.210700f },
+};
+
 typedef struct task_s task_t;
 typedef struct pt_scene_s pt_scene_t;
 
@@ -51,7 +60,6 @@ typedef struct dlmpack_s
     i32 directions;
     i32 lmCount;
     i32 lmSize;
-    float4 axii[kGiDirections];
     float texelsPerMeter;
 } dlmpack_t;
 

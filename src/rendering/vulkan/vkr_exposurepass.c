@@ -9,6 +9,9 @@
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_sync.h"
+#include "rendering/vulkan/vkr_pass.h"
+
+#include "rendering/exposure.h"
 
 #include "allocator/allocator.h"
 #include "common/profiler.h"
@@ -25,11 +28,25 @@ bool vkrExposurePass_New(vkrExposurePass* pass)
     memset(pass, 0, sizeof(*pass));
     bool success = true;
 
-    VkPipelineShaderStageCreateInfo shader = { 0 };
-    if (!vkrShader_New(&shader, "BuildHistogram.hlsl", "CSMain", vkrShaderType_Comp))
+    VkPipelineShaderStageCreateInfo shaders[1] = { 0 };
+    if (!vkrShader_New(&shaders[0], "BuildHistogram.hlsl", "CSMain", vkrShaderType_Comp))
     {
         success = false;
         goto cleanup;
+    }
+    for (i32 i = 0; i < kFramesInFlight; ++i)
+    {
+        const i32 bytes = sizeof(u32) * kHistogramSize;
+        if (!vkrBuffer_New(
+            &pass->histBuffers[i],
+            bytes,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            vkrMemUsage_CpuToGpu,
+            PIM_FILELINE))
+        {
+            success = false;
+            goto cleanup;
+        }
     }
     const VkDescriptorSetLayoutBinding bindings[] =
     {
@@ -48,13 +65,6 @@ bool vkrExposurePass_New(vkrExposurePass* pass)
             .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
         },
     };
-    VkDescriptorSetLayout setLayout = vkrSetLayout_New(NELEM(bindings), bindings, 0x0);
-    pass->setLayout = setLayout;
-    if (!setLayout)
-    {
-        success = false;
-        goto cleanup;
-    }
     const VkPushConstantRange ranges[] =
     {
         {
@@ -62,21 +72,7 @@ bool vkrExposurePass_New(vkrExposurePass* pass)
             .size = sizeof(vkrExposureConstants),
         },
     };
-    VkPipelineLayout layout = vkrPipelineLayout_New(1, &setLayout, NELEM(ranges), ranges);
-    pass->layout = layout;
-    if (!layout)
-    {
-        success = false;
-        goto cleanup;
-    }
-    VkPipeline pipeline = vkrPipeline_NewComp(layout, &shader);
-    pass->pipeline = pipeline;
-    if (!pipeline)
-    {
-        success = false;
-        goto cleanup;
-    }
-    const VkDescriptorPoolSize descSizes[] =
+    const VkDescriptorPoolSize poolSizes[] =
     {
         {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -87,45 +83,30 @@ bool vkrExposurePass_New(vkrExposurePass* pass)
             .descriptorCount = 1,
         },
     };
-    VkDescriptorPool descPool = vkrDescPool_New(kFramesInFlight, NELEM(descSizes), descSizes);
-    pass->descPool = descPool;
-    if (!descPool)
+
+    const vkrPassDesc desc =
+    {
+        .bindpoint = VK_PIPELINE_BIND_POINT_COMPUTE,
+        .poolSizeCount = NELEM(poolSizes),
+        .poolSizes = poolSizes,
+        .bindingCount = NELEM(bindings),
+        .bindings = bindings,
+        .rangeCount = NELEM(ranges),
+        .ranges = ranges,
+        .shaderCount = NELEM(shaders),
+        .shaders = shaders,
+    };
+    if (!vkrPass_New(&pass->pass, &desc))
     {
         success = false;
         goto cleanup;
-    }
-
-    for (i32 i = 0; i < kFramesInFlight; ++i)
-    {
-        VkDescriptorSet set = vkrDesc_New(descPool, setLayout);
-        pass->sets[i] = set;
-        if (!set)
-        {
-            success = false;
-            goto cleanup;
-        }
-    }
-
-    for (i32 i = 0; i < kFramesInFlight; ++i)
-    {
-        const i32 bytes = sizeof(u32) * kHistogramSize;
-        if (!vkrBuffer_New(
-            &pass->histBuffers[i],
-            bytes,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu,
-            PIM_FILELINE))
-        {
-            success = false;
-            goto cleanup;
-        }
     }
 
     {
         vkrBinding histBindings[kFramesInFlight] = { 0 };
         for (i32 i = 0; i < kFramesInFlight; ++i)
         {
-            histBindings[i].set = pass->sets[i];
+            histBindings[i].set = pass->pass.sets[i];
             histBindings[i].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             histBindings[i].binding = 1;
             histBindings[i].buffer.buffer = pass->histBuffers[i].handle;
@@ -135,7 +116,10 @@ bool vkrExposurePass_New(vkrExposurePass* pass)
     }
 
 cleanup:
-    vkrShader_Del(&shader);
+    for (i32 i = 0; i < NELEM(shaders); ++i)
+    {
+        vkrShader_Del(&shaders[i]);
+    }
     if (!success)
     {
         vkrExposurePass_Del(pass);
@@ -147,10 +131,7 @@ void vkrExposurePass_Del(vkrExposurePass* pass)
 {
     if (pass)
     {
-        vkrPipeline_Del(pass->pipeline);
-        vkrDescPool_Del(pass->descPool);
-        vkrPipelineLayout_Del(pass->layout);
-        vkrSetLayout_Del(pass->setLayout);
+        vkrPass_Del(&pass->pass);
         for (i32 i = 0; i < NELEM(pass->histBuffers); ++i)
         {
             vkrBuffer_Del(&pass->histBuffers[i]);
@@ -165,12 +146,12 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
     ProfileBegin(pm_execute);
 
     const vkrSwapchain* chain = &g_vkr.chain;
-    u32 imgIndex = chain->imageIndex;
-    u32 syncIndex = chain->syncIndex;
+    const u32 imgIndex = chain->imageIndex;
+    const u32 syncIndex = chain->syncIndex;
     const vkrAttachment* lum = &chain->lumAttachments[imgIndex];
 
-    u32 gfxFamily = g_vkr.queues[vkrQueueId_Gfx].family;
-    u32 cmpFamily = g_vkr.queues[vkrQueueId_Comp].family;
+    const u32 gfxFamily = g_vkr.queues[vkrQueueId_Gfx].family;
+    const u32 cmpFamily = g_vkr.queues[vkrQueueId_Comp].family;
 
     vkrThreadContext* ctx = vkrContext_Get();
 
@@ -304,13 +285,13 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             &toCompute);
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pass->pipeline);
-        VkDescriptorSet set = pass->sets[syncIndex];
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pass->pass.pipeline);
+        VkDescriptorSet set = pass->pass.sets[syncIndex];
         vkrExposurePass_WriteDesc(lum, set);
         vkCmdBindDescriptorSets(
-            cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pass->layout, 0, 1, &set, 0, NULL);
-        i32 width = chain->width;
-        i32 height = chain->height;
+            cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pass->pass.layout, 0, 1, &set, 0, NULL);
+        const i32 width = chain->width;
+        const i32 height = chain->height;
         const vkrExposureConstants constants =
         {
             .width = width,
@@ -319,9 +300,9 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
             .maxEV = pass->params.maxEV,
         };
         vkCmdPushConstants(
-            cmd, pass->layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(vkrExposureConstants), &constants);
-        i32 dispatchX = (width + 15) / 16;
-        i32 dispatchY = (height + 15) / 16;
+            cmd, pass->pass.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(vkrExposureConstants), &constants);
+        const i32 dispatchX = (width + 15) / 16;
+        const i32 dispatchY = (height + 15) / 16;
         vkCmdDispatch(cmd, dispatchX, dispatchY, 1);
         vkrCmdImageBarrier(
             cmd,
@@ -368,87 +349,21 @@ static void vkrExposurePass_WriteDesc(const vkrAttachment* img, VkDescriptorSet 
     vkrDesc_WriteBindings(NELEM(imgBindings), imgBindings);
 }
 
-static float LumToEV100(float Lavg)
-{
-    // EV100 = log2((Lavg * S) / K)
-    // S = 100
-    // K = 12.5
-    // S/K = 8
-    return log2f(Lavg * 8.0f);
-}
-
-// https://www.desmos.com/calculator/vorr8hwdl7
-static float EV100ToLum(float ev100)
-{
-    return exp2f(ev100) / 8.0f;
-}
-
 static float BinToEV(i32 i, float minEV, float dEV)
 {
     // i varies from 1 to 255
     // reciprocal range is: 1.0 / 254.0
     float ev = minEV + (i - 1) * dEV;
     // log2(kEpsilon) == -22
-    ev = i > 0 ? ev : -22.0f;
+    ev = i <= 0 ? -22.0f : ev;
     return ev;
 }
 
-static float AdaptLuminance(float lum0, float lum1, float dt, float tau)
-{
-    float t = 1.0f - expf(-dt * tau);
-    return f1_lerp(lum0, lum1, f1_sat(t));
-}
-
-static float ManualEV100(float aperture, float shutterTime, float ISO)
-{
-    float a = (aperture * aperture) / shutterTime;
-    float b = 100.0f / ISO;
-    return log2f(a * b);
-}
-
-static float SaturationExposure(float ev100)
-{
-    const float factor = 78.0f / (100.0f * 0.65f);
-    float Lmax = factor * EV100ToLum(ev100);
-    return 1.0f / Lmax;
-}
-
-static float StandardExposure(float ev100)
-{
-    const float midGrey = 0.18f;
-    const float factor = 10.0f / (100.0f * 0.65f);
-    float Lavg = factor * EV100ToLum(ev100);
-    return midGrey / Lavg;
-}
-
-static float CalcExposure(const vkrExposure* args)
-{
-    float ev100;
-    if (args->manual)
-    {
-        ev100 = ManualEV100(args->aperture, args->shutterTime, args->ISO);
-    }
-    else
-    {
-        ev100 = LumToEV100(args->avgLum);
-    }
-
-    ev100 = ev100 - args->offsetEV;
-
-    float exposure;
-    if (args->standard)
-    {
-        exposure = StandardExposure(ev100);
-    }
-    else
-    {
-        exposure = SaturationExposure(ev100);
-    }
-    return exposure;
-}
-
+ProfileMark(pm_adapt, vkrExposurePass_AdaptHistogram)
 static void vkrExposurePass_AdaptHistogram(vkrExposurePass* pass, u32* pim_noalias histogram)
 {
+    ProfileBegin(pm_adapt);
+
     ASSERT(histogram);
     i32 width = g_vkr.chain.width;
     i32 height = g_vkr.chain.height;
@@ -498,4 +413,6 @@ static void vkrExposurePass_AdaptHistogram(vkrExposurePass* pass, u32* pim_noali
         pass->params.deltaTime,
         pass->params.adaptRate);
     pass->params.exposure = CalcExposure(&pass->params);
+
+    ProfileEnd(pm_adapt);
 }

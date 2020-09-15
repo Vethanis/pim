@@ -94,22 +94,26 @@
     <ClCompile Include="..\src\rendering\r_window.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_context.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_debug.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_depthpass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_desc.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_device.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_display.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_exposurepass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_image.c" />
-    <ClCompile Include="..\src\rendering\vulkan\vkr_imgui.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_uipass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_mainpass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_mem.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_mesh.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_opaquepass.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_pass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_pipeline.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_queue.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_renderpass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_shader.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_swapchain.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_sync.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_textable.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_texture.c" />
     <ClCompile Include="..\src\rendering\vulkan\vk_mem_alloc.cpp" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
@@ -265,16 +269,19 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_compile.h" />
     <ClInclude Include="..\src\rendering\r_window.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_debug.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_depthpass.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_desc.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_device.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_display.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_exposurepass.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_image.h" />
-    <ClInclude Include="..\src\rendering\vulkan\vkr_imgui.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_uipass.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_instance.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_mainpass.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_mem.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_mesh.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_opaquepass.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_pass.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_pipeline.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_queue.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_renderpass.h" />
@@ -282,7 +289,9 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_swapchain.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_sync.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_context.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_textable.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_texture.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_uipass.h" />
     <ClInclude Include="..\src\sokol\sokol_audio.h" />
     <ClInclude Include="..\src\sokol\sokol_time.h" />
     <ClInclude Include="..\src\stb\stb_perlin_fork.h" />
@@ -398,6 +407,14 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
+    <FxCompile Include="..\src\shaders\GI.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
     <FxCompile Include="..\src\shaders\Macro.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
@@ -463,6 +480,14 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
     <FxCompile Include="..\src\shaders\SG.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\TextureTable.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
