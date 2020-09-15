@@ -146,10 +146,6 @@ typedef struct pt_scene_s
 
 // ----------------------------------------------------------------------------
 
-static cvar_t cv_pt_nee = { .type = cvart_float,.name = "pt_nee",.value = "1",.minFloat = 0.0f,.maxFloat = 1.0f,.desc = "ratio of next event estimation to unidirectional tracing" };
-
-// ----------------------------------------------------------------------------
-
 static void OnRtcError(void* user, RTCError error, const char* msg);
 static bool InitRTC(void);
 static void InitSamplers(void);
@@ -360,7 +356,6 @@ static void InitSamplers(void)
 
 void pt_sys_init(void)
 {
-    cvar_reg(&cv_pt_nee);
     cv_pt_lgrid_mpc = cvar_find("pt_lgrid_mpc");
 
     InitRTC();
@@ -705,8 +700,6 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
     const float metersPerCell = cvar_get_float(cv_pt_lgrid_mpc);
     const float minDist = f1_max(metersPerCell * 0.5f, kMinLightDist);
     const float minDistSq = minDist * minDist;
-    const float surfIrradiance = UnpackEmission(f4_1, 1.0f).x;
-    const float skyIrradiance = 1365.0f;
 
     for (i32 i = begin; i < end; ++i)
     {
@@ -717,26 +710,14 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
         for (i32 iList = 0; iList < emissiveCount; ++iList)
         {
             i32 iVert = emissives[iList];
+            i32 iMat = matIds[iVert];
             float4 A = positions[iVert + 0];
             float4 B = positions[iVert + 1];
             float4 C = positions[iVert + 2];
-            float4 mid = f4_divvs(f4_add(f4_add(A, B), C), 3.0f);
-
-            float distA = f4_distancesq3(A, position);
-            float distB = f4_distancesq3(B, position);
-            float distC = f4_distancesq3(C, position);
-            float distMid = f4_distancesq3(mid, position);
-            float distSq = f1_min(distA, f1_min(distB, f1_min(distC, distMid)));
+            float distance = sdTriangle3D(A, B, C, position);
+            float distSq = distance * distance;
             distSq = f1_max(minDistSq, distSq - metersPerCell * 0.5f);
-
-            float irradiance = surfIrradiance;
-
-            const material_t* material = materials + matIds[iVert];
-            if (material->flags & matflag_sky)
-            {
-                irradiance = skyIrradiance;
-            }
-            float power = irradiance / distSq;
+            float power = 1.0f / distSq;
 
             dist.pdf[iList] = power * weight;
         }
@@ -900,8 +881,8 @@ void dofinfo_new(dofinfo_t* dof)
 {
     if (dof)
     {
-        dof->aperture = 15.0f * kMilli;
-        dof->focalLength = 2.0f;
+        dof->aperture = 25.0f * kMilli;
+        dof->focalLength = 4.0f;
         dof->bladeCount = 5;
         dof->bladeRot = kPi / 10.0f;
         dof->focalPlaneCurvature = 0.1f;
@@ -1517,17 +1498,17 @@ static void media_desc_new(media_desc_t* desc)
     desc->constantAlbedo = f4_v(0.75f, 0.75f, 0.75f, 0.5f);
     desc->noiseAlbedo = f4_v(0.75f, 0.75f, 0.75f, -0.5f);
     desc->absorption = 0.1f;
-    desc->constantAmt = exp2f(-10.0f);
-    desc->noiseAmt = exp2f(-10.0f);
+    desc->constantAmt = exp2f(-20.0f);
+    desc->noiseAmt = exp2f(-20.0f);
     desc->noiseOctaves = 2;
     desc->noiseGain = 0.5f;
     desc->noiseLacunarity = 2.0666f;
     desc->noiseFreq = 1.0f;
     desc->noiseHeight = 20.0f;
     desc->noiseScale = exp2f(-5.0f);
-    desc->phaseDirA = 0.874f;
+    desc->phaseDirA = 0.5f;
     desc->phaseDirB = -0.5f;
-    desc->phaseBlend = 0.1f;
+    desc->phaseBlend = 0.5f;
     media_desc_update(desc);
 }
 
@@ -1652,15 +1633,15 @@ static void media_desc_gui(media_desc_t* desc)
         igSliderFloat("Phase Dir A", &desc->phaseDirA, -0.99f, 0.99f);
         igSliderFloat("Phase Dir B", &desc->phaseDirB, -0.99f, 0.99f);
         igSliderFloat("Phase Blend", &desc->phaseBlend, 0.0f, 1.0f);
-        igLog2SliderFloat("Log2 Absorption", &desc->absorption, -10.0f, 10.0f);
+        igLog2SliderFloat("Log2 Absorption", &desc->absorption, -20.0f, 5.0f);
         igColorEdit3("Constant Albedo", &desc->constantAlbedo.x, ldrPicker);
-        igLog2SliderFloat("Log2 Constant Amount", &desc->constantAmt, -10.0f, 10.0f);
+        igLog2SliderFloat("Log2 Constant Amount", &desc->constantAmt, -20.0f, 5.0f);
         igColorEdit3("Noise Albedo", &desc->noiseAlbedo.x, ldrPicker);
-        igLog2SliderFloat("Log2 Noise Amount", &desc->noiseAmt, -10.0f, 10.0f);
+        igLog2SliderFloat("Log2 Noise Amount", &desc->noiseAmt, -20.0f, 5.0f);
         igSliderInt("Noise Octaves", &desc->noiseOctaves, 1, 10, "%d");
         igSliderFloat("Noise Gain", &desc->noiseGain, 0.0f, 1.0f);
         igSliderFloat("Noise Lacunarity", &desc->noiseLacunarity, 1.0f, 3.0f);
-        igLog2SliderFloat("Log2 Noise Frequency", &desc->noiseFreq, -10.0f, 10.0f);
+        igLog2SliderFloat("Log2 Noise Frequency", &desc->noiseFreq, -5.0f, 5.0f);
         igSliderFloat("Noise Height", &desc->noiseHeight, -20.0f, 20.0f);
         igLog2SliderFloat("Log2 Noise Scale", &desc->noiseScale, -5.0f, 5.0f);
         igUnindent(0.0f);
@@ -1869,6 +1850,26 @@ pim_inline float4 VEC_CALL CalcTransmittance(
     return attenuation;
 }
 
+pim_inline float4 VEC_CALL SamplePhaseDir(
+    pt_sampler_t* sampler,
+    const media_desc_t* desc,
+    float4 rd)
+{
+#if 0
+    float4 L = SampleUnitSphere(Sample2D(sampler));
+    L.w = 1.0f / (4.0f * kPi);
+#else
+    const float Mg = (4.0f * kPi) / 3.0f;
+    float4 L;
+    do
+    {
+        L = SampleUnitSphere(Sample2D(sampler));
+        L.w = CalcPhase(desc, f4_dot3(rd, L));
+    } while (Sample1D(sampler) > (L.w * Mg));
+#endif
+    return L;
+}
+
 pim_inline scatter_t VEC_CALL ScatterRay(
     pt_sampler_t* sampler,
     const pt_scene_t* scene,
@@ -1913,11 +1914,11 @@ pim_inline scatter_t VEC_CALL ScatterRay(
             }
 
             result.pos = f4_add(ro, f4_mulvs(rd, t));
-            result.dir = SampleUnitSphere(Sample2D(sampler));
-            result.pdf = 1.0f / (4.0f * kPi);
+            result.dir = SamplePhaseDir(sampler, desc, rd);
+            result.pdf = result.dir.w;
             float ph = CalcPhase(desc, f4_dot3(rd, result.dir));
             result.attenuation = f4_mulvs(result.attenuation, ph);
-        }
+    }
 
         float4 uT = Media_Extinction(media);
         float4 ratio = f4_inv(f4_mulvs(uT, rcpUmax));
@@ -1927,7 +1928,7 @@ pim_inline scatter_t VEC_CALL ScatterRay(
         {
             break;
         }
-    }
+}
 
     return result;
 }
@@ -1940,8 +1941,7 @@ pt_result_t VEC_CALL pt_trace_ray(
     pt_result_t result = { 0 };
     float4 light = f4_0;
     float4 attenuation = f4_1;
-    const float amtNee = f1_sat(cv_pt_nee.asFloat);
-    bool neeTrace = Sample1D(sampler) < amtNee;
+    u32 prevFlags = 0;
 
     for (i32 b = 0; b < 666; ++b)
     {
@@ -1992,18 +1992,10 @@ pt_result_t VEC_CALL pt_trace_ray(
             result.normal = f4_f3(N);
         }
 
-        bool neeBounce = neeTrace;
-        // next event estimation is a bit wonky with refraction
-        if (surf.flags & (matflag_refractive | matflag_underwater))
-        {
-            neeBounce = false;
-        }
-
-        if ((b == 0) || !neeBounce)
+        if ((b == 0) || (prevFlags & matflag_refractive))
         {
             light = f4_add(light, f4_mul(surf.emission, attenuation));
         }
-        if (neeBounce)
         {
             float4 direct = SampleLights(sampler, scene, &surf, &hit, ray.rd);
             light = f4_add(light, f4_mul(direct, attenuation));
@@ -2018,6 +2010,7 @@ pt_result_t VEC_CALL pt_trace_ray(
         ray.rd = scatter.dir;
 
         attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
+        prevFlags = surf.flags;
     }
 
     result.color = f4_f3(light);
