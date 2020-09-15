@@ -18,7 +18,7 @@ PIM_DECL_HANDLE(VmaAllocation);
 typedef enum
 {
     kMaxSwapchainLen = 3,
-    kDesiredSwapchainLen = 2,
+    kDesiredSwapchainLen = 3,
     kFramesInFlight = 3,
     kTextureDescriptors = 1024,
     kHistogramSize = 256,

@@ -389,7 +389,6 @@ PSOutput PSMain(PSInput input)
     {
         float3 emissive = UnpackEmission(albedo, emission);
         light += emissive;
-        luminance += PerceptualLuminance(emissive);
     }
     {
         //float3 L = cameraData[0].lightDir.xyz;
@@ -397,7 +396,6 @@ PSOutput PSMain(PSInput input)
         //float3 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
         //float3 direct = brdf * lightColor * dotsat(N, L);
         //light += direct;
-        //luminance += PerceptualLuminance(direct / albedo);
     }
     {
         float2 uv1 = input.uv01.zw;
@@ -414,9 +412,9 @@ PSOutput PSMain(PSInput input)
             diffuseGI += SG_Irradiance(ax, probe, N);
             specularGI += SG_Eval(ax, probe, R);
         }
+        luminance += PerceptualLuminance(diffuseGI);
         float3 indirect = IndirectBRDF(V, N, diffuseGI, specularGI, albedo, roughness, metallic, occlusion);
         light += indirect;
-        luminance += PerceptualLuminance(indirect / albedo);
     }
 
     PSOutput output;

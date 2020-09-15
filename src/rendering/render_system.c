@@ -127,12 +127,12 @@ static vkrExposure ms_exposure =
     .shutterTime = 0.1f,
     .ISO = 100.0f,
 
-    .adaptRate = 1.0f,
+    .adaptRate = 0.5f,
     .offsetEV = 0.0f,
     .minCdf = 0.05f,
     .maxCdf = 0.95f,
-    .minEV = -10.0f,
-    .maxEV = 10.0f,
+    .minEV = -22.0f,
+    .maxEV = 22.0f,
 };
 
 static camera_t ms_ptcam;
@@ -809,6 +809,8 @@ void render_sys_gui(bool* pEnabled)
                 igSliderFloat("Adapt Rate", &exposure->adaptRate, 0.1f, 10.0f);
                 igSliderFloat("Hist Cdf Min", &exposure->minCdf, 0.0f, exposure->maxCdf - 0.01f);
                 igSliderFloat("Hist Cdf Max", &exposure->maxCdf, exposure->minCdf + 0.01f, 1.0f);
+                igSliderFloat("Min EV", &exposure->minEV, -22.0f, exposure->maxEV - 0.1f);
+                igSliderFloat("Max EV", &exposure->maxEV, exposure->minEV + 0.1f, 22.0f);
             }
             float ptAvgLum = ms_exposure.avgLum;
             ms_exposure = *exposure;

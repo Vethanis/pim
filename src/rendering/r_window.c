@@ -14,7 +14,7 @@ static cvar_t cv_fpslimit =
 {
     .type = cvart_int,
     .name = "fps_limit",
-    .value = "250",
+    .value = "1000",
     .minInt = 1,
     .maxInt = 1000,
     .desc = "limits fps when above this value"
