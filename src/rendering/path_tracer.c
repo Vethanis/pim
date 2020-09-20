@@ -1180,6 +1180,7 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     float k = etaI / etaT;
     float F = Schlick(NoV, k);
 
+    bool refracted = false;
     float4 R;
     if (((k*sinTheta) > 1.0f) || (Sample1D(sampler) < F))
     {
@@ -1189,6 +1190,7 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     {
         R = f4_refract3(I, N, k);
         F = 1.0f - F;
+        refracted = true;
     }
 
     bool above = f4_dot3(R, M) > 0.0f;
@@ -1200,13 +1202,15 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     float NoL = f1_max(f1_abs(f4_dot3(N, L)), kEpsilon);
     float pdf = F * f1_lerp(1.0f, LambertPdf(NoL), alpha);
 
-
-    float4 albedo = surf->albedo;
-    float hi = f4_hmax3(albedo) + kEpsilon;
-    float4 norm = f4_mulvs(albedo, 1.0f / hi);
-    albedo = f4_lerpvs(f4_s(0.5f), norm, 0.5f);
-
-    float4 att = f4_saturate(f4_mulvs(albedo, F / NoL));
+    float4 H = f4_normalize3(f4_add(f4_neg(I), L));
+    float HoV = f1_abs(f4_dot3(H, V));
+    // lighten albedo, quake's are too dark for refraction
+    float4 albedo = f4_lerpvs(surf->albedo, f4_1, 0.5f);
+    float4 att = F_Schlick(albedo, f4_1, HoV);
+    if (refracted)
+    {
+        att = f4_inv(att);
+    }
 
     scatter_t result = { 0 };
     result.pos = P;
