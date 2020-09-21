@@ -1161,9 +1161,6 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_uipass.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\vulkan\vkr_uipass.h">
-      <Filter>Source Files\rendering\vulkan</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">
@@ -1178,6 +1175,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\src\tools\prehash.py">
+      <Filter>Source Files\tools</Filter>
+    </None>
+    <None Include="..\src\tools\dllcopy.sh">
       <Filter>Source Files\tools</Filter>
     </None>
   </ItemGroup>

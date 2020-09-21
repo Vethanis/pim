@@ -213,7 +213,7 @@ pim_inline float4 VEC_CALL BrdfEval(
     const surfhit_t* surf,
     float4 L);
 pim_inline scatter_t VEC_CALL RefractScatter(
-    pt_sampler_t* sampler,
+	pt_sampler_t* sampler,
     const surfhit_t* surf,
     float4 I);
 pim_inline scatter_t VEC_CALL BrdfScatter(
@@ -267,7 +267,11 @@ pim_inline media_t VEC_CALL Media_Sample(const media_desc_t* desc, float4 P);
 pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P);
 pim_inline float4 VEC_CALL Media_Normal(const media_desc_t* desc, float4 P);
 pim_inline media_t VEC_CALL Media_Lerp(media_t lhs, media_t rhs, float t);
-pim_inline i32 VEC_CALL CalcStepCount(float rayLen);
+pim_inline bool VEC_CALL RussianRoulette(
+    pt_sampler_t* sampler,
+    float4* pAttenuation);
+pim_inline float VEC_CALL SampleFreePath(float Xi, float rcpU);
+pim_inline float VEC_CALL FreePathPdf(float t, float u);
 pim_inline float4 VEC_CALL CalcTransmittance(
     pt_sampler_t* sampler,
     const pt_scene_t* scene,
@@ -284,6 +288,7 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end);
 static void RayGenFn(task_t* pBase, i32 begin, i32 end);
 pim_inline float VEC_CALL Sample1D(pt_sampler_t* sampler);
 pim_inline float2 VEC_CALL Sample2D(pt_sampler_t* sampler);
+pim_inline bool VEC_CALL SampleBool(pt_sampler_t* sampler);
 pim_inline pt_sampler_t VEC_CALL GetSampler(void);
 pim_inline void VEC_CALL SetSampler(pt_sampler_t sampler);
 
@@ -1162,7 +1167,7 @@ pim_inline float4 VEC_CALL BrdfEval(
 }
 
 pim_inline scatter_t VEC_CALL RefractScatter(
-    pt_sampler_t* sampler,
+	pt_sampler_t* sampler,
     const surfhit_t* surf,
     float4 I)
 {
@@ -2216,6 +2221,11 @@ pim_inline float VEC_CALL Sample1D(pt_sampler_t* sampler)
 pim_inline float2 VEC_CALL Sample2D(pt_sampler_t* sampler)
 {
     return f2_rand(&sampler->rng);
+}
+
+pim_inline bool VEC_CALL SampleBool(pt_sampler_t* sampler)
+{
+    return Sample1D(sampler) < 0.5f;
 }
 
 pim_inline pt_sampler_t VEC_CALL GetSampler(void)
