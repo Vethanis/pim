@@ -370,6 +370,7 @@
     <Natvis Include="natvis\tables.natvis" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\src\tools\datacopy.sh" />
     <None Include="..\src\tools\dllcopy.sh" />
     <None Include="..\src\tools\prehash.py" />
   </ItemGroup>

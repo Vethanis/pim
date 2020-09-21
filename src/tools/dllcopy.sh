@@ -5,7 +5,7 @@ TBB="submodules/embree/embree-3.10.0.x64.vc14.windows/bin/tbb.dll"
 OIDN="submodules/oidn/oidn-1.2.0.x64.vc14.windows/bin/OpenImageDenoise.dll"
 TBB_MALLOC="submodules/oidn/oidn-1.2.0.x64.vc14.windows/bin/tbbmalloc.dll"
 
-cd ../../
+pushd ../../
 
 mkdir -p "proj/x64/Debug"
 mkdir -p "proj/x64/Release"
@@ -22,4 +22,4 @@ cp "${OIDN}" "proj/x64/Release/OpenImageDenoise.dll"
 cp "${TBB_MALLOC}" "proj/x64/Debug/tbbmalloc.dll"
 cp "${TBB_MALLOC}" "proj/x64/Release/tbbmalloc.dll"
 
-cd src/tools
+popd

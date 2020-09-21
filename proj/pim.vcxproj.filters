@@ -1180,6 +1180,9 @@
     <None Include="..\src\tools\dllcopy.sh">
       <Filter>Source Files\tools</Filter>
     </None>
+    <None Include="..\src\tools\datacopy.sh">
+      <Filter>Source Files\tools</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="..\src\shaders\first_tri.hlsl">

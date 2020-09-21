@@ -4,10 +4,11 @@
   - [About](#about)
     - [Goals](#goals)
   - [Dependencies](#dependencies)
-    - [Data](#data)
   - [Usage](#usage)
     - [Cloning](#cloning)
     - [Pulling](#pulling)
+    - [Building](#building)
+    - [Keybinds](#keybinds)
 
 ## About
 
@@ -47,10 +48,18 @@ Long term goals:
 
 ## Dependencies
 
-### Data
-
-* PAK files from [Quake](https://store.steampowered.com/app/2310/QUAKE/)
-  * Place at pim/data/id1/PAK0.PAK PAK1.PAK
+* [Visual Studio](https://visualstudio.microsoft.com/vs/community/)
+  * Visual C/C++ Toolset v141
+  * Windows SDK 17763
+  * MSBuild
+* [Vulkan SDK](https://vulkan.lunarg.com/sdk/home#sdk/downloadConfirm/latest/windows/vulkan-sdk.exe)
+  * Requires a Vulkan 1.2 compatible driver
+  * Requires shaderc_shared.dll for runtime shader compilation (included in SDK)
+  * VK_KHR_swapchain is the only mandatory extension
+  * VK_NV_ray_tracing may become mandatory in the future
+* [PAK files](https://store.steampowered.com/app/2310/QUAKE/)
+* [Git Bash](https://git-scm.com/downloads)
+  * Used for tool scripts and version control
 * Optional: The [soundtrack](https://steamcommunity.com/sharedfiles/filedetails/?id=119489135)
 
 ## Usage
@@ -72,10 +81,21 @@ This repository uses [submodules](https://github.blog/2016-02-01-working-with-su
 
 ### Building
 
-Pim currently only uses visual studio 2017 for building the project.
-* After cloning the repo recursively, open the solution file under the proj folder and press F7 to build.
-* You may need to copy the following DLLs into the proj/x64/Release folder from the submodules:
-  * embree3.dll
-  * OpenImageDenoise.dll
-  * tbb.dll
-  * tbbmalloc.dll
+* Clone the repo recursively
+* Run src/tools/dllcopy.sh in Git Bash
+* Run src/tools/datacopy.sh in Git Bash
+* Open proj/pim.sln in Visual Studio 2017 or newer
+* Build with F7 or Ctrl+Shift+B
+* Run with F5
+
+### Keybinds
+
+* F1: Toggle between UI mode and flycam mode
+* F8: Toggle denoiser for path tracer
+* F9: Toggle path tracer
+* F10: Screenshot path tracer / denoiser output
+* grave accent: Toggle console window
+* A/D: left/right strafe in flycam mode
+* W/S: forward/backward in flycam mode
+* space/left shift: upward/downward in flycam mode
+* mouse: yaw and pitch in flycam mode
