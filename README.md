@@ -81,6 +81,10 @@ This repository uses [submodules](https://github.blog/2016-02-01-working-with-su
 
 ### Building
 
+* Install Visual Studio
+* Install the Vulkan SDK
+* Install Git Bash
+* Buy and Download Quake
 * Clone the repo recursively
 * Run src/tools/dllcopy.sh in Git Bash
 * Run src/tools/datacopy.sh in Git Bash
