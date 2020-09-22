@@ -65,6 +65,7 @@
     <ClCompile Include="..\src\quake\q_model.c" />
     <ClCompile Include="..\src\quake\q_packfile.c" />
     <ClCompile Include="..\src\rendering\camera.c" />
+    <ClCompile Include="..\src\rendering\constants.c" />
     <ClCompile Include="..\src\rendering\cubemap.c" />
     <ClCompile Include="..\src\rendering\denoise.c" />
     <ClCompile Include="..\src\rendering\drawable.c" />

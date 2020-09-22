@@ -412,6 +412,8 @@ typedef struct vkrScreenBlit
     vkrBuffer meshbuf;
     vkrBuffer stagebuf;
     vkrImage image;
+    i32 width;
+    i32 height;
 } vkrScreenBlit;
 
 typedef struct vkrDepthPc

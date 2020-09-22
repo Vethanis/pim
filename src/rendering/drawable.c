@@ -9,7 +9,6 @@
 #include "math/box.h"
 #include "math/sampling.h"
 #include "rendering/camera.h"
-#include "rendering/constants.h"
 #include "rendering/path_tracer.h"
 #include "rendering/lightmap.h"
 #include "rendering/sampler.h"

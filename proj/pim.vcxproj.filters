@@ -547,6 +547,9 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_depthpass.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\constants.c">
+      <Filter>Source Files\rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -770,9 +773,6 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\carray.h">
       <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\rendering\constants.h">
-      <Filter>Source Files\rendering</Filter>
     </ClInclude>
     <ClInclude Include="..\src\ui\cimgui.h">
       <Filter>Source Files\ui</Filter>
@@ -1158,8 +1158,8 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_opaquepass.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\vulkan\vkr_uipass.h">
-      <Filter>Source Files\rendering\vulkan</Filter>
+    <ClInclude Include="..\src\rendering\constants.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -277,11 +277,13 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
 
     const vkrSwapchain* chain = &g_vkr.chain;
     const drawables_t* drawables = drawables_get();
-    i32 drawcount = drawables->count;
+	i32 drawcount = drawables->count;
+	const i32 width = chain->width;
+	const i32 height = chain->height;
+	const float aspect = (float)width / (float)height;
 
     camera_t camera;
     camera_get(&camera);
-    float aspect = (float)chain->width / chain->height;
     float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
     float4 up = quat_up(camera.rotation);
     float4x4 view = f4x4_lookat(camera.position, at, up);
@@ -292,12 +294,12 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
     vkrTaskDraw* task = tmp_calloc(sizeof(*task));
 
     task->buffers = buffers;
-    task->chain = &g_vkr.chain;
+    task->chain = chain;
     task->descSet = pass->pass.sets[ctx->syncIndex];
     task->distances = distances;
     task->drawables = drawables;
     task->framebuffer = ctx->framebuffer;
-    camera_frustum(&camera, &task->frustum);
+    camera_frustum(&camera, &task->frustum, aspect);
     task->pass = pass;
     task->primaryFence = ctx->fence;
     task->renderPass = ctx->renderPass;

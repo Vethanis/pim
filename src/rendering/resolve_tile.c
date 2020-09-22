@@ -3,7 +3,6 @@
 #include "rendering/framebuffer.h"
 #include "rendering/sampler.h"
 #include "math/color.h"
-#include "rendering/constants.h"
 #include "rendering/tonemap.h"
 #include "common/profiler.h"
 #include "allocator/allocator.h"
