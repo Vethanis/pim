@@ -15,6 +15,5 @@ typedef struct framebuf_s
 
 void framebuf_create(framebuf_t* buf, i32 width, i32 height);
 void framebuf_destroy(framebuf_t* buf);
-i32 framebuf_color_bytes(framebuf_t buf);
 
 PIM_C_END

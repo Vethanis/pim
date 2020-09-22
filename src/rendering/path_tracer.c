@@ -838,19 +838,16 @@ void pt_scene_gui(pt_scene_t* scene)
 void pt_trace_new(
     pt_trace_t* trace,
     pt_scene_t* scene,
-    const camera_t* camera,
     int2 imageSize)
 {
     ASSERT(trace);
     ASSERT(scene);
-    ASSERT(camera);
     if (trace)
     {
         const i32 texelCount = imageSize.x * imageSize.y;
         ASSERT(texelCount > 0);
 
         trace->imageSize = imageSize;
-        trace->camera = camera;
         trace->scene = scene;
         trace->sampleWeight = 1.0f;
         trace->color = perm_calloc(sizeof(trace->color[0]) * texelCount);
@@ -2129,13 +2126,13 @@ static void TraceFn(task_t* pbase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_trace, pt_trace)
-void pt_trace(pt_trace_t* desc)
+void pt_trace(pt_trace_t* desc, const camera_t* camera)
 {
     ProfileBegin(pm_trace);
 
     ASSERT(desc);
     ASSERT(desc->scene);
-    ASSERT(desc->camera);
+    ASSERT(camera);
     ASSERT(desc->color);
     ASSERT(desc->albedo);
     ASSERT(desc->normal);
@@ -2144,7 +2141,7 @@ void pt_trace(pt_trace_t* desc)
 
     trace_task_t* task = tmp_calloc(sizeof(*task));
     task->trace = desc;
-    task->camera = desc->camera[0];
+    task->camera = *camera;
 
     const i32 workSize = desc->imageSize.x * desc->imageSize.y;
     task_run(&task->task, TraceFn, workSize);

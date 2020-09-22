@@ -1,6 +1,5 @@
 #include "rendering/camera.h"
 #include "math/frustum.h"
-#include "rendering/constants.h"
 
 static camera_t ms_camera = 
 {
@@ -29,17 +28,16 @@ void camera_reset(void)
     ms_camera.rotation = quat_id;
 }
 
-void camera_frustum(const camera_t* src, struct frus_s* dst)
+void camera_frustum(const camera_t* src, frus_t* dst, float aspect)
 {
-    camera_subfrustum(src, dst, f2_s(-1.0f), f2_s(1.0f), src->zNear, src->zFar);
+    camera_subfrustum(src, dst, f2_s(-1.0f), f2_s(1.0f), src->zNear, src->zFar, aspect);
 }
 
-void camera_subfrustum(const camera_t* src, struct frus_s* dst, float2 lo, float2 hi, float zNear, float zFar)
+void camera_subfrustum(const camera_t* src, frus_t* dst, float2 lo, float2 hi, float zNear, float zFar, float aspect)
 {
     ASSERT(src);
     ASSERT(dst);
 
-    const float aspect = (float)kDrawWidth / (float)kDrawHeight;
     const float fov = f1_radians(src->fovy);
     const quat rot = src->rotation;
 

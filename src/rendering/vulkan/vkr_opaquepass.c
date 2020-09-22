@@ -341,22 +341,26 @@ static vkrOpaquePass_Execute(const vkrPassContext* ctx, vkrOpaquePass* pass)
 {
     ProfileBegin(pm_execute);
 
+	const vkrSwapchain* chain = &g_vkr.chain;
     const drawables_t* drawables = drawables_get();
-    i32 drawcount = drawables->count;
+	i32 drawcount = drawables->count;
+	const i32 width = chain->width;
+	const i32 height = chain->height;
+	const float aspect = (float)width / (float)height;
 
     VkCommandBuffer* pim_noalias buffers = tmp_calloc(sizeof(buffers[0]) * drawcount);
     float* pim_noalias distances = tmp_calloc(sizeof(distances[0]) * drawcount);
     vkrTaskDraw* task = tmp_calloc(sizeof(*task));
 
     task->buffers = buffers;
-    task->chain = &g_vkr.chain;
+    task->chain = chain;
     task->descSet = pass->pass.sets[ctx->syncIndex];
     task->distances = distances;
     task->drawables = drawables;
     task->framebuffer = ctx->framebuffer;
     camera_t camera;
     camera_get(&camera);
-    camera_frustum(&camera, &task->frustum);
+    camera_frustum(&camera, &task->frustum, aspect);
     task->pass = pass;
     task->primaryFence = ctx->fence;
     task->renderPass = ctx->renderPass;

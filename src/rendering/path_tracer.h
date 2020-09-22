@@ -46,7 +46,6 @@ typedef struct dofinfo_s
 typedef struct pt_trace_s
 {
     pt_scene_t* scene;
-    const camera_t* camera;
     float3* color;
     float3* albedo;
     float3* normal;
@@ -81,7 +80,7 @@ pt_scene_t* pt_scene_new(void);
 void pt_scene_del(pt_scene_t* scene);
 void pt_scene_gui(pt_scene_t* scene);
 
-void pt_trace_new(pt_trace_t* trace, pt_scene_t* scene, const camera_t* camera, int2 imageSize);
+void pt_trace_new(pt_trace_t* trace, pt_scene_t* scene, int2 imageSize);
 void pt_trace_del(pt_trace_t* trace);
 void pt_trace_gui(pt_trace_t* trace);
 
@@ -95,7 +94,7 @@ pt_result_t VEC_CALL pt_trace_ray(
     const pt_scene_t* scene,
     ray_t ray);
 
-void pt_trace(pt_trace_t* traceDesc);
+void pt_trace(pt_trace_t* traceDesc, const camera_t* camera);
 
 pt_results_t pt_raygen(
     pt_scene_t* scene,

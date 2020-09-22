@@ -8,6 +8,7 @@
 #include "math/types.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
+#include "common/cvar.h"
 #include <string.h>
 
 static const float2 kScreenMesh[] =
@@ -28,6 +29,11 @@ bool vkrScreenBlit_New(vkrScreenBlit* blit, VkRenderPass renderPass)
     memset(blit, 0, sizeof(*blit));
     bool success = true;
 
+	const i32 width = r_scaledwidth_get();
+	const i32 height = r_scaledheight_get();
+    blit->width = width;
+    blit->height = height;
+
     const u32 queueFamilies[] =
     {
         g_vkr.queues[vkrQueueId_Gfx].family,
@@ -38,8 +44,8 @@ bool vkrScreenBlit_New(vkrScreenBlit* blit, VkRenderPass renderPass)
         .flags = 0x0,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = VK_FORMAT_R8G8B8A8_SRGB,
-        .extent.width = kDrawWidth,
-        .extent.height = kDrawHeight,
+        .extent.width = width,
+        .extent.height = height,
         .extent.depth = 1,
         .mipLevels = 1,
         .arrayLayers = 1,
@@ -76,7 +82,7 @@ bool vkrScreenBlit_New(vkrScreenBlit* blit, VkRenderPass renderPass)
     }
     if (!vkrBuffer_New(
         &blit->stagebuf,
-        kDrawWidth * kDrawHeight * 4,
+        width * height * sizeof(u32),
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         vkrMemUsage_CpuOnly,
         PIM_FILELINE))
@@ -98,6 +104,7 @@ void vkrScreenBlit_Del(vkrScreenBlit* blit)
 {
     if (blit)
     {
+        vkDeviceWaitIdle(g_vkr.dev);
         vkrImage_Del(&blit->image);
         vkrBuffer_Del(&blit->meshbuf);
         vkrBuffer_Del(&blit->stagebuf);
@@ -111,16 +118,31 @@ void vkrScreenBlit_Blit(
     vkrScreenBlit* blit,
     const framebuf_t* fbuf)
 {
-    ProfileBegin(pm_blit);
+    ASSERT(passCtx);
+    ASSERT(blit);
+    ASSERT(fbuf);
+
+	const i32 width = r_scaledwidth_get();
+	const i32 height = r_scaledheight_get();
+	const u32* pim_noalias texels = fbuf->color;
+    if ((fbuf->width != width) || (fbuf->height != height))
+    {
+        ASSERT(false);
+        return;
+	}
+    if ((width != blit->width) || (height != blit->height))
+	{
+		vkrScreenBlit_Del(blit);
+		vkrScreenBlit_New(blit, passCtx->renderPass);
+	}
+
+	ProfileBegin(pm_blit);
 
     vkrSwapchain const *const chain = &g_vkr.chain;
     VkCommandBuffer cmd = passCtx->cmd;
     VkImage dstImage = chain->images[passCtx->imageIndex];
     VkImage srcImage = blit->image.handle;
     VkBuffer stageBuf = blit->stagebuf.handle;
-    i32 width = fbuf->width;
-    i32 height = fbuf->height;
-    const u32* pim_noalias texels = fbuf->color;
 
     // copy input data to stage buffer
     {

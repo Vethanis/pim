@@ -162,15 +162,11 @@ void ui_sys_endframe(void)
 {
     ProfileBegin(pm_endframe);
 
-    //igRender();
-    //ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
-
     ProfileEnd(pm_endframe);
 }
 
 void ui_sys_shutdown(void)
 {
-    //ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     igDestroyContext(ms_ctx);
     ms_ctx = NULL;
