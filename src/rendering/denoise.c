@@ -267,7 +267,7 @@ onfail:
 
 void Denoise_Evict(void)
 {
-    if (!EnsureInit())
+    if (!oidn.lib.handle)
     {
         return;
     }
