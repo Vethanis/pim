@@ -49,6 +49,7 @@ typedef struct pt_trace_s
     float3* color;
     float3* albedo;
     float3* normal;
+    float3* denoised;
     int2 imageSize;
     float sampleWeight;
     dofinfo_t dofinfo;
