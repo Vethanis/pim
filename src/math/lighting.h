@@ -196,12 +196,10 @@ pim_inline float4 VEC_CALL DirectBRDF(
     float4 Fd = f4_mulvs(
         DiffuseColor(albedo, metallic),
         Fd_Burley(NoL, NoV, LoH, roughness));
+    // diffuse term scaled by fresnel refractance
+    Fd = f4_mul(Fd, f4_inv(Fr));
 
-    const float amtSpecular = 1.0f;
-    float amtDiffuse = 1.0f - metallic;
-    float scale = 1.0f / (amtSpecular + amtDiffuse);
-
-    return f4_mulvs(f4_add(Fr, Fd), scale);
+    return f4_add(Fr, Fd);
 }
 
 // for area lights with varying diffuse and specular light directions
@@ -277,12 +275,9 @@ pim_inline float4 VEC_CALL IndirectBRDF(
     Fr = f4_mul(Fr, specularGI);
 
     float4 Fd = f4_mul(DiffuseColor(albedo, metallic), diffuseGI);
-
-    const float amtSpecular = 1.0f;
-    float amtDiffuse = 1.0f - metallic;
-    float scale = 1.0f / (amtSpecular + amtDiffuse);
-
-    return f4_mulvs(f4_add(Fd, Fr), ao * scale);
+    // diffuse term scaled by fresnel refractance
+    Fd = f4_mul(Fd, f4_inv(F));
+    return f4_add(Fr, Fd);
 }
 
 pim_inline float VEC_CALL SmoothDistanceAtt(

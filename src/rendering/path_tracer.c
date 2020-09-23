@@ -1140,17 +1140,19 @@ pim_inline float4 VEC_CALL BrdfEval(
     const float amtDiffuse = 1.0f - metallic;
     const float amtSpecular = 1.0f;
 
-    float4 brdf = f4_0;
+	float4 brdf = f4_0;
+	float4 F = F_SchlickEx(albedo, metallic, HoV);
     {
-        float4 F = F_SchlickEx(albedo, metallic, HoV);
         float D = D_GTR(NoH, alpha);
         float G = G_SmithGGX(NoL, NoV, alpha);
         float4 Fr = f4_mulvs(F, D * G);
-        brdf = f4_add(brdf, f4_mulvs(Fr, amtSpecular));
+        brdf = f4_add(brdf, Fr);
     }
     {
         float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, LoH, roughness));
-        brdf = f4_add(brdf, f4_mulvs(Fd, amtDiffuse));
+        Fd = f4_mul(Fd, f4_inv(F));
+        Fd = f4_mulvs(Fd, amtDiffuse);
+        brdf = f4_add(brdf, Fd);
     }
 
     brdf = f4_mulvs(brdf, NoL);
@@ -1281,17 +1283,19 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
         return result;
     }
 
-    float4 brdf = f4_0;
+	float4 brdf = f4_0;
+	float4 F = F_SchlickEx(albedo, metallic, HoV);
     {
-        float4 F = F_SchlickEx(albedo, metallic, HoV);
         float D = D_GTR(NoH, alpha);
         float G = G_SmithGGX(NoL, NoV, alpha);
         float4 Fr = f4_mulvs(F, D * G);
-        brdf = f4_add(brdf, f4_mulvs(Fr, amtSpecular));
+        brdf = f4_add(brdf, Fr);
     }
     {
         float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, LoH, roughness));
-        brdf = f4_add(brdf, f4_mulvs(Fd, amtDiffuse));
+        Fd = f4_mul(Fd, f4_inv(F));
+        Fd = f4_mulvs(Fd, amtDiffuse);
+        brdf = f4_add(brdf, Fd);
     }
 
     result.dir = L;
