@@ -853,6 +853,7 @@ void pt_trace_new(
         trace->color = perm_calloc(sizeof(trace->color[0]) * texelCount);
         trace->albedo = perm_calloc(sizeof(trace->albedo[0]) * texelCount);
         trace->normal = perm_calloc(sizeof(trace->normal[0]) * texelCount);
+        trace->denoised = perm_calloc(sizeof(trace->denoised[0]) * texelCount);
         dofinfo_new(&trace->dofinfo);
     }
 }
@@ -864,6 +865,7 @@ void pt_trace_del(pt_trace_t* trace)
         pim_free(trace->color);
         pim_free(trace->albedo);
         pim_free(trace->normal);
+        pim_free(trace->denoised);
         memset(trace, 0, sizeof(*trace));
     }
 }

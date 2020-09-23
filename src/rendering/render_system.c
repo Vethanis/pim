@@ -407,19 +407,21 @@ static bool PathTrace(void)
 		float3* pim_noalias output3 = ms_trace.color;
 		if (cvar_get_bool(&cv_pt_denoise))
 		{
-			output3 = tmp_malloc(sizeof(output3[0]) * texCount);
-
 			bool denoised = Denoise(
 				DenoiseType_Image,
 				size,
 				ms_trace.color,
 				ms_trace.albedo,
 				ms_trace.normal,
-				output3);
+				ms_trace.denoised);
 
 			if (!denoised)
 			{
 				cvar_set_bool(&cv_pt_denoise, false);
+			}
+			else
+			{
+				output3 = ms_trace.denoised;
 			}
 		}
 		if (cvar_get_bool(&cv_pt_albedo))
@@ -442,7 +444,11 @@ static bool PathTrace(void)
 		if (output3)
 		{
 			ProfileBegin(pm_ptBlit);
-			blit_3to4(size, GetFrontBuf()->light, output3);
+			float4* pim_noalias output4 = GetFrontBuf()->light;
+			for (i32 i = 0; i < texCount; ++i)
+			{
+				output4[i] = f3_f4(output3[i], 1.0f);
+			}
 			ProfileEnd(pm_ptBlit);
 		}
 

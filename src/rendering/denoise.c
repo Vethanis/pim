@@ -3,6 +3,7 @@
 #include "common/library.h"
 #include "common/time.h"
 #include "common/profiler.h"
+#include "common/fnv1a.h"
 #include <OpenImageDenoise/oidn.h>
 #include <string.h>
 
@@ -43,6 +44,7 @@ static oidn_t oidn;
 static OIDNDevice ms_device;
 
 static u64 ms_cacheTicks[kMaxCachedFilters];
+static u32 ms_cacheHashes[kMaxCachedFilters];
 static CacheKey ms_cacheKeys[kMaxCachedFilters];
 static OIDNFilter ms_cacheValues[kMaxCachedFilters];
 
@@ -153,18 +155,30 @@ static OIDNFilter NewFilter(const CacheKey* key)
     return filter;
 }
 
+static u32 HashKey(const CacheKey* key)
+{
+	u32 hash = Fnv32Bytes(key, sizeof(*key), Fnv32Bias);
+	hash = hash ? hash : 1;
+    return hash;
+}
+
 static i32 FindFilter(const CacheKey* key)
 {
     const OIDNFilter* values = ms_cacheValues;
     const CacheKey* keys = ms_cacheKeys;
+    const u32* pim_noalias hashes = ms_cacheHashes;
+    const u32 hash = HashKey(key);
     for (i32 i = 0; i < kMaxCachedFilters; ++i)
     {
-        if (values[i])
-        {
-            if (memcmp(key, keys + i, sizeof(CacheKey)) == 0)
-            {
-                return i;
-            }
+        if (hash == hashes[i])
+		{
+			if (values[i])
+			{
+				if (memcmp(key, keys + i, sizeof(CacheKey)) == 0)
+				{
+					return i;
+				}
+			}
         }
     }
     return -1;
@@ -192,21 +206,22 @@ static OIDNFilter GetFilter(const CacheKey* key)
 {
     i32 i = FindFilter(key);
     if (i == -1)
-    {
+	{
+		i = FindLRU();
+		if (ms_cacheValues[i])
+		{
+			oidn.oidnReleaseFilter(ms_cacheValues[i]);
+			ms_cacheValues[i] = NULL;
+		}
+
         OIDNFilter newFilter = NewFilter(key);
         if (!newFilter)
         {
             return NULL;
         }
 
-        i = FindLRU();
-        if (ms_cacheValues[i])
-        {
-            oidn.oidnReleaseFilter(ms_cacheValues[i]);
-            ms_cacheValues[i] = NULL;
-        }
-
         ms_cacheKeys[i] = *key;
+        ms_cacheHashes[i] = HashKey(key);
         ms_cacheValues[i] = newFilter;
     }
     ms_cacheTicks[i] = time_now();
@@ -223,15 +238,18 @@ bool Denoise(
     float3* output)
 {
     ProfileBegin(pm_Denoise);
+    bool success = true;
 
     if (!EnsureInit())
     {
-        goto onfail;
+        success = false;
+        goto onreturn;
     }
 
     if (!color || !output)
-    {
-        goto onfail;
+	{
+		success = false;
+        goto onreturn;
     }
 
     const CacheKey key =
@@ -246,23 +264,22 @@ bool Denoise(
 
     OIDNFilter filter = GetFilter(&key);
     if (!filter)
-    {
-        goto onfail;
+	{
+		success = false;
+        goto onreturn;
     }
 
     oidn.oidnExecuteFilter(filter);
 
     if (LogErrors())
-    {
-        goto onfail;
+	{
+		success = false;
+        goto onreturn;
     }
 
+onreturn:
     ProfileEnd(pm_Denoise);
-    return true;
-
-onfail:
-    ProfileEnd(pm_Denoise);
-    return false;
+    return success;
 }
 
 void Denoise_Evict(void)
@@ -282,6 +299,7 @@ void Denoise_Evict(void)
             {
                 oidn.oidnReleaseFilter(ms_cacheValues[i]);
                 ms_cacheValues[i] = NULL;
+                ms_cacheHashes[i] = 0x0;
                 memset(ms_cacheKeys + i, 0, sizeof(ms_cacheKeys[0]));
             }
         }
