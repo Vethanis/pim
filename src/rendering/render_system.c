@@ -817,7 +817,9 @@ void render_sys_gui(bool* pEnabled)
 		{
 			igIndent(0.0f);
 
-			vkrExposure* exposure = &g_vkr.exposurePass.params;
+			bool r_sw = cvar_get_bool(&cv_pt_trace);
+			vkrExposure* exposure = r_sw ? &ms_exposure : &g_vkr.exposurePass.params;
+
 			bool manual = exposure->manual;
 			bool standard = exposure->standard;
 			igCheckbox("Manual", &manual);
@@ -842,8 +844,6 @@ void render_sys_gui(bool* pEnabled)
 				igSliderFloat("Min EV", &exposure->minEV, -22.0f, exposure->maxEV - 0.1f);
 				igSliderFloat("Max EV", &exposure->maxEV, exposure->minEV + 0.1f, 22.0f);
 			}
-			float ptAvgLum = ms_exposure.avgLum;
-			ms_exposure = *exposure;
 			igUnindent(0.0f);
 		}
 
