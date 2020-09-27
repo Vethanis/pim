@@ -334,6 +334,13 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
 			.height = height,
 			.exposure = pass->params,
 		};
+		vkCmdPushConstants(
+			cmpcmd,
+			layout,
+			VK_SHADER_STAGE_COMPUTE_BIT,
+			0,
+			sizeof(vkrExposureConstants),
+			&constants);
 
 		// transition lum and exposure to compute
 		{
@@ -354,13 +361,6 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
 			const i32 dispatchX = (width + 15) / 16;
 			const i32 dispatchY = (height + 15) / 16;
 			vkCmdBindPipeline(cmpcmd, VK_PIPELINE_BIND_POINT_COMPUTE, buildPipe);
-			vkCmdPushConstants(
-				cmpcmd,
-				layout,
-				VK_SHADER_STAGE_COMPUTE_BIT,
-				0,
-				sizeof(vkrExposureConstants),
-				&constants);
 			vkCmdDispatch(cmpcmd, dispatchX, dispatchY, 1);
 		}
 
@@ -376,13 +376,6 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
 		// adapt exposure
 		{
 			vkCmdBindPipeline(cmpcmd, VK_PIPELINE_BIND_POINT_COMPUTE, adaptPipe);
-			vkCmdPushConstants(
-				cmpcmd,
-				layout,
-				VK_SHADER_STAGE_COMPUTE_BIT,
-				0,
-				sizeof(vkrExposureConstants),
-				&constants);
 			vkCmdDispatch(cmpcmd, 1, 1, 1);
 		}
 
