@@ -199,6 +199,7 @@ bool mesh_save(meshid_t id, guid_t* dst)
             dbytes_new(1, sizeof(dmesh), &offset);
             dmesh.version = kMeshVersion;
             dmesh.length = mesh.length;
+            guid_get_name(*dst, ARGS(dmesh.name));
             dmesh.positions = dbytes_new(mesh.length, sizeof(mesh.positions[0]), &offset);
             dmesh.normals = dbytes_new(mesh.length, sizeof(mesh.normals[0]), &offset);
             dmesh.uvs = dbytes_new(mesh.length, sizeof(mesh.uvs[0]), &offset);
@@ -236,6 +237,7 @@ bool mesh_load(guid_t name, meshid_t* dst)
             dbytes_check(dmesh.normals, sizeof(mesh.normals[0]));
             dbytes_check(dmesh.uvs, sizeof(mesh.uvs[0]));
 
+            guid_set_name(name, dmesh.name);
             mesh.length = dmesh.length;
             if (mesh.length > 0)
             {
@@ -288,8 +290,14 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
         {
         default:
         case 0:
-            cmp = guid_cmp(lhs, rhs);
-            break;
+		{
+            char lname[64] = { 0 };
+            char rname[64] = { 0 };
+            guid_get_name(lhs, ARGS(lname));
+            guid_get_name(rhs, ARGS(rname));
+            cmp = StrCmp(ARGS(lname), rname);
+        }
+        break;
         case 1:
             cmp = meshes[ilhs].length - meshes[irhs].length;
             break;
@@ -317,7 +325,9 @@ void mesh_sys_gui(bool* pEnabled)
 
     i32 selection = gs_selection;
     if (igBegin("Meshes", pEnabled, 0))
-    {
+	{
+		igInputText("Search", ARGS(gs_search), 0x0, NULL, NULL);
+
         const i32 width = ms_table.width;
         const guid_t* names = ms_table.names;
         const mesh_t* meshes = ms_table.values;
@@ -328,11 +338,20 @@ void mesh_sys_gui(bool* pEnabled)
         {
             if (!guid_isnull(names[i]))
             {
-                i32 length = meshes[i].length;
-                bytesUsed += sizeof(meshes[0]);
-                bytesUsed += length * sizeof(meshes[0].positions[0]);
-                bytesUsed += length * sizeof(meshes[0].normals[0]);
-                bytesUsed += length * sizeof(meshes[0].uvs[0]);
+                if (gs_search[0])
+				{
+					char name[64] = { 0 };
+                    guid_get_name(names[i], ARGS(name));
+                    if (!StrIStr(ARGS(name), gs_search))
+                    {
+                        continue;
+                    }
+				}
+				i32 length = meshes[i].length;
+				bytesUsed += sizeof(meshes[0]);
+				bytesUsed += length * sizeof(meshes[0].positions[0]);
+				bytesUsed += length * sizeof(meshes[0].normals[0]);
+				bytesUsed += length * sizeof(meshes[0].uvs[0]);
             }
         }
 
@@ -373,12 +392,25 @@ void mesh_sys_gui(bool* pEnabled)
             if (guid_isnull(name))
             {
                 continue;
-            }
+			}
+
+			if (gs_search[0])
+			{
+				char namestr[64] = { 0 };
+				guid_get_name(name, ARGS(namestr));
+				if (!StrIStr(ARGS(namestr), gs_search))
+				{
+					continue;
+				}
+			}
 
             i32 length = meshes[j].length;
             i32 refcount = refcounts[j];
             char namestr[PIM_PATH] = { 0 };
-            guid_fmt(ARGS(namestr), name);
+            if (!guid_get_name(name, ARGS(namestr)))
+			{
+				guid_fmt(ARGS(namestr), name);
+            }
             igText(namestr); igNextColumn();
             igText("%d", length); igNextColumn();
             igText("%d", refcount); igNextColumn();

@@ -293,6 +293,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_context.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_textable.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_texture.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_uipass.h" />
     <ClInclude Include="..\src\sokol\sokol_audio.h" />
     <ClInclude Include="..\src\sokol\sokol_time.h" />
     <ClInclude Include="..\src\stb\stb_perlin_fork.h" />

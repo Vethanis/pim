@@ -37,6 +37,11 @@ pim_inline i32 guid_cmp(guid_t lhs, guid_t rhs)
     return 0;
 }
 
+guid_t guid_new(void);
+
+void guid_set_name(guid_t id, const char* str);
+bool guid_get_name(guid_t id, char* dst, i32 size);
+
 i32 guid_find(const guid_t* pim_noalias ptr, i32 count, guid_t key);
 guid_t guid_str(const char* str, u64 seed);
 guid_t guid_bytes(const void* ptr, i32 nBytes, u64 seed);

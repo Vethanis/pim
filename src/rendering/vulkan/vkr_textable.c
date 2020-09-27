@@ -76,6 +76,15 @@ void vkrTexTable_Update(vkrTexTable* table)
                 ++iBinding;
             }
         }
+        if (iBinding < kTextureDescriptors)
+		{
+			g_vkr.mainPass.ui.fontIdx = iBinding;
+			const vkrTexture2D* texture = &g_vkr.mainPass.ui.font;
+			bindings[iBinding].sampler = texture->sampler;
+			bindings[iBinding].imageView = texture->view;
+			bindings[iBinding].imageLayout = texture->layout;
+            ++iBinding;
+        }
     }
 
     ProfileEnd(pm_update);
