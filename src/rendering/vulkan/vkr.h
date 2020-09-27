@@ -452,12 +452,21 @@ typedef struct vkrOpaquePass
     vkrBuffer perCameraBuffer[kFramesInFlight];
 } vkrOpaquePass;
 
+typedef struct vkrUIPassPc
+{
+    float2 scale;
+    float2 translate;
+    u32 textureIndex;
+    u32 discardAlpha;
+} vkrUIPassPc;
+
 typedef struct vkrUIPass
 {
     vkrPass pass;
     vkrBuffer vertbufs[kFramesInFlight];
     vkrBuffer indbufs[kFramesInFlight];
     vkrTexture2D font;
+    i32 fontIdx;
 } vkrUIPass;
 
 typedef struct vkrExposure

@@ -1,3 +1,4 @@
+#include "TextureTable.hlsl"
 
 struct VSInput
 {
@@ -16,7 +17,6 @@ struct PSInput
 struct PSOutput
 {
     float4 color : SV_Target0;
-    //half luminance : SV_Target1;
 };
 
 [[vk::push_constant]]
@@ -24,12 +24,9 @@ cbuffer Constants
 {
     float2 kScale;
     float2 kTranslate;
+    uint kTextureIndex;
+    uint kDiscardAlpha;
 };
-
-[[vk::binding(0)]]
-Texture2D MainTexture;
-[[vk::binding(0)]]
-SamplerState MainSampler;
 
 PSInput VSMain(VSInput input)
 {
@@ -43,8 +40,9 @@ PSInput VSMain(VSInput input)
 
 PSOutput PSMain(PSInput input)
 {
+    float4 texColor = SampleTable(kTextureIndex, input.uv);
+    texColor.a = kDiscardAlpha != 0 ? 1.0 : texColor.a;
     PSOutput output;
-    output.color = MainTexture.Sample(MainSampler, input.uv) * input.color;
-    //output.luminance = dot(output.color.xyz, 0.333333);
+    output.color = texColor * input.color;
     return output;
 }

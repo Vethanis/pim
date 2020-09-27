@@ -1176,6 +1176,9 @@
     <ClInclude Include="..\submodules\cJSON\cJSON_Utils.h">
       <Filter>submodules\cJSON</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_uipass.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">

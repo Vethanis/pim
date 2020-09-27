@@ -61,7 +61,7 @@ typedef struct ImDrawData ImDrawData;
 typedef struct ImDrawCmd ImDrawCmd;
 typedef struct ImDrawChannel ImDrawChannel;
 
-typedef void* ImTextureID;
+typedef signed int ImTextureID;
 typedef unsigned int ImGuiID;
 typedef unsigned short ImWchar;
 typedef int ImGuiCol;

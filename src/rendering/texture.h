@@ -28,11 +28,12 @@ typedef struct texture_s
     vkrTexture2D vkrtex;
 } texture_t;
 
-#define kTextureVersion 3
+#define kTextureVersion 4
 typedef struct dtexture_s
 {
     i32 version;
     VkFormat format;
+    char name[64];
     int2 size;
     dbytes_t texels;
 } dtexture_t;

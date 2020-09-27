@@ -28,11 +28,12 @@ typedef struct mesh_s
     vkrMesh vkrmesh;
 } mesh_t;
 
-#define kMeshVersion 3
+#define kMeshVersion 4
 typedef struct dmesh_s
 {
     i32 version;
     i32 length;
+    char name[64];
     dbytes_t positions;
     dbytes_t normals;
     dbytes_t uvs;
