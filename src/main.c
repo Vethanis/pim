@@ -15,6 +15,7 @@
 #include "common/cmd.h"
 #include "common/console.h"
 #include "editor/editor.h"
+#include "common/serialize.h"
 
 static void Init(void);
 static void Update(void);
@@ -36,6 +37,7 @@ static void Init(void)
 {
     time_sys_init();            // setup sokol time
     alloc_sys_init();           // preallocate pools
+    ser_sys_init();
     window_sys_init();          // gl context, window
     cmd_sys_init();
     con_sys_init();
@@ -62,6 +64,7 @@ static void Shutdown(void)
     con_sys_shutdown();
     cmd_sys_shutdown();
     window_sys_shutdown();
+    ser_sys_shutdown();
     alloc_sys_shutdown();
     time_sys_shutdown();
 }

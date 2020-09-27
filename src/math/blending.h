@@ -140,7 +140,7 @@ pim_inline float4 VEC_CALL DiffuseToAlbedo(float4 diffuse)
     float cavity = 1.0f - lum;
     float4 decav = f4_softlight(diffuse, f4_s(cavity));
     decav = f4_softlight(decav, f4_s(cavity));
-    float4 desat = f4_desaturate(decav, 0.2f);
+    float4 desat = f4_desaturate(decav, 0.1f);
     return desat;
 }
 

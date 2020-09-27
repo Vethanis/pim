@@ -491,14 +491,15 @@ typedef struct vkrExposureConstants
 {
     u32 width;
     u32 height;
-    float minEV;
-    float maxEV;
+    vkrExposure exposure;
 } vkrExposureConstants;
 
 typedef struct vkrExposurePass
 {
     vkrPass pass;
+    VkPipeline adapt;
     vkrBuffer histBuffers[kFramesInFlight];
+    vkrBuffer expBuffers[kFramesInFlight];
     vkrExposure params;
 } vkrExposurePass;
 

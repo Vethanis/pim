@@ -20,7 +20,7 @@ void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
 
     u8* items = pVoid;
 
-    if (count <= 8)
+    if (count <= 4)
     {
         for (i32 i = 0; i < count; ++i)
         {
@@ -82,7 +82,7 @@ void sort_i32(i32* items, i32 count, CmpFn_i32 cmp, void* usr)
     ASSERT(count >= 0);
     ASSERT(cmp);
 
-    if (count <= 8)
+    if (count <= 4)
     {
         for (i32 i = 0; i < count; ++i)
         {

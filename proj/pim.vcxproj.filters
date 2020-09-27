@@ -104,6 +104,9 @@
     <Filter Include="submodules\vma">
       <UniqueIdentifier>{17a2b635-7f71-41ca-8b8d-f15404b52a1a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="submodules\cJSON">
+      <UniqueIdentifier>{4329a55b-61a6-4ebb-8d04-a0422abb7ba7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -549,6 +552,12 @@
     </ClCompile>
     <ClCompile Include="..\src\rendering\constants.c">
       <Filter>Source Files\rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\cJSON\cJSON.c">
+      <Filter>submodules\cJSON</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\cJSON\cJSON_Utils.c">
+      <Filter>submodules\cJSON</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1161,6 +1170,12 @@
     <ClInclude Include="..\src\rendering\constants.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
+    <ClInclude Include="..\submodules\cJSON\cJSON.h">
+      <Filter>submodules\cJSON</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\cJSON\cJSON_Utils.h">
+      <Filter>submodules\cJSON</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">
@@ -1228,6 +1243,9 @@
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="..\src\shaders\GI.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\Exposure.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
   </ItemGroup>

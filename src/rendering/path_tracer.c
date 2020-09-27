@@ -1560,20 +1560,20 @@ static void media_desc_load(media_desc_t* desc, const char* name)
     ser_obj_t* root = ser_fromfile(filename);
     if (root)
     {
-        ser_getfield_f4(desc, root, constantAlbedo);
-        ser_getfield_f4(desc, root, noiseAlbedo);
-        ser_getfield_f32(desc, root, absorption);
-        ser_getfield_f32(desc, root, constantAmt);
-        ser_getfield_f32(desc, root, noiseAmt);
-        ser_getfield_i32(desc, root, noiseOctaves);
-        ser_getfield_f32(desc, root, noiseGain);
-        ser_getfield_f32(desc, root, noiseLacunarity);
-        ser_getfield_f32(desc, root, noiseFreq);
-        ser_getfield_f32(desc, root, noiseScale);
-        ser_getfield_f32(desc, root, noiseHeight);
-        ser_getfield_f32(desc, root, phaseDirA);
-        ser_getfield_f32(desc, root, phaseDirB);
-        ser_getfield_f32(desc, root, phaseBlend);
+        ser_load_f4(desc, root, constantAlbedo);
+        ser_load_f4(desc, root, noiseAlbedo);
+        ser_load_f32(desc, root, absorption);
+        ser_load_f32(desc, root, constantAmt);
+        ser_load_f32(desc, root, noiseAmt);
+        ser_load_i32(desc, root, noiseOctaves);
+        ser_load_f32(desc, root, noiseGain);
+        ser_load_f32(desc, root, noiseLacunarity);
+        ser_load_f32(desc, root, noiseFreq);
+        ser_load_f32(desc, root, noiseScale);
+        ser_load_f32(desc, root, noiseHeight);
+        ser_load_f32(desc, root, phaseDirA);
+        ser_load_f32(desc, root, phaseDirB);
+        ser_load_f32(desc, root, phaseBlend);
     }
     else
     {
@@ -1594,20 +1594,20 @@ static void media_desc_save(const media_desc_t* desc, const char* name)
     ser_obj_t* root = ser_obj_dict();
     if (root)
     {
-        ser_setfield_f4(desc, root, constantAlbedo);
-        ser_setfield_f4(desc, root, noiseAlbedo);
-        ser_setfield_f32(desc, root, absorption);
-        ser_setfield_f32(desc, root, constantAmt);
-        ser_setfield_f32(desc, root, noiseAmt);
-        ser_setfield_i32(desc, root, noiseOctaves);
-        ser_setfield_f32(desc, root, noiseGain);
-        ser_setfield_f32(desc, root, noiseLacunarity);
-        ser_setfield_f32(desc, root, noiseFreq);
-        ser_setfield_f32(desc, root, noiseScale);
-        ser_setfield_f32(desc, root, noiseHeight);
-        ser_setfield_f32(desc, root, phaseDirA);
-        ser_setfield_f32(desc, root, phaseDirB);
-        ser_setfield_f32(desc, root, phaseBlend);
+        ser_save_f4(desc, root, constantAlbedo);
+        ser_save_f4(desc, root, noiseAlbedo);
+        ser_save_f32(desc, root, absorption);
+        ser_save_f32(desc, root, constantAmt);
+        ser_save_f32(desc, root, noiseAmt);
+        ser_save_i32(desc, root, noiseOctaves);
+        ser_save_f32(desc, root, noiseGain);
+        ser_save_f32(desc, root, noiseLacunarity);
+        ser_save_f32(desc, root, noiseFreq);
+        ser_save_f32(desc, root, noiseScale);
+        ser_save_f32(desc, root, noiseHeight);
+        ser_save_f32(desc, root, phaseDirA);
+        ser_save_f32(desc, root, phaseDirB);
+        ser_save_f32(desc, root, phaseBlend);
         if (!ser_tofile(filename, root))
         {
             con_logf(LogSev_Error, "pt", "Failed to save media desc '%s'", filename);

@@ -98,12 +98,9 @@ float3 DirectBRDF(
     float3 Fr = D * G * F;
 
     float3 Fd = DiffuseColor(albedo, metallic) * Fd_Burley(NoL, NoV, LoH, roughness);
+    Fd *= 1.0 - F;
 
-    const float amtSpecular = 1.0;
-    float amtDiffuse = 1.0 - metallic;
-    float scale = 1.0 / (amtSpecular + amtDiffuse);
-
-    return (Fr + Fd) * scale;
+    return Fr + Fd;
 }
 
 float3 EnvBRDF(
@@ -138,12 +135,9 @@ float3 IndirectBRDF(
     Fr = Fr * specularGI;
 
     float3 Fd = DiffuseColor(albedo, metallic) * diffuseGI;
+    Fd *= 1.0 - F;
 
-    const float amtSpecular = 1.0f;
-    float amtDiffuse = 1.0f - metallic;
-    float scale = 1.0f / (amtSpecular + amtDiffuse);
-
-    return (Fr + Fd) * scale * occlusion;
+    return (Fr + Fd) * occlusion;
 }
 
 #endif // LIGHTING_HLSL

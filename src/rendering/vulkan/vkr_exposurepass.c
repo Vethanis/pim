@@ -19,400 +19,413 @@
 #include "math/scalar.h"
 #include <string.h>
 
-static void vkrExposurePass_WriteDesc(const vkrAttachment* img, VkDescriptorSet set);
-static void vkrExposurePass_AdaptHistogram(vkrExposurePass* pass, u32* pim_noalias histogram);
-
 bool vkrExposurePass_New(vkrExposurePass* pass)
 {
-    ASSERT(pass);
-    memset(pass, 0, sizeof(*pass));
-    bool success = true;
+	ASSERT(pass);
+	memset(pass, 0, sizeof(*pass));
+	bool success = true;
 
-    VkPipelineShaderStageCreateInfo shaders[1] = { 0 };
-    if (!vkrShader_New(&shaders[0], "BuildHistogram.hlsl", "CSMain", vkrShaderType_Comp))
-    {
-        success = false;
-        goto cleanup;
-    }
-    for (i32 i = 0; i < kFramesInFlight; ++i)
-    {
-        const i32 bytes = sizeof(u32) * kHistogramSize;
-        if (!vkrBuffer_New(
-            &pass->histBuffers[i],
-            bytes,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu,
-            PIM_FILELINE))
-        {
-            success = false;
-            goto cleanup;
-        }
-    }
-    const VkDescriptorSetLayoutBinding bindings[] =
-    {
-        {
-            // input luminance storage image. must be in layout VK_IMAGE_LAYOUT_GENERAL
-            .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-        },
-        {
-            // histogram storage buffer
-            .binding = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-        },
-    };
-    const VkPushConstantRange ranges[] =
-    {
-        {
-            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-            .size = sizeof(vkrExposureConstants),
-        },
-    };
-    const VkDescriptorPoolSize poolSizes[] =
-    {
-        {
-            .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .descriptorCount = 1,
-        },
-    };
+	VkPipelineShaderStageCreateInfo buildShaders[1] = { 0 };
+	VkPipelineShaderStageCreateInfo adaptShaders[1] = { 0 };
+	if (!vkrShader_New(&buildShaders[0], "BuildHistogram.hlsl", "CSMain", vkrShaderType_Comp))
+	{
+		success = false;
+		goto cleanup;
+	}
+	if (!vkrShader_New(&adaptShaders[0], "AdaptHistogram.hlsl", "CSMain", vkrShaderType_Comp))
+	{
+		success = false;
+		goto cleanup;
+	}
+	for (i32 i = 0; i < kFramesInFlight; ++i)
+	{
+		const i32 bytes = sizeof(u32) * kHistogramSize;
+		if (!vkrBuffer_New(
+			&pass->histBuffers[i],
+			bytes,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+			vkrMemUsage_CpuToGpu,
+			PIM_FILELINE))
+		{
+			success = false;
+			goto cleanup;
+		}
+	}
+	for (i32 i = 0; i < kFramesInFlight; ++i)
+	{
+		const i32 bytes = sizeof(float) * 2;
+		if (!vkrBuffer_New(
+			&pass->expBuffers[i],
+			bytes,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+			vkrMemUsage_CpuToGpu,
+			PIM_FILELINE))
+		{
+			success = false;
+			goto cleanup;
+		}
+	}
+	const VkDescriptorSetLayoutBinding bindings[] =
+	{
+		{
+			// input luminance storage image. must be in layout VK_IMAGE_LAYOUT_GENERAL
+			.binding = 0,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+		},
+		{
+			// histogram storage buffer
+			.binding = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+		},
+		{
+			// exposure storage buffer
+			.binding = 3,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+		},
+	};
+	const VkPushConstantRange ranges[] =
+	{
+		{
+			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+			.size = sizeof(vkrExposureConstants),
+		},
+	};
+	const VkDescriptorPoolSize poolSizes[] =
+	{
+		{
+			.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 2,
+		},
+		{
+			.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.descriptorCount = 1,
+		},
+	};
 
-    const vkrPassDesc desc =
-    {
-        .bindpoint = VK_PIPELINE_BIND_POINT_COMPUTE,
-        .poolSizeCount = NELEM(poolSizes),
-        .poolSizes = poolSizes,
-        .bindingCount = NELEM(bindings),
-        .bindings = bindings,
-        .rangeCount = NELEM(ranges),
-        .ranges = ranges,
-        .shaderCount = NELEM(shaders),
-        .shaders = shaders,
-    };
-    if (!vkrPass_New(&pass->pass, &desc))
-    {
-        success = false;
-        goto cleanup;
-    }
-
-    {
-        vkrBinding histBindings[kFramesInFlight] = { 0 };
-        for (i32 i = 0; i < kFramesInFlight; ++i)
-        {
-            histBindings[i].set = pass->pass.sets[i];
-            histBindings[i].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            histBindings[i].binding = 1;
-            histBindings[i].buffer.buffer = pass->histBuffers[i].handle;
-            histBindings[i].buffer.range = pass->histBuffers[i].size;
-        }
-        vkrDesc_WriteBindings(NELEM(histBindings), histBindings);
-    }
+	const vkrPassDesc desc =
+	{
+		.bindpoint = VK_PIPELINE_BIND_POINT_COMPUTE,
+		.poolSizeCount = NELEM(poolSizes),
+		.poolSizes = poolSizes,
+		.bindingCount = NELEM(bindings),
+		.bindings = bindings,
+		.rangeCount = NELEM(ranges),
+		.ranges = ranges,
+		.shaderCount = NELEM(buildShaders),
+		.shaders = buildShaders,
+	};
+	if (!vkrPass_New(&pass->pass, &desc))
+	{
+		success = false;
+		goto cleanup;
+	}
+	pass->adapt = vkrPipeline_NewComp(pass->pass.layout, &adaptShaders[0]);
+	if (!pass->adapt)
+	{
+		success = false;
+		goto cleanup;
+	}
 
 cleanup:
-    for (i32 i = 0; i < NELEM(shaders); ++i)
-    {
-        vkrShader_Del(&shaders[i]);
-    }
-    if (!success)
-    {
-        vkrExposurePass_Del(pass);
-    }
-    return success;
+	for (i32 i = 0; i < NELEM(buildShaders); ++i)
+	{
+		vkrShader_Del(&buildShaders[i]);
+	}
+	for (i32 i = 0; i < NELEM(adaptShaders); ++i)
+	{
+		vkrShader_Del(&adaptShaders[i]);
+	}
+	if (!success)
+	{
+		vkrExposurePass_Del(pass);
+	}
+	return success;
 }
 
 void vkrExposurePass_Del(vkrExposurePass* pass)
 {
-    if (pass)
-    {
-        vkrPass_Del(&pass->pass);
-        for (i32 i = 0; i < NELEM(pass->histBuffers); ++i)
-        {
-            vkrBuffer_Del(&pass->histBuffers[i]);
-        }
-        memset(pass, 0, sizeof(*pass));
-    }
+	if (pass)
+	{
+		vkrPipeline_Del(pass->adapt);
+		vkrPass_Del(&pass->pass);
+		for (i32 i = 0; i < NELEM(pass->histBuffers); ++i)
+		{
+			vkrBuffer_Del(&pass->histBuffers[i]);
+		}
+		for (i32 i = 0; i < NELEM(pass->expBuffers); ++i)
+		{
+			vkrBuffer_Del(&pass->expBuffers[i]);
+		}
+		memset(pass, 0, sizeof(*pass));
+	}
 }
 
 ProfileMark(pm_execute, vkrExposurePass_Execute)
 void vkrExposurePass_Execute(vkrExposurePass* pass)
 {
-    ProfileBegin(pm_execute);
+	ProfileBegin(pm_execute);
 
-    const vkrSwapchain* chain = &g_vkr.chain;
-    const u32 imgIndex = chain->imageIndex;
-    const u32 syncIndex = chain->syncIndex;
-    const vkrAttachment* lum = &chain->lumAttachments[imgIndex];
+	pass->params.deltaTime = f1_clamp((float)time_dtf(), 0.0f, 1.0f / 30.0f);
 
-    const u32 gfxFamily = g_vkr.queues[vkrQueueId_Gfx].family;
-    const u32 cmpFamily = g_vkr.queues[vkrQueueId_Comp].family;
+	const vkrSwapchain* chain = &g_vkr.chain;
+	const u32 imgIndex = chain->imageIndex;
+	const u32 syncIndex = chain->syncIndex;
+	const vkrAttachment* lum = &chain->lumAttachments[imgIndex];
+	VkBuffer histBuffer = pass->histBuffers[syncIndex].handle;
+	VkBuffer expBuffer = pass->expBuffers[syncIndex].handle;
+	VkDescriptorSet set = pass->pass.sets[syncIndex];
+	VkPipelineLayout layout = pass->pass.layout;
+	VkPipeline buildPipe = pass->pass.pipeline;
+	VkPipeline adaptPipe = pass->adapt;
 
-    vkrThreadContext* ctx = vkrContext_Get();
+	const u32 gfxFamily = g_vkr.queues[vkrQueueId_Gfx].family;
+	const u32 cmpFamily = g_vkr.queues[vkrQueueId_Comp].family;
 
-    // readback oldest results to minimize sync point
-    {
-        vkrBuffer* buffer = &pass->histBuffers[syncIndex];
-        {
-            // transition to host r
-            VkFence fence = NULL;
-            VkQueue queue = NULL;
-            VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Comp, &fence, &queue);
-            vkrCmdBegin(cmd);
-            const VkBufferMemoryBarrier barrier =
-            {
-                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .buffer = buffer->handle,
-                .offset = 0,
-                .size = buffer->size,
-            };
-            vkrCmdBufferBarrier(
-                cmd,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_PIPELINE_STAGE_HOST_BIT,
-                &barrier);
-            vkrCmdEnd(cmd);
-            vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-            // blocking wait to ensure writes become cpu visible
-            vkrFence_Wait(fence);
-        }
-        {
-            u32* histogram = vkrBuffer_Map(buffer);
-            vkrExposurePass_AdaptHistogram(pass, histogram);
-            vkrBuffer_Unmap(buffer);
-            vkrBuffer_Flush(buffer);
-        }
-        {
-            // transition back to shader rw
-            VkFence fence = NULL;
-            VkQueue queue = NULL;
-            VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Comp, &fence, &queue);
-            vkrCmdBegin(cmd);
-            const VkBufferMemoryBarrier barrier =
-            {
-                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                .srcAccessMask = VK_ACCESS_HOST_READ_BIT | VK_ACCESS_HOST_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .buffer = buffer->handle,
-                .offset = 0,
-                .size = buffer->size,
-            };
-            vkrCmdBufferBarrier(
-                cmd,
-                VK_PIPELINE_STAGE_HOST_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                &barrier);
-            vkrCmdEnd(cmd);
-            vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-        }
-    }
+	vkrThreadContext* ctx = vkrContext_Get();
 
-    // queue ownership transfer from gfx to compute
-    // transition from attachment to shader rw
-    const VkImageMemoryBarrier toCompute =
-    {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .srcQueueFamilyIndex = gfxFamily,
-        .dstQueueFamilyIndex = cmpFamily,
-        .image = lum->image.handle,
-        .subresourceRange =
-        {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .levelCount = 1,
-            .layerCount = 1,
-        },
-    };
-    // queue ownership transfer from compute to gfx
-    // transition from shader rw to attachment
-    const VkImageMemoryBarrier toGraphics =
-    {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .srcQueueFamilyIndex = cmpFamily,
-        .dstQueueFamilyIndex = gfxFamily,
-        .image = lum->image.handle,
-        .subresourceRange =
-        {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .levelCount = 1,
-            .layerCount = 1,
-        },
-    };
+	const VkImageMemoryBarrier lumToCompute =
+	{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.newLayout = VK_IMAGE_LAYOUT_GENERAL,
+		.srcQueueFamilyIndex = gfxFamily,
+		.dstQueueFamilyIndex = cmpFamily,
+		.image = lum->image.handle,
+		.subresourceRange =
+		{
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.levelCount = 1,
+			.layerCount = 1,
+		},
+	};
+	const VkImageMemoryBarrier lumToGraphics =
+	{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+		.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		.srcQueueFamilyIndex = cmpFamily,
+		.dstQueueFamilyIndex = gfxFamily,
+		.image = lum->image.handle,
+		.subresourceRange =
+		{
+			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.levelCount = 1,
+			.layerCount = 1,
+		},
+	};
 
-    // transition to compute (give)
-    {
-        VkFence fence = NULL;
-        VkQueue queue = NULL;
-        VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &fence, &queue);
-        vkrCmdBegin(cmd);
-        vkrCmdImageBarrier(
-            cmd,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            &toCompute);
-        vkrCmdEnd(cmd);
-        vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-    }
+	const VkBufferMemoryBarrier expToCompute =
+	{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+		.srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+		.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+		.srcQueueFamilyIndex = gfxFamily,
+		.dstQueueFamilyIndex = cmpFamily,
+		.buffer = expBuffer,
+		.size = VK_WHOLE_SIZE,
+	};
+	const VkBufferMemoryBarrier buildToAdapt =
+	{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+		.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.buffer = histBuffer,
+		.size = VK_WHOLE_SIZE,
+	};
+	const VkBufferMemoryBarrier expToGraphics =
+	{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+		.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+		.srcQueueFamilyIndex = cmpFamily,
+		.dstQueueFamilyIndex = gfxFamily,
+		.buffer = expBuffer,
+		.size = VK_WHOLE_SIZE,
+	};
 
-    // transition to compute (take)
-    // dispatch histogram shader
-    // transition to gfx (give)
-    {
-        VkFence fence = NULL;
-        VkQueue queue = NULL;
-        VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Comp, &fence, &queue);
-        vkrCmdBegin(cmd);
-        vkrCmdImageBarrier(
-            cmd,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            &toCompute);
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pass->pass.pipeline);
-        VkDescriptorSet set = pass->pass.sets[syncIndex];
-        vkrExposurePass_WriteDesc(lum, set);
-        vkCmdBindDescriptorSets(
-            cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pass->pass.layout, 0, 1, &set, 0, NULL);
-        const i32 width = chain->width;
-        const i32 height = chain->height;
-        const vkrExposureConstants constants =
-        {
-            .width = width,
-            .height = height,
-            .minEV = pass->params.minEV,
-            .maxEV = pass->params.maxEV,
-        };
-        vkCmdPushConstants(
-            cmd, pass->pass.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(vkrExposureConstants), &constants);
-        const i32 dispatchX = (width + 15) / 16;
-        const i32 dispatchY = (height + 15) / 16;
-        vkCmdDispatch(cmd, dispatchX, dispatchY, 1);
-        vkrCmdImageBarrier(
-            cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            &toGraphics);
-        vkrCmdEnd(cmd);
-        vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-    }
+	// update lum binding
+	{
+		const vkrBinding bindings[] =
+		{
+			{
+				.set = set,
+				.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+				.binding = 0,
+				.image =
+				{
+					.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+					.imageView = lum->view,
+				},
+			},
+			{
+				.set = set,
+				.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.binding = 1,
+				.buffer =
+				{
+					.buffer = histBuffer,
+					.range = VK_WHOLE_SIZE,
+				},
+			},
+			{
+				.set = set,
+				.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.binding = 3,
+				.buffer =
+				{
+					.buffer = expBuffer,
+					.range = VK_WHOLE_SIZE,
+				},
+			},
+		};
+		vkrDesc_WriteBindings(NELEM(bindings), bindings);
+	}
 
-    // transition to gfx (take)
-    {
-        VkFence fence = NULL;
-        VkQueue queue = NULL;
-        VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &fence, &queue);
-        vkrCmdBegin(cmd);
-        vkrCmdImageBarrier(
-            cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            &toGraphics);
-        vkrCmdEnd(cmd);
-        vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-    }
+	// transition lum img and exposure buf to compute
+	{
+		VkFence gfxfence = NULL;
+		VkQueue gfxqueue = NULL;
+		VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &gfxfence, &gfxqueue);
+		vkrCmdBegin(gfxcmd);
 
-    ProfileEnd(pm_execute);
-}
+		vkrCmdImageBarrier(
+			gfxcmd,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			&lumToCompute);
 
-static void vkrExposurePass_WriteDesc(const vkrAttachment* img, VkDescriptorSet set)
-{
-    const vkrBinding imgBindings[] =
-    {
-        {
-            .set = set,
-            .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .binding = 0,
-            .image =
-            {
-                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .imageView = img->view,
-            },
-        },
-    };
-    vkrDesc_WriteBindings(NELEM(imgBindings), imgBindings);
-}
+		vkrCmdBufferBarrier(
+			gfxcmd,
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			&expToCompute);
 
-static float BinToEV(i32 i, float minEV, float dEV)
-{
-    // i varies from 1 to 255
-    // reciprocal range is: 1.0 / 254.0
-    float ev = minEV + (i - 1) * dEV;
-    // log2(kEpsilon) == -22
-    ev = i <= 0 ? -22.0f : ev;
-    return ev;
-}
+		vkrCmdEnd(gfxcmd);
+		vkrCmdSubmit(gfxqueue, gfxcmd, gfxfence, NULL, 0x0, NULL);
+	}
 
-ProfileMark(pm_adapt, vkrExposurePass_AdaptHistogram)
-static void vkrExposurePass_AdaptHistogram(vkrExposurePass* pass, u32* pim_noalias histogram)
-{
-    ProfileBegin(pm_adapt);
+	// dispatch shaders
+	{
+		VkFence cmpfence = NULL;
+		VkQueue cmpqueue = NULL;
+		VkCommandBuffer cmpcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Comp, &cmpfence, &cmpqueue);
+		vkrCmdBegin(cmpcmd);
 
-    ASSERT(histogram);
-    i32 width = g_vkr.chain.width;
-    i32 height = g_vkr.chain.height;
-    const float rcpSamples = 1.0f / (width * height);
-    const float minEV = pass->params.minEV;
-    const float maxEV = pass->params.maxEV;
-    const float minCdf = pass->params.minCdf;
-    const float maxCdf = pass->params.maxCdf;
-    const float dEV = (maxEV - minEV) * (1.0f / (kHistogramSize - 2));
+		vkCmdBindDescriptorSets(
+			cmpcmd, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &set, 0, NULL);
 
-    // histogram seems to be in an odd memory region that is slow to access
-    // copy it to stack before going further
-    u32 stackgram[kHistogramSize];
-    memcpy(stackgram, histogram, sizeof(stackgram));
-    memset(histogram, 0, sizeof(histogram[0]) * kHistogramSize);
+		const i32 width = chain->width;
+		const i32 height = chain->height;
+		const vkrExposureConstants constants =
+		{
+			.width = width,
+			.height = height,
+			.exposure = pass->params,
+		};
 
-    u32 samples = 0;
-    for (i32 i = 0; i < kHistogramSize; ++i)
-    {
-        samples += stackgram[i];
-    }
+		// transition lum and exposure to compute
+		{
+			vkrCmdImageBarrier(
+				cmpcmd,
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				&lumToCompute);
+			vkrCmdBufferBarrier(
+				cmpcmd,
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				&expToCompute);
+		}
 
-    float avgLum = 0.0f;
-    float cdf = 0.0f;
-    for (i32 i = 0; i < kHistogramSize; ++i)
-    {
-        u32 count = stackgram[i];
-        float pdf = rcpSamples * count;
+		// build histogram
+		{
+			const i32 dispatchX = (width + 15) / 16;
+			const i32 dispatchY = (height + 15) / 16;
+			vkCmdBindPipeline(cmpcmd, VK_PIPELINE_BIND_POINT_COMPUTE, buildPipe);
+			vkCmdPushConstants(
+				cmpcmd,
+				layout,
+				VK_SHADER_STAGE_COMPUTE_BIT,
+				0,
+				sizeof(vkrExposureConstants),
+				&constants);
+			vkCmdDispatch(cmpcmd, dispatchX, dispatchY, 1);
+		}
 
-        // https://www.desmos.com/calculator/tetw9t35df
-        float rcpPdf = 1.0f / f1_max(kEpsilon, pdf);
-        float w0 = 1.0f - f1_sat((minCdf - cdf) * rcpPdf);
-        float w1 = f1_sat((maxCdf - cdf) * rcpPdf);
-        float w = pdf * w0 * w1;
+		// barrier between build and adapt shaders
+		{
+			vkrCmdBufferBarrier(
+				cmpcmd,
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				&buildToAdapt);
+		}
 
-        float ev = BinToEV(i, minEV, dEV);
-        float lum = EV100ToLum(ev);
+		// adapt exposure
+		{
+			vkCmdBindPipeline(cmpcmd, VK_PIPELINE_BIND_POINT_COMPUTE, adaptPipe);
+			vkCmdPushConstants(
+				cmpcmd,
+				layout,
+				VK_SHADER_STAGE_COMPUTE_BIT,
+				0,
+				sizeof(vkrExposureConstants),
+				&constants);
+			vkCmdDispatch(cmpcmd, 1, 1, 1);
+		}
 
-        avgLum += lum * pdf;
-        cdf += pdf;
-    }
+		// return lum and exposure to gfx
+		{
+			vkrCmdImageBarrier(
+				cmpcmd,
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				&lumToGraphics);
+			vkrCmdBufferBarrier(
+				cmpcmd,
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				&expToGraphics);
+		}
 
-    pass->params.deltaTime = (float)time_dtf();
-    pass->params.avgLum = AdaptLuminance(
-        pass->params.avgLum,
-        avgLum,
-        pass->params.deltaTime,
-        pass->params.adaptRate);
-    pass->params.exposure = CalcExposure(&pass->params);
+		vkrCmdEnd(cmpcmd);
+		vkrCmdSubmit(cmpqueue, cmpcmd, cmpfence, NULL, 0x0, NULL);
+	}
 
-    ProfileEnd(pm_adapt);
+	// transition to gfx
+	{
+		VkFence gfxfence = NULL;
+		VkQueue gfxqueue = NULL;
+		VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &gfxfence, &gfxqueue);
+		vkrCmdBegin(gfxcmd);
+
+		vkrCmdImageBarrier(
+			gfxcmd,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			&lumToGraphics);
+
+		vkrCmdBufferBarrier(
+			gfxcmd,
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+			&expToGraphics);
+
+		vkrCmdEnd(gfxcmd);
+		vkrCmdSubmit(gfxqueue, gfxcmd, gfxfence, NULL, 0x0, NULL);
+	}
+
+	ProfileEnd(pm_execute);
 }
