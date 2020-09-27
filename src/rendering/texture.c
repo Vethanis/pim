@@ -459,8 +459,8 @@ static void UnpaletteStep3Fn(task_t* pbase, i32 begin, i32 end)
 
 		float dx = r - l;
 		float dy = u - d;
-		float z = 2.0f;
-		float4 N = { dx, dy, z, 1.0f };
+		float z = 1.5f;
+		float4 N = { -dx, -dy, z, 1.0f };
 		normal[i] = DirectionToColor(N);
 	}
 }
