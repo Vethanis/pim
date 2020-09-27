@@ -139,6 +139,8 @@
     <ClCompile Include="..\src\ui\imgui_impl_glfw.cpp" />
     <ClCompile Include="..\src\ui\imgui_widgets.cpp" />
     <ClCompile Include="..\src\ui\ui.c" />
+    <ClCompile Include="..\submodules\cJSON\cJSON.c" />
+    <ClCompile Include="..\submodules\cJSON\cJSON_Utils.c" />
     <ClCompile Include="..\submodules\glfw\src\context.c" />
     <ClCompile Include="..\submodules\glfw\src\egl_context.c" />
     <ClCompile Include="..\submodules\glfw\src\init.c" />
@@ -310,6 +312,8 @@
     <ClInclude Include="..\src\ui\imstb_textedit.h" />
     <ClInclude Include="..\src\ui\imstb_truetype.h" />
     <ClInclude Include="..\src\ui\ui.h" />
+    <ClInclude Include="..\submodules\cJSON\cJSON.h" />
+    <ClInclude Include="..\submodules\cJSON\cJSON_Utils.h" />
     <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore.h" />
     <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_buffer.h" />
     <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore_builder.h" />
@@ -401,6 +405,14 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
     <FxCompile Include="..\src\shaders\Color.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\Exposure.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
@@ -538,7 +550,7 @@
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;VK_USE_PLATFORM_WIN32_KHR;_GLFW_WIN32;_DEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;VK_USE_PLATFORM_WIN32_KHR;_GLFW_WIN32;CJSON_HIDE_SYMBOLS;_DEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb;$(ProjectDir)..\submodules\glad;$(ProjectDir)..\submodules\glfw\include;$(ProjectDir)..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include;$(ProjectDir)..\submodules\embree\embree-3.10.0.x64.vc14.windows\include;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
@@ -578,7 +590,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;VK_USE_PLATFORM_WIN32_KHR;_GLFW_WIN32;NDEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;_CRT_SECURE_NO_WARNINGS;VK_USE_PLATFORM_WIN32_KHR;_GLFW_WIN32;CJSON_HIDE_SYMBOLS;NDEBUG;_CONSOLE;IMGUI_USER_CONFIG="ui/imconfig.h";SOKOL_NO_DEPRECATED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(ProjectDir)..\src;$(ProjectDir)..\submodules;$(ProjectDir)..\submodules\stb;$(ProjectDir)..\submodules\glad;$(ProjectDir)..\submodules\glfw\include;$(ProjectDir)..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include;$(ProjectDir)..\submodules\embree\embree-3.10.0.x64.vc14.windows\include;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>

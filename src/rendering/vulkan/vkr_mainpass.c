@@ -141,11 +141,11 @@ void vkrMainPass_Draw(
     }
     else
     {
-        const VkImageMemoryBarrier barrier =
+        const VkImageMemoryBarrier colorBarrier =
         {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcAccessMask = 0x0,
-            .dstAccessMask = 0x0,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -157,11 +157,32 @@ void vkrMainPass_Draw(
                 .levelCount = 1,
                 .layerCount = 1,
             },
-        };
+		};
+		const VkImageMemoryBarrier lumBarrier =
+		{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+			.srcAccessMask = 0x0,
+			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = chain->lumAttachments[passCtx.imageIndex].image.handle,
+			.subresourceRange =
+			{
+				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+				.levelCount = 1,
+				.layerCount = 1,
+			},
+		};
         vkrCmdImageBarrier(cmd,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            &barrier);
+			&colorBarrier);
+		vkrCmdImageBarrier(cmd,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			&lumBarrier);
     }
 
     vkrCmdBeginRenderPass(

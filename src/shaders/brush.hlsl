@@ -3,13 +3,13 @@
 #include "Sampling.hlsl"
 #include "TextureTable.hlsl"
 #include "GI.hlsl"
+#include "Exposure.hlsl"
 
 struct PerCamera
 {
     float4x4 worldToClip;
     float4 eye;
     uint lmBegin;
-    float exposure;
 };
 
 struct VSInput
@@ -117,7 +117,7 @@ PSOutput PSMain(PSInput input)
 
     PSOutput output;
     output.luminance = PerceptualLuminance(light);
-    light *= cameraData.exposure;
+    light *= GetExposure();
     output.color = float4(saturate(TonemapACES(light)), 1.0);
     return output;
 }

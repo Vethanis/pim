@@ -11,5 +11,6 @@
 #define kEpsilon        2.38418579e-7
 
 #define dotsat(a, b)    saturate(dot((a), (b)))
+#define unlerp(a, b, x) saturate(((x) - (a)) / ((b) - (a)))
 
 #endif // MACRO_HLSL
