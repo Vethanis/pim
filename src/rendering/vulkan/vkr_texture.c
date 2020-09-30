@@ -4,6 +4,7 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_textable.h"
 #include "allocator/allocator.h"
 #include "common/time.h"
 #include "math/scalar.h"
@@ -204,8 +205,10 @@ bool vkrTexture2D_New(
 
     if (bytes > 0)
     {
-        vkrTexture2D_Upload(tex, data, bytes);
-    }
+		vkrTexture2D_Upload(tex, data, bytes);
+		tex->slot = vkrTexTable_AllocSlot(&g_vkr.texTable, tex->sampler, tex->view, tex->layout);
+		ASSERT(tex->slot > 0);
+	}
 
 cleanup:
     if (!success)
@@ -220,7 +223,9 @@ void vkrTexture2D_Del(vkrTexture2D* tex)
     if (tex)
     {
         if (tex->image.handle)
-        {
+		{
+			vkrTexTable_FreeSlot(&g_vkr.texTable, tex->slot);
+
             // create pipeline barrier to safely release resources
             const VkImageMemoryBarrier barrier =
             {

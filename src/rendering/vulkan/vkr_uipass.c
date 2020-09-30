@@ -29,10 +29,10 @@ static void vkrImGui_RenderDrawData(
     ImDrawData* draw_data,
 	VkCommandBuffer command_buffer);
 static void vkrImGui_SetTexture(
-    const vkrUIPass* imgui,
-    VkCommandBuffer cmd,
-    const ImDrawData* draw_data,
-    i32 index);
+	const vkrUIPass* imgui,
+	VkCommandBuffer cmd,
+	const ImDrawData* draw_data,
+	i32 index);
 
 // ----------------------------------------------------------------------------
 
@@ -104,7 +104,7 @@ bool vkrUIPass_New(vkrUIPass* imgui, VkRenderPass renderPass)
         }
 
         // Store our identifier
-        io->Fonts[0].TexID = -1;
+        io->Fonts[0].TexID = imgui->font.slot;
     }
 
     VkPipelineShaderStageCreateInfo shaders[2] = { 0 };
@@ -328,7 +328,7 @@ static void vkrImGui_SetupRenderState(
         };
         vkCmdSetViewport(cmd, 0, 1, &viewport);
 	}
-    vkrImGui_SetTexture(imgui, cmd, draw_data, -1);
+    vkrImGui_SetTexture(imgui, cmd, draw_data, imgui->font.slot);
 
     ProfileEnd(pm_setuprenderstate);
 }
@@ -398,14 +398,10 @@ static void vkrImGui_SetTexture(
     const ImDrawData* draw_data,
     i32 index)
 {
-    i32 fontIdx = imgui->fontIdx;
-    if (index < 0)
-    {
-        index = fontIdx;
-    }
+	i32 fontIdx = imgui->font.slot;
+    u32 discardAlpha = index != fontIdx;
     ASSERT(index >= 0);
 	ASSERT(index < kTextureDescriptors);
-	u32 discardAlpha = index == fontIdx ? 0 : 1;
 	float2 sc = { 2.0f / draw_data->DisplaySize.x, 2.0f / draw_data->DisplaySize.y };
 	float2 tr = { -1.0f - draw_data->DisplayPos.x * sc.x, -1.0f - draw_data->DisplayPos.y * sc.y };
 	vkrUIPassPc constants =
@@ -453,8 +449,6 @@ static void vkrImGui_RenderDrawData(
     // Will project scissor/clipping rectangles into framebuffer space
     const ImVec2 clip_off = draw_data->DisplayPos;         // (0,0) unless using multi-viewports
     const ImVec2 clip_scale = draw_data->FramebufferScale; // (1,1) unless using retina display which are often (2,2)
-
-	vkrImGui_SetTexture(imgui, cmd, draw_data, -1);
 
     // Render command lists
     // (Because we merged all buffers into a single one, we maintain our own offset into them)

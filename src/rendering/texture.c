@@ -629,7 +629,7 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
 	return 0;
 }
 
-static void igTexture(const texture_t* tex, i32 index)
+static void igTexture(const texture_t* tex)
 {
 	if (!tex)
 	{
@@ -639,8 +639,7 @@ static void igTexture(const texture_t* tex, i32 index)
 
 	const i32 width = tex->size.x;
 	const i32 height = tex->size.y;
-	const u32* texels = tex->texels;
-	if (!texels)
+	if (!tex->vkrtex.image.handle)
 	{
 		ASSERT(false);
 		return;
@@ -665,7 +664,7 @@ static void igTexture(const texture_t* tex, i32 index)
 	const ImVec2 uv1 = { 1, 1 };
 	const ImVec4 tint_col = { 1, 1, 1, 1 };
 	const ImVec4 border_col = { 0, 0, 0, 0 };
-	igImage(index, size, uv0, uv1, tint_col, border_col);
+	igImage(tex->vkrtex.slot, size, uv0, uv1, tint_col, border_col);
 }
 
 ProfileMark(pm_OnGui, texture_sys_gui)
@@ -791,7 +790,7 @@ void texture_sys_gui(bool* pEnabled)
 		if (validSelection)
 		{
 			igBegin("Selected Texture", NULL, 0);
-			igTexture(textures + selection, selection);
+			igTexture(&textures[selection]);
 			igEnd();
 		}
 		else

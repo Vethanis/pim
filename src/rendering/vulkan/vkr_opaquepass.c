@@ -13,6 +13,7 @@
 #include "rendering/texture.h"
 #include "rendering/material.h"
 #include "rendering/camera.h"
+#include "rendering/lightmap.h"
 
 #include "allocator/allocator.h"
 #include "common/profiler.h"
@@ -285,6 +286,7 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
     const float4x4* pim_noalias matrices = drawables->matrices;
     const float3x3* pim_noalias invMatrices = drawables->invMatrices;
     const box_t* pim_noalias localBounds = drawables->bounds;
+    const texture_t* pim_noalias textures = texture_table()->values;
 
     frus_t frustum = task->frustum;
     plane_t fwd = frustum.z0;
@@ -317,6 +319,13 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
             vkrCmdViewport(cmd, viewport, rect);
             vkCmdBindPipeline(cmd, bindpoint, pipeline);
             vkrCmdBindDescSets(cmd, bindpoint, layout, 1, &descSet);
+
+            i32 iAlbedo = materials[i].albedo.index;
+            i32 iRome = materials[i].rome.index;
+            i32 iNormal = materials[i].normal.index;
+            iAlbedo = textures[iAlbedo].vkrtex.slot;
+            iRome = textures[iRome].vkrtex.slot;
+            iNormal = textures[iNormal].vkrtex.slot;
             const vkrOpaquePc pushConsts =
             {
                 .localToWorld = matrix,
@@ -324,9 +333,9 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
                 .IMc1 = invMatrices[i].c1,
                 .IMc2 = invMatrices[i].c2,
                 .flatRome = materials[i].flatRome,
-                .albedoIndex = materials[i].albedo.index,
-                .romeIndex = materials[i].rome.index,
-                .normalIndex = materials[i].normal.index,
+                .albedoIndex = iAlbedo,
+                .romeIndex = iRome,
+                .normalIndex = iNormal,
             };
             const u32 stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
             vkrCmdPushConstants(cmd, layout, stages, &pushConsts, sizeof(pushConsts));
@@ -425,15 +434,20 @@ static vkrOpaquePass_Update(const vkrPassContext* passCtx, vkrOpaquePass* pass)
 		float4 up = quat_up(camera.rotation);
 		float4x4 view = f4x4_lookat(camera.position, at, up);
 		float4x4 proj = f4x4_vkperspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
-		const table_t* textable = texture_table();
-		const i32 tableWidth = textable->width;
+
+        const lmpack_t* lmpack = lmpack_get();
+        i32 lmBegin = kTextureDescriptors - kGiDirections;
+        if (lmpack->lmCount > 0)
+        {
+            lmBegin = lmpack->lightmaps[0].vkrtex[0].slot;
+        }
 
 		vkrPerCamera* perCamera = vkrBuffer_Map(camBuffer);
 		ASSERT(perCamera);
 		perCamera->worldToClip = f4x4_mul(proj, view);
 		perCamera->eye = camera.position;
 		perCamera->exposure = g_vkr.exposurePass.params.exposure;
-		perCamera->lmBegin = tableWidth;
+		perCamera->lmBegin = lmBegin;
 		vkrBuffer_Unmap(camBuffer);
 		vkrBuffer_Flush(camBuffer);
     }

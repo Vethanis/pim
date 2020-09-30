@@ -1871,13 +1871,15 @@ pim_inline float4 VEC_CALL SamplePhaseDir(
     float4 L = SampleUnitSphere(Sample2D(sampler));
     L.w = 1.0f / (4.0f * kPi);
 #else
-    const float Mg = (4.0f * kPi) / 3.0f;
+    // nominator is density of function, in this case area of a sphere
+    // denominator controls number of attempts and accuracy
+    // const float Mg = (4.0f * kPi) / 12.0f;
     float4 L;
     do
     {
         L = SampleUnitSphere(Sample2D(sampler));
         L.w = CalcPhase(desc, f4_dot3(rd, L));
-    } while (Sample1D(sampler) > (L.w * Mg));
+    } while (Sample1D(sampler) > L.w);
 #endif
     return L;
 }
