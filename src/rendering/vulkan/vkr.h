@@ -164,6 +164,7 @@ typedef struct vkrTexture2D
     VkFormat format;
     i32 width;
     i32 height;
+    i32 slot;
 } vkrTexture2D;
 
 typedef struct vkrAttachment
@@ -364,6 +365,9 @@ typedef struct vkrTexTable
 {
     vkrTexture2D black;
     VkDescriptorImageInfo table[kTextureDescriptors];
+    i32 tail;
+    i32 freelen;
+	i32* freelist;
 } vkrTexTable;
 
 typedef struct vkrPassContext
@@ -466,7 +470,6 @@ typedef struct vkrUIPass
     vkrBuffer vertbufs[kFramesInFlight];
     vkrBuffer indbufs[kFramesInFlight];
     vkrTexture2D font;
-    i32 fontIdx;
 } vkrUIPass;
 
 typedef struct vkrExposure
