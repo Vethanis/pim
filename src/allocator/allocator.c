@@ -9,12 +9,13 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define kTempFrames     4
-#define kAlign          16
-#define kAlignMask      (kAlign - 1)
+#define kTempFrames         4
+#define kAlign              16
+#define kAlignMask          (kAlign - 1)
 
-#define kPermCapacity   (1024 << 20)
-#define kTempCapacity   (256 << 20)
+#define kPermCapacity       (1 << 30)
+#define kTextureCapacity    (1 << 30)
+#define kTempCapacity       (256 << 20)
 
 typedef pim_alignas(kAlign) struct hdr_s
 {
@@ -25,16 +26,22 @@ typedef pim_alignas(kAlign) struct hdr_s
 } hdr_t;
 SASSERT((sizeof(hdr_t)) == kAlign);
 
+typedef struct tlsf_allocator_s
+{
+    mutex_t mtx;
+    tlsf_t tlsf;
+} tlsf_allocator_t;
+
 typedef struct linear_allocator_s
 {
-    u64 base;
     u64 head;
+    u64 base;
     u64 capacity;
 } linear_allocator_t;
 
+static tlsf_allocator_t ms_perm;
+static tlsf_allocator_t ms_texture;
 static i32 ms_tempIndex;
-static mutex_t ms_perm_mtx;
-static tlsf_t ms_perm;
 static linear_allocator_t ms_temp[kTempFrames];
 
 // ----------------------------------------------------------------------------
@@ -64,65 +71,100 @@ static bool valid_tid(i32 tid)
     return (u32)tid < (u32)kMaxThreads;
 }
 
-static tlsf_t create_tlsf(i32 capacity)
+// ----------------------------------------------------------------------------
+
+static void tlsf_allocator_new(tlsf_allocator_t* allocator, i32 capacity)
 {
+    ASSERT(allocator);
     ASSERT(capacity > 0);
+    memset(allocator, 0, sizeof(*allocator));
+
+	mutex_create(&allocator->mtx);
 
     void* memory = malloc(capacity);
     ASSERT(memory);
 
     tlsf_t tlsf = tlsf_create_with_pool(memory, capacity);
     ASSERT(tlsf);
-
-    return tlsf;
+    allocator->tlsf = tlsf;
 }
 
-static void create_linear(linear_allocator_t* alloc, i32 capacity)
+static void tlsf_allocator_del(tlsf_allocator_t* allocator)
+{
+    if (allocator)
+    {
+        if (allocator->tlsf)
+        {
+            mutex_destroy(&allocator->mtx);
+            tlsf_destroy(allocator->tlsf);
+        }
+        memset(allocator, 0, sizeof(*allocator));
+    }
+}
+
+static void* tlsf_allocator_malloc(tlsf_allocator_t* allocator, i32 bytes)
+{
+    mutex_lock(&allocator->mtx);
+    void* ptr = tlsf_memalign(allocator->tlsf, kAlign, bytes);
+    mutex_unlock(&allocator->mtx);
+    ASSERT(ptr);
+    return ptr;
+}
+
+static void tlsf_allocator_free(tlsf_allocator_t* allocator, void* ptr)
+{
+	mutex_lock(&allocator->mtx);
+    tlsf_free(allocator->tlsf, ptr);
+	mutex_unlock(&allocator->mtx);
+}
+
+// ----------------------------------------------------------------------------
+
+static void linear_allocator_new(linear_allocator_t* alloc, i32 capacity)
 {
     ASSERT(alloc);
     ASSERT(capacity > 0);
+    memset(alloc, 0, sizeof(*alloc));
 
     void* memory = malloc(capacity);
     ASSERT(memory);
 
     alloc->base = (u64)memory;
     alloc->capacity = capacity;
-    alloc->head = 0;
 }
 
-static void destroy_linear(linear_allocator_t* alloc)
+static void linear_allocator_del(linear_allocator_t* alloc)
 {
-    ASSERT(alloc);
-    free((void*)(alloc->base));
-    alloc->base = 0;
-    alloc->capacity = 0;
-    alloc->head = 0;
+    if (alloc)
+	{
+		free((void*)(alloc->base));
+		memset(alloc, 0, sizeof(*alloc));
+    }
 }
 
-static void* linear_alloc(linear_allocator_t* alloc, i32 bytes)
+static void* linear_allocator_malloc(linear_allocator_t* alloc, i32 bytes)
 {
-    const u64 head = fetch_add_u64(&(alloc->head), bytes, MO_Relaxed);
+    const u64 head = fetch_add_u64(&(alloc->head), bytes, MO_Acquire);
     const u64 tail = head + bytes;
     const u64 addr = alloc->base + head;
     return (tail <= alloc->capacity) ? (void*)addr : NULL;
 }
 
-static void linear_clear(linear_allocator_t* alloc)
+static void linear_allocator_clear(linear_allocator_t* alloc)
 {
-    IF_DEBUG(memset((void*)(alloc->base), 0xcd, alloc->capacity));
-    store_u64(&(alloc->head), 0, MO_Relaxed);
+    store_u64(&(alloc->head), 0, MO_Release);
 }
 
 // ----------------------------------------------------------------------------
 
 void alloc_sys_init(void)
 {
-    mutex_create(&ms_perm_mtx);
-    ms_perm = create_tlsf(kPermCapacity);
+    tlsf_allocator_new(&ms_perm, kPermCapacity);
+    tlsf_allocator_new(&ms_texture, kTextureCapacity);
     ms_tempIndex = 0;
-    for (i32 i = 0; i < NELEM(ms_temp); ++i)
+    for (i32 i = 0; i < kTempFrames; ++i)
     {
-        create_linear(ms_temp + i, kTempCapacity);
+        linear_allocator_new(&ms_temp[i], kTempCapacity);
     }
 }
 
@@ -130,20 +172,16 @@ void alloc_sys_update(void)
 {
     const i32 i = (ms_tempIndex + 1) % kTempFrames;
     ms_tempIndex = i;
-    linear_clear(ms_temp + i);
+    linear_allocator_clear(&ms_temp[i]);
 }
 
 void alloc_sys_shutdown(void)
 {
-    mutex_lock(&ms_perm_mtx);
-    free(ms_perm);
-    ms_perm = NULL;
-    mutex_unlock(&ms_perm_mtx);
-    mutex_destroy(&ms_perm_mtx);
-
-    for (i32 i = 0; i < NELEM(ms_temp); ++i)
+    tlsf_allocator_del(&ms_perm);
+    tlsf_allocator_del(&ms_texture);
+    for (i32 i = 0; i < kTempFrames; ++i)
     {
-        destroy_linear(ms_temp + i);
+        linear_allocator_del(&ms_temp[i]);
     }
 }
 
@@ -167,12 +205,13 @@ void* pim_malloc(EAlloc type, i32 bytes)
             ASSERT(false);
             break;
         case EAlloc_Perm:
-            mutex_lock(&ms_perm_mtx);
-            ptr = tlsf_memalign(ms_perm, kAlign, bytes);
-            mutex_unlock(&ms_perm_mtx);
-            break;
+            ptr = tlsf_allocator_malloc(&ms_perm, bytes);
+			break;
+		case EAlloc_Texture:
+			ptr = tlsf_allocator_malloc(&ms_texture, bytes);
+			break;
         case EAlloc_Temp:
-            ptr = linear_alloc(ms_temp + ms_tempIndex, bytes);
+            ptr = linear_allocator_malloc(&ms_temp[ms_tempIndex], bytes);
             break;
         }
 
@@ -217,9 +256,10 @@ void pim_free(void* ptr)
             ASSERT(false);
             break;
         case EAlloc_Perm:
-            mutex_lock(&ms_perm_mtx);
-            tlsf_free(ms_perm, hdr);
-            mutex_unlock(&ms_perm_mtx);
+            tlsf_allocator_free(&ms_perm, hdr);
+            break;
+        case EAlloc_Texture:
+            tlsf_allocator_free(&ms_texture, hdr);
             break;
         case EAlloc_Temp:
             break;

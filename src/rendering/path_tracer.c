@@ -742,7 +742,7 @@ static void SetupLightGrid(pt_scene_t* scene)
         grid_new(&grid, bounds, 1.0f / metersPerCell);
         const i32 len = grid_len(&grid);
         scene->lightGrid = grid;
-        scene->lightDists = perm_calloc(sizeof(scene->lightDists[0]) * len);
+        scene->lightDists = tex_calloc(sizeof(scene->lightDists[0]) * len);
 
         task_SetupLightGrid* task = tmp_calloc(sizeof(*task));
         task->scene = scene;
@@ -850,10 +850,10 @@ void pt_trace_new(
         trace->imageSize = imageSize;
         trace->scene = scene;
         trace->sampleWeight = 1.0f;
-        trace->color = perm_calloc(sizeof(trace->color[0]) * texelCount);
-        trace->albedo = perm_calloc(sizeof(trace->albedo[0]) * texelCount);
-        trace->normal = perm_calloc(sizeof(trace->normal[0]) * texelCount);
-        trace->denoised = perm_calloc(sizeof(trace->denoised[0]) * texelCount);
+        trace->color = tex_calloc(sizeof(trace->color[0]) * texelCount);
+        trace->albedo = tex_calloc(sizeof(trace->albedo[0]) * texelCount);
+        trace->normal = tex_calloc(sizeof(trace->normal[0]) * texelCount);
+        trace->denoised = tex_calloc(sizeof(trace->denoised[0]) * texelCount);
         dofinfo_new(&trace->dofinfo);
     }
 }
