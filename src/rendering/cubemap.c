@@ -79,8 +79,8 @@ void Cubemap_New(cubemap_t* cm, i32 size)
     cm->mipCount = mipCount;
     for (i32 i = 0; i < Cubeface_COUNT; ++i)
     {
-        cm->color[i] = perm_calloc(sizeof(cm->color[0][0]) * len);
-        cm->convolved[i] = perm_calloc(sizeof(cm->convolved[0][0]) * elemCount);
+        cm->color[i] = tex_calloc(sizeof(cm->color[0][0]) * len);
+        cm->convolved[i] = tex_calloc(sizeof(cm->convolved[0][0]) * elemCount);
     }
 }
 

@@ -85,14 +85,22 @@ void lightmap_new(lightmap_t* lm, i32 size)
 {
     ASSERT(lm);
     ASSERT(size > 0);
-    i32 len = size * size;
-    ASSERT(len > 0);
+    memset(lm, 0, sizeof(*lm));
 
-    lm->size = size;
-    i32 bytes = len * sizeof(lm->probes[0][0]);
+	lm->size = size;
+
+	const i32 texelcount = size * size;
+	i32 probesBytes = sizeof(lm->probes[0][0]) * texelcount * kGiDirections;
+	i32 positionBytes = sizeof(lm->position[0]) * texelcount;
+	i32 normalBytes = sizeof(lm->normal[0]) * texelcount;
+	i32 sampleBytes = sizeof(lm->sampleCounts[0]) * texelcount;
+	i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
+    u8* allocation = tex_calloc(texelBytes);
+
     for (i32 i = 0; i < kGiDirections; ++i)
     {
-        lm->probes[i] = perm_calloc(bytes);
+        lm->probes[i] = (float4*)allocation;
+        allocation += sizeof(float4) * texelcount;
         vkrTexture2D_New(
             &lm->vkrtex[i],
             size,
@@ -100,23 +108,26 @@ void lightmap_new(lightmap_t* lm, i32 size)
             VK_FORMAT_R32G32B32A32_SFLOAT,
             NULL, 0);
     }
-    lm->sampleCounts = perm_calloc(sizeof(lm->sampleCounts[0]) * len);
-    lm->position = perm_calloc(sizeof(lm->position[0]) * len);
-    lm->normal = perm_calloc(sizeof(lm->normal[0]) * len);
+
+	lm->position = (float3*)allocation;
+	allocation += sizeof(float3) * texelcount;
+
+	lm->normal = (float3*)allocation;
+	allocation += sizeof(float3) * texelcount;
+
+    lm->sampleCounts = (float*)allocation;
+    allocation += sizeof(float) * texelcount;
 }
 
 void lightmap_del(lightmap_t* lm)
 {
     if (lm)
     {
+        pim_free(lm->probes[0]);
         for (i32 i = 0; i < kGiDirections; ++i)
         {
-            pim_free(lm->probes[i]);
             vkrTexture2D_Del(&lm->vkrtex[i]);
         }
-        pim_free(lm->sampleCounts);
-        pim_free(lm->position);
-        pim_free(lm->normal);
         memset(lm, 0, sizeof(*lm));
     }
 }
@@ -1547,24 +1558,14 @@ bool lmpack_save(const lmpack_t* pack, guid_t name)
             const lightmap_t lm = pack->lightmaps[i];
             const i32 texelcount = lm.size * lm.size;
 
-            ASSERT(fstr_tell(fd) == dlms[i].probes.offset);
-            for (i32 j = 0; j < kGiDirections; ++j)
-            {
-                wrote = fstr_write(fd, lm.probes[j], sizeof(lm.probes[j][0]) * texelcount);
-                ASSERT(wrote == sizeof(lm.probes[j][0]) * texelcount);
-            }
-
-            ASSERT(fstr_tell(fd) == dlms[i].position.offset);
-            wrote = fstr_write(fd, lm.position, sizeof(lm.position[0]) * texelcount);
-            ASSERT(wrote == sizeof(lm.position[0]) * texelcount);
-
-            ASSERT(fstr_tell(fd) == dlms[i].normal.offset);
-            wrote = fstr_write(fd, lm.normal, sizeof(lm.normal[0]) * texelcount);
-            ASSERT(wrote == sizeof(lm.normal[0]) * texelcount);
-
-            ASSERT(fstr_tell(fd) == dlms[i].sampleCounts.offset);
-            wrote = fstr_write(fd, lm.sampleCounts, sizeof(lm.sampleCounts[0]) * texelcount);
-            ASSERT(wrote == sizeof(lm.sampleCounts[0]) * texelcount);
+			ASSERT(fstr_tell(fd) == dlms[i].probes.offset);
+            i32 probesBytes = sizeof(lm.probes[0][0]) * texelcount * kGiDirections;
+            i32 positionBytes = sizeof(lm.position[0]) * texelcount;
+			i32 normalBytes = sizeof(lm.normal[0]) * texelcount;
+			i32 sampleBytes = sizeof(lm.sampleCounts[0]) * texelcount;
+            i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
+			wrote = fstr_write(fd, lm.probes[0], texelBytes);
+			ASSERT(wrote == texelBytes);
         }
 
         fstr_close(&fd);
@@ -1576,6 +1577,7 @@ bool lmpack_save(const lmpack_t* pack, guid_t name)
 bool lmpack_load(lmpack_t* pack, guid_t name)
 {
     bool loaded = false;
+    i32 bytesRead = 0;
 
     ASSERT(pack);
     char filename[PIM_PATH] = "data/";
@@ -1599,7 +1601,8 @@ bool lmpack_load(lmpack_t* pack, guid_t name)
 
             // read lightmap headers
             dlightmap_t* dlms = tmp_calloc(sizeof(dlms[0]) * lmcount);
-            fstr_read(fd, dlms, sizeof(dlms[0]) * lmcount);
+            bytesRead = fstr_read(fd, dlms, sizeof(dlms[0]) * lmcount);
+            ASSERT(bytesRead == sizeof(dlms[0]) * lmcount);
 
             // read lightmaps
             for (i32 i = 0; i < lmcount; ++i)
@@ -1614,27 +1617,18 @@ bool lmpack_load(lmpack_t* pack, guid_t name)
                 dbytes_check(dlm.probes, sizeof(lm.probes[0][0]));
                 dbytes_check(dlm.position, sizeof(lm.position[0]));
                 dbytes_check(dlm.normal, sizeof(lm.normal[0]));
-                dbytes_check(dlm.sampleCounts, sizeof(lm.sampleCounts[0]));
+				dbytes_check(dlm.sampleCounts, sizeof(lm.sampleCounts[0]));
+
+				i32 probesBytes = sizeof(lm.probes[0][0]) * texelcount * kGiDirections;
+				i32 positionBytes = sizeof(lm.position[0]) * texelcount;
+				i32 normalBytes = sizeof(lm.normal[0]) * texelcount;
+				i32 sampleBytes = sizeof(lm.sampleCounts[0]) * texelcount;
+				i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
 
                 lightmap_new(&lm, dlm.size);
                 fstr_seek(fd, dlm.probes.offset);
-                for (i32 j = 0; j < kGiDirections; ++j)
-                {
-                    const i32 bytes = sizeof(lm.probes[0][0]) * texelcount;
-                    fstr_read(fd, lm.probes[j], bytes);
-                }
-
-                fstr_seek(fd, dlm.position.offset);
-                lm.position = perm_malloc(sizeof(lm.position[0]) * texelcount);
-                fstr_read(fd, lm.position, sizeof(lm.position[0]) * texelcount);
-
-                fstr_seek(fd, dlm.normal.offset);
-                lm.normal = perm_malloc(sizeof(lm.normal[0]) * texelcount);
-                fstr_read(fd, lm.normal, sizeof(lm.normal[0]) * texelcount);
-
-                fstr_seek(fd, dlm.sampleCounts.offset);
-                lm.sampleCounts = perm_malloc(sizeof(lm.sampleCounts[0]) * texelcount);
-                fstr_read(fd, lm.sampleCounts, sizeof(lm.sampleCounts[0]) * texelcount);
+                bytesRead = fstr_read(fd, lm.probes[0], texelBytes);
+                ASSERT(bytesRead == texelBytes);
 
                 lightmap_upload(&lm);
                 pack->lightmaps[i] = lm;

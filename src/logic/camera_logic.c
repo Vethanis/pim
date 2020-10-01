@@ -15,6 +15,33 @@ static bool ms_placing = true;
 static cvar_t cv_pitchscale = { .type = cvart_float,.name = "pitchscale",.value = "2",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "pitch input sensitivity" };
 static cvar_t cv_yawscale = { .type = cvart_float,.name = "yawscale",.value = "1",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "yaw input sensitivity" };
 static cvar_t cv_movescale = { .type = cvart_float,.name = "movescale",.value = "10",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
+static cvar_t cv_r_fov =
+{
+    .type = cvart_float,
+    .name = "r_fov",
+    .value = "90",
+    .minFloat = 1.0f,
+    .maxFloat = 170.0f,
+    .desc = "Vertical field of fiew, in degrees",
+};
+static cvar_t cv_r_znear =
+{
+    .type = cvart_float,
+    .name = "r_znear",
+    .value = "0.1",
+    .minFloat = 0.01f,
+    .maxFloat = 1.0f,
+    .desc = "Near clipping plane, in meters",
+};
+static cvar_t cv_r_zfar =
+{
+    .type = cvart_float,
+    .name = "r_zfar",
+    .value = "100",
+    .minFloat = 1.0f,
+    .maxFloat = 1000.0f,
+    .desc = "Far clipping plane, in meters",
+};
 
 static void LightLogic(const camera_t* cam)
 {
@@ -53,6 +80,9 @@ void camera_logic_init(void)
     cvar_reg(&cv_pitchscale);
     cvar_reg(&cv_yawscale);
     cvar_reg(&cv_movescale);
+    cvar_reg(&cv_r_fov);
+    cvar_reg(&cv_r_znear);
+    cvar_reg(&cv_r_zfar);
 }
 
 ProfileMark(pm_update, camera_logic_update)
@@ -62,9 +92,13 @@ void camera_logic_update(void)
 
     float dYaw = input_delta_axis(MouseAxis_X) * cvar_get_float(&cv_yawscale);
     float dPitch = input_delta_axis(MouseAxis_Y) * cvar_get_float(&cv_pitchscale);
-    const float dscroll = input_delta_axis(MouseAxis_ScrollY);
+
     camera_t camera;
     camera_get(&camera);
+    camera.fovy = cvar_get_float(&cv_r_fov);
+    camera.zNear = cvar_get_float(&cv_r_znear);
+    camera.zFar = cvar_get_float(&cv_r_zfar);
+    camera_set(&camera);
 
     if (input_keyup(KeyCode_Escape))
     {
@@ -128,8 +162,6 @@ void camera_logic_update(void)
     at = f4_add(at, f4_mulvs(up, dPitch));
     fwd = f4_normalize3(f4_sub(at, eye));
     rot = quat_lookat(fwd, yAxis);
-
-    camera.fovy = f1_clamp(camera.fovy + dscroll, 30.0f, 150.0f);
 
     camera.position = eye;
     camera.rotation = rot;

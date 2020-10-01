@@ -107,7 +107,7 @@ bool texture_loadat(const char* path, VkFormat format, textureid_t* idOut)
 	i32 width = 0;
 	i32 height = 0;
 	i32 channels = 0;
-	// STBI_MALLOC => perm_malloc
+	// STBI_MALLOC => pim_malloc(EAlloc_Texture, bytes)
 	u32* pim_noalias texels = (u32*)stbi_load(path, &width, &height, &channels, 4);
 	if (texels)
 	{
@@ -273,7 +273,7 @@ bool texture_load(guid_t name, textureid_t* dst)
 			if ((texture.size.x > 0) && (texture.size.y > 0))
 			{
 				const i32 len = texture.size.x * texture.size.y;
-				texture.texels = perm_malloc(sizeof(texture.texels[0]) * len);
+				texture.texels = tex_malloc(sizeof(texture.texels[0]) * len);
 
 				ASSERT(fstr_tell(fd) == dtexture.texels.offset);
 				fstr_read(fd, texture.texels, sizeof(texture.texels[0]) * len);
@@ -524,10 +524,10 @@ bool texture_unpalette(
 		const bool isLight = StrIStr(name, 16, "light");
 		const bool fullEmit = isSky || isTeleport || isWindow;
 
-		u32* pim_noalias albedo = perm_malloc(len * sizeof(albedo[0]));
-		u32* pim_noalias rome = perm_malloc(len * sizeof(rome[0]));
-		u32* pim_noalias normal = perm_malloc(len * sizeof(normal[0]));
-		float2* pim_noalias gray = perm_malloc(len * sizeof(gray[0]));
+		u32* pim_noalias albedo = tex_malloc(len * sizeof(albedo[0]));
+		u32* pim_noalias rome = tex_malloc(len * sizeof(rome[0]));
+		u32* pim_noalias normal = tex_malloc(len * sizeof(normal[0]));
+		float2* pim_noalias gray = tex_malloc(len * sizeof(gray[0]));
 
 		task_Unpalette* tasks = tmp_calloc(sizeof(tasks[0]) * 3);
 		tasks[0].albedo = albedo;

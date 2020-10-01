@@ -14,7 +14,7 @@ static void EnsureInit(void)
 {
     if (!ms_guidToStr.valueSize)
 	{
-		dict_new(&ms_guidToStr, sizeof(guid_t), sizeof(text64), EAlloc_Perm);
+		dict_new(&ms_guidToStr, sizeof(guid_t), sizeof(text32), EAlloc_Perm);
     }
 }
 
@@ -32,7 +32,7 @@ void guid_set_name(guid_t id, const char* str)
     EnsureInit();
     if (str && str[0])
     {
-        text64 text = { 0 };
+        text32 text = { 0 };
         StrCpy(ARGS(text.c), str);
         if (!dict_add(&ms_guidToStr, &id, &text))
         {
@@ -48,7 +48,7 @@ void guid_set_name(guid_t id, const char* str)
 bool guid_get_name(guid_t id, char* dst, i32 size)
 {
 	EnsureInit();
-    text64 text = { 0 };
+    text32 text = { 0 };
     if (dict_get(&ms_guidToStr, &id, &text))
     {
         StrCpy(dst, size, text.c);
