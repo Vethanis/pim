@@ -365,9 +365,7 @@ typedef struct vkrTexTable
 {
     vkrTexture2D black;
     VkDescriptorImageInfo table[kTextureDescriptors];
-    i32 tail;
-    i32 freelen;
-	i32* freelist;
+    i32 width;
 } vkrTexTable;
 
 typedef struct vkrPassContext

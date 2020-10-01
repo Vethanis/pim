@@ -528,7 +528,6 @@ static void Present(void)
 		ProfileBegin(pm_Present);
 		framebuf_t* frontBuf = GetFrontBuf();
 		int2 size = { frontBuf->width, frontBuf->height };
-		ms_exposure.deltaTime = (float)time_dtf();
 		ExposeImage(size, frontBuf->light, &ms_exposure);
 		ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
 		TakeScreenshot();

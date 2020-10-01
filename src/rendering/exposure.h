@@ -112,7 +112,8 @@ pim_inline float AdaptLuminance(
     float dt,
     float rate)
 {
-    dt = f1_clamp(dt, 0.0f, 1.0f / 30.0f);
+	lum0 = f1_max(lum0, kEpsilon);
+	lum1 = f1_max(lum1, kEpsilon);
     float t = 1.0f - expf(-dt * rate);
     return f1_lerp(lum0, lum1, f1_sat(t));
 }

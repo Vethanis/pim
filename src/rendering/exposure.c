@@ -5,6 +5,7 @@
 #include "threading/task.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
+#include "common/time.h"
 
 typedef struct task_ToLum
 {
@@ -78,6 +79,11 @@ void ExposeImage(
     vkrExposure* parameters)
 {
     ProfileBegin(pm_exposeimg);
+
+	float dt = (float)time_dtf();
+	float mean = parameters->deltaTime;
+	mean = f1_lerp(mean, dt, 1.0f / 666.0f);
+    parameters->deltaTime = mean;
 
     parameters->avgLum = AdaptLuminance(
         parameters->avgLum,

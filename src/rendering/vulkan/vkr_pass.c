@@ -25,21 +25,24 @@ bool vkrPass_New(vkrPass* pass, const vkrPassDesc* desc)
         return false;
     }
 
-    pass->descPool = vkrDescPool_New(kFramesInFlight, desc->poolSizeCount, desc->poolSizes);
-    if (!pass->descPool)
-    {
-        vkrPass_Del(pass);
-        return false;
-    }
+    if (desc->poolSizeCount > 0)
+	{
+		pass->descPool = vkrDescPool_New(kFramesInFlight, desc->poolSizeCount, desc->poolSizes);
+		if (!pass->descPool)
+		{
+			vkrPass_Del(pass);
+			return false;
+		}
 
-    for (i32 i = 0; i < kFramesInFlight; ++i)
-    {
-        pass->sets[i] = vkrDesc_New(pass->descPool, pass->setLayout);
-        if (!pass->sets[i])
-        {
-            vkrPass_Del(pass);
-            return false;
-        }
+		for (i32 i = 0; i < kFramesInFlight; ++i)
+		{
+			pass->sets[i] = vkrDesc_New(pass->descPool, pass->setLayout);
+			if (!pass->sets[i])
+			{
+				vkrPass_Del(pass);
+				return false;
+			}
+		}
     }
 
     switch (desc->bindpoint)

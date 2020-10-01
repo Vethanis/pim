@@ -76,7 +76,6 @@ float AdaptLuminance(float lum0, float lum1, float dt, float tau)
 {
     lum0 = max(lum0, kEpsilon);
     lum1 = max(lum1, kEpsilon);
-    dt = clamp(dt, 0.0, 1.0 / 30.0);
     float t = 1.0 - exp(-dt * tau);
     return lerp(lum0, lum1, saturate(t));
 }

@@ -10,14 +10,8 @@ void vkrTexTable_Del(vkrTexTable* table);
 void vkrTexTable_Update(vkrTexTable* table);
 void vkrTexTable_Write(const vkrTexTable* table, VkDescriptorSet set);
 
-i32 vkrTexTable_AllocSlot(
-	vkrTexTable* table,
-	VkSampler sampler,
-	VkImageView view,
-	VkImageLayout layout);
-void vkrTexTable_FreeSlot(vkrTexTable* table, i32 slot);
-
-i32 vkrTexTable_AllocContiguous(vkrTexTable* table, i32 count);
+i32 vkrTexTable_AllocSlot(vkrTexTable* table);
+void vkrTexTable_ClearSlot(vkrTexTable* table, i32 slot);
 
 void vkrTexTable_WriteSlot(
 	vkrTexTable* table,
@@ -26,6 +20,5 @@ void vkrTexTable_WriteSlot(
 	VkImageView view,
 	VkImageLayout layout);
 
-void vkrTexTable_ClearSlot(vkrTexTable* table, i32 slot);
 
 PIM_C_END
