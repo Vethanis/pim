@@ -47,44 +47,6 @@ bool vkrDepthPass_New(vkrDepthPass* pass, VkRenderPass renderPass)
             .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
             .size = sizeof(vkrOpaquePc),
         },
-    };    const VkDescriptorPoolSize poolSizes[] =
-    {
-        {
-            .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = kTextureDescriptors,
-        },
-    };
-    const VkDescriptorSetLayoutBinding bindings[] =
-    {
-        {
-            // per draw  structured buffer
-            .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            // per camera cbuffer
-            .binding = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            // texture + sampler table
-            .binding = 2,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = kTextureDescriptors,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
     };
     const VkVertexInputBindingDescription vertBindings[] =
     {
@@ -137,10 +99,6 @@ bool vkrDepthPass_New(vkrDepthPass* pass, VkRenderPass renderPass)
                 .blendEnable = false,
             },
         },
-        .poolSizeCount = NELEM(poolSizes),
-        .poolSizes = poolSizes,
-        .bindingCount = NELEM(bindings),
-        .bindings = bindings,
         .rangeCount = NELEM(ranges),
         .ranges = ranges,
         .shaderCount = NELEM(shaders),
@@ -193,7 +151,6 @@ typedef struct vkrTaskDraw
     VkRenderPass renderPass;
     vkrPassId subpass;
     const vkrSwapchain* chain;
-    VkDescriptorSet descSet;
     VkFramebuffer framebuffer;
     VkFence primaryFence;
     const drawables_t* drawables;
@@ -210,7 +167,6 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
     VkPipeline pipeline = pass->pass.pipeline;
     VkPipelineLayout layout = pass->pass.layout;
     vkrPassId subpass = task->subpass;
-    VkDescriptorSet descSet = task->descSet;
     VkFramebuffer framebuffer = task->framebuffer;
     VkFence primaryFence = task->primaryFence;
     const drawables_t* drawables = task->drawables;
@@ -256,7 +212,6 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
             vkrCmdBeginSec(cmd, renderPass, subpass, framebuffer);
             vkrCmdViewport(cmd, viewport, rect);
             vkCmdBindPipeline(cmd, bindpoint, pipeline);
-            vkrCmdBindDescSets(cmd, bindpoint, layout, 1, &descSet);
             const vkrDepthPc pushConsts =
             {
                 .localToClip = f4x4_mul(worldToClip, localToWorld),
@@ -295,7 +250,6 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
 
     task->buffers = buffers;
     task->chain = chain;
-    task->descSet = pass->pass.sets[ctx->syncIndex];
     task->distances = distances;
     task->drawables = drawables;
     task->framebuffer = ctx->framebuffer;

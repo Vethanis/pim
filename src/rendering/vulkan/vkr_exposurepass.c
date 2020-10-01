@@ -171,7 +171,10 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
 {
 	ProfileBegin(pm_execute);
 
-	pass->params.deltaTime = f1_clamp((float)time_dtf(), 0.0f, 1.0f / 30.0f);
+	float dt = (float)time_dtf();
+	float mean = pass->params.deltaTime;
+	mean = f1_lerp(mean, dt, 1.0f / 666.0f);
+	pass->params.deltaTime = mean;
 
 	const vkrSwapchain* chain = &g_vkr.chain;
 	const u32 imgIndex = chain->imageIndex;

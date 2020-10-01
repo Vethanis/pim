@@ -203,10 +203,11 @@ bool vkrTexture2D_New(
         goto cleanup;
     }
 
+	tex->slot = vkrTexTable_AllocSlot(&g_vkr.texTable);
+
     if (bytes > 0)
     {
 		vkrTexture2D_Upload(tex, data, bytes);
-		tex->slot = vkrTexTable_AllocSlot(&g_vkr.texTable, tex->sampler, tex->view, tex->layout);
 		ASSERT(tex->slot > 0);
 	}
 
@@ -221,11 +222,10 @@ cleanup:
 void vkrTexture2D_Del(vkrTexture2D* tex)
 {
     if (tex)
-    {
+	{
+		vkrTexTable_ClearSlot(&g_vkr.texTable, tex->slot);
         if (tex->image.handle)
 		{
-			vkrTexTable_FreeSlot(&g_vkr.texTable, tex->slot);
-
             // create pipeline barrier to safely release resources
             const VkImageMemoryBarrier barrier =
             {
@@ -308,7 +308,7 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
         VkImageMemoryBarrier barrier =
         {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask = 0x0,
+            .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
             .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -324,7 +324,7 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
         };
         vkrCmdImageBarrier(
             cmd,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             &barrier);
         tex->layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -421,6 +421,8 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
     vkrBuffer_Release(&stagebuf, fence);
 
     tex->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	vkrTexTable_WriteSlot(&g_vkr.texTable, tex->slot, tex->sampler, tex->view, tex->layout);
 
     return fence;
 }

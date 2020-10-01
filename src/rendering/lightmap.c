@@ -90,7 +90,6 @@ void lightmap_new(lightmap_t* lm, i32 size)
 
     lm->size = size;
     i32 bytes = len * sizeof(lm->probes[0][0]);
-    i32 slotBegin = vkrTexTable_AllocContiguous(&g_vkr.texTable, kGiDirections);
     for (i32 i = 0; i < kGiDirections; ++i)
     {
         lm->probes[i] = perm_calloc(bytes);
@@ -100,7 +99,6 @@ void lightmap_new(lightmap_t* lm, i32 size)
             size,
             VK_FORMAT_R32G32B32A32_SFLOAT,
             NULL, 0);
-        lm->vkrtex[i].slot = slotBegin + i;
     }
     lm->sampleCounts = perm_calloc(sizeof(lm->sampleCounts[0]) * len);
     lm->position = perm_calloc(sizeof(lm->position[0]) * len);
@@ -126,13 +124,12 @@ void lightmap_del(lightmap_t* lm)
 void lightmap_upload(lightmap_t* lm)
 {
     ASSERT(lm);
-    i32 len = lm->size * lm->size;
-    i32 bytes = len * sizeof(lm->probes[0][0]);
-    vkrTexture2D* vkrtex = lm->vkrtex;
+    const i32 len = lm->size * lm->size;
+	vkrTexture2D* vkrtex = lm->vkrtex;
     for (i32 i = 0; i < kGiDirections; ++i)
     {
-        vkrTexture2D_Upload(&vkrtex[i], lm->probes[i], bytes);
-        vkrTexTable_WriteSlot(&g_vkr.texTable, vkrtex[i].slot, vkrtex[i].sampler, vkrtex[i].view, vkrtex[i].layout);
+        const float4* pim_noalias probes = lm->probes[i];
+        vkrTexture2D_Upload(&vkrtex[i], probes, sizeof(probes[0]) * len);
     }
 }
 
