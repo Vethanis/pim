@@ -1416,7 +1416,8 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
     const i32 lmSize = pack->lmSize;
     const i32 lmLen = lmSize * lmSize;
     const float rcpSize = 1.0f / lmSize;
-    const int2 size = { lmSize, lmSize };
+	const int2 size = { lmSize, lmSize };
+    const float metersPerTexel = 1.0f / pack->texelsPerMeter;
 
     pt_sampler_t sampler = pt_sampler_get();
     for (i32 iWork = begin; iWork < end; ++iWork)
@@ -1446,6 +1447,11 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
         P = f4_add(P, f4_mulvs(N, kMilli));
 
         const float3x3 TBN = NormalToTBN(N);
+        float dt = (pt_sample_1d(&sampler) - 0.5f) * metersPerTexel;
+        float db = (pt_sample_1d(&sampler) - 0.5f) * metersPerTexel;
+        P = f4_add(P, f4_mulvs(TBN.c0, dt));
+        P = f4_add(P, f4_mulvs(TBN.c1, db));
+
         float4 Lts = SampleUnitHemisphere(pt_sample_2d(&sampler));
         float4 Lws = TbnToWorld(TBN, Lts);
 

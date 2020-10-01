@@ -1969,6 +1969,13 @@ pt_result_t VEC_CALL pt_trace_ray(
         {
             break;
         }
+        if (hit.type == hit_backface)
+        {
+            if (!(hit.flags & matflag_refractive))
+            {
+                break;
+            }
+        }
 
         {
             scatter_t scatter = ScatterRay(sampler, scene, ray.ro, ray.rd, hit.wuvt.w);
