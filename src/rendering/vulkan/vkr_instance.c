@@ -13,6 +13,7 @@ bool vkrInstance_Init(vkr_t* vkr)
 
     VkCheck(volkInitialize());
 
+    vkrListInstLayers();
     vkrListInstExtensions();
 
     vkr->inst = vkrCreateInstance(vkrGetInstExtensions(), vkrGetLayers());
@@ -49,9 +50,24 @@ strlist_t vkrGetLayers(void)
 {
     strlist_t list;
     strlist_new(&list, EAlloc_Temp);
-#ifdef _DEBUG
-    strlist_add(&list, "VK_LAYER_KHRONOS_validation");
-#endif // _DEBUG
+
+    u32 count = 0;
+    const VkLayerProperties* props = vkrEnumInstLayers(&count);
+
+#if VKR_KHRONOS_LAYER_ON
+    if (!vkrTryAddLayer(&list, props, count, VKR_KHRONOS_LAYER_NAME))
+    {
+        con_logf(LogSev_Warning, "vkr", "Failed to load layer '%s'", VKR_KHRONOS_LAYER_NAME);
+    }
+#endif // VKR_KHRONOS_LAYER_ON
+
+#if VKR_ASSIST_LAYER_ON
+    if (!vkrTryAddLayer(&list, props, count, VKR_ASSIST_LAYER_NAME))
+    {
+        con_logf(LogSev_Warning, "vkr", "Failed to load layer '%s'", VKR_ASSIST_LAYER_NAME);
+    }
+#endif // VKR_ASSIST_LAYER_ON
+
     return list;
 }
 
@@ -59,9 +75,9 @@ static const char* const kDesiredInstExtensions[] =
 {
     VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
     VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME,
-#if _DEBUG
+#if VKR_DEBUG_MESSENGER_ON
     VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-#endif // _DEBUG
+#endif // VKR_DEBUG_MESSENGER_ON
 };
 
 strlist_t vkrGetInstExtensions(void)
@@ -78,7 +94,7 @@ strlist_t vkrGetInstExtensions(void)
     {
         if (!vkrTryAddExtension(&list, props, count, glfwList[i]))
         {
-            con_logf(LogSev_Error, "vkr", "Failed to load required instance extension '%'", kDesiredInstExtensions[i]);
+            con_logf(LogSev_Error, "vkr", "Failed to load required instance extension '%'", glfwList[i]);
             ASSERT(false);
         }
     }
@@ -94,6 +110,18 @@ strlist_t vkrGetInstExtensions(void)
     return list;
 }
 
+VkLayerProperties* vkrEnumInstLayers(u32* countOut)
+{
+    ASSERT(countOut);
+    u32 count = 0;
+    VkLayerProperties* props = NULL;
+    VkCheck(vkEnumerateInstanceLayerProperties(&count, NULL));
+    TempReserve(props, count);
+    VkCheck(vkEnumerateInstanceLayerProperties(&count, props));
+    *countOut = count;
+    return props;
+}
+
 VkExtensionProperties* vkrEnumInstExtensions(u32* countOut)
 {
     ASSERT(countOut);
@@ -104,6 +132,17 @@ VkExtensionProperties* vkrEnumInstExtensions(u32* countOut)
     VkCheck(vkEnumerateInstanceExtensionProperties(NULL, &count, props));
     *countOut = count;
     return props;
+}
+
+void vkrListInstLayers(void)
+{
+    u32 count = 0;
+    VkLayerProperties* props = vkrEnumInstLayers(&count);
+    con_logf(LogSev_Info, "vkr", "%d available instance layers", count);
+    for (u32 i = 0; i < count; ++i)
+    {
+        con_logf(LogSev_Info, "vkr", props[i].layerName);
+    }
 }
 
 void vkrListInstExtensions(void)
@@ -120,13 +159,13 @@ void vkrListInstExtensions(void)
 i32 vkrFindExtension(
     const VkExtensionProperties* props,
     u32 count,
-    const char* extName)
+    const char* name)
 {
     ASSERT(props || !count);
-    ASSERT(extName);
+    ASSERT(name);
     for (u32 i = 0; i < count; ++i)
     {
-        if (StrCmp(ARGS(props[i].extensionName), extName) == 0)
+        if (StrCmp(ARGS(props[i].extensionName), name) == 0)
         {
             return (i32)i;
         }
@@ -134,16 +173,48 @@ i32 vkrFindExtension(
     return -1;
 }
 
+i32 vkrFindLayer(
+    const VkLayerProperties* props,
+    u32 count,
+    const char* name)
+{
+    ASSERT(props || !count);
+    ASSERT(name);
+    for (u32 i = 0; i < count; ++i)
+    {
+        if (StrCmp(ARGS(props[i].layerName), name) == 0)
+        {
+            return (i32)i;
+        }
+    }
+    return -1;
+}
+
+bool vkrTryAddLayer(
+    strlist_t* list,
+    const VkLayerProperties* props,
+    u32 propCount,
+    const char* name)
+{
+    ASSERT(list);
+    if (vkrFindLayer(props, propCount, name) >= 0)
+    {
+        strlist_add(list, name);
+        return true;
+    }
+    return false;
+}
+
 bool vkrTryAddExtension(
     strlist_t* list,
     const VkExtensionProperties* props,
     u32 propCount,
-    const char* extName)
+    const char* name)
 {
     ASSERT(list);
-    if (vkrFindExtension(props, propCount, extName) != -1)
+    if (vkrFindExtension(props, propCount, name) >= 0)
     {
-        strlist_add(list, extName);
+        strlist_add(list, name);
         return true;
     }
     return false;

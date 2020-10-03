@@ -7,6 +7,7 @@
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_image.h"
 #include "rendering/vulkan/vkr_attachment.h"
+#include "rendering/vulkan/vkr_context.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
@@ -268,6 +269,7 @@ bool vkrSwapchain_Recreate(
     vkrSwapchain next = { 0 };
     vkrSwapchain prev = *chain;
     vkrDevice_WaitIdle();
+    vkrContext_OnSwapRecreate(&g_vkr.context);
     bool recreated = false;
     if ((display->width > 0) && (display->height > 0))
     {

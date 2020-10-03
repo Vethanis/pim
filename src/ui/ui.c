@@ -135,7 +135,6 @@ void ui_sys_init(GLFWwindow* window)
     igSetCurrentContext(ms_ctx);
     igStyleColorsDark(NULL);
     ImGui_ImplGlfw_InitForVulkan(window, false);
-    //ImGui_ImplOpenGL3_Init();
     SetupStyle();
     UpdateOpacity();
 }
@@ -150,7 +149,6 @@ void ui_sys_beginframe(void)
         UpdateOpacity();
     }
 
-    //ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     igNewFrame();
 
@@ -161,7 +159,7 @@ ProfileMark(pm_endframe, ui_sys_endframe)
 void ui_sys_endframe(void)
 {
     ProfileBegin(pm_endframe);
-
+    igEndFrame();
     ProfileEnd(pm_endframe);
 }
 
