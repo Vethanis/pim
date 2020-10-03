@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/macro.h"
-#define VK_ENABLE_BETA_EXTENSIONS 1
 #include <volk/volk.h>
 #include "math/types.h"
 #include "containers/strlist.h"
@@ -316,7 +315,6 @@ typedef struct vkrCmdAlloc
     u32 capacity;
     VkCommandBuffer* buffers;
     VkFence* fences;
-    u32* frames;
 } vkrCmdAlloc;
 
 typedef struct vkrThreadContext

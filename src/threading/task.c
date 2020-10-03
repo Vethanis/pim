@@ -7,6 +7,7 @@
 #include "common/atomics.h"
 #include "containers/ptrqueue.h"
 #include "allocator/allocator.h"
+#include "math/scalar.h"
 #include "common/profiler.h"
 
 #include <string.h>
@@ -31,14 +32,11 @@ static pim_thread_local i32 ms_tid;
 
 // ----------------------------------------------------------------------------
 
-static i32 min_i32(i32 a, i32 b) { return (a < b) ? a : b; }
-static i32 max_i32(i32 a, i32 b) { return (a > b) ? a : b; }
-
 static i32 StealWork(task_t* task, range_t* range, i32 gran)
 {
     const i32 wsize = task->worksize;
     const i32 a = fetch_add_i32(&(task->head), gran, MO_Acquire);
-    const i32 b = min_i32(a + gran, wsize);
+    const i32 b = i1_min(a + gran, wsize);
     range->begin = a;
     range->end = b;
     return a < b;
@@ -61,12 +59,12 @@ static void MarkComplete(task_t* task)
 static i32 TryRunTask(i32 tid)
 {
     const i32 numthreads = ms_numthreads;
-    const i32 tasksplit = numthreads * (numthreads >> 1);
+    const i32 tasksplit = i1_max(1, numthreads * (numthreads >> 1));
 
     task_t* task = ptrqueue_trypop(ms_queues + tid);
     if (task)
     {
-        const i32 gran = max_i32(1, task->worksize / tasksplit);
+        const i32 gran = i1_max(1, task->worksize / tasksplit);
         const task_execute_fn fn = task->execute;
         range_t range;
         while (StealWork(task, &range, gran))
@@ -223,7 +221,7 @@ void task_sys_init(void)
     event_create(&ms_waitPush);
     store_i32(&ms_running, 1, MO_Release);
 
-    const i32 numthreads = thread_hardware_count();
+    const i32 numthreads = i1_min(kMaxThreads, thread_hardware_count());
     ms_numthreads = numthreads;
 
     const i32 kQueueSize = 64;

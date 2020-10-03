@@ -134,6 +134,21 @@ typedef enum
     EAlloc_Count
 } EAlloc;
 
-#define kMaxThreads 256
+#define kMaxThreads                 256
+
+#define VK_ENABLE_BETA_EXTENSIONS   1
+#define VKR_KHRONOS_LAYER_NAME      "VK_LAYER_KHRONOS_validation"
+#define VKR_ASSIST_LAYER_NAME       "VK_LAYER_LUNARG_assistant_layer"
+
+#if defined(_DEBUG) && 1
+    // these are very slow!
+    #define VKR_KHRONOS_LAYER_ON    1
+    #define VKR_ASSIST_LAYER_ON     1
+#else
+    #define VKR_KHRONOS_LAYER_ON    0
+    #define VKR_ASSIST_LAYER_ON     0
+#endif // _DEBUG
+
+#define VKR_DEBUG_MESSENGER_ON      (VKR_KHRONOS_LAYER_ON || VKR_ASSIST_LAYER_ON)
 
 PIM_C_END
