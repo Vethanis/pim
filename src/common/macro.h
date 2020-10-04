@@ -70,6 +70,8 @@
 #define IF_TRUE(x, expr)            do { if(x) { expr; } } while(0)
 #define IF_FALSE(x, expr)           do { if(!(x)) { expr; } } while(0)
 #define pim_offsetof(s, m)          ((usize)&(((s*)0)->m))
+#define pim_min(a, b)               ((a) < (b) ? (a) : (b))
+#define pim_max(a, b)               ((a) > (b) ? (a) : (b))
 
 #ifdef _DEBUG
     #define IF_DEBUG(x)             x

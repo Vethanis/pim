@@ -292,6 +292,18 @@ pim_inline float2 VEC_CALL BilinearClamp_f2(const float2* pim_noalias buffer, in
     float2 d = buffer[id];
     return BilinearBlend_f2(a, b, c, d, bi.frac);
 }
+pim_inline float2 VEC_CALL BilinearWrap_f2(const float2* pim_noalias buffer, int2 size, bilinear_t bi)
+{
+    i32 ia = Wrap(size, bi.a);
+    i32 ib = Wrap(size, bi.b);
+    i32 ic = Wrap(size, bi.c);
+    i32 id = Wrap(size, bi.d);
+    float2 a = buffer[ia];
+    float2 b = buffer[ib];
+    float2 c = buffer[ic];
+    float2 d = buffer[id];
+    return BilinearBlend_f2(a, b, c, d, bi.frac);
+}
 
 pim_inline float VEC_CALL BilinearClamp_f1(const float* pim_noalias buffer, int2 size, bilinear_t bi)
 {
@@ -305,7 +317,18 @@ pim_inline float VEC_CALL BilinearClamp_f1(const float* pim_noalias buffer, int2
     float d = buffer[id];
     return BilinearBlend_f1(a, b, c, d, bi.frac);
 }
-
+pim_inline float VEC_CALL BilinearWrap_f1(const float* pim_noalias buffer, int2 size, bilinear_t bi)
+{
+    i32 ia = Wrap(size, bi.a);
+    i32 ib = Wrap(size, bi.b);
+    i32 ic = Wrap(size, bi.c);
+    i32 id = Wrap(size, bi.d);
+    float a = buffer[ia];
+    float b = buffer[ib];
+    float c = buffer[ic];
+    float d = buffer[id];
+    return BilinearBlend_f1(a, b, c, d, bi.frac);
+}
 
 pim_inline float4 VEC_CALL BilinearClamp_c32(const u32* pim_noalias buffer, int2 size, bilinear_t bi)
 {
@@ -356,11 +379,23 @@ pim_inline float2 VEC_CALL UvBilinearClamp_f2(const float2* pim_noalias buffer, 
     float2 value = BilinearClamp_f2(buffer, size, bi);
     return value;
 }
+pim_inline float2 VEC_CALL UvBilinearWrap_f2(const float2* pim_noalias buffer, int2 size, float2 uv)
+{
+    bilinear_t bi = Bilinear(size, uv);
+    float2 value = BilinearWrap_f2(buffer, size, bi);
+    return value;
+}
 
 pim_inline float VEC_CALL UvBilinearClamp_f1(const float* pim_noalias buffer, int2 size, float2 uv)
 {
     bilinear_t bi = Bilinear(size, uv);
     float value = BilinearClamp_f1(buffer, size, bi);
+    return value;
+}
+pim_inline float VEC_CALL UvBilinearWrap_f1(const float* pim_noalias buffer, int2 size, float2 uv)
+{
+    bilinear_t bi = Bilinear(size, uv);
+    float value = BilinearWrap_f1(buffer, size, bi);
     return value;
 }
 

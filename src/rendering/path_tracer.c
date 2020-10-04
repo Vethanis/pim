@@ -213,7 +213,7 @@ pim_inline float4 VEC_CALL BrdfEval(
     const surfhit_t* surf,
     float4 L);
 pim_inline scatter_t VEC_CALL RefractScatter(
-	pt_sampler_t* sampler,
+    pt_sampler_t* sampler,
     const surfhit_t* surf,
     float4 I);
 pim_inline scatter_t VEC_CALL BrdfScatter(
@@ -298,7 +298,7 @@ static cvar_t* cv_pt_lgrid_mpc;
 
 static RTCDevice ms_device;
 static dist1d_t ms_pixeldist;
-static pt_sampler_t ms_samplers[256];
+static pt_sampler_t ms_samplers[kMaxThreads];
 
 // ----------------------------------------------------------------------------
 
@@ -409,7 +409,7 @@ pim_inline RTCRayHit VEC_CALL RtcIntersect(
     float tNear,
     float tFar)
 {
-    RTCIntersectContext ctx;
+    RTCIntersectContext ctx = { 0 };
     rtcInitIntersectContext(&ctx);
     RTCRayHit rayHit = { 0 };
     rayHit.ray = RtcNewRay(ray, tNear, tFar);
@@ -418,6 +418,70 @@ pim_inline RTCRayHit VEC_CALL RtcIntersect(
     rayHit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID; // instance id
     rtc.Intersect1(scene, &ctx, &rayHit);
     return rayHit;
+}
+
+// ros[i].w = tNear
+// rds[i].w = tFar
+pim_inline RTCRayHit16 VEC_CALL RtcIntersect16(RTCScene scene, const float4* ros, const float4* rds)
+{
+    RTCRayHit16 rayHit = { 0 };
+    RTCIntersectContext ctx = { 0 };
+    rtcInitIntersectContext(&ctx);
+    i32 valid[16] = { 0 };
+    for (i32 i = 0; i < 16; ++i)
+    {
+        rayHit.ray.org_x[i] = ros[i].x;
+        rayHit.ray.org_y[i] = ros[i].y;
+        rayHit.ray.org_z[i] = ros[i].z;
+        rayHit.ray.tnear[i] = ros[i].w;
+        rayHit.ray.dir_x[i] = rds[i].x;
+        rayHit.ray.dir_y[i] = rds[i].y;
+        rayHit.ray.dir_z[i] = rds[i].z;
+        rayHit.ray.tfar[i] = rds[i].w;
+        rayHit.ray.mask[i] = -1;
+        rayHit.ray.flags[i] = 0;
+        rayHit.hit.primID[i] = RTC_INVALID_GEOMETRY_ID;
+        rayHit.hit.geomID[i] = RTC_INVALID_GEOMETRY_ID;
+        rayHit.hit.instID[0][i] = RTC_INVALID_GEOMETRY_ID;
+        valid[i] = -1;
+    }
+    rtc.Intersect16(valid, scene, &ctx, &rayHit);
+    return rayHit;
+}
+
+// ros[i].w = tNear
+// rds[i].w = tFar (place at least 1 millimeter before surface)
+// on miss (visible): tFar unchanged
+// on hit (occluded): tFar < 0
+pim_inline void VEC_CALL RtcOccluded16(
+    RTCScene scene,
+    const float4* pim_noalias ros,
+    const float4* pim_noalias rds,
+    bool* pim_noalias visibles)
+{
+    RTCRay16 rayHit = { 0 };
+    RTCIntersectContext ctx = { 0 };
+    rtcInitIntersectContext(&ctx);
+    i32 valid[16] = { 0 };
+    for (i32 i = 0; i < 16; ++i)
+    {
+        rayHit.org_x[i] = ros[i].x;
+        rayHit.org_y[i] = ros[i].y;
+        rayHit.org_z[i] = ros[i].z;
+        rayHit.tnear[i] = ros[i].w;
+        rayHit.dir_x[i] = rds[i].x;
+        rayHit.dir_y[i] = rds[i].y;
+        rayHit.dir_z[i] = rds[i].z;
+        rayHit.tfar[i] = rds[i].w;
+        rayHit.mask[i] = -1;
+        rayHit.flags[i] = 0;
+        valid[i] = -1;
+    }
+    rtc.Occluded16(valid, scene, &ctx, &rayHit);
+    for (i32 i = 0; i < 16; ++i)
+    {
+        visibles[i] = rayHit.tfar[i] > 0.0f;
+    }
 }
 
 static RTCScene RtcNewScene(const pt_scene_t* scene)
@@ -701,11 +765,12 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
     const i32 emissiveCount = scene->emissiveCount;
     const i32* pim_noalias emissives = scene->emissives;
 
-    const float weight = 1.0f / emissiveCount;
     const float metersPerCell = cvar_get_float(cv_pt_lgrid_mpc);
-    const float minDist = f1_max(metersPerCell * 0.5f, kMinLightDist);
-    const float minDistSq = minDist * minDist;
+    const float radius = metersPerCell * 0.5f;
 
+    RTCScene rtScene = scene->rtcScene;
+
+    pt_sampler_t sampler = GetSampler();
     for (i32 i = begin; i < end; ++i)
     {
         dist1d_t dist;
@@ -720,16 +785,51 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
             float4 B = positions[iVert + 1];
             float4 C = positions[iVert + 2];
             float distance = sdTriangle3D(A, B, C, position);
+            distance = f1_max(1.0f, distance - radius);
             float distSq = distance * distance;
-            distSq = f1_max(minDistSq, distSq - metersPerCell * 0.5f);
-            float power = 1.0f / distSq;
+            float powerPdf = 1.0f / distSq;
 
-            dist.pdf[iList] = power * weight;
+            // TODO: dynamic updates to light dists
+            i32 hits = 1;
+            const i32 hitAttempts = 32;
+            const i32 loopIterations = hitAttempts / 16;
+            float4 ros[16];
+            float4 rds[16];
+            bool visibles[16];
+            for (i32 j = 0; j < loopIterations; ++j)
+            {
+                for (i32 k = 0; k < 16; ++k)
+                {
+                    float4 ro = position;
+                    ro.x += radius * f1_lerp(-1.25f, 1.25f, Sample1D(&sampler));
+                    ro.y += radius * f1_lerp(-1.25f, 1.25f, Sample1D(&sampler));
+                    ro.z += radius * f1_lerp(-1.25f, 1.25f, Sample1D(&sampler));
+                    ro.w = 0.0f;
+                    float4 at = f4_blend(A, B, C, SampleBaryCoord(Sample2D(&sampler)));
+                    float4 rd = f4_sub(at, ro);
+                    float dist = f4_length3(rd);
+                    rd = f4_divvs(rd, dist);
+                    rd.w = dist - kMilli * 2.0f;
+                    ros[k] = ro;
+                    rds[k] = rd;
+                }
+                RtcOccluded16(rtScene, ros, rds, visibles);
+                for (i32 k = 0; k < 16; ++k)
+                {
+                    hits += visibles[k] ? 1 : 0;
+                }
+            }
+            float hitPdf = (float)hits / (float)hitAttempts;
+
+            float overallPdf = f1_lerp(powerPdf, hitPdf, 0.9f);
+
+            dist.pdf[iList] = overallPdf;
         }
 
         dist1d_bake(&dist);
         dists[i] = dist;
     }
+    SetSampler(sampler);
 }
 
 static void SetupLightGrid(pt_scene_t* scene)
@@ -747,7 +847,7 @@ static void SetupLightGrid(pt_scene_t* scene)
         task_SetupLightGrid* task = tmp_calloc(sizeof(*task));
         task->scene = scene;
 
-        task_run(&task->task, SetupLightGridFn, len);
+        task_run(task, SetupLightGridFn, len);
     }
 }
 
@@ -779,9 +879,9 @@ pt_scene_t* pt_scene_new(void)
 
     FlattenDrawables(scene);
     SetupEmissives(scene);
-    SetupLightGrid(scene);
     media_desc_new(&scene->mediaDesc);
     scene->rtcScene = RtcNewScene(scene);
+    SetupLightGrid(scene);
 
     return scene;
 }
@@ -1142,8 +1242,8 @@ pim_inline float4 VEC_CALL BrdfEval(
     const float amtDiffuse = 1.0f - metallic;
     const float amtSpecular = 1.0f;
 
-	float4 brdf = f4_0;
-	float4 F = F_SchlickEx(albedo, metallic, HoV);
+    float4 brdf = f4_0;
+    float4 F = F_SchlickEx(albedo, metallic, HoV);
     {
         float D = D_GTR(NoH, alpha);
         float G = G_SmithGGX(NoL, NoV, alpha);
@@ -1168,7 +1268,7 @@ pim_inline float4 VEC_CALL BrdfEval(
 }
 
 pim_inline scatter_t VEC_CALL RefractScatter(
-	pt_sampler_t* sampler,
+    pt_sampler_t* sampler,
     const surfhit_t* surf,
     float4 I)
 {
@@ -1188,7 +1288,7 @@ pim_inline scatter_t VEC_CALL RefractScatter(
 
     bool refracted = false;
     float4 R;
-    if (((k*sinTheta) > 1.0f) || (Sample1D(sampler) < F))
+    if (((k * sinTheta) > 1.0f) || (Sample1D(sampler) < F))
     {
         R = f4_reflect3(I, N);
     }
@@ -1285,8 +1385,8 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
         return result;
     }
 
-	float4 brdf = f4_0;
-	float4 F = F_SchlickEx(albedo, metallic, HoV);
+    float4 brdf = f4_0;
+    float4 F = F_SchlickEx(albedo, metallic, HoV);
     {
         float D = D_GTR(NoH, alpha);
         float G = G_SmithGGX(NoL, NoV, alpha);
@@ -1879,9 +1979,9 @@ pim_inline float4 VEC_CALL SamplePhaseDir(
     {
         L = SampleUnitSphere(Sample2D(sampler));
         L.w = CalcPhase(desc, f4_dot3(rd, L));
-    } while (Sample1D(sampler) > L.w);
+} while (Sample1D(sampler) > L.w);
 #endif
-    return L;
+return L;
 }
 
 pim_inline scatter_t VEC_CALL ScatterRay(
@@ -1932,7 +2032,7 @@ pim_inline scatter_t VEC_CALL ScatterRay(
             result.pdf = result.dir.w;
             float ph = CalcPhase(desc, f4_dot3(rd, result.dir));
             result.attenuation = f4_mulvs(result.attenuation, ph);
-    }
+        }
 
         float4 uT = Media_Extinction(media);
         float4 ratio = f4_inv(f4_mulvs(uT, rcpUmax));
@@ -1942,7 +2042,7 @@ pim_inline scatter_t VEC_CALL ScatterRay(
         {
             break;
         }
-}
+    }
 
     return result;
 }
