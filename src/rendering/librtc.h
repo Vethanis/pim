@@ -16,6 +16,7 @@ typedef struct RTCBounds RTCBounds;
 typedef struct RTCLinearBounds RTCLinearBounds;
 typedef struct RTCPointQuery RTCPointQuery;
 typedef struct RTCPointQueryContext RTCPointQueryContext;
+typedef struct RTCPointQueryFunctionArguments RTCPointQueryFunctionArguments;
 typedef struct RTCPointQuery4 RTCPointQuery4;
 typedef struct RTCPointQuery8 RTCPointQuery8;
 typedef struct RTCPointQuery16 RTCPointQuery16;

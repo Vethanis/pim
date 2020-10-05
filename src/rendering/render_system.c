@@ -63,7 +63,6 @@ static cvar_t cv_pt_trace = { .type = cvart_bool,.name = "pt_trace",.value = "0"
 static cvar_t cv_pt_denoise = { .type = cvart_bool,.name = "pt_denoise",.value = "0",.desc = "denoise path tracing output" };
 static cvar_t cv_pt_normal = { .type = cvart_bool,.name = "pt_normal",.value = "0",.desc = "output path tracer normals" };
 static cvar_t cv_pt_albedo = { .type = cvart_bool,.name = "pt_albedo",.value = "0",.desc = "output path tracer albedo" };
-static cvar_t cv_pt_lgrid_mpc = { .type = cvart_float,.name = "pt_lgrid_mpc",.value = "2",.minFloat = 0.1f,.maxFloat = 10.0f,.desc = "light grid meters per cell" };
 
 static cvar_t cv_cm_gen = { .type = cvart_bool,.name = "cm_gen",.value = "0",.desc = "enable cubemap generation" };
 
@@ -83,7 +82,6 @@ static void RegCVars(void)
 	cvar_reg(&cv_pt_denoise);
 	cvar_reg(&cv_pt_normal);
 	cvar_reg(&cv_pt_albedo);
-	cvar_reg(&cv_pt_lgrid_mpc);
 
 	cvar_reg(&cv_lm_gen);
 	cvar_reg(&cv_lm_density);
@@ -127,8 +125,8 @@ static vkrExposure ms_exposure =
 	.shutterTime = 0.1f,
 	.ISO = 100.0f,
 
-	.adaptRate = 1.0f,
-	.offsetEV = 0.0f,
+	.adaptRate = 3.0f,
+	.offsetEV = 1.0f,
 	.minCdf = 0.05f,
 	.maxCdf = 0.95f,
 	.minEV = -22.0f,
