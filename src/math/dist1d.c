@@ -1,6 +1,7 @@
 #include "math/dist1d.h"
 #include "allocator/allocator.h"
 #include "math/scalar.h"
+#include "common/atomics.h"
 #include <string.h>
 
 void dist1d_new(dist1d_t* dist, i32 length)
@@ -13,6 +14,7 @@ void dist1d_new(dist1d_t* dist, i32 length)
         dist->length = length;
         dist->pdf = perm_calloc(sizeof(dist->pdf[0]) * pdfLen);
         dist->cdf = perm_calloc(sizeof(dist->cdf[0]) * cdfLen);
+        dist->live = perm_calloc(sizeof(dist->live[0]) * pdfLen);
         dist->integral = 0.0f;
     }
 }
@@ -23,6 +25,7 @@ void dist1d_del(dist1d_t* dist)
     {
         pim_free(dist->pdf);
         pim_free(dist->cdf);
+        pim_free(dist->live);
         memset(dist, 0, sizeof(*dist));
     }
 }
@@ -115,4 +118,35 @@ i32 dist1d_sampled(const dist1d_t* dist, float u)
 float dist1d_pdfd(const dist1d_t* dist, i32 i)
 {
     return dist->pdf[i] / dist->length;
+}
+
+void dist1d_inc(dist1d_t* dist, i32 i)
+{
+    inc_u32(dist->live + i, MO_Release);
+}
+
+void dist1d_livebake(dist1d_t* dist, float alpha)
+{
+    const i32 pdfLen = dist->length;
+    if (pdfLen > 0)
+    {
+        const float weight = 1.0f / pdfLen;
+        float* pim_noalias pdf = dist->pdf;
+        u32* pim_noalias live = dist->live;
+        u32 hi = 0;
+        for (i32 i = 0; i < pdfLen; ++i)
+        {
+            hi = pim_max(hi, live[i]);
+        }
+        if (!hi)
+        {
+            return;
+        }
+        for (i32 i = 0; i < pdfLen; ++i)
+        {
+            pdf[i] = f1_lerp(pdf[i], live[i] * weight, alpha);
+            live[i] = live[i] >> 1;
+        }
+        dist1d_bake(dist);
+    }
 }

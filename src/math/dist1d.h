@@ -4,8 +4,9 @@
 
 typedef struct dist1d_s
 {
-    float* pdf;
-    float* cdf;
+    float* pim_noalias pdf;
+    float* pim_noalias cdf;
+    u32* pim_noalias live;
     i32 length;
     float integral;
 } dist1d_t;
@@ -21,3 +22,6 @@ float dist1d_samplec(const dist1d_t* dist, float u);
 // discrete
 i32 dist1d_sampled(const dist1d_t* dist, float u);
 float dist1d_pdfd(const dist1d_t* dist, i32 i);
+
+void dist1d_inc(dist1d_t* dist, i32 i);
+void dist1d_livebake(dist1d_t* dist, float alpha);

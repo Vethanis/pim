@@ -11,6 +11,8 @@
 #include "common/profiler.h"
 
 #include <string.h>
+#include <xmmintrin.h>
+#include <pmmintrin.h>
 
 typedef struct range_s
 {
@@ -81,6 +83,9 @@ static i32 TryRunTask(i32 tid)
 
 static i32 TaskLoop(void* arg)
 {
+    _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+    _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+
     inc_i32(&ms_numThreadsRunning, MO_Acquire);
 
     const i32 tid = (i32)((isize)arg);
@@ -217,6 +222,8 @@ void task_sys_schedule(void)
 
 void task_sys_init(void)
 {
+    _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+    _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     intrin_clockres_begin(1);
     event_create(&ms_waitPush);
     store_i32(&ms_running, 1, MO_Release);
