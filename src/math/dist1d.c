@@ -122,7 +122,7 @@ float dist1d_pdfd(const dist1d_t* dist, i32 i)
 
 void dist1d_inc(dist1d_t* dist, i32 i)
 {
-    inc_u32(dist->live + i, MO_Release);
+    inc_u32(dist->live + i, MO_Relaxed);
 }
 
 void dist1d_livebake(dist1d_t* dist, float alpha)
@@ -130,22 +130,23 @@ void dist1d_livebake(dist1d_t* dist, float alpha)
     const i32 pdfLen = dist->length;
     if (pdfLen > 0)
     {
-        const float weight = 1.0f / pdfLen;
         float* pim_noalias pdf = dist->pdf;
         u32* pim_noalias live = dist->live;
-        u32 hi = 0;
+        u32 sum = 0;
         for (i32 i = 0; i < pdfLen; ++i)
         {
-            hi = pim_max(hi, live[i]);
+            u32 ct = live[i];
+            sum += ct;
         }
-        if (!hi)
+        if (sum < 10)
         {
             return;
         }
+        float scale = 1.0f / sum;
         for (i32 i = 0; i < pdfLen; ++i)
         {
-            pdf[i] = f1_lerp(pdf[i], live[i] * weight, alpha);
-            live[i] = live[i] >> 1;
+            pdf[i] = f1_lerp(pdf[i], live[i] * scale, alpha);
+            live[i] = 0;
         }
         dist1d_bake(dist);
     }
