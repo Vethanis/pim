@@ -312,7 +312,7 @@ static cvar_t cv_ptdist_alpha =
 {
     .type = cvart_float,
     .name = "ptdist_alpha",
-    .value = "0.25",
+    .value = "0.01",
     .minFloat = 0.0f,
     .maxFloat = 1.0f,
     .desc = "path tracer light distribution update amount",
@@ -916,7 +916,6 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
             float distSq = distance * distance;
             float powerPdf = 1.0f / distSq;
 
-            // TODO: dynamic updates to light dists
             i32 hits = 1;
             const i32 hitAttempts = 64;
             const i32 loopIterations = hitAttempts / 16;
@@ -1674,6 +1673,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
             float brdfPdf = brdf.w;
             if (brdfPdf > 0.0f)
             {
+                LightOnHit(sampler, scene, surf->P, iLight);
                 float weight = PowerHeuristic(lightPdf, brdfPdf) * 0.5f;
                 ray_t ray = { surf->P, sample.direction };
                 float4 Tr = CalcTransmittance(sampler, scene, ray.ro, ray.rd, sample.wuvt.w);
@@ -1696,6 +1696,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
             float lightPdf = LightEvalPdf(sampler, scene, ray.ro, ray.rd, &hit);
             if (lightPdf > 0.0f)
             {
+                LightOnHit(sampler, scene, surf->P, hit.index);
                 float weight = PowerHeuristic(brdfPdf, lightPdf) * 0.5f;
                 float4 Tr = CalcTransmittance(sampler, scene, ray.ro, ray.rd, hit.wuvt.w);
                 surfhit_t surf = GetSurface(scene, ray, hit);
@@ -2048,7 +2049,7 @@ pim_inline float4 VEC_CALL CalcControl(const media_desc_t* desc)
     float a = 1.0f + desc->absorption;
     float4 ca = f4_mulvs(desc->logConstantAlbedo, desc->constantAmt * a);
     float4 na = f4_mulvs(desc->logNoiseAlbedo, desc->noiseAmt * a * sum * 0.5f);
-    return f4_lerpvs(ca, na, 0.5f);
+    return f4_add(ca, na);
 }
 
 pim_inline float4 VEC_CALL CalcResidual(float4 control, float4 majorant)
@@ -2082,33 +2083,32 @@ pim_inline bool VEC_CALL RussianRoulette(
     return kept;
 }
 
+// https://cs.dartmouth.edu/~wjarosz/publications/novak14residual.pdf
 pim_inline float4 VEC_CALL CalcTransmittance(
     pt_sampler_t* sampler,
     const pt_scene_t* scene,
     float4 ro,
     float4 rd,
-    float rayLen)
+    float d)
 {
-    const media_desc_t* desc = &scene->mediaDesc;
-    const float4 u = CalcMajorant(desc);
-    const float rcpUmax = 1.0f / f4_hmax3(u);
-    float4 attenuation = f4_1;
+    const media_desc_t* const pim_noalias desc = &scene->mediaDesc;
+    float4 uM = CalcMajorant(desc);
+    float4 uC = CalcControl(desc);
+    float4 uR = CalcResidual(uC, uM);
+    const float rcpU = 1.0f / f4_hmax3(uR);
     float t = 0.0f;
-    while (true)
+    float4 Tc = f4_exp3(f4_neg(f4_mulvs(uC, d)));
+    float4 Tr = f4_1;
+    do
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float dt = SampleFreePath(Sample1D(sampler), rcpUmax);
-        t += dt;
-        if (t >= rayLen)
-        {
-            break;
-        }
-        media_t media = Media_Sample(desc, P);
-        float4 uT = Media_Extinction(media);
-        float4 ratio = f4_inv(f4_mulvs(uT, rcpUmax));
-        attenuation = f4_mul(attenuation, ratio);
-    }
-    return attenuation;
+        t += SampleFreePath(Sample1D(sampler), rcpU);
+        if (t >= d) { break; }
+        float4 uT = Media_Extinction(Media_Sample(desc, P));
+        float4 ratio = f4_inv(f4_mulvs(f4_sub(uT, uC), rcpU));
+        Tr = f4_mul(Tr, ratio);
+    } while (true);
+    return f4_mul(Tc, Tr);
 }
 
 pim_inline float4 VEC_CALL SamplePhaseDir(
