@@ -19,9 +19,9 @@ void framebuf_create(framebuf_t* buf, i32 width, i32 height)
 void framebuf_destroy(framebuf_t* buf)
 {
     if (buf)
-	{
-		pim_free(buf->light);
-		pim_free(buf->color);
+    {
+        pim_free(buf->light);
+        pim_free(buf->color);
         memset(buf, 0, sizeof(*buf));
     }
 }
