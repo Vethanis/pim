@@ -88,12 +88,13 @@ void pt_trace_gui(pt_trace_t* trace);
 void dofinfo_new(dofinfo_t* dof);
 void dofinfo_gui(dofinfo_t* dof);
 
-rayhit_t VEC_CALL pt_intersect(pt_scene_t* scene, ray_t ray, float tNear, float tFar);
+rayhit_t VEC_CALL pt_intersect(pt_scene_t* scene, float4 ro, float4 rd, float tNear, float tFar);
 
 pt_result_t VEC_CALL pt_trace_ray(
     pt_sampler_t* sampler,
     pt_scene_t* scene,
-    ray_t ray);
+    float4 ro,
+    float4 rd);
 
 void pt_trace(pt_trace_t* traceDesc, const camera_t* camera);
 

@@ -30,7 +30,7 @@ bool vkrDisplay_New(vkrDisplay* display, i32 width, i32 height, const char* titl
     }
     input_reg_window(window);
 
-    glfwGetWindowSize(window, &display->width, &display->height);
+    glfwGetFramebufferSize(window, &display->width, &display->height);
 
     VkSurfaceKHR surface = NULL;
     VkCheck(glfwCreateWindowSurface(g_vkr.inst, window, NULL, &surface));
@@ -71,7 +71,7 @@ bool vkrDisplay_UpdateSize(vkrDisplay* display)
     ASSERT(display->window);
     i32 prevWidth = display->width;
     i32 prevHeight = display->height;
-    glfwGetWindowSize(display->window, &display->width, &display->height);
+    glfwGetFramebufferSize(display->window, &display->width, &display->height);
     bool changed = (prevWidth != display->width) || (prevHeight != display->height);
 
     ProfileEnd(pm_updatesize);

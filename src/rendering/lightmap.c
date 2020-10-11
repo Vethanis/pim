@@ -1466,8 +1466,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
         float4 Lts = SampleUnitHemisphere(pt_sample_2d(&sampler));
         float4 Lws = TbnToWorld(TBN, Lts);
 
-        ray_t ray = { P, Lws };
-        pt_result_t result = pt_trace_ray(&sampler, scene, ray);
+        pt_result_t result = pt_trace_ray(&sampler, scene, P, Lws);
 
         float4 probe[kGiDirections];
         float4 axii[kGiDirections];
