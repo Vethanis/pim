@@ -80,10 +80,7 @@ void ExposeImage(
 {
     ProfileBegin(pm_exposeimg);
 
-	float dt = (float)time_dtf();
-	float mean = parameters->deltaTime;
-	mean = f1_lerp(mean, dt, 1.0f / 666.0f);
-    parameters->deltaTime = mean;
+    parameters->deltaTime = f1_lerp(parameters->deltaTime, (float)time_dtf(), 0.25f);
 
     parameters->avgLum = AdaptLuminance(
         parameters->avgLum,
