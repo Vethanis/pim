@@ -11,6 +11,7 @@
 #include "ui/cimgui_ext.h"
 #include "io/fstr.h"
 #include "rendering/vulkan/vkr_mesh.h"
+#include "assets/crate.h"
 
 #include <string.h>
 
@@ -183,84 +184,68 @@ box_t mesh_calcbounds(meshid_t id)
     return bounds;
 }
 
-bool mesh_save(meshid_t id, guid_t* dst)
+bool mesh_save(crate_t* crate, meshid_t id, guid_t* dst)
 {
     if (mesh_getname(id, dst))
     {
-        char filename[PIM_PATH] = "data/";
-        guid_tofile(ARGS(filename), *dst, ".mesh");
-        fstr_t fd = fstr_open(filename, "wb");
-        if (fstr_isopen(fd))
-        {
-            const mesh_t* meshes = ms_table.values;
-            const mesh_t mesh = meshes[id.index];
-            i32 offset = 0;
-            dmesh_t dmesh = { 0 };
-            dbytes_new(1, sizeof(dmesh), &offset);
-            dmesh.version = kMeshVersion;
-            dmesh.length = mesh.length;
-            guid_get_name(*dst, ARGS(dmesh.name));
-            dmesh.positions = dbytes_new(mesh.length, sizeof(mesh.positions[0]), &offset);
-            dmesh.normals = dbytes_new(mesh.length, sizeof(mesh.normals[0]), &offset);
-            dmesh.uvs = dbytes_new(mesh.length, sizeof(mesh.uvs[0]), &offset);
-            fstr_write(fd, &dmesh, sizeof(dmesh));
-
-            ASSERT(fstr_tell(fd) == dmesh.positions.offset);
-            fstr_write(fd, mesh.positions, sizeof(mesh.positions[0]) * mesh.length);
-            ASSERT(fstr_tell(fd) == dmesh.normals.offset);
-            fstr_write(fd, mesh.normals, sizeof(mesh.normals[0]) * mesh.length);
-            ASSERT(fstr_tell(fd) == dmesh.uvs.offset);
-            fstr_write(fd, mesh.uvs, sizeof(mesh.uvs[0]) * mesh.length);
-
-            fstr_close(&fd);
-            return true;
-        }
+        const mesh_t* meshes = ms_table.values;
+        const mesh_t mesh = meshes[id.index];
+        const i32 len = mesh.length;
+        const i32 hdrBytes = sizeof(dmesh_t);
+        const i32 positionBytes = sizeof(mesh.positions[0]) * len;
+        const i32 normalBytes = sizeof(mesh.normals[0]) * len;
+        const i32 uvBytes = sizeof(mesh.uvs[0]) * len;
+        const i32 totalBytes = hdrBytes + positionBytes + normalBytes + uvBytes;
+        dmesh_t* dmesh = perm_calloc(totalBytes);
+        dmesh->version = kMeshVersion;
+        dmesh->length = len;
+        guid_get_name(*dst, ARGS(dmesh->name));
+        float4* positions = (float4*)(dmesh + 1);
+        float4* normals = positions + len;
+        float4* uvs = normals + len;
+        memcpy(positions, mesh.positions, positionBytes);
+        memcpy(normals, mesh.normals, normalBytes);
+        memcpy(uvs, mesh.uvs, uvBytes);
+        bool wasSet = crate_set(crate, *dst, dmesh, totalBytes);
+        pim_free(dmesh);
+        return wasSet;
     }
     return false;
 }
 
-bool mesh_load(guid_t name, meshid_t* dst)
+bool mesh_load(crate_t* crate, guid_t name, meshid_t* dst)
 {
     bool loaded = false;
-
-    char filename[PIM_PATH] = "data/";
-    guid_tofile(ARGS(filename), name, ".mesh");
-    fstr_t fd = fstr_open(filename, "rb");
     mesh_t mesh = { 0 };
-    if (fstr_isopen(fd))
+    i32 offset = 0;
+    i32 size = 0;
+    if (crate_stat(crate, name, &offset, &size))
     {
-        dmesh_t dmesh = { 0 };
-        fstr_read(fd, &dmesh, sizeof(dmesh));
-        if (dmesh.version == kMeshVersion)
+        dmesh_t* dmesh = perm_calloc(size);
+        if (dmesh && crate_get(crate, name, dmesh, size))
         {
-            dbytes_check(dmesh.positions, sizeof(mesh.positions[0]));
-            dbytes_check(dmesh.normals, sizeof(mesh.normals[0]));
-            dbytes_check(dmesh.uvs, sizeof(mesh.uvs[0]));
-
-            guid_set_name(name, dmesh.name);
-            mesh.length = dmesh.length;
-            if (mesh.length > 0)
+            if (dmesh->version == kMeshVersion)
             {
-                mesh.positions = perm_malloc(sizeof(mesh.positions[0]) * mesh.length);
-                mesh.normals = perm_malloc(sizeof(mesh.normals[0]) * mesh.length);
-                mesh.uvs = perm_malloc(sizeof(mesh.uvs[0]) * mesh.length);
+                const i32 len = dmesh->length;
+                if (len > 0)
+                {
+                    guid_set_name(name, dmesh->name);
+                    mesh.length = len;
+                    mesh.positions = perm_calloc(sizeof(mesh.positions[0]) * mesh.length);
+                    mesh.normals = perm_calloc(sizeof(mesh.normals[0]) * mesh.length);
+                    mesh.uvs = perm_calloc(sizeof(mesh.uvs[0]) * mesh.length);
 
-                ASSERT(fstr_tell(fd) == dmesh.positions.offset);
-                fstr_read(fd, mesh.positions, sizeof(mesh.positions[0]) * mesh.length);
-                ASSERT(fstr_tell(fd) == dmesh.normals.offset);
-                fstr_read(fd, mesh.normals, sizeof(mesh.normals[0]) * mesh.length);
-                ASSERT(fstr_tell(fd) == dmesh.uvs.offset);
-                fstr_read(fd, mesh.uvs, sizeof(mesh.uvs[0]) * mesh.length);
-
-                loaded = mesh_new(&mesh, name, dst);
+                    float4* positions = (float4*)(dmesh + 1);
+                    float4* normals = positions + len;
+                    float4* uvs = normals + len;
+                    memcpy(mesh.positions, positions, sizeof(mesh.positions[0]) * len);
+                    memcpy(mesh.normals, normals, sizeof(mesh.normals[0]) * len);
+                    memcpy(mesh.uvs, uvs, sizeof(mesh.uvs[0]) * len);
+                    loaded = mesh_new(&mesh, name, dst);
+                }
             }
         }
-    }
-cleanup:
-    fstr_close(&fd);
-    if (!loaded)
-    {
-        FreeMesh(&mesh);
+        pim_free(dmesh);
     }
     return loaded;
 }
@@ -290,7 +275,7 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
         {
         default:
         case 0:
-		{
+        {
             char lname[64] = { 0 };
             char rname[64] = { 0 };
             guid_get_name(lhs, ARGS(lname));
@@ -325,8 +310,8 @@ void mesh_sys_gui(bool* pEnabled)
 
     i32 selection = gs_selection;
     if (igBegin("Meshes", pEnabled, 0))
-	{
-		igInputText("Search", ARGS(gs_search), 0x0, NULL, NULL);
+    {
+        igInputText("Search", ARGS(gs_search), 0x0, NULL, NULL);
 
         const i32 width = ms_table.width;
         const guid_t* names = ms_table.names;
@@ -339,19 +324,19 @@ void mesh_sys_gui(bool* pEnabled)
             if (!guid_isnull(names[i]))
             {
                 if (gs_search[0])
-				{
-					char name[64] = { 0 };
+                {
+                    char name[64] = { 0 };
                     guid_get_name(names[i], ARGS(name));
                     if (!StrIStr(ARGS(name), gs_search))
                     {
                         continue;
                     }
-				}
-				i32 length = meshes[i].length;
-				bytesUsed += sizeof(meshes[0]);
-				bytesUsed += length * sizeof(meshes[0].positions[0]);
-				bytesUsed += length * sizeof(meshes[0].normals[0]);
-				bytesUsed += length * sizeof(meshes[0].uvs[0]);
+                }
+                i32 length = meshes[i].length;
+                bytesUsed += sizeof(meshes[0]);
+                bytesUsed += length * sizeof(meshes[0].positions[0]);
+                bytesUsed += length * sizeof(meshes[0].normals[0]);
+                bytesUsed += length * sizeof(meshes[0].uvs[0]);
             }
         }
 
@@ -392,24 +377,24 @@ void mesh_sys_gui(bool* pEnabled)
             if (guid_isnull(name))
             {
                 continue;
-			}
+            }
 
-			if (gs_search[0])
-			{
-				char namestr[64] = { 0 };
-				guid_get_name(name, ARGS(namestr));
-				if (!StrIStr(ARGS(namestr), gs_search))
-				{
-					continue;
-				}
-			}
+            if (gs_search[0])
+            {
+                char namestr[64] = { 0 };
+                guid_get_name(name, ARGS(namestr));
+                if (!StrIStr(ARGS(namestr), gs_search))
+                {
+                    continue;
+                }
+            }
 
             i32 length = meshes[j].length;
             i32 refcount = refcounts[j];
             char namestr[PIM_PATH] = { 0 };
             if (!guid_get_name(name, ARGS(namestr)))
-			{
-				guid_fmt(ARGS(namestr), name);
+            {
+                guid_fmt(ARGS(namestr), name);
             }
             igText(namestr); igNextColumn();
             igText("%d", length); igNextColumn();

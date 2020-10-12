@@ -1,6 +1,7 @@
 #include "rendering/render_system.h"
 
 #include "allocator/allocator.h"
+#include "assets/crate.h"
 #include "threading/task.h"
 #include "threading/taskcpy.h"
 #include "ui/cimgui.h"
@@ -353,7 +354,7 @@ static void Cubemap_Trace(void)
             ms_cmapSampleCount = 0;
         }
 
-        guid_t skyname = guid_str("sky", guid_seed);
+        guid_t skyname = guid_str("sky");
         cubemaps_t* maps = Cubemaps_Get();
         float weight = 1.0f / ++ms_cmapSampleCount;
         for (i32 i = 0; i < maps->count; ++i)
@@ -554,23 +555,30 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     camera_reset();
     vkr_onunload();
 
+    bool loaded = false;
+
     char mapname[PIM_PATH] = { 0 };
     SPrintf(ARGS(mapname), "maps/%s.bsp", name);
     con_logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
     bool loadlights = cvar_get_bool(&cv_r_qlights);
-    guid_t guid = guid_str(mapname, guid_seed);
 
-    bool loaded = drawables_load(drawables_get(), guid);
-    bool hasLightmaps = false;
-    if (loaded)
+    char cratepath[PIM_PATH] = { 0 };
+    SPrintf(ARGS(cratepath), "data/%s.crate", name);
+    crate_t* crate = tmp_malloc(sizeof(*crate));
+    if (crate_open(crate, cratepath))
     {
-        hasLightmaps = lmpack_load(lmpack_get(), guid);
+        loaded = true;
+        loaded &= drawables_load(crate, drawables_get());
+        loaded &= lmpack_load(crate, lmpack_get());
+        loaded &= crate_close(crate);
     }
-    else
+
+    if (!loaded)
     {
         loaded = LoadModelAsDrawables(mapname, loadlights);
     }
+
     if (loaded)
     {
         drawables_updatetransforms(drawables_get());
@@ -600,34 +608,31 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
         return cmdstat_err;
     }
 
+    bool saved = false;
+
     char mapname[PIM_PATH] = { 0 };
     SPrintf(ARGS(mapname), "maps/%s.bsp", name);
 
     con_logf(LogSev_Info, "cmd", "mapsave is saving '%s'.", mapname);
 
-    guid_t guid = guid_str(mapname, guid_seed);
+    char cratepath[PIM_PATH] = { 0 };
+    SPrintf(ARGS(cratepath), "data/%s.crate", name);
+    crate_t* crate = tmp_malloc(sizeof(*crate));
+    if (crate_open(crate, cratepath))
+    {
+        saved = true;
+        saved &= drawables_save(crate, drawables_get());
+        saved &= lmpack_save(crate, lmpack_get());
+        saved &= crate_close(crate);
+    }
 
-    bool saved = drawables_save(drawables_get(), guid);
     if (saved)
     {
-        con_logf(LogSev_Info, "cmd", "mapsave saved '%s' drawables.", mapname);
+        con_logf(LogSev_Info, "cmd", "mapsave saved '%s'.", mapname);
     }
     else
     {
-        con_logf(LogSev_Error, "cmd", "mapsave failed to saved '%s' drawables.", mapname);
-    }
-
-    if (saved)
-    {
-        saved = lmpack_save(lmpack_get(), guid);
-        if (saved)
-        {
-            con_logf(LogSev_Info, "cmd", "mapsave saved '%s' lightmaps.", mapname);
-        }
-        else
-        {
-            con_logf(LogSev_Error, "cmd", "mapsave failed to saved '%s' lightmaps.", mapname);
-        }
+        con_logf(LogSev_Error, "cmd", "mapsave failed to save '%s'.", mapname);
     }
 
     return saved ? cmdstat_ok : cmdstat_err;
@@ -668,7 +673,7 @@ static void BakeSky(void)
 {
     bool dirty = false;
 
-    guid_t skyname = guid_str("sky", guid_seed);
+    guid_t skyname = guid_str("sky");
     cubemaps_t* maps = Cubemaps_Get();
     i32 iSky = Cubemaps_Find(maps, skyname);
     if (iSky == -1)
@@ -887,7 +892,7 @@ static meshid_t GenSphereMesh(i32 steps)
 {
     char name[PIM_PATH];
     SPrintf(ARGS(name), "SphereMesh_%d", steps);
-    guid_t guid = guid_str(name, guid_seed);
+    guid_t guid = guid_str(name);
 
     meshid_t id = { 0 };
     if (mesh_find(guid, &id))
@@ -1030,7 +1035,7 @@ static meshid_t GenSphereMesh(i32 steps)
 static meshid_t GenQuadMesh(void)
 {
     const char* name = "QuadMesh";
-    guid_t guid = guid_str(name, guid_seed);
+    guid_t guid = guid_str(name);
     meshid_t id = { 0 };
     if (mesh_find(guid, &id))
     {
@@ -1079,7 +1084,7 @@ static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up
     }
     mesh_retain(ms_quadmesh);
 
-    guid_t guid = guid_str(name, guid_seed);
+    guid_t guid = guid_str(name);
     drawables_t* dr = drawables_get();
     i32 i = drawables_add(dr, guid);
     dr->meshes[i] = ms_quadmesh;
@@ -1106,7 +1111,7 @@ static i32 CreateSphere(const char* name, float4 center, float radius, float4 al
     }
     mesh_retain(ms_spheremesh);
 
-    guid_t guid = guid_str(name, guid_seed);
+    guid_t guid = guid_str(name);
     drawables_t* dr = drawables_get();
     i32 i = drawables_add(dr, guid);
     dr->meshes[i] = ms_spheremesh;

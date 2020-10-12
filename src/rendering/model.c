@@ -680,7 +680,7 @@ void ModelToDrawables(const mmodel_t* model)
             {
                 char name[PIM_PATH];
                 SPrintf(ARGS(name), "%s_batch_%d", model->name, curbatch);
-                guid_t guid = guid_str(name, guid_seed);
+                guid_t guid = guid_str(name);
                 meshid_t meshid;
                 if (mesh_new(&mesh, guid, &meshid))
                 {
@@ -746,7 +746,7 @@ void ModelToDrawables(const mmodel_t* model)
     {
         char name[PIM_PATH];
         SPrintf(ARGS(name), "%s_batch_%d", model->name, curbatch);
-        guid_t guid = guid_str(name, guid_seed);
+        guid_t guid = guid_str(name);
         meshid_t meshid;
         if (mesh_new(&mesh, guid, &meshid))
         {

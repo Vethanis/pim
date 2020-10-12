@@ -25,6 +25,7 @@
 #include "common/profiler.h"
 #include "common/cmd.h"
 #include "common/atomics.h"
+#include "assets/crate.h"
 #include "io/fstr.h"
 #include <stb/stb_image_write.h>
 #include <string.h>
@@ -87,14 +88,14 @@ void lightmap_new(lightmap_t* lm, i32 size)
     ASSERT(size > 0);
     memset(lm, 0, sizeof(*lm));
 
-	lm->size = size;
+    lm->size = size;
 
-	const i32 texelcount = size * size;
-	i32 probesBytes = sizeof(lm->probes[0][0]) * texelcount * kGiDirections;
-	i32 positionBytes = sizeof(lm->position[0]) * texelcount;
-	i32 normalBytes = sizeof(lm->normal[0]) * texelcount;
-	i32 sampleBytes = sizeof(lm->sampleCounts[0]) * texelcount;
-	i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
+    const i32 texelcount = size * size;
+    i32 probesBytes = sizeof(lm->probes[0][0]) * texelcount * kGiDirections;
+    i32 positionBytes = sizeof(lm->position[0]) * texelcount;
+    i32 normalBytes = sizeof(lm->normal[0]) * texelcount;
+    i32 sampleBytes = sizeof(lm->sampleCounts[0]) * texelcount;
+    i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
     u8* allocation = tex_calloc(texelBytes);
 
     for (i32 i = 0; i < kGiDirections; ++i)
@@ -109,11 +110,11 @@ void lightmap_new(lightmap_t* lm, i32 size)
             NULL, 0);
     }
 
-	lm->position = (float3*)allocation;
-	allocation += sizeof(float3) * texelcount;
+    lm->position = (float3*)allocation;
+    allocation += sizeof(float3) * texelcount;
 
-	lm->normal = (float3*)allocation;
-	allocation += sizeof(float3) * texelcount;
+    lm->normal = (float3*)allocation;
+    allocation += sizeof(float3) * texelcount;
 
     lm->sampleCounts = (float*)allocation;
     allocation += sizeof(float) * texelcount;
@@ -136,7 +137,7 @@ void lightmap_upload(lightmap_t* lm)
 {
     ASSERT(lm);
     const i32 len = lm->size * lm->size;
-	vkrTexture2D* vkrtex = lm->vkrtex;
+    vkrTexture2D* vkrtex = lm->vkrtex;
     for (i32 i = 0; i < kGiDirections; ++i)
     {
         const float4* pim_noalias probes = lm->probes[i];
@@ -1427,7 +1428,7 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
     const i32 lmSize = pack->lmSize;
     const i32 lmLen = lmSize * lmSize;
     const float rcpSize = 1.0f / lmSize;
-	const int2 size = { lmSize, lmSize };
+    const int2 size = { lmSize, lmSize };
     const float metersPerTexel = 1.0f / pack->texelsPerMeter;
 
     pt_sampler_t sampler = pt_sampler_get();
@@ -1510,141 +1511,88 @@ void lmpack_bake(pt_scene_t* scene, float timeSlice)
     ProfileEnd(pm_Bake);
 }
 
-bool lmpack_save(const lmpack_t* pack, guid_t name)
+bool lmpack_save(crate_t* crate, const lmpack_t* pack)
 {
+    bool wrote = false;
     ASSERT(pack);
-    char filename[PIM_PATH] = "data/";
-    guid_tofile(ARGS(filename), name, ".lmpack");
 
-    fstr_t fd = fstr_open(filename, "wb");
-    if (fstr_isopen(fd))
+    const i32 lmcount = pack->lmCount;
+    const i32 lmsize = pack->lmSize;
+    const i32 texelcount = lmsize * lmsize;
+    const lightmap_t lmNull = { 0 };
+    const i32 probesBytes = sizeof(lmNull.probes[0][0]) * texelcount * kGiDirections;
+    const i32 positionBytes = sizeof(lmNull.position[0]) * texelcount;
+    const i32 normalBytes = sizeof(lmNull.normal[0]) * texelcount;
+    const i32 sampleBytes = sizeof(lmNull.sampleCounts[0]) * texelcount;
+    const i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
+
+    // write pack header
+    dlmpack_t dpack = { 0 };
+    dpack.version = kLmPackVersion;
+    dpack.directions = kGiDirections;
+    dpack.lmCount = lmcount;
+    dpack.lmSize = pack->lmSize;
+    dpack.bytesPerLightmap = texelBytes;
+    dpack.texelsPerMeter = pack->texelsPerMeter;
+
+    if (crate_set(crate, guid_str("lmpack"), &dpack, sizeof(dpack)))
     {
-        const i32 lmcount = pack->lmCount;
-        i32 offset = 0;
-
-        // write pack header
-        dlmpack_t dpack = { 0 };
-        dbytes_new(1, sizeof(dpack), &offset);
-        dpack.version = kLmPackVersion;
-        dpack.directions = kGiDirections;
-        dpack.lmCount = lmcount;
-        dpack.lmSize = pack->lmSize;
-        dpack.texelsPerMeter = pack->texelsPerMeter;
-        i32 wrote = fstr_write(fd, &dpack, sizeof(dpack));
-        ASSERT(wrote == sizeof(dpack));
-
-        // write lightmap headers
-        dlightmap_t* dlms = tmp_malloc(sizeof(dlms[0]) * lmcount);
-        dbytes_new(lmcount, sizeof(dlms[0]), &offset);
+        wrote = true;
         for (i32 i = 0; i < lmcount; ++i)
         {
+            char name[PIM_PATH] = { 0 };
+            SPrintf(ARGS(name), "lightmap_%d", i);
             const lightmap_t lm = pack->lightmaps[i];
-            const i32 len = lm.size * lm.size;
-            dlightmap_t dlm = { 0 };
-            dlm.version = kLightmapVersion;
-            dlm.directions = kGiDirections;
-            dlm.size = lm.size;
-            dlm.probes = dbytes_new(len * kGiDirections, sizeof(lm.probes[0][0]), &offset);
-            dlm.position = dbytes_new(len, sizeof(lm.position[0]), &offset);
-            dlm.normal = dbytes_new(len, sizeof(lm.normal[0]), &offset);
-            dlm.sampleCounts = dbytes_new(len, sizeof(lm.sampleCounts[0]), &offset);
-            dlms[i] = dlm;
+            wrote &= crate_set(crate, guid_str(name), lm.probes[0], texelBytes);
         }
-        wrote = fstr_write(fd, dlms, sizeof(dlms[0]) * lmcount);
-        ASSERT(wrote == sizeof(dlms[0]) * lmcount);
-
-        // write lightmap contents
-        for (i32 i = 0; i < lmcount; ++i)
-        {
-            const lightmap_t lm = pack->lightmaps[i];
-            const i32 texelcount = lm.size * lm.size;
-
-			ASSERT(fstr_tell(fd) == dlms[i].probes.offset);
-            i32 probesBytes = sizeof(lm.probes[0][0]) * texelcount * kGiDirections;
-            i32 positionBytes = sizeof(lm.position[0]) * texelcount;
-			i32 normalBytes = sizeof(lm.normal[0]) * texelcount;
-			i32 sampleBytes = sizeof(lm.sampleCounts[0]) * texelcount;
-            i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
-			wrote = fstr_write(fd, lm.probes[0], texelBytes);
-			ASSERT(wrote == texelBytes);
-        }
-
-        fstr_close(&fd);
-        return true;
     }
-    return false;
+
+    return wrote;
 }
 
-bool lmpack_load(lmpack_t* pack, guid_t name)
+bool lmpack_load(crate_t* crate, lmpack_t* pack)
 {
     bool loaded = false;
-    i32 bytesRead = 0;
-
-    ASSERT(pack);
-    char filename[PIM_PATH] = "data/";
-    guid_tofile(ARGS(filename), name, ".lmpack");
-
     lmpack_del(pack);
 
-    fstr_t fd = fstr_open(filename, "rb");
-    if (fstr_isopen(fd))
+    dlmpack_t dpack = { 0 };
+    if (crate_get(crate, guid_str("lmpack"), &dpack, sizeof(dpack)))
     {
-        // read pack header
-        dlmpack_t dlmpack = { 0 };
-        fstr_read(fd, &dlmpack, sizeof(dlmpack));
-        if ((dlmpack.version == kLmPackVersion) && (dlmpack.directions == kGiDirections))
+        if ((dpack.version == kLmPackVersion) && 
+            (dpack.directions == kGiDirections) && 
+            (dpack.lmCount > 0) && 
+            (dpack.lmSize > 0))
         {
-            const i32 lmcount = dlmpack.lmCount;
-            pack->lmCount = lmcount;
-            pack->lmSize = dlmpack.lmSize;
-            pack->texelsPerMeter = dlmpack.texelsPerMeter;
+            loaded = true;
+
+            const i32 lmcount = dpack.lmCount;
+            const i32 lmsize = dpack.lmSize;
+            const i32 texelcount = lmsize * lmsize;
+            const lightmap_t lmNull = { 0 };
+            const i32 probesBytes = sizeof(lmNull.probes[0][0]) * texelcount * kGiDirections;
+            const i32 positionBytes = sizeof(lmNull.position[0]) * texelcount;
+            const i32 normalBytes = sizeof(lmNull.normal[0]) * texelcount;
+            const i32 sampleBytes = sizeof(lmNull.sampleCounts[0]) * texelcount;
+            const i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
+
             pack->lightmaps = perm_calloc(sizeof(pack->lightmaps[0]) * lmcount);
+            pack->lmCount = lmcount;
+            pack->lmSize = dpack.lmSize;
+            pack->texelsPerMeter = dpack.texelsPerMeter;
 
-            // read lightmap headers
-            dlightmap_t* dlms = tmp_calloc(sizeof(dlms[0]) * lmcount);
-            bytesRead = fstr_read(fd, dlms, sizeof(dlms[0]) * lmcount);
-            ASSERT(bytesRead == sizeof(dlms[0]) * lmcount);
-
-            // read lightmaps
             for (i32 i = 0; i < lmcount; ++i)
             {
-                const dlightmap_t dlm = dlms[i];
+                char name[PIM_PATH] = { 0 };
+                SPrintf(ARGS(name), "lightmap_%d", i);
                 lightmap_t lm = { 0 };
-                const i32 texelcount = dlm.size * dlm.size;
-                ASSERT(dlm.probes.size == (sizeof(lm.probes[0][0]) * kGiDirections * texelcount));
-                ASSERT(dlm.position.size == (sizeof(lm.position[0]) * texelcount));
-                ASSERT(dlm.normal.size == (sizeof(lm.normal[0]) * texelcount));
-                ASSERT(dlm.sampleCounts.size == (sizeof(lm.sampleCounts[0]) * texelcount));
-                dbytes_check(dlm.probes, sizeof(lm.probes[0][0]));
-                dbytes_check(dlm.position, sizeof(lm.position[0]));
-                dbytes_check(dlm.normal, sizeof(lm.normal[0]));
-				dbytes_check(dlm.sampleCounts, sizeof(lm.sampleCounts[0]));
-
-				i32 probesBytes = sizeof(lm.probes[0][0]) * texelcount * kGiDirections;
-				i32 positionBytes = sizeof(lm.position[0]) * texelcount;
-				i32 normalBytes = sizeof(lm.normal[0]) * texelcount;
-				i32 sampleBytes = sizeof(lm.sampleCounts[0]) * texelcount;
-				i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
-
-                lightmap_new(&lm, dlm.size);
-                fstr_seek(fd, dlm.probes.offset);
-                bytesRead = fstr_read(fd, lm.probes[0], texelBytes);
-                ASSERT(bytesRead == texelBytes);
-
+                lightmap_new(&lm, lmsize);
+                loaded &= crate_get(crate, guid_str(name), lm.probes[0], texelBytes);
                 lightmap_upload(&lm);
                 pack->lightmaps[i] = lm;
             }
-
-            loaded = true;
         }
     }
 
-cleanup:
-    fstr_close(&fd);
-    if (!loaded)
-    {
-        lmpack_del(pack);
-    }
     return loaded;
 }
 

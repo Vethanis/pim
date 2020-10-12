@@ -980,7 +980,7 @@ static void SetupLightGrid(pt_scene_t* scene)
 
 void pt_scene_update(pt_scene_t* scene)
 {
-    guid_t skyname = guid_str("sky", guid_seed);
+    guid_t skyname = guid_str("sky");
     cubemaps_t* maps = Cubemaps_Get();
     i32 iSky = Cubemaps_Find(maps, skyname);
     if (iSky != -1)

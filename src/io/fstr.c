@@ -61,12 +61,12 @@ i32 fstr_read(fstr_t stream, void* dst, i32 size)
     ASSERT(file);
     ASSERT(dst || !size);
     ASSERT(size >= 0);
-    i32 ct = (i32)fread(dst, 1, size, file);
-    if (ct != size)
+    i32 ct = (i32)fread(dst, size, 1, file);
+    if (ct != 1)
     {
         ASSERT(false);
     }
-    return ct;
+    return (ct == 1) ? size : 0;
 }
 
 i32 fstr_write(fstr_t stream, const void* src, i32 size)
@@ -75,12 +75,12 @@ i32 fstr_write(fstr_t stream, const void* src, i32 size)
     ASSERT(file);
     ASSERT(src || !size);
     ASSERT(size >= 0);
-    i32 ct = (i32)fwrite(src, 1, size, file);
-    if (ct != size)
+    i32 ct = (i32)fwrite(src, size, 1, file);
+    if (ct != 1)
     {
         ASSERT(false);
     }
-    return ct;
+    return (ct == 1) ? size : 0;
 }
 
 void fstr_gets(fstr_t stream, char* dst, i32 size)

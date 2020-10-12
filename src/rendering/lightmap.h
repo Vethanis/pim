@@ -8,8 +8,7 @@
 
 PIM_C_BEGIN
 
-#define kLightmapVersion    1
-#define kLmPackVersion      1
+#define kLmPackVersion      2
 #define kGiDirections       5
 
 static const float4 kGiAxii[kGiDirections] =
@@ -23,6 +22,7 @@ static const float4 kGiAxii[kGiDirections] =
 
 typedef struct task_s task_t;
 typedef struct pt_scene_s pt_scene_t;
+typedef struct crate_s crate_t;
 
 typedef struct lightmap_s
 {
@@ -33,17 +33,6 @@ typedef struct lightmap_s
     i32 size;
     vkrTexture2D vkrtex[kGiDirections];
 } lightmap_t;
-
-typedef struct dlightmap_s
-{
-    i32 version;
-    i32 directions;
-    i32 size;
-    dbytes_t probes;
-    dbytes_t position;
-    dbytes_t normal;
-    dbytes_t sampleCounts;
-} dlightmap_t;
 
 typedef struct lmpack_s
 {
@@ -60,6 +49,7 @@ typedef struct dlmpack_s
     i32 directions;
     i32 lmCount;
     i32 lmSize;
+    i32 bytesPerLightmap;
     float texelsPerMeter;
 } dlmpack_t;
 
@@ -79,7 +69,7 @@ void lmpack_del(lmpack_t* pack);
 
 void lmpack_bake(pt_scene_t* scene, float timeSlice);
 
-bool lmpack_save(const lmpack_t* src, guid_t name);
-bool lmpack_load(lmpack_t* dst, guid_t name);
+bool lmpack_save(crate_t* crate, const lmpack_t* src);
+bool lmpack_load(crate_t* crate, lmpack_t* dst);
 
 PIM_C_END
