@@ -1495,6 +1495,8 @@ void lmpack_bake(pt_scene_t* scene, float timeSlice)
     ProfileBegin(pm_Bake);
     ASSERT(scene);
 
+    pt_scene_update(scene);
+
     const lmpack_t* pack = lmpack_get();
     i32 texelCount = TexelCount(pack->lightmaps, pack->lmCount);
     if (texelCount > 0)
