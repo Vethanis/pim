@@ -78,6 +78,7 @@ float2 VEC_CALL pt_sample_2d(pt_sampler_t* sampler);
 float VEC_CALL pt_sample_1d(pt_sampler_t* sampler);
 
 pt_scene_t* pt_scene_new(void);
+void pt_scene_update(pt_scene_t* scene);
 void pt_scene_del(pt_scene_t* scene);
 void pt_scene_gui(pt_scene_t* scene);
 

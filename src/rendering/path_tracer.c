@@ -172,7 +172,6 @@ static void CalcEmissionPdfFn(task_t* pbase, i32 begin, i32 end);
 static void SetupEmissives(pt_scene_t* scene);
 static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end);
 static void SetupLightGrid(pt_scene_t* scene);
-static void UpdateScene(pt_scene_t* scene);
 pim_inline float4 VEC_CALL GetVert4(
     const float4* vertices,
     i32 iVert,
@@ -298,6 +297,7 @@ pim_inline bool VEC_CALL SampleBool(pt_sampler_t* sampler);
 pim_inline pt_sampler_t VEC_CALL GetSampler(void);
 pim_inline void VEC_CALL SetSampler(pt_sampler_t sampler);
 pim_inline void VEC_CALL LightOnHit(pt_sampler_t* sampler, pt_scene_t* scene, float4 ro, i32 iVert);
+static void UpdateDists(pt_scene_t* scene, float alpha);
 
 // ----------------------------------------------------------------------------
 
@@ -978,7 +978,7 @@ static void SetupLightGrid(pt_scene_t* scene)
     }
 }
 
-static void UpdateScene(pt_scene_t* scene)
+void pt_scene_update(pt_scene_t* scene)
 {
     guid_t skyname = guid_str("sky", guid_seed);
     cubemaps_t* maps = Cubemaps_Get();
@@ -991,6 +991,7 @@ static void UpdateScene(pt_scene_t* scene)
     {
         scene->sky = NULL;
     }
+    UpdateDists(scene, cvar_get_float(&cv_ptdist_alpha));
 }
 
 pt_scene_t* pt_scene_new(void)
@@ -1002,7 +1003,7 @@ pt_scene_t* pt_scene_new(void)
     }
 
     pt_scene_t* scene = perm_calloc(sizeof(*scene));
-    UpdateScene(scene);
+    pt_scene_update(scene);
 
     FlattenDrawables(scene);
     SetupEmissives(scene);
@@ -2160,13 +2161,13 @@ pim_inline float4 VEC_CALL SamplePhaseDir(
     // Rejection sampling
     // nominator is density of function, in this case area of a sphere
     // denominator controls number of attempts and accuracy
-    const float Mg = (4.0f * kPi) / 5.0f;
+    //const float Mg = (4.0f * kPi) / 12.0f;
     float4 L;
     do
     {
         L = SampleUnitSphere(Sample2D(sampler));
         L.w = CalcPhase(desc, f4_dot3(rd, L));
-    } while (Sample1D(sampler) > (L.w * Mg));
+    } while (Sample1D(sampler) > L.w);
 #endif
     return L;
 }
@@ -2472,7 +2473,7 @@ void pt_trace(pt_trace_t* desc, const camera_t* camera)
     ASSERT(desc->albedo);
     ASSERT(desc->normal);
 
-    UpdateScene(desc->scene);
+    pt_scene_update(desc->scene);
 
     trace_task_t* task = tmp_calloc(sizeof(*task));
     task->trace = desc;
@@ -2480,9 +2481,6 @@ void pt_trace(pt_trace_t* desc, const camera_t* camera)
 
     const i32 workSize = desc->imageSize.x * desc->imageSize.y;
     task_run(&task->task, TraceFn, workSize);
-
-    float alpha = cvar_get_float(&cv_ptdist_alpha);
-    UpdateDists(desc->scene, alpha);
 
     ProfileEnd(pm_trace);
 }
@@ -2528,7 +2526,7 @@ pt_results_t pt_raygen(
     ASSERT(scene);
     ASSERT(count >= 0);
 
-    UpdateScene(scene);
+    pt_scene_update(scene);
 
     pt_raygen_t* task = tmp_calloc(sizeof(*task));
     task->scene = scene;
