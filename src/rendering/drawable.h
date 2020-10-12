@@ -7,9 +7,9 @@
 
 PIM_C_BEGIN
 
-typedef struct lm_uvs_s lm_uvs_t;
 typedef struct meshid_s meshid_t;
 typedef struct material_s material_t;
+typedef struct crate_s crate_t;
 
 typedef struct drawables_s
 {
@@ -37,7 +37,6 @@ typedef struct ddrawables_s
     dbytes_t translations;
     dbytes_t rotations;
     dbytes_t scales;
-    guid_t lmpack;
 } ddrawables_t;
 
 drawables_t* drawables_get(void);
@@ -52,7 +51,7 @@ void drawables_updatebounds(drawables_t* dr);
 void drawables_updatetransforms(drawables_t* dr);
 box_t drawables_bounds(const drawables_t* dr);
 
-bool drawables_save(const drawables_t* src, guid_t name);
-bool drawables_load(drawables_t* dst, guid_t name);
+bool drawables_save(crate_t* crate, const drawables_t* src);
+bool drawables_load(crate_t* crate, drawables_t* dst);
 
 PIM_C_END

@@ -16,6 +16,7 @@
 #include "rendering/material.h"
 #include "io/fstr.h"
 #include "threading/task.h"
+#include "assets/crate.h"
 #include <string.h>
 
 static drawables_t ms_drawables;
@@ -205,182 +206,133 @@ box_t drawables_bounds(const drawables_t* dr)
     return box;
 }
 
-bool drawables_save(const drawables_t* src, guid_t name)
+bool drawables_save(crate_t* crate, const drawables_t* src)
 {
-    char filename[PIM_PATH] = "data/";
-    guid_tofile(ARGS(filename), name, ".drawables");
+    bool wrote = true;
+    const i32 length = src->count;
 
-    fstr_t fd = fstr_open(filename, "wb");
-    if (fstr_isopen(fd))
+    wrote &= crate_set(crate,
+        guid_str("drawables.count"), &length, sizeof(length));
+
+    // write meshes
     {
-        void* scratch = NULL;
-        const i32 length = src->count;
-        i32 offset = 0;
-
-        // write header
-        ddrawables_t hdr = { 0 };
-        dbytes_new(1, sizeof(hdr), &offset);
-        hdr.version = kDrawablesVersion;
-        hdr.length = length;
-        hdr.names = dbytes_new(length, sizeof(src->names[0]), &offset);
-        hdr.meshes = dbytes_new(length, sizeof(dmeshid_t), &offset);
-        hdr.bounds = dbytes_new(length, sizeof(src->bounds[0]), &offset);
-        hdr.materials = dbytes_new(length, sizeof(dmaterial_t), &offset);
-        hdr.translations = dbytes_new(length, sizeof(src->translations[0]), &offset);
-        hdr.rotations = dbytes_new(length, sizeof(src->rotations[0]), &offset);
-        hdr.scales = dbytes_new(length, sizeof(src->scales[0]), &offset);
-        hdr.lmpack = name;
-        ASSERT(fstr_tell(fd) == 0);
-        fstr_write(fd, &hdr, sizeof(hdr));
-
-        // write names
-        ASSERT(fstr_tell(fd) == hdr.names.offset);
-        fstr_write(fd, src->names, sizeof(src->names[0]) * length);
-
-        // write meshes
+        dmeshid_t* dmeshids = perm_calloc(sizeof(dmeshids[0]) * length);
+        for (i32 i = 0; i < length; ++i)
         {
-            dmeshid_t* dmeshids = tmp_realloc(scratch, sizeof(dmeshids[0]) * length);
-            for (i32 i = 0; i < length; ++i)
-            {
-                mesh_save(src->meshes[i], &dmeshids[i].id);
-            }
-            ASSERT(fstr_tell(fd) == hdr.meshes.offset);
-            fstr_write(fd, dmeshids, sizeof(dmeshids[0]) * length);
-            scratch = dmeshids;
+            mesh_save(crate, src->meshes[i], &dmeshids[i].id);
         }
-        // write bounds
-        ASSERT(fstr_tell(fd) == hdr.bounds.offset);
-        fstr_write(fd, src->bounds, sizeof(src->bounds[0]) * length);
-        // write materials
-        {
-            dmaterial_t* dmaterials = tmp_realloc(scratch, sizeof(dmaterials[0]) * length);
-            for (i32 i = 0; i < length; ++i)
-            {
-                const material_t mat = src->materials[i];
-                dmaterial_t dmat = { 0 };
-                dmat.flatAlbedo = mat.flatAlbedo;
-                dmat.flatRome = mat.flatRome;
-                dmat.flags = mat.flags;
-                dmat.ior = mat.ior;
-                texture_save(mat.albedo, &dmat.albedo.id);
-                texture_save(mat.rome, &dmat.rome.id);
-                texture_save(mat.normal, &dmat.normal.id);
-                dmaterials[i] = dmat;
-            }
-            ASSERT(fstr_tell(fd) == hdr.materials.offset);
-            fstr_write(fd, dmaterials, sizeof(dmaterials[0]) * length);
-            scratch = dmaterials;
-        }
-
-        // write translations
-        ASSERT(fstr_tell(fd) == hdr.translations.offset);
-        fstr_write(fd, src->translations, sizeof(src->translations[0]) * length);
-
-        // write rotations
-        ASSERT(fstr_tell(fd) == hdr.rotations.offset);
-        fstr_write(fd, src->rotations, sizeof(src->rotations[0]) * length);
-
-        // write scales
-        ASSERT(fstr_tell(fd) == hdr.scales.offset);
-        fstr_write(fd, src->scales, sizeof(src->scales[0]) * length);
-
-        fstr_close(&fd);
-        return true;
+        wrote &= crate_set(crate,
+            guid_str("drawables.meshes"), dmeshids, sizeof(dmeshids[0]) * length);
+        pim_free(dmeshids);
     }
-    return false;
+
+    // write materials
+    {
+        dmaterial_t* dmaterials = perm_calloc(sizeof(dmaterials[0]) * length);
+        for (i32 i = 0; i < length; ++i)
+        {
+            const material_t mat = src->materials[i];
+            dmaterial_t dmat = { 0 };
+            dmat.flatAlbedo = mat.flatAlbedo;
+            dmat.flatRome = mat.flatRome;
+            dmat.flags = mat.flags;
+            dmat.ior = mat.ior;
+            texture_save(crate, mat.albedo, &dmat.albedo.id);
+            texture_save(crate, mat.rome, &dmat.rome.id);
+            texture_save(crate, mat.normal, &dmat.normal.id);
+            dmaterials[i] = dmat;
+        }
+        wrote &= crate_set(crate,
+            guid_str("drawables.materials"), dmaterials, sizeof(dmaterials[0]) * length);
+        pim_free(dmaterials);
+    }
+
+    wrote &= crate_set(crate,
+        guid_str("drawables.names"), src->names, sizeof(src->names[0]) * length);
+    wrote &= crate_set(crate,
+        guid_str("drawables.bounds"), src->bounds, sizeof(src->bounds[0]) * length);
+    wrote &= crate_set(crate,
+        guid_str("drawables.translations"), src->translations, sizeof(src->translations[0]) * length);
+    wrote &= crate_set(crate,
+        guid_str("drawables.rotations"), src->rotations, sizeof(src->rotations[0]) * length);
+    wrote &= crate_set(crate,
+        guid_str("drawables.scales"), src->scales, sizeof(src->scales[0]) * length);
+
+    return wrote;
 }
 
-bool drawables_load(drawables_t* dst, guid_t name)
+bool drawables_load(crate_t* crate, drawables_t* dst)
 {
     ASSERT(dst);
     bool loaded = false;
     drawables_del(dst);
 
-    char filename[PIM_PATH] = "data/";
-    guid_tofile(ARGS(filename), name, ".drawables");
-
-    fstr_t fd = fstr_open(filename, "rb");
-    if (fstr_isopen(fd))
+    i32 len = 0;
+    if (crate_get(crate, guid_str("drawables.count"), &len, sizeof(len)) && (len > 0))
     {
-        ddrawables_t hdr = { 0 };
-        fstr_read(fd, &hdr, sizeof(hdr));
-        if (hdr.version == kDrawablesVersion)
+        dst->count = len;
+        dst->names = perm_calloc(sizeof(dst->names[0]) * len);
+        dst->meshes = perm_calloc(sizeof(dst->meshes[0]) * len);
+        dst->bounds = perm_calloc(sizeof(dst->bounds[0]) * len);
+        dst->materials = perm_calloc(sizeof(dst->materials[0]) * len);
+        dst->matrices = perm_calloc(sizeof(dst->matrices[0]) * len);
+        dst->invMatrices = perm_calloc(sizeof(dst->invMatrices[0]) * len);
+        dst->translations = perm_calloc(sizeof(dst->translations[0]) * len);
+        dst->rotations = perm_calloc(sizeof(dst->rotations[0]) * len);
+        dst->scales = perm_calloc(sizeof(dst->scales[0]) * len);
+
+        loaded = true;
+
+        // load meshes
         {
-            const i32 len = hdr.length;
-            void* scratch = NULL;
-            if (len > 0)
+            dmeshid_t* dmeshids = perm_calloc(sizeof(dmeshids[0]) * len);
+            loaded &= crate_get(crate,
+                guid_str("drawables.meshes"), dmeshids, sizeof(dmeshids[0]) * len);
+            if (loaded)
             {
-                dbytes_check(hdr.names, sizeof(dst->names[0]));
-                dbytes_check(hdr.meshes, sizeof(dmeshid_t));
-                dbytes_check(hdr.bounds, sizeof(dst->bounds[0]));
-                dbytes_check(hdr.materials, sizeof(dmaterial_t));
-                dbytes_check(hdr.translations, sizeof(dst->translations[0]));
-                dbytes_check(hdr.rotations, sizeof(dst->rotations[0]));
-                dbytes_check(hdr.scales, sizeof(dst->scales[0]));
-
-                dst->count = len;
-                dst->names = perm_calloc(sizeof(dst->names[0]) * len);
-                dst->meshes = perm_calloc(sizeof(dst->meshes[0]) * len);
-                dst->bounds = perm_calloc(sizeof(dst->bounds[0]) * len);
-                dst->materials = perm_calloc(sizeof(dst->materials[0]) * len);
-                dst->matrices = perm_calloc(sizeof(dst->matrices[0]) * len);
-                dst->invMatrices = perm_calloc(sizeof(dst->invMatrices[0]) * len);
-                dst->translations = perm_calloc(sizeof(dst->translations[0]) * len);
-                dst->rotations = perm_calloc(sizeof(dst->rotations[0]) * len);
-                dst->scales = perm_calloc(sizeof(dst->scales[0]) * len);
-
-                fstr_seek(fd, hdr.names.offset);
-                fstr_read(fd, dst->names, hdr.names.size);
+                for (i32 i = 0; i < len; ++i)
                 {
-                    fstr_seek(fd, hdr.meshes.offset);
-                    dmeshid_t* pim_noalias dmeshids = tmp_realloc(scratch, hdr.names.size);
-                    fstr_read(fd, dmeshids, hdr.names.size);
-                    for (i32 i = 0; i < hdr.length; ++i)
-                    {
-                        mesh_load(dmeshids[i].id, dst->meshes + i);
-                    }
-                    scratch = dmeshids;
+                    mesh_load(crate, dmeshids[i].id, &dst->meshes[i]);
                 }
-                fstr_seek(fd, hdr.bounds.offset);
-                fstr_read(fd, dst->bounds, hdr.bounds.size);
-                {
-                    fstr_seek(fd, hdr.materials.offset);
-                    dmaterial_t* pim_noalias dmats = tmp_realloc(scratch, hdr.materials.size);
-                    fstr_read(fd, dmats, hdr.materials.size);
-                    for (i32 i = 0; i < hdr.length; ++i)
-                    {
-                        material_t mat = { 0 };
-                        const dmaterial_t dmat = dmats[i];
-                        texture_load(dmat.albedo.id, &mat.albedo);
-                        texture_load(dmat.rome.id, &mat.rome);
-                        texture_load(dmat.normal.id, &mat.normal);
-                        mat.flatAlbedo = dmat.flatAlbedo;
-                        mat.flatRome = dmat.flatRome;
-                        mat.flags = dmat.flags;
-                        mat.ior = dmat.ior;
-                        dst->materials[i] = mat;
-                    }
-                    scratch = dmats;
-                }
-
-                fstr_seek(fd, hdr.translations.offset);
-                fstr_read(fd, dst->translations, hdr.translations.size);
-
-                fstr_seek(fd, hdr.rotations.offset);
-                fstr_read(fd, dst->rotations, hdr.rotations.size);
-
-                fstr_seek(fd, hdr.scales.offset);
-                fstr_read(fd, dst->scales, hdr.scales.size);
-
-                loaded = true;
             }
+            pim_free(dmeshids);
         }
+
+        // load materials
+        {
+            dmaterial_t* dmaterials = perm_calloc(sizeof(dmaterials[0]) * len);
+            loaded &= crate_get(crate,
+                guid_str("drawables.materials"), dmaterials, sizeof(dmaterials[0]) * len);
+            if (loaded)
+            {
+                for (i32 i = 0; i < len; ++i)
+                {
+                    const dmaterial_t dmat = dmaterials[i];
+                    material_t mat = { 0 };
+                    mat.flatAlbedo = dmat.flatAlbedo;
+                    mat.flatRome = dmat.flatRome;
+                    mat.flags = dmat.flags;
+                    mat.ior = dmat.ior;
+                    texture_load(crate, dmat.albedo.id, &mat.albedo);
+                    texture_load(crate, dmat.rome.id, &mat.rome);
+                    texture_load(crate, dmat.normal.id, &mat.normal);
+                    dst->materials[i] = mat;
+                }
+            }
+            pim_free(dmaterials);
+        }
+
+        loaded &= crate_get(crate,
+            guid_str("drawables.names"), dst->names, sizeof(dst->names[0]) * len);
+        loaded &= crate_get(crate,
+            guid_str("drawables.bounds"), dst->bounds, sizeof(dst->bounds[0]) * len);
+        loaded &= crate_get(crate,
+            guid_str("drawables.translations"), dst->translations, sizeof(dst->translations[0]) * len);
+        loaded &= crate_get(crate,
+            guid_str("drawables.rotations"), dst->rotations, sizeof(dst->rotations[0]) * len);
+        loaded &= crate_get(crate,
+            guid_str("drawables.scales"), dst->scales, sizeof(dst->scales[0]) * len);
     }
-cleanup:
-    fstr_close(&fd);
-    if (!loaded)
-    {
-        drawables_del(dst);
-    }
+
     return loaded;
 }

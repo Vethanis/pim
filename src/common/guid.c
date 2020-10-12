@@ -7,22 +7,26 @@
 #include "containers/dict.h"
 #include "containers/text.h"
 
+static const u64 guid_seed = 14695981039346656037ull;
+
+static bool ms_init;
 static dict_t ms_guidToStr;
 static u32 ms_counter;
 
 static void EnsureInit(void)
 {
-    if (!ms_guidToStr.valueSize)
-	{
-		dict_new(&ms_guidToStr, sizeof(guid_t), sizeof(text32), EAlloc_Perm);
+    if (!ms_init)
+    {
+        ms_init = true;
+        dict_new(&ms_guidToStr, sizeof(guid_t), sizeof(text32), EAlloc_Perm);
     }
 }
 
 guid_t guid_new(void)
 {
     u64 a = time_now();
-	u64 b = inc_u32(&ms_counter, MO_Acquire);
-	u64 c = inc_u32(&ms_counter, MO_Acquire);
+    u64 b = inc_u32(&ms_counter, MO_Relaxed);
+    u64 c = inc_u32(&ms_counter, MO_Relaxed);
     b = b << 32 | c;
     return (guid_t) { a, b };
 }
@@ -47,7 +51,7 @@ void guid_set_name(guid_t id, const char* str)
 
 bool guid_get_name(guid_t id, char* dst, i32 size)
 {
-	EnsureInit();
+    EnsureInit();
     text32 text = { 0 };
     if (dict_get(&ms_guidToStr, &id, &text))
     {
@@ -72,24 +76,27 @@ i32 guid_find(const guid_t* pim_noalias ptr, i32 count, guid_t key)
     return -1;
 }
 
-guid_t guid_str(const char* str, u64 seed)
+guid_t guid_str(const char* str)
 {
-    if (str)
+    guid_t id = { 0 };
+    if (str && str[0])
     {
-        u64 a = Fnv64String(str, seed);
+        u64 a = Fnv64String(str, guid_seed);
         a = a ? a : 1;
         u64 b = Fnv64String(str, a);
         b = b ? b : 1;
-        return (guid_t) { a, b };
+        id.a = a;
+        id.b = b;
+        guid_set_name(id, str);
     }
-    return (guid_t) { 0 };
+    return id;
 }
 
-guid_t guid_bytes(const void* ptr, i32 nBytes, u64 seed)
+guid_t guid_bytes(const void* ptr, i32 nBytes)
 {
     if (ptr && nBytes > 0)
     {
-        u64 a = Fnv64Bytes(ptr, nBytes, seed);
+        u64 a = Fnv64Bytes(ptr, nBytes, guid_seed);
         a = a ? a : 1;
         u64 b = Fnv64Bytes(ptr, nBytes, a);
         b = b ? b : 1;
@@ -110,19 +117,10 @@ guid_t guid_rand(prng_t* rng)
 void guid_fmt(char* dst, i32 size, guid_t value)
 {
     u32 a0 = (value.a >> 32) & 0xffffffff;
-    u32 a1 = (value.a >>  0) & 0xffffffff;
+    u32 a1 = (value.a >> 0) & 0xffffffff;
     u32 b0 = (value.b >> 32) & 0xffffffff;
-    u32 b1 = (value.b >>  0) & 0xffffffff;
+    u32 b1 = (value.b >> 0) & 0xffffffff;
     StrCatf(dst, size, "%x_%x_%x_%x", a0, a1, b0, b1);
-}
-
-void guid_tofile(char* dst, i32 size, guid_t name, const char* extension)
-{
-    if (size > 0)
-    {
-        guid_fmt(dst, size, name);
-        StrCat(dst, size, extension);
-    }
 }
 
 u32 guid_hashof(guid_t x)

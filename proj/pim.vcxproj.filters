@@ -559,6 +559,9 @@
     <ClCompile Include="..\submodules\cJSON\cJSON_Utils.c">
       <Filter>submodules\cJSON</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\assets\crate.c">
+      <Filter>Source Files\assets</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -1178,6 +1181,9 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr_uipass.h">
       <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\assets\crate.h">
+      <Filter>Source Files\assets</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

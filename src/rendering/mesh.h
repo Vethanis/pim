@@ -8,6 +8,8 @@
 
 PIM_C_BEGIN
 
+typedef struct crate_s crate_t;
+
 typedef struct meshid_s
 {
     u32 index : 24;
@@ -28,15 +30,12 @@ typedef struct mesh_s
     vkrMesh vkrmesh;
 } mesh_t;
 
-#define kMeshVersion 4
+#define kMeshVersion 5
 typedef struct dmesh_s
 {
     i32 version;
     i32 length;
     char name[64];
-    dbytes_t positions;
-    dbytes_t normals;
-    dbytes_t uvs;
 } dmesh_t;
 
 void mesh_sys_init(void);
@@ -60,7 +59,7 @@ bool mesh_getname(meshid_t id, guid_t* dst);
 
 box_t mesh_calcbounds(meshid_t id);
 
-bool mesh_save(meshid_t id, guid_t* dst);
-bool mesh_load(guid_t name, meshid_t* dst);
+bool mesh_save(crate_t* crate, meshid_t id, guid_t* dst);
+bool mesh_load(crate_t* crate, guid_t name, meshid_t* dst);
 
 PIM_C_END

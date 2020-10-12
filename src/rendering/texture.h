@@ -9,6 +9,7 @@
 PIM_C_BEGIN
 
 typedef struct table_s table_t;
+typedef struct crate_s crate_t;
 
 typedef struct textureid_s
 {
@@ -28,14 +29,13 @@ typedef struct texture_s
     vkrTexture2D vkrtex;
 } texture_t;
 
-#define kTextureVersion 4
+#define kTextureVersion 5
 typedef struct dtexture_s
 {
     i32 version;
     VkFormat format;
     char name[64];
     int2 size;
-    dbytes_t texels;
 } dtexture_t;
 
 const table_t* texture_table(void);
@@ -61,8 +61,8 @@ bool texture_set(textureid_t id, texture_t* src);
 bool texture_find(guid_t name, textureid_t* idOut);
 bool texture_getname(textureid_t id, guid_t* nameOut);
 
-bool texture_save(textureid_t tid, guid_t* dst);
-bool texture_load(guid_t name, textureid_t* dst);
+bool texture_save(crate_t* crate, textureid_t tid, guid_t* dst);
+bool texture_load(crate_t* crate, guid_t name, textureid_t* dst);
 
 bool texture_unpalette(
     const u8* bytes,
