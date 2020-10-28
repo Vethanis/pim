@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 PIM_C_BEGIN
 
-typedef enum
+enum
 {
     // entity effects
     EF_ROCKET = 1 << 0,
@@ -62,7 +62,7 @@ typedef enum
     IDSPRITEHEADER = (('P' << 24) | ('S' << 16) | ('D' << 8) | 'I'),
     // brush model is the default if above are not recognized from dword 0
 
-} model_constants_t;
+};
 
 // ----------------------------------------------------------------------------
 // Brush Models (static bsp)
@@ -77,97 +77,31 @@ typedef struct mtexture_s
     i32 anim_max; // keyframe end
     struct mtexture_s* anim_next; // texture animation sequence
     struct mtexture_s* alternate_anims; // bmodels in frame 1 use these
-    i32 offsets[MIPLEVELS]; // offset from end of this struct
 } mtexture_t;
 
-typedef struct
+typedef struct medge_s
 {
     i32 v[2];
-    i32 cachededgeoffset;
 } medge_t;
 
-typedef struct
+typedef struct mtexinfo_s
 {
     float4 vecs[2];
-    float mipadjust;
-    mtexture_t* texture;
-    i32 flags;
+    mtexture_t const* texture;
 } mtexinfo_t;
 
-typedef struct
+typedef struct msurface_s
 {
-    // index of plane this face is on
-    i32 planenum;
-    // which side of the plane this face is on
-    i32 side;
     i32 firstedge; // model->surfedges[]
     i32 numedges; // negative numbers are backwards edges
-    // index of the texture info for this face
-    mtexinfo_t* texinfo;
-    // lighting info
-    u8 styles[MAXLIGHTMAPS];
-    // start offset of [numstyles * surfsize] lightmap samples
-    u8* samples;
-
-    i32 texturemins[2];
-    i32 extents[2];
-    i32 flags;
-    i32 contents;
+    // texture info for this face
+    mtexinfo_t const* texinfo;
 } msurface_t;
-
-typedef struct efrag_s
-{
-    struct mnode_s* leaf;
-    struct efrag_s* leafnext;
-    struct entity_s* entity;
-    struct efrag_s* entnext;
-} efrag_t;
-
-typedef struct mnode_s
-{
-    struct
-    {
-        struct mnode_s* parent;
-        i32 contents; // < 0 == leaf
-        i32 visframe;
-        i16 mins[3];
-        i16 maxs[3];
-    } c;
-    union
-    {
-        struct
-        {
-            struct mnode_s* children[2];
-            i32 planenum;
-            i32 firstface;
-            i32 numfaces;
-        } node;
-        struct
-        {
-            efrag_t* efrags;
-            i32 visofs;
-            i32 key; // bsp sequence number for leaf contents
-            i32 firstmarksurface;
-            i32 nummarksurfaces;
-            u8 ambient_level[NUM_AMBIENTS];
-        } leaf;
-    } u;
-} mnode_t;
-
-typedef struct
-{
-    dclipnode_t* clipnodes;
-    float4* planes;
-    i32 firstclipnode;
-    i32 lastclipnode;
-    float3 clip_mins;
-    float3 clip_maxs;
-} mhull_t;
 
 // ----------------------------------------------------------------------------
 // Sprite Models
 
-typedef struct
+typedef struct mspriteframe_s
 {
     i32 width;
     i32 height;
@@ -179,7 +113,7 @@ typedef struct
     u8 pixels[4];
 } mspriteframe_t;
 
-typedef struct
+typedef struct mspritegroup_s
 {
     i32 numframes;
     float* intervals;
@@ -189,16 +123,16 @@ typedef struct
 typedef enum
 {
     SPR_SINGLE,
-    SPR_GROUP
+    SPR_GROUP,
 } spriteframetype_t;
 
-typedef struct
+typedef struct mspriteframedesc_s
 {
     spriteframetype_t type;
     mspriteframe_t* frameptr;
 } mspriteframedesc_t;
 
-typedef struct
+typedef struct msprite_s
 {
     i32 type;
     i32 maxwidth;
@@ -230,7 +164,7 @@ typedef enum
     ALIAS_SKIN_GROUP,
 } aliasskintype_t;
 
-typedef struct
+typedef struct mdl_s
 {
     i32 ident;
     i32 version;
@@ -249,65 +183,65 @@ typedef struct
     float size;
 } mdl_t;
 
-typedef struct
+typedef struct stvert_s
 {
     i32 onseam;
     i32 s;
     i32 t;
 } stvert_t;
 
-typedef struct
+typedef struct dtriangle_s
 {
     i32 facesfront;
     int3 vertindex;
 } dtriangle_t;
 
-typedef struct
+typedef struct trivertx_s
 {
     u8 v[3];
     u8 lightnormalindex;
 } trivertx_t;
 
-typedef struct
+typedef struct daliasframe_s
 {
     trivertx_t bboxmin;
     trivertx_t bboxmax;
     char name[16];
 } daliasframe_t;
 
-typedef struct
+typedef struct daliasgroup_s
 {
     i32 numframes;
     trivertx_t bboxmin;
     trivertx_t bboxmax;
 } daliasgroup_t;
 
-typedef struct
+typedef struct daliasskingroup_s
 {
     i32 numskins;
 } daliasskingroup_t;
 
-typedef struct
+typedef struct daliasinterval_s
 {
     float interval;
 } daliasinterval_t;
 
-typedef struct
+typedef struct daliasskininterval_s
 {
     float interval;
 } daliasskininterval_t;
 
-typedef struct
+typedef struct daliasframetype_s
 {
     aliasframetype_t type;
 } daliasframetype_t;
 
-typedef struct
+typedef struct daliasskintype_s
 {
     aliasskintype_t type;
 } daliasskintype_t;
 
-typedef struct
+typedef struct maliasframedesc_s
 {
     aliasframetype_t type;
     trivertx_t bboxmin;
@@ -316,41 +250,41 @@ typedef struct
     char name[16];
 } maliasframedesc_t;
 
-typedef struct
+typedef struct maliasskindesc_s
 {
     aliasskintype_t type;
     void *pcachespot;
     i32 skin;
 } maliasskindesc_t;
 
-typedef struct
+typedef struct maliasgroupframedesc_s
 {
     trivertx_t bboxmin;
     trivertx_t bboxmax;
     i32 frame;
 } maliasgroupframedesc_t;
 
-typedef struct
+typedef struct maliasgroup_s
 {
     i32 numframes;
     i32 intervals;
     maliasgroupframedesc_t frames[1];
 } maliasgroup_t;
 
-typedef struct
+typedef struct maliasskingroup_s
 {
     i32 numskins;
     i32 intervals;
     maliasskindesc_t skindescs[1];
 } maliasskingroup_t;
 
-typedef struct
+typedef struct mtriangle_s
 {
     i32 facesfront;
     i32 vertindex[3];
 } mtriangle_t;
 
-typedef struct
+typedef struct aliashdr_s
 {
     i32 model;
     i32 stverts;
@@ -371,29 +305,7 @@ typedef enum
 
 typedef struct mmodel_s
 {
-// metadata
     char name[64];
-    i32 needload;
-    modtype_t type;
-    i32 numframes;
-    synctype_t synctype;
-    i32 flags;
-
-// model bounds
-    float mins[3];
-    float maxs[3];
-    float radius;
-
-// brush model data
-    i32 firstmodelsurface;
-    i32 nummodelsurfaces;
-
-    i32 numsubmodels;
-    dmodel_t* dsubmodels;
-    struct mmodel_s* msubmodels;
-
-    i32 numplanes;
-    float4* planes;
 
     i32 numvertices;
     float4* vertices;
@@ -401,45 +313,20 @@ typedef struct mmodel_s
     i32 numedges;
     medge_t* edges;
 
-    i32 numnodes;
-    i32 numleafs;
-    mnode_t* nodes;
-
     i32 numtexinfo;
     mtexinfo_t* texinfo;
 
-    // each surface points to a a section of surfedges
-    // to flatten model, traverse surfaces, then surfedges, then vertices
     i32 numsurfaces;
     msurface_t* surfaces;
 
     i32 numsurfedges;
     i32* surfedges;
 
-    i32 numclipnodes;
-    dclipnode_t* clipnodes;
-
-    i32 nummarksurfaces;
-    msurface_t** marksurfaces;
-
-    mhull_t hulls[MAX_MAP_HULLS];
-
     i32 numtextures;
     mtexture_t** textures;
 
-    i32 visdatasize;
-    u8* visdata;
-
-    i32 lightdatasize;
-    u8* lightdata;
-
     i32 entitiessize;
     char* entities;
-
-// additional model data
-    i32 cachesize;
-    void* cache;
-
 } mmodel_t;
 
 mmodel_t* LoadModel(const char* name, const void* buffer, EAlloc allocator);

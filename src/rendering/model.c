@@ -19,12 +19,9 @@
 #include "common/stringutil.h"
 #include "common/console.h"
 #include "common/sort.h"
-#include "io/fd.h"
 #include "logic/progs.h"
 #include "rendering/camera.h"
-
 #include "quake/q_model.h"
-
 #include <string.h>
 
 typedef struct mat_preset_s
@@ -156,6 +153,131 @@ static const mat_preset_t ms_matPresets[] =
     },
 };
 
+static i32 FindPreset(const char* name)
+{
+    const mat_preset_t* presets = ms_matPresets;
+    const i32 len = NELEM(ms_matPresets);
+    for (i32 i = 0; i < len; ++i)
+    {
+        if (StrIStr(name, PIM_PATH, presets[i].name))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static material_t GenMaterial(const mtexture_t* mtex, const msurface_t* surf)
+{
+    material_t material = { 0 };
+    material.flatAlbedo = f4_1;
+    material.ior = 1.0f;
+
+    float roughness = 0.5f;
+    float occlusion = 1.0f;
+    float metallic = 0.0f;
+    float emission = 0.0f;
+
+    if (mtex)
+    {
+        i32 iPreset = FindPreset(mtex->name);
+        if (iPreset >= 0)
+        {
+            roughness = ms_matPresets[iPreset].roughness;
+            occlusion = ms_matPresets[iPreset].occlusion;
+            metallic = ms_matPresets[iPreset].metallic;
+            emission = ms_matPresets[iPreset].emission;
+        }
+
+        if (StrIStr(ARGS(mtex->name), "light"))
+        {
+            material.flags |= matflag_emissive;
+        }
+        if (StrIStr(ARGS(mtex->name), "sky"))
+        {
+            material.flags |= matflag_sky;
+            material.flags |= matflag_emissive;
+        }
+        if (StrIStr(ARGS(mtex->name), "lava"))
+        {
+            material.flags |= matflag_lava;
+            material.flags |= matflag_emissive;
+        }
+        if (StrIStr(ARGS(mtex->name), "slime"))
+        {
+            material.ior = 1.4394f;
+            material.flags |= matflag_slime;
+            material.flags |= matflag_refractive;
+        }
+        if (StrIStr(ARGS(mtex->name), "water"))
+        {
+            material.ior = 1.333f;
+            material.flags |= matflag_water;
+            material.flags |= matflag_refractive;
+        }
+        if (StrIStr(ARGS(mtex->name), "window"))
+        {
+            material.ior = 1.52f;
+            material.flags |= matflag_refractive;
+            material.flags |= matflag_emissive;
+        }
+        if (StrIStr(ARGS(mtex->name), "teleport"))
+        {
+            material.flags |= matflag_emissive;
+        }
+        if (mtex->name[0] == '*')
+        {
+            // uv animated
+            material.flags |= matflag_warped;
+        }
+        if (mtex->name[0] == '+')
+        {
+            // keyframe animated
+            material.flags |= matflag_animated;
+        }
+
+        u8 const *const pim_noalias mip0 = (u8*)(mtex + 1);
+        const int2 size = i2_v(mtex->width, mtex->height);
+        const i32 texelCount = size.x * size.y;
+
+        if (!(material.flags & matflag_emissive))
+        {
+            for (i32 i = 0; i < texelCount; ++i)
+            {
+                // 224: fire
+                // 240: brights
+                if (mip0[i] >= 224)
+                {
+                    material.flags |= matflag_emissive;
+                    break;
+                }
+            }
+        }
+
+        if (emission > 0.0f)
+        {
+            material.flags |= matflag_emissive;
+        }
+        if ((emission == 0.0f) && (material.flags & matflag_emissive))
+        {
+            emission = 0.5f;
+        }
+
+        texture_unpalette(
+            mip0,
+            size,
+            mtex->name,
+            material.flags,
+            &material.albedo,
+            &material.rome,
+            &material.normal);
+    }
+
+    material.flatRome = f4_v(roughness, occlusion, metallic, emission);
+
+    return material;
+}
+
 pim_inline float2 VEC_CALL CalcUv(float4 s, float4 t, float4 p)
 {
     // u = dot(P.xyz, s.xyz) + s.w
@@ -225,171 +347,6 @@ static i32 VEC_CALL FlattenSurface(
     return resLen;
 }
 
-static i32 FindPreset(const char* name)
-{
-    const mat_preset_t* presets = ms_matPresets;
-    const i32 len = NELEM(ms_matPresets);
-    for (i32 i = 0; i < len; ++i)
-    {
-        if (StrIStr(name, PIM_PATH, presets[i].name))
-        {
-            return i;
-        }
-    }
-    return -1;
-}
-
-static float4 VEC_CALL HueToRgb(float h)
-{
-    float r = f1_abs(h * 6.0f - 3.0f) - 1.0f;
-    float g = 2.0f - f1_abs(h * 6.0f - 2.0f);
-    float b = 2.0f - f1_abs(h * 6.0f - 4.0f);
-    return f4_saturate(f4_v(r, g, b, 1.0f));
-}
-
-static float4 VEC_CALL HsvToRgb(float4 hsv)
-{
-    float4 rgb = HueToRgb(hsv.x);
-    float4 a = f4_subvs(rgb, 1.0f);
-    float4 b = f4_mulvs(a, hsv.y);
-    float4 c = f4_addvs(b, 1.0f);
-    float4 d = f4_mulvs(c, hsv.z);
-    return d;
-}
-
-static float4 VEC_CALL IntToColor(i32 i, i32 count)
-{
-    float h = (i + 0.5f) / count;
-    for (i32 b = 0; b < 4; ++b)
-    {
-        i32 m = 1 << b;
-        if (i & m)
-        {
-            h += 0.5f / m;
-        }
-    }
-    h = fmodf(h, 1.0f);
-    return HsvToRgb(f4_v(h, 0.75f, 0.9f, 1.0f));
-}
-
-static material_t GenMaterial(const mtexture_t* mtex, const msurface_t* surf)
-{
-    material_t material = { 0 };
-    material.flatAlbedo = f4_1;
-    material.ior = 1.0f;
-
-    float roughness = 0.5f;
-    float occlusion = 1.0f;
-    float metallic = 0.0f;
-    float emission = 0.0f;
-
-    if (mtex)
-    {
-        i32 contents = surf ? surf->contents : 0;
-        i32 flags = surf ? surf->flags : 0;
-
-        i32 iPreset = FindPreset(mtex->name);
-        if (iPreset != -1)
-        {
-            roughness = ms_matPresets[iPreset].roughness;
-            occlusion = ms_matPresets[iPreset].occlusion;
-            metallic = ms_matPresets[iPreset].metallic;
-            emission = ms_matPresets[iPreset].emission;
-        }
-
-        if (flags & SURF_UNDERWATER)
-        {
-            material.flags |= matflag_underwater;
-        }
-        if (StrIStr(ARGS(mtex->name), "light"))
-        {
-            material.flags |= matflag_emissive;
-        }
-        if (StrIStr(ARGS(mtex->name), "sky"))
-        {
-            material.flags |= matflag_sky;
-            material.flags |= matflag_emissive;
-        }
-        if (StrIStr(ARGS(mtex->name), "lava"))
-        {
-            material.flags |= matflag_lava;
-            material.flags |= matflag_emissive;
-        }
-        if (StrIStr(ARGS(mtex->name), "slime"))
-        {
-            material.ior = 1.4394f;
-            material.flags |= matflag_slime;
-            material.flags |= matflag_refractive;
-        }
-        if (StrIStr(ARGS(mtex->name), "water"))
-        {
-            material.ior = 1.333f;
-            material.flags |= matflag_water;
-            material.flags |= matflag_refractive;
-        }
-        if (StrIStr(ARGS(mtex->name), "window"))
-        {
-            material.ior = 1.52f;
-            material.flags |= matflag_refractive;
-            material.flags |= matflag_emissive;
-        }
-        if (StrIStr(ARGS(mtex->name), "teleport"))
-        {
-            material.flags |= matflag_emissive;
-        }
-        if (mtex->name[0] == '*')
-        {
-            // uv animated
-            material.flags |= matflag_warped;
-        }
-        if (mtex->name[0] == '+')
-        {
-            // keyframe animated
-            material.flags |= matflag_animated;
-        }
-
-        const u8* pim_noalias mip0 = (u8*)mtex + mtex->offsets[0];
-        ASSERT(mtex->offsets[0] == sizeof(mtexture_t));
-        const int2 size = i2_v(mtex->width, mtex->height);
-        const i32 texelCount = size.x * size.y;
-
-        if (!(material.flags & matflag_emissive))
-        {
-            for (i32 i = 0; i < texelCount; ++i)
-            {
-                // 224: fire
-                // 240: brights
-                if (mip0[i] >= 224)
-                {
-                    material.flags |= matflag_emissive;
-                    break;
-                }
-            }
-        }
-
-        if (emission > 0.0f)
-        {
-            material.flags |= matflag_emissive;
-        }
-        if ((emission == 0.0f) && (material.flags & matflag_emissive))
-        {
-            emission = 0.5f;
-        }
-
-        texture_unpalette(
-            mip0,
-            size,
-            mtex->name,
-            material.flags,
-            &material.albedo,
-            &material.rome,
-            &material.normal);
-    }
-
-    material.flatRome = f4_v(roughness, occlusion, metallic, emission);
-
-    return material;
-}
 
 static mesh_t VEC_CALL TrisToMesh(
     const mmodel_t* model,
@@ -513,12 +470,11 @@ static void FixZFighting(mesh_t mesh)
 typedef struct batch_s
 {
     i32 length;
-    const msurface_t* surfaces;
-    const mtexinfo_t** texinfos;
-    const mtexture_t** textures;
-    const char** texnames;
-    i32* batchids;
-    i32* indices;
+    const msurface_t* pim_noalias surfaces;
+    const mtexture_t** pim_noalias textures;
+    const char** pim_noalias texnames;
+    i32* pim_noalias batchids;
+    i32* pim_noalias indices;
 } batch_t;
 
 static i32 BatchSortFn(i32 lhs, i32 rhs, void* usr)
@@ -533,20 +489,6 @@ static i32 BatchSortFn(i32 lhs, i32 rhs, void* usr)
 
     const msurface_t* lsurf = batch->surfaces + lhs;
     const msurface_t* rsurf = batch->surfaces + rhs;
-
-    i32 lcont = lsurf->contents;
-    i32 rcont = rsurf->contents;
-    if (lcont != rcont)
-    {
-        return lcont < rcont ? -1 : 1;
-    }
-
-    i32 lplane = lsurf->planenum;
-    i32 rplane = rsurf->planenum;
-    if (lplane != rplane)
-    {
-        return lplane < rplane ? -1 : 1;
-    }
 
     i32 ledge = lsurf->firstedge;
     i32 redge = rsurf->firstedge;
@@ -565,7 +507,6 @@ static batch_t ModelToBatch(const mmodel_t* model)
     const i32 len = model->numsurfaces;
     batch.length = len;
     batch.surfaces = model->surfaces;
-    batch.texinfos = tmp_malloc(sizeof(batch.texinfos[0]) * len);
     batch.textures = tmp_malloc(sizeof(batch.textures[0]) * len);
     batch.texnames = tmp_malloc(sizeof(batch.texnames[0]) * len);
     batch.batchids = tmp_malloc(sizeof(batch.batchids[0]) * len);
@@ -579,7 +520,6 @@ static batch_t ModelToBatch(const mmodel_t* model)
         const i32 firstedge = surface->firstedge;
         const mtexinfo_t* texinfo = surface->texinfo;
 
-        batch.texinfos[i] = texinfo;
         batch.textures[i] = NULL;
         batch.texnames[i] = "null";
         batch.batchids[i] = -1;
@@ -622,10 +562,6 @@ static batch_t ModelToBatch(const mmodel_t* model)
         {
             ++curbatch;
         }
-        else if (batch.surfaces[prev].contents != batch.surfaces[cur].contents)
-        {
-            ++curbatch;
-        }
         batch.batchids[cur] = curbatch;
     }
 
@@ -634,8 +570,16 @@ static batch_t ModelToBatch(const mmodel_t* model)
 
 static float4x4 QuakeToRhsMeters(void)
 {
+    // comparative scale metrics via player:
+    // quake player is 32x32x48 units, compared to 2 meters tall
+    // default runspeed is 320 units per second, compared to 8 meters per second
+    // max jump is 32 units, compared to 1.65 meters
+    const float heightScale = 2.0f / 48.0f;
+    const float speedScale = 8.0f / 320.0f;
+    const float jumpScale = 1.65f / 32.0f;
+    const float avgScale = (heightScale + speedScale + jumpScale) / 3.0f;
     const quat rot = quat_angleaxis(-kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
-    const float4x4 M = f4x4_trs(f4_0, rot, f4_s(0.02f));
+    const float4x4 M = f4x4_trs(f4_0, rot, f4_s(avgScale));
     return M;
 }
 
@@ -669,7 +613,6 @@ void ModelToDrawables(const mmodel_t* model)
         const msurface_t* surface = batch.surfaces + j;
         const i32 numedges = surface->numedges;
         const i32 firstedge = surface->firstedge;
-        const mtexinfo_t* texinfo = batch.texinfos[j];
         const mtexture_t* mtex = batch.textures[j];
         const char* texname = batch.texnames[j];
         const i32 batchid = batch.batchids[j];

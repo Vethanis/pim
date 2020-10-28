@@ -230,7 +230,7 @@ bool texture_save(crate_t* crate, textureid_t tid, guid_t* dst)
         const i32 len = texture.size.x * texture.size.y;
         const i32 texelBytes = sizeof(texture.texels[0]) * len;
         const i32 hdrBytes = sizeof(dtexture_t);
-        dtexture_t* dtexture = tex_calloc(hdrBytes + texelBytes);
+        dtexture_t* dtexture = tex_malloc(hdrBytes + texelBytes);
         if (dtexture)
         {
             dtexture->version = kTextureVersion;
@@ -249,12 +249,11 @@ bool texture_load(crate_t* crate, guid_t name, textureid_t* dst)
 {
     bool loaded = false;
     texture_t texture = { 0 };
-    dtexture_t* dtexture = NULL;
     i32 offset = 0;
     i32 size = 0;
     if (crate_stat(crate, name, &offset, &size))
     {
-        dtexture = tex_calloc(size);
+        dtexture_t* dtexture = tex_malloc(size);
         if (dtexture && crate_get(crate, name, dtexture, size))
         {
             if (dtexture->version == kTextureVersion)
@@ -273,8 +272,8 @@ bool texture_load(crate_t* crate, guid_t name, textureid_t* dst)
                 }
             }
         }
+        pim_free(dtexture);
     }
-    pim_free(dtexture);
     return loaded;
 }
 
@@ -446,7 +445,7 @@ static void UnpaletteStep3Fn(task_t* pbase, i32 begin, i32 end)
 
         float dx = r - l;
         float dy = u - d;
-        float z = 1.0f;
+        const float z = 2.0f;
         float4 N = { -dx, -dy, z, 1.0f };
         normal[i] = DirectionToColor(N);
     }

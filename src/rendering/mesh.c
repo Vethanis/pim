@@ -196,7 +196,7 @@ bool mesh_save(crate_t* crate, meshid_t id, guid_t* dst)
         const i32 normalBytes = sizeof(mesh.normals[0]) * len;
         const i32 uvBytes = sizeof(mesh.uvs[0]) * len;
         const i32 totalBytes = hdrBytes + positionBytes + normalBytes + uvBytes;
-        dmesh_t* dmesh = perm_calloc(totalBytes);
+        dmesh_t* dmesh = perm_malloc(totalBytes);
         dmesh->version = kMeshVersion;
         dmesh->length = len;
         guid_get_name(*dst, ARGS(dmesh->name));
@@ -221,7 +221,7 @@ bool mesh_load(crate_t* crate, guid_t name, meshid_t* dst)
     i32 size = 0;
     if (crate_stat(crate, name, &offset, &size))
     {
-        dmesh_t* dmesh = perm_calloc(size);
+        dmesh_t* dmesh = perm_malloc(size);
         if (dmesh && crate_get(crate, name, dmesh, size))
         {
             if (dmesh->version == kMeshVersion)
@@ -231,9 +231,9 @@ bool mesh_load(crate_t* crate, guid_t name, meshid_t* dst)
                 {
                     guid_set_name(name, dmesh->name);
                     mesh.length = len;
-                    mesh.positions = perm_calloc(sizeof(mesh.positions[0]) * mesh.length);
-                    mesh.normals = perm_calloc(sizeof(mesh.normals[0]) * mesh.length);
-                    mesh.uvs = perm_calloc(sizeof(mesh.uvs[0]) * mesh.length);
+                    mesh.positions = perm_malloc(sizeof(mesh.positions[0]) * mesh.length);
+                    mesh.normals = perm_malloc(sizeof(mesh.normals[0]) * mesh.length);
+                    mesh.uvs = perm_malloc(sizeof(mesh.uvs[0]) * mesh.length);
 
                     float4* positions = (float4*)(dmesh + 1);
                     float4* normals = positions + len;

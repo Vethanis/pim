@@ -162,17 +162,13 @@ bool crate_open(crate_t* crate, const char* path)
     fstr_seek(file, 0);
     if (exists)
     {
-        fstr_read(file, crate->ids, sizeof(crate->ids));
-        fstr_read(file, crate->offsets, sizeof(crate->offsets));
-        fstr_read(file, crate->sizes, sizeof(crate->sizes));
+        fstr_read(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
     }
     else
     {
         crate->offsets[0] = kHeaderSize;
         crate->sizes[0] = 1 << 30;
-        fstr_write(file, crate->ids, sizeof(crate->ids));
-        fstr_write(file, crate->offsets, sizeof(crate->offsets));
-        fstr_write(file, crate->sizes, sizeof(crate->sizes));
+        fstr_write(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
     }
     fstr_seek(file, kHeaderSize);
     return true;
@@ -187,9 +183,7 @@ bool crate_close(crate_t* crate)
         if (fstr_isopen(file))
         {
             fstr_seek(file, 0);
-            fstr_write(file, crate->ids, sizeof(crate->ids));
-            fstr_write(file, crate->offsets, sizeof(crate->offsets));
-            fstr_write(file, crate->sizes, sizeof(crate->sizes));
+            fstr_write(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
             fstr_flush(file);
             fstr_close(&file);
             wasopen = true;

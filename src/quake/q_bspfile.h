@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 PIM_C_BEGIN
 
-typedef enum
+enum
 {
     // design limits of the bsp file format
     MAX_MAP_HULLS = 4,
@@ -119,17 +119,17 @@ typedef enum
     ANGLE_UP = -1,
     ANGLE_DOWN = -2,
 
-} bspfile_constants_t;
+};
 
 // indicates an offset and length within the file
-typedef struct
+typedef struct lump_s
 {
     i32 fileofs;
     i32 filelen;
 } lump_t;
 
 // model on disk
-typedef struct
+typedef struct dmodel_s
 {
     // bounds of entire model
     // in object space?
@@ -146,20 +146,20 @@ typedef struct
 } dmodel_t;
 
 // header with offset and size of each lump type within the file
-typedef struct
+typedef struct dheader_s
 {
     i32 version; // BSPVERSION
     lump_t lumps[HEADER_LUMPS];
 } dheader_t;
 
-typedef struct
+typedef struct dmiptexlump_s
 {
     i32 nummiptex;
     i32 dataofs[4]; // actual size is nummiptex
 } dmiptexlump_t;
 
 // mipmapped texture with 4 mip levels stored at given offsets
-typedef struct
+typedef struct miptex_s
 {
     char name[16];
     // base width and height of the texture for mip 0
@@ -172,13 +172,13 @@ typedef struct
 } miptex_t;
 
 // vertex position
-typedef struct
+typedef struct dvertex_s
 {
     float point[3];
 } dvertex_t;
 
 // bsp plane, subdivides space
-typedef struct
+typedef struct dplane_s
 {
     float normal[3];
     float dist; // dist == dot(normal, pointOnPlane)
@@ -186,7 +186,7 @@ typedef struct
 } dplane_t;
 
 // bsp node with payload
-typedef struct
+typedef struct dnode_s
 {
     // which plane this node uses
     i32 planenum;
@@ -203,7 +203,7 @@ typedef struct
 
 // leaf 0 is the generic CONTENTS_SOLID leaf, used for all solid areas
 // all other leafs need visibility info
-typedef struct
+typedef struct dleaf_s
 {
     // content type
     i32 contents;
@@ -224,7 +224,7 @@ typedef struct
 
 // lighter bsp node
 // probably used for visibility
-typedef struct
+typedef struct dclipnode_s
 {
     // index of plane
     i32 planenum;
@@ -234,7 +234,7 @@ typedef struct
 } dclipnode_t;
 
 // renamed to dtexinfo_t, since it probably resides on disk
-typedef struct
+typedef struct dtexinfo_s
 {
     float vecs[2][4]; // [s/t][xyz offset]
     // index of miptex this applies to
@@ -245,12 +245,12 @@ typedef struct
 
 // note that edge 0 is never used, because negative edge nums are used for
 // counterclockwise use of the edge in a face
-typedef struct
+typedef struct dedge_s
 {
     u16 v[2]; // vertex numbers
 } dedge_t;
 
-typedef struct
+typedef struct dface_s
 {
     // index of plane this face is on
     i16 planenum;
@@ -276,7 +276,7 @@ typedef struct bsp_epair_s
     char* value;
 } bsp_epair_t;
 
-typedef struct
+typedef struct bsp_ent_s
 {
     float origin[3];
     // array of brushes
@@ -285,106 +285,6 @@ typedef struct
     // key-value pair linked list
     bsp_epair_t* epairs;
 } bsp_ent_t;
-
-// ----------------------------------------------------------------------------
-// tools can be lazy and use giant static arrays.
-// useful for understanding structure of bsp file
-
-typedef struct
-{
-    i32 length;
-    dmodel_t arr[MAX_MAP_MODELS];
-} tool_dmodels_t;
-
-typedef struct
-{
-    i32 length;
-    u8 arr[MAX_MAP_VISIBILITY];
-} tool_dvisdata_t;
-
-typedef struct
-{
-    i32 length;
-    u8 arr[MAX_MAP_LIGHTING];
-} tool_dlightdata_t;
-
-typedef struct
-{
-    i32 length;
-    u8 arr[MAX_MAP_MIPTEX]; // dmiptexlump_t
-} tool_dtexdata_t;
-
-typedef struct
-{
-    i32 length;
-    char arr[MAX_MAP_ENTSTRING];
-} tool_dentdata_t;
-
-typedef struct
-{
-    i32 length;
-    dleaf_t arr[MAX_MAP_LEAFS];
-} tool_dleafs_t;
-
-typedef struct
-{
-    i32 length;
-    dplane_t arr[MAX_MAP_PLANES];
-} tool_dplanes_t;
-
-typedef struct
-{
-    i32 length;
-    dvertex_t arr[MAX_MAP_VERTS];
-} tool_dvertices_t;
-
-typedef struct
-{
-    i32 length;
-    dnode_t arr[MAX_MAP_NODES];
-} tool_dnodes_t;
-
-typedef struct
-{
-    i32 length;
-    dtexinfo_t arr[MAX_MAP_TEXINFO];
-} tool_dtexinfos_t;
-
-typedef struct
-{
-    i32 length;
-    dface_t arr[MAX_MAP_FACES];
-} tool_dfaces_t;
-
-typedef struct
-{
-    i32 length;
-    dclipnode_t arr[MAX_MAP_CLIPNODES];
-} tool_dclipnodes_t;
-
-typedef struct
-{
-    i32 length;
-    dedge_t arr[MAX_MAP_EDGES];
-} tool_dedges_t;
-
-typedef struct
-{
-    i32 length;
-    u16 arr[MAX_MAP_MARKSURFACES];
-} tool_dmarksurfaces_t;
-
-typedef struct
-{
-    i32 length;
-    i32 arr[MAX_MAP_SURFEDGES];
-} tool_dsurfedges_t;
-
-typedef struct
-{
-    i32 length;
-    bsp_ent_t arr[MAX_MAP_ENTITIES];
-} tool_bsp_ents_t;
 
 PIM_C_END
 
