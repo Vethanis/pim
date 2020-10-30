@@ -55,8 +55,7 @@ bool texture_exists(textureid_t id);
 void texture_retain(textureid_t id);
 void texture_release(textureid_t id);
 
-bool texture_get(textureid_t id, texture_t* dst);
-bool texture_set(textureid_t id, texture_t* src);
+texture_t* texture_get(textureid_t id);
 
 bool texture_find(guid_t name, textureid_t* idOut);
 bool texture_getname(textureid_t id, guid_t* nameOut);

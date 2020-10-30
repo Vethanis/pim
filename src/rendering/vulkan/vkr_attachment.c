@@ -1,6 +1,8 @@
 #include "rendering/vulkan/vkr_attachment.h"
 #include "rendering/vulkan/vkr_image.h"
 #include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_context.h"
+#include "rendering/vulkan/vkr_cmd.h"
 #include "allocator/allocator.h"
 #include <string.h>
 
@@ -31,10 +33,6 @@ bool vkrAttachment_New(
         layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     }
     ASSERT(aspect);
-
-    att->format = format;
-    att->aspect = aspect;
-    att->layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     const VkImageCreateInfo info = 
     {

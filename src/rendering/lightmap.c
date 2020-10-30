@@ -798,15 +798,15 @@ static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
             continue;
         }
 
-        mesh_t mesh;
-        if (!mesh_get(meshids[d], &mesh))
+        mesh_t const *const mesh = mesh_get(meshids[d]);
+        if (!mesh)
         {
             continue;
         }
 
         const float4x4 M = matrices[d];
-        const i32 vertCount = mesh.length;
-        const float4* pim_noalias positions = mesh.positions;
+        const i32 vertCount = mesh->length;
+        const float4* pim_noalias positions = mesh->positions;
 
         i32 nodeBack = nodeCount;
         nodeCount += vertCount / 3;
@@ -958,28 +958,30 @@ static void chartnodes_assign(
             ASSERT(node.drawableIndex >= 0);
             ASSERT(node.drawableIndex < numDrawables);
             ASSERT(node.vertIndex >= 0);
-            mesh_t mesh;
-            if (mesh_get(meshids[node.drawableIndex], &mesh))
+            mesh_t *const mesh = mesh_get(meshids[node.drawableIndex]);
+            if (mesh)
             {
-                const i32 vertCount = mesh.length;
+                const i32 vertCount = mesh->length;
                 ASSERT((node.vertIndex + 2) < vertCount);
 
+                float4 *const pim_noalias normals = mesh->normals;
+                float4 *const pim_noalias uvs = mesh->uvs;
                 i32 a = node.vertIndex + 0;
                 i32 b = node.vertIndex + 1;
                 i32 c = node.vertIndex + 2;
                 float fAtlasIndex = (float)chart.atlasIndex;
-                mesh.normals[a].w = fAtlasIndex;
-                mesh.normals[b].w = fAtlasIndex;
-                mesh.normals[c].w = fAtlasIndex;
+                normals[a].w = fAtlasIndex;
+                normals[b].w = fAtlasIndex;
+                normals[c].w = fAtlasIndex;
                 float2 uvA = f2_mulvs(f2_add(node.triCoord.a, tr), scale);
                 float2 uvB = f2_mulvs(f2_add(node.triCoord.b, tr), scale);
                 float2 uvC = f2_mulvs(f2_add(node.triCoord.c, tr), scale);
-                mesh.uvs[a].z = uvA.x;
-                mesh.uvs[a].w = uvA.y;
-                mesh.uvs[b].z = uvB.x;
-                mesh.uvs[b].w = uvB.y;
-                mesh.uvs[c].z = uvC.x;
-                mesh.uvs[c].w = uvC.y;
+                uvs[a].z = uvA.x;
+                uvs[a].w = uvA.y;
+                uvs[b].z = uvB.x;
+                uvs[b].w = uvB.y;
+                uvs[c].z = uvC.x;
+                uvs[c].w = uvC.y;
             }
             else
             {
@@ -990,11 +992,10 @@ static void chartnodes_assign(
 
     for (i32 i = 0; i < numDrawables; ++i)
     {
-        mesh_t mesh;
-        if (mesh_get(meshids[i], &mesh))
+        mesh_t* mesh = mesh_get(meshids[i]);
+        if (mesh)
         {
-            vkrMesh_Upload(&mesh.vkrmesh, mesh.length, mesh.positions, mesh.normals, mesh.uvs, 0, NULL);
-            mesh_set(meshids[i], &mesh);
+            vkrMesh_Upload(&mesh->vkrmesh, mesh->length, mesh->positions, mesh->normals, mesh->uvs, 0, NULL);
         }
     }
 }
@@ -1226,21 +1227,25 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
             i32 iDraw = ind.x;
             i32 iVert = ind.y;
 
-            mesh_t mesh;
-            if (!mesh_get(meshids[iDraw], &mesh))
+            mesh_t const *const mesh = mesh_get(meshids[iDraw]);
+            if (!mesh)
             {
                 continue;
             }
 
+            float4 const *const pim_noalias positions = mesh->positions;
+            float4 const *const pim_noalias normals = mesh->normals;
+            float4 const *const pim_noalias uvs = mesh->uvs;
+
             const i32 a = iVert + 0;
             const i32 b = iVert + 1;
             const i32 c = iVert + 2;
-            ASSERT(c < mesh.length);
-            ASSERT((i32)mesh.normals[a].w == iLightmap);
+            ASSERT(c < mesh->length);
+            ASSERT((i32)mesh->normals[a].w == iLightmap);
 
-            float2 LMA = f2_v(mesh.uvs[a].z, mesh.uvs[a].w);
-            float2 LMB = f2_v(mesh.uvs[b].z, mesh.uvs[b].w);
-            float2 LMC = f2_v(mesh.uvs[c].z, mesh.uvs[c].w);
+            float2 LMA = f2_v(uvs[a].z, uvs[a].w);
+            float2 LMB = f2_v(uvs[b].z, uvs[b].w);
+            float2 LMC = f2_v(uvs[c].z, uvs[c].w);
             float area = sdEdge2D(LMA, LMB, LMC);
             if (area <= 0.0f)
             {
@@ -1255,14 +1260,14 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
             const float4x4 M = matrices[iDraw];
             const float3x3 IM = invMatrices[iDraw];
 
-            float4 A = f4x4_mul_pt(M, mesh.positions[a]);
-            float4 B = f4x4_mul_pt(M, mesh.positions[b]);
-            float4 C = f4x4_mul_pt(M, mesh.positions[c]);
+            float4 A = f4x4_mul_pt(M, positions[a]);
+            float4 B = f4x4_mul_pt(M, positions[b]);
+            float4 C = f4x4_mul_pt(M, positions[c]);
             float4 P = f4_blend(A, B, C, wuv);
 
-            float4 NA = f3x3_mul_col(IM, mesh.normals[a]);
-            float4 NB = f3x3_mul_col(IM, mesh.normals[a]);
-            float4 NC = f3x3_mul_col(IM, mesh.normals[a]);
+            float4 NA = f3x3_mul_col(IM, normals[a]);
+            float4 NB = f3x3_mul_col(IM, normals[a]);
+            float4 NC = f3x3_mul_col(IM, normals[a]);
 
             NA = f4_normalize3(NA);
             NB = f4_normalize3(NB);
@@ -1301,22 +1306,25 @@ static void EmbedAttributes(
             const meshid_t* pim_noalias meshids = drawables->meshes;
             for (i32 iDraw = 0; iDraw < dwCount; ++iDraw)
             {
-                mesh_t mesh;
-                if (!mesh_get(meshids[iDraw], &mesh))
+                mesh_t const *const mesh = mesh_get(meshids[iDraw]);
+                if (!mesh)
                 {
                     continue;
                 }
-                for (i32 iVert = 0; (iVert + 3) <= mesh.length; iVert += 3)
+                const i32 meshLen = mesh->length;
+                float4 const *const pim_noalias normals = mesh->normals;
+                float4 const *const pim_noalias uvs = mesh->uvs;
+                for (i32 iVert = 0; (iVert + 3) <= meshLen; iVert += 3)
                 {
                     const i32 a = iVert + 0;
                     const i32 b = iVert + 1;
                     const i32 c = iVert + 2;
-                    const i32 iMap = (i32)mesh.normals[a].w;
+                    const i32 iMap = (i32)normals[a].w;
                     if ((iMap >= 0) && (iMap < lmCount))
                     {
-                        float2 A = f2_v(mesh.uvs[a].z, mesh.uvs[a].w);
-                        float2 B = f2_v(mesh.uvs[b].z, mesh.uvs[b].w);
-                        float2 C = f2_v(mesh.uvs[c].z, mesh.uvs[c].w);
+                        float2 A = f2_v(uvs[a].z, uvs[a].w);
+                        float2 B = f2_v(uvs[b].z, uvs[b].w);
+                        float2 C = f2_v(uvs[c].z, uvs[c].w);
                         tri2d_t tri = { A, B, C };
                         quadtree_t* tree = trees + iMap;
                         bool inserted = quadtree_insert(tree, 0, tri, iDraw, iVert);

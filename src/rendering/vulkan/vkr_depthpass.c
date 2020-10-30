@@ -203,8 +203,8 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
         {
             continue;
         }
-        mesh_t mesh;
-        if (mesh_get(meshids[i], &mesh))
+        mesh_t const *const mesh = mesh_get(meshids[i]);
+        if (mesh)
         {
             distances[i] = sdPlaneBox3D(fwd, bounds);
             VkCommandBuffer cmd = vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, primaryFence);
@@ -218,8 +218,8 @@ static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
             };
             vkrCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT, &pushConsts, sizeof(pushConsts));
             const VkDeviceSize offset = {0};
-            vkCmdBindVertexBuffers(cmd, 0, 1, &mesh.vkrmesh.buffer.handle, &offset);
-            vkCmdDraw(cmd, mesh.length, 1, 0, 0);
+            vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vkrmesh.buffer.handle, &offset);
+            vkCmdDraw(cmd, mesh->vkrmesh.vertCount, 1, 0, 0);
             vkrCmdEnd(cmd);
         }
     }

@@ -161,12 +161,15 @@ i32 StrCat(char* dst, i32 size, const char* src)
 
 char* StrDup(const char* src, EAlloc allocator)
 {
-    ASSERT(src);
-    const i32 len = StrLen(src);
-    char* dst = pim_malloc(allocator, len + 1);
-    memcpy(dst, src, len);
-    dst[len] = 0;
-    return dst;
+    if (src && src[0])
+    {
+        const i32 len = StrLen(src);
+        char* dst = pim_malloc(allocator, len + 1);
+        memcpy(dst, src, len);
+        dst[len] = 0;
+        return dst;
+    }
+    return NULL;
 }
 
 i32 ShiftRight(char* dst, i32 size, i32 shifts)

@@ -14,7 +14,7 @@ static bool ms_placing = true;
 
 static cvar_t cv_pitchscale = { .type = cvart_float,.name = "pitchscale",.value = "2",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "pitch input sensitivity" };
 static cvar_t cv_yawscale = { .type = cvart_float,.name = "yawscale",.value = "1",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "yaw input sensitivity" };
-static cvar_t cv_movescale = { .type = cvart_float,.name = "movescale",.value = "5",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
+static cvar_t cv_movescale = { .type = cvart_float,.name = "movescale",.value = "8",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
 static cvar_t cv_r_fov =
 {
     .type = cvart_float,
@@ -37,7 +37,7 @@ static cvar_t cv_r_zfar =
 {
     .type = cvart_float,
     .name = "r_zfar",
-    .value = "100",
+    .value = "500",
     .minFloat = 1.0f,
     .maxFloat = 1000.0f,
     .desc = "Far clipping plane, in meters",

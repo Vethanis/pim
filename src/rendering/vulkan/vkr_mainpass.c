@@ -9,6 +9,7 @@
 #include "rendering/vulkan/vkr_opaquepass.h"
 #include "rendering/vulkan/vkr_uipass.h"
 #include "rendering/vulkan/vkr_exposurepass.h"
+#include "rendering/vulkan/vkr_image.h"
 #include "rendering/drawable.h"
 #include "rendering/render_system.h"
 #include "rendering/framebuffer.h"
@@ -141,6 +142,9 @@ void vkrMainPass_Draw(
     }
     else
     {
+        u32 imageIndex = passCtx.imageIndex;
+        VkImage colorTarget = chain->images[imageIndex];
+        vkrAttachment* lumTarget = &chain->lumAttachments[imageIndex];
         const VkImageMemoryBarrier colorBarrier =
         {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -150,39 +154,26 @@ void vkrMainPass_Draw(
             .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = chain->images[passCtx.imageIndex],
+            .image = colorTarget,
             .subresourceRange =
             {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .levelCount = 1,
                 .layerCount = 1,
             },
-		};
-		const VkImageMemoryBarrier lumBarrier =
-		{
-			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-			.srcAccessMask = 0x0,
-			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-			.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-			.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image = chain->lumAttachments[passCtx.imageIndex].image.handle,
-			.subresourceRange =
-			{
-				.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-				.levelCount = 1,
-				.layerCount = 1,
-			},
-		};
+        };
         vkrCmdImageBarrier(cmd,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			&colorBarrier);
-		vkrCmdImageBarrier(cmd,
-			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			&lumBarrier);
+            &colorBarrier);
+        vkrImage_Barrier(
+            &lumTarget->image,
+            cmd,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            0x0,
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
     }
 
     vkrCmdBeginRenderPass(
@@ -235,7 +226,7 @@ static VkRenderPass CreateRenderPass(const vkrSwapchain* chain)
         },
         {
             // luminance
-            .format = chain->lumAttachments[0].format,
+            .format = chain->lumAttachments[0].image.format,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -246,7 +237,7 @@ static VkRenderPass CreateRenderPass(const vkrSwapchain* chain)
         },
         {
             // depth pass depth
-            .format = chain->depthAttachment.format,
+            .format = chain->depthAttachments[0].image.format,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,

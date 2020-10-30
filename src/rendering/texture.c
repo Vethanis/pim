@@ -185,24 +185,9 @@ void texture_release(textureid_t id)
     }
 }
 
-bool texture_get(textureid_t id, texture_t* dst)
+texture_t* texture_get(textureid_t id)
 {
-    return table_get(&ms_table, ToGenId(id), dst);
-}
-
-bool texture_set(textureid_t id, texture_t* src)
-{
-    ASSERT(src);
-    if (IsCurrent(id))
-    {
-        texture_t* textures = ms_table.values;
-        i32 index = id.index;
-        FreeTexture(&textures[index]);
-        memcpy(&textures[index], src, sizeof(textures[0]));
-        memset(src, 0, sizeof(*src));
-        return true;
-    }
-    return false;
+    return table_get(&ms_table, ToGenId(id));
 }
 
 bool texture_find(guid_t name, textureid_t* idOut)
@@ -234,7 +219,7 @@ bool texture_save(crate_t* crate, textureid_t tid, guid_t* dst)
         if (dtexture)
         {
             dtexture->version = kTextureVersion;
-            dtexture->format = texture.vkrtex.format;
+            dtexture->format = texture.vkrtex.image.format;
             dtexture->size = texture.size;
             guid_get_name(*dst, ARGS(dtexture->name));
             memcpy(dtexture + 1, texture.texels, texelBytes);

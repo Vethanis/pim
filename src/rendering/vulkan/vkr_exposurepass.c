@@ -10,6 +10,7 @@
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_sync.h"
 #include "rendering/vulkan/vkr_pass.h"
+#include "rendering/vulkan/vkr_image.h"
 
 #include "rendering/exposure.h"
 
@@ -173,13 +174,15 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
 
     pass->params.deltaTime = f1_lerp(pass->params.deltaTime, (float)time_dtf(), 0.25f);
 
-    const vkrSwapchain* chain = &g_vkr.chain;
+    vkrSwapchain* chain = &g_vkr.chain;
     const u32 chainLen = chain->length;
     const u32 imgIndex = (chain->imageIndex + (chainLen - 1u)) % chainLen;
     const u32 syncIndex = (chain->syncIndex + (kFramesInFlight - 1u)) % kFramesInFlight;
-    const vkrAttachment* lum = &chain->lumAttachments[imgIndex];
-    VkBuffer histBuffer = pass->histBuffers[syncIndex].handle;
-    VkBuffer expBuffer = pass->expBuffers[syncIndex].handle;
+
+    vkrAttachment* lum = &chain->lumAttachments[imgIndex];
+    vkrBuffer* expBuffer = &pass->expBuffers[syncIndex];
+    vkrBuffer* histBuffer = &pass->histBuffers[syncIndex];
+
     VkDescriptorSet set = pass->pass.sets[syncIndex];
     VkPipelineLayout layout = pass->pass.layout;
     VkPipeline buildPipe = pass->pass.pipeline;
@@ -189,72 +192,6 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
     const u32 cmpFamily = g_vkr.queues[vkrQueueId_Comp].family;
 
     vkrThreadContext* ctx = vkrContext_Get();
-
-    const VkImageMemoryBarrier lumToCompute =
-    {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .srcQueueFamilyIndex = gfxFamily,
-        .dstQueueFamilyIndex = cmpFamily,
-        .image = lum->image.handle,
-        .subresourceRange =
-        {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .levelCount = 1,
-            .layerCount = 1,
-        },
-    };
-    const VkImageMemoryBarrier lumToGraphics =
-    {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .srcQueueFamilyIndex = cmpFamily,
-        .dstQueueFamilyIndex = gfxFamily,
-        .image = lum->image.handle,
-        .subresourceRange =
-        {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .levelCount = 1,
-            .layerCount = 1,
-        },
-    };
-
-    const VkBufferMemoryBarrier expToCompute =
-    {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-        .srcQueueFamilyIndex = gfxFamily,
-        .dstQueueFamilyIndex = cmpFamily,
-        .buffer = expBuffer,
-        .size = VK_WHOLE_SIZE,
-    };
-    const VkBufferMemoryBarrier buildToAdapt =
-    {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer = histBuffer,
-        .size = VK_WHOLE_SIZE,
-    };
-    const VkBufferMemoryBarrier expToGraphics =
-    {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-        .srcQueueFamilyIndex = cmpFamily,
-        .dstQueueFamilyIndex = gfxFamily,
-        .buffer = expBuffer,
-        .size = VK_WHOLE_SIZE,
-    };
 
     // update lum binding
     {
@@ -276,7 +213,7 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
                 .binding = 1,
                 .buffer =
                 {
-                    .buffer = histBuffer,
+                    .buffer = histBuffer->handle,
                     .range = VK_WHOLE_SIZE,
                 },
             },
@@ -286,7 +223,7 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
                 .binding = 3,
                 .buffer =
                 {
-                    .buffer = expBuffer,
+                    .buffer = expBuffer->handle,
                     .range = VK_WHOLE_SIZE,
                 },
             },
@@ -296,25 +233,23 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
 
     // transition lum img and exposure buf to compute
     {
-        VkFence gfxfence = NULL;
-        VkQueue gfxqueue = NULL;
-        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &gfxfence, &gfxqueue);
-        vkrCmdBegin(gfxcmd);
-
-        vkrCmdImageBarrier(
-            gfxcmd,
+        vkrImage_Transfer(
+            &lum->image,
+            VK_IMAGE_LAYOUT_GENERAL,
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            &lumToCompute);
-
-        vkrCmdBufferBarrier(
-            gfxcmd,
+            vkrQueueId_Gfx,
+            vkrQueueId_Comp);
+        vkrBuffer_Transfer(
+            expBuffer,
+            VK_ACCESS_SHADER_READ_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            &expToCompute);
-
-        vkrCmdEnd(gfxcmd);
-        vkrCmdSubmit(gfxqueue, gfxcmd, gfxfence, NULL, 0x0, NULL);
+            vkrQueueId_Gfx,
+            vkrQueueId_Comp);
     }
 
     // dispatch shaders
@@ -343,20 +278,6 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
             sizeof(vkrExposureConstants),
             &constants);
 
-        // transition lum and exposure to compute
-        {
-            vkrCmdImageBarrier(
-                cmpcmd,
-                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                &lumToCompute);
-            vkrCmdBufferBarrier(
-                cmpcmd,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                &expToCompute);
-        }
-
         // build histogram
         {
             const i32 dispatchX = (width + 15) / 16;
@@ -365,33 +286,18 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
             vkCmdDispatch(cmpcmd, dispatchX, dispatchY, 1);
         }
 
-        // barrier between build and adapt shaders
-        {
-            vkrCmdBufferBarrier(
-                cmpcmd,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                &buildToAdapt);
-        }
+        vkrBuffer_Barrier(
+            histBuffer,
+            cmpcmd,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
         // adapt exposure
         {
             vkCmdBindPipeline(cmpcmd, VK_PIPELINE_BIND_POINT_COMPUTE, adaptPipe);
             vkCmdDispatch(cmpcmd, 1, 1, 1);
-        }
-
-        // return lum and exposure to gfx
-        {
-            vkrCmdImageBarrier(
-                cmpcmd,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                &lumToGraphics);
-            vkrCmdBufferBarrier(
-                cmpcmd,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                &expToGraphics);
         }
 
         vkrCmdEnd(cmpcmd);
@@ -400,25 +306,15 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
 
     // transition to gfx
     {
-        VkFence gfxfence = NULL;
-        VkQueue gfxqueue = NULL;
-        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &gfxfence, &gfxqueue);
-        vkrCmdBegin(gfxcmd);
-
-        vkrCmdImageBarrier(
-            gfxcmd,
+        vkrImage_Transfer(
+            &lum->image,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_ACCESS_SHADER_READ_BIT,
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            &lumToGraphics);
-
-        vkrCmdBufferBarrier(
-            gfxcmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            &expToGraphics);
-
-        vkrCmdEnd(gfxcmd);
-        vkrCmdSubmit(gfxqueue, gfxcmd, gfxfence, NULL, 0x0, NULL);
+            vkrQueueId_Comp,
+            vkrQueueId_Gfx);
     }
 
     ProfileEnd(pm_execute);

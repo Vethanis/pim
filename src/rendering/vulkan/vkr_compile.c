@@ -2,6 +2,7 @@
 #include "allocator/allocator.h"
 #include "common/stringutil.h"
 #include "rendering/vulkan/shaderc_table.h"
+#include <SPIRV-Reflect/spirv_reflect.h>
 #include "io/fstr.h"
 #include "io/dir.h"
 #include <string.h>
@@ -117,8 +118,17 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
 
     shaderc_compiler_t compiler = g_shaderc.compiler_initialize();
     ASSERT(compiler);
+    if (!compiler)
+    {
+        return false;
+    }
     shaderc_compile_options_t options = g_shaderc.compile_options_initialize();
     ASSERT(options);
+    if (!options)
+    {
+        g_shaderc.compiler_release(compiler);
+        return false;
+    }
 
     g_shaderc.compile_options_set_source_language(
         options, shaderc_source_language_hlsl);
@@ -134,19 +144,24 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
     g_shaderc.compile_options_set_auto_map_locations(options, true);
     g_shaderc.compile_options_set_hlsl_io_mapping(options, true);
     g_shaderc.compile_options_set_hlsl_offsets(options, true);
+    g_shaderc.compile_options_set_hlsl_functionality1(options, true);
+    g_shaderc.compile_options_set_nan_clamp(options, false);
 
-    for (i32 i = 0; i < input->macroCount; ++i)
     {
-        ASSERT(input->macroKeys);
-        ASSERT(input->macroValues);
-        const char* key = input->macroKeys[i];
-        const char* value = input->macroValues[i];
-        if (key)
+        const i32 macroCount = input->macroCount;
+        const char** macroKeys = input->macroKeys;
+        const char** macroValues = input->macroValues;
+        for (i32 i = 0; i < macroCount; ++i)
         {
-            i32 keyLen = StrLen(key);
-            i32 valueLen = StrLen(value);
-            g_shaderc.compile_options_add_macro_definition(
-                options, key, keyLen, value, valueLen);
+            const char* key = macroKeys[i];
+            const char* value = macroValues[i];
+            if (key && key[0])
+            {
+                i32 keyLen = StrLen(key);
+                i32 valueLen = StrLen(value);
+                g_shaderc.compile_options_add_macro_definition(
+                    options, key, keyLen, value, valueLen);
+            }
         }
     }
 
@@ -156,7 +171,7 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
     const i32 inputLen = StrLen(input->text);
     const shaderc_shader_kind kind = vkrShaderTypeToShaderKind(input->type);
 
-    shaderc_compilation_status status;
+    shaderc_compilation_status status = 0;
     if (input->compile)
     {
         shaderc_compilation_result_t result =
@@ -169,33 +184,27 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
                 input->entrypoint,
                 options);
         ASSERT(result);
-
-        status = g_shaderc.result_get_compilation_status(result);
-
-        const char* errors = g_shaderc.result_get_error_message(result);
-        const i32 errorLen = StrLen(errors);
-        ASSERT(errorLen >= 0);
-
-        const i32 numBytes = (i32)g_shaderc.result_get_length(result);
-        const void* spirv = g_shaderc.result_get_bytes(result);
-        ASSERT(numBytes >= 0);
-
-        if (numBytes > 0)
+        if (result)
         {
-            output->dwordCount = numBytes / sizeof(u32);
-            output->dwords = perm_malloc(numBytes);
-            memcpy(output->dwords, spirv, numBytes);
-        }
+            status = g_shaderc.result_get_compilation_status(result);
 
-        if (errorLen > 0)
-        {
-            output->errors = perm_malloc(errorLen + 1);
-            memcpy(output->errors, errors, errorLen);
-            output->errors[errorLen] = 0;
-        }
+            const char* errors = g_shaderc.result_get_error_message(result);
+            output->errors = StrDup(errors, EAlloc_Perm);
 
-        g_shaderc.result_release(result);
+            const i32 numBytes = (i32)g_shaderc.result_get_length(result);
+            const void* spirv = g_shaderc.result_get_bytes(result);
+            ASSERT(numBytes >= 0);
+            if ((numBytes > 0) && spirv)
+            {
+                output->dwordCount = numBytes / sizeof(u32);
+                output->dwords = perm_malloc(numBytes);
+                memcpy(output->dwords, spirv, numBytes);
+            }
+
+            g_shaderc.result_release(result);
+        }
     }
+
     if (input->disassemble)
     {
         shaderc_compilation_result_t result =
@@ -208,19 +217,13 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
                 input->entrypoint,
                 options);
         ASSERT(result);
-
-        const i32 numBytes = (i32)g_shaderc.result_get_length(result);
-        const char* disassembly = g_shaderc.result_get_bytes(result);
-        ASSERT(numBytes >= 0);
-
-        if (numBytes > 0)
+        if (result)
         {
-            output->disassembly = perm_malloc(numBytes + 1);
-            memcpy(output->disassembly, disassembly, numBytes);
-            output->disassembly[numBytes] = 0;
+            status = g_shaderc.result_get_compilation_status(result);
+            const char* disassembly = g_shaderc.result_get_bytes(result);
+            output->disassembly = StrDup(disassembly, EAlloc_Perm);
+            g_shaderc.result_release(result);
         }
-
-        g_shaderc.result_release(result);
     }
 
     g_shaderc.compile_options_release(options);

@@ -1,10 +1,14 @@
 #include "rendering/vulkan/vkr_image.h"
 #include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_cmd.h"
+#include "rendering/vulkan/vkr_context.h"
 #include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include "common/time.h"
 #include <string.h>
+
+// ----------------------------------------------------------------------------
 
 ProfileMark(pm_imgnew, vkrImage_New)
 bool vkrImage_New(
@@ -34,6 +38,14 @@ bool vkrImage_New(
     {
         image->handle = handle;
         image->allocation = allocation;
+        image->width = info->extent.width;
+        image->height = info->extent.height;
+        image->depth = info->extent.depth;
+        image->mipLevels = info->mipLevels;
+        image->arrayLayers = info->arrayLayers;
+        image->format = info->format;
+        image->layout = info->initialLayout;
+        image->usage = info->usage;
         return true;
     }
     return false;
@@ -95,6 +107,114 @@ void vkrImage_Release(vkrImage* image, VkFence fence)
     ProfileEnd(pm_imgrelease);
 }
 
+void vkrImage_Barrier(
+    vkrImage* image,
+    VkCommandBuffer cmd,
+    VkImageLayout newLayout,
+    VkAccessFlags srcAccessMask,
+    VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStages,
+    VkPipelineStageFlags dstStages)
+{
+    VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    if (image->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+    {
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    }
+    const VkImageMemoryBarrier barrier =
+    {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = srcAccessMask,
+        .dstAccessMask = dstAccessMask,
+        .oldLayout = image->layout,
+        .newLayout = newLayout,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image->handle,
+        .subresourceRange =
+        {
+            .aspectMask = aspect,
+            .levelCount = image->mipLevels,
+            .layerCount = image->arrayLayers,
+        },
+    };
+    vkrCmdImageBarrier(
+        cmd,
+        srcStages,
+        dstStages,
+        &barrier);
+    image->layout = newLayout;
+}
+
+void vkrImage_Transfer(
+    vkrImage* image,
+    VkImageLayout newLayout,
+    VkAccessFlags srcAccessMask,
+    VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStageMask,
+    VkPipelineStageFlags dstStageMask,
+    vkrQueueId srcQueueId,
+    vkrQueueId dstQueueId)
+{
+    VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    if (image->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+    {
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    }
+    u32 srcQueueFamily = g_vkr.queues[srcQueueId].family;
+    u32 dstQueueFamily = g_vkr.queues[dstQueueId].family;
+    VkImageLayout oldLayout = image->layout;
+    bool wasUndefined = oldLayout == VK_IMAGE_LAYOUT_UNDEFINED;
+    const VkImageMemoryBarrier barrier =
+    {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = wasUndefined ? 0x0 : srcAccessMask,
+        .dstAccessMask = dstAccessMask,
+        .oldLayout = oldLayout,
+        .newLayout = newLayout,
+        .srcQueueFamilyIndex = srcQueueFamily,
+        .dstQueueFamilyIndex = dstQueueFamily,
+        .image = image->handle,
+        .subresourceRange =
+        {
+            .aspectMask = aspect,
+            .levelCount = image->mipLevels,
+            .layerCount = image->arrayLayers,
+        },
+    };
+    vkrThreadContext* ctx = vkrContext_Get();
+    {
+        VkFence fence = NULL;
+        VkQueue queue = NULL;
+        VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, srcQueueId, &fence, &queue);
+        vkrCmdBegin(cmd);
+        vkrCmdImageBarrier(
+            cmd,
+            srcStageMask,
+            dstStageMask,
+            &barrier);
+        vkrCmdEnd(cmd);
+        vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
+    }
+    if (srcQueueFamily != dstQueueFamily)
+    {
+        VkFence fence = NULL;
+        VkQueue queue = NULL;
+        VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, dstQueueId, &fence, &queue);
+        vkrCmdBegin(cmd);
+        vkrCmdImageBarrier(
+            cmd,
+            srcStageMask,
+            dstStageMask,
+            &barrier);
+        vkrCmdEnd(cmd);
+        vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
+    }
+    image->layout = newLayout;
+}
+
+// ----------------------------------------------------------------------------
+
 VkImageView vkrImageView_New(
     VkImage image,
     VkImageViewType type,
@@ -148,6 +268,8 @@ void vkrImageView_Release(VkImageView view, VkFence fence)
     }
 }
 
+// ----------------------------------------------------------------------------
+
 VkSampler vkrSampler_New(
     VkFilter filter,
     VkSamplerMipmapMode mipMode,
@@ -197,3 +319,5 @@ void vkrSampler_Release(VkSampler sampler, VkFence fence)
         vkrReleasable_Add(&g_vkr.allocator, &releasable);
     }
 }
+
+// ----------------------------------------------------------------------------

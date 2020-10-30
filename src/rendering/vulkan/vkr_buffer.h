@@ -36,4 +36,21 @@ void vkrBuffer_Flush(const vkrBuffer* buffer);
 // helper for map, unmap, flush
 void vkrBuffer_Write(const vkrBuffer* buffer, const void* src, i32 size);
 
+void vkrBuffer_Barrier(
+    vkrBuffer* buffer,
+    VkCommandBuffer cmd,
+    VkAccessFlags srcAccessMask,
+    VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStageMask,
+    VkPipelineStageFlags dstStageMask);
+
+void vkrBuffer_Transfer(
+    vkrBuffer* buffer,
+    VkAccessFlags srcAccessMask,
+    VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStageMask,
+    VkPipelineStageFlags dstStageMask,
+    vkrQueueId srcQueueId,
+    vkrQueueId dstQueueId);
+
 PIM_C_END

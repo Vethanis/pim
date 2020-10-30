@@ -4,6 +4,8 @@
 
 PIM_C_BEGIN
 
+// ----------------------------------------------------------------------------
+
 bool vkrImage_New(
     vkrImage* image,
     const VkImageCreateInfo* info,
@@ -17,6 +19,27 @@ void vkrImage_Flush(const vkrImage* image);
 // if fence is provided, it is used instead
 void vkrImage_Release(vkrImage* image, VkFence fence);
 
+void vkrImage_Barrier(
+    vkrImage* image,
+    VkCommandBuffer cmd,
+    VkImageLayout newLayout,
+    VkAccessFlags srcAccessMask,
+    VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStages,
+    VkPipelineStageFlags dstStages);
+
+void vkrImage_Transfer(
+    vkrImage* image,
+    VkImageLayout newLayout,
+    VkAccessFlags srcAccessMask,
+    VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStages,
+    VkPipelineStageFlags dstStages,
+    vkrQueueId srcQueue,
+    vkrQueueId dstQueue);
+
+// ----------------------------------------------------------------------------
+
 VkImageView vkrImageView_New(
     VkImage image,
     VkImageViewType type,
@@ -27,6 +50,8 @@ VkImageView vkrImageView_New(
 void vkrImageView_Del(VkImageView view);
 void vkrImageView_Release(VkImageView view, VkFence fence);
 
+// ----------------------------------------------------------------------------
+
 VkSampler vkrSampler_New(
     VkFilter filter,
     VkSamplerMipmapMode mipMode,
@@ -34,5 +59,7 @@ VkSampler vkrSampler_New(
     float aniso);
 void vkrSampler_Del(VkSampler sampler);
 void vkrSampler_Release(VkSampler sampler, VkFence fence);
+
+// ----------------------------------------------------------------------------
 
 PIM_C_END
