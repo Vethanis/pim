@@ -125,17 +125,17 @@ bool vkrSwapchain_New(
 
     // create depth attachment
     {
-        vkrAttachment_New(
-            &chain->depthAttachment,
-            chain->width,
-            chain->height,
-            VK_FORMAT_D32_SFLOAT,
-            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
     }
 
     // create luminance attachments
     for(u32 i = 0; i < imgCount; ++i)
     {
+        vkrAttachment_New(
+            &chain->depthAttachments[i],
+            chain->width,
+            chain->height,
+            VK_FORMAT_D32_SFLOAT,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
         vkrAttachment_New(
             &chain->lumAttachments[i],
             chain->width,
@@ -198,7 +198,6 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
             chain->presCmds[i] = NULL;
         }
 
-        vkrAttachment_Del(&chain->depthAttachment);
 
         const i32 len = chain->length;
         for (i32 i = 0; i < len; ++i)
@@ -210,6 +209,7 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
             }
             vkrImageView_Del(chain->views[i]);
             vkrAttachment_Del(&chain->lumAttachments[i]);
+            vkrAttachment_Del(&chain->depthAttachments[i]);
         }
 
         if (chain->handle)
@@ -233,7 +233,7 @@ void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, VkRenderPass presentPass)
         {
             chain->views[i],
             chain->lumAttachments[i].view,
-            chain->depthAttachment.view,
+            chain->depthAttachments[i].view,
         };
         VkFramebuffer buffer = chain->buffers[i];
         if (buffer)

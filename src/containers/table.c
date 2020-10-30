@@ -297,32 +297,17 @@ bool table_release(table_t* table, genid id, void* valueOut)
     return false;
 }
 
-bool table_get(const table_t* table, genid id, void* valueOut)
+void* table_get(const table_t* table, genid id)
 {
-    ASSERT(valueOut);
     if (table_exists(table, id))
     {
         i32 index = id.index;
         i32 stride = table->valueSize;
-        const u8* pValues = table->values;
-        memcpy(valueOut, pValues + stride * index, stride);
-        return true;
+        u8* values = table->values;
+        void* ptr = values + stride * index;
+        return ptr;
     }
-    return false;
-}
-
-bool table_set(table_t* table, genid id, const void* valueIn)
-{
-    ASSERT(valueIn);
-    if (table_exists(table, id))
-    {
-        i32 index = id.index;
-        i32 stride = table->valueSize;
-        u8* pValues = table->values;
-        memcpy(pValues + stride * index, valueIn, stride);
-        return true;
-    }
-    return false;
+    return NULL;
 }
 
 bool table_find(const table_t* table, guid_t name, genid* idOut)

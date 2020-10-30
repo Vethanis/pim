@@ -663,53 +663,60 @@ static void FlattenDrawables(pt_scene_t* scene)
 
     for (i32 i = 0; i < drawCount; ++i)
     {
-        mesh_t mesh;
-        if (mesh_get(meshes[i], &mesh))
+        mesh_t const *const mesh = mesh_get(meshes[i]);
+        if (!mesh)
         {
-            const i32 vertBack = vertCount;
-            const i32 matBack = matCount;
-            vertCount += mesh.length;
-            matCount += 1;
+            continue;
+        }
 
-            const float4x4 M = matrices[i];
-            const float3x3 IM = f3x3_IM(M);
-            const material_t material = materials[i];
+        const i32 meshLen = mesh->length;
+        float4 const *const pim_noalias meshPositions = mesh->positions;
+        float4 const *const pim_noalias meshNormals = mesh->normals;
+        float4 const *const pim_noalias meshUvs = mesh->uvs;
 
-            PermReserve(positions, vertCount);
-            PermReserve(normals, vertCount);
-            PermReserve(uvs, vertCount);
-            PermReserve(matIds, vertCount);
+        const i32 vertBack = vertCount;
+        const i32 matBack = matCount;
+        vertCount += meshLen;
+        matCount += 1;
 
-            PermReserve(sceneMats, matCount);
-            sceneMats[matBack] = material;
+        const float4x4 M = matrices[i];
+        const float3x3 IM = f3x3_IM(M);
+        const material_t material = materials[i];
 
-            for (i32 j = 0; j < mesh.length; ++j)
-            {
-                positions[vertBack + j] = f4x4_mul_pt(M, mesh.positions[j]);
-            }
+        PermReserve(positions, vertCount);
+        PermReserve(normals, vertCount);
+        PermReserve(uvs, vertCount);
+        PermReserve(matIds, vertCount);
 
-            for (i32 j = 0; j < mesh.length; ++j)
-            {
-                normals[vertBack + j] = f4_normalize3(f3x3_mul_col(IM, mesh.normals[j]));
-            }
+        PermReserve(sceneMats, matCount);
+        sceneMats[matBack] = material;
 
-            for (i32 j = 0; (j + 3) <= mesh.length; j += 3)
-            {
-                float4 uva = mesh.uvs[j + 0];
-                float4 uvb = mesh.uvs[j + 1];
-                float4 uvc = mesh.uvs[j + 2];
-                float2 UA = f2_v(uva.x, uva.y);
-                float2 UB = f2_v(uvb.x, uvb.y);
-                float2 UC = f2_v(uvc.x, uvc.y);
-                uvs[vertBack + j + 0] = UA;
-                uvs[vertBack + j + 1] = UB;
-                uvs[vertBack + j + 2] = UC;
-            }
+        for (i32 j = 0; j < meshLen; ++j)
+        {
+            positions[vertBack + j] = f4x4_mul_pt(M, meshPositions[j]);
+        }
 
-            for (i32 j = 0; j < mesh.length; ++j)
-            {
-                matIds[vertBack + j] = matBack;
-            }
+        for (i32 j = 0; j < meshLen; ++j)
+        {
+            normals[vertBack + j] = f4_normalize3(f3x3_mul_col(IM, meshNormals[j]));
+        }
+
+        for (i32 j = 0; (j + 3) <= meshLen; j += 3)
+        {
+            float4 uva = meshUvs[j + 0];
+            float4 uvb = meshUvs[j + 1];
+            float4 uvc = meshUvs[j + 2];
+            float2 UA = f2_v(uva.x, uva.y);
+            float2 UB = f2_v(uvb.x, uvb.y);
+            float2 UC = f2_v(uvc.x, uvc.y);
+            uvs[vertBack + j + 0] = UA;
+            uvs[vertBack + j + 1] = UB;
+            uvs[vertBack + j + 2] = UC;
+        }
+
+        for (i32 j = 0; j < meshLen; ++j)
+        {
+            matIds[vertBack + j] = matBack;
         }
     }
 
@@ -741,9 +748,12 @@ static float EmissionPdf(
     float4 rome = mat->flatRome;
     if (rome.w > kThreshold)
     {
-        texture_t romeMap = { 0 };
-        if (texture_get(mat->rome, &romeMap))
+        texture_t const *const romeMap = texture_get(mat->rome);
+        if (romeMap)
         {
+            u32 const *const pim_noalias texels = romeMap->texels;
+            const int2 texSize = romeMap->size;
+
             const float2* pim_noalias uvs = scene->uvs;
             const float2 UA = uvs[iVert + 0];
             const float2 UB = uvs[iVert + 1];
@@ -754,7 +764,7 @@ static float EmissionPdf(
             {
                 float4 wuv = SampleBaryCoord(Sample2D(sampler));
                 float2 uv = f2_blend(UA, UB, UC, wuv);
-                float sample = UvWrap_c32(romeMap.texels, romeMap.size, uv).w;
+                float sample = UvWrap_c32(texels, texSize, uv).w;
                 float em = sample * rome.w;
                 if (em > kThreshold)
                 {
@@ -1208,25 +1218,33 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     surf.P = f4_add(ro, f4_mulvs(rd, hit.wuvt.w));
     surf.P = f4_add(surf.P, f4_mulvs(surf.M, kMilli));
 
-    texture_t tex;
-    if (texture_get(mat->normal, &tex))
     {
-        float4 Nts = UvBilinearWrap_dir8(tex.texels, tex.size, uv);
-        surf.N = TanToWorld(surf.N, Nts);
+        texture_t const *const tex = texture_get(mat->normal);
+        if (tex)
+        {
+            float4 Nts = UvBilinearWrap_dir8(tex->texels, tex->size, uv);
+            surf.N = TanToWorld(surf.N, Nts);
+        }
     }
 
     surf.albedo = mat->flatAlbedo;
-    if (texture_get(mat->albedo, &tex))
     {
-        float4 sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
-        surf.albedo = f4_mul(surf.albedo, sample);
+        texture_t const *const tex = texture_get(mat->albedo);
+        if (tex)
+        {
+            float4 sample = UvBilinearWrap_c32(tex->texels, tex->size, uv);
+            surf.albedo = f4_mul(surf.albedo, sample);
+        }
     }
 
     float4 rome = mat->flatRome;
-    if (texture_get(mat->rome, &tex))
     {
-        float4 sample = UvBilinearWrap_c32(tex.texels, tex.size, uv);
-        rome = f4_mul(rome, sample);
+        texture_t const *const tex = texture_get(mat->rome);
+        if (tex)
+        {
+            float4 sample = UvBilinearWrap_c32(tex->texels, tex->size, uv);
+            rome = f4_mul(rome, sample);
+        }
     }
     surf.emission = UnpackEmission(surf.albedo, rome.w);
     surf.roughness = rome.x;

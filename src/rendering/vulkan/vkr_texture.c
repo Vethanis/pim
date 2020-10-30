@@ -95,15 +95,15 @@ i32 vkrFormatToBpp(VkFormat format)
     }
     switch (format)
     {
-        default: ASSERT(false); return 0;
-        case VK_FORMAT_B10G11R11_UFLOAT_PACK32: return 10 + 11 + 11;
-        case VK_FORMAT_E5B9G9R9_UFLOAT_PACK32: return 5 + 9 + 9 + 9;
-        case VK_FORMAT_D16_UNORM: return 16;
-        case VK_FORMAT_X8_D24_UNORM_PACK32: return 8 + 24;
-        case VK_FORMAT_D32_SFLOAT: return 32;
-        case VK_FORMAT_S8_UINT: return 8;
-        case VK_FORMAT_D16_UNORM_S8_UINT: return 16 + 8;
-        case VK_FORMAT_D32_SFLOAT_S8_UINT: return 32 + 8;
+    default: ASSERT(false); return 0;
+    case VK_FORMAT_B10G11R11_UFLOAT_PACK32: return 10 + 11 + 11;
+    case VK_FORMAT_E5B9G9R9_UFLOAT_PACK32: return 5 + 9 + 9 + 9;
+    case VK_FORMAT_D16_UNORM: return 16;
+    case VK_FORMAT_X8_D24_UNORM_PACK32: return 8 + 24;
+    case VK_FORMAT_D32_SFLOAT: return 32;
+    case VK_FORMAT_S8_UINT: return 8;
+    case VK_FORMAT_D16_UNORM_S8_UINT: return 16 + 8;
+    case VK_FORMAT_D32_SFLOAT_S8_UINT: return 32 + 8;
     }
 }
 
@@ -129,11 +129,6 @@ bool vkrTexture2D_New(
         ASSERT(false);
         return false;
     }
-
-    tex->width = width;
-    tex->height = height;
-    tex->format = format;
-    tex->layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     const i32 mipCount = vkrTexture2D_MipCount(width, height);
     const u32 queueFamilies[] =
@@ -193,7 +188,7 @@ bool vkrTexture2D_New(
     VkSampler sampler = vkrSampler_New(
         VK_FILTER_LINEAR,
         VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        VK_SAMPLER_ADDRESS_MODE_REPEAT, 
+        VK_SAMPLER_ADDRESS_MODE_REPEAT,
         8.0f);
     tex->sampler = sampler;
     ASSERT(sampler);
@@ -203,13 +198,13 @@ bool vkrTexture2D_New(
         goto cleanup;
     }
 
-	tex->slot = vkrTexTable_AllocSlot(&g_vkr.texTable);
+    tex->slot = vkrTexTable_AllocSlot(&g_vkr.texTable);
 
     if (bytes > 0)
     {
-		vkrTexture2D_Upload(tex, data, bytes);
-		ASSERT(tex->slot > 0);
-	}
+        vkrTexture2D_Upload(tex, data, bytes);
+        ASSERT(tex->slot > 0);
+    }
 
 cleanup:
     if (!success)
@@ -222,10 +217,10 @@ cleanup:
 void vkrTexture2D_Del(vkrTexture2D* tex)
 {
     if (tex)
-	{
-		vkrTexTable_ClearSlot(&g_vkr.texTable, tex->slot);
+    {
+        vkrTexTable_ClearSlot(&g_vkr.texTable, tex->slot);
         if (tex->image.handle)
-		{
+        {
             // create pipeline barrier to safely release resources
             const VkImageMemoryBarrier barrier =
             {
@@ -293,9 +288,9 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
         vkrBuffer_Flush(&stagebuf);
     }
 
-    const i32 width = tex->width;
-    const i32 height = tex->height;
-    const i32 mipCount = vkrTexture2D_MipCount(width, height);
+    const i32 width = tex->image.width;
+    const i32 height = tex->image.height;
+    const i32 mipCount = tex->image.mipLevels;
     VkImage image = tex->image.handle;
 
     vkrThreadContext* ctx = vkrContext_Get();
@@ -327,7 +322,7 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             &barrier);
-        tex->layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        tex->image.layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
         // copy buffer to image mip 0
         const VkBufferImageCopy region =
@@ -420,9 +415,9 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
     vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
     vkrBuffer_Release(&stagebuf, fence);
 
-    tex->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    tex->image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-	vkrTexTable_WriteSlot(&g_vkr.texTable, tex->slot, tex->sampler, tex->view, tex->layout);
+    vkrTexTable_WriteSlot(&g_vkr.texTable, tex->slot, tex->sampler, tex->view, tex->image.layout);
 
     return fence;
 }

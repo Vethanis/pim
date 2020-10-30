@@ -22,3 +22,6 @@
 [submodule "submodules/cJSON"]
 	path = submodules/cJSON
 	url = https://github.com/DaveGamble/cJSON.git
+[submodule "submodules/SPIRV-Reflect"]
+	path = submodules/SPIRV-Reflect
+	url = https://github.com/KhronosGroup/SPIRV-Reflect.git

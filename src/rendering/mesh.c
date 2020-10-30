@@ -136,24 +136,9 @@ void mesh_release(meshid_t id)
     }
 }
 
-bool mesh_get(meshid_t id, mesh_t* dst)
+mesh_t* mesh_get(meshid_t id)
 {
-    ASSERT(dst);
-    return table_get(&ms_table, ToGenId(id), dst);
-}
-
-bool mesh_set(meshid_t id, mesh_t* src)
-{
-    ASSERT(src);
-    if (IsCurrent(id))
-    {
-        mesh_t* meshes = ms_table.values;
-        i32 index = id.index;
-        memcpy(&meshes[index], src, sizeof(meshes[0]));
-        memset(src, 0, sizeof(*src));
-        return true;
-    }
-    return false;
+    return table_get(&ms_table, ToGenId(id));
 }
 
 bool mesh_find(guid_t name, meshid_t* idOut)
@@ -175,10 +160,10 @@ box_t mesh_calcbounds(meshid_t id)
 {
     box_t bounds = { 0 };
 
-    mesh_t mesh;
-    if (mesh_get(id, &mesh))
+    mesh_t const *const mesh = mesh_get(id);
+    if (mesh)
     {
-        bounds = box_from_pts(mesh.positions, mesh.length);
+        bounds = box_from_pts(mesh->positions, mesh->length);
     }
 
     return bounds;

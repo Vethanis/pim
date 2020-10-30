@@ -38,8 +38,7 @@ bool table_add(table_t* table, guid_t name, const void* valueIn, genid* idOut);
 bool table_retain(table_t* table, genid id);
 bool table_release(table_t* table, genid id, void* valueOut);
 
-bool table_get(const table_t* table, genid id, void* valueOut);
-bool table_set(table_t* table, genid id, const void* valueIn);
+void* table_get(const table_t* table, genid id);
 
 bool table_find(const table_t* table, guid_t name, genid* idOut);
 bool table_getname(const table_t* table, genid id, guid_t* nameOut);

@@ -141,12 +141,6 @@ typedef struct vkrBuffer
     i32 size;
 } vkrBuffer;
 
-typedef struct vkrImage
-{
-    VkImage handle;
-    VmaAllocation allocation;
-} vkrImage;
-
 typedef struct vkrMesh
 {
     vkrBuffer buffer;
@@ -154,15 +148,25 @@ typedef struct vkrMesh
     i32 indexCount;
 } vkrMesh;
 
+typedef struct vkrImage
+{
+    VkImage handle;
+    VmaAllocation allocation;
+    i32 width;
+    i32 height;
+    i32 depth;
+    i32 mipLevels;
+    i32 arrayLayers;
+    VkFormat format;
+    VkImageLayout layout;
+    VkImageUsageFlags usage;
+} vkrImage;
+
 typedef struct vkrTexture2D
 {
     vkrImage image;
     VkSampler sampler;
     VkImageView view;
-    VkImageLayout layout;
-    VkFormat format;
-    i32 width;
-    i32 height;
     i32 slot;
 } vkrTexture2D;
 
@@ -170,9 +174,6 @@ typedef struct vkrAttachment
 {
     vkrImage image;
     VkImageView view;
-    VkFormat format;
-    VkImageLayout layout;
-    VkImageAspectFlags aspect;
 } vkrAttachment;
 
 typedef struct vkrBinding
@@ -287,7 +288,7 @@ typedef struct vkrSwapchain
     VkFramebuffer buffers[kMaxSwapchainLen];
     VkFence imageFences[kMaxSwapchainLen];
     vkrAttachment lumAttachments[kMaxSwapchainLen];
-    vkrAttachment depthAttachment;
+    vkrAttachment depthAttachments[kMaxSwapchainLen];
 
     u32 syncIndex;
     VkFence syncFences[kFramesInFlight];

@@ -51,8 +51,7 @@ bool mesh_exists(meshid_t id);
 void mesh_retain(meshid_t id);
 void mesh_release(meshid_t id);
 
-bool mesh_get(meshid_t id, mesh_t* dst);
-bool mesh_set(meshid_t id, mesh_t* src);
+mesh_t* mesh_get(meshid_t id);
 
 bool mesh_find(guid_t name, meshid_t* idOut);
 bool mesh_getname(meshid_t id, guid_t* dst);

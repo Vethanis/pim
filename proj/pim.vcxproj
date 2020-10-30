@@ -158,6 +158,7 @@
     <ClCompile Include="..\submodules\glfw\src\win32_window.c" />
     <ClCompile Include="..\submodules\glfw\src\window.c" />
     <ClCompile Include="..\submodules\miniz\miniz.c" />
+    <ClCompile Include="..\submodules\SPIRV-Reflect\spirv_reflect.c" />
     <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp" />
     <ClCompile Include="..\submodules\stb\stb_vorbis.c" />
     <ClCompile Include="..\submodules\tlsf\tlsf.c" />
@@ -338,6 +339,7 @@
     <ClInclude Include="..\submodules\glfw\src\win32_platform.h" />
     <ClInclude Include="..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include\OpenImageDenoise\oidn.h" />
     <ClInclude Include="..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include\OpenImageDenoise\version.h" />
+    <ClInclude Include="..\submodules\SPIRV-Reflect\spirv_reflect.h" />
     <ClInclude Include="..\submodules\tlsf\tlsf.h" />
     <ClInclude Include="..\src\rendering\material.h" />
     <ClInclude Include="..\src\rendering\mesh.h" />
