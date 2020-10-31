@@ -56,7 +56,7 @@ static cvar_t cv_lm_upload =
     .desc = "upload lightmap data to GPU",
 };
 
-bool vkr_init(i32 width, i32 height)
+bool vkr_init(void)
 {
     memset(&g_vkr, 0, sizeof(g_vkr));
 
@@ -76,6 +76,13 @@ bool vkr_init(i32 width, i32 height)
         goto cleanup;
     }
 
+    i32 width = 0;
+    i32 height = 0;
+    if (!vkrDisplay_MonitorSize(&width, &height))
+    {
+        success = false;
+        goto cleanup;
+    }
     if (!vkrDisplay_New(&g_vkr.display, width, height, "pimvk"))
     {
         success = false;

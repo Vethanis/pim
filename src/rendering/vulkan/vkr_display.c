@@ -6,21 +6,58 @@
 #include <string.h>
 #include <GLFW/glfw3.h>
 
+static bool EnsureGlfw(void)
+{
+    i32 rv = glfwInit();
+    ASSERT(rv == GLFW_TRUE);
+    return rv == GLFW_TRUE;
+}
+
+bool vkrDisplay_MonitorSize(i32* widthOut, i32* heightOut)
+{
+    *widthOut = 0;
+    *heightOut = 0;
+    if (!EnsureGlfw())
+    {
+        return false;
+    }
+
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    ASSERT(monitor);
+    if (!monitor)
+    {
+        return false;
+    }
+
+    i32 xpos = 0;
+    i32 ypos = 0;
+    i32 width = 0;
+    i32 height = 0;
+    glfwGetMonitorWorkarea(monitor, &xpos, &ypos, &width, &height);
+    if ((width > 0) && (height > 0))
+    {
+        *widthOut = width;
+        *heightOut = height;
+        return true;
+    }
+
+    return false;
+}
+
 bool vkrDisplay_New(vkrDisplay* display, i32 width, i32 height, const char* title)
 {
     ASSERT(display);
     memset(display, 0, sizeof(*display));
 
-    i32 rv = glfwInit();
-    ASSERT(rv == GLFW_TRUE);
-    if (rv != GLFW_TRUE)
+    if (!EnsureGlfw())
     {
-        goto cleanup;
+        return false;
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
     glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_TRUE);
+    glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
     GLFWwindow* window = glfwCreateWindow(width, height, title, NULL, NULL);
     display->window = window;
     ASSERT(window);

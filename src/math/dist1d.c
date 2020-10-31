@@ -138,7 +138,7 @@ void dist1d_livebake(dist1d_t* dist, float alpha)
             u32 ct = live[i];
             sum += ct;
         }
-        if (sum < 10)
+        if (sum < 30)
         {
             return;
         }
@@ -146,7 +146,7 @@ void dist1d_livebake(dist1d_t* dist, float alpha)
         for (i32 i = 0; i < pdfLen; ++i)
         {
             pdf[i] = f1_lerp(pdf[i], live[i] * scale, alpha);
-            live[i] = 0;
+            live[i] = live[i] >> 1;
         }
         dist1d_bake(dist);
     }
