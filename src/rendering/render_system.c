@@ -720,7 +720,7 @@ void render_sys_init(void)
     cmd_reg("pt_stddev", CmdPtStdDev);
     cmd_reg("loadtest", CmdLoadTest);
 
-    vkr_init(1920, 1080);
+    vkr_init();
     g_vkr.exposurePass.params = ms_exposure;
 
     texture_sys_init();

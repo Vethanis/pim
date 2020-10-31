@@ -2,7 +2,6 @@
 #include "allocator/allocator.h"
 #include "common/stringutil.h"
 #include "rendering/vulkan/shaderc_table.h"
-#include <SPIRV-Reflect/spirv_reflect.h>
 #include "io/fstr.h"
 #include "io/dir.h"
 #include <string.h>
@@ -22,22 +21,22 @@ static shaderc_include_result* vkrResolveInclude(
 
     shaderc_include_result* result = perm_calloc(sizeof(*result));
 
-    fstr_t fd = fstr_open(path, "rb");
-    if (fstr_isopen(fd))
+    fstr_t file = fstr_open(path, "rb");
+    if (fstr_isopen(file))
     {
-        i32 size = (i32)fstr_size(fd);
+        i32 size = (i32)fstr_size(file);
         if (size > 0)
         {
             result->source_name = StrDup(path, EAlloc_Perm);
             result->source_name_length = StrLen(path);
             char* contents = perm_malloc(size + 1);
-            i32 readLen = fstr_read(fd, contents, size);
+            i32 readLen = fstr_read(file, contents, size);
             contents[size] = 0;
             ASSERT(readLen == size);
             result->content = contents;
             result->content_length = size;
         }
-        fstr_close(&fd);
+        fstr_close(&file);
     }
 
     return result;

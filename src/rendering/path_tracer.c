@@ -315,7 +315,7 @@ static cvar_t cv_ptdist_alpha =
 {
     .type = cvart_float,
     .name = "ptdist_alpha",
-    .value = "0.05",
+    .value = "0.25",
     .minFloat = 0.0f,
     .maxFloat = 1.0f,
     .desc = "path tracer light distribution update amount",
@@ -874,7 +874,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
     const i32* pim_noalias emissives = scene->emissives;
 
     const float metersPerCell = cvar_get_float(&cv_pt_lgrid_mpc);
-    const float radius = metersPerCell * 0.5f;
+    const float radius = metersPerCell * 0.666f;
     pt_sampler_t sampler = GetSampler();
 
     float4 hamm[16];
@@ -930,7 +930,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
             float powerPdf = 1.0f / distSq;
 
             i32 hits = 1;
-            const i32 hitAttempts = 64;
+            const i32 hitAttempts = 32;
             const i32 loopIterations = hitAttempts / 16;
             float4 ros[16];
             float4 rds[16];
@@ -1704,6 +1704,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
             float brdfPdf = brdf.w;
             if (brdfPdf > 0.0f)
             {
+                LightOnHit(sampler, scene, ro, iLight);
                 float weight = PowerHeuristic(lightPdf, brdfPdf) * 0.5f;
                 Li = f4_mulvs(Li, weight);
                 Li = f4_mul(Li, brdf);
@@ -1722,6 +1723,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
             float lightPdf = LightEvalPdf(sampler, scene, ro, rd, &hit);
             if (lightPdf > 0.0f)
             {
+                LightOnHit(sampler, scene, ro, hit.index);
                 surfhit_t surfhit = GetSurface(scene, ro, rd, hit);
                 float4 Li = surfhit.emission;
                 if (f4_hmax3(Li) > kEpsilon)

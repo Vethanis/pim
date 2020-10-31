@@ -4,6 +4,8 @@
 
 PIM_C_BEGIN
 
+bool vkrDisplay_MonitorSize(i32* widthOut, i32* heightOut);
+
 bool vkrDisplay_New(vkrDisplay* display, i32 width, i32 height, const char* title);
 void vkrDisplay_Del(vkrDisplay* display);
 

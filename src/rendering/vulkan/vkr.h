@@ -545,7 +545,7 @@ typedef struct vkr_t
 } vkr_t;
 extern vkr_t g_vkr;
 
-bool vkr_init(i32 width, i32 height);
+bool vkr_init(void);
 void vkr_update(void);
 void vkr_shutdown(void);
 
