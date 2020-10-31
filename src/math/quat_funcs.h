@@ -9,8 +9,8 @@ PIM_C_BEGIN
 #include "math/float3x3_funcs.h"
 #include "math/float4_funcs.h"
 
-static const quat quat_0 = { 0.0f, 0.0f, 0.0f, 0.0f };
-static const quat quat_id = { 0.0f, 0.0f, 0.0f, 1.0f };
+#define quat_0 quat_v(0.0f, 0.0f, 0.0f, 0.0f)
+#define quat_id quat_v(0.0f, 0.0f, 0.0f, 1.0f)
 
 pim_inline quat VEC_CALL f4_quat(float4 f)
 {
@@ -20,7 +20,7 @@ pim_inline quat VEC_CALL f4_quat(float4 f)
 
 pim_inline quat VEC_CALL quat_v(float x, float y, float z, float w)
 {
-    quat q = { x, y, z, w };
+    quat q = { { x, y, z, w } };
     return q;
 }
 

@@ -90,9 +90,9 @@ pim_inline void mutateFit(prng_t* rng, fit_t* fit, float amt)
     }
 }
 
-static void FitFn(task_t* task, i32 begin, i32 end)
+static void FitFn(void* pbase, i32 begin, i32 end)
 {
-    FitTask* fitTask = (FitTask*)task;
+    FitTask* fitTask = pbase;
     const dataset_t data = fitTask->data;
     const i32 iterations = i1_max(fitTask->iterations, 2 * (data.len + 1));
     const ErrFn errFn = fitTask->errFn;
@@ -136,7 +136,7 @@ static float CreateFit(
     task->errFn = ms_errFns[type];
     task->data = data;
     task->iterations = iterations;
-    task_run(&task->task, FitFn, numthreads);
+    task_run(task, FitFn, numthreads);
 
     i32 chosen = 0;
     float chosenError = 1 << 20;

@@ -46,7 +46,6 @@ void hashset_reserve(hashset_t* set, u32 minCount)
 
     u32* oldHashes = set->hashes;
     u8* oldKeys = set->keys;
-    const u32 oldMask = oldWidth - 1u;
     const u32 newMask = newWidth - 1u;
 
     for (u32 i = 0u; i < oldWidth; ++i)

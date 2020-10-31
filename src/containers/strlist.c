@@ -41,7 +41,7 @@ void strlist_rm(strlist_t* list, i32 i)
     ASSERT(i < len);
     ASSERT(back >= 0);
     list->count = back;
-    char** pim_noalias ptr = list->ptr;
+    char** const pim_noalias ptr = list->ptr;
     pim_free(ptr[i]);
     ptr[i] = ptr[back];
     ptr[back] = NULL;
@@ -52,7 +52,7 @@ i32 strlist_find(const strlist_t* list, const char* key)
     ASSERT(list);
     ASSERT(key);
     const i32 len = list->count;
-    const char** pim_noalias ptr = list->ptr;
+    char** const pim_noalias ptr = list->ptr;
     for (i32 i = 0; i < len; ++i)
     {
         if (StrCmp(ptr[i], PIM_PATH, key) == 0)

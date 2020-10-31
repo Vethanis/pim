@@ -128,8 +128,7 @@ const i32* graph_edges(const graph_t* graph, i32 dstVert, i32* pLength)
 {
     ASSERT(pLength);
     const vertex_t* verts = graph->verts;
-    const i32 len = graph->length;
-    ASSERT(dstVert < len);
+    ASSERT(dstVert < graph->length);
     *pLength = verts[dstVert].length;
     return verts[dstVert].edges;
 }

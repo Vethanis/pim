@@ -141,7 +141,7 @@ static void con_gui(void)
             }
 
             const i32 iLine = ms_iLine;
-            const char** lines = ms_lines;
+            char const *const *const lines = ms_lines;
             const u32* colors = ms_colors;
             const i32 numLines = NELEM(ms_lines);
             const i32 mask = numLines - 1;
@@ -375,10 +375,10 @@ static i32 OnTextHistory(ImGuiInputTextCallbackData* data)
     {
     default:
     case ImGuiKey_UpArrow:
-        iHistory = --iHistory & mask;
+        iHistory = (iHistory - 1) & mask;
         break;
     case ImGuiKey_DownArrow:
-        iHistory = ++iHistory & mask;
+        iHistory = (iHistory + 1) & mask;
         break;
     }
 

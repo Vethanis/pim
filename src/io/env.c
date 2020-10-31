@@ -3,53 +3,32 @@
 #include <stdlib.h>
 #include "common/stringutil.h"
 
-static pim_thread_local i32 ms_errno;
-
-i32 env_errno(void)
+pim_inline i32 NotNeg(i32 x)
 {
-    i32 rv = ms_errno;
-    ms_errno = 0;
-    return rv;
-}
-
-static i32 NotNeg(i32 x)
-{
-    if (x < 0)
-    {
-        ms_errno = 1;
-    }
+    ASSERT(x >= 0);
     return x;
 }
 
-static void* NotNull(void* x)
+pim_inline void* NotNull(void* x)
 {
-    if (!x)
-    {
-        ms_errno = 1;
-    }
+    ASSERT(x != NULL);
     return x;
 }
 
-static i32 IsZero(i32 x)
+pim_inline i32 IsZero(i32 x)
 {
-    if (x)
-    {
-        ms_errno = 1;
-    }
+    ASSERT(x == 0);
     return x;
 }
 
-void pim_searchenv(const char* filename, const char* varname, char* dst)
+bool pim_searchenv(const char* filename, const char* varname, char* dst)
 {
     ASSERT(filename);
     ASSERT(varname);
     ASSERT(dst);
     dst[0] = 0;
     _searchenv(filename, varname, dst);
-    if (dst[0] == 0)
-    {
-        ms_errno = 1;
-    }
+    return dst[0] != 0;
 }
 
 const char* pim_getenv(const char* varname)
@@ -58,10 +37,10 @@ const char* pim_getenv(const char* varname)
     return (const char*)NotNull(getenv(varname));
 }
 
-void pim_putenv(const char* varname, const char* value)
+bool pim_putenv(const char* varname, const char* value)
 {
     ASSERT(varname);
-    char buf[260];
+    char buf[260] = { 0 };
     SPrintf(ARGS(buf), "%s=%s", varname, value ? value : "");
-    IsZero(_putenv(buf));
+    return IsZero(_putenv(buf)) == 0;
 }

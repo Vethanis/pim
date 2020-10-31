@@ -43,10 +43,10 @@ char* ser_write(ser_obj_t* obj, i32* lenOut);
 ser_obj_t* ser_fromfile(const char* filename);
 bool ser_tofile(const char* filename, ser_obj_t* obj);
 
-static float ser_get_f32(ser_obj_t* obj, const char* key) { return (float)ser_num_get(ser_dict_get(obj, key)); }
-static i32 ser_get_i32(ser_obj_t* obj, const char* key) { return (i32)ser_num_get(ser_dict_get(obj, key)); }
-static const char* ser_get_str(ser_obj_t* obj, const char* key) { return ser_str_get(ser_dict_get(obj, key)); }
-static bool ser_get_bool(ser_obj_t* obj, const char* key) { return ser_bool_get(ser_dict_get(obj, key)); }
+pim_inline float ser_get_f32(ser_obj_t* obj, const char* key) { return (float)ser_num_get(ser_dict_get(obj, key)); }
+pim_inline i32 ser_get_i32(ser_obj_t* obj, const char* key) { return (i32)ser_num_get(ser_dict_get(obj, key)); }
+pim_inline const char* ser_get_str(ser_obj_t* obj, const char* key) { return ser_str_get(ser_dict_get(obj, key)); }
+pim_inline bool ser_get_bool(ser_obj_t* obj, const char* key) { return ser_bool_get(ser_dict_get(obj, key)); }
 
 static bool ser_set_f32(ser_obj_t* obj, const char* key, float value)
 {
@@ -80,12 +80,12 @@ static bool ser_set_str(ser_obj_t* obj, const char* key, const char* value)
 
 static bool ser_set_bool(ser_obj_t* obj, const char* key, bool value)
 {
-	ser_obj_t* dst = ser_dict_get(obj, key);
-	if (!dst)
-	{
-		return ser_dict_set(obj, key, ser_obj_bool(value));
-	}
-	return ser_bool_set(dst, value);
+    ser_obj_t* dst = ser_dict_get(obj, key);
+    if (!dst)
+    {
+        return ser_dict_set(obj, key, ser_obj_bool(value));
+    }
+    return ser_bool_set(dst, value);
 }
 
 static bool _ser_load_str(char* dst, i32 size, ser_obj_t* obj, const char* key)

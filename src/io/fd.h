@@ -5,7 +5,7 @@
 PIM_C_BEGIN
 
 typedef struct fd_s { i32 handle; } fd_t;
-static i32 fd_isopen(fd_t fd) { return fd.handle >= 0; }
+pim_inline i32 fd_isopen(fd_t fd) { return fd.handle >= 0; }
 
 static const fd_t fd_stdin = { 0 };
 static const fd_t fd_stdout = { 1 };
@@ -53,7 +53,7 @@ i32 fd_tell(fd_t hdl);
 void fd_pipe(fd_t* p0, fd_t* p1, i32 bufferSize);
 void fd_stat(fd_t hdl, fd_status_t* status);
 
-static i64 fd_size(fd_t fd)
+pim_inline i64 fd_size(fd_t fd)
 {
     fd_status_t status;
     fd_stat(fd, &status);

@@ -4,12 +4,10 @@
 
 PIM_C_BEGIN
 
-i32 dir_errno(void);
-
-void pim_getcwd(char* dst, i32 size);
-void pim_chdir(const char* path);
-void pim_mkdir(const char* path);
-void pim_rmdir(const char* path);
+bool pim_getcwd(char* dst, i32 size);
+bool pim_chdir(const char* path);
+bool pim_mkdir(const char* path);
+bool pim_rmdir(const char* path);
 
 typedef enum
 {
@@ -18,6 +16,6 @@ typedef enum
     ChMod_Exec = 0x0040,
 } ChModFlags;
 
-void pim_chmod(const char* path, i32 flags);
+bool pim_chmod(const char* path, i32 flags);
 
 PIM_C_END

@@ -5,7 +5,7 @@
 PIM_C_BEGIN
 
 typedef struct fnd_s { isize handle; } fnd_t;
-static i32 fnd_isopen(fnd_t fdr) { return fdr.handle != -1; }
+pim_inline i32 fnd_isopen(fnd_t fdr) { return fdr.handle != -1; }
 
 typedef enum
 {
@@ -27,8 +27,6 @@ typedef struct fnd_data_s
     i64 size;
     char name[260];
 } fnd_data_t;
-
-i32 fnd_errno(void);
 
 i32 fnd_first(fnd_t* fdr, fnd_data_t* data, const char* spec);
 i32 fnd_next(fnd_t* fdr, fnd_data_t* data);

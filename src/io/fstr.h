@@ -7,7 +7,7 @@ PIM_C_BEGIN
 #include "io/fd.h"
 
 typedef struct fstr_s { void* handle; } fstr_t;
-static i32 fstr_isopen(fstr_t fstr) { return fstr.handle != NULL; }
+pim_inline i32 fstr_isopen(fstr_t fstr) { return fstr.handle != NULL; }
 
 fstr_t fstr_open(const char* filename, const char* mode);
 void fstr_close(fstr_t* stream);
@@ -26,12 +26,12 @@ i32 fstr_tell(fstr_t stream);
 fstr_t fstr_popen(const char* cmd, const char* mode);
 void fstr_pclose(fstr_t* stream);
 
-static void fstr_stat(fstr_t stream, fd_status_t* status)
+pim_inline void fstr_stat(fstr_t stream, fd_status_t* status)
 {
     fd_stat(fstr_to_fd(stream), status);
 }
 
-static i64 fstr_size(fstr_t stream)
+pim_inline i64 fstr_size(fstr_t stream)
 {
     fd_status_t status;
     fstr_stat(stream, &status);

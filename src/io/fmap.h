@@ -13,7 +13,7 @@ typedef struct fmap_s
     fd_t fd;
 } fmap_t;
 
-static bool fmap_isopen(fmap_t fmap) { return fmap.ptr != NULL; }
+pim_inline bool fmap_isopen(fmap_t fmap) { return fmap.ptr != NULL; }
 
 // memory maps the file descriptor
 fmap_t fmap_create(fd_t fd, bool writable);
