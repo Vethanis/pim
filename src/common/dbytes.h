@@ -15,7 +15,7 @@ typedef struct dbytes_s
     if (db.size < 0)            { INTERRUPT(); goto cleanup; } \
     if (db.size % stride)       { INTERRUPT(); goto cleanup; }
 
-static dbytes_t dbytes_new(i32 length, i32 stride, i32* pOffset)
+pim_inline dbytes_t dbytes_new(i32 length, i32 stride, i32* pOffset)
 {
     dbytes_t db = { 0 };
     db.size = length * stride;

@@ -3,69 +3,51 @@
 #include <direct.h>
 #include <io.h>
 
-static pim_thread_local i32 ms_errno;
-
-i32 dir_errno(void)
+pim_inline i32 NotNeg(i32 x)
 {
-    i32 rv = ms_errno;
-    ms_errno = 0;
-    return rv;
-}
-
-static i32 NotNeg(i32 x)
-{
-    if (x < 0)
-    {
-        ms_errno = 1;
-    }
+    ASSERT(x >= 0);
     return x;
 }
 
-static void* NotNull(void* x)
+pim_inline void* NotNull(void* x)
 {
-    if (!x)
-    {
-        ms_errno = 1;
-    }
+    ASSERT(x != NULL);
     return x;
 }
 
-static i32 IsZero(i32 x)
+pim_inline i32 IsZero(i32 x)
 {
-    if (x)
-    {
-        ms_errno = 1;
-    }
+    ASSERT(x == 0);
     return x;
 }
 
-void pim_getcwd(char* dst, i32 size)
+bool pim_getcwd(char* dst, i32 size)
 {
     ASSERT(dst);
     ASSERT(size > 0);
-    NotNull(_getcwd(dst, size - 1));
+    return NotNull(_getcwd(dst, size - 1)) != NULL;
 }
 
-void pim_chdir(const char* path)
+bool pim_chdir(const char* path)
 {
     ASSERT(path);
-    IsZero(_chdir(path));
+    return IsZero(_chdir(path)) == 0;
 }
 
-void pim_mkdir(const char* path)
+bool pim_mkdir(const char* path)
 {
     ASSERT(path);
-    IsZero(_mkdir(path));
+    return IsZero(_mkdir(path)) == 0;
 }
 
-void pim_rmdir(const char* path)
+bool pim_rmdir(const char* path)
 {
     ASSERT(path);
-    IsZero(_rmdir(path));
+    return IsZero(_rmdir(path)) == 0;
 }
 
-void pim_chmod(const char* path, i32 flags)
+bool pim_chmod(const char* path, i32 flags)
 {
     ASSERT(path);
-    IsZero(_chmod(path, flags));
+    return IsZero(_chmod(path, flags)) == 0;
 }

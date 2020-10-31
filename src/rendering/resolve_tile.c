@@ -93,7 +93,6 @@ static void VEC_CALL ResolveACES(
     prng_set(rng);
 }
 
-pim_optimize
 static void ResolveTileFn(task_t* task, i32 begin, i32 end)
 {
     resolve_t* resolve = (resolve_t*)task;

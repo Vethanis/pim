@@ -28,7 +28,6 @@ typedef struct node_s
 
 // ----------------------------------------------------------------------------
 
-static void OnGui(void);
 static void VisitClr(node_t* node);
 static void VisitSum(node_t* node);
 static void VisitGui(const node_t* node);
@@ -207,8 +206,7 @@ static double GetNodeAvgMs(const node_t* node)
     ASSERT(key);
 
     double avgMs = 0.0;
-    const profmark_t* mark = node->mark;
-    ASSERT(mark);
+    ASSERT(node->mark);
 
     dict_get(&ms_node_dict, &key, &avgMs);
     return avgMs;
@@ -222,8 +220,7 @@ static double UpdateNodeAvgMs(const node_t* node)
 
     const double ms = time_milli(node->end - node->begin);
     double avgMs = ms;
-    const profmark_t* mark = node->mark;
-    ASSERT(mark);
+    ASSERT(node->mark);
     if (dict_get(&ms_node_dict, &key, &avgMs))
     {
         double alpha = 1.0 / ms_avgWindow;

@@ -1,40 +1,21 @@
 #include "io/fnd.h"
-
 #include <io.h>
 
-static pim_thread_local i32 ms_errno;
-
-i32 fnd_errno(void)
+pim_inline i32 NotNeg(i32 x)
 {
-    i32 rv = ms_errno;
-    ms_errno = 0;
-    return rv;
-}
-
-static i32 NotNeg(i32 x)
-{
-    if (x < 0)
-    {
-        ms_errno = 1;
-    }
+    ASSERT(x >= 0);
     return x;
 }
 
-static void* NotNull(void* x)
+pim_inline void* NotNull(void* x)
 {
-    if (!x)
-    {
-        ms_errno = 1;
-    }
+    ASSERT(x != NULL);
     return x;
 }
 
-static i32 IsZero(i32 x)
+pim_inline i32 IsZero(i32 x)
 {
-    if (x)
-    {
-        ms_errno = 1;
-    }
+    ASSERT(x == 0);
     return x;
 }
 

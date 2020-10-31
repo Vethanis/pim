@@ -127,7 +127,7 @@ i32 sdict_find(const sdict_t* dict, const char* key)
     u32 width = dict->width;
     const u32 mask = width - 1u;
     const u32* hashes = dict->hashes;
-    const char** keys = dict->keys;
+    char const *const *const keys = dict->keys;
 
     u32 j = keyHash;
     while (width--)

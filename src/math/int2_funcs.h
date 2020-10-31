@@ -6,9 +6,9 @@ PIM_C_BEGIN
 
 #include "math/scalar.h"
 
-static const int2 i2_0 = { 0, 0 };
-static const int2 i2_1 = { 1, 1 };
-static const int2 i2_2 = { 2, 2 };
+#define i2_0 i2_s(0)
+#define i2_1 i2_s(1)
+#define i2_2 i2_s(2)
 
 pim_inline int2 VEC_CALL i2_v(i32 x, i32 y)
 {
