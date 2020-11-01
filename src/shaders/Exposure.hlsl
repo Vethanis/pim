@@ -116,6 +116,7 @@ float CalcExposure(vkrExposure args, float avgLum)
     }
 
     ev100 = ev100 - args.offsetEV;
+    ev100 = clamp(ev100, args.minEV, args.maxEV);
 
     float exposure;
     if (args.standard != 0)
