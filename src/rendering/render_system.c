@@ -127,11 +127,11 @@ static vkrExposure ms_exposure =
     .ISO = 100.0f,
 
     .adaptRate = 3.0f,
-    .offsetEV = 1.0f,
+    .offsetEV = 0.0f,
     .minCdf = 0.05f,
     .maxCdf = 0.95f,
-    .minEV = -22.0f,
-    .maxEV = 22.0f,
+    .minEV = -5.0f,
+    .maxEV = 5.0f,
 };
 
 static camera_t ms_ptcam;

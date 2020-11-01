@@ -4,7 +4,7 @@
 #include "common/atomics.h"
 #include <string.h>
 
-void dist1d_new(dist1d_t* dist, i32 length)
+void dist1d_new(dist1d_t *const dist, i32 length)
 {
     memset(dist, 0, sizeof(*dist));
     if (length > 0)
@@ -19,7 +19,7 @@ void dist1d_new(dist1d_t* dist, i32 length)
     }
 }
 
-void dist1d_del(dist1d_t* dist)
+void dist1d_del(dist1d_t *const dist)
 {
     if (dist)
     {
@@ -30,7 +30,7 @@ void dist1d_del(dist1d_t* dist)
     }
 }
 
-void dist1d_bake(dist1d_t* dist)
+void dist1d_bake(dist1d_t *const dist)
 {
     const i32 pdfLen = dist->length;
     const i32 cdfLen = pdfLen + 1;
@@ -38,8 +38,8 @@ void dist1d_bake(dist1d_t* dist)
     {
         const float rcpLen = 1.0f / pdfLen;
 
-        float* pim_noalias pdf = dist->pdf;
-        float* pim_noalias cdf = dist->cdf;
+        float *const pim_noalias pdf = dist->pdf;
+        float *const pim_noalias cdf = dist->cdf;
 
         cdf[0] = 0.0f;
         for (i32 i = 1; i < cdfLen; ++i)
@@ -72,7 +72,7 @@ void dist1d_bake(dist1d_t* dist)
     }
 }
 
-pim_inline i32 FindInterval(const float* cdf, i32 size, float u)
+pim_inline i32 FindInterval(float const *const pim_noalias cdf, i32 size, float u)
 {
     i32 first = 0;
     i32 len = size;
@@ -93,9 +93,9 @@ pim_inline i32 FindInterval(const float* cdf, i32 size, float u)
     return i1_clamp(first - 1, 0, size - 2);
 }
 
-float dist1d_samplec(const dist1d_t* dist, float u)
+float dist1d_samplec(dist1d_t const *const dist, float u)
 {
-    const float* cdf = dist->cdf;
+    float const *const pim_noalias cdf = dist->cdf;
     const i32 pdfLen = dist->length;
     const i32 cdfLen = pdfLen + 1;
     i32 offset = FindInterval(cdf, cdfLen, u);
@@ -110,35 +110,35 @@ float dist1d_samplec(const dist1d_t* dist, float u)
     return (offset + du) / pdfLen;
 }
 
-i32 dist1d_sampled(const dist1d_t* dist, float u)
+i32 dist1d_sampled(dist1d_t const *const dist, float u)
 {
     return FindInterval(dist->cdf, dist->length + 1, u);
 }
 
-float dist1d_pdfd(const dist1d_t* dist, i32 i)
+float dist1d_pdfd(dist1d_t const *const dist, i32 i)
 {
     return dist->pdf[i] / dist->length;
 }
 
-void dist1d_inc(dist1d_t* dist, i32 i)
+void dist1d_inc(dist1d_t *const dist, i32 i)
 {
     inc_u32(dist->live + i, MO_Relaxed);
 }
 
-void dist1d_livebake(dist1d_t* dist, float alpha)
+void dist1d_livebake(dist1d_t *const dist, float alpha, u32 minSamples)
 {
     const i32 pdfLen = dist->length;
     if (pdfLen > 0)
     {
-        float* pim_noalias pdf = dist->pdf;
-        u32* pim_noalias live = dist->live;
+        float *const pim_noalias pdf = dist->pdf;
+        u32 *const pim_noalias live = dist->live;
         u32 sum = 0;
         for (i32 i = 0; i < pdfLen; ++i)
         {
             u32 ct = live[i];
             sum += ct;
         }
-        if (sum < 30)
+        if (sum < minSamples)
         {
             return;
         }

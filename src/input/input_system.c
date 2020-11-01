@@ -6,10 +6,9 @@
 #include "common/profiler.h"
 
 static GLFWwindow* ms_focused;
-static u64 ms_frametick;
-static u64 ms_keyTimes[KeyCode_COUNT];
+static u8 ms_prevKeys[KeyCode_COUNT];
 static u8 ms_keys[KeyCode_COUNT];
-static u64 ms_buttonTimes[GLFW_MOUSE_BUTTON_LAST + 1];
+static u8 ms_prevButtons[GLFW_MOUSE_BUTTON_LAST + 1];
 static u8 ms_buttons[GLFW_MOUSE_BUTTON_LAST + 1];
 static float ms_prevaxis[MouseAxis_COUNT];
 static float ms_axis[MouseAxis_COUNT];
@@ -20,13 +19,12 @@ static void OnScroll(GLFWwindow* window, double xoffset, double yoffset);
 static void OnChar(GLFWwindow* window, u32 c);
 static void OnMove(GLFWwindow* window, double cursorX, double cursorY);
 static void OnFocus(GLFWwindow* window, i32 focused);
-static bool IsRecent(u64 tick) { return tick >= ms_frametick; }
 
 // ----------------------------------------------------------------------------
 
 void input_sys_init(void)
 {
-    ms_frametick = time_now();
+
 }
 
 ProfileMark(pm_update, input_sys_update)
@@ -34,11 +32,18 @@ void input_sys_update(void)
 {
     ProfileBegin(pm_update);
 
-    ms_frametick = time_now();
-    ms_prevaxis[MouseAxis_ScrollX] = ms_axis[MouseAxis_ScrollX];
-    ms_prevaxis[MouseAxis_ScrollY] = ms_axis[MouseAxis_ScrollY];
-    ms_prevaxis[MouseAxis_X] = ms_axis[MouseAxis_X];
-    ms_prevaxis[MouseAxis_Y] = ms_axis[MouseAxis_Y];
+    for (i32 i = 0; i < NELEM(ms_keys); ++i)
+    {
+        ms_prevKeys[i] = ms_keys[i];
+    }
+    for (i32 i = 0; i < NELEM(ms_buttons); ++i)
+    {
+        ms_prevButtons[i] = ms_buttons[i];
+    }
+    for (i32 i = 0; i < NELEM(ms_axis); ++i)
+    {
+        ms_prevaxis[i] = ms_axis[i];
+    }
     glfwPollEvents();
 
     ProfileEnd(pm_update);
@@ -117,28 +122,28 @@ bool input_keydown(KeyCode key)
 {
     ASSERT(key > KeyCode_Invalid);
     ASSERT(key < KeyCode_COUNT);
-    return ms_keys[key] && IsRecent(ms_keyTimes[key]);
+    return ms_keys[key] && !ms_prevKeys[key];
 }
 
 bool input_buttondown(MouseButton button)
 {
     ASSERT(button >= 0);
     ASSERT(button < NELEM(ms_buttons));
-    return ms_buttons[button] && IsRecent(ms_buttonTimes[button]);
+    return ms_buttons[button] && !ms_prevButtons[button];
 }
 
 bool input_keyup(KeyCode key)
 {
     ASSERT(key > KeyCode_Invalid);
     ASSERT(key < KeyCode_COUNT);
-    return !ms_keys[key] && IsRecent(ms_keyTimes[key]);
+    return !ms_keys[key] && ms_prevKeys[key];
 }
 
 bool input_buttonup(MouseButton button)
 {
     ASSERT(button >= 0);
     ASSERT(button < NELEM(ms_buttons));
-    return !ms_buttons[button] && IsRecent(ms_buttonTimes[button]);
+    return !ms_buttons[button] && ms_prevButtons[button];
 }
 
 float input_axis(MouseAxis axis)
@@ -157,12 +162,7 @@ float input_delta_axis(MouseAxis axis)
 
 static void OnKey(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods)
 {
-    u8 state = action != GLFW_RELEASE ? 1 : 0;
-    if (ms_keys[key] != state)
-    {
-        ms_keys[key] = state;
-        ms_keyTimes[key] = time_now();
-    }
+    ms_keys[key] = action != GLFW_RELEASE ? 1 : 0;
     if (!input_cursor_captured(window))
     {
         ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
@@ -171,12 +171,7 @@ static void OnKey(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mod
 
 static void OnClick(GLFWwindow* window, i32 button, i32 action, i32 mods)
 {
-    u8 state = action != GLFW_RELEASE ? 1 : 0;
-    if (ms_buttons[button] != state)
-    {
-        ms_buttons[button] = state;
-        ms_buttonTimes[button] = time_now();
-    }
+    ms_buttons[button] = action != GLFW_RELEASE ? 1 : 0;
     if (!input_cursor_captured(window))
     {
         ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);

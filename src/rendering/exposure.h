@@ -93,6 +93,7 @@ pim_inline float CalcExposure(const vkrExposure* args)
     }
 
     ev100 = ev100 - args->offsetEV;
+    ev100 = f1_clamp(ev100, args->minEV, args->maxEV);
 
     float exposure;
     if (args->standard)

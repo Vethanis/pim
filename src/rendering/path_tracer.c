@@ -297,28 +297,38 @@ pim_inline bool VEC_CALL SampleBool(pt_sampler_t* sampler);
 pim_inline pt_sampler_t VEC_CALL GetSampler(void);
 pim_inline void VEC_CALL SetSampler(pt_sampler_t sampler);
 pim_inline void VEC_CALL LightOnHit(pt_sampler_t* sampler, pt_scene_t* scene, float4 ro, i32 iVert);
-static void UpdateDists(pt_scene_t* scene, float alpha);
+static void UpdateDists(pt_scene_t* scene);
 
 // ----------------------------------------------------------------------------
 
-static cvar_t cv_pt_lgrid_mpc =
+static cvar_t cv_pt_dist_meters =
 {
     .type = cvart_float,
-    .name = "pt_lgrid_mpc",
+    .name = "pt_dist_meters",
     .value = "2",
     .minFloat = 0.1f,
-    .maxFloat = 10.0f,
-    .desc = "light grid meters per cell"
+    .maxFloat = 20.0f,
+    .desc = "path tracer light distribution meters per cell"
 };
 
-static cvar_t cv_ptdist_alpha =
+static cvar_t cv_pt_dist_alpha =
 {
     .type = cvart_float,
-    .name = "ptdist_alpha",
-    .value = "0.25",
+    .name = "pt_dist_alpha",
+    .value = "0.5",
     .minFloat = 0.0f,
     .maxFloat = 1.0f,
     .desc = "path tracer light distribution update amount",
+};
+
+static cvar_t cv_pt_dist_samples =
+{
+    .type = cvart_int,
+    .name = "pt_dist_samples",
+    .value = "10000",
+    .minInt = 30,
+    .maxInt = 1 << 20,
+    .desc = "path tracer light distribution minimum samples per update",
 };
 
 static RTCDevice ms_device;
@@ -386,8 +396,9 @@ static void InitSamplers(void)
 
 void pt_sys_init(void)
 {
-    cvar_reg(&cv_ptdist_alpha);
-    cvar_reg(&cv_pt_lgrid_mpc);
+    cvar_reg(&cv_pt_dist_meters);
+    cvar_reg(&cv_pt_dist_alpha);
+    cvar_reg(&cv_pt_dist_samples);
 
     InitRTC();
     InitSamplers();
@@ -864,23 +875,23 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
     pt_scene_t* scene = task->scene;
 
     const grid_t grid = scene->lightGrid;
-    dist1d_t* dists = scene->lightDists;
+    dist1d_t *const pim_noalias dists = scene->lightDists;
 
-    const float4* pim_noalias positions = scene->positions;
-    const i32* pim_noalias matIds = scene->matIds;
-    const material_t* pim_noalias materials = scene->materials;
+    float4 const *const pim_noalias positions = scene->positions;
+    i32 const *const pim_noalias matIds = scene->matIds;
+    material_t const *const pim_noalias materials = scene->materials;
 
     const i32 emissiveCount = scene->emissiveCount;
-    const i32* pim_noalias emissives = scene->emissives;
+    i32 const *const pim_noalias emissives = scene->emissives;
 
-    const float metersPerCell = cvar_get_float(&cv_pt_lgrid_mpc);
+    const float metersPerCell = cvar_get_float(&cv_pt_dist_meters);
     const float radius = metersPerCell * 0.666f;
     pt_sampler_t sampler = GetSampler();
 
     float4 hamm[16];
-    for (i32 i = 0; i < 16; ++i)
+    for (i32 i = 0; i < NELEM(hamm); ++i)
     {
-        float2 Xi = Hammersley2D(i, 16);
+        float2 Xi = Hammersley2D(i, NELEM(hamm));
         hamm[i] = SampleUnitSphere(Xi);
     }
 
@@ -896,17 +907,17 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
             {
                 // far from a surface. might be inside or outside the map
                 // toss some rays and see if they are backfaces
-                bool miss = false;
-                for (i32 j = 0; j < 16; ++j)
+                float hitcount = 0.0f;
+                for (i32 j = 0; j < NELEM(hamm); ++j)
                 {
                     rayhit_t hit = pt_intersect_local(scene, position, hamm[j], 0.0f, 1 << 20);
-                    if (hit.type == hit_backface || hit.type == hit_nothing)
+                    if (hit.type == hit_triangle)
                     {
-                        miss = true;
-                        break;
+                        ++hitcount;
                     }
                 }
-                if (miss)
+                float hitratio = hitcount / NELEM(hamm);
+                if (hitratio < 0.5f)
                 {
                     continue;
                 }
@@ -923,21 +934,16 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
             float4 A = positions[iVert + 0];
             float4 B = positions[iVert + 1];
             float4 C = positions[iVert + 2];
-            float distance = sdTriangle3D(A, B, C, position);
-            distance = f1_abs(distance);
-            distance = f1_max(1.0f, distance - radius);
-            float distSq = distance * distance;
-            float powerPdf = 1.0f / distSq;
 
-            i32 hits = 1;
-            const i32 hitAttempts = 32;
-            const i32 loopIterations = hitAttempts / 16;
+            i32 hits = 0;
             float4 ros[16];
             float4 rds[16];
             bool visibles[16];
+            const i32 hitAttempts = 32;
+            const i32 loopIterations = hitAttempts / NELEM(ros);
             for (i32 j = 0; j < loopIterations; ++j)
             {
-                for (i32 k = 0; k < 16; ++k)
+                for (i32 k = 0; k < NELEM(ros); ++k)
                 {
                     float4 t = f4_mulvs(f4_lerpsv(-1.5f, 1.5f, f4_rand(&sampler.rng)), radius);
                     float4 ro = f4_add(position, t);
@@ -951,16 +957,14 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
                     rds[k] = rd;
                 }
                 RtcOccluded16(rtScene, ros, rds, visibles);
-                for (i32 k = 0; k < 16; ++k)
+                for (i32 k = 0; k < NELEM(ros); ++k)
                 {
                     hits += visibles[k] ? 1 : 0;
                 }
             }
             float hitPdf = (float)hits / (float)hitAttempts;
 
-            float overallPdf = f1_lerp(powerPdf, hitPdf, 0.5f);
-
-            dist.pdf[iList] = overallPdf;
+            dist.pdf[iList] = hitPdf;
         }
 
         dist1d_bake(&dist);
@@ -974,8 +978,8 @@ static void SetupLightGrid(pt_scene_t* scene)
     if (scene->vertCount > 0)
     {
         box_t bounds = box_from_pts(scene->positions, scene->vertCount);
+        float metersPerCell = cvar_get_float(&cv_pt_dist_meters);
         grid_t grid;
-        const float metersPerCell = cvar_get_float(&cv_pt_lgrid_mpc);
         grid_new(&grid, bounds, 1.0f / metersPerCell);
         const i32 len = grid_len(&grid);
         scene->lightGrid = grid;
@@ -1001,7 +1005,7 @@ void pt_scene_update(pt_scene_t* scene)
     {
         scene->sky = NULL;
     }
-    UpdateDists(scene, cvar_get_float(&cv_ptdist_alpha));
+    UpdateDists(scene);
 }
 
 pt_scene_t* pt_scene_new(void)
@@ -1704,7 +1708,6 @@ pim_inline float4 VEC_CALL EstimateDirect(
             float brdfPdf = brdf.w;
             if (brdfPdf > 0.0f)
             {
-                LightOnHit(sampler, scene, ro, iLight);
                 float weight = PowerHeuristic(lightPdf, brdfPdf) * 0.5f;
                 Li = f4_mulvs(Li, weight);
                 Li = f4_mul(Li, brdf);
@@ -1723,7 +1726,6 @@ pim_inline float4 VEC_CALL EstimateDirect(
             float lightPdf = LightEvalPdf(sampler, scene, ro, rd, &hit);
             if (lightPdf > 0.0f)
             {
-                LightOnHit(sampler, scene, ro, hit.index);
                 surfhit_t surfhit = GetSurface(scene, ro, rd, hit);
                 float4 Li = surfhit.emission;
                 if (f4_hmax3(Li) > kEpsilon)
@@ -2405,6 +2407,7 @@ typedef struct TaskUpdateDists
     task_t task;
     pt_scene_t* scene;
     float alpha;
+    u32 minSamples;
 } TaskUpdateDists;
 
 static void UpdateDistsFn(void* pbase, i32 begin, i32 end)
@@ -2413,17 +2416,19 @@ static void UpdateDistsFn(void* pbase, i32 begin, i32 end)
     pt_scene_t* scene = task->scene;
     dist1d_t* dists = scene->lightDists;
     float alpha = task->alpha;
+    u32 minSamples = task->minSamples;
     for (i32 i = begin; i < end; ++i)
     {
-        dist1d_livebake(&dists[i], alpha);
+        dist1d_livebake(&dists[i], alpha, minSamples);
     }
 }
 
-static void UpdateDists(pt_scene_t* scene, float alpha)
+static void UpdateDists(pt_scene_t* scene)
 {
     TaskUpdateDists* task = tmp_calloc(sizeof(*task));
     task->scene = scene;
-    task->alpha = alpha;
+    task->alpha = cvar_get_float(&cv_pt_dist_alpha);
+    task->minSamples = cvar_get_int(&cv_pt_dist_samples);
     i32 worklen = grid_len(&scene->lightGrid);
     task_run(task, UpdateDistsFn, worklen);
 }
