@@ -5,7 +5,7 @@
 PIM_C_BEGIN
 
 typedef struct fd_s { i32 handle; } fd_t;
-pim_inline i32 fd_isopen(fd_t fd) { return fd.handle >= 0; }
+pim_inline bool fd_isopen(fd_t fd) { return fd.handle >= 0; }
 
 static const fd_t fd_stdin = { 0 };
 static const fd_t fd_stdout = { 1 };
@@ -39,7 +39,7 @@ typedef struct fd_status_s
 
 fd_t fd_create(const char* filename);
 fd_t fd_open(const char* filename, i32 writable);
-void fd_close(fd_t* hdl);
+bool fd_close(fd_t* hdl);
 
 i32 fd_read(fd_t hdl, void* dst, i32 size);
 i32 fd_write(fd_t hdl, const void* src, i32 size);
@@ -47,11 +47,11 @@ i32 fd_write(fd_t hdl, const void* src, i32 size);
 i32 fd_puts(fd_t hdl, const char* str);
 i32 fd_printf(fd_t hdl, const char* fmt, ...);
 
-i32 fd_seek(fd_t hdl, i32 offset);
+bool fd_seek(fd_t hdl, i32 offset);
 i32 fd_tell(fd_t hdl);
 
-void fd_pipe(fd_t* p0, fd_t* p1, i32 bufferSize);
-void fd_stat(fd_t hdl, fd_status_t* status);
+bool fd_pipe(fd_t* p0, fd_t* p1, i32 bufferSize);
+bool fd_stat(fd_t hdl, fd_status_t* status);
 
 pim_inline i64 fd_size(fd_t fd)
 {

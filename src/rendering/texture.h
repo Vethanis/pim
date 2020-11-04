@@ -11,12 +11,6 @@ PIM_C_BEGIN
 typedef struct table_s table_t;
 typedef struct crate_s crate_t;
 
-typedef struct textureid_s
-{
-    u32 index : 24;
-    u32 version : 8;
-} textureid_t;
-
 typedef struct dtextureid_s
 {
     guid_t id;
@@ -25,7 +19,7 @@ typedef struct dtextureid_s
 typedef struct texture_s
 {
     int2 size;
-    u32* pim_noalias texels;
+    void* pim_noalias texels;
     vkrTexture2D vkrtex;
 } texture_t;
 
@@ -68,6 +62,7 @@ bool texture_unpalette(
     int2 size,
     const char* name,
     u32 matflags,
+    float4 flatRome,
     textureid_t* albedoOut,
     textureid_t* romeOut,
     textureid_t* normalOut);

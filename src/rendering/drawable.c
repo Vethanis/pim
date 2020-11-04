@@ -233,8 +233,6 @@ bool drawables_save(crate_t* crate, const drawables_t* src)
         {
             const material_t mat = src->materials[i];
             dmaterial_t dmat = { 0 };
-            dmat.flatAlbedo = mat.flatAlbedo;
-            dmat.flatRome = mat.flatRome;
             dmat.flags = mat.flags;
             dmat.ior = mat.ior;
             texture_save(crate, mat.albedo, &dmat.albedo.id);
@@ -309,8 +307,6 @@ bool drawables_load(crate_t* crate, drawables_t* dst)
                 {
                     const dmaterial_t dmat = dmaterials[i];
                     material_t mat = { 0 };
-                    mat.flatAlbedo = dmat.flatAlbedo;
-                    mat.flatRome = dmat.flatRome;
                     mat.flags = dmat.flags;
                     mat.ior = dmat.ior;
                     texture_load(crate, dmat.albedo.id, &mat.albedo);

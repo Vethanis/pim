@@ -720,11 +720,11 @@ void render_sys_init(void)
     cmd_reg("pt_stddev", CmdPtStdDev);
     cmd_reg("loadtest", CmdLoadTest);
 
+    texture_sys_init();
+    mesh_sys_init();
     vkr_init();
     g_vkr.exposurePass.params = ms_exposure;
 
-    texture_sys_init();
-    mesh_sys_init();
     pt_sys_init();
     EnsureFramebuf();
 
@@ -1092,11 +1092,7 @@ static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up
     dr->scales[i] = f4_s(scale);
     dr->rotations[i] = quat_lookat(forward, up);
 
-    material_t mat =
-    {
-        .flatAlbedo = albedo,
-        .flatRome = rome,
-    };
+    material_t mat = { 0 };
     dr->materials[i] = mat;
 
     return i;
@@ -1119,11 +1115,7 @@ static i32 CreateSphere(const char* name, float4 center, float radius, float4 al
     dr->scales[i] = f4_s(radius);
     dr->rotations[i] = quat_id;
 
-    material_t mat =
-    {
-        .flatAlbedo = albedo,
-        .flatRome = rome,
-    };
+    material_t mat = { 0 };
     dr->materials[i] = mat;
 
     return i;

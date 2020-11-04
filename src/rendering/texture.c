@@ -141,7 +141,8 @@ bool texture_new(texture_t* tex, VkFormat format, guid_t name, textureid_t* idOu
         {
             i32 width = tex->size.x;
             i32 height = tex->size.y;
-            i32 bytes = sizeof(tex->texels[0]) * width * height;
+            i32 bpp = vkrFormatToBpp(format);
+            i32 bytes = (bpp * width * height) / 8;
             ASSERT(bytes > 0);
             if (g_vkr.inst)
             {
@@ -213,7 +214,8 @@ bool texture_save(crate_t* crate, textureid_t tid, guid_t* dst)
         const texture_t* textures = ms_table.values;
         const texture_t texture = textures[tid.index];
         const i32 len = texture.size.x * texture.size.y;
-        const i32 texelBytes = sizeof(texture.texels[0]) * len;
+        const i32 bpp = vkrFormatToBpp(texture.vkrtex.image.format);
+        const i32 texelBytes = (bpp * len) / 8;
         const i32 hdrBytes = sizeof(dtexture_t);
         dtexture_t* dtexture = tex_malloc(hdrBytes + texelBytes);
         if (dtexture)
@@ -244,12 +246,13 @@ bool texture_load(crate_t* crate, guid_t name, textureid_t* dst)
             if (dtexture->version == kTextureVersion)
             {
                 const VkFormat format = dtexture->format;
+                const i32 bpp = vkrFormatToBpp(format);
                 texture.size = dtexture->size;
-                if ((texture.size.x > 0) && (texture.size.y > 0))
+                if ((texture.size.x > 0) && (texture.size.y > 0) && (bpp > 0))
                 {
                     guid_str(dtexture->name);
                     const i32 len = texture.size.x * texture.size.y;
-                    const i32 texelBytes = sizeof(texture.texels[0]) * len;
+                    const i32 texelBytes = (bpp * len) / 8;
                     memmove(dtexture, dtexture + 1, texelBytes);
                     texture.texels = (u32*)dtexture;
                     dtexture = NULL;
@@ -331,6 +334,7 @@ pim_inline float DecodeEmission(u8 encoded, bool isLight)
 typedef struct task_Unpalette
 {
     task_t task;
+    float4 flatRome;
     int2 size;
     float2 min;
     float2 max;
@@ -344,9 +348,9 @@ typedef struct task_Unpalette
     bool isLight;
 } task_Unpalette;
 
-static void UnpaletteStep1Fn(task_t* pbase, i32 begin, i32 end)
+static void UnpaletteStep1Fn(void* pbase, i32 begin, i32 end)
 {
-    task_Unpalette* task = (task_Unpalette*)pbase;
+    task_Unpalette* task = pbase;
     const matflag_t flags = task->flags;
     const u8* pim_noalias bytes = task->bytes;
     u32* pim_noalias albedo = task->albedo;
@@ -363,9 +367,9 @@ static void UnpaletteStep1Fn(task_t* pbase, i32 begin, i32 end)
     }
 }
 
-static void UnpaletteStep2Fn(task_t* pbase)
+static void UnpaletteStep2Fn(void* pbase)
 {
-    task_Unpalette* task = (task_Unpalette*)pbase;
+    task_Unpalette* task = pbase;
     const int2 size = task->size;
     const i32 len = size.x * size.y;
     const float2* pim_noalias gray = task->gray;
@@ -381,9 +385,10 @@ static void UnpaletteStep2Fn(task_t* pbase)
     task->max = max;
 }
 
-static void UnpaletteStep3Fn(task_t* pbase, i32 begin, i32 end)
+static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
 {
-    task_Unpalette* task = (task_Unpalette*)pbase;
+    task_Unpalette* task = pbase;
+    const float4 flatRome = task->flatRome;
     const int2 size = task->size;
     const float2 min = task->min;
     const float2 max = task->max;
@@ -411,7 +416,9 @@ static void UnpaletteStep3Fn(task_t* pbase, i32 begin, i32 end)
         {
             emission = DecodeEmission(encoded, isLight);
         }
-        rome[i] = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
+        float4 romeValue = f4_v(roughness, occlusion, metallic, emission);
+        romeValue = f4_mul(romeValue, flatRome);
+        rome[i] = LinearToColor(romeValue);
     }
 
     for (i32 i = begin; i < end; ++i)
@@ -442,6 +449,7 @@ bool texture_unpalette(
     int2 size,
     const char* name,
     u32 matflags,
+    float4 flatRome,
     textureid_t* albedoOut,
     textureid_t* romeOut,
     textureid_t* normalOut)
@@ -500,6 +508,7 @@ bool texture_unpalette(
         tasks[0].albedo = albedo;
         tasks[0].bytes = bytes;
         tasks[0].flags = matflags;
+        tasks[0].flatRome = flatRome;
         tasks[0].fullEmit = fullEmit;
         tasks[0].gray = gray;
         tasks[0].isLight = isLight;
@@ -524,17 +533,20 @@ bool texture_unpalette(
         texture_t albedoMap = { 0 };
         albedoMap.size = size;
         albedoMap.texels = albedo;
-        albedoAdded = texture_new(&albedoMap, VK_FORMAT_R8G8B8A8_SRGB, albedoguid, albedoOut);
+        albedoAdded = texture_new(
+            &albedoMap, VK_FORMAT_R8G8B8A8_SRGB, albedoguid, albedoOut);
 
         texture_t romeMap = { 0 };
         romeMap.size = size;
         romeMap.texels = rome;
-        romeAdded = texture_new(&romeMap, VK_FORMAT_R8G8B8A8_SRGB, romeguid, romeOut);
+        romeAdded = texture_new(
+            &romeMap, VK_FORMAT_R8G8B8A8_SRGB, romeguid, romeOut);
 
         texture_t normalMap = { 0 };
         normalMap.size = size;
         normalMap.texels = normal;
-        normalAdded = texture_new(&normalMap, VK_FORMAT_R8G8B8A8_UNORM, normalguid, normalOut);
+        normalAdded = texture_new(
+            &normalMap, VK_FORMAT_R8G8B8A8_UNORM, normalguid, normalOut);
     }
 
     return albedoAdded && romeAdded && normalAdded;
@@ -596,7 +608,7 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
     return 0;
 }
 
-static void igTexture(const texture_t* tex)
+static void igTexture(const texture_t* tex, i32 slot)
 {
     if (!tex)
     {
@@ -631,7 +643,7 @@ static void igTexture(const texture_t* tex)
     const ImVec2 uv1 = { 1, 1 };
     const ImVec4 tint_col = { 1, 1, 1, 1 };
     const ImVec4 border_col = { 0, 0, 0, 0 };
-    igImage(tex->vkrtex.slot, size, uv0, uv1, tint_col, border_col);
+    igImage(slot, size, uv0, uv1, tint_col, border_col);
 }
 
 ProfileMark(pm_OnGui, texture_sys_gui)
@@ -757,7 +769,7 @@ void texture_sys_gui(bool* pEnabled)
         if (validSelection)
         {
             igBegin("Selected Texture", NULL, 0);
-            igTexture(&textures[selection]);
+            igTexture(&textures[selection], selection);
             igEnd();
         }
         else

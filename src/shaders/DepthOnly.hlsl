@@ -1,7 +1,7 @@
 
 struct VSInput
 {
-    float4 positionOS : POSITION;
+    float4 positionWS : POSITION;
 };
 
 struct PSInput
@@ -12,13 +12,13 @@ struct PSInput
 [[vk::push_constant]]
 cbuffer push_constants
 {
-    float4x4 localToClip;
+    float4x4 worldToClip;
 };
 
 PSInput VSMain(VSInput input)
 {
     PSInput output;
-    output.positionCS = mul(localToClip, float4(input.positionOS.xyz, 1.0));
+    output.positionCS = mul(worldToClip, float4(input.positionWS.xyz, 1.0));
     return output;
 }
 

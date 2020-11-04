@@ -756,8 +756,6 @@ static float EmissionPdf(
     }
 
     const float kThreshold = 0.01f;
-    float4 rome = mat->flatRome;
-    if (rome.w > kThreshold)
     {
         texture_t const *const romeMap = texture_get(mat->rome);
         if (romeMap)
@@ -776,8 +774,7 @@ static float EmissionPdf(
                 float4 wuv = SampleBaryCoord(Sample2D(sampler));
                 float2 uv = f2_blend(UA, UB, UC, wuv);
                 float sample = UvWrap_c32(texels, texSize, uv).w;
-                float em = sample * rome.w;
-                if (em > kThreshold)
+                if (sample > kThreshold)
                 {
                     ++hits;
                 }
@@ -786,12 +783,8 @@ static float EmissionPdf(
         }
         else
         {
-            return 1.0f;
+            return 0.0f;
         }
-    }
-    else
-    {
-        return 0.0f;
     }
 }
 
@@ -1231,7 +1224,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         }
     }
 
-    surf.albedo = mat->flatAlbedo;
+    surf.albedo = f4_1;
     {
         texture_t const *const tex = texture_get(mat->albedo);
         if (tex)
@@ -1241,7 +1234,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         }
     }
 
-    float4 rome = mat->flatRome;
+    float4 rome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
     {
         texture_t const *const tex = texture_get(mat->rome);
         if (tex)

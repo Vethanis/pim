@@ -208,7 +208,6 @@ void vkr_shutdown(void)
     {
         vkrDevice_WaitIdle();
 
-        mesh_sys_vkfree();
         texture_sys_vkfree();
         lmpack_del(lmpack_get());
         ui_sys_shutdown();

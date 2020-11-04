@@ -91,7 +91,7 @@ void lightmap_new(lightmap_t* lm, i32 size)
     lm->size = size;
 
     const i32 texelcount = size * size;
-    i32 probesBytes = sizeof(lm->probes[0][0]) * texelcount * kGiDirections;
+    i32 probesBytes = sizeof(float4) * texelcount * kGiDirections;
     i32 positionBytes = sizeof(lm->position[0]) * texelcount;
     i32 normalBytes = sizeof(lm->normal[0]) * texelcount;
     i32 sampleBytes = sizeof(lm->sampleCounts[0]) * texelcount;
@@ -102,12 +102,12 @@ void lightmap_new(lightmap_t* lm, i32 size)
     {
         lm->probes[i] = (float4*)allocation;
         allocation += sizeof(float4) * texelcount;
-        vkrTexture2D_New(
-            &lm->vkrtex[i],
-            size,
-            size,
-            VK_FORMAT_R32G32B32A32_SFLOAT,
-            NULL, 0);
+        texture_t tex = { 0 };
+        tex.size = i2_s(size);
+        tex.texels = lm->probes[i];
+        textureid_t id = { 0 };
+        texture_new(&tex, VK_FORMAT_R32G32B32A32_SFLOAT, guid_new(), &id);
+        lm->ids[i] = id;
     }
 
     lm->position = (float3*)allocation;
@@ -127,7 +127,7 @@ void lightmap_del(lightmap_t* lm)
         pim_free(lm->probes[0]);
         for (i32 i = 0; i < kGiDirections; ++i)
         {
-            vkrTexture2D_Del(&lm->vkrtex[i]);
+            texture_release(lm->ids[i]);
         }
         memset(lm, 0, sizeof(*lm));
     }
@@ -137,11 +137,14 @@ void lightmap_upload(lightmap_t* lm)
 {
     ASSERT(lm);
     const i32 len = lm->size * lm->size;
-    vkrTexture2D* vkrtex = lm->vkrtex;
     for (i32 i = 0; i < kGiDirections; ++i)
     {
-        const float4* pim_noalias probes = lm->probes[i];
-        vkrTexture2D_Upload(&vkrtex[i], probes, sizeof(probes[0]) * len);
+        texture_t* tex = texture_get(lm->ids[i]);
+        if (tex)
+        {
+            const float4* pim_noalias probes = lm->probes[i];
+            vkrTexture2D_Upload(&tex->vkrtex, probes, sizeof(probes[0]) * len);
+        }
     }
 }
 
@@ -989,15 +992,6 @@ static void chartnodes_assign(
             }
         }
     }
-
-    for (i32 i = 0; i < numDrawables; ++i)
-    {
-        mesh_t* mesh = mesh_get(meshids[i]);
-        if (mesh)
-        {
-            vkrMesh_Upload(&mesh->vkrmesh, mesh->length, mesh->positions, mesh->normals, mesh->uvs, 0, NULL);
-        }
-    }
 }
 
 typedef struct quadtree_s
@@ -1566,9 +1560,9 @@ bool lmpack_load(crate_t* crate, lmpack_t* pack)
     dlmpack_t dpack = { 0 };
     if (crate_get(crate, guid_str("lmpack"), &dpack, sizeof(dpack)))
     {
-        if ((dpack.version == kLmPackVersion) && 
-            (dpack.directions == kGiDirections) && 
-            (dpack.lmCount > 0) && 
+        if ((dpack.version == kLmPackVersion) &&
+            (dpack.directions == kGiDirections) &&
+            (dpack.lmCount > 0) &&
             (dpack.lmSize > 0))
         {
             loaded = true;

@@ -7,16 +7,19 @@
 #include "common/profiler.h"
 #include "common/find.h"
 #include "allocator/allocator.h"
+#include "math/scalar.h"
 #include <string.h>
 
 bool vkrTexTable_New(vkrTexTable* table)
 {
     ASSERT(table);
     memset(table, 0, sizeof(*table));
-    table->width = 1;
     const u32 blackTexel = 0x0;
     if (!vkrTexture2D_New(
-        &table->black, 1, 1, VK_FORMAT_R8G8B8A8_SRGB, &blackTexel, sizeof(blackTexel)))
+        &table->black,
+        1, 1,
+        VK_FORMAT_R8G8B8A8_SRGB,
+        &blackTexel, sizeof(blackTexel)))
     {
         return false;
     }
@@ -42,6 +45,29 @@ void vkrTexTable_Del(vkrTexTable* table)
 
 void vkrTexTable_Update(vkrTexTable* table)
 {
+    const table_t* cpuTable = texture_table();
+    const texture_t* textures = cpuTable->values;
+    vkrTexture2D const *const black = &table->black;
+    VkDescriptorImageInfo *const descriptors = table->table;
+    const i32 minWidth = i1_min(cpuTable->width, kTextureDescriptors);
+    i32 i = 0;
+    for (; i < minWidth; ++i)
+    {
+        vkrTexture2D const* gpuTex = black;
+        if (textures[i].vkrtex.image.handle)
+        {
+            gpuTex = &textures[i].vkrtex;
+        }
+        descriptors[i].imageLayout = gpuTex->image.layout;
+        descriptors[i].imageView = gpuTex->view;
+        descriptors[i].sampler = gpuTex->sampler;
+    }
+    for (; i < kTextureDescriptors; ++i)
+    {
+        descriptors[i].imageLayout = black->image.layout;
+        descriptors[i].imageView = black->view;
+        descriptors[i].sampler = black->sampler;
+    }
 }
 
 ProfileMark(pm_write, vkrTexTable_Write)
@@ -58,22 +84,6 @@ void vkrTexTable_Write(const vkrTexTable* table, VkDescriptorSet set)
         table->table);
 
     ProfileEnd(pm_write);
-}
-
-i32 vkrTexTable_AllocSlot(vkrTexTable* table)
-{
-    ASSERT(table);
-
-    i32 slot = 0;
-    if (table->width < kTextureDescriptors)
-    {
-        slot = table->width++;
-    }
-    else
-    {
-        ASSERT(false);
-    }
-    return slot;
 }
 
 void vkrTexTable_WriteSlot(
@@ -106,20 +116,5 @@ void vkrTexTable_ClearSlot(vkrTexTable* table, i32 slot)
         table->table[slot].imageLayout = black->image.layout;
         table->table[slot].imageView = black->view;
         table->table[slot].sampler = black->sampler;
-
-        VkSampler blackSampler = black->sampler;
-        i32 width = table->width;
-        for (i32 i = width - 1; i > 0; --i)
-        {
-            if (table->table[i].sampler == blackSampler)
-            {
-                --width;
-            }
-            else
-            {
-                break;
-            }
-        }
-        table->width = width;
     }
 }

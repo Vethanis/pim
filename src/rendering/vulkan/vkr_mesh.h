@@ -11,8 +11,7 @@ bool vkrMesh_New(
     const float4* pim_noalias positions,
     const float4* pim_noalias normals,
     const float4* pim_noalias uv01,
-    i32 indexCount,
-    const u16* pim_noalias indices);
+    const int4* pim_noalias texIndices);
 void vkrMesh_Del(vkrMesh* mesh);
 
 bool vkrMesh_Upload(
@@ -21,7 +20,6 @@ bool vkrMesh_Upload(
     const float4* pim_noalias positions,
     const float4* pim_noalias normals,
     const float4* pim_noalias uv01,
-    i32 indexCount,
-    const u16* pim_noalias indices);
+    const int4* pim_noalias texIndices);
 
 PIM_C_END

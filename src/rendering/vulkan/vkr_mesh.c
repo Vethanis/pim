@@ -13,17 +13,11 @@ bool vkrMesh_New(
     const float4* pim_noalias positions,
     const float4* pim_noalias normals,
     const float4* pim_noalias uv01,
-    i32 indexCount,
-    const u16* pim_noalias indices)
+    const int4* pim_noalias texIndices)
 {
     ASSERT(mesh);
     memset(mesh, 0, sizeof(*mesh));
     if (vertCount <= 0)
-    {
-        ASSERT(false);
-        return false;
-    }
-    if ((indexCount % 3))
     {
         ASSERT(false);
         return false;
@@ -36,17 +30,15 @@ bool vkrMesh_New(
 
     SASSERT(sizeof(positions[0]) == sizeof(normals[0]));
     SASSERT(sizeof(positions[0]) == sizeof(uv01[0]));
+    SASSERT(sizeof(positions[0]) == sizeof(texIndices[0]));
 
     const i32 streamSize = sizeof(positions[0]) * vertCount;
-    const i32 indicesSize = sizeof(indices[0]) * indexCount;
-    const i32 totalSize = streamSize * vkrMeshStream_COUNT + indicesSize;
+    const i32 totalSize = streamSize * vkrMeshStream_COUNT;
 
     if (!vkrBuffer_New(
         &mesh->buffer,
         totalSize,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         vkrMemUsage_GpuOnly, PIM_FILELINE))
     {
         ASSERT(false);
@@ -54,9 +46,7 @@ bool vkrMesh_New(
     }
 
     mesh->vertCount = vertCount;
-    mesh->indexCount = indexCount;
-
-    if (!vkrMesh_Upload(mesh, vertCount, positions, normals, uv01, indexCount, indices))
+    if (!vkrMesh_Upload(mesh, vertCount, positions, normals, uv01, texIndices))
     {
         ASSERT(false);
         goto cleanup;
@@ -83,15 +73,9 @@ bool vkrMesh_Upload(
     const float4* pim_noalias positions,
     const float4* pim_noalias normals,
     const float4* pim_noalias uv01,
-    i32 indexCount,
-    const u16* pim_noalias indices)
+    const int4* pim_noalias texIndices)
 {
     if (vertCount <= 0)
-    {
-        ASSERT(false);
-        return false;
-    }
-    if ((indexCount % 3))
     {
         ASSERT(false);
         return false;
@@ -104,12 +88,12 @@ bool vkrMesh_Upload(
 
     SASSERT(sizeof(positions[0]) == sizeof(normals[0]));
     SASSERT(sizeof(positions[0]) == sizeof(uv01[0]));
+    SASSERT(sizeof(positions[0]) == sizeof(texIndices[0]));
 
     const i32 streamSize = sizeof(positions[0]) * vertCount;
-    const i32 indicesSize = sizeof(indices[0]) * indexCount;
-    const i32 totalSize = streamSize * vkrMeshStream_COUNT + indicesSize;
+    const i32 totalSize = streamSize * vkrMeshStream_COUNT;
 
-    vkrBuffer stagebuf = {0};
+    vkrBuffer stagebuf = { 0 };
     if (!vkrBuffer_New(
         &stagebuf,
         totalSize,
@@ -131,11 +115,8 @@ bool vkrMesh_Upload(
             dst += streamSize;
             memcpy(dst, uv01, streamSize);
             dst += streamSize;
-            if (indices)
-            {
-                memcpy(dst, indices, indicesSize);
-                dst += indicesSize;
-            }
+            memcpy(dst, texIndices, streamSize);
+            dst += streamSize;
         }
         vkrBuffer_Unmap(&stagebuf);
         vkrBuffer_Flush(&stagebuf);
@@ -147,24 +128,13 @@ bool vkrMesh_Upload(
     VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &fence, &queue);
     vkrCmdBegin(cmd);
     vkrCmdCopyBuffer(cmd, stagebuf, mesh->buffer);
-    const VkBufferMemoryBarrier barrier =
-    {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask =
-            VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
-            VK_ACCESS_INDEX_READ_BIT,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer = mesh->buffer.handle,
-        .offset = 0,
-        .size = VK_WHOLE_SIZE,
-    };
-    vkrCmdBufferBarrier(
+    vkrBuffer_Barrier(
+        &mesh->buffer,
         cmd,
+        VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-        &barrier);
+        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
     vkrCmdEnd(cmd);
     vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
     vkrBuffer_Release(&stagebuf, fence);

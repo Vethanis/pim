@@ -8,28 +8,19 @@
 
 static i32 NotNeg(i32 x)
 {
-    if (x < 0)
-    {
-        ASSERT(false);
-    }
+    ASSERT(x >= 0);
     return x;
 }
 
 static void* NotNull(void* x)
 {
-    if (!x)
-    {
-        ASSERT(false);
-    }
+    ASSERT(x != NULL);
     return x;
 }
 
 static i32 IsZero(i32 x)
 {
-    if (x)
-    {
-        ASSERT(false);
-    }
+    ASSERT(x == 0);
     return x;
 }
 
@@ -62,15 +53,16 @@ fd_t fd_open(const char* filename, i32 writable)
     return (fd_t) { _open(filename, flags, mode) };
 }
 
-void fd_close(fd_t* fd)
+bool fd_close(fd_t* fd)
 {
     ASSERT(fd);
     i32 handle = fd->handle;
     fd->handle = -1;
     if (handle > 2)
     {
-        IsZero(_close(handle));
+        return IsZero(_close(handle)) == 0;
     }
+    return false;
 }
 
 i32 fd_read(fd_t fd, void* dst, i32 size)
@@ -119,11 +111,11 @@ i32 fd_printf(fd_t fd, const char* fmt, ...)
     return b;
 }
 
-i32 fd_seek(fd_t fd, i32 offset)
+bool fd_seek(fd_t fd, i32 offset)
 {
     ASSERT(fd.handle >= 0);
     ASSERT(offset >= 0);
-    return NotNeg((i32)_lseek(fd.handle, offset, 0));
+    return NotNeg((i32)_lseek(fd.handle, offset, 0)) >= 0;
 }
 
 i32 fd_tell(fd_t fd)
@@ -132,21 +124,22 @@ i32 fd_tell(fd_t fd)
     return NotNeg((i32)_tell(fd.handle));
 }
 
-void fd_pipe(fd_t* fd0, fd_t* fd1, i32 bufferSize)
+bool fd_pipe(fd_t* fd0, fd_t* fd1, i32 bufferSize)
 {
     ASSERT(fd0);
     ASSERT(fd1);
     ASSERT(bufferSize >= 0);
     i32 handles[2] = { -1, -1 };
-    IsZero(_pipe(handles, (u32)bufferSize, _O_BINARY));
+    bool success = IsZero(_pipe(handles, (u32)bufferSize, _O_BINARY)) == 0;
     fd0->handle = handles[0];
     fd1->handle = handles[1];
+    return success;
 }
 
-void fd_stat(fd_t fd, fd_status_t* status)
+bool fd_stat(fd_t fd, fd_status_t* status)
 {
     ASSERT(fd.handle >= 0);
     ASSERT(status);
     memset(status, 0, sizeof(fd_status_t));
-    IsZero(_fstat64(fd.handle, (struct _stat64*)status));
+    return IsZero(_fstat64(fd.handle, (struct _stat64*)status)) == 0;
 }
