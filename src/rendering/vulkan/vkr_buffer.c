@@ -81,7 +81,6 @@ bool vkrBuffer_Reserve(
     VkFence fence,
     const char* tag)
 {
-    ProfileBegin(pm_bufreserve);
     bool success = true;
     i32 oldsize = buffer->size;
     ASSERT(buffer);
@@ -89,16 +88,12 @@ bool vkrBuffer_Reserve(
     ASSERT(oldsize >= 0);
     if (oldsize < size)
     {
+        ProfileBegin(pm_bufreserve);
         vkrBuffer_Release(buffer, fence);
         size = (size > oldsize * 2) ? size : oldsize * 2;
-        if (!vkrBuffer_New(buffer, size, bufferUsage, memUsage, tag))
-        {
-            success = false;
-            goto cleanup;
-        }
+        success = vkrBuffer_New(buffer, size, bufferUsage, memUsage, tag);
+        ProfileEnd(pm_bufreserve);
     }
-cleanup:
-    ProfileEnd(pm_bufreserve);
     return success;
 }
 

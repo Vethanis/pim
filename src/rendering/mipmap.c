@@ -41,34 +41,23 @@ typedef struct task_mipf4_s
     int2 dstSize;
 } task_mipf4_t;
 
-static void mipmap_f4fn(task_t* pbase, i32 begin, i32 end)
+static void mipmap_f4fn(void* pbase, i32 begin, i32 end)
 {
-    task_mipf4_t* task = (task_mipf4_t*)pbase;
-    const float4* pim_noalias srcMip = task->srcMip;
-    float4* pim_noalias dstMip = task->dstMip;
+    task_mipf4_t* task = pbase;
+    float4 const *const pim_noalias srcMip = task->srcMip;
+    float4 *const pim_noalias dstMip = task->dstMip;
     const int2 srcSize = task->srcSize;
     const int2 dstSize = task->dstSize;
-
     for (i32 i = begin; i < end; ++i)
     {
-        int2 coord = IndexToCoord(dstSize, i);
-        int2 ca = { coord.x * 2 + 0, coord.y * 2 + 0 };
-        int2 cb = { coord.x * 2 + 1, coord.y * 2 + 0 };
-        int2 cc = { coord.x * 2 + 0, coord.y * 2 + 1 };
-        int2 cd = { coord.x * 2 + 1, coord.y * 2 + 1 };
-
-        i32 ia = Clamp(srcSize, ca);
-        i32 ib = Clamp(srcSize, cb);
-        i32 ic = Clamp(srcSize, cc);
-        i32 id = Clamp(srcSize, cd);
-
-        float4 va = srcMip[ia];
-        float4 vb = srcMip[ib];
-        float4 vc = srcMip[ic];
-        float4 vd = srcMip[id];
-
-        float4 v = f4_add(f4_add(f4_add(f4_mulvs(va, 0.25f), f4_mulvs(vb, 0.25f)), f4_mulvs(vc, 0.25f)), f4_mulvs(vd, 0.25f));
-
+        int2 c = i2_mulvs(IndexToCoord(dstSize, i), 2);
+        i32 ia = Clamp(srcSize, i2_v(c.x + 0, c.y + 0));
+        i32 ib = Clamp(srcSize, i2_v(c.x + 1, c.y + 0));
+        i32 ic = Clamp(srcSize, i2_v(c.x + 0, c.y + 1));
+        i32 id = Clamp(srcSize, i2_v(c.x + 1, c.y + 1));
+        float4 v0 = f4_mulvs(f4_add(srcMip[ia], srcMip[ib]), 0.5f);
+        float4 v1 = f4_mulvs(f4_add(srcMip[ic], srcMip[id]), 0.5f);
+        float4 v = f4_mulvs(f4_add(v0, v1), 0.5f);
         dstMip[i] = v;
     }
 }
@@ -105,31 +94,24 @@ typedef struct task_mipc32_s
 static void mipmap_c32fn(task_t* pbase, i32 begin, i32 end)
 {
     task_mipc32_t* task = (task_mipc32_t*)pbase;
-    const u32* pim_noalias srcMip = task->srcMip;
-    u32* pim_noalias dstMip = task->dstMip;
+    u32 const *const pim_noalias srcMip = task->srcMip;
+    u32 *const pim_noalias dstMip = task->dstMip;
     const int2 srcSize = task->srcSize;
     const int2 dstSize = task->dstSize;
-
     for (i32 i = begin; i < end; ++i)
     {
-        int2 coord = IndexToCoord(dstSize, i);
-        int2 ca = { coord.x * 2 + 0, coord.y * 2 + 0 };
-        int2 cb = { coord.x * 2 + 1, coord.y * 2 + 0 };
-        int2 cc = { coord.x * 2 + 0, coord.y * 2 + 1 };
-        int2 cd = { coord.x * 2 + 1, coord.y * 2 + 1 };
-
-        i32 ia = Clamp(srcSize, ca);
-        i32 ib = Clamp(srcSize, cb);
-        i32 ic = Clamp(srcSize, cc);
-        i32 id = Clamp(srcSize, cd);
-
+        int2 c = i2_mulvs(IndexToCoord(dstSize, i), 2);
+        i32 ia = Clamp(srcSize, i2_v(c.x + 0, c.y + 0));
+        i32 ib = Clamp(srcSize, i2_v(c.x + 1, c.y + 0));
+        i32 ic = Clamp(srcSize, i2_v(c.x + 0, c.y + 1));
+        i32 id = Clamp(srcSize, i2_v(c.x + 1, c.y + 1));
         float4 va = ColorToLinear(srcMip[ia]);
         float4 vb = ColorToLinear(srcMip[ib]);
         float4 vc = ColorToLinear(srcMip[ic]);
         float4 vd = ColorToLinear(srcMip[id]);
-
-        float4 v = f4_add(f4_add(f4_add(f4_mulvs(va, 0.25f), f4_mulvs(vb, 0.25f)), f4_mulvs(vc, 0.25f)), f4_mulvs(vd, 0.25f));
-
+        float4 v0 = f4_mulvs(f4_add(va, vb), 0.5f);
+        float4 v1 = f4_mulvs(f4_add(vc, vd), 0.5f);
+        float4 v = f4_mulvs(f4_add(v0, v1), 0.5f);
         dstMip[i] = LinearToColor(v);
     }
 }
@@ -164,25 +146,21 @@ typedef struct task_mipf32_s
 static void mipmap_f32fn(task_t* pbase, i32 begin, i32 end)
 {
     task_mipf32_t* task = (task_mipf32_t*)pbase;
-    const float* pim_noalias srcMip = task->srcMip;
-    float* pim_noalias dstMip = task->dstMip;
+    float const *const pim_noalias srcMip = task->srcMip;
+    float *const pim_noalias dstMip = task->dstMip;
     const int2 srcSize = task->srcSize;
     const int2 dstSize = task->dstSize;
-
     for (i32 i = begin; i < end; ++i)
     {
-        int2 coord = IndexToCoord(dstSize, i);
-        int2 ca = { coord.x * 2 + 0, coord.y * 2 + 0 };
-        int2 cb = { coord.x * 2 + 1, coord.y * 2 + 0 };
-        int2 cc = { coord.x * 2 + 0, coord.y * 2 + 1 };
-        int2 cd = { coord.x * 2 + 1, coord.y * 2 + 1 };
-
-        i32 ia = Clamp(srcSize, ca);
-        i32 ib = Clamp(srcSize, cb);
-        i32 ic = Clamp(srcSize, cc);
-        i32 id = Clamp(srcSize, cd);
-
-        dstMip[i] = 0.25f * srcMip[ia] + 0.25f * srcMip[ib] + 0.25f * srcMip[ic] + 0.25f * srcMip[id];
+        int2 c = i2_mulvs(IndexToCoord(dstSize, i), 2);
+        i32 ia = Clamp(srcSize, i2_v(c.x + 0, c.y + 0));
+        i32 ib = Clamp(srcSize, i2_v(c.x + 1, c.y + 0));
+        i32 ic = Clamp(srcSize, i2_v(c.x + 0, c.y + 1));
+        i32 id = Clamp(srcSize, i2_v(c.x + 1, c.y + 1));
+        float v0 = (srcMip[ia] + srcMip[ib]) * 0.5f;
+        float v1 = (srcMip[ic] + srcMip[id]) * 0.5f;
+        float v = (v0 + v1) * 0.5f;
+        dstMip[i] = v;
     }
 }
 

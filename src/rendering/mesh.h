@@ -4,7 +4,6 @@
 #include "math/types.h"
 #include "common/guid.h"
 #include "common/dbytes.h"
-#include "rendering/vulkan/vkr.h"
 
 PIM_C_BEGIN
 
@@ -23,11 +22,10 @@ typedef struct dmeshid_s
 
 typedef struct mesh_s
 {
-    float4* positions;
-    float4* normals;
-    float4* uvs;
+    float4* pim_noalias positions;
+    float4* pim_noalias normals;
+    float4* pim_noalias uvs;
     i32 length;
-    vkrMesh vkrmesh;
 } mesh_t;
 
 #define kMeshVersion 5
@@ -41,7 +39,6 @@ typedef struct dmesh_s
 void mesh_sys_init(void);
 void mesh_sys_update(void);
 void mesh_sys_shutdown(void);
-void mesh_sys_vkfree(void);
 void mesh_sys_gui(bool* pEnabled);
 
 bool mesh_new(mesh_t* mesh, guid_t name, meshid_t* idOut);

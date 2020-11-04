@@ -14,9 +14,10 @@ struct PerCamera
 
 struct VSInput
 {
-    float4 positionOS : POSITION;
-    float4 normalOS : NORMAL;
+    float4 positionWS : POSITION;
+    float4 normalWS : NORMAL;
     float4 uv01 : TEXCOORD0;
+    uint4 texIndices : TEXCOORD1;
 };
 
 struct PSInput
@@ -25,26 +26,13 @@ struct PSInput
     float3 positionWS : TEXCOORD0;
     float4 uv01 : TEXCOORD1;
     float3x3 TBN : TEXCOORD2;
-    nointerpolation uint lmIndex : TEXCOORD3;
+    nointerpolation uint4 texIndices : TEXCOORD3;
 };
 
 struct PSOutput
 {
     float4 color : SV_Target0;
     half luminance : SV_Target1;
-};
-
-[[vk::push_constant]]
-cbuffer push_constants
-{
-    float4x4 localToWorld;
-    float4 IMc0;
-    float4 IMc1;
-    float4 IMc2;
-    float4 flatRome;
-    uint kAlbedoIndex;
-    uint kRomeIndex;
-    uint kNormalIndex;
 };
 
 [[vk::binding(1)]]
@@ -55,32 +43,29 @@ cbuffer cameraData
 
 PSInput VSMain(VSInput input)
 {
-    float4 positionOS = float4(input.positionOS.xyz, 1.0);
-    float4 positionWS = mul(localToWorld, positionOS);
+    float4 positionWS = float4(input.positionWS.xyz, 1.0);
     float4 positionCS = mul(cameraData.worldToClip, positionWS);
-    float3x3 IM = float3x3(IMc0.xyz, IMc1.xyz, IMc2.xyz);
-    float3 normalWS = mul(IM, input.normalOS.xyz);
-    float3x3 TBN = NormalToTBN(normalWS);
 
     PSInput output;
     output.positionCS = positionCS;
     output.positionWS = positionWS.xyz;
-    output.TBN = TBN;
+    output.TBN = NormalToTBN(input.normalWS.xyz);
     output.uv01 = input.uv01;
-    output.lmIndex = (uint)input.normalOS.w;
+    output.texIndices = input.texIndices;
     return output;
 }
 
 PSOutput PSMain(PSInput input)
 {
-    uint ai = kAlbedoIndex;
-    uint ri = kRomeIndex;
-    uint ni = kNormalIndex;
+    uint ai = input.texIndices.x;
+    uint ri = input.texIndices.y;
+    uint ni = input.texIndices.z;
+    uint li = input.texIndices.w;
     float2 uv0 = input.uv01.xy;
 
     float3 albedo = SampleTable(ai, uv0).xyz;
     albedo = max(kEpsilon, albedo);
-    float4 rome = SampleTable(ri, uv0) * flatRome;
+    float4 rome = SampleTable(ri, uv0);
     float3 normalTS = SampleTable(ni, uv0).xyz;
 
     normalTS = normalize(normalTS * 2.0 - 1.0);
@@ -94,7 +79,7 @@ PSOutput PSMain(PSInput input)
     float occlusion = rome.y;
     float metallic = rome.z;
     float emission = rome.w;
-    float3 light = 0.0;
+    float3 light = 0.5 * albedo;
     {
         float3 emissive = UnpackEmission(albedo, emission);
         light += emissive;
@@ -107,12 +92,12 @@ PSOutput PSMain(PSInput input)
         //light += direct;
     }
     {
-        float2 uv1 = input.uv01.zw;
-        uint lmIndex = GetLightmapIndex(cameraData.lmBegin, input.lmIndex);
-        float3 R = reflect(-V, N);
-        GISample gi = SampleLightmap(lmIndex, uv1, input.TBN, N, R);
-        float3 indirect = IndirectBRDF(V, N, gi.diffuse, gi.specular, albedo, roughness, metallic, occlusion);
-        light += indirect;
+        //float2 uv1 = input.uv01.zw;
+        //uint lmIndex = GetLightmapIndex(cameraData.lmBegin, li);
+        //float3 R = reflect(-V, N);
+        //GISample gi = SampleLightmap(lmIndex, uv1, input.TBN, N, R);
+        //float3 indirect = IndirectBRDF(V, N, gi.diffuse, gi.specular, albedo, roughness, metallic, occlusion);
+        //light += indirect;
     }
 
     PSOutput output;

@@ -14,6 +14,12 @@ PIM_FWD_DECL(GLFWwindow);
 PIM_DECL_HANDLE(VmaAllocator);
 PIM_DECL_HANDLE(VmaAllocation);
 
+typedef struct textureid_s
+{
+    u32 index : 24;
+    u32 version : 8;
+} textureid_t;
+
 typedef enum
 {
     kMaxSwapchainLen = 3,
@@ -62,9 +68,10 @@ typedef enum
 
 typedef enum
 {
-    vkrMeshStream_Position, // float4; xyz=positionOS
-    vkrMeshStream_Normal,   // float4; xyz=normalOS, w=uv1 image index
-    vkrMeshStream_Uv01,     // float4; xy=uv0, zw=uv1
+    vkrMeshStream_Position,     // float4; xyz=positionOS
+    vkrMeshStream_Normal,       // float4; xyz=normalOS, w=uv1 image index
+    vkrMeshStream_Uv01,         // float4; xy=uv0, zw=uv1
+    vkrMeshStream_TexIndices,   // int4; albedo, rome, normal, lightmap index
 
     vkrMeshStream_COUNT
 } vkrMeshStream;
@@ -145,7 +152,6 @@ typedef struct vkrMesh
 {
     vkrBuffer buffer;
     i32 vertCount;
-    i32 indexCount;
 } vkrMesh;
 
 typedef struct vkrImage
@@ -167,7 +173,6 @@ typedef struct vkrTexture2D
     vkrImage image;
     VkSampler sampler;
     VkImageView view;
-    i32 slot;
 } vkrTexture2D;
 
 typedef struct vkrAttachment
@@ -364,7 +369,6 @@ typedef struct vkrTexTable
 {
     vkrTexture2D black;
     VkDescriptorImageInfo table[kTextureDescriptors];
-    i32 width;
 } vkrTexTable;
 
 typedef struct vkrPassContext
@@ -417,14 +421,12 @@ typedef struct vkrScreenBlit
     i32 height;
 } vkrScreenBlit;
 
-typedef struct vkrDepthPc
-{
-    float4x4 localToClip;
-} vkrDepthPc;
-
 typedef struct vkrDepthPass
 {
     vkrPass pass;
+    vkrBuffer stagebuf;
+    vkrBuffer meshbuf;
+    i32 vertCount;
 } vkrDepthPass;
 
 typedef struct vkrPerCamera
@@ -466,7 +468,7 @@ typedef struct vkrUIPass
     vkrPass pass;
     vkrBuffer vertbufs[kFramesInFlight];
     vkrBuffer indbufs[kFramesInFlight];
-    vkrTexture2D font;
+    textureid_t font;
 } vkrUIPass;
 
 typedef struct vkrExposure

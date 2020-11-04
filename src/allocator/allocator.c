@@ -63,7 +63,7 @@ static bool i32_is_aligned(i32 bytes)
 
 static bool valid_type(i32 type)
 {
-    return (u32)type < (u32)EAlloc_Count;
+    return (u32)type < (u32)EAlloc_COUNT;
 }
 
 static bool valid_tid(i32 tid)
