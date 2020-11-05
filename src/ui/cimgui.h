@@ -61,92 +61,128 @@ typedef struct ImDrawData ImDrawData;
 typedef struct ImDrawCmd ImDrawCmd;
 typedef struct ImDrawChannel ImDrawChannel;
 
-typedef signed int ImTextureID;
-typedef unsigned int ImGuiID;
-typedef unsigned short ImWchar;
-typedef int ImGuiCol;
-typedef int ImGuiCond;
-typedef int ImGuiDataType;
-typedef int ImGuiDir;
-typedef int ImGuiKey;
-typedef int ImGuiNavInput;
-typedef int ImGuiMouseButton;
-typedef int ImGuiMouseCursor;
-typedef int ImGuiStyleVar;
-typedef int ImDrawCornerFlags;
-typedef int ImDrawListFlags;
-typedef int ImFontAtlasFlags;
-typedef int ImGuiBackendFlags;
-typedef int ImGuiColorEditFlags;
-typedef int ImGuiConfigFlags;
-typedef int ImGuiComboFlags;
-typedef int ImGuiDragDropFlags;
-typedef int ImGuiFocusedFlags;
-typedef int ImGuiHoveredFlags;
-typedef int ImGuiInputTextFlags;
-typedef int ImGuiSelectableFlags;
-typedef int ImGuiTabBarFlags;
-typedef int ImGuiTabItemFlags;
-typedef int ImGuiTreeNodeFlags;
-typedef int ImGuiWindowFlags;
-typedef int (*ImGuiInputTextCallback)(struct ImGuiInputTextCallbackData *data);
+typedef u32 ImTextureID;
+typedef u16 ImDrawIdx;
+typedef u32 ImGuiID;
+typedef u16 ImWchar;
+typedef i32 ImGuiCol;
+typedef i32 ImGuiCond;
+typedef i32 ImGuiDataType;
+typedef i32 ImGuiDir;
+typedef i32 ImGuiKey;
+typedef i32 ImGuiNavInput;
+typedef i32 ImGuiMouseButton;
+typedef i32 ImGuiMouseCursor;
+typedef i32 ImGuiStyleVar;
+typedef i32 ImDrawCornerFlags;
+typedef i32 ImDrawListFlags;
+typedef i32 ImFontAtlasFlags;
+typedef i32 ImGuiBackendFlags;
+typedef i32 ImGuiColorEditFlags;
+typedef i32 ImGuiConfigFlags;
+typedef i32 ImGuiComboFlags;
+typedef i32 ImGuiDragDropFlags;
+typedef i32 ImGuiFocusedFlags;
+typedef i32 ImGuiHoveredFlags;
+typedef i32 ImGuiInputTextFlags;
+typedef i32 ImGuiSelectableFlags;
+typedef i32 ImGuiTabBarFlags;
+typedef i32 ImGuiTabItemFlags;
+typedef i32 ImGuiTreeNodeFlags;
+typedef i32 ImGuiWindowFlags;
+typedef i32(*ImGuiInputTextCallback)(struct ImGuiInputTextCallbackData *data);
 typedef void (*ImGuiSizeCallback)(struct ImGuiSizeCallbackData* data);
 typedef void (*ImDrawCallback)(const struct ImDrawList* parent_list, const struct ImDrawCmd* cmd);
-typedef unsigned short ImDrawIdx;
 
 typedef struct ImVector
-{int Size;int Capacity;void* Data;} ImVector;
+{
+    i32 Size; i32 Capacity; void* Data;
+} ImVector;
 
 typedef struct ImVector_float
-{int Size;int Capacity;float* Data;} ImVector_float;
+{
+    i32 Size; i32 Capacity; float* Data;
+} ImVector_float;
 
 typedef struct ImVector_ImWchar
-{int Size;int Capacity;ImWchar* Data;} ImVector_ImWchar;
+{
+    i32 Size; i32 Capacity; ImWchar* Data;
+} ImVector_ImWchar;
 
 typedef struct ImVector_ImDrawVert
-{int Size;int Capacity; struct ImDrawVert* Data;} ImVector_ImDrawVert;
+{
+    i32 Size; i32 Capacity; struct ImDrawVert* Data;
+} ImVector_ImDrawVert;
 
 typedef struct ImVector_ImFontGlyph
-{int Size;int Capacity; struct ImFontGlyph* Data;} ImVector_ImFontGlyph;
+{
+    i32 Size; i32 Capacity; struct ImFontGlyph* Data;
+} ImVector_ImFontGlyph;
 
 typedef struct ImVector_ImGuiTextRange
-{int Size;int Capacity; struct ImGuiTextRange* Data;} ImVector_ImGuiTextRange;
+{
+    i32 Size; i32 Capacity; struct ImGuiTextRange* Data;
+} ImVector_ImGuiTextRange;
 
 typedef struct ImVector_ImGuiStoragePair
-{int Size;int Capacity; struct ImGuiStoragePair* Data;} ImVector_ImGuiStoragePair;
+{
+    i32 Size; i32 Capacity; struct ImGuiStoragePair* Data;
+} ImVector_ImGuiStoragePair;
 
 typedef struct ImVector_ImDrawChannel
-{int Size;int Capacity; struct ImDrawChannel* Data;} ImVector_ImDrawChannel;
+{
+    i32 Size; i32 Capacity; struct ImDrawChannel* Data;
+} ImVector_ImDrawChannel;
 
 typedef struct ImVector_char
-{int Size;int Capacity;char* Data;} ImVector_char;
+{
+    i32 Size; i32 Capacity; char* Data;
+} ImVector_char;
 
 typedef struct ImVector_ImU32
-{int Size;int Capacity;ImU32* Data;} ImVector_ImU32;
+{
+    i32 Size; i32 Capacity; ImU32* Data;
+} ImVector_ImU32;
 
 typedef struct ImVector_ImFontAtlasCustomRect
-{int Size;int Capacity; struct ImFontAtlasCustomRect* Data;} ImVector_ImFontAtlasCustomRect;
+{
+    i32 Size; i32 Capacity; struct ImFontAtlasCustomRect* Data;
+} ImVector_ImFontAtlasCustomRect;
 
 typedef struct ImVector_ImTextureID
-{int Size;int Capacity;ImTextureID* Data;} ImVector_ImTextureID;
+{
+    i32 Size; i32 Capacity; ImTextureID* Data;
+} ImVector_ImTextureID;
 
 typedef struct ImVector_ImFontConfig
-{int Size;int Capacity; struct ImFontConfig* Data;} ImVector_ImFontConfig;
+{
+    i32 Size; i32 Capacity; struct ImFontConfig* Data;
+} ImVector_ImFontConfig;
 
 typedef struct ImVector_ImFontPtr
-{int Size;int Capacity; struct ImFont** Data;} ImVector_ImFontPtr;
+{
+    i32 Size; i32 Capacity; struct ImFont** Data;
+} ImVector_ImFontPtr;
 
 typedef struct ImVector_ImDrawCmd
-{int Size;int Capacity; struct ImDrawCmd* Data;} ImVector_ImDrawCmd;
+{
+    i32 Size; i32 Capacity; struct ImDrawCmd* Data;
+} ImVector_ImDrawCmd;
 
 typedef struct ImVector_ImVec4
-{int Size;int Capacity;ImVec4* Data;} ImVector_ImVec4;
+{
+    i32 Size; i32 Capacity; ImVec4* Data;
+} ImVector_ImVec4;
 
 typedef struct ImVector_ImDrawIdx
-{int Size;int Capacity;ImDrawIdx* Data;} ImVector_ImDrawIdx;
+{
+    i32 Size; i32 Capacity; ImDrawIdx* Data;
+} ImVector_ImDrawIdx;
 
 typedef struct ImVector_ImVec2
-{int Size;int Capacity;ImVec2* Data;} ImVector_ImVec2;
+{
+    i32 Size; i32 Capacity; ImVec2* Data;
+} ImVector_ImVec2;
 
 typedef enum {
     ImGuiWindowFlags_None = 0,

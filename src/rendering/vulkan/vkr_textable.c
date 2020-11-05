@@ -10,111 +10,174 @@
 #include "math/scalar.h"
 #include <string.h>
 
-bool vkrTexTable_New(vkrTexTable* table)
+typedef struct vkrTexTable
 {
-    ASSERT(table);
+    queue_t freelist;
+    i32 length;
+    u8 versions[kTextureDescriptors];
+    vkrTexture2D textures[kTextureDescriptors];
+    VkDescriptorImageInfo descriptors[kTextureDescriptors];
+} vkrTexTable;
+
+static vkrTexTable ms_table;
+
+bool vkrTexTable_Init(void)
+{
+    vkrTexTable *const table = &ms_table;
     memset(table, 0, sizeof(*table));
+
+    queue_create(&table->freelist, sizeof(u32), EAlloc_Perm);
+
+    // slot 0 is always a 1x1 black texture
+    table->length = 1;
     const u32 blackTexel = 0x0;
     if (!vkrTexture2D_New(
-        &table->black,
+        &table->textures[0],
         1, 1,
         VK_FORMAT_R8G8B8A8_SRGB,
         &blackTexel, sizeof(blackTexel)))
     {
         return false;
     }
-    const vkrTexture2D* nullTex = &table->black;
-    VkDescriptorImageInfo* infos = table->table;
+
+    vkrTexture2D const *const black = &table->textures[0];
+    VkDescriptorImageInfo *const infos = table->descriptors;
     for (i32 i = 0; i < kTextureDescriptors; ++i)
     {
-        infos[i].imageLayout = nullTex->image.layout;
-        infos[i].imageView = nullTex->view;
-        infos[i].sampler = nullTex->sampler;
+        infos[i].imageLayout = black->image.layout;
+        infos[i].imageView = black->view;
+        infos[i].sampler = black->sampler;
     }
     return true;
 }
 
-void vkrTexTable_Del(vkrTexTable* table)
+void vkrTexTable_Shutdown(void)
 {
-    if (table)
+    vkrTexTable *const table = &ms_table;
+    queue_destroy(&table->freelist);
+    for (i32 i = 0; i < table->length; ++i)
     {
-        vkrTexture2D_Del(&table->black);
-        memset(table, 0, sizeof(*table));
+        vkrTexture2D_Del(&table->textures[i]);
     }
+    memset(table, 0, sizeof(*table));
 }
 
-void vkrTexTable_Update(vkrTexTable* table)
+void vkrTexTable_Update(void)
 {
-    const table_t* cpuTable = texture_table();
-    const texture_t* textures = cpuTable->values;
-    vkrTexture2D const *const black = &table->black;
-    VkDescriptorImageInfo *const descriptors = table->table;
-    const i32 minWidth = i1_min(cpuTable->width, kTextureDescriptors);
-    i32 i = 0;
-    for (; i < minWidth; ++i)
+    vkrTexture2D const *const textures = ms_table.textures;
+    VkDescriptorImageInfo *const descriptors = ms_table.descriptors;
+    for (i32 i = 0; i < kTextureDescriptors; ++i)
     {
-        vkrTexture2D const* gpuTex = black;
-        if (textures[i].vkrtex.image.handle)
+        if (textures[i].view)
         {
-            gpuTex = &textures[i].vkrtex;
+            descriptors[i].imageLayout = textures[i].image.layout;
+            descriptors[i].imageView = textures[i].view;
+            descriptors[i].sampler = textures[i].sampler;
         }
-        descriptors[i].imageLayout = gpuTex->image.layout;
-        descriptors[i].imageView = gpuTex->view;
-        descriptors[i].sampler = gpuTex->sampler;
-    }
-    for (; i < kTextureDescriptors; ++i)
-    {
-        descriptors[i].imageLayout = black->image.layout;
-        descriptors[i].imageView = black->view;
-        descriptors[i].sampler = black->sampler;
+        else
+        {
+            descriptors[i].imageLayout = textures[0].image.layout;
+            descriptors[i].imageView = textures[0].view;
+            descriptors[i].sampler = textures[0].sampler;
+        }
     }
 }
 
 ProfileMark(pm_write, vkrTexTable_Write)
-void vkrTexTable_Write(const vkrTexTable* table, VkDescriptorSet set)
+void vkrTexTable_Write(VkDescriptorSet set)
 {
     ProfileBegin(pm_write);
 
+    vkrTexTable *const table = &ms_table;
     ASSERT(set);
     vkrDesc_WriteImageTable(
         set,
         2, // must match TextureTable.hlsl
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         kTextureDescriptors,
-        table->table);
+        table->descriptors);
 
     ProfileEnd(pm_write);
 }
 
-void vkrTexTable_WriteSlot(
-    vkrTexTable* table,
-    i32 slot,
-    VkSampler sampler,
-    VkImageView view,
-    VkImageLayout layout)
+bool vkrTexTable_Exists(vkrTextureId id)
 {
-    ASSERT(slot >= 0);
-    ASSERT(slot < kTextureDescriptors);
-    ASSERT(sampler);
-    ASSERT(view);
-    ASSERT(layout);
-    if (slot > 0)
-    {
-        table->table[slot].sampler = sampler;
-        table->table[slot].imageView = view;
-        table->table[slot].imageLayout = layout;
-    }
+    vkrTexTable const *const table = &ms_table;
+    i32 slot = id.index;
+    return (slot > 0) && (table->versions[slot] == id.version);
 }
 
-void vkrTexTable_ClearSlot(vkrTexTable* table, i32 slot)
+vkrTextureId vkrTexTable_Alloc(
+    i32 width,
+    i32 height,
+    VkFormat format,
+    const void* data)
 {
-    ASSERT(slot >= 0);
-    ASSERT(slot < kTextureDescriptors);
-    if (slot >= 0)
+    vkrTexTable *const table = &ms_table;
+
+    queue_t *const freelist = &table->freelist;
+    u32 slot = 0;
+    if (!queue_trypop(freelist, &slot, sizeof(slot)))
     {
-        const vkrTexture2D* black = &table->black;
-        table->table[slot].imageLayout = black->image.layout;
-        table->table[slot].imageView = black->view;
-        table->table[slot].sampler = black->sampler;
+        if (table->length < kTextureDescriptors)
+        {
+            slot = table->length++;
+        }
     }
+    if (slot <= 0)
+    {
+        ASSERT(false);
+        return (vkrTextureId){ 0 };
+    }
+
+    vkrTexture2D *const tex = &table->textures[slot];
+    i32 bpp = vkrFormatToBpp(format);
+    i32 bytes = (width * height * bpp) / 8;
+    if (!vkrTexture2D_New(tex, width, height, format, data, data ? bytes : 0))
+    {
+        queue_push(freelist, &slot, sizeof(slot));
+        ASSERT(false);
+        return (vkrTextureId) { 0 };
+    }
+
+    VkDescriptorImageInfo *const desc = &table->descriptors[slot];
+    desc->imageLayout = tex->image.layout;
+    desc->imageView = tex->view;
+    desc->sampler = tex->sampler;
+
+    vkrTextureId id = { 0 };
+    id.index = slot;
+    id.version = ++(table->versions[slot]);
+    return id;
+}
+
+bool vkrTexTable_Free(vkrTextureId id)
+{
+    vkrTexTable *const table = &ms_table;
+
+    i32 slot = id.index;
+    if (vkrTexTable_Exists(id))
+    {
+        table->versions[slot]++;
+        queue_push(&table->freelist, &slot, sizeof(slot));
+
+        vkrTexture2D_Del(&table->textures[slot]);
+        vkrTexture2D const *const black = &table->textures[0];
+        table->descriptors[slot].imageLayout = black->image.layout;
+        table->descriptors[slot].imageView = black->view;
+        table->descriptors[slot].sampler = black->sampler;
+        return true;
+    }
+    return false;
+}
+
+VkFence vkrTexTable_Upload(vkrTextureId id, const void* data, i32 bytes)
+{
+    vkrTexTable *const table = &ms_table;
+
+    if (vkrTexTable_Exists(id))
+    {
+        return vkrTexture2D_Upload(&table->textures[id.index], data, bytes);
+    }
+    return NULL;
 }

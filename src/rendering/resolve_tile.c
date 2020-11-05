@@ -15,7 +15,7 @@ typedef struct resolve_s
     TonemapId tmapId;
 } resolve_t;
 
-pim_inline u32 VEC_CALL ToColor(prng_t* rng, float4 linear)
+pim_inline u32 VEC_CALL ToColor(prng_t *const pim_noalias rng, float4 linear)
 {
     const float4 kWeight = { 1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f, 0.0f };
     float4 srgb = f4_tosrgb(linear);

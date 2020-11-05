@@ -260,12 +260,13 @@ static vkrOpaquePass_Execute(const vkrPassContext* ctx, vkrOpaquePass* pass)
 {
     ProfileBegin(pm_execute);
 
+    const u32 syncIndex = ctx->syncIndex;
     VkCommandBuffer cmd = ctx->cmd;
     vkrCmdViewport(cmd, vkrSwapchain_GetViewport(&g_vkr.chain), vkrSwapchain_GetRect(&g_vkr.chain));
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.pipeline);
     vkrCmdBindDescSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.layout, 1, &pass->pass.sets[ctx->syncIndex]);
 
-    VkBuffer mesh = g_vkr.mainPass.depth.meshbuf.handle;
+    VkBuffer mesh = g_vkr.mainPass.depth.meshbufs[syncIndex].handle;
     const i32 vertCount = g_vkr.mainPass.depth.vertCount;
     const i32 stride = vertCount * sizeof(float4);
     const VkBuffer buffers[] =
@@ -313,7 +314,7 @@ static vkrOpaquePass_Update(const vkrPassContext* passCtx, vkrOpaquePass* pass)
         i32 lmBegin = kTextureDescriptors - kGiDirections;
         if (lmpack->lmCount > 0)
         {
-            lmBegin = lmpack->lightmaps[0].ids[0].index;
+            lmBegin = lmpack->lightmaps[0].slots[0].index;
         }
 
         vkrPerCamera* perCamera = vkrBuffer_Map(camBuffer);
@@ -351,7 +352,7 @@ static vkrOpaquePass_Update(const vkrPassContext* passCtx, vkrOpaquePass* pass)
     };
     vkrDesc_WriteBindings(NELEM(bufferBindings), bufferBindings);
 
-    vkrTexTable_Write(&g_vkr.texTable, set);
+    vkrTexTable_Write(set);
 
     ProfileEnd(pm_update);
 }

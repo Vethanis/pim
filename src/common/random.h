@@ -14,7 +14,7 @@ void prng_set(prng_t rng);
 #pragma warning(disable : 4146)
 #pragma warning(disable : 4244)
 
-pim_inline u32 prng_u32(prng_t* rng)
+pim_inline u32 prng_u32(prng_t *const pim_noalias rng)
 {
     u64 oldstate = rng->state;
     rng->state = oldstate * 6364136223846793005ull + 1ull;
@@ -25,17 +25,17 @@ pim_inline u32 prng_u32(prng_t* rng)
 
 #pragma warning(pop)
 
-pim_inline bool prng_bool(prng_t* rng)
+pim_inline bool prng_bool(prng_t *const pim_noalias rng)
 {
     return prng_u32(rng) & 1u;
 }
 
-pim_inline i32 prng_i32(prng_t* rng)
+pim_inline i32 prng_i32(prng_t *const pim_noalias rng)
 {
     return (i32)(0x7fffffff & prng_u32(rng));
 }
 
-pim_inline u64 prng_u64(prng_t* rng)
+pim_inline u64 prng_u64(prng_t *const pim_noalias rng)
 {
     u64 y = prng_u32(rng);
     y <<= 32;
@@ -43,7 +43,7 @@ pim_inline u64 prng_u64(prng_t* rng)
     return y;
 }
 
-pim_inline float VEC_CALL prng_f32(prng_t* rng)
+pim_inline float VEC_CALL prng_f32(prng_t *const pim_noalias rng)
 {
     u32 x = prng_u32(rng) & 0xffffff;
     const float kScale = 1.0f / (1 << 24);

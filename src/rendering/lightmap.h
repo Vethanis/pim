@@ -26,7 +26,7 @@ typedef struct crate_s crate_t;
 
 typedef struct lightmap_s
 {
-    textureid_t ids[kGiDirections];
+    vkrTextureId slots[kGiDirections];
     float4* pim_noalias probes[kGiDirections];
     float3* pim_noalias position;
     float3* pim_noalias normal;

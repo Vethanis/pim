@@ -33,7 +33,7 @@ static void vkrImGui_SetTexture(
     const vkrUIPass* imgui,
     VkCommandBuffer cmd,
     const ImDrawData* draw_data,
-    u32 id);
+    vkrTextureId id);
 
 // ----------------------------------------------------------------------------
 
@@ -88,30 +88,11 @@ bool vkrUIPass_New(vkrUIPass* imgui, VkRenderPass renderPass)
         i32 height = 0;
         i32 bpp = 0;
         ImFontAtlas_GetTexDataAsRGBA32(io->Fonts, &pixels, &width, &height, &bpp);
-        const i32 upload_size = width * height * bpp;
 
         ASSERT(pixels);
-        ASSERT(upload_size);
-
-        texture_t tex = { 0 };
-        tex.size.x = width;
-        tex.size.y = height;
-        tex.texels = tex_malloc(upload_size);
-        memcpy(tex.texels, pixels, upload_size);
-        textureid_t slot = { 0 };
-        if (!texture_new(
-            &tex,
-            VK_FORMAT_R8G8B8A8_SRGB,
-            guid_str("ImGuiFont"),
-            &slot))
-        {
-            success = false;
-            goto cleanup;
-        }
+        vkrTextureId slot = vkrTexTable_Alloc(width, height, VK_FORMAT_R8G8B8A8_SRGB, pixels);
         imgui->font = slot;
-
-        // Store our identifier
-        memcpy(&io->Fonts[0].TexID, &slot, sizeof(slot));
+        io->Fonts[0].TexID = *(u32*)&slot;
     }
 
     VkPipelineShaderStageCreateInfo shaders[2] = { 0 };
@@ -250,7 +231,7 @@ void vkrUIPass_Del(vkrUIPass* pass)
 {
     if (pass)
     {
-        texture_release(pass->font);
+        vkrTexTable_Free(pass->font);
         for (i32 i = 0; i < kFramesInFlight; ++i)
         {
             vkrBuffer_Del(&pass->vertbufs[i]);
@@ -294,7 +275,7 @@ static void vkrImGui_SetupRenderState(
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             imgui->pass.pipeline);
         const VkDescriptorSet descSets[] = { imgui->pass.sets[syncIndex] };
-        vkrTexTable_Write(&g_vkr.texTable, descSets[0]);
+        vkrTexTable_Write(descSets[0]);
         vkCmdBindDescriptorSets(
             cmd,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -331,7 +312,7 @@ static void vkrImGui_SetupRenderState(
         };
         vkCmdSetViewport(cmd, 0, 1, &viewport);
     }
-    vkrImGui_SetTexture(imgui, cmd, draw_data, imgui->font.index);
+    vkrImGui_SetTexture(imgui, cmd, draw_data, imgui->font);
 
     ProfileEnd(pm_setuprenderstate);
 }
@@ -399,17 +380,25 @@ static void vkrImGui_SetTexture(
     const vkrUIPass* imgui,
     VkCommandBuffer cmd,
     const ImDrawData* draw_data,
-    u32 id)
+    vkrTextureId id)
 {
-    textureid_t font = imgui->font;
-    u32 discardAlpha = id != font.index;
-    float2 sc = { 2.0f / draw_data->DisplaySize.x, 2.0f / draw_data->DisplaySize.y };
-    float2 tr = { -1.0f - draw_data->DisplayPos.x * sc.x, -1.0f - draw_data->DisplayPos.y * sc.y };
-    vkrUIPassPc constants =
+    vkrTextureId font = imgui->font;
+    u32 discardAlpha = 0;
+    u32 index = 0;
+    if (vkrTexTable_Exists(id))
+    {
+        index = id.index;
+        discardAlpha = id.asint != font.asint;
+    }
+
+    const float2 sc = { 2.0f / draw_data->DisplaySize.x, 2.0f / draw_data->DisplaySize.y };
+    const float2 tr = { -1.0f - draw_data->DisplayPos.x * sc.x, -1.0f - draw_data->DisplayPos.y * sc.y };
+
+    const vkrUIPassPc constants =
     {
         .scale = sc,
         .translate = tr,
-        .textureIndex = id,
+        .textureIndex = index,
         .discardAlpha = discardAlpha,
     };
     vkCmdPushConstants(
@@ -480,13 +469,13 @@ static void vkrImGui_RenderDrawData(
                 }
                 else
                 {
-                    vkrImGui_SetTexture(imgui, cmd, draw_data, pcmd->TextureId);
+                    vkrImGui_SetTexture(imgui, cmd, draw_data, *(vkrTextureId*)&pcmd->TextureId);
                     userCallback(cmdList, pcmd);
                 }
             }
             else
             {
-                vkrImGui_SetTexture(imgui, cmd, draw_data, pcmd->TextureId);
+                vkrImGui_SetTexture(imgui, cmd, draw_data, *(vkrTextureId*)&pcmd->TextureId);
                 // Project scissor/clipping rectangles into framebuffer space
                 ImVec4 clip_rect =
                 {

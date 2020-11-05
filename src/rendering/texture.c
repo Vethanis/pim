@@ -16,6 +16,7 @@
 #include "io/fstr.h"
 #include "threading/task.h"
 #include "rendering/vulkan/vkr_texture.h"
+#include "rendering/vulkan/vkr_textable.h"
 #include "assets/crate.h"
 #include <string.h>
 
@@ -46,10 +47,7 @@ static bool IsCurrent(textureid_t id)
 static void FreeTexture(texture_t* tex)
 {
     pim_free(tex->texels);
-    if (g_vkr.inst)
-    {
-        vkrTexture2D_Del(&tex->vkrtex);
-    }
+    vkrTexTable_Free(tex->slot);
     memset(tex, 0, sizeof(*tex));
 }
 
@@ -90,19 +88,6 @@ void texture_sys_shutdown(void)
     table_del(&ms_table);
 }
 
-void texture_sys_vkfree(void)
-{
-    texture_t* pim_noalias textures = ms_table.values;
-    const i32 width = ms_table.width;
-    for (i32 i = 0; i < width; ++i)
-    {
-        if (textures[i].texels)
-        {
-            vkrTexture2D_Del(&textures[i].vkrtex);
-        }
-    }
-}
-
 bool texture_loadat(const char* path, VkFormat format, textureid_t* idOut)
 {
     i32 width = 0;
@@ -133,30 +118,21 @@ bool texture_new(texture_t* tex, VkFormat format, guid_t name, textureid_t* idOu
     genid id = { 0, 0 };
     if (tex->texels)
     {
+        tex->format = format;
         if (table_find(&ms_table, name, &id))
         {
             table_retain(&ms_table, id);
         }
         else
         {
-            i32 width = tex->size.x;
-            i32 height = tex->size.y;
-            i32 bpp = vkrFormatToBpp(format);
-            i32 bytes = (bpp * width * height) / 8;
-            ASSERT(bytes > 0);
-            if (g_vkr.inst)
+            tex->slot = vkrTexTable_Alloc(tex->size.x, tex->size.y, format, tex->texels);
+            added = vkrTexTable_Exists(tex->slot);
+            ASSERT(added);
+            if (added)
             {
-                added = vkrTexture2D_New(
-                    &tex->vkrtex,
-                    width,
-                    height,
-                    format,
-                    tex->texels,
-                    bytes);
+                added = table_add(&ms_table, name, tex, &id);
                 ASSERT(added);
             }
-            added = table_add(&ms_table, name, tex, &id);
-            ASSERT(added);
         }
     }
     *idOut = ToTexId(id);
@@ -214,14 +190,14 @@ bool texture_save(crate_t* crate, textureid_t tid, guid_t* dst)
         const texture_t* textures = ms_table.values;
         const texture_t texture = textures[tid.index];
         const i32 len = texture.size.x * texture.size.y;
-        const i32 bpp = vkrFormatToBpp(texture.vkrtex.image.format);
+        const i32 bpp = vkrFormatToBpp(texture.format);
         const i32 texelBytes = (bpp * len) / 8;
         const i32 hdrBytes = sizeof(dtexture_t);
         dtexture_t* dtexture = tex_malloc(hdrBytes + texelBytes);
         if (dtexture)
         {
             dtexture->version = kTextureVersion;
-            dtexture->format = texture.vkrtex.image.format;
+            dtexture->format = texture.format;
             dtexture->size = texture.size;
             guid_get_name(*dst, ARGS(dtexture->name));
             memcpy(dtexture + 1, texture.texels, texelBytes);
@@ -608,7 +584,7 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
     return 0;
 }
 
-static void igTexture(const texture_t* tex, i32 slot)
+static void igTexture(const texture_t* tex)
 {
     if (!tex)
     {
@@ -618,7 +594,7 @@ static void igTexture(const texture_t* tex, i32 slot)
 
     const i32 width = tex->size.x;
     const i32 height = tex->size.y;
-    if (!tex->vkrtex.image.handle)
+    if (!vkrTexTable_Exists(tex->slot))
     {
         ASSERT(false);
         return;
@@ -643,7 +619,7 @@ static void igTexture(const texture_t* tex, i32 slot)
     const ImVec2 uv1 = { 1, 1 };
     const ImVec4 tint_col = { 1, 1, 1, 1 };
     const ImVec4 border_col = { 0, 0, 0, 0 };
-    igImage(slot, size, uv0, uv1, tint_col, border_col);
+    igImage(*(u32*)&tex->slot, size, uv0, uv1, tint_col, border_col);
 }
 
 ProfileMark(pm_OnGui, texture_sys_gui)
@@ -769,7 +745,7 @@ void texture_sys_gui(bool* pEnabled)
         if (validSelection)
         {
             igBegin("Selected Texture", NULL, 0);
-            igTexture(&textures[selection], selection);
+            igTexture(&textures[selection]);
             igEnd();
         }
         else

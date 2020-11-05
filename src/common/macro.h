@@ -108,6 +108,15 @@ typedef unsigned int                u32;
 typedef unsigned long long          u64;
 typedef u64                         usize;
 
+SASSERT(sizeof(i8) == 1);
+SASSERT(sizeof(u8) == 1);
+SASSERT(sizeof(i16) == 2);
+SASSERT(sizeof(u16) == 2);
+SASSERT(sizeof(i32) == 4);
+SASSERT(sizeof(u32) == 4);
+SASSERT(sizeof(i64) == 8);
+SASSERT(sizeof(u64) == 8);
+
 #ifndef NULL
     #ifdef __cplusplus
         #define NULL                0
