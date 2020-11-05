@@ -37,22 +37,23 @@ fstr_t fstr_open(const char* filename, const char* mode)
     return (fstr_t) { ptr };
 }
 
-void fstr_close(fstr_t* stream)
+bool fstr_close(fstr_t* stream)
 {
     ASSERT(stream);
     FILE* file = stream->handle;
     stream->handle = NULL;
     if (file)
     {
-        IsZero(fclose(file));
+        return IsZero(fclose(file)) == 0;
     }
+    return false;
 }
 
-void fstr_flush(fstr_t stream)
+bool fstr_flush(fstr_t stream)
 {
     FILE* file = stream.handle;
     ASSERT(file);
-    IsZero(fflush(file));
+    return IsZero(fflush(file)) == 0;
 }
 
 i32 fstr_read(fstr_t stream, void* dst, i32 size)
@@ -83,13 +84,13 @@ i32 fstr_write(fstr_t stream, const void* src, i32 size)
     return (ct == 1) ? size : 0;
 }
 
-void fstr_gets(fstr_t stream, char* dst, i32 size)
+bool fstr_gets(fstr_t stream, char* dst, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
     ASSERT(dst);
     ASSERT(size > 0);
-    NotNull(fgets(dst, size - 1, file));
+    return NotNull(fgets(dst, size - 1, file)) != NULL;
 }
 
 i32 fstr_puts(fstr_t stream, const char* src)
@@ -122,12 +123,12 @@ fstr_t fd_to_fstr(fd_t* pFD, const char* mode)
     return (fstr_t) { NotNull(ptr) };
 }
 
-void fstr_seek(fstr_t stream, i32 offset)
+bool fstr_seek(fstr_t stream, i32 offset)
 {
     FILE* file = stream.handle;
     ASSERT(file);
     ASSERT(offset >= 0);
-    NotNeg(fseek(file, offset, SEEK_SET));
+    return NotNeg(fseek(file, offset, SEEK_SET)) >= 0;
 }
 
 i32 fstr_tell(fstr_t stream)
@@ -145,13 +146,14 @@ fstr_t fstr_popen(const char* cmd, const char* mode)
     return (fstr_t) { NotNull(file) };
 }
 
-void fstr_pclose(fstr_t* pStream)
+bool fstr_pclose(fstr_t* pStream)
 {
     ASSERT(pStream);
     FILE* file = pStream->handle;
     pStream->handle = NULL;
     if (file)
     {
-        IsZero(_pclose(file));
+        return IsZero(_pclose(file)) == 0;
     }
+    return false;
 }

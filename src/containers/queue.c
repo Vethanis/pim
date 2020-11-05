@@ -18,10 +18,7 @@ void queue_destroy(queue_t* q)
 {
     ASSERT(q);
     pim_free(q->ptr);
-    q->ptr = NULL;
-    q->width = 0;
-    q->iRead = 0;
-    q->iWrite = 0;
+    memset(q, 0, sizeof(*q));
 }
 
 u32 queue_size(const queue_t* q)

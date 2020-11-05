@@ -198,12 +198,9 @@ bool vkrTexture2D_New(
         goto cleanup;
     }
 
-    tex->slot = vkrTexTable_AllocSlot(&g_vkr.texTable);
-
     if (bytes > 0)
     {
         vkrTexture2D_Upload(tex, data, bytes);
-        ASSERT(tex->slot > 0);
     }
 
 cleanup:
@@ -218,7 +215,6 @@ void vkrTexture2D_Del(vkrTexture2D* tex)
 {
     if (tex)
     {
-        vkrTexTable_ClearSlot(&g_vkr.texTable, tex->slot);
         if (tex->image.handle)
         {
             // create pipeline barrier to safely release resources
@@ -416,8 +412,6 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
     vkrBuffer_Release(&stagebuf, fence);
 
     tex->image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    vkrTexTable_WriteSlot(&g_vkr.texTable, tex->slot, tex->sampler, tex->view, tex->image.layout);
 
     return fence;
 }

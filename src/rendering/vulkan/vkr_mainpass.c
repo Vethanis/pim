@@ -183,7 +183,7 @@ void vkrMainPass_Draw(
         rect,
         NELEM(clearValues),
         clearValues,
-        VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+        VK_SUBPASS_CONTENTS_INLINE);
     passCtx.subpass = 0;
 
     if (!r_sw)
@@ -191,7 +191,7 @@ void vkrMainPass_Draw(
         vkrDepthPass_Draw(&passCtx, &pass->depth);
     }
 
-    vkrCmdNextSubpass(cmd, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+    vkrCmdNextSubpass(cmd, VK_SUBPASS_CONTENTS_INLINE);
     passCtx.subpass++;
 
     if (!r_sw)
@@ -199,7 +199,7 @@ void vkrMainPass_Draw(
         vkrOpaquePass_Draw(&passCtx, &pass->opaque);
     }
 
-    vkrCmdNextSubpass(cmd, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+    vkrCmdNextSubpass(cmd, VK_SUBPASS_CONTENTS_INLINE);
     passCtx.subpass++;
 
     vkrUIPass_Draw(&passCtx, &pass->ui);

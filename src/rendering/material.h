@@ -22,8 +22,6 @@ typedef u32 matflag_t;
 
 typedef struct material_s
 {
-    float4 flatAlbedo;      // albedo multiplier
-    float4 flatRome;        // rome multiplier
     textureid_t albedo;     // rgba8 srgb (albedo, alpha)
     textureid_t rome;       // rgba8 srgb (roughness, occlusion, metallic, emission)
     textureid_t normal;     // rgba8 (tangent space xyz, packed as unorm)
@@ -36,8 +34,6 @@ typedef struct dmaterial_s
     dtextureid_t albedo;
     dtextureid_t rome;
     dtextureid_t normal;
-    float4 flatAlbedo;
-    float4 flatRome;
     matflag_t flags;
     float ior;
 } dmaterial_t;

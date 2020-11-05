@@ -97,8 +97,6 @@
 #define PIM_FWD_DECL(name)          typedef struct name name
 #define PIM_DECL_HANDLE(name)       typedef struct name##_T* name
 
-PIM_C_BEGIN
-
 typedef signed char                 i8;
 typedef signed short                i16;
 typedef signed int                  i32;
@@ -109,6 +107,15 @@ typedef unsigned short              u16;
 typedef unsigned int                u32;
 typedef unsigned long long          u64;
 typedef u64                         usize;
+
+SASSERT(sizeof(i8) == 1);
+SASSERT(sizeof(u8) == 1);
+SASSERT(sizeof(i16) == 2);
+SASSERT(sizeof(u16) == 2);
+SASSERT(sizeof(i32) == 4);
+SASSERT(sizeof(u32) == 4);
+SASSERT(sizeof(i64) == 8);
+SASSERT(sizeof(u64) == 8);
 
 #ifndef NULL
     #ifdef __cplusplus
@@ -130,10 +137,11 @@ typedef u64                         usize;
 
 typedef enum
 {
-	EAlloc_Perm = 0,
-	EAlloc_Texture,
+    EAlloc_Perm = 0,
+    EAlloc_Texture,
     EAlloc_Temp,
-    EAlloc_Count
+
+    EAlloc_COUNT
 } EAlloc;
 
 #define kMaxThreads                 256
@@ -152,5 +160,3 @@ typedef enum
 #endif // _DEBUG
 
 #define VKR_DEBUG_MESSENGER_ON      (VKR_KHRONOS_LAYER_ON || VKR_ASSIST_LAYER_ON)
-
-PIM_C_END

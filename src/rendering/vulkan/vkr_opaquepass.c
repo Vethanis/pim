@@ -62,11 +62,11 @@ bool vkrOpaquePass_New(vkrOpaquePass* pass, VkRenderPass renderPass)
     }
 
     const VkDescriptorPoolSize poolSizes[] =
-	{
-		{
-			.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			.descriptorCount = 1,
-		},
+    {
+        {
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+        },
         {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             .descriptorCount = 1,
@@ -91,31 +91,24 @@ bool vkrOpaquePass_New(vkrOpaquePass* pass, VkRenderPass renderPass)
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = kTextureDescriptors,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-		},
-		{
-			// exposure storage buffer
-			.binding = 3,
-			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.descriptorCount = 1,
-			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-		},
-    };
-    const VkPushConstantRange ranges[] =
-    {
+        },
         {
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            .size = sizeof(vkrOpaquePc),
+            // exposure storage buffer
+            .binding = 3,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         },
     };
     const VkVertexInputBindingDescription vertBindings[] =
     {
-        // positionOS
+        // positionWS
         {
             .binding = 0,
             .stride = sizeof(float4),
             .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
         },
-        // normalOS and lightmap index
+        // normalWS and lightmap index
         {
             .binding = 1,
             .stride = sizeof(float4),
@@ -125,6 +118,12 @@ bool vkrOpaquePass_New(vkrOpaquePass* pass, VkRenderPass renderPass)
         {
             .binding = 2,
             .stride = sizeof(float4),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+        },
+        // texture indices
+        {
+            .binding = 3,
+            .stride = sizeof(int4),
             .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
         },
     };
@@ -133,21 +132,27 @@ bool vkrOpaquePass_New(vkrOpaquePass* pass, VkRenderPass renderPass)
         // positionOS
         {
             .binding = 0,
-            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
             .location = 0,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
         },
         // normalOS and lightmap index
         {
             .binding = 1,
-            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
             .location = 1,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
         },
         // uv0 and uv1
         {
             .binding = 2,
-            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
             .location = 2,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
         },
+        // texture indices
+        {
+            .binding = 3,
+            .location = 3,
+            .format = VK_FORMAT_R32G32B32A32_UINT,
+        }
     };
 
     const vkrPassDesc desc =
@@ -191,8 +196,6 @@ bool vkrOpaquePass_New(vkrOpaquePass* pass, VkRenderPass renderPass)
         .poolSizes = poolSizes,
         .bindingCount = NELEM(bindings),
         .bindings = bindings,
-        .rangeCount = NELEM(ranges),
-        .ranges = ranges,
         .shaderCount = NELEM(shaders),
         .shaders = shaders,
     };
@@ -252,164 +255,36 @@ typedef struct vkrTaskDraw
     float* distances;
 } vkrTaskDraw;
 
-static void vkrTaskDrawFn(void* pbase, i32 begin, i32 end)
-{
-    vkrTaskDraw* task = pbase;
-    vkrOpaquePass* pass = task->pass;
-    const vkrSwapchain* chain = task->chain;
-    VkRenderPass renderPass = task->renderPass;
-    VkPipeline pipeline = pass->pass.pipeline;
-    VkPipelineLayout layout = pass->pass.layout;
-    vkrPassId subpass = task->subpass;
-    VkDescriptorSet descSet = task->descSet;
-    VkFramebuffer framebuffer = task->framebuffer;
-    VkFence primaryFence = task->primaryFence;
-    const drawables_t* drawables = task->drawables;
-    VkCommandBuffer* pim_noalias buffers = task->buffers;
-    float* pim_noalias distances = task->distances;
-    const VkPipelineBindPoint bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-
-    VkRect2D rect = vkrSwapchain_GetRect(chain);
-    VkViewport viewport = vkrSwapchain_GetViewport(chain);
-    const VkClearValue clearValues[] =
-    {
-        {
-            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
-        },
-        {
-            .depthStencil = { 1.0f, 0 },
-        },
-    };
-
-    const meshid_t* pim_noalias meshids = drawables->meshes;
-    const material_t* pim_noalias materials = drawables->materials;
-    const float4x4* pim_noalias matrices = drawables->matrices;
-    const float3x3* pim_noalias invMatrices = drawables->invMatrices;
-    const box_t* pim_noalias localBounds = drawables->bounds;
-    const texture_t* pim_noalias textures = texture_table()->values;
-
-    frus_t frustum = task->frustum;
-    plane_t fwd = frustum.z0;
-    {
-        // frustum has outward facing planes
-        // we want forward plane for depth sorting draw calls
-        float w = fwd.value.w;
-        fwd.value = f4_neg(fwd.value);
-        fwd.value.w = w;
-    }
-
-    vkrThreadContext* ctx = vkrContext_Get();
-    for (i32 i = begin; i < end; ++i)
-    {
-        buffers[i] = NULL;
-        distances[i] = 1 << 20;
-        float4x4 matrix = matrices[i];
-        box_t bounds = box_transform(matrix, localBounds[i]);
-        if (sdFrusBox(frustum, bounds) > 0.0f)
-        {
-            continue;
-        }
-        mesh_t const *const mesh = mesh_get(meshids[i]);
-        if (mesh)
-        {
-            distances[i] = sdPlaneBox3D(fwd, bounds);
-            VkCommandBuffer cmd = vkrContext_GetSecCmd(ctx, vkrQueueId_Gfx, primaryFence);
-            buffers[i] = cmd;
-            vkrCmdBeginSec(cmd, renderPass, subpass, framebuffer);
-            vkrCmdViewport(cmd, viewport, rect);
-            vkCmdBindPipeline(cmd, bindpoint, pipeline);
-            vkrCmdBindDescSets(cmd, bindpoint, layout, 1, &descSet);
-
-            i32 iAlbedo = materials[i].albedo.index;
-            i32 iRome = materials[i].rome.index;
-            i32 iNormal = materials[i].normal.index;
-            iAlbedo = textures[iAlbedo].vkrtex.slot;
-            iRome = textures[iRome].vkrtex.slot;
-            iNormal = textures[iNormal].vkrtex.slot;
-            const vkrOpaquePc pushConsts =
-            {
-                .localToWorld = matrix,
-                .IMc0 = invMatrices[i].c0,
-                .IMc1 = invMatrices[i].c1,
-                .IMc2 = invMatrices[i].c2,
-                .flatRome = materials[i].flatRome,
-                .albedoIndex = iAlbedo,
-                .romeIndex = iRome,
-                .normalIndex = iNormal,
-            };
-            const u32 stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-            vkrCmdPushConstants(cmd, layout, stages, &pushConsts, sizeof(pushConsts));
-            vkrCmdDrawMesh(cmd, &mesh->vkrmesh);
-            vkrCmdEnd(cmd);
-        }
-    }
-}
-
 ProfileMark(pm_execute, vkrOpaquePass_Execute)
 static vkrOpaquePass_Execute(const vkrPassContext* ctx, vkrOpaquePass* pass)
 {
     ProfileBegin(pm_execute);
 
-	const vkrSwapchain* chain = &g_vkr.chain;
-    const drawables_t* drawables = drawables_get();
-	i32 drawcount = drawables->count;
-	const i32 width = chain->width;
-	const i32 height = chain->height;
-	const float aspect = (float)width / (float)height;
+    const u32 syncIndex = ctx->syncIndex;
+    VkCommandBuffer cmd = ctx->cmd;
+    vkrCmdViewport(cmd, vkrSwapchain_GetViewport(&g_vkr.chain), vkrSwapchain_GetRect(&g_vkr.chain));
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.pipeline);
+    vkrCmdBindDescSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.layout, 1, &pass->pass.sets[ctx->syncIndex]);
 
-    VkCommandBuffer* pim_noalias buffers = tmp_calloc(sizeof(buffers[0]) * drawcount);
-    float* pim_noalias distances = tmp_calloc(sizeof(distances[0]) * drawcount);
-    vkrTaskDraw* task = tmp_calloc(sizeof(*task));
-
-    task->buffers = buffers;
-    task->chain = chain;
-    task->descSet = pass->pass.sets[ctx->syncIndex];
-    task->distances = distances;
-    task->drawables = drawables;
-    task->framebuffer = ctx->framebuffer;
-    camera_t camera;
-    camera_get(&camera);
-    camera_frustum(&camera, &task->frustum, aspect);
-    task->pass = pass;
-    task->primaryFence = ctx->fence;
-    task->renderPass = ctx->renderPass;
-    task->subpass = ctx->subpass;
-
-    task_run(task, vkrTaskDrawFn, drawcount);
-
-    for (i32 i = 0; i < drawcount; ++i)
+    VkBuffer mesh = g_vkr.mainPass.depth.meshbufs[syncIndex].handle;
+    const i32 vertCount = g_vkr.mainPass.depth.vertCount;
+    const i32 stride = vertCount * sizeof(float4);
+    const VkBuffer buffers[] =
     {
-        if (!buffers[i])
-        {
-            buffers[i] = buffers[drawcount - 1];
-            distances[i] = distances[drawcount - 1];
-            --drawcount;
-            --i;
-        }
-    }
-
-    for (i32 i = 0; i < drawcount; ++i)
+        mesh, // positions
+        mesh, // normals
+        mesh, // uvs
+        mesh, // texture indices
+    };
+    const VkDeviceSize offsets[] =
     {
-        i32 c = i;
-        for (i32 j = i + 1; j < drawcount; ++j)
-        {
-            if (distances[j] < distances[c])
-            {
-                c = j;
-            }
-        }
-        if (c != i)
-        {
-            float t0 = distances[i];
-            distances[i] = distances[c];
-            distances[c] = t0;
-            VkCommandBuffer t1 = buffers[i];
-            buffers[i] = buffers[c];
-            buffers[c] = t1;
-        }
-    }
-
-    vkrCmdExecCmds(ctx->cmd, drawcount, buffers);
+        stride * 0,
+        stride * 1,
+        stride * 2,
+        stride * 3,
+    };
+    vkCmdBindVertexBuffers(cmd, 0, NELEM(buffers), buffers, offsets);
+    vkCmdDraw(cmd, vertCount, 1, 0, 0);
 
     ProfileEnd(pm_execute);
 }
@@ -425,31 +300,31 @@ static vkrOpaquePass_Update(const vkrPassContext* passCtx, vkrOpaquePass* pass)
     VkBuffer expBuffer = g_vkr.exposurePass.expBuffers[syncIndex].handle;
 
     // update per camera buffer
-	{
-		const vkrSwapchain* chain = &g_vkr.chain;
-		float aspect = (float)chain->width / chain->height;
-		camera_t camera;
-		camera_get(&camera);
-		float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
-		float4 up = quat_up(camera.rotation);
-		float4x4 view = f4x4_lookat(camera.position, at, up);
-		float4x4 proj = f4x4_vkperspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
+    {
+        const vkrSwapchain* chain = &g_vkr.chain;
+        float aspect = (float)chain->width / chain->height;
+        camera_t camera;
+        camera_get(&camera);
+        float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
+        float4 up = quat_up(camera.rotation);
+        float4x4 view = f4x4_lookat(camera.position, at, up);
+        float4x4 proj = f4x4_vkperspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
 
         const lmpack_t* lmpack = lmpack_get();
         i32 lmBegin = kTextureDescriptors - kGiDirections;
         if (lmpack->lmCount > 0)
         {
-            lmBegin = lmpack->lightmaps[0].vkrtex[0].slot;
+            lmBegin = lmpack->lightmaps[0].slots[0].index;
         }
 
-		vkrPerCamera* perCamera = vkrBuffer_Map(camBuffer);
-		ASSERT(perCamera);
-		perCamera->worldToClip = f4x4_mul(proj, view);
-		perCamera->eye = camera.position;
-		perCamera->exposure = g_vkr.exposurePass.params.exposure;
-		perCamera->lmBegin = lmBegin;
-		vkrBuffer_Unmap(camBuffer);
-		vkrBuffer_Flush(camBuffer);
+        vkrPerCamera* perCamera = vkrBuffer_Map(camBuffer);
+        ASSERT(perCamera);
+        perCamera->worldToClip = f4x4_mul(proj, view);
+        perCamera->eye = camera.position;
+        perCamera->exposure = g_vkr.exposurePass.params.exposure;
+        perCamera->lmBegin = lmBegin;
+        vkrBuffer_Unmap(camBuffer);
+        vkrBuffer_Flush(camBuffer);
     }
 
     const vkrBinding bufferBindings[] =
@@ -463,21 +338,21 @@ static vkrOpaquePass_Update(const vkrPassContext* passCtx, vkrOpaquePass* pass)
                 .buffer = camBuffer->handle,
                 .range = VK_WHOLE_SIZE,
             },
-		},
-		{
-			.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.set = set,
-			.binding = 3,
-			.buffer =
-			{
-				.buffer = expBuffer,
-				.range = VK_WHOLE_SIZE,
-			},
-		},
+        },
+        {
+            .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .set = set,
+            .binding = 3,
+            .buffer =
+            {
+                .buffer = expBuffer,
+                .range = VK_WHOLE_SIZE,
+            },
+        },
     };
     vkrDesc_WriteBindings(NELEM(bufferBindings), bufferBindings);
 
-    vkrTexTable_Write(&g_vkr.texTable, set);
+    vkrTexTable_Write(set);
 
     ProfileEnd(pm_update);
 }

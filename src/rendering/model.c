@@ -170,7 +170,6 @@ static i32 FindPreset(const char* name)
 static material_t GenMaterial(const mtexture_t* mtex, const msurface_t* surf)
 {
     material_t material = { 0 };
-    material.flatAlbedo = f4_1;
     material.ior = 1.0f;
 
     float roughness = 0.5f;
@@ -263,17 +262,17 @@ static material_t GenMaterial(const mtexture_t* mtex, const msurface_t* surf)
             emission = 0.5f;
         }
 
+        float4 flatRome = f4_v(roughness, occlusion, metallic, emission);
         texture_unpalette(
             mip0,
             size,
             mtex->name,
             material.flags,
+            flatRome,
             &material.albedo,
             &material.rome,
             &material.normal);
     }
-
-    material.flatRome = f4_v(roughness, occlusion, metallic, emission);
 
     return material;
 }
@@ -737,7 +736,7 @@ void LoadProgs(const mmodel_t* model, bool loadlights)
         }
         else if (ent.type == pr_classname_worldspawn)
         {
-            
+
         }
         else if (ent.type == pr_classname_info_player_start)
         {

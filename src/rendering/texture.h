@@ -25,8 +25,9 @@ typedef struct dtextureid_s
 typedef struct texture_s
 {
     int2 size;
-    u32* pim_noalias texels;
-    vkrTexture2D vkrtex;
+    void* pim_noalias texels;
+    VkFormat format;
+    vkrTextureId slot;
 } texture_t;
 
 #define kTextureVersion 5
@@ -43,8 +44,6 @@ const table_t* texture_table(void);
 void texture_sys_init(void);
 void texture_sys_update(void);
 void texture_sys_shutdown(void);
-// free vulkan resources
-void texture_sys_vkfree(void);
 void texture_sys_gui(bool* pEnabled);
 
 bool texture_loadat(const char* path, VkFormat format, textureid_t* idOut);
@@ -68,6 +67,7 @@ bool texture_unpalette(
     int2 size,
     const char* name,
     u32 matflags,
+    float4 flatRome,
     textureid_t* albedoOut,
     textureid_t* romeOut,
     textureid_t* normalOut);
