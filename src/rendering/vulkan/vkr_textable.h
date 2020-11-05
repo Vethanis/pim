@@ -4,21 +4,22 @@
 
 PIM_C_BEGIN
 
-bool vkrTexTable_New(vkrTexTable* table);
-void vkrTexTable_Del(vkrTexTable* table);
+bool vkrTexTable_Init(void);
+void vkrTexTable_Update(void);
+void vkrTexTable_Shutdown(void);
 
-void vkrTexTable_Update(vkrTexTable* table);
-void vkrTexTable_Write(const vkrTexTable* table, VkDescriptorSet set);
+void vkrTexTable_Write(VkDescriptorSet set);
 
-i32 vkrTexTable_AllocSlot(vkrTexTable* table);
-void vkrTexTable_ClearSlot(vkrTexTable* table, i32 slot);
-
-void vkrTexTable_WriteSlot(
-	vkrTexTable* table,
-	i32 slot,
-	VkSampler sampler,
-	VkImageView view,
-	VkImageLayout layout);
-
+bool vkrTexTable_Exists(vkrTextureId id);
+vkrTextureId vkrTexTable_Alloc(
+    i32 width,
+    i32 height,
+    VkFormat format,
+    const void* data);
+bool vkrTexTable_Free(vkrTextureId id);
+VkFence vkrTexTable_Upload(
+    vkrTextureId id,
+    const void* data,
+    i32 bytes);
 
 PIM_C_END

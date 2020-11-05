@@ -114,7 +114,7 @@ bool vkr_init(void)
         goto cleanup;
     }
 
-    if (!vkrTexTable_New(&g_vkr.texTable))
+    if (!vkrTexTable_Init())
     {
         success = false;
         goto cleanup;
@@ -185,7 +185,7 @@ void vkr_update(void)
     VkCommandBuffer cmd = NULL;
     vkrSwapchain_AcquireSync(chain, &cmd, &fence);
     vkrAllocator_Update(&g_vkr.allocator);
-    vkrTexTable_Update(&g_vkr.texTable);
+    vkrTexTable_Update();
     vkrCmdBegin(cmd);
     vkrMainPass_Draw(&g_vkr.mainPass, cmd, fence);
     vkrCmdEnd(cmd);
@@ -208,14 +208,12 @@ void vkr_shutdown(void)
     {
         vkrDevice_WaitIdle();
 
-        mesh_sys_vkfree();
-        texture_sys_vkfree();
         lmpack_del(lmpack_get());
         ui_sys_shutdown();
 
         vkrExposurePass_Del(&g_vkr.exposurePass);
         vkrMainPass_Del(&g_vkr.mainPass);
-        vkrTexTable_Del(&g_vkr.texTable);
+        vkrTexTable_Shutdown();
 
         vkrAllocator_Finalize(&g_vkr.allocator);
 
