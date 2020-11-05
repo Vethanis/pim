@@ -161,17 +161,17 @@ pim_inline RTCRayHit VEC_CALL RtcIntersect(
     float4 rd,
     float tNear,
     float tFar);
-static RTCScene RtcNewScene(const pt_scene_t* scene);
-static void FlattenDrawables(pt_scene_t* scene);
+static RTCScene RtcNewScene(const pt_scene_t*const pim_noalias scene);
+static void FlattenDrawables(pt_scene_t*const pim_noalias scene);
 static float EmissionPdf(
-    pt_sampler_t* sampler,
-    const pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    const pt_scene_t*const pim_noalias scene,
     i32 iVert,
     i32 attempts);
 static void CalcEmissionPdfFn(task_t* pbase, i32 begin, i32 end);
-static void SetupEmissives(pt_scene_t* scene);
+static void SetupEmissives(pt_scene_t*const pim_noalias scene);
 static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end);
-static void SetupLightGrid(pt_scene_t* scene);
+static void SetupLightGrid(pt_scene_t*const pim_noalias scene);
 pim_inline float4 VEC_CALL GetVert4(
     const float4* vertices,
     i32 iVert,
@@ -180,84 +180,84 @@ pim_inline float2 VEC_CALL GetVert2(
     const float2* vertices,
     i32 iVert,
     float4 wuv);
-pim_inline float VEC_CALL GetArea(const pt_scene_t* scene, i32 iLight);
+pim_inline float VEC_CALL GetArea(const pt_scene_t*const pim_noalias scene, i32 iLight);
 pim_inline const material_t* VEC_CALL GetMaterial(
-    const pt_scene_t* scene,
+    const pt_scene_t*const pim_noalias scene,
     rayhit_t hit);
 pim_inline float4 VEC_CALL GetSky(
-    const pt_scene_t* scene,
+    const pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd);
 pim_inline surfhit_t VEC_CALL GetSurface(
-    const pt_scene_t* scene,
+    const pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd,
     rayhit_t hit);
 pim_inline rayhit_t VEC_CALL pt_intersect_local(
-    const pt_scene_t* scene,
+    const pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd,
     float tNear,
     float tFar);
 pim_inline float4 VEC_CALL SampleSpecular(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     float4 I,
     float4 N,
     float alpha);
 pim_inline float4 VEC_CALL SampleDiffuse(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     float4 N);
 pim_inline float4 VEC_CALL RefractBrdfEval(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     float4 I,
     const surfhit_t* surf,
     float4 L);
 pim_inline float4 VEC_CALL BrdfEval(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     float4 I,
     const surfhit_t* surf,
     float4 L);
 pim_inline scatter_t VEC_CALL RefractScatter(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     const surfhit_t* surf,
     float4 I);
 pim_inline scatter_t VEC_CALL BrdfScatter(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     const surfhit_t* surf,
     float4 I);
 pim_inline bool VEC_CALL LightSelect(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 position,
     i32* iVertOut,
     float* pdfOut);
 pim_inline lightsample_t VEC_CALL LightSample(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 ro,
     i32 iLight);
 pim_inline float VEC_CALL LightEvalPdf(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd,
     rayhit_t* hitOut);
 pim_inline float4 VEC_CALL EstimateDirect(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     const surfhit_t* surf,
     i32 iLight,
     float selectPdf,
     float4 I);
 pim_inline float4 VEC_CALL SampleLights(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     const surfhit_t* surf,
     const rayhit_t* hit,
     float4 I);
 pim_inline bool VEC_CALL EvaluateLight(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 P,
     float4* lightOut,
     float4* dirOut);
@@ -273,31 +273,35 @@ pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P);
 pim_inline float4 VEC_CALL Media_Normal(const media_desc_t* desc, float4 P);
 pim_inline media_t VEC_CALL Media_Lerp(media_t lhs, media_t rhs, float t);
 pim_inline bool VEC_CALL RussianRoulette(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     float4* pAttenuation);
 pim_inline float VEC_CALL SampleFreePath(float Xi, float rcpU);
 pim_inline float VEC_CALL FreePathPdf(float t, float u);
 pim_inline float4 VEC_CALL CalcTransmittance(
-    pt_sampler_t* sampler,
-    const pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    const pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd,
     float rayLen);
 pim_inline scatter_t VEC_CALL ScatterRay(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd,
     float rayLen);
 static void TraceFn(void* pbase, i32 begin, i32 end);
 static void RayGenFn(void* pBase, i32 begin, i32 end);
-pim_inline float VEC_CALL Sample1D(pt_sampler_t* sampler);
-pim_inline float2 VEC_CALL Sample2D(pt_sampler_t* sampler);
-pim_inline bool VEC_CALL SampleBool(pt_sampler_t* sampler);
+pim_inline float VEC_CALL Sample1D(pt_sampler_t*const pim_noalias sampler);
+pim_inline float2 VEC_CALL Sample2D(pt_sampler_t*const pim_noalias sampler);
+pim_inline bool VEC_CALL SampleBool(pt_sampler_t*const pim_noalias sampler);
 pim_inline pt_sampler_t VEC_CALL GetSampler(void);
 pim_inline void VEC_CALL SetSampler(pt_sampler_t sampler);
-pim_inline void VEC_CALL LightOnHit(pt_sampler_t* sampler, pt_scene_t* scene, float4 ro, i32 iVert);
-static void UpdateDists(pt_scene_t* scene);
+pim_inline void VEC_CALL LightOnHit(
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
+    float4 ro,
+    i32 iVert);
+static void UpdateDists(pt_scene_t*const pim_noalias scene);
 
 // ----------------------------------------------------------------------------
 
@@ -315,7 +319,7 @@ static cvar_t cv_pt_dist_alpha =
 {
     .type = cvart_float,
     .name = "pt_dist_alpha",
-    .value = "0.5",
+    .value = "1",
     .minFloat = 0.0f,
     .maxFloat = 1.0f,
     .desc = "path tracer light distribution update amount",
@@ -419,8 +423,8 @@ void pt_sys_shutdown(void)
 
 pt_sampler_t VEC_CALL pt_sampler_get(void) { return GetSampler(); }
 void VEC_CALL pt_sampler_set(pt_sampler_t sampler) { SetSampler(sampler); }
-float2 VEC_CALL pt_sample_2d(pt_sampler_t* sampler) { return Sample2D(sampler); }
-float VEC_CALL pt_sample_1d(pt_sampler_t* sampler) { return Sample1D(sampler); }
+float2 VEC_CALL pt_sample_2d(pt_sampler_t*const pim_noalias sampler) { return Sample2D(sampler); }
+float VEC_CALL pt_sample_1d(pt_sampler_t*const pim_noalias sampler) { return Sample1D(sampler); }
 
 pim_inline RTCRay VEC_CALL RtcNewRay(float4 ro, float4 rd, float tNear, float tFar)
 {
@@ -563,7 +567,7 @@ static bool RtcPointQueryFn(RTCPointQueryFunctionArguments* args)
     return false;
 }
 
-pim_inline PointQueryUserData VEC_CALL RtcPointQuery(const pt_scene_t* scene, float4 pt)
+pim_inline PointQueryUserData VEC_CALL RtcPointQuery(const pt_scene_t*const pim_noalias scene, float4 pt)
 {
     PointQueryUserData usr = { 0 };
     usr.positions = scene->positions;
@@ -582,7 +586,7 @@ pim_inline PointQueryUserData VEC_CALL RtcPointQuery(const pt_scene_t* scene, fl
     return usr;
 }
 
-static RTCScene RtcNewScene(const pt_scene_t* scene)
+static RTCScene RtcNewScene(const pt_scene_t*const pim_noalias scene)
 {
     RTCScene rtcScene = rtc.NewScene(ms_device);
     ASSERT(rtcScene);
@@ -655,7 +659,7 @@ static RTCScene RtcNewScene(const pt_scene_t* scene)
     return rtcScene;
 }
 
-static void FlattenDrawables(pt_scene_t* scene)
+static void FlattenDrawables(pt_scene_t*const pim_noalias scene)
 {
     const drawables_t* drawTable = drawables_get();
     const i32 drawCount = drawTable->count;
@@ -742,8 +746,8 @@ static void FlattenDrawables(pt_scene_t* scene)
 }
 
 static float EmissionPdf(
-    pt_sampler_t* sampler,
-    const pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    const pt_scene_t*const pim_noalias scene,
     i32 iVert,
     i32 attempts)
 {
@@ -799,7 +803,7 @@ typedef struct task_CalcEmissionPdf
 static void CalcEmissionPdfFn(task_t* pbase, i32 begin, i32 end)
 {
     task_CalcEmissionPdf* task = (task_CalcEmissionPdf*)pbase;
-    const pt_scene_t* scene = task->scene;
+    const pt_scene_t*const pim_noalias scene = task->scene;
     const i32 attempts = task->attempts;
     float* pim_noalias pdfs = task->pdfs;
 
@@ -811,7 +815,7 @@ static void CalcEmissionPdfFn(task_t* pbase, i32 begin, i32 end)
     pt_sampler_set(sampler);
 }
 
-static void SetupEmissives(pt_scene_t* scene)
+static void SetupEmissives(pt_scene_t*const pim_noalias scene)
 {
     const i32 vertCount = scene->vertCount;
     const i32 triCount = vertCount / 3;
@@ -865,7 +869,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
 {
     task_SetupLightGrid* task = (task_SetupLightGrid*)pbase;
 
-    pt_scene_t* scene = task->scene;
+    pt_scene_t*const pim_noalias scene = task->scene;
 
     const grid_t grid = scene->lightGrid;
     dist1d_t *const pim_noalias dists = scene->lightDists;
@@ -966,7 +970,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
     SetSampler(sampler);
 }
 
-static void SetupLightGrid(pt_scene_t* scene)
+static void SetupLightGrid(pt_scene_t*const pim_noalias scene)
 {
     if (scene->vertCount > 0)
     {
@@ -985,7 +989,7 @@ static void SetupLightGrid(pt_scene_t* scene)
     }
 }
 
-void pt_scene_update(pt_scene_t* scene)
+void pt_scene_update(pt_scene_t*const pim_noalias scene)
 {
     guid_t skyname = guid_str("sky");
     cubemaps_t* maps = Cubemaps_Get();
@@ -1009,7 +1013,7 @@ pt_scene_t* pt_scene_new(void)
         return NULL;
     }
 
-    pt_scene_t* scene = perm_calloc(sizeof(*scene));
+    pt_scene_t*const pim_noalias scene = perm_calloc(sizeof(*scene));
     pt_scene_update(scene);
 
     FlattenDrawables(scene);
@@ -1021,7 +1025,7 @@ pt_scene_t* pt_scene_new(void)
     return scene;
 }
 
-void pt_scene_del(pt_scene_t* scene)
+void pt_scene_del(pt_scene_t*const pim_noalias scene)
 {
     if (scene)
     {
@@ -1058,7 +1062,7 @@ void pt_scene_del(pt_scene_t* scene)
     }
 }
 
-void pt_scene_gui(pt_scene_t* scene)
+void pt_scene_gui(pt_scene_t*const pim_noalias scene)
 {
     if (scene && igCollapsingHeader1("pt scene"))
     {
@@ -1073,7 +1077,7 @@ void pt_scene_gui(pt_scene_t* scene)
 
 void pt_trace_new(
     pt_trace_t* trace,
-    pt_scene_t* scene,
+    pt_scene_t*const pim_noalias scene,
     int2 imageSize)
 {
     ASSERT(trace);
@@ -1167,14 +1171,14 @@ pim_inline float2 VEC_CALL GetVert2(
         wuv);
 }
 
-pim_inline float VEC_CALL GetArea(const pt_scene_t* scene, i32 iVert)
+pim_inline float VEC_CALL GetArea(const pt_scene_t*const pim_noalias scene, i32 iVert)
 {
     const float4* pim_noalias positions = scene->positions;
     return TriArea3D(positions[iVert + 0], positions[iVert + 1], positions[iVert + 2]);
 }
 
 pim_inline const material_t* VEC_CALL GetMaterial(
-    const pt_scene_t* scene,
+    const pt_scene_t*const pim_noalias scene,
     rayhit_t hit)
 {
     i32 iVert = hit.index;
@@ -1187,7 +1191,7 @@ pim_inline const material_t* VEC_CALL GetMaterial(
 }
 
 pim_inline float4 VEC_CALL GetSky(
-    const pt_scene_t* scene,
+    const pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd)
 {
@@ -1199,7 +1203,7 @@ pim_inline float4 VEC_CALL GetSky(
 }
 
 pim_inline surfhit_t VEC_CALL GetSurface(
-    const pt_scene_t* scene,
+    const pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd,
     rayhit_t hit)
@@ -1229,8 +1233,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         texture_t const *const tex = texture_get(mat->albedo);
         if (tex)
         {
-            float4 sample = UvBilinearWrap_c32(tex->texels, tex->size, uv);
-            surf.albedo = f4_mul(surf.albedo, sample);
+            surf.albedo = UvBilinearWrap_c32(tex->texels, tex->size, uv);
         }
     }
 
@@ -1239,8 +1242,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         texture_t const *const tex = texture_get(mat->rome);
         if (tex)
         {
-            float4 sample = UvBilinearWrap_c32(tex->texels, tex->size, uv);
-            rome = f4_mul(rome, sample);
+            rome = UvBilinearWrap_c32(tex->texels, tex->size, uv);
         }
     }
     surf.emission = UnpackEmission(surf.albedo, rome.w);
@@ -1257,7 +1259,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
 }
 
 pim_inline rayhit_t VEC_CALL pt_intersect_local(
-    const pt_scene_t* scene,
+    const pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd,
     float tNear,
@@ -1300,7 +1302,7 @@ pim_inline rayhit_t VEC_CALL pt_intersect_local(
 }
 
 rayhit_t VEC_CALL pt_intersect(
-    pt_scene_t* scene,
+    pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd,
     float tNear,
@@ -1310,7 +1312,7 @@ rayhit_t VEC_CALL pt_intersect(
 }
 
 pim_inline float4 VEC_CALL SampleSpecular(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     float4 I,
     float4 N,
     float alpha)
@@ -1326,7 +1328,7 @@ pim_inline float4 VEC_CALL SampleSpecular(
 }
 
 pim_inline float4 VEC_CALL SampleDiffuse(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     float4 N)
 {
     float2 Xi = Sample2D(sampler);
@@ -1346,7 +1348,7 @@ pim_inline float VEC_CALL Schlick(float cosTheta, float k)
 }
 
 pim_inline float4 VEC_CALL RefractBrdfEval(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     float4 I,
     const surfhit_t* surf,
     float4 L)
@@ -1356,7 +1358,7 @@ pim_inline float4 VEC_CALL RefractBrdfEval(
 
 // returns attenuation value for the given interaction
 pim_inline float4 VEC_CALL BrdfEval(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     float4 I,
     const surfhit_t* surf,
     float4 L)
@@ -1416,7 +1418,7 @@ pim_inline float4 VEC_CALL BrdfEval(
 }
 
 pim_inline scatter_t VEC_CALL RefractScatter(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     const surfhit_t* surf,
     float4 I)
 {
@@ -1476,7 +1478,7 @@ pim_inline scatter_t VEC_CALL RefractScatter(
 }
 
 pim_inline scatter_t VEC_CALL BrdfScatter(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     const surfhit_t* surf,
     float4 I)
 {
@@ -1556,8 +1558,8 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
 }
 
 pim_inline void VEC_CALL LightOnHit(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 ro,
     i32 iVert)
 {
@@ -1574,8 +1576,8 @@ pim_inline void VEC_CALL LightOnHit(
 }
 
 pim_inline bool VEC_CALL LightSelect(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 position,
     i32* iVertOut,
     float* pdfOut)
@@ -1605,8 +1607,8 @@ pim_inline bool VEC_CALL LightSelect(
 }
 
 pim_inline lightsample_t VEC_CALL LightSample(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 ro,
     i32 iLight)
 {
@@ -1653,8 +1655,8 @@ pim_inline lightsample_t VEC_CALL LightSample(
 }
 
 pim_inline float VEC_CALL LightEvalPdf(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd,
     rayhit_t* hitOut)
@@ -1680,8 +1682,8 @@ pim_inline float VEC_CALL LightEvalPdf(
 }
 
 pim_inline float4 VEC_CALL EstimateDirect(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     const surfhit_t* surf,
     i32 iLight,
     float selectPdf,
@@ -1739,8 +1741,8 @@ pim_inline float4 VEC_CALL EstimateDirect(
 }
 
 pim_inline float4 VEC_CALL SampleLights(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     const surfhit_t* surf,
     const rayhit_t* hit,
     float4 I)
@@ -1760,8 +1762,8 @@ pim_inline float4 VEC_CALL SampleLights(
 }
 
 pim_inline bool VEC_CALL EvaluateLight(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 P,
     float4* lightOut,
     float4* dirOut)
@@ -2091,7 +2093,7 @@ pim_inline float VEC_CALL CalcPhase(
 }
 
 pim_inline bool VEC_CALL RussianRoulette(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     float4* pAttenuation)
 {
     float4 att = *pAttenuation;
@@ -2110,8 +2112,8 @@ pim_inline bool VEC_CALL RussianRoulette(
 }
 
 pim_inline float4 VEC_CALL CalcTransmittance(
-    pt_sampler_t* sampler,
-    const pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    const pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd,
     float d)
@@ -2164,7 +2166,7 @@ pim_inline float4 VEC_CALL CalcTransmittance(
 }
 
 pim_inline float4 VEC_CALL SamplePhaseDir(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     const media_desc_t* desc,
     float4 rd)
 {
@@ -2188,8 +2190,8 @@ pim_inline float4 VEC_CALL SamplePhaseDir(
 }
 
 pim_inline scatter_t VEC_CALL ScatterRay(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd,
     float rayLen)
@@ -2251,8 +2253,8 @@ pim_inline scatter_t VEC_CALL ScatterRay(
 }
 
 pt_result_t VEC_CALL pt_trace_ray(
-    pt_sampler_t* sampler,
-    pt_scene_t* scene,
+    pt_sampler_t*const pim_noalias sampler,
+    pt_scene_t*const pim_noalias scene,
     float4 ro,
     float4 rd)
 {
@@ -2347,7 +2349,7 @@ pt_result_t VEC_CALL pt_trace_ray(
 }
 
 pim_inline float2 VEC_CALL SampleUv(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     const dist1d_t* dist)
 {
     float2 Xi = Sample2D(sampler);
@@ -2364,7 +2366,7 @@ pim_inline float2 VEC_CALL SampleUv(
 }
 
 pim_inline ray_t VEC_CALL CalculateDof(
-    pt_sampler_t* sampler,
+    pt_sampler_t*const pim_noalias sampler,
     const dofinfo_t* dof,
     float4 right,
     float4 up,
@@ -2405,9 +2407,9 @@ typedef struct TaskUpdateDists
 
 static void UpdateDistsFn(void* pbase, i32 begin, i32 end)
 {
-    TaskUpdateDists* task = pbase;
-    pt_scene_t* scene = task->scene;
-    dist1d_t* dists = scene->lightDists;
+    TaskUpdateDists*const pim_noalias task = pbase;
+    pt_scene_t*const pim_noalias scene = task->scene;
+    dist1d_t*const pim_noalias dists = scene->lightDists;
     float alpha = task->alpha;
     u32 minSamples = task->minSamples;
     for (i32 i = begin; i < end; ++i)
@@ -2416,9 +2418,9 @@ static void UpdateDistsFn(void* pbase, i32 begin, i32 end)
     }
 }
 
-static void UpdateDists(pt_scene_t* scene)
+static void UpdateDists(pt_scene_t*const pim_noalias scene)
 {
-    TaskUpdateDists* task = tmp_calloc(sizeof(*task));
+    TaskUpdateDists*const pim_noalias task = tmp_calloc(sizeof(*task));
     task->scene = scene;
     task->alpha = cvar_get_float(&cv_pt_dist_alpha);
     task->minSamples = cvar_get_int(&cv_pt_dist_samples);
@@ -2435,15 +2437,15 @@ typedef struct trace_task_s
 
 static void TraceFn(void* pbase, i32 begin, i32 end)
 {
-    trace_task_t* task = pbase;
+    trace_task_t*const pim_noalias task = pbase;
 
-    pt_trace_t* trace = task->trace;
+    pt_trace_t*const pim_noalias trace = task->trace;
     const camera_t camera = task->camera;
 
-    pt_scene_t* scene = trace->scene;
-    float3* pim_noalias color = trace->color;
-    float3* pim_noalias albedo = trace->albedo;
-    float3* pim_noalias normal = trace->normal;
+    pt_scene_t*const pim_noalias scene = trace->scene;
+    float3*const pim_noalias color = trace->color;
+    float3*const pim_noalias albedo = trace->albedo;
+    float3*const pim_noalias normal = trace->normal;
 
     const int2 size = trace->imageSize;
     const float2 rcpSize = f2_rcp(i2_f2(size));
@@ -2493,7 +2495,7 @@ void pt_trace(pt_trace_t* desc, const camera_t* camera)
 
     pt_scene_update(desc->scene);
 
-    trace_task_t* task = tmp_calloc(sizeof(*task));
+    trace_task_t*const pim_noalias task = tmp_calloc(sizeof(*task));
     task->trace = desc;
     task->camera = *camera;
 
@@ -2514,12 +2516,12 @@ typedef struct pt_raygen_s
 
 static void RayGenFn(void* pBase, i32 begin, i32 end)
 {
-    pt_raygen_t* task = pBase;
-    pt_scene_t* scene = task->scene;
+    pt_raygen_t*const pim_noalias task = pBase;
+    pt_scene_t*const pim_noalias scene = task->scene;
     const float4 ro = task->origin;
 
-    float4* pim_noalias colors = task->colors;
-    float4* pim_noalias directions = task->directions;
+    float4*const pim_noalias colors = task->colors;
+    float4*const pim_noalias directions = task->directions;
 
     pt_sampler_t sampler = GetSampler();
     for (i32 i = begin; i < end; ++i)
@@ -2535,7 +2537,7 @@ static void RayGenFn(void* pBase, i32 begin, i32 end)
 
 ProfileMark(pm_raygen, pt_raygen)
 pt_results_t pt_raygen(
-    pt_scene_t* scene,
+    pt_scene_t*const pim_noalias scene,
     float4 origin,
     i32 count)
 {
@@ -2546,7 +2548,7 @@ pt_results_t pt_raygen(
 
     pt_scene_update(scene);
 
-    pt_raygen_t* task = tmp_calloc(sizeof(*task));
+    pt_raygen_t*const pim_noalias task = tmp_calloc(sizeof(*task));
     task->scene = scene;
     task->origin = origin;
     task->colors = tmp_malloc(sizeof(task->colors[0]) * count);
@@ -2564,17 +2566,17 @@ pt_results_t pt_raygen(
     return results;
 }
 
-pim_inline float VEC_CALL Sample1D(pt_sampler_t* sampler)
+pim_inline float VEC_CALL Sample1D(pt_sampler_t*const pim_noalias sampler)
 {
     return prng_f32(&sampler->rng);
 }
 
-pim_inline float2 VEC_CALL Sample2D(pt_sampler_t* sampler)
+pim_inline float2 VEC_CALL Sample2D(pt_sampler_t*const pim_noalias sampler)
 {
     return f2_rand(&sampler->rng);
 }
 
-pim_inline bool VEC_CALL SampleBool(pt_sampler_t* sampler)
+pim_inline bool VEC_CALL SampleBool(pt_sampler_t*const pim_noalias sampler)
 {
     return Sample1D(sampler) < 0.5f;
 }

@@ -79,7 +79,7 @@ PSOutput PSMain(PSInput input)
     float occlusion = rome.y;
     float metallic = rome.z;
     float emission = rome.w;
-    float3 light = 0.5 * albedo;
+    float3 light = 0.001 * albedo;
     {
         float3 emissive = UnpackEmission(albedo, emission);
         light += emissive;
@@ -92,12 +92,12 @@ PSOutput PSMain(PSInput input)
         //light += direct;
     }
     {
-        //float2 uv1 = input.uv01.zw;
-        //uint lmIndex = GetLightmapIndex(cameraData.lmBegin, li);
-        //float3 R = reflect(-V, N);
-        //GISample gi = SampleLightmap(lmIndex, uv1, input.TBN, N, R);
-        //float3 indirect = IndirectBRDF(V, N, gi.diffuse, gi.specular, albedo, roughness, metallic, occlusion);
-        //light += indirect;
+        float2 uv1 = input.uv01.zw;
+        uint lmIndex = GetLightmapIndex(cameraData.lmBegin, li);
+        float3 R = reflect(-V, N);
+        GISample gi = SampleLightmap(lmIndex, uv1, input.TBN, N, R);
+        float3 indirect = IndirectBRDF(V, N, gi.diffuse, gi.specular, albedo, roughness, metallic, occlusion);
+        light += indirect;
     }
 
     PSOutput output;

@@ -14,7 +14,7 @@ static cvar_t cv_fpslimit =
 {
     .type = cvart_int,
     .name = "fps_limit",
-    .value = "125",
+    .value = "240",
     .minInt = 1,
     .maxInt = 1000,
     .desc = "limits fps when above this value"
@@ -89,9 +89,9 @@ static void wait_for_target_fps(void)
 
     const double targetMS = 1000.0 / cv_fpslimit.asInt;
     const double diffMS = targetMS - time_milli(time_now() - ms_lastSwap);
-    if (diffMS >= 1.0)
+    if (diffMS > 1.5)
     {
-        intrin_sleep((u32)diffMS);
+        intrin_sleep((u32)(diffMS - 0.5));
     }
 
     ms_lastSwap = time_now();

@@ -12,6 +12,8 @@
 #include "rendering/mesh.h"
 #include "rendering/camera.h"
 #include "rendering/material.h"
+#include "rendering/texture.h"
+#include "containers/table.h"
 
 #include "allocator/allocator.h"
 #include "common/profiler.h"
@@ -131,8 +133,11 @@ void vkrDepthPass_Del(vkrDepthPass* pass)
     if (pass)
     {
         vkrPass_Del(&pass->pass);
-        vkrBuffer_Del(&pass->stagebuf);
-        vkrBuffer_Del(&pass->meshbuf);
+        for (i32 i = 0; i < NELEM(pass->stagebufs); ++i)
+        {
+            vkrBuffer_Del(&pass->stagebufs[i]);
+            vkrBuffer_Del(&pass->meshbufs[i]);
+        }
         memset(pass, 0, sizeof(*pass));
     }
 }
@@ -152,6 +157,7 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
 {
     ProfileBegin(pm_execute);
 
+    const u32 syncIndex = ctx->syncIndex;
     const vkrSwapchain* chain = &g_vkr.chain;
     VkRect2D rect = vkrSwapchain_GetRect(chain);
     VkViewport viewport = vkrSwapchain_GetViewport(chain);
@@ -186,6 +192,7 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
     i32 visibleDrawCount = 0;
     i32 visibleVertCount = 0;
     i32* pim_noalias visibleIndices = NULL;
+    int2* pim_noalias visibleRanges = NULL;
     for (i32 i = 0; i < drawcount; ++i)
     {
         float4x4 localToWorld = matrices[i];
@@ -199,16 +206,22 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
         {
             continue;
         }
-        ++visibleDrawCount;
-        visibleIndices = tmp_realloc(visibleIndices, sizeof(visibleIndices[0]) * visibleDrawCount);
-        visibleIndices[visibleDrawCount - 1] = i;
-        visibleVertCount += pMesh->length;
+        const i32 meshLen = pMesh->length;
+        if (meshLen > 0)
+        {
+            ++visibleDrawCount;
+            visibleIndices = tmp_realloc(visibleIndices, sizeof(visibleIndices[0]) * visibleDrawCount);
+            visibleRanges = tmp_realloc(visibleRanges, sizeof(visibleRanges[0]) * visibleDrawCount);
+            visibleIndices[visibleDrawCount - 1] = i;
+            visibleRanges[visibleDrawCount - 1] = (int2) { visibleVertCount, meshLen };
+            visibleVertCount += meshLen;
+        }
     }
 
     pass->vertCount = visibleVertCount;
-    const i32 meshBytes = (sizeof(float4) * 4) * visibleVertCount;
-    vkrBuffer *const stageBuf = &pass->stagebuf;
-    vkrBuffer *const meshBuf = &pass->meshbuf;
+    const i32 meshBytes = (sizeof(float4) * vkrMeshStream_COUNT) * visibleVertCount;
+    vkrBuffer *const stageBuf = &pass->stagebufs[syncIndex];
+    vkrBuffer *const meshBuf = &pass->meshbufs[syncIndex];
     vkrBuffer_Reserve(
         stageBuf,
         meshBytes,
@@ -225,41 +238,41 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
         PIM_FILELINE);
 
     {
-        i32 vertCount = 0;
         float4 *const pim_noalias positions = vkrBuffer_Map(stageBuf);
         float4 *const pim_noalias normals = positions + visibleVertCount;
         float4 *const pim_noalias uv01s = normals + visibleVertCount;
         int4 *const pim_noalias texIndices = (int4*)(uv01s + visibleVertCount);
+        texture_t const *const pim_noalias textures = texture_table()->values;
+
+        i32 vertCount = 0;
         for (i32 iVis = 0; iVis < visibleDrawCount; ++iVis)
         {
             const i32 iMesh = visibleIndices[iVis];
             const mesh_t mesh = *mesh_get(meshids[iMesh]);
             const i32 vertBack = vertCount;
-            vertCount += mesh.length;
+            const i32 meshLen = mesh.length;
+            vertCount += meshLen;
 
             const float4x4 localToWorld = matrices[iMesh];
-            for (i32 j = 0; j < mesh.length; ++j)
+            const material_t mat = materials[iMesh];
+            const i32 albedoIndex = textures[mat.albedo.index].slot.index;
+            const i32 romeIndex = textures[mat.rome.index].slot.index;
+            const i32 normalIndex = textures[mat.normal.index].slot.index;
+            const float3x3 IM = invMatrices[iMesh];
+
+            for (i32 j = 0; j < meshLen; ++j)
             {
                 positions[vertBack + j] = f4x4_mul_pt(localToWorld, mesh.positions[j]);
-            }
-
-            const float3x3 IM = invMatrices[iMesh];
-            for (i32 j = 0; j < mesh.length; ++j)
-            {
-                normals[vertBack + j] = f3x3_mul_col(IM, mesh.normals[j]);
-            }
-
-            memcpy(uv01s + vertBack, mesh.uvs, sizeof(uv01s[0]) * mesh.length);
-
-            const material_t mat = materials[iMesh];
-            int4 texIdx = { mat.albedo.index, mat.rome.index, mat.normal.index, 0 };
-            for (i32 j = 0; j < mesh.length; ++j)
-            {
-                texIdx.w = (i32)mesh.normals[j].w;
+                float4 normal = mesh.normals[j];
+                normals[vertBack + j] = f3x3_mul_col(IM, normal);
+                uv01s[vertBack + j] = mesh.uvs[j];
+                i32 lmIndex = (i32)normal.w;
+                int4 texIdx = { albedoIndex, romeIndex, normalIndex, lmIndex };
                 texIndices[vertBack + j] = texIdx;
             }
         }
         ASSERT(vertCount == visibleVertCount);
+
         vkrBuffer_Unmap(stageBuf);
         vkrBuffer_Flush(stageBuf);
     }
@@ -269,14 +282,21 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
         VkQueue queue = NULL;
         VkCommandBuffer cpyCmd = vkrContext_GetTmpCmd(vkrContext_Get(), vkrQueueId_Gfx, &fence, &queue);
         vkrCmdBegin(cpyCmd);
+        vkrBuffer_Barrier(
+            meshBuf,
+            cpyCmd,
+            VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT);
         vkrCmdCopyBuffer(cpyCmd, *stageBuf, *meshBuf);
         vkrBuffer_Barrier(
             meshBuf,
             cpyCmd,
             VK_ACCESS_TRANSFER_WRITE_BIT,
-            VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
+            VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+            VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT);
         vkrCmdEnd(cpyCmd);
         vkrCmdSubmit(queue, cpyCmd, fence, NULL, 0x0, NULL);
     }

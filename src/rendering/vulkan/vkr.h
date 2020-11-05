@@ -4,6 +4,7 @@
 #include <volk/volk.h>
 #include "math/types.h"
 #include "containers/strlist.h"
+#include "containers/queue.h"
 #include "threading/mutex.h"
 
 PIM_C_BEGIN
@@ -13,12 +14,6 @@ PIM_C_BEGIN
 PIM_FWD_DECL(GLFWwindow);
 PIM_DECL_HANDLE(VmaAllocator);
 PIM_DECL_HANDLE(VmaAllocation);
-
-typedef struct textureid_s
-{
-    u32 index : 24;
-    u32 version : 8;
-} textureid_t;
 
 typedef enum
 {
@@ -153,6 +148,16 @@ typedef struct vkrMesh
     vkrBuffer buffer;
     i32 vertCount;
 } vkrMesh;
+
+typedef union vkrTextureId
+{
+    struct
+    {
+        u32 index : 24;
+        u32 version : 8;
+    };
+    u32 asint;
+} vkrTextureId;
 
 typedef struct vkrImage
 {
@@ -365,12 +370,6 @@ typedef struct vkrAllocator
     mutex_t releasemtx;
 } vkrAllocator;
 
-typedef struct vkrTexTable
-{
-    vkrTexture2D black;
-    VkDescriptorImageInfo table[kTextureDescriptors];
-} vkrTexTable;
-
 typedef struct vkrPassContext
 {
     VkRenderPass renderPass;
@@ -424,8 +423,8 @@ typedef struct vkrScreenBlit
 typedef struct vkrDepthPass
 {
     vkrPass pass;
-    vkrBuffer stagebuf;
-    vkrBuffer meshbuf;
+    vkrBuffer stagebufs[kFramesInFlight];
+    vkrBuffer meshbufs[kFramesInFlight];
     i32 vertCount;
 } vkrDepthPass;
 
@@ -468,7 +467,7 @@ typedef struct vkrUIPass
     vkrPass pass;
     vkrBuffer vertbufs[kFramesInFlight];
     vkrBuffer indbufs[kFramesInFlight];
-    textureid_t font;
+    vkrTextureId font;
 } vkrUIPass;
 
 typedef struct vkrExposure
@@ -543,7 +542,6 @@ typedef struct vkr_t
 
     vkrMainPass mainPass;
     vkrExposurePass exposurePass;
-    vkrTexTable texTable;
 } vkr_t;
 extern vkr_t g_vkr;
 

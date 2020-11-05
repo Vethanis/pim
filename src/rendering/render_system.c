@@ -720,11 +720,11 @@ void render_sys_init(void)
     cmd_reg("pt_stddev", CmdPtStdDev);
     cmd_reg("loadtest", CmdLoadTest);
 
-    texture_sys_init();
-    mesh_sys_init();
     vkr_init();
     g_vkr.exposurePass.params = ms_exposure;
 
+    texture_sys_init();
+    mesh_sys_init();
     pt_sys_init();
     EnsureFramebuf();
 

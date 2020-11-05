@@ -28,7 +28,7 @@ bool vkrBuffer_New(
         .usage = bufferUsage,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
-    const VmaAllocationCreateInfo allocInfo =
+    VmaAllocationCreateInfo allocInfo =
     {
         .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
         .usage = memUsage,

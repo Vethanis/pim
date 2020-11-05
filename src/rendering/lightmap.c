@@ -102,12 +102,11 @@ void lightmap_new(lightmap_t* lm, i32 size)
     {
         lm->probes[i] = (float4*)allocation;
         allocation += sizeof(float4) * texelcount;
-        texture_t tex = { 0 };
-        tex.size = i2_s(size);
-        tex.texels = lm->probes[i];
-        textureid_t id = { 0 };
-        texture_new(&tex, VK_FORMAT_R32G32B32A32_SFLOAT, guid_new(), &id);
-        lm->ids[i] = id;
+        lm->slots[i] = vkrTexTable_Alloc(
+            size,
+            size,
+            VK_FORMAT_R32G32B32A32_SFLOAT,
+            NULL);
     }
 
     lm->position = (float3*)allocation;
@@ -127,7 +126,7 @@ void lightmap_del(lightmap_t* lm)
         pim_free(lm->probes[0]);
         for (i32 i = 0; i < kGiDirections; ++i)
         {
-            texture_release(lm->ids[i]);
+            vkrTexTable_Free(lm->slots[i]);
         }
         memset(lm, 0, sizeof(*lm));
     }
@@ -139,12 +138,9 @@ void lightmap_upload(lightmap_t* lm)
     const i32 len = lm->size * lm->size;
     for (i32 i = 0; i < kGiDirections; ++i)
     {
-        texture_t* tex = texture_get(lm->ids[i]);
-        if (tex)
-        {
-            const float4* pim_noalias probes = lm->probes[i];
-            vkrTexture2D_Upload(&tex->vkrtex, probes, sizeof(probes[0]) * len);
-        }
+        vkrTextureId slot = lm->slots[i];
+        const float4* pim_noalias probes = lm->probes[i];
+        vkrTexTable_Upload(slot, probes, sizeof(probes[0]) * len);
     }
 }
 
