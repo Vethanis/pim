@@ -189,6 +189,7 @@
     <ClInclude Include="..\src\common\time.h" />
     <ClInclude Include="..\src\common\unroll.h" />
     <ClInclude Include="..\src\common\valist.h" />
+    <ClInclude Include="..\src\containers\array.hpp" />
     <ClInclude Include="..\src\containers\carray.h" />
     <ClInclude Include="..\src\containers\carray.c" />
     <ClInclude Include="..\src\containers\sset.h" />
