@@ -319,7 +319,7 @@ static cvar_t cv_pt_dist_alpha =
 {
     .type = cvart_float,
     .name = "pt_dist_alpha",
-    .value = "1",
+    .value = "0.1",
     .minFloat = 0.0f,
     .maxFloat = 1.0f,
     .desc = "path tracer light distribution update amount",
@@ -329,7 +329,7 @@ static cvar_t cv_pt_dist_samples =
 {
     .type = cvart_int,
     .name = "pt_dist_samples",
-    .value = "10000",
+    .value = "300",
     .minInt = 30,
     .maxInt = 1 << 20,
     .desc = "path tracer light distribution minimum samples per update",

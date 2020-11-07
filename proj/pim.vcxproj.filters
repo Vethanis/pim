@@ -1194,6 +1194,9 @@
     <ClInclude Include="..\submodules\SPIRV-Reflect\spirv_reflect.h">
       <Filter>submodules\spirv-reflect</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\containers\array.hpp">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">

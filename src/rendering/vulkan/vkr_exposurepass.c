@@ -177,7 +177,7 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
     vkrSwapchain* chain = &g_vkr.chain;
     const u32 chainLen = chain->length;
     const u32 imgIndex = (chain->imageIndex + (chainLen - 1u)) % chainLen;
-    const u32 syncIndex = (chain->syncIndex + (kFramesInFlight - 1u)) % kFramesInFlight;
+    const u32 syncIndex = chain->syncIndex % kFramesInFlight;
 
     vkrAttachment* lum = &chain->lumAttachments[imgIndex];
     vkrBuffer* expBuffer = &pass->expBuffers[syncIndex];
@@ -187,9 +187,6 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
     VkPipelineLayout layout = pass->pass.layout;
     VkPipeline buildPipe = pass->pass.pipeline;
     VkPipeline adaptPipe = pass->adapt;
-
-    const u32 gfxFamily = g_vkr.queues[vkrQueueId_Gfx].family;
-    const u32 cmpFamily = g_vkr.queues[vkrQueueId_Comp].family;
 
     vkrThreadContext* ctx = vkrContext_Get();
 
