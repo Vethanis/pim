@@ -192,6 +192,8 @@
     <ClInclude Include="..\src\containers\array.hpp" />
     <ClInclude Include="..\src\containers\carray.h" />
     <ClInclude Include="..\src\containers\carray.c" />
+    <ClInclude Include="..\src\containers\dict.hpp" />
+    <ClInclude Include="..\src\containers\sort.hpp" />
     <ClInclude Include="..\src\containers\sset.h" />
     <ClInclude Include="..\src\containers\table.h" />
     <ClInclude Include="..\src\containers\idtable.h" />

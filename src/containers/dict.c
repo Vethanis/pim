@@ -4,13 +4,6 @@
 #include "common/sort.h"
 #include <string.h>
 
-static u32 HashKey(const void* key, u32 keySize)
-{
-    ASSERT(key);
-    ASSERT(keySize);
-    return hashutil_create_hash(Fnv32Bytes(key, keySize, Fnv32Bias));
-}
-
 void dict_new(dict_t* dict, u32 keySize, u32 valueSize, EAlloc allocator)
 {
     ASSERT(dict);
@@ -114,7 +107,7 @@ i32 dict_find(const dict_t* dict, const void* key)
     ASSERT(key);
 
     const u32 keySize = dict->keySize;
-    const u32 keyHash = HashKey(key, keySize);
+    const u32 keyHash = hashutil_hash(key, keySize);
 
     u32 width = dict->width;
     const u32 mask = width - 1u;
@@ -199,7 +192,7 @@ bool dict_add(dict_t* dict, const void* key, const void* valueIn)
     const u32 mask = dict->width - 1u;
     const u32 valueSize = dict->valueSize;
     const u32 keySize = dict->keySize;
-    const u32 keyHash = HashKey(key, keySize);
+    const u32 keyHash = hashutil_hash(key, keySize);
 
     u32* hashes = dict->hashes;
     u8* keys = dict->keys;
