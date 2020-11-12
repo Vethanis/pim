@@ -177,7 +177,7 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
     vkrSwapchain* chain = &g_vkr.chain;
     const u32 chainLen = chain->length;
     const u32 imgIndex = (chain->imageIndex + (chainLen - 1u)) % chainLen;
-    const u32 syncIndex = chain->syncIndex % kFramesInFlight;
+    const u32 syncIndex = (chain->syncIndex + (kFramesInFlight - 1u)) % kFramesInFlight;
 
     vkrAttachment* lum = &chain->lumAttachments[imgIndex];
     vkrBuffer* expBuffer = &pass->expBuffers[syncIndex];

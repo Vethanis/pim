@@ -30,7 +30,7 @@ public:
     T& operator[](i32 i) { ASSERT(InRange(i)); return m_ptr[i]; }
     const T& operator[](i32 i) const { ASSERT(InRange(i)); return m_ptr[i]; }
 
-    explicit Array()
+    Array()
     {
         m_ptr = NULL;
         m_length = 0;
