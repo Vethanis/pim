@@ -193,6 +193,7 @@
     <ClInclude Include="..\src\containers\carray.h" />
     <ClInclude Include="..\src\containers\carray.c" />
     <ClInclude Include="..\src\containers\dict.hpp" />
+    <ClInclude Include="..\src\containers\hash32.hpp" />
     <ClInclude Include="..\src\containers\sort.hpp" />
     <ClInclude Include="..\src\containers\sset.h" />
     <ClInclude Include="..\src\containers\table.h" />
@@ -293,6 +294,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_pipeline.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_queue.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_renderpass.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_rendergraph.hpp" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_shader.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_swapchain.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_sync.h" />

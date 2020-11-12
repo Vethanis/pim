@@ -1203,6 +1203,12 @@
     <ClInclude Include="..\src\containers\dict.hpp">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\containers\hash32.hpp">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_rendergraph.hpp">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">
