@@ -85,28 +85,123 @@ VkQueueFamilyProperties* vkrEnumQueueFamilyProperties(
     return props;
 }
 
-static void vkrSelectFamily(
-    vkrQueueSupport* support,
-    vkrQueueId id,
-    i32 family,
-    i32* choicects,
-    const VkQueueFamilyProperties* props)
+static i32 vkrSelectGfxFamily(const VkQueueFamilyProperties* families, u32 famCount)
 {
-    i32 prev = support->family[id];
-    if (prev < 0)
+    i32 index = -1;
+    u32 cost = 0xffffffff;
+    for (u32 i = 0; i < famCount; ++i)
     {
-        support->family[id] = family;
-        choicects[family] += 1;
-    }
-    else
-    {
-        if (choicects[family] < choicects[prev])
+        if (families[i].queueCount == 0)
         {
-            support->family[id] = family;
-            choicects[family] += 1;
-            choicects[prev] -= 1;
+            continue;
+        }
+        const u32 flags = families[i].queueFlags;
+        if (flags & VK_QUEUE_GRAPHICS_BIT)
+        {
+            u32 newCost = 0;
+            newCost += (flags & VK_QUEUE_COMPUTE_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_TRANSFER_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_SPARSE_BINDING_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_PROTECTED_BIT) ? 1 : 0;
+            if (newCost < cost)
+            {
+                cost = newCost;
+                index = (i32)i;
+            }
         }
     }
+    return index;
+}
+
+static i32 vkrSelectCompFamily(const VkQueueFamilyProperties* families, u32 famCount)
+{
+    i32 index = -1;
+    u32 cost = 0xffffffff;
+    for (u32 i = 0; i < famCount; ++i)
+    {
+        if (families[i].queueCount == 0)
+        {
+            continue;
+        }
+        const u32 flags = families[i].queueFlags;
+        if (flags & VK_QUEUE_COMPUTE_BIT)
+        {
+            u32 newCost = 0;
+            newCost += (flags & VK_QUEUE_GRAPHICS_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_TRANSFER_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_SPARSE_BINDING_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_PROTECTED_BIT) ? 1 : 0;
+            if (newCost < cost)
+            {
+                cost = newCost;
+                index = (i32)i;
+            }
+        }
+    }
+    return index;
+}
+
+static i32 vkrSelectXferFamily(const VkQueueFamilyProperties* families, u32 famCount)
+{
+    i32 index = -1;
+    u32 cost = 0xffffffff;
+    for (u32 i = 0; i < famCount; ++i)
+    {
+        if (families[i].queueCount == 0)
+        {
+            continue;
+        }
+        const u32 flags = families[i].queueFlags;
+        if (flags & VK_QUEUE_TRANSFER_BIT)
+        {
+            u32 newCost = 0;
+            newCost += (flags & VK_QUEUE_GRAPHICS_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_COMPUTE_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_SPARSE_BINDING_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_PROTECTED_BIT) ? 1 : 0;
+            if (newCost < cost)
+            {
+                cost = newCost;
+                index = (i32)i;
+            }
+        }
+    }
+    return index;
+}
+
+static i32 vkrSelectPresFamily(
+    VkPhysicalDevice phdev,
+    VkSurfaceKHR surf,
+    const VkQueueFamilyProperties* families,
+    u32 famCount)
+{
+    i32 index = -1;
+    u32 cost = 0xffffffff;
+    for (u32 i = 0; i < famCount; ++i)
+    {
+        if (families[i].queueCount == 0)
+        {
+            continue;
+        }
+        VkBool32 presentable = false;
+        VkCheck(vkGetPhysicalDeviceSurfaceSupportKHR(phdev, i, surf, &presentable));
+        if (presentable)
+        {
+            const u32 flags = families[i].queueFlags;
+            u32 newCost = 0;
+            newCost += (flags & VK_QUEUE_GRAPHICS_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_COMPUTE_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_TRANSFER_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_SPARSE_BINDING_BIT) ? 1 : 0;
+            newCost += (flags & VK_QUEUE_PROTECTED_BIT) ? 1 : 0;
+            if (newCost < cost)
+            {
+                cost = newCost;
+                index = (i32)i;
+            }
+        }
+    }
+    return index;
 }
 
 vkrQueueSupport vkrQueryQueueSupport(VkPhysicalDevice phdev, VkSurfaceKHR surf)
@@ -114,50 +209,18 @@ vkrQueueSupport vkrQueryQueueSupport(VkPhysicalDevice phdev, VkSurfaceKHR surf)
     ASSERT(phdev);
     ASSERT(surf);
 
-    vkrQueueSupport support = { 0 };
-    for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
-    {
-        support.family[id] = -1;
-        support.index[id] = 0;
-    }
-
     u32 famCount = 0;
     VkQueueFamilyProperties* properties = vkrEnumQueueFamilyProperties(phdev, &famCount);
+
+    vkrQueueSupport support = { 0 };
     support.count = famCount;
     support.properties = properties;
+    support.family[vkrQueueId_Gfx] = vkrSelectGfxFamily(properties, famCount);
+    support.family[vkrQueueId_Comp] = vkrSelectCompFamily(properties, famCount);
+    support.family[vkrQueueId_Xfer] = vkrSelectXferFamily(properties, famCount);
+    support.family[vkrQueueId_Pres] = vkrSelectPresFamily(phdev, surf, properties, famCount);
 
     i32* choicects = tmp_calloc(sizeof(choicects[0]) * famCount);
-    for (u32 family = 0; family < famCount; ++family)
-    {
-        if (properties[family].queueCount == 0)
-        {
-            continue;
-        }
-        VkQueueFlags flags = properties[family].queueFlags;
-
-        if (flags & VK_QUEUE_GRAPHICS_BIT)
-        {
-            vkrSelectFamily(&support, vkrQueueId_Gfx, family, choicects, properties);
-        }
-        if (flags & VK_QUEUE_COMPUTE_BIT)
-        {
-            vkrSelectFamily(&support, vkrQueueId_Comp, family, choicects, properties);
-        }
-        if (flags & VK_QUEUE_TRANSFER_BIT)
-        {
-            vkrSelectFamily(&support, vkrQueueId_Xfer, family, choicects, properties);
-        }
-        VkBool32 presentable = false;
-        VkCheck(vkGetPhysicalDeviceSurfaceSupportKHR(phdev, family, surf, &presentable));
-        if (presentable)
-        {
-            vkrSelectFamily(&support, vkrQueueId_Pres, family, choicects, properties);
-        }
-    }
-    for (u32 family = 0; family < famCount; ++family)
-    {
-        choicects[family] = 0;
-    }
     for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
     {
         i32 family = support.family[id];

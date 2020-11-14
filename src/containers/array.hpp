@@ -119,8 +119,8 @@ public:
         ASSERT(InRange(index));
         T *const pim_noalias ptr = m_ptr;
         i32 b = --m_length;
-        ptr[i].~T();
-        memcpy(ptr + i, ptr + b, sizeof(T));
+        ptr[index].~T();
+        memcpy(ptr + index, ptr + b, sizeof(T));
     }
 
     void Clear()
@@ -146,7 +146,7 @@ public:
         ASSERT(capacity >= 0);
         if (capacity > m_length)
         {
-            m_ptr = pim_realloc(m_allocator, m_ptr, sizeof(T) * capacity);
+            m_ptr = (T*)pim_realloc(m_allocator, m_ptr, sizeof(T) * capacity);
         }
     }
 
@@ -170,7 +170,7 @@ public:
     T& Grow()
     {
         i32 b = m_length++;
-        m_ptr = pim_realloc(m_allocator, m_ptr, sizeof(T) * (b + 1));
+        m_ptr = (T*)pim_realloc(m_allocator, m_ptr, sizeof(T) * (b + 1));
         T *const pim_noalias ptr = m_ptr;
         new (ptr + b) T();
         return ptr[b];
