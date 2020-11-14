@@ -102,6 +102,7 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_display.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_exposurepass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_image.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_rendergraph.cpp" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_uipass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_mainpass.c" />

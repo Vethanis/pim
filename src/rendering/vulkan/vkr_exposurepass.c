@@ -228,33 +228,46 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
         vkrDesc_WriteBindings(NELEM(bindings), bindings);
     }
 
+    VkFence cmpfence = NULL;
+    VkQueue cmpqueue = NULL;
+    VkCommandBuffer cmpcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Comp, &cmpfence, &cmpqueue);
+    vkrCmdBegin(cmpcmd);
+
     // transition lum img and exposure buf to compute
     {
+        VkFence gfxfence = NULL;
+        VkQueue gfxqueue = NULL;
+        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &gfxfence, &gfxqueue);
+        vkrCmdBegin(gfxcmd);
+
         vkrImage_Transfer(
             &lum->image,
+            vkrQueueId_Gfx,
+            vkrQueueId_Comp,
+            gfxcmd,
+            cmpcmd,
             VK_IMAGE_LAYOUT_GENERAL,
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             VK_ACCESS_SHADER_READ_BIT,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            vkrQueueId_Gfx,
-            vkrQueueId_Comp);
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
         vkrBuffer_Transfer(
             expBuffer,
+            vkrQueueId_Gfx,
+            vkrQueueId_Comp,
+            gfxcmd,
+            cmpcmd,
             VK_ACCESS_SHADER_READ_BIT,
             VK_ACCESS_SHADER_WRITE_BIT,
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            vkrQueueId_Gfx,
-            vkrQueueId_Comp);
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+
+        vkrCmdEnd(gfxcmd);
+        vkrCmdSubmit(gfxqueue, gfxcmd, gfxfence, NULL, 0x0, NULL);
     }
 
     // dispatch shaders
     {
-        VkFence cmpfence = NULL;
-        VkQueue cmpqueue = NULL;
-        VkCommandBuffer cmpcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Comp, &cmpfence, &cmpqueue);
-        vkrCmdBegin(cmpcmd);
 
         vkCmdBindDescriptorSets(
             cmpcmd, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &set, 0, NULL);
@@ -297,21 +310,42 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
             vkCmdDispatch(cmpcmd, 1, 1, 1);
         }
 
-        vkrCmdEnd(cmpcmd);
-        vkrCmdSubmit(cmpqueue, cmpcmd, cmpfence, NULL, 0x0, NULL);
     }
 
     // transition to gfx
     {
+        VkFence gfxfence = NULL;
+        VkQueue gfxqueue = NULL;
+        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &gfxfence, &gfxqueue);
+        vkrCmdBegin(gfxcmd);
+
         vkrImage_Transfer(
             &lum->image,
+            vkrQueueId_Comp,
+            vkrQueueId_Gfx,
+            cmpcmd,
+            gfxcmd,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             VK_ACCESS_SHADER_READ_BIT,
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+        vkrBuffer_Transfer(
+            expBuffer,
             vkrQueueId_Comp,
-            vkrQueueId_Gfx);
+            vkrQueueId_Gfx,
+            cmpcmd,
+            gfxcmd,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+        vkrCmdEnd(cmpcmd);
+        vkrCmdSubmit(cmpqueue, cmpcmd, cmpfence, NULL, 0x0, NULL);
+
+        vkrCmdEnd(gfxcmd);
+        vkrCmdSubmit(gfxqueue, gfxcmd, gfxfence, NULL, 0x0, NULL);
     }
 
     ProfileEnd(pm_execute);

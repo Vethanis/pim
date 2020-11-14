@@ -154,7 +154,8 @@ public:
         const u32 newMask = newWidth - 1;
         for (u32 i = 0; i < oldWidth;)
         {
-            if (hashutil_valid(oldHashes[i]))
+            const u32 hash = oldHashes[i];
+            if (hashutil_valid(hash))
             {
                 u32 j = hash;
                 while (true)
@@ -162,7 +163,7 @@ public:
                     j &= newMask;
                     if (!newHashes[j])
                     {
-                        newHashes[j] = oldHashes[i];
+                        newHashes[j] = hash;
                         memcpy(newKeys + j, oldKeys + i, sizeof(K));
                         memcpy(newValues + j, oldValues + i, sizeof(V));
                         goto next;
@@ -229,9 +230,9 @@ public:
         Reserve(++m_count);
         u32 keyHash;
         i32 i = FindInsertion(key, keyHash);
-        hashes[i] = keyHash;
-        new (keys + i) K(key);
-        new (values + i) V((V&&)value);
+        m_hashes[i] = keyHash;
+        new (m_keys + i) K(key);
+        new (m_values + i) V((V&&)value);
         return true;
     }
     bool AddCopy(const K& key, const V& value)
@@ -243,9 +244,9 @@ public:
         Reserve(++m_count);
         u32 keyHash;
         i32 i = FindInsertion(key, keyHash);
-        hashes[i] = keyHash;
-        new (keys + i) K(key);
-        new (values + i) V(value);
+        m_hashes[i] = keyHash;
+        new (m_keys + i) K(key);
+        new (m_values + i) V(value);
         return true;
     }
 
@@ -283,9 +284,9 @@ public:
         u32 keyHash;
         i = FindInsertion(key, keyHash);
         m_hashes[i] = keyHash;
-        new (keys + i) K(key);
-        new (values + i) V();
-        return values[i];
+        new (m_keys + i) K(key);
+        new (m_values + i) V();
+        return m_values[i];
     }
 
     // ------------------------------------------------------------------------
