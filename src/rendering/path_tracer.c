@@ -32,6 +32,7 @@
 #include "common/cvar.h"
 #include "common/stringutil.h"
 #include "common/serialize.h"
+#include "common/atomics.h"
 #include "ui/cimgui.h"
 
 #include "stb/stb_perlin_fork.h"
@@ -60,14 +61,14 @@ typedef struct scatter_s
     float4 pos;
     float4 dir;
     float4 attenuation;
-    float4 irradiance;
+    float4 luminance;
     float pdf;
 } scatter_t;
 
 typedef struct lightsample_s
 {
     float4 direction;
-    float4 irradiance;
+    float4 luminance;
     float4 wuvt;
     float pdf;
 } lightsample_t;
@@ -300,6 +301,7 @@ pim_inline void VEC_CALL LightOnHit(
     pt_sampler_t*const pim_noalias sampler,
     pt_scene_t*const pim_noalias scene,
     float4 ro,
+    float4 lum,
     i32 iVert);
 static void UpdateDists(pt_scene_t*const pim_noalias scene);
 
@@ -329,10 +331,20 @@ static cvar_t cv_pt_dist_samples =
 {
     .type = cvart_int,
     .name = "pt_dist_samples",
-    .value = "300",
+    .value = "1000",
     .minInt = 30,
     .maxInt = 1 << 20,
     .desc = "path tracer light distribution minimum samples per update",
+};
+
+static cvar_t cv_pt_rr_scale =
+{
+    .type = cvart_float,
+    .name = "pt_rr_scale",
+    .value = "0.1",
+    .minFloat = 0.01f,
+    .maxFloat = 3.0f,
+    .desc = "path tracer russian roulette scale",
 };
 
 static RTCDevice ms_device;
@@ -403,6 +415,7 @@ void pt_sys_init(void)
     cvar_reg(&cv_pt_dist_meters);
     cvar_reg(&cv_pt_dist_alpha);
     cvar_reg(&cv_pt_dist_samples);
+    cvar_reg(&cv_pt_rr_scale);
 
     InitRTC();
     InitSamplers();
@@ -1561,8 +1574,10 @@ pim_inline void VEC_CALL LightOnHit(
     pt_sampler_t*const pim_noalias sampler,
     pt_scene_t*const pim_noalias scene,
     float4 ro,
+    float4 lum4,
     i32 iVert)
 {
+    float lum = f4_avglum(lum4);
     i32 iList = scene->vertToEmit[iVert];
     if (iList >= 0)
     {
@@ -1570,7 +1585,8 @@ pim_inline void VEC_CALL LightOnHit(
         dist1d_t* dist = &scene->lightDists[iCell];
         if (dist->length)
         {
-            dist1d_inc(dist, iList);
+            u32 amt = (u32)(lum + Sample1D(sampler));
+            fetch_add_u32(dist->live + iList, amt, MO_Relaxed);
         }
     }
 }
@@ -1641,12 +1657,13 @@ pim_inline lightsample_t VEC_CALL LightSample(
         {
             sample.pdf = LightPdf(area, VoNl, distSq);
             surfhit_t surf = GetSurface(scene, ro, rd, hit);
-            sample.irradiance = surf.emission;
-            if (f4_hmax3(sample.irradiance) > kEpsilon)
+            sample.luminance = surf.emission;
+            if (f4_hmax3(sample.luminance) > kEpsilon)
             {
-                LightOnHit(sampler, scene, ro, hit.index);
+                LightOnHit(sampler, scene, ro, sample.luminance, hit.index);
+
                 float4 Tr = CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w);
-                sample.irradiance = f4_mul(sample.irradiance, Tr);
+                sample.luminance = f4_mul(sample.luminance, Tr);
             }
         }
     }
@@ -1691,11 +1708,12 @@ pim_inline float4 VEC_CALL EstimateDirect(
 {
     float4 result = f4_0;
     const float4 ro = surf->P;
+
     {
         // already has CalcTransmittance applied
         lightsample_t sample = LightSample(sampler, scene, ro, iLight);
         float4 rd = sample.direction;
-        float4 Li = sample.irradiance;
+        float4 Li = sample.luminance;
         float lightPdf = sample.pdf;
         if ((lightPdf > 0.0f) && (f4_hmax3(Li) > kEpsilon))
         {
@@ -1703,14 +1721,17 @@ pim_inline float4 VEC_CALL EstimateDirect(
             float brdfPdf = brdf.w;
             if (brdfPdf > 0.0f)
             {
-                float weight = PowerHeuristic(lightPdf, brdfPdf) * 0.5f;
-                Li = f4_mulvs(Li, weight);
                 Li = f4_mul(Li, brdf);
-                Li = f4_divvs(Li, lightPdf * selectPdf);
+
+                float weight = PowerHeuristic(lightPdf, brdfPdf) * 0.5f;
+                weight /= lightPdf * selectPdf;
+                Li = f4_mulvs(Li, weight);
+
                 result = f4_add(result, Li);
             }
         }
     }
+
     {
         scatter_t sample = BrdfScatter(sampler, surf, I);
         float4 rd = sample.dir;
@@ -1725,18 +1746,22 @@ pim_inline float4 VEC_CALL EstimateDirect(
                 float4 Li = surfhit.emission;
                 if (f4_hmax3(Li) > kEpsilon)
                 {
-                    LightOnHit(sampler, scene, ro, hit.index);
-                    float weight = PowerHeuristic(brdfPdf, lightPdf) * 0.5f;
+                    LightOnHit(sampler, scene, ro, Li, hit.index);
+
                     float4 Tr = CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w);
-                    Li = f4_mulvs(Li, weight);
                     Li = f4_mul(Li, Tr);
                     Li = f4_mul(Li, sample.attenuation);
-                    Li = f4_divvs(Li, brdfPdf);
+
+                    float weight = PowerHeuristic(brdfPdf, lightPdf) * 0.5f;
+                    weight /= brdfPdf;
+                    Li = f4_mulvs(Li, weight);
+
                     result = f4_add(result, Li);
                 }
             }
         }
     }
+
     return result;
 }
 
@@ -1775,7 +1800,7 @@ pim_inline bool VEC_CALL EvaluateLight(
         lightsample_t sample = LightSample(sampler, scene, P, iLight);
         if (sample.pdf > 0.0f)
         {
-            *lightOut = f4_divvs(sample.irradiance, sample.pdf * lightPdf);
+            *lightOut = f4_divvs(sample.luminance, sample.pdf * lightPdf);
             *dirOut = sample.direction;
             return true;
         }
@@ -2097,7 +2122,8 @@ pim_inline bool VEC_CALL RussianRoulette(
     float4* pAttenuation)
 {
     float4 att = *pAttenuation;
-    float p = f1_sat(f4_avglum(att));
+    float scale = cvar_get_float(&cv_pt_rr_scale);
+    float p = f1_sat(f4_sum3(att) * scale);
     bool kept = Sample1D(sampler) < p;
     if (kept)
     {
@@ -2222,14 +2248,14 @@ pim_inline scatter_t VEC_CALL ScatterRay(
         bool scattered = Sample1D(sampler) < pScatter;
         if (scattered)
         {
-            float4 rad;
+            float4 lum;
             float4 L;
-            if (EvaluateLight(sampler, scene, P, &rad, &L))
+            if (EvaluateLight(sampler, scene, P, &lum, &L))
             {
                 float ph = CalcPhase(desc, f4_dot3(rd, L));
-                rad = f4_mulvs(rad, ph * dt);
-                rad = f4_mul(rad, result.attenuation);
-                result.irradiance = rad;
+                lum = f4_mulvs(lum, ph * dt);
+                lum = f4_mul(lum, result.attenuation);
+                result.luminance = lum;
             }
 
             result.pos = f4_add(ro, f4_mulvs(rd, t));
@@ -2259,7 +2285,7 @@ pt_result_t VEC_CALL pt_trace_ray(
     float4 rd)
 {
     pt_result_t result = { 0 };
-    float4 light = f4_0;
+    float4 luminance = f4_0;
     float4 attenuation = f4_1;
     u32 prevFlags = 0;
 
@@ -2282,14 +2308,14 @@ pt_result_t VEC_CALL pt_trace_ray(
                 break;
             }
         }
-        if (b > 0)
-        {
-            LightOnHit(sampler, scene, ro, hit.index);
-        }
 
         {
             scatter_t scatter = ScatterRay(sampler, scene, ro, rd, hit.wuvt.w);
-            light = f4_add(light, f4_mul(scatter.irradiance, attenuation));
+            {
+                float4 Li = scatter.luminance;
+                luminance = f4_add(luminance, f4_mul(Li, attenuation));
+            }
+
             if (scatter.pdf > 0.0f)
             {
                 if (b == 0)
@@ -2310,7 +2336,8 @@ pt_result_t VEC_CALL pt_trace_ray(
 
         if (hit.flags & matflag_sky)
         {
-            light = f4_add(light, f4_mul(GetSky(scene, ro, rd), attenuation));
+            float4 Li = GetSky(scene, ro, rd);
+            luminance = f4_add(luminance, f4_mul(Li, attenuation));
             break;
         }
 
@@ -2325,11 +2352,12 @@ pt_result_t VEC_CALL pt_trace_ray(
 
         if ((b == 0) || (prevFlags & matflag_refractive))
         {
-            light = f4_add(light, f4_mul(surf.emission, attenuation));
+            float4 Li = surf.emission;
+            luminance = f4_add(luminance, f4_mul(Li, attenuation));
         }
         {
-            float4 direct = SampleLights(sampler, scene, &surf, &hit, rd);
-            light = f4_add(light, f4_mul(direct, attenuation));
+            float4 Li = SampleLights(sampler, scene, &surf, &hit, rd);
+            luminance = f4_add(luminance, f4_mul(Li, attenuation));
         }
 
         scatter_t scatter = BrdfScatter(sampler, &surf, rd);
@@ -2344,7 +2372,7 @@ pt_result_t VEC_CALL pt_trace_ray(
         prevFlags = surf.flags;
     }
 
-    result.color = f4_f3(light);
+    result.color = f4_f3(luminance);
     return result;
 }
 
