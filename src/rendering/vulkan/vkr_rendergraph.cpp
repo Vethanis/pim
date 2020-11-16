@@ -2,6 +2,26 @@
 
 namespace vkr
 {
+    static void AddAccess(Array<ResourceAccess>& set, const ResourceAccess& access)
+    {
+        ASSERT(access.resource);
+        for (ResourceAccess& ra : set)
+        {
+            if (ra.resource == access.resource)
+            {
+                // can't read two layouts in same pass
+                // can't write two layouts in same pass
+                ASSERT(ra.layout == access.layout);
+                ra.access |= access.access;
+                ra.stage |= access.stage;
+                return;
+            }
+        }
+        set.Grow() = access;
+    }
+
+    // ------------------------------------------------------------------------
+
     ImageResource& RenderPass::AddImageInput(
         const char* name,
         VkPipelineStageFlags stage,
@@ -13,11 +33,12 @@ namespace vkr
         ir.AddQueue(m_queueFlags);
         ir.ReadInPass(m_id);
         ir.AddImageUsage(usage);
-        ResourceAccess& ra = m_inputs.Grow();
+        ResourceAccess ra = {};
         ra.resource = &ir;
         ra.stage = stage;
         ra.access = access;
         ra.layout = layout;
+        AddAccess(m_inputs, ra);
         return ir;
     }
 
@@ -26,17 +47,20 @@ namespace vkr
         VkPipelineStageFlags stage,
         VkAccessFlags access,
         VkImageLayout layout,
+        VkImageUsageFlags usage,
         const AttachmentInfo& info)
     {
         ImageResource& ir = m_graph.GetImageResource(name);
         ir.SetAttachmentInfo(info);
         ir.AddQueue(m_queueFlags);
         ir.WriteInPass(m_id);
-        ResourceAccess& ra = m_outputs.Grow();
+        ir.AddImageUsage(usage);
+        ResourceAccess ra = {};
         ra.resource = &ir;
         ra.stage = stage;
         ra.access = access;
         ra.layout = layout;
+        AddAccess(m_outputs, ra);
         return ir;
     }
 
@@ -50,11 +74,11 @@ namespace vkr
         br.AddQueue(m_queueFlags);
         br.ReadInPass(m_id);
         br.AddBufferUsage(usage);
-        ResourceAccess& ra = m_inputs.Grow();
+        ResourceAccess ra = {};
         ra.resource = &br;
         ra.stage = stage;
         ra.access = access;
-        ra.layout = VK_IMAGE_LAYOUT_GENERAL;
+        AddAccess(m_inputs, ra);
         return br;
     }
 
@@ -62,19 +86,23 @@ namespace vkr
         const char* name,
         VkPipelineStageFlags stage,
         VkAccessFlags access,
+        VkBufferUsageFlags usage,
         const BufferInfo& info)
     {
         BufferResource& br = m_graph.GetBufferResource(name);
         br.SetBufferInfo(info);
         br.AddQueue(m_queueFlags);
         br.ReadInPass(m_id);
-        ResourceAccess& ra = m_outputs.Grow();
+        br.AddBufferUsage(usage);
+        ResourceAccess ra = {};
         ra.resource = &br;
         ra.stage = stage;
         ra.access = access;
-        ra.layout = VK_IMAGE_LAYOUT_GENERAL;
+        AddAccess(m_outputs, ra);
         return br;
     }
+
+    // ------------------------------------------------------------------------
 
     ImageResource& RenderGraph::GetImageResource(const char* name)
     {
