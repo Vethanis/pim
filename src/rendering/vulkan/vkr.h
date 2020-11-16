@@ -163,14 +163,14 @@ typedef struct vkrImage
 {
     VkImage handle;
     VmaAllocation allocation;
-    i32 width;
-    i32 height;
-    i32 depth;
-    i32 mipLevels;
-    i32 arrayLayers;
     VkFormat format;
     VkImageLayout layout;
     VkImageUsageFlags usage;
+    u16 width;
+    u16 height;
+    u16 depth;
+    u8 mipLevels;
+    u8 arrayLayers;
 } vkrImage;
 
 typedef struct vkrTexture2D

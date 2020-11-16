@@ -68,8 +68,8 @@ static cvar_t cv_pt_albedo = { .type = cvart_bool,.name = "pt_albedo",.value = "
 static cvar_t cv_cm_gen = { .type = cvart_bool,.name = "cm_gen",.value = "0",.desc = "enable cubemap generation" };
 
 static cvar_t cv_lm_gen = { .type = cvart_bool,.name = "lm_gen",.value = "0",.desc = "enable lightmap generation" };
-static cvar_t cv_lm_density = { .type = cvart_float,.name = "lm_density",.value = "8",.minFloat = 0.1f,.maxFloat = 32.0f,.desc = "lightmap texels per unit" };
-static cvar_t cv_lm_timeslice = { .type = cvart_int,.name = "lm_timeslice",.value = "3",.minInt = 0,.maxInt = 60,.desc = "number of frames required to add 1 lighting sample to all lightmap texels" };
+static cvar_t cv_lm_density = { .type = cvart_float,.name = "lm_density",.value = "4",.minFloat = 0.1f,.maxFloat = 32.0f,.desc = "lightmap texels per meter" };
+static cvar_t cv_lm_timeslice = { .type = cvart_int,.name = "lm_timeslice",.value = "0",.minInt = 0,.maxInt = 60,.desc = "number of frames required to add 1 lighting sample to all lightmap texels" };
 
 static cvar_t cv_r_sun_dir = { .type = cvart_vector,.name = "r_sun_dir",.value = "0.0 0.968 0.253 0.0",.desc = "Sun Direction" };
 static cvar_t cv_r_sun_col = { .type = cvart_color,.name = "r_sun_col",.value = "1 1 1 1",.desc = "Sun Color" };
@@ -327,7 +327,7 @@ static void Lightmap_Trace(void)
         lmpack_bake(ms_ptscene, timeslice);
 
         u64 now = time_now();
-        if (time_sec(now - s_lastUpload) > 5.0)
+        if (time_sec(now - s_lastUpload) > 10.0)
         {
             s_lastUpload = now;
             lmpack_t* pack = lmpack_get();
