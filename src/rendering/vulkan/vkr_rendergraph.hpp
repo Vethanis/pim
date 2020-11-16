@@ -2,7 +2,6 @@
 
 #include "common/macro.h"
 #include "containers/array.hpp"
-#include "containers/dict.hpp"
 #include "containers/hash32.hpp"
 #include "rendering/vulkan/vkr.h"
 #include <string.h>
@@ -360,7 +359,7 @@ namespace vkr
         virtual ~PhysicalResource() = default;
     };
 
-    class PhysicalBuffer : public PhysicalResource
+    class PhysicalBuffer final : public PhysicalResource
     {
     private:
         vkrBuffer m_buffer;
@@ -370,7 +369,7 @@ namespace vkr
         ~PhysicalBuffer();
     };
 
-    class PhysicalImage : public PhysicalResource
+    class PhysicalImage final : public PhysicalResource
     {
     private:
         vkrImage m_image;
@@ -379,15 +378,21 @@ namespace vkr
         ~PhysicalImage();
     };
 
-    class ResourceProvider
+    struct IResourceProvider
     {
-    private:
-    public:
-        ResourceProvider();
-        virtual ~ResourceProvider() = default;
-
+        virtual ~IResourceProvider() = default;
         virtual void Update() = 0;
         virtual PhysicalResource* Resolve(const Resource* resource) = 0;
+    };
+
+    class ProviderMap final
+    {
+    private:
+        Array<IResourceProvider*> m_providers;
+    public:
+        void Register(IResourceProvider* provider);
+        void Update();
+        PhysicalResource* Resolve(const Resource* resource);
     };
 
     class RenderGraph final

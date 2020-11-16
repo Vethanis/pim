@@ -104,6 +104,37 @@ namespace vkr
 
     // ------------------------------------------------------------------------
 
+    void ProviderMap::Register(IResourceProvider* provider)
+    {
+        ASSERT(provider);
+        ASSERT(!m_providers.Contains(provider));
+        m_providers.Grow() = provider;
+    }
+
+    void ProviderMap::Update()
+    {
+        for (IResourceProvider* provider : m_providers)
+        {
+            provider->Update();
+        }
+    }
+
+    PhysicalResource* ProviderMap::Resolve(const Resource* resource)
+    {
+        ASSERT(resource);
+        for (IResourceProvider* provider : m_providers)
+        {
+            PhysicalResource* physical = provider->Resolve(resource);
+            if (physical)
+            {
+                return physical;
+            }
+        }
+        return NULL;
+    }
+
+    // ------------------------------------------------------------------------
+
     ImageResource& RenderGraph::GetImageResource(const char* name)
     {
         ResourceId id(name);
