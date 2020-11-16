@@ -60,22 +60,117 @@
 #include <string.h>
 #include <time.h>
 
-static cvar_t cv_pt_trace = { .type = cvart_bool,.name = "pt_trace",.value = "0",.desc = "enable path tracing" };
-static cvar_t cv_pt_denoise = { .type = cvart_bool,.name = "pt_denoise",.value = "0",.desc = "denoise path tracing output" };
-static cvar_t cv_pt_normal = { .type = cvart_bool,.name = "pt_normal",.value = "0",.desc = "output path tracer normals" };
-static cvar_t cv_pt_albedo = { .type = cvart_bool,.name = "pt_albedo",.value = "0",.desc = "output path tracer albedo" };
+static cvar_t cv_pt_trace =
+{
+    .type = cvart_bool,
+    .name = "pt_trace",
+    .value = "0",
+    .desc = "enable path tracing",
+};
 
-static cvar_t cv_cm_gen = { .type = cvart_bool,.name = "cm_gen",.value = "0",.desc = "enable cubemap generation" };
+static cvar_t cv_pt_denoise =
+{
+    .type = cvart_bool,
+    .name = "pt_denoise",
+    .value = "0",
+    .desc = "denoise path tracing output",
+};
 
-static cvar_t cv_lm_gen = { .type = cvart_bool,.name = "lm_gen",.value = "0",.desc = "enable lightmap generation" };
-static cvar_t cv_lm_density = { .type = cvart_float,.name = "lm_density",.value = "4",.minFloat = 0.1f,.maxFloat = 32.0f,.desc = "lightmap texels per meter" };
-static cvar_t cv_lm_timeslice = { .type = cvart_int,.name = "lm_timeslice",.value = "0",.minInt = 0,.maxInt = 60,.desc = "number of frames required to add 1 lighting sample to all lightmap texels" };
+static cvar_t cv_pt_normal =
+{
+    .type = cvart_bool,
+    .name = "pt_normal",
+    .value = "0",
+    .desc = "output path tracer normals",
+};
 
-static cvar_t cv_r_sun_dir = { .type = cvart_vector,.name = "r_sun_dir",.value = "0.0 0.968 0.253 0.0",.desc = "Sun Direction" };
-static cvar_t cv_r_sun_col = { .type = cvart_color,.name = "r_sun_col",.value = "1 1 1 1",.desc = "Sun Color" };
-static cvar_t cv_r_sun_lum = { .type = cvart_float,.name = "r_sun_lum",.value = "12.0",.minFloat = -20.0f,.maxFloat = 20.0f,.desc = "Log2 Sun Luminance" };
+static cvar_t cv_pt_albedo =
+{
+    .type = cvart_bool,
+    .name = "pt_albedo",
+    .value = "0",
+    .desc = "output path tracer albedo",
+};
 
-static cvar_t cv_r_qlights = { .type = cvart_bool,.name = "r_qlights",.value = "0",.desc = "Load quake light entities" };
+static cvar_t cv_cm_gen =
+{
+    .type = cvart_bool,
+    .name = "cm_gen",
+    .value = "0",
+    .desc = "enable cubemap generation",
+};
+
+static cvar_t cv_lm_gen =
+{
+    .type = cvart_bool,
+    .name = "lm_gen",
+    .value = "0",
+    .desc = "enable lightmap generation",
+};
+
+static cvar_t cv_lm_density =
+{
+    .type = cvart_float,
+    .name = "lm_density",
+    .value = "4",
+    .minFloat = 0.1f,
+    .maxFloat = 32.0f,
+    .desc = "lightmap texels per meter",
+};
+
+static cvar_t cv_lm_timeslice =
+{
+    .type = cvart_int,
+    .name = "lm_timeslice",
+    .value = "1",
+    .minInt = 1,
+    .maxInt = 1024,
+    .desc = "number of frames required to add 1 lighting sample to all lightmap texels",
+};
+
+static cvar_t cv_lm_spp =
+{
+    .type = cvart_int,
+    .name = "lm_spp",
+    .value = "16",
+    .minInt = 1,
+    .maxInt = 1024,
+    .desc = "lightmap samples per pixel",
+};
+
+static cvar_t cv_r_sun_dir =
+{
+    .type = cvart_vector,
+    .name = "r_sun_dir",
+    .value = "0.0 0.968 0.253 0.0",
+    .desc = "Sun Direction",
+};
+
+static cvar_t cv_r_sun_col =
+{
+    .type = cvart_color,
+    .name = "r_sun_col",
+    .value = "1 1 1 1",
+    .desc = "Sun Color",
+};
+
+static cvar_t cv_r_sun_lum =
+{
+    .type = cvart_float,
+    .name = "r_sun_lum",
+    .value = "12.0",
+    .minFloat = -20.0f,
+    .maxFloat = 20.0f,
+    .desc = "Log2 Sun Luminance",
+};
+
+static cvar_t cv_r_qlights =
+{
+    .type = cvart_bool,
+    .name = "r_qlights",
+    .value = "0",
+    .desc = "Load quake light entities",
+};
 
 static void RegCVars(void)
 {
@@ -87,6 +182,7 @@ static void RegCVars(void)
     cvar_reg(&cv_lm_gen);
     cvar_reg(&cv_lm_density);
     cvar_reg(&cv_lm_timeslice);
+    cvar_reg(&cv_lm_spp);
 
     cvar_reg(&cv_cm_gen);
 
@@ -323,8 +419,9 @@ static void Lightmap_Trace(void)
             LightmapRepack();
         }
 
-        float timeslice = 1.0f / i1_max(1, cv_lm_timeslice.asInt);
-        lmpack_bake(ms_ptscene, timeslice);
+        float timeslice = 1.0f / cvar_get_int(&cv_lm_timeslice);
+        i32 spp = cvar_get_int(&cv_lm_spp);
+        lmpack_bake(ms_ptscene, timeslice, spp);
 
         u64 now = time_now();
         if (time_sec(now - s_lastUpload) > 10.0)
