@@ -147,9 +147,9 @@ public:
         V *const pim_noalias oldValues = m_values;
 
         const EAlloc allocator = m_allocator;
-        u32 *const pim_noalias newHashes = pim_calloc(allocator, sizeof(newHashes[0]) * newWidth);
-        K *const pim_noalias newKeys = pim_calloc(allocator, sizeof(newKeys[0]) * newWidth);
-        V *const pim_noalias newValues = pim_calloc(allocator, sizeof(newValues[0]) * newWidth);
+        u32 *const pim_noalias newHashes = (u32*)pim_calloc(allocator, sizeof(newHashes[0]) * newWidth);
+        K *const pim_noalias newKeys = (K*)pim_calloc(allocator, sizeof(newKeys[0]) * newWidth);
+        V *const pim_noalias newValues = (V*)pim_calloc(allocator, sizeof(newValues[0]) * newWidth);
 
         const u32 newMask = newWidth - 1;
         for (u32 i = 0; i < oldWidth;)
