@@ -67,7 +67,7 @@ lmpack_t lmpack_pack(
     float degThresh);
 void lmpack_del(lmpack_t* pack);
 
-void lmpack_bake(pt_scene_t* scene, float timeSlice);
+void lmpack_bake(pt_scene_t* scene, float timeSlice, i32 spp);
 
 bool lmpack_save(crate_t* crate, const lmpack_t* src);
 bool lmpack_load(crate_t* crate, lmpack_t* dst);

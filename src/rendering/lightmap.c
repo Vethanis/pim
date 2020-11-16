@@ -1412,17 +1412,19 @@ typedef struct bake_s
     task_t task;
     pt_scene_t* scene;
     float timeSlice;
+    i32 spp;
 } bake_t;
 
-static void BakeFn(task_t* pbase, i32 begin, i32 end)
+static void BakeFn(void* pbase, i32 begin, i32 end)
 {
     const i32 tid = task_thread_id();
 
-    bake_t* task = (bake_t*)pbase;
-    pt_scene_t* scene = task->scene;
+    bake_t *const task = pbase;
+    pt_scene_t *const scene = task->scene;
     const float timeSlice = task->timeSlice;
+    const i32 spp = task->spp;
 
-    lmpack_t* pack = lmpack_get();
+    lmpack_t *const pack = lmpack_get();
     const i32 lmSize = pack->lmSize;
     const i32 lmLen = lmSize * lmSize;
     const float rcpSize = 1.0f / lmSize;
@@ -1442,67 +1444,76 @@ static void BakeFn(task_t* pbase, i32 begin, i32 end)
             continue;
         }
 
-        float weight = 1.0f / sampleCount;
-        float prob = f1_lerp(timeSlice, timeSlice * 2.0f, weight);
-        if (pt_sample_1d(&sampler) > prob)
+        if (pt_sample_1d(&sampler) > timeSlice)
         {
             continue;
         }
 
-        float3 P3 = lightmap.position[iTexel];
-        float3 N3 = lightmap.normal[iTexel];
-
-        float4 P = f3_f4(P3, 1.0f);
-        float4 N = f4_normalize3(f3_f4(N3, 0.0f));
-        P = f4_add(P, f4_mulvs(N, kMilli));
-
+        const float4 N = f4_normalize3(
+            f3_f4(lightmap.normal[iTexel], 0.0f));
+        const float4 P = f4_add(
+            f3_f4(lightmap.position[iTexel], 1.0f),
+            f4_mulvs(N, kMilli));
         const float3x3 TBN = NormalToTBN(N);
-        float dt = (pt_sample_1d(&sampler) - 0.5f) * metersPerTexel;
-        float db = (pt_sample_1d(&sampler) - 0.5f) * metersPerTexel;
-        P = f4_add(P, f4_mulvs(TBN.c0, dt));
-        P = f4_add(P, f4_mulvs(TBN.c1, db));
 
-        float4 Lts = SampleUnitHemisphere(pt_sample_2d(&sampler));
-        float4 Lws = TbnToWorld(TBN, Lts);
-
-        pt_result_t result = pt_trace_ray(&sampler, scene, P, Lws);
-
-        float4 probe[kGiDirections];
+        float4 probes[kGiDirections];
         float4 axii[kGiDirections];
         for (i32 i = 0; i < kGiDirections; ++i)
         {
-            probe[i] = lightmap.probes[i][iTexel];
+            probes[i] = lightmap.probes[i][iTexel];
             float4 ax = kGiAxii[i];
             float sharpness = ax.w;
             ax = TbnToWorld(TBN, ax);
             ax.w = sharpness;
             axii[i] = ax;
         }
-        SG_Accumulate(weight, Lws, f3_f4(result.color, 0.0f), axii, probe, kGiDirections);
+
+        for (i32 i = 0; i < spp; ++i)
+        {
+            float4 Lts = SampleUnitHemisphere(pt_sample_2d(&sampler));
+            float4 rd = TbnToWorld(TBN, Lts);
+            float dt = (pt_sample_1d(&sampler) - 0.5f) * metersPerTexel;
+            float db = (pt_sample_1d(&sampler) - 0.5f) * metersPerTexel;
+            float4 ro = P;
+            ro = f4_add(ro, f4_mulvs(TBN.c0, dt));
+            ro = f4_add(ro, f4_mulvs(TBN.c1, db));
+            pt_result_t result = pt_trace_ray(&sampler, scene, ro, rd);
+            float weight = 1.0f / sampleCount;
+            sampleCount += 1.0f;
+            SG_Accumulate(
+                weight,
+                rd,
+                f3_f4(result.color, 0.0f),
+                axii,
+                probes,
+                kGiDirections);
+        }
+
         for (i32 i = 0; i < kGiDirections; ++i)
         {
-            lightmap.probes[i][iTexel] = probe[i];
+            lightmap.probes[i][iTexel] = probes[i];
         }
-        lightmap.sampleCounts[iTexel] = sampleCount + 1.0f;
+        lightmap.sampleCounts[iTexel] = sampleCount;
     }
     pt_sampler_set(sampler);
 }
 
 ProfileMark(pm_Bake, lmpack_bake)
-void lmpack_bake(pt_scene_t* scene, float timeSlice)
+void lmpack_bake(pt_scene_t* scene, float timeSlice, i32 spp)
 {
     ProfileBegin(pm_Bake);
     ASSERT(scene);
 
     pt_scene_update(scene);
 
-    const lmpack_t* pack = lmpack_get();
+    lmpack_t const *const pack = lmpack_get();
     i32 texelCount = TexelCount(pack->lightmaps, pack->lmCount);
     if (texelCount > 0)
     {
-        bake_t* task = perm_calloc(sizeof(*task));
+        bake_t *const task = perm_calloc(sizeof(*task));
         task->scene = scene;
         task->timeSlice = timeSlice;
+        task->spp = i1_max(1, spp);
         task_run(&task->task, BakeFn, texelCount);
     }
 
