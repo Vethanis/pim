@@ -568,9 +568,6 @@
     <ClCompile Include="..\submodules\SPIRV-Reflect\spirv_reflect.c">
       <Filter>submodules\spirv-reflect</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\vulkan\vkr_rendergraph.cpp">
-      <Filter>Source Files\rendering\vulkan</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -1208,9 +1205,6 @@
     </ClInclude>
     <ClInclude Include="..\src\containers\hash32.hpp">
       <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\rendering\vulkan\vkr_rendergraph.hpp">
-      <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
