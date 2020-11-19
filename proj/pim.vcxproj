@@ -71,6 +71,7 @@
     <ClCompile Include="..\src\rendering\denoise.c" />
     <ClCompile Include="..\src\rendering\drawable.c" />
     <ClCompile Include="..\src\rendering\exposure.c" />
+    <ClCompile Include="..\src\rendering\framegraph\framegraph.cpp" />
     <ClCompile Include="..\src\rendering\librtc.c" />
     <ClCompile Include="..\src\rendering\lightmap.c" />
     <ClCompile Include="..\src\rendering\lights.c" />
@@ -193,7 +194,10 @@
     <ClInclude Include="..\src\containers\carray.h" />
     <ClInclude Include="..\src\containers\carray.c" />
     <ClInclude Include="..\src\containers\dict.hpp" />
+    <ClInclude Include="..\src\containers\hash128.hpp" />
     <ClInclude Include="..\src\containers\hash32.hpp" />
+    <ClInclude Include="..\src\containers\hash64.hpp" />
+    <ClInclude Include="..\src\containers\queue.hpp" />
     <ClInclude Include="..\src\containers\sort.hpp" />
     <ClInclude Include="..\src\containers\sset.h" />
     <ClInclude Include="..\src\containers\table.h" />
@@ -258,6 +262,7 @@
     <ClInclude Include="..\src\rendering\constants.h" />
     <ClInclude Include="..\src\rendering\exposure.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />
+    <ClInclude Include="..\src\rendering\framegraph\framegraph.hpp" />
     <ClInclude Include="..\src\rendering\librtc.h" />
     <ClInclude Include="..\src\rendering\lightmap.h" />
     <ClInclude Include="..\src\rendering\mipmap.h" />
