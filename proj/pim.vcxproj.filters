@@ -110,6 +110,9 @@
     <Filter Include="submodules\spirv-reflect">
       <UniqueIdentifier>{0e8e7c71-c0d9-4647-8da6-627df1c77f1a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\rendering\framegraph">
+      <UniqueIdentifier>{22ae87bd-3be3-45ae-b5d2-356f854bb59c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -567,6 +570,9 @@
     </ClCompile>
     <ClCompile Include="..\submodules\SPIRV-Reflect\spirv_reflect.c">
       <Filter>submodules\spirv-reflect</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\framegraph\framegraph.cpp">
+      <Filter>Source Files\rendering\framegraph</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1204,6 +1210,18 @@
       <Filter>Source Files\containers</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\hash32.hpp">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\framegraph\framegraph.hpp">
+      <Filter>Source Files\rendering\framegraph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\hash64.hpp">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\hash128.hpp">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\queue.hpp">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>
