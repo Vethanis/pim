@@ -274,6 +274,18 @@ pim_inline float4 VEC_CALL SampleGGXMicrofacet(float2 Xi, float alpha)
     return SphericalToCartesian(cosTheta, phi);
 }
 
+pim_inline float4 VEC_CALL ImportanceSampleGGX(float4 I, float4 N, float2 Xi, float alpha)
+{
+    float4 m = TanToWorld(N, SampleGGXMicrofacet(Xi, alpha));
+    float4 L = f4_reflect3(I, m);
+    return L;
+}
+
+pim_inline float4 VEC_CALL ImportanceSampleLambert(float4 N, float2 Xi)
+{
+    return TanToWorld(N, SampleCosineHemisphere(Xi));
+}
+
 pim_inline float VEC_CALL LambertPdf(float NoL)
 {
     return NoL / kPi;

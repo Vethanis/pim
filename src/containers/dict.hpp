@@ -24,8 +24,8 @@ private:
     EAlloc m_allocator;
 
 public:
-    i32 size() const { return m_count; }
-    i32 capacity() const { return m_width; }
+    i32 Size() const { return m_count; }
+    i32 Capacity() const { return m_width; }
 
     explicit Dict(i32 capacity = 0, EAlloc allocator = EAlloc_Perm)
     {
