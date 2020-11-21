@@ -163,6 +163,7 @@ typedef struct vkrImage
 {
     VkImage handle;
     VmaAllocation allocation;
+    VkImageType type;
     VkFormat format;
     VkImageLayout layout;
     VkImageUsageFlags usage;

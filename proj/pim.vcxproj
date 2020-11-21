@@ -194,9 +194,12 @@
     <ClInclude Include="..\src\containers\carray.h" />
     <ClInclude Include="..\src\containers\carray.c" />
     <ClInclude Include="..\src\containers\dict.hpp" />
+    <ClInclude Include="..\src\containers\gen_id.hpp" />
     <ClInclude Include="..\src\containers\hash128.hpp" />
     <ClInclude Include="..\src\containers\hash32.hpp" />
     <ClInclude Include="..\src\containers\hash64.hpp" />
+    <ClInclude Include="..\src\containers\id_alloc.hpp" />
+    <ClInclude Include="..\src\containers\mem.hpp" />
     <ClInclude Include="..\src\containers\queue.hpp" />
     <ClInclude Include="..\src\containers\sort.hpp" />
     <ClInclude Include="..\src\containers\sset.h" />

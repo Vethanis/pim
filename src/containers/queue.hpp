@@ -16,15 +16,15 @@ private:
     u32 m_write;
     EAlloc m_allocator;
 public:
-    i32 size() const { return (i32)(m_write - m_read); }
-    i32 capacity() const { return (i32)m_width; }
+    i32 Size() const { return (i32)(m_write - m_read); }
+    i32 Capacity() const { return (i32)m_width; }
     EAlloc GetAllocator() const { return m_allocator; }
 
-    explicit Queue(EAlloc allocator = EAlloc_Perm, i32 capacity = 0)
+    explicit Queue(EAlloc allocator = EAlloc_Perm, i32 cap = 0)
     {
         memset(this, 0, sizeof(*this));
         m_allocator = allocator;
-        Reserve(capacity);
+        Reserve(cap);
     }
     ~Queue()
     {
@@ -35,27 +35,29 @@ public:
     {
         memset(this, 0, sizeof(*this));
         m_allocator = other.m_allocator;
+        Reserve(other.Size());
+        for (const T& item : other)
+        {
+            PushCopy(item);
+        }
     }
     Queue& operator=(const Queue& other)
     {
         Reset();
-        Reserve(other.size());
-        T const *const pim_noalias src = other.m_ptr;
-        const u32 mask = other.m_width - 1u;
-        const u32 w = other.m_write;
-        for (u32 r = other.m_read; r != w; ++r)
+        Reserve(other.Size());
+        for (const T& item : other)
         {
-            u32 i = r & mask;
-            PushCopy(src[i]);
+            PushCopy(item);
         }
         return *this;
     }
 
     explicit Queue(Queue&& other)
     {
+        EAlloc allocator = other.m_allocator;
         memcpy(this, &other, sizeof(*this));
         memset(&other, 0, sizeof(*this));
-        other.m_allocator = m_allocator;
+        other.m_allocator = allocator;
     }
     Queue& operator=(Queue&& other)
     {
@@ -68,13 +70,9 @@ public:
 
     void Clear()
     {
-        T *const pim_noalias ptr = m_ptr;
-        const u32 mask = m_width - 1u;
-        const u32 w = m_write;
-        for (u32 r = m_read; r != w; ++r)
+        for (T& item : *this)
         {
-            u32 i = r & mask;
-            ptr[i].~T();
+            item.~T();
         }
         m_read = 0;
         m_write = 0;
@@ -100,7 +98,7 @@ public:
         if (newWidth > oldWidth)
         {
             T *const pim_noalias oldPtr = m_ptr;
-            T *const pim_noalias newPtr = pim_malloc(m_allocator, sizeof(T) * newWidth);
+            T *const pim_noalias newPtr = (T*)pim_malloc(m_allocator, sizeof(T) * newWidth);
             const u32 r = m_read;
             const u32 len = m_write - r;
             if (len)
@@ -121,7 +119,7 @@ public:
 
     void PushMove(T&& src)
     {
-        Reserve(size() + 1);
+        Reserve(Size() + 1);
         u32 mask = m_width - 1u;
         u32 w = m_write++ & mask;
         T *const pim_noalias ptr = m_ptr;
@@ -130,7 +128,7 @@ public:
 
     void PushCopy(const T& src)
     {
-        Reserve(size() + 1);
+        Reserve(Size() + 1);
         u32 mask = m_width - 1u;
         u32 w = m_write++ & mask;
         T *const pim_noalias ptr = m_ptr;
@@ -139,7 +137,7 @@ public:
 
     bool TryPop(T& dst)
     {
-        if (size())
+        if (Size())
         {
             u32 mask = m_width - 1u;
             u32 r = m_read++ & mask;
@@ -150,4 +148,51 @@ public:
         }
         return false;
     }
+
+    // ------------------------------------------------------------------------
+
+    class iterator
+    {
+    private:
+        T *const pim_noalias m_ptr;
+        const u32 m_mask;
+        const u32 m_write;
+        u32 m_read;
+    public:
+        iterator(Queue& queue, u32 index) :
+            m_ptr(queue.m_ptr),
+            m_mask(queue.m_width - 1u),
+            m_write(queue.m_write),
+            m_read(index)
+        {}
+        bool operator!=(const iterator&) const { return m_read != m_write; }
+        iterator& operator++() { ++m_read; return *this; }
+        T& operator*() { return m_ptr[m_read & m_mask]; }
+    };
+    iterator begin() { return iterator(*this, m_read); }
+    iterator end() { return iterator(*this, m_write); }
+
+    // ------------------------------------------------------------------------
+
+    class const_iterator
+    {
+    private:
+        T const *const pim_noalias m_ptr;
+        const u32 m_mask;
+        const u32 m_write;
+        u32 m_read;
+    public:
+        const_iterator(const Queue& queue, u32 index) :
+            m_ptr(queue.m_ptr),
+            m_mask(queue.m_width - 1u),
+            m_write(queue.m_write),
+            m_read(index)
+        {}
+        bool operator!=(const const_iterator&) const { return m_read != m_write; }
+        const_iterator& operator++() { ++m_read; return *this; }
+        const T& operator*() const { return m_ptr[m_read & m_mask]; }
+    };
+    const_iterator begin() const { return const_iterator(*this, m_read); }
+    const_iterator end() const { return const_iterator(*this, m_write); }
+
 };

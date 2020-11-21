@@ -17,8 +17,8 @@ private:
 public:
     bool InRange(i32 i) const { return (u32)i < (u32)m_length; }
     EAlloc AllocType() const { return m_allocator; }
+    i32 Size() const { return m_length; }
 
-    i32 size() const { return m_length; }
     T* begin() { return m_ptr; }
     T* end() { return m_ptr + m_length; }
     const T* begin() const { return m_ptr; }
@@ -30,31 +30,17 @@ public:
     T& operator[](i32 i) { ASSERT(InRange(i)); return m_ptr[i]; }
     const T& operator[](i32 i) const { ASSERT(InRange(i)); return m_ptr[i]; }
 
-    Array()
+    explicit Array(EAlloc allocator = EAlloc_Perm, i32 minSize = 0)
     {
         m_ptr = NULL;
         m_length = 0;
-        m_allocator = EAlloc_Perm;
+        m_allocator = allocator;
+        Reserve(minSize);
     }
 
     ~Array()
     {
         Reset();
-    }
-
-    explicit Array(i32 capacity)
-    {
-        m_ptr = NULL;
-        m_length = 0;
-        m_allocator = EAlloc_Perm;
-        Reserve(capacity);
-    }
-
-    explicit Array(EAlloc allocator)
-    {
-        m_ptr = NULL;
-        m_length = 0;
-        m_allocator = allocator;
     }
 
     explicit Array(Array&& other)

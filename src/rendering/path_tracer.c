@@ -1330,25 +1330,14 @@ pim_inline float4 VEC_CALL SampleSpecular(
     float4 N,
     float alpha)
 {
-    float2 Xi = Sample2D(sampler);
-    float4 H = TanToWorld(N, SampleGGXMicrofacet(Xi, alpha));
-    float4 L = f4_reflect3(I, H);
-    ASSERT(IsUnitLength(I));
-    ASSERT(IsUnitLength(N));
-    ASSERT(IsUnitLength(L));
-    ASSERT(IsUnitLength(H));
-    return L;
+    return ImportanceSampleGGX(I, N, Sample2D(sampler), alpha);
 }
 
 pim_inline float4 VEC_CALL SampleDiffuse(
     pt_sampler_t*const pim_noalias sampler,
     float4 N)
 {
-    float2 Xi = Sample2D(sampler);
-    float4 L = TanToWorld(N, SampleCosineHemisphere(Xi));
-    ASSERT(IsUnitLength(N));
-    ASSERT(IsUnitLength(L));
-    return L;
+    return ImportanceSampleLambert(N, Sample2D(sampler));
 }
 
 pim_inline float VEC_CALL Schlick(float cosTheta, float k)

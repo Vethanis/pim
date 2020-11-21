@@ -38,14 +38,15 @@ bool vkrImage_New(
     {
         image->handle = handle;
         image->allocation = allocation;
+        image->type = info->imageType;
+        image->format = info->format;
+        image->layout = info->initialLayout;
+        image->usage = info->usage;
         image->width = info->extent.width;
         image->height = info->extent.height;
         image->depth = info->extent.depth;
         image->mipLevels = info->mipLevels;
         image->arrayLayers = info->arrayLayers;
-        image->format = info->format;
-        image->layout = info->initialLayout;
-        image->usage = info->usage;
         return true;
     }
     return false;
