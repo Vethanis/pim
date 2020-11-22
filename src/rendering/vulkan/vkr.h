@@ -553,4 +553,11 @@ void vkr_shutdown(void);
 void vkr_onload(void);
 void vkr_onunload(void);
 
+// frame in flight index
+u32 vkr_syncIndex(void);
+// swapchain image index
+u32 vkr_swapIndex(void);
+// frame count
+u32 vkr_frameIndex(void);
+
 PIM_C_END
