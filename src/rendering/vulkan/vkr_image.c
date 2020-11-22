@@ -149,15 +149,11 @@ void vkrImage_Barrier(
 
 void vkrImage_Transfer(
     vkrImage* image,
-    vkrQueueId srcQueueId,
-    vkrQueueId dstQueueId,
-    VkCommandBuffer srcCmd,
-    VkCommandBuffer dstCmd,
+    vkrQueueId srcQueueId, vkrQueueId dstQueueId,
+    VkCommandBuffer srcCmd, VkCommandBuffer dstCmd,
     VkImageLayout newLayout,
-    VkAccessFlags srcAccessMask,
-    VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask)
+    VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask)
 {
     VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
     if (image->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)

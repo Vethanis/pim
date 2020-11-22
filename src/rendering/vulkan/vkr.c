@@ -241,3 +241,7 @@ void vkr_onunload(void)
         vkrAllocator_Update(&g_vkr.allocator);
     }
 }
+
+u32 vkr_syncIndex(void) { return g_vkr.chain.syncIndex; }
+u32 vkr_swapIndex(void) { return g_vkr.chain.imageIndex; }
+u32 vkr_frameIndex(void) { return time_framecount(); }

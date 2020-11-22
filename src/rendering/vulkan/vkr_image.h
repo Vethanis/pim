@@ -23,22 +23,16 @@ void vkrImage_Barrier(
     vkrImage* image,
     VkCommandBuffer cmd,
     VkImageLayout newLayout,
-    VkAccessFlags srcAccessMask,
-    VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStages,
-    VkPipelineStageFlags dstStages);
+    VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStages, VkPipelineStageFlags dstStages);
 
 void vkrImage_Transfer(
     vkrImage* image,
-    vkrQueueId srcQueueId,
-    vkrQueueId dstQueueId,
-    VkCommandBuffer srcCmd,
-    VkCommandBuffer dstCmd,
+    vkrQueueId srcQueueId, vkrQueueId dstQueueId,
+    VkCommandBuffer srcCmd, VkCommandBuffer dstCmd,
     VkImageLayout newLayout,
-    VkAccessFlags srcAccessMask,
-    VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStages,
-    VkPipelineStageFlags dstStages);
+    VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStages, VkPipelineStageFlags dstStages);
 
 // ----------------------------------------------------------------------------
 
