@@ -140,30 +140,9 @@ void vkrBuffer_Release(vkrBuffer* buffer, VkFence fence)
     ASSERT(buffer);
     if (buffer->handle)
     {
-        if (!fence)
-        {
-            const VkBufferMemoryBarrier barrier =
-            {
-                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                .srcAccessMask = 0x0,
-                .dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .buffer = buffer->handle,
-                .offset = 0,
-                .size = VK_WHOLE_SIZE,
-            };
-            fence = vkrMem_Barrier(
-                vkrQueueId_Gfx,
-                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                VK_PIPELINE_STAGE_HOST_BIT,
-                NULL,
-                &barrier,
-                NULL);
-        }
         const vkrReleasable releasable =
         {
-            .frame = time_framecount(),
+            .frame = vkr_frameIndex(),
             .type = vkrReleasableType_Buffer,
             .fence = fence,
             .buffer = *buffer,

@@ -337,16 +337,6 @@ static cvar_t cv_pt_dist_samples =
     .desc = "path tracer light distribution minimum samples per update",
 };
 
-static cvar_t cv_pt_rr_scale =
-{
-    .type = cvart_float,
-    .name = "pt_rr_scale",
-    .value = "0.1",
-    .minFloat = 0.01f,
-    .maxFloat = 3.0f,
-    .desc = "path tracer russian roulette scale",
-};
-
 static RTCDevice ms_device;
 static dist1d_t ms_pixeldist;
 static pt_sampler_t ms_samplers[kMaxThreads];
@@ -415,7 +405,6 @@ void pt_sys_init(void)
     cvar_reg(&cv_pt_dist_meters);
     cvar_reg(&cv_pt_dist_alpha);
     cvar_reg(&cv_pt_dist_samples);
-    cvar_reg(&cv_pt_rr_scale);
 
     InitRTC();
     InitSamplers();
@@ -2111,8 +2100,7 @@ pim_inline bool VEC_CALL RussianRoulette(
     float4* pAttenuation)
 {
     float4 att = *pAttenuation;
-    float scale = cvar_get_float(&cv_pt_rr_scale);
-    float p = f1_sat(f4_sum3(att) * scale);
+    float p = f1_sat(f4_hmax3(att) * 0.5f);
     bool kept = Sample1D(sampler) < p;
     if (kept)
     {
