@@ -97,7 +97,7 @@ void vkrImage_Release(vkrImage* image, VkFence fence)
     {
         const vkrReleasable releasable =
         {
-            .frame = time_framecount(),
+            .frame = vkr_frameIndex(),
             .type = vkrReleasableType_Image,
             .fence = fence,
             .image = *image,

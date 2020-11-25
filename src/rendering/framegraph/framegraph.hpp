@@ -24,17 +24,17 @@ namespace vkr
 
     struct ResourceId
     {
-        GenId id;
+        Hash64 name;
         ResourceType type;
         u8 syncIndex;
     };
 
     struct ResourceState
     {
-        vkrQueueId queue;
-        VkPipelineStageFlags stage;
-        VkAccessFlags access;
-        VkImageLayout layout;
+        vkrQueueId queue = vkrQueueId_Gfx;
+        VkPipelineStageFlags stage = 0x0;
+        VkAccessFlags access = 0x0;
+        VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
     };
 
     struct ResourceFrameState
@@ -53,28 +53,40 @@ namespace vkr
         i32 size;
         VkBufferUsageFlags usage;
         vkrMemUsage memUsage;
+
+        void Merge(const BufferInfo& other);
     };
 
     struct ImageInfo
     {
         VkImageCreateInfo info;
         vkrMemUsage memUsage;
+
+        void Merge(const ImageInfo& other);
     };
 
     struct Buffer
     {
         vkrBuffer frames[kFramesInFlight];
+
+        bool Create(const BufferInfo& info);
+        void Release();
     };
 
     struct Image
     {
         vkrImage frames[kFramesInFlight];
+
+        bool Create(const ImageInfo& info);
+        void Release();
     };
 
     class BufferTable final
     {
     private:
-        IdAllocator m_ids;
+        Array<Hash64> m_logicalNames;
+        Array<BufferInfo> m_logicalInfos;
+
         Array<Hash64> m_names;
         Array<BufferInfo> m_infos;
         Array<Buffer> m_buffers;
@@ -84,21 +96,24 @@ namespace vkr
         BufferTable() {}
         ~BufferTable();
 
-        void Update();
-        ResourceId Get(const BufferInfo& info, const char* name);
-        void CreatePhysical();
-        vkrBuffer *const Resolve(ResourceId rid);
+        void BeforeSetup();
+        ResourceId GetLogical(const BufferInfo& info, const char* name);
 
-        bool Exists(ResourceId rid) const { return m_ids.Exists(rid.id); }
+        void BeforeExecute();
+        vkrBuffer& GetPhysical(ResourceId rid);
+        ResourceState& GetState(ResourceId rid);
 
-        const ResourceState& GetState(ResourceId rid) const;
-        void SetState(ResourceId rid, const ResourceState& state);
+    private:
+        i32 Alloc(const BufferInfo& info, Hash64 name);
+        void Free(i32 slot);
     };
 
     class ImageTable final
     {
     private:
-        IdAllocator m_ids;
+        Array<Hash64> m_logicalNames;
+        Array<ImageInfo> m_logicalInfos;
+
         Array<Hash64> m_names;
         Array<ImageInfo> m_infos;
         Array<Image> m_images;
@@ -108,15 +123,16 @@ namespace vkr
         ImageTable() {}
         ~ImageTable();
 
-        void Update();
-        ResourceId Get(const ImageInfo& info, const char* name);
-        void CreatePhysical();
-        vkrImage *const Resolve(ResourceId rid);
+        void BeforeSetup();
+        ResourceId GetLogical(const ImageInfo& info, const char* name);
 
-        bool Exists(ResourceId rid) const { return m_ids.Exists(rid.id); }
+        void BeforeExecute();
+        vkrImage& GetPhysical(ResourceId rid);
+        ResourceState& GetState(ResourceId rid);
 
-        const ResourceState& GetState(ResourceId rid) const;
-        void SetState(ResourceId rid, const ResourceState& state);
+    private:
+        i32 Alloc(const ImageInfo& info, Hash64 name);
+        void Free(i32 slot);
     };
 
     class RenderPass
@@ -153,214 +169,39 @@ namespace vkr
             VkAccessFlags accessMask,
             VkImageLayout layout);
 
-        vkrBuffer *const ResolveBuffer(ResourceId id);
-        vkrImage *const ResolveImage(ResourceId id);
+        vkrBuffer& ResolveBuffer(ResourceId id);
+        vkrImage& ResolveImage(ResourceId id);
 
-        ResourceId ReadVertexBuffer(
-            const BufferInfo& info,
-            const char* name)
-        {
-            ASSERT(info.usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-            return GetBuffer(
-                info,
-                name,
-                VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-                VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT);
-        }
-
-        ResourceId ReadIndexBuffer(
-            const BufferInfo& info,
-            const char* name)
-        {
-            ASSERT(info.usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-            return GetBuffer(
-                info,
-                name,
-                VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-                VK_ACCESS_INDEX_READ_BIT);
-        }
-
-        ResourceId ReadIndirectBuffer(
-            const BufferInfo& info,
-            const char* name)
-        {
-            ASSERT(info.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
-            return GetBuffer(
-                info,
-                name,
-                VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-                VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
-        }
-
+        ResourceId ReadVertexBuffer(const BufferInfo& info, const char* name);
+        ResourceId ReadIndexBuffer(const BufferInfo& info, const char* name);
+        ResourceId ReadIndirectBuffer(const BufferInfo& info, const char* name);
         ResourceId ReadUniformBuffer(
-            const BufferInfo& info,
-            const char* name,
-            VkPipelineStageFlags stages)
-        {
-            ASSERT(info.usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-            return GetBuffer(
-                info,
-                name,
-                stages,
-                VK_ACCESS_UNIFORM_READ_BIT);
-        }
+            const BufferInfo& info, const char* name, VkPipelineStageFlags stages);
 
         ResourceId ReadStorageBuffer(
-            const BufferInfo& info,
-            const char* name,
-            VkPipelineStageFlags stages)
-        {
-            ASSERT(info.usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-            return GetBuffer(
-                info,
-                name,
-                stages,
-                VK_ACCESS_SHADER_READ_BIT);
-        }
+            const BufferInfo& info, const char* name, VkPipelineStageFlags stages);
         ResourceId WriteStorageBuffer(
-            const BufferInfo& info,
-            const char* name,
-            VkPipelineStageFlags stages)
-        {
-            ASSERT(info.usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-            return GetBuffer(
-                info,
-                name,
-                stages,
-                VK_ACCESS_SHADER_WRITE_BIT);
-        }
+            const BufferInfo& info, const char* name, VkPipelineStageFlags stages);
         ResourceId ReadWriteStorageBuffer(
-            const BufferInfo& info,
-            const char* name,
-            VkPipelineStageFlags stages)
-        {
-            ASSERT(info.usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-            return GetBuffer(
-                info,
-                name,
-                stages,
-                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-        }
+            const BufferInfo& info, const char* name, VkPipelineStageFlags stages);
 
-        ResourceId InputColorAttachment(
-            const ImageInfo& info,
-            const char* name)
-        {
-            ASSERT(info.info.usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-            ASSERT(info.info.usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-            return GetImage(
-                info,
-                name,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                VK_ACCESS_INPUT_ATTACHMENT_READ_BIT |
-                VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        }
-        ResourceId OutputColorAttachment(
-            const ImageInfo& info,
-            const char* name)
-        {
-            ASSERT(info.info.usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-            return GetImage(
-                info,
-                name,
-                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        }
+        ResourceId InputColorAttachment(const ImageInfo& info, const char* name);
+        ResourceId OutputColorAttachment(const ImageInfo& info, const char* name);
 
-        ResourceId InputDepthAttachment(
-            const ImageInfo& info,
-            const char* name)
-        {
-            ASSERT(info.info.usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-            ASSERT(info.info.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-            return GetImage(
-                info,
-                name,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                VK_ACCESS_INPUT_ATTACHMENT_READ_BIT |
-                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-                VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
-        }
-        ResourceId OutputDepthAttachment(
-            const ImageInfo& info,
-            const char* name)
-        {
-            ASSERT(info.info.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-            return GetImage(
-                info,
-                name,
-                VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-        }
+        ResourceId InputDepthAttachment(const ImageInfo& info, const char* name);
+        ResourceId OutputDepthAttachment(const ImageInfo& info, const char* name);
 
         ResourceId SampleImage(
-            const ImageInfo& info,
-            const char* name,
-            VkPipelineStageFlags stages)
-        {
-            ASSERT(info.info.usage & VK_IMAGE_USAGE_SAMPLED_BIT);
-            return GetImage(
-                info,
-                name,
-                stages,
-                VK_ACCESS_SHADER_READ_BIT,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        }
+            const ImageInfo& info, const char* name, VkPipelineStageFlags stages);
 
         ResourceId ReadStorageImage(
-            const ImageInfo& info,
-            const char* name,
-            VkPipelineStageFlags stages)
-        {
-            ASSERT(info.info.usage & VK_IMAGE_USAGE_STORAGE_BIT);
-            return GetImage(
-                info,
-                name,
-                stages,
-                VK_ACCESS_SHADER_READ_BIT,
-                VK_IMAGE_LAYOUT_GENERAL);
-        }
+            const ImageInfo& info, const char* name, VkPipelineStageFlags stages);
         ResourceId WriteStorageImage(
-            const ImageInfo& info,
-            const char* name,
-            VkPipelineStageFlags stages)
-        {
-            ASSERT(info.info.usage & VK_IMAGE_USAGE_STORAGE_BIT);
-            return GetImage(
-                info,
-                name,
-                stages,
-                VK_ACCESS_SHADER_WRITE_BIT,
-                VK_IMAGE_LAYOUT_GENERAL);
-        }
+            const ImageInfo& info, const char* name, VkPipelineStageFlags stages);
         ResourceId ReadWriteStorageImage(
-            const ImageInfo& info,
-            const char* name,
-            VkPipelineStageFlags stages)
-        {
-            ASSERT(info.info.usage & VK_IMAGE_USAGE_STORAGE_BIT);
-            return GetImage(
-                info,
-                name,
-                stages,
-                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                VK_IMAGE_LAYOUT_GENERAL);
-        }
+            const ImageInfo& info, const char* name, VkPipelineStageFlags stages);
 
-        ResourceId PresentImage(
-            const ImageInfo& info,
-            const char* name)
-        {
-            return GetImage(
-                info,
-                name,
-                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                VK_ACCESS_MEMORY_READ_BIT,
-                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-        }
+        ResourceId PresentImage(const ImageInfo& info, const char* name);
     };
 
     class FrameGraph final
@@ -370,39 +211,17 @@ namespace vkr
         ImageTable m_images;
         Array<RenderPass*> m_passes;
     public:
-
-        void Begin();
-
         // --------------------------------------------------------------------
         // Setup
-
+        void Begin();
         void AddPass(RenderPass* pass);
-
-        ResourceId GetBuffer(const BufferInfo& info, const char* name)
-        {
-            return m_buffers.Get(info, name);
-        }
-        ResourceId GetImage(const ImageInfo& info, const char* name)
-        {
-            return m_images.Get(info, name);
-        }
-
-        // --------------------------------------------------------------------
-
-        void End();
+        ResourceId GetBuffer(const BufferInfo& info, const char* name);
+        ResourceId GetImage(const ImageInfo& info, const char* name);
 
         // --------------------------------------------------------------------
         // Execute
-
-        vkrBuffer *const ResolveBuffer(ResourceId id)
-        {
-            return m_buffers.Resolve(id);
-        }
-        vkrImage *const ResolveImage(ResourceId id)
-        {
-            return m_images.Resolve(id);
-        }
-
-        // --------------------------------------------------------------------
+        void End();
+        vkrBuffer& ResolveBuffer(ResourceId id);
+        vkrImage& ResolveImage(ResourceId id);
     };
 };
