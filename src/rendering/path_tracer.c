@@ -262,20 +262,20 @@ pim_inline bool VEC_CALL EvaluateLight(
     float4 P,
     float4* lightOut,
     float4* dirOut);
-static void media_desc_new(media_desc_t* desc);
-static void media_desc_update(media_desc_t* desc);
-static void media_desc_gui(media_desc_t* desc);
-static void media_desc_load(media_desc_t* desc, const char* name);
-static void media_desc_save(const media_desc_t* desc, const char* name);
+static void media_desc_new(media_desc_t *const desc);
+static void media_desc_update(media_desc_t *const desc);
+static void media_desc_gui(media_desc_t *const desc);
+static void media_desc_load(media_desc_t *const desc, const char* name);
+static void media_desc_save(media_desc_t const *const desc, const char* name);
 pim_inline float4 VEC_CALL AlbedoToLogAlbedo(float4 albedo);
-pim_inline float2 VEC_CALL Media_Density(const media_desc_t* desc, float4 P);
-pim_inline media_t VEC_CALL Media_Sample(const media_desc_t* desc, float4 P);
-pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P);
-pim_inline float4 VEC_CALL Media_Normal(const media_desc_t* desc, float4 P);
+pim_inline float2 VEC_CALL Media_Density(media_desc_t const *const desc, float4 P);
+pim_inline media_t VEC_CALL Media_Sample(media_desc_t const *const desc, float4 P);
+pim_inline float4 VEC_CALL Media_Albedo(media_desc_t const *const desc, float4 P);
+pim_inline float4 VEC_CALL Media_Normal(media_desc_t const *const desc, float4 P);
 pim_inline media_t VEC_CALL Media_Lerp(media_t lhs, media_t rhs, float t);
 pim_inline bool VEC_CALL RussianRoulette(
     pt_sampler_t*const pim_noalias sampler,
-    float4* pAttenuation);
+    float4 *const pim_noalias pAttenuation);
 pim_inline float VEC_CALL SampleFreePath(float Xi, float rcpU);
 pim_inline float VEC_CALL FreePathPdf(float t, float u);
 pim_inline float4 VEC_CALL CalcTransmittance(
@@ -295,6 +295,8 @@ static void RayGenFn(void* pBase, i32 begin, i32 end);
 pim_inline float VEC_CALL Sample1D(pt_sampler_t*const pim_noalias sampler);
 pim_inline float2 VEC_CALL Sample2D(pt_sampler_t*const pim_noalias sampler);
 pim_inline bool VEC_CALL SampleBool(pt_sampler_t*const pim_noalias sampler);
+pim_inline float VEC_CALL SampleGolden(pt_sampler_t*const pim_noalias sampler);
+pim_inline float VEC_CALL SampleSqrt2(pt_sampler_t*const pim_noalias sampler);
 pim_inline pt_sampler_t VEC_CALL GetSampler(void);
 pim_inline void VEC_CALL SetSampler(pt_sampler_t sampler);
 pim_inline void VEC_CALL LightOnHit(
@@ -396,6 +398,8 @@ static void InitSamplers(void)
     for (i32 i = 0; i < numthreads; ++i)
     {
         ms_samplers[i].rng.state = prng_u64(&rng);
+        ms_samplers[i].Xi = prng_f32(&rng);
+        ms_samplers[i].Yi = prng_f32(&rng);
     }
     prng_set(rng);
 }
@@ -1429,7 +1433,7 @@ pim_inline scatter_t VEC_CALL RefractScatter(
 
     bool refracted = false;
     float4 R;
-    if (((k * sinTheta) > 1.0f) || (Sample1D(sampler) < F))
+    if (((k * sinTheta) > 1.0f) || (SampleSqrt2(sampler) < F))
     {
         R = f4_reflect3(I, N);
     }
@@ -1496,7 +1500,7 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
     const float rcpProb = 1.0f / (amtSpecular + amtDiffuse);
 
     float4 L;
-    if (Sample1D(sampler) < rcpProb)
+    if (SampleSqrt2(sampler) < rcpProb)
     {
         L = SampleSpecular(sampler, I, N, alpha);
     }
@@ -1563,7 +1567,7 @@ pim_inline void VEC_CALL LightOnHit(
         dist1d_t* dist = &scene->lightDists[iCell];
         if (dist->length)
         {
-            u32 amt = (u32)(lum + Sample1D(sampler));
+            u32 amt = (u32)(lum + SampleGolden(sampler));
             fetch_add_u32(dist->live + iList, amt, MO_Relaxed);
         }
     }
@@ -1786,7 +1790,7 @@ pim_inline bool VEC_CALL EvaluateLight(
     return false;
 }
 
-static void media_desc_new(media_desc_t* desc)
+static void media_desc_new(media_desc_t *const desc)
 {
     desc->constantAlbedo = f4_v(0.75f, 0.75f, 0.75f, 0.5f);
     desc->noiseAlbedo = f4_v(0.75f, 0.75f, 0.75f, -0.5f);
@@ -1805,7 +1809,7 @@ static void media_desc_new(media_desc_t* desc)
     media_desc_update(desc);
 }
 
-static void media_desc_update(media_desc_t* desc)
+static void media_desc_update(media_desc_t *const desc)
 {
     desc->logConstantAlbedo = AlbedoToLogAlbedo(desc->constantAlbedo);
     desc->logNoiseAlbedo = AlbedoToLogAlbedo(desc->noiseAlbedo);
@@ -1828,7 +1832,7 @@ static void media_desc_update(media_desc_t* desc)
     desc->noiseRange = sum * noiseScale * 1.5f;
 }
 
-static void media_desc_load(media_desc_t* desc, const char* name)
+static void media_desc_load(media_desc_t *const desc, const char* name)
 {
     if (!desc || !name)
     {
@@ -1864,7 +1868,7 @@ static void media_desc_load(media_desc_t* desc, const char* name)
     ser_obj_del(root);
 }
 
-static void media_desc_save(const media_desc_t* desc, const char* name)
+static void media_desc_save(media_desc_t const *const desc, const char* name)
 {
     if (!desc || !name)
     {
@@ -1906,7 +1910,7 @@ static void igLog2SliderFloat(const char* label, float* pLinear, float log2Lo, f
 
 static char gui_mediadesc_name[PIM_PATH];
 
-static void media_desc_gui(media_desc_t* desc)
+static void media_desc_gui(media_desc_t *const desc)
 {
     const u32 hdrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_InputRGB;
     const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
@@ -1943,7 +1947,7 @@ static void media_desc_gui(media_desc_t* desc)
     }
 }
 
-pim_inline float2 VEC_CALL Media_Density(const media_desc_t* desc, float4 P)
+pim_inline float2 VEC_CALL Media_Density(media_desc_t const *const desc, float4 P)
 {
     float heightFog = 0.0f;
     if (f1_distance(P.y, desc->noiseHeight) <= desc->noiseRange)
@@ -1968,7 +1972,7 @@ pim_inline float2 VEC_CALL Media_Density(const media_desc_t* desc, float4 P)
     return f2_v(totalFog, t);
 }
 
-pim_inline media_t VEC_CALL Media_Sample(const media_desc_t* desc, float4 P)
+pim_inline media_t VEC_CALL Media_Sample(media_desc_t const *const desc, float4 P)
 {
     float2 density = Media_Density(desc, P);
     float totalScattering = density.x;
@@ -2003,12 +2007,12 @@ pim_inline float VEC_CALL Media_Scattering(media_t media)
     return f1_lerp(0.5f, 1.0f, f4_hmax3(media.logAlbedo)) * media.scattering;
 }
 
-pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P)
+pim_inline float4 VEC_CALL Media_Albedo(media_desc_t const *const desc, float4 P)
 {
     return f4_inv(Media_Sample(desc, P).logAlbedo);
 }
 
-pim_inline float4 VEC_CALL Media_Normal(const media_desc_t* desc, float4 P)
+pim_inline float4 VEC_CALL Media_Normal(media_desc_t const *const desc, float4 P)
 {
     const float e = kMicro;
     float dx =
@@ -2049,7 +2053,7 @@ pim_inline float VEC_CALL FreePathPdf(float t, float u)
 }
 
 // maximum extinction coefficient of the media
-pim_inline float4 VEC_CALL CalcMajorant(const media_desc_t* desc)
+pim_inline float4 VEC_CALL CalcMajorant(media_desc_t const *const desc)
 {
     i32 octaves = desc->noiseOctaves;
     float gain = desc->noiseGain;
@@ -2066,7 +2070,7 @@ pim_inline float4 VEC_CALL CalcMajorant(const media_desc_t* desc)
     return f4_add(ca, na);
 }
 
-pim_inline float4 VEC_CALL CalcControl(const media_desc_t* desc)
+pim_inline float4 VEC_CALL CalcControl(media_desc_t const *const desc)
 {
     i32 octaves = desc->noiseOctaves;
     float gain = desc->noiseGain;
@@ -2089,19 +2093,19 @@ pim_inline float4 VEC_CALL CalcResidual(float4 control, float4 majorant)
 }
 
 pim_inline float VEC_CALL CalcPhase(
-    const media_desc_t* desc,
+    media_desc_t const *const desc,
     float cosTheta)
 {
-    return f1_lerp(MiePhase(cosTheta, desc->phaseDirA), MiePhase(cosTheta, desc->phaseDirB), desc->phaseBlend);
+    return f1_lerp(HGPhase(cosTheta, desc->phaseDirA), HGPhase(cosTheta, desc->phaseDirB), desc->phaseBlend);
 }
 
 pim_inline bool VEC_CALL RussianRoulette(
-    pt_sampler_t*const pim_noalias sampler,
-    float4* pAttenuation)
+    pt_sampler_t *const pim_noalias sampler,
+    float4 *const pim_noalias pAttenuation)
 {
     float4 att = *pAttenuation;
     float p = f1_sat(f4_hmax3(att) * 0.5f);
-    bool kept = Sample1D(sampler) < p;
+    bool kept = SampleGolden(sampler) < p;
     if (kept)
     {
         att = f4_divvs(att, p);
@@ -2115,86 +2119,54 @@ pim_inline bool VEC_CALL RussianRoulette(
 }
 
 pim_inline float4 VEC_CALL CalcTransmittance(
-    pt_sampler_t*const pim_noalias sampler,
-    const pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    const pt_scene_t *const pim_noalias scene,
     float4 ro,
     float4 rd,
     float d)
 {
-    // disabled for now due to NaN or negative corrupting auto exposure
-#if 0
     // Residual ratio tracking
     // https://cs.dartmouth.edu/~wjarosz/publications/novak14residual.pdf
-    //const media_desc_t* const pim_noalias desc = &scene->mediaDesc;
-    //float4 uM = CalcMajorant(desc);
-    //float4 uC = CalcControl(desc);
-    //float4 uR = CalcResidual(uC, uM);
-    //const float rcpU = 1.0f / f4_hmax3(uR);
-    //float t = 0.0f;
-    //float4 Tc = f4_exp3(f4_neg(f4_mulvs(uC, d)));
-    //float4 Tr = f4_1;
-    //do
-    //{
-    //    float4 P = f4_add(ro, f4_mulvs(rd, t));
-    //    t += SampleFreePath(Sample1D(sampler), rcpU);
-    //    if (t >= d) { break; }
-    //    float4 uT = Media_Extinction(Media_Sample(desc, P));
-    //    float4 ratio = f4_inv(f4_mulvs(f4_sub(uT, uC), rcpU));
-    //    Tr = f4_mul(Tr, ratio);
-    //} while (true);
-    //return f4_mul(Tc, Tr);
-#else
-    // ratio tracking
-    const media_desc_t* pim_noalias desc = &scene->mediaDesc;
-    const float4 u = CalcMajorant(desc);
-    const float rcpUmax = 1.0f / f4_hmax3(u);
+    media_desc_t const *const pim_noalias desc = &scene->mediaDesc;
+    float4 uM = CalcMajorant(desc);
+    float4 uC = CalcControl(desc);
+    float4 uR = CalcResidual(uC, uM);
+    const float rcpU = 1.0f / f4_hmax3(uR);
     float t = 0.0f;
-    float4 attenuation = f4_1;
-    while (true)
+    float4 Tc = f4_exp3(f4_neg(f4_mulvs(uC, d)));
+    float4 Tr = f4_1;
+    do
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float dt = SampleFreePath(Sample1D(sampler), rcpUmax);
-        t += dt;
-        if (t >= d)
-        {
-            break;
-        }
-        media_t media = Media_Sample(desc, P);
-        float4 uT = Media_Extinction(media);
-        float4 ratio = f4_inv(f4_mulvs(uT, rcpUmax));
-        attenuation = f4_mul(attenuation, ratio);
-    }
-    return attenuation;
-#endif // 0
+        t += SampleFreePath(SampleGolden(sampler), rcpU);
+        if (t >= d) { break; }
+        float4 uT = Media_Extinction(Media_Sample(desc, P));
+        float4 ratio = f4_inv(f4_mulvs(f4_abs(f4_sub(uT, uC)), rcpU));
+        Tr = f4_mul(Tr, ratio);
+    } while (true);
+    return f4_mul(Tc, Tr);
 }
 
 pim_inline float4 VEC_CALL SamplePhaseDir(
     pt_sampler_t*const pim_noalias sampler,
-    const media_desc_t* desc,
+    media_desc_t const *const pim_noalias desc,
     float4 rd)
 {
-#if 0
-    // Uniform sampling
-    float4 L = SampleUnitSphere(Sample2D(sampler));
-    L.w = 1.0f / (4.0f * kPi);
-#else
-    // Rejection sampling
-    // nominator is density of function, in this case area of a sphere
-    // denominator controls number of attempts and accuracy
-    //const float Mg = (4.0f * kPi) / 12.0f;
+    float Xi = Sample1D(sampler);
     float4 L;
     do
     {
         L = SampleUnitSphere(Sample2D(sampler));
         L.w = CalcPhase(desc, f4_dot3(rd, L));
-    } while (Sample1D(sampler) > L.w);
-#endif
+        Xi += kGoldenConj;
+        Xi = (Xi >= 1.0f) ? (Xi - 1.0f) : Xi;
+    } while (Xi > L.w);
     return L;
 }
 
 pim_inline scatter_t VEC_CALL ScatterRay(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     float4 ro,
     float4 rd,
     float rayLen)
@@ -2202,7 +2174,7 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     scatter_t result = { 0 };
     result.pdf = 0.0f;
 
-    const media_desc_t* pim_noalias desc = &scene->mediaDesc;
+    media_desc_t const *const pim_noalias desc = &scene->mediaDesc;
     const float4 u = CalcMajorant(desc);
     const float rcpUmax = 1.0f / f4_hmax3(u);
 
@@ -2211,7 +2183,7 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     while (true)
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float dt = SampleFreePath(Sample1D(sampler), rcpUmax);
+        float dt = SampleFreePath(SampleGolden(sampler), rcpUmax);
         t += dt;
         if (t >= rayLen)
         {
@@ -2222,7 +2194,7 @@ pim_inline scatter_t VEC_CALL ScatterRay(
 
         float uS = Media_Scattering(media);
         float pScatter = uS * rcpUmax;
-        bool scattered = Sample1D(sampler) < pScatter;
+        bool scattered = SampleSqrt2(sampler) < pScatter;
         if (scattered)
         {
             float4 lum;
@@ -2256,8 +2228,8 @@ pim_inline scatter_t VEC_CALL ScatterRay(
 }
 
 pt_result_t VEC_CALL pt_trace_ray(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     float4 ro,
     float4 rd)
 {
@@ -2584,6 +2556,23 @@ pim_inline float2 VEC_CALL Sample2D(pt_sampler_t*const pim_noalias sampler)
 pim_inline bool VEC_CALL SampleBool(pt_sampler_t*const pim_noalias sampler)
 {
     return Sample1D(sampler) < 0.5f;
+}
+
+pim_inline float VEC_CALL SampleGolden(pt_sampler_t*const pim_noalias sampler)
+{
+    float Xi = sampler->Xi + kGoldenConj;
+    Xi = (Xi >= 1.0f) ? (Xi - 1.0f) : Xi;
+    sampler->Xi = Xi;
+    return Xi;
+}
+
+pim_inline float VEC_CALL SampleSqrt2(pt_sampler_t*const pim_noalias sampler)
+{
+    float Yi = sampler->Yi + kSqrtTwo;
+    Yi = (Yi >= 1.0f) ? (Yi - 1.0f) : Yi;
+    Yi = (Yi >= 1.0f) ? (Yi - 1.0f) : Yi;
+    sampler->Yi = Yi;
+    return Yi;
 }
 
 pim_inline pt_sampler_t VEC_CALL GetSampler(void)
