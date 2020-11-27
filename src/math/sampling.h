@@ -108,28 +108,25 @@ pim_inline float4 VEC_CALL SampleBaryCoord(float2 Xi)
     return f4_v(w, u, v, 0.0f);
 }
 
-pim_inline float2 VEC_CALL SampleNGon(prng_t* rng, i32 N, float rot)
+pim_inline float2 VEC_CALL SampleNGon(float2 Xi, i32 side, i32 N, float rot)
 {
-    const i32 side = prng_i32(rng) % N;
+    side %= N;
     const float R = kTau / N;
     const float a = rot + (1 + side) * R;
     const float b = rot + (2 + side) * R;
     const float2 A = { cosf(a), sinf(a) };
     const float2 B = { cosf(b), sinf(b) };
-    const float4 wuv = SampleBaryCoord(f2_rand(rng));
-    return f2_blend(f2_0, A, B, wuv);
+    return f2_blend(f2_0, A, B, SampleBaryCoord(Xi));
 }
 
-pim_inline float2 VEC_CALL SamplePentagram(prng_t* rng)
+pim_inline float2 VEC_CALL SamplePentagram(float2 Xi, i32 side)
 {
     // https://mathworld.wolfram.com/Pentagram.html
     // https://www.desmos.com/calculator/ptfwlfemow
     const float R = kTau / 5.0f;
     const float s = kPi * 0.1f;
-    // (3-sqrt(5))/2
-    const float q = 0.38196601125f;
-    const float2 Xi = f2_rand(rng);
-    const i32 side = prng_i32(rng) % 5;
+    const float q = (3.0f - kSqrt5) * 0.5f;
+    side %= 5;
     const float a = s + (1.0f + side) * R;
     const float b = s + (1.5f + side) * R;
     const float c = s + (2.0f + side) * R;
