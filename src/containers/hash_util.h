@@ -45,7 +45,7 @@ pim_inline u32 hashutil_create_hash(u32 hash)
     return (hash | 1u) & hashutil_hash_mask;
 }
 
-pim_inline u32 hashutil_hash(const void* key, i32 sizeOf)
+pim_inline u32 hashutil_hash(void const *const pim_noalias key, i32 sizeOf)
 {
     return hashutil_create_hash(Fnv32Bytes(key, sizeOf, Fnv32Bias));
 }

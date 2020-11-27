@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common/macro.h"
-#include "common/fnv1a.h"
+#include "containers/hash.hpp"
 
 class Hash128 final
 {
@@ -10,8 +9,7 @@ private:
     u64 m_b;
 public:
     Hash128() : m_a(0), m_b(0) {}
-    Hash128(const Hash128& other) : m_a(other.m_a), m_b(other.m_b) {}
-    explicit Hash128(const char* str)
+    explicit Hash128(char const* const str)
     {
         u64 a = 0;
         u64 b = 0;
@@ -24,7 +22,7 @@ public:
         m_a = a;
         m_b = b;
     }
-    explicit Hash128(const void* data, i32 bytes)
+    explicit Hash128(void const* const data, i32 bytes)
     {
         u64 a = 0;
         u64 b = 0;
@@ -36,12 +34,6 @@ public:
         }
         m_a = a;
         m_b = b;
-    }
-    Hash128& operator=(const Hash128& other)
-    {
-        m_a = other.m_a;
-        m_b = other.m_b;
-        return *this;
     }
     bool operator==(Hash128 other) const
     {
@@ -55,8 +47,19 @@ public:
     {
         return (m_a < other.m_a) && (m_b < other.m_b);
     }
-    bool IsNull() const
+    bool IsNull() const { return (m_a | m_b) == 0; }
+    u64 Alpha() const { return m_a; }
+    u64 Beta() const { return m_b; }
+};
+
+template<>
+struct Hashable<Hash128>
+{
+    static u32 HashOf(Hash128 const& item)
     {
-        return (m_a | m_b) == 0;
+        u32 hash = Fnv32Bias;
+        hash = Fnv32Qword(item.Alpha(), hash);
+        hash = Fnv32Qword(item.Beta(), hash);
+        return hashutil_create_hash(hash);
     }
 };

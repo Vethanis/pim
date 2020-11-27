@@ -3,14 +3,8 @@
 #include "common/macro.h"
 #include "allocator/allocator.h"
 #include "common/fnv1a.h"
-#include "containers/hash_util.h"
+#include "containers/hash.hpp"
 #include <new>
-
-template<typename T>
-static u32 HashOf(const T& item)
-{
-    return hashutil_hash(&item, sizeof(T));
-}
 
 template<typename K, typename V>
 class Dict final
@@ -18,16 +12,16 @@ class Dict final
 private:
     i32 m_width;
     i32 m_count;
-    u32* m_hashes;
-    K* m_keys;
-    V* m_values;
+    u32* pim_noalias m_hashes;
+    K* pim_noalias m_keys;
+    V* pim_noalias m_values;
     EAlloc m_allocator;
 
 public:
     i32 Size() const { return m_count; }
     i32 Capacity() const { return m_width; }
 
-    explicit Dict(i32 capacity = 0, EAlloc allocator = EAlloc_Perm)
+    explicit Dict(EAlloc allocator = EAlloc_Perm)
     {
         m_hashes = NULL;
         m_keys = NULL;
@@ -35,10 +29,6 @@ public:
         m_width = 0;
         m_count = 0;
         m_allocator = allocator;
-        if (capacity > 0)
-        {
-            Reserve(capacity);
-        }
     }
 
     ~Dict()
@@ -185,12 +175,12 @@ public:
         m_values = newValues;
     }
 
-    bool Contains(const K& key) const
+    bool Contains(const K& pim_noalias key) const
     {
         return Find(key) >= 0;
     }
 
-    V* Get(const K& key)
+    V* Get(const K& pim_noalias key)
     {
         i32 i = Find(key);
         if (i >= 0)
@@ -200,17 +190,17 @@ public:
         return NULL;
     }
 
-    bool SetMove(const K& key, V&& value)
+    bool SetMove(const K& pim_noalias key, V&& pim_noalias value)
     {
         i32 i = Find(key);
         if (i >= 0)
         {
-            m_values[i] = (V&&)value;
+            m_values[i] = (V&& pim_noalias)value;
             return true;
         }
         return false;
     }
-    bool SetCopy(const K& key, const V& value)
+    bool SetCopy(const K& pim_noalias key, const V& pim_noalias value)
     {
         i32 i = Find(key);
         if (i >= 0)
@@ -221,7 +211,7 @@ public:
         return false;
     }
 
-    bool AddMove(const K& key, V&& value)
+    bool AddMove(const K& pim_noalias key, V&& pim_noalias value)
     {
         if (Contains(key))
         {
@@ -235,7 +225,7 @@ public:
         new (m_values + i) V((V&&)value);
         return true;
     }
-    bool AddCopy(const K& key, const V& value)
+    bool AddCopy(const K& pim_noalias key, const V& pim_noalias value)
     {
         if (Contains(key))
         {
@@ -250,7 +240,7 @@ public:
         return true;
     }
 
-    bool Remove(const K& key, V* valueOut = NULL)
+    bool Remove(const K& pim_noalias key, V* pim_noalias valueOut = NULL)
     {
         i32 i = Find(key);
         if (i < 0)
@@ -260,7 +250,7 @@ public:
 
         if (valueOut)
         {
-            *valueOut = (V&&)m_values[i];
+            *valueOut = (V&& pim_noalias)m_values[i];
         }
 
         m_hashes[i] |= hashutil_tomb_mask;
@@ -271,7 +261,7 @@ public:
         return true;
     }
 
-    V& operator[](const K& key)
+    V& pim_noalias operator[](const K& pim_noalias key)
     {
         i32 i = Find(key);
         if (i >= 0)
@@ -293,8 +283,8 @@ public:
 
     struct Pair final
     {
-        const K& key;
-        V& value;
+        const K& pim_noalias key;
+        V& pim_noalias value;
     };
     class iterator final
     {
@@ -305,7 +295,7 @@ public:
         K const *const pim_noalias m_keys;
         V *const pim_noalias m_values;
     public:
-        iterator(Dict& dict, i32 index)
+        explicit iterator(Dict& dict, i32 index)
         {
             m_index = index;
             m_width = dict.m_width;
@@ -335,8 +325,8 @@ public:
 
     struct ConstPair final
     {
-        const K& key;
-        const V& value;
+        const K& pim_noalias key;
+        const V& pim_noalias value;
     };
     class const_iterator final
     {
@@ -347,7 +337,7 @@ public:
         K const *const pim_noalias m_keys;
         V const *const pim_noalias m_values;
     public:
-        const_iterator(const Dict& dict, i32 index)
+        explicit const_iterator(const Dict& dict, i32 index)
         {
             m_index = index;
             m_width = dict.m_width;
@@ -390,9 +380,9 @@ private:
         return index;
     }
 
-    i32 Find(const K& key) const
+    i32 Find(const K& pim_noalias key) const
     {
-        const u32 keyHash = HashOf(key);
+        const u32 keyHash = Hashable<K>::HashOf(key);
 
         u32 width = m_width;
         const u32 mask = width - 1;
@@ -421,10 +411,10 @@ private:
         return -1;
     }
 
-    i32 FindInsertion(const K& key, u32& hashOut) const
+    i32 FindInsertion(const K& pim_noalias key, u32& pim_noalias hashOut) const
     {
         const u32 mask = m_width - 1;
-        const u32 keyHash = HashOf(key);
+        const u32 keyHash = Hashable<K>::HashOf(key);
         hashOut = keyHash;
         u32 const *const pim_noalias hashes = m_hashes;
         u32 j = keyHash;

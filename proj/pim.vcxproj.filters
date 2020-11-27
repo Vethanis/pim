@@ -178,9 +178,6 @@
     <ClCompile Include="..\src\containers\int_queue.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\containers\idset.c">
-      <Filter>Source Files\containers</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\io\fd.c">
       <Filter>Source Files\io</Filter>
     </ClCompile>
@@ -343,9 +340,6 @@
     <ClCompile Include="..\src\rendering\material.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\containers\idtable.c">
-      <Filter>Source Files\containers</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\containers\sdict.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
@@ -430,9 +424,6 @@
     <ClCompile Include="..\src\stb\stb_image_write.c">
       <Filter>Source Files\stb</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\containers\vhandle.c">
-      <Filter>Source Files\containers</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\rendering\lightmap.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
@@ -446,9 +437,6 @@
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
     <ClCompile Include="..\src\containers\table.c">
-      <Filter>Source Files\containers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\containers\sset.c">
       <Filter>Source Files\containers</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\rtcdraw.c">
@@ -747,9 +735,6 @@
     <ClInclude Include="..\src\containers\int_queue.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\idset.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\io\fd.h">
       <Filter>Source Files\io</Filter>
     </ClInclude>
@@ -794,9 +779,6 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\texture.h">
       <Filter>Source Files\rendering</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\carray.h">
-      <Filter>Source Files\containers</Filter>
     </ClInclude>
     <ClInclude Include="..\src\ui\cimgui.h">
       <Filter>Source Files\ui</Filter>
@@ -882,9 +864,6 @@
     <ClInclude Include="..\src\editor\menubar.h">
       <Filter>Source Files\editor</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\carray.c">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\common\console.h">
       <Filter>Source Files\common</Filter>
     </ClInclude>
@@ -935,9 +914,6 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\lights.h">
       <Filter>Source Files\rendering</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\idtable.h">
-      <Filter>Source Files\containers</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\sdict.h">
       <Filter>Source Files\containers</Filter>
@@ -1005,9 +981,6 @@
     <ClInclude Include="..\src\rendering\vulkan\shaderc_table.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\vhandle.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\rendering\lightmap.h">
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
@@ -1057,9 +1030,6 @@
       <Filter>Source Files\rendering</Filter>
     </ClInclude>
     <ClInclude Include="..\src\containers\table.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\sset.h">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
     <ClInclude Include="..\src\math\area.h">
@@ -1227,10 +1197,16 @@
     <ClInclude Include="..\src\containers\id_alloc.hpp">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\gen_id.hpp">
+    <ClInclude Include="..\src\containers\mem.hpp">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\mem.hpp">
+    <ClInclude Include="..\src\containers\hash.hpp">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\gen_id.h">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\text.hpp">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>

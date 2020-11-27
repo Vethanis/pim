@@ -3,7 +3,7 @@
 #include "common/macro.h"
 #include "containers/array.hpp"
 #include "containers/queue.hpp"
-#include "containers/gen_id.hpp"
+#include "containers/gen_id.h"
 
 class IdAllocator
 {
@@ -12,8 +12,8 @@ private:
     Queue<i32> m_free;
 public:
 
-    explicit IdAllocator(EAlloc allocator = EAlloc_Perm, i32 minSize = 0) :
-        m_versions(allocator, minSize),
+    explicit IdAllocator(EAlloc allocator = EAlloc_Perm) :
+        m_versions(allocator),
         m_free(allocator)
     {}
 

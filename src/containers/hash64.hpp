@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common/macro.h"
-#include "common/fnv1a.h"
+#include "containers/hash.hpp"
 
 class Hash64 final
 {
@@ -9,8 +8,7 @@ private:
     u64 m_hash;
 public:
     Hash64() : m_hash(0) {}
-    Hash64(const Hash64& other) : m_hash(other.m_hash) {}
-    explicit Hash64(const char* str)
+    explicit Hash64(char const* const str)
     {
         u64 hash = 0;
         if (str && str[0])
@@ -20,7 +18,7 @@ public:
         }
         m_hash = hash;
     }
-    explicit Hash64(const void* data, i32 bytes)
+    explicit Hash64(void const* const data, i32 bytes)
     {
         u64 hash = 0;
         if (data && bytes > 0)
@@ -30,25 +28,18 @@ public:
         }
         m_hash = hash;
     }
-    Hash64& operator=(const Hash64& other)
+    bool operator==(Hash64 other) const { return m_hash == other.m_hash; }
+    bool operator!=(Hash64 other) const { return m_hash != other.m_hash; }
+    bool operator<(Hash64 other) const { return m_hash < other.m_hash; }
+    bool IsNull() const { return m_hash == 0; }
+    u64 Value() const { return m_hash; }
+};
+
+template<>
+struct Hashable<Hash64>
+{
+    static u32 HashOf(Hash64 const& item)
     {
-        m_hash = other.m_hash;
-        return *this;
-    }
-    bool operator==(Hash64 other) const
-    {
-        return m_hash == other.m_hash;
-    }
-    bool operator!=(Hash64 other) const
-    {
-        return m_hash != other.m_hash;
-    }
-    bool operator<(Hash64 other) const
-    {
-        return m_hash < other.m_hash;
-    }
-    bool IsNull() const
-    {
-        return m_hash == 0;
+        return hashutil_create_hash(Fnv32Qword(item.Value(), Fnv32Bias));
     }
 };

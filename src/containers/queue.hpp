@@ -10,7 +10,7 @@ template<typename T>
 class Queue
 {
 private:
-    T* m_ptr;
+    T* pim_noalias m_ptr;
     u32 m_width;
     u32 m_read;
     u32 m_write;
@@ -20,11 +20,10 @@ public:
     i32 Capacity() const { return (i32)m_width; }
     EAlloc GetAllocator() const { return m_allocator; }
 
-    explicit Queue(EAlloc allocator = EAlloc_Perm, i32 cap = 0)
+    explicit Queue(EAlloc allocator = EAlloc_Perm)
     {
         memset(this, 0, sizeof(*this));
         m_allocator = allocator;
-        Reserve(cap);
     }
     ~Queue()
     {
@@ -117,16 +116,16 @@ public:
         }
     }
 
-    void PushMove(T&& src)
+    void PushMove(T&& pim_noalias src)
     {
         Reserve(Size() + 1);
         u32 mask = m_width - 1u;
         u32 w = m_write++ & mask;
         T *const pim_noalias ptr = m_ptr;
-        new (ptr + w) T((T&&)src);
+        new (ptr + w) T((T&& pim_noalias)src);
     }
 
-    void PushCopy(const T& src)
+    void PushCopy(const T& pim_noalias src)
     {
         Reserve(Size() + 1);
         u32 mask = m_width - 1u;
@@ -135,14 +134,14 @@ public:
         new (ptr + w) T(src);
     }
 
-    bool TryPop(T& dst)
+    bool TryPop(T& pim_noalias dst)
     {
         if (Size())
         {
             u32 mask = m_width - 1u;
             u32 r = m_read++ & mask;
             T *const pim_noalias ptr = m_ptr;
-            dst = (T&&)(ptr[r]);
+            dst = (T&& pim_noalias)(ptr[r]);
             ptr[r].~T();
             return true;
         }
@@ -159,7 +158,7 @@ public:
         const u32 m_write;
         u32 m_read;
     public:
-        iterator(Queue& queue, u32 index) :
+        explicit iterator(Queue& queue, u32 index) :
             m_ptr(queue.m_ptr),
             m_mask(queue.m_width - 1u),
             m_write(queue.m_write),
@@ -182,7 +181,7 @@ public:
         const u32 m_write;
         u32 m_read;
     public:
-        const_iterator(const Queue& queue, u32 index) :
+        explicit const_iterator(const Queue& queue, u32 index) :
             m_ptr(queue.m_ptr),
             m_mask(queue.m_width - 1u),
             m_write(queue.m_write),
