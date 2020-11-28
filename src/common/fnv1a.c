@@ -53,7 +53,7 @@ u32 Fnv32Qword(u64 x, u32 hash)
     return hash;
 }
 
-u32 Fnv32String(const char* pim_noalias str, u32 hash)
+u32 Fnv32String(char const *const pim_noalias str, u32 hash)
 {
     ASSERT(str);
     for (i32 i = 0; str[i]; ++i)
@@ -63,11 +63,11 @@ u32 Fnv32String(const char* pim_noalias str, u32 hash)
     return hash;
 }
 
-u32 Fnv32Bytes(const void* pim_noalias ptr, i32 nBytes, u32 hash)
+u32 Fnv32Bytes(void const *const pim_noalias ptr, i32 nBytes, u32 hash)
 {
     ASSERT(ptr || !nBytes);
     ASSERT(nBytes >= 0);
-    const u8* pim_noalias asBytes = ptr;
+    u8 const *const pim_noalias asBytes = ptr;
     for (i32 i = 0; i < nBytes; ++i)
     {
         hash = Fnv32Byte(asBytes[i], hash);
@@ -117,7 +117,7 @@ u64 Fnv64Qword(u64 x, u64 hash)
     return hash;
 }
 
-u64 Fnv64String(const char* pim_noalias ptr, u64 hash)
+u64 Fnv64String(char const *const pim_noalias ptr, u64 hash)
 {
     ASSERT(ptr);
     for (i32 i = 0; ptr[i]; ++i)
@@ -127,11 +127,11 @@ u64 Fnv64String(const char* pim_noalias ptr, u64 hash)
     return hash;
 }
 
-u64 Fnv64Bytes(const void* pim_noalias ptr, i32 nBytes, u64 hash)
+u64 Fnv64Bytes(void const *const pim_noalias ptr, i32 nBytes, u64 hash)
 {
     ASSERT(ptr || !nBytes);
     ASSERT(nBytes >= 0);
-    const u8* pim_noalias asBytes = ptr;
+    u8 const *const pim_noalias asBytes = ptr;
     for (i32 i = 0; i < nBytes; ++i)
     {
         hash = Fnv64Byte(asBytes[i], hash);
@@ -141,12 +141,23 @@ u64 Fnv64Bytes(const void* pim_noalias ptr, i32 nBytes, u64 hash)
 
 // ----------------------------------------------------------------------------
 
-u32 HashStr(const char* text)
+u32 HashStr(char const *const pim_noalias text)
 {
     u32 hash = 0;
-    if (text)
+    if (text && text[0])
     {
         hash = Fnv32String(text, Fnv32Bias);
+        hash = hash ? hash : 1;
+    }
+    return hash;
+}
+
+u32 HashBytes(void const *const pim_noalias ptr, i32 nBytes)
+{
+    u32 hash = 0;
+    if (ptr && (nBytes > 0))
+    {
+        hash = Fnv32Bytes(ptr, nBytes, Fnv32Bias);
         hash = hash ? hash : 1;
     }
     return hash;

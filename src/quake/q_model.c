@@ -245,7 +245,7 @@ static bool LoadTextures(
         for (i32 i = 0; i < texCount; ++i)
         {
             const i32 offset = offsets[i];
-            if ((offset < sizeof(*m)) || (offset >= lump.filelen))
+            if ((offset < (i32)sizeof(*m)) || (offset >= lump.filelen))
             {
                 continue;
             }

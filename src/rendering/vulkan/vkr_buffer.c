@@ -140,30 +140,9 @@ void vkrBuffer_Release(vkrBuffer* buffer, VkFence fence)
     ASSERT(buffer);
     if (buffer->handle)
     {
-        if (!fence)
-        {
-            const VkBufferMemoryBarrier barrier =
-            {
-                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                .srcAccessMask = 0x0,
-                .dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .buffer = buffer->handle,
-                .offset = 0,
-                .size = VK_WHOLE_SIZE,
-            };
-            fence = vkrMem_Barrier(
-                vkrQueueId_Gfx,
-                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                VK_PIPELINE_STAGE_HOST_BIT,
-                NULL,
-                &barrier,
-                NULL);
-        }
         const vkrReleasable releasable =
         {
-            .frame = time_framecount(),
+            .frame = vkr_frameIndex(),
             .type = vkrReleasableType_Buffer,
             .fence = fence,
             .buffer = *buffer,
@@ -197,12 +176,14 @@ void vkrBuffer_Barrier(
 
 void vkrBuffer_Transfer(
     vkrBuffer* buffer,
+    vkrQueueId srcQueueId,
+    vkrQueueId dstQueueId,
+    VkCommandBuffer srcCmd,
+    VkCommandBuffer dstCmd,
     VkAccessFlags srcAccessMask,
     VkAccessFlags dstAccessMask,
     VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask,
-    vkrQueueId srcQueueId,
-    vkrQueueId dstQueueId)
+    VkPipelineStageFlags dstStageMask)
 {
     u32 srcFamily = g_vkr.queues[srcQueueId].family;
     u32 dstFamily = g_vkr.queues[dstQueueId].family;
@@ -216,23 +197,6 @@ void vkrBuffer_Transfer(
         .buffer = buffer->handle,
         .size = VK_WHOLE_SIZE,
     };
-    vkrThreadContext* ctx = vkrContext_Get();
-    {
-        VkFence fence = NULL;
-        VkQueue queue = NULL;
-        VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, srcQueueId, &fence, &queue);
-        vkrCmdBegin(cmd);
-        vkrCmdBufferBarrier(cmd, srcStageMask, dstStageMask, &barrier);
-        vkrCmdEnd(cmd);
-        vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-    }
-    {
-        VkFence fence = NULL;
-        VkQueue queue = NULL;
-        VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, dstQueueId, &fence, &queue);
-        vkrCmdBegin(cmd);
-        vkrCmdBufferBarrier(cmd, srcStageMask, dstStageMask, &barrier);
-        vkrCmdEnd(cmd);
-        vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-    }
+    vkrCmdBufferBarrier(srcCmd, srcStageMask, dstStageMask, &barrier);
+    vkrCmdBufferBarrier(dstCmd, srcStageMask, dstStageMask, &barrier);
 }

@@ -184,13 +184,13 @@ void vkr_update(void)
     VkFence fence = NULL;
     VkCommandBuffer cmd = NULL;
     vkrSwapchain_AcquireSync(chain, &cmd, &fence);
+    vkrExposurePass_Execute(&g_vkr.exposurePass);
     vkrAllocator_Update(&g_vkr.allocator);
     vkrTexTable_Update();
     vkrCmdBegin(cmd);
     vkrMainPass_Draw(&g_vkr.mainPass, cmd, fence);
     vkrCmdEnd(cmd);
     vkrSwapchain_Submit(chain, cmd);
-    vkrExposurePass_Execute(&g_vkr.exposurePass);
     vkrSwapchain_Present(chain);
 
     if (cvar_get_bool(&cv_lm_upload))
@@ -241,3 +241,7 @@ void vkr_onunload(void)
         vkrAllocator_Update(&g_vkr.allocator);
     }
 }
+
+u32 vkr_syncIndex(void) { return g_vkr.chain.syncIndex; }
+u32 vkr_swapIndex(void) { return g_vkr.chain.imageIndex; }
+u32 vkr_frameIndex(void) { return time_framecount(); }

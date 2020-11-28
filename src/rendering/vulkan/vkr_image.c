@@ -38,14 +38,15 @@ bool vkrImage_New(
     {
         image->handle = handle;
         image->allocation = allocation;
+        image->type = info->imageType;
+        image->format = info->format;
+        image->layout = info->initialLayout;
+        image->usage = info->usage;
         image->width = info->extent.width;
         image->height = info->extent.height;
         image->depth = info->extent.depth;
         image->mipLevels = info->mipLevels;
         image->arrayLayers = info->arrayLayers;
-        image->format = info->format;
-        image->layout = info->initialLayout;
-        image->usage = info->usage;
         return true;
     }
     return false;
@@ -96,7 +97,7 @@ void vkrImage_Release(vkrImage* image, VkFence fence)
     {
         const vkrReleasable releasable =
         {
-            .frame = time_framecount(),
+            .frame = vkr_frameIndex(),
             .type = vkrReleasableType_Image,
             .fence = fence,
             .image = *image,
@@ -148,13 +149,11 @@ void vkrImage_Barrier(
 
 void vkrImage_Transfer(
     vkrImage* image,
+    vkrQueueId srcQueueId, vkrQueueId dstQueueId,
+    VkCommandBuffer srcCmd, VkCommandBuffer dstCmd,
     VkImageLayout newLayout,
-    VkAccessFlags srcAccessMask,
-    VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask,
-    vkrQueueId srcQueueId,
-    vkrQueueId dstQueueId)
+    VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
+    VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask)
 {
     VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
     if (image->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
@@ -182,33 +181,18 @@ void vkrImage_Transfer(
             .layerCount = image->arrayLayers,
         },
     };
-    vkrThreadContext* ctx = vkrContext_Get();
-    {
-        VkFence fence = NULL;
-        VkQueue queue = NULL;
-        VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, srcQueueId, &fence, &queue);
-        vkrCmdBegin(cmd);
-        vkrCmdImageBarrier(
-            cmd,
-            srcStageMask,
-            dstStageMask,
-            &barrier);
-        vkrCmdEnd(cmd);
-        vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-    }
+    vkrCmdImageBarrier(
+        srcCmd,
+        srcStageMask,
+        dstStageMask,
+        &barrier);
     if (srcQueueFamily != dstQueueFamily)
     {
-        VkFence fence = NULL;
-        VkQueue queue = NULL;
-        VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, dstQueueId, &fence, &queue);
-        vkrCmdBegin(cmd);
         vkrCmdImageBarrier(
-            cmd,
+            dstCmd,
             srcStageMask,
             dstStageMask,
             &barrier);
-        vkrCmdEnd(cmd);
-        vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
     }
     image->layout = newLayout;
 }

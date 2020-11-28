@@ -163,14 +163,15 @@ typedef struct vkrImage
 {
     VkImage handle;
     VmaAllocation allocation;
-    i32 width;
-    i32 height;
-    i32 depth;
-    i32 mipLevels;
-    i32 arrayLayers;
+    VkImageType type;
     VkFormat format;
     VkImageLayout layout;
     VkImageUsageFlags usage;
+    u16 width;
+    u16 height;
+    u16 depth;
+    u8 mipLevels;
+    u8 arrayLayers;
 } vkrImage;
 
 typedef struct vkrTexture2D
@@ -551,5 +552,12 @@ void vkr_shutdown(void);
 
 void vkr_onload(void);
 void vkr_onunload(void);
+
+// frame in flight index
+u32 vkr_syncIndex(void);
+// swapchain image index
+u32 vkr_swapIndex(void);
+// frame count
+u32 vkr_frameIndex(void);
 
 PIM_C_END
