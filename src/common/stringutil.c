@@ -6,12 +6,12 @@
 #include "stb/stb_sprintf.h"
 #include <string.h>
 
-static i32 min_i32(i32 a, i32 b)
+pim_inline i32 min_i32(i32 a, i32 b)
 {
     return (a < b) ? a : b;
 }
 
-static i32 max_i32(i32 a, i32 b)
+pim_inline i32 max_i32(i32 a, i32 b)
 {
     return (a > b) ? a : b;
 }
@@ -19,7 +19,7 @@ static i32 max_i32(i32 a, i32 b)
 // ----------------------------------------------------------------------------
 // null termination
 
-i32 NullTerminate(char* dst, i32 size, i32 length)
+i32 NullTerminate(char *const dst, i32 size, i32 length)
 {
     i32 nt = 0;
 
@@ -59,7 +59,7 @@ char ChrLo(char x)
     return (char)c;
 }
 
-i32 StrUp(char* dst, i32 size)
+i32 StrUp(char *const dst, i32 size)
 {
     i32 i = 0;
 
@@ -73,7 +73,7 @@ i32 StrUp(char* dst, i32 size)
     return NullTerminate(dst, size, i);
 }
 
-i32 StrLo(char* dst, i32 size)
+i32 StrLo(char *const dst, i32 size)
 {
     i32 i = 0;
 
@@ -106,7 +106,7 @@ bool IsSpace(char c)
 // ----------------------------------------------------------------------------
 // string length
 
-i32 StrLen(const char* x)
+i32 StrLen(char const *const x)
 {
     i32 i = 0;
     if (x)
@@ -119,13 +119,13 @@ i32 StrLen(const char* x)
     return i;
 }
 
-i32 StrNLen(const char* x, i32 size)
+i32 StrNLen(char const *const x, i32 size)
 {
     i32 i = 0;
     ASSERT(size >= 0);
     if (x)
     {
-        while (i < size && x[i])
+        while ((i < size) && x[i])
         {
             ++i;
         }
@@ -136,21 +136,21 @@ i32 StrNLen(const char* x, i32 size)
 // ----------------------------------------------------------------------------
 // string copying
 
-i32 StrCpy(char* dst, i32 size, const char* src)
+i32 StrCpy(char *const dst, i32 size, char const *const src)
 {
     i32 i = 0;
 
     ASSERT((dst && src) || !size);
     ASSERT(size >= 0);
 
-    for (; i < size && src[i]; ++i)
+    for (; (i < size) && src[i]; ++i)
     {
         dst[i] = src[i];
     }
     return NullTerminate(dst, size, i);
 }
 
-i32 StrCat(char* dst, i32 size, const char* src)
+i32 StrCat(char *const dst, i32 size, char const *const src)
 {
     ASSERT((dst && src) || !size);
     ASSERT(size >= 0);
@@ -159,7 +159,7 @@ i32 StrCat(char* dst, i32 size, const char* src)
     return StrCpy(dst + len, size - len, src) + len;
 }
 
-char* StrDup(const char* src, EAlloc allocator)
+char* StrDup(char const *const src, EAlloc allocator)
 {
     if (src && src[0])
     {
@@ -172,14 +172,14 @@ char* StrDup(const char* src, EAlloc allocator)
     return NULL;
 }
 
-i32 ShiftRight(char* dst, i32 size, i32 shifts)
+i32 ShiftRight(char *const dst, i32 size, i32 shifts)
 {
     ASSERT(dst || !size);
     ASSERT(size >= 0);
     ASSERT(shifts >= 0);
 
     const i32 len = min_i32(size, StrNLen(dst, size) + shifts);
-    const char* src = dst - shifts;
+    char const *const src = dst - shifts;
     for (i32 i = len - 1; i >= shifts; --i)
     {
         dst[i] = src[i];
@@ -187,20 +187,24 @@ i32 ShiftRight(char* dst, i32 size, i32 shifts)
     return NullTerminate(dst, size, len);
 }
 
-i32 ShiftLeft(char* dst, i32 size, i32 shifts)
+i32 ShiftLeft(char *const dst, i32 size, i32 shifts)
 {
     ASSERT(dst || !size);
     ASSERT(size >= 0);
     ASSERT(shifts >= 0);
 
     const i32 len = max_i32(0, StrNLen(dst, size) - shifts);
-    const char* src = dst + shifts;
+    char const *const src = dst + shifts;
     memmove(dst, src, len);
     return NullTerminate(dst, size, len);
 }
 
-i32 Shift(char* dst, i32 size, i32 shifts)
+i32 Shift(char *const dst, i32 size, i32 shifts)
 {
+    if (!shifts)
+    {
+        return StrNLen(dst, size);
+    }
     return (shifts < 0) ?
         ShiftLeft(dst, size, -shifts) :
         ShiftRight(dst, size, shifts);
@@ -209,13 +213,12 @@ i32 Shift(char* dst, i32 size, i32 shifts)
 // ----------------------------------------------------------------------------
 // string compare
 
-i32 StrCmp(const char* lhs, i32 size, const char* rhs)
+i32 StrCmp(char const *const lhs, i32 size, char const *const rhs)
 {
-    i32 c = 0;
-
     ASSERT((lhs && rhs) || !size);
     ASSERT(size >= 0);
 
+    i32 c = 0;
     for (i32 i = 0; i < size; ++i)
     {
         char L = lhs[i];
@@ -226,17 +229,15 @@ i32 StrCmp(const char* lhs, i32 size, const char* rhs)
             break;
         }
     }
-
     return c;
 }
 
-i32 StrICmp(const char* lhs, i32 size, const char* rhs)
+i32 StrICmp(char const *const lhs, i32 size, char const *const rhs)
 {
-    i32 c = 0;
-
     ASSERT((lhs && rhs) || !size);
     ASSERT(size >= 0);
 
+    i32 c = 0;
     for (i32 i = 0; i < size; ++i)
     {
         char L = lhs[i];
@@ -247,15 +248,15 @@ i32 StrICmp(const char* lhs, i32 size, const char* rhs)
             break;
         }
     }
-
     return c;
 }
 
-i32 MemICmp(const char* pim_noalias lhs, const char* pim_noalias rhs, i32 size)
+i32 MemICmp(char const *const pim_noalias lhs, char const *const pim_noalias rhs, i32 size)
 {
-    i32 c = 0;
     ASSERT((lhs && rhs) || !size);
     ASSERT(size >= 0);
+
+    i32 c = 0;
     for (i32 i = 0; i < size; ++i)
     {
         char L = lhs[i];
@@ -272,10 +273,8 @@ i32 MemICmp(const char* pim_noalias lhs, const char* pim_noalias rhs, i32 size)
 // ----------------------------------------------------------------------------
 // string searching
 
-const char* StrChr(const char* hay, i32 size, char needle)
+const char* StrChr(char const *const hay, i32 size, char needle)
 {
-    const char* ptr = 0;
-
     ASSERT(hay || !size);
     ASSERT(size >= 0);
 
@@ -287,18 +286,16 @@ const char* StrChr(const char* hay, i32 size, char needle)
         }
         if (hay[i] == needle)
         {
-            ptr = hay + i;
+            return hay + i;
             break;
         }
     }
 
-    return 0;
+    return NULL;
 }
 
-const char* StrIChr(const char* hay, i32 size, char needle)
+const char* StrIChr(char const *const hay, i32 size, char needle)
 {
-    const char* ptr = 0;
-
     ASSERT(hay || !size);
     ASSERT(size >= 0);
 
@@ -311,55 +308,57 @@ const char* StrIChr(const char* hay, i32 size, char needle)
         }
         if (ChrLo(hay[i]) == needle)
         {
-            ptr = hay + i;
+            return hay + i;
             break;
         }
     }
 
-    return 0;
+    return NULL;
 }
 
-const char* StrStr(const char* hay, i32 size, const char* needle)
+const char* StrStr(char const *const hay, i32 size, char const *const needle)
 {
     ASSERT((hay && needle) || !size);
     ASSERT(size >= 0);
 
     i32 hlen = StrNLen(hay, size);
     i32 nlen = StrLen(needle);
+    i32 hayIndex = 0;
     while (hlen >= nlen)
     {
-        if (!memcmp(hay, needle, nlen))
+        if (!memcmp(hay + hayIndex, needle, nlen))
         {
-            return hay;
+            return hay + hayIndex;
         }
-        ++hay;
+        ++hayIndex;
         --hlen;
     }
 
     return NULL;
 }
 
-const char* StrIStr(const char* hay, i32 size, const char* needle)
+const char* StrIStr(char const *const hay, i32 size, char const *const needle)
 {
     ASSERT((hay && needle) || !size);
     ASSERT(size >= 0);
 
     i32 hlen = StrNLen(hay, size);
     i32 nlen = StrLen(needle);
+    i32 hayIndex = 0;
     while (hlen >= nlen)
     {
-        if (!MemICmp(hay, needle, nlen))
+        if (!MemICmp(hay + hayIndex, needle, nlen))
         {
-            return hay;
+            return hay + hayIndex;
         }
-        ++hay;
+        ++hayIndex;
         --hlen;
     }
 
     return NULL;
 }
 
-const char* StartsWith(const char* hay, i32 size, const char* needle)
+const char* StartsWith(char const *const hay, i32 size, char const *const needle)
 {
     ASSERT((hay && needle) || !size);
     ASSERT(size >= 0);
@@ -377,7 +376,7 @@ const char* StartsWith(const char* hay, i32 size, const char* needle)
     return NULL;
 }
 
-const char* IStartsWith(const char* hay, i32 size, const char* needle)
+const char* IStartsWith(char const *const hay, i32 size, char const *const needle)
 {
     ASSERT((hay && needle) || !size);
     ASSERT(size >= 0);
@@ -395,83 +394,75 @@ const char* IStartsWith(const char* hay, i32 size, const char* needle)
     return NULL;
 }
 
-const char* EndsWith(const char* hay, i32 size, const char* needle)
+const char* EndsWith(char const *const hay, i32 size, char const *const needle)
 {
-    const char* ptr = 0;
-
     ASSERT((hay && needle) || !size);
     ASSERT(size >= 0);
 
     const i32 hayLen = StrNLen(hay, size);
     const i32 needleLen = StrLen(needle);
-    const i32 i = hayLen - needleLen;
-
-    if (i >= 0)
+    const i32 index = hayLen - needleLen;
+    if (index >= 0)
     {
-        if (!StrCmp(hay + i, needleLen, needle))
+        if (!StrCmp(hay + index, needleLen, needle))
         {
-            ptr = hay + i;
+            return hay + index;
         }
     }
 
-    return ptr;
+    return NULL;
 }
 
-const char* IEndsWith(const char* hay, i32 size, const char* needle)
+const char* IEndsWith(char const *const hay, i32 size, char const *const needle)
 {
-    const char* ptr = 0;
-
     ASSERT((hay && needle) || !size);
     ASSERT(size >= 0);
 
     const i32 hayLen = StrNLen(hay, size);
     const i32 needleLen = StrLen(needle);
-    const i32 i = hayLen - needleLen;
-
-    if (i >= 0)
+    const i32 index = hayLen - needleLen;
+    if (index >= 0)
     {
-        if (!StrICmp(hay + i, needleLen, needle))
+        if (!StrICmp(hay + index, needleLen, needle))
         {
-            ptr = hay + i;
+            return hay + index;
         }
     }
 
-    return ptr;
+    return NULL;
 }
 
 // ----------------------------------------------------------------------------
 // string formatting
 
-i32 VSPrintf(char* dst, i32 size, const char* fmt, VaList va)
+i32 VSPrintf(char *const dst, i32 size, char const *const fmt, VaList va)
 {
-    i32 len = 0;
-
     ASSERT((dst && fmt) || !size);
     ASSERT(size >= 0);
     ASSERT(va);
 
+    i32 len = 0;
     if (size > 0)
     {
-        fmt = fmt ? fmt : "(NULL)";
-        len = stbsp_vsnprintf(dst, size, fmt, va);
+        len = stbsp_vsnprintf(dst, size, fmt ? fmt : "(NULL)", va);
         len = NullTerminate(dst, size, len);
     }
 
     return len;
 }
 
-i32 SPrintf(char* dst, i32 size, const char* fmt, ...)
+i32 SPrintf(char *const dst, i32 size, char const *const fmt, ...)
 {
     return VSPrintf(dst, size, fmt, VA_START(fmt));
 }
 
-i32 VStrCatf(char* dst, i32 size, const char* fmt, VaList va)
+i32 VStrCatf(char *const dst, i32 size, char const *const fmt, VaList va)
 {
     i32 len = StrNLen(dst, size);
     return VSPrintf(dst + len, size - len, fmt, va) + len;
 }
 
-i32 StrCatf(char* dst, i32 size, const char* fmt, ...)
+i32 StrCatf(char *const dst, i32 size, char const *const fmt, ...)
 {
     i32 len = StrNLen(dst, size);
     return VSPrintf(dst + len, size - len, fmt, VA_START(fmt)) + len;
@@ -480,7 +471,7 @@ i32 StrCatf(char* dst, i32 size, const char* fmt, ...)
 // ----------------------------------------------------------------------------
 // char replace
 
-i32 ChrRep(char* dst, i32 size, char fnd, char rep)
+i32 ChrRep(char *const dst, i32 size, char fnd, char rep)
 {
     ASSERT(dst || !size);
     ASSERT(size >= 0);
@@ -493,7 +484,7 @@ i32 ChrRep(char* dst, i32 size, char fnd, char rep)
     return NullTerminate(dst, size, i);
 }
 
-i32 ChrIRep(char* dst, i32 size, char fnd, char rep)
+i32 ChrIRep(char *const dst, i32 size, char fnd, char rep)
 {
     ASSERT(dst || !size);
     ASSERT(size >= 0);
@@ -510,72 +501,74 @@ i32 ChrIRep(char* dst, i32 size, char fnd, char rep)
 // ----------------------------------------------------------------------------
 // string replace
 
-i32 StrRep(char* dst, i32 size, const char* fnd, const char* rep)
+i32 StrRep(char *const dst, i32 size, char const *const fnd, char const *const rep)
 {
-    ASSERT((dst && fnd && rep) || !size);
+    ASSERT(dst || !size);
     ASSERT(size >= 0);
+    ASSERT(fnd);
+    ASSERT(rep);
 
     const i32 dstLen = StrNLen(dst, size);
     const i32 fndLen = StrLen(fnd);
     const i32 repLen = StrLen(rep);
-    const i32 lenDiff = repLen - fndLen;
 
-    i32 count = 0;
-
+    i32 curLen = dstLen;
     char* inst = (char*)StrStr(dst, size, fnd);
     while (inst)
     {
-        ++count;
+        i32 index = (i32)(inst - dst);
+        i32 remSize = size - index;
+        Shift(inst, remSize, repLen - fndLen);
 
-        const i32 i = (i32)(inst - dst);
-        const i32 remLen = size - i;
-        Shift(inst, remLen, lenDiff);
-
-        const i32 cpyLen = min_i32(remLen, repLen);
-        for (i32 j = 0; j < cpyLen; ++j)
+        i32 cpyLen = min_i32(remSize, repLen);
+        for (i32 i = 0; i < cpyLen; ++i)
         {
-            inst[j] = rep[j];
+            inst[i] = rep[i];
         }
+        curLen += cpyLen - fndLen;
 
-        inst = (char*)StrStr(inst + 1, remLen - 1, fnd);
+        inst += cpyLen;
+        index = (i32)(inst - dst);
+        i32 remLen = curLen - index;
+        inst = (char*)StrStr(inst, remLen, fnd);
     }
 
-    const i32 newLen = dstLen + count * lenDiff;
-    return NullTerminate(dst, size, newLen);
+    return NullTerminate(dst, size, curLen);
 }
 
-i32 StrIRep(char* dst, i32 size, const char* fnd, const char* rep)
+i32 StrIRep(char *const dst, i32 size, char const *const fnd, char const *const rep)
 {
-    ASSERT((dst && fnd && rep) || !size);
+    ASSERT(dst || !size);
     ASSERT(size >= 0);
+    ASSERT(fnd);
+    ASSERT(rep);
 
     const i32 dstLen = StrNLen(dst, size);
     const i32 fndLen = StrLen(fnd);
     const i32 repLen = StrLen(rep);
-    const i32 lenDiff = repLen - fndLen;
 
-    i32 count = 0;
-
+    i32 curLen = dstLen;
     char* inst = (char*)StrIStr(dst, size, fnd);
     while (inst)
     {
-        ++count;
+        i32 index = (i32)(inst - dst);
+        i32 remSize = size - index;
+        Shift(inst, remSize, repLen - fndLen);
 
-        const i32 i = (i32)(inst - dst);
-        const i32 remLen = size - i;
-        Shift(inst, remLen, lenDiff);
-
-        const i32 cpyLen = min_i32(remLen, repLen);
-        for (i32 j = 0; j < cpyLen; ++j)
+        i32 cpyLen = min_i32(remSize, repLen);
+        for (i32 i = 0; i < cpyLen; ++i)
         {
-            inst[j] = rep[j];
+            inst[i] = rep[i];
         }
+        curLen += cpyLen - fndLen;
 
-        inst = (char*)StrIStr(inst + 1, remLen - 1, fnd);
+        inst += cpyLen;
+        index = (i32)(inst - dst);
+        i32 remLen = curLen - index;
+        inst = (char*)StrIStr(inst, remLen, fnd);
     }
 
-    const i32 newLen = dstLen + count * lenDiff;
-    return NullTerminate(dst, size, newLen);
+    return NullTerminate(dst, size, curLen);
 }
 
 // ----------------------------------------------------------------------------
@@ -596,7 +589,7 @@ char ChrPath(char c)
     return c;
 }
 
-i32 StrPath(char* dst, i32 size)
+i32 StrPath(char *const dst, i32 size)
 {
     ASSERT(dst || !size);
     ASSERT(size >= 0);
