@@ -570,12 +570,12 @@ static batch_t ModelToBatch(const mmodel_t* model)
 static float4x4 QuakeToRhsMeters(void)
 {
     // comparative scale metrics via player:
-    // quake player is 32x32x48 units, compared to 2 meters tall
-    // default runspeed is 320 units per second, compared to 8 meters per second
-    // max jump is 32 units, compared to 1.65 meters
-    const float heightScale = 2.0f / 48.0f;
-    const float speedScale = 8.0f / 320.0f;
-    const float jumpScale = 1.65f / 32.0f;
+    // quake player is 32x32x48 units
+    // default runspeed is 320 units per second
+    // max jump is 32 units
+    const float heightScale = 1.754f / 48.0f;
+    const float speedScale = (1609.34f / (60.0f * 10.0f)) / 320.0f;
+    const float jumpScale = 0.508f / 32.0f;
     const float avgScale = (heightScale + speedScale + jumpScale) / 3.0f;
     const quat rot = quat_angleaxis(-kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
     const float4x4 M = f4x4_trs(f4_0, rot, f4_s(avgScale));
