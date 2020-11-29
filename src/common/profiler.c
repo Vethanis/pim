@@ -28,9 +28,9 @@ typedef struct node_s
 
 // ----------------------------------------------------------------------------
 
-static void VisitClr(node_t* node);
-static void VisitSum(node_t* node);
-static void VisitGui(const node_t* node);
+static void VisitClr(node_t *const pim_noalias node);
+static void VisitSum(node_t *const pim_noalias node);
+static void VisitGui(node_t const *const pim_noalias node);
 
 // ----------------------------------------------------------------------------
 
@@ -88,7 +88,7 @@ void profile_gui(bool* pEnabled)
 
 // ----------------------------------------------------------------------------
 
-void _ProfileBegin(profmark_t* mark)
+void _ProfileBegin(profmark_t *const mark)
 {
     ASSERT(mark);
     const i32 tid = task_thread_id();
@@ -108,7 +108,7 @@ void _ProfileBegin(profmark_t* mark)
         top = &ms_roots[tid];
     }
 
-    node_t* next = tmp_calloc(sizeof(*next));
+    node_t *const next = tmp_calloc(sizeof(*next));
     next->mark = mark;
     next->parent = top;
     if (top->lchild)
@@ -125,14 +125,14 @@ void _ProfileBegin(profmark_t* mark)
     next->begin = time_now();
 }
 
-void _ProfileEnd(profmark_t* mark)
+void _ProfileEnd(profmark_t *const mark)
 {
     const u64 end = time_now();
 
     ASSERT(mark);
 
     const i32 tid = task_thread_id();
-    node_t* top = ms_top[tid];
+    node_t *const top = ms_top[tid];
 
     ASSERT(top);
     ASSERT(top->mark == mark);
@@ -147,14 +147,14 @@ void _ProfileEnd(profmark_t* mark)
 
 // ----------------------------------------------------------------------------
 
-static void VisitClr(node_t* node)
+static void VisitClr(node_t *const pim_noalias node)
 {
     if (!node)
     {
         return;
     }
 
-    profmark_t* mark = node->mark;
+    profmark_t *const mark = node->mark;
     ASSERT(mark);
     mark->calls = 0;
     mark->sum = 0;
@@ -170,14 +170,14 @@ static void VisitClr(node_t* node)
     VisitClr(node->fchild);
 }
 
-static void VisitSum(node_t* node)
+static void VisitSum(node_t *const pim_noalias node)
 {
     if (!node)
     {
         return;
     }
 
-    profmark_t* mark = node->mark;
+    profmark_t *const mark = node->mark;
     ASSERT(mark);
     mark->calls += 1;
     mark->sum += node->end - node->begin;
@@ -199,7 +199,7 @@ static void VisitSum(node_t* node)
     VisitSum(node->fchild);
 }
 
-static double GetNodeAvgMs(const node_t* node)
+static double GetNodeAvgMs(node_t const *const node)
 {
     ASSERT(node);
     const u32 key = node->hash;
@@ -212,7 +212,7 @@ static double GetNodeAvgMs(const node_t* node)
     return avgMs;
 }
 
-static double UpdateNodeAvgMs(const node_t* node)
+static double UpdateNodeAvgMs(node_t const *const node)
 {
     ASSERT(node);
     const u32 key = node->hash;
@@ -234,16 +234,16 @@ static double UpdateNodeAvgMs(const node_t* node)
     return avgMs;
 }
 
-static void VisitGui(const node_t* node)
+static void VisitGui(node_t const *const pim_noalias node)
 {
     if (!node)
     {
         return;
     }
 
-    const profmark_t* mark = node->mark;
+    profmark_t const *const mark = node->mark;
     ASSERT(mark);
-    const char* name = mark->name;
+    char const *const name = mark->name;
     ASSERT(name);
 
     double ms = UpdateNodeAvgMs(node);
@@ -275,7 +275,7 @@ static void VisitGui(const node_t* node)
 
 void profile_gui(bool* pEnabled) {}
 
-void _ProfileBegin(profmark_t* mark) {}
-void _ProfileEnd(profmark_t* mark) {}
+void _ProfileBegin(profmark_t *const mark) {}
+void _ProfileEnd(profmark_t *const mark) {}
 
 #endif // PIM_PROFILE

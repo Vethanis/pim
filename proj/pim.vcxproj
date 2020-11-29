@@ -14,7 +14,8 @@
     <ClCompile Include="..\src\allocator\allocator.c" />
     <ClCompile Include="..\src\assets\asset_system.c" />
     <ClCompile Include="..\src\assets\crate.c" />
-    <ClCompile Include="..\src\audio\audio_system.c" />
+    <ClCompile Include="..\src\audio\audio_system.cpp" />
+    <ClCompile Include="..\src\audio\synth_system.cpp" />
     <ClCompile Include="..\src\common\atomics.cpp" />
     <ClCompile Include="..\src\common\cmd.c" />
     <ClCompile Include="..\src\common\console.c" />
@@ -45,7 +46,7 @@
     <ClCompile Include="..\src\containers\text.c" />
     <ClCompile Include="..\src\containers\vhandle.c" />
     <ClCompile Include="..\src\editor\editor.c" />
-    <ClCompile Include="..\src\editor\menubar.c" />
+    <ClCompile Include="..\src\editor\menubar.cpp" />
     <ClCompile Include="..\src\input\input_system.c" />
     <ClCompile Include="..\src\io\dir.c" />
     <ClCompile Include="..\src\io\env.c" />
@@ -56,7 +57,7 @@
     <ClCompile Include="..\src\logic\camera_logic.c" />
     <ClCompile Include="..\src\logic\logic.c" />
     <ClCompile Include="..\src\logic\progs.c" />
-    <ClCompile Include="..\src\main.c" />
+    <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\math\ambcube.c" />
     <ClCompile Include="..\src\math\cubic_fit.c" />
     <ClCompile Include="..\src\math\dist1d.c" />
@@ -168,7 +169,8 @@
     <ClInclude Include="..\src\allocator\allocator.h" />
     <ClInclude Include="..\src\assets\asset_system.h" />
     <ClInclude Include="..\src\assets\crate.h" />
-    <ClInclude Include="..\src\audio\audio_system.h" />
+    <ClInclude Include="..\src\audio\audio_system.hpp" />
+    <ClInclude Include="..\src\audio\synth_system.hpp" />
     <ClInclude Include="..\src\common\atomics.h" />
     <ClInclude Include="..\src\common\cmd.h" />
     <ClInclude Include="..\src\common\console.h" />
@@ -182,6 +184,7 @@
     <ClInclude Include="..\src\common\guid.h" />
     <ClInclude Include="..\src\common\fnv1a.h" />
     <ClInclude Include="..\src\common\macro.h" />
+    <ClInclude Include="..\src\common\profiler.hpp" />
     <ClInclude Include="..\src\common\random.h" />
     <ClInclude Include="..\src\common\serialize.h" />
     <ClInclude Include="..\src\common\sort.h" />

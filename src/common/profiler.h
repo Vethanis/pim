@@ -4,9 +4,9 @@
 
 PIM_C_BEGIN
 
-typedef struct profmrk_s
+typedef struct profmark_s
 {
-    const char* name;
+    char const *const name;
     u32 hash;
     u32 calls;
     u64 sum;
@@ -14,8 +14,8 @@ typedef struct profmrk_s
 
 void profile_gui(bool* pEnabled);
 
-void _ProfileBegin(profmark_t* mark);
-void _ProfileEnd(profmark_t* mark);
+void _ProfileBegin(profmark_t *const mark);
+void _ProfileEnd(profmark_t *const mark);
 
 #define PIM_PROFILE 1
 

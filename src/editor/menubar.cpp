@@ -7,6 +7,7 @@
 #include "rendering/texture.h"
 #include "rendering/mesh.h"
 #include "assets/asset_system.h"
+#include "audio/audio_system.hpp"
 
 // ----------------------------------------------------------------------------
 
@@ -31,6 +32,7 @@ static edwin_t ms_windows[] =
 {
     { "CVars", false, cvar_gui },
     { "Assets", false, asset_gui },
+    { "Audio", false, AudioSys::OnGui },
     { "Profiler", false, profile_gui },
     { "Renderer", false, render_sys_gui },
     { "Textures", false, texture_sys_gui },
@@ -40,13 +42,13 @@ static edwin_t ms_windows[] =
 
 // ----------------------------------------------------------------------------
 
-void menubar_init(void)
+extern "C" void menubar_init(void)
 {
 
 }
 
 ProfileMark(pm_update, menubar_update)
-void menubar_update(void)
+extern "C" void menubar_update(void)
 {
     ProfileBegin(pm_update);
 
@@ -56,7 +58,7 @@ void menubar_update(void)
     ProfileEnd(pm_update);
 }
 
-void menubar_shutdown(void)
+extern "C" void menubar_shutdown(void)
 {
 
 }
