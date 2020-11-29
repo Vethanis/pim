@@ -17,6 +17,11 @@ PIM_C_BEGIN
 #define f4_z        f4_v(0.0f, 0.0f, 1.0f, 0.0f)
 #define f4_w        f4_v(0.0f, 0.0f, 0.0f, 1.0f)
 
+static bool VEC_CALL f4_isfinite3(float4 x)
+{
+    return isfinite(x.x) && isfinite(x.y) && isfinite(x.z);
+}
+
 pim_inline float4 VEC_CALL f4_v(float x, float y, float z, float w)
 {
     float4 vec = { x, y, z, w };
@@ -743,18 +748,20 @@ pim_inline float4 VEC_CALL f4_refract(float4 i, float4 n, float eta)
 {
     float ndi = f4_dot(n, i);
     float k = 1.0f - (eta*eta * (1.0f - ndi * ndi));
+    k = f1_max(k, kEpsilon);
     float l = eta * ndi + sqrtf(k);
     float4 m = f4_sub(f4_mulvs(i, eta), f4_mulvs(n, l));
-    return f4_mulvs(m, k >= 0.0f ? 1.0f : 0.0f);
+    return m;
 }
 
 pim_inline float4 VEC_CALL f4_refract3(float4 i, float4 n, float eta)
 {
     float ndi = f4_dot3(n, i);
     float k = 1.0f - (eta*eta * (1.0f - ndi*ndi));
+    k = f1_max(k, kEpsilon);
     float l = eta * ndi + sqrtf(k);
     float4 m = f4_sub(f4_mulvs(i, eta), f4_mulvs(n, l));
-    return f4_mulvs(m, k >= 0.0f ? 1.0f : 0.0f);
+    return m;
 }
 
 pim_inline float4 VEC_CALL f4_sqrt(float4 v)

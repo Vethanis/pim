@@ -189,10 +189,6 @@ static void VisitSum(node_t *const pim_noalias node)
     {
         hash = Fnv32Dword(node->sibling->hash, hash);
     }
-    if (node->fchild)
-    {
-        hash = Fnv32Dword(node->fchild->hash, hash);
-    }
     node->hash = hash;
 
     VisitSum(node->sibling);

@@ -32,6 +32,8 @@
 #include "common/cvar.h"
 #include "common/stringutil.h"
 #include "common/serialize.h"
+#include "common/atomics.h"
+#include "common/time.h"
 #include "ui/cimgui.h"
 
 #include "stb/stb_perlin_fork.h"
@@ -40,6 +42,14 @@
 #define kPixelRadius    2.0f
 
 // ----------------------------------------------------------------------------
+
+typedef enum LdsSlot
+{
+    LdsSlot_Brdf,
+    LdsSlot_MeanFreePath,
+
+    LdsSlot_COUNT
+} LdsSlot;
 
 typedef struct surfhit_s
 {
@@ -60,14 +70,14 @@ typedef struct scatter_s
     float4 pos;
     float4 dir;
     float4 attenuation;
-    float4 irradiance;
+    float4 luminance;
     float pdf;
 } scatter_t;
 
 typedef struct lightsample_s
 {
     float4 direction;
-    float4 irradiance;
+    float4 luminance;
     float4 wuvt;
     float pdf;
 } lightsample_t;
@@ -180,7 +190,7 @@ pim_inline float2 VEC_CALL GetVert2(
     const float2* vertices,
     i32 iVert,
     float4 wuv);
-pim_inline float VEC_CALL GetArea(const pt_scene_t*const pim_noalias scene, i32 iLight);
+pim_inline float VEC_CALL GetArea(const pt_scene_t*const pim_noalias scene, i32 iVert);
 pim_inline const material_t* VEC_CALL GetMaterial(
     const pt_scene_t*const pim_noalias scene,
     rayhit_t hit);
@@ -235,7 +245,11 @@ pim_inline lightsample_t VEC_CALL LightSample(
     pt_sampler_t*const pim_noalias sampler,
     pt_scene_t*const pim_noalias scene,
     float4 ro,
-    i32 iLight);
+    i32 iVert); 
+pim_inline float VEC_CALL LightSelectPdf(
+    pt_scene_t*const pim_noalias scene,
+    i32 iVert,
+    float4 ro);
 pim_inline float VEC_CALL LightEvalPdf(
     pt_sampler_t*const pim_noalias sampler,
     pt_scene_t*const pim_noalias scene,
@@ -245,36 +259,26 @@ pim_inline float VEC_CALL LightEvalPdf(
 pim_inline float4 VEC_CALL EstimateDirect(
     pt_sampler_t*const pim_noalias sampler,
     pt_scene_t*const pim_noalias scene,
-    const surfhit_t* surf,
-    i32 iLight,
-    float selectPdf,
-    float4 I);
-pim_inline float4 VEC_CALL SampleLights(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
-    const surfhit_t* surf,
-    const rayhit_t* hit,
+    surfhit_t const *const pim_noalias surf,
+    rayhit_t const *const pim_noalias srcHit,
     float4 I);
 pim_inline bool VEC_CALL EvaluateLight(
     pt_sampler_t*const pim_noalias sampler,
     pt_scene_t*const pim_noalias scene,
     float4 P,
-    float4* lightOut,
-    float4* dirOut);
-static void media_desc_new(media_desc_t* desc);
-static void media_desc_update(media_desc_t* desc);
-static void media_desc_gui(media_desc_t* desc);
-static void media_desc_load(media_desc_t* desc, const char* name);
-static void media_desc_save(const media_desc_t* desc, const char* name);
+    float4 *const pim_noalias lightOut,
+    float4 *const pim_noalias dirOut);
+static void media_desc_new(media_desc_t *const desc);
+static void media_desc_update(media_desc_t *const desc);
+static void media_desc_gui(media_desc_t *const desc);
+static void media_desc_load(media_desc_t *const desc, const char* name);
+static void media_desc_save(media_desc_t const *const desc, const char* name);
 pim_inline float4 VEC_CALL AlbedoToLogAlbedo(float4 albedo);
-pim_inline float2 VEC_CALL Media_Density(const media_desc_t* desc, float4 P);
-pim_inline media_t VEC_CALL Media_Sample(const media_desc_t* desc, float4 P);
-pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P);
-pim_inline float4 VEC_CALL Media_Normal(const media_desc_t* desc, float4 P);
+pim_inline float2 VEC_CALL Media_Density(media_desc_t const *const desc, float4 P);
+pim_inline media_t VEC_CALL Media_Sample(media_desc_t const *const desc, float4 P);
+pim_inline float4 VEC_CALL Media_Albedo(media_desc_t const *const desc, float4 P);
+pim_inline float4 VEC_CALL Media_Normal(media_desc_t const *const desc, float4 P);
 pim_inline media_t VEC_CALL Media_Lerp(media_t lhs, media_t rhs, float t);
-pim_inline bool VEC_CALL RussianRoulette(
-    pt_sampler_t*const pim_noalias sampler,
-    float4* pAttenuation);
 pim_inline float VEC_CALL SampleFreePath(float Xi, float rcpU);
 pim_inline float VEC_CALL FreePathPdf(float t, float u);
 pim_inline float4 VEC_CALL CalcTransmittance(
@@ -291,25 +295,58 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     float rayLen);
 static void TraceFn(void* pbase, i32 begin, i32 end);
 static void RayGenFn(void* pBase, i32 begin, i32 end);
-pim_inline float VEC_CALL Sample1D(pt_sampler_t*const pim_noalias sampler);
-pim_inline float2 VEC_CALL Sample2D(pt_sampler_t*const pim_noalias sampler);
-pim_inline bool VEC_CALL SampleBool(pt_sampler_t*const pim_noalias sampler);
-pim_inline pt_sampler_t VEC_CALL GetSampler(void);
-pim_inline void VEC_CALL SetSampler(pt_sampler_t sampler);
 pim_inline void VEC_CALL LightOnHit(
     pt_sampler_t*const pim_noalias sampler,
     pt_scene_t*const pim_noalias scene,
     float4 ro,
+    float4 lum,
     i32 iVert);
 static void UpdateDists(pt_scene_t*const pim_noalias scene);
 
+// ----------------------------------------------------------------------------
+
+pim_inline pt_sampler_t VEC_CALL GetSampler(void);
+pim_inline void VEC_CALL SetSampler(pt_sampler_t sampler);
+
+pim_inline float VEC_CALL NextRatio(float *const pim_noalias pX, float ratio);
+pim_inline float VEC_CALL Sample1D(pt_sampler_t*const pim_noalias sampler);
+pim_inline float2 VEC_CALL Sample2D(pt_sampler_t*const pim_noalias sampler);
+
+pim_inline float VEC_CALL RoulettePrng(pt_sampler_t *const pim_noalias sampler)
+{
+    return NextRatio(&sampler->Xi[0], kGoldenRatio);
+}
+pim_inline float VEC_CALL LightSelectPrng(pt_sampler_t *const pim_noalias sampler)
+{
+    return NextRatio(&sampler->Xi[1], kSqrt2);
+}
+pim_inline float VEC_CALL BrdfPrng(pt_sampler_t*const pim_noalias sampler)
+{
+    return NextRatio(&sampler->Xi[2], kSqrt3);
+}
+pim_inline float VEC_CALL ScatterPrng(pt_sampler_t *const pim_noalias sampler)
+{
+    return NextRatio(&sampler->Xi[3], kSqrt5);
+}
+pim_inline float VEC_CALL PhaseDirPrng(pt_sampler_t *const pim_noalias sampler)
+{
+    return NextRatio(&sampler->Xi[4], kSqrt7);
+}
+pim_inline float2 VEC_CALL UvPrng(pt_sampler_t *const pim_noalias sampler)
+{
+    return f2_v(NextRatio(&sampler->Xi[5], kGoldenRatio), NextRatio(&sampler->Xi[6], kSqrt3));
+}
+pim_inline float2 VEC_CALL DofPrng(pt_sampler_t *const pim_noalias sampler)
+{
+    return f2_v(NextRatio(&sampler->Xi[7], kSqrt2), NextRatio(&sampler->Xi[8], kSqrt5));
+}
 // ----------------------------------------------------------------------------
 
 static cvar_t cv_pt_dist_meters =
 {
     .type = cvart_float,
     .name = "pt_dist_meters",
-    .value = "2",
+    .value = "1.5",
     .minFloat = 0.1f,
     .maxFloat = 20.0f,
     .desc = "path tracer light distribution meters per cell"
@@ -319,7 +356,7 @@ static cvar_t cv_pt_dist_alpha =
 {
     .type = cvart_float,
     .name = "pt_dist_alpha",
-    .value = "0.1",
+    .value = "0.95",
     .minFloat = 0.0f,
     .maxFloat = 1.0f,
     .desc = "path tracer light distribution update amount",
@@ -329,7 +366,7 @@ static cvar_t cv_pt_dist_samples =
 {
     .type = cvart_int,
     .name = "pt_dist_samples",
-    .value = "300",
+    .value = "100",
     .minInt = 30,
     .maxInt = 1 << 20,
     .desc = "path tracer light distribution minimum samples per update",
@@ -394,6 +431,10 @@ static void InitSamplers(void)
     for (i32 i = 0; i < numthreads; ++i)
     {
         ms_samplers[i].rng.state = prng_u64(&rng);
+        for (i32 j = 0; j < NELEM(ms_samplers[i].Xi); ++j)
+        {
+            ms_samplers[i].Xi[j] = prng_f32(&rng);
+        }
     }
     prng_set(rng);
 }
@@ -1126,7 +1167,7 @@ void dofinfo_new(dofinfo_t* dof)
     if (dof)
     {
         dof->aperture = 5.0f * kMilli;
-        dof->focalLength = 2.0f;
+        dof->focalLength = 6.0f;
         dof->bladeCount = 5;
         dof->bladeRot = kPi / 10.0f;
         dof->focalPlaneCurvature = 0.05f;
@@ -1138,9 +1179,11 @@ void dofinfo_gui(dofinfo_t* dof)
     if (dof && igCollapsingHeader1("dofinfo"))
     {
         float aperture = dof->aperture / kMilli;
-        igSliderFloat("Aperture, millimeters", &aperture, 0.1f, 300.0f);
+        igSliderFloat("Aperture, millimeters", &aperture, 0.1f, 30.0f);
         dof->aperture = aperture * kMilli;
-        igSliderFloat("Focal Length, meters", &dof->focalLength, 0.01f, 100.0f);
+        float focalLength = log2f(dof->focalLength);
+        igSliderFloat("Focal Length, log2 meters", &focalLength, -5.0f, 5.0f);
+        dof->focalLength = exp2f(focalLength);
         igSliderFloat("Focal Plane Curvature", &dof->focalPlaneCurvature, 0.0f, 1.0f);
         igSliderInt("Blade Count", &dof->bladeCount, 3, 666, "%d");
         igSliderFloat("Blade Rotation", &dof->bladeRot, 0.0f, kTau);
@@ -1317,43 +1360,14 @@ pim_inline float4 VEC_CALL SampleSpecular(
     float4 N,
     float alpha)
 {
-    float2 Xi = Sample2D(sampler);
-    float4 H = TanToWorld(N, SampleGGXMicrofacet(Xi, alpha));
-    float4 L = f4_reflect3(I, H);
-    ASSERT(IsUnitLength(I));
-    ASSERT(IsUnitLength(N));
-    ASSERT(IsUnitLength(L));
-    ASSERT(IsUnitLength(H));
-    return L;
+    return ImportanceSampleGGX(I, N, Sample2D(sampler), alpha);
 }
 
 pim_inline float4 VEC_CALL SampleDiffuse(
     pt_sampler_t*const pim_noalias sampler,
     float4 N)
 {
-    float2 Xi = Sample2D(sampler);
-    float4 L = TanToWorld(N, SampleCosineHemisphere(Xi));
-    ASSERT(IsUnitLength(N));
-    ASSERT(IsUnitLength(L));
-    return L;
-}
-
-pim_inline float VEC_CALL Schlick(float cosTheta, float k)
-{
-    float r0 = (1.0f - k) / (1.0f + k);
-    r0 = r0 * r0;
-    float t = 1.0f - cosTheta;
-    t = t * t * t * t * t;
-    return f1_lerp(r0, 1.0f, t);
-}
-
-pim_inline float4 VEC_CALL RefractBrdfEval(
-    pt_sampler_t*const pim_noalias sampler,
-    float4 I,
-    const surfhit_t* surf,
-    float4 L)
-{
-    return f4_0;
+    return ImportanceSampleLambert(N, Sample2D(sampler));
 }
 
 // returns attenuation value for the given interaction
@@ -1417,62 +1431,77 @@ pim_inline float4 VEC_CALL BrdfEval(
     return brdf;
 }
 
+pim_inline float VEC_CALL Schlick(float cosTheta, float k)
+{
+    float r0 = (1.0f - k) / (1.0f + k);
+    r0 = f1_sat(r0 * r0);
+    float t = 1.0f - cosTheta;
+    t = t * t * t * t * t;
+    t = f1_sat(t);
+    return f1_lerp(r0, 1.0f, t);
+}
+
+pim_inline float4 VEC_CALL RefractBrdfEval(
+    pt_sampler_t*const pim_noalias sampler,
+    float4 I,
+    const surfhit_t* surf,
+    float4 L)
+{
+    return f4_0;
+}
+
 pim_inline scatter_t VEC_CALL RefractScatter(
     pt_sampler_t*const pim_noalias sampler,
     const surfhit_t* surf,
     float4 I)
 {
     const float kAir = 1.000277f;
-    const float matIor = surf->ior;
+    const float matIor = f1_max(1.0f, surf->ior);
+    const float alpha = BrdfAlpha(surf->roughness);
 
     float4 V = f4_neg(I);
     float4 N = surf->N;
     float4 M = surf->M;
+    float4 m = TanToWorld(N, SampleGGXMicrofacet(Sample2D(sampler), alpha));
     float NoV = f4_dot3(N, V);
-    float sinTheta = sqrtf(f1_max(0.0f, 1.0f - NoV * NoV));
     bool entering = NoV > 0.0f;
     float etaI = entering ? kAir : matIor;
     float etaT = entering ? matIor : kAir;
     float k = etaI / etaT;
-    float F = Schlick(NoV, k);
+    float pdf = Schlick(f1_abs(NoV), k);
 
-    bool refracted = false;
-    float4 R;
-    if (((k * sinTheta) > 1.0f) || (Sample1D(sampler) < F))
+    float4 L;
+    float4 att;
+    if (BrdfPrng(sampler) < pdf)
     {
-        R = f4_reflect3(I, N);
+        float4 R = f4_normalize3(f4_reflect3(I, m));
+        float4 H = f4_mulvs(f4_add(V, R), f1_sign(NoV));
+        H = f4_normalize3(H);
+        float HoV = f1_abs(f4_dot3(H, V));
+        float4 F = F_SchlickEx(surf->albedo, 1.0f, HoV);
+        att = F;
+        L = R;
     }
     else
     {
-        R = f4_refract3(I, N, k);
-        F = 1.0f - F;
-        refracted = true;
+        float4 T = f4_normalize3(f4_refract3(I, m, k));
+        float4 H = f4_neg(f4_add(f4_mulvs(V, etaI), f4_mulvs(T, etaT)));
+        float HoV = f1_abs(f4_dot3(H, V));
+        float4 F = f4_inv(F_SchlickEx(surf->albedo, 1.0f, HoV));
+        att = F;
+        pdf = 1.0f - pdf;
+        L = T;
     }
 
-    bool above = f4_dot3(R, M) > 0.0f;
-    float4 N2 = above ? N : f4_neg(N);
-    float4 P = above ? surf->P : f4_add(surf->P, f4_mulvs(M, -3.0f * kMilli));
-    float4 L = SampleDiffuse(sampler, N2);
-    float alpha = BrdfAlpha(surf->roughness);
-    L = f4_normalize3(f4_lerpvs(R, L, alpha));
-    float NoL = f1_max(f1_abs(f4_dot3(N, L)), kEpsilon);
-    float pdf = F * f1_lerp(1.0f, LambertPdf(NoL), alpha);
-
-    float4 H = f4_normalize3(f4_add(f4_neg(I), L));
-    float HoV = f1_abs(f4_dot3(H, V));
-    // lighten albedo, quake's are too dark for refraction
-    float4 albedo = f4_lerpvs(surf->albedo, f4_1, 0.5f);
-    float4 att = F_Schlick(albedo, f4_1, HoV);
-    if (refracted)
-    {
-        att = f4_inv(att);
-    }
+    bool above = f4_dot3(L, M) > 0.0f;
+    float4 P = surf->P;
+    P = above ? P : f4_add(P, f4_mulvs(M, -3.0f * kMilli));
 
     scatter_t result = { 0 };
     result.pos = P;
     result.dir = L;
-    result.pdf = pdf;
     result.attenuation = att;
+    result.pdf = pdf;
 
     return result;
 }
@@ -1505,7 +1534,7 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
     const float rcpProb = 1.0f / (amtSpecular + amtDiffuse);
 
     float4 L;
-    if (Sample1D(sampler) < rcpProb)
+    if (BrdfPrng(sampler) < rcpProb)
     {
         L = SampleSpecular(sampler, I, N, alpha);
     }
@@ -1561,6 +1590,7 @@ pim_inline void VEC_CALL LightOnHit(
     pt_sampler_t*const pim_noalias sampler,
     pt_scene_t*const pim_noalias scene,
     float4 ro,
+    float4 lum4,
     i32 iVert)
 {
     i32 iList = scene->vertToEmit[iVert];
@@ -1570,7 +1600,9 @@ pim_inline void VEC_CALL LightOnHit(
         dist1d_t* dist = &scene->lightDists[iCell];
         if (dist->length)
         {
-            dist1d_inc(dist, iList);
+            float lum = f4_avglum(lum4);
+            u32 amt = (u32)(lum + Sample1D(sampler));
+            fetch_add_u32(dist->live + iList, amt, MO_Relaxed);
         }
     }
 }
@@ -1596,30 +1628,49 @@ pim_inline bool VEC_CALL LightSelect(
         return false;
     }
 
-    i32 iList = dist1d_sampled(dist, Sample1D(sampler));
+    i32 iList = dist1d_sampled(dist, LightSelectPrng(sampler));
     float pdf = dist1d_pdfd(dist, iList);
 
     i32 iVert = scene->emissives[iList];
 
     *iVertOut = iVert;
     *pdfOut = pdf;
-    return true;
+    return pdf > kEpsilon;
+}
+
+pim_inline float VEC_CALL LightSelectPdf(
+    pt_scene_t*const pim_noalias scene,
+    i32 iVert,
+    float4 ro)
+{
+    float selectPdf = 1.0f;
+    i32 iCell = grid_index(&scene->lightGrid, ro);
+    i32 iList = scene->vertToEmit[iVert];
+    if (iList >= 0)
+    {
+        const dist1d_t* dist = scene->lightDists + iCell;
+        if (dist->length)
+        {
+            selectPdf = dist1d_pdfd(dist, iList);
+        }
+    }
+    return selectPdf;
 }
 
 pim_inline lightsample_t VEC_CALL LightSample(
     pt_sampler_t*const pim_noalias sampler,
     pt_scene_t*const pim_noalias scene,
     float4 ro,
-    i32 iLight)
+    i32 iVert)
 {
     lightsample_t sample = { 0 };
 
     float4 wuv = SampleBaryCoord(Sample2D(sampler));
 
     const float4* pim_noalias positions = scene->positions;
-    float4 A = positions[iLight + 0];
-    float4 B = positions[iLight + 1];
-    float4 C = positions[iLight + 2];
+    float4 A = positions[iVert + 0];
+    float4 B = positions[iVert + 1];
+    float4 C = positions[iVert + 2];
     float4 pt = f4_blend(A, B, C, wuv);
     float area = TriArea3D(A, B, C);
 
@@ -1632,21 +1683,20 @@ pim_inline lightsample_t VEC_CALL LightSample(
     sample.direction = rd;
     sample.wuvt = wuv;
 
-    float4 N = f4_normalize3(GetVert4(scene->normals, iLight, wuv));
+    float4 N = f4_normalize3(GetVert4(scene->normals, iVert, wuv));
     float VoNl = f4_dot3(f4_neg(rd), N);
     if (VoNl > 0.0f)
     {
         rayhit_t hit = pt_intersect_local(scene, ro, rd, 0.0f, distance + 2.0f * kMilli);
-        if ((hit.type == hit_triangle) && (hit.index == iLight))
+        if ((hit.type == hit_triangle) && (hit.index == iVert))
         {
             sample.pdf = LightPdf(area, VoNl, distSq);
             surfhit_t surf = GetSurface(scene, ro, rd, hit);
-            sample.irradiance = surf.emission;
-            if (f4_hmax3(sample.irradiance) > kEpsilon)
+            sample.luminance = surf.emission;
+            if (f4_hmax3(sample.luminance) > kEpsilon)
             {
-                LightOnHit(sampler, scene, ro, hit.index);
                 float4 Tr = CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w);
-                sample.irradiance = f4_mul(sample.irradiance, Tr);
+                sample.luminance = f4_mul(sample.luminance, Tr);
             }
         }
     }
@@ -1684,98 +1734,85 @@ pim_inline float VEC_CALL LightEvalPdf(
 pim_inline float4 VEC_CALL EstimateDirect(
     pt_sampler_t*const pim_noalias sampler,
     pt_scene_t*const pim_noalias scene,
-    const surfhit_t* surf,
-    i32 iLight,
-    float selectPdf,
+    surfhit_t const *const pim_noalias surf,
+    rayhit_t const *const pim_noalias srcHit,
     float4 I)
 {
     float4 result = f4_0;
     const float4 ro = surf->P;
+
+    i32 iVert;
+    float selectPdf;
+    if (LightSelect(sampler, scene, surf->P, &iVert, &selectPdf))
     {
-        // already has CalcTransmittance applied
-        lightsample_t sample = LightSample(sampler, scene, ro, iLight);
-        float4 rd = sample.direction;
-        float4 Li = sample.irradiance;
-        float lightPdf = sample.pdf;
-        if ((lightPdf > 0.0f) && (f4_hmax3(Li) > kEpsilon))
+        if (srcHit->index != iVert)
         {
-            float4 brdf = BrdfEval(sampler, I, surf, rd);
-            float brdfPdf = brdf.w;
-            if (brdfPdf > 0.0f)
+            // already has CalcTransmittance applied
+            lightsample_t sample = LightSample(sampler, scene, ro, iVert);
+            float4 rd = sample.direction;
+            float4 Li = sample.luminance;
+            float lightPdf = sample.pdf * selectPdf;
+            if ((lightPdf > kEpsilon) && (f4_hmax3(Li) > kEpsilon))
             {
-                float weight = PowerHeuristic(lightPdf, brdfPdf) * 0.5f;
-                Li = f4_mulvs(Li, weight);
-                Li = f4_mul(Li, brdf);
-                Li = f4_divvs(Li, lightPdf * selectPdf);
-                result = f4_add(result, Li);
-            }
-        }
-    }
-    {
-        scatter_t sample = BrdfScatter(sampler, surf, I);
-        float4 rd = sample.dir;
-        float brdfPdf = sample.pdf;
-        if (brdfPdf > 0.0f)
-        {
-            rayhit_t hit = { 0 };
-            float lightPdf = LightEvalPdf(sampler, scene, ro, rd, &hit);
-            if (lightPdf > 0.0f)
-            {
-                surfhit_t surfhit = GetSurface(scene, ro, rd, hit);
-                float4 Li = surfhit.emission;
-                if (f4_hmax3(Li) > kEpsilon)
+                float4 brdf = BrdfEval(sampler, I, surf, rd);
+                float brdfPdf = brdf.w;
+                if (brdfPdf > kEpsilon)
                 {
-                    LightOnHit(sampler, scene, ro, hit.index);
-                    float weight = PowerHeuristic(brdfPdf, lightPdf) * 0.5f;
-                    float4 Tr = CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w);
-                    Li = f4_mulvs(Li, weight);
-                    Li = f4_mul(Li, Tr);
-                    Li = f4_mul(Li, sample.attenuation);
-                    Li = f4_divvs(Li, brdfPdf);
+                    Li = f4_mul(Li, brdf);
+                    float weight = PowerHeuristic(lightPdf, brdfPdf) * 0.5f;
+                    Li = f4_mulvs(Li, weight / lightPdf);
                     result = f4_add(result, Li);
                 }
             }
         }
     }
-    return result;
-}
 
-pim_inline float4 VEC_CALL SampleLights(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
-    const surfhit_t* surf,
-    const rayhit_t* hit,
-    float4 I)
-{
-    float4 sum = f4_0;
-    i32 iLight;
-    float selectPdf;
-    if (LightSelect(sampler, scene, surf->P, &iLight, &selectPdf))
     {
-        if (hit->index != iLight)
+        scatter_t sample = BrdfScatter(sampler, surf, I);
+        float4 rd = sample.dir;
+        float brdfPdf = sample.pdf;
+        if (brdfPdf > kEpsilon)
         {
-            float4 direct = EstimateDirect(sampler, scene, surf, iLight, selectPdf, I);
-            sum = f4_add(sum, direct);
+            rayhit_t hit = { 0 };
+            float lightPdf = LightEvalPdf(sampler, scene, ro, rd, &hit);
+            if (lightPdf > kEpsilon)
+            {
+                surfhit_t surfhit = GetSurface(scene, ro, rd, hit);
+                float4 Li = surfhit.emission;
+                if (f4_hmax3(Li) > kEpsilon)
+                {
+                    float4 Tr = CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w);
+                    Li = f4_mul(Li, Tr);
+                    Li = f4_mul(Li, sample.attenuation);
+
+                    lightPdf *= LightSelectPdf(scene, hit.index, ro);
+                    float weight = PowerHeuristic(brdfPdf, lightPdf) * 0.5f;
+                    Li = f4_mulvs(Li, weight / brdfPdf);
+
+                    result = f4_add(result, Li);
+                }
+            }
         }
     }
-    return sum;
+
+    return result;
 }
 
 pim_inline bool VEC_CALL EvaluateLight(
     pt_sampler_t*const pim_noalias sampler,
     pt_scene_t*const pim_noalias scene,
     float4 P,
-    float4* lightOut,
-    float4* dirOut)
+    float4 *const pim_noalias lightOut,
+    float4 *const pim_noalias dirOut)
 {
-    i32 iLight;
-    float lightPdf;
-    if (LightSelect(sampler, scene, P, &iLight, &lightPdf))
+    i32 iVert;
+    float selectPdf;
+    if (LightSelect(sampler, scene, P, &iVert, &selectPdf))
     {
-        lightsample_t sample = LightSample(sampler, scene, P, iLight);
-        if (sample.pdf > 0.0f)
+        lightsample_t sample = LightSample(sampler, scene, P, iVert);
+        if (sample.pdf > kEpsilon)
         {
-            *lightOut = f4_divvs(sample.irradiance, sample.pdf * lightPdf);
+            *lightOut = f4_divvs(sample.luminance, sample.pdf * selectPdf);
             *dirOut = sample.direction;
             return true;
         }
@@ -1783,7 +1820,7 @@ pim_inline bool VEC_CALL EvaluateLight(
     return false;
 }
 
-static void media_desc_new(media_desc_t* desc)
+static void media_desc_new(media_desc_t *const desc)
 {
     desc->constantAlbedo = f4_v(0.75f, 0.75f, 0.75f, 0.5f);
     desc->noiseAlbedo = f4_v(0.75f, 0.75f, 0.75f, -0.5f);
@@ -1802,7 +1839,7 @@ static void media_desc_new(media_desc_t* desc)
     media_desc_update(desc);
 }
 
-static void media_desc_update(media_desc_t* desc)
+static void media_desc_update(media_desc_t *const desc)
 {
     desc->logConstantAlbedo = AlbedoToLogAlbedo(desc->constantAlbedo);
     desc->logNoiseAlbedo = AlbedoToLogAlbedo(desc->noiseAlbedo);
@@ -1825,7 +1862,7 @@ static void media_desc_update(media_desc_t* desc)
     desc->noiseRange = sum * noiseScale * 1.5f;
 }
 
-static void media_desc_load(media_desc_t* desc, const char* name)
+static void media_desc_load(media_desc_t *const desc, const char* name)
 {
     if (!desc || !name)
     {
@@ -1861,7 +1898,7 @@ static void media_desc_load(media_desc_t* desc, const char* name)
     ser_obj_del(root);
 }
 
-static void media_desc_save(const media_desc_t* desc, const char* name)
+static void media_desc_save(media_desc_t const *const desc, const char* name)
 {
     if (!desc || !name)
     {
@@ -1903,7 +1940,7 @@ static void igLog2SliderFloat(const char* label, float* pLinear, float log2Lo, f
 
 static char gui_mediadesc_name[PIM_PATH];
 
-static void media_desc_gui(media_desc_t* desc)
+static void media_desc_gui(media_desc_t *const desc)
 {
     const u32 hdrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_InputRGB;
     const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
@@ -1940,7 +1977,7 @@ static void media_desc_gui(media_desc_t* desc)
     }
 }
 
-pim_inline float2 VEC_CALL Media_Density(const media_desc_t* desc, float4 P)
+pim_inline float2 VEC_CALL Media_Density(media_desc_t const *const desc, float4 P)
 {
     float heightFog = 0.0f;
     if (f1_distance(P.y, desc->noiseHeight) <= desc->noiseRange)
@@ -1965,7 +2002,7 @@ pim_inline float2 VEC_CALL Media_Density(const media_desc_t* desc, float4 P)
     return f2_v(totalFog, t);
 }
 
-pim_inline media_t VEC_CALL Media_Sample(const media_desc_t* desc, float4 P)
+pim_inline media_t VEC_CALL Media_Sample(media_desc_t const *const desc, float4 P)
 {
     float2 density = Media_Density(desc, P);
     float totalScattering = density.x;
@@ -2000,12 +2037,12 @@ pim_inline float VEC_CALL Media_Scattering(media_t media)
     return f1_lerp(0.5f, 1.0f, f4_hmax3(media.logAlbedo)) * media.scattering;
 }
 
-pim_inline float4 VEC_CALL Media_Albedo(const media_desc_t* desc, float4 P)
+pim_inline float4 VEC_CALL Media_Albedo(media_desc_t const *const desc, float4 P)
 {
     return f4_inv(Media_Sample(desc, P).logAlbedo);
 }
 
-pim_inline float4 VEC_CALL Media_Normal(const media_desc_t* desc, float4 P)
+pim_inline float4 VEC_CALL Media_Normal(media_desc_t const *const desc, float4 P)
 {
     const float e = kMicro;
     float dx =
@@ -2046,7 +2083,7 @@ pim_inline float VEC_CALL FreePathPdf(float t, float u)
 }
 
 // maximum extinction coefficient of the media
-pim_inline float4 VEC_CALL CalcMajorant(const media_desc_t* desc)
+pim_inline float4 VEC_CALL CalcMajorant(media_desc_t const *const desc)
 {
     i32 octaves = desc->noiseOctaves;
     float gain = desc->noiseGain;
@@ -2063,7 +2100,7 @@ pim_inline float4 VEC_CALL CalcMajorant(const media_desc_t* desc)
     return f4_add(ca, na);
 }
 
-pim_inline float4 VEC_CALL CalcControl(const media_desc_t* desc)
+pim_inline float4 VEC_CALL CalcControl(media_desc_t const *const desc)
 {
     i32 octaves = desc->noiseOctaves;
     float gain = desc->noiseGain;
@@ -2086,112 +2123,58 @@ pim_inline float4 VEC_CALL CalcResidual(float4 control, float4 majorant)
 }
 
 pim_inline float VEC_CALL CalcPhase(
-    const media_desc_t* desc,
+    media_desc_t const *const desc,
     float cosTheta)
 {
-    return f1_lerp(MiePhase(cosTheta, desc->phaseDirA), MiePhase(cosTheta, desc->phaseDirB), desc->phaseBlend);
-}
-
-pim_inline bool VEC_CALL RussianRoulette(
-    pt_sampler_t*const pim_noalias sampler,
-    float4* pAttenuation)
-{
-    float4 att = *pAttenuation;
-    float p = f1_sat(f4_avglum(att));
-    bool kept = Sample1D(sampler) < p;
-    if (kept)
-    {
-        att = f4_divvs(att, p);
-    }
-    else
-    {
-        att = f4_0;
-    }
-    *pAttenuation = att;
-    return kept;
-}
-
-pim_inline float4 VEC_CALL CalcTransmittance(
-    pt_sampler_t*const pim_noalias sampler,
-    const pt_scene_t*const pim_noalias scene,
-    float4 ro,
-    float4 rd,
-    float d)
-{
-    // disabled for now due to NaN or negative corrupting auto exposure
-#if 0
-    // Residual ratio tracking
-    // https://cs.dartmouth.edu/~wjarosz/publications/novak14residual.pdf
-    //const media_desc_t* const pim_noalias desc = &scene->mediaDesc;
-    //float4 uM = CalcMajorant(desc);
-    //float4 uC = CalcControl(desc);
-    //float4 uR = CalcResidual(uC, uM);
-    //const float rcpU = 1.0f / f4_hmax3(uR);
-    //float t = 0.0f;
-    //float4 Tc = f4_exp3(f4_neg(f4_mulvs(uC, d)));
-    //float4 Tr = f4_1;
-    //do
-    //{
-    //    float4 P = f4_add(ro, f4_mulvs(rd, t));
-    //    t += SampleFreePath(Sample1D(sampler), rcpU);
-    //    if (t >= d) { break; }
-    //    float4 uT = Media_Extinction(Media_Sample(desc, P));
-    //    float4 ratio = f4_inv(f4_mulvs(f4_sub(uT, uC), rcpU));
-    //    Tr = f4_mul(Tr, ratio);
-    //} while (true);
-    //return f4_mul(Tc, Tr);
-#else
-    // ratio tracking
-    const media_desc_t* pim_noalias desc = &scene->mediaDesc;
-    const float4 u = CalcMajorant(desc);
-    const float rcpUmax = 1.0f / f4_hmax3(u);
-    float t = 0.0f;
-    float4 attenuation = f4_1;
-    while (true)
-    {
-        float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float dt = SampleFreePath(Sample1D(sampler), rcpUmax);
-        t += dt;
-        if (t >= d)
-        {
-            break;
-        }
-        media_t media = Media_Sample(desc, P);
-        float4 uT = Media_Extinction(media);
-        float4 ratio = f4_inv(f4_mulvs(uT, rcpUmax));
-        attenuation = f4_mul(attenuation, ratio);
-    }
-    return attenuation;
-#endif // 0
+    return f1_lerp(HGPhase(cosTheta, desc->phaseDirA), HGPhase(cosTheta, desc->phaseDirB), desc->phaseBlend);
 }
 
 pim_inline float4 VEC_CALL SamplePhaseDir(
     pt_sampler_t*const pim_noalias sampler,
-    const media_desc_t* desc,
+    media_desc_t const *const pim_noalias desc,
     float4 rd)
 {
-#if 0
-    // Uniform sampling
-    float4 L = SampleUnitSphere(Sample2D(sampler));
-    L.w = 1.0f / (4.0f * kPi);
-#else
-    // Rejection sampling
-    // nominator is density of function, in this case area of a sphere
-    // denominator controls number of attempts and accuracy
-    //const float Mg = (4.0f * kPi) / 12.0f;
     float4 L;
     do
     {
         L = SampleUnitSphere(Sample2D(sampler));
         L.w = CalcPhase(desc, f4_dot3(rd, L));
-    } while (Sample1D(sampler) > L.w);
-#endif
+    } while (PhaseDirPrng(sampler) > L.w);
     return L;
 }
 
+pim_inline float4 VEC_CALL CalcTransmittance(
+    pt_sampler_t *const pim_noalias sampler,
+    const pt_scene_t *const pim_noalias scene,
+    float4 ro,
+    float4 rd,
+    float rayLen)
+{
+    media_desc_t const *const pim_noalias desc = &scene->mediaDesc;
+    const float4 u = CalcMajorant(desc);
+    const float rcpU = 1.0f / f4_hmax3(u);
+    float t = 0.0f;
+    float4 attenuation = f4_1;
+    while (true)
+    {
+        float4 P = f4_add(ro, f4_mulvs(rd, t));
+        float dt = SampleFreePath(Sample1D(sampler), rcpU);
+        t += dt;
+        if (t >= rayLen)
+        {
+            break;
+        }
+        media_t media = Media_Sample(desc, P);
+        float4 uT = Media_Extinction(media);
+        float4 ratio = f4_inv(f4_mulvs(uT, rcpU));
+        attenuation = f4_mul(attenuation, ratio);
+    }
+    return attenuation;
+}
+
 pim_inline scatter_t VEC_CALL ScatterRay(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     float4 ro,
     float4 rd,
     float rayLen)
@@ -2199,16 +2182,16 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     scatter_t result = { 0 };
     result.pdf = 0.0f;
 
-    const media_desc_t* pim_noalias desc = &scene->mediaDesc;
+    media_desc_t const *const pim_noalias desc = &scene->mediaDesc;
     const float4 u = CalcMajorant(desc);
-    const float rcpUmax = 1.0f / f4_hmax3(u);
+    const float rcpU = 1.0f / f4_hmax3(u);
 
     float t = 0.0f;
     result.attenuation = f4_1;
     while (true)
     {
         float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float dt = SampleFreePath(Sample1D(sampler), rcpUmax);
+        float dt = SampleFreePath(Sample1D(sampler), rcpU);
         t += dt;
         if (t >= rayLen)
         {
@@ -2218,18 +2201,17 @@ pim_inline scatter_t VEC_CALL ScatterRay(
         media_t media = Media_Sample(desc, P);
 
         float uS = Media_Scattering(media);
-        float pScatter = uS * rcpUmax;
-        bool scattered = Sample1D(sampler) < pScatter;
+        bool scattered = ScatterPrng(sampler) < (uS * rcpU);
         if (scattered)
         {
-            float4 rad;
+            float4 lum;
             float4 L;
-            if (EvaluateLight(sampler, scene, P, &rad, &L))
+            if (EvaluateLight(sampler, scene, P, &lum, &L))
             {
                 float ph = CalcPhase(desc, f4_dot3(rd, L));
-                rad = f4_mulvs(rad, ph * dt);
-                rad = f4_mul(rad, result.attenuation);
-                result.irradiance = rad;
+                lum = f4_mulvs(lum, ph * dt);
+                lum = f4_mul(lum, result.attenuation);
+                result.luminance = lum;
             }
 
             result.pos = f4_add(ro, f4_mulvs(rd, t));
@@ -2240,7 +2222,7 @@ pim_inline scatter_t VEC_CALL ScatterRay(
         }
 
         float4 uT = Media_Extinction(media);
-        float4 ratio = f4_inv(f4_mulvs(uT, rcpUmax));
+        float4 ratio = f4_inv(f4_mulvs(uT, rcpU));
         result.attenuation = f4_mul(result.attenuation, ratio);
 
         if (scattered)
@@ -2253,21 +2235,28 @@ pim_inline scatter_t VEC_CALL ScatterRay(
 }
 
 pt_result_t VEC_CALL pt_trace_ray(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     float4 ro,
     float4 rd)
 {
     pt_result_t result = { 0 };
-    float4 light = f4_0;
+    float4 luminance = f4_0;
     float4 attenuation = f4_1;
     u32 prevFlags = 0;
 
     for (i32 b = 0; b < 666; ++b)
     {
-        if (!RussianRoulette(sampler, &attenuation))
         {
-            break;
+            float p = f1_sat(f4_avglum(attenuation));
+            if (RoulettePrng(sampler) < p)
+            {
+                attenuation = f4_divvs(attenuation, p);
+            }
+            else
+            {
+                break;
+            }
         }
 
         rayhit_t hit = pt_intersect_local(scene, ro, rd, 0.0f, 1 << 20);
@@ -2282,15 +2271,17 @@ pt_result_t VEC_CALL pt_trace_ray(
                 break;
             }
         }
+
+        surfhit_t surf = GetSurface(scene, ro, rd, hit);
         if (b > 0)
         {
-            LightOnHit(sampler, scene, ro, hit.index);
+            LightOnHit(sampler, scene, ro, surf.emission, hit.index);
         }
 
         {
             scatter_t scatter = ScatterRay(sampler, scene, ro, rd, hit.wuvt.w);
-            light = f4_add(light, f4_mul(scatter.irradiance, attenuation));
-            if (scatter.pdf > 0.0f)
+            luminance = f4_add(luminance, f4_mul(scatter.luminance, attenuation));
+            if (scatter.pdf > kEpsilon)
             {
                 if (b == 0)
                 {
@@ -2308,13 +2299,6 @@ pt_result_t VEC_CALL pt_trace_ray(
             }
         }
 
-        if (hit.flags & matflag_sky)
-        {
-            light = f4_add(light, f4_mul(GetSky(scene, ro, rd), attenuation));
-            break;
-        }
-
-        surfhit_t surf = GetSurface(scene, ro, rd, hit);
         if (b == 0)
         {
             float t = f4_avglum(attenuation);
@@ -2322,18 +2306,22 @@ pt_result_t VEC_CALL pt_trace_ray(
             result.albedo = f4_f3(surf.albedo);
             result.normal = f4_f3(N);
         }
-
         if ((b == 0) || (prevFlags & matflag_refractive))
         {
-            light = f4_add(light, f4_mul(surf.emission, attenuation));
+            luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
         }
+        if (hit.flags & matflag_sky)
         {
-            float4 direct = SampleLights(sampler, scene, &surf, &hit, rd);
-            light = f4_add(light, f4_mul(direct, attenuation));
+            break;
+        }
+
+        {
+            float4 Li = EstimateDirect(sampler, scene, &surf, &hit, rd);
+            luminance = f4_add(luminance, f4_mul(Li, attenuation));
         }
 
         scatter_t scatter = BrdfScatter(sampler, &surf, rd);
-        if (scatter.pdf <= 0.0f)
+        if (scatter.pdf < kEpsilon)
         {
             break;
         }
@@ -2344,7 +2332,7 @@ pt_result_t VEC_CALL pt_trace_ray(
         prevFlags = surf.flags;
     }
 
-    result.color = f4_f3(light);
+    result.color = f4_f3(luminance);
     return result;
 }
 
@@ -2352,7 +2340,7 @@ pim_inline float2 VEC_CALL SampleUv(
     pt_sampler_t*const pim_noalias sampler,
     const dist1d_t* dist)
 {
-    float2 Xi = Sample2D(sampler);
+    float2 Xi = UvPrng(sampler);
     Xi.x = dist1d_samplec(dist, Xi.x);
     Xi.y = dist1d_samplec(dist, Xi.y);
     Xi = f2_mulvs(Xi, kPixelRadius);
@@ -2374,16 +2362,20 @@ pim_inline ray_t VEC_CALL CalculateDof(
     ray_t ray)
 {
     float2 offset;
-    if (dof->bladeCount == 666)
     {
-        offset = SamplePentagram(&sampler->rng);
-    }
-    else
-    {
-        offset = SampleNGon(
-            &sampler->rng,
-            dof->bladeCount,
-            dof->bladeRot);
+        i32 side = prng_i32(&sampler->rng);
+        float2 Xi = DofPrng(sampler);
+        if (dof->bladeCount == 666)
+        {
+            offset = SamplePentagram(Xi, side);
+        }
+        else
+        {
+            offset = SampleNGon(
+                Xi, side,
+                dof->bladeCount,
+                dof->bladeRot);
+        }
     }
     offset = f2_mulvs(offset, dof->aperture);
     float t = f1_lerp(
@@ -2526,8 +2518,7 @@ static void RayGenFn(void* pBase, i32 begin, i32 end)
     pt_sampler_t sampler = GetSampler();
     for (i32 i = begin; i < end; ++i)
     {
-        float2 Xi = Sample2D(&sampler);
-        float4 rd = SampleUnitSphere(Xi);
+        float4 rd = SampleUnitSphere(Sample2D(&sampler));
         directions[i] = rd;
         pt_result_t result = pt_trace_ray(&sampler, scene, ro, rd);
         colors[i] = f3_f4(result.color, 1.0f);
@@ -2566,6 +2557,13 @@ pt_results_t pt_raygen(
     return results;
 }
 
+pim_inline float VEC_CALL NextRatio(float *const pim_noalias pX, float ratio)
+{
+    float Xi = fmodf(*pX + ratio, 1.0f);
+    *pX = Xi;
+    return Xi;
+}
+
 pim_inline float VEC_CALL Sample1D(pt_sampler_t*const pim_noalias sampler)
 {
     return prng_f32(&sampler->rng);
@@ -2574,11 +2572,6 @@ pim_inline float VEC_CALL Sample1D(pt_sampler_t*const pim_noalias sampler)
 pim_inline float2 VEC_CALL Sample2D(pt_sampler_t*const pim_noalias sampler)
 {
     return f2_rand(&sampler->rng);
-}
-
-pim_inline bool VEC_CALL SampleBool(pt_sampler_t*const pim_noalias sampler)
-{
-    return Sample1D(sampler) < 0.5f;
 }
 
 pim_inline pt_sampler_t VEC_CALL GetSampler(void)

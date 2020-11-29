@@ -4,12 +4,12 @@
 #include <string.h>
 
 template<typename T>
-static void Swap(T& pim_noalias lhs, T& pim_noalias rhs)
+inline void Swap(T& pim_noalias lhs, T& pim_noalias rhs)
 {
     alignas(alignof(T)) u8 tmp[sizeof(T)];
-    memcpy(&tmp, &lhs, sizeof(T));
+    memcpy(&tmp[0], &lhs, sizeof(T));
     memcpy(&lhs, &rhs, sizeof(T));
-    memcpy(&rhs, &tmp, sizeof(T));
+    memcpy(&rhs, &tmp[0], sizeof(T));
 }
 
 template<typename T>
@@ -38,17 +38,17 @@ static void QuickSort(T *const pim_noalias ptr, i32 count)
     i32 i = 0;
     {
         alignas(alignof(T)) u8 tmp[sizeof(T)];
-        memcpy(&tmp, ptr + (count >> 1), sizeof(T));
-        const T& pim_noalias pivot = *(T*)&tmp;
+        memcpy(&tmp[0], ptr + (count >> 1), sizeof(T));
+        const T& pim_noalias pivot = *reinterpret_cast<T*>(&tmp[0]);
 
         i32 j = count - 1;
         while (true)
         {
-            while ((i < count) && (ptr[i] < pivot[0]))
+            while ((i < count) && (ptr[i] < pivot))
             {
                 ++i;
             }
-            while ((j > 0) && (ptr[j] > pivot[0]))
+            while ((j > 0) && (ptr[j] > pivot))
             {
                 --j;
             }

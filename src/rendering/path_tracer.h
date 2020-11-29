@@ -14,6 +14,7 @@ typedef struct pt_scene_s pt_scene_t;
 typedef struct pt_sampler_s
 {
     prng_t rng;
+    float Xi[10];
 } pt_sampler_t;
 
 typedef enum

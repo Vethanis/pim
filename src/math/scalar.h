@@ -9,14 +9,18 @@ PIM_C_BEGIN
 
 #pragma intrinsic(pow, sqrt, exp, log, sin, cos, tan, fmod)
 
-#define kPi                 3.141592653f
-#define kTau                6.283185307f
+#define kPi                 3.1415926535897932384626433832795f
+#define kTau                6.283185307179586476925286766559f
 #define kRadiansPerDegree   (kTau / 360.0f)
 #define kDegreesPerRadian   (360.0f / kTau)
 #define kEpsilon            (1.0f / (1<<22))
-#define kGoldenRatio        1.618034f
-#define kGoldenConj         0.618034f
-#define kSqrtTwo            1.414213f
+#define kGoldenRatio        1.6180339887498948482045868343656f // (1 + sqrt(5)) / 2
+#define kSilverRatio        0.6180339887498948482045868343656f // (sqrt(5) - 1) / 2
+#define kSqrt2              1.4142135623730950488016887242097f
+#define kSqrt3              1.7320508075688772935274463415059f
+#define kSqrt5              2.2360679774997896964091736687313f
+#define kSqrt7              2.6457513110645905905016157536393f
+#define kSqrt11             3.3166247903553998491149327366707f
 
 // SI units
 #define kKilo               1000.0f
@@ -71,11 +75,11 @@ pim_inline float VEC_CALL f1_clamp(float x, float lo, float hi)
     return f1_min(hi, f1_max(lo, x));
 }
 
+#define f1_sat(x) f1_saturate(x)
 pim_inline float VEC_CALL f1_saturate(float x)
 {
     return f1_clamp(x, 0.0f, 1.0f);
 }
-#define f1_sat(x) f1_saturate(x)
 
 pim_inline float VEC_CALL f1_abs(float x)
 {
@@ -114,10 +118,6 @@ pim_inline float VEC_CALL f1_mod(float num, float div)
 
 pim_inline float VEC_CALL f1_pow(float x, float n)
 {
-    // spherical gaussian approximation
-    // only worth a damn when n >= 5
-    // n = n * 1.4427f + 1.4427f;
-    // return exp2f(x * n - n);
     return powf(x, n);
 }
 
