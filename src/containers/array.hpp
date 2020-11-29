@@ -10,51 +10,36 @@ template<typename T>
 class Array final
 {
 private:
-    T* m_ptr;
+    T* pim_noalias m_ptr;
     i32 m_length;
     EAlloc m_allocator;
 
 public:
     bool InRange(i32 i) const { return (u32)i < (u32)m_length; }
     EAlloc AllocType() const { return m_allocator; }
+    i32 Size() const { return m_length; }
 
-    i32 size() const { return m_length; }
-    T* begin() { return m_ptr; }
-    T* end() { return m_ptr + m_length; }
-    const T* begin() const { return m_ptr; }
-    const T* end() const { return m_ptr + m_length; }
-    T& front() { ASSERT(InRange(0)); return m_ptr[0]; }
-    const T& front() const { ASSERT(InRange(0)); return m_ptr[0]; }
-    T& back() { ASSERT(InRange(0)); return m_ptr[m_length - 1]; }
-    const T& back() const { ASSERT(InRange(0)); return m_ptr[m_length - 1]; }
-    T& operator[](i32 i) { ASSERT(InRange(i)); return m_ptr[i]; }
-    const T& operator[](i32 i) const { ASSERT(InRange(i)); return m_ptr[i]; }
+    T* pim_noalias begin() { return m_ptr; }
+    T* pim_noalias end() { return m_ptr + m_length; }
+    const T* pim_noalias begin() const { return m_ptr; }
+    const T* pim_noalias end() const { return m_ptr + m_length; }
+    T& pim_noalias operator[](i32 i) { ASSERT(InRange(i)); return m_ptr[i]; }
+    const T& pim_noalias operator[](i32 i) const { ASSERT(InRange(i)); return m_ptr[i]; }
+    T& pim_noalias front() { return (*this)[0]; }
+    const T& pim_noalias front() const { return (*this)[0]; }
+    T& pim_noalias back() { return (*this)[m_length - 1]; }
+    const T& pim_noalias back() const { return (*this)[m_length - 1]; }
 
-    explicit Array()
+    explicit Array(EAlloc allocator = EAlloc_Perm)
     {
         m_ptr = NULL;
         m_length = 0;
-        m_allocator = EAlloc_Perm;
+        m_allocator = allocator;
     }
 
     ~Array()
     {
         Reset();
-    }
-
-    explicit Array(i32 capacity)
-    {
-        m_ptr = NULL;
-        m_length = 0;
-        m_allocator = EAlloc_Perm;
-        Reserve(capacity);
-    }
-
-    explicit Array(EAlloc allocator)
-    {
-        m_ptr = NULL;
-        m_length = 0;
-        m_allocator = allocator;
     }
 
     explicit Array(Array&& other)
@@ -119,8 +104,8 @@ public:
         ASSERT(InRange(index));
         T *const pim_noalias ptr = m_ptr;
         i32 b = --m_length;
-        ptr[i].~T();
-        memcpy(ptr + i, ptr + b, sizeof(T));
+        ptr[index].~T();
+        memcpy(ptr + index, ptr + b, sizeof(T));
     }
 
     void Clear()
@@ -146,7 +131,7 @@ public:
         ASSERT(capacity >= 0);
         if (capacity > m_length)
         {
-            m_ptr = pim_realloc(m_allocator, m_ptr, sizeof(T) * capacity);
+            m_ptr = (T*)pim_realloc(m_allocator, m_ptr, sizeof(T) * capacity);
         }
     }
 
@@ -167,16 +152,24 @@ public:
         m_length = newLength;
     }
 
-    T& Grow()
+    void PushMove(T&& pim_noalias item)
     {
-        i32 b = m_length++;
-        m_ptr = pim_realloc(m_allocator, m_ptr, sizeof(T) * (b + 1));
-        T *const pim_noalias ptr = m_ptr;
-        new (ptr + b) T();
-        return ptr[b];
+        T& pim_noalias backRef = Expand();
+        new (&backRef) T((T&&)item);
+    }
+    void PushCopy(const T& pim_noalias item)
+    {
+        T& pim_noalias backRef = Expand();
+        new (&backRef) T(item);
+    }
+    T& pim_noalias Grow()
+    {
+        T& pim_noalias backRef = Expand();
+        new (&backRef) T();
+        return backRef;
     }
 
-    i32 Find(const T& key) const
+    i32 Find(const T& pim_noalias key) const
     {
         const i32 length = m_length;
         T const *const pim_noalias ptr = m_ptr;
@@ -190,9 +183,9 @@ public:
         return -1;
     }
 
-    bool Contains(const T& key) const { return Find(key) >= 0; }
+    bool Contains(const T& pim_noalias key) const { return Find(key) >= 0; }
 
-    bool FindAdd(const T& key)
+    bool FindAdd(const T& pim_noalias key)
     {
         if (!Contains(key))
         {
@@ -202,7 +195,7 @@ public:
         return false;
     }
 
-    bool FindRemove(const T& key)
+    bool FindRemove(const T& pim_noalias key)
     {
         i32 index = Find(key);
         if (index >= 0)
@@ -213,8 +206,15 @@ public:
         return false;
     }
 
-    void Sort()
+    void Sort() { QuickSort(m_ptr, m_length); }
+
+private:
+    T& pim_noalias Expand()
     {
-        QuickSort(m_ptr, m_length);
+        i32 b = m_length++;
+        T *const pim_noalias ptr = (T *const pim_noalias)
+            pim_realloc(m_allocator, m_ptr, sizeof(T) * (b + 1));
+        m_ptr = ptr;
+        return ptr[b];
     }
 };

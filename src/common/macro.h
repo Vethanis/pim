@@ -73,6 +73,8 @@
 #define pim_min(a, b)               ((a) < (b) ? (a) : (b))
 #define pim_max(a, b)               ((a) > (b) ? (a) : (b))
 
+#define REL_ASSERT(x)               IF_FALSE(x, INTERRUPT())
+
 #ifdef _DEBUG
     #define IF_DEBUG(x)             x
     #define IFN_DEBUG(x)            (void)0

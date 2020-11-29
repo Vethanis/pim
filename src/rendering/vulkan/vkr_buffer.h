@@ -46,11 +46,13 @@ void vkrBuffer_Barrier(
 
 void vkrBuffer_Transfer(
     vkrBuffer* buffer,
+    vkrQueueId srcQueueId,
+    vkrQueueId dstQueueId,
+    VkCommandBuffer srcCmd,
+    VkCommandBuffer dstCmd,
     VkAccessFlags srcAccessMask,
     VkAccessFlags dstAccessMask,
     VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask,
-    vkrQueueId srcQueueId,
-    vkrQueueId dstQueueId);
+    VkPipelineStageFlags dstStageMask);
 
 PIM_C_END

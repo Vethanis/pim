@@ -195,6 +195,10 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
     int2* pim_noalias visibleRanges = NULL;
     for (i32 i = 0; i < drawcount; ++i)
     {
+        if (materials[i].flags & matflag_sky)
+        {
+            continue;
+        }
         float4x4 localToWorld = matrices[i];
         box_t bounds = box_transform(localToWorld, localBounds[i]);
         if (sdFrusBox(frustum, bounds) > 0.0f)

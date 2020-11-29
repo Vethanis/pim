@@ -162,10 +162,10 @@ pim_inline float VEC_CALL Fd_Lambert()
 pim_inline float VEC_CALL Fd_Burley(
     float NoL,
     float NoV,
-    float LoH,
+    float HoV,
     float roughness)
 {
-    float fd90 = 0.5f + 2.0f * LoH * LoH * roughness;
+    float fd90 = 0.5f + 2.0f * HoV * HoV * roughness;
     float lightScatter = F_Schlick1(1.0f, fd90, NoL);
     float viewScatter = F_Schlick1(1.0f, fd90, NoV);
     return (lightScatter * viewScatter) / kPi;
@@ -185,7 +185,6 @@ pim_inline float4 VEC_CALL DirectBRDF(
     float NoH = f4_dotsat(N, H);
     float NoL = f4_dotsat(N, L);
     float HoV = f4_dotsat(H, V);
-    float LoH = f4_dotsat(L, H);
 
     float alpha = BrdfAlpha(roughness);
     float4 F = F_SchlickEx(albedo, metallic, HoV);
@@ -195,50 +194,11 @@ pim_inline float4 VEC_CALL DirectBRDF(
 
     float4 Fd = f4_mulvs(
         DiffuseColor(albedo, metallic),
-        Fd_Burley(NoL, NoV, LoH, roughness));
+        Fd_Burley(NoL, NoV, HoV, roughness));
     // diffuse term scaled by fresnel refractance
     Fd = f4_mul(Fd, f4_inv(Fr));
 
     return f4_add(Fr, Fd);
-}
-
-// for area lights with varying diffuse and specular light directions
-pim_inline float4x2 VEC_CALL DirectBRDFSplit(
-    float4 V,
-    float4 Ld,
-    float4 Ls,
-    float4 N,
-    float4 albedo,
-    float roughness,
-    float metallic)
-{
-    float alpha = BrdfAlpha(roughness);
-    float NoV = f4_dotsat(N, V);
-
-    float4 Fr;
-    {
-        float4 H = f4_normalize3(f4_add(V, Ls));
-        float NoH = f4_dotsat(N, H);
-        float NoL = f4_dotsat(N, Ls);
-        float HoV = f4_dotsat(H, V);
-        float4 F = F_SchlickEx(albedo, metallic, HoV);
-        float G = G_SmithGGX(NoL, NoV, alpha);
-        float D = D_GTR(NoH, alpha);
-        Fr = f4_mulvs(F, D * G);
-    }
-
-    float4 Fd;
-    {
-        float4 H = f4_normalize3(f4_add(V, Ld));
-        float NoL = f4_dotsat(N, Ld);
-        float LoH = f4_dotsat(Ld, H);
-        Fd = f4_mulvs(
-            DiffuseColor(albedo, metallic),
-            Fd_Burley(NoL, NoV, LoH, roughness));
-    }
-
-    float4x2 result = { Fd, Fr };
-    return result;
 }
 
 // polynomial approximation for convolved specular DFG
@@ -343,53 +303,6 @@ pim_inline float4 VEC_CALL EvalPointLight(
     }
     float4 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
     return f4_mul(brdf, f4_mulvs(lightColor, att));
-}
-
-pim_inline float4 VEC_CALL EvalSunLight(
-    float4 V,
-    float4 P,
-    float4 N,
-    float4 albedo,
-    float roughness,
-    float metallic,
-    float4 sunDir) // sun direction
-{
-    // treat sun as a disk light
-    // Earth's sun has an angular diameter between 0.526 and 0.545 degrees.
-    const float kSunAngRadius = (0.536f / 2.0f) * kRadiansPerDegree;
-    // Earth's sun has an illumiance between 105k and 114k lux.
-    const float kSunLux = 110000.0f;
-    // disk radius
-    const float r = 0.00467746533f; // sinf(kSunAngRadius);
-    // distance to disk
-    const float d = 0.99998906059f; // cosf(kSunAngRadius);
-
-    // D: diffuse lighting direction
-    float4 D = sunDir;
-    float4 R = f4_reflect3(f4_neg(V), N);
-    float DoR = f4_dot3(D, R);
-
-    // L: specular lighting direction
-    float4 L = R;
-    if (DoR < d)
-    {
-        float4 S = f4_sub(R, f4_mulvs(D, DoR));
-        S = f4_normalize3(S);
-        S = f4_mulvs(S, r);
-        L = f4_add(f4_mulvs(D, d), S);
-        L = f4_normalize3(L);
-    }
-
-    float illuminance = kSunLux * f4_dotsat(N, D);
-    float4x2 FdFr = DirectBRDFSplit(V, D, L, N, albedo, roughness, metallic);
-    float4 brdf = f4_add(FdFr.c0, FdFr.c1);
-
-    const float amtSpecular = 1.0f;
-    float amtDiffuse = 1.0f - metallic;
-    float scale = 1.0f / (amtSpecular + amtDiffuse);
-    brdf = f4_mulvs(brdf, scale);
-
-    return f4_mulvs(brdf, illuminance);
 }
 
 pim_inline float VEC_CALL SphereLumensToNits(float lumens, float radius)
@@ -549,11 +462,11 @@ pim_inline float4 VEC_CALL EvalSphereLight(
         float4 L = f4_divvs(L0, distance);
         float4 H = f4_normalize3(f4_add(V, L));
         float NoL = f4_dot3(N, L);
-        float LoH = f4_dotsat(L, H);
+        float HoV = f4_dotsat(H, V);
 
         Fd = f4_mulvs(
             DiffuseColor(albedo, metallic),
-            Fd_Burley(f1_sat(NoL), NoV, LoH, roughness));
+            Fd_Burley(f1_sat(NoL), NoV, HoV, roughness));
 
         float sinSigmaSqr = SphereSinSigmaSq(radius, distance);
         float I = SphereDiskIlluminance(NoL, sinSigmaSqr);
