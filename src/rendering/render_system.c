@@ -805,11 +805,10 @@ void render_sys_gui(bool* pEnabled)
     const u32 hdrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_InputRGB;
     const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
 
-    if (igBegin("RenderSystem", pEnabled, 0))
+    if (igBegin("RenderSystem", pEnabled, 0x0))
     {
-        if (igCollapsingHeader1("Tonemapping"))
+        if (igTreeNodeExStr("Tonemapping", ImGuiTreeNodeFlags_Framed))
         {
-            igIndent(0.0f);
             igComboStr_arr("Operator", (i32*)&ms_tonemapper, Tonemap_Names(), TMap_COUNT);
             if (ms_tonemapper == TMap_Hable)
             {
@@ -818,13 +817,11 @@ void render_sys_gui(bool* pEnabled)
                 igSliderFloat("Linear Angle", &ms_toneParams.z, 0.01f, 0.99f);
                 igSliderFloat("Toe Strength", &ms_toneParams.w, 0.01f, 0.99f);
             }
-            igUnindent(0.0f);
+            igTreePop();
         }
 
-        if (igCollapsingHeader1("Exposure"))
+        if (igTreeNodeExStr("Exposure", ImGuiTreeNodeFlags_Framed))
         {
-            igIndent(0.0f);
-
             bool r_sw = cvar_get_bool(&cv_pt_trace);
             vkrExposure* exposure = r_sw ? &ms_exposure : &g_vkr.exposurePass.params;
 
@@ -852,24 +849,7 @@ void render_sys_gui(bool* pEnabled)
                 igSliderFloat("Min EV", &exposure->minEV, -22.0f, exposure->maxEV - 0.1f);
                 igSliderFloat("Max EV", &exposure->maxEV, exposure->minEV + 0.1f, 22.0f);
             }
-            igUnindent(0.0f);
-        }
-
-        if (igCollapsingHeader1("Lights"))
-        {
-            igIndent(0.0f);
-
-            const i32 ptLightCount = lights_pt_count();
-            for (i32 i = 0; i < ptLightCount; ++i)
-            {
-                igPushIDInt(i);
-                pt_light_t light = lights_get_pt(i);
-                igColorEdit3("Radiance", &light.rad.x, hdrPicker);
-                lights_set_pt(i, light);
-                igPopID();
-            }
-
-            igUnindent(0.0f);
+            igTreePop();
         }
 
         if (ms_trace.scene)
