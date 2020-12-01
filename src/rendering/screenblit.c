@@ -29,8 +29,8 @@ bool vkrScreenBlit_New(vkrScreenBlit* blit, VkRenderPass renderPass)
     memset(blit, 0, sizeof(*blit));
     bool success = true;
 
-	const i32 width = r_scaledwidth_get();
-	const i32 height = r_scaledheight_get();
+    const i32 width = r_scaledwidth_get();
+    const i32 height = r_scaledheight_get();
     blit->width = width;
     blit->height = height;
 
@@ -122,25 +122,26 @@ void vkrScreenBlit_Blit(
     ASSERT(blit);
     ASSERT(fbuf);
 
-	const i32 width = r_scaledwidth_get();
-	const i32 height = r_scaledheight_get();
-	const u32* pim_noalias texels = fbuf->color;
+    const i32 width = r_scaledwidth_get();
+    const i32 height = r_scaledheight_get();
+    u32 const *const pim_noalias texels = fbuf->color;
     if ((fbuf->width != width) || (fbuf->height != height))
     {
         ASSERT(false);
         return;
-	}
+    }
     if ((width != blit->width) || (height != blit->height))
-	{
-		vkrScreenBlit_Del(blit);
-		vkrScreenBlit_New(blit, passCtx->renderPass);
-	}
+    {
+        vkrScreenBlit_Del(blit);
+        vkrScreenBlit_New(blit, passCtx->renderPass);
+    }
 
-	ProfileBegin(pm_blit);
+    ProfileBegin(pm_blit);
 
+    const u32 imageIndex = vkr_swapIndex();
     vkrSwapchain const *const chain = &g_vkr.chain;
     VkCommandBuffer cmd = passCtx->cmd;
-    VkImage dstImage = chain->images[passCtx->imageIndex];
+    VkImage dstImage = chain->images[imageIndex];
     VkImage srcImage = blit->image.handle;
     VkBuffer stageBuf = blit->stagebuf.handle;
 

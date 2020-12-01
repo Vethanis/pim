@@ -4,9 +4,12 @@
 
 PIM_C_BEGIN
 
-bool vkrUIPass_New(vkrUIPass* pass, VkRenderPass renderPass);
-void vkrUIPass_Del(vkrUIPass* pass);
+bool vkrUIPass_New(vkrUIPass *const pass, VkRenderPass renderPass);
+void vkrUIPass_Del(vkrUIPass *const pass);
 
-void vkrUIPass_Draw(const vkrPassContext* passCtx, vkrUIPass* pass);
+void vkrUIPass_Setup(vkrUIPass *const pass);
+void vkrUIPass_Execute(
+    vkrPassContext const *const passCtx,
+    vkrUIPass *const pass);
 
 PIM_C_END

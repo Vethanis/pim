@@ -4,11 +4,12 @@
 
 PIM_C_BEGIN
 
-bool vkrMainPass_New(vkrMainPass* pass);
-void vkrMainPass_Del(vkrMainPass* pass);
+bool vkrMainPass_New(vkrMainPass *const pass);
+void vkrMainPass_Del(vkrMainPass *const pass);
 
-void vkrMainPass_Draw(
-    vkrMainPass* pass,
+void vkrMainPass_Setup(vkrMainPass *const pass);
+void vkrMainPass_Execute(
+    vkrMainPass *const pass,
     VkCommandBuffer cmd,
     VkFence fence);
 

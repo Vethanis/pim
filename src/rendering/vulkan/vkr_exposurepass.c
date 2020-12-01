@@ -11,6 +11,7 @@
 #include "rendering/vulkan/vkr_sync.h"
 #include "rendering/vulkan/vkr_pass.h"
 #include "rendering/vulkan/vkr_image.h"
+#include "rendering/vulkan/vkr_bindings.h"
 
 #include "rendering/exposure.h"
 
@@ -20,7 +21,7 @@
 #include "math/scalar.h"
 #include <string.h>
 
-bool vkrExposurePass_New(vkrExposurePass* pass)
+bool vkrExposurePass_New(vkrExposurePass *const pass)
 {
     ASSERT(pass);
     memset(pass, 0, sizeof(*pass));
@@ -66,58 +67,9 @@ bool vkrExposurePass_New(vkrExposurePass* pass)
             goto cleanup;
         }
     }
-    const VkDescriptorSetLayoutBinding bindings[] =
-    {
-        {
-            // input luminance storage image. must be in layout VK_IMAGE_LAYOUT_GENERAL
-            .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-        },
-        {
-            // histogram storage buffer
-            .binding = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-        },
-        {
-            // exposure storage buffer
-            .binding = 3,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-        },
-    };
-    const VkPushConstantRange ranges[] =
-    {
-        {
-            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-            .size = sizeof(vkrExposureConstants),
-        },
-    };
-    const VkDescriptorPoolSize poolSizes[] =
-    {
-        {
-            .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 2,
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .descriptorCount = 1,
-        },
-    };
-
     const vkrPassDesc desc =
     {
-        .bindpoint = VK_PIPELINE_BIND_POINT_COMPUTE,
-        .poolSizeCount = NELEM(poolSizes),
-        .poolSizes = poolSizes,
-        .bindingCount = NELEM(bindings),
-        .bindings = bindings,
-        .rangeCount = NELEM(ranges),
-        .ranges = ranges,
+        .pushConstantBytes = sizeof(vkrExposureConstants),
         .shaderCount = NELEM(buildShaders),
         .shaders = buildShaders,
     };
@@ -149,7 +101,7 @@ cleanup:
     return success;
 }
 
-void vkrExposurePass_Del(vkrExposurePass* pass)
+void vkrExposurePass_Del(vkrExposurePass *const pass)
 {
     if (pass)
     {
@@ -167,66 +119,60 @@ void vkrExposurePass_Del(vkrExposurePass* pass)
     }
 }
 
-ProfileMark(pm_execute, vkrExposurePass_Execute)
-void vkrExposurePass_Execute(vkrExposurePass* pass)
+ProfileMark(pm_setup, vkrExposurePass_Setup)
+void vkrExposurePass_Setup(vkrExposurePass *const pass)
 {
-    ProfileBegin(pm_execute);
+    ProfileBegin(pm_setup);
 
     pass->params.deltaTime = f1_lerp(pass->params.deltaTime, (float)time_dtf(), 0.25f);
 
-    vkrSwapchain* chain = &g_vkr.chain;
+    vkrSwapchain *const chain = &g_vkr.chain;
     const u32 chainLen = chain->length;
     const u32 imgIndex = (chain->imageIndex + (chainLen - 1u)) % chainLen;
     const u32 syncIndex = (chain->syncIndex + (kFramesInFlight - 1u)) % kFramesInFlight;
 
-    vkrAttachment* lum = &chain->lumAttachments[imgIndex];
-    vkrBuffer* expBuffer = &pass->expBuffers[syncIndex];
-    vkrBuffer* histBuffer = &pass->histBuffers[syncIndex];
+    vkrAttachment *const lum = &chain->lumAttachments[imgIndex];
+    vkrBuffer *const expBuffer = &pass->expBuffers[syncIndex];
+    vkrBuffer *const histBuffer = &pass->histBuffers[syncIndex];
 
-    VkDescriptorSet set = pass->pass.sets[syncIndex];
+    vkrBindings_BindImage(
+        vkrBindId_LumTexture,
+        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+        NULL,
+        lum->view,
+        VK_IMAGE_LAYOUT_GENERAL);
+    vkrBindings_BindBuffer(
+        vkrBindId_ExposureBuffer,
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        expBuffer);
+    vkrBindings_BindBuffer(
+        vkrBindId_HistogramBuffer,
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        histBuffer);
+
+    ProfileEnd(pm_setup);
+}
+
+ProfileMark(pm_execute, vkrExposurePass_Execute)
+void vkrExposurePass_Execute(vkrExposurePass *const pass)
+{
+    ProfileBegin(pm_execute);
+
+    vkrSwapchain *const chain = &g_vkr.chain;
+    const u32 chainLen = chain->length;
+    const u32 imgIndex = (chain->imageIndex + (chainLen - 1u)) % chainLen;
+    const u32 syncIndex = (chain->syncIndex + (kFramesInFlight - 1u)) % kFramesInFlight;
+
+    vkrAttachment *const lum = &chain->lumAttachments[imgIndex];
+    vkrBuffer *const expBuffer = &pass->expBuffers[syncIndex];
+    vkrBuffer *const histBuffer = &pass->histBuffers[syncIndex];
+
+    VkDescriptorSet set = vkrBindings_GetSet();
     VkPipelineLayout layout = pass->pass.layout;
     VkPipeline buildPipe = pass->pass.pipeline;
     VkPipeline adaptPipe = pass->adapt;
 
-    vkrThreadContext* ctx = vkrContext_Get();
-
-    // update lum binding
-    {
-        const vkrBinding bindings[] =
-        {
-            {
-                .set = set,
-                .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                .binding = 0,
-                .image =
-                {
-                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .imageView = lum->view,
-                },
-            },
-            {
-                .set = set,
-                .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .binding = 1,
-                .buffer =
-                {
-                    .buffer = histBuffer->handle,
-                    .range = VK_WHOLE_SIZE,
-                },
-            },
-            {
-                .set = set,
-                .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .binding = 3,
-                .buffer =
-                {
-                    .buffer = expBuffer->handle,
-                    .range = VK_WHOLE_SIZE,
-                },
-            },
-        };
-        vkrDesc_WriteBindings(NELEM(bindings), bindings);
-    }
+    vkrThreadContext *const ctx = vkrContext_Get();
 
     VkFence cmpfence = NULL;
     VkQueue cmpqueue = NULL;
@@ -268,7 +214,6 @@ void vkrExposurePass_Execute(vkrExposurePass* pass)
 
     // dispatch shaders
     {
-
         vkCmdBindDescriptorSets(
             cmpcmd, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &set, 0, NULL);
 

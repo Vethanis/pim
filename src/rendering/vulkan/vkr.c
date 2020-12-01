@@ -18,6 +18,8 @@
 #include "rendering/vulkan/vkr_mainpass.h"
 #include "rendering/vulkan/vkr_exposurepass.h"
 #include "rendering/vulkan/vkr_textable.h"
+#include "rendering/vulkan/vkr_bindings.h"
+
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
 #include "rendering/texture.h"
@@ -27,8 +29,10 @@
 #include "rendering/camera.h"
 #include "rendering/screenblit.h"
 #include "rendering/lightmap.h"
+
 #include "ui/cimgui.h"
 #include "ui/ui.h"
+
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
@@ -36,10 +40,12 @@
 #include "common/cvar.h"
 #include "common/atomics.h"
 #include "containers/table.h"
+#include "threading/task.h"
+
 #include "math/float4_funcs.h"
 #include "math/float4x4_funcs.h"
 #include "math/quat_funcs.h"
-#include "threading/task.h"
+
 #include <string.h>
 
 vkr_t g_vkr;
@@ -120,6 +126,12 @@ bool vkr_init(void)
         goto cleanup;
     }
 
+    if (!vkrBindings_Init())
+    {
+        success = false;
+        goto cleanup;
+    }
+
     if (!vkrMainPass_New(&g_vkr.mainPass))
     {
         success = false;
@@ -184,12 +196,19 @@ void vkr_update(void)
     VkFence fence = NULL;
     VkCommandBuffer cmd = NULL;
     vkrSwapchain_AcquireSync(chain, &cmd, &fence);
-    vkrExposurePass_Execute(&g_vkr.exposurePass);
     vkrAllocator_Update(&g_vkr.allocator);
-    vkrTexTable_Update();
-    vkrCmdBegin(cmd);
-    vkrMainPass_Draw(&g_vkr.mainPass, cmd, fence);
-    vkrCmdEnd(cmd);
+    {
+        vkrExposurePass_Setup(&g_vkr.exposurePass);
+        vkrMainPass_Setup(&g_vkr.mainPass);
+        vkrTexTable_Update();
+        vkrBindings_Update();
+    }
+    {
+        vkrExposurePass_Execute(&g_vkr.exposurePass);
+        vkrCmdBegin(cmd);
+        vkrMainPass_Execute(&g_vkr.mainPass, cmd, fence);
+        vkrCmdEnd(cmd);
+    }
     vkrSwapchain_Submit(chain, cmd);
     vkrSwapchain_Present(chain);
 
@@ -213,6 +232,7 @@ void vkr_shutdown(void)
 
         vkrExposurePass_Del(&g_vkr.exposurePass);
         vkrMainPass_Del(&g_vkr.mainPass);
+        vkrBindings_Shutdown();
         vkrTexTable_Shutdown();
 
         vkrAllocator_Finalize(&g_vkr.allocator);

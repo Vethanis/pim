@@ -7,6 +7,7 @@
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_desc.h"
+#include "rendering/vulkan/vkr_bindings.h"
 
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
@@ -23,12 +24,9 @@
 #include "threading/task.h"
 #include <string.h>
 
-static vkrOpaquePass_Update(const vkrPassContext* passCtx, vkrOpaquePass* pass);
-static vkrOpaquePass_Execute(const vkrPassContext* ctx, vkrOpaquePass* pass);
-
 // ----------------------------------------------------------------------------
 
-bool vkrOpaquePass_New(vkrOpaquePass* pass, VkRenderPass renderPass)
+bool vkrOpaquePass_New(vkrOpaquePass *const pass, VkRenderPass renderPass)
 {
     ASSERT(pass);
     ASSERT(renderPass);
@@ -61,45 +59,6 @@ bool vkrOpaquePass_New(vkrOpaquePass* pass, VkRenderPass renderPass)
         goto cleanup;
     }
 
-    const VkDescriptorPoolSize poolSizes[] =
-    {
-        {
-            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = kTextureDescriptors,
-        },
-    };
-    const VkDescriptorSetLayoutBinding bindings[] =
-    {
-        {
-            // per camera cbuffer
-            .binding = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            // texture + sampler table
-            .binding = 2,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = kTextureDescriptors,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            // exposure storage buffer
-            .binding = 3,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-    };
     const VkVertexInputBindingDescription vertBindings[] =
     {
         // positionWS
@@ -157,7 +116,6 @@ bool vkrOpaquePass_New(vkrOpaquePass* pass, VkRenderPass renderPass)
 
     const vkrPassDesc desc =
     {
-        .bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .renderPass = renderPass,
         .subpass = vkrPassId_Opaque,
         .vertLayout =
@@ -192,10 +150,6 @@ bool vkrOpaquePass_New(vkrOpaquePass* pass, VkRenderPass renderPass)
                 .blendEnable = false,
             },
         },
-        .poolSizeCount = NELEM(poolSizes),
-        .poolSizes = poolSizes,
-        .bindingCount = NELEM(bindings),
-        .bindings = bindings,
         .shaderCount = NELEM(shaders),
         .shaders = shaders,
     };
@@ -218,7 +172,7 @@ cleanup:
     return success;
 }
 
-void vkrOpaquePass_Del(vkrOpaquePass* pass)
+void vkrOpaquePass_Del(vkrOpaquePass *const pass)
 {
     if (pass)
     {
@@ -231,40 +185,64 @@ void vkrOpaquePass_Del(vkrOpaquePass* pass)
     }
 }
 
-void vkrOpaquePass_Draw(const vkrPassContext* passCtx, vkrOpaquePass* pass)
+ProfileMark(pm_update, vkrOpaquePass_Setup)
+void vkrOpaquePass_Setup(vkrOpaquePass *const pass)
 {
-    vkrOpaquePass_Update(passCtx, pass);
-    vkrOpaquePass_Execute(passCtx, pass);
+    ProfileBegin(pm_update);
+
+    const u32 syncIndex = vkr_syncIndex();
+    VkDescriptorSet set = vkrBindings_GetSet();
+    vkrBuffer *const camBuffer = &pass->perCameraBuffer[syncIndex];
+    vkrBuffer *const expBuffer = &g_vkr.exposurePass.expBuffers[syncIndex];
+
+    // update per camera buffer
+    {
+        lmpack_t const *const lmpack = lmpack_get();
+        i32 lmBegin = kTextureDescriptors - kGiDirections;
+        if (lmpack->lmCount > 0)
+        {
+            lmBegin = lmpack->lightmaps[0].slots[0].index;
+        }
+
+        camera_t camera;
+        camera_get(&camera);
+        vkrPerCamera *const perCamera = vkrBuffer_Map(camBuffer);
+        ASSERT(perCamera);
+        perCamera->worldToClip = g_vkr.mainPass.depth.worldToClip;
+        perCamera->eye = camera.position;
+        perCamera->exposure = g_vkr.exposurePass.params.exposure;
+        perCamera->lmBegin = lmBegin;
+        vkrBuffer_Unmap(camBuffer);
+        vkrBuffer_Flush(camBuffer);
+    }
+
+    vkrBindings_BindBuffer(
+        vkrBindId_CameraData,
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        camBuffer);
+    vkrBindings_BindBuffer(
+        vkrBindId_ExposureBuffer,
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        expBuffer);
+
+    ProfileEnd(pm_update);
 }
 
 // ----------------------------------------------------------------------------
 
-typedef struct vkrTaskDraw
-{
-    task_t task;
-    frus_t frustum;
-    vkrOpaquePass* pass;
-    VkRenderPass renderPass;
-    vkrPassId subpass;
-    const vkrSwapchain* chain;
-    VkDescriptorSet descSet;
-    VkFramebuffer framebuffer;
-    VkFence primaryFence;
-    const drawables_t* drawables;
-    VkCommandBuffer* buffers;
-    float* distances;
-} vkrTaskDraw;
-
 ProfileMark(pm_execute, vkrOpaquePass_Execute)
-static vkrOpaquePass_Execute(const vkrPassContext* ctx, vkrOpaquePass* pass)
+void vkrOpaquePass_Execute(
+    vkrPassContext const *const ctx,
+    vkrOpaquePass *const pass)
 {
     ProfileBegin(pm_execute);
 
-    const u32 syncIndex = ctx->syncIndex;
+    const u32 syncIndex = vkr_syncIndex();
+    VkDescriptorSet set = vkrBindings_GetSet();
     VkCommandBuffer cmd = ctx->cmd;
     vkrCmdViewport(cmd, vkrSwapchain_GetViewport(&g_vkr.chain), vkrSwapchain_GetRect(&g_vkr.chain));
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.pipeline);
-    vkrCmdBindDescSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.layout, 1, &pass->pass.sets[ctx->syncIndex]);
+    vkrCmdBindDescSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.layout, 1, &set);
 
     VkBuffer mesh = g_vkr.mainPass.depth.meshbufs[syncIndex].handle;
     const i32 vertCount = g_vkr.mainPass.depth.vertCount;
@@ -287,72 +265,4 @@ static vkrOpaquePass_Execute(const vkrPassContext* ctx, vkrOpaquePass* pass)
     vkCmdDraw(cmd, vertCount, 1, 0, 0);
 
     ProfileEnd(pm_execute);
-}
-
-ProfileMark(pm_update, vkrOpaquePass_Update)
-static vkrOpaquePass_Update(const vkrPassContext* passCtx, vkrOpaquePass* pass)
-{
-    ProfileBegin(pm_update);
-
-    const u32 syncIndex = passCtx->syncIndex;
-    VkDescriptorSet set = pass->pass.sets[syncIndex];
-    vkrBuffer* camBuffer = &pass->perCameraBuffer[syncIndex];
-    VkBuffer expBuffer = g_vkr.exposurePass.expBuffers[syncIndex].handle;
-
-    // update per camera buffer
-    {
-        const vkrSwapchain* chain = &g_vkr.chain;
-        float aspect = (float)chain->width / chain->height;
-        camera_t camera;
-        camera_get(&camera);
-        float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
-        float4 up = quat_up(camera.rotation);
-        float4x4 view = f4x4_lookat(camera.position, at, up);
-        float4x4 proj = f4x4_vkperspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
-
-        const lmpack_t* lmpack = lmpack_get();
-        i32 lmBegin = kTextureDescriptors - kGiDirections;
-        if (lmpack->lmCount > 0)
-        {
-            lmBegin = lmpack->lightmaps[0].slots[0].index;
-        }
-
-        vkrPerCamera* perCamera = vkrBuffer_Map(camBuffer);
-        ASSERT(perCamera);
-        perCamera->worldToClip = f4x4_mul(proj, view);
-        perCamera->eye = camera.position;
-        perCamera->exposure = g_vkr.exposurePass.params.exposure;
-        perCamera->lmBegin = lmBegin;
-        vkrBuffer_Unmap(camBuffer);
-        vkrBuffer_Flush(camBuffer);
-    }
-
-    const vkrBinding bufferBindings[] =
-    {
-        {
-            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .set = set,
-            .binding = 1,
-            .buffer =
-            {
-                .buffer = camBuffer->handle,
-                .range = VK_WHOLE_SIZE,
-            },
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .set = set,
-            .binding = 3,
-            .buffer =
-            {
-                .buffer = expBuffer,
-                .range = VK_WHOLE_SIZE,
-            },
-        },
-    };
-    vkrDesc_WriteBindings(NELEM(bufferBindings), bufferBindings);
-
-    vkrTexTable_Write(set);
-
-    ProfileEnd(pm_update);
 }

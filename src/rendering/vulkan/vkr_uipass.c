@@ -10,6 +10,7 @@
 #include "rendering/vulkan/vkr_shader.h"
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_textable.h"
+#include "rendering/vulkan/vkr_bindings.h"
 #include "rendering/texture.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
@@ -19,25 +20,27 @@
 // ----------------------------------------------------------------------------
 
 static void vkrImGui_SetupRenderState(
-    vkrUIPass* imgui,
-    const ImDrawData* draw_data,
+    vkrUIPass *const imgui,
+    ImDrawData const *const draw_data,
     VkCommandBuffer command_buffer,
     i32 fb_width,
     i32 fb_height);
-static void vkrImGui_UploadRenderDrawData(vkrUIPass* imgui, ImDrawData* draw_data);
+static void vkrImGui_UploadRenderDrawData(
+    vkrUIPass *const imgui,
+    ImDrawData const *const draw_data);
 static void vkrImGui_RenderDrawData(
-    vkrUIPass* imgui,
-    ImDrawData* draw_data,
+    vkrUIPass *const imgui,
+    ImDrawData const *const draw_data,
     VkCommandBuffer command_buffer);
 static void vkrImGui_SetTexture(
-    const vkrUIPass* imgui,
+    vkrUIPass const *const imgui,
     VkCommandBuffer cmd,
-    const ImDrawData* draw_data,
+    ImDrawData const *const draw_data,
     vkrTextureId id);
 
 // ----------------------------------------------------------------------------
 
-bool vkrUIPass_New(vkrUIPass* imgui, VkRenderPass renderPass)
+bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
 {
     ASSERT(imgui);
     ASSERT(renderPass);
@@ -114,16 +117,7 @@ bool vkrUIPass_New(vkrUIPass* imgui, VkRenderPass renderPass)
             .descriptorCount = kTextureDescriptors,
         },
     };
-    const VkDescriptorSetLayoutBinding bindings[] =
-    {
-        {
-            // texture + sampler table
-            .binding = 2,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = kTextureDescriptors,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-    };
+
     const VkPushConstantRange ranges[] =
     {
         {
@@ -164,7 +158,9 @@ bool vkrUIPass_New(vkrUIPass* imgui, VkRenderPass renderPass)
 
     const vkrPassDesc desc =
     {
-        .bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .pushConstantBytes = sizeof(vkrUIPassPc),
+        .shaderCount = NELEM(shaders),
+        .shaders = shaders,
         .renderPass = renderPass,
         .subpass = vkrPassId_UI,
         .vertLayout =
@@ -198,14 +194,6 @@ bool vkrUIPass_New(vkrUIPass* imgui, VkRenderPass renderPass)
                 .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
             },
         },
-        .poolSizeCount = NELEM(poolSizes),
-        .poolSizes = poolSizes,
-        .bindingCount = NELEM(bindings),
-        .bindings = bindings,
-        .rangeCount = NELEM(ranges),
-        .ranges = ranges,
-        .shaderCount = NELEM(shaders),
-        .shaders = shaders,
     };
 
     if (!vkrPass_New(&imgui->pass, &desc))
@@ -227,7 +215,7 @@ cleanup:
     return success;
 }
 
-void vkrUIPass_Del(vkrUIPass* pass)
+void vkrUIPass_Del(vkrUIPass *const pass)
 {
     if (pass)
     {
@@ -242,15 +230,17 @@ void vkrUIPass_Del(vkrUIPass* pass)
     }
 }
 
-ProfileMark(pm_igrender, igRender)
-ProfileMark(pm_draw, vkrUIPass_Draw)
-void vkrUIPass_Draw(const vkrPassContext* ctx, vkrUIPass* pass)
+void vkrUIPass_Setup(vkrUIPass *const pass)
 {
-    ProfileBegin(pm_igrender);
-    igRender();
-    ProfileEnd(pm_igrender);
+}
 
+ProfileMark(pm_draw, vkrUIPass_Execute)
+void vkrUIPass_Execute(
+    vkrPassContext const *const ctx,
+    vkrUIPass *const pass)
+{
     ProfileBegin(pm_draw);
+    igRender();
     vkrImGui_RenderDrawData(pass, igGetDrawData(), ctx->cmd);
     ProfileEnd(pm_draw);
 }
@@ -259,28 +249,27 @@ void vkrUIPass_Draw(const vkrPassContext* ctx, vkrUIPass* pass)
 
 ProfileMark(pm_setuprenderstate, vkrImGui_SetupRenderState)
 static void vkrImGui_SetupRenderState(
-    vkrUIPass* imgui,
-    const ImDrawData* draw_data,
+    vkrUIPass *const imgui,
+    ImDrawData const *const draw_data,
     VkCommandBuffer cmd,
     i32 fb_width,
     i32 fb_height)
 {
     ProfileBegin(pm_setuprenderstate);
 
-    const u32 syncIndex = g_vkr.chain.syncIndex;
+    const u32 syncIndex = vkr_syncIndex();
+    VkDescriptorSet set = vkrBindings_GetSet();
     // Bind pipeline and descriptor sets:
     {
         vkCmdBindPipeline(
             cmd,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             imgui->pass.pipeline);
-        const VkDescriptorSet descSets[] = { imgui->pass.sets[syncIndex] };
-        vkrTexTable_Write(descSets[0]);
         vkCmdBindDescriptorSets(
             cmd,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             imgui->pass.layout,
-            0, NELEM(descSets), descSets,
+            0, 1, &set,
             0, NULL);
     }
 
@@ -318,7 +307,9 @@ static void vkrImGui_SetupRenderState(
 }
 
 ProfileMark(pm_upload, vkrImGui_UploadRenderDrawData)
-static void vkrImGui_UploadRenderDrawData(vkrUIPass* imgui, ImDrawData* draw_data)
+static void vkrImGui_UploadRenderDrawData(
+    vkrUIPass *const imgui,
+    ImDrawData const *const draw_data)
 {
     ProfileBegin(pm_upload);
 
@@ -346,8 +337,8 @@ static void vkrImGui_UploadRenderDrawData(vkrUIPass* imgui, ImDrawData* draw_dat
         NULL,
         PIM_FILELINE);
 
-    ImDrawVert* vtx_dst = vkrBuffer_Map(vertBuf);
-    ImDrawIdx* idx_dst = vkrBuffer_Map(indBuf);
+    ImDrawVert *const vtx_dst = vkrBuffer_Map(vertBuf);
+    ImDrawIdx *const idx_dst = vkrBuffer_Map(indBuf);
     ASSERT(vtx_dst);
     ASSERT(idx_dst);
     i32 vertOffset = 0;
@@ -377,9 +368,9 @@ static void vkrImGui_UploadRenderDrawData(vkrUIPass* imgui, ImDrawData* draw_dat
 }
 
 static void vkrImGui_SetTexture(
-    const vkrUIPass* imgui,
+    vkrUIPass const *const imgui,
     VkCommandBuffer cmd,
-    const ImDrawData* draw_data,
+    ImDrawData const *const draw_data,
     vkrTextureId id)
 {
     vkrTextureId font = imgui->font;
@@ -410,8 +401,8 @@ static void vkrImGui_SetTexture(
 
 ProfileMark(pm_render, vkrImGui_RenderDrawData)
 static void vkrImGui_RenderDrawData(
-    vkrUIPass* imgui,
-    ImDrawData* draw_data,
+    vkrUIPass *const imgui,
+    ImDrawData const *const draw_data,
     VkCommandBuffer cmd)
 {
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
