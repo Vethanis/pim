@@ -5,13 +5,6 @@
 #include "GI.hlsl"
 #include "Exposure.hlsl"
 
-struct PerCamera
-{
-    float4x4 worldToClip;
-    float4 eye;
-    uint lmBegin;
-};
-
 struct VSInput
 {
     float4 positionWS : POSITION;
@@ -33,12 +26,6 @@ struct PSOutput
 {
     float4 color : SV_Target0;
     half luminance : SV_Target1;
-};
-
-[[vk::binding(1)]]
-cbuffer cameraData
-{
-    PerCamera cameraData;
 };
 
 PSInput VSMain(VSInput input)

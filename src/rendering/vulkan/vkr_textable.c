@@ -83,35 +83,28 @@ void vkrTexTable_Update(void)
     }
 }
 
-ProfileMark(pm_write, vkrTexTable_Write)
-void vkrTexTable_Write(VkDescriptorSet set)
+void vkrTexTable_Write(VkDescriptorSet set, i32 binding)
 {
-    ProfileBegin(pm_write);
-
-    vkrTexTable *const table = &ms_table;
     ASSERT(set);
     vkrDesc_WriteImageTable(
         set,
-        2, // must match TextureTable.hlsl
+        binding,
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         kTextureDescriptors,
-        table->descriptors);
-
-    ProfileEnd(pm_write);
+        ms_table.descriptors);
 }
 
 bool vkrTexTable_Exists(vkrTextureId id)
 {
-    vkrTexTable const *const table = &ms_table;
     i32 slot = id.index;
-    return (slot > 0) && (table->versions[slot] == id.version);
+    return (slot > 0) && (ms_table.versions[slot] == id.version);
 }
 
 vkrTextureId vkrTexTable_Alloc(
     i32 width,
     i32 height,
     VkFormat format,
-    const void* data)
+    void const *const data)
 {
     vkrTexTable *const table = &ms_table;
 
@@ -171,7 +164,7 @@ bool vkrTexTable_Free(vkrTextureId id)
     return false;
 }
 
-VkFence vkrTexTable_Upload(vkrTextureId id, const void* data, i32 bytes)
+VkFence vkrTexTable_Upload(vkrTextureId id, void const *const data, i32 bytes)
 {
     vkrTexTable *const table = &ms_table;
 

@@ -187,19 +187,6 @@ typedef struct vkrAttachment
     VkImageView view;
 } vkrAttachment;
 
-typedef struct vkrBinding
-{
-    VkDescriptorSet set;
-    union
-    {
-        VkDescriptorBufferInfo buffer;
-        VkDescriptorImageInfo image;
-    };
-    VkDescriptorType type;
-    u16 arrayElem;
-    u8 binding;
-} vkrBinding;
-
 typedef struct vkrCompileInput
 {
     const char* filename;
@@ -375,8 +362,6 @@ typedef struct vkrPassContext
 {
     VkRenderPass renderPass;
     i32 subpass;
-    u32 syncIndex;
-    u32 imageIndex;
     VkFramebuffer framebuffer;
     VkCommandBuffer cmd;
     VkFence fence;
@@ -385,13 +370,7 @@ typedef struct vkrPassContext
 typedef struct vkrPassDesc
 {
 // Graphics and Compute
-    VkPipelineBindPoint bindpoint;
-    i32 poolSizeCount;
-    const VkDescriptorPoolSize* poolSizes;
-    i32 bindingCount;
-    const VkDescriptorSetLayoutBinding* bindings;
-    i32 rangeCount;
-    const VkPushConstantRange* ranges;
+    i32 pushConstantBytes;
     i32 shaderCount;
     const VkPipelineShaderStageCreateInfo* shaders;
 // Graphics only
@@ -405,9 +384,6 @@ typedef struct vkrPass
 {
     VkPipeline pipeline;
     VkPipelineLayout layout;
-    VkDescriptorSetLayout setLayout;
-    VkDescriptorPool descPool;
-    VkDescriptorSet sets[kFramesInFlight];
 } vkrPass;
 
 // ----------------------------------------------------------------------------
@@ -427,6 +403,7 @@ typedef struct vkrDepthPass
     vkrBuffer stagebufs[kFramesInFlight];
     vkrBuffer meshbufs[kFramesInFlight];
     i32 vertCount;
+    float4x4 worldToClip;
 } vkrDepthPass;
 
 typedef struct vkrPerCamera

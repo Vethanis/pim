@@ -13,22 +13,20 @@ private:
 
     u32 m_read;
     u32 m_write;
-    float4 m_buffer[kWireLen];
+    float m_buffer[kWireLen];
 
 public:
     u32 Size() const { return m_write - m_read; }
     bool Empty() const { return m_read == m_write; }
     bool Full() const { return Size() >= kWireLen; }
-    pim_inline void VEC_CALL Push(float4 value)
+    pim_inline void VEC_CALL Push(float value)
     {
-        u32 w = m_write++;
-        w &= kWireMask;
+        u32 w = m_write++ & kWireMask;
         m_buffer[w] = value;
     }
-    pim_inline float4 VEC_CALL Pop()
+    pim_inline float VEC_CALL Pop()
     {
-        u32 r = m_read++;
-        r &= kWireMask;
+        u32 r = m_read++ & kWireMask;
         return m_buffer[r];
     }
 };

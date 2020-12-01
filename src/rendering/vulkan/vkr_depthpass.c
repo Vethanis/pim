@@ -23,11 +23,9 @@
 #include "threading/task.h"
 #include <string.h>
 
-static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass);
-
 // ----------------------------------------------------------------------------
 
-bool vkrDepthPass_New(vkrDepthPass* pass, VkRenderPass renderPass)
+bool vkrDepthPass_New(vkrDepthPass *const pass, VkRenderPass renderPass)
 {
     ASSERT(pass);
     ASSERT(renderPass);
@@ -74,7 +72,9 @@ bool vkrDepthPass_New(vkrDepthPass* pass, VkRenderPass renderPass)
 
     const vkrPassDesc desc =
     {
-        .bindpoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .pushConstantBytes = sizeof(float4x4),
+        .shaderCount = NELEM(shaders),
+        .shaders = shaders,
         .renderPass = renderPass,
         .subpass = vkrPassId_Depth,
         .vertLayout =
@@ -104,10 +104,6 @@ bool vkrDepthPass_New(vkrDepthPass* pass, VkRenderPass renderPass)
                 .blendEnable = false,
             },
         },
-        .rangeCount = NELEM(ranges),
-        .ranges = ranges,
-        .shaderCount = NELEM(shaders),
-        .shaders = shaders,
     };
 
     if (!vkrPass_New(&pass->pass, &desc))
@@ -128,7 +124,7 @@ cleanup:
     return success;
 }
 
-void vkrDepthPass_Del(vkrDepthPass* pass)
+void vkrDepthPass_Del(vkrDepthPass *const pass)
 {
     if (pass)
     {
@@ -142,25 +138,13 @@ void vkrDepthPass_Del(vkrDepthPass* pass)
     }
 }
 
-ProfileMark(pm_draw, vkrDepthPass_Draw)
-void vkrDepthPass_Draw(const vkrPassContext* passCtx, vkrDepthPass* pass)
+ProfileMark(pm_setup, vkrDepthPass_Setup)
+void vkrDepthPass_Setup(vkrDepthPass *const pass)
 {
-    ProfileBegin(pm_draw);
-    vkrDepthPass_Execute(passCtx, pass);
-    ProfileEnd(pm_draw);
-}
+    ProfileBegin(pm_setup);
 
-// ----------------------------------------------------------------------------
-
-ProfileMark(pm_execute, vkrDepthPass_Execute)
-static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
-{
-    ProfileBegin(pm_execute);
-
-    const u32 syncIndex = ctx->syncIndex;
-    const vkrSwapchain* chain = &g_vkr.chain;
-    VkRect2D rect = vkrSwapchain_GetRect(chain);
-    VkViewport viewport = vkrSwapchain_GetViewport(chain);
+    const u32 syncIndex = vkr_syncIndex();
+    VkViewport viewport = vkrSwapchain_GetViewport(&g_vkr.chain);
     const float aspect = viewport.width / viewport.height;
 
     camera_t camera;
@@ -169,7 +153,7 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
     float4 up = quat_up(camera.rotation);
     float4x4 view = f4x4_lookat(camera.position, at, up);
     float4x4 proj = f4x4_vkperspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
-    float4x4 worldToClip = f4x4_mul(proj, view);
+    pass->worldToClip = f4x4_mul(proj, view);
     frus_t frustum;
     camera_frustum(&camera, &frustum, aspect);
     plane_t fwd = frustum.z0;
@@ -205,7 +189,7 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
         {
             continue;
         }
-        const mesh_t* pMesh = mesh_get(meshids[i]);
+        mesh_t const *const pMesh = mesh_get(meshids[i]);
         if (!pMesh)
         {
             continue;
@@ -281,6 +265,23 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
         vkrBuffer_Flush(stageBuf);
     }
 
+    ProfileEnd(pm_setup);
+}
+
+// ----------------------------------------------------------------------------
+
+ProfileMark(pm_execute, vkrDepthPass_Execute)
+void vkrDepthPass_Execute(vkrPassContext const *const ctx, vkrDepthPass *const pass)
+{
+    ProfileBegin(pm_execute);
+
+    const u32 syncIndex = vkr_syncIndex();
+    vkrSwapchain const *const chain = &g_vkr.chain;
+    VkRect2D rect = vkrSwapchain_GetRect(chain);
+    VkViewport viewport = vkrSwapchain_GetViewport(chain);
+
+    vkrBuffer *const stageBuf = &pass->stagebufs[syncIndex];
+    vkrBuffer *const meshBuf = &pass->meshbufs[syncIndex];
     {
         VkFence fence = NULL;
         VkQueue queue = NULL;
@@ -312,19 +313,13 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
 
     vkrCmdViewport(cmd, viewport, rect);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-
-    struct
-    {
-        float4x4 worldToClip;
-    } pushConsts;
-    pushConsts.worldToClip = worldToClip;
     vkCmdPushConstants(
         cmd,
         layout,
-        VK_SHADER_STAGE_VERTEX_BIT,
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         0,
-        sizeof(pushConsts),
-        &pushConsts);
+        sizeof(pass->worldToClip),
+        &pass->worldToClip);
 
     // position only
     const VkBuffer buffers[] =
@@ -336,7 +331,7 @@ static vkrDepthPass_Execute(const vkrPassContext* ctx, vkrDepthPass* pass)
         0,
     };
     vkCmdBindVertexBuffers(cmd, 0, NELEM(buffers), buffers, offsets);
-    vkCmdDraw(cmd, visibleVertCount, 1, 0, 0);
+    vkCmdDraw(cmd, pass->vertCount, 1, 0, 0);
 
     ProfileEnd(pm_execute);
 }

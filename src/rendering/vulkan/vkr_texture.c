@@ -251,7 +251,7 @@ void vkrTexture2D_Del(vkrTexture2D* tex)
     }
 }
 
-VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
+VkFence vkrTexture2D_Upload(vkrTexture2D* tex, void const *const data, i32 bytes)
 {
     ASSERT(tex);
     ASSERT(tex->image.handle);
@@ -274,7 +274,7 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes)
     }
 
     {
-        void* dst = vkrBuffer_Map(&stagebuf);
+        void *const dst = vkrBuffer_Map(&stagebuf);
         ASSERT(dst);
         if (dst)
         {

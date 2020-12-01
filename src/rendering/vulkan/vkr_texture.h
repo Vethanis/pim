@@ -17,6 +17,6 @@ bool vkrTexture2D_New(
     i32 bytes);
 void vkrTexture2D_Del(vkrTexture2D* tex);
 
-VkFence vkrTexture2D_Upload(vkrTexture2D* tex, const void* data, i32 bytes);
+VkFence vkrTexture2D_Upload(vkrTexture2D* tex, void const *const data, i32 bytes);
 
 PIM_C_END

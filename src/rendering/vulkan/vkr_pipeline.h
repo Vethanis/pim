@@ -7,12 +7,6 @@ PIM_C_BEGIN
 i32 vkrVertTypeSize(vkrVertType type);
 VkFormat vkrVertTypeFormat(vkrVertType type);
 
-VkDescriptorSetLayout vkrSetLayout_New(
-    i32 bindingCount,
-    const VkDescriptorSetLayoutBinding* pBindings,
-    VkDescriptorSetLayoutCreateFlags flags);
-void vkrSetLayout_Del(VkDescriptorSetLayout layout);
-
 VkPipelineLayout vkrPipelineLayout_New(
     i32 setCount, const VkDescriptorSetLayout* setLayouts,
     i32 rangeCount, const VkPushConstantRange* ranges);

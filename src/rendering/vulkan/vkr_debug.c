@@ -71,9 +71,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vkrOnVulkanMessage(
 
     if (shouldLog)
     {
-        con_logf(sev, "vkr", pCallbackData->pMessage);
+        const char* pMessage = pCallbackData->pMessage;
+        con_logf(sev, "vkr", pMessage);
+        ASSERT(sev != LogSev_Error);
     }
-    ASSERT(sev != LogSev_Error);
 
     return VK_FALSE;
 }

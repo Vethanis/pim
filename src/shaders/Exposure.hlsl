@@ -2,11 +2,9 @@
 #define EXPOSURE_HLSL
 
 #include "Macro.hlsl"
+#include "bindings.hlsl"
 
 #define kNumBins        256
-
-[[vk::binding(3)]]
-RWStructuredBuffer<float> ExposureBuffer;
 
 float GetAverageLum() { return ExposureBuffer[0]; }
 void SetAverageLum(float lum) { ExposureBuffer[0] = lum; }

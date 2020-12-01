@@ -38,7 +38,7 @@ static cvar_t* cv_pt_trace;
 
 // ----------------------------------------------------------------------------
 
-bool vkrMainPass_New(vkrMainPass* pass)
+bool vkrMainPass_New(vkrMainPass *const pass)
 {
     ASSERT(pass);
 
@@ -84,7 +84,7 @@ cleanup:
     return success;
 }
 
-void vkrMainPass_Del(vkrMainPass* pass)
+void vkrMainPass_Del(vkrMainPass *const pass)
 {
     if (pass)
     {
@@ -97,13 +97,25 @@ void vkrMainPass_Del(vkrMainPass* pass)
     }
 }
 
-ProfileMark(pm_draw, vkrMainPass_Draw)
-void vkrMainPass_Draw(
-    vkrMainPass* pass,
+ProfileMark(pm_setup, vkrMainPass_Setup)
+void vkrMainPass_Setup(vkrMainPass *const pass)
+{
+    ProfileBegin(pm_setup);
+
+    vkrDepthPass_Setup(&pass->depth);
+    vkrOpaquePass_Setup(&pass->opaque);
+    vkrUIPass_Setup(&pass->ui);
+
+    ProfileEnd(pm_setup);
+}
+
+ProfileMark(pm_exec, vkrMainPass_Execute)
+void vkrMainPass_Execute(
+    vkrMainPass *const pass,
     VkCommandBuffer cmd,
     VkFence fence)
 {
-    ProfileBegin(pm_draw);
+    ProfileBegin(pm_exec);
 
     const bool r_sw = cvar_get_bool(cv_pt_trace);
 
@@ -127,8 +139,6 @@ void vkrMainPass_Draw(
     vkrPassContext passCtx =
     {
         .renderPass = pass->renderPass,
-        .syncIndex = g_vkr.chain.syncIndex,
-        .imageIndex = g_vkr.chain.imageIndex,
         .framebuffer = framebuffer,
         .cmd = cmd,
         .fence = fence,
@@ -142,7 +152,7 @@ void vkrMainPass_Draw(
     }
     else
     {
-        u32 imageIndex = passCtx.imageIndex;
+        const u32 imageIndex = vkr_swapIndex();
         VkImage colorTarget = chain->images[imageIndex];
         vkrAttachment* lumTarget = &chain->lumAttachments[imageIndex];
         const VkImageMemoryBarrier colorBarrier =
@@ -188,7 +198,7 @@ void vkrMainPass_Draw(
 
     if (!r_sw)
     {
-        vkrDepthPass_Draw(&passCtx, &pass->depth);
+        vkrDepthPass_Execute(&passCtx, &pass->depth);
     }
 
     vkrCmdNextSubpass(cmd, VK_SUBPASS_CONTENTS_INLINE);
@@ -196,17 +206,17 @@ void vkrMainPass_Draw(
 
     if (!r_sw)
     {
-        vkrOpaquePass_Draw(&passCtx, &pass->opaque);
+        vkrOpaquePass_Execute(&passCtx, &pass->opaque);
     }
 
     vkrCmdNextSubpass(cmd, VK_SUBPASS_CONTENTS_INLINE);
     passCtx.subpass++;
 
-    vkrUIPass_Draw(&passCtx, &pass->ui);
+    vkrUIPass_Execute(&passCtx, &pass->ui);
 
     vkrCmdEndRenderPass(cmd);
 
-    ProfileEnd(pm_draw);
+    ProfileEnd(pm_exec);
 }
 
 static VkRenderPass CreateRenderPass(const vkrSwapchain* chain)

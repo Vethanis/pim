@@ -56,34 +56,6 @@ VkFormat vkrVertTypeFormat(vkrVertType type)
     }
 }
 
-VkDescriptorSetLayout vkrSetLayout_New(
-    i32 bindingCount,
-    const VkDescriptorSetLayoutBinding* pBindings,
-    VkDescriptorSetLayoutCreateFlags flags)
-{
-    ASSERT(pBindings || !bindingCount);
-    ASSERT(bindingCount >= 0);
-    const VkDescriptorSetLayoutCreateInfo createInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .flags = flags,
-        .bindingCount = bindingCount,
-        .pBindings = pBindings,
-    };
-    VkDescriptorSetLayout handle = NULL;
-    VkCheck(vkCreateDescriptorSetLayout(g_vkr.dev, &createInfo, NULL, &handle));
-    ASSERT(handle);
-    return handle;
-}
-
-void vkrSetLayout_Del(VkDescriptorSetLayout handle)
-{
-    if (handle)
-    {
-        vkDestroyDescriptorSetLayout(g_vkr.dev, handle, NULL);
-    }
-}
-
 VkPipelineLayout vkrPipelineLayout_New(
     i32 setCount, const VkDescriptorSetLayout* setLayouts,
     i32 rangeCount, const VkPushConstantRange* ranges)

@@ -565,6 +565,9 @@
     <ClCompile Include="..\src\editor\menubar.cpp">
       <Filter>Source Files\editor</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_bindings.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -1218,6 +1221,9 @@
     <ClInclude Include="..\src\common\profiler.hpp">
       <Filter>Source Files\common</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_bindings.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="natvis\tables.natvis">
@@ -1242,16 +1248,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="..\src\shaders\first_tri.hlsl">
-      <Filter>Source Files\shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="..\src\shaders\first_mesh.hlsl">
-      <Filter>Source Files\shaders</Filter>
-    </FxCompile>
     <FxCompile Include="..\src\shaders\brush.hlsl">
-      <Filter>Source Files\shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="..\src\shaders\screenblit.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="..\src\shaders\AdaptHistogram.hlsl">
@@ -1288,6 +1285,9 @@
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
     <FxCompile Include="..\src\shaders\Exposure.hlsl">
+      <Filter>Source Files\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\src\shaders\bindings.hlsl">
       <Filter>Source Files\shaders</Filter>
     </FxCompile>
   </ItemGroup>

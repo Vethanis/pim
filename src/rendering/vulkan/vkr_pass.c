@@ -2,52 +2,65 @@
 
 #include "rendering/vulkan/vkr_pipeline.h"
 #include "rendering/vulkan/vkr_desc.h"
+#include "rendering/vulkan/vkr_bindings.h"
 
 #include <string.h>
 
-bool vkrPass_New(vkrPass* pass, const vkrPassDesc* desc)
+bool vkrPass_New(vkrPass *const pass, vkrPassDesc const *const desc)
 {
     ASSERT(pass);
     ASSERT(desc);
     memset(pass, 0, sizeof(*pass));
 
-    pass->setLayout = vkrSetLayout_New(desc->bindingCount, desc->bindings, 0x0);
-    if (!pass->setLayout)
+    VkShaderStageFlags stageFlags = 0x0;
+    for (i32 i = 0; i < desc->shaderCount; ++i)
     {
-        vkrPass_Del(pass);
-        return false;
+        stageFlags |= desc->shaders[i].stage;
     }
 
-    pass->layout = vkrPipelineLayout_New(1, &pass->setLayout, desc->rangeCount, desc->ranges);
+    VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    if (stageFlags & VK_SHADER_STAGE_COMPUTE_BIT)
+    {
+        bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+    }
+    const VkShaderStageFlags kRTStages =
+        VK_SHADER_STAGE_RAYGEN_BIT_KHR |
+        VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
+        VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR |
+        VK_SHADER_STAGE_MISS_BIT_KHR |
+        VK_SHADER_STAGE_INTERSECTION_BIT_KHR |
+        VK_SHADER_STAGE_CALLABLE_BIT_KHR;
+    if (stageFlags & kRTStages)
+    {
+        bindPoint = VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
+    }
+
+    const VkDescriptorSetLayout setLayouts[] =
+    {
+        vkrBindings_GetSetLayout(),
+    };
+    i32 rangeCount = desc->pushConstantBytes > 0 ? 1 : 0;
+    const VkPushConstantRange ranges[] =
+    {
+        {
+            .stageFlags = stageFlags,
+            .size = desc->pushConstantBytes,
+        },
+    };
+
+    pass->layout = vkrPipelineLayout_New(
+        NELEM(setLayouts), setLayouts,
+        rangeCount, ranges);
     if (!pass->layout)
     {
         vkrPass_Del(pass);
         return false;
     }
 
-    if (desc->poolSizeCount > 0)
+    switch (bindPoint)
     {
-        pass->descPool = vkrDescPool_New(kFramesInFlight, desc->poolSizeCount, desc->poolSizes);
-        if (!pass->descPool)
-        {
-            vkrPass_Del(pass);
-            return false;
-        }
-
-        for (i32 i = 0; i < kFramesInFlight; ++i)
-        {
-            pass->sets[i] = vkrDesc_New(pass->descPool, pass->setLayout);
-            if (!pass->sets[i])
-            {
-                vkrPass_Del(pass);
-                return false;
-            }
-        }
-    }
-
-    switch (desc->bindpoint)
-    {
-    default: ASSERT(false);
+    default:
+        ASSERT(false);
         break;
     case VK_PIPELINE_BIND_POINT_COMPUTE:
     {
@@ -57,6 +70,7 @@ bool vkrPass_New(vkrPass* pass, const vkrPassDesc* desc)
     break;
     case VK_PIPELINE_BIND_POINT_GRAPHICS:
     {
+        ASSERT(desc->shaderCount >= 2);
         pass->pipeline = vkrPipeline_NewGfx(
             &desc->fixedFuncs,
             &desc->vertLayout,
@@ -78,13 +92,11 @@ bool vkrPass_New(vkrPass* pass, const vkrPassDesc* desc)
     return true;
 }
 
-void vkrPass_Del(vkrPass* pass)
+void vkrPass_Del(vkrPass *const pass)
 {
     if (pass)
     {
-        vkrSetLayout_Del(pass->setLayout);
         vkrPipelineLayout_Del(pass->layout);
-        vkrDescPool_Del(pass->descPool);
         vkrPipeline_Del(pass->pipeline);
         memset(pass, 0, sizeof(*pass));
     }

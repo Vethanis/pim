@@ -1,13 +1,5 @@
 #include "Exposure.hlsl"
 
-// storage image at binding 0
-[[vk::binding(0)]]
-RWTexture2D<half> LumTexture;
-
-// storage buffer at binding 1
-[[vk::binding(1)]]
-RWStructuredBuffer<uint> HistogramBuffer;
-
 // push constant
 [[vk::push_constant]]
 cbuffer InputConstants
