@@ -355,7 +355,6 @@ typedef enum
     vkrReleasableType_Buffer,
     vkrReleasableType_Image,
     vkrReleasableType_ImageView,
-    vkrReleasableType_Sampler,
 } vkrReleasableType;
 
 typedef struct vkrReleasable
@@ -368,7 +367,6 @@ typedef struct vkrReleasable
         vkrBuffer buffer;
         vkrImage image;
         VkImageView view;
-        VkSampler sampler;
     };
 } vkrReleasable;
 

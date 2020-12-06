@@ -5,6 +5,7 @@
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_textable.h"
+#include "rendering/vulkan/vkr_sampler.h"
 #include "allocator/allocator.h"
 #include "common/time.h"
 #include "math/scalar.h"
@@ -184,7 +185,7 @@ bool vkrTexture2D_New(
         goto cleanup;
     }
 
-    VkSampler sampler = vkrSampler_New(
+    VkSampler sampler = vkrSampler_Get(
         VK_FILTER_LINEAR,
         VK_SAMPLER_MIPMAP_MODE_LINEAR,
         VK_SAMPLER_ADDRESS_MODE_REPEAT,
@@ -242,7 +243,6 @@ void vkrTexture2D_Del(vkrTexture2D* tex)
                 NULL,
                 &barrier);
 
-            vkrSampler_Release(tex->sampler, fence);
             vkrImageView_Release(tex->view, fence);
             vkrImage_Release(&tex->image, fence);
         }

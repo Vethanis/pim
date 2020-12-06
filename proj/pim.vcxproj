@@ -101,6 +101,7 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_exposurepass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_image.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_megamesh.cpp" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_sampler.cpp" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_uipass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_mainpass.c" />
@@ -299,6 +300,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_pipeline.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_queue.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_renderpass.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_sampler.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_shader.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_swapchain.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_sync.h" />

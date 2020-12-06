@@ -565,6 +565,9 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_textable.cpp">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_sampler.cpp">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -1219,6 +1222,9 @@
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr_megamesh.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_sampler.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
   </ItemGroup>
