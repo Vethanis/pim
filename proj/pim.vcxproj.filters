@@ -568,6 +568,9 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_sampler.cpp">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\threading\spinlock.c">
+      <Filter>Source Files\threading</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -1226,6 +1229,9 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr_sampler.h">
       <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\threading\spinlock.h">
+      <Filter>Source Files\threading</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

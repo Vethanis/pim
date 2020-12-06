@@ -4,6 +4,7 @@
 
 #include "containers/id_alloc.hpp"
 #include "containers/array.hpp"
+#include "common/profiler.hpp"
 
 pim_inline GenId ToGenId(vkrTextureId id)
 {
@@ -111,7 +112,7 @@ public:
         if (m_ids.Free(ToGenId(id)))
         {
             i32 slot = gid.index;
-            vkrTexture2D_Del(&m_textures[slot]);
+            vkrTexture2D_Release(&m_textures[slot]);
             VkDescriptorImageInfo& desc = m_descriptors[slot];
             const vkrTexture2D& black = m_textures[0];
             desc.imageLayout = black.image.layout;
@@ -144,13 +145,19 @@ void vkrTexTable_Shutdown(void)
     ms_table.Reset();
 }
 
+ProfileMark(pm_update, vkrTexTable_Update)
 void vkrTexTable_Update(void)
 {
+    ProfileScope(pm_update);
+
     ms_table.Update();
 }
 
+ProfileMark(pm_write, vkrTexTable_Write)
 void vkrTexTable_Write(VkDescriptorSet set, i32 binding)
 {
+    ProfileScope(pm_write);
+
     ms_table.Write(set, binding);
 }
 

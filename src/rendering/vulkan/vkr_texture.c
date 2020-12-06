@@ -114,7 +114,7 @@ i32 vkrTexture2D_MipCount(i32 width, i32 height)
 }
 
 bool vkrTexture2D_New(
-    vkrTexture2D* tex,
+    vkrTexture2D *const tex,
     i32 width,
     i32 height,
     VkFormat format,
@@ -211,46 +211,30 @@ cleanup:
     return success;
 }
 
-void vkrTexture2D_Del(vkrTexture2D* tex)
+void vkrTexture2D_Del(vkrTexture2D *const tex)
 {
     if (tex)
     {
-        if (tex->image.handle)
-        {
-            // create pipeline barrier to safely release resources
-            const VkImageMemoryBarrier barrier =
-            {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                .srcAccessMask = 0x0,
-                .dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = tex->image.handle,
-                .subresourceRange =
-                {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .levelCount = VK_REMAINING_MIP_LEVELS,
-                    .layerCount = VK_REMAINING_ARRAY_LAYERS,
-                },
-            };
-            VkFence fence = vkrMem_Barrier(
-                vkrQueueId_Gfx,
-                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                VK_PIPELINE_STAGE_HOST_BIT,
-                NULL,
-                NULL,
-                &barrier);
-
-            vkrImageView_Release(tex->view, fence);
-            vkrImage_Release(&tex->image, fence);
-        }
+        vkrImageView_Del(tex->view);
+        vkrImage_Del(&tex->image);
         memset(tex, 0, sizeof(*tex));
     }
 }
 
-VkFence vkrTexture2D_Upload(vkrTexture2D* tex, void const *const data, i32 bytes)
+void vkrTexture2D_Release(vkrTexture2D *const tex)
+{
+    if (tex)
+    {
+        vkrImageView_Release(tex->view);
+        vkrImage_Release(&tex->image);
+        memset(tex, 0, sizeof(*tex));
+    }
+}
+
+VkFence vkrTexture2D_Upload(
+    vkrTexture2D *const tex,
+    void const *const data,
+    i32 bytes)
 {
     ASSERT(tex);
     ASSERT(tex->image.handle);
@@ -406,7 +390,7 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, void const *const data, i32 bytes
     }
     vkrCmdEnd(cmd);
     vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-    vkrBuffer_Release(&stagebuf, fence);
+    vkrBuffer_Release(&stagebuf);
 
     tex->image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 

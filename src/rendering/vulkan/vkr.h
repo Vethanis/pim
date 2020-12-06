@@ -5,7 +5,7 @@
 #include "math/types.h"
 #include "containers/strlist.h"
 #include "containers/queue.h"
-#include "threading/mutex.h"
+#include "threading/spinlock.h"
 
 PIM_C_BEGIN
 
@@ -361,7 +361,6 @@ typedef struct vkrReleasable
 {
     u32 frame;              // frame that resource was released
     vkrReleasableType type; // type of resource
-    VkFence fence;          // optional, used in place of frame
     union
     {
         vkrBuffer buffer;
@@ -372,10 +371,10 @@ typedef struct vkrReleasable
 
 typedef struct vkrAllocator
 {
+    spinlock_t lock;
     VmaAllocator handle;
     vkrReleasable* releasables;
     i32 numreleasable;
-    mutex_t releasemtx;
 } vkrAllocator;
 
 typedef struct vkrPassContext

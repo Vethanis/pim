@@ -7,6 +7,7 @@
 #include "containers/array.hpp"
 #include "containers/id_alloc.hpp"
 #include "allocator/allocator.h"
+#include "common/profiler.hpp"
 
 struct SubMesh
 {
@@ -127,8 +128,11 @@ bool vkrMegaMesh_Init(void)
     return true;
 }
 
+ProfileMark(pm_update, vkrMegaMesh_Update)
 void vkrMegaMesh_Update(void)
 {
+    ProfileScope(pm_update);
+
     const u32 syncIndex = vkr_syncIndex();
     if (ms_dirty[syncIndex])
     {
@@ -141,8 +145,7 @@ void vkrMegaMesh_Update(void)
             stage,
             vertexBytes,
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            vkrMemUsage_CpuOnly,
-            NULL);
+            vkrMemUsage_CpuOnly);
         vkrBuffer_Reserve(
             buffer,
             vertexBytes,
@@ -150,8 +153,7 @@ void vkrMegaMesh_Update(void)
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            vkrMemUsage_GpuOnly,
-            NULL);
+            vkrMemUsage_GpuOnly);
 
         ms_mega.Fill(stage);
         {

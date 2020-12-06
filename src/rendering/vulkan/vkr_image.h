@@ -11,12 +11,10 @@ bool vkrImage_New(
     const VkImageCreateInfo* info,
     vkrMemUsage memUsage);
 void vkrImage_Del(vkrImage* image);
+void vkrImage_Release(vkrImage* image);
 void* vkrImage_Map(const vkrImage* image);
 void vkrImage_Unmap(const vkrImage* image);
 void vkrImage_Flush(const vkrImage* image);
-// destroys the resource after kFramesInFlight
-// if fence is provided, it is used instead
-void vkrImage_Release(vkrImage* image, VkFence fence);
 
 void vkrImage_Barrier(
     vkrImage* image,
@@ -43,7 +41,7 @@ VkImageView vkrImageView_New(
     i32 baseMip, i32 mipCount,
     i32 baseLayer, i32 layerCount);
 void vkrImageView_Del(VkImageView view);
-void vkrImageView_Release(VkImageView view, VkFence fence);
+void vkrImageView_Release(VkImageView view);
 
 // ----------------------------------------------------------------------------
 

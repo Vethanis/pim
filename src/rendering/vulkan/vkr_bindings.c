@@ -117,14 +117,19 @@ bool vkrBindings_Init(void)
     return true;
 }
 
+ProfileMark(pm_update, vkrBindings_Update)
 void vkrBindings_Update(void)
 {
+    ProfileBegin(pm_update);
+
     VkDescriptorSet set = vkrBindings_GetSet();
     if (set)
     {
         vkrTexTable_Write(set, vkrBindTableId_Texture2D);
         vkrBindings_Flush();
     }
+
+    ProfileEnd(pm_update);
 }
 
 void vkrBindings_Shutdown(void)

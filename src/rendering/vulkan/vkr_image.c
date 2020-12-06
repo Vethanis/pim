@@ -87,10 +87,8 @@ void vkrImage_Flush(const vkrImage* image)
     vkrMem_Flush(image->allocation);
 }
 
-ProfileMark(pm_imgrelease, vkrImage_Release)
-void vkrImage_Release(vkrImage* image, VkFence fence)
+void vkrImage_Release(vkrImage* image)
 {
-    ProfileBegin(pm_imgrelease);
     ASSERT(image);
     if (image->handle)
     {
@@ -98,13 +96,11 @@ void vkrImage_Release(vkrImage* image, VkFence fence)
         {
             .frame = vkr_frameIndex(),
             .type = vkrReleasableType_Image,
-            .fence = fence,
             .image = *image,
         };
         vkrReleasable_Add(&g_vkr.allocator, &releasable);
     }
     memset(image, 0, sizeof(*image));
-    ProfileEnd(pm_imgrelease);
 }
 
 void vkrImage_Barrier(
@@ -236,7 +232,7 @@ void vkrImageView_Del(VkImageView view)
     }
 }
 
-void vkrImageView_Release(VkImageView view, VkFence fence)
+void vkrImageView_Release(VkImageView view)
 {
     if (view)
     {
@@ -244,7 +240,6 @@ void vkrImageView_Release(VkImageView view, VkFence fence)
         {
             .type = vkrReleasableType_ImageView,
             .frame = time_framecount(),
-            .fence = fence,
             .view = view,
         };
         vkrReleasable_Add(&g_vkr.allocator, &releasable);

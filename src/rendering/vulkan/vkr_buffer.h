@@ -10,10 +10,7 @@ bool vkrBuffer_New(
     VkBufferUsageFlags usage,
     vkrMemUsage memUsage);
 void vkrBuffer_Del(vkrBuffer *const buffer);
-
-// destroys the resource after kFramesInFlight
-// if fence is provided, it is used instead
-void vkrBuffer_Release(vkrBuffer *const buffer, VkFence fence);
+void vkrBuffer_Release(vkrBuffer *const buffer);
 
 bool vkrBufferSet_New(
     vkrBufferSet *const set,
@@ -21,7 +18,7 @@ bool vkrBufferSet_New(
     VkBufferUsageFlags usage,
     vkrMemUsage memUsage);
 void vkrBufferSet_Del(vkrBufferSet *const set);
-void vkrBufferSet_Release(vkrBufferSet *const set, VkFence fence);
+void vkrBufferSet_Release(vkrBufferSet *const set);
 vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set);
 vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set);
 
@@ -34,8 +31,7 @@ bool vkrBuffer_Reserve(
     vkrBuffer *const buffer,
     i32 size,
     VkBufferUsageFlags bufferUsage,
-    vkrMemUsage memUsage,
-    VkFence fence);
+    vkrMemUsage memUsage);
 
 void *const vkrBuffer_Map(vkrBuffer const *const buffer);
 void vkrBuffer_Unmap(vkrBuffer const *const buffer);

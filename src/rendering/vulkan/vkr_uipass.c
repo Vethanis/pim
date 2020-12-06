@@ -324,14 +324,12 @@ static void vkrImGui_UploadRenderDrawData(
         vertBuf,
         vertex_size,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        vkrMemUsage_CpuToGpu,
-        NULL);
+        vkrMemUsage_CpuToGpu);
     vkrBuffer_Reserve(
         indBuf,
         index_size,
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        vkrMemUsage_CpuToGpu,
-        NULL);
+        vkrMemUsage_CpuToGpu);
 
     ImDrawVert *const vtx_dst = vkrBuffer_Map(vertBuf);
     ImDrawIdx *const idx_dst = vkrBuffer_Map(indBuf);

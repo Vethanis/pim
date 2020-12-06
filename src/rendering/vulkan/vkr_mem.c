@@ -12,7 +12,7 @@
 #include "threading/task.h"
 #include <string.h>
 
-bool vkrAllocator_New(vkrAllocator* allocator)
+bool vkrAllocator_New(vkrAllocator *const allocator)
 {
     ASSERT(allocator);
     memset(allocator, 0, sizeof(*allocator));
@@ -60,79 +60,53 @@ bool vkrAllocator_New(vkrAllocator* allocator)
     if (handle)
     {
         allocator->handle = handle;
-        mutex_create(&allocator->releasemtx);
+        spinlock_new(&allocator->lock);
     }
 
     return handle != NULL;
 }
 
-void vkrAllocator_Del(vkrAllocator* allocator)
+void vkrAllocator_Del(vkrAllocator *const allocator)
 {
     if (allocator)
     {
         if (allocator->handle)
         {
-            vkrDevice_WaitIdle();
-            {
-                const u32 frame = time_framecount() + kFramesInFlight + 1;
-                const i32 len = allocator->numreleasable;
-                vkrReleasable* releasables = allocator->releasables;
-                for (i32 i = 0; i < len; ++i)
-                {
-                    VkFence fence = releasables[i].fence;
-                    if (fence)
-                    {
-                        vkrFence_Wait(fence);
-                    }
-                    if (!vkrReleasable_Del(&releasables[i], frame))
-                    {
-                        ASSERT(false);
-                    }
-                }
-                pim_free(allocator->releasables);
-                mutex_destroy(&allocator->releasemtx);
-            }
+            vkrAllocator_Finalize(allocator);
+            spinlock_del(&allocator->lock);
             vmaDestroyAllocator(allocator->handle);
         }
         memset(allocator, 0, sizeof(*allocator));
     }
 }
 
-void vkrAllocator_Finalize(vkrAllocator* allocator)
+void vkrAllocator_Finalize(vkrAllocator *const allocator)
 {
     vkrDevice_WaitIdle();
     ASSERT(allocator);
     ASSERT(allocator->handle);
-    // command fences must still be alive
-    ASSERT(g_vkr.context.threadcount);
 
-    mutex_lock(&allocator->releasemtx);
-    const u32 frame = time_framecount();
+    spinlock_lock(&allocator->lock);
+    const u32 frame = vkr_frameIndex() + kFramesInFlight * 2;
     i32 len = allocator->numreleasable;
-    vkrReleasable* releasables = allocator->releasables;
+    vkrReleasable *const releasables = allocator->releasables;
     for (i32 i = len - 1; i >= 0; --i)
     {
-        VkFence fence = releasables[i].fence;
-        if (fence)
+        if (vkrReleasable_Del(&releasables[i], frame))
         {
-            vkrFence_Wait(fence);
-            if (vkrReleasable_Del(&releasables[i], frame))
-            {
-                releasables[i] = releasables[len - 1];
-                --len;
-            }
-            else
-            {
-                ASSERT(false);
-            }
+            releasables[i] = releasables[--len];
+        }
+        else
+        {
+            ASSERT(false);
         }
     }
     allocator->numreleasable = len;
-    mutex_unlock(&allocator->releasemtx);
+    spinlock_unlock(&allocator->lock);
 }
 
 ProfileMark(pm_allocupdate, vkrAllocator_Update)
-void vkrAllocator_Update(vkrAllocator* allocator)
+void vkrAllocator_Update(vkrAllocator *const allocator)
 {
     ProfileBegin(pm_allocupdate);
 
@@ -141,10 +115,10 @@ void vkrAllocator_Update(vkrAllocator* allocator)
     // command fences must still be alive
     ASSERT(g_vkr.context.threadcount);
 
-    const u32 frame = time_framecount();
+    const u32 frame = vkr_frameIndex();
     vmaSetCurrentFrameIndex(allocator->handle, frame);
     {
-        mutex_lock(&allocator->releasemtx);
+        spinlock_lock(&allocator->lock);
         i32 len = allocator->numreleasable;
         vkrReleasable* releasables = allocator->releasables;
         for (i32 i = len - 1; i >= 0; --i)
@@ -156,46 +130,42 @@ void vkrAllocator_Update(vkrAllocator* allocator)
             }
         }
         allocator->numreleasable = len;
-        mutex_unlock(&allocator->releasemtx);
+        spinlock_unlock(&allocator->lock);
     }
 
     ProfileEnd(pm_allocupdate);
 }
 
 ProfileMark(pm_releasableadd, vkrReleasable_Add)
-void vkrReleasable_Add(vkrAllocator* allocator, const vkrReleasable* releasable)
+void vkrReleasable_Add(
+    vkrAllocator *const allocator,
+    vkrReleasable const *const releasable)
 {
     ProfileBegin(pm_releasableadd);
+
     ASSERT(allocator);
     ASSERT(allocator->handle);
-    // command fences must still be alive
-    ASSERT(g_vkr.context.threadcount);
     ASSERT(releasable);
-    mutex_lock(&allocator->releasemtx);
+
+    spinlock_lock(&allocator->lock);
     i32 back = allocator->numreleasable++;
     PermReserve(allocator->releasables, back + 1);
     allocator->releasables[back] = *releasable;
-    mutex_unlock(&allocator->releasemtx);
+    spinlock_unlock(&allocator->lock);
+
     ProfileEnd(pm_releasableadd);
 }
 
 ProfileMark(pm_releasabledel, vkrReleasable_Del)
-bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame)
+bool vkrReleasable_Del(
+    vkrReleasable *const releasable,
+    u32 frame)
 {
     ProfileBegin(pm_releasabledel);
+
     ASSERT(releasable);
-    bool ready = false;
-    VkFence fence = releasable->fence;
-    if (fence)
-    {
-        vkrFenceState state = vkrFence_Stat(fence);
-        ready = state != vkrFenceState_Unsignalled;
-    }
-    else
-    {
-        u32 duration = frame - releasable->frame;
-        ready = duration > kFramesInFlight;
-    }
+    u32 duration = frame - releasable->frame;
+    bool ready = duration > kFramesInFlight;
     if (ready)
     {
         switch (releasable->type)
@@ -210,13 +180,12 @@ bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame)
             vkrImage_Del(&releasable->image);
             break;
         case vkrReleasableType_ImageView:
-        {
             vkrImageView_Del(releasable->view);
-        }
         break;
         }
         memset(releasable, 0, sizeof(*releasable));
     }
+
     ProfileEnd(pm_releasabledel);
     return ready;
 }

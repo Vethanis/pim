@@ -275,6 +275,7 @@ void vkrCmdSubmit(
     VkSemaphore signalSema)
 {
     ProfileBegin(pm_cmdsubmit);
+
     ASSERT(cmd);
     ASSERT(queue);
     const VkSubmitInfo submitInfo =
@@ -289,6 +290,7 @@ void vkrCmdSubmit(
         .pCommandBuffers = &cmd,
     };
     VkCheck(vkQueueSubmit(queue, 1, &submitInfo, fence));
+
     ProfileEnd(pm_cmdsubmit);
 }
 
