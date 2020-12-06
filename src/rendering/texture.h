@@ -13,8 +13,8 @@ typedef struct crate_s crate_t;
 
 typedef struct textureid_s
 {
-    u32 index : 24;
     u32 version : 8;
+    u32 index : 24;
 } textureid_t;
 
 typedef struct dtextureid_s
@@ -63,13 +63,13 @@ bool texture_save(crate_t* crate, textureid_t tid, guid_t* dst);
 bool texture_load(crate_t* crate, guid_t name, textureid_t* dst);
 
 bool texture_unpalette(
-    const u8* bytes,
+    u8 const *const pim_noalias bytes,
     int2 size,
     const char* name,
     u32 matflags,
     float4 flatRome,
-    textureid_t* albedoOut,
-    textureid_t* romeOut,
-    textureid_t* normalOut);
+    textureid_t *const albedoOut,
+    textureid_t *const romeOut,
+    textureid_t *const normalOut);
 
 PIM_C_END

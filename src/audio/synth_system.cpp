@@ -31,7 +31,7 @@ public:
     }
 };
 
-static float ms_volume = 0.1f;
+static float ms_volume = 0.0f;
 static bool ms_capture;
 static float ms_freq;
 static float ms_dphase;

@@ -9,8 +9,7 @@ PIM_C_BEGIN
 bool vkrImage_New(
     vkrImage* image,
     const VkImageCreateInfo* info,
-    vkrMemUsage memUsage,
-    const char* tag);
+    vkrMemUsage memUsage);
 void vkrImage_Del(vkrImage* image);
 void* vkrImage_Map(const vkrImage* image);
 void vkrImage_Unmap(const vkrImage* image);

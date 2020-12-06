@@ -14,8 +14,7 @@ ProfileMark(pm_imgnew, vkrImage_New)
 bool vkrImage_New(
     vkrImage* image,
     const VkImageCreateInfo* info,
-    vkrMemUsage memUsage,
-    const char* tag)
+    vkrMemUsage memUsage)
 {
     ProfileBegin(pm_imgnew);
     memset(image, 0, sizeof(*image));

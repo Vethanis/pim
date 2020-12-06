@@ -39,19 +39,19 @@ typedef struct ddrawables_s
     dbytes_t scales;
 } ddrawables_t;
 
-drawables_t* drawables_get(void);
+drawables_t *const drawables_get(void);
 
-i32 drawables_add(drawables_t* dr, guid_t name);
-bool drawables_rm(drawables_t* dr, guid_t name);
-i32 drawables_find(const drawables_t* dr, guid_t name);
-void drawables_clear(drawables_t* dr);
-void drawables_del(drawables_t* dr);
+i32 drawables_add(drawables_t *const dr, guid_t name);
+bool drawables_rm(drawables_t *const dr, guid_t name);
+i32 drawables_find(drawables_t const *const dr, guid_t name);
+void drawables_clear(drawables_t *const dr);
+void drawables_del(drawables_t *const dr);
 
-void drawables_updatebounds(drawables_t* dr);
-void drawables_updatetransforms(drawables_t* dr);
-box_t drawables_bounds(const drawables_t* dr);
+void drawables_updatebounds(drawables_t *const dr);
+void drawables_updatetransforms(drawables_t *const dr);
+box_t drawables_bounds(drawables_t const *const dr);
 
-bool drawables_save(crate_t* crate, const drawables_t* src);
-bool drawables_load(crate_t* crate, drawables_t* dst);
+bool drawables_save(crate_t *const crate, drawables_t const *const src);
+bool drawables_load(crate_t *const crate, drawables_t *const dst);
 
 PIM_C_END

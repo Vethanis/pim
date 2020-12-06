@@ -421,14 +421,14 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
 
 // https://quakewiki.org/wiki/Quake_palette
 bool texture_unpalette(
-    const u8* bytes,
+    u8 const *const pim_noalias bytes,
     int2 size,
     const char* name,
     u32 matflags,
     float4 flatRome,
-    textureid_t* albedoOut,
-    textureid_t* romeOut,
-    textureid_t* normalOut)
+    textureid_t *const albedoOut,
+    textureid_t *const romeOut,
+    textureid_t *const normalOut)
 {
     char albedoName[PIM_PATH] = { 0 };
     char romeName[PIM_PATH] = { 0 };

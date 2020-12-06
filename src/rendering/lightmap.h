@@ -60,7 +60,6 @@ void lightmap_upload(lightmap_t* lm);
 
 lmpack_t* lmpack_get(void);
 lmpack_t lmpack_pack(
-    const pt_scene_t* scene,
     i32 atlasSize,
     float texelsPerUnit,
     float distThresh,

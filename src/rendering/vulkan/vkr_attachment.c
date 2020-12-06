@@ -48,7 +48,7 @@ bool vkrAttachment_New(
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = usage,
     };
-    if (!vkrImage_New(&att->image, &info, vkrMemUsage_GpuOnly, PIM_FILELINE))
+    if (!vkrImage_New(&att->image, &info, vkrMemUsage_GpuOnly))
     {
         ASSERT(false);
         success = false;

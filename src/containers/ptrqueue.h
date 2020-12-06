@@ -13,11 +13,11 @@ typedef struct ptrqueue_s
     EAlloc allocator;
 } ptrqueue_t;
 
-void ptrqueue_create(ptrqueue_t* pq, EAlloc allocator, u32 capacity);
-void ptrqueue_destroy(ptrqueue_t* pq);
-u32 ptrqueue_capacity(const ptrqueue_t* pq);
-u32 ptrqueue_size(const ptrqueue_t* pq);
-bool ptrqueue_trypush(ptrqueue_t* pq, void* pValue);
-void* ptrqueue_trypop(ptrqueue_t* pq);
+void ptrqueue_create(ptrqueue_t *const pq, EAlloc allocator, u32 capacity);
+void ptrqueue_destroy(ptrqueue_t *const pq);
+u32 ptrqueue_capacity(ptrqueue_t const *const pq);
+u32 ptrqueue_size(ptrqueue_t const *const pq);
+bool ptrqueue_trypush(ptrqueue_t *const pq, void *const pValue);
+void *const ptrqueue_trypop(ptrqueue_t *const pq);
 
 PIM_C_END

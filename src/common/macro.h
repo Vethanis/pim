@@ -39,8 +39,8 @@
     #define pim_inline              __forceinline
     #define pim_noalias             __restrict
     #define pim_alignas(x)          __declspec(align(x))
-    #define pim_optimize            __pragma(optimize("gt", on))
-    #define pim_deoptimize          __pragma(optimize("gt", off))
+    #define pim_optimize            __pragma(optimize("", on))
+    #define pim_deoptimize          __pragma(optimize("", off))
 
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN

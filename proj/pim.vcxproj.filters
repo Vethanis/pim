@@ -110,9 +110,6 @@
     <Filter Include="submodules\spirv-reflect">
       <UniqueIdentifier>{0e8e7c71-c0d9-4647-8da6-627df1c77f1a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\rendering\framegraph">
-      <UniqueIdentifier>{22ae87bd-3be3-45ae-b5d2-356f854bb59c}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -526,9 +523,6 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_opaquepass.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\vulkan\vkr_textable.c">
-      <Filter>Source Files\rendering\vulkan</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\rendering\vulkan\vkr_uipass.c">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
@@ -550,9 +544,6 @@
     <ClCompile Include="..\submodules\SPIRV-Reflect\spirv_reflect.c">
       <Filter>submodules\spirv-reflect</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\rendering\framegraph\framegraph.cpp">
-      <Filter>Source Files\rendering\framegraph</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\audio\synth_system.cpp">
       <Filter>Source Files\audio</Filter>
     </ClCompile>
@@ -566,6 +557,12 @@
       <Filter>Source Files\editor</Filter>
     </ClCompile>
     <ClCompile Include="..\src\rendering\vulkan\vkr_bindings.c">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_megamesh.cpp">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\vulkan\vkr_textable.cpp">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClCompile>
   </ItemGroup>
@@ -1185,9 +1182,6 @@
     <ClInclude Include="..\src\containers\hash32.hpp">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\rendering\framegraph\framegraph.hpp">
-      <Filter>Source Files\rendering\framegraph</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\hash64.hpp">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -1222,6 +1216,9 @@
       <Filter>Source Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\src\rendering\vulkan\vkr_bindings.h">
+      <Filter>Source Files\rendering\vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\vulkan\vkr_megamesh.h">
       <Filter>Source Files\rendering\vulkan</Filter>
     </ClInclude>
   </ItemGroup>

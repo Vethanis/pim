@@ -20,9 +20,9 @@
 #include <string.h>
 
 static drawables_t ms_drawables;
-drawables_t* drawables_get(void) { return &ms_drawables; }
+drawables_t *const drawables_get(void) { return &ms_drawables; }
 
-i32 drawables_add(drawables_t* dr, guid_t name)
+i32 drawables_add(drawables_t *const dr, guid_t name)
 {
     const i32 back = dr->count;
     const i32 len = back + 1;
@@ -48,7 +48,7 @@ i32 drawables_add(drawables_t* dr, guid_t name)
     return back;
 }
 
-static void DestroyAtIndex(drawables_t* dr, i32 i)
+static void DestroyAtIndex(drawables_t *const dr, i32 i)
 {
     ASSERT(i >= 0);
     ASSERT(i < dr->count);
@@ -59,7 +59,7 @@ static void DestroyAtIndex(drawables_t* dr, i32 i)
     texture_release(material.normal);
 }
 
-static void RemoveAtIndex(drawables_t* dr, i32 i)
+static void RemoveAtIndex(drawables_t *const dr, i32 i)
 {
     DestroyAtIndex(dr, i);
 
@@ -78,7 +78,7 @@ static void RemoveAtIndex(drawables_t* dr, i32 i)
     PopSwap(dr->scales, i, len);
 }
 
-bool drawables_rm(drawables_t* dr, guid_t name)
+bool drawables_rm(drawables_t *const dr, guid_t name)
 {
     const i32 i = drawables_find(dr, name);
     if (i == -1)
@@ -89,12 +89,12 @@ bool drawables_rm(drawables_t* dr, guid_t name)
     return true;
 }
 
-i32 drawables_find(const drawables_t* dr, guid_t name)
+i32 drawables_find(drawables_t const *const dr, guid_t name)
 {
     return guid_find(dr->names, dr->count, name);
 }
 
-void drawables_clear(drawables_t* dr)
+void drawables_clear(drawables_t *const dr)
 {
     if (dr)
     {
@@ -107,7 +107,7 @@ void drawables_clear(drawables_t* dr)
     }
 }
 
-void drawables_del(drawables_t* dr)
+void drawables_del(drawables_t *const dr)
 {
     if (dr)
     {
@@ -128,15 +128,15 @@ void drawables_del(drawables_t* dr)
 typedef struct task_UpdateBounds
 {
     task_t task;
-    drawables_t* dr;
+    drawables_t *dr;
 } task_UpdateBounds;
 
-static void UpdateBoundsFn(task_t* pbase, i32 begin, i32 end)
+static void UpdateBoundsFn(void *const pbase, i32 begin, i32 end)
 {
-    task_UpdateBounds* task = (task_UpdateBounds*)pbase;
-    drawables_t* dr = task->dr;
-    const meshid_t* pim_noalias meshes = dr->meshes;
-    box_t* pim_noalias bounds = dr->bounds;
+    task_UpdateBounds *const task = pbase;
+    drawables_t *const pim_noalias dr = task->dr;
+    meshid_t const *const pim_noalias meshes = dr->meshes;
+    box_t *const pim_noalias bounds = dr->bounds;
 
     for (i32 i = begin; i < end; ++i)
     {
@@ -145,13 +145,13 @@ static void UpdateBoundsFn(task_t* pbase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_updatebouns, drawables_updatebounds)
-void drawables_updatebounds(drawables_t* dr)
+void drawables_updatebounds(drawables_t *const dr)
 {
     ProfileBegin(pm_updatebouns);
 
-    task_UpdateBounds* task = tmp_calloc(sizeof(*task));
+    task_UpdateBounds *const task = tmp_calloc(sizeof(*task));
     task->dr = dr;
-    task_run(&task->task, UpdateBoundsFn, dr->count);
+    task_run(task, UpdateBoundsFn, dr->count);
 
     ProfileEnd(pm_updatebouns);
 }
@@ -162,15 +162,15 @@ typedef struct task_UpdateTransforms
     drawables_t* dr;
 } task_UpdateTransforms;
 
-static void UpdateTransformsFn(task_t* pbase, i32 begin, i32 end)
+static void UpdateTransformsFn(void* pbase, i32 begin, i32 end)
 {
-    task_UpdateTransforms* task = (task_UpdateTransforms*)pbase;
-    drawables_t* dr = task->dr;
-    const float4* pim_noalias translations = dr->translations;
-    const quat* pim_noalias rotations = dr->rotations;
-    const float4* pim_noalias scales = dr->scales;
-    float4x4* pim_noalias matrices = dr->matrices;
-    float3x3* pim_noalias invMatrices = dr->invMatrices;
+    task_UpdateTransforms *const task = pbase;
+    drawables_t *const dr = task->dr;
+    const float4 *const pim_noalias translations = dr->translations;
+    const quat *const pim_noalias rotations = dr->rotations;
+    const float4 *const pim_noalias scales = dr->scales;
+    float4x4 *const pim_noalias matrices = dr->matrices;
+    float3x3 *const pim_noalias invMatrices = dr->invMatrices;
 
     for (i32 i = begin; i < end; ++i)
     {
@@ -180,22 +180,22 @@ static void UpdateTransformsFn(task_t* pbase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_TRS, drawables_updatetransforms)
-void drawables_updatetransforms(drawables_t* dr)
+void drawables_updatetransforms(drawables_t *const dr)
 {
     ProfileBegin(pm_TRS);
 
-    task_UpdateTransforms* task = tmp_calloc(sizeof(*task));
+    task_UpdateTransforms *const task = tmp_calloc(sizeof(*task));
     task->dr = dr;
-    task_run(&task->task, UpdateTransformsFn, dr->count);
+    task_run(task, UpdateTransformsFn, dr->count);
 
     ProfileEnd(pm_TRS);
 }
 
-box_t drawables_bounds(const drawables_t* dr)
+box_t drawables_bounds(drawables_t const *const dr)
 {
     const i32 length = dr->count;
-    const box_t* pim_noalias bounds = dr->bounds;
-    const float4x4* pim_noalias matrices = dr->matrices;
+    const box_t *const pim_noalias bounds = dr->bounds;
+    const float4x4 *const pim_noalias matrices = dr->matrices;
 
     box_t box = box_empty();
     for (i32 i = 0; i < length; ++i)
@@ -206,7 +206,7 @@ box_t drawables_bounds(const drawables_t* dr)
     return box;
 }
 
-bool drawables_save(crate_t* crate, const drawables_t* src)
+bool drawables_save(crate_t *const crate, drawables_t const *const src)
 {
     bool wrote = true;
     const i32 length = src->count;
@@ -216,7 +216,7 @@ bool drawables_save(crate_t* crate, const drawables_t* src)
 
     // write meshes
     {
-        dmeshid_t* dmeshids = perm_calloc(sizeof(dmeshids[0]) * length);
+        dmeshid_t *const dmeshids = perm_calloc(sizeof(dmeshids[0]) * length);
         for (i32 i = 0; i < length; ++i)
         {
             mesh_save(crate, src->meshes[i], &dmeshids[i].id);
@@ -228,7 +228,7 @@ bool drawables_save(crate_t* crate, const drawables_t* src)
 
     // write materials
     {
-        dmaterial_t* dmaterials = perm_calloc(sizeof(dmaterials[0]) * length);
+        dmaterial_t *const dmaterials = perm_calloc(sizeof(dmaterials[0]) * length);
         for (i32 i = 0; i < length; ++i)
         {
             const material_t mat = src->materials[i];
@@ -259,7 +259,7 @@ bool drawables_save(crate_t* crate, const drawables_t* src)
     return wrote;
 }
 
-bool drawables_load(crate_t* crate, drawables_t* dst)
+bool drawables_load(crate_t *const crate, drawables_t *const dst)
 {
     ASSERT(dst);
     bool loaded = false;
@@ -283,7 +283,7 @@ bool drawables_load(crate_t* crate, drawables_t* dst)
 
         // load meshes
         {
-            dmeshid_t* dmeshids = perm_calloc(sizeof(dmeshids[0]) * len);
+            dmeshid_t *const dmeshids = perm_calloc(sizeof(dmeshids[0]) * len);
             loaded &= crate_get(crate,
                 guid_str("drawables.meshes"), dmeshids, sizeof(dmeshids[0]) * len);
             if (loaded)
@@ -298,7 +298,7 @@ bool drawables_load(crate_t* crate, drawables_t* dst)
 
         // load materials
         {
-            dmaterial_t* dmaterials = perm_calloc(sizeof(dmaterials[0]) * len);
+            dmaterial_t *const dmaterials = perm_calloc(sizeof(dmaterials[0]) * len);
             loaded &= crate_get(crate,
                 guid_str("drawables.materials"), dmaterials, sizeof(dmaterials[0]) * len);
             if (loaded)
@@ -313,6 +313,7 @@ bool drawables_load(crate_t* crate, drawables_t* dst)
                     texture_load(crate, dmat.rome.id, &mat.rome);
                     texture_load(crate, dmat.normal.id, &mat.normal);
                     dst->materials[i] = mat;
+                    mesh_setmaterial(dst->meshes[i], &mat);
                 }
             }
             pim_free(dmaterials);

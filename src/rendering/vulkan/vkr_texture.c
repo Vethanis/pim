@@ -160,8 +160,7 @@ bool vkrTexture2D_New(
     if (!vkrImage_New(
         &tex->image,
         &imageInfo,
-        vkrMemUsage_GpuOnly,
-        PIM_FILELINE))
+        vkrMemUsage_GpuOnly))
     {
         success = false;
         goto cleanup;
@@ -267,8 +266,7 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, void const *const data, i32 bytes
         &stagebuf,
         bytes,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        vkrMemUsage_CpuOnly,
-        PIM_FILELINE))
+        vkrMemUsage_CpuOnly))
     {
         return NULL;
     }
@@ -289,10 +287,9 @@ VkFence vkrTexture2D_Upload(vkrTexture2D* tex, void const *const data, i32 bytes
     const i32 mipCount = tex->image.mipLevels;
     VkImage image = tex->image.handle;
 
-    vkrThreadContext* ctx = vkrContext_Get();
     VkFence fence = NULL;
     VkQueue queue = NULL;
-    VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &fence, &queue);
+    VkCommandBuffer cmd = vkrContext_GetTmpCmd(vkrQueueId_Gfx, &fence, &queue);
     vkrCmdBegin(cmd);
     {
         // transition all mips from undefined to xfer dst

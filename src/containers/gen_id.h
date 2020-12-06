@@ -2,8 +2,12 @@
 
 #include "common/macro.h"
 
-typedef struct GenId
+typedef union GenId
 {
-    u32 version : 8;
-    u32 index : 24;
+    struct
+    {
+        u32 version : 8;
+        u32 index : 24;
+    };
+    u32 asint;
 } GenId;

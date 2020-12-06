@@ -39,7 +39,7 @@ bool vkrMesh_New(
         &mesh->buffer,
         totalSize,
         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        vkrMemUsage_GpuOnly, PIM_FILELINE))
+        vkrMemUsage_GpuOnly))
     {
         ASSERT(false);
         return false;
@@ -98,7 +98,7 @@ bool vkrMesh_Upload(
         &stagebuf,
         totalSize,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        vkrMemUsage_CpuOnly, PIM_FILELINE))
+        vkrMemUsage_CpuOnly))
     {
         ASSERT(false);
         return false;
@@ -122,10 +122,9 @@ bool vkrMesh_Upload(
         vkrBuffer_Flush(&stagebuf);
     }
 
-    vkrThreadContext* ctx = vkrContext_Get();
     VkFence fence = NULL;
     VkQueue queue = NULL;
-    VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &fence, &queue);
+    VkCommandBuffer cmd = vkrContext_GetTmpCmd(vkrQueueId_Gfx, &fence, &queue);
     vkrCmdBegin(cmd);
     vkrCmdCopyBuffer(cmd, stagebuf, mesh->buffer);
     vkrBuffer_Barrier(

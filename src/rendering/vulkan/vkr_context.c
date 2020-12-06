@@ -129,12 +129,11 @@ void vkrThreadContext_OnSwapRecreate(vkrThreadContext* ctx)
 }
 
 VkCommandBuffer vkrContext_GetTmpCmd(
-    vkrThreadContext* ctx,
     vkrQueueId id,
-    VkFence* fenceOut,
-    VkQueue* queueOut)
+    VkFence *const fenceOut,
+    VkQueue *const queueOut)
 {
-    ASSERT(ctx);
+    vkrThreadContext *const ctx = vkrContext_Get();
     ASSERT(queueOut);
     VkQueue queue = ctx->cmds[id].queue;
     ASSERT(queue);
@@ -143,11 +142,10 @@ VkCommandBuffer vkrContext_GetTmpCmd(
 }
 
 VkCommandBuffer vkrContext_GetSecCmd(
-    vkrThreadContext* ctx,
     vkrQueueId id,
     VkFence primaryFence)
 {
-    ASSERT(ctx);
+    vkrThreadContext *const ctx = vkrContext_Get();
     ASSERT(primaryFence);
     return vkrCmdAlloc_GetSecondary(&ctx->seccmds[id], primaryFence);
 }

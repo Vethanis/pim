@@ -68,7 +68,6 @@
     <ClCompile Include="..\src\rendering\denoise.c" />
     <ClCompile Include="..\src\rendering\drawable.c" />
     <ClCompile Include="..\src\rendering\exposure.c" />
-    <ClCompile Include="..\src\rendering\framegraph\framegraph.cpp" />
     <ClCompile Include="..\src\rendering\librtc.c" />
     <ClCompile Include="..\src\rendering\lightmap.c" />
     <ClCompile Include="..\src\rendering\lights.c" />
@@ -101,6 +100,7 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_display.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_exposurepass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_image.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_megamesh.cpp" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_uipass.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_instance.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_mainpass.c" />
@@ -114,7 +114,7 @@
     <ClCompile Include="..\src\rendering\vulkan\vkr_shader.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_swapchain.c" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_sync.c" />
-    <ClCompile Include="..\src\rendering\vulkan\vkr_textable.c" />
+    <ClCompile Include="..\src\rendering\vulkan\vkr_textable.cpp" />
     <ClCompile Include="..\src\rendering\vulkan\vkr_texture.c" />
     <ClCompile Include="..\src\rendering\vulkan\vk_mem_alloc.cpp" />
     <ClCompile Include="..\src\sokol\sokol_audio.c" />
@@ -261,7 +261,6 @@
     <ClInclude Include="..\src\rendering\constants.h" />
     <ClInclude Include="..\src\rendering\exposure.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />
-    <ClInclude Include="..\src\rendering\framegraph\framegraph.hpp" />
     <ClInclude Include="..\src\rendering\librtc.h" />
     <ClInclude Include="..\src\rendering\lightmap.h" />
     <ClInclude Include="..\src\rendering\mipmap.h" />
@@ -292,6 +291,7 @@
     <ClInclude Include="..\src\rendering\vulkan\vkr_image.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_instance.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_mainpass.h" />
+    <ClInclude Include="..\src\rendering\vulkan\vkr_megamesh.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_mem.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_mesh.h" />
     <ClInclude Include="..\src\rendering\vulkan\vkr_opaquepass.h" />

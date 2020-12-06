@@ -11,6 +11,8 @@
 #include "common/profiler.h"
 
 #include <string.h>
+
+// fp flush and zeros mode
 #include <xmmintrin.h>
 #include <pmmintrin.h>
 
@@ -34,28 +36,33 @@ static pim_thread_local i32 ms_tid;
 
 // ----------------------------------------------------------------------------
 
-static i32 StealWork(task_t* task, range_t* range, i32 gran)
+static i32 StealWork(
+    task_t *const pim_noalias task,
+    range_t *const pim_noalias range,
+    i32 granularity)
 {
     const i32 wsize = task->worksize;
-    const i32 a = fetch_add_i32(&(task->head), gran, MO_Acquire);
-    const i32 b = i1_min(a + gran, wsize);
+    const i32 a = fetch_add_i32(&task->head, granularity, MO_Acquire);
+    const i32 b = i1_min(a + granularity, wsize);
     range->begin = a;
     range->end = b;
     return a < b;
 }
 
-static i32 UpdateProgress(task_t* task, range_t range)
+static i32 UpdateProgress(
+    task_t *const pim_noalias task,
+    range_t range)
 {
     const i32 wsize = task->worksize;
     const i32 count = range.end - range.begin;
-    const i32 prev = fetch_add_i32(&(task->tail), count, MO_Release);
+    const i32 prev = fetch_add_i32(&task->tail, count, MO_Release);
     ASSERT(prev < wsize);
     return (prev + count) >= wsize;
 }
 
-static void MarkComplete(task_t* task)
+static void MarkComplete(task_t *const pim_noalias task)
 {
-    store_i32(&(task->status), TaskStatus_Complete, MO_Release);
+    store_i32(&task->status, TaskStatus_Complete, MO_Release);
 }
 
 static i32 TryRunTask(i32 tid)
@@ -63,7 +70,7 @@ static i32 TryRunTask(i32 tid)
     const i32 numthreads = ms_numthreads;
     const i32 tasksplit = i1_max(1, numthreads * (numthreads >> 1));
 
-    task_t* task = ptrqueue_trypop(ms_queues + tid);
+    task_t *const task = ptrqueue_trypop(&ms_queues[tid]);
     if (task)
     {
         const i32 gran = i1_max(1, task->worksize / tasksplit);
@@ -125,22 +132,19 @@ i32 task_num_active(void)
     return load_i32(&ms_numThreadsRunning, MO_Relaxed) - load_i32(&ms_numThreadsSleeping, MO_Relaxed);
 }
 
-TaskStatus task_stat(const void* pbase)
+TaskStatus task_stat(void const *const pbase)
 {
     ASSERT(pbase);
-    const task_t* task = pbase;
+    task_t const *const task = pbase;
     return (TaskStatus)load_i32(&task->status, MO_Acquire);
 }
 
-ProfileMark(pm_submit, task_submit)
-void task_submit(void* pbase, task_execute_fn execute, i32 worksize)
+void task_submit(void *const pbase, task_execute_fn execute, i32 worksize)
 {
     ASSERT(execute);
-    task_t* task = pbase;
+    task_t *const task = pbase;
     if (task && worksize > 0)
     {
-        ProfileBegin(pm_submit);
-
         ASSERT(task_stat(task) == TaskStatus_Init);
         store_i32(&task->status, TaskStatus_Exec, MO_Release);
         task->execute = execute;
@@ -149,16 +153,13 @@ void task_submit(void* pbase, task_execute_fn execute, i32 worksize)
         store_i32(&task->tail, 0, MO_Release);
 
         const i32 numthreads = ms_numthreads;
-        ptrqueue_t* pim_noalias queues = ms_queues;
         for (i32 t = 0; t < numthreads; ++t)
         {
-            if (!ptrqueue_trypush(queues + t, task))
+            if (!ptrqueue_trypush(&ms_queues[t], task))
             {
                 INTERRUPT();
             }
         }
-
-        ProfileEnd(pm_submit);
     }
 }
 
