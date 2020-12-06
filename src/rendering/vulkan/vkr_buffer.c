@@ -76,8 +76,7 @@ bool vkrBuffer_Reserve(
     vkrBuffer *const buffer,
     i32 size,
     VkBufferUsageFlags bufferUsage,
-    vkrMemUsage memUsage,
-    VkFence fence)
+    vkrMemUsage memUsage)
 {
     bool success = true;
     i32 oldsize = buffer->size;
@@ -87,7 +86,7 @@ bool vkrBuffer_Reserve(
     if (oldsize < size)
     {
         ProfileBegin(pm_bufreserve);
-        vkrBuffer_Release(buffer, fence);
+        vkrBuffer_Release(buffer);
         size = (size > oldsize * 2) ? size : oldsize * 2;
         success = vkrBuffer_New(buffer, size, bufferUsage, memUsage);
         ProfileEnd(pm_bufreserve);
@@ -135,7 +134,7 @@ void vkrBuffer_Write(
 }
 
 ProfileMark(pm_bufrelease, vkrBuffer_Release)
-void vkrBuffer_Release(vkrBuffer *const buffer, VkFence fence)
+void vkrBuffer_Release(vkrBuffer *const buffer)
 {
     ProfileBegin(pm_bufrelease);
     ASSERT(buffer);
@@ -145,7 +144,6 @@ void vkrBuffer_Release(vkrBuffer *const buffer, VkFence fence)
         {
             .frame = vkr_frameIndex(),
             .type = vkrReleasableType_Buffer,
-            .fence = fence,
             .buffer = *buffer,
         };
         vkrReleasable_Add(&g_vkr.allocator, &releasable);
@@ -184,13 +182,13 @@ void vkrBufferSet_Del(vkrBufferSet *const set)
     }
 }
 
-void vkrBufferSet_Release(vkrBufferSet *const set, VkFence fence)
+void vkrBufferSet_Release(vkrBufferSet *const set)
 {
     if (set)
     {
         for (i32 i = 0; i < kFramesInFlight; ++i)
         {
-            vkrBuffer_Release(&set->frames[i], fence);
+            vkrBuffer_Release(&set->frames[i]);
         }
         memset(set, 0, sizeof(*set));
     }

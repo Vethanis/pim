@@ -1,7 +1,7 @@
 #include "allocator/allocator.h"
 
 #include "common/atomics.h"
-#include "threading/mutex.h"
+#include "threading/spinlock.h"
 #include "threading/task.h"
 #include "threading/thread.h"
 #include "tlsf/tlsf.h"
@@ -28,7 +28,7 @@ SASSERT((sizeof(hdr_t)) == kAlign);
 
 typedef struct tlsf_allocator_s
 {
-    mutex_t mtx;
+    spinlock_t mtx;
     tlsf_t tlsf;
 } tlsf_allocator_t;
 
@@ -79,7 +79,7 @@ static void tlsf_allocator_new(tlsf_allocator_t* allocator, i32 capacity)
     ASSERT(capacity > 0);
     memset(allocator, 0, sizeof(*allocator));
 
-	mutex_create(&allocator->mtx);
+    spinlock_new(&allocator->mtx);
 
     void* memory = malloc(capacity);
     ASSERT(memory);
@@ -95,7 +95,7 @@ static void tlsf_allocator_del(tlsf_allocator_t* allocator)
     {
         if (allocator->tlsf)
         {
-            mutex_destroy(&allocator->mtx);
+            spinlock_del(&allocator->mtx);
             tlsf_destroy(allocator->tlsf);
         }
         memset(allocator, 0, sizeof(*allocator));
@@ -104,18 +104,18 @@ static void tlsf_allocator_del(tlsf_allocator_t* allocator)
 
 static void* tlsf_allocator_malloc(tlsf_allocator_t* allocator, i32 bytes)
 {
-    mutex_lock(&allocator->mtx);
+    spinlock_lock(&allocator->mtx);
     void* ptr = tlsf_memalign(allocator->tlsf, kAlign, bytes);
-    mutex_unlock(&allocator->mtx);
+    spinlock_unlock(&allocator->mtx);
     ASSERT(ptr);
     return ptr;
 }
 
 static void tlsf_allocator_free(tlsf_allocator_t* allocator, void* ptr)
 {
-	mutex_lock(&allocator->mtx);
+    spinlock_lock(&allocator->mtx);
     tlsf_free(allocator->tlsf, ptr);
-	mutex_unlock(&allocator->mtx);
+    spinlock_unlock(&allocator->mtx);
 }
 
 // ----------------------------------------------------------------------------
@@ -136,9 +136,9 @@ static void linear_allocator_new(linear_allocator_t* alloc, i32 capacity)
 static void linear_allocator_del(linear_allocator_t* alloc)
 {
     if (alloc)
-	{
-		free((void*)(alloc->base));
-		memset(alloc, 0, sizeof(*alloc));
+    {
+        free((void*)(alloc->base));
+        memset(alloc, 0, sizeof(*alloc));
     }
 }
 
@@ -206,10 +206,10 @@ void* pim_malloc(EAlloc type, i32 bytes)
             break;
         case EAlloc_Perm:
             ptr = tlsf_allocator_malloc(&ms_perm, bytes);
-			break;
-		case EAlloc_Texture:
-			ptr = tlsf_allocator_malloc(&ms_texture, bytes);
-			break;
+            break;
+        case EAlloc_Texture:
+            ptr = tlsf_allocator_malloc(&ms_texture, bytes);
+            break;
         case EAlloc_Temp:
             ptr = linear_allocator_malloc(&ms_temp[ms_tempIndex], bytes);
             break;

@@ -4,13 +4,17 @@
 
 PIM_C_BEGIN
 
-bool vkrAllocator_New(vkrAllocator* allocator);
-void vkrAllocator_Del(vkrAllocator* allocator);
-void vkrAllocator_Update(vkrAllocator* allocator);
-void vkrAllocator_Finalize(vkrAllocator* allocator);
+bool vkrAllocator_New(vkrAllocator *const allocator);
+void vkrAllocator_Del(vkrAllocator *const allocator);
+void vkrAllocator_Update(vkrAllocator *const allocator);
+void vkrAllocator_Finalize(vkrAllocator *const allocator);
 
-void vkrReleasable_Add(vkrAllocator* allocator, const vkrReleasable* releasable);
-bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame);
+void vkrReleasable_Add(
+    vkrAllocator *const allocator,
+    vkrReleasable const *const releasable);
+bool vkrReleasable_Del(
+    vkrReleasable *const releasable,
+    u32 frame);
 
 VkFence vkrMem_Barrier(
     vkrQueueId id,

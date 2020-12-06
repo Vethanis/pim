@@ -8,7 +8,7 @@
 #include <string.h>
 
 bool vkrMesh_New(
-    vkrMesh* mesh,
+    vkrMesh *const mesh,
     i32 vertCount,
     const float4* pim_noalias positions,
     const float4* pim_noalias normals,
@@ -58,17 +58,26 @@ cleanup:
     return false;
 }
 
-void vkrMesh_Del(vkrMesh* mesh)
+void vkrMesh_Del(vkrMesh *const mesh)
 {
     if (mesh)
     {
-        vkrBuffer_Release(&mesh->buffer, NULL);
+        vkrBuffer_Del(&mesh->buffer);
+        memset(mesh, 0, sizeof(*mesh));
+    }
+}
+
+void vkrMesh_Release(vkrMesh *const mesh)
+{
+    if (mesh)
+    {
+        vkrBuffer_Release(&mesh->buffer);
         memset(mesh, 0, sizeof(*mesh));
     }
 }
 
 bool vkrMesh_Upload(
-    vkrMesh* mesh,
+    vkrMesh *const mesh,
     i32 vertCount,
     const float4* pim_noalias positions,
     const float4* pim_noalias normals,
@@ -136,7 +145,7 @@ bool vkrMesh_Upload(
         VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
     vkrCmdEnd(cmd);
     vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-    vkrBuffer_Release(&stagebuf, fence);
+    vkrBuffer_Release(&stagebuf);
 
     return true;
 }
