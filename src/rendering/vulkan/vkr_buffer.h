@@ -5,16 +5,25 @@
 PIM_C_BEGIN
 
 bool vkrBuffer_New(
-    vkrBuffer* buffer,
+    vkrBuffer *const buffer,
     i32 size,
-    VkBufferUsageFlags bufferUsage,
-    vkrMemUsage memUsage,
-    const char* tag);
-void vkrBuffer_Del(vkrBuffer* buffer);
+    VkBufferUsageFlags usage,
+    vkrMemUsage memUsage);
+void vkrBuffer_Del(vkrBuffer *const buffer);
 
 // destroys the resource after kFramesInFlight
 // if fence is provided, it is used instead
-void vkrBuffer_Release(vkrBuffer* buffer, VkFence fence);
+void vkrBuffer_Release(vkrBuffer *const buffer, VkFence fence);
+
+bool vkrBufferSet_New(
+    vkrBufferSet *const set,
+    i32 size,
+    VkBufferUsageFlags usage,
+    vkrMemUsage memUsage);
+void vkrBufferSet_Del(vkrBufferSet *const set);
+void vkrBufferSet_Release(vkrBufferSet *const set, VkFence fence);
+vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set);
+vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set);
 
 // if size exceeds buffer's current size:
 // - creates new larger buffer
@@ -22,22 +31,24 @@ void vkrBuffer_Release(vkrBuffer* buffer, VkFence fence);
 // - updates buffer inout argument
 // - contents of buffer are invalidated by this call!
 bool vkrBuffer_Reserve(
-    vkrBuffer* buffer,
+    vkrBuffer *const buffer,
     i32 size,
     VkBufferUsageFlags bufferUsage,
     vkrMemUsage memUsage,
-    VkFence fence,
-    const char* tag);
+    VkFence fence);
 
-void* vkrBuffer_Map(const vkrBuffer* buffer);
-void vkrBuffer_Unmap(const vkrBuffer* buffer);
-void vkrBuffer_Flush(const vkrBuffer* buffer);
+void *const vkrBuffer_Map(vkrBuffer const *const buffer);
+void vkrBuffer_Unmap(vkrBuffer const *const buffer);
+void vkrBuffer_Flush(vkrBuffer const *const buffer);
 
 // helper for map, unmap, flush
-void vkrBuffer_Write(const vkrBuffer* buffer, const void* src, i32 size);
+void vkrBuffer_Write(
+    vkrBuffer const *const buffer,
+    void const *const src,
+    i32 size);
 
 void vkrBuffer_Barrier(
-    vkrBuffer* buffer,
+    vkrBuffer *const buffer,
     VkCommandBuffer cmd,
     VkAccessFlags srcAccessMask,
     VkAccessFlags dstAccessMask,
@@ -45,7 +56,7 @@ void vkrBuffer_Barrier(
     VkPipelineStageFlags dstStageMask);
 
 void vkrBuffer_Transfer(
-    vkrBuffer* buffer,
+    vkrBuffer *const buffer,
     vkrQueueId srcQueueId,
     vkrQueueId dstQueueId,
     VkCommandBuffer srcCmd,

@@ -938,14 +938,14 @@ static void chartnodes_assign(
     lightmap_t* lightmaps,
     i32 lightmapCount)
 {
-    const drawables_t* drawables = drawables_get();
+    drawables_t const *const drawables = drawables_get();
     const i32 numDrawables = drawables->count;
-    const meshid_t* pim_noalias meshids = drawables->meshes;
+    meshid_t const *const pim_noalias meshids = drawables->meshes;
 
     for (i32 iChart = 0; iChart < chartCount; ++iChart)
     {
         chart_t chart = charts[iChart];
-        chartnode_t* pim_noalias nodes = chart.nodes;
+        chartnode_t *const pim_noalias nodes = chart.nodes;
         i32 nodeCount = chart.nodeCount;
         i32 size = lightmaps[chart.atlasIndex].size;
         const float scale = 1.0f / size;
@@ -957,21 +957,22 @@ static void chartnodes_assign(
             ASSERT(node.drawableIndex >= 0);
             ASSERT(node.drawableIndex < numDrawables);
             ASSERT(node.vertIndex >= 0);
+
             mesh_t *const mesh = mesh_get(meshids[node.drawableIndex]);
+            ASSERT(mesh);
             if (mesh)
             {
                 const i32 vertCount = mesh->length;
                 ASSERT((node.vertIndex + 2) < vertCount);
 
-                float4 *const pim_noalias normals = mesh->normals;
+                int4 *const pim_noalias texIndices = mesh->texIndices;
                 float4 *const pim_noalias uvs = mesh->uvs;
                 i32 a = node.vertIndex + 0;
                 i32 b = node.vertIndex + 1;
                 i32 c = node.vertIndex + 2;
-                float fAtlasIndex = (float)chart.atlasIndex;
-                normals[a].w = fAtlasIndex;
-                normals[b].w = fAtlasIndex;
-                normals[c].w = fAtlasIndex;
+                texIndices[a].w = chart.atlasIndex;
+                texIndices[b].w = chart.atlasIndex;
+                texIndices[c].w = chart.atlasIndex;
                 float2 uvA = f2_mulvs(f2_add(node.triCoord.a, tr), scale);
                 float2 uvB = f2_mulvs(f2_add(node.triCoord.b, tr), scale);
                 float2 uvC = f2_mulvs(f2_add(node.triCoord.c, tr), scale);
@@ -981,10 +982,8 @@ static void chartnodes_assign(
                 uvs[b].w = uvB.y;
                 uvs[c].z = uvC.x;
                 uvs[c].w = uvC.y;
-            }
-            else
-            {
-                ASSERT(false);
+
+                mesh_update(mesh);
             }
         }
     }
@@ -1175,15 +1174,13 @@ typedef struct embed_s
     const quadtree_t* trees;
     i32 lmCount;
     float texelsPerMeter;
-    const pt_scene_t* scene;
 } embed_t;
 
-static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
+static void EmbedAttributesFn(void *const pbase, i32 begin, i32 end)
 {
-    embed_t* task = (embed_t*)pbase;
-    lightmap_t* pim_noalias lightmaps = task->lightmaps;
+    embed_t *const task = pbase;
+    lightmap_t *const pim_noalias lightmaps = task->lightmaps;
     const quadtree_t* pim_noalias trees = task->trees;
-    const pt_scene_t* scene = task->scene;
     const i32 lmCount = task->lmCount;
     const float texelsPerMeter = task->texelsPerMeter;
     const float metersPerTexel = 1.0f / texelsPerMeter;
@@ -1192,11 +1189,11 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
     const int2 size = { lmSize, lmSize };
     const float limit = 4.0f / lmSize;
 
-    const drawables_t* drawables = drawables_get();
+    drawables_t const *const drawables = drawables_get();
     const i32 drawablesCount = drawables->count;
-    const meshid_t* pim_noalias meshids = drawables->meshes;
-    const float4x4* pim_noalias matrices = drawables->matrices;
-    const float3x3* pim_noalias invMatrices = drawables->invMatrices;
+    meshid_t const *const pim_noalias meshids = drawables->meshes;
+    float4x4 const *const pim_noalias matrices = drawables->matrices;
+    float3x3 const *const pim_noalias invMatrices = drawables->invMatrices;
 
     for (i32 iWork = begin; iWork < end; ++iWork)
     {
@@ -1273,7 +1270,6 @@ static void EmbedAttributesFn(task_t* pbase, i32 begin, i32 end)
 }
 
 static void EmbedAttributes(
-    const pt_scene_t* scene,
     lightmap_t* lightmaps,
     i32 lmCount,
     float texelsPerMeter)
@@ -1329,8 +1325,7 @@ static void EmbedAttributes(
         task->trees = trees;
         task->lmCount = lmCount;
         task->texelsPerMeter = texelsPerMeter;
-        task->scene = scene;
-        task_run(&task->task, EmbedAttributesFn, TexelCount(lightmaps, lmCount));
+        task_run(task, EmbedAttributesFn, TexelCount(lightmaps, lmCount));
 
         for (i32 i = 0; i < lmCount; ++i)
         {
@@ -1340,13 +1335,11 @@ static void EmbedAttributes(
 }
 
 lmpack_t lmpack_pack(
-    const pt_scene_t* scene,
     i32 atlasSize,
     float texelsPerUnit,
     float distThresh,
     float degThresh)
 {
-    ASSERT(scene);
     ASSERT(atlasSize > 0);
 
     if (!ms_once)
@@ -1382,7 +1375,7 @@ lmpack_t lmpack_pack(
 
     chartnodes_assign(charts, chartCount, pack.lightmaps, atlasCount);
 
-    EmbedAttributes(scene, pack.lightmaps, atlasCount, texelsPerUnit);
+    EmbedAttributes(pack.lightmaps, atlasCount, texelsPerUnit);
 
     pim_free(nodes);
     for (i32 i = 0; i < chartCount; ++i)

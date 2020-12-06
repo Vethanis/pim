@@ -19,13 +19,17 @@ typedef struct crate_s
     i32 sizes[kCrateLen];
 } crate_t;
 
-bool crate_open(crate_t* crate, const char* path);
-bool crate_close(crate_t* crate);
+bool crate_open(crate_t *const crate, const char* path);
+bool crate_close(crate_t *const crate);
 
-bool crate_get(crate_t* crate, guid_t id, void* dst, i32 size);
-bool crate_set(crate_t* crate, guid_t id, const void* src, i32 size);
-bool crate_rm(crate_t* crate, guid_t id);
+bool crate_get(crate_t *const crate, guid_t id, void* dst, i32 size);
+bool crate_set(crate_t *const crate, guid_t id, const void* src, i32 size);
+bool crate_rm(crate_t *const crate, guid_t id);
 
-bool crate_stat(const crate_t* crate, guid_t id, i32* offsetOut, i32* sizeOut);
+bool crate_stat(
+    const crate_t *const crate,
+    guid_t id,
+    i32 *const offsetOut,
+    i32 *const sizeOut);
 
 PIM_C_END

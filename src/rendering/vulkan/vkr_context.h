@@ -16,12 +16,10 @@ void vkrContext_OnSwapRecreate(vkrContext* ctx);
 void vkrThreadContext_OnSwapRecreate(vkrThreadContext* ctx);
 
 VkCommandBuffer vkrContext_GetTmpCmd(
-    vkrThreadContext* ctx,
     vkrQueueId id,
-    VkFence* fenceOut,
-    VkQueue* queueOut);
+    VkFence *const fenceOut,
+    VkQueue *const queueOut);
 VkCommandBuffer vkrContext_GetSecCmd(
-    vkrThreadContext* ctx,
     vkrQueueId id,
     VkFence primaryFence);
 

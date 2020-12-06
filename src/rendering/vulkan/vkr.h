@@ -15,14 +15,14 @@ PIM_FWD_DECL(GLFWwindow);
 PIM_DECL_HANDLE(VmaAllocator);
 PIM_DECL_HANDLE(VmaAllocation);
 
-typedef enum
+enum
 {
     kMaxSwapchainLen = 3,
     kDesiredSwapchainLen = 3,
     kFramesInFlight = 3,
     kTextureDescriptors = 1024,
     kHistogramSize = 256,
-} vkrLimits;
+};
 
 typedef enum
 {
@@ -136,6 +136,28 @@ typedef enum
     vkrPassId_COUNT
 } vkrPassId;
 
+typedef union vkrTextureId
+{
+    struct
+    {
+        u32 version : 8;
+        u32 index : 24;
+    };
+    u32 asint;
+} vkrTextureId;
+SASSERT(sizeof(vkrTextureId) == 4);
+
+typedef union vkrMeshId
+{
+    struct
+    {
+        u32 version : 8;
+        u32 index : 24;
+    };
+    u32 asint;
+} vkrMeshId;
+SASSERT(sizeof(vkrMeshId) == 4);
+
 typedef struct vkrBuffer
 {
     VkBuffer handle;
@@ -143,21 +165,16 @@ typedef struct vkrBuffer
     i32 size;
 } vkrBuffer;
 
+typedef struct vkrBufferSet
+{
+    vkrBuffer frames[kFramesInFlight];
+} vkrBufferSet;
+
 typedef struct vkrMesh
 {
     vkrBuffer buffer;
     i32 vertCount;
 } vkrMesh;
-
-typedef union vkrTextureId
-{
-    struct
-    {
-        u32 index : 24;
-        u32 version : 8;
-    };
-    u32 asint;
-} vkrTextureId;
 
 typedef struct vkrImage
 {
@@ -173,6 +190,11 @@ typedef struct vkrImage
     u8 mipLevels;
     u8 arrayLayers;
 } vkrImage;
+
+typedef struct vkrImageSet
+{
+    vkrImage frames[kFramesInFlight];
+} vkrImageSet;
 
 typedef struct vkrTexture2D
 {
@@ -400,9 +422,6 @@ typedef struct vkrScreenBlit
 typedef struct vkrDepthPass
 {
     vkrPass pass;
-    vkrBuffer stagebufs[kFramesInFlight];
-    vkrBuffer meshbufs[kFramesInFlight];
-    i32 vertCount;
     float4x4 worldToClip;
 } vkrDepthPass;
 

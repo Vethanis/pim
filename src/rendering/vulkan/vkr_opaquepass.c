@@ -8,6 +8,7 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_desc.h"
 #include "rendering/vulkan/vkr_bindings.h"
+#include "rendering/vulkan/vkr_megamesh.h"
 
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
@@ -39,8 +40,7 @@ bool vkrOpaquePass_New(vkrOpaquePass *const pass, VkRenderPass renderPass)
             &pass->perCameraBuffer[i],
             sizeof(vkrPerCamera),
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu,
-            PIM_FILELINE))
+            vkrMemUsage_CpuToGpu))
         {
             success = false;
             goto cleanup;
@@ -237,32 +237,13 @@ void vkrOpaquePass_Execute(
 {
     ProfileBegin(pm_execute);
 
-    const u32 syncIndex = vkr_syncIndex();
     VkDescriptorSet set = vkrBindings_GetSet();
     VkCommandBuffer cmd = ctx->cmd;
     vkrCmdViewport(cmd, vkrSwapchain_GetViewport(&g_vkr.chain), vkrSwapchain_GetRect(&g_vkr.chain));
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.pipeline);
     vkrCmdBindDescSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.layout, 1, &set);
 
-    VkBuffer mesh = g_vkr.mainPass.depth.meshbufs[syncIndex].handle;
-    const i32 vertCount = g_vkr.mainPass.depth.vertCount;
-    const i32 stride = vertCount * sizeof(float4);
-    const VkBuffer buffers[] =
-    {
-        mesh, // positions
-        mesh, // normals
-        mesh, // uvs
-        mesh, // texture indices
-    };
-    const VkDeviceSize offsets[] =
-    {
-        stride * 0,
-        stride * 1,
-        stride * 2,
-        stride * 3,
-    };
-    vkCmdBindVertexBuffers(cmd, 0, NELEM(buffers), buffers, offsets);
-    vkCmdDraw(cmd, vertCount, 1, 0, 0);
+    vkrMegaMesh_Draw(cmd);
 
     ProfileEnd(pm_execute);
 }

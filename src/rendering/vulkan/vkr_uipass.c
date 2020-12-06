@@ -64,8 +64,7 @@ bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
             &imgui->vertbufs[i],
             1024,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu,
-            PIM_FILELINE))
+            vkrMemUsage_CpuToGpu))
         {
             success = false;
             goto cleanup;
@@ -74,8 +73,7 @@ bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
             &imgui->indbufs[i],
             1024,
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu,
-            PIM_FILELINE))
+            vkrMemUsage_CpuToGpu))
         {
             success = false;
             goto cleanup;
@@ -327,15 +325,13 @@ static void vkrImGui_UploadRenderDrawData(
         vertex_size,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         vkrMemUsage_CpuToGpu,
-        NULL,
-        PIM_FILELINE);
+        NULL);
     vkrBuffer_Reserve(
         indBuf,
         index_size,
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         vkrMemUsage_CpuToGpu,
-        NULL,
-        PIM_FILELINE);
+        NULL);
 
     ImDrawVert *const vtx_dst = vkrBuffer_Map(vertBuf);
     ImDrawIdx *const idx_dst = vkrBuffer_Map(indBuf);

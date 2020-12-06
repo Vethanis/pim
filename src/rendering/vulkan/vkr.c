@@ -19,6 +19,7 @@
 #include "rendering/vulkan/vkr_exposurepass.h"
 #include "rendering/vulkan/vkr_textable.h"
 #include "rendering/vulkan/vkr_bindings.h"
+#include "rendering/vulkan/vkr_megamesh.h"
 
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
@@ -132,6 +133,12 @@ bool vkr_init(void)
         goto cleanup;
     }
 
+    if (!vkrMegaMesh_Init())
+    {
+        success = false;
+        goto cleanup;
+    }
+
     if (!vkrMainPass_New(&g_vkr.mainPass))
     {
         success = false;
@@ -197,6 +204,7 @@ void vkr_update(void)
     VkCommandBuffer cmd = NULL;
     vkrSwapchain_AcquireSync(chain, &cmd, &fence);
     vkrAllocator_Update(&g_vkr.allocator);
+    vkrMegaMesh_Update();
     {
         vkrExposurePass_Setup(&g_vkr.exposurePass);
         vkrMainPass_Setup(&g_vkr.mainPass);
@@ -232,6 +240,8 @@ void vkr_shutdown(void)
 
         vkrExposurePass_Del(&g_vkr.exposurePass);
         vkrMainPass_Del(&g_vkr.mainPass);
+
+        vkrMegaMesh_Shutdown();
         vkrBindings_Shutdown();
         vkrTexTable_Shutdown();
 

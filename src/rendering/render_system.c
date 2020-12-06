@@ -132,7 +132,7 @@ static cvar_t cv_lm_spp =
 {
     .type = cvart_int,
     .name = "lm_spp",
-    .value = "16",
+    .value = "2",
     .minInt = 1,
     .maxInt = 1024,
     .desc = "lightmap samples per pixel",
@@ -334,7 +334,7 @@ static void LightmapRepack(void)
     EnsurePtScene();
 
     lmpack_del(lmpack_get());
-    lmpack_t pack = lmpack_pack(ms_ptscene, 1024, cvar_get_float(&cv_lm_density), 0.1f, 15.0f);
+    lmpack_t pack = lmpack_pack(1024, cvar_get_float(&cv_lm_density), 0.1f, 15.0f);
     *lmpack_get() = pack;
 }
 
@@ -673,7 +673,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
 
     if (!loaded)
     {
-        loaded = LoadModelAsDrawables(mapname, loadlights);
+        loaded = LoadModelAsDrawables(mapname, drawables_get(), loadlights);
     }
 
     if (loaded)

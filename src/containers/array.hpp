@@ -145,7 +145,7 @@ public:
         {
             ptr[i].~T();
         }
-        for (i32 i = oldLength - 1; i < newLength; ++i)
+        for (i32 i = oldLength; i < newLength; ++i)
         {
             new (ptr + i) T();
         }

@@ -62,8 +62,7 @@ bool vkrScreenBlit_New(vkrScreenBlit* blit, VkRenderPass renderPass)
     if (!vkrImage_New(
         &blit->image,
         &imageInfo,
-        vkrMemUsage_GpuOnly,
-        PIM_FILELINE))
+        vkrMemUsage_GpuOnly))
     {
         ASSERT(false);
         success = false;
@@ -73,8 +72,7 @@ bool vkrScreenBlit_New(vkrScreenBlit* blit, VkRenderPass renderPass)
         &blit->meshbuf,
         sizeof(kScreenMesh),
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        vkrMemUsage_CpuToGpu,
-        PIM_FILELINE))
+        vkrMemUsage_CpuToGpu))
     {
         ASSERT(false);
         success = false;
@@ -84,8 +82,7 @@ bool vkrScreenBlit_New(vkrScreenBlit* blit, VkRenderPass renderPass)
         &blit->stagebuf,
         width * height * sizeof(u32),
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        vkrMemUsage_CpuOnly,
-        PIM_FILELINE))
+        vkrMemUsage_CpuOnly))
     {
         ASSERT(false);
         success = false;

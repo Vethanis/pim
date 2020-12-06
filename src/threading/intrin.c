@@ -18,8 +18,11 @@ void intrin_spin(u64 spins)
     }
 }
 
+#include <emmintrin.h>
+
 #if PLAT_WINDOWS
 
+// rdtsc
 #include <windows.h>
 #include <intrin.h>
 
@@ -27,9 +30,9 @@ void intrin_spin(u64 spins)
 #pragma intrinsic(_mm_pause)
 
 u64 intrin_timestamp(void) { return __rdtsc(); }
-void intrin_pause(void) { _mm_pause(); }
 void intrin_yield(void) { SwitchToThread(); }
-
 #else
 
 #endif // PLAT
+
+void intrin_pause(void) { _mm_pause(); }

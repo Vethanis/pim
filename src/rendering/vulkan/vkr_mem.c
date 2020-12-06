@@ -237,10 +237,9 @@ VkFence vkrMem_Barrier(
     const VkBufferMemoryBarrier* buffer,
     const VkImageMemoryBarrier* img)
 {
-    vkrThreadContext* ctx = vkrContext_Get();
     VkFence fence = NULL;
     VkQueue queue = NULL;
-    VkCommandBuffer cmd = vkrContext_GetTmpCmd(ctx, id, &fence, &queue);
+    VkCommandBuffer cmd = vkrContext_GetTmpCmd(id, &fence, &queue);
     vkrCmdBegin(cmd);
     {
         vkCmdPipelineBarrier(
@@ -257,7 +256,7 @@ VkFence vkrMem_Barrier(
 }
 
 ProfileMark(pm_memmap, vkrMem_Map)
-void* vkrMem_Map(VmaAllocation allocation)
+void *const vkrMem_Map(VmaAllocation allocation)
 {
     ProfileBegin(pm_memmap);
     void* result = NULL;

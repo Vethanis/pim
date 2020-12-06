@@ -20,7 +20,7 @@ VkFence vkrMem_Barrier(
     const VkBufferMemoryBarrier* buffer,
     const VkImageMemoryBarrier* img);
 
-void* vkrMem_Map(VmaAllocation allocation);
+void *const vkrMem_Map(VmaAllocation allocation);
 void vkrMem_Unmap(VmaAllocation allocation);
 void vkrMem_Flush(VmaAllocation allocation);
 

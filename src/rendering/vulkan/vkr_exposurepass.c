@@ -46,8 +46,7 @@ bool vkrExposurePass_New(vkrExposurePass *const pass)
             &pass->histBuffers[i],
             bytes,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu,
-            PIM_FILELINE))
+            vkrMemUsage_CpuToGpu))
         {
             success = false;
             goto cleanup;
@@ -60,8 +59,7 @@ bool vkrExposurePass_New(vkrExposurePass *const pass)
             &pass->expBuffers[i],
             bytes,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu,
-            PIM_FILELINE))
+            vkrMemUsage_CpuToGpu))
         {
             success = false;
             goto cleanup;
@@ -172,18 +170,16 @@ void vkrExposurePass_Execute(vkrExposurePass *const pass)
     VkPipeline buildPipe = pass->pass.pipeline;
     VkPipeline adaptPipe = pass->adapt;
 
-    vkrThreadContext *const ctx = vkrContext_Get();
-
     VkFence cmpfence = NULL;
     VkQueue cmpqueue = NULL;
-    VkCommandBuffer cmpcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Comp, &cmpfence, &cmpqueue);
+    VkCommandBuffer cmpcmd = vkrContext_GetTmpCmd(vkrQueueId_Comp, &cmpfence, &cmpqueue);
     vkrCmdBegin(cmpcmd);
 
     // transition lum img and exposure buf to compute
     {
         VkFence gfxfence = NULL;
         VkQueue gfxqueue = NULL;
-        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &gfxfence, &gfxqueue);
+        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(vkrQueueId_Gfx, &gfxfence, &gfxqueue);
         vkrCmdBegin(gfxcmd);
 
         vkrImage_Transfer(
@@ -261,7 +257,7 @@ void vkrExposurePass_Execute(vkrExposurePass *const pass)
     {
         VkFence gfxfence = NULL;
         VkQueue gfxqueue = NULL;
-        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(ctx, vkrQueueId_Gfx, &gfxfence, &gfxqueue);
+        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(vkrQueueId_Gfx, &gfxfence, &gfxqueue);
         vkrCmdBegin(gfxcmd);
 
         vkrImage_Transfer(

@@ -11,6 +11,9 @@
 #include "ui/cimgui_ext.h"
 #include "io/fstr.h"
 #include "rendering/vulkan/vkr_mesh.h"
+#include "rendering/vulkan/vkr_megamesh.h"
+#include "rendering/material.h"
+#include "rendering/texture.h"
 #include "assets/crate.h"
 
 #include <string.h>
@@ -38,11 +41,13 @@ static bool IsCurrent(meshid_t id)
     return table_exists(&ms_table, ToGenId(id));
 }
 
-static void FreeMesh(mesh_t* mesh)
+static void FreeMesh(mesh_t *const mesh)
 {
+    vkrMegaMesh_Free(mesh->id);
     pim_free(mesh->positions);
     pim_free(mesh->normals);
     pim_free(mesh->uvs);
+    pim_free(mesh->texIndices);
     memset(mesh, 0, sizeof(*mesh));
 }
 
@@ -58,7 +63,7 @@ void mesh_sys_update(void)
 
 void mesh_sys_shutdown(void)
 {
-    mesh_t* pim_noalias meshes = ms_table.values;
+    mesh_t *const pim_noalias meshes = ms_table.values;
     const i32 width = ms_table.width;
     for (i32 i = 0; i < width; ++i)
     {
@@ -70,7 +75,7 @@ void mesh_sys_shutdown(void)
     table_del(&ms_table);
 }
 
-bool mesh_new(mesh_t* mesh, guid_t name, meshid_t* idOut)
+bool mesh_new(mesh_t *const mesh, guid_t name, meshid_t *const idOut)
 {
     ASSERT(mesh);
     ASSERT(mesh->length > 0);
@@ -78,12 +83,24 @@ bool mesh_new(mesh_t* mesh, guid_t name, meshid_t* idOut)
     ASSERT(mesh->positions);
     ASSERT(mesh->normals);
     ASSERT(mesh->uvs);
+    ASSERT(mesh->texIndices);
 
     bool added = false;
     genid id = { 0, 0 };
     if (mesh->length > 0)
     {
+        mesh->id = vkrMegaMesh_Alloc(mesh->length);
         added = table_add(&ms_table, name, mesh, &id);
+        if (added)
+        {
+            added = vkrMegaMesh_Set(
+                mesh->id,
+                mesh->positions,
+                mesh->normals,
+                mesh->uvs,
+                mesh->texIndices,
+                mesh->length);
+        }
         ASSERT(added);
     }
     if (!added)
@@ -91,6 +108,7 @@ bool mesh_new(mesh_t* mesh, guid_t name, meshid_t* idOut)
         ASSERT(false);
         FreeMesh(mesh);
     }
+    memset(mesh, 0, sizeof(*mesh));
     *idOut = ToMeshId(id);
     return added;
 }
@@ -114,12 +132,12 @@ void mesh_release(meshid_t id)
     }
 }
 
-mesh_t* mesh_get(meshid_t id)
+mesh_t *const mesh_get(meshid_t id)
 {
     return table_get(&ms_table, ToGenId(id));
 }
 
-bool mesh_find(guid_t name, meshid_t* idOut)
+bool mesh_find(guid_t name, meshid_t *const idOut)
 {
     ASSERT(idOut);
     genid id;
@@ -128,7 +146,7 @@ bool mesh_find(guid_t name, meshid_t* idOut)
     return found;
 }
 
-bool mesh_getname(meshid_t mid, guid_t* dst)
+bool mesh_getname(meshid_t mid, guid_t *const dst)
 {
     genid gid = ToGenId(mid);
     return table_getname(&ms_table, gid, dst);
@@ -147,18 +165,89 @@ box_t mesh_calcbounds(meshid_t id)
     return bounds;
 }
 
-bool mesh_save(crate_t* crate, meshid_t id, guid_t* dst)
+bool mesh_setmaterial(meshid_t id, material_t const *const mat)
+{
+    mesh_t *const mesh = mesh_get(id);
+    if (mesh)
+    {
+        int4 index = { 0 };
+        texture_t const* tex = texture_get(mat->albedo);
+        if (tex)
+        {
+            index.x = tex->slot.index;
+        }
+        tex = texture_get(mat->rome);
+        if (tex)
+        {
+            index.y = tex->slot.index;
+        }
+        tex = texture_get(mat->normal);
+        if (tex)
+        {
+            index.z = tex->slot.index;
+        }
+        const i32 len = mesh->length;
+        int4 *const pim_noalias texIndices = mesh->texIndices;
+        for (i32 i = 0; i < len; ++i)
+        {
+            int4 current = texIndices[i];
+            current.x = index.x;
+            current.y = index.y;
+            current.z = index.z;
+            texIndices[i] = current;
+        }
+        return mesh_update(mesh);
+    }
+    return false;
+}
+
+bool mesh_update(mesh_t *const mesh)
+{
+    ASSERT(mesh);
+
+    if (vkrMegaMesh_Set(
+        mesh->id,
+        mesh->positions,
+        mesh->normals,
+        mesh->uvs,
+        mesh->texIndices,
+        mesh->length))
+    {
+        // fast path: no length change
+        return true;
+    }
+
+    // slow path, have to free and reallocate.
+    vkrMegaMesh_Free(mesh->id);
+    if (mesh->length > 0)
+    {
+        mesh->id = vkrMegaMesh_Alloc(mesh->length);
+        return vkrMegaMesh_Set(
+            mesh->id,
+            mesh->positions,
+            mesh->normals,
+            mesh->uvs,
+            mesh->texIndices,
+            mesh->length);
+    }
+
+    // empty mesh, no point in holding an id for this mesh.
+    return false;
+}
+
+bool mesh_save(crate_t *const crate, meshid_t id, guid_t *const dst)
 {
     if (mesh_getname(id, dst))
     {
-        const mesh_t* meshes = ms_table.values;
+        const mesh_t *const meshes = ms_table.values;
         const mesh_t mesh = meshes[id.index];
         const i32 len = mesh.length;
         const i32 hdrBytes = sizeof(dmesh_t);
         const i32 positionBytes = sizeof(mesh.positions[0]) * len;
         const i32 normalBytes = sizeof(mesh.normals[0]) * len;
         const i32 uvBytes = sizeof(mesh.uvs[0]) * len;
-        const i32 totalBytes = hdrBytes + positionBytes + normalBytes + uvBytes;
+        const i32 texIndBytes = sizeof(mesh.texIndices[0]) * len;
+        const i32 totalBytes = hdrBytes + positionBytes + normalBytes + uvBytes + texIndBytes;
         dmesh_t* dmesh = perm_malloc(totalBytes);
         dmesh->version = kMeshVersion;
         dmesh->length = len;
@@ -166,9 +255,11 @@ bool mesh_save(crate_t* crate, meshid_t id, guid_t* dst)
         float4* positions = (float4*)(dmesh + 1);
         float4* normals = positions + len;
         float4* uvs = normals + len;
+        int4* texIndices = (int4*)(uvs + len);
         memcpy(positions, mesh.positions, positionBytes);
         memcpy(normals, mesh.normals, normalBytes);
         memcpy(uvs, mesh.uvs, uvBytes);
+        memcpy(texIndices, mesh.texIndices, texIndBytes);
         bool wasSet = crate_set(crate, *dst, dmesh, totalBytes);
         pim_free(dmesh);
         return wasSet;
@@ -176,7 +267,7 @@ bool mesh_save(crate_t* crate, meshid_t id, guid_t* dst)
     return false;
 }
 
-bool mesh_load(crate_t* crate, guid_t name, meshid_t* dst)
+bool mesh_load(crate_t *const crate, guid_t name, meshid_t *const dst)
 {
     bool loaded = false;
     mesh_t mesh = { 0 };
@@ -197,13 +288,16 @@ bool mesh_load(crate_t* crate, guid_t name, meshid_t* dst)
                     mesh.positions = perm_malloc(sizeof(mesh.positions[0]) * mesh.length);
                     mesh.normals = perm_malloc(sizeof(mesh.normals[0]) * mesh.length);
                     mesh.uvs = perm_malloc(sizeof(mesh.uvs[0]) * mesh.length);
+                    mesh.texIndices = perm_malloc(sizeof(mesh.texIndices[0]) * mesh.length);
 
                     float4* positions = (float4*)(dmesh + 1);
                     float4* normals = positions + len;
                     float4* uvs = normals + len;
+                    int4* texIndices = (int4*)(uvs + len);
                     memcpy(mesh.positions, positions, sizeof(mesh.positions[0]) * len);
                     memcpy(mesh.normals, normals, sizeof(mesh.normals[0]) * len);
                     memcpy(mesh.uvs, uvs, sizeof(mesh.uvs[0]) * len);
+                    memcpy(mesh.texIndices, texIndices, sizeof(mesh.texIndices[0]) * len);
                     loaded = mesh_new(&mesh, name, dst);
                 }
             }
@@ -300,6 +394,7 @@ void mesh_sys_gui(bool* pEnabled)
                 bytesUsed += length * sizeof(meshes[0].positions[0]);
                 bytesUsed += length * sizeof(meshes[0].normals[0]);
                 bytesUsed += length * sizeof(meshes[0].uvs[0]);
+                bytesUsed += length * sizeof(meshes[0].texIndices[0]);
             }
         }
 
