@@ -47,14 +47,4 @@ void vkrImageView_Release(VkImageView view, VkFence fence);
 
 // ----------------------------------------------------------------------------
 
-VkSampler vkrSampler_New(
-    VkFilter filter,
-    VkSamplerMipmapMode mipMode,
-    VkSamplerAddressMode addressMode,
-    float aniso);
-void vkrSampler_Del(VkSampler sampler);
-void vkrSampler_Release(VkSampler sampler, VkFence fence);
-
-// ----------------------------------------------------------------------------
-
 PIM_C_END

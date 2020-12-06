@@ -214,14 +214,6 @@ bool vkrReleasable_Del(vkrReleasable* releasable, u32 frame)
             vkrImageView_Del(releasable->view);
         }
         break;
-        case vkrReleasableType_Sampler:
-        {
-            if (releasable->sampler)
-            {
-                vkDestroySampler(g_vkr.dev, releasable->sampler, NULL);
-            }
-        }
-        break;
         }
         memset(releasable, 0, sizeof(*releasable));
     }

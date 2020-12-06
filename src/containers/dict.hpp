@@ -295,13 +295,13 @@ public:
         K const *const pim_noalias m_keys;
         V *const pim_noalias m_values;
     public:
-        explicit iterator(Dict& dict, i32 index)
+        explicit iterator(Dict& dict, i32 index) :
+            m_index(index),
+            m_width(dict.m_width),
+            m_hashes(dict.m_hashes),
+            m_keys(dict.m_keys),
+            m_values(dict.m_values)
         {
-            m_index = index;
-            m_width = dict.m_width;
-            m_hashes = dict.m_hashes;
-            m_keys = dict.m_keys;
-            m_values = dict.m_values;
             m_index = Iterate(m_hashes, m_width, m_index);
         }
         bool operator!=(const iterator&) const { return m_index < m_width; }
@@ -337,13 +337,13 @@ public:
         K const *const pim_noalias m_keys;
         V const *const pim_noalias m_values;
     public:
-        explicit const_iterator(const Dict& dict, i32 index)
+        explicit const_iterator(const Dict& dict, i32 index) :
+            m_index(index),
+            m_width(dict.m_width),
+            m_hashes(dict.m_hashes),
+            m_keys(dict.m_keys),
+            m_values(dict.m_values)
         {
-            m_index = index;
-            m_width = dict.m_width;
-            m_hashes = dict.m_hashes;
-            m_keys = dict.m_keys;
-            m_values = dict.m_values;
             m_index = Iterate(m_hashes, m_width, m_index);
         }
         bool operator!=(const const_iterator&) const { return m_index < m_width; }
