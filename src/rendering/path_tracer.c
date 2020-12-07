@@ -1442,7 +1442,7 @@ pim_inline float VEC_CALL Schlick(float cosTheta, float k)
 }
 
 pim_inline float4 VEC_CALL RefractBrdfEval(
-    pt_sampler_t*const pim_noalias sampler,
+    pt_sampler_t *const pim_noalias sampler,
     float4 I,
     const surfhit_t* surf,
     float4 L)
@@ -1461,22 +1461,29 @@ pim_inline scatter_t VEC_CALL RefractScatter(
 
     float4 V = f4_neg(I);
     float4 N = surf->N;
-    float4 M = surf->M;
     float4 m = TanToWorld(N, SampleGGXMicrofacet(Sample2D(sampler), alpha));
-    float NoV = f4_dot3(N, V);
-    bool entering = NoV > 0.0f;
+    bool entering = f4_dot3(N, V) > 0.0f;
     float etaI = entering ? kAir : matIor;
     float etaT = entering ? matIor : kAir;
     float k = etaI / etaT;
-    float pdf = Schlick(f1_abs(NoV), k);
+
+    float pdf = 0.5f;
+    float4 T = f4_refract3(I, m, k);
+    if (f4_dot3(T, T) < 0.1f)
+    {
+        pdf = 1.0f;
+    }
 
     float4 L;
     float4 att;
     if (BrdfPrng(sampler) < pdf)
     {
         float4 R = f4_normalize3(f4_reflect3(I, m));
-        float4 H = f4_mulvs(f4_add(V, R), f1_sign(NoV));
-        H = f4_normalize3(H);
+        if (f4_dot3(R, V) < 0.0f)
+        {
+            V = f4_reflect3(V, N);
+        }
+        float4 H = f4_normalize3(f4_add(R, V));
         float HoV = f1_abs(f4_dot3(H, V));
         float4 F = F_SchlickEx(surf->albedo, 1.0f, HoV);
         att = F;
@@ -1484,8 +1491,12 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     }
     else
     {
-        float4 T = f4_normalize3(f4_refract3(I, m, k));
-        float4 H = f4_neg(f4_add(f4_mulvs(V, etaI), f4_mulvs(T, etaT)));
+        T = f4_normalize3(T);
+        if (f4_dot3(T, V) < 0.0f)
+        {
+            V = f4_reflect3(V, N);
+        }
+        float4 H = f4_normalize3(f4_add(T, V));
         float HoV = f1_abs(f4_dot3(H, V));
         float4 F = f4_inv(F_SchlickEx(surf->albedo, 1.0f, HoV));
         att = F;
@@ -1493,8 +1504,9 @@ pim_inline scatter_t VEC_CALL RefractScatter(
         L = T;
     }
 
-    bool above = f4_dot3(L, M) > 0.0f;
     float4 P = surf->P;
+    float4 M = surf->M;
+    bool above = f4_dot3(L, M) > 0.0f;
     P = above ? P : f4_add(P, f4_mulvs(M, -3.0f * kMilli));
 
     scatter_t result = { 0 };
@@ -1739,6 +1751,10 @@ pim_inline float4 VEC_CALL EstimateDirect(
     float4 I)
 {
     float4 result = f4_0;
+    if (surf->flags & matflag_refractive)
+    {
+        return result;
+    }
     const float4 ro = surf->P;
 
     i32 iVert;

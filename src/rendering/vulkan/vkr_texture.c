@@ -228,6 +228,7 @@ VkFence vkrTexture_Upload(
         return NULL;
     }
 
+    // TODO: stage buffer cache
     vkrBuffer stagebuf = { 0 };
     if (!vkrBuffer_New(
         &stagebuf,
