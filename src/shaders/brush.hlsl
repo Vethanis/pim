@@ -50,10 +50,10 @@ PSOutput PSMain(PSInput input)
     uint li = input.texIndices.w;
     float2 uv0 = input.uv01.xy;
 
-    float3 albedo = SampleTable(ai, uv0).xyz;
+    float3 albedo = SampleTable2D(ai, uv0).xyz;
     albedo = max(kEpsilon, albedo);
-    float4 rome = SampleTable(ri, uv0);
-    float3 normalTS = SampleTable(ni, uv0).xyz;
+    float4 rome = SampleTable2D(ri, uv0);
+    float3 normalTS = SampleTable2D(ni, uv0).xyz;
 
     normalTS = normalize(normalTS * 2.0 - 1.0);
     float3 N = TbnToWorld(input.TBN, normalTS);
@@ -80,11 +80,9 @@ PSOutput PSMain(PSInput input)
     }
     {
         float2 uv1 = input.uv01.zw;
-        uint lmIndex = GetLightmapIndex(cameraData.lmBegin, li);
         float3 R = reflect(-V, N);
-        GISample gi = SampleLightmap(lmIndex, uv1, input.TBN, N, R);
-        float3 specular = lerp(gi.Reval, gi.Rirr, roughness * roughness);
-        float3 indirect = IndirectBRDF(V, N, gi.diffuse, specular, albedo, roughness, metallic, occlusion);
+        GISample gi = SampleLightmap(li, uv1, input.TBN, N, R);
+        float3 indirect = IndirectBRDF(V, N, gi.diffuse, gi.specular, albedo, roughness, metallic, occlusion);
         light += indirect;
     }
 

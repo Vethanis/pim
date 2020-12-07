@@ -23,7 +23,7 @@
 static table_t ms_table;
 static u8 ms_palette[256 * 3];
 
-pim_inline genid ToGenId(textureid_t tid)
+static genid ToGenId(textureid_t tid)
 {
     genid gid;
     gid.index = tid.index;
@@ -31,7 +31,7 @@ pim_inline genid ToGenId(textureid_t tid)
     return gid;
 }
 
-pim_inline textureid_t ToTexId(genid gid)
+static textureid_t ToTexId(genid gid)
 {
     textureid_t tid;
     tid.index = gid.index;
@@ -106,7 +106,11 @@ bool texture_loadat(const char* path, VkFormat format, textureid_t* idOut)
     return false;
 }
 
-bool texture_new(texture_t* tex, VkFormat format, guid_t name, textureid_t* idOut)
+bool texture_new(
+    texture_t* tex,
+    VkFormat format,
+    guid_t name,
+    textureid_t* idOut)
 {
     ASSERT(tex);
     ASSERT(idOut);
@@ -125,10 +129,20 @@ bool texture_new(texture_t* tex, VkFormat format, guid_t name, textureid_t* idOu
         }
         else
         {
-            tex->slot = vkrTexTable_Alloc(tex->size.x, tex->size.y, format, tex->texels);
-            added = vkrTexTable_Exists(tex->slot);
-            ASSERT(added);
-            if (added)
+            i32 width = tex->size.x;
+            i32 height = tex->size.y;
+            tex->slot = vkrTexTable_Alloc(
+                VK_IMAGE_VIEW_TYPE_2D,
+                format,
+                width,
+                height,
+                1, // depth
+                1, // layers
+                true); // mips
+            i32 bytes = (width * height * vkrFormatToBpp(format)) / 8;
+            VkFence fence = vkrTexTable_Upload(tex->slot, 0, tex->texels, bytes);
+            ASSERT(fence);
+            if (fence)
             {
                 added = table_add(&ms_table, name, tex, &id);
                 ASSERT(added);

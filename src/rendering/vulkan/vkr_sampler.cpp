@@ -24,6 +24,7 @@ static VkSampler vkrSampler_New(
     VkSamplerAddressMode addressMode,
     float aniso)
 {
+    ASSERT((aniso == 0.0f) || g_vkr.phdevFeats.samplerAnisotropy);
     VkSamplerCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     info.magFilter = filter;
