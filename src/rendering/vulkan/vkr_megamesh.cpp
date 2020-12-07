@@ -138,6 +138,7 @@ void vkrMegaMesh_Update(void)
     {
         ms_dirty[syncIndex] = false;
 
+        // TODO: partial uploads and stage buffer cache
         const i32 vertexBytes = ms_mega.GetBytes();
         vkrBuffer *const buffer = vkrBufferSet_Current(&ms_buffer);
         vkrBuffer *const stage = vkrBufferSet_Current(&ms_stage);
