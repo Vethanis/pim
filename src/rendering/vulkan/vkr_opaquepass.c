@@ -197,13 +197,6 @@ void vkrOpaquePass_Setup(vkrOpaquePass *const pass)
 
     // update per camera buffer
     {
-        lmpack_t const *const lmpack = lmpack_get();
-        i32 lmBegin = kTextureDescriptors - kGiDirections;
-        if (lmpack->lmCount > 0)
-        {
-            lmBegin = lmpack->lightmaps[0].slots[0].index;
-        }
-
         camera_t camera;
         camera_get(&camera);
         vkrPerCamera *const perCamera = vkrBuffer_Map(camBuffer);
@@ -211,7 +204,6 @@ void vkrOpaquePass_Setup(vkrOpaquePass *const pass)
         perCamera->worldToClip = g_vkr.mainPass.depth.worldToClip;
         perCamera->eye = camera.position;
         perCamera->exposure = g_vkr.exposurePass.params.exposure;
-        perCamera->lmBegin = lmBegin;
         vkrBuffer_Unmap(camBuffer);
         vkrBuffer_Flush(camBuffer);
     }

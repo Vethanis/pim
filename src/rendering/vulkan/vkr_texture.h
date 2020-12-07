@@ -6,20 +6,23 @@ PIM_C_BEGIN
 
 i32 vkrFormatToBpp(VkFormat format);
 
-i32 vkrTexture2D_MipCount(i32 width, i32 height);
+i32 vkrTexture_MipCount(i32 width, i32 height, i32 depth);
 
-bool vkrTexture2D_New(
-    vkrTexture2D *const tex,
+bool vkrTexture_New(
+    vkrImage *const image,
+    VkImageViewType viewType,
+    VkFormat format,
     i32 width,
     i32 height,
-    VkFormat format,
-    const void* data,
-    i32 bytes);
-void vkrTexture2D_Del(vkrTexture2D *const tex);
-void vkrTexture2D_Release(vkrTexture2D *const tex);
+    i32 depth,
+    i32 layers,
+    bool mips);
+void vkrTexture_Del(vkrImage *const image);
+void vkrTexture_Release(vkrImage *const image);
 
-VkFence vkrTexture2D_Upload(
-    vkrTexture2D *const tex,
+VkFence vkrTexture_Upload(
+    vkrImage *const image,
+    i32 layer,
     void const *const data,
     i32 bytes);
 

@@ -5,7 +5,6 @@ struct PerCamera
 {
     float4x4 worldToClip;
     float4 eye;
-    uint lmBegin;
 };
 
 // uniform buffer at binding 0

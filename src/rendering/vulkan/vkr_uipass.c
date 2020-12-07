@@ -89,9 +89,14 @@ bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
         i32 height = 0;
         i32 bpp = 0;
         ImFontAtlas_GetTexDataAsRGBA32(io->Fonts, &pixels, &width, &height, &bpp);
-
         ASSERT(pixels);
-        vkrTextureId slot = vkrTexTable_Alloc(width, height, VK_FORMAT_R8G8B8A8_SRGB, pixels);
+
+        vkrTextureId slot = vkrTexTable_Alloc(
+            VK_IMAGE_VIEW_TYPE_2D,
+            VK_FORMAT_R8G8B8A8_SRGB,
+            width, height, 1, 1, true);
+        vkrTexTable_Upload(slot, 0, pixels, sizeof(u32) * width * height);
+
         imgui->font = slot;
         io->Fonts[0].TexID = *(u32*)&slot;
     }
@@ -112,7 +117,7 @@ bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
     {
         {
             .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = kTextureDescriptors,
+            .descriptorCount = kTextureTable2DSize,
         },
     };
 

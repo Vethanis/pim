@@ -102,11 +102,6 @@ void lightmap_new(lightmap_t* lm, i32 size)
     {
         lm->probes[i] = (float4*)allocation;
         allocation += sizeof(float4) * texelcount;
-        lm->slots[i] = vkrTexTable_Alloc(
-            size,
-            size,
-            VK_FORMAT_R32G32B32A32_SFLOAT,
-            NULL);
     }
 
     lm->position = (float3*)allocation;
@@ -117,17 +112,25 @@ void lightmap_new(lightmap_t* lm, i32 size)
 
     lm->sampleCounts = (float*)allocation;
     allocation += sizeof(float) * texelcount;
+
+    lm->slot = vkrTexTable_Alloc(
+        VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        size,
+        size,
+        1,
+        kGiDirections,
+        true);
+
+    lightmap_upload(lm);
 }
 
 void lightmap_del(lightmap_t* lm)
 {
     if (lm)
     {
+        vkrTexTable_Free(lm->slot);
         pim_free(lm->probes[0]);
-        for (i32 i = 0; i < kGiDirections; ++i)
-        {
-            vkrTexTable_Free(lm->slots[i]);
-        }
         memset(lm, 0, sizeof(*lm));
     }
 }
@@ -138,9 +141,8 @@ void lightmap_upload(lightmap_t* lm)
     const i32 len = lm->size * lm->size;
     for (i32 i = 0; i < kGiDirections; ++i)
     {
-        vkrTextureId slot = lm->slots[i];
         const float4* pim_noalias probes = lm->probes[i];
-        vkrTexTable_Upload(slot, probes, sizeof(probes[0]) * len);
+        vkrTexTable_Upload(lm->slot, i, probes, sizeof(probes[0]) * len);
     }
 }
 
@@ -947,7 +949,9 @@ static void chartnodes_assign(
         chart_t chart = charts[iChart];
         chartnode_t *const pim_noalias nodes = chart.nodes;
         i32 nodeCount = chart.nodeCount;
-        i32 size = lightmaps[chart.atlasIndex].size;
+        lightmap_t *const lightmap = &lightmaps[chart.atlasIndex];
+        i32 slot = lightmap->slot.index;
+        i32 size = lightmap->size;
         const float scale = 1.0f / size;
         const float2 tr = i2_f2(chart.translation);
 
@@ -970,9 +974,9 @@ static void chartnodes_assign(
                 i32 a = node.vertIndex + 0;
                 i32 b = node.vertIndex + 1;
                 i32 c = node.vertIndex + 2;
-                texIndices[a].w = chart.atlasIndex;
-                texIndices[b].w = chart.atlasIndex;
-                texIndices[c].w = chart.atlasIndex;
+                texIndices[a].w = slot;
+                texIndices[b].w = slot;
+                texIndices[c].w = slot;
                 float2 uvA = f2_mulvs(f2_add(node.triCoord.a, tr), scale);
                 float2 uvB = f2_mulvs(f2_add(node.triCoord.b, tr), scale);
                 float2 uvC = f2_mulvs(f2_add(node.triCoord.c, tr), scale);

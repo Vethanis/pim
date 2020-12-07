@@ -26,12 +26,12 @@ typedef struct crate_s crate_t;
 
 typedef struct lightmap_s
 {
-    vkrTextureId slots[kGiDirections];
     float4* pim_noalias probes[kGiDirections];
     float3* pim_noalias position;
     float3* pim_noalias normal;
     float* pim_noalias sampleCounts;
     i32 size;
+    vkrTextureId slot;
 } lightmap_t;
 
 typedef struct lmpack_s

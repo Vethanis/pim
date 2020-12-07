@@ -40,7 +40,7 @@ PSInput VSMain(VSInput input)
 
 PSOutput PSMain(PSInput input)
 {
-    float4 texColor = SampleTable(kTextureIndex, input.uv);
+    float4 texColor = SampleTable2D(kTextureIndex, input.uv);
     texColor.a = kDiscardAlpha != 0 ? 1.0 : texColor.a;
     PSOutput output;
     output.color = texColor * input.color;

@@ -20,9 +20,41 @@ enum
     kMaxSwapchainLen = 3,
     kDesiredSwapchainLen = 3,
     kFramesInFlight = 3,
-    kTextureDescriptors = 1024,
+
     kHistogramSize = 256,
+
+    kTextureTable1DSize = 64,
+    kTextureTable2DSize = 512,
+    kTextureTable3DSize = 64,
+    kTextureTableCubeSize = 64,
+    kTextureTable2DArraySize = 64,
 };
+
+// single descriptors
+typedef enum
+{
+    // uniforms
+    vkrBindId_CameraData,
+
+    // storage images
+    vkrBindId_LumTexture,
+
+    // storage buffers
+    vkrBindId_HistogramBuffer,
+    vkrBindId_ExposureBuffer,
+
+    vkrBindId_COUNT
+} vkrBindId;
+
+// descriptor arrays
+typedef enum
+{
+    vkrBindTableId_Texture1D = vkrBindId_COUNT,
+    vkrBindTableId_Texture2D,
+    vkrBindTableId_Texture3D,
+    vkrBindTableId_TextureCube,
+    vkrBindTableId_Texture2DArray,
+} vkrBindTableId;
 
 typedef enum
 {
@@ -141,7 +173,8 @@ typedef union vkrTextureId
     struct
     {
         u32 version : 8;
-        u32 index : 24;
+        u32 type : 3; // VkImageViewType
+        u32 index : 21;
     };
     u32 asint;
 } vkrTextureId;
@@ -195,13 +228,6 @@ typedef struct vkrImageSet
 {
     vkrImage frames[kFramesInFlight];
 } vkrImageSet;
-
-typedef struct vkrTexture2D
-{
-    vkrImage image;
-    VkSampler sampler;
-    VkImageView view;
-} vkrTexture2D;
 
 typedef struct vkrAttachment
 {
@@ -426,7 +452,6 @@ typedef struct vkrPerCamera
 {
     float4x4 worldToClip;
     float4 eye;
-    u32 lmBegin;
     float exposure;
 } vkrPerCamera;
 

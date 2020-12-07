@@ -20,7 +20,7 @@
 
 static table_t ms_table;
 
-pim_inline genid ToGenId(meshid_t mid)
+static genid ToGenId(meshid_t mid)
 {
     genid gid;
     gid.index = mid.index;
@@ -28,7 +28,7 @@ pim_inline genid ToGenId(meshid_t mid)
     return gid;
 }
 
-pim_inline meshid_t ToMeshId(genid gid)
+static meshid_t ToMeshId(genid gid)
 {
     meshid_t mid;
     mid.index = gid.index;

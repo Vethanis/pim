@@ -108,138 +108,121 @@ i32 vkrFormatToBpp(VkFormat format)
     }
 }
 
-i32 vkrTexture2D_MipCount(i32 width, i32 height)
+static VkImageType ViewTypeToImageType(VkImageViewType viewType)
 {
-    return 1 + (i32)floorf(log2f((float)i1_max(width, height)));
+    switch (viewType)
+    {
+    default:
+        ASSERT(false);
+        return VK_IMAGE_TYPE_2D;
+    case VK_IMAGE_VIEW_TYPE_1D:
+        return VK_IMAGE_TYPE_1D;
+    case VK_IMAGE_VIEW_TYPE_2D:
+        return VK_IMAGE_TYPE_2D;
+    case VK_IMAGE_VIEW_TYPE_3D:
+        return VK_IMAGE_TYPE_3D;
+    case VK_IMAGE_VIEW_TYPE_CUBE:
+        return VK_IMAGE_TYPE_2D;
+    case VK_IMAGE_VIEW_TYPE_1D_ARRAY:
+        return VK_IMAGE_TYPE_1D;
+    case VK_IMAGE_VIEW_TYPE_2D_ARRAY:
+        return VK_IMAGE_TYPE_2D;
+    case VK_IMAGE_VIEW_TYPE_CUBE_ARRAY:
+    {
+        ASSERT(g_vkr.phdevFeats.imageCubeArray);
+        return VK_IMAGE_TYPE_2D;
+    }
+    }
 }
 
-bool vkrTexture2D_New(
-    vkrTexture2D *const tex,
+static VkImageCreateFlags ViewTypeToCreateFlags(VkImageViewType viewType)
+{
+    switch (viewType)
+    {
+    default:
+        return 0x0;
+    case VK_IMAGE_VIEW_TYPE_CUBE:
+        return VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    case VK_IMAGE_VIEW_TYPE_CUBE_ARRAY:
+        return VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    }
+}
+
+i32 vkrTexture_MipCount(i32 width, i32 height, i32 depth)
+{
+    i32 m = i1_max(width, i1_max(height, depth));
+    return 1 + (i32)floorf(log2f((float)m));
+}
+
+bool vkrTexture_New(
+    vkrImage *const image,
+    VkImageViewType viewType,
+    VkFormat format,
     i32 width,
     i32 height,
-    VkFormat format,
-    const void* data,
-    i32 bytes)
+    i32 depth,
+    i32 layers,
+    bool mips)
 {
-    bool success = true;
-    ASSERT(tex);
-    memset(tex, 0, sizeof(*tex));
-
-    if (bytes < 0)
+    memset(image, 0, sizeof(*image));
+    if (width * height * depth <= 0)
     {
         ASSERT(false);
         return false;
     }
-
-    const i32 mipCount = vkrTexture2D_MipCount(width, height);
+    const i32 mipCount = mips ? vkrTexture_MipCount(width, height, depth) : 1;
     const u32 queueFamilies[] =
     {
         g_vkr.queues[vkrQueueId_Gfx].family,
     };
-    const VkImageCreateInfo imageInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .flags = 0x0,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .format = format,
-        .extent.width = width,
-        .extent.height = height,
-        .extent.depth = 1,
-        .mipLevels = mipCount,
-        .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage =
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-            VK_IMAGE_USAGE_SAMPLED_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .queueFamilyIndexCount = NELEM(queueFamilies),
-        .pQueueFamilyIndices = queueFamilies,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    };
-    if (!vkrImage_New(
-        &tex->image,
-        &imageInfo,
-        vkrMemUsage_GpuOnly))
-    {
-        success = false;
-        goto cleanup;
-    }
-
-    VkImage image = tex->image.handle;
-    ASSERT(image);
-
-    VkImageView view = vkrImageView_New(
+    VkImageCreateInfo info = { 0 };
+    info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    info.flags = ViewTypeToCreateFlags(viewType);
+    info.imageType = ViewTypeToImageType(viewType);
+    info.format = format;
+    info.extent.width = width;
+    info.extent.height = height;
+    info.extent.depth = depth;
+    info.mipLevels = mipCount;
+    info.arrayLayers = layers;
+    info.samples = VK_SAMPLE_COUNT_1_BIT;
+    info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    info.usage =
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT;
+    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    info.queueFamilyIndexCount = NELEM(queueFamilies);
+    info.pQueueFamilyIndices = queueFamilies;
+    info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    return vkrImage_New(
         image,
-        VK_IMAGE_VIEW_TYPE_2D,
-        format,
-        VK_IMAGE_ASPECT_COLOR_BIT,
-        0, mipCount,
-        0, 1);
-    tex->view = view;
-    ASSERT(view);
-    if (!view)
-    {
-        success = false;
-        goto cleanup;
-    }
-
-    VkSampler sampler = vkrSampler_Get(
-        VK_FILTER_LINEAR,
-        VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        8.0f);
-    tex->sampler = sampler;
-    ASSERT(sampler);
-    if (!sampler)
-    {
-        success = false;
-        goto cleanup;
-    }
-
-    if (bytes > 0)
-    {
-        vkrTexture2D_Upload(tex, data, bytes);
-    }
-
-cleanup:
-    if (!success)
-    {
-        vkrTexture2D_Del(tex);
-    }
-    return success;
+        &info,
+        vkrMemUsage_GpuOnly);
 }
 
-void vkrTexture2D_Del(vkrTexture2D *const tex)
+void vkrTexture_Del(vkrImage *const image)
 {
-    if (tex)
-    {
-        vkrImageView_Del(tex->view);
-        vkrImage_Del(&tex->image);
-        memset(tex, 0, sizeof(*tex));
-    }
+    vkrImage_Del(image);
 }
 
-void vkrTexture2D_Release(vkrTexture2D *const tex)
+void vkrTexture_Release(vkrImage *const image)
 {
-    if (tex)
-    {
-        vkrImageView_Release(tex->view);
-        vkrImage_Release(&tex->image);
-        memset(tex, 0, sizeof(*tex));
-    }
+    vkrImage_Release(image);
 }
 
-VkFence vkrTexture2D_Upload(
-    vkrTexture2D *const tex,
+VkFence vkrTexture_Upload(
+    vkrImage *const image,
+    i32 layer,
     void const *const data,
     i32 bytes)
 {
-    ASSERT(tex);
-    ASSERT(tex->image.handle);
+    ASSERT(image);
+    ASSERT(image->handle);
     ASSERT(bytes >= 0);
     ASSERT(data || !bytes);
+    ASSERT(layer >= 0);
+    ASSERT(layer < image->arrayLayers);
     if (bytes <= 0)
     {
         return NULL;
@@ -266,10 +249,11 @@ VkFence vkrTexture2D_Upload(
         vkrBuffer_Flush(&stagebuf);
     }
 
-    const i32 width = tex->image.width;
-    const i32 height = tex->image.height;
-    const i32 mipCount = tex->image.mipLevels;
-    VkImage image = tex->image.handle;
+    const i32 width = image->width;
+    const i32 height = image->height;
+    const i32 depth = image->depth;
+    const i32 mipCount = image->mipLevels;
+    VkImage handle = image->handle;
 
     VkFence fence = NULL;
     VkQueue queue = NULL;
@@ -286,12 +270,14 @@ VkFence vkrTexture2D_Upload(
             .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = image,
+            .image = handle,
             .subresourceRange =
             {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
                 .levelCount = VK_REMAINING_MIP_LEVELS,
-                .layerCount = VK_REMAINING_ARRAY_LAYERS,
+                .baseArrayLayer = layer,
+                .layerCount = 1,
             },
         };
         vkrCmdImageBarrier(
@@ -299,22 +285,23 @@ VkFence vkrTexture2D_Upload(
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             &barrier);
-        tex->image.layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        image->layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
         // copy buffer to image mip 0
         const VkBufferImageCopy region =
         {
             .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .imageSubresource.mipLevel = 0,
+            .imageSubresource.baseArrayLayer = layer,
             .imageSubresource.layerCount = 1,
             .imageExtent.width = width,
             .imageExtent.height = height,
-            .imageExtent.depth = 1,
+            .imageExtent.depth = depth,
         };
         vkCmdCopyBufferToImage(
             cmd,
             stagebuf.handle,
-            image,
+            handle,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1, &region);
 
@@ -337,29 +324,33 @@ VkFence vkrTexture2D_Upload(
             // blit (i-1) into i
             i32 srcWidth = i1_max(width >> (i - 1), 1);
             i32 srcHeight = i1_max(height >> (i - 1), 1);
+            i32 srcDepth = i1_max(depth >> (i - 1), 1);
             i32 dstWidth = i1_max(width >> i, 1);
             i32 dstHeight = i1_max(height >> i, 1);
+            i32 dstDepth = i1_max(depth >> i, 1);
             const VkImageBlit blit =
             {
-                .srcOffsets[1] = { srcWidth, srcHeight, 1 },
-                .dstOffsets[1] = { dstWidth, dstHeight, 1 },
+                .srcOffsets[1] = { srcWidth, srcHeight, srcDepth, },
+                .dstOffsets[1] = { dstWidth, dstHeight, dstDepth, },
                 .srcSubresource =
                 {
                     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                     .mipLevel = i - 1,
+                    .baseArrayLayer = layer,
                     .layerCount = 1,
                 },
                 .dstSubresource =
                 {
                     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                     .mipLevel = i,
+                    .baseArrayLayer = layer,
                     .layerCount = 1,
                 },
             };
             vkCmdBlitImage(
                 cmd,
-                image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 1, &blit,
                 VK_FILTER_LINEAR);
 
@@ -392,7 +383,7 @@ VkFence vkrTexture2D_Upload(
     vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
     vkrBuffer_Release(&stagebuf);
 
-    tex->image.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    image->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     return fence;
 }

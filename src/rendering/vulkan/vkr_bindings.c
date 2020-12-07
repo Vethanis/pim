@@ -50,10 +50,34 @@ static const VkDescriptorSetLayoutBinding kSetLayoutBindings[] =
         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
     },
     {
+        .binding = vkrBindTableId_Texture1D,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = kTextureTable1DSize,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+    },
+    {
         .binding = vkrBindTableId_Texture2D,
         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount = kTextureDescriptors,
-        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .descriptorCount = kTextureTable2DSize,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+    },
+    {
+        .binding = vkrBindTableId_Texture3D,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = kTextureTable3DSize,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+    },
+    {
+        .binding = vkrBindTableId_TextureCube,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = kTextureTableCubeSize,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+    },
+    {
+        .binding = vkrBindTableId_Texture2DArray,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = kTextureTable2DArraySize,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
     },
 };
 
@@ -73,7 +97,12 @@ static const VkDescriptorPoolSize kPoolSizes[] =
     },
     {
         .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount = kTextureDescriptors,
+        .descriptorCount =
+            kTextureTable1DSize +
+            kTextureTable2DSize +
+            kTextureTable3DSize +
+            kTextureTableCubeSize +
+            kTextureTable2DArraySize,
     },
 };
 
@@ -125,7 +154,7 @@ void vkrBindings_Update(void)
     VkDescriptorSet set = vkrBindings_GetSet();
     if (set)
     {
-        vkrTexTable_Write(set, vkrBindTableId_Texture2D);
+        vkrTexTable_Write(set);
         vkrBindings_Flush();
     }
 
