@@ -378,7 +378,7 @@ static void vkrImGui_SetTexture(
     if (vkrTexTable_Exists(id))
     {
         index = id.index;
-        discardAlpha = id.asint != font.asint;
+        discardAlpha = memcmp(&id, &font, sizeof(id)) != 0;
     }
 
     const float2 sc = { 2.0f / draw_data->DisplaySize.x, 2.0f / draw_data->DisplaySize.y };

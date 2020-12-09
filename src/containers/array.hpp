@@ -152,6 +152,14 @@ public:
         m_length = newLength;
     }
 
+    void EnsureSize(i32 minSize)
+    {
+        if (m_length < minSize)
+        {
+            Resize(minSize);
+        }
+    }
+
     void PushMove(T&& pim_noalias item)
     {
         T& pim_noalias backRef = Expand();

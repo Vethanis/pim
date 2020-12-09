@@ -111,15 +111,17 @@ PIM_C_BEGIN
 
 static GenId ToGenId(vkrMeshId id)
 {
-    GenId gid;
-    gid.asint = id.asint;
+    GenId gid = {};
+    gid.version = id.version;
+    gid.index = id.index;
     return gid;
 }
 
 static vkrMeshId ToMeshId(GenId gid)
 {
-    vkrMeshId id;
-    id.asint = gid.asint;
+    vkrMeshId id = {};
+    id.version = gid.version;
+    id.index = gid.index;
     return id;
 }
 

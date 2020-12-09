@@ -11,14 +11,14 @@ static const float3x3 f3x3_0 =
 {
     { 0.0f, 0.0f, 0.0f },
     { 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f }
+    { 0.0f, 0.0f, 0.0f },
 };
 
 static const float3x3 f3x3_id =
 {
     { 1.0f, 0.0f, 0.0f },
     { 0.0f, 1.0f, 0.0f },
-    { 0.0f, 0.0f, 1.0f }
+    { 0.0f, 0.0f, 1.0f },
 };
 
 // [column][row]
@@ -34,24 +34,20 @@ static const float3x3 f3x3_id =
 
 pim_inline float3x3 VEC_CALL f4x4_f3x3(float4x4 x)
 {
-    float3x3 y =
-    {
-        .c0 = x.c0,
-        .c1 = x.c1,
-        .c2 = x.c2,
-    };
+    float3x3 y;
+    y.c0 = x.c0;
+    y.c1 = x.c1;
+    y.c2 = x.c2;
     return y;
 }
 
 pim_inline float4x4 VEC_CALL f3x3_f4x4(float3x3 x)
 {
-    float4x4 y =
-    {
-        .c0 = x.c0,
-        .c1 = x.c1,
-        .c2 = x.c2,
-        .c3 = f4_v(0.0f, 0.0f, 0.0f, 1.0f),
-    };
+    float4x4 y;
+    y.c0 = x.c0;
+    y.c1 = x.c1;
+    y.c2 = x.c2;
+    y.c3 = f4_v(0.0f, 0.0f, 0.0f, 1.0f);
     return y;
 }
 

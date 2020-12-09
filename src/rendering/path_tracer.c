@@ -135,19 +135,17 @@ typedef struct pt_scene_s
     // emissive triangle indices
     // [emissiveCount]
     i32* pim_noalias emissives;
-    // [emissiveCount]
-    float* pim_noalias emPdfs;
 
     // grid of discrete light distributions
     grid_t lightGrid;
     // [lightGrid.size]
-    dist1d_t* lightDists;
+    dist1d_t* pim_noalias lightDists;
 
     // surface description, indexed by matIds
     // [matCount]
     material_t* pim_noalias materials;
 
-    cubemap_t* sky;
+    cubemap_t* pim_noalias sky;
 
     // array lengths
     i32 vertCount;
@@ -870,7 +868,6 @@ static void SetupEmissives(pt_scene_t*const pim_noalias scene)
 
     i32 emissiveCount = 0;
     i32* emissives = NULL;
-    float* pim_noalias emPdfs = NULL;
     i32* pim_noalias vertToEmit = perm_malloc(sizeof(vertToEmit[0]) * vertCount);
 
     const float* pim_noalias taskPdfs = task->pdfs;
@@ -888,16 +885,13 @@ static void SetupEmissives(pt_scene_t*const pim_noalias scene)
             vertToEmit[iVert + 2] = emissiveCount;
             ++emissiveCount;
             PermReserve(emissives, emissiveCount);
-            PermReserve(emPdfs, emissiveCount);
             emissives[emissiveCount - 1] = iVert;
-            emPdfs[emissiveCount - 1] = pdf;
         }
     }
 
     scene->vertToEmit = vertToEmit;
     scene->emissiveCount = emissiveCount;
     scene->emissives = emissives;
-    scene->emPdfs = emPdfs;
 }
 
 typedef struct task_SetupLightGrid
@@ -1086,7 +1080,6 @@ void pt_scene_del(pt_scene_t*const pim_noalias scene)
         pim_free(scene->materials);
 
         pim_free(scene->emissives);
-        pim_free(scene->emPdfs);
 
         {
             const i32 gridLen = grid_len(&scene->lightGrid);

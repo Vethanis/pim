@@ -4,33 +4,10 @@
 #include "input/input_system.h"
 #include "math/types.h"
 #include "math/scalar.h"
+#include "math/float4.hpp"
+#include "audio/modular/board.hpp"
 
-class Wire final
-{
-private:
-    static constexpr u32 kWireLen = 64u;
-    static constexpr u32 kWireMask = kWireLen - 1u;
-
-    u32 m_read;
-    u32 m_write;
-    float m_buffer[kWireLen];
-
-public:
-    u32 Size() const { return m_write - m_read; }
-    bool Empty() const { return m_read == m_write; }
-    bool Full() const { return Size() >= kWireLen; }
-    pim_inline void VEC_CALL Push(float value)
-    {
-        u32 w = m_write++ & kWireMask;
-        m_buffer[w] = value;
-    }
-    pim_inline float VEC_CALL Pop()
-    {
-        u32 r = m_read++ & kWireMask;
-        return m_buffer[r];
-    }
-};
-
+static Modular::Board ms_board;
 static float ms_volume = 0.0f;
 static bool ms_capture;
 static float ms_freq;

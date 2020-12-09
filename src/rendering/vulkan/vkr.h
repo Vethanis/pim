@@ -168,26 +168,18 @@ typedef enum
     vkrPassId_COUNT
 } vkrPassId;
 
-typedef union vkrTextureId
+typedef struct vkrTextureId
 {
-    struct
-    {
-        u32 version : 8;
-        u32 type : 3; // VkImageViewType
-        u32 index : 21;
-    };
-    u32 asint;
+    u32 version : 8;
+    u32 type : 3; // VkImageViewType
+    u32 index : 21;
 } vkrTextureId;
 SASSERT(sizeof(vkrTextureId) == 4);
 
-typedef union vkrMeshId
+typedef struct vkrMeshId
 {
-    struct
-    {
-        u32 version : 8;
-        u32 index : 24;
-    };
-    u32 asint;
+    u32 version : 8;
+    u32 index : 24;
 } vkrMeshId;
 SASSERT(sizeof(vkrMeshId) == 4);
 

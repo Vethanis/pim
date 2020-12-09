@@ -32,7 +32,7 @@ static const float4x4 f4x4_0 =
     { 0.0f, 0.0f, 0.0f, 0.0f },
     { 0.0f, 0.0f, 0.0f, 0.0f },
     { 0.0f, 0.0f, 0.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 0.0f }
+    { 0.0f, 0.0f, 0.0f, 0.0f },
 };
 
 static const float4x4 f4x4_id = 
@@ -40,7 +40,7 @@ static const float4x4 f4x4_id =
     { 1.0f, 0.0f, 0.0f, 0.0f },
     { 0.0f, 1.0f, 0.0f, 0.0f },
     { 0.0f, 0.0f, 1.0f, 0.0f },
-    { 0.0f, 0.0f, 0.0f, 1.0f }
+    { 0.0f, 0.0f, 0.0f, 1.0f },
 };
 
 pim_inline float4x4 VEC_CALL f4x4_transpose(float4x4 m)
@@ -128,13 +128,11 @@ pim_inline float4x4 VEC_CALL f4x4_translate(float4x4 m, float4 v)
 
 pim_inline float4x4 VEC_CALL f4x4_translation(float4 v)
 {
-    float4x4 m =
-    {
-        .c0 = f4_v(1.0f, 0.0f, 0.0f, 0.0f),
-        .c1 = f4_v(0.0f, 1.0f, 0.0f, 0.0f),
-        .c2 = f4_v(0.0f, 0.0f, 1.0f, 0.0f),
-        .c3 = f4_v(v.x, v.y, v.z, 1.0f),
-    };
+    float4x4 m;
+    m.c0 = f4_v(1.0f, 0.0f, 0.0f, 0.0f);
+    m.c1 = f4_v(0.0f, 1.0f, 0.0f, 0.0f);
+    m.c2 = f4_v(0.0f, 0.0f, 1.0f, 0.0f);
+    m.c3 = f4_v(v.x, v.y, v.z, 1.0f);
     return m;
 }
 
@@ -171,13 +169,11 @@ pim_inline float4x4 VEC_CALL f4x4_scale(float4x4 m, float4 v)
 
 pim_inline float4x4 VEC_CALL f4x4_scaling(float4 v)
 {
-    float4x4 m =
-    {
-        .c0 = f4_v(v.x, 0.0f, 0.0f, 0.0f),
-        .c1 = f4_v(0.0f, v.y, 0.0f, 0.0f),
-        .c2 = f4_v(0.0f, 0.0f, v.z, 0.0f),
-        .c3 = f4_v(0.0f, 0.0f, 0.0f, 1.0f),
-    };
+    float4x4 m;
+    m.c0 = f4_v(v.x, 0.0f, 0.0f, 0.0f);
+    m.c1 = f4_v(0.0f, v.y, 0.0f, 0.0f);
+    m.c2 = f4_v(0.0f, 0.0f, v.z, 0.0f);
+    m.c3 = f4_v(0.0f, 0.0f, 0.0f, 1.0f);
     return m;
 }
 

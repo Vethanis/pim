@@ -3,7 +3,7 @@
 #include "common/macro.h"
 #include "containers/array.hpp"
 #include "containers/queue.hpp"
-#include "containers/gen_id.h"
+#include "containers/gen_id.hpp"
 
 class IdAllocator
 {

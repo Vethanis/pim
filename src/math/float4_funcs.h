@@ -17,7 +17,7 @@ PIM_C_BEGIN
 #define f4_z        f4_v(0.0f, 0.0f, 1.0f, 0.0f)
 #define f4_w        f4_v(0.0f, 0.0f, 0.0f, 1.0f)
 
-static bool VEC_CALL f4_isfinite3(float4 x)
+pim_inline bool VEC_CALL f4_isfinite3(float4 x)
 {
     return isfinite(x.x) && isfinite(x.y) && isfinite(x.z);
 }
@@ -327,6 +327,18 @@ pim_inline bool4 VEC_CALL f4_lteqvs(float4 lhs, float rhs)
     return vec;
 }
 
+pim_inline bool4 VEC_CALL f4_lteqsv(float lhs, float4 rhs)
+{
+    bool4 vec =
+    {
+        lhs <= rhs.x,
+        lhs <= rhs.y,
+        lhs <= rhs.z,
+        lhs <= rhs.w,
+    };
+    return vec;
+}
+
 pim_inline bool4 VEC_CALL f4_gteq(float4 lhs, float4 rhs)
 {
     bool4 vec =
@@ -347,6 +359,18 @@ pim_inline bool4 VEC_CALL f4_gteqvs(float4 lhs, float rhs)
         lhs.y >= rhs,
         lhs.z >= rhs,
         lhs.w >= rhs,
+    };
+    return vec;
+}
+
+pim_inline bool4 VEC_CALL f4_gteqsv(float lhs, float4 rhs)
+{
+    bool4 vec =
+    {
+        lhs >= rhs.x,
+        lhs >= rhs.y,
+        lhs >= rhs.z,
+        lhs >= rhs.w,
     };
     return vec;
 }
@@ -673,27 +697,13 @@ pim_inline float4 VEC_CALL f4_unlerpsv(float a, float b, float4 x)
     return f4_divvs(f4_subvs(x, a), b - a);
 }
 
-// remaps x from [a, b] to [c, d] range, without clamping
+// remaps x from [a, b] to [s, t] range, without clamping
 pim_inline float4 VEC_CALL f4_remap(
+    float4 x,
     float4 a, float4 b,
-    float4 c, float4 d,
-    float4 x)
+    float4 s, float4 t)
 {
-    return f4_lerp(c, d, f4_unlerp(a, b, x));
-}
-pim_inline float4 VEC_CALL f4_remapvs(
-    float4 a, float4 b,
-    float4 c, float4 d,
-    float x)
-{
-    return f4_lerp(c, d, f4_unlerpvs(a, b, x));
-}
-pim_inline float4 VEC_CALL f4_remapsv(
-    float a, float b,
-    float c, float d,
-    float4 x)
-{
-    return f4_lerpsv(c, d, f4_unlerpsv(a, b, x));
+    return f4_lerp(s, t, f4_unlerp(a, b, x));
 }
 
 pim_inline float4 VEC_CALL f4_saturate(float4 a)
@@ -1026,12 +1036,14 @@ pim_inline float4 VEC_CALL f4_snorm(float4 u)
 
 pim_inline float3 VEC_CALL f4_f3(float4 v)
 {
-    return (float3) { v.x, v.y, v.z };
+    float3 v3 = { v.x, v.y, v.z };
+    return v3;
 }
 
 pim_inline float2 VEC_CALL f4_f2(float4 v)
 {
-    return (float2) { v.x, v.y };
+    float2 v2 = { v.x, v.y };
+    return v2;
 }
 
 pim_inline float4 VEC_CALL f4_rand(prng_t *const pim_noalias rng)
