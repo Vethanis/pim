@@ -222,7 +222,7 @@ pim_inline int2 VEC_CALL i2_not(int2 b)
 
 pim_inline int2 VEC_CALL i2_abs(int2 v)
 {
-    int2 vec = { v.x &= 0x7fffffff, v.y &= 0x7fffffff };
+    int2 vec = { i1_abs(v.x), i1_abs(v.y) };
     return vec;
 }
 

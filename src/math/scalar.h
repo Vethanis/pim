@@ -7,6 +7,14 @@ PIM_C_BEGIN
 #include <stdbool.h>
 #include <math.h>
 
+#ifdef min
+    #undef min
+#endif // min
+
+#ifdef max
+    #undef max
+#endif // max
+
 #pragma intrinsic(pow, sqrt, exp, log, sin, cos, tan, fmod)
 
 #define kPi                 3.1415926535897932384626433832795f

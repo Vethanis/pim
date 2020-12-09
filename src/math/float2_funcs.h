@@ -15,22 +15,26 @@ PIM_C_BEGIN
 
 pim_inline float2 VEC_CALL f2_v(float x, float y)
 {
-    return (float2) { x, y };
+    float2 v = { x, y };
+    return v;
 }
 
 pim_inline float2 VEC_CALL f2_s(float s)
 {
-    return (float2) { s, s };
+    float2 v = { s, s };
+    return v;
 }
 
 pim_inline float2 VEC_CALL f2_iv(i32 x, i32 y)
 {
-    return (float2) { (float)x, (float)y };
+    float2 v = { (float)x, (float)y };
+    return v;
 }
 
 pim_inline float2 VEC_CALL f2_is(i32 s)
 {
-    return (float2) { (float)s, (float)s };
+    float2 v = { (float)s, (float)s };
+    return v;
 }
 
 pim_inline int2 VEC_CALL f2_i2(float2 f)

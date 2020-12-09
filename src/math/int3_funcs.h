@@ -6,9 +6,9 @@ PIM_C_BEGIN
 
 #include "math/scalar.h"
 
-static const int3 i3_0 = { 0, 0, 0 };
-static const int3 i3_1 = { 1, 1, 1 };
-static const int3 i3_2 = { 2, 2, 2 };
+#define i3_0 i3_s(0)
+#define i3_1 i3_s(1)
+#define i3_2 i3_s(2)
 
 pim_inline int3 VEC_CALL i3_v(i32 x, i32 y, i32 z)
 {
@@ -233,7 +233,7 @@ pim_inline int3 VEC_CALL i3_not(int3 b)
 
 pim_inline int3 VEC_CALL i3_abs(int3 v)
 {
-    int3 vec = { v.x &= 0x7fffffff, v.y &= 0x7fffffff, v.z &= 0x7fffffff };
+    int3 vec = { i1_abs(v.x), i1_abs(v.y), i1_abs(v.z) };
     return vec;
 }
 

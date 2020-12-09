@@ -14,9 +14,9 @@ typedef struct dataset_s
     i32 len;
 } dataset_t;
 
-typedef pim_alignas(16) struct fit_s
+typedef struct fit_s
 {
-    float value[8];
+    pim_alignas(16) float value[8];
 } fit_t;
 
 // Attempts to fit a cubic polynomial to the given set of samples

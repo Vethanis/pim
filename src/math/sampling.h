@@ -285,7 +285,7 @@ pim_inline float4 VEC_CALL ImportanceSampleLambert(float4 N, float2 Xi)
 
 pim_inline float VEC_CALL LambertPdf(float NoL)
 {
-    return NoL / kPi;
+    return NoL * (1.0f / kPi);
 }
 
 pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)

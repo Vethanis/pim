@@ -110,6 +110,12 @@
     <Filter Include="submodules\spirv-reflect">
       <UniqueIdentifier>{0e8e7c71-c0d9-4647-8da6-627df1c77f1a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\audio\modular">
+      <UniqueIdentifier>{735238cf-f904-44de-a3de-292b935595c0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="submodules\rtmidi">
+      <UniqueIdentifier>{783e8837-4181-403c-89a4-bd09ed461732}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -570,6 +576,21 @@
     </ClCompile>
     <ClCompile Include="..\src\threading\spinlock.c">
       <Filter>Source Files\threading</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\audio\modular\module.cpp">
+      <Filter>Source Files\audio\modular</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\audio\modular\channel.cpp">
+      <Filter>Source Files\audio\modular</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\audio\modular\board.cpp">
+      <Filter>Source Files\audio\modular</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\audio\modular\module_midi.cpp">
+      <Filter>Source Files\audio\modular</Filter>
+    </ClCompile>
+    <ClCompile Include="..\submodules\rtmidi\RtMidi.cpp">
+      <Filter>submodules\rtmidi</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1206,9 +1227,6 @@
     <ClInclude Include="..\src\containers\hash.hpp">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\containers\gen_id.h">
-      <Filter>Source Files\containers</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\containers\text.hpp">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
@@ -1232,6 +1250,30 @@
     </ClInclude>
     <ClInclude Include="..\src\threading\spinlock.h">
       <Filter>Source Files\threading</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\math\float4.hpp">
+      <Filter>Source Files\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\gen_id.hpp">
+      <Filter>Source Files\containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\audio\modular\module.hpp">
+      <Filter>Source Files\audio\modular</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\audio\modular\common.hpp">
+      <Filter>Source Files\audio\modular</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\audio\modular\channel.hpp">
+      <Filter>Source Files\audio\modular</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\audio\modular\board.hpp">
+      <Filter>Source Files\audio\modular</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\audio\modular\module_midi.hpp">
+      <Filter>Source Files\audio\modular</Filter>
+    </ClInclude>
+    <ClInclude Include="..\submodules\rtmidi\RtMidi.h">
+      <Filter>submodules\rtmidi</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

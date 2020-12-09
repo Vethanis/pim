@@ -38,6 +38,7 @@ pim_inline float4 VEC_CALL grid_position(grid_t const *const grid, i32 index)
         (ix + 0.5f) * metersPerCell,
         (iy + 0.5f) * metersPerCell,
         (iz + 0.5f) * metersPerCell,
+        0.0f,
     };
     return f4_add(grid->bounds.lo, offset);
 }
