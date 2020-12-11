@@ -4,9 +4,9 @@
 
 PIM_C_BEGIN
 
-typedef struct pim_alignas(64) spinlock_s
+typedef struct spinlock_s
 {
-    i32 state;
+    pim_alignas(64) i32 state;
 } spinlock_t;
 SASSERT(sizeof(spinlock_t) == 64);
 

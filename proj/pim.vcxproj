@@ -15,6 +15,7 @@
     <ClCompile Include="..\src\assets\asset_system.c" />
     <ClCompile Include="..\src\assets\crate.c" />
     <ClCompile Include="..\src\audio\audio_system.cpp" />
+    <ClCompile Include="..\src\audio\midi_system.c" />
     <ClCompile Include="..\src\audio\modular\board.cpp" />
     <ClCompile Include="..\src\audio\modular\channel.cpp" />
     <ClCompile Include="..\src\audio\modular\module.cpp" />
@@ -163,7 +164,6 @@
     <ClCompile Include="..\submodules\glfw\src\win32_window.c" />
     <ClCompile Include="..\submodules\glfw\src\window.c" />
     <ClCompile Include="..\submodules\miniz\miniz.c" />
-    <ClCompile Include="..\submodules\rtmidi\RtMidi.cpp" />
     <ClCompile Include="..\submodules\SPIRV-Reflect\spirv_reflect.c" />
     <ClCompile Include="..\submodules\stackwalker\StackWalker.cpp" />
     <ClCompile Include="..\submodules\stb\stb_vorbis.c" />
@@ -174,7 +174,8 @@
     <ClInclude Include="..\src\allocator\allocator.h" />
     <ClInclude Include="..\src\assets\asset_system.h" />
     <ClInclude Include="..\src\assets\crate.h" />
-    <ClInclude Include="..\src\audio\audio_system.hpp" />
+    <ClInclude Include="..\src\audio\audio_system.h" />
+    <ClInclude Include="..\src\audio\midi_system.h" />
     <ClInclude Include="..\src\audio\modular\board.hpp" />
     <ClInclude Include="..\src\audio\modular\channel.hpp" />
     <ClInclude Include="..\src\audio\modular\common.hpp" />
@@ -363,7 +364,6 @@
     <ClInclude Include="..\submodules\glfw\src\win32_platform.h" />
     <ClInclude Include="..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include\OpenImageDenoise\oidn.h" />
     <ClInclude Include="..\submodules\oidn\oidn-1.2.0.x64.vc14.windows\include\OpenImageDenoise\version.h" />
-    <ClInclude Include="..\submodules\rtmidi\RtMidi.h" />
     <ClInclude Include="..\submodules\SPIRV-Reflect\spirv_reflect.h" />
     <ClInclude Include="..\submodules\tlsf\tlsf.h" />
     <ClInclude Include="..\src\rendering\material.h" />
