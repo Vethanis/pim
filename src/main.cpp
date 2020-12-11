@@ -4,7 +4,7 @@
 #include "input/input_system.h"
 #include "threading/task.h"
 #include "rendering/render_system.h"
-#include "audio/audio_system.hpp"
+#include "audio/audio_system.h"
 #include "assets/asset_system.h"
 #include "rendering/r_window.h"
 #include "ui/ui.h"
@@ -45,7 +45,7 @@ static void Init(void)
     asset_sys_init();           // means of loading data
     network_sys_init();         // setup sockets
     render_sys_init();          // setup rendering resources
-    AudioSys::Init();           // setup audio callback
+    audio_sys_init();           // setup audio callback
     input_sys_init();           // setup glfw input callbacks
     logic_sys_init();           // setup game logic
     editor_sys_init();
@@ -56,7 +56,7 @@ static void Shutdown(void)
     editor_sys_shutdown();
     logic_sys_shutdown();
     input_sys_shutdown();
-    AudioSys::Shutdown();
+    audio_sys_shutdown();
     render_sys_shutdown();
     network_sys_shutdown();
     asset_sys_shutdown();
@@ -95,7 +95,7 @@ static void PresentPhase(void)
 {
     ProfileBegin(pm_present);
     render_sys_update();        // draw tasks
-    AudioSys::Update();         // handle audio events
+    audio_sys_update();         // handle audio events
     ProfileEnd(pm_present);
 }
 

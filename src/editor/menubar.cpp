@@ -7,7 +7,7 @@
 #include "rendering/texture.h"
 #include "rendering/mesh.h"
 #include "assets/asset_system.h"
-#include "audio/audio_system.hpp"
+#include "audio/audio_system.h"
 
 // ----------------------------------------------------------------------------
 
@@ -32,7 +32,7 @@ static edwin_t ms_windows[] =
 {
     { "CVars", false, cvar_gui },
     { "Assets", false, asset_gui },
-    { "Audio", false, AudioSys::OnGui },
+    { "Audio", false, audio_sys_ongui },
     { "Profiler", false, profile_gui },
     { "Renderer", false, render_sys_gui },
     { "Textures", false, texture_sys_gui },

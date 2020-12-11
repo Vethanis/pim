@@ -113,9 +113,6 @@
     <Filter Include="Source Files\audio\modular">
       <UniqueIdentifier>{735238cf-f904-44de-a3de-292b935595c0}</UniqueIdentifier>
     </Filter>
-    <Filter Include="submodules\rtmidi">
-      <UniqueIdentifier>{783e8837-4181-403c-89a4-bd09ed461732}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -589,8 +586,8 @@
     <ClCompile Include="..\src\audio\modular\module_midi.cpp">
       <Filter>Source Files\audio\modular</Filter>
     </ClCompile>
-    <ClCompile Include="..\submodules\rtmidi\RtMidi.cpp">
-      <Filter>submodules\rtmidi</Filter>
+    <ClCompile Include="..\src\audio\midi_system.c">
+      <Filter>Source Files\audio</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1230,9 +1227,6 @@
     <ClInclude Include="..\src\containers\text.hpp">
       <Filter>Source Files\containers</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\audio\audio_system.hpp">
-      <Filter>Source Files\audio</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\audio\synth_system.hpp">
       <Filter>Source Files\audio</Filter>
     </ClInclude>
@@ -1272,8 +1266,11 @@
     <ClInclude Include="..\src\audio\modular\module_midi.hpp">
       <Filter>Source Files\audio\modular</Filter>
     </ClInclude>
-    <ClInclude Include="..\submodules\rtmidi\RtMidi.h">
-      <Filter>submodules\rtmidi</Filter>
+    <ClInclude Include="..\src\audio\midi_system.h">
+      <Filter>Source Files\audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\audio\audio_system.h">
+      <Filter>Source Files\audio</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

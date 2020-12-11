@@ -13,8 +13,10 @@ namespace Modular
         Array<ChannelId> m_inputs;
         Array<ChannelId> m_outputs;
     public:
+        Module() {}
         virtual ~Module() {}
         virtual void Sample(i32 pin, u32 tick, Packet& result) = 0;
+        virtual void OnGui() = 0;
 
         ModuleId GetId() const { return m_id; }
         void SetId(ModuleId id) { m_id = id; }
