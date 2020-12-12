@@ -13,7 +13,8 @@ static constexpr float kSecondsPerSample = 1.0f / kSamplesPerSecond;
 
 static float AvoidZero(float x)
 {
-    return f1_sign(x) * f1_max(kEpsilon, f1_abs(x));
+    float s = (x >= 0.0f) ? 1.0f : -1.0f;
+    return s * f1_max(kEpsilon, f1_abs(x));
 }
 
 static float NoteToHertz(float note)
@@ -288,9 +289,9 @@ struct Synth
         m_volume(0.0f),
         m_randAmount(0.5f)
     {
-        for (i32 i = 0; i < NELEM(m_mods); ++i)
+        for (Voice& m : m_mods)
         {
-            m_mods[i].SetVolume(kEpsilon);
+            m.SetVolume(kEpsilon);
         }
     }
 
@@ -311,9 +312,9 @@ struct Synth
         ImGui::Separator();
         m_primary.OnGui();
         ImGui::Separator();
-        for (i32 i = 0; i < NELEM(m_mods); ++i)
+        for (Voice& m : m_mods)
         {
-            m_mods[i].OnGui();
+            m.OnGui();
             ImGui::Separator();
         }
 
@@ -324,25 +325,25 @@ struct Synth
     {
         amount *= m_randAmount;
         m_primary.Randomize(rng, amount);
-        for (i32 i = 0; i < NELEM(m_mods); ++i)
+        for (Voice& m : m_mods)
         {
-            m_mods[i].Randomize(rng, amount);
+            m.Randomize(rng, amount);
         }
     }
     void OnNote(float note)
     {
         m_primary.OnNote(note);
-        for (i32 i = 0; i < NELEM(m_mods); ++i)
+        for (Voice& m : m_mods)
         {
-            m_mods[i].OnNote(note);
+            m.OnNote(note);
         }
     }
     void OnGate(float gate)
     {
         m_primary.OnGate(gate);
-        for (i32 i = 0; i < NELEM(m_mods); ++i)
+        for (Voice& m : m_mods)
         {
-            m_mods[i].OnGate(gate);
+            m.OnGate(gate);
         }
     }
     void Sample(float* buffer, i32 length)
@@ -352,9 +353,9 @@ struct Synth
         for (i32 i = 0; i < length; ++i)
         {
             float mod = 0.0f;
-            for (i32 i = 0; i < NELEM(m_mods); ++i)
+            for (Voice& m : m_mods)
             {
-                mod += m_mods[i].Sample(0.0f);
+                mod += m.Sample(0.0f);
             }
             float value = m_primary.Sample(mod * modScale) * volume;
 
