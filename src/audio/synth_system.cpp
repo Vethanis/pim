@@ -6,127 +6,370 @@
 #include "math/scalar.h"
 #include "math/float4.hpp"
 #include "audio/modular/board.hpp"
+#include "common/random.h"
 
-static constexpr double kSamplesPerSecond = 44100.0;
-static constexpr double kSecondsPerSample = 1.0 / kSamplesPerSecond;
+static constexpr float kSamplesPerSecond = 44100.0f;
+static constexpr float kSecondsPerSample = 1.0f / kSamplesPerSecond;
 
-static Modular::Board ms_board;
-static float ms_volume = 0.0f;
-static bool ms_capture;
-static double ms_freq;
-static i32 ms_octave = 4;
-static i32 ms_note = 0;
-
-static double NoteToHertz(double note)
+static float AvoidZero(float x)
 {
-    double a = (note - 69.0) * (1.0 / 12.0);
-    return 440.0f * exp2(a);
+    return f1_sign(x) * f1_max(kEpsilon, f1_abs(x));
 }
 
-static double HertzToDeltaPhase(double hz)
+static float NoteToHertz(float note)
 {
-    return hz * (1.0 / 44100.0);
+    float a = (note - 69.0f) * (1.0f / 12.0f);
+    return 440.0f * exp2f(a);
 }
 
-static double SineWave(double phase)
+static float HertzToDeltaPhase(float hz)
 {
-    return sin(phase * kTau);
+    return hz * (1.0f / 44100.0f);
 }
 
-static double Impulse(double phase, double rcpScale)
+static float SineWave(float phase)
 {
-    double t = phase * rcpScale;
-    return t * exp(1.0 - t);
+    return sinf(phase * kTau);
 }
+
+static float Impulse(float phase, float scale)
+{
+    float t = phase * scale;
+    return t * expf(1.0f - t);
+}
+
+static float RandomizeFloat(float value, float amount, float lo, float hi, prng_t& rng)
+{
+    float slider = f1_lerp(lo, hi, prng_f32(&rng));
+    return f1_lerp(value, slider, amount);
+}
+
+static float RandomizeLog2(float value, float amount, float lo, float hi, prng_t& rng)
+{
+    float slider = exp2f(AvoidZero(f1_lerp(lo, hi, prng_f32(&rng))));
+    return f1_lerp(value, slider, amount);
+}
+
+static i32 RandomizeInt(i32 value, float amount, i32 lo, i32 hi, prng_t& rng)
+{
+    float slider = f1_lerp((float)lo, (float)hi, prng_f32(&rng));
+    return (i32)f1_round(f1_lerp((float)value, slider, amount));
+}
+
+static float RandomizeUnorm(float value, float amount, prng_t& rng)
+{
+    return RandomizeFloat(value, amount, 0.0f, 1.0f, rng);
+}
+
+static float RandomizeSnorm(float value, float amount, prng_t& rng)
+{
+    return RandomizeFloat(value, amount, -1.0f, 1.0f, rng);
+}
+
+static float RandomizeVolume(float value, float amount, prng_t& rng)
+{
+    return RandomizeLog2(value, amount, -10.0f, -1.0f, rng);
+}
+
+namespace ImGui
+{
+    static bool Slider(const char* label, i32* v, i32 lo, i32 hi)
+    {
+        return SliderInt(label, v, lo, hi);
+    }
+    static bool Slider(const char* label, float* v, float lo, float hi)
+    {
+        float value = (float)*v;
+        bool changed = ImGui::SliderFloat(label, &value, lo, hi);
+        *v = value;
+        return changed;
+    }
+    static bool SliderLog2(const char* label, float* v, float lo, float hi)
+    {
+        float v2 = log2f(AvoidZero(*v));
+        bool changed = Slider(label, &v2, lo, hi);
+        *v = exp2f(AvoidZero(v2));
+        return changed;
+    }
+    static bool SliderVolume(const char* label, float* v)
+    {
+        return SliderLog2(label, v, -10.0f, -1.0f);
+    }
+};
 
 struct Oscillator
 {
-    double m_phase;
-    double m_dphase;
+    float m_phase;
+    float m_dphase;
     i32 m_octave;
     i32 m_semitone;
     float m_fine;
-    double m_offset;
+    float m_note;
+    float m_randAmount;
+
+    Oscillator() :
+        m_phase(0.0f),
+        m_dphase(0.0f),
+        m_octave(0),
+        m_semitone(0),
+        m_fine(0.0f),
+        m_randAmount(1.0f)
+    {}
 
     void OnGui()
     {
         ImGui::PushID(this);
-        ImGui::SliderInt("Octave", &m_octave, -4, 4);
-        ImGui::SliderInt("Semitone", &m_semitone, -12, 12);
-        ImGui::SliderFloat("Fine", &m_fine, -1.0f, 1.0f);
+        ImGui::Indent();
+        ImGui::Text("Oscillator");
+
+        ImGui::Slider("Octave", &m_octave, -4, 4);
+        ImGui::Slider("Semitone", &m_semitone, -12, 12);
+        ImGui::Slider("Fine", &m_fine, -1.0f, 1.0f);
+        ImGui::SliderLog2("Random Amount", &m_randAmount, -10.0f, -1.0f);
+        if (ImGui::Button("Randomize"))
+        {
+            prng_t rng = prng_get();
+            Randomize(rng, 1.0f);
+            prng_set(rng);
+        }
+
+        ImGui::Unindent();
         ImGui::PopID();
-        double note = m_octave * 12 + m_semitone + m_fine;
-        double hz = NoteToHertz(note);
-        m_offset = hz;
     }
-    void SetFreq(double hz)
+    void Randomize(prng_t& rng, float amount)
     {
-        m_dphase = HertzToDeltaPhase(hz + m_offset);
+        amount *= m_randAmount;
+        m_phase = RandomizeUnorm(m_phase, amount, rng);
+        m_octave = RandomizeInt(m_octave, amount, -4, 4, rng);
+        m_semitone = RandomizeInt(m_semitone, amount, -12, 12, rng);
+        m_fine = RandomizeSnorm(m_fine, amount, rng);
+        m_dphase = HertzToDeltaPhase(NoteToHertz(m_note + m_octave * 12 + m_semitone + m_fine));
     }
-    double Sample(double phaseMod)
+    void OnNote(float note)
     {
-        m_phase = fmod(m_phase + m_dphase + phaseMod, 1.0f);
+        m_note = note;
+        m_dphase = HertzToDeltaPhase(NoteToHertz(m_note + m_octave * 12 + m_semitone + m_fine));
+    }
+    void OnGate(float gate)
+    {
+
+    }
+    float Sample(float phaseMod)
+    {
+        m_phase = fmodf(m_phase + m_dphase + phaseMod, 1.0f);
         return SineWave(m_phase);
     }
 };
 
 struct Envelope
 {
-    double m_phase;
-    double m_rcpScale;
+    float m_phase;
+    float m_scale;
+    float m_value;
+    float m_randAmount;
 
+    Envelope() :
+        m_phase(0.0f),
+        m_scale(1.0f),
+        m_value(0.0f),
+        m_randAmount(1.0f)
+    {}
     void OnGui()
     {
         ImGui::PushID(this);
-        float scale = 1.0f / f1_max(kEpsilon, (float)m_rcpScale);
-        ImGui::SliderFloat("Scale", &scale, kMilli, 1.0f);
-        m_rcpScale = 1.0 / f1_max(kEpsilon, scale);
+        ImGui::Indent();
+        ImGui::Text("Envelope");
+
+        ImGui::SliderLog2("Scale", &m_scale, -10.0f, 10.0f);
+        ImGui::SliderLog2("Random Amount", &m_randAmount, -10.0f, -1.0f);
+        if (ImGui::Button("Randomize"))
+        {
+            prng_t rng = prng_get();
+            Randomize(rng, 1.0f);
+            prng_set(rng);
+        }
+
+        ImGui::Unindent();
         ImGui::PopID();
     }
-    void Trigger()
+    void Randomize(prng_t& rng, float amount)
     {
-        m_phase = 0.0;
+        amount *= m_randAmount;
+        m_scale = RandomizeLog2(m_scale, amount, -10.0f, 10.0f, rng);
     }
-    double Sample()
+    void OnNote(float note)
     {
-        double value = Impulse(m_phase, m_rcpScale);
+
+    }
+    void OnGate(float gate)
+    {
+        if (gate > 0.0f)
+        {
+            m_phase = 0.0f;
+        }
+    }
+    float Sample()
+    {
+        float value = Impulse(m_phase, m_scale);
         m_phase += kSecondsPerSample;
-        return value;
+        m_value = f1_lerp(m_value, value, 0.25f);
+        return m_value;
     }
 };
 
 struct Voice
 {
+    float m_volume;
+    float m_randAmount;
     Oscillator m_oscillator;
     Envelope m_envelope;
-    float m_volume;
 
-    void OnGui()
-    {
-        ImGui::PushID(this);
-        ImGui::SliderFloat("Volume", &m_volume, 0.0f, 1.0f);
-        m_oscillator.OnGui();
-        m_envelope.OnGui();
-        ImGui::PopID();
-    }
+    Voice() :
+        m_volume(0.5f),
+        m_randAmount(1.0f)
+    {}
     void SetVolume(float volume)
     {
         m_volume = volume;
     }
-    double Sample(double phaseMod)
+
+    void OnGui()
     {
-        double value = m_volume * m_oscillator.Sample(phaseMod);
-        double envelope = m_envelope.Sample();
-        return value * envelope;
+        ImGui::PushID(this);
+        ImGui::Indent();
+        ImGui::Text("Voice");
+
+        ImGui::SliderVolume("Volume", &m_volume);
+        ImGui::SliderLog2("Random Amount", &m_randAmount, -10.0f, -1.0f);
+        if (ImGui::Button("Randomize"))
+        {
+            prng_t rng = prng_get();
+            Randomize(rng, 1.0f);
+            prng_set(rng);
+        }
+        ImGui::Separator();
+        m_oscillator.OnGui();
+        m_envelope.OnGui();
+
+        ImGui::Unindent();
+        ImGui::PopID();
+    }
+    void Randomize(prng_t& rng, float amount)
+    {
+        amount *= m_randAmount;
+        m_oscillator.Randomize(rng, amount);
+        m_envelope.Randomize(rng, amount);
+        m_volume = RandomizeVolume(m_volume, amount, rng);
+    }
+    void OnNote(float note)
+    {
+        m_oscillator.OnNote(note);
+        m_envelope.OnNote(note);
+    }
+    void OnGate(float gate)
+    {
+        m_oscillator.OnGate(gate);
+        m_envelope.OnGate(gate);
+    }
+    float Sample(float phaseMod)
+    {
+        return m_oscillator.Sample(phaseMod) * m_envelope.Sample() * m_volume;
     }
 };
 
-static Voice ms_mod;
-static Voice ms_primary;
+struct Synth
+{
+    float m_volume;
+    float m_randAmount;
+    Voice m_primary;
+    Voice m_mods[16];
+
+    Synth() :
+        m_volume(0.0f),
+        m_randAmount(0.5f)
+    {
+        for (i32 i = 0; i < NELEM(m_mods); ++i)
+        {
+            m_mods[i].SetVolume(kEpsilon);
+        }
+    }
+
+    void OnGui()
+    {
+        ImGui::PushID(this);
+        ImGui::Indent();
+        ImGui::Text("Synth");
+
+        ImGui::SliderVolume("Volume", &m_volume);
+        ImGui::SliderLog2("Random Amount", &m_randAmount, -10.0f, -1.0f);
+        if (ImGui::Button("Randomize"))
+        {
+            prng_t rng = prng_get();
+            Randomize(rng, 1.0f);
+            prng_set(rng);
+        }
+        ImGui::Separator();
+        m_primary.OnGui();
+        ImGui::Separator();
+        for (i32 i = 0; i < NELEM(m_mods); ++i)
+        {
+            m_mods[i].OnGui();
+            ImGui::Separator();
+        }
+
+        ImGui::Unindent();
+        ImGui::PopID();
+    }
+    void Randomize(prng_t& rng, float amount)
+    {
+        amount *= m_randAmount;
+        m_primary.Randomize(rng, amount);
+        for (i32 i = 0; i < NELEM(m_mods); ++i)
+        {
+            m_mods[i].Randomize(rng, amount);
+        }
+    }
+    void OnNote(float note)
+    {
+        m_primary.OnNote(note);
+        for (i32 i = 0; i < NELEM(m_mods); ++i)
+        {
+            m_mods[i].OnNote(note);
+        }
+    }
+    void OnGate(float gate)
+    {
+        m_primary.OnGate(gate);
+        for (i32 i = 0; i < NELEM(m_mods); ++i)
+        {
+            m_mods[i].OnGate(gate);
+        }
+    }
+    void Sample(float* buffer, i32 length)
+    {
+        const float modScale = 1.0f / NELEM(m_mods);
+        const float volume = m_volume;
+        for (i32 i = 0; i < length; ++i)
+        {
+            float mod = 0.0f;
+            for (i32 i = 0; i < NELEM(m_mods); ++i)
+            {
+                mod += m_mods[i].Sample(0.0f);
+            }
+            float value = m_primary.Sample(mod * modScale) * volume;
+
+            float val32 = (float)value;
+            buffer[i * 2 + 0] = val32;
+            buffer[i * 2 + 1] = val32;
+        }
+    }
+};
+
+static Synth ms_synth;
 
 void SynthSys::Init()
 {
-
+    ms_synth = {};
 }
 
 ProfileMark(pm_update, SynthSys::Update)
@@ -136,31 +379,29 @@ void SynthSys::Update()
 
     //if (ms_capture)
     {
-        bool gate = false;
+        static i32 s_octave = 4;
+        static i32 s_note = 0;
+
+        float gate = 0.0f;
         if (input_keydown(KeyCode_Z))
         {
-            --ms_octave;
+            --s_octave;
         }
         if (input_keydown(KeyCode_X))
         {
-            ++ms_octave;
+            ++s_octave;
         }
         for (i32 i = 1; i <= 9; ++i)
         {
             if (input_keydown((KeyCode)(KeyCode_0 + i)))
             {
-                ms_note = i;
-                gate = true;
+                s_note = i;
+                gate = 1.0;
             }
         }
-        ms_freq = NoteToHertz(ms_octave * 12.0 + (double)ms_note);
-        ms_primary.m_oscillator.SetFreq(ms_freq);
-        ms_mod.m_oscillator.SetFreq(ms_freq);
-        if (gate)
-        {
-            ms_primary.m_envelope.Trigger();
-            ms_mod.m_envelope.Trigger();
-        }
+        float note = s_octave * 12.0f + s_note;
+        ms_synth.OnNote(note);
+        ms_synth.OnGate(gate);
     }
 }
 
@@ -175,25 +416,13 @@ void SynthSys::OnGui()
     ProfileScope(pm_ongui);
     if (ImGui::TreeNodeEx("Synth", ImGuiTreeNodeFlags_Framed))
     {
-        ImGui::Checkbox("Use Keyboard", &ms_capture);
-        ImGui::SliderFloat("Volume", &ms_volume, 0.0f, 1.0f);
-        ms_primary.OnGui();
-        ms_mod.OnGui();
+        ms_synth.OnGui();
         ImGui::TreePop();
     }
 }
 
-void SynthSys::OnSample(float *const pim_noalias buffer, i32 frames, i32 channels)
+void SynthSys::OnSample(float* buffer, i32 frames, i32 channels)
 {
     ASSERT(channels == 2);
-    const double volume = ms_volume;
-    for (i32 i = 0; i < frames; ++i)
-    {
-        double pm = ms_mod.Sample(0.0);
-        double value = ms_primary.Sample(pm);
-        value *= volume;
-        float value32 = (float)value;
-        buffer[i * 2 + 0] = value32;
-        buffer[i * 2 + 1] = value32;
-    }
+    ms_synth.Sample(buffer, frames);
 }
