@@ -210,7 +210,7 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv);
 static framebuf_t ms_buffers[2];
 static i32 ms_iFrame;
 
-static TonemapId ms_tonemapper = TMap_ACES;
+static TonemapId ms_tonemapper = TMap_Uncharted2;
 static float4 ms_toneParams;
 static float4 ms_clearColor;
 static vkrExposure ms_exposure =
