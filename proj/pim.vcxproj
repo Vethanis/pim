@@ -146,6 +146,8 @@
     <ClCompile Include="..\src\ui\imgui_impl_glfw.cpp" />
     <ClCompile Include="..\src\ui\imgui_widgets.cpp" />
     <ClCompile Include="..\src\ui\ui.c" />
+    <ClCompile Include="..\submodules\cgltf\cgltf.c" />
+    <ClCompile Include="..\submodules\cgltf\cgltf_write.c" />
     <ClCompile Include="..\submodules\cJSON\cJSON.c" />
     <ClCompile Include="..\submodules\cJSON\cJSON_Utils.c" />
     <ClCompile Include="..\submodules\glfw\src\context.c" />
@@ -341,6 +343,8 @@
     <ClInclude Include="..\src\ui\imstb_textedit.h" />
     <ClInclude Include="..\src\ui\imstb_truetype.h" />
     <ClInclude Include="..\src\ui\ui.h" />
+    <ClInclude Include="..\submodules\cgltf\cgltf.h" />
+    <ClInclude Include="..\submodules\cgltf\cgltf_write.h" />
     <ClInclude Include="..\submodules\cJSON\cJSON.h" />
     <ClInclude Include="..\submodules\cJSON\cJSON_Utils.h" />
     <ClInclude Include="..\submodules\embree\embree-3.10.0.x64.vc14.windows\include\embree3\rtcore.h" />
