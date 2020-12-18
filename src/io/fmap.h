@@ -24,4 +24,7 @@ void fmap_destroy(fmap_t* map);
 // writes changes in mapped memory back to source
 bool fmap_flush(fmap_t map);
 
+fmap_t fmap_open(const char* path, bool writable);
+void fmap_close(fmap_t* map);
+
 PIM_C_END
