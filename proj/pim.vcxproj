@@ -21,6 +21,8 @@
     <ClCompile Include="..\src\audio\modular\module.cpp" />
     <ClCompile Include="..\src\audio\modular\module_midi.cpp" />
     <ClCompile Include="..\src\audio\synth_system.cpp" />
+    <ClCompile Include="..\src\cgltf\cgltf.c" />
+    <ClCompile Include="..\src\cgltf\cgltf_write.c" />
     <ClCompile Include="..\src\common\atomics.cpp" />
     <ClCompile Include="..\src\common\cmd.c" />
     <ClCompile Include="..\src\common\console.c" />
@@ -73,6 +75,7 @@
     <ClCompile Include="..\src\rendering\denoise.c" />
     <ClCompile Include="..\src\rendering\drawable.c" />
     <ClCompile Include="..\src\rendering\exposure.c" />
+    <ClCompile Include="..\src\rendering\gltf_model.c" />
     <ClCompile Include="..\src\rendering\librtc.c" />
     <ClCompile Include="..\src\rendering\lightmap.c" />
     <ClCompile Include="..\src\rendering\lights.c" />
@@ -146,8 +149,6 @@
     <ClCompile Include="..\src\ui\imgui_impl_glfw.cpp" />
     <ClCompile Include="..\src\ui\imgui_widgets.cpp" />
     <ClCompile Include="..\src\ui\ui.c" />
-    <ClCompile Include="..\submodules\cgltf\cgltf.c" />
-    <ClCompile Include="..\submodules\cgltf\cgltf_write.c" />
     <ClCompile Include="..\submodules\cJSON\cJSON.c" />
     <ClCompile Include="..\submodules\cJSON\cJSON_Utils.c" />
     <ClCompile Include="..\submodules\glfw\src\context.c" />
@@ -277,6 +278,7 @@
     <ClInclude Include="..\src\rendering\constants.h" />
     <ClInclude Include="..\src\rendering\exposure.h" />
     <ClInclude Include="..\src\rendering\framebuffer.h" />
+    <ClInclude Include="..\src\rendering\gltf_model.h" />
     <ClInclude Include="..\src\rendering\librtc.h" />
     <ClInclude Include="..\src\rendering\lightmap.h" />
     <ClInclude Include="..\src\rendering\mipmap.h" />

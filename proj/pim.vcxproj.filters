@@ -116,6 +116,9 @@
     <Filter Include="submodules\cgltf">
       <UniqueIdentifier>{49ffe872-ad1d-4776-bce8-320f8a7cc093}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\cgltf">
+      <UniqueIdentifier>{aa1f382c-128d-4046-b3aa-d038cbc10371}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\sokol\sokol_audio.c">
@@ -592,11 +595,14 @@
     <ClCompile Include="..\src\audio\midi_system.c">
       <Filter>Source Files\audio</Filter>
     </ClCompile>
-    <ClCompile Include="..\submodules\cgltf\cgltf.c">
-      <Filter>submodules\cgltf</Filter>
+    <ClCompile Include="..\src\cgltf\cgltf.c">
+      <Filter>Source Files\cgltf</Filter>
     </ClCompile>
-    <ClCompile Include="..\submodules\cgltf\cgltf_write.c">
-      <Filter>submodules\cgltf</Filter>
+    <ClCompile Include="..\src\cgltf\cgltf_write.c">
+      <Filter>Source Files\cgltf</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rendering\gltf_model.c">
+      <Filter>Source Files\rendering</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1286,6 +1292,9 @@
     </ClInclude>
     <ClInclude Include="..\submodules\cgltf\cgltf_write.h">
       <Filter>submodules\cgltf</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rendering\gltf_model.h">
+      <Filter>Source Files\rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -79,3 +79,29 @@ bool fmap_flush(fmap_t fmap)
         return false;
     }
 }
+
+fmap_t fmap_open(const char* path, bool writable)
+{
+    fd_t fd = fd_open(path, writable);
+    if (!fd_isopen(fd))
+    {
+        return (fmap_t) { 0 };
+    }
+    fmap_t map = fmap_create(fd, writable);
+    if (!fmap_isopen(map))
+    {
+        fd_close(&fd);
+        return (fmap_t) { 0 };
+    }
+    return map;
+}
+
+void fmap_close(fmap_t* map)
+{
+    if (map)
+    {
+        fd_t fd = map->fd;
+        fmap_destroy(map);
+        fd_close(&fd);
+    }
+}
