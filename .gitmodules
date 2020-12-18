@@ -25,6 +25,3 @@
 [submodule "submodules/SPIRV-Reflect"]
 	path = submodules/SPIRV-Reflect
 	url = https://github.com/KhronosGroup/SPIRV-Reflect.git
-[submodule "submodules/cgltf"]
-	path = submodules/cgltf
-	url = https://github.com/jkuhlmann/cgltf.git
