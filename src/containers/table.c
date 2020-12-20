@@ -178,7 +178,7 @@ void table_clear(table_t *const table)
     LookupClear(table);
 }
 
-bool table_exists(const table_t *const table, genid id)
+bool table_exists(const table_t *const table, genid_t id)
 {
     const u8 *const pim_noalias versions = table->versions;
     i32 index = id.index;
@@ -192,7 +192,7 @@ bool table_add(
     table_t *const table,
     guid_t name,
     const void *const valueIn,
-    genid *const idOut)
+    genid_t *const idOut)
 {
     ASSERT(table->valueSize > 0);
     ASSERT(valueIn);
@@ -245,7 +245,7 @@ bool table_add(
     return true;
 }
 
-bool table_retain(table_t *const table, genid id)
+bool table_retain(table_t *const table, genid_t id)
 {
     if (table_exists(table, id))
     {
@@ -256,7 +256,7 @@ bool table_retain(table_t *const table, genid id)
     return false;
 }
 
-bool table_release(table_t *const table, genid id, void *const valueOut)
+bool table_release(table_t *const table, genid_t id, void *const valueOut)
 {
     if (table_exists(table, id))
     {
@@ -301,7 +301,7 @@ bool table_release(table_t *const table, genid id, void *const valueOut)
     return false;
 }
 
-void *const table_get(const table_t *const table, genid id)
+void *const table_get(const table_t *const table, genid_t id)
 {
     if (table_exists(table, id))
     {
@@ -314,7 +314,7 @@ void *const table_get(const table_t *const table, genid id)
     return NULL;
 }
 
-bool table_find(const table_t *const table, guid_t name, genid *const idOut)
+bool table_find(const table_t *const table, guid_t name, genid_t *const idOut)
 {
     ASSERT(table);
     ASSERT(idOut);
@@ -337,7 +337,7 @@ bool table_find(const table_t *const table, guid_t name, genid *const idOut)
     return false;
 }
 
-bool table_getname(const table_t *const table, genid id, guid_t *const nameOut)
+bool table_getname(const table_t *const table, genid_t id, guid_t *const nameOut)
 {
     ASSERT(nameOut);
     nameOut->a = 0;

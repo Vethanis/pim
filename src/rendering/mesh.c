@@ -20,15 +20,15 @@
 
 static table_t ms_table;
 
-static genid ToGenId(meshid_t mid)
+static genid_t ToGenId(meshid_t mid)
 {
-    genid gid;
+    genid_t gid;
     gid.index = mid.index;
     gid.version = mid.version;
     return gid;
 }
 
-static meshid_t ToMeshId(genid gid)
+static meshid_t ToMeshId(genid_t gid)
 {
     meshid_t mid;
     mid.index = gid.index;
@@ -86,7 +86,7 @@ bool mesh_new(mesh_t *const mesh, guid_t name, meshid_t *const idOut)
     ASSERT(mesh->texIndices);
 
     bool added = false;
-    genid id = { 0, 0 };
+    genid_t id = { 0, 0 };
     if (mesh->length > 0)
     {
         mesh->id = vkrMegaMesh_Alloc(mesh->length);
@@ -140,7 +140,7 @@ mesh_t *const mesh_get(meshid_t id)
 bool mesh_find(guid_t name, meshid_t *const idOut)
 {
     ASSERT(idOut);
-    genid id;
+    genid_t id;
     bool found = table_find(&ms_table, name, &id);
     *idOut = ToMeshId(id);
     return found;
@@ -148,7 +148,7 @@ bool mesh_find(guid_t name, meshid_t *const idOut)
 
 bool mesh_getname(meshid_t mid, guid_t *const dst)
 {
-    genid gid = ToGenId(mid);
+    genid_t gid = ToGenId(mid);
     return table_getname(&ms_table, gid, dst);
 }
 
@@ -269,6 +269,12 @@ bool mesh_save(crate_t *const crate, meshid_t id, guid_t *const dst)
 
 bool mesh_load(crate_t *const crate, guid_t name, meshid_t *const dst)
 {
+    if (mesh_find(name, dst))
+    {
+        mesh_retain(*dst);
+        return true;
+    }
+
     bool loaded = false;
     mesh_t mesh = { 0 };
     i32 offset = 0;

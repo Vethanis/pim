@@ -23,15 +23,15 @@
 static table_t ms_table;
 static u8 ms_palette[256 * 3];
 
-static genid ToGenId(textureid_t tid)
+static genid_t ToGenId(textureid_t tid)
 {
-    genid gid;
+    genid_t gid;
     gid.index = tid.index;
     gid.version = tid.version;
     return gid;
 }
 
-static textureid_t ToTexId(genid gid)
+static textureid_t ToTexId(genid_t gid)
 {
     textureid_t tid;
     tid.index = gid.index;
@@ -51,7 +51,7 @@ static void FreeTexture(texture_t* tex)
     memset(tex, 0, sizeof(*tex));
 }
 
-const table_t* texture_table(void)
+table_t const *const texture_table(void)
 {
     return &ms_table;
 }
@@ -76,13 +76,13 @@ void texture_sys_update(void)
 
 void texture_sys_shutdown(void)
 {
-    texture_t* pim_noalias textures = ms_table.values;
+    texture_t *const pim_noalias textures = ms_table.values;
     const i32 width = ms_table.width;
     for (i32 i = 0; i < width; ++i)
     {
         if (textures[i].texels)
         {
-            FreeTexture(textures + i);
+            FreeTexture(&textures[i]);
         }
     }
     table_del(&ms_table);
@@ -93,7 +93,7 @@ bool texture_loadat(const char* path, VkFormat format, textureid_t* idOut)
     i32 width = 0;
     i32 height = 0;
     i32 channels = 0;
-    // STBI_MALLOC => pim_malloc(EAlloc_Texture, bytes)
+    // STBI_MALLOC => tex_malloc(bytes)
     u32* pim_noalias texels = (u32*)stbi_load(path, &width, &height, &channels, 4);
     if (texels)
     {
@@ -119,7 +119,7 @@ bool texture_new(
     ASSERT(tex->texels);
 
     bool added = false;
-    genid id = { 0, 0 };
+    genid_t id = { 0 };
     if (tex->texels)
     {
         tex->format = format;
@@ -184,7 +184,7 @@ texture_t* texture_get(textureid_t id)
 bool texture_find(guid_t name, textureid_t* idOut)
 {
     ASSERT(idOut);
-    genid id;
+    genid_t id;
     bool found = table_find(&ms_table, name, &id);
     *idOut = ToTexId(id);
     return found;
@@ -192,7 +192,7 @@ bool texture_find(guid_t name, textureid_t* idOut)
 
 bool texture_getname(textureid_t tid, guid_t* nameOut)
 {
-    genid gid = ToGenId(tid);
+    genid_t gid = ToGenId(tid);
     return table_getname(&ms_table, gid, nameOut);
 }
 
@@ -224,6 +224,12 @@ bool texture_save(crate_t* crate, textureid_t tid, guid_t* dst)
 
 bool texture_load(crate_t* crate, guid_t name, textureid_t* dst)
 {
+    if (texture_find(name, dst))
+    {
+        texture_retain(*dst);
+        return true;
+    }
+
     bool loaded = false;
     texture_t texture = { 0 };
     i32 offset = 0;
