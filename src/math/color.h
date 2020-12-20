@@ -257,10 +257,17 @@ pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
     return y;
 }
 
+#define kEmissionScale 100.0f
+
+pim_inline float VEC_CALL PackEmission(float4 emission)
+{
+    float e = f1_sat(f4_hmax3(emission) * (1.0f / kEmissionScale));
+    return (e > kEpsilon) ? sqrtf(e) : 0.0f;
+}
+
 pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)
 {
-    e = e * e * e * 100.0f;
-    return f4_mulvs(albedo, e);
+    return f4_mulvs(albedo, (e * e) * kEmissionScale);
 }
 
 PIM_C_END

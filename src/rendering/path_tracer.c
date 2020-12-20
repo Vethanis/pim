@@ -332,11 +332,11 @@ pim_inline float VEC_CALL PhaseDirPrng(pt_sampler_t *const pim_noalias sampler)
 }
 pim_inline float2 VEC_CALL UvPrng(pt_sampler_t *const pim_noalias sampler)
 {
-    return f2_v(NextRatio(&sampler->Xi[5], kGoldenRatio), NextRatio(&sampler->Xi[6], kSqrt3));
+    return f2_v(NextRatio(&sampler->Xi[5], kSqrt11), Sample1D(sampler));
 }
 pim_inline float2 VEC_CALL DofPrng(pt_sampler_t *const pim_noalias sampler)
 {
-    return f2_v(NextRatio(&sampler->Xi[7], kSqrt2), NextRatio(&sampler->Xi[8], kSqrt5));
+    return f2_v(NextRatio(&sampler->Xi[6], kSqrt13), Sample1D(sampler));
 }
 // ----------------------------------------------------------------------------
 
@@ -1172,10 +1172,10 @@ void dofinfo_gui(dofinfo_t* dof)
     if (dof && igCollapsingHeader1("dofinfo"))
     {
         float aperture = dof->aperture / kMilli;
-        igSliderFloat("Aperture, millimeters", &aperture, 0.1f, 30.0f);
+        igSliderFloat("Aperture, millimeters", &aperture, 0.1f, 100.0f);
         dof->aperture = aperture * kMilli;
         float focalLength = log2f(dof->focalLength);
-        igSliderFloat("Focal Length, log2 meters", &focalLength, -5.0f, 5.0f);
+        igSliderFloat("Focal Length, log2 meters", &focalLength, -5.0f, 10.0f);
         dof->focalLength = exp2f(focalLength);
         igSliderFloat("Focal Plane Curvature", &dof->focalPlaneCurvature, 0.0f, 1.0f);
         igSliderInt("Blade Count", &dof->bladeCount, 3, 666, "%d");

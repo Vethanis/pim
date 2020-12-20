@@ -29,6 +29,7 @@ PIM_C_BEGIN
 #define kSqrt5              2.2360679774997896964091736687313f
 #define kSqrt7              2.6457513110645905905016157536393f
 #define kSqrt11             3.3166247903553998491149327366707f
+#define kSqrt13             3.6055512754639892931192212674705f
 
 // SI units
 #define kKilo               1000.0f

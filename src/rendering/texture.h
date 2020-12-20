@@ -39,7 +39,7 @@ typedef struct dtexture_s
     int2 size;
 } dtexture_t;
 
-const table_t* texture_table(void);
+table_t const *const texture_table(void);
 
 void texture_sys_init(void);
 void texture_sys_update(void);
