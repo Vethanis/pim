@@ -40,9 +40,9 @@ guid_t guid_new(void);
 void guid_set_name(guid_t id, const char* str);
 bool guid_get_name(guid_t id, char* dst, i32 size);
 
-i32 guid_find(const guid_t* pim_noalias ptr, i32 count, guid_t key);
-guid_t guid_str(const char* str);
-guid_t guid_bytes(const void* ptr, i32 nBytes);
+i32 guid_find(guid_t const *const pim_noalias ptr, i32 count, guid_t key);
+guid_t guid_str(char const *const pim_noalias str);
+guid_t guid_bytes(void const *const pim_noalias ptr, i32 nBytes);
 guid_t guid_rand(prng_t* rng);
 
 void guid_fmt(char* dst, i32 size, guid_t value);

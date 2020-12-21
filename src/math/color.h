@@ -270,4 +270,38 @@ pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)
     return f4_mulvs(albedo, (e * e) * kEmissionScale);
 }
 
+pim_inline void VEC_CALL ConvertToMetallicRoughness(
+    float4 diffuse,
+    float4 specular,
+    float glossiness,
+    float4 *const pim_noalias albedoOut,
+    float *const pim_noalias roughnessOut,
+    float *const pim_noalias metallicOut)
+{
+    const float invSpecMax = 1.0f - f4_hmax3(specular);
+    const float diffuseLum = f4_hsplum(diffuse);
+    const float specLum = f4_hsplum(specular);
+
+    float metallic = 0.0f;
+    const float a = 0.04f;
+    if (specLum > a)
+    {
+        float b = (diffuseLum * invSpecMax / (1.0f - a)) + (specLum - 2.0f * a);
+        float c = a - specLum;
+        float d = f1_max(kEpsilon, b * b - 4.0f * a * c);
+        metallic = f1_sat((-b + sqrtf(d)) / (2.0f * a));
+    }
+
+    float4 diffAlbedo = f4_mulvs(diffuse, (invSpecMax / (1.0f - a)) / f1_max(kEpsilon, 1.0f - metallic));
+    float4 specAlbedo = f4_divvs(f4_subvs(specular, a * (1.0f - metallic)), f1_max(kEpsilon, metallic));
+    float4 albedo = f4_saturate(f4_lerpvs(diffAlbedo, specAlbedo, metallic * metallic));
+    albedo.w = diffuse.w;
+
+    float roughness = f1_sat(1.0f - glossiness);
+
+    *albedoOut = albedo;
+    *roughnessOut = roughness;
+    *metallicOut = metallic;
+}
+
 PIM_C_END

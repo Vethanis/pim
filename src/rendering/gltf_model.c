@@ -56,6 +56,14 @@ static textureid_t CreateRomeTexture(
 static textureid_t CreateNormalTexture(
     const char* basePath,
     cgltf_image* cgnormal);
+bool ResampleToAlbedoRome(
+    const char* basePath,
+    material_t* material,
+    cgltf_image* cgdiffuse,
+    cgltf_image* cgspecular,
+    cgltf_image* cgocclusion,
+    cgltf_image* cgemission,
+    float glossiness);
 static bool CreateLight(
     const char* basePath,
     cgltf_light* cglight,
@@ -308,13 +316,29 @@ static bool CreateMaterial(
         material.ior = cgmat->ior.ior;
     }
 
-    cgltf_image* cgalbedo = NULL;
-    cgltf_image* cgmetallicroughness = NULL;
+    if (cgmat->normal_texture.texture)
+    {
+        cgltf_image* cgnormal = cgmat->normal_texture.texture->image;
+        material.normal = CreateNormalTexture(basePath, cgnormal);
+    }
+
     cgltf_image* cgocclusion = NULL;
+    if (cgmat->occlusion_texture.texture)
+    {
+        cgocclusion = cgmat->occlusion_texture.texture->image;
+    }
+
+    // TODO: add dedicated emission texture to material_t
     cgltf_image* cgemission = NULL;
-    cgltf_image* cgnormal = NULL;
+    if (cgmat->emissive_texture.texture)
+    {
+        cgemission = cgmat->emissive_texture.texture->image;
+    }
+
     if (cgmat->has_pbr_metallic_roughness)
     {
+        cgltf_image* cgalbedo = NULL;
+        cgltf_image* cgmetallicroughness = NULL;
         if (cgmat->pbr_metallic_roughness.base_color_texture.texture)
         {
             cgalbedo = cgmat->pbr_metallic_roughness.base_color_texture.texture->image;
@@ -323,37 +347,24 @@ static bool CreateMaterial(
         {
             cgmetallicroughness = cgmat->pbr_metallic_roughness.metallic_roughness_texture.texture->image;
         }
+        material.albedo = CreateAlbedoTexture(basePath, cgalbedo);
+        material.rome = CreateRomeTexture(basePath, cgmetallicroughness, cgocclusion, cgemission);
     }
     else if (cgmat->has_pbr_specular_glossiness)
     {
-        // TODO: convert diffuse and specular maps to albedo + metallic roughness
+        cgltf_image* cgdiffuse = NULL;
+        cgltf_image* cgspecular = NULL;
+        float glossiness = cgmat->pbr_specular_glossiness.glossiness_factor;
         if (cgmat->pbr_specular_glossiness.diffuse_texture.texture)
         {
-            cgalbedo = cgmat->pbr_specular_glossiness.diffuse_texture.texture->image;
+            cgdiffuse = cgmat->pbr_specular_glossiness.diffuse_texture.texture->image;
         }
+        if (cgmat->pbr_specular_glossiness.specular_glossiness_texture.texture)
+        {
+            cgspecular = cgmat->pbr_specular_glossiness.specular_glossiness_texture.texture->image;
+        }
+        ResampleToAlbedoRome(basePath, &material, cgdiffuse, cgspecular, cgocclusion, cgemission, glossiness);
     }
-    // TODO: add transmission texture to material_t
-    if (!cgalbedo && cgmat->has_transmission && cgmat->transmission.transmission_texture.texture)
-    {
-        cgalbedo = cgmat->transmission.transmission_texture.texture->image;
-    }
-    // TODO: add dedicated emission texture to material_t
-    if (cgmat->emissive_texture.texture)
-    {
-        cgemission = cgmat->emissive_texture.texture->image;
-    }
-    if (cgmat->occlusion_texture.texture)
-    {
-        cgocclusion = cgmat->occlusion_texture.texture->image;
-    }
-    if (cgmat->normal_texture.texture)
-    {
-        cgnormal = cgmat->normal_texture.texture->image;
-    }
-
-    material.albedo = CreateAlbedoTexture(basePath, cgalbedo);
-    material.rome = CreateRomeTexture(basePath, cgmetallicroughness, cgocclusion, cgemission);
-    material.normal = CreateNormalTexture(basePath, cgnormal);
 
     if (cgemission)
     {
@@ -597,6 +608,10 @@ static textureid_t CreateRomeTexture(
     texture_t mrtex = { 0 };
     texture_t occtex = { 0 };
     texture_t emtex = { 0 };
+    float4 defaultMr = { 0.0f, 0.5f, 0.0f, 0.0f };
+    float4 defaultOcc = { 1.0f, 0.0f, 0.0f, 0.0f };
+    float4 defaultEm = { 0.0f, 0.0f, 0.0f, 0.0f };
+
     if (cgmetallic_roughness)
     {
         if (LoadImageUri(basePath, cgmetallic_roughness->uri, &mrtex))
@@ -604,6 +619,12 @@ static textureid_t CreateRomeTexture(
             ResampleToFloat4(&mrtex);
         }
     }
+    if (!mrtex.texels)
+    {
+        mrtex.size = i2_1;
+        mrtex.texels = &defaultMr;
+    }
+
     if (cgocclusion)
     {
         if (LoadImageUri(basePath, cgocclusion->uri, &occtex))
@@ -611,6 +632,12 @@ static textureid_t CreateRomeTexture(
             ResampleToFloat4(&occtex);
         }
     }
+    if (!occtex.texels)
+    {
+        occtex.size = i2_1;
+        occtex.texels = &defaultOcc;
+    }
+
     if (cgemission)
     {
         if (LoadImageUri(basePath, cgemission->uri, &emtex))
@@ -618,22 +645,10 @@ static textureid_t CreateRomeTexture(
             ResampleToEmission(&emtex);
         }
     }
-
-    float4 defaultRome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
-    if (!mrtex.texels)
-    {
-        mrtex.size = i2_1;
-        mrtex.texels = &defaultRome;
-    }
-    if (!occtex.texels)
-    {
-        occtex.size = i2_1;
-        occtex.texels = &defaultRome;
-    }
     if (!emtex.texels)
     {
         emtex.size = i2_1;
-        emtex.texels = &defaultRome;
+        emtex.texels = &defaultEm;
     }
 
     int2 size = i2_1;
@@ -653,14 +668,8 @@ static textureid_t CreateRomeTexture(
                 rome.x = sample.y;
                 rome.z = sample.x;
             }
-            {
-                float4 sample = UvBilinearClamp_f4(occtex.texels, occtex.size, uv);
-                rome.y = sample.x;
-            }
-            {
-                float4 sample = UvBilinearClamp_f4(emtex.texels, emtex.size, uv);
-                rome.w = PackEmission(sample);
-            }
+            rome.y = UvBilinearClamp_f4(occtex.texels, occtex.size, uv).x;
+            rome.w = PackEmission(UvBilinearClamp_f4(emtex.texels, emtex.size, uv));
             u32 color = LinearToColor(rome);
             u32 index = x + y * size.x;
             dst[index] = color;
@@ -670,15 +679,15 @@ static textureid_t CreateRomeTexture(
     tex.size = size;
     tex.texels = dst;
 
-    if (mrtex.texels != &defaultRome)
+    if (mrtex.texels != &defaultMr)
     {
         pim_free(mrtex.texels);
     }
-    if (occtex.texels != &defaultRome)
+    if (occtex.texels != &defaultOcc)
     {
         pim_free(occtex.texels);
     }
-    if (emtex.texels != &defaultRome)
+    if (emtex.texels != &defaultEm)
     {
         pim_free(emtex.texels);
     }
@@ -734,6 +743,168 @@ static textureid_t CreateNormalTexture(
     }
     texture_new(&tex, VK_FORMAT_R8G8B8A8_UNORM, guid, &id);
     return id;
+}
+
+bool ResampleToAlbedoRome(
+    const char* basePath,
+    material_t* material,
+    cgltf_image* cgdiffuse,
+    cgltf_image* cgspecular,
+    cgltf_image* cgocclusion,
+    cgltf_image* cgemission,
+    float glossiness)
+{
+    const char* diffuseName = cgdiffuse ? cgdiffuse->uri : NULL;
+    const char* specularName = cgspecular ? cgspecular->uri : NULL;
+    const char* occlusionName = cgocclusion ? cgocclusion->uri : NULL;
+    const char* emissionName = cgemission ? cgemission->uri : NULL;
+    char albedoFullname[PIM_PATH] = { 0 };
+    char romeFullname[PIM_PATH] = { 0 };
+    char const *const albedoNames[] = { basePath, diffuseName, specularName };
+    char const *const romeNames[] = { basePath, diffuseName, specularName, occlusionName, emissionName };
+    ConcatNames(ARGS(albedoFullname), ARGS(albedoNames));
+    ConcatNames(ARGS(romeFullname), ARGS(romeNames));
+    cgltf_decode_uri(albedoFullname);
+    cgltf_decode_uri(romeFullname);
+    guid_t albedoGuid = guid_str(albedoFullname);
+    guid_t romeGuid = guid_str(romeFullname);
+
+    if (texture_find(albedoGuid, &material->albedo) && texture_find(romeGuid, &material->rome))
+    {
+        return true;
+    }
+
+    texture_t diffuseTex = { 0 };
+    texture_t specularTex = { 0 };
+    texture_t occtex = { 0 };
+    texture_t emtex = { 0 };
+    float4 defaultDiffuse = { 0.5f, 0.5f, 0.5f, 1.0f };
+    float4 defaultSpecular = { 0.0f, 0.0f, 0.0f, 0.0f };
+    float4 defaultOcclusion = { 1.0f, 0.0f, 0.0f, 0.0f };
+    float4 defaultEmission = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+    if (cgdiffuse)
+    {
+        if (LoadImageUri(basePath, cgdiffuse->uri, &diffuseTex))
+        {
+            ResampleToFloat4(&diffuseTex);
+        }
+    }
+    if (!diffuseTex.texels)
+    {
+        diffuseTex.size = i2_1;
+        diffuseTex.texels = &defaultDiffuse;
+    }
+
+    if (cgspecular)
+    {
+        if (LoadImageUri(basePath, cgspecular->uri, &specularTex))
+        {
+            ResampleToFloat4(&specularTex);
+        }
+    }
+    if (!specularTex.texels)
+    {
+        specularTex.size = i2_1;
+        specularTex.texels = &defaultSpecular;
+    }
+
+    if (cgocclusion)
+    {
+        if (LoadImageUri(basePath, cgocclusion->uri, &occtex))
+        {
+            ResampleToFloat4(&occtex);
+        }
+    }
+    if (!occtex.texels)
+    {
+        occtex.size = i2_1;
+        occtex.texels = &defaultOcclusion;
+    }
+
+    if (cgemission)
+    {
+        if (LoadImageUri(basePath, cgemission->uri, &emtex))
+        {
+            ResampleToEmission(&emtex);
+        }
+    }
+    if (!emtex.texels)
+    {
+        emtex.size = i2_1;
+        emtex.texels = &defaultEmission;
+    }
+
+    texture_t albedotex = { 0 };
+    texture_t rometex = { 0 };
+    {
+        int2 size = i2_1;
+        size = i2_max(size, diffuseTex.size);
+        size = i2_max(size, specularTex.size);
+        size = i2_max(size, occtex.size);
+        size = i2_max(size, emtex.size);
+        const i32 len = size.x * size.y;
+        u32* pim_noalias albedoArr = tex_malloc(sizeof(albedoArr[0]) * len);
+        u32* pim_noalias romeArr = tex_malloc(sizeof(romeArr[0]) * len);
+        for (i32 y = 0; y < size.y; ++y)
+        {
+            for (i32 x = 0; x < size.x; ++x)
+            {
+                float2 uv = CoordToUv(size, i2_v(x, y));
+                float4 diffuse = UvBilinearClamp_f4(diffuseTex.texels, diffuseTex.size, uv);
+                float4 specular = UvBilinearClamp_f4(specularTex.texels, specularTex.size, uv);
+                float occlusion = UvBilinearClamp_f4(occtex.texels, occtex.size, uv).x;
+                float emission = PackEmission(UvBilinearClamp_f4(emtex.texels, emtex.size, uv));
+                float4 albedo;
+                float roughness;
+                float metallic;
+                ConvertToMetallicRoughness(diffuse, specular, glossiness, &albedo, &roughness, &metallic);
+                i32 index = x + y * size.x;
+                albedoArr[index] = LinearToColor(albedo);
+                romeArr[index] = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
+            }
+        }
+        albedotex.texels = albedoArr;
+        albedotex.size = size;
+        rometex.texels = romeArr;
+        rometex.size = size;
+    }
+
+    if (diffuseTex.texels != &defaultDiffuse)
+    {
+        pim_free(diffuseTex.texels);
+    }
+    if (specularTex.texels != &defaultSpecular)
+    {
+        pim_free(specularTex.texels);
+    }
+    if (occtex.texels != &defaultOcclusion)
+    {
+        pim_free(occtex.texels);
+    }
+    if (emtex.texels != &defaultOcclusion)
+    {
+        pim_free(emtex.texels);
+    }
+
+    if (!texture_exists(material->albedo))
+    {
+        texture_new(&albedotex, VK_FORMAT_R8G8B8A8_SRGB, albedoGuid, &material->albedo);
+    }
+    else
+    {
+        pim_free(albedotex.texels);
+    }
+    if (!texture_exists(material->rome))
+    {
+        texture_new(&rometex, VK_FORMAT_R8G8B8A8_SRGB, romeGuid, &material->rome);
+    }
+    else
+    {
+        pim_free(rometex.texels);
+    }
+
+    return true;
 }
 
 static bool CreateLight(

@@ -7,8 +7,6 @@
 #include "containers/dict.h"
 #include "containers/text.h"
 
-static const u64 guid_seed = 14695981039346656037ull;
-
 static bool ms_init;
 static dict_t ms_guidToStr;
 static u32 ms_counter;
@@ -62,7 +60,7 @@ bool guid_get_name(guid_t id, char* dst, i32 size)
     return false;
 }
 
-i32 guid_find(const guid_t* pim_noalias ptr, i32 count, guid_t key)
+i32 guid_find(guid_t const *const pim_noalias ptr, i32 count, guid_t key)
 {
     ASSERT(ptr || !count);
     ASSERT(count >= 0);
@@ -76,12 +74,12 @@ i32 guid_find(const guid_t* pim_noalias ptr, i32 count, guid_t key)
     return -1;
 }
 
-guid_t guid_str(const char* str)
+guid_t guid_str(char const *const pim_noalias str)
 {
     guid_t id = { 0 };
     if (str && str[0])
     {
-        u64 a = Fnv64String(str, guid_seed);
+        u64 a = Fnv64String(str, Fnv64Bias);
         a = a ? a : 1;
         u64 b = Fnv64String(str, a);
         b = b ? b : 1;
@@ -92,17 +90,19 @@ guid_t guid_str(const char* str)
     return id;
 }
 
-guid_t guid_bytes(const void* ptr, i32 nBytes)
+guid_t guid_bytes(void const *const pim_noalias ptr, i32 nBytes)
 {
+    guid_t id = { 0 };
     if (ptr && nBytes > 0)
     {
-        u64 a = Fnv64Bytes(ptr, nBytes, guid_seed);
+        u64 a = Fnv64Bytes(ptr, nBytes, Fnv64Bias);
         a = a ? a : 1;
         u64 b = Fnv64Bytes(ptr, nBytes, a);
         b = b ? b : 1;
-        return (guid_t) { a, b };
+        id.a = a;
+        id.b = b;
     }
-    return (guid_t) { 0 };
+    return id;
 }
 
 guid_t guid_rand(prng_t* rng)
