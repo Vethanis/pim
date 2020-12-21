@@ -309,6 +309,8 @@ static bool CreateMaterial(
     char fullName[PIM_PATH] = { 0 };
     ConcatNames(ARGS(fullName), ARGS(names));
 
+    // TODO: Cache imported materials for reuse
+
     material_t material = { 0 };
     material.ior = 1.0f;
     if (cgmat->has_ior)
@@ -882,7 +884,7 @@ bool ResampleToAlbedoRome(
     {
         pim_free(occtex.texels);
     }
-    if (emtex.texels != &defaultOcclusion)
+    if (emtex.texels != &defaultEmission)
     {
         pim_free(emtex.texels);
     }
