@@ -14,7 +14,7 @@
 #include "common/sort.h"
 #include "common/stringutil.h"
 #include "threading/task.h"
-#include "threading/mutex.h"
+#include "threading/spinlock.h"
 #include "rendering/path_tracer.h"
 #include "rendering/sampler.h"
 #include "rendering/mesh.h"
@@ -70,7 +70,7 @@ typedef struct chart_s
 
 typedef struct atlas_s
 {
-    mutex_t mtx;
+    spinlock_t mtx;
     mask_t mask;
     i32 chartCount;
 } atlas_t;
@@ -721,7 +721,7 @@ pim_inline void chart_sort(chart_t* charts, i32 chartCount)
 pim_inline atlas_t atlas_new(i32 size)
 {
     atlas_t atlas = { 0 };
-    mutex_create(&atlas.mtx);
+    spinlock_new(&atlas.mtx);
     atlas.mask = mask_new(i2_s(size));
     return atlas;
 }
@@ -730,7 +730,7 @@ pim_inline void atlas_del(atlas_t* atlas)
 {
     if (atlas)
     {
-        mutex_destroy(&atlas->mtx);
+        spinlock_del(&atlas->mtx);
         mask_del(&atlas->mask);
         memset(atlas, 0, sizeof(*atlas));
     }
@@ -752,7 +752,7 @@ static bool atlas_search(
         {
             *prevAtlas = i;
             *prevRow = tr.y;
-            mutex_lock(&atlas->mtx);
+            spinlock_lock(&atlas->mtx);
             bool fits = mask_fits(atlas->mask, chart->mask, tr);
             if (fits)
             {
@@ -761,7 +761,7 @@ static bool atlas_search(
                 chart->atlasIndex = i;
                 atlas->chartCount++;
             }
-            mutex_unlock(&atlas->mtx);
+            spinlock_unlock(&atlas->mtx);
             if (fits)
             {
                 return true;
