@@ -1326,14 +1326,7 @@ pim_inline float4 VEC_CALL GetEmission(
             texture_t const *const tex = texture_get(mat->albedo);
             if (tex)
             {
-                if (bounce < kSimplificationBounce)
-                {
-                    albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
-                }
-                else
-                {
-                    albedo = UvWrapPow2_c32(tex->texels, tex->size, uv);
-                }
+                albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
             }
         }
         float e = 0.0f;
@@ -1341,14 +1334,7 @@ pim_inline float4 VEC_CALL GetEmission(
             texture_t const *const tex = texture_get(mat->rome);
             if (tex)
             {
-                if (bounce < kSimplificationBounce)
-                {
-                    e = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv).w;
-                }
-                else
-                {
-                    e = UvWrapPow2_c32(tex->texels, tex->size, uv).w;
-                }
+                e = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv).w;
             }
         }
         return UnpackEmission(albedo, e);
@@ -1373,7 +1359,6 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     surf.P = f4_add(ro, f4_mulvs(rd, hit.wuvt.w));
     surf.P = f4_add(surf.P, f4_mulvs(surf.M, kMilli));
 
-    if (bounce < kSimplificationBounce)
     {
         texture_t const *const tex = texture_get(mat->normal);
         if (tex)
@@ -1388,14 +1373,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         texture_t const *const tex = texture_get(mat->albedo);
         if (tex)
         {
-            if (bounce < kSimplificationBounce)
-            {
-                surf.albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
-            }
-            else
-            {
-                surf.albedo = UvWrapPow2_c32(tex->texels, tex->size, uv);
-            }
+            surf.albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
         }
     }
 
@@ -1404,14 +1382,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         texture_t const *const tex = texture_get(mat->rome);
         if (tex)
         {
-            if (bounce < kSimplificationBounce)
-            {
-                rome = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
-            }
-            else
-            {
-                rome = UvWrapPow2_c32(tex->texels, tex->size, uv);
-            }
+            rome = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
         }
     }
     surf.emission = UnpackEmission(surf.albedo, rome.w);
