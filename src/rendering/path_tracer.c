@@ -884,7 +884,7 @@ static float EmissionPdf(
             {
                 float4 wuv = SampleBaryCoord(Sample2D(sampler));
                 float2 uv = f2_blend(UA, UB, UC, wuv);
-                float sample = UvWrap_c32(texels, texSize, uv).w;
+                float sample = UvWrapPow2_c32(texels, texSize, uv).w;
                 if (sample > kThreshold)
                 {
                     ++hits;
@@ -1328,11 +1328,11 @@ pim_inline float4 VEC_CALL GetEmission(
             {
                 if (bounce < kSimplificationBounce)
                 {
-                    albedo = UvBilinearWrap_c32(tex->texels, tex->size, uv);
+                    albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
                 }
                 else
                 {
-                    albedo = UvWrap_c32(tex->texels, tex->size, uv);
+                    albedo = UvWrapPow2_c32(tex->texels, tex->size, uv);
                 }
             }
         }
@@ -1343,11 +1343,11 @@ pim_inline float4 VEC_CALL GetEmission(
             {
                 if (bounce < kSimplificationBounce)
                 {
-                    e = UvBilinearWrap_c32(tex->texels, tex->size, uv).w;
+                    e = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv).w;
                 }
                 else
                 {
-                    e = UvWrap_c32(tex->texels, tex->size, uv).w;
+                    e = UvWrapPow2_c32(tex->texels, tex->size, uv).w;
                 }
             }
         }
@@ -1378,7 +1378,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         texture_t const *const tex = texture_get(mat->normal);
         if (tex)
         {
-            float4 Nts = UvBilinearWrap_dir8(tex->texels, tex->size, uv);
+            float4 Nts = UvBilinearWrapPow2_dir8_fast(tex->texels, tex->size, uv);
             surf.N = TanToWorld(surf.N, Nts);
         }
     }
@@ -1390,11 +1390,11 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         {
             if (bounce < kSimplificationBounce)
             {
-                surf.albedo = UvBilinearWrap_c32(tex->texels, tex->size, uv);
+                surf.albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
             }
             else
             {
-                surf.albedo = UvWrap_c32(tex->texels, tex->size, uv);
+                surf.albedo = UvWrapPow2_c32(tex->texels, tex->size, uv);
             }
         }
     }
@@ -1406,11 +1406,11 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         {
             if (bounce < kSimplificationBounce)
             {
-                rome = UvBilinearWrap_c32(tex->texels, tex->size, uv);
+                rome = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
             }
             else
             {
-                rome = UvWrap_c32(tex->texels, tex->size, uv);
+                rome = UvWrapPow2_c32(tex->texels, tex->size, uv);
             }
         }
     }
