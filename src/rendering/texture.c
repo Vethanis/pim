@@ -18,10 +18,13 @@
 #include "rendering/vulkan/vkr_texture.h"
 #include "rendering/vulkan/vkr_textable.h"
 #include "assets/crate.h"
+#include "common/nextpow2.h"
 #include <string.h>
 
 static table_t ms_table;
 static u8 ms_palette[256 * 3];
+
+static void ResizeToPow2(texture_t* tex);
 
 static genid_t ToGenId(textureid_t tid)
 {
@@ -129,6 +132,7 @@ bool texture_new(
         }
         else
         {
+            ResizeToPow2(tex);
             i32 width = tex->size.x;
             i32 height = tex->size.y;
             tex->slot = vkrTexTable_Alloc(
@@ -546,6 +550,83 @@ bool texture_unpalette(
     }
 
     return albedoAdded && romeAdded && normalAdded;
+}
+
+static void ResizeToPow2(texture_t* tex)
+{
+    const int2 oldSize = tex->size;
+    const int2 newSize = {
+        .x = NextPow2(oldSize.x),
+        .y = NextPow2(oldSize.y),
+    };
+    const i32 newLen = newSize.x * newSize.y;
+    if ((oldSize.x == newSize.x) && (oldSize.y == newSize.y))
+    {
+        return;
+    }
+    switch (tex->format)
+    {
+    default:
+        ASSERT(false);
+        return;
+    case VK_FORMAT_R32G32B32A32_SFLOAT:
+    {
+        float4* pim_noalias src = tex->texels;
+        float4* pim_noalias dst = tex_malloc(newLen * sizeof(dst[0]));
+        for (i32 y = 0; y < newSize.y; ++y)
+        {
+            for (i32 x = 0; x < newSize.x; ++x)
+            {
+                float2 uv = CoordToUv(newSize, i2_v(x, y));
+                float4 sample = UvBilinearClamp_f4(src, oldSize, uv);
+                i32 i = x + y * newSize.x;
+                dst[i] = sample;
+            }
+        }
+        tex->texels = dst;
+        tex->size = newSize;
+        pim_free(src);
+    }
+    break;
+    case VK_FORMAT_R8G8B8A8_UNORM:
+    {
+        u32* pim_noalias src = tex->texels;
+        u32* pim_noalias dst = tex_malloc(newLen * sizeof(dst[0]));
+        for (i32 y = 0; y < newSize.y; ++y)
+        {
+            for (i32 x = 0; x < newSize.x; ++x)
+            {
+                float2 uv = CoordToUv(newSize, i2_v(x, y));
+                float4 sample = UvBilinearClamp_dir8(src, oldSize, uv);
+                i32 i = x + y * newSize.x;
+                dst[i] = DirectionToColor(sample);
+            }
+        }
+        tex->texels = dst;
+        tex->size = newSize;
+        pim_free(src);
+    }
+    break;
+    case VK_FORMAT_R8G8B8A8_SRGB:
+    {
+        u32* pim_noalias src = tex->texels;
+        u32* pim_noalias dst = tex_malloc(newLen * sizeof(dst[0]));
+        for (i32 y = 0; y < newSize.y; ++y)
+        {
+            for (i32 x = 0; x < newSize.x; ++x)
+            {
+                float2 uv = CoordToUv(newSize, i2_v(x, y));
+                float4 sample = UvBilinearClamp_c32(src, oldSize, uv);
+                i32 i = x + y * newSize.x;
+                dst[i] = LinearToColor(sample);
+            }
+        }
+        tex->texels = dst;
+        tex->size = newSize;
+        pim_free(src);
+    }
+    break;
+    }
 }
 
 // ----------------------------------------------------------------------------

@@ -9,8 +9,13 @@ cbuffer InputConstants
 };
 
 [numthreads(1, 1, 1)]
-void CSMain()
+void CSMain(uint3 tid : SV_DispatchThreadID)
 {
+    if (tid.x != 0)
+    {
+        return;
+    }
+
     const float rcpSamples = 1.0 / (m_inputWidth * m_inputHeight);
     vkrExposure args = m_exposure;
     const float minEV = args.minEV;

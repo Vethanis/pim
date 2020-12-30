@@ -97,14 +97,21 @@ pim_inline float4 VEC_CALL f4_tosrgb(float4 c)
 
 pim_inline u32 VEC_CALL DirectionToColor(float4 dir)
 {
+    // TODO: 16:16 xy encoding, and reconstruct z
     u32 c = f4_rgba8(f4_unorm(f4_normalize3(dir)));
-    c |= 0xff << 24; // *should* encode more info here, but for now alpha=1 for inspector
+    c |= 0xff << 24;
     return c;
 }
 
+pim_inline float4 VEC_CALL ColorToDirection_fast(u32 c)
+{
+    // TODO: 16:16 xy encoding, and reconstruct z
+    return f4_snorm(rgba8_f4(c));
+}
 pim_inline float4 VEC_CALL ColorToDirection(u32 c)
 {
-    return f4_normalize3(f4_snorm(rgba8_f4(c)));
+    // TODO: 16:16 xy encoding, and reconstruct z
+    return f4_normalize3(ColorToDirection_fast(c));
 }
 
 pim_inline u32 VEC_CALL LinearToColor(float4 lin)
