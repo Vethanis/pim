@@ -1363,7 +1363,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         texture_t const *const tex = texture_get(mat->normal);
         if (tex)
         {
-            float4 Nts = UvBilinearWrapPow2_dir8_fast(tex->texels, tex->size, uv);
+            float4 Nts = UvBilinearWrapPow2_xy16(tex->texels, tex->size, uv);
             surf.N = TanToWorld(surf.N, Nts);
         }
     }
@@ -1548,40 +1548,26 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     float etaT = entering ? matIor : kAir;
     float k = etaI / etaT;
 
-    float pdf = 0.5f;
+    float4 L = f4_reflect3(I, m);
+    V = (f4_dot3(L, V) < 0.0f) ? f4_reflect3(V, surf->M) : V;
+
+    float4 H = f4_normalize3(f4_add(L, V));
+    float HoV = f1_abs(f4_dot3(H, V));
+    float4 F = F_Schlick(surf->albedo, f4_1, HoV);
+
+    float pdf = f4_avglum(F);
     float4 T = f4_refract3(I, m, k);
-    if (f4_dot3(T, T) < 0.1f)
+    bool tir = f4_dot3(T, T) < 0.1f;
+    if (tir)
     {
         pdf = 1.0f;
     }
 
-    float4 L;
-    float4 att;
-    if (BrdfPrng(sampler) < pdf)
+    if (BrdfPrng(sampler) > pdf)
     {
-        float4 R = f4_normalize3(f4_reflect3(I, m));
-        if (f4_dot3(R, V) < 0.0f)
-        {
-            V = f4_reflect3(V, N);
-        }
-        float4 H = f4_normalize3(f4_add(R, V));
-        float HoV = f1_abs(f4_dot3(H, V));
-        float4 F = F_SchlickEx(surf->albedo, 1.0f, HoV);
-        att = F;
-        L = R;
-    }
-    else
-    {
-        T = f4_normalize3(T);
-        if (f4_dot3(T, V) < 0.0f)
-        {
-            V = f4_reflect3(V, N);
-        }
-        float4 H = f4_normalize3(f4_add(T, V));
-        float HoV = f1_abs(f4_dot3(H, V));
-        float4 F = f4_inv(F_SchlickEx(surf->albedo, 1.0f, HoV));
-        att = F;
+        F = f4_inv(F);
         pdf = 1.0f - pdf;
+        T = f4_normalize3(T);
         L = T;
     }
 
@@ -1593,7 +1579,7 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     scatter_t result = { 0 };
     result.pos = P;
     result.dir = L;
-    result.attenuation = att;
+    result.attenuation = tir ? f4_1 : F;
     result.pdf = pdf;
 
     return result;

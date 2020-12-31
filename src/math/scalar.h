@@ -2,8 +2,6 @@
 
 #include "common/macro.h"
 
-PIM_C_BEGIN
-
 #include <stdbool.h>
 #include <math.h>
 
@@ -38,6 +36,8 @@ PIM_C_BEGIN
 #define kMilli              0.001f
 #define kMicro              1e-6f
 #define kNano               1e-9f
+
+PIM_C_BEGIN
 
 pim_inline float VEC_CALL f1_radians(float x)
 {

@@ -53,9 +53,8 @@ PSOutput PSMain(PSInput input)
     float3 albedo = SampleTable2D(ai, uv0).xyz;
     albedo = max(kEpsilon, albedo);
     float4 rome = SampleTable2D(ri, uv0);
-    float3 normalTS = SampleTable2D(ni, uv0).xyz;
+    float3 normalTS = Xy16ToNormalTs(SampleTable2D(ni, uv0).xy);
 
-    normalTS = normalize(normalTS * 2.0 - 1.0);
     float3 N = TbnToWorld(input.TBN, normalTS);
     N = normalize(N);
 
@@ -89,6 +88,6 @@ PSOutput PSMain(PSInput input)
     PSOutput output;
     output.luminance = PerceptualLuminance(light);
     light *= GetExposure();
-    output.color = float4(saturate(TonemapACES(light)), 1.0);
+    output.color = float4(saturate(TonemapUncharted2(light)), 1.0);
     return output;
 }

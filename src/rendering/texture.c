@@ -341,7 +341,7 @@ typedef struct task_Unpalette
     const u8* bytes;
     u32* albedo;
     u32* rome;
-    u32* normal;
+    short2* normal;
     float2* gray;
     matflag_t flags;
     bool fullEmit;
@@ -395,7 +395,7 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
     const u8* pim_noalias bytes = task->bytes;
     const float2* pim_noalias gray = task->gray;
     u32* pim_noalias rome = task->rome;
-    u32* pim_noalias normal = task->normal;
+    short2* pim_noalias normal = task->normal;
     const bool fullEmit = task->fullEmit;
     const bool isLight = task->isLight;
 
@@ -438,8 +438,8 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
         float dx = r - l;
         float dy = u - d;
         const float z = 2.0f;
-        float4 N = { -dx, -dy, z, 1.0f };
-        normal[i] = DirectionToColor(N);
+        float4 N = { -dx, -dy, z, 0.0f };
+        normal[i] = NormalTsToXy16(N);
     }
 }
 
@@ -501,7 +501,7 @@ bool texture_unpalette(
 
         u32* pim_noalias albedo = tex_malloc(len * sizeof(albedo[0]));
         u32* pim_noalias rome = tex_malloc(len * sizeof(rome[0]));
-        u32* pim_noalias normal = tex_malloc(len * sizeof(normal[0]));
+        short2* pim_noalias normal = tex_malloc(len * sizeof(normal[0]));
         float2* pim_noalias gray = tex_malloc(len * sizeof(gray[0]));
 
         task_Unpalette* tasks = tmp_calloc(sizeof(tasks[0]) * 3);
@@ -546,7 +546,7 @@ bool texture_unpalette(
         normalMap.size = size;
         normalMap.texels = normal;
         normalAdded = texture_new(
-            &normalMap, VK_FORMAT_R8G8B8A8_UNORM, normalguid, normalOut);
+            &normalMap, VK_FORMAT_R16G16_SNORM, normalguid, normalOut);
     }
 
     return albedoAdded && romeAdded && normalAdded;
@@ -588,6 +588,25 @@ static void ResizeToPow2(texture_t* tex)
         pim_free(src);
     }
     break;
+    case VK_FORMAT_R8G8B8A8_SRGB:
+    {
+        u32* pim_noalias src = tex->texels;
+        u32* pim_noalias dst = tex_malloc(newLen * sizeof(dst[0]));
+        for (i32 y = 0; y < newSize.y; ++y)
+        {
+            for (i32 x = 0; x < newSize.x; ++x)
+            {
+                float2 uv = CoordToUv(newSize, i2_v(x, y));
+                float4 sample = UvBilinearClamp_c32(src, oldSize, uv);
+                i32 i = x + y * newSize.x;
+                dst[i] = LinearToColor(sample);
+            }
+        }
+        tex->texels = dst;
+        tex->size = newSize;
+        pim_free(src);
+    }
+    break;
     case VK_FORMAT_R8G8B8A8_UNORM:
     {
         u32* pim_noalias src = tex->texels;
@@ -607,18 +626,18 @@ static void ResizeToPow2(texture_t* tex)
         pim_free(src);
     }
     break;
-    case VK_FORMAT_R8G8B8A8_SRGB:
+    case VK_FORMAT_R16G16_SNORM:
     {
-        u32* pim_noalias src = tex->texels;
-        u32* pim_noalias dst = tex_malloc(newLen * sizeof(dst[0]));
+        short2* pim_noalias src = tex->texels;
+        short2* pim_noalias dst = tex_malloc(newLen * sizeof(dst[0]));
         for (i32 y = 0; y < newSize.y; ++y)
         {
             for (i32 x = 0; x < newSize.x; ++x)
             {
                 float2 uv = CoordToUv(newSize, i2_v(x, y));
-                float4 sample = UvBilinearClamp_c32(src, oldSize, uv);
+                float4 sample = UvBilinearClamp_xy16(src, oldSize, uv);
                 i32 i = x + y * newSize.x;
-                dst[i] = LinearToColor(sample);
+                dst[i] = NormalTsToXy16(sample);
             }
         }
         tex->texels = dst;

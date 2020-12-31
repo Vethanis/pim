@@ -1,10 +1,21 @@
 #ifndef COLOR_HLSL
 #define COLOR_HLSL
 
+#define kEmissionScale 100.0f
+
 float3 UnpackEmission(float3 albedo, float e)
 {
-    e = e * e * e * 100.0;
+    e = e * e * kEmissionScale;
     return albedo * e;
+}
+
+float3 Xy16ToNormalTs(float2 xy)
+{
+    float3 n;
+    n.x = xy.x;
+    n.y = xy.y;
+    n.z = sqrt(max(0.0f, 1.0f - (n.x * n.x + n.y * n.y)));
+    return n;
 }
 
 // http://filmicworlds.com/blog/filmic-tonemapping-operators/
