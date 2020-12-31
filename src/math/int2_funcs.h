@@ -1,10 +1,9 @@
 #pragma once
 
 #include "math/types.h"
+#include "math/scalar.h"
 
 PIM_C_BEGIN
-
-#include "math/scalar.h"
 
 #define i2_0 i2_s(0)
 #define i2_1 i2_s(1)

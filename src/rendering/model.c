@@ -108,7 +108,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "water",
-        0.1f,
+        0.25f,
         1.0f,
     },
     {
@@ -223,6 +223,7 @@ static material_t GenMaterial(
         material.ior = 1.52f;
         material.flags |= matflag_refractive;
         material.flags |= matflag_emissive;
+        roughness = 0.125f;
     }
     if (StrIStr(ARGS(mtex->name), "teleport"))
     {

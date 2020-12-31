@@ -97,7 +97,6 @@ pim_inline float4 VEC_CALL f4_tosrgb(float4 c)
 
 pim_inline u32 VEC_CALL DirectionToColor(float4 dir)
 {
-    // TODO: 16:16 xy encoding, and reconstruct z
     u32 c = f4_rgba8(f4_unorm(f4_normalize3(dir)));
     c |= 0xff << 24;
     return c;
@@ -105,13 +104,31 @@ pim_inline u32 VEC_CALL DirectionToColor(float4 dir)
 
 pim_inline float4 VEC_CALL ColorToDirection_fast(u32 c)
 {
-    // TODO: 16:16 xy encoding, and reconstruct z
     return f4_snorm(rgba8_f4(c));
 }
 pim_inline float4 VEC_CALL ColorToDirection(u32 c)
 {
-    // TODO: 16:16 xy encoding, and reconstruct z
     return f4_normalize3(ColorToDirection_fast(c));
+}
+
+pim_inline short2 VEC_CALL NormalTsToXy16(float4 n)
+{
+    ASSERT(n.z >= 0.0f); // must be in tangent space
+    n = f4_mulvs(f4_normalize3(n), 32767.0f);
+    short2 xy;
+    xy.x = (i16)n.x;
+    xy.y = (i16)n.y;
+    return xy;
+}
+
+pim_inline float4 VEC_CALL Xy16ToNormalTs(short2 xy)
+{
+    float4 n;
+    n.x = xy.x * (1.0f / (1 << 15));
+    n.y = xy.y * (1.0f / (1 << 15));
+    n.z = sqrtf(f1_max(0.0f, 1.0f - (n.x * n.x + n.y * n.y)));
+    n.w = 0.0f;
+    return n;
 }
 
 pim_inline u32 VEC_CALL LinearToColor(float4 lin)
