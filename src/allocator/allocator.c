@@ -17,8 +17,9 @@
 #define kTextureCapacity    (1 << 30)
 #define kTempCapacity       (256 << 20)
 
-typedef pim_alignas(kAlign) struct hdr_s
+typedef struct hdr_s
 {
+    pim_alignas(kAlign) 
     i32 type;
     i32 userBytes;
     i32 tid;
@@ -314,8 +315,9 @@ void* pim_calloc(EAlloc type, i32 bytes)
 #define kStackCapacity      (4 << 10)
 #define kFrameCount         (kStackCapacity / kAlign)
 
-typedef pim_alignas(kAlign) struct sframe_s
+typedef struct sframe_s
 {
+    pim_alignas(kAlign)
     u8 value[kAlign];
 } sframe_t;
 

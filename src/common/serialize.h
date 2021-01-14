@@ -113,15 +113,15 @@ static bool _ser_load_str(char* dst, i32 size, ser_obj_t* obj, const char* key)
 #define ser_save_bool(ptr, obj, field)       ser_set_bool((obj), #field, (ptr)->field)
 
 #define ser_load_f4(ptr, obj, field) \
-    (ptr)->field.x = ser_get_f32((obj), STR_TOK(field##.x)); \
-    (ptr)->field.y = ser_get_f32((obj), STR_TOK(field##.y)); \
-    (ptr)->field.z = ser_get_f32((obj), STR_TOK(field##.z)); \
-    (ptr)->field.w = ser_get_f32((obj), STR_TOK(field##.w))
+    (ptr)->field.x = ser_get_f32((obj), STR_TOK(field.x)); \
+    (ptr)->field.y = ser_get_f32((obj), STR_TOK(field.y)); \
+    (ptr)->field.z = ser_get_f32((obj), STR_TOK(field.z)); \
+    (ptr)->field.w = ser_get_f32((obj), STR_TOK(field.w))
 
 #define ser_save_f4(ptr, obj, field) \
-    ser_set_f32((obj), STR_TOK(field##.x), (ptr)->field.x); \
-    ser_set_f32((obj), STR_TOK(field##.y), (ptr)->field.y); \
-    ser_set_f32((obj), STR_TOK(field##.z), (ptr)->field.z); \
-    ser_set_f32((obj), STR_TOK(field##.w), (ptr)->field.w)
+    ser_set_f32((obj), STR_TOK(field.x), (ptr)->field.x); \
+    ser_set_f32((obj), STR_TOK(field.y), (ptr)->field.y); \
+    ser_set_f32((obj), STR_TOK(field.z), (ptr)->field.z); \
+    ser_set_f32((obj), STR_TOK(field.w), (ptr)->field.w)
 
 PIM_C_END

@@ -29,7 +29,18 @@
 #if PLAT_WINDOWS
     #define IF_WIN(x)               x
     #define IF_UNIX(x)              
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+#else
+    #define IF_WIN(x)               
+    #define IF_UNIX(x)              x
+#endif // PLAT_WINDOWS
 
+#ifdef _MSC_VER
     #define INTERRUPT()             __debugbreak()
     #define pim_thread_local        __declspec(thread)
     #define PIM_EXPORT              __declspec(dllexport)
@@ -41,28 +52,18 @@
     #define pim_alignas(x)          __declspec(align(x))
     #define pim_optimize            __pragma(optimize("", on))
     #define pim_deoptimize          __pragma(optimize("", off))
-
-    #ifndef WIN32_LEAN_AND_MEAN
-        #define WIN32_LEAN_AND_MEAN
-    #endif
-    #ifndef NOMINMAX
-        #define NOMINMAX
-    #endif
 #else
-    #define IF_WIN(x)               
-    #define IF_UNIX(x)              x
-
     #define INTERRUPT()             raise(SIGTRAP)
     #define pim_thread_local        _Thread_local
     #define PIM_EXPORT              
     #define PIM_IMPORT              
     #define PIM_CDECL               
-    #define VEC_CALL                
-    #define pim_inline              static
-    #define pim_noalias             
-    #define pim_alignas(x)          
-    #define pim_optimize            
-    #define pim_deoptimize          
+    #define VEC_CALL                __vectorcall
+    #define pim_inline              __attribute__((always_inline))
+    #define pim_noalias             __restrict__
+    #define pim_alignas(x)          _Alignas(x)
+    #define pim_optimize            _Pragma("clang optimize on")
+    #define pim_deoptimize          _Pragma("clang optimize off")
 #endif // PLAT_WINDOWS
 
 #define NELEM(x)                    ( sizeof(x) / sizeof((x)[0]) )
@@ -70,6 +71,7 @@
 #define IF_TRUE(x, expr)            do { if(x) { expr; } } while(0)
 #define IF_FALSE(x, expr)           do { if(!(x)) { expr; } } while(0)
 #define pim_offsetof(s, m)          ((usize)&(((s*)0)->m))
+#define pim_alignof(x)              _Alignof(x)
 #define pim_min(a, b)               ((a) < (b) ? (a) : (b))
 #define pim_max(a, b)               ((a) > (b) ? (a) : (b))
 

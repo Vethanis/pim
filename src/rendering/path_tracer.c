@@ -425,7 +425,7 @@ static cvar_t cv_pt_dist_samples =
 {
     .type = cvart_int,
     .name = "pt_dist_samples",
-    .value = "100",
+    .value = "30",
     .minInt = 30,
     .maxInt = 1 << 20,
     .desc = "path tracer light distribution minimum samples per update",
@@ -1685,7 +1685,7 @@ pim_inline void VEC_CALL LightOnHit(
         if (dist->length)
         {
             float lum = f4_avglum(lum4);
-            u32 amt = (u32)(lum + Sample1D(sampler));
+            u32 amt = (u32)(lum * 64.0f + Sample1D(sampler) * 0.5f);
             fetch_add_u32(dist->live + iList, amt, MO_Relaxed);
         }
     }
@@ -1816,8 +1816,8 @@ pim_inline float VEC_CALL LightEvalPdf(
 }
 
 pim_inline float4 VEC_CALL EstimateDirect(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     surfhit_t const *const pim_noalias surf,
     rayhit_t const *const pim_noalias srcHit,
     float4 I,
@@ -1830,40 +1830,46 @@ pim_inline float4 VEC_CALL EstimateDirect(
     }
     const float4 ro = surf->P;
 
-    i32 iVert;
-    float selectPdf;
-    if (LightSelect(sampler, scene, surf->P, &iVert, &selectPdf))
+    const float pA = f1_lerp(0.05f, 0.95f, surf->roughness);
+    const float pB = 1.0f - pA;
+    if (Sample1D(sampler) < pA)
     {
-        if (srcHit->index != iVert)
+        i32 iVert;
+        float selectPdf;
+        if (LightSelect(sampler, scene, surf->P, &iVert, &selectPdf))
         {
-            // already has CalcTransmittance applied
-            lightsample_t sample = LightSample(sampler, scene, ro, iVert, bounce);
-            float4 rd = sample.direction;
-            float4 Li = sample.luminance;
-            float lightPdf = sample.pdf * selectPdf;
-            if ((lightPdf > kEpsilon) && (f4_hmax3(Li) > kEpsilon))
+            if (srcHit->index != iVert)
             {
-                float4 brdf = BrdfEval(sampler, I, surf, rd);
-                float brdfPdf = brdf.w;
-                if (brdfPdf > kEpsilon)
+                // already has CalcTransmittance applied
+                lightsample_t sample = LightSample(sampler, scene, ro, iVert, bounce);
+                float4 rd = sample.direction;
+                float4 Li = sample.luminance;
+                float lightPdf = sample.pdf * selectPdf * pA;
+                if ((lightPdf > kEpsilon) && (f4_hmax3(Li) > kEpsilon))
                 {
-                    Li = f4_mul(Li, brdf);
-                    float weight = PowerHeuristic(lightPdf, brdfPdf) * 0.5f;
-                    Li = f4_mulvs(Li, weight / lightPdf);
-                    result = f4_add(result, Li);
+                    float4 brdf = BrdfEval(sampler, I, surf, rd);
+                    float brdfPdf = brdf.w * pB;
+                    if (brdfPdf > kEpsilon)
+                    {
+                        Li = f4_mul(Li, brdf);
+                        float weight = PowerHeuristic(lightPdf, brdfPdf) * 0.5f;
+                        weight = weight / lightPdf;
+                        Li = f4_mulvs(Li, weight);
+                        result = f4_add(result, Li);
+                    }
                 }
             }
         }
     }
-
+    else
     {
         scatter_t sample = BrdfScatter(sampler, surf, I);
         float4 rd = sample.dir;
-        float brdfPdf = sample.pdf;
+        float brdfPdf = sample.pdf * pB;
         if (brdfPdf > kEpsilon)
         {
             rayhit_t hit = { 0 };
-            float lightPdf = LightEvalPdf(sampler, scene, ro, rd, &hit);
+            float lightPdf = LightEvalPdf(sampler, scene, ro, rd, &hit) * pA;
             if (lightPdf > kEpsilon)
             {
                 float4 Li = GetEmission(scene, ro, rd, hit, bounce);
@@ -1875,7 +1881,8 @@ pim_inline float4 VEC_CALL EstimateDirect(
 
                     lightPdf *= LightSelectPdf(scene, hit.index, ro);
                     float weight = PowerHeuristic(brdfPdf, lightPdf) * 0.5f;
-                    Li = f4_mulvs(Li, weight / brdfPdf);
+                    weight = weight / brdfPdf;
+                    Li = f4_mulvs(Li, weight);
 
                     result = f4_add(result, Li);
                 }

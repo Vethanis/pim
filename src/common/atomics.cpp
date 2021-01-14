@@ -11,12 +11,12 @@ SASSERT(ATOMIC_LONG_LOCK_FREE == 2);
 SASSERT(ATOMIC_LLONG_LOCK_FREE == 2);
 SASSERT(ATOMIC_POINTER_LOCK_FREE == 2);
 
-SASSERT(MO_Relaxed == std::memory_order_relaxed);
-SASSERT(MO_Consume == std::memory_order_consume);
-SASSERT(MO_Acquire == std::memory_order_acquire);
-SASSERT(MO_Release == std::memory_order_release);
-SASSERT(MO_AcqRel == std::memory_order_acq_rel);
-SASSERT(MO_SeqCst == std::memory_order_seq_cst);
+SASSERT((int)MO_Relaxed == (int)std::memory_order_relaxed);
+SASSERT((int)MO_Consume == (int)std::memory_order_consume);
+SASSERT((int)MO_Acquire == (int)std::memory_order_acquire);
+SASSERT((int)MO_Release == (int)std::memory_order_release);
+SASSERT((int)MO_AcqRel == (int)std::memory_order_acq_rel);
+SASSERT((int)MO_SeqCst == (int)std::memory_order_seq_cst);
 
 // ----------------------------------------------------------------------------
 

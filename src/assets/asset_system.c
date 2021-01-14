@@ -26,7 +26,7 @@ void asset_sys_init(void)
     sdict_t assets;
     sdict_new(&assets, sizeof(asset_t), EAlloc_Perm);
 
-    char path[PIM_PATH];
+    char path[PIM_PATH] = { 0 };
     SPrintf(ARGS(path), "%s/%s", cv_basedir.value, cv_game.value);
     folder_t folder = folder_load(path, EAlloc_Perm);
 
@@ -232,7 +232,7 @@ void asset_gui(bool* pEnabled)
             }
 
             const sdict_t dict = ms_assets;
-            const char** names = dict.keys;
+            char const *const *const names = dict.keys;
             const asset_t* assets = dict.values;
             u32* indices = sdict_sort(&dict, CmpAsset, NULL);
             for (u32 i = 0; i < dict.count; ++i)

@@ -4,7 +4,6 @@
 #include "common/cvar.h"
 #include "common/profiler.h"
 #include "common/stringutil.h"
-#include "common/valist.h"
 #include "io/fstr.h"
 #include "input/input_system.h"
 #include "ui/cimgui.h"
@@ -241,7 +240,10 @@ void con_printf(u32 color, const char* fmt, ...)
     if (fmt)
     {
         char buffer[4096];
-        VSPrintf(ARGS(buffer), fmt, VA_START(fmt));
+        va_list ap;
+        va_start(ap, fmt);
+        VSPrintf(ARGS(buffer), fmt, ap);
+        va_end(ap);
         con_puts(color, buffer);
     }
 }
@@ -316,7 +318,11 @@ void con_logf(LogSev sev, const char* tag, const char* fmt, ...)
             StrCatf(ARGS(msg), "[%s]", tag);
         }
         StrCatf(ARGS(msg), " ");
-        VStrCatf(ARGS(msg), fmt, VA_START(fmt));
+
+        va_list ap;
+        va_start(ap, fmt);
+        VStrCatf(ARGS(msg), fmt, ap);
+        va_end(ap);
 
         con_puts(sevColor, msg);
 

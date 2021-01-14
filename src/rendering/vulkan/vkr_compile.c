@@ -263,6 +263,10 @@ char* vkrLoadShader(const char* filename)
         }
         fstr_close(&fd);
     }
+    else
+    {
+        ASSERT(false);
+    }
 
     return contents;
 }
