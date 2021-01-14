@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/macro.h"
-#include "common/valist.h"
+#include <stdarg.h>
 
 PIM_C_BEGIN
 
@@ -66,9 +66,9 @@ const char* IEndsWith(char const *const hay, i32 size, char const *const needle)
 // ----------------------------------------------------------------------------
 // string formatting
 
-i32 VSPrintf(char *const dst, i32 size, char const *const fmt, VaList va);
+i32 VSPrintf(char *const dst, i32 size, char const *const fmt, va_list va);
 i32 SPrintf(char *const dst, i32 size, char const *const fmt, ...);
-i32 VStrCatf(char *const dst, i32 size, char const *const fmt, VaList va);
+i32 VStrCatf(char *const dst, i32 size, char const *const fmt, va_list va);
 i32 StrCatf(char *const dst, i32 size, char const *const fmt, ...);
 
 // ----------------------------------------------------------------------------

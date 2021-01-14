@@ -1,6 +1,5 @@
 #include "ui/imgui.h"
 #include "ui/imgui_internal.h"
-#include "common/valist.h"
 
 extern "C"
 {
@@ -502,55 +501,67 @@ void igTextUnformatted(const char* text,const char* text_end)
 }
 void igText(const char* fmt,...)
 {
-    VaList args = VA_START(fmt);
-    ImGui::TextV(fmt,args);
+    va_list ap;
+    va_start(ap, fmt);
+    ImGui::TextV(fmt, ap);
+    va_end(ap);
 }
-void igTextV(const char* fmt,VaList args)
+void igTextV(const char* fmt, va_list args)
 {
     return ImGui::TextV(fmt,args);
 }
 void igTextColored(const ImVec4 col,const char* fmt,...)
 {
-    VaList args = VA_START(fmt);
-    ImGui::TextColoredV(col,fmt,args);
+    va_list ap;
+    va_start(ap, fmt);
+    ImGui::TextColoredV(col, fmt, ap);
+    va_end(ap);
 }
-void igTextColoredV(const ImVec4 col,const char* fmt,VaList args)
+void igTextColoredV(const ImVec4 col,const char* fmt, va_list args)
 {
     return ImGui::TextColoredV(col,fmt,args);
 }
 void igTextDisabled(const char* fmt,...)
 {
-    VaList args = VA_START(fmt);
-    ImGui::TextDisabledV(fmt,args);
+    va_list ap;
+    va_start(ap, fmt);
+    ImGui::TextDisabledV(fmt, ap);
+    va_end(ap);
 }
-void igTextDisabledV(const char* fmt,VaList args)
+void igTextDisabledV(const char* fmt, va_list args)
 {
     return ImGui::TextDisabledV(fmt,args);
 }
 void igTextWrapped(const char* fmt,...)
 {
-    VaList args = VA_START(fmt);
-    ImGui::TextWrappedV(fmt,args);
+    va_list ap;
+    va_start(ap, fmt);
+    ImGui::TextWrappedV(fmt,ap);
+    va_end(ap);
 }
-void igTextWrappedV(const char* fmt,VaList args)
+void igTextWrappedV(const char* fmt, va_list args)
 {
     return ImGui::TextWrappedV(fmt,args);
 }
 void igLabelText(const char* label,const char* fmt,...)
 {
-    VaList args = VA_START(fmt);
-    ImGui::LabelTextV(label,fmt,args);
+    va_list ap;
+    va_start(ap, fmt);
+    ImGui::LabelTextV(label,fmt,ap);
+    va_end(ap);
 }
-void igLabelTextV(const char* label,const char* fmt,VaList args)
+void igLabelTextV(const char* label,const char* fmt, va_list args)
 {
     return ImGui::LabelTextV(label,fmt,args);
 }
 void igBulletText(const char* fmt,...)
 {
-    VaList args = VA_START(fmt);
-    ImGui::BulletTextV(fmt,args);
+    va_list ap;
+    va_start(ap, fmt);
+    ImGui::BulletTextV(fmt,ap);
+    va_end(ap);
 }
-void igBulletTextV(const char* fmt,VaList args)
+void igBulletTextV(const char* fmt, va_list args)
 {
     return ImGui::BulletTextV(fmt,args);
 }
@@ -812,21 +823,25 @@ bool igTreeNodeStr(const char* label)
 }
 bool igTreeNodeStrStr(const char* str_id,const char* fmt,...)
 {
-    VaList args = VA_START(fmt);
-    bool ret = ImGui::TreeNodeV(str_id,fmt,args);
+    va_list ap;
+    va_start(ap, fmt);
+    bool ret = ImGui::TreeNodeV(str_id, fmt, ap);
+    va_end(ap);
     return ret;
 }
 bool igTreeNodePtr(const void* ptr_id,const char* fmt,...)
 {
-    VaList args = VA_START(fmt);
-    bool ret = ImGui::TreeNodeV(ptr_id,fmt,args);
+    va_list ap;
+    va_start(ap, fmt);
+    bool ret = ImGui::TreeNodeV(ptr_id, fmt, ap);
+    va_end(ap);
     return ret;
 }
-bool igTreeNodeVStr(const char* str_id,const char* fmt,VaList args)
+bool igTreeNodeVStr(const char* str_id,const char* fmt, va_list args)
 {
     return ImGui::TreeNodeV(str_id,fmt,args);
 }
-bool igTreeNodeVPtr(const void* ptr_id,const char* fmt,VaList args)
+bool igTreeNodeVPtr(const void* ptr_id,const char* fmt, va_list args)
 {
     return ImGui::TreeNodeV(ptr_id,fmt,args);
 }
@@ -836,21 +851,25 @@ bool igTreeNodeExStr(const char* label,ImGuiTreeNodeFlags flags)
 }
 bool igTreeNodeExStrStr(const char* str_id,ImGuiTreeNodeFlags flags,const char* fmt,...)
 {
-    VaList args = VA_START(fmt);
-    bool ret = ImGui::TreeNodeExV(str_id,flags,fmt,args);
+    va_list ap;
+    va_start(ap, fmt);
+    bool ret = ImGui::TreeNodeExV(str_id,flags,fmt,ap);
+    va_end(ap);
     return ret;
 }
 bool igTreeNodeExPtr(const void* ptr_id,ImGuiTreeNodeFlags flags,const char* fmt,...)
 {
-    VaList args = VA_START(fmt);
-    bool ret = ImGui::TreeNodeExV(ptr_id,flags,fmt,args);
+    va_list ap;
+    va_start(ap, fmt);
+    bool ret = ImGui::TreeNodeExV(ptr_id,flags,fmt,ap);
+    va_end(ap);
     return ret;
 }
-bool igTreeNodeExVStr(const char* str_id,ImGuiTreeNodeFlags flags,const char* fmt,VaList args)
+bool igTreeNodeExVStr(const char* str_id,ImGuiTreeNodeFlags flags,const char* fmt, va_list args)
 {
     return ImGui::TreeNodeExV(str_id,flags,fmt,args);
 }
-bool igTreeNodeExVPtr(const void* ptr_id,ImGuiTreeNodeFlags flags,const char* fmt,VaList args)
+bool igTreeNodeExVPtr(const void* ptr_id,ImGuiTreeNodeFlags flags,const char* fmt, va_list args)
 {
     return ImGui::TreeNodeExV(ptr_id,flags,fmt,args);
 }
@@ -1000,10 +1019,12 @@ void igEndTooltip()
 }
 void igSetTooltip(const char* fmt,...)
 {
-    VaList args = VA_START(fmt);
-    ImGui::SetTooltipV(fmt,args);
+    va_list ap;
+    va_start(ap, fmt);
+    ImGui::SetTooltipV(fmt,ap);
+    va_end(ap);
 }
-void igSetTooltipV(const char* fmt,VaList args)
+void igSetTooltipV(const char* fmt,va_list args)
 {
     return ImGui::SetTooltipV(fmt,args);
 }
@@ -1922,15 +1943,18 @@ void ImFont_SetFallbackChar(ImFont* self,ImWchar c)
 void igLogText(const char *fmt, ...)
 {
     char buffer[256];
-    VaList args = VA_START(fmt);
-    vsnprintf(buffer, 256, fmt, args);
-
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buffer, 256, fmt, ap);
+    va_end(ap);
     ImGui::LogText("%s", buffer);
 }
 void ImGuiTextBuffer_appendf(struct ImGuiTextBuffer *buffer, const char *fmt, ...)
 {
-    VaList args = VA_START(fmt);
-    buffer->appendfv(fmt, args);
+    va_list ap;
+    va_start(ap, fmt);
+    buffer->appendfv(fmt, ap);
+    va_end(ap);
 }
 
 float igGET_FLT_MAX()

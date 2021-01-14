@@ -104,7 +104,10 @@ i32 fd_printf(fd_t fd, const char* fmt, ...)
     ASSERT(fmt);
     ASSERT(fd.handle >= 0);
     char buffer[1024];
-    i32 a = VSPrintf(ARGS(buffer), fmt, VA_START(fmt));
+    va_list ap;
+    va_start(ap, fmt);
+    i32 a = VSPrintf(ARGS(buffer), fmt, ap);
+    va_end(ap);
     ASSERT(a >= 0);
     i32 b = fd_write(fd, buffer, a);
     ASSERT(a == b);

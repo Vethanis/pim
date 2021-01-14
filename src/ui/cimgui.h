@@ -2,10 +2,9 @@
 #define CIMGUI_INCLUDED
 
 #include "common/macro.h"
+#include <stdarg.h>
 
 PIM_C_BEGIN
-
-#include "common/valist.h"
 
 #ifndef CIMGUI_VERSION
     #define CIMGUI_VERSION      "1.75"
@@ -1027,17 +1026,17 @@ ImGuiID igGetIDStrStr(const char* str_id_begin,const char* str_id_end);
 ImGuiID igGetIDPtr(const void* ptr_id);
 void igTextUnformatted(const char* text,const char* text_end);
 void igText(const char* fmt,...);
-void igTextV(const char* fmt, VaList args);
+void igTextV(const char* fmt, va_list args);
 void igTextColored(const ImVec4 col,const char* fmt,...);
-void igTextColoredV(const ImVec4 col,const char* fmt, VaList args);
+void igTextColoredV(const ImVec4 col,const char* fmt, va_list args);
 void igTextDisabled(const char* fmt,...);
-void igTextDisabledV(const char* fmt, VaList args);
+void igTextDisabledV(const char* fmt, va_list args);
 void igTextWrapped(const char* fmt,...);
-void igTextWrappedV(const char* fmt, VaList args);
+void igTextWrappedV(const char* fmt, va_list args);
 void igLabelText(const char* label,const char* fmt,...);
-void igLabelTextV(const char* label,const char* fmt, VaList args);
+void igLabelTextV(const char* label,const char* fmt, va_list args);
 void igBulletText(const char* fmt,...);
-void igBulletTextV(const char* fmt, VaList args);
+void igBulletTextV(const char* fmt, va_list args);
 bool igButton(const char* label);
 bool igSmallButton(const char* label);
 bool igInvisibleButton(const char* str_id,const ImVec2 size);
@@ -1104,13 +1103,13 @@ void igSetColorEditOptions(ImGuiColorEditFlags flags);
 bool igTreeNodeStr(const char* label);
 bool igTreeNodeStrStr(const char* str_id,const char* fmt,...);
 bool igTreeNodePtr(const void* ptr_id,const char* fmt,...);
-bool igTreeNodeVStr(const char* str_id,const char* fmt, VaList args);
-bool igTreeNodeVPtr(const void* ptr_id,const char* fmt, VaList args);
+bool igTreeNodeVStr(const char* str_id,const char* fmt, va_list args);
+bool igTreeNodeVPtr(const void* ptr_id,const char* fmt, va_list args);
 bool igTreeNodeExStr(const char* label,ImGuiTreeNodeFlags flags);
 bool igTreeNodeExStrStr(const char* str_id,ImGuiTreeNodeFlags flags,const char* fmt,...);
 bool igTreeNodeExPtr(const void* ptr_id,ImGuiTreeNodeFlags flags,const char* fmt,...);
-bool igTreeNodeExVStr(const char* str_id,ImGuiTreeNodeFlags flags,const char* fmt,VaList args);
-bool igTreeNodeExVPtr(const void* ptr_id,ImGuiTreeNodeFlags flags,const char* fmt,VaList args);
+bool igTreeNodeExVStr(const char* str_id,ImGuiTreeNodeFlags flags,const char* fmt, va_list args);
+bool igTreeNodeExVPtr(const void* ptr_id,ImGuiTreeNodeFlags flags,const char* fmt, va_list args);
 void igTreePushStr(const char* str_id);
 void igTreePushPtr(const void* ptr_id);
 void igTreePop(void);
@@ -1148,7 +1147,7 @@ bool igMenuItemBoolPtr(const char* label,const char* shortcut,bool* p_selected,b
 void igBeginTooltip(void);
 void igEndTooltip(void);
 void igSetTooltip(const char* fmt,...);
-void igSetTooltipV(const char* fmt,VaList args);
+void igSetTooltipV(const char* fmt, va_list args);
 void igOpenPopup(const char* str_id);
 bool igBeginPopup(const char* str_id,ImGuiWindowFlags flags);
 bool igBeginPopupContextItem(const char* str_id,ImGuiMouseButton mouse_button);

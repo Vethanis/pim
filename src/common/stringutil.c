@@ -1,7 +1,6 @@
 #include "common/stringutil.h"
 
 #include "common/macro.h"
-#include "common/valist.h"
 #include "allocator/allocator.h"
 #include "stb/stb_sprintf.h"
 #include <string.h>
@@ -435,7 +434,7 @@ const char* IEndsWith(char const *const hay, i32 size, char const *const needle)
 // ----------------------------------------------------------------------------
 // string formatting
 
-i32 VSPrintf(char *const dst, i32 size, char const *const fmt, VaList va)
+i32 VSPrintf(char *const dst, i32 size, char const *const fmt, va_list va)
 {
     ASSERT((dst && fmt) || !size);
     ASSERT(size >= 0);
@@ -453,10 +452,14 @@ i32 VSPrintf(char *const dst, i32 size, char const *const fmt, VaList va)
 
 i32 SPrintf(char *const dst, i32 size, char const *const fmt, ...)
 {
-    return VSPrintf(dst, size, fmt, VA_START(fmt));
+    va_list ap;
+    va_start(ap, fmt);
+    i32 rv = VSPrintf(dst, size, fmt, ap);
+    va_end(ap);
+    return rv;
 }
 
-i32 VStrCatf(char *const dst, i32 size, char const *const fmt, VaList va)
+i32 VStrCatf(char *const dst, i32 size, char const *const fmt, va_list va)
 {
     i32 len = StrNLen(dst, size);
     return VSPrintf(dst + len, size - len, fmt, va) + len;
@@ -464,8 +467,12 @@ i32 VStrCatf(char *const dst, i32 size, char const *const fmt, VaList va)
 
 i32 StrCatf(char *const dst, i32 size, char const *const fmt, ...)
 {
+    va_list ap;
+    va_start(ap, fmt);
     i32 len = StrNLen(dst, size);
-    return VSPrintf(dst + len, size - len, fmt, VA_START(fmt)) + len;
+    i32 rv = VSPrintf(dst + len, size - len, fmt, ap) + len;
+    va_end(ap);
+    return rv;
 }
 
 // ----------------------------------------------------------------------------

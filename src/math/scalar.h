@@ -13,7 +13,6 @@
     #undef max
 #endif // max
 
-#pragma intrinsic(pow, sqrt, exp, log, sin, cos, tan, fmod)
 
 #define kPi                 3.1415926535897932384626433832795f
 #define kTau                6.283185307179586476925286766559f
