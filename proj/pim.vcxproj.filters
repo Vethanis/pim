@@ -181,9 +181,6 @@
     <ClCompile Include="..\src\threading\task.c">
       <Filter>Source Files\threading</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\containers\int_queue.c">
-      <Filter>Source Files\containers</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\io\fd.c">
       <Filter>Source Files\io</Filter>
     </ClCompile>
@@ -604,6 +601,12 @@
     <ClCompile Include="..\src\rendering\gltf_model.c">
       <Filter>Source Files\rendering</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\assets\vfile.c">
+      <Filter>Source Files\assets</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\containers\queue_i32.c">
+      <Filter>Source Files\containers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\common\macro.h">
@@ -770,9 +773,6 @@
     </ClInclude>
     <ClInclude Include="..\src\threading\rwlock.h">
       <Filter>Source Files\threading</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\containers\int_queue.h">
-      <Filter>Source Files\containers</Filter>
     </ClInclude>
     <ClInclude Include="..\src\io\fd.h">
       <Filter>Source Files\io</Filter>
@@ -1295,6 +1295,12 @@
     </ClInclude>
     <ClInclude Include="..\src\rendering\gltf_model.h">
       <Filter>Source Files\rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\assets\vfile.h">
+      <Filter>Source Files\assets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\containers\queue_i32.h">
+      <Filter>Source Files\containers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

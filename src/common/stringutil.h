@@ -54,6 +54,9 @@ i32 MemICmp(char const *const pim_noalias lhs, char const *const pim_noalias rhs
 const char* StrChr(char const *const hay, i32 size, char needle);
 const char* StrIChr(char const *const hay, i32 size, char needle);
 
+const char* StrRChr(char const *const hay, i32 size, char needle);
+const char* StrRIChr(char const *const hay, i32 size, char needle);
+
 const char* StrStr(char const *const hay, i32 size, char const *const needle);
 const char* StrIStr(char const *const hay, i32 size, char const *const needle);
 

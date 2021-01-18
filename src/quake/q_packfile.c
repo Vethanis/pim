@@ -2,64 +2,94 @@
 #include "io/fmap.h"
 #include "io/fnd.h"
 #include "common/stringutil.h"
+#include "common/console.h"
 #include "allocator/allocator.h"
 
 #include <string.h>
 
-pack_t pack_load(const char* path, EAlloc allocator)
+bool pack_load(pack_t* pack, const char* path)
 {
-    ASSERT(path);
+    memset(pack, 0, sizeof(*pack));
 
-    pack_t pack = { 0 };
-
-    fd_t fd = fd_open(path, 0);
-    if (!fd_isopen(fd))
-    {
-        return pack;
-    }
-
-    fmap_t map = fmap_create(fd, false);
-    fd_close(&fd);
-
+    fmap_t map = fmap_open(path, false);
     if (!fmap_isopen(map))
     {
-        return pack;
+        goto onfail;
     }
 
-    pack.path = StrDup(path, allocator);
-    pack.mapped = map;
+    StrCpy(ARGS(pack->path), path);
     const dpackheader_t* header = map.ptr;
 
-    ASSERT(map.size >= sizeof(*header));
-    ASSERT(memcmp(header->id, "PACK", 4) == 0);
-    ASSERT(header->length >= 0);
+    if (map.size < sizeof(*header))
+    {
+        con_logf(LogSev_Error, "pak", "Pack is smaller than its header: '%d' in '%s'.", map.size, path);
+        goto onfail;
+    }
+    if (memcmp(header->id, "PACK", 4) != 0)
+    {
+        char id[5] = { 0 };
+        memcpy(id, header->id, sizeof(header->id));
+        con_logf(LogSev_Error, "pak", "Bad pack header id '%s' in '%s'.", id, path);
+        goto onfail;
+    }
+    i32 filecount = header->length / sizeof(dpackfile_t);
+    i32 filerem = header->length % sizeof(dpackfile_t);
+    if ((header->length < 0) || filerem)
+    {
+        con_logf(LogSev_Error, "pak", "Bad pack header length '%d' in '%s'.", header->length, path);
+        goto onfail;
+    }
 
-    const u8* buffer = map.ptr;
-    pack.files = (const dpackfile_t*)(buffer + header->offset);
-    pack.filecount = header->length / sizeof(dpackfile_t);
+    pack->mapped = map;
+    pack->files = (const dpackfile_t*)((u8*)map.ptr + header->offset);
+    pack->filecount = filecount;
+    return true;
 
-    return pack;
+onfail:
+    fmap_close(&map);
+    return false;
 }
 
 void pack_free(pack_t* pack)
 {
-    fmap_destroy(&(pack->mapped));
-    pack->filecount = 0;
-    pack->files = NULL;
-    pim_free(pack->path);
-    pack->path = NULL;
+    if (pack)
+    {
+        fmap_close(&pack->mapped);
+        memset(pack, 0, sizeof(*pack));
+    }
 }
 
-folder_t folder_load(const char* path, EAlloc allocator)
+void searchpath_new(searchpath_t* sp)
 {
-    ASSERT(path);
+    memset(sp, 0, sizeof(*sp));
+}
 
+void searchpath_del(searchpath_t* sp)
+{
+    if (sp)
+    {
+        for (i32 i = 0; i < sp->packCount; ++i)
+        {
+            pack_free(&sp->packs[i]);
+        }
+        pim_free(sp->packs);
+        for (i32 i = 0; i < sp->fileCount; ++i)
+        {
+            pim_free(sp->filenames[i]);
+        }
+        pim_free(sp->filenames);
+        memset(sp, 0, sizeof(*sp));
+    }
+}
+
+i32 searchpath_addpack(searchpath_t* sp, const char* path)
+{
     char packDir[PIM_PATH];
     SPrintf(ARGS(packDir), "%s/*.pak", path);
     StrPath(ARGS(packDir));
 
-    pack_t* packs = NULL;
-    i32 length = 0;
+    pack_t* packs = sp->packs;
+    i32 length = sp->packCount;
 
     fnd_t fnd = { -1 };
     fnd_data_t fndData;
@@ -68,37 +98,41 @@ folder_t folder_load(const char* path, EAlloc allocator)
         char subdir[PIM_PATH];
         SPrintf(ARGS(subdir), "%s/%s", path, fndData.name);
         StrPath(ARGS(subdir));
-        pack_t pack = pack_load(subdir, allocator);
-        if (fmap_isopen(pack.mapped))
+        pack_t pack;
+        if (pack_load(&pack, subdir))
         {
             ++length;
-            packs = pim_realloc(allocator, packs, sizeof(packs[0]) * length);
+            PermReserve(packs, length);
             packs[length - 1] = pack;
         }
     }
 
-    folder_t folder = { 0 };
-    if (length > 0)
-    {
-        folder.path = StrDup(path, allocator);
-        folder.packs = packs;
-        folder.length = length;
-    }
+    i32 numLoaded = length - sp->packCount;
+    sp->packs = packs;
+    sp->packCount = length;
 
-    return folder;
+    return numLoaded;
 }
 
-void folder_free(folder_t* folder)
+void searchpath_rmpack(searchpath_t* sp, const char* path)
 {
-    const i32 len = folder->length;
-    pack_t* packs = folder->packs;
+    i32 len = sp->packCount;
+    pack_t* packs = sp->packs;
     for (i32 i = 0; i < len; ++i)
     {
-        pack_free(packs + i);
+        if (StrIStr(packs[i].path, PIM_PATH, path))
+        {
+            pack_free(&packs[i]);
+            --len;
+            packs[i] = packs[len];
+            memset(&packs[len], 0, sizeof(packs[0]));
+            --i;
+        }
     }
-    pim_free(folder->packs);
-    folder->packs = NULL;
-    folder->length = 0;
-    pim_free(folder->path);
-    folder->path = NULL;
+    sp->packCount = len;
+    if (!len)
+    {
+        pim_free(sp->packs);
+        sp->packs = NULL;
+    }
 }

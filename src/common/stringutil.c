@@ -315,6 +315,49 @@ const char* StrIChr(char const *const hay, i32 size, char needle)
     return NULL;
 }
 
+const char* StrRChr(char const *const hay, i32 size, char needle)
+{
+    ASSERT(hay || !size);
+    ASSERT(size >= 0);
+
+    for (i32 i = size - 1; i >= 0; --i)
+    {
+        if (!hay[i])
+        {
+            break;
+        }
+        if (hay[i] == needle)
+        {
+            return hay + i;
+            break;
+        }
+    }
+
+    return NULL;
+}
+
+const char* StrRIChr(char const *const hay, i32 size, char needle)
+{
+    ASSERT(hay || !size);
+    ASSERT(size >= 0);
+
+    needle = ChrLo(needle);
+    for (i32 i = size - 1; i >= 0; --i)
+    {
+        if (!hay[i])
+        {
+            break;
+        }
+        if (ChrLo(hay[i]) == needle)
+        {
+            return hay + i;
+            break;
+        }
+    }
+
+    return NULL;
+}
+
 const char* StrStr(char const *const hay, i32 size, char const *const needle)
 {
     ASSERT((hay && needle) || !size);

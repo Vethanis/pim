@@ -45,21 +45,24 @@ typedef struct dpackfile_s
 
 typedef struct pack_s
 {
-    char* path;
+    char path[PIM_PATH];
     fmap_t mapped;
     i32 filecount;
     const dpackfile_t* files;
 } pack_t;
 
-typedef struct folder_s
+typedef struct searchpath_s
 {
-    char* path;
+    i32 packCount;
     pack_t* packs;
-    i32 length;
-} folder_t;
+    i32 fileCount;
+    char** filenames;
+} searchpath_t;
 
-pack_t pack_load(const char* dir, EAlloc allocator);
+bool pack_load(pack_t* pack, const char* dir);
 void pack_free(pack_t* pack);
 
-folder_t folder_load(const char* dir, EAlloc allocator);
-void folder_free(folder_t* folder);
+void searchpath_new(searchpath_t* sp);
+void searchpath_del(searchpath_t* sp);
+i32 searchpath_addpack(searchpath_t* sp, const char* dir);
+void searchpath_rmpack(searchpath_t* sp, const char* dir);
