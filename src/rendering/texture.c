@@ -552,6 +552,64 @@ bool texture_unpalette(
     return albedoAdded && romeAdded && normalAdded;
 }
 
+typedef struct Task_ResizeToPow2
+{
+    task_t task;
+    int2 oldSize;
+    int2 newSize;
+    void* src;
+    void* dst;
+} Task_ResizeToPow2;
+
+static void ResizeToPow2Fn_f4(void* pbase, i32 begin, i32 end)
+{
+    Task_ResizeToPow2* task = pbase;
+    int2 oldSize = task->oldSize;
+    int2 newSize = task->newSize;
+    float4* pim_noalias src = task->src;
+    float4* pim_noalias dst = task->dst;
+    for (i32 i = begin; i < end; ++i)
+    {
+        dst[i] = UvBilinearClamp_f4(src, oldSize, IndexToUv(newSize, i));
+    }
+}
+static void ResizeToPow2Fn_c32(void* pbase, i32 begin, i32 end)
+{
+    Task_ResizeToPow2* task = pbase;
+    int2 oldSize = task->oldSize;
+    int2 newSize = task->newSize;
+    u32* pim_noalias src = task->src;
+    u32* pim_noalias dst = task->dst;
+    for (i32 i = begin; i < end; ++i)
+    {
+        dst[i] = LinearToColor(UvBilinearClamp_c32(src, oldSize, IndexToUv(newSize, i)));
+    }
+}
+static void ResizeToPow2Fn_dir8(void* pbase, i32 begin, i32 end)
+{
+    Task_ResizeToPow2* task = pbase;
+    int2 oldSize = task->oldSize;
+    int2 newSize = task->newSize;
+    u32* pim_noalias src = task->src;
+    u32* pim_noalias dst = task->dst;
+    for (i32 i = begin; i < end; ++i)
+    {
+        dst[i] = DirectionToColor(UvBilinearClamp_dir8(src, oldSize, IndexToUv(newSize, i)));
+    }
+}
+static void ResizeToPow2Fn_xy16(void* pbase, i32 begin, i32 end)
+{
+    Task_ResizeToPow2* task = pbase;
+    int2 oldSize = task->oldSize;
+    int2 newSize = task->newSize;
+    short2* pim_noalias src = task->src;
+    short2* pim_noalias dst = task->dst;
+    for (i32 i = begin; i < end; ++i)
+    {
+        dst[i] = NormalTsToXy16(UvBilinearClamp_xy16(src, oldSize, IndexToUv(newSize, i)));
+    }
+}
+
 static void ResizeToPow2(texture_t* tex)
 {
     const int2 oldSize = tex->size;
@@ -559,11 +617,18 @@ static void ResizeToPow2(texture_t* tex)
         .x = NextPow2(oldSize.x),
         .y = NextPow2(oldSize.y),
     };
-    const i32 newLen = newSize.x * newSize.y;
-    if ((oldSize.x == newSize.x) && (oldSize.y == newSize.y))
+
+    if (i2_all(i2_eq(oldSize, newSize)))
     {
         return;
     }
+
+    const i32 newLen = newSize.x * newSize.y;
+    Task_ResizeToPow2* task = tmp_calloc(sizeof(*task));
+    task->src = tex->texels;
+    task->oldSize = oldSize;
+    task->newSize = newSize;
+
     switch (tex->format)
     {
     default:
@@ -571,78 +636,38 @@ static void ResizeToPow2(texture_t* tex)
         return;
     case VK_FORMAT_R32G32B32A32_SFLOAT:
     {
-        float4* pim_noalias src = tex->texels;
-        float4* pim_noalias dst = tex_malloc(newLen * sizeof(dst[0]));
-        for (i32 y = 0; y < newSize.y; ++y)
-        {
-            for (i32 x = 0; x < newSize.x; ++x)
-            {
-                float2 uv = CoordToUv(newSize, i2_v(x, y));
-                float4 sample = UvBilinearClamp_f4(src, oldSize, uv);
-                i32 i = x + y * newSize.x;
-                dst[i] = sample;
-            }
-        }
-        tex->texels = dst;
+        task->dst = tex_malloc(newLen * sizeof(float4));
+        task_run(task, ResizeToPow2Fn_f4, newLen);
+        pim_free(tex->texels);
+        tex->texels = task->dst;
         tex->size = newSize;
-        pim_free(src);
     }
     break;
     case VK_FORMAT_R8G8B8A8_SRGB:
     {
-        u32* pim_noalias src = tex->texels;
-        u32* pim_noalias dst = tex_malloc(newLen * sizeof(dst[0]));
-        for (i32 y = 0; y < newSize.y; ++y)
-        {
-            for (i32 x = 0; x < newSize.x; ++x)
-            {
-                float2 uv = CoordToUv(newSize, i2_v(x, y));
-                float4 sample = UvBilinearClamp_c32(src, oldSize, uv);
-                i32 i = x + y * newSize.x;
-                dst[i] = LinearToColor(sample);
-            }
-        }
-        tex->texels = dst;
+        task->dst = tex_malloc(newLen * sizeof(u32));
+        task_run(task, ResizeToPow2Fn_c32, newLen);
+        pim_free(tex->texels);
+        tex->texels = task->dst;
         tex->size = newSize;
-        pim_free(src);
     }
     break;
     case VK_FORMAT_R8G8B8A8_UNORM:
     {
-        u32* pim_noalias src = tex->texels;
-        u32* pim_noalias dst = tex_malloc(newLen * sizeof(dst[0]));
-        for (i32 y = 0; y < newSize.y; ++y)
-        {
-            for (i32 x = 0; x < newSize.x; ++x)
-            {
-                float2 uv = CoordToUv(newSize, i2_v(x, y));
-                float4 sample = UvBilinearClamp_dir8(src, oldSize, uv);
-                i32 i = x + y * newSize.x;
-                dst[i] = DirectionToColor(sample);
-            }
-        }
-        tex->texels = dst;
+        task->dst = tex_malloc(newLen * sizeof(u32));
+        task_run(task, ResizeToPow2Fn_dir8, newLen);
+        pim_free(tex->texels);
+        tex->texels = task->dst;
         tex->size = newSize;
-        pim_free(src);
     }
     break;
     case VK_FORMAT_R16G16_SNORM:
     {
-        short2* pim_noalias src = tex->texels;
-        short2* pim_noalias dst = tex_malloc(newLen * sizeof(dst[0]));
-        for (i32 y = 0; y < newSize.y; ++y)
-        {
-            for (i32 x = 0; x < newSize.x; ++x)
-            {
-                float2 uv = CoordToUv(newSize, i2_v(x, y));
-                float4 sample = UvBilinearClamp_xy16(src, oldSize, uv);
-                i32 i = x + y * newSize.x;
-                dst[i] = NormalTsToXy16(sample);
-            }
-        }
-        tex->texels = dst;
+        task->dst = tex_malloc(newLen * sizeof(short2));
+        task_run(task, ResizeToPow2Fn_xy16, newLen);
+        pim_free(tex->texels);
+        tex->texels = task->dst;
         tex->size = newSize;
-        pim_free(src);
     }
     break;
     }

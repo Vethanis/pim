@@ -195,7 +195,6 @@ static void RegCVars(void)
 
 // ----------------------------------------------------------------------------
 
-static meshid_t GenSphereMesh(i32 steps);
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv);
 static cmdstat_t CmdTeleport(i32 argc, const char** argv);
 static cmdstat_t CmdLookat(i32 argc, const char** argv);
@@ -965,18 +964,8 @@ void render_sys_gui(bool* pEnabled)
 
 // ----------------------------------------------------------------------------
 
-static meshid_t GenSphereMesh(i32 steps)
+static meshid_t GenSphereMesh(const char* name, i32 steps)
 {
-    char name[PIM_PATH];
-    SPrintf(ARGS(name), "SphereMesh_%d", steps);
-    guid_t guid = guid_str(name);
-
-    meshid_t id = { 0 };
-    if (mesh_find(guid, &id))
-    {
-        return id;
-    }
-
     const float r = 1.0f;
     const i32 vsteps = steps;       // divisions along y axis
     const i32 hsteps = steps * 2;   // divisions along x-z plane
@@ -988,6 +977,7 @@ static meshid_t GenSphereMesh(i32 steps)
     float4* pim_noalias positions = perm_malloc(sizeof(*positions) * maxlen);
     float4* pim_noalias normals = perm_malloc(sizeof(*normals) * maxlen);
     float4* pim_noalias uvs = perm_malloc(sizeof(*uvs) * maxlen);
+    int4* pim_noalias texIndices = perm_calloc(sizeof(texIndices[0]) * maxlen);
 
     for (i32 v = 0; v < vsteps; ++v)
     {
@@ -1096,29 +1086,22 @@ static meshid_t GenSphereMesh(i32 steps)
         }
     }
 
-
+    meshid_t id = { 0 };
     mesh_t mesh = { 0 };
     mesh.length = length;
     mesh.positions = positions;
     mesh.normals = normals;
     mesh.uvs = uvs;
-    bool added = mesh_new(&mesh, guid, &id);
+    mesh.texIndices = texIndices;
+    bool added = mesh_new(&mesh, guid_str(name), &id);
     ASSERT(added);
     return id;
 }
 
 // N = (0, 0, 1)
 // centered at origin, [-0.5, 0.5]
-static meshid_t GenQuadMesh(void)
+static meshid_t GenQuadMesh(const char* name)
 {
-    const char* name = "QuadMesh";
-    guid_t guid = guid_str(name);
-    meshid_t id = { 0 };
-    if (mesh_find(guid, &id))
-    {
-        return id;
-    }
-
     const float4 tl = { -0.5f, 0.5f, 0.0f };
     const float4 tr = { 0.5f, 0.5f, 0.0f };
     const float4 bl = { -0.5f, -0.5f, 0.0f };
@@ -1129,6 +1112,7 @@ static meshid_t GenQuadMesh(void)
     float4* positions = perm_malloc(sizeof(positions[0]) * length);
     float4* normals = perm_malloc(sizeof(normals[0]) * length);
     float4* uvs = perm_malloc(sizeof(uvs[0]) * length);
+    int4* texIndices = perm_calloc(sizeof(texIndices[0]) * length);
 
     // counter clockwise
     positions[0] = tl; uvs[0] = f4_v(0.0f, 1.0f, 0.0f, 0.0f);
@@ -1142,59 +1126,68 @@ static meshid_t GenQuadMesh(void)
         normals[i] = N;
     }
 
+    meshid_t id = { 0 };
     mesh_t mesh = { 0 };
     mesh.length = length;
     mesh.positions = positions;
     mesh.normals = normals;
     mesh.uvs = uvs;
+    mesh.texIndices = texIndices;
+    guid_t guid = guid_str(name);
     bool added = mesh_new(&mesh, guid, &id);
     ASSERT(added);
     return id;
 }
 
-static meshid_t ms_quadmesh;
+static textureid_t GenFlatTexture(const char* name, const char* suffix, float4 value)
+{
+    textureid_t id = { 0 };
+    char fullname[PIM_PATH];
+    SPrintf(ARGS(fullname), "%s_%s", name, suffix);
+    texture_t tex = { 0 };
+    tex.size = i2_1;
+    tex.texels = tex_malloc(sizeof(u32));
+    *(u32*)tex.texels = LinearToColor(value);
+    texture_new(&tex, VK_FORMAT_R8G8B8A8_SRGB, guid_str(fullname), &id);
+    return id;
+}
+
+static material_t GenMaterial(const char* name, float4 albedo, float4 rome)
+{
+    material_t mat = { 0 };
+    mat.ior = 1.0f;
+    mat.albedo = GenFlatTexture(name, "albedo", albedo);
+    mat.rome = GenFlatTexture(name, "rome", rome);
+    if (rome.w > 0.0f)
+    {
+        mat.flags |= matflag_emissive;
+    }
+    return mat;
+}
+
 static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up, float scale, float4 albedo, float4 rome)
 {
-    if (!mesh_exists(ms_quadmesh))
-    {
-        ms_quadmesh = GenQuadMesh();
-    }
-    mesh_retain(ms_quadmesh);
-
-    guid_t guid = guid_str(name);
     drawables_t* dr = drawables_get();
-    i32 i = drawables_add(dr, guid);
-    dr->meshes[i] = ms_quadmesh;
+    i32 i = drawables_add(dr, guid_str(name));
+    dr->meshes[i] = GenQuadMesh(name);
     dr->translations[i] = center;
     dr->scales[i] = f4_s(scale);
     dr->rotations[i] = quat_lookat(forward, up);
-
-    material_t mat = { 0 };
-    dr->materials[i] = mat;
-
+    dr->materials[i] = GenMaterial(name, albedo, rome);
+    mesh_setmaterial(dr->meshes[i], &dr->materials[i]);
     return i;
 }
 
-static meshid_t ms_spheremesh;
 static i32 CreateSphere(const char* name, float4 center, float radius, float4 albedo, float4 rome)
 {
-    if (!mesh_exists(ms_spheremesh))
-    {
-        ms_spheremesh = GenSphereMesh(12);
-    }
-    mesh_retain(ms_spheremesh);
-
-    guid_t guid = guid_str(name);
     drawables_t* dr = drawables_get();
-    i32 i = drawables_add(dr, guid);
-    dr->meshes[i] = ms_spheremesh;
+    i32 i = drawables_add(dr, guid_str(name));
+    dr->meshes[i] = GenSphereMesh(name, 24);
     dr->translations[i] = center;
     dr->scales[i] = f4_s(radius);
     dr->rotations[i] = quat_id;
-
-    material_t mat = { 0 };
-    dr->materials[i] = mat;
-
+    dr->materials[i] = GenMaterial(name, albedo, rome);
+    mesh_setmaterial(dr->meshes[i], &dr->materials[i]);
     return i;
 }
 

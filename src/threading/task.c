@@ -69,8 +69,7 @@ static i32 TryRunTask(i32 tid)
 {
     const i32 numthreads = ms_numthreads;
     const i32 tasksplit = i1_max(1, numthreads * (numthreads >> 1));
-
-    task_t *const task = ptrqueue_trypop(&ms_queues[tid]);
+    task_t *const pim_noalias task = ptrqueue_trypop(&ms_queues[tid]);
     if (task)
     {
         const i32 gran = i1_max(1, task->worksize / tasksplit);
@@ -99,10 +98,20 @@ static i32 TaskLoop(void* arg)
     ASSERT(tid);
     ms_tid = tid;
 
+    u64 spins = 0;
     while (load_i32(&ms_running, MO_Relaxed))
     {
-        if (!TryRunTask(tid))
+        if (TryRunTask(tid))
         {
+            spins = 0;
+        }
+        else if (spins < 100)
+        {
+            intrin_spin(++spins);
+        }
+        else
+        {
+            spins = 0;
             inc_i32(&ms_numThreadsSleeping, MO_Acquire);
             event_wait(&ms_waitPush);
             dec_i32(&ms_numThreadsSleeping, MO_Release);
