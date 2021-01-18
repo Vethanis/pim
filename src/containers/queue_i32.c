@@ -1,56 +1,44 @@
-#include "containers/int_queue.h"
+#include "containers/queue_i32.h"
 #include "common/nextpow2.h"
 #include "allocator/allocator.h"
+#include <string.h>
 
-void intQ_create(intQ_t* q, EAlloc allocator)
+void queue_i32_new(queue_i32_t* q)
 {
-    ASSERT(q);
-    q->ptr = NULL;
-    q->width = 0;
-    q->iRead = 0;
-    q->iWrite = 0;
-    q->allocator = allocator;
+    memset(q, 0, sizeof(*q));
 }
 
-void intQ_destroy(intQ_t* q)
+void queue_i32_del(queue_i32_t* q)
 {
-    ASSERT(q);
     pim_free(q->ptr);
-    q->ptr = NULL;
-    q->width = 0;
+    memset(q, 0, sizeof(*q));
+}
+
+void queue_i32_clear(queue_i32_t* q)
+{
     q->iRead = 0;
     q->iWrite = 0;
 }
 
-void intQ_clear(intQ_t* q)
+u32 queue_i32_size(const queue_i32_t* q)
 {
-    ASSERT(q);
-    q->iRead = 0;
-    q->iWrite = 0;
-}
-
-u32 intQ_size(const intQ_t* q)
-{
-    ASSERT(q);
     return q->iWrite - q->iRead;
 }
 
-u32 intQ_capacity(const intQ_t* q)
+u32 queue_i32_capacity(const queue_i32_t* q)
 {
-    ASSERT(q);
     return q->width;
 }
 
-void intQ_reserve(intQ_t* q, u32 capacity)
+void queue_i32_reserve(queue_i32_t* q, u32 capacity)
 {
-    ASSERT(q);
     capacity = capacity > 16 ? capacity : 16;
     const u32 newWidth = NextPow2(capacity);
     const u32 oldWidth = q->width;
     if (newWidth > oldWidth)
     {
-        i32* oldPtr = q->ptr;
-        i32* newPtr = pim_malloc(q->allocator, sizeof(*newPtr) * newWidth);
+        i32 *const pim_noalias oldPtr = q->ptr;
+        i32 *const pim_noalias newPtr = perm_calloc(sizeof(*newPtr) * newWidth);
         const u32 iRead = q->iRead;
         const u32 len = q->iWrite - iRead;
         const u32 mask = oldWidth - 1u;
@@ -67,24 +55,23 @@ void intQ_reserve(intQ_t* q, u32 capacity)
     }
 }
 
-void intQ_push(intQ_t* q, i32 value)
+void queue_i32_push(queue_i32_t* q, i32 value)
 {
-    ASSERT(q);
-    intQ_reserve(q, intQ_size(q) + 1);
+    queue_i32_reserve(q, queue_i32_size(q) + 1);
     u32 mask = q->width - 1;
     u32 dst = q->iWrite++;
     q->ptr[dst & mask] = value;
 }
 
-bool intQ_trypop(intQ_t* q, i32* valueOut)
+bool queue_i32_trypop(queue_i32_t* q, i32* pim_noalias valueOut)
 {
     ASSERT(valueOut);
-    if (intQ_size(q))
+    if (queue_i32_size(q))
     {
         u32 mask = q->width - 1;
         u32 src = q->iRead++;
         *valueOut = q->ptr[src & mask];
-        return 1;
+        return true;
     }
-    return 0;
+    return false;
 }

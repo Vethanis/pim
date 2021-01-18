@@ -1277,12 +1277,14 @@ pim_inline float2 VEC_CALL GetVert2(
 
 pim_inline float VEC_CALL GetArea(const pt_scene_t *const pim_noalias scene, i32 iVert)
 {
-    const float4* pim_noalias positions = scene->positions;
+    float4 const *const pim_noalias positions = scene->positions;
+    ASSERT(iVert >= 0);
+    ASSERT((iVert + 2) < scene->vertCount);
     return TriArea3D(positions[iVert + 0], positions[iVert + 1], positions[iVert + 2]);
 }
 
 pim_inline material_t const *const pim_noalias VEC_CALL GetMaterial(
-    const pt_scene_t*const pim_noalias scene,
+    const pt_scene_t *const pim_noalias scene,
     rayhit_t hit)
 {
     i32 iVert = hit.index;
@@ -1291,7 +1293,7 @@ pim_inline material_t const *const pim_noalias VEC_CALL GetMaterial(
     i32 matIndex = scene->matIds[iVert];
     ASSERT(matIndex >= 0);
     ASSERT(matIndex < scene->matCount);
-    return scene->materials + matIndex;
+    return &scene->materials[matIndex];
 }
 
 pim_inline float4 VEC_CALL GetSky(
@@ -1684,8 +1686,7 @@ pim_inline void VEC_CALL LightOnHit(
         dist1d_t* dist = &scene->lightDists[iCell];
         if (dist->length)
         {
-            float lum = f4_avglum(lum4);
-            u32 amt = (u32)(lum * 64.0f + Sample1D(sampler) * 0.5f);
+            u32 amt = (u32)(f4_avglum(lum4) * 64.0f + 0.5f);
             fetch_add_u32(dist->live + iList, amt, MO_Relaxed);
         }
     }
@@ -1798,19 +1799,14 @@ pim_inline float VEC_CALL LightEvalPdf(
     ASSERT(IsUnitLength(rd));
     rayhit_t hit = pt_intersect_local(scene, ro, rd, 0.0f, 1 << 20);
     *hitOut = hit;
-    if ((hit.type != hit_nothing))
+    if (hit.type != hit_nothing)
     {
         float distance = hit.wuvt.w;
-        if (distance > 0.0f)
-        {
-            float4 N = f4_normalize3(hit.normal);
-            float cosTheta = f4_dot3(f4_neg(rd), N);
-            if (cosTheta > 0.0f)
-            {
-                float area = GetArea(scene, hit.index);
-                return LightPdf(area, cosTheta, distance * distance);
-            }
-        }
+        float distanceSq = f1_max(kEpsilon, distance * distance);
+        float4 N = f4_normalize3(hit.normal);
+        float cosTheta = f1_abs(f4_dot3(rd, N));
+        float area = GetArea(scene, hit.index);
+        return LightPdf(area, cosTheta, distanceSq);
     }
     return 0.0f;
 }
@@ -1828,11 +1824,11 @@ pim_inline float4 VEC_CALL EstimateDirect(
     {
         return result;
     }
-    const float4 ro = surf->P;
 
-    const float pA = f1_lerp(0.05f, 0.95f, surf->roughness);
-    const float pB = 1.0f - pA;
-    if (Sample1D(sampler) < pA)
+    const float4 ro = surf->P;
+    const float pRough = f1_lerp(0.05f, 0.95f, surf->roughness);
+    const float pSmooth = 1.0f - pRough;
+    if (Sample1D(sampler) < pRough)
     {
         i32 iVert;
         float selectPdf;
@@ -1844,17 +1840,15 @@ pim_inline float4 VEC_CALL EstimateDirect(
                 lightsample_t sample = LightSample(sampler, scene, ro, iVert, bounce);
                 float4 rd = sample.direction;
                 float4 Li = sample.luminance;
-                float lightPdf = sample.pdf * selectPdf * pA;
+                float lightPdf = sample.pdf * selectPdf * pRough;
                 if ((lightPdf > kEpsilon) && (f4_hmax3(Li) > kEpsilon))
                 {
                     float4 brdf = BrdfEval(sampler, I, surf, rd);
-                    float brdfPdf = brdf.w * pB;
+                    Li = f4_mul(Li, brdf);
+                    float brdfPdf = brdf.w * pSmooth;
                     if (brdfPdf > kEpsilon)
                     {
-                        Li = f4_mul(Li, brdf);
-                        float weight = PowerHeuristic(lightPdf, brdfPdf) * 0.5f;
-                        weight = weight / lightPdf;
-                        Li = f4_mulvs(Li, weight);
+                        Li = f4_mulvs(Li, PowerHeuristic(lightPdf, brdfPdf) * 0.5f / lightPdf);
                         result = f4_add(result, Li);
                     }
                 }
@@ -1865,25 +1859,19 @@ pim_inline float4 VEC_CALL EstimateDirect(
     {
         scatter_t sample = BrdfScatter(sampler, surf, I);
         float4 rd = sample.dir;
-        float brdfPdf = sample.pdf * pB;
+        float brdfPdf = sample.pdf * pSmooth;
         if (brdfPdf > kEpsilon)
         {
-            rayhit_t hit = { 0 };
-            float lightPdf = LightEvalPdf(sampler, scene, ro, rd, &hit) * pA;
+            rayhit_t hit;
+            float lightPdf = LightEvalPdf(sampler, scene, ro, rd, &hit) * pRough;
             if (lightPdf > kEpsilon)
             {
-                float4 Li = GetEmission(scene, ro, rd, hit, bounce);
+                lightPdf *= LightSelectPdf(scene, hit.index, ro);
+                float4 Li = f4_mul(GetEmission(scene, ro, rd, hit, bounce), sample.attenuation);
                 if (f4_hmax3(Li) > kEpsilon)
                 {
-                    float4 Tr = CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w);
-                    Li = f4_mul(Li, Tr);
-                    Li = f4_mul(Li, sample.attenuation);
-
-                    lightPdf *= LightSelectPdf(scene, hit.index, ro);
-                    float weight = PowerHeuristic(brdfPdf, lightPdf) * 0.5f;
-                    weight = weight / brdfPdf;
-                    Li = f4_mulvs(Li, weight);
-
+                    Li = f4_mulvs(Li, PowerHeuristic(brdfPdf, lightPdf) * 0.5f / brdfPdf);
+                    Li = f4_mul(Li, CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w));
                     result = f4_add(result, Li);
                 }
             }

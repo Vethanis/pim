@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/macro.h"
-#include "containers/queue.h"
+#include "containers/queue_i32.h"
 #include "common/guid.h"
 
 PIM_C_BEGIN
@@ -20,7 +20,7 @@ typedef struct table_s
     void* pim_noalias values;
     i32* pim_noalias refcounts;
     guid_t* pim_noalias names;
-    queue_t freelist;
+    queue_i32_t freelist;
 
     u32 lookupWidth;
     i32 itemCount;

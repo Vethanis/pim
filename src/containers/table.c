@@ -149,14 +149,13 @@ void table_new(table_t *const table, i32 valueSize)
 
     memset(table, 0, sizeof(*table));
     table->valueSize = valueSize;
-    queue_create(&table->freelist, sizeof(i32), EAlloc_Perm);
 }
 
 void table_del(table_t *const table)
 {
     if (table)
     {
-        queue_destroy(&table->freelist);
+        queue_i32_del(&table->freelist);
         pim_free(table->versions);
         pim_free(table->values);
         pim_free(table->refcounts);
@@ -174,7 +173,7 @@ void table_clear(table_t *const table)
     memset(table->versions, 0, sizeof(table->versions[0]) * len);
     memset(table->refcounts, 0, sizeof(table->refcounts[0]) * len);
     memset(table->names, 0, sizeof(table->names[0]) * len);
-    queue_clear(&table->freelist);
+    queue_i32_clear(&table->freelist);
     LookupClear(table);
 }
 
@@ -214,7 +213,7 @@ bool table_add(
     const i32 stride = table->valueSize;
     i32 index = 0;
     u8 version = 0;
-    if (!queue_trypop(&table->freelist, &index, sizeof(index)))
+    if (!queue_i32_trypop(&table->freelist, &index))
     {
         table->width += 1;
         const i32 len = table->width;
@@ -293,7 +292,7 @@ bool table_release(table_t *const table, genid_t id, void *const valueOut)
                 memset(pValue, 0, stride);
             }
 
-            queue_push(&table->freelist, &index, sizeof(index));
+            queue_i32_push(&table->freelist, index);
 
             return true;
         }

@@ -14,6 +14,7 @@
     <ClCompile Include="..\src\allocator\allocator.c" />
     <ClCompile Include="..\src\assets\asset_system.c" />
     <ClCompile Include="..\src\assets\crate.c" />
+    <ClCompile Include="..\src\assets\vfile.c" />
     <ClCompile Include="..\src\audio\audio_system.cpp" />
     <ClCompile Include="..\src\audio\midi_system.c" />
     <ClCompile Include="..\src\audio\modular\board.cpp" />
@@ -42,7 +43,7 @@
     <ClCompile Include="..\src\containers\graph.c" />
     <ClCompile Include="..\src\containers\table.c" />
     <ClCompile Include="..\src\containers\hash_set.c" />
-    <ClCompile Include="..\src\containers\int_queue.c" />
+    <ClCompile Include="..\src\containers\queue_i32.c" />
     <ClCompile Include="..\src\containers\ptrqueue.c" />
     <ClCompile Include="..\src\containers\queue.c" />
     <ClCompile Include="..\src\containers\sdict.c" />
@@ -177,6 +178,7 @@
     <ClInclude Include="..\src\allocator\allocator.h" />
     <ClInclude Include="..\src\assets\asset_system.h" />
     <ClInclude Include="..\src\assets\crate.h" />
+    <ClInclude Include="..\src\assets\vfile.h" />
     <ClInclude Include="..\src\audio\audio_system.h" />
     <ClInclude Include="..\src\audio\midi_system.h" />
     <ClInclude Include="..\src\audio\modular\board.hpp" />
@@ -218,7 +220,7 @@
     <ClInclude Include="..\src\containers\queue.hpp" />
     <ClInclude Include="..\src\containers\sort.hpp" />
     <ClInclude Include="..\src\containers\table.h" />
-    <ClInclude Include="..\src\containers\int_queue.h" />
+    <ClInclude Include="..\src\containers\queue_i32.h" />
     <ClInclude Include="..\src\containers\graph.h" />
     <ClInclude Include="..\src\containers\dict.h" />
     <ClInclude Include="..\src\containers\hash_set.h" />

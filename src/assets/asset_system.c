@@ -16,24 +16,24 @@ static cvar_t cv_basedir = { .type = cvart_text,.name = "basedir",.value = "data
 static cvar_t cv_game = { .type = cvart_text,.name = "game",.value = "id1",.desc = "name of the active game" };
 
 static sdict_t ms_assets;
-static folder_t ms_folder;
+static searchpath_t ms_search;
 
 void asset_sys_init(void)
 {
     cvar_reg(&cv_basedir);
     cvar_reg(&cv_game);
 
-    sdict_t assets;
-    sdict_new(&assets, sizeof(asset_t), EAlloc_Perm);
+    sdict_new(&ms_assets, sizeof(asset_t), EAlloc_Perm);
+    searchpath_new(&ms_search);
 
     char path[PIM_PATH] = { 0 };
     SPrintf(ARGS(path), "%s/%s", cv_basedir.value, cv_game.value);
-    folder_t folder = folder_load(path, EAlloc_Perm);
+    searchpath_addpack(&ms_search, path);
 
-    for (i32 i = 0; i < folder.length; ++i)
+    for (i32 i = 0; i < ms_search.packCount; ++i)
     {
-        const pack_t* pack = folder.packs + i;
-        const u8* packBase = (const u8*)(pack->mapped.ptr);
+        const pack_t* pack = &ms_search.packs[i];
+        const u8* packBase = pack->mapped.ptr;
         for (i32 j = 0; j < pack->filecount; ++j)
         {
             const dpackfile_t* file = pack->files + j;
@@ -43,15 +43,12 @@ void asset_sys_init(void)
                 .pData = packBase + file->offset,
             };
 
-            if (!sdict_add(&assets, file->name, &asset))
+            if (!sdict_add(&ms_assets, file->name, &asset))
             {
-                sdict_set(&assets, file->name, &asset);
+                sdict_set(&ms_assets, file->name, &asset);
             }
         }
     }
-
-    ms_assets = assets;
-    ms_folder = folder;
 }
 
 ProfileMark(pm_update, asset_sys_update)
@@ -65,7 +62,7 @@ void asset_sys_update()
 void asset_sys_shutdown(void)
 {
     sdict_del(&ms_assets);
-    folder_free(&ms_folder);
+    searchpath_del(&ms_search);
 }
 
 bool asset_get(const char* name, asset_t* asset)
@@ -156,8 +153,8 @@ void asset_gui(bool* pEnabled)
         if (igCollapsingHeader1("Packs"))
         {
             igIndent(0.0f);
-            const i32 numPacks = ms_folder.length;
-            const pack_t* packs = ms_folder.packs;
+            const i32 numPacks = ms_search.packCount;
+            const pack_t* packs = ms_search.packs;
             for (i32 i = 0; i < numPacks; ++i)
             {
                 const pack_t pack = packs[i];
