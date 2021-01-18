@@ -211,7 +211,7 @@ pim_inline bool VEC_CALL i2_any(int2 b)
 
 pim_inline bool VEC_CALL i2_all(int2 b)
 {
-    return i2_sum(b) == 2;
+    return (b.x & b.y);
 }
 
 pim_inline int2 VEC_CALL i2_not(int2 b)
