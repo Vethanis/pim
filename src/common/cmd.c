@@ -11,22 +11,20 @@
 #include <string.h>
 #include <stdlib.h>
 
-// ----------------------------------------------------------------------------
-
 typedef struct cmdalias_s
 {
     char* value;
 } cmdalias_t;
 
-// ----------------------------------------------------------------------------
+static cmdstat_t cmd_exec(const char* line);
+static char** cmd_tokenize(const char* text, i32* argcOut);
 
-static void ExecCmds(void);
+static cmdstat_t ExecCmds(void);
 static bool IsSpecialChar(char c);
+static bool IsLineEnding(char c);
 static cmdstat_t cmd_alias_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_wait_fn(i32 argc, const char** argv);
-
-// ----------------------------------------------------------------------------
 
 static sdict_t ms_cmds;
 static sdict_t ms_aliases;
@@ -100,7 +98,7 @@ const char* cmd_complete(const char* namePart)
     return NULL;
 }
 
-cmdstat_t cmd_exec(const char* line)
+static cmdstat_t cmd_exec(const char* line)
 {
     ASSERT(line);
 
@@ -138,32 +136,67 @@ cmdstat_t cmd_exec(const char* line)
     {
         if (argc == 1)
         {
-            con_logf(LogSev_Info, "cmd", "\"%s\" is \"%s\"", cvar->name, cvar->value);
+            con_logf(LogSev_Info, "cmd", "'%s' is '%s'", cvar->name, cvar->value);
             return cmdstat_ok;
         }
         if (argc >= 2)
         {
-            cvar_set_str(cvar, argv[1]);
-            con_logf(LogSev_Info, "cmd", "%s = %s", cvar->name, cvar->value);
+            bool explicit_set = (argc > 2) && (argv[1][0] == '=');
+            i32 iArg0 = explicit_set ? 2 : 1;
+            i32 iArg1 = iArg0 + 1;
+            i32 iArg2 = iArg0 + 2;
+            i32 iArg3 = iArg0 + 3;
+            const char* v0 = argv[iArg0];
+            const char* v1 = (argc > iArg1) ? argv[iArg1] : "0";
+            const char* v2 = (argc > iArg2) ? argv[iArg2] : "0";
+            const char* v3 = (argc > iArg3) ? argv[iArg3] : "0";
+            switch (cvar->type)
+            {
+            default:
+                ASSERT(false);
+                con_logf(LogSev_Error, "cmd", "cvar '%s' has unknown type '%d'", cvar->name, cvar->type);
+                return cmdstat_err;
+            case cvart_text:
+                cvar_set_str(cvar, v0);
+                break;
+            case cvart_float:
+                cvar_set_float(cvar, (float)atof(v0));
+                break;
+            case cvart_int:
+                cvar_set_int(cvar, atoi(v0));
+                break;
+            case cvart_bool:
+                cvar_set_bool(cvar, (v0[0] != '0') && (v0[0] != 'f') && (v0[0] != 'F'));
+                break;
+            case cvart_vector:
+            case cvart_point:
+            case cvart_color:
+                cvar_set_vec(cvar, (float4) { (float)atof(v0), (float)atof(v1), (float)atof(v2), (float)atof(v2) });
+                break;
+            }
+            con_logf(LogSev_Info, "cmd", "'%s' = '%s'", cvar->name, cvar->value);
             return cmdstat_ok;
         }
     }
 
-    con_logf(LogSev_Error, "cmd", "Unknown command \"%s\"", name);
+    con_logf(LogSev_Error, "cmd", "Unknown command '%s'", name);
     return cmdstat_err;
 }
 
-void cmd_text(const char* text)
+cmdstat_t cmd_text(const char* constText)
 {
-    if (!text)
+    i32 i, q;
+    if (!constText)
     {
-        return;
+        ASSERT(false);
+        return cmdstat_err;
     }
 
-    i32 i = 0;
-    i32 q = 0;
+    char* text = StrDup(constText, EAlloc_Temp);
 
 parseline:
+    i = 0;
+    q = 0;
     while (text[i])
     {
         char c = text[i];
@@ -174,41 +207,38 @@ parseline:
         }
         else if (!(q & 1) && (c == '\n'))
         {
+            text[i - 1] = 0;
             break;
         }
-        else if (c == ';')
+        else if (!(q & 1) && (c == ';'))
         {
+            text[i - 1] = 0;
             break;
         }
     }
 
-    i32 len = i;
-    if (len > 0)
+    if (i > 0)
     {
-        char* line = perm_malloc(len + 1);
-        memcpy(line, text, len);
-        line[len] = 0;
+        char* line = StrDup(text, EAlloc_Perm);
         queue_push(&ms_queue, &line, sizeof(line));
-
-        i = 0;
-        q = 0;
-        text += len;
+        text += i;
         goto parseline;
     }
 
-    ExecCmds();
+    return ExecCmds();
 }
 
 // ----------------------------------------------------------------------------
 
-static void ExecCmds(void)
+static cmdstat_t ExecCmds(void)
 {
+    cmdstat_t status = cmdstat_ok;
     if (!ms_waits)
     {
         char* line = NULL;
         while (queue_trypop(&ms_queue, &line, sizeof(line)))
         {
-            cmd_exec(line);
+            status = cmd_exec(line);
             pim_free(line);
             if (ms_waits)
             {
@@ -216,6 +246,7 @@ static void ExecCmds(void)
             }
         }
     }
+    return status;
 }
 
 static bool IsSpecialChar(char c)
@@ -230,6 +261,19 @@ static bool IsSpecialChar(char c)
     case ')':
     case '\'':
     case ':':
+        return true;
+    }
+}
+
+static bool IsLineEnding(char c)
+{
+    switch (c)
+    {
+    default:
+        return false;
+    case '\n':
+    case '\r':
+    case ';':
         return true;
     }
 }
@@ -312,7 +356,7 @@ wspace:
     return text;
 }
 
-char** cmd_tokenize(const char* text, i32* argcOut)
+static char** cmd_tokenize(const char* text, i32* argcOut)
 {
     ASSERT(text);
     ASSERT(argcOut);

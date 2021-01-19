@@ -39,9 +39,6 @@
 #include "stb/stb_perlin_fork.h"
 #include <string.h>
 
-#define kPixelRadius            2.0f
-#define kSimplificationBounce   1
-
 // ----------------------------------------------------------------------------
 
 typedef enum LdsSlot
@@ -63,7 +60,8 @@ typedef struct surfhit_s
     float occlusion;
     float metallic;
     float ior;
-    i32 flags;
+    matflag_t flags;
+    hittype_t type;
 } surfhit_t;
 
 typedef struct scatter_s
@@ -191,14 +189,15 @@ pim_inline RTCRayHit VEC_CALL RtcIntersect(
     float4 rd,
     float tNear,
     float tFar);
-pim_inline float4 VEC_CALL GetVert4(
-    const float4* vertices,
-    i32 iVert,
-    float4 wuv);
-pim_inline float2 VEC_CALL GetVert2(
-    const float2* vertices,
-    i32 iVert,
-    float4 wuv);
+pim_inline float4 VEC_CALL GetPosition(
+    const pt_scene_t *const pim_noalias scene,
+    rayhit_t hit);
+pim_inline float4 VEC_CALL GetNormal(
+    const pt_scene_t *const pim_noalias scene,
+    rayhit_t hit);
+pim_inline float2 VEC_CALL GetUV(
+    const pt_scene_t *const pim_noalias scene,
+    rayhit_t hit);
 pim_inline float VEC_CALL GetArea(const pt_scene_t*const pim_noalias scene, i32 iVert);
 pim_inline material_t const *const pim_noalias VEC_CALL GetMaterial(
     const pt_scene_t*const pim_noalias scene,
@@ -256,34 +255,34 @@ pim_inline bool VEC_CALL LightSelect(
     i32* iVertOut,
     float* pdfOut);
 pim_inline lightsample_t VEC_CALL LightSample(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     float4 ro,
     i32 iVert,
     i32 bounce);
 pim_inline float VEC_CALL LightSelectPdf(
-    pt_scene_t*const pim_noalias scene,
+    pt_scene_t *const pim_noalias scene,
     i32 iVert,
     float4 ro);
 pim_inline float VEC_CALL LightEvalPdf(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     float4 ro,
     float4 rd,
-    rayhit_t* hitOut);
+    rayhit_t *const pim_noalias hitOut);
 
 // ----------------------------------------------------------------------------
 
 pim_inline float4 VEC_CALL EstimateDirect(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     surfhit_t const *const pim_noalias surf,
     rayhit_t const *const pim_noalias srcHit,
     float4 I,
     i32 bounce);
 pim_inline bool VEC_CALL EvaluateLight(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     float4 P,
     float4 *const pim_noalias lightOut,
     float4 *const pim_noalias dirOut,
@@ -389,14 +388,18 @@ pim_inline float2 VEC_CALL UvPrng(pt_sampler_t *const pim_noalias sampler)
     Xi += (kSqrt11 - 3.0f);
     Xi = (Xi >= 1.0f) ? (Xi - 1.0f) : Xi;
     sampler->Xi[5] = Xi;
-    return f2_v(Xi, Sample1D(sampler));
+    float Yi = sampler->Xi[6];
+    Yi += (kSqrt17 - 4.0f);
+    Yi = (Yi >= 1.0f) ? (Yi - 1.0f) : Yi;
+    sampler->Xi[6] = Yi;
+    return f2_v(Xi, Yi);
 }
 pim_inline float2 VEC_CALL DofPrng(pt_sampler_t *const pim_noalias sampler)
 {
-    float Xi = sampler->Xi[6];
+    float Xi = sampler->Xi[7];
     Xi += (kSqrt13 - 3.0f);
     Xi = (Xi >= 1.0f) ? (Xi - 1.0f) : Xi;
-    sampler->Xi[6] = Xi;
+    sampler->Xi[7] = Xi;
     return f2_v(Xi, Sample1D(sampler));
 }
 // ----------------------------------------------------------------------------
@@ -470,8 +473,8 @@ static void InitPixelDist(void)
     dist1d_new(&dist, kSamples);
     for (i32 i = 0; i < kSamples; ++i)
     {
-        float x = f1_lerp(0.0f, kPixelRadius, i * dt);
-        dist.pdf[i] = f1_gauss(x);
+        float x = f1_lerp(0.0f, 2.0f, (i + 0.5f) * dt);
+        dist.pdf[i] = f1_gauss(x, 0.0f, 0.5f);
     }
     dist1d_bake(&dist);
     ms_pixeldist = dist;
@@ -1000,7 +1003,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
     for (i32 i = begin; i < end; ++i)
     {
         float4 position = grid_position(&grid, i);
-        position.w = radius + 2.0f * kMilli;
+        position.w = radius + kMilli;
         {
             PointQueryUserData query = RtcPointQuery(scene, position);
             if (query.distance > radius)
@@ -1052,7 +1055,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
                     float4 rd = f4_sub(at, ro);
                     float dist = f4_length3(rd);
                     rd = f4_divvs(rd, dist);
-                    rd.w = dist - kMilli * 2.0f;
+                    rd.w = dist - kMilli;
                     ros[k] = ro;
                     rds[k] = rd;
                 }
@@ -1251,28 +1254,42 @@ void dofinfo_gui(dofinfo_t* dof)
     }
 }
 
-pim_inline float4 VEC_CALL GetVert4(
-    const float4* vertices,
-    i32 iVert,
-    float4 wuv)
+pim_inline float4 VEC_CALL GetPosition(
+    const pt_scene_t *const pim_noalias scene,
+    rayhit_t hit)
 {
+    float4 const *const pim_noalias positions = scene->positions;
     return f4_blend(
-        vertices[iVert + 0],
-        vertices[iVert + 1],
-        vertices[iVert + 2],
-        wuv);
+        positions[hit.index + 0],
+        positions[hit.index + 1],
+        positions[hit.index + 2],
+        hit.wuvt);
 }
 
-pim_inline float2 VEC_CALL GetVert2(
-    const float2* vertices,
-    i32 iVert,
-    float4 wuv)
+pim_inline float4 VEC_CALL GetNormal(
+    const pt_scene_t *const pim_noalias scene,
+    rayhit_t hit)
 {
+    float4 const *const pim_noalias normals = scene->normals;
+    float4 N = f4_blend(
+        normals[hit.index + 0],
+        normals[hit.index + 1],
+        normals[hit.index + 2],
+        hit.wuvt);
+    N = (f4_dot3(hit.normal, N) > 0.0f) ? N : f4_neg(N);
+    return f4_normalize3(N);
+}
+
+pim_inline float2 VEC_CALL GetUV(
+    const pt_scene_t *const pim_noalias scene,
+    rayhit_t hit)
+{
+    float2 const *const pim_noalias uvs = scene->uvs;
     return f2_blend(
-        vertices[iVert + 0],
-        vertices[iVert + 1],
-        vertices[iVert + 2],
-        wuv);
+        uvs[hit.index + 0],
+        uvs[hit.index + 1],
+        uvs[hit.index + 2],
+        hit.wuvt);
 }
 
 pim_inline float VEC_CALL GetArea(const pt_scene_t *const pim_noalias scene, i32 iVert)
@@ -1322,7 +1339,7 @@ pim_inline float4 VEC_CALL GetEmission(
     }
     else
     {
-        float2 uv = GetVert2(scene->uvs, hit.index, hit.wuvt);
+        float2 uv = GetUV(scene, hit);
         float4 albedo = f4_1;
         {
             texture_t const *const tex = texture_get(mat->albedo);
@@ -1344,57 +1361,64 @@ pim_inline float4 VEC_CALL GetEmission(
 }
 
 pim_inline surfhit_t VEC_CALL GetSurface(
-    const pt_scene_t*const pim_noalias scene,
+    const pt_scene_t *const pim_noalias scene,
     float4 ro,
     float4 rd,
     rayhit_t hit,
     i32 bounce)
 {
-    surfhit_t surf = { 0 };
+    surfhit_t surf;
+    surf.type = hit.type;
 
     material_t const *const pim_noalias mat = GetMaterial(scene, hit);
     surf.flags = mat->flags;
     surf.ior = mat->ior;
-    float2 uv = GetVert2(scene->uvs, hit.index, hit.wuvt);
-    surf.M = f4_normalize3(GetVert4(scene->normals, hit.index, hit.wuvt));
+    float2 uv = GetUV(scene, hit);
+    surf.M = GetNormal(scene, hit);
     surf.N = surf.M;
-    surf.P = f4_add(ro, f4_mulvs(rd, hit.wuvt.w));
-    surf.P = f4_add(surf.P, f4_mulvs(surf.M, kMilli));
-
-    {
-        texture_t const *const tex = texture_get(mat->normal);
-        if (tex)
-        {
-            float4 Nts = UvBilinearWrapPow2_xy16(tex->texels, tex->size, uv);
-            surf.N = TanToWorld(surf.N, Nts);
-        }
-    }
-
-    surf.albedo = f4_1;
-    {
-        texture_t const *const tex = texture_get(mat->albedo);
-        if (tex)
-        {
-            surf.albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
-        }
-    }
-
-    float4 rome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
-    {
-        texture_t const *const tex = texture_get(mat->rome);
-        if (tex)
-        {
-            rome = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
-        }
-    }
-    surf.emission = UnpackEmission(surf.albedo, rome.w);
-    surf.roughness = rome.x;
-    surf.occlusion = rome.y;
-    surf.metallic = rome.z;
+    surf.P = GetPosition(scene, hit);
+    surf.P = f4_add(surf.P, f4_mulvs(surf.M, 0.1f * kMilli));
 
     if (hit.flags & matflag_sky)
     {
+        surf.albedo = f4_0;
+        surf.roughness = 1.0f;
+        surf.occlusion = 0.0f;
+        surf.metallic = 0.0f;
         surf.emission = GetSky(scene, ro, rd);
+    }
+    else
+    {
+        {
+            texture_t const *const pim_noalias tex = texture_get(mat->normal);
+            if (tex)
+            {
+                float4 Nts = UvBilinearWrapPow2_xy16(tex->texels, tex->size, uv);
+                surf.N = TanToWorld(surf.N, Nts);
+            }
+        }
+
+        surf.albedo = f4_1;
+        {
+            texture_t const *const pim_noalias tex = texture_get(mat->albedo);
+            if (tex)
+            {
+                surf.albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
+            }
+        }
+
+        float4 rome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
+        {
+            texture_t const *const pim_noalias tex = texture_get(mat->rome);
+            if (tex)
+            {
+                rome = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
+            }
+        }
+        surf.emission = UnpackEmission(surf.albedo, rome.w);
+        surf.roughness = rome.x;
+        surf.occlusion = rome.y;
+        surf.metallic = rome.z;
     }
 
     return surf;
@@ -1424,8 +1448,10 @@ pim_inline rayhit_t VEC_CALL pt_intersect_local(
     hit.type = hit_triangle;
     if (f4_dot3(hit.normal, rd) > 0.0f)
     {
+        hit.normal = f4_neg(hit.normal);
         hit.type = hit_backface;
     }
+    hit.normal = f4_normalize3(hit.normal);
 
     ASSERT(rtcHit.hit.primID != RTC_INVALID_GEOMETRY_ID);
     i32 iVert = rtcHit.hit.primID * 3;
@@ -1543,40 +1569,29 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     const float alpha = BrdfAlpha(surf->roughness);
 
     float4 V = f4_neg(I);
-    float4 N = surf->N;
-    float4 m = TanToWorld(N, SampleGGXMicrofacet(Sample2D(sampler), alpha));
-    bool entering = f4_dot3(N, V) > 0.0f;
-    float etaI = entering ? kAir : matIor;
-    float etaT = entering ? matIor : kAir;
-    float k = etaI / etaT;
+    float4 M = surf->M;
+    float4 m = TanToWorld(surf->N, SampleGGXMicrofacet(Sample2D(sampler), alpha));
+    m = f4_dot3(m, M) > 0.0f ? m : f4_reflect3(m, M);
+    m = f4_normalize3(m);
+    bool entering = surf->type != hit_backface;
+    float k = entering ? (kAir / matIor) : (matIor / kAir);
 
-    float4 L = f4_reflect3(I, m);
-    V = (f4_dot3(L, V) < 0.0f) ? f4_reflect3(V, surf->M) : V;
-
-    float4 H = f4_normalize3(f4_add(L, V));
-    float HoV = f1_abs(f4_dot3(H, V));
-    float4 F = F_Schlick(surf->albedo, f4_1, HoV);
-
-    float pdf = f4_avglum(F);
-    float4 T = f4_refract3(I, m, k);
-    bool tir = f4_dot3(T, T) < 0.1f;
-    if (tir)
-    {
-        pdf = 1.0f;
-    }
-
-    if (BrdfPrng(sampler) > pdf)
-    {
-        F = f4_inv(F);
-        pdf = 1.0f - pdf;
-        T = f4_normalize3(T);
-        L = T;
-    }
+    float cosTheta = f1_min(1.0f, f4_dot3(V, m));
+    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+    float pdf = Schlick(cosTheta, k);
+    float4 L = f4_normalize3(f4_reflect3(I, m));
+    bool tir = (k * sinTheta) > 1.0f;
+    pdf = tir ? 1.0f : pdf;
 
     float4 P = surf->P;
-    float4 M = surf->M;
-    bool above = f4_dot3(L, M) > 0.0f;
-    P = above ? P : f4_add(P, f4_mulvs(M, -3.0f * kMilli));
+    float4 F = F_SchlickEx(surf->albedo, surf->metallic, f1_sat(cosTheta));
+    if (BrdfPrng(sampler) > pdf)
+    {
+        L = f4_normalize3(f4_refract3(I, m, k));
+        pdf = 1.0f - pdf;
+        F = f4_inv(F);
+        P = f4_sub(P, f4_mulvs(M, 0.2f * kMilli));
+    }
 
     scatter_t result = { 0 };
     result.pos = P;
@@ -1588,7 +1603,7 @@ pim_inline scatter_t VEC_CALL RefractScatter(
 }
 
 pim_inline scatter_t VEC_CALL BrdfScatter(
-    pt_sampler_t*const pim_noalias sampler,
+    pt_sampler_t *const pim_noalias sampler,
     const surfhit_t* surf,
     float4 I)
 {
@@ -1743,8 +1758,8 @@ pim_inline float VEC_CALL LightSelectPdf(
 }
 
 pim_inline lightsample_t VEC_CALL LightSample(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     float4 ro,
     i32 iVert,
     i32 bounce)
@@ -1769,20 +1784,16 @@ pim_inline lightsample_t VEC_CALL LightSample(
     sample.direction = rd;
     sample.wuvt = wuv;
 
-    float4 N = f4_normalize3(GetVert4(scene->normals, iVert, wuv));
-    float VoNl = f4_dot3(f4_neg(rd), N);
-    if (VoNl > 0.0f)
+    rayhit_t hit = pt_intersect_local(scene, ro, rd, 0.0f, distance + kMilli);
+    if ((hit.type != hit_nothing) && (hit.index == iVert))
     {
-        rayhit_t hit = pt_intersect_local(scene, ro, rd, 0.0f, distance + 2.0f * kMilli);
-        if ((hit.type == hit_triangle) && (hit.index == iVert))
+        float cosTheta = f1_abs(f4_dot3(rd, hit.normal));
+        sample.pdf = LightPdf(area, cosTheta, distSq);
+        sample.luminance = GetEmission(scene, ro, rd, hit, bounce);
+        if (f4_hmax3(sample.luminance) > kEpsilon)
         {
-            sample.pdf = LightPdf(area, VoNl, distSq);
-            sample.luminance = GetEmission(scene, ro, rd, hit, bounce);
-            if (f4_hmax3(sample.luminance) > kEpsilon)
-            {
-                float4 Tr = CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w);
-                sample.luminance = f4_mul(sample.luminance, Tr);
-            }
+            float4 Tr = CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w);
+            sample.luminance = f4_mul(sample.luminance, Tr);
         }
     }
 
@@ -1790,25 +1801,24 @@ pim_inline lightsample_t VEC_CALL LightSample(
 }
 
 pim_inline float VEC_CALL LightEvalPdf(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     float4 ro,
     float4 rd,
-    rayhit_t* hitOut)
+    rayhit_t *const pim_noalias hitOut)
 {
     ASSERT(IsUnitLength(rd));
     rayhit_t hit = pt_intersect_local(scene, ro, rd, 0.0f, 1 << 20);
-    *hitOut = hit;
+    float pdf = 0.0f;
     if (hit.type != hit_nothing)
     {
-        float distance = hit.wuvt.w;
-        float distanceSq = f1_max(kEpsilon, distance * distance);
-        float4 N = f4_normalize3(hit.normal);
-        float cosTheta = f1_abs(f4_dot3(rd, N));
+        float cosTheta = f1_abs(f4_dot3(rd, hit.normal));
         float area = GetArea(scene, hit.index);
-        return LightPdf(area, cosTheta, distanceSq);
+        float distSq = f1_max(kEpsilon, hit.wuvt.w * hit.wuvt.w);
+        pdf = LightPdf(area, cosTheta, distSq);
     }
-    return 0.0f;
+    *hitOut = hit;
+    return pdf;
 }
 
 pim_inline float4 VEC_CALL EstimateDirect(
@@ -2349,13 +2359,13 @@ pt_result_t VEC_CALL pt_trace_ray(
         {
             break;
         }
-        if (hit.type == hit_backface)
-        {
-            if (!(hit.flags & matflag_refractive))
-            {
-                break;
-            }
-        }
+        //if (hit.type == hit_backface)
+        //{
+        //    if (!(hit.flags & matflag_refractive))
+        //    {
+        //        break;
+        //    }
+        //}
 
         surfhit_t surf = GetSurface(scene, ro, rd, hit, b);
         if (b > 0)
@@ -2423,19 +2433,14 @@ pt_result_t VEC_CALL pt_trace_ray(
 
 pim_inline float2 VEC_CALL SampleUv(
     pt_sampler_t*const pim_noalias sampler,
-    const dist1d_t* dist)
+    dist1d_t const *const pim_noalias dist)
 {
     float2 Xi = UvPrng(sampler);
-    Xi.x = dist1d_samplec(dist, Xi.x);
-    Xi.y = dist1d_samplec(dist, Xi.y);
-    Xi = f2_mulvs(Xi, kPixelRadius);
-    float2 b =
-    {
-        prng_bool(&sampler->rng) ? 1.0f : -1.0f,
-        prng_bool(&sampler->rng) ? 1.0f : -1.0f,
-    };
-    Xi = f2_mul(Xi, b);
-    return Xi;
+    float angle = Xi.x * kTau;
+    float radius = dist1d_samplec(dist, Xi.y) * 2.0f;
+    Xi.x = cosf(angle);
+    Xi.y = sinf(angle);
+    return f2_mulvs(Xi, radius);
 }
 
 pim_inline ray_t VEC_CALL CalculateDof(

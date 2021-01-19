@@ -4,6 +4,7 @@
 #include "common/cvar.h"
 #include "common/profiler.h"
 #include "common/stringutil.h"
+#include "containers/strlist.h"
 #include "io/fstr.h"
 #include "input/input_system.h"
 #include "ui/cimgui.h"
@@ -14,7 +15,6 @@
 #include <math.h>
 
 #define MAX_LINES       256
-#define MAX_HISTORY     64
 
 static cvar_t cv_conlogpath =
 {
@@ -26,7 +26,7 @@ static cvar_t cv_conlogpath =
 
 static void con_gui(void);
 static i32 OnTextInput(ImGuiInputTextCallbackData* data);
-static void ExecCmd(const char* cmd);
+static void ExecCmd(const char* cmd, bool history);
 static void HistClear(void);
 
 static char ms_buffer[PIM_PATH];
@@ -41,12 +41,13 @@ static bool ms_scrollToBottom;
 static bool ms_showGui;
 static bool ms_recapture;
 
-static i32 ms_iHistory;
-static char* ms_history[MAX_HISTORY];
+static i32 ms_histCursor;
+static strlist_t ms_history;
 
 void con_sys_init(void)
 {
     cvar_reg(&cv_conlogpath);
+    strlist_new(&ms_history, EAlloc_Perm);
 
     ms_file = fstr_open(cv_conlogpath.value, "wb");
     con_clear();
@@ -75,6 +76,7 @@ void con_sys_shutdown(void)
 
     con_clear();
     HistClear();
+    strlist_del(&ms_history);
 }
 
 ProfileMark(pm_gui, con_gui)
@@ -184,7 +186,7 @@ static void con_gui(void)
             if (ms_buffer[0])
             {
                 con_puts(C32_WHITE, ms_buffer);
-                ExecCmd(ms_buffer);
+                ExecCmd(ms_buffer, true);
             }
             ms_buffer[0] = 0;
             grabFocus = true;
@@ -207,7 +209,7 @@ void con_exec(const char* cmdText)
 {
     if (cmdText)
     {
-        ExecCmd(cmdText);
+        ExecCmd(cmdText, false);
     }
 }
 
@@ -250,16 +252,13 @@ void con_printf(u32 color, const char* fmt, ...)
 
 void con_clear(void)
 {
-    u32* colors = ms_colors;
-    char** lines = ms_lines;
-    const i32 numLines = NELEM(ms_lines);
-    for (i32 i = 0; i < numLines; ++i)
-    {
-        pim_free(lines[i]);
-        lines[i] = NULL;
-        colors[i] = C32_WHITE;
-    }
     ms_iLine = 0;
+    for (i32 i = 0; i < NELEM(ms_lines); ++i)
+    {
+        pim_free(ms_lines[i]);
+        ms_lines[i] = NULL;
+        ms_colors[i] = C32_WHITE;
+    }
 }
 
 static u32 LogSevToColor(LogSev sev)
@@ -301,10 +300,10 @@ void con_logf(LogSev sev, const char* tag, const char* fmt, ...)
     {
         double ms = time_milli(time_now() - time_appstart());
         double seconds = ms / 1000.0;
-        double minutes = seconds / 60.0;
-        double hours = minutes / 60.0;
         ms = fmod(ms, 1000.0);
+        double minutes = seconds / 60.0;
         seconds = fmod(seconds, 60.0);
+        double hours = minutes / 60.0;
         minutes = fmod(minutes, 60.0);
 
         u32 sevColor = LogSevToColor(sev);
@@ -373,30 +372,30 @@ static i32 OnTextComplete(ImGuiInputTextCallbackData* data)
 
 static i32 OnTextHistory(ImGuiInputTextCallbackData* data)
 {
-    const i32 numHist = NELEM(ms_history);
-    const i32 mask = numHist - 1;
-
-    i32 iHistory = ms_iHistory;
-    switch (data->EventKey)
+    const i32 length = ms_history.count;
+    if (length)
     {
-    default:
-    case ImGuiKey_UpArrow:
-        iHistory = (iHistory - 1) & mask;
-        break;
-    case ImGuiKey_DownArrow:
-        iHistory = (iHistory + 1) & mask;
-        break;
+        i32 cursor = ms_histCursor;
+        switch (data->EventKey)
+        {
+        default:
+        case ImGuiKey_UpArrow:
+            cursor = (cursor + length - 1) % length;
+            break;
+        case ImGuiKey_DownArrow:
+            cursor = (cursor + 1) % length;
+            break;
+        }
+        char* ptr = ms_history.ptr[cursor];
+        if (ptr)
+        {
+            StrCpy(data->Buf, data->BufSize, ptr);
+            data->BufTextLen = StrLen(ptr);
+            data->CursorPos = data->BufTextLen;
+            data->BufDirty = true;
+        }
+        ms_histCursor = cursor;
     }
-
-    const char* hist = ms_history[iHistory];
-    if (hist)
-    {
-        data->BufTextLen = StrCpy(data->Buf, data->BufSize, hist);
-        data->CursorPos = data->BufTextLen;
-        data->BufDirty = true;
-        ms_iHistory = iHistory;
-    }
-
     return 0;
 }
 
@@ -414,26 +413,19 @@ static i32 OnTextInput(ImGuiInputTextCallbackData* data)
 
 static void HistClear(void)
 {
-    const i32 len = NELEM(ms_history);
-    char** hist = ms_history;
-    for (i32 i = 0; i < len; ++i)
-    {
-        pim_free(hist[i]);
-        hist[i] = NULL;
-    }
-    ms_iHistory = 0;
+    strlist_clear(&ms_history);
+    ms_histCursor = 0;
 }
 
-static void ExecCmd(const char* cmd)
+static void ExecCmd(const char* cmd, bool history)
 {
     ASSERT(cmd);
 
-    const i32 numHist = NELEM(ms_history);
-    const i32 mask = numHist - 1;
-
-    i32 slot = ++ms_iHistory & mask;
-    pim_free(ms_history[slot]);
-    ms_history[slot] = StrDup(cmd, EAlloc_Perm);
+    if (history)
+    {
+        strlist_add(&ms_history, cmd);
+        ms_histCursor = 0;
+    }
 
     cmd_text(cmd);
 }

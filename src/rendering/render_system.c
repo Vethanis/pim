@@ -308,8 +308,13 @@ static void EnsurePtTrace(void)
     dirty |= ms_trace.imageSize.y != height;
     if (dirty)
     {
+        dofinfo_t dofinfo = ms_trace.dofinfo;
         pt_trace_del(&ms_trace);
         pt_trace_new(&ms_trace, ms_ptscene, i2_v(width, height));
+        if (dofinfo.bladeCount)
+        {
+            ms_trace.dofinfo = dofinfo;
+        }
     }
 }
 
@@ -384,7 +389,7 @@ static cmdstat_t CmdLoadTest(i32 argc, const char** argv)
         for (i32 m = 1; ; ++m)
         {
             SPrintf(ARGS(cmd), "mapload e%dm%d", e, m);
-            cmdstat_t status = cmd_exec(cmd);
+            cmdstat_t status = cmd_text(cmd);
             if (status != cmdstat_ok)
             {
                 if (m == 1)
@@ -611,7 +616,24 @@ static void TakeScreenshot(void)
 {
     if (input_keydown(KeyCode_F10))
     {
-        con_exec("screenshot");
+        if (cvar_get_bool(&cv_pt_trace))
+        {
+            con_exec("pt_denoise 0; wait; screenshot; wait; pt_denoise 1; wait; screenshot; wait; pt_denoise 0");
+        }
+        else
+        {
+            con_exec("screenshot");
+        }
+    }
+    if (input_keydown(KeyCode_PageUp))
+    {
+        r_scale_set(f1_clamp(1.1f * r_scale_get(), 0.05f, 2.0f));
+        ms_ptSampleCount = 0;
+    }
+    if (input_keydown(KeyCode_PageDown))
+    {
+        r_scale_set(f1_clamp((1.0f / 1.1f) * r_scale_get(), 0.05f, 2.0f));
+        ms_ptSampleCount = 0;
     }
 }
 
@@ -1152,7 +1174,7 @@ static textureid_t GenFlatTexture(const char* name, const char* suffix, float4 v
     return id;
 }
 
-static material_t GenMaterial(const char* name, float4 albedo, float4 rome)
+static material_t GenMaterial(const char* name, float4 albedo, float4 rome, matflag_t flags)
 {
     material_t mat = { 0 };
     mat.ior = 1.0f;
@@ -1162,10 +1184,11 @@ static material_t GenMaterial(const char* name, float4 albedo, float4 rome)
     {
         mat.flags |= matflag_emissive;
     }
+    mat.flags |= flags;
     return mat;
 }
 
-static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up, float scale, float4 albedo, float4 rome)
+static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up, float scale, float4 albedo, float4 rome, matflag_t flags)
 {
     drawables_t* dr = drawables_get();
     i32 i = drawables_add(dr, guid_str(name));
@@ -1173,12 +1196,12 @@ static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up
     dr->translations[i] = center;
     dr->scales[i] = f4_s(scale);
     dr->rotations[i] = quat_lookat(forward, up);
-    dr->materials[i] = GenMaterial(name, albedo, rome);
+    dr->materials[i] = GenMaterial(name, albedo, rome, flags);
     mesh_setmaterial(dr->meshes[i], &dr->materials[i]);
     return i;
 }
 
-static i32 CreateSphere(const char* name, float4 center, float radius, float4 albedo, float4 rome)
+static i32 CreateSphere(const char* name, float4 center, float radius, float4 albedo, float4 rome, matflag_t flags)
 {
     drawables_t* dr = drawables_get();
     i32 i = drawables_add(dr, guid_str(name));
@@ -1186,7 +1209,7 @@ static i32 CreateSphere(const char* name, float4 center, float radius, float4 al
     dr->translations[i] = center;
     dr->scales[i] = f4_s(radius);
     dr->rotations[i] = quat_id;
-    dr->materials[i] = GenMaterial(name, albedo, rome);
+    dr->materials[i] = GenMaterial(name, albedo, rome, flags);
     mesh_setmaterial(dr->meshes[i], &dr->materials[i]);
     return i;
 }
@@ -1212,81 +1235,90 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     const float4 y = { 0.0f, 1.0f, 0.0f };
     const float4 z = { 0.0f, 0.0f, 1.0f };
 
-    const float4 white = f4_s(0.9f);
-    const float4 red = f4_v(0.9f, 0.1f, 0.1f, 1.0f);
-    const float4 green = f4_v(0.1f, 0.9f, 0.1f, 1.0f);
-    //const float4 blue = f4_v(0.1f, 0.1f, 0.9f, 1.0f);
-    const float4 boxRome = f4_v(0.9f, 1.0f, 0.0f, 0.0f);
-    const float4 lightRome = f4_v(0.9f, 1.0f, 0.0f, 1.0f);
-    const float4 plasticRome = f4_v(0.35f, 1.0f, 0.0f, 0.0f);
-    const float4 metalRome = f4_v(0.125f, 1.0f, 1.0f, 0.0f);
-    const float4 floorRome = f4_v(0.1f, 1.0f, 0.0f, 0.0f);
-
-    CreateQuad(
+    i32 i = 0;
+    i = CreateQuad(
         "Cornell_Floor",
         f4_mulvs(y, -wallExtents),
         f4_neg(y), f4_neg(z),
         wallScale,
-        white,
-        floorRome);
-    CreateQuad(
+        f4_s(0.9f),
+        f4_v(0.1f, 1.0f, 0.0f, 0.0f),
+        0x0);
+    i = CreateQuad(
         "Cornell_Ceil",
         f4_mulvs(y, wallExtents),
         y, z,
         wallScale,
-        white,
-        boxRome);
-    CreateQuad(
+        f4_s(0.9f),
+        f4_v(0.9f, 1.0f, 0.0f, 0.0f),
+        0x0);
+    i = CreateQuad(
         "Cornell_Light",
         f4_mulvs(y, wallExtents - 0.01f),
         y, z,
         lightScale,
-        white,
-        lightRome);
+        f4_s(0.9f),
+        f4_v(0.9f, 1.0f, 0.0f, 1.0f),
+        matflag_sky);
 
-    CreateQuad(
+    i = CreateQuad(
         "Cornell_Left",
         f4_mulvs(x, -wallExtents),
         f4_neg(x), y,
         wallScale,
-        red,
-        boxRome);
-    CreateQuad(
+        f4_v(0.9f, 0.1f, 0.1f, 1.0f),
+        f4_v(0.9f, 1.0f, 0.0f, 0.0f),
+        0x0);
+    i = CreateQuad(
         "Cornell_Right",
         f4_mulvs(x, wallExtents),
         x, y,
         wallScale,
-        green,
-        boxRome);
+        f4_v(0.1f, 0.9f, 0.1f, 1.0f),
+        f4_v(0.9f, 1.0f, 0.0f, 0.0f),
+        0x0);
 
-    CreateQuad(
+    i = CreateQuad(
         "Cornell_Near",
         f4_mulvs(z, wallExtents),
         z, y,
         wallScale,
-        white,
-        boxRome);
-    CreateQuad(
+        f4_s(0.9f),
+        f4_v(0.9f, 1.0f, 0.0f, 0.0f),
+        0x0);
+    i = CreateQuad(
         "Cornell_Far",
         f4_mulvs(z, -wallExtents),
         f4_neg(z), y,
         wallScale,
-        white,
-        boxRome);
+        f4_v(0.1f, 0.1f, 0.9f, 1.0f),
+        f4_v(0.9f, 1.0f, 0.0f, 0.0f),
+        0x0);
 
-    CreateSphere(
+    i = CreateSphere(
         "Cornell_MetalSphere",
         f4_v(-sphereScale, -wallExtents + sphereScale, sphereScale, 0.0f),
         sphereScale,
-        white,
-        metalRome);
+        f4_s(0.9f),
+        f4_v(0.2f, 1.0f, 1.0f, 0.0f),
+        0x0);
 
-    CreateSphere(
+    i = CreateSphere(
         "Cornell_PlasticSphere",
-        f4_v(sphereScale, -wallExtents + sphereScale, -sphereScale, 0.0f),
+        f4_v(sphereScale, -wallExtents + sphereScale, sphereScale, 0.0f),
         sphereScale,
-        white,
-        plasticRome);
+        f4_s(0.9f),
+        f4_v(0.5f, 1.0f, 0.0f, 0.0f),
+        0x0);
+
+    i = CreateSphere(
+        "Cornell_GlassSphere",
+        f4_v(sphereScale, -wallExtents + sphereScale * 2.0f, -sphereScale, 0.0f),
+        sphereScale,
+        f4_s(0.99f),
+        f4_v(0.05f, 1.0f, 0.0f, 0.0f),
+        matflag_refractive);
+    dr->materials[i].ior = 1.5f;
 
     drawables_updatetransforms(dr);
     drawables_updatebounds(dr);
