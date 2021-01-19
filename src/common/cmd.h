@@ -6,8 +6,8 @@ PIM_C_BEGIN
 
 typedef enum
 {
-    cmdstat_ok = 0,     // command completed
-    cmdstat_err,        // parse error
+    cmdstat_ok,
+    cmdstat_err,
 
     cmdstat_COUNT
 } cmdstat_t;
@@ -21,11 +21,7 @@ void cmd_sys_shutdown(void);
 void cmd_reg(const char* name, cmdfn_t fn);
 bool cmd_exists(const char* name);
 const char* cmd_complete(const char* namePart);
-cmdstat_t cmd_exec(const char* line);
-void cmd_text(const char* text);
-
-// shared parsing functions
+cmdstat_t cmd_text(const char* text);
 const char* cmd_parse(const char* text, char** tokenOut);
-char** cmd_tokenize(const char* text, i32* argcOut);
 
 PIM_C_END

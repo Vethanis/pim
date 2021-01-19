@@ -742,36 +742,18 @@ pim_inline float4 VEC_CALL f4_smoothstepsv(float a, float b, float4 x)
     return f4_unormstep(t);
 }
 
-pim_inline float4 VEC_CALL f4_reflect(float4 i, float4 n)
-{
-    float4 nidn = f4_mulvs(n, f4_dot(i, n));
-    return f4_sub(i, f4_mulvs(nidn, 2.0f));
-}
-
 pim_inline float4 VEC_CALL f4_reflect3(float4 i, float4 n)
 {
     float4 nidn = f4_mulvs(n, f4_dot3(i, n));
     return f4_sub(i, f4_mulvs(nidn, 2.0f));
 }
 
-pim_inline float4 VEC_CALL f4_refract(float4 i, float4 n, float eta)
-{
-    float ndi = f4_dot(n, i);
-    float k = 1.0f - (eta*eta * (1.0f - ndi * ndi));
-    k = f1_max(k, kEpsilon);
-    float l = eta * ndi + sqrtf(k);
-    float4 m = f4_sub(f4_mulvs(i, eta), f4_mulvs(n, l));
-    return m;
-}
-
 pim_inline float4 VEC_CALL f4_refract3(float4 i, float4 n, float eta)
 {
-    float ndi = f4_dot3(n, i);
-    float k = 1.0f - (eta*eta * (1.0f - ndi*ndi));
-    k = f1_max(k, kEpsilon);
-    float l = eta * ndi + sqrtf(k);
-    float4 m = f4_sub(f4_mulvs(i, eta), f4_mulvs(n, l));
-    return m;
+    float cosTheta = f1_min(1.0f, f4_dot3(f4_neg(i), n));
+    float4 r_out_perp = f4_mulvs(f4_add(f4_mulvs(n, cosTheta), i), eta);
+    float4 r_out_parallel = f4_mulvs(n, -sqrtf(f1_abs(1.0f - f4_lengthsq3(r_out_perp))));
+    return f4_add(r_out_perp, r_out_parallel);
 }
 
 pim_inline float4 VEC_CALL f4_sqrt(float4 v)

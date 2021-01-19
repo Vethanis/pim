@@ -27,6 +27,8 @@
 #define kSqrt7              2.6457513110645905905016157536393f
 #define kSqrt11             3.3166247903553998491149327366707f
 #define kSqrt13             3.6055512754639892931192212674705f
+#define kSqrt17             4.1231056256176605498214098559741f
+#define kSqrt19             4.3588989435406735522369819838596f
 
 // SI units
 #define kKilo               1000.0f
@@ -46,6 +48,11 @@ pim_inline float VEC_CALL f1_radians(float x)
 pim_inline float VEC_CALL f1_degrees(float x)
 {
     return x * kDegreesPerRadian;
+}
+
+pim_inline float VEC_CALL f1_sq(float x)
+{
+    return x * x;
 }
 
 pim_inline float VEC_CALL f1_unorm(float s)
@@ -202,15 +209,10 @@ pim_inline float VEC_CALL f1_wsinc(float x, float r, float t)
     return f1_sinc(x) * f1_sinc(x / t);
 }
 
-// https://www.desmos.com/calculator/yubtic8naq
-pim_inline float VEC_CALL f1_gauss(float x)
+// https://www.desmos.com/calculator/29noktqkky
+pim_inline float VEC_CALL f1_gauss(float Xi, float mean, float stddev)
 {
-    return f1_max(0.0f, expf(-2.0f * x * x) - 0.000335462627903f);
-}
-
-pim_inline float VEC_CALL f1_sq(float x)
-{
-    return x * x;
+    return expf(-0.5f * (f1_sq(Xi - mean) / f1_sq(stddev))) / (stddev * 2.50662827463f);
 }
 
 pim_inline i32 VEC_CALL i1_min(i32 a, i32 b)

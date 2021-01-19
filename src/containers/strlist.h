@@ -13,6 +13,7 @@ typedef struct strlist_s
 
 void strlist_new(strlist_t* list, EAlloc allocator);
 void strlist_del(strlist_t* list);
+void strlist_clear(strlist_t* list);
 void strlist_add(strlist_t* list, const char* item);
 void strlist_rm(strlist_t* list, i32 i);
 i32 strlist_find(const strlist_t* list, const char* key);
