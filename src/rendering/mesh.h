@@ -60,6 +60,7 @@ bool mesh_getname(meshid_t id, guid_t *const dst);
 box_t mesh_calcbounds(meshid_t id);
 
 bool mesh_setmaterial(meshid_t id, material_t const *const mat);
+bool VEC_CALL mesh_settransform(meshid_t id, float4x4 localToWorld);
 // upload changes to gpu
 bool mesh_update(mesh_t *const mesh);
 
