@@ -44,8 +44,8 @@ typedef struct BrdfLut_s
     float2* pim_noalias texels;
 } BrdfLut;
 
-BrdfLut BakeBRDF(int2 size, u32 numSamples);
-void FreeBrdfLut(BrdfLut* lut);
+BrdfLut BrdfLut_New(int2 size, u32 numSamples);
+void BrdfLut_Del(BrdfLut* lut);
 
 pim_inline float VEC_CALL BrdfAlpha(float roughness)
 {
@@ -150,15 +150,17 @@ pim_inline float VEC_CALL G_SmithGGX(float NoL, float NoV, float alpha)
     return 0.5f / f1_max(kEpsilon, v + l);
 }
 
-// Diffuse brdf
-// Lambert brdf is just a constant
+// Lambert diffuse brdf
+// Energy conserving
+// Only really valid for chalk
 pim_inline float VEC_CALL Fd_Lambert()
 {
     return 1.0f / kPi;
 }
 
-// Diffuse brdf
 // Burley / Disney diffuse brdf
+// Not energy conserving unless used on realistic material inputs (MERL dataset fit)
+// [Burley12]
 pim_inline float VEC_CALL Fd_Burley(
     float NoL,
     float NoV,
@@ -171,7 +173,7 @@ pim_inline float VEC_CALL Fd_Burley(
     return (lightScatter * viewScatter) / kPi;
 }
 
-// multiply output by radiance of light
+// multiply output by luminance
 pim_inline float4 VEC_CALL DirectBRDF(
     float4 V,
     float4 L,
@@ -195,7 +197,7 @@ pim_inline float4 VEC_CALL DirectBRDF(
     float4 Fd = f4_mulvs(
         DiffuseColor(albedo, metallic),
         Fd_Burley(NoL, NoV, HoV, roughness));
-    // diffuse term scaled by fresnel refractance
+    // diffuse term is scaled by fresnel refractance
     Fd = f4_mul(Fd, f4_inv(Fr));
 
     return f4_add(Fr, Fd);
@@ -235,13 +237,14 @@ pim_inline float4 VEC_CALL IndirectBRDF(
     Fr = f4_mul(Fr, specularGI);
 
     float4 Fd = f4_mul(DiffuseColor(albedo, metallic), diffuseGI);
-    // diffuse term scaled by fresnel refractance
+    // diffuse term is scaled by fresnel refractance
     Fd = f4_mul(Fd, f4_inv(F));
     return f4_add(Fr, Fd);
 }
 
+// [Lagarde15]
 pim_inline float VEC_CALL SmoothDistanceAtt(
-    float distance, // distance squared between surface and light
+    float distance, // distance between surface and light
     float attRadius) // attenuation radius
 {
     float d2 = distance * distance;
@@ -260,6 +263,7 @@ pim_inline float VEC_CALL DistanceAtt(float distance)
     return 1.0f / f1_max(kMinLightDistSq, distance * distance);
 }
 
+// [Lagarde15]
 pim_inline float VEC_CALL AngleAtt(
     float4 L, // normalized light vector
     float4 Ldir, // spotlight direction
@@ -274,6 +278,7 @@ pim_inline float VEC_CALL AngleAtt(
     return att * att;
 }
 
+// [Lagarde15]
 pim_inline float4 VEC_CALL EvalPointLight(
     float4 V,
     float4 P,
@@ -305,16 +310,19 @@ pim_inline float4 VEC_CALL EvalPointLight(
     return f4_mul(brdf, f4_mulvs(lightColor, att));
 }
 
+// [Lagarde15]
 pim_inline float VEC_CALL SphereLumensToNits(float lumens, float radius)
 {
     return lumens / (SphereArea(radius) * kPi);
 }
 
+// [Lagarde15]
 pim_inline float VEC_CALL DiskLumensToNits(float lumens, float radius)
 {
     return lumens / (DiskArea(radius) * kPi);
 }
 
+// [Lagarde15]
 pim_inline float VEC_CALL TubeLumensToNits(
     float lumens,
     float radius,
@@ -323,6 +331,7 @@ pim_inline float VEC_CALL TubeLumensToNits(
     return lumens / (TubeArea(radius, width) * kPi);
 }
 
+// [Lagarde15]
 pim_inline float VEC_CALL RectLumensToNits(
     float lumens,
     float width,
@@ -331,6 +340,7 @@ pim_inline float VEC_CALL RectLumensToNits(
     return lumens / (RectArea(width, height) * kPi);
 }
 
+// [Lagarde15]
 pim_inline float VEC_CALL SphereSinSigmaSq(float radius, float distance)
 {
     radius = f1_max(kMinLightDist, radius);
@@ -343,6 +353,7 @@ pim_inline float VEC_CALL SphereSinSigmaSq(float radius, float distance)
     return sinSigmaSq;
 }
 
+// [Lagarde15]
 pim_inline float VEC_CALL DiskSinSigmaSq(float radius, float distance)
 {
     radius = f1_max(kMinLightDist, radius);
@@ -393,6 +404,7 @@ pim_inline float VEC_CALL AlphaPrime(
     return f1_saturate(alpha + (radius / (2.0f * distance)));
 }
 
+// [Lagarde15]
 pim_inline float4 VEC_CALL SpecularDominantDir(
     float4 N,
     float4 R,
@@ -416,6 +428,7 @@ pim_inline float4 VEC_CALL SphereRepresentativePoint(
     return cp;
 }
 
+// [Lagarde & Karis]
 pim_inline float4 VEC_CALL EvalSphereLight(
     float4 V,
     float4 P,

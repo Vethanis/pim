@@ -6,6 +6,8 @@
 #include "common/profiler.h"
 #include "containers/table.h"
 #include "math/float4_funcs.h"
+#include "math/float4x4_funcs.h"
+#include "math/float3x3_funcs.h"
 #include "math/box.h"
 #include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
@@ -195,6 +197,28 @@ bool mesh_setmaterial(meshid_t id, material_t const *const mat)
             current.y = index.y;
             current.z = index.z;
             texIndices[i] = current;
+        }
+        return mesh_update(mesh);
+    }
+    return false;
+}
+
+bool VEC_CALL mesh_settransform(meshid_t id, float4x4 localToWorld)
+{
+    mesh_t *const mesh = mesh_get(id);
+    if (mesh)
+    {
+        float3x3 IM = f3x3_IM(localToWorld);
+        float4 *const pim_noalias positions = mesh->positions;
+        float4 *const pim_noalias normals = mesh->normals;
+        const i32 len = mesh->length;
+        for (i32 i = 0; i < len; ++i)
+        {
+            positions[i] = f4x4_mul_pt(localToWorld, positions[i]);
+        }
+        for (i32 i = 0; i < len; ++i)
+        {
+            normals[i] = f4_normalize3(f3x3_mul_col(IM, normals[i]));
         }
         return mesh_update(mesh);
     }

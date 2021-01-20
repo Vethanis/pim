@@ -988,7 +988,6 @@ void render_sys_gui(bool* pEnabled)
 
 static meshid_t GenSphereMesh(const char* name, i32 steps)
 {
-    const float r = 1.0f;
     const i32 vsteps = steps;       // divisions along y axis
     const i32 hsteps = steps * 2;   // divisions along x-z plane
     const float dv = kPi / vsteps;
@@ -1036,20 +1035,15 @@ static meshid_t GenSphereMesh(const char* name, i32 steps)
             float4 n3 = f4_v(st2 * cp2, ct2, st2 * sp2, 0.0f);
             float4 n4 = f4_v(st2 * cp1, ct2, st2 * sp1, 0.0f);
 
-            float4 v1 = f4_mulvs(n1, r);
-            float4 v2 = f4_mulvs(n2, r);
-            float4 v3 = f4_mulvs(n3, r);
-            float4 v4 = f4_mulvs(n4, r);
-
             const i32 back = length;
             if (v == 0)
             {
                 length += 3;
                 ASSERT(length <= maxlen);
 
-                positions[back + 0] = v1;
-                positions[back + 1] = v3;
-                positions[back + 2] = v4;
+                positions[back + 0] = n1;
+                positions[back + 1] = n3;
+                positions[back + 2] = n4;
 
                 normals[back + 0] = n1;
                 normals[back + 1] = n3;
@@ -1064,9 +1058,9 @@ static meshid_t GenSphereMesh(const char* name, i32 steps)
                 length += 3;
                 ASSERT(length <= maxlen);
 
-                positions[back + 0] = v3;
-                positions[back + 1] = v1;
-                positions[back + 2] = v2;
+                positions[back + 0] = n3;
+                positions[back + 1] = n1;
+                positions[back + 2] = n2;
 
                 normals[back + 0] = n3;
                 normals[back + 1] = n1;
@@ -1081,9 +1075,9 @@ static meshid_t GenSphereMesh(const char* name, i32 steps)
                 length += 6;
                 ASSERT(length <= maxlen);
 
-                positions[back + 0] = v1;
-                positions[back + 1] = v2;
-                positions[back + 2] = v4;
+                positions[back + 0] = n1;
+                positions[back + 1] = n2;
+                positions[back + 2] = n4;
 
                 normals[back + 0] = n1;
                 normals[back + 1] = n2;
@@ -1093,9 +1087,9 @@ static meshid_t GenSphereMesh(const char* name, i32 steps)
                 uvs[back + 1] = u2;
                 uvs[back + 2] = u4;
 
-                positions[back + 3] = v2;
-                positions[back + 4] = v3;
-                positions[back + 5] = v4;
+                positions[back + 3] = n2;
+                positions[back + 4] = n3;
+                positions[back + 5] = n4;
 
                 normals[back + 3] = n2;
                 normals[back + 4] = n3;
@@ -1193,23 +1187,21 @@ static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up
     drawables_t* dr = drawables_get();
     i32 i = drawables_add(dr, guid_str(name));
     dr->meshes[i] = GenQuadMesh(name);
-    dr->translations[i] = center;
-    dr->scales[i] = f4_s(scale);
-    dr->rotations[i] = quat_lookat(forward, up);
     dr->materials[i] = GenMaterial(name, albedo, rome, flags);
+    float4x4 localToWorld = f4x4_trs(center, quat_lookat(forward, up), f4_s(scale));
+    mesh_settransform(dr->meshes[i], localToWorld);
     mesh_setmaterial(dr->meshes[i], &dr->materials[i]);
     return i;
 }
 
-static i32 CreateSphere(const char* name, float4 center, float radius, float4 albedo, float4 rome, matflag_t flags)
+static i32 CreateSphere(const char* name, float4 center, float scale, float4 albedo, float4 rome, matflag_t flags)
 {
     drawables_t* dr = drawables_get();
     i32 i = drawables_add(dr, guid_str(name));
     dr->meshes[i] = GenSphereMesh(name, 24);
-    dr->translations[i] = center;
-    dr->scales[i] = f4_s(radius);
-    dr->rotations[i] = quat_id;
     dr->materials[i] = GenMaterial(name, albedo, rome, flags);
+    float4x4 localToWorld = f4x4_trs(center, quat_id, f4_s(scale * 0.5f));
+    mesh_settransform(dr->meshes[i], localToWorld);
     mesh_setmaterial(dr->meshes[i], &dr->materials[i]);
     return i;
 }
@@ -1224,12 +1216,9 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     camera_reset();
 
     const float wallExtents = 5.0f;
-    const float sphereRad = 0.3f;
-    const float lightExtents = 0.25f;
-
     const float wallScale = 2.0f * wallExtents;
-    const float sphereScale = 2.0f * sphereRad;
-    const float lightScale = 2.0f * lightExtents;
+    const float sphereScale = 1.0f;
+    const float lightScale = 0.5f;
 
     const float4 x = { 1.0f, 0.0f, 0.0f };
     const float4 y = { 0.0f, 1.0f, 0.0f };
@@ -1295,30 +1284,63 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
         f4_v(0.9f, 1.0f, 0.0f, 0.0f),
         0x0);
 
-    i = CreateSphere(
-        "Cornell_MetalSphere",
-        f4_v(-sphereScale, -wallExtents + sphereScale, sphereScale, 0.0f),
-        sphereScale,
-        f4_s(0.9f),
-        f4_v(0.2f, 1.0f, 1.0f, 0.0f),
-        0x0);
+    const float margin = sphereScale * 1.5f;
+    const float lo = -wallExtents + margin;
+    const float hi = wallExtents - margin;
+    for (i32 j = 0; j < 5; ++j)
+    {
+        float t = (j + 0.5f) / 5;
+        float roughness = f1_lerp(0.0f, 1.0f, t);
+        float x = f1_lerp(lo, hi, t);
+        float y = -wallExtents + sphereScale;
+        float z = lo;
+        char name[PIM_PATH];
+        SPrintf(ARGS(name), "Cornell_MetalSphere_%d", j);
+        i = CreateSphere(
+            name,
+            f4_v(x, y, z, 0.0f),
+            sphereScale,
+            f4_s(0.9f),
+            f4_v(roughness, 1.0f, 1.0f, 0.0f),
+            0x0);
+    }
 
-    i = CreateSphere(
-        "Cornell_PlasticSphere",
-        f4_v(sphereScale, -wallExtents + sphereScale, sphereScale, 0.0f),
-        sphereScale,
-        f4_s(0.9f),
-        f4_v(0.5f, 1.0f, 0.0f, 0.0f),
-        0x0);
+    for (i32 j = 0; j < 5; ++j)
+    {
+        float t = (j + 0.5f) / 5;
+        float roughness = f1_lerp(0.0f, 1.0f, t);
+        float x = f1_lerp(lo, hi, t);
+        float y = -wallExtents + sphereScale;
+        float z = lo + margin;
+        char name[PIM_PATH];
+        SPrintf(ARGS(name), "Cornell_PlasticSphere_%d", j);
+        i = CreateSphere(
+            name,
+            f4_v(x, y, z, 0.0f),
+            sphereScale,
+            f4_s(0.9f),
+            f4_v(roughness, 1.0f, 0.0f, 0.0f),
+            0x0);
+    }
 
-    i = CreateSphere(
-        "Cornell_GlassSphere",
-        f4_v(sphereScale, -wallExtents + sphereScale * 2.0f, -sphereScale, 0.0f),
-        sphereScale,
-        f4_s(0.99f),
-        f4_v(0.05f, 1.0f, 0.0f, 0.0f),
-        matflag_refractive);
-    dr->materials[i].ior = 1.5f;
+    for (i32 j = 0; j < 5; ++j)
+    {
+        float t = (j + 0.5f) / 5;
+        float roughness = f1_lerp(0.0f, 1.0f, t);
+        float x = f1_lerp(lo, hi, t);
+        float y = -wallExtents + sphereScale;
+        float z = lo + margin * 2.0f;
+        char name[PIM_PATH];
+        SPrintf(ARGS(name), "Cornell_GlassSphere_%d", j);
+        i = CreateSphere(
+            name,
+            f4_v(x, y, z, 0.0f),
+            sphereScale,
+            f4_s(0.9f),
+            f4_v(roughness, 1.0f, 0.0f, 0.0f),
+            matflag_refractive);
+        dr->materials[i].ior = 1.5f;
+    }
 
     drawables_updatetransforms(dr);
     drawables_updatebounds(dr);

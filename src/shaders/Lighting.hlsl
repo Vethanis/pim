@@ -67,10 +67,10 @@ float Fd_Lambert()
 float Fd_Burley(
     float NoL,
     float NoV,
-    float LoH,
+    float HoV,
     float roughness)
 {
-    float fd90 = 0.5f + 2.0f * LoH * LoH * roughness;
+    float fd90 = 0.5f + 2.0f * HoV * HoV * roughness;
     float lightScatter = F_Schlick1(1.0f, fd90, NoL);
     float viewScatter = F_Schlick1(1.0f, fd90, NoV);
     return (lightScatter * viewScatter) / kPi;
@@ -89,7 +89,6 @@ float3 DirectBRDF(
     float NoH = dotsat(N, H);
     float NoL = dotsat(N, L);
     float HoV = dotsat(H, V);
-    float LoH = dotsat(L, H);
 
     float alpha = BrdfAlpha(roughness);
     float3 F = F_SchlickEx(albedo, metallic, HoV);
@@ -97,7 +96,7 @@ float3 DirectBRDF(
     float D = D_GTR(NoH, alpha);
     float3 Fr = D * G * F;
 
-    float3 Fd = DiffuseColor(albedo, metallic) * Fd_Burley(NoL, NoV, LoH, roughness);
+    float3 Fd = DiffuseColor(albedo, metallic) * Fd_Burley(NoL, NoV, HoV, roughness);
     Fd *= 1.0 - F;
 
     return Fr + Fd;

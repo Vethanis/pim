@@ -1003,7 +1003,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
     for (i32 i = begin; i < end; ++i)
     {
         float4 position = grid_position(&grid, i);
-        position.w = radius + kMilli;
+        position.w = radius + 0.01f * kMilli;
         {
             PointQueryUserData query = RtcPointQuery(scene, position);
             if (query.distance > radius)
@@ -1055,7 +1055,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
                     float4 rd = f4_sub(at, ro);
                     float dist = f4_length3(rd);
                     rd = f4_divvs(rd, dist);
-                    rd.w = dist - kMilli;
+                    rd.w = dist - 0.01f * kMilli;
                     ros[k] = ro;
                     rds[k] = rd;
                 }
@@ -1377,7 +1377,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     surf.M = GetNormal(scene, hit);
     surf.N = surf.M;
     surf.P = GetPosition(scene, hit);
-    surf.P = f4_add(surf.P, f4_mulvs(surf.M, 0.1f * kMilli));
+    surf.P = f4_add(surf.P, f4_mulvs(surf.M, 0.01f * kMilli));
 
     if (hit.flags & matflag_sky)
     {
@@ -1509,9 +1509,7 @@ pim_inline float4 VEC_CALL BrdfEval(
     float NoH = f4_dotsat(N, H);
     float HoV = f4_dotsat(H, V);
     float NoV = f4_dotsat(N, V);
-    float LoH = f4_dotsat(L, H);
 
-    // metals are only specular
     const float amtDiffuse = 1.0f - metallic;
     const float amtSpecular = 1.0f;
 
@@ -1524,7 +1522,7 @@ pim_inline float4 VEC_CALL BrdfEval(
         brdf = f4_add(brdf, Fr);
     }
     {
-        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, LoH, roughness));
+        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, HoV, roughness));
         Fd = f4_mul(Fd, f4_inv(F));
         Fd = f4_mulvs(Fd, amtDiffuse);
         brdf = f4_add(brdf, Fd);
@@ -1590,7 +1588,7 @@ pim_inline scatter_t VEC_CALL RefractScatter(
         L = f4_normalize3(f4_refract3(I, m, k));
         pdf = 1.0f - pdf;
         F = f4_inv(F);
-        P = f4_sub(P, f4_mulvs(M, 0.2f * kMilli));
+        P = f4_sub(P, f4_mulvs(M, 0.02f * kMilli));
     }
 
     scatter_t result = { 0 };
@@ -1784,7 +1782,7 @@ pim_inline lightsample_t VEC_CALL LightSample(
     sample.direction = rd;
     sample.wuvt = wuv;
 
-    rayhit_t hit = pt_intersect_local(scene, ro, rd, 0.0f, distance + kMilli);
+    rayhit_t hit = pt_intersect_local(scene, ro, rd, 0.0f, distance + 0.01f * kMilli);
     if ((hit.type != hit_nothing) && (hit.index == iVert))
     {
         float cosTheta = f1_abs(f4_dot3(rd, hit.normal));
