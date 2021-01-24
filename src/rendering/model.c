@@ -20,9 +20,11 @@
 #include "common/console.h"
 #include "common/sort.h"
 #include "common/fnv1a.h"
+#include "common/cvar.h"
 #include "logic/progs.h"
 #include "rendering/camera.h"
 #include "quake/q_model.h"
+#include "stb/stb_image.h"
 #include <string.h>
 
 typedef struct mat_preset_s
@@ -33,6 +35,24 @@ typedef struct mat_preset_s
     float metallic;
     float emission;
 } mat_preset_t;
+
+static cvar_t cv_model_current =
+{
+    .type = cvart_text,
+    .name = "model_current",
+    .desc = "Name of current map",
+    .value = "",
+};
+
+static cvar_t cv_model_bumpiness =
+{
+    .type = cvart_float,
+    .name = "model_bumpiness",
+    .desc = "Bumpiness of generated normal maps [0, 11]",
+    .value = "1",
+    .minFloat = 0.0f,
+    .maxFloat = 11.0f,
+};
 
 #define kMatGen             0.5f, 1.0f, 0.0f, 0.0f,
 #define kMatRough           0.75f, 1.0f, 0.0f, 0.0f,
@@ -173,6 +193,7 @@ static material_t GenMaterial(
 {
     material_t material = { 0 };
     material.ior = 1.0f;
+    material.bumpiness = cvar_get_float(&cv_model_bumpiness);
     if (!mtex)
     {
         return material;
@@ -267,15 +288,61 @@ static material_t GenMaterial(
         emission = 0.5f;
     }
 
-    texture_unpalette(
-        mip0,
-        size,
-        mtex->name,
-        material.flags,
-        f4_v(roughness, occlusion, metallic, emission),
-        &material.albedo,
-        &material.rome,
-        &material.normal);
+    char names[3][PIM_PATH] = { 0 };
+    guid_t guids[3] = { 0 };
+    textureid_t ids[3] = { 0 };
+    SPrintf(ARGS(names[0]), "%s_albedo", mtex->name);
+    SPrintf(ARGS(names[1]), "%s_rome", mtex->name);
+    SPrintf(ARGS(names[2]), "%s_normal", mtex->name);
+
+    bool foundAll = true;
+    for (i32 i = 0; i < NELEM(ids); ++i)
+    {
+        guids[i] = guid_str(names[i]);
+        if (!texture_find(guids[i], &ids[i]))
+        {
+            char path[PIM_PATH];
+            SPrintf(ARGS(path), "data/id1/textures/%s.png", names[i]);
+            texture_t tex = { 0 };
+            i32 comp = 0;
+            VkFormat format = 0;
+            if (i != 2)
+            {
+                format = VK_FORMAT_R8G8B8A8_SRGB;
+                tex.texels = stbi_load(path, &tex.size.x, &tex.size.y, &comp, 4);
+            }
+            else
+            {
+                format = VK_FORMAT_R16G16_SNORM;
+                tex.texels = stbi_load_16(path, &tex.size.x, &tex.size.y, &comp, 4);
+            }
+            if (tex.texels)
+            {
+                texture_new(&tex, format, guids[i], &ids[i]);
+            }
+        }
+        foundAll &= texture_exists(ids[i]);
+    }
+
+    if (!foundAll)
+    {
+        texture_release(ids[0]);
+        texture_release(ids[1]);
+        texture_release(ids[2]);
+        texture_unpalette(
+            mip0,
+            size,
+            mtex->name,
+            &material,
+            f4_v(roughness, occlusion, metallic, emission),
+            &ids[0],
+            &ids[1],
+            &ids[2]);
+    }
+
+    material.albedo = ids[0];
+    material.rome = ids[1];
+    material.normal = ids[2];
 
     return material;
 }
@@ -586,6 +653,39 @@ static i32 CmpName(const void* lhs, const void* rhs, void* usr)
     return a < b ? -1 : 1;
 }
 
+void model_sys_init(void)
+{
+    cvar_reg(&cv_model_current);
+    cvar_reg(&cv_model_bumpiness);
+}
+
+void model_sys_update(void)
+{
+    if (cvar_check_dirty(&cv_model_bumpiness))
+    {
+        const char* name = cvar_get_str(&cv_model_current);
+        const char* maps = StrIStr(name, PIM_PATH, "maps/");
+        if (maps)
+        {
+            name = maps + 5;
+        }
+        char cmd[PIM_PATH];
+        StrCpy(ARGS(cmd), "mapload ");
+        StrCat(ARGS(cmd), name);
+        char* ext = (char*)StrIStr(ARGS(cmd), ".bsp");
+        if (ext)
+        {
+            *ext = 0;
+        }
+        con_exec(cmd);
+    }
+}
+
+void model_sys_shutdown(void)
+{
+
+}
+
 void ModelToDrawables(mmodel_t const *const model, drawables_t *const dr)
 {
     ASSERT(model);
@@ -718,6 +818,7 @@ bool LoadModelAsDrawables(const char* name, drawables_t *const dr, bool loadligh
     asset_t asset = { 0 };
     if (asset_get(name, &asset))
     {
+        cvar_set_str(&cv_model_current, name);
         mmodel_t* model = LoadModel(name, asset.pData, EAlloc_Temp);
         ModelToDrawables(model, dr);
         LoadProgs(model, loadlights);

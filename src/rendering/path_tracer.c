@@ -418,7 +418,7 @@ static cvar_t cv_pt_dist_alpha =
 {
     .type = cvart_float,
     .name = "pt_dist_alpha",
-    .value = "0.95",
+    .value = "0.5",
     .minFloat = 0.0f,
     .maxFloat = 1.0f,
     .desc = "path tracer light distribution update amount",
@@ -428,7 +428,7 @@ static cvar_t cv_pt_dist_samples =
 {
     .type = cvart_int,
     .name = "pt_dist_samples",
-    .value = "30",
+    .value = "1000",
     .minInt = 30,
     .maxInt = 1 << 20,
     .desc = "path tracer light distribution minimum samples per update",
@@ -1523,7 +1523,6 @@ pim_inline float4 VEC_CALL BrdfEval(
     }
     {
         float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, HoV, roughness));
-        Fd = f4_mul(Fd, f4_inv(F));
         Fd = f4_mulvs(Fd, amtDiffuse);
         brdf = f4_add(brdf, Fd);
     }
@@ -1673,7 +1672,6 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
     }
     {
         float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, LoH, roughness));
-        Fd = f4_mul(Fd, f4_inv(F));
         Fd = f4_mulvs(Fd, amtDiffuse);
         brdf = f4_add(brdf, Fd);
     }

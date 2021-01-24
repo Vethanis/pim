@@ -198,7 +198,7 @@ pim_inline float4 VEC_CALL DirectBRDF(
         DiffuseColor(albedo, metallic),
         Fd_Burley(NoL, NoV, HoV, roughness));
     // diffuse term is scaled by fresnel refractance
-    Fd = f4_mul(Fd, f4_inv(Fr));
+    Fd = f4_mul(Fd, f4_inv(F));
 
     return f4_add(Fr, Fd);
 }

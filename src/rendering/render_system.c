@@ -843,6 +843,7 @@ void render_sys_init(void)
 
     texture_sys_init();
     mesh_sys_init();
+    model_sys_init();
     pt_sys_init();
     EnsureFramebuf();
 
@@ -875,6 +876,7 @@ void render_sys_update(void)
 
     texture_sys_update();
     mesh_sys_update();
+    model_sys_update();
     pt_sys_update();
 
     BakeSky();
@@ -898,8 +900,9 @@ void render_sys_shutdown(void)
     framebuf_destroy(GetFrontBuf());
     framebuf_destroy(GetBackBuf());
 
-    mesh_sys_shutdown();
     texture_sys_shutdown();
+    mesh_sys_shutdown();
+    model_sys_shutdown();
 
     vkr_shutdown();
 }

@@ -320,12 +320,9 @@ const char* StrRChr(char const *const hay, i32 size, char needle)
     ASSERT(hay || !size);
     ASSERT(size >= 0);
 
-    for (i32 i = size - 1; i >= 0; --i)
+    const i32 len = StrNLen(hay, size);
+    for (i32 i = len - 1; i >= 0; --i)
     {
-        if (!hay[i])
-        {
-            break;
-        }
         if (hay[i] == needle)
         {
             return hay + i;
@@ -341,13 +338,10 @@ const char* StrRIChr(char const *const hay, i32 size, char needle)
     ASSERT(hay || !size);
     ASSERT(size >= 0);
 
+    const i32 len = StrNLen(hay, size);
     needle = ChrLo(needle);
-    for (i32 i = size - 1; i >= 0; --i)
+    for (i32 i = len - 1; i >= 0; --i)
     {
-        if (!hay[i])
-        {
-            break;
-        }
         if (ChrLo(hay[i]) == needle)
         {
             return hay + i;

@@ -343,7 +343,7 @@ typedef struct task_Unpalette
     u32* rome;
     short2* normal;
     float2* gray;
-    matflag_t flags;
+    material_t const* material;
     bool fullEmit;
     bool isLight;
 } task_Unpalette;
@@ -351,7 +351,6 @@ typedef struct task_Unpalette
 static void UnpaletteStep1Fn(void* pbase, i32 begin, i32 end)
 {
     task_Unpalette* task = pbase;
-    const matflag_t flags = task->flags;
     const u8* pim_noalias bytes = task->bytes;
     u32* pim_noalias albedo = task->albedo;
     float2* pim_noalias gray = task->gray;
@@ -398,6 +397,7 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
     short2* pim_noalias normal = task->normal;
     const bool fullEmit = task->fullEmit;
     const bool isLight = task->isLight;
+    const float bumpiness = task->material->bumpiness;
 
     for (i32 i = begin; i < end; ++i)
     {
@@ -437,8 +437,9 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
 
         float dx = r - l;
         float dy = u - d;
-        const float z = 2.0f;
-        float4 N = { -dx, -dy, z, 0.0f };
+        float4 N = { -dx, -dy, 1.0f, 0.0f };
+        N.x *= bumpiness;
+        N.y *= bumpiness;
         normal[i] = NormalTsToXy16(N);
     }
 }
@@ -448,7 +449,7 @@ bool texture_unpalette(
     u8 const *const pim_noalias bytes,
     int2 size,
     const char* name,
-    u32 matflags,
+    material_t const *const material,
     float4 flatRome,
     textureid_t *const albedoOut,
     textureid_t *const romeOut,
@@ -507,7 +508,7 @@ bool texture_unpalette(
         task_Unpalette* tasks = tmp_calloc(sizeof(tasks[0]) * 3);
         tasks[0].albedo = albedo;
         tasks[0].bytes = bytes;
-        tasks[0].flags = matflags;
+        tasks[0].material = material;
         tasks[0].flatRome = flatRome;
         tasks[0].fullEmit = fullEmit;
         tasks[0].gray = gray;

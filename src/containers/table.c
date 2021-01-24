@@ -183,8 +183,7 @@ bool table_exists(const table_t *const table, genid_t id)
     i32 index = id.index;
     u8 version = id.version;
     ASSERT(table->valueSize > 0);
-    ASSERT(index < table->width);
-    return versions[index] == version;
+    return (index < table->width) && (versions[index] == version);
 }
 
 bool table_add(
