@@ -27,6 +27,7 @@ typedef struct material_s
     textureid_t normal;     // rgba8 (tangent space xyz, packed as unorm)
     matflag_t flags;
     float ior;              // index of refraction
+    float bumpiness;
 } material_t;
 
 typedef struct dmaterial_s

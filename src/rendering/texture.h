@@ -10,6 +10,7 @@ PIM_C_BEGIN
 
 typedef struct table_s table_t;
 typedef struct crate_s crate_t;
+typedef struct material_s material_t;
 
 typedef struct textureid_s
 {
@@ -66,7 +67,7 @@ bool texture_unpalette(
     u8 const *const pim_noalias bytes,
     int2 size,
     const char* name,
-    u32 matflags,
+    material_t const *const material,
     float4 flatRome,
     textureid_t *const albedoOut,
     textureid_t *const romeOut,

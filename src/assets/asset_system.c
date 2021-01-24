@@ -6,14 +6,17 @@
 #include "common/profiler.h"
 #include "common/sort.h"
 #include "common/stringutil.h"
+#include "common/console.h"
+#include "io/fnd.h"
 #include "containers/sdict.h"
 #include "quake/q_packfile.h"
 #include "quake/q_bspfile.h"
 #include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
+#include "stb/stb_image.h"
 
 static cvar_t cv_basedir = { .type = cvart_text,.name = "basedir",.value = "data",.desc = "base directory for game data" };
-static cvar_t cv_game = { .type = cvart_text,.name = "game",.value = "id1",.desc = "name of the active game" };
+static cvar_t cv_gamedir = { .type = cvart_text,.name = "gamedir",.value = "id1",.desc = "name of the active game" };
 
 static sdict_t ms_assets;
 static searchpath_t ms_search;
@@ -21,13 +24,13 @@ static searchpath_t ms_search;
 void asset_sys_init(void)
 {
     cvar_reg(&cv_basedir);
-    cvar_reg(&cv_game);
+    cvar_reg(&cv_gamedir);
 
     sdict_new(&ms_assets, sizeof(asset_t), EAlloc_Perm);
     searchpath_new(&ms_search);
 
     char path[PIM_PATH] = { 0 };
-    SPrintf(ARGS(path), "%s/%s", cv_basedir.value, cv_game.value);
+    SPrintf(ARGS(path), "%s/%s", cvar_get_str(&cv_basedir), cvar_get_str(&cv_gamedir));
     searchpath_addpack(&ms_search, path);
 
     for (i32 i = 0; i < ms_search.packCount; ++i)
