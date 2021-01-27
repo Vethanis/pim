@@ -519,8 +519,11 @@ void pt_sys_update(void)
 
 void pt_sys_shutdown(void)
 {
-    rtc.ReleaseDevice(ms_device);
-    ms_device = NULL;
+    if (ms_device)
+    {
+        rtc.ReleaseDevice(ms_device);
+        ms_device = NULL;
+    }
     ShutdownPixelDist();
 }
 

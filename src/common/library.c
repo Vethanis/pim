@@ -118,10 +118,10 @@ static void OS_geterror(char* buffer, i32 size)
     if (err != 0)
     {
         DWORD rv = FormatMessageA(
-            FORMAT_MESSAGE_FROM_SYSTEM,
+            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
             NULL,
             err,
-            MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
+            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
             buffer,
             size,
             NULL);
