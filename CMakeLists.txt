@@ -38,6 +38,21 @@ add_executable(pim
     "submodules/glfw/src/osmesa_context.c"
     "submodules/glfw/src/vulkan.c"
     "submodules/glfw/src/window.c"
+    "submodules/imgui/imconfig.h"
+    "submodules/imgui/imgui.cpp"
+    "submodules/imgui/imgui.h"
+    "submodules/imgui/imgui_demo.cpp"
+    "submodules/imgui/imgui_draw.cpp"
+    "submodules/imgui/imgui_internal.h"
+    "submodules/imgui/imgui_tables.cpp"
+    "submodules/imgui/imgui_widgets.cpp"
+    "submodules/imgui/imstb_rectpack.h"
+    "submodules/imgui/imstb_textedit.h"
+    "submodules/imgui/imstb_truetype.h"
+    "submodules/imgui/backends/imgui_impl_glfw.h"
+    "submodules/imgui/backends/imgui_impl_glfw.cpp"
+    "submodules/cimgui/cimgui.cpp"
+    "submodules/cimgui/cimgui.h"
     "submodules/miniz/miniz.c"
     "submodules/miniz/miniz_tdef.c"
     "submodules/miniz/miniz_tinfl.c"
@@ -67,6 +82,8 @@ target_include_directories(pim
     "submodules/cgltf"
     "submodules/cJSON"
     "submodules/glfw/include"
+    "submodules/imgui"
+    "submodules/cimgui"
     "submodules/miniz"
     "submodules/pcg32"
     "submodules/SPIRV-Reflect"
@@ -86,6 +103,7 @@ endif()
 
 target_compile_definitions(pim
     PRIVATE
+    CIMGUI_NO_EXPORT
     CJSON_HIDE_SYMBOLS
     SOKOL_NO_DEPRECATED)
 

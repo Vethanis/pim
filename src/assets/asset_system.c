@@ -11,7 +11,6 @@
 #include "containers/sdict.h"
 #include "quake/q_packfile.h"
 #include "quake/q_bspfile.h"
-#include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
 #include "stb/stb_image.h"
 
@@ -153,7 +152,7 @@ void asset_gui(bool* pEnabled)
 
     if (igBegin("AssetSystem", pEnabled, 0))
     {
-        if (igCollapsingHeader1("Packs"))
+        if (igExCollapsingHeader1("Packs"))
         {
             igIndent(0.0f);
             const i32 numPacks = ms_search.packCount;
@@ -161,7 +160,7 @@ void asset_gui(bool* pEnabled)
             for (i32 i = 0; i < numPacks; ++i)
             {
                 const pack_t pack = packs[i];
-                if (!igCollapsingHeader1(pack.path))
+                if (!igExCollapsingHeader1(pack.path))
                 {
                     continue;
                 }
@@ -195,7 +194,7 @@ void asset_gui(bool* pEnabled)
                     "Size",
                     "Usage %",
                 };
-                if (igTableHeader(NELEM(titles), titles, (i32*)&gs_fileCmpMode))
+                if (igExTableHeader(NELEM(titles), titles, (i32*)&gs_fileCmpMode))
                 {
                     gs_revSort = !gs_revSort;
                 }
@@ -213,20 +212,20 @@ void asset_gui(bool* pEnabled)
                     igText("%2.2f%%", file->length * rcpUsed); igNextColumn();
                 }
                 pim_free(indices);
-                igTableFooter();
+                igExTableFooter();
 
                 igPopID();
             }
             igUnindent(0.0f);
         }
-        if (igCollapsingHeader1("Assets"))
+        if (igExCollapsingHeader1("Assets"))
         {
             const char* titles[] =
             {
                 "Name",
                 "Size",
             };
-            if (igTableHeader(NELEM(titles), titles, (i32*)&gs_assetCmpMode))
+            if (igExTableHeader(NELEM(titles), titles, (i32*)&gs_assetCmpMode))
             {
                 gs_revSort = !gs_revSort;
             }
@@ -243,7 +242,7 @@ void asset_gui(bool* pEnabled)
             }
             pim_free(indices);
 
-            igTableFooter();
+            igExTableFooter();
         }
     }
     igEnd();

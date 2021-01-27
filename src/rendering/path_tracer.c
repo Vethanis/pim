@@ -34,7 +34,7 @@
 #include "common/serialize.h"
 #include "common/atomics.h"
 #include "common/time.h"
-#include "ui/cimgui.h"
+#include "ui/cimgui_ext.h"
 
 #include "stb/stb_perlin_fork.h"
 #include <string.h>
@@ -1172,7 +1172,7 @@ void pt_scene_del(pt_scene_t*const pim_noalias scene)
 
 void pt_scene_gui(pt_scene_t*const pim_noalias scene)
 {
-    if (scene && igCollapsingHeader1("pt scene"))
+    if (scene && igExCollapsingHeader1("pt scene"))
     {
         igIndent(0.0f);
         igText("Vertex Count: %d", scene->vertCount);
@@ -1220,7 +1220,7 @@ void pt_trace_del(pt_trace_t* trace)
 
 void pt_trace_gui(pt_trace_t* trace)
 {
-    if (trace && igCollapsingHeader1("pt trace"))
+    if (trace && igExCollapsingHeader1("pt trace"))
     {
         igIndent(0.0f);
         dofinfo_gui(&trace->dofinfo);
@@ -1243,17 +1243,17 @@ void dofinfo_new(dofinfo_t* dof)
 
 void dofinfo_gui(dofinfo_t* dof)
 {
-    if (dof && igCollapsingHeader1("dofinfo"))
+    if (dof && igExCollapsingHeader1("dofinfo"))
     {
         float aperture = dof->aperture / kMilli;
-        igSliderFloat("Aperture, millimeters", &aperture, 0.1f, 100.0f);
+        igExSliderFloat("Aperture, millimeters", &aperture, 0.1f, 100.0f);
         dof->aperture = aperture * kMilli;
         float focalLength = log2f(dof->focalLength);
-        igSliderFloat("Focal Length, log2 meters", &focalLength, -5.0f, 10.0f);
+        igExSliderFloat("Focal Length, log2 meters", &focalLength, -5.0f, 10.0f);
         dof->focalLength = exp2f(focalLength);
-        igSliderFloat("Focal Plane Curvature", &dof->focalPlaneCurvature, 0.0f, 1.0f);
-        igSliderInt("Blade Count", &dof->bladeCount, 3, 666, "%d");
-        igSliderFloat("Blade Rotation", &dof->bladeRot, 0.0f, kTau);
+        igExSliderFloat("Focal Plane Curvature", &dof->focalPlaneCurvature, 0.0f, 1.0f);
+        igExSliderInt("Blade Count", &dof->bladeCount, 3, 666);
+        igExSliderFloat("Blade Rotation", &dof->bladeRot, 0.0f, kTau);
     }
 }
 
@@ -2029,7 +2029,7 @@ static void media_desc_save(media_desc_t const *const desc, const char* name)
 static void igLog2SliderFloat(const char* label, float* pLinear, float log2Lo, float log2Hi)
 {
     float asLog2 = log2f(*pLinear);
-    igSliderFloat(label, &asLog2, log2Lo, log2Hi);
+    igExSliderFloat(label, &asLog2, log2Lo, log2Hi);
     *pLinear = exp2f(asLog2);
 }
 
@@ -2040,31 +2040,31 @@ static void media_desc_gui(media_desc_t *const desc)
     const u32 hdrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_InputRGB;
     const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
 
-    if (desc && igCollapsingHeader1("MediaDesc"))
+    if (desc && igExCollapsingHeader1("MediaDesc"))
     {
         igIndent(0.0f);
         igInputText("Preset Name", gui_mediadesc_name, sizeof(gui_mediadesc_name), 0, NULL, NULL);
-        if (igButton("Load Preset"))
+        if (igExButton("Load Preset"))
         {
             media_desc_load(desc, gui_mediadesc_name);
         }
-        if (igButton("Save Preset"))
+        if (igExButton("Save Preset"))
         {
             media_desc_save(desc, gui_mediadesc_name);
         }
-        igSliderFloat("Phase Dir A", &desc->phaseDirA, -0.99f, 0.99f);
-        igSliderFloat("Phase Dir B", &desc->phaseDirB, -0.99f, 0.99f);
-        igSliderFloat("Phase Blend", &desc->phaseBlend, 0.0f, 1.0f);
+        igExSliderFloat("Phase Dir A", &desc->phaseDirA, -0.99f, 0.99f);
+        igExSliderFloat("Phase Dir B", &desc->phaseDirB, -0.99f, 0.99f);
+        igExSliderFloat("Phase Blend", &desc->phaseBlend, 0.0f, 1.0f);
         igLog2SliderFloat("Log2 Absorption", &desc->absorption, -20.0f, 5.0f);
         igColorEdit3("Constant Albedo", &desc->constantAlbedo.x, ldrPicker);
         igLog2SliderFloat("Log2 Constant Amount", &desc->constantAmt, -20.0f, 5.0f);
         igColorEdit3("Noise Albedo", &desc->noiseAlbedo.x, ldrPicker);
         igLog2SliderFloat("Log2 Noise Amount", &desc->noiseAmt, -20.0f, 5.0f);
-        igSliderInt("Noise Octaves", &desc->noiseOctaves, 1, 10, "%d");
-        igSliderFloat("Noise Gain", &desc->noiseGain, 0.0f, 1.0f);
-        igSliderFloat("Noise Lacunarity", &desc->noiseLacunarity, 1.0f, 3.0f);
+        igExSliderInt("Noise Octaves", &desc->noiseOctaves, 1, 10);
+        igExSliderFloat("Noise Gain", &desc->noiseGain, 0.0f, 1.0f);
+        igExSliderFloat("Noise Lacunarity", &desc->noiseLacunarity, 1.0f, 3.0f);
         igLog2SliderFloat("Log2 Noise Frequency", &desc->noiseFreq, -5.0f, 5.0f);
-        igSliderFloat("Noise Height", &desc->noiseHeight, -20.0f, 20.0f);
+        igExSliderFloat("Noise Height", &desc->noiseHeight, -20.0f, 20.0f);
         igLog2SliderFloat("Log2 Noise Scale", &desc->noiseScale, -5.0f, 5.0f);
         igUnindent(0.0f);
 

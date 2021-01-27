@@ -14,7 +14,7 @@
 #include "rendering/texture.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
-#include "ui/cimgui.h"
+#include "ui/cimgui_ext.h"
 #include <string.h>
 
 // ----------------------------------------------------------------------------
@@ -98,7 +98,7 @@ bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
         vkrTexTable_Upload(slot, 0, pixels, sizeof(u32) * width * height);
 
         imgui->font = slot;
-        io->Fonts[0].TexID = *(u32*)&slot;
+        io->Fonts[0].TexID = *(ImTextureID*)&slot;
     }
 
     VkPipelineShaderStageCreateInfo shaders[2] = { 0 };

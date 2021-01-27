@@ -9,7 +9,6 @@
 #include "quake/q_bspfile.h"
 #include "stb/stb_image.h"
 #include "common/stringutil.h"
-#include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
 #include "common/sort.h"
 #include "common/profiler.h"
@@ -765,7 +764,7 @@ static void igTexture(const texture_t* tex)
     const ImVec2 uv1 = { 1, 1 };
     const ImVec4 tint_col = { 1, 1, 1, 1 };
     const ImVec4 border_col = { 0, 0, 0, 0 };
-    igImage(*(u32*)&tex->slot, size, uv0, uv1, tint_col, border_col);
+    igImage(*(ImTextureID*)&tex->slot, size, uv0, uv1, tint_col, border_col);
 }
 
 ProfileMark(pm_OnGui, texture_sys_gui)
@@ -806,7 +805,7 @@ void texture_sys_gui(bool* pEnabled)
 
         igText("Bytes Used: %d", bytesUsed);
 
-        if (igButton("Clear Selection"))
+        if (igExButton("Clear Selection"))
         {
             selection = -1;
         }
@@ -821,7 +820,7 @@ void texture_sys_gui(bool* pEnabled)
             "References",
             "Select",
         };
-        if (igTableHeader(NELEM(titles), titles, &gs_cmpMode))
+        if (igExTableHeader(NELEM(titles), titles, &gs_cmpMode))
         {
             gs_revSort = !gs_revSort;
         }
@@ -867,7 +866,7 @@ void texture_sys_gui(bool* pEnabled)
             igText("%d", refcount); igNextColumn();
             const char* selectText = selection == j ? "Selected" : "Select";
             igPushIDInt(j);
-            if (igButton(selectText))
+            if (igExButton(selectText))
             {
                 selection = j;
             }
@@ -875,7 +874,7 @@ void texture_sys_gui(bool* pEnabled)
             igNextColumn();
         }
 
-        igTableFooter();
+        igExTableFooter();
     }
     igEnd();
 

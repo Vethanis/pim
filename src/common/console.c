@@ -7,7 +7,7 @@
 #include "containers/strlist.h"
 #include "io/fstr.h"
 #include "input/input_system.h"
-#include "ui/cimgui.h"
+#include "ui/cimgui_ext.h"
 #include "rendering/r_window.h"
 #include "common/time.h"
 
@@ -117,7 +117,7 @@ static void con_gui(void)
 
     ImVec2 size = igGetIO()->DisplaySize;
     size.y *= 0.5f;
-    igSetNextWindowPos((ImVec2) { 0.0f, igGetFrameHeight() }, ImGuiCond_Always);
+    igExSetNextWindowPos((ImVec2) { 0.0f, igGetFrameHeight() }, ImGuiCond_Always);
     igSetNextWindowSize(size, ImGuiCond_Always);
     if (igBegin("Console", &ms_showGui, winFlags))
     {
@@ -125,9 +125,9 @@ static void con_gui(void)
         {
             con_clear();
         }
-        igSameLine();
+        igExSameLine();
         bool logToClipboard = igSmallButton("Copy");
-        igSameLine();
+        igExSameLine();
         igCheckbox("AutoScroll", &ms_autoscroll);
 
         igSeparator();
@@ -138,7 +138,7 @@ static void con_gui(void)
             igPushStyleVarVec2(ImGuiStyleVar_ItemSpacing, (ImVec2) { 4.0f, 1.0f });
             if (logToClipboard)
             {
-                igLogToClipboard();
+                igExLogToClipboard();
             }
 
             const i32 iLine = ms_iLine;

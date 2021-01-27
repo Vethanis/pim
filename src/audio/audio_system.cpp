@@ -5,7 +5,7 @@
 #include "common/profiler.hpp"
 
 #include <sokol/sokol_audio.h>
-#include "ui/imgui.h"
+#include <imgui/imgui.h>
 
 static u32 ms_tick;
 

@@ -32,7 +32,7 @@
 #include "rendering/screenblit.h"
 #include "rendering/lightmap.h"
 
-#include "ui/cimgui.h"
+#include "ui/cimgui_ext.h"
 #include "ui/ui.h"
 
 #include "allocator/allocator.h"
