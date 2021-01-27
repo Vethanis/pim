@@ -418,7 +418,7 @@ static cvar_t cv_pt_dist_alpha =
 {
     .type = cvart_float,
     .name = "pt_dist_alpha",
-    .value = "0.5",
+    .value = "0.9",
     .minFloat = 0.0f,
     .maxFloat = 1.0f,
     .desc = "path tracer light distribution update amount",
@@ -428,7 +428,7 @@ static cvar_t cv_pt_dist_samples =
 {
     .type = cvart_int,
     .name = "pt_dist_samples",
-    .value = "1000",
+    .value = "300",
     .minInt = 30,
     .maxInt = 1 << 20,
     .desc = "path tracer light distribution minimum samples per update",
@@ -936,7 +936,7 @@ static void SetupEmissives(pt_scene_t*const pim_noalias scene)
     task_CalcEmissionPdf* task = tmp_calloc(sizeof(*task));
     task->scene = scene;
     task->pdfs = tmp_malloc(sizeof(task->pdfs[0]) * triCount);
-    task->attempts = 100000;
+    task->attempts = 1000;
 
     task_run(&task->task, CalcEmissionPdfFn, triCount);
 
@@ -1045,7 +1045,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
             float4 ros[16];
             float4 rds[16];
             bool visibles[16];
-            const i32 hitAttempts = 32;
+            const i32 hitAttempts = 16;
             const i32 loopIterations = hitAttempts / NELEM(ros);
             for (i32 j = 0; j < loopIterations; ++j)
             {
