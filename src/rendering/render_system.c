@@ -4,7 +4,7 @@
 #include "assets/crate.h"
 #include "threading/task.h"
 #include "threading/taskcpy.h"
-#include "ui/cimgui.h"
+#include "ui/cimgui_ext.h"
 
 #include "common/time.h"
 #include "common/cvar.h"
@@ -930,13 +930,13 @@ void render_sys_gui(bool* pEnabled)
     {
         if (igTreeNodeExStr("Tonemapping", ImGuiTreeNodeFlags_Framed))
         {
-            igComboStr_arr("Operator", (i32*)&ms_tonemapper, Tonemap_Names(), TMap_COUNT);
+            igComboStr_arr("Operator", (i32*)&ms_tonemapper, Tonemap_Names(), TMap_COUNT, -1);
             if (ms_tonemapper == TMap_Hable)
             {
-                igSliderFloat("Shoulder Strength", &ms_toneParams.x, 0.01f, 0.99f);
-                igSliderFloat("Linear Strength", &ms_toneParams.y, 0.01f, 0.99f);
-                igSliderFloat("Linear Angle", &ms_toneParams.z, 0.01f, 0.99f);
-                igSliderFloat("Toe Strength", &ms_toneParams.w, 0.01f, 0.99f);
+                igExSliderFloat("Shoulder Strength", &ms_toneParams.x, 0.01f, 0.99f);
+                igExSliderFloat("Linear Strength", &ms_toneParams.y, 0.01f, 0.99f);
+                igExSliderFloat("Linear Angle", &ms_toneParams.z, 0.01f, 0.99f);
+                igExSliderFloat("Toe Strength", &ms_toneParams.w, 0.01f, 0.99f);
             }
             igTreePop();
         }
@@ -953,22 +953,22 @@ void render_sys_gui(bool* pEnabled)
             exposure->manual = manual;
             exposure->standard = standard;
 
-            igSliderFloat("Output Offset EV", &exposure->offsetEV, -10.0f, 10.0f);
+            igExSliderFloat("Output Offset EV", &exposure->offsetEV, -10.0f, 10.0f);
             if (exposure->manual)
             {
-                igSliderFloat("Aperture", &exposure->aperture, 1.4f, 22.0f);
-                igSliderFloat("Shutter Speed", &exposure->shutterTime, 1.0f / 2000.0f, 1.0f);
+                igExSliderFloat("Aperture", &exposure->aperture, 1.4f, 22.0f);
+                igExSliderFloat("Shutter Speed", &exposure->shutterTime, 1.0f / 2000.0f, 1.0f);
                 float S = log2f(exposure->ISO / 100.0f);
-                igSliderFloat("log2(ISO)", &S, 0.0f, 10.0f);
+                igExSliderFloat("log2(ISO)", &S, 0.0f, 10.0f);
                 exposure->ISO = exp2f(S) * 100.0f;
             }
             else
             {
-                igSliderFloat("Adapt Rate", &exposure->adaptRate, 0.1f, 10.0f);
-                igSliderFloat("Hist Cdf Min", &exposure->minCdf, 0.0f, exposure->maxCdf - 0.01f);
-                igSliderFloat("Hist Cdf Max", &exposure->maxCdf, exposure->minCdf + 0.01f, 1.0f);
-                igSliderFloat("Min EV", &exposure->minEV, -22.0f, exposure->maxEV - 0.1f);
-                igSliderFloat("Max EV", &exposure->maxEV, exposure->minEV + 0.1f, 22.0f);
+                igExSliderFloat("Adapt Rate", &exposure->adaptRate, 0.1f, 10.0f);
+                igExSliderFloat("Hist Cdf Min", &exposure->minCdf, 0.0f, exposure->maxCdf - 0.01f);
+                igExSliderFloat("Hist Cdf Max", &exposure->maxCdf, exposure->minCdf + 0.01f, 1.0f);
+                igExSliderFloat("Min EV", &exposure->minEV, -22.0f, exposure->maxEV - 0.1f);
+                igExSliderFloat("Max EV", &exposure->maxEV, exposure->minEV + 0.1f, 22.0f);
             }
             igTreePop();
         }

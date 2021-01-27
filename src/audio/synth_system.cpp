@@ -1,5 +1,5 @@
 #include "audio/synth_system.hpp"
-#include "ui/imgui.h"
+#include <imgui/imgui.h>
 #include "common/profiler.hpp"
 #include "input/input_system.h"
 #include "math/types.h"

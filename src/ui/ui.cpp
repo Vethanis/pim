@@ -1,21 +1,13 @@
 #include "ui/ui.h"
-#include "ui/cimgui.h"
-#include "ui/imgui_impl_glfw.h"
+#include <imgui/backends/imgui_impl_glfw.h>
 #include "allocator/allocator.h"
 #include "rendering/r_window.h"
 #include "common/profiler.h"
 #include "common/cvar.h"
+#include "common/stringutil.h"
 #include "math/color.h"
 
-static cvar_t cv_ui_opacity =
-{
-    .type = cvart_float,
-    .name = "ui_opacity",
-    .value = "0.95",
-    .minFloat = 0.1f,
-    .maxFloat = 1.0f,
-    .desc = "UI Opacity",
-};
+static cvar_t cv_ui_opacity;
 
 static ImGuiContext* ms_ctx;
 
@@ -49,7 +41,7 @@ static void SetupStyle(void)
     ImVec4 textDisabledColor = BytesToColor(151, 151, 151);
     ImVec4 borderColor = BytesToColor(78, 78, 78);
 
-    ImGuiStyle* style = igGetStyle();
+    ImGuiStyle *const style = &ImGui::GetStyle();
     ImVec4* colors = style->Colors;
     colors[ImGuiCol_Text] = textColor;
     colors[ImGuiCol_TextDisabled] = textDisabledColor;
@@ -108,7 +100,7 @@ static void SetupStyle(void)
 
 static void UpdateOpacity(void)
 {
-    ImGuiStyle* style = igGetStyle();
+    ImGuiStyle *const style = &ImGui::GetStyle();
     ImVec4* colors = style->Colors;
     float opacity = cvar_get_float(&cv_ui_opacity);
     for (i32 i = 0; i < NELEM(style->Colors); ++i)
@@ -117,30 +109,37 @@ static void UpdateOpacity(void)
     }
 }
 
-void ui_sys_init(GLFWwindow* window)
+extern "C" void ui_sys_init(GLFWwindow* window)
 {
     ASSERT(window);
+
+    cv_ui_opacity.type = cvart_float;
+    cv_ui_opacity.name = "ui_opacity";
+    StrCpy(ARGS(cv_ui_opacity.value), "0.95");
+    cv_ui_opacity.minFloat = 0.1f;
+    cv_ui_opacity.maxFloat = 1.0f;
+    cv_ui_opacity.desc = "UI Opacity";
     cvar_reg(&cv_ui_opacity);
-    ASSERT(igDebugCheckVersionAndDataLayout(
-        CIMGUI_VERSION,
+    ASSERT(ImGui::DebugCheckVersionAndDataLayout(
+        IMGUI_VERSION,
         sizeof(ImGuiIO),
         sizeof(ImGuiStyle),
         sizeof(ImVec2),
         sizeof(ImVec4),
         sizeof(ImDrawVert),
         sizeof(ImDrawIdx)));
-    igSetAllocatorFunctions(ImGuiAllocFn, ImGuiFreeFn, NULL);
-    ms_ctx = igCreateContext(NULL);
+    ImGui::SetAllocatorFunctions(ImGuiAllocFn, ImGuiFreeFn, NULL);
+    ms_ctx = ImGui::CreateContext();
     ASSERT(ms_ctx);
-    igSetCurrentContext(ms_ctx);
-    igStyleColorsDark(NULL);
+    ImGui::SetCurrentContext(ms_ctx);
+    ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForVulkan(window, false);
     SetupStyle();
     UpdateOpacity();
 }
 
 ProfileMark(pm_beginframe, ui_sys_beginframe)
-void ui_sys_beginframe(void)
+extern "C" void ui_sys_beginframe(void)
 {
     ProfileBegin(pm_beginframe);
 
@@ -150,22 +149,22 @@ void ui_sys_beginframe(void)
     }
 
     ImGui_ImplGlfw_NewFrame();
-    igNewFrame();
+    ImGui::NewFrame();
 
     ProfileEnd(pm_beginframe);
 }
 
 ProfileMark(pm_endframe, ui_sys_endframe)
-void ui_sys_endframe(void)
+extern "C" void ui_sys_endframe(void)
 {
     ProfileBegin(pm_endframe);
-    igEndFrame();
+    ImGui::EndFrame();
     ProfileEnd(pm_endframe);
 }
 
-void ui_sys_shutdown(void)
+extern "C" void ui_sys_shutdown(void)
 {
     ImGui_ImplGlfw_Shutdown();
-    igDestroyContext(ms_ctx);
+    ImGui::DestroyContext(ms_ctx);
     ms_ctx = NULL;
 }

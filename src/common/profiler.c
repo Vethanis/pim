@@ -9,7 +9,7 @@
 #include "common/fnv1a.h"
 #include "common/stringutil.h"
 #include "containers/dict.h"
-#include "ui/cimgui.h"
+#include "ui/cimgui_ext.h"
 #include <string.h>
 
 // ----------------------------------------------------------------------------
@@ -60,7 +60,7 @@ void profile_gui(bool* pEnabled)
 
     if (igBegin("Profiler", pEnabled, 0))
     {
-        igSliderInt("avg over # frames", &ms_avgWindow, 1, 1000, "%d");
+        igExSliderInt("avg over # frames", &ms_avgWindow, 1, 1000);
 
         node_t* root = ms_prevroots[0].fchild;
 
@@ -69,7 +69,7 @@ void profile_gui(bool* pEnabled)
         VisitClr(root);
         VisitSum(root);
 
-        igColumns(3);
+        igExColumns(3);
         {
             igText("Name"); igNextColumn();
             igText("Milliseconds"); igNextColumn();
@@ -79,7 +79,7 @@ void profile_gui(bool* pEnabled)
 
             VisitGui(root);
         }
-        igColumns(1);
+        igExColumns(1);
     }
     igEnd();
 

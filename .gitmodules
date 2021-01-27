@@ -25,3 +25,9 @@
 [submodule "submodules/miniz"]
 	path = submodules/miniz
 	url = https://github.com/richgel999/miniz
+[submodule "submodules/imgui"]
+	path = submodules/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "submodules/cimgui"]
+	path = submodules/cimgui
+	url = https://github.com/cimgui/cimgui

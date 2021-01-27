@@ -8,7 +8,7 @@
 #include "math/scalar.h"
 #include "math/float4_funcs.h"
 #include "containers/sdict.h"
-#include "ui/cimgui.h"
+#include "ui/cimgui_ext.h"
 #include <stdlib.h> // atof
 #include <stdio.h> // sscanf
 
@@ -228,7 +228,7 @@ void cvar_gui(bool* pEnabled)
 
         igSeparator();
 
-        igColumns(2);
+        igExColumns(2);
         for (i32 i = 0; i < length; ++i)
         {
             u32 j = indices[i];
@@ -264,7 +264,7 @@ void cvar_gui(bool* pEnabled)
             break;
             case cvart_int:
             {
-                if (igSliderInt(cvar->name, &cvar->asInt, cvar->minInt, cvar->maxInt, "%d"))
+                if (igExSliderInt(cvar->name, &cvar->asInt, cvar->minInt, cvar->maxInt))
                 {
                     cvar_set_int(cvar, cvar->asInt);
                 }
@@ -272,7 +272,7 @@ void cvar_gui(bool* pEnabled)
             break;
             case cvart_float:
             {
-                if (igSliderFloat(cvar->name, &cvar->asFloat, cvar->minFloat, cvar->maxFloat))
+                if (igExSliderFloat(cvar->name, &cvar->asFloat, cvar->minFloat, cvar->maxFloat))
                 {
                     cvar_set_float(cvar, cvar->asFloat);
                 }
@@ -288,7 +288,7 @@ void cvar_gui(bool* pEnabled)
             break;
             case cvart_point:
             {
-                if (igSliderFloat4(cvar->name, &cvar->asVector.x, cvar->minFloat, cvar->maxFloat))
+                if (igExSliderFloat4(cvar->name, &cvar->asVector.x, cvar->minFloat, cvar->maxFloat))
                 {
                     cvar_set_vec(cvar, cvar->asVector);
                 }
@@ -296,7 +296,7 @@ void cvar_gui(bool* pEnabled)
             break;
             case cvart_vector:
             {
-                if (igSliderFloat3(cvar->name, &cvar->asVector.x, -1.0f, 1.0f))
+                if (igExSliderFloat3(cvar->name, &cvar->asVector.x, -1.0f, 1.0f))
                 {
                     cvar_set_vec(cvar, cvar->asVector);
                 }
@@ -306,7 +306,7 @@ void cvar_gui(bool* pEnabled)
             igNextColumn();
             igText(cvar->desc); igNextColumn();
         }
-        igColumns(1);
+        igExColumns(1);
     }
     igEnd();
 

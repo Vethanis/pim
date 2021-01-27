@@ -1,6 +1,5 @@
 #include "editor/menubar.h"
 #include "common/profiler.h"
-#include "ui/cimgui.h"
 #include "rendering/r_window.h"
 #include "common/cvar.h"
 #include "rendering/render_system.h"
@@ -8,6 +7,7 @@
 #include "rendering/mesh.h"
 #include "assets/asset_system.h"
 #include "audio/audio_system.h"
+#include <imgui/imgui.h>
 
 // ----------------------------------------------------------------------------
 
@@ -37,7 +37,7 @@ static edwin_t ms_windows[] =
     { "Renderer", false, render_sys_gui },
     { "Textures", false, texture_sys_gui },
     { "Meshes", false, mesh_sys_gui },
-    { "ImGui Demo", false, igShowDemoWindow },
+    { "ImGui Demo", false, ImGui::ShowDemoWindow },
 };
 
 // ----------------------------------------------------------------------------
@@ -67,50 +67,50 @@ extern "C" void menubar_shutdown(void)
 
 static void ShowMenuBar(void)
 {
-    if (igBeginMainMenuBar())
+    if (ImGui::BeginMainMenuBar())
     {
-        if (igBeginMenu("File", true))
+        if (ImGui::BeginMenu("File", true))
         {
             FileMenuBar();
-            igEndMenu();
+            ImGui::EndMenu();
         }
-        if (igBeginMenu("Edit", true))
+        if (ImGui::BeginMenu("Edit", true))
         {
             EditMenuBar();
-            igEndMenu();
+            ImGui::EndMenu();
         }
-        if (igBeginMenu("Window", true))
+        if (ImGui::BeginMenu("Window", true))
         {
             WindowMenuBar();
-            igEndMenu();
+            ImGui::EndMenu();
         }
-        igEndMainMenuBar();
+        ImGui::EndMainMenuBar();
     }
 }
 
 static void FileMenuBar(void)
 {
-    if (igMenuItem("New"))
+    if (ImGui::MenuItem("New"))
     {
 
     }
-    if (igMenuItem("Open"))
+    if (ImGui::MenuItem("Open"))
     {
 
     }
-    if (igMenuItem("Save"))
+    if (ImGui::MenuItem("Save"))
     {
 
     }
-    if (igMenuItem("Save As"))
+    if (ImGui::MenuItem("Save As"))
     {
 
     }
-    if (igMenuItem("Close"))
+    if (ImGui::MenuItem("Close"))
     {
 
     }
-    if (igMenuItem("Exit"))
+    if (ImGui::MenuItem("Exit"))
     {
         window_close(true);
     }
@@ -118,23 +118,23 @@ static void FileMenuBar(void)
 
 static void EditMenuBar(void)
 {
-    if (igMenuItem("Undo"))
+    if (ImGui::MenuItem("Undo"))
     {
 
     }
-    if (igMenuItem("Redo"))
+    if (ImGui::MenuItem("Redo"))
     {
 
     }
-    if (igMenuItem("Cut"))
+    if (ImGui::MenuItem("Cut"))
     {
 
     }
-    if (igMenuItem("Copy"))
+    if (ImGui::MenuItem("Copy"))
     {
 
     }
-    if (igMenuItem("Paste"))
+    if (ImGui::MenuItem("Paste"))
     {
 
     }
@@ -144,7 +144,7 @@ static void WindowMenuBar(void)
 {
     for (i32 i = 0; i < NELEM(ms_windows); ++i)
     {
-        igMenuItemBoolPtr(ms_windows[i].name, "", &ms_windows[i].enabled, true);
+        ImGui::MenuItem(ms_windows[i].name, "", &ms_windows[i].enabled, true);
     }
 }
 

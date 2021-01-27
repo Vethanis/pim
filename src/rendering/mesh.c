@@ -9,7 +9,6 @@
 #include "math/float4x4_funcs.h"
 #include "math/float3x3_funcs.h"
 #include "math/box.h"
-#include "ui/cimgui.h"
 #include "ui/cimgui_ext.h"
 #include "io/fstr.h"
 #include "rendering/vulkan/vkr_mesh.h"
@@ -430,7 +429,7 @@ void mesh_sys_gui(bool* pEnabled)
 
         igText("Bytes Used: %d", bytesUsed);
 
-        if (igButton("Clear Selection"))
+        if (igExButton("Clear Selection"))
         {
             selection = -1;
         }
@@ -444,7 +443,7 @@ void mesh_sys_gui(bool* pEnabled)
             "References",
             "Select",
         };
-        if (igTableHeader(NELEM(titles), titles, &gs_cmpmode))
+        if (igExTableHeader(NELEM(titles), titles, &gs_cmpmode))
         {
             gs_revsort = !gs_revsort;
         }
@@ -489,7 +488,7 @@ void mesh_sys_gui(bool* pEnabled)
             igText("%d", refcount); igNextColumn();
             const char* selectText = selection == j ? "Selected" : "Select";
             igPushIDInt(j);
-            if (igButton(selectText))
+            if (igExButton(selectText))
             {
                 selection = j;
             }
@@ -497,7 +496,7 @@ void mesh_sys_gui(bool* pEnabled)
             igNextColumn();
         }
 
-        igTableFooter();
+        igExTableFooter();
     }
     igEnd();
     ProfileEnd(pm_OnGui);
