@@ -39,6 +39,9 @@ add_executable(pim
     "submodules/glfw/src/vulkan.c"
     "submodules/glfw/src/window.c"
     "submodules/miniz/miniz.c"
+    "submodules/miniz/miniz_tdef.c"
+    "submodules/miniz/miniz_tinfl.c"
+    "submodules/miniz/miniz_zip.c"
     "submodules/SPIRV-Reflect/spirv_reflect.c"
     "submodules/tlsf/tlsf.c"
     "submodules/volk/volk.c")

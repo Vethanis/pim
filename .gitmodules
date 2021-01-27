@@ -22,3 +22,6 @@
 [submodule "submodules/cgltf"]
 	path = submodules/cgltf
 	url = https://github.com/jkuhlmann/cgltf.git
+[submodule "submodules/miniz"]
+	path = submodules/miniz
+	url = https://github.com/richgel999/miniz
