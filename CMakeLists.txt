@@ -109,3 +109,25 @@ if (WIN32)
 endif()
 
 set_property(TARGET pim PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pim)
+
+source_group(TREE "${CMAKE_SOURCE_DIR}/src" FILES
+    ${C_FILES}
+    ${CPP_FILES}
+    ${C_HEADERS}
+    ${CPP_HEADERS})
+
+source_group(TREE "${CMAKE_SOURCE_DIR}/submodules" FILES
+    "submodules/cJSON/cJSON.c"
+    "submodules/cJSON/cJSON_Utils.c"
+    "submodules/glfw/src/context.c"
+    "submodules/glfw/src/init.c"
+    "submodules/glfw/src/input.c"
+    "submodules/glfw/src/monitor.c"
+    "submodules/glfw/src/osmesa_context.c"
+    "submodules/glfw/src/vulkan.c"
+    "submodules/glfw/src/window.c"
+    "submodules/miniz/miniz.c"
+    "submodules/SPIRV-Reflect/spirv_reflect.c"
+    "submodules/tlsf/tlsf.c"
+    "submodules/volk/volk.c")
