@@ -1,12 +1,6 @@
-[submodule "submodules/sokol"]
-	path = submodules/sokol
-	url = https://github.com/floooh/sokol
 [submodule "submodules/stb"]
 	path = submodules/stb
 	url = https://github.com/nothings/stb.git
-[submodule "submodules/imgui"]
-	path = submodules/imgui
-	url = https://github.com/ocornut/imgui.git
 [submodule "submodules/tlsf"]
 	path = submodules/tlsf
 	url = https://github.com/mattconte/tlsf
