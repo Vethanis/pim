@@ -434,6 +434,14 @@ static cvar_t cv_pt_dist_samples =
     .desc = "path tracer light distribution minimum samples per update",
 };
 
+static cvar_t cv_pt_retro =
+{
+    .type = cvart_bool,
+    .name = "pt_retro",
+    .value = "0",
+    .desc = "path tracer retro mode (point filtering and diffuse only)",
+};
+
 static RTCDevice ms_device;
 static dist1d_t ms_pixeldist;
 static pt_sampler_t ms_samplers[kMaxThreads];
@@ -506,6 +514,7 @@ void pt_sys_init(void)
     cvar_reg(&cv_pt_dist_meters);
     cvar_reg(&cv_pt_dist_alpha);
     cvar_reg(&cv_pt_dist_samples);
+    cvar_reg(&cv_pt_retro);
 
     InitRTC();
     InitSamplers();
@@ -1427,6 +1436,61 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     return surf;
 }
 
+pim_inline surfhit_t VEC_CALL GetSurfaceRetro(
+    const pt_scene_t *const pim_noalias scene,
+    float4 ro,
+    float4 rd,
+    rayhit_t hit,
+    i32 bounce)
+{
+    surfhit_t surf;
+    surf.type = hit.type;
+
+    material_t const *const pim_noalias mat = GetMaterial(scene, hit);
+    surf.flags = mat->flags;
+    surf.ior = mat->ior;
+    float2 uv = GetUV(scene, hit);
+    surf.M = GetNormal(scene, hit);
+    surf.N = surf.M;
+    surf.P = GetPosition(scene, hit);
+    surf.P = f4_add(surf.P, f4_mulvs(surf.M, 0.01f * kMilli));
+
+    if (hit.flags & matflag_sky)
+    {
+        surf.albedo = f4_0;
+        surf.roughness = 1.0f;
+        surf.occlusion = 0.0f;
+        surf.metallic = 0.0f;
+        surf.emission = GetSky(scene, ro, rd);
+    }
+    else
+    {
+        surf.albedo = f4_1;
+        {
+            texture_t const *const pim_noalias tex = texture_get(mat->albedo);
+            if (tex)
+            {
+                surf.albedo = UvWrapPow2_c32(tex->texels, tex->size, uv);
+            }
+        }
+
+        float4 rome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
+        {
+            texture_t const *const pim_noalias tex = texture_get(mat->rome);
+            if (tex)
+            {
+                rome = UvWrapPow2_c32(tex->texels, tex->size, uv);
+            }
+        }
+        surf.emission = UnpackEmission(surf.albedo, rome.w);
+        surf.roughness = rome.x;
+        surf.occlusion = rome.y;
+        surf.metallic = rome.z;
+    }
+
+    return surf;
+}
+
 pim_inline rayhit_t VEC_CALL pt_intersect_local(
     const pt_scene_t *const pim_noalias scene,
     float4 ro,
@@ -1495,7 +1559,7 @@ pim_inline float4 VEC_CALL BrdfEval(
     ASSERT(IsUnitLength(N));
     if (surf->flags & matflag_refractive)
     {
-        return RefractBrdfEval(sampler, I, surf, L);
+        return f4_0;
     }
     float NoL = f4_dot3(N, L);
     if (NoL <= 0.0f)
@@ -1540,6 +1604,28 @@ pim_inline float4 VEC_CALL BrdfEval(
     return brdf;
 }
 
+pim_inline float4 VEC_CALL BrdfEvalRetro(
+    pt_sampler_t*const pim_noalias sampler,
+    float4 I,
+    const surfhit_t* surf,
+    float4 L)
+{
+    if (surf->flags & matflag_refractive)
+    {
+        return f4_0;
+    }
+    float4 N = surf->N;
+    float NoL = f4_dot3(N, L);
+    if (NoL <= 0.0f)
+    {
+        return f4_0;
+    }
+
+    float4 brdf = f4_mulvs(f4_mulvs(surf->albedo, Fd_Lambert()), NoL);
+    brdf.w = LambertPdf(NoL);
+    return brdf;
+}
+
 pim_inline float VEC_CALL Schlick(float cosTheta, float k)
 {
     float r0 = (1.0f - k) / (1.0f + k);
@@ -1573,6 +1659,47 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     float4 m = TanToWorld(surf->N, SampleGGXMicrofacet(Sample2D(sampler), alpha));
     m = f4_dot3(m, M) > 0.0f ? m : f4_reflect3(m, M);
     m = f4_normalize3(m);
+    bool entering = surf->type != hit_backface;
+    float k = entering ? (kAir / matIor) : (matIor / kAir);
+
+    float cosTheta = f1_min(1.0f, f4_dot3(V, m));
+    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+    float pdf = Schlick(cosTheta, k);
+    float4 L = f4_normalize3(f4_reflect3(I, m));
+    bool tir = (k * sinTheta) > 1.0f;
+    pdf = tir ? 1.0f : pdf;
+
+    float4 P = surf->P;
+    float4 F = F_SchlickEx(surf->albedo, surf->metallic, f1_sat(cosTheta));
+    if (BrdfPrng(sampler) > pdf)
+    {
+        L = f4_normalize3(f4_refract3(I, m, k));
+        pdf = 1.0f - pdf;
+        F = f4_inv(F);
+        P = f4_sub(P, f4_mulvs(M, 0.02f * kMilli));
+    }
+
+    scatter_t result = { 0 };
+    result.pos = P;
+    result.dir = L;
+    result.attenuation = tir ? f4_1 : F;
+    result.pdf = pdf;
+
+    return result;
+}
+
+pim_inline scatter_t VEC_CALL RefractScatterRetro(
+    pt_sampler_t*const pim_noalias sampler,
+    const surfhit_t* surf,
+    float4 I)
+{
+    const float kAir = 1.000277f;
+    const float matIor = f1_max(1.0f, surf->ior);
+
+    float4 V = f4_neg(I);
+    float4 M = surf->M;
+    float4 m = surf->N;
+    m = f4_dot3(m, M) > 0.0f ? m : f4_reflect3(m, M);
     bool entering = surf->type != hit_backface;
     float k = entering ? (kAir / matIor) : (matIor / kAir);
 
@@ -1682,6 +1809,37 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
     result.dir = L;
     result.pdf = pdf;
     result.attenuation = f4_mulvs(brdf, NoL);
+
+    return result;
+}
+
+pim_inline scatter_t VEC_CALL BrdfScatterRetro(
+    pt_sampler_t *const pim_noalias sampler,
+    const surfhit_t* surf,
+    float4 I)
+{
+    ASSERT(IsUnitLength(I));
+    ASSERT(IsUnitLength(surf->N));
+    if (surf->flags & matflag_refractive)
+    {
+        return RefractScatterRetro(sampler, surf, I);
+    }
+
+    scatter_t result = { 0 };
+    result.pos = surf->P;
+
+    float4 N = surf->N;
+    float4 L = TanToWorld(N, SampleCosineHemisphere(Sample2D(sampler)));
+    float NoL = f4_dot3(N, L);
+    float pdf = LambertPdf(NoL);
+    if (pdf <= 0.0f)
+    {
+        return result;
+    }
+
+    result.dir = L;
+    result.pdf = pdf;
+    result.attenuation = f4_mulvs(f4_mulvs(surf->albedo, Fd_Lambert()), NoL);
 
     return result;
 }
@@ -1799,6 +1957,44 @@ pim_inline lightsample_t VEC_CALL LightSample(
     return sample;
 }
 
+pim_inline lightsample_t VEC_CALL LightSampleRetro(
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
+    float4 ro,
+    i32 iVert,
+    i32 bounce)
+{
+    lightsample_t sample = { 0 };
+
+    float4 wuv = SampleBaryCoord(Sample2D(sampler));
+
+    const float4* pim_noalias positions = scene->positions;
+    float4 A = positions[iVert + 0];
+    float4 B = positions[iVert + 1];
+    float4 C = positions[iVert + 2];
+    float4 pt = f4_blend(A, B, C, wuv);
+    float area = TriArea3D(A, B, C);
+
+    float4 rd = f4_sub(pt, ro);
+    float distSq = f4_dot3(rd, rd);
+    float distance = sqrtf(distSq);
+    wuv.w = distance;
+    rd = f4_divvs(rd, distance);
+
+    sample.direction = rd;
+    sample.wuvt = wuv;
+
+    rayhit_t hit = pt_intersect_local(scene, ro, rd, 0.0f, distance + 0.01f * kMilli);
+    if ((hit.type != hit_nothing) && (hit.index == iVert))
+    {
+        float cosTheta = f1_abs(f4_dot3(rd, hit.normal));
+        sample.pdf = LightPdf(area, cosTheta, distSq);
+        sample.luminance = GetEmission(scene, ro, rd, hit, bounce);
+    }
+
+    return sample;
+}
+
 pim_inline float VEC_CALL LightEvalPdf(
     pt_sampler_t *const pim_noalias sampler,
     pt_scene_t *const pim_noalias scene,
@@ -1882,6 +2078,49 @@ pim_inline float4 VEC_CALL EstimateDirect(
                     Li = f4_mulvs(Li, PowerHeuristic(brdfPdf, lightPdf) * 0.5f / brdfPdf);
                     Li = f4_mul(Li, CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w));
                     result = f4_add(result, Li);
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+pim_inline float4 VEC_CALL EstimateDirectRetro(
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
+    surfhit_t const *const pim_noalias surf,
+    rayhit_t const *const pim_noalias srcHit,
+    float4 I,
+    i32 bounce)
+{
+    float4 result = f4_0;
+    if (surf->flags & matflag_refractive)
+    {
+        return result;
+    }
+
+    {
+        i32 iVert;
+        float selectPdf;
+        if (LightSelect(sampler, scene, surf->P, &iVert, &selectPdf))
+        {
+            if (srcHit->index != iVert)
+            {
+                lightsample_t sample = LightSampleRetro(sampler, scene, surf->P, iVert, bounce);
+                float4 rd = sample.direction;
+                float4 Li = sample.luminance;
+                float lightPdf = sample.pdf * selectPdf;
+                if (lightPdf > kEpsilon)
+                {
+                    float4 brdf = BrdfEvalRetro(sampler, I, surf, rd);
+                    Li = f4_mul(Li, brdf);
+                    float brdfPdf = brdf.w;
+                    if (brdfPdf > kEpsilon)
+                    {
+                        Li = f4_mulvs(Li, 1.0f / lightPdf);
+                        result = f4_add(result, Li);
+                    }
                 }
             }
         }
@@ -2328,6 +2567,78 @@ pim_inline scatter_t VEC_CALL ScatterRay(
     return result;
 }
 
+pt_result_t VEC_CALL pt_trace_ray_retro(
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
+    float4 ro,
+    float4 rd)
+{
+    pt_result_t result = { 0 };
+    float4 luminance = f4_0;
+    float4 attenuation = f4_1;
+
+    for (i32 b = 0; b < 666; ++b)
+    {
+        {
+            float p = f1_sat(f4_avglum(attenuation));
+            if (RoulettePrng(sampler) < p)
+            {
+                attenuation = f4_divvs(attenuation, p);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        rayhit_t hit = pt_intersect_local(scene, ro, rd, 0.0f, 1 << 20);
+        if (hit.type == hit_nothing)
+        {
+            break;
+        }
+
+        surfhit_t surf = GetSurfaceRetro(scene, ro, rd, hit, b);
+        if (b > 0)
+        {
+            LightOnHit(sampler, scene, ro, surf.emission, hit.index);
+        }
+
+        if (b == 0)
+        {
+            float t = f4_avglum(attenuation);
+            float4 N = f4_lerpvs(f4_neg(rd), surf.N, t);
+            result.albedo = f4_f3(surf.albedo);
+            result.normal = f4_f3(N);
+        }
+        if (b == 0)
+        {
+            luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
+        }
+        if (hit.flags & matflag_sky)
+        {
+            break;
+        }
+
+        {
+            float4 Li = EstimateDirectRetro(sampler, scene, &surf, &hit, rd, b);
+            luminance = f4_add(luminance, f4_mul(Li, attenuation));
+        }
+
+        scatter_t scatter = BrdfScatterRetro(sampler, &surf, rd);
+        if (scatter.pdf < kEpsilon)
+        {
+            break;
+        }
+        ro = scatter.pos;
+        rd = scatter.dir;
+
+        attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
+    }
+
+    result.color = f4_f3(luminance);
+    return result;
+}
+
 pt_result_t VEC_CALL pt_trace_ray(
     pt_sampler_t *const pim_noalias sampler,
     pt_scene_t *const pim_noalias scene,
@@ -2541,6 +2852,8 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
     const dofinfo_t dof = trace->dofinfo;
     const dist1d_t dist = ms_pixeldist;
 
+    const bool pt_retro = cvar_get_bool(&cv_pt_retro);
+
     pt_sampler_t sampler = GetSampler();
     for (i32 i = begin; i < end; ++i)
     {
@@ -2554,7 +2867,15 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
         ray_t ray = { eye, proj_dir(right, up, fwd, slope, uv) };
         ray = CalculateDof(&sampler, &dof, right, up, fwd, ray);
 
-        pt_result_t result = pt_trace_ray(&sampler, scene, ray.ro, ray.rd);
+        pt_result_t result;
+        if (!pt_retro)
+        {
+            result = pt_trace_ray(&sampler, scene, ray.ro, ray.rd);
+        }
+        else
+        {
+            result = pt_trace_ray_retro(&sampler, scene, ray.ro, ray.rd);
+        }
         color[i] = f3_lerp(color[i], result.color, sampleWeight);
         albedo[i] = f3_lerp(albedo[i], result.albedo, sampleWeight);
         normal[i] = f3_lerp(normal[i], result.normal, sampleWeight);
