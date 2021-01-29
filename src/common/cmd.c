@@ -86,10 +86,10 @@ const char* cmd_complete(const char* namePart)
     ASSERT(namePart);
     const i32 partLen = StrLen(namePart);
     const u32 width = ms_cmds.width;
-    const char** names = ms_cmds.keys;
+    char** names = ms_cmds.keys;
     for (u32 i = 0; i < width; ++i)
     {
-        const char* name = names[i];
+        char* name = names[i];
         if (name && !StrCmp(namePart, partLen, name))
         {
             return name;
