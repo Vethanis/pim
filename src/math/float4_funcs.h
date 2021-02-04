@@ -1,11 +1,10 @@
 #pragma once
 
 #include "math/types.h"
-
-PIM_C_BEGIN
-
 #include "math/scalar.h"
 #include "common/random.h"
+
+PIM_C_BEGIN
 
 #define f4_0        f4_s(0.0f)
 #define f4_1        f4_s(1.0f)

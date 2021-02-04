@@ -57,21 +57,83 @@ void SG_Accumulate(
     }
 }
 
-float SG_CalcSharpness(const float4* pim_noalias axii, i32 count)
+static float FitBasis(float target, i32 count)
 {
-    // find cosine of the smallest half-angle between axii
-    float minCosTheta = 1.0f;
-    if (count > 0)
+    float fit = 1.0f;
+    float err = f1_abs(target - (SG_BasisIntegral(fit) * count));
+    float t = err;
+    while (err > kMilli)
     {
-        const float4 axii0 = axii[0];
-        for (i32 i = 1; i < count; ++i)
+        for (i32 j = 0; j < 22; ++j)
         {
-            float4 H = f4_normalize3(f4_add(axii[i], axii0));
-            minCosTheta = f1_min(minCosTheta, f4_dot3(H, axii0));
+            const float step = 1.0f / (1 << j);
+            t = fmodf(t + kGoldenRatio, 1.0f);
+            float subFit = fit + f1_lerp(-1.0f, 1.0f, t) * step;
+            subFit = f1_max(kEpsilon, subFit);
+            float subErr = f1_abs(target - (SG_BasisIntegral(subFit) * count));
+            if (subErr < err)
+            {
+                fit = subFit;
+                err = subErr;
+            }
         }
     }
-    float sharpness = (logf(0.65f) * count) / (minCosTheta - 1.0f);
-    return sharpness;
+    return fit;
+}
+
+static float FitError(const float4* pim_noalias axii, i32 count, float s, float target)
+{
+    if (count > 0)
+    {
+        float integral = SG_BasisIntegral(s) * count;
+        float avgOverlap = 0.0f;
+        for (i32 i = 0; i < count; ++i)
+        {
+            float4 v1 = axii[i];
+            v1.w = s;
+            float overlap = 0.0f;
+            for (i32 j = 0; j < count; ++j)
+            {
+                if (i != j)
+                {
+                    float4 v2 = axii[j];
+                    v2.w = s;
+                    overlap += SG_BasisEval(v1, v2);
+                }
+            }
+            avgOverlap += overlap;
+        }
+        avgOverlap /= count;
+        return f1_abs(target - integral) + f1_abs(avgOverlap);
+    }
+    return 0.0f;
+}
+
+float SG_CalcSharpness(const float4* pim_noalias axii, i32 count)
+{
+    const float target = kTau;
+    float fit = FitBasis(target, count);
+    float err = FitError(axii, count, fit, target);
+
+    float t = err;
+    for (i32 i = 0; i < 100; ++i)
+    {
+        for (i32 j = 0; j < 22; ++j)
+        {
+            const float step = 1.0f / (1 << j);
+            t = fmodf(t + kGoldenRatio, 1.0f);
+            float subFit = fit + f1_lerp(-1.0f, 1.0f, t) * step;
+            subFit = f1_max(kEpsilon, subFit);
+            float subErr = FitError(axii, count, subFit, target);
+            if (subErr < err)
+            {
+                fit = subFit;
+                err = subErr;
+            }
+        }
+    }
+
+    return fit;
 }
 
 void SG_Generate(float4* pim_noalias axii, i32 count, SGDist dist)
@@ -79,9 +141,20 @@ void SG_Generate(float4* pim_noalias axii, i32 count, SGDist dist)
     ASSERT(axii);
     ASSERT(count >= 0);
 
-    for (i32 i = 0; i < count; ++i)
+    if (count == 5)
     {
-        axii[i] = SampleDir(Hammersley2D(i, count), dist);
+        axii[0] = f4_v(0.0f, 0.0f, 1.0f, 0.0f);
+        axii[1] = f4_normalize3(f4_v(1.0f, 1.0f, 1.0f, 0.0f));
+        axii[2] = f4_normalize3(f4_v(-1.0f, 1.0f, 1.0f, 0.0f));
+        axii[3] = f4_normalize3(f4_v(1.0f, -1.0f, 1.0f, 0.0f));
+        axii[4] = f4_normalize3(f4_v(-1.0f, -1.0f, 1.0f, 0.0f));
+    }
+    else
+    {
+        for (i32 i = 0; i < count; ++i)
+        {
+            axii[i] = SampleDir(Hammersley2D(i, count), dist);
+        }
     }
 
     float sharpness = SG_CalcSharpness(axii, count);

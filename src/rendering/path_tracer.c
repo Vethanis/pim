@@ -2596,6 +2596,10 @@ pt_result_t VEC_CALL pt_trace_ray_retro(
         {
             break;
         }
+        if (hit.type == hit_backface)
+        {
+            break;
+        }
 
         surfhit_t surf = GetSurfaceRetro(scene, ro, rd, hit, b);
         if (b > 0)
@@ -2603,15 +2607,31 @@ pt_result_t VEC_CALL pt_trace_ray_retro(
             LightOnHit(sampler, scene, ro, surf.emission, hit.index);
         }
 
-        if (b == 0)
         {
-            float t = f4_avglum(attenuation);
-            float4 N = f4_lerpvs(f4_neg(rd), surf.N, t);
-            result.albedo = f4_f3(surf.albedo);
-            result.normal = f4_f3(N);
+            scatter_t scatter = ScatterRay(sampler, scene, ro, rd, hit.wuvt.w, b);
+            luminance = f4_add(luminance, f4_mul(scatter.luminance, attenuation));
+            if (scatter.pdf > kEpsilon)
+            {
+                if (b == 0)
+                {
+                    result.albedo = f4_f3(Media_Albedo(&scene->mediaDesc, scatter.pos));
+                    result.normal = f4_f3(f4_neg(rd));
+                }
+                attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
+                ro = scatter.pos;
+                rd = scatter.dir;
+                continue;
+            }
+            else
+            {
+                attenuation = f4_mul(attenuation, scatter.attenuation);
+            }
         }
+
         if (b == 0)
         {
+            result.albedo = f4_f3(surf.albedo);
+            result.normal = f4_f3(surf.N);
             luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
         }
         if (hit.flags & matflag_sky)
@@ -2669,13 +2689,6 @@ pt_result_t VEC_CALL pt_trace_ray(
         {
             break;
         }
-        //if (hit.type == hit_backface)
-        //{
-        //    if (!(hit.flags & matflag_refractive))
-        //    {
-        //        break;
-        //    }
-        //}
 
         surfhit_t surf = GetSurface(scene, ro, rd, hit, b);
         if (b > 0)
@@ -2706,10 +2719,8 @@ pt_result_t VEC_CALL pt_trace_ray(
 
         if (b == 0)
         {
-            float t = f4_avglum(attenuation);
-            float4 N = f4_lerpvs(f4_neg(rd), surf.N, t);
             result.albedo = f4_f3(surf.albedo);
-            result.normal = f4_f3(N);
+            result.normal = f4_f3(surf.N);
         }
         if ((b == 0) || (prevFlags & matflag_refractive))
         {
