@@ -81,18 +81,34 @@ void thread_set_priority(thread_t* tr, i32 priority)
 {
     i32 threadpriority = THREAD_PRIORITY_NORMAL;
     i32 procpriority = NORMAL_PRIORITY_CLASS;
-    if (priority > 0)
+    switch (priority)
     {
-        threadpriority = THREAD_PRIORITY_ABOVE_NORMAL;
-        procpriority = ABOVE_NORMAL_PRIORITY_CLASS;
-    }
-    else if (priority < 0)
-    {
+    default:
+        ASSERT(false);
+        return;
+    case -2:
+        threadpriority = THREAD_PRIORITY_LOWEST;
+        procpriority = IDLE_PRIORITY_CLASS;
+        break;
+    case -1:
         threadpriority = THREAD_PRIORITY_BELOW_NORMAL;
         procpriority = BELOW_NORMAL_PRIORITY_CLASS;
+        break;
+    case 0:
+        threadpriority = THREAD_PRIORITY_NORMAL;
+        procpriority = NORMAL_PRIORITY_CLASS;
+        break;
+    case 1:
+        threadpriority = THREAD_PRIORITY_ABOVE_NORMAL;
+        procpriority = ABOVE_NORMAL_PRIORITY_CLASS;
+        break;
+    case 2:
+        threadpriority = THREAD_PRIORITY_HIGHEST;
+        procpriority = HIGH_PRIORITY_CLASS;
+        break;
     }
 
-    if (tr == NULL)
+    if (!tr)
     {
         HANDLE hProcess = GetCurrentProcess();
         bool set = SetPriorityClass(hProcess, procpriority);
@@ -100,8 +116,12 @@ void thread_set_priority(thread_t* tr, i32 priority)
     }
 
     HANDLE hThread = thread_to_handle(tr);
-    bool set = SetThreadPriority(hThread, threadpriority);
-    ASSERT(set);
+    ASSERT(hThread);
+    if (hThread)
+    {
+        bool set = SetThreadPriority(hThread, threadpriority);
+        ASSERT(set);
+    }
 }
 
 i32 thread_hardware_count(void)

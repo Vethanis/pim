@@ -1,8 +1,6 @@
 #pragma once
 
 #include "common/macro.h"
-
-#include <stdbool.h>
 #include <math.h>
 
 #ifdef min
@@ -12,7 +10,6 @@
 #ifdef max
     #undef max
 #endif // max
-
 
 #define kPi                 3.1415926535897932384626433832795f
 #define kTau                6.283185307179586476925286766559f

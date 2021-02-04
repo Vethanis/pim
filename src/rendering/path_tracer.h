@@ -103,6 +103,12 @@ pt_result_t VEC_CALL pt_trace_ray(
     float4 ro,
     float4 rd);
 
+pt_result_t VEC_CALL pt_trace_ray_retro(
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
+    float4 ro,
+    float4 rd);
+
 void pt_trace(pt_trace_t* traceDesc, const camera_t* camera);
 
 pt_results_t pt_raygen(

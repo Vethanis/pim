@@ -1,6 +1,5 @@
 #pragma once
 
-#include "math/types.h"
 #include "math/float4_funcs.h"
 
 pim_inline float4 VEC_CALL operator + (float4 lhs, float4 rhs)

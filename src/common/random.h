@@ -10,20 +10,16 @@ prng_t prng_create(void);
 prng_t prng_get(void);
 void prng_set(prng_t rng);
 
-#pragma warning(push)
-#pragma warning(disable : 4146)
-#pragma warning(disable : 4244)
-
 pim_inline u32 prng_u32(prng_t *const pim_noalias rng)
 {
     u64 oldstate = rng->state;
     rng->state = oldstate * 6364136223846793005ull + 1ull;
-    u32 xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
-    u32 rot = oldstate >> 59u;
-    return (xorshifted >> rot) | (xorshifted << ((~rot) & 31u));
+    u64 xorshifted = ((oldstate >> 18) ^ oldstate) >> 27;
+    u32 rrot = (u32)((oldstate >> 59) & 31u);
+    u32 lrot = ((~rrot) + 1u) & 31u;
+    u64 result = (xorshifted >> rrot) | (xorshifted << lrot);
+    return (u32)(result & 0xffffffffu);
 }
-
-#pragma warning(pop)
 
 pim_inline bool prng_bool(prng_t *const pim_noalias rng)
 {
