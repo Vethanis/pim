@@ -12,28 +12,9 @@ typedef struct guid_s
     u64 b;
 } guid_t;
 
-pim_inline bool guid_isnull(guid_t x)
-{
-    return !(x.a | x.b);
-}
-
-pim_inline bool guid_eq(guid_t lhs, guid_t rhs)
-{
-    return !((lhs.a - rhs.a) | (lhs.b - rhs.b));
-}
-
-pim_inline i32 guid_cmp(guid_t lhs, guid_t rhs)
-{
-    if (lhs.a != rhs.a)
-    {
-        return lhs.a < rhs.a ? -1 : 1;
-    }
-    if (lhs.b != rhs.b)
-    {
-        return lhs.b < rhs.b ? -1 : 1;
-    }
-    return 0;
-}
+bool guid_isnull(guid_t x);
+bool guid_eq(guid_t lhs, guid_t rhs);
+i32 guid_cmp(guid_t lhs, guid_t rhs);
 
 guid_t guid_new(void);
 

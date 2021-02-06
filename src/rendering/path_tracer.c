@@ -333,6 +333,7 @@ pim_inline void VEC_CALL LightOnHit(
     float4 lum,
     i32 iVert);
 static void UpdateDists(pt_scene_t *const pim_noalias scene);
+static void DofUpdate(pt_trace_t* trace, const camera_t* camera);
 
 // ----------------------------------------------------------------------------
 
@@ -438,7 +439,7 @@ static cvar_t cv_pt_retro =
 {
     .type = cvart_bool,
     .name = "pt_retro",
-    .value = "0",
+    .value = "1",
     .desc = "path tracer retro mode (point filtering and diffuse only)",
 };
 
@@ -1247,6 +1248,8 @@ void dofinfo_new(dofinfo_t* dof)
         dof->bladeCount = 5;
         dof->bladeRot = kPi / 10.0f;
         dof->focalPlaneCurvature = 0.05f;
+        dof->autoFocus = true;
+        dof->autoFocusSpeed = 3.0f;
     }
 }
 
@@ -1257,9 +1260,18 @@ void dofinfo_gui(dofinfo_t* dof)
         float aperture = dof->aperture / kMilli;
         igExSliderFloat("Aperture, millimeters", &aperture, 0.1f, 100.0f);
         dof->aperture = aperture * kMilli;
-        float focalLength = log2f(dof->focalLength);
-        igExSliderFloat("Focal Length, log2 meters", &focalLength, -5.0f, 10.0f);
-        dof->focalLength = exp2f(focalLength);
+        igCheckbox("Autofocus", &dof->autoFocus);
+        if (dof->autoFocus)
+        {
+            igExSliderFloat("Autofocus Rate", &dof->autoFocusSpeed, 0.01f, 10.0f);
+        }
+        else
+        {
+            float focalLength = log2f(dof->focalLength);
+            igExSliderFloat("Focal Length, log2 meters", &focalLength, -5.0f, 10.0f);
+            dof->focalLength = exp2f(focalLength);
+        }
+        igText("Focal Length, meters: %f", dof->focalLength);
         igExSliderFloat("Focal Plane Curvature", &dof->focalPlaneCurvature, 0.0f, 1.0f);
         igExSliderInt("Blade Count", &dof->bladeCount, 3, 666);
         igExSliderFloat("Blade Rotation", &dof->bladeRot, 0.0f, kTau);
@@ -2576,6 +2588,7 @@ pt_result_t VEC_CALL pt_trace_ray_retro(
     pt_result_t result = { 0 };
     float4 luminance = f4_0;
     float4 attenuation = f4_1;
+    u32 prevFlags = 0;
 
     for (i32 b = 0; b < 666; ++b)
     {
@@ -2596,12 +2609,13 @@ pt_result_t VEC_CALL pt_trace_ray_retro(
         {
             break;
         }
-        if (hit.type == hit_backface)
+
+        surfhit_t surf = GetSurfaceRetro(scene, ro, rd, hit, b);
+        if (hit.type == hit_backface && !(surf.flags & matflag_refractive))
         {
             break;
         }
 
-        surfhit_t surf = GetSurfaceRetro(scene, ro, rd, hit, b);
         if (b > 0)
         {
             LightOnHit(sampler, scene, ro, surf.emission, hit.index);
@@ -2632,6 +2646,9 @@ pt_result_t VEC_CALL pt_trace_ray_retro(
         {
             result.albedo = f4_f3(surf.albedo);
             result.normal = f4_f3(surf.N);
+        }
+        if ((b == 0) || (prevFlags & matflag_refractive))
+        {
             luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
         }
         if (hit.flags & matflag_sky)
@@ -2653,6 +2670,7 @@ pt_result_t VEC_CALL pt_trace_ray_retro(
         rd = scatter.dir;
 
         attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
+        prevFlags = surf.flags;
     }
 
     result.color = f4_f3(luminance);
@@ -2691,6 +2709,11 @@ pt_result_t VEC_CALL pt_trace_ray(
         }
 
         surfhit_t surf = GetSurface(scene, ro, rd, hit, b);
+        if (hit.type == hit_backface && !(surf.flags & matflag_refractive))
+        {
+            break;
+        }
+
         if (b > 0)
         {
             LightOnHit(sampler, scene, ro, surf.emission, hit.index);
@@ -2831,6 +2854,24 @@ static void UpdateDists(pt_scene_t*const pim_noalias scene)
     task_run(task, UpdateDistsFn, worklen);
 }
 
+static void DofUpdate(pt_trace_t* trace, const camera_t* camera)
+{
+    dofinfo_t* dof = &trace->dofinfo;
+    if (dof->autoFocus)
+    {
+        float4 ro = camera->position;
+        float4 rd = quat_fwd(camera->rotation);
+        rayhit_t hit = pt_intersect_local(trace->scene, ro, rd, 0.0f, 1 << 20);
+        if (hit.type != hit_nothing)
+        {
+            float dt = (float)time_dtf();
+            float rate = dof->autoFocusSpeed;
+            float t = 1.0f - expf(-dt * rate);
+            dof->focalLength = f1_lerp(dof->focalLength, hit.wuvt.w, t);
+        }
+    }
+}
+
 typedef struct trace_task_s
 {
     task_t task;
@@ -2907,6 +2948,8 @@ void pt_trace(pt_trace_t* desc, const camera_t* camera)
     ASSERT(desc->normal);
 
     pt_scene_update(desc->scene);
+
+    DofUpdate(desc, camera);
 
     trace_task_t*const pim_noalias task = tmp_calloc(sizeof(*task));
     task->trace = desc;

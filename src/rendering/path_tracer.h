@@ -42,6 +42,8 @@ typedef struct dofinfo_s
     i32 bladeCount;
     float bladeRot;
     float focalPlaneCurvature;
+    float autoFocusSpeed;
+    bool autoFocus;
 } dofinfo_t;
 
 typedef struct pt_trace_s

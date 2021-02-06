@@ -77,7 +77,7 @@ void thread_set_aff(thread_t* tr, u64 mask)
     ASSERT(rval != 0);
 }
 
-void thread_set_priority(thread_t* tr, i32 priority)
+void thread_set_priority(thread_t* tr, thread_priority_t priority)
 {
     i32 threadpriority = THREAD_PRIORITY_NORMAL;
     i32 procpriority = NORMAL_PRIORITY_CLASS;
@@ -86,23 +86,23 @@ void thread_set_priority(thread_t* tr, i32 priority)
     default:
         ASSERT(false);
         return;
-    case -2:
+    case thread_priority_lowest:
         threadpriority = THREAD_PRIORITY_LOWEST;
         procpriority = IDLE_PRIORITY_CLASS;
         break;
-    case -1:
+    case thread_priority_lower:
         threadpriority = THREAD_PRIORITY_BELOW_NORMAL;
         procpriority = BELOW_NORMAL_PRIORITY_CLASS;
         break;
-    case 0:
+    case thread_priority_normal:
         threadpriority = THREAD_PRIORITY_NORMAL;
         procpriority = NORMAL_PRIORITY_CLASS;
         break;
-    case 1:
+    case thread_priority_higher:
         threadpriority = THREAD_PRIORITY_ABOVE_NORMAL;
         procpriority = ABOVE_NORMAL_PRIORITY_CLASS;
         break;
-    case 2:
+    case thread_priority_highest:
         threadpriority = THREAD_PRIORITY_HIGHEST;
         procpriority = HIGH_PRIORITY_CLASS;
         break;

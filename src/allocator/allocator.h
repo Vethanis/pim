@@ -29,11 +29,13 @@ inline void* tmp_malloc(i32 bytes) { return pim_malloc(EAlloc_Temp, bytes); }
 inline void* tmp_realloc(void* prev, i32 bytes) { return pim_realloc(EAlloc_Temp, prev, bytes); }
 inline void* tmp_calloc(i32 bytes) { return pim_calloc(EAlloc_Temp, bytes); }
 
-#define ZeroElem(ptr, i)        memset((ptr) + (i), 0, sizeof((ptr)[0]))
-#define PopSwap(ptr, i, len)    memcpy((ptr) + (i), (ptr) + (len) - 1, sizeof((ptr)[0]))
-#define PermReserve(ptr, len)   ptr = perm_realloc((ptr), sizeof((ptr)[0]) * (len))
-#define PermGrow(ptr, len)      PermReserve(ptr, len); ZeroElem(ptr, (len) - 1)
+#define FreePtr(ptr) do { pim_free(ptr); (ptr) = NULL; } while(0)
 
-#define TempReserve(ptr, len)   ptr = tmp_realloc((ptr), sizeof((ptr)[0]) * (len))
+#define ZeroElem(ptr, i)        do { memset((ptr) + (i), 0, sizeof((ptr)[0])); } while(0)
+#define PopSwap(ptr, i, len)    do { memcpy((ptr) + (i), (ptr) + (len) - 1, sizeof((ptr)[0])); } while(0)
+#define PermReserve(ptr, len)   do { (ptr) = perm_realloc((ptr), sizeof((ptr)[0]) * (len)); } while(0)
+#define PermGrow(ptr, len)      do { PermReserve(ptr, len); ZeroElem(ptr, (len) - 1); } while(0)
+
+#define TempReserve(ptr, len)   do { (ptr) = tmp_realloc((ptr), sizeof((ptr)[0]) * (len)); } while(0)
 
 PIM_C_END

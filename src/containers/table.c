@@ -177,13 +177,12 @@ void table_clear(table_t *const table)
     LookupClear(table);
 }
 
-bool table_exists(const table_t *const table, genid_t id)
+bool table_exists(table_t const *const table, genid_t id)
 {
-    const u8 *const pim_noalias versions = table->versions;
-    i32 index = id.index;
-    u8 version = id.version;
     ASSERT(table->valueSize > 0);
-    return (index < table->width) && (versions[index] == version);
+    i32 i = id.index;
+    u8 v = id.version;
+    return (i < table->width) && (table->versions[i] == v);
 }
 
 bool table_add(

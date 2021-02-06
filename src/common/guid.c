@@ -20,6 +20,29 @@ static void EnsureInit(void)
     }
 }
 
+bool guid_isnull(guid_t x)
+{
+    return !(x.a | x.b);
+}
+
+bool guid_eq(guid_t lhs, guid_t rhs)
+{
+    return !((lhs.a - rhs.a) | (lhs.b - rhs.b));
+}
+
+i32 guid_cmp(guid_t lhs, guid_t rhs)
+{
+    if (lhs.a != rhs.a)
+    {
+        return lhs.a < rhs.a ? -1 : 1;
+    }
+    if (lhs.b != rhs.b)
+    {
+        return lhs.b < rhs.b ? -1 : 1;
+    }
+    return 0;
+}
+
 guid_t guid_new(void)
 {
     u64 a = time_now();
