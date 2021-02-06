@@ -36,14 +36,6 @@ typedef struct mat_preset_s
     float emission;
 } mat_preset_t;
 
-static cvar_t cv_model_current =
-{
-    .type = cvart_text,
-    .name = "model_current",
-    .desc = "Name of current map",
-    .value = "",
-};
-
 static cvar_t cv_model_bumpiness =
 {
     .type = cvart_float,
@@ -52,6 +44,14 @@ static cvar_t cv_model_bumpiness =
     .value = "1",
     .minFloat = 0.0f,
     .maxFloat = 11.0f,
+};
+
+static cvar_t cv_tex_custom =
+{
+    .type = cvart_bool,
+    .name = "tex_custom",
+    .desc = "Enable loading custom textures",
+    .value = "0",
 };
 
 #define kMatGen             0.5f, 1.0f, 0.0f, 0.0f,
@@ -288,56 +288,99 @@ static material_t GenMaterial(
         emission = 0.5f;
     }
 
-    char names[3][PIM_PATH] = { 0 };
-    guid_t guids[3] = { 0 };
-    textureid_t ids[3] = { 0 };
-    SPrintf(ARGS(names[0]), "%s_albedo", mtex->name);
-    SPrintf(ARGS(names[1]), "%s_rome", mtex->name);
-    SPrintf(ARGS(names[2]), "%s_normal", mtex->name);
+    enum
+    {
+        texslot_albedo = 0,
+        texslot_rome,
+        texslot_normal,
 
-    bool foundAll = true;
+        texslot_COUNT
+    };
+
+    char names[texslot_COUNT][PIM_PATH] = { 0 };
+    guid_t guids[texslot_COUNT] = { 0 };
+    textureid_t ids[texslot_COUNT] = { 0 };
+    SPrintf(ARGS(names[texslot_albedo]), "%s_albedo", mtex->name);
+    SPrintf(ARGS(names[texslot_rome]), "%s_rome", mtex->name);
+    SPrintf(ARGS(names[texslot_normal]), "%s_normal", mtex->name);
+
     for (i32 i = 0; i < NELEM(ids); ++i)
     {
         guids[i] = guid_str(names[i]);
-        if (!texture_find(guids[i], &ids[i]))
+        if (texture_find(guids[i], &ids[i]))
         {
+            texture_retain(ids[i]);
+        }
+    }
+
+    if (cvar_get_bool(&cv_tex_custom))
+    {
+        for (i32 i = 0; i < NELEM(ids); ++i)
+        {
+            if (texture_exists(ids[i]))
+            {
+                continue;
+            }
             char path[PIM_PATH];
             SPrintf(ARGS(path), "data/id1/textures/%s.png", names[i]);
             texture_t tex = { 0 };
             i32 comp = 0;
             VkFormat format = 0;
-            if (i != 2)
+            switch (i)
             {
+            default:
+                ASSERT(false);
+                break;
+            case texslot_albedo:
+            case texslot_rome:
                 format = VK_FORMAT_R8G8B8A8_SRGB;
                 tex.texels = stbi_load(path, &tex.size.x, &tex.size.y, &comp, 4);
-            }
-            else
-            {
+                break;
+            case texslot_normal:
                 format = VK_FORMAT_R16G16_SNORM;
                 tex.texels = stbi_load_16(path, &tex.size.x, &tex.size.y, &comp, 4);
+                break;
             }
             if (tex.texels)
             {
-                texture_new(&tex, format, guids[i], &ids[i]);
+                textureid_t customId = { 0 };
+                if (texture_new(&tex, format, guids[i], &customId))
+                {
+                    texture_release(ids[i]);
+                    ids[i] = customId;
+                }
             }
         }
-        foundAll &= texture_exists(ids[i]);
     }
 
-    if (!foundAll)
+    bool hasAll = true;
+    for (i32 i = 0; i < NELEM(ids); ++i)
     {
-        texture_release(ids[0]);
-        texture_release(ids[1]);
-        texture_release(ids[2]);
-        texture_unpalette(
+        hasAll &= texture_exists(ids[i]);
+    }
+    if (!hasAll)
+    {
+        textureid_t baseIds[3] = { 0 };
+        hasAll = texture_unpalette(
             mip0,
             size,
             mtex->name,
             &material,
             f4_v(roughness, occlusion, metallic, emission),
-            &ids[0],
-            &ids[1],
-            &ids[2]);
+            &baseIds[0],
+            &baseIds[1],
+            &baseIds[2]);
+        for (i32 i = 0; i < NELEM(ids); ++i)
+        {
+            if (!texture_exists(ids[i]))
+            {
+                ids[i] = baseIds[i];
+            }
+            else
+            {
+                texture_release(baseIds[i]);
+            }
+        }
     }
 
     material.albedo = ids[0];
@@ -655,30 +698,13 @@ static i32 CmpName(const void* lhs, const void* rhs, void* usr)
 
 void model_sys_init(void)
 {
-    cvar_reg(&cv_model_current);
     cvar_reg(&cv_model_bumpiness);
+    cvar_reg(&cv_tex_custom);
 }
 
 void model_sys_update(void)
 {
-    if (cvar_check_dirty(&cv_model_bumpiness))
-    {
-        const char* name = cvar_get_str(&cv_model_current);
-        const char* maps = StrIStr(name, PIM_PATH, "maps/");
-        if (maps)
-        {
-            name = maps + 5;
-        }
-        char cmd[PIM_PATH];
-        StrCpy(ARGS(cmd), "mapload ");
-        StrCat(ARGS(cmd), name);
-        char* ext = (char*)StrIStr(ARGS(cmd), ".bsp");
-        if (ext)
-        {
-            *ext = 0;
-        }
-        con_exec(cmd);
-    }
+
 }
 
 void model_sys_shutdown(void)
@@ -818,7 +844,6 @@ bool LoadModelAsDrawables(const char* name, drawables_t *const dr, bool loadligh
     asset_t asset = { 0 };
     if (asset_get(name, &asset))
     {
-        cvar_set_str(&cv_model_current, name);
         mmodel_t* model = LoadModel(name, asset.pData, EAlloc_Temp);
         ModelToDrawables(model, dr);
         LoadProgs(model, loadlights);

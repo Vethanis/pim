@@ -2,15 +2,10 @@
 
 #include "common/macro.h"
 #include "containers/queue_i32.h"
+#include "containers/genid.h"
 #include "common/guid.h"
 
 PIM_C_BEGIN
-
-typedef struct genid_s
-{
-    u32 version : 8;
-    u32 index : 24;
-} genid_t;
 
 typedef struct table_s
 {
@@ -32,7 +27,7 @@ void table_del(table_t *const table);
 
 void table_clear(table_t *const table);
 
-bool table_exists(const table_t *const table, genid_t id);
+bool table_exists(table_t const *const table, genid_t id);
 
 bool table_add(table_t *const table, guid_t name, const void *const valueIn, genid_t *const idOut);
 bool table_retain(table_t *const table, genid_t id);

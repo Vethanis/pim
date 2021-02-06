@@ -21,10 +21,10 @@ bool vkrMegaMesh_Free(vkrMeshId id);
 
 bool vkrMegaMesh_Set(
     vkrMeshId id,
-    const float4* positions,
-    const float4* normals,
-    const float4* uvs,
-    const int4* texIndices,
+    const float4* pim_noalias positions,
+    const float4* pim_noalias normals,
+    const float4* pim_noalias uvs,
+    const int4* pim_noalias texIndices,
     i32 vertCount);
 
 void vkrMegaMesh_Draw(VkCommandBuffer cmd);
