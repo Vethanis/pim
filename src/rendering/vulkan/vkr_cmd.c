@@ -437,12 +437,15 @@ void vkrCmdDrawMesh(VkCommandBuffer cmdbuf, const vkrMesh* mesh)
     }
 }
 
-void vkrCmdCopyBuffer(VkCommandBuffer cmdbuf, vkrBuffer src, vkrBuffer dst)
+void vkrCmdCopyBuffer(
+    VkCommandBuffer cmdbuf,
+    const vkrBuffer* src,
+    const vkrBuffer* dst)
 {
     ASSERT(cmdbuf);
-    ASSERT(src.handle);
-    ASSERT(dst.handle);
-    i32 size = src.size < dst.size ? src.size : dst.size;
+    ASSERT(src->handle);
+    ASSERT(dst->handle);
+    i32 size = pim_min(src->size, dst->size);
     ASSERT(size >= 0);
     if (size > 0)
     {
@@ -450,7 +453,7 @@ void vkrCmdCopyBuffer(VkCommandBuffer cmdbuf, vkrBuffer src, vkrBuffer dst)
         {
             .size = size,
         };
-        vkCmdCopyBuffer(cmdbuf, src.handle, dst.handle, 1, &region);
+        vkCmdCopyBuffer(cmdbuf, src->handle, dst->handle, 1, &region);
     }
 }
 

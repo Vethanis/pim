@@ -135,7 +135,7 @@ bool vkrMesh_Upload(
     VkQueue queue = NULL;
     VkCommandBuffer cmd = vkrContext_GetTmpCmd(vkrQueueId_Gfx, &fence, &queue);
     vkrCmdBegin(cmd);
-    vkrCmdCopyBuffer(cmd, stagebuf, mesh->buffer);
+    vkrCmdCopyBuffer(cmd, &stagebuf, &mesh->buffer);
     vkrBuffer_Barrier(
         &mesh->buffer,
         cmd,

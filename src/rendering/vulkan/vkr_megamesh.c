@@ -7,6 +7,7 @@
 #include "allocator/allocator.h"
 #include "containers/idalloc.h"
 #include "common/profiler.h"
+#include <string.h>
 
 typedef struct SubMesh
 {
@@ -175,7 +176,7 @@ void vkrMegaMesh_Update(void)
                 VK_ACCESS_TRANSFER_READ_BIT,
                 VK_ACCESS_HOST_WRITE_BIT,
                 VK_PIPELINE_STAGE_TRANSFER_BIT);
-            vkrCmdCopyBuffer(cmd, *stage, *buffer);
+            vkrCmdCopyBuffer(cmd, stage, buffer);
             vkrBuffer_Barrier(
                 buffer,
                 cmd,

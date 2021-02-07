@@ -27,10 +27,38 @@ bool vkrBuffer_New(
         .usage = usage,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
+    VmaPool pool = NULL;
+    switch (memUsage)
+    {
+    default:
+        ASSERT(false);
+        break;
+    case vkrMemUsage_CpuOnly:
+        pool = g_vkr.allocator.stagePool;
+        break;
+    case vkrMemUsage_CpuToGpu:
+        if (usage & (VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT))
+        {
+            pool = g_vkr.allocator.cpuMeshPool;
+        }
+        else if (usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
+        {
+            pool = g_vkr.allocator.uavPool;
+        }
+        break;
+    case vkrMemUsage_GpuOnly:
+        if (usage & (VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT))
+        {
+            pool = g_vkr.allocator.gpuMeshPool;
+        }
+        break;
+    }
+    ASSERT(pool);
     const VmaAllocationCreateInfo allocInfo =
     {
         .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
         .usage = memUsage,
+        .pool = pool,
     };
     VkBuffer handle = NULL;
     VmaAllocation allocation = NULL;

@@ -14,6 +14,7 @@ PIM_C_BEGIN
 PIM_FWD_DECL(GLFWwindow);
 PIM_DECL_HANDLE(VmaAllocator);
 PIM_DECL_HANDLE(VmaAllocation);
+PIM_DECL_HANDLE(VmaPool);
 
 enum
 {
@@ -391,6 +392,11 @@ typedef struct vkrAllocator
 {
     spinlock_t lock;
     VmaAllocator handle;
+    VmaPool stagePool;
+    VmaPool texturePool;
+    VmaPool gpuMeshPool;
+    VmaPool cpuMeshPool;
+    VmaPool uavPool;
     vkrReleasable* releasables;
     i32 numreleasable;
 } vkrAllocator;

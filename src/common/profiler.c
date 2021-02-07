@@ -28,9 +28,9 @@ typedef struct node_s
 
 // ----------------------------------------------------------------------------
 
-static void VisitClr(node_t *const pim_noalias node);
-static void VisitSum(node_t *const pim_noalias node);
-static void VisitGui(node_t const *const pim_noalias node);
+static void VisitClr(node_t *const pim_noalias node, i32 depth);
+static void VisitSum(node_t *const pim_noalias node, i32 depth);
+static void VisitGui(node_t const *const pim_noalias node, i32 depth);
 
 // ----------------------------------------------------------------------------
 
@@ -66,8 +66,8 @@ void profile_gui(bool* pEnabled)
 
         igSeparator();
 
-        VisitClr(root);
-        VisitSum(root);
+        VisitClr(root, 0);
+        VisitSum(root, 0);
 
         igExColumns(3);
         {
@@ -77,7 +77,7 @@ void profile_gui(bool* pEnabled)
 
             igSeparator();
 
-            VisitGui(root);
+            VisitGui(root, 0);
         }
         igExColumns(1);
     }
@@ -147,9 +147,9 @@ void _ProfileEnd(profmark_t *const mark)
 
 // ----------------------------------------------------------------------------
 
-static void VisitClr(node_t *const pim_noalias node)
+static void VisitClr(node_t *const pim_noalias node, i32 depth)
 {
-    if (!node)
+    if (!node || (depth > 100))
     {
         return;
     }
@@ -166,13 +166,13 @@ static void VisitClr(node_t *const pim_noalias node)
     }
     node->hash = hash;
 
-    VisitClr(node->sibling);
-    VisitClr(node->fchild);
+    VisitClr(node->sibling, depth + 1);
+    VisitClr(node->fchild, depth + 1);
 }
 
-static void VisitSum(node_t *const pim_noalias node)
+static void VisitSum(node_t *const pim_noalias node, i32 depth)
 {
-    if (!node)
+    if (!node || (depth > 100))
     {
         return;
     }
@@ -191,8 +191,8 @@ static void VisitSum(node_t *const pim_noalias node)
     }
     node->hash = hash;
 
-    VisitSum(node->sibling);
-    VisitSum(node->fchild);
+    VisitSum(node->sibling, depth + 1);
+    VisitSum(node->fchild, depth + 1);
 }
 
 static double GetNodeAvgMs(node_t const *const node)
@@ -230,9 +230,9 @@ static double UpdateNodeAvgMs(node_t const *const node)
     return avgMs;
 }
 
-static void VisitGui(node_t const *const pim_noalias node)
+static void VisitGui(node_t const *const pim_noalias node, i32 depth)
 {
-    if (!node)
+    if (!node || (depth > 100))
     {
         return;
     }
@@ -262,9 +262,9 @@ static void VisitGui(node_t const *const pim_noalias node)
     SPrintf(ARGS(key), "%x", node->hash);
 
     igTreePushStr(key);
-    VisitGui(node->fchild);
+    VisitGui(node->fchild, depth + 1);
     igTreePop();
-    VisitGui(node->sibling);
+    VisitGui(node->sibling, depth + 1);
 }
 
 #else
