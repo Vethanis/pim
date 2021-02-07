@@ -22,6 +22,7 @@ bool vkrImage_New(
     {
         .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
         .usage = memUsage,
+        .pool = g_vkr.allocator.texturePool,
     };
     VkImage handle = NULL;
     VmaAllocation allocation = NULL;

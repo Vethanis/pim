@@ -64,7 +64,10 @@ void vkrCmdViewport(
 void vkrCmdDraw(VkCommandBuffer cmdbuf, i32 vertexCount, i32 firstVertex);
 void vkrCmdDrawMesh(VkCommandBuffer cmdbuf, const vkrMesh* mesh);
 
-void vkrCmdCopyBuffer(VkCommandBuffer cmdbuf, vkrBuffer src, vkrBuffer dst);
+void vkrCmdCopyBuffer(
+    VkCommandBuffer cmdbuf,
+    const vkrBuffer* src,
+    const vkrBuffer* dst);
 
 void vkrCmdBufferBarrier(
     VkCommandBuffer cmdbuf,

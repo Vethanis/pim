@@ -113,22 +113,6 @@ bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
         goto cleanup;
     }
 
-    const VkDescriptorPoolSize poolSizes[] =
-    {
-        {
-            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .descriptorCount = kTextureTable2DSize,
-        },
-    };
-
-    const VkPushConstantRange ranges[] =
-    {
-        {
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            .size = sizeof(vkrUIPassPc),
-        },
-    };
-
     const VkVertexInputBindingDescription vertBindings[] =
     {
         {
