@@ -365,22 +365,25 @@ static void UnpaletteStep1Fn(void* pbase, i32 begin, i32 end)
     }
 }
 
-static void UnpaletteStep2Fn(void* pbase)
+static void UnpaletteStep2Fn(void* pbase, i32 begin, i32 end)
 {
-    task_Unpalette* task = pbase;
-    const int2 size = task->size;
-    const i32 len = size.x * size.y;
-    const float2* pim_noalias gray = task->gray;
-
-    float2 min = f2_1;
-    float2 max = f2_0;
-    for (i32 i = 0; i < len; ++i)
+    if (begin < end)
     {
-        min = f2_min(min, gray[i]);
-        max = f2_max(max, gray[i]);
+        task_Unpalette* task = pbase;
+        const int2 size = task->size;
+        const i32 len = size.x * size.y;
+        const float2* pim_noalias gray = task->gray;
+
+        float2 min = f2_1;
+        float2 max = f2_0;
+        for (i32 i = 0; i < len; ++i)
+        {
+            min = f2_min(min, gray[i]);
+            max = f2_max(max, gray[i]);
+        }
+        task->min = min;
+        task->max = max;
     }
-    task->min = min;
-    task->max = max;
 }
 
 static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
@@ -519,13 +522,17 @@ bool texture_unpalette(
         tasks[0].size = size;
 
         // cannot reuse same task across invocations, the signalling state gets corrupted
-        task_run(&tasks[0].task, UnpaletteStep1Fn, len);
+        task_submit(&tasks[0], UnpaletteStep1Fn, len);
         tasks[1] = tasks[0];
         tasks[1].task = (task_t) { 0 };
-        UnpaletteStep2Fn(&tasks[1].task);
+        task_depends(&tasks[1], &tasks[0]);
+        task_submit(&tasks[1], UnpaletteStep2Fn, 1);
         tasks[2] = tasks[1];
         tasks[2].task = (task_t) { 0 };
-        task_run(&tasks[2].task, UnpaletteStep3Fn, len);
+        task_depends(&tasks[2], &tasks[1]);
+        task_submit(&tasks[2], UnpaletteStep3Fn, len);
+        task_sys_schedule();
+        task_await(&tasks[2]);
 
         pim_free(gray);
         gray = NULL;

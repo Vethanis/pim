@@ -1,4 +1,5 @@
 #include "threading/intrin.h"
+#include <emmintrin.h>
 
 void intrin_spin(u64 spins)
 {
@@ -17,8 +18,6 @@ void intrin_spin(u64 spins)
         } while (intrin_timestamp() < end);
     }
 }
-
-#include <emmintrin.h>
 
 #if PLAT_WINDOWS
 
