@@ -332,7 +332,7 @@ pim_inline void VEC_CALL LightOnHit(
     float4 ro,
     float4 lum,
     i32 iVert);
-static void UpdateDists(pt_scene_t *const pim_noalias scene);
+static task_t* UpdateDists(pt_scene_t *const pim_noalias scene);
 static void DofUpdate(pt_trace_t* trace, const camera_t* camera);
 
 // ----------------------------------------------------------------------------
@@ -1095,20 +1095,17 @@ static void SetupLightGrid(pt_scene_t*const pim_noalias scene)
     }
 }
 
-void pt_scene_update(pt_scene_t*const pim_noalias scene)
+task_t* pt_scene_update(pt_scene_t *const pim_noalias scene)
 {
     guid_t skyname = guid_str("sky");
     cubemaps_t* maps = Cubemaps_Get();
     i32 iSky = Cubemaps_Find(maps, skyname);
+    scene->sky = NULL;
     if (iSky != -1)
     {
         scene->sky = maps->cubemaps + iSky;
     }
-    else
-    {
-        scene->sky = NULL;
-    }
-    UpdateDists(scene);
+    return UpdateDists(scene);
 }
 
 pt_scene_t* pt_scene_new(void)
@@ -1119,8 +1116,10 @@ pt_scene_t* pt_scene_new(void)
         return NULL;
     }
 
-    pt_scene_t*const pim_noalias scene = perm_calloc(sizeof(*scene));
-    pt_scene_update(scene);
+    pt_scene_t* const pim_noalias scene = perm_calloc(sizeof(*scene));
+    task_t* task = pt_scene_update(scene);
+    task_sys_schedule();
+    task_await(task);
 
     FlattenDrawables(scene);
     SetupEmissives(scene);
@@ -2831,14 +2830,15 @@ static void UpdateDistsFn(void* pbase, i32 begin, i32 end)
     }
 }
 
-static void UpdateDists(pt_scene_t*const pim_noalias scene)
+static task_t* UpdateDists(pt_scene_t*const pim_noalias scene)
 {
-    TaskUpdateDists*const pim_noalias task = tmp_calloc(sizeof(*task));
+    TaskUpdateDists *const pim_noalias task = tmp_calloc(sizeof(*task));
     task->scene = scene;
     task->alpha = cvar_get_float(&cv_pt_dist_alpha);
     task->minSamples = cvar_get_int(&cv_pt_dist_samples);
     i32 worklen = grid_len(&scene->lightGrid);
-    task_run(task, UpdateDistsFn, worklen);
+    task_submit(task, UpdateDistsFn, worklen);
+    return (task_t*)task;
 }
 
 static void DofUpdate(pt_trace_t* trace, const camera_t* camera)
@@ -2933,16 +2933,19 @@ void pt_trace(pt_trace_t* desc, const camera_t* camera)
     ASSERT(desc->albedo);
     ASSERT(desc->normal);
 
-    pt_scene_update(desc->scene);
-
     DofUpdate(desc, camera);
 
-    trace_task_t*const pim_noalias task = tmp_calloc(sizeof(*task));
+    task_t* updateTask = pt_scene_update(desc->scene);
+
+    trace_task_t *const pim_noalias task = tmp_calloc(sizeof(*task));
     task->trace = desc;
     task->camera = *camera;
-
     const i32 workSize = desc->imageSize.x * desc->imageSize.y;
-    task_run(&task->task, TraceFn, workSize);
+    task_depends(task, updateTask);
+    task_submit(task, TraceFn, workSize);
+
+    task_sys_schedule();
+    task_await(task);
 
     ProfileEnd(pm_trace);
 }
@@ -2987,14 +2990,18 @@ pt_results_t pt_raygen(
     ASSERT(scene);
     ASSERT(count >= 0);
 
-    pt_scene_update(scene);
+    task_t* updateTask = pt_scene_update(scene);
 
-    pt_raygen_t*const pim_noalias task = tmp_calloc(sizeof(*task));
+    pt_raygen_t *const pim_noalias task = tmp_calloc(sizeof(*task));
     task->scene = scene;
     task->origin = origin;
     task->colors = tmp_malloc(sizeof(task->colors[0]) * count);
     task->directions = tmp_malloc(sizeof(task->directions[0]) * count);
-    task_run(&task->task, RayGenFn, count);
+    task_depends(task, updateTask);
+    task_submit(task, RayGenFn, count);
+
+    task_sys_schedule();
+    task_await(task);
 
     pt_results_t results =
     {

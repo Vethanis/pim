@@ -65,26 +65,35 @@ static void MarkComplete(task_t *const pim_noalias task)
     store_i32(&task->status, TaskStatus_Complete, MO_Release);
 }
 
-static i32 TryRunTask(i32 tid)
+static bool ExecuteTask(task_t* task)
 {
-    const i32 numthreads = ms_numthreads;
-    const i32 tasksplit = i1_max(1, numthreads * (numthreads >> 1));
-    task_t *const pim_noalias task = ptrqueue_trypop(&ms_queues[tid]);
     if (task)
     {
-        const i32 gran = i1_max(1, task->worksize / tasksplit);
-        const task_execute_fn fn = task->execute;
-        range_t range;
-        while (StealWork(task, &range, gran))
+        ExecuteTask(task->dep);
+        if (task_stat(task) != TaskStatus_Complete)
         {
-            fn(task, range.begin, range.end);
-            if (UpdateProgress(task, range))
+            const i32 numthreads = ms_numthreads;
+            const i32 tasksplit = i1_max(1, numthreads * (numthreads >> 1));
+            const i32 gran = i1_max(1, task->worksize / tasksplit);
+            const task_execute_fn fn = task->execute;
+            range_t range;
+            while (StealWork(task, &range, gran))
             {
-                MarkComplete(task);
+                fn(task, range.begin, range.end);
+                if (UpdateProgress(task, range))
+                {
+                    MarkComplete(task);
+                }
             }
         }
     }
     return task != NULL;
+}
+
+static bool TryRunTask(i32 tid)
+{
+    task_t* task = ptrqueue_trypop(&ms_queues[tid]);
+    return ExecuteTask(task);
 }
 
 static i32 TaskLoop(void* arg)
@@ -98,20 +107,10 @@ static i32 TaskLoop(void* arg)
     ASSERT(tid);
     ms_tid = tid;
 
-    u64 spins = 0;
     while (load_i32(&ms_running, MO_Relaxed))
     {
-        if (TryRunTask(tid))
+        if (!TryRunTask(tid))
         {
-            spins = 0;
-        }
-        else if (spins < 100)
-        {
-            intrin_spin(++spins);
-        }
-        else
-        {
-            spins = 0;
             inc_i32(&ms_numThreadsSleeping, MO_Acquire);
             event_wait(&ms_waitPush);
             dec_i32(&ms_numThreadsSleeping, MO_Release);
@@ -201,7 +200,7 @@ void task_await(const void* pbase)
     }
 }
 
-i32 task_poll(const void* pbase)
+bool task_poll(const void* pbase)
 {
     return task_stat(pbase) != TaskStatus_Exec;
 }
@@ -218,6 +217,22 @@ void task_run(void* pbase, task_execute_fn fn, i32 worksize)
         task_sys_schedule();
         task_await(task);
     }
+}
+
+void task_depends(void* pbase, void* depbase)
+{
+    task_t* task = pbase;
+    ASSERT(task);
+    ASSERT(depbase);
+    ASSERT(task != depbase);
+    ASSERT(depbase != task->dep);
+    ASSERT(task_stat(task) == TaskStatus_Init);
+
+    while (task->dep)
+    {
+        task = task->dep;
+    }
+    task->dep = depbase;
 }
 
 ProfileMark(pm_schedule, task_sys_schedule)
