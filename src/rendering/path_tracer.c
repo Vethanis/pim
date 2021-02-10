@@ -444,7 +444,6 @@ static cvar_t cv_pt_retro =
 };
 
 static RTCDevice ms_device;
-static dist1d_t ms_pixeldist;
 static pt_sampler_t ms_samplers[kMaxThreads];
 
 // ----------------------------------------------------------------------------
@@ -476,22 +475,10 @@ static bool InitRTC(void)
 
 static void InitPixelDist(void)
 {
-    const i32 kSamples = 16;
-    const float dt = 1.0f / kSamples;
-    dist1d_t dist;
-    dist1d_new(&dist, kSamples);
-    for (i32 i = 0; i < kSamples; ++i)
-    {
-        float x = f1_lerp(0.0f, 2.0f, (i + 0.5f) * dt);
-        dist.pdf[i] = f1_gauss(x, 0.0f, 0.5f);
-    }
-    dist1d_bake(&dist);
-    ms_pixeldist = dist;
 }
 
 static void ShutdownPixelDist(void)
 {
-    dist1d_del(&ms_pixeldist);
 }
 
 static void InitSamplers(void)
@@ -2776,12 +2763,12 @@ pt_result_t VEC_CALL pt_trace_ray(
 }
 
 pim_inline float2 VEC_CALL SampleUv(
-    pt_sampler_t*const pim_noalias sampler,
-    dist1d_t const *const pim_noalias dist)
+    pt_sampler_t*const pim_noalias sampler)
 {
+    // https://www.desmos.com/calculator/g8turex13k
     float2 Xi = UvPrng(sampler);
     float angle = Xi.x * kTau;
-    float radius = dist1d_samplec(dist, Xi.y) * 2.0f;
+    float radius = f1_logistic_invcdf(Xi.y, 0.0f, 0.30738f);
     Xi.x = cosf(angle);
     Xi.y = sinf(angle);
     return f2_mulvs(Xi, radius);
@@ -2902,7 +2889,6 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
     const float4 fwd = quat_fwd(rot);
     const float2 slope = proj_slope(f1_radians(camera.fovy), (float)size.x / (float)size.y);
     const dofinfo_t dof = trace->dofinfo;
-    const dist1d_t dist = ms_pixeldist;
 
     const bool pt_retro = cvar_get_bool(&cv_pt_retro);
 
@@ -2913,7 +2899,7 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
 
         // gaussian AA filter
         float2 uv = { (coord.x + 0.5f), (coord.y + 0.5f) };
-        float2 Xi = SampleUv(&sampler, &dist);
+        float2 Xi = SampleUv(&sampler);
         uv = f2_snorm(f2_mul(f2_add(uv, Xi), rcpSize));
 
         ray_t ray = { eye, proj_dir(right, up, fwd, slope, uv) };

@@ -206,10 +206,44 @@ pim_inline float VEC_CALL f1_wsinc(float x, float r, float t)
     return f1_sinc(x) * f1_sinc(x / t);
 }
 
-// https://www.desmos.com/calculator/29noktqkky
-pim_inline float VEC_CALL f1_gauss(float Xi, float mean, float stddev)
+// x: random variable
+// u: mean
+// s: standard deviation
+// returns: P(x <= X <= x+dx), probability density of distribution X at x
+pim_inline float VEC_CALL f1_gauss(float x, float u, float s)
 {
-    return expf(-0.5f * (f1_sq(Xi - mean) / f1_sq(stddev))) / (stddev * 2.50662827463f);
+    return expf(-0.5f * (f1_sq(x - u) / f1_sq(s))) / (s * 2.50662827463f);
+}
+
+// x: random variable
+// u: mean
+// s: standard deviation
+// returns: P(x <= X <= x+dx), probability density of distribution X at x
+// https://en.wikipedia.org/wiki/Logistic_distribution
+// https://www.desmos.com/calculator/g8turex13k
+pim_inline float VEC_CALL f1_logistic_pdf(float x, float u, float s)
+{
+    float t = expf(-(x - u) / s);
+    return t / (s * f1_sq(1.0f + t));
+}
+
+// x: random variable
+// u: mean
+// s: standard deviation
+// returns: P(X <= x), probability that distribution X is less than or equal x
+pim_inline float VEC_CALL f1_logistic_cdf(float x, float u, float s)
+{
+    float t = expf(-(x - u) / s);
+    return 1.0f / (1.0f + t);
+}
+
+// p: probability
+// u: mean
+// s: standard deviation
+// returns: random variable x of distribution X with probability p
+pim_inline float VEC_CALL f1_logistic_invcdf(float p, float u, float s)
+{
+    return u + s * logf(p / (1.0f - p));
 }
 
 pim_inline i32 VEC_CALL i1_min(i32 a, i32 b)
