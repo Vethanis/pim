@@ -69,21 +69,17 @@ static bool ExecuteTask(task_t* task)
 {
     if (task)
     {
-        ExecuteTask(task->dep);
-        if (task_stat(task) != TaskStatus_Complete)
+        const i32 numthreads = ms_numthreads;
+        const i32 tasksplit = i1_max(1, numthreads * (numthreads >> 1));
+        const i32 gran = i1_max(1, task->worksize / tasksplit);
+        const task_execute_fn fn = task->execute;
+        range_t range;
+        while (StealWork(task, &range, gran))
         {
-            const i32 numthreads = ms_numthreads;
-            const i32 tasksplit = i1_max(1, numthreads * (numthreads >> 1));
-            const i32 gran = i1_max(1, task->worksize / tasksplit);
-            const task_execute_fn fn = task->execute;
-            range_t range;
-            while (StealWork(task, &range, gran))
+            fn(task, range.begin, range.end);
+            if (UpdateProgress(task, range))
             {
-                fn(task, range.begin, range.end);
-                if (UpdateProgress(task, range))
-                {
-                    MarkComplete(task);
-                }
+                MarkComplete(task);
             }
         }
     }
@@ -217,22 +213,6 @@ void task_run(void* pbase, task_execute_fn fn, i32 worksize)
         task_sys_schedule();
         task_await(task);
     }
-}
-
-void task_depends(void* pbase, void* depbase)
-{
-    task_t* task = pbase;
-    ASSERT(task);
-    ASSERT(depbase);
-    ASSERT(task != depbase);
-    ASSERT(depbase != task->dep);
-    ASSERT(task_stat(task) == TaskStatus_Init);
-
-    while (task->dep)
-    {
-        task = task->dep;
-    }
-    task->dep = depbase;
 }
 
 ProfileMark(pm_schedule, task_sys_schedule)

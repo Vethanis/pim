@@ -16,7 +16,6 @@ typedef void(PIM_CDECL *task_execute_fn)(void *const task, i32 begin, i32 end);
 typedef struct task_s
 {
     task_execute_fn execute;
-    struct task_s* dep;
     i32 status;
     i32 worksize;
     i32 head;
@@ -33,8 +32,6 @@ void task_await(void const *const task);
 bool task_poll(void const *const task);
 
 void task_run(void *const task, task_execute_fn fn, i32 worksize);
-
-void task_depends(void* task, void* dep);
 
 void task_sys_schedule(void);
 
