@@ -522,17 +522,13 @@ bool texture_unpalette(
         tasks[0].size = size;
 
         // cannot reuse same task across invocations, the signalling state gets corrupted
-        task_submit(&tasks[0], UnpaletteStep1Fn, len);
+        task_run(&tasks[0], UnpaletteStep1Fn, len);
         tasks[1] = tasks[0];
         tasks[1].task = (task_t) { 0 };
-        task_depends(&tasks[1], &tasks[0]);
-        task_submit(&tasks[1], UnpaletteStep2Fn, 1);
+        task_run(&tasks[1], UnpaletteStep2Fn, 1);
         tasks[2] = tasks[1];
         tasks[2].task = (task_t) { 0 };
-        task_depends(&tasks[2], &tasks[1]);
-        task_submit(&tasks[2], UnpaletteStep3Fn, len);
-        task_sys_schedule();
-        task_await(&tasks[2]);
+        task_run(&tasks[2], UnpaletteStep3Fn, len);
 
         pim_free(gray);
         gray = NULL;

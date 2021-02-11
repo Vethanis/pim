@@ -82,7 +82,7 @@ float2 VEC_CALL pt_sample_2d(pt_sampler_t*const pim_noalias sampler);
 float VEC_CALL pt_sample_1d(pt_sampler_t*const pim_noalias sampler);
 
 pt_scene_t* pt_scene_new(void);
-task_t* pt_scene_update(pt_scene_t*const pim_noalias scene);
+void pt_scene_update(pt_scene_t*const pim_noalias scene);
 void pt_scene_del(pt_scene_t*const pim_noalias scene);
 void pt_scene_gui(pt_scene_t*const pim_noalias scene);
 

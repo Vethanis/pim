@@ -1501,7 +1501,7 @@ void lmpack_bake(pt_scene_t* scene, float timeSlice, i32 spp)
     ProfileBegin(pm_Bake);
     ASSERT(scene);
 
-    task_t* updateTask = pt_scene_update(scene);
+    pt_scene_update(scene);
 
     lmpack_t const *const pack = lmpack_get();
     i32 texelCount = TexelCount(pack->lightmaps, pack->lmCount);
@@ -1511,13 +1511,7 @@ void lmpack_bake(pt_scene_t* scene, float timeSlice, i32 spp)
         task->scene = scene;
         task->timeSlice = timeSlice;
         task->spp = i1_max(1, spp);
-        task_depends(task, updateTask);
         task_run(task, BakeFn, texelCount);
-    }
-    else
-    {
-        task_sys_schedule();
-        task_await(updateTask);
     }
 
     ProfileEnd(pm_Bake);
