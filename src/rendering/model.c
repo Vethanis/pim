@@ -137,11 +137,11 @@ static const mat_preset_t ms_matPresets[] =
         1.0f,
     },
     {
-        "slip", // slipgate (warped starry void)
+        "slip", // slipgate (map change, red lights)
         kMatGen
     },
     {
-        "teleport", // teleporter (map change, red lights)
+        "teleport", // teleporter (warped starry void)
         kMatMetal
     },
     {
@@ -247,6 +247,10 @@ static material_t GenMaterial(
         roughness = 0.05f;
     }
     if (StrIStr(ARGS(mtex->name), "teleport"))
+    {
+        material.flags |= matflag_portal;
+    }
+    if (StrIStr(ARGS(mtex->name), "slip"))
     {
         material.flags |= matflag_emissive;
     }
