@@ -254,16 +254,19 @@ static void VisitGui(node_t const *const pim_noalias node, i32 depth)
         pct = 100.0 * (ms / rootMs);
     }
 
-    igText("%s", name); igNextColumn();
-    igText("%3.2f", ms); igNextColumn();
-    igText("%4.1f%%", pct); igNextColumn();
+    if (ms > 0.001)
+    {
+        igText("%s", name); igNextColumn();
+        igText("%3.2f", ms); igNextColumn();
+        igText("%4.1f%%", pct); igNextColumn();
 
-    char key[32];
-    SPrintf(ARGS(key), "%x", node->hash);
+        char key[32];
+        SPrintf(ARGS(key), "%x", node->hash);
 
-    igTreePushStr(key);
-    VisitGui(node->fchild, depth + 1);
-    igTreePop();
+        igTreePushStr(key);
+        VisitGui(node->fchild, depth + 1);
+        igTreePop();
+    }
     VisitGui(node->sibling, depth + 1);
 }
 

@@ -46,7 +46,7 @@ void SG_Accumulate(
         {
             float4 amplitude = amplitudes[i];
             float weight = amplitude.w;
-            weight = f1_lerp(weight, basis * basis, sampleWeight);
+            weight = f1_lerp(weight, basis, sampleWeight);
             float4 otherLobes = f4_sub(estimate, f4_mulvs(amplitude, basis));
             float4 thisLobe = f4_mulvs(f4_sub(rad, otherLobes), basis / weight);
             amplitude = f4_lerpvs(amplitude, thisLobe, sampleWeight);

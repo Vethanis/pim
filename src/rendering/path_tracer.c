@@ -136,6 +136,10 @@ typedef struct pt_scene_s
     // [emissiveCount]
     i32* pim_noalias emissives;
 
+    // portal triangle indices
+    // [portalCount]
+    i32* pim_noalias portals;
+
     // grid of discrete light distributions
     grid_t lightGrid;
     // [lightGrid.size]
@@ -151,6 +155,7 @@ typedef struct pt_scene_s
     i32 vertCount;
     i32 matCount;
     i32 emissiveCount;
+    i32 portalCount;
     // parameters
     media_desc_t mediaDesc;
 } pt_scene_t;
@@ -171,6 +176,7 @@ static float EmissionPdf(
     i32 attempts);
 static void CalcEmissionPdfFn(task_t* pbase, i32 begin, i32 end);
 static void SetupEmissives(pt_scene_t*const pim_noalias scene);
+static void SetupPortals(pt_scene_t* scene);
 static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end);
 static void SetupLightGrid(pt_scene_t*const pim_noalias scene);
 
@@ -242,7 +248,8 @@ pim_inline scatter_t VEC_CALL RefractScatter(
     const surfhit_t* surf,
     float4 I);
 pim_inline scatter_t VEC_CALL BrdfScatter(
-    pt_sampler_t*const pim_noalias sampler,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     const surfhit_t* surf,
     float4 I);
 
@@ -965,6 +972,31 @@ static void SetupEmissives(pt_scene_t*const pim_noalias scene)
     scene->emissives = emissives;
 }
 
+static void SetupPortals(pt_scene_t* scene)
+{
+    i32 portalCount = 0;
+    i32* pim_noalias portals = NULL;
+    const i32 matCount = scene->matCount;
+    const material_t* materials = scene->materials;
+    const i32 vertCount = scene->vertCount;
+    const i32* pim_noalias matIds = scene->matIds;
+    for (i32 iVert = 0; iVert < vertCount; iVert += 3)
+    {
+        i32 iMat = matIds[iVert];
+        ASSERT(iMat >= 0);
+        ASSERT(iMat < matCount);
+        const material_t* material = &materials[iMat];
+        if (material->flags & matflag_portal)
+        {
+            ++portalCount;
+            PermReserve(portals, portalCount);
+            portals[portalCount - 1] = iVert;
+        }
+    }
+    scene->portalCount = portalCount;
+    scene->portals = portals;
+}
+
 typedef struct task_SetupLightGrid
 {
     task_t task;
@@ -1124,6 +1156,7 @@ pt_scene_t* pt_scene_new(void)
 
     FlattenDrawables(scene);
     SetupEmissives(scene);
+    SetupPortals(scene);
     media_desc_new(&scene->mediaDesc);
     scene->rtcScene = RtcNewScene(scene);
     SetupLightGrid(scene);
@@ -1151,6 +1184,7 @@ void pt_scene_del(pt_scene_t*const pim_noalias scene)
         pim_free(scene->materials);
 
         pim_free(scene->emissives);
+        pim_free(scene->portals);
 
         {
             const i32 gridLen = grid_len(&scene->lightGrid);
@@ -1545,6 +1579,37 @@ rayhit_t VEC_CALL pt_intersect(
     return pt_intersect_local(scene, ro, rd, tNear, tFar);
 }
 
+static scatter_t VEC_CALL PortalScatter(
+    pt_scene_t *const pim_noalias scene,
+    pt_sampler_t*const pim_noalias sampler,
+    const surfhit_t* surf,
+    float4 I)
+{
+    scatter_t scatter = { 0 };
+    i32 portalCount = scene->portalCount;
+    if (portalCount)
+    {
+        i32 iPortal = prng_i32(&sampler->rng) % portalCount;
+        i32 iVert = scene->portals[iPortal];
+        float4 wuvt = SampleBaryCoord(Sample2D(sampler));
+        float4 const *const pim_noalias positions = scene->positions;
+        float4 const *const pim_noalias normals = scene->normals;
+        float4 P = f4_blend(positions[iVert + 0], positions[iVert + 1], positions[iVert + 2], wuvt);
+        float4 N = f4_normalize3(f4_blend(normals[iVert + 0], normals[iVert + 1], normals[iVert + 2], wuvt));
+        P = f4_add(P, f4_mulvs(N, kMilli * 2.0f));
+        float4 rd = I;
+        if (f4_dot3(rd, N) < 0.0f)
+        {
+            rd = f4_neg(rd);
+        }
+        scatter.pos = P;
+        scatter.dir = rd;
+        scatter.attenuation = f4_s(0.5f);
+        scatter.pdf = 1.0f;
+    }
+    return scatter;
+}
+
 // returns attenuation value for the given interaction
 pim_inline float4 VEC_CALL BrdfEval(
     pt_sampler_t*const pim_noalias sampler,
@@ -1556,7 +1621,7 @@ pim_inline float4 VEC_CALL BrdfEval(
     ASSERT(IsUnitLength(L));
     float4 N = surf->N;
     ASSERT(IsUnitLength(N));
-    if (surf->flags & matflag_refractive)
+    if (surf->flags & (matflag_refractive | matflag_portal))
     {
         return f4_0;
     }
@@ -1609,7 +1674,7 @@ pim_inline float4 VEC_CALL BrdfEvalRetro(
     const surfhit_t* surf,
     float4 L)
 {
-    if (surf->flags & matflag_refractive)
+    if (surf->flags & (matflag_refractive | matflag_portal))
     {
         return f4_0;
     }
@@ -1730,11 +1795,16 @@ pim_inline scatter_t VEC_CALL RefractScatterRetro(
 
 pim_inline scatter_t VEC_CALL BrdfScatter(
     pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     const surfhit_t* surf,
     float4 I)
 {
     ASSERT(IsUnitLength(I));
     ASSERT(IsUnitLength(surf->N));
+    if (surf->flags & matflag_portal)
+    {
+        return PortalScatter(scene, sampler, surf, I);
+    }
     if (surf->flags & matflag_refractive)
     {
         return RefractScatter(sampler, surf, I);
@@ -1814,11 +1884,16 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
 
 pim_inline scatter_t VEC_CALL BrdfScatterRetro(
     pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     const surfhit_t* surf,
     float4 I)
 {
     ASSERT(IsUnitLength(I));
     ASSERT(IsUnitLength(surf->N));
+    if (surf->flags & matflag_portal)
+    {
+        return PortalScatter(scene, sampler, surf, I);
+    }
     if (surf->flags & matflag_refractive)
     {
         return RefractScatterRetro(sampler, surf, I);
@@ -2024,7 +2099,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
     i32 bounce)
 {
     float4 result = f4_0;
-    if (surf->flags & matflag_refractive)
+    if (surf->flags & (matflag_refractive | matflag_portal))
     {
         return result;
     }
@@ -2061,7 +2136,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
     }
     else
     {
-        scatter_t sample = BrdfScatter(sampler, surf, I);
+        scatter_t sample = BrdfScatter(sampler, scene, surf, I);
         float4 rd = sample.dir;
         float brdfPdf = sample.pdf * pSmooth;
         if (brdfPdf > kEpsilon)
@@ -2094,7 +2169,7 @@ pim_inline float4 VEC_CALL EstimateDirectRetro(
     i32 bounce)
 {
     float4 result = f4_0;
-    if (surf->flags & matflag_refractive)
+    if (surf->flags & (matflag_refractive | matflag_portal))
     {
         return result;
     }
@@ -2636,7 +2711,10 @@ pt_result_t VEC_CALL pt_trace_ray_retro(
         }
         if ((b == 0) || (prevFlags & matflag_refractive))
         {
-            luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
+            if (!(hit.flags & matflag_portal))
+            {
+                luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
+            }
         }
         if (hit.flags & matflag_sky)
         {
@@ -2648,7 +2726,7 @@ pt_result_t VEC_CALL pt_trace_ray_retro(
             luminance = f4_add(luminance, f4_mul(Li, attenuation));
         }
 
-        scatter_t scatter = BrdfScatterRetro(sampler, &surf, rd);
+        scatter_t scatter = BrdfScatterRetro(sampler, scene, &surf, rd);
         if (scatter.pdf < kEpsilon)
         {
             break;
@@ -2734,7 +2812,10 @@ pt_result_t VEC_CALL pt_trace_ray(
         }
         if ((b == 0) || (prevFlags & matflag_refractive))
         {
-            luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
+            if (!(hit.flags & matflag_portal))
+            {
+                luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
+            }
         }
         if (hit.flags & matflag_sky)
         {
@@ -2746,7 +2827,7 @@ pt_result_t VEC_CALL pt_trace_ray(
             luminance = f4_add(luminance, f4_mul(Li, attenuation));
         }
 
-        scatter_t scatter = BrdfScatter(sampler, &surf, rd);
+        scatter_t scatter = BrdfScatter(sampler, scene, &surf, rd);
         if (scatter.pdf < kEpsilon)
         {
             break;

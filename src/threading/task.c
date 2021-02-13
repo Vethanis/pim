@@ -25,16 +25,41 @@ typedef struct range_s
 // ----------------------------------------------------------------------------
 
 static i32 ms_numthreads;
+static i32 ms_worksplit;
 static i32 ms_numThreadsRunning;
 static i32 ms_numThreadsSleeping;
 static i32 ms_running;
 static event_t ms_waitPush;
 static thread_t ms_threads[kMaxThreads];
 static ptrqueue_t ms_queues[kMaxThreads];
+static i32 ms_barrierIndex;
+static event_t ms_barriers[16];
 
 static pim_thread_local i32 ms_tid;
 
 // ----------------------------------------------------------------------------
+
+static event_t* GetBarrier(task_t* task)
+{
+    i32 slot = task->index & (NELEM(ms_barriers) - 1);
+    return &ms_barriers[slot];
+}
+
+static void UpdateBarrier(task_t* task)
+{
+    event_t* barrier = GetBarrier(task);
+    if (task_stat(task) == TaskStatus_Complete)
+    {
+        event_wakeall(barrier);
+    }
+    else
+    {
+        while (task_stat(task) != TaskStatus_Complete)
+        {
+            event_wait(barrier);
+        }
+    }
+}
 
 static i32 StealWork(
     task_t *const pim_noalias task,
@@ -69,9 +94,7 @@ static bool ExecuteTask(task_t* task)
 {
     if (task)
     {
-        const i32 numthreads = ms_numthreads;
-        const i32 tasksplit = i1_max(1, numthreads * (numthreads >> 1));
-        const i32 gran = i1_max(1, task->worksize / tasksplit);
+        const i32 gran = i1_max(1, task->worksize / ms_worksplit);
         const task_execute_fn fn = task->execute;
         range_t range;
         while (StealWork(task, &range, gran))
@@ -82,6 +105,7 @@ static bool ExecuteTask(task_t* task)
                 MarkComplete(task);
             }
         }
+        UpdateBarrier(task);
     }
     return task != NULL;
 }
@@ -136,14 +160,14 @@ i32 task_num_active(void)
     return load_i32(&ms_numThreadsRunning, MO_Relaxed) - load_i32(&ms_numThreadsSleeping, MO_Relaxed);
 }
 
-TaskStatus task_stat(void const *const pbase)
+TaskStatus task_stat(const void* pbase)
 {
     ASSERT(pbase);
     task_t const *const task = pbase;
     return (TaskStatus)load_i32(&task->status, MO_Acquire);
 }
 
-void task_submit(void *const pbase, task_execute_fn execute, i32 worksize)
+void task_submit(void* pbase, task_execute_fn execute, i32 worksize)
 {
     ASSERT(execute);
     task_t *const task = pbase;
@@ -155,6 +179,7 @@ void task_submit(void *const pbase, task_execute_fn execute, i32 worksize)
         store_i32(&task->worksize, worksize, MO_Release);
         store_i32(&task->head, 0, MO_Release);
         store_i32(&task->tail, 0, MO_Release);
+        store_i32(&task->index, inc_i32(&ms_barrierIndex, MO_Acquire), MO_Release);
 
         const i32 numthreads = ms_numthreads;
         for (i32 t = 0; t < numthreads; ++t)
@@ -168,37 +193,17 @@ void task_submit(void *const pbase, task_execute_fn execute, i32 worksize)
 }
 
 ProfileMark(pm_await, task_await)
-void task_await(const void* pbase)
+void task_await(void* pbase)
 {
-    const task_t* task = pbase;
+    task_t* task = pbase;
     if (task)
     {
         ProfileBegin(pm_await);
 
-        const i32 tid = ms_tid;
-        u64 spins = 0;
-        while (task_stat(task) == TaskStatus_Exec)
-        {
-            if (TryRunTask(tid))
-            {
-                spins = 0;
-            }
-            else
-            {
-                // trying to wait on an event here sometimes introduces
-                // a permanently slept main thread.
-                // so instead we do a few spins then yield.
-                intrin_spin(++spins);
-            }
-        }
+        ExecuteTask(task);
 
         ProfileEnd(pm_await);
     }
-}
-
-bool task_poll(const void* pbase)
-{
-    return task_stat(pbase) != TaskStatus_Exec;
 }
 
 void task_run(void* pbase, task_execute_fn fn, i32 worksize)
@@ -221,6 +226,7 @@ void task_sys_schedule(void)
     ProfileBegin(pm_schedule);
 
     event_wakeall(&ms_waitPush);
+    TryRunTask(task_thread_id());
 
     ProfileEnd(pm_schedule);
 }
@@ -230,11 +236,17 @@ void task_sys_init(void)
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     intrin_clockres_begin(1);
+
     event_create(&ms_waitPush);
+    for (i32 i = 0; i < NELEM(ms_barriers); ++i)
+    {
+        event_create(&ms_barriers[i]);
+    }
     store_i32(&ms_running, 1, MO_Release);
 
     const i32 numthreads = i1_min(kMaxThreads, thread_hardware_count());
     ms_numthreads = numthreads;
+    ms_worksplit = numthreads * numthreads;
 
     const i32 kQueueSize = 64;
     ptrqueue_create(ms_queues + 0, EAlloc_Perm, kQueueSize);
@@ -247,14 +259,19 @@ void task_sys_init(void)
     }
 }
 
+ProfileMark(pm_update, task_sys_update)
 void task_sys_update(void)
 {
+    ProfileBegin(pm_update);
+
     // clear out backlog, in case thread 0's queue piles up
     i32 tid = task_thread_id();
     while (TryRunTask(tid))
     {
 
     }
+
+    ProfileEnd(pm_update);
 }
 
 void task_sys_shutdown(void)
@@ -273,6 +290,10 @@ void task_sys_shutdown(void)
     }
     ptrqueue_destroy(ms_queues + 0);
 
+    for (i32 i = 0; i < NELEM(ms_barriers); ++i)
+    {
+        event_destroy(&ms_barriers[i]);
+    }
     event_destroy(&ms_waitPush);
     intrin_clockres_end(1);
 

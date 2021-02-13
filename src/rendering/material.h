@@ -17,6 +17,7 @@ typedef enum
     matflag_warped = 1 << 6,        // uv animated
     matflag_animated = 1 << 7,      // keyframe animated
     matflag_underwater = 1 << 8,    // SURF_UNDERWATER
+    matflag_portal = 1 << 9,
 } matflagbits_t;
 typedef u32 matflag_t;
 
