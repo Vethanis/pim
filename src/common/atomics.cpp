@@ -20,9 +20,6 @@ SASSERT((int)MO_SeqCst == (int)std::memory_order_seq_cst);
 
 // ----------------------------------------------------------------------------
 
-extern "C" void SignalFenceAcquire() { std::atomic_signal_fence(std::memory_order_acquire); }
-extern "C" void SignalFenceRelease() { std::atomic_signal_fence(std::memory_order_release); }
-
 extern "C" void ThreadFenceAcquire() { std::atomic_thread_fence(std::memory_order_acquire); }
 extern "C" void ThreadFenceRelease() { std::atomic_thread_fence(std::memory_order_release); }
 
