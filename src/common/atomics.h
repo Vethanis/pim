@@ -14,9 +14,6 @@ typedef enum
     MO_SeqCst,
 } memorder_t;
 
-void SignalFenceAcquire();
-void SignalFenceRelease();
-
 void ThreadFenceAcquire();
 void ThreadFenceRelease();
 

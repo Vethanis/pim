@@ -31,6 +31,7 @@
 #include "rendering/camera.h"
 #include "rendering/screenblit.h"
 #include "rendering/lightmap.h"
+#include "rendering/constants.h"
 
 #include "ui/cimgui_ext.h"
 #include "ui/ui.h"
@@ -91,6 +92,8 @@ bool vkr_init(void)
         success = false;
         goto cleanup;
     }
+    r_width_set(width);
+    r_height_set(height);
     if (!vkrDisplay_New(&g_vkr.display, width, height, "pimvk"))
     {
         success = false;
@@ -194,10 +197,14 @@ void vkr_update(void)
 
     if (vkrDisplay_UpdateSize(&g_vkr.display))
     {
-        vkrSwapchain_Recreate(
+        if (vkrSwapchain_Recreate(
             &g_vkr.chain,
             &g_vkr.display,
-            g_vkr.mainPass.renderPass);
+            g_vkr.mainPass.renderPass))
+        {
+            r_width_set(g_vkr.display.width);
+            r_height_set(g_vkr.display.height);
+        }
     }
     vkrSwapchain* chain = &g_vkr.chain;
     if (!chain->handle)

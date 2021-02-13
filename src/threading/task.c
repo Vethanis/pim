@@ -238,13 +238,11 @@ void task_sys_init(void)
 
     const i32 kQueueSize = 64;
     ptrqueue_create(ms_queues + 0, EAlloc_Perm, kQueueSize);
-    thread_set_priority(NULL, thread_priority_highest);
     thread_set_aff(NULL, (1ull << 0) | (1ull << 1));
     for (i32 t = 1; t < numthreads; ++t)
     {
         ptrqueue_create(ms_queues + t, EAlloc_Perm, kQueueSize);
         thread_create(ms_threads + t, TaskLoop, (void*)((isize)t));
-        thread_set_priority(ms_threads + t, thread_priority_highest);
         thread_set_aff(ms_threads + t, (1ull << t) | (1ull << (t + 1)));
     }
 }
