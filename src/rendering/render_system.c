@@ -145,7 +145,6 @@ static cvar_t cv_r_sun_dir =
     .value = "0.0 0.968 0.253 0.0",
     .desc = "Sun Direction",
 };
-
 static cvar_t cv_r_sun_col =
 {
     .type = cvart_color,
@@ -153,7 +152,6 @@ static cvar_t cv_r_sun_col =
     .value = "1 1 1 1",
     .desc = "Sun Color",
 };
-
 static cvar_t cv_r_sun_lum =
 {
     .type = cvart_float,
@@ -162,6 +160,24 @@ static cvar_t cv_r_sun_lum =
     .minFloat = -20.0f,
     .maxFloat = 20.0f,
     .desc = "Log2 Sun Luminance",
+};
+static cvar_t cv_r_sun_res =
+{
+    .type = cvart_int,
+    .name = "r_sun_res",
+    .value = "256",
+    .minInt = 4,
+    .maxInt = 4096,
+    .desc = "Sky Cubemap Resolution",
+};
+static cvar_t cv_r_sun_steps =
+{
+    .type = cvart_int,
+    .name = "r_sun_steps",
+    .value = "64",
+    .minInt = 4,
+    .maxInt = 1024,
+    .desc = "Sky Cubemap Raymarch Steps",
 };
 
 static cvar_t cv_r_qlights =
@@ -189,6 +205,8 @@ static void RegCVars(void)
     cvar_reg(&cv_r_sun_dir);
     cvar_reg(&cv_r_sun_col);
     cvar_reg(&cv_r_sun_lum);
+    cvar_reg(&cv_r_sun_res);
+    cvar_reg(&cv_r_sun_steps);
 
     cvar_reg(&cv_r_qlights);
 }
@@ -793,13 +811,18 @@ static void BakeSky(void)
 
     guid_t skyname = guid_str("sky");
     cubemaps_t* maps = Cubemaps_Get();
+    if (cvar_check_dirty(&cv_r_sun_res))
+    {
+        Cubemaps_Rm(maps, skyname);
+    }
     i32 iSky = Cubemaps_Find(maps, skyname);
     if (iSky == -1)
     {
         dirty = true;
-        iSky = Cubemaps_Add(maps, skyname, 64, (box_t) { 0 });
+        iSky = Cubemaps_Add(maps, skyname, cvar_get_int(&cv_r_sun_res), (box_t) { 0 });
     }
 
+    dirty |= cvar_check_dirty(&cv_r_sun_steps);
     dirty |= cvar_check_dirty(&cv_r_sun_dir);
     dirty |= cvar_check_dirty(&cv_r_sun_col);
     dirty |= cvar_check_dirty(&cv_r_sun_lum);
@@ -810,14 +833,14 @@ static void BakeSky(void)
         float4 sunCol = cvar_get_vec(&cv_r_sun_col);
         float log2lum = cvar_get_float(&cv_r_sun_lum);
         float lum = exp2f(log2lum);
-        cubemap_t* cm = maps->cubemaps + iSky;
+        cubemap_t* cm = &maps->cubemaps[iSky];
         i32 size = cm->size;
 
         task_BakeSky* task = tmp_calloc(sizeof(*task));
         task->cm = cm;
         task->sunDir = f4_f3(sunDir);
         task->sunRad = f4_f3(f4_mulvs(sunCol, lum));
-        task->steps = 64;
+        task->steps = cvar_get_int(&cv_r_sun_steps);
         task_run(&task->task, BakeSkyFn, Cubeface_COUNT * size * size);
     }
 }

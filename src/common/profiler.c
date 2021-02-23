@@ -11,6 +11,7 @@
 #include "containers/dict.h"
 #include "ui/cimgui_ext.h"
 #include <string.h>
+#include <math.h>
 
 // ----------------------------------------------------------------------------
 
@@ -26,6 +27,12 @@ typedef struct node_s
     u32 hash;
 } node_t;
 
+typedef struct stat_s
+{
+    double mean;
+    double variance;
+} stat_t;
+
 // ----------------------------------------------------------------------------
 
 static void VisitClr(node_t *const pim_noalias node, i32 depth);
@@ -40,15 +47,16 @@ static node_t ms_roots[kMaxThreads];
 static node_t* ms_top[kMaxThreads];
 
 static i32 ms_avgWindow = 20;
-static dict_t ms_node_dict;
+static bool ms_progressive;
+static dict_t ms_stats;
 
 // ----------------------------------------------------------------------------
 
 static void EnsureDict(void)
 {
-    if (!ms_node_dict.valueSize)
+    if (!ms_stats.valueSize)
     {
-        dict_new(&ms_node_dict, sizeof(u32), sizeof(double), EAlloc_Perm);
+        dict_new(&ms_stats, sizeof(u32), sizeof(stat_t), EAlloc_Perm);
     }
 }
 
@@ -60,7 +68,19 @@ void profile_gui(bool* pEnabled)
 
     if (igBegin("Profiler", pEnabled, 0))
     {
-        igExSliderInt("avg over # frames", &ms_avgWindow, 1, 1000);
+        if (igCheckbox("Progressive", &ms_progressive))
+        {
+            ms_avgWindow = ms_progressive ? 0 : 1;
+        }
+        if (ms_progressive)
+        {
+            ++ms_avgWindow;
+            igText("Window: %d", ms_avgWindow);
+        }
+        else
+        {
+            igExSliderInt("Window", &ms_avgWindow, 1, 1000);
+        }
 
         node_t* root = ms_prevroots[0].fchild;
 
@@ -69,10 +89,17 @@ void profile_gui(bool* pEnabled)
         VisitClr(root, 0);
         VisitSum(root, 0);
 
-        igExColumns(3);
+        ImVec2 region;
+        igGetContentRegionAvail(&region);
+        igExColumns(4);
+        igSetColumnWidth(0, region.x * 0.6f);
+        igSetColumnWidth(1, region.x * 0.13333333333f);
+        igSetColumnWidth(2, region.x * 0.13333333333f);
+        igSetColumnWidth(3, region.x * 0.13333333333f);
         {
             igText("Name"); igNextColumn();
             igText("Milliseconds"); igNextColumn();
+            igText("Std Dev."); igNextColumn();
             igText("Percent"); igNextColumn();
 
             igSeparator();
@@ -147,6 +174,11 @@ void _ProfileEnd(profmark_t *const mark)
 
 // ----------------------------------------------------------------------------
 
+static double Lerp64(double a, double b, double t)
+{
+    return a + (b - a) * t;
+}
+
 static void VisitClr(node_t *const pim_noalias node, i32 depth)
 {
     if (!node || (depth > 100))
@@ -195,39 +227,39 @@ static void VisitSum(node_t *const pim_noalias node, i32 depth)
     VisitSum(node->fchild, depth + 1);
 }
 
-static double GetNodeAvgMs(node_t const *const node)
+static stat_t GetNodeStats(node_t const *const node)
 {
     ASSERT(node);
-    const u32 key = node->hash;
-    ASSERT(key);
-
-    double avgMs = 0.0;
     ASSERT(node->mark);
-
-    dict_get(&ms_node_dict, &key, &avgMs);
-    return avgMs;
+    ASSERT(node->hash);
+    stat_t st = { 0 };
+    dict_get(&ms_stats, &node->hash, &st);
+    return st;
 }
 
-static double UpdateNodeAvgMs(node_t const *const node)
+static stat_t UpdateNodeStats(node_t const *const node)
 {
     ASSERT(node);
-    const u32 key = node->hash;
-    ASSERT(key);
-
-    const double ms = time_milli(node->end - node->begin);
-    double avgMs = ms;
     ASSERT(node->mark);
-    if (dict_get(&ms_node_dict, &key, &avgMs))
+    ASSERT(node->hash);
+    double x = time_milli(node->end - node->begin);
+    stat_t st;
+    if (dict_get(&ms_stats, &node->hash, &st))
     {
-        double alpha = 1.0 / ms_avgWindow;
-        avgMs += (ms - avgMs) * alpha;
-        dict_set(&ms_node_dict, &key, &avgMs);
+        const double alpha = 1.0 / ms_avgWindow;
+        double m0 = st.mean;
+        double m1 = Lerp64(m0, x, alpha);
+        st.variance = Lerp64(st.variance, (x - m0) * (x - m1), alpha);
+        st.mean = m1;
+        dict_set(&ms_stats, &node->hash, &st);
     }
     else
     {
-        dict_add(&ms_node_dict, &key, &avgMs);
+        st.mean = x;
+        st.variance = 0.0;
+        dict_add(&ms_stats, &node->hash, &st);
     }
-    return avgMs;
+    return st;
 }
 
 static void VisitGui(node_t const *const pim_noalias node, i32 depth)
@@ -242,22 +274,23 @@ static void VisitGui(node_t const *const pim_noalias node, i32 depth)
     char const *const name = mark->name;
     ASSERT(name);
 
-    double ms = UpdateNodeAvgMs(node);
+    stat_t st = UpdateNodeStats(node);
 
     double pct = 0.0;
     const node_t* root = ms_prevroots[0].fchild;
     ASSERT(root);
 
-    double rootMs = GetNodeAvgMs(root);
-    if (rootMs > 0.0)
+    stat_t rootst = GetNodeStats(root);
+    if (rootst.mean > 0.0)
     {
-        pct = 100.0 * (ms / rootMs);
+        pct = 100.0 * (st.mean / rootst.mean);
     }
 
-    if (ms > 0.001)
+    if (st.mean > 0.0001)
     {
         igText("%s", name); igNextColumn();
-        igText("%3.2f", ms); igNextColumn();
+        igText("%03.4f", st.mean); igNextColumn();
+        igText("%03.4f", sqrt(st.variance)); igNextColumn();
         igText("%4.1f%%", pct); igNextColumn();
 
         char key[32];

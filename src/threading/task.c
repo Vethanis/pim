@@ -45,19 +45,25 @@ static event_t* GetBarrier(task_t* task)
     return &ms_barriers[slot];
 }
 
+ProfileMark(pm_barrier_wake, task_barrier_wake)
+ProfileMark(pm_barrier_sleep, task_barrier_sleep)
 static void UpdateBarrier(task_t* task)
 {
     event_t* barrier = GetBarrier(task);
     if (task_stat(task) == TaskStatus_Complete)
     {
+        ProfileBegin(pm_barrier_wake);
         event_wakeall(barrier);
+        ProfileEnd(pm_barrier_wake);
     }
     else
     {
+        ProfileBegin(pm_barrier_sleep);
         while (task_stat(task) != TaskStatus_Complete)
         {
             event_wait(barrier);
         }
+        ProfileEnd(pm_barrier_sleep);
     }
 }
 
@@ -181,12 +187,16 @@ void task_submit(void* pbase, task_execute_fn execute, i32 worksize)
         store_i32(&task->tail, 0, MO_Release);
         store_i32(&task->index, inc_i32(&ms_barrierIndex, MO_Acquire), MO_Release);
 
+        const i32 tid = ms_tid;
         const i32 numthreads = ms_numthreads;
         for (i32 t = 0; t < numthreads; ++t)
         {
-            if (!ptrqueue_trypush(&ms_queues[t], task))
+            if (t != tid)
             {
-                INTERRUPT();
+                if (!ptrqueue_trypush(&ms_queues[t], task))
+                {
+                    INTERRUPT();
+                }
             }
         }
     }
@@ -226,7 +236,6 @@ void task_sys_schedule(void)
     ProfileBegin(pm_schedule);
 
     event_wakeall(&ms_waitPush);
-    TryRunTask(task_thread_id());
 
     ProfileEnd(pm_schedule);
 }
