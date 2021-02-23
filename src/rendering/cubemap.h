@@ -29,8 +29,8 @@ typedef struct cubemap_s
 {
     i32 size;
     i32 mipCount;
-    float3* color[Cubeface_COUNT];
-    float4* convolved[Cubeface_COUNT];
+    float3* pim_noalias color[Cubeface_COUNT];
+    float4* pim_noalias convolved[Cubeface_COUNT];
 } cubemap_t;
 
 typedef struct cubemaps_s

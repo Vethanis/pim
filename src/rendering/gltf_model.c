@@ -439,20 +439,12 @@ static bool ResampleToFloat4(texture_t* tex)
     case VK_FORMAT_R8G8B8A8_SRGB:
     {
         const i32 len = tex->size.x * tex->size.y;
-        const u8* pim_noalias src = tex->texels;
+        const u32* pim_noalias src = tex->texels;
         float4* pim_noalias dst = tex_malloc(sizeof(dst[0]) * len);
-        prng_t rng = prng_get();
         for (i32 i = 0; i < len; ++i)
         {
-            float4 texel = f4_0;
-            texel.x = f1_sat((src[i * 4 + 0] + prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
-            texel.y = f1_sat((src[i * 4 + 1] + prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
-            texel.z = f1_sat((src[i * 4 + 2] + prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
-            texel.w = f1_sat((src[i * 4 + 3] + prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
-            texel = f4_tolinear(texel);
-            dst[i] = texel;
+            dst[i] = ColorToLinear(src[i]);
         }
-        prng_set(rng);
         pim_free(tex->texels);
         tex->texels = dst;
         tex->format = VK_FORMAT_R32G32B32A32_SFLOAT;

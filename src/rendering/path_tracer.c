@@ -2849,7 +2849,7 @@ pim_inline float2 VEC_CALL SampleUv(
     // https://www.desmos.com/calculator/g8turex13k
     float2 Xi = UvPrng(sampler);
     float angle = Xi.x * kTau;
-    float radius = f1_logistic_invcdf(Xi.y, 0.0f, 0.30738f);
+    float radius = f1_gauss_invcdf(Xi.y, 0.0f, 1.0f);
     Xi.x = cosf(angle);
     Xi.y = sinf(angle);
     return f2_mulvs(Xi, radius);

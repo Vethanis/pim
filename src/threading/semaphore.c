@@ -21,9 +21,11 @@ void semaphore_destroy(semaphore_t* sema)
     ASSERT(sema);
     HANDLE handle = sema->handle;
     sema->handle = NULL;
-    ASSERT(handle);
-    BOOL closed = CloseHandle(handle);
-    ASSERT(closed);
+    if (handle)
+    {
+        BOOL closed = CloseHandle(handle);
+        ASSERT(closed);
+    }
 }
 
 void semaphore_signal(semaphore_t sema, i32 count)

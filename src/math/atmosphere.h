@@ -4,6 +4,7 @@
 #include "math/types.h"
 #include "math/float2_funcs.h"
 #include "math/float3_funcs.h"
+#include "math/sampling.h"
 
 PIM_C_BEGIN
 

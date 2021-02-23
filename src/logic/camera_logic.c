@@ -43,38 +43,6 @@ static cvar_t cv_r_zfar =
     .desc = "Far clipping plane, in meters",
 };
 
-static void LightLogic(const camera_t* cam)
-{
-    if (lights_pt_count() < 1)
-    {
-        return;
-    }
-    if (input_buttonup(MouseButton_Right))
-    {
-        ms_placing = !ms_placing;
-    }
-    if (ms_placing)
-    {
-        pt_light_t light = lights_get_pt(0);
-        light.pos = f4_add(cam->position, f4_mulvs(quat_fwd(cam->rotation), 4.0f));
-
-        light.pos.w = 1.0f;
-        lights_set_pt(0, light);
-        if (input_buttonup(MouseButton_Left))
-        {
-            lights_add_pt(light);
-        }
-        if (input_buttonup(MouseButton_Middle))
-        {
-            i32 ct = lights_pt_count();
-            if (ct > 1)
-            {
-                lights_rm_pt(ct - 1);
-            }
-        }
-    }
-}
-
 void camera_logic_init(void)
 {
     cvar_reg(&cv_pitchscale);
@@ -167,8 +135,6 @@ void camera_logic_update(void)
     camera.rotation = rot;
 
     camera_set(&camera);
-
-    LightLogic(&camera);
 
     ProfileEnd(pm_update);
 }

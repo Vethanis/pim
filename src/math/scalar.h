@@ -215,6 +215,12 @@ pim_inline float VEC_CALL f1_gauss(float x, float u, float s)
     return expf(-0.5f * (f1_sq(x - u) / f1_sq(s))) / (s * 2.50662827463f);
 }
 
+// technically a positive-only half-gauss.
+pim_inline float VEC_CALL f1_gauss_invcdf(float p, float u, float s)
+{
+    return u + s * sqrtf(-logf(1.0f - p));
+}
+
 // x: random variable
 // u: mean
 // s: standard deviation
@@ -244,6 +250,17 @@ pim_inline float VEC_CALL f1_logistic_cdf(float x, float u, float s)
 pim_inline float VEC_CALL f1_logistic_invcdf(float p, float u, float s)
 {
     return u + s * logf(p / (1.0f - p));
+}
+
+pim_inline float VEC_CALL f1_cauchy_pdf(float x, float u, float s)
+{
+    float t = f1_sq((x - u) / s);
+    return 1.0f / (kPi * s * (1.0f + t));
+}
+
+pim_inline float VEC_CALL f1_cauchy_invcdf(float p, float u, float s)
+{
+    return u + s * tanf(kPi * (p - 0.5f));
 }
 
 pim_inline i32 VEC_CALL i1_min(i32 a, i32 b)

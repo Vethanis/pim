@@ -152,6 +152,16 @@ public:
         m_length = newLength;
     }
 
+    void Fill(const T& value)
+    {
+        T *const pim_noalias ptr = m_ptr;
+        const i32 len = m_length;
+        for (i32 i = 0; i < len; ++i)
+        {
+            ptr[i] = value;
+        }
+    }
+
     void EnsureSize(i32 minSize)
     {
         if (m_length < minSize)
