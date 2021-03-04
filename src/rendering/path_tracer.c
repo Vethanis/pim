@@ -211,7 +211,8 @@ pim_inline material_t const *const pim_noalias VEC_CALL GetMaterial(
 pim_inline float4 VEC_CALL GetSky(
     const pt_scene_t*const pim_noalias scene,
     float4 ro,
-    float4 rd);
+    float4 rd,
+    rayhit_t hit);
 pim_inline float4 VEC_CALL GetEmission(
     const pt_scene_t*const pim_noalias scene,
     float4 ro,
@@ -446,7 +447,7 @@ static cvar_t cv_pt_retro =
 {
     .type = cvart_bool,
     .name = "pt_retro",
-    .value = "1",
+    .value = "0",
     .desc = "path tracer retro mode (point filtering and diffuse only)",
 };
 
@@ -1358,11 +1359,55 @@ pim_inline material_t const *const pim_noalias VEC_CALL GetMaterial(
     return &scene->materials[matIndex];
 }
 
+pim_inline float4 VEC_CALL TriplaneBlending(float4 dir)
+{
+    float4 a = f4_abs(dir);
+    return f4_divvs(a, a.x + a.y + a.z + kEpsilon);
+}
+
+pim_inline float4 VEC_CALL SampleSkyTex(const texture_t* tex, float2 uv)
+{
+    float duration = kTau;// (float)time_sec(time_framestart() - time_appstart());
+    float2 topUv = uv;
+    topUv.x += duration * 0.1f;
+    topUv.y += duration * 0.1f;
+    topUv.x = fmodf(topUv.x, 0.5f);
+    float4 albedo = UvWrapPow2_c32(tex->texels, tex->size, topUv);
+    if (f4_hmax3(albedo) <= (1.0f / 255.0f))
+    {
+        float2 bottomUv = uv;
+        bottomUv.x += duration * 0.05f;
+        bottomUv.y += duration * 0.05f;
+        bottomUv.x = 0.5f + fmodf(bottomUv.x, 0.5f);
+        albedo = UvWrapPow2_c32(tex->texels, tex->size, bottomUv);
+    }
+    return albedo;
+}
+
+pim_inline float4 VEC_CALL TriplaneSampleSkyTex(const texture_t* tex, float4 dir, float4 pos)
+{
+    float4 b = TriplaneBlending(dir);
+    float4 x = f4_mulvs(SampleSkyTex(tex, f2_v(pos.z, pos.y)), b.x);
+    float4 y = f4_mulvs(SampleSkyTex(tex, f2_v(pos.x, pos.z)), b.y);
+    float4 z = f4_mulvs(SampleSkyTex(tex, f2_v(pos.x, pos.y)), b.z);
+    return f4_add(x, f4_add(y, z));
+}
+
 pim_inline float4 VEC_CALL GetSky(
     const pt_scene_t*const pim_noalias scene,
     float4 ro,
-    float4 rd)
+    float4 rd,
+    rayhit_t hit)
 {
+    if (cvar_get_bool(&cv_pt_retro))
+    {
+        const material_t* mat = GetMaterial(scene, hit);
+        const texture_t* tex = texture_get(mat->albedo);
+        if (tex)
+        {
+            return SampleSkyTex(tex, GetUV(scene, hit));
+        }
+    }
     if (scene->sky)
     {
         return f3_f4(Cubemap_ReadColor(scene->sky, rd), 1.0f);
@@ -1377,13 +1422,13 @@ pim_inline float4 VEC_CALL GetEmission(
     rayhit_t hit,
     i32 bounce)
 {
-    material_t const *const pim_noalias mat = GetMaterial(scene, hit);
     if (hit.flags & matflag_sky)
     {
-        return GetSky(scene, ro, rd);
+        return GetSky(scene, ro, rd, hit);
     }
     else
     {
+        material_t const *const pim_noalias mat = GetMaterial(scene, hit);
         float2 uv = GetUV(scene, hit);
         float4 albedo = f4_1;
         {
@@ -1430,7 +1475,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
         surf.roughness = 1.0f;
         surf.occlusion = 0.0f;
         surf.metallic = 0.0f;
-        surf.emission = GetSky(scene, ro, rd);
+        surf.emission = GetSky(scene, ro, rd, hit);
     }
     else
     {
@@ -1494,7 +1539,7 @@ pim_inline surfhit_t VEC_CALL GetSurfaceRetro(
         surf.roughness = 1.0f;
         surf.occlusion = 0.0f;
         surf.metallic = 0.0f;
-        surf.emission = GetSky(scene, ro, rd);
+        surf.emission = GetSky(scene, ro, rd, hit);
     }
     else
     {

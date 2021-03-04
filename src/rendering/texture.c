@@ -407,7 +407,7 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
         float2 grayscale = gray[i];
         float2 t = f2_smoothstep(min, max, grayscale);
         float roughness = f1_lerp(1.0f, 0.9f, t.y);
-        float occlusion = f1_lerp(0.9f, 1.0f, t.y);
+        float occlusion = 1.0f - f1_distance(grayscale.x, grayscale.y);
         float metallic = 1.0f;
         float emission;
         if (fullEmit)

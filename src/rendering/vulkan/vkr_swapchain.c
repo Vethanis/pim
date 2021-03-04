@@ -15,6 +15,23 @@
 #include <GLFW/glfw3.h>
 #include <string.h>
 
+static const char* VkPresentModeKHR_Str[] =
+{
+    "VK_PRESENT_MODE_IMMEDIATE_KHR",
+    "VK_PRESENT_MODE_MAILBOX_KHR",
+    "VK_PRESENT_MODE_FIFO_KHR",
+    "VK_PRESENT_MODE_FIFO_RELAXED_KHR",
+};
+
+// pim prefers low latency over tear protection
+static const VkPresentModeKHR kPreferredPresentModes[] =
+{
+    VK_PRESENT_MODE_MAILBOX_KHR,        // single-entry overwrote queue; good latency
+    VK_PRESENT_MODE_IMMEDIATE_KHR,      // no queue; best latency, bad tearing
+    VK_PRESENT_MODE_FIFO_RELAXED_KHR,   // multi-entry adaptive queue; bad latency
+    VK_PRESENT_MODE_FIFO_KHR ,          // multi-entry queue; bad latency
+};
+
 bool vkrSwapchain_New(
     vkrSwapchain* chain,
     vkrDisplay* display,
@@ -90,6 +107,14 @@ bool vkrSwapchain_New(
     chain->width = ext.width;
     chain->height = ext.height;
 
+    if (!prev)
+    {
+        con_logf(LogSev_Info, "vkr", "Present mode: '%s'", VkPresentModeKHR_Str[mode]);
+        con_logf(LogSev_Info, "vkr", "Present extent: %u x %u", ext.width, ext.height);
+        con_logf(LogSev_Info, "vkr", "Present images: %u", imgCount);
+        con_logf(LogSev_Info, "vkr", "Present sharing mode: %s", concurrent ? "Concurrent" : "Exclusive");
+    }
+
     // get swapchain images
     {
         VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, NULL));
@@ -121,10 +146,6 @@ bool vkrSwapchain_New(
         VkCheck(vkCreateImageView(dev, &viewInfo, NULL, &view));
         ASSERT(view);
         chain->views[i] = view;
-    }
-
-    // create depth attachment
-    {
     }
 
     // create luminance attachments
@@ -197,7 +218,6 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
             chain->renderedSemas[i] = NULL;
             chain->presCmds[i] = NULL;
         }
-
 
         const i32 len = chain->length;
         for (i32 i = 0; i < len; ++i)
@@ -480,15 +500,6 @@ VkSurfaceFormatKHR vkrSelectSwapFormat(
     }
     return (VkSurfaceFormatKHR) { 0 };
 }
-
-// pim prefers low latency over tear protection
-static const VkPresentModeKHR kPreferredPresentModes[] =
-{
-    VK_PRESENT_MODE_MAILBOX_KHR,        // single-entry overwrote queue; good latency
-    VK_PRESENT_MODE_IMMEDIATE_KHR,      // no queue; best latency, bad tearing
-    VK_PRESENT_MODE_FIFO_RELAXED_KHR,   // multi-entry adaptive queue; bad latency
-    VK_PRESENT_MODE_FIFO_KHR ,          // multi-entry queue; bad latency
-};
 
 VkPresentModeKHR vkrSelectSwapMode(
     const VkPresentModeKHR* modes,
