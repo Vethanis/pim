@@ -27,7 +27,6 @@ typedef struct range_s
 static i32 ms_numthreads;
 static i32 ms_worksplit;
 static i32 ms_numThreadsRunning;
-static i32 ms_numThreadsSleeping;
 static i32 ms_running;
 static event_t ms_waitPush;
 static thread_t ms_threads[kMaxThreads];
@@ -127,9 +126,7 @@ static i32 TaskLoop(void* arg)
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
 
-    inc_i32(&ms_numThreadsRunning, MO_Acquire);
-
-    const i32 tid = (i32)((isize)arg);
+    const i32 tid = inc_i32(&ms_numThreadsRunning, MO_Acquire) + 1;
     ASSERT(tid);
     ms_tid = tid;
 
@@ -137,9 +134,7 @@ static i32 TaskLoop(void* arg)
     {
         if (!TryRunTask(tid))
         {
-            inc_i32(&ms_numThreadsSleeping, MO_Acquire);
             event_wait(&ms_waitPush);
-            dec_i32(&ms_numThreadsSleeping, MO_Release);
         }
     }
 
@@ -159,11 +154,6 @@ i32 task_thread_ct(void)
 {
     ASSERT(ms_numthreads > 0);
     return ms_numthreads;
-}
-
-i32 task_num_active(void)
-{
-    return load_i32(&ms_numThreadsRunning, MO_Relaxed) - load_i32(&ms_numThreadsSleeping, MO_Relaxed);
 }
 
 TaskStatus task_stat(const void* pbase)
@@ -263,7 +253,7 @@ void task_sys_init(void)
     for (i32 t = 1; t < numthreads; ++t)
     {
         ptrqueue_create(ms_queues + t, EAlloc_Perm, kQueueSize);
-        thread_create(ms_threads + t, TaskLoop, (void*)((isize)t));
+        thread_create(ms_threads + t, TaskLoop, NULL);
         thread_set_aff(ms_threads + t, (1ull << t) | (1ull << (t + 1)));
     }
 }
@@ -274,7 +264,7 @@ void task_sys_update(void)
     ProfileBegin(pm_update);
 
     // clear out backlog, in case thread 0's queue piles up
-    i32 tid = task_thread_id();
+    const i32 tid = ms_tid;
     while (TryRunTask(tid))
     {
 

@@ -22,7 +22,7 @@ void event_destroy(event_t* evt)
 void event_wait(event_t* evt)
 {
     ASSERT(evt);
-    i32 prev = dec_i32(&evt->state, MO_Acquire);
+    i32 prev = dec_i32(&evt->state, MO_AcqRel);
     if (prev < 1)
     {
         semaphore_wait(evt->sema);
@@ -37,7 +37,7 @@ void event_wakeone(event_t* evt)
     while (1)
     {
         i32 newstate = oldstate < 1 ? oldstate + 1 : 1;
-        if (cmpex_i32(&evt->state, &oldstate, newstate, MO_Release))
+        if (cmpex_i32(&evt->state, &oldstate, newstate, MO_AcqRel))
         {
             break;
         }
@@ -58,7 +58,7 @@ void event_wakeall(event_t* evt)
     {
         i32 newstate = -oldstate;
         newstate = (newstate > 1) ? newstate : 1;
-        if (cmpex_i32(&evt->state, &oldstate, newstate, MO_Release))
+        if (cmpex_i32(&evt->state, &oldstate, newstate, MO_AcqRel))
         {
             break;
         }

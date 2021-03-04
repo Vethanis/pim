@@ -1,8 +1,5 @@
 #include "common/fnv1a.h"
 
-#define Fnv32Prime 16777619u
-#define Fnv64Prime 1099511628211ull
-
 char FnvToUpper(char x)
 {
     i32 c = (i32)x;

@@ -4,8 +4,10 @@
 
 PIM_C_BEGIN
 
-#define Fnv32Bias 2166136261u
-#define Fnv64Bias 14695981039346656037ull
+#define Fnv32Bias   2166136261u
+#define Fnv32Prime  16777619u
+#define Fnv64Bias   14695981039346656037ull
+#define Fnv64Prime  1099511628211ull
 
 char FnvToUpper(char x);
 
