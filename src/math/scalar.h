@@ -98,29 +98,32 @@ pim_inline float VEC_CALL f1_abs(float x)
     return f1_max(x, -x);
 }
 
-pim_inline float VEC_CALL f1_ceil(float x)
-{
-    return ceilf(x);
-}
-
-pim_inline float VEC_CALL f1_floor(float x)
-{
-    return floorf(x);
-}
-
-pim_inline float VEC_CALL f1_round(float x)
-{
-    return roundf(x);
-}
-
 pim_inline float VEC_CALL f1_trunc(float x)
 {
-    return truncf(x);
+    i32 i = (i32)x;
+    return (float)i;
 }
 
 pim_inline float VEC_CALL f1_frac(float x)
 {
-    return x - f1_floor(x);
+    return x - f1_trunc(x);
+}
+
+pim_inline float VEC_CALL f1_floor(float x)
+{
+    float i = f1_trunc(x);
+    return i - (i > x);
+}
+
+pim_inline float VEC_CALL f1_ceil(float x)
+{
+    float i = f1_trunc(x);
+    return i + (x > i);
+}
+
+pim_inline float VEC_CALL f1_round(float x)
+{
+    return (x >= 0.0f) ? f1_floor(x + 0.5f) : f1_ceil(x - 0.5f);
 }
 
 pim_inline float VEC_CALL f1_mod(float num, float div)

@@ -6,9 +6,9 @@ PIM_C_BEGIN
 
 typedef struct dict_s
 {
-    u32* hashes;
-    void* keys;
-    void* values;
+    u32 * pim_noalias hashes;
+    void * pim_noalias keys;
+    void * pim_noalias values;
     u32 width;
     u32 count;
     u32 keySize;
@@ -27,6 +27,9 @@ bool dict_get(const dict_t* dict, const void* key, void* valueOut);
 bool dict_set(dict_t* dict, const void* key, const void* valueIn);
 bool dict_add(dict_t* dict, const void* key, const void* valueIn);
 bool dict_rm(dict_t* dict, const void* key, void* valueOut);
+
+bool dict_setadd(dict_t* dict, const void* key, const void* valueIn);
+bool dict_getadd(dict_t* dict, const void* key, void* valueOut);
 
 typedef i32(*DictCmpFn)(
     const void* lkey, const void* rkey,

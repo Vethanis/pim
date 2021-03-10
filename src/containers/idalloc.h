@@ -13,6 +13,7 @@ typedef struct idalloc_s
     queue_i32_t freelist;
 } idalloc_t;
 
+void idalloc_new(idalloc_t* ia);
 void idalloc_del(idalloc_t* ia);
 void idalloc_clear(idalloc_t* ia);
 

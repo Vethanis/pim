@@ -12,6 +12,7 @@ typedef struct queue_i32_s
     u32 iWrite;
 } queue_i32_t;
 
+void queue_i32_new(queue_i32_t* q);
 void queue_i32_del(queue_i32_t* q);
 void queue_i32_clear(queue_i32_t* q);
 
