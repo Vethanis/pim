@@ -1,5 +1,6 @@
 #include "ui/ui.h"
-#include <imgui/backends/imgui_impl_glfw.h>
+#include "ui/cimgui_ext.h"
+#include "ui/cimgui_impl_glfw.h"
 #include "allocator/allocator.h"
 #include "rendering/r_window.h"
 #include "common/profiler.h"
@@ -41,7 +42,8 @@ static void SetupStyle(void)
     ImVec4 textDisabledColor = BytesToColor(151, 151, 151);
     ImVec4 borderColor = BytesToColor(78, 78, 78);
 
-    ImGuiStyle *const style = &ImGui::GetStyle();
+    ImGuiStyle *const style = igGetStyle();
+    igStyleColorsDark(style);
     ImVec4* colors = style->Colors;
     colors[ImGuiCol_Text] = textColor;
     colors[ImGuiCol_TextDisabled] = textDisabledColor;
@@ -100,7 +102,7 @@ static void SetupStyle(void)
 
 static void UpdateOpacity(void)
 {
-    ImGuiStyle *const style = &ImGui::GetStyle();
+    ImGuiStyle *const style = igGetStyle();
     ImVec4* colors = style->Colors;
     float opacity = cvar_get_float(&cv_ui_opacity);
     for (i32 i = 0; i < NELEM(style->Colors); ++i)
@@ -109,7 +111,7 @@ static void UpdateOpacity(void)
     }
 }
 
-extern "C" void ui_sys_init(GLFWwindow* window)
+void ui_sys_init(GLFWwindow* window)
 {
     ASSERT(window);
 
@@ -120,7 +122,7 @@ extern "C" void ui_sys_init(GLFWwindow* window)
     cv_ui_opacity.maxFloat = 1.0f;
     cv_ui_opacity.desc = "UI Opacity";
     cvar_reg(&cv_ui_opacity);
-    ASSERT(ImGui::DebugCheckVersionAndDataLayout(
+    ASSERT(igDebugCheckVersionAndDataLayout(
         IMGUI_VERSION,
         sizeof(ImGuiIO),
         sizeof(ImGuiStyle),
@@ -128,18 +130,17 @@ extern "C" void ui_sys_init(GLFWwindow* window)
         sizeof(ImVec4),
         sizeof(ImDrawVert),
         sizeof(ImDrawIdx)));
-    ImGui::SetAllocatorFunctions(ImGuiAllocFn, ImGuiFreeFn, NULL);
-    ms_ctx = ImGui::CreateContext();
+    igSetAllocatorFunctions(ImGuiAllocFn, ImGuiFreeFn, NULL);
+    ms_ctx = igCreateContext(NULL);
     ASSERT(ms_ctx);
-    ImGui::SetCurrentContext(ms_ctx);
-    ImGui::StyleColorsDark();
-    ImGui_ImplGlfw_InitForVulkan(window, false);
+    igSetCurrentContext(ms_ctx);
+    igImplGlfw_InitForVulkan(window, false);
     SetupStyle();
     UpdateOpacity();
 }
 
 ProfileMark(pm_beginframe, ui_sys_beginframe)
-extern "C" void ui_sys_beginframe(void)
+void ui_sys_beginframe(void)
 {
     ProfileBegin(pm_beginframe);
 
@@ -148,23 +149,23 @@ extern "C" void ui_sys_beginframe(void)
         UpdateOpacity();
     }
 
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
+    igImplGlfw_NewFrame();
+    igNewFrame();
 
     ProfileEnd(pm_beginframe);
 }
 
 ProfileMark(pm_endframe, ui_sys_endframe)
-extern "C" void ui_sys_endframe(void)
+void ui_sys_endframe(void)
 {
     ProfileBegin(pm_endframe);
-    ImGui::EndFrame();
+    igEndFrame();
     ProfileEnd(pm_endframe);
 }
 
-extern "C" void ui_sys_shutdown(void)
+void ui_sys_shutdown(void)
 {
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext(ms_ctx);
+    igImplGlfw_Shutdown();
+    igDestroyContext(ms_ctx);
     ms_ctx = NULL;
 }

@@ -103,6 +103,7 @@ endif()
 
 target_compile_definitions(pim
     PRIVATE
+    IMGUI_DISABLE_DEMO_WINDOWS
     CIMGUI_NO_EXPORT
     CJSON_HIDE_SYMBOLS
     SOKOL_NO_DEPRECATED)

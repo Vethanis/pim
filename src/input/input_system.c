@@ -1,5 +1,5 @@
 #include "input_system.h"
-#include <imgui/backends/imgui_impl_glfw.h>
+#include "ui/cimgui_impl_glfw.h"
 #include "rendering/r_window.h"
 #include <GLFW/glfw3.h>
 #include "common/time.h"
@@ -22,13 +22,13 @@ static void OnFocus(GLFWwindow* window, i32 focused);
 
 // ----------------------------------------------------------------------------
 
-extern "C" void input_sys_init(void)
+void input_sys_init(void)
 {
 
 }
 
 ProfileMark(pm_update, input_sys_update)
-extern "C" void input_sys_update(void)
+void input_sys_update(void)
 {
     ProfileBegin(pm_update);
 
@@ -49,12 +49,12 @@ extern "C" void input_sys_update(void)
     ProfileEnd(pm_update);
 }
 
-extern "C" void input_sys_shutdown(void)
+void input_sys_shutdown(void)
 {
     ms_focused = NULL;
 }
 
-extern "C" void input_reg_window(GLFWwindow* window)
+void input_reg_window(GLFWwindow* window)
 {
     if (window)
     {
@@ -72,12 +72,12 @@ extern "C" void input_reg_window(GLFWwindow* window)
     }
 }
 
-extern "C" GLFWwindow* input_get_focus(void)
+GLFWwindow* input_get_focus(void)
 {
     return ms_focused;
 }
 
-extern "C" void input_set_focus(GLFWwindow* window)
+void input_set_focus(GLFWwindow* window)
 {
     if (window)
     {
@@ -85,7 +85,7 @@ extern "C" void input_set_focus(GLFWwindow* window)
     }
 }
 
-extern "C" bool input_cursor_captured(GLFWwindow* window)
+bool input_cursor_captured(GLFWwindow* window)
 {
     i32 mode = 0;
     if (window)
@@ -95,7 +95,7 @@ extern "C" bool input_cursor_captured(GLFWwindow* window)
     return mode == GLFW_CURSOR_DISABLED;
 }
 
-extern "C" void input_capture_cursor(GLFWwindow* window, bool capture)
+void input_capture_cursor(GLFWwindow* window, bool capture)
 {
     if (window)
     {
@@ -104,56 +104,56 @@ extern "C" void input_capture_cursor(GLFWwindow* window, bool capture)
     }
 }
 
-extern "C" bool input_key(KeyCode key)
+bool input_key(KeyCode key)
 {
     ASSERT(key > KeyCode_Invalid);
     ASSERT(key < KeyCode_COUNT);
     return ms_keys[key];
 }
 
-extern "C" bool input_button(MouseButton button)
+bool input_button(MouseButton button)
 {
     ASSERT(button >= 0);
     ASSERT(button < NELEM(ms_buttons));
     return ms_buttons[button];
 }
 
-extern "C" bool input_keydown(KeyCode key)
+bool input_keydown(KeyCode key)
 {
     ASSERT(key > KeyCode_Invalid);
     ASSERT(key < KeyCode_COUNT);
     return ms_keys[key] && !ms_prevKeys[key];
 }
 
-extern "C" bool input_buttondown(MouseButton button)
+bool input_buttondown(MouseButton button)
 {
     ASSERT(button >= 0);
     ASSERT(button < NELEM(ms_buttons));
     return ms_buttons[button] && !ms_prevButtons[button];
 }
 
-extern "C" bool input_keyup(KeyCode key)
+bool input_keyup(KeyCode key)
 {
     ASSERT(key > KeyCode_Invalid);
     ASSERT(key < KeyCode_COUNT);
     return !ms_keys[key] && ms_prevKeys[key];
 }
 
-extern "C" bool input_buttonup(MouseButton button)
+bool input_buttonup(MouseButton button)
 {
     ASSERT(button >= 0);
     ASSERT(button < NELEM(ms_buttons));
     return !ms_buttons[button] && ms_prevButtons[button];
 }
 
-extern "C" float input_axis(MouseAxis axis)
+float input_axis(MouseAxis axis)
 {
     ASSERT(axis >= 0);
     ASSERT(axis < NELEM(ms_axis));
     return ms_axis[axis];
 }
 
-extern "C" float input_delta_axis(MouseAxis axis)
+float input_delta_axis(MouseAxis axis)
 {
     ASSERT(axis >= 0);
     ASSERT(axis < NELEM(ms_axis));
@@ -165,7 +165,7 @@ static void OnKey(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mod
     ms_keys[key] = action != GLFW_RELEASE ? 1 : 0;
     if (!input_cursor_captured(window))
     {
-        ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
+        igImplGlfw_KeyCallback(window, key, scancode, action, mods);
     }
 }
 
@@ -174,7 +174,7 @@ static void OnClick(GLFWwindow* window, i32 button, i32 action, i32 mods)
     ms_buttons[button] = action != GLFW_RELEASE ? 1 : 0;
     if (!input_cursor_captured(window))
     {
-        ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+        igImplGlfw_MouseButtonCallback(window, button, action, mods);
     }
 }
 
@@ -184,7 +184,7 @@ static void OnScroll(GLFWwindow* window, double xoffset, double yoffset)
     ms_axis[MouseAxis_ScrollY] += (float)yoffset;
     if (!input_cursor_captured(window))
     {
-        ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
+        igImplGlfw_ScrollCallback(window, xoffset, yoffset);
     }
 }
 
@@ -192,7 +192,7 @@ static void OnChar(GLFWwindow* window, u32 c)
 {
     if (!input_cursor_captured(window))
     {
-        ImGui_ImplGlfw_CharCallback(window, c);
+        igImplGlfw_CharCallback(window, c);
     }
 }
 

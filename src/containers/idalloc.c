@@ -2,6 +2,11 @@
 #include "allocator/allocator.h"
 #include <string.h>
 
+void idalloc_new(idalloc_t* ia)
+{
+    memset(ia, 0, sizeof(*ia));
+}
+
 void idalloc_del(idalloc_t* ia)
 {
     pim_free(ia->versions);
