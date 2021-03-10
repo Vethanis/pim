@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 project(pim_cmake)
 
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 99)
 
 #set(CMAKE_BUILD_TYPE Release)
 
@@ -41,7 +41,6 @@ add_executable(pim
     "submodules/imgui/imconfig.h"
     "submodules/imgui/imgui.cpp"
     "submodules/imgui/imgui.h"
-    "submodules/imgui/imgui_demo.cpp"
     "submodules/imgui/imgui_draw.cpp"
     "submodules/imgui/imgui_internal.h"
     "submodules/imgui/imgui_tables.cpp"

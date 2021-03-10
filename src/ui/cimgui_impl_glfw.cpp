@@ -50,15 +50,12 @@ PIM_C_END
 
 namespace ImGui
 {
-    bool ShowStyleSelector(char const *)
-    {
-        return false;
-    }
-
-    void ShowFontSelector(char const *)
-    {
-
-    }
+    bool ShowStyleSelector(char const *) { return false; }
+    void ShowFontSelector(char const *) {}
+    void ShowDemoWindow(bool *) {}
+    void ShowUserGuide(void) {}
+    void ShowStyleEditor(struct ImGuiStyle *) {}
+    void ShowAboutWindow(bool *) {}
 };
 
 #endif // IMGUI_DISABLE_DEMO_WINDOWS
