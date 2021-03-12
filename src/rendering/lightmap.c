@@ -1474,7 +1474,7 @@ static void BakeFn(void* pbase, i32 begin, i32 end)
             float4 ro = P;
             ro = f4_add(ro, f4_mulvs(TBN.c0, dt));
             ro = f4_add(ro, f4_mulvs(TBN.c1, db));
-            pt_result_t result = pt_trace_ray_retro(&sampler, scene, ro, rd);
+            pt_result_t result = pt_trace_ray(&sampler, scene, ro, rd);
             float weight = 1.0f / sampleCount;
             sampleCount += 1.0f;
             SG_Accumulate(

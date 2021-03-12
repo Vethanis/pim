@@ -10,9 +10,9 @@
 typedef struct task_ToLum
 {
     task_t task;
+    int2 size;
     const float4* light;
-    i32 lenPerJob;
-    float averages[kMaxThreads];
+    float* averages;
 } task_ToLum;
 
 static void CalcAverageFn(task_t* pbase, i32 begin, i32 end)
@@ -20,16 +20,15 @@ static void CalcAverageFn(task_t* pbase, i32 begin, i32 end)
     task_ToLum* task = (task_ToLum*)pbase;
     float* pim_noalias averages = task->averages;
     const float4* pim_noalias light = task->light;
-    const i32 lenPerJob = task->lenPerJob;
-    const float weight = 1.0f / lenPerJob;
+    const int2 size = task->size;
+    const float weight = 1.0f / size.x;
     for (i32 i = begin; i < end; ++i)
     {
-        const float4* pim_noalias jobLight = light + lenPerJob * i;
+        const float4* pim_noalias row = &light[size.x * i];
         float sum = 0.0f;
-        for (i32 j = 0; j < lenPerJob; ++j)
+        for (i32 j = 0; j < size.x; ++j)
         {
-            float lum = f4_perlum(jobLight[j]);
-            sum = weight * lum + sum;
+            sum += f4_avglum(row[j]) * weight;
         }
         averages[i] = sum;
     }
@@ -37,18 +36,18 @@ static void CalcAverageFn(task_t* pbase, i32 begin, i32 end)
 
 static float CalcAverage(const float4* light, int2 size)
 {
-    const i32 numthreads = task_thread_ct();
-    const i32 lenPerJob = (size.x * size.y) / numthreads;
     task_ToLum* task = tmp_calloc(sizeof(*task));
     task->light = light;
-    task->lenPerJob = lenPerJob;
-    task_run(&task->task, CalcAverageFn, numthreads);
+    task->size = size;
+    task->averages = tmp_calloc(sizeof(task->averages[0]) * size.y);
+    task_run(&task->task, CalcAverageFn, size.y);
+
     const float* pim_noalias averages = task->averages;
+    const float weight = 1.0f / size.y;
     float sum = 0.0f;
-    const float weight = 1.0f / numthreads;
-    for (i32 i = 0; i < numthreads; ++i)
+    for (i32 i = 0; i < size.y; ++i)
     {
-        sum = weight * averages[i] + sum;
+        sum += averages[i] * weight;
     }
     return sum;
 }

@@ -5,6 +5,7 @@
 #include "rendering/render_system.h"
 #include "rendering/texture.h"
 #include "rendering/mesh.h"
+#include "rendering/drawable.h"
 #include "assets/asset_system.h"
 #include "audio/audio_system.h"
 #include "ui/cimgui_ext.h"
@@ -14,9 +15,21 @@
 typedef struct edwin_s
 {
     const char* name;
-    bool enabled;
     void(*Draw)(bool* pEnabled);
+    bool enabled;
 } edwin_t;
+
+static edwin_t ms_windows[] =
+{
+    { "Assets", asset_gui },
+    { "Audio", audio_sys_ongui },
+    { "CVars", cvar_gui },
+    { "Drawables", drawables_gui },
+    { "Meshes", mesh_sys_gui },
+    { "Profiler", profile_gui },
+    { "Renderer", render_sys_gui },
+    { "Textures", texture_sys_gui },
+};
 
 // ----------------------------------------------------------------------------
 
@@ -25,20 +38,6 @@ static void FileMenuBar(void);
 static void EditMenuBar(void);
 static void WindowMenuBar(void);
 static void ShowWindows(void);
-
-// ----------------------------------------------------------------------------
-
-static edwin_t ms_windows[] =
-{
-    { "CVars", false, cvar_gui },
-    { "Assets", false, asset_gui },
-    { "Audio", false, audio_sys_ongui },
-    { "Profiler", false, profile_gui },
-    { "Renderer", false, render_sys_gui },
-    { "Textures", false, texture_sys_gui },
-    { "Meshes", false, mesh_sys_gui },
-    { "ImGui Demo", false, igShowDemoWindow },
-};
 
 // ----------------------------------------------------------------------------
 

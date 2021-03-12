@@ -383,6 +383,13 @@ pim_inline float2 VEC_CALL f2_unormerstep(float2 t)
     return y;
 }
 
+pim_inline float2 VEC_CALL f2_wrap(float2 x)
+{
+    x.x = f1_wrap(x.x);
+    x.y = f1_wrap(x.y);
+    return x;
+}
+
 pim_inline float2 VEC_CALL f2_reflect(float2 i, float2 n)
 {
     float2 nidn = f2_mul(n, f2_s(f2_dot(i, n)));

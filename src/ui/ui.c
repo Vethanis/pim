@@ -123,7 +123,7 @@ void ui_sys_init(GLFWwindow* window)
     cv_ui_opacity.desc = "UI Opacity";
     cvar_reg(&cv_ui_opacity);
     ASSERT(igDebugCheckVersionAndDataLayout(
-        IMGUI_VERSION,
+        "1.80", // cimgui does not export this! :(
         sizeof(ImGuiIO),
         sizeof(ImGuiStyle),
         sizeof(ImVec2),

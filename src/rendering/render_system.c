@@ -485,7 +485,7 @@ static void Cubemap_Trace(void)
             {
                 Cubemap_Bake(cubemap, ms_ptscene, box_center(bounds), weight);
             }
-            Cubemap_Convolve(cubemap, 256, weight);
+            Cubemap_Convolve(cubemap, 64, weight);
         }
 
         ProfileEnd(pm_CubemapTrace);
@@ -868,6 +868,7 @@ void render_sys_init(void)
     mesh_sys_init();
     model_sys_init();
     pt_sys_init();
+    drawables_init();
     EnsureFramebuf();
 
     ms_toneParams.x = 0.3f; // shoulder
@@ -901,6 +902,7 @@ void render_sys_update(void)
     mesh_sys_update();
     model_sys_update();
     pt_sys_update();
+    drawables_update();
 
     BakeSky();
     Lightmap_Trace();
@@ -919,6 +921,7 @@ void render_sys_shutdown(void)
 {
     ShutdownPtScene();
 
+    drawables_shutdown();
     pt_sys_shutdown();
     framebuf_destroy(GetFrontBuf());
     framebuf_destroy(GetBackBuf());

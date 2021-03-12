@@ -39,6 +39,11 @@ typedef struct ddrawables_s
     dbytes_t scales;
 } ddrawables_t;
 
+void drawables_init(void);
+void drawables_update(void);
+void drawables_shutdown(void);
+void drawables_gui(bool* enabled);
+
 drawables_t *const drawables_get(void);
 
 i32 drawables_add(drawables_t *const dr, guid_t name);
@@ -53,5 +58,6 @@ box_t drawables_bounds(drawables_t const *const dr);
 
 bool drawables_save(crate_t *const crate, drawables_t const *const src);
 bool drawables_load(crate_t *const crate, drawables_t *const dst);
+
 
 PIM_C_END

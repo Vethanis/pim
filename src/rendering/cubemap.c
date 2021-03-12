@@ -126,7 +126,7 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
         int2 coord = { fi % size, fi / size };
         float2 Xi = f2_tent(pt_sample_2d(&sampler));
         float4 dir = Cubemap_CalcDir(size, face, coord, Xi);
-        pt_result_t result = pt_trace_ray_retro(&sampler, scene, origin, dir);
+        pt_result_t result = pt_trace_ray(&sampler, scene, origin, dir);
         cm->color[face][fi] = f3_lerp(cm->color[face][fi], result.color, weight);
     }
     pt_sampler_set(sampler);

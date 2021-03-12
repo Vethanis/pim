@@ -20,7 +20,6 @@ typedef struct task_s
     i32 worksize;
     i32 head;
     i32 tail;
-    i32 index;
 } task_t;
 
 i32 task_thread_id(void);
