@@ -16,12 +16,6 @@
 #include <xmmintrin.h>
 #include <pmmintrin.h>
 
-typedef struct range_s
-{
-    i32 begin;
-    i32 end;
-} range_t;
-
 // ----------------------------------------------------------------------------
 
 static i32 ms_numthreads;
@@ -29,88 +23,40 @@ static i32 ms_worksplit;
 static i32 ms_numThreadsRunning;
 static i32 ms_running;
 static event_t ms_waitPush;
+static event_t ms_waitDone;
 static thread_t ms_threads[kMaxThreads];
 static ptrqueue_t ms_queues[kMaxThreads];
-static i32 ms_barrierIndex;
-static event_t ms_barriers[16];
 
 static pim_thread_local i32 ms_tid;
 
 // ----------------------------------------------------------------------------
 
-static event_t* GetBarrier(task_t* task)
-{
-    i32 slot = task->index & (NELEM(ms_barriers) - 1);
-    return &ms_barriers[slot];
-}
-
-ProfileMark(pm_barrier_wake, task_barrier_wake)
-ProfileMark(pm_barrier_sleep, task_barrier_sleep)
-static void UpdateBarrier(task_t* task)
-{
-    event_t* barrier = GetBarrier(task);
-    if (task_stat(task) == TaskStatus_Complete)
-    {
-        ProfileBegin(pm_barrier_wake);
-        event_wakeall(barrier);
-        ProfileEnd(pm_barrier_wake);
-    }
-    else
-    {
-        ProfileBegin(pm_barrier_sleep);
-        while (task_stat(task) != TaskStatus_Complete)
-        {
-            event_wait(barrier);
-        }
-        ProfileEnd(pm_barrier_sleep);
-    }
-}
-
-static i32 StealWork(
-    task_t *const pim_noalias task,
-    range_t *const pim_noalias range,
-    i32 granularity)
-{
-    const i32 wsize = task->worksize;
-    const i32 a = fetch_add_i32(&task->head, granularity, MO_Acquire);
-    const i32 b = i1_min(a + granularity, wsize);
-    range->begin = a;
-    range->end = b;
-    return a < b;
-}
-
-static i32 UpdateProgress(
-    task_t *const pim_noalias task,
-    range_t range)
-{
-    const i32 wsize = task->worksize;
-    const i32 count = range.end - range.begin;
-    const i32 prev = fetch_add_i32(&task->tail, count, MO_Release);
-    ASSERT(prev < wsize);
-    return (prev + count) >= wsize;
-}
-
-static void MarkComplete(task_t *const pim_noalias task)
-{
-    store_i32(&task->status, TaskStatus_Complete, MO_Release);
-}
-
 static bool ExecuteTask(task_t* task)
 {
     if (task)
     {
-        const i32 gran = i1_max(1, task->worksize / ms_worksplit);
+        const i32 wsize = task->worksize;
+        const i32 gran = i1_max(1, wsize / ms_worksplit);
         const task_execute_fn fn = task->execute;
-        range_t range;
-        while (StealWork(task, &range, gran))
+
+        i32 a = fetch_add_i32(&task->head, gran, MO_AcqRel);
+        i32 b = i1_min(a + gran, wsize);
+        while (a < b)
         {
-            fn(task, range.begin, range.end);
-            if (UpdateProgress(task, range))
+            fn(task, a, b);
+
+            const i32 count = b - a;
+            const i32 prev = fetch_add_i32(&task->tail, count, MO_AcqRel);
+            ASSERT(prev < wsize);
+            if ((prev + count) >= wsize)
             {
-                MarkComplete(task);
+                store_i32(&task->status, TaskStatus_Complete, MO_Release);
+                event_wakeall(&ms_waitDone);
+                break;
             }
+            a = fetch_add_i32(&task->head, gran, MO_AcqRel);
+            b = i1_min(a + gran, wsize);
         }
-        UpdateBarrier(task);
     }
     return task != NULL;
 }
@@ -126,11 +72,11 @@ static i32 TaskLoop(void* arg)
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
 
-    const i32 tid = inc_i32(&ms_numThreadsRunning, MO_Acquire) + 1;
+    const i32 tid = inc_i32(&ms_numThreadsRunning, MO_AcqRel) + 1;
     ASSERT(tid);
     ms_tid = tid;
 
-    while (load_i32(&ms_running, MO_Relaxed))
+    while (load_i32(&ms_running, MO_Acquire))
     {
         if (!TryRunTask(tid))
         {
@@ -138,7 +84,7 @@ static i32 TaskLoop(void* arg)
         }
     }
 
-    dec_i32(&ms_numThreadsRunning, MO_Release);
+    dec_i32(&ms_numThreadsRunning, MO_AcqRel);
 
     return 0;
 }
@@ -175,7 +121,6 @@ void task_submit(void* pbase, task_execute_fn execute, i32 worksize)
         store_i32(&task->worksize, worksize, MO_Release);
         store_i32(&task->head, 0, MO_Release);
         store_i32(&task->tail, 0, MO_Release);
-        store_i32(&task->index, inc_i32(&ms_barrierIndex, MO_Acquire), MO_Release);
 
         const i32 tid = ms_tid;
         const i32 numthreads = ms_numthreads;
@@ -192,16 +137,26 @@ void task_submit(void* pbase, task_execute_fn execute, i32 worksize)
     }
 }
 
-ProfileMark(pm_await, task_await)
+ProfileMark(pm_exec, task_exec);
+ProfileMark(pm_await, task_await);
 void task_await(void* pbase)
 {
     task_t* task = pbase;
     if (task)
     {
-        ProfileBegin(pm_await);
-
+        ProfileBegin(pm_exec);
         ExecuteTask(task);
+        ProfileEnd(pm_exec);
 
+        ProfileBegin(pm_await);
+        const i32 tid = ms_tid;
+        while (task_stat(task) != TaskStatus_Complete)
+        {
+            if (!TryRunTask(tid))
+            {
+                event_wait(&ms_waitDone);
+            }
+        }
         ProfileEnd(pm_await);
     }
 }
@@ -237,10 +192,7 @@ void task_sys_init(void)
     intrin_clockres_begin(1);
 
     event_create(&ms_waitPush);
-    for (i32 i = 0; i < NELEM(ms_barriers); ++i)
-    {
-        event_create(&ms_barriers[i]);
-    }
+    event_create(&ms_waitDone);
     store_i32(&ms_running, 1, MO_Release);
 
     const i32 numthreads = i1_min(kMaxThreads, thread_hardware_count());
@@ -276,24 +228,18 @@ void task_sys_update(void)
 void task_sys_shutdown(void)
 {
     store_i32(&ms_running, 0, MO_Release);
-    while (load_i32(&ms_numThreadsRunning, MO_Acquire) > 0)
-    {
-        event_wakeall(&ms_waitPush);
-        intrin_yield();
-    }
+    event_wakeall(&ms_waitDone);
+    event_wakeall(&ms_waitPush);
     const i32 numthreads = ms_numthreads;
     for (i32 t = 1; t < numthreads; ++t)
     {
-        thread_join(ms_threads + t);
-        ptrqueue_destroy(ms_queues + t);
+        thread_join(&ms_threads[t]);
+        ptrqueue_destroy(&ms_queues[t]);
     }
-    ptrqueue_destroy(ms_queues + 0);
+    ptrqueue_destroy(&ms_queues[0]);
 
-    for (i32 i = 0; i < NELEM(ms_barriers); ++i)
-    {
-        event_destroy(&ms_barriers[i]);
-    }
     event_destroy(&ms_waitPush);
+    event_destroy(&ms_waitDone);
     intrin_clockres_end(1);
 
     memset(ms_threads, 0, sizeof(ms_threads));

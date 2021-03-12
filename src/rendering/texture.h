@@ -59,6 +59,7 @@ texture_t* texture_get(textureid_t id);
 
 bool texture_find(guid_t name, textureid_t* idOut);
 bool texture_getname(textureid_t id, guid_t* nameOut);
+bool texture_getnamestr(textureid_t tid, char* dst, i32 size);
 
 bool texture_save(crate_t* crate, textureid_t tid, guid_t* dst);
 bool texture_load(crate_t* crate, guid_t name, textureid_t* dst);

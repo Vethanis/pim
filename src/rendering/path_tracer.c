@@ -3082,6 +3082,7 @@ typedef struct pt_raygen_s
     float4 origin;
     float4* colors;
     float4* directions;
+    float2 Xi;
 } pt_raygen_t;
 
 static void RayGenFn(void* pBase, i32 begin, i32 end)
@@ -3090,17 +3091,22 @@ static void RayGenFn(void* pBase, i32 begin, i32 end)
     pt_scene_t*const pim_noalias scene = task->scene;
     const float4 ro = task->origin;
 
-    float4*const pim_noalias colors = task->colors;
-    float4*const pim_noalias directions = task->directions;
+    float4 *const pim_noalias colors = task->colors;
+    float4 *const pim_noalias directions = task->directions;
 
     pt_sampler_t sampler = GetSampler();
+    const float2 kConjugates = { kGoldenRatio - 1.0f, kSqrt2 - 1.0f };
+    float2 Xi = f2_fmod(f2_add(task->Xi, f2_mulvs(kConjugates, (float)begin)), f2_1);
+
     for (i32 i = begin; i < end; ++i)
     {
-        float4 rd = SampleUnitSphere(Sample2D(&sampler));
+        float4 rd = SampleUnitSphere(Xi);
         directions[i] = rd;
         pt_result_t result = pt_trace_ray(&sampler, scene, ro, rd);
         colors[i] = f3_f4(result.color, 1.0f);
+        Xi = f2_wrap(f2_add(Xi, kConjugates));
     }
+
     SetSampler(sampler);
 }
 
@@ -3117,11 +3123,15 @@ pt_results_t pt_raygen(
 
     pt_scene_update(scene);
 
+    pt_sampler_t sampler = GetSampler();
     pt_raygen_t *const pim_noalias task = tmp_calloc(sizeof(*task));
     task->scene = scene;
     task->origin = origin;
     task->colors = tmp_malloc(sizeof(task->colors[0]) * count);
     task->directions = tmp_malloc(sizeof(task->directions[0]) * count);
+    task->Xi = Sample2D(&sampler);
+    SetSampler(sampler);
+
     task_run(task, RayGenFn, count);
 
     pt_results_t results =

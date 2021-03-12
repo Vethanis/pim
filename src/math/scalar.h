@@ -182,6 +182,11 @@ pim_inline float VEC_CALL f1_smootherstep(float a, float b, float x)
     return f1_unormerstep(f1_unlerp(a, b, x));
 }
 
+pim_inline float VEC_CALL f1_wrap(float x)
+{
+    return (x > 1.0f) ? x - 1.0f : x;
+}
+
 pim_inline float VEC_CALL f1_reflect(float i, float n)
 {
     return i - 2.0f * (n * i * n);

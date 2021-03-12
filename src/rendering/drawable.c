@@ -17,10 +17,26 @@
 #include "io/fstr.h"
 #include "threading/task.h"
 #include "assets/crate.h"
+#include "ui/cimgui_ext.h"
 #include <string.h>
 
 static drawables_t ms_drawables;
 drawables_t *const drawables_get(void) { return &ms_drawables; }
+
+void drawables_init(void)
+{
+
+}
+
+void drawables_update(void)
+{
+
+}
+
+void drawables_shutdown(void)
+{
+    drawables_del(drawables_get());
+}
 
 i32 drawables_add(drawables_t *const dr, guid_t name)
 {
@@ -332,4 +348,71 @@ bool drawables_load(crate_t *const crate, drawables_t *const dst)
     }
 
     return loaded;
+}
+
+ProfileMark(pm_gui, drawables_gui)
+void drawables_gui(bool* enabled)
+{
+    ProfileBegin(pm_gui);
+
+    if (igBegin("Drawables", enabled, 0))
+    {
+        drawables_t* dr = drawables_get();
+        for (i32 iDrawable = 0; iDrawable < dr->count; ++iDrawable)
+        {
+            igPushIDPtr(&dr->names[iDrawable]);
+            char name[PIM_PATH] = { 0 };
+            guid_get_name(dr->names[iDrawable], ARGS(name));
+
+            if (igTreeNodeStr(name))
+            {
+                if (igTreeNodeStr("Material"))
+                {
+                    material_t* mat = &dr->materials[iDrawable];
+
+                    char texname[PIM_PATH];
+                    texture_getnamestr(mat->albedo, ARGS(texname));
+                    igText("Albedo: %s", texname);
+                    texture_getnamestr(mat->rome, ARGS(texname));
+                    igText("Rome: %s", texname);
+                    texture_getnamestr(mat->normal, ARGS(texname));
+                    igText("Normal: %s", texname);
+
+                    bool flagBits[10];
+                    char const *const flagNames[10] =
+                    {
+                        "Emissive",
+                        "Sky",
+                        "Water",
+                        "Slime",
+                        "Lava",
+                        "Refractive",
+                        "Warped",
+                        "Animated",
+                        "Underwater",
+                        "Portal",
+                    };
+                    matflag_t flag = mat->flags;
+                    for (u32 iBit = 0; iBit < NELEM(flagBits); ++iBit)
+                    {
+                        const u32 mask = 1u << iBit;
+                        flagBits[iBit] = (flag & mask) != 0;
+                        igCheckbox(flagNames[iBit], &flagBits[iBit]);
+                        flag = (flagBits[iBit]) ? (flag | mask) : (flag & (~mask));
+                    }
+                    mat->flags = flag;
+
+                    igExSliderFloat("Index of Refraction", &mat->ior, 0.01f, 10.0f);
+                    igExSliderFloat("Bumpiness", &mat->bumpiness, 0.0f, 10.0f);
+                    igTreePop();
+                }
+                igTreePop();
+            }
+
+            igPopID();
+        }
+    }
+    igEnd();
+
+    ProfileEnd(pm_gui);
 }
