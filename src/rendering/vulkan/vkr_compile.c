@@ -143,7 +143,7 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
     g_shaderc.compile_options_set_auto_map_locations(options, true);
     g_shaderc.compile_options_set_hlsl_io_mapping(options, true);
     g_shaderc.compile_options_set_hlsl_offsets(options, true);
-    g_shaderc.compile_options_set_hlsl_functionality1(options, true);
+    //g_shaderc.compile_options_set_hlsl_functionality1(options, true);
     g_shaderc.compile_options_set_nan_clamp(options, false);
 
     {
