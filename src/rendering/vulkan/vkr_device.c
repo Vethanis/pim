@@ -8,6 +8,30 @@
 #include <GLFW/glfw3.h>
 #include <string.h>
 
+static const char* const kRequiredDevExtensions[] =
+{
+    // https://www.khronos.org/registry/vulkan/specs/1.0-wsi_extensions/html/vkspec.html#VK_KHR_swapchain
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    //VK_GOOGLE_HLSL_FUNCTIONALITY1_EXTENSION_NAME,
+};
+
+static const char* const kDesiredDevExtensions[] =
+{
+    VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,
+    VK_NV_RAY_TRACING_EXTENSION_NAME,
+    VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME,
+    VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
+    VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
+    VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
+    VK_KHR_DRAW_INDIRECT_COUNT_EXTENSION_NAME,
+    VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME,
+    VK_KHR_BIND_MEMORY_2_EXTENSION_NAME,
+    VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
+    VK_KHR_SPIRV_1_4_EXTENSION_NAME,
+    VK_NV_MESH_SHADER_EXTENSION_NAME,
+    VK_EXT_HDR_METADATA_EXTENSION_NAME,
+};
+
 bool vkrDevice_Init(vkr_t* vkr)
 {
     ASSERT(vkr);
@@ -90,29 +114,6 @@ void vkrListDevExtensions(VkPhysicalDevice phdev)
         con_logf(LogSev_Info, "vkr", props[i].extensionName);
     }
 }
-
-static const char* const kRequiredDevExtensions[] =
-{
-    // https://www.khronos.org/registry/vulkan/specs/1.0-wsi_extensions/html/vkspec.html#VK_KHR_swapchain
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-};
-
-static const char* const kDesiredDevExtensions[] =
-{
-    VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,
-    VK_NV_RAY_TRACING_EXTENSION_NAME,
-    VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME,
-    VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
-    VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
-    VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
-    VK_KHR_DRAW_INDIRECT_COUNT_EXTENSION_NAME,
-    VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME,
-    VK_KHR_BIND_MEMORY_2_EXTENSION_NAME,
-    VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
-    VK_KHR_SPIRV_1_4_EXTENSION_NAME,
-    VK_NV_MESH_SHADER_EXTENSION_NAME,
-    VK_EXT_HDR_METADATA_EXTENSION_NAME,
-};
 
 strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev)
 {
