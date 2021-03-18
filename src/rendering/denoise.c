@@ -157,8 +157,8 @@ static OIDNFilter NewFilter(const CacheKey* key)
 
 static u32 HashKey(const CacheKey* key)
 {
-	u32 hash = Fnv32Bytes(key, sizeof(*key), Fnv32Bias);
-	hash = hash ? hash : 1;
+    u32 hash = Fnv32Bytes(key, sizeof(*key), Fnv32Bias);
+    hash = hash ? hash : 1;
     return hash;
 }
 
@@ -171,14 +171,14 @@ static i32 FindFilter(const CacheKey* key)
     for (i32 i = 0; i < kMaxCachedFilters; ++i)
     {
         if (hash == hashes[i])
-		{
-			if (values[i])
-			{
-				if (memcmp(key, keys + i, sizeof(CacheKey)) == 0)
-				{
-					return i;
-				}
-			}
+        {
+            if (values[i])
+            {
+                if (memcmp(key, keys + i, sizeof(CacheKey)) == 0)
+                {
+                    return i;
+                }
+            }
         }
     }
     return -1;
@@ -206,13 +206,13 @@ static OIDNFilter GetFilter(const CacheKey* key)
 {
     i32 i = FindFilter(key);
     if (i == -1)
-	{
-		i = FindLRU();
-		if (ms_cacheValues[i])
-		{
-			oidn.oidnReleaseFilter(ms_cacheValues[i]);
-			ms_cacheValues[i] = NULL;
-		}
+    {
+        i = FindLRU();
+        if (ms_cacheValues[i])
+        {
+            oidn.oidnReleaseFilter(ms_cacheValues[i]);
+            ms_cacheValues[i] = NULL;
+        }
 
         OIDNFilter newFilter = NewFilter(key);
         if (!newFilter)
@@ -247,8 +247,8 @@ bool Denoise(
     }
 
     if (!color || !output)
-	{
-		success = false;
+    {
+        success = false;
         goto onreturn;
     }
 
@@ -264,16 +264,16 @@ bool Denoise(
 
     OIDNFilter filter = GetFilter(&key);
     if (!filter)
-	{
-		success = false;
+    {
+        success = false;
         goto onreturn;
     }
 
     oidn.oidnExecuteFilter(filter);
 
     if (LogErrors())
-	{
-		success = false;
+    {
+        success = false;
         goto onreturn;
     }
 

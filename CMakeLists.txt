@@ -8,7 +8,7 @@ set(CMAKE_C_STANDARD 99)
 
 if (WIN32)
     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /Oi /GL")
-    set(CMAKE_CXX_FLAGS "/W3 /WX /MP /permissive- /GR- /GS- /arch:AVX2 /fp:fast /fp:except-")
+    set(CMAKE_CXX_FLAGS "/W3 /WX /MP /Zi /permissive- /GR- /GS- /arch:AVX2 /fp:fast /fp:except-")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/OPT:REF /OPT:ICF /LTCG")
     SET(CMAKE_EXE_LINKER_FLAGS "/WX /DEBUG:FULL /INCREMENTAL:NO")
 endif()
