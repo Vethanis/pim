@@ -36,7 +36,7 @@ typedef struct mat_preset_s
     float emission;
 } mat_preset_t;
 
-static cvar_t cv_model_bumpiness =
+static ConVar_t cv_model_bumpiness =
 {
     .type = cvart_float,
     .name = "model_bumpiness",
@@ -46,7 +46,7 @@ static cvar_t cv_model_bumpiness =
     .maxFloat = 11.0f,
 };
 
-static cvar_t cv_tex_custom =
+static ConVar_t cv_tex_custom =
 {
     .type = cvart_bool,
     .name = "tex_custom",
@@ -188,10 +188,10 @@ static i32 FindPreset(char const *const name)
     return -1;
 }
 
-static material_t GenMaterial(
+static Material GenMaterial(
     mtexture_t const *const mtex)
 {
-    material_t material = { 0 };
+    Material material = { 0 };
     material.ior = 1.0f;
     material.bumpiness = cvar_get_float(&cv_model_bumpiness);
     if (!mtex)
@@ -302,8 +302,8 @@ static material_t GenMaterial(
     };
 
     char names[texslot_COUNT][PIM_PATH] = { 0 };
-    guid_t guids[texslot_COUNT] = { 0 };
-    textureid_t ids[texslot_COUNT] = { 0 };
+    Guid guids[texslot_COUNT] = { 0 };
+    TextureId ids[texslot_COUNT] = { 0 };
     SPrintf(ARGS(names[texslot_albedo]), "%s_albedo", mtex->name);
     SPrintf(ARGS(names[texslot_rome]), "%s_rome", mtex->name);
     SPrintf(ARGS(names[texslot_normal]), "%s_normal", mtex->name);
@@ -327,7 +327,7 @@ static material_t GenMaterial(
             }
             char path[PIM_PATH];
             SPrintf(ARGS(path), "data/id1/textures/%s.png", names[i]);
-            texture_t tex = { 0 };
+            Texture tex = { 0 };
             i32 comp = 0;
             VkFormat format = 0;
             switch (i)
@@ -347,7 +347,7 @@ static material_t GenMaterial(
             }
             if (tex.texels)
             {
-                textureid_t customId = { 0 };
+                TextureId customId = { 0 };
                 if (texture_new(&tex, format, guids[i], &customId))
                 {
                     texture_release(ids[i]);
@@ -364,7 +364,7 @@ static material_t GenMaterial(
     }
     if (!hasAll)
     {
-        textureid_t baseIds[3] = { 0 };
+        TextureId baseIds[3] = { 0 };
         hasAll = texture_unpalette(
             mip0,
             size,
@@ -463,14 +463,14 @@ static i32 FlattenSurface(
     return resLen;
 }
 
-static void AssignMaterial(mesh_t *const mesh, material_t material)
+static void AssignMaterial(Mesh *const mesh, Material material)
 {
     const i32 len = mesh->length;
     if (len > 0)
     {
         int4 texIndex = { 0, 0, 0, 0 };
         {
-            const texture_t* tex = texture_get(material.albedo);
+            const Texture* tex = texture_get(material.albedo);
             if (tex)
             {
                 texIndex.x = tex->slot.index;
@@ -495,7 +495,7 @@ static void AssignMaterial(mesh_t *const mesh, material_t material)
     }
 }
 
-static mesh_t VEC_CALL TrisToMesh(
+static Mesh VEC_CALL TrisToMesh(
     mmodel_t const *const model,
     float4x4 M,
     msurface_t const *const surface,
@@ -582,7 +582,7 @@ static mesh_t VEC_CALL TrisToMesh(
         vertsEmit += 3;
     }
 
-    mesh_t mesh = { 0 };
+    Mesh mesh = { 0 };
     if (vertsEmit > 0)
     {
         ASSERT(vertsEmit <= indexCount);
@@ -601,7 +601,7 @@ static mesh_t VEC_CALL TrisToMesh(
     return mesh;
 }
 
-static void FixZFighting(mesh_t mesh)
+static void FixZFighting(Mesh mesh)
 {
     const i32 len = mesh.length;
     float4 const *const pim_noalias normals = mesh.normals;
@@ -628,8 +628,8 @@ static float4x4 VEC_CALL QuakeToRhsMeters(void)
 }
 
 static void MergeMesh(
-    mesh_t *const dst,
-    mesh_t *const src)
+    Mesh *const dst,
+    Mesh *const src)
 {
     i32 back = dst->length;
     i32 addlen = src->length;
@@ -647,16 +647,16 @@ static void MergeMesh(
     memset(src, 0, sizeof(*src));
 }
 
-static guid_t CreateDrawable(
-    drawables_t *const dr,
-    mesh_t *const mesh,
+static Guid CreateDrawable(
+    Entities *const dr,
+    Mesh *const mesh,
     const char* modelName,
     i32 surfIndex,
     const mtexture_t* mtex)
 {
     if (mesh->length <= 0)
     {
-        return (guid_t) { 0 };
+        return (Guid) { 0 };
     }
     const char* texname = mtex ? mtex->name : "null";
     if ((texname[0] == '*') || (texname[0] == '+'))
@@ -664,14 +664,14 @@ static guid_t CreateDrawable(
         FixZFighting(*mesh);
     }
 
-    material_t mat = GenMaterial(mtex);
+    Material mat = GenMaterial(mtex);
     AssignMaterial(mesh, mat);
 
     char name[PIM_PATH] = { 0 };
     SPrintf(ARGS(name), "%s:%d:%s", modelName, surfIndex, texname);
-    guid_t guid = guid_str(name);
+    Guid guid = guid_str(name);
 
-    meshid_t meshid = { 0 };
+    MeshId meshid = { 0 };
     if (mesh_new(mesh, guid, &meshid))
     {
         i32 c = drawables_add(dr, guid);
@@ -716,7 +716,7 @@ void model_sys_shutdown(void)
 
 }
 
-void ModelToDrawables(mmodel_t const *const model, drawables_t *const dr)
+void ModelToDrawables(mmodel_t const *const model, Entities *const dr)
 {
     ASSERT(model);
 
@@ -746,7 +746,7 @@ void ModelToDrawables(mmodel_t const *const model, drawables_t *const dr)
     i32* polygon = NULL;
     i32* tris = NULL;
     u64 prevHash = 0;
-    mesh_t prevMesh = { 0 };
+    Mesh prevMesh = { 0 };
     const mtexture_t* prevTex = NULL;
     i32 prevSurf = -1;
     for (i32 i = 0; i < numsurfaces; ++i)
@@ -777,7 +777,7 @@ void ModelToDrawables(mmodel_t const *const model, drawables_t *const dr)
             continue;
         }
 
-        mesh_t mesh = TrisToMesh(model, M, surface, tris, vertCount);
+        Mesh mesh = TrisToMesh(model, M, surface, tris, vertCount);
         if (hashes[j] == prevHash)
         {
             MergeMesh(&prevMesh, &mesh);
@@ -832,7 +832,7 @@ void LoadProgs(mmodel_t const *const model, bool loadlights)
             float yaw = ent.playerstart.angle;
             quat rot = quat_angleaxis(yaw, f4_y);
             pt = f4x4_mul_pt(M, pt);
-            camera_t camera;
+            Camera camera;
             camera_get(&camera);
             camera.position = pt;
             camera.rotation = rot;
@@ -843,7 +843,7 @@ void LoadProgs(mmodel_t const *const model, bool loadlights)
     progs_del(&progs);
 }
 
-bool LoadModelAsDrawables(const char* name, drawables_t *const dr, bool loadlights)
+bool LoadModelAsDrawables(const char* name, Entities *const dr, bool loadlights)
 {
     asset_t asset = { 0 };
     if (asset_get(name, &asset))

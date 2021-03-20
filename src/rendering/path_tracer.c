@@ -52,7 +52,7 @@ typedef struct surfhit_s
     float occlusion;
     float metallic;
     float ior;
-    matflag_t flags;
+    MatFlag flags;
     hittype_t type;
 } surfhit_t;
 
@@ -139,9 +139,9 @@ typedef struct pt_scene_s
 
     // surface description, indexed by matIds
     // [matCount]
-    material_t* pim_noalias materials;
+    Material* pim_noalias materials;
 
-    cubemap_t* pim_noalias sky;
+    Cubemap* pim_noalias sky;
 
     // array lengths
     i32 vertCount;
@@ -197,7 +197,7 @@ pim_inline float2 VEC_CALL GetUV(
     const pt_scene_t *const pim_noalias scene,
     rayhit_t hit);
 pim_inline float VEC_CALL GetArea(const pt_scene_t*const pim_noalias scene, i32 iVert);
-pim_inline material_t const *const pim_noalias VEC_CALL GetMaterial(
+pim_inline Material const *const pim_noalias VEC_CALL GetMaterial(
     const pt_scene_t*const pim_noalias scene,
     rayhit_t hit);
 pim_inline float4 VEC_CALL GetSky(
@@ -333,7 +333,7 @@ pim_inline void VEC_CALL LightOnHit(
     float4 lum,
     i32 iVert);
 static void UpdateDists(pt_scene_t *const pim_noalias scene);
-static void DofUpdate(pt_trace_t* trace, const camera_t* camera);
+static void DofUpdate(pt_trace_t* trace, const Camera* camera);
 
 // ----------------------------------------------------------------------------
 
@@ -405,7 +405,7 @@ pim_inline float2 VEC_CALL DofPrng(pt_sampler_t *const pim_noalias sampler)
 }
 // ----------------------------------------------------------------------------
 
-static cvar_t cv_pt_dist_meters =
+static ConVar_t cv_pt_dist_meters =
 {
     .type = cvart_float,
     .name = "pt_dist_meters",
@@ -415,7 +415,7 @@ static cvar_t cv_pt_dist_meters =
     .desc = "path tracer light distribution meters per cell"
 };
 
-static cvar_t cv_pt_dist_alpha =
+static ConVar_t cv_pt_dist_alpha =
 {
     .type = cvart_float,
     .name = "pt_dist_alpha",
@@ -425,7 +425,7 @@ static cvar_t cv_pt_dist_alpha =
     .desc = "path tracer light distribution update amount",
 };
 
-static cvar_t cv_pt_dist_samples =
+static ConVar_t cv_pt_dist_samples =
 {
     .type = cvart_int,
     .name = "pt_dist_samples",
@@ -435,7 +435,7 @@ static cvar_t cv_pt_dist_samples =
     .desc = "path tracer light distribution minimum samples per update",
 };
 
-static cvar_t cv_pt_retro =
+static ConVar_t cv_pt_retro =
 {
     .type = cvart_bool,
     .name = "pt_retro",
@@ -771,11 +771,11 @@ static RTCScene RtcNewScene(const pt_scene_t*const pim_noalias scene)
 
 static void FlattenDrawables(pt_scene_t*const pim_noalias scene)
 {
-    const drawables_t* drawTable = drawables_get();
+    const Entities* drawTable = drawables_get();
     const i32 drawCount = drawTable->count;
-    const meshid_t* meshes = drawTable->meshes;
+    const MeshId* meshes = drawTable->meshes;
     const float4x4* matrices = drawTable->matrices;
-    const material_t* materials = drawTable->materials;
+    const Material* materials = drawTable->materials;
 
     i32 vertCount = 0;
     float4* positions = NULL;
@@ -784,11 +784,11 @@ static void FlattenDrawables(pt_scene_t*const pim_noalias scene)
     i32* matIds = NULL;
 
     i32 matCount = 0;
-    material_t* sceneMats = NULL;
+    Material* sceneMats = NULL;
 
     for (i32 i = 0; i < drawCount; ++i)
     {
-        mesh_t const *const mesh = mesh_get(meshes[i]);
+        Mesh const *const mesh = mesh_get(meshes[i]);
         if (!mesh)
         {
             continue;
@@ -806,7 +806,7 @@ static void FlattenDrawables(pt_scene_t*const pim_noalias scene)
 
         const float4x4 M = matrices[i];
         const float3x3 IM = f3x3_IM(M);
-        const material_t material = materials[i];
+        const Material material = materials[i];
 
         PermReserve(positions, vertCount);
         PermReserve(normals, vertCount);
@@ -862,14 +862,14 @@ static float EmissionPdf(
     i32 attempts)
 {
     const i32 iMat = scene->matIds[iVert];
-    const material_t* mat = scene->materials + iMat;
+    const Material* mat = scene->materials + iMat;
 
     if (mat->flags & matflag_sky)
     {
         return 1.0f;
     }
 
-    texture_t const *const romeMap = texture_get(mat->rome);
+    Texture const *const romeMap = texture_get(mat->rome);
     if (!romeMap)
     {
         return 0.0f;
@@ -962,7 +962,7 @@ static void SetupPortals(pt_scene_t* scene)
     i32 portalCount = 0;
     i32* pim_noalias portals = NULL;
     const i32 matCount = scene->matCount;
-    const material_t* materials = scene->materials;
+    const Material* materials = scene->materials;
     const i32 vertCount = scene->vertCount;
     const i32* pim_noalias matIds = scene->matIds;
     for (i32 iVert = 0; iVert < vertCount; iVert += 3)
@@ -970,7 +970,7 @@ static void SetupPortals(pt_scene_t* scene)
         i32 iMat = matIds[iVert];
         ASSERT(iMat >= 0);
         ASSERT(iMat < matCount);
-        const material_t* material = &materials[iMat];
+        const Material* material = &materials[iMat];
         if (material->flags & matflag_portal)
         {
             ++portalCount;
@@ -999,7 +999,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
 
     float4 const *const pim_noalias positions = scene->positions;
     i32 const *const pim_noalias matIds = scene->matIds;
-    material_t const *const pim_noalias materials = scene->materials;
+    Material const *const pim_noalias materials = scene->materials;
 
     const i32 emissiveCount = scene->emissiveCount;
     i32 const *const pim_noalias emitToVert = scene->emitToVert;
@@ -1097,7 +1097,7 @@ static void SetupLightGrid(pt_scene_t*const pim_noalias scene)
 {
     if (scene->vertCount > 0)
     {
-        box_t bounds = box_from_pts(scene->positions, scene->vertCount);
+        Box3D bounds = box_from_pts(scene->positions, scene->vertCount);
         float metersPerCell = cvar_get_float(&cv_pt_dist_meters);
         grid_t grid;
         grid_new(&grid, bounds, 1.0f / metersPerCell);
@@ -1116,8 +1116,8 @@ ProfileMark(pm_scene_update, pt_scene_update)
 void pt_scene_update(pt_scene_t *const pim_noalias scene)
 {
     ProfileBegin(pm_scene_update);
-    guid_t skyname = guid_str("sky");
-    cubemaps_t* maps = Cubemaps_Get();
+    Guid skyname = guid_str("sky");
+    Cubemaps* maps = Cubemaps_Get();
     i32 iSky = Cubemaps_Find(maps, skyname);
     scene->sky = NULL;
     if (iSky != -1)
@@ -1330,7 +1330,7 @@ pim_inline float VEC_CALL GetArea(const pt_scene_t *const pim_noalias scene, i32
     return TriArea3D(positions[iVert + 0], positions[iVert + 1], positions[iVert + 2]);
 }
 
-pim_inline material_t const *const pim_noalias VEC_CALL GetMaterial(
+pim_inline Material const *const pim_noalias VEC_CALL GetMaterial(
     const pt_scene_t *const pim_noalias scene,
     rayhit_t hit)
 {
@@ -1349,7 +1349,7 @@ pim_inline float4 VEC_CALL TriplaneBlending(float4 dir)
     return f4_divvs(a, a.x + a.y + a.z + kEpsilon);
 }
 
-pim_inline float4 VEC_CALL SampleSkyTex(const texture_t* tex, float2 uv)
+pim_inline float4 VEC_CALL SampleSkyTex(const Texture* tex, float2 uv)
 {
     float duration = kTau;// (float)time_sec(time_framestart() - time_appstart());
     float2 topUv = uv;
@@ -1368,7 +1368,7 @@ pim_inline float4 VEC_CALL SampleSkyTex(const texture_t* tex, float2 uv)
     return albedo;
 }
 
-pim_inline float4 VEC_CALL TriplaneSampleSkyTex(const texture_t* tex, float4 dir, float4 pos)
+pim_inline float4 VEC_CALL TriplaneSampleSkyTex(const Texture* tex, float4 dir, float4 pos)
 {
     float4 b = TriplaneBlending(dir);
     float4 x = f4_mulvs(SampleSkyTex(tex, f2_v(pos.z, pos.y)), b.x);
@@ -1385,8 +1385,8 @@ pim_inline float4 VEC_CALL GetSky(
 {
     if (cvar_get_bool(&cv_pt_retro))
     {
-        const material_t* mat = GetMaterial(scene, hit);
-        const texture_t* tex = texture_get(mat->albedo);
+        const Material* mat = GetMaterial(scene, hit);
+        const Texture* tex = texture_get(mat->albedo);
         if (tex)
         {
             return SampleSkyTex(tex, GetUV(scene, hit));
@@ -1412,11 +1412,11 @@ pim_inline float4 VEC_CALL GetEmission(
     }
     else
     {
-        material_t const *const pim_noalias mat = GetMaterial(scene, hit);
+        Material const *const pim_noalias mat = GetMaterial(scene, hit);
         float2 uv = GetUV(scene, hit);
         float4 albedo = f4_1;
         {
-            texture_t const *const tex = texture_get(mat->albedo);
+            Texture const *const tex = texture_get(mat->albedo);
             if (tex)
             {
                 albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
@@ -1424,7 +1424,7 @@ pim_inline float4 VEC_CALL GetEmission(
         }
         float e = 0.0f;
         {
-            texture_t const *const tex = texture_get(mat->rome);
+            Texture const *const tex = texture_get(mat->rome);
             if (tex)
             {
                 e = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv).w;
@@ -1444,7 +1444,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     surfhit_t surf;
     surf.type = hit.type;
 
-    material_t const *const pim_noalias mat = GetMaterial(scene, hit);
+    Material const *const pim_noalias mat = GetMaterial(scene, hit);
     surf.flags = mat->flags;
     surf.ior = mat->ior;
     float2 uv = GetUV(scene, hit);
@@ -1464,7 +1464,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
     else
     {
         {
-            texture_t const *const pim_noalias tex = texture_get(mat->normal);
+            Texture const *const pim_noalias tex = texture_get(mat->normal);
             if (tex)
             {
                 float4 Nts = UvBilinearWrapPow2_xy16(tex->texels, tex->size, uv);
@@ -1474,7 +1474,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
 
         surf.albedo = f4_1;
         {
-            texture_t const *const pim_noalias tex = texture_get(mat->albedo);
+            Texture const *const pim_noalias tex = texture_get(mat->albedo);
             if (tex)
             {
                 surf.albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
@@ -1483,7 +1483,7 @@ pim_inline surfhit_t VEC_CALL GetSurface(
 
         float4 rome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
         {
-            texture_t const *const pim_noalias tex = texture_get(mat->rome);
+            Texture const *const pim_noalias tex = texture_get(mat->rome);
             if (tex)
             {
                 rome = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
@@ -1508,7 +1508,7 @@ pim_inline surfhit_t VEC_CALL GetSurfaceRetro(
     surfhit_t surf;
     surf.type = hit.type;
 
-    material_t const *const pim_noalias mat = GetMaterial(scene, hit);
+    Material const *const pim_noalias mat = GetMaterial(scene, hit);
     surf.flags = mat->flags;
     surf.ior = mat->ior;
     float2 uv = GetUV(scene, hit);
@@ -1529,7 +1529,7 @@ pim_inline surfhit_t VEC_CALL GetSurfaceRetro(
     {
         surf.albedo = f4_1;
         {
-            texture_t const *const pim_noalias tex = texture_get(mat->albedo);
+            Texture const *const pim_noalias tex = texture_get(mat->albedo);
             if (tex)
             {
                 surf.albedo = UvWrapPow2_c32(tex->texels, tex->size, uv);
@@ -1538,7 +1538,7 @@ pim_inline surfhit_t VEC_CALL GetSurfaceRetro(
 
         float4 rome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
         {
-            texture_t const *const pim_noalias tex = texture_get(mat->rome);
+            Texture const *const pim_noalias tex = texture_get(mat->rome);
             if (tex)
             {
                 rome = UvWrapPow2_c32(tex->texels, tex->size, uv);
@@ -2898,13 +2898,13 @@ pim_inline float2 VEC_CALL SampleUv(
     return f2_mulvs(Xi, radius);
 }
 
-pim_inline ray_t VEC_CALL CalculateDof(
+pim_inline Ray VEC_CALL CalculateDof(
     pt_sampler_t*const pim_noalias sampler,
     const dofinfo_t* dof,
     float4 right,
     float4 up,
     float4 fwd,
-    ray_t ray)
+    Ray ray)
 {
     float2 offset;
     {
@@ -2968,7 +2968,7 @@ static void UpdateDists(pt_scene_t*const pim_noalias scene)
     ProfileEnd(pm_updatedists);
 }
 
-static void DofUpdate(pt_trace_t* trace, const camera_t* camera)
+static void DofUpdate(pt_trace_t* trace, const Camera* camera)
 {
     dofinfo_t* dof = &trace->dofinfo;
     if (dof->autoFocus)
@@ -2990,7 +2990,7 @@ typedef struct trace_task_s
 {
     task_t task;
     pt_trace_t* trace;
-    camera_t camera;
+    Camera camera;
 } trace_task_t;
 
 static void TraceFn(void* pbase, i32 begin, i32 end)
@@ -2998,7 +2998,7 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
     trace_task_t *const pim_noalias task = pbase;
 
     pt_trace_t *const pim_noalias trace = task->trace;
-    const camera_t camera = task->camera;
+    const Camera camera = task->camera;
 
     pt_scene_t *const pim_noalias scene = trace->scene;
     float3 *const pim_noalias color = trace->color;
@@ -3029,7 +3029,7 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
         float2 Xi = SampleUv(&sampler);
         uv = f2_snorm(f2_mul(f2_add(uv, Xi), rcpSize));
 
-        ray_t ray = { eye, proj_dir(right, up, fwd, slope, uv) };
+        Ray ray = { eye, proj_dir(right, up, fwd, slope, uv) };
         ray = CalculateDof(&sampler, &dof, right, up, fwd, ray);
 
         pt_result_t result;
@@ -3049,7 +3049,7 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_trace, pt_trace)
-void pt_trace(pt_trace_t* desc, const camera_t* camera)
+void pt_trace(pt_trace_t* desc, const Camera* camera)
 {
     ProfileBegin(pm_trace);
 

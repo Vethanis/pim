@@ -8,7 +8,7 @@
 #include "common/stringutil.h"
 #include "math/color.h"
 
-static cvar_t cv_ui_opacity;
+static ConVar_t cv_ui_opacity;
 
 static ImGuiContext* ms_ctx;
 

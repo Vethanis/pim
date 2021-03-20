@@ -288,96 +288,96 @@ typedef struct int4x4_s
 
 // ----------------------------------------------------------------------------
 
-typedef struct ray_s
+typedef struct Ray_s
 {
     float4 ro;
     float4 rd;
-} ray_t;
+} Ray;
 
-typedef struct capsule_s
+typedef struct Capsule_s
 {
     // xyz: point 0
     // w: capsule radius
     float4 p0r;
     float4 p1;
-} capsule_t;
+} Capsule;
 
-typedef struct line_s
+typedef struct Line3D_s
 {
     float4 p0;
     float4 p1;
-} line_t;
+} Line3D;
 
-typedef struct line2d_s
+typedef struct Line2D_s
 {
     float2 p0;
     float2 p1;
-} line2d_t;
+} Line2D;
 
-typedef struct box_s
+typedef struct Box3D_s
 {
     float4 lo;
     float4 hi;
-} box_t;
+} Box3D;
 
-typedef struct box2d_s
+typedef struct Box2D_s
 {
     float2 lo;
     float2 hi;
-} box2d_t;
+} Box2D;
 
-typedef struct sphere_s
+typedef struct Sphere_s
 {
     // xyz: center
     // w: radius
     float4 value;
-} sphere_t;
+} Sphere;
 
-typedef struct circle_s
+typedef struct Circle_s
 {
     float2 center;
     float radius;
-} circle_t;
+} Circle;
 
-typedef struct plane_s
+typedef struct Plane3D_s
 {
     // xyz: plane's normal
     // z: plane's distance from origin
     float4 value;
-} plane_t;
+} Plane3D;
 
-typedef struct plane2d_s
+typedef struct Plane2D_s
 {
     float2 normal;
     float distance;
-} plane2d_t;
+} Plane2D;
 
-typedef struct tri_s
+typedef struct Tri3D_s
 {
     float4 a;
     float4 b;
     float4 c;
-} tri_t;
+} Tri3D;
 
-typedef struct tri2d_s
+typedef struct Tri2D_s
 {
     float2 a;
     float2 b;
     float2 c;
-} tri2d_t;
+} Tri2D;
 
 // inward facing plane normals and positive distances
-typedef struct frus_s
+typedef struct Frustum_s
 {
-    plane_t x0;
-    plane_t x1;
-    plane_t y0;
-    plane_t y1;
-    plane_t z0;
-    plane_t z1;
-} frus_t;
+    Plane3D x0;
+    Plane3D x1;
+    Plane3D y0;
+    Plane3D y1;
+    Plane3D z0;
+    Plane3D z1;
+} Frustum;
 
-typedef struct frusbasis_s
+typedef struct FrustumBasis_s
 {
     float4 eye;
     float4 right;
@@ -386,7 +386,7 @@ typedef struct frusbasis_s
     float2 slope;
     float zNear;
     float zFar;
-} frusbasis_t;
+} FrustumBasis;
 
 typedef struct AmbCube_s
 {

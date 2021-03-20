@@ -14,8 +14,8 @@
 #include "ui/cimgui_ext.h"
 #include "stb/stb_image.h"
 
-static cvar_t cv_basedir = { .type = cvart_text,.name = "basedir",.value = "data",.desc = "base directory for game data" };
-static cvar_t cv_gamedir = { .type = cvart_text,.name = "gamedir",.value = "id1",.desc = "name of the active game" };
+static ConVar_t cv_basedir = { .type = cvart_text,.name = "basedir",.value = "data",.desc = "base directory for game data" };
+static ConVar_t cv_gamedir = { .type = cvart_text,.name = "gamedir",.value = "id1",.desc = "name of the active game" };
 
 static sdict_t ms_assets;
 static searchpath_t ms_search;

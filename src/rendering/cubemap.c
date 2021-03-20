@@ -11,10 +11,10 @@
 #include "common/profiler.h"
 #include <string.h>
 
-static cubemaps_t ms_cubemaps;
-cubemaps_t* Cubemaps_Get(void) { return &ms_cubemaps; }
+static Cubemaps ms_cubemaps;
+Cubemaps* Cubemaps_Get(void) { return &ms_cubemaps; }
 
-i32 Cubemaps_Add(cubemaps_t* maps, guid_t name, i32 size, box_t bounds)
+i32 Cubemaps_Add(Cubemaps* maps, Guid name, i32 size, Box3D bounds)
 {
     ASSERT(maps);
     ASSERT(!guid_isnull(name));
@@ -34,7 +34,7 @@ i32 Cubemaps_Add(cubemaps_t* maps, guid_t name, i32 size, box_t bounds)
     return back;
 }
 
-bool Cubemaps_Rm(cubemaps_t* maps, guid_t name)
+bool Cubemaps_Rm(Cubemaps* maps, Guid name)
 {
     ASSERT(maps);
 
@@ -54,7 +54,7 @@ bool Cubemaps_Rm(cubemaps_t* maps, guid_t name)
     return true;
 }
 
-i32 Cubemaps_Find(const cubemaps_t* maps, guid_t name)
+i32 Cubemaps_Find(const Cubemaps* maps, Guid name)
 {
     if (guid_isnull(name))
     {
@@ -63,7 +63,7 @@ i32 Cubemaps_Find(const cubemaps_t* maps, guid_t name)
     return guid_find(maps->names, maps->count, name);
 }
 
-void Cubemap_New(cubemap_t* cm, i32 size)
+void Cubemap_New(Cubemap* cm, i32 size)
 {
     ASSERT(cm);
     ASSERT(size >= 0);
@@ -84,7 +84,7 @@ void Cubemap_New(cubemap_t* cm, i32 size)
     }
 }
 
-void Cubemap_Del(cubemap_t* cm)
+void Cubemap_Del(Cubemap* cm)
 {
     if (cm)
     {
@@ -100,7 +100,7 @@ void Cubemap_Del(cubemap_t* cm)
 typedef struct cmbake_s
 {
     task_t task;
-    cubemap_t* cm;
+    Cubemap* cm;
     pt_scene_t* scene;
     float4 origin;
     float weight;
@@ -110,7 +110,7 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
 {
     cmbake_t* task = (cmbake_t*)pBase;
 
-    cubemap_t* cm = task->cm;
+    Cubemap* cm = task->cm;
     pt_scene_t* scene = task->scene;
     const float4 origin = task->origin;
     const float weight = task->weight;
@@ -134,7 +134,7 @@ static void BakeFn(task_t* pBase, i32 begin, i32 end)
 
 ProfileMark(pm_Bake, Cubemap_Bake)
 void Cubemap_Bake(
-    cubemap_t* cm,
+    Cubemap* cm,
     pt_scene_t* scene,
     float4 origin,
     float weight)
@@ -162,7 +162,7 @@ void Cubemap_Bake(
 
 static float4 VEC_CALL PrefilterEnvMap(
     prng_t* rng,
-    const cubemap_t* cm,
+    const Cubemap* cm,
     float3x3 TBN,
     u32 sampleCount,
     float roughness)
@@ -196,7 +196,7 @@ static float4 VEC_CALL PrefilterEnvMap(
 typedef struct prefilter_s
 {
     task_t task;
-    cubemap_t* cm;
+    Cubemap* cm;
     i32 mip;
     i32 size;
     u32 sampleCount;
@@ -206,7 +206,7 @@ typedef struct prefilter_s
 static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
 {
     prefilter_t* task = (prefilter_t*)pBase;
-    cubemap_t* cm = task->cm;
+    Cubemap* cm = task->cm;
 
     const u32 sampleCount = task->sampleCount;
     const float weight = task->weight;
@@ -235,7 +235,7 @@ static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
 
 ProfileMark(pm_Convolve, Cubemap_Convolve)
 void Cubemap_Convolve(
-    cubemap_t* cm,
+    Cubemap* cm,
     u32 sampleCount,
     float weight)
 {

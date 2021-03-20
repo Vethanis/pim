@@ -16,7 +16,7 @@
 
 #define MAX_LINES       256
 
-static cvar_t cv_conlogpath =
+static ConVar_t cv_conlogpath =
 {
     .type=cvart_text,
     .name="conlogpath",

@@ -197,7 +197,7 @@ void vkrOpaquePass_Setup(vkrOpaquePass *const pass)
 
     // update per camera buffer
     {
-        camera_t camera;
+        Camera camera;
         camera_get(&camera);
         vkrPerCamera *const perCamera = vkrBuffer_Map(camBuffer);
         ASSERT(perCamera);

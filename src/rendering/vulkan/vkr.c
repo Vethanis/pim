@@ -53,11 +53,11 @@
 
 vkr_t g_vkr;
 
-static cvar_t* cv_r_sun_dir;
-static cvar_t* cv_r_sun_col;
-static cvar_t* cv_r_sun_lum;
+static ConVar_t* cv_r_sun_dir;
+static ConVar_t* cv_r_sun_col;
+static ConVar_t* cv_r_sun_lum;
 
-static cvar_t cv_lm_upload =
+static ConVar_t cv_lm_upload =
 {
     .type = cvart_bool,
     .name = "lm_upload",

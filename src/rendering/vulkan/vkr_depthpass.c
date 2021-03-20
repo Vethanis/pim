@@ -143,7 +143,7 @@ void vkrDepthPass_Setup(vkrDepthPass *const pass)
     VkViewport viewport = vkrSwapchain_GetViewport(&g_vkr.chain);
     const float aspect = viewport.width / viewport.height;
 
-    camera_t camera;
+    Camera camera;
     camera_get(&camera);
     float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
     float4 up = quat_up(camera.rotation);

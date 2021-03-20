@@ -60,7 +60,7 @@
 #include <string.h>
 #include <time.h>
 
-static cvar_t cv_pt_trace =
+static ConVar_t cv_pt_trace =
 {
     .type = cvart_bool,
     .name = "pt_trace",
@@ -68,7 +68,7 @@ static cvar_t cv_pt_trace =
     .desc = "enable path tracing",
 };
 
-static cvar_t cv_pt_denoise =
+static ConVar_t cv_pt_denoise =
 {
     .type = cvart_bool,
     .name = "pt_denoise",
@@ -76,7 +76,7 @@ static cvar_t cv_pt_denoise =
     .desc = "denoise path tracing output",
 };
 
-static cvar_t cv_pt_normal =
+static ConVar_t cv_pt_normal =
 {
     .type = cvart_bool,
     .name = "pt_normal",
@@ -84,7 +84,7 @@ static cvar_t cv_pt_normal =
     .desc = "output path tracer normals",
 };
 
-static cvar_t cv_pt_albedo =
+static ConVar_t cv_pt_albedo =
 {
     .type = cvart_bool,
     .name = "pt_albedo",
@@ -92,7 +92,7 @@ static cvar_t cv_pt_albedo =
     .desc = "output path tracer albedo",
 };
 
-static cvar_t cv_cm_gen =
+static ConVar_t cv_cm_gen =
 {
     .type = cvart_bool,
     .name = "cm_gen",
@@ -100,7 +100,7 @@ static cvar_t cv_cm_gen =
     .desc = "enable cubemap generation",
 };
 
-static cvar_t cv_lm_gen =
+static ConVar_t cv_lm_gen =
 {
     .type = cvart_bool,
     .name = "lm_gen",
@@ -108,7 +108,7 @@ static cvar_t cv_lm_gen =
     .desc = "enable lightmap generation",
 };
 
-static cvar_t cv_lm_density =
+static ConVar_t cv_lm_density =
 {
     .type = cvart_float,
     .name = "lm_density",
@@ -118,7 +118,7 @@ static cvar_t cv_lm_density =
     .desc = "lightmap texels per meter",
 };
 
-static cvar_t cv_lm_timeslice =
+static ConVar_t cv_lm_timeslice =
 {
     .type = cvart_int,
     .name = "lm_timeslice",
@@ -128,7 +128,7 @@ static cvar_t cv_lm_timeslice =
     .desc = "number of frames required to add 1 lighting sample to all lightmap texels",
 };
 
-static cvar_t cv_lm_spp =
+static ConVar_t cv_lm_spp =
 {
     .type = cvart_int,
     .name = "lm_spp",
@@ -138,21 +138,21 @@ static cvar_t cv_lm_spp =
     .desc = "lightmap samples per pixel",
 };
 
-static cvar_t cv_r_sun_dir =
+static ConVar_t cv_r_sun_dir =
 {
     .type = cvart_vector,
     .name = "r_sun_dir",
     .value = "0.0 0.968 0.253 0.0",
     .desc = "Sun Direction",
 };
-static cvar_t cv_r_sun_col =
+static ConVar_t cv_r_sun_col =
 {
     .type = cvart_color,
     .name = "r_sun_col",
     .value = "1 1 1 1",
     .desc = "Sun Color",
 };
-static cvar_t cv_r_sun_lum =
+static ConVar_t cv_r_sun_lum =
 {
     .type = cvart_float,
     .name = "r_sun_lum",
@@ -161,7 +161,7 @@ static cvar_t cv_r_sun_lum =
     .maxFloat = 20.0f,
     .desc = "Log2 Sun Luminance",
 };
-static cvar_t cv_r_sun_res =
+static ConVar_t cv_r_sun_res =
 {
     .type = cvart_int,
     .name = "r_sun_res",
@@ -170,7 +170,7 @@ static cvar_t cv_r_sun_res =
     .maxInt = 4096,
     .desc = "Sky Cubemap Resolution",
 };
-static cvar_t cv_r_sun_steps =
+static ConVar_t cv_r_sun_steps =
 {
     .type = cvart_int,
     .name = "r_sun_steps",
@@ -180,7 +180,7 @@ static cvar_t cv_r_sun_steps =
     .desc = "Sky Cubemap Raymarch Steps",
 };
 
-static cvar_t cv_r_qlights =
+static ConVar_t cv_r_qlights =
 {
     .type = cvart_bool,
     .name = "r_qlights",
@@ -247,7 +247,7 @@ static vkrExposure ms_exposure =
     .maxEV = 5.0f,
 };
 
-static camera_t ms_ptcam;
+static Camera ms_ptcam;
 static pt_scene_t* ms_ptscene;
 static pt_trace_t ms_trace;
 
@@ -473,14 +473,14 @@ static void Cubemap_Trace(void)
             ms_cmapSampleCount = 0;
         }
 
-        guid_t skyname = guid_str("sky");
-        cubemaps_t* maps = Cubemaps_Get();
+        Guid skyname = guid_str("sky");
+        Cubemaps* maps = Cubemaps_Get();
         float weight = 1.0f / ++ms_cmapSampleCount;
         for (i32 i = 0; i < maps->count; ++i)
         {
-            cubemap_t* cubemap = maps->cubemaps + i;
-            box_t bounds = maps->bounds[i];
-            guid_t name = maps->names[i];
+            Cubemap* cubemap = maps->cubemaps + i;
+            Box3D bounds = maps->bounds[i];
+            Guid name = maps->names[i];
             if (!guid_eq(name, skyname))
             {
                 Cubemap_Bake(cubemap, ms_ptscene, box_center(bounds), weight);
@@ -503,7 +503,7 @@ static bool PathTrace(void)
         EnsurePtTrace();
 
         {
-            camera_t camera;
+            Camera camera;
             camera_get(&camera);
 
             bool dirty = false;
@@ -701,7 +701,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
 
     char cratepath[PIM_PATH] = { 0 };
     SPrintf(ARGS(cratepath), "data/%s.crate", name);
-    crate_t* crate = tmp_malloc(sizeof(*crate));
+    Crate* crate = tmp_malloc(sizeof(*crate));
     if (crate_open(crate, cratepath))
     {
         loaded = true;
@@ -753,7 +753,7 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
 
     char cratepath[PIM_PATH] = { 0 };
     SPrintf(ARGS(cratepath), "data/%s.crate", name);
-    crate_t* crate = tmp_malloc(sizeof(*crate));
+    Crate* crate = tmp_malloc(sizeof(*crate));
     if (crate_open(crate, cratepath))
     {
         saved = true;
@@ -777,7 +777,7 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
 typedef struct task_BakeSky
 {
     task_t task;
-    cubemap_t* cm;
+    Cubemap* cm;
     float3 sunDir;
     float3 sunRad;
     i32 steps;
@@ -786,7 +786,7 @@ typedef struct task_BakeSky
 static void BakeSkyFn(task_t* pbase, i32 begin, i32 end)
 {
     task_BakeSky* task = (task_BakeSky*)pbase;
-    cubemap_t* pim_noalias cm = task->cm;
+    Cubemap* pim_noalias cm = task->cm;
     const i32 size = cm->size;
     float3** pim_noalias faces = cm->color;
     const float3 sunDir = task->sunDir;
@@ -809,8 +809,8 @@ static void BakeSky(void)
 {
     bool dirty = false;
 
-    guid_t skyname = guid_str("sky");
-    cubemaps_t* maps = Cubemaps_Get();
+    Guid skyname = guid_str("sky");
+    Cubemaps* maps = Cubemaps_Get();
     if (cvar_check_dirty(&cv_r_sun_res))
     {
         Cubemaps_Rm(maps, skyname);
@@ -819,7 +819,7 @@ static void BakeSky(void)
     if (iSky == -1)
     {
         dirty = true;
-        iSky = Cubemaps_Add(maps, skyname, cvar_get_int(&cv_r_sun_res), (box_t) { 0 });
+        iSky = Cubemaps_Add(maps, skyname, cvar_get_int(&cv_r_sun_res), (Box3D) { 0 });
     }
 
     dirty |= cvar_check_dirty(&cv_r_sun_steps);
@@ -833,7 +833,7 @@ static void BakeSky(void)
         float4 sunCol = cvar_get_vec(&cv_r_sun_col);
         float log2lum = cvar_get_float(&cv_r_sun_lum);
         float lum = exp2f(log2lum);
-        cubemap_t* cm = &maps->cubemaps[iSky];
+        Cubemap* cm = &maps->cubemaps[iSky];
         i32 size = cm->size;
 
         task_BakeSky* task = tmp_calloc(sizeof(*task));
@@ -1015,7 +1015,7 @@ void render_sys_gui(bool* pEnabled)
 
 // ----------------------------------------------------------------------------
 
-static meshid_t GenSphereMesh(const char* name, i32 steps)
+static MeshId GenSphereMesh(const char* name, i32 steps)
 {
     const i32 vsteps = steps;       // divisions along y axis
     const i32 hsteps = steps * 2;   // divisions along x-z plane
@@ -1131,8 +1131,8 @@ static meshid_t GenSphereMesh(const char* name, i32 steps)
         }
     }
 
-    meshid_t id = { 0 };
-    mesh_t mesh = { 0 };
+    MeshId id = { 0 };
+    Mesh mesh = { 0 };
     mesh.length = length;
     mesh.positions = positions;
     mesh.normals = normals;
@@ -1145,7 +1145,7 @@ static meshid_t GenSphereMesh(const char* name, i32 steps)
 
 // N = (0, 0, 1)
 // centered at origin, [-0.5, 0.5]
-static meshid_t GenQuadMesh(const char* name)
+static MeshId GenQuadMesh(const char* name)
 {
     const float4 tl = { -0.5f, 0.5f, 0.0f };
     const float4 tr = { 0.5f, 0.5f, 0.0f };
@@ -1171,25 +1171,25 @@ static meshid_t GenQuadMesh(const char* name)
         normals[i] = N;
     }
 
-    meshid_t id = { 0 };
-    mesh_t mesh = { 0 };
+    MeshId id = { 0 };
+    Mesh mesh = { 0 };
     mesh.length = length;
     mesh.positions = positions;
     mesh.normals = normals;
     mesh.uvs = uvs;
     mesh.texIndices = texIndices;
-    guid_t guid = guid_str(name);
+    Guid guid = guid_str(name);
     bool added = mesh_new(&mesh, guid, &id);
     ASSERT(added);
     return id;
 }
 
-static textureid_t GenFlatTexture(const char* name, const char* suffix, float4 value)
+static TextureId GenFlatTexture(const char* name, const char* suffix, float4 value)
 {
-    textureid_t id = { 0 };
+    TextureId id = { 0 };
     char fullname[PIM_PATH];
     SPrintf(ARGS(fullname), "%s_%s", name, suffix);
-    texture_t tex = { 0 };
+    Texture tex = { 0 };
     tex.size = i2_1;
     tex.texels = tex_malloc(sizeof(u32));
     *(u32*)tex.texels = LinearToColor(value);
@@ -1197,9 +1197,13 @@ static textureid_t GenFlatTexture(const char* name, const char* suffix, float4 v
     return id;
 }
 
-static material_t GenMaterial(const char* name, float4 albedo, float4 rome, matflag_t flags)
+static Material GenMaterial(
+    const char* name,
+    float4 albedo,
+    float4 rome,
+    MatFlag flags)
 {
-    material_t mat = { 0 };
+    Material mat = { 0 };
     mat.ior = 1.0f;
     mat.albedo = GenFlatTexture(name, "albedo", albedo);
     mat.rome = GenFlatTexture(name, "rome", rome);
@@ -1211,9 +1215,17 @@ static material_t GenMaterial(const char* name, float4 albedo, float4 rome, matf
     return mat;
 }
 
-static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up, float scale, float4 albedo, float4 rome, matflag_t flags)
+static i32 CreateQuad(
+    const char* name,
+    float4 center,
+    float4 forward,
+    float4 up,
+    float scale,
+    float4 albedo,
+    float4 rome,
+    MatFlag flags)
 {
-    drawables_t* dr = drawables_get();
+    Entities* dr = drawables_get();
     i32 i = drawables_add(dr, guid_str(name));
     dr->meshes[i] = GenQuadMesh(name);
     dr->materials[i] = GenMaterial(name, albedo, rome, flags);
@@ -1223,9 +1235,15 @@ static i32 CreateQuad(const char* name, float4 center, float4 forward, float4 up
     return i;
 }
 
-static i32 CreateSphere(const char* name, float4 center, float scale, float4 albedo, float4 rome, matflag_t flags)
+static i32 CreateSphere(
+    const char* name,
+    float4 center,
+    float scale,
+    float4 albedo,
+    float4 rome,
+    MatFlag flags)
 {
-    drawables_t* dr = drawables_get();
+    Entities* dr = drawables_get();
     i32 i = drawables_add(dr, guid_str(name));
     dr->meshes[i] = GenSphereMesh(name, 24);
     dr->materials[i] = GenMaterial(name, albedo, rome, flags);
@@ -1237,7 +1255,7 @@ static i32 CreateSphere(const char* name, float4 center, float scale, float4 alb
 
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 {
-    drawables_t* dr = drawables_get();
+    Entities* dr = drawables_get();
     drawables_clear(dr);
     ShutdownPtScene();
     LightmapShutdown();
@@ -1387,7 +1405,7 @@ static cmdstat_t CmdTeleport(i32 argc, const char** argv)
     float x = (float)atof(argv[1]);
     float y = (float)atof(argv[2]);
     float z = (float)atof(argv[3]);
-    camera_t cam;
+    Camera cam;
     camera_get(&cam);
     cam.position.x = x;
     cam.position.y = y;
@@ -1406,7 +1424,7 @@ static cmdstat_t CmdLookat(i32 argc, const char** argv)
     float x = (float)atof(argv[1]);
     float y = (float)atof(argv[2]);
     float z = (float)atof(argv[3]);
-    camera_t cam;
+    Camera cam;
     camera_get(&cam);
     float4 ro = cam.position;
     float4 at = { x, y, z };

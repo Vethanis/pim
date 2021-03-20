@@ -174,7 +174,7 @@ pim_inline float4 VEC_CALL SamplePointOnSphere(
     return P;
 }
 
-pim_inline float4 VEC_CALL SampleParallaxBox(box_t box, float4 ro, float4 rd)
+pim_inline float4 VEC_CALL SampleParallaxBox(Box3D box, float4 ro, float4 rd)
 {
     float2 nf = isectBox3D(ro, f4_rcp(rd), box);
     if (nf.x < nf.y)
@@ -189,7 +189,7 @@ pim_inline float4 VEC_CALL SampleParallaxBox(box_t box, float4 ro, float4 rd)
     return rd;
 }
 
-pim_inline float4 VEC_CALL SampleParallaxSphere(sphere_t sph, float4 ro, float4 rd)
+pim_inline float4 VEC_CALL SampleParallaxSphere(Sphere sph, float4 ro, float4 rd)
 {
     float2 nf = isectSphere3D(ro, rd, sph);
     if (nf.x < nf.y)

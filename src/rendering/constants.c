@@ -4,7 +4,7 @@
 
 static bool ms_init;
 
-static cvar_t cv_r_scale =
+static ConVar_t cv_r_scale =
 {
     .type = cvart_float,
     .name = "r_scale",
@@ -14,7 +14,7 @@ static cvar_t cv_r_scale =
     .desc = "Render Scale",
 };
 
-static cvar_t cv_r_width =
+static ConVar_t cv_r_width =
 {
     .type = cvart_int,
     .name = "r_width",
@@ -24,7 +24,7 @@ static cvar_t cv_r_width =
     .desc = "Base render width",
 };
 
-static cvar_t cv_r_height =
+static ConVar_t cv_r_height =
 {
     .type = cvart_int,
     .name = "r_height",

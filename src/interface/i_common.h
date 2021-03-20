@@ -23,47 +23,117 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "interface/i_types.h"
 #include <string.h>
 
-//============================================================================
-
-typedef struct SZ_s
+typedef struct I_Common_s
 {
-    void(*Alloc)(sizebuf_t* buf, i32 startsize);
-    void(*Free)(sizebuf_t* buf);
-    void(*Clear)(sizebuf_t* buf);
-    void*(*GetSpace)(sizebuf_t* buf, i32 length); // reallocates if needed
-    void(*Write)(sizebuf_t* buf, const void* data, i32 length);
-    void(*Print)(sizebuf_t* buf, const char* data); // strcats onto the sizebuf
-} SZ_t;
-extern SZ_t SZ;
+    void(*_SZ_Alloc)(sizebuf_t* buf, i32 startsize);
+    void(*_SZ_Free)(sizebuf_t* buf);
+    void(*_SZ_Clear)(sizebuf_t* buf);
+    void*(*_SZ_GetSpace)(sizebuf_t* buf, i32 length);
+    void(*_SZ_Write)(sizebuf_t* buf, const void* data, i32 length);
+    // strcats onto the sizebuf
+    void(*_SZ_Print)(sizebuf_t* buf, const char* data);
 
-#define SZ_Alloc(buf, startsize)    SZ.Alloc((buf), (startsize))
-#define SZ_Free(buf)                SZ.Free((buf))
-#define SZ_Clear(buf)               SZ.Clear((buf))
-#define SZ_GetSpace(buf, length)    SZ.GetSpace((buf), (length))
-#define SZ_Write(buf, data, length) SZ.Write((buf), (data), (length))
-#define SZ_Print(buf, data)         SZ.Print((buf), (data))
+    void(*_ClearLink)(link_t *l);
+    void(*_RemoveLink)(link_t *l);
+    void(*_InsertLinkBefore)(link_t *l, link_t *before);
+    void(*_InsertLinkAfter)(link_t *l, link_t *after);
 
-//============================================================================
+    void(*_MSG_WriteChar)(sizebuf_t *sb, i32 x);
+    void(*_MSG_WriteByte)(sizebuf_t *sb, i32 x);
+    void(*_MSG_WriteShort)(sizebuf_t *sb, i32 x);
+    void(*_MSG_WriteLong)(sizebuf_t *sb, i32 x);
+    void(*_MSG_WriteFloat)(sizebuf_t *sb, float x);
+    void(*_MSG_WriteString)(sizebuf_t *sb, const char *x);
+    void(*_MSG_WriteCoord)(sizebuf_t *sb, float x);
+    void(*_MSG_WriteAngle)(sizebuf_t *sb, float x);
+    void(*_MSG_BeginReading)(void);
+    i32(*_MSG_ReadChar)(void);
+    i32(*_MSG_ReadByte)(void);
+    i32(*_MSG_ReadShort)(void);
+    i32(*_MSG_ReadLong)(void);
+    float(*_MSG_ReadFloat)(void);
+    const char*(*_MSG_ReadString)(void);
+    float(*_MSG_ReadCoord)(void);
+    float(*_MSG_ReadAngle)(void);
 
-// DEPRECATED (use an array)
-// Only used by world.c for edict_t
-typedef struct LNK_s
-{
-    void(*Clear)(link_t *l);
-    void(*Remove)(link_t *l);
-    void(*InsertBefore)(link_t *l, link_t *before);
-    void(*InsertAfter)(link_t *l, link_t *after);
-} LNK_t;
-extern LNK_t LNK;
+    char*(*_COM_Parse)(char* str);
+    // returns argv index of parm, or 0 if missing
+    i32(*_COM_CheckParm)(const char* parm);
+    void(*_COM_Init)(const char *basedir);
+    void(*_COM_InitArgv)(i32 argc, const char** argv);
+    // returns the leaf string of a path, or the input if no slashes exist
+    const char*(*_COM_SkipPath)(const char* pathname);
+    // copies strIn to strOut until a '.' is encountered
+    void(*_COM_StripExtension)(const char *strIn, char *strOut);
+    // copies the leaf string of a path, without extension, into strOut
+    void(*_COM_FileBase)(const char *strIn, char *strOut);
+    // append the extension to path if the leaf string of path does not contain '.'
+    void(*_COM_DefaultExtension)(const char *path, char *ext);
+    void(*_COM_WriteFile)(const char* filename, const void* data, i32 len);
+    i32(*_COM_OpenFile)(const char* filename, filehdl_t* hdlOut);
+    void(*_COM_CloseFile)(filehdl_t file);
+    i32(*_COM_FileSize)(void);
+    u8*(*_COM_LoadStackFile)(const char* path, void* buf, i32 sz);
+    u8*(*_COM_LoadTempFile)(const char* path);
+    u8*(*_COM_LoadHunkFile)(const char* path);
+    void(*_COM_LoadCacheFile)(const char* path, cache_user_t *cu);
 
-#define ClearLink(l)                LNK.Clear((l))
-#define RemoveLink(l)               LNK.Remove((l))
-#define InsertLinkBefore(l, before) LNK.InsertBefore((l), (before))
-#define InsertLinkAfter(l, after)   LNK.InsertAfter((l), (after))
+} I_Common_t;
+extern I_Common_t I_Common;
 
+#define SZ_Alloc(...) I_Common._SZ_Alloc(__VA_ARGS__)
+#define SZ_Free(...) I_Common._SZ_Free(__VA_ARGS__)
+#define SZ_Clear(...) I_Common._SZ_Clear(__VA_ARGS__)
+#define SZ_GetSpace(...) I_Common._SZ_GetSpace(__VA_ARGS__)
+#define SZ_Write(...) I_Common._SZ_Write(__VA_ARGS__)
+#define SZ_Print(...) I_Common._SZ_Print(__VA_ARGS__)
+
+#define ClearLink(...) I_Common._ClearLink(__VA_ARGS__)
+#define RemoveLink(...) I_Common._RemoveLink(__VA_ARGS__)
+#define InsertLinkBefore(...) I_Common._InsertLinkBefore(__VA_ARGS__)
+#define InsertLinkAfter(...) I_Common._InsertLinkAfter(__VA_ARGS__)
 // STRUCT_FROM_LINK removed: area link moved to first field of edict_t
 
+#define MSG_WriteChar(...) I_Common._MSG_WriteChar(__VA_ARGS__)
+#define MSG_WriteByte(...) I_Common._MSG_WriteByte(__VA_ARGS__)
+#define MSG_WriteShort(...) I_Common._MSG_WriteShort(__VA_ARGS__)
+#define MSG_WriteLong(...) I_Common._MSG_WriteLong(__VA_ARGS__)
+#define MSG_WriteFloat(...) I_Common._MSG_WriteFloat(__VA_ARGS__)
+#define MSG_WriteString(...) I_Common._MSG_WriteString(__VA_ARGS__)
+#define MSG_WriteCoord(...) I_Common._MSG_WriteCoord(__VA_ARGS__)
+#define MSG_WriteAngle(...) I_Common._MSG_WriteAngle(__VA_ARGS__)
+
+#define MSG_BeginReading(...) I_Common._MSG_BeginReading(__VA_ARGS__)
+#define MSG_ReadChar(...) I_Common._MSG_ReadChar(__VA_ARGS__)
+#define MSG_ReadByte(...) I_Common._MSG_ReadByte(__VA_ARGS__)
+#define MSG_ReadShort(...) I_Common._MSG_ReadShort(__VA_ARGS__)
+#define MSG_ReadLong(...) I_Common._MSG_ReadLong(__VA_ARGS__)
+#define MSG_ReadFloat(...) I_Common._MSG_ReadFloat(__VA_ARGS__)
+#define MSG_ReadString(...) I_Common._MSG_ReadString(__VA_ARGS__)
+
+#define MSG_ReadCoord(...) I_Common._MSG_ReadCoord(__VA_ARGS__)
+#define MSG_ReadAngle(...) I_Common._MSG_ReadAngle(__VA_ARGS__)
+
+#define COM_Parse(...) I_Common._COM_Parse(__VA_ARGS__)
+#define COM_CheckParm(...) I_Common._COM_CheckParm(__VA_ARGS__)
+#define COM_Init(...) I_Common._COM_Init(__VA_ARGS__)
+#define COM_InitArgv(...) I_Common._COM_InitArgv(__VA_ARGS__)
+#define COM_SkipPath(...) I_Common._COM_SkipPath(__VA_ARGS__)
+#define COM_StripExtension(...) I_Common._COM_StripExtension(__VA_ARGS__)
+#define COM_FileBase(...) I_Common._COM_FileBase(__VA_ARGS__)
+#define COM_DefaultExtension(...) I_Common._COM_DefaultExtension(__VA_ARGS__)
+#define COM_OpenFile(...) I_Common._COM_OpenFile(__VA_ARGS__)
+#define COM_CloseFile(...) I_Common._COM_CloseFile(__VA_ARGS__)
+#define COM_WriteFile(...) I_Common._COM_WriteFile(__VA_ARGS__)
+#define COM_LoadStackFile(...) I_Common._COM_LoadStackFile(__VA_ARGS__)
+#define COM_LoadTempFile(...) I_Common._COM_LoadTempFile(__VA_ARGS__)
+#define COM_LoadHunkFile(...) I_Common._COM_LoadHunkFile(__VA_ARGS__)
+#define COM_LoadCacheFile(...) I_Common._COM_LoadCacheFile(__VA_ARGS__)
+
 //============================================================================
+
+// These are provided as inline functions for performance's sake.
+// These functions must be unsigned in order to avoid sign-extension bugs.
 
 // x64 is little-endian
 #define BigShort(x)      ShortSwap((x))
@@ -73,7 +143,6 @@ extern LNK_t LNK;
 #define BigFloat(x)      FloatSwap((x))
 #define LittleFloat(x)   (x)
 
-// These functions must be unsigned in order to avoid sign-extension bugs.
 pim_inline u16 ShortSwap(u16 x)
 {
     u16 b1 = x & 0xff;
@@ -94,6 +163,7 @@ pim_inline u32 LongSwap(u32 x)
 
 pim_inline float FloatSwap(float x)
 {
+    // should be a memcpy to avoid violating strict aliasing rules
     u32 u;
     memcpy(&u, &x, 4);
     u = LongSwap(u);
@@ -103,158 +173,22 @@ pim_inline float FloatSwap(float x)
 
 //============================================================================
 
-typedef struct MSG_s
-{
-    void(*WriteChar)(sizebuf_t *sb, i32 x);
-    void(*WriteByte)(sizebuf_t *sb, i32 x);
-    void(*WriteShort)(sizebuf_t *sb, i32 x);
-    void(*WriteLong)(sizebuf_t *sb, i32 x);
-    void(*WriteFloat)(sizebuf_t *sb, float x);
-    void(*WriteString)(sizebuf_t *sb, const char *x);
-    void(*WriteCoord)(sizebuf_t *sb, float x);
-    void(*WriteAngle)(sizebuf_t *sb, float x);
+// These are provided as macros pointing back to stdc
 
-    i32(*ReadCount)(void);
-    bool(*BadRead)(void);
-
-    void(*BeginReading)(void);
-    i32(*ReadChar)(void);
-    i32(*ReadByte)(void);
-    i32(*ReadShort)(void);
-    i32(*ReadLong)(void);
-    float(*ReadFloat)(void);
-    const char*(*ReadString)(void);
-
-    float(*ReadCoord)(void);
-    float(*ReadAngle)(void);
-} MSG_t;
-extern MSG_t MSG;
-
-#define MSG_WriteChar(sb, x)    MSG.WriteChar((sb), (x))
-#define MSG_WriteByte(sb, x)    MSG.WriteByte((sb), (x))
-#define MSG_WriteShort(sb, x)   MSG.WriteShort((sb), (x))
-#define MSG_WriteLong(sb, x)    MSG.WriteLong((sb), (x))
-#define MSG_WriteFloat(sb, x)   MSG.WriteFloat((sb), (x))
-#define MSG_WriteString(sb, x)  MSG.WriteString((sb), (x))
-#define MSG_WriteCoord(sb, x)   MSG.WriteCoord((sb), (x))
-#define MSG_WriteAngle(sb, x)   MSG.WriteAngle((sb), (x))
-
-#define msg_readcount           (MSG.ReadCount())
-#define msg_badread             (MSG.BadRead())
-
-#define MSG_BeginReading()      MSG.BeginReading()
-#define MSG_ReadChar()          (MSG.ReadChar())
-#define MSG_ReadByte()          (MSG.ReadByte())
-#define MSG_ReadShort()         (MSG.ReadShort())
-#define MSG_ReadLong()          (MSG.ReadLong())
-#define MSG_ReadFloat()         (MSG.ReadFloat())
-#define MSG_ReadString()        (MSG.ReadString())
-
-#define MSG_ReadCoord()         (MSG.ReadCoord())
-#define MSG_ReadAngle()         (MSG.ReadAngle())
-
-//============================================================================
-
-// The compiler knows how to optimize these away, so don't write custom ones.
-#define Q_memset(dest, fill, count) memset((dest), (fill), (count))
-#define Q_memcpy(dest, src, count)  memcpy((dest), (src), (count))
-#define Q_memcmp(m1, m2, count)     memcmp((m1), (m2), (count))
-
+#define Q_memset(dest, fill, count) ( memset((dest), (fill), (count)) )
+#define Q_memcpy(dest, src, count)  ( memcpy((dest), (src), (count)) )
+#define Q_memcmp(m1, m2, count)     ( memcmp((m1), (m2), (count)) )
 #define Q_atoi(str)                 ( (i32)atoi((str)) )
 #define Q_atof(str)                 ( (float)atof((str)) )
-
-// unsafe! deprecated!
 #define Q_strcmp(s1, s2)            ( strcmp((s1), (s2)) )
-// unsafe! deprecated!
 #define Q_strncmp(s1, s2, count)    ( strncmp((s1), (s2), (count)) )
-// unsafe! deprecated!
 #define Q_strcasecmp(s1, s2)        ( _stricmp((s1), (s2)) )
-// unsafe! deprecated!
 #define Q_strncasecmp(s1, s2, n)    ( _strnicmp((s1), (s2), (n)) )
-
-// unsafe! deprecated!
 #define Q_strlen(str)               ( (i32)strlen( (str) ) )
-// unsafe! deprecated!
 #define Q_strcpy(dest, src)         ( strcpy((dest), (src)) )
-// unsafe! deprecated!
 #define Q_strncpy(dest, src, count) ( strncpy((dest), (src), (count)) )
-// unsafe! deprecated!
 #define Q_strcat(dest, src)         ( strcat((dest), (src)) )
-
-// unsafe! deprecated!
 #define Q_strrchr(s, c)             ( strrchr((s), (c)) )
 
-//============================================================================
-
-typedef struct COM_s
-{
-    const char*(*Token)(void);
-    char*(*Parse)(char* str);
-
-    // returns argv index of parm, or 0 if missing
-    i32(*CheckParm)(const char* parm);
-
-    void(*Init)(const char *basedir);
-    void(*InitArgv)(i32 argc, const char** argv);
-
-    // returns the leaf string of a path, or the input if no slashes exist
-    const char*(*SkipPath)(const char* pathname);
-    // copies strIn to strOut until a '.' is encountered
-    void(*StripExtension)(const char *strIn, char *strOut);
-    // copies the leaf string of a path, without extension, into strOut
-    void(*FileBase)(const char *strIn, char *strOut);
-    // append the extension to path if the leaf string of path does not contain '.'
-    void(*DefaultExtension)(const char *path, char *ext);
-
-    void(*WriteFile)(const char* filename, const void* data, i32 len);
-    i32(*OpenFile)(const char* filename, filehdl_t* hdlOut);
-    void(*CloseFile)(filehdl_t file);
-
-    i32(*FileSize)(void);
-    byte*(*LoadStackFile)(const char* path, void* buf, i32 sz);
-    byte*(*LoadTempFile)(const char* path);
-    byte*(*LoadHunkFile)(const char* path);
-    void(*LoadCacheFile)(const char* path, cache_user_t *cu);
-
-    i32(*Argc)(void);
-    const char**(*Argv)(void);
-    // host and vcr sometimes set this
-    void(*SetArgs)(const char** argv, i32 argc);
-
-    const char*(*GameDir)(void);
-    bool(*StandardQuake)(void);
-    bool(*Rogue)(void);
-    bool(*Hipnotic)(void);
-} COM_t;
-extern COM_t COM;
-
-#define COM_Parse(str)                          COM.Parse((str))
-#define COM_CheckParm(parm)                     COM.CheckParm((parm))
-#define COM_Init(basedir)                       COM.Init((basedir))
-#define COM_InitArgv(argc, argv)                COM.InitArgv((argc), (argv))
-#define COM_SkipPath(pathname)                  COM.SkipPath((pathname))
-#define COM_StripExtension(strIn, strOut)       COM.StripExtension((strIn), (strOut))
-#define COM_FileBase(strIn, strOut)             COM.FileBase((strIn), (strOut))
-#define COM_DefaultExtension(path, ext)         COM.DefaultExtension((path), (ext))
-#define COM_OpenFile(filename, hdlOut)          COM.OpenFile((filename), (hdlOut))
-#define COM_CloseFile(file)                     COM.CloseFile((file))
-#define COM_WriteFile(filename, data, len)      COM.WriteFile((filename), (data), (len))
-#define COM_LoadStackFile(path, buf, sz)        COM.LoadStackFile((path), (buf), (sz))
-#define COM_LoadTempFile(path)                  COM.LoadTempFile((path))
-#define COM_LoadHunkFile(path)                  COM.LoadHunkFile((path))
-#define COM_LoadCacheFile(path, cu)             COM.LoadCacheFile((path), (cu))
-
-#define com_token       (COM.Token())
-#define com_argc        (COM.Argc())
-#define com_argv        (COM.Argv())
-#define com_filesize    (COM.FileSize())
-#define com_gamedir     (COM.GameDir())
-#define standard_quake  (COM.StandardQuake())
-#define rogue           (COM.Rogue())
-#define hipnotic        (COM.Hipnotic())
-
-// not recommended
-extern char g_vabuf[1024];
-#define va(fmt, ...)    (sprintf_s(g_vabuf, (fmt), __VA_ARGS__))
-
-//============================================================================
+// Thread and nesting unsafe, but quake is single threaded
+#define va(fmt, ...)                ( sprintf_s(g_vabuf, (fmt), __VA_ARGS__) )

@@ -5,12 +5,12 @@
 
 typedef struct grid_s
 {
-    box_t bounds;
+    Box3D bounds;
     int3 size;
     float cellsPerMeter;
 } grid_t;
 
-pim_inline void VEC_CALL grid_new(grid_t *const grid, box_t bounds, float cellsPerMeter)
+pim_inline void VEC_CALL grid_new(grid_t *const grid, Box3D bounds, float cellsPerMeter)
 {
     float4 range = f4_sub(bounds.hi, bounds.lo);
     float4 sizef = f4_ceil(f4_mulvs(range, cellsPerMeter));

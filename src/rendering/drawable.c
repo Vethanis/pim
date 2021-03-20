@@ -20,8 +20,8 @@
 #include "ui/cimgui_ext.h"
 #include <string.h>
 
-static drawables_t ms_drawables;
-drawables_t *const drawables_get(void) { return &ms_drawables; }
+static Entities ms_drawables;
+Entities *const drawables_get(void) { return &ms_drawables; }
 
 void drawables_init(void)
 {
@@ -38,7 +38,7 @@ void drawables_shutdown(void)
     drawables_del(drawables_get());
 }
 
-i32 drawables_add(drawables_t *const dr, guid_t name)
+i32 drawables_add(Entities *const dr, Guid name)
 {
     const i32 back = dr->count;
     const i32 len = back + 1;
@@ -64,18 +64,18 @@ i32 drawables_add(drawables_t *const dr, guid_t name)
     return back;
 }
 
-static void DestroyAtIndex(drawables_t *const dr, i32 i)
+static void DestroyAtIndex(Entities *const dr, i32 i)
 {
     ASSERT(i >= 0);
     ASSERT(i < dr->count);
     mesh_release(dr->meshes[i]);
-    material_t material = dr->materials[i];
-    texture_release(material.albedo);
-    texture_release(material.rome);
-    texture_release(material.normal);
+    Material* material = &dr->materials[i];
+    texture_release(material->albedo);
+    texture_release(material->rome);
+    texture_release(material->normal);
 }
 
-static void RemoveAtIndex(drawables_t *const dr, i32 i)
+static void RemoveAtIndex(Entities *const dr, i32 i)
 {
     DestroyAtIndex(dr, i);
 
@@ -94,7 +94,7 @@ static void RemoveAtIndex(drawables_t *const dr, i32 i)
     PopSwap(dr->scales, i, len);
 }
 
-bool drawables_rm(drawables_t *const dr, guid_t name)
+bool drawables_rm(Entities *const dr, Guid name)
 {
     const i32 i = drawables_find(dr, name);
     if (i == -1)
@@ -105,12 +105,12 @@ bool drawables_rm(drawables_t *const dr, guid_t name)
     return true;
 }
 
-i32 drawables_find(drawables_t const *const dr, guid_t name)
+i32 drawables_find(Entities const *const dr, Guid name)
 {
     return guid_find(dr->names, dr->count, name);
 }
 
-void drawables_clear(drawables_t *const dr)
+void drawables_clear(Entities *const dr)
 {
     if (dr)
     {
@@ -123,7 +123,7 @@ void drawables_clear(drawables_t *const dr)
     }
 }
 
-void drawables_del(drawables_t *const dr)
+void drawables_del(Entities *const dr)
 {
     if (dr)
     {
@@ -144,15 +144,15 @@ void drawables_del(drawables_t *const dr)
 typedef struct task_UpdateBounds
 {
     task_t task;
-    drawables_t *dr;
+    Entities *dr;
 } task_UpdateBounds;
 
 static void UpdateBoundsFn(void *const pbase, i32 begin, i32 end)
 {
     task_UpdateBounds *const task = pbase;
-    drawables_t *const pim_noalias dr = task->dr;
-    meshid_t const *const pim_noalias meshes = dr->meshes;
-    box_t *const pim_noalias bounds = dr->bounds;
+    Entities *const pim_noalias dr = task->dr;
+    MeshId const *const pim_noalias meshes = dr->meshes;
+    Box3D *const pim_noalias bounds = dr->bounds;
 
     for (i32 i = begin; i < end; ++i)
     {
@@ -161,7 +161,7 @@ static void UpdateBoundsFn(void *const pbase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_updatebouns, drawables_updatebounds)
-void drawables_updatebounds(drawables_t *const dr)
+void drawables_updatebounds(Entities *const dr)
 {
     ProfileBegin(pm_updatebouns);
 
@@ -175,13 +175,13 @@ void drawables_updatebounds(drawables_t *const dr)
 typedef struct task_UpdateTransforms
 {
     task_t task;
-    drawables_t* dr;
+    Entities* dr;
 } task_UpdateTransforms;
 
 static void UpdateTransformsFn(void* pbase, i32 begin, i32 end)
 {
     task_UpdateTransforms *const task = pbase;
-    drawables_t *const dr = task->dr;
+    Entities *const dr = task->dr;
     const float4 *const pim_noalias translations = dr->translations;
     const quat *const pim_noalias rotations = dr->rotations;
     const float4 *const pim_noalias scales = dr->scales;
@@ -196,7 +196,7 @@ static void UpdateTransformsFn(void* pbase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_TRS, drawables_updatetransforms)
-void drawables_updatetransforms(drawables_t *const dr)
+void drawables_updatetransforms(Entities *const dr)
 {
     ProfileBegin(pm_TRS);
 
@@ -207,13 +207,13 @@ void drawables_updatetransforms(drawables_t *const dr)
     ProfileEnd(pm_TRS);
 }
 
-box_t drawables_bounds(drawables_t const *const dr)
+Box3D drawables_bounds(Entities const *const dr)
 {
     const i32 length = dr->count;
-    const box_t *const pim_noalias bounds = dr->bounds;
+    const Box3D *const pim_noalias bounds = dr->bounds;
     const float4x4 *const pim_noalias matrices = dr->matrices;
 
-    box_t box = box_empty();
+    Box3D box = box_empty();
     for (i32 i = 0; i < length; ++i)
     {
         box = box_union(box, box_transform(matrices[i], bounds[i]));
@@ -222,7 +222,7 @@ box_t drawables_bounds(drawables_t const *const dr)
     return box;
 }
 
-bool drawables_save(crate_t *const crate, drawables_t const *const src)
+bool drawables_save(Crate *const crate, Entities const *const src)
 {
     bool wrote = true;
     const i32 length = src->count;
@@ -232,7 +232,7 @@ bool drawables_save(crate_t *const crate, drawables_t const *const src)
 
     // write meshes
     {
-        dmeshid_t *const dmeshids = perm_calloc(sizeof(dmeshids[0]) * length);
+        DiskMeshId *const dmeshids = perm_calloc(sizeof(dmeshids[0]) * length);
         for (i32 i = 0; i < length; ++i)
         {
             mesh_save(crate, src->meshes[i], &dmeshids[i].id);
@@ -244,16 +244,16 @@ bool drawables_save(crate_t *const crate, drawables_t const *const src)
 
     // write materials
     {
-        dmaterial_t *const dmaterials = perm_calloc(sizeof(dmaterials[0]) * length);
+        DiskMaterial *const dmaterials = perm_calloc(sizeof(dmaterials[0]) * length);
         for (i32 i = 0; i < length; ++i)
         {
-            const material_t mat = src->materials[i];
-            dmaterial_t dmat = { 0 };
-            dmat.flags = mat.flags;
-            dmat.ior = mat.ior;
-            texture_save(crate, mat.albedo, &dmat.albedo.id);
-            texture_save(crate, mat.rome, &dmat.rome.id);
-            texture_save(crate, mat.normal, &dmat.normal.id);
+            const Material* mat = &src->materials[i];
+            DiskMaterial dmat = { 0 };
+            dmat.flags = mat->flags;
+            dmat.ior = mat->ior;
+            texture_save(crate, mat->albedo, &dmat.albedo.id);
+            texture_save(crate, mat->rome, &dmat.rome.id);
+            texture_save(crate, mat->normal, &dmat.normal.id);
             dmaterials[i] = dmat;
         }
         wrote &= crate_set(crate,
@@ -275,7 +275,7 @@ bool drawables_save(crate_t *const crate, drawables_t const *const src)
     return wrote;
 }
 
-bool drawables_load(crate_t *const crate, drawables_t *const dst)
+bool drawables_load(Crate *const crate, Entities *const dst)
 {
     ASSERT(dst);
     bool loaded = false;
@@ -299,7 +299,7 @@ bool drawables_load(crate_t *const crate, drawables_t *const dst)
 
         // load meshes
         {
-            dmeshid_t *const dmeshids = perm_calloc(sizeof(dmeshids[0]) * len);
+            DiskMeshId *const dmeshids = perm_calloc(sizeof(dmeshids[0]) * len);
             loaded &= crate_get(crate,
                 guid_str("drawables.meshes"), dmeshids, sizeof(dmeshids[0]) * len);
             if (loaded)
@@ -314,15 +314,15 @@ bool drawables_load(crate_t *const crate, drawables_t *const dst)
 
         // load materials
         {
-            dmaterial_t *const dmaterials = perm_calloc(sizeof(dmaterials[0]) * len);
+            DiskMaterial *const dmaterials = perm_calloc(sizeof(dmaterials[0]) * len);
             loaded &= crate_get(crate,
                 guid_str("drawables.materials"), dmaterials, sizeof(dmaterials[0]) * len);
             if (loaded)
             {
                 for (i32 i = 0; i < len; ++i)
                 {
-                    const dmaterial_t dmat = dmaterials[i];
-                    material_t mat = { 0 };
+                    const DiskMaterial dmat = dmaterials[i];
+                    Material mat = { 0 };
                     mat.flags = dmat.flags;
                     mat.ior = dmat.ior;
                     texture_load(crate, dmat.albedo.id, &mat.albedo);
@@ -357,7 +357,7 @@ void drawables_gui(bool* enabled)
 
     if (igBegin("Drawables", enabled, 0))
     {
-        drawables_t* dr = drawables_get();
+        Entities* dr = drawables_get();
         for (i32 iDrawable = 0; iDrawable < dr->count; ++iDrawable)
         {
             igPushIDPtr(&dr->names[iDrawable]);
@@ -368,7 +368,7 @@ void drawables_gui(bool* enabled)
             {
                 if (igTreeNodeStr("Material"))
                 {
-                    material_t* mat = &dr->materials[iDrawable];
+                    Material* mat = &dr->materials[iDrawable];
 
                     char texname[PIM_PATH];
                     texture_getnamestr(mat->albedo, ARGS(texname));
@@ -392,7 +392,7 @@ void drawables_gui(bool* enabled)
                         "Underwater",
                         "Portal",
                     };
-                    matflag_t flag = mat->flags;
+                    MatFlag flag = mat->flags;
                     for (u32 iBit = 0; iBit < NELEM(flagBits); ++iBit)
                     {
                         const u32 mask = 1u << iBit;

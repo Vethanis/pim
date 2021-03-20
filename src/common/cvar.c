@@ -18,11 +18,11 @@ static void EnsureInit(void)
 {
     if (!ms_dict.valueSize)
     {
-        sdict_new(&ms_dict, sizeof(cvar_t*), EAlloc_Perm);
+        sdict_new(&ms_dict, sizeof(ConVar_t*), EAlloc_Perm);
     }
 }
 
-void cvar_reg(cvar_t* ptr)
+void cvar_reg(ConVar_t* ptr)
 {
     EnsureInit();
 
@@ -37,11 +37,11 @@ void cvar_reg(cvar_t* ptr)
     ASSERT(added);
 }
 
-cvar_t* cvar_find(const char* name)
+ConVar_t* cvar_find(const char* name)
 {
     EnsureInit();
 
-    cvar_t* value = NULL;
+    ConVar_t* value = NULL;
     sdict_get(&ms_dict, name, &value);
     return value;
 }
@@ -65,7 +65,7 @@ const char* cvar_complete(const char* namePart)
     return NULL;
 }
 
-void cvar_set_str(cvar_t* ptr, const char* value)
+void cvar_set_str(ConVar_t* ptr, const char* value)
 {
     ASSERT(ptr);
     ASSERT(value);
@@ -147,7 +147,7 @@ void cvar_set_str(cvar_t* ptr, const char* value)
     }
 }
 
-void cvar_set_float(cvar_t* ptr, float value)
+void cvar_set_float(ConVar_t* ptr, float value)
 {
     ASSERT(ptr);
     ASSERT(ptr->type == cvart_float);
@@ -157,7 +157,7 @@ void cvar_set_float(cvar_t* ptr, float value)
     ptr->asFloat = value;
 }
 
-void cvar_set_int(cvar_t* ptr, i32 value)
+void cvar_set_int(ConVar_t* ptr, i32 value)
 {
     ASSERT(ptr);
     ASSERT(ptr->type == cvart_int);
@@ -167,7 +167,7 @@ void cvar_set_int(cvar_t* ptr, i32 value)
     ptr->asInt = value;
 }
 
-void cvar_set_vec(cvar_t* ptr, float4 value)
+void cvar_set_vec(ConVar_t* ptr, float4 value)
 {
     ASSERT(ptr);
     switch (ptr->type)
@@ -190,7 +190,7 @@ void cvar_set_vec(cvar_t* ptr, float4 value)
     ptr->asVector = value;
 }
 
-void cvar_set_bool(cvar_t* ptr, bool value)
+void cvar_set_bool(ConVar_t* ptr, bool value)
 {
     ASSERT(ptr);
     ASSERT(ptr->type == cvart_bool);
@@ -200,7 +200,7 @@ void cvar_set_bool(cvar_t* ptr, bool value)
     ptr->asBool = value;
 }
 
-bool cvar_check_dirty(cvar_t* ptr)
+bool cvar_check_dirty(ConVar_t* ptr)
 {
     ASSERT(ptr);
     bool dirty = (ptr->flags & cvarf_dirty) != 0;
@@ -220,7 +220,7 @@ void cvar_gui(bool* pEnabled)
 
     if (igBegin("Config Vars", pEnabled, 0))
     {
-        cvar_t** cvars = ms_dict.values;
+        ConVar_t** cvars = ms_dict.values;
         const i32 length = ms_dict.count;
         const u32* indices = sdict_sort(&ms_dict, SDictStrCmp, NULL);
 
@@ -232,7 +232,7 @@ void cvar_gui(bool* pEnabled)
         for (i32 i = 0; i < length; ++i)
         {
             u32 j = indices[i];
-            cvar_t* cvar = cvars[j];
+            ConVar_t* cvar = cvars[j];
             if (!cvar)
             {
                 continue;

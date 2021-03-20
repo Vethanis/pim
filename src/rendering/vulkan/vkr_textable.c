@@ -19,15 +19,15 @@ static vkrTextureId NullId(VkImageViewType type)
     return id;
 }
 
-static genid_t ToGenId(vkrTextureId id)
+static GenId ToGenId(vkrTextureId id)
 {
-    genid_t gid = { 0 };
+    GenId gid = { 0 };
     gid.index = id.index;
     gid.version = id.version;
     return gid;
 }
 
-static vkrTextureId ToTexId(genid_t gid, VkImageViewType type)
+static vkrTextureId ToTexId(GenId gid, VkImageViewType type)
 {
     vkrTextureId id = { 0 };
     id.version = gid.version;
@@ -161,7 +161,7 @@ static vkrTextureId TexTable_Alloc(
     bool mips)
 {
     const VkImageViewType viewType = tt->viewType;
-    const genid_t gid = idalloc_alloc(&tt->ids);
+    const GenId gid = idalloc_alloc(&tt->ids);
     const i32 slot = gid.index;
     ASSERT(slot < tt->capacity);
 

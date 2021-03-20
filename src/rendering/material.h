@@ -18,26 +18,26 @@ typedef enum
     matflag_animated = 1 << 7,      // keyframe animated
     matflag_underwater = 1 << 8,    // SURF_UNDERWATER
     matflag_portal = 1 << 9,
-} matflagbits_t;
-typedef u32 matflag_t;
+} MatFlagBits;
+typedef u32 MatFlag;
 
-typedef struct material_s
+typedef struct Material_s
 {
-    textureid_t albedo;     // rgba8 srgb (albedo, alpha)
-    textureid_t rome;       // rgba8 srgb (roughness, occlusion, metallic, emission)
-    textureid_t normal;     // rgba8 (tangent space xyz, packed as unorm)
-    matflag_t flags;
+    TextureId albedo;     // rgba8 srgb (albedo, alpha)
+    TextureId rome;       // rgba8 srgb (roughness, occlusion, metallic, emission)
+    TextureId normal;     // rgba8 (tangent space xyz, packed as unorm)
+    MatFlag flags;
     float ior;              // index of refraction
     float bumpiness;
-} material_t;
+} Material;
 
-typedef struct dmaterial_s
+typedef struct DiskMaterial_s
 {
-    dtextureid_t albedo;
-    dtextureid_t rome;
-    dtextureid_t normal;
-    matflag_t flags;
+    DiskTextureId albedo;
+    DiskTextureId rome;
+    DiskTextureId normal;
+    MatFlag flags;
     float ior;
-} dmaterial_t;
+} DiskMaterial;
 
 PIM_C_END

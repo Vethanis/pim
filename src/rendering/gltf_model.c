@@ -25,40 +25,40 @@
 static bool CreateScenes(
     const char* basePath,
     cgltf_data* cgdata,
-    drawables_t* dr);
+    Entities* dr);
 static bool CreateScene(
     const char* basePath,
     cgltf_scene* cgscene,
-    drawables_t* dr);
+    Entities* dr);
 static i32 CreateNode(
     const char* basePath,
     cgltf_scene* cgscene,
     cgltf_node* cgnode,
-    drawables_t* dr);
+    Entities* dr);
 static bool CreateMesh(
     const char* basePath,
     cgltf_mesh* cgmesh,
-    drawables_t* dr,
+    Entities* dr,
     i32 iDrawable);
 static bool CreateMaterial(
     const char* basePath,
     cgltf_material* cgmat,
-    drawables_t* dr,
+    Entities* dr,
     i32 iDrawable);
-static textureid_t CreateAlbedoTexture(
+static TextureId CreateAlbedoTexture(
     const char* basePath,
     cgltf_image* cgalbedo);
-static textureid_t CreateRomeTexture(
+static TextureId CreateRomeTexture(
     const char* basePath,
     cgltf_image* cgmetallic_roughness,
     cgltf_image* cgocclusion,
     cgltf_image* cgemission);
-static textureid_t CreateNormalTexture(
+static TextureId CreateNormalTexture(
     const char* basePath,
     cgltf_image* cgnormal);
 bool ResampleToAlbedoRome(
     const char* basePath,
-    material_t* material,
+    Material* material,
     cgltf_image* cgdiffuse,
     cgltf_image* cgspecular,
     cgltf_image* cgocclusion,
@@ -67,7 +67,7 @@ bool ResampleToAlbedoRome(
 static bool CreateLight(
     const char* basePath,
     cgltf_light* cglight,
-    drawables_t* dr,
+    Entities* dr,
     i32 iDrawable);
 
 // ----------------------------------------------------------------------------
@@ -77,11 +77,11 @@ static char const *const ShortenString(char const *const str, i32 maxLen);
 static bool LoadImageUri(
     const char* basePath,
     const char* uri,
-    texture_t* tex);
+    Texture* tex);
 
 // ----------------------------------------------------------------------------
 
-bool gltf_model_load(const char* path, drawables_t* dr)
+bool gltf_model_load(const char* path, Entities* dr)
 {
     bool success = true;
     fmap_t map = { 0 };
@@ -179,7 +179,7 @@ static void CatNodeLineage(char* dst, i32 size, cgltf_node* cgnode)
 static bool CreateScenes(
     const char* basePath,
     cgltf_data* cgdata,
-    drawables_t* dr)
+    Entities* dr)
 {
     const i32 sceneCount = (i32)cgdata->scenes_count;
     cgltf_scene* cgscenes = cgdata->scenes;
@@ -193,7 +193,7 @@ static bool CreateScenes(
 static bool CreateScene(
     const char* basePath,
     cgltf_scene* cgscene,
-    drawables_t* dr)
+    Entities* dr)
 {
     const i32 nodeCount = (i32)cgscene->nodes_count;
     cgltf_node** cgnodes = cgscene->nodes;
@@ -208,7 +208,7 @@ static i32 CreateNode(
     const char* basePath,
     cgltf_scene* cgscene,
     cgltf_node* cgnode,
-    drawables_t* dr)
+    Entities* dr)
 {
     if (!cgnode)
     {
@@ -224,7 +224,7 @@ static i32 CreateNode(
     char fullName[PIM_PATH] = { 0 };
     StrCpy(ARGS(fullName), cgscene->name);
     CatNodeLineage(ARGS(fullName), cgnode);
-    guid_t guid = guid_str(fullName);
+    Guid guid = guid_str(fullName);
 
     i32 iDrawable = drawables_find(dr, guid);
     if (iDrawable >= 0)
@@ -253,7 +253,7 @@ static i32 CreateNode(
 static bool CreateMesh(
     const char* basePath,
     cgltf_mesh* cgmesh,
-    drawables_t* dr,
+    Entities* dr,
     i32 iDrawable)
 {
     if (!cgmesh)
@@ -269,9 +269,9 @@ static bool CreateMesh(
     char fullName[PIM_PATH] = { 0 };
     char const *const names[] = { basePath, name };
     ConcatNames(ARGS(fullName), ARGS(names));
-    guid_t guid = guid_str(fullName);
+    Guid guid = guid_str(fullName);
 
-    meshid_t id = { 0 };
+    MeshId id = { 0 };
     if (mesh_find(guid, &id))
     {
         mesh_retain(id);
@@ -292,7 +292,7 @@ static bool CreateMesh(
 static bool CreateMaterial(
     const char* basePath,
     cgltf_material* cgmat,
-    drawables_t* dr,
+    Entities* dr,
     i32 iDrawable)
 {
     if (!cgmat)
@@ -311,7 +311,7 @@ static bool CreateMaterial(
 
     // TODO: Cache imported materials for reuse
 
-    material_t material = { 0 };
+    Material material = { 0 };
     material.ior = 1.0f;
     if (cgmat->has_ior)
     {
@@ -330,7 +330,7 @@ static bool CreateMaterial(
         cgocclusion = cgmat->occlusion_texture.texture->image;
     }
 
-    // TODO: add dedicated emission texture to material_t
+    // TODO: add dedicated emission texture to Material
     cgltf_image* cgemission = NULL;
     if (cgmat->emissive_texture.texture)
     {
@@ -385,7 +385,7 @@ static bool CreateMaterial(
 static bool LoadImageUri(
     const char* basePath,
     const char* uri,
-    texture_t* tex)
+    Texture* tex)
 {
     memset(tex, 0, sizeof(*tex));
 
@@ -429,7 +429,7 @@ static bool LoadImageUri(
     }
 }
 
-static bool ResampleToFloat4(texture_t* tex)
+static bool ResampleToFloat4(Texture* tex)
 {
     switch (tex->format)
     {
@@ -497,7 +497,7 @@ static bool ResampleToFloat4(texture_t* tex)
     }
 }
 
-static bool ResampleToSrgb(texture_t* tex)
+static bool ResampleToSrgb(Texture* tex)
 {
     if (tex->format == VK_FORMAT_R8G8B8A8_SRGB)
     {
@@ -519,7 +519,7 @@ static bool ResampleToSrgb(texture_t* tex)
     return false;
 }
 
-static bool ResampleToEmission(texture_t* tex)
+static bool ResampleToEmission(Texture* tex)
 {
     if (tex->format == VK_FORMAT_R32G32B32A32_SFLOAT)
     {
@@ -541,11 +541,11 @@ static bool ResampleToEmission(texture_t* tex)
     return false;
 }
 
-static textureid_t CreateAlbedoTexture(
+static TextureId CreateAlbedoTexture(
     const char* basePath,
     cgltf_image* cgalbedo)
 {
-    textureid_t id = { 0 };
+    TextureId id = { 0 };
     if (!cgalbedo)
     {
         return id;
@@ -555,7 +555,7 @@ static textureid_t CreateAlbedoTexture(
     char const *const names[] = { basePath, cgalbedo->uri };
     ConcatNames(ARGS(fullName), ARGS(names));
     cgltf_decode_uri(fullName);
-    guid_t guid = guid_str(fullName);
+    Guid guid = guid_str(fullName);
 
     if (texture_find(guid, &id))
     {
@@ -563,7 +563,7 @@ static textureid_t CreateAlbedoTexture(
         return id;
     }
 
-    texture_t tex = { 0 };
+    Texture tex = { 0 };
     if (!LoadImageUri(basePath, cgalbedo->uri, &tex))
     {
         return id;
@@ -577,7 +577,7 @@ static textureid_t CreateAlbedoTexture(
     return id;
 }
 
-static textureid_t CreateRomeTexture(
+static TextureId CreateRomeTexture(
     const char* basePath,
     cgltf_image* cgmetallic_roughness,
     cgltf_image* cgocclusion,
@@ -590,18 +590,18 @@ static textureid_t CreateRomeTexture(
     char fullName[PIM_PATH] = { 0 };
     ConcatNames(ARGS(fullName), ARGS(names));
     cgltf_decode_uri(fullName);
-    guid_t guid = guid_str(fullName);
+    Guid guid = guid_str(fullName);
 
-    textureid_t id = { 0 };
+    TextureId id = { 0 };
     if (texture_find(guid, &id))
     {
         texture_retain(id);
         return id;
     }
 
-    texture_t mrtex = { 0 };
-    texture_t occtex = { 0 };
-    texture_t emtex = { 0 };
+    Texture mrtex = { 0 };
+    Texture occtex = { 0 };
+    Texture emtex = { 0 };
     float4 defaultMr = { 0.0f, 0.5f, 0.0f, 0.0f };
     float4 defaultOcc = { 1.0f, 0.0f, 0.0f, 0.0f };
     float4 defaultEm = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -669,7 +669,7 @@ static textureid_t CreateRomeTexture(
             dst[index] = color;
         }
     }
-    texture_t tex = { 0 };
+    Texture tex = { 0 };
     tex.size = size;
     tex.texels = dst;
 
@@ -690,11 +690,11 @@ static textureid_t CreateRomeTexture(
     return id;
 }
 
-static textureid_t CreateNormalTexture(
+static TextureId CreateNormalTexture(
     const char* basePath,
     cgltf_image* cgnormal)
 {
-    textureid_t id = { 0 };
+    TextureId id = { 0 };
     if (!cgnormal)
     {
         return id;
@@ -704,7 +704,7 @@ static textureid_t CreateNormalTexture(
     char const *const names[] = { basePath, cgnormal->uri };
     ConcatNames(ARGS(fullName), ARGS(names));
     cgltf_decode_uri(fullName);
-    guid_t guid = guid_str(fullName);
+    Guid guid = guid_str(fullName);
 
     if (texture_find(guid, &id))
     {
@@ -712,7 +712,7 @@ static textureid_t CreateNormalTexture(
         return id;
     }
 
-    texture_t tex = { 0 };
+    Texture tex = { 0 };
     if (!LoadImageUri(basePath, cgnormal->uri, &tex))
     {
         return id;
@@ -741,7 +741,7 @@ static textureid_t CreateNormalTexture(
 
 bool ResampleToAlbedoRome(
     const char* basePath,
-    material_t* material,
+    Material* material,
     cgltf_image* cgdiffuse,
     cgltf_image* cgspecular,
     cgltf_image* cgocclusion,
@@ -760,18 +760,18 @@ bool ResampleToAlbedoRome(
     ConcatNames(ARGS(romeFullname), ARGS(romeNames));
     cgltf_decode_uri(albedoFullname);
     cgltf_decode_uri(romeFullname);
-    guid_t albedoGuid = guid_str(albedoFullname);
-    guid_t romeGuid = guid_str(romeFullname);
+    Guid albedoGuid = guid_str(albedoFullname);
+    Guid romeGuid = guid_str(romeFullname);
 
     if (texture_find(albedoGuid, &material->albedo) && texture_find(romeGuid, &material->rome))
     {
         return true;
     }
 
-    texture_t diffuseTex = { 0 };
-    texture_t specularTex = { 0 };
-    texture_t occtex = { 0 };
-    texture_t emtex = { 0 };
+    Texture diffuseTex = { 0 };
+    Texture specularTex = { 0 };
+    Texture occtex = { 0 };
+    Texture emtex = { 0 };
     float4 defaultDiffuse = { 0.5f, 0.5f, 0.5f, 1.0f };
     float4 defaultSpecular = { 0.0f, 0.0f, 0.0f, 0.0f };
     float4 defaultOcclusion = { 1.0f, 0.0f, 0.0f, 0.0f };
@@ -829,8 +829,8 @@ bool ResampleToAlbedoRome(
         emtex.texels = &defaultEmission;
     }
 
-    texture_t albedotex = { 0 };
-    texture_t rometex = { 0 };
+    Texture albedotex = { 0 };
+    Texture rometex = { 0 };
     {
         int2 size = i2_1;
         size = i2_max(size, diffuseTex.size);
@@ -904,7 +904,7 @@ bool ResampleToAlbedoRome(
 static bool CreateLight(
     const char* basePath,
     cgltf_light* cglight,
-    drawables_t* dr,
+    Entities* dr,
     i32 iDrawable)
 {
     if (!cglight)

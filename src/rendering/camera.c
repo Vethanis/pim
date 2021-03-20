@@ -1,7 +1,7 @@
 #include "rendering/camera.h"
 #include "math/frustum.h"
 
-static camera_t ms_camera = 
+static Camera ms_camera = 
 {
     .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
     .position = { 0.0f, 0.0f, 5.0f },
@@ -10,13 +10,13 @@ static camera_t ms_camera =
     .fovy = 90.0f,
 };
 
-void camera_get(camera_t* dst)
+void camera_get(Camera* dst)
 {
     ASSERT(dst);
     *dst = ms_camera;
 }
 
-void camera_set(const camera_t* src)
+void camera_set(const Camera* src)
 {
     ASSERT(src);
     ms_camera = *src;
@@ -28,12 +28,12 @@ void camera_reset(void)
     ms_camera.rotation = quat_id;
 }
 
-void camera_frustum(const camera_t* src, frus_t* dst, float aspect)
+void camera_frustum(const Camera* src, Frustum* dst, float aspect)
 {
     camera_subfrustum(src, dst, f2_s(-1.0f), f2_s(1.0f), src->zNear, src->zFar, aspect);
 }
 
-void camera_subfrustum(const camera_t* src, frus_t* dst, float2 lo, float2 hi, float zNear, float zFar, float aspect)
+void camera_subfrustum(const Camera* src, Frustum* dst, float2 lo, float2 hi, float zNear, float zFar, float aspect)
 {
     ASSERT(src);
     ASSERT(dst);
