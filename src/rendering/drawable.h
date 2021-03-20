@@ -7,26 +7,26 @@
 
 PIM_C_BEGIN
 
-typedef struct meshid_s meshid_t;
-typedef struct material_s material_t;
-typedef struct crate_s crate_t;
+typedef struct MeshId_s MeshId;
+typedef struct Material_s Material;
+typedef struct Crate_s Crate;
 
-typedef struct drawables_s
+typedef struct Entities_s
 {
     i32 count;
-    guid_t* pim_noalias names;          // hash identifier
-    meshid_t* pim_noalias meshes;       // immutable object space mesh
-    box_t* pim_noalias bounds;          // object space bounds
-    material_t* pim_noalias materials;  // material description
+    Guid* pim_noalias names;          // hash identifier
+    MeshId* pim_noalias meshes;       // immutable object space mesh
+    Box3D* pim_noalias bounds;          // object space bounds
+    Material* pim_noalias materials;  // material description
     float4x4* pim_noalias matrices;     // local to world matrix
     float3x3* pim_noalias invMatrices;  // world to local rotation matrix
     float4* pim_noalias translations;
     quat* pim_noalias rotations;
     float4* pim_noalias scales;
-} drawables_t;
+} Entities;
 
-#define kDrawablesVersion 3
-typedef struct ddrawables_s
+#define kDiskEntitiesVersion 3
+typedef struct DiskEntities_s
 {
     i32 version;
     i32 length;
@@ -37,27 +37,27 @@ typedef struct ddrawables_s
     dbytes_t translations;
     dbytes_t rotations;
     dbytes_t scales;
-} ddrawables_t;
+} DiskEntities;
 
 void drawables_init(void);
 void drawables_update(void);
 void drawables_shutdown(void);
 void drawables_gui(bool* enabled);
 
-drawables_t *const drawables_get(void);
+Entities *const drawables_get(void);
 
-i32 drawables_add(drawables_t *const dr, guid_t name);
-bool drawables_rm(drawables_t *const dr, guid_t name);
-i32 drawables_find(drawables_t const *const dr, guid_t name);
-void drawables_clear(drawables_t *const dr);
-void drawables_del(drawables_t *const dr);
+i32 drawables_add(Entities *const dr, Guid name);
+bool drawables_rm(Entities *const dr, Guid name);
+i32 drawables_find(Entities const *const dr, Guid name);
+void drawables_clear(Entities *const dr);
+void drawables_del(Entities *const dr);
 
-void drawables_updatebounds(drawables_t *const dr);
-void drawables_updatetransforms(drawables_t *const dr);
-box_t drawables_bounds(drawables_t const *const dr);
+void drawables_updatebounds(Entities *const dr);
+void drawables_updatetransforms(Entities *const dr);
+Box3D drawables_bounds(Entities const *const dr);
 
-bool drawables_save(crate_t *const crate, drawables_t const *const src);
-bool drawables_load(crate_t *const crate, drawables_t *const dst);
+bool drawables_save(Crate *const crate, Entities const *const src);
+bool drawables_load(Crate *const crate, Entities *const dst);
 
 
 PIM_C_END

@@ -30,7 +30,7 @@ void idalloc_clear(idalloc_t* ia)
     queue_i32_clear(&ia->freelist);
 }
 
-bool idalloc_exists(const idalloc_t* ia, genid_t id)
+bool idalloc_exists(const idalloc_t* ia, GenId id)
 {
     i32 i = id.index;
     u8 v = id.version;
@@ -43,7 +43,7 @@ bool idalloc_existsat(const idalloc_t* ia, i32 index)
     return ia->versions[index] & 1;
 }
 
-genid_t idalloc_alloc(idalloc_t* ia)
+GenId idalloc_alloc(idalloc_t* ia)
 {
     i32 index = 0;
     if (!queue_i32_trypop(&ia->freelist, &index))
@@ -53,14 +53,14 @@ genid_t idalloc_alloc(idalloc_t* ia)
         ia->versions[index] = 0;
     }
     u8 version = ++(ia->versions[index]);
-    genid_t id;
+    GenId id;
     id.version = version;
     id.index = index;
     ASSERT(version & 1);
     return id;
 }
 
-bool idalloc_free(idalloc_t* ia, genid_t id)
+bool idalloc_free(idalloc_t* ia, GenId id)
 {
     if (idalloc_exists(ia, id))
     {

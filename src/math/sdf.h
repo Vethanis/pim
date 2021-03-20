@@ -9,34 +9,34 @@ PIM_C_BEGIN
 #include "math/float3_funcs.h"
 #include "math/float4_funcs.h"
 
-pim_inline float VEC_CALL sdCircle(circle_t c, float2 pt)
+pim_inline float VEC_CALL sdCircle(Circle c, float2 pt)
 {
     return f2_distance(c.center, pt) - c.radius;
 }
 
-pim_inline float VEC_CALL sdSphere(sphere_t sph, float4 pt)
+pim_inline float VEC_CALL sdSphere(Sphere sph, float4 pt)
 {
     return f4_distance3(sph.value, pt) - sph.value.w;
 }
 
-pim_inline float VEC_CALL sdPlane2D(plane2d_t plane, float2 pt)
+pim_inline float VEC_CALL sdPlane2D(Plane2D plane, float2 pt)
 {
     return f2_dot(plane.normal, pt) - plane.distance;
 }
 
-pim_inline plane_t VEC_CALL plane_new(float4 dir, float4 pt)
+pim_inline Plane3D VEC_CALL plane_new(float4 dir, float4 pt)
 {
     dir.w = f4_dot3(dir, pt);
-    plane_t y = { dir };
+    Plane3D y = { dir };
     return y;
 }
 
-pim_inline float VEC_CALL sdPlane3D(plane_t plane, float4 pt)
+pim_inline float VEC_CALL sdPlane3D(Plane3D plane, float4 pt)
 {
     return f4_dot3(plane.value, pt) - plane.value.w;
 }
 
-pim_inline float VEC_CALL sdLine2D(line2d_t line, float2 pt)
+pim_inline float VEC_CALL sdLine2D(Line2D line, float2 pt)
 {
     float2 pa = f2_sub(pt, line.p0);
     float2 ba = f2_sub(line.p1, line.p0);
@@ -44,7 +44,7 @@ pim_inline float VEC_CALL sdLine2D(line2d_t line, float2 pt)
     return f2_length(f2_sub(pa, f2_mulvs(ba, h)));
 }
 
-pim_inline float VEC_CALL sdLine3D(capsule_t cap, float4 pt)
+pim_inline float VEC_CALL sdLine3D(Capsule cap, float4 pt)
 {
     float4 pa = f4_sub(pt, cap.p0r);
     float4 ba = f4_sub(cap.p1, cap.p0r);
@@ -52,7 +52,7 @@ pim_inline float VEC_CALL sdLine3D(capsule_t cap, float4 pt)
     return f4_length3(f4_sub(pa, f4_mulvs(ba, h))) - cap.p0r.w;
 }
 
-pim_inline float VEC_CALL sdBox2D(box2d_t box, float2 pt)
+pim_inline float VEC_CALL sdBox2D(Box2D box, float2 pt)
 {
     float2 center = f2_lerp(box.lo, box.hi, 0.5f);
     float2 extents = f2_sub(box.hi, center);
@@ -60,7 +60,7 @@ pim_inline float VEC_CALL sdBox2D(box2d_t box, float2 pt)
     return f2_length(f2_max(d, f2_0)) + f1_min(f2_hmax(d), 0.0f);
 }
 
-pim_inline float VEC_CALL sdBox3D(box_t box, float4 pt)
+pim_inline float VEC_CALL sdBox3D(Box3D box, float4 pt)
 {
     float4 center = f4_lerpvs(box.lo, box.hi, 0.5f);
     float4 extents = f4_sub(box.hi, center);
@@ -68,24 +68,24 @@ pim_inline float VEC_CALL sdBox3D(box_t box, float4 pt)
     return f4_length3(f4_max(d, f4_0)) + f1_min(f4_hmax3(d), 0.0f);
 }
 
-pim_inline float VEC_CALL sdPlaneCircle(plane2d_t plane, circle_t circle)
+pim_inline float VEC_CALL sdPlaneCircle(Plane2D plane, Circle circle)
 {
     return sdPlane2D(plane, circle.center) - circle.radius;
 }
 
-pim_inline float VEC_CALL sdPlaneSphere(plane_t plane, sphere_t sphere)
+pim_inline float VEC_CALL sdPlaneSphere(Plane3D plane, Sphere sphere)
 {
     return sdPlane3D(plane, sphere.value) - sphere.value.w;
 }
 
-pim_inline float VEC_CALL sdPlaneBox2D(plane2d_t plane, box2d_t box)
+pim_inline float VEC_CALL sdPlaneBox2D(Plane2D plane, Box2D box)
 {
     float2 center = f2_lerp(box.lo, box.hi, 0.5f);
     float2 extents = f2_sub(box.hi, center);
     return sdPlane2D(plane, center) - f2_dot(f2_abs(plane.normal), f2_abs(extents));
 }
 
-pim_inline float VEC_CALL sdPlaneBox3D(plane_t plane, box_t box)
+pim_inline float VEC_CALL sdPlaneBox3D(Plane3D plane, Box3D box)
 {
     float4 center = f4_lerpvs(box.lo, box.hi, 0.5f);
     float4 extents = f4_sub(box.hi, center);
@@ -189,7 +189,7 @@ pim_inline float VEC_CALL sdTriangle3D(
     return sqrtf(t);
 }
 
-pim_inline float4 VEC_CALL isectTri3D(ray_t ray, float4 A, float4 B, float4 C)
+pim_inline float4 VEC_CALL isectTri3D(Ray ray, float4 A, float4 B, float4 C)
 {
     float4 BA = f4_sub(B, A);
     float4 CA = f4_sub(C, A);
@@ -213,7 +213,7 @@ pim_inline float4 VEC_CALL isectTri3D(ray_t ray, float4 A, float4 B, float4 C)
 
 // returns [near, far] intersection distances
 // if near > far, the ray does not intersect
-pim_inline float2 VEC_CALL isectSphere3D(float4 ro, float4 rd, sphere_t sph)
+pim_inline float2 VEC_CALL isectSphere3D(float4 ro, float4 rd, Sphere sph)
 {
     // move to sphere local space
     ro = f4_sub(ro, sph.value);
@@ -230,7 +230,7 @@ pim_inline float2 VEC_CALL isectSphere3D(float4 ro, float4 rd, sphere_t sph)
     return f2_v((nb - sqrtd) * 0.5f, (nb + sqrtd) * 0.5f);
 }
 
-pim_inline float VEC_CALL isectPlane3D(ray_t ray, plane_t plane)
+pim_inline float VEC_CALL isectPlane3D(Ray ray, Plane3D plane)
 {
     return -sdPlane3D(plane, ray.ro) / f4_dot3(ray.rd, plane.value);
 }
@@ -240,7 +240,7 @@ pim_inline float VEC_CALL isectPlane3D(ray_t ray, plane_t plane)
 pim_inline float2 VEC_CALL isectBox3D(
     float4 ro,      // ray origin
     float4 rcpRd,   // 1 / ray direction
-    box_t box)
+    Box3D box)
 {
     float4 tx1 = f4_mul(f4_sub(box.lo, ro), rcpRd);
     float4 tx2 = f4_mul(f4_sub(box.hi, ro), rcpRd);
@@ -249,15 +249,15 @@ pim_inline float2 VEC_CALL isectBox3D(
     return f2_v(tmin, tmax);
 }
 
-pim_inline plane_t VEC_CALL triToPlane(float4 A, float4 B, float4 C)
+pim_inline Plane3D VEC_CALL triToPlane(float4 A, float4 B, float4 C)
 {
-    plane_t pl;
+    Plane3D pl;
     pl.value = f4_normalize3(f4_cross3(f4_sub(B, A), f4_sub(C, A)));
     pl.value.w = f4_dot3(pl.value, A);
     return pl;
 }
 
-pim_inline sphere_t VEC_CALL triToSphere(float4 A, float4 B, float4 C)
+pim_inline Sphere VEC_CALL triToSphere(float4 A, float4 B, float4 C)
 {
     float4 center = f4_divvs(f4_add(A, f4_add(B, C)), 3.0f);
     float da = f4_distancesq3(A, center);
@@ -265,21 +265,21 @@ pim_inline sphere_t VEC_CALL triToSphere(float4 A, float4 B, float4 C)
     float dc = f4_distancesq3(C, center);
     float rsqr = f1_max(da, f1_max(db, dc));
     center.w = sqrtf(rsqr);
-    sphere_t sph = { center };
+    Sphere sph = { center };
     return sph;
 }
 
-pim_inline box_t VEC_CALL triToBox(float4 A, float4 B, float4 C)
+pim_inline Box3D VEC_CALL triToBox(float4 A, float4 B, float4 C)
 {
     float4 lo = f4_min(A, f4_min(B, C));
     float4 hi = f4_max(A, f4_max(B, C));
     float4 center = f4_lerpvs(lo, hi, 0.5f);
     float4 extents = f4_sub(hi, center);
-    box_t box = { center, extents };
+    Box3D box = { center, extents };
     return box;
 }
 
-pim_inline sphere_t VEC_CALL sphTransform(sphere_t sph, float4 translation, float4 scale)
+pim_inline Sphere VEC_CALL sphTransform(Sphere sph, float4 translation, float4 scale)
 {
     float r = sph.value.w;
     sph.value = f4_add(sph.value, translation);

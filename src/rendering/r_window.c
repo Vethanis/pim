@@ -10,7 +10,7 @@
 #include "rendering/vulkan/vkr.h"
 #include <math.h>
 
-static cvar_t cv_fpslimit =
+static ConVar_t cv_fpslimit =
 {
     .type = cvart_int,
     .name = "fps_limit",

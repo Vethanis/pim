@@ -34,7 +34,7 @@
 
 static VkRenderPass CreateRenderPass(const vkrSwapchain* chain);
 
-static cvar_t* cv_pt_trace;
+static ConVar_t* cv_pt_trace;
 
 // ----------------------------------------------------------------------------
 

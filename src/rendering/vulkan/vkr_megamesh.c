@@ -114,15 +114,15 @@ static bool ms_dirty[kFramesInFlight];
 
 PIM_C_BEGIN
 
-static genid_t ToGenId(vkrMeshId id)
+static GenId ToGenId(vkrMeshId id)
 {
-    genid_t gid = { 0 };
+    GenId gid = { 0 };
     gid.version = id.version;
     gid.index = id.index;
     return gid;
 }
 
-static vkrMeshId ToMeshId(genid_t gid)
+static vkrMeshId ToMeshId(GenId gid)
 {
     vkrMeshId id = { 0 };
     id.version = gid.version;
@@ -209,7 +209,7 @@ bool vkrMegaMesh_Exists(vkrMeshId id)
 
 vkrMeshId vkrMegaMesh_Alloc(i32 vertCount)
 {
-    genid_t gid = idalloc_alloc(&ms_ids);
+    GenId gid = idalloc_alloc(&ms_ids);
     PermReserve(ms_meshes, ms_ids.length);
     SubMesh* mesh = &ms_meshes[gid.index];
     mesh->length = vertCount;

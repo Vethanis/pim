@@ -10,7 +10,7 @@
 #define kEmpty  -1
 #define kTomb   -2
 
-pim_inline void LookupReserve(table_t *const table, i32 capacity)
+pim_inline void LookupReserve(Table *const table, i32 capacity)
 {
     const u32 newWidth = NextPow2(capacity) * 4;
     const u32 oldWidth = table->lookupWidth;
@@ -21,7 +21,7 @@ pim_inline void LookupReserve(table_t *const table, i32 capacity)
 
     i32 *const pim_noalias newIndices = perm_malloc(sizeof(newIndices[0]) * newWidth);
     i32 *const pim_noalias oldIndices = table->lookup;
-    const guid_t *const pim_noalias names = table->names;
+    const Guid *const pim_noalias names = table->names;
 
     for (u32 i = 0; i < newWidth; ++i)
     {
@@ -54,7 +54,7 @@ pim_inline void LookupReserve(table_t *const table, i32 capacity)
     pim_free(oldIndices);
 }
 
-pim_inline i32 LookupInsert(table_t *const table, i32 iTable, guid_t name)
+pim_inline i32 LookupInsert(Table *const table, i32 iTable, Guid name)
 {
     ASSERT(iTable >= 0);
     ASSERT(iTable < table->width);
@@ -79,8 +79,8 @@ pim_inline i32 LookupInsert(table_t *const table, i32 iTable, guid_t name)
 }
 
 pim_inline bool LookupFind(
-    const table_t *const table,
-    guid_t name,
+    const Table *const table,
+    Guid name,
     i32 *const pim_noalias iTableOut,
     i32 *const pim_noalias iLookupOut)
 {
@@ -92,7 +92,7 @@ pim_inline bool LookupFind(
     const u32 width = table->lookupWidth;
     const u32 mask = width - 1u;
 
-    const guid_t *const pim_noalias names = table->names;
+    const Guid *const pim_noalias names = table->names;
     const i32 *const pim_noalias lookup = table->lookup;
     const u32 hash = guid_hashof(name);
 
@@ -121,7 +121,7 @@ pim_inline bool LookupFind(
     return false;
 }
 
-pim_inline void LookupRemove(table_t *const table, i32 iTable, i32 iLookup)
+pim_inline void LookupRemove(Table *const table, i32 iTable, i32 iLookup)
 {
     if (iLookup >= 0)
     {
@@ -132,7 +132,7 @@ pim_inline void LookupRemove(table_t *const table, i32 iTable, i32 iLookup)
     }
 }
 
-pim_inline void LookupClear(table_t *const table)
+pim_inline void LookupClear(Table *const table)
 {
     const u32 width = table->lookupWidth;
     i32 *const pim_noalias lookup = table->lookup;
@@ -142,7 +142,7 @@ pim_inline void LookupClear(table_t *const table)
     }
 }
 
-void table_new(table_t *const table, i32 valueSize)
+void table_new(Table *const table, i32 valueSize)
 {
     ASSERT(table);
     ASSERT(valueSize > 0);
@@ -151,7 +151,7 @@ void table_new(table_t *const table, i32 valueSize)
     table->valueSize = valueSize;
 }
 
-void table_del(table_t *const table)
+void table_del(Table *const table)
 {
     if (table)
     {
@@ -165,7 +165,7 @@ void table_del(table_t *const table)
     }
 }
 
-void table_clear(table_t *const table)
+void table_clear(Table *const table)
 {
     const i32 len = table->width;
     table->width = 0;
@@ -177,7 +177,7 @@ void table_clear(table_t *const table)
     LookupClear(table);
 }
 
-bool table_exists(table_t const *const table, genid_t id)
+bool table_exists(Table const *const table, GenId id)
 {
     ASSERT(table->valueSize > 0);
     i32 i = id.index;
@@ -186,10 +186,10 @@ bool table_exists(table_t const *const table, genid_t id)
 }
 
 bool table_add(
-    table_t *const table,
-    guid_t name,
+    Table *const table,
+    Guid name,
     const void *const valueIn,
-    genid_t *const idOut)
+    GenId *const idOut)
 {
     ASSERT(table->valueSize > 0);
     ASSERT(valueIn);
@@ -242,7 +242,7 @@ bool table_add(
     return true;
 }
 
-bool table_retain(table_t *const table, genid_t id)
+bool table_retain(Table *const table, GenId id)
 {
     if (table_exists(table, id))
     {
@@ -253,7 +253,7 @@ bool table_retain(table_t *const table, genid_t id)
     return false;
 }
 
-bool table_release(table_t *const table, genid_t id, void *const valueOut)
+bool table_release(Table *const table, GenId id, void *const valueOut)
 {
     if (table_exists(table, id))
     {
@@ -277,7 +277,7 @@ bool table_release(table_t *const table, genid_t id, void *const valueOut)
 
             LookupRemove(table, iTable, iLookup);
 
-            table->names[index] = (guid_t) { 0 };
+            table->names[index] = (Guid) { 0 };
             table->versions[index] += 1;
             {
                 i32 stride = table->valueSize;
@@ -298,7 +298,7 @@ bool table_release(table_t *const table, genid_t id, void *const valueOut)
     return false;
 }
 
-void *const table_get(const table_t *const table, genid_t id)
+void *const table_get(const Table *const table, GenId id)
 {
     if (table_exists(table, id))
     {
@@ -311,7 +311,7 @@ void *const table_get(const table_t *const table, genid_t id)
     return NULL;
 }
 
-bool table_find(const table_t *const table, guid_t name, genid_t *const idOut)
+bool table_find(const Table *const table, Guid name, GenId *const idOut)
 {
     ASSERT(table);
     ASSERT(idOut);
@@ -334,7 +334,7 @@ bool table_find(const table_t *const table, guid_t name, genid_t *const idOut)
     return false;
 }
 
-bool table_getname(const table_t *const table, genid_t id, guid_t *const nameOut)
+bool table_getname(const Table *const table, GenId id, Guid *const nameOut)
 {
     ASSERT(nameOut);
     nameOut->a = 0;

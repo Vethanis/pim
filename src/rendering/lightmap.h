@@ -22,7 +22,7 @@ static const float4 kGiAxii[kGiDirections] =
 
 typedef struct task_s task_t;
 typedef struct pt_scene_s pt_scene_t;
-typedef struct crate_s crate_t;
+typedef struct Crate_s Crate;
 
 typedef struct lightmap_s
 {
@@ -68,7 +68,7 @@ void lmpack_del(lmpack_t* pack);
 
 void lmpack_bake(pt_scene_t* scene, float timeSlice, i32 spp);
 
-bool lmpack_save(crate_t* crate, const lmpack_t* src);
-bool lmpack_load(crate_t* crate, lmpack_t* dst);
+bool lmpack_save(Crate* crate, const lmpack_t* src);
+bool lmpack_load(Crate* crate, lmpack_t* dst);
 
 PIM_C_END

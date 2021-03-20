@@ -6,8 +6,8 @@
 
 PIM_C_BEGIN
 
-typedef struct material_s material_t;
-typedef struct camera_s camera_t;
+typedef struct Material_s Material;
+typedef struct Camera_s Camera;
 typedef struct task_s task_t;
 
 typedef struct pt_scene_s pt_scene_t;
@@ -112,7 +112,7 @@ pt_result_t VEC_CALL pt_trace_ray_retro(
     float4 ro,
     float4 rd);
 
-void pt_trace(pt_trace_t* traceDesc, const camera_t* camera);
+void pt_trace(pt_trace_t* traceDesc, const Camera* camera);
 
 pt_results_t pt_raygen(
     pt_scene_t*const pim_noalias scene,

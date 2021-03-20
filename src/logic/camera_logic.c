@@ -12,10 +12,10 @@
 
 static bool ms_placing = true;
 
-static cvar_t cv_pitchscale = { .type = cvart_float,.name = "pitchscale",.value = "2",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "pitch input sensitivity" };
-static cvar_t cv_yawscale = { .type = cvart_float,.name = "yawscale",.value = "1",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "yaw input sensitivity" };
-static cvar_t cv_movescale = { .type = cvart_float,.name = "movescale",.value = "8",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
-static cvar_t cv_r_fov =
+static ConVar_t cv_pitchscale = { .type = cvart_float,.name = "pitchscale",.value = "2",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "pitch input sensitivity" };
+static ConVar_t cv_yawscale = { .type = cvart_float,.name = "yawscale",.value = "1",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "yaw input sensitivity" };
+static ConVar_t cv_movescale = { .type = cvart_float,.name = "movescale",.value = "8",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
+static ConVar_t cv_r_fov =
 {
     .type = cvart_float,
     .name = "r_fov",
@@ -24,7 +24,7 @@ static cvar_t cv_r_fov =
     .maxFloat = 170.0f,
     .desc = "Vertical field of fiew, in degrees",
 };
-static cvar_t cv_r_znear =
+static ConVar_t cv_r_znear =
 {
     .type = cvart_float,
     .name = "r_znear",
@@ -33,7 +33,7 @@ static cvar_t cv_r_znear =
     .maxFloat = 1.0f,
     .desc = "Near clipping plane, in meters",
 };
-static cvar_t cv_r_zfar =
+static ConVar_t cv_r_zfar =
 {
     .type = cvart_float,
     .name = "r_zfar",
@@ -61,7 +61,7 @@ void camera_logic_update(void)
     float dYaw = input_delta_axis(MouseAxis_X) * cvar_get_float(&cv_yawscale);
     float dPitch = input_delta_axis(MouseAxis_Y) * cvar_get_float(&cv_pitchscale);
 
-    camera_t camera;
+    Camera camera;
     camera_get(&camera);
     camera.fovy = cvar_get_float(&cv_r_fov);
     camera.zNear = cvar_get_float(&cv_r_znear);

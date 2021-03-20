@@ -51,7 +51,7 @@ typedef struct lightlist_s
 
 typedef struct froxels_s
 {
-    frusbasis_t basis;
+    FrustumBasis basis;
     lightlist_t lights[kFroxelCount];
 } froxels_t;
 
@@ -62,7 +62,7 @@ typedef struct world_s
     i32 numDrawables;
     i32 numLights;
     u64 lightHash;
-    cubemap_t* sky;
+    Cubemap* sky;
     froxels_t froxels;
 } world_t;
 
@@ -77,7 +77,7 @@ static void ClusterLights(
     framebuf_t* target,
     const camera_t* camera);
 
-pim_inline i32 VEC_CALL PositionToFroxel(frusbasis_t basis, float4 P)
+pim_inline i32 VEC_CALL PositionToFroxel(FrustumBasis basis, float4 P)
 {
     float3 coord = unproj_pt(basis.eye, basis.right, basis.up, basis.fwd, basis.slope, P);
     coord.x = f1_unorm(coord.x) * kFroxelResX;
@@ -111,7 +111,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     const camera_t* camera = task->camera;
     world_t* world = task->world;
     RTCScene scene = world->scene;
-    const cubemap_t* pim_noalias sky = world->sky;
+    const Cubemap* pim_noalias sky = world->sky;
     const froxels_t* pim_noalias froxels = &world->froxels;
 
     const drawables_t* drawables = drawables_get();
@@ -313,7 +313,7 @@ static void ClusterLightsFn(task_t* pbase, i32 begin, i32 end)
     const pt_light_t* pim_noalias ptLights = lights->ptLights;
     const i32 ptCount = lights->ptCount;
     const camera_t camera = task->camera;
-    const frusbasis_t basis = froxels->basis;
+    const FrustumBasis basis = froxels->basis;
 
     const float rcpResX = 1.0f / kFroxelResX;
     const float rcpResY = 1.0f / kFroxelResY;
@@ -330,13 +330,13 @@ static void ClusterLightsFn(task_t* pbase, i32 begin, i32 end)
         hi = f2_snorm(hi);
         float zNear = LerpZ(basis.zNear, basis.zFar, (z + 0) * rcpResZ);
         float zFar = LerpZ(basis.zNear, basis.zFar, (z + 1) * rcpResZ);
-        frus_t frus;
+        Frustum frus;
         camera_subfrustum(&camera, &frus, lo, hi, zNear, zFar);
 
         lightlist_t list = { 0 };
         for (i32 iLight = 0; iLight < ptCount; ++iLight)
         {
-            const sphere_t sph = { ptLights[iLight].pos };
+            const Sphere sph = { ptLights[iLight].pos };
             bool overlaps = false;
             if (sdFrusSph(frus, sph) <= 0.0f)
             {
@@ -349,9 +349,9 @@ static void ClusterLightsFn(task_t* pbase, i32 begin, i32 end)
     }
 }
 
-pim_inline frusbasis_t VEC_CALL CameraToBasis(const camera_t* camera, i32 width, i32 height)
+pim_inline FrustumBasis VEC_CALL CameraToBasis(const camera_t* camera, i32 width, i32 height)
 {
-    frusbasis_t basis;
+    FrustumBasis basis;
     basis.eye = camera->position;
     quat rot = camera->rotation;
     basis.right = quat_right(rot);

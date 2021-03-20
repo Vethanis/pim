@@ -16,21 +16,21 @@ static void EnsureInit(void)
     if (!ms_init)
     {
         ms_init = true;
-        dict_new(&ms_guidToStr, sizeof(guid_t), sizeof(text32), EAlloc_Perm);
+        dict_new(&ms_guidToStr, sizeof(Guid), sizeof(text32), EAlloc_Perm);
     }
 }
 
-bool guid_isnull(guid_t x)
+bool guid_isnull(Guid x)
 {
     return !(x.a | x.b);
 }
 
-bool guid_eq(guid_t lhs, guid_t rhs)
+bool guid_eq(Guid lhs, Guid rhs)
 {
     return !((lhs.a - rhs.a) | (lhs.b - rhs.b));
 }
 
-i32 guid_cmp(guid_t lhs, guid_t rhs)
+i32 guid_cmp(Guid lhs, Guid rhs)
 {
     if (lhs.a != rhs.a)
     {
@@ -43,16 +43,16 @@ i32 guid_cmp(guid_t lhs, guid_t rhs)
     return 0;
 }
 
-guid_t guid_new(void)
+Guid guid_new(void)
 {
     u64 a = time_now();
     u64 b = inc_u32(&ms_counter, MO_Relaxed);
     u64 c = inc_u32(&ms_counter, MO_Relaxed);
     b = b << 32 | c;
-    return (guid_t) { a, b };
+    return (Guid) { a, b };
 }
 
-void guid_set_name(guid_t id, const char* str)
+void guid_set_name(Guid id, const char* str)
 {
     EnsureInit();
     if (str && str[0])
@@ -70,7 +70,7 @@ void guid_set_name(guid_t id, const char* str)
     }
 }
 
-bool guid_get_name(guid_t id, char* dst, i32 size)
+bool guid_get_name(Guid id, char* dst, i32 size)
 {
     EnsureInit();
     text32 text = { 0 };
@@ -83,7 +83,7 @@ bool guid_get_name(guid_t id, char* dst, i32 size)
     return false;
 }
 
-i32 guid_find(guid_t const *const pim_noalias ptr, i32 count, guid_t key)
+i32 guid_find(Guid const *const pim_noalias ptr, i32 count, Guid key)
 {
     ASSERT(ptr || !count);
     ASSERT(count >= 0);
@@ -97,9 +97,9 @@ i32 guid_find(guid_t const *const pim_noalias ptr, i32 count, guid_t key)
     return -1;
 }
 
-guid_t guid_str(char const *const pim_noalias str)
+Guid guid_str(char const *const pim_noalias str)
 {
-    guid_t id = { 0 };
+    Guid id = { 0 };
     if (str && str[0])
     {
         u64 a = Fnv64String(str, Fnv64Bias);
@@ -113,9 +113,9 @@ guid_t guid_str(char const *const pim_noalias str)
     return id;
 }
 
-guid_t guid_bytes(void const *const pim_noalias ptr, i32 nBytes)
+Guid guid_bytes(void const *const pim_noalias ptr, i32 nBytes)
 {
-    guid_t id = { 0 };
+    Guid id = { 0 };
     if (ptr && nBytes > 0)
     {
         u64 a = Fnv64Bytes(ptr, nBytes, Fnv64Bias);
@@ -128,16 +128,16 @@ guid_t guid_bytes(void const *const pim_noalias ptr, i32 nBytes)
     return id;
 }
 
-guid_t guid_rand(prng_t* rng)
+Guid guid_rand(prng_t* rng)
 {
     u64 a = prng_u64(rng);
     u64 b = prng_u64(rng);
     a = a ? a : 1;
     b = b ? b : 1;
-    return (guid_t) { a, b };
+    return (Guid) { a, b };
 }
 
-void guid_fmt(char* dst, i32 size, guid_t value)
+void guid_fmt(char* dst, i32 size, Guid value)
 {
     u32 a0 = (value.a >> 32) & 0xffffffff;
     u32 a1 = (value.a >> 0) & 0xffffffff;
@@ -146,7 +146,7 @@ void guid_fmt(char* dst, i32 size, guid_t value)
     StrCatf(dst, size, "%x_%x_%x_%x", a0, a1, b0, b1);
 }
 
-u32 guid_hashof(guid_t x)
+u32 guid_hashof(Guid x)
 {
     return Fnv32Qword(x.b, Fnv32Qword(x.a, Fnv32Bias));
 }

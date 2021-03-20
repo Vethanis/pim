@@ -20,47 +20,47 @@
 #include "common/nextpow2.h"
 #include <string.h>
 
-static table_t ms_table;
+static Table ms_table;
 static u8 ms_palette[256 * 3];
 
-static void ResizeToPow2(texture_t* tex);
+static void ResizeToPow2(Texture* tex);
 
-static genid_t ToGenId(textureid_t tid)
+static GenId ToGenId(TextureId tid)
 {
-    genid_t gid;
+    GenId gid;
     gid.index = tid.index;
     gid.version = tid.version;
     return gid;
 }
 
-static textureid_t ToTexId(genid_t gid)
+static TextureId ToTexId(GenId gid)
 {
-    textureid_t tid;
+    TextureId tid;
     tid.index = gid.index;
     tid.version = gid.version;
     return tid;
 }
 
-static bool IsCurrent(textureid_t id)
+static bool IsCurrent(TextureId id)
 {
     return table_exists(&ms_table, ToGenId(id));
 }
 
-static void FreeTexture(texture_t* tex)
+static void FreeTexture(Texture* tex)
 {
     pim_free(tex->texels);
     vkrTexTable_Free(tex->slot);
     memset(tex, 0, sizeof(*tex));
 }
 
-table_t const *const texture_table(void)
+Table const *const texture_table(void)
 {
     return &ms_table;
 }
 
 void texture_sys_init(void)
 {
-    table_new(&ms_table, sizeof(texture_t));
+    table_new(&ms_table, sizeof(Texture));
 
     asset_t asset = { 0 };
     if (asset_get("gfx/palette.lmp", &asset))
@@ -78,7 +78,7 @@ void texture_sys_update(void)
 
 void texture_sys_shutdown(void)
 {
-    texture_t *const pim_noalias textures = ms_table.values;
+    Texture *const pim_noalias textures = ms_table.values;
     const i32 width = ms_table.width;
     for (i32 i = 0; i < width; ++i)
     {
@@ -90,7 +90,7 @@ void texture_sys_shutdown(void)
     table_del(&ms_table);
 }
 
-bool texture_loadat(const char* path, VkFormat format, textureid_t* idOut)
+bool texture_loadat(const char* path, VkFormat format, TextureId* idOut)
 {
     i32 width = 0;
     i32 height = 0;
@@ -99,20 +99,20 @@ bool texture_loadat(const char* path, VkFormat format, textureid_t* idOut)
     u32* pim_noalias texels = (u32*)stbi_load(path, &width, &height, &channels, 4);
     if (texels)
     {
-        texture_t tex = { 0 };
+        Texture tex = { 0 };
         tex.size = (int2) { width, height };
         tex.texels = texels;
-        guid_t name = guid_str(path);
+        Guid name = guid_str(path);
         return texture_new(&tex, format, name, idOut);
     }
     return false;
 }
 
 bool texture_new(
-    texture_t* tex,
+    Texture* tex,
     VkFormat format,
-    guid_t name,
-    textureid_t* idOut)
+    Guid name,
+    TextureId* idOut)
 {
     ASSERT(tex);
     ASSERT(idOut);
@@ -121,7 +121,7 @@ bool texture_new(
     ASSERT(tex->texels);
 
     bool added = false;
-    genid_t id = { 0 };
+    GenId id = { 0 };
     if (tex->texels)
     {
         tex->format = format;
@@ -160,49 +160,49 @@ bool texture_new(
     return added;
 }
 
-bool texture_exists(textureid_t id)
+bool texture_exists(TextureId id)
 {
     return IsCurrent(id);
 }
 
-void texture_retain(textureid_t id)
+void texture_retain(TextureId id)
 {
     table_retain(&ms_table, ToGenId(id));
 }
 
-void texture_release(textureid_t id)
+void texture_release(TextureId id)
 {
-    texture_t tex = { 0 };
+    Texture tex = { 0 };
     if (table_release(&ms_table, ToGenId(id), &tex))
     {
         FreeTexture(&tex);
     }
 }
 
-texture_t* texture_get(textureid_t id)
+Texture* texture_get(TextureId id)
 {
     return table_get(&ms_table, ToGenId(id));
 }
 
-bool texture_find(guid_t name, textureid_t* idOut)
+bool texture_find(Guid name, TextureId* idOut)
 {
     ASSERT(idOut);
-    genid_t id;
+    GenId id;
     bool found = table_find(&ms_table, name, &id);
     *idOut = ToTexId(id);
     return found;
 }
 
-bool texture_getname(textureid_t tid, guid_t* nameOut)
+bool texture_getname(TextureId tid, Guid* nameOut)
 {
-    genid_t gid = ToGenId(tid);
+    GenId gid = ToGenId(tid);
     return table_getname(&ms_table, gid, nameOut);
 }
 
-bool texture_getnamestr(textureid_t tid, char* dst, i32 size)
+bool texture_getnamestr(TextureId tid, char* dst, i32 size)
 {
     dst[0] = 0;
-    guid_t guid;
+    Guid guid;
     if (texture_getname(tid, &guid))
     {
         return guid_get_name(guid, dst, size);
@@ -210,18 +210,18 @@ bool texture_getnamestr(textureid_t tid, char* dst, i32 size)
     return false;
 }
 
-bool texture_save(crate_t* crate, textureid_t tid, guid_t* dst)
+bool texture_save(Crate* crate, TextureId tid, Guid* dst)
 {
     bool wasSet = false;
     if (texture_getname(tid, dst))
     {
-        const texture_t* textures = ms_table.values;
-        const texture_t texture = textures[tid.index];
+        const Texture* textures = ms_table.values;
+        const Texture texture = textures[tid.index];
         const i32 len = texture.size.x * texture.size.y;
         const i32 bpp = vkrFormatToBpp(texture.format);
         const i32 texelBytes = (bpp * len) / 8;
-        const i32 hdrBytes = sizeof(dtexture_t);
-        dtexture_t* dtexture = tex_malloc(hdrBytes + texelBytes);
+        const i32 hdrBytes = sizeof(DiskTexture);
+        DiskTexture* dtexture = tex_malloc(hdrBytes + texelBytes);
         if (dtexture)
         {
             dtexture->version = kTextureVersion;
@@ -236,7 +236,7 @@ bool texture_save(crate_t* crate, textureid_t tid, guid_t* dst)
     return wasSet;
 }
 
-bool texture_load(crate_t* crate, guid_t name, textureid_t* dst)
+bool texture_load(Crate* crate, Guid name, TextureId* dst)
 {
     if (texture_find(name, dst))
     {
@@ -245,12 +245,12 @@ bool texture_load(crate_t* crate, guid_t name, textureid_t* dst)
     }
 
     bool loaded = false;
-    texture_t texture = { 0 };
+    Texture texture = { 0 };
     i32 offset = 0;
     i32 size = 0;
     if (crate_stat(crate, name, &offset, &size))
     {
-        dtexture_t* dtexture = tex_malloc(size);
+        DiskTexture* dtexture = tex_malloc(size);
         if (dtexture && crate_get(crate, name, dtexture, size))
         {
             if (dtexture->version == kTextureVersion)
@@ -353,7 +353,7 @@ typedef struct task_Unpalette
     u32* rome;
     short2* normal;
     float2* gray;
-    material_t const* material;
+    Material const* material;
     bool fullEmit;
     bool isLight;
 } task_Unpalette;
@@ -462,11 +462,11 @@ bool texture_unpalette(
     u8 const *const pim_noalias bytes,
     int2 size,
     const char* name,
-    material_t const *const material,
+    Material const *const material,
     float4 flatRome,
-    textureid_t *const albedoOut,
-    textureid_t *const romeOut,
-    textureid_t *const normalOut)
+    TextureId *const albedoOut,
+    TextureId *const romeOut,
+    TextureId *const normalOut)
 {
     char albedoName[PIM_PATH] = { 0 };
     char romeName[PIM_PATH] = { 0 };
@@ -476,9 +476,9 @@ bool texture_unpalette(
     SPrintf(ARGS(romeName), "%s_rome", name);
     SPrintf(ARGS(normalName), "%s_normal", name);
 
-    guid_t albedoguid = guid_str(albedoName);
-    guid_t romeguid = guid_str(romeName);
-    guid_t normalguid = guid_str(normalName);
+    Guid albedoguid = guid_str(albedoName);
+    Guid romeguid = guid_str(romeName);
+    Guid normalguid = guid_str(normalName);
 
     bool albedoExists = false;
     bool romeExists = false;
@@ -544,19 +544,19 @@ bool texture_unpalette(
         pim_free(gray);
         gray = NULL;
 
-        texture_t albedoMap = { 0 };
+        Texture albedoMap = { 0 };
         albedoMap.size = size;
         albedoMap.texels = albedo;
         albedoAdded = texture_new(
             &albedoMap, VK_FORMAT_R8G8B8A8_SRGB, albedoguid, albedoOut);
 
-        texture_t romeMap = { 0 };
+        Texture romeMap = { 0 };
         romeMap.size = size;
         romeMap.texels = rome;
         romeAdded = texture_new(
             &romeMap, VK_FORMAT_R8G8B8A8_SRGB, romeguid, romeOut);
 
-        texture_t normalMap = { 0 };
+        Texture normalMap = { 0 };
         normalMap.size = size;
         normalMap.texels = normal;
         normalAdded = texture_new(
@@ -624,7 +624,7 @@ static void ResizeToPow2Fn_xy16(void* pbase, i32 begin, i32 end)
     }
 }
 
-static void ResizeToPow2(texture_t* tex)
+static void ResizeToPow2(Texture* tex)
 {
     const int2 oldSize = tex->size;
     const int2 newSize = {
@@ -697,12 +697,12 @@ static char gs_search[PIM_PATH];
 static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
 {
     const i32 width = ms_table.width;
-    const guid_t* pim_noalias names = ms_table.names;
-    const texture_t* pim_noalias textures = ms_table.values;
+    const Guid* pim_noalias names = ms_table.names;
+    const Texture* pim_noalias textures = ms_table.values;
     const i32* pim_noalias refcounts = ms_table.refcounts;
 
-    guid_t lhs = names[ilhs];
-    guid_t rhs = names[irhs];
+    Guid lhs = names[ilhs];
+    Guid rhs = names[irhs];
     bool lvalid = !guid_isnull(lhs);
     bool rvalid = !guid_isnull(rhs);
     if (lvalid && rvalid)
@@ -743,7 +743,7 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
     return 0;
 }
 
-static void igTexture(const texture_t* tex)
+static void igTexture(const Texture* tex)
 {
     if (!tex)
     {
@@ -793,8 +793,8 @@ void texture_sys_gui(bool* pEnabled)
         igInputText("Search", ARGS(gs_search), 0x0, NULL, NULL);
 
         const i32 width = ms_table.width;
-        const guid_t* pim_noalias names = ms_table.names;
-        const texture_t* pim_noalias textures = ms_table.values;
+        const Guid* pim_noalias names = ms_table.names;
+        const Texture* pim_noalias textures = ms_table.values;
         const i32* pim_noalias refcounts = ms_table.refcounts;
 
         i32 bytesUsed = 0;
@@ -851,7 +851,7 @@ void texture_sys_gui(bool* pEnabled)
             i32 j = indices[i];
             ASSERT(j >= 0);
             ASSERT(j < width);
-            guid_t name = names[j];
+            Guid name = names[j];
             if (guid_isnull(name))
             {
                 continue;
@@ -895,8 +895,8 @@ void texture_sys_gui(bool* pEnabled)
     if (pEnabled[0])
     {
         const i32 width = ms_table.width;
-        const guid_t* names = ms_table.names;
-        const texture_t* textures = ms_table.values;
+        const Guid* names = ms_table.names;
+        const Texture* textures = ms_table.values;
         bool validSelection = (selection >= 0) &&
             (selection < width) &&
             !guid_isnull(names[selection]) &&

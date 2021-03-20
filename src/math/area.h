@@ -31,7 +31,7 @@ pim_inline float VEC_CALL TriArea3D(float4 A, float4 B, float4 C)
     return 0.5f * f4_length3(f4_cross3(f4_sub(B, A), f4_sub(C, A)));
 }
 
-pim_inline float VEC_CALL TriArea2D(tri2d_t tri)
+pim_inline float VEC_CALL TriArea2D(Tri2D tri)
 {
     float2 ab = f2_sub(tri.b, tri.a);
     float2 ac = f2_sub(tri.c, tri.a);

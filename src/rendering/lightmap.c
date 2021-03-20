@@ -51,8 +51,8 @@ typedef struct mask_s
 
 typedef struct chartnode_s
 {
-    plane_t plane;
-    tri2d_t triCoord;
+    Plane3D plane;
+    Tri2D triCoord;
     float area;
     i32 drawableIndex;
     i32 vertIndex;
@@ -256,14 +256,14 @@ pim_inline void VEC_CALL mask_write(mask_t a, mask_t b, int2 tr)
     }
 }
 
-pim_inline int2 VEC_CALL tri_size(tri2d_t tri)
+pim_inline int2 VEC_CALL tri_size(Tri2D tri)
 {
     float2 hi = f2_max(f2_max(tri.a, tri.b), tri.c);
     int2 size = f2_i2(f2_ceil(hi));
     return size;
 }
 
-pim_inline bool VEC_CALL TriTest(tri2d_t tri, float2 pt)
+pim_inline bool VEC_CALL TriTest(Tri2D tri, float2 pt)
 {
     const i32 kSamples = 64;
     const float kThresh = 2.0f;
@@ -284,7 +284,7 @@ pim_inline bool VEC_CALL TriTest(tri2d_t tri, float2 pt)
     return false;
 }
 
-pim_inline void VEC_CALL mask_tri(mask_t mask, tri2d_t tri)
+pim_inline void VEC_CALL mask_tri(mask_t mask, Tri2D tri)
 {
     const int2 size = mask.size;
     for (i32 y = 0; y < size.y; ++y)
@@ -301,7 +301,7 @@ pim_inline void VEC_CALL mask_tri(mask_t mask, tri2d_t tri)
     }
 }
 
-pim_inline mask_t VEC_CALL mask_fromtri(tri2d_t tri)
+pim_inline mask_t VEC_CALL mask_fromtri(Tri2D tri)
 {
     int2 size = tri_size(tri);
     size.x += 2;
@@ -342,11 +342,11 @@ pim_inline float2 VEC_CALL ProjUv(float3x3 TBN, float4 pt)
     return f2_v(u, v);
 }
 
-pim_inline tri2d_t VEC_CALL ProjTri(float4 A, float4 B, float4 C)
+pim_inline Tri2D VEC_CALL ProjTri(float4 A, float4 B, float4 C)
 {
-    plane_t plane = triToPlane(A, B, C);
+    Plane3D plane = triToPlane(A, B, C);
     float3x3 TBN = NormalToTBN(plane.value);
-    tri2d_t tri;
+    Tri2D tri;
     tri.a = ProjUv(TBN, A);
     tri.b = ProjUv(TBN, B);
     tri.c = ProjUv(TBN, C);
@@ -385,7 +385,7 @@ pim_inline void chart_del(chart_t* chart)
 }
 
 pim_inline bool VEC_CALL plane_equal(
-    plane_t lhs, plane_t rhs, float distThresh, float minCosTheta)
+    Plane3D lhs, Plane3D rhs, float distThresh, float minCosTheta)
 {
     float dist = f1_distance(lhs.value.w, rhs.value.w);
     float cosTheta = f4_dot3(lhs.value, rhs.value);
@@ -393,9 +393,9 @@ pim_inline bool VEC_CALL plane_equal(
 }
 
 pim_inline i32 plane_find(
-    const plane_t* planes,
+    const Plane3D* planes,
     i32 planeCount,
-    plane_t plane,
+    Plane3D plane,
     float distThresh,
     float degreeThresh)
 {
@@ -417,7 +417,7 @@ pim_inline void VEC_CALL chart_minmax(chart_t chart, float2* loOut, float2* hiOu
     float2 hi = f2_s(-bigNum);
     for (i32 i = 0; i < chart.nodeCount; ++i)
     {
-        tri2d_t tri = chart.nodes[i].triCoord;
+        Tri2D tri = chart.nodes[i].triCoord;
         lo = f2_min(lo, tri.a);
         hi = f2_max(hi, tri.a);
         lo = f2_min(lo, tri.b);
@@ -450,7 +450,7 @@ pim_inline float VEC_CALL chart_triarea(chart_t chart)
     float sum = 0.0f;
     for (i32 i = 0; i < chart.nodeCount; ++i)
     {
-        tri2d_t tri = chart.nodes[i].triCoord;
+        Tri2D tri = chart.nodes[i].triCoord;
         float area = TriArea2D(tri);
         sum += area;
     }
@@ -464,7 +464,7 @@ pim_inline float VEC_CALL chart_density(chart_t chart)
     return fromTri / f1_max(fromBounds, kEpsilon);
 }
 
-pim_inline float2 VEC_CALL tri_center(tri2d_t tri)
+pim_inline float2 VEC_CALL tri_center(Tri2D tri)
 {
     const float scale = 1.0f / 3;
     float2 center = f2_mulvs(tri.a, scale);
@@ -473,7 +473,7 @@ pim_inline float2 VEC_CALL tri_center(tri2d_t tri)
     return center;
 }
 
-pim_inline float2 VEC_CALL cluster_mean(const tri2d_t* tris, i32 count)
+pim_inline float2 VEC_CALL cluster_mean(const Tri2D* tris, i32 count)
 {
     const float scale = 1.0f / count;
     float2 mean = f2_0;
@@ -485,7 +485,7 @@ pim_inline float2 VEC_CALL cluster_mean(const tri2d_t* tris, i32 count)
     return mean;
 }
 
-pim_inline i32 cluster_nearest(const float2* means, i32 k, tri2d_t tri)
+pim_inline i32 cluster_nearest(const float2* means, i32 k, Tri2D tri)
 {
     i32 chosen = -1;
     float chosenDist = 1 << 20;
@@ -509,7 +509,7 @@ static void chart_split(chart_t chart, chart_t* split)
     float2 means[CHART_SPLITS] = { 0 };
     float2 prevMeans[CHART_SPLITS] = { 0 };
     i32 counts[CHART_SPLITS] = { 0 };
-    tri2d_t* triLists[CHART_SPLITS] = { 0 };
+    Tri2D* triLists[CHART_SPLITS] = { 0 };
     i32* nodeLists[CHART_SPLITS] = { 0 };
     const i32 k = CHART_SPLITS;
 
@@ -518,9 +518,9 @@ static void chart_split(chart_t chart, chart_t* split)
     for (i32 i = 0; i < k; ++i)
     {
         i32 j = prng_i32(&rng) % nodeCount;
-        tri2d_t tri = nodes[j].triCoord;
+        Tri2D tri = nodes[j].triCoord;
         means[i] = tri_center(tri);
-        triLists[i] = tmp_malloc(sizeof(tri2d_t) * nodeCount);
+        triLists[i] = tmp_malloc(sizeof(Tri2D) * nodeCount);
         nodeLists[i] = tmp_malloc(sizeof(i32) * nodeCount);
     }
     prng_set(rng);
@@ -536,7 +536,7 @@ static void chart_split(chart_t chart, chart_t* split)
         // associate each node with nearest mean
         for (i32 i = 0; i < nodeCount; ++i)
         {
-            tri2d_t tri = nodes[i].triCoord;
+            Tri2D tri = nodes[i].triCoord;
             i32 cl = cluster_nearest(means, k, tri);
 
             i32 back = counts[cl]++;
@@ -593,7 +593,7 @@ static void ChartMaskFn(task_t* pbase, i32 begin, i32 end)
         lo = f2_subvs(lo, 2.0f);
         for (i32 iNode = 0; iNode < chart.nodeCount; ++iNode)
         {
-            tri2d_t tri = chart.nodes[iNode].triCoord;
+            Tri2D tri = chart.nodes[iNode].triCoord;
             tri.a = f2_sub(tri.a, lo);
             tri.b = f2_sub(tri.b, lo);
             tri.c = f2_sub(tri.c, lo);
@@ -607,7 +607,7 @@ static void ChartMaskFn(task_t* pbase, i32 begin, i32 end)
         chart.mask = mask_new(f2_i2(hi));
         for (i32 iNode = 0; iNode < chart.nodeCount; ++iNode)
         {
-            tri2d_t tri = chart.nodes[iNode].triCoord;
+            Tri2D tri = chart.nodes[iNode].triCoord;
             mask_tri(chart.mask, tri);
         }
 
@@ -629,7 +629,7 @@ static chart_t* chart_group(
 
     i32 chartCount = 0;
     chart_t* charts = NULL;
-    plane_t* planes = NULL;
+    Plane3D* planes = NULL;
 
     // assign nodes to charts by triangle plane
     for (i32 iNode = 0; iNode < nodeCount; ++iNode)
@@ -781,10 +781,10 @@ static bool atlas_search(
 
 static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
 {
-    const drawables_t* drawables = drawables_get();
+    const Entities* drawables = drawables_get();
     const i32 numDrawables = drawables->count;
-    const material_t* pim_noalias materials = drawables->materials;
-    const meshid_t* pim_noalias meshids = drawables->meshes;
+    const Material* pim_noalias materials = drawables->materials;
+    const MeshId* pim_noalias meshids = drawables->meshes;
     const float4x4* pim_noalias matrices = drawables->matrices;
 
     chartnode_t* nodes = NULL;
@@ -793,13 +793,13 @@ static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
     const u32 unmapped = matflag_sky | matflag_lava;
     for (i32 d = 0; d < numDrawables; ++d)
     {
-        const material_t material = materials[d];
+        const Material material = materials[d];
         if (material.flags & unmapped)
         {
             continue;
         }
 
-        mesh_t const *const mesh = mesh_get(meshids[d]);
+        Mesh const *const mesh = mesh_get(meshids[d]);
         if (!mesh)
         {
             continue;
@@ -940,9 +940,9 @@ static void chartnodes_assign(
     lightmap_t* lightmaps,
     i32 lightmapCount)
 {
-    drawables_t const *const drawables = drawables_get();
+    Entities const *const drawables = drawables_get();
     const i32 numDrawables = drawables->count;
-    meshid_t const *const pim_noalias meshids = drawables->meshes;
+    MeshId const *const pim_noalias meshids = drawables->meshes;
 
     for (i32 iChart = 0; iChart < chartCount; ++iChart)
     {
@@ -962,7 +962,7 @@ static void chartnodes_assign(
             ASSERT(node.drawableIndex < numDrawables);
             ASSERT(node.vertIndex >= 0);
 
-            mesh_t *const mesh = mesh_get(meshids[node.drawableIndex]);
+            Mesh *const mesh = mesh_get(meshids[node.drawableIndex]);
             ASSERT(mesh);
             if (mesh)
             {
@@ -997,9 +997,9 @@ typedef struct quadtree_s
 {
     i32 maxDepth;
     i32 nodeCount;
-    box2d_t* pim_noalias boxes;         // bounding box of node
+    Box2D* pim_noalias boxes;         // bounding box of node
     i32* pim_noalias listLens;          // number of triangles in this node
-    tri2d_t** pim_noalias triLists;     // lightmap UV
+    Tri2D** pim_noalias triLists;     // lightmap UV
     int2** pim_noalias indexLists;      // iDrawable, iVert
 } quadtree_t;
 
@@ -1023,7 +1023,7 @@ pim_inline i32 GetParent(i32 c)
     return (c - 1) >> 2;
 }
 
-static void SetupBounds(box2d_t* pim_noalias boxes, i32 p, i32 nodeCount)
+static void SetupBounds(Box2D* pim_noalias boxes, i32 p, i32 nodeCount)
 {
     const i32 c0 = GetChild(p, 0);
     if ((c0 + 4) <= nodeCount)
@@ -1049,7 +1049,7 @@ static void SetupBounds(box2d_t* pim_noalias boxes, i32 p, i32 nodeCount)
     }
 }
 
-pim_inline void quadtree_new(quadtree_t* qt, i32 maxDepth, box2d_t bounds)
+pim_inline void quadtree_new(quadtree_t* qt, i32 maxDepth, Box2D bounds)
 {
     i32 len = CalcNodeCount(maxDepth);
     qt->maxDepth = maxDepth;
@@ -1083,7 +1083,7 @@ pim_inline void quadtree_del(quadtree_t* qt)
     }
 }
 
-pim_inline bool VEC_CALL BoxHoldsTri(box2d_t box, tri2d_t tri)
+pim_inline bool VEC_CALL BoxHoldsTri(Box2D box, Tri2D tri)
 {
     float2 lo = box.lo;
     float2 hi = box.hi;
@@ -1092,12 +1092,12 @@ pim_inline bool VEC_CALL BoxHoldsTri(box2d_t box, tri2d_t tri)
     return b2_all(b2_and(a, b));
 }
 
-pim_inline bool VEC_CALL BoxHoldsPt(box2d_t box, float2 pt)
+pim_inline bool VEC_CALL BoxHoldsPt(Box2D box, float2 pt)
 {
     return b2_all(b2_and(f2_gteq(pt, box.lo), f2_lteq(pt, box.hi)));
 }
 
-static bool quadtree_insert(quadtree_t* pim_noalias qt, i32 n, tri2d_t tri, i32 iDrawable, i32 iVert)
+static bool quadtree_insert(quadtree_t* pim_noalias qt, i32 n, Tri2D tri, i32 iDrawable, i32 iVert)
 {
     if (n < qt->nodeCount)
     {
@@ -1136,10 +1136,10 @@ static float quadtree_find(
             i32 chosen = -1;
             float chosenDist = limit;
             i32 len = qt->listLens[n];
-            const tri2d_t* triList = qt->triLists[n];
+            const Tri2D* triList = qt->triLists[n];
             for (i32 i = 0; i < len; ++i)
             {
-                tri2d_t tri = triList[i];
+                Tri2D tri = triList[i];
                 float dist = sdTriangle2D(tri.a, tri.b, tri.c, pt);
                 if (dist < chosenDist)
                 {
@@ -1193,9 +1193,9 @@ static void EmbedAttributesFn(void *const pbase, i32 begin, i32 end)
     const int2 size = { lmSize, lmSize };
     const float limit = 4.0f / lmSize;
 
-    drawables_t const *const drawables = drawables_get();
+    Entities const *const drawables = drawables_get();
     const i32 drawablesCount = drawables->count;
-    meshid_t const *const pim_noalias meshids = drawables->meshes;
+    MeshId const *const pim_noalias meshids = drawables->meshes;
     float4x4 const *const pim_noalias matrices = drawables->matrices;
     float3x3 const *const pim_noalias invMatrices = drawables->invMatrices;
 
@@ -1218,7 +1218,7 @@ static void EmbedAttributesFn(void *const pbase, i32 begin, i32 end)
             i32 iDraw = ind.x;
             i32 iVert = ind.y;
 
-            mesh_t const *const mesh = mesh_get(meshids[iDraw]);
+            Mesh const *const mesh = mesh_get(meshids[iDraw]);
             if (!mesh)
             {
                 continue;
@@ -1283,7 +1283,7 @@ static void EmbedAttributes(
         quadtree_t* trees = tmp_calloc(sizeof(trees[0]) * lmCount);
         {
             const float eps = 0.01f;
-            box2d_t bounds = { f2_s(0.0f - eps), f2_s(1.0f + eps) };
+            Box2D bounds = { f2_s(0.0f - eps), f2_s(1.0f + eps) };
             for (i32 i = 0; i < lmCount; ++i)
             {
                 quadtree_new(trees + i, 5, bounds);
@@ -1291,12 +1291,12 @@ static void EmbedAttributes(
         }
 
         {
-            const drawables_t* drawables = drawables_get();
+            const Entities* drawables = drawables_get();
             const i32 dwCount = drawables->count;
-            const meshid_t* pim_noalias meshids = drawables->meshes;
+            const MeshId* pim_noalias meshids = drawables->meshes;
             for (i32 iDraw = 0; iDraw < dwCount; ++iDraw)
             {
-                mesh_t const *const mesh = mesh_get(meshids[iDraw]);
+                Mesh const *const mesh = mesh_get(meshids[iDraw]);
                 if (!mesh)
                 {
                     continue;
@@ -1315,7 +1315,7 @@ static void EmbedAttributes(
                         float2 A = f2_v(uvs[a].z, uvs[a].w);
                         float2 B = f2_v(uvs[b].z, uvs[b].w);
                         float2 C = f2_v(uvs[c].z, uvs[c].w);
-                        tri2d_t tri = { A, B, C };
+                        Tri2D tri = { A, B, C };
                         quadtree_t* tree = trees + iMap;
                         bool inserted = quadtree_insert(tree, 0, tri, iDraw, iVert);
                         ASSERT(inserted);
@@ -1517,7 +1517,7 @@ void lmpack_bake(pt_scene_t* scene, float timeSlice, i32 spp)
     ProfileEnd(pm_Bake);
 }
 
-bool lmpack_save(crate_t* crate, const lmpack_t* pack)
+bool lmpack_save(Crate* crate, const lmpack_t* pack)
 {
     bool wrote = false;
     ASSERT(pack);
@@ -1556,7 +1556,7 @@ bool lmpack_save(crate_t* crate, const lmpack_t* pack)
     return wrote;
 }
 
-bool lmpack_load(crate_t* crate, lmpack_t* pack)
+bool lmpack_load(Crate* crate, lmpack_t* pack)
 {
     bool loaded = false;
     lmpack_del(pack);

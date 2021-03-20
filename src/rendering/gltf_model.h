@@ -4,8 +4,8 @@
 
 PIM_C_BEGIN
 
-typedef struct drawables_s drawables_t;
+typedef struct Entities_s Entities;
 
-bool gltf_model_load(const char* path, drawables_t* dst);
+bool gltf_model_load(const char* path, Entities* dst);
 
 PIM_C_END

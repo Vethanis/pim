@@ -19,30 +19,30 @@
 
 #include <string.h>
 
-static table_t ms_table;
+static Table ms_table;
 
-static genid_t ToGenId(meshid_t mid)
+static GenId ToGenId(MeshId mid)
 {
-    genid_t gid;
+    GenId gid;
     gid.index = mid.index;
     gid.version = mid.version;
     return gid;
 }
 
-static meshid_t ToMeshId(genid_t gid)
+static MeshId ToMeshId(GenId gid)
 {
-    meshid_t mid;
+    MeshId mid;
     mid.index = gid.index;
     mid.version = gid.version;
     return mid;
 }
 
-static bool IsCurrent(meshid_t id)
+static bool IsCurrent(MeshId id)
 {
     return table_exists(&ms_table, ToGenId(id));
 }
 
-static void FreeMesh(mesh_t *const mesh)
+static void FreeMesh(Mesh *const mesh)
 {
     vkrMegaMesh_Free(mesh->id);
     pim_free(mesh->positions);
@@ -54,7 +54,7 @@ static void FreeMesh(mesh_t *const mesh)
 
 void mesh_sys_init(void)
 {
-    table_new(&ms_table, sizeof(mesh_t));
+    table_new(&ms_table, sizeof(Mesh));
 }
 
 void mesh_sys_update(void)
@@ -64,7 +64,7 @@ void mesh_sys_update(void)
 
 void mesh_sys_shutdown(void)
 {
-    mesh_t *const pim_noalias meshes = ms_table.values;
+    Mesh *const pim_noalias meshes = ms_table.values;
     const i32 width = ms_table.width;
     for (i32 i = 0; i < width; ++i)
     {
@@ -76,7 +76,7 @@ void mesh_sys_shutdown(void)
     table_del(&ms_table);
 }
 
-bool mesh_new(mesh_t *const mesh, guid_t name, meshid_t *const idOut)
+bool mesh_new(Mesh *const mesh, Guid name, MeshId *const idOut)
 {
     ASSERT(mesh);
     ASSERT(mesh->length > 0);
@@ -87,7 +87,7 @@ bool mesh_new(mesh_t *const mesh, guid_t name, meshid_t *const idOut)
     ASSERT(mesh->texIndices);
 
     bool added = false;
-    genid_t id = { 0, 0 };
+    GenId id = { 0, 0 };
     if (mesh->length > 0)
     {
         mesh->id = vkrMegaMesh_Alloc(mesh->length);
@@ -114,50 +114,50 @@ bool mesh_new(mesh_t *const mesh, guid_t name, meshid_t *const idOut)
     return added;
 }
 
-bool mesh_exists(meshid_t id)
+bool mesh_exists(MeshId id)
 {
     return IsCurrent(id);
 }
 
-void mesh_retain(meshid_t id)
+void mesh_retain(MeshId id)
 {
     table_retain(&ms_table, ToGenId(id));
 }
 
-void mesh_release(meshid_t id)
+void mesh_release(MeshId id)
 {
-    mesh_t mesh = { 0 };
+    Mesh mesh = { 0 };
     if (table_release(&ms_table, ToGenId(id), &mesh))
     {
         FreeMesh(&mesh);
     }
 }
 
-mesh_t *const mesh_get(meshid_t id)
+Mesh *const mesh_get(MeshId id)
 {
     return table_get(&ms_table, ToGenId(id));
 }
 
-bool mesh_find(guid_t name, meshid_t *const idOut)
+bool mesh_find(Guid name, MeshId *const idOut)
 {
     ASSERT(idOut);
-    genid_t id;
+    GenId id;
     bool found = table_find(&ms_table, name, &id);
     *idOut = ToMeshId(id);
     return found;
 }
 
-bool mesh_getname(meshid_t mid, guid_t *const dst)
+bool mesh_getname(MeshId mid, Guid *const dst)
 {
-    genid_t gid = ToGenId(mid);
+    GenId gid = ToGenId(mid);
     return table_getname(&ms_table, gid, dst);
 }
 
-box_t mesh_calcbounds(meshid_t id)
+Box3D mesh_calcbounds(MeshId id)
 {
-    box_t bounds = { 0 };
+    Box3D bounds = { 0 };
 
-    mesh_t const *const mesh = mesh_get(id);
+    Mesh const *const mesh = mesh_get(id);
     if (mesh)
     {
         bounds = box_from_pts(mesh->positions, mesh->length);
@@ -166,13 +166,13 @@ box_t mesh_calcbounds(meshid_t id)
     return bounds;
 }
 
-bool mesh_setmaterial(meshid_t id, material_t const *const mat)
+bool mesh_setmaterial(MeshId id, Material const *const mat)
 {
-    mesh_t *const mesh = mesh_get(id);
+    Mesh *const mesh = mesh_get(id);
     if (mesh)
     {
         int4 index = { 0 };
-        texture_t const* tex = texture_get(mat->albedo);
+        Texture const* tex = texture_get(mat->albedo);
         if (tex)
         {
             index.x = tex->slot.index;
@@ -202,9 +202,9 @@ bool mesh_setmaterial(meshid_t id, material_t const *const mat)
     return false;
 }
 
-bool VEC_CALL mesh_settransform(meshid_t id, float4x4 localToWorld)
+bool VEC_CALL mesh_settransform(MeshId id, float4x4 localToWorld)
 {
-    mesh_t *const mesh = mesh_get(id);
+    Mesh *const mesh = mesh_get(id);
     if (mesh)
     {
         float3x3 IM = f3x3_IM(localToWorld);
@@ -224,7 +224,7 @@ bool VEC_CALL mesh_settransform(meshid_t id, float4x4 localToWorld)
     return false;
 }
 
-bool mesh_update(mesh_t *const mesh)
+bool mesh_update(Mesh *const mesh)
 {
     ASSERT(mesh);
 
@@ -258,20 +258,20 @@ bool mesh_update(mesh_t *const mesh)
     return false;
 }
 
-bool mesh_save(crate_t *const crate, meshid_t id, guid_t *const dst)
+bool mesh_save(Crate *const crate, MeshId id, Guid *const dst)
 {
     if (mesh_getname(id, dst))
     {
-        const mesh_t *const meshes = ms_table.values;
-        const mesh_t mesh = meshes[id.index];
+        const Mesh *const meshes = ms_table.values;
+        const Mesh mesh = meshes[id.index];
         const i32 len = mesh.length;
-        const i32 hdrBytes = sizeof(dmesh_t);
+        const i32 hdrBytes = sizeof(DiskMesh);
         const i32 positionBytes = sizeof(mesh.positions[0]) * len;
         const i32 normalBytes = sizeof(mesh.normals[0]) * len;
         const i32 uvBytes = sizeof(mesh.uvs[0]) * len;
         const i32 texIndBytes = sizeof(mesh.texIndices[0]) * len;
         const i32 totalBytes = hdrBytes + positionBytes + normalBytes + uvBytes + texIndBytes;
-        dmesh_t* dmesh = perm_malloc(totalBytes);
+        DiskMesh* dmesh = perm_malloc(totalBytes);
         dmesh->version = kMeshVersion;
         dmesh->length = len;
         guid_get_name(*dst, ARGS(dmesh->name));
@@ -290,7 +290,7 @@ bool mesh_save(crate_t *const crate, meshid_t id, guid_t *const dst)
     return false;
 }
 
-bool mesh_load(crate_t *const crate, guid_t name, meshid_t *const dst)
+bool mesh_load(Crate *const crate, Guid name, MeshId *const dst)
 {
     if (mesh_find(name, dst))
     {
@@ -299,12 +299,12 @@ bool mesh_load(crate_t *const crate, guid_t name, meshid_t *const dst)
     }
 
     bool loaded = false;
-    mesh_t mesh = { 0 };
+    Mesh mesh = { 0 };
     i32 offset = 0;
     i32 size = 0;
     if (crate_stat(crate, name, &offset, &size))
     {
-        dmesh_t* dmesh = perm_malloc(size);
+        DiskMesh* dmesh = perm_malloc(size);
         if (dmesh && crate_get(crate, name, dmesh, size))
         {
             if (dmesh->version == kMeshVersion)
@@ -345,13 +345,13 @@ static bool gs_revsort;
 
 static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
 {
-    const guid_t* pim_noalias names = ms_table.names;
-    const mesh_t* pim_noalias meshes = ms_table.values;
+    const Guid* pim_noalias names = ms_table.names;
+    const Mesh* pim_noalias meshes = ms_table.values;
     const i32* pim_noalias refcounts = ms_table.refcounts;
     const i32 mode = gs_cmpmode;
 
-    guid_t lhs = names[ilhs];
-    guid_t rhs = names[irhs];
+    Guid lhs = names[ilhs];
+    Guid rhs = names[irhs];
     bool lvalid = !guid_isnull(lhs);
     bool rvalid = !guid_isnull(rhs);
     if (lvalid && rvalid)
@@ -400,8 +400,8 @@ void mesh_sys_gui(bool* pEnabled)
         igInputText("Search", ARGS(gs_search), 0x0, NULL, NULL);
 
         const i32 width = ms_table.width;
-        const guid_t* names = ms_table.names;
-        const mesh_t* meshes = ms_table.values;
+        const Guid* names = ms_table.names;
+        const Mesh* meshes = ms_table.values;
         const i32* refcounts = ms_table.refcounts;
 
         i32 bytesUsed = 0;
@@ -460,7 +460,7 @@ void mesh_sys_gui(bool* pEnabled)
             i32 j = indices[i];
             ASSERT(j >= 0);
             ASSERT(j < width);
-            guid_t name = names[j];
+            Guid name = names[j];
             if (guid_isnull(name))
             {
                 continue;

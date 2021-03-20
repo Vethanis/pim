@@ -89,7 +89,7 @@ pim_inline float3 VEC_CALL unproj_pt(
     return f3_v(xy.x, xy.y, z);
 }
 
-pim_inline frus_t VEC_CALL frus_new(
+pim_inline Frustum VEC_CALL frus_new(
     float4 e,       // eye point
     float4 r,       // right vector
     float4 u,       // up vector
@@ -117,7 +117,7 @@ pim_inline frus_t VEC_CALL frus_new(
         p[i] = proj_pt(e, r, u, f, s, v);
     }
 
-    frus_t frus;
+    Frustum frus;
     frus.x0 = triToPlane(p[4], p[6], p[0]);
     frus.x1 = triToPlane(p[1], p[3], p[5]);
     frus.y0 = triToPlane(p[0], p[2], p[1]);
@@ -128,7 +128,7 @@ pim_inline frus_t VEC_CALL frus_new(
     return frus;
 }
 
-pim_inline float VEC_CALL sdFrus(frus_t frus, float4 pt)
+pim_inline float VEC_CALL sdFrus(Frustum frus, float4 pt)
 {
     float a = sdPlane3D(frus.x0, pt);
     float b = sdPlane3D(frus.x1, pt);
@@ -145,7 +145,7 @@ pim_inline float VEC_CALL sdFrus(frus_t frus, float4 pt)
     return f1_max(g, f1_max(h, i));
 }
 
-pim_inline float VEC_CALL sdFrusSph(frus_t frus, sphere_t sphere)
+pim_inline float VEC_CALL sdFrusSph(Frustum frus, Sphere sphere)
 {
     float a = sdPlaneSphere(frus.x0, sphere);
     float b = sdPlaneSphere(frus.x1, sphere);
@@ -162,12 +162,12 @@ pim_inline float VEC_CALL sdFrusSph(frus_t frus, sphere_t sphere)
     return f1_max(g, f1_max(h, i));
 }
 
-pim_inline float VEC_CALL sdFrusBoxSubplane(plane_t plane, float4 center, float4 extents)
+pim_inline float VEC_CALL sdFrusBoxSubplane(Plane3D plane, float4 center, float4 extents)
 {
     return sdPlane3D(plane, center) - f4_dot3(f4_abs(plane.value), extents);
 }
 
-pim_inline float VEC_CALL sdFrusBox(frus_t frus, box_t box)
+pim_inline float VEC_CALL sdFrusBox(Frustum frus, Box3D box)
 {
     // factor out abs
     // box extents should always be in octant 0, but just in case.
