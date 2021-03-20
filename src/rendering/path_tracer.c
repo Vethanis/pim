@@ -41,14 +41,6 @@
 
 // ----------------------------------------------------------------------------
 
-typedef enum LdsSlot
-{
-    LdsSlot_Brdf,
-    LdsSlot_MeanFreePath,
-
-    LdsSlot_COUNT
-} LdsSlot;
-
 typedef struct surfhit_s
 {
     float4 P;
@@ -134,7 +126,7 @@ typedef struct pt_scene_s
 
     // emissive triangle indices
     // [emissiveCount]
-    i32* pim_noalias emissives;
+    i32* pim_noalias emitToVert;
 
     // portal triangle indices
     // [portalCount]
@@ -877,37 +869,29 @@ static float EmissionPdf(
         return 1.0f;
     }
 
-    const float kThreshold = 0.01f;
+    texture_t const *const romeMap = texture_get(mat->rome);
+    if (!romeMap)
     {
-        texture_t const *const romeMap = texture_get(mat->rome);
-        if (romeMap)
-        {
-            u32 const *const pim_noalias texels = romeMap->texels;
-            const int2 texSize = romeMap->size;
-
-            const float2* pim_noalias uvs = scene->uvs;
-            const float2 UA = uvs[iVert + 0];
-            const float2 UB = uvs[iVert + 1];
-            const float2 UC = uvs[iVert + 2];
-
-            i32 hits = 0;
-            for (i32 i = 0; i < attempts; ++i)
-            {
-                float4 wuv = SampleBaryCoord(Sample2D(sampler));
-                float2 uv = f2_blend(UA, UB, UC, wuv);
-                float sample = UvWrapPow2_c32(texels, texSize, uv).w;
-                if (sample > kThreshold)
-                {
-                    ++hits;
-                }
-            }
-            return (float)hits / (float)attempts;
-        }
-        else
-        {
-            return 0.0f;
-        }
+        return 0.0f;
     }
+    u32 const *const pim_noalias texels = romeMap->texels;
+    const int2 texSize = romeMap->size;
+
+    const float2* pim_noalias uvs = scene->uvs;
+    const float2 UA = uvs[iVert + 0];
+    const float2 UB = uvs[iVert + 1];
+    const float2 UC = uvs[iVert + 2];
+
+    i32 hits = 0;
+    for (i32 i = 0; i < attempts; ++i)
+    {
+        i32 iTexel = UvWrapPow2(texSize,
+            f2_blend(UA, UB, UC,
+                SampleBaryCoord(Sample2D(sampler))));
+        u32 sample = texels[iTexel] >> 24;
+        hits += sample ? 1 : 0;
+    }
+    return (float)hits / (float)attempts;
 }
 
 typedef struct task_CalcEmissionPdf
@@ -946,7 +930,7 @@ static void SetupEmissives(pt_scene_t*const pim_noalias scene)
     task_run(&task->task, CalcEmissionPdfFn, triCount);
 
     i32 emissiveCount = 0;
-    i32* emissives = NULL;
+    i32* emitToVert = NULL;
     i32* pim_noalias vertToEmit = perm_malloc(sizeof(vertToEmit[0]) * vertCount);
 
     const float* pim_noalias taskPdfs = task->pdfs;
@@ -963,14 +947,14 @@ static void SetupEmissives(pt_scene_t*const pim_noalias scene)
             vertToEmit[iVert + 1] = emissiveCount;
             vertToEmit[iVert + 2] = emissiveCount;
             ++emissiveCount;
-            PermReserve(emissives, emissiveCount);
-            emissives[emissiveCount - 1] = iVert;
+            PermReserve(emitToVert, emissiveCount);
+            emitToVert[emissiveCount - 1] = iVert;
         }
     }
 
     scene->vertToEmit = vertToEmit;
     scene->emissiveCount = emissiveCount;
-    scene->emissives = emissives;
+    scene->emitToVert = emitToVert;
 }
 
 static void SetupPortals(pt_scene_t* scene)
@@ -1018,7 +1002,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
     material_t const *const pim_noalias materials = scene->materials;
 
     const i32 emissiveCount = scene->emissiveCount;
-    i32 const *const pim_noalias emissives = scene->emissives;
+    i32 const *const pim_noalias emitToVert = scene->emitToVert;
 
     const float metersPerCell = cvar_get_float(&cv_pt_dist_meters);
     const float radius = metersPerCell * 0.666f;
@@ -1063,9 +1047,9 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
         dist1d_t dist = { 0 };
         dist1d_new(&dist, emissiveCount);
 
-        for (i32 iList = 0; iList < emissiveCount; ++iList)
+        for (i32 iEmit = 0; iEmit < emissiveCount; ++iEmit)
         {
-            i32 iVert = emissives[iList];
+            i32 iVert = emitToVert[iEmit];
             i32 iMat = matIds[iVert];
             float4 A = positions[iVert + 0];
             float4 B = positions[iVert + 1];
@@ -1100,7 +1084,7 @@ static void SetupLightGridFn(task_t* pbase, i32 begin, i32 end)
             }
             float hitPdf = (float)hits / (float)hitAttempts;
 
-            dist.pdf[iList] = hitPdf;
+            dist.pdf[iEmit] = hitPdf;
         }
 
         dist1d_bake(&dist);
@@ -1184,7 +1168,7 @@ void pt_scene_del(pt_scene_t*const pim_noalias scene)
 
         pim_free(scene->materials);
 
-        pim_free(scene->emissives);
+        pim_free(scene->emitToVert);
         pim_free(scene->portals);
 
         {
@@ -1705,7 +1689,7 @@ pim_inline float4 VEC_CALL BrdfEval(
 
     brdf = f4_mulvs(brdf, NoL);
 
-    float diffusePdf = amtDiffuse * LambertPdf(NoL);
+    float diffusePdf = amtDiffuse * ImportanceSampleLambertPdf(NoL);
     float specularPdf = amtSpecular * GGXPdf(NoH, HoV, alpha);
     float pdf = diffusePdf + specularPdf;
 
@@ -1730,8 +1714,13 @@ pim_inline float4 VEC_CALL BrdfEvalRetro(
         return f4_0;
     }
 
-    float4 brdf = f4_mulvs(f4_mulvs(surf->albedo, Fd_Lambert()), NoL);
-    brdf.w = LambertPdf(NoL);
+    float4 V = f4_neg(I);
+    float4 H = f4_normalize3(f4_add(V, L));
+    float NoV = f4_dotsat(N, V);
+    float HoV = f4_dotsat(H, V);
+    float fd = Fd_Burley(NoL, NoV, HoV, 1.0f);
+    float4 brdf = f4_mulvs(f4_mulvs(surf->albedo, fd), NoL);
+    brdf.w = ImportanceSampleLambertPdf(NoL);
     return brdf;
 }
 
@@ -1804,11 +1793,13 @@ pim_inline scatter_t VEC_CALL RefractScatterRetro(
 {
     const float kAir = 1.000277f;
     const float matIor = f1_max(1.0f, surf->ior);
+    const float alpha = BrdfAlpha(0.01f);
 
     float4 V = f4_neg(I);
     float4 M = surf->M;
-    float4 m = surf->N;
+    float4 m = TanToWorld(surf->N, SampleGGXMicrofacet(Sample2D(sampler), alpha));
     m = f4_dot3(m, M) > 0.0f ? m : f4_reflect3(m, M);
+    m = f4_normalize3(m);
     bool entering = surf->type != hit_backface;
     float k = entering ? (kAir / matIor) : (matIor / kAir);
 
@@ -1898,9 +1889,8 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
     float LoH = f4_dotsat(L, H);
 
     float specularPdf = amtSpecular * GGXPdf(NoH, HoV, alpha);
-    float diffusePdf = amtDiffuse * LambertPdf(NoL);
+    float diffusePdf = amtDiffuse * ImportanceSampleLambertPdf(NoL);
     float pdf = diffusePdf + specularPdf;
-
     if (pdf <= 0.0f)
     {
         return result;
@@ -1915,7 +1905,7 @@ pim_inline scatter_t VEC_CALL BrdfScatter(
         brdf = f4_add(brdf, Fr);
     }
     {
-        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, LoH, roughness));
+        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, HoV, roughness));
         Fd = f4_mulvs(Fd, amtDiffuse);
         brdf = f4_add(brdf, Fd);
     }
@@ -1950,35 +1940,41 @@ pim_inline scatter_t VEC_CALL BrdfScatterRetro(
     float4 N = surf->N;
     float4 L = TanToWorld(N, SampleCosineHemisphere(Sample2D(sampler)));
     float NoL = f4_dot3(N, L);
-    float pdf = LambertPdf(NoL);
+    float pdf = ImportanceSampleLambertPdf(NoL);
     if (pdf <= 0.0f)
     {
         return result;
     }
 
+    float4 V = f4_neg(I);
+    float4 H = f4_normalize3(f4_add(V, L));
+    float NoV = f4_dotsat(N, V);
+    float HoV = f4_dotsat(H, V);
+    float fd = Fd_Burley(NoL, NoV, HoV, 1.0f);
+
     result.dir = L;
     result.pdf = pdf;
-    result.attenuation = f4_mulvs(f4_mulvs(surf->albedo, Fd_Lambert()), NoL);
+    result.attenuation = f4_mulvs(f4_mulvs(surf->albedo, fd), NoL);
 
     return result;
 }
 
 pim_inline void VEC_CALL LightOnHit(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+    pt_sampler_t *const pim_noalias sampler,
+    pt_scene_t *const pim_noalias scene,
     float4 ro,
     float4 lum4,
     i32 iVert)
 {
-    i32 iList = scene->vertToEmit[iVert];
-    if (iList >= 0)
+    u32 amt = (u32)(f4_avglum(lum4) * 64.0f + 0.5f);
+    i32 iGrid = grid_index(&scene->lightGrid, ro);
+    i32 iEmit = scene->vertToEmit[iVert];
+    if (iEmit >= 0)
     {
-        i32 iCell = grid_index(&scene->lightGrid, ro);
-        dist1d_t* dist = &scene->lightDists[iCell];
+        dist1d_t* pim_noalias dist = &scene->lightDists[iGrid];
         if (dist->length)
         {
-            u32 amt = (u32)(f4_avglum(lum4) * 64.0f + 0.5f);
-            fetch_add_u32(dist->live + iList, amt, MO_Relaxed);
+            fetch_add_u32(&dist->live[iEmit], amt, MO_Relaxed);
         }
     }
 }
@@ -2004,10 +2000,10 @@ pim_inline bool VEC_CALL LightSelect(
         return false;
     }
 
-    i32 iList = dist1d_sampled(dist, LightSelectPrng(sampler));
-    float pdf = dist1d_pdfd(dist, iList);
+    i32 iEmit = dist1d_sampled(dist, LightSelectPrng(sampler));
+    float pdf = dist1d_pdfd(dist, iEmit);
 
-    i32 iVert = scene->emissives[iList];
+    i32 iVert = scene->emitToVert[iEmit];
 
     *iVertOut = iVert;
     *pdfOut = pdf;
@@ -2015,19 +2011,19 @@ pim_inline bool VEC_CALL LightSelect(
 }
 
 pim_inline float VEC_CALL LightSelectPdf(
-    pt_scene_t*const pim_noalias scene,
+    pt_scene_t *const pim_noalias scene,
     i32 iVert,
     float4 ro)
 {
     float selectPdf = 1.0f;
-    i32 iCell = grid_index(&scene->lightGrid, ro);
-    i32 iList = scene->vertToEmit[iVert];
-    if (iList >= 0)
+    i32 iGrid = grid_index(&scene->lightGrid, ro);
+    i32 iEmit = scene->vertToEmit[iVert];
+    if (iEmit >= 0)
     {
-        const dist1d_t* dist = scene->lightDists + iCell;
+        const dist1d_t* pim_noalias dist = &scene->lightDists[iGrid];
         if (dist->length)
         {
-            selectPdf = dist1d_pdfd(dist, iList);
+            selectPdf = dist1d_pdfd(dist, iEmit);
         }
     }
     return selectPdf;
@@ -2733,10 +2729,11 @@ pt_result_t VEC_CALL pt_trace_ray_retro(
             luminance = f4_add(luminance, f4_mul(scatter.luminance, attenuation));
             if (scatter.pdf > kEpsilon)
             {
-                if (b == 0)
                 {
-                    result.albedo = f4_f3(Media_Albedo(&scene->mediaDesc, scatter.pos));
-                    result.normal = f4_f3(f4_neg(rd));
+                    float t = 1.0f / (b + 1);
+                    float4 albedo = Media_Albedo(&scene->mediaDesc, scatter.pos);
+                    result.albedo = f3_lerp(result.albedo, f4_f3(albedo), t);
+                    result.normal = f3_lerp(result.normal, f4_f3(f4_neg(rd)), t);
                 }
                 attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
                 ro = scatter.pos;
@@ -2749,10 +2746,10 @@ pt_result_t VEC_CALL pt_trace_ray_retro(
             }
         }
 
-        if (b == 0)
         {
-            result.albedo = f4_f3(surf.albedo);
-            result.normal = f4_f3(surf.N);
+            float t = 1.0f / (b + 1);
+            result.albedo = f3_lerp(result.albedo, f4_f3(surf.albedo), t);
+            result.normal = f3_lerp(result.normal, f4_f3(surf.N), t);
         }
         if ((b == 0) || (prevFlags & matflag_refractive))
         {
@@ -2834,10 +2831,11 @@ pt_result_t VEC_CALL pt_trace_ray(
             luminance = f4_add(luminance, f4_mul(scatter.luminance, attenuation));
             if (scatter.pdf > kEpsilon)
             {
-                if (b == 0)
                 {
-                    result.albedo = f4_f3(Media_Albedo(&scene->mediaDesc, scatter.pos));
-                    result.normal = f4_f3(f4_neg(rd));
+                    float t = 1.0f / (b + 1);
+                    float4 albedo = Media_Albedo(&scene->mediaDesc, scatter.pos);
+                    result.albedo = f3_lerp(result.albedo, f4_f3(albedo), t);
+                    result.normal = f3_lerp(result.normal, f4_f3(f4_neg(rd)), t);
                 }
                 attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
                 ro = scatter.pos;
@@ -2850,10 +2848,10 @@ pt_result_t VEC_CALL pt_trace_ray(
             }
         }
 
-        if (b == 0)
         {
-            result.albedo = f4_f3(surf.albedo);
-            result.normal = f4_f3(surf.N);
+            float t = 1.0f / (b + 1);
+            result.albedo = f3_lerp(result.albedo, f4_f3(surf.albedo), t);
+            result.normal = f3_lerp(result.normal, f4_f3(surf.N), t);
         }
         if ((b == 0) || (prevFlags & matflag_refractive))
         {
