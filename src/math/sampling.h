@@ -283,9 +283,14 @@ pim_inline float4 VEC_CALL ImportanceSampleLambert(float4 N, float2 Xi)
     return TanToWorld(N, SampleCosineHemisphere(Xi));
 }
 
-pim_inline float VEC_CALL LambertPdf(float NoL)
+pim_inline float VEC_CALL ImportanceSampleLambertPdf(float NoL)
 {
     return NoL * (1.0f / kPi);
+}
+
+pim_inline float VEC_CALL UniformSampleLambertPdf(void)
+{
+    return (1.0f / kTau);
 }
 
 pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)
