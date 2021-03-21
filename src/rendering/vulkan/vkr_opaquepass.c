@@ -190,7 +190,7 @@ void vkrOpaquePass_Setup(vkrOpaquePass *const pass)
 {
     ProfileBegin(pm_update);
 
-    const u32 syncIndex = vkr_syncIndex();
+    const u32 syncIndex = vkrSys_SyncIndex();
     VkDescriptorSet set = vkrBindings_GetSet();
     vkrBuffer *const camBuffer = &pass->perCameraBuffer[syncIndex];
     vkrBuffer *const expBuffer = &g_vkr.exposurePass.expBuffers[syncIndex];

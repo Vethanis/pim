@@ -20,11 +20,11 @@ static const float4 kGiAxii[kGiDirections] =
     { -0.577350f, -0.577350f, 0.577350f, 4.999773f },
 };
 
-typedef struct task_s task_t;
-typedef struct pt_scene_s pt_scene_t;
+typedef struct Task_s Task;
+typedef struct PtScene_s PtScene;
 typedef struct Crate_s Crate;
 
-typedef struct lightmap_s
+typedef struct Lightmap_s
 {
     float4* pim_noalias probes[kGiDirections];
     float3* pim_noalias position;
@@ -32,18 +32,18 @@ typedef struct lightmap_s
     float* pim_noalias sampleCounts;
     i32 size;
     vkrTextureId slot;
-} lightmap_t;
+} Lightmap;
 
-typedef struct lmpack_s
+typedef struct LmPack_s
 {
     float4 axii[kGiDirections];
-    lightmap_t* pim_noalias lightmaps;
+    Lightmap* pim_noalias lightmaps;
     i32 lmCount;
     i32 lmSize;
     float texelsPerMeter;
-} lmpack_t;
+} LmPack;
 
-typedef struct dlmpack_s
+typedef struct DiskLmPack_s
 {
     i32 version;
     i32 directions;
@@ -51,24 +51,24 @@ typedef struct dlmpack_s
     i32 lmSize;
     i32 bytesPerLightmap;
     float texelsPerMeter;
-} dlmpack_t;
+} DiskLmPack;
 
-void lightmap_new(lightmap_t* lm, i32 size);
-void lightmap_del(lightmap_t* lm);
+void lightmap_new(Lightmap* lm, i32 size);
+void lightmap_del(Lightmap* lm);
 // upload changes to the GPU copy
-void lightmap_upload(lightmap_t* lm);
+void lightmap_upload(Lightmap* lm);
 
-lmpack_t* lmpack_get(void);
-lmpack_t lmpack_pack(
+LmPack* lmpack_get(void);
+LmPack lmpack_pack(
     i32 atlasSize,
     float texelsPerUnit,
     float distThresh,
     float degThresh);
-void lmpack_del(lmpack_t* pack);
+void lmpack_del(LmPack* pack);
 
-void lmpack_bake(pt_scene_t* scene, float timeSlice, i32 spp);
+void lmpack_bake(PtScene* scene, float timeSlice, i32 spp);
 
-bool lmpack_save(Crate* crate, const lmpack_t* src);
-bool lmpack_load(Crate* crate, lmpack_t* dst);
+bool lmpack_save(Crate* crate, const LmPack* src);
+bool lmpack_load(Crate* crate, LmPack* dst);
 
 PIM_C_END

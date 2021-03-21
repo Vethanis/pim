@@ -20,7 +20,7 @@ static ConVar_t cv_gamedir = { .type = cvart_text,.name = "gamedir",.value = "id
 static sdict_t ms_assets;
 static searchpath_t ms_search;
 
-void asset_sys_init(void)
+void AssetSys_Init(void)
 {
     cvar_reg(&cv_basedir);
     cvar_reg(&cv_gamedir);
@@ -53,21 +53,21 @@ void asset_sys_init(void)
     }
 }
 
-ProfileMark(pm_update, asset_sys_update)
-void asset_sys_update()
+ProfileMark(pm_update, AssetSys_Update)
+void AssetSys_Update()
 {
     ProfileBegin(pm_update);
 
     ProfileEnd(pm_update);
 }
 
-void asset_sys_shutdown(void)
+void AssetSys_Shutdown(void)
 {
     sdict_del(&ms_assets);
     searchpath_del(&ms_search);
 }
 
-bool asset_get(const char* name, asset_t* asset)
+bool Asset_Get(const char* name, asset_t* asset)
 {
     ASSERT(name);
     ASSERT(asset);
@@ -145,8 +145,8 @@ static i32 CmpAsset(
     return gs_revSort ? -cmp : cmp;
 }
 
-ProfileMark(pm_OnGui, asset_gui)
-void asset_gui(bool* pEnabled)
+ProfileMark(pm_OnGui, AssetSys_Gui)
+void AssetSys_Gui(bool* pEnabled)
 {
     ProfileBegin(pm_OnGui);
 
@@ -211,7 +211,7 @@ void asset_gui(bool* pEnabled)
                     igText("%d", file->length); igNextColumn();
                     igText("%2.2f%%", file->length * rcpUsed); igNextColumn();
                 }
-                pim_free(indices);
+                Mem_Free(indices);
                 igExTableFooter();
 
                 igPopID();
@@ -240,7 +240,7 @@ void asset_gui(bool* pEnabled)
                 igText(names[j]); igNextColumn();
                 igText("%d", assets[j].length); igNextColumn();
             }
-            pim_free(indices);
+            Mem_Free(indices);
 
             igExTableFooter();
         }

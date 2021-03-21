@@ -185,7 +185,7 @@ VkDescriptorSetLayout vkrBindings_GetSetLayout(void)
 
 VkDescriptorSet vkrBindings_GetSet(void)
 {
-    u32 syncIndex = vkr_syncIndex();
+    u32 syncIndex = vkrSys_SyncIndex();
     ASSERT(syncIndex < NELEM(ms_sets));
     ASSERT(ms_sets[syncIndex]);
     return ms_sets[syncIndex];

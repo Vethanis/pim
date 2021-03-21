@@ -14,27 +14,27 @@ i32 mipmap_len(int2 size)
 float4* mipmap_new_f4(int2 size, EAlloc allocator)
 {
     i32 len = mipmap_len(size);
-    float4* texels = pim_calloc(allocator, sizeof(texels[0]) * len);
+    float4* texels = Mem_Calloc(allocator, sizeof(texels[0]) * len);
     return texels;
 }
 
 u32* mipmap_new_c32(int2 size, EAlloc allocator)
 {
     i32 len = mipmap_len(size);
-    u32* texels = pim_calloc(allocator, sizeof(texels[0]) * len);
+    u32* texels = Mem_Calloc(allocator, sizeof(texels[0]) * len);
     return texels;
 }
 
 float* mipmap_new_f32(int2 size, EAlloc allocator)
 {
     i32 len = mipmap_len(size);
-    float* texels = pim_calloc(allocator, sizeof(texels[0]) * len);
+    float* texels = Mem_Calloc(allocator, sizeof(texels[0]) * len);
     return texels;
 }
 
 typedef struct task_mipf4_s
 {
-    task_t task;
+    Task task;
     const float4* srcMip;
     float4* dstMip;
     int2 srcSize;
@@ -71,12 +71,12 @@ void mipmap_f4(float4* mipChain, int2 size)
     for (i32 dstMip = 1; dstMip < mipCount; ++dstMip)
     {
         i32 srcMip = dstMip - 1;
-        task_mipf4_t* task = tmp_calloc(sizeof(*task));
+        task_mipf4_t* task = Temp_Calloc(sizeof(*task));
         task->srcMip = mipChain + CalcMipOffset(size, srcMip);
         task->dstMip = mipChain + CalcMipOffset(size, dstMip);
         task->srcSize = CalcMipSize(size, srcMip);
         task->dstSize = CalcMipSize(size, dstMip);
-        task_run(&task->task, mipmap_f4fn, CalcMipLen(size, dstMip));
+        Task_Run(&task->task, mipmap_f4fn, CalcMipLen(size, dstMip));
     }
 
     ProfileEnd(pm_mipmap_f4);
@@ -84,14 +84,14 @@ void mipmap_f4(float4* mipChain, int2 size)
 
 typedef struct task_mipc32_s
 {
-    task_t task;
+    Task task;
     const u32* srcMip;
     u32* dstMip;
     int2 srcSize;
     int2 dstSize;
 } task_mipc32_t;
 
-static void mipmap_c32fn(task_t* pbase, i32 begin, i32 end)
+static void mipmap_c32fn(Task* pbase, i32 begin, i32 end)
 {
     task_mipc32_t* task = (task_mipc32_t*)pbase;
     u32 const *const pim_noalias srcMip = task->srcMip;
@@ -124,26 +124,26 @@ void mipmap_c32(u32* mipChain, int2 size)
     for (i32 dstMip = 1; dstMip < mipCount; ++dstMip)
     {
         i32 srcMip = dstMip - 1;
-        task_mipc32_t* task = tmp_calloc(sizeof(*task));
+        task_mipc32_t* task = Temp_Calloc(sizeof(*task));
         task->srcMip = mipChain + CalcMipOffset(size, srcMip);
         task->dstMip = mipChain + CalcMipOffset(size, dstMip);
         task->srcSize = CalcMipSize(size, srcMip);
         task->dstSize = CalcMipSize(size, dstMip);
-        task_run(&task->task, mipmap_c32fn, CalcMipLen(size, dstMip));
+        Task_Run(&task->task, mipmap_c32fn, CalcMipLen(size, dstMip));
     }
     ProfileEnd(pm_mipmap_c32);
 }
 
 typedef struct task_mipf32_s
 {
-    task_t task;
+    Task task;
     const float* srcMip;
     float* dstMip;
     int2 srcSize;
     int2 dstSize;
 } task_mipf32_t;
 
-static void mipmap_f32fn(task_t* pbase, i32 begin, i32 end)
+static void mipmap_f32fn(Task* pbase, i32 begin, i32 end)
 {
     task_mipf32_t* task = (task_mipf32_t*)pbase;
     float const *const pim_noalias srcMip = task->srcMip;
@@ -172,12 +172,12 @@ void mipmap_f32(float* mipChain, int2 size)
     for (i32 dstMip = 1; dstMip < mipCount; ++dstMip)
     {
         i32 srcMip = dstMip - 1;
-        task_mipf32_t* task = tmp_calloc(sizeof(*task));
+        task_mipf32_t* task = Temp_Calloc(sizeof(*task));
         task->srcMip = mipChain + CalcMipOffset(size, srcMip);
         task->dstMip = mipChain + CalcMipOffset(size, dstMip);
         task->srcSize = CalcMipSize(size, srcMip);
         task->dstSize = CalcMipSize(size, dstMip);
-        task_run(&task->task, mipmap_f32fn, CalcMipLen(size, dstMip));
+        Task_Run(&task->task, mipmap_f32fn, CalcMipLen(size, dstMip));
     }
     ProfileEnd(pm_mipmap_f32);
 }

@@ -148,11 +148,11 @@ void vkrMainPass_Execute(
         vkrScreenBlit_Blit(
             &passCtx,
             &pass->blit,
-            render_sys_frontbuf());
+            RenderSys_FrontBuf());
     }
     else
     {
-        const u32 imageIndex = vkr_swapIndex();
+        const u32 imageIndex = vkrSys_SwapIndex();
         VkImage colorTarget = chain->images[imageIndex];
         vkrAttachment* lumTarget = &chain->lumAttachments[imageIndex];
         const VkImageMemoryBarrier colorBarrier =

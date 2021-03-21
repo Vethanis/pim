@@ -32,7 +32,7 @@ static const char* const kDesiredDevExtensions[] =
     VK_EXT_HDR_METADATA_EXTENSION_NAME,
 };
 
-bool vkrDevice_Init(vkr_t* vkr)
+bool vkrDevice_Init(vkrSys* vkr)
 {
     ASSERT(vkr);
 
@@ -65,7 +65,7 @@ bool vkrDevice_Init(vkr_t* vkr)
     return true;
 }
 
-void vkrDevice_Shutdown(vkr_t* vkr)
+void vkrDevice_Shutdown(vkrSys* vkr)
 {
     if (vkr)
     {
@@ -96,7 +96,7 @@ VkExtensionProperties* vkrEnumDevExtensions(
     u32 count = 0;
     VkExtensionProperties* props = NULL;
     VkCheck(vkEnumerateDeviceExtensionProperties(phdev, NULL, &count, NULL));
-    TempReserve(props, count);
+    Temp_Reserve(props, count);
     VkCheck(vkEnumerateDeviceExtensionProperties(phdev, NULL, &count, props));
     *countOut = count;
     return props;
@@ -108,10 +108,10 @@ void vkrListDevExtensions(VkPhysicalDevice phdev)
 
     u32 count = 0;
     VkExtensionProperties* props = vkrEnumDevExtensions(phdev, &count);
-    con_logf(LogSev_Info, "vkr", "%d available device extensions", count);
+    Con_Logf(LogSev_Info, "vkr", "%d available device extensions", count);
     for (u32 i = 0; i < count; ++i)
     {
-        con_logf(LogSev_Info, "vkr", props[i].extensionName);
+        Con_Logf(LogSev_Info, "vkr", props[i].extensionName);
     }
 }
 
@@ -130,7 +130,7 @@ strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev)
         const char* name = kRequiredDevExtensions[i];
         if (!vkrTryAddExtension(&list, props, count, name))
         {
-            con_logf(LogSev_Error, "vkr", "Failed to load required device extension '%s'", name);
+            Con_Logf(LogSev_Error, "vkr", "Failed to load required device extension '%s'", name);
         }
     }
 
@@ -139,7 +139,7 @@ strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev)
         const char* name = kDesiredDevExtensions[i];
         if (!vkrTryAddExtension(&list, props, count, name))
         {
-            con_logf(LogSev_Warning, "vkr", "Failed to load desired device extension '%s'", name);
+            Con_Logf(LogSev_Warning, "vkr", "Failed to load desired device extension '%s'", name);
         }
     }
 
@@ -159,13 +159,13 @@ u32 vkrEnumPhysicalDevices(
 
     if (pDevices)
     {
-        VkPhysicalDevice* devices = tmp_calloc(sizeof(devices[0]) * count);
+        VkPhysicalDevice* devices = Temp_Calloc(sizeof(devices[0]) * count);
         VkCheck(vkEnumeratePhysicalDevices(inst, &count, devices));
         *pDevices = devices;
 
         if (pFeatures)
         {
-            VkPhysicalDeviceFeatures* features = tmp_calloc(sizeof(features[0]) * count);
+            VkPhysicalDeviceFeatures* features = Temp_Calloc(sizeof(features[0]) * count);
             for (u32 i = 0; i < count; ++i)
             {
                 ASSERT(devices[i]);
@@ -176,7 +176,7 @@ u32 vkrEnumPhysicalDevices(
 
         if (pProps)
         {
-            VkPhysicalDeviceProperties* props = tmp_calloc(sizeof(props[0]) * count);
+            VkPhysicalDeviceProperties* props = Temp_Calloc(sizeof(props[0]) * count);
             for (u32 i = 0; i < count; ++i)
             {
                 ASSERT(devices[i]);
@@ -213,9 +213,9 @@ VkPhysicalDevice vkrSelectPhysicalDevice(
     VkPhysicalDeviceFeatures* feats = NULL;
     VkPhysicalDeviceProperties* props = NULL;
     u32 count = vkrEnumPhysicalDevices(inst, &devices, &feats, &props);
-    i32* desiredExtCounts = tmp_calloc(sizeof(desiredExtCounts[0]) * count);
-    bool* hasRequiredExts = tmp_calloc(sizeof(hasRequiredExts[0]) * count);
-    bool* hasQueueSupport = tmp_calloc(sizeof(hasQueueSupport[0]) * count);
+    i32* desiredExtCounts = Temp_Calloc(sizeof(desiredExtCounts[0]) * count);
+    bool* hasRequiredExts = Temp_Calloc(sizeof(hasRequiredExts[0]) * count);
+    bool* hasQueueSupport = Temp_Calloc(sizeof(hasQueueSupport[0]) * count);
 
     for (u32 i = 0; i < count; ++i)
     {

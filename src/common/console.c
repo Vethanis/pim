@@ -44,18 +44,18 @@ static bool ms_recapture;
 static i32 ms_histCursor;
 static strlist_t ms_history;
 
-void con_sys_init(void)
+void ConSys_Init(void)
 {
     cvar_reg(&cv_conlogpath);
     strlist_new(&ms_history, EAlloc_Perm);
 
     ms_file = fstr_open(cv_conlogpath.value, "wb");
-    con_clear();
+    Con_Clear();
     HistClear();
 }
 
-ProfileMark(pm_update, con_sys_update)
-void con_sys_update(void)
+ProfileMark(pm_update, ConSys_Update)
+void ConSys_Update(void)
 {
     ProfileBegin(pm_update);
 
@@ -69,12 +69,12 @@ void con_sys_update(void)
     ProfileEnd(pm_update);
 }
 
-void con_sys_shutdown(void)
+void ConSys_Shutdown(void)
 {
-    con_logf(LogSev_Info, "con", "console shutting down...");
+    Con_Logf(LogSev_Info, "con", "console shutting down...");
     fstr_close(&ms_file);
 
-    con_clear();
+    Con_Clear();
     HistClear();
     strlist_del(&ms_history);
 }
@@ -83,22 +83,22 @@ ProfileMark(pm_gui, con_gui)
 static void con_gui(void)
 {
     bool grabFocus = false;
-    if (input_keydown(KeyCode_GraveAccent))
+    if (Input_IsKeyDown(KeyCode_GraveAccent))
     {
-        GLFWwindow* focus = input_get_focus();
+        GLFWwindow* focus = Input_GetFocus();
         ms_showGui = !ms_showGui;
         grabFocus = true;
         ms_buffer[0] = 0;
         if (ms_showGui)
         {
-            ms_recapture = input_cursor_captured(focus);
-            input_capture_cursor(focus, false);
+            ms_recapture = Input_IsCursorCaptured(focus);
+            Input_CaptureCursor(focus, false);
         }
         else
         {
             if (ms_recapture)
             {
-                input_capture_cursor(focus, true);
+                Input_CaptureCursor(focus, true);
             }
             ms_recapture = false;
         }
@@ -123,7 +123,7 @@ static void con_gui(void)
     {
         if (igSmallButton("Clear"))
         {
-            con_clear();
+            Con_Clear();
         }
         igExSameLine();
         bool logToClipboard = igSmallButton("Copy");
@@ -185,7 +185,7 @@ static void con_gui(void)
         {
             if (ms_buffer[0])
             {
-                con_puts(C32_WHITE, ms_buffer);
+                Con_Puts(C32_WHITE, ms_buffer);
                 ExecCmd(ms_buffer, true);
             }
             ms_buffer[0] = 0;
@@ -205,7 +205,7 @@ static void con_gui(void)
     ProfileEnd(pm_gui);
 }
 
-void con_exec(const char* cmdText)
+void Con_Exec(const char* cmdText)
 {
     if (cmdText)
     {
@@ -213,7 +213,7 @@ void con_exec(const char* cmdText)
     }
 }
 
-void con_puts(u32 color, const char* line)
+void Con_Puts(u32 color, const char* line)
 {
     const i32 numLines = NELEM(ms_lines);
     const i32 mask = numLines - 1;
@@ -230,13 +230,13 @@ void con_puts(u32 color, const char* line)
         u32* colors = ms_colors;
         const i32 iLine = ms_iLine++ & mask;
 
-        pim_free(lines[iLine]);
+        Mem_Free(lines[iLine]);
         lines[iLine] = StrDup(line, EAlloc_Perm);
         colors[iLine] = color;
     }
 }
 
-void con_printf(u32 color, const char* fmt, ...)
+void Con_Printf(u32 color, const char* fmt, ...)
 {
     ASSERT(fmt);
     if (fmt)
@@ -246,16 +246,16 @@ void con_printf(u32 color, const char* fmt, ...)
         va_start(ap, fmt);
         VSPrintf(ARGS(buffer), fmt, ap);
         va_end(ap);
-        con_puts(color, buffer);
+        Con_Puts(color, buffer);
     }
 }
 
-void con_clear(void)
+void Con_Clear(void)
 {
     ms_iLine = 0;
     for (i32 i = 0; i < NELEM(ms_lines); ++i)
     {
-        pim_free(ms_lines[i]);
+        Mem_Free(ms_lines[i]);
         ms_lines[i] = NULL;
         ms_colors[i] = C32_WHITE;
     }
@@ -293,12 +293,12 @@ static const char* LogSevToTag(LogSev sev)
     }
 }
 
-void con_logf(LogSev sev, const char* tag, const char* fmt, ...)
+void Con_Logf(LogSev sev, const char* tag, const char* fmt, ...)
 {
     ASSERT(fmt);
     if (fmt)
     {
-        double ms = time_milli(time_now() - time_appstart());
+        double ms = Time_Milli(Time_Now() - Time_AppStart());
         double seconds = ms / 1000.0;
         ms = fmod(ms, 1000.0);
         double minutes = seconds / 60.0;
@@ -323,7 +323,7 @@ void con_logf(LogSev sev, const char* tag, const char* fmt, ...)
         VStrCatf(ARGS(msg), fmt, ap);
         va_end(ap);
 
-        con_puts(sevColor, msg);
+        Con_Puts(sevColor, msg);
 
         if (sev == LogSev_Error)
         {
@@ -353,7 +353,7 @@ static i32 OnTextComplete(ImGuiInputTextCallbackData* data)
 
     char* dst = buffer + cursor;
     const i32 size = capacity - cursor;
-    const char* src = cmd_complete(dst);
+    const char* src = Cmd_Complete(dst);
     if (!src)
     {
         src = cvar_complete(dst);
@@ -427,5 +427,5 @@ static void ExecCmd(const char* cmd, bool history)
         ms_histCursor = 0;
     }
 
-    cmd_text(cmd);
+    Cmd_Text(cmd);
 }

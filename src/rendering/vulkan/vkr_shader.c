@@ -103,7 +103,7 @@ bool vkrShader_New(
         ASSERT(false);
         if (output.errors)
         {
-            con_logf(LogSev_Error, "vkr", "Shader compile errors:\n%s", output.errors);
+            Con_Logf(LogSev_Error, "vkr", "Shader compile errors:\n%s", output.errors);
         }
         success = false;
         goto cleanup;
@@ -118,7 +118,7 @@ bool vkrShader_New(
 
 cleanup:
     vkrCompileOutput_Del(&output);
-    pim_free(text);
+    Mem_Free(text);
     if (!success)
     {
         vkrShader_Del(shader);

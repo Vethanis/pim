@@ -122,7 +122,7 @@ void vkrExposurePass_Setup(vkrExposurePass *const pass)
 {
     ProfileBegin(pm_setup);
 
-    pass->params.deltaTime = f1_lerp(pass->params.deltaTime, (float)time_dtf(), 0.25f);
+    pass->params.deltaTime = f1_lerp(pass->params.deltaTime, (float)Time_Deltaf(), 0.25f);
 
     vkrSwapchain *const chain = &g_vkr.chain;
     const u32 chainLen = chain->length;

@@ -244,7 +244,7 @@ static void vkrImGui_SetupRenderState(
 {
     ProfileBegin(pm_setuprenderstate);
 
-    const u32 syncIndex = vkr_syncIndex();
+    const u32 syncIndex = vkrSys_SyncIndex();
     VkDescriptorSet set = vkrBindings_GetSet();
     // Bind pipeline and descriptor sets:
     {

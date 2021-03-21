@@ -4,8 +4,8 @@
 
 PIM_C_BEGIN
 
-bool vkrInstance_Init(vkr_t* vkr);
-void vkrInstance_Shutdown(vkr_t* vkr);
+bool vkrInstance_Init(vkrSys* vkr);
+void vkrInstance_Shutdown(vkrSys* vkr);
 
 // ----------------------------------------------------------------------------
 

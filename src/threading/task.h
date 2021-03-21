@@ -11,30 +11,30 @@ typedef enum
     TaskStatus_Complete,
 } TaskStatus;
 
-typedef void(PIM_CDECL *task_execute_fn)(void* task, i32 begin, i32 end);
+typedef void(PIM_CDECL *TaskExecuteFn)(void* task, i32 begin, i32 end);
 
-typedef struct task_s
+typedef struct Task_s
 {
-    task_execute_fn execute;
+    TaskExecuteFn execute;
     i32 status;
     i32 worksize;
     i32 head;
     i32 tail;
-} task_t;
+} Task;
 
-i32 task_thread_id(void);
-i32 task_thread_ct(void);
+i32 Task_ThreadId(void);
+i32 Task_ThreadCount(void);
 
-void task_submit(void* task, task_execute_fn execute, i32 worksize);
-TaskStatus task_stat(const void* task);
-void task_await(void* task);
+void Task_Submit(void* task, TaskExecuteFn execute, i32 worksize);
+TaskStatus Task_Stat(const void* task);
+void Task_Await(void* task);
 
-void task_run(void* task, task_execute_fn fn, i32 worksize);
+void Task_Run(void* task, TaskExecuteFn fn, i32 worksize);
 
-void task_sys_schedule(void);
+void TaskSys_Schedule(void);
 
-void task_sys_init(void);
-void task_sys_update(void);
-void task_sys_shutdown(void);
+void TaskSys_Init(void);
+void TaskSys_Update(void);
+void TaskSys_Shutdown(void);
 
 PIM_C_END

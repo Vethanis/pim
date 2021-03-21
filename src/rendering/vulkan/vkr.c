@@ -51,7 +51,7 @@
 
 #include <string.h>
 
-vkr_t g_vkr;
+vkrSys g_vkr;
 
 static ConVar_t* cv_r_sun_dir;
 static ConVar_t* cv_r_sun_col;
@@ -65,7 +65,7 @@ static ConVar_t cv_lm_upload =
     .desc = "upload lightmap data to GPU",
 };
 
-bool vkr_init(void)
+bool vkrSys_Init(void)
 {
     memset(&g_vkr, 0, sizeof(g_vkr));
 
@@ -99,7 +99,7 @@ bool vkr_init(void)
         success = false;
         goto cleanup;
     }
-    ui_sys_init(g_vkr.display.window);
+    UiSys_Init(g_vkr.display.window);
 
     if (!vkrDevice_Init(&g_vkr))
     {
@@ -167,23 +167,23 @@ cleanup:
 
     if (!success)
     {
-        vkr_shutdown();
+        vkrSys_Shutdown();
     }
     return success;
 }
 
 static void vkrUploadLightmaps(void)
 {
-    lmpack_t* pack = lmpack_get();
+    LmPack* pack = lmpack_get();
     for (i32 i = 0; i < pack->lmCount; ++i)
     {
-        lightmap_t* lm = pack->lightmaps + i;
+        Lightmap* lm = pack->lightmaps + i;
         lightmap_upload(lm);
     }
 }
 
-ProfileMark(pm_update, vkr_update)
-void vkr_update(void)
+ProfileMark(pm_update, vkrSys_Update)
+void vkrSys_Update(void)
 {
     if (!g_vkr.inst)
     {
@@ -244,14 +244,14 @@ void vkr_update(void)
     ProfileEnd(pm_update);
 }
 
-void vkr_shutdown(void)
+void vkrSys_Shutdown(void)
 {
     if (g_vkr.inst)
     {
         vkrDevice_WaitIdle();
 
         lmpack_del(lmpack_get());
-        ui_sys_shutdown();
+        UiSys_Shutdown();
 
         vkrExposurePass_Del(&g_vkr.exposurePass);
         vkrMainPass_Del(&g_vkr.mainPass);
@@ -272,7 +272,7 @@ void vkr_shutdown(void)
     }
 }
 
-void vkr_onload(void)
+void vkrSys_OnLoad(void)
 {
     if (g_vkr.allocator.handle)
     {
@@ -280,7 +280,7 @@ void vkr_onload(void)
     }
 }
 
-void vkr_onunload(void)
+void vkrSys_OnUnload(void)
 {
     if (g_vkr.allocator.handle)
     {
@@ -288,6 +288,6 @@ void vkr_onunload(void)
     }
 }
 
-u32 vkr_syncIndex(void) { return g_vkr.chain.syncIndex; }
-u32 vkr_swapIndex(void) { return g_vkr.chain.imageIndex; }
-u32 vkr_frameIndex(void) { return time_framecount(); }
+u32 vkrSys_SyncIndex(void) { return g_vkr.chain.syncIndex; }
+u32 vkrSys_SwapIndex(void) { return g_vkr.chain.imageIndex; }
+u32 vkrSys_FrameIndex(void) { return Time_FrameCount(); }

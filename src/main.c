@@ -25,7 +25,7 @@ static void OnGui(void);
 int main()
 {
     Init();
-    while (window_is_open())
+    while (Window_IsOpen())
     {
         Update();
     }
@@ -35,48 +35,48 @@ int main()
 
 static void Init(void)
 {
-    time_sys_init();            // setup sokol time
-    alloc_sys_init();           // preallocate pools
-    ser_sys_init();
-    window_sys_init();          // gl context, window
-    cmd_sys_init();
-    con_sys_init();
-    task_sys_init();            // enable async work
-    asset_sys_init();           // means of loading data
-    network_sys_init();         // setup sockets
-    render_sys_init();          // setup rendering resources
-    audio_sys_init();           // setup audio callback
-    input_sys_init();           // setup glfw input callbacks
-    logic_sys_init();           // setup game logic
-    editor_sys_init();
+    TimeSys_Init();
+    MemSys_Init();
+    SerSys_Init();
+    WinSys_Init();
+    CmdSys_Init();
+    ConSys_Init();
+    TaskSys_Init();
+    AssetSys_Init();
+    NetSys_Init();
+    RenderSys_Init();
+    AudioSys_Init();
+    InputSys_Init();
+    LogicSys_Init();
+    EditorSys_Init();
 }
 
 static void Shutdown(void)
 {
-    editor_sys_shutdown();
-    logic_sys_shutdown();
-    input_sys_shutdown();
-    audio_sys_shutdown();
-    render_sys_shutdown();
-    network_sys_shutdown();
-    asset_sys_shutdown();
-    task_sys_shutdown();
-    con_sys_shutdown();
-    cmd_sys_shutdown();
-    window_sys_shutdown();
-    ser_sys_shutdown();
-    alloc_sys_shutdown();
-    time_sys_shutdown();
+    EditorSys_Shutdown();
+    LogicSys_Shutdown();
+    InputSys_Shutdown();
+    AudioSys_Shutdown();
+    RenderSys_Shutdown();
+    NetSys_Shutdown();
+    AssetSys_Shutdown();
+    TaskSys_Shutdown();
+    ConSys_Shutdown();
+    CmdSys_Shutdown();
+    WinSys_Shutdown();
+    SerSys_Shutdown();
+    MemSys_Shutdown();
+    TimeSys_Shutdown();
 }
 
 ProfileMark(pm_input, InitPhase)
 static void InitPhase(void)
 {
     ProfileBegin(pm_input);
-    input_sys_update();         // pump input events to callbacks
-    window_sys_update();        // update window size
-    network_sys_update();       // transmit and receive game state
-    asset_sys_update();         // stream assets in
+    InputSys_Update();         // pump input events to callbacks
+    WinSys_Update();        // update window size
+    NetSys_Update();       // transmit and receive game state
+    AssetSys_Update();         // stream assets in
     ProfileEnd(pm_input);
 }
 
@@ -84,9 +84,9 @@ ProfileMark(pm_simulate, SimulatePhase)
 static void SimulatePhase(void)
 {
     ProfileBegin(pm_simulate);
-    cmd_sys_update();
-    logic_sys_update();         // update game simulation
-    task_sys_update();          // schedule tasks
+    CmdSys_Update();
+    LogicSys_Update();         // update game simulation
+    TaskSys_Update();          // schedule tasks
     ProfileEnd(pm_simulate);
 }
 
@@ -94,16 +94,16 @@ ProfileMark(pm_present, PresentPhase)
 static void PresentPhase(void)
 {
     ProfileBegin(pm_present);
-    render_sys_update();        // draw tasks
-    audio_sys_update();         // handle audio events
+    RenderSys_Update();        // draw tasks
+    AudioSys_Update();         // handle audio events
     ProfileEnd(pm_present);
 }
 
 ProfileMark(pm_update, Update)
 static void Update(void)
 {
-    time_sys_update();          // bump frame id for profiler
-    alloc_sys_update();         // reset linear allocator
+    TimeSys_Update();          // bump frame id for profiler
+    MemSys_Update();         // reset linear allocator
     ProfileBegin(pm_update);
 
     InitPhase();
@@ -111,7 +111,7 @@ static void Update(void)
     OnGui();
     PresentPhase();
 
-    window_swapbuffers();       // wait for target fps
+    Window_SwapBuffers();       // wait for target fps
     ProfileEnd(pm_update);
 }
 
@@ -119,11 +119,11 @@ ProfileMark(pm_gui, OnGui)
 static void OnGui(void)
 {
     ProfileBegin(pm_gui);
-    ui_sys_beginframe();        // ImGui::BeginFrame
+    UiSys_BeginFrame();        // ImGui::BeginFrame
 
-    con_sys_update();
-    editor_sys_update();
+    ConSys_Update();
+    EditorSys_Update();
 
-    ui_sys_endframe();          // ImGui::EndFrame
+    UiSys_EndFrame();          // ImGui::EndFrame
     ProfileEnd(pm_gui);
 }

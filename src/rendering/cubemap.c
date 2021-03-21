@@ -23,9 +23,9 @@ i32 Cubemaps_Add(Cubemaps* maps, Guid name, i32 size, Box3D bounds)
     const i32 back = maps->count++;
     const i32 len = back + 1;
 
-    PermReserve(maps->names, len);
-    PermReserve(maps->bounds, len);
-    PermReserve(maps->cubemaps, len);
+    Perm_Reserve(maps->names, len);
+    Perm_Reserve(maps->bounds, len);
+    Perm_Reserve(maps->cubemaps, len);
 
     maps->names[back] = name;
     maps->bounds[back] = bounds;
@@ -79,8 +79,8 @@ void Cubemap_New(Cubemap* cm, i32 size)
     cm->mipCount = mipCount;
     for (i32 i = 0; i < Cubeface_COUNT; ++i)
     {
-        cm->color[i] = tex_calloc(sizeof(cm->color[0][0]) * len);
-        cm->convolved[i] = tex_calloc(sizeof(cm->convolved[0][0]) * elemCount);
+        cm->color[i] = Tex_Calloc(sizeof(cm->color[0][0]) * len);
+        cm->convolved[i] = Tex_Calloc(sizeof(cm->convolved[0][0]) * elemCount);
     }
 }
 
@@ -90,8 +90,8 @@ void Cubemap_Del(Cubemap* cm)
     {
         for (i32 i = 0; i < Cubeface_COUNT; ++i)
         {
-            pim_free(cm->color[i]);
-            pim_free(cm->convolved[i]);
+            Mem_Free(cm->color[i]);
+            Mem_Free(cm->convolved[i]);
         }
         memset(cm, 0, sizeof(*cm));
     }
@@ -99,43 +99,43 @@ void Cubemap_Del(Cubemap* cm)
 
 typedef struct cmbake_s
 {
-    task_t task;
+    Task task;
     Cubemap* cm;
-    pt_scene_t* scene;
+    PtScene* scene;
     float4 origin;
     float weight;
 } cmbake_t;
 
-static void BakeFn(task_t* pBase, i32 begin, i32 end)
+static void BakeFn(Task* pBase, i32 begin, i32 end)
 {
     cmbake_t* task = (cmbake_t*)pBase;
 
     Cubemap* cm = task->cm;
-    pt_scene_t* scene = task->scene;
+    PtScene* scene = task->scene;
     const float4 origin = task->origin;
     const float weight = task->weight;
 
     const i32 size = cm->size;
     const i32 flen = size * size;
 
-    pt_sampler_t sampler = pt_sampler_get();
+    PtSampler sampler = PtSampler_Get();
     for (i32 i = begin; i < end; ++i)
     {
         i32 face = i / flen;
         i32 fi = i % flen;
         int2 coord = { fi % size, fi / size };
-        float2 Xi = f2_tent(pt_sample_2d(&sampler));
+        float2 Xi = f2_tent(Pt_Sample2D(&sampler));
         float4 dir = Cubemap_CalcDir(size, face, coord, Xi);
-        pt_result_t result = pt_trace_ray(&sampler, scene, origin, dir);
+        PtResult result = Pt_TraceRay(&sampler, scene, origin, dir);
         cm->color[face][fi] = f3_lerp(cm->color[face][fi], result.color, weight);
     }
-    pt_sampler_set(sampler);
+    PtSampler_Set(sampler);
 }
 
 ProfileMark(pm_Bake, Cubemap_Bake)
 void Cubemap_Bake(
     Cubemap* cm,
-    pt_scene_t* scene,
+    PtScene* scene,
     float4 origin,
     float weight)
 {
@@ -148,20 +148,20 @@ void Cubemap_Bake(
     {
         ProfileBegin(pm_Bake);
 
-        cmbake_t* task = tmp_calloc(sizeof(*task));
+        cmbake_t* task = Temp_Calloc(sizeof(*task));
         task->cm = cm;
         task->scene = scene;
         task->origin = origin;
         task->weight = weight;
 
-        task_run(&task->task, BakeFn, size * size * Cubeface_COUNT);
+        Task_Run(&task->task, BakeFn, size * size * Cubeface_COUNT);
 
         ProfileEnd(pm_Bake);
     }
 }
 
 static float4 VEC_CALL PrefilterEnvMap(
-    prng_t* rng,
+    Prng* rng,
     const Cubemap* cm,
     float3x3 TBN,
     u32 sampleCount,
@@ -195,7 +195,7 @@ static float4 VEC_CALL PrefilterEnvMap(
 
 typedef struct prefilter_s
 {
-    task_t task;
+    Task task;
     Cubemap* cm;
     i32 mip;
     i32 size;
@@ -203,7 +203,7 @@ typedef struct prefilter_s
     float weight;
 } prefilter_t;
 
-static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
+static void PrefilterFn(Task* pBase, i32 begin, i32 end)
 {
     prefilter_t* task = (prefilter_t*)pBase;
     Cubemap* cm = task->cm;
@@ -215,7 +215,7 @@ static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
     const i32 len = size * size;
     const float roughness = MipToRoughness((float)mip);
 
-    prng_t rng = prng_get();
+    Prng rng = Prng_Get();
     for (i32 i = begin; i < end; ++i)
     {
         i32 face = i / len;
@@ -230,7 +230,7 @@ static void PrefilterFn(task_t* pBase, i32 begin, i32 end)
         float4 light = PrefilterEnvMap(&rng, cm, TBN, sampleCount, roughness);
         Cubemap_BlendMip(cm, face, coord, mip, light, weight);
     }
-    prng_set(rng);
+    Prng_Set(rng);
 }
 
 ProfileMark(pm_Convolve, Cubemap_Convolve)
@@ -247,7 +247,7 @@ void Cubemap_Convolve(
     const i32 size = cm->size;
 
     i32 numSubmit = 0;
-    prefilter_t* tasks = tmp_calloc(sizeof(tasks[0]) * mipCount);
+    prefilter_t* tasks = Temp_Calloc(sizeof(tasks[0]) * mipCount);
     for (i32 m = 0; m < mipCount; ++m)
     {
         i32 mSize = size >> m;
@@ -259,16 +259,16 @@ void Cubemap_Convolve(
             tasks[m].size = mSize;
             tasks[m].sampleCount = sampleCount;
             tasks[m].weight = weight;
-            task_submit(&tasks[m].task, PrefilterFn, len);
+            Task_Submit(&tasks[m].task, PrefilterFn, len);
             ++numSubmit;
         }
     }
 
-    task_sys_schedule();
+    TaskSys_Schedule();
 
     for (i32 m = 0; m < numSubmit; ++m)
     {
-        task_await(&tasks[m].task);
+        Task_Await(&tasks[m].task);
     }
 
     ProfileEnd(pm_Convolve);

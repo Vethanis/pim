@@ -4,8 +4,8 @@
 
 PIM_C_BEGIN
 
-void vkrCreateQueues(vkr_t* vkr);
-void vkrDestroyQueues(vkr_t* vkr);
+void vkrCreateQueues(vkrSys* vkr);
+void vkrDestroyQueues(vkrSys* vkr);
 
 // ----------------------------------------------------------------------------
 

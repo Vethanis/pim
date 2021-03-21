@@ -9,13 +9,13 @@
 
 typedef struct resolve_s
 {
-    task_t task;
+    Task task;
     float4 toneParams;
     framebuf_t* target;
     TonemapId tmapId;
 } resolve_t;
 
-pim_inline u32 VEC_CALL ToColor(prng_t *const pim_noalias rng, float4 linear)
+pim_inline u32 VEC_CALL ToColor(Prng *const pim_noalias rng, float4 linear)
 {
     const float4 kWeight = { 1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f, 0.0f };
     float4 srgb = f4_tosrgb(linear);
@@ -29,12 +29,12 @@ static void VEC_CALL ResolveReinhard(
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
-    prng_t rng = prng_get();
+    Prng rng = Prng_Get();
     for (i32 i = begin; i < end; ++i)
     {
         color[i] = ToColor(&rng, tmap4_reinhard(light[i]));
     }
-    prng_set(rng);
+    Prng_Set(rng);
 }
 
 static void VEC_CALL ResolveUncharted2(
@@ -42,14 +42,14 @@ static void VEC_CALL ResolveUncharted2(
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
-    prng_t rng = prng_get();
+    Prng rng = Prng_Get();
     for (i32 i = begin; i < end; ++i)
     {
         float4 hdr = light[i];
         hdr.w = 1.0f;
         color[i] = ToColor(&rng, tmap4_uchart2(hdr));
     }
-    prng_set(rng);
+    Prng_Set(rng);
 }
 
 static void VEC_CALL ResolveHable(
@@ -57,14 +57,14 @@ static void VEC_CALL ResolveHable(
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
-    prng_t rng = prng_get();
+    Prng rng = Prng_Get();
     for (i32 i = begin; i < end; ++i)
     {
         float4 hdr = light[i];
         hdr.w = 1.0f;
         color[i] = ToColor(&rng, tmap4_hable(hdr, params));
     }
-    prng_set(rng);
+    Prng_Set(rng);
 }
 
 static void VEC_CALL ResolveFilmic(
@@ -72,12 +72,12 @@ static void VEC_CALL ResolveFilmic(
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
-    prng_t rng = prng_get();
+    Prng rng = Prng_Get();
     for (i32 i = begin; i < end; ++i)
     {
         color[i] = ToColor(&rng, tmap4_filmic(light[i]));
     }
-    prng_set(rng);
+    Prng_Set(rng);
 }
 
 static void VEC_CALL ResolveACES(
@@ -85,15 +85,15 @@ static void VEC_CALL ResolveACES(
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
-    prng_t rng = prng_get();
+    Prng rng = Prng_Get();
     for (i32 i = begin; i < end; ++i)
     {
         color[i] = ToColor(&rng, tmap4_aces(light[i]));
     }
-    prng_set(rng);
+    Prng_Set(rng);
 }
 
-static void ResolveTileFn(task_t* task, i32 begin, i32 end)
+static void ResolveTileFn(Task* task, i32 begin, i32 end)
 {
     resolve_t* resolve = (resolve_t*)task;
 
@@ -128,11 +128,11 @@ void ResolveTile(framebuf_t* target, TonemapId tmapId, float4 toneParams)
     ProfileBegin(pm_ResolveTile);
 
     ASSERT(target);
-    resolve_t* task = tmp_calloc(sizeof(*task));
+    resolve_t* task = Temp_Calloc(sizeof(*task));
     task->target = target;
     task->tmapId = tmapId;
     task->toneParams = toneParams;
-    task_run(&task->task, ResolveTileFn, target->width * target->height);
+    Task_Run(&task->task, ResolveTileFn, target->width * target->height);
 
     ProfileEnd(pm_ResolveTile);
 }

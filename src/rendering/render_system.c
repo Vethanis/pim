@@ -248,8 +248,8 @@ static vkrExposure ms_exposure =
 };
 
 static Camera ms_ptcam;
-static pt_scene_t* ms_ptscene;
-static pt_trace_t ms_trace;
+static PtScene* ms_ptscene;
+static PtTrace ms_trace;
 
 static i32 ms_lmSampleCount;
 static i32 ms_acSampleCount;
@@ -274,12 +274,12 @@ static void SwapBuffers(void)
     ++ms_iFrame;
 }
 
-framebuf_t* render_sys_frontbuf(void)
+framebuf_t* RenderSys_FrontBuf(void)
 {
     return GetFrontBuf();
 }
 
-framebuf_t* render_sys_backbuf(void)
+framebuf_t* RenderSys_BackBuf(void)
 {
     return GetBackBuf();
 }
@@ -306,7 +306,7 @@ static void EnsurePtScene(void)
 {
     if (!ms_ptscene)
     {
-        ms_ptscene = pt_scene_new();
+        ms_ptscene = PtScene_New();
         ms_ptSampleCount = 0;
         ms_acSampleCount = 0;
         ms_cmapSampleCount = 0;
@@ -326,9 +326,9 @@ static void EnsurePtTrace(void)
     dirty |= ms_trace.imageSize.y != height;
     if (dirty)
     {
-        dofinfo_t dofinfo = ms_trace.dofinfo;
-        pt_trace_del(&ms_trace);
-        pt_trace_new(&ms_trace, ms_ptscene, i2_v(width, height));
+        DofInfo dofinfo = ms_trace.dofinfo;
+        PtTrace_Del(&ms_trace);
+        PtTrace_New(&ms_trace, ms_ptscene, i2_v(width, height));
         if (dofinfo.bladeCount)
         {
             ms_trace.dofinfo = dofinfo;
@@ -340,9 +340,9 @@ static void ShutdownPtScene(void)
 {
     if (ms_ptscene)
     {
-        pt_scene_del(ms_ptscene);
+        PtScene_Del(ms_ptscene);
         ms_ptscene = NULL;
-        pt_trace_del(&ms_trace);
+        PtTrace_Del(&ms_trace);
     }
 }
 
@@ -356,7 +356,7 @@ static void LightmapRepack(void)
     EnsurePtScene();
 
     lmpack_del(lmpack_get());
-    lmpack_t pack = lmpack_pack(1024, cvar_get_float(&cv_lm_density), 0.1f, 15.0f);
+    LmPack pack = lmpack_pack(1024, cvar_get_float(&cv_lm_density), 0.1f, 15.0f);
     *lmpack_get() = pack;
 }
 
@@ -389,10 +389,10 @@ static cmdstat_t CmdPtStdDev(i32 argc, const char** argv)
     if (color)
     {
         float stddev = CalcStdDev(color, size);
-        con_logf(LogSev_Info, "pt", "StdDev: %f", stddev);
+        Con_Logf(LogSev_Info, "pt", "StdDev: %f", stddev);
         char cmd[PIM_PATH] = { 0 };
         SPrintf(ARGS(cmd), "screenshot pt_stddev_%f.png", stddev);
-        con_exec(cmd);
+        Con_Exec(cmd);
         return cmdstat_ok;
     }
     return cmdstat_err;
@@ -401,13 +401,13 @@ static cmdstat_t CmdPtStdDev(i32 argc, const char** argv)
 static cmdstat_t CmdLoadTest(i32 argc, const char** argv)
 {
     char cmd[PIM_PATH];
-    con_exec("mapload start");
+    Con_Exec("mapload start");
     for (i32 e = 1; ; ++e)
     {
         for (i32 m = 1; ; ++m)
         {
             SPrintf(ARGS(cmd), "mapload e%dm%d", e, m);
-            cmdstat_t status = cmd_text(cmd);
+            cmdstat_t status = Cmd_Text(cmd);
             if (status != cmdstat_ok)
             {
                 if (m == 1)
@@ -419,8 +419,8 @@ static cmdstat_t CmdLoadTest(i32 argc, const char** argv)
         }
     }
 end:
-    con_exec("mapload end");
-    con_exec("mapload start");
+    Con_Exec("mapload end");
+    Con_Exec("mapload start");
     return cmdstat_ok;
 }
 
@@ -445,11 +445,11 @@ static void Lightmap_Trace(void)
         i32 spp = cvar_get_int(&cv_lm_spp);
         lmpack_bake(ms_ptscene, timeslice, spp);
 
-        u64 now = time_now();
-        if (time_sec(now - s_lastUpload) > 10.0)
+        u64 now = Time_Now();
+        if (Time_Sec(now - s_lastUpload) > 10.0)
         {
             s_lastUpload = now;
-            lmpack_t* pack = lmpack_get();
+            LmPack* pack = lmpack_get();
             for (i32 i = 0; i < pack->lmCount; ++i)
             {
                 lightmap_upload(&pack->lightmaps[i]);
@@ -520,7 +520,7 @@ static bool PathTrace(void)
         ms_trace.sampleWeight = 1.0f / ++ms_ptSampleCount;
         const int2 size = ms_trace.imageSize;
         const i32 texCount = size.x * size.y;
-        pt_trace(&ms_trace, &ms_ptcam);
+        Pt_Trace(&ms_trace, &ms_ptcam);
 
         float3* pim_noalias output3 = ms_trace.color;
         if (cvar_get_bool(&cv_pt_denoise))
@@ -578,7 +578,7 @@ static bool PathTrace(void)
 
 static cmdstat_t CmdQuit(i32 argc, const char** argv)
 {
-    window_close(true);
+    Window_Close(true);
     return cmdstat_ok;
 }
 
@@ -605,7 +605,7 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     const i32 stride = sizeof(flippedColor[0]) * size.x;
     const i32 len = size.x * size.y;
 
-    u32* color = tmp_calloc(len * sizeof(color[0]));
+    u32* color = Temp_Calloc(len * sizeof(color[0]));
     for (i32 y = 0; y < size.y; ++y)
     {
         i32 y2 = (size.y - y) - 1;
@@ -620,35 +620,35 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
 
     if (stbi_write_png(filename, size.x, size.y, 4, color, stride))
     {
-        con_logf(LogSev_Info, "Sc", "Took screenshot '%s'", filename);
+        Con_Logf(LogSev_Info, "Sc", "Took screenshot '%s'", filename);
         return cmdstat_ok;
     }
     else
     {
-        con_logf(LogSev_Error, "Sc", "Failed to take screenshot");
+        Con_Logf(LogSev_Error, "Sc", "Failed to take screenshot");
         return cmdstat_err;
     }
 }
 
 static void TakeScreenshot(void)
 {
-    if (input_keydown(KeyCode_F10))
+    if (Input_IsKeyDown(KeyCode_F10))
     {
         if (cvar_get_bool(&cv_pt_trace))
         {
-            con_exec("pt_denoise 0; wait; screenshot; wait; pt_denoise 1; wait; screenshot; wait; pt_denoise 0");
+            Con_Exec("pt_denoise 0; wait; screenshot; wait; pt_denoise 1; wait; screenshot; wait; pt_denoise 0");
         }
         else
         {
-            con_exec("screenshot");
+            Con_Exec("screenshot");
         }
     }
-    if (input_keydown(KeyCode_PageUp))
+    if (Input_IsKeyDown(KeyCode_PageUp))
     {
         r_scale_set(f1_clamp(1.1f * r_scale_get(), 0.05f, 2.0f));
         ms_ptSampleCount = 0;
     }
-    if (input_keydown(KeyCode_PageDown))
+    if (Input_IsKeyDown(KeyCode_PageDown))
     {
         r_scale_set(f1_clamp((1.0f / 1.1f) * r_scale_get(), 0.05f, 2.0f));
         ms_ptSampleCount = 0;
@@ -674,34 +674,34 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
 {
     if (argc != 2)
     {
-        con_logf(LogSev_Error, "cmd", "mapload <map name>; map name is missing.");
+        Con_Logf(LogSev_Error, "cmd", "mapload <map name>; map name is missing.");
         return cmdstat_err;
     }
     const char* name = argv[1];
     if (!name)
     {
-        con_logf(LogSev_Error, "cmd", "mapload <map name>; map name is null.");
+        Con_Logf(LogSev_Error, "cmd", "mapload <map name>; map name is null.");
         return cmdstat_err;
     }
 
-    con_logf(LogSev_Info, "cmd", "mapload is clearing drawables.");
+    Con_Logf(LogSev_Info, "cmd", "mapload is clearing drawables.");
     drawables_clear(drawables_get());
     ShutdownPtScene();
     LightmapShutdown();
     camera_reset();
-    vkr_onunload();
+    vkrSys_OnUnload();
 
     bool loaded = false;
 
     char mapname[PIM_PATH] = { 0 };
     SPrintf(ARGS(mapname), "maps/%s.bsp", name);
-    con_logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
+    Con_Logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
     bool loadlights = cvar_get_bool(&cv_r_qlights);
 
     char cratepath[PIM_PATH] = { 0 };
     SPrintf(ARGS(cratepath), "data/%s.crate", name);
-    Crate* crate = tmp_malloc(sizeof(*crate));
+    Crate* crate = Temp_Alloc(sizeof(*crate));
     if (crate_open(crate, cratepath))
     {
         loaded = true;
@@ -719,13 +719,13 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     {
         drawables_updatetransforms(drawables_get());
         drawables_updatebounds(drawables_get());
-        vkr_onload();
-        con_logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
+        vkrSys_OnLoad();
+        Con_Logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
         return cmdstat_ok;
     }
     else
     {
-        con_logf(LogSev_Error, "cmd", "mapload failed to load '%s'.", mapname);
+        Con_Logf(LogSev_Error, "cmd", "mapload failed to load '%s'.", mapname);
         return cmdstat_err;
     }
 }
@@ -734,13 +734,13 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
 {
     if (argc != 2)
     {
-        con_logf(LogSev_Error, "cmd", "mapsave <map name>; map name is missing.");
+        Con_Logf(LogSev_Error, "cmd", "mapsave <map name>; map name is missing.");
         return cmdstat_err;
     }
     const char* name = argv[1];
     if (!name)
     {
-        con_logf(LogSev_Error, "cmd", "mapsave <map name>; map name is null.");
+        Con_Logf(LogSev_Error, "cmd", "mapsave <map name>; map name is null.");
         return cmdstat_err;
     }
 
@@ -749,11 +749,11 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
     char mapname[PIM_PATH] = { 0 };
     SPrintf(ARGS(mapname), "maps/%s.bsp", name);
 
-    con_logf(LogSev_Info, "cmd", "mapsave is saving '%s'.", mapname);
+    Con_Logf(LogSev_Info, "cmd", "mapsave is saving '%s'.", mapname);
 
     char cratepath[PIM_PATH] = { 0 };
     SPrintf(ARGS(cratepath), "data/%s.crate", name);
-    Crate* crate = tmp_malloc(sizeof(*crate));
+    Crate* crate = Temp_Alloc(sizeof(*crate));
     if (crate_open(crate, cratepath))
     {
         saved = true;
@@ -764,11 +764,11 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
 
     if (saved)
     {
-        con_logf(LogSev_Info, "cmd", "mapsave saved '%s'.", mapname);
+        Con_Logf(LogSev_Info, "cmd", "mapsave saved '%s'.", mapname);
     }
     else
     {
-        con_logf(LogSev_Error, "cmd", "mapsave failed to save '%s'.", mapname);
+        Con_Logf(LogSev_Error, "cmd", "mapsave failed to save '%s'.", mapname);
     }
 
     return saved ? cmdstat_ok : cmdstat_err;
@@ -776,14 +776,14 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
 
 typedef struct task_BakeSky
 {
-    task_t task;
+    Task task;
     Cubemap* cm;
     float3 sunDir;
     float3 sunRad;
     i32 steps;
 } task_BakeSky;
 
-static void BakeSkyFn(task_t* pbase, i32 begin, i32 end)
+static void BakeSkyFn(Task* pbase, i32 begin, i32 end)
 {
     task_BakeSky* task = (task_BakeSky*)pbase;
     Cubemap* pim_noalias cm = task->cm;
@@ -836,38 +836,38 @@ static void BakeSky(void)
         Cubemap* cm = &maps->cubemaps[iSky];
         i32 size = cm->size;
 
-        task_BakeSky* task = tmp_calloc(sizeof(*task));
+        task_BakeSky* task = Temp_Calloc(sizeof(*task));
         task->cm = cm;
         task->sunDir = f4_f3(sunDir);
         task->sunRad = f4_f3(f4_mulvs(sunCol, lum));
         task->steps = cvar_get_int(&cv_r_sun_steps);
-        task_run(&task->task, BakeSkyFn, Cubeface_COUNT * size * size);
+        Task_Run(&task->task, BakeSkyFn, Cubeface_COUNT * size * size);
     }
 }
 
-void render_sys_init(void)
+void RenderSys_Init(void)
 {
     ms_iFrame = 0;
     RegCVars();
 
-    cmd_reg("screenshot", CmdScreenshot);
-    cmd_reg("mapload", CmdLoadMap);
-    cmd_reg("mapsave", CmdSaveMap);
-    cmd_reg("cornell_box", CmdCornellBox);
-    cmd_reg("teleport", CmdTeleport);
-    cmd_reg("lookat", CmdLookat);
-    cmd_reg("quit", CmdQuit);
-    cmd_reg("pt_test", CmdPtTest);
-    cmd_reg("pt_stddev", CmdPtStdDev);
-    cmd_reg("loadtest", CmdLoadTest);
+    Cmd_Reg("screenshot", CmdScreenshot);
+    Cmd_Reg("mapload", CmdLoadMap);
+    Cmd_Reg("mapsave", CmdSaveMap);
+    Cmd_Reg("cornell_box", CmdCornellBox);
+    Cmd_Reg("teleport", CmdTeleport);
+    Cmd_Reg("lookat", CmdLookat);
+    Cmd_Reg("quit", CmdQuit);
+    Cmd_Reg("pt_test", CmdPtTest);
+    Cmd_Reg("pt_stddev", CmdPtStdDev);
+    Cmd_Reg("loadtest", CmdLoadTest);
 
-    vkr_init();
+    vkrSys_Init();
     g_vkr.exposurePass.params = ms_exposure;
 
     texture_sys_init();
     mesh_sys_init();
     model_sys_init();
-    pt_sys_init();
+    PtSys_Init();
     drawables_init();
     EnsureFramebuf();
 
@@ -877,11 +877,11 @@ void render_sys_init(void)
     ms_toneParams.w = 0.3f; // toe
     ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
 
-    con_exec("mapload start");
+    Con_Exec("mapload start");
 }
 
-ProfileMark(pm_update, render_sys_update)
-void render_sys_update(void)
+ProfileMark(pm_update, RenderSys_Update)
+void RenderSys_Update(void)
 {
     ProfileBegin(pm_update);
 
@@ -889,11 +889,11 @@ void render_sys_update(void)
     SwapBuffers();
     drawables_updatetransforms(drawables_get());
 
-    if (input_keydown(KeyCode_F9))
+    if (Input_IsKeyDown(KeyCode_F9))
     {
         cvar_toggle(&cv_pt_trace);
     }
-    if (input_keydown(KeyCode_F8))
+    if (Input_IsKeyDown(KeyCode_F8))
     {
         cvar_toggle(&cv_pt_denoise);
     }
@@ -901,7 +901,7 @@ void render_sys_update(void)
     texture_sys_update();
     mesh_sys_update();
     model_sys_update();
-    pt_sys_update();
+    PtSys_Update();
     drawables_update();
 
     BakeSky();
@@ -910,19 +910,19 @@ void render_sys_update(void)
     PathTrace();
     Present();
 
-    vkr_update();
+    vkrSys_Update();
 
     Denoise_Evict();
 
     ProfileEnd(pm_update);
 }
 
-void render_sys_shutdown(void)
+void RenderSys_Shutdown(void)
 {
     ShutdownPtScene();
 
     drawables_shutdown();
-    pt_sys_shutdown();
+    PtSys_Shutdown();
     framebuf_destroy(GetFrontBuf());
     framebuf_destroy(GetBackBuf());
 
@@ -930,7 +930,7 @@ void render_sys_shutdown(void)
     mesh_sys_shutdown();
     model_sys_shutdown();
 
-    vkr_shutdown();
+    vkrSys_Shutdown();
 }
 
 static i32 CmpFloat(const void* lhs, const void* rhs, void* usr)
@@ -944,8 +944,8 @@ static i32 CmpFloat(const void* lhs, const void* rhs, void* usr)
     return 0;
 }
 
-ProfileMark(pm_gui, render_sys_gui)
-void render_sys_gui(bool* pEnabled)
+ProfileMark(pm_gui, RenderSys_Gui)
+void RenderSys_Gui(bool* pEnabled)
 {
     ProfileBegin(pm_gui);
 
@@ -1001,11 +1001,11 @@ void render_sys_gui(bool* pEnabled)
 
         if (ms_trace.scene)
         {
-            pt_trace_gui(&ms_trace);
+            PtTrace_Gui(&ms_trace);
         }
         else if (ms_ptscene)
         {
-            pt_scene_gui(ms_ptscene);
+            PtScene_Gui(ms_ptscene);
         }
     }
     igEnd();
@@ -1024,10 +1024,10 @@ static MeshId GenSphereMesh(const char* name, i32 steps)
 
     const i32 maxlen = 6 * vsteps * hsteps;
     i32 length = 0;
-    float4* pim_noalias positions = perm_malloc(sizeof(*positions) * maxlen);
-    float4* pim_noalias normals = perm_malloc(sizeof(*normals) * maxlen);
-    float4* pim_noalias uvs = perm_malloc(sizeof(*uvs) * maxlen);
-    int4* pim_noalias texIndices = perm_calloc(sizeof(texIndices[0]) * maxlen);
+    float4* pim_noalias positions = Perm_Alloc(sizeof(*positions) * maxlen);
+    float4* pim_noalias normals = Perm_Alloc(sizeof(*normals) * maxlen);
+    float4* pim_noalias uvs = Perm_Alloc(sizeof(*uvs) * maxlen);
+    int4* pim_noalias texIndices = Perm_Calloc(sizeof(texIndices[0]) * maxlen);
 
     for (i32 v = 0; v < vsteps; ++v)
     {
@@ -1154,10 +1154,10 @@ static MeshId GenQuadMesh(const char* name)
     const float4 N = { 0.0f, 0.0f, 1.0f };
 
     const i32 length = 6;
-    float4* positions = perm_malloc(sizeof(positions[0]) * length);
-    float4* normals = perm_malloc(sizeof(normals[0]) * length);
-    float4* uvs = perm_malloc(sizeof(uvs[0]) * length);
-    int4* texIndices = perm_calloc(sizeof(texIndices[0]) * length);
+    float4* positions = Perm_Alloc(sizeof(positions[0]) * length);
+    float4* normals = Perm_Alloc(sizeof(normals[0]) * length);
+    float4* uvs = Perm_Alloc(sizeof(uvs[0]) * length);
+    int4* texIndices = Perm_Calloc(sizeof(texIndices[0]) * length);
 
     // counter clockwise
     positions[0] = tl; uvs[0] = f4_v(0.0f, 1.0f, 0.0f, 0.0f);
@@ -1191,7 +1191,7 @@ static TextureId GenFlatTexture(const char* name, const char* suffix, float4 val
     SPrintf(ARGS(fullname), "%s_%s", name, suffix);
     Texture tex = { 0 };
     tex.size = i2_1;
-    tex.texels = tex_malloc(sizeof(u32));
+    tex.texels = Tex_Alloc(sizeof(u32));
     *(u32*)tex.texels = LinearToColor(value);
     texture_new(&tex, VK_FORMAT_R8G8B8A8_SRGB, guid_str(fullname), &id);
     return id;
@@ -1399,7 +1399,7 @@ static cmdstat_t CmdTeleport(i32 argc, const char** argv)
 {
     if (argc < 4)
     {
-        con_logf(LogSev_Error, "cmd", "usage: teleport x y z");
+        Con_Logf(LogSev_Error, "cmd", "usage: teleport x y z");
         return cmdstat_err;
     }
     float x = (float)atof(argv[1]);
@@ -1418,7 +1418,7 @@ static cmdstat_t CmdLookat(i32 argc, const char** argv)
 {
     if (argc < 4)
     {
-        con_logf(LogSev_Error, "cmd", "usage: lookat x y z");
+        Con_Logf(LogSev_Error, "cmd", "usage: lookat x y z");
         return cmdstat_err;
     }
     float x = (float)atof(argv[1]);
@@ -1438,12 +1438,12 @@ static cmdstat_t CmdLookat(i32 argc, const char** argv)
 
 static cmdstat_t CmdPtTest(i32 argc, const char** argv)
 {
-    con_exec("cornell_box");
-    con_exec("teleport -4 4 -4");
-    con_exec("lookat 0 2 0");
-    con_exec("pt_trace 1");
-    con_exec("wait 500");
-    con_exec("pt_stddev");
-    con_exec("quit");
+    Con_Exec("cornell_box");
+    Con_Exec("teleport -4 4 -4");
+    Con_Exec("lookat 0 2 0");
+    Con_Exec("pt_trace 1");
+    Con_Exec("wait 500");
+    Con_Exec("pt_stddev");
+    Con_Exec("quit");
     return cmdstat_ok;
 }

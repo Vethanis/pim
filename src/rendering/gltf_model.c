@@ -422,7 +422,7 @@ static bool LoadImageUri(
         const char* reason = stbi_failure_reason();
         if (reason)
         {
-            con_logf(LogSev_Error, "gltf", "Failed to load image at '%s' due to '%s'.", imagePath, reason);
+            Con_Logf(LogSev_Error, "gltf", "Failed to load image at '%s' due to '%s'.", imagePath, reason);
         }
         memset(tex, 0, sizeof(*tex));
         return false;
@@ -440,12 +440,12 @@ static bool ResampleToFloat4(Texture* tex)
     {
         const i32 len = tex->size.x * tex->size.y;
         const u32* pim_noalias src = tex->texels;
-        float4* pim_noalias dst = tex_malloc(sizeof(dst[0]) * len);
+        float4* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
         for (i32 i = 0; i < len; ++i)
         {
             dst[i] = ColorToLinear(src[i]);
         }
-        pim_free(tex->texels);
+        Mem_Free(tex->texels);
         tex->texels = dst;
         tex->format = VK_FORMAT_R32G32B32A32_SFLOAT;
     }
@@ -454,19 +454,19 @@ static bool ResampleToFloat4(Texture* tex)
     {
         const i32 len = tex->size.x * tex->size.y;
         const u8* pim_noalias src = tex->texels;
-        float4* pim_noalias dst = tex_malloc(sizeof(dst[0]) * len);
-        prng_t rng = prng_get();
+        float4* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
+        Prng rng = Prng_Get();
         for (i32 i = 0; i < len; ++i)
         {
             float4 texel = f4_0;
-            texel.x = f1_sat((src[i * 4 + 0] + prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
-            texel.y = f1_sat((src[i * 4 + 1] + prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
-            texel.z = f1_sat((src[i * 4 + 2] + prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
-            texel.w = f1_sat((src[i * 4 + 3] + prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
+            texel.x = f1_sat((src[i * 4 + 0] + Prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
+            texel.y = f1_sat((src[i * 4 + 1] + Prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
+            texel.z = f1_sat((src[i * 4 + 2] + Prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
+            texel.w = f1_sat((src[i * 4 + 3] + Prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
             dst[i] = texel;
         }
-        prng_set(rng);
-        pim_free(tex->texels);
+        Prng_Set(rng);
+        Mem_Free(tex->texels);
         tex->texels = dst;
         tex->format = VK_FORMAT_R32G32B32A32_SFLOAT;
     }
@@ -475,19 +475,19 @@ static bool ResampleToFloat4(Texture* tex)
     {
         const i32 len = tex->size.x * tex->size.y;
         const u16* pim_noalias src = tex->texels;
-        float4* pim_noalias dst = tex_malloc(sizeof(dst[0]) * len);
-        prng_t rng = prng_get();
+        float4* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
+        Prng rng = Prng_Get();
         for (i32 i = 0; i < len; ++i)
         {
             float4 texel = f4_0;
-            texel.x = f1_sat((src[i * 4 + 0] + prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
-            texel.y = f1_sat((src[i * 4 + 1] + prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
-            texel.z = f1_sat((src[i * 4 + 2] + prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
-            texel.w = f1_sat((src[i * 4 + 3] + prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
+            texel.x = f1_sat((src[i * 4 + 0] + Prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
+            texel.y = f1_sat((src[i * 4 + 1] + Prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
+            texel.z = f1_sat((src[i * 4 + 2] + Prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
+            texel.w = f1_sat((src[i * 4 + 3] + Prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
             dst[i] = texel;
         }
-        prng_set(rng);
-        pim_free(tex->texels);
+        Prng_Set(rng);
+        Mem_Free(tex->texels);
         tex->texels = dst;
         tex->format = VK_FORMAT_R32G32B32A32_SFLOAT;
     }
@@ -507,12 +507,12 @@ static bool ResampleToSrgb(Texture* tex)
     {
         const i32 len = tex->size.x * tex->size.y;
         const float4* pim_noalias src = tex->texels;
-        u32* pim_noalias dst = tex_malloc(sizeof(dst[0]) * len);
+        u32* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
         for (i32 i = 0; i < len; ++i)
         {
             dst[i] = LinearToColor(src[i]);
         }
-        pim_free(tex->texels);
+        Mem_Free(tex->texels);
         tex->texels = dst;
         return true;
     }
@@ -570,7 +570,7 @@ static TextureId CreateAlbedoTexture(
     }
     if (!ResampleToSrgb(&tex))
     {
-        pim_free(tex.texels);
+        Mem_Free(tex.texels);
         return id;
     }
     texture_new(&tex, tex.format, guid, &id);
@@ -650,7 +650,7 @@ static TextureId CreateRomeTexture(
     size = i2_max(size, occtex.size);
     size = i2_max(size, emtex.size);
     const i32 len = size.x * size.y;
-    u32* pim_noalias dst = tex_malloc(sizeof(dst[0]) * len);
+    u32* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
     for (i32 y = 0; y < size.y; ++y)
     {
         for (i32 x = 0; x < size.x; ++x)
@@ -675,15 +675,15 @@ static TextureId CreateRomeTexture(
 
     if (mrtex.texels != &defaultMr)
     {
-        pim_free(mrtex.texels);
+        Mem_Free(mrtex.texels);
     }
     if (occtex.texels != &defaultOcc)
     {
-        pim_free(occtex.texels);
+        Mem_Free(occtex.texels);
     }
     if (emtex.texels != &defaultEm)
     {
-        pim_free(emtex.texels);
+        Mem_Free(emtex.texels);
     }
 
     texture_new(&tex, VK_FORMAT_R8G8B8A8_SRGB, guid, &id);
@@ -719,19 +719,19 @@ static TextureId CreateNormalTexture(
     }
     if (!ResampleToFloat4(&tex))
     {
-        pim_free(tex.texels);
+        Mem_Free(tex.texels);
         return id;
     }
     {
         // TODO: encode tangent space as 16 bit xy, and regenerate z with sqrt(1 - (x*x + y*y));
         const float4* pim_noalias src = tex.texels;
         const i32 len = tex.size.x * tex.size.y;
-        u32* pim_noalias dst = tex_malloc(sizeof(dst[0]) * len);
+        u32* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
         for (i32 i = 0; i < len; ++i)
         {
             dst[i] = DirectionToColor(f4_snorm(src[i]));
         }
-        pim_free(tex.texels);
+        Mem_Free(tex.texels);
         tex.texels = dst;
         tex.format = VK_FORMAT_R8G8B8A8_UNORM;
     }
@@ -838,8 +838,8 @@ bool ResampleToAlbedoRome(
         size = i2_max(size, occtex.size);
         size = i2_max(size, emtex.size);
         const i32 len = size.x * size.y;
-        u32* pim_noalias albedoArr = tex_malloc(sizeof(albedoArr[0]) * len);
-        u32* pim_noalias romeArr = tex_malloc(sizeof(romeArr[0]) * len);
+        u32* pim_noalias albedoArr = Tex_Alloc(sizeof(albedoArr[0]) * len);
+        u32* pim_noalias romeArr = Tex_Alloc(sizeof(romeArr[0]) * len);
         for (i32 y = 0; y < size.y; ++y)
         {
             for (i32 x = 0; x < size.x; ++x)
@@ -866,19 +866,19 @@ bool ResampleToAlbedoRome(
 
     if (diffuseTex.texels != &defaultDiffuse)
     {
-        pim_free(diffuseTex.texels);
+        Mem_Free(diffuseTex.texels);
     }
     if (specularTex.texels != &defaultSpecular)
     {
-        pim_free(specularTex.texels);
+        Mem_Free(specularTex.texels);
     }
     if (occtex.texels != &defaultOcclusion)
     {
-        pim_free(occtex.texels);
+        Mem_Free(occtex.texels);
     }
     if (emtex.texels != &defaultEmission)
     {
-        pim_free(emtex.texels);
+        Mem_Free(emtex.texels);
     }
 
     if (!texture_exists(material->albedo))
@@ -887,7 +887,7 @@ bool ResampleToAlbedoRome(
     }
     else
     {
-        pim_free(albedotex.texels);
+        Mem_Free(albedotex.texels);
     }
     if (!texture_exists(material->rome))
     {
@@ -895,7 +895,7 @@ bool ResampleToAlbedoRome(
     }
     else
     {
-        pim_free(rometex.texels);
+        Mem_Free(rometex.texels);
     }
 
     return true;

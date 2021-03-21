@@ -96,7 +96,7 @@ bool vkrSwapchain_New(
     ASSERT(handle);
     if (!handle)
     {
-        con_logf(LogSev_Error, "Vk", "Failed to create swapchain, null handle");
+        Con_Logf(LogSev_Error, "Vk", "Failed to create swapchain, null handle");
         return false;
     }
 
@@ -109,10 +109,10 @@ bool vkrSwapchain_New(
 
     if (!prev)
     {
-        con_logf(LogSev_Info, "vkr", "Present mode: '%s'", VkPresentModeKHR_Str[mode]);
-        con_logf(LogSev_Info, "vkr", "Present extent: %u x %u", ext.width, ext.height);
-        con_logf(LogSev_Info, "vkr", "Present images: %u", imgCount);
-        con_logf(LogSev_Info, "vkr", "Present sharing mode: %s", concurrent ? "Concurrent" : "Exclusive");
+        Con_Logf(LogSev_Info, "vkr", "Present mode: '%s'", VkPresentModeKHR_Str[mode]);
+        Con_Logf(LogSev_Info, "vkr", "Present extent: %u x %u", ext.width, ext.height);
+        Con_Logf(LogSev_Info, "vkr", "Present images: %u", imgCount);
+        Con_Logf(LogSev_Info, "vkr", "Present sharing mode: %s", concurrent ? "Concurrent" : "Exclusive");
     }
 
     // get swapchain images
@@ -459,11 +459,11 @@ vkrSwapchainSupport vkrQuerySwapchainSupport(
     VkCheck(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phdev, surf, &sup.caps));
 
     VkCheck(vkGetPhysicalDeviceSurfaceFormatsKHR(phdev, surf, &sup.formatCount, NULL));
-    sup.formats = tmp_calloc(sizeof(sup.formats[0]) * sup.formatCount);
+    sup.formats = Temp_Calloc(sizeof(sup.formats[0]) * sup.formatCount);
     VkCheck(vkGetPhysicalDeviceSurfaceFormatsKHR(phdev, surf, &sup.formatCount, sup.formats));
 
     VkCheck(vkGetPhysicalDeviceSurfacePresentModesKHR(phdev, surf, &sup.modeCount, NULL));
-    sup.modes = tmp_calloc(sizeof(sup.modes[0]) * sup.modeCount);
+    sup.modes = Temp_Calloc(sizeof(sup.modes[0]) * sup.modeCount);
     VkCheck(vkGetPhysicalDeviceSurfacePresentModesKHR(phdev, surf, &sup.modeCount, sup.modes));
 
     return sup;

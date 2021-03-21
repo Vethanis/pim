@@ -163,7 +163,7 @@ char* StrDup(char const *const src, EAlloc allocator)
     if (src && src[0])
     {
         const i32 len = StrLen(src);
-        char* dst = pim_malloc(allocator, len + 1);
+        char* dst = Mem_Alloc(allocator, len + 1);
         memcpy(dst, src, len);
         dst[len] = 0;
         return dst;

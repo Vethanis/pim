@@ -98,13 +98,13 @@ pim_inline lightlist_t VEC_CALL GetLightList(const froxels_t* froxels, float4 P)
 
 typedef struct task_DrawScene
 {
-    task_t task;
+    Task task;
     framebuf_t* target;
     const camera_t* camera;
     world_t* world;
 } task_DrawScene;
 
-static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
+static void DrawSceneFn(Task* pbase, i32 begin, i32 end)
 {
     task_DrawScene* task = (task_DrawScene*)pbase;
     framebuf_t* target = task->target;
@@ -122,7 +122,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
     const float3x3* pim_noalias invMatrices = drawables->invMatrices;
     const pt_light_t* pim_noalias lights = lights_get()->ptLights;
 
-    const lmpack_t* lmpack = lmpack_get();
+    const LmPack* lmpack = lmpack_get();
 
     const int2 size = { target->width, target->height };
     const float2 rcpSize = { 1.0f / size.x, 1.0f / size.y };
@@ -140,7 +140,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
 
     float4* pim_noalias dstLight = target->light;
 
-    prng_t rng = prng_get();
+    Prng rng = Prng_Get();
     for (i32 iTexel = begin; iTexel < end; ++iTexel)
     {
         dstLight[iTexel] = f4_0;
@@ -151,8 +151,8 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
         coord = f2_snorm(coord);
         const float4 rd = proj_dir(right, up, fwd, slope, coord);
 
-        const rayhit_t hit = TraceRay(world, ro, rd, tNear, tFar);
-        if (hit.type == hit_nothing)
+        const RayHit hit = TraceRay(world, ro, rd, tNear, tFar);
+        if (hit.type == Hit_Nothing)
         {
             continue;
         }
@@ -245,7 +245,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
             if (lmIndex < lmpack->lmCount)
             {
                 ASSERT(lmIndex < lmpack->lmCount);
-                const lightmap_t lmap = lmpack->lightmaps[lmIndex];
+                const Lightmap lmap = lmpack->lightmaps[lmIndex];
                 float2 lmUv = f2_v(uv01.z, uv01.w);
                 lmUv = f2_subvs(lmUv, 0.5f / lmap.size);
                 float4 probe[kGiDirections];
@@ -277,7 +277,7 @@ static void DrawSceneFn(task_t* pbase, i32 begin, i32 end)
 
         dstLight[iTexel] = lighting;
     }
-    prng_set(rng);
+    Prng_Set(rng);
 }
 
 ProfileMark(pm_drawscene, DrawScene)
@@ -289,23 +289,23 @@ static void DrawScene(
     ClusterLights(world, target, camera);
 
     ProfileBegin(pm_drawscene);
-    task_DrawScene* task = tmp_calloc(sizeof(*task));
+    task_DrawScene* task = Temp_Calloc(sizeof(*task));
     task->target = target;
     task->camera = camera;
     task->world = world;
-    task_run(&task->task, DrawSceneFn, target->width * target->height);
+    Task_Run(&task->task, DrawSceneFn, target->width * target->height);
     ProfileEnd(pm_drawscene);
 }
 
 typedef struct task_ClusterLights
 {
-    task_t task;
+    Task task;
     camera_t camera;
     froxels_t* froxels;
     const lights_t* lights;
 } task_ClusterLights;
 
-static void ClusterLightsFn(task_t* pbase, i32 begin, i32 end)
+static void ClusterLightsFn(Task* pbase, i32 begin, i32 end)
 {
     task_ClusterLights* task = (task_ClusterLights*)pbase;
     froxels_t* pim_noalias froxels = task->froxels;
@@ -341,7 +341,7 @@ static void ClusterLightsFn(task_t* pbase, i32 begin, i32 end)
             if (sdFrusSph(frus, sph) <= 0.0f)
             {
                 list.len++;
-                list.ptr = tmp_realloc(list.ptr, sizeof(list.ptr[0]) * list.len);
+                list.ptr = Temp_Realloc(list.ptr, sizeof(list.ptr[0]) * list.len);
                 list.ptr[list.len - 1] = iLight;
             }
         }
@@ -379,11 +379,11 @@ static void ClusterLights(
     const i32 ptCount = lights->ptCount;
     if (ptCount > 0)
     {
-        task_ClusterLights* task = tmp_calloc(sizeof(*task));
+        task_ClusterLights* task = Temp_Calloc(sizeof(*task));
         task->camera = *camera;
         task->froxels = &world->froxels;
         task->lights = lights;
-        task_run(&task->task, ClusterLightsFn, kFroxelCount);
+        Task_Run(&task->task, ClusterLightsFn, kFroxelCount);
     }
 
     ProfileEnd(pm_ClusterLights);

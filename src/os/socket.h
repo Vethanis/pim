@@ -11,28 +11,28 @@ typedef enum
     SocketProto_COUNT
 } SocketProto;
 
-typedef struct socket_s
+typedef struct Socket_s
 {
     void* handle;
     SocketProto proto;
-} socket_t;
+} Socket;
 
-void network_sys_init(void);
-void network_sys_update(void);
-void network_sys_shutdown(void);
+void NetSys_Init(void);
+void NetSys_Update(void);
+void NetSys_Shutdown(void);
 
-bool network_url2addr(const char* url, u32* addrOut);
+bool Net_UrlToAddr(const char* url, u32* addrOut);
 
-bool socket_open(socket_t* sock, SocketProto proto);
-void socket_close(socket_t* sock);
+bool Socket_Open(Socket* sock, SocketProto proto);
+void Socket_Close(Socket* sock);
 
-bool socket_isopen(socket_t sock);
-bool socket_bind(socket_t sock, u32 addr, u16 port);
-bool socket_listen(socket_t sock);
-socket_t socket_accept(socket_t sock, u32* addr);
-bool socket_connect(socket_t sock, u32 addr, u16 port);
+bool Socket_IsOpen(Socket sock);
+bool Socket_Bind(Socket sock, u32 addr, u16 port);
+bool Socket_Listen(Socket sock);
+Socket Socket_Accept(Socket sock, u32* addr);
+bool Socket_Connect(Socket sock, u32 addr, u16 port);
 
-i32 socket_send(socket_t sock, const void* src, i32 len);
-i32 socket_recv(socket_t sock, void* dst, i32 len);
+i32 Socket_Send(Socket sock, const void* src, i32 len);
+i32 Socket_Recv(Socket sock, void* dst, i32 len);
 
 PIM_C_END

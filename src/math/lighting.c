@@ -40,7 +40,7 @@ static float2 VEC_CALL IntegrateBRDF(
 
 typedef struct BakeBrdfTask
 {
-    task_t task;
+    Task task;
     BrdfLut lut;
     u32 numSamples;
 } BakeBrdfTask;
@@ -65,18 +65,18 @@ BrdfLut BrdfLut_New(int2 size, u32 numSamples)
     ASSERT(size.x > 0);
     ASSERT(size.y > 0);
 
-    BakeBrdfTask* task = tmp_calloc(sizeof(*task));
-    task->lut.texels = tex_malloc(sizeof(task->lut.texels[0]) * size.x * size.y);
+    BakeBrdfTask* task = Temp_Calloc(sizeof(*task));
+    task->lut.texels = Tex_Alloc(sizeof(task->lut.texels[0]) * size.x * size.y);
     task->lut.size = size;
     task->numSamples = numSamples;
-    task_run(task, BakeBrdfFn, size.x * size.y);
+    Task_Run(task, BakeBrdfFn, size.x * size.y);
 
     return task->lut;
 }
 
 void FreeBrdfLut(BrdfLut* lut)
 {
-    pim_free(lut->texels);
+    Mem_Free(lut->texels);
     memset(lut, 0, sizeof(*lut));
 }
 

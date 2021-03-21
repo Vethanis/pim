@@ -21,13 +21,13 @@ typedef struct edwin_s
 
 static edwin_t ms_windows[] =
 {
-    { "Assets", asset_gui },
-    { "Audio", audio_sys_ongui },
+    { "Assets", AssetSys_Gui },
+    { "Audio", AudioSys_Gui },
     { "CVars", cvar_gui },
     { "Drawables", drawables_gui },
     { "Meshes", mesh_sys_gui },
     { "Profiler", profile_gui },
-    { "Renderer", render_sys_gui },
+    { "Renderer", RenderSys_Gui },
     { "Textures", texture_sys_gui },
 };
 
@@ -111,7 +111,7 @@ static void FileMenuBar(void)
     }
     if (igMenuItemBool("Exit", "Esc", false, true))
     {
-        window_close(true);
+        Window_Close(true);
     }
 }
 

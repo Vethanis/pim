@@ -71,14 +71,14 @@ static bool wsock_url2addr(const char* url, u32* addr)
     return y != INADDR_NONE;
 }
 
-static bool wsock_isopen(socket_t sock)
+static bool wsock_isopen(Socket sock)
 {
     uintptr_t hdl = (uintptr_t)sock.handle;
     return hdl != 0 && hdl != INVALID_SOCKET;
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket
-static bool wsock_open(socket_t* sock, SocketProto proto)
+static bool wsock_open(Socket* sock, SocketProto proto)
 {
     ASSERT(s_hasInit == 1);
     bool tcp = proto == SocketProto_TCP;
@@ -92,7 +92,7 @@ static bool wsock_open(socket_t* sock, SocketProto proto)
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-closesocket
-static void wsock_close(socket_t* sock)
+static void wsock_close(Socket* sock)
 {
     if (wsock_isopen(*sock))
     {
@@ -103,7 +103,7 @@ static void wsock_close(socket_t* sock)
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-bind
-static bool wsock_bind(socket_t sock, u32 addr, u16 port)
+static bool wsock_bind(Socket sock, u32 addr, u16 port)
 {
     ASSERT(wsock_isopen(sock));
     if (wsock_isopen(sock))
@@ -117,7 +117,7 @@ static bool wsock_bind(socket_t sock, u32 addr, u16 port)
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-listen
-static bool wsock_listen(socket_t sock)
+static bool wsock_listen(Socket sock)
 {
     ASSERT(wsock_isopen(sock));
     if (wsock_isopen(sock))
@@ -130,10 +130,10 @@ static bool wsock_listen(socket_t sock)
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-accept
-static socket_t wsock_accept(socket_t sock, u32* addr)
+static Socket wsock_accept(Socket sock, u32* addr)
 {
     ASSERT(addr);
-    socket_t result;
+    Socket result;
     result.handle = (void*)INVALID_SOCKET;
     result.proto = sock.proto;
     *addr = 0;
@@ -154,7 +154,7 @@ static socket_t wsock_accept(socket_t sock, u32* addr)
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-connect
-static bool wsock_connect(socket_t sock, u32 addr, u16 port)
+static bool wsock_connect(Socket sock, u32 addr, u16 port)
 {
     ASSERT(wsock_isopen(sock));
     if (wsock_isopen(sock))
@@ -167,7 +167,7 @@ static bool wsock_connect(socket_t sock, u32 addr, u16 port)
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-send
-static i32 wsock_send(socket_t sock, const void* src, u32 len)
+static i32 wsock_send(Socket sock, const void* src, u32 len)
 {
     i32 rval = -1;
     ASSERT(src);
@@ -182,7 +182,7 @@ static i32 wsock_send(socket_t sock, const void* src, u32 len)
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-recv
-static i32 wsock_recv(socket_t sock, void* dst, u32 len)
+static i32 wsock_recv(Socket sock, void* dst, u32 len)
 {
     i32 rval = -1;
     ASSERT(dst);
@@ -198,92 +198,92 @@ static i32 wsock_recv(socket_t sock, void* dst, u32 len)
 
 #endif // PLAT_WINDOWS
 
-void network_sys_init(void)
+void NetSys_Init(void)
 {
 #if PLAT_WINDOWS
     wsock_init();
 #endif // PLAT_WINDOWS
 }
 
-ProfileMark(pm_update, network_sys_update)
-void network_sys_update(void)
+ProfileMark(pm_update, NetSys_Update)
+void NetSys_Update(void)
 {
     ProfileBegin(pm_update);
 
     ProfileEnd(pm_update);
 }
 
-void network_sys_shutdown(void)
+void NetSys_Shutdown(void)
 {
 #if PLAT_WINDOWS
     wsock_shutdown();
 #endif // PLAT_WINDOWS
 }
 
-bool network_url2addr(const char* url, u32* addrOut)
+bool Net_UrlToAddr(const char* url, u32* addrOut)
 {
 #if PLAT_WINDOWS
     return wsock_url2addr(url, addrOut);
 #endif // PLAT_WINDOWS
 }
 
-bool socket_open(socket_t* sock, SocketProto proto)
+bool Socket_Open(Socket* sock, SocketProto proto)
 {
 #if PLAT_WINDOWS
     return wsock_open(sock, proto);
 #endif // PLAT_WINDOWS
 }
 
-void socket_close(socket_t* sock)
+void Socket_Close(Socket* sock)
 {
 #if PLAT_WINDOWS
     wsock_close(sock);
 #endif // PLAT_WINDOWS
 }
 
-bool socket_isopen(socket_t sock)
+bool Socket_IsOpen(Socket sock)
 {
 #if PLAT_WINDOWS
     return wsock_isopen(sock);
 #endif // PLAT_WINDOWS
 }
 
-bool socket_bind(socket_t sock, u32 addr, u16 port)
+bool Socket_Bind(Socket sock, u32 addr, u16 port)
 {
 #if PLAT_WINDOWS
     return wsock_bind(sock, addr, port);
 #endif // PLAT_WINDOWS
 }
 
-bool socket_listen(socket_t sock)
+bool Socket_Listen(Socket sock)
 {
 #if PLAT_WINDOWS
     return wsock_listen(sock);
 #endif // PLAT_WINDOWS
 }
 
-socket_t socket_accept(socket_t sock, u32* addr)
+Socket Socket_Accept(Socket sock, u32* addr)
 {
 #if PLAT_WINDOWS
     return wsock_accept(sock, addr);
 #endif // PLAT_WINDOWS
 }
 
-bool socket_connect(socket_t sock, u32 addr, u16 port)
+bool Socket_Connect(Socket sock, u32 addr, u16 port)
 {
 #if PLAT_WINDOWS
     return wsock_connect(sock, addr, port);
 #endif // PLAT_WINDOWS
 }
 
-i32 socket_send(socket_t sock, const void* src, i32 len)
+i32 Socket_Send(Socket sock, const void* src, i32 len)
 {
 #if PLAT_WINDOWS
     return wsock_send(sock, src, len);
 #endif // PLAT_WINDOWS
 }
 
-i32 socket_recv(socket_t sock, void* dst, i32 len)
+i32 Socket_Recv(Socket sock, void* dst, i32 len)
 {
 #if PLAT_WINDOWS
     return wsock_recv(sock, dst, len);

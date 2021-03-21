@@ -59,7 +59,7 @@ static const ErrFn ms_errFns[] =
 
 typedef struct FitTask
 {
-    task_t task;
+    Task task;
     ErrFn errFn;
     dataset_t data;
     i32 iterations;
@@ -67,12 +67,12 @@ typedef struct FitTask
     fit_t fits[kMaxThreads];
 } FitTask;
 
-pim_inline float randf32(prng_t* rng)
+pim_inline float randf32(Prng* rng)
 {
-    return 2.0f * prng_f32(rng) - 1.0f;
+    return 2.0f * Prng_f32(rng) - 1.0f;
 }
 
-pim_inline void randFit(prng_t* rng, fit_t* fit)
+pim_inline void randFit(Prng* rng, fit_t* fit)
 {
     float* pim_noalias value = fit->value;
     for (i32 i = 0; i < NELEM(fit->value); ++i)
@@ -81,7 +81,7 @@ pim_inline void randFit(prng_t* rng, fit_t* fit)
     }
 }
 
-pim_inline void mutateFit(prng_t* rng, fit_t* fit, float amt)
+pim_inline void mutateFit(Prng* rng, fit_t* fit, float amt)
 {
     float* pim_noalias value = fit->value;
     for (i32 i = 0; i < NELEM(fit->value); ++i)
@@ -97,7 +97,7 @@ static void FitFn(void* pbase, i32 begin, i32 end)
     const i32 iterations = i1_max(fitTask->iterations, 2 * (data.len + 1));
     const ErrFn errFn = fitTask->errFn;
 
-    prng_t rng = prng_get();
+    Prng rng = Prng_Get();
     for (i32 eval = begin; eval < end; ++eval)
     {
         fit_t fit;
@@ -122,7 +122,7 @@ static void FitFn(void* pbase, i32 begin, i32 end)
         fitTask->fits[eval] = fit;
         fitTask->errors[eval] = error;
     }
-    prng_set(rng);
+    Prng_Set(rng);
 }
 
 static float CreateFit(
@@ -131,12 +131,12 @@ static float CreateFit(
     i32 iterations,
     FitType type)
 {
-    const i32 numthreads = task_thread_ct();
-    FitTask* task = tmp_calloc(sizeof(*task));
+    const i32 numthreads = Task_ThreadCount();
+    FitTask* task = Temp_Calloc(sizeof(*task));
     task->errFn = ms_errFns[type];
     task->data = data;
     task->iterations = iterations;
-    task_run(task, FitFn, numthreads);
+    Task_Run(task, FitFn, numthreads);
 
     i32 chosen = 0;
     float chosenError = 1 << 20;

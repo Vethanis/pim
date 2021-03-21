@@ -19,19 +19,19 @@ library_t Library_Open(const char* name)
         char relPath[PIM_PATH] = { 0 };
         OS_libfmt(ARGS(relPath), name);
 
-        con_logf(LogSev_Info, "lib", "Loading library '%s'", relPath);
+        Con_Logf(LogSev_Info, "lib", "Loading library '%s'", relPath);
 
         lib.handle = OS_dlopen(relPath);
 
         if (!lib.handle)
         {
-            con_logf(LogSev_Error, "lib", "Failed to load library '%s'", relPath);
+            Con_Logf(LogSev_Error, "lib", "Failed to load library '%s'", relPath);
             OS_geterror(ARGS(relPath));
-            con_logf(LogSev_Error, "lib", "%s", relPath);
+            Con_Logf(LogSev_Error, "lib", "%s", relPath);
         }
         else
         {
-            con_logf(LogSev_Info, "lib", "Loaded library '%s' to %p", relPath, lib.handle);
+            Con_Logf(LogSev_Info, "lib", "Loaded library '%s' to %p", relPath, lib.handle);
         }
     }
     return lib;

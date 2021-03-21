@@ -92,7 +92,7 @@ static i32 sem_trywait_safe(sem_t* sem)
 void semaphore_create(semaphore_t* sema, i32 value)
 {
     ASSERT(sema);
-    sem_t* handle = perm_malloc(sizeof(sem_t));
+    sem_t* handle = Perm_Alloc(sizeof(sem_t));
     i32 rv = sem_init(handle, 0, value);
     ASSERT(!rv);
     sema->handle = handle;
@@ -106,7 +106,7 @@ void semaphore_destroy(semaphore_t* sema)
     ASSERT(handle);
     i32 rv = sem_destroy(handle);
     ASSERT(!rv);
-    pim_free(handle);
+    Mem_Free(handle);
 }
 
 void semaphore_signal(semaphore_t sema, i32 count)

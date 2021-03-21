@@ -95,7 +95,7 @@ void vkrImage_Release(vkrImage* image)
     {
         const vkrReleasable releasable =
         {
-            .frame = vkr_frameIndex(),
+            .frame = vkrSys_FrameIndex(),
             .type = vkrReleasableType_Image,
             .image = *image,
         };
@@ -240,7 +240,7 @@ void vkrImageView_Release(VkImageView view)
         const vkrReleasable releasable =
         {
             .type = vkrReleasableType_ImageView,
-            .frame = time_framecount(),
+            .frame = Time_FrameCount(),
             .view = view,
         };
         vkrReleasable_Add(&g_vkr.allocator, &releasable);

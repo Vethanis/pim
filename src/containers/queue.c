@@ -17,7 +17,7 @@ void queue_create(queue_t* q, u32 itemSize, EAlloc allocator)
 void queue_destroy(queue_t* q)
 {
     ASSERT(q);
-    pim_free(q->ptr);
+    Mem_Free(q->ptr);
     memset(q, 0, sizeof(*q));
 }
 
@@ -51,7 +51,7 @@ void queue_reserve(queue_t* q, u32 capacity)
         const u32 stride = q->stride;
         ASSERT(stride > 0);
         u8* oldPtr = q->ptr;
-        u8* newPtr = pim_malloc(q->allocator, stride * newWidth);
+        u8* newPtr = Mem_Alloc(q->allocator, stride * newWidth);
         const u32 iRead = q->iRead;
         const u32 len = q->iWrite - iRead;
         if (len)
@@ -62,7 +62,7 @@ void queue_reserve(queue_t* q, u32 capacity)
             memcpy(newPtr, oldPtr + twist, untwist);
             memcpy(newPtr + untwist, oldPtr, twist);
         }
-        pim_free(oldPtr);
+        Mem_Free(oldPtr);
         q->ptr = newPtr;
         q->width = newWidth;
         q->iRead = 0;

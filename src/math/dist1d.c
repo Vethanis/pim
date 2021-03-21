@@ -4,7 +4,7 @@
 #include "common/atomics.h"
 #include <string.h>
 
-void dist1d_new(dist1d_t *const dist, i32 length)
+void Dist1D_New(Dist1D *const dist, i32 length)
 {
     memset(dist, 0, sizeof(*dist));
     if (length > 0)
@@ -12,25 +12,25 @@ void dist1d_new(dist1d_t *const dist, i32 length)
         i32 pdfLen = length;
         i32 cdfLen = length + 1;
         dist->length = length;
-        dist->pdf = perm_calloc(sizeof(dist->pdf[0]) * pdfLen);
-        dist->cdf = perm_calloc(sizeof(dist->cdf[0]) * cdfLen);
-        dist->live = perm_calloc(sizeof(dist->live[0]) * pdfLen);
+        dist->pdf = Perm_Calloc(sizeof(dist->pdf[0]) * pdfLen);
+        dist->cdf = Perm_Calloc(sizeof(dist->cdf[0]) * cdfLen);
+        dist->live = Perm_Calloc(sizeof(dist->live[0]) * pdfLen);
         dist->integral = 0.0f;
     }
 }
 
-void dist1d_del(dist1d_t *const dist)
+void Dist1D_Del(Dist1D *const dist)
 {
     if (dist)
     {
-        pim_free(dist->pdf);
-        pim_free(dist->cdf);
-        pim_free(dist->live);
+        Mem_Free(dist->pdf);
+        Mem_Free(dist->cdf);
+        Mem_Free(dist->live);
         memset(dist, 0, sizeof(*dist));
     }
 }
 
-void dist1d_bake(dist1d_t *const dist)
+void Dist1D_Bake(Dist1D *const dist)
 {
     const i32 pdfLen = dist->length;
     const i32 cdfLen = pdfLen + 1;
@@ -93,7 +93,7 @@ pim_inline i32 FindInterval(float const *const pim_noalias cdf, i32 size, float 
     return i1_clamp(first - 1, 0, size - 2);
 }
 
-float dist1d_samplec(dist1d_t const *const dist, float u)
+float Dist1D_SampleC(Dist1D const *const dist, float u)
 {
     float const *const pim_noalias cdf = dist->cdf;
     const i32 pdfLen = dist->length;
@@ -110,22 +110,22 @@ float dist1d_samplec(dist1d_t const *const dist, float u)
     return (offset + du) / pdfLen;
 }
 
-i32 dist1d_sampled(dist1d_t const *const dist, float u)
+i32 Dist1D_SampleD(Dist1D const *const dist, float u)
 {
     return FindInterval(dist->cdf, dist->length + 1, u);
 }
 
-float dist1d_pdfd(dist1d_t const *const dist, i32 i)
+float Dist1D_PdfD(Dist1D const *const dist, i32 i)
 {
     return dist->pdf[i] / dist->length;
 }
 
-void dist1d_inc(dist1d_t *const dist, i32 i)
+void Dist1D_Inc(Dist1D *const dist, i32 i)
 {
     inc_u32(dist->live + i, MO_Relaxed);
 }
 
-void dist1d_livebake(dist1d_t *const dist, float alpha, u32 minSamples)
+void Dist1D_Update(Dist1D *const dist, float alpha, u32 minSamples)
 {
     const i32 pdfLen = dist->length;
     if (pdfLen > 0)
@@ -148,6 +148,6 @@ void dist1d_livebake(dist1d_t *const dist, float alpha, u32 minSamples)
             pdf[i] = f1_lerp(pdf[i], live[i] * scale, alpha);
             live[i] = live[i] >> 1;
         }
-        dist1d_bake(dist);
+        Dist1D_Bake(dist);
     }
 }

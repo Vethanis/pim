@@ -169,7 +169,7 @@ typedef enum
     vkrPassId_COUNT
 } vkrPassId;
 
-typedef struct vkrTextureId
+typedef struct vkrTextureId_s
 {
     u32 version : 8;
     u32 type : 3; // VkImageViewType
@@ -177,32 +177,32 @@ typedef struct vkrTextureId
 } vkrTextureId;
 SASSERT(sizeof(vkrTextureId) == 4);
 
-typedef struct vkrMeshId
+typedef struct vkrMeshId_s
 {
     u32 version : 8;
     u32 index : 24;
 } vkrMeshId;
 SASSERT(sizeof(vkrMeshId) == 4);
 
-typedef struct vkrBuffer
+typedef struct vkrBuffer_s
 {
     VkBuffer handle;
     VmaAllocation allocation;
     i32 size;
 } vkrBuffer;
 
-typedef struct vkrBufferSet
+typedef struct vkrBufferSet_s
 {
     vkrBuffer frames[kFramesInFlight];
 } vkrBufferSet;
 
-typedef struct vkrMesh
+typedef struct vkrMesh_s
 {
     vkrBuffer buffer;
     i32 vertCount;
 } vkrMesh;
 
-typedef struct vkrImage
+typedef struct vkrImage_s
 {
     VkImage handle;
     VmaAllocation allocation;
@@ -217,18 +217,18 @@ typedef struct vkrImage
     u8 arrayLayers;
 } vkrImage;
 
-typedef struct vkrImageSet
+typedef struct vkrImageSet_s
 {
     vkrImage frames[kFramesInFlight];
 } vkrImageSet;
 
-typedef struct vkrAttachment
+typedef struct vkrAttachment_s
 {
     vkrImage image;
     VkImageView view;
 } vkrAttachment;
 
-typedef struct vkrCompileInput
+typedef struct vkrCompileInput_s
 {
     const char* filename;
     const char* entrypoint;
@@ -241,7 +241,7 @@ typedef struct vkrCompileInput
     bool disassemble;
 } vkrCompileInput;
 
-typedef struct vkrCompileOutput
+typedef struct vkrCompileOutput_s
 {
     u32* dwords;
     i32 dwordCount;
@@ -249,7 +249,7 @@ typedef struct vkrCompileOutput
     char* disassembly;
 } vkrCompileOutput;
 
-typedef struct vkrQueueSupport
+typedef struct vkrQueueSupport_s
 {
     i32 family[vkrQueueId_COUNT];
     i32 index[vkrQueueId_COUNT];
@@ -257,7 +257,7 @@ typedef struct vkrQueueSupport
     VkQueueFamilyProperties* properties;
 } vkrQueueSupport;
 
-typedef struct vkrSwapchainSupport
+typedef struct vkrSwapchainSupport_s
 {
     VkSurfaceCapabilitiesKHR caps;
     u32 formatCount;
@@ -266,7 +266,7 @@ typedef struct vkrSwapchainSupport
     VkPresentModeKHR* modes;
 } vkrSwapchainSupport;
 
-typedef struct vkrVertexLayout
+typedef struct vkrVertexLayout_s
 {
     i32 bindingCount;
     const VkVertexInputBindingDescription* bindings;
@@ -274,7 +274,7 @@ typedef struct vkrVertexLayout
     const VkVertexInputAttributeDescription* attributes;
 } vkrVertexLayout;
 
-typedef struct vkrBlendState
+typedef struct vkrBlendState_s
 {
     VkColorComponentFlags colorWriteMask;
     bool blendEnable;
@@ -286,7 +286,7 @@ typedef struct vkrBlendState
     VkBlendOp alphaBlendOp;
 } vkrBlendState;
 
-typedef struct vkrFixedFuncs
+typedef struct vkrFixedFuncs_s
 {
     VkViewport viewport;
     VkRect2D scissor;
@@ -303,7 +303,7 @@ typedef struct vkrFixedFuncs
     vkrBlendState attachments[8];
 } vkrFixedFuncs;
 
-typedef struct vkrDisplay
+typedef struct vkrDisplay_s
 {
     GLFWwindow* window;
     VkSurfaceKHR surface;
@@ -311,7 +311,7 @@ typedef struct vkrDisplay
     i32 height;
 } vkrDisplay;
 
-typedef struct vkrSwapchain
+typedef struct vkrSwapchain_s
 {
     VkSwapchainKHR handle;
     VkFormat colorFormat;
@@ -338,7 +338,7 @@ typedef struct vkrSwapchain
 
 } vkrSwapchain;
 
-typedef struct vkrQueue
+typedef struct vkrQueue_s
 {
     VkQueue handle;
     i32 family;
@@ -346,7 +346,7 @@ typedef struct vkrQueue
     VkExtent3D granularity;
 } vkrQueue;
 
-typedef struct vkrCmdAlloc
+typedef struct vkrCmdAlloc_s
 {
     VkCommandPool pool;
     VkQueue queue;
@@ -357,13 +357,13 @@ typedef struct vkrCmdAlloc
     VkFence* fences;
 } vkrCmdAlloc;
 
-typedef struct vkrThreadContext
+typedef struct vkrThreadContext_s
 {
     vkrCmdAlloc cmds[vkrQueueId_COUNT];     // primary level cmd buffers
     vkrCmdAlloc seccmds[vkrQueueId_COUNT];  // secondary level cmd buffers
 } vkrThreadContext;
 
-typedef struct vkrContext
+typedef struct vkrContext_s
 {
     i32 threadcount;
     vkrThreadContext* threads;
@@ -376,7 +376,7 @@ typedef enum
     vkrReleasableType_ImageView,
 } vkrReleasableType;
 
-typedef struct vkrReleasable
+typedef struct vkrReleasable_s
 {
     u32 frame;              // frame that resource was released
     vkrReleasableType type; // type of resource
@@ -388,7 +388,7 @@ typedef struct vkrReleasable
     };
 } vkrReleasable;
 
-typedef struct vkrAllocator
+typedef struct vkrAllocator_s
 {
     spinlock_t lock;
     VmaAllocator handle;
@@ -401,7 +401,7 @@ typedef struct vkrAllocator
     i32 numreleasable;
 } vkrAllocator;
 
-typedef struct vkrPassContext
+typedef struct vkrPassContext_s
 {
     VkRenderPass renderPass;
     i32 subpass;
@@ -410,7 +410,7 @@ typedef struct vkrPassContext
     VkFence fence;
 } vkrPassContext;
 
-typedef struct vkrPassDesc
+typedef struct vkrPassDesc_s
 {
 // Graphics and Compute
     i32 pushConstantBytes;
@@ -423,7 +423,7 @@ typedef struct vkrPassDesc
     vkrFixedFuncs fixedFuncs;
 } vkrPassDesc;
 
-typedef struct vkrPass
+typedef struct vkrPass_s
 {
     VkPipeline pipeline;
     VkPipelineLayout layout;
@@ -431,7 +431,7 @@ typedef struct vkrPass
 
 // ----------------------------------------------------------------------------
 
-typedef struct vkrScreenBlit
+typedef struct vkrScreenBlit_s
 {
     vkrBuffer meshbuf;
     vkrBuffer stagebuf;
@@ -440,20 +440,20 @@ typedef struct vkrScreenBlit
     i32 height;
 } vkrScreenBlit;
 
-typedef struct vkrDepthPass
+typedef struct vkrDepthPass_s
 {
     vkrPass pass;
     float4x4 worldToClip;
 } vkrDepthPass;
 
-typedef struct vkrPerCamera
+typedef struct vkrPerCamera_s
 {
     float4x4 worldToClip;
     float4 eye;
     float exposure;
 } vkrPerCamera;
 
-typedef struct vkrOpaquePc
+typedef struct vkrOpaquePc_s
 {
     float4x4 localToWorld;
     float4 IMc0;
@@ -465,13 +465,13 @@ typedef struct vkrOpaquePc
     u32 normalIndex;
 } vkrOpaquePc;
 
-typedef struct vkrOpaquePass
+typedef struct vkrOpaquePass_s
 {
     vkrPass pass;
     vkrBuffer perCameraBuffer[kFramesInFlight];
 } vkrOpaquePass;
 
-typedef struct vkrUIPassPc
+typedef struct vkrUIPassPc_s
 {
     float2 scale;
     float2 translate;
@@ -479,7 +479,7 @@ typedef struct vkrUIPassPc
     u32 discardAlpha;
 } vkrUIPassPc;
 
-typedef struct vkrUIPass
+typedef struct vkrUIPass_s
 {
     vkrPass pass;
     vkrBuffer vertbufs[kFramesInFlight];
@@ -487,7 +487,7 @@ typedef struct vkrUIPass
     vkrTextureId font;
 } vkrUIPass;
 
-typedef struct vkrExposure
+typedef struct vkrExposure_s
 {
     float exposure;
     float avgLum;
@@ -514,14 +514,14 @@ typedef struct vkrExposure
     i32 standard;
 } vkrExposure;
 
-typedef struct vkrExposureConstants
+typedef struct vkrExposureConstants_s
 {
     u32 width;
     u32 height;
     vkrExposure exposure;
 } vkrExposureConstants;
 
-typedef struct vkrExposurePass
+typedef struct vkrExposurePass_s
 {
     vkrPass pass;
     VkPipeline adapt;
@@ -530,7 +530,7 @@ typedef struct vkrExposurePass
     vkrExposure params;
 } vkrExposurePass;
 
-typedef struct vkrMainPass
+typedef struct vkrMainPass_s
 {
     VkRenderPass renderPass;
     vkrScreenBlit blit;
@@ -541,7 +541,7 @@ typedef struct vkrMainPass
 
 // ----------------------------------------------------------------------------
 
-typedef struct vkr_t
+typedef struct vkrSys_s
 {
     VkInstance inst;
     VkPhysicalDevice phdev;
@@ -559,21 +559,21 @@ typedef struct vkr_t
 
     vkrMainPass mainPass;
     vkrExposurePass exposurePass;
-} vkr_t;
-extern vkr_t g_vkr;
+} vkrSys;
+extern vkrSys g_vkr;
 
-bool vkr_init(void);
-void vkr_update(void);
-void vkr_shutdown(void);
+bool vkrSys_Init(void);
+void vkrSys_Update(void);
+void vkrSys_Shutdown(void);
 
-void vkr_onload(void);
-void vkr_onunload(void);
+void vkrSys_OnLoad(void);
+void vkrSys_OnUnload(void);
 
 // frame in flight index
-u32 vkr_syncIndex(void);
+u32 vkrSys_SyncIndex(void);
 // swapchain image index
-u32 vkr_swapIndex(void);
+u32 vkrSys_SwapIndex(void);
 // frame count
-u32 vkr_frameIndex(void);
+u32 vkrSys_FrameIndex(void);
 
 PIM_C_END

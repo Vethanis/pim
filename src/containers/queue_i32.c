@@ -10,7 +10,7 @@ void queue_i32_new(queue_i32_t* q)
 
 void queue_i32_del(queue_i32_t* q)
 {
-    pim_free(q->ptr);
+    Mem_Free(q->ptr);
     memset(q, 0, sizeof(*q));
 }
 
@@ -38,7 +38,7 @@ void queue_i32_reserve(queue_i32_t* q, u32 capacity)
     if (newWidth > oldWidth)
     {
         i32 *const pim_noalias oldPtr = q->ptr;
-        i32 *const pim_noalias newPtr = perm_calloc(sizeof(*newPtr) * newWidth);
+        i32 *const pim_noalias newPtr = Perm_Calloc(sizeof(*newPtr) * newWidth);
         const u32 iRead = q->iRead;
         const u32 len = q->iWrite - iRead;
         const u32 mask = oldWidth - 1u;
@@ -47,7 +47,7 @@ void queue_i32_reserve(queue_i32_t* q, u32 capacity)
             u32 j = (iRead + i) & mask;
             newPtr[i] = oldPtr[j];
         }
-        pim_free(oldPtr);
+        Mem_Free(oldPtr);
         q->ptr = newPtr;
         q->width = newWidth;
         q->iRead = 0;

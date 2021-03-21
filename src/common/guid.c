@@ -45,7 +45,7 @@ i32 guid_cmp(Guid lhs, Guid rhs)
 
 Guid guid_new(void)
 {
-    u64 a = time_now();
+    u64 a = Time_Now();
     u64 b = inc_u32(&ms_counter, MO_Relaxed);
     u64 c = inc_u32(&ms_counter, MO_Relaxed);
     b = b << 32 | c;
@@ -128,10 +128,10 @@ Guid guid_bytes(void const *const pim_noalias ptr, i32 nBytes)
     return id;
 }
 
-Guid guid_rand(prng_t* rng)
+Guid guid_rand(Prng* rng)
 {
-    u64 a = prng_u64(rng);
-    u64 b = prng_u64(rng);
+    u64 a = Prng_u64(rng);
+    u64 b = Prng_u64(rng);
     a = a ? a : 1;
     b = b ? b : 1;
     return (Guid) { a, b };

@@ -8,13 +8,13 @@
 
 typedef struct taskcpy_s
 {
-    task_t task;
+    Task task;
     void* dst;
     const void* src;
     i32 sizeOf;
 } taskcpy_t;
 
-static void CpyFn(task_t* pbase, i32 begin, i32 end)
+static void CpyFn(Task* pbase, i32 begin, i32 end)
 {
     taskcpy_t* task = (taskcpy_t*)pbase;
     u8* pim_noalias dst = task->dst;
@@ -38,11 +38,11 @@ void taskcpy(void* dst, const void* src, i32 sizeOf, i32 length)
         ASSERT(src);
         ASSERT(sizeOf > 0);
 
-        taskcpy_t* task = tmp_calloc(sizeof(*task));
+        taskcpy_t* task = Temp_Calloc(sizeof(*task));
         task->dst = dst;
         task->src = src;
         task->sizeOf = sizeOf;
-        task_run(&task->task, CpyFn, length);
+        Task_Run(&task->task, CpyFn, length);
 
         ProfileEnd(pm_taskcpy);
     }
@@ -50,12 +50,12 @@ void taskcpy(void* dst, const void* src, i32 sizeOf, i32 length)
 
 typedef struct blit34_s
 {
-    task_t task;
+    Task task;
     float4* dst;
     const float3* src;
 } blit34_t;
 
-static void Blit34Fn(task_t* pbase, i32 begin, i32 end)
+static void Blit34Fn(Task* pbase, i32 begin, i32 end)
 {
     blit34_t* task = (blit34_t*)pbase;
     float4* pim_noalias dst = task->dst;
@@ -77,10 +77,10 @@ void blit_3to4(int2 size, float4* dst, const float3* src)
         ASSERT(dst);
         ASSERT(src);
 
-        blit34_t* task = tmp_calloc(sizeof(*task));
+        blit34_t* task = Temp_Calloc(sizeof(*task));
         task->dst = dst;
         task->src = src;
-        task_run(&task->task, Blit34Fn, len);
+        Task_Run(&task->task, Blit34Fn, len);
 
         ProfileEnd(pm_blit3to4);
     }
@@ -88,12 +88,12 @@ void blit_3to4(int2 size, float4* dst, const float3* src)
 
 typedef struct blit43_s
 {
-    task_t task;
+    Task task;
     float3* dst;
     const float4* src;
 } blit43_t;
 
-static void Blit43Fn(task_t* pbase, i32 begin, i32 end)
+static void Blit43Fn(Task* pbase, i32 begin, i32 end)
 {
     blit43_t* task = (blit43_t*)pbase;
     float3* pim_noalias dst = task->dst;
@@ -115,10 +115,10 @@ void blit_4to3(int2 size, float3* dst, const float4* src)
         ASSERT(dst);
         ASSERT(src);
 
-        blit43_t* task = tmp_calloc(sizeof(*task));
+        blit43_t* task = Temp_Calloc(sizeof(*task));
         task->dst = dst;
         task->src = src;
-        task_run(&task->task, Blit43Fn, len);
+        Task_Run(&task->task, Blit43Fn, len);
 
         ProfileEnd(pm_blit4to3);
     }
@@ -129,7 +129,7 @@ float4* blitnew_3to4(int2 size, const float3* src, EAlloc allocator)
     i32 len = size.x * size.y;
     if (len > 0)
     {
-        float4* dst = pim_malloc(allocator, sizeof(dst[0]) * len);
+        float4* dst = Mem_Alloc(allocator, sizeof(dst[0]) * len);
         blit_3to4(size, dst, src);
         return dst;
     }
@@ -141,7 +141,7 @@ float3* blitnew_4to3(int2 size, const float4* src, EAlloc allocator)
     i32 len = size.x * size.y;
     if (len > 0)
     {
-        float3* dst = pim_malloc(allocator, sizeof(dst[0]) * len);
+        float3* dst = Mem_Alloc(allocator, sizeof(dst[0]) * len);
         blit_4to3(size, dst, src);
         return dst;
     }

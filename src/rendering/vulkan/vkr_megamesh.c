@@ -9,13 +9,13 @@
 #include "common/profiler.h"
 #include <string.h>
 
-typedef struct SubMesh
+typedef struct SubMesh_s
 {
     i32 offset;
     i32 length;
 } SubMesh;
 
-typedef struct MegaMesh
+typedef struct MegaMesh_s
 {
     i32 length;
     float4* pim_noalias positions;
@@ -39,10 +39,10 @@ void MegaMesh_Resize(MegaMesh* m, i32 ct)
     ASSERT(ct >= 0);
     if (ct > m->length)
     {
-        PermReserve(m->positions, ct);
-        PermReserve(m->normals, ct);
-        PermReserve(m->uvs, ct);
-        PermReserve(m->texIndices, ct);
+        Perm_Reserve(m->positions, ct);
+        Perm_Reserve(m->normals, ct);
+        Perm_Reserve(m->uvs, ct);
+        Perm_Reserve(m->texIndices, ct);
     }
     m->length = ct;
 }
@@ -54,11 +54,11 @@ void MegaMesh_Clear(MegaMesh* m)
 
 void MegaMesh_Reset(MegaMesh* m)
 {
-    MegaMesh_Clear(m);
-    FreePtr(m->positions);
-    FreePtr(m->normals);
-    FreePtr(m->uvs);
-    FreePtr(m->texIndices);
+    Mem_Free(m->positions);
+    Mem_Free(m->normals);
+    Mem_Free(m->uvs);
+    Mem_Free(m->texIndices);
+    memset(m, 0, sizeof(*m));
 }
 
 bool MegaMesh_Fill(MegaMesh* m, vkrBuffer const *const buffer)
@@ -140,7 +140,7 @@ void vkrMegaMesh_Update(void)
 {
     ProfileBegin(pm_update);
 
-    const u32 syncIndex = vkr_syncIndex();
+    const u32 syncIndex = vkrSys_SyncIndex();
     if (ms_dirty[syncIndex])
     {
         ms_dirty[syncIndex] = false;
@@ -198,7 +198,8 @@ void vkrMegaMesh_Shutdown(void)
     vkrBufferSet_Del(&ms_stage);
 
     idalloc_del(&ms_ids);
-    FreePtr(ms_meshes);
+    Mem_Free(ms_meshes);
+    ms_meshes = NULL;
     MegaMesh_Reset(&ms_mega);
 }
 
@@ -210,7 +211,7 @@ bool vkrMegaMesh_Exists(vkrMeshId id)
 vkrMeshId vkrMegaMesh_Alloc(i32 vertCount)
 {
     GenId gid = idalloc_alloc(&ms_ids);
-    PermReserve(ms_meshes, ms_ids.length);
+    Perm_Reserve(ms_meshes, ms_ids.length);
     SubMesh* mesh = &ms_meshes[gid.index];
     mesh->length = vertCount;
     mesh->offset = MegaMesh_Allocate(&ms_mega, vertCount);

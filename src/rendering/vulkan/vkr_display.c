@@ -65,7 +65,7 @@ bool vkrDisplay_New(vkrDisplay* display, i32 width, i32 height, const char* titl
     {
         goto cleanup;
     }
-    input_reg_window(window);
+    Input_RegWindow(window);
 
     glfwGetFramebufferSize(window, &display->width, &display->height);
 

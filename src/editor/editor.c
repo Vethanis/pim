@@ -4,13 +4,13 @@
 
 // ----------------------------------------------------------------------------
 
-void editor_sys_init(void)
+void EditorSys_Init(void)
 {
     menubar_init();
 }
 
-ProfileMark(pm_update, editor_sys_update)
-void editor_sys_update(void)
+ProfileMark(pm_update, EditorSys_Update)
+void EditorSys_Update(void)
 {
     ProfileBegin(pm_update);
 
@@ -19,7 +19,7 @@ void editor_sys_update(void)
     ProfileEnd(pm_update);
 }
 
-void editor_sys_shutdown(void)
+void EditorSys_Shutdown(void)
 {
     menubar_shutdown();
 }

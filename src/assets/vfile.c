@@ -38,9 +38,9 @@ static vfilehdl_t vfilehdl_new(vfile_t* file, char* path)
     if (!queue_i32_trypop(&ms_freelist, &index))
     {
         i32 len = ++ms_count;
-        PermReserve(ms_versions, len);
-        PermReserve(ms_paths, len);
-        PermReserve(ms_files, len);
+        Perm_Reserve(ms_versions, len);
+        Perm_Reserve(ms_paths, len);
+        Perm_Reserve(ms_files, len);
         index = len - 1;
         ms_versions[index] = 0;
     }
@@ -163,7 +163,7 @@ bool vfile_del(vfilehdl_t hdl)
             break;
         }
         memset(vf, 0, sizeof(*vf));
-        pim_free(*pPath);
+        Mem_Free(*pPath);
         *pPath = NULL;
         return true;
     }
