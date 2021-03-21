@@ -17,7 +17,7 @@ void lights_clear(void)
 i32 lights_add_pt(pt_light_t pt)
 {
     i32 len = ++ms_lights.ptCount;
-    ms_lights.ptLights = perm_realloc(ms_lights.ptLights, sizeof(pt) * len);
+    ms_lights.ptLights = Perm_Realloc(ms_lights.ptLights, sizeof(pt) * len);
     ms_lights.ptLights[len - 1] = pt;
     return len - 1;
 }
@@ -25,7 +25,7 @@ i32 lights_add_pt(pt_light_t pt)
 i32 lights_add_dir(dir_light_t dir)
 {
     i32 len = ++ms_lights.dirCount;
-    ms_lights.dirLights = perm_realloc(ms_lights.ptLights, sizeof(dir) * len);
+    ms_lights.dirLights = Perm_Realloc(ms_lights.ptLights, sizeof(dir) * len);
     ms_lights.dirLights[len - 1] = dir;
     return len - 1;
 }

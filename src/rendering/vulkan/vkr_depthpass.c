@@ -139,7 +139,7 @@ void vkrDepthPass_Setup(vkrDepthPass *const pass)
 {
     ProfileBegin(pm_setup);
 
-    const u32 syncIndex = vkr_syncIndex();
+    const u32 syncIndex = vkrSys_SyncIndex();
     VkViewport viewport = vkrSwapchain_GetViewport(&g_vkr.chain);
     const float aspect = viewport.width / viewport.height;
 
@@ -161,7 +161,7 @@ void vkrDepthPass_Execute(vkrPassContext const *const ctx, vkrDepthPass *const p
 {
     ProfileBegin(pm_execute);
 
-    const u32 syncIndex = vkr_syncIndex();
+    const u32 syncIndex = vkrSys_SyncIndex();
     vkrSwapchain const *const chain = &g_vkr.chain;
     VkRect2D rect = vkrSwapchain_GetRect(chain);
     VkViewport viewport = vkrSwapchain_GetViewport(chain);

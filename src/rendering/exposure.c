@@ -9,13 +9,13 @@
 
 typedef struct task_ToLum
 {
-    task_t task;
+    Task task;
     int2 size;
     const float4* light;
     float* averages;
 } task_ToLum;
 
-static void CalcAverageFn(task_t* pbase, i32 begin, i32 end)
+static void CalcAverageFn(Task* pbase, i32 begin, i32 end)
 {
     task_ToLum* task = (task_ToLum*)pbase;
     float* pim_noalias averages = task->averages;
@@ -36,11 +36,11 @@ static void CalcAverageFn(task_t* pbase, i32 begin, i32 end)
 
 static float CalcAverage(const float4* light, int2 size)
 {
-    task_ToLum* task = tmp_calloc(sizeof(*task));
+    task_ToLum* task = Temp_Calloc(sizeof(*task));
     task->light = light;
     task->size = size;
-    task->averages = tmp_calloc(sizeof(task->averages[0]) * size.y);
-    task_run(&task->task, CalcAverageFn, size.y);
+    task->averages = Temp_Calloc(sizeof(task->averages[0]) * size.y);
+    Task_Run(&task->task, CalcAverageFn, size.y);
 
     const float* pim_noalias averages = task->averages;
     const float weight = 1.0f / size.y;
@@ -54,12 +54,12 @@ static float CalcAverage(const float4* light, int2 size)
 
 typedef struct task_Expose
 {
-    task_t task;
+    Task task;
     float4* light;
     float exposure;
 } task_Expose;
 
-static void ExposeFn(task_t* pbase, i32 begin, i32 end)
+static void ExposeFn(Task* pbase, i32 begin, i32 end)
 {
     task_Expose* task = (task_Expose*)pbase;
     float4* pim_noalias light = task->light;
@@ -79,7 +79,7 @@ void ExposeImage(
 {
     ProfileBegin(pm_exposeimg);
 
-    parameters->deltaTime = f1_lerp(parameters->deltaTime, (float)time_dtf(), 0.25f);
+    parameters->deltaTime = f1_lerp(parameters->deltaTime, (float)Time_Deltaf(), 0.25f);
 
     parameters->avgLum = AdaptLuminance(
         parameters->avgLum,
@@ -88,10 +88,10 @@ void ExposeImage(
         parameters->adaptRate);
     parameters->exposure = CalcExposure(parameters);
 
-    task_Expose* task = tmp_calloc(sizeof(*task));
+    task_Expose* task = Temp_Calloc(sizeof(*task));
     task->light = light;
     task->exposure = parameters->exposure;
-    task_run(&task->task, ExposeFn, size.x * size.y);
+    Task_Run(&task->task, ExposeFn, size.x * size.y);
 
     ProfileEnd(pm_exposeimg);
 }

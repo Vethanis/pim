@@ -6,16 +6,16 @@ PIM_C_BEGIN
 
 typedef struct GLFWwindow GLFWwindow;
 
-void window_sys_init(void);
-void window_sys_update(void);
-void window_sys_shutdown(void);
+void WinSys_Init(void);
+void WinSys_Update(void);
+void WinSys_Shutdown(void);
 
-GLFWwindow* window_get(void);
+GLFWwindow* Window_Get(void);
 
-i32 window_width(void);
-i32 window_height(void);
-bool window_is_open(void);
-void window_close(bool shouldClose);
-void window_swapbuffers(void);
+i32 Window_Width(void);
+i32 Window_Height(void);
+bool Window_IsOpen(void);
+void Window_Close(bool shouldClose);
+void Window_SwapBuffers(void);
 
 PIM_C_END

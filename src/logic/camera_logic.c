@@ -58,8 +58,8 @@ void camera_logic_update(void)
 {
     ProfileBegin(pm_update);
 
-    float dYaw = input_delta_axis(MouseAxis_X) * cvar_get_float(&cv_yawscale);
-    float dPitch = input_delta_axis(MouseAxis_Y) * cvar_get_float(&cv_pitchscale);
+    float dYaw = Input_GetDeltaAxis(MouseAxis_X) * cvar_get_float(&cv_yawscale);
+    float dPitch = Input_GetDeltaAxis(MouseAxis_Y) * cvar_get_float(&cv_pitchscale);
 
     Camera camera;
     camera_get(&camera);
@@ -68,27 +68,27 @@ void camera_logic_update(void)
     camera.zFar = cvar_get_float(&cv_r_zfar);
     camera_set(&camera);
 
-    if (input_keyup(KeyCode_Escape))
+    if (Input_IsKeyUp(KeyCode_Escape))
     {
-        window_close(true);
+        Window_Close(true);
         ProfileEnd(pm_update);
         return;
     }
 
-    GLFWwindow* focus = input_get_focus();
+    GLFWwindow* focus = Input_GetFocus();
 
-    if (input_keyup(KeyCode_F1))
+    if (Input_IsKeyUp(KeyCode_F1))
     {
-        input_capture_cursor(focus, !input_cursor_captured(focus));
+        Input_CaptureCursor(focus, !Input_IsCursorCaptured(focus));
     }
 
-    if (!input_cursor_captured(focus))
+    if (!Input_IsCursorCaptured(focus))
     {
         ProfileEnd(pm_update);
         return;
     }
 
-    const float dt = f1_clamp((float)time_dtf(), 0.0f, 1.0f / 5.0f);
+    const float dt = f1_clamp((float)Time_Deltaf(), 0.0f, 1.0f / 5.0f);
     float moveScale = cvar_get_float(&cv_movescale) * dt;
 
     quat rot = camera.rotation;
@@ -98,29 +98,29 @@ void camera_logic_update(void)
     const float4 up = quat_up(rot);
     const float4 yAxis = { 0.0f, 1.0f, 0.0f, 0.0f };
 
-    if (input_key(KeyCode_W))
+    if (Input_GetKey(KeyCode_W))
     {
         eye = f4_add(eye, f4_mulvs(fwd, moveScale));
     }
-    if (input_key(KeyCode_S))
+    if (Input_GetKey(KeyCode_S))
     {
         eye = f4_add(eye, f4_mulvs(fwd, -moveScale));
     }
 
-    if (input_key(KeyCode_D))
+    if (Input_GetKey(KeyCode_D))
     {
         eye = f4_add(eye, f4_mulvs(right, moveScale));
     }
-    if (input_key(KeyCode_A))
+    if (Input_GetKey(KeyCode_A))
     {
         eye = f4_add(eye, f4_mulvs(right, -moveScale));
     }
 
-    if (input_key(KeyCode_Space))
+    if (Input_GetKey(KeyCode_Space))
     {
         eye = f4_add(eye, f4_mulvs(up, moveScale));
     }
-    if (input_key(KeyCode_LeftShift))
+    if (Input_GetKey(KeyCode_LeftShift))
     {
         eye = f4_add(eye, f4_mulvs(up, -moveScale));
     }

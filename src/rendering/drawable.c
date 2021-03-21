@@ -44,15 +44,15 @@ i32 drawables_add(Entities *const dr, Guid name)
     const i32 len = back + 1;
     dr->count = len;
 
-    PermGrow(dr->names, len);
-    PermGrow(dr->meshes, len);
-    PermGrow(dr->bounds, len);
-    PermGrow(dr->materials, len);
-    PermGrow(dr->matrices, len);
-    PermGrow(dr->invMatrices, len);
-    PermGrow(dr->translations, len);
-    PermGrow(dr->rotations, len);
-    PermGrow(dr->scales, len);
+    Perm_Grow(dr->names, len);
+    Perm_Grow(dr->meshes, len);
+    Perm_Grow(dr->bounds, len);
+    Perm_Grow(dr->materials, len);
+    Perm_Grow(dr->matrices, len);
+    Perm_Grow(dr->invMatrices, len);
+    Perm_Grow(dr->translations, len);
+    Perm_Grow(dr->rotations, len);
+    Perm_Grow(dr->scales, len);
 
     dr->names[back] = name;
     dr->translations[back] = f4_0;
@@ -128,22 +128,22 @@ void drawables_del(Entities *const dr)
     if (dr)
     {
         drawables_clear(dr);
-        pim_free(dr->names);
-        pim_free(dr->meshes);
-        pim_free(dr->bounds);
-        pim_free(dr->materials);
-        pim_free(dr->matrices);
-        pim_free(dr->invMatrices);
-        pim_free(dr->translations);
-        pim_free(dr->rotations);
-        pim_free(dr->scales);
+        Mem_Free(dr->names);
+        Mem_Free(dr->meshes);
+        Mem_Free(dr->bounds);
+        Mem_Free(dr->materials);
+        Mem_Free(dr->matrices);
+        Mem_Free(dr->invMatrices);
+        Mem_Free(dr->translations);
+        Mem_Free(dr->rotations);
+        Mem_Free(dr->scales);
         memset(dr, 0, sizeof(*dr));
     }
 }
 
 typedef struct task_UpdateBounds
 {
-    task_t task;
+    Task task;
     Entities *dr;
 } task_UpdateBounds;
 
@@ -165,16 +165,16 @@ void drawables_updatebounds(Entities *const dr)
 {
     ProfileBegin(pm_updatebouns);
 
-    task_UpdateBounds *const task = tmp_calloc(sizeof(*task));
+    task_UpdateBounds *const task = Temp_Calloc(sizeof(*task));
     task->dr = dr;
-    task_run(task, UpdateBoundsFn, dr->count);
+    Task_Run(task, UpdateBoundsFn, dr->count);
 
     ProfileEnd(pm_updatebouns);
 }
 
 typedef struct task_UpdateTransforms
 {
-    task_t task;
+    Task task;
     Entities* dr;
 } task_UpdateTransforms;
 
@@ -200,9 +200,9 @@ void drawables_updatetransforms(Entities *const dr)
 {
     ProfileBegin(pm_TRS);
 
-    task_UpdateTransforms *const task = tmp_calloc(sizeof(*task));
+    task_UpdateTransforms *const task = Temp_Calloc(sizeof(*task));
     task->dr = dr;
-    task_run(task, UpdateTransformsFn, dr->count);
+    Task_Run(task, UpdateTransformsFn, dr->count);
 
     ProfileEnd(pm_TRS);
 }
@@ -232,19 +232,19 @@ bool drawables_save(Crate *const crate, Entities const *const src)
 
     // write meshes
     {
-        DiskMeshId *const dmeshids = perm_calloc(sizeof(dmeshids[0]) * length);
+        DiskMeshId *const dmeshids = Perm_Calloc(sizeof(dmeshids[0]) * length);
         for (i32 i = 0; i < length; ++i)
         {
             mesh_save(crate, src->meshes[i], &dmeshids[i].id);
         }
         wrote &= crate_set(crate,
             guid_str("drawables.meshes"), dmeshids, sizeof(dmeshids[0]) * length);
-        pim_free(dmeshids);
+        Mem_Free(dmeshids);
     }
 
     // write materials
     {
-        DiskMaterial *const dmaterials = perm_calloc(sizeof(dmaterials[0]) * length);
+        DiskMaterial *const dmaterials = Perm_Calloc(sizeof(dmaterials[0]) * length);
         for (i32 i = 0; i < length; ++i)
         {
             const Material* mat = &src->materials[i];
@@ -258,7 +258,7 @@ bool drawables_save(Crate *const crate, Entities const *const src)
         }
         wrote &= crate_set(crate,
             guid_str("drawables.materials"), dmaterials, sizeof(dmaterials[0]) * length);
-        pim_free(dmaterials);
+        Mem_Free(dmaterials);
     }
 
     wrote &= crate_set(crate,
@@ -285,21 +285,21 @@ bool drawables_load(Crate *const crate, Entities *const dst)
     if (crate_get(crate, guid_str("drawables.count"), &len, sizeof(len)) && (len > 0))
     {
         dst->count = len;
-        dst->names = perm_calloc(sizeof(dst->names[0]) * len);
-        dst->meshes = perm_calloc(sizeof(dst->meshes[0]) * len);
-        dst->bounds = perm_calloc(sizeof(dst->bounds[0]) * len);
-        dst->materials = perm_calloc(sizeof(dst->materials[0]) * len);
-        dst->matrices = perm_calloc(sizeof(dst->matrices[0]) * len);
-        dst->invMatrices = perm_calloc(sizeof(dst->invMatrices[0]) * len);
-        dst->translations = perm_calloc(sizeof(dst->translations[0]) * len);
-        dst->rotations = perm_calloc(sizeof(dst->rotations[0]) * len);
-        dst->scales = perm_calloc(sizeof(dst->scales[0]) * len);
+        dst->names = Perm_Calloc(sizeof(dst->names[0]) * len);
+        dst->meshes = Perm_Calloc(sizeof(dst->meshes[0]) * len);
+        dst->bounds = Perm_Calloc(sizeof(dst->bounds[0]) * len);
+        dst->materials = Perm_Calloc(sizeof(dst->materials[0]) * len);
+        dst->matrices = Perm_Calloc(sizeof(dst->matrices[0]) * len);
+        dst->invMatrices = Perm_Calloc(sizeof(dst->invMatrices[0]) * len);
+        dst->translations = Perm_Calloc(sizeof(dst->translations[0]) * len);
+        dst->rotations = Perm_Calloc(sizeof(dst->rotations[0]) * len);
+        dst->scales = Perm_Calloc(sizeof(dst->scales[0]) * len);
 
         loaded = true;
 
         // load meshes
         {
-            DiskMeshId *const dmeshids = perm_calloc(sizeof(dmeshids[0]) * len);
+            DiskMeshId *const dmeshids = Perm_Calloc(sizeof(dmeshids[0]) * len);
             loaded &= crate_get(crate,
                 guid_str("drawables.meshes"), dmeshids, sizeof(dmeshids[0]) * len);
             if (loaded)
@@ -309,12 +309,12 @@ bool drawables_load(Crate *const crate, Entities *const dst)
                     mesh_load(crate, dmeshids[i].id, &dst->meshes[i]);
                 }
             }
-            pim_free(dmeshids);
+            Mem_Free(dmeshids);
         }
 
         // load materials
         {
-            DiskMaterial *const dmaterials = perm_calloc(sizeof(dmaterials[0]) * len);
+            DiskMaterial *const dmaterials = Perm_Calloc(sizeof(dmaterials[0]) * len);
             loaded &= crate_get(crate,
                 guid_str("drawables.materials"), dmaterials, sizeof(dmaterials[0]) * len);
             if (loaded)
@@ -332,7 +332,7 @@ bool drawables_load(Crate *const crate, Entities *const dst)
                     mesh_setmaterial(dst->meshes[i], &mat);
                 }
             }
-            pim_free(dmaterials);
+            Mem_Free(dmaterials);
         }
 
         loaded &= crate_get(crate,

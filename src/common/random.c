@@ -4,29 +4,29 @@
 #include "common/fnv1a.h"
 #include "threading/task.h"
 
-static prng_t ms_prngs[kMaxThreads];
+static Prng ms_prngs[kMaxThreads];
 
-prng_t prng_create(void)
+Prng Prng_New(void)
 {
-    prng_t rng;
+    Prng rng;
     u64 hash = HashStr("Piment");
-    hash = Fnv64Qword(time_now(), hash);
-    hash = Fnv64Dword(task_thread_id(), hash);
+    hash = Fnv64Qword(Time_Now(), hash);
+    hash = Fnv64Dword(Task_ThreadId(), hash);
     rng.state = hash;
     return rng;
 }
 
-prng_t prng_get(void)
+Prng Prng_Get(void)
 {
-    prng_t rng = ms_prngs[task_thread_id()];
+    Prng rng = ms_prngs[Task_ThreadId()];
     if (rng.state == 0)
     {
-        rng = prng_create();
+        rng = Prng_New();
     }
     return rng;
 }
 
-void prng_set(prng_t rng)
+void Prng_Set(Prng rng)
 {
-    ms_prngs[task_thread_id()] = rng;
+    ms_prngs[Task_ThreadId()] = rng;
 }

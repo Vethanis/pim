@@ -2,13 +2,13 @@
 #include "logic/camera_logic.h"
 #include "common/profiler.h"
 
-void logic_sys_init(void)
+void LogicSys_Init(void)
 {
     camera_logic_init();
 }
 
-ProfileMark(pm_update, logic_sys_update)
-void logic_sys_update(void)
+ProfileMark(pm_update, LogicSys_Update)
+void LogicSys_Update(void)
 {
     ProfileBegin(pm_update);
 
@@ -17,7 +17,7 @@ void logic_sys_update(void)
     ProfileEnd(pm_update);
 }
 
-void logic_sys_shutdown(void)
+void LogicSys_Shutdown(void)
 {
     camera_logic_shutdown();
 }

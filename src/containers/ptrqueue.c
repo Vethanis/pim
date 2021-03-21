@@ -15,12 +15,12 @@ void ptrqueue_create(ptrqueue_t *const pq, EAlloc allocator, u32 capacity)
 
     const u32 width = NextPow2(capacity);
     pq->width = width;
-    pq->ptr = pim_calloc(allocator, sizeof(pq->ptr[0]) * width);
+    pq->ptr = Mem_Calloc(allocator, sizeof(pq->ptr[0]) * width);
 }
 
 void ptrqueue_destroy(ptrqueue_t *const pq)
 {
-    pim_free(pq->ptr);
+    Mem_Free(pq->ptr);
     pq->ptr = NULL;
     store_u32(&(pq->width), 0, MO_Release);
     store_u32(&(pq->iWrite), 0, MO_Release);

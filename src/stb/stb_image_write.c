@@ -12,9 +12,9 @@
 #include "allocator/allocator.h"
 
 #define STBIW_ASSERT(x) ASSERT(x)
-#define STBIW_MALLOC(bytes) perm_malloc(bytes)
-#define STBIW_REALLOC(ptr, bytes) perm_realloc(ptr, bytes)
-#define STBIW_FREE(ptr) pim_free(ptr)
+#define STBIW_MALLOC(bytes) Perm_Alloc(bytes)
+#define STBIW_REALLOC(ptr, bytes) Perm_Realloc(ptr, bytes)
+#define STBIW_FREE(ptr) Mem_Free(ptr)
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb/stb_image_write.h>

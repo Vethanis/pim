@@ -14,12 +14,12 @@ static ImGuiContext* ms_ctx;
 
 static void* ImGuiAllocFn(usize sz, void* userData)
 {
-    return perm_malloc((i32)sz);
+    return Perm_Alloc((i32)sz);
 }
 
 static void ImGuiFreeFn(void* ptr, void* userData)
 {
-    pim_free(ptr);
+    Mem_Free(ptr);
 }
 
 static ImVec4 VEC_CALL BytesToColor(u32 r, u32 g, u32 b)
@@ -111,7 +111,7 @@ static void UpdateOpacity(void)
     }
 }
 
-void ui_sys_init(GLFWwindow* window)
+void UiSys_Init(GLFWwindow* window)
 {
     ASSERT(window);
 
@@ -139,8 +139,8 @@ void ui_sys_init(GLFWwindow* window)
     UpdateOpacity();
 }
 
-ProfileMark(pm_beginframe, ui_sys_beginframe)
-void ui_sys_beginframe(void)
+ProfileMark(pm_beginframe, UiSys_BeginFrame)
+void UiSys_BeginFrame(void)
 {
     ProfileBegin(pm_beginframe);
 
@@ -155,15 +155,15 @@ void ui_sys_beginframe(void)
     ProfileEnd(pm_beginframe);
 }
 
-ProfileMark(pm_endframe, ui_sys_endframe)
-void ui_sys_endframe(void)
+ProfileMark(pm_endframe, UiSys_EndFrame)
+void UiSys_EndFrame(void)
 {
     ProfileBegin(pm_endframe);
     igEndFrame();
     ProfileEnd(pm_endframe);
 }
 
-void ui_sys_shutdown(void)
+void UiSys_Shutdown(void)
 {
     igImplGlfw_Shutdown();
     igDestroyContext(ms_ctx);

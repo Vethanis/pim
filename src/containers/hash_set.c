@@ -13,9 +13,9 @@ void hashset_new(hashset_t* set, u32 keySize, EAlloc allocator)
 
 void hashset_del(hashset_t* set)
 {
-    pim_free(set->hashes);
+    Mem_Free(set->hashes);
     set->hashes = NULL;
-    pim_free(set->keys);
+    Mem_Free(set->keys);
     set->keys = NULL;
     set->count = 0;
     set->width = 0;
@@ -41,8 +41,8 @@ void hashset_reserve(hashset_t* set, u32 minCount)
     }
 
     const u32 stride = set->stride;
-    u32* newHashes = pim_calloc(set->allocator, sizeof(u32) * newWidth);
-    u8* newKeys = pim_calloc(set->allocator, stride * newWidth);
+    u32* newHashes = Mem_Calloc(set->allocator, sizeof(u32) * newWidth);
+    u8* newKeys = Mem_Calloc(set->allocator, stride * newWidth);
 
     u32* oldHashes = set->hashes;
     u8* oldKeys = set->keys;
@@ -72,8 +72,8 @@ void hashset_reserve(hashset_t* set, u32 minCount)
     set->keys = newKeys;
     set->width = newWidth;
 
-    pim_free(oldHashes);
-    pim_free(oldKeys);
+    Mem_Free(oldHashes);
+    Mem_Free(oldKeys);
 }
 
 static i32 hashset_find2(const hashset_t* set, u32 keyHash, const void* key, u32 keySize)

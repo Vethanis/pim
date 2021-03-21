@@ -29,36 +29,36 @@ static void OnGlfwError(i32 error_code, const char* description);
 
 // ----------------------------------------------------------------------------
 
-void window_sys_init(void)
+void WinSys_Init(void)
 {
     cvar_reg(&cv_fpslimit);
-    ms_lastSwap = time_now();
+    ms_lastSwap = Time_Now();
 
     glfwSetErrorCallback(OnGlfwError);
     i32 rv = glfwInit();
     ASSERT(rv == GLFW_TRUE);
 }
 
-void window_sys_update(void)
+void WinSys_Update(void)
 {
 }
 
-void window_sys_shutdown(void)
+void WinSys_Shutdown(void)
 {
     glfwTerminate();
 }
 
-i32 window_width(void)
+i32 Window_Width(void)
 {
     return g_vkr.display.height;
 }
 
-i32 window_height(void)
+i32 Window_Height(void)
 {
     return g_vkr.display.width;
 }
 
-bool window_is_open(void)
+bool Window_IsOpen(void)
 {
     if (g_vkr.display.window)
     {
@@ -67,7 +67,7 @@ bool window_is_open(void)
     return false;
 }
 
-void window_close(bool shouldClose)
+void Window_Close(bool shouldClose)
 {
     glfwSetWindowShouldClose(g_vkr.display.window, shouldClose);
 }
@@ -82,35 +82,35 @@ void window_set_target(i32 fps)
     cvar_set_int(&cv_fpslimit, fps);
 }
 
-ProfileMark(pm_waitfps, wait_for_target_fps)
-static void wait_for_target_fps(void)
+ProfileMark(pm_waitfps, WaitForTargetFps)
+static void WaitForTargetFps(void)
 {
     ProfileBegin(pm_waitfps);
 
     const double targetMS = 1000.0 / cv_fpslimit.asInt;
-    const double diffMS = targetMS - time_milli(time_now() - ms_lastSwap);
+    const double diffMS = targetMS - Time_Milli(Time_Now() - ms_lastSwap);
     if (diffMS > 1.5)
     {
         intrin_sleep((u32)(diffMS - 0.5));
     }
 
-    ms_lastSwap = time_now();
+    ms_lastSwap = Time_Now();
 
     ProfileEnd(pm_waitfps);
 }
 
-void window_swapbuffers(void)
+void Window_SwapBuffers(void)
 {
-    wait_for_target_fps();
+    WaitForTargetFps();
 }
 
-GLFWwindow* window_get(void)
+GLFWwindow* Window_Get(void)
 {
     return g_vkr.display.window;
 }
 
 static void OnGlfwError(i32 error_code, const char* description)
 {
-    con_logf(LogSev_Error, "glfw", "%s", description);
+    Con_Logf(LogSev_Error, "glfw", "%s", description);
     ASSERT(false);
 }

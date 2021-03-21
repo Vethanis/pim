@@ -83,9 +83,9 @@ static void TexTable_New(TexTable* tt, VkImageViewType viewType, i32 capacity)
     memset(tt, 0, sizeof(*tt));
 
     idalloc_new(&tt->ids);
-    tt->images = perm_calloc(sizeof(tt->images[0]) * capacity);
-    tt->views = perm_calloc(sizeof(tt->views[0]) * capacity);
-    tt->descriptors = perm_calloc(sizeof(tt->descriptors[0]) * capacity);
+    tt->images = Perm_Calloc(sizeof(tt->images[0]) * capacity);
+    tt->views = Perm_Calloc(sizeof(tt->views[0]) * capacity);
+    tt->descriptors = Perm_Calloc(sizeof(tt->descriptors[0]) * capacity);
     tt->capacity = capacity;
     tt->viewType = viewType;
 
@@ -128,9 +128,9 @@ static void TexTable_Del(TexTable* tt)
         }
     }
     idalloc_del(&tt->ids);
-    pim_free(tt->images);
-    pim_free(tt->views);
-    pim_free(tt->descriptors);
+    Mem_Free(tt->images);
+    Mem_Free(tt->views);
+    Mem_Free(tt->descriptors);
     memset(tt, 0, sizeof(*tt));
 }
 

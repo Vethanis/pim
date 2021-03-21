@@ -25,12 +25,12 @@ static bool CheckLump(
     i32 count = lump.filelen / stride;
     if ((count < 0) || (lump.filelen % stride))
     {
-        con_logf(LogSev_Error, "mdl", "Bad '%s' lump in model '%s'", lumpname, modelname);
+        Con_Logf(LogSev_Error, "mdl", "Bad '%s' lump in model '%s'", lumpname, modelname);
         return false;
     }
     if (count > limit)
     {
-        con_logf(LogSev_Error, "mdl", "Lump '%s' count %d exceeds limit of %d in model '%s'", lumpname, count, limit, modelname);
+        Con_Logf(LogSev_Error, "mdl", "Lump '%s' count %d exceeds limit of %d in model '%s'", lumpname, count, limit, modelname);
         return false;
     }
     *countOut = count;
@@ -106,20 +106,20 @@ void FreeModel(mmodel_t* model)
 {
     if (model)
     {
-        pim_free(model->vertices);
-        pim_free(model->edges);
-        pim_free(model->texinfo);
-        pim_free(model->surfaces);
-        pim_free(model->surfedges);
+        Mem_Free(model->vertices);
+        Mem_Free(model->edges);
+        Mem_Free(model->texinfo);
+        Mem_Free(model->surfaces);
+        Mem_Free(model->surfedges);
         for (i32 i = 0; i < model->numtextures; ++i)
         {
-            pim_free(model->textures[i]);
+            Mem_Free(model->textures[i]);
         }
-        pim_free(model->textures);
-        pim_free(model->entities);
+        Mem_Free(model->textures);
+        Mem_Free(model->entities);
 
         memset(model, 0, sizeof(*model));
-        pim_free(model);
+        Mem_Free(model);
     }
 }
 
@@ -135,7 +135,7 @@ static mmodel_t* LoadBrushModel(
         return NULL;
     }
 
-    mmodel_t* model = pim_calloc(allocator, sizeof(*model));
+    mmodel_t* model = Mem_Calloc(allocator, sizeof(*model));
     StrCpy(ARGS(model->name), name);
 
     LoadVertices(buffer, allocator, header, model);
@@ -160,7 +160,7 @@ static bool LoadVertices(
     i32 count = 0;
     if (CheckLump(model->name, "vertices", lump, sizeof(src[0]), MAX_MAP_VERTS, &count))
     {
-        float4 *const pim_noalias dst = pim_malloc(allocator, sizeof(dst[0]) * count);
+        float4 *const pim_noalias dst = Mem_Alloc(allocator, sizeof(dst[0]) * count);
         model->vertices = dst;
         model->numvertices = count;
         for (i32 i = 0; i < count; ++i)
@@ -186,7 +186,7 @@ static bool LoadEdges(
     i32 count = 0;
     if (CheckLump(model->name, "edges", lump, sizeof(src[0]), MAX_MAP_EDGES, &count))
     {
-        medge_t *const pim_noalias dst = pim_calloc(allocator, sizeof(dst[0]) * count);
+        medge_t *const pim_noalias dst = Mem_Calloc(allocator, sizeof(dst[0]) * count);
         for (i32 i = 0; i < count; ++i)
         {
             dst[i].v[0] = src[i].v[0];
@@ -210,7 +210,7 @@ static bool LoadSurfEdges(
     i32 count = 0;
     if (CheckLump(model->name, "surfedges", lump, sizeof(src[0]), MAX_MAP_SURFEDGES, &count))
     {
-        i32 *const pim_noalias dst = pim_malloc(allocator, sizeof(dst[0]) * count);
+        i32 *const pim_noalias dst = Mem_Alloc(allocator, sizeof(dst[0]) * count);
         memcpy(dst, src, sizeof(dst[0]) * count);
         model->surfedges = dst;
         model->numsurfedges = count;
@@ -234,11 +234,11 @@ static bool LoadTextures(
         ASSERT(texCount >= 0);
         if (texCount > MAX_MAP_TEXTURES)
         {
-            con_logf(LogSev_Error, "mdl", "texture count %d exceeds limit of %d in %s", texCount, MAX_MAP_TEXTURES, model->name);
+            Con_Logf(LogSev_Error, "mdl", "texture count %d exceeds limit of %d in %s", texCount, MAX_MAP_TEXTURES, model->name);
             return false;
         }
 
-        mtexture_t **const pim_noalias textures = pim_calloc(allocator, sizeof(textures[0]) * texCount);
+        mtexture_t **const pim_noalias textures = Mem_Calloc(allocator, sizeof(textures[0]) * texCount);
         model->textures = textures;
         model->numtextures = texCount;
 
@@ -252,7 +252,7 @@ static bool LoadTextures(
             miptex_t const *const pim_noalias mt = OffsetPtr(m, offset);
             if ((mt->width & 15) || (mt->height & 15))
             {
-                con_logf(LogSev_Error, "mdl", "Texture size is not multiple of 16: %s", mt->name);
+                Con_Logf(LogSev_Error, "mdl", "Texture size is not multiple of 16: %s", mt->name);
                 continue;
             }
 
@@ -262,11 +262,11 @@ static bool LoadTextures(
             ASSERT(pixels > 0);
             if ((pixels + offset + sizeof(*mt)) > lump.filelen)
             {
-                con_logf(LogSev_Error, "mdl", "Texture extends past end of lump: %s", mt->name);
+                Con_Logf(LogSev_Error, "mdl", "Texture extends past end of lump: %s", mt->name);
                 continue;
             }
 
-            mtexture_t *const pim_noalias tx = pim_calloc(allocator, sizeof(*tx) + pixels);
+            mtexture_t *const pim_noalias tx = Mem_Calloc(allocator, sizeof(*tx) + pixels);
             textures[i] = tx;
 
             SASSERT(sizeof(tx->name) >= sizeof(mt->name));
@@ -317,7 +317,7 @@ static bool LoadTextures(
             }
             else
             {
-                con_logf(LogSev_Error, "mdl", "Bad animating texture %s", tx->name);
+                Con_Logf(LogSev_Error, "mdl", "Bad animating texture %s", tx->name);
                 continue;
             }
 
@@ -354,7 +354,7 @@ static bool LoadTextures(
                 }
                 else
                 {
-                    con_logf(LogSev_Error, "mdl", "Bad animating texture: %s", tx2->name);
+                    Con_Logf(LogSev_Error, "mdl", "Bad animating texture: %s", tx2->name);
                     continue;
                 }
             }
@@ -365,7 +365,7 @@ static bool LoadTextures(
                 mtexture_t* tx2 = anims[j];
                 if (!tx2)
                 {
-                    con_logf(LogSev_Error, "mdl", "Missing animtex frame %d of %s", j, tx->name);
+                    Con_Logf(LogSev_Error, "mdl", "Missing animtex frame %d of %s", j, tx->name);
                     continue;
                 }
                 tx2->anim_total = maxanim * kAnimCycle;
@@ -382,7 +382,7 @@ static bool LoadTextures(
                 mtexture_t* tx2 = altanims[j];
                 if (!tx2)
                 {
-                    con_logf(LogSev_Error, "mdl", "Missing alt animtex frame %d of %s", j, tx->name);
+                    Con_Logf(LogSev_Error, "mdl", "Missing alt animtex frame %d of %s", j, tx->name);
                     continue;
                 }
                 tx2->anim_total = altmax * kAnimCycle;
@@ -413,7 +413,7 @@ static bool LoadTexInfo(
     i32 count = 0;
     if (CheckLump(model->name, "texinfo", lump, sizeof(src[0]), MAX_MAP_TEXINFO, &count))
     {
-        mtexinfo_t *const pim_noalias dst = pim_calloc(allocator, sizeof(dst[0]) * count);
+        mtexinfo_t *const pim_noalias dst = Mem_Calloc(allocator, sizeof(dst[0]) * count);
         model->texinfo = dst;
         model->numtexinfo = count;
 
@@ -429,7 +429,7 @@ static bool LoadTexInfo(
                 dst[i].texture = textures[miptex];
                 if (!dst[i].texture)
                 {
-                    con_logf(LogSev_Error, "mdl", "Null texture found in model '%s' at index %d", model->name, miptex);
+                    Con_Logf(LogSev_Error, "mdl", "Null texture found in model '%s' at index %d", model->name, miptex);
                 }
             }
         }
@@ -449,7 +449,7 @@ static bool LoadFaces(
     i32 count = 0;
     if (CheckLump(model->name, "faces", lump, sizeof(src[0]), MAX_MAP_FACES, &count))
     {
-        msurface_t *const pim_noalias dst = pim_calloc(allocator, sizeof(dst[0]) * count);
+        msurface_t *const pim_noalias dst = Mem_Calloc(allocator, sizeof(dst[0]) * count);
         model->surfaces = dst;
         model->numsurfaces = count;
 
@@ -486,7 +486,7 @@ static bool LoadEntities(
     i32 count = 0;
     if (CheckLump(model->name, "entities", lump, sizeof(src[0]), MAX_MAP_ENTSTRING, &count))
     {
-        char *const pim_noalias dst = pim_malloc(allocator, count + 1);
+        char *const pim_noalias dst = Mem_Alloc(allocator, count + 1);
         memcpy(dst, src, count);
         dst[count] = 0;
         model->entities = dst;

@@ -417,8 +417,8 @@ static i32 FlattenSurface(
     const i32 modnumvertices = model->numvertices;
     float4 const *const pim_noalias vertices = model->vertices;
 
-    *pPolys = tmp_realloc(*pPolys, sizeof(pPolys[0][0]) * surfnumedges);
-    *pTris = tmp_realloc(*pTris, sizeof(pTris[0][0]) * surfnumedges * 3);
+    *pPolys = Temp_Realloc(*pPolys, sizeof(pPolys[0][0]) * surfnumedges);
+    *pTris = Temp_Realloc(*pTris, sizeof(pTris[0][0]) * surfnumedges * 3);
     i32 *const pim_noalias polygon = *pPolys;
     i32 *const pim_noalias tris = *pTris;
 
@@ -486,7 +486,7 @@ static void AssignMaterial(Mesh *const mesh, Material material)
                 texIndex.z = tex->slot.index;
             }
         }
-        int4 *const pim_noalias texIndices = perm_calloc(sizeof(texIndices[0]) * len);
+        int4 *const pim_noalias texIndices = Perm_Calloc(sizeof(texIndices[0]) * len);
         mesh->texIndices = texIndices;
         for (i32 i = 0; i < len; ++i)
         {
@@ -522,9 +522,9 @@ static Mesh VEC_CALL TrisToMesh(
         }
     }
 
-    float4 *const pim_noalias positions = perm_malloc(sizeof(positions[0]) * indexCount);
-    float4 *const pim_noalias normals = perm_malloc(sizeof(normals[0]) * indexCount);
-    float4 *const pim_noalias uvs = perm_malloc(sizeof(uvs[0]) * indexCount);
+    float4 *const pim_noalias positions = Perm_Alloc(sizeof(positions[0]) * indexCount);
+    float4 *const pim_noalias normals = Perm_Alloc(sizeof(normals[0]) * indexCount);
+    float4 *const pim_noalias uvs = Perm_Alloc(sizeof(uvs[0]) * indexCount);
 
     const i32 modelVertCount = model->numvertices;
     float4 const *const pim_noalias modelVerts = model->vertices;
@@ -593,9 +593,9 @@ static Mesh VEC_CALL TrisToMesh(
     }
     else
     {
-        pim_free(positions);
-        pim_free(normals);
-        pim_free(uvs);
+        Mem_Free(positions);
+        Mem_Free(normals);
+        Mem_Free(uvs);
     }
 
     return mesh;
@@ -635,15 +635,15 @@ static void MergeMesh(
     i32 addlen = src->length;
     i32 newlen = back + src->length;
     dst->length = newlen;
-    PermReserve(dst->positions, newlen);
-    PermReserve(dst->normals, newlen);
-    PermReserve(dst->uvs, newlen);
+    Perm_Reserve(dst->positions, newlen);
+    Perm_Reserve(dst->normals, newlen);
+    Perm_Reserve(dst->uvs, newlen);
     memcpy(dst->positions + back, src->positions, addlen * sizeof(dst->positions[0]));
     memcpy(dst->normals + back, src->normals, addlen * sizeof(dst->normals[0]));
     memcpy(dst->uvs + back, src->uvs, addlen * sizeof(dst->uvs[0]));
-    pim_free(src->positions);
-    pim_free(src->normals);
-    pim_free(src->uvs);
+    Mem_Free(src->positions);
+    Mem_Free(src->normals);
+    Mem_Free(src->uvs);
     memset(src, 0, sizeof(*src));
 }
 
@@ -726,7 +726,7 @@ void ModelToDrawables(mmodel_t const *const model, Entities *const dr)
     msurface_t const *const surfaces = model->surfaces;
     const i32 numsurfedges = model->numsurfedges;
 
-    u64 *const pim_noalias hashes = tmp_calloc(sizeof(hashes[0]) * numsurfaces);
+    u64 *const pim_noalias hashes = Temp_Calloc(sizeof(hashes[0]) * numsurfaces);
     for (i32 i = 0; i < numsurfaces; ++i)
     {
         const mtexinfo_t* texinfo = surfaces[i].texinfo;
@@ -846,7 +846,7 @@ void LoadProgs(mmodel_t const *const model, bool loadlights)
 bool LoadModelAsDrawables(const char* name, Entities *const dr, bool loadlights)
 {
     asset_t asset = { 0 };
-    if (asset_get(name, &asset))
+    if (Asset_Get(name, &asset))
     {
         mmodel_t* model = LoadModel(name, asset.pData, EAlloc_Temp);
         ModelToDrawables(model, dr);

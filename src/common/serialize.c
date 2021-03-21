@@ -7,10 +7,10 @@
 #include <stdlib.h>
 #include "cJSON/cJSON.h"
 
-static void* ser_malloc(size_t bytes) { return tmp_calloc((i32)bytes); }
+static void* ser_malloc(size_t bytes) { return Temp_Calloc((i32)bytes); }
 static void ser_free(void* ptr) {  }
 
-void ser_sys_init(void)
+void SerSys_Init(void)
 {
     cJSON_Hooks hooks =
     {
@@ -20,24 +20,24 @@ void ser_sys_init(void)
     cJSON_InitHooks(&hooks);
 }
 
-void ser_sys_shutdown(void)
+void SerSys_Shutdown(void)
 {
     cJSON_InitHooks(NULL);
 }
 
 // ----------------------------------------------------------------------------
 
-ser_obj_t* ser_obj_num(double value)
+SerObj* SerObj_Num(double value)
 {
     return cJSON_CreateNumber(value);
 }
 
-ser_obj_t* ser_obj_bool(bool value)
+SerObj* SerObj_Bool(bool value)
 {
     return cJSON_CreateBool(value);
 }
 
-ser_obj_t* ser_obj_str(const char* value)
+SerObj* SerObj_Str(const char* value)
 {
     if (!value || !value[0])
     {
@@ -46,22 +46,22 @@ ser_obj_t* ser_obj_str(const char* value)
     return cJSON_CreateString(value);
 }
 
-ser_obj_t* ser_obj_array(void)
+SerObj* SerObj_Array(void)
 {
     return cJSON_CreateArray();
 }
 
-ser_obj_t* ser_obj_dict(void)
+SerObj* SerObj_Dict(void)
 {
     return cJSON_CreateObject();
 }
 
-ser_obj_t* ser_obj_null(void)
+SerObj* SerObj_Null(void)
 {
     return cJSON_CreateNull();
 }
 
-void ser_obj_del(ser_obj_t* obj)
+void SerObj_Del(SerObj* obj)
 {
     if (obj)
     {
@@ -71,7 +71,7 @@ void ser_obj_del(ser_obj_t* obj)
 
 // ----------------------------------------------------------------------------
 
-const char* ser_str_get(const ser_obj_t* obj)
+const char* Ser_StrGet(const SerObj* obj)
 {
 	if (!cJSON_IsString(obj))
 	{
@@ -80,7 +80,7 @@ const char* ser_str_get(const ser_obj_t* obj)
 	return cJSON_GetStringValue(obj);
 }
 
-bool ser_str_set(ser_obj_t* obj, const char* value)
+bool Ser_StrSet(SerObj* obj, const char* value)
 {
 	if (!cJSON_IsString(obj))
 	{
@@ -91,12 +91,12 @@ bool ser_str_set(ser_obj_t* obj, const char* value)
 
 // ----------------------------------------------------------------------------
 
-bool ser_bool_get(const ser_obj_t* obj)
+bool Ser_BoolGet(const SerObj* obj)
 {
     return cJSON_IsTrue(obj);
 }
 
-bool ser_bool_set(ser_obj_t* obj, bool value)
+bool Ser_BoolSet(SerObj* obj, bool value)
 {
     if (!cJSON_IsBool(obj))
     {
@@ -109,7 +109,7 @@ bool ser_bool_set(ser_obj_t* obj, bool value)
 
 // ----------------------------------------------------------------------------
 
-double ser_num_get(const ser_obj_t* obj)
+double Ser_NumGet(const SerObj* obj)
 {
     if (!cJSON_IsNumber(obj))
     {
@@ -118,7 +118,7 @@ double ser_num_get(const ser_obj_t* obj)
     return cJSON_GetNumberValue(obj);
 }
 
-bool ser_num_set(ser_obj_t* obj, double value)
+bool Ser_NumSet(SerObj* obj, double value)
 {
     if (!cJSON_IsNumber(obj))
     {
@@ -130,7 +130,7 @@ bool ser_num_set(ser_obj_t* obj, double value)
 
 // ----------------------------------------------------------------------------
 
-i32 ser_array_len(ser_obj_t* obj)
+i32 Ser_ArrayLen(SerObj* obj)
 {
     if (!cJSON_IsArray(obj))
     {
@@ -139,7 +139,7 @@ i32 ser_array_len(ser_obj_t* obj)
     return cJSON_GetArraySize(obj);
 }
 
-ser_obj_t* ser_array_get(ser_obj_t* obj, i32 index)
+SerObj* Ser_ArrayGet(SerObj* obj, i32 index)
 {
 	if (!cJSON_IsArray(obj))
 	{
@@ -148,7 +148,7 @@ ser_obj_t* ser_array_get(ser_obj_t* obj, i32 index)
     return cJSON_GetArrayItem(obj, index);
 }
 
-bool ser_array_set(ser_obj_t* obj, i32 index, ser_obj_t* value)
+bool Ser_ArraySet(SerObj* obj, i32 index, SerObj* value)
 {
 	if (!cJSON_IsArray(obj))
 	{
@@ -162,7 +162,7 @@ bool ser_array_set(ser_obj_t* obj, i32 index, ser_obj_t* value)
     return cJSON_InsertItemInArray(obj, index, value);
 }
 
-i32 ser_array_add(ser_obj_t* obj, ser_obj_t* value)
+i32 Ser_ArrayAdd(SerObj* obj, SerObj* value)
 {
 	if (!cJSON_IsArray(obj))
 	{
@@ -171,7 +171,7 @@ i32 ser_array_add(ser_obj_t* obj, ser_obj_t* value)
     return cJSON_AddItemToArray(obj, value);
 }
 
-bool ser_array_rm(ser_obj_t* obj, i32 index, ser_obj_t** valueOut)
+bool Ser_ArrayRm(SerObj* obj, i32 index, SerObj** valueOut)
 {
 	if (!cJSON_IsArray(obj))
 	{
@@ -190,7 +190,7 @@ bool ser_array_rm(ser_obj_t* obj, i32 index, ser_obj_t** valueOut)
     }
     if (valueOut)
     {
-        ser_obj_t* elem = cJSON_DetachItemFromArray(obj, index);
+        SerObj* elem = cJSON_DetachItemFromArray(obj, index);
         *valueOut = elem;
         return elem != NULL;
     }
@@ -203,7 +203,7 @@ bool ser_array_rm(ser_obj_t* obj, i32 index, ser_obj_t** valueOut)
 
 // ----------------------------------------------------------------------------
 
-ser_obj_t* ser_dict_get(ser_obj_t* obj, const char* key)
+SerObj* Ser_DictGet(SerObj* obj, const char* key)
 {
     if (!cJSON_IsObject(obj))
     {
@@ -217,7 +217,7 @@ ser_obj_t* ser_dict_get(ser_obj_t* obj, const char* key)
     return cJSON_GetObjectItemCaseSensitive(obj, key);
 }
 
-bool ser_dict_set(ser_obj_t* obj, const char* key, ser_obj_t* value)
+bool Ser_DictSet(SerObj* obj, const char* key, SerObj* value)
 {
 	if (!cJSON_IsObject(obj))
 	{
@@ -228,7 +228,7 @@ bool ser_dict_set(ser_obj_t* obj, const char* key, ser_obj_t* value)
 		ASSERT(false);
 		return false;
 	}
-    ser_obj_t* old = cJSON_GetObjectItemCaseSensitive(obj, key);
+    SerObj* old = cJSON_GetObjectItemCaseSensitive(obj, key);
     if (old)
     {
         cJSON_DetachItemViaPointer(obj, old);
@@ -241,7 +241,7 @@ bool ser_dict_set(ser_obj_t* obj, const char* key, ser_obj_t* value)
     return false;
 }
 
-bool ser_dict_rm(ser_obj_t* obj, const char* key, ser_obj_t** valueOut)
+bool Ser_DictRm(SerObj* obj, const char* key, SerObj** valueOut)
 {
 	if (!cJSON_IsObject(obj))
 	{
@@ -252,7 +252,7 @@ bool ser_dict_rm(ser_obj_t* obj, const char* key, ser_obj_t** valueOut)
 		ASSERT(false);
 		return false;
 	}
-	ser_obj_t* old = cJSON_GetObjectItemCaseSensitive(obj, key);
+	SerObj* old = cJSON_GetObjectItemCaseSensitive(obj, key);
 	if (old)
 	{
 		cJSON_DetachItemViaPointer(obj, old);
@@ -269,7 +269,7 @@ bool ser_dict_rm(ser_obj_t* obj, const char* key, ser_obj_t** valueOut)
     return false;
 }
 
-ser_obj_t* ser_read(const char* text)
+SerObj* Ser_Read(const char* text)
 {
     if (!text || !text[0])
     {
@@ -278,7 +278,7 @@ ser_obj_t* ser_read(const char* text)
     return cJSON_Parse(text);
 }
 
-char* ser_write(ser_obj_t* obj, i32* lenOut)
+char* Ser_Write(SerObj* obj, i32* lenOut)
 {
     char* text = NULL;
     i32 len = 0;
@@ -299,9 +299,9 @@ char* ser_write(ser_obj_t* obj, i32* lenOut)
 
 // ----------------------------------------------------------------------------
 
-ser_obj_t* ser_fromfile(const char* filename)
+SerObj* Ser_ReadFile(const char* filename)
 {
-    ser_obj_t* result = NULL;
+    SerObj* result = NULL;
     if (filename)
     {
         fd_t fd = fd_open(filename, false);
@@ -310,15 +310,15 @@ ser_obj_t* ser_fromfile(const char* filename)
             i32 size = (i32)fd_size(fd);
             if (size > 0)
             {
-                char* text = perm_malloc(size + 1);
+                char* text = Perm_Alloc(size + 1);
                 i32 readSize = fd_read(fd, text, size);
                 text[size] = 0;
                 ASSERT(readSize == size);
                 if (readSize == size)
                 {
-                    result = ser_read(text);
+                    result = Ser_Read(text);
                 }
-                pim_free(text);
+                Mem_Free(text);
             }
             fd_close(&fd);
         }
@@ -328,13 +328,13 @@ ser_obj_t* ser_fromfile(const char* filename)
 
 // ----------------------------------------------------------------------------
 
-bool ser_tofile(const char* filename, ser_obj_t* obj)
+bool Ser_WriteFile(const char* filename, SerObj* obj)
 {
     bool wrote = false;
     if (filename && obj)
     {
         i32 len = 0;
-        char* text = ser_write(obj, &len);
+        char* text = Ser_Write(obj, &len);
         if (text)
         {
             fd_t fd = fd_create(filename);
@@ -345,8 +345,84 @@ bool ser_tofile(const char* filename, ser_obj_t* obj)
                 ASSERT(wrote);
                 fd_close(&fd);
             }
-            pim_free(text);
+            Mem_Free(text);
         }
     }
     return wrote;
+}
+
+// ----------------------------------------------------------------------------
+
+float Ser_GetFloat(SerObj* obj, const char* key)
+{
+    return (float)Ser_NumGet(Ser_DictGet(obj, key));
+}
+
+i32 Ser_GetInt(SerObj* obj, const char* key)
+{
+    return (i32)Ser_NumGet(Ser_DictGet(obj, key));
+}
+
+const char* Ser_GetStr(SerObj* obj, const char* key)
+{
+    return Ser_StrGet(Ser_DictGet(obj, key));
+}
+
+bool Ser_GetBool(SerObj* obj, const char* key)
+{
+    return Ser_BoolGet(Ser_DictGet(obj, key));
+}
+
+bool Ser_SetFloat(SerObj* obj, const char* key, float value)
+{
+    SerObj* dst = Ser_DictGet(obj, key);
+    if (!dst)
+    {
+        return Ser_DictSet(obj, key, SerObj_Num(value));
+    }
+    return Ser_NumSet(dst, value);
+}
+
+bool Ser_SetInt(SerObj* obj, const char* key, i32 value)
+{
+    SerObj* dst = Ser_DictGet(obj, key);
+    if (!dst)
+    {
+        return Ser_DictSet(obj, key, SerObj_Num(value));
+    }
+    return Ser_NumSet(dst, value);
+}
+
+bool Ser_SetStr(SerObj* obj, const char* key, const char* value)
+{
+    SerObj* dst = Ser_DictGet(obj, key);
+    if (!dst)
+    {
+        return Ser_DictSet(obj, key, SerObj_Str(value));
+    }
+    return Ser_StrSet(dst, value);
+}
+
+bool Ser_SetBool(SerObj* obj, const char* key, bool value)
+{
+    SerObj* dst = Ser_DictGet(obj, key);
+    if (!dst)
+    {
+        return Ser_DictSet(obj, key, SerObj_Bool(value));
+    }
+    return Ser_BoolSet(dst, value);
+}
+
+bool _Ser_LoadStr(char* dst, i32 size, SerObj* obj, const char* key)
+{
+    ASSERT(dst);
+    ASSERT(size > 0);
+    dst[0] = 0;
+    const char* value = Ser_GetStr(obj, key);
+    if (value)
+    {
+        StrCpy(dst, size, value);
+        return true;
+    }
+    return false;
 }

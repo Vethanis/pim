@@ -48,7 +48,7 @@ static bool IsCurrent(TextureId id)
 
 static void FreeTexture(Texture* tex)
 {
-    pim_free(tex->texels);
+    Mem_Free(tex->texels);
     vkrTexTable_Free(tex->slot);
     memset(tex, 0, sizeof(*tex));
 }
@@ -63,7 +63,7 @@ void texture_sys_init(void)
     table_new(&ms_table, sizeof(Texture));
 
     asset_t asset = { 0 };
-    if (asset_get("gfx/palette.lmp", &asset))
+    if (Asset_Get("gfx/palette.lmp", &asset))
     {
         const u8* palette = (const u8*)asset.pData;
         ASSERT(asset.length == sizeof(ms_palette));
@@ -95,7 +95,7 @@ bool texture_loadat(const char* path, VkFormat format, TextureId* idOut)
     i32 width = 0;
     i32 height = 0;
     i32 channels = 0;
-    // STBI_MALLOC => tex_malloc(bytes)
+    // STBI_MALLOC => Tex_Alloc(bytes)
     u32* pim_noalias texels = (u32*)stbi_load(path, &width, &height, &channels, 4);
     if (texels)
     {
@@ -221,7 +221,7 @@ bool texture_save(Crate* crate, TextureId tid, Guid* dst)
         const i32 bpp = vkrFormatToBpp(texture.format);
         const i32 texelBytes = (bpp * len) / 8;
         const i32 hdrBytes = sizeof(DiskTexture);
-        DiskTexture* dtexture = tex_malloc(hdrBytes + texelBytes);
+        DiskTexture* dtexture = Tex_Alloc(hdrBytes + texelBytes);
         if (dtexture)
         {
             dtexture->version = kTextureVersion;
@@ -231,7 +231,7 @@ bool texture_save(Crate* crate, TextureId tid, Guid* dst)
             memcpy(dtexture + 1, texture.texels, texelBytes);
             wasSet = crate_set(crate, *dst, dtexture, hdrBytes + texelBytes);
         }
-        pim_free(dtexture);
+        Mem_Free(dtexture);
     }
     return wasSet;
 }
@@ -250,7 +250,7 @@ bool texture_load(Crate* crate, Guid name, TextureId* dst)
     i32 size = 0;
     if (crate_stat(crate, name, &offset, &size))
     {
-        DiskTexture* dtexture = tex_malloc(size);
+        DiskTexture* dtexture = Tex_Alloc(size);
         if (dtexture && crate_get(crate, name, dtexture, size))
         {
             if (dtexture->version == kTextureVersion)
@@ -270,7 +270,7 @@ bool texture_load(Crate* crate, Guid name, TextureId* dst)
                 }
             }
         }
-        pim_free(dtexture);
+        Mem_Free(dtexture);
     }
     return loaded;
 }
@@ -343,7 +343,7 @@ pim_inline float DecodeEmission(u8 encoded, bool isLight)
 
 typedef struct task_Unpalette
 {
-    task_t task;
+    Task task;
     float4 flatRome;
     int2 size;
     float2 min;
@@ -513,12 +513,12 @@ bool texture_unpalette(
         const bool isLight = StrIStr(name, 16, "light");
         const bool fullEmit = isSky || isTeleport || isWindow;
 
-        u32* pim_noalias albedo = tex_malloc(len * sizeof(albedo[0]));
-        u32* pim_noalias rome = tex_malloc(len * sizeof(rome[0]));
-        short2* pim_noalias normal = tex_malloc(len * sizeof(normal[0]));
-        float2* pim_noalias gray = tex_malloc(len * sizeof(gray[0]));
+        u32* pim_noalias albedo = Tex_Alloc(len * sizeof(albedo[0]));
+        u32* pim_noalias rome = Tex_Alloc(len * sizeof(rome[0]));
+        short2* pim_noalias normal = Tex_Alloc(len * sizeof(normal[0]));
+        float2* pim_noalias gray = Tex_Alloc(len * sizeof(gray[0]));
 
-        task_Unpalette* tasks = tmp_calloc(sizeof(tasks[0]) * 3);
+        task_Unpalette* tasks = Temp_Calloc(sizeof(tasks[0]) * 3);
         tasks[0].albedo = albedo;
         tasks[0].bytes = bytes;
         tasks[0].material = material;
@@ -533,15 +533,15 @@ bool texture_unpalette(
         tasks[0].size = size;
 
         // cannot reuse same task across invocations, the signalling state gets corrupted
-        task_run(&tasks[0], UnpaletteStep1Fn, len);
+        Task_Run(&tasks[0], UnpaletteStep1Fn, len);
         tasks[1] = tasks[0];
-        tasks[1].task = (task_t) { 0 };
-        task_run(&tasks[1], UnpaletteStep2Fn, 1);
+        tasks[1].task = (Task) { 0 };
+        Task_Run(&tasks[1], UnpaletteStep2Fn, 1);
         tasks[2] = tasks[1];
-        tasks[2].task = (task_t) { 0 };
-        task_run(&tasks[2], UnpaletteStep3Fn, len);
+        tasks[2].task = (Task) { 0 };
+        Task_Run(&tasks[2], UnpaletteStep3Fn, len);
 
-        pim_free(gray);
+        Mem_Free(gray);
         gray = NULL;
 
         Texture albedoMap = { 0 };
@@ -568,7 +568,7 @@ bool texture_unpalette(
 
 typedef struct Task_ResizeToPow2
 {
-    task_t task;
+    Task task;
     int2 oldSize;
     int2 newSize;
     void* src;
@@ -638,7 +638,7 @@ static void ResizeToPow2(Texture* tex)
     }
 
     const i32 newLen = newSize.x * newSize.y;
-    Task_ResizeToPow2* task = tmp_calloc(sizeof(*task));
+    Task_ResizeToPow2* task = Temp_Calloc(sizeof(*task));
     task->src = tex->texels;
     task->oldSize = oldSize;
     task->newSize = newSize;
@@ -650,36 +650,36 @@ static void ResizeToPow2(Texture* tex)
         return;
     case VK_FORMAT_R32G32B32A32_SFLOAT:
     {
-        task->dst = tex_malloc(newLen * sizeof(float4));
-        task_run(task, ResizeToPow2Fn_f4, newLen);
-        pim_free(tex->texels);
+        task->dst = Tex_Alloc(newLen * sizeof(float4));
+        Task_Run(task, ResizeToPow2Fn_f4, newLen);
+        Mem_Free(tex->texels);
         tex->texels = task->dst;
         tex->size = newSize;
     }
     break;
     case VK_FORMAT_R8G8B8A8_SRGB:
     {
-        task->dst = tex_malloc(newLen * sizeof(u32));
-        task_run(task, ResizeToPow2Fn_c32, newLen);
-        pim_free(tex->texels);
+        task->dst = Tex_Alloc(newLen * sizeof(u32));
+        Task_Run(task, ResizeToPow2Fn_c32, newLen);
+        Mem_Free(tex->texels);
         tex->texels = task->dst;
         tex->size = newSize;
     }
     break;
     case VK_FORMAT_R8G8B8A8_UNORM:
     {
-        task->dst = tex_malloc(newLen * sizeof(u32));
-        task_run(task, ResizeToPow2Fn_dir8, newLen);
-        pim_free(tex->texels);
+        task->dst = Tex_Alloc(newLen * sizeof(u32));
+        Task_Run(task, ResizeToPow2Fn_dir8, newLen);
+        Mem_Free(tex->texels);
         tex->texels = task->dst;
         tex->size = newSize;
     }
     break;
     case VK_FORMAT_R16G16_SNORM:
     {
-        task->dst = tex_malloc(newLen * sizeof(short2));
-        task_run(task, ResizeToPow2Fn_xy16, newLen);
-        pim_free(tex->texels);
+        task->dst = Tex_Alloc(newLen * sizeof(short2));
+        Task_Run(task, ResizeToPow2Fn_xy16, newLen);
+        Mem_Free(tex->texels);
         tex->texels = task->dst;
         tex->size = newSize;
     }
@@ -839,7 +839,7 @@ void texture_sys_gui(bool* pEnabled)
             gs_revSort = !gs_revSort;
         }
 
-        i32* indices = tmp_calloc(sizeof(indices[0]) * width);
+        i32* indices = Temp_Calloc(sizeof(indices[0]) * width);
         for (i32 i = 0; i < width; ++i)
         {
             indices[i] = i;

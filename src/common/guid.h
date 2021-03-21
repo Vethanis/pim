@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-typedef struct prng_s prng_t;
+typedef struct Prng_s Prng;
 
 typedef struct Guid_s
 {
@@ -24,7 +24,7 @@ bool guid_get_name(Guid id, char* dst, i32 size);
 i32 guid_find(Guid const *const pim_noalias ptr, i32 count, Guid key);
 Guid guid_str(char const *const pim_noalias str);
 Guid guid_bytes(void const *const pim_noalias ptr, i32 nBytes);
-Guid guid_rand(prng_t* rng);
+Guid guid_rand(Prng* rng);
 
 void guid_fmt(char* dst, i32 size, Guid value);
 u32 guid_hashof(Guid x);

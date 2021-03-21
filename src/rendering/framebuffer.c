@@ -12,16 +12,16 @@ void framebuf_create(framebuf_t* buf, i32 width, i32 height)
     buf->height = height;
     const i32 len = width * height;
     ASSERT(len > 0);
-    buf->light = perm_malloc(len * sizeof(buf->light[0]));
-    buf->color = perm_malloc(len * sizeof(buf->color[0]));
+    buf->light = Perm_Alloc(len * sizeof(buf->light[0]));
+    buf->color = Perm_Alloc(len * sizeof(buf->color[0]));
 }
 
 void framebuf_destroy(framebuf_t* buf)
 {
     if (buf)
     {
-        pim_free(buf->light);
-        pim_free(buf->color);
+        Mem_Free(buf->light);
+        Mem_Free(buf->color);
         memset(buf, 0, sizeof(*buf));
     }
 }

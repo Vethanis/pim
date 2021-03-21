@@ -163,9 +163,9 @@ void SG_Generate(float4* pim_noalias axii, i32 count, SGDist dist)
         axii[i].w = sharpness;
     }
 
-    con_logf(LogSev_Info, "sg", "GI Directions: ");
+    Con_Logf(LogSev_Info, "sg", "GI Directions: ");
     for (i32 i = 0; i < count; ++i)
     {
-        con_logf(LogSev_Info, "sg", "%f, %f, %f, %f", axii[i].x, axii[i].y, axii[i].z, axii[i].w);
+        Con_Logf(LogSev_Info, "sg", "%f, %f, %f, %f", axii[i].x, axii[i].y, axii[i].z, axii[i].w);
     }
 }

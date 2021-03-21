@@ -12,7 +12,7 @@ void strlist_new(strlist_t* list, EAlloc allocator)
 void strlist_del(strlist_t* list)
 {
     strlist_clear(list);
-    pim_free(list->ptr);
+    Mem_Free(list->ptr);
     list->ptr = NULL;
 }
 
@@ -22,7 +22,7 @@ void strlist_clear(strlist_t* list)
     char** pim_noalias ptr = list->ptr;
     for (i32 i = 0; i < len; ++i)
     {
-        pim_free(ptr[i]);
+        Mem_Free(ptr[i]);
         ptr[i] = NULL;
     }
     list->count = 0;
@@ -32,7 +32,7 @@ void strlist_add(strlist_t* list, const char* item)
 {
     ASSERT(item);
     i32 len = ++list->count;
-    list->ptr = pim_realloc(list->allocator, list->ptr, sizeof(list->ptr[0]) * len);
+    list->ptr = Mem_Realloc(list->allocator, list->ptr, sizeof(list->ptr[0]) * len);
     list->ptr[len - 1] = StrDup(item, list->allocator);
 }
 
@@ -44,7 +44,7 @@ void strlist_rm(strlist_t* list, i32 i)
     ASSERT(back >= 0);
     list->count = back;
     char** const pim_noalias ptr = list->ptr;
-    pim_free(ptr[i]);
+    Mem_Free(ptr[i]);
     ptr[i] = ptr[back];
     ptr[back] = NULL;
 }

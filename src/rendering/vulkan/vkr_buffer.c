@@ -170,7 +170,7 @@ void vkrBuffer_Release(vkrBuffer *const buffer)
     {
         const vkrReleasable releasable =
         {
-            .frame = vkr_frameIndex(),
+            .frame = vkrSys_FrameIndex(),
             .type = vkrReleasableType_Buffer,
             .buffer = *buffer,
         };
@@ -224,13 +224,13 @@ void vkrBufferSet_Release(vkrBufferSet *const set)
 
 vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set)
 {
-    u32 syncIndex = vkr_syncIndex();
+    u32 syncIndex = vkrSys_SyncIndex();
     return &set->frames[syncIndex];
 }
 
 vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set)
 {
-    u32 prevIndex = (vkr_syncIndex() + (kFramesInFlight - 1u)) % kFramesInFlight;
+    u32 prevIndex = (vkrSys_SyncIndex() + (kFramesInFlight - 1u)) % kFramesInFlight;
     return &set->frames[prevIndex];
 }
 

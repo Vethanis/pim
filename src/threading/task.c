@@ -31,13 +31,13 @@ static pim_thread_local i32 ms_tid;
 
 // ----------------------------------------------------------------------------
 
-static bool ExecuteTask(task_t* task)
+static bool ExecuteTask(Task* task)
 {
     if (task)
     {
         const i32 wsize = task->worksize;
         const i32 gran = i1_max(1, wsize / ms_worksplit);
-        const task_execute_fn fn = task->execute;
+        const TaskExecuteFn fn = task->execute;
 
         i32 a = fetch_add_i32(&task->head, gran, MO_AcqRel);
         i32 b = i1_min(a + gran, wsize);
@@ -63,7 +63,7 @@ static bool ExecuteTask(task_t* task)
 
 static bool TryRunTask(i32 tid)
 {
-    task_t* task = ptrqueue_trypop(&ms_queues[tid]);
+    Task* task = ptrqueue_trypop(&ms_queues[tid]);
     return ExecuteTask(task);
 }
 
@@ -91,31 +91,31 @@ static i32 TaskLoop(void* arg)
 
 // ----------------------------------------------------------------------------
 
-i32 task_thread_id(void)
+i32 Task_ThreadId(void)
 {
     return ms_tid;
 }
 
-i32 task_thread_ct(void)
+i32 Task_ThreadCount(void)
 {
     ASSERT(ms_numthreads > 0);
     return ms_numthreads;
 }
 
-TaskStatus task_stat(const void* pbase)
+TaskStatus Task_Stat(const void* pbase)
 {
     ASSERT(pbase);
-    task_t const *const task = pbase;
+    Task const *const task = pbase;
     return (TaskStatus)load_i32(&task->status, MO_Acquire);
 }
 
-void task_submit(void* pbase, task_execute_fn execute, i32 worksize)
+void Task_Submit(void* pbase, TaskExecuteFn execute, i32 worksize)
 {
     ASSERT(execute);
-    task_t *const task = pbase;
+    Task *const task = pbase;
     if (task && worksize > 0)
     {
-        ASSERT(task_stat(task) == TaskStatus_Init);
+        ASSERT(Task_Stat(task) == TaskStatus_Init);
         store_i32(&task->status, TaskStatus_Exec, MO_Release);
         task->execute = execute;
         store_i32(&task->worksize, worksize, MO_Release);
@@ -138,10 +138,10 @@ void task_submit(void* pbase, task_execute_fn execute, i32 worksize)
 }
 
 ProfileMark(pm_exec, task_exec);
-ProfileMark(pm_await, task_await);
-void task_await(void* pbase)
+ProfileMark(pm_await, Task_Await);
+void Task_Await(void* pbase)
 {
-    task_t* task = pbase;
+    Task* task = pbase;
     if (task)
     {
         ProfileBegin(pm_exec);
@@ -150,7 +150,7 @@ void task_await(void* pbase)
 
         ProfileBegin(pm_await);
         const i32 tid = ms_tid;
-        while (task_stat(task) != TaskStatus_Complete)
+        while (Task_Stat(task) != TaskStatus_Complete)
         {
             if (!TryRunTask(tid))
             {
@@ -161,22 +161,22 @@ void task_await(void* pbase)
     }
 }
 
-void task_run(void* pbase, task_execute_fn fn, i32 worksize)
+void Task_Run(void* pbase, TaskExecuteFn fn, i32 worksize)
 {
-    task_t* task = pbase;
+    Task* task = pbase;
     ASSERT(task);
     ASSERT(fn);
     ASSERT(worksize >= 0);
     if (worksize > 0)
     {
-        task_submit(task, fn, worksize);
-        task_sys_schedule();
-        task_await(task);
+        Task_Submit(task, fn, worksize);
+        TaskSys_Schedule();
+        Task_Await(task);
     }
 }
 
-ProfileMark(pm_schedule, task_sys_schedule)
-void task_sys_schedule(void)
+ProfileMark(pm_schedule, TaskSys_Schedule)
+void TaskSys_Schedule(void)
 {
     ProfileBegin(pm_schedule);
 
@@ -185,7 +185,7 @@ void task_sys_schedule(void)
     ProfileEnd(pm_schedule);
 }
 
-void task_sys_init(void)
+void TaskSys_Init(void)
 {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
@@ -210,8 +210,8 @@ void task_sys_init(void)
     }
 }
 
-ProfileMark(pm_update, task_sys_update)
-void task_sys_update(void)
+ProfileMark(pm_update, TaskSys_Update)
+void TaskSys_Update(void)
 {
     ProfileBegin(pm_update);
 
@@ -225,7 +225,7 @@ void task_sys_update(void)
     ProfileEnd(pm_update);
 }
 
-void task_sys_shutdown(void)
+void TaskSys_Shutdown(void)
 {
     store_i32(&ms_running, 0, MO_Release);
     event_wakeall(&ms_waitDone);

@@ -55,7 +55,7 @@ static bool LogErrors(void)
     while (oidn.oidnGetDeviceError(ms_device, &msg) != OIDN_ERROR_NONE)
     {
         hadError = true;
-        con_logf(LogSev_Error, "oidn", "%s", msg);
+        Con_Logf(LogSev_Error, "oidn", "%s", msg);
     }
     return hadError;
 }
@@ -186,7 +186,7 @@ static i32 FindFilter(const CacheKey* key)
 
 static i32 FindLRU(void)
 {
-    u64 now = time_now();
+    u64 now = Time_Now();
     u64 diff = 0;
     i32 chosen = 0;
     const u64* ticks = ms_cacheTicks;
@@ -224,7 +224,7 @@ static OIDNFilter GetFilter(const CacheKey* key)
         ms_cacheHashes[i] = HashKey(key);
         ms_cacheValues[i] = newFilter;
     }
-    ms_cacheTicks[i] = time_now();
+    ms_cacheTicks[i] = Time_Now();
     return ms_cacheValues[i];
 }
 
@@ -289,13 +289,13 @@ void Denoise_Evict(void)
         return;
     }
 
-    u64 now = time_now();
+    u64 now = Time_Now();
     for (i32 i = 0; i < kMaxCachedFilters; ++i)
     {
         if (ms_cacheValues[i])
         {
             u64 duration = now - ms_cacheTicks[i];
-            if (time_sec(duration) > 5.0)
+            if (Time_Sec(duration) > 5.0)
             {
                 oidn.oidnReleaseFilter(ms_cacheValues[i]);
                 ms_cacheValues[i] = NULL;

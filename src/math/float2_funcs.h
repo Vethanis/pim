@@ -560,9 +560,9 @@ pim_inline float2 VEC_CALL f2_blend(float2 a, float2 b, float2 c, float4 wuvt)
     return p;
 }
 
-pim_inline float2 VEC_CALL f2_rand(prng_t* rng)
+pim_inline float2 VEC_CALL f2_rand(Prng* rng)
 {
-    return f2_v(prng_f32(rng), prng_f32(rng));
+    return f2_v(Prng_f32(rng), Prng_f32(rng));
 }
 
 pim_inline float2 VEC_CALL f2_snorm(float2 u)

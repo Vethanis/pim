@@ -33,17 +33,17 @@ static i32 ms_waits;
 
 // ----------------------------------------------------------------------------
 
-void cmd_sys_init(void)
+void CmdSys_Init(void)
 {
-    sdict_new(&ms_cmds, sizeof(cmdfn_t), EAlloc_Perm);
+    sdict_new(&ms_cmds, sizeof(CmdFn), EAlloc_Perm);
     sdict_new(&ms_aliases, sizeof(cmdalias_t), EAlloc_Perm);
     queue_create(&ms_queue, sizeof(char*), EAlloc_Perm);
-    cmd_reg("alias", cmd_alias_fn);
-    cmd_reg("exec", cmd_execfile_fn);
-    cmd_reg("wait", cmd_wait_fn);
+    Cmd_Reg("alias", cmd_alias_fn);
+    Cmd_Reg("exec", cmd_execfile_fn);
+    Cmd_Reg("wait", cmd_wait_fn);
 }
 
-void cmd_sys_update(void)
+void CmdSys_Update(void)
 {
     if (ms_waits > 0)
     {
@@ -53,19 +53,19 @@ void cmd_sys_update(void)
     ExecCmds();
 }
 
-void cmd_sys_shutdown(void)
+void CmdSys_Shutdown(void)
 {
     sdict_del(&ms_cmds);
     sdict_del(&ms_aliases);
     char* line = NULL;
     while (queue_trypop(&ms_queue, &line, sizeof(line)))
     {
-        pim_free(line);
+        Mem_Free(line);
     }
     queue_destroy(&ms_queue);
 }
 
-void cmd_reg(const char* name, cmdfn_t fn)
+void Cmd_Reg(const char* name, CmdFn fn)
 {
     ASSERT(name);
     ASSERT(fn);
@@ -75,13 +75,13 @@ void cmd_reg(const char* name, cmdfn_t fn)
     }
 }
 
-bool cmd_exists(const char* name)
+bool Cmd_Exists(const char* name)
 {
     ASSERT(name);
     return sdict_find(&ms_cmds, name) != -1;
 }
 
-const char* cmd_complete(const char* namePart)
+const char* Cmd_Complete(const char* namePart)
 {
     ASSERT(namePart);
     const i32 partLen = StrLen(namePart);
@@ -115,7 +115,7 @@ static cmdstat_t cmd_exec(const char* line)
     ASSERT(name);
 
     // commands
-    cmdfn_t cmd = NULL;
+    CmdFn cmd = NULL;
     if (sdict_get(&ms_cmds, name, &cmd))
     {
         return cmd(argc, argv);
@@ -136,7 +136,7 @@ static cmdstat_t cmd_exec(const char* line)
     {
         if (argc == 1)
         {
-            con_logf(LogSev_Info, "cmd", "'%s' is '%s'", cvar->name, cvar->value);
+            Con_Logf(LogSev_Info, "cmd", "'%s' is '%s'", cvar->name, cvar->value);
             return cmdstat_ok;
         }
         if (argc >= 2)
@@ -154,7 +154,7 @@ static cmdstat_t cmd_exec(const char* line)
             {
             default:
                 ASSERT(false);
-                con_logf(LogSev_Error, "cmd", "cvar '%s' has unknown type '%d'", cvar->name, cvar->type);
+                Con_Logf(LogSev_Error, "cmd", "cvar '%s' has unknown type '%d'", cvar->name, cvar->type);
                 return cmdstat_err;
             case cvart_text:
                 cvar_set_str(cvar, v0);
@@ -174,16 +174,16 @@ static cmdstat_t cmd_exec(const char* line)
                 cvar_set_vec(cvar, (float4) { (float)atof(v0), (float)atof(v1), (float)atof(v2), (float)atof(v2) });
                 break;
             }
-            con_logf(LogSev_Info, "cmd", "'%s' = '%s'", cvar->name, cvar->value);
+            Con_Logf(LogSev_Info, "cmd", "'%s' = '%s'", cvar->name, cvar->value);
             return cmdstat_ok;
         }
     }
 
-    con_logf(LogSev_Error, "cmd", "Unknown command '%s'", name);
+    Con_Logf(LogSev_Error, "cmd", "Unknown command '%s'", name);
     return cmdstat_err;
 }
 
-cmdstat_t cmd_text(const char* constText)
+cmdstat_t Cmd_Text(const char* constText)
 {
     i32 i, q;
     if (!constText)
@@ -239,7 +239,7 @@ static cmdstat_t ExecCmds(void)
         while (queue_trypop(&ms_queue, &line, sizeof(line)))
         {
             status = cmd_exec(line);
-            pim_free(line);
+            Mem_Free(line);
             if (ms_waits)
             {
                 break;
@@ -278,7 +278,7 @@ static bool IsLineEnding(char c)
     }
 }
 
-const char* cmd_parse(const char* text, char** tokenOut)
+const char* Cmd_Parse(const char* text, char** tokenOut)
 {
     ASSERT(text);
     ASSERT(tokenOut);
@@ -376,11 +376,11 @@ static char** cmd_tokenize(const char* text, i32* argcOut)
             break;
         }
         char* token = NULL;
-        text = cmd_parse(text, &token);
+        text = Cmd_Parse(text, &token);
         if (token)
         {
             ++argc;
-            argv = pim_realloc(EAlloc_Temp, argv, sizeof(*argv) * argc);
+            argv = Mem_Realloc(EAlloc_Temp, argv, sizeof(*argv) * argc);
             argv[argc - 1] = token;
         }
     }
@@ -392,7 +392,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
 {
     if (argc <= 1)
     {
-        con_logf(LogSev_Info, "cmd", "Current alias commands:");
+        Con_Logf(LogSev_Info, "cmd", "Current alias commands:");
         const u32 width = ms_aliases.width;
         const char** names = ms_aliases.keys;
         const cmdalias_t* aliases = ms_aliases.values;
@@ -401,7 +401,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
             const char* name = names[i];
             if (name)
             {
-                con_logf(LogSev_Info, "cmd", "%s : %s", name, aliases[i].value);
+                Con_Logf(LogSev_Info, "cmd", "%s : %s", name, aliases[i].value);
             }
         }
         return cmdstat_ok;
@@ -412,7 +412,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
     cmdalias_t alias = { 0 };
     if (sdict_rm(&ms_aliases, aliasKey, &alias))
     {
-        pim_free(alias.value);
+        Mem_Free(alias.value);
         alias.value = NULL;
     }
 
@@ -438,15 +438,15 @@ static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv)
 {
     if (argc != 2)
     {
-        con_logf(LogSev_Error, "cmd", "exec <filename> : executes a script file");
+        Con_Logf(LogSev_Error, "cmd", "exec <filename> : executes a script file");
         return cmdstat_err;
     }
     const char* filename = argv[1];
     asset_t asset;
-    if (asset_get(filename, &asset))
+    if (Asset_Get(filename, &asset))
     {
         const char* text = asset.pData;
-        cmd_text(text);
+        Cmd_Text(text);
         return cmdstat_ok;
     }
     return cmdstat_err;
@@ -464,7 +464,7 @@ static cmdstat_t cmd_wait_fn(i32 argc, const char** argv)
         }
         else
         {
-            con_logf(LogSev_Error, "cmd", "unidentified wait count");
+            Con_Logf(LogSev_Error, "cmd", "unidentified wait count");
             return cmdstat_err;
         }
     }

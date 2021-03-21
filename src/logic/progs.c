@@ -93,7 +93,7 @@ static pr_string_t FindString(progs_t* progs, const char* str)
             return (pr_string_t) { i };
         }
     }
-    PermReserve(strings, len + 1);
+    Perm_Reserve(strings, len + 1);
     strings[len] = StrDup(str, EAlloc_Perm);
     progs->numstrings = len + 1;
     progs->strings = strings;
@@ -104,7 +104,7 @@ static void AddEntity(progs_t* progs, pr_entity_t ent)
 {
     i32 back = progs->numentities++;
     i32 len = back + 1;
-    PermReserve(progs->entities, len);
+    Perm_Reserve(progs->entities, len);
     progs->entities[back] = ent;
 }
 
@@ -305,7 +305,7 @@ void progs_parse(progs_t* progs, const char* text)
     while (true)
     {
         char* token = NULL;
-        text = cmd_parse(text, &token);
+        text = Cmd_Parse(text, &token);
         if (!text)
         {
             break;
@@ -369,12 +369,12 @@ void progs_del(progs_t* progs)
         char** strings = progs->strings;
         for (i32 i = 0; i < numstrings; ++i)
         {
-            pim_free(strings[i]);
+            Mem_Free(strings[i]);
             strings[i] = NULL;
         }
-        pim_free(strings);
-        pim_free(progs->entities);
-        pim_free(progs->names);
+        Mem_Free(strings);
+        Mem_Free(progs->entities);
+        Mem_Free(progs->names);
         memset(progs, 0, sizeof(*progs));
     }
 }

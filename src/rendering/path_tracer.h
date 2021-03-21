@@ -8,35 +8,35 @@ PIM_C_BEGIN
 
 typedef struct Material_s Material;
 typedef struct Camera_s Camera;
-typedef struct task_s task_t;
+typedef struct Task_s Task;
 
-typedef struct pt_scene_s pt_scene_t;
+typedef struct PtScene_s PtScene;
 
-typedef struct pt_sampler_s
+typedef struct PtSampler_s
 {
-    prng_t rng;
+    Prng rng;
     float Xi[8];
-} pt_sampler_t;
+} PtSampler;
 
 typedef enum
 {
-    hit_nothing = 0,
-    hit_backface,
-    hit_triangle,
+    Hit_Nothing = 0,
+    Hit_Backface,
+    Hit_Triangle,
 
-    hit_COUNT
-} hittype_t;
+    Hit_COUNT
+} HitType;
 
-typedef struct rayhit_s
+typedef struct RayHit_s
 {
     float4 wuvt;
     float4 normal;
-    hittype_t type;
+    HitType type;
     i32 index;
     u32 flags;
-} rayhit_t;
+} RayHit;
 
-typedef struct dofinfo_s
+typedef struct DofInfo_s
 {
     float aperture;
     float focalLength;
@@ -45,77 +45,77 @@ typedef struct dofinfo_s
     float focalPlaneCurvature;
     float autoFocusSpeed;
     bool autoFocus;
-} dofinfo_t;
+} DofInfo;
 
-typedef struct pt_trace_s
+typedef struct PtTrace_s
 {
-    pt_scene_t* scene;
+    PtScene* scene;
     float3* color;
     float3* albedo;
     float3* normal;
     float3* denoised;
     int2 imageSize;
     float sampleWeight;
-    dofinfo_t dofinfo;
-} pt_trace_t;
+    DofInfo dofinfo;
+} PtTrace;
 
-typedef struct pt_result_s
+typedef struct PtResult_s
 {
     float3 color;
     float3 albedo;
     float3 normal;
-} pt_result_t;
+} PtResult;
 
-typedef struct pt_results_s
+typedef struct PtResults_s
 {
     float4* colors;
     float4* directions;
-} pt_results_t;
+} PtResults;
 
-void pt_sys_init(void);
-void pt_sys_update(void);
-void pt_sys_shutdown(void);
+void PtSys_Init(void);
+void PtSys_Update(void);
+void PtSys_Shutdown(void);
 
-pt_sampler_t VEC_CALL pt_sampler_get(void);
-void VEC_CALL pt_sampler_set(pt_sampler_t sampler);
-float2 VEC_CALL pt_sample_2d(pt_sampler_t*const pim_noalias sampler);
-float VEC_CALL pt_sample_1d(pt_sampler_t*const pim_noalias sampler);
+PtSampler VEC_CALL PtSampler_Get(void);
+void VEC_CALL PtSampler_Set(PtSampler sampler);
+float2 VEC_CALL Pt_Sample2D(PtSampler*const pim_noalias sampler);
+float VEC_CALL Pt_Sample1D(PtSampler*const pim_noalias sampler);
 
-pt_scene_t* pt_scene_new(void);
-void pt_scene_update(pt_scene_t*const pim_noalias scene);
-void pt_scene_del(pt_scene_t*const pim_noalias scene);
-void pt_scene_gui(pt_scene_t*const pim_noalias scene);
+PtScene* PtScene_New(void);
+void PtScene_Update(PtScene*const pim_noalias scene);
+void PtScene_Del(PtScene*const pim_noalias scene);
+void PtScene_Gui(PtScene*const pim_noalias scene);
 
-void pt_trace_new(pt_trace_t* trace, pt_scene_t*const pim_noalias scene, int2 imageSize);
-void pt_trace_del(pt_trace_t* trace);
-void pt_trace_gui(pt_trace_t* trace);
+void PtTrace_New(PtTrace* trace, PtScene*const pim_noalias scene, int2 imageSize);
+void PtTrace_Del(PtTrace* trace);
+void PtTrace_Gui(PtTrace* trace);
 
-void dofinfo_new(dofinfo_t* dof);
-void dofinfo_gui(dofinfo_t* dof);
+void DofInfo_New(DofInfo* dof);
+void DofInfo_Gui(DofInfo* dof);
 
-rayhit_t VEC_CALL pt_intersect(
-    pt_scene_t *const pim_noalias scene,
+RayHit VEC_CALL Pt_Intersect(
+    PtScene *const pim_noalias scene,
     float4 ro,
     float4 rd,
     float tNear,
     float tFar);
 
-pt_result_t VEC_CALL pt_trace_ray(
-    pt_sampler_t*const pim_noalias sampler,
-    pt_scene_t*const pim_noalias scene,
+PtResult VEC_CALL Pt_TraceRay(
+    PtSampler*const pim_noalias sampler,
+    PtScene*const pim_noalias scene,
     float4 ro,
     float4 rd);
 
-pt_result_t VEC_CALL pt_trace_ray_retro(
-    pt_sampler_t *const pim_noalias sampler,
-    pt_scene_t *const pim_noalias scene,
+PtResult VEC_CALL Pt_TraceRayRetro(
+    PtSampler *const pim_noalias sampler,
+    PtScene *const pim_noalias scene,
     float4 ro,
     float4 rd);
 
-void pt_trace(pt_trace_t* traceDesc, const Camera* camera);
+void Pt_Trace(PtTrace* traceDesc, const Camera* camera);
 
-pt_results_t pt_raygen(
-    pt_scene_t*const pim_noalias scene,
+PtResults Pt_RayGen(
+    PtScene*const pim_noalias scene,
     float4 origin,
     i32 count);
 

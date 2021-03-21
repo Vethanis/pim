@@ -118,8 +118,8 @@ void profile_gui(bool* pEnabled)
 void _ProfileBegin(profmark_t *const mark)
 {
     ASSERT(mark);
-    const i32 tid = task_thread_id();
-    const u32 frame = time_framecount();
+    const i32 tid = Task_ThreadId();
+    const u32 frame = Time_FrameCount();
 
     if (frame != ms_frame[tid])
     {
@@ -135,7 +135,7 @@ void _ProfileBegin(profmark_t *const mark)
         top = &ms_roots[tid];
     }
 
-    node_t *const next = tmp_calloc(sizeof(*next));
+    node_t *const next = Temp_Calloc(sizeof(*next));
     next->mark = mark;
     next->parent = top;
     if (top->lchild)
@@ -149,16 +149,16 @@ void _ProfileBegin(profmark_t *const mark)
     top->lchild = next;
     ms_top[tid] = next;
 
-    next->begin = time_now();
+    next->begin = Time_Now();
 }
 
 void _ProfileEnd(profmark_t *const mark)
 {
-    const u64 end = time_now();
+    const u64 end = Time_Now();
 
     ASSERT(mark);
 
-    const i32 tid = task_thread_id();
+    const i32 tid = Task_ThreadId();
     node_t *const top = ms_top[tid];
 
     ASSERT(top);
@@ -166,7 +166,7 @@ void _ProfileEnd(profmark_t *const mark)
     ASSERT(top->parent);
     ASSERT(top->begin);
     ASSERT(top->end == 0);
-    ASSERT(time_framecount() == ms_frame[tid]);
+    ASSERT(Time_FrameCount() == ms_frame[tid]);
 
     top->end = end;
     ms_top[tid] = top->parent;
@@ -242,7 +242,7 @@ static stat_t UpdateNodeStats(node_t const *const node)
     ASSERT(node);
     ASSERT(node->mark);
     ASSERT(node->hash);
-    double x = time_milli(node->end - node->begin);
+    double x = Time_Milli(node->end - node->begin);
     stat_t st;
     if (dict_get(&ms_stats, &node->hash, &st))
     {

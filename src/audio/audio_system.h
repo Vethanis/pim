@@ -4,11 +4,11 @@
 
 PIM_C_BEGIN
 
-void audio_sys_init(void);
-void audio_sys_update(void);
-void audio_sys_shutdown(void);
-void audio_sys_ongui(bool* pEnabled);
+void AudioSys_Init(void);
+void AudioSys_Update(void);
+void AudioSys_Shutdown(void);
+void AudioSys_Gui(bool* pEnabled);
 
-u32 audio_sys_tick(void);
+u32 AudioSys_Ticks(void);
 
 PIM_C_END

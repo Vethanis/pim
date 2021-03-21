@@ -9,7 +9,7 @@ void idalloc_new(idalloc_t* ia)
 
 void idalloc_del(idalloc_t* ia)
 {
-    pim_free(ia->versions);
+    Mem_Free(ia->versions);
     queue_i32_del(&ia->freelist);
     memset(ia, 0, sizeof(*ia));
 }
@@ -49,7 +49,7 @@ GenId idalloc_alloc(idalloc_t* ia)
     if (!queue_i32_trypop(&ia->freelist, &index))
     {
         index = ia->length++;
-        PermReserve(ia->versions, ia->length);
+        Perm_Reserve(ia->versions, ia->length);
         ia->versions[index] = 0;
     }
     u8 version = ++(ia->versions[index]);

@@ -4,11 +4,11 @@
 
 void pimswap(void* lhs, void* rhs, i32 stride)
 {
-    void* tmp = pim_pusha(stride);
+    void* tmp = Mem_Push(stride);
     memcpy(tmp, lhs, stride);
     memcpy(lhs, rhs, stride);
     memcpy(rhs, tmp, stride);
-    pim_popa(stride);
+    Mem_Pop(stride);
 }
 
 void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
@@ -44,7 +44,7 @@ void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
     i32 i = 0;
     {
         i32 j = count - 1;
-        void* pivot = pim_pusha(stride);
+        void* pivot = Mem_Push(stride);
         memcpy(pivot, items + stride * (count >> 1), stride);
 
         while (true)
@@ -69,7 +69,7 @@ void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
             --j;
         }
 
-        pim_popa(stride);
+        Mem_Pop(stride);
     }
 
     pimsort(items, i, stride, cmp, usr);
@@ -164,7 +164,7 @@ i32* indsort(const void* items, i32 count, i32 stride, CmpFn cmp, void* usr)
     ASSERT(stride);
     ASSERT(cmp);
 
-    i32* indices = tmp_malloc(sizeof(indices[0]) * count);
+    i32* indices = Temp_Alloc(sizeof(indices[0]) * count);
     for (i32 i = 0; i < count; ++i)
     {
         indices[i] = i;

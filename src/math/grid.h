@@ -3,14 +3,14 @@
 #include "math/types.h"
 #include "math/float4_funcs.h"
 
-typedef struct grid_s
+typedef struct Grid_s
 {
     Box3D bounds;
     int3 size;
     float cellsPerMeter;
-} grid_t;
+} Grid;
 
-pim_inline void VEC_CALL grid_new(grid_t *const grid, Box3D bounds, float cellsPerMeter)
+pim_inline void VEC_CALL Grid_New(Grid *const grid, Box3D bounds, float cellsPerMeter)
 {
     float4 range = f4_sub(bounds.hi, bounds.lo);
     float4 sizef = f4_ceil(f4_mulvs(range, cellsPerMeter));
@@ -20,13 +20,13 @@ pim_inline void VEC_CALL grid_new(grid_t *const grid, Box3D bounds, float cellsP
     grid->cellsPerMeter = cellsPerMeter;
 }
 
-pim_inline i32 VEC_CALL grid_len(grid_t const *const grid)
+pim_inline i32 VEC_CALL Grid_Len(Grid const *const grid)
 {
     int3 size = grid->size;
     return size.x * size.y * size.z;
 }
 
-pim_inline float4 VEC_CALL grid_position(grid_t const *const grid, i32 index)
+pim_inline float4 VEC_CALL Grid_Position(Grid const *const grid, i32 index)
 {
     const int3 size = grid->size;
     const float metersPerCell = 1.0f / grid->cellsPerMeter;
@@ -43,7 +43,7 @@ pim_inline float4 VEC_CALL grid_position(grid_t const *const grid, i32 index)
     return f4_add(grid->bounds.lo, offset);
 }
 
-pim_inline i32 VEC_CALL grid_index(grid_t const *const grid, float4 position)
+pim_inline i32 VEC_CALL Grid_Index(Grid const *const grid, float4 position)
 {
     float4 offset = f4_mulvs(f4_sub(position, grid->bounds.lo), grid->cellsPerMeter);
     const int3 size = grid->size;

@@ -6,13 +6,12 @@ PIM_C_BEGIN
 
 typedef struct framebuf_s framebuf_t;
 
-void render_sys_init(void);
-void render_sys_update(void);
-void render_sys_shutdown(void);
+void RenderSys_Init(void);
+void RenderSys_Update(void);
+void RenderSys_Shutdown(void);
+void RenderSys_Gui(bool* pEnabled);
 
-void render_sys_gui(bool* pEnabled);
-
-framebuf_t* render_sys_frontbuf(void);
-framebuf_t* render_sys_backbuf(void);
+framebuf_t* RenderSys_FrontBuf(void);
+framebuf_t* RenderSys_BackBuf(void);
 
 PIM_C_END

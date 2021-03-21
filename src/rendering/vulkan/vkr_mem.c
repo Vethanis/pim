@@ -298,7 +298,7 @@ void vkrAllocator_Finalize(vkrAllocator *const allocator)
     ASSERT(allocator->handle);
 
     spinlock_lock(&allocator->lock);
-    const u32 frame = vkr_frameIndex() + kFramesInFlight * 2;
+    const u32 frame = vkrSys_FrameIndex() + kFramesInFlight * 2;
     i32 len = allocator->numreleasable;
     vkrReleasable *const releasables = allocator->releasables;
     for (i32 i = len - 1; i >= 0; --i)
@@ -326,7 +326,7 @@ void vkrAllocator_Update(vkrAllocator *const allocator)
     // command fences must still be alive
     ASSERT(g_vkr.context.threadcount);
 
-    const u32 frame = vkr_frameIndex();
+    const u32 frame = vkrSys_FrameIndex();
     vmaSetCurrentFrameIndex(allocator->handle, frame);
     {
         spinlock_lock(&allocator->lock);
@@ -360,7 +360,7 @@ void vkrReleasable_Add(
 
     spinlock_lock(&allocator->lock);
     i32 back = allocator->numreleasable++;
-    PermReserve(allocator->releasables, back + 1);
+    Perm_Reserve(allocator->releasables, back + 1);
     allocator->releasables[back] = *releasable;
     spinlock_unlock(&allocator->lock);
 

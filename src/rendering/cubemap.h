@@ -11,7 +11,7 @@ PIM_C_BEGIN
 #define CUBEMAP_DEFAULT_SIZE    64      // exp2(CUBEMAP_MAX_MIP)
 #define CUBEMAP_MAX_MIP         6.0f    // log2(CUBEMAP_DEFAULT_SIZE)
 
-typedef struct pt_scene_s pt_scene_t;
+typedef struct PtScene_s PtScene;
 
 typedef enum
 {
@@ -234,7 +234,7 @@ pim_inline float4 VEC_CALL Cubemap_CalcDir(
 
 void Cubemap_Bake(
     Cubemap* cm,
-    pt_scene_t* scene,
+    PtScene* scene,
     float4 origin,
     float weight);
 

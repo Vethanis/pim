@@ -45,10 +45,10 @@ static bool IsCurrent(MeshId id)
 static void FreeMesh(Mesh *const mesh)
 {
     vkrMegaMesh_Free(mesh->id);
-    pim_free(mesh->positions);
-    pim_free(mesh->normals);
-    pim_free(mesh->uvs);
-    pim_free(mesh->texIndices);
+    Mem_Free(mesh->positions);
+    Mem_Free(mesh->normals);
+    Mem_Free(mesh->uvs);
+    Mem_Free(mesh->texIndices);
     memset(mesh, 0, sizeof(*mesh));
 }
 
@@ -271,7 +271,7 @@ bool mesh_save(Crate *const crate, MeshId id, Guid *const dst)
         const i32 uvBytes = sizeof(mesh.uvs[0]) * len;
         const i32 texIndBytes = sizeof(mesh.texIndices[0]) * len;
         const i32 totalBytes = hdrBytes + positionBytes + normalBytes + uvBytes + texIndBytes;
-        DiskMesh* dmesh = perm_malloc(totalBytes);
+        DiskMesh* dmesh = Perm_Alloc(totalBytes);
         dmesh->version = kMeshVersion;
         dmesh->length = len;
         guid_get_name(*dst, ARGS(dmesh->name));
@@ -284,7 +284,7 @@ bool mesh_save(Crate *const crate, MeshId id, Guid *const dst)
         memcpy(uvs, mesh.uvs, uvBytes);
         memcpy(texIndices, mesh.texIndices, texIndBytes);
         bool wasSet = crate_set(crate, *dst, dmesh, totalBytes);
-        pim_free(dmesh);
+        Mem_Free(dmesh);
         return wasSet;
     }
     return false;
@@ -304,7 +304,7 @@ bool mesh_load(Crate *const crate, Guid name, MeshId *const dst)
     i32 size = 0;
     if (crate_stat(crate, name, &offset, &size))
     {
-        DiskMesh* dmesh = perm_malloc(size);
+        DiskMesh* dmesh = Perm_Alloc(size);
         if (dmesh && crate_get(crate, name, dmesh, size))
         {
             if (dmesh->version == kMeshVersion)
@@ -314,10 +314,10 @@ bool mesh_load(Crate *const crate, Guid name, MeshId *const dst)
                 {
                     guid_set_name(name, dmesh->name);
                     mesh.length = len;
-                    mesh.positions = perm_malloc(sizeof(mesh.positions[0]) * mesh.length);
-                    mesh.normals = perm_malloc(sizeof(mesh.normals[0]) * mesh.length);
-                    mesh.uvs = perm_malloc(sizeof(mesh.uvs[0]) * mesh.length);
-                    mesh.texIndices = perm_malloc(sizeof(mesh.texIndices[0]) * mesh.length);
+                    mesh.positions = Perm_Alloc(sizeof(mesh.positions[0]) * mesh.length);
+                    mesh.normals = Perm_Alloc(sizeof(mesh.normals[0]) * mesh.length);
+                    mesh.uvs = Perm_Alloc(sizeof(mesh.uvs[0]) * mesh.length);
+                    mesh.texIndices = Perm_Alloc(sizeof(mesh.texIndices[0]) * mesh.length);
 
                     float4* positions = (float4*)(dmesh + 1);
                     float4* normals = positions + len;
@@ -331,7 +331,7 @@ bool mesh_load(Crate *const crate, Guid name, MeshId *const dst)
                 }
             }
         }
-        pim_free(dmesh);
+        Mem_Free(dmesh);
     }
     return loaded;
 }
@@ -448,7 +448,7 @@ void mesh_sys_gui(bool* pEnabled)
             gs_revsort = !gs_revsort;
         }
 
-        i32* indices = tmp_calloc(sizeof(indices[0]) * width);
+        i32* indices = Temp_Calloc(sizeof(indices[0]) * width);
         for (i32 i = 0; i < width; ++i)
         {
             indices[i] = i;

@@ -39,7 +39,7 @@ void graph_del(graph_t* graph)
 {
     ASSERT(graph);
     graph_clear(graph);
-    pim_free(graph->verts);
+    Mem_Free(graph->verts);
     graph->verts = NULL;
     graph->length = 0;
 }
@@ -50,7 +50,7 @@ void graph_clear(graph_t* graph)
     const i32 len = graph->length;
     for (i32 i = 0; i < len; ++i)
     {
-        pim_free(verts[i].edges);
+        Mem_Free(verts[i].edges);
         verts[i].edges = NULL;
         verts[i].length = 0;
     }
@@ -88,7 +88,7 @@ i32 graph_size(const graph_t* graph)
 i32 graph_addvert(graph_t* graph)
 {
     i32 back = graph->length++;
-    graph->verts = pim_realloc(graph->allocator, graph->verts, sizeof(vertex_t) * (back + 1));
+    graph->verts = Mem_Realloc(graph->allocator, graph->verts, sizeof(vertex_t) * (back + 1));
     vertex_t vert;
     vert.edges = NULL;
     vert.length = 0;
@@ -115,7 +115,7 @@ bool graph_addedge(graph_t* graph, i32 src, i32 dst)
         }
     }
 
-    edges = pim_realloc(graph->allocator, edges, sizeof(i32) * (back + 1));
+    edges = Mem_Realloc(graph->allocator, edges, sizeof(i32) * (back + 1));
     edges[back] = src;
 
     vert->edges = edges;

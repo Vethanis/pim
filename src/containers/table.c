@@ -19,7 +19,7 @@ pim_inline void LookupReserve(Table *const table, i32 capacity)
         return;
     }
 
-    i32 *const pim_noalias newIndices = perm_malloc(sizeof(newIndices[0]) * newWidth);
+    i32 *const pim_noalias newIndices = Perm_Alloc(sizeof(newIndices[0]) * newWidth);
     i32 *const pim_noalias oldIndices = table->lookup;
     const Guid *const pim_noalias names = table->names;
 
@@ -51,7 +51,7 @@ pim_inline void LookupReserve(Table *const table, i32 capacity)
     table->lookup = newIndices;
     table->lookupWidth = newWidth;
 
-    pim_free(oldIndices);
+    Mem_Free(oldIndices);
 }
 
 pim_inline i32 LookupInsert(Table *const table, i32 iTable, Guid name)
@@ -156,11 +156,11 @@ void table_del(Table *const table)
     if (table)
     {
         queue_i32_del(&table->freelist);
-        pim_free(table->versions);
-        pim_free(table->values);
-        pim_free(table->refcounts);
-        pim_free(table->names);
-        pim_free(table->lookup);
+        Mem_Free(table->versions);
+        Mem_Free(table->values);
+        Mem_Free(table->refcounts);
+        Mem_Free(table->names);
+        Mem_Free(table->lookup);
         memset(table, 0, sizeof(*table));
     }
 }
@@ -215,10 +215,10 @@ bool table_add(
     {
         table->width += 1;
         const i32 len = table->width;
-        PermReserve(table->versions, len);
-        PermReserve(table->refcounts, len);
-        PermReserve(table->names, len);
-        table->values = perm_realloc(table->values, len * stride);
+        Perm_Reserve(table->versions, len);
+        Perm_Reserve(table->refcounts, len);
+        Perm_Reserve(table->names, len);
+        table->values = Perm_Realloc(table->values, len * stride);
 
         index = len - 1;
         version = 1;

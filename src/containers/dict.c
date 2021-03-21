@@ -77,9 +77,9 @@ void dict_del(dict_t* dict)
 
     dict->width = 0;
     dict->count = 0;
-    pim_free(dict->hashes); dict->hashes = NULL;
-    pim_free(dict->keys); dict->keys = NULL;
-    pim_free(dict->values); dict->values = NULL;
+    Mem_Free(dict->hashes); dict->hashes = NULL;
+    Mem_Free(dict->keys); dict->keys = NULL;
+    Mem_Free(dict->values); dict->values = NULL;
 }
 
 void dict_clear(dict_t* dict)
@@ -117,9 +117,9 @@ void dict_reserve(dict_t* dict, i32 count)
     u8 *const pim_noalias oldKeys = dict->keys;
     u8 *const pim_noalias oldValues = dict->values;
 
-    u32 *const pim_noalias newHashes = pim_calloc(allocator, sizeof(u32) * newWidth);
-    u8 *const pim_noalias newKeys = pim_calloc(allocator, keySize * newWidth);
-    u8 *const pim_noalias newValues = pim_calloc(allocator, valueSize * newWidth);
+    u32 *const pim_noalias newHashes = Mem_Calloc(allocator, sizeof(u32) * newWidth);
+    u8 *const pim_noalias newKeys = Mem_Calloc(allocator, keySize * newWidth);
+    u8 *const pim_noalias newValues = Mem_Calloc(allocator, valueSize * newWidth);
 
     const u32 newMask = newWidth - 1u;
     for (u32 i = 0; i < oldWidth;)
@@ -145,9 +145,9 @@ void dict_reserve(dict_t* dict, i32 count)
         ++i;
     }
 
-    pim_free(oldHashes);
-    pim_free(oldKeys);
-    pim_free(oldValues);
+    Mem_Free(oldHashes);
+    Mem_Free(oldKeys);
+    Mem_Free(oldValues);
 
     dict->width = newWidth;
     dict->hashes = newHashes;
@@ -327,7 +327,7 @@ u32* dict_sort(const dict_t* dict, DictCmpFn cmp, void* usr)
     const u32 length = dict->count;
     const u32 width = dict->width;
     const u32* hashes = dict->hashes;
-    u32* indices = tmp_calloc(length * sizeof(indices[0]));
+    u32* indices = Temp_Calloc(length * sizeof(indices[0]));
     u32 j = 0;
     for (u32 i = 0; i < width; ++i)
     {

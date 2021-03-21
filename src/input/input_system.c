@@ -13,22 +13,22 @@ static u8 ms_buttons[GLFW_MOUSE_BUTTON_LAST + 1];
 static float ms_prevaxis[MouseAxis_COUNT];
 static float ms_axis[MouseAxis_COUNT];
 
-static void OnKey(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods);
-static void OnClick(GLFWwindow* window, i32 button, i32 action, i32 mods);
-static void OnScroll(GLFWwindow* window, double xoffset, double yoffset);
-static void OnChar(GLFWwindow* window, u32 c);
-static void OnMove(GLFWwindow* window, double cursorX, double cursorY);
-static void OnFocus(GLFWwindow* window, i32 focused);
+static void Input_OnKey(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods);
+static void Input_OnClick(GLFWwindow* window, i32 button, i32 action, i32 mods);
+static void Input_OnScroll(GLFWwindow* window, double xoffset, double yoffset);
+static void Input_OnChar(GLFWwindow* window, u32 c);
+static void Input_OnMove(GLFWwindow* window, double cursorX, double cursorY);
+static void Input_OnFocus(GLFWwindow* window, i32 focused);
 
 // ----------------------------------------------------------------------------
 
-void input_sys_init(void)
+void InputSys_Init(void)
 {
 
 }
 
-ProfileMark(pm_update, input_sys_update)
-void input_sys_update(void)
+ProfileMark(pm_update, InputSys_Update)
+void InputSys_Update(void)
 {
     ProfileBegin(pm_update);
 
@@ -49,12 +49,12 @@ void input_sys_update(void)
     ProfileEnd(pm_update);
 }
 
-void input_sys_shutdown(void)
+void InputSys_Shutdown(void)
 {
     ms_focused = NULL;
 }
 
-void input_reg_window(GLFWwindow* window)
+void Input_RegWindow(GLFWwindow* window)
 {
     if (window)
     {
@@ -63,21 +63,21 @@ void input_reg_window(GLFWwindow* window)
         {
             ms_focused = window;
         }
-        glfwSetKeyCallback(window, OnKey);
-        glfwSetMouseButtonCallback(window, OnClick);
-        glfwSetScrollCallback(window, OnScroll);
-        glfwSetCharCallback(window, OnChar);
-        glfwSetCursorPosCallback(window, OnMove);
-        glfwSetWindowFocusCallback(window, OnFocus);
+        glfwSetKeyCallback(window, Input_OnKey);
+        glfwSetMouseButtonCallback(window, Input_OnClick);
+        glfwSetScrollCallback(window, Input_OnScroll);
+        glfwSetCharCallback(window, Input_OnChar);
+        glfwSetCursorPosCallback(window, Input_OnMove);
+        glfwSetWindowFocusCallback(window, Input_OnFocus);
     }
 }
 
-GLFWwindow* input_get_focus(void)
+GLFWwindow* Input_GetFocus(void)
 {
     return ms_focused;
 }
 
-void input_set_focus(GLFWwindow* window)
+void Input_SetFocus(GLFWwindow* window)
 {
     if (window)
     {
@@ -85,7 +85,7 @@ void input_set_focus(GLFWwindow* window)
     }
 }
 
-bool input_cursor_captured(GLFWwindow* window)
+bool Input_IsCursorCaptured(GLFWwindow* window)
 {
     i32 mode = 0;
     if (window)
@@ -95,7 +95,7 @@ bool input_cursor_captured(GLFWwindow* window)
     return mode == GLFW_CURSOR_DISABLED;
 }
 
-void input_capture_cursor(GLFWwindow* window, bool capture)
+void Input_CaptureCursor(GLFWwindow* window, bool capture)
 {
     if (window)
     {
@@ -104,107 +104,107 @@ void input_capture_cursor(GLFWwindow* window, bool capture)
     }
 }
 
-bool input_key(KeyCode key)
+bool Input_GetKey(KeyCode key)
 {
     ASSERT(key > KeyCode_Invalid);
     ASSERT(key < KeyCode_COUNT);
     return ms_keys[key];
 }
 
-bool input_button(MouseButton button)
+bool Input_GetButton(MouseButton button)
 {
     ASSERT(button >= 0);
     ASSERT(button < NELEM(ms_buttons));
     return ms_buttons[button];
 }
 
-bool input_keydown(KeyCode key)
+bool Input_IsKeyDown(KeyCode key)
 {
     ASSERT(key > KeyCode_Invalid);
     ASSERT(key < KeyCode_COUNT);
     return ms_keys[key] && !ms_prevKeys[key];
 }
 
-bool input_buttondown(MouseButton button)
+bool Input_IsButtonDown(MouseButton button)
 {
     ASSERT(button >= 0);
     ASSERT(button < NELEM(ms_buttons));
     return ms_buttons[button] && !ms_prevButtons[button];
 }
 
-bool input_keyup(KeyCode key)
+bool Input_IsKeyUp(KeyCode key)
 {
     ASSERT(key > KeyCode_Invalid);
     ASSERT(key < KeyCode_COUNT);
     return !ms_keys[key] && ms_prevKeys[key];
 }
 
-bool input_buttonup(MouseButton button)
+bool Input_IsButtonUp(MouseButton button)
 {
     ASSERT(button >= 0);
     ASSERT(button < NELEM(ms_buttons));
     return !ms_buttons[button] && ms_prevButtons[button];
 }
 
-float input_axis(MouseAxis axis)
+float Input_GetAxis(MouseAxis axis)
 {
     ASSERT(axis >= 0);
     ASSERT(axis < NELEM(ms_axis));
     return ms_axis[axis];
 }
 
-float input_delta_axis(MouseAxis axis)
+float Input_GetDeltaAxis(MouseAxis axis)
 {
     ASSERT(axis >= 0);
     ASSERT(axis < NELEM(ms_axis));
     return ms_axis[axis] - ms_prevaxis[axis];
 }
 
-static void OnKey(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods)
+static void Input_OnKey(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods)
 {
     ms_keys[key] = action != GLFW_RELEASE ? 1 : 0;
-    if (!input_cursor_captured(window))
+    if (!Input_IsCursorCaptured(window))
     {
         igImplGlfw_KeyCallback(window, key, scancode, action, mods);
     }
 }
 
-static void OnClick(GLFWwindow* window, i32 button, i32 action, i32 mods)
+static void Input_OnClick(GLFWwindow* window, i32 button, i32 action, i32 mods)
 {
     ms_buttons[button] = action != GLFW_RELEASE ? 1 : 0;
-    if (!input_cursor_captured(window))
+    if (!Input_IsCursorCaptured(window))
     {
         igImplGlfw_MouseButtonCallback(window, button, action, mods);
     }
 }
 
-static void OnScroll(GLFWwindow* window, double xoffset, double yoffset)
+static void Input_OnScroll(GLFWwindow* window, double xoffset, double yoffset)
 {
     ms_axis[MouseAxis_ScrollX] += (float)xoffset;
     ms_axis[MouseAxis_ScrollY] += (float)yoffset;
-    if (!input_cursor_captured(window))
+    if (!Input_IsCursorCaptured(window))
     {
         igImplGlfw_ScrollCallback(window, xoffset, yoffset);
     }
 }
 
-static void OnChar(GLFWwindow* window, u32 c)
+static void Input_OnChar(GLFWwindow* window, u32 c)
 {
-    if (!input_cursor_captured(window))
+    if (!Input_IsCursorCaptured(window))
     {
         igImplGlfw_CharCallback(window, c);
     }
 }
 
-static void OnMove(GLFWwindow* window, double cursorX, double cursorY)
+static void Input_OnMove(GLFWwindow* window, double cursorX, double cursorY)
 {
-    float x = 2.0f * (float)(cursorX / window_width()) - 1.0f;
-    float y = -2.0f * (float)(cursorY / window_height()) + 1.0f;
+    float x = 2.0f * (float)(cursorX / Window_Width()) - 1.0f;
+    float y = -2.0f * (float)(cursorY / Window_Height()) + 1.0f;
     ms_axis[MouseAxis_X] = x;
     ms_axis[MouseAxis_Y] = y;
 }
 
-static void OnFocus(GLFWwindow* window, i32 focused)
+static void Input_OnFocus(GLFWwindow* window, i32 focused)
 {
     if (focused)
     {

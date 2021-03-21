@@ -1027,9 +1027,9 @@ pim_inline float2 VEC_CALL f4_f2(float4 v)
     return v2;
 }
 
-pim_inline float4 VEC_CALL f4_rand(prng_t *const pim_noalias rng)
+pim_inline float4 VEC_CALL f4_rand(Prng *const pim_noalias rng)
 {
-    return f4_v(prng_f32(rng), prng_f32(rng), prng_f32(rng), prng_f32(rng));
+    return f4_v(Prng_f32(rng), Prng_f32(rng), Prng_f32(rng), Prng_f32(rng));
 }
 
 PIM_C_END

@@ -75,14 +75,14 @@ typedef struct atlas_s
     i32 chartCount;
 } atlas_t;
 
-static lmpack_t ms_pack;
+static LmPack ms_pack;
 static bool ms_once;
 
 static cmdstat_t CmdPrintLm(i32 argc, const char** argv);
 
-lmpack_t* lmpack_get(void) { return &ms_pack; }
+LmPack* lmpack_get(void) { return &ms_pack; }
 
-void lightmap_new(lightmap_t* lm, i32 size)
+void lightmap_new(Lightmap* lm, i32 size)
 {
     ASSERT(lm);
     ASSERT(size > 0);
@@ -96,7 +96,7 @@ void lightmap_new(lightmap_t* lm, i32 size)
     i32 normalBytes = sizeof(lm->normal[0]) * texelcount;
     i32 sampleBytes = sizeof(lm->sampleCounts[0]) * texelcount;
     i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
-    u8* allocation = tex_calloc(texelBytes);
+    u8* allocation = Tex_Calloc(texelBytes);
 
     for (i32 i = 0; i < kGiDirections; ++i)
     {
@@ -125,17 +125,17 @@ void lightmap_new(lightmap_t* lm, i32 size)
     lightmap_upload(lm);
 }
 
-void lightmap_del(lightmap_t* lm)
+void lightmap_del(Lightmap* lm)
 {
     if (lm)
     {
         vkrTexTable_Free(lm->slot);
-        pim_free(lm->probes[0]);
+        Mem_Free(lm->probes[0]);
         memset(lm, 0, sizeof(*lm));
     }
 }
 
-void lightmap_upload(lightmap_t* lm)
+void lightmap_upload(Lightmap* lm)
 {
     ASSERT(lm);
     const i32 len = lm->size * lm->size;
@@ -146,7 +146,7 @@ void lightmap_upload(lightmap_t* lm)
     }
 }
 
-pim_inline i32 TexelCount(const lightmap_t* lightmaps, i32 lmCount)
+pim_inline i32 TexelCount(const Lightmap* lightmaps, i32 lmCount)
 {
     i32 texelCount = 0;
     for (i32 i = 0; i < lmCount; ++i)
@@ -178,13 +178,13 @@ pim_inline mask_t VEC_CALL mask_new(int2 size)
     i32 len = size.x * size.y;
     mask_t mask;
     mask.size = size;
-    mask.ptr = perm_calloc(sizeof(u8) * len);
+    mask.ptr = Perm_Calloc(sizeof(u8) * len);
     return mask;
 }
 
 pim_inline void VEC_CALL mask_del(mask_t* mask)
 {
-    pim_free(mask->ptr);
+    Mem_Free(mask->ptr);
     mask->ptr = NULL;
     mask->size.x = 0;
     mask->size.y = 0;
@@ -378,7 +378,7 @@ pim_inline void chart_del(chart_t* chart)
     if (chart)
     {
         mask_del(&chart->mask);
-        pim_free(chart->nodes);
+        Mem_Free(chart->nodes);
         chart->nodes = NULL;
         chart->nodeCount = 0;
     }
@@ -514,16 +514,16 @@ static void chart_split(chart_t chart, chart_t* split)
     const i32 k = CHART_SPLITS;
 
     // create k initial means
-    prng_t rng = prng_get();
+    Prng rng = Prng_Get();
     for (i32 i = 0; i < k; ++i)
     {
-        i32 j = prng_i32(&rng) % nodeCount;
+        i32 j = Prng_i32(&rng) % nodeCount;
         Tri2D tri = nodes[j].triCoord;
         means[i] = tri_center(tri);
-        triLists[i] = tmp_malloc(sizeof(Tri2D) * nodeCount);
-        nodeLists[i] = tmp_malloc(sizeof(i32) * nodeCount);
+        triLists[i] = Temp_Alloc(sizeof(Tri2D) * nodeCount);
+        nodeLists[i] = Temp_Alloc(sizeof(i32) * nodeCount);
     }
-    prng_set(rng);
+    Prng_Set(rng);
 
     do
     {
@@ -559,7 +559,7 @@ static void chart_split(chart_t chart, chart_t* split)
         ch.nodeCount = counts[i];
         if (ch.nodeCount > 0)
         {
-            PermReserve(ch.nodes, ch.nodeCount);
+            Perm_Reserve(ch.nodes, ch.nodeCount);
             const i32* nodeList = nodeLists[i];
             for (i32 j = 0; j < ch.nodeCount; ++j)
             {
@@ -573,12 +573,12 @@ static void chart_split(chart_t chart, chart_t* split)
 
 typedef struct chartmask_s
 {
-    task_t task;
+    Task task;
     chart_t* charts;
     i32 chartCount;
 } chartmask_t;
 
-static void ChartMaskFn(task_t* pbase, i32 begin, i32 end)
+static void ChartMaskFn(Task* pbase, i32 begin, i32 end)
 {
     chartmask_t* task = (chartmask_t*)pbase;
     chart_t* charts = task->charts;
@@ -645,19 +645,19 @@ static chart_t* chart_group(
         {
             iChart = chartCount;
             ++chartCount;
-            PermGrow(charts, chartCount);
-            PermGrow(planes, chartCount);
+            Perm_Grow(charts, chartCount);
+            Perm_Grow(planes, chartCount);
             planes[iChart] = node.plane;
         }
 
         chart_t chart = charts[iChart];
         chart.nodeCount += 1;
-        PermReserve(chart.nodes, chart.nodeCount);
+        Perm_Reserve(chart.nodes, chart.nodeCount);
         chart.nodes[chart.nodeCount - 1] = node;
         charts[iChart] = chart;
     }
 
-    pim_free(planes);
+    Mem_Free(planes);
     planes = NULL;
 
     // split big charts
@@ -677,7 +677,7 @@ static chart_t* chart_group(
                     if (split[j].nodeCount > 0)
                     {
                         ++chartCount;
-                        PermReserve(charts, chartCount);
+                        Perm_Reserve(charts, chartCount);
                         charts[chartCount - 1] = split[j];
                     }
                 }
@@ -691,10 +691,10 @@ static chart_t* chart_group(
     }
 
     // move chart to origin and create mask
-    chartmask_t* task = tmp_calloc(sizeof(*task));
+    chartmask_t* task = Temp_Calloc(sizeof(*task));
     task->charts = charts;
     task->chartCount = chartCount;
-    task_run(&task->task, ChartMaskFn, chartCount);
+    Task_Run(&task->task, ChartMaskFn, chartCount);
 
     *countOut = chartCount;
     return charts;
@@ -811,7 +811,7 @@ static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
 
         i32 nodeBack = nodeCount;
         nodeCount += vertCount / 3;
-        PermReserve(nodes, nodeCount);
+        Perm_Reserve(nodes, nodeCount);
 
         for (i32 v = 0; (v + 3) <= vertCount; v += 3)
         {
@@ -829,7 +829,7 @@ static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
 
 typedef struct atlastask_s
 {
-    task_t task;
+    Task task;
     i32 nodeHead;
     i32 chartCount;
     i32 atlasCount;
@@ -837,7 +837,7 @@ typedef struct atlastask_s
     atlas_t* atlases;
 } atlastask_t;
 
-static void AtlasFn(task_t* pbase, i32 begin, i32 end)
+static void AtlasFn(Task* pbase, i32 begin, i32 end)
 {
     atlastask_t* task = (atlastask_t*)pbase;
     chart_t* pim_noalias charts = task->charts;
@@ -906,19 +906,19 @@ pim_inline i32 atlas_estimate(i32 atlasSize, const chart_t* charts, i32 chartCou
 static i32 atlases_create(i32 atlasSize, chart_t* charts, i32 chartCount)
 {
     i32 atlasCount = atlas_estimate(atlasSize, charts, chartCount);
-    atlas_t* atlases = perm_calloc(sizeof(atlases[0]) * atlasCount);
+    atlas_t* atlases = Perm_Calloc(sizeof(atlases[0]) * atlasCount);
     for (i32 i = 0; i < atlasCount; ++i)
     {
         atlases[i] = atlas_new(atlasSize);
     }
 
-    atlastask_t* task = tmp_calloc(sizeof(*task));
+    atlastask_t* task = Temp_Calloc(sizeof(*task));
     task->atlasCount = atlasCount;
     task->atlases = atlases;
     task->charts = charts;
     task->chartCount = chartCount;
     task->nodeHead = 0;
-    task_run(&task->task, AtlasFn, chartCount);
+    Task_Run(&task->task, AtlasFn, chartCount);
 
     i32 usedAtlases = 0;
     for (i32 i = 0; i < atlasCount; ++i)
@@ -929,7 +929,7 @@ static i32 atlases_create(i32 atlasSize, chart_t* charts, i32 chartCount)
         }
         atlas_del(atlases + i);
     }
-    pim_free(atlases);
+    Mem_Free(atlases);
 
     return usedAtlases;
 }
@@ -937,7 +937,7 @@ static i32 atlases_create(i32 atlasSize, chart_t* charts, i32 chartCount)
 static void chartnodes_assign(
     chart_t* charts,
     i32 chartCount,
-    lightmap_t* lightmaps,
+    Lightmap* lightmaps,
     i32 lightmapCount)
 {
     Entities const *const drawables = drawables_get();
@@ -949,7 +949,7 @@ static void chartnodes_assign(
         chart_t chart = charts[iChart];
         chartnode_t *const pim_noalias nodes = chart.nodes;
         i32 nodeCount = chart.nodeCount;
-        lightmap_t *const lightmap = &lightmaps[chart.atlasIndex];
+        Lightmap *const lightmap = &lightmaps[chart.atlasIndex];
         i32 slot = lightmap->slot.index;
         i32 size = lightmap->size;
         const float scale = 1.0f / size;
@@ -1054,10 +1054,10 @@ pim_inline void quadtree_new(quadtree_t* qt, i32 maxDepth, Box2D bounds)
     i32 len = CalcNodeCount(maxDepth);
     qt->maxDepth = maxDepth;
     qt->nodeCount = len;
-    qt->boxes = perm_calloc(sizeof(qt->boxes[0]) * len);
-    qt->listLens = perm_calloc(sizeof(qt->listLens[0]) * len);
-    qt->triLists = perm_calloc(sizeof(qt->triLists[0]) * len);
-    qt->indexLists = perm_calloc(sizeof(qt->indexLists[0]) * len);
+    qt->boxes = Perm_Calloc(sizeof(qt->boxes[0]) * len);
+    qt->listLens = Perm_Calloc(sizeof(qt->listLens[0]) * len);
+    qt->triLists = Perm_Calloc(sizeof(qt->triLists[0]) * len);
+    qt->indexLists = Perm_Calloc(sizeof(qt->indexLists[0]) * len);
     if (len > 0)
     {
         qt->boxes[0] = bounds;
@@ -1069,16 +1069,16 @@ pim_inline void quadtree_del(quadtree_t* qt)
 {
     if (qt)
     {
-        pim_free(qt->boxes);
-        pim_free(qt->listLens);
+        Mem_Free(qt->boxes);
+        Mem_Free(qt->listLens);
         i32 len = qt->nodeCount;
         for (i32 i = 0; i < len; ++i)
         {
-            pim_free(qt->triLists[i]);
-            pim_free(qt->indexLists[i]);
+            Mem_Free(qt->triLists[i]);
+            Mem_Free(qt->indexLists[i]);
         }
-        pim_free(qt->triLists);
-        pim_free(qt->indexLists);
+        Mem_Free(qt->triLists);
+        Mem_Free(qt->indexLists);
         memset(qt, 0, sizeof(*qt));
     }
 }
@@ -1112,9 +1112,9 @@ static bool quadtree_insert(quadtree_t* pim_noalias qt, i32 n, Tri2D tri, i32 iD
             }
             i32 len = qt->listLens[n] + 1;
             qt->listLens[n] = len;
-            PermReserve(qt->triLists[n], len);
+            Perm_Reserve(qt->triLists[n], len);
             qt->triLists[n][len - 1] = tri;
-            PermReserve(qt->indexLists[n], len);
+            Perm_Reserve(qt->indexLists[n], len);
             qt->indexLists[n][len - 1] = i2_v(iDrawable, iVert);
             return true;
         }
@@ -1173,8 +1173,8 @@ static float quadtree_find(
 
 typedef struct embed_s
 {
-    task_t task;
-    lightmap_t* lightmaps;
+    Task task;
+    Lightmap* lightmaps;
     const quadtree_t* trees;
     i32 lmCount;
     float texelsPerMeter;
@@ -1183,7 +1183,7 @@ typedef struct embed_s
 static void EmbedAttributesFn(void *const pbase, i32 begin, i32 end)
 {
     embed_t *const task = pbase;
-    lightmap_t *const pim_noalias lightmaps = task->lightmaps;
+    Lightmap *const pim_noalias lightmaps = task->lightmaps;
     const quadtree_t* pim_noalias trees = task->trees;
     const i32 lmCount = task->lmCount;
     const float texelsPerMeter = task->texelsPerMeter;
@@ -1206,7 +1206,7 @@ static void EmbedAttributesFn(void *const pbase, i32 begin, i32 end)
         const i32 x = iTexel % lmSize;
         const i32 y = iTexel / lmSize;
         const float2 uv = CoordToUv(size, i2_v(x, y));
-        lightmap_t lightmap = lightmaps[iLightmap];
+        Lightmap lightmap = lightmaps[iLightmap];
         const quadtree_t* qt = trees + iLightmap;
 
         lightmap.sampleCounts[iTexel] = 0.0f;
@@ -1274,13 +1274,13 @@ static void EmbedAttributesFn(void *const pbase, i32 begin, i32 end)
 }
 
 static void EmbedAttributes(
-    lightmap_t* lightmaps,
+    Lightmap* lightmaps,
     i32 lmCount,
     float texelsPerMeter)
 {
     if (lmCount > 0)
     {
-        quadtree_t* trees = tmp_calloc(sizeof(trees[0]) * lmCount);
+        quadtree_t* trees = Temp_Calloc(sizeof(trees[0]) * lmCount);
         {
             const float eps = 0.01f;
             Box2D bounds = { f2_s(0.0f - eps), f2_s(1.0f + eps) };
@@ -1324,12 +1324,12 @@ static void EmbedAttributes(
             }
         }
 
-        embed_t* task = tmp_calloc(sizeof(*task));
+        embed_t* task = Temp_Calloc(sizeof(*task));
         task->lightmaps = lightmaps;
         task->trees = trees;
         task->lmCount = lmCount;
         task->texelsPerMeter = texelsPerMeter;
-        task_run(task, EmbedAttributesFn, TexelCount(lightmaps, lmCount));
+        Task_Run(task, EmbedAttributesFn, TexelCount(lightmaps, lmCount));
 
         for (i32 i = 0; i < lmCount; ++i)
         {
@@ -1338,7 +1338,7 @@ static void EmbedAttributes(
     }
 }
 
-lmpack_t lmpack_pack(
+LmPack lmpack_pack(
     i32 atlasSize,
     float texelsPerUnit,
     float distThresh,
@@ -1349,7 +1349,7 @@ lmpack_t lmpack_pack(
     if (!ms_once)
     {
         ms_once = true;
-        cmd_reg("lm_print", CmdPrintLm);
+        Cmd_Reg("lm_print", CmdPrintLm);
     }
 
     float maxWidth = atlasSize / 3.0f;
@@ -1365,10 +1365,10 @@ lmpack_t lmpack_pack(
 
     i32 atlasCount = atlases_create(atlasSize, charts, chartCount);
 
-    lmpack_t pack = { 0 };
+    LmPack pack = { 0 };
     pack.lmCount = atlasCount;
     pack.lmSize = atlasSize;
-    pack.lightmaps = perm_calloc(sizeof(pack.lightmaps[0]) * atlasCount);
+    pack.lightmaps = Perm_Calloc(sizeof(pack.lightmaps[0]) * atlasCount);
     SG_Generate(pack.axii, kGiDirections, SGDist_Hemi);
     pack.texelsPerMeter = texelsPerUnit;
 
@@ -1381,17 +1381,17 @@ lmpack_t lmpack_pack(
 
     EmbedAttributes(pack.lightmaps, atlasCount, texelsPerUnit);
 
-    pim_free(nodes);
+    Mem_Free(nodes);
     for (i32 i = 0; i < chartCount; ++i)
     {
         chart_del(charts + i);
     }
-    pim_free(charts);
+    Mem_Free(charts);
 
     return pack;
 }
 
-void lmpack_del(lmpack_t* pack)
+void lmpack_del(LmPack* pack)
 {
     if (pack)
     {
@@ -1399,41 +1399,41 @@ void lmpack_del(lmpack_t* pack)
         {
             lightmap_del(pack->lightmaps + i);
         }
-        pim_free(pack->lightmaps);
+        Mem_Free(pack->lightmaps);
         memset(pack, 0, sizeof(*pack));
     }
 }
 
 typedef struct bake_s
 {
-    task_t task;
-    pt_scene_t* scene;
+    Task task;
+    PtScene* scene;
     float timeSlice;
     i32 spp;
 } bake_t;
 
 static void BakeFn(void* pbase, i32 begin, i32 end)
 {
-    const i32 tid = task_thread_id();
+    const i32 tid = Task_ThreadId();
 
     bake_t *const task = pbase;
-    pt_scene_t *const scene = task->scene;
+    PtScene *const scene = task->scene;
     const float timeSlice = task->timeSlice;
     const i32 spp = task->spp;
 
-    lmpack_t *const pack = lmpack_get();
+    LmPack *const pack = lmpack_get();
     const i32 lmSize = pack->lmSize;
     const i32 lmLen = lmSize * lmSize;
     const float rcpSize = 1.0f / lmSize;
     const int2 size = { lmSize, lmSize };
     const float metersPerTexel = 1.0f / pack->texelsPerMeter;
 
-    pt_sampler_t sampler = pt_sampler_get();
+    PtSampler sampler = PtSampler_Get();
     for (i32 iWork = begin; iWork < end; ++iWork)
     {
         i32 iLightmap = iWork / lmLen;
         i32 iTexel = iWork % lmLen;
-        lightmap_t lightmap = pack->lightmaps[iLightmap];
+        Lightmap lightmap = pack->lightmaps[iLightmap];
 
         float sampleCount = lightmap.sampleCounts[iTexel];
         if (sampleCount == 0.0f)
@@ -1441,7 +1441,7 @@ static void BakeFn(void* pbase, i32 begin, i32 end)
             continue;
         }
 
-        if (pt_sample_1d(&sampler) > timeSlice)
+        if (Pt_Sample1D(&sampler) > timeSlice)
         {
             continue;
         }
@@ -1467,14 +1467,14 @@ static void BakeFn(void* pbase, i32 begin, i32 end)
 
         for (i32 i = 0; i < spp; ++i)
         {
-            float4 Lts = SampleUnitHemisphere(pt_sample_2d(&sampler));
+            float4 Lts = SampleUnitHemisphere(Pt_Sample2D(&sampler));
             float4 rd = TbnToWorld(TBN, Lts);
-            float dt = (pt_sample_1d(&sampler) - 0.5f) * metersPerTexel;
-            float db = (pt_sample_1d(&sampler) - 0.5f) * metersPerTexel;
+            float dt = (Pt_Sample1D(&sampler) - 0.5f) * metersPerTexel;
+            float db = (Pt_Sample1D(&sampler) - 0.5f) * metersPerTexel;
             float4 ro = P;
             ro = f4_add(ro, f4_mulvs(TBN.c0, dt));
             ro = f4_add(ro, f4_mulvs(TBN.c1, db));
-            pt_result_t result = pt_trace_ray(&sampler, scene, ro, rd);
+            PtResult result = Pt_TraceRay(&sampler, scene, ro, rd);
             float weight = 1.0f / sampleCount;
             sampleCount += 1.0f;
             SG_Accumulate(
@@ -1492,32 +1492,32 @@ static void BakeFn(void* pbase, i32 begin, i32 end)
         }
         lightmap.sampleCounts[iTexel] = sampleCount;
     }
-    pt_sampler_set(sampler);
+    PtSampler_Set(sampler);
 }
 
 ProfileMark(pm_Bake, lmpack_bake)
-void lmpack_bake(pt_scene_t* scene, float timeSlice, i32 spp)
+void lmpack_bake(PtScene* scene, float timeSlice, i32 spp)
 {
     ProfileBegin(pm_Bake);
     ASSERT(scene);
 
-    pt_scene_update(scene);
+    PtScene_Update(scene);
 
-    lmpack_t const *const pack = lmpack_get();
+    LmPack const *const pack = lmpack_get();
     i32 texelCount = TexelCount(pack->lightmaps, pack->lmCount);
     if (texelCount > 0)
     {
-        bake_t *const task = perm_calloc(sizeof(*task));
+        bake_t *const task = Perm_Calloc(sizeof(*task));
         task->scene = scene;
         task->timeSlice = timeSlice;
         task->spp = i1_max(1, spp);
-        task_run(task, BakeFn, texelCount);
+        Task_Run(task, BakeFn, texelCount);
     }
 
     ProfileEnd(pm_Bake);
 }
 
-bool lmpack_save(Crate* crate, const lmpack_t* pack)
+bool lmpack_save(Crate* crate, const LmPack* pack)
 {
     bool wrote = false;
     ASSERT(pack);
@@ -1525,7 +1525,7 @@ bool lmpack_save(Crate* crate, const lmpack_t* pack)
     const i32 lmcount = pack->lmCount;
     const i32 lmsize = pack->lmSize;
     const i32 texelcount = lmsize * lmsize;
-    const lightmap_t lmNull = { 0 };
+    const Lightmap lmNull = { 0 };
     const i32 probesBytes = sizeof(lmNull.probes[0][0]) * texelcount * kGiDirections;
     const i32 positionBytes = sizeof(lmNull.position[0]) * texelcount;
     const i32 normalBytes = sizeof(lmNull.normal[0]) * texelcount;
@@ -1533,7 +1533,7 @@ bool lmpack_save(Crate* crate, const lmpack_t* pack)
     const i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
 
     // write pack header
-    dlmpack_t dpack = { 0 };
+    DiskLmPack dpack = { 0 };
     dpack.version = kLmPackVersion;
     dpack.directions = kGiDirections;
     dpack.lmCount = lmcount;
@@ -1548,7 +1548,7 @@ bool lmpack_save(Crate* crate, const lmpack_t* pack)
         {
             char name[PIM_PATH] = { 0 };
             SPrintf(ARGS(name), "lightmap_%d", i);
-            const lightmap_t lm = pack->lightmaps[i];
+            const Lightmap lm = pack->lightmaps[i];
             wrote &= crate_set(crate, guid_str(name), lm.probes[0], texelBytes);
         }
     }
@@ -1556,12 +1556,12 @@ bool lmpack_save(Crate* crate, const lmpack_t* pack)
     return wrote;
 }
 
-bool lmpack_load(Crate* crate, lmpack_t* pack)
+bool lmpack_load(Crate* crate, LmPack* pack)
 {
     bool loaded = false;
     lmpack_del(pack);
 
-    dlmpack_t dpack = { 0 };
+    DiskLmPack dpack = { 0 };
     if (crate_get(crate, guid_str("lmpack"), &dpack, sizeof(dpack)))
     {
         if ((dpack.version == kLmPackVersion) &&
@@ -1574,14 +1574,14 @@ bool lmpack_load(Crate* crate, lmpack_t* pack)
             const i32 lmcount = dpack.lmCount;
             const i32 lmsize = dpack.lmSize;
             const i32 texelcount = lmsize * lmsize;
-            const lightmap_t lmNull = { 0 };
+            const Lightmap lmNull = { 0 };
             const i32 probesBytes = sizeof(lmNull.probes[0][0]) * texelcount * kGiDirections;
             const i32 positionBytes = sizeof(lmNull.position[0]) * texelcount;
             const i32 normalBytes = sizeof(lmNull.normal[0]) * texelcount;
             const i32 sampleBytes = sizeof(lmNull.sampleCounts[0]) * texelcount;
             const i32 texelBytes = probesBytes + sampleBytes + positionBytes + normalBytes;
 
-            pack->lightmaps = perm_calloc(sizeof(pack->lightmaps[0]) * lmcount);
+            pack->lightmaps = Perm_Calloc(sizeof(pack->lightmaps[0]) * lmcount);
             pack->lmCount = lmcount;
             pack->lmSize = dpack.lmSize;
             pack->texelsPerMeter = dpack.texelsPerMeter;
@@ -1590,7 +1590,7 @@ bool lmpack_load(Crate* crate, lmpack_t* pack)
             {
                 char name[PIM_PATH] = { 0 };
                 SPrintf(ARGS(name), "lightmap_%d", i);
-                lightmap_t lm = { 0 };
+                Lightmap lm = { 0 };
                 lightmap_new(&lm, lmsize);
                 loaded &= crate_get(crate, guid_str(name), lm.probes[0], texelBytes);
                 lightmap_upload(&lm);
@@ -1636,12 +1636,12 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
     }
 
     u32* buffer = NULL;
-    const lmpack_t* pack = lmpack_get();
+    const LmPack* pack = lmpack_get();
     for (i32 i = 0; i < pack->lmCount; ++i)
     {
-        const lightmap_t lm = pack->lightmaps[i];
+        const Lightmap lm = pack->lightmaps[i];
         const i32 len = lm.size * lm.size;
-        buffer = tmp_realloc(buffer, sizeof(buffer[0]) * len);
+        buffer = Temp_Realloc(buffer, sizeof(buffer[0]) * len);
 
         const float3* pim_noalias srcBuffer = NULL;
         switch (channel)
@@ -1692,10 +1692,10 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
         SPrintf(ARGS(filename), "%s_%d.png", prefix, i);
         if (!stbi_write_png(filename, lm.size, lm.size, 4, buffer, lm.size * sizeof(buffer[0])))
         {
-            con_logf(LogSev_Error, "LM", "Failed to print lightmap image '%s'", filename);
+            Con_Logf(LogSev_Error, "LM", "Failed to print lightmap image '%s'", filename);
             return cmdstat_err;
         }
-        con_logf(LogSev_Info, "LM", "Printed lightmap image '%s'", filename);
+        Con_Logf(LogSev_Info, "LM", "Printed lightmap image '%s'", filename);
     }
 
     return cmdstat_ok;

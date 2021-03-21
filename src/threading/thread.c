@@ -40,7 +40,7 @@ void thread_create(thread_t* tr, thread_fn entrypoint, void* arg)
     ASSERT(tr);
     ASSERT(entrypoint);
 
-    adapter_t* adapter = perm_calloc(sizeof(*adapter));
+    adapter_t* adapter = Perm_Calloc(sizeof(*adapter));
     adapter->entrypoint = entrypoint;
     adapter->arg = arg;
     semaphore_create(&(adapter->sema), 0);
@@ -65,7 +65,7 @@ void thread_join(thread_t* tr)
     semaphore_wait(adapter->sema);
     semaphore_destroy(&(adapter->sema));
 
-    pim_free(adapter);
+    Mem_Free(adapter);
     tr->handle = NULL;
 }
 

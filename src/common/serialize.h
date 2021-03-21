@@ -5,123 +5,96 @@
 
 PIM_C_BEGIN
 
-typedef struct cJSON ser_obj_t;
+typedef struct cJSON SerObj;
 
-void ser_sys_init(void);
-void ser_sys_shutdown(void);
+void SerSys_Init(void);
+void SerSys_Shutdown(void);
 
-ser_obj_t* ser_obj_num(double value);
-ser_obj_t* ser_obj_bool(bool value);
-ser_obj_t* ser_obj_str(const char* value);
-ser_obj_t* ser_obj_array(void);
-ser_obj_t* ser_obj_dict(void);
-ser_obj_t* ser_obj_null(void);
-void ser_obj_del(ser_obj_t* obj);
+SerObj* SerObj_Num(double value);
+SerObj* SerObj_Bool(bool value);
+SerObj* SerObj_Str(const char* value);
+SerObj* SerObj_Array(void);
+SerObj* SerObj_Dict(void);
+SerObj* SerObj_Null(void);
+void SerObj_Del(SerObj* obj);
 
-const char* ser_str_get(const ser_obj_t* obj);
-bool ser_str_set(ser_obj_t* obj, const char* value);
+const char* Ser_StrGet(const SerObj* obj);
+bool Ser_StrSet(SerObj* obj, const char* value);
 
-bool ser_bool_get(const ser_obj_t* obj);
-bool ser_bool_set(ser_obj_t* obj, bool value);
+bool Ser_BoolGet(const SerObj* obj);
+bool Ser_BoolSet(SerObj* obj, bool value);
 
-double ser_num_get(const ser_obj_t* obj);
-bool ser_num_set(ser_obj_t* obj, double value);
+double Ser_NumGet(const SerObj* obj);
+bool Ser_NumSet(SerObj* obj, double value);
 
-i32 ser_array_len(ser_obj_t* obj);
-ser_obj_t* ser_array_get(ser_obj_t* obj, i32 index);
-bool ser_array_set(ser_obj_t* obj, i32 index, ser_obj_t* value);
-i32 ser_array_add(ser_obj_t* obj, ser_obj_t* value);
-bool ser_array_rm(ser_obj_t* obj, i32 index, ser_obj_t** valueOut);
+i32 Ser_ArrayLen(SerObj* obj);
+SerObj* Ser_ArrayGet(SerObj* obj, i32 index);
+bool Ser_ArraySet(SerObj* obj, i32 index, SerObj* value);
+i32 Ser_ArrayAdd(SerObj* obj, SerObj* value);
+bool Ser_ArrayRm(SerObj* obj, i32 index, SerObj** valueOut);
 
-ser_obj_t* ser_dict_get(ser_obj_t* obj, const char* key);
-bool ser_dict_set(ser_obj_t* obj, const char* key, ser_obj_t* value);
-bool ser_dict_rm(ser_obj_t* obj, const char* key, ser_obj_t** valueOut);
+SerObj* Ser_DictGet(SerObj* obj, const char* key);
+bool Ser_DictSet(SerObj* obj, const char* key, SerObj* value);
+bool Ser_DictRm(SerObj* obj, const char* key, SerObj** valueOut);
 
-ser_obj_t* ser_read(const char* text);
-char* ser_write(ser_obj_t* obj, i32* lenOut);
+SerObj* Ser_Read(const char* text);
+char* Ser_Write(SerObj* obj, i32* lenOut);
 
-ser_obj_t* ser_fromfile(const char* filename);
-bool ser_tofile(const char* filename, ser_obj_t* obj);
+SerObj* Ser_ReadFile(const char* filename);
+bool Ser_WriteFile(const char* filename, SerObj* obj);
 
-pim_inline float ser_get_f32(ser_obj_t* obj, const char* key) { return (float)ser_num_get(ser_dict_get(obj, key)); }
-pim_inline i32 ser_get_i32(ser_obj_t* obj, const char* key) { return (i32)ser_num_get(ser_dict_get(obj, key)); }
-pim_inline const char* ser_get_str(ser_obj_t* obj, const char* key) { return ser_str_get(ser_dict_get(obj, key)); }
-pim_inline bool ser_get_bool(ser_obj_t* obj, const char* key) { return ser_bool_get(ser_dict_get(obj, key)); }
+float Ser_GetFloat(SerObj* obj, const char* key);
+i32 Ser_GetInt(SerObj* obj, const char* key);
+const char* Ser_GetStr(SerObj* obj, const char* key);
+bool Ser_GetBool(SerObj* obj, const char* key);
 
-static bool ser_set_f32(ser_obj_t* obj, const char* key, float value)
-{
-    ser_obj_t* dst = ser_dict_get(obj, key);
-    if (!dst)
-    {
-        return ser_dict_set(obj, key, ser_obj_num(value));
-    }
-    return ser_num_set(dst, value);
-}
+bool Ser_SetFloat(SerObj* obj, const char* key, float value);
+bool Ser_SetInt(SerObj* obj, const char* key, i32 value);
+bool Ser_SetStr(SerObj* obj, const char* key, const char* value);
+bool Ser_SetBool(SerObj* obj, const char* key, bool value);
 
-static bool ser_set_i32(ser_obj_t* obj, const char* key, i32 value)
-{
-    ser_obj_t* dst = ser_dict_get(obj, key);
-    if (!dst)
-    {
-        return ser_dict_set(obj, key, ser_obj_num(value));
-    }
-    return ser_num_set(dst, value);
-}
+bool _Ser_LoadStr(char* dst, i32 size, SerObj* obj, const char* key);
 
-static bool ser_set_str(ser_obj_t* obj, const char* key, const char* value)
-{
-    ser_obj_t* dst = ser_dict_get(obj, key);
-    if (!dst)
-    {
-        return ser_dict_set(obj, key, ser_obj_str(value));
-    }
-    return ser_str_set(dst, value);
-}
+// Helpers for loading and saving struct fields
 
-static bool ser_set_bool(ser_obj_t* obj, const char* key, bool value)
-{
-    ser_obj_t* dst = ser_dict_get(obj, key);
-    if (!dst)
-    {
-        return ser_dict_set(obj, key, ser_obj_bool(value));
-    }
-    return ser_bool_set(dst, value);
-}
+#define Ser_LoadFloat(ptr, obj, field) \
+    do { (ptr)->field = Ser_GetFloat((obj), #field); } while(0)
 
-static bool _ser_load_str(char* dst, i32 size, ser_obj_t* obj, const char* key)
-{
-    ASSERT(dst);
-    ASSERT(size > 0);
-    dst[0] = 0;
-    const char* value = ser_get_str(obj, key);
-    if (value)
-    {
-        StrCpy(dst, size, value);
-        return true;
-    }
-    return false;
-}
+#define Ser_LoadInt(ptr, obj, field) \
+    do { (ptr)->field = Ser_GetInt((obj), #field); } while(0)
 
-#define ser_load_f32(ptr, obj, field)        (ptr)->field = ser_get_f32((obj), #field)
-#define ser_load_i32(ptr, obj, field)        (ptr)->field = ser_get_i32((obj), #field)
-#define ser_load_str(ptr, obj, field)        _ser_load_str(ARGS(ptr->field), obj, #field)
-#define ser_load_bool(ptr, obj, field)       (ptr)->field = ser_get_bool((obj), #field)
+#define Ser_LoadStr(ptr, obj, field) \
+    do { _Ser_LoadStr(ARGS(ptr->field), obj, #field); } while(0)
 
-#define ser_save_f32(ptr, obj, field)        ser_set_f32((obj), #field, (ptr)->field)
-#define ser_save_i32(ptr, obj, field)        ser_set_i32((obj), #field, (ptr)->field)
-#define ser_save_str(ptr, obj, field)        ser_set_str((obj), #field, (ptr)->field)
-#define ser_save_bool(ptr, obj, field)       ser_set_bool((obj), #field, (ptr)->field)
+#define Ser_LoadBool(ptr, obj, field) \
+    do { (ptr)->field = Ser_GetBool((obj), #field); } while(0)
 
-#define ser_load_f4(ptr, obj, field) \
-    (ptr)->field.x = ser_get_f32((obj), STR_TOK(field.x)); \
-    (ptr)->field.y = ser_get_f32((obj), STR_TOK(field.y)); \
-    (ptr)->field.z = ser_get_f32((obj), STR_TOK(field.z)); \
-    (ptr)->field.w = ser_get_f32((obj), STR_TOK(field.w))
+#define Ser_SaveFloat(ptr, obj, field) \
+    do { Ser_SetFloat((obj), #field, (ptr)->field); } while(0)
 
-#define ser_save_f4(ptr, obj, field) \
-    ser_set_f32((obj), STR_TOK(field.x), (ptr)->field.x); \
-    ser_set_f32((obj), STR_TOK(field.y), (ptr)->field.y); \
-    ser_set_f32((obj), STR_TOK(field.z), (ptr)->field.z); \
-    ser_set_f32((obj), STR_TOK(field.w), (ptr)->field.w)
+#define Ser_SaveInt(ptr, obj, field) \
+    do { Ser_SetInt((obj), #field, (ptr)->field); } while(0)
+
+#define Ser_SaveStr(ptr, obj, field) \
+    do { Ser_SetStr((obj), #field, (ptr)->field); } while(0)
+
+#define Ser_SaveBool(ptr, obj, field) \
+    do { Ser_SetBool((obj), #field, (ptr)->field); while(0)
+
+#define Ser_LoadVector(ptr, obj, field) \
+    do { \
+    (ptr)->field.x = Ser_GetFloat((obj), STR_TOK(field.x)); \
+    (ptr)->field.y = Ser_GetFloat((obj), STR_TOK(field.y)); \
+    (ptr)->field.z = Ser_GetFloat((obj), STR_TOK(field.z)); \
+    (ptr)->field.w = Ser_GetFloat((obj), STR_TOK(field.w)); \
+    } while(0)
+
+#define Ser_SaveVector(ptr, obj, field) \
+    do { \
+    Ser_SetFloat((obj), STR_TOK(field.x), (ptr)->field.x); \
+    Ser_SetFloat((obj), STR_TOK(field.y), (ptr)->field.y); \
+    Ser_SetFloat((obj), STR_TOK(field.z), (ptr)->field.z); \
+    Ser_SetFloat((obj), STR_TOK(field.w), (ptr)->field.w); \
+    } while(0)
 
 PIM_C_END

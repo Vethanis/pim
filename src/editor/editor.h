@@ -4,8 +4,8 @@
 
 PIM_C_BEGIN
 
-void editor_sys_init(void);
-void editor_sys_update(void);
-void editor_sys_shutdown(void);
+void EditorSys_Init(void);
+void EditorSys_Update(void);
+void EditorSys_Shutdown(void);
 
 PIM_C_END

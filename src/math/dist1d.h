@@ -2,26 +2,26 @@
 
 #include "common/macro.h"
 
-typedef struct dist1d_s
+typedef struct Dist1D_s
 {
     float* pim_noalias pdf;
     float* pim_noalias cdf;
     u32* pim_noalias live;
     i32 length;
     float integral;
-} dist1d_t;
+} Dist1D;
 
-void dist1d_new(dist1d_t *const dist, i32 length);
-void dist1d_del(dist1d_t *const dist);
+void Dist1D_New(Dist1D *const dist, i32 length);
+void Dist1D_Del(Dist1D *const dist);
 
-void dist1d_bake(dist1d_t *const dist);
+void Dist1D_Bake(Dist1D *const dist);
 
 // continuous
-float dist1d_samplec(dist1d_t const *const dist, float u);
+float Dist1D_SampleC(Dist1D const *const dist, float u);
 
 // discrete
-i32 dist1d_sampled(dist1d_t const *const dist, float u);
-float dist1d_pdfd(dist1d_t const *const dist, i32 i);
+i32 Dist1D_SampleD(Dist1D const *const dist, float u);
+float Dist1D_PdfD(Dist1D const *const dist, i32 i);
 
-void dist1d_inc(dist1d_t *const dist, i32 i);
-void dist1d_livebake(dist1d_t *const dist, float alpha, u32 minSamples);
+void Dist1D_Inc(Dist1D *const dist, i32 i);
+void Dist1D_Update(Dist1D *const dist, float alpha, u32 minSamples);

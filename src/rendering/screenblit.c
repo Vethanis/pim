@@ -135,7 +135,7 @@ void vkrScreenBlit_Blit(
 
     ProfileBegin(pm_blit);
 
-    const u32 imageIndex = vkr_swapIndex();
+    const u32 imageIndex = vkrSys_SwapIndex();
     vkrSwapchain const *const chain = &g_vkr.chain;
     VkCommandBuffer cmd = passCtx->cmd;
     VkImage dstImage = chain->images[imageIndex];

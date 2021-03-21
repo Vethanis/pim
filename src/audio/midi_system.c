@@ -165,7 +165,7 @@ static void midicon_result(MMRESULT result)
         char buffer[PIM_PATH] = { 0 };
         midiInGetErrorTextA(result, buffer, sizeof(buffer));
         buffer[NELEM(buffer) - 1] = 0;
-        con_logf(LogSev_Error, "midi", "%s", buffer);
+        Con_Logf(LogSev_Error, "midi", "%s", buffer);
     }
 }
 
@@ -184,7 +184,7 @@ static void __stdcall InputCallback(
     case MIM_DATA:
     {
         midimsg_t msg = { 0 };
-        msg.tick = audio_sys_tick();
+        msg.tick = AudioSys_Ticks();
         msg.command = (message >> 0) & 0xff;
         msg.param1 = (message >> 8) & 0xff;
         msg.param2 = (message >> 16) & 0xff;
@@ -235,8 +235,8 @@ void midi_sys_shutdown(void)
     }
 
     ms_length = 0;
-    pim_free(ms_cons); ms_cons = NULL;
-    pim_free(ms_versions); ms_versions = NULL;
+    Mem_Free(ms_cons); ms_cons = NULL;
+    Mem_Free(ms_versions); ms_versions = NULL;
     queue_destroy(&ms_free);
 }
 
@@ -271,8 +271,8 @@ midihdl_t midi_open(i32 port, midi_cb cb, void* usr)
     if (!queue_trypop(&ms_free, &index, sizeof(index)))
     {
         index = ms_length++;
-        PermGrow(ms_versions, ms_length);
-        PermGrow(ms_cons, ms_length);
+        Perm_Grow(ms_versions, ms_length);
+        Perm_Grow(ms_cons, ms_length);
     }
     midicon_t* con = &ms_cons[index];
     if (midicon_open(con, port, cb, usr))

@@ -5,7 +5,7 @@
 #include "threading/task.h"
 #include <string.h>
 
-void vkrCreateQueues(vkr_t* vkr)
+void vkrCreateQueues(vkrSys* vkr)
 {
     ASSERT(vkr);
     ASSERT(vkr->dev);
@@ -18,7 +18,7 @@ void vkrCreateQueues(vkr_t* vkr)
     }
 }
 
-void vkrDestroyQueues(vkr_t* vkr)
+void vkrDestroyQueues(vkrSys* vkr)
 {
     if (vkr)
     {
@@ -79,7 +79,7 @@ VkQueueFamilyProperties* vkrEnumQueueFamilyProperties(
     u32 count = 0;
     VkQueueFamilyProperties* props = NULL;
     vkGetPhysicalDeviceQueueFamilyProperties(phdev, &count, NULL);
-    props = tmp_calloc(sizeof(props[0]) * count);
+    props = Temp_Calloc(sizeof(props[0]) * count);
     vkGetPhysicalDeviceQueueFamilyProperties(phdev, &count, props);
     *countOut = count;
     return props;
@@ -220,7 +220,7 @@ vkrQueueSupport vkrQueryQueueSupport(VkPhysicalDevice phdev, VkSurfaceKHR surf)
     support.family[vkrQueueId_Xfer] = vkrSelectXferFamily(properties, famCount);
     support.family[vkrQueueId_Pres] = vkrSelectPresFamily(phdev, surf, properties, famCount);
 
-    i32* choicects = tmp_calloc(sizeof(choicects[0]) * famCount);
+    i32* choicects = Temp_Calloc(sizeof(choicects[0]) * famCount);
     for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
     {
         i32 family = support.family[id];

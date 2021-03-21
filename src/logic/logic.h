@@ -4,8 +4,8 @@
 
 PIM_C_BEGIN
 
-void logic_sys_init(void);
-void logic_sys_update(void);
-void logic_sys_shutdown(void);
+void LogicSys_Init(void);
+void LogicSys_Update(void);
+void LogicSys_Shutdown(void);
 
 PIM_C_END

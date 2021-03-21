@@ -104,8 +104,8 @@ void vkrCmdAlloc_Del(vkrCmdAlloc* allocator)
         {
             vkDestroyCommandPool(g_vkr.dev, allocator->pool, NULL);
         }
-        pim_free(allocator->fences);
-        pim_free(allocator->buffers);
+        Mem_Free(allocator->fences);
+        Mem_Free(allocator->buffers);
         memset(allocator, 0, sizeof(*allocator));
     }
     ProfileEnd(pm_cmdallocdel);
@@ -129,8 +129,8 @@ void vkrCmdAlloc_Reserve(vkrCmdAlloc* allocator, u32 newcap)
         newcap = (newcap > oldcap * 2) ? newcap : oldcap * 2;
         const u32 deltacap = newcap - oldcap;
 
-        PermReserve(allocator->buffers, newcap);
-        PermReserve(allocator->fences, newcap);
+        Perm_Reserve(allocator->buffers, newcap);
+        Perm_Reserve(allocator->fences, newcap);
 
         VkCommandBuffer* newbuffers = allocator->buffers + oldcap;
         VkFence* newfences = allocator->fences + oldcap;

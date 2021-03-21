@@ -19,7 +19,7 @@ static shaderc_include_result* vkrResolveInclude(
     char path[PIM_PATH] = { 0 };
     SPrintf(ARGS(path), "src/shaders/%s", includeFile);
 
-    shaderc_include_result* result = perm_calloc(sizeof(*result));
+    shaderc_include_result* result = Perm_Calloc(sizeof(*result));
 
     fstr_t file = fstr_open(path, "rb");
     if (fstr_isopen(file))
@@ -29,7 +29,7 @@ static shaderc_include_result* vkrResolveInclude(
         {
             result->source_name = StrDup(path, EAlloc_Perm);
             result->source_name_length = StrLen(path);
-            char* contents = perm_malloc(size + 1);
+            char* contents = Perm_Alloc(size + 1);
             i32 readLen = fstr_read(file, contents, size);
             contents[size] = 0;
             ASSERT(readLen == size);
@@ -46,9 +46,9 @@ static void vkrReleaseInclude(void* usr, shaderc_include_result* result)
 {
     if (result)
     {
-        pim_free((void*)result->source_name);
-        pim_free((void*)result->content);
-        pim_free(result);
+        Mem_Free((void*)result->source_name);
+        Mem_Free((void*)result->content);
+        Mem_Free(result);
     }
 }
 
@@ -196,7 +196,7 @@ bool vkrCompile(const vkrCompileInput* input, vkrCompileOutput* output)
             if ((numBytes > 0) && spirv)
             {
                 output->dwordCount = numBytes / sizeof(u32);
-                output->dwords = perm_malloc(numBytes);
+                output->dwords = Perm_Alloc(numBytes);
                 memcpy(output->dwords, spirv, numBytes);
             }
 
@@ -235,9 +235,9 @@ void vkrCompileOutput_Del(vkrCompileOutput* output)
 {
     if (output)
     {
-        pim_free(output->disassembly);
-        pim_free(output->dwords);
-        pim_free(output->errors);
+        Mem_Free(output->disassembly);
+        Mem_Free(output->dwords);
+        Mem_Free(output->errors);
         memset(output, 0, sizeof(*output));
     }
 }
@@ -256,7 +256,7 @@ char* vkrLoadShader(const char* filename)
         i32 size = (i32)fstr_size(fd);
         if (size > 0)
         {
-            contents = perm_malloc(size + 1);
+            contents = Perm_Alloc(size + 1);
             i32 readLen = fstr_read(fd, contents, size);
             contents[size] = 0;
             ASSERT(readLen == size);

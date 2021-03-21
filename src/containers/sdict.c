@@ -23,16 +23,16 @@ void sdict_new(sdict_t* dict, u32 valueSize, EAlloc allocator)
 void sdict_del(sdict_t* dict)
 {
     ASSERT(dict);
-    pim_free(dict->hashes);
+    Mem_Free(dict->hashes);
     char** keys = dict->keys;
     const u32 width = dict->width;
     for (u32 i = 0; i < width; ++i)
     {
-        pim_free(keys[i]);
+        Mem_Free(keys[i]);
         keys[i] = NULL;
     }
-    pim_free(keys);
-    pim_free(dict->values);
+    Mem_Free(keys);
+    Mem_Free(dict->values);
     memset(dict, 0, sizeof(*dict));
 }
 
@@ -44,7 +44,7 @@ void sdict_clear(sdict_t* dict)
     char** keys = dict->keys;
     for (u32 i = 0; i < width; ++i)
     {
-        pim_free(keys[i]);
+        Mem_Free(keys[i]);
         keys[i] = NULL;
     }
     memset(dict->hashes, 0, sizeof(dict->hashes[0]) * width);
@@ -71,9 +71,9 @@ void sdict_reserve(sdict_t* dict, i32 count)
     char** oldKeys = dict->keys;
     u8* oldValues = dict->values;
 
-    u32* newHashes = pim_malloc(allocator, sizeof(newHashes[0]) * newWidth);
-    char** newKeys = pim_malloc(allocator, sizeof(newKeys[0]) * newWidth);
-    u8* newValues = pim_malloc(allocator, valueSize * newWidth);
+    u32* newHashes = Mem_Alloc(allocator, sizeof(newHashes[0]) * newWidth);
+    char** newKeys = Mem_Alloc(allocator, sizeof(newKeys[0]) * newWidth);
+    u8* newValues = Mem_Alloc(allocator, valueSize * newWidth);
 
     memset(newHashes, 0, sizeof(newHashes[0]) * newWidth);
     memset(newKeys, 0, sizeof(newKeys[0]) * newWidth);
@@ -104,9 +104,9 @@ void sdict_reserve(sdict_t* dict, i32 count)
         ++i;
     }
 
-    pim_free(oldHashes);
-    pim_free(oldKeys);
-    pim_free(oldValues);
+    Mem_Free(oldHashes);
+    Mem_Free(oldKeys);
+    Mem_Free(oldValues);
 
     dict->width = newWidth;
     dict->hashes = newHashes;
@@ -253,7 +253,7 @@ bool sdict_rm(sdict_t* dict, const char* key, void* valueOut)
     }
 
     hashes[i] |= hashutil_tomb_mask;
-    pim_free(keys[i]);
+    Mem_Free(keys[i]);
     keys[i] = NULL;
     memset(values + i * valueSize, 0, valueSize);
 
@@ -293,7 +293,7 @@ u32* sdict_sort(const sdict_t* dict, SDictCmpFn cmp, void* usr)
     const u32 length = dict->count;
     const u32 width = dict->width;
     const u32* hashes = dict->hashes;
-    u32* indices = tmp_calloc(length * sizeof(indices[0]));
+    u32* indices = Temp_Calloc(length * sizeof(indices[0]));
     u32 j = 0;
     for (u32 i = 0; i < width; ++i)
     {

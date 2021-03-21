@@ -156,28 +156,28 @@ typedef enum
     MouseAxis_COUNT
 } MouseAxis;
 
-void input_sys_init(void);
-void input_sys_update(void);
-void input_sys_shutdown(void);
+void InputSys_Init(void);
+void InputSys_Update(void);
+void InputSys_Shutdown(void);
 
-void input_reg_window(GLFWwindow* window);
+void Input_RegWindow(GLFWwindow* window);
 
-GLFWwindow* input_get_focus(void);
-void input_set_focus(GLFWwindow* window);
+GLFWwindow* Input_GetFocus(void);
+void Input_SetFocus(GLFWwindow* window);
 
-bool input_cursor_captured(GLFWwindow* window);
-void input_capture_cursor(GLFWwindow* window, bool capture);
+bool Input_IsCursorCaptured(GLFWwindow* window);
+void Input_CaptureCursor(GLFWwindow* window, bool capture);
 
-bool input_key(KeyCode key);
-bool input_button(MouseButton button);
+bool Input_GetKey(KeyCode key);
+bool Input_GetButton(MouseButton button);
 
-bool input_keydown(KeyCode key);
-bool input_buttondown(MouseButton button);
+bool Input_IsKeyDown(KeyCode key);
+bool Input_IsButtonDown(MouseButton button);
 
-bool input_keyup(KeyCode key);
-bool input_buttonup(MouseButton button);
+bool Input_IsKeyUp(KeyCode key);
+bool Input_IsButtonUp(MouseButton button);
 
-float input_axis(MouseAxis axis);
-float input_delta_axis(MouseAxis axis);
+float Input_GetAxis(MouseAxis axis);
+float Input_GetDeltaAxis(MouseAxis axis);
 
 PIM_C_END

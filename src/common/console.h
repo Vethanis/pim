@@ -15,15 +15,15 @@ PIM_C_BEGIN
 #define C32_MAGENTA (C32_BLUE | C32_RED)
 #define C32_CYAN    (C32_BLUE | C32_GREEN)
 
-void con_sys_init(void);
-void con_sys_update(void);
-void con_sys_shutdown(void);
+void ConSys_Init(void);
+void ConSys_Update(void);
+void ConSys_Shutdown(void);
 
-void con_exec(const char* cmdText);
+void Con_Exec(const char* cmdText);
 
-void con_puts(u32 color, const char* line);
-void con_printf(u32 color, const char* fmt, ...);
-void con_clear(void);
+void Con_Puts(u32 color, const char* line);
+void Con_Printf(u32 color, const char* fmt, ...);
+void Con_Clear(void);
 
 typedef enum
 {
@@ -35,6 +35,6 @@ typedef enum
     LogSev_COUNT
 } LogSev;
 
-void con_logf(LogSev sev, const char* tag, const char* fmt, ...);
+void Con_Logf(LogSev sev, const char* tag, const char* fmt, ...);
 
 PIM_C_END

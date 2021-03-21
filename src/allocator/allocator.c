@@ -158,7 +158,7 @@ static void linear_allocator_clear(linear_allocator_t* alloc)
 
 // ----------------------------------------------------------------------------
 
-void alloc_sys_init(void)
+void MemSys_Init(void)
 {
     tlsf_allocator_new(&ms_perm, kPermCapacity);
     tlsf_allocator_new(&ms_texture, kTextureCapacity);
@@ -169,14 +169,14 @@ void alloc_sys_init(void)
     }
 }
 
-void alloc_sys_update(void)
+void MemSys_Update(void)
 {
     const i32 i = (ms_tempIndex + 1) % kTempFrames;
     ms_tempIndex = i;
     linear_allocator_clear(&ms_temp[i]);
 }
 
-void alloc_sys_shutdown(void)
+void MemSys_Shutdown(void)
 {
     tlsf_allocator_del(&ms_perm);
     tlsf_allocator_del(&ms_texture);
@@ -188,10 +188,10 @@ void alloc_sys_shutdown(void)
 
 // ----------------------------------------------------------------------------
 
-void* pim_malloc(EAlloc type, i32 bytes)
+void* Mem_Alloc(EAlloc type, i32 bytes)
 {
     void* ptr = NULL;
-    const i32 tid = task_thread_id();
+    const i32 tid = Task_ThreadId();
     ASSERT(valid_tid(tid));
 
     ASSERT(bytes >= 0);
@@ -235,7 +235,7 @@ void* pim_malloc(EAlloc type, i32 bytes)
     return ptr;
 }
 
-void pim_free(void* ptr)
+void Mem_Free(void* ptr)
 {
     if (ptr)
     {
@@ -268,7 +268,7 @@ void pim_free(void* ptr)
     }
 }
 
-void* pim_realloc(EAlloc type, void* prev, i32 bytes)
+void* Mem_Realloc(EAlloc type, void* prev, i32 bytes)
 {
     ASSERT(bytes > 0);
     ASSERT(ptr_is_aligned(prev));
@@ -296,16 +296,16 @@ void* pim_realloc(EAlloc type, void* prev, i32 bytes)
     nextBytes = nextBytes > 64 ? nextBytes : 64;
     nextBytes = nextBytes > bytes ? nextBytes : bytes;
 
-    void* next = pim_malloc(type, nextBytes);
+    void* next = Mem_Alloc(type, nextBytes);
     memcpy(next, prev, prevBytes);
-    pim_free(prev);
+    Mem_Free(prev);
 
     return next;
 }
 
-void* pim_calloc(EAlloc type, i32 bytes)
+void* Mem_Calloc(EAlloc type, i32 bytes)
 {
-    void* ptr = pim_malloc(type, bytes);
+    void* ptr = Mem_Alloc(type, bytes);
     memset(ptr, 0x00, bytes);
     return ptr;
 }
@@ -324,10 +324,10 @@ typedef struct sframe_s
 static i32 ms_iFrame[kMaxThreads];
 static sframe_t ms_stack[kMaxThreads][kFrameCount];
 
-void* pim_pusha(i32 bytes)
+void* Mem_Push(i32 bytes)
 {
     ASSERT((u32)bytes <= (u32)kStackCapacity);
-    const i32 tid = task_thread_id();
+    const i32 tid = Task_ThreadId();
 
     bytes = align_bytes(bytes);
     const i32 frames = bytes / kAlign;
@@ -340,10 +340,10 @@ void* pim_pusha(i32 bytes)
     return ms_stack[tid][back].value;
 }
 
-void pim_popa(i32 bytes)
+void Mem_Pop(i32 bytes)
 {
     ASSERT((u32)bytes <= (u32)kStackCapacity);
-    const i32 tid = task_thread_id();
+    const i32 tid = Task_ThreadId();
 
     bytes = align_bytes(bytes);
     const i32 frames = bytes / kAlign;

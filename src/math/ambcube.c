@@ -3,7 +3,7 @@
 #include "math/float3_funcs.h"
 
 i32 AmbCube_Bake(
-    pt_scene_t* scene,
+    PtScene* scene,
     AmbCube_t* pCube,
     float4 origin,
     i32 samples,
@@ -14,7 +14,7 @@ i32 AmbCube_Bake(
     ASSERT(samples >= 0);
     ASSERT(prevSampleCount >= 0);
 
-    pt_results_t results = pt_raygen(scene, origin, samples);
+    PtResults results = Pt_RayGen(scene, origin, samples);
 
     const float4* pim_noalias colors = results.colors;
     const float4* pim_noalias directions = results.directions;

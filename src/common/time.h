@@ -4,22 +4,20 @@
 
 PIM_C_BEGIN
 
-void time_sys_init(void);
-void time_sys_update(void);
-void time_sys_shutdown(void);
+void TimeSys_Init(void);
+void TimeSys_Update(void);
+void TimeSys_Shutdown(void);
 
-u32 time_framecount(void);
-u64 time_appstart(void);
-u64 time_framestart(void);
+u32 Time_FrameCount(void);
+u64 Time_AppStart(void);
+u64 Time_FrameStart(void);
 
-u64 time_now(void);
-u64 time_dt(void);
-double time_dtf(void);
+u64 Time_Now(void);
+u64 Time_Delta(void);
+double Time_Deltaf(void);
 
-double time_sec(u64 ticks);
-double time_milli(u64 ticks);
-double time_micro(u64 ticks);
-
-float time_avgms(u64 begin, float prev, float t);
+double Time_Sec(u64 ticks);
+double Time_Milli(u64 ticks);
+double Time_Micro(u64 ticks);
 
 PIM_C_END

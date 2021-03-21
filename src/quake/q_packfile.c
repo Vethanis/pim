@@ -22,21 +22,21 @@ bool pack_load(pack_t* pack, const char* path)
 
     if (map.size < sizeof(*header))
     {
-        con_logf(LogSev_Error, "pak", "Pack is smaller than its header: '%d' in '%s'.", map.size, path);
+        Con_Logf(LogSev_Error, "pak", "Pack is smaller than its header: '%d' in '%s'.", map.size, path);
         goto onfail;
     }
     if (memcmp(header->id, "PACK", 4) != 0)
     {
         char id[5] = { 0 };
         memcpy(id, header->id, sizeof(header->id));
-        con_logf(LogSev_Error, "pak", "Bad pack header id '%s' in '%s'.", id, path);
+        Con_Logf(LogSev_Error, "pak", "Bad pack header id '%s' in '%s'.", id, path);
         goto onfail;
     }
     i32 filecount = header->length / sizeof(dpackfile_t);
     i32 filerem = header->length % sizeof(dpackfile_t);
     if ((header->length < 0) || filerem)
     {
-        con_logf(LogSev_Error, "pak", "Bad pack header length '%d' in '%s'.", header->length, path);
+        Con_Logf(LogSev_Error, "pak", "Bad pack header length '%d' in '%s'.", header->length, path);
         goto onfail;
     }
 
@@ -72,12 +72,12 @@ void searchpath_del(searchpath_t* sp)
         {
             pack_free(&sp->packs[i]);
         }
-        pim_free(sp->packs);
+        Mem_Free(sp->packs);
         for (i32 i = 0; i < sp->fileCount; ++i)
         {
-            pim_free(sp->filenames[i]);
+            Mem_Free(sp->filenames[i]);
         }
-        pim_free(sp->filenames);
+        Mem_Free(sp->filenames);
         memset(sp, 0, sizeof(*sp));
     }
 }
@@ -102,7 +102,7 @@ i32 searchpath_addpack(searchpath_t* sp, const char* path)
         if (pack_load(&pack, subdir))
         {
             ++length;
-            PermReserve(packs, length);
+            Perm_Reserve(packs, length);
             packs[length - 1] = pack;
         }
     }
@@ -132,7 +132,7 @@ void searchpath_rmpack(searchpath_t* sp, const char* path)
     sp->packCount = len;
     if (!len)
     {
-        pim_free(sp->packs);
+        Mem_Free(sp->packs);
         sp->packs = NULL;
     }
 }

@@ -10,7 +10,7 @@
 
 vkrThreadContext* vkrContext_Get(void)
 {
-    i32 tid = task_thread_id();
+    i32 tid = Task_ThreadId();
     ASSERT(tid < g_vkr.context.threadcount);
     vkrThreadContext* ctx = &g_vkr.context.threads[tid];
     return ctx;
@@ -23,9 +23,9 @@ bool vkrContext_New(vkrContext* ctx)
     bool success = true;
     ASSERT(ctx);
     memset(ctx, 0, sizeof(*ctx));
-    i32 threadcount = task_thread_ct();
+    i32 threadcount = Task_ThreadCount();
     ctx->threadcount = threadcount;
-    ctx->threads = perm_calloc(sizeof(ctx->threads[0]) * threadcount);
+    ctx->threads = Perm_Calloc(sizeof(ctx->threads[0]) * threadcount);
     for (i32 tr = 0; tr < threadcount; ++tr)
     {
         if (!vkrThreadContext_New(&ctx->threads[tr]))
@@ -54,7 +54,7 @@ void vkrContext_Del(vkrContext* ctx)
         {
             vkrThreadContext_Del(&ctx->threads[tr]);
         }
-        pim_free(ctx->threads);
+        Mem_Free(ctx->threads);
         memset(ctx, 0, sizeof(*ctx));
     }
     ProfileEnd(pm_ctxdel);
