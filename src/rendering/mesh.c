@@ -39,7 +39,7 @@ static MeshId ToMeshId(GenId gid)
 
 static bool IsCurrent(MeshId id)
 {
-    return table_exists(&ms_table, ToGenId(id));
+    return Table_Exists(&ms_table, ToGenId(id));
 }
 
 static void FreeMesh(Mesh *const mesh)
@@ -52,17 +52,17 @@ static void FreeMesh(Mesh *const mesh)
     memset(mesh, 0, sizeof(*mesh));
 }
 
-void mesh_sys_init(void)
+void MeshSys_Init(void)
 {
-    table_new(&ms_table, sizeof(Mesh));
+    Table_New(&ms_table, sizeof(Mesh));
 }
 
-void mesh_sys_update(void)
+void MeshSys_Update(void)
 {
 
 }
 
-void mesh_sys_shutdown(void)
+void MeshSys_Shutdown(void)
 {
     Mesh *const pim_noalias meshes = ms_table.values;
     const i32 width = ms_table.width;
@@ -73,10 +73,10 @@ void mesh_sys_shutdown(void)
             FreeMesh(meshes + i);
         }
     }
-    table_del(&ms_table);
+    Table_Del(&ms_table);
 }
 
-bool mesh_new(Mesh *const mesh, Guid name, MeshId *const idOut)
+bool Mesh_New(Mesh *const mesh, Guid name, MeshId *const idOut)
 {
     ASSERT(mesh);
     ASSERT(mesh->length > 0);
@@ -91,7 +91,7 @@ bool mesh_new(Mesh *const mesh, Guid name, MeshId *const idOut)
     if (mesh->length > 0)
     {
         mesh->id = vkrMegaMesh_Alloc(mesh->length);
-        added = table_add(&ms_table, name, mesh, &id);
+        added = Table_Add(&ms_table, name, mesh, &id);
         if (added)
         {
             added = vkrMegaMesh_Set(
@@ -114,50 +114,50 @@ bool mesh_new(Mesh *const mesh, Guid name, MeshId *const idOut)
     return added;
 }
 
-bool mesh_exists(MeshId id)
+bool Mesh_Exists(MeshId id)
 {
     return IsCurrent(id);
 }
 
-void mesh_retain(MeshId id)
+void Mesh_Retain(MeshId id)
 {
-    table_retain(&ms_table, ToGenId(id));
+    Table_Retain(&ms_table, ToGenId(id));
 }
 
-void mesh_release(MeshId id)
+void Mesh_Release(MeshId id)
 {
     Mesh mesh = { 0 };
-    if (table_release(&ms_table, ToGenId(id), &mesh))
+    if (Table_Release(&ms_table, ToGenId(id), &mesh))
     {
         FreeMesh(&mesh);
     }
 }
 
-Mesh *const mesh_get(MeshId id)
+Mesh *const Mesh_Get(MeshId id)
 {
-    return table_get(&ms_table, ToGenId(id));
+    return Table_Get(&ms_table, ToGenId(id));
 }
 
-bool mesh_find(Guid name, MeshId *const idOut)
+bool Mesh_Find(Guid name, MeshId *const idOut)
 {
     ASSERT(idOut);
     GenId id;
-    bool found = table_find(&ms_table, name, &id);
+    bool found = Table_Find(&ms_table, name, &id);
     *idOut = ToMeshId(id);
     return found;
 }
 
-bool mesh_getname(MeshId mid, Guid *const dst)
+bool Mesh_GetName(MeshId mid, Guid *const dst)
 {
     GenId gid = ToGenId(mid);
-    return table_getname(&ms_table, gid, dst);
+    return Table_GetName(&ms_table, gid, dst);
 }
 
-Box3D mesh_calcbounds(MeshId id)
+Box3D Mesh_CalcBounds(MeshId id)
 {
     Box3D bounds = { 0 };
 
-    Mesh const *const mesh = mesh_get(id);
+    Mesh const *const mesh = Mesh_Get(id);
     if (mesh)
     {
         bounds = box_from_pts(mesh->positions, mesh->length);
@@ -166,23 +166,23 @@ Box3D mesh_calcbounds(MeshId id)
     return bounds;
 }
 
-bool mesh_setmaterial(MeshId id, Material const *const mat)
+bool Mesh_SetMaterial(MeshId id, Material const *const mat)
 {
-    Mesh *const mesh = mesh_get(id);
+    Mesh *const mesh = Mesh_Get(id);
     if (mesh)
     {
         int4 index = { 0 };
-        Texture const* tex = texture_get(mat->albedo);
+        Texture const* tex = Texture_Get(mat->albedo);
         if (tex)
         {
             index.x = tex->slot.index;
         }
-        tex = texture_get(mat->rome);
+        tex = Texture_Get(mat->rome);
         if (tex)
         {
             index.y = tex->slot.index;
         }
-        tex = texture_get(mat->normal);
+        tex = Texture_Get(mat->normal);
         if (tex)
         {
             index.z = tex->slot.index;
@@ -197,14 +197,14 @@ bool mesh_setmaterial(MeshId id, Material const *const mat)
             current.z = index.z;
             texIndices[i] = current;
         }
-        return mesh_update(mesh);
+        return Mesh_Upload(mesh);
     }
     return false;
 }
 
-bool VEC_CALL mesh_settransform(MeshId id, float4x4 localToWorld)
+bool VEC_CALL Mesh_SetTransform(MeshId id, float4x4 localToWorld)
 {
-    Mesh *const mesh = mesh_get(id);
+    Mesh *const mesh = Mesh_Get(id);
     if (mesh)
     {
         float3x3 IM = f3x3_IM(localToWorld);
@@ -219,12 +219,12 @@ bool VEC_CALL mesh_settransform(MeshId id, float4x4 localToWorld)
         {
             normals[i] = f4_normalize3(f3x3_mul_col(IM, normals[i]));
         }
-        return mesh_update(mesh);
+        return Mesh_Upload(mesh);
     }
     return false;
 }
 
-bool mesh_update(Mesh *const mesh)
+bool Mesh_Upload(Mesh *const mesh)
 {
     ASSERT(mesh);
 
@@ -258,9 +258,9 @@ bool mesh_update(Mesh *const mesh)
     return false;
 }
 
-bool mesh_save(Crate *const crate, MeshId id, Guid *const dst)
+bool Mesh_Save(Crate *const crate, MeshId id, Guid *const dst)
 {
-    if (mesh_getname(id, dst))
+    if (Mesh_GetName(id, dst))
     {
         const Mesh *const meshes = ms_table.values;
         const Mesh mesh = meshes[id.index];
@@ -274,7 +274,7 @@ bool mesh_save(Crate *const crate, MeshId id, Guid *const dst)
         DiskMesh* dmesh = Perm_Alloc(totalBytes);
         dmesh->version = kMeshVersion;
         dmesh->length = len;
-        guid_get_name(*dst, ARGS(dmesh->name));
+        Guid_GetName(*dst, ARGS(dmesh->name));
         float4* positions = (float4*)(dmesh + 1);
         float4* normals = positions + len;
         float4* uvs = normals + len;
@@ -283,18 +283,18 @@ bool mesh_save(Crate *const crate, MeshId id, Guid *const dst)
         memcpy(normals, mesh.normals, normalBytes);
         memcpy(uvs, mesh.uvs, uvBytes);
         memcpy(texIndices, mesh.texIndices, texIndBytes);
-        bool wasSet = crate_set(crate, *dst, dmesh, totalBytes);
+        bool wasSet = Crate_Set(crate, *dst, dmesh, totalBytes);
         Mem_Free(dmesh);
         return wasSet;
     }
     return false;
 }
 
-bool mesh_load(Crate *const crate, Guid name, MeshId *const dst)
+bool Mesh_Load(Crate *const crate, Guid name, MeshId *const dst)
 {
-    if (mesh_find(name, dst))
+    if (Mesh_Find(name, dst))
     {
-        mesh_retain(*dst);
+        Mesh_Retain(*dst);
         return true;
     }
 
@@ -302,17 +302,17 @@ bool mesh_load(Crate *const crate, Guid name, MeshId *const dst)
     Mesh mesh = { 0 };
     i32 offset = 0;
     i32 size = 0;
-    if (crate_stat(crate, name, &offset, &size))
+    if (Crate_Stat(crate, name, &offset, &size))
     {
         DiskMesh* dmesh = Perm_Alloc(size);
-        if (dmesh && crate_get(crate, name, dmesh, size))
+        if (dmesh && Crate_Get(crate, name, dmesh, size))
         {
             if (dmesh->version == kMeshVersion)
             {
                 const i32 len = dmesh->length;
                 if (len > 0)
                 {
-                    guid_set_name(name, dmesh->name);
+                    Guid_SetName(name, dmesh->name);
                     mesh.length = len;
                     mesh.positions = Perm_Alloc(sizeof(mesh.positions[0]) * mesh.length);
                     mesh.normals = Perm_Alloc(sizeof(mesh.normals[0]) * mesh.length);
@@ -327,7 +327,7 @@ bool mesh_load(Crate *const crate, Guid name, MeshId *const dst)
                     memcpy(mesh.normals, normals, sizeof(mesh.normals[0]) * len);
                     memcpy(mesh.uvs, uvs, sizeof(mesh.uvs[0]) * len);
                     memcpy(mesh.texIndices, texIndices, sizeof(mesh.texIndices[0]) * len);
-                    loaded = mesh_new(&mesh, name, dst);
+                    loaded = Mesh_New(&mesh, name, dst);
                 }
             }
         }
@@ -352,8 +352,8 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
 
     Guid lhs = names[ilhs];
     Guid rhs = names[irhs];
-    bool lvalid = !guid_isnull(lhs);
-    bool rvalid = !guid_isnull(rhs);
+    bool lvalid = !Guid_IsNull(lhs);
+    bool rvalid = !Guid_IsNull(rhs);
     if (lvalid && rvalid)
     {
         i32 cmp = 0;
@@ -364,8 +364,8 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
         {
             char lname[64] = { 0 };
             char rname[64] = { 0 };
-            guid_get_name(lhs, ARGS(lname));
-            guid_get_name(rhs, ARGS(rname));
+            Guid_GetName(lhs, ARGS(lname));
+            Guid_GetName(rhs, ARGS(rname));
             cmp = StrCmp(ARGS(lname), rname);
         }
         break;
@@ -389,8 +389,8 @@ static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
     return 0;
 }
 
-ProfileMark(pm_OnGui, mesh_sys_gui)
-void mesh_sys_gui(bool* pEnabled)
+ProfileMark(pm_OnGui, MeshSys_Gui)
+void MeshSys_Gui(bool* pEnabled)
 {
     ProfileBegin(pm_OnGui);
 
@@ -407,12 +407,12 @@ void mesh_sys_gui(bool* pEnabled)
         i32 bytesUsed = 0;
         for (i32 i = 0; i < width; ++i)
         {
-            if (!guid_isnull(names[i]))
+            if (!Guid_IsNull(names[i]))
             {
                 if (gs_search[0])
                 {
                     char name[64] = { 0 };
-                    guid_get_name(names[i], ARGS(name));
+                    Guid_GetName(names[i], ARGS(name));
                     if (!StrIStr(ARGS(name), gs_search))
                     {
                         continue;
@@ -453,7 +453,7 @@ void mesh_sys_gui(bool* pEnabled)
         {
             indices[i] = i;
         }
-        sort_i32(indices, width, CmpSlotFn, NULL);
+        QuickSort_Int(indices, width, CmpSlotFn, NULL);
 
         for (i32 i = 0; i < width; ++i)
         {
@@ -461,7 +461,7 @@ void mesh_sys_gui(bool* pEnabled)
             ASSERT(j >= 0);
             ASSERT(j < width);
             Guid name = names[j];
-            if (guid_isnull(name))
+            if (Guid_IsNull(name))
             {
                 continue;
             }
@@ -469,7 +469,7 @@ void mesh_sys_gui(bool* pEnabled)
             if (gs_search[0])
             {
                 char namestr[64] = { 0 };
-                guid_get_name(name, ARGS(namestr));
+                Guid_GetName(name, ARGS(namestr));
                 if (!StrIStr(ARGS(namestr), gs_search))
                 {
                     continue;
@@ -479,9 +479,9 @@ void mesh_sys_gui(bool* pEnabled)
             i32 length = meshes[j].length;
             i32 refcount = refcounts[j];
             char namestr[PIM_PATH] = { 0 };
-            if (!guid_get_name(name, ARGS(namestr)))
+            if (!Guid_GetName(name, ARGS(namestr)))
             {
-                guid_fmt(ARGS(namestr), name);
+                Guid_Format(ARGS(namestr), name);
             }
             igText(namestr); igNextColumn();
             igText("%d", length); igNextColumn();

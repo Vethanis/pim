@@ -113,7 +113,7 @@ ProfileMark(pm_blit, vkrScreenBlit_Blit)
 void vkrScreenBlit_Blit(
     const vkrPassContext* passCtx,
     vkrScreenBlit* blit,
-    const framebuf_t* fbuf)
+    const FrameBuf* fbuf)
 {
     ASSERT(passCtx);
     ASSERT(blit);

@@ -6,16 +6,17 @@ PIM_C_BEGIN
 
 #include "threading/semaphore.h"
 
-typedef struct event_s
+typedef struct Event_s
 {
     i32 state;
-    semaphore_t sema;
-} event_t;
+    Semaphore sema;
+} Event;
 
-void event_create(event_t* evt);
-void event_destroy(event_t* evt);
-void event_wait(event_t* evt);
-void event_wakeone(event_t* evt);
-void event_wakeall(event_t* evt);
+void Event_New(Event* evt);
+void Event_Del(Event* evt);
+
+void Event_Wait(Event* evt);
+void Event_WakeOne(Event* evt);
+void Event_WakeAll(Event* evt);
 
 PIM_C_END

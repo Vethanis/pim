@@ -2,34 +2,34 @@
 #include "common/atomics.h"
 #include "threading/intrin.h"
 
-void event_create(event_t* evt)
+void Event_New(Event* evt)
 {
     ASSERT(evt);
-    semaphore_create(&evt->sema, 0);
+    Semaphore_New(&evt->sema, 0);
     store_i32(&evt->state, 0, MO_Relaxed);
 }
 
-void event_destroy(event_t* evt)
+void Event_Del(Event* evt)
 {
     ASSERT(evt);
     if (evt->sema.handle)
     {
-        event_wakeall(evt);
-        semaphore_destroy(&evt->sema);
+        Event_WakeAll(evt);
+        Semaphore_Del(&evt->sema);
     }
 }
 
-void event_wait(event_t* evt)
+void Event_Wait(Event* evt)
 {
     ASSERT(evt);
     i32 prev = dec_i32(&evt->state, MO_AcqRel);
     if (prev < 1)
     {
-        semaphore_wait(evt->sema);
+        Semaphore_Wait(evt->sema);
     }
 }
 
-void event_wakeone(event_t* evt)
+void Event_WakeOne(Event* evt)
 {
     ASSERT(evt);
     u64 spins = 0;
@@ -41,15 +41,15 @@ void event_wakeone(event_t* evt)
         {
             break;
         }
-        intrin_spin(++spins);
+        Intrin_Spin(++spins);
     }
     if (oldstate < 0)
     {
-        semaphore_signal(evt->sema, 1);
+        Semaphore_Signal(evt->sema, 1);
     }
 }
 
-void event_wakeall(event_t* evt)
+void Event_WakeAll(Event* evt)
 {
     ASSERT(evt);
     u64 spins = 0;
@@ -62,10 +62,10 @@ void event_wakeall(event_t* evt)
         {
             break;
         }
-        intrin_spin(++spins);
+        Intrin_Spin(++spins);
     }
     if (oldstate < 0)
     {
-        semaphore_signal(evt->sema, -oldstate);
+        Semaphore_Signal(evt->sema, -oldstate);
     }
 }

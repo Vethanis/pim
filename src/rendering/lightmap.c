@@ -70,7 +70,7 @@ typedef struct chart_s
 
 typedef struct atlas_s
 {
-    spinlock_t mtx;
+    Spinlock mtx;
     mask_t mask;
     i32 chartCount;
 } atlas_t;
@@ -80,9 +80,9 @@ static bool ms_once;
 
 static cmdstat_t CmdPrintLm(i32 argc, const char** argv);
 
-LmPack* lmpack_get(void) { return &ms_pack; }
+LmPack* LmPack_Get(void) { return &ms_pack; }
 
-void lightmap_new(Lightmap* lm, i32 size)
+void Lightmap_New(Lightmap* lm, i32 size)
 {
     ASSERT(lm);
     ASSERT(size > 0);
@@ -122,10 +122,10 @@ void lightmap_new(Lightmap* lm, i32 size)
         kGiDirections,
         true);
 
-    lightmap_upload(lm);
+    Lightmap_Upload(lm);
 }
 
-void lightmap_del(Lightmap* lm)
+void Lightmap_Del(Lightmap* lm)
 {
     if (lm)
     {
@@ -135,7 +135,7 @@ void lightmap_del(Lightmap* lm)
     }
 }
 
-void lightmap_upload(Lightmap* lm)
+void Lightmap_Upload(Lightmap* lm)
 {
     ASSERT(lm);
     const i32 len = lm->size * lm->size;
@@ -170,7 +170,7 @@ pim_inline i32 chartnode_cmp(const void* lhs, const void* rhs, void* usr)
 
 pim_inline void chartnode_sort(chartnode_t* nodes, i32 count)
 {
-    pimsort(nodes, count, sizeof(nodes[0]), chartnode_cmp, NULL);
+    QuickSort(nodes, count, sizeof(nodes[0]), chartnode_cmp, NULL);
 }
 
 pim_inline mask_t VEC_CALL mask_new(int2 size)
@@ -715,13 +715,13 @@ pim_inline i32 chart_cmp(const void* plhs, const void* prhs, void* usr)
 
 pim_inline void chart_sort(chart_t* charts, i32 chartCount)
 {
-    pimsort(charts, chartCount, sizeof(charts[0]), chart_cmp, NULL);
+    QuickSort(charts, chartCount, sizeof(charts[0]), chart_cmp, NULL);
 }
 
 pim_inline atlas_t atlas_new(i32 size)
 {
     atlas_t atlas = { 0 };
-    spinlock_new(&atlas.mtx);
+    Spinlock_New(&atlas.mtx);
     atlas.mask = mask_new(i2_s(size));
     return atlas;
 }
@@ -730,7 +730,7 @@ pim_inline void atlas_del(atlas_t* atlas)
 {
     if (atlas)
     {
-        spinlock_del(&atlas->mtx);
+        Spinlock_Del(&atlas->mtx);
         mask_del(&atlas->mask);
         memset(atlas, 0, sizeof(*atlas));
     }
@@ -752,7 +752,7 @@ static bool atlas_search(
         {
             *prevAtlas = i;
             *prevRow = tr.y;
-            spinlock_lock(&atlas->mtx);
+            Spinlock_Lock(&atlas->mtx);
             bool fits = mask_fits(atlas->mask, chart->mask, tr);
             if (fits)
             {
@@ -761,7 +761,7 @@ static bool atlas_search(
                 chart->atlasIndex = i;
                 atlas->chartCount++;
             }
-            spinlock_unlock(&atlas->mtx);
+            Spinlock_Unlock(&atlas->mtx);
             if (fits)
             {
                 return true;
@@ -781,7 +781,7 @@ static bool atlas_search(
 
 static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
 {
-    const Entities* drawables = drawables_get();
+    const Entities* drawables = Entities_Get();
     const i32 numDrawables = drawables->count;
     const Material* pim_noalias materials = drawables->materials;
     const MeshId* pim_noalias meshids = drawables->meshes;
@@ -790,7 +790,7 @@ static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
     chartnode_t* nodes = NULL;
     i32 nodeCount = 0;
 
-    const u32 unmapped = matflag_sky | matflag_lava;
+    const u32 unmapped = MatFlag_Sky | MatFlag_Lava;
     for (i32 d = 0; d < numDrawables; ++d)
     {
         const Material material = materials[d];
@@ -799,7 +799,7 @@ static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
             continue;
         }
 
-        Mesh const *const mesh = mesh_get(meshids[d]);
+        Mesh const *const mesh = Mesh_Get(meshids[d]);
         if (!mesh)
         {
             continue;
@@ -940,7 +940,7 @@ static void chartnodes_assign(
     Lightmap* lightmaps,
     i32 lightmapCount)
 {
-    Entities const *const drawables = drawables_get();
+    Entities const *const drawables = Entities_Get();
     const i32 numDrawables = drawables->count;
     MeshId const *const pim_noalias meshids = drawables->meshes;
 
@@ -962,7 +962,7 @@ static void chartnodes_assign(
             ASSERT(node.drawableIndex < numDrawables);
             ASSERT(node.vertIndex >= 0);
 
-            Mesh *const mesh = mesh_get(meshids[node.drawableIndex]);
+            Mesh *const mesh = Mesh_Get(meshids[node.drawableIndex]);
             ASSERT(mesh);
             if (mesh)
             {
@@ -987,7 +987,7 @@ static void chartnodes_assign(
                 uvs[c].z = uvC.x;
                 uvs[c].w = uvC.y;
 
-                mesh_update(mesh);
+                Mesh_Upload(mesh);
             }
         }
     }
@@ -1193,7 +1193,7 @@ static void EmbedAttributesFn(void *const pbase, i32 begin, i32 end)
     const int2 size = { lmSize, lmSize };
     const float limit = 4.0f / lmSize;
 
-    Entities const *const drawables = drawables_get();
+    Entities const *const drawables = Entities_Get();
     const i32 drawablesCount = drawables->count;
     MeshId const *const pim_noalias meshids = drawables->meshes;
     float4x4 const *const pim_noalias matrices = drawables->matrices;
@@ -1218,7 +1218,7 @@ static void EmbedAttributesFn(void *const pbase, i32 begin, i32 end)
             i32 iDraw = ind.x;
             i32 iVert = ind.y;
 
-            Mesh const *const mesh = mesh_get(meshids[iDraw]);
+            Mesh const *const mesh = Mesh_Get(meshids[iDraw]);
             if (!mesh)
             {
                 continue;
@@ -1291,12 +1291,12 @@ static void EmbedAttributes(
         }
 
         {
-            const Entities* drawables = drawables_get();
+            const Entities* drawables = Entities_Get();
             const i32 dwCount = drawables->count;
             const MeshId* pim_noalias meshids = drawables->meshes;
             for (i32 iDraw = 0; iDraw < dwCount; ++iDraw)
             {
-                Mesh const *const mesh = mesh_get(meshids[iDraw]);
+                Mesh const *const mesh = Mesh_Get(meshids[iDraw]);
                 if (!mesh)
                 {
                     continue;
@@ -1338,7 +1338,7 @@ static void EmbedAttributes(
     }
 }
 
-LmPack lmpack_pack(
+LmPack LmPack_Pack(
     i32 atlasSize,
     float texelsPerUnit,
     float distThresh,
@@ -1374,7 +1374,7 @@ LmPack lmpack_pack(
 
     for (i32 i = 0; i < atlasCount; ++i)
     {
-        lightmap_new(pack.lightmaps + i, atlasSize);
+        Lightmap_New(pack.lightmaps + i, atlasSize);
     }
 
     chartnodes_assign(charts, chartCount, pack.lightmaps, atlasCount);
@@ -1391,13 +1391,13 @@ LmPack lmpack_pack(
     return pack;
 }
 
-void lmpack_del(LmPack* pack)
+void LmPack_Del(LmPack* pack)
 {
     if (pack)
     {
         for (i32 i = 0; i < pack->lmCount; ++i)
         {
-            lightmap_del(pack->lightmaps + i);
+            Lightmap_Del(pack->lightmaps + i);
         }
         Mem_Free(pack->lightmaps);
         memset(pack, 0, sizeof(*pack));
@@ -1421,7 +1421,7 @@ static void BakeFn(void* pbase, i32 begin, i32 end)
     const float timeSlice = task->timeSlice;
     const i32 spp = task->spp;
 
-    LmPack *const pack = lmpack_get();
+    LmPack *const pack = LmPack_Get();
     const i32 lmSize = pack->lmSize;
     const i32 lmLen = lmSize * lmSize;
     const float rcpSize = 1.0f / lmSize;
@@ -1495,15 +1495,15 @@ static void BakeFn(void* pbase, i32 begin, i32 end)
     PtSampler_Set(sampler);
 }
 
-ProfileMark(pm_Bake, lmpack_bake)
-void lmpack_bake(PtScene* scene, float timeSlice, i32 spp)
+ProfileMark(pm_Bake, LmPack_Bake)
+void LmPack_Bake(PtScene* scene, float timeSlice, i32 spp)
 {
     ProfileBegin(pm_Bake);
     ASSERT(scene);
 
     PtScene_Update(scene);
 
-    LmPack const *const pack = lmpack_get();
+    LmPack const *const pack = LmPack_Get();
     i32 texelCount = TexelCount(pack->lightmaps, pack->lmCount);
     if (texelCount > 0)
     {
@@ -1517,7 +1517,7 @@ void lmpack_bake(PtScene* scene, float timeSlice, i32 spp)
     ProfileEnd(pm_Bake);
 }
 
-bool lmpack_save(Crate* crate, const LmPack* pack)
+bool LmPack_Save(Crate* crate, const LmPack* pack)
 {
     bool wrote = false;
     ASSERT(pack);
@@ -1541,7 +1541,7 @@ bool lmpack_save(Crate* crate, const LmPack* pack)
     dpack.bytesPerLightmap = texelBytes;
     dpack.texelsPerMeter = pack->texelsPerMeter;
 
-    if (crate_set(crate, guid_str("lmpack"), &dpack, sizeof(dpack)))
+    if (Crate_Set(crate, Guid_FromStr("lmpack"), &dpack, sizeof(dpack)))
     {
         wrote = true;
         for (i32 i = 0; i < lmcount; ++i)
@@ -1549,20 +1549,20 @@ bool lmpack_save(Crate* crate, const LmPack* pack)
             char name[PIM_PATH] = { 0 };
             SPrintf(ARGS(name), "lightmap_%d", i);
             const Lightmap lm = pack->lightmaps[i];
-            wrote &= crate_set(crate, guid_str(name), lm.probes[0], texelBytes);
+            wrote &= Crate_Set(crate, Guid_FromStr(name), lm.probes[0], texelBytes);
         }
     }
 
     return wrote;
 }
 
-bool lmpack_load(Crate* crate, LmPack* pack)
+bool LmPack_Load(Crate* crate, LmPack* pack)
 {
     bool loaded = false;
-    lmpack_del(pack);
+    LmPack_Del(pack);
 
     DiskLmPack dpack = { 0 };
-    if (crate_get(crate, guid_str("lmpack"), &dpack, sizeof(dpack)))
+    if (Crate_Get(crate, Guid_FromStr("lmpack"), &dpack, sizeof(dpack)))
     {
         if ((dpack.version == kLmPackVersion) &&
             (dpack.directions == kGiDirections) &&
@@ -1591,9 +1591,9 @@ bool lmpack_load(Crate* crate, LmPack* pack)
                 char name[PIM_PATH] = { 0 };
                 SPrintf(ARGS(name), "lightmap_%d", i);
                 Lightmap lm = { 0 };
-                lightmap_new(&lm, lmsize);
-                loaded &= crate_get(crate, guid_str(name), lm.probes[0], texelBytes);
-                lightmap_upload(&lm);
+                Lightmap_New(&lm, lmsize);
+                loaded &= Crate_Get(crate, Guid_FromStr(name), lm.probes[0], texelBytes);
+                Lightmap_Upload(&lm);
                 pack->lightmaps[i] = lm;
             }
         }
@@ -1636,7 +1636,7 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
     }
 
     u32* buffer = NULL;
-    const LmPack* pack = lmpack_get();
+    const LmPack* pack = LmPack_Get();
     for (i32 i = 0; i < pack->lmCount; ++i)
     {
         const Lightmap lm = pack->lightmaps[i];

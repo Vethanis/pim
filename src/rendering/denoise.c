@@ -9,7 +9,7 @@
 
 typedef struct oidn_s
 {
-    library_t lib;
+    Library lib;
 
     OIDNDevice(*oidnNewDevice)(OIDNDeviceType type);
     void(*oidnCommitDevice)(OIDNDevice device);

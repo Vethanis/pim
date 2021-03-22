@@ -3,52 +3,52 @@
 #include "threading/intrin.h"
 #include <string.h>
 
-void barrier_new(barrier_t* bar, i32 size)
+void Barrier_New(Barrier* bar, i32 size)
 {
     memset(bar, 0, sizeof(*bar));
-    semaphore_create(&bar->phases[0], 0);
-    semaphore_create(&bar->phases[1], 0);
+    Semaphore_New(&bar->phases[0], 0);
+    Semaphore_New(&bar->phases[1], 0);
     bar->size = size;
 }
 
-void barrier_del(barrier_t* bar)
+void Barrier_Del(Barrier* bar)
 {
     if (bar)
     {
-        semaphore_destroy(&bar->phases[0]);
-        semaphore_destroy(&bar->phases[1]);
+        Semaphore_Del(&bar->phases[0]);
+        Semaphore_Del(&bar->phases[1]);
         memset(bar, 0, sizeof(*bar));
     }
 }
 
-void barrier_phase1(barrier_t* bar)
+void Barrier_Phase1(Barrier* bar)
 {
-    semaphore_t phase = bar->phases[0];
+    Semaphore phase = bar->phases[0];
     i32 size = bar->size;
     i32 counter = fetch_add_i32(&bar->counter, 1, MO_AcqRel) + 1;
     ASSERT(counter <= size);
     if (counter == size)
     {
-        semaphore_signal(phase, size);
+        Semaphore_Signal(phase, size);
     }
-    semaphore_wait(phase);
+    Semaphore_Wait(phase);
 }
 
-void barrier_phase2(barrier_t* bar)
+void Barrier_Phase2(Barrier* bar)
 {
-    semaphore_t phase = bar->phases[1];
+    Semaphore phase = bar->phases[1];
     i32 size = bar->size;
     i32 counter = fetch_add_i32(&bar->counter, -1, MO_AcqRel) - 1;
     ASSERT(counter >= 0);
     if (counter == 0)
     {
-        semaphore_signal(phase, size);
+        Semaphore_Signal(phase, size);
     }
-    semaphore_wait(phase);
+    Semaphore_Wait(phase);
 }
 
-void barrier_wait(barrier_t* bar)
+void Barrier_Wait(Barrier* bar)
 {
-    barrier_phase1(bar);
-    barrier_phase2(bar);
+    Barrier_Phase1(bar);
+    Barrier_Phase2(bar);
 }

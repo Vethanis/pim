@@ -4,29 +4,29 @@
 
 PIM_C_BEGIN
 
-typedef struct midihdl_s
+typedef struct MidiHdl_s
 {
     u32 version : 8;
     u32 index : 24;
-} midihdl_t;
+} MidiHdl;
 
-typedef struct midimsg_s
+typedef struct MidiMsg_s
 {
     u32 tick;
     u8 command;
     u8 param1;
     u8 param2;
-} midimsg_t;
+} MidiMsg;
 
-typedef void(*midi_cb)(const midimsg_t* msg, void* usr);
+typedef void(*OnMidiFn)(const MidiMsg* msg, void* usr);
 
-void midi_sys_init(void);
-void midi_sys_update(void);
-void midi_sys_shutdown(void);
+void MidiSys_Init(void);
+void MidiSys_Update(void);
+void MidiSys_Shutdown(void);
 
-i32 midi_devcount(void);
-bool midi_exists(midihdl_t hdl);
-midihdl_t midi_open(i32 port, midi_cb cb, void* usr);
-bool midi_close(midihdl_t hdl);
+i32 Midi_DeviceCount(void);
+bool Midi_Exists(MidiHdl hdl);
+MidiHdl Midi_Open(i32 port, OnMidiFn cb, void* usr);
+bool Midi_Close(MidiHdl hdl);
 
 PIM_C_END

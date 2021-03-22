@@ -24,11 +24,11 @@ static edwin_t ms_windows[] =
     { "Assets", AssetSys_Gui },
     { "Audio", AudioSys_Gui },
     { "CVars", cvar_gui },
-    { "Drawables", drawables_gui },
-    { "Meshes", mesh_sys_gui },
-    { "Profiler", profile_gui },
+    { "Drawables", EntSys_Gui },
+    { "Meshes", MeshSys_Gui },
+    { "Profiler", ProfileSys_Gui },
     { "Renderer", RenderSys_Gui },
-    { "Textures", texture_sys_gui },
+    { "Textures", TextureSys_Gui },
 };
 
 // ----------------------------------------------------------------------------
@@ -41,13 +41,13 @@ static void ShowWindows(void);
 
 // ----------------------------------------------------------------------------
 
-void menubar_init(void)
+void MenuBar_Init(void)
 {
 
 }
 
-ProfileMark(pm_update, menubar_update)
-void menubar_update(void)
+ProfileMark(pm_update, MenuBar_Update)
+void MenuBar_Update(void)
 {
     ProfileBegin(pm_update);
 
@@ -57,7 +57,7 @@ void menubar_update(void)
     ProfileEnd(pm_update);
 }
 
-void menubar_shutdown(void)
+void MenuBar_Shutdown(void)
 {
 
 }

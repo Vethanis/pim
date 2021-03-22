@@ -107,7 +107,7 @@ void MegaMesh_Free(MegaMesh* m, i32 offset, i32 length)
 
 static vkrBufferSet ms_buffer;
 static vkrBufferSet ms_stage;
-static idalloc_t ms_ids;
+static IdAlloc ms_ids;
 static SubMesh* ms_meshes;
 static MegaMesh ms_mega;
 static bool ms_dirty[kFramesInFlight];
@@ -197,7 +197,7 @@ void vkrMegaMesh_Shutdown(void)
     vkrBufferSet_Del(&ms_buffer);
     vkrBufferSet_Del(&ms_stage);
 
-    idalloc_del(&ms_ids);
+    IdAlloc_Del(&ms_ids);
     Mem_Free(ms_meshes);
     ms_meshes = NULL;
     MegaMesh_Reset(&ms_mega);
@@ -205,12 +205,12 @@ void vkrMegaMesh_Shutdown(void)
 
 bool vkrMegaMesh_Exists(vkrMeshId id)
 {
-    return idalloc_exists(&ms_ids, ToGenId(id));
+    return IdAlloc_Exists(&ms_ids, ToGenId(id));
 }
 
 vkrMeshId vkrMegaMesh_Alloc(i32 vertCount)
 {
-    GenId gid = idalloc_alloc(&ms_ids);
+    GenId gid = IdAlloc_Alloc(&ms_ids);
     Perm_Reserve(ms_meshes, ms_ids.length);
     SubMesh* mesh = &ms_meshes[gid.index];
     mesh->length = vertCount;
@@ -223,7 +223,7 @@ vkrMeshId vkrMegaMesh_Alloc(i32 vertCount)
 
 bool vkrMegaMesh_Free(vkrMeshId id)
 {
-    if (idalloc_free(&ms_ids, ToGenId(id)))
+    if (IdAlloc_Free(&ms_ids, ToGenId(id)))
     {
         SubMesh *const pim_noalias meshes = ms_meshes;
         i32 slot = id.index;

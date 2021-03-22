@@ -81,16 +81,16 @@ static bool LoadImageUri(
 
 // ----------------------------------------------------------------------------
 
-bool gltf_model_load(const char* path, Entities* dr)
+bool Gltf_Load(const char* path, Entities* dr)
 {
     bool success = true;
-    fmap_t map = { 0 };
+    FileMap map = { 0 };
     cgltf_data* cgdata = NULL;
     cgltf_options options = { 0 };
     cgltf_result result = cgltf_result_success;
 
-    map = fmap_open(path, false);
-    if (!fmap_isopen(map))
+    map = FileMap_Open(path, false);
+    if (!FileMap_IsOpen(map))
     {
         ASSERT(false);
         success = false;
@@ -125,7 +125,7 @@ bool gltf_model_load(const char* path, Entities* dr)
 
 cleanup:
     cgltf_free(cgdata);
-    fmap_close(&map);
+    FileMap_Close(&map);
     return success;
 }
 
@@ -224,14 +224,14 @@ static i32 CreateNode(
     char fullName[PIM_PATH] = { 0 };
     StrCpy(ARGS(fullName), cgscene->name);
     CatNodeLineage(ARGS(fullName), cgnode);
-    Guid guid = guid_str(fullName);
+    Guid guid = Guid_FromStr(fullName);
 
-    i32 iDrawable = drawables_find(dr, guid);
+    i32 iDrawable = Entities_Find(dr, guid);
     if (iDrawable >= 0)
     {
         return iDrawable;
     }
-    iDrawable = drawables_add(dr, guid);
+    iDrawable = Entities_Add(dr, guid);
 
     float4x4 localToWorld = f4x4_id;
     cgltf_node_transform_world(cgnode, &localToWorld.c0.x);
@@ -269,12 +269,12 @@ static bool CreateMesh(
     char fullName[PIM_PATH] = { 0 };
     char const *const names[] = { basePath, name };
     ConcatNames(ARGS(fullName), ARGS(names));
-    Guid guid = guid_str(fullName);
+    Guid guid = Guid_FromStr(fullName);
 
     MeshId id = { 0 };
-    if (mesh_find(guid, &id))
+    if (Mesh_Find(guid, &id))
     {
-        mesh_retain(id);
+        Mesh_Retain(id);
         return true;
     }
 
@@ -370,11 +370,11 @@ static bool CreateMaterial(
 
     if (cgemission)
     {
-        material.flags |= matflag_emissive;
+        material.flags |= MatFlag_Emissive;
     }
     if ((material.ior != 1.0f) || cgmat->has_transmission)
     {
-        material.flags |= matflag_refractive;
+        material.flags |= MatFlag_Refractive;
     }
 
     dr->materials[iDrawable] = material;
@@ -555,11 +555,11 @@ static TextureId CreateAlbedoTexture(
     char const *const names[] = { basePath, cgalbedo->uri };
     ConcatNames(ARGS(fullName), ARGS(names));
     cgltf_decode_uri(fullName);
-    Guid guid = guid_str(fullName);
+    Guid guid = Guid_FromStr(fullName);
 
-    if (texture_find(guid, &id))
+    if (Texture_Find(guid, &id))
     {
-        texture_retain(id);
+        Texture_Retain(id);
         return id;
     }
 
@@ -573,7 +573,7 @@ static TextureId CreateAlbedoTexture(
         Mem_Free(tex.texels);
         return id;
     }
-    texture_new(&tex, tex.format, guid, &id);
+    Texture_New(&tex, tex.format, guid, &id);
     return id;
 }
 
@@ -590,12 +590,12 @@ static TextureId CreateRomeTexture(
     char fullName[PIM_PATH] = { 0 };
     ConcatNames(ARGS(fullName), ARGS(names));
     cgltf_decode_uri(fullName);
-    Guid guid = guid_str(fullName);
+    Guid guid = Guid_FromStr(fullName);
 
     TextureId id = { 0 };
-    if (texture_find(guid, &id))
+    if (Texture_Find(guid, &id))
     {
-        texture_retain(id);
+        Texture_Retain(id);
         return id;
     }
 
@@ -686,7 +686,7 @@ static TextureId CreateRomeTexture(
         Mem_Free(emtex.texels);
     }
 
-    texture_new(&tex, VK_FORMAT_R8G8B8A8_SRGB, guid, &id);
+    Texture_New(&tex, VK_FORMAT_R8G8B8A8_SRGB, guid, &id);
     return id;
 }
 
@@ -704,11 +704,11 @@ static TextureId CreateNormalTexture(
     char const *const names[] = { basePath, cgnormal->uri };
     ConcatNames(ARGS(fullName), ARGS(names));
     cgltf_decode_uri(fullName);
-    Guid guid = guid_str(fullName);
+    Guid guid = Guid_FromStr(fullName);
 
-    if (texture_find(guid, &id))
+    if (Texture_Find(guid, &id))
     {
-        texture_retain(id);
+        Texture_Retain(id);
         return id;
     }
 
@@ -735,7 +735,7 @@ static TextureId CreateNormalTexture(
         tex.texels = dst;
         tex.format = VK_FORMAT_R8G8B8A8_UNORM;
     }
-    texture_new(&tex, VK_FORMAT_R8G8B8A8_UNORM, guid, &id);
+    Texture_New(&tex, VK_FORMAT_R8G8B8A8_UNORM, guid, &id);
     return id;
 }
 
@@ -760,10 +760,10 @@ bool ResampleToAlbedoRome(
     ConcatNames(ARGS(romeFullname), ARGS(romeNames));
     cgltf_decode_uri(albedoFullname);
     cgltf_decode_uri(romeFullname);
-    Guid albedoGuid = guid_str(albedoFullname);
-    Guid romeGuid = guid_str(romeFullname);
+    Guid albedoGuid = Guid_FromStr(albedoFullname);
+    Guid romeGuid = Guid_FromStr(romeFullname);
 
-    if (texture_find(albedoGuid, &material->albedo) && texture_find(romeGuid, &material->rome))
+    if (Texture_Find(albedoGuid, &material->albedo) && Texture_Find(romeGuid, &material->rome))
     {
         return true;
     }
@@ -881,17 +881,17 @@ bool ResampleToAlbedoRome(
         Mem_Free(emtex.texels);
     }
 
-    if (!texture_exists(material->albedo))
+    if (!Texture_Exists(material->albedo))
     {
-        texture_new(&albedotex, VK_FORMAT_R8G8B8A8_SRGB, albedoGuid, &material->albedo);
+        Texture_New(&albedotex, VK_FORMAT_R8G8B8A8_SRGB, albedoGuid, &material->albedo);
     }
     else
     {
         Mem_Free(albedotex.texels);
     }
-    if (!texture_exists(material->rome))
+    if (!Texture_Exists(material->rome))
     {
-        texture_new(&rometex, VK_FORMAT_R8G8B8A8_SRGB, romeGuid, &material->rome);
+        Texture_New(&rometex, VK_FORMAT_R8G8B8A8_SRGB, romeGuid, &material->rome);
     }
     else
     {

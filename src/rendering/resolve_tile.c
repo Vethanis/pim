@@ -11,7 +11,7 @@ typedef struct resolve_s
 {
     Task task;
     float4 toneParams;
-    framebuf_t* target;
+    FrameBuf* target;
     TonemapId tmapId;
 } resolve_t;
 
@@ -25,7 +25,7 @@ pim_inline u32 VEC_CALL ToColor(Prng *const pim_noalias rng, float4 linear)
 }
 
 static void VEC_CALL ResolveReinhard(
-    i32 begin, i32 end, framebuf_t* target)
+    i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
@@ -38,7 +38,7 @@ static void VEC_CALL ResolveReinhard(
 }
 
 static void VEC_CALL ResolveUncharted2(
-    i32 begin, i32 end, framebuf_t* target)
+    i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
@@ -53,7 +53,7 @@ static void VEC_CALL ResolveUncharted2(
 }
 
 static void VEC_CALL ResolveHable(
-    i32 begin, i32 end, framebuf_t* target, float4 params)
+    i32 begin, i32 end, FrameBuf* target, float4 params)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
@@ -68,7 +68,7 @@ static void VEC_CALL ResolveHable(
 }
 
 static void VEC_CALL ResolveFilmic(
-    i32 begin, i32 end, framebuf_t* target)
+    i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
@@ -81,7 +81,7 @@ static void VEC_CALL ResolveFilmic(
 }
 
 static void VEC_CALL ResolveACES(
-    i32 begin, i32 end, framebuf_t* target)
+    i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
@@ -97,7 +97,7 @@ static void ResolveTileFn(Task* task, i32 begin, i32 end)
 {
     resolve_t* resolve = (resolve_t*)task;
 
-    framebuf_t* target = resolve->target;
+    FrameBuf* target = resolve->target;
     const float4 params = resolve->toneParams;
     const TonemapId id = resolve->tmapId;
 
@@ -123,7 +123,7 @@ static void ResolveTileFn(Task* task, i32 begin, i32 end)
 }
 
 ProfileMark(pm_ResolveTile, ResolveTile)
-void ResolveTile(framebuf_t* target, TonemapId tmapId, float4 toneParams)
+void ResolveTile(FrameBuf* target, TonemapId tmapId, float4 toneParams)
 {
     ProfileBegin(pm_ResolveTile);
 

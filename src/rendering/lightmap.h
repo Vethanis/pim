@@ -53,22 +53,22 @@ typedef struct DiskLmPack_s
     float texelsPerMeter;
 } DiskLmPack;
 
-void lightmap_new(Lightmap* lm, i32 size);
-void lightmap_del(Lightmap* lm);
+void Lightmap_New(Lightmap* lm, i32 size);
+void Lightmap_Del(Lightmap* lm);
 // upload changes to the GPU copy
-void lightmap_upload(Lightmap* lm);
+void Lightmap_Upload(Lightmap* lm);
 
-LmPack* lmpack_get(void);
-LmPack lmpack_pack(
+LmPack* LmPack_Get(void);
+LmPack LmPack_Pack(
     i32 atlasSize,
     float texelsPerUnit,
     float distThresh,
     float degThresh);
-void lmpack_del(LmPack* pack);
+void LmPack_Del(LmPack* pack);
 
-void lmpack_bake(PtScene* scene, float timeSlice, i32 spp);
+void LmPack_Bake(PtScene* scene, float timeSlice, i32 spp);
 
-bool lmpack_save(Crate* crate, const LmPack* src);
-bool lmpack_load(Crate* crate, LmPack* dst);
+bool LmPack_Save(Crate* crate, const LmPack* src);
+bool LmPack_Load(Crate* crate, LmPack* dst);
 
 PIM_C_END

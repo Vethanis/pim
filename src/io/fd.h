@@ -5,7 +5,6 @@
 PIM_C_BEGIN
 
 typedef struct fd_s { i32 handle; } fd_t;
-pim_inline bool fd_isopen(fd_t fd) { return fd.handle >= 0; }
 
 static const fd_t fd_stdin = { 0 };
 static const fd_t fd_stdout = { 1 };
@@ -37,7 +36,8 @@ typedef struct fd_status_s
     i64 st_ctime;
 } fd_status_t;
 
-fd_t fd_create(const char* filename);
+bool fd_isopen(fd_t fd);
+fd_t fd_new(const char* filename);
 fd_t fd_open(const char* filename, i32 writable);
 bool fd_close(fd_t* hdl);
 

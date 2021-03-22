@@ -2,7 +2,7 @@
 #include "allocator/allocator.h"
 #include <string.h>
 
-void pimswap(void* lhs, void* rhs, i32 stride)
+void MemSwap(void* lhs, void* rhs, i32 stride)
 {
     void* tmp = Mem_Push(stride);
     memcpy(tmp, lhs, stride);
@@ -11,7 +11,7 @@ void pimswap(void* lhs, void* rhs, i32 stride)
     Mem_Pop(stride);
 }
 
-void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
+void QuickSort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
 {
     ASSERT(pVoid || !count);
     ASSERT(stride > 0);
@@ -35,7 +35,7 @@ void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
             }
             if (lo != i)
             {
-                pimswap(lhs, items + lo * stride, stride);
+                MemSwap(lhs, items + lo * stride, stride);
             }
         }
         return;
@@ -63,7 +63,7 @@ void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
                 break;
             }
 
-            pimswap(items + i * stride, items + j * stride, stride);
+            MemSwap(items + i * stride, items + j * stride, stride);
 
             ++i;
             --j;
@@ -72,11 +72,11 @@ void pimsort(void* pVoid, i32 count, i32 stride, CmpFn cmp, void* usr)
         Mem_Pop(stride);
     }
 
-    pimsort(items, i, stride, cmp, usr);
-    pimsort(items + i * stride, count - i, stride, cmp, usr);
+    QuickSort(items, i, stride, cmp, usr);
+    QuickSort(items + i * stride, count - i, stride, cmp, usr);
 }
 
-void sort_i32(i32* items, i32 count, CmpFn_i32 cmp, void* usr)
+void QuickSort_Int(i32* items, i32 count, CmpFn_i32 cmp, void* usr)
 {
     ASSERT(items || !count);
     ASSERT(count >= 0);
@@ -134,8 +134,8 @@ void sort_i32(i32* items, i32 count, CmpFn_i32 cmp, void* usr)
         }
     }
 
-    sort_i32(items, i, cmp, usr);
-    sort_i32(items + i, count - i, cmp, usr);
+    QuickSort_Int(items, i, cmp, usr);
+    QuickSort_Int(items + i, count - i, cmp, usr);
 }
 
 typedef struct indsort_ctx_s
@@ -158,7 +158,7 @@ static i32 indcmp(
         ctx->usr);
 }
 
-i32* indsort(const void* items, i32 count, i32 stride, CmpFn cmp, void* usr)
+i32* IndexSort(const void* items, i32 count, i32 stride, CmpFn cmp, void* usr)
 {
     ASSERT(!count || items);
     ASSERT(stride);
@@ -176,6 +176,6 @@ i32* indsort(const void* items, i32 count, i32 stride, CmpFn cmp, void* usr)
     ctx.cmp = cmp;
     ctx.usr = usr;
 
-    sort_i32(indices, count, indcmp, &ctx);
+    QuickSort_Int(indices, count, indcmp, &ctx);
     return indices;
 }

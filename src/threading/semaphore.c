@@ -5,10 +5,10 @@
 
 #include <Windows.h>
 
-SASSERT(sizeof(semaphore_t) >= sizeof(HANDLE));
-SASSERT(_Alignof(semaphore_t) >= _Alignof(HANDLE));
+SASSERT(sizeof(Semaphore) >= sizeof(HANDLE));
+SASSERT(_Alignof(Semaphore) >= _Alignof(HANDLE));
 
-void semaphore_create(semaphore_t* sema, i32 value)
+void Semaphore_New(Semaphore* sema, i32 value)
 {
     ASSERT(sema);
     HANDLE handle = CreateSemaphoreA(NULL, value, 0x7fffffff, NULL);
@@ -16,7 +16,7 @@ void semaphore_create(semaphore_t* sema, i32 value)
     sema->handle = handle;
 }
 
-void semaphore_destroy(semaphore_t* sema)
+void Semaphore_Del(Semaphore* sema)
 {
     ASSERT(sema);
     HANDLE handle = sema->handle;
@@ -28,7 +28,7 @@ void semaphore_destroy(semaphore_t* sema)
     }
 }
 
-void semaphore_signal(semaphore_t sema, i32 count)
+void Semaphore_Signal(Semaphore sema, i32 count)
 {
     ASSERT(sema.handle);
     ASSERT(count >= 0);
@@ -36,14 +36,14 @@ void semaphore_signal(semaphore_t sema, i32 count)
     ASSERT(released);
 }
 
-void semaphore_wait(semaphore_t sema)
+void Semaphore_Wait(Semaphore sema)
 {
     ASSERT(sema.handle);
     DWORD status = WaitForSingleObject(sema.handle, INFINITE);
     ASSERT(status == WAIT_OBJECT_0);
 }
 
-bool semaphore_trywait(semaphore_t sema)
+bool Semaphore_TryWait(Semaphore sema)
 {
     ASSERT(sema.handle);
     DWORD status = WaitForSingleObject(sema.handle, 0);
@@ -89,7 +89,7 @@ static i32 sem_trywait_safe(sem_t* sem)
     return 0;
 }
 
-void semaphore_create(semaphore_t* sema, i32 value)
+void Semaphore_New(Semaphore* sema, i32 value)
 {
     ASSERT(sema);
     sem_t* handle = Perm_Alloc(sizeof(sem_t));
@@ -98,7 +98,7 @@ void semaphore_create(semaphore_t* sema, i32 value)
     sema->handle = handle;
 }
 
-void semaphore_destroy(semaphore_t* sema)
+void Semaphore_Del(Semaphore* sema)
 {
     ASSERT(sema);
     sem_t* handle = sema->handle;
@@ -109,7 +109,7 @@ void semaphore_destroy(semaphore_t* sema)
     Mem_Free(handle);
 }
 
-void semaphore_signal(semaphore_t sema, i32 count)
+void Semaphore_Signal(Semaphore sema, i32 count)
 {
     sem_t* handle = sema.handle;
     ASSERT(handle);
@@ -120,7 +120,7 @@ void semaphore_signal(semaphore_t sema, i32 count)
     }
 }
 
-void semaphore_wait(semaphore_t sema)
+void Semaphore_Wait(Semaphore sema)
 {
     sem_t* handle = sema.handle;
     ASSERT(handle);
@@ -128,7 +128,7 @@ void semaphore_wait(semaphore_t sema)
     ASSERT(!rv);
 }
 
-bool semaphore_trywait(semaphore_t sema)
+bool Semaphore_TryWait(Semaphore sema)
 {
     sem_t* handle = sema.handle;
     ASSERT(handle);

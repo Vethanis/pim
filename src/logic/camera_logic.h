@@ -4,8 +4,8 @@
 
 PIM_C_BEGIN
 
-void camera_logic_init(void);
-void camera_logic_update(void);
-void camera_logic_shutdown(void);
+void CameraLogic_Init(void);
+void CameraLogic_Update(void);
+void CameraLogic_Shutdown(void);
 
 PIM_C_END

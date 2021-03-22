@@ -24,7 +24,12 @@ static i32 IsZero(i32 x)
     return x;
 }
 
-fd_t fd_create(const char* filename)
+bool fd_isopen(fd_t fd)
+{
+    return fd.handle >= 0;
+}
+
+fd_t fd_new(const char* filename)
 {
     ASSERT(filename);
     i32 mode = _S_IREAD | _S_IWRITE;

@@ -26,18 +26,18 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_wait_fn(i32 argc, const char** argv);
 
-static sdict_t ms_cmds;
-static sdict_t ms_aliases;
-static queue_t ms_queue;
+static StrDict ms_cmds;
+static StrDict ms_aliases;
+static Queue ms_queue;
 static i32 ms_waits;
 
 // ----------------------------------------------------------------------------
 
 void CmdSys_Init(void)
 {
-    sdict_new(&ms_cmds, sizeof(CmdFn), EAlloc_Perm);
-    sdict_new(&ms_aliases, sizeof(cmdalias_t), EAlloc_Perm);
-    queue_create(&ms_queue, sizeof(char*), EAlloc_Perm);
+    StrDict_New(&ms_cmds, sizeof(CmdFn), EAlloc_Perm);
+    StrDict_New(&ms_aliases, sizeof(cmdalias_t), EAlloc_Perm);
+    Queue_New(&ms_queue, sizeof(char*), EAlloc_Perm);
     Cmd_Reg("alias", cmd_alias_fn);
     Cmd_Reg("exec", cmd_execfile_fn);
     Cmd_Reg("wait", cmd_wait_fn);
@@ -55,30 +55,30 @@ void CmdSys_Update(void)
 
 void CmdSys_Shutdown(void)
 {
-    sdict_del(&ms_cmds);
-    sdict_del(&ms_aliases);
+    StrDict_Del(&ms_cmds);
+    StrDict_Del(&ms_aliases);
     char* line = NULL;
-    while (queue_trypop(&ms_queue, &line, sizeof(line)))
+    while (Queue_TryPop(&ms_queue, &line, sizeof(line)))
     {
         Mem_Free(line);
     }
-    queue_destroy(&ms_queue);
+    Queue_Del(&ms_queue);
 }
 
 void Cmd_Reg(const char* name, CmdFn fn)
 {
     ASSERT(name);
     ASSERT(fn);
-    if (!sdict_add(&ms_cmds, name, &fn))
+    if (!StrDict_Add(&ms_cmds, name, &fn))
     {
-        sdict_set(&ms_cmds, name, &fn);
+        StrDict_Set(&ms_cmds, name, &fn);
     }
 }
 
 bool Cmd_Exists(const char* name)
 {
     ASSERT(name);
-    return sdict_find(&ms_cmds, name) != -1;
+    return StrDict_Find(&ms_cmds, name) != -1;
 }
 
 const char* Cmd_Complete(const char* namePart)
@@ -116,17 +116,17 @@ static cmdstat_t cmd_exec(const char* line)
 
     // commands
     CmdFn cmd = NULL;
-    if (sdict_get(&ms_cmds, name, &cmd))
+    if (StrDict_Get(&ms_cmds, name, &cmd))
     {
         return cmd(argc, argv);
     }
 
     // aliases (macros to expand into front of cbuf)
     cmdalias_t alias = { 0 };
-    if (sdict_get(&ms_aliases, name, &alias))
+    if (StrDict_Get(&ms_aliases, name, &alias))
     {
         char* toPush = StrDup(alias.value, EAlloc_Perm);
-        queue_pushfront(&ms_queue, &toPush, sizeof(toPush));
+        Queue_PushFront(&ms_queue, &toPush, sizeof(toPush));
         return cmdstat_ok;
     }
 
@@ -220,7 +220,7 @@ parseline:
     if (i > 0)
     {
         char* line = StrDup(text, EAlloc_Perm);
-        queue_push(&ms_queue, &line, sizeof(line));
+        Queue_Push(&ms_queue, &line, sizeof(line));
         text += i;
         goto parseline;
     }
@@ -236,7 +236,7 @@ static cmdstat_t ExecCmds(void)
     if (!ms_waits)
     {
         char* line = NULL;
-        while (queue_trypop(&ms_queue, &line, sizeof(line)))
+        while (Queue_TryPop(&ms_queue, &line, sizeof(line)))
         {
             status = cmd_exec(line);
             Mem_Free(line);
@@ -410,7 +410,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
     const char* aliasKey = argv[1];
 
     cmdalias_t alias = { 0 };
-    if (sdict_rm(&ms_aliases, aliasKey, &alias))
+    if (StrDict_Rm(&ms_aliases, aliasKey, &alias))
     {
         Mem_Free(alias.value);
         alias.value = NULL;
@@ -428,7 +428,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
     StrCat(ARGS(cmd), ";");
 
     alias.value = StrDup(cmd, EAlloc_Perm);
-    bool added = sdict_add(&ms_aliases, aliasKey, &alias);
+    bool added = StrDict_Add(&ms_aliases, aliasKey, &alias);
     ASSERT(added);
 
     return cmdstat_ok;

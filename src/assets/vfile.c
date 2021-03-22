@@ -6,36 +6,36 @@
 
 typedef struct subfile_s
 {
-    vfilehdl_t owner;
+    VFileHdl owner;
     i32 offset;
     i32 size;
 } subfile_t;
 
 typedef struct vfile_s
 {
-    vfiletype_t type;
+    VFileType type;
     i32 cursor;
     union
     {
         fd_t descriptor;
-        fstr_t stream;
-        fmap_t map;
+        FileStream stream;
+        FileMap map;
         subfile_t subfile;
     };
 } vfile_t;
 
-static queue_i32_t ms_freelist;
+static IntQueue ms_freelist;
 static i32 ms_count;
 static u8* ms_versions;
 static char** ms_paths;
 static vfile_t* ms_files;
 
-static vfilehdl_t vfilehdl_new(vfile_t* file, char* path)
+static VFileHdl vfilehdl_new(vfile_t* file, char* path)
 {
-    ASSERT(file->type != vfiletype_null);
+    ASSERT(file->type != VFileType_Null);
     ASSERT(path && path[0]);
     i32 index = 0;
-    if (!queue_i32_trypop(&ms_freelist, &index))
+    if (!IntQueue_TryPop(&ms_freelist, &index))
     {
         i32 len = ++ms_count;
         Perm_Reserve(ms_versions, len);
@@ -48,35 +48,35 @@ static vfilehdl_t vfilehdl_new(vfile_t* file, char* path)
     ASSERT(version & 1);
     ms_paths[index] = path;
     ms_files[index] = *file;
-    vfilehdl_t hdl = { 0 };
+    VFileHdl hdl = { 0 };
     hdl.version = version;
     hdl.index = index;
     return hdl;
 }
 
-static bool vfilehdl_del(vfilehdl_t hdl)
+static bool vfilehdl_del(VFileHdl hdl)
 {
-    if (vfile_exists(hdl))
+    if (VFile_Exists(hdl))
     {
         i32 index = hdl.index;
         u8 version = ++ms_versions[index];
         ASSERT(!(version & 1));
-        queue_i32_push(&ms_freelist, index);
+        IntQueue_Push(&ms_freelist, index);
         return true;
     }
     return false;
 }
 
-bool vfile_exists(vfilehdl_t hdl)
+bool VFile_Exists(VFileHdl hdl)
 {
     i32 i = hdl.index;
     u8 v = hdl.version;
     return (i < ms_count) && (v == ms_versions[i]);
 }
 
-bool vfile_isopen(vfilehdl_t hdl)
+bool VFile_IsOpen(VFileHdl hdl)
 {
-    if (vfile_exists(hdl))
+    if (VFile_Exists(hdl))
     {
         vfile_t* vf = &ms_files[hdl.index];
         switch (vf->type)
@@ -84,22 +84,22 @@ bool vfile_isopen(vfilehdl_t hdl)
         default:
             ASSERT(false);
             break;
-        case vfiletype_null:
+        case VFileType_Null:
             break;
-        case vfiletype_descriptor:
+        case VFileType_Descriptor:
             return fd_isopen(vf->descriptor);
-        case vfiletype_stream:
-            return fstr_isopen(vf->stream);
-        case vfiletype_map:
-            return fmap_isopen(vf->map);
-        case vfiletype_subfile:
-            return vfile_isopen(vf->subfile.owner);
+        case VFileType_Stream:
+            return FileStream_IsOpen(vf->stream);
+        case VFileType_Map:
+            return FileMap_IsOpen(vf->map);
+        case VFileType_SubFile:
+            return VFile_IsOpen(vf->subfile.owner);
         }
     }
     return false;
 }
 
-vfilehdl_t vfile_new(const char* path, const char* mode, vfiletype_t type)
+VFileHdl VFile_New(const char* path, const char* mode, VFileType type)
 {
     ASSERT(path && path[0]);
     ASSERT(mode && mode[0]);
@@ -112,22 +112,22 @@ vfilehdl_t vfile_new(const char* path, const char* mode, vfiletype_t type)
     default:
         ASSERT(false);
         break;
-    case vfiletype_descriptor:
+    case VFileType_Descriptor:
     {
         vf.descriptor = fd_open(path, writable);
         opened = fd_isopen(vf.descriptor);
     }
     break;
-    case vfiletype_stream:
+    case VFileType_Stream:
     {
-        vf.stream = fstr_open(path, mode);
-        opened = fstr_isopen(vf.stream);
+        vf.stream = FileStream_Open(path, mode);
+        opened = FileStream_IsOpen(vf.stream);
     }
     break;
-    case vfiletype_map:
+    case VFileType_Map:
     {
-        vf.map = fmap_open(path, writable);
-        opened = fmap_isopen(vf.map);
+        vf.map = FileMap_Open(path, writable);
+        opened = FileMap_IsOpen(vf.map);
     }
     break;
     }
@@ -135,10 +135,10 @@ vfilehdl_t vfile_new(const char* path, const char* mode, vfiletype_t type)
     {
         return vfilehdl_new(&vf, StrDup(path, EAlloc_Perm));
     }
-    return (vfilehdl_t) { 0 };
+    return (VFileHdl) { 0 };
 }
 
-bool vfile_del(vfilehdl_t hdl)
+bool VFile_Del(VFileHdl hdl)
 {
     if (vfilehdl_del(hdl))
     {
@@ -150,16 +150,16 @@ bool vfile_del(vfilehdl_t hdl)
         default:
             ASSERT(false);
             break;
-        case vfiletype_descriptor:
+        case VFileType_Descriptor:
             fd_close(&vf->descriptor);
             break;
-        case vfiletype_stream:
-            fstr_close(&vf->stream);
+        case VFileType_Stream:
+            FileStream_Close(&vf->stream);
             break;
-        case vfiletype_map:
-            fmap_close(&vf->map);
+        case VFileType_Map:
+            FileMap_Close(&vf->map);
             break;
-        case vfiletype_subfile:
+        case VFileType_SubFile:
             break;
         }
         memset(vf, 0, sizeof(*vf));
@@ -170,9 +170,9 @@ bool vfile_del(vfilehdl_t hdl)
     return false;
 }
 
-i32 vfile_size(vfilehdl_t hdl)
+i32 VFile_Size(VFileHdl hdl)
 {
-    if (vfile_isopen(hdl))
+    if (VFile_IsOpen(hdl))
     {
         vfile_t* vf = &ms_files[hdl.index];
         switch (vf->type)
@@ -180,25 +180,25 @@ i32 vfile_size(vfilehdl_t hdl)
         default:
             ASSERT(false);
             break;
-        case vfiletype_descriptor:
+        case VFileType_Descriptor:
             return (i32)fd_size(vf->descriptor);
-        case vfiletype_stream:
-            return (i32)fstr_size(vf->stream);
-        case vfiletype_map:
+        case VFileType_Stream:
+            return (i32)FileStream_Size(vf->stream);
+        case VFileType_Map:
             return vf->map.size;
-        case vfiletype_subfile:
+        case VFileType_SubFile:
             return vf->subfile.size;
         }
     }
     return 0;
 }
 
-i32 vfile_read(vfilehdl_t hdl, i32 offset, i32 size, void* dst)
+i32 VFile_Read(VFileHdl hdl, i32 offset, i32 size, void* dst)
 {
     ASSERT(offset >= 0);
     ASSERT(size >= 0);
     ASSERT(dst || !size);
-    if (!vfile_isopen(hdl))
+    if (!VFile_IsOpen(hdl))
     {
         return 0;
     }
@@ -208,7 +208,7 @@ i32 vfile_read(vfilehdl_t hdl, i32 offset, i32 size, void* dst)
     default:
         ASSERT(false);
         return 0;
-    case vfiletype_descriptor:
+    case VFileType_Descriptor:
     {
         if (vf->cursor != offset)
         {
@@ -217,17 +217,17 @@ i32 vfile_read(vfilehdl_t hdl, i32 offset, i32 size, void* dst)
         }
         return fd_read(vf->descriptor, dst, size);
     }
-    case vfiletype_stream:
+    case VFileType_Stream:
     {
         if (vf->cursor != offset)
         {
-            fstr_seek(vf->stream, offset);
+            FileStream_Seek(vf->stream, offset);
             vf->cursor = offset;
         }
-        return fstr_read(vf->stream, dst, size);
+        return FileStream_Read(vf->stream, dst, size);
     }
     break;
-    case vfiletype_map:
+    case VFileType_Map:
     {
         ASSERT((offset + size) <= vf->map.size);
         const u8* src = vf->map.ptr;
@@ -235,18 +235,18 @@ i32 vfile_read(vfilehdl_t hdl, i32 offset, i32 size, void* dst)
         return size;
     }
     break;
-    case vfiletype_subfile:
+    case VFileType_SubFile:
     {
         ASSERT((offset + size) <= vf->subfile.size);
-        return vfile_read(vf->subfile.owner, offset + vf->subfile.offset, size, dst);
+        return VFile_Read(vf->subfile.owner, offset + vf->subfile.offset, size, dst);
     }
     break;
     }
 }
 
-i32 vfile_write(vfilehdl_t hdl, i32 offset, i32 size, const void* src)
+i32 VFile_Write(VFileHdl hdl, i32 offset, i32 size, const void* src)
 {
-    if (!vfile_isopen(hdl))
+    if (!VFile_IsOpen(hdl))
     {
         return 0;
     }
@@ -259,7 +259,7 @@ i32 vfile_write(vfilehdl_t hdl, i32 offset, i32 size, const void* src)
     default:
         ASSERT(false);
         return 0;
-    case vfiletype_descriptor:
+    case VFileType_Descriptor:
     {
         if (vf->cursor != offset)
         {
@@ -268,17 +268,17 @@ i32 vfile_write(vfilehdl_t hdl, i32 offset, i32 size, const void* src)
         }
         return fd_write(vf->descriptor, src, size);
     }
-    case vfiletype_stream:
+    case VFileType_Stream:
     {
         if (vf->cursor != offset)
         {
-            fstr_seek(vf->stream, offset);
+            FileStream_Seek(vf->stream, offset);
             vf->cursor = offset;
         }
-        return fstr_write(vf->stream, src, size);
+        return FileStream_Write(vf->stream, src, size);
     }
     break;
-    case vfiletype_map:
+    case VFileType_Map:
     {
         ASSERT((offset + size) <= vf->map.size);
         u8* dst = vf->map.ptr;
@@ -286,26 +286,26 @@ i32 vfile_write(vfilehdl_t hdl, i32 offset, i32 size, const void* src)
         return size;
     }
     break;
-    case vfiletype_subfile:
+    case VFileType_SubFile:
     {
         ASSERT((offset + size) <= vf->subfile.size);
-        return vfile_write(vf->subfile.owner, offset + vf->subfile.offset, size, src);
+        return VFile_Write(vf->subfile.owner, offset + vf->subfile.offset, size, src);
     }
     break;
     }
 }
 
-vfilehdl_t subfile_new(vfilehdl_t owner, i32 offset, i32 size, const char* name)
+VFileHdl SubFile_New(VFileHdl owner, i32 offset, i32 size, const char* name)
 {
     ASSERT(offset >= 0);
     ASSERT(size >= 0);
     ASSERT(name);
-    ASSERT((offset + size) <= vfile_size(owner));
-    if (vfile_isopen(owner))
+    ASSERT((offset + size) <= VFile_Size(owner));
+    if (VFile_IsOpen(owner))
     {
         vfile_t vf =
         {
-            .type = vfiletype_subfile,
+            .type = VFileType_SubFile,
             .subfile =
             {
                 .owner = owner,
@@ -327,5 +327,5 @@ vfilehdl_t subfile_new(vfilehdl_t owner, i32 offset, i32 size, const char* name)
 
         return vfilehdl_new(&vf, StrDup(path, EAlloc_Perm));
     }
-    return (vfilehdl_t) { 0 };
+    return (VFileHdl) { 0 };
 }

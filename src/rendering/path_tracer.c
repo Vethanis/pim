@@ -459,7 +459,7 @@ static void OnRtcError(void* user, RTCError error, const char* msg)
 
 static bool InitRTC(void)
 {
-    if (!rtc_init())
+    if (!LibRtc_Init())
     {
         return false;
     }
@@ -771,7 +771,7 @@ static RTCScene RtcNewScene(const PtScene*const pim_noalias scene)
 
 static void FlattenDrawables(PtScene*const pim_noalias scene)
 {
-    const Entities* drawTable = drawables_get();
+    const Entities* drawTable = Entities_Get();
     const i32 drawCount = drawTable->count;
     const MeshId* meshes = drawTable->meshes;
     const float4x4* matrices = drawTable->matrices;
@@ -788,7 +788,7 @@ static void FlattenDrawables(PtScene*const pim_noalias scene)
 
     for (i32 i = 0; i < drawCount; ++i)
     {
-        Mesh const *const mesh = mesh_get(meshes[i]);
+        Mesh const *const mesh = Mesh_Get(meshes[i]);
         if (!mesh)
         {
             continue;
@@ -864,12 +864,12 @@ static float EmissionPdf(
     const i32 iMat = scene->matIds[iVert];
     const Material* mat = scene->materials + iMat;
 
-    if (mat->flags & matflag_sky)
+    if (mat->flags & MatFlag_Sky)
     {
         return 1.0f;
     }
 
-    Texture const *const romeMap = texture_get(mat->rome);
+    Texture const *const romeMap = Texture_Get(mat->rome);
     if (!romeMap)
     {
         return 0.0f;
@@ -971,7 +971,7 @@ static void SetupPortals(PtScene* scene)
         ASSERT(iMat >= 0);
         ASSERT(iMat < matCount);
         const Material* material = &materials[iMat];
-        if (material->flags & matflag_portal)
+        if (material->flags & MatFlag_Portal)
         {
             ++portalCount;
             Perm_Reserve(portals, portalCount);
@@ -1116,7 +1116,7 @@ ProfileMark(pm_scene_update, PtScene_Update)
 void PtScene_Update(PtScene *const pim_noalias scene)
 {
     ProfileBegin(pm_scene_update);
-    Guid skyname = guid_str("sky");
+    Guid skyname = Guid_FromStr("sky");
     Cubemaps* maps = Cubemaps_Get();
     i32 iSky = Cubemaps_Find(maps, skyname);
     scene->sky = NULL;
@@ -1386,7 +1386,7 @@ pim_inline float4 VEC_CALL GetSky(
     if (cvar_get_bool(&cv_pt_retro))
     {
         const Material* mat = GetMaterial(scene, hit);
-        const Texture* tex = texture_get(mat->albedo);
+        const Texture* tex = Texture_Get(mat->albedo);
         if (tex)
         {
             return SampleSkyTex(tex, GetUV(scene, hit));
@@ -1406,7 +1406,7 @@ pim_inline float4 VEC_CALL GetEmission(
     RayHit hit,
     i32 bounce)
 {
-    if (hit.flags & matflag_sky)
+    if (hit.flags & MatFlag_Sky)
     {
         return GetSky(scene, ro, rd, hit);
     }
@@ -1416,7 +1416,7 @@ pim_inline float4 VEC_CALL GetEmission(
         float2 uv = GetUV(scene, hit);
         float4 albedo = f4_1;
         {
-            Texture const *const tex = texture_get(mat->albedo);
+            Texture const *const tex = Texture_Get(mat->albedo);
             if (tex)
             {
                 albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
@@ -1424,7 +1424,7 @@ pim_inline float4 VEC_CALL GetEmission(
         }
         float e = 0.0f;
         {
-            Texture const *const tex = texture_get(mat->rome);
+            Texture const *const tex = Texture_Get(mat->rome);
             if (tex)
             {
                 e = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv).w;
@@ -1453,7 +1453,7 @@ pim_inline SurfHit VEC_CALL GetSurface(
     surf.P = GetPosition(scene, hit);
     surf.P = f4_add(surf.P, f4_mulvs(surf.M, 0.01f * kMilli));
 
-    if (hit.flags & matflag_sky)
+    if (hit.flags & MatFlag_Sky)
     {
         surf.albedo = f4_0;
         surf.roughness = 1.0f;
@@ -1464,7 +1464,7 @@ pim_inline SurfHit VEC_CALL GetSurface(
     else
     {
         {
-            Texture const *const pim_noalias tex = texture_get(mat->normal);
+            Texture const *const pim_noalias tex = Texture_Get(mat->normal);
             if (tex)
             {
                 float4 Nts = UvBilinearWrapPow2_xy16(tex->texels, tex->size, uv);
@@ -1474,7 +1474,7 @@ pim_inline SurfHit VEC_CALL GetSurface(
 
         surf.albedo = f4_1;
         {
-            Texture const *const pim_noalias tex = texture_get(mat->albedo);
+            Texture const *const pim_noalias tex = Texture_Get(mat->albedo);
             if (tex)
             {
                 surf.albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
@@ -1483,7 +1483,7 @@ pim_inline SurfHit VEC_CALL GetSurface(
 
         float4 rome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
         {
-            Texture const *const pim_noalias tex = texture_get(mat->rome);
+            Texture const *const pim_noalias tex = Texture_Get(mat->rome);
             if (tex)
             {
                 rome = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
@@ -1517,7 +1517,7 @@ pim_inline SurfHit VEC_CALL GetSurfaceRetro(
     surf.P = GetPosition(scene, hit);
     surf.P = f4_add(surf.P, f4_mulvs(surf.M, 0.01f * kMilli));
 
-    if (hit.flags & matflag_sky)
+    if (hit.flags & MatFlag_Sky)
     {
         surf.albedo = f4_0;
         surf.roughness = 1.0f;
@@ -1529,7 +1529,7 @@ pim_inline SurfHit VEC_CALL GetSurfaceRetro(
     {
         surf.albedo = f4_1;
         {
-            Texture const *const pim_noalias tex = texture_get(mat->albedo);
+            Texture const *const pim_noalias tex = Texture_Get(mat->albedo);
             if (tex)
             {
                 surf.albedo = UvWrapPow2_c32(tex->texels, tex->size, uv);
@@ -1538,7 +1538,7 @@ pim_inline SurfHit VEC_CALL GetSurfaceRetro(
 
         float4 rome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
         {
-            Texture const *const pim_noalias tex = texture_get(mat->rome);
+            Texture const *const pim_noalias tex = Texture_Get(mat->rome);
             if (tex)
             {
                 rome = UvWrapPow2_c32(tex->texels, tex->size, uv);
@@ -1650,7 +1650,7 @@ pim_inline float4 VEC_CALL BrdfEval(
     ASSERT(IsUnitLength(L));
     float4 N = surf->N;
     ASSERT(IsUnitLength(N));
-    if (surf->flags & (matflag_refractive | matflag_portal))
+    if (surf->flags & (MatFlag_Refractive | MatFlag_Portal))
     {
         return f4_0;
     }
@@ -1703,7 +1703,7 @@ pim_inline float4 VEC_CALL BrdfEvalRetro(
     const SurfHit* surf,
     float4 L)
 {
-    if (surf->flags & (matflag_refractive | matflag_portal))
+    if (surf->flags & (MatFlag_Refractive | MatFlag_Portal))
     {
         return f4_0;
     }
@@ -1837,11 +1837,11 @@ pim_inline Scatter VEC_CALL BrdfScatter(
 {
     ASSERT(IsUnitLength(I));
     ASSERT(IsUnitLength(surf->N));
-    if (surf->flags & matflag_portal)
+    if (surf->flags & MatFlag_Portal)
     {
         return PortalScatter(scene, sampler, surf, I);
     }
-    if (surf->flags & matflag_refractive)
+    if (surf->flags & MatFlag_Refractive)
     {
         return RefractScatter(sampler, surf, I);
     }
@@ -1925,11 +1925,11 @@ pim_inline Scatter VEC_CALL BrdfScatterRetro(
 {
     ASSERT(IsUnitLength(I));
     ASSERT(IsUnitLength(surf->N));
-    if (surf->flags & matflag_portal)
+    if (surf->flags & MatFlag_Portal)
     {
         return PortalScatter(scene, sampler, surf, I);
     }
-    if (surf->flags & matflag_refractive)
+    if (surf->flags & MatFlag_Refractive)
     {
         return RefractScatterRetro(sampler, surf, I);
     }
@@ -2140,7 +2140,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
     i32 bounce)
 {
     float4 result = f4_0;
-    if (surf->flags & (matflag_refractive | matflag_portal))
+    if (surf->flags & (MatFlag_Refractive | MatFlag_Portal))
     {
         return result;
     }
@@ -2210,7 +2210,7 @@ pim_inline float4 VEC_CALL EstimateDirectRetro(
     i32 bounce)
 {
     float4 result = f4_0;
-    if (surf->flags & (matflag_refractive | matflag_portal))
+    if (surf->flags & (MatFlag_Refractive | MatFlag_Portal))
     {
         return result;
     }
@@ -2714,7 +2714,7 @@ PtResult VEC_CALL Pt_TraceRayRetro(
         }
 
         SurfHit surf = GetSurfaceRetro(scene, ro, rd, hit, b);
-        if (hit.type == Hit_Backface && !(surf.flags & matflag_refractive))
+        if (hit.type == Hit_Backface && !(surf.flags & MatFlag_Refractive))
         {
             break;
         }
@@ -2751,14 +2751,14 @@ PtResult VEC_CALL Pt_TraceRayRetro(
             result.albedo = f3_lerp(result.albedo, f4_f3(surf.albedo), t);
             result.normal = f3_lerp(result.normal, f4_f3(surf.N), t);
         }
-        if ((b == 0) || (prevFlags & matflag_refractive))
+        if ((b == 0) || (prevFlags & MatFlag_Refractive))
         {
-            if (!(hit.flags & matflag_portal))
+            if (!(hit.flags & MatFlag_Portal))
             {
                 luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
             }
         }
-        if (hit.flags & matflag_sky)
+        if (hit.flags & MatFlag_Sky)
         {
             break;
         }
@@ -2816,7 +2816,7 @@ PtResult VEC_CALL Pt_TraceRay(
         }
 
         SurfHit surf = GetSurface(scene, ro, rd, hit, b);
-        if (hit.type == Hit_Backface && !(surf.flags & matflag_refractive))
+        if (hit.type == Hit_Backface && !(surf.flags & MatFlag_Refractive))
         {
             break;
         }
@@ -2853,14 +2853,14 @@ PtResult VEC_CALL Pt_TraceRay(
             result.albedo = f3_lerp(result.albedo, f4_f3(surf.albedo), t);
             result.normal = f3_lerp(result.normal, f4_f3(surf.N), t);
         }
-        if ((b == 0) || (prevFlags & matflag_refractive))
+        if ((b == 0) || (prevFlags & MatFlag_Refractive))
         {
-            if (!(hit.flags & matflag_portal))
+            if (!(hit.flags & MatFlag_Portal))
             {
                 luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
             }
         }
-        if (hit.flags & matflag_sky)
+        if (hit.flags & MatFlag_Sky)
         {
             break;
         }

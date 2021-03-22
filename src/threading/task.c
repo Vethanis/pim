@@ -22,10 +22,10 @@ static i32 ms_numthreads;
 static i32 ms_worksplit;
 static i32 ms_numThreadsRunning;
 static i32 ms_running;
-static event_t ms_waitPush;
-static event_t ms_waitDone;
-static thread_t ms_threads[kMaxThreads];
-static ptrqueue_t ms_queues[kMaxThreads];
+static Event ms_waitPush;
+static Event ms_waitDone;
+static Thread ms_threads[kMaxThreads];
+static PtrQueue ms_queues[kMaxThreads];
 
 static pim_thread_local i32 ms_tid;
 
@@ -51,7 +51,7 @@ static bool ExecuteTask(Task* task)
             if ((prev + count) >= wsize)
             {
                 store_i32(&task->status, TaskStatus_Complete, MO_Release);
-                event_wakeall(&ms_waitDone);
+                Event_WakeAll(&ms_waitDone);
                 break;
             }
             a = fetch_add_i32(&task->head, gran, MO_AcqRel);
@@ -63,7 +63,7 @@ static bool ExecuteTask(Task* task)
 
 static bool TryRunTask(i32 tid)
 {
-    Task* task = ptrqueue_trypop(&ms_queues[tid]);
+    Task* task = PtrQueue_TryPop(&ms_queues[tid]);
     return ExecuteTask(task);
 }
 
@@ -80,7 +80,7 @@ static i32 TaskLoop(void* arg)
     {
         if (!TryRunTask(tid))
         {
-            event_wait(&ms_waitPush);
+            Event_Wait(&ms_waitPush);
         }
     }
 
@@ -128,7 +128,7 @@ void Task_Submit(void* pbase, TaskExecuteFn execute, i32 worksize)
         {
             if (t != tid)
             {
-                if (!ptrqueue_trypush(&ms_queues[t], task))
+                if (!PtrQueue_TryPush(&ms_queues[t], task))
                 {
                     INTERRUPT();
                 }
@@ -154,7 +154,7 @@ void Task_Await(void* pbase)
         {
             if (!TryRunTask(tid))
             {
-                event_wait(&ms_waitDone);
+                Event_Wait(&ms_waitDone);
             }
         }
         ProfileEnd(pm_await);
@@ -180,7 +180,7 @@ void TaskSys_Schedule(void)
 {
     ProfileBegin(pm_schedule);
 
-    event_wakeall(&ms_waitPush);
+    Event_WakeAll(&ms_waitPush);
 
     ProfileEnd(pm_schedule);
 }
@@ -189,24 +189,24 @@ void TaskSys_Init(void)
 {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-    intrin_clockres_begin(1);
+    Intrin_BeginClockRes(1);
 
-    event_create(&ms_waitPush);
-    event_create(&ms_waitDone);
+    Event_New(&ms_waitPush);
+    Event_New(&ms_waitDone);
     store_i32(&ms_running, 1, MO_Release);
 
-    const i32 numthreads = i1_min(kMaxThreads, thread_hardware_count());
+    const i32 numthreads = i1_min(kMaxThreads, Thread_HardwareCount());
     ms_numthreads = numthreads;
     ms_worksplit = numthreads * numthreads;
 
     const i32 kQueueSize = 64;
-    ptrqueue_create(ms_queues + 0, EAlloc_Perm, kQueueSize);
-    thread_set_aff(NULL, (1ull << 0) | (1ull << 1));
+    PtrQueue_New(ms_queues + 0, EAlloc_Perm, kQueueSize);
+    Thread_SetAffinity(NULL, (1ull << 0) | (1ull << 1));
     for (i32 t = 1; t < numthreads; ++t)
     {
-        ptrqueue_create(ms_queues + t, EAlloc_Perm, kQueueSize);
-        thread_create(ms_threads + t, TaskLoop, NULL);
-        thread_set_aff(ms_threads + t, (1ull << t) | (1ull << (t + 1)));
+        PtrQueue_New(ms_queues + t, EAlloc_Perm, kQueueSize);
+        Thread_New(ms_threads + t, TaskLoop, NULL);
+        Thread_SetAffinity(ms_threads + t, (1ull << t) | (1ull << (t + 1)));
     }
 }
 
@@ -228,19 +228,19 @@ void TaskSys_Update(void)
 void TaskSys_Shutdown(void)
 {
     store_i32(&ms_running, 0, MO_Release);
-    event_wakeall(&ms_waitDone);
-    event_wakeall(&ms_waitPush);
+    Event_WakeAll(&ms_waitDone);
+    Event_WakeAll(&ms_waitPush);
     const i32 numthreads = ms_numthreads;
     for (i32 t = 1; t < numthreads; ++t)
     {
-        thread_join(&ms_threads[t]);
-        ptrqueue_destroy(&ms_queues[t]);
+        Thread_Join(&ms_threads[t]);
+        PtrQueue_Del(&ms_queues[t]);
     }
-    ptrqueue_destroy(&ms_queues[0]);
+    PtrQueue_Del(&ms_queues[0]);
 
-    event_destroy(&ms_waitPush);
-    event_destroy(&ms_waitDone);
-    intrin_clockres_end(1);
+    Event_Del(&ms_waitPush);
+    Event_Del(&ms_waitDone);
+    Intrin_EndClockRes(1);
 
     memset(ms_threads, 0, sizeof(ms_threads));
     memset(ms_queues, 0, sizeof(ms_queues));

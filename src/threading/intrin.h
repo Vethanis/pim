@@ -4,9 +4,9 @@
 
 PIM_C_BEGIN
 
-u64 intrin_timestamp(void);             // read timestamp counter
-void intrin_pause(void);                // mm_pause
-void intrin_spin(u64 spins);            // spin this thread
-void intrin_yield(void);                // give up timeslice (don't use with non-default thread priority)
+u64 Intrin_Timestamp(void);             // read timestamp counter
+void Intrin_Pause(void);                // mm_pause
+void Intrin_Spin(u64 spins);            // spin this thread
+void Intrin_Yield(void);                // give up timeslice (don't use with non-default thread priority)
 
 PIM_C_END

@@ -6,26 +6,26 @@
 
 PIM_C_BEGIN
 
-typedef struct idalloc_s
+typedef struct IdAlloc_s
 {
     i32 length;
     u8* pim_noalias versions;
-    queue_i32_t freelist;
-} idalloc_t;
+    IntQueue freelist;
+} IdAlloc;
 
-void idalloc_new(idalloc_t* ia);
-void idalloc_del(idalloc_t* ia);
-void idalloc_clear(idalloc_t* ia);
+void IdAlloc_New(IdAlloc* ia);
+void IdAlloc_Del(IdAlloc* ia);
+void IdAlloc_Clear(IdAlloc* ia);
 
-i32 idalloc_capacity(const idalloc_t* ia);
-i32 idalloc_size(const idalloc_t* ia);
+i32 IdAlloc_Capacity(const IdAlloc* ia);
+i32 IdAlloc_Size(const IdAlloc* ia);
 
-bool idalloc_exists(const idalloc_t* ia, GenId id);
-bool idalloc_existsat(const idalloc_t* ia, i32 index);
+bool IdAlloc_Exists(const IdAlloc* ia, GenId id);
+bool IdAlloc_ExistsAt(const IdAlloc* ia, i32 index);
 
-GenId idalloc_alloc(idalloc_t* ia);
+GenId IdAlloc_Alloc(IdAlloc* ia);
 
-bool idalloc_free(idalloc_t* ia, GenId id);
-bool idalloc_freeat(idalloc_t* ia, i32 index);
+bool IdAlloc_Free(IdAlloc* ia, GenId id);
+bool IdAlloc_FreeAt(IdAlloc* ia, i32 index);
 
 PIM_C_END

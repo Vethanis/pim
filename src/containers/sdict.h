@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-typedef struct sdict_s
+typedef struct StrDict_s
 {
     u32* hashes;
     char** keys;
@@ -13,26 +13,26 @@ typedef struct sdict_s
     u32 count;
     u32 valueSize;
     EAlloc allocator;
-} sdict_t;
+} StrDict;
 
-void sdict_new(sdict_t* dict, u32 valueSize, EAlloc allocator);
-void sdict_del(sdict_t* dict);
+void StrDict_New(StrDict* dict, u32 valueSize, EAlloc allocator);
+void StrDict_Del(StrDict* dict);
 
-void sdict_clear(sdict_t* dict);
-void sdict_reserve(sdict_t* dict, i32 count);
+void StrDict_Clear(StrDict* dict);
+void StrDict_Reserve(StrDict* dict, i32 count);
 
-i32 sdict_find(const sdict_t* dict, const char* key);
-bool sdict_get(const sdict_t* dict, const char* key, void* valueOut);
-bool sdict_set(sdict_t* dict, const char* key, const void* value);
-bool sdict_add(sdict_t* dict, const char* key, const void* value);
-bool sdict_rm(sdict_t* dict, const char* key, void* valueOut);
+i32 StrDict_Find(const StrDict* dict, const char* key);
+bool StrDict_Get(const StrDict* dict, const char* key, void* valueOut);
+bool StrDict_Set(StrDict* dict, const char* key, const void* value);
+bool StrDict_Add(StrDict* dict, const char* key, const void* value);
+bool StrDict_Rm(StrDict* dict, const char* key, void* valueOut);
 
 typedef i32(*SDictCmpFn)(
     const char* lkey, const char* rkey,
     const void* lval, const void* rval,
     void* usr);
 
-u32* sdict_sort(const sdict_t* dict, SDictCmpFn cmp, void* usr);
+u32* StrDict_Sort(const StrDict* dict, SDictCmpFn cmp, void* usr);
 
 // StrCmp sort metric
 i32 SDictStrCmp(

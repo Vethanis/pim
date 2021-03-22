@@ -2,7 +2,7 @@
 #include "allocator/allocator.h"
 #include <string.h>
 
-void framebuf_create(framebuf_t* buf, i32 width, i32 height)
+void FrameBuf_New(FrameBuf* buf, i32 width, i32 height)
 {
     ASSERT(buf);
     ASSERT(width > 0);
@@ -16,7 +16,7 @@ void framebuf_create(framebuf_t* buf, i32 width, i32 height)
     buf->color = Perm_Alloc(len * sizeof(buf->color[0]));
 }
 
-void framebuf_destroy(framebuf_t* buf)
+void FrameBuf_Del(FrameBuf* buf)
 {
     if (buf)
     {

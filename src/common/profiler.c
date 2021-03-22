@@ -17,7 +17,7 @@
 
 typedef struct node_s
 {
-    profmark_t* mark;
+    ProfMark* mark;
     struct node_s* parent;
     struct node_s* fchild;
     struct node_s* lchild;
@@ -48,7 +48,7 @@ static node_t* ms_top[kMaxThreads];
 
 static i32 ms_avgWindow = 20;
 static bool ms_progressive;
-static dict_t ms_stats;
+static Dict ms_stats;
 
 // ----------------------------------------------------------------------------
 
@@ -56,12 +56,12 @@ static void EnsureDict(void)
 {
     if (!ms_stats.valueSize)
     {
-        dict_new(&ms_stats, sizeof(u32), sizeof(stat_t), EAlloc_Perm);
+        Dict_New(&ms_stats, sizeof(u32), sizeof(stat_t), EAlloc_Perm);
     }
 }
 
-ProfileMark(pm_gui, profile_gui)
-void profile_gui(bool* pEnabled)
+ProfileMark(pm_gui, ProfileSys_Gui)
+void ProfileSys_Gui(bool* pEnabled)
 {
     ProfileBegin(pm_gui);
     EnsureDict();
@@ -115,7 +115,7 @@ void profile_gui(bool* pEnabled)
 
 // ----------------------------------------------------------------------------
 
-void _ProfileBegin(profmark_t *const mark)
+void _ProfileBegin(ProfMark *const mark)
 {
     ASSERT(mark);
     const i32 tid = Task_ThreadId();
@@ -152,7 +152,7 @@ void _ProfileBegin(profmark_t *const mark)
     next->begin = Time_Now();
 }
 
-void _ProfileEnd(profmark_t *const mark)
+void _ProfileEnd(ProfMark *const mark)
 {
     const u64 end = Time_Now();
 
@@ -186,7 +186,7 @@ static void VisitClr(node_t *const pim_noalias node, i32 depth)
         return;
     }
 
-    profmark_t *const mark = node->mark;
+    ProfMark *const mark = node->mark;
     ASSERT(mark);
     mark->calls = 0;
     mark->sum = 0;
@@ -209,7 +209,7 @@ static void VisitSum(node_t *const pim_noalias node, i32 depth)
         return;
     }
 
-    profmark_t *const mark = node->mark;
+    ProfMark *const mark = node->mark;
     ASSERT(mark);
     mark->calls += 1;
     mark->sum += node->end - node->begin;
@@ -233,7 +233,7 @@ static stat_t GetNodeStats(node_t const *const node)
     ASSERT(node->mark);
     ASSERT(node->hash);
     stat_t st = { 0 };
-    dict_get(&ms_stats, &node->hash, &st);
+    Dict_Get(&ms_stats, &node->hash, &st);
     return st;
 }
 
@@ -244,20 +244,20 @@ static stat_t UpdateNodeStats(node_t const *const node)
     ASSERT(node->hash);
     double x = Time_Milli(node->end - node->begin);
     stat_t st;
-    if (dict_get(&ms_stats, &node->hash, &st))
+    if (Dict_Get(&ms_stats, &node->hash, &st))
     {
         const double alpha = 1.0 / ms_avgWindow;
         double m0 = st.mean;
         double m1 = Lerp64(m0, x, alpha);
         st.variance = Lerp64(st.variance, (x - m0) * (x - m1), alpha);
         st.mean = m1;
-        dict_set(&ms_stats, &node->hash, &st);
+        Dict_Set(&ms_stats, &node->hash, &st);
     }
     else
     {
         st.mean = x;
         st.variance = 0.0;
-        dict_add(&ms_stats, &node->hash, &st);
+        Dict_Add(&ms_stats, &node->hash, &st);
     }
     return st;
 }
@@ -269,7 +269,7 @@ static void VisitGui(node_t const *const pim_noalias node, i32 depth)
         return;
     }
 
-    profmark_t const *const mark = node->mark;
+    ProfMark const *const mark = node->mark;
     ASSERT(mark);
     char const *const name = mark->name;
     ASSERT(name);
@@ -305,9 +305,9 @@ static void VisitGui(node_t const *const pim_noalias node, i32 depth)
 
 #else
 
-void profile_gui(bool* pEnabled) {}
+void ProfileSys_Gui(bool* pEnabled) {}
 
-void _ProfileBegin(profmark_t *const mark) {}
-void _ProfileEnd(profmark_t *const mark) {}
+void _ProfileBegin(ProfMark *const mark) {}
+void _ProfileEnd(ProfMark *const mark) {}
 
 #endif // PIM_PROFILE

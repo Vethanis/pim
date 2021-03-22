@@ -17,8 +17,8 @@ Cubemaps* Cubemaps_Get(void) { return &ms_cubemaps; }
 i32 Cubemaps_Add(Cubemaps* maps, Guid name, i32 size, Box3D bounds)
 {
     ASSERT(maps);
-    ASSERT(!guid_isnull(name));
-    ASSERT(guid_find(maps->names, maps->count, name) == -1);
+    ASSERT(!Guid_IsNull(name));
+    ASSERT(Guid_Find(maps->names, maps->count, name) == -1);
 
     const i32 back = maps->count++;
     const i32 len = back + 1;
@@ -56,11 +56,11 @@ bool Cubemaps_Rm(Cubemaps* maps, Guid name)
 
 i32 Cubemaps_Find(const Cubemaps* maps, Guid name)
 {
-    if (guid_isnull(name))
+    if (Guid_IsNull(name))
     {
         return -1;
     }
-    return guid_find(maps->names, maps->count, name);
+    return Guid_Find(maps->names, maps->count, name);
 }
 
 void Cubemap_New(Cubemap* cm, i32 size)

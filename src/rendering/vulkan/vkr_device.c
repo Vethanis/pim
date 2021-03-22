@@ -115,15 +115,15 @@ void vkrListDevExtensions(VkPhysicalDevice phdev)
     }
 }
 
-strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev)
+StrList vkrGetDevExtensions(VkPhysicalDevice phdev)
 {
     ASSERT(g_vkr.phdev);
 
     u32 count = 0;
     VkExtensionProperties* props = vkrEnumDevExtensions(phdev, &count);
 
-    strlist_t list;
-    strlist_new(&list, EAlloc_Temp);
+    StrList list;
+    StrList_New(&list, EAlloc_Temp);
 
     for (i32 i = 0; i < NELEM(kRequiredDevExtensions); ++i)
     {
@@ -320,8 +320,8 @@ VkPhysicalDevice vkrSelectPhysicalDevice(
 
 VkDevice vkrCreateDevice(
     const vkrDisplay* display,
-    strlist_t extensions,
-    strlist_t layers)
+    StrList extensions,
+    StrList layers)
 {
     VkPhysicalDevice phdev = g_vkr.phdev;
     ASSERT(phdev);
@@ -422,8 +422,8 @@ VkDevice vkrCreateDevice(
     VkCheck(vkCreateDevice(g_vkr.phdev, &devInfo, NULL, &device));
     ASSERT(device);
 
-    strlist_del(&extensions);
-    strlist_del(&layers);
+    StrList_Del(&extensions);
+    StrList_Del(&layers);
 
     return device;
 }

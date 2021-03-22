@@ -20,9 +20,9 @@ typedef struct sysex_s
 
 typedef struct midicon_s
 {
-    spinlock_t lock;
+    Spinlock lock;
     HMIDIIN handle;
-    midi_cb cb;
+    OnMidiFn cb;
     void* usr;
     sysex_t buffers[4];
 } midicon_t;
@@ -32,10 +32,10 @@ typedef struct midicon_s
 static void midicon_lock(midicon_t* con);
 static void midicon_unlock(midicon_t* con);
 
-static bool midicon_open(midicon_t* con, i32 port, midi_cb cb, void* usr);
+static bool midicon_open(midicon_t* con, i32 port, OnMidiFn cb, void* usr);
 static void midicon_close(midicon_t* con);
 static bool midicon_enqueue(midicon_t* con, i32 bufferId);
-static void midicon_push(midicon_t* con, const midimsg_t* src);
+static void midicon_push(midicon_t* con, const MidiMsg* src);
 static void midicon_result(MMRESULT result);
 
 static void __stdcall InputCallback(
@@ -49,20 +49,20 @@ static void __stdcall InputCallback(
 
 static void midicon_lock(midicon_t* con)
 {
-    spinlock_lock(&con->lock);
+    Spinlock_Lock(&con->lock);
 }
 
 static void midicon_unlock(midicon_t* con)
 {
-    spinlock_unlock(&con->lock);
+    Spinlock_Unlock(&con->lock);
 }
 
-static bool midicon_open(midicon_t* con, i32 port, midi_cb cb, void* usr)
+static bool midicon_open(midicon_t* con, i32 port, OnMidiFn cb, void* usr)
 {
     MMRESULT result = MMSYSERR_NOERROR;
 
     memset(con, 0, sizeof(*con));
-    spinlock_new(&con->lock);
+    Spinlock_New(&con->lock);
     con->cb = cb;
     con->usr = usr;
 
@@ -126,7 +126,7 @@ static void midicon_close(midicon_t* con)
         }
         midicon_unlock(con);
 
-        spinlock_del(&con->lock);
+        Spinlock_Del(&con->lock);
         memset(con, 0, sizeof(*con));
     }
 }
@@ -151,9 +151,9 @@ static bool midicon_enqueue(midicon_t* con, i32 bufferId)
     return result == MMSYSERR_NOERROR;
 }
 
-static void midicon_push(midicon_t* con, const midimsg_t* src)
+static void midicon_push(midicon_t* con, const MidiMsg* src)
 {
-    midi_cb cb = con->cb;
+    OnMidiFn cb = con->cb;
     void* usr = con->usr;
     cb(src, usr);
 }
@@ -183,7 +183,7 @@ static void __stdcall InputCallback(
         break;
     case MIM_DATA:
     {
-        midimsg_t msg = { 0 };
+        MidiMsg msg = { 0 };
         msg.tick = AudioSys_Ticks();
         msg.command = (message >> 0) & 0xff;
         msg.param1 = (message >> 8) & 0xff;
@@ -210,22 +210,22 @@ static void __stdcall InputCallback(
 
 // ----------------------------------------------------------------------------
 
-static queue_t ms_free;
+static Queue ms_free;
 static i32 ms_length;
 static u8* ms_versions;
 static midicon_t* ms_cons;
 
-void midi_sys_init(void)
+void MidiSys_Init(void)
 {
-    queue_create(&ms_free, sizeof(i32), EAlloc_Perm);
+    Queue_New(&ms_free, sizeof(i32), EAlloc_Perm);
 }
 
-void midi_sys_update(void)
+void MidiSys_Update(void)
 {
 
 }
 
-void midi_sys_shutdown(void)
+void MidiSys_Shutdown(void)
 {
     midicon_t* cons = ms_cons;
     const i32 len = ms_length;
@@ -237,28 +237,28 @@ void midi_sys_shutdown(void)
     ms_length = 0;
     Mem_Free(ms_cons); ms_cons = NULL;
     Mem_Free(ms_versions); ms_versions = NULL;
-    queue_destroy(&ms_free);
+    Queue_Del(&ms_free);
 }
 
-i32 midi_devcount(void)
+i32 Midi_DeviceCount(void)
 {
     return midiInGetNumDevs();
 }
 
-bool midi_exists(midihdl_t hdl)
+bool Midi_Exists(MidiHdl hdl)
 {
     i32 index = hdl.index;
     u8 version = hdl.version;
     return (index < ms_length) && (ms_versions[index] == version);
 }
 
-midihdl_t midi_open(i32 port, midi_cb cb, void* usr)
+MidiHdl Midi_Open(i32 port, OnMidiFn cb, void* usr)
 {
     ASSERT(port >= 0);
     ASSERT(cb);
 
-    midihdl_t hdl = { 0 };
-    if ((port < 0) || (port >= midi_devcount()))
+    MidiHdl hdl = { 0 };
+    if ((port < 0) || (port >= Midi_DeviceCount()))
     {
         return hdl;
     }
@@ -268,7 +268,7 @@ midihdl_t midi_open(i32 port, midi_cb cb, void* usr)
     }
 
     i32 index = 0;
-    if (!queue_trypop(&ms_free, &index, sizeof(index)))
+    if (!Queue_TryPop(&ms_free, &index, sizeof(index)))
     {
         index = ms_length++;
         Perm_Grow(ms_versions, ms_length);
@@ -285,14 +285,14 @@ midihdl_t midi_open(i32 port, midi_cb cb, void* usr)
     }
     else
     {
-        queue_push(&ms_free, &index, sizeof(index));
+        Queue_Push(&ms_free, &index, sizeof(index));
         return hdl;
     }
 }
 
-bool midi_close(midihdl_t hdl)
+bool Midi_Close(MidiHdl hdl)
 {
-    if (midi_exists(hdl))
+    if (Midi_Exists(hdl))
     {
         i32 index = hdl.index;
         ++ms_versions[index];

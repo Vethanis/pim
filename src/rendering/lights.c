@@ -1,20 +1,20 @@
 #include "rendering/lights.h"
 #include "allocator/allocator.h"
 
-static lights_t ms_lights;
+static Lights ms_lights;
 
-lights_t* lights_get(void)
+Lights* Lights_Get(void)
 {
     return &ms_lights;
 }
 
-void lights_clear(void)
+void Lights_Clear(void)
 {
     ms_lights.ptCount = 0;
     ms_lights.dirCount = 0;
 }
 
-i32 lights_add_pt(pt_light_t pt)
+i32 Lights_AddPt(PtLight pt)
 {
     i32 len = ++ms_lights.ptCount;
     ms_lights.ptLights = Perm_Realloc(ms_lights.ptLights, sizeof(pt) * len);
@@ -22,7 +22,7 @@ i32 lights_add_pt(pt_light_t pt)
     return len - 1;
 }
 
-i32 lights_add_dir(dir_light_t dir)
+i32 Lights_AddDir(DirLight dir)
 {
     i32 len = ++ms_lights.dirCount;
     ms_lights.dirLights = Perm_Realloc(ms_lights.ptLights, sizeof(dir) * len);
@@ -30,10 +30,10 @@ i32 lights_add_dir(dir_light_t dir)
     return len - 1;
 }
 
-void lights_rm_pt(i32 i)
+void Lights_RmPt(i32 i)
 {
     i32 len = ms_lights.ptCount;
-    pt_light_t* pts = ms_lights.ptLights;
+    PtLight* pts = ms_lights.ptLights;
     if (i >= 0 && i < len)
     {
         for (i32 j = i + 1; j < len; ++j)
@@ -44,10 +44,10 @@ void lights_rm_pt(i32 i)
     }
 }
 
-void lights_rm_dir(i32 i)
+void Lights_RmDir(i32 i)
 {
     i32 len = ms_lights.dirCount;
-    dir_light_t* dirs = ms_lights.dirLights;
+    DirLight* dirs = ms_lights.dirLights;
     if (i >= 0 && i < len)
     {
         for (i32 j = i + 1; j < len; ++j)
@@ -58,36 +58,36 @@ void lights_rm_dir(i32 i)
     }
 }
 
-void lights_set_pt(i32 i, pt_light_t pt)
+void Lights_SetPt(i32 i, PtLight pt)
 {
     ASSERT(i >= 0 && i < ms_lights.ptCount);
     ms_lights.ptLights[i] = pt;
 }
 
-void lights_set_dir(i32 i, dir_light_t dir)
+void Lights_SetDir(i32 i, DirLight dir)
 {
     ASSERT(i >= 0 && i < ms_lights.dirCount);
     ms_lights.dirLights[i] = dir;
 }
 
-pt_light_t lights_get_pt(i32 i)
+PtLight Lights_GetPt(i32 i)
 {
     ASSERT(i >= 0 && i < ms_lights.ptCount);
     return ms_lights.ptLights[i];
 }
 
-dir_light_t lights_get_dir(i32 i)
+DirLight Lights_GetDir(i32 i)
 {
     ASSERT(i >= 0 && i < ms_lights.dirCount);
     return ms_lights.dirLights[i];
 }
 
-i32 lights_pt_count(void)
+i32 Lights_PtCount(void)
 {
     return ms_lights.ptCount;
 }
 
-i32 lights_dir_count(void)
+i32 Lights_DirCount(void)
 {
     return ms_lights.dirCount;
 }

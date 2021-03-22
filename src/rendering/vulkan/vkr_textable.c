@@ -40,7 +40,7 @@ static vkrTextureId ToTexId(GenId gid, VkImageViewType type)
 
 typedef struct TexTable_s
 {
-    idalloc_t ids;
+    IdAlloc ids;
     vkrImage* images;
     VkImageView* views;
     VkDescriptorImageInfo* descriptors;
@@ -82,7 +82,7 @@ static void TexTable_New(TexTable* tt, VkImageViewType viewType, i32 capacity)
     ASSERT(capacity > 0);
     memset(tt, 0, sizeof(*tt));
 
-    idalloc_new(&tt->ids);
+    IdAlloc_New(&tt->ids);
     tt->images = Perm_Calloc(sizeof(tt->images[0]) * capacity);
     tt->views = Perm_Calloc(sizeof(tt->views[0]) * capacity);
     tt->descriptors = Perm_Calloc(sizeof(tt->descriptors[0]) * capacity);
@@ -118,16 +118,16 @@ static void TexTable_New(TexTable* tt, VkImageViewType viewType, i32 capacity)
 
 static void TexTable_Del(TexTable* tt)
 {
-    const i32 len = idalloc_capacity(&tt->ids);
+    const i32 len = IdAlloc_Capacity(&tt->ids);
     for (i32 i = 0; i < len; ++i)
     {
-        if (idalloc_existsat(&tt->ids, i))
+        if (IdAlloc_ExistsAt(&tt->ids, i))
         {
             vkrImageView_Del(tt->views[i]);
             vkrImage_Del(&tt->images[i]);
         }
     }
-    idalloc_del(&tt->ids);
+    IdAlloc_Del(&tt->ids);
     Mem_Free(tt->images);
     Mem_Free(tt->views);
     Mem_Free(tt->descriptors);
@@ -148,7 +148,7 @@ static void TexTable_Write(TexTable* tt, VkDescriptorSet set, i32 binding)
 static bool TexTable_Exists(const TexTable* tt, vkrTextureId id)
 {
     ASSERT(id.type == tt->viewType);
-    return idalloc_exists(&tt->ids, ToGenId(id));
+    return IdAlloc_Exists(&tt->ids, ToGenId(id));
 }
 
 static vkrTextureId TexTable_Alloc(
@@ -161,7 +161,7 @@ static vkrTextureId TexTable_Alloc(
     bool mips)
 {
     const VkImageViewType viewType = tt->viewType;
-    const GenId gid = idalloc_alloc(&tt->ids);
+    const GenId gid = IdAlloc_Alloc(&tt->ids);
     const i32 slot = gid.index;
     ASSERT(slot < tt->capacity);
 
@@ -204,7 +204,7 @@ static vkrTextureId TexTable_Alloc(
 static bool TexTable_Free(TexTable* tt, vkrTextureId id)
 {
     ASSERT(id.type == tt->viewType);
-    if (idalloc_free(&tt->ids, ToGenId(id)))
+    if (IdAlloc_Free(&tt->ids, ToGenId(id)))
     {
         i32 slot = id.index;
         ASSERT(slot >= 0);

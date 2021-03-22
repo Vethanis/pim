@@ -4,13 +4,14 @@
 
 PIM_C_BEGIN
 
-typedef struct library_s
+typedef struct Library_s
 {
     void* handle;
-} library_t;
+} Library;
 
-library_t Library_Open(const char* name);
-void Library_Close(library_t lib);
-void* Library_Sym(library_t lib, const char* name);
+bool Library_IsOpen(Library l);
+Library Library_Open(const char* name);
+void Library_Close(Library lib);
+void* Library_Sym(Library lib, const char* name);
 
 PIM_C_END

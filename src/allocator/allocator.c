@@ -10,12 +10,15 @@
 #include <stdlib.h>
 
 #define kTempFrames         4
+#define kAlignShifts        4
 #define kAlign              16
 #define kAlignMask          (kAlign - 1)
 
 #define kPermCapacity       (1 << 30)
 #define kTextureCapacity    (1 << 30)
 #define kTempCapacity       (256 << 20)
+
+SASSERT((1 << kAlignShifts) == kAlign);
 
 typedef struct hdr_s
 {
@@ -29,7 +32,7 @@ SASSERT((sizeof(hdr_t)) == kAlign);
 
 typedef struct tlsf_allocator_s
 {
-    spinlock_t mtx;
+    Spinlock mtx;
     tlsf_t tlsf;
 } tlsf_allocator_t;
 
@@ -80,7 +83,7 @@ static void tlsf_allocator_new(tlsf_allocator_t* allocator, i32 capacity)
     ASSERT(capacity > 0);
     memset(allocator, 0, sizeof(*allocator));
 
-    spinlock_new(&allocator->mtx);
+    Spinlock_New(&allocator->mtx);
 
     void* memory = malloc(capacity);
     ASSERT(memory);
@@ -96,7 +99,7 @@ static void tlsf_allocator_del(tlsf_allocator_t* allocator)
     {
         if (allocator->tlsf)
         {
-            spinlock_del(&allocator->mtx);
+            Spinlock_Del(&allocator->mtx);
             tlsf_destroy(allocator->tlsf);
         }
         memset(allocator, 0, sizeof(*allocator));
@@ -105,18 +108,18 @@ static void tlsf_allocator_del(tlsf_allocator_t* allocator)
 
 static void* tlsf_allocator_malloc(tlsf_allocator_t* allocator, i32 bytes)
 {
-    spinlock_lock(&allocator->mtx);
+    Spinlock_Lock(&allocator->mtx);
     void* ptr = tlsf_memalign(allocator->tlsf, kAlign, bytes);
-    spinlock_unlock(&allocator->mtx);
+    Spinlock_Unlock(&allocator->mtx);
     ASSERT(ptr);
     return ptr;
 }
 
 static void tlsf_allocator_free(tlsf_allocator_t* allocator, void* ptr)
 {
-    spinlock_lock(&allocator->mtx);
+    Spinlock_Lock(&allocator->mtx);
     tlsf_free(allocator->tlsf, ptr);
-    spinlock_unlock(&allocator->mtx);
+    Spinlock_Unlock(&allocator->mtx);
 }
 
 // ----------------------------------------------------------------------------
@@ -315,14 +318,14 @@ void* Mem_Calloc(EAlloc type, i32 bytes)
 #define kStackCapacity      (4 << 10)
 #define kFrameCount         (kStackCapacity / kAlign)
 
-typedef struct sframe_s
+typedef struct StackFrame_s
 {
     pim_alignas(kAlign)
     u8 value[kAlign];
-} sframe_t;
+} StackFrame;
 
 static i32 ms_iFrame[kMaxThreads];
-static sframe_t ms_stack[kMaxThreads][kFrameCount];
+static StackFrame ms_stack[kMaxThreads][kFrameCount];
 
 void* Mem_Push(i32 bytes)
 {
@@ -330,9 +333,9 @@ void* Mem_Push(i32 bytes)
     const i32 tid = Task_ThreadId();
 
     bytes = align_bytes(bytes);
-    const i32 frames = bytes / kAlign;
-    const i32 back = ms_iFrame[tid];
-    const i32 front = back + frames;
+    i32 frames = bytes >> kAlignShifts;
+    i32 back = ms_iFrame[tid];
+    i32 front = back + frames;
     ASSERT(front <= kFrameCount);
 
     ms_iFrame[tid] = front;
@@ -346,7 +349,7 @@ void Mem_Pop(i32 bytes)
     const i32 tid = Task_ThreadId();
 
     bytes = align_bytes(bytes);
-    const i32 frames = bytes / kAlign;
+    const i32 frames = bytes >> kAlignShifts;
     ms_iFrame[tid] -= frames;
 
     ASSERT(ms_iFrame[tid] >= 0);

@@ -4,8 +4,8 @@
 
 PIM_C_BEGIN
 
-void menubar_init(void);
-void menubar_update(void);
-void menubar_shutdown(void);
+void MenuBar_Init(void);
+void MenuBar_Update(void);
+void MenuBar_Shutdown(void);
 
 PIM_C_END

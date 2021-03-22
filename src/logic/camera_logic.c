@@ -43,7 +43,7 @@ static ConVar_t cv_r_zfar =
     .desc = "Far clipping plane, in meters",
 };
 
-void camera_logic_init(void)
+void CameraLogic_Init(void)
 {
     cvar_reg(&cv_pitchscale);
     cvar_reg(&cv_yawscale);
@@ -53,8 +53,8 @@ void camera_logic_init(void)
     cvar_reg(&cv_r_zfar);
 }
 
-ProfileMark(pm_update, camera_logic_update)
-void camera_logic_update(void)
+ProfileMark(pm_update, CameraLogic_Update)
+void CameraLogic_Update(void)
 {
     ProfileBegin(pm_update);
 
@@ -62,11 +62,11 @@ void camera_logic_update(void)
     float dPitch = Input_GetDeltaAxis(MouseAxis_Y) * cvar_get_float(&cv_pitchscale);
 
     Camera camera;
-    camera_get(&camera);
+    Camera_Get(&camera);
     camera.fovy = cvar_get_float(&cv_r_fov);
     camera.zNear = cvar_get_float(&cv_r_znear);
     camera.zFar = cvar_get_float(&cv_r_zfar);
-    camera_set(&camera);
+    Camera_Set(&camera);
 
     if (Input_IsKeyUp(KeyCode_Escape))
     {
@@ -134,12 +134,12 @@ void camera_logic_update(void)
     camera.position = eye;
     camera.rotation = rot;
 
-    camera_set(&camera);
+    Camera_Set(&camera);
 
     ProfileEnd(pm_update);
 }
 
-void camera_logic_shutdown(void)
+void CameraLogic_Shutdown(void)
 {
 
 }

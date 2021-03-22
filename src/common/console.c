@@ -30,7 +30,7 @@ static void ExecCmd(const char* cmd, bool history);
 static void HistClear(void);
 
 static char ms_buffer[PIM_PATH];
-static fstr_t ms_file;
+static FileStream ms_file;
 
 static i32 ms_iLine;
 static char* ms_lines[MAX_LINES];
@@ -42,14 +42,14 @@ static bool ms_showGui;
 static bool ms_recapture;
 
 static i32 ms_histCursor;
-static strlist_t ms_history;
+static StrList ms_history;
 
 void ConSys_Init(void)
 {
     cvar_reg(&cv_conlogpath);
-    strlist_new(&ms_history, EAlloc_Perm);
+    StrList_New(&ms_history, EAlloc_Perm);
 
-    ms_file = fstr_open(cv_conlogpath.value, "wb");
+    ms_file = FileStream_Open(cv_conlogpath.value, "wb");
     Con_Clear();
     HistClear();
 }
@@ -61,8 +61,8 @@ void ConSys_Update(void)
 
     if (cvar_check_dirty(&cv_conlogpath))
     {
-        fstr_close(&ms_file);
-        ms_file = fstr_open(cv_conlogpath.value, "wb");
+        FileStream_Close(&ms_file);
+        ms_file = FileStream_Open(cv_conlogpath.value, "wb");
     }
     con_gui();
 
@@ -72,11 +72,11 @@ void ConSys_Update(void)
 void ConSys_Shutdown(void)
 {
     Con_Logf(LogSev_Info, "con", "console shutting down...");
-    fstr_close(&ms_file);
+    FileStream_Close(&ms_file);
 
     Con_Clear();
     HistClear();
-    strlist_del(&ms_history);
+    StrList_Del(&ms_history);
 }
 
 ProfileMark(pm_gui, con_gui)
@@ -221,9 +221,9 @@ void Con_Puts(u32 color, const char* line)
     ASSERT(line);
     if (line)
     {
-        if (fstr_isopen(ms_file))
+        if (FileStream_IsOpen(ms_file))
         {
-            fstr_puts(ms_file, line);
+            FileStream_Puts(ms_file, line);
         }
 
         char** lines = ms_lines;
@@ -327,9 +327,9 @@ void Con_Logf(LogSev sev, const char* tag, const char* fmt, ...)
 
         if (sev == LogSev_Error)
         {
-            if (fstr_isopen(ms_file))
+            if (FileStream_IsOpen(ms_file))
             {
-                fstr_flush(ms_file);
+                FileStream_Flush(ms_file);
             }
         }
     }
@@ -413,7 +413,7 @@ static i32 OnTextInput(ImGuiInputTextCallbackData* data)
 
 static void HistClear(void)
 {
-    strlist_clear(&ms_history);
+    StrList_Clear(&ms_history);
     ms_histCursor = 0;
 }
 
@@ -423,7 +423,7 @@ static void ExecCmd(const char* cmd, bool history)
 
     if (history)
     {
-        strlist_add(&ms_history, cmd);
+        StrList_Add(&ms_history, cmd);
         ms_histCursor = 0;
     }
 

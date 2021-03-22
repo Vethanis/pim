@@ -215,61 +215,61 @@ static Material GenMaterial(
 
     if (StrIStr(ARGS(mtex->name), "light"))
     {
-        material.flags |= matflag_emissive;
+        material.flags |= MatFlag_Emissive;
     }
     if (StrIStr(ARGS(mtex->name), "sky"))
     {
-        material.flags |= matflag_sky;
-        material.flags |= matflag_emissive;
+        material.flags |= MatFlag_Sky;
+        material.flags |= MatFlag_Emissive;
     }
     if (StrIStr(ARGS(mtex->name), "lava"))
     {
-        material.flags |= matflag_lava;
-        material.flags |= matflag_emissive;
+        material.flags |= MatFlag_Lava;
+        material.flags |= MatFlag_Emissive;
     }
     if (StrIStr(ARGS(mtex->name), "slime"))
     {
         material.ior = 1.4394f;
-        material.flags |= matflag_slime;
-        material.flags |= matflag_refractive;
+        material.flags |= MatFlag_Slime;
+        material.flags |= MatFlag_Refractive;
     }
     if (StrIStr(ARGS(mtex->name), "water"))
     {
         material.ior = 1.333f;
-        material.flags |= matflag_water;
-        material.flags |= matflag_refractive;
+        material.flags |= MatFlag_Water;
+        material.flags |= MatFlag_Refractive;
     }
     if (StrIStr(ARGS(mtex->name), "window"))
     {
         material.ior = 1.52f;
-        material.flags |= matflag_refractive;
-        material.flags |= matflag_emissive;
+        material.flags |= MatFlag_Refractive;
+        material.flags |= MatFlag_Emissive;
         roughness = 0.05f;
     }
     if (StrIStr(ARGS(mtex->name), "teleport"))
     {
-        material.flags |= matflag_portal;
+        material.flags |= MatFlag_Portal;
     }
     if (StrIStr(ARGS(mtex->name), "slip"))
     {
-        material.flags |= matflag_emissive;
+        material.flags |= MatFlag_Emissive;
     }
     if (mtex->name[0] == '*')
     {
         // uv animated
-        material.flags |= matflag_warped;
+        material.flags |= MatFlag_Warped;
     }
     if (mtex->name[0] == '+')
     {
         // keyframe animated
-        material.flags |= matflag_animated;
+        material.flags |= MatFlag_Animated;
     }
 
     u8 const *const pim_noalias mip0 = (u8*)(mtex + 1);
     const int2 size = i2_v(mtex->width, mtex->height);
     const i32 texelCount = size.x * size.y;
 
-    if (!(material.flags & matflag_emissive))
+    if (!(material.flags & MatFlag_Emissive))
     {
         for (i32 i = 0; i < texelCount; ++i)
         {
@@ -277,7 +277,7 @@ static Material GenMaterial(
             // 240: brights
             if (mip0[i] >= 224)
             {
-                material.flags |= matflag_emissive;
+                material.flags |= MatFlag_Emissive;
                 break;
             }
         }
@@ -285,9 +285,9 @@ static Material GenMaterial(
 
     if (emission > 0.0f)
     {
-        material.flags |= matflag_emissive;
+        material.flags |= MatFlag_Emissive;
     }
-    if ((emission == 0.0f) && (material.flags & matflag_emissive))
+    if ((emission == 0.0f) && (material.flags & MatFlag_Emissive))
     {
         emission = 0.5f;
     }
@@ -310,10 +310,10 @@ static Material GenMaterial(
 
     for (i32 i = 0; i < NELEM(ids); ++i)
     {
-        guids[i] = guid_str(names[i]);
-        if (texture_find(guids[i], &ids[i]))
+        guids[i] = Guid_FromStr(names[i]);
+        if (Texture_Find(guids[i], &ids[i]))
         {
-            texture_retain(ids[i]);
+            Texture_Retain(ids[i]);
         }
     }
 
@@ -321,7 +321,7 @@ static Material GenMaterial(
     {
         for (i32 i = 0; i < NELEM(ids); ++i)
         {
-            if (texture_exists(ids[i]))
+            if (Texture_Exists(ids[i]))
             {
                 continue;
             }
@@ -348,9 +348,9 @@ static Material GenMaterial(
             if (tex.texels)
             {
                 TextureId customId = { 0 };
-                if (texture_new(&tex, format, guids[i], &customId))
+                if (Texture_New(&tex, format, guids[i], &customId))
                 {
-                    texture_release(ids[i]);
+                    Texture_Release(ids[i]);
                     ids[i] = customId;
                 }
             }
@@ -360,12 +360,12 @@ static Material GenMaterial(
     bool hasAll = true;
     for (i32 i = 0; i < NELEM(ids); ++i)
     {
-        hasAll &= texture_exists(ids[i]);
+        hasAll &= Texture_Exists(ids[i]);
     }
     if (!hasAll)
     {
         TextureId baseIds[3] = { 0 };
-        hasAll = texture_unpalette(
+        hasAll = Texture_Unpalette(
             mip0,
             size,
             mtex->name,
@@ -376,13 +376,13 @@ static Material GenMaterial(
             &baseIds[2]);
         for (i32 i = 0; i < NELEM(ids); ++i)
         {
-            if (!texture_exists(ids[i]))
+            if (!Texture_Exists(ids[i]))
             {
                 ids[i] = baseIds[i];
             }
             else
             {
-                texture_release(baseIds[i]);
+                Texture_Release(baseIds[i]);
             }
         }
     }
@@ -470,17 +470,17 @@ static void AssignMaterial(Mesh *const mesh, Material material)
     {
         int4 texIndex = { 0, 0, 0, 0 };
         {
-            const Texture* tex = texture_get(material.albedo);
+            const Texture* tex = Texture_Get(material.albedo);
             if (tex)
             {
                 texIndex.x = tex->slot.index;
             }
-            tex = texture_get(material.rome);
+            tex = Texture_Get(material.rome);
             if (tex)
             {
                 texIndex.y = tex->slot.index;
             }
-            tex = texture_get(material.normal);
+            tex = Texture_Get(material.normal);
             if (tex)
             {
                 texIndex.z = tex->slot.index;
@@ -669,12 +669,12 @@ static Guid CreateDrawable(
 
     char name[PIM_PATH] = { 0 };
     SPrintf(ARGS(name), "%s:%d:%s", modelName, surfIndex, texname);
-    Guid guid = guid_str(name);
+    Guid guid = Guid_FromStr(name);
 
     MeshId meshid = { 0 };
-    if (mesh_new(mesh, guid, &meshid))
+    if (Mesh_New(mesh, guid, &meshid))
     {
-        i32 c = drawables_add(dr, guid);
+        i32 c = Entities_Add(dr, guid);
         dr->meshes[c] = meshid;
         dr->materials[c] = mat;
         dr->translations[c] = f4_0;
@@ -700,18 +700,18 @@ static i32 CmpName(const void* lhs, const void* rhs, void* usr)
     return a < b ? -1 : 1;
 }
 
-void model_sys_init(void)
+void ModelSys_Init(void)
 {
     cvar_reg(&cv_model_bumpiness);
     cvar_reg(&cv_tex_custom);
 }
 
-void model_sys_update(void)
+void ModelSys_Update(void)
 {
 
 }
 
-void model_sys_shutdown(void)
+void ModelSys_Shutdown(void)
 {
 
 }
@@ -741,7 +741,7 @@ void ModelToDrawables(mmodel_t const *const model, Entities *const dr)
             }
         }
     }
-    i32 *const pim_noalias order = indsort(hashes, numsurfaces, sizeof(hashes[0]), CmpName, NULL);
+    i32 *const pim_noalias order = IndexSort(hashes, numsurfaces, sizeof(hashes[0]), CmpName, NULL);
 
     i32* polygon = NULL;
     i32* tris = NULL;
@@ -801,7 +801,7 @@ void LoadProgs(mmodel_t const *const model, bool loadlights)
     progs_t progs = { 0 };
     progs_parse(&progs, model->entities);
 
-    lights_clear();
+    Lights_Clear();
     const float4x4 M = QuakeToRhsMeters();
     const i32 numentities = progs.numentities;
     pr_entity_t const *const entities = progs.entities;
@@ -813,13 +813,13 @@ void LoadProgs(mmodel_t const *const model, bool loadlights)
             if (loadlights)
             {
                 float rad = ent.light.light * 0.01f;
-                pt_light_t pt = { 0 };
+                PtLight pt = { 0 };
                 pt.pos = f3_f4(ent.light.origin, 1.0f);
                 pt.pos = f4x4_mul_pt(M, pt.pos);
                 pt.pos.w = PowerToAttRadius(rad, 0.01f);
                 pt.rad = f4_s(rad);
                 pt.rad.w = 10.0f * kCenti;
-                lights_add_pt(pt);
+                Lights_AddPt(pt);
             }
         }
         else if (ent.type == pr_classname_worldspawn)
@@ -833,10 +833,10 @@ void LoadProgs(mmodel_t const *const model, bool loadlights)
             quat rot = quat_angleaxis(yaw, f4_y);
             pt = f4x4_mul_pt(M, pt);
             Camera camera;
-            camera_get(&camera);
+            Camera_Get(&camera);
             camera.position = pt;
             camera.rotation = rot;
-            camera_set(&camera);
+            Camera_Set(&camera);
         }
     }
 

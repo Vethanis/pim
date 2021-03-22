@@ -4,17 +4,17 @@
 
 PIM_C_BEGIN
 
-typedef struct spinlock_s
+typedef struct Spinlock_s
 {
     pim_alignas(64) i32 state;
-} spinlock_t;
-SASSERT(sizeof(spinlock_t) == 64);
+} Spinlock;
+SASSERT(sizeof(Spinlock) == 64);
 
-void spinlock_new(spinlock_t *const spin);
-void spinlock_del(spinlock_t *const spin);
+void Spinlock_New(Spinlock *const spin);
+void Spinlock_Del(Spinlock *const spin);
 
-void spinlock_lock(spinlock_t *const spin);
-void spinlock_unlock(spinlock_t *const spin);
-bool spinlock_trylock(spinlock_t *const spin);
+void Spinlock_Lock(Spinlock *const spin);
+void Spinlock_Unlock(Spinlock *const spin);
+bool Spinlock_TryLock(Spinlock *const spin);
 
 PIM_C_END

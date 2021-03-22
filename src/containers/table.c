@@ -34,7 +34,7 @@ pim_inline void LookupReserve(Table *const table, i32 capacity)
         i32 index = oldIndices[i];
         if (index >= 0)
         {
-            u32 j = guid_hashof(names[index]);
+            u32 j = Guid_HashOf(names[index]);
             while (true)
             {
                 j &= newMask;
@@ -63,7 +63,7 @@ pim_inline i32 LookupInsert(Table *const table, i32 iTable, Guid name)
 
     const u32 mask = table->lookupWidth - 1u;
     i32 *const pim_noalias lookup = table->lookup;
-    u32 iLookup = guid_hashof(name);
+    u32 iLookup = Guid_HashOf(name);
     while (true)
     {
         iLookup &= mask;
@@ -84,7 +84,7 @@ pim_inline bool LookupFind(
     i32 *const pim_noalias iTableOut,
     i32 *const pim_noalias iLookupOut)
 {
-    ASSERT(!guid_isnull(name));
+    ASSERT(!Guid_IsNull(name));
 
     *iTableOut = -1;
     *iLookupOut = -1;
@@ -94,7 +94,7 @@ pim_inline bool LookupFind(
 
     const Guid *const pim_noalias names = table->names;
     const i32 *const pim_noalias lookup = table->lookup;
-    const u32 hash = guid_hashof(name);
+    const u32 hash = Guid_HashOf(name);
 
     for (u32 i = 0; i < width; ++i)
     {
@@ -109,7 +109,7 @@ pim_inline bool LookupFind(
         if (iTable >= 0)
         {
             ASSERT(iTable < table->width);
-            if (guid_eq(name, names[iTable]))
+            if (Guid_Equal(name, names[iTable]))
             {
                 *iTableOut = iTable;
                 *iLookupOut = (i32)iLookup;
@@ -142,7 +142,7 @@ pim_inline void LookupClear(Table *const table)
     }
 }
 
-void table_new(Table *const table, i32 valueSize)
+void Table_New(Table *const table, i32 valueSize)
 {
     ASSERT(table);
     ASSERT(valueSize > 0);
@@ -151,11 +151,11 @@ void table_new(Table *const table, i32 valueSize)
     table->valueSize = valueSize;
 }
 
-void table_del(Table *const table)
+void Table_Del(Table *const table)
 {
     if (table)
     {
-        queue_i32_del(&table->freelist);
+        IntQueue_Del(&table->freelist);
         Mem_Free(table->versions);
         Mem_Free(table->values);
         Mem_Free(table->refcounts);
@@ -165,7 +165,7 @@ void table_del(Table *const table)
     }
 }
 
-void table_clear(Table *const table)
+void Table_Clear(Table *const table)
 {
     const i32 len = table->width;
     table->width = 0;
@@ -173,11 +173,11 @@ void table_clear(Table *const table)
     memset(table->versions, 0, sizeof(table->versions[0]) * len);
     memset(table->refcounts, 0, sizeof(table->refcounts[0]) * len);
     memset(table->names, 0, sizeof(table->names[0]) * len);
-    queue_i32_clear(&table->freelist);
+    IntQueue_Clear(&table->freelist);
     LookupClear(table);
 }
 
-bool table_exists(Table const *const table, GenId id)
+bool Table_Exists(Table const *const table, GenId id)
 {
     ASSERT(table->valueSize > 0);
     i32 i = id.index;
@@ -185,7 +185,7 @@ bool table_exists(Table const *const table, GenId id)
     return (i < table->width) && (table->versions[i] == v);
 }
 
-bool table_add(
+bool Table_Add(
     Table *const table,
     Guid name,
     const void *const valueIn,
@@ -195,23 +195,23 @@ bool table_add(
     ASSERT(valueIn);
     ASSERT(idOut);
 
-    if (guid_isnull(name))
+    if (Guid_IsNull(name))
     {
         idOut->index = 0;
         idOut->version = 0;
         return false;
     }
 
-    if (table_find(table, name, idOut))
+    if (Table_Find(table, name, idOut))
     {
-        table_retain(table, *idOut);
+        Table_Retain(table, *idOut);
         return false;
     }
 
     const i32 stride = table->valueSize;
     i32 index = 0;
     u8 version = 0;
-    if (!queue_i32_trypop(&table->freelist, &index))
+    if (!IntQueue_TryPop(&table->freelist, &index))
     {
         table->width += 1;
         const i32 len = table->width;
@@ -242,9 +242,9 @@ bool table_add(
     return true;
 }
 
-bool table_retain(Table *const table, GenId id)
+bool Table_Retain(Table *const table, GenId id)
 {
-    if (table_exists(table, id))
+    if (Table_Exists(table, id))
     {
         ASSERT(table->refcounts[id.index] > 0);
         table->refcounts[id.index] += 1;
@@ -253,9 +253,9 @@ bool table_retain(Table *const table, GenId id)
     return false;
 }
 
-bool table_release(Table *const table, GenId id, void *const valueOut)
+bool Table_Release(Table *const table, GenId id, void *const valueOut)
 {
-    if (table_exists(table, id))
+    if (Table_Exists(table, id))
     {
         const i32 index = id.index;
         const i32 version = id.version;
@@ -264,7 +264,7 @@ bool table_release(Table *const table, GenId id, void *const valueOut)
         table->refcounts[index] -= 1;
         if (table->refcounts[index] == 0)
         {
-            ASSERT(!guid_isnull(table->names[index]));
+            ASSERT(!Guid_IsNull(table->names[index]));
 
             i32 iTable, iLookup;
             bool found = LookupFind(
@@ -290,7 +290,7 @@ bool table_release(Table *const table, GenId id, void *const valueOut)
                 memset(pValue, 0, stride);
             }
 
-            queue_i32_push(&table->freelist, index);
+            IntQueue_Push(&table->freelist, index);
 
             return true;
         }
@@ -298,9 +298,9 @@ bool table_release(Table *const table, GenId id, void *const valueOut)
     return false;
 }
 
-void *const table_get(const Table *const table, GenId id)
+void *const Table_Get(const Table *const table, GenId id)
 {
-    if (table_exists(table, id))
+    if (Table_Exists(table, id))
     {
         i32 index = id.index;
         i32 stride = table->valueSize;
@@ -311,7 +311,7 @@ void *const table_get(const Table *const table, GenId id)
     return NULL;
 }
 
-bool table_find(const Table *const table, Guid name, GenId *const idOut)
+bool Table_Find(const Table *const table, Guid name, GenId *const idOut)
 {
     ASSERT(table);
     ASSERT(idOut);
@@ -319,7 +319,7 @@ bool table_find(const Table *const table, Guid name, GenId *const idOut)
     idOut->index = 0;
     idOut->version = 0;
 
-    if (guid_isnull(name))
+    if (Guid_IsNull(name))
     {
         return false;
     }
@@ -334,12 +334,12 @@ bool table_find(const Table *const table, Guid name, GenId *const idOut)
     return false;
 }
 
-bool table_getname(const Table *const table, GenId id, Guid *const nameOut)
+bool Table_GetName(const Table *const table, GenId id, Guid *const nameOut)
 {
     ASSERT(nameOut);
     nameOut->a = 0;
     nameOut->b = 0;
-    if (table_exists(table, id))
+    if (Table_Exists(table, id))
     {
         i32 index = id.index;
         *nameOut = table->names[index];

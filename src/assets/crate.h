@@ -13,20 +13,20 @@ enum
 
 typedef struct Crate_s
 {
-    fstr_t file;
+    FileStream file;
     Guid ids[kCrateLen];
     i32 offsets[kCrateLen];
     i32 sizes[kCrateLen];
 } Crate;
 
-bool crate_open(Crate *const crate, const char* path);
-bool crate_close(Crate *const crate);
+bool Crate_Open(Crate *const crate, const char* path);
+bool Crate_Close(Crate *const crate);
 
-bool crate_get(Crate *const crate, Guid id, void* dst, i32 size);
-bool crate_set(Crate *const crate, Guid id, const void* src, i32 size);
-bool crate_rm(Crate *const crate, Guid id);
+bool Crate_Get(Crate *const crate, Guid id, void* dst, i32 size);
+bool Crate_Set(Crate *const crate, Guid id, const void* src, i32 size);
+bool Crate_Rm(Crate *const crate, Guid id);
 
-bool crate_stat(
+bool Crate_Stat(
     const Crate *const crate,
     Guid id,
     i32 *const offsetOut,

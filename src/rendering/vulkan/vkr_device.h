@@ -14,7 +14,7 @@ VkExtensionProperties* vkrEnumDevExtensions(
     VkPhysicalDevice phdev,
     u32* countOut);
 void vkrListDevExtensions(VkPhysicalDevice phdev);
-strlist_t vkrGetDevExtensions(VkPhysicalDevice phdev);
+StrList vkrGetDevExtensions(VkPhysicalDevice phdev);
 
 u32 vkrEnumPhysicalDevices(
     VkInstance inst,
@@ -28,7 +28,7 @@ VkPhysicalDevice vkrSelectPhysicalDevice(
 
 VkDevice vkrCreateDevice(
     const vkrDisplay* display,
-    strlist_t extensions,
-    strlist_t layers);
+    StrList extensions,
+    StrList layers);
 
 PIM_C_END

@@ -4,40 +4,40 @@
 #include "common/sort.h"
 #include <string.h>
 
-static void dict_setkey(dict_t* dict, u32 index, const void* keyIn)
+static void dict_setkey(Dict* dict, u32 index, const void* keyIn)
 {
     u8 *const pim_noalias items = dict->keys;
     const u32 sz = dict->keySize;
     memcpy(items + index * sz, keyIn, sz);
 }
-static void dict_getkey(const dict_t* dict, u32 index, void* keyOut)
+static void dict_getkey(const Dict* dict, u32 index, void* keyOut)
 {
     u8 const *const pim_noalias items = dict->keys;
     const u32 sz = dict->keySize;
     memcpy(keyOut, items + index * sz, sz);
 }
 
-static void dict_setvalue(dict_t* dict, u32 index, const void* valueIn)
+static void dict_setvalue(Dict* dict, u32 index, const void* valueIn)
 {
     u8 *const pim_noalias items = dict->values;
     const u32 sz = dict->valueSize;
     memcpy(items + index * sz, valueIn, sz);
 }
-static void dict_getvalue(const dict_t* dict, u32 index, void* valueOut)
+static void dict_getvalue(const Dict* dict, u32 index, void* valueOut)
 {
     u8 const *const pim_noalias items = dict->values;
     const u32 sz = dict->valueSize;
     memcpy(valueOut, items + index * sz, sz);
 }
 
-static u32 dict_insert(dict_t* dict, const void* key)
+static u32 dict_insert(Dict* dict, const void* key)
 {
-    dict_reserve(dict, dict->count + 1);
+    Dict_Reserve(dict, dict->count + 1);
     dict->count++;
 
     const u32 mask = dict->width - 1u;
     const u32 keySize = dict->keySize;
-    const u32 keyHash = hashutil_hash(key, keySize);
+    const u32 keyHash = HashUtil_HashBytes(key, keySize);
 
     u32 *const pim_noalias hashes = dict->hashes;
     u8 *const pim_noalias keys = dict->keys;
@@ -46,7 +46,7 @@ static u32 dict_insert(dict_t* dict, const void* key)
     while (true)
     {
         j &= mask;
-        if (hashutil_empty_or_tomb(hashes[j]))
+        if (HashUtil_EmptyOrTomb(hashes[j]))
         {
             hashes[j] = keyHash;
             memcpy(keys + j * keySize, key, keySize);
@@ -60,7 +60,7 @@ static u32 dict_insert(dict_t* dict, const void* key)
 
 // ----------------------------------------------------------------------------
 
-void dict_new(dict_t* dict, u32 keySize, u32 valueSize, EAlloc allocator)
+void Dict_New(Dict* dict, u32 keySize, u32 valueSize, EAlloc allocator)
 {
     ASSERT(dict);
     ASSERT(keySize);
@@ -71,7 +71,7 @@ void dict_new(dict_t* dict, u32 keySize, u32 valueSize, EAlloc allocator)
     dict->allocator = allocator;
 }
 
-void dict_del(dict_t* dict)
+void Dict_Del(Dict* dict)
 {
     ASSERT(dict);
 
@@ -82,7 +82,7 @@ void dict_del(dict_t* dict)
     Mem_Free(dict->values); dict->values = NULL;
 }
 
-void dict_clear(dict_t* dict)
+void Dict_Clear(Dict* dict)
 {
     ASSERT(dict);
     dict->count = 0;
@@ -95,7 +95,7 @@ void dict_clear(dict_t* dict)
     }
 }
 
-void dict_reserve(dict_t* dict, i32 count)
+void Dict_Reserve(Dict* dict, i32 count)
 {
     ASSERT(dict);
 
@@ -125,7 +125,7 @@ void dict_reserve(dict_t* dict, i32 count)
     for (u32 i = 0; i < oldWidth;)
     {
         const u32 hash = oldHashes[i];
-        if (hashutil_valid(hash))
+        if (HashUtil_Valid(hash))
         {
             u32 j = hash;
             while (true)
@@ -155,14 +155,14 @@ void dict_reserve(dict_t* dict, i32 count)
     dict->values = newValues;
 }
 
-i32 dict_find(const dict_t* dict, const void* key)
+i32 Dict_Find(const Dict* dict, const void* key)
 {
     ASSERT(dict);
     ASSERT(key);
 
     const u32 keySize = dict->keySize;
     ASSERT(keySize);
-    const u32 keyHash = hashutil_hash(key, keySize);
+    const u32 keyHash = HashUtil_HashBytes(key, keySize);
 
     u32 width = dict->width;
     const u32 mask = width - 1u;
@@ -174,7 +174,7 @@ i32 dict_find(const dict_t* dict, const void* key)
     {
         j &= mask;
         const u32 jHash = hashes[j];
-        if (hashutil_empty(jHash))
+        if (HashUtil_Empty(jHash))
         {
             break;
         }
@@ -191,12 +191,12 @@ i32 dict_find(const dict_t* dict, const void* key)
     return -1;
 }
 
-bool dict_get(const dict_t* dict, const void* key, void* valueOut)
+bool Dict_Get(const Dict* dict, const void* key, void* valueOut)
 {
     ASSERT(dict);
     ASSERT(key);
     ASSERT(valueOut);
-    const i32 i = dict_find(dict, key);
+    const i32 i = Dict_Find(dict, key);
     if (i >= 0)
     {
         dict_getvalue(dict, i, valueOut);
@@ -205,12 +205,12 @@ bool dict_get(const dict_t* dict, const void* key, void* valueOut)
     return false;
 }
 
-bool dict_set(dict_t* dict, const void* key, const void* valueIn)
+bool Dict_Set(Dict* dict, const void* key, const void* valueIn)
 {
     ASSERT(dict);
     ASSERT(key);
     ASSERT(valueIn);
-    const i32 i = dict_find(dict, key);
+    const i32 i = Dict_Find(dict, key);
     if (i >= 0)
     {
         dict_setvalue(dict, i, valueIn);
@@ -219,12 +219,12 @@ bool dict_set(dict_t* dict, const void* key, const void* valueIn)
     return false;
 }
 
-bool dict_add(dict_t* dict, const void* key, const void* valueIn)
+bool Dict_Add(Dict* dict, const void* key, const void* valueIn)
 {
     ASSERT(dict);
     ASSERT(key);
     ASSERT(valueIn);
-    if (dict_find(dict, key) >= 0)
+    if (Dict_Find(dict, key) >= 0)
     {
         return false;
     }
@@ -233,12 +233,12 @@ bool dict_add(dict_t* dict, const void* key, const void* valueIn)
     return true;
 }
 
-bool dict_rm(dict_t* dict, const void* key, void* valueOut)
+bool Dict_Rm(Dict* dict, const void* key, void* valueOut)
 {
     ASSERT(dict);
     ASSERT(key);
 
-    const i32 i = dict_find(dict, key);
+    const i32 i = Dict_Find(dict, key);
     if (i >= 0)
     {
         const u32 keySize = dict->keySize;
@@ -267,9 +267,9 @@ bool dict_rm(dict_t* dict, const void* key, void* valueOut)
     return false;
 }
 
-bool dict_setadd(dict_t* dict, const void* key, const void* valueIn)
+bool Dict_SetAdd(Dict* dict, const void* key, const void* valueIn)
 {
-    if (dict_set(dict, key, valueIn))
+    if (Dict_Set(dict, key, valueIn))
     {
         return true;
     }
@@ -278,9 +278,9 @@ bool dict_setadd(dict_t* dict, const void* key, const void* valueIn)
     return false;
 }
 
-bool dict_getadd(dict_t* dict, const void* key, void* valueOut)
+bool Dict_GetAdd(Dict* dict, const void* key, void* valueOut)
 {
-    i32 i = dict_find(dict, key);
+    i32 i = Dict_Find(dict, key);
     if (i >= 0)
     {
         dict_getvalue(dict, i, valueOut);
@@ -317,7 +317,7 @@ static i32 DictCmp(const void* lhs, const void* rhs, void* usr)
         ctx->usr);
 }
 
-u32* dict_sort(const dict_t* dict, DictCmpFn cmp, void* usr)
+u32* Dict_Sort(const Dict* dict, DictCmpFn cmp, void* usr)
 {
     ASSERT(dict);
     ASSERT(cmp);
@@ -331,7 +331,7 @@ u32* dict_sort(const dict_t* dict, DictCmpFn cmp, void* usr)
     u32 j = 0;
     for (u32 i = 0; i < width; ++i)
     {
-        if (hashutil_valid(hashes[i]))
+        if (HashUtil_Valid(hashes[i]))
         {
             indices[j++] = i;
         }
@@ -346,6 +346,6 @@ u32* dict_sort(const dict_t* dict, DictCmpFn cmp, void* usr)
         .cmp = cmp,
         .usr = usr,
     };
-    pimsort(indices, length, sizeof(indices[0]), DictCmp, &ctx);
+    QuickSort(indices, length, sizeof(indices[0]), DictCmp, &ctx);
     return indices;
 }

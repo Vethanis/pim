@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-typedef struct queue_s
+typedef struct Queue_s
 {
     void* ptr;
     u32 width;
@@ -12,20 +12,20 @@ typedef struct queue_s
     u32 iWrite;
     u32 stride;
     EAlloc allocator;
-} queue_t;
+} Queue;
 
-void queue_create(queue_t* queue, u32 itemSize, EAlloc allocator);
-void queue_destroy(queue_t* queue);
+void Queue_New(Queue* queue, u32 itemSize, EAlloc allocator);
+void Queue_Del(Queue* queue);
 
-u32 queue_size(const queue_t* queue);
-u32 queue_capacity(const queue_t* queue);
+u32 Queue_Size(const Queue* queue);
+u32 Queue_Capacity(const Queue* queue);
 
-void queue_clear(queue_t* queue);
-void queue_reserve(queue_t* queue, u32 capacity);
+void Queue_Clear(Queue* queue);
+void Queue_Reserve(Queue* queue, u32 capacity);
 
-void queue_push(queue_t* queue, const void* src, u32 itemSize);
-void queue_pushfront(queue_t* queue, const void* src, u32 itemSize);
-bool queue_trypop(queue_t* queue, void* dst, u32 itemSize);
-void queue_get(queue_t* queue, u32 i, void* dst, u32 itemSize);
+void Queue_Push(Queue* queue, const void* src, u32 itemSize);
+void Queue_PushFront(Queue* queue, const void* src, u32 itemSize);
+bool Queue_TryPop(Queue* queue, void* dst, u32 itemSize);
+void Queue_Get(Queue* queue, u32 i, void* dst, u32 itemSize);
 
 PIM_C_END

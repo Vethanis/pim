@@ -7,12 +7,12 @@
 
 #include <string.h>
 
-bool pack_load(pack_t* pack, const char* path)
+bool Pack_Load(Pack* pack, const char* path)
 {
     memset(pack, 0, sizeof(*pack));
 
-    fmap_t map = fmap_open(path, false);
-    if (!fmap_isopen(map))
+    FileMap map = FileMap_Open(path, false);
+    if (!FileMap_IsOpen(map))
     {
         goto onfail;
     }
@@ -46,31 +46,31 @@ bool pack_load(pack_t* pack, const char* path)
     return true;
 
 onfail:
-    fmap_close(&map);
+    FileMap_Close(&map);
     return false;
 }
 
-void pack_free(pack_t* pack)
+void Pack_Free(Pack* pack)
 {
     if (pack)
     {
-        fmap_close(&pack->mapped);
+        FileMap_Close(&pack->mapped);
         memset(pack, 0, sizeof(*pack));
     }
 }
 
-void searchpath_new(searchpath_t* sp)
+void SearchPath_New(SearchPath* sp)
 {
     memset(sp, 0, sizeof(*sp));
 }
 
-void searchpath_del(searchpath_t* sp)
+void SearchPath_Del(SearchPath* sp)
 {
     if (sp)
     {
         for (i32 i = 0; i < sp->packCount; ++i)
         {
-            pack_free(&sp->packs[i]);
+            Pack_Free(&sp->packs[i]);
         }
         Mem_Free(sp->packs);
         for (i32 i = 0; i < sp->fileCount; ++i)
@@ -82,24 +82,24 @@ void searchpath_del(searchpath_t* sp)
     }
 }
 
-i32 searchpath_addpack(searchpath_t* sp, const char* path)
+i32 SearchPath_AddPack(SearchPath* sp, const char* path)
 {
     char packDir[PIM_PATH];
     SPrintf(ARGS(packDir), "%s/*.pak", path);
     StrPath(ARGS(packDir));
 
-    pack_t* packs = sp->packs;
+    Pack* packs = sp->packs;
     i32 length = sp->packCount;
 
-    fnd_t fnd = { -1 };
-    fnd_data_t fndData;
-    while (fnd_iter(&fnd, &fndData, packDir))
+    Finder fnd = { -1 };
+    FinderData fndData;
+    while (Finder_Iterate(&fnd, &fndData, packDir))
     {
         char subdir[PIM_PATH];
         SPrintf(ARGS(subdir), "%s/%s", path, fndData.name);
         StrPath(ARGS(subdir));
-        pack_t pack;
-        if (pack_load(&pack, subdir))
+        Pack pack;
+        if (Pack_Load(&pack, subdir))
         {
             ++length;
             Perm_Reserve(packs, length);
@@ -114,15 +114,15 @@ i32 searchpath_addpack(searchpath_t* sp, const char* path)
     return numLoaded;
 }
 
-void searchpath_rmpack(searchpath_t* sp, const char* path)
+void SearchPath_RmPack(SearchPath* sp, const char* path)
 {
     i32 len = sp->packCount;
-    pack_t* packs = sp->packs;
+    Pack* packs = sp->packs;
     for (i32 i = 0; i < len; ++i)
     {
         if (StrIStr(packs[i].path, PIM_PATH, path))
         {
-            pack_free(&packs[i]);
+            Pack_Free(&packs[i]);
             --len;
             packs[i] = packs[len];
             memset(&packs[len], 0, sizeof(packs[0]));

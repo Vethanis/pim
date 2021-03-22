@@ -4,9 +4,9 @@
 #include <io.h>
 #include <string.h>
 
-fmap_t fmap_create(fd_t fd, bool writable)
+FileMap FileMap_New(fd_t fd, bool writable)
 {
-    fmap_t result = { 0 };
+    FileMap result = { 0 };
     if (!fd_isopen(fd))
     {
         ASSERT(false);
@@ -56,11 +56,11 @@ fmap_t fmap_create(fd_t fd, bool writable)
     return result;
 }
 
-void fmap_destroy(fmap_t* fmap)
+void FileMap_Del(FileMap* fmap)
 {
     if (fmap)
     {
-        if (fmap_isopen(*fmap))
+        if (FileMap_IsOpen(*fmap))
         {
             UnmapViewOfFile(fmap->ptr);
         }
@@ -68,9 +68,9 @@ void fmap_destroy(fmap_t* fmap)
     }
 }
 
-bool fmap_flush(fmap_t fmap)
+bool FileMap_Flush(FileMap fmap)
 {
-    if (fmap_isopen(fmap))
+    if (FileMap_IsOpen(fmap))
     {
         return FlushViewOfFile(fmap.ptr, fmap.size);
     }
@@ -80,28 +80,28 @@ bool fmap_flush(fmap_t fmap)
     }
 }
 
-fmap_t fmap_open(const char* path, bool writable)
+FileMap FileMap_Open(const char* path, bool writable)
 {
     fd_t fd = fd_open(path, writable);
     if (!fd_isopen(fd))
     {
-        return (fmap_t) { 0 };
+        return (FileMap) { 0 };
     }
-    fmap_t map = fmap_create(fd, writable);
-    if (!fmap_isopen(map))
+    FileMap map = FileMap_New(fd, writable);
+    if (!FileMap_IsOpen(map))
     {
         fd_close(&fd);
-        return (fmap_t) { 0 };
+        return (FileMap) { 0 };
     }
     return map;
 }
 
-void fmap_close(fmap_t* map)
+void FileMap_Close(FileMap* map)
 {
     if (map)
     {
         fd_t fd = map->fd;
-        fmap_destroy(map);
+        FileMap_Del(map);
         fd_close(&fd);
     }
 }

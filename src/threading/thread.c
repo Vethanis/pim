@@ -4,10 +4,10 @@
 
 typedef struct adapter_s
 {
-    thread_fn entrypoint;
+    i32(PIM_CDECL *entrypoint)(void*);
     void* arg;
     void* OShandle;
-    semaphore_t sema;
+    Semaphore sema;
 } adapter_t;
 
 #if PLAT_WINDOWS
@@ -15,7 +15,7 @@ typedef struct adapter_s
 #include <Windows.h>
 #include <process.h>
 
-static HANDLE thread_to_handle(thread_t* tr)
+static HANDLE thread_to_handle(Thread* tr)
 {
     if (tr)
     {
@@ -31,11 +31,11 @@ static void __cdecl Win32ThreadFn(void* arg)
     ASSERT(arg);
     adapter_t* adapter = (adapter_t*)arg;
     adapter->entrypoint(adapter->arg);
-    semaphore_signal(adapter->sema, 1);
+    Semaphore_Signal(adapter->sema, 1);
     _endthread();
 }
 
-void thread_create(thread_t* tr, thread_fn entrypoint, void* arg)
+void Thread_New(Thread* tr, i32(PIM_CDECL *entrypoint)(void*), void* arg)
 {
     ASSERT(tr);
     ASSERT(entrypoint);
@@ -43,7 +43,7 @@ void thread_create(thread_t* tr, thread_fn entrypoint, void* arg)
     adapter_t* adapter = Perm_Calloc(sizeof(*adapter));
     adapter->entrypoint = entrypoint;
     adapter->arg = arg;
-    semaphore_create(&(adapter->sema), 0);
+    Semaphore_New(&(adapter->sema), 0);
 
     uintptr_t handle = _beginthread(
         Win32ThreadFn,
@@ -56,20 +56,20 @@ void thread_create(thread_t* tr, thread_fn entrypoint, void* arg)
     tr->handle = adapter;
 }
 
-void thread_join(thread_t* tr)
+void Thread_Join(Thread* tr)
 {
     ASSERT(tr);
     adapter_t* adapter = tr->handle;
     ASSERT(adapter);
 
-    semaphore_wait(adapter->sema);
-    semaphore_destroy(&(adapter->sema));
+    Semaphore_Wait(adapter->sema);
+    Semaphore_Del(&(adapter->sema));
 
     Mem_Free(adapter);
     tr->handle = NULL;
 }
 
-void thread_set_aff(thread_t* tr, u64 mask)
+void Thread_SetAffinity(Thread* tr, u64 mask)
 {
     ASSERT(mask);
     HANDLE hThread = thread_to_handle(tr);
@@ -77,7 +77,7 @@ void thread_set_aff(thread_t* tr, u64 mask)
     ASSERT(rval != 0);
 }
 
-void thread_set_priority(thread_t* tr, thread_priority_t priority)
+void Thread_SetPriority(Thread* tr, ThreadPriority priority)
 {
     i32 threadpriority = THREAD_PRIORITY_NORMAL;
     i32 procpriority = NORMAL_PRIORITY_CLASS;
@@ -86,23 +86,23 @@ void thread_set_priority(thread_t* tr, thread_priority_t priority)
     default:
         ASSERT(false);
         return;
-    case thread_priority_lowest:
+    case ThreadPriority_Lowest:
         threadpriority = THREAD_PRIORITY_LOWEST;
         procpriority = IDLE_PRIORITY_CLASS;
         break;
-    case thread_priority_lower:
+    case ThreadPriority_Lower:
         threadpriority = THREAD_PRIORITY_BELOW_NORMAL;
         procpriority = BELOW_NORMAL_PRIORITY_CLASS;
         break;
-    case thread_priority_normal:
+    case ThreadPriority_Normal:
         threadpriority = THREAD_PRIORITY_NORMAL;
         procpriority = NORMAL_PRIORITY_CLASS;
         break;
-    case thread_priority_higher:
+    case ThreadPriority_Higher:
         threadpriority = THREAD_PRIORITY_ABOVE_NORMAL;
         procpriority = ABOVE_NORMAL_PRIORITY_CLASS;
         break;
-    case thread_priority_highest:
+    case ThreadPriority_Highest:
         threadpriority = THREAD_PRIORITY_HIGHEST;
         procpriority = HIGH_PRIORITY_CLASS;
         break;
@@ -124,7 +124,7 @@ void thread_set_priority(thread_t* tr, thread_priority_t priority)
     }
 }
 
-i32 thread_hardware_count(void)
+i32 Thread_HardwareCount(void)
 {
     SYSTEM_INFO systeminfo = { 0 };
     GetSystemInfo(&systeminfo);
@@ -139,10 +139,10 @@ i32 thread_hardware_count(void)
 
 #include <pthread.h>
 
-SASSERT(sizeof(pthread_t) == sizeof(thread_t));
-SASSERT(alignof(pthread_t) == alignof(thread_t));
+SASSERT(sizeof(pthread_t) == sizeof(Thread));
+SASSERT(alignof(pthread_t) == alignof(Thread));
 
-void thread_create(thread_t* tr, thread_fn entrypoint, void* arg)
+void Thread_New(Thread* tr, i32(PIM_CDECL *entrypoint)(void*), void* arg)
 {
     ASSERT(tr);
     tr->handle = NULL;
@@ -151,7 +151,7 @@ void thread_create(thread_t* tr, thread_fn entrypoint, void* arg)
     ASSERT(!rv);
 }
 
-void thread_join(thread_t* tr)
+void Thread_Join(Thread* tr)
 {
     ASSERT(tr);
     pthread_t* pt = (pthread_t*)tr;

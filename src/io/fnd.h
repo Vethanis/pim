@@ -4,8 +4,11 @@
 
 PIM_C_BEGIN
 
-typedef struct fnd_s { isize handle; } fnd_t;
-pim_inline i32 fnd_isopen(fnd_t fdr) { return fdr.handle != -1; }
+// Initialize to -1
+typedef struct Finder_s
+{
+    isize handle;
+} Finder;
 
 typedef enum
 {
@@ -18,7 +21,7 @@ typedef enum
 } FileAttrFlags;
 
 // __finddata64_t, do not modify
-typedef struct fnd_data_s
+typedef struct FinderData_s
 {
     u32 attrib;
     i64 time_create;
@@ -26,13 +29,15 @@ typedef struct fnd_data_s
     i64 time_write;
     i64 size;
     char name[260];
-} fnd_data_t;
+} FinderData;
 
-i32 fnd_first(fnd_t* fdr, fnd_data_t* data, const char* spec);
-i32 fnd_next(fnd_t* fdr, fnd_data_t* data);
-void fnd_close(fnd_t* fdr);
+bool Finder_IsOpen(Finder fdr);
+bool Finder_Begin(Finder* fdr, FinderData* data, const char* spec);
+bool Finder_Next(Finder* fdr, FinderData* data);
+// Always call End if you call Begin, or a leak occurs.
+void Finder_End(Finder* fdr);
 
 // Begin + Next + Close
-i32 fnd_iter(fnd_t* fdr, fnd_data_t* data, const char* spec);
+bool Finder_Iterate(Finder* fdr, FinderData* data, const char* spec);
 
 PIM_C_END

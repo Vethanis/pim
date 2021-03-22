@@ -4,14 +4,14 @@
 
 #include <string.h>
 
-void hashset_new(hashset_t* set, u32 keySize, EAlloc allocator)
+void HashSet_New(HashSet* set, u32 keySize, EAlloc allocator)
 {
     memset(set, 0, sizeof(*set));
     set->stride = keySize;
     set->allocator = allocator;
 }
 
-void hashset_del(hashset_t* set)
+void HashSet_Del(HashSet* set)
 {
     Mem_Free(set->hashes);
     set->hashes = NULL;
@@ -21,7 +21,7 @@ void hashset_del(hashset_t* set)
     set->width = 0;
 }
 
-void hashset_clear(hashset_t* set)
+void HashSet_Clear(HashSet* set)
 {
     set->count = 0;
     if (set->hashes)
@@ -31,7 +31,7 @@ void hashset_clear(hashset_t* set)
     }
 }
 
-void hashset_reserve(hashset_t* set, u32 minCount)
+void HashSet_Reserve(HashSet* set, u32 minCount)
 {
     const u32 newWidth = NextPow2(minCount) * 2;
     const u32 oldWidth = set->width;
@@ -51,7 +51,7 @@ void hashset_reserve(hashset_t* set, u32 minCount)
     for (u32 i = 0u; i < oldWidth; ++i)
     {
         const u32 hash = oldHashes[i];
-        if (hashutil_valid(hash))
+        if (HashUtil_Valid(hash))
         {
             u32 j = hash;
             while (true)
@@ -76,7 +76,7 @@ void hashset_reserve(hashset_t* set, u32 minCount)
     Mem_Free(oldKeys);
 }
 
-static i32 hashset_find2(const hashset_t* set, u32 keyHash, const void* key, u32 keySize)
+static i32 hashset_find2(const HashSet* set, u32 keyHash, const void* key, u32 keySize)
 {
     const u32* hashes = set->hashes;
     const u8* keys = set->keys;
@@ -89,7 +89,7 @@ static i32 hashset_find2(const hashset_t* set, u32 keyHash, const void* key, u32
     {
         j &= mask;
         const u32 jHash = hashes[j];
-        if (hashutil_empty(jHash))
+        if (HashUtil_Empty(jHash))
         {
             break;
         }
@@ -106,26 +106,26 @@ static i32 hashset_find2(const hashset_t* set, u32 keyHash, const void* key, u32
     return -1;
 }
 
-static i32 hashset_find(const hashset_t* set, const void* key, u32 keySize)
+static i32 hashset_find(const HashSet* set, const void* key, u32 keySize)
 {
-    const u32 hash = hashutil_hash(key, keySize);
+    const u32 hash = HashUtil_HashBytes(key, keySize);
     return hashset_find2(set, hash, key, keySize);
 }
 
-bool hashset_contains(const hashset_t* set, const void* key, u32 keySize)
+bool HashSet_Contains(const HashSet* set, const void* key, u32 keySize)
 {
     return hashset_find(set, key, keySize) != -1;
 }
 
-bool hashset_add(hashset_t* set, const void* key, u32 keySize)
+bool HashSet_Add(HashSet* set, const void* key, u32 keySize)
 {
-    const u32 keyHash = hashutil_hash(key, keySize);
+    const u32 keyHash = HashUtil_HashBytes(key, keySize);
     if (hashset_find2(set, keyHash, key, keySize) != -1)
     {
         return false;
     }
 
-    hashset_reserve(set, set->count + 3u);
+    HashSet_Reserve(set, set->count + 3u);
 
     u32* hashes = set->hashes;
     u8* keys = set->keys;
@@ -135,7 +135,7 @@ bool hashset_add(hashset_t* set, const void* key, u32 keySize)
     while (true)
     {
         j &= mask;
-        if (hashutil_empty_or_tomb(hashes[j]))
+        if (HashUtil_EmptyOrTomb(hashes[j]))
         {
             hashes[j] = keyHash;
             memcpy(keys + j * keySize, key, keySize);
@@ -148,7 +148,7 @@ bool hashset_add(hashset_t* set, const void* key, u32 keySize)
     return false;
 }
 
-bool hashset_rm(hashset_t* set, const void* key, u32 keySize)
+bool HashSet_Rm(HashSet* set, const void* key, u32 keySize)
 {
     const i32 i = hashset_find(set, key, keySize);
     if (i != -1)

@@ -8,7 +8,7 @@
 #include "containers/text.h"
 
 static bool ms_init;
-static dict_t ms_guidToStr;
+static Dict ms_guidToStr;
 static u32 ms_counter;
 
 static void EnsureInit(void)
@@ -16,21 +16,21 @@ static void EnsureInit(void)
     if (!ms_init)
     {
         ms_init = true;
-        dict_new(&ms_guidToStr, sizeof(Guid), sizeof(text32), EAlloc_Perm);
+        Dict_New(&ms_guidToStr, sizeof(Guid), sizeof(Text32), EAlloc_Perm);
     }
 }
 
-bool guid_isnull(Guid x)
+bool Guid_IsNull(Guid x)
 {
     return !(x.a | x.b);
 }
 
-bool guid_eq(Guid lhs, Guid rhs)
+bool Guid_Equal(Guid lhs, Guid rhs)
 {
     return !((lhs.a - rhs.a) | (lhs.b - rhs.b));
 }
 
-i32 guid_cmp(Guid lhs, Guid rhs)
+i32 Guid_Compare(Guid lhs, Guid rhs)
 {
     if (lhs.a != rhs.a)
     {
@@ -43,7 +43,7 @@ i32 guid_cmp(Guid lhs, Guid rhs)
     return 0;
 }
 
-Guid guid_new(void)
+Guid Guid_New(void)
 {
     u64 a = Time_Now();
     u64 b = inc_u32(&ms_counter, MO_Relaxed);
@@ -52,29 +52,29 @@ Guid guid_new(void)
     return (Guid) { a, b };
 }
 
-void guid_set_name(Guid id, const char* str)
+void Guid_SetName(Guid id, const char* str)
 {
     EnsureInit();
     if (str && str[0])
     {
-        text32 text = { 0 };
+        Text32 text = { 0 };
         StrCpy(ARGS(text.c), str);
-        if (!dict_add(&ms_guidToStr, &id, &text))
+        if (!Dict_Add(&ms_guidToStr, &id, &text))
         {
-            dict_set(&ms_guidToStr, &id, &text);
+            Dict_Set(&ms_guidToStr, &id, &text);
         }
     }
     else
     {
-        dict_rm(&ms_guidToStr, &id, NULL);
+        Dict_Rm(&ms_guidToStr, &id, NULL);
     }
 }
 
-bool guid_get_name(Guid id, char* dst, i32 size)
+bool Guid_GetName(Guid id, char* dst, i32 size)
 {
     EnsureInit();
-    text32 text = { 0 };
-    if (dict_get(&ms_guidToStr, &id, &text))
+    Text32 text = { 0 };
+    if (Dict_Get(&ms_guidToStr, &id, &text))
     {
         StrCpy(dst, size, text.c);
         return true;
@@ -83,13 +83,13 @@ bool guid_get_name(Guid id, char* dst, i32 size)
     return false;
 }
 
-i32 guid_find(Guid const *const pim_noalias ptr, i32 count, Guid key)
+i32 Guid_Find(Guid const *const pim_noalias ptr, i32 count, Guid key)
 {
     ASSERT(ptr || !count);
     ASSERT(count >= 0);
     for (i32 i = 0; i < count; ++i)
     {
-        if (guid_eq(ptr[i], key))
+        if (Guid_Equal(ptr[i], key))
         {
             return i;
         }
@@ -97,7 +97,7 @@ i32 guid_find(Guid const *const pim_noalias ptr, i32 count, Guid key)
     return -1;
 }
 
-Guid guid_str(char const *const pim_noalias str)
+Guid Guid_FromStr(char const *const pim_noalias str)
 {
     Guid id = { 0 };
     if (str && str[0])
@@ -108,12 +108,12 @@ Guid guid_str(char const *const pim_noalias str)
         b = b ? b : 1;
         id.a = a;
         id.b = b;
-        guid_set_name(id, str);
+        Guid_SetName(id, str);
     }
     return id;
 }
 
-Guid guid_bytes(void const *const pim_noalias ptr, i32 nBytes)
+Guid Guid_FromBytes(void const *const pim_noalias ptr, i32 nBytes)
 {
     Guid id = { 0 };
     if (ptr && nBytes > 0)
@@ -128,16 +128,7 @@ Guid guid_bytes(void const *const pim_noalias ptr, i32 nBytes)
     return id;
 }
 
-Guid guid_rand(Prng* rng)
-{
-    u64 a = Prng_u64(rng);
-    u64 b = Prng_u64(rng);
-    a = a ? a : 1;
-    b = b ? b : 1;
-    return (Guid) { a, b };
-}
-
-void guid_fmt(char* dst, i32 size, Guid value)
+void Guid_Format(char* dst, i32 size, Guid value)
 {
     u32 a0 = (value.a >> 32) & 0xffffffff;
     u32 a1 = (value.a >> 0) & 0xffffffff;
@@ -146,7 +137,7 @@ void guid_fmt(char* dst, i32 size, Guid value)
     StrCatf(dst, size, "%x_%x_%x_%x", a0, a1, b0, b1);
 }
 
-u32 guid_hashof(Guid x)
+u32 Guid_HashOf(Guid x)
 {
     return Fnv32Qword(x.b, Fnv32Qword(x.a, Fnv32Bias));
 }

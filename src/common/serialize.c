@@ -337,7 +337,7 @@ bool Ser_WriteFile(const char* filename, SerObj* obj)
         char* text = Ser_Write(obj, &len);
         if (text)
         {
-            fd_t fd = fd_create(filename);
+            fd_t fd = fd_new(filename);
             if (fd_isopen(fd))
             {
                 i32 writeSize = fd_write(fd, text, len);

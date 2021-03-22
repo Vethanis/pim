@@ -14,13 +14,13 @@ enum
 
 static i32 crate_find(const Crate *const crate, Guid key)
 {
-    if (!guid_isnull(key))
+    if (!Guid_IsNull(key))
     {
         const Guid* pim_noalias ids = crate->ids;
         const i32* pim_noalias sizes = crate->sizes;
         for (i32 i = 0; (i < kCrateLen) && sizes[i]; ++i)
         {
-            if (guid_eq(ids[i], key))
+            if (Guid_Equal(ids[i], key))
             {
                 return i;
             }
@@ -39,7 +39,7 @@ static i32 crate_findempty(const Crate *const crate, i32 size)
         const i32* pim_noalias sizes = crate->sizes;
         for (i32 i = 0; (i < kCrateLen) && sizes[i]; ++i)
         {
-            if (guid_isnull(ids[i]))
+            if (Guid_IsNull(ids[i]))
             {
                 i32 diff = sizes[i] - size;
                 if ((diff >= 0) && (diff < chosenDiff))
@@ -56,7 +56,7 @@ static i32 crate_findempty(const Crate *const crate, i32 size)
 static i32 crate_allocate(Crate *const crate, Guid id, i32 size)
 {
     ASSERT(size > 0);
-    ASSERT(!guid_isnull(id));
+    ASSERT(!Guid_IsNull(id));
 
     i32 slot = crate_findempty(crate, size);
     if (slot < 0)
@@ -77,7 +77,7 @@ static i32 crate_allocate(Crate *const crate, Guid id, i32 size)
     if (diff >= kSplitSize)
     {
         i32 next = slot + 1;
-        if ((next < kCrateLen) && guid_isnull(ids[kCrateLen - 1]))
+        if ((next < kCrateLen) && Guid_IsNull(ids[kCrateLen - 1]))
         {
             for (i32 i = next + 1; i < kCrateLen; ++i)
             {
@@ -108,7 +108,7 @@ static void crate_free(Crate *const crate, i32 slot)
     offsets[slot] = 0;
 
     const i32 prev = slot - 1;
-    if ((prev >= 0) && guid_isnull(ids[prev]))
+    if ((prev >= 0) && Guid_IsNull(ids[prev]))
     {
         sizes[prev] += sizes[slot];
         sizes[slot] = 0;
@@ -125,7 +125,7 @@ static void crate_free(Crate *const crate, i32 slot)
     }
 
     const i32 next = slot + 1;
-    if ((next < kCrateLen) && guid_isnull(ids[next]))
+    if ((next < kCrateLen) && Guid_IsNull(ids[next]))
     {
         sizes[slot] += sizes[next];
         sizes[next] = 0;
@@ -144,48 +144,48 @@ static void crate_free(Crate *const crate, i32 slot)
 
 // ----------------------------------------------------------------------------
 
-bool crate_open(Crate *const crate, const char* path)
+bool Crate_Open(Crate *const crate, const char* path)
 {
     memset(crate, 0, sizeof(*crate));
     bool exists = true;
-    fstr_t file = fstr_open(path, "rb+");
-    if (!fstr_isopen(file))
+    FileStream file = FileStream_Open(path, "rb+");
+    if (!FileStream_IsOpen(file))
     {
         exists = false;
-        file = fstr_open(path, "wb+");
+        file = FileStream_Open(path, "wb+");
     }
-    if (!fstr_isopen(file))
+    if (!FileStream_IsOpen(file))
     {
         return false;
     }
     crate->file = file;
-    fstr_seek(file, 0);
+    FileStream_Seek(file, 0);
     if (exists)
     {
-        fstr_read(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
+        FileStream_Read(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
     }
     else
     {
         crate->offsets[0] = kHeaderSize;
         crate->sizes[0] = 1 << 30;
-        fstr_write(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
+        FileStream_Write(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
     }
-    fstr_seek(file, kHeaderSize);
+    FileStream_Seek(file, kHeaderSize);
     return true;
 }
 
-bool crate_close(Crate *const crate)
+bool Crate_Close(Crate *const crate)
 {
     bool wasopen = false;
     if (crate)
     {
-        fstr_t file = crate->file;
-        if (fstr_isopen(file))
+        FileStream file = crate->file;
+        if (FileStream_IsOpen(file))
         {
-            fstr_seek(file, 0);
-            fstr_write(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
-            fstr_flush(file);
-            fstr_close(&file);
+            FileStream_Seek(file, 0);
+            FileStream_Write(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
+            FileStream_Flush(file);
+            FileStream_Close(&file);
             wasopen = true;
         }
         memset(crate, 0, sizeof(*crate));
@@ -193,14 +193,14 @@ bool crate_close(Crate *const crate)
     return wasopen;
 }
 
-bool crate_get(Crate *const crate, Guid id, void* dst, i32 size)
+bool Crate_Get(Crate *const crate, Guid id, void* dst, i32 size)
 {
     ASSERT(dst);
     ASSERT(size > 0);
-    ASSERT(!guid_isnull(id));
+    ASSERT(!Guid_IsNull(id));
 
-    fstr_t file = crate->file;
-    ASSERT(fstr_isopen(file));
+    FileStream file = crate->file;
+    ASSERT(FileStream_IsOpen(file));
 
     i32 slot = crate_find(crate, id);
     if (slot >= 0)
@@ -212,20 +212,20 @@ bool crate_get(Crate *const crate, Guid id, void* dst, i32 size)
             ASSERT(false);
             return false;
         }
-        fstr_seek(file, offset);
-        return fstr_read(file, dst, size) == size;
+        FileStream_Seek(file, offset);
+        return FileStream_Read(file, dst, size) == size;
     }
     return false;
 }
 
-bool crate_set(Crate *const crate, Guid id, const void* src, i32 size)
+bool Crate_Set(Crate *const crate, Guid id, const void* src, i32 size)
 {
     ASSERT(src);
     ASSERT(size > 0);
-    ASSERT(!guid_isnull(id));
+    ASSERT(!Guid_IsNull(id));
 
-    fstr_t file = crate->file;
-    ASSERT(fstr_isopen(file));
+    FileStream file = crate->file;
+    ASSERT(FileStream_IsOpen(file));
 
     i32 slot = crate_find(crate, id);
     i32 offset = -1;
@@ -253,13 +253,13 @@ writefile:
     offset = crate->offsets[slot];
     ASSERT(offset >= kHeaderSize);
     ASSERT(crate->sizes[slot] >= size);
-    fstr_seek(file, offset);
-    bool wroteAll = fstr_write(file, src, size) == size;
+    FileStream_Seek(file, offset);
+    bool wroteAll = FileStream_Write(file, src, size) == size;
     ASSERT(wroteAll);
     return wroteAll;
 }
 
-bool crate_rm(Crate *const crate, Guid id)
+bool Crate_Rm(Crate *const crate, Guid id)
 {
     i32 slot = crate_find(crate, id);
     if (slot >= 0)
@@ -270,7 +270,7 @@ bool crate_rm(Crate *const crate, Guid id)
     return false;
 }
 
-bool crate_stat(const Crate *const crate, Guid id, i32 *const offsetOut, i32 *const sizeOut)
+bool Crate_Stat(const Crate *const crate, Guid id, i32 *const offsetOut, i32 *const sizeOut)
 {
     i32 slot = crate_find(crate, id);
     if (slot >= 0)

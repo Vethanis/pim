@@ -4,23 +4,23 @@
 
 PIM_C_BEGIN
 
-typedef struct profmark_s
+typedef struct ProfMark_s
 {
     char const *const name;
     u32 hash;
     u32 calls;
     u64 sum;
-} profmark_t;
+} ProfMark;
 
-void profile_gui(bool* pEnabled);
+void ProfileSys_Gui(bool* pEnabled);
 
-void _ProfileBegin(profmark_t *const mark);
-void _ProfileEnd(profmark_t *const mark);
+void _ProfileBegin(ProfMark *const mark);
+void _ProfileEnd(ProfMark *const mark);
 
 #define PIM_PROFILE 1
 
 #if PIM_PROFILE
-    #define ProfileMark(var, tag)   static profmark_t var = { #tag };
+    #define ProfileMark(var, tag)   static ProfMark var = { #tag };
     #define ProfileBegin(mark)      _ProfileBegin(&(mark))
     #define ProfileEnd(mark)        _ProfileEnd(&(mark))
 #else

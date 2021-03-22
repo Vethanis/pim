@@ -4,24 +4,24 @@
 
 PIM_C_BEGIN
 
-typedef struct queue_i32_s
+typedef struct IntQueue_s
 {
     i32* pim_noalias ptr;
     u32 width;
     u32 iRead;
     u32 iWrite;
-} queue_i32_t;
+} IntQueue;
 
-void queue_i32_new(queue_i32_t* q);
-void queue_i32_del(queue_i32_t* q);
-void queue_i32_clear(queue_i32_t* q);
+void IntQueue_New(IntQueue* q);
+void IntQueue_Del(IntQueue* q);
+void IntQueue_Clear(IntQueue* q);
 
-u32 queue_i32_size(const queue_i32_t* q);
-u32 queue_i32_capacity(const queue_i32_t* q);
+u32 IntQueue_Size(const IntQueue* q);
+u32 IntQueue_Capacity(const IntQueue* q);
 
-void queue_i32_reserve(queue_i32_t* q, u32 capacity);
+void IntQueue_Reserve(IntQueue* q, u32 capacity);
 
-void queue_i32_push(queue_i32_t* q, i32 value);
-bool queue_i32_trypop(queue_i32_t* q, i32* pim_noalias valueOut);
+void IntQueue_Push(IntQueue* q, i32 value);
+bool IntQueue_TryPop(IntQueue* q, i32* pim_noalias valueOut);
 
 PIM_C_END

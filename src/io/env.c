@@ -21,7 +21,7 @@ pim_inline i32 IsZero(i32 x)
     return x;
 }
 
-bool pim_searchenv(const char* filename, const char* varname, char* dst)
+bool Env_Search(const char* filename, const char* varname, char* dst)
 {
     ASSERT(filename);
     ASSERT(varname);
@@ -31,13 +31,13 @@ bool pim_searchenv(const char* filename, const char* varname, char* dst)
     return dst[0] != 0;
 }
 
-const char* pim_getenv(const char* varname)
+const char* Env_Get(const char* varname)
 {
     ASSERT(varname);
     return (const char*)NotNull(getenv(varname));
 }
 
-bool pim_putenv(const char* varname, const char* value)
+bool Env_Set(const char* varname, const char* value)
 {
     ASSERT(varname);
     char buf[260] = { 0 };

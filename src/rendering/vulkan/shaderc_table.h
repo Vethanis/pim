@@ -8,7 +8,7 @@ PIM_C_BEGIN
 
 typedef struct shaderc_s
 {
-    library_t lib;
+    Library lib;
 
     // Returns a shaderc_compiler_t that can be used to compile modules.
     // A return of NULL indicates that there was an error initializing the compiler.

@@ -11,9 +11,14 @@ static void OS_dlclose(void* hdl);
 static void OS_libfmt(char* buffer, i32 size, const char* name);
 static void OS_geterror(char* buffer, i32 size);
 
-library_t Library_Open(const char* name)
+bool Library_IsOpen(Library l)
 {
-    library_t lib = { 0 };
+    return l.handle != NULL;
+}
+
+Library Library_Open(const char* name)
+{
+    Library lib = { 0 };
     if (name)
     {
         char relPath[PIM_PATH] = { 0 };
@@ -37,7 +42,7 @@ library_t Library_Open(const char* name)
     return lib;
 }
 
-void Library_Close(library_t lib)
+void Library_Close(Library lib)
 {
     if (lib.handle)
     {
@@ -45,7 +50,7 @@ void Library_Close(library_t lib)
     }
 }
 
-void* Library_Sym(library_t lib, const char* name)
+void* Library_Sym(Library lib, const char* name)
 {
     void* result = NULL;
 

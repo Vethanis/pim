@@ -14,7 +14,7 @@ bool shaderc_open(void)
         return true;
     }
 
-    library_t lib = Library_Open("shaderc_shared");
+    Library lib = Library_Open("shaderc_shared");
     if (!lib.handle)
     {
         return false;
