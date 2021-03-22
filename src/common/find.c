@@ -76,7 +76,7 @@ i32 HashFind(const void* arr, i32 stride, const u32* hashes, i32 length, const v
     ASSERT(hashes);
     ASSERT(length >= 0);
     ASSERT(key);
-    const u32 hash = hashutil_hash(key, stride);
+    const u32 hash = HashUtil_HashBytes(key, stride);
     for (i32 i = 0; i < length; ++i)
     {
         if (hashes[i] == hash)
@@ -97,7 +97,7 @@ i32 HashRFind(const void* arr, i32 stride, const u32* hashes, i32 length, const 
     ASSERT(hashes);
     ASSERT(length >= 0);
     ASSERT(key);
-    const u32 hash = hashutil_hash(key, stride);
+    const u32 hash = HashUtil_HashBytes(key, stride);
     for (i32 i = length - 1; i >= 0; --i)
     {
         if (hashes[i] == hash)

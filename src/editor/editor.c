@@ -6,7 +6,7 @@
 
 void EditorSys_Init(void)
 {
-    menubar_init();
+    MenuBar_Init();
 }
 
 ProfileMark(pm_update, EditorSys_Update)
@@ -14,14 +14,14 @@ void EditorSys_Update(void)
 {
     ProfileBegin(pm_update);
 
-    menubar_update();
+    MenuBar_Update();
 
     ProfileEnd(pm_update);
 }
 
 void EditorSys_Shutdown(void)
 {
-    menubar_shutdown();
+    MenuBar_Shutdown();
 }
 
 // ----------------------------------------------------------------------------

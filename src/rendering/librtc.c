@@ -2,11 +2,11 @@
 #include <string.h>
 
 static bool ms_once;
-rtc_t rtc;
+LibRtc rtc;
 
 #define RTC_LOAD(name) rtc.name = Library_Sym(rtc.lib, STR_TOK(rtc##name)); ASSERT(rtc.name)
 
-bool rtc_init(void)
+bool LibRtc_Init(void)
 {
     if (!ms_once)
     {
@@ -125,7 +125,7 @@ bool rtc_init(void)
     return rtc.lib.handle != NULL;
 }
 
-void rtc_shutdown(void)
+void LibRtc_Shutdown(void)
 {
     ms_once = false;
     if (rtc.lib.handle)

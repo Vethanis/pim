@@ -390,7 +390,7 @@ typedef struct vkrReleasable_s
 
 typedef struct vkrAllocator_s
 {
-    spinlock_t lock;
+    Spinlock lock;
     VmaAllocator handle;
     VmaPool stagePool;
     VmaPool texturePool;

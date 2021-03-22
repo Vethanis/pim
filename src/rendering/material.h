@@ -8,16 +8,16 @@ PIM_C_BEGIN
 
 typedef enum
 {
-    matflag_emissive = 1 << 0,
-    matflag_sky = 1 << 1,
-    matflag_water = 1 << 2,
-    matflag_slime = 1 << 3,
-    matflag_lava = 1 << 4,
-    matflag_refractive = 1 << 5,
-    matflag_warped = 1 << 6,        // uv animated
-    matflag_animated = 1 << 7,      // keyframe animated
-    matflag_underwater = 1 << 8,    // SURF_UNDERWATER
-    matflag_portal = 1 << 9,
+    MatFlag_Emissive = 1 << 0,
+    MatFlag_Sky = 1 << 1,
+    MatFlag_Water = 1 << 2,
+    MatFlag_Slime = 1 << 3,
+    MatFlag_Lava = 1 << 4,
+    MatFlag_Refractive = 1 << 5,
+    MatFlag_Warped = 1 << 6,        // uv animated
+    MatFlag_Animated = 1 << 7,      // keyframe animated
+    MatFlag_Underwater = 1 << 8,    // SURF_UNDERWATER
+    MatFlag_Portal = 1 << 9,
 } MatFlagBits;
 typedef u32 MatFlag;
 

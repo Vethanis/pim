@@ -29,7 +29,7 @@ void AudioSys_Init(void)
     };
     saudio_setup(&desc);
 
-    midi_sys_init();
+    MidiSys_Init();
 }
 
 ProfileMark(pm_update, AudioSys_Update)
@@ -37,14 +37,14 @@ void AudioSys_Update(void)
 {
     ProfileBegin(pm_update);
 
-    midi_sys_update();
+    MidiSys_Update();
 
     ProfileEnd(pm_update);
 }
 
 void AudioSys_Shutdown(void)
 {
-    midi_sys_shutdown();
+    MidiSys_Shutdown();
     saudio_shutdown();
 }
 

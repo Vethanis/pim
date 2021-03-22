@@ -4,51 +4,51 @@
 
 PIM_C_BEGIN
 
-typedef struct text16_s
+typedef struct Text16_s
 {
     char c[16];
-} text16;
+} Text16;
 
-typedef struct text32_s
+typedef struct Text32_s
 {
     char c[32];
-} text32;
+} Text32;
 
-typedef struct text64_s
+typedef struct Text64_s
 {
     char c[64];
-} text64;
+} Text64;
 
-typedef struct text128_s
+typedef struct Text128_s
 {
     char c[128];
-} text128;
+} Text128;
 
-typedef struct text256_s
+typedef struct Text256_s
 {
     char c[256];
-} text256;
+} Text256;
 
-typedef struct text512_s
+typedef struct Text512_s
 {
     char c[512];
-} text512;
+} Text512;
 
-typedef struct text1k_s
+typedef struct Text1k_s
 {
     char c[1024];
-} text1k;
+} Text1k;
 
-typedef struct text2k_s
+typedef struct Text2k_s
 {
     char c[2048];
-} text2k;
+} Text2k;
 
-typedef struct text4k_s
+typedef struct Text4k_s
 {
     char c[4096];
-} text4k;
+} Text4k;
 
-void text_new(void* txt, i32 sizeOf, const char* str);
+void Text_New(void* txt, i32 sizeOf, const char* str);
 
 PIM_C_END

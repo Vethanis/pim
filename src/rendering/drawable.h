@@ -30,34 +30,33 @@ typedef struct DiskEntities_s
 {
     i32 version;
     i32 length;
-    dbytes_t names;
-    dbytes_t meshes;    // dmeshid_t
-    dbytes_t bounds;
-    dbytes_t materials; // dmaterial_t
-    dbytes_t translations;
-    dbytes_t rotations;
-    dbytes_t scales;
+    DiskBytes names;
+    DiskBytes meshes;    // dmeshid_t
+    DiskBytes bounds;
+    DiskBytes materials; // dmaterial_t
+    DiskBytes translations;
+    DiskBytes rotations;
+    DiskBytes scales;
 } DiskEntities;
 
-void drawables_init(void);
-void drawables_update(void);
-void drawables_shutdown(void);
-void drawables_gui(bool* enabled);
+void EntSys_Init(void);
+void EntSys_Update(void);
+void EntSys_Shutdown(void);
+void EntSys_Gui(bool* enabled);
 
-Entities *const drawables_get(void);
+Entities *const Entities_Get(void);
 
-i32 drawables_add(Entities *const dr, Guid name);
-bool drawables_rm(Entities *const dr, Guid name);
-i32 drawables_find(Entities const *const dr, Guid name);
-void drawables_clear(Entities *const dr);
-void drawables_del(Entities *const dr);
+i32 Entities_Add(Entities *const dr, Guid name);
+bool Entities_Rm(Entities *const dr, Guid name);
+i32 Entities_Find(Entities const *const dr, Guid name);
+void Entities_Clear(Entities *const dr);
+void Entities_Del(Entities *const dr);
 
-void drawables_updatebounds(Entities *const dr);
-void drawables_updatetransforms(Entities *const dr);
-Box3D drawables_bounds(Entities const *const dr);
+void Entities_UpdateBounds(Entities *const dr);
+void Entities_UpdateTransforms(Entities *const dr);
+Box3D Entities_GetBounds(Entities const *const dr);
 
-bool drawables_save(Crate *const crate, Entities const *const src);
-bool drawables_load(Crate *const crate, Entities *const dst);
-
+bool Entities_Save(Crate *const crate, Entities const *const src);
+bool Entities_Load(Crate *const crate, Entities *const dst);
 
 PIM_C_END

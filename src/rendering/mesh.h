@@ -40,31 +40,33 @@ typedef struct DiskMesh_s
     char name[64];
 } DiskMesh;
 
-void mesh_sys_init(void);
-void mesh_sys_update(void);
-void mesh_sys_shutdown(void);
-void mesh_sys_gui(bool* pEnabled);
+void MeshSys_Init(void);
+void MeshSys_Update(void);
+void MeshSys_Shutdown(void);
+void MeshSys_Gui(bool* pEnabled);
 
-bool mesh_new(Mesh *const mesh, Guid name, MeshId *const idOut);
+bool Mesh_New(Mesh *const mesh, Guid name, MeshId *const idOut);
 
-bool mesh_exists(MeshId id);
+bool Mesh_Exists(MeshId id);
 
-void mesh_retain(MeshId id);
-void mesh_release(MeshId id);
+void Mesh_Retain(MeshId id);
+void Mesh_Release(MeshId id);
 
-Mesh *const mesh_get(MeshId id);
+Mesh *const Mesh_Get(MeshId id);
 
-bool mesh_find(Guid name, MeshId *const idOut);
-bool mesh_getname(MeshId id, Guid *const dst);
+bool Mesh_Find(Guid name, MeshId *const idOut);
+bool Mesh_GetName(MeshId id, Guid *const dst);
 
-Box3D mesh_calcbounds(MeshId id);
+Box3D Mesh_CalcBounds(MeshId id);
 
-bool mesh_setmaterial(MeshId id, Material const *const mat);
-bool VEC_CALL mesh_settransform(MeshId id, float4x4 localToWorld);
+// TODO: Get rid of these two and vkrMegaMesh for simpler instancing.
+bool Mesh_SetMaterial(MeshId id, Material const *const mat);
+bool VEC_CALL Mesh_SetTransform(MeshId id, float4x4 localToWorld);
+
 // upload changes to gpu
-bool mesh_update(Mesh *const mesh);
+bool Mesh_Upload(Mesh *const mesh);
 
-bool mesh_save(Crate *const crate, MeshId id, Guid *const dst);
-bool mesh_load(Crate *const crate, Guid name, MeshId *const dst);
+bool Mesh_Save(Crate *const crate, MeshId id, Guid *const dst);
+bool Mesh_Load(Crate *const crate, Guid name, MeshId *const dst);
 
 PIM_C_END

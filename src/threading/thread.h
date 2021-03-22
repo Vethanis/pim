@@ -6,20 +6,22 @@ PIM_C_BEGIN
 
 typedef enum
 {
-    thread_priority_lowest = -2,
-    thread_priority_lower = -1,
-    thread_priority_normal = 0,
-    thread_priority_higher = 1,
-    thread_priority_highest = 2,
-} thread_priority_t;
+    ThreadPriority_Lowest = -2,
+    ThreadPriority_Lower = -1,
+    ThreadPriority_Normal = 0,
+    ThreadPriority_Higher = 1,
+    ThreadPriority_Highest = 2,
+} ThreadPriority;
 
-typedef struct thread_s { void* handle; } thread_t;
-typedef i32 (PIM_CDECL *thread_fn)(void* data);
+typedef struct Thread_s
+{
+    void* handle;
+} Thread;
 
-void thread_create(thread_t* tr, thread_fn entrypoint, void* data);
-void thread_join(thread_t* tr);
-void thread_set_aff(thread_t* tr, u64 mask);
-void thread_set_priority(thread_t* tr, thread_priority_t priority);
-i32 thread_hardware_count(void);
+void Thread_New(Thread* tr, i32(PIM_CDECL *entrypoint)(void*), void* data);
+void Thread_Join(Thread* tr);
+void Thread_SetAffinity(Thread* tr, u64 mask);
+void Thread_SetPriority(Thread* tr, ThreadPriority priority);
+i32 Thread_HardwareCount(void);
 
 PIM_C_END

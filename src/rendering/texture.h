@@ -40,31 +40,31 @@ typedef struct DiskTexture_s
     int2 size;
 } DiskTexture;
 
-Table const *const texture_table(void);
+Table const *const Texture_GetTable(void);
 
-void texture_sys_init(void);
-void texture_sys_update(void);
-void texture_sys_shutdown(void);
-void texture_sys_gui(bool* pEnabled);
+void TextureSys_Init(void);
+void TextureSys_Update(void);
+void TextureSys_Shutdown(void);
+void TextureSys_Gui(bool* pEnabled);
 
-bool texture_loadat(const char* path, VkFormat format, TextureId* idOut);
-bool texture_new(Texture* tex, VkFormat format, Guid name, TextureId* idOut);
+bool Texture_LoadAt(const char* path, VkFormat format, TextureId* idOut);
+bool Texture_New(Texture* tex, VkFormat format, Guid name, TextureId* idOut);
 
-bool texture_exists(TextureId id);
+bool Texture_Exists(TextureId id);
 
-void texture_retain(TextureId id);
-void texture_release(TextureId id);
+void Texture_Retain(TextureId id);
+void Texture_Release(TextureId id);
 
-Texture* texture_get(TextureId id);
+Texture* Texture_Get(TextureId id);
 
-bool texture_find(Guid name, TextureId* idOut);
-bool texture_getname(TextureId id, Guid* nameOut);
-bool texture_getnamestr(TextureId tid, char* dst, i32 size);
+bool Texture_Find(Guid name, TextureId* idOut);
+bool Texture_GetGuid(TextureId id, Guid* nameOut);
+bool Texture_GetName(TextureId tid, char* dst, i32 size);
 
-bool texture_save(Crate* crate, TextureId tid, Guid* dst);
-bool texture_load(Crate* crate, Guid name, TextureId* dst);
+bool Texture_Save(Crate* crate, TextureId tid, Guid* dst);
+bool Texture_Load(Crate* crate, Guid name, TextureId* dst);
 
-bool texture_unpalette(
+bool Texture_Unpalette(
     u8 const *const pim_noalias bytes,
     int2 size,
     const char* name,

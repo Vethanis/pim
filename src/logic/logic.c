@@ -4,7 +4,7 @@
 
 void LogicSys_Init(void)
 {
-    camera_logic_init();
+    CameraLogic_Init();
 }
 
 ProfileMark(pm_update, LogicSys_Update)
@@ -12,12 +12,12 @@ void LogicSys_Update(void)
 {
     ProfileBegin(pm_update);
 
-    camera_logic_update();
+    CameraLogic_Update();
 
     ProfileEnd(pm_update);
 }
 
 void LogicSys_Shutdown(void)
 {
-    camera_logic_shutdown();
+    CameraLogic_Shutdown();
 }

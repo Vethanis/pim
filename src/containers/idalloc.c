@@ -2,51 +2,51 @@
 #include "allocator/allocator.h"
 #include <string.h>
 
-void idalloc_new(idalloc_t* ia)
+void IdAlloc_New(IdAlloc* ia)
 {
     memset(ia, 0, sizeof(*ia));
 }
 
-void idalloc_del(idalloc_t* ia)
+void IdAlloc_Del(IdAlloc* ia)
 {
     Mem_Free(ia->versions);
-    queue_i32_del(&ia->freelist);
+    IntQueue_Del(&ia->freelist);
     memset(ia, 0, sizeof(*ia));
 }
 
-i32 idalloc_capacity(const idalloc_t* ia)
+i32 IdAlloc_Capacity(const IdAlloc* ia)
 {
     return ia->length;
 }
 
-i32 idalloc_size(const idalloc_t* ia)
+i32 IdAlloc_Size(const IdAlloc* ia)
 {
-    return ia->length - (i32)queue_i32_size(&ia->freelist);
+    return ia->length - (i32)IntQueue_Size(&ia->freelist);
 }
 
-void idalloc_clear(idalloc_t* ia)
+void IdAlloc_Clear(IdAlloc* ia)
 {
     ia->length = 0;
-    queue_i32_clear(&ia->freelist);
+    IntQueue_Clear(&ia->freelist);
 }
 
-bool idalloc_exists(const idalloc_t* ia, GenId id)
+bool IdAlloc_Exists(const IdAlloc* ia, GenId id)
 {
     i32 i = id.index;
     u8 v = id.version;
     return (i < ia->length) && (ia->versions[i] == v);
 }
 
-bool idalloc_existsat(const idalloc_t* ia, i32 index)
+bool IdAlloc_ExistsAt(const IdAlloc* ia, i32 index)
 {
     ASSERT((u32)index < (u32)ia->length);
     return ia->versions[index] & 1;
 }
 
-GenId idalloc_alloc(idalloc_t* ia)
+GenId IdAlloc_Alloc(IdAlloc* ia)
 {
     i32 index = 0;
-    if (!queue_i32_trypop(&ia->freelist, &index))
+    if (!IntQueue_TryPop(&ia->freelist, &index))
     {
         index = ia->length++;
         Perm_Reserve(ia->versions, ia->length);
@@ -60,25 +60,25 @@ GenId idalloc_alloc(idalloc_t* ia)
     return id;
 }
 
-bool idalloc_free(idalloc_t* ia, GenId id)
+bool IdAlloc_Free(IdAlloc* ia, GenId id)
 {
-    if (idalloc_exists(ia, id))
+    if (IdAlloc_Exists(ia, id))
     {
         i32 index = id.index;
         ia->versions[index]++;
-        queue_i32_push(&ia->freelist, index);
+        IntQueue_Push(&ia->freelist, index);
         ASSERT(!(ia->versions[index] & 1));
         return true;
     }
     return false;
 }
 
-bool idalloc_freeat(idalloc_t* ia, i32 index)
+bool IdAlloc_FreeAt(IdAlloc* ia, i32 index)
 {
-    if (idalloc_existsat(ia, index))
+    if (IdAlloc_ExistsAt(ia, index))
     {
         ia->versions[index]++;
-        queue_i32_push(&ia->freelist, index);
+        IntQueue_Push(&ia->freelist, index);
         return true;
     }
     return false;

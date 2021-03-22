@@ -11,6 +11,6 @@ void vkrScreenBlit_Del(vkrScreenBlit* blit);
 void vkrScreenBlit_Blit(
     const vkrPassContext* passCtx,
     vkrScreenBlit* blit,
-    const framebuf_t* fbuf);
+    const FrameBuf* fbuf);
 
 PIM_C_END

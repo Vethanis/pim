@@ -198,7 +198,7 @@ void vkrOpaquePass_Setup(vkrOpaquePass *const pass)
     // update per camera buffer
     {
         Camera camera;
-        camera_get(&camera);
+        Camera_Get(&camera);
         vkrPerCamera *const perCamera = vkrBuffer_Map(camBuffer);
         ASSERT(perCamera);
         perCamera->worldToClip = g_vkr.mainPass.depth.worldToClip;

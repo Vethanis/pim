@@ -6,25 +6,27 @@ PIM_C_BEGIN
 
 #include "io/fd.h"
 
-typedef struct fmap_s
+typedef struct FileMap_s
 {
     void* ptr;
     i32 size;
     fd_t fd;
-} fmap_t;
+} FileMap;
 
-pim_inline bool fmap_isopen(fmap_t fmap) { return fmap.ptr != NULL; }
+pim_inline bool FileMap_IsOpen(FileMap fmap) { return fmap.ptr != NULL; }
 
 // memory maps the file descriptor
-fmap_t fmap_create(fd_t fd, bool writable);
+FileMap FileMap_New(fd_t fd, bool writable);
 
 // does not close file descriptor
-void fmap_destroy(fmap_t* map);
+void FileMap_Del(FileMap* map);
 
 // writes changes in mapped memory back to source
-bool fmap_flush(fmap_t map);
+bool FileMap_Flush(FileMap map);
 
-fmap_t fmap_open(const char* path, bool writable);
-void fmap_close(fmap_t* map);
+// owns descriptor
+FileMap FileMap_Open(const char* path, bool writable);
+// owns descriptor
+void FileMap_Close(FileMap* map);
 
 PIM_C_END

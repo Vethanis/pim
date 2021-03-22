@@ -6,8 +6,8 @@
 
 PIM_C_BEGIN
 
-typedef struct framebuf_s framebuf_t;
+typedef struct FrameBuf_s FrameBuf;
 
-void ResolveTile(framebuf_t* target, TonemapId tonemapper, float4 toneParams);
+void ResolveTile(FrameBuf* target, TonemapId tonemapper, float4 toneParams);
 
 PIM_C_END

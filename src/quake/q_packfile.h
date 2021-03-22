@@ -43,26 +43,26 @@ typedef struct dpackfile_s
     i32 length;
 } dpackfile_t;
 
-typedef struct pack_s
+typedef struct Pack_s
 {
     char path[PIM_PATH];
-    fmap_t mapped;
+    FileMap mapped;
     i32 filecount;
     const dpackfile_t* files;
-} pack_t;
+} Pack;
 
-typedef struct searchpath_s
+typedef struct SearchPath_s
 {
     i32 packCount;
-    pack_t* packs;
+    Pack* packs;
     i32 fileCount;
     char** filenames;
-} searchpath_t;
+} SearchPath;
 
-bool pack_load(pack_t* pack, const char* dir);
-void pack_free(pack_t* pack);
+bool Pack_Load(Pack* pack, const char* dir);
+void Pack_Free(Pack* pack);
 
-void searchpath_new(searchpath_t* sp);
-void searchpath_del(searchpath_t* sp);
-i32 searchpath_addpack(searchpath_t* sp, const char* dir);
-void searchpath_rmpack(searchpath_t* sp, const char* dir);
+void SearchPath_New(SearchPath* sp);
+void SearchPath_Del(SearchPath* sp);
+i32 SearchPath_AddPack(SearchPath* sp, const char* dir);
+void SearchPath_RmPack(SearchPath* sp, const char* dir);

@@ -5,15 +5,15 @@
 
 PIM_C_BEGIN
 
-typedef struct framebuf_s
+typedef struct FrameBuf_s
 {
     i32 width;
     i32 height;
     float4* light; // linear HDR light buffer (before tonemap, sRGB, dither, and convert)
     u32* color; // sRGB LDR rgba8 color buffer
-} framebuf_t;
+} FrameBuf;
 
-void framebuf_create(framebuf_t* buf, i32 width, i32 height);
-void framebuf_destroy(framebuf_t* buf);
+void FrameBuf_New(FrameBuf* buf, i32 width, i32 height);
+void FrameBuf_Del(FrameBuf* buf);
 
 PIM_C_END

@@ -3,7 +3,7 @@
 #include "common/nextpow2.h"
 #include "allocator/allocator.h"
 
-void ptrqueue_create(ptrqueue_t *const pq, EAlloc allocator, u32 capacity)
+void PtrQueue_New(PtrQueue *const pq, EAlloc allocator, u32 capacity)
 {
     ASSERT(pq);
     pq->iWrite = 0;
@@ -18,7 +18,7 @@ void ptrqueue_create(ptrqueue_t *const pq, EAlloc allocator, u32 capacity)
     pq->ptr = Mem_Calloc(allocator, sizeof(pq->ptr[0]) * width);
 }
 
-void ptrqueue_destroy(ptrqueue_t *const pq)
+void PtrQueue_Del(PtrQueue *const pq)
 {
     Mem_Free(pq->ptr);
     pq->ptr = NULL;
@@ -27,26 +27,26 @@ void ptrqueue_destroy(ptrqueue_t *const pq)
     store_u32(&(pq->iRead), 0, MO_Release);
 }
 
-u32 ptrqueue_capacity(ptrqueue_t const *const pq)
+u32 PtrQueue_Capacity(PtrQueue const *const pq)
 {
     ASSERT(pq);
     return load_u32(&pq->width, MO_Acquire);
 }
 
-u32 ptrqueue_size(ptrqueue_t const *const pq)
+u32 PtrQueue_Size(PtrQueue const *const pq)
 {
     ASSERT(pq);
     return load_u32(&pq->iWrite, MO_Acquire) - load_u32(&pq->iRead, MO_Acquire);
 }
 
-bool ptrqueue_trypush(ptrqueue_t *const pq, void *const pValue)
+bool PtrQueue_TryPush(PtrQueue *const pq, void *const pValue)
 {
     ASSERT(pq);
     ASSERT(pValue);
     const isize iPtr = (isize)pValue;
     const u32 mask = pq->width - 1u;
     isize *const pim_noalias ptr = pq->ptr;
-    for (u32 i = load_u32(&pq->iWrite, MO_Acquire); ptrqueue_size(pq) <= mask; ++i)
+    for (u32 i = load_u32(&pq->iWrite, MO_Acquire); PtrQueue_Size(pq) <= mask; ++i)
     {
         i &= mask;
         isize prev = load_isize(ptr + i, MO_Relaxed);
@@ -59,12 +59,12 @@ bool ptrqueue_trypush(ptrqueue_t *const pq, void *const pValue)
     return false;
 }
 
-void *const ptrqueue_trypop(ptrqueue_t *const pq)
+void *const PtrQueue_TryPop(PtrQueue *const pq)
 {
     ASSERT(pq);
     const u32 mask = pq->width - 1u;
     isize *const pim_noalias ptr = pq->ptr;
-    for (u32 i = load_u32(&pq->iRead, MO_Acquire); ptrqueue_size(pq); ++i)
+    for (u32 i = load_u32(&pq->iRead, MO_Acquire); PtrQueue_Size(pq); ++i)
     {
         i &= mask;
         isize prev = load_isize(ptr + i, MO_Relaxed);

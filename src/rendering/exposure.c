@@ -1,5 +1,4 @@
 #include "rendering/exposure.h"
-#include "rendering/mipmap.h"
 #include "rendering/sampler.h"
 #include "math/color.h"
 #include "threading/task.h"

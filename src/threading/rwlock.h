@@ -6,17 +6,19 @@ PIM_C_BEGIN
 
 #include "threading/event.h"
 
-typedef struct rwlock_s
+typedef struct RwLock_s
 {
     i32 state;
-    event_t evt;
-} rwlock_t;
+    Event evt;
+} RwLock;
 
-void rwlock_create(rwlock_t* lck);
-void rwlock_destroy(rwlock_t* lck);
-void rwlock_lock_read(rwlock_t* lck);
-void rwlock_unlock_read(rwlock_t* lck);
-void rwlock_lock_write(rwlock_t* lck);
-void rwlock_unlock_write(rwlock_t* lck);
+void RwLock_New(RwLock* lck);
+void RwLock_Del(RwLock* lck);
+
+void RwLock_LockReader(RwLock* lck);
+void RwLock_UnlockReader(RwLock* lck);
+
+void RwLock_LockWriter(RwLock* lck);
+void RwLock_UnlockWriter(RwLock* lck);
 
 PIM_C_END

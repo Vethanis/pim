@@ -19,11 +19,11 @@ static VkSampler vkrSampler_New(
 // ----------------------------------------------------------------------------
 
 // SamplerInfo -> VkSampler
-static dict_t ms_samplerCache;
+static Dict ms_samplerCache;
 
 bool vkrSampler_Init(void)
 {
-    dict_new(&ms_samplerCache, sizeof(SamplerInfo), sizeof(VkSampler), EAlloc_Perm);
+    Dict_New(&ms_samplerCache, sizeof(SamplerInfo), sizeof(VkSampler), EAlloc_Perm);
     return true;
 }
 
@@ -44,7 +44,7 @@ void vkrSampler_Shutdown(void)
             samplers[i] = NULL;
         }
     }
-    dict_del(&ms_samplerCache);
+    Dict_Del(&ms_samplerCache);
 }
 
 VkSampler vkrSampler_Get(
@@ -60,14 +60,14 @@ VkSampler vkrSampler_Get(
         .aniso = aniso,
     };
     VkSampler sampler = NULL;
-    if (dict_get(&ms_samplerCache, &key, &sampler))
+    if (Dict_Get(&ms_samplerCache, &key, &sampler))
     {
         return sampler;
     }
     sampler = vkrSampler_New(filter, mipMode, addressMode, aniso);
     if (sampler)
     {
-        dict_add(&ms_samplerCache, &key, &sampler);
+        Dict_Add(&ms_samplerCache, &key, &sampler);
     }
     return sampler;
 }

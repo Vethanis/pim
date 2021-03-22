@@ -15,27 +15,27 @@ typedef struct Table_s
     void* pim_noalias values;
     i32* pim_noalias refcounts;
     Guid* pim_noalias names;
-    queue_i32_t freelist;
+    IntQueue freelist;
 
     u32 lookupWidth;
     i32 itemCount;
     i32* pim_noalias lookup;
 } Table;
 
-void table_new(Table *const table, i32 valueSize);
-void table_del(Table *const table);
+void Table_New(Table *const table, i32 valueSize);
+void Table_Del(Table *const table);
 
-void table_clear(Table *const table);
+void Table_Clear(Table *const table);
 
-bool table_exists(Table const *const table, GenId id);
+bool Table_Exists(Table const *const table, GenId id);
 
-bool table_add(Table *const table, Guid name, const void *const valueIn, GenId *const idOut);
-bool table_retain(Table *const table, GenId id);
-bool table_release(Table *const table, GenId id, void *const valueOut);
+bool Table_Add(Table *const table, Guid name, const void *const valueIn, GenId *const idOut);
+bool Table_Retain(Table *const table, GenId id);
+bool Table_Release(Table *const table, GenId id, void *const valueOut);
 
-void *const table_get(const Table *const table, GenId id);
+void *const Table_Get(const Table *const table, GenId id);
 
-bool table_find(const Table *const table, Guid name, GenId *const idOut);
-bool table_getname(const Table *const table, GenId id, Guid *const nameOut);
+bool Table_Find(const Table *const table, Guid name, GenId *const idOut);
+bool Table_GetName(const Table *const table, GenId id, Guid *const nameOut);
 
 PIM_C_END

@@ -3,20 +3,20 @@
 #include "common/stringutil.h"
 #include <string.h>
 
-void strlist_new(strlist_t* list, EAlloc allocator)
+void StrList_New(StrList* list, EAlloc allocator)
 {
     memset(list, 0, sizeof(*list));
     list->allocator = allocator;
 }
 
-void strlist_del(strlist_t* list)
+void StrList_Del(StrList* list)
 {
-    strlist_clear(list);
+    StrList_Clear(list);
     Mem_Free(list->ptr);
     list->ptr = NULL;
 }
 
-void strlist_clear(strlist_t* list)
+void StrList_Clear(StrList* list)
 {
     i32 len = list->count;
     char** pim_noalias ptr = list->ptr;
@@ -28,7 +28,7 @@ void strlist_clear(strlist_t* list)
     list->count = 0;
 }
 
-void strlist_add(strlist_t* list, const char* item)
+void StrList_Add(StrList* list, const char* item)
 {
     ASSERT(item);
     i32 len = ++list->count;
@@ -36,7 +36,7 @@ void strlist_add(strlist_t* list, const char* item)
     list->ptr[len - 1] = StrDup(item, list->allocator);
 }
 
-void strlist_rm(strlist_t* list, i32 i)
+void StrList_Rm(StrList* list, i32 i)
 {
     i32 len = list->count;
     i32 back = len - 1;
@@ -49,7 +49,7 @@ void strlist_rm(strlist_t* list, i32 i)
     ptr[back] = NULL;
 }
 
-i32 strlist_find(const strlist_t* list, const char* key)
+i32 StrList_Find(const StrList* list, const char* key)
 {
     ASSERT(key);
     const i32 len = list->count;

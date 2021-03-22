@@ -4,29 +4,26 @@
 
 PIM_C_BEGIN
 
-typedef struct Prng_s Prng;
-
 typedef struct Guid_s
 {
     u64 a;
     u64 b;
 } Guid;
 
-bool guid_isnull(Guid x);
-bool guid_eq(Guid lhs, Guid rhs);
-i32 guid_cmp(Guid lhs, Guid rhs);
+bool Guid_IsNull(Guid x);
+bool Guid_Equal(Guid lhs, Guid rhs);
+i32 Guid_Compare(Guid lhs, Guid rhs);
 
-Guid guid_new(void);
+Guid Guid_New(void);
 
-void guid_set_name(Guid id, const char* str);
-bool guid_get_name(Guid id, char* dst, i32 size);
+void Guid_SetName(Guid id, const char* str);
+bool Guid_GetName(Guid id, char* dst, i32 size);
 
-i32 guid_find(Guid const *const pim_noalias ptr, i32 count, Guid key);
-Guid guid_str(char const *const pim_noalias str);
-Guid guid_bytes(void const *const pim_noalias ptr, i32 nBytes);
-Guid guid_rand(Prng* rng);
+i32 Guid_Find(Guid const *const pim_noalias ptr, i32 count, Guid key);
+Guid Guid_FromStr(char const *const pim_noalias str);
+Guid Guid_FromBytes(void const *const pim_noalias ptr, i32 nBytes);
 
-void guid_fmt(char* dst, i32 size, Guid value);
-u32 guid_hashof(Guid x);
+void Guid_Format(char* dst, i32 size, Guid value);
+u32 Guid_HashOf(Guid x);
 
 PIM_C_END

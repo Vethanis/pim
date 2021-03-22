@@ -4,18 +4,18 @@
 
 PIM_C_BEGIN
 
-typedef struct strlist_s
+typedef struct StrList_s
 {
     char** ptr;
     i32 count;
     EAlloc allocator;
-} strlist_t;
+} StrList;
 
-void strlist_new(strlist_t* list, EAlloc allocator);
-void strlist_del(strlist_t* list);
-void strlist_clear(strlist_t* list);
-void strlist_add(strlist_t* list, const char* item);
-void strlist_rm(strlist_t* list, i32 i);
-i32 strlist_find(const strlist_t* list, const char* key);
+void StrList_New(StrList* list, EAlloc allocator);
+void StrList_Del(StrList* list);
+void StrList_Clear(StrList* list);
+void StrList_Add(StrList* list, const char* item);
+void StrList_Rm(StrList* list, i32 i);
+i32 StrList_Find(const StrList* list, const char* key);
 
 PIM_C_END

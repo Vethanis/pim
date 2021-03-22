@@ -14,11 +14,11 @@ typedef struct Camera_s
     float fovy;
 } Camera;
 
-void camera_get(Camera* dst);
-void camera_set(const Camera* src);
-void camera_reset(void);
-void camera_frustum(const Camera* src, Frustum* dst, float aspect);
+void Camera_Get(Camera* dst);
+void Camera_Set(const Camera* src);
+void Camera_Reset(void);
+void Camera_Frustum(const Camera* src, Frustum* dst, float aspect);
 // lo, hi: [-1, 1] range screen bounds
-void camera_subfrustum(const Camera* src, Frustum* dst, float2 lo, float2 hi, float zNear, float zFar, float aspect);
+void Camera_SubFrustum(const Camera* src, Frustum* dst, float2 lo, float2 hi, float zNear, float zFar, float aspect);
 
 PIM_C_END

@@ -29,15 +29,20 @@ static i32 IsZero(i32 x)
     return x;
 }
 
-fstr_t fstr_open(const char* filename, const char* mode)
+bool FileStream_IsOpen(FileStream fstr)
+{
+    return fstr.handle != NULL;
+}
+
+FileStream FileStream_Open(const char* filename, const char* mode)
 {
     ASSERT(filename);
     ASSERT(mode);
     void* ptr = fopen(filename, mode);
-    return (fstr_t) { ptr };
+    return (FileStream) { ptr };
 }
 
-bool fstr_close(fstr_t* stream)
+bool FileStream_Close(FileStream* stream)
 {
     ASSERT(stream);
     FILE* file = stream->handle;
@@ -49,14 +54,14 @@ bool fstr_close(fstr_t* stream)
     return false;
 }
 
-bool fstr_flush(fstr_t stream)
+bool FileStream_Flush(FileStream stream)
 {
     FILE* file = stream.handle;
     ASSERT(file);
     return IsZero(fflush(file)) == 0;
 }
 
-i32 fstr_read(fstr_t stream, void* dst, i32 size)
+i32 FileStream_Read(FileStream stream, void* dst, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -70,7 +75,7 @@ i32 fstr_read(fstr_t stream, void* dst, i32 size)
     return (ct == 1) ? size : 0;
 }
 
-i32 fstr_write(fstr_t stream, const void* src, i32 size)
+i32 FileStream_Write(FileStream stream, const void* src, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -84,7 +89,7 @@ i32 fstr_write(fstr_t stream, const void* src, i32 size)
     return (ct == 1) ? size : 0;
 }
 
-bool fstr_gets(fstr_t stream, char* dst, i32 size)
+bool FileStream_Gets(FileStream stream, char* dst, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -93,7 +98,7 @@ bool fstr_gets(fstr_t stream, char* dst, i32 size)
     return NotNull(fgets(dst, size - 1, file)) != NULL;
 }
 
-i32 fstr_puts(fstr_t stream, const char* src)
+i32 FileStream_Puts(FileStream stream, const char* src)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -106,24 +111,24 @@ i32 fstr_puts(fstr_t stream, const char* src)
     return rval;
 }
 
-fd_t fstr_to_fd(fstr_t stream)
+fd_t FileStream_ToFd(FileStream stream)
 {
     FILE* file = stream.handle;
     ASSERT(file);
     return (fd_t) { NotNeg(_fileno(file)) };
 }
 
-fstr_t fd_to_fstr(fd_t* pFD, const char* mode)
+FileStream Fd_ToFileStream(fd_t* pFD, const char* mode)
 {
     ASSERT(pFD);
     i32 fd = pFD->handle;
     pFD->handle = -1;
     ASSERT(fd >= 0);
     FILE* ptr = _fdopen(fd, mode);
-    return (fstr_t) { NotNull(ptr) };
+    return (FileStream) { NotNull(ptr) };
 }
 
-bool fstr_seek(fstr_t stream, i32 offset)
+bool FileStream_Seek(FileStream stream, i32 offset)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -131,22 +136,22 @@ bool fstr_seek(fstr_t stream, i32 offset)
     return NotNeg(fseek(file, offset, SEEK_SET)) >= 0;
 }
 
-i32 fstr_tell(fstr_t stream)
+i32 FileStream_Tell(FileStream stream)
 {
     FILE* file = stream.handle;
     ASSERT(file);
     return NotNeg(ftell(file));
 }
 
-fstr_t fstr_popen(const char* cmd, const char* mode)
+FileStream FileStream_ProcOpen(const char* cmd, const char* mode)
 {
     ASSERT(cmd);
     ASSERT(mode);
     FILE* file = _popen(cmd, mode);
-    return (fstr_t) { NotNull(file) };
+    return (FileStream) { NotNull(file) };
 }
 
-bool fstr_pclose(fstr_t* pStream)
+bool FileStream_ProcClose(FileStream* pStream)
 {
     ASSERT(pStream);
     FILE* file = pStream->handle;
@@ -156,4 +161,16 @@ bool fstr_pclose(fstr_t* pStream)
         return IsZero(_pclose(file)) == 0;
     }
     return false;
+}
+
+bool FileStream_Stat(FileStream stream, fd_status_t* status)
+{
+    return fd_stat(FileStream_ToFd(stream), status);
+}
+
+i64 FileStream_Size(FileStream stream)
+{
+    fd_status_t status;
+    FileStream_Stat(stream, &status);
+    return status.st_size;
 }

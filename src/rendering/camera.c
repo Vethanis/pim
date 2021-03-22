@@ -10,30 +10,30 @@ static Camera ms_camera =
     .fovy = 90.0f,
 };
 
-void camera_get(Camera* dst)
+void Camera_Get(Camera* dst)
 {
     ASSERT(dst);
     *dst = ms_camera;
 }
 
-void camera_set(const Camera* src)
+void Camera_Set(const Camera* src)
 {
     ASSERT(src);
     ms_camera = *src;
 }
 
-void camera_reset(void)
+void Camera_Reset(void)
 {
     ms_camera.position = f4_0;
     ms_camera.rotation = quat_id;
 }
 
-void camera_frustum(const Camera* src, Frustum* dst, float aspect)
+void Camera_Frustum(const Camera* src, Frustum* dst, float aspect)
 {
-    camera_subfrustum(src, dst, f2_s(-1.0f), f2_s(1.0f), src->zNear, src->zFar, aspect);
+    Camera_SubFrustum(src, dst, f2_s(-1.0f), f2_s(1.0f), src->zNear, src->zFar, aspect);
 }
 
-void camera_subfrustum(const Camera* src, Frustum* dst, float2 lo, float2 hi, float zNear, float zFar, float aspect)
+void Camera_SubFrustum(const Camera* src, Frustum* dst, float2 lo, float2 hi, float zNear, float zFar, float aspect)
 {
     ASSERT(src);
     ASSERT(dst);

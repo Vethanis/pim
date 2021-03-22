@@ -21,24 +21,24 @@
 #include <string.h>
 
 static Entities ms_drawables;
-Entities *const drawables_get(void) { return &ms_drawables; }
+Entities *const Entities_Get(void) { return &ms_drawables; }
 
-void drawables_init(void)
+void EntSys_Init(void)
 {
 
 }
 
-void drawables_update(void)
+void EntSys_Update(void)
 {
 
 }
 
-void drawables_shutdown(void)
+void EntSys_Shutdown(void)
 {
-    drawables_del(drawables_get());
+    Entities_Del(Entities_Get());
 }
 
-i32 drawables_add(Entities *const dr, Guid name)
+i32 Entities_Add(Entities *const dr, Guid name)
 {
     const i32 back = dr->count;
     const i32 len = back + 1;
@@ -68,11 +68,11 @@ static void DestroyAtIndex(Entities *const dr, i32 i)
 {
     ASSERT(i >= 0);
     ASSERT(i < dr->count);
-    mesh_release(dr->meshes[i]);
+    Mesh_Release(dr->meshes[i]);
     Material* material = &dr->materials[i];
-    texture_release(material->albedo);
-    texture_release(material->rome);
-    texture_release(material->normal);
+    Texture_Release(material->albedo);
+    Texture_Release(material->rome);
+    Texture_Release(material->normal);
 }
 
 static void RemoveAtIndex(Entities *const dr, i32 i)
@@ -94,9 +94,9 @@ static void RemoveAtIndex(Entities *const dr, i32 i)
     PopSwap(dr->scales, i, len);
 }
 
-bool drawables_rm(Entities *const dr, Guid name)
+bool Entities_Rm(Entities *const dr, Guid name)
 {
-    const i32 i = drawables_find(dr, name);
+    const i32 i = Entities_Find(dr, name);
     if (i == -1)
     {
         return false;
@@ -105,12 +105,12 @@ bool drawables_rm(Entities *const dr, Guid name)
     return true;
 }
 
-i32 drawables_find(Entities const *const dr, Guid name)
+i32 Entities_Find(Entities const *const dr, Guid name)
 {
-    return guid_find(dr->names, dr->count, name);
+    return Guid_Find(dr->names, dr->count, name);
 }
 
-void drawables_clear(Entities *const dr)
+void Entities_Clear(Entities *const dr)
 {
     if (dr)
     {
@@ -123,11 +123,11 @@ void drawables_clear(Entities *const dr)
     }
 }
 
-void drawables_del(Entities *const dr)
+void Entities_Del(Entities *const dr)
 {
     if (dr)
     {
-        drawables_clear(dr);
+        Entities_Clear(dr);
         Mem_Free(dr->names);
         Mem_Free(dr->meshes);
         Mem_Free(dr->bounds);
@@ -156,12 +156,12 @@ static void UpdateBoundsFn(void *const pbase, i32 begin, i32 end)
 
     for (i32 i = begin; i < end; ++i)
     {
-        bounds[i] = mesh_calcbounds(meshes[i]);
+        bounds[i] = Mesh_CalcBounds(meshes[i]);
     }
 }
 
-ProfileMark(pm_updatebouns, drawables_updatebounds)
-void drawables_updatebounds(Entities *const dr)
+ProfileMark(pm_updatebouns, Entities_UpdateBounds)
+void Entities_UpdateBounds(Entities *const dr)
 {
     ProfileBegin(pm_updatebouns);
 
@@ -195,8 +195,8 @@ static void UpdateTransformsFn(void* pbase, i32 begin, i32 end)
     }
 }
 
-ProfileMark(pm_TRS, drawables_updatetransforms)
-void drawables_updatetransforms(Entities *const dr)
+ProfileMark(pm_TRS, Entities_UpdateTransforms)
+void Entities_UpdateTransforms(Entities *const dr)
 {
     ProfileBegin(pm_TRS);
 
@@ -207,7 +207,7 @@ void drawables_updatetransforms(Entities *const dr)
     ProfileEnd(pm_TRS);
 }
 
-Box3D drawables_bounds(Entities const *const dr)
+Box3D Entities_GetBounds(Entities const *const dr)
 {
     const i32 length = dr->count;
     const Box3D *const pim_noalias bounds = dr->bounds;
@@ -222,23 +222,23 @@ Box3D drawables_bounds(Entities const *const dr)
     return box;
 }
 
-bool drawables_save(Crate *const crate, Entities const *const src)
+bool Entities_Save(Crate *const crate, Entities const *const src)
 {
     bool wrote = true;
     const i32 length = src->count;
 
-    wrote &= crate_set(crate,
-        guid_str("drawables.count"), &length, sizeof(length));
+    wrote &= Crate_Set(crate,
+        Guid_FromStr("drawables.count"), &length, sizeof(length));
 
     // write meshes
     {
         DiskMeshId *const dmeshids = Perm_Calloc(sizeof(dmeshids[0]) * length);
         for (i32 i = 0; i < length; ++i)
         {
-            mesh_save(crate, src->meshes[i], &dmeshids[i].id);
+            Mesh_Save(crate, src->meshes[i], &dmeshids[i].id);
         }
-        wrote &= crate_set(crate,
-            guid_str("drawables.meshes"), dmeshids, sizeof(dmeshids[0]) * length);
+        wrote &= Crate_Set(crate,
+            Guid_FromStr("drawables.meshes"), dmeshids, sizeof(dmeshids[0]) * length);
         Mem_Free(dmeshids);
     }
 
@@ -251,38 +251,38 @@ bool drawables_save(Crate *const crate, Entities const *const src)
             DiskMaterial dmat = { 0 };
             dmat.flags = mat->flags;
             dmat.ior = mat->ior;
-            texture_save(crate, mat->albedo, &dmat.albedo.id);
-            texture_save(crate, mat->rome, &dmat.rome.id);
-            texture_save(crate, mat->normal, &dmat.normal.id);
+            Texture_Save(crate, mat->albedo, &dmat.albedo.id);
+            Texture_Save(crate, mat->rome, &dmat.rome.id);
+            Texture_Save(crate, mat->normal, &dmat.normal.id);
             dmaterials[i] = dmat;
         }
-        wrote &= crate_set(crate,
-            guid_str("drawables.materials"), dmaterials, sizeof(dmaterials[0]) * length);
+        wrote &= Crate_Set(crate,
+            Guid_FromStr("drawables.materials"), dmaterials, sizeof(dmaterials[0]) * length);
         Mem_Free(dmaterials);
     }
 
-    wrote &= crate_set(crate,
-        guid_str("drawables.names"), src->names, sizeof(src->names[0]) * length);
-    wrote &= crate_set(crate,
-        guid_str("drawables.bounds"), src->bounds, sizeof(src->bounds[0]) * length);
-    wrote &= crate_set(crate,
-        guid_str("drawables.translations"), src->translations, sizeof(src->translations[0]) * length);
-    wrote &= crate_set(crate,
-        guid_str("drawables.rotations"), src->rotations, sizeof(src->rotations[0]) * length);
-    wrote &= crate_set(crate,
-        guid_str("drawables.scales"), src->scales, sizeof(src->scales[0]) * length);
+    wrote &= Crate_Set(crate,
+        Guid_FromStr("drawables.names"), src->names, sizeof(src->names[0]) * length);
+    wrote &= Crate_Set(crate,
+        Guid_FromStr("drawables.bounds"), src->bounds, sizeof(src->bounds[0]) * length);
+    wrote &= Crate_Set(crate,
+        Guid_FromStr("drawables.translations"), src->translations, sizeof(src->translations[0]) * length);
+    wrote &= Crate_Set(crate,
+        Guid_FromStr("drawables.rotations"), src->rotations, sizeof(src->rotations[0]) * length);
+    wrote &= Crate_Set(crate,
+        Guid_FromStr("drawables.scales"), src->scales, sizeof(src->scales[0]) * length);
 
     return wrote;
 }
 
-bool drawables_load(Crate *const crate, Entities *const dst)
+bool Entities_Load(Crate *const crate, Entities *const dst)
 {
     ASSERT(dst);
     bool loaded = false;
-    drawables_del(dst);
+    Entities_Del(dst);
 
     i32 len = 0;
-    if (crate_get(crate, guid_str("drawables.count"), &len, sizeof(len)) && (len > 0))
+    if (Crate_Get(crate, Guid_FromStr("drawables.count"), &len, sizeof(len)) && (len > 0))
     {
         dst->count = len;
         dst->names = Perm_Calloc(sizeof(dst->names[0]) * len);
@@ -300,13 +300,13 @@ bool drawables_load(Crate *const crate, Entities *const dst)
         // load meshes
         {
             DiskMeshId *const dmeshids = Perm_Calloc(sizeof(dmeshids[0]) * len);
-            loaded &= crate_get(crate,
-                guid_str("drawables.meshes"), dmeshids, sizeof(dmeshids[0]) * len);
+            loaded &= Crate_Get(crate,
+                Guid_FromStr("drawables.meshes"), dmeshids, sizeof(dmeshids[0]) * len);
             if (loaded)
             {
                 for (i32 i = 0; i < len; ++i)
                 {
-                    mesh_load(crate, dmeshids[i].id, &dst->meshes[i]);
+                    Mesh_Load(crate, dmeshids[i].id, &dst->meshes[i]);
                 }
             }
             Mem_Free(dmeshids);
@@ -315,8 +315,8 @@ bool drawables_load(Crate *const crate, Entities *const dst)
         // load materials
         {
             DiskMaterial *const dmaterials = Perm_Calloc(sizeof(dmaterials[0]) * len);
-            loaded &= crate_get(crate,
-                guid_str("drawables.materials"), dmaterials, sizeof(dmaterials[0]) * len);
+            loaded &= Crate_Get(crate,
+                Guid_FromStr("drawables.materials"), dmaterials, sizeof(dmaterials[0]) * len);
             if (loaded)
             {
                 for (i32 i = 0; i < len; ++i)
@@ -325,44 +325,44 @@ bool drawables_load(Crate *const crate, Entities *const dst)
                     Material mat = { 0 };
                     mat.flags = dmat.flags;
                     mat.ior = dmat.ior;
-                    texture_load(crate, dmat.albedo.id, &mat.albedo);
-                    texture_load(crate, dmat.rome.id, &mat.rome);
-                    texture_load(crate, dmat.normal.id, &mat.normal);
+                    Texture_Load(crate, dmat.albedo.id, &mat.albedo);
+                    Texture_Load(crate, dmat.rome.id, &mat.rome);
+                    Texture_Load(crate, dmat.normal.id, &mat.normal);
                     dst->materials[i] = mat;
-                    mesh_setmaterial(dst->meshes[i], &mat);
+                    Mesh_SetMaterial(dst->meshes[i], &mat);
                 }
             }
             Mem_Free(dmaterials);
         }
 
-        loaded &= crate_get(crate,
-            guid_str("drawables.names"), dst->names, sizeof(dst->names[0]) * len);
-        loaded &= crate_get(crate,
-            guid_str("drawables.bounds"), dst->bounds, sizeof(dst->bounds[0]) * len);
-        loaded &= crate_get(crate,
-            guid_str("drawables.translations"), dst->translations, sizeof(dst->translations[0]) * len);
-        loaded &= crate_get(crate,
-            guid_str("drawables.rotations"), dst->rotations, sizeof(dst->rotations[0]) * len);
-        loaded &= crate_get(crate,
-            guid_str("drawables.scales"), dst->scales, sizeof(dst->scales[0]) * len);
+        loaded &= Crate_Get(crate,
+            Guid_FromStr("drawables.names"), dst->names, sizeof(dst->names[0]) * len);
+        loaded &= Crate_Get(crate,
+            Guid_FromStr("drawables.bounds"), dst->bounds, sizeof(dst->bounds[0]) * len);
+        loaded &= Crate_Get(crate,
+            Guid_FromStr("drawables.translations"), dst->translations, sizeof(dst->translations[0]) * len);
+        loaded &= Crate_Get(crate,
+            Guid_FromStr("drawables.rotations"), dst->rotations, sizeof(dst->rotations[0]) * len);
+        loaded &= Crate_Get(crate,
+            Guid_FromStr("drawables.scales"), dst->scales, sizeof(dst->scales[0]) * len);
     }
 
     return loaded;
 }
 
-ProfileMark(pm_gui, drawables_gui)
-void drawables_gui(bool* enabled)
+ProfileMark(pm_gui, EntSys_Gui)
+void EntSys_Gui(bool* enabled)
 {
     ProfileBegin(pm_gui);
 
     if (igBegin("Drawables", enabled, 0))
     {
-        Entities* dr = drawables_get();
+        Entities* dr = Entities_Get();
         for (i32 iDrawable = 0; iDrawable < dr->count; ++iDrawable)
         {
             igPushIDPtr(&dr->names[iDrawable]);
             char name[PIM_PATH] = { 0 };
-            guid_get_name(dr->names[iDrawable], ARGS(name));
+            Guid_GetName(dr->names[iDrawable], ARGS(name));
 
             if (igTreeNodeStr(name))
             {
@@ -371,11 +371,11 @@ void drawables_gui(bool* enabled)
                     Material* mat = &dr->materials[iDrawable];
 
                     char texname[PIM_PATH];
-                    texture_getnamestr(mat->albedo, ARGS(texname));
+                    Texture_GetName(mat->albedo, ARGS(texname));
                     igText("Albedo: %s", texname);
-                    texture_getnamestr(mat->rome, ARGS(texname));
+                    Texture_GetName(mat->rome, ARGS(texname));
                     igText("Rome: %s", texname);
-                    texture_getnamestr(mat->normal, ARGS(texname));
+                    Texture_GetName(mat->normal, ARGS(texname));
                     igText("Normal: %s", texname);
 
                     bool flagBits[10];

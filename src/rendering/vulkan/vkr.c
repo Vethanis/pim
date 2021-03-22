@@ -174,11 +174,11 @@ cleanup:
 
 static void vkrUploadLightmaps(void)
 {
-    LmPack* pack = lmpack_get();
+    LmPack* pack = LmPack_Get();
     for (i32 i = 0; i < pack->lmCount; ++i)
     {
         Lightmap* lm = pack->lightmaps + i;
-        lightmap_upload(lm);
+        Lightmap_Upload(lm);
     }
 }
 
@@ -250,7 +250,7 @@ void vkrSys_Shutdown(void)
     {
         vkrDevice_WaitIdle();
 
-        lmpack_del(lmpack_get());
+        LmPack_Del(LmPack_Get());
         UiSys_Shutdown();
 
         vkrExposurePass_Del(&g_vkr.exposurePass);

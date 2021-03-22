@@ -46,10 +46,10 @@ void vkrInstance_Shutdown(vkrSys* vkr)
 
 // ----------------------------------------------------------------------------
 
-strlist_t vkrGetLayers(void)
+StrList vkrGetLayers(void)
 {
-    strlist_t list;
-    strlist_new(&list, EAlloc_Temp);
+    StrList list;
+    StrList_New(&list, EAlloc_Temp);
 
     u32 count = 0;
     const VkLayerProperties* props = vkrEnumInstLayers(&count);
@@ -80,10 +80,10 @@ static const char* const kDesiredInstExtensions[] =
 #endif // VKR_DEBUG_MESSENGER_ON
 };
 
-strlist_t vkrGetInstExtensions(void)
+StrList vkrGetInstExtensions(void)
 {
-    strlist_t list;
-    strlist_new(&list, EAlloc_Temp);
+    StrList list;
+    StrList_New(&list, EAlloc_Temp);
 
     u32 count = 0;
     const VkExtensionProperties* props = vkrEnumInstExtensions(&count);
@@ -191,7 +191,7 @@ i32 vkrFindLayer(
 }
 
 bool vkrTryAddLayer(
-    strlist_t* list,
+    StrList* list,
     const VkLayerProperties* props,
     u32 propCount,
     const char* name)
@@ -199,14 +199,14 @@ bool vkrTryAddLayer(
     ASSERT(list);
     if (vkrFindLayer(props, propCount, name) >= 0)
     {
-        strlist_add(list, name);
+        StrList_Add(list, name);
         return true;
     }
     return false;
 }
 
 bool vkrTryAddExtension(
-    strlist_t* list,
+    StrList* list,
     const VkExtensionProperties* props,
     u32 propCount,
     const char* name)
@@ -214,13 +214,13 @@ bool vkrTryAddExtension(
     ASSERT(list);
     if (vkrFindExtension(props, propCount, name) >= 0)
     {
-        strlist_add(list, name);
+        StrList_Add(list, name);
         return true;
     }
     return false;
 }
 
-VkInstance vkrCreateInstance(strlist_t extensions, strlist_t layers)
+VkInstance vkrCreateInstance(StrList extensions, StrList layers)
 {
     const VkApplicationInfo appInfo =
     {
@@ -246,8 +246,8 @@ VkInstance vkrCreateInstance(strlist_t extensions, strlist_t layers)
     VkInstance inst = NULL;
     VkCheck(vkCreateInstance(&instInfo, NULL, &inst));
 
-    strlist_del(&extensions);
-    strlist_del(&layers);
+    StrList_Del(&extensions);
+    StrList_Del(&layers);
 
     return inst;
 }

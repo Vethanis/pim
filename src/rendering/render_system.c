@@ -37,7 +37,6 @@
 #include "rendering/framebuffer.h"
 #include "rendering/camera.h"
 #include "rendering/lights.h"
-#include "rendering/vertex_stage.h"
 #include "rendering/resolve_tile.h"
 #include "rendering/screenblit.h"
 #include "rendering/path_tracer.h"
@@ -224,7 +223,7 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv);
 
 // ----------------------------------------------------------------------------
 
-static framebuf_t ms_buffers[2];
+static FrameBuf ms_buffers[2];
 static i32 ms_iFrame;
 
 static TonemapId ms_tonemapper = TMap_Uncharted2;
@@ -259,12 +258,12 @@ static i32 ms_gigridsamples;
 
 // ----------------------------------------------------------------------------
 
-static framebuf_t* GetFrontBuf(void)
+static FrameBuf* GetFrontBuf(void)
 {
     return &(ms_buffers[ms_iFrame & 1]);
 }
 
-static framebuf_t* GetBackBuf(void)
+static FrameBuf* GetBackBuf(void)
 {
     return &(ms_buffers[(ms_iFrame + 1) & 1]);
 }
@@ -274,12 +273,12 @@ static void SwapBuffers(void)
     ++ms_iFrame;
 }
 
-framebuf_t* RenderSys_FrontBuf(void)
+FrameBuf* RenderSys_FrontBuf(void)
 {
     return GetFrontBuf();
 }
 
-framebuf_t* RenderSys_BackBuf(void)
+FrameBuf* RenderSys_BackBuf(void)
 {
     return GetBackBuf();
 }
@@ -296,8 +295,8 @@ static void EnsureFramebuf(void)
         dirty |= !ms_buffers[i].color;
         if (dirty)
         {
-            framebuf_destroy(&ms_buffers[i]);
-            framebuf_create(&ms_buffers[i], width, height);
+            FrameBuf_Del(&ms_buffers[i]);
+            FrameBuf_New(&ms_buffers[i], width, height);
         }
     }
 }
@@ -348,16 +347,16 @@ static void ShutdownPtScene(void)
 
 static void LightmapShutdown(void)
 {
-    lmpack_del(lmpack_get());
+    LmPack_Del(LmPack_Get());
 }
 
 static void LightmapRepack(void)
 {
     EnsurePtScene();
 
-    lmpack_del(lmpack_get());
-    LmPack pack = lmpack_pack(1024, cvar_get_float(&cv_lm_density), 0.1f, 15.0f);
-    *lmpack_get() = pack;
+    LmPack_Del(LmPack_Get());
+    LmPack pack = LmPack_Pack(1024, cvar_get_float(&cv_lm_density), 0.1f, 15.0f);
+    *LmPack_Get() = pack;
 }
 
 static float CalcStdDev(const float3* pim_noalias color, int2 size)
@@ -434,7 +433,7 @@ static void Lightmap_Trace(void)
         ProfileBegin(pm_Lightmap_Trace);
         EnsurePtScene();
 
-        bool dirty = lmpack_get()->lmCount == 0;
+        bool dirty = LmPack_Get()->lmCount == 0;
         dirty |= cvar_check_dirty(&cv_lm_density);
         if (dirty)
         {
@@ -443,16 +442,16 @@ static void Lightmap_Trace(void)
 
         float timeslice = 1.0f / cvar_get_int(&cv_lm_timeslice);
         i32 spp = cvar_get_int(&cv_lm_spp);
-        lmpack_bake(ms_ptscene, timeslice, spp);
+        LmPack_Bake(ms_ptscene, timeslice, spp);
 
         u64 now = Time_Now();
         if (Time_Sec(now - s_lastUpload) > 10.0)
         {
             s_lastUpload = now;
-            LmPack* pack = lmpack_get();
+            LmPack* pack = LmPack_Get();
             for (i32 i = 0; i < pack->lmCount; ++i)
             {
-                lightmap_upload(&pack->lightmaps[i]);
+                Lightmap_Upload(&pack->lightmaps[i]);
             }
         }
 
@@ -473,7 +472,7 @@ static void Cubemap_Trace(void)
             ms_cmapSampleCount = 0;
         }
 
-        Guid skyname = guid_str("sky");
+        Guid skyname = Guid_FromStr("sky");
         Cubemaps* maps = Cubemaps_Get();
         float weight = 1.0f / ++ms_cmapSampleCount;
         for (i32 i = 0; i < maps->count; ++i)
@@ -481,7 +480,7 @@ static void Cubemap_Trace(void)
             Cubemap* cubemap = maps->cubemaps + i;
             Box3D bounds = maps->bounds[i];
             Guid name = maps->names[i];
-            if (!guid_eq(name, skyname))
+            if (!Guid_Equal(name, skyname))
             {
                 Cubemap_Bake(cubemap, ms_ptscene, box_center(bounds), weight);
             }
@@ -504,7 +503,7 @@ static bool PathTrace(void)
 
         {
             Camera camera;
-            camera_get(&camera);
+            Camera_Get(&camera);
 
             bool dirty = false;
             dirty |= cvar_check_dirty(&cv_pt_trace);
@@ -598,7 +597,7 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
         SPrintf(ARGS(filename), "screenshot_%s.png", timestr);
     }
 
-    const framebuf_t* buf = GetFrontBuf();
+    const FrameBuf* buf = GetFrontBuf();
     const u32* flippedColor = buf->color;
     ASSERT(flippedColor);
     const int2 size = { buf->width, buf->height };
@@ -661,7 +660,7 @@ static void Present(void)
     if (cvar_get_bool(&cv_pt_trace))
     {
         ProfileBegin(pm_Present);
-        framebuf_t* frontBuf = GetFrontBuf();
+        FrameBuf* frontBuf = GetFrontBuf();
         int2 size = { frontBuf->width, frontBuf->height };
         ExposeImage(size, frontBuf->light, &ms_exposure);
         ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
@@ -685,10 +684,10 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     }
 
     Con_Logf(LogSev_Info, "cmd", "mapload is clearing drawables.");
-    drawables_clear(drawables_get());
+    Entities_Clear(Entities_Get());
     ShutdownPtScene();
     LightmapShutdown();
-    camera_reset();
+    Camera_Reset();
     vkrSys_OnUnload();
 
     bool loaded = false;
@@ -702,23 +701,23 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     char cratepath[PIM_PATH] = { 0 };
     SPrintf(ARGS(cratepath), "data/%s.crate", name);
     Crate* crate = Temp_Alloc(sizeof(*crate));
-    if (crate_open(crate, cratepath))
+    if (Crate_Open(crate, cratepath))
     {
         loaded = true;
-        loaded &= drawables_load(crate, drawables_get());
-        loaded &= lmpack_load(crate, lmpack_get());
-        loaded &= crate_close(crate);
+        loaded &= Entities_Load(crate, Entities_Get());
+        loaded &= LmPack_Load(crate, LmPack_Get());
+        loaded &= Crate_Close(crate);
     }
 
     if (!loaded)
     {
-        loaded = LoadModelAsDrawables(mapname, drawables_get(), loadlights);
+        loaded = LoadModelAsDrawables(mapname, Entities_Get(), loadlights);
     }
 
     if (loaded)
     {
-        drawables_updatetransforms(drawables_get());
-        drawables_updatebounds(drawables_get());
+        Entities_UpdateTransforms(Entities_Get());
+        Entities_UpdateBounds(Entities_Get());
         vkrSys_OnLoad();
         Con_Logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
         return cmdstat_ok;
@@ -754,12 +753,12 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
     char cratepath[PIM_PATH] = { 0 };
     SPrintf(ARGS(cratepath), "data/%s.crate", name);
     Crate* crate = Temp_Alloc(sizeof(*crate));
-    if (crate_open(crate, cratepath))
+    if (Crate_Open(crate, cratepath))
     {
         saved = true;
-        saved &= drawables_save(crate, drawables_get());
-        saved &= lmpack_save(crate, lmpack_get());
-        saved &= crate_close(crate);
+        saved &= Entities_Save(crate, Entities_Get());
+        saved &= LmPack_Save(crate, LmPack_Get());
+        saved &= Crate_Close(crate);
     }
 
     if (saved)
@@ -809,7 +808,7 @@ static void BakeSky(void)
 {
     bool dirty = false;
 
-    Guid skyname = guid_str("sky");
+    Guid skyname = Guid_FromStr("sky");
     Cubemaps* maps = Cubemaps_Get();
     if (cvar_check_dirty(&cv_r_sun_res))
     {
@@ -864,11 +863,11 @@ void RenderSys_Init(void)
     vkrSys_Init();
     g_vkr.exposurePass.params = ms_exposure;
 
-    texture_sys_init();
-    mesh_sys_init();
-    model_sys_init();
+    TextureSys_Init();
+    MeshSys_Init();
+    ModelSys_Init();
     PtSys_Init();
-    drawables_init();
+    EntSys_Init();
     EnsureFramebuf();
 
     ms_toneParams.x = 0.3f; // shoulder
@@ -887,7 +886,7 @@ void RenderSys_Update(void)
 
     EnsureFramebuf();
     SwapBuffers();
-    drawables_updatetransforms(drawables_get());
+    Entities_UpdateTransforms(Entities_Get());
 
     if (Input_IsKeyDown(KeyCode_F9))
     {
@@ -898,11 +897,11 @@ void RenderSys_Update(void)
         cvar_toggle(&cv_pt_denoise);
     }
 
-    texture_sys_update();
-    mesh_sys_update();
-    model_sys_update();
+    TextureSys_Update();
+    MeshSys_Update();
+    ModelSys_Update();
     PtSys_Update();
-    drawables_update();
+    EntSys_Update();
 
     BakeSky();
     Lightmap_Trace();
@@ -921,14 +920,14 @@ void RenderSys_Shutdown(void)
 {
     ShutdownPtScene();
 
-    drawables_shutdown();
+    EntSys_Shutdown();
     PtSys_Shutdown();
-    framebuf_destroy(GetFrontBuf());
-    framebuf_destroy(GetBackBuf());
+    FrameBuf_Del(GetFrontBuf());
+    FrameBuf_Del(GetBackBuf());
 
-    texture_sys_shutdown();
-    mesh_sys_shutdown();
-    model_sys_shutdown();
+    TextureSys_Shutdown();
+    MeshSys_Shutdown();
+    ModelSys_Shutdown();
 
     vkrSys_Shutdown();
 }
@@ -1138,7 +1137,7 @@ static MeshId GenSphereMesh(const char* name, i32 steps)
     mesh.normals = normals;
     mesh.uvs = uvs;
     mesh.texIndices = texIndices;
-    bool added = mesh_new(&mesh, guid_str(name), &id);
+    bool added = Mesh_New(&mesh, Guid_FromStr(name), &id);
     ASSERT(added);
     return id;
 }
@@ -1178,8 +1177,8 @@ static MeshId GenQuadMesh(const char* name)
     mesh.normals = normals;
     mesh.uvs = uvs;
     mesh.texIndices = texIndices;
-    Guid guid = guid_str(name);
-    bool added = mesh_new(&mesh, guid, &id);
+    Guid guid = Guid_FromStr(name);
+    bool added = Mesh_New(&mesh, guid, &id);
     ASSERT(added);
     return id;
 }
@@ -1193,7 +1192,7 @@ static TextureId GenFlatTexture(const char* name, const char* suffix, float4 val
     tex.size = i2_1;
     tex.texels = Tex_Alloc(sizeof(u32));
     *(u32*)tex.texels = LinearToColor(value);
-    texture_new(&tex, VK_FORMAT_R8G8B8A8_SRGB, guid_str(fullname), &id);
+    Texture_New(&tex, VK_FORMAT_R8G8B8A8_SRGB, Guid_FromStr(fullname), &id);
     return id;
 }
 
@@ -1209,7 +1208,7 @@ static Material GenMaterial(
     mat.rome = GenFlatTexture(name, "rome", rome);
     if (rome.w > 0.0f)
     {
-        mat.flags |= matflag_emissive;
+        mat.flags |= MatFlag_Emissive;
     }
     mat.flags |= flags;
     return mat;
@@ -1225,13 +1224,13 @@ static i32 CreateQuad(
     float4 rome,
     MatFlag flags)
 {
-    Entities* dr = drawables_get();
-    i32 i = drawables_add(dr, guid_str(name));
+    Entities* dr = Entities_Get();
+    i32 i = Entities_Add(dr, Guid_FromStr(name));
     dr->meshes[i] = GenQuadMesh(name);
     dr->materials[i] = GenMaterial(name, albedo, rome, flags);
     float4x4 localToWorld = f4x4_trs(center, quat_lookat(forward, up), f4_s(scale));
-    mesh_settransform(dr->meshes[i], localToWorld);
-    mesh_setmaterial(dr->meshes[i], &dr->materials[i]);
+    Mesh_SetTransform(dr->meshes[i], localToWorld);
+    Mesh_SetMaterial(dr->meshes[i], &dr->materials[i]);
     return i;
 }
 
@@ -1243,24 +1242,24 @@ static i32 CreateSphere(
     float4 rome,
     MatFlag flags)
 {
-    Entities* dr = drawables_get();
-    i32 i = drawables_add(dr, guid_str(name));
+    Entities* dr = Entities_Get();
+    i32 i = Entities_Add(dr, Guid_FromStr(name));
     dr->meshes[i] = GenSphereMesh(name, 24);
     dr->materials[i] = GenMaterial(name, albedo, rome, flags);
     float4x4 localToWorld = f4x4_trs(center, quat_id, f4_s(scale * 0.5f));
-    mesh_settransform(dr->meshes[i], localToWorld);
-    mesh_setmaterial(dr->meshes[i], &dr->materials[i]);
+    Mesh_SetTransform(dr->meshes[i], localToWorld);
+    Mesh_SetMaterial(dr->meshes[i], &dr->materials[i]);
     return i;
 }
 
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 {
-    Entities* dr = drawables_get();
-    drawables_clear(dr);
+    Entities* dr = Entities_Get();
+    Entities_Clear(dr);
     ShutdownPtScene();
     LightmapShutdown();
 
-    camera_reset();
+    Camera_Reset();
 
     const float wallExtents = 5.0f;
     const float wallScale = 2.0f * wallExtents;
@@ -1295,7 +1294,7 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
         lightScale,
         f4_s(0.9f),
         f4_v(0.9f, 1.0f, 0.0f, 1.0f),
-        matflag_sky);
+        MatFlag_Sky);
 
     i = CreateQuad(
         "Cornell_Left",
@@ -1385,12 +1384,12 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
             sphereScale,
             f4_s(0.9f),
             f4_v(roughness, 1.0f, 0.0f, 0.0f),
-            matflag_refractive);
+            MatFlag_Refractive);
         dr->materials[i].ior = 1.5f;
     }
 
-    drawables_updatetransforms(dr);
-    drawables_updatebounds(dr);
+    Entities_UpdateTransforms(dr);
+    Entities_UpdateBounds(dr);
 
     return cmdstat_ok;
 }
@@ -1406,11 +1405,11 @@ static cmdstat_t CmdTeleport(i32 argc, const char** argv)
     float y = (float)atof(argv[2]);
     float z = (float)atof(argv[3]);
     Camera cam;
-    camera_get(&cam);
+    Camera_Get(&cam);
     cam.position.x = x;
     cam.position.y = y;
     cam.position.z = z;
-    camera_set(&cam);
+    Camera_Set(&cam);
     return cmdstat_ok;
 }
 
@@ -1425,14 +1424,14 @@ static cmdstat_t CmdLookat(i32 argc, const char** argv)
     float y = (float)atof(argv[2]);
     float z = (float)atof(argv[3]);
     Camera cam;
-    camera_get(&cam);
+    Camera_Get(&cam);
     float4 ro = cam.position;
     float4 at = { x, y, z };
     float4 rd = f4_normalize3(f4_sub(at, ro));
     const float4 up = { 0.0f, 1.0f, 0.0f, 0.0f };
     quat rot = quat_lookat(rd, up);
     cam.rotation = rot;
-    camera_set(&cam);
+    Camera_Set(&cam);
     return cmdstat_ok;
 }
 

@@ -27,7 +27,7 @@ static void graph_visit(vertex_t* verts, i32* order, i32* orderLen, i32 iVert)
     }
 }
 
-void graph_new(graph_t* graph, EAlloc allocator)
+void Graph_New(Graph* graph, EAlloc allocator)
 {
     ASSERT(graph);
     graph->verts = NULL;
@@ -35,16 +35,16 @@ void graph_new(graph_t* graph, EAlloc allocator)
     graph->allocator = allocator;
 }
 
-void graph_del(graph_t* graph)
+void Graph_Del(Graph* graph)
 {
     ASSERT(graph);
-    graph_clear(graph);
+    Graph_Clear(graph);
     Mem_Free(graph->verts);
     graph->verts = NULL;
     graph->length = 0;
 }
 
-void graph_clear(graph_t* graph)
+void Graph_Clear(Graph* graph)
 {
     vertex_t* verts = graph->verts;
     const i32 len = graph->length;
@@ -57,7 +57,7 @@ void graph_clear(graph_t* graph)
     graph->length = 0;
 }
 
-void graph_sort(graph_t* graph, i32* order, i32 length)
+void Graph_Sort(Graph* graph, i32* order, i32 length)
 {
     const i32 graphLength = graph->length;
     vertex_t* verts = graph->verts;
@@ -80,12 +80,12 @@ void graph_sort(graph_t* graph, i32* order, i32 length)
     ASSERT(length == graphLength);
 }
 
-i32 graph_size(const graph_t* graph)
+i32 Graph_Size(const Graph* graph)
 {
     return graph->length;
 }
 
-i32 graph_addvert(graph_t* graph)
+i32 Graph_AddVert(Graph* graph)
 {
     i32 back = graph->length++;
     graph->verts = Mem_Realloc(graph->allocator, graph->verts, sizeof(vertex_t) * (back + 1));
@@ -98,7 +98,7 @@ i32 graph_addvert(graph_t* graph)
     return back;
 }
 
-bool graph_addedge(graph_t* graph, i32 src, i32 dst)
+bool Graph_AddEdge(Graph* graph, i32 src, i32 dst)
 {
     vertex_t* verts = graph->verts;
     ASSERT(src < graph->length);
@@ -124,7 +124,7 @@ bool graph_addedge(graph_t* graph, i32 src, i32 dst)
     return true;
 }
 
-const i32* graph_edges(const graph_t* graph, i32 dstVert, i32* pLength)
+const i32* Graph_Edges(const Graph* graph, i32 dstVert, i32* pLength)
 {
     ASSERT(pLength);
     const vertex_t* verts = graph->verts;

@@ -6,36 +6,30 @@ PIM_C_BEGIN
 
 #include "io/fd.h"
 
-typedef struct fstr_s { void* handle; } fstr_t;
-pim_inline i32 fstr_isopen(fstr_t fstr) { return fstr.handle != NULL; }
-
-fstr_t fstr_open(const char* filename, const char* mode);
-bool fstr_close(fstr_t* stream);
-bool fstr_flush(fstr_t stream);
-i32 fstr_read(fstr_t stream, void* dst, i32 size);
-i32 fstr_write(fstr_t stream, const void* src, i32 size);
-bool fstr_gets(fstr_t stream, char* dst, i32 size);
-i32 fstr_puts(fstr_t stream, const char* src);
-
-fd_t fstr_to_fd(fstr_t stream);
-fstr_t fd_to_fstr(fd_t* hdl, const char* mode);
-
-bool fstr_seek(fstr_t stream, i32 offset);
-i32 fstr_tell(fstr_t stream);
-
-fstr_t fstr_popen(const char* cmd, const char* mode);
-bool fstr_pclose(fstr_t* stream);
-
-pim_inline bool fstr_stat(fstr_t stream, fd_status_t* status)
+typedef struct FileStream_s
 {
-    return fd_stat(fstr_to_fd(stream), status);
-}
+    void* handle;
+} FileStream;
 
-pim_inline i64 fstr_size(fstr_t stream)
-{
-    fd_status_t status;
-    fstr_stat(stream, &status);
-    return status.st_size;
-}
+bool FileStream_IsOpen(FileStream fstr);
+FileStream FileStream_Open(const char* filename, const char* mode);
+bool FileStream_Close(FileStream* stream);
+bool FileStream_Flush(FileStream stream);
+i32 FileStream_Read(FileStream stream, void* dst, i32 size);
+i32 FileStream_Write(FileStream stream, const void* src, i32 size);
+bool FileStream_Gets(FileStream stream, char* dst, i32 size);
+i32 FileStream_Puts(FileStream stream, const char* src);
+
+fd_t FileStream_ToFd(FileStream stream);
+FileStream Fd_ToFileStream(fd_t* hdl, const char* mode);
+
+bool FileStream_Seek(FileStream stream, i32 offset);
+i32 FileStream_Tell(FileStream stream);
+
+FileStream FileStream_ProcOpen(const char* cmd, const char* mode);
+bool FileStream_ProcClose(FileStream* stream);
+
+bool FileStream_Stat(FileStream stream, fd_status_t* status);
+i64 FileStream_Size(FileStream stream);
 
 PIM_C_END

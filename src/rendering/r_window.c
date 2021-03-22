@@ -91,7 +91,7 @@ static void WaitForTargetFps(void)
     const double diffMS = targetMS - Time_Milli(Time_Now() - ms_lastSwap);
     if (diffMS > 1.5)
     {
-        intrin_sleep((u32)(diffMS - 0.5));
+        Intrin_Sleep((u32)(diffMS - 0.5));
     }
 
     ms_lastSwap = Time_Now();

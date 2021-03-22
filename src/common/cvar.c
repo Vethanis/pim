@@ -12,13 +12,13 @@
 #include <stdlib.h> // atof
 #include <stdio.h> // sscanf
 
-static sdict_t ms_dict;
+static StrDict ms_dict;
 
 static void EnsureInit(void)
 {
     if (!ms_dict.valueSize)
     {
-        sdict_new(&ms_dict, sizeof(ConVar_t*), EAlloc_Perm);
+        StrDict_New(&ms_dict, sizeof(ConVar_t*), EAlloc_Perm);
     }
 }
 
@@ -33,7 +33,7 @@ void cvar_reg(ConVar_t* ptr)
     cvar_set_str(ptr, ptr->value);
     ptr->flags &= ~cvarf_dirty;
 
-    bool added = sdict_add(&ms_dict, ptr->name, &ptr);
+    bool added = StrDict_Add(&ms_dict, ptr->name, &ptr);
     ASSERT(added);
 }
 
@@ -42,7 +42,7 @@ ConVar_t* cvar_find(const char* name)
     EnsureInit();
 
     ConVar_t* value = NULL;
-    sdict_get(&ms_dict, name, &value);
+    StrDict_Get(&ms_dict, name, &value);
     return value;
 }
 
@@ -222,7 +222,7 @@ void cvar_gui(bool* pEnabled)
     {
         ConVar_t** cvars = ms_dict.values;
         const i32 length = ms_dict.count;
-        const u32* indices = sdict_sort(&ms_dict, SDictStrCmp, NULL);
+        const u32* indices = StrDict_Sort(&ms_dict, SDictStrCmp, NULL);
 
         igInputText("Search", ARGS(ms_search), 0, NULL, NULL);
 

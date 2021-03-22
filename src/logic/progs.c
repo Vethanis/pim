@@ -108,22 +108,22 @@ static void AddEntity(progs_t* progs, pr_entity_t ent)
     progs->entities[back] = ent;
 }
 
-static float3 ParseOrigin(const sdict_t* dict)
+static float3 ParseOrigin(const StrDict* dict)
 {
     float3 origin = f3_0;
     char* value = NULL;
-    if (sdict_get(dict, "origin", &value))
+    if (StrDict_Get(dict, "origin", &value))
     {
         sscanf(value, "%f %f %f", &origin.x, &origin.y, &origin.z);
     }
     return origin;
 }
 
-static float ParseAngle(const sdict_t* dict)
+static float ParseAngle(const StrDict* dict)
 {
     float angle = 0.0f;
     char* value = NULL;
-    if (sdict_get(dict, "angle", &value))
+    if (StrDict_Get(dict, "angle", &value))
     {
         angle = f1_radians((float)atof(value)) - kPi * 0.5f;
         angle = f1_mod(angle, kTau);
@@ -131,7 +131,7 @@ static float ParseAngle(const sdict_t* dict)
     return angle;
 }
 
-static void ParseWorldspawn(progs_t* progs, const sdict_t* dict)
+static void ParseWorldspawn(progs_t* progs, const StrDict* dict)
 {
     pr_worldspawn_t ws = { 0 };
     ws.message.index = -1;
@@ -140,19 +140,19 @@ static void ParseWorldspawn(progs_t* progs, const sdict_t* dict)
     ws.worldtype = -1;
 
     char* value = NULL;
-    if (sdict_get(dict, "wad", &value))
+    if (StrDict_Get(dict, "wad", &value))
     {
         ws.wad = FindString(progs, value);
     }
-    if (sdict_get(dict, "message", &value))
+    if (StrDict_Get(dict, "message", &value))
     {
         ws.message = FindString(progs, value);
     }
-    if (sdict_get(dict, "worldtype", &value))
+    if (StrDict_Get(dict, "worldtype", &value))
     {
         ws.worldtype = (i16)atoi(value);
     }
-    if (sdict_get(dict, "sounds", &value))
+    if (StrDict_Get(dict, "sounds", &value))
     {
         ws.sounds = (i16)atoi(value);
     }
@@ -163,7 +163,7 @@ static void ParseWorldspawn(progs_t* progs, const sdict_t* dict)
     AddEntity(progs, ent);
 }
 
-static void ParsePlayerStart(progs_t* progs, const sdict_t* dict)
+static void ParsePlayerStart(progs_t* progs, const StrDict* dict)
 {
     pr_player_start_t ps = { 0 };
     ps.angle = ParseAngle(dict);
@@ -174,7 +174,7 @@ static void ParsePlayerStart(progs_t* progs, const sdict_t* dict)
     AddEntity(progs, ent);
 }
 
-static void ParseLight(progs_t* progs, const sdict_t* dict, i32 iclass)
+static void ParseLight(progs_t* progs, const StrDict* dict, i32 iclass)
 {
     pr_light_t light = { 0 };
     light.origin = ParseOrigin(dict);
@@ -182,11 +182,11 @@ static void ParseLight(progs_t* progs, const sdict_t* dict, i32 iclass)
     light.style = 0;
 
     char* value = NULL;
-    if (sdict_get(dict, "light", &value))
+    if (StrDict_Get(dict, "light", &value))
     {
         light.light = (float)atof(value);
     }
-    if (sdict_get(dict, "style", &value))
+    if (StrDict_Get(dict, "style", &value))
     {
         light.style = (i16)atoi(value);
     }
@@ -197,7 +197,7 @@ static void ParseLight(progs_t* progs, const sdict_t* dict, i32 iclass)
     AddEntity(progs, ent);
 }
 
-static void ParseClass(progs_t* progs, const sdict_t* dict, i32 iclass)
+static void ParseClass(progs_t* progs, const StrDict* dict, i32 iclass)
 {
     switch (iclass)
     {
@@ -219,10 +219,10 @@ static void ParseClass(progs_t* progs, const sdict_t* dict, i32 iclass)
     }
 }
 
-static void ParseDict(progs_t* progs, sdict_t* dict)
+static void ParseDict(progs_t* progs, StrDict* dict)
 {
     char* value = NULL;
-    if (sdict_get(dict, "classname", &value))
+    if (StrDict_Get(dict, "classname", &value))
     {
         i32 iclass = FindClass(value);
         if (iclass >= 0)
@@ -230,7 +230,7 @@ static void ParseDict(progs_t* progs, sdict_t* dict)
             ParseClass(progs, dict, iclass);
         }
     }
-    sdict_clear(dict);
+    StrDict_Clear(dict);
 }
 
 static void ExpandEscapes(char* text)
@@ -295,9 +295,9 @@ void progs_parse(progs_t* progs, const char* text)
         return;
     }
 
-    sdict_t dict;
-    sdict_new(&dict, sizeof(char*), EAlloc_Temp);
-    sdict_reserve(&dict, 16);
+    StrDict dict;
+    StrDict_New(&dict, sizeof(char*), EAlloc_Temp);
+    StrDict_Reserve(&dict, 16);
 
     char key[PIM_PATH] = { 0 };
     i32 braces = 0;
@@ -351,7 +351,7 @@ void progs_parse(progs_t* progs, const char* text)
             }
             else
             {
-                if (!sdict_add(&dict, key, &token))
+                if (!StrDict_Add(&dict, key, &token))
                 {
                     ASSERT(false);
                 }

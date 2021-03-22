@@ -3,11 +3,13 @@
 
 #include <string.h>
 
-void text_new(void* txt, i32 sizeOf, const char* str)
+void Text_New(void* txt, i32 sizeOf, const char* str)
 {
     ASSERT(txt);
-    ASSERT(sizeOf);
+    ASSERT(sizeOf > 0);
     ASSERT(str);
+    // zero entire struct out, as Text is used for dictionary keys
+    // which will hash past the null terminator.
     memset(txt, 0, sizeOf);
     StrCpy(txt, sizeOf, str);
 }

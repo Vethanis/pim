@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-typedef struct hashset_s
+typedef struct HashSet_s
 {
     u32* hashes;
     void* keys;
@@ -12,14 +12,14 @@ typedef struct hashset_s
     u32 width;
     u32 stride;
     EAlloc allocator;
-} hashset_t;
+} HashSet;
 
-void hashset_new(hashset_t* set, u32 keySize, EAlloc allocator);
-void hashset_del(hashset_t* set);
-void hashset_clear(hashset_t* set);
-void hashset_reserve(hashset_t* set, u32 minCount);
-bool hashset_contains(const hashset_t* set, const void* key, u32 keySize);
-bool hashset_add(hashset_t* set, const void* key, u32 keySize);
-bool hashset_rm(hashset_t* set, const void* key, u32 keySize);
+void HashSet_New(HashSet* set, u32 keySize, EAlloc allocator);
+void HashSet_Del(HashSet* set);
+void HashSet_Clear(HashSet* set);
+void HashSet_Reserve(HashSet* set, u32 minCount);
+bool HashSet_Contains(const HashSet* set, const void* key, u32 keySize);
+bool HashSet_Add(HashSet* set, const void* key, u32 keySize);
+bool HashSet_Rm(HashSet* set, const void* key, u32 keySize);
 
 PIM_C_END

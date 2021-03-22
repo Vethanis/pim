@@ -4,8 +4,6 @@
 
 PIM_C_BEGIN
 
-#include "math/types.h"
-
 typedef enum
 {
     TMap_Reinhard = 0,
@@ -16,11 +14,6 @@ typedef enum
 
     TMap_COUNT
 } TonemapId;
-
-typedef float4(VEC_CALL *TonemapFn)(float4 color, float4 params);
-
 const char* const* Tonemap_Names(void);
-TonemapFn Tonemap_GetFunc(TonemapId id);
-float4 Tonemap_DefParams(void);
 
 PIM_C_END

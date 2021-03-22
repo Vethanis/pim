@@ -17,24 +17,24 @@
 static ConVar_t cv_basedir = { .type = cvart_text,.name = "basedir",.value = "data",.desc = "base directory for game data" };
 static ConVar_t cv_gamedir = { .type = cvart_text,.name = "gamedir",.value = "id1",.desc = "name of the active game" };
 
-static sdict_t ms_assets;
-static searchpath_t ms_search;
+static StrDict ms_assets;
+static SearchPath ms_search;
 
 void AssetSys_Init(void)
 {
     cvar_reg(&cv_basedir);
     cvar_reg(&cv_gamedir);
 
-    sdict_new(&ms_assets, sizeof(asset_t), EAlloc_Perm);
-    searchpath_new(&ms_search);
+    StrDict_New(&ms_assets, sizeof(asset_t), EAlloc_Perm);
+    SearchPath_New(&ms_search);
 
     char path[PIM_PATH] = { 0 };
     SPrintf(ARGS(path), "%s/%s", cvar_get_str(&cv_basedir), cvar_get_str(&cv_gamedir));
-    searchpath_addpack(&ms_search, path);
+    SearchPath_AddPack(&ms_search, path);
 
     for (i32 i = 0; i < ms_search.packCount; ++i)
     {
-        const pack_t* pack = &ms_search.packs[i];
+        const Pack* pack = &ms_search.packs[i];
         const u8* packBase = pack->mapped.ptr;
         for (i32 j = 0; j < pack->filecount; ++j)
         {
@@ -45,9 +45,9 @@ void AssetSys_Init(void)
                 .pData = packBase + file->offset,
             };
 
-            if (!sdict_add(&ms_assets, file->name, &asset))
+            if (!StrDict_Add(&ms_assets, file->name, &asset))
             {
-                sdict_set(&ms_assets, file->name, &asset);
+                StrDict_Set(&ms_assets, file->name, &asset);
             }
         }
     }
@@ -63,15 +63,15 @@ void AssetSys_Update()
 
 void AssetSys_Shutdown(void)
 {
-    sdict_del(&ms_assets);
-    searchpath_del(&ms_search);
+    StrDict_Del(&ms_assets);
+    SearchPath_Del(&ms_search);
 }
 
 bool Asset_Get(const char* name, asset_t* asset)
 {
     ASSERT(name);
     ASSERT(asset);
-    return sdict_get(&ms_assets, name, asset);
+    return StrDict_Get(&ms_assets, name, asset);
 }
 
 // ----------------------------------------------------------------------------
@@ -156,10 +156,10 @@ void AssetSys_Gui(bool* pEnabled)
         {
             igIndent(0.0f);
             const i32 numPacks = ms_search.packCount;
-            const pack_t* packs = ms_search.packs;
+            const Pack* packs = ms_search.packs;
             for (i32 i = 0; i < numPacks; ++i)
             {
-                const pack_t pack = packs[i];
+                const Pack pack = packs[i];
                 if (!igExCollapsingHeader1(pack.path))
                 {
                     continue;
@@ -200,7 +200,7 @@ void AssetSys_Gui(bool* pEnabled)
                 }
 
                 const double rcpUsed = 100.0 / used;
-                i32* indices = indsort(files, fileCount, sizeof(files[0]), CmpFile, NULL);
+                i32* indices = IndexSort(files, fileCount, sizeof(files[0]), CmpFile, NULL);
                 for (i32 j = 0; j < fileCount; ++j)
                 {
                     const i32 k = indices[j];
@@ -230,10 +230,10 @@ void AssetSys_Gui(bool* pEnabled)
                 gs_revSort = !gs_revSort;
             }
 
-            const sdict_t dict = ms_assets;
+            const StrDict dict = ms_assets;
             char const *const *const names = dict.keys;
             const asset_t* assets = dict.values;
-            u32* indices = sdict_sort(&dict, CmpAsset, NULL);
+            u32* indices = StrDict_Sort(&dict, CmpAsset, NULL);
             for (u32 i = 0; i < dict.count; ++i)
             {
                 u32 j = indices[i];

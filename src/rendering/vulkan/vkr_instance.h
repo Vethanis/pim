@@ -9,8 +9,8 @@ void vkrInstance_Shutdown(vkrSys* vkr);
 
 // ----------------------------------------------------------------------------
 
-strlist_t vkrGetLayers(void);
-strlist_t vkrGetInstExtensions(void);
+StrList vkrGetLayers(void);
+StrList vkrGetInstExtensions(void);
 VkLayerProperties* vkrEnumInstLayers(u32* countOut);
 VkExtensionProperties* vkrEnumInstExtensions(u32* countOut);
 void vkrListInstLayers(void);
@@ -24,15 +24,15 @@ i32 vkrFindLayer(
     u32 count,
     const char* name);
 bool vkrTryAddLayer(
-    strlist_t* list,
+    StrList* list,
     const VkLayerProperties* props,
     u32 propCount,
     const char* name);
 bool vkrTryAddExtension(
-    strlist_t* list,
+    StrList* list,
     const VkExtensionProperties* props,
     u32 propCount,
     const char* name);
-VkInstance vkrCreateInstance(strlist_t extensions, strlist_t layers);
+VkInstance vkrCreateInstance(StrList extensions, StrList layers);
 
 PIM_C_END

@@ -1,21 +1,21 @@
 #include "threading/intrin.h"
 #include <emmintrin.h>
 
-void intrin_spin(u64 spins)
+void Intrin_Spin(u64 spins)
 {
     u64 ticks = spins * 100;
     if (ticks >= 2500)
     {
-        intrin_yield();
+        Intrin_Yield();
     }
     else
     {
-        u64 end = intrin_timestamp() + ticks;
+        u64 end = Intrin_Timestamp() + ticks;
         do
         {
             // on sse2 _mm_pause indicates a spinloop to the cpu, in the hope that it clocks down temporarily
-            intrin_pause();
-        } while (intrin_timestamp() < end);
+            Intrin_Pause();
+        } while (Intrin_Timestamp() < end);
     }
 }
 
@@ -28,10 +28,10 @@ void intrin_spin(u64 spins)
 #pragma intrinsic(__rdtsc)
 #pragma intrinsic(_mm_pause)
 
-u64 intrin_timestamp(void) { return __rdtsc(); }
-void intrin_yield(void) { SwitchToThread(); }
+u64 Intrin_Timestamp(void) { return __rdtsc(); }
+void Intrin_Yield(void) { SwitchToThread(); }
 #else
 
 #endif // PLAT
 
-void intrin_pause(void) { _mm_pause(); }
+void Intrin_Pause(void) { _mm_pause(); }

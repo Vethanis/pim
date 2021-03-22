@@ -70,11 +70,11 @@ static world_t ms_world;
 
 static void DrawScene(
     world_t* world,
-    framebuf_t* target,
+    FrameBuf* target,
     const camera_t* camera);
 static void ClusterLights(
     world_t* world,
-    framebuf_t* target,
+    FrameBuf* target,
     const camera_t* camera);
 
 pim_inline i32 VEC_CALL PositionToFroxel(FrustumBasis basis, float4 P)
@@ -99,7 +99,7 @@ pim_inline lightlist_t VEC_CALL GetLightList(const froxels_t* froxels, float4 P)
 typedef struct task_DrawScene
 {
     Task task;
-    framebuf_t* target;
+    FrameBuf* target;
     const camera_t* camera;
     world_t* world;
 } task_DrawScene;
@@ -107,22 +107,22 @@ typedef struct task_DrawScene
 static void DrawSceneFn(Task* pbase, i32 begin, i32 end)
 {
     task_DrawScene* task = (task_DrawScene*)pbase;
-    framebuf_t* target = task->target;
+    FrameBuf* target = task->target;
     const camera_t* camera = task->camera;
     world_t* world = task->world;
     RTCScene scene = world->scene;
     const Cubemap* pim_noalias sky = world->sky;
     const froxels_t* pim_noalias froxels = &world->froxels;
 
-    const drawables_t* drawables = drawables_get();
+    const drawables_t* drawables = Entities_Get();
     const i32 drawableCount = drawables->count;
     const meshid_t* pim_noalias meshids = drawables->meshes;
     const material_t* pim_noalias materials = drawables->materials;
     const float4x4* pim_noalias matrices = drawables->matrices;
     const float3x3* pim_noalias invMatrices = drawables->invMatrices;
-    const pt_light_t* pim_noalias lights = lights_get()->ptLights;
+    const PtLight* pim_noalias lights = Lights_Get()->ptLights;
 
-    const LmPack* lmpack = lmpack_get();
+    const LmPack* lmpack = LmPack_Get();
 
     const int2 size = { target->width, target->height };
     const float2 rcpSize = { 1.0f / size.x, 1.0f / size.y };
@@ -159,7 +159,7 @@ static void DrawSceneFn(Task* pbase, i32 begin, i32 end)
 
         if (hit.type == hit_light)
         {
-            pt_light_t light = lights_get_pt(hit.iVert);
+            PtLight light = Lights_GetPt(hit.iVert);
             float VoN = f4_dotsat(f4_neg(rd), hit.normal);
             float4 rad = f4_mulvs(light.rad, VoN);
             dstLight[iTexel] = rad;
@@ -171,7 +171,7 @@ static void DrawSceneFn(Task* pbase, i32 begin, i32 end)
         const float4 wuvt = hit.wuvt;
 
         const material_t material = materials[iDrawable];
-        if (material.flags & matflag_sky)
+        if (material.flags & MatFlag_Sky)
         {
             if (sky)
             {
@@ -182,7 +182,7 @@ static void DrawSceneFn(Task* pbase, i32 begin, i32 end)
         }
 
         mesh_t mesh = { 0 };
-        if (!mesh_get(meshids[iDrawable], &mesh))
+        if (!Mesh_Get(meshids[iDrawable], &mesh))
         {
             continue;
         }
@@ -209,17 +209,17 @@ static void DrawSceneFn(Task* pbase, i32 begin, i32 end)
 
         float4 albedo = material.flatAlbedo;
         texture_t tex;
-        if (texture_get(material.albedo, &tex))
+        if (Texture_Get(material.albedo, &tex))
         {
             albedo = f4_mul(albedo, UvBilinearWrap_c32(tex.texels, tex.size, uv));
         }
         float4 rome = material.flatRome;
-        if (texture_get(material.rome, &tex))
+        if (Texture_Get(material.rome, &tex))
         {
             rome = f4_mul(rome, UvBilinearWrap_c32(tex.texels, tex.size, uv));
         }
         float4 N = N0;
-        if (texture_get(material.normal, &tex))
+        if (Texture_Get(material.normal, &tex))
         {
             float4 Nts = UvBilinearWrap_dir8(tex.texels, tex.size, uv);
             N = TbnToWorld(TBN, Nts);
@@ -235,7 +235,7 @@ static void DrawSceneFn(Task* pbase, i32 begin, i32 end)
         for (i32 iList = 0; iList < llist.len; ++iList)
         {
             i32 iLight = llist.ptr[iList];
-            pt_light_t light = lights[iLight];
+            PtLight light = lights[iLight];
             float4 direct = EvalPointLight(V, P, N, albedo, rome.x, rome.z, light.pos, light.rad);
             lighting = f4_add(lighting, direct);
         }
@@ -283,7 +283,7 @@ static void DrawSceneFn(Task* pbase, i32 begin, i32 end)
 ProfileMark(pm_drawscene, DrawScene)
 static void DrawScene(
     world_t* world,
-    framebuf_t* target,
+    FrameBuf* target,
     const camera_t* camera)
 {
     ClusterLights(world, target, camera);
@@ -302,15 +302,15 @@ typedef struct task_ClusterLights
     Task task;
     camera_t camera;
     froxels_t* froxels;
-    const lights_t* lights;
+    const Lights* lights;
 } task_ClusterLights;
 
 static void ClusterLightsFn(Task* pbase, i32 begin, i32 end)
 {
     task_ClusterLights* task = (task_ClusterLights*)pbase;
     froxels_t* pim_noalias froxels = task->froxels;
-    const lights_t* pim_noalias lights = task->lights;
-    const pt_light_t* pim_noalias ptLights = lights->ptLights;
+    const Lights* pim_noalias lights = task->lights;
+    const PtLight* pim_noalias ptLights = lights->ptLights;
     const i32 ptCount = lights->ptCount;
     const camera_t camera = task->camera;
     const FrustumBasis basis = froxels->basis;
@@ -331,7 +331,7 @@ static void ClusterLightsFn(Task* pbase, i32 begin, i32 end)
         float zNear = LerpZ(basis.zNear, basis.zFar, (z + 0) * rcpResZ);
         float zFar = LerpZ(basis.zNear, basis.zFar, (z + 1) * rcpResZ);
         Frustum frus;
-        camera_subfrustum(&camera, &frus, lo, hi, zNear, zFar);
+        Camera_SubFrustum(&camera, &frus, lo, hi, zNear, zFar);
 
         lightlist_t list = { 0 };
         for (i32 iLight = 0; iLight < ptCount; ++iLight)
@@ -366,7 +366,7 @@ pim_inline FrustumBasis VEC_CALL CameraToBasis(const camera_t* camera, i32 width
 ProfileMark(pm_ClusterLights, ClusterLights)
 static void ClusterLights(
     world_t* world,
-    framebuf_t* target,
+    FrameBuf* target,
     const camera_t* camera)
 {
     ProfileBegin(pm_ClusterLights);
@@ -375,7 +375,7 @@ static void ClusterLights(
     memset(froxels, 0, sizeof(*froxels));
     froxels->basis = CameraToBasis(camera, target->width, target->height);
 
-    const lights_t* pim_noalias lights = lights_get();
+    const Lights* pim_noalias lights = Lights_Get();
     const i32 ptCount = lights->ptCount;
     if (ptCount > 0)
     {

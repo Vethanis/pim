@@ -5,19 +5,19 @@
 
 PIM_C_BEGIN
 
-typedef struct barrier_s
+typedef struct Barrier_s
 {
-    semaphore_t phases[2];
+    Semaphore phases[2];
     i32 counter;
     i32 size;
-} barrier_t;
+} Barrier;
 
-void barrier_new(barrier_t* bar, i32 size);
-void barrier_del(barrier_t* bar);
+void Barrier_New(Barrier* bar, i32 size);
+void Barrier_Del(Barrier* bar);
 
-void barrier_phase1(barrier_t* bar);
-void barrier_phase2(barrier_t* bar);
+void Barrier_Phase1(Barrier* bar);
+void Barrier_Phase2(Barrier* bar);
 
-void barrier_wait(barrier_t* bar);
+void Barrier_Wait(Barrier* bar);
 
 PIM_C_END

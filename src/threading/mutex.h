@@ -4,15 +4,15 @@
 
 PIM_C_BEGIN
 
-typedef struct mutex_s
+typedef struct Mutex_s
 {
     u64 opaque[6];
-} mutex_t;
+} Mutex;
 
-void mutex_create(mutex_t* mut);
-void mutex_destroy(mutex_t* mut);
-void mutex_lock(mutex_t* mut);
-void mutex_unlock(mutex_t* mut);
-bool mutex_trylock(mutex_t* mut);
+void Mutex_New(Mutex* mut);
+void Mutex_Del(Mutex* mut);
+void Mutex_Lock(Mutex* mut);
+void Mutex_Unlock(Mutex* mut);
+bool Mutex_TryLock(Mutex* mut);
 
 PIM_C_END

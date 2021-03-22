@@ -18,7 +18,7 @@ bool vkrAllocator_New(vkrAllocator *const allocator)
 
     ASSERT(allocator);
     memset(allocator, 0, sizeof(*allocator));
-    spinlock_new(&allocator->lock);
+    Spinlock_New(&allocator->lock);
 
     {
         const VmaVulkanFunctions vulkanFns =
@@ -287,7 +287,7 @@ void vkrAllocator_Del(vkrAllocator *const allocator)
         }
         vmaDestroyAllocator(allocator->handle);
     }
-    spinlock_del(&allocator->lock);
+    Spinlock_Del(&allocator->lock);
     memset(allocator, 0, sizeof(*allocator));
 }
 
@@ -297,7 +297,7 @@ void vkrAllocator_Finalize(vkrAllocator *const allocator)
     ASSERT(allocator);
     ASSERT(allocator->handle);
 
-    spinlock_lock(&allocator->lock);
+    Spinlock_Lock(&allocator->lock);
     const u32 frame = vkrSys_FrameIndex() + kFramesInFlight * 2;
     i32 len = allocator->numreleasable;
     vkrReleasable *const releasables = allocator->releasables;
@@ -313,7 +313,7 @@ void vkrAllocator_Finalize(vkrAllocator *const allocator)
         }
     }
     allocator->numreleasable = len;
-    spinlock_unlock(&allocator->lock);
+    Spinlock_Unlock(&allocator->lock);
 }
 
 ProfileMark(pm_allocupdate, vkrAllocator_Update)
@@ -329,7 +329,7 @@ void vkrAllocator_Update(vkrAllocator *const allocator)
     const u32 frame = vkrSys_FrameIndex();
     vmaSetCurrentFrameIndex(allocator->handle, frame);
     {
-        spinlock_lock(&allocator->lock);
+        Spinlock_Lock(&allocator->lock);
         i32 len = allocator->numreleasable;
         vkrReleasable* releasables = allocator->releasables;
         for (i32 i = len - 1; i >= 0; --i)
@@ -341,7 +341,7 @@ void vkrAllocator_Update(vkrAllocator *const allocator)
             }
         }
         allocator->numreleasable = len;
-        spinlock_unlock(&allocator->lock);
+        Spinlock_Unlock(&allocator->lock);
     }
 
     ProfileEnd(pm_allocupdate);
@@ -358,11 +358,11 @@ void vkrReleasable_Add(
     ASSERT(allocator->handle);
     ASSERT(releasable);
 
-    spinlock_lock(&allocator->lock);
+    Spinlock_Lock(&allocator->lock);
     i32 back = allocator->numreleasable++;
     Perm_Reserve(allocator->releasables, back + 1);
     allocator->releasables[back] = *releasable;
-    spinlock_unlock(&allocator->lock);
+    Spinlock_Unlock(&allocator->lock);
 
     ProfileEnd(pm_releasableadd);
 }

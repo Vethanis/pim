@@ -44,9 +44,9 @@ typedef enum RTCFormat RTCFormat;
 typedef enum RTCSubdivisionMode RTCSubdivisionMode;
 typedef enum RTCSceneFlags RTCSceneFlags;
 
-typedef struct rtc_s
+typedef struct LibRtc_s
 {
-    library_t lib;
+    Library lib;
 
     // Device API -------------------------------------------------------------
 
@@ -221,11 +221,11 @@ typedef struct rtc_s
 
     void* (*ThreadLocalAlloc)(RTCThreadLocalAllocator allocator, size_t bytes, size_t align);
 
-} rtc_t;
+} LibRtc;
 
-extern rtc_t rtc;
+extern LibRtc rtc;
 
-bool rtc_init(void);
-void rtc_shutdown(void);
+bool LibRtc_Init(void);
+void LibRtc_Shutdown(void);
 
 PIM_C_END
