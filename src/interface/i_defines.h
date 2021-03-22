@@ -892,6 +892,8 @@ typedef enum
     pt_explode2,
     pt_blob,
     pt_blob2,
+
+    pt_COUNT
 } ptype_t;
 
 typedef enum
@@ -904,13 +906,15 @@ typedef enum
     ev_field,
     ev_function,
     ev_pointer,
+
+    ev_COUNT
 } etype_t;
 
 typedef enum
 {
     ca_dedicated,   // a dedicated server with no ability to start a client
     ca_disconnected,  // full screen console with no connection
-    ca_connected  // valid netcon, talking to a server
+    ca_connected,  // valid netcon, talking to a server
 } cactive_t;
 
 typedef enum
