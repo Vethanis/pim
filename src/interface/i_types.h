@@ -37,17 +37,12 @@ typedef enum
     QAlloc_COUNT
 } QAlloc;
 
-typedef struct hdl_s
-{
-    u32 version : 8;
-    u32 index : 24;
-} hdl_t;
-
 typedef struct filehdl_s { hdl_t h; } filehdl_t;
 typedef struct meshhdl_s { hdl_t h; } meshhdl_t;
 typedef struct texhdl_s { hdl_t h; } texhdl_t;
 typedef struct sockhdl_s { hdl_t h; } sockhdl_t;
 typedef struct enthdl_s { hdl_t h; } enthdl_t;
+typedef struct cachehdl_s { hdl_t h; } cachehdl_t;
 
 //=============================================================================
 // type aliases
@@ -90,7 +85,7 @@ typedef struct link_s
 
 typedef struct cache_user_s
 {
-    void *data;
+    cachehdl_t hdl;
 } cache_user_t;
 
 //=====================================
@@ -408,7 +403,7 @@ typedef struct mplane_s
     u8 pad[2];
 } mplane_t;
 
-typedef struct mtexture_s
+typedef struct texture_s
 {
     char name[16];
     u32 width, height;
@@ -416,8 +411,8 @@ typedef struct mtexture_s
     struct msurface_s *texturechain;    // for gl_texsort drawing
     i32 anim_total;                     // total tenths in sequence ( 0 = no)
     i32 anim_min, anim_max;             // time for this frame min <=time< max
-    struct mtexture_s *anim_next;        // in the animation sequence
-    struct mtexture_s *alternate_anims;  // bmodels in frmae 1 use these
+    struct texture_s *anim_next;        // in the animation sequence
+    struct texture_s *alternate_anims;  // bmodels in frmae 1 use these
     u32 offsets[MIPLEVELS];             // four mip maps stored
 } texture_t;
 
@@ -431,7 +426,7 @@ typedef struct mtexinfo_s
 {
     float vecs[2][4];
     float mipadjust;
-    texture_t *texture;
+    struct texture_s *texture;
     i32 flags;
 } mtexinfo_t;
 
@@ -447,16 +442,16 @@ typedef struct glpoly_s
 typedef struct msurface_s
 {
     i32 visframe;  // should be drawn when node is crossed
-    mplane_t *plane;
+    struct mplane_s *plane;
     i32 flags;
     i32 firstedge;  // look up in model->surfedges[], negative numbers
     i32 numedges;   // are backwards edges
     i16 texturemins[2];
     i16 extents[2];
     i32 light_s, light_t;   // gl lightmap coordinates
-    glpoly_t *polys;        // multiple if warped
+    struct glpoly_s *polys;        // multiple if warped
     struct msurface_s *texturechain;
-    mtexinfo_t *texinfo;
+    struct mtexinfo_s *texinfo;
     // lighting info
     i32 dlightframe;
     i32 dlightbits;
@@ -475,7 +470,7 @@ typedef struct mnode_s
     float minmaxs[6]; // for bounding box culling
     struct mnode_s *parent;
 // node specific
-    mplane_t *plane;
+    struct mplane_s *plane;
     struct mnode_s *children[2];
     u16 firstsurface;
     u16 numsurfaces;
@@ -490,8 +485,8 @@ typedef struct mleaf_s
     struct mnode_s *parent;
 // leaf specific
     u8 *compressed_vis;
-    efrag_t *efrags;
-    msurface_t **firstmarksurface;
+    struct efrag_s *efrags;
+    struct msurface_s **firstmarksurface;
     i32 nummarksurfaces;
     i32 key; // BSP sequence number for leaf's contents
     u8 ambient_sound_level[NUM_AMBIENTS];
@@ -499,8 +494,8 @@ typedef struct mleaf_s
 
 typedef struct hull_s
 {
-    dclipnode_t *clipnodes;
-    mplane_t *planes;
+    struct dclipnode_s *clipnodes;
+    struct mplane_s *planes;
     i32 firstclipnode;
     i32 lastclipnode;
     vec3_t clip_mins;
@@ -521,13 +516,13 @@ typedef struct mspritegroup_s
 {
     i32 numframes;
     float *intervals;
-    mspriteframe_t *frames[1];
+    struct mspriteframe_s *frames[1];
 } mspritegroup_t;
 
 typedef struct mspriteframedesc_s
 {
     spriteframetype_t type;
-    mspriteframe_t *frameptr;
+    struct mspriteframe_s *frameptr;
 } mspriteframedesc_t;
 
 typedef struct msprite_s
@@ -625,42 +620,42 @@ typedef struct model_s
     i32 firstmodelsurface, nummodelsurfaces;
 
     i32 numsubmodels;
-    dmodel_t *submodels;
+    struct dmodel_s *submodels;
 
     i32 numplanes;
-    mplane_t *planes;
+    struct mplane_s *planes;
 
     i32 numleafs;  // number of visible leafs, not counting 0
-    mleaf_t *leafs;
+    struct mleaf_s *leafs;
 
     i32 numvertexes;
-    mvertex_t *vertexes;
+    struct mvertex_s *vertexes;
 
     i32 numedges;
-    medge_t *edges;
+    struct medge_s *edges;
 
     i32 numnodes;
-    mnode_t *nodes;
+    struct mnode_s *nodes;
 
     i32 numtexinfo;
-    mtexinfo_t *texinfo;
+    struct mtexinfo_s *texinfo;
 
     i32 numsurfaces;
-    msurface_t *surfaces;
+    struct msurface_s *surfaces;
 
     i32 numsurfedges;
     i32 *surfedges;
 
     i32 numclipnodes;
-    dclipnode_t *clipnodes;
+    struct dclipnode_s *clipnodes;
 
     i32 nummarksurfaces;
-    msurface_t **marksurfaces;
+    struct msurface_s **marksurfaces;
 
     hull_t hulls[MAX_MAP_HULLS];
 
     i32 numtextures;
-    texture_t **textures;
+    struct texture_s **textures;
 
     u8 *visdata;
     u8 *lightdata;
@@ -690,7 +685,7 @@ typedef struct surfcache_s
     u32 width;
     u32 height; // DEBUG only needed for debug
     float mipscale;
-    texture_t *texture; // checked for animating textures
+    struct texture_s *texture; // checked for animating textures
     u8 data[4]; // width*height elements
 } surfcache_t;
 
@@ -698,10 +693,10 @@ typedef struct drawsurf_s
 {
     pixel_t *surfdat; // destination for generated surface
     i32 rowbytes; // destination logical width in bytes
-    msurface_t *surf;  // description for surface to generate
+    struct msurface_s *surf;  // description for surface to generate
     fixed8_t lightadj[MAXLIGHTMAPS];
     // adjust for lightmap levels for dynamic lighting
-    texture_t *texture; // corrected for animating textures
+    struct texture_s *texture; // corrected for animating textures
     i32 surfmip; // mipmapped ratio of surface texels / world pixels
     i32 surfwidth; // in mipmapped texels
     i32 surfheight; // in mipmapped texels
@@ -771,8 +766,8 @@ typedef struct entity_s
     vec3_t origin;
     vec3_t msg_angles[2];       // last two updates (0 is newest)
     vec3_t angles;
-    model_t *model;             // NULL = no model
-    efrag_t *efrag;             // linked list of efrags
+    struct model_s *model;      // NULL = no model
+    struct efrag_s *efrag;      // linked list of efrags
     i32 frame;
     float syncbase;             // for client-side animations
     u8 *colormap;
@@ -782,7 +777,7 @@ typedef struct entity_s
     i32 dlightframe;            // dynamic lighting
     i32 dlightbits;
     i32 trivial_accept;         // FIXME: could turn these into a union
-    mnode_t *topnode;           // for bmodels, first world node
+    struct mnode_s *topnode;    // for bmodels, first world node
                                 // that splits bmodel, or NULL if
                                 // not split
 } entity_t;
@@ -855,7 +850,7 @@ typedef struct dma_s
 
 typedef struct channel_s
 {
-    sfx_t *sfx;         // sfx number
+    struct sfx_s *sfx;  // sfx number
     i32 leftvol;        // 0-255 volume
     i32 rightvol;       // 0-255 volume
     i32 end;            // end time in global paintsamples
@@ -1028,7 +1023,7 @@ typedef struct dlight_s
 typedef struct beam_s
 {
     i32 entity;
-    model_t *model;
+    struct model_s *model;
     float endtime;
     vec3_t start, end;
 } beam_t;
@@ -1060,7 +1055,7 @@ typedef struct client_static_s
 
 // connection information
     i32 signon; // 0 to SIGNONS
-    qsocket_t *netcon;
+    struct qsocket_s *netcon;
     sizebuf_t message; // writing buffer to send to server
 } client_static_t;
 
@@ -1114,21 +1109,21 @@ typedef struct client_state_s
 //
 // information that is static for the entire time connected to a server
 //
-    model_t *model_precache[MAX_MODELS];
-    sfx_t *sound_precache[MAX_SOUNDS];
+    struct model_s *model_precache[MAX_MODELS];
+    struct sfx_s *sound_precache[MAX_SOUNDS];
     char levelname[40]; // for display on solo scoreboard
     i32 viewentity; // cl_entitites[cl.viewentity] = player
     i32 maxclients;
     i32 gametype;
     // refresh related state
-    model_t *worldmodel; // cl_entitites[0].model
-    efrag_t *free_efrags;
+    struct model_s *worldmodel; // cl_entitites[0].model
+    struct efrag_s *free_efrags;
     i32 num_entities; // held in cl_entities array
     i32 num_statics; // held in cl_staticentities array
     entity_t viewent; // the gun model
     i32 cdtrack, looptrack; // cd audio
     // frag scoreboard
-    scoreboard_t *scores; // [cl.maxclients]
+    struct scoreboard_s *scores; // [cl.maxclients]
 } client_state_t;
 
 // cl_input
@@ -1375,13 +1370,13 @@ typedef struct client_s
     qboolean privileged;    // can execute any host command
     qboolean sendsignon;    // only valid before spawned
     double last_message;    // reliable messages must be sent periodically
-    qsocket_t *netconnection; // communications handle
+    struct qsocket_s *netconnection; // communications handle
     usercmd_t cmd;          // movement
     vec3_t wishdir;         // intended motion calced from cmd
     sizebuf_t message;      // can be added to at any time,
                             // copied and clear once per frame
     u8 msgbuf[MAX_MSGLEN];
-    edict_t *edict;         // EDICT_NUM(clientnum+1)
+    struct edict_s *edict;  // EDICT_NUM(clientnum+1)
     char name[32];          // for printing to other people
     i32 colors;
     float ping_times[NUM_PING_TIMES];
@@ -1396,9 +1391,9 @@ typedef struct server_static_s
 {
     i32 maxclients;
     i32 maxclientslimit;
-    client_t *clients;          // [maxclients]
-    i32 serverflags;            // episode completion information
-    qboolean changelevel_issued;    // cleared when at SV_SpawnServer
+    struct client_s *clients; // [maxclients]
+    i32 serverflags; // episode completion information
+    qboolean changelevel_issued; // cleared when at SV_SpawnServer
 } server_static_t;
 
 typedef struct server_s
@@ -1411,16 +1406,16 @@ typedef struct server_s
     double lastchecktime;
     char name[64];          // map name
     char modelname[64];     // maps/<name>.bsp, for model_precache[0]
-    model_t *worldmodel;
+    struct model_s *worldmodel;
     char *model_precache[MAX_MODELS];   // NULL terminated
-    model_t *models[MAX_MODELS];
+    struct model_s *models[MAX_MODELS];
     char *sound_precache[MAX_SOUNDS];   // NULL terminated
     char *lightstyles[MAX_LIGHTSTYLES];
     i32 num_edicts;
     i32 max_edicts;
     // can NOT be array indexed, because edict_t is variable sized,
     // but can be used to reference the world ent
-    edict_t *edicts;
+    struct edict_s *edicts;
     server_state_t state; // some actions are only valid during load
     sizebuf_t datagram;
     u8 datagram_buf[MAX_DATAGRAM];
@@ -1447,7 +1442,7 @@ typedef struct trace_s
     float fraction; // time completed, 1.0 = didn't hit anything
     vec3_t endpos; // final position
     plane_t plane; // surface normal at impact
-    edict_t *ent; // entity the surface is on
+    struct edict_s *ent; // entity the surface is on
 } trace_t;
 
 //=====================================

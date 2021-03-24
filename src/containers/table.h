@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include "containers/queue_i32.h"
+#include "containers/lookup.h"
 #include "containers/genid.h"
 #include "common/guid.h"
 
@@ -16,10 +17,8 @@ typedef struct Table_s
     i32* pim_noalias refcounts;
     Guid* pim_noalias names;
     IntQueue freelist;
-
-    u32 lookupWidth;
+    Lookup lookup;
     i32 itemCount;
-    i32* pim_noalias lookup;
 } Table;
 
 void Table_New(Table *const table, i32 valueSize);

@@ -7,141 +7,6 @@
 #include "math/int2_funcs.h"
 #include <string.h>
 
-#define kEmpty  -1
-#define kTomb   -2
-
-pim_inline void LookupReserve(Table *const table, i32 capacity)
-{
-    const u32 newWidth = NextPow2(capacity) * 4;
-    const u32 oldWidth = table->lookupWidth;
-    if (newWidth <= oldWidth)
-    {
-        return;
-    }
-
-    i32 *const pim_noalias newIndices = Perm_Alloc(sizeof(newIndices[0]) * newWidth);
-    i32 *const pim_noalias oldIndices = table->lookup;
-    const Guid *const pim_noalias names = table->names;
-
-    for (u32 i = 0; i < newWidth; ++i)
-    {
-        newIndices[i] = kEmpty;
-    }
-
-    const u32 newMask = newWidth - 1u;
-    for (u32 i = 0; i < oldWidth; ++i)
-    {
-        i32 index = oldIndices[i];
-        if (index >= 0)
-        {
-            u32 j = Guid_HashOf(names[index]);
-            while (true)
-            {
-                j &= newMask;
-                if (newIndices[j] < 0)
-                {
-                    newIndices[j] = index;
-                    break;
-                }
-                ++j;
-            }
-        }
-    }
-
-    table->lookup = newIndices;
-    table->lookupWidth = newWidth;
-
-    Mem_Free(oldIndices);
-}
-
-pim_inline i32 LookupInsert(Table *const table, i32 iTable, Guid name)
-{
-    ASSERT(iTable >= 0);
-    ASSERT(iTable < table->width);
-    LookupReserve(table, table->itemCount + 1);
-    table->itemCount += 1;
-
-    const u32 mask = table->lookupWidth - 1u;
-    i32 *const pim_noalias lookup = table->lookup;
-    u32 iLookup = Guid_HashOf(name);
-    while (true)
-    {
-        iLookup &= mask;
-        // if empty or tombstone
-        if (lookup[iLookup] < 0)
-        {
-            lookup[iLookup] = iTable;
-            return (i32)iLookup;
-        }
-        ++iLookup;
-    }
-    return -1;
-}
-
-pim_inline bool LookupFind(
-    const Table *const table,
-    Guid name,
-    i32 *const pim_noalias iTableOut,
-    i32 *const pim_noalias iLookupOut)
-{
-    ASSERT(!Guid_IsNull(name));
-
-    *iTableOut = -1;
-    *iLookupOut = -1;
-
-    const u32 width = table->lookupWidth;
-    const u32 mask = width - 1u;
-
-    const Guid *const pim_noalias names = table->names;
-    const i32 *const pim_noalias lookup = table->lookup;
-    const u32 hash = Guid_HashOf(name);
-
-    for (u32 i = 0; i < width; ++i)
-    {
-        const u32 iLookup = (hash + i) & mask;
-        const i32 iTable = lookup[iLookup];
-        // if empty
-        if (iTable == kEmpty)
-        {
-            break;
-        }
-        // if not a tombstone
-        if (iTable >= 0)
-        {
-            ASSERT(iTable < table->width);
-            if (Guid_Equal(name, names[iTable]))
-            {
-                *iTableOut = iTable;
-                *iLookupOut = (i32)iLookup;
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-pim_inline void LookupRemove(Table *const table, i32 iTable, i32 iLookup)
-{
-    if (iLookup >= 0)
-    {
-        ASSERT(iTable >= 0);
-        ASSERT((u32)iLookup < table->lookupWidth);
-        table->lookup[iLookup] = kTomb;
-        table->itemCount -= 1;
-    }
-}
-
-pim_inline void LookupClear(Table *const table)
-{
-    const u32 width = table->lookupWidth;
-    i32 *const pim_noalias lookup = table->lookup;
-    for (u32 i = 0; i < width; ++i)
-    {
-        lookup[i] = kEmpty;
-    }
-}
-
 void Table_New(Table *const table, i32 valueSize)
 {
     ASSERT(table);
@@ -149,6 +14,7 @@ void Table_New(Table *const table, i32 valueSize)
 
     memset(table, 0, sizeof(*table));
     table->valueSize = valueSize;
+    Lookup_New(&table->lookup);
 }
 
 void Table_Del(Table *const table)
@@ -156,11 +22,11 @@ void Table_Del(Table *const table)
     if (table)
     {
         IntQueue_Del(&table->freelist);
+        Lookup_Del(&table->lookup);
         Mem_Free(table->versions);
         Mem_Free(table->values);
         Mem_Free(table->refcounts);
         Mem_Free(table->names);
-        Mem_Free(table->lookup);
         memset(table, 0, sizeof(*table));
     }
 }
@@ -174,7 +40,7 @@ void Table_Clear(Table *const table)
     memset(table->refcounts, 0, sizeof(table->refcounts[0]) * len);
     memset(table->names, 0, sizeof(table->names[0]) * len);
     IntQueue_Clear(&table->freelist);
-    LookupClear(table);
+    Lookup_Clear(&table->lookup);
 }
 
 bool Table_Exists(Table const *const table, GenId id)
@@ -231,11 +97,12 @@ bool Table_Add(
     table->refcounts[index] = 1;
     table->names[index] = name;
 
-    u8 *const pValues = table->values;
+    u8 *const pim_noalias pValues = table->values;
     memcpy(pValues + index * stride, valueIn, stride);
 
-    LookupInsert(table, index, name);
+    Lookup_Insert(&table->lookup, table->names, table->width, name, index);
 
+    table->itemCount += 1;
     idOut->index = index;
     idOut->version = version;
 
@@ -266,22 +133,24 @@ bool Table_Release(Table *const table, GenId id, void *const valueOut)
         {
             ASSERT(!Guid_IsNull(table->names[index]));
 
-            i32 iTable, iLookup;
-            bool found = LookupFind(
-                table,
+            i32 iName, iLookup;
+            bool found = Lookup_Find(
+                &table->lookup,
+                table->names,
+                table->width,
                 table->names[index],
-                &iTable,
+                &iName,
                 &iLookup);
             ASSERT(found);
-            ASSERT(iTable == index);
+            ASSERT(iName == index);
 
-            LookupRemove(table, iTable, iLookup);
+            Lookup_Remove(&table->lookup, iName, iLookup);
 
             table->names[index] = (Guid) { 0 };
             table->versions[index] += 1;
             {
                 i32 stride = table->valueSize;
-                u8* pValue = table->values;
+                u8* pim_noalias pValue = table->values;
                 pValue += index * stride;
                 if (valueOut)
                 {
@@ -292,6 +161,7 @@ bool Table_Release(Table *const table, GenId id, void *const valueOut)
 
             IntQueue_Push(&table->freelist, index);
 
+            table->itemCount -= 1;
             return true;
         }
     }
@@ -315,20 +185,19 @@ bool Table_Find(const Table *const table, Guid name, GenId *const idOut)
 {
     ASSERT(table);
     ASSERT(idOut);
-
     idOut->index = 0;
     idOut->version = 0;
-
-    if (Guid_IsNull(name))
+    i32 iName, iLookup;
+    if (Lookup_Find(
+        &table->lookup,
+        table->names,
+        table->width,
+        name,
+        &iName,
+        &iLookup))
     {
-        return false;
-    }
-
-    i32 iTable, iLookup;
-    if (LookupFind(table, name, &iTable, &iLookup))
-    {
-        idOut->index = iTable;
-        idOut->version = table->versions[iTable];
+        idOut->index = iName;
+        idOut->version = table->versions[iName];
         return true;
     }
     return false;
