@@ -52,7 +52,7 @@ typedef struct I_Zone_s
     void*(*_Cache_Alloc)(cache_user_t *c, i32 size, const char *name);
     void(*_Cache_Report)(void);
 } I_Zone_t;
-extern I_Zone_t I_Zone;
+extern const I_Zone_t I_Zone;
 
 #define Memory_Init(...) I_Zone._Memory_Init(__VA_ARGS__)
 

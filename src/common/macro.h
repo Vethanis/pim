@@ -151,6 +151,12 @@ typedef enum
     EAlloc_COUNT
 } EAlloc;
 
+typedef struct hdl_s
+{
+    u32 version : 8;
+    u32 index : 24;
+} hdl_t;
+
 #define kMaxThreads                 256
 
 #define VK_ENABLE_BETA_EXTENSIONS   1
