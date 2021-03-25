@@ -19,124 +19,40 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "interface/i_zone.h"
+
 #include "interface/i_cmd.h"
+#include "interface/i_common.h"
+#include "interface/i_console.h"
 #include "interface/i_sys.h"
 
+#include "interface/i_globals.h"
+
 #include "allocator/allocator.h"
-#include "containers/dict.h"
 #include "containers/text.h"
-#include "containers/lookup.h"
 #include "containers/idalloc.h"
 #include "common/time.h"
 #include "common/stringutil.h"
 
 #include <string.h>
+#include <stdlib.h>
 
-static void _Memory_Init(void *buf, i32 size);
-
-static void _Z_Free(void *ptr);
-static void* _Z_Malloc(i32 size);
-static void* _Z_TagMalloc(i32 size, i32 tag);
-static void _Z_DumpHeap(void);
-static void _Z_CheckHeap(void);
-static i32 _Z_FreeMemory(void);
-
-static void* _Hunk_Alloc(i32 size);
-static void* _Hunk_AllocName(i32 size, const char *name);
-static void* _Hunk_HighAllocName(i32 size, const char *name);
-static i32 _Hunk_LowMark(void);
-static void _Hunk_FreeToLowMark(i32 mark);
-static i32 _Hunk_HighMark(void);
-static void _Hunk_FreeToHighMark(i32 mark);
-static void* _Hunk_TempAlloc(i32 size);
-static void _Hunk_Check(void);
-
-static void _Cache_Flush(void);
-static void* _Cache_Check(cache_user_t *c);
-static void _Cache_Free(cache_user_t *c);
-static void* _Cache_Alloc(cache_user_t *c, i32 size, const char *name);
-static void _Cache_Report(void);
-
-const I_Zone_t I_Zone = 
-{
-    ._Memory_Init = _Memory_Init,
-
-    ._Z_Free = _Z_Free,
-    ._Z_Malloc = _Z_Malloc,
-    ._Z_TagMalloc = _Z_TagMalloc,
-    ._Z_DumpHeap = _Z_DumpHeap,
-    ._Z_CheckHeap = _Z_CheckHeap,
-    ._Z_FreeMemory = _Z_FreeMemory,
-
-    ._Hunk_Alloc = _Hunk_Alloc,
-    ._Hunk_AllocName = _Hunk_AllocName,
-    ._Hunk_HighAllocName = _Hunk_HighAllocName,
-    ._Hunk_LowMark = _Hunk_LowMark,
-    ._Hunk_FreeToLowMark = _Hunk_FreeToLowMark,
-    ._Hunk_HighMark = _Hunk_HighMark,
-    ._Hunk_FreeToHighMark = _Hunk_FreeToHighMark,
-    ._Hunk_TempAlloc = _Hunk_TempAlloc,
-    ._Hunk_Check = _Hunk_Check,
-
-    ._Cache_Flush = _Cache_Flush,
-    ._Cache_Check = _Cache_Check,
-    ._Cache_Free= _Cache_Free,
-    ._Cache_Alloc = _Cache_Alloc,
-    ._Cache_Report = _Cache_Report,
-};
+#if QUAKE_IMPL
 
 // ----------------------------------------------------------------------------
 
-static bool ms_once;
-
-static void _Hunk_Init(void* buf, i32 size);
-static void _Cache_Init(void);
-static void _Z_Init(void);
-
-static void _Memory_Init(void *buf, i32 size)
-{
-    ASSERT(!ms_once);
-    ms_once = true;
-    _Hunk_Init(buf, size);
-    _Cache_Init();
-    _Z_Init();
-}
-
-// ----------------------------------------------------------------------------
-
-static void _Z_Init(void)
-{
-
-}
-
-static void _Z_Free(void *ptr)
+void Z_Free(void *ptr)
 {
     Mem_Free(ptr);
 }
 
-static void* _Z_Malloc(i32 size)
+static void* Z_Malloc(i32 size)
 {
-    return NULL;
+    return Z_TagMalloc(size, 1);
 }
 
-static void* _Z_TagMalloc(i32 size, i32 tag)
+static void* Z_TagMalloc(i32 size, i32 tag)
 {
-    return NULL;
-}
-
-static void _Z_DumpHeap(void)
-{
-
-}
-
-static void _Z_CheckHeap(void)
-{
-
-}
-
-static i32 _Z_FreeMemory(void)
-{
-    return 0;
+    return Perm_Calloc(size);
 }
 
 // ----------------------------------------------------------------------------
@@ -147,59 +63,117 @@ typedef struct HunkAllocator_s
     i32 size;
     i32 lowUsed;
     i32 highUsed;
-    i32 tempMark;
-    bool tempActive;
 } HunkAllocator;
 static HunkAllocator ms_hunk;
 
-static void _Hunk_Init(void* buf, i32 size)
+static i32 Hunk_Capacity(void)
 {
-
+    return ms_hunk.size - ms_hunk.lowUsed - ms_hunk.highUsed;
 }
 
-static void* _Hunk_Alloc(i32 size)
+void Hunk_Init(i32 size)
 {
-    return NULL;
+    ASSERT(!ms_hunk.pbase);
+    memset(&ms_hunk, 0, sizeof(ms_hunk));
+    ASSERT(size > 0);
+    size = (size + 15) & ~15;
+    void* mem = malloc(size);
+    ASSERT(mem);
+    memset(mem, 0, size);
+    ms_hunk.pbase = mem;
+    ms_hunk.size = size;
 }
 
-static void* _Hunk_AllocName(i32 size, const char *name)
+void* Hunk_Alloc(i32 size)
 {
-    return NULL;
+    return Hunk_AllocName(size, "unknown");
 }
 
-static void* _Hunk_HighAllocName(i32 size, const char *name)
+void* Hunk_AllocName(i32 size, const char *name)
 {
-    return NULL;
+    // allocate from low stack
+    ASSERT(size >= 0);
+    ASSERT(name && name[0]);
+    if (size <= 0)
+    {
+        return NULL;
+    }
+    size = (size + 15) & ~15;
+    ASSERT(size > 0); // overflow after alignment
+    if (size > Hunk_Capacity())
+    {
+        ASSERT(false);
+        return NULL;
+    }
+    u8* ptr = ms_hunk.pbase + ms_hunk.lowUsed;
+    ms_hunk.lowUsed += size;
+    memset(ptr, 0, size);
+    return ptr;
 }
 
-static i32 _Hunk_LowMark(void)
+void* Hunk_HighAllocName(i32 size, const char *name)
 {
-    return 0;
+    // allocate from high stack
+    ASSERT(size >= 0);
+    ASSERT(name && name[0]);
+    if (size <= 0)
+    {
+        return NULL;
+    }
+    size = (size + 15) & ~15;
+    ASSERT(size > 0); // overflow after alignment
+    if (size > Hunk_Capacity())
+    {
+        ASSERT(false);
+        return NULL;
+    }
+    ms_hunk.highUsed += size;
+    u8* ptr = ms_hunk.pbase + ms_hunk.size - ms_hunk.highUsed;
+    memset(ptr, 0, size);
+    return ptr;
 }
 
-static void _Hunk_FreeToLowMark(i32 mark)
+i32 Hunk_LowMark(void)
 {
-
+    return ms_hunk.lowUsed;
 }
 
-static i32 _Hunk_HighMark(void)
+void Hunk_FreeToLowMark(i32 mark)
 {
-    return 0;
+    i32 size = ms_hunk.lowUsed - mark;
+    ASSERT(mark >= 0);
+    ASSERT(size >= 0);
+    ASSERT((mark + size) <= ms_hunk.size);
+    memset(ms_hunk.pbase + mark, 0xcd, size);
+    ms_hunk.lowUsed = mark;
 }
 
-static void _Hunk_FreeToHighMark(i32 mark)
+i32 Hunk_HighMark(void)
 {
-
+    return ms_hunk.highUsed;
 }
 
-static void* _Hunk_TempAlloc(i32 size)
+void Hunk_FreeToHighMark(i32 mark)
 {
-    return NULL;
+    ASSERT(mark >= 0);
+    i32 offset = ms_hunk.size - ms_hunk.highUsed;
+    i32 size = ms_hunk.highUsed - mark;
+    ASSERT(offset >= 0);
+    ASSERT(size >= 0);
+    ASSERT((offset + size) <= ms_hunk.size);
+    memset(ms_hunk.pbase + offset, 0xcd, size);
+    ms_hunk.highUsed = mark;
 }
 
-static void _Hunk_Check(void)
+void* Hunk_TempAlloc(i32 size)
 {
+    return Temp_Calloc(size);
+}
 
+void Hunk_Check(void)
+{
+    // dead memory gets filled with 0xcd.
+    // use a debugger.
 }
 
 // ----------------------------------------------------------------------------
@@ -217,36 +191,61 @@ typedef struct CacheAllocator_s
     u64* pim_noalias ticks;
     Text16* pim_noalias names;
     i32 bytesAllocated;
+    u32 lastCollectFrame;
 } CacheAllocator;
 static CacheAllocator ms_cache;
 
-static void _Cache_Init(void)
+void Cache_Init(void)
 {
     ASSERT(!ms_cache.bytesAllocated);
     memset(&ms_cache, 0, sizeof(ms_cache));
+    IdAlloc_New(&ms_cache.ids);
+
+    Cmd_AddCommand("flush", Cache_Flush);
 }
 
-static void _Cache_Flush(void)
+void Cache_Flush(void)
 {
     CacheItem* pim_noalias items = ms_cache.items;
     const i32 len = ms_cache.ids.length;
     for (i32 i = 0; i < len; ++i)
     {
-        void* allocation = items[i].allocation;
-        i32 size = items[i].size;
-        if (allocation)
-        {
-            memset(allocation, 0, size);
-            Mem_Free(allocation);
-        }
+        Mem_Free(items[i].allocation);
     }
     memset(items, 0, sizeof(items[0]) * len);
     memset(ms_cache.ticks, 0, sizeof(ms_cache.ticks[0]) * len);
     memset(ms_cache.names, 0, sizeof(ms_cache.names[0]) * len);
     IdAlloc_Clear(&ms_cache.ids);
+    ms_cache.bytesAllocated = 0;
+    ms_cache.lastCollectFrame = Time_FrameCount();
 }
 
-static void* _Cache_Check(cache_user_t *c)
+void Cache_Collect(void)
+{
+    const u32 frameIndex = Time_FrameCount();
+    if (ms_cache.lastCollectFrame != frameIndex)
+    {
+        ms_cache.lastCollectFrame = frameIndex;
+        const u64 now = Time_Now();
+        const u8* pim_noalias versions = ms_cache.ids.versions;
+        const u64* pim_noalias ticks = ms_cache.ticks;
+        const i32 len = ms_cache.ids.length;
+        for (i32 i = 0; i < len; ++i)
+        {
+            u8 alive = versions[i] & 1;
+            double duration = Time_Sec(now - ticks[i]) - 10.0;
+            if ((alive) && (duration > 0.0))
+            {
+                cache_user_t user = { 0 };
+                user.hdl.h.index = i;
+                user.hdl.h.version = versions[i];
+                Cache_Free(&user);
+            }
+        }
+    }
+}
+
+void* Cache_Check(cache_user_t *c)
 {
     GenId id = c->hdl.h;
     if (IdAlloc_Exists(&ms_cache.ids, id))
@@ -258,7 +257,7 @@ static void* _Cache_Check(cache_user_t *c)
     return NULL;
 }
 
-static void _Cache_Free(cache_user_t *c)
+void Cache_Free(cache_user_t *c)
 {
     GenId id = c->hdl.h;
     if (IdAlloc_Free(&ms_cache.ids, id))
@@ -270,7 +269,6 @@ static void _Cache_Free(cache_user_t *c)
         if (allocation)
         {
             ASSERT(size > 0);
-            memset(allocation, 0, size);
             Mem_Free(allocation);
             ms_cache.bytesAllocated -= size;
         }
@@ -280,7 +278,7 @@ static void _Cache_Free(cache_user_t *c)
     }
 }
 
-static void* _Cache_Alloc(cache_user_t *c, i32 size, const char *name)
+void* Cache_Alloc(cache_user_t *c, i32 size, const char *name)
 {
     ASSERT(!IdAlloc_Exists(&ms_cache.ids, c->hdl.h));
     ASSERT(size >= 0);
@@ -289,6 +287,8 @@ static void* _Cache_Alloc(cache_user_t *c, i32 size, const char *name)
     {
         return NULL;
     }
+
+    Cache_Collect();
 
     GenId id = IdAlloc_Alloc(&ms_cache.ids);
     i32 len = ms_cache.ids.length;
@@ -305,31 +305,25 @@ static void* _Cache_Alloc(cache_user_t *c, i32 size, const char *name)
     StrCpy(ARGS(ms_cache.names[slot].c), name);
     ms_cache.bytesAllocated += size;
 
-    if (ms_cache.bytesAllocated >= (1 << 20))
-    {
-        const u8* pim_noalias versions = ms_cache.ids.versions;
-        const u64* pim_noalias ticks = ms_cache.ticks;
-        u64 now = Time_Now();
-        for (i32 i = 0; i < len; ++i)
-        {
-            if (versions[i] & 1)
-            {
-                if (Time_Sec(now - ticks[i]) > (60.0))
-                {
-                    cache_user_t user = { 0 };
-                    user.hdl.h.index = i;
-                    user.hdl.h.version = versions[i];
-                    _Cache_Free(&user);
-                }
-            }
-        }
-    }
-
     return allocation;
 }
 
-static void _Cache_Report(void)
+void _Cache_Report(void)
 {
-
+    float size = (float)(ms_cache.bytesAllocated) / (float)(1 << 20);
+    Con_DPrintf("%4.1f megabyte data cache\n", size);
 }
 
+// ----------------------------------------------------------------------------
+
+static bool ms_once;
+
+void Memory_Init(i32 size)
+{
+    ASSERT(!ms_once);
+    ms_once = true;
+    Hunk_Init(size);
+    Cache_Init();
+}
+
+#endif // QUAKE_IMPL

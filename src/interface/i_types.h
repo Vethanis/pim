@@ -48,7 +48,7 @@ typedef struct cachehdl_s { hdl_t h; } cachehdl_t;
 // type aliases
 
 typedef u8 byte;
-typedef i32 qboolean;
+typedef bool qboolean;
 typedef byte pixel_t; // a pixel can be one, two, or four bytes
 
 typedef float vec_t;
@@ -67,11 +67,7 @@ typedef i32 string_t;
 
 typedef struct sizebuf_s
 {
-    // TODO: remove allowoverflow, overflowed, and reallocate data
-    qboolean allowoverflow;
-    qboolean overflowed;
     u8 *data;
-    i32 maxsize;
     i32 cursize;
 } sizebuf_t;
 

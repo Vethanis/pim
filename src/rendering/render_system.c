@@ -696,8 +696,6 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     SPrintf(ARGS(mapname), "maps/%s.bsp", name);
     Con_Logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
-    bool loadlights = cvar_get_bool(&cv_r_qlights);
-
     char cratepath[PIM_PATH] = { 0 };
     SPrintf(ARGS(cratepath), "data/%s.crate", name);
     Crate* crate = Temp_Alloc(sizeof(*crate));
@@ -711,7 +709,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
 
     if (!loaded)
     {
-        loaded = LoadModelAsDrawables(mapname, Entities_Get(), loadlights);
+        loaded = LoadModelAsDrawables(mapname, Entities_Get());
     }
 
     if (loaded)

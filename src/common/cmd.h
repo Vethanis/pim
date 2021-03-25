@@ -22,6 +22,6 @@ void Cmd_Reg(const char* name, CmdFn fn);
 bool Cmd_Exists(const char* name);
 const char* Cmd_Complete(const char* namePart);
 cmdstat_t Cmd_Text(const char* text);
-const char* Cmd_Parse(const char* text, char** tokenOut);
+const char* Cmd_Parse(const char* text, char* tokenOut, i32 bufSize);
 
 PIM_C_END

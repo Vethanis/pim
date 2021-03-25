@@ -278,14 +278,13 @@ static bool IsLineEnding(char c)
     }
 }
 
-const char* Cmd_Parse(const char* text, char** tokenOut)
+const char* Cmd_Parse(const char* text, char* token, i32 tokenSize)
 {
     ASSERT(text);
-    ASSERT(tokenOut);
-    *tokenOut = NULL;
+    ASSERT(token);
+    ASSERT(tokenSize > 0);
     i32 len = 0;
     char c = 0;
-    char token[1024] = { 0 };
 
 wspace:
     // whitespace
@@ -318,41 +317,42 @@ wspace:
             ++text;
             if (!c || c == '"')
             {
-                ASSERT(len < NELEM(token));
-                token[len] = 0;
-                *tokenOut = StrDup(token, EAlloc_Temp);
+                NullTerminate(token, tokenSize, len);
                 return text;
             }
-            token[len] = c;
-            ++len;
+            if (len < tokenSize)
+            {
+                token[len] = c;
+                ++len;
+            }
         }
     }
 
     // special characters
     if (IsSpecialChar(c))
     {
-        ASSERT(len < NELEM(token));
-        token[len] = c;
-        ++len;
-        ASSERT(len < NELEM(token));
-        token[len] = 0;
-        *tokenOut = StrDup(token, EAlloc_Temp);
+        if (len < tokenSize)
+        {
+            token[len] = c;
+            ++len;
+        }
+        NullTerminate(token, tokenSize, len);
         return text + 1;
     }
 
     // words
     do
     {
-        ASSERT(len < NELEM(token));
-        token[len] = c;
-        ++len;
+        if (len < tokenSize)
+        {
+            token[len] = c;
+            ++len;
+        }
         ++text;
         c = *text;
-    } while (c > ' ' && !IsSpecialChar(c));
+    } while ((c > ' ') && !IsSpecialChar(c));
 
-    ASSERT(len < NELEM(token));
-    token[len] = 0;
-    *tokenOut = StrDup(token, EAlloc_Temp);
+    NullTerminate(token, tokenSize, len);
     return text;
 }
 
@@ -360,6 +360,7 @@ static char** cmd_tokenize(const char* text, i32* argcOut)
 {
     ASSERT(text);
     ASSERT(argcOut);
+    char stackToken[1024];
     i32 argc = 0;
     char** argv = NULL;
     i32 i = 0;
@@ -375,13 +376,13 @@ static char** cmd_tokenize(const char* text, i32* argcOut)
         {
             break;
         }
-        char* token = NULL;
-        text = Cmd_Parse(text, &token);
-        if (token)
+        stackToken[0] = 0;
+        text = Cmd_Parse(text, stackToken, NELEM(stackToken));
+        if (stackToken[0])
         {
             ++argc;
             argv = Mem_Realloc(EAlloc_Temp, argv, sizeof(*argv) * argc);
-            argv[argc - 1] = token;
+            argv[argc - 1] = StrDup(stackToken, EAlloc_Temp);
         }
     }
     *argcOut = argc;
