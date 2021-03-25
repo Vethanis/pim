@@ -228,7 +228,6 @@ extern cvar_t cv_v_gamma;// = { "gamma", "1", true };
 
 extern char g_com_gamedir[1024];
 extern char g_com_token[1024];
-extern char g_vabuf[1024];
 extern qboolean g_com_eof;
 extern i32 g_com_argc;
 extern char **g_com_argv;
@@ -392,17 +391,7 @@ extern i32 g_reinit_surfcache;
 //=====================================
 // progs
 
-const i32 g_type_size[ev_COUNT] =
-{
-    sizeof(i32) / 4,        // ev_void
-    sizeof(string_t) / 4,   // ev_string
-    sizeof(float) / 4,      // ev_float
-    sizeof(vec3_t) / 4,     // ev_vector
-    sizeof(i32) / 4,        // ev_entity
-    sizeof(i32) / 4,        // ev_field
-    sizeof(i32) / 4,        // ev_function
-    sizeof(isize) / 4,      // ev_pointer
-};
+extern const i32 g_type_size[ev_COUNT];
 
 extern dprograms_t *g_progs;
 extern dfunction_t *g_pr_functions;

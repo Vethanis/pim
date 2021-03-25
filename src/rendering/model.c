@@ -21,7 +21,6 @@
 #include "common/sort.h"
 #include "common/fnv1a.h"
 #include "common/cvar.h"
-#include "logic/progs.h"
 #include "rendering/camera.h"
 #include "quake/q_model.h"
 #include "stb/stb_image.h"
@@ -796,61 +795,13 @@ void ModelToDrawables(mmodel_t const *const model, Entities *const dr)
     ASSERT(!prevMesh.positions);
 }
 
-void LoadProgs(mmodel_t const *const model, bool loadlights)
-{
-    progs_t progs = { 0 };
-    progs_parse(&progs, model->entities);
-
-    Lights_Clear();
-    const float4x4 M = QuakeToRhsMeters();
-    const i32 numentities = progs.numentities;
-    pr_entity_t const *const entities = progs.entities;
-    for (i32 i = 0; i < numentities; ++i)
-    {
-        pr_entity_t ent = entities[i];
-        if ((ent.type >= pr_classname_light) && (ent.type <= pr_classname_light_torch_small_walltorch))
-        {
-            if (loadlights)
-            {
-                float rad = ent.light.light * 0.01f;
-                PtLight pt = { 0 };
-                pt.pos = f3_f4(ent.light.origin, 1.0f);
-                pt.pos = f4x4_mul_pt(M, pt.pos);
-                pt.pos.w = PowerToAttRadius(rad, 0.01f);
-                pt.rad = f4_s(rad);
-                pt.rad.w = 10.0f * kCenti;
-                Lights_AddPt(pt);
-            }
-        }
-        else if (ent.type == pr_classname_worldspawn)
-        {
-
-        }
-        else if (ent.type == pr_classname_info_player_start)
-        {
-            float4 pt = f3_f4(ent.playerstart.origin, 1.0f);
-            float yaw = ent.playerstart.angle;
-            quat rot = quat_angleaxis(yaw, f4_y);
-            pt = f4x4_mul_pt(M, pt);
-            Camera camera;
-            Camera_Get(&camera);
-            camera.position = pt;
-            camera.rotation = rot;
-            Camera_Set(&camera);
-        }
-    }
-
-    progs_del(&progs);
-}
-
-bool LoadModelAsDrawables(const char* name, Entities *const dr, bool loadlights)
+bool LoadModelAsDrawables(const char* name, Entities *const dr)
 {
     asset_t asset = { 0 };
     if (Asset_Get(name, &asset))
     {
         mmodel_t* model = LoadModel(name, asset.pData, EAlloc_Temp);
         ModelToDrawables(model, dr);
-        LoadProgs(model, loadlights);
         FreeModel(model);
         return true;
     }

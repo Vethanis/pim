@@ -19,65 +19,35 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-#include "interface/i_types.h"
+#include "common/macro.h"
 
-typedef struct I_Zone_s
-{
-    void(*_Memory_Init)(void *buf, i32 size);
+typedef struct cache_user_s cache_user_t;
 
-    void(*_Z_Free)(void *ptr);
-    // returns 0 filled memory
-    void*(*_Z_Malloc)(i32 size);
-    void*(*_Z_TagMalloc)(i32 size, i32 tag);
-    void(*_Z_DumpHeap)(void);
-    void(*_Z_CheckHeap)(void);
-    i32(*_Z_FreeMemory)(void);
+void Memory_Init(i32 size);
 
-    // returns 0 filled memory
-    void*(*_Hunk_Alloc)(i32 size);
-    void*(*_Hunk_AllocName)(i32 size, const char *name);
-    void*(*_Hunk_HighAllocName)(i32 size, const char *name);
-    i32(*_Hunk_LowMark)(void);
-    void(*_Hunk_FreeToLowMark)(i32 mark);
-    i32(*_Hunk_HighMark)(void);
-    void(*_Hunk_FreeToHighMark)(i32 mark);
-    void*(*_Hunk_TempAlloc)(i32 size);
-    void(*_Hunk_Check)(void);
+void Z_Free(void *ptr);
+// returns 0 filled memory
+void* Z_Malloc(i32 size);
+void* Z_TagMalloc(i32 size, i32 tag);
 
-    void(*_Cache_Flush)(void);
-    // returns the cached data, and moves to the head of the LRU list if present, otherwise returns NULL
-    void* (*_Cache_Check)(cache_user_t *c);
-    void(*_Cache_Free)(cache_user_t *c);
-    // Returns NULL if all purgable data was tossed and there still wasn't enough room.
-    void*(*_Cache_Alloc)(cache_user_t *c, i32 size, const char *name);
-    void(*_Cache_Report)(void);
-} I_Zone_t;
-extern const I_Zone_t I_Zone;
+// returns 0 filled memory
+void* Hunk_Alloc(i32 size);
+void* Hunk_AllocName(i32 size, const char *name);
+void* Hunk_HighAllocName(i32 size, const char *name);
+i32 Hunk_LowMark(void);
+void Hunk_FreeToLowMark(i32 mark);
+i32 Hunk_HighMark(void);
+void Hunk_FreeToHighMark(i32 mark);
+void* Hunk_TempAlloc(i32 size);
+void Hunk_Check(void);
 
-#define Memory_Init(...) I_Zone._Memory_Init(__VA_ARGS__)
-
-#define Z_Free(...) I_Zone._Z_Free(__VA_ARGS__)
-#define Z_Malloc(...) I_Zone._Z_Malloc(__VA_ARGS__)
-#define Z_TagMalloc(...) I_Zone._Z_TagMalloc(__VA_ARGS__)
-#define Z_DumpHeap(...) I_Zone._Z_DumpHeap(__VA_ARGS__)
-#define Z_CheckHeap(...) I_Zone._Z_CheckHeap(__VA_ARGS__)
-#define Z_FreeMemory(...) I_Zone._Z_FreeMemory(__VA_ARGS__)
-
-#define Hunk_Alloc(...) I_Zone._Hunk_Alloc(__VA_ARGS__)
-#define Hunk_AllocName(...) I_Zone._Hunk_AllocName(__VA_ARGS__)
-#define Hunk_HighAllocName(...) I_Zone._Hunk_HighAllocName(__VA_ARGS__)
-#define Hunk_LowMark(...) I_Zone._Hunk_LowMark(__VA_ARGS__)
-#define Hunk_FreeToLowMark(...) I_Zone._Hunk_FreeToLowMark(__VA_ARGS__)
-#define Hunk_HighMark(...) I_Zone._Hunk_HighMark(__VA_ARGS__)
-#define Hunk_FreeToHighMark(...) I_Zone._Hunk_FreeToHighMark(__VA_ARGS__)
-#define Hunk_TempAlloc(...) I_Zone._Hunk_TempAlloc(__VA_ARGS__)
-#define Hunk_Check(...) I_Zone._Hunk_Check(__VA_ARGS__)
-
-#define Cache_Flush(...) I_Zone._Cache_Flush(__VA_ARGS__)
-#define Cache_Check(...) I_Zone._Cache_Check(__VA_ARGS__)
-#define Cache_Free(...) I_Zone._Cache_Free(__VA_ARGS__)
-#define Cache_Alloc(...) I_Zone._Cache_Alloc(__VA_ARGS__)
-#define Cache_Report(...) I_Zone._Cache_Report(__VA_ARGS__)
+void Cache_Flush(void);
+// returns the cached data, and moves to the head of the LRU list if present, otherwise returns NULL
+void*  Cache_Check(cache_user_t *c);
+void Cache_Free(cache_user_t *c);
+// Returns NULL if all purgable data was tossed and there still wasn't enough room.
+void* Cache_Alloc(cache_user_t *c, i32 size, const char *name);
+void Cache_Report(void);
 
 /*
  memory allocation

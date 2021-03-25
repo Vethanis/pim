@@ -173,3 +173,5 @@ typedef struct hdl_s
 #endif // _DEBUG
 
 #define VKR_DEBUG_MESSENGER_ON      (VKR_KHRONOS_LAYER_ON || VKR_ASSIST_LAYER_ON)
+
+#define QUAKE_IMPL 0
