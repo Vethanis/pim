@@ -10,31 +10,45 @@ typedef struct task_ToLum
 {
     Task task;
     int2 size;
-    const float4* light;
-    float* averages;
+    const float4* pim_noalias light;
+    float* pim_noalias averages;
 } task_ToLum;
 
-static void CalcAverageFn(Task* pbase, i32 begin, i32 end)
+static void CalcAverageFn(void* pbase, i32 begin, i32 end)
 {
-    task_ToLum* task = (task_ToLum*)pbase;
+    task_ToLum* task = pbase;
     float* pim_noalias averages = task->averages;
     const float4* pim_noalias light = task->light;
     const int2 size = task->size;
-    const float weight = 1.0f / size.x;
+    const i32 kSamples = size.x;
+    const float weight = 1.0f / kSamples;
+    Prng rng = Prng_Get();
+    float2 Xi = f2_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
-        const float4* pim_noalias row = &light[size.x * i];
         float sum = 0.0f;
-        for (i32 j = 0; j < size.x; ++j)
+        for (i32 j = 0; j < kSamples; ++j)
         {
-            sum += f4_avglum(row[j]) * weight;
+            Xi.x = f1_wrap(Xi.x + kGoldenRatio - 1.0f);
+            Xi.y = f1_wrap(Xi.y + kSqrt2 - 1.0f);
+            float angle = Xi.x * kTau;
+            float radius = f1_gauss_invcdf(Xi.y, 0.0f, 0.25f);
+            float2 uv = f2_v(cosf(angle), sinf(angle));
+            uv = f2_mulvs(uv, radius);
+            uv = f2_unorm(uv);
+            i32 iTexel = UvClamp(size, uv);
+            sum += f4_perlum(light[iTexel]) * weight;
         }
         averages[i] = sum;
     }
+    Prng_Set(rng);
 }
 
+ProfileMark(pm_average, CalcAverage)
 static float CalcAverage(const float4* light, int2 size)
 {
+    ProfileBegin(pm_average);
+
     task_ToLum* task = Temp_Calloc(sizeof(*task));
     task->light = light;
     task->size = size;
@@ -48,6 +62,8 @@ static float CalcAverage(const float4* light, int2 size)
     {
         sum += averages[i] * weight;
     }
+
+    ProfileEnd(pm_average);
     return sum;
 }
 
@@ -70,6 +86,7 @@ static void ExposeFn(Task* pbase, i32 begin, i32 end)
     }
 }
 
+ProfileMark(pm_apply, ApplyExposure)
 ProfileMark(pm_exposeimg, ExposeImage)
 void ExposeImage(
     int2 size,
@@ -78,7 +95,7 @@ void ExposeImage(
 {
     ProfileBegin(pm_exposeimg);
 
-    parameters->deltaTime = f1_lerp(parameters->deltaTime, (float)Time_Deltaf(), 0.25f);
+    parameters->deltaTime = f1_lerp(parameters->deltaTime, (float)Time_Deltaf(), 0.5f);
 
     parameters->avgLum = AdaptLuminance(
         parameters->avgLum,
@@ -87,10 +104,12 @@ void ExposeImage(
         parameters->adaptRate);
     parameters->exposure = CalcExposure(parameters);
 
+    ProfileBegin(pm_apply);
     task_Expose* task = Temp_Calloc(sizeof(*task));
     task->light = light;
     task->exposure = parameters->exposure;
     Task_Run(&task->task, ExposeFn, size.x * size.y);
+    ProfileEnd(pm_apply);
 
     ProfileEnd(pm_exposeimg);
 }

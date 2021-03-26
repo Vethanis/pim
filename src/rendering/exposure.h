@@ -49,13 +49,13 @@ pim_inline float LumToEV100(float Lavg)
     // S = 100
     // K = 12.5
     // S/K = 8
-    return log2f(Lavg * 8.0f);
+    return log2f(Lavg) + 3.0f;
 }
 
 // https://www.desmos.com/calculator/vorr8hwdl7
 pim_inline float EV100ToLum(float ev100)
 {
-    return exp2f(ev100) / 8.0f;
+    return exp2f(ev100 - 3.0f);
 }
 
 pim_inline float SaturationExposure(float ev100)

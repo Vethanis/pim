@@ -40,12 +40,12 @@ struct vkrExposure
 
 float LumToEV100(float Lavg)
 {
-    return log2(Lavg * 8.0);
+    return log2(Lavg) + 3.0;
 }
 
 float EV100ToLum(float ev100)
 {
-    return exp2(ev100) / 8.0;
+    return exp2(ev100 - 3.0);
 }
 
 uint LumToBin(float lum, float minEV, float maxEV)

@@ -151,13 +151,17 @@ static ConVar_t cv_r_sun_col =
     .value = "1 1 1 1",
     .desc = "Sun Color",
 };
+// https://en.wikipedia.org/wiki/Orders_of_magnitude_(luminance)
+// noon: around 2^31
+// sunrise: around 2^20
+// night: around 2^-10
 static ConVar_t cv_r_sun_lum =
 {
     .type = cvart_float,
     .name = "r_sun_lum",
-    .value = "12.0",
-    .minFloat = -20.0f,
-    .maxFloat = 20.0f,
+    .value = "16.0",
+    .minFloat = -10.0f,
+    .maxFloat = 31.0f,
     .desc = "Log2 Sun Luminance",
 };
 static ConVar_t cv_r_sun_res =
@@ -227,8 +231,7 @@ static FrameBuf ms_buffers[2];
 static i32 ms_iFrame;
 
 static TonemapId ms_tonemapper = TMap_Uncharted2;
-static float4 ms_toneParams;
-static float4 ms_clearColor;
+static float4 ms_toneParams = { 1.0f, 0.5f, 0.5f, 0.5f };
 static vkrExposure ms_exposure =
 {
     .manual = false,
@@ -238,12 +241,12 @@ static vkrExposure ms_exposure =
     .shutterTime = 0.1f,
     .ISO = 100.0f,
 
-    .adaptRate = 0.3f,
+    .adaptRate = 1.0f,
     .offsetEV = 0.0f,
     .minCdf = 0.05f,
     .maxCdf = 0.95f,
-    .minEV = -5.0f,
-    .maxEV = 5.0f,
+    .minEV = -10.0f,
+    .maxEV = 31.0f,
 };
 
 static Camera ms_ptcam;
@@ -868,12 +871,6 @@ void RenderSys_Init(void)
     EntSys_Init();
     EnsureFramebuf();
 
-    ms_toneParams.x = 0.3f; // shoulder
-    ms_toneParams.y = 0.5f; // linear str
-    ms_toneParams.z = 0.15f; // linear ang
-    ms_toneParams.w = 0.3f; // toe
-    ms_clearColor = f4_v(0.01f, 0.012f, 0.022f, 0.0f);
-
     Con_Exec("mapload start");
 }
 
@@ -954,12 +951,19 @@ void RenderSys_Gui(bool* pEnabled)
         if (igTreeNodeExStr("Tonemapping", ImGuiTreeNodeFlags_Framed))
         {
             igComboStr_arr("Operator", (i32*)&ms_tonemapper, Tonemap_Names(), TMap_COUNT, -1);
-            if (ms_tonemapper == TMap_Hable)
+            switch (ms_tonemapper)
             {
+            default:
+                break;
+            case TMap_Reinhard:
+                igExSliderFloat("White Point", &ms_toneParams.x, 0.1f, 10.0f);
+                break;
+            case TMap_Hable:
                 igExSliderFloat("Shoulder Strength", &ms_toneParams.x, 0.01f, 0.99f);
                 igExSliderFloat("Linear Strength", &ms_toneParams.y, 0.01f, 0.99f);
                 igExSliderFloat("Linear Angle", &ms_toneParams.z, 0.01f, 0.99f);
                 igExSliderFloat("Toe Strength", &ms_toneParams.w, 0.01f, 0.99f);
+                break;
             }
             igTreePop();
         }
@@ -990,8 +994,8 @@ void RenderSys_Gui(bool* pEnabled)
                 igExSliderFloat("Adapt Rate", &exposure->adaptRate, 0.1f, 10.0f);
                 igExSliderFloat("Hist Cdf Min", &exposure->minCdf, 0.0f, exposure->maxCdf - 0.01f);
                 igExSliderFloat("Hist Cdf Max", &exposure->maxCdf, exposure->minCdf + 0.01f, 1.0f);
-                igExSliderFloat("Min EV", &exposure->minEV, -22.0f, exposure->maxEV - 0.1f);
-                igExSliderFloat("Max EV", &exposure->maxEV, exposure->minEV + 0.1f, 22.0f);
+                igExSliderFloat("Min EV", &exposure->minEV, -30.0f, exposure->maxEV - 0.1f);
+                igExSliderFloat("Max EV", &exposure->maxEV, exposure->minEV + 0.1f, 31.0f);
             }
             igTreePop();
         }
