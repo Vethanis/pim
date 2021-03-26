@@ -180,16 +180,23 @@ pim_inline float4 VEC_CALL f4_desaturate(float4 src, float amt)
     return f4_lerpvs(src, f4_s(lum), amt);
 }
 
-pim_inline float VEC_CALL tmap1_reinhard(float x)
+pim_inline float4 VEC_CALL f4_setlum(float4 x, float oldLum, float newLum)
 {
-    float y = x / (1.0f + x);
-    return y;
+    return f4_mulvs(x, newLum / f1_max(kEpsilon, oldLum));
 }
 
-pim_inline float4 VEC_CALL tmap4_reinhard(float4 x)
+pim_inline float4 VEC_CALL tmap4_reinhard_lum(float4 x, float wp)
 {
-    float4 y = f4_div(x, f4_addvs(x, 1.0f));
-    return y;
+    float l0 = f4_avglum(x) + kEpsilon;
+    float n = l0 * (1.0f + (l0 / (wp * wp)));
+    float l1 = n / (1.0f + l0);
+    return f4_setlum(x, l0, l1);
+}
+
+pim_inline float4 VEC_CALL tmap4_reinhard_rgb(float4 x, float wp)
+{
+    float4 n = f4_mul(x, f4_addvs(f4_divvs(x, wp * wp), 1.0f));
+    return f4_div(n, f4_addvs(x, 1.0f));
 }
 
 // https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/

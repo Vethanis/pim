@@ -220,7 +220,7 @@ pim_inline float VEC_CALL f1_wsinc(float x, float r, float t)
 // returns: P(x <= X <= x+dx), probability density of distribution X at x
 pim_inline float VEC_CALL f1_gauss(float x, float u, float s)
 {
-    return expf(-0.5f * (f1_sq(x - u) / f1_sq(s))) / (s * 2.50662827463f);
+    return expf(-0.5f * f1_sq((x - u) / s)) / (s * 2.50662827463f);
 }
 
 // technically a positive-only half-gauss.

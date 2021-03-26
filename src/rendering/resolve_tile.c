@@ -25,14 +25,14 @@ pim_inline u32 VEC_CALL ToColor(Prng *const pim_noalias rng, float4 linear)
 }
 
 static void VEC_CALL ResolveReinhard(
-    i32 begin, i32 end, FrameBuf* target)
+    i32 begin, i32 end, FrameBuf* target, float4 params)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
     Prng rng = Prng_Get();
     for (i32 i = begin; i < end; ++i)
     {
-        color[i] = ToColor(&rng, tmap4_reinhard(light[i]));
+        color[i] = ToColor(&rng, tmap4_reinhard_lum(light[i], params.x));
     }
     Prng_Set(rng);
 }
@@ -105,7 +105,7 @@ static void ResolveTileFn(Task* task, i32 begin, i32 end)
     {
     default:
     case TMap_Reinhard:
-        ResolveReinhard(begin, end, target);
+        ResolveReinhard(begin, end, target, params);
         break;
     case TMap_Uncharted2:
         ResolveUncharted2(begin, end, target);

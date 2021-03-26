@@ -1659,7 +1659,7 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
         {
             for (i32 j = 0; j < len; ++j)
             {
-                float4 ldr = tmap4_reinhard(f3_f4(srcBuffer[j], 1.0f));
+                float4 ldr = tmap4_reinhard_lum(f3_f4(srcBuffer[j], 1.0f), 10.0f);
                 u32 color = LinearToColor(ldr);
                 color |= 0xff << 24;
                 buffer[j] = color;
