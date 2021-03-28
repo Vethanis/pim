@@ -89,12 +89,12 @@ typedef struct cache_user_s
 
 typedef struct cvar_s
 {
-    char *name;
-    char *string;
+    const char *name;
+    const char *defaultValue;
     qboolean archive;   // set to true to cause it to be saved to vars.rc
     qboolean server;    // notifies players when changed
     float value;
-    struct cvar_s *next;
+    char* stringValue;
 } cvar_t;
 
 //=====================================
@@ -110,11 +110,9 @@ typedef void(*xcommand_t)(void);
 // available for the program to use
 typedef struct quakeparms_s
 {
-    char *basedir;
-    char *cachedir; // for development over ISDN lines
+    const char *basedir;
+    const char * const* argv;
     i32 argc;
-    char **argv;
-    void *membase;
     i32 memsize;
 } quakeparms_t;
 

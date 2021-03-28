@@ -22,42 +22,28 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "interface/i_types.h"
 
-typedef struct I_Cvar_s
-{
-    // registers a cvar that allready has the name, string, and optionally the
-    // archive elements set.
-    void _Cvar_RegisterVariable(cvar_t *variable);
-    // equivelant to "<name> <variable>" typed at the console
-    void _Cvar_Set(const char *var_name, const char *value);
-    // expands value to a string and calls Cvar_Set
-    void _Cvar_SetValue(const char *var_name, float value);
-    // returns 0 if not defined or non numeric
-    float _Cvar_VariableValue(const char *var_name);
-    // returns an empty string if not defined
-    const char* _Cvar_VariableString(const char *var_name);
-    // attempts to match a partial variable name for command line completion
-    // returns NULL if nothing fits
-    const char* _Cvar_CompleteVariable(const char *partial);
-    // called by Cmd_ExecuteString when Cmd_Argv(0) doesn't match a known
-    // command.  Returns true if the command was a variable reference that
-    // was handled. (print or change)
-    qboolean _Cvar_Command(void);
-    // Writes lines containing "set variable value" for all variables
-    // with the archive flag set to true.
-    void _Cvar_WriteVariables(filehdl_t file);
-    cvar_t* _Cvar_FindVar(const char *var_name);
-} I_Cvar_t;
-extern I_Cvar_t I_Cvar;
-
-#define Cvar_RegisterVariable(...) I_Cvar._Cvar_RegisterVariable(__VA_ARGS__)
-#define Cvar_Set(...) I_Cvar._Cvar_Set(__VA_ARGS__)
-#define Cvar_SetValue(...) I_Cvar._Cvar_SetValue(__VA_ARGS__)
-#define Cvar_VariableValue(...) I_Cvar._Cvar_VariableValue(__VA_ARGS__)
-#define Cvar_VariableString(...) I_Cvar._Cvar_VariableString(__VA_ARGS__)
-#define Cvar_CompleteVariable(...) I_Cvar._Cvar_CompleteVariable(__VA_ARGS__)
-#define Cvar_Command(...) I_Cvar._Cvar_Command(__VA_ARGS__)
-#define Cvar_WriteVariables(...) I_Cvar._Cvar_WriteVariables(__VA_ARGS__)
-#define Cvar_FindVar(...) I_Cvar._Cvar_FindVar(__VA_ARGS__)
+// registers a cvar that allready has the name, string, and optionally the
+// archive elements set.
+void Cvar_RegisterVariable(cvar_t *variable);
+// equivelant to "<name> <variable>" typed at the console
+void Cvar_Set(const char *var_name, const char *value);
+// expands value to a string and calls Cvar_Set
+void Cvar_SetValue(const char *var_name, float value);
+// returns 0 if not defined or non numeric
+float Cvar_VariableValue(const char *var_name);
+// returns an empty string if not defined
+const char* Cvar_VariableString(const char *var_name);
+// attempts to match a partial variable name for command line completion
+// returns NULL if nothing fits
+const char* Cvar_CompleteVariable(const char *partial);
+// called by Cmd_ExecuteString when Cmd_Argv(0) doesn't match a known
+// command.  Returns true if the command was a variable reference that
+// was handled. (print or change)
+qboolean Cvar_Command(void);
+// Writes lines containing "set variable value" for all variables
+// with the archive flag set to true.
+void Cvar_WriteVariables(filehdl_t file);
+cvar_t* Cvar_FindVar(const char *var_name);
 
 /*
 

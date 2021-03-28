@@ -124,13 +124,16 @@ SASSERT(sizeof(u32) == 4);
 SASSERT(sizeof(i64) == 8);
 SASSERT(sizeof(u64) == 8);
 
+#ifdef _MSC_VER
+// msvc has bloated headers (sal.h!)
+
 #ifndef NULL
 #   ifdef __cplusplus
 #       define NULL     0
 #   else
 #       define NULL     ((void*)0)
 #   endif // cpp
-#endif
+#endif // NULL
 
 #ifndef _STDBOOL
 #   define _STDBOOL
@@ -141,6 +144,28 @@ SASSERT(sizeof(u64) == 8);
 #       define true     1
 #   endif // __cplusplus
 #endif // _STDBOOL
+
+#ifndef _VA_LIST_DEFINED
+#   define _VA_LIST_DEFINED
+    typedef char* va_list;
+#endif // _VA_LIST_DEFINED
+
+#ifndef _JMP_BUF_DEFINED
+#   define _JMP_BUF_DEFINED
+    typedef struct pim_alignas(16) JmpBufElem_s
+    {
+        unsigned __int64 Part[2];
+    } JmpBufElem;
+    typedef JmpBufElem jmp_buf[16];
+#endif // _JMP_BUF_DEFINED
+
+#else
+#include <stddef.h>
+#include <stdbool.h>
+#include <stdarg.h>
+#include <setjmp.h>
+
+#endif // _MSC_VER
 
 typedef enum
 {

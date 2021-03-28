@@ -50,67 +50,36 @@ typedef struct ConVar_s
 } ConVar_t;
 
 // registers your cvar to the cvar system
-void cvar_reg(ConVar_t* ptr);
+void ConVar_Reg(ConVar_t* ptr);
 
 // attempts to find a cvar with matching name
-ConVar_t* cvar_find(const char* name);
+ConVar_t* ConVar_Find(const char* name);
 
 // attempts to auto-complete namePart to a cvar name
-const char* cvar_complete(const char* namePart);
+const char* ConVar_Complete(const char* namePart);
 
 // updates string and float value, sets dirty flag
-void cvar_set_str(ConVar_t* ptr, const char* value);
-void cvar_set_float(ConVar_t* ptr, float value);
-void cvar_set_int(ConVar_t* ptr, i32 value);
-void cvar_set_vec(ConVar_t* ptr, float4 value);
-void cvar_set_bool(ConVar_t* ptr, bool value);
+void ConVar_SetStr(ConVar_t* ptr, const char* value);
+void ConVar_SetFloat(ConVar_t* ptr, float value);
+void ConVar_SetInt(ConVar_t* ptr, i32 value);
+void ConVar_SetVec(ConVar_t* ptr, float4 value);
+void ConVar_SetBool(ConVar_t* ptr, bool value);
 
-pim_inline bool cvar_is_vec(const ConVar_t* ptr)
-{
-    switch (ptr->type)
-    {
-    default:
-        return false;
-    case cvart_vector:
-    case cvart_point:
-    case cvart_color:
-        return true;
-    }
-}
+bool ConVar_IsVec(const ConVar_t* ptr);
 
-pim_inline const char* cvar_get_str(const ConVar_t* ptr)
-{
-    ASSERT(ptr->type == cvart_text);
-    return ptr->value;
-}
-pim_inline float cvar_get_float(const ConVar_t* ptr)
-{
-    ASSERT(ptr->type == cvart_float);
-    return ptr->asFloat;
-}
-pim_inline i32 cvar_get_int(const ConVar_t* ptr)
-{
-    ASSERT(ptr->type == cvart_int);
-    return ptr->asInt;
-}
-pim_inline float4 cvar_get_vec(const ConVar_t* ptr)
-{
-    ASSERT(cvar_is_vec(ptr));
-    return ptr->asVector;
-}
-pim_inline bool cvar_get_bool(const ConVar_t* ptr)
-{
-    ASSERT(ptr->type == cvart_bool);
-    return ptr->asBool;
-}
+const char* ConVar_GetStr(const ConVar_t* ptr);
+float ConVar_GetFloat(const ConVar_t* ptr);
+i32 ConVar_GetInt(const ConVar_t* ptr);
+float4 ConVar_GetVec(const ConVar_t* ptr);
+bool ConVar_GetBool(const ConVar_t* ptr);
 
-pim_inline void cvar_toggle(ConVar_t* ptr) { cvar_set_bool(ptr, !cvar_get_bool(ptr)); }
+void ConVar_Toggle(ConVar_t* ptr);
 
 // checks and clears dirty flag
-bool cvar_check_dirty(ConVar_t* ptr);
+bool ConVar_CheckDirty(ConVar_t* ptr);
 
 // displays the cvar gui
-void cvar_gui(bool* pEnabled);
+void ConVar_Gui(bool* pEnabled);
 
 
 PIM_C_END

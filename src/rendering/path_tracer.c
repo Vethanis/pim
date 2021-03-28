@@ -499,10 +499,10 @@ static void InitSamplers(void)
 
 void PtSys_Init(void)
 {
-    cvar_reg(&cv_pt_dist_meters);
-    cvar_reg(&cv_pt_dist_alpha);
-    cvar_reg(&cv_pt_dist_samples);
-    cvar_reg(&cv_pt_retro);
+    ConVar_Reg(&cv_pt_dist_meters);
+    ConVar_Reg(&cv_pt_dist_alpha);
+    ConVar_Reg(&cv_pt_dist_samples);
+    ConVar_Reg(&cv_pt_retro);
 
     InitRTC();
     InitSamplers();
@@ -1004,7 +1004,7 @@ static void SetupLightGridFn(Task* pbase, i32 begin, i32 end)
     const i32 emissiveCount = scene->emissiveCount;
     i32 const *const pim_noalias emitToVert = scene->emitToVert;
 
-    const float metersPerCell = cvar_get_float(&cv_pt_dist_meters);
+    const float metersPerCell = ConVar_GetFloat(&cv_pt_dist_meters);
     const float radius = metersPerCell * 0.666f;
     PtSampler sampler = GetSampler();
 
@@ -1098,7 +1098,7 @@ static void SetupLightGrid(PtScene*const pim_noalias scene)
     if (scene->vertCount > 0)
     {
         Box3D bounds = box_from_pts(scene->positions, scene->vertCount);
-        float metersPerCell = cvar_get_float(&cv_pt_dist_meters);
+        float metersPerCell = ConVar_GetFloat(&cv_pt_dist_meters);
         Grid grid;
         Grid_New(&grid, bounds, 1.0f / metersPerCell);
         const i32 len = Grid_Len(&grid);
@@ -1383,7 +1383,7 @@ pim_inline float4 VEC_CALL GetSky(
     float4 rd,
     RayHit hit)
 {
-    if (cvar_get_bool(&cv_pt_retro))
+    if (ConVar_GetBool(&cv_pt_retro))
     {
         const Material* mat = GetMaterial(scene, hit);
         const Texture* tex = Texture_Get(mat->albedo);
@@ -2961,8 +2961,8 @@ static void UpdateDists(PtScene*const pim_noalias scene)
     ProfileBegin(pm_updatedists);
     TaskUpdateDists *const pim_noalias task = Temp_Calloc(sizeof(*task));
     task->scene = scene;
-    task->alpha = cvar_get_float(&cv_pt_dist_alpha);
-    task->minSamples = cvar_get_int(&cv_pt_dist_samples);
+    task->alpha = ConVar_GetFloat(&cv_pt_dist_alpha);
+    task->minSamples = ConVar_GetInt(&cv_pt_dist_samples);
     i32 worklen = Grid_Len(&scene->lightGrid);
     Task_Run(task, UpdateDistsFn, worklen);
     ProfileEnd(pm_updatedists);
@@ -3017,7 +3017,7 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
     const float2 slope = proj_slope(f1_radians(camera.fovy), (float)size.x / (float)size.y);
     const DofInfo dof = trace->dofinfo;
 
-    const bool pt_retro = cvar_get_bool(&cv_pt_retro);
+    const bool pt_retro = ConVar_GetBool(&cv_pt_retro);
 
     PtSampler sampler = GetSampler();
     for (i32 i = begin; i < end; ++i)

@@ -148,29 +148,29 @@ bool Crate_Open(Crate *const crate, const char* path)
 {
     memset(crate, 0, sizeof(*crate));
     bool exists = true;
-    FileStream file = FileStream_Open(path, "rb+");
-    if (!FileStream_IsOpen(file))
+    FStream file = FStream_Open(path, "rb+");
+    if (!FStream_IsOpen(file))
     {
         exists = false;
-        file = FileStream_Open(path, "wb+");
+        file = FStream_Open(path, "wb+");
     }
-    if (!FileStream_IsOpen(file))
+    if (!FStream_IsOpen(file))
     {
         return false;
     }
     crate->file = file;
-    FileStream_Seek(file, 0);
+    FStream_Seek(file, 0);
     if (exists)
     {
-        FileStream_Read(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
+        FStream_Read(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
     }
     else
     {
         crate->offsets[0] = kHeaderSize;
         crate->sizes[0] = 1 << 30;
-        FileStream_Write(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
+        FStream_Write(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
     }
-    FileStream_Seek(file, kHeaderSize);
+    FStream_Seek(file, kHeaderSize);
     return true;
 }
 
@@ -179,13 +179,13 @@ bool Crate_Close(Crate *const crate)
     bool wasopen = false;
     if (crate)
     {
-        FileStream file = crate->file;
-        if (FileStream_IsOpen(file))
+        FStream file = crate->file;
+        if (FStream_IsOpen(file))
         {
-            FileStream_Seek(file, 0);
-            FileStream_Write(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
-            FileStream_Flush(file);
-            FileStream_Close(&file);
+            FStream_Seek(file, 0);
+            FStream_Write(file, crate->ids, sizeof(crate->ids) + sizeof(crate->offsets) + sizeof(crate->sizes));
+            FStream_Flush(file);
+            FStream_Close(&file);
             wasopen = true;
         }
         memset(crate, 0, sizeof(*crate));
@@ -199,8 +199,8 @@ bool Crate_Get(Crate *const crate, Guid id, void* dst, i32 size)
     ASSERT(size > 0);
     ASSERT(!Guid_IsNull(id));
 
-    FileStream file = crate->file;
-    ASSERT(FileStream_IsOpen(file));
+    FStream file = crate->file;
+    ASSERT(FStream_IsOpen(file));
 
     i32 slot = crate_find(crate, id);
     if (slot >= 0)
@@ -212,8 +212,8 @@ bool Crate_Get(Crate *const crate, Guid id, void* dst, i32 size)
             ASSERT(false);
             return false;
         }
-        FileStream_Seek(file, offset);
-        return FileStream_Read(file, dst, size) == size;
+        FStream_Seek(file, offset);
+        return FStream_Read(file, dst, size) == size;
     }
     return false;
 }
@@ -224,8 +224,8 @@ bool Crate_Set(Crate *const crate, Guid id, const void* src, i32 size)
     ASSERT(size > 0);
     ASSERT(!Guid_IsNull(id));
 
-    FileStream file = crate->file;
-    ASSERT(FileStream_IsOpen(file));
+    FStream file = crate->file;
+    ASSERT(FStream_IsOpen(file));
 
     i32 slot = crate_find(crate, id);
     i32 offset = -1;
@@ -253,8 +253,8 @@ writefile:
     offset = crate->offsets[slot];
     ASSERT(offset >= kHeaderSize);
     ASSERT(crate->sizes[slot] >= size);
-    FileStream_Seek(file, offset);
-    bool wroteAll = FileStream_Write(file, src, size) == size;
+    FStream_Seek(file, offset);
+    bool wroteAll = FStream_Write(file, src, size) == size;
     ASSERT(wroteAll);
     return wroteAll;
 }

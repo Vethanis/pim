@@ -1,6 +1,7 @@
 #include "io/fstr.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 
 static i32 NotNeg(i32 x)
 {
@@ -29,20 +30,20 @@ static i32 IsZero(i32 x)
     return x;
 }
 
-bool FileStream_IsOpen(FileStream fstr)
+bool FStream_IsOpen(FStream fstr)
 {
     return fstr.handle != NULL;
 }
 
-FileStream FileStream_Open(const char* filename, const char* mode)
+FStream FStream_Open(const char* filename, const char* mode)
 {
     ASSERT(filename);
     ASSERT(mode);
     void* ptr = fopen(filename, mode);
-    return (FileStream) { ptr };
+    return (FStream) { ptr };
 }
 
-bool FileStream_Close(FileStream* stream)
+bool FStream_Close(FStream* stream)
 {
     ASSERT(stream);
     FILE* file = stream->handle;
@@ -54,14 +55,14 @@ bool FileStream_Close(FileStream* stream)
     return false;
 }
 
-bool FileStream_Flush(FileStream stream)
+bool FStream_Flush(FStream stream)
 {
     FILE* file = stream.handle;
     ASSERT(file);
     return IsZero(fflush(file)) == 0;
 }
 
-i32 FileStream_Read(FileStream stream, void* dst, i32 size)
+i32 FStream_Read(FStream stream, void* dst, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -75,7 +76,7 @@ i32 FileStream_Read(FileStream stream, void* dst, i32 size)
     return (ct == 1) ? size : 0;
 }
 
-i32 FileStream_Write(FileStream stream, const void* src, i32 size)
+i32 FStream_Write(FStream stream, const void* src, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -89,7 +90,7 @@ i32 FileStream_Write(FileStream stream, const void* src, i32 size)
     return (ct == 1) ? size : 0;
 }
 
-bool FileStream_Gets(FileStream stream, char* dst, i32 size)
+bool FStream_Gets(FStream stream, char* dst, i32 size)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -98,7 +99,7 @@ bool FileStream_Gets(FileStream stream, char* dst, i32 size)
     return NotNull(fgets(dst, size - 1, file)) != NULL;
 }
 
-i32 FileStream_Puts(FileStream stream, const char* src)
+i32 FStream_Puts(FStream stream, const char* src)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -111,24 +112,42 @@ i32 FileStream_Puts(FileStream stream, const char* src)
     return rval;
 }
 
-fd_t FileStream_ToFd(FileStream stream)
+i32 FStream_VPrintf(FStream stream, const char* fmt, va_list ap)
+{
+    FILE* file = stream.handle;
+    ASSERT(file);
+    ASSERT(fmt);
+    i32 rval = NotNeg(vfprintf(file, fmt, ap));
+    return rval;
+}
+
+i32 FStream_Printf(FStream stream, const char* fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    i32 rval = FStream_VPrintf(stream, fmt, ap);
+    va_end(ap);
+    return rval;
+}
+
+fd_t FStream_ToFd(FStream stream)
 {
     FILE* file = stream.handle;
     ASSERT(file);
     return (fd_t) { NotNeg(_fileno(file)) };
 }
 
-FileStream Fd_ToFileStream(fd_t* pFD, const char* mode)
+FStream Fd_ToFStream(fd_t* pFD, const char* mode)
 {
     ASSERT(pFD);
     i32 fd = pFD->handle;
     pFD->handle = -1;
     ASSERT(fd >= 0);
     FILE* ptr = _fdopen(fd, mode);
-    return (FileStream) { NotNull(ptr) };
+    return (FStream) { NotNull(ptr) };
 }
 
-bool FileStream_Seek(FileStream stream, i32 offset)
+bool FStream_Seek(FStream stream, i32 offset)
 {
     FILE* file = stream.handle;
     ASSERT(file);
@@ -136,22 +155,22 @@ bool FileStream_Seek(FileStream stream, i32 offset)
     return NotNeg(fseek(file, offset, SEEK_SET)) >= 0;
 }
 
-i32 FileStream_Tell(FileStream stream)
+i32 FStream_Tell(FStream stream)
 {
     FILE* file = stream.handle;
     ASSERT(file);
     return NotNeg(ftell(file));
 }
 
-FileStream FileStream_ProcOpen(const char* cmd, const char* mode)
+FStream FStream_POpen(const char* cmd, const char* mode)
 {
     ASSERT(cmd);
     ASSERT(mode);
     FILE* file = _popen(cmd, mode);
-    return (FileStream) { NotNull(file) };
+    return (FStream) { NotNull(file) };
 }
 
-bool FileStream_ProcClose(FileStream* pStream)
+bool FStream_PClose(FStream* pStream)
 {
     ASSERT(pStream);
     FILE* file = pStream->handle;
@@ -163,14 +182,14 @@ bool FileStream_ProcClose(FileStream* pStream)
     return false;
 }
 
-bool FileStream_Stat(FileStream stream, fd_status_t* status)
+bool FStream_Stat(FStream stream, fd_status_t* status)
 {
-    return fd_stat(FileStream_ToFd(stream), status);
+    return fd_stat(FStream_ToFd(stream), status);
 }
 
-i64 FileStream_Size(FileStream stream)
+i64 FStream_Size(FStream stream)
 {
     fd_status_t status;
-    FileStream_Stat(stream, &status);
+    FStream_Stat(stream, &status);
     return status.st_size;
 }

@@ -39,7 +39,7 @@ static void Init(void)
     MemSys_Init();
     SerSys_Init();
     WinSys_Init();
-    CmdSys_Init();
+    cmd_sys_init();
     ConSys_Init();
     TaskSys_Init();
     AssetSys_Init();
@@ -62,7 +62,7 @@ static void Shutdown(void)
     AssetSys_Shutdown();
     TaskSys_Shutdown();
     ConSys_Shutdown();
-    CmdSys_Shutdown();
+    cmd_sys_shutdown();
     WinSys_Shutdown();
     SerSys_Shutdown();
     MemSys_Shutdown();
@@ -84,7 +84,7 @@ ProfileMark(pm_simulate, SimulatePhase)
 static void SimulatePhase(void)
 {
     ProfileBegin(pm_simulate);
-    CmdSys_Update();
+    cmd_sys_update();
     LogicSys_Update();         // update game simulation
     TaskSys_Update();          // schedule tasks
     ProfileEnd(pm_simulate);

@@ -104,7 +104,7 @@ static void UpdateOpacity(void)
 {
     ImGuiStyle *const style = igGetStyle();
     ImVec4* colors = style->Colors;
-    float opacity = cvar_get_float(&cv_ui_opacity);
+    float opacity = ConVar_GetFloat(&cv_ui_opacity);
     for (i32 i = 0; i < NELEM(style->Colors); ++i)
     {
         colors[i].w = opacity;
@@ -121,7 +121,7 @@ void UiSys_Init(GLFWwindow* window)
     cv_ui_opacity.minFloat = 0.1f;
     cv_ui_opacity.maxFloat = 1.0f;
     cv_ui_opacity.desc = "UI Opacity";
-    cvar_reg(&cv_ui_opacity);
+    ConVar_Reg(&cv_ui_opacity);
     ASSERT(igDebugCheckVersionAndDataLayout(
         "1.80", // cimgui does not export this! :(
         sizeof(ImGuiIO),
@@ -144,7 +144,7 @@ void UiSys_BeginFrame(void)
 {
     ProfileBegin(pm_beginframe);
 
-    if (cvar_check_dirty(&cv_ui_opacity))
+    if (ConVar_CheckDirty(&cv_ui_opacity))
     {
         UpdateOpacity();
     }

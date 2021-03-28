@@ -33,17 +33,17 @@ static i32 ms_waits;
 
 // ----------------------------------------------------------------------------
 
-void CmdSys_Init(void)
+void cmd_sys_init(void)
 {
-    StrDict_New(&ms_cmds, sizeof(CmdFn), EAlloc_Perm);
+    StrDict_New(&ms_cmds, sizeof(cmd_fn_t), EAlloc_Perm);
     StrDict_New(&ms_aliases, sizeof(cmdalias_t), EAlloc_Perm);
     Queue_New(&ms_queue, sizeof(char*), EAlloc_Perm);
-    Cmd_Reg("alias", cmd_alias_fn);
-    Cmd_Reg("exec", cmd_execfile_fn);
-    Cmd_Reg("wait", cmd_wait_fn);
+    cmd_reg("alias", cmd_alias_fn);
+    cmd_reg("exec", cmd_execfile_fn);
+    cmd_reg("wait", cmd_wait_fn);
 }
 
-void CmdSys_Update(void)
+void cmd_sys_update(void)
 {
     if (ms_waits > 0)
     {
@@ -53,7 +53,7 @@ void CmdSys_Update(void)
     ExecCmds();
 }
 
-void CmdSys_Shutdown(void)
+void cmd_sys_shutdown(void)
 {
     StrDict_Del(&ms_cmds);
     StrDict_Del(&ms_aliases);
@@ -65,7 +65,7 @@ void CmdSys_Shutdown(void)
     Queue_Del(&ms_queue);
 }
 
-void Cmd_Reg(const char* name, CmdFn fn)
+void cmd_reg(const char* name, cmd_fn_t fn)
 {
     ASSERT(name);
     ASSERT(fn);
@@ -75,13 +75,13 @@ void Cmd_Reg(const char* name, CmdFn fn)
     }
 }
 
-bool Cmd_Exists(const char* name)
+bool cmd_exists(const char* name)
 {
     ASSERT(name);
     return StrDict_Find(&ms_cmds, name) != -1;
 }
 
-const char* Cmd_Complete(const char* namePart)
+const char* cmd_complete(const char* namePart)
 {
     ASSERT(namePart);
     const i32 partLen = StrLen(namePart);
@@ -115,7 +115,7 @@ static cmdstat_t cmd_exec(const char* line)
     ASSERT(name);
 
     // commands
-    CmdFn cmd = NULL;
+    cmd_fn_t cmd = NULL;
     if (StrDict_Get(&ms_cmds, name, &cmd))
     {
         return cmd(argc, argv);
@@ -131,7 +131,7 @@ static cmdstat_t cmd_exec(const char* line)
     }
 
     // cvars
-    ConVar_t* cvar = cvar_find(name);
+    ConVar_t* cvar = ConVar_Find(name);
     if (cvar)
     {
         if (argc == 1)
@@ -157,21 +157,21 @@ static cmdstat_t cmd_exec(const char* line)
                 Con_Logf(LogSev_Error, "cmd", "cvar '%s' has unknown type '%d'", cvar->name, cvar->type);
                 return cmdstat_err;
             case cvart_text:
-                cvar_set_str(cvar, v0);
+                ConVar_SetStr(cvar, v0);
                 break;
             case cvart_float:
-                cvar_set_float(cvar, (float)atof(v0));
+                ConVar_SetFloat(cvar, (float)atof(v0));
                 break;
             case cvart_int:
-                cvar_set_int(cvar, atoi(v0));
+                ConVar_SetInt(cvar, atoi(v0));
                 break;
             case cvart_bool:
-                cvar_set_bool(cvar, (v0[0] != '0') && (v0[0] != 'f') && (v0[0] != 'F'));
+                ConVar_SetBool(cvar, (v0[0] != '0') && (v0[0] != 'f') && (v0[0] != 'F'));
                 break;
             case cvart_vector:
             case cvart_point:
             case cvart_color:
-                cvar_set_vec(cvar, (float4) { (float)atof(v0), (float)atof(v1), (float)atof(v2), (float)atof(v2) });
+                ConVar_SetVec(cvar, (float4) { (float)atof(v0), (float)atof(v1), (float)atof(v2), (float)atof(v2) });
                 break;
             }
             Con_Logf(LogSev_Info, "cmd", "'%s' = '%s'", cvar->name, cvar->value);
@@ -183,7 +183,7 @@ static cmdstat_t cmd_exec(const char* line)
     return cmdstat_err;
 }
 
-cmdstat_t Cmd_Text(const char* constText)
+cmdstat_t cmd_text(const char* constText)
 {
     i32 i, q;
     if (!constText)
@@ -278,7 +278,7 @@ static bool IsLineEnding(char c)
     }
 }
 
-const char* Cmd_Parse(const char* text, char* token, i32 tokenSize)
+const char* cmd_parse(const char* text, char* token, i32 tokenSize)
 {
     ASSERT(text);
     ASSERT(token);
@@ -377,7 +377,7 @@ static char** cmd_tokenize(const char* text, i32* argcOut)
             break;
         }
         stackToken[0] = 0;
-        text = Cmd_Parse(text, stackToken, NELEM(stackToken));
+        text = cmd_parse(text, stackToken, NELEM(stackToken));
         if (stackToken[0])
         {
             ++argc;
@@ -447,7 +447,7 @@ static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv)
     if (Asset_Get(filename, &asset))
     {
         const char* text = asset.pData;
-        Cmd_Text(text);
+        cmd_text(text);
         return cmdstat_ok;
     }
     return cmdstat_err;

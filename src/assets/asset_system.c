@@ -22,14 +22,14 @@ static SearchPath ms_search;
 
 void AssetSys_Init(void)
 {
-    cvar_reg(&cv_basedir);
-    cvar_reg(&cv_gamedir);
+    ConVar_Reg(&cv_basedir);
+    ConVar_Reg(&cv_gamedir);
 
     StrDict_New(&ms_assets, sizeof(asset_t), EAlloc_Perm);
     SearchPath_New(&ms_search);
 
     char path[PIM_PATH] = { 0 };
-    SPrintf(ARGS(path), "%s/%s", cvar_get_str(&cv_basedir), cvar_get_str(&cv_gamedir));
+    SPrintf(ARGS(path), "%s/%s", ConVar_GetStr(&cv_basedir), ConVar_GetStr(&cv_gamedir));
     SearchPath_AddPack(&ms_search, path);
 
     for (i32 i = 0; i < ms_search.packCount; ++i)

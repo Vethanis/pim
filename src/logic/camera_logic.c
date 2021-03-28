@@ -45,12 +45,12 @@ static ConVar_t cv_r_zfar =
 
 void CameraLogic_Init(void)
 {
-    cvar_reg(&cv_pitchscale);
-    cvar_reg(&cv_yawscale);
-    cvar_reg(&cv_movescale);
-    cvar_reg(&cv_r_fov);
-    cvar_reg(&cv_r_znear);
-    cvar_reg(&cv_r_zfar);
+    ConVar_Reg(&cv_pitchscale);
+    ConVar_Reg(&cv_yawscale);
+    ConVar_Reg(&cv_movescale);
+    ConVar_Reg(&cv_r_fov);
+    ConVar_Reg(&cv_r_znear);
+    ConVar_Reg(&cv_r_zfar);
 }
 
 ProfileMark(pm_update, CameraLogic_Update)
@@ -58,14 +58,14 @@ void CameraLogic_Update(void)
 {
     ProfileBegin(pm_update);
 
-    float dYaw = Input_GetDeltaAxis(MouseAxis_X) * cvar_get_float(&cv_yawscale);
-    float dPitch = Input_GetDeltaAxis(MouseAxis_Y) * cvar_get_float(&cv_pitchscale);
+    float dYaw = Input_GetDeltaAxis(MouseAxis_X) * ConVar_GetFloat(&cv_yawscale);
+    float dPitch = Input_GetDeltaAxis(MouseAxis_Y) * ConVar_GetFloat(&cv_pitchscale);
 
     Camera camera;
     Camera_Get(&camera);
-    camera.fovy = cvar_get_float(&cv_r_fov);
-    camera.zNear = cvar_get_float(&cv_r_znear);
-    camera.zFar = cvar_get_float(&cv_r_zfar);
+    camera.fovy = ConVar_GetFloat(&cv_r_fov);
+    camera.zNear = ConVar_GetFloat(&cv_r_znear);
+    camera.zFar = ConVar_GetFloat(&cv_r_zfar);
     Camera_Set(&camera);
 
     if (Input_IsKeyUp(KeyCode_Escape))
@@ -89,7 +89,7 @@ void CameraLogic_Update(void)
     }
 
     const float dt = f1_clamp((float)Time_Deltaf(), 0.0f, 1.0f / 5.0f);
-    float moveScale = cvar_get_float(&cv_movescale) * dt;
+    float moveScale = ConVar_GetFloat(&cv_movescale) * dt;
 
     quat rot = camera.rotation;
     float4 eye = camera.position;

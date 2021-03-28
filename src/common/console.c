@@ -13,6 +13,7 @@
 
 #include <string.h>
 #include <math.h>
+#include <stdarg.h>
 
 #define MAX_LINES       256
 
@@ -30,7 +31,7 @@ static void ExecCmd(const char* cmd, bool history);
 static void HistClear(void);
 
 static char ms_buffer[PIM_PATH];
-static FileStream ms_file;
+static FStream ms_file;
 
 static i32 ms_iLine;
 static char* ms_lines[MAX_LINES];
@@ -46,10 +47,10 @@ static StrList ms_history;
 
 void ConSys_Init(void)
 {
-    cvar_reg(&cv_conlogpath);
+    ConVar_Reg(&cv_conlogpath);
     StrList_New(&ms_history, EAlloc_Perm);
 
-    ms_file = FileStream_Open(cv_conlogpath.value, "wb");
+    ms_file = FStream_Open(cv_conlogpath.value, "wb");
     Con_Clear();
     HistClear();
 }
@@ -59,10 +60,10 @@ void ConSys_Update(void)
 {
     ProfileBegin(pm_update);
 
-    if (cvar_check_dirty(&cv_conlogpath))
+    if (ConVar_CheckDirty(&cv_conlogpath))
     {
-        FileStream_Close(&ms_file);
-        ms_file = FileStream_Open(cv_conlogpath.value, "wb");
+        FStream_Close(&ms_file);
+        ms_file = FStream_Open(cv_conlogpath.value, "wb");
     }
     con_gui();
 
@@ -72,7 +73,7 @@ void ConSys_Update(void)
 void ConSys_Shutdown(void)
 {
     Con_Logf(LogSev_Info, "con", "console shutting down...");
-    FileStream_Close(&ms_file);
+    FStream_Close(&ms_file);
 
     Con_Clear();
     HistClear();
@@ -221,9 +222,9 @@ void Con_Puts(u32 color, const char* line)
     ASSERT(line);
     if (line)
     {
-        if (FileStream_IsOpen(ms_file))
+        if (FStream_IsOpen(ms_file))
         {
-            FileStream_Puts(ms_file, line);
+            FStream_Puts(ms_file, line);
         }
 
         char** lines = ms_lines;
@@ -298,6 +299,18 @@ void Con_Logf(LogSev sev, const char* tag, const char* fmt, ...)
     ASSERT(fmt);
     if (fmt)
     {
+        va_list ap;
+        va_start(ap, fmt);
+        Con_Logv(sev, tag, fmt, ap);
+        va_end(ap);
+    }
+}
+
+void Con_Logv(LogSev sev, const char* tag, const char* fmt, va_list ap)
+{
+    ASSERT(fmt);
+    if (fmt)
+    {
         double ms = Time_Milli(Time_Now() - Time_AppStart());
         double seconds = ms / 1000.0;
         ms = fmod(ms, 1000.0);
@@ -318,18 +331,15 @@ void Con_Logf(LogSev sev, const char* tag, const char* fmt, ...)
         }
         StrCatf(ARGS(msg), " ");
 
-        va_list ap;
-        va_start(ap, fmt);
         VStrCatf(ARGS(msg), fmt, ap);
-        va_end(ap);
 
         Con_Puts(sevColor, msg);
 
         if (sev == LogSev_Error)
         {
-            if (FileStream_IsOpen(ms_file))
+            if (FStream_IsOpen(ms_file))
             {
-                FileStream_Flush(ms_file);
+                FStream_Flush(ms_file);
             }
         }
     }
@@ -353,10 +363,10 @@ static i32 OnTextComplete(ImGuiInputTextCallbackData* data)
 
     char* dst = buffer + cursor;
     const i32 size = capacity - cursor;
-    const char* src = Cmd_Complete(dst);
+    const char* src = cmd_complete(dst);
     if (!src)
     {
-        src = cvar_complete(dst);
+        src = ConVar_Complete(dst);
     }
     if (src)
     {
@@ -427,5 +437,5 @@ static void ExecCmd(const char* cmd, bool history)
         ms_histCursor = 0;
     }
 
-    Cmd_Text(cmd);
+    cmd_text(cmd);
 }

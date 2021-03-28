@@ -23,7 +23,7 @@ static edwin_t ms_windows[] =
 {
     { "Assets", AssetSys_Gui },
     { "Audio", AudioSys_Gui },
-    { "CVars", cvar_gui },
+    { "CVars", ConVar_Gui },
     { "Drawables", EntSys_Gui },
     { "Meshes", MeshSys_Gui },
     { "Profiler", ProfileSys_Gui },
