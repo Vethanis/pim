@@ -31,7 +31,7 @@ static void OnGlfwError(i32 error_code, const char* description);
 
 void WinSys_Init(void)
 {
-    cvar_reg(&cv_fpslimit);
+    ConVar_Reg(&cv_fpslimit);
     ms_lastSwap = Time_Now();
 
     glfwSetErrorCallback(OnGlfwError);
@@ -79,7 +79,7 @@ i32 window_get_target(void)
 
 void window_set_target(i32 fps)
 {
-    cvar_set_int(&cv_fpslimit, fps);
+    ConVar_SetInt(&cv_fpslimit, fps);
 }
 
 ProfileMark(pm_waitfps, WaitForTargetFps)

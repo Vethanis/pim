@@ -1349,7 +1349,7 @@ LmPack LmPack_Pack(
     if (!ms_once)
     {
         ms_once = true;
-        Cmd_Reg("lm_print", CmdPrintLm);
+        cmd_reg("lm_print", CmdPrintLm);
     }
 
     float maxWidth = atlasSize / 3.0f;

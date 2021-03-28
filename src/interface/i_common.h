@@ -80,7 +80,7 @@ const char *COM_FileExtension(const char *strIn);
 // copies the leaf string of a path, without extension, into strOut
 void COM_FileBase(const char *strIn, char *strOut);
 // append the extension to path if the leaf string of path does not contain '.'
-void COM_DefaultExtension(const char *path, char *ext);
+void COM_DefaultExtension(char *path, char *ext);
 void COM_WriteFile(const char* filename, const void* data, i32 len);
 i32 COM_OpenFile(const char* filename, filehdl_t* hdlOut);
 void COM_CloseFile(filehdl_t file);

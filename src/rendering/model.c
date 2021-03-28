@@ -192,7 +192,7 @@ static Material GenMaterial(
 {
     Material material = { 0 };
     material.ior = 1.0f;
-    material.bumpiness = cvar_get_float(&cv_model_bumpiness);
+    material.bumpiness = ConVar_GetFloat(&cv_model_bumpiness);
     if (!mtex)
     {
         return material;
@@ -316,7 +316,7 @@ static Material GenMaterial(
         }
     }
 
-    if (cvar_get_bool(&cv_tex_custom))
+    if (ConVar_GetBool(&cv_tex_custom))
     {
         for (i32 i = 0; i < NELEM(ids); ++i)
         {
@@ -701,8 +701,8 @@ static i32 CmpName(const void* lhs, const void* rhs, void* usr)
 
 void ModelSys_Init(void)
 {
-    cvar_reg(&cv_model_bumpiness);
-    cvar_reg(&cv_tex_custom);
+    ConVar_Reg(&cv_model_bumpiness);
+    ConVar_Reg(&cv_tex_custom);
 }
 
 void ModelSys_Update(void)

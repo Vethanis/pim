@@ -69,10 +69,10 @@ bool vkrSys_Init(void)
 {
     memset(&g_vkr, 0, sizeof(g_vkr));
 
-    cvar_reg(&cv_lm_upload);
-    cv_r_sun_dir = cvar_find("r_sun_dir");
-    cv_r_sun_col = cvar_find("r_sun_col");
-    cv_r_sun_lum = cvar_find("r_sun_lum");
+    ConVar_Reg(&cv_lm_upload);
+    cv_r_sun_dir = ConVar_Find("r_sun_dir");
+    cv_r_sun_col = ConVar_Find("r_sun_col");
+    cv_r_sun_lum = ConVar_Find("r_sun_lum");
     ASSERT(cv_r_sun_dir);
     ASSERT(cv_r_sun_col);
     ASSERT(cv_r_sun_lum);
@@ -235,9 +235,9 @@ void vkrSys_Update(void)
     vkrSwapchain_Submit(chain, cmd);
     vkrSwapchain_Present(chain);
 
-    if (cvar_get_bool(&cv_lm_upload))
+    if (ConVar_GetBool(&cv_lm_upload))
     {
-        cvar_set_bool(&cv_lm_upload, false);
+        ConVar_SetBool(&cv_lm_upload, false);
         vkrUploadLightmaps();
     }
 

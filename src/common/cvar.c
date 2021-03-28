@@ -12,60 +12,52 @@
 #include <stdlib.h> // atof
 #include <stdio.h> // sscanf
 
-static StrDict ms_dict;
-
-static void EnsureInit(void)
+static StrDict ms_dict =
 {
-    if (!ms_dict.valueSize)
-    {
-        StrDict_New(&ms_dict, sizeof(ConVar_t*), EAlloc_Perm);
-    }
-}
+    .valueSize = sizeof(ConVar_t*),
+};
 
-void cvar_reg(ConVar_t* ptr)
+void ConVar_Reg(ConVar_t* ptr)
 {
-    EnsureInit();
-
     ASSERT(ptr);
     ASSERT(ptr->name);
     ASSERT(ptr->desc);
 
-    cvar_set_str(ptr, ptr->value);
+    ConVar_SetStr(ptr, ptr->value);
     ptr->flags &= ~cvarf_dirty;
 
     bool added = StrDict_Add(&ms_dict, ptr->name, &ptr);
     ASSERT(added);
 }
 
-ConVar_t* cvar_find(const char* name)
+ConVar_t* ConVar_Find(const char* name)
 {
-    EnsureInit();
-
     ConVar_t* value = NULL;
     StrDict_Get(&ms_dict, name, &value);
     return value;
 }
 
-const char* cvar_complete(const char* namePart)
+const char* ConVar_Complete(const char* namePart)
 {
-    EnsureInit();
-
     ASSERT(namePart);
-    const i32 partLen = StrLen(namePart);
-    const u32 width = ms_dict.width;
-    const char** names = ms_dict.keys;
-    for (u32 i = 0; i < width; ++i)
+    if (namePart[0])
     {
-        const char* name = names[i];
-        if (name && !StrCmp(namePart, partLen, name))
+        const i32 partLen = StrLen(namePart);
+        const u32 width = ms_dict.width;
+        const char** names = ms_dict.keys;
+        for (u32 i = 0; i < width; ++i)
         {
-            return name;
+            const char* name = names[i];
+            if (name && !StrCmp(namePart, partLen, name))
+            {
+                return name;
+            }
         }
     }
     return NULL;
 }
 
-void cvar_set_str(ConVar_t* ptr, const char* value)
+void ConVar_SetStr(ConVar_t* ptr, const char* value)
 {
     ASSERT(ptr);
     ASSERT(value);
@@ -147,7 +139,7 @@ void cvar_set_str(ConVar_t* ptr, const char* value)
     }
 }
 
-void cvar_set_float(ConVar_t* ptr, float value)
+void ConVar_SetFloat(ConVar_t* ptr, float value)
 {
     ASSERT(ptr);
     ASSERT(ptr->type == cvart_float);
@@ -157,7 +149,7 @@ void cvar_set_float(ConVar_t* ptr, float value)
     ptr->asFloat = value;
 }
 
-void cvar_set_int(ConVar_t* ptr, i32 value)
+void ConVar_SetInt(ConVar_t* ptr, i32 value)
 {
     ASSERT(ptr);
     ASSERT(ptr->type == cvart_int);
@@ -167,7 +159,7 @@ void cvar_set_int(ConVar_t* ptr, i32 value)
     ptr->asInt = value;
 }
 
-void cvar_set_vec(ConVar_t* ptr, float4 value)
+void ConVar_SetVec(ConVar_t* ptr, float4 value)
 {
     ASSERT(ptr);
     switch (ptr->type)
@@ -190,7 +182,7 @@ void cvar_set_vec(ConVar_t* ptr, float4 value)
     ptr->asVector = value;
 }
 
-void cvar_set_bool(ConVar_t* ptr, bool value)
+void ConVar_SetBool(ConVar_t* ptr, bool value)
 {
     ASSERT(ptr);
     ASSERT(ptr->type == cvart_bool);
@@ -200,7 +192,55 @@ void cvar_set_bool(ConVar_t* ptr, bool value)
     ptr->asBool = value;
 }
 
-bool cvar_check_dirty(ConVar_t* ptr)
+bool ConVar_IsVec(const ConVar_t* ptr)
+{
+    switch (ptr->type)
+    {
+    default:
+        return false;
+    case cvart_vector:
+    case cvart_point:
+    case cvart_color:
+        return true;
+    }
+}
+
+const char* ConVar_GetStr(const ConVar_t* ptr)
+{
+    ASSERT(ptr->type == cvart_text);
+    return ptr->value;
+}
+
+float ConVar_GetFloat(const ConVar_t* ptr)
+{
+    ASSERT(ptr->type == cvart_float);
+    return ptr->asFloat;
+}
+
+i32 ConVar_GetInt(const ConVar_t* ptr)
+{
+    ASSERT(ptr->type == cvart_int);
+    return ptr->asInt;
+}
+
+float4 ConVar_GetVec(const ConVar_t* ptr)
+{
+    ASSERT(ConVar_IsVec(ptr));
+    return ptr->asVector;
+}
+
+bool ConVar_GetBool(const ConVar_t* ptr)
+{
+    ASSERT(ptr->type == cvart_bool);
+    return ptr->asBool;
+}
+
+void ConVar_Toggle(ConVar_t* ptr)
+{
+    ConVar_SetBool(ptr, !ConVar_GetBool(ptr));
+}
+
+bool ConVar_CheckDirty(ConVar_t* ptr)
 {
     ASSERT(ptr);
     bool dirty = (ptr->flags & cvarf_dirty) != 0;
@@ -210,11 +250,10 @@ bool cvar_check_dirty(ConVar_t* ptr)
 
 static char ms_search[PIM_PATH];
 
-ProfileMark(pm_gui, cvar_gui)
-void cvar_gui(bool* pEnabled)
+ProfileMark(pm_gui, ConVar_Gui)
+void ConVar_Gui(bool* pEnabled)
 {
     ProfileBegin(pm_gui);
-    EnsureInit();
 
     const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
 
@@ -250,7 +289,7 @@ void cvar_gui(bool* pEnabled)
             {
                 if (igCheckbox(cvar->name, &cvar->asBool))
                 {
-                    cvar_set_bool(cvar, cvar->asBool);
+                    ConVar_SetBool(cvar, cvar->asBool);
                 }
             }
             break;
@@ -266,7 +305,7 @@ void cvar_gui(bool* pEnabled)
             {
                 if (igExSliderInt(cvar->name, &cvar->asInt, cvar->minInt, cvar->maxInt))
                 {
-                    cvar_set_int(cvar, cvar->asInt);
+                    ConVar_SetInt(cvar, cvar->asInt);
                 }
             }
             break;
@@ -274,7 +313,7 @@ void cvar_gui(bool* pEnabled)
             {
                 if (igExSliderFloat(cvar->name, &cvar->asFloat, cvar->minFloat, cvar->maxFloat))
                 {
-                    cvar_set_float(cvar, cvar->asFloat);
+                    ConVar_SetFloat(cvar, cvar->asFloat);
                 }
             }
             break;
@@ -282,7 +321,7 @@ void cvar_gui(bool* pEnabled)
             {
                 if (igColorEdit4(cvar->name, &cvar->asVector.x, ldrPicker))
                 {
-                    cvar_set_vec(cvar, cvar->asVector);
+                    ConVar_SetVec(cvar, cvar->asVector);
                 }
             }
             break;
@@ -290,7 +329,7 @@ void cvar_gui(bool* pEnabled)
             {
                 if (igExSliderFloat4(cvar->name, &cvar->asVector.x, cvar->minFloat, cvar->maxFloat))
                 {
-                    cvar_set_vec(cvar, cvar->asVector);
+                    ConVar_SetVec(cvar, cvar->asVector);
                 }
             }
             break;
@@ -298,7 +337,7 @@ void cvar_gui(bool* pEnabled)
             {
                 if (igExSliderFloat3(cvar->name, &cvar->asVector.x, -1.0f, 1.0f))
                 {
-                    cvar_set_vec(cvar, cvar->asVector);
+                    ConVar_SetVec(cvar, cvar->asVector);
                 }
             }
             break;

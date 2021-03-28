@@ -19,16 +19,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "interface/i_common.h"
+
+#if QUAKE_IMPL
+
 #include "interface/i_sys.h"
 #include "interface/i_globals.h"
 #include "interface/i_zone.h"
 #include "interface/i_console.h"
+#include "interface/i_cmd.h"
 
 #include "allocator/allocator.h"
 #include "common/stringutil.h"
 #include "common/cmd.h"
 
-#if QUAKE_IMPL
+#include <stdarg.h>
 
 // ----------------------------------------------------------------------------
 
@@ -73,26 +77,21 @@ typedef struct SearchPath_s
 
 // ----------------------------------------------------------------------------
 
-cvar_t cv_cmdline = { "cmdline", "0", false, true };
+const char **g_com_argv;
+i32 g_com_argc;
+i32 g_com_filesize;
 
-// ----------------------------------------------------------------------------
-
-const char **com_argv;
-i32 com_argc;
-i32 com_filesize;
-
-char com_cmdline[PIM_PATH];
-char com_cachedir[PIM_PATH];
-char com_gamedir[PIM_PATH];
-char com_token[1024];
+char g_com_cmdline[PIM_PATH];
+char g_com_gamedir[PIM_PATH];
+char g_com_token[1024];
 static char ms_vabuf[1024];
 
-qboolean standard_quake, rogue, hipnotic;
-qboolean proghack;
+qboolean g_standard_quake, g_rogue, g_hipnotic;
+qboolean g_proghack;
 
-qboolean msg_badread;
-i32 msg_readcount;
-char msg_string[2048];
+qboolean g_msg_badread;
+i32 g_msg_readcount;
+char g_msg_string[2048];
 
 static i32 ms_pathCount;
 static SearchPath* ms_paths;
@@ -245,97 +244,97 @@ void MSG_WriteAngle(sizebuf_t *sb, float x)
 
 void MSG_BeginReading(void)
 {
-    msg_readcount = 0;
-    msg_badread = false;
+    g_msg_readcount = 0;
+    g_msg_badread = false;
 }
 
 i32 MSG_ReadChar(void)
 {
     i8 c;
-    if ((msg_readcount + sizeof(c)) <= g_net_message.cursize)
+    if ((g_msg_readcount + sizeof(c)) <= g_net_message.cursize)
     {
-        const void* src = &g_net_message.data[msg_readcount];
+        const void* src = &g_net_message.data[g_msg_readcount];
         memcpy(&c, src, sizeof(c));
-        msg_readcount += sizeof(c);
+        g_msg_readcount += sizeof(c);
         return (i32)c;
     }
-    msg_badread = true;
+    g_msg_badread = true;
     return -1;
 }
 
 i32 MSG_ReadByte(void)
 {
     u8 c;
-    if ((msg_readcount + sizeof(c)) <= g_net_message.cursize)
+    if ((g_msg_readcount + sizeof(c)) <= g_net_message.cursize)
     {
-        const void* src = &g_net_message.data[msg_readcount];
+        const void* src = &g_net_message.data[g_msg_readcount];
         memcpy(&c, src, sizeof(c));
-        msg_readcount += sizeof(c);
+        g_msg_readcount += sizeof(c);
         return (i32)c;
     }
-    msg_badread = true;
+    g_msg_badread = true;
     return -1;
 }
 
 i32 MSG_ReadShort(void)
 {
     i16 c;
-    if ((msg_readcount + sizeof(c)) <= g_net_message.cursize)
+    if ((g_msg_readcount + sizeof(c)) <= g_net_message.cursize)
     {
-        const void* src = &g_net_message.data[msg_readcount];
+        const void* src = &g_net_message.data[g_msg_readcount];
         memcpy(&c, src, sizeof(c));
-        msg_readcount += sizeof(c);
+        g_msg_readcount += sizeof(c);
         return (i32)c;
     }
-    msg_badread = true;
+    g_msg_badread = true;
     return -1;
 }
 
 i32 MSG_ReadLong(void)
 {
     i32 c;
-    if ((msg_readcount + sizeof(c)) <= g_net_message.cursize)
+    if ((g_msg_readcount + sizeof(c)) <= g_net_message.cursize)
     {
-        const void* src = &g_net_message.data[msg_readcount];
+        const void* src = &g_net_message.data[g_msg_readcount];
         memcpy(&c, src, sizeof(c));
-        msg_readcount += sizeof(c);
+        g_msg_readcount += sizeof(c);
         return c;
     }
-    msg_badread = true;
+    g_msg_badread = true;
     return -1;
 }
 
 float MSG_ReadFloat(void)
 {
     float c;
-    if ((msg_readcount + sizeof(c)) <= g_net_message.cursize)
+    if ((g_msg_readcount + sizeof(c)) <= g_net_message.cursize)
     {
-        const void* src = &g_net_message.data[msg_readcount];
+        const void* src = &g_net_message.data[g_msg_readcount];
         memcpy(&c, src, sizeof(c));
-        msg_readcount += sizeof(c);
+        g_msg_readcount += sizeof(c);
         return c;
     }
-    msg_badread = true;
+    g_msg_badread = true;
     return -1.0f;
 }
 
 const char* MSG_ReadString(void)
 {
-    const i32 offset = msg_readcount;
+    const i32 offset = g_msg_readcount;
     i32 size = g_net_message.cursize - offset;
-    size = pim_min(size, sizeof(msg_string));
+    size = pim_min(size, sizeof(g_msg_string));
     if (size > 0)
     {
         const char* src = (char*)(g_net_message.data) + offset;
-        i32 len = StrCpy(msg_string, size, src);
-        msg_readcount += len + 1;
+        i32 len = StrCpy(g_msg_string, size, src);
+        g_msg_readcount += len + 1;
     }
     else
     {
-        msg_badread = true;
-        msg_string[0] = 0;
+        g_msg_badread = true;
+        g_msg_string[0] = 0;
     }
-    return msg_string;
+    return g_msg_string;
 }
 
 float MSG_ReadCoord(void)
@@ -352,14 +351,14 @@ float MSG_ReadAngle(void)
 
 const char* COM_Parse(const char* data)
 {
-    return Cmd_Parse(data, com_token, NELEM(com_token));
+    return cmd_parse(data, g_com_token, NELEM(g_com_token));
 }
 
 // returns argv index of parm, or 0 if missing
 i32 COM_CheckParm(const char* parm)
 {
-    const i32 len = com_argc;
-    const char *const *items = com_argv;
+    const i32 len = g_com_argc;
+    const char *const *items = g_com_argv;
     for (i32 i = 1; i < len; ++i)
     {
         if (items[i])
@@ -380,9 +379,9 @@ const char* COM_GetParm(const char* parm, i32 parmArg)
     if (iArg > 0)
     {
         iArg += parmArg;
-        if (iArg < com_argc)
+        if (iArg < g_com_argc)
         {
-            return com_argv[iArg + parmArg];
+            return g_com_argv[iArg + parmArg];
         }
     }
     return NULL;
@@ -410,7 +409,7 @@ static void COM_Path_f(void)
 
 static void COM_AddGameDirectory(const char *dir)
 {
-    StrCpy(ARGS(com_gamedir), dir);
+    StrCpy(ARGS(g_com_gamedir), dir);
 
     // add the directory to the search path
     SearchPath_AddPath(dir);
@@ -434,8 +433,8 @@ static void COM_AddGameDirectory(const char *dir)
 
 static pack_t* COM_LoadPackFile(const char *packfile)
 {
-    filehdl_t packhandle = { 0 };
-    if (Sys_FileOpenRead(packfile, &packhandle) == -1)
+    filehdl_t packhandle = Sys_FileOpenRead(packfile);
+    if (!Sys_FileIsOpen(packhandle))
     {
         return NULL;
     }
@@ -500,36 +499,17 @@ void COM_InitFilesystem(void)
     }
 
     //
-    // -cachedir <path>
-    // Overrides the system supplied cache directory (NULL or /qcache)
-    // -cachedir - will disable caching.
-    //
-    com_cachedir[0] = 0;
-    const char* pCacheDir = COM_GetParm("-cachedir", 1);
-    if (pCacheDir)
-    {
-        if (pCacheDir[0] != '-')
-        {
-            StrCpy(ARGS(com_cachedir), pCacheDir);
-        }
-    }
-    else if (g_host_parms.cachedir)
-    {
-        StrCpy(ARGS(com_cachedir), g_host_parms.cachedir);
-    }
-
-    //
     // start up with GAMENAME by default (id1)
     //
     COM_AddGameDirectory(va("%s/"GAMENAME, basedir));
 
-    if (COM_CheckParm("-rogue"))
+    if (COM_CheckParm("-g_rogue"))
     {
-        COM_AddGameDirectory(va("%s/rogue", basedir));
+        COM_AddGameDirectory(va("%s/g_rogue", basedir));
     }
-    if (COM_CheckParm("-hipnotic"))
+    if (COM_CheckParm("-g_hipnotic"))
     {
-        COM_AddGameDirectory(va("%s/hipnotic", basedir));
+        COM_AddGameDirectory(va("%s/g_hipnotic", basedir));
     }
 
     //
@@ -549,50 +529,40 @@ void COM_InitFilesystem(void)
     i32 iPathArg = COM_CheckParm("-path");
     if (iPathArg)
     {
-        i32 pathCount = ms_pathCount;
-        SearchPath* paths = ms_paths;
-        ASSERT(pathCount == 0);
-
-        for (i32 i = iPathArg + 1; i < com_argc; ++i)
+        for (i32 i = iPathArg + 1; i < g_com_argc; ++i)
         {
-            const char* arg = com_argv[i];
+            const char* arg = g_com_argv[i];
             if (!arg || (arg[0] == '+') || (arg[0] == '-'))
             {
                 break;
             }
-
-            SearchPath path = { 0 };
-            if (!StrCmp(COM_FileExtension(arg), 4, "pak"))
+            if (!StrICmp(COM_FileExtension(arg), 4, "pak"))
             {
-                path.pack = COM_LoadPackFile(arg);
-                if (!path.pack)
+                pack_t* pack = COM_LoadPackFile(arg);
+                if (pack)
+                {
+                    SearchPath_AddPack(pack);
+                }
+                else
                 {
                     Sys_Error("Couldn't load packfile: %s", arg);
                 }
             }
             else
             {
-                path.filename = StrDup(arg, EAlloc_Perm);
+                SearchPath_AddPath(arg);
             }
-
-            ++pathCount;
-            paths = Perm_Realloc(paths, sizeof(paths[0]) * pathCount);
-            paths[pathCount - 1] = path;
         }
-
-        ms_paths = paths;
-        ms_pathCount = pathCount;
     }
 
-    if (COM_CheckParm("-proghack"))
+    if (COM_CheckParm("-g_proghack"))
     {
-        proghack = true;
+        g_proghack = true;
     }
 }
 
 void COM_Init(const char *basedir)
 {
-    Cvar_RegisterVariable(&cv_cmdline);
     Cmd_AddCommand("path", COM_Path_f);
 
     COM_InitFilesystem();
@@ -600,61 +570,93 @@ void COM_Init(const char *basedir)
 
 void COM_InitArgv(i32 argc, const char** argv)
 {
-    com_argc = argc;
-    com_argv = argv;
-    com_cmdline[0] = 0;
+    g_com_argc = argc;
+    g_com_argv = argv;
+    g_com_cmdline[0] = 0;
     for (i32 i = 0; i < argc; ++i)
     {
-        if (argv[i])
-        {
-            StrCat(ARGS(com_cmdline), argv[i]);
-            StrCat(ARGS(com_cmdline), " ");
-        }
+        StrCat(ARGS(g_com_cmdline), argv[i]);
+        StrCat(ARGS(g_com_cmdline), " ");
     }
-    standard_quake = true;
-    if (COM_CheckParm("-rogue"))
+    g_standard_quake = true;
+    if (COM_CheckParm("-g_rogue"))
     {
-        rogue = true;
-        standard_quake = false;
+        g_rogue = true;
+        g_standard_quake = false;
     }
-    if (COM_CheckParm("-hipnotic"))
+    if (COM_CheckParm("-g_hipnotic"))
     {
-        hipnotic = true;
-        standard_quake = false;
+        g_hipnotic = true;
+        g_standard_quake = false;
     }
 }
 
 const char* COM_SkipPath(const char* pathname)
 {
-
+    ASSERT(pathname);
+    const char* p = StrRChr(pathname, PIM_PATH, '/');
+    if (p)
+    {
+        return p + 1;
+    }
+    p = StrRChr(pathname, PIM_PATH, '\\');
+    if (p)
+    {
+        return p + 1;
+    }
+    return pathname;
 }
 
 void COM_StripExtension(const char *strIn, char *strOut)
 {
-
+    ASSERT(strIn);
+    ASSERT(strOut);
+    strOut[0] = 0;
+    const char* p = StrRChr(strIn, PIM_PATH, '.');
+    if (p)
+    {
+        isize len = (isize)(p - strIn);
+        memcpy(strOut, strIn, len);
+        strOut[len] = 0;
+    }
+    else
+    {
+        StrCpy(strOut, PIM_PATH, strIn);
+    }
 }
 
 const char* COM_FileExtension(const char *str)
 {
-    static char exten[32];
-    exten[0] = 0;
+    ASSERT(str);
     const char* p = StrRChr(str, PIM_PATH, '.');
     if (p)
     {
-        ++p;
-        StrCpy(ARGS(exten), p);
+        return p + 1;
     }
-    return exten;
+    return "";
 }
 
 void COM_FileBase(const char *strIn, char *strOut)
 {
-
+    ASSERT(strIn);
+    ASSERT(strOut);
+    StrCpy(strOut, PIM_PATH, COM_SkipPath(strIn));
+    char* p = (char*)StrRChr(strOut, PIM_PATH, '.');
+    if (p)
+    {
+        *p = 0;
+    }
 }
 
-void COM_DefaultExtension(const char *path, char *ext)
+void COM_DefaultExtension(char *path, char *ext)
 {
-
+    ASSERT(path);
+    ASSERT(ext);
+    const char* dot = StrRChr(path, PIM_PATH, '.');
+    if (!dot)
+    {
+        StrCat(path, PIM_PATH, ext);
+    }
 }
 
 void COM_WriteFile(const char* filename, const void* data, i32 len)

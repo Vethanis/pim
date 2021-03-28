@@ -4,6 +4,7 @@
 #include "allocator/allocator.h"
 #include "stb/stb_sprintf.h"
 #include <string.h>
+#include <stdarg.h>
 
 pim_inline i32 min_i32(i32 a, i32 b)
 {

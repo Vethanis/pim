@@ -42,7 +42,7 @@ bool vkrMainPass_New(vkrMainPass *const pass)
 {
     ASSERT(pass);
 
-    cv_pt_trace = cvar_find("pt_trace");
+    cv_pt_trace = ConVar_Find("pt_trace");
     ASSERT(cv_pt_trace);
 
     bool success = true;
@@ -117,7 +117,7 @@ void vkrMainPass_Execute(
 {
     ProfileBegin(pm_exec);
 
-    const bool r_sw = cvar_get_bool(cv_pt_trace);
+    const bool r_sw = ConVar_GetBool(cv_pt_trace);
 
     vkrSwapchain *const chain = &g_vkr.chain;
     VkRect2D rect = vkrSwapchain_GetRect(chain);

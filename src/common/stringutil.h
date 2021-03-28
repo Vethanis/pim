@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common/macro.h"
-#include <stdarg.h>
 
 PIM_C_BEGIN
 

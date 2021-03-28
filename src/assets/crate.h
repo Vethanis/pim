@@ -13,7 +13,7 @@ enum
 
 typedef struct Crate_s
 {
-    FileStream file;
+    FStream file;
     Guid ids[kCrateLen];
     i32 offsets[kCrateLen];
     i32 sizes[kCrateLen];

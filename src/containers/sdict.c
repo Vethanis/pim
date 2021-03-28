@@ -24,7 +24,7 @@ void StrDict_Del(StrDict* dict)
 {
     ASSERT(dict);
     Mem_Free(dict->hashes);
-    char** keys = dict->keys;
+    char** pim_noalias keys = dict->keys;
     const u32 width = dict->width;
     for (u32 i = 0; i < width; ++i)
     {
@@ -41,7 +41,7 @@ void StrDict_Clear(StrDict* dict)
     ASSERT(dict);
     dict->count = 0;
     const u32 width = dict->width;
-    char** keys = dict->keys;
+    char** pim_noalias keys = dict->keys;
     for (u32 i = 0; i < width; ++i)
     {
         Mem_Free(keys[i]);
@@ -67,17 +67,13 @@ void StrDict_Reserve(StrDict* dict, i32 count)
     const EAlloc allocator = dict->allocator;
     ASSERT(valueSize);
 
-    u32* oldHashes = dict->hashes;
-    char** oldKeys = dict->keys;
-    u8* oldValues = dict->values;
+    u32* pim_noalias oldHashes = dict->hashes;
+    char** pim_noalias oldKeys = dict->keys;
+    u8* pim_noalias oldValues = dict->values;
 
-    u32* newHashes = Mem_Alloc(allocator, sizeof(newHashes[0]) * newWidth);
-    char** newKeys = Mem_Alloc(allocator, sizeof(newKeys[0]) * newWidth);
-    u8* newValues = Mem_Alloc(allocator, valueSize * newWidth);
-
-    memset(newHashes, 0, sizeof(newHashes[0]) * newWidth);
-    memset(newKeys, 0, sizeof(newKeys[0]) * newWidth);
-    memset(newValues, 0, valueSize * newWidth);
+    u32* pim_noalias newHashes = Mem_Calloc(allocator, sizeof(newHashes[0]) * newWidth);
+    char** pim_noalias newKeys = Mem_Calloc(allocator, sizeof(newKeys[0]) * newWidth);
+    u8* pim_noalias newValues = Mem_Calloc(allocator, valueSize * newWidth);
 
     const u32 newMask = newWidth - 1u;
     for (u32 i = 0; i < oldWidth;)
@@ -126,8 +122,8 @@ i32 StrDict_Find(const StrDict* dict, const char* key)
 
     u32 width = dict->width;
     const u32 mask = width - 1u;
-    const u32* hashes = dict->hashes;
-    char const *const *const keys = dict->keys;
+    const u32* pim_noalias hashes = dict->hashes;
+    char const* const* pim_noalias keys = dict->keys;
 
     u32 j = keyHash;
     while (width--)
@@ -165,7 +161,7 @@ bool StrDict_Get(const StrDict* dict, const char* key, void* valueOut)
         return false;
     }
 
-    const u8* values = dict->values;
+    const u8* pim_noalias values = dict->values;
     memcpy(valueOut, values + i * valueSize, valueSize);
 
     return true;
@@ -183,7 +179,7 @@ bool StrDict_Set(StrDict* dict, const char* key, const void* value)
     }
 
     const u32 valueSize = dict->valueSize;
-    u8* values = dict->values;
+    u8* pim_noalias values = dict->values;
     ASSERT(valueSize);
     memcpy(values + i * valueSize, value, valueSize);
 
@@ -211,9 +207,9 @@ bool StrDict_Add(StrDict* dict, const char* key, const void* value)
     const u32 valueSize = dict->valueSize;
     const u32 keyHash = HashKey(key);
 
-    u32* hashes = dict->hashes;
-    char** keys = dict->keys;
-    u8* values = dict->values;
+    u32* pim_noalias hashes = dict->hashes;
+    char** pim_noalias  keys = dict->keys;
+    u8* pim_noalias values = dict->values;
 
     u32 j = keyHash;
     while (true)
@@ -243,9 +239,9 @@ bool StrDict_Rm(StrDict* dict, const char* key, void* valueOut)
     const u32 valueSize = dict->valueSize;
     ASSERT(valueSize);
 
-    u32* hashes = dict->hashes;
-    char** keys = dict->keys;
-    u8* values = dict->values;
+    u32* pim_noalias hashes = dict->hashes;
+    char** pim_noalias keys = dict->keys;
+    u8* pim_noalias values = dict->values;
 
     if (valueOut)
     {
@@ -264,10 +260,10 @@ bool StrDict_Rm(StrDict* dict, const char* key, void* valueOut)
 
 typedef struct cmpctx_s
 {
-    const char** keys;
-    const u8* values;
+    const char** pim_noalias keys;
+    const u8* pim_noalias values;
     SDictCmpFn cmp;
-    void* usr;
+    void* pim_noalias usr;
     u32 valueSize;
 } cmpctx_t;
 
@@ -275,8 +271,8 @@ static i32 SDictCmp(const void* lhs, const void* rhs, void* usr)
 {
     const u32 a = *(u32*)lhs;
     const u32 b = *(u32*)rhs;
-    const cmpctx_t* ctx = usr;
-    const u8* values = ctx->values;
+    const cmpctx_t* pim_noalias ctx = usr;
+    const u8* pim_noalias values = ctx->values;
     const u32 stride = ctx->valueSize;
     return ctx->cmp(
         ctx->keys[a], ctx->keys[b],
@@ -293,7 +289,7 @@ u32* StrDict_Sort(const StrDict* dict, SDictCmpFn cmp, void* usr)
     const u32 length = dict->count;
     const u32 width = dict->width;
     const u32* hashes = dict->hashes;
-    u32* indices = Temp_Calloc(length * sizeof(indices[0]));
+    u32* pim_noalias indices = Temp_Calloc(length * sizeof(indices[0]));
     u32 j = 0;
     for (u32 i = 0; i < width; ++i)
     {

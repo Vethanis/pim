@@ -18,7 +18,7 @@ typedef struct vfile_s
     union
     {
         fd_t descriptor;
-        FileStream stream;
+        FStream stream;
         FileMap map;
         subfile_t subfile;
     };
@@ -89,7 +89,7 @@ bool VFile_IsOpen(VFileHdl hdl)
         case VFileType_Descriptor:
             return fd_isopen(vf->descriptor);
         case VFileType_Stream:
-            return FileStream_IsOpen(vf->stream);
+            return FStream_IsOpen(vf->stream);
         case VFileType_Map:
             return FileMap_IsOpen(vf->map);
         case VFileType_SubFile:
@@ -120,8 +120,8 @@ VFileHdl VFile_New(const char* path, const char* mode, VFileType type)
     break;
     case VFileType_Stream:
     {
-        vf.stream = FileStream_Open(path, mode);
-        opened = FileStream_IsOpen(vf.stream);
+        vf.stream = FStream_Open(path, mode);
+        opened = FStream_IsOpen(vf.stream);
     }
     break;
     case VFileType_Map:
@@ -154,7 +154,7 @@ bool VFile_Del(VFileHdl hdl)
             fd_close(&vf->descriptor);
             break;
         case VFileType_Stream:
-            FileStream_Close(&vf->stream);
+            FStream_Close(&vf->stream);
             break;
         case VFileType_Map:
             FileMap_Close(&vf->map);
@@ -183,7 +183,7 @@ i32 VFile_Size(VFileHdl hdl)
         case VFileType_Descriptor:
             return (i32)fd_size(vf->descriptor);
         case VFileType_Stream:
-            return (i32)FileStream_Size(vf->stream);
+            return (i32)FStream_Size(vf->stream);
         case VFileType_Map:
             return vf->map.size;
         case VFileType_SubFile:
@@ -221,10 +221,10 @@ i32 VFile_Read(VFileHdl hdl, i32 offset, i32 size, void* dst)
     {
         if (vf->cursor != offset)
         {
-            FileStream_Seek(vf->stream, offset);
+            FStream_Seek(vf->stream, offset);
             vf->cursor = offset;
         }
-        return FileStream_Read(vf->stream, dst, size);
+        return FStream_Read(vf->stream, dst, size);
     }
     break;
     case VFileType_Map:
@@ -272,10 +272,10 @@ i32 VFile_Write(VFileHdl hdl, i32 offset, i32 size, const void* src)
     {
         if (vf->cursor != offset)
         {
-            FileStream_Seek(vf->stream, offset);
+            FStream_Seek(vf->stream, offset);
             vf->cursor = offset;
         }
-        return FileStream_Write(vf->stream, src, size);
+        return FStream_Write(vf->stream, src, size);
     }
     break;
     case VFileType_Map:

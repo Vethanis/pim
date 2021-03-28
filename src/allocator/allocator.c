@@ -309,7 +309,7 @@ void* Mem_Realloc(EAlloc type, void* prev, i32 bytes)
 void* Mem_Calloc(EAlloc type, i32 bytes)
 {
     void* ptr = Mem_Alloc(type, bytes);
-    memset(ptr, 0x00, bytes);
+    memset(ptr, 0, bytes);
     return ptr;
 }
 

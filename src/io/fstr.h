@@ -6,30 +6,32 @@ PIM_C_BEGIN
 
 #include "io/fd.h"
 
-typedef struct FileStream_s
+typedef struct FStream_s
 {
     void* handle;
-} FileStream;
+} FStream;
 
-bool FileStream_IsOpen(FileStream fstr);
-FileStream FileStream_Open(const char* filename, const char* mode);
-bool FileStream_Close(FileStream* stream);
-bool FileStream_Flush(FileStream stream);
-i32 FileStream_Read(FileStream stream, void* dst, i32 size);
-i32 FileStream_Write(FileStream stream, const void* src, i32 size);
-bool FileStream_Gets(FileStream stream, char* dst, i32 size);
-i32 FileStream_Puts(FileStream stream, const char* src);
+bool FStream_IsOpen(FStream fstr);
+FStream FStream_Open(const char* filename, const char* mode);
+bool FStream_Close(FStream* stream);
+bool FStream_Flush(FStream stream);
+i32 FStream_Read(FStream stream, void* dst, i32 size);
+i32 FStream_Write(FStream stream, const void* src, i32 size);
+bool FStream_Gets(FStream stream, char* dst, i32 size);
+i32 FStream_Puts(FStream stream, const char* src);
+i32 FStream_VPrintf(FStream stream, const char* fmt, va_list ap);
+i32 FStream_Printf(FStream stream, const char* fmt, ...);
 
-fd_t FileStream_ToFd(FileStream stream);
-FileStream Fd_ToFileStream(fd_t* hdl, const char* mode);
+fd_t FStream_ToFd(FStream stream);
+FStream Fd_ToFStream(fd_t* hdl, const char* mode);
 
-bool FileStream_Seek(FileStream stream, i32 offset);
-i32 FileStream_Tell(FileStream stream);
+bool FStream_Seek(FStream stream, i32 offset);
+i32 FStream_Tell(FStream stream);
 
-FileStream FileStream_ProcOpen(const char* cmd, const char* mode);
-bool FileStream_ProcClose(FileStream* stream);
+FStream FStream_POpen(const char* cmd, const char* mode);
+bool FStream_PClose(FStream* stream);
 
-bool FileStream_Stat(FileStream stream, fd_status_t* status);
-i64 FileStream_Size(FileStream stream);
+bool FStream_Stat(FStream stream, fd_status_t* status);
+i64 FStream_Size(FStream stream);
 
 PIM_C_END

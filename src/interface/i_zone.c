@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "interface/i_zone.h"
 
+#if QUAKE_IMPL
+
 #include "interface/i_cmd.h"
 #include "interface/i_common.h"
 #include "interface/i_console.h"
@@ -35,8 +37,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <string.h>
 #include <stdlib.h>
-
-#if QUAKE_IMPL
 
 // ----------------------------------------------------------------------------
 

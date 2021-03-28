@@ -21,6 +21,7 @@ bool Guid_GetName(Guid id, char* dst, i32 size);
 
 i32 Guid_Find(Guid const *const pim_noalias ptr, i32 count, Guid key);
 Guid Guid_FromStr(char const *const pim_noalias str);
+Guid Guid_HashStr(char const *const pim_noalias str);
 Guid Guid_FromBytes(void const *const pim_noalias ptr, i32 nBytes);
 
 void Guid_Format(char* dst, i32 size, Guid value);

@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdarg.h>
 #include "common/stringutil.h"
 
 static i32 NotNeg(i32 x)

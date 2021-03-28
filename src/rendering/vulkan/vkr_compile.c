@@ -21,22 +21,22 @@ static shaderc_include_result* vkrResolveInclude(
 
     shaderc_include_result* result = Perm_Calloc(sizeof(*result));
 
-    FileStream file = FileStream_Open(path, "rb");
-    if (FileStream_IsOpen(file))
+    FStream file = FStream_Open(path, "rb");
+    if (FStream_IsOpen(file))
     {
-        i32 size = (i32)FileStream_Size(file);
+        i32 size = (i32)FStream_Size(file);
         if (size > 0)
         {
             result->source_name = StrDup(path, EAlloc_Perm);
             result->source_name_length = StrLen(path);
             char* contents = Perm_Alloc(size + 1);
-            i32 readLen = FileStream_Read(file, contents, size);
+            i32 readLen = FStream_Read(file, contents, size);
             contents[size] = 0;
             ASSERT(readLen == size);
             result->content = contents;
             result->content_length = size;
         }
-        FileStream_Close(&file);
+        FStream_Close(&file);
     }
 
     return result;
@@ -250,18 +250,18 @@ char* vkrLoadShader(const char* filename)
     SPrintf(ARGS(path), "src/shaders/%s", filename);
     StrPath(ARGS(path));
 
-    FileStream fd = FileStream_Open(path, "rb");
-    if (FileStream_IsOpen(fd))
+    FStream fd = FStream_Open(path, "rb");
+    if (FStream_IsOpen(fd))
     {
-        i32 size = (i32)FileStream_Size(fd);
+        i32 size = (i32)FStream_Size(fd);
         if (size > 0)
         {
             contents = Perm_Alloc(size + 1);
-            i32 readLen = FileStream_Read(fd, contents, size);
+            i32 readLen = FStream_Read(fd, contents, size);
             contents[size] = 0;
             ASSERT(readLen == size);
         }
-        FileStream_Close(&fd);
+        FStream_Close(&fd);
     }
     else
     {

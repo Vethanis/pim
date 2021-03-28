@@ -36,5 +36,6 @@ typedef enum
 } LogSev;
 
 void Con_Logf(LogSev sev, const char* tag, const char* fmt, ...);
+void Con_Logv(LogSev sev, const char* tag, const char* fmt, va_list ap);
 
 PIM_C_END

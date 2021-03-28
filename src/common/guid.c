@@ -7,18 +7,12 @@
 #include "containers/dict.h"
 #include "containers/text.h"
 
-static bool ms_init;
-static Dict ms_guidToStr;
-static u32 ms_counter;
-
-static void EnsureInit(void)
+static Dict ms_guidToStr =
 {
-    if (!ms_init)
-    {
-        ms_init = true;
-        Dict_New(&ms_guidToStr, sizeof(Guid), sizeof(Text32), EAlloc_Perm);
-    }
-}
+    .keySize = sizeof(Guid),
+    .valueSize = sizeof(Text16),
+};
+static u64 ms_counter;
 
 bool Guid_IsNull(Guid x)
 {
@@ -46,18 +40,16 @@ i32 Guid_Compare(Guid lhs, Guid rhs)
 Guid Guid_New(void)
 {
     u64 a = Time_Now();
-    u64 b = inc_u32(&ms_counter, MO_Relaxed);
-    u64 c = inc_u32(&ms_counter, MO_Relaxed);
-    b = b << 32 | c;
+    a = a ? a : 1;
+    u64 b = inc_u64(&ms_counter, MO_Relaxed);
     return (Guid) { a, b };
 }
 
 void Guid_SetName(Guid id, const char* str)
 {
-    EnsureInit();
     if (str && str[0])
     {
-        Text32 text = { 0 };
+        Text16 text = { 0 };
         StrCpy(ARGS(text.c), str);
         if (!Dict_Add(&ms_guidToStr, &id, &text))
         {
@@ -72,8 +64,7 @@ void Guid_SetName(Guid id, const char* str)
 
 bool Guid_GetName(Guid id, char* dst, i32 size)
 {
-    EnsureInit();
-    Text32 text = { 0 };
+    Text16 text = { 0 };
     if (Dict_Get(&ms_guidToStr, &id, &text))
     {
         StrCpy(dst, size, text.c);
@@ -97,17 +88,23 @@ i32 Guid_Find(Guid const *const pim_noalias ptr, i32 count, Guid key)
     return -1;
 }
 
-Guid Guid_FromStr(char const *const pim_noalias str)
+Guid Guid_HashStr(char const *const pim_noalias str)
 {
     Guid id = { 0 };
     if (str && str[0])
     {
-        u64 a = Fnv64String(str, Fnv64Bias);
-        a = a ? a : 1;
-        u64 b = Fnv64String(str, a);
-        b = b ? b : 1;
-        id.a = a;
-        id.b = b;
+        id.a = Fnv64String(str, Fnv64Bias);
+        id.b = Fnv64String(str, id.a);
+        id.a = id.a ? id.a : 1;
+    }
+    return id;
+}
+
+Guid Guid_FromStr(char const *const pim_noalias str)
+{
+    Guid id = Guid_HashStr(str);
+    if (id.a)
+    {
         Guid_SetName(id, str);
     }
     return id;
@@ -118,12 +115,9 @@ Guid Guid_FromBytes(void const *const pim_noalias ptr, i32 nBytes)
     Guid id = { 0 };
     if (ptr && nBytes > 0)
     {
-        u64 a = Fnv64Bytes(ptr, nBytes, Fnv64Bias);
-        a = a ? a : 1;
-        u64 b = Fnv64Bytes(ptr, nBytes, a);
-        b = b ? b : 1;
-        id.a = a;
-        id.b = b;
+        id.a = Fnv64Bytes(ptr, nBytes, Fnv64Bias);
+        id.b = Fnv64Bytes(ptr, nBytes, id.a);
+        id.a = id.a ? id.a : 1;
     }
     return id;
 }

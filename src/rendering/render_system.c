@@ -193,25 +193,25 @@ static ConVar_t cv_r_qlights =
 
 static void RegCVars(void)
 {
-    cvar_reg(&cv_pt_trace);
-    cvar_reg(&cv_pt_denoise);
-    cvar_reg(&cv_pt_normal);
-    cvar_reg(&cv_pt_albedo);
+    ConVar_Reg(&cv_pt_trace);
+    ConVar_Reg(&cv_pt_denoise);
+    ConVar_Reg(&cv_pt_normal);
+    ConVar_Reg(&cv_pt_albedo);
 
-    cvar_reg(&cv_lm_gen);
-    cvar_reg(&cv_lm_density);
-    cvar_reg(&cv_lm_timeslice);
-    cvar_reg(&cv_lm_spp);
+    ConVar_Reg(&cv_lm_gen);
+    ConVar_Reg(&cv_lm_density);
+    ConVar_Reg(&cv_lm_timeslice);
+    ConVar_Reg(&cv_lm_spp);
 
-    cvar_reg(&cv_cm_gen);
+    ConVar_Reg(&cv_cm_gen);
 
-    cvar_reg(&cv_r_sun_dir);
-    cvar_reg(&cv_r_sun_col);
-    cvar_reg(&cv_r_sun_lum);
-    cvar_reg(&cv_r_sun_res);
-    cvar_reg(&cv_r_sun_steps);
+    ConVar_Reg(&cv_r_sun_dir);
+    ConVar_Reg(&cv_r_sun_col);
+    ConVar_Reg(&cv_r_sun_lum);
+    ConVar_Reg(&cv_r_sun_res);
+    ConVar_Reg(&cv_r_sun_steps);
 
-    cvar_reg(&cv_r_qlights);
+    ConVar_Reg(&cv_r_qlights);
 }
 
 // ----------------------------------------------------------------------------
@@ -358,7 +358,7 @@ static void LightmapRepack(void)
     EnsurePtScene();
 
     LmPack_Del(LmPack_Get());
-    LmPack pack = LmPack_Pack(1024, cvar_get_float(&cv_lm_density), 0.1f, 15.0f);
+    LmPack pack = LmPack_Pack(1024, ConVar_GetFloat(&cv_lm_density), 0.1f, 15.0f);
     *LmPack_Get() = pack;
 }
 
@@ -409,7 +409,7 @@ static cmdstat_t CmdLoadTest(i32 argc, const char** argv)
         for (i32 m = 1; ; ++m)
         {
             SPrintf(ARGS(cmd), "mapload e%dm%d", e, m);
-            cmdstat_t status = Cmd_Text(cmd);
+            cmdstat_t status = cmd_text(cmd);
             if (status != cmdstat_ok)
             {
                 if (m == 1)
@@ -431,20 +431,20 @@ static void Lightmap_Trace(void)
 {
     static u64 s_lastUpload = 0;
 
-    if (cvar_get_bool(&cv_lm_gen))
+    if (ConVar_GetBool(&cv_lm_gen))
     {
         ProfileBegin(pm_Lightmap_Trace);
         EnsurePtScene();
 
         bool dirty = LmPack_Get()->lmCount == 0;
-        dirty |= cvar_check_dirty(&cv_lm_density);
+        dirty |= ConVar_CheckDirty(&cv_lm_density);
         if (dirty)
         {
             LightmapRepack();
         }
 
-        float timeslice = 1.0f / cvar_get_int(&cv_lm_timeslice);
-        i32 spp = cvar_get_int(&cv_lm_spp);
+        float timeslice = 1.0f / ConVar_GetInt(&cv_lm_timeslice);
+        i32 spp = ConVar_GetInt(&cv_lm_spp);
         LmPack_Bake(ms_ptscene, timeslice, spp);
 
         u64 now = Time_Now();
@@ -465,12 +465,12 @@ static void Lightmap_Trace(void)
 ProfileMark(pm_CubemapTrace, Cubemap_Trace)
 static void Cubemap_Trace(void)
 {
-    if (cvar_get_bool(&cv_cm_gen))
+    if (ConVar_GetBool(&cv_cm_gen))
     {
         ProfileBegin(pm_CubemapTrace);
         EnsurePtScene();
 
-        if (cvar_check_dirty(&cv_cm_gen))
+        if (ConVar_CheckDirty(&cv_cm_gen))
         {
             ms_cmapSampleCount = 0;
         }
@@ -499,7 +499,7 @@ ProfileMark(pm_ptDenoise, Denoise)
 ProfileMark(pm_ptBlit, Blit)
 static bool PathTrace(void)
 {
-    if (cvar_get_bool(&cv_pt_trace))
+    if (ConVar_GetBool(&cv_pt_trace))
     {
         ProfileBegin(pm_PathTrace);
         EnsurePtTrace();
@@ -509,7 +509,7 @@ static bool PathTrace(void)
             Camera_Get(&camera);
 
             bool dirty = false;
-            dirty |= cvar_check_dirty(&cv_pt_trace);
+            dirty |= ConVar_CheckDirty(&cv_pt_trace);
             dirty |= memcmp(&camera, &ms_ptcam, sizeof(camera));
 
             if (dirty)
@@ -525,7 +525,7 @@ static bool PathTrace(void)
         Pt_Trace(&ms_trace, &ms_ptcam);
 
         float3* pim_noalias output3 = ms_trace.color;
-        if (cvar_get_bool(&cv_pt_denoise))
+        if (ConVar_GetBool(&cv_pt_denoise))
         {
             bool denoised = Denoise(
                 DenoiseType_Image,
@@ -537,18 +537,18 @@ static bool PathTrace(void)
 
             if (!denoised)
             {
-                cvar_set_bool(&cv_pt_denoise, false);
+                ConVar_SetBool(&cv_pt_denoise, false);
             }
             else
             {
                 output3 = ms_trace.denoised;
             }
         }
-        if (cvar_get_bool(&cv_pt_albedo))
+        if (ConVar_GetBool(&cv_pt_albedo))
         {
             output3 = ms_trace.albedo;
         }
-        if (cvar_get_bool(&cv_pt_normal))
+        if (ConVar_GetBool(&cv_pt_normal))
         {
             output3 = NULL;
 
@@ -636,7 +636,7 @@ static void TakeScreenshot(void)
 {
     if (Input_IsKeyDown(KeyCode_F10))
     {
-        if (cvar_get_bool(&cv_pt_trace))
+        if (ConVar_GetBool(&cv_pt_trace))
         {
             Con_Exec("pt_denoise 0; wait; screenshot; wait; pt_denoise 1; wait; screenshot; wait; pt_denoise 0");
         }
@@ -660,7 +660,7 @@ static void TakeScreenshot(void)
 ProfileMark(pm_Present, Present)
 static void Present(void)
 {
-    if (cvar_get_bool(&cv_pt_trace))
+    if (ConVar_GetBool(&cv_pt_trace))
     {
         ProfileBegin(pm_Present);
         FrameBuf* frontBuf = GetFrontBuf();
@@ -811,7 +811,7 @@ static void BakeSky(void)
 
     Guid skyname = Guid_FromStr("sky");
     Cubemaps* maps = Cubemaps_Get();
-    if (cvar_check_dirty(&cv_r_sun_res))
+    if (ConVar_CheckDirty(&cv_r_sun_res))
     {
         Cubemaps_Rm(maps, skyname);
     }
@@ -819,19 +819,19 @@ static void BakeSky(void)
     if (iSky == -1)
     {
         dirty = true;
-        iSky = Cubemaps_Add(maps, skyname, cvar_get_int(&cv_r_sun_res), (Box3D) { 0 });
+        iSky = Cubemaps_Add(maps, skyname, ConVar_GetInt(&cv_r_sun_res), (Box3D) { 0 });
     }
 
-    dirty |= cvar_check_dirty(&cv_r_sun_steps);
-    dirty |= cvar_check_dirty(&cv_r_sun_dir);
-    dirty |= cvar_check_dirty(&cv_r_sun_col);
-    dirty |= cvar_check_dirty(&cv_r_sun_lum);
+    dirty |= ConVar_CheckDirty(&cv_r_sun_steps);
+    dirty |= ConVar_CheckDirty(&cv_r_sun_dir);
+    dirty |= ConVar_CheckDirty(&cv_r_sun_col);
+    dirty |= ConVar_CheckDirty(&cv_r_sun_lum);
 
     if (dirty)
     {
-        float4 sunDir = cvar_get_vec(&cv_r_sun_dir);
-        float4 sunCol = cvar_get_vec(&cv_r_sun_col);
-        float log2lum = cvar_get_float(&cv_r_sun_lum);
+        float4 sunDir = ConVar_GetVec(&cv_r_sun_dir);
+        float4 sunCol = ConVar_GetVec(&cv_r_sun_col);
+        float log2lum = ConVar_GetFloat(&cv_r_sun_lum);
         float lum = exp2f(log2lum);
         Cubemap* cm = &maps->cubemaps[iSky];
         i32 size = cm->size;
@@ -840,7 +840,7 @@ static void BakeSky(void)
         task->cm = cm;
         task->sunDir = f4_f3(sunDir);
         task->sunRad = f4_f3(f4_mulvs(sunCol, lum));
-        task->steps = cvar_get_int(&cv_r_sun_steps);
+        task->steps = ConVar_GetInt(&cv_r_sun_steps);
         Task_Run(&task->task, BakeSkyFn, Cubeface_COUNT * size * size);
     }
 }
@@ -850,16 +850,16 @@ void RenderSys_Init(void)
     ms_iFrame = 0;
     RegCVars();
 
-    Cmd_Reg("screenshot", CmdScreenshot);
-    Cmd_Reg("mapload", CmdLoadMap);
-    Cmd_Reg("mapsave", CmdSaveMap);
-    Cmd_Reg("cornell_box", CmdCornellBox);
-    Cmd_Reg("teleport", CmdTeleport);
-    Cmd_Reg("lookat", CmdLookat);
-    Cmd_Reg("quit", CmdQuit);
-    Cmd_Reg("pt_test", CmdPtTest);
-    Cmd_Reg("pt_stddev", CmdPtStdDev);
-    Cmd_Reg("loadtest", CmdLoadTest);
+    cmd_reg("screenshot", CmdScreenshot);
+    cmd_reg("mapload", CmdLoadMap);
+    cmd_reg("mapsave", CmdSaveMap);
+    cmd_reg("cornell_box", CmdCornellBox);
+    cmd_reg("teleport", CmdTeleport);
+    cmd_reg("lookat", CmdLookat);
+    cmd_reg("quit", CmdQuit);
+    cmd_reg("pt_test", CmdPtTest);
+    cmd_reg("pt_stddev", CmdPtStdDev);
+    cmd_reg("loadtest", CmdLoadTest);
 
     vkrSys_Init();
     g_vkr.exposurePass.params = ms_exposure;
@@ -885,11 +885,11 @@ void RenderSys_Update(void)
 
     if (Input_IsKeyDown(KeyCode_F9))
     {
-        cvar_toggle(&cv_pt_trace);
+        ConVar_Toggle(&cv_pt_trace);
     }
     if (Input_IsKeyDown(KeyCode_F8))
     {
-        cvar_toggle(&cv_pt_denoise);
+        ConVar_Toggle(&cv_pt_denoise);
     }
 
     TextureSys_Update();
@@ -970,7 +970,7 @@ void RenderSys_Gui(bool* pEnabled)
 
         if (igTreeNodeExStr("Exposure", ImGuiTreeNodeFlags_Framed))
         {
-            bool r_sw = cvar_get_bool(&cv_pt_trace);
+            bool r_sw = ConVar_GetBool(&cv_pt_trace);
             vkrExposure* exposure = r_sw ? &ms_exposure : &g_vkr.exposurePass.params;
 
             bool manual = exposure->manual;
