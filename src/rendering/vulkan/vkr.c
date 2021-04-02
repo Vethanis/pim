@@ -53,11 +53,11 @@
 
 vkrSys g_vkr;
 
-static ConVar_t* cv_r_sun_dir;
-static ConVar_t* cv_r_sun_col;
-static ConVar_t* cv_r_sun_lum;
+static ConVar* cv_r_sun_dir;
+static ConVar* cv_r_sun_col;
+static ConVar* cv_r_sun_lum;
 
-static ConVar_t cv_lm_upload =
+static ConVar cv_lm_upload =
 {
     .type = cvart_bool,
     .name = "lm_upload",
@@ -167,6 +167,7 @@ cleanup:
 
     if (!success)
     {
+        Con_Logf(LogSev_Error, "vkr", "Failed to init vkrSys");
         vkrSys_Shutdown();
     }
     return success;

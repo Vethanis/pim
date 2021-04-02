@@ -23,6 +23,7 @@ typedef struct Entities_s
     float4* pim_noalias translations;
     quat* pim_noalias rotations;
     float4* pim_noalias scales;
+    u64 modtime;
 } Entities;
 
 #define kDiskEntitiesVersion 3

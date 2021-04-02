@@ -125,7 +125,7 @@ pim_inline float2 VEC_CALL SamplePentagram(float2 Xi, i32 side)
     // https://www.desmos.com/calculator/ptfwlfemow
     const float R = kTau / 5.0f;
     const float s = kPi * 0.1f;
-    const float q = (3.0f - kSqrt5) * 0.5f;
+    const float q = (1.0f - kSqrt5Conj) * 0.5f;
     side %= 5;
     const float a = s + (1.0f + side) * R;
     const float b = s + (1.5f + side) * R;

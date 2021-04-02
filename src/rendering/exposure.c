@@ -29,8 +29,8 @@ static void CalcAverageFn(void* pbase, i32 begin, i32 end)
         float sum = 0.0f;
         for (i32 j = 0; j < kSamples; ++j)
         {
-            Xi.x = f1_wrap(Xi.x + kGoldenRatio - 1.0f);
-            Xi.y = f1_wrap(Xi.y + kSqrt2 - 1.0f);
+            Xi.x = f1_wrap(Xi.x + kGoldenConj);
+            Xi.y = f1_wrap(Xi.y + kSqrt2Conj);
             float angle = Xi.x * kTau;
             float radius = f1_gauss_invcdf(Xi.y, 0.0f, 0.25f);
             float2 uv = f2_v(cosf(angle), sinf(angle));

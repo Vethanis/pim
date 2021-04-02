@@ -59,7 +59,7 @@
 #include <string.h>
 #include <time.h>
 
-static ConVar_t cv_pt_trace =
+static ConVar cv_pt_trace =
 {
     .type = cvart_bool,
     .name = "pt_trace",
@@ -67,7 +67,7 @@ static ConVar_t cv_pt_trace =
     .desc = "enable path tracing",
 };
 
-static ConVar_t cv_pt_denoise =
+static ConVar cv_pt_denoise =
 {
     .type = cvart_bool,
     .name = "pt_denoise",
@@ -75,7 +75,7 @@ static ConVar_t cv_pt_denoise =
     .desc = "denoise path tracing output",
 };
 
-static ConVar_t cv_pt_normal =
+static ConVar cv_pt_normal =
 {
     .type = cvart_bool,
     .name = "pt_normal",
@@ -83,7 +83,7 @@ static ConVar_t cv_pt_normal =
     .desc = "output path tracer normals",
 };
 
-static ConVar_t cv_pt_albedo =
+static ConVar cv_pt_albedo =
 {
     .type = cvart_bool,
     .name = "pt_albedo",
@@ -91,7 +91,7 @@ static ConVar_t cv_pt_albedo =
     .desc = "output path tracer albedo",
 };
 
-static ConVar_t cv_cm_gen =
+static ConVar cv_cm_gen =
 {
     .type = cvart_bool,
     .name = "cm_gen",
@@ -99,7 +99,7 @@ static ConVar_t cv_cm_gen =
     .desc = "enable cubemap generation",
 };
 
-static ConVar_t cv_lm_gen =
+static ConVar cv_lm_gen =
 {
     .type = cvart_bool,
     .name = "lm_gen",
@@ -107,7 +107,7 @@ static ConVar_t cv_lm_gen =
     .desc = "enable lightmap generation",
 };
 
-static ConVar_t cv_lm_density =
+static ConVar cv_lm_density =
 {
     .type = cvart_float,
     .name = "lm_density",
@@ -117,7 +117,7 @@ static ConVar_t cv_lm_density =
     .desc = "lightmap texels per meter",
 };
 
-static ConVar_t cv_lm_timeslice =
+static ConVar cv_lm_timeslice =
 {
     .type = cvart_int,
     .name = "lm_timeslice",
@@ -127,7 +127,7 @@ static ConVar_t cv_lm_timeslice =
     .desc = "number of frames required to add 1 lighting sample to all lightmap texels",
 };
 
-static ConVar_t cv_lm_spp =
+static ConVar cv_lm_spp =
 {
     .type = cvart_int,
     .name = "lm_spp",
@@ -137,14 +137,14 @@ static ConVar_t cv_lm_spp =
     .desc = "lightmap samples per pixel",
 };
 
-static ConVar_t cv_r_sun_dir =
+static ConVar cv_r_sun_dir =
 {
     .type = cvart_vector,
     .name = "r_sun_dir",
     .value = "0.0 0.968 0.253 0.0",
     .desc = "Sun Direction",
 };
-static ConVar_t cv_r_sun_col =
+static ConVar cv_r_sun_col =
 {
     .type = cvart_color,
     .name = "r_sun_col",
@@ -155,7 +155,7 @@ static ConVar_t cv_r_sun_col =
 // noon: around 2^31
 // sunrise: around 2^20
 // night: around 2^-10
-static ConVar_t cv_r_sun_lum =
+static ConVar cv_r_sun_lum =
 {
     .type = cvart_float,
     .name = "r_sun_lum",
@@ -164,7 +164,7 @@ static ConVar_t cv_r_sun_lum =
     .maxFloat = 31.0f,
     .desc = "Log2 Sun Luminance",
 };
-static ConVar_t cv_r_sun_res =
+static ConVar cv_r_sun_res =
 {
     .type = cvart_int,
     .name = "r_sun_res",
@@ -173,7 +173,7 @@ static ConVar_t cv_r_sun_res =
     .maxInt = 4096,
     .desc = "Sky Cubemap Resolution",
 };
-static ConVar_t cv_r_sun_steps =
+static ConVar cv_r_sun_steps =
 {
     .type = cvart_int,
     .name = "r_sun_steps",
@@ -183,7 +183,7 @@ static ConVar_t cv_r_sun_steps =
     .desc = "Sky Cubemap Raymarch Steps",
 };
 
-static ConVar_t cv_r_qlights =
+static ConVar cv_r_qlights =
 {
     .type = cvart_bool,
     .name = "r_qlights",
@@ -429,15 +429,13 @@ end:
 ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
 static void Lightmap_Trace(void)
 {
-    static u64 s_lastUpload = 0;
-
     if (ConVar_GetBool(&cv_lm_gen))
     {
         ProfileBegin(pm_Lightmap_Trace);
         EnsurePtScene();
 
         bool dirty = LmPack_Get()->lmCount == 0;
-        dirty |= ConVar_CheckDirty(&cv_lm_density);
+        dirty |= ConVar_GetFloat(&cv_lm_density) != LmPack_Get()->texelsPerMeter;
         if (dirty)
         {
             LightmapRepack();
@@ -447,6 +445,7 @@ static void Lightmap_Trace(void)
         i32 spp = ConVar_GetInt(&cv_lm_spp);
         LmPack_Bake(ms_ptscene, timeslice, spp);
 
+        static u64 s_lastUpload;
         u64 now = Time_Now();
         if (Time_Sec(now - s_lastUpload) > 10.0)
         {
@@ -465,12 +464,14 @@ static void Lightmap_Trace(void)
 ProfileMark(pm_CubemapTrace, Cubemap_Trace)
 static void Cubemap_Trace(void)
 {
+    static u64 s_lap;
+
     if (ConVar_GetBool(&cv_cm_gen))
     {
         ProfileBegin(pm_CubemapTrace);
         EnsurePtScene();
 
-        if (ConVar_CheckDirty(&cv_cm_gen))
+        if (ConVar_CheckDirty(&cv_cm_gen, Time_Lap(&s_lap)))
         {
             ms_cmapSampleCount = 0;
         }
@@ -499,6 +500,8 @@ ProfileMark(pm_ptDenoise, Denoise)
 ProfileMark(pm_ptBlit, Blit)
 static bool PathTrace(void)
 {
+    static u64 s_lap;
+
     if (ConVar_GetBool(&cv_pt_trace))
     {
         ProfileBegin(pm_PathTrace);
@@ -509,7 +512,7 @@ static bool PathTrace(void)
             Camera_Get(&camera);
 
             bool dirty = false;
-            dirty |= ConVar_CheckDirty(&cv_pt_trace);
+            dirty |= ConVar_CheckDirty(&cv_pt_trace, Time_Lap(&s_lap));
             dirty |= memcmp(&camera, &ms_ptcam, sizeof(camera));
 
             if (dirty)
@@ -807,11 +810,13 @@ static void BakeSkyFn(Task* pbase, i32 begin, i32 end)
 
 static void BakeSky(void)
 {
+    static u64 s_lap;
+    u64 lastCheck = Time_Lap(&s_lap);
     bool dirty = false;
 
     Guid skyname = Guid_FromStr("sky");
     Cubemaps* maps = Cubemaps_Get();
-    if (ConVar_CheckDirty(&cv_r_sun_res))
+    if (ConVar_CheckDirty(&cv_r_sun_res, lastCheck))
     {
         Cubemaps_Rm(maps, skyname);
     }
@@ -822,10 +827,10 @@ static void BakeSky(void)
         iSky = Cubemaps_Add(maps, skyname, ConVar_GetInt(&cv_r_sun_res), (Box3D) { 0 });
     }
 
-    dirty |= ConVar_CheckDirty(&cv_r_sun_steps);
-    dirty |= ConVar_CheckDirty(&cv_r_sun_dir);
-    dirty |= ConVar_CheckDirty(&cv_r_sun_col);
-    dirty |= ConVar_CheckDirty(&cv_r_sun_lum);
+    dirty |= ConVar_CheckDirty(&cv_r_sun_steps, lastCheck);
+    dirty |= ConVar_CheckDirty(&cv_r_sun_dir, lastCheck);
+    dirty |= ConVar_CheckDirty(&cv_r_sun_col, lastCheck);
+    dirty |= ConVar_CheckDirty(&cv_r_sun_lum, lastCheck);
 
     if (dirty)
     {
@@ -845,7 +850,7 @@ static void BakeSky(void)
     }
 }
 
-void RenderSys_Init(void)
+bool RenderSys_Init(void)
 {
     ms_iFrame = 0;
     RegCVars();
@@ -861,7 +866,11 @@ void RenderSys_Init(void)
     cmd_reg("pt_stddev", CmdPtStdDev);
     cmd_reg("loadtest", CmdLoadTest);
 
-    vkrSys_Init();
+    if (!vkrSys_Init())
+    {
+        Con_Logf(LogSev_Error, "vkr", "Failed to init RenderSys");
+        return false;
+    }
     g_vkr.exposurePass.params = ms_exposure;
 
     TextureSys_Init();
@@ -872,6 +881,8 @@ void RenderSys_Init(void)
     EnsureFramebuf();
 
     Con_Exec("mapload start");
+
+    return true;
 }
 
 ProfileMark(pm_update, RenderSys_Update)

@@ -12,10 +12,10 @@
 
 static bool ms_placing = true;
 
-static ConVar_t cv_pitchscale = { .type = cvart_float,.name = "pitchscale",.value = "2",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "pitch input sensitivity" };
-static ConVar_t cv_yawscale = { .type = cvart_float,.name = "yawscale",.value = "1",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "yaw input sensitivity" };
-static ConVar_t cv_movescale = { .type = cvart_float,.name = "movescale",.value = "8",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
-static ConVar_t cv_r_fov =
+static ConVar cv_pitchscale = { .type = cvart_float,.name = "pitchscale",.value = "2",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "pitch input sensitivity" };
+static ConVar cv_yawscale = { .type = cvart_float,.name = "yawscale",.value = "1",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "yaw input sensitivity" };
+static ConVar cv_movescale = { .type = cvart_float,.name = "movescale",.value = "8",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
+static ConVar cv_r_fov =
 {
     .type = cvart_float,
     .name = "r_fov",
@@ -24,7 +24,7 @@ static ConVar_t cv_r_fov =
     .maxFloat = 170.0f,
     .desc = "Vertical field of fiew, in degrees",
 };
-static ConVar_t cv_r_znear =
+static ConVar cv_r_znear =
 {
     .type = cvart_float,
     .name = "r_znear",
@@ -33,7 +33,7 @@ static ConVar_t cv_r_znear =
     .maxFloat = 1.0f,
     .desc = "Near clipping plane, in meters",
 };
-static ConVar_t cv_r_zfar =
+static ConVar cv_r_zfar =
 {
     .type = cvart_float,
     .name = "r_zfar",

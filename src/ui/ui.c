@@ -6,9 +6,18 @@
 #include "common/profiler.h"
 #include "common/cvar.h"
 #include "common/stringutil.h"
+#include "common/time.h"
 #include "math/color.h"
 
-static ConVar_t cv_ui_opacity;
+static ConVar cv_ui_opacity =
+{
+    .type = cvart_float,
+    .name = "ui_opacity",
+    .value = "0.95",
+    .minFloat = 0.1f,
+    .maxFloat = 1.0f,
+    .desc = "UI Opacity",
+};
 
 static ImGuiContext* ms_ctx;
 
@@ -103,7 +112,7 @@ static void SetupStyle(void)
 static void UpdateOpacity(void)
 {
     ImGuiStyle *const style = igGetStyle();
-    ImVec4* colors = style->Colors;
+    ImVec4* pim_noalias colors = style->Colors;
     float opacity = ConVar_GetFloat(&cv_ui_opacity);
     for (i32 i = 0; i < NELEM(style->Colors); ++i)
     {
@@ -115,12 +124,6 @@ void UiSys_Init(GLFWwindow* window)
 {
     ASSERT(window);
 
-    cv_ui_opacity.type = cvart_float;
-    cv_ui_opacity.name = "ui_opacity";
-    StrCpy(ARGS(cv_ui_opacity.value), "0.95");
-    cv_ui_opacity.minFloat = 0.1f;
-    cv_ui_opacity.maxFloat = 1.0f;
-    cv_ui_opacity.desc = "UI Opacity";
     ConVar_Reg(&cv_ui_opacity);
     ASSERT(igDebugCheckVersionAndDataLayout(
         "1.80", // cimgui does not export this! :(
@@ -144,7 +147,8 @@ void UiSys_BeginFrame(void)
 {
     ProfileBegin(pm_beginframe);
 
-    if (ConVar_CheckDirty(&cv_ui_opacity))
+    static u64 s_lap;
+    if (ConVar_CheckDirty(&cv_ui_opacity, Time_Lap(&s_lap)))
     {
         UpdateOpacity();
     }
