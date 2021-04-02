@@ -17,7 +17,7 @@
 
 #define MAX_LINES       256
 
-static ConVar_t cv_conlogpath =
+static ConVar cv_conlogpath =
 {
     .type=cvart_text,
     .name="conlogpath",
@@ -32,6 +32,7 @@ static void HistClear(void);
 
 static char ms_buffer[PIM_PATH];
 static FStream ms_file;
+static u64 ms_fileOpenTime;
 
 static i32 ms_iLine;
 static char* ms_lines[MAX_LINES];
@@ -51,6 +52,7 @@ void ConSys_Init(void)
     StrList_New(&ms_history, EAlloc_Perm);
 
     ms_file = FStream_Open(cv_conlogpath.value, "wb");
+    ms_fileOpenTime = Time_Now();
     Con_Clear();
     HistClear();
 }
@@ -60,10 +62,11 @@ void ConSys_Update(void)
 {
     ProfileBegin(pm_update);
 
-    if (ConVar_CheckDirty(&cv_conlogpath))
+    if (ConVar_CheckDirty(&cv_conlogpath, ms_fileOpenTime))
     {
         FStream_Close(&ms_file);
         ms_file = FStream_Open(cv_conlogpath.value, "wb");
+        ms_fileOpenTime = Time_Now();
     }
     con_gui();
 

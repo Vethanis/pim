@@ -1,38 +1,43 @@
 #include "common/cvar.h"
 
 #include "allocator/allocator.h"
+#include "common/console.h"
 #include "common/fnv1a.h"
 #include "common/stringutil.h"
 #include "common/profiler.h"
 #include "common/sort.h"
+#include "common/time.h"
 #include "math/scalar.h"
 #include "math/float4_funcs.h"
 #include "containers/sdict.h"
 #include "ui/cimgui_ext.h"
 #include <stdlib.h> // atof
 #include <stdio.h> // sscanf
+#include <string.h>
 
 static StrDict ms_dict =
 {
-    .valueSize = sizeof(ConVar_t*),
+    .valueSize = sizeof(ConVar*),
 };
 
-void ConVar_Reg(ConVar_t* ptr)
+void ConVar_Reg(ConVar* var)
 {
-    ASSERT(ptr);
-    ASSERT(ptr->name);
-    ASSERT(ptr->desc);
+    ASSERT(var);
+    ASSERT(var->name);
+    ASSERT(var->desc);
+    ASSERT(!var->registered);
 
-    ConVar_SetStr(ptr, ptr->value);
-    ptr->flags &= ~cvarf_dirty;
-
-    bool added = StrDict_Add(&ms_dict, ptr->name, &ptr);
-    ASSERT(added);
+    if (!var->registered)
+    {
+        ConVar_SetStr(var, var->value);
+        var->registered = StrDict_Add(&ms_dict, var->name, &var);
+        ASSERT(var->registered);
+    }
 }
 
-ConVar_t* ConVar_Find(const char* name)
+ConVar* ConVar_Find(const char* name)
 {
-    ConVar_t* value = NULL;
+    ConVar* value = NULL;
     StrDict_Get(&ms_dict, name, &value);
     return value;
 }
@@ -57,112 +62,124 @@ const char* ConVar_Complete(const char* namePart)
     return NULL;
 }
 
-void ConVar_SetStr(ConVar_t* ptr, const char* value)
+void ConVar_SetStr(ConVar* var, const char* value)
 {
-    ASSERT(ptr);
+    ASSERT(var);
     ASSERT(value);
-    ptr->flags |= cvarf_dirty;
-    if (ptr->value != value)
+    if (!var->registered || (StrCmp(ARGS(var->value), value) != 0))
     {
-        StrCpy(ARGS(ptr->value), value);
-    }
-    switch (ptr->type)
-    {
-    default:
-        ASSERT(false);
-        break;
-    case cvart_text:
-    {
-        // already in ptr->value
-    }
-    break;
-    case cvart_bool:
-    {
-        ptr->asBool = ptr->value[0] == '1';
-    }
-    break;
-    case cvart_int:
-    {
-        ptr->asInt = i1_clamp(atoi(value), ptr->minInt, ptr->maxInt);
-    }
-    break;
-    case cvart_float:
-    {
-        ptr->asFloat = f1_clamp((float)atof(value), ptr->minFloat, ptr->maxFloat);
-    }
-    break;
-    case cvart_color:
-    {
-        i32 numScanned = sscanf(value, "%f %f %f %f", &ptr->asVector.x, &ptr->asVector.y, &ptr->asVector.z, &ptr->asVector.w);
-        if (numScanned == 3 || numScanned == 4)
+        StrCpy(ARGS(var->value), value);
+        var->modtime = Time_Now();
+        switch (var->type)
         {
-            ptr->asVector = f4_saturate(ptr->asVector);
-        }
-        else
-        {
+        default:
             ASSERT(false);
-            ptr->asVector = f4_s(0.5f);
-            ptr->asVector.w = 1.0f;
+            break;
+        case cvart_text:
+        {
+            // already in var->value
+        }
+        break;
+        case cvart_bool:
+        {
+            char c = ChrLo(var->value[0]);
+            var->asBool = (c == '1') || (c == 't') || (c == 'y');
+        }
+        break;
+        case cvart_int:
+        {
+            var->asInt = i1_clamp(atoi(value), var->minInt, var->maxInt);
+        }
+        break;
+        case cvart_float:
+        {
+            var->asFloat = f1_clamp((float)atof(value), var->minFloat, var->maxFloat);
+        }
+        break;
+        case cvart_color:
+        {
+            i32 numScanned = sscanf(value, "%f %f %f %f", &var->asVector.x, &var->asVector.y, &var->asVector.z, &var->asVector.w);
+            if ((numScanned == 3) || (numScanned == 4))
+            {
+                var->asVector = f4_saturate(var->asVector);
+            }
+            else
+            {
+                ASSERT(false);
+                Con_Logf(LogSev_Error, "cvar", "Failed to parse cvar '%s' as color from '%s'", var->name, value);
+                var->asVector = f4_s(0.5f);
+                var->asVector.w = 1.0f;
+            }
+        }
+        break;
+        case cvart_point:
+        {
+            i32 numScanned = sscanf(value, "%f %f %f", &var->asVector.x, &var->asVector.y, &var->asVector.z);
+            ASSERT(numScanned == 3);
+            if (numScanned == 3)
+            {
+                var->asVector = f4_clampvs(var->asVector, var->minFloat, var->maxFloat);
+            }
+            else
+            {
+                ASSERT(false);
+                Con_Logf(LogSev_Error, "cvar", "Failed to parse cvar '%s' as point from '%s'", var->name, value);
+                var->asVector = f4_0;
+            }
+            var->asVector.w = 1.0f;
+        }
+        break;
+        case cvart_vector:
+        {
+            i32 numScanned = sscanf(value, "%f %f %f", &var->asVector.x, &var->asVector.y, &var->asVector.z);
+            ASSERT(numScanned == 3);
+            if (numScanned == 3)
+            {
+                var->asVector = f4_normalize3(var->asVector);
+            }
+            else
+            {
+                ASSERT(false);
+                Con_Logf(LogSev_Error, "cvar", "Failed to parse cvar '%s' as vector from '%s'", var->name, value);
+                var->asVector = f4_v(0.0f, 0.0f, 1.0f, 0.0f);
+            }
+            var->asVector.w = 0.0f;
+        }
+        break;
         }
     }
-    break;
-    case cvart_point:
+}
+
+void ConVar_SetFloat(ConVar* var, float value)
+{
+    ASSERT(var);
+    ASSERT(var->type == cvart_float);
+    value = f1_clamp(value, var->minFloat, var->maxFloat);
+    if (value != var->asFloat)
     {
-        i32 numScanned = sscanf(value, "%f %f %f", &ptr->asVector.x, &ptr->asVector.y, &ptr->asVector.z);
-        ASSERT(numScanned == 3);
-        if (numScanned == 3)
-        {
-            ptr->asVector = f4_clampvs(ptr->asVector, ptr->minFloat, ptr->maxFloat);
-        }
-        else
-        {
-            ptr->asVector = f4_0;
-        }
-        ptr->asVector.w = 1.0f;
+        SPrintf(ARGS(var->value), "%f", value);
+        var->asFloat = value;
+        var->modtime = Time_Now();
     }
-    break;
-    case cvart_vector:
+}
+
+void ConVar_SetInt(ConVar* var, i32 value)
+{
+    ASSERT(var);
+    ASSERT(var->type == cvart_int);
+    value = i1_clamp(value, var->minInt, var->maxInt);
+    if (value != var->asInt)
     {
-        i32 numScanned = sscanf(value, "%f %f %f", &ptr->asVector.x, &ptr->asVector.y, &ptr->asVector.z);
-        ASSERT(numScanned == 3);
-        if (numScanned == 3)
-        {
-            ptr->asVector = f4_normalize3(ptr->asVector);
-        }
-        else
-        {
-            ptr->asVector = f4_v(0.0f, 0.0f, 1.0f, 0.0f);
-        }
-        ptr->asVector.w = 0.0f;
-    }
-    break;
+        SPrintf(ARGS(var->value), "%d", value);
+        var->asInt = value;
+        var->modtime = Time_Now();
     }
 }
 
-void ConVar_SetFloat(ConVar_t* ptr, float value)
+void ConVar_SetVec(ConVar* var, float4 value)
 {
-    ASSERT(ptr);
-    ASSERT(ptr->type == cvart_float);
-    value = f1_clamp(value, ptr->minFloat, ptr->maxFloat);
-    ptr->flags |= cvarf_dirty;
-    SPrintf(ARGS(ptr->value), "%f", value);
-    ptr->asFloat = value;
-}
-
-void ConVar_SetInt(ConVar_t* ptr, i32 value)
-{
-    ASSERT(ptr);
-    ASSERT(ptr->type == cvart_int);
-    value = i1_clamp(value, ptr->minInt, ptr->maxInt);
-    ptr->flags |= cvarf_dirty;
-    SPrintf(ARGS(ptr->value), "%d", value);
-    ptr->asInt = value;
-}
-
-void ConVar_SetVec(ConVar_t* ptr, float4 value)
-{
-    ASSERT(ptr);
-    switch (ptr->type)
+    ASSERT(var);
+    switch (var->type)
     {
     default:
         ASSERT(false);
@@ -171,30 +188,36 @@ void ConVar_SetVec(ConVar_t* ptr, float4 value)
         value = f4_normalize3(value);
         break;
     case cvart_point:
-        value = f4_clampvs(value, ptr->minFloat, ptr->maxFloat);
+        value = f4_clampvs(value, var->minFloat, var->maxFloat);
         break;
     case cvart_color:
         value = f4_saturate(value);
         break;
     }
-    ptr->flags |= cvarf_dirty;
-    SPrintf(ARGS(ptr->value), "%f %f %f %f", value.x, value.y, value.z, value.w);
-    ptr->asVector = value;
+    if (b4_any(f4_neq(value, var->asVector)))
+    {
+        SPrintf(ARGS(var->value), "%f %f %f %f", value.x, value.y, value.z, value.w);
+        var->asVector = value;
+        var->modtime = Time_Now();
+    }
 }
 
-void ConVar_SetBool(ConVar_t* ptr, bool value)
+void ConVar_SetBool(ConVar* var, bool value)
 {
-    ASSERT(ptr);
-    ASSERT(ptr->type == cvart_bool);
-    ptr->flags |= cvarf_dirty;
-    ptr->value[0] = value ? '1' : '0';
-    ptr->value[1] = 0;
-    ptr->asBool = value;
+    ASSERT(var);
+    ASSERT(var->type == cvart_bool);
+    if (value != var->asBool)
+    {
+        var->value[0] = value ? '1' : '0';
+        var->value[1] = 0;
+        var->asBool = value;
+        var->modtime = Time_Now();
+    }
 }
 
-bool ConVar_IsVec(const ConVar_t* ptr)
+bool ConVar_IsVec(const ConVar* var)
 {
-    switch (ptr->type)
+    switch (var->type)
     {
     default:
         return false;
@@ -205,47 +228,44 @@ bool ConVar_IsVec(const ConVar_t* ptr)
     }
 }
 
-const char* ConVar_GetStr(const ConVar_t* ptr)
+const char* ConVar_GetStr(const ConVar* var)
 {
-    ASSERT(ptr->type == cvart_text);
-    return ptr->value;
+    ASSERT(var->type == cvart_text);
+    return var->value;
 }
 
-float ConVar_GetFloat(const ConVar_t* ptr)
+float ConVar_GetFloat(const ConVar* var)
 {
-    ASSERT(ptr->type == cvart_float);
-    return ptr->asFloat;
+    ASSERT(var->type == cvart_float);
+    return var->asFloat;
 }
 
-i32 ConVar_GetInt(const ConVar_t* ptr)
+i32 ConVar_GetInt(const ConVar* var)
 {
-    ASSERT(ptr->type == cvart_int);
-    return ptr->asInt;
+    ASSERT(var->type == cvart_int);
+    return var->asInt;
 }
 
-float4 ConVar_GetVec(const ConVar_t* ptr)
+float4 ConVar_GetVec(const ConVar* var)
 {
-    ASSERT(ConVar_IsVec(ptr));
-    return ptr->asVector;
+    ASSERT(ConVar_IsVec(var));
+    return var->asVector;
 }
 
-bool ConVar_GetBool(const ConVar_t* ptr)
+bool ConVar_GetBool(const ConVar* var)
 {
-    ASSERT(ptr->type == cvart_bool);
-    return ptr->asBool;
+    ASSERT(var->type == cvart_bool);
+    return var->asBool;
 }
 
-void ConVar_Toggle(ConVar_t* ptr)
+void ConVar_Toggle(ConVar* var)
 {
-    ConVar_SetBool(ptr, !ConVar_GetBool(ptr));
+    ConVar_SetBool(var, !ConVar_GetBool(var));
 }
 
-bool ConVar_CheckDirty(ConVar_t* ptr)
+bool ConVar_CheckDirty(const ConVar* var, u64 lastCheck)
 {
-    ASSERT(ptr);
-    bool dirty = (ptr->flags & cvarf_dirty) != 0;
-    ptr->flags &= ~cvarf_dirty;
-    return dirty;
+    return var->modtime > lastCheck;
 }
 
 static char ms_search[PIM_PATH];
@@ -259,9 +279,9 @@ void ConVar_Gui(bool* pEnabled)
 
     if (igBegin("Config Vars", pEnabled, 0))
     {
-        ConVar_t** cvars = ms_dict.values;
+        ConVar** pim_noalias cvars = ms_dict.values;
         const i32 length = ms_dict.count;
-        const u32* indices = StrDict_Sort(&ms_dict, SDictStrCmp, NULL);
+        const u32* pim_noalias indices = StrDict_Sort(&ms_dict, SDictStrCmp, NULL);
 
         igInputText("Search", ARGS(ms_search), 0, NULL, NULL);
 
@@ -271,7 +291,7 @@ void ConVar_Gui(bool* pEnabled)
         for (i32 i = 0; i < length; ++i)
         {
             u32 j = indices[i];
-            ConVar_t* cvar = cvars[j];
+            ConVar* pim_noalias cvar = cvars[j];
             if (!cvar)
             {
                 continue;
@@ -295,9 +315,11 @@ void ConVar_Gui(bool* pEnabled)
             break;
             case cvart_text:
             {
-                if (igInputText(cvar->name, ARGS(cvar->value), 0, NULL, NULL))
+                char buffer[sizeof(cvar->value)];
+                memcpy(buffer, cvar->value, sizeof(buffer));
+                if (igInputText(cvar->name, ARGS(buffer), 0, NULL, NULL))
                 {
-                    cvar->flags |= cvarf_dirty;
+                    ConVar_SetStr(cvar, buffer);
                 }
             }
             break;

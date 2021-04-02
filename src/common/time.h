@@ -11,6 +11,8 @@ void TimeSys_Shutdown(void);
 u32 Time_FrameCount(void);
 u64 Time_AppStart(void);
 u64 Time_FrameStart(void);
+u64 Time_PrevFrame(void);
+u64 Time_Lap(u64* tick);
 
 u64 Time_Now(void);
 u64 Time_Delta(void);

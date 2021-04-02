@@ -4,6 +4,7 @@
 #include "common/fnv1a.h"
 #include "common/guid.h"
 #include "common/profiler.h"
+#include "common/time.h"
 #include "math/float4x4_funcs.h"
 #include "math/frustum.h"
 #include "math/box.h"
@@ -60,6 +61,7 @@ i32 Entities_Add(Entities *const dr, Guid name)
     dr->rotations[back] = quat_id;
     dr->matrices[back] = f4x4_id;
     dr->invMatrices[back] = f3x3_id;
+    dr->modtime = Time_Now();
 
     return back;
 }
@@ -102,6 +104,7 @@ bool Entities_Rm(Entities *const dr, Guid name)
         return false;
     }
     RemoveAtIndex(dr, i);
+    dr->modtime = Time_Now();
     return true;
 }
 
@@ -120,6 +123,7 @@ void Entities_Clear(Entities *const dr)
             DestroyAtIndex(dr, i);
         }
         dr->count = 0;
+        dr->modtime = Time_Now();
     }
 }
 
@@ -138,6 +142,7 @@ void Entities_Del(Entities *const dr)
         Mem_Free(dr->rotations);
         Mem_Free(dr->scales);
         memset(dr, 0, sizeof(*dr));
+        dr->modtime = Time_Now();
     }
 }
 
@@ -284,6 +289,7 @@ bool Entities_Load(Crate *const crate, Entities *const dst)
     i32 len = 0;
     if (Crate_Get(crate, Guid_FromStr("drawables.count"), &len, sizeof(len)) && (len > 0))
     {
+        dst->modtime = Time_Now();
         dst->count = len;
         dst->names = Perm_Calloc(sizeof(dst->names[0]) * len);
         dst->meshes = Perm_Calloc(sizeof(dst->meshes[0]) * len);
@@ -350,6 +356,8 @@ bool Entities_Load(Crate *const crate, Entities *const dst)
     return loaded;
 }
 
+static bool EntSys_MaterialGui(Entities* dr, i32 iDrawable);
+
 ProfileMark(pm_gui, EntSys_Gui)
 void EntSys_Gui(bool* enabled)
 {
@@ -358,61 +366,74 @@ void EntSys_Gui(bool* enabled)
     if (igBegin("Drawables", enabled, 0))
     {
         Entities* dr = Entities_Get();
+        bool modified = false;
         for (i32 iDrawable = 0; iDrawable < dr->count; ++iDrawable)
         {
-            igPushIDPtr(&dr->names[iDrawable]);
+            igPushIDInt(iDrawable);
             char name[PIM_PATH] = { 0 };
             Guid_GetName(dr->names[iDrawable], ARGS(name));
 
             if (igTreeNodeStr(name))
             {
-                if (igTreeNodeStr("Material"))
-                {
-                    Material* mat = &dr->materials[iDrawable];
-
-                    char texname[PIM_PATH];
-                    Texture_GetName(mat->albedo, ARGS(texname));
-                    igText("Albedo: %s", texname);
-                    Texture_GetName(mat->rome, ARGS(texname));
-                    igText("Rome: %s", texname);
-                    Texture_GetName(mat->normal, ARGS(texname));
-                    igText("Normal: %s", texname);
-
-                    bool flagBits[10];
-                    char const *const flagNames[10] =
-                    {
-                        "Emissive",
-                        "Sky",
-                        "Water",
-                        "Slime",
-                        "Lava",
-                        "Refractive",
-                        "Warped",
-                        "Animated",
-                        "Underwater",
-                        "Portal",
-                    };
-                    MatFlag flag = mat->flags;
-                    for (u32 iBit = 0; iBit < NELEM(flagBits); ++iBit)
-                    {
-                        const u32 mask = 1u << iBit;
-                        flagBits[iBit] = (flag & mask) != 0;
-                        igCheckbox(flagNames[iBit], &flagBits[iBit]);
-                        flag = (flagBits[iBit]) ? (flag | mask) : (flag & (~mask));
-                    }
-                    mat->flags = flag;
-
-                    igExSliderFloat("Index of Refraction", &mat->ior, 0.01f, 10.0f);
-                    igExSliderFloat("Bumpiness", &mat->bumpiness, 0.0f, 10.0f);
-                    igTreePop();
-                }
+                modified |= EntSys_MaterialGui(dr, iDrawable);
                 igTreePop();
             }
 
             igPopID();
         }
+
+        if (modified)
+        {
+            dr->modtime = Time_Now();
+        }
     }
     igEnd();
 
     ProfileEnd(pm_gui);
+}
+
+static bool EntSys_MaterialGui(Entities* dr, i32 iDrawable)
+{
+    bool modified = false;
+    if (igTreeNodeStr("Material"))
+    {
+        Material* mat = &dr->materials[iDrawable];
+
+        char texname[PIM_PATH];
+        Texture_GetName(mat->albedo, ARGS(texname));
+        igText("Albedo: %s", texname);
+        Texture_GetName(mat->rome, ARGS(texname));
+        igText("Rome: %s", texname);
+        Texture_GetName(mat->normal, ARGS(texname));
+        igText("Normal: %s", texname);
+
+        bool flagBits[10];
+        char const *const flagNames[10] =
+        {
+            "Emissive",
+            "Sky",
+            "Water",
+            "Slime",
+            "Lava",
+            "Refractive",
+            "Warped",
+            "Animated",
+            "Underwater",
+            "Portal",
+        };
+        MatFlag flag = mat->flags;
+        for (u32 iBit = 0; iBit < NELEM(flagBits); ++iBit)
+        {
+            const u32 mask = 1u << iBit;
+            flagBits[iBit] = (flag & mask) != 0;
+            modified |= igCheckbox(flagNames[iBit], &flagBits[iBit]);
+            flag = (flagBits[iBit]) ? (flag | mask) : (flag & (~mask));
+        }
+        mat->flags = flag;
+
+        modified |= igExSliderFloat("Index of Refraction", &mat->ior, 0.01f, 10.0f);
+        modified |= igExSliderFloat("Bumpiness", &mat->bumpiness, 0.0f, 10.0f);
+        igTreePop();
+    }
+    return modified;
 }

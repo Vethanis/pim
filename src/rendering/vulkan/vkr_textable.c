@@ -164,6 +164,7 @@ static vkrTextureId TexTable_Alloc(
     const GenId gid = IdAlloc_Alloc(&tt->ids);
     const i32 slot = gid.index;
     ASSERT(slot < tt->capacity);
+    ASSERT(tt->capacity > 0);
 
     vkrImage* image = &tt->images[slot];
     if (!vkrTexture_New(image, viewType, format, width, height, depth, layers, mips))

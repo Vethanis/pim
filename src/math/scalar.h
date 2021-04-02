@@ -4,11 +4,11 @@
 #include <math.h>
 
 #ifdef min
-    #undef min
+#   undef min
 #endif // min
 
 #ifdef max
-    #undef max
+#   undef max
 #endif // max
 
 #define kPi                 3.1415926535897932384626433832795f
@@ -16,16 +16,27 @@
 #define kRadiansPerDegree   (kTau / 360.0f)
 #define kDegreesPerRadian   (360.0f / kTau)
 #define kEpsilon            (1.0f / (1<<22))
-#define kGoldenRatio        1.6180339887498948482045868343656f // (1 + sqrt(5)) / 2
-#define kSilverRatio        0.6180339887498948482045868343656f // (sqrt(5) - 1) / 2
-#define kSqrt2              1.4142135623730950488016887242097f
-#define kSqrt3              1.7320508075688772935274463415059f
-#define kSqrt5              2.2360679774997896964091736687313f
-#define kSqrt7              2.6457513110645905905016157536393f
-#define kSqrt11             3.3166247903553998491149327366707f
-#define kSqrt13             3.6055512754639892931192212674705f
-#define kSqrt17             4.1231056256176605498214098559741f
-#define kSqrt19             4.3588989435406735522369819838596f
+#define kGoldenConj         0.6180339887498948482045868343656f // sqrt(5) / 2
+#define kSqrt2Conj          0.4142135623730950488016887242097f
+#define kSqrt3Conj          0.7320508075688772935274463415059f
+#define kSqrt5Conj          0.2360679774997896964091736687313f
+#define kSqrt7Conj          0.6457513110645905905016157536393f
+#define kSqrt11Conj         0.3166247903553998491149327366707f
+#define kSqrt13Conj         0.6055512754639892931192212674705f
+#define kSqrt17Conj         0.1231056256176605498214098559741f
+#define kSqrt19Conj         0.3588989435406735522369819838596f
+#define kSqrt23Conj         0.7958315233127195415974380641627f
+#define kSqrt29Conj         0.3851648071345040312507104915403f
+#define kSqrt31Conj         0.5677643628300219221194712989185f
+#define kSqrt37Conj         0.0827625302982196889996842452021f
+#define kSqrt41Conj         0.4031242374328486864882176746218f
+#define kSqrt43Conj         0.557438524302000652344109997636f
+#define kSqrt47Conj         0.8556546004010441249358714490848f
+#define kSqrt53Conj         0.280109889280518271097302491527f
+#define kSqrt59Conj         0.6811457478686081757696870217314f
+#define kSqrt61Conj         0.8102496759066543941297227357591f
+#define kSqrt67Conj         0.1853527718724499699537037247339f
+#define kSqrt71Conj         0.4261497731763586306341399062027f
 
 // SI units
 #define kKilo               1000.0f

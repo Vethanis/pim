@@ -131,7 +131,7 @@ static cmdstat_t cmd_exec(const char* line)
     }
 
     // cvars
-    ConVar_t* cvar = ConVar_Find(name);
+    ConVar* cvar = ConVar_Find(name);
     if (cvar)
     {
         if (argc == 1)

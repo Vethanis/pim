@@ -6,6 +6,7 @@
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include "common/time.h"
+#include "common/console.h"
 #include <string.h>
 
 // ----------------------------------------------------------------------------
@@ -49,7 +50,14 @@ bool vkrImage_New(
         image->arrayLayers = info->arrayLayers;
         return true;
     }
-    return false;
+    else
+    {
+        Con_Logf(LogSev_Error, "vkr", "vkrImage_New failed:");
+        Con_Logf(LogSev_Error, "vkr", "Size: %d x %d x %d", info->extent.width, info->extent.height, info->extent.depth);
+        Con_Logf(LogSev_Error, "vkr", "Mip Levels: %d", info->mipLevels);
+        Con_Logf(LogSev_Error, "vkr", "Array Layers: %d", info->arrayLayers);
+        return false;
+    }
 }
 
 ProfileMark(pm_imgdel, vkrImage_Del)

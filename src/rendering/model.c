@@ -35,7 +35,7 @@ typedef struct mat_preset_s
     float emission;
 } mat_preset_t;
 
-static ConVar_t cv_model_bumpiness =
+static ConVar cv_model_bumpiness =
 {
     .type = cvart_float,
     .name = "model_bumpiness",
@@ -45,7 +45,7 @@ static ConVar_t cv_model_bumpiness =
     .maxFloat = 11.0f,
 };
 
-static ConVar_t cv_tex_custom =
+static ConVar cv_tex_custom =
 {
     .type = cvart_bool,
     .name = "tex_custom",

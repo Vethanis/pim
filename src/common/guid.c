@@ -10,7 +10,7 @@
 static Dict ms_guidToStr =
 {
     .keySize = sizeof(Guid),
-    .valueSize = sizeof(Text16),
+    .valueSize = sizeof(Text64),
 };
 static u64 ms_counter;
 
@@ -49,7 +49,7 @@ void Guid_SetName(Guid id, const char* str)
 {
     if (str && str[0])
     {
-        Text16 text = { 0 };
+        Text64 text = { 0 };
         StrCpy(ARGS(text.c), str);
         if (!Dict_Add(&ms_guidToStr, &id, &text))
         {
@@ -64,7 +64,7 @@ void Guid_SetName(Guid id, const char* str)
 
 bool Guid_GetName(Guid id, char* dst, i32 size)
 {
-    Text16 text = { 0 };
+    Text64 text = { 0 };
     if (Dict_Get(&ms_guidToStr, &id, &text))
     {
         StrCpy(dst, size, text.c);

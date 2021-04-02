@@ -17,14 +17,17 @@
 #include "editor/editor.h"
 #include "common/serialize.h"
 
-static void Init(void);
+static bool Init(void);
 static void Update(void);
 static void Shutdown(void);
 static void OnGui(void);
 
 int main()
 {
-    Init();
+    if (!Init())
+    {
+        return -1;
+    }
     while (Window_IsOpen())
     {
         Update();
@@ -33,7 +36,7 @@ int main()
     return 0;
 }
 
-static void Init(void)
+static bool Init(void)
 {
     TimeSys_Init();
     MemSys_Init();
@@ -44,11 +47,16 @@ static void Init(void)
     TaskSys_Init();
     AssetSys_Init();
     NetSys_Init();
-    RenderSys_Init();
+    if (!RenderSys_Init())
+    {
+        return false;
+    }
     AudioSys_Init();
     InputSys_Init();
     LogicSys_Init();
     EditorSys_Init();
+
+    return true;
 }
 
 static void Shutdown(void)

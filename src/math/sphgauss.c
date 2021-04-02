@@ -61,13 +61,13 @@ static float FitBasis(float target, i32 count)
 {
     float fit = 1.0f;
     float err = f1_abs(target - (SG_BasisIntegral(fit) * count));
-    float t = err;
+    float t = f1_mod(err, 1.0f);
     while (err > kMilli)
     {
         for (i32 j = 0; j < 22; ++j)
         {
             const float step = 1.0f / (1 << j);
-            t = fmodf(t + kGoldenRatio, 1.0f);
+            t = f1_wrap(t + kGoldenConj);
             float subFit = fit + f1_lerp(-1.0f, 1.0f, t) * step;
             subFit = f1_max(kEpsilon, subFit);
             float subErr = f1_abs(target - (SG_BasisIntegral(subFit) * count));
@@ -115,13 +115,13 @@ float SG_CalcSharpness(const float4* pim_noalias axii, i32 count)
     float fit = FitBasis(target, count);
     float err = FitError(axii, count, fit, target);
 
-    float t = err;
+    float t = f1_mod(err, 1.0f);
     for (i32 i = 0; i < 100; ++i)
     {
         for (i32 j = 0; j < 22; ++j)
         {
             const float step = 1.0f / (1 << j);
-            t = fmodf(t + kGoldenRatio, 1.0f);
+            t = f1_wrap(t + kGoldenConj);
             float subFit = fit + f1_lerp(-1.0f, 1.0f, t) * step;
             subFit = f1_max(kEpsilon, subFit);
             float subErr = FitError(axii, count, subFit, target);

@@ -34,7 +34,7 @@
 
 static VkRenderPass CreateRenderPass(const vkrSwapchain* chain);
 
-static ConVar_t* cv_pt_trace;
+static ConVar* cv_pt_trace;
 
 // ----------------------------------------------------------------------------
 
@@ -79,6 +79,7 @@ bool vkrMainPass_New(vkrMainPass *const pass)
 cleanup:
     if (!success)
     {
+        Con_Logf(LogSev_Error, "vkr", "Failed to init vkrMainPass");
         vkrMainPass_Del(pass);
     }
     return success;

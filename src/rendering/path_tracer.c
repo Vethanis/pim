@@ -150,10 +150,13 @@ typedef struct PtScene_s
     i32 portalCount;
     // parameters
     MediaDesc mediaDesc;
+    u64 modtime;
 } PtScene;
 
 // ----------------------------------------------------------------------------
 
+static void PtScene_Init(PtScene* scene);
+static void PtScene_Clear(PtScene* scene);
 static void OnRtcError(void* user, RTCError error, const char* msg);
 static bool InitRTC(void);
 static void InitSamplers(void);
@@ -345,67 +348,59 @@ pim_inline float2 VEC_CALL Sample2D(PtSampler*const pim_noalias sampler);
 
 pim_inline float VEC_CALL RoulettePrng(PtSampler *const pim_noalias sampler)
 {
-    float Xi = sampler->Xi[0];
-    Xi += (kGoldenRatio - 1.0f);
-    Xi = (Xi >= 1.0f) ? (Xi - 1.0f) : Xi;
+    float Xi = f1_wrap(sampler->Xi[0] + kGoldenConj);
     sampler->Xi[0] = Xi;
     return Xi;
 }
 pim_inline float VEC_CALL LightSelectPrng(PtSampler *const pim_noalias sampler)
 {
-    float Xi = sampler->Xi[1];
-    Xi += (kSqrt2 - 1.0f);
-    Xi = (Xi >= 1.0f) ? (Xi - 1.0f) : Xi;
+    float Xi = f1_wrap(sampler->Xi[1] + kSqrt2Conj);
     sampler->Xi[1] = Xi;
     return Xi;
 }
 pim_inline float VEC_CALL BrdfPrng(PtSampler*const pim_noalias sampler)
 {
-    float Xi = sampler->Xi[2];
-    Xi += (kSqrt3 - 1.0f);
-    Xi = (Xi >= 1.0f) ? (Xi - 1.0f) : Xi;
+    float Xi = f1_wrap(sampler->Xi[2] + kSqrt3Conj);
     sampler->Xi[2] = Xi;
     return Xi;
 }
 pim_inline float VEC_CALL ScatterPrng(PtSampler *const pim_noalias sampler)
 {
-    float Xi = sampler->Xi[3];
-    Xi += (kSqrt5 - 2.0f);
-    Xi = (Xi >= 1.0f) ? (Xi - 1.0f) : Xi;
+    float Xi = f1_wrap(sampler->Xi[3] + kSqrt5Conj);
     sampler->Xi[3] = Xi;
     return Xi;
 }
 pim_inline float VEC_CALL PhaseDirPrng(PtSampler *const pim_noalias sampler)
 {
-    float Xi = sampler->Xi[4];
-    Xi += (kSqrt7 - 2.0f);
-    Xi = (Xi >= 1.0f) ? (Xi - 1.0f) : Xi;
+    float Xi = f1_wrap(sampler->Xi[4] + kSqrt7Conj);
     sampler->Xi[4] = Xi;
     return Xi;
 }
 pim_inline float2 VEC_CALL UvPrng(PtSampler *const pim_noalias sampler)
 {
-    float Xi = sampler->Xi[5];
-    Xi += (kSqrt11 - 3.0f);
-    Xi = (Xi >= 1.0f) ? (Xi - 1.0f) : Xi;
+    float Xi = f1_wrap(sampler->Xi[5] + kSqrt11Conj);
     sampler->Xi[5] = Xi;
-    float Yi = sampler->Xi[6];
-    Yi += (kSqrt17 - 4.0f);
-    Yi = (Yi >= 1.0f) ? (Yi - 1.0f) : Yi;
+    float Yi = f1_wrap(sampler->Xi[6] + kSqrt17Conj);
     sampler->Xi[6] = Yi;
     return f2_v(Xi, Yi);
 }
 pim_inline float2 VEC_CALL DofPrng(PtSampler *const pim_noalias sampler)
 {
-    float Xi = sampler->Xi[7];
-    Xi += (kSqrt13 - 3.0f);
-    Xi = (Xi >= 1.0f) ? (Xi - 1.0f) : Xi;
+    float Xi = f1_wrap(sampler->Xi[7] + kSqrt13Conj);
     sampler->Xi[7] = Xi;
-    return f2_v(Xi, Sample1D(sampler));
+    float Yi = f1_wrap(sampler->Xi[8] + kSqrt19Conj);
+    sampler->Xi[8] = Yi;
+    return f2_v(Xi, Yi);
+}
+pim_inline float VEC_CALL MisPrng(PtSampler *const pim_noalias sampler)
+{
+    float Xi = f1_wrap(sampler->Xi[9] + kSqrt23Conj);
+    sampler->Xi[9] = Xi;
+    return Xi;
 }
 // ----------------------------------------------------------------------------
 
-static ConVar_t cv_pt_dist_meters =
+static ConVar cv_pt_dist_meters =
 {
     .type = cvart_float,
     .name = "pt_dist_meters",
@@ -415,7 +410,7 @@ static ConVar_t cv_pt_dist_meters =
     .desc = "path tracer light distribution meters per cell"
 };
 
-static ConVar_t cv_pt_dist_alpha =
+static ConVar cv_pt_dist_alpha =
 {
     .type = cvart_float,
     .name = "pt_dist_alpha",
@@ -425,7 +420,7 @@ static ConVar_t cv_pt_dist_alpha =
     .desc = "path tracer light distribution update amount",
 };
 
-static ConVar_t cv_pt_dist_samples =
+static ConVar cv_pt_dist_samples =
 {
     .type = cvart_int,
     .name = "pt_dist_samples",
@@ -435,7 +430,7 @@ static ConVar_t cv_pt_dist_samples =
     .desc = "path tracer light distribution minimum samples per update",
 };
 
-static ConVar_t cv_pt_retro =
+static ConVar cv_pt_retro =
 {
     .type = cvart_bool,
     .name = "pt_retro",
@@ -1112,20 +1107,78 @@ static void SetupLightGrid(PtScene*const pim_noalias scene)
     }
 }
 
+static void PtScene_FindSky(PtScene* scene)
+{
+    scene->sky = NULL;
+    Guid skyname = Guid_FromStr("sky");
+    Cubemaps* maps = Cubemaps_Get();
+    i32 iSky = Cubemaps_Find(maps, skyname);
+    if (iSky >= 0)
+    {
+        scene->sky = &maps->cubemaps[iSky];
+    }
+}
+
 ProfileMark(pm_scene_update, PtScene_Update)
 void PtScene_Update(PtScene *const pim_noalias scene)
 {
     ProfileBegin(pm_scene_update);
-    Guid skyname = Guid_FromStr("sky");
-    Cubemaps* maps = Cubemaps_Get();
-    i32 iSky = Cubemaps_Find(maps, skyname);
-    scene->sky = NULL;
-    if (iSky != -1)
+
+    if (Entities_Get()->modtime != scene->modtime)
     {
-        scene->sky = maps->cubemaps + iSky;
+        PtScene_Clear(scene);
+        PtScene_Init(scene);
     }
+    PtScene_FindSky(scene);
     UpdateDists(scene);
+
     ProfileEnd(pm_scene_update);
+}
+
+static void PtScene_Init(PtScene* scene)
+{
+    PtScene_FindSky(scene);
+    FlattenDrawables(scene);
+    SetupEmissives(scene);
+    SetupPortals(scene);
+    media_desc_new(&scene->mediaDesc);
+    scene->rtcScene = RtcNewScene(scene);
+    SetupLightGrid(scene);
+
+    scene->modtime = Entities_Get()->modtime;
+}
+
+static void PtScene_Clear(PtScene* scene)
+{
+    if (scene->rtcScene)
+    {
+        RTCScene rtcScene = scene->rtcScene;
+        rtc.ReleaseScene(rtcScene);
+        scene->rtcScene = NULL;
+    }
+
+    Mem_Free(scene->positions);
+    Mem_Free(scene->normals);
+    Mem_Free(scene->uvs);
+    Mem_Free(scene->matIds);
+    Mem_Free(scene->vertToEmit);
+
+    Mem_Free(scene->materials);
+
+    Mem_Free(scene->emitToVert);
+    Mem_Free(scene->portals);
+
+    {
+        const i32 gridLen = Grid_Len(&scene->lightGrid);
+        Dist1D* lightDists = scene->lightDists;
+        for (i32 i = 0; i < gridLen; ++i)
+        {
+            Dist1D_Del(lightDists + i);
+        }
+        Mem_Free(scene->lightDists);
+    }
+
+    memset(scene, 0, sizeof(*scene));
 }
 
 PtScene* PtScene_New(void)
@@ -1135,17 +1188,8 @@ PtScene* PtScene_New(void)
     {
         return NULL;
     }
-
-    PtScene* const pim_noalias scene = Perm_Calloc(sizeof(*scene));
-    PtScene_Update(scene);
-
-    FlattenDrawables(scene);
-    SetupEmissives(scene);
-    SetupPortals(scene);
-    media_desc_new(&scene->mediaDesc);
-    scene->rtcScene = RtcNewScene(scene);
-    SetupLightGrid(scene);
-
+    PtScene* scene = Perm_Calloc(sizeof(*scene));
+    PtScene_Init(scene);
     return scene;
 }
 
@@ -1153,35 +1197,7 @@ void PtScene_Del(PtScene*const pim_noalias scene)
 {
     if (scene)
     {
-        if (scene->rtcScene)
-        {
-            RTCScene rtcScene = scene->rtcScene;
-            rtc.ReleaseScene(rtcScene);
-            scene->rtcScene = NULL;
-        }
-
-        Mem_Free(scene->positions);
-        Mem_Free(scene->normals);
-        Mem_Free(scene->uvs);
-        Mem_Free(scene->matIds);
-        Mem_Free(scene->vertToEmit);
-
-        Mem_Free(scene->materials);
-
-        Mem_Free(scene->emitToVert);
-        Mem_Free(scene->portals);
-
-        {
-            const i32 gridLen = Grid_Len(&scene->lightGrid);
-            Dist1D* lightDists = scene->lightDists;
-            for (i32 i = 0; i < gridLen; ++i)
-            {
-                Dist1D_Del(lightDists + i);
-            }
-            Mem_Free(scene->lightDists);
-        }
-
-        memset(scene, 0, sizeof(*scene));
+        PtScene_Clear(scene);
         Mem_Free(scene);
     }
 }
@@ -2148,7 +2164,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
     const float4 ro = surf->P;
     const float pRough = f1_lerp(0.05f, 0.95f, surf->roughness);
     const float pSmooth = 1.0f - pRough;
-    if (Sample1D(sampler) < pRough)
+    if (MisPrng(sampler) < pRough)
     {
         i32 iVert;
         float selectPdf;
@@ -2958,14 +2974,17 @@ static void UpdateDistsFn(void* pbase, i32 begin, i32 end)
 ProfileMark(pm_updatedists, UpdateDists)
 static void UpdateDists(PtScene*const pim_noalias scene)
 {
-    ProfileBegin(pm_updatedists);
-    TaskUpdateDists *const pim_noalias task = Temp_Calloc(sizeof(*task));
-    task->scene = scene;
-    task->alpha = ConVar_GetFloat(&cv_pt_dist_alpha);
-    task->minSamples = ConVar_GetInt(&cv_pt_dist_samples);
     i32 worklen = Grid_Len(&scene->lightGrid);
-    Task_Run(task, UpdateDistsFn, worklen);
-    ProfileEnd(pm_updatedists);
+    if (worklen > 0)
+    {
+        ProfileBegin(pm_updatedists);
+        TaskUpdateDists *const pim_noalias task = Temp_Calloc(sizeof(*task));
+        task->scene = scene;
+        task->alpha = ConVar_GetFloat(&cv_pt_dist_alpha);
+        task->minSamples = ConVar_GetInt(&cv_pt_dist_samples);
+        Task_Run(task, UpdateDistsFn, worklen);
+        ProfileEnd(pm_updatedists);
+    }
 }
 
 static void DofUpdate(PtTrace* trace, const Camera* camera)
@@ -3093,16 +3112,17 @@ static void RayGenFn(void* pBase, i32 begin, i32 end)
     float4 *const pim_noalias directions = task->directions;
 
     PtSampler sampler = GetSampler();
-    const float2 kConjugates = { kGoldenRatio - 1.0f, kSqrt2 - 1.0f };
-    float2 Xi = f2_fmod(f2_add(task->Xi, f2_mulvs(kConjugates, (float)begin)), f2_1);
+    float Xi = f1_mod(begin * kGoldenConj, 1.0f);
+    float Yi = f1_mod(begin * kSqrt2Conj, 1.0f);
 
     for (i32 i = begin; i < end; ++i)
     {
-        float4 rd = SampleUnitSphere(Xi);
+        Xi = f1_wrap(Xi + kGoldenConj);
+        Yi = f1_wrap(Yi + kSqrt2Conj);
+        float4 rd = SampleUnitSphere(f2_v(Xi, Yi));
         directions[i] = rd;
         PtResult result = Pt_TraceRay(&sampler, scene, ro, rd);
         colors[i] = f3_f4(result.color, 1.0f);
-        Xi = f2_wrap(f2_add(Xi, kConjugates));
     }
 
     SetSampler(sampler);
