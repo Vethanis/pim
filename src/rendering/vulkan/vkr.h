@@ -3,8 +3,6 @@
 #include "common/macro.h"
 #include <volk/volk.h>
 #include "math/types.h"
-#include "containers/strlist.h"
-#include "containers/queue.h"
 #include "threading/spinlock.h"
 
 PIM_C_BEGIN
@@ -541,14 +539,79 @@ typedef struct vkrMainPass_s
 
 // ----------------------------------------------------------------------------
 
+typedef struct vkrProps_s
+{
+    VkPhysicalDeviceProperties2 phdev;
+    VkPhysicalDeviceRayTracingPropertiesNV rtnv;
+    VkPhysicalDeviceAccelerationStructurePropertiesKHR accstr;
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtpipe;
+} vkrProps;
+extern vkrProps g_vkrProps;
+
+typedef struct vkrFeats_s
+{
+    VkPhysicalDeviceFeatures2 phdev;
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR accstr;
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtpipe;
+    VkPhysicalDeviceRayQueryFeaturesKHR rquery;
+} vkrFeats;
+extern vkrFeats g_vkrFeats;
+
+typedef struct vkrDevExts_s
+{
+#define VKR_DEV_EXTS(fn) \
+    fn(KHR_swapchain); \
+    fn(NV_ray_tracing); \
+    fn(KHR_acceleration_structure); \
+    fn(KHR_ray_tracing_pipeline); \
+    fn(KHR_ray_query); \
+    fn(EXT_memory_budget); \
+    fn(EXT_hdr_metadata); \
+    fn(KHR_shader_float16_int8); \
+    fn(KHR_16bit_storage); \
+    fn(KHR_push_descriptor); \
+    fn(EXT_memory_priority); \
+    fn(KHR_bind_memory2); \
+    fn(KHR_shader_float_controls); \
+    fn(KHR_spirv_1_4); \
+    fn(EXT_conditional_rendering); \
+    fn(KHR_draw_indirect_count);
+#define VKR_FN(name) u32 name : 1
+    VKR_DEV_EXTS(VKR_FN)
+#undef VKR_FN
+} vkrDevExts;
+extern vkrDevExts g_vkrDevExts;
+
+typedef struct vkrInstExts_s
+{
+#define VKR_INST_EXTS(fn) \
+    fn(KHR_get_physical_device_properties2); \
+    fn(EXT_swapchain_colorspace); \
+    VKR_DEBUG_MESSENGER_ONLY(fn(EXT_debug_utils);)
+#define VKR_FN(name) u32 name : 1
+    VKR_INST_EXTS(VKR_FN)
+#undef VKR_FN
+} vkrInstExts;
+extern vkrInstExts g_vkrInstExts;
+
+typedef struct vkrLayers_s
+{
+    u32 _empty : 1;
+#define VKR_LAYERS(fn) \
+    VKR_KHRONOS_LAYER_ONLY(fn(KHRONOS_validation);) \
+    VKR_ASSIST_LAYER_ONLY(fn(LUNARG_assistant_layer);)
+#define VKR_FN(name) u32 name : 1
+    VKR_LAYERS(VKR_FN)
+#undef VKR_FN
+} vkrLayers;
+extern vkrLayers g_vkrLayers;
+
 typedef struct vkrSys_s
 {
     VkInstance inst;
     VkPhysicalDevice phdev;
     VkDevice dev;
     vkrAllocator allocator;
-    VkPhysicalDeviceFeatures phdevFeats;
-    VkPhysicalDeviceProperties phdevProps;
     VkDebugUtilsMessengerEXT messenger;
 
     vkrDisplay display;

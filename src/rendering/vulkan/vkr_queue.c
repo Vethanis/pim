@@ -1,5 +1,6 @@
 #include "rendering/vulkan/vkr_queue.h"
 #include "rendering/vulkan/vkr_cmd.h"
+#include "rendering/vulkan/vkr_device.h"
 #include "allocator/allocator.h"
 #include "common/time.h"
 #include "threading/task.h"
@@ -22,7 +23,7 @@ void vkrDestroyQueues(vkrSys* vkr)
 {
     if (vkr)
     {
-        VkCheck(vkDeviceWaitIdle(vkr->dev));
+        vkrDevice_WaitIdle();
         for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
         {
             vkrQueue_Del(&vkr->queues[id]);

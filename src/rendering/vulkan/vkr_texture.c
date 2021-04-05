@@ -129,7 +129,7 @@ static VkImageType ViewTypeToImageType(VkImageViewType viewType)
         return VK_IMAGE_TYPE_2D;
     case VK_IMAGE_VIEW_TYPE_CUBE_ARRAY:
     {
-        ASSERT(g_vkr.phdevFeats.imageCubeArray);
+        ASSERT(g_vkrFeats.phdev.features.imageCubeArray);
         return VK_IMAGE_TYPE_2D;
     }
     }

@@ -1,4 +1,5 @@
 #include "screenblit.h"
+#include "rendering/vulkan/vkr_device.h"
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_image.h"
@@ -101,7 +102,7 @@ void vkrScreenBlit_Del(vkrScreenBlit* blit)
 {
     if (blit)
     {
-        vkDeviceWaitIdle(g_vkr.dev);
+        vkrDevice_WaitIdle();
         vkrImage_Del(&blit->image);
         vkrBuffer_Del(&blit->meshbuf);
         vkrBuffer_Del(&blit->stagebuf);

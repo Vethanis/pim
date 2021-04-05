@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rendering/vulkan/vkr.h"
+#include "containers/strlist.h"
 
 PIM_C_BEGIN
 
@@ -10,21 +11,17 @@ void vkrDevice_WaitIdle(void);
 
 // ----------------------------------------------------------------------------
 
-VkExtensionProperties* vkrEnumDevExtensions(
-    VkPhysicalDevice phdev,
-    u32* countOut);
-void vkrListDevExtensions(VkPhysicalDevice phdev);
-StrList vkrGetDevExtensions(VkPhysicalDevice phdev);
-
 u32 vkrEnumPhysicalDevices(
     VkInstance inst,
-    VkPhysicalDevice** pDevices, // optional
-    VkPhysicalDeviceFeatures** pFeatures, // optional
-    VkPhysicalDeviceProperties** pProps); // optional
+    VkPhysicalDevice** devicesOut,
+    vkrProps** propsOut,
+    vkrFeats** featuresOut,
+    vkrDevExts** extsOut);
 VkPhysicalDevice vkrSelectPhysicalDevice(
     const vkrDisplay* display,
-    VkPhysicalDeviceProperties* propsOut, // optional
-    VkPhysicalDeviceFeatures* featuresOut); // optional
+    vkrProps* propsOut,
+    vkrFeats* featsOut,
+    vkrDevExts* extsOut);
 
 VkDevice vkrCreateDevice(
     const vkrDisplay* display,
