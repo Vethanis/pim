@@ -37,7 +37,7 @@ static void CalcAverageFn(void* pbase, i32 begin, i32 end)
             uv = f2_mulvs(uv, radius);
             uv = f2_unorm(uv);
             i32 iTexel = UvClamp(size, uv);
-            sum += f4_perlum(light[iTexel]) * weight;
+            sum += f4_avglum(light[iTexel]) * weight;
         }
         averages[i] = sum;
     }

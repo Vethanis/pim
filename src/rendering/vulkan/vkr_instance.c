@@ -1,6 +1,6 @@
 #include "rendering/vulkan/vkr_instance.h"
 #include "rendering/vulkan/vkr_debug.h"
-#include "rendering/vulkan/vkr_mem.h"
+#include "rendering/vulkan/vkr_extension.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/stringutil.h"
@@ -16,7 +16,9 @@ bool vkrInstance_Init(vkrSys* vkr)
     vkrListInstLayers();
     vkrListInstExtensions();
 
-    vkr->inst = vkrCreateInstance(vkrGetInstExtensions(), vkrGetLayers());
+    vkr->inst = vkrCreateInstance(
+        vkrGetInstExtensions(&g_vkrInstExts),
+        vkrGetLayers(&g_vkrLayers));
     ASSERT(vkr->inst);
     if (!vkr->inst)
     {
@@ -42,182 +44,6 @@ void vkrInstance_Shutdown(vkrSys* vkr)
             vkr->inst = NULL;
         }
     }
-}
-
-// ----------------------------------------------------------------------------
-
-StrList vkrGetLayers(void)
-{
-    StrList list;
-    StrList_New(&list, EAlloc_Temp);
-
-    u32 count = 0;
-    const VkLayerProperties* props = vkrEnumInstLayers(&count);
-
-#if VKR_KHRONOS_LAYER_ON
-    if (!vkrTryAddLayer(&list, props, count, VKR_KHRONOS_LAYER_NAME))
-    {
-        Con_Logf(LogSev_Warning, "vkr", "Failed to load layer '%s'", VKR_KHRONOS_LAYER_NAME);
-    }
-#endif // VKR_KHRONOS_LAYER_ON
-
-#if VKR_ASSIST_LAYER_ON
-    if (!vkrTryAddLayer(&list, props, count, VKR_ASSIST_LAYER_NAME))
-    {
-        Con_Logf(LogSev_Warning, "vkr", "Failed to load layer '%s'", VKR_ASSIST_LAYER_NAME);
-    }
-#endif // VKR_ASSIST_LAYER_ON
-
-    return list;
-}
-
-static const char* const kDesiredInstExtensions[] =
-{
-    VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
-    VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME,
-#if VKR_DEBUG_MESSENGER_ON
-    VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-#endif // VKR_DEBUG_MESSENGER_ON
-};
-
-StrList vkrGetInstExtensions(void)
-{
-    StrList list;
-    StrList_New(&list, EAlloc_Temp);
-
-    u32 count = 0;
-    const VkExtensionProperties* props = vkrEnumInstExtensions(&count);
-
-    u32 glfwCount = 0;
-    const char** glfwList = glfwGetRequiredInstanceExtensions(&glfwCount);
-    for (u32 i = 0; i < glfwCount; ++i)
-    {
-        if (!vkrTryAddExtension(&list, props, count, glfwList[i]))
-        {
-            Con_Logf(LogSev_Error, "vkr", "Failed to load required instance extension '%'", glfwList[i]);
-            ASSERT(false);
-        }
-    }
-
-    for (i32 i = 0; i < NELEM(kDesiredInstExtensions); ++i)
-    {
-        if (!vkrTryAddExtension(&list, props, count, kDesiredInstExtensions[i]))
-        {
-            Con_Logf(LogSev_Warning, "vkr", "Failed to load desired instance extension '%'", kDesiredInstExtensions[i]);
-        }
-    }
-
-    return list;
-}
-
-VkLayerProperties* vkrEnumInstLayers(u32* countOut)
-{
-    ASSERT(countOut);
-    u32 count = 0;
-    VkLayerProperties* props = NULL;
-    VkCheck(vkEnumerateInstanceLayerProperties(&count, NULL));
-    Temp_Reserve(props, count);
-    VkCheck(vkEnumerateInstanceLayerProperties(&count, props));
-    *countOut = count;
-    return props;
-}
-
-VkExtensionProperties* vkrEnumInstExtensions(u32* countOut)
-{
-    ASSERT(countOut);
-    u32 count = 0;
-    VkExtensionProperties* props = NULL;
-    VkCheck(vkEnumerateInstanceExtensionProperties(NULL, &count, NULL));
-    Temp_Reserve(props, count);
-    VkCheck(vkEnumerateInstanceExtensionProperties(NULL, &count, props));
-    *countOut = count;
-    return props;
-}
-
-void vkrListInstLayers(void)
-{
-    u32 count = 0;
-    VkLayerProperties* props = vkrEnumInstLayers(&count);
-    Con_Logf(LogSev_Info, "vkr", "%d available instance layers", count);
-    for (u32 i = 0; i < count; ++i)
-    {
-        Con_Logf(LogSev_Info, "vkr", props[i].layerName);
-    }
-}
-
-void vkrListInstExtensions(void)
-{
-    u32 count = 0;
-    VkExtensionProperties* props = vkrEnumInstExtensions(&count);
-    Con_Logf(LogSev_Info, "vkr", "%d available instance extensions", count);
-    for (u32 i = 0; i < count; ++i)
-    {
-        Con_Logf(LogSev_Info, "vkr", props[i].extensionName);
-    }
-}
-
-i32 vkrFindExtension(
-    const VkExtensionProperties* props,
-    u32 count,
-    const char* name)
-{
-    ASSERT(props || !count);
-    ASSERT(name);
-    for (u32 i = 0; i < count; ++i)
-    {
-        if (StrCmp(ARGS(props[i].extensionName), name) == 0)
-        {
-            return (i32)i;
-        }
-    }
-    return -1;
-}
-
-i32 vkrFindLayer(
-    const VkLayerProperties* props,
-    u32 count,
-    const char* name)
-{
-    ASSERT(props || !count);
-    ASSERT(name);
-    for (u32 i = 0; i < count; ++i)
-    {
-        if (StrCmp(ARGS(props[i].layerName), name) == 0)
-        {
-            return (i32)i;
-        }
-    }
-    return -1;
-}
-
-bool vkrTryAddLayer(
-    StrList* list,
-    const VkLayerProperties* props,
-    u32 propCount,
-    const char* name)
-{
-    ASSERT(list);
-    if (vkrFindLayer(props, propCount, name) >= 0)
-    {
-        StrList_Add(list, name);
-        return true;
-    }
-    return false;
-}
-
-bool vkrTryAddExtension(
-    StrList* list,
-    const VkExtensionProperties* props,
-    u32 propCount,
-    const char* name)
-{
-    ASSERT(list);
-    if (vkrFindExtension(props, propCount, name) >= 0)
-    {
-        StrList_Add(list, name);
-        return true;
-    }
-    return false;
 }
 
 VkInstance vkrCreateInstance(StrList extensions, StrList layers)

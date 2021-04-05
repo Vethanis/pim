@@ -167,23 +167,9 @@ SASSERT(sizeof(u64) == 8);
 
 #endif // _MSC_VER
 
-typedef enum
-{
-    EAlloc_Perm = 0,
-    EAlloc_Texture,
-    EAlloc_Temp,
-
-    EAlloc_COUNT
-} EAlloc;
-
-typedef struct hdl_s
-{
-    u32 version : 8;
-    u32 index : 24;
-} hdl_t;
-
 #define kMaxThreads                 256
 
+#define VK_NO_PROTOTYPES            1
 #define VK_ENABLE_BETA_EXTENSIONS   1
 #define VKR_KHRONOS_LAYER_NAME      "VK_LAYER_KHRONOS_validation"
 #define VKR_ASSIST_LAYER_NAME       "VK_LAYER_LUNARG_assistant_layer"
@@ -199,4 +185,37 @@ typedef struct hdl_s
 
 #define VKR_DEBUG_MESSENGER_ON      (VKR_KHRONOS_LAYER_ON || VKR_ASSIST_LAYER_ON)
 
+#if VKR_KHRONOS_LAYER_ON
+#   define VKR_KHRONOS_LAYER_ONLY(...) __VA_ARGS__
+#else
+#   define VKR_KHRONOS_LAYER_ONLY(...) 
+#endif // VKR_KHRONOS_LAYER_ON
+
+#if VKR_ASSIST_LAYER_ON
+#   define VKR_ASSIST_LAYER_ONLY(...) __VA_ARGS__
+#else
+#   define VKR_ASSIST_LAYER_ONLY(...) 
+#endif // VKR_ASSIST_LAYER_ON
+
+#if VKR_DEBUG_MESSENGER_ON
+#   define VKR_DEBUG_MESSENGER_ONLY(...) __VA_ARGS__
+#else
+#   define VKR_DEBUG_MESSENGER_ONLY(...) 
+#endif // VKR_DEBUG_MESSENGER_ON
+
 #define QUAKE_IMPL 0
+
+typedef enum
+{
+    EAlloc_Perm = 0,
+    EAlloc_Texture,
+    EAlloc_Temp,
+
+    EAlloc_COUNT
+} EAlloc;
+
+typedef struct hdl_s
+{
+    u32 version : 8;
+    u32 index : 24;
+} hdl_t;

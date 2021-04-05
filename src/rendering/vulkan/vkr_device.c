@@ -2,35 +2,14 @@
 #include "rendering/vulkan/vkr_instance.h"
 #include "rendering/vulkan/vkr_queue.h"
 #include "rendering/vulkan/vkr_swapchain.h"
+#include "rendering/vulkan/vkr_extension.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/stringutil.h"
-#include <GLFW/glfw3.h>
+#include "math/scalar.h"
 #include <string.h>
 
-static const char* const kRequiredDevExtensions[] =
-{
-    // https://www.khronos.org/registry/vulkan/specs/1.0-wsi_extensions/html/vkspec.html#VK_KHR_swapchain
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-    //VK_GOOGLE_HLSL_FUNCTIONALITY1_EXTENSION_NAME,
-};
-
-static const char* const kDesiredDevExtensions[] =
-{
-    VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,
-    VK_NV_RAY_TRACING_EXTENSION_NAME,
-    VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME,
-    VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
-    VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
-    VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
-    VK_KHR_DRAW_INDIRECT_COUNT_EXTENSION_NAME,
-    VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME,
-    VK_KHR_BIND_MEMORY_2_EXTENSION_NAME,
-    VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
-    VK_KHR_SPIRV_1_4_EXTENSION_NAME,
-    VK_NV_MESH_SHADER_EXTENSION_NAME,
-    VK_EXT_HDR_METADATA_EXTENSION_NAME,
-};
+// ----------------------------------------------------------------------------
 
 bool vkrDevice_Init(vkrSys* vkr)
 {
@@ -38,8 +17,9 @@ bool vkrDevice_Init(vkrSys* vkr)
 
     vkr->phdev = vkrSelectPhysicalDevice(
         &vkr->display,
-        &vkr->phdevProps,
-        &vkr->phdevFeats);
+        &g_vkrProps,
+        &g_vkrFeats,
+        &g_vkrDevExts);
     ASSERT(vkr->phdev);
     if (!vkr->phdev)
     {
@@ -50,8 +30,8 @@ bool vkrDevice_Init(vkrSys* vkr)
 
     vkr->dev = vkrCreateDevice(
         &vkr->display,
-        vkrGetDevExtensions(vkr->phdev),
-        vkrGetLayers());
+        vkrDevExts_ToList(&g_vkrDevExts),
+        vkrGetLayers(&g_vkrLayers));
     ASSERT(vkr->dev);
     if (!vkr->dev)
     {
@@ -82,107 +62,79 @@ void vkrDevice_Shutdown(vkrSys* vkr)
 void vkrDevice_WaitIdle(void)
 {
     ASSERT(g_vkr.dev);
-    VkCheck(vkDeviceWaitIdle(g_vkr.dev));
+    if (g_vkr.dev)
+    {
+        VkCheck(vkDeviceWaitIdle(g_vkr.dev));
+    }
 }
 
 // ----------------------------------------------------------------------------
 
-VkExtensionProperties* vkrEnumDevExtensions(
-    VkPhysicalDevice phdev,
-    u32* countOut)
-{
-    ASSERT(phdev);
-    ASSERT(countOut);
-    u32 count = 0;
-    VkExtensionProperties* props = NULL;
-    VkCheck(vkEnumerateDeviceExtensionProperties(phdev, NULL, &count, NULL));
-    Temp_Reserve(props, count);
-    VkCheck(vkEnumerateDeviceExtensionProperties(phdev, NULL, &count, props));
-    *countOut = count;
-    return props;
-}
-
-void vkrListDevExtensions(VkPhysicalDevice phdev)
-{
-    ASSERT(phdev);
-
-    u32 count = 0;
-    VkExtensionProperties* props = vkrEnumDevExtensions(phdev, &count);
-    Con_Logf(LogSev_Info, "vkr", "%d available device extensions", count);
-    for (u32 i = 0; i < count; ++i)
-    {
-        Con_Logf(LogSev_Info, "vkr", props[i].extensionName);
-    }
-}
-
-StrList vkrGetDevExtensions(VkPhysicalDevice phdev)
-{
-    ASSERT(g_vkr.phdev);
-
-    u32 count = 0;
-    VkExtensionProperties* props = vkrEnumDevExtensions(phdev, &count);
-
-    StrList list;
-    StrList_New(&list, EAlloc_Temp);
-
-    for (i32 i = 0; i < NELEM(kRequiredDevExtensions); ++i)
-    {
-        const char* name = kRequiredDevExtensions[i];
-        if (!vkrTryAddExtension(&list, props, count, name))
-        {
-            Con_Logf(LogSev_Error, "vkr", "Failed to load required device extension '%s'", name);
-        }
-    }
-
-    for (i32 i = 0; i < NELEM(kDesiredDevExtensions); ++i)
-    {
-        const char* name = kDesiredDevExtensions[i];
-        if (!vkrTryAddExtension(&list, props, count, name))
-        {
-            Con_Logf(LogSev_Warning, "vkr", "Failed to load desired device extension '%s'", name);
-        }
-    }
-
-    return list;
-}
-
 u32 vkrEnumPhysicalDevices(
     VkInstance inst,
-    VkPhysicalDevice** pDevices,
-    VkPhysicalDeviceFeatures** pFeatures,
-    VkPhysicalDeviceProperties** pProps)
+    VkPhysicalDevice** devicesOut,
+    vkrProps** propsOut,
+    vkrFeats** featsOut,
+    vkrDevExts** extsOut)
 {
     ASSERT(inst);
 
     u32 count = 0;
     VkCheck(vkEnumeratePhysicalDevices(inst, &count, NULL));
 
-    if (pDevices)
+    if (count && devicesOut)
     {
         VkPhysicalDevice* devices = Temp_Calloc(sizeof(devices[0]) * count);
         VkCheck(vkEnumeratePhysicalDevices(inst, &count, devices));
-        *pDevices = devices;
+        *devicesOut = devices;
 
-        if (pFeatures)
+        if (propsOut)
         {
-            VkPhysicalDeviceFeatures* features = Temp_Calloc(sizeof(features[0]) * count);
+            vkrProps* props = Temp_Calloc(sizeof(props[0]) * count);
+            *propsOut = props;
             for (u32 i = 0; i < count; ++i)
             {
                 ASSERT(devices[i]);
-                vkGetPhysicalDeviceFeatures(devices[i], features + i);
+                props[i].phdev.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+                props[i].phdev.pNext = &props[i].rtnv;
+                props[i].rtnv.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PROPERTIES_NV;
+                props[i].rtnv.pNext = &props[i].accstr;
+                props[i].accstr.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
+                props[i].accstr.pNext = &props[i].rtpipe;
+                props[i].rtpipe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+                props[i].rtpipe.pNext = NULL;
+                vkGetPhysicalDeviceProperties2(devices[i], &props[i].phdev);
             }
-            *pFeatures = features;
         }
 
-        if (pProps)
+        if (featsOut)
         {
-            VkPhysicalDeviceProperties* props = Temp_Calloc(sizeof(props[0]) * count);
+            vkrFeats* feats = Temp_Calloc(sizeof(feats[0]) * count);
+            *featsOut = feats;
             for (u32 i = 0; i < count; ++i)
             {
                 ASSERT(devices[i]);
-                vkGetPhysicalDeviceProperties(devices[i], props + i);
+                feats[i].phdev.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+                feats[i].phdev.pNext = &feats[i].accstr;
+                feats[i].accstr.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+                feats[i].accstr.pNext = &feats[i].rtpipe;
+                feats[i].rtpipe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+                feats[i].rtpipe.pNext = &feats[i].rquery;
+                feats[i].rquery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+                feats[i].rquery.pNext = NULL;
+                vkGetPhysicalDeviceFeatures2(devices[i], &feats[i].phdev);
             }
-            *pProps = props;
+        }
+
+        if (extsOut)
+        {
+            vkrDevExts* exts = Temp_Calloc(sizeof(exts[0]) * count);
+            *extsOut = exts;
+            for (u32 i = 0; i < count; ++i)
+            {
+                ASSERT(devices[i]);
+                vkrDevExts_New(&exts[i], devices[i]);
+            }
         }
     }
 
@@ -191,8 +143,9 @@ u32 vkrEnumPhysicalDevices(
 
 VkPhysicalDevice vkrSelectPhysicalDevice(
     const vkrDisplay* display,
-    VkPhysicalDeviceProperties* propsOut,
-    VkPhysicalDeviceFeatures* featuresOut)
+    vkrProps* propsOut,
+    vkrFeats* featuresOut,
+    vkrDevExts* extsOut)
 {
     VkInstance inst = g_vkr.inst;
     ASSERT(inst);
@@ -210,109 +163,87 @@ VkPhysicalDevice vkrSelectPhysicalDevice(
     }
 
     VkPhysicalDevice* devices = NULL;
-    VkPhysicalDeviceFeatures* feats = NULL;
-    VkPhysicalDeviceProperties* props = NULL;
-    u32 count = vkrEnumPhysicalDevices(inst, &devices, &feats, &props);
-    i32* desiredExtCounts = Temp_Calloc(sizeof(desiredExtCounts[0]) * count);
-    bool* hasRequiredExts = Temp_Calloc(sizeof(hasRequiredExts[0]) * count);
-    bool* hasQueueSupport = Temp_Calloc(sizeof(hasQueueSupport[0]) * count);
+    vkrProps* props = NULL;
+    vkrFeats* feats = NULL;
+    vkrDevExts* exts = NULL;
+    const u32 count = vkrEnumPhysicalDevices(inst, &devices, &props, &feats, &exts);
+    vkrPhDevScore* scores = Temp_Calloc(sizeof(scores[0]) * count);
 
-    for (u32 i = 0; i < count; ++i)
+    for (u32 iDevice = 0; iDevice < count; ++iDevice)
     {
-        VkPhysicalDevice phdev = devices[i];
-        u32 extCount = 0;
-        VkExtensionProperties* exts = vkrEnumDevExtensions(phdev, &extCount);
+        scores[iDevice].hasRequiredExts = vkrDevExts_ReqEval(&exts[iDevice]);
+        scores[iDevice].rtScore = vkrDevExts_RtEval(&exts[iDevice]);
+        scores[iDevice].extScore = vkrDevExts_OptEval(&exts[iDevice]);
+        scores[iDevice].featScore = vkrFeats_Eval(&feats[iDevice]);
+        scores[iDevice].propScore = vkrProps_Eval(&props[iDevice]);
 
-        bool hasRequired = true;
-        for (i32 j = 0; j < NELEM(kRequiredDevExtensions); ++j)
+        vkrQueueSupport support = vkrQueryQueueSupport(devices[iDevice], surface);
+        bool hasQueueSupport = true;
+        for (i32 iQueue = 0; iQueue < NELEM(support.family); ++iQueue)
         {
-            if (vkrFindExtension(exts, extCount, kRequiredDevExtensions[j]) < 0)
-            {
-                hasRequired = false;
-                break;
-            }
+            hasQueueSupport &= (support.family[iQueue] >= 0);
         }
-        hasRequiredExts[i] = hasRequired;
-
-        i32 desiredCount = 0;
-        for (i32 j = 0; j < NELEM(kDesiredDevExtensions); ++j)
-        {
-            if (vkrFindExtension(exts, extCount, kDesiredDevExtensions[j]) >= 0)
-            {
-                ++desiredCount;
-            }
-        }
-        desiredExtCounts[i] = desiredCount;
+        scores[iDevice].hasQueueSupport = hasQueueSupport;
     }
 
-    for (u32 i = 0; i < count; ++i)
+    i32 chosenDev = -1;
+    for (u32 iDevice = 0; iDevice < count; ++iDevice)
     {
-        VkPhysicalDevice phdev = devices[i];
-        vkrQueueSupport support = vkrQueryQueueSupport(phdev, surface);
-
-        bool supportsAll = true;
-        for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
-        {
-            i32 family = support.family[id];
-            supportsAll &= (family >= 0);
-        }
-        hasQueueSupport[i] = supportsAll;
-    }
-
-    i32 c = -1;
-    for (u32 i = 0; i < count; ++i)
-    {
-        VkPhysicalDevice phdev = devices[i];
-
-        if (!hasRequiredExts[i])
+        if (!scores[iDevice].hasRequiredExts)
         {
             continue;
         }
-
-        if (!hasQueueSupport[i])
+        if (!scores[iDevice].hasQueueSupport)
         {
             continue;
         }
-
-        if (c == -1)
+        if (chosenDev < 0)
         {
-            c = i;
+            chosenDev = iDevice;
             continue;
         }
 
-        if (desiredExtCounts[i] > desiredExtCounts[c])
+        i32 cmp = scores[chosenDev].rtScore - scores[iDevice].rtScore;
+        if (cmp != 0)
         {
-            c = i;
+            chosenDev = cmp < 0 ? iDevice : chosenDev;
             continue;
         }
-
-        i32 limCmp = memcmp(&props[i].limits, &props[c].limits, sizeof(props[0].limits));
-        i32 featCmp = memcmp(&feats[i], &feats[c], sizeof(feats[0]));
-
-        if ((limCmp < 0) || (featCmp < 0))
+        cmp = scores[chosenDev].extScore - scores[iDevice].extScore;
+        if (cmp != 0)
         {
-            // worse limits or features, skip i
+            chosenDev = cmp < 0 ? iDevice : chosenDev;
             continue;
         }
-        if ((limCmp > 0) || (featCmp > 0))
+        cmp = scores[chosenDev].featScore - scores[iDevice].featScore;
+        if (cmp != 0)
         {
-            // better limits or features, choose i
-            c = i;
+            chosenDev = cmp < 0 ? iDevice : chosenDev;
+            continue;
+        }
+        cmp = scores[chosenDev].propScore - scores[iDevice].propScore;
+        if (cmp != 0)
+        {
+            chosenDev = cmp < 0 ? iDevice : chosenDev;
             continue;
         }
     }
 
-    if (c != -1)
+    if (chosenDev >= 0)
     {
         if (propsOut)
         {
-            *propsOut = props[c];
+            *propsOut = props[chosenDev];
         }
         if (featuresOut)
         {
-            *featuresOut = feats[c];
+            *featuresOut = feats[chosenDev];
         }
-        return devices[c];
+        if (extsOut)
+        {
+            *extsOut = exts[chosenDev];
+        }
+        return devices[chosenDev];
     }
 
     return NULL;
@@ -369,49 +300,66 @@ VkDevice vkrCreateDevice(
         queueInfos[i].pQueuePriorities = priorities;
     }
 
-    const VkPhysicalDeviceFeatures* availableFeatures = &g_vkr.phdevFeats;
+    const vkrFeats* feats = &g_vkrFeats;
 
-    // features we intend to use
-    const VkPhysicalDeviceFeatures phDevFeatures =
+    vkrFeats reqFeats =
     {
-        // basic rasterizer features
-        .fillModeNonSolid = availableFeatures->fillModeNonSolid,
-        .wideLines = availableFeatures->wideLines,
-        .largePoints = availableFeatures->largePoints,
-        .depthClamp = availableFeatures->depthClamp,
-        .depthBounds = availableFeatures->depthBounds,
-        .independentBlend = availableFeatures->independentBlend,
+        .phdev =
+        {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+            .features =
+            {
+                .fullDrawIndexUint32 = feats->phdev.features.fullDrawIndexUint32,
+                .samplerAnisotropy = feats->phdev.features.samplerAnisotropy,
+                .textureCompressionBC = feats->phdev.features.textureCompressionBC,
+                .independentBlend = feats->phdev.features.independentBlend,
 
-        // anisotropic sampling
-        .samplerAnisotropy = availableFeatures->samplerAnisotropy,
+                .fillModeNonSolid = feats->phdev.features.fillModeNonSolid,
+                .wideLines = feats->phdev.features.wideLines,
+                .largePoints = feats->phdev.features.largePoints,
 
-        // block compression
-        .textureCompressionETC2 = availableFeatures->textureCompressionETC2,
-        .textureCompressionASTC_LDR = availableFeatures->textureCompressionASTC_LDR,
-        .textureCompressionBC = availableFeatures->textureCompressionBC,
+                .fragmentStoresAndAtomics = feats->phdev.features.fragmentStoresAndAtomics,
+                .shaderInt64 = feats->phdev.features.shaderInt64,
+                .shaderInt16 = feats->phdev.features.shaderInt16,
+                .shaderStorageImageExtendedFormats = feats->phdev.features.shaderStorageImageExtendedFormats,
 
-        // throughput statistics
-        .pipelineStatisticsQuery = availableFeatures->pipelineStatisticsQuery,
-
-        // indexing resources in shaders
-        .shaderUniformBufferArrayDynamicIndexing = availableFeatures->shaderUniformBufferArrayDynamicIndexing,
-        .shaderStorageBufferArrayDynamicIndexing = availableFeatures->shaderStorageBufferArrayDynamicIndexing,
-        .shaderSampledImageArrayDynamicIndexing = availableFeatures->shaderSampledImageArrayDynamicIndexing,
-        .shaderStorageImageArrayDynamicIndexing = availableFeatures->shaderStorageImageArrayDynamicIndexing,
-
-        // cubemap arrays
-        .imageCubeArray = availableFeatures->imageCubeArray,
-
-        // indirect rendering
-        .multiDrawIndirect = availableFeatures->multiDrawIndirect,
+                .shaderUniformBufferArrayDynamicIndexing = feats->phdev.features.shaderUniformBufferArrayDynamicIndexing,
+                .shaderStorageBufferArrayDynamicIndexing = feats->phdev.features.shaderStorageBufferArrayDynamicIndexing,
+                .shaderSampledImageArrayDynamicIndexing = feats->phdev.features.shaderSampledImageArrayDynamicIndexing,
+                .shaderStorageImageArrayDynamicIndexing = feats->phdev.features.shaderStorageImageArrayDynamicIndexing,
+                .imageCubeArray = feats->phdev.features.imageCubeArray,
+            },
+        },
+        .accstr =
+        {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+            .accelerationStructure = feats->accstr.accelerationStructure,
+        },
+        .rtpipe =
+        {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+            .rayTracingPipeline = feats->rtpipe.rayTracingPipeline,
+        },
+        .rquery =
+        {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
+            .rayQuery = feats->rquery.rayQuery,
+        },
     };
+    if (g_vkrDevExts.KHR_ray_tracing_pipeline)
+    {
+        reqFeats.phdev.pNext = &reqFeats.accstr;
+        reqFeats.accstr.pNext = &reqFeats.rtpipe;
+        reqFeats.rtpipe.pNext = &reqFeats.rquery;
+        reqFeats.rquery.pNext = NULL;
+    }
 
     const VkDeviceCreateInfo devInfo =
     {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .pNext = &reqFeats.phdev,
         .queueCreateInfoCount = familyCount,
         .pQueueCreateInfos = queueInfos,
-        .pEnabledFeatures = &phDevFeatures,
         .enabledLayerCount = layers.count,
         .ppEnabledLayerNames = layers.ptr,
         .enabledExtensionCount = extensions.count,
@@ -421,6 +369,8 @@ VkDevice vkrCreateDevice(
     VkDevice device = NULL;
     VkCheck(vkCreateDevice(g_vkr.phdev, &devInfo, NULL, &device));
     ASSERT(device);
+
+    g_vkrFeats = reqFeats;
 
     StrList_Del(&extensions);
     StrList_Del(&layers);

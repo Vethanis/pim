@@ -52,6 +52,11 @@
 #include <string.h>
 
 vkrSys g_vkr;
+vkrLayers g_vkrLayers;
+vkrInstExts g_vkrInstExts;
+vkrDevExts g_vkrDevExts;
+vkrProps g_vkrProps;
+vkrFeats g_vkrFeats;
 
 static ConVar* cv_r_sun_dir;
 static ConVar* cv_r_sun_col;

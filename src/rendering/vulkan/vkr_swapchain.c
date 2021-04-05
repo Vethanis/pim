@@ -200,7 +200,7 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
 {
     if (chain)
     {
-        vkDeviceWaitIdle(g_vkr.dev);
+        vkrDevice_WaitIdle();
 
         if (chain->cmdpool)
         {
