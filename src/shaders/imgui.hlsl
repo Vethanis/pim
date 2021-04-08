@@ -24,8 +24,10 @@ cbuffer Constants
 {
     float2 kScale;
     float2 kTranslate;
+
     uint kTextureIndex;
     uint kDiscardAlpha;
+    uint2 kPad;
 };
 
 PSInput VSMain(VSInput input)

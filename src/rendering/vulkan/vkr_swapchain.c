@@ -445,6 +445,11 @@ VkRect2D vkrSwapchain_GetRect(const vkrSwapchain* chain)
     return rect;
 }
 
+float vkrSwapchain_GetAspect(const vkrSwapchain* chain)
+{
+    return (float)chain->width / (float)chain->height;
+}
+
 // ----------------------------------------------------------------------------
 
 vkrSwapchainSupport vkrQuerySwapchainSupport(

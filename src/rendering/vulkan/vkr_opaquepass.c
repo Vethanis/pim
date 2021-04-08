@@ -8,7 +8,9 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_desc.h"
 #include "rendering/vulkan/vkr_bindings.h"
-#include "rendering/vulkan/vkr_megamesh.h"
+#include "rendering/vulkan/vkr_mesh.h"
+#include "rendering/vulkan/vkr_immesh.h"
+#include "rendering/vulkan/vkr_exposurepass.h"
 
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
@@ -25,26 +27,37 @@
 #include "threading/task.h"
 #include <string.h>
 
-// ----------------------------------------------------------------------------
-
-bool vkrOpaquePass_New(vkrOpaquePass *const pass, VkRenderPass renderPass)
+typedef struct vkrPerCamera_s
 {
-    ASSERT(pass);
+    float4x4 worldToClip;
+    float4 eye;
+} vkrPerCamera;
+
+typedef struct PushConstants_s
+{
+    float4x4 kLocalToWorld;
+    float4 kIMc0;
+    float4 kIMc1;
+    float4 kIMc2;
+    uint4 kTexInds;
+} PushConstants;
+
+static vkrPass ms_pass;
+static vkrBufferSet ms_perCameraBuffer;
+
+bool vkrOpaquePass_New(VkRenderPass renderPass)
+{
     ASSERT(renderPass);
-    memset(pass, 0, sizeof(*pass));
     bool success = true;
 
-    for (i32 i = 0; i < kFramesInFlight; ++i)
+    if (!vkrBufferSet_New(
+        &ms_perCameraBuffer,
+        sizeof(vkrPerCamera),
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        vkrMemUsage_CpuToGpu))
     {
-        if (!vkrBuffer_New(
-            &pass->perCameraBuffer[i],
-            sizeof(vkrPerCamera),
-            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu))
-        {
-            success = false;
-            goto cleanup;
-        }
+        success = false;
+        goto cleanup;
     }
 
     VkPipelineShaderStageCreateInfo shaders[2] = { 0 };
@@ -116,6 +129,7 @@ bool vkrOpaquePass_New(vkrOpaquePass *const pass, VkRenderPass renderPass)
 
     const vkrPassDesc desc =
     {
+        .pushConstantBytes = sizeof(PushConstants),
         .renderPass = renderPass,
         .subpass = vkrPassId_Opaque,
         .vertLayout =
@@ -154,7 +168,7 @@ bool vkrOpaquePass_New(vkrOpaquePass *const pass, VkRenderPass renderPass)
         .shaders = shaders,
     };
 
-    if (!vkrPass_New(&pass->pass, &desc))
+    if (!vkrPass_New(&ms_pass, &desc))
     {
         success = false;
         goto cleanup;
@@ -167,55 +181,39 @@ cleanup:
     }
     if (!success)
     {
-        vkrOpaquePass_Del(pass);
+        vkrOpaquePass_Del();
     }
     return success;
 }
 
-void vkrOpaquePass_Del(vkrOpaquePass *const pass)
+void vkrOpaquePass_Del(void)
 {
-    if (pass)
-    {
-        vkrPass_Del(&pass->pass);
-        for (i32 i = 0; i < kFramesInFlight; ++i)
-        {
-            vkrBuffer_Del(&pass->perCameraBuffer[i]);
-        }
-        memset(pass, 0, sizeof(*pass));
-    }
+    vkrPass_Del(&ms_pass);
+    vkrBufferSet_Del(&ms_perCameraBuffer);
 }
 
 ProfileMark(pm_update, vkrOpaquePass_Setup)
-void vkrOpaquePass_Setup(vkrOpaquePass *const pass)
+void vkrOpaquePass_Setup(void)
 {
     ProfileBegin(pm_update);
 
-    const u32 syncIndex = vkrSys_SyncIndex();
-    VkDescriptorSet set = vkrBindings_GetSet();
-    vkrBuffer *const camBuffer = &pass->perCameraBuffer[syncIndex];
-    vkrBuffer *const expBuffer = &g_vkr.exposurePass.expBuffers[syncIndex];
-
-    // update per camera buffer
     {
         Camera camera;
         Camera_Get(&camera);
-        vkrPerCamera *const perCamera = vkrBuffer_Map(camBuffer);
-        ASSERT(perCamera);
-        perCamera->worldToClip = g_vkr.mainPass.depth.worldToClip;
-        perCamera->eye = camera.position;
-        perCamera->exposure = g_vkr.exposurePass.params.exposure;
-        vkrBuffer_Unmap(camBuffer);
-        vkrBuffer_Flush(camBuffer);
+        vkrPerCamera perCamera;
+        perCamera.worldToClip = Camera_GetWorldToClip(&camera, vkrSwapchain_GetAspect(&g_vkr.chain));
+        perCamera.eye = camera.position;
+        vkrBufferSet_Write(&ms_perCameraBuffer, &perCamera, sizeof(perCamera));
     }
 
     vkrBindings_BindBuffer(
         vkrBindId_CameraData,
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        camBuffer);
+        vkrBufferSet_Current(&ms_perCameraBuffer));
     vkrBindings_BindBuffer(
         vkrBindId_ExposureBuffer,
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        expBuffer);
+        vkrExposurePass_GetExposureBuffer());
 
     ProfileEnd(pm_update);
 }
@@ -223,19 +221,45 @@ void vkrOpaquePass_Setup(vkrOpaquePass *const pass)
 // ----------------------------------------------------------------------------
 
 ProfileMark(pm_execute, vkrOpaquePass_Execute)
-void vkrOpaquePass_Execute(
-    vkrPassContext const *const ctx,
-    vkrOpaquePass *const pass)
+void vkrOpaquePass_Execute(vkrPassContext const *const ctx)
 {
     ProfileBegin(pm_execute);
 
-    VkDescriptorSet set = vkrBindings_GetSet();
     VkCommandBuffer cmd = ctx->cmd;
-    vkrCmdViewport(cmd, vkrSwapchain_GetViewport(&g_vkr.chain), vkrSwapchain_GetRect(&g_vkr.chain));
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.pipeline);
-    vkrCmdBindDescSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pass->pass.layout, 1, &set);
+    vkrCmdDefaultViewport(cmd);
+    vkrCmdBindPass(cmd, &ms_pass);
 
-    vkrMegaMesh_Draw(cmd);
+    const Entities* ents = Entities_Get();
+    for (i32 iEnt = 0; iEnt < ents->count; ++iEnt)
+    {
+        const Mesh* mesh = Mesh_Get(ents->meshes[iEnt]);
+        if (mesh)
+        {
+            const Texture* albedo = Texture_Get(ents->materials[iEnt].albedo);
+            const Texture* rome = Texture_Get(ents->materials[iEnt].rome);
+            const Texture* normal = Texture_Get(ents->materials[iEnt].normal);
+            PushConstants pc;
+            pc.kLocalToWorld = ents->matrices[iEnt];
+            pc.kIMc0 = ents->invMatrices[iEnt].c0;
+            pc.kIMc1 = ents->invMatrices[iEnt].c1;
+            pc.kIMc2 = ents->invMatrices[iEnt].c2;
+            pc.kTexInds.x = albedo ? albedo->slot.index : 0;
+            pc.kTexInds.y = rome ? rome->slot.index : 0;
+            pc.kTexInds.z = normal ? normal->slot.index : 0;
+            pc.kTexInds.w = 0;
+            vkrCmdPushConstants(cmd, &ms_pass, &pc, sizeof(pc));
+            vkrCmdDrawMesh(cmd, mesh->id);
+        }
+    }
+
+    PushConstants pc;
+    pc.kLocalToWorld = f4x4_id;
+    pc.kIMc0 = f4_v(1.0f, 0.0f, 0.0f, 0.0f);
+    pc.kIMc1 = f4_v(0.0f, 1.0f, 0.0f, 0.0f);
+    pc.kIMc2 = f4_v(0.0f, 0.0f, 1.0f, 0.0f);
+    pc.kTexInds = (uint4) { 0 };
+    vkrCmdPushConstants(cmd, &ms_pass, &pc, sizeof(pc));
+    vkrImMesh_Draw(cmd);
 
     ProfileEnd(pm_execute);
 }

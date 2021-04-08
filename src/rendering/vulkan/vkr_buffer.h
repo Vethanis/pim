@@ -21,6 +21,7 @@ void vkrBufferSet_Del(vkrBufferSet *const set);
 void vkrBufferSet_Release(vkrBufferSet *const set);
 vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set);
 vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set);
+void vkrBufferSet_Write(vkrBufferSet *const set, const void* src, i32 size);
 
 // if size exceeds buffer's current size:
 // - creates new larger buffer

@@ -17,34 +17,41 @@
 #include "ui/cimgui_ext.h"
 #include <string.h>
 
-// ----------------------------------------------------------------------------
+typedef struct PushConstants_s
+{
+    float2 scale;
+    float2 translate;
+
+    u32 textureIndex;
+    u32 discardAlpha;
+    uint2 pad;
+} PushConstants;
+
+static vkrPass ms_pass;
+static vkrBufferSet ms_vertbufs;
+static vkrBufferSet ms_indbufs;
+static vkrTextureId ms_font;
 
 static void vkrImGui_SetupRenderState(
-    vkrUIPass *const imgui,
     ImDrawData const *const draw_data,
     VkCommandBuffer command_buffer,
     i32 fb_width,
     i32 fb_height);
 static void vkrImGui_UploadRenderDrawData(
-    vkrUIPass *const imgui,
     ImDrawData const *const draw_data);
 static void vkrImGui_RenderDrawData(
-    vkrUIPass *const imgui,
     ImDrawData const *const draw_data,
     VkCommandBuffer command_buffer);
 static void vkrImGui_SetTexture(
-    vkrUIPass const *const imgui,
     VkCommandBuffer cmd,
     ImDrawData const *const draw_data,
     vkrTextureId id);
 
 // ----------------------------------------------------------------------------
 
-bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
+bool vkrUIPass_New(VkRenderPass renderPass)
 {
-    ASSERT(imgui);
     ASSERT(renderPass);
-    memset(imgui, 0, sizeof(*imgui));
 
     bool success = true;
 
@@ -58,26 +65,15 @@ bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
     }
 
     // Create Mesh Buffers:
-    for (i32 i = 0; i < kFramesInFlight; ++i)
+    if (!vkrBufferSet_New(&ms_vertbufs, 1024, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vkrMemUsage_CpuToGpu))
     {
-        if (!vkrBuffer_New(
-            &imgui->vertbufs[i],
-            1024,
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu))
-        {
-            success = false;
-            goto cleanup;
-        }
-        if (!vkrBuffer_New(
-            &imgui->indbufs[i],
-            1024,
-            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu))
-        {
-            success = false;
-            goto cleanup;
-        }
+        success = false;
+        goto cleanup;
+    }
+    if (!vkrBufferSet_New(&ms_indbufs, 1024, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, vkrMemUsage_CpuToGpu))
+    {
+        success = false;
+        goto cleanup;
     }
 
     // Create Font Texture:
@@ -91,14 +87,13 @@ bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
         ImFontAtlas_GetTexDataAsRGBA32(io->Fonts, &pixels, &width, &height, &bpp);
         ASSERT(pixels);
 
-        vkrTextureId slot = vkrTexTable_Alloc(
+        ms_font = vkrTexTable_Alloc(
             VK_IMAGE_VIEW_TYPE_2D,
             VK_FORMAT_R8G8B8A8_SRGB,
             width, height, 1, 1, true);
-        vkrTexTable_Upload(slot, 0, pixels, sizeof(u32) * width * height);
-
-        imgui->font = slot;
-        io->Fonts[0].TexID = *(ImTextureID*)&slot;
+        vkrTexTable_Upload(ms_font, 0, pixels, sizeof(u32) * width * height);
+        SASSERT(sizeof(io->Fonts[0].TexID) >= sizeof(ms_font));
+        memcpy(&(io->Fonts[0].TexID), &ms_font, sizeof(ms_font));
     }
 
     VkPipelineShaderStageCreateInfo shaders[2] = { 0 };
@@ -145,7 +140,7 @@ bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
 
     const vkrPassDesc desc =
     {
-        .pushConstantBytes = sizeof(vkrUIPassPc),
+        .pushConstantBytes = sizeof(PushConstants),
         .shaderCount = NELEM(shaders),
         .shaders = shaders,
         .renderPass = renderPass,
@@ -183,7 +178,7 @@ bool vkrUIPass_New(vkrUIPass *const imgui, VkRenderPass renderPass)
         },
     };
 
-    if (!vkrPass_New(&imgui->pass, &desc))
+    if (!vkrPass_New(&ms_pass, &desc))
     {
         success = false;
         goto cleanup;
@@ -196,39 +191,30 @@ cleanup:
     }
     if (!success)
     {
-        vkrUIPass_Del(imgui);
+        vkrUIPass_Del();
     }
 
     return success;
 }
 
-void vkrUIPass_Del(vkrUIPass *const pass)
+void vkrUIPass_Del(void)
 {
-    if (pass)
-    {
-        vkrTexTable_Free(pass->font);
-        for (i32 i = 0; i < kFramesInFlight; ++i)
-        {
-            vkrBuffer_Del(&pass->vertbufs[i]);
-            vkrBuffer_Del(&pass->indbufs[i]);
-        }
-        vkrPass_Del(&pass->pass);
-        memset(pass, 0, sizeof(*pass));
-    }
+    vkrTexTable_Free(ms_font);
+    vkrBufferSet_Del(&ms_vertbufs);
+    vkrBufferSet_Del(&ms_indbufs);
+    vkrPass_Del(&ms_pass);
 }
 
-void vkrUIPass_Setup(vkrUIPass *const pass)
+void vkrUIPass_Setup(void)
 {
 }
 
 ProfileMark(pm_draw, vkrUIPass_Execute)
-void vkrUIPass_Execute(
-    vkrPassContext const *const ctx,
-    vkrUIPass *const pass)
+void vkrUIPass_Execute(vkrPassContext const *const ctx)
 {
     ProfileBegin(pm_draw);
     igRender();
-    vkrImGui_RenderDrawData(pass, igGetDrawData(), ctx->cmd);
+    vkrImGui_RenderDrawData(igGetDrawData(), ctx->cmd);
     ProfileEnd(pm_draw);
 }
 
@@ -236,7 +222,6 @@ void vkrUIPass_Execute(
 
 ProfileMark(pm_setuprenderstate, vkrImGui_SetupRenderState)
 static void vkrImGui_SetupRenderState(
-    vkrUIPass *const imgui,
     ImDrawData const *const draw_data,
     VkCommandBuffer cmd,
     i32 fb_width,
@@ -244,65 +229,44 @@ static void vkrImGui_SetupRenderState(
 {
     ProfileBegin(pm_setuprenderstate);
 
-    const u32 syncIndex = vkrSys_SyncIndex();
-    VkDescriptorSet set = vkrBindings_GetSet();
-    // Bind pipeline and descriptor sets:
-    {
-        vkCmdBindPipeline(
-            cmd,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            imgui->pass.pipeline);
-        vkCmdBindDescriptorSets(
-            cmd,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            imgui->pass.layout,
-            0, 1, &set,
-            0, NULL);
-    }
+    vkrCmdBindPass(cmd, &ms_pass);
 
-    // Bind Vertex And Index Buffer:
     if (draw_data->TotalVtxCount > 0)
     {
-        const VkBuffer vbufs[] = { imgui->vertbufs[syncIndex].handle };
+        const VkBuffer vbufs[] = { vkrBufferSet_Current(&ms_vertbufs)->handle };
         const VkDeviceSize voffsets[] = { 0 };
         vkCmdBindVertexBuffers(
             cmd,
             0, NELEM(vbufs), vbufs, voffsets);
         vkCmdBindIndexBuffer(
             cmd,
-            imgui->indbufs[syncIndex].handle,
+            vkrBufferSet_Current(&ms_indbufs)->handle,
             0,
             sizeof(ImDrawIdx) == 2 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
     }
 
-    // Setup viewport:
+    const VkViewport viewport =
     {
-        const VkViewport viewport =
-        {
-            .x = 0,
-            .y = 0,
-            .width = (float)fb_width,
-            .height = (float)fb_height,
-            .minDepth = 0.0f,
-            .maxDepth = 1.0f,
-        };
-        vkCmdSetViewport(cmd, 0, 1, &viewport);
-    }
-    vkrImGui_SetTexture(imgui, cmd, draw_data, imgui->font);
+        .x = 0,
+        .y = 0,
+        .width = (float)fb_width,
+        .height = (float)fb_height,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+    vkrImGui_SetTexture(cmd, draw_data, ms_font);
 
     ProfileEnd(pm_setuprenderstate);
 }
 
 ProfileMark(pm_upload, vkrImGui_UploadRenderDrawData)
-static void vkrImGui_UploadRenderDrawData(
-    vkrUIPass *const imgui,
-    ImDrawData const *const draw_data)
+static void vkrImGui_UploadRenderDrawData(ImDrawData const *const draw_data)
 {
     ProfileBegin(pm_upload);
 
-    const u32 syncIndex = g_vkr.chain.syncIndex;
-    vkrBuffer* const vertBuf = &imgui->vertbufs[syncIndex];
-    vkrBuffer* const indBuf = &imgui->indbufs[syncIndex];
+    vkrBuffer* const vertBuf = vkrBufferSet_Current(&ms_vertbufs);
+    vkrBuffer* const indBuf = vkrBufferSet_Current(&ms_indbufs);
 
     const i32 totalVtxCount = draw_data->TotalVtxCount;
     const i32 totalIdxCount = draw_data->TotalIdxCount;
@@ -320,8 +284,8 @@ static void vkrImGui_UploadRenderDrawData(
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         vkrMemUsage_CpuToGpu);
 
-    ImDrawVert *const vtx_dst = vkrBuffer_Map(vertBuf);
-    ImDrawIdx *const idx_dst = vkrBuffer_Map(indBuf);
+    ImDrawVert* pim_noalias vtx_dst = vkrBuffer_Map(vertBuf);
+    ImDrawIdx* pim_noalias idx_dst = vkrBuffer_Map(indBuf);
     ASSERT(vtx_dst);
     ASSERT(idx_dst);
     i32 vertOffset = 0;
@@ -329,15 +293,13 @@ static void vkrImGui_UploadRenderDrawData(
 
     const i32 cmdListCount = draw_data->CmdListsCount;
     ImDrawList const *const *const pim_noalias cmdLists = draw_data->CmdLists;
-    for (i32 n = 0; n < cmdListCount; n++)
+    for (i32 iCmdList = 0; iCmdList < cmdListCount; iCmdList++)
     {
-        const ImDrawList* cmdlist = cmdLists[n];
-        const ImDrawVert* pVertSrc = cmdlist->VtxBuffer.Data;
-        const ImDrawIdx* pIdxSrc = cmdlist->IdxBuffer.Data;
+        const ImDrawList* pim_noalias cmdlist = cmdLists[iCmdList];
         i32 vlen = cmdlist->VtxBuffer.Size;
         i32 ilen = cmdlist->IdxBuffer.Size;
-        memcpy(vtx_dst + vertOffset, pVertSrc, vlen * sizeof(ImDrawVert));
-        memcpy(idx_dst + indOffset, pIdxSrc, ilen * sizeof(ImDrawIdx));
+        memcpy(vtx_dst + vertOffset, cmdlist->VtxBuffer.Data, vlen * sizeof(ImDrawVert));
+        memcpy(idx_dst + indOffset, cmdlist->IdxBuffer.Data, ilen * sizeof(ImDrawIdx));
         vertOffset += vlen;
         indOffset += ilen;
     }
@@ -351,12 +313,11 @@ static void vkrImGui_UploadRenderDrawData(
 }
 
 static void vkrImGui_SetTexture(
-    vkrUIPass const *const imgui,
     VkCommandBuffer cmd,
     ImDrawData const *const draw_data,
     vkrTextureId id)
 {
-    vkrTextureId font = imgui->font;
+    vkrTextureId font = ms_font;
     u32 discardAlpha = 0;
     u32 index = 0;
     if (vkrTexTable_Exists(id))
@@ -368,23 +329,18 @@ static void vkrImGui_SetTexture(
     const float2 sc = { 2.0f / draw_data->DisplaySize.x, 2.0f / draw_data->DisplaySize.y };
     const float2 tr = { -1.0f - draw_data->DisplayPos.x * sc.x, -1.0f - draw_data->DisplayPos.y * sc.y };
 
-    const vkrUIPassPc constants =
+    const PushConstants constants =
     {
         .scale = sc,
         .translate = tr,
         .textureIndex = index,
         .discardAlpha = discardAlpha,
     };
-    vkCmdPushConstants(
-        cmd,
-        imgui->pass.layout,
-        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        0, sizeof(constants), &constants);
+    vkrCmdPushConstants(cmd, &ms_pass, &constants, sizeof(constants));
 }
 
 ProfileMark(pm_render, vkrImGui_RenderDrawData)
 static void vkrImGui_RenderDrawData(
-    vkrUIPass *const imgui,
     ImDrawData const *const draw_data,
     VkCommandBuffer cmd)
 {
@@ -405,8 +361,8 @@ static void vkrImGui_RenderDrawData(
         return;
     }
 
-    vkrImGui_UploadRenderDrawData(imgui, draw_data);
-    vkrImGui_SetupRenderState(imgui, draw_data, cmd, fb_width, fb_height);
+    vkrImGui_UploadRenderDrawData(draw_data);
+    vkrImGui_SetupRenderState(draw_data, cmd, fb_width, fb_height);
 
     ProfileBegin(pm_render);
 
@@ -435,7 +391,6 @@ static void vkrImGui_RenderDrawData(
                 if (userCallback == kResetRenderState)
                 {
                     vkrImGui_SetupRenderState(
-                        imgui,
                         draw_data,
                         cmd,
                         fb_width,
@@ -443,13 +398,13 @@ static void vkrImGui_RenderDrawData(
                 }
                 else
                 {
-                    vkrImGui_SetTexture(imgui, cmd, draw_data, *(vkrTextureId*)&pcmd->TextureId);
+                    vkrImGui_SetTexture(cmd, draw_data, *(vkrTextureId*)&pcmd->TextureId);
                     userCallback(cmdList, pcmd);
                 }
             }
             else
             {
-                vkrImGui_SetTexture(imgui, cmd, draw_data, *(vkrTextureId*)&pcmd->TextureId);
+                vkrImGui_SetTexture(cmd, draw_data, *(vkrTextureId*)&pcmd->TextureId);
                 // Project scissor/clipping rectangles into framebuffer space
                 ImVec4 clip_rect =
                 {

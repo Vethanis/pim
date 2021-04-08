@@ -4,12 +4,10 @@
 
 PIM_C_BEGIN
 
-bool vkrDepthPass_New(vkrDepthPass *const pass, VkRenderPass renderPass);
-void vkrDepthPass_Del(vkrDepthPass *const pass);
+bool vkrDepthPass_New(VkRenderPass renderPass);
+void vkrDepthPass_Del(void);
 
-void vkrDepthPass_Setup(vkrDepthPass *const pass);
-void vkrDepthPass_Execute(
-    vkrPassContext const *const passCtx,
-    vkrDepthPass *const pass);
+void vkrDepthPass_Setup(void);
+void vkrDepthPass_Execute(vkrPassContext const *const passCtx);
 
 PIM_C_END

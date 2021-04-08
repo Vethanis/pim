@@ -987,7 +987,7 @@ static void chartnodes_assign(
                 uvs[c].z = uvC.x;
                 uvs[c].w = uvC.y;
 
-                Mesh_Upload(mesh);
+                Mesh_Upload(meshids[node.drawableIndex]);
             }
         }
     }

@@ -59,14 +59,9 @@ bool Mesh_GetName(MeshId id, Guid *const dst);
 
 Box3D Mesh_CalcBounds(MeshId id);
 
-// TODO: Get rid of these two and vkrMegaMesh for simpler instancing.
-bool Mesh_SetMaterial(MeshId id, Material const *const mat);
-bool VEC_CALL Mesh_SetTransform(MeshId id, float4x4 localToWorld);
-
-// upload changes to gpu
-bool Mesh_Upload(Mesh *const mesh);
-
 bool Mesh_Save(Crate *const crate, MeshId id, Guid *const dst);
 bool Mesh_Load(Crate *const crate, Guid name, MeshId *const dst);
+
+bool Mesh_Upload(MeshId id);
 
 PIM_C_END

@@ -60,17 +60,17 @@ bool vkrMainPass_New(vkrMainPass *const pass)
         success = false;
         goto cleanup;
     }
-    if (!vkrDepthPass_New(&pass->depth, renderPass))
+    if (!vkrDepthPass_New(renderPass))
     {
         success = false;
         goto cleanup;
     }
-    if (!vkrOpaquePass_New(&pass->opaque, renderPass))
+    if (!vkrOpaquePass_New(renderPass))
     {
         success = false;
         goto cleanup;
     }
-    if (!vkrUIPass_New(&pass->ui, renderPass))
+    if (!vkrUIPass_New(renderPass))
     {
         success = false;
         goto cleanup;
@@ -91,9 +91,9 @@ void vkrMainPass_Del(vkrMainPass *const pass)
     {
         vkrRenderPass_Del(pass->renderPass);
         vkrScreenBlit_Del(&pass->blit);
-        vkrDepthPass_Del(&pass->depth);
-        vkrOpaquePass_Del(&pass->opaque);
-        vkrUIPass_Del(&pass->ui);
+        vkrDepthPass_Del();
+        vkrOpaquePass_Del();
+        vkrUIPass_Del();
         memset(pass, 0, sizeof(*pass));
     }
 }
@@ -103,9 +103,9 @@ void vkrMainPass_Setup(vkrMainPass *const pass)
 {
     ProfileBegin(pm_setup);
 
-    vkrDepthPass_Setup(&pass->depth);
-    vkrOpaquePass_Setup(&pass->opaque);
-    vkrUIPass_Setup(&pass->ui);
+    vkrDepthPass_Setup();
+    vkrOpaquePass_Setup();
+    vkrUIPass_Setup();
 
     ProfileEnd(pm_setup);
 }
@@ -199,7 +199,7 @@ void vkrMainPass_Execute(
 
     if (!r_sw)
     {
-        vkrDepthPass_Execute(&passCtx, &pass->depth);
+        vkrDepthPass_Execute(&passCtx);
     }
 
     vkrCmdNextSubpass(cmd, VK_SUBPASS_CONTENTS_INLINE);
@@ -207,13 +207,13 @@ void vkrMainPass_Execute(
 
     if (!r_sw)
     {
-        vkrOpaquePass_Execute(&passCtx, &pass->opaque);
+        vkrOpaquePass_Execute(&passCtx);
     }
 
     vkrCmdNextSubpass(cmd, VK_SUBPASS_CONTENTS_INLINE);
     passCtx.subpass++;
 
-    vkrUIPass_Execute(&passCtx, &pass->ui);
+    vkrUIPass_Execute(&passCtx);
 
     vkrCmdEndRenderPass(cmd);
 

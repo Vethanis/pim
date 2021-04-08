@@ -60,9 +60,9 @@ void vkrCmdViewport(
     VkCommandBuffer cmdbuf,
     VkViewport viewport,
     VkRect2D scissor);
+void vkrCmdDefaultViewport(VkCommandBuffer cmdbuf);
 
 void vkrCmdDraw(VkCommandBuffer cmdbuf, i32 vertexCount, i32 firstVertex);
-void vkrCmdDrawMesh(VkCommandBuffer cmdbuf, const vkrMesh* mesh);
 
 void vkrCmdCopyBuffer(
     VkCommandBuffer cmdbuf,
@@ -79,13 +79,6 @@ void vkrCmdImageBarrier(
     VkPipelineStageFlags srcStageMask,
     VkPipelineStageFlags dstStageMask,
     const VkImageMemoryBarrier* barrier);
-
-void vkrCmdPushConstants(
-    VkCommandBuffer cmdbuf,
-    VkPipelineLayout layout,
-    VkShaderStageFlags stages,
-    const void* dwords,
-    i32 bytes);
 
 void vkrCmdBindDescSets(
     VkCommandBuffer cmdbuf,

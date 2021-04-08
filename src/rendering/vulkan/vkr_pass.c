@@ -3,6 +3,7 @@
 #include "rendering/vulkan/vkr_pipeline.h"
 #include "rendering/vulkan/vkr_desc.h"
 #include "rendering/vulkan/vkr_bindings.h"
+#include "rendering/vulkan/vkr_cmd.h"
 
 #include <string.h>
 
@@ -48,6 +49,12 @@ bool vkrPass_New(vkrPass *const pass, vkrPassDesc const *const desc)
         },
     };
 
+    pass->bindpoint = bindPoint;
+    pass->stageFlags = stageFlags;
+    pass->pushConstantBytes = desc->pushConstantBytes;
+    ASSERT((desc->pushConstantBytes & 15) == 0);
+    ASSERT(desc->pushConstantBytes <= 256);
+
     pass->layout = vkrPipelineLayout_New(
         NELEM(setLayouts), setLayouts,
         rangeCount, ranges);
@@ -70,7 +77,7 @@ bool vkrPass_New(vkrPass *const pass, vkrPassDesc const *const desc)
     break;
     case VK_PIPELINE_BIND_POINT_GRAPHICS:
     {
-        ASSERT(desc->shaderCount >= 2);
+        ASSERT(desc->shaderCount == 2);
         pass->pipeline = vkrPipeline_NewGfx(
             &desc->fixedFuncs,
             &desc->vertLayout,
@@ -100,4 +107,30 @@ void vkrPass_Del(vkrPass *const pass)
         vkrPipeline_Del(pass->pipeline);
         memset(pass, 0, sizeof(*pass));
     }
+}
+
+void vkrCmdBindPass(VkCommandBuffer cmd, const vkrPass* pass)
+{
+    ASSERT(cmd);
+    ASSERT(pass->pipeline);
+    vkCmdBindPipeline(cmd, pass->bindpoint, pass->pipeline);
+    VkDescriptorSet set = vkrBindings_GetSet();
+    vkrCmdBindDescSets(cmd, pass->bindpoint, pass->layout, 1, &set);
+}
+
+void vkrCmdPushConstants(VkCommandBuffer cmd, const vkrPass* pass, const void* src, i32 bytes)
+{
+    ASSERT(cmd);
+    ASSERT(src);
+    ASSERT(bytes == pass->pushConstantBytes);
+    ASSERT(bytes > 0);
+    ASSERT(pass->layout);
+    ASSERT(pass->stageFlags);
+    vkCmdPushConstants(
+        cmd,
+        pass->layout,
+        pass->stageFlags,
+        0,
+        bytes,
+        src);
 }

@@ -21,10 +21,14 @@
 #include "math/scalar.h"
 #include <string.h>
 
-bool vkrExposurePass_New(vkrExposurePass *const pass)
+static vkrPass ms_pass;
+static VkPipeline ms_adapt;
+static vkrBufferSet ms_histBuffers;
+static vkrBufferSet ms_expBuffers;
+static vkrExposure ms_params;
+
+bool vkrExposurePass_New(void)
 {
-    ASSERT(pass);
-    memset(pass, 0, sizeof(*pass));
     bool success = true;
 
     VkPipelineShaderStageCreateInfo buildShaders[1] = { 0 };
@@ -39,31 +43,15 @@ bool vkrExposurePass_New(vkrExposurePass *const pass)
         success = false;
         goto cleanup;
     }
-    for (i32 i = 0; i < kFramesInFlight; ++i)
+    if (!vkrBufferSet_New(&ms_histBuffers, sizeof(u32) * kHistogramSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu))
     {
-        const i32 bytes = sizeof(u32) * kHistogramSize;
-        if (!vkrBuffer_New(
-            &pass->histBuffers[i],
-            bytes,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu))
-        {
-            success = false;
-            goto cleanup;
-        }
+        success = false;
+        goto cleanup;
     }
-    for (i32 i = 0; i < kFramesInFlight; ++i)
+    if (!vkrBufferSet_New(&ms_expBuffers, sizeof(float) * 2, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu))
     {
-        const i32 bytes = sizeof(float) * 2;
-        if (!vkrBuffer_New(
-            &pass->expBuffers[i],
-            bytes,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu))
-        {
-            success = false;
-            goto cleanup;
-        }
+        success = false;
+        goto cleanup;
     }
     const vkrPassDesc desc =
     {
@@ -71,13 +59,13 @@ bool vkrExposurePass_New(vkrExposurePass *const pass)
         .shaderCount = NELEM(buildShaders),
         .shaders = buildShaders,
     };
-    if (!vkrPass_New(&pass->pass, &desc))
+    if (!vkrPass_New(&ms_pass, &desc))
     {
         success = false;
         goto cleanup;
     }
-    pass->adapt = vkrPipeline_NewComp(pass->pass.layout, &adaptShaders[0]);
-    if (!pass->adapt)
+    ms_adapt = vkrPipeline_NewComp(ms_pass.layout, &adaptShaders[0]);
+    if (!ms_adapt)
     {
         success = false;
         goto cleanup;
@@ -94,35 +82,25 @@ cleanup:
     }
     if (!success)
     {
-        vkrExposurePass_Del(pass);
+        vkrExposurePass_Del();
     }
     return success;
 }
 
-void vkrExposurePass_Del(vkrExposurePass *const pass)
+void vkrExposurePass_Del(void)
 {
-    if (pass)
-    {
-        vkrPipeline_Del(pass->adapt);
-        vkrPass_Del(&pass->pass);
-        for (i32 i = 0; i < NELEM(pass->histBuffers); ++i)
-        {
-            vkrBuffer_Del(&pass->histBuffers[i]);
-        }
-        for (i32 i = 0; i < NELEM(pass->expBuffers); ++i)
-        {
-            vkrBuffer_Del(&pass->expBuffers[i]);
-        }
-        memset(pass, 0, sizeof(*pass));
-    }
+    vkrPipeline_Del(ms_adapt); ms_adapt = NULL;
+    vkrPass_Del(&ms_pass);
+    vkrBufferSet_Del(&ms_histBuffers);
+    vkrBufferSet_Del(&ms_expBuffers);
 }
 
 ProfileMark(pm_setup, vkrExposurePass_Setup)
-void vkrExposurePass_Setup(vkrExposurePass *const pass)
+void vkrExposurePass_Setup(void)
 {
     ProfileBegin(pm_setup);
 
-    pass->params.deltaTime = f1_lerp(pass->params.deltaTime, (float)Time_Deltaf(), 0.25f);
+    ms_params.deltaTime = f1_lerp(ms_params.deltaTime, (float)Time_Deltaf(), 0.25f);
 
     vkrSwapchain *const chain = &g_vkr.chain;
     const u32 chainLen = chain->length;
@@ -130,8 +108,8 @@ void vkrExposurePass_Setup(vkrExposurePass *const pass)
     const u32 syncIndex = (chain->syncIndex + (kFramesInFlight - 1u)) % kFramesInFlight;
 
     vkrAttachment *const lum = &chain->lumAttachments[imgIndex];
-    vkrBuffer *const expBuffer = &pass->expBuffers[syncIndex];
-    vkrBuffer *const histBuffer = &pass->histBuffers[syncIndex];
+    vkrBuffer *const expBuffer = &ms_expBuffers.frames[syncIndex];
+    vkrBuffer *const histBuffer = &ms_histBuffers.frames[syncIndex];
 
     vkrBindings_BindImage(
         vkrBindId_LumTexture,
@@ -152,7 +130,7 @@ void vkrExposurePass_Setup(vkrExposurePass *const pass)
 }
 
 ProfileMark(pm_execute, vkrExposurePass_Execute)
-void vkrExposurePass_Execute(vkrExposurePass *const pass)
+void vkrExposurePass_Execute(void)
 {
     ProfileBegin(pm_execute);
 
@@ -162,13 +140,13 @@ void vkrExposurePass_Execute(vkrExposurePass *const pass)
     const u32 syncIndex = (chain->syncIndex + (kFramesInFlight - 1u)) % kFramesInFlight;
 
     vkrAttachment *const lum = &chain->lumAttachments[imgIndex];
-    vkrBuffer *const expBuffer = &pass->expBuffers[syncIndex];
-    vkrBuffer *const histBuffer = &pass->histBuffers[syncIndex];
+    vkrBuffer *const expBuffer = &ms_expBuffers.frames[syncIndex];
+    vkrBuffer *const histBuffer = &ms_histBuffers.frames[syncIndex];
 
     VkDescriptorSet set = vkrBindings_GetSet();
-    VkPipelineLayout layout = pass->pass.layout;
-    VkPipeline buildPipe = pass->pass.pipeline;
-    VkPipeline adaptPipe = pass->adapt;
+    VkPipelineLayout layout = ms_pass.layout;
+    VkPipeline buildPipe = ms_pass.pipeline;
+    VkPipeline adaptPipe = ms_adapt;
 
     VkFence cmpfence = NULL;
     VkQueue cmpqueue = NULL;
@@ -219,7 +197,7 @@ void vkrExposurePass_Execute(vkrExposurePass *const pass)
         {
             .width = width,
             .height = height,
-            .exposure = pass->params,
+            .exposure = ms_params,
         };
         vkCmdPushConstants(
             cmpcmd,
@@ -290,4 +268,24 @@ void vkrExposurePass_Execute(vkrExposurePass *const pass)
     }
 
     ProfileEnd(pm_execute);
+}
+
+vkrExposure* vkrExposurePass_GetParams(void)
+{
+    return &ms_params;
+}
+
+void vkrExposurePass_SetParams(const vkrExposure* params)
+{
+    ms_params = *params;
+}
+
+float vkrExposurePass_GetExposure(void)
+{
+    return ms_params.exposure;
+}
+
+const vkrBuffer* vkrExposurePass_GetExposureBuffer(void)
+{
+    return vkrBufferSet_Current(&ms_expBuffers);
 }

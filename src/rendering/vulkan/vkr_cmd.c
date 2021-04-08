@@ -1,5 +1,6 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_sync.h"
+#include "rendering/vulkan/vkr_swapchain.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include "common/time.h"
@@ -402,39 +403,15 @@ void vkrCmdViewport(
     vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
 }
 
+void vkrCmdDefaultViewport(VkCommandBuffer cmdbuf)
+{
+    vkrCmdViewport(cmdbuf, vkrSwapchain_GetViewport(&g_vkr.chain), vkrSwapchain_GetRect(&g_vkr.chain));
+}
+
 void vkrCmdDraw(VkCommandBuffer cmdbuf, i32 vertexCount, i32 firstVertex)
 {
     ASSERT(cmdbuf);
     vkCmdDraw(cmdbuf, vertexCount, 1, firstVertex, 0);
-}
-
-void vkrCmdDrawMesh(VkCommandBuffer cmdbuf, const vkrMesh* mesh)
-{
-    ASSERT(mesh);
-    ASSERT(cmdbuf);
-    ASSERT(mesh->vertCount >= 0);
-    ASSERT(mesh->buffer.handle);
-
-    if (mesh->vertCount > 0)
-    {
-        const VkDeviceSize streamSize = sizeof(float4) * mesh->vertCount;
-        const VkBuffer buffers[] =
-        {
-            mesh->buffer.handle,
-            mesh->buffer.handle,
-            mesh->buffer.handle,
-            mesh->buffer.handle,
-        };
-        const VkDeviceSize offsets[] =
-        {
-            streamSize * 0,
-            streamSize * 1,
-            streamSize * 2,
-            streamSize * 3,
-        };
-        vkCmdBindVertexBuffers(cmdbuf, 0, NELEM(buffers), buffers, offsets);
-        vkCmdDraw(cmdbuf, mesh->vertCount, 1, 0, 0);
-    }
 }
 
 void vkrCmdCopyBuffer(
@@ -489,24 +466,6 @@ void vkrCmdImageBarrier(
         0, NULL,
         0, NULL,
         1, barrier);
-}
-
-void vkrCmdPushConstants(
-    VkCommandBuffer cmdbuf,
-    VkPipelineLayout layout,
-    VkShaderStageFlags stages,
-    const void* dwords,
-    i32 bytes)
-{
-    ASSERT(cmdbuf);
-    ASSERT(layout);
-    ASSERT(stages);
-    ASSERT(dwords || !bytes);
-    ASSERT(bytes >= 0);
-    if (bytes > 0)
-    {
-        vkCmdPushConstants(cmdbuf, layout, stages, 0, bytes, dwords);
-    }
 }
 
 void vkrCmdBindDescSets(
