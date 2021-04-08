@@ -5,20 +5,10 @@
 #include "GI.hlsl"
 #include "Exposure.hlsl"
 
-[[vk::push_constant]]
-cbuffer push_constants
-{
-    float4x4 kLocalToWorld;
-    float4 kIMc0;
-    float4 kIMc1;
-    float4 kIMc2;
-    uint4 kTexInds;
-};
-
 struct VSInput
 {
-    float4 positionOS : POSITION;
-    float4 normalOS : NORMAL;
+    float4 positionWS : POSITION;
+    float4 normalWS : NORMAL;
     float4 uv01 : TEXCOORD0;
     uint4 texIndices : TEXCOORD1;
 };
@@ -40,18 +30,15 @@ struct PSOutput
 
 PSInput VSMain(VSInput input)
 {
-    float4 positionOS = float4(input.positionOS.xyz, 1.0);
-    float4 positionWS = mul(kLocalToWorld, positionOS);
+    float4 positionWS = float4(input.positionWS.xyz, 1.0);
     float4 positionCS = mul(cameraData.worldToClip, positionWS);
-    float3 normalWS = mul(float3x3(kIMc0.xyz, kIMc1.xyz, kIMc2.xyz), input.normalOS.xyz);
 
     PSInput output;
     output.positionCS = positionCS;
     output.positionWS = positionWS.xyz;
-    output.TBN = NormalToTBN(normalWS.xyz);
+    output.TBN = NormalToTBN(input.normalWS.xyz);
     output.uv01 = input.uv01;
-    output.texIndices = kTexInds;
-    output.texIndices.w = input.texIndices.w;
+    output.texIndices = input.texIndices;
     return output;
 }
 

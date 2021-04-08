@@ -289,7 +289,8 @@ bool Entities_Load(Crate *const crate, Entities *const dst)
     i32 len = 0;
     if (Crate_Get(crate, Guid_FromStr("drawables.count"), &len, sizeof(len)) && (len > 0))
     {
-        dst->modtime = Time_Now();
+        const u64 now = Time_Now();
+        dst->modtime = now;
         dst->count = len;
         dst->names = Perm_Calloc(sizeof(dst->names[0]) * len);
         dst->meshes = Perm_Calloc(sizeof(dst->meshes[0]) * len);
@@ -335,7 +336,6 @@ bool Entities_Load(Crate *const crate, Entities *const dst)
                     Texture_Load(crate, dmat.rome.id, &mat.rome);
                     Texture_Load(crate, dmat.normal.id, &mat.normal);
                     dst->materials[i] = mat;
-                    Mesh_SetMaterial(dst->meshes[i], &mat);
                 }
             }
             Mem_Free(dmaterials);

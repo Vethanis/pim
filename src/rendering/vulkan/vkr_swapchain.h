@@ -26,6 +26,7 @@ void vkrSwapchain_Present(vkrSwapchain* chain);
 
 VkViewport vkrSwapchain_GetViewport(const vkrSwapchain* chain);
 VkRect2D vkrSwapchain_GetRect(const vkrSwapchain* chain);
+float vkrSwapchain_GetAspect(const vkrSwapchain* chain);
 
 // ----------------------------------------------------------------------------
 

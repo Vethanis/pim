@@ -3,34 +3,95 @@
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_context.h"
+#include "containers/idalloc.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include <string.h>
 
-bool vkrMesh_New(
-    vkrMesh *const mesh,
+typedef struct vkrMesh_s
+{
+    vkrBuffer buffer;
+    i32 vertCount;
+} vkrMesh;
+
+static IdAlloc ms_ids;
+static vkrMesh* ms_meshes;
+
+static vkrMeshId ToMeshId(GenId gid)
+{
+    vkrMeshId mid;
+    mid.index = gid.index;
+    mid.version = gid.version;
+    return mid;
+}
+
+static GenId ToGenId(vkrMeshId mid)
+{
+    GenId gid;
+    gid.index = mid.index;
+    gid.version = mid.version;
+    return gid;
+}
+
+bool vkrMeshSys_Init(void)
+{
+    IdAlloc_New(&ms_ids);
+    return true;
+}
+
+void vkrMeshSys_Update(void)
+{
+
+}
+
+void vkrMeshSys_Shutdown(void)
+{
+    const i32 len = ms_ids.length;
+    for (i32 i = 0; i < len; ++i)
+    {
+        if (ms_ids.versions[i] & 1)
+        {
+            vkrBuffer_Release(&ms_meshes[i].buffer);
+        }
+    }
+    IdAlloc_Del(&ms_ids);
+    Mem_Free(ms_meshes); ms_meshes = NULL;
+}
+
+bool vkrMesh_Exists(vkrMeshId id)
+{
+    return IdAlloc_Exists(&ms_ids, ToGenId(id));
+}
+
+vkrMeshId vkrMesh_New(
     i32 vertCount,
     const float4* pim_noalias positions,
     const float4* pim_noalias normals,
     const float4* pim_noalias uv01,
     const int4* pim_noalias texIndices)
 {
-    ASSERT(mesh);
-    memset(mesh, 0, sizeof(*mesh));
+    vkrMeshId id = { 0 };
+    bool success = true;
     if (vertCount <= 0)
     {
         ASSERT(false);
-        return false;
+        return id;
     }
     if (!positions || !normals || !uv01)
     {
         ASSERT(false);
-        return false;
+        return id;
     }
 
-    SASSERT(sizeof(positions[0]) == sizeof(normals[0]));
-    SASSERT(sizeof(positions[0]) == sizeof(uv01[0]));
-    SASSERT(sizeof(positions[0]) == sizeof(texIndices[0]));
+    SASSERT(sizeof(positions[0]) == sizeof(float4));
+    SASSERT(sizeof(normals[0]) == sizeof(float4));
+    SASSERT(sizeof(uv01[0]) == sizeof(float4));
+    SASSERT(sizeof(texIndices[0]) == sizeof(float4));
+
+    id = ToMeshId(IdAlloc_Alloc(&ms_ids));
+    ms_meshes = Perm_Realloc(ms_meshes, sizeof(ms_meshes[0]) * ms_ids.length);
+    vkrMesh* mesh = &ms_meshes[id.index];
+    mesh->vertCount = vertCount;
 
     const i32 streamSize = sizeof(positions[0]) * vertCount;
     const i32 totalSize = streamSize * vkrMeshStream_COUNT;
@@ -42,42 +103,39 @@ bool vkrMesh_New(
         vkrMemUsage_GpuOnly))
     {
         ASSERT(false);
-        return false;
-    }
-
-    mesh->vertCount = vertCount;
-    if (!vkrMesh_Upload(mesh, vertCount, positions, normals, uv01, texIndices))
-    {
-        ASSERT(false);
+        success = false;
         goto cleanup;
     }
 
-    return true;
+    if (!vkrMesh_Upload(id, vertCount, positions, normals, uv01, texIndices))
+    {
+        ASSERT(false);
+        success = false;
+        goto cleanup;
+    }
+
 cleanup:
-    vkrMesh_Del(mesh);
+    if (!success)
+    {
+        vkrMesh_Del(id);
+    }
+    return id;
+}
+
+bool vkrMesh_Del(vkrMeshId id)
+{
+    if (IdAlloc_Free(&ms_ids, ToGenId(id)))
+    {
+        i32 slot = id.index;
+        vkrBuffer_Release(&ms_meshes[slot].buffer);
+        ms_meshes[slot].vertCount = 0;
+        return true;
+    }
     return false;
 }
 
-void vkrMesh_Del(vkrMesh *const mesh)
-{
-    if (mesh)
-    {
-        vkrBuffer_Del(&mesh->buffer);
-        memset(mesh, 0, sizeof(*mesh));
-    }
-}
-
-void vkrMesh_Release(vkrMesh *const mesh)
-{
-    if (mesh)
-    {
-        vkrBuffer_Release(&mesh->buffer);
-        memset(mesh, 0, sizeof(*mesh));
-    }
-}
-
 bool vkrMesh_Upload(
-    vkrMesh *const mesh,
+    vkrMeshId id,
     i32 vertCount,
     const float4* pim_noalias positions,
     const float4* pim_noalias normals,
@@ -94,18 +152,21 @@ bool vkrMesh_Upload(
         ASSERT(false);
         return false;
     }
+    if (!vkrMesh_Exists(id))
+    {
+        ASSERT(false);
+        return false;
+    }
 
-    SASSERT(sizeof(positions[0]) == sizeof(normals[0]));
-    SASSERT(sizeof(positions[0]) == sizeof(uv01[0]));
-    SASSERT(sizeof(positions[0]) == sizeof(texIndices[0]));
-
-    const i32 streamSize = sizeof(positions[0]) * vertCount;
-    const i32 totalSize = streamSize * vkrMeshStream_COUNT;
+    SASSERT(sizeof(positions[0]) == sizeof(float4));
+    SASSERT(sizeof(normals[0]) == sizeof(float4));
+    SASSERT(sizeof(uv01[0]) == sizeof(float4));
+    SASSERT(sizeof(texIndices[0]) == sizeof(float4));
 
     vkrBuffer stagebuf = { 0 };
     if (!vkrBuffer_New(
         &stagebuf,
-        totalSize,
+        sizeof(float4) * vertCount * vkrMeshStream_COUNT,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         vkrMemUsage_CpuOnly))
     {
@@ -114,22 +175,26 @@ bool vkrMesh_Upload(
     }
 
     {
-        u8* pim_noalias dst = vkrBuffer_Map(&stagebuf);
+        float4* pim_noalias dst = vkrBuffer_Map(&stagebuf);
         ASSERT(dst);
         if (dst)
         {
-            memcpy(dst, positions, streamSize);
-            dst += streamSize;
-            memcpy(dst, normals, streamSize);
-            dst += streamSize;
-            memcpy(dst, uv01, streamSize);
-            dst += streamSize;
-            memcpy(dst, texIndices, streamSize);
-            dst += streamSize;
+            memcpy(dst, positions, sizeof(dst[0]) * vertCount);
+            dst += vertCount;
+            memcpy(dst, normals, sizeof(dst[0]) * vertCount);
+            dst += vertCount;
+            memcpy(dst, uv01, sizeof(dst[0]) * vertCount);
+            dst += vertCount;
+            memcpy(dst, texIndices, sizeof(dst[0]) * vertCount);
+            dst += vertCount;
         }
         vkrBuffer_Unmap(&stagebuf);
         vkrBuffer_Flush(&stagebuf);
     }
+
+    vkrMesh* mesh = &ms_meshes[id.index];
+    ASSERT(mesh->buffer.handle);
+    mesh->vertCount = vertCount;
 
     VkFence fence = NULL;
     VkQueue queue = NULL;
@@ -148,4 +213,36 @@ bool vkrMesh_Upload(
     vkrBuffer_Release(&stagebuf);
 
     return true;
+}
+
+void vkrCmdDrawMesh(VkCommandBuffer cmdbuf, vkrMeshId id)
+{
+    ASSERT(cmdbuf);
+    if (vkrMesh_Exists(id))
+    {
+        const vkrMesh* mesh = &ms_meshes[id.index];
+        ASSERT(mesh->vertCount >= 0);
+        ASSERT(mesh->buffer.handle);
+
+        if (mesh->vertCount > 0)
+        {
+            const VkDeviceSize streamSize = sizeof(float4) * mesh->vertCount;
+            const VkBuffer buffers[] =
+            {
+                mesh->buffer.handle,
+                mesh->buffer.handle,
+                mesh->buffer.handle,
+                mesh->buffer.handle,
+            };
+            const VkDeviceSize offsets[] =
+            {
+                streamSize * 0,
+                streamSize * 1,
+                streamSize * 2,
+                streamSize * 3,
+            };
+            vkCmdBindVertexBuffers(cmdbuf, 0, NELEM(buffers), buffers, offsets);
+            vkCmdDraw(cmdbuf, mesh->vertCount, 1, 0, 0);
+        }
+    }
 }

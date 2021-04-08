@@ -4,10 +4,15 @@
 
 PIM_C_BEGIN
 
-bool vkrExposurePass_New(vkrExposurePass *const pass);
-void vkrExposurePass_Del(vkrExposurePass *const pass);
+bool vkrExposurePass_New(void);
+void vkrExposurePass_Del(void);
 
-void vkrExposurePass_Setup(vkrExposurePass *const pass);
-void vkrExposurePass_Execute(vkrExposurePass *const pass);
+void vkrExposurePass_Setup(void);
+void vkrExposurePass_Execute(void);
+
+vkrExposure* vkrExposurePass_GetParams(void);
+void vkrExposurePass_SetParams(const vkrExposure* params);
+float vkrExposurePass_GetExposure(void);
+const vkrBuffer* vkrExposurePass_GetExposureBuffer(void);
 
 PIM_C_END

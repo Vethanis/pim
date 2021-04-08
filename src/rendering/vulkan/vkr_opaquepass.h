@@ -4,12 +4,10 @@
 
 PIM_C_BEGIN
 
-bool vkrOpaquePass_New(vkrOpaquePass *const pass, VkRenderPass renderPass);
-void vkrOpaquePass_Del(vkrOpaquePass *const pass);
+bool vkrOpaquePass_New(VkRenderPass renderPass);
+void vkrOpaquePass_Del(void);
 
-void vkrOpaquePass_Setup(vkrOpaquePass *const pass);
-void vkrOpaquePass_Execute(
-    vkrPassContext const *const passCtx,
-    vkrOpaquePass *const pass);
+void vkrOpaquePass_Setup(void);
+void vkrOpaquePass_Execute(vkrPassContext const *const passCtx);
 
 PIM_C_END

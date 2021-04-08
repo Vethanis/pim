@@ -19,7 +19,7 @@
 #include "rendering/vulkan/vkr_exposurepass.h"
 #include "rendering/vulkan/vkr_textable.h"
 #include "rendering/vulkan/vkr_bindings.h"
-#include "rendering/vulkan/vkr_megamesh.h"
+#include "rendering/vulkan/vkr_immesh.h"
 #include "rendering/vulkan/vkr_sampler.h"
 
 #include "rendering/drawable.h"
@@ -148,7 +148,13 @@ bool vkrSys_Init(void)
         goto cleanup;
     }
 
-    if (!vkrMegaMesh_Init())
+    if (!vkrMeshSys_Init())
+    {
+        success = false;
+        goto cleanup;
+    }
+
+    if (!vkrImMesh_Init())
     {
         success = false;
         goto cleanup;
@@ -160,7 +166,7 @@ bool vkrSys_Init(void)
         goto cleanup;
     }
 
-    if (!vkrExposurePass_New(&g_vkr.exposurePass))
+    if (!vkrExposurePass_New())
     {
         success = false;
         goto cleanup;
@@ -225,15 +231,16 @@ void vkrSys_Update(void)
     vkrSwapchain_AcquireSync(chain, &cmd, &fence);
     vkrAllocator_Update(&g_vkr.allocator);
     vkrSampler_Update();
-    vkrMegaMesh_Update();
+    vkrMeshSys_Update();
+    vkrImMesh_Update();
     {
-        vkrExposurePass_Setup(&g_vkr.exposurePass);
+        vkrExposurePass_Setup();
         vkrMainPass_Setup(&g_vkr.mainPass);
         vkrTexTable_Update();
         vkrBindings_Update();
     }
     {
-        vkrExposurePass_Execute(&g_vkr.exposurePass);
+        vkrExposurePass_Execute();
         vkrCmdBegin(cmd);
         vkrMainPass_Execute(&g_vkr.mainPass, cmd, fence);
         vkrCmdEnd(cmd);
@@ -259,10 +266,11 @@ void vkrSys_Shutdown(void)
         LmPack_Del(LmPack_Get());
         UiSys_Shutdown();
 
-        vkrExposurePass_Del(&g_vkr.exposurePass);
+        vkrExposurePass_Del();
         vkrMainPass_Del(&g_vkr.mainPass);
 
-        vkrMegaMesh_Shutdown();
+        vkrImMesh_Shutdown();
+        vkrMeshSys_Shutdown();
         vkrBindings_Shutdown();
         vkrTexTable_Shutdown();
         vkrSampler_Shutdown();

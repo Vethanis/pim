@@ -1,10 +1,11 @@
 #include "rendering/camera.h"
+#include "math/float4x4_funcs.h"
 #include "math/frustum.h"
 
 static Camera ms_camera = 
 {
+    .position = { 0.0f, 0.0f, 5.0f, 1.0f },
     .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-    .position = { 0.0f, 0.0f, 5.0f },
     .zNear = 0.1f,
     .zFar = 500.0f,
     .fovy = 90.0f,
@@ -51,4 +52,21 @@ void Camera_SubFrustum(const Camera* src, Frustum* dst, float2 lo, float2 hi, fl
         proj_slope(fov, aspect),
         zNear,
         zFar);
+}
+
+float4x4 VEC_CALL Camera_GetView(const Camera* src)
+{
+    float4 at = f4_add(src->position, quat_fwd(src->rotation));
+    float4 up = quat_up(src->rotation);
+    return f4x4_lookat(src->position, at, up);
+}
+
+float4x4 VEC_CALL Camera_GetProj(const Camera* src, float aspect)
+{
+    return f4x4_vkperspective(f1_radians(src->fovy), aspect, src->zNear, src->zFar);
+}
+
+float4x4 VEC_CALL Camera_GetWorldToClip(const Camera* src, float aspect)
+{
+    return f4x4_mul(Camera_GetProj(src, aspect), Camera_GetView(src));
 }

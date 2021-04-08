@@ -234,6 +234,11 @@ vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set)
     return &set->frames[prevIndex];
 }
 
+void vkrBufferSet_Write(vkrBufferSet *const set, const void* src, i32 size)
+{
+    vkrBuffer_Write(vkrBufferSet_Current(set), src, size);
+}
+
 void vkrBuffer_Barrier(
     vkrBuffer *const buffer,
     VkCommandBuffer cmd,

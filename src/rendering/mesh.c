@@ -12,7 +12,6 @@
 #include "ui/cimgui_ext.h"
 #include "io/fstr.h"
 #include "rendering/vulkan/vkr_mesh.h"
-#include "rendering/vulkan/vkr_megamesh.h"
 #include "rendering/material.h"
 #include "rendering/texture.h"
 #include "assets/crate.h"
@@ -44,7 +43,7 @@ static bool IsCurrent(MeshId id)
 
 static void FreeMesh(Mesh *const mesh)
 {
-    vkrMegaMesh_Free(mesh->id);
+    vkrMesh_Del(mesh->id);
     Mem_Free(mesh->positions);
     Mem_Free(mesh->normals);
     Mem_Free(mesh->uvs);
@@ -90,19 +89,19 @@ bool Mesh_New(Mesh *const mesh, Guid name, MeshId *const idOut)
     GenId id = { 0, 0 };
     if (mesh->length > 0)
     {
-        mesh->id = vkrMegaMesh_Alloc(mesh->length);
         added = Table_Add(&ms_table, name, mesh, &id);
+        ASSERT(added);
         if (added)
         {
-            added = vkrMegaMesh_Set(
-                mesh->id,
-                mesh->positions,
-                mesh->normals,
-                mesh->uvs,
-                mesh->texIndices,
-                mesh->length);
+            vkrMeshId vkId = vkrMesh_New(mesh->length, mesh->positions, mesh->normals, mesh->uvs, mesh->texIndices);
+            Mesh* pim_noalias meshes = ms_table.values;
+            meshes[id.index].id = vkId;
+            if (!vkrMesh_Exists(vkId))
+            {
+                added = false;
+                Table_Release(&ms_table, id, NULL);
+            }
         }
-        ASSERT(added);
     }
     if (!added)
     {
@@ -155,106 +154,22 @@ bool Mesh_GetName(MeshId mid, Guid *const dst)
 
 Box3D Mesh_CalcBounds(MeshId id)
 {
-    Box3D bounds = { 0 };
-
+    Box3D bounds = { f4_0, f4_0 };
     Mesh const *const mesh = Mesh_Get(id);
     if (mesh)
     {
         bounds = box_from_pts(mesh->positions, mesh->length);
     }
-
     return bounds;
 }
 
-bool Mesh_SetMaterial(MeshId id, Material const *const mat)
+bool Mesh_Upload(MeshId id)
 {
-    Mesh *const mesh = Mesh_Get(id);
+    Mesh* mesh = Mesh_Get(id);
     if (mesh)
     {
-        int4 index = { 0 };
-        Texture const* tex = Texture_Get(mat->albedo);
-        if (tex)
-        {
-            index.x = tex->slot.index;
-        }
-        tex = Texture_Get(mat->rome);
-        if (tex)
-        {
-            index.y = tex->slot.index;
-        }
-        tex = Texture_Get(mat->normal);
-        if (tex)
-        {
-            index.z = tex->slot.index;
-        }
-        const i32 len = mesh->length;
-        int4 *const pim_noalias texIndices = mesh->texIndices;
-        for (i32 i = 0; i < len; ++i)
-        {
-            int4 current = texIndices[i];
-            current.x = index.x;
-            current.y = index.y;
-            current.z = index.z;
-            texIndices[i] = current;
-        }
-        return Mesh_Upload(mesh);
+        return vkrMesh_Upload(mesh->id, mesh->length, mesh->positions, mesh->normals, mesh->uvs, mesh->texIndices);
     }
-    return false;
-}
-
-bool VEC_CALL Mesh_SetTransform(MeshId id, float4x4 localToWorld)
-{
-    Mesh *const mesh = Mesh_Get(id);
-    if (mesh)
-    {
-        float3x3 IM = f3x3_IM(localToWorld);
-        float4 *const pim_noalias positions = mesh->positions;
-        float4 *const pim_noalias normals = mesh->normals;
-        const i32 len = mesh->length;
-        for (i32 i = 0; i < len; ++i)
-        {
-            positions[i] = f4x4_mul_pt(localToWorld, positions[i]);
-        }
-        for (i32 i = 0; i < len; ++i)
-        {
-            normals[i] = f4_normalize3(f3x3_mul_col(IM, normals[i]));
-        }
-        return Mesh_Upload(mesh);
-    }
-    return false;
-}
-
-bool Mesh_Upload(Mesh *const mesh)
-{
-    ASSERT(mesh);
-
-    if (vkrMegaMesh_Set(
-        mesh->id,
-        mesh->positions,
-        mesh->normals,
-        mesh->uvs,
-        mesh->texIndices,
-        mesh->length))
-    {
-        // fast path: no length change
-        return true;
-    }
-
-    // slow path, have to free and reallocate.
-    vkrMegaMesh_Free(mesh->id);
-    if (mesh->length > 0)
-    {
-        mesh->id = vkrMegaMesh_Alloc(mesh->length);
-        return vkrMegaMesh_Set(
-            mesh->id,
-            mesh->positions,
-            mesh->normals,
-            mesh->uvs,
-            mesh->texIndices,
-            mesh->length);
-    }
-
-    // empty mesh, no point in holding an id for this mesh.
     return false;
 }
 

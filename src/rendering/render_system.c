@@ -51,6 +51,7 @@
 #include "rendering/material.h"
 
 #include "rendering/vulkan/vkr.h"
+#include "rendering/vulkan/vkr_exposurepass.h"
 
 #include "quake/q_model.h"
 #include "assets/asset_system.h"
@@ -871,7 +872,7 @@ bool RenderSys_Init(void)
         Con_Logf(LogSev_Error, "vkr", "Failed to init RenderSys");
         return false;
     }
-    g_vkr.exposurePass.params = ms_exposure;
+    vkrExposurePass_SetParams(&ms_exposure);
 
     TextureSys_Init();
     MeshSys_Init();
@@ -982,7 +983,7 @@ void RenderSys_Gui(bool* pEnabled)
         if (igTreeNodeExStr("Exposure", ImGuiTreeNodeFlags_Framed))
         {
             bool r_sw = ConVar_GetBool(&cv_pt_trace);
-            vkrExposure* exposure = r_sw ? &ms_exposure : &g_vkr.exposurePass.params;
+            vkrExposure* exposure = r_sw ? &ms_exposure : vkrExposurePass_GetParams();
 
             bool manual = exposure->manual;
             bool standard = exposure->standard;
@@ -1241,9 +1242,9 @@ static i32 CreateQuad(
     i32 i = Entities_Add(dr, Guid_FromStr(name));
     dr->meshes[i] = GenQuadMesh(name);
     dr->materials[i] = GenMaterial(name, albedo, rome, flags);
-    float4x4 localToWorld = f4x4_trs(center, quat_lookat(forward, up), f4_s(scale));
-    Mesh_SetTransform(dr->meshes[i], localToWorld);
-    Mesh_SetMaterial(dr->meshes[i], &dr->materials[i]);
+    dr->translations[i] = center;
+    dr->rotations[i] = quat_lookat(forward, up);
+    dr->scales[i] = f4_s(scale);
     return i;
 }
 
@@ -1259,9 +1260,9 @@ static i32 CreateSphere(
     i32 i = Entities_Add(dr, Guid_FromStr(name));
     dr->meshes[i] = GenSphereMesh(name, 24);
     dr->materials[i] = GenMaterial(name, albedo, rome, flags);
-    float4x4 localToWorld = f4x4_trs(center, quat_id, f4_s(scale * 0.5f));
-    Mesh_SetTransform(dr->meshes[i], localToWorld);
-    Mesh_SetMaterial(dr->meshes[i], &dr->materials[i]);
+    dr->translations[i] = center;
+    dr->rotations[i] = quat_id;
+    dr->scales[i] = f4_s(scale * 0.5f);
     return i;
 }
 

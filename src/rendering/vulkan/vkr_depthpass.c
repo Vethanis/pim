@@ -7,7 +7,7 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_mesh.h"
-#include "rendering/vulkan/vkr_megamesh.h"
+#include "rendering/vulkan/vkr_immesh.h"
 
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
@@ -24,13 +24,16 @@
 #include "threading/task.h"
 #include <string.h>
 
-// ----------------------------------------------------------------------------
+static vkrPass ms_pass;
 
-bool vkrDepthPass_New(vkrDepthPass *const pass, VkRenderPass renderPass)
+typedef struct PushConstants_s
 {
-    ASSERT(pass);
+    float4x4 localToClip;
+} PushConstants;
+
+bool vkrDepthPass_New(VkRenderPass renderPass)
+{
     ASSERT(renderPass);
-    memset(pass, 0, sizeof(*pass));
     bool success = true;
 
     VkPipelineShaderStageCreateInfo shaders[2] = { 0 };
@@ -73,7 +76,7 @@ bool vkrDepthPass_New(vkrDepthPass *const pass, VkRenderPass renderPass)
 
     const vkrPassDesc desc =
     {
-        .pushConstantBytes = sizeof(float4x4),
+        .pushConstantBytes = sizeof(PushConstants),
         .shaderCount = NELEM(shaders),
         .shaders = shaders,
         .renderPass = renderPass,
@@ -107,7 +110,7 @@ bool vkrDepthPass_New(vkrDepthPass *const pass, VkRenderPass renderPass)
         },
     };
 
-    if (!vkrPass_New(&pass->pass, &desc))
+    if (!vkrPass_New(&ms_pass, &desc))
     {
         success = false;
         goto cleanup;
@@ -120,68 +123,51 @@ cleanup:
     }
     if (!success)
     {
-        vkrDepthPass_Del(pass);
+        vkrDepthPass_Del();
     }
     return success;
 }
 
-void vkrDepthPass_Del(vkrDepthPass *const pass)
+void vkrDepthPass_Del(void)
 {
-    if (pass)
-    {
-        vkrPass_Del(&pass->pass);
-        memset(pass, 0, sizeof(*pass));
-    }
+    vkrPass_Del(&ms_pass);
 }
 
-ProfileMark(pm_setup, vkrDepthPass_Setup)
-void vkrDepthPass_Setup(vkrDepthPass *const pass)
+void vkrDepthPass_Setup(void)
 {
-    ProfileBegin(pm_setup);
 
-    const u32 syncIndex = vkrSys_SyncIndex();
-    VkViewport viewport = vkrSwapchain_GetViewport(&g_vkr.chain);
-    const float aspect = viewport.width / viewport.height;
-
-    Camera camera;
-    Camera_Get(&camera);
-    float4 at = f4_add(camera.position, quat_fwd(camera.rotation));
-    float4 up = quat_up(camera.rotation);
-    float4x4 view = f4x4_lookat(camera.position, at, up);
-    float4x4 proj = f4x4_vkperspective(f1_radians(camera.fovy), aspect, camera.zNear, camera.zFar);
-    pass->worldToClip = f4x4_mul(proj, view);
-
-    ProfileEnd(pm_setup);
 }
-
-// ----------------------------------------------------------------------------
 
 ProfileMark(pm_execute, vkrDepthPass_Execute)
-void vkrDepthPass_Execute(vkrPassContext const *const ctx, vkrDepthPass *const pass)
+void vkrDepthPass_Execute(vkrPassContext const *const ctx)
 {
     ProfileBegin(pm_execute);
 
-    const u32 syncIndex = vkrSys_SyncIndex();
-    vkrSwapchain const *const chain = &g_vkr.chain;
-    VkRect2D rect = vkrSwapchain_GetRect(chain);
-    VkViewport viewport = vkrSwapchain_GetViewport(chain);
+    Camera camera;
+    Camera_Get(&camera);
+    float4x4 worldToClip = Camera_GetWorldToClip(&camera, vkrSwapchain_GetAspect(&g_vkr.chain));
 
-    VkRenderPass renderPass = ctx->renderPass;
-    VkPipeline pipeline = pass->pass.pipeline;
-    VkPipelineLayout layout = pass->pass.layout;
     VkCommandBuffer cmd = ctx->cmd;
+    vkrCmdDefaultViewport(cmd);
+    vkrCmdBindPass(cmd, &ms_pass);
 
-    vkrCmdViewport(cmd, viewport, rect);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    vkCmdPushConstants(
-        cmd,
-        layout,
-        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        0,
-        sizeof(pass->worldToClip),
-        &pass->worldToClip);
+    const Entities* ents = Entities_Get();
+    for (i32 iEnt = 0; iEnt < ents->count; ++iEnt)
+    {
+        const Mesh* mesh = Mesh_Get(ents->meshes[iEnt]);
+        if (mesh)
+        {
+            PushConstants pc;
+            pc.localToClip = f4x4_mul(worldToClip, ents->matrices[iEnt]);
+            vkrCmdPushConstants(cmd, &ms_pass, &pc, sizeof(pc));
+            vkrCmdDrawMesh(cmd, mesh->id);
+        }
+    }
 
-    vkrMegaMesh_DrawPosition(cmd);
+    PushConstants pc;
+    pc.localToClip = worldToClip;
+    vkrCmdPushConstants(cmd, &ms_pass, &pc, sizeof(pc));
+    vkrImMesh_DrawPosition(cmd);
 
     ProfileEnd(pm_execute);
 }
