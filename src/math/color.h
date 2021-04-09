@@ -187,7 +187,7 @@ pim_inline float4 VEC_CALL f4_setlum(float4 x, float oldLum, float newLum)
 
 pim_inline float4 VEC_CALL tmap4_reinhard_lum(float4 x, float wp)
 {
-    float l0 = f4_avglum(x) + kEpsilon;
+    float l0 = f1_max(f4_avglum(x), kEpsilon);
     float n = l0 * (1.0f + (l0 / (wp * wp)));
     float l1 = n / (1.0f + l0);
     return f4_setlum(x, l0, l1);
@@ -286,6 +286,23 @@ pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
     y.w = tmap1_hable(x.w, params);
     y = f4_divvs(y, y.w);
     return y;
+}
+
+// L: display-referred luminance in [0, 1], with 1 == 10000 cd/m^2
+// V: signal value in [0, 1]
+// https://en.wikipedia.org/wiki/High-dynamic-range_video#Perceptual_quantizer
+pim_inline float4 VEC_CALL f4_PQ_OETF(float4 L)
+{
+    const float c1 = 0.8359375;
+    const float c2 = 18.8515625;
+    const float c3 = 18.6875;
+    const float m1 = 0.15930175781;
+    const float m2 = 78.84375;
+    float4 t = f4_powvs(L, m1);
+    float4 a = f4_addvs(f4_mulvs(t, c2), c1);
+    float4 b = f4_addvs(f4_mulvs(t, c3), 1.0f);
+    float4 V = f4_powvs(f4_div(a, b), m2);
+    return V;
 }
 
 #define kEmissionScale 100.0f

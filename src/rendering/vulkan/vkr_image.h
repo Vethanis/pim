@@ -10,8 +10,13 @@ bool vkrImage_New(
     vkrImage* image,
     const VkImageCreateInfo* info,
     vkrMemUsage memUsage);
-void vkrImage_Del(vkrImage* image);
 void vkrImage_Release(vkrImage* image);
+
+bool vkrImage_Reserve(
+    vkrImage* image,
+    const VkImageCreateInfo* info,
+    vkrMemUsage memUsage);
+
 void* vkrImage_Map(const vkrImage* image);
 void vkrImage_Unmap(const vkrImage* image);
 void vkrImage_Flush(const vkrImage* image);
@@ -33,6 +38,22 @@ void vkrImage_Transfer(
 
 // ----------------------------------------------------------------------------
 
+bool vkrImageSet_New(
+    vkrImageSet* set,
+    const VkImageCreateInfo* info,
+    vkrMemUsage memUsage);
+void vkrImageSet_Release(vkrImageSet* set);
+
+vkrImage* vkrImageSet_Current(vkrImageSet* set);
+vkrImage* vkrImageSet_Prev(vkrImageSet* set);
+
+bool vkrImageSet_Reserve(
+    vkrImageSet* set,
+    const VkImageCreateInfo* info,
+    vkrMemUsage memUsage);
+
+// ----------------------------------------------------------------------------
+
 VkImageView vkrImageView_New(
     VkImage image,
     VkImageViewType type,
@@ -40,7 +61,6 @@ VkImageView vkrImageView_New(
     VkImageAspectFlags aspect,
     i32 baseMip, i32 mipCount,
     i32 baseLayer, i32 layerCount);
-void vkrImageView_Del(VkImageView view);
 void vkrImageView_Release(VkImageView view);
 
 // ----------------------------------------------------------------------------

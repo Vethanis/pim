@@ -32,6 +32,39 @@ static const VkPresentModeKHR kPreferredPresentModes[] =
     VK_PRESENT_MODE_FIFO_KHR ,          // multi-entry queue; bad latency
 };
 
+static const VkSurfaceFormatKHR kPreferredSurfaceFormats[] =
+{
+    // PQ Rec2100
+    // https://en.wikipedia.org/wiki/Rec._2100
+    // https://en.wikipedia.org/wiki/High-dynamic-range_video#Perceptual_quantizer
+    {
+        VK_FORMAT_A2R10G10B10_UNORM_PACK32,
+        VK_COLOR_SPACE_HDR10_ST2084_EXT,
+    },
+    {
+        VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+        VK_COLOR_SPACE_HDR10_ST2084_EXT,
+    },
+    // 10 bit sRGB
+    {
+        VK_FORMAT_A2R10G10B10_UNORM_PACK32,
+        VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+    },
+    {
+        VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+        VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+    },
+    // 8 bit sRGB
+    {
+        VK_FORMAT_R8G8B8A8_SRGB,
+        VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+    },
+    {
+        VK_FORMAT_B8G8R8A8_SRGB,
+        VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+    },
+};
+
 bool vkrSwapchain_New(
     vkrSwapchain* chain,
     vkrDisplay* display,
@@ -113,6 +146,38 @@ bool vkrSwapchain_New(
         Con_Logf(LogSev_Info, "vkr", "Present extent: %u x %u", ext.width, ext.height);
         Con_Logf(LogSev_Info, "vkr", "Present images: %u", imgCount);
         Con_Logf(LogSev_Info, "vkr", "Present sharing mode: %s", concurrent ? "Concurrent" : "Exclusive");
+        const char* colorSpaceStr = "Unknown";
+        switch (format.colorSpace)
+        {
+        default:
+            break;
+        case VK_COLORSPACE_SRGB_NONLINEAR_KHR:
+            colorSpaceStr = "sRGB Gamma";
+            break;
+        case VK_COLOR_SPACE_HDR10_ST2084_EXT:
+            colorSpaceStr = "Rec2100 PQ";
+            break;
+        }
+        Con_Logf(LogSev_Info, "vkr", "Color space: %s", colorSpaceStr);
+        const char* formatStr = "Unknown";
+        switch (format.format)
+        {
+        default:
+            break;
+        case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+            formatStr = "A2R10G10B10";
+            break;
+        case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
+            formatStr = "A2B10G10R10";
+            break;
+        case VK_FORMAT_R8G8B8A8_SRGB:
+            formatStr = "R8G8B8A8_SRGB";
+            break;
+        case VK_FORMAT_B8G8R8A8_SRGB:
+            formatStr = "B8G8R8A8_SRGB";
+            break;
+        }
+        Con_Logf(LogSev_Info, "vkr", "Format: %s", formatStr);
     }
 
     // get swapchain images
@@ -227,9 +292,9 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
             {
                 vkDestroyFramebuffer(g_vkr.dev, buffer, NULL);
             }
-            vkrImageView_Del(chain->views[i]);
-            vkrAttachment_Del(&chain->lumAttachments[i]);
-            vkrAttachment_Del(&chain->depthAttachments[i]);
+            vkrImageView_Release(chain->views[i]);
+            vkrAttachment_Release(&chain->lumAttachments[i]);
+            vkrAttachment_Release(&chain->depthAttachments[i]);
         }
 
         if (chain->handle)
@@ -473,14 +538,6 @@ vkrSwapchainSupport vkrQuerySwapchainSupport(
 
     return sup;
 }
-
-static const VkSurfaceFormatKHR kPreferredSurfaceFormats[] =
-{
-    {
-        VK_FORMAT_B8G8R8A8_SRGB,
-        VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-    },
-};
 
 VkSurfaceFormatKHR vkrSelectSwapFormat(
     const VkSurfaceFormatKHR* formats,

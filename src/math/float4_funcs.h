@@ -987,6 +987,15 @@ pim_inline float4 VEC_CALL f4_fmodsv(float a, float4 b)
     return vec;
 }
 
+pim_inline float4 VEC_CALL f4_wrap(float4 x)
+{
+    x.x = f1_wrap(x.x);
+    x.y = f1_wrap(x.y);
+    x.z = f1_wrap(x.z);
+    x.w = f1_wrap(x.w);
+    return x;
+}
+
 pim_inline float4 VEC_CALL f4_rad(float4 x)
 {
     return f4_mulvs(x, kRadiansPerDegree);

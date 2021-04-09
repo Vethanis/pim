@@ -11,71 +11,49 @@
 
 // ----------------------------------------------------------------------------
 
-ProfileMark(pm_imgnew, vkrImage_New)
 bool vkrImage_New(
     vkrImage* image,
     const VkImageCreateInfo* info,
     vkrMemUsage memUsage)
 {
-    ProfileBegin(pm_imgnew);
-    memset(image, 0, sizeof(*image));
-    const VmaAllocationCreateInfo allocInfo =
-    {
-        .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
-        .usage = memUsage,
-        .pool = g_vkr.allocator.texturePool,
-    };
-    VkImage handle = NULL;
-    VmaAllocation allocation = NULL;
-    VkCheck(vmaCreateImage(
-        g_vkr.allocator.handle,
-        info,
-        &allocInfo,
-        &handle,
-        &allocation,
-        NULL));
-    ProfileEnd(pm_imgnew);
-    if (handle)
-    {
-        image->handle = handle;
-        image->allocation = allocation;
-        image->type = info->imageType;
-        image->format = info->format;
-        image->layout = info->initialLayout;
-        image->usage = info->usage;
-        image->width = info->extent.width;
-        image->height = info->extent.height;
-        image->depth = info->extent.depth;
-        image->mipLevels = info->mipLevels;
-        image->arrayLayers = info->arrayLayers;
-        return true;
-    }
-    else
-    {
-        Con_Logf(LogSev_Error, "vkr", "vkrImage_New failed:");
-        Con_Logf(LogSev_Error, "vkr", "Size: %d x %d x %d", info->extent.width, info->extent.height, info->extent.depth);
-        Con_Logf(LogSev_Error, "vkr", "Mip Levels: %d", info->mipLevels);
-        Con_Logf(LogSev_Error, "vkr", "Array Layers: %d", info->arrayLayers);
-        return false;
-    }
+    return vkrMem_ImageNew(image, info, memUsage);
 }
 
-ProfileMark(pm_imgdel, vkrImage_Del)
-void vkrImage_Del(vkrImage* image)
+void vkrImage_Release(vkrImage* image)
 {
-    ProfileBegin(pm_imgdel);
-    if (image)
+    ASSERT(image);
+    if (image->handle)
     {
-        if (image->handle)
+        const vkrReleasable releasable =
         {
-            vmaDestroyImage(
-                g_vkr.allocator.handle,
-                image->handle,
-                image->allocation);
-        }
-        memset(image, 0, sizeof(*image));
+            .frame = vkrSys_FrameIndex(),
+            .type = vkrReleasableType_Image,
+            .image = *image,
+        };
+        vkrReleasable_Add(&releasable);
     }
-    ProfileEnd(pm_imgdel);
+    memset(image, 0, sizeof(*image));
+}
+
+bool vkrImage_Reserve(
+    vkrImage* image,
+    const VkImageCreateInfo* info,
+    vkrMemUsage memUsage)
+{
+    bool success = true;
+    if ((image->type != info->imageType) ||
+        (image->format != info->format) ||
+        (image->width != info->extent.width) ||
+        (image->height != info->extent.height) ||
+        (image->depth != info->extent.depth) ||
+        (image->mipLevels != info->mipLevels) ||
+        (image->arrayLayers != info->arrayLayers) ||
+        (image->usage != info->usage))
+    {
+        vkrImage_Release(image);
+        success = vkrImage_New(image, info, memUsage);
+    }
+    return success;
 }
 
 void* vkrImage_Map(const vkrImage* image)
@@ -94,22 +72,6 @@ void vkrImage_Flush(const vkrImage* image)
 {
     ASSERT(image);
     vkrMem_Flush(image->allocation);
-}
-
-void vkrImage_Release(vkrImage* image)
-{
-    ASSERT(image);
-    if (image->handle)
-    {
-        const vkrReleasable releasable =
-        {
-            .frame = vkrSys_FrameIndex(),
-            .type = vkrReleasableType_Image,
-            .image = *image,
-        };
-        vkrReleasable_Add(&g_vkr.allocator, &releasable);
-    }
-    memset(image, 0, sizeof(*image));
 }
 
 void vkrImage_Barrier(
@@ -203,6 +165,56 @@ void vkrImage_Transfer(
 
 // ----------------------------------------------------------------------------
 
+bool vkrImageSet_New(
+    vkrImageSet* set,
+    const VkImageCreateInfo* info,
+    vkrMemUsage memUsage)
+{
+    memset(set, 0, sizeof(*set));
+    for (i32 i = 0; i < NELEM(set->frames); ++i)
+    {
+        if (!vkrImage_New(&set->frames[i], info, memUsage))
+        {
+            vkrImageSet_Release(set);
+            return false;
+        }
+    }
+    return true;
+}
+
+void vkrImageSet_Release(vkrImageSet* set)
+{
+    for (i32 i = 0; i < NELEM(set->frames); ++i)
+    {
+        vkrImage_Release(&set->frames[i]);
+    }
+    memset(set, 0, sizeof(*set));
+}
+
+vkrImage* vkrImageSet_Current(vkrImageSet* set)
+{
+    u32 syncIndex = vkrSys_SyncIndex();
+    ASSERT(syncIndex < NELEM(set->frames));
+    return &set->frames[syncIndex];
+}
+
+vkrImage* vkrImageSet_Prev(vkrImageSet* set)
+{
+    u32 prevIndex = (vkrSys_SyncIndex() + (kFramesInFlight - 1u)) % kFramesInFlight;
+    ASSERT(prevIndex < NELEM(set->frames));
+    return &set->frames[prevIndex];
+}
+
+bool vkrImageSet_Reserve(
+    vkrImageSet* set,
+    const VkImageCreateInfo* info,
+    vkrMemUsage memUsage)
+{
+    return vkrImage_Reserve(vkrImageSet_Current(set), info, memUsage);
+}
+
+// ----------------------------------------------------------------------------
+
 VkImageView vkrImageView_New(
     VkImage image,
     VkImageViewType type,
@@ -233,14 +245,6 @@ VkImageView vkrImageView_New(
     return handle;
 }
 
-void vkrImageView_Del(VkImageView view)
-{
-    if (view)
-    {
-        vkDestroyImageView(g_vkr.dev, view, NULL);
-    }
-}
-
 void vkrImageView_Release(VkImageView view)
 {
     if (view)
@@ -251,7 +255,7 @@ void vkrImageView_Release(VkImageView view)
             .frame = Time_FrameCount(),
             .view = view,
         };
-        vkrReleasable_Add(&g_vkr.allocator, &releasable);
+        vkrReleasable_Add(&releasable);
     }
 }
 

@@ -9,7 +9,7 @@
 #include "rendering/vulkan/vkr_desc.h"
 #include "rendering/vulkan/vkr_bindings.h"
 #include "rendering/vulkan/vkr_mesh.h"
-#include "rendering/vulkan/vkr_immesh.h"
+#include "rendering/vulkan/vkr_im.h"
 #include "rendering/vulkan/vkr_exposurepass.h"
 
 #include "rendering/drawable.h"
@@ -21,6 +21,7 @@
 
 #include "allocator/allocator.h"
 #include "common/profiler.h"
+#include "common/cvar.h"
 #include "containers/table.h"
 #include "math/box.h"
 #include "math/frustum.h"
@@ -31,6 +32,10 @@ typedef struct vkrPerCamera_s
 {
     float4x4 worldToClip;
     float4 eye;
+
+    float hdrEnabled;
+    float whitepoint;
+    float2 pad;
 } vkrPerCamera;
 
 typedef struct PushConstants_s
@@ -189,7 +194,7 @@ cleanup:
 void vkrOpaquePass_Del(void)
 {
     vkrPass_Del(&ms_pass);
-    vkrBufferSet_Del(&ms_perCameraBuffer);
+    vkrBufferSet_Release(&ms_perCameraBuffer);
 }
 
 ProfileMark(pm_update, vkrOpaquePass_Setup)
@@ -198,11 +203,15 @@ void vkrOpaquePass_Setup(void)
     ProfileBegin(pm_update);
 
     {
+        // TODO: Move this into some parameter provider standalone file
         Camera camera;
         Camera_Get(&camera);
         vkrPerCamera perCamera;
         perCamera.worldToClip = Camera_GetWorldToClip(&camera, vkrSwapchain_GetAspect(&g_vkr.chain));
         perCamera.eye = camera.position;
+        bool hdr = vkrSys_HdrEnabled();
+        perCamera.hdrEnabled = hdr ? 1.0f : 0.0f;
+        perCamera.whitepoint = vkrSys_GetWhitepoint();
         vkrBufferSet_Write(&ms_perCameraBuffer, &perCamera, sizeof(perCamera));
     }
 
@@ -259,7 +268,7 @@ void vkrOpaquePass_Execute(vkrPassContext const *const ctx)
     pc.kIMc2 = f4_v(0.0f, 0.0f, 1.0f, 0.0f);
     pc.kTexInds = (uint4) { 0 };
     vkrCmdPushConstants(cmd, &ms_pass, &pc, sizeof(pc));
-    vkrImMesh_Draw(cmd);
+    vkrImSys_Draw(cmd);
 
     ProfileEnd(pm_execute);
 }

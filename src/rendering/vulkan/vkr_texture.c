@@ -201,11 +201,6 @@ bool vkrTexture_New(
         vkrMemUsage_GpuOnly);
 }
 
-void vkrTexture_Del(vkrImage *const image)
-{
-    vkrImage_Del(image);
-}
-
 void vkrTexture_Release(vkrImage *const image)
 {
     vkrImage_Release(image);

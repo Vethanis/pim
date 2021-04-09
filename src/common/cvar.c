@@ -154,6 +154,7 @@ void ConVar_SetFloat(ConVar* var, float value)
 {
     ASSERT(var);
     ASSERT(var->type == cvart_float);
+    ASSERT(var->registered);
     value = f1_clamp(value, var->minFloat, var->maxFloat);
     if (value != var->asFloat)
     {
@@ -167,6 +168,7 @@ void ConVar_SetInt(ConVar* var, i32 value)
 {
     ASSERT(var);
     ASSERT(var->type == cvart_int);
+    ASSERT(var->registered);
     value = i1_clamp(value, var->minInt, var->maxInt);
     if (value != var->asInt)
     {
@@ -179,6 +181,7 @@ void ConVar_SetInt(ConVar* var, i32 value)
 void ConVar_SetVec(ConVar* var, float4 value)
 {
     ASSERT(var);
+    ASSERT(var->registered);
     switch (var->type)
     {
     default:
@@ -206,6 +209,7 @@ void ConVar_SetBool(ConVar* var, bool value)
 {
     ASSERT(var);
     ASSERT(var->type == cvart_bool);
+    ASSERT(var->registered);
     if (value != var->asBool)
     {
         var->value[0] = value ? '1' : '0';
@@ -231,30 +235,35 @@ bool ConVar_IsVec(const ConVar* var)
 const char* ConVar_GetStr(const ConVar* var)
 {
     ASSERT(var->type == cvart_text);
+    ASSERT(var->registered);
     return var->value;
 }
 
 float ConVar_GetFloat(const ConVar* var)
 {
     ASSERT(var->type == cvart_float);
+    ASSERT(var->registered);
     return var->asFloat;
 }
 
 i32 ConVar_GetInt(const ConVar* var)
 {
     ASSERT(var->type == cvart_int);
+    ASSERT(var->registered);
     return var->asInt;
 }
 
 float4 ConVar_GetVec(const ConVar* var)
 {
     ASSERT(ConVar_IsVec(var));
+    ASSERT(var->registered);
     return var->asVector;
 }
 
 bool ConVar_GetBool(const ConVar* var)
 {
     ASSERT(var->type == cvart_bool);
+    ASSERT(var->registered);
     return var->asBool;
 }
 
@@ -265,6 +274,7 @@ void ConVar_Toggle(ConVar* var)
 
 bool ConVar_CheckDirty(const ConVar* var, u64 lastCheck)
 {
+    ASSERT(var->registered);
     return var->modtime > lastCheck;
 }
 

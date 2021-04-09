@@ -7,7 +7,7 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_mesh.h"
-#include "rendering/vulkan/vkr_immesh.h"
+#include "rendering/vulkan/vkr_im.h"
 
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
@@ -167,7 +167,7 @@ void vkrDepthPass_Execute(vkrPassContext const *const ctx)
     PushConstants pc;
     pc.localToClip = worldToClip;
     vkrCmdPushConstants(cmd, &ms_pass, &pc, sizeof(pc));
-    vkrImMesh_DrawPosition(cmd);
+    vkrImSys_DrawDepth(cmd);
 
     ProfileEnd(pm_execute);
 }

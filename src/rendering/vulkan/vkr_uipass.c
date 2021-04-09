@@ -200,8 +200,8 @@ cleanup:
 void vkrUIPass_Del(void)
 {
     vkrTexTable_Free(ms_font);
-    vkrBufferSet_Del(&ms_vertbufs);
-    vkrBufferSet_Del(&ms_indbufs);
+    vkrBufferSet_Release(&ms_vertbufs);
+    vkrBufferSet_Release(&ms_indbufs);
     vkrPass_Del(&ms_pass);
 }
 

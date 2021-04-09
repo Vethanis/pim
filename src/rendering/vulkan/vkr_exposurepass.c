@@ -21,6 +21,13 @@
 #include "math/scalar.h"
 #include <string.h>
 
+typedef struct PushConstants_s
+{
+    u32 width;
+    u32 height;
+    vkrExposure exposure;
+} PushConstants;
+
 static vkrPass ms_pass;
 static VkPipeline ms_adapt;
 static vkrBufferSet ms_histBuffers;
@@ -33,29 +40,37 @@ bool vkrExposurePass_New(void)
 
     VkPipelineShaderStageCreateInfo buildShaders[1] = { 0 };
     VkPipelineShaderStageCreateInfo adaptShaders[1] = { 0 };
-    if (!vkrShader_New(&buildShaders[0], "BuildHistogram.hlsl", "CSMain", vkrShaderType_Comp))
+    if (!vkrShader_New(
+        &buildShaders[0],
+        "BuildHistogram.hlsl", "CSMain", vkrShaderType_Comp))
     {
         success = false;
         goto cleanup;
     }
-    if (!vkrShader_New(&adaptShaders[0], "AdaptHistogram.hlsl", "CSMain", vkrShaderType_Comp))
+    if (!vkrShader_New(
+        &adaptShaders[0],
+        "AdaptHistogram.hlsl", "CSMain", vkrShaderType_Comp))
     {
         success = false;
         goto cleanup;
     }
-    if (!vkrBufferSet_New(&ms_histBuffers, sizeof(u32) * kHistogramSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu))
+    if (!vkrBufferSet_New(
+        &ms_histBuffers, sizeof(u32) * kHistogramSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu))
     {
         success = false;
         goto cleanup;
     }
-    if (!vkrBufferSet_New(&ms_expBuffers, sizeof(float) * 2, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu))
+    if (!vkrBufferSet_New(
+        &ms_expBuffers, sizeof(float4),
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu))
     {
         success = false;
         goto cleanup;
     }
     const vkrPassDesc desc =
     {
-        .pushConstantBytes = sizeof(vkrExposureConstants),
+        .pushConstantBytes = sizeof(PushConstants),
         .shaderCount = NELEM(buildShaders),
         .shaders = buildShaders,
     };
@@ -91,8 +106,8 @@ void vkrExposurePass_Del(void)
 {
     vkrPipeline_Del(ms_adapt); ms_adapt = NULL;
     vkrPass_Del(&ms_pass);
-    vkrBufferSet_Del(&ms_histBuffers);
-    vkrBufferSet_Del(&ms_expBuffers);
+    vkrBufferSet_Release(&ms_histBuffers);
+    vkrBufferSet_Release(&ms_expBuffers);
 }
 
 ProfileMark(pm_setup, vkrExposurePass_Setup)
@@ -193,7 +208,7 @@ void vkrExposurePass_Execute(void)
 
         const i32 width = chain->width;
         const i32 height = chain->height;
-        const vkrExposureConstants constants =
+        const PushConstants constants =
         {
             .width = width,
             .height = height,
@@ -204,7 +219,7 @@ void vkrExposurePass_Execute(void)
             layout,
             VK_SHADER_STAGE_COMPUTE_BIT,
             0,
-            sizeof(vkrExposureConstants),
+            sizeof(PushConstants),
             &constants);
 
         // build histogram

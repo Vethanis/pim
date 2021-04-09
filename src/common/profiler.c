@@ -13,6 +13,12 @@
 #include <string.h>
 #include <math.h>
 
+// eventually the linear allocator will run out
+#define kNodeLimit (1024)
+
+// eventually the call stack will run out in the Gui
+#define kDepthLimit (50)
+
 // ----------------------------------------------------------------------------
 
 typedef struct node_s
@@ -35,20 +41,23 @@ typedef struct stat_s
 
 // ----------------------------------------------------------------------------
 
-static void VisitClr(node_t *const pim_noalias node, i32 depth);
-static void VisitSum(node_t *const pim_noalias node, i32 depth);
-static void VisitGui(node_t const *const pim_noalias node, i32 depth);
+static void VisitClr(node_t* node, i32 depth);
+static void VisitSum(node_t* node, i32 depth);
+static void VisitGui(const node_t* node, i32 depth);
+static stat_t GetNodeStats(const node_t* node);
+static stat_t UpdateNodeStats(const node_t* node);
 
 // ----------------------------------------------------------------------------
 
 static u32 ms_frame[kMaxThreads];
+static u32 ms_count[kMaxThreads];
 static node_t ms_prevroots[kMaxThreads];
 static node_t ms_roots[kMaxThreads];
 static node_t* ms_top[kMaxThreads];
 
+static Dict ms_stats;
 static i32 ms_avgWindow = 20;
 static bool ms_progressive;
-static Dict ms_stats;
 
 // ----------------------------------------------------------------------------
 
@@ -127,6 +136,12 @@ void _ProfileBegin(ProfMark *const mark)
         ms_roots[tid] = (node_t){ 0 };
         ms_frame[tid] = frame;
         ms_top[tid] = NULL;
+        ms_count[tid] = 0;
+    }
+
+    if ((++ms_count[tid]) > kNodeLimit)
+    {
+        return;
     }
 
     node_t* top = ms_top[tid];
@@ -159,6 +174,10 @@ void _ProfileEnd(ProfMark *const mark)
     ASSERT(mark);
 
     const i32 tid = Task_ThreadId();
+    if (ms_count[tid] >= kNodeLimit)
+    {
+        return;
+    }
     node_t *const top = ms_top[tid];
 
     ASSERT(top);
@@ -179,55 +198,107 @@ static double Lerp64(double a, double b, double t)
     return a + (b - a) * t;
 }
 
-static void VisitClr(node_t *const pim_noalias node, i32 depth)
+static void VisitClr(node_t* node, i32 depth)
 {
-    if (!node || (depth > 100))
+    if (depth > kDepthLimit)
+    {
+        return;
+    }
+    while (node)
+    {
+        ProfMark *const mark = node->mark;
+        ASSERT(mark);
+        mark->calls = 0;
+        mark->sum = 0;
+        u32 hash = mark->hash;
+        if (hash == 0)
+        {
+            hash = HashStr(mark->name);
+            mark->hash = hash;
+        }
+        node->hash = hash;
+
+        VisitClr(node->fchild, depth + 1);
+
+        node = node->sibling;
+    }
+}
+
+static void VisitSum(node_t* node, i32 depth)
+{
+    if (depth > kDepthLimit)
     {
         return;
     }
 
-    ProfMark *const mark = node->mark;
-    ASSERT(mark);
-    mark->calls = 0;
-    mark->sum = 0;
-    u32 hash = mark->hash;
-    if (hash == 0)
+    while (node)
     {
-        hash = HashStr(mark->name);
-        mark->hash = hash;
-    }
-    node->hash = hash;
+        ProfMark *const mark = node->mark;
+        ASSERT(mark);
+        mark->calls += 1;
+        mark->sum += node->end - node->begin;
 
-    VisitClr(node->sibling, depth + 1);
-    VisitClr(node->fchild, depth + 1);
+        u32 hash = node->hash;
+        ASSERT(node->parent);
+        hash = Fnv32Dword(node->parent->hash, hash);
+        if (node->sibling)
+        {
+            hash = Fnv32Dword(node->sibling->hash, hash);
+        }
+        node->hash = hash;
+
+        VisitSum(node->fchild, depth + 1);
+
+        node = node->sibling;
+    }
 }
 
-static void VisitSum(node_t *const pim_noalias node, i32 depth)
+static void VisitGui(const node_t* node, i32 depth)
 {
-    if (!node || (depth > 100))
+    if (depth > kDepthLimit)
     {
         return;
     }
 
-    ProfMark *const mark = node->mark;
-    ASSERT(mark);
-    mark->calls += 1;
-    mark->sum += node->end - node->begin;
-
-    u32 hash = node->hash;
-    ASSERT(node->parent);
-    hash = Fnv32Dword(node->parent->hash, hash);
-    if (node->sibling)
+    while (node)
     {
-        hash = Fnv32Dword(node->sibling->hash, hash);
-    }
-    node->hash = hash;
+        ProfMark const *const mark = node->mark;
+        ASSERT(mark);
+        char const *const name = mark->name;
+        ASSERT(name);
 
-    VisitSum(node->sibling, depth + 1);
-    VisitSum(node->fchild, depth + 1);
+        stat_t st = UpdateNodeStats(node);
+
+        double pct = 0.0;
+        const node_t* root = ms_prevroots[0].fchild;
+        ASSERT(root);
+
+        stat_t rootst = GetNodeStats(root);
+        if (rootst.mean > 0.0)
+        {
+            pct = 100.0 * (st.mean / rootst.mean);
+        }
+
+        if (st.mean > 0.0001)
+        {
+            igText("%s", name); igNextColumn();
+            igText("%03.4f", st.mean); igNextColumn();
+            igText("%03.4f", sqrt(st.variance)); igNextColumn();
+            igText("%4.1f%%", pct); igNextColumn();
+
+            char key[32];
+            SPrintf(ARGS(key), "%x", node->hash);
+
+            igTreePushStr(key);
+            VisitGui(node->fchild, depth + 1);
+            igTreePop();
+        }
+
+        node = node->sibling;
+    }
 }
 
-static stat_t GetNodeStats(node_t const *const node)
+static stat_t GetNodeStats(const node_t* node)
 {
     ASSERT(node);
     ASSERT(node->mark);
@@ -237,7 +308,7 @@ static stat_t GetNodeStats(node_t const *const node)
     return st;
 }
 
-static stat_t UpdateNodeStats(node_t const *const node)
+static stat_t UpdateNodeStats(const node_t* node)
 {
     ASSERT(node);
     ASSERT(node->mark);
@@ -260,47 +331,6 @@ static stat_t UpdateNodeStats(node_t const *const node)
         Dict_Add(&ms_stats, &node->hash, &st);
     }
     return st;
-}
-
-static void VisitGui(node_t const *const pim_noalias node, i32 depth)
-{
-    if (!node || (depth > 100))
-    {
-        return;
-    }
-
-    ProfMark const *const mark = node->mark;
-    ASSERT(mark);
-    char const *const name = mark->name;
-    ASSERT(name);
-
-    stat_t st = UpdateNodeStats(node);
-
-    double pct = 0.0;
-    const node_t* root = ms_prevroots[0].fchild;
-    ASSERT(root);
-
-    stat_t rootst = GetNodeStats(root);
-    if (rootst.mean > 0.0)
-    {
-        pct = 100.0 * (st.mean / rootst.mean);
-    }
-
-    if (st.mean > 0.0001)
-    {
-        igText("%s", name); igNextColumn();
-        igText("%03.4f", st.mean); igNextColumn();
-        igText("%03.4f", sqrt(st.variance)); igNextColumn();
-        igText("%4.1f%%", pct); igNextColumn();
-
-        char key[32];
-        SPrintf(ARGS(key), "%x", node->hash);
-
-        igTreePushStr(key);
-        VisitGui(node->fchild, depth + 1);
-        igTreePop();
-    }
-    VisitGui(node->sibling, depth + 1);
 }
 
 #else

@@ -48,7 +48,7 @@ bool Table_Exists(Table const *const table, GenId id)
     ASSERT(table->valueSize > 0);
     i32 i = id.index;
     u8 v = id.version;
-    return (i < table->width) && (table->versions[i] == v);
+    return (v & 1) && (i < table->width) && (table->versions[i] == v);
 }
 
 bool Table_Add(
@@ -61,10 +61,11 @@ bool Table_Add(
     ASSERT(valueIn);
     ASSERT(idOut);
 
+    idOut->index = 0;
+    idOut->version = 0;
+
     if (Guid_IsNull(name))
     {
-        idOut->index = 0;
-        idOut->version = 0;
         return false;
     }
 
@@ -87,13 +88,13 @@ bool Table_Add(
         table->values = Perm_Realloc(table->values, len * stride);
 
         index = len - 1;
-        version = 1;
-        table->versions[index] = version;
+        table->versions[index] = 0;
     }
     ASSERT(index >= 0);
     ASSERT(index < table->width);
 
-    version = table->versions[index];
+    version = ++(table->versions[index]);
+    ASSERT(version & 1);
     table->refcounts[index] = 1;
     table->names[index] = name;
 
@@ -198,6 +199,7 @@ bool Table_Find(const Table *const table, Guid name, GenId *const idOut)
     {
         idOut->index = iName;
         idOut->version = table->versions[iName];
+        ASSERT(idOut->version & 1);
         return true;
     }
     return false;

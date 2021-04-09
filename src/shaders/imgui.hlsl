@@ -1,4 +1,5 @@
 #include "TextureTable.hlsl"
+#include "Color.hlsl"
 
 struct VSInput
 {
@@ -44,7 +45,16 @@ PSOutput PSMain(PSInput input)
 {
     float4 texColor = SampleTable2D(kTextureIndex, input.uv);
     texColor.a = kDiscardAlpha != 0 ? 1.0 : texColor.a;
+    float4 color = texColor * input.color;
+
+    if (cameraData.hdrEnabled != 0.0)
+    {
+        const float Lw = cameraData.whitepoint; // display's peak nits
+        const float Lpq = 10000.0; // PQ peak absolute nits
+        color.rgb = PQ_OETF(color.rgb * (Lw / Lpq));
+    }
+
     PSOutput output;
-    output.color = texColor * input.color;
+    output.color = color;
     return output;
 }
