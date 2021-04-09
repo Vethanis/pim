@@ -99,8 +99,22 @@ PSOutput PSMain(PSInput input)
     }
 
     PSOutput output;
-    output.luminance = PerceptualLuminance(light);
+    output.luminance = AverageLuminance(light);
     light *= GetExposure();
-    output.color = float4(saturate(TonemapUncharted2(light)), 1.0);
+
+    const float Lw = cameraData.whitepoint; // display's peak nits
+    const float Lpq = 10000.0; // PQ peak absolute nits
+    if (cameraData.hdrEnabled != 0.0)
+    {
+        light = TonemapReinhard(light, Lpq / Lw);
+        light *= (Lw / Lpq);
+        light = PQ_OETF(light);
+    }
+    else
+    {
+        light = TonemapReinhard(light, Lw);
+    }
+
+    output.color = float4(saturate(light), 1.0);
     return output;
 }

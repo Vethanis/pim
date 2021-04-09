@@ -169,7 +169,11 @@ static ConVar cv_r_sun_res =
 {
     .type = cvart_int,
     .name = "r_sun_res",
+#if _DEBUG
+    .value = "32",
+#else
     .value = "256",
+#endif // _DEBUG
     .minInt = 4,
     .maxInt = 4096,
     .desc = "Sky Cubemap Resolution",
@@ -178,7 +182,11 @@ static ConVar cv_r_sun_steps =
 {
     .type = cvart_int,
     .name = "r_sun_steps",
+#if _DEBUG
+    .value = "8",
+#else
     .value = "64",
+#endif // _DEBUG
     .minInt = 4,
     .maxInt = 1024,
     .desc = "Sky Cubemap Raymarch Steps",

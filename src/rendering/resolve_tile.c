@@ -4,6 +4,7 @@
 #include "rendering/sampler.h"
 #include "math/color.h"
 #include "rendering/tonemap.h"
+#include "rendering/vulkan/vkr.h"
 #include "common/profiler.h"
 #include "allocator/allocator.h"
 
@@ -15,24 +16,52 @@ typedef struct resolve_s
     TonemapId tmapId;
 } resolve_t;
 
-pim_inline u32 VEC_CALL ToColor(Prng *const pim_noalias rng, float4 linear)
+pim_inline u32 VEC_CALL ToColor(float4 Xi, float4 linear)
 {
-    const float4 kWeight = { 1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f, 0.0f };
     float4 srgb = f4_tosrgb(linear);
-    srgb = f4_lerp(srgb, f4_rand(rng), kWeight);
+    srgb = f4_lerpvs(srgb, Xi, 1.0f / 255.0f);
     u32 color = f4_rgba8(srgb);
     return color;
 }
 
+static void VEC_CALL ResolvePQ(
+    i32 begin, i32 end, FrameBuf* target)
+{
+    const float Lw = vkrSys_GetWhitepoint();
+    const float Lpq = 10000.0f;
+    const float wp = Lpq / Lw;
+    const float pqRatio = Lw / Lpq;
+
+    float4* pim_noalias light = target->light;
+    u32* pim_noalias color = target->color;
+
+    Prng rng = Prng_Get();
+    float4 Xi = f4_rand(&rng);
+    for (i32 i = begin; i < end; ++i)
+    {
+        float4 lum = light[i];
+        lum = tmap4_reinhard_lum(lum, wp);
+        lum = f4_mulvs(lum, pqRatio);
+        lum = f4_PQ_OETF(lum);
+
+        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
+        color[i] = ToColor(Xi, lum);
+    }
+    Prng_Set(rng);
+}
+
 static void VEC_CALL ResolveReinhard(
-    i32 begin, i32 end, FrameBuf* target, float4 params)
+    i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
+    float Lw = vkrSys_GetWhitepoint();
     Prng rng = Prng_Get();
+    float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
-        color[i] = ToColor(&rng, tmap4_reinhard_lum(light[i], params.x));
+        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
+        color[i] = ToColor(Xi, tmap4_reinhard_lum(light[i], Lw));
     }
     Prng_Set(rng);
 }
@@ -43,11 +72,13 @@ static void VEC_CALL ResolveUncharted2(
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
     Prng rng = Prng_Get();
+    float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
         float4 hdr = light[i];
         hdr.w = 1.0f;
-        color[i] = ToColor(&rng, tmap4_uchart2(hdr));
+        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
+        color[i] = ToColor(Xi, tmap4_uchart2(hdr));
     }
     Prng_Set(rng);
 }
@@ -58,11 +89,13 @@ static void VEC_CALL ResolveHable(
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
     Prng rng = Prng_Get();
+    float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
         float4 hdr = light[i];
         hdr.w = 1.0f;
-        color[i] = ToColor(&rng, tmap4_hable(hdr, params));
+        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
+        color[i] = ToColor(Xi, tmap4_hable(hdr, params));
     }
     Prng_Set(rng);
 }
@@ -73,9 +106,11 @@ static void VEC_CALL ResolveFilmic(
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
     Prng rng = Prng_Get();
+    float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
-        color[i] = ToColor(&rng, tmap4_filmic(light[i]));
+        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
+        color[i] = ToColor(Xi, tmap4_filmic(light[i]));
     }
     Prng_Set(rng);
 }
@@ -86,9 +121,11 @@ static void VEC_CALL ResolveACES(
     float4* pim_noalias light = target->light;
     u32* pim_noalias color = target->color;
     Prng rng = Prng_Get();
+    float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
-        color[i] = ToColor(&rng, tmap4_aces(light[i]));
+        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
+        color[i] = ToColor(Xi, tmap4_aces(light[i]));
     }
     Prng_Set(rng);
 }
@@ -101,25 +138,33 @@ static void ResolveTileFn(Task* task, i32 begin, i32 end)
     const float4 params = resolve->toneParams;
     const TonemapId id = resolve->tmapId;
 
-    switch (id)
+    if (vkrSys_HdrEnabled())
     {
-    default:
-    case TMap_Reinhard:
-        ResolveReinhard(begin, end, target, params);
-        break;
-    case TMap_Uncharted2:
-        ResolveUncharted2(begin, end, target);
-        break;
-    case TMap_Hable:
-        ResolveHable(begin, end, target, params);
-        break;
-    case TMap_Filmic:
-        ResolveFilmic(begin, end, target);
-        break;
-    case TMap_ACES:
-        ResolveACES(begin, end, target);
-        break;
+        ResolvePQ(begin, end, target);
     }
+    else
+    {
+        switch (id)
+        {
+        default:
+        case TMap_Reinhard:
+            ResolveReinhard(begin, end, target);
+            break;
+        case TMap_Uncharted2:
+            ResolveUncharted2(begin, end, target);
+            break;
+        case TMap_Hable:
+            ResolveHable(begin, end, target, params);
+            break;
+        case TMap_Filmic:
+            ResolveFilmic(begin, end, target);
+            break;
+        case TMap_ACES:
+            ResolveACES(begin, end, target);
+            break;
+        }
+    }
+
 }
 
 ProfileMark(pm_ResolveTile, ResolveTile)

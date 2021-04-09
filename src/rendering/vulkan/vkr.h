@@ -10,9 +10,7 @@ PIM_C_BEGIN
 #define VkCheck(expr) do { VkResult _res = (expr); ASSERT(_res == VK_SUCCESS); } while(0)
 
 PIM_FWD_DECL(GLFWwindow);
-PIM_DECL_HANDLE(VmaAllocator);
 PIM_DECL_HANDLE(VmaAllocation);
-PIM_DECL_HANDLE(VmaPool);
 
 enum
 {
@@ -343,19 +341,6 @@ typedef struct vkrReleasable_s
     };
 } vkrReleasable;
 
-typedef struct vkrAllocator_s
-{
-    Spinlock lock;
-    VmaAllocator handle;
-    VmaPool stagePool;
-    VmaPool texturePool;
-    VmaPool gpuMeshPool;
-    VmaPool cpuMeshPool;
-    VmaPool uavPool;
-    vkrReleasable* releasables;
-    i32 numreleasable;
-} vkrAllocator;
-
 typedef struct vkrPassContext_s
 {
     VkRenderPass renderPass;
@@ -389,15 +374,6 @@ typedef struct vkrPass_s
 
 // ----------------------------------------------------------------------------
 
-typedef struct vkrScreenBlit_s
-{
-    vkrBuffer meshbuf;
-    vkrBuffer stagebuf;
-    vkrImage image;
-    i32 width;
-    i32 height;
-} vkrScreenBlit;
-
 typedef struct vkrExposure_s
 {
     float exposure;
@@ -425,17 +401,9 @@ typedef struct vkrExposure_s
     i32 standard;
 } vkrExposure;
 
-typedef struct vkrExposureConstants_s
-{
-    u32 width;
-    u32 height;
-    vkrExposure exposure;
-} vkrExposureConstants;
-
 typedef struct vkrMainPass_s
 {
     VkRenderPass renderPass;
-    vkrScreenBlit blit;
 } vkrMainPass;
 
 // ----------------------------------------------------------------------------
@@ -512,7 +480,6 @@ typedef struct vkrSys_s
     VkInstance inst;
     VkPhysicalDevice phdev;
     VkDevice dev;
-    vkrAllocator allocator;
     VkDebugUtilsMessengerEXT messenger;
 
     vkrDisplay display;
@@ -538,5 +505,8 @@ u32 vkrSys_SyncIndex(void);
 u32 vkrSys_SwapIndex(void);
 // frame count
 u32 vkrSys_FrameIndex(void);
+
+bool vkrSys_HdrEnabled(void);
+float vkrSys_GetWhitepoint(void);
 
 PIM_C_END

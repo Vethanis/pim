@@ -5,6 +5,10 @@ struct PerCamera
 {
     float4x4 worldToClip;
     float4 eye;
+
+    float hdrEnabled;
+    float whitepoint;
+    float2 pad;
 };
 
 // uniform buffer at binding 0

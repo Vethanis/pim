@@ -71,17 +71,17 @@ bool vkrAttachment_New(
 cleanup:
     if (!success)
     {
-        vkrAttachment_Del(att);
+        vkrAttachment_Release(att);
     }
     return success;
 }
 
-void vkrAttachment_Del(vkrAttachment* att)
+void vkrAttachment_Release(vkrAttachment* att)
 {
     if (att)
     {
-        vkrImageView_Del(att->view);
-        vkrImage_Del(&att->image);
+        vkrImageView_Release(att->view);
+        vkrImage_Release(&att->image);
         memset(att, 0, sizeof(*att));
     }
 }

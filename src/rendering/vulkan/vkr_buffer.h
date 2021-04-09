@@ -9,19 +9,7 @@ bool vkrBuffer_New(
     i32 size,
     VkBufferUsageFlags usage,
     vkrMemUsage memUsage);
-void vkrBuffer_Del(vkrBuffer *const buffer);
 void vkrBuffer_Release(vkrBuffer *const buffer);
-
-bool vkrBufferSet_New(
-    vkrBufferSet *const set,
-    i32 size,
-    VkBufferUsageFlags usage,
-    vkrMemUsage memUsage);
-void vkrBufferSet_Del(vkrBufferSet *const set);
-void vkrBufferSet_Release(vkrBufferSet *const set);
-vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set);
-vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set);
-void vkrBufferSet_Write(vkrBufferSet *const set, const void* src, i32 size);
 
 // if size exceeds buffer's current size:
 // - creates new larger buffer
@@ -62,5 +50,25 @@ void vkrBuffer_Transfer(
     VkAccessFlags dstAccessMask,
     VkPipelineStageFlags srcStageMask,
     VkPipelineStageFlags dstStageMask);
+
+// ----------------------------------------------------------------------------
+
+bool vkrBufferSet_New(
+    vkrBufferSet *const set,
+    i32 size,
+    VkBufferUsageFlags usage,
+    vkrMemUsage memUsage);
+void vkrBufferSet_Release(vkrBufferSet *const set);
+vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set);
+vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set);
+bool vkrBufferSet_Reserve(
+    vkrBufferSet *const set,
+    i32 size,
+    VkBufferUsageFlags bufferUsage,
+    vkrMemUsage memUsage);
+void vkrBufferSet_Write(
+    vkrBufferSet *const set,
+    const void* src,
+    i32 size);
 
 PIM_C_END

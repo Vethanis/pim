@@ -55,7 +55,7 @@ bool vkrMainPass_New(vkrMainPass *const pass)
         goto cleanup;
     }
 
-    if (!vkrScreenBlit_New(&pass->blit, renderPass))
+    if (!vkrScreenBlit_New(renderPass))
     {
         success = false;
         goto cleanup;
@@ -90,7 +90,7 @@ void vkrMainPass_Del(vkrMainPass *const pass)
     if (pass)
     {
         vkrRenderPass_Del(pass->renderPass);
-        vkrScreenBlit_Del(&pass->blit);
+        vkrScreenBlit_Del();
         vkrDepthPass_Del();
         vkrOpaquePass_Del();
         vkrUIPass_Del();
@@ -148,7 +148,6 @@ void vkrMainPass_Execute(
     {
         vkrScreenBlit_Blit(
             &passCtx,
-            &pass->blit,
             RenderSys_FrontBuf());
     }
     else

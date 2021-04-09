@@ -123,8 +123,8 @@ static void TexTable_Del(TexTable* tt)
     {
         if (IdAlloc_ExistsAt(&tt->ids, i))
         {
-            vkrImageView_Del(tt->views[i]);
-            vkrImage_Del(&tt->images[i]);
+            vkrImageView_Release(tt->views[i]);
+            vkrImage_Release(&tt->images[i]);
         }
     }
     IdAlloc_Del(&tt->ids);

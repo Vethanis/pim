@@ -17,7 +17,6 @@ bool vkrTexture_New(
     i32 depth,
     i32 layers,
     bool mips);
-void vkrTexture_Del(vkrImage *const image);
 void vkrTexture_Release(vkrImage *const image);
 
 VkFence vkrTexture_Upload(

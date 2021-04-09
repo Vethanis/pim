@@ -800,7 +800,7 @@ bool LoadModelAsDrawables(const char* name, Entities *const dr)
     asset_t asset = { 0 };
     if (Asset_Get(name, &asset))
     {
-        mmodel_t* model = LoadModel(name, asset.pData, EAlloc_Temp);
+        mmodel_t* model = LoadModel(name, asset.pData, EAlloc_Perm);
         ModelToDrawables(model, dr);
         FreeModel(model);
         return true;

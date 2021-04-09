@@ -8,95 +8,29 @@
 #include "common/time.h"
 #include <string.h>
 
-ProfileMark(pm_bufnew, vkrBuffer_New)
 bool vkrBuffer_New(
     vkrBuffer *const buffer,
     i32 size,
     VkBufferUsageFlags usage,
     vkrMemUsage memUsage)
 {
-    ProfileBegin(pm_bufnew);
-    ASSERT(g_vkr.allocator.handle);
-    ASSERT(size >= 0);
-    ASSERT(buffer);
-    memset(buffer, 0, sizeof(*buffer));
-    const VkBufferCreateInfo bufferInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = size,
-        .usage = usage,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-    };
-    VmaPool pool = NULL;
-    switch (memUsage)
-    {
-    default:
-        ASSERT(false);
-        break;
-    case vkrMemUsage_CpuOnly:
-        pool = g_vkr.allocator.stagePool;
-        break;
-    case vkrMemUsage_CpuToGpu:
-        if (usage & (VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT))
-        {
-            pool = g_vkr.allocator.cpuMeshPool;
-        }
-        else if (usage & (VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT))
-        {
-            pool = g_vkr.allocator.uavPool;
-        }
-        break;
-    case vkrMemUsage_GpuOnly:
-        if (usage & (VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT))
-        {
-            pool = g_vkr.allocator.gpuMeshPool;
-        }
-        break;
-    }
-    ASSERT(pool);
-    const VmaAllocationCreateInfo allocInfo =
-    {
-        .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
-        .usage = memUsage,
-        .pool = pool,
-    };
-    VkBuffer handle = NULL;
-    VmaAllocation allocation = NULL;
-    VkCheck(vmaCreateBuffer(
-        g_vkr.allocator.handle,
-        &bufferInfo,
-        &allocInfo,
-        &handle,
-        &allocation,
-        NULL));
-    ASSERT(handle);
-    ProfileEnd(pm_bufnew);
-    if (handle)
-    {
-        buffer->handle = handle;
-        buffer->allocation = allocation;
-        buffer->size = size;
-    }
-    return handle != NULL;
+    return vkrMem_BufferNew(buffer, size, usage, memUsage);
 }
 
-ProfileMark(pm_bufdel, vkrBuffer_Del)
-void vkrBuffer_Del(vkrBuffer *const buffer)
+ProfileMark(pm_bufrelease, vkrBuffer_Release)
+void vkrBuffer_Release(vkrBuffer *const buffer)
 {
-    ProfileBegin(pm_bufdel);
-    ASSERT(g_vkr.allocator.handle);
-    if (buffer)
+    if (buffer->handle)
     {
-        if (buffer->handle)
+        const vkrReleasable releasable =
         {
-            vmaDestroyBuffer(
-                g_vkr.allocator.handle,
-                buffer->handle,
-                buffer->allocation);
-        }
-        memset(buffer, 0, sizeof(*buffer));
+            .frame = vkrSys_FrameIndex(),
+            .type = vkrReleasableType_Buffer,
+            .buffer = *buffer,
+        };
+        vkrReleasable_Add(&releasable);
     }
-    ProfileEnd(pm_bufdel);
+    memset(buffer, 0, sizeof(*buffer));
 }
 
 ProfileMark(pm_bufreserve, vkrBuffer_Reserve)
@@ -106,6 +40,7 @@ bool vkrBuffer_Reserve(
     VkBufferUsageFlags bufferUsage,
     vkrMemUsage memUsage)
 {
+    ProfileBegin(pm_bufreserve);
     bool success = true;
     i32 oldsize = buffer->size;
     ASSERT(buffer);
@@ -113,12 +48,11 @@ bool vkrBuffer_Reserve(
     ASSERT(oldsize >= 0);
     if (oldsize < size)
     {
-        ProfileBegin(pm_bufreserve);
         vkrBuffer_Release(buffer);
         size = (size > oldsize * 2) ? size : oldsize * 2;
         success = vkrBuffer_New(buffer, size, bufferUsage, memUsage);
-        ProfileEnd(pm_bufreserve);
     }
+    ProfileEnd(pm_bufreserve);
     return success;
 }
 
@@ -159,84 +93,6 @@ void vkrBuffer_Write(
     vkrBuffer_Unmap(buffer);
     vkrBuffer_Flush(buffer);
     ProfileEnd(pm_bufferwrite);
-}
-
-ProfileMark(pm_bufrelease, vkrBuffer_Release)
-void vkrBuffer_Release(vkrBuffer *const buffer)
-{
-    ProfileBegin(pm_bufrelease);
-    ASSERT(buffer);
-    if (buffer->handle)
-    {
-        const vkrReleasable releasable =
-        {
-            .frame = vkrSys_FrameIndex(),
-            .type = vkrReleasableType_Buffer,
-            .buffer = *buffer,
-        };
-        vkrReleasable_Add(&g_vkr.allocator, &releasable);
-    }
-    memset(buffer, 0, sizeof(*buffer));
-    ProfileEnd(pm_bufrelease);
-}
-
-bool vkrBufferSet_New(
-    vkrBufferSet *const set,
-    i32 size,
-    VkBufferUsageFlags usage,
-    vkrMemUsage memUsage)
-{
-    memset(set, 0, sizeof(*set));
-    for (i32 i = 0; i < kFramesInFlight; ++i)
-    {
-        if (!vkrBuffer_New(&set->frames[i], size, usage, memUsage))
-        {
-            vkrBufferSet_Del(set);
-            return false;
-        }
-    }
-    return true;
-}
-
-void vkrBufferSet_Del(vkrBufferSet *const set)
-{
-    if (set)
-    {
-        for (i32 i = 0; i < kFramesInFlight; ++i)
-        {
-            vkrBuffer_Del(&set->frames[i]);
-        }
-        memset(set, 0, sizeof(*set));
-    }
-}
-
-void vkrBufferSet_Release(vkrBufferSet *const set)
-{
-    if (set)
-    {
-        for (i32 i = 0; i < kFramesInFlight; ++i)
-        {
-            vkrBuffer_Release(&set->frames[i]);
-        }
-        memset(set, 0, sizeof(*set));
-    }
-}
-
-vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set)
-{
-    u32 syncIndex = vkrSys_SyncIndex();
-    return &set->frames[syncIndex];
-}
-
-vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set)
-{
-    u32 prevIndex = (vkrSys_SyncIndex() + (kFramesInFlight - 1u)) % kFramesInFlight;
-    return &set->frames[prevIndex];
-}
-
-void vkrBufferSet_Write(vkrBufferSet *const set, const void* src, i32 size)
-{
-    vkrBuffer_Write(vkrBufferSet_Current(set), src, size);
 }
 
 void vkrBuffer_Barrier(
@@ -285,4 +141,61 @@ void vkrBuffer_Transfer(
     };
     vkrCmdBufferBarrier(srcCmd, srcStageMask, dstStageMask, &barrier);
     vkrCmdBufferBarrier(dstCmd, srcStageMask, dstStageMask, &barrier);
+}
+
+// ----------------------------------------------------------------------------
+
+bool vkrBufferSet_New(
+    vkrBufferSet *const set,
+    i32 size,
+    VkBufferUsageFlags usage,
+    vkrMemUsage memUsage)
+{
+    memset(set, 0, sizeof(*set));
+    for (i32 i = 0; i < NELEM(set->frames); ++i)
+    {
+        if (!vkrBuffer_New(&set->frames[i], size, usage, memUsage))
+        {
+            vkrBufferSet_Release(set);
+            return false;
+        }
+    }
+    return true;
+}
+
+void vkrBufferSet_Release(vkrBufferSet *const set)
+{
+    for (i32 i = 0; i < NELEM(set->frames); ++i)
+    {
+        vkrBuffer_Release(&set->frames[i]);
+    }
+    memset(set, 0, sizeof(*set));
+}
+
+vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set)
+{
+    u32 syncIndex = vkrSys_SyncIndex();
+    ASSERT(syncIndex < NELEM(set->frames));
+    return &set->frames[syncIndex];
+}
+
+vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set)
+{
+    u32 prevIndex = (vkrSys_SyncIndex() + (kFramesInFlight - 1u)) % kFramesInFlight;
+    ASSERT(prevIndex < NELEM(set->frames));
+    return &set->frames[prevIndex];
+}
+
+bool vkrBufferSet_Reserve(
+    vkrBufferSet *const set,
+    i32 size,
+    VkBufferUsageFlags bufferUsage,
+    vkrMemUsage memUsage)
+{
+    return vkrBuffer_Reserve(vkrBufferSet_Current(set), size, bufferUsage, memUsage);
+}
+
+void vkrBufferSet_Write(vkrBufferSet *const set, const void* src, i32 size)
+{
+    vkrBuffer_Write(vkrBufferSet_Current(set), src, size);
 }
