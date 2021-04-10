@@ -270,6 +270,48 @@ typedef struct int4x4_s
 
 // ----------------------------------------------------------------------------
 
+typedef struct R5G5B5A1_s
+{
+    u16 r : 5;
+    u16 g : 5;
+    u16 b : 5;
+    u16 a : 1;
+} R5G5B5A1_t;
+SASSERT(sizeof(R5G5B5A1_t) == 2);
+SASSERT(_Alignof(R5G5B5A1_t) == 2);
+
+typedef struct R8G8B8A8_s
+{
+    u32 r : 8;
+    u32 g : 8;
+    u32 b : 8;
+    u32 a : 8;
+} R8G8B8A8_t;
+SASSERT(sizeof(R8G8B8A8_t) == 4);
+SASSERT(_Alignof(R8G8B8A8_t) == 4);
+
+typedef struct A2R10G10B10_s
+{
+    u32 a : 2;
+    u32 r : 10;
+    u32 g : 10;
+    u32 b : 10;
+} A2R10G10B10_t;
+SASSERT(sizeof(A2R10G10B10_t) == 4);
+SASSERT(_Alignof(A2R10G10B10_t) == 4);
+
+typedef struct pim_alignas(8) R16G16B16A16_s
+{
+    u32 r : 16;
+    u32 g : 16;
+    u32 b : 16;
+    u32 a : 16;
+} R16G16B16A16_t;
+SASSERT(sizeof(R16G16B16A16_t) == 8);
+SASSERT(_Alignof(R16G16B16A16_t) == 8);
+
+// ----------------------------------------------------------------------------
+
 typedef struct Ray_s
 {
     float4 ro;

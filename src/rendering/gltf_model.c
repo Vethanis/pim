@@ -439,7 +439,7 @@ static bool ResampleToFloat4(Texture* tex)
     case VK_FORMAT_R8G8B8A8_SRGB:
     {
         const i32 len = tex->size.x * tex->size.y;
-        const u32* pim_noalias src = tex->texels;
+        const R8G8B8A8_t* pim_noalias src = tex->texels;
         float4* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
         for (i32 i = 0; i < len; ++i)
         {
@@ -453,19 +453,12 @@ static bool ResampleToFloat4(Texture* tex)
     case VK_FORMAT_R8G8B8A8_UNORM:
     {
         const i32 len = tex->size.x * tex->size.y;
-        const u8* pim_noalias src = tex->texels;
+        const R8G8B8A8_t* pim_noalias src = tex->texels;
         float4* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
-        Prng rng = Prng_Get();
         for (i32 i = 0; i < len; ++i)
         {
-            float4 texel = f4_0;
-            texel.x = f1_sat((src[i * 4 + 0] + Prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
-            texel.y = f1_sat((src[i * 4 + 1] + Prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
-            texel.z = f1_sat((src[i * 4 + 2] + Prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
-            texel.w = f1_sat((src[i * 4 + 3] + Prng_f32(&rng) - 0.5f) * (1.0f / 255.0f));
-            dst[i] = texel;
+            dst[i] = rgba8_f4(src[i]);
         }
-        Prng_Set(rng);
         Mem_Free(tex->texels);
         tex->texels = dst;
         tex->format = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -474,19 +467,12 @@ static bool ResampleToFloat4(Texture* tex)
     case VK_FORMAT_R16G16B16A16_UNORM:
     {
         const i32 len = tex->size.x * tex->size.y;
-        const u16* pim_noalias src = tex->texels;
+        const R16G16B16A16_t* pim_noalias src = tex->texels;
         float4* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
-        Prng rng = Prng_Get();
         for (i32 i = 0; i < len; ++i)
         {
-            float4 texel = f4_0;
-            texel.x = f1_sat((src[i * 4 + 0] + Prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
-            texel.y = f1_sat((src[i * 4 + 1] + Prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
-            texel.z = f1_sat((src[i * 4 + 2] + Prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
-            texel.w = f1_sat((src[i * 4 + 3] + Prng_f32(&rng) - 0.5f) * (1.0f / 65535.0f));
-            dst[i] = texel;
+            dst[i] = rgba16_f4(src[i]);
         }
-        Prng_Set(rng);
         Mem_Free(tex->texels);
         tex->texels = dst;
         tex->format = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -507,7 +493,7 @@ static bool ResampleToSrgb(Texture* tex)
     {
         const i32 len = tex->size.x * tex->size.y;
         const float4* pim_noalias src = tex->texels;
-        u32* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
+        R8G8B8A8_t* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
         for (i32 i = 0; i < len; ++i)
         {
             dst[i] = LinearToColor(src[i]);
@@ -650,7 +636,7 @@ static TextureId CreateRomeTexture(
     size = i2_max(size, occtex.size);
     size = i2_max(size, emtex.size);
     const i32 len = size.x * size.y;
-    u32* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
+    R8G8B8A8_t* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
     for (i32 y = 0; y < size.y; ++y)
     {
         for (i32 x = 0; x < size.x; ++x)
@@ -664,9 +650,8 @@ static TextureId CreateRomeTexture(
             }
             rome.y = UvBilinearClamp_f4(occtex.texels, occtex.size, uv).x;
             rome.w = PackEmission(UvBilinearClamp_f4(emtex.texels, emtex.size, uv));
-            u32 color = LinearToColor(rome);
             u32 index = x + y * size.x;
-            dst[index] = color;
+            dst[index] = LinearToColor(rome);
         }
     }
     Texture tex = { 0 };
@@ -723,19 +708,18 @@ static TextureId CreateNormalTexture(
         return id;
     }
     {
-        // TODO: encode tangent space as 16 bit xy, and regenerate z with sqrt(1 - (x*x + y*y));
         const float4* pim_noalias src = tex.texels;
         const i32 len = tex.size.x * tex.size.y;
-        u32* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
+        short2* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
         for (i32 i = 0; i < len; ++i)
         {
-            dst[i] = DirectionToColor(f4_snorm(src[i]));
+            dst[i] = NormalTsToXy16(f4_snorm(src[i]));
         }
         Mem_Free(tex.texels);
         tex.texels = dst;
-        tex.format = VK_FORMAT_R8G8B8A8_UNORM;
+        tex.format = VK_FORMAT_R16G16_SNORM;
     }
-    Texture_New(&tex, VK_FORMAT_R8G8B8A8_UNORM, guid, &id);
+    Texture_New(&tex, tex.format, guid, &id);
     return id;
 }
 
@@ -838,8 +822,8 @@ bool ResampleToAlbedoRome(
         size = i2_max(size, occtex.size);
         size = i2_max(size, emtex.size);
         const i32 len = size.x * size.y;
-        u32* pim_noalias albedoArr = Tex_Alloc(sizeof(albedoArr[0]) * len);
-        u32* pim_noalias romeArr = Tex_Alloc(sizeof(romeArr[0]) * len);
+        R8G8B8A8_t* pim_noalias albedoTexels = Tex_Alloc(sizeof(albedoTexels[0]) * len);
+        R8G8B8A8_t* pim_noalias romeTexels = Tex_Alloc(sizeof(romeTexels[0]) * len);
         for (i32 y = 0; y < size.y; ++y)
         {
             for (i32 x = 0; x < size.x; ++x)
@@ -854,14 +838,16 @@ bool ResampleToAlbedoRome(
                 float metallic;
                 ConvertToMetallicRoughness(diffuse, specular, glossiness, &albedo, &roughness, &metallic);
                 i32 index = x + y * size.x;
-                albedoArr[index] = LinearToColor(albedo);
-                romeArr[index] = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
+                albedoTexels[index] = LinearToColor(albedo);
+                romeTexels[index] = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
             }
         }
-        albedotex.texels = albedoArr;
+        albedotex.texels = albedoTexels;
         albedotex.size = size;
-        rometex.texels = romeArr;
+        albedotex.format = VK_FORMAT_R8G8B8A8_SRGB;
+        rometex.texels = romeTexels;
         rometex.size = size;
+        rometex.format = VK_FORMAT_R8G8B8A8_SRGB;
     }
 
     if (diffuseTex.texels != &defaultDiffuse)
@@ -883,7 +869,7 @@ bool ResampleToAlbedoRome(
 
     if (!Texture_Exists(material->albedo))
     {
-        Texture_New(&albedotex, VK_FORMAT_R8G8B8A8_SRGB, albedoGuid, &material->albedo);
+        Texture_New(&albedotex, albedotex.format, albedoGuid, &material->albedo);
     }
     else
     {
@@ -891,7 +877,7 @@ bool ResampleToAlbedoRome(
     }
     if (!Texture_Exists(material->rome))
     {
-        Texture_New(&rometex, VK_FORMAT_R8G8B8A8_SRGB, romeGuid, &material->rome);
+        Texture_New(&rometex, rometex.format, romeGuid, &material->rome);
     }
     else
     {

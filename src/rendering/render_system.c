@@ -450,13 +450,13 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     }
 
     const FrameBuf* buf = GetFrontBuf();
-    const u32* flippedColor = buf->color;
+    const R8G8B8A8_t* pim_noalias flippedColor = buf->color;
     ASSERT(flippedColor);
     const int2 size = { buf->width, buf->height };
     const i32 stride = sizeof(flippedColor[0]) * size.x;
     const i32 len = size.x * size.y;
 
-    u32* color = Temp_Calloc(len * sizeof(color[0]));
+    R8G8B8A8_t* pim_noalias color = Tex_Alloc(len * sizeof(color[0]));
     for (i32 y = 0; y < size.y; ++y)
     {
         i32 y2 = (size.y - y) - 1;
@@ -464,12 +464,16 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
         {
             i32 i1 = y * size.x + x;
             i32 i2 = y2 * size.x + x;
-            color[i2] = flippedColor[i1];
-            color[i2] |= 0xff << 24;
+            R8G8B8A8_t c = flippedColor[i1];
+            c.a = 0xff;
+            color[i2] = c;
         }
     }
 
-    if (stbi_write_png(filename, size.x, size.y, 4, color, stride))
+    i32 wrote = stbi_write_png(filename, size.x, size.y, 4, color, stride);
+    Mem_Free(color);
+
+    if (wrote)
     {
         Con_Logf(LogSev_Info, "Sc", "Took screenshot '%s'", filename);
         return cmdstat_ok;
@@ -1048,8 +1052,9 @@ static TextureId GenFlatTexture(const char* name, const char* suffix, float4 val
     SPrintf(ARGS(fullname), "%s_%s", name, suffix);
     Texture tex = { 0 };
     tex.size = i2_1;
-    tex.texels = Tex_Alloc(sizeof(u32));
-    *(u32*)tex.texels = LinearToColor(value);
+    R8G8B8A8_t* texels = Tex_Alloc(sizeof(texels[0]));
+    texels[0] = LinearToColor(value);
+    tex.texels = texels;
     Texture_New(&tex, VK_FORMAT_R8G8B8A8_SRGB, Guid_FromStr(fullname), &id);
     return id;
 }

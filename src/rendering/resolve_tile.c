@@ -16,12 +16,11 @@ typedef struct resolve_s
     TonemapId tmapId;
 } resolve_t;
 
-pim_inline u32 VEC_CALL ToColor(float4 Xi, float4 linear)
+pim_inline R8G8B8A8_t VEC_CALL ToColor(float4 Xi, float4 linear)
 {
     float4 srgb = f4_tosrgb(linear);
     srgb = f4_lerpvs(srgb, Xi, 1.0f / 255.0f);
-    u32 color = f4_rgba8(srgb);
-    return color;
+    return f4_rgba8(srgb);
 }
 
 static void VEC_CALL ResolvePQ(
@@ -33,7 +32,7 @@ static void VEC_CALL ResolvePQ(
     const float pqRatio = Lw / Lpq;
 
     float4* pim_noalias light = target->light;
-    u32* pim_noalias color = target->color;
+    R8G8B8A8_t* pim_noalias color = target->color;
 
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
@@ -54,7 +53,7 @@ static void VEC_CALL ResolveReinhard(
     i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
-    u32* pim_noalias color = target->color;
+    R8G8B8A8_t* pim_noalias color = target->color;
     float Lw = vkrSys_GetWhitepoint();
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
@@ -70,7 +69,7 @@ static void VEC_CALL ResolveUncharted2(
     i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
-    u32* pim_noalias color = target->color;
+    R8G8B8A8_t* pim_noalias color = target->color;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
@@ -87,7 +86,7 @@ static void VEC_CALL ResolveHable(
     i32 begin, i32 end, FrameBuf* target, float4 params)
 {
     float4* pim_noalias light = target->light;
-    u32* pim_noalias color = target->color;
+    R8G8B8A8_t* pim_noalias color = target->color;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
@@ -104,7 +103,7 @@ static void VEC_CALL ResolveFilmic(
     i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
-    u32* pim_noalias color = target->color;
+    R8G8B8A8_t* pim_noalias color = target->color;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
@@ -119,7 +118,7 @@ static void VEC_CALL ResolveACES(
     i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
-    u32* pim_noalias color = target->color;
+    R8G8B8A8_t* pim_noalias color = target->color;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
