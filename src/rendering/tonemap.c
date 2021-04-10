@@ -6,7 +6,6 @@ static const char* const kTonemapNames[] =
     "Reinhard",
     "Uncharted2",
     "Hable",
-    "Filmic",
     "Aces",
 };
 SASSERT(NELEM(kTonemapNames) == TMap_COUNT);

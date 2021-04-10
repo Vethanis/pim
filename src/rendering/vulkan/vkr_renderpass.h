@@ -4,14 +4,15 @@
 
 PIM_C_BEGIN
 
-VkRenderPass vkrRenderPass_New(
+VkRenderPass vkrRenderPass_GetFull(
     i32 attachmentCount,
     const VkAttachmentDescription* pAttachments,
     i32 subpassCount,
     const VkSubpassDescription* pSubpasses,
     i32 dependencyCount,
     const VkSubpassDependency* pDependencies);
+void vkrRenderPass_Clear(void);
 
-void vkrRenderPass_Del(VkRenderPass pass);
+VkRenderPass vkrRenderPass_Get(const vkrRenderPassDesc* desc);
 
 PIM_C_END

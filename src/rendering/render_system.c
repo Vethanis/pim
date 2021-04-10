@@ -138,15 +138,7 @@ static void EnsureFramebuf(void)
     const i32 height = r_scaledheight_get();
     for (i32 i = 0; i < NELEM(ms_buffers); ++i)
     {
-        bool dirty = false;
-        dirty |= ms_buffers[i].width != width;
-        dirty |= ms_buffers[i].height != height;
-        dirty |= !ms_buffers[i].color;
-        if (dirty)
-        {
-            FrameBuf_Del(&ms_buffers[i]);
-            FrameBuf_New(&ms_buffers[i], width, height);
-        }
+        FrameBuf_Reserve(&ms_buffers[i], width, height);
     }
 }
 
@@ -450,28 +442,23 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     }
 
     const FrameBuf* buf = GetFrontBuf();
-    const R8G8B8A8_t* pim_noalias flippedColor = buf->color;
-    ASSERT(flippedColor);
+    ASSERT(buf->color);
     const int2 size = { buf->width, buf->height };
-    const i32 stride = sizeof(flippedColor[0]) * size.x;
     const i32 len = size.x * size.y;
+    R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
 
-    R8G8B8A8_t* pim_noalias color = Tex_Alloc(len * sizeof(color[0]));
-    for (i32 y = 0; y < size.y; ++y)
+    for (i32 i = 0; i < len; ++i)
     {
-        i32 y2 = (size.y - y) - 1;
-        for (i32 x = 0; x < size.x; ++x)
-        {
-            i32 i1 = y * size.x + x;
-            i32 i2 = y2 * size.x + x;
-            R8G8B8A8_t c = flippedColor[i1];
-            c.a = 0xff;
-            color[i2] = c;
-        }
+        float4 v = buf->light[i];
+        v = tmap4_reinhard_lum(v, 1.0f);
+        v.w = 1.0f;
+        color[i] = f4_rgba8(f4_tosrgb(v));
     }
 
-    i32 wrote = stbi_write_png(filename, size.x, size.y, 4, color, stride);
-    Mem_Free(color);
+    stbi_flip_vertically_on_write(1);
+    i32 wrote = stbi_write_png(filename, size.x, size.y, 4, color, sizeof(color[0]) * size.x);
+
+    Mem_Free(color); color = NULL;
 
     if (wrote)
     {
