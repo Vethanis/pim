@@ -4,20 +4,10 @@
 #include "allocator/allocator.h"
 #include "rendering/r_window.h"
 #include "common/profiler.h"
-#include "common/cvar.h"
+#include "common/cvars.h"
 #include "common/stringutil.h"
 #include "common/time.h"
 #include "math/color.h"
-
-static ConVar cv_ui_opacity =
-{
-    .type = cvart_float,
-    .name = "ui_opacity",
-    .value = "0.95",
-    .minFloat = 0.1f,
-    .maxFloat = 1.0f,
-    .desc = "UI Opacity",
-};
 
 static ImGuiContext* ms_ctx;
 
@@ -124,7 +114,6 @@ void UiSys_Init(GLFWwindow* window)
 {
     ASSERT(window);
 
-    ConVar_Reg(&cv_ui_opacity);
     ASSERT(igDebugCheckVersionAndDataLayout(
         "1.80", // cimgui does not export this! :(
         sizeof(ImGuiIO),

@@ -11,7 +11,7 @@
 #include "os/socket.h"
 #include "logic/logic.h"
 #include "common/profiler.h"
-#include "common/cvar.h"
+#include "common/cvars.h"
 #include "common/cmd.h"
 #include "common/console.h"
 #include "editor/editor.h"
@@ -40,6 +40,7 @@ static bool Init(void)
 {
     TimeSys_Init();
     MemSys_Init();
+    ConVars_RegisterAll();
     SerSys_Init();
     WinSys_Init();
     cmd_sys_init();

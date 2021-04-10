@@ -1,51 +1,14 @@
-#include "rendering/constants.h"
-#include "common/cvar.h"
+#include "rendering/r_constants.h"
+#include "common/cvars.h"
 #include "rendering/vulkan/vkr_display.h"
 
 static bool ms_init;
-
-static ConVar cv_r_scale =
-{
-    .type = cvart_float,
-    .name = "r_scale",
-    .minFloat = 1.0f / 16.0f,
-    .maxFloat = 4.0f,
-#if _DEBUG
-    .value = "0.1",
-#else
-    .value = "0.5",
-#endif // _DEBUG
-    .desc = "Render Scale",
-};
-
-static ConVar cv_r_width =
-{
-    .type = cvart_int,
-    .name = "r_width",
-    .minInt = 1,
-    .maxInt = 8192,
-    .value = "1920",
-    .desc = "Base render width",
-};
-
-static ConVar cv_r_height =
-{
-    .type = cvart_int,
-    .name = "r_height",
-    .minInt = 1,
-    .maxInt = 8192,
-    .value = "1070",
-    .desc = "Base render height",
-};
 
 static void EnsureInit(void)
 {
     if (!ms_init)
     {
         ms_init = true;
-        ConVar_Reg(&cv_r_scale);
-        ConVar_Reg(&cv_r_width);
-        ConVar_Reg(&cv_r_height);
         i32 width = 0;
         i32 height = 0;
         if (vkrDisplay_MonitorSize(&width, &height));

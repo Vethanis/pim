@@ -1,7 +1,7 @@
 #include "common/console.h"
 #include "allocator/allocator.h"
 #include "common/cmd.h"
-#include "common/cvar.h"
+#include "common/cvars.h"
 #include "common/profiler.h"
 #include "common/stringutil.h"
 #include "containers/strlist.h"
@@ -17,14 +17,6 @@
 
 #define MAX_LINES       256
 
-static ConVar cv_conlogpath =
-{
-    .type=cvart_text,
-    .name="conlogpath",
-    .value="console.log",
-    .desc="Path to the console log file"
-};
-
 static void con_gui(void);
 static i32 OnTextInput(ImGuiInputTextCallbackData* data);
 static void ExecCmd(const char* cmd, bool history);
@@ -32,7 +24,6 @@ static void HistClear(void);
 
 static char ms_buffer[PIM_PATH];
 static FStream ms_file;
-static u64 ms_fileOpenTime;
 
 static i32 ms_iLine;
 static char* ms_lines[MAX_LINES];
@@ -48,11 +39,9 @@ static StrList ms_history;
 
 void ConSys_Init(void)
 {
-    ConVar_Reg(&cv_conlogpath);
     StrList_New(&ms_history, EAlloc_Perm);
 
-    ms_file = FStream_Open(cv_conlogpath.value, "wb");
-    ms_fileOpenTime = Time_Now();
+    ms_file = FStream_Open(ConVar_GetStr(&cv_con_logpath), "wb");
     Con_Clear();
     HistClear();
 }
@@ -62,12 +51,6 @@ void ConSys_Update(void)
 {
     ProfileBegin(pm_update);
 
-    if (ConVar_CheckDirty(&cv_conlogpath, ms_fileOpenTime))
-    {
-        FStream_Close(&ms_file);
-        ms_file = FStream_Open(cv_conlogpath.value, "wb");
-        ms_fileOpenTime = Time_Now();
-    }
     con_gui();
 
     ProfileEnd(pm_update);

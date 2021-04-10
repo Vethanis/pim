@@ -1,4 +1,5 @@
 #include "rendering/vulkan/vkr_mainpass.h"
+
 #include "rendering/vulkan/vkr_swapchain.h"
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_cmd.h"
@@ -10,6 +11,7 @@
 #include "rendering/vulkan/vkr_uipass.h"
 #include "rendering/vulkan/vkr_exposurepass.h"
 #include "rendering/vulkan/vkr_image.h"
+
 #include "rendering/drawable.h"
 #include "rendering/render_system.h"
 #include "rendering/framebuffer.h"
@@ -18,32 +20,26 @@
 #include "rendering/material.h"
 #include "rendering/lightmap.h"
 #include "rendering/camera.h"
-#include "containers/table.h"
+
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
-#include "common/cvar.h"
+#include "common/cvars.h"
+#include "containers/table.h"
+#include "threading/task.h"
+
 #include "math/float4x4_funcs.h"
 #include "math/box.h"
 #include "math/frustum.h"
 #include "math/sdf.h"
-#include "threading/task.h"
+
 #include <string.h>
 
-// ----------------------------------------------------------------------------
-
 static VkRenderPass CreateRenderPass(const vkrSwapchain* chain);
-
-static ConVar* cv_pt_trace;
-
-// ----------------------------------------------------------------------------
 
 bool vkrMainPass_New(vkrMainPass *const pass)
 {
     ASSERT(pass);
-
-    cv_pt_trace = ConVar_Find("pt_trace");
-    ASSERT(cv_pt_trace);
 
     bool success = true;
 
@@ -118,7 +114,7 @@ void vkrMainPass_Execute(
 {
     ProfileBegin(pm_exec);
 
-    const bool r_sw = ConVar_GetBool(cv_pt_trace);
+    const bool r_sw = ConVar_GetBool(&cv_pt_trace);
 
     vkrSwapchain *const chain = &g_vkr.chain;
     VkRect2D rect = vkrSwapchain_GetRect(chain);

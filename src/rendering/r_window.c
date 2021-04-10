@@ -1,7 +1,7 @@
 #include "rendering/r_window.h"
 #include <GLFW/glfw3.h>
 #include "common/time.h"
-#include "common/cvar.h"
+#include "common/cvars.h"
 #include "threading/intrin.h"
 #include "threading/sleep.h"
 #include "common/profiler.h"
@@ -9,16 +9,6 @@
 #include "input/input_system.h"
 #include "rendering/vulkan/vkr.h"
 #include <math.h>
-
-static ConVar cv_fpslimit =
-{
-    .type = cvart_int,
-    .name = "fps_limit",
-    .value = "240",
-    .minInt = 1,
-    .maxInt = 1000,
-    .desc = "limits fps when above this value"
-};
 
 static i32 ms_width;
 static i32 ms_height;
@@ -31,7 +21,6 @@ static void OnGlfwError(i32 error_code, const char* description);
 
 void WinSys_Init(void)
 {
-    ConVar_Reg(&cv_fpslimit);
     ms_lastSwap = Time_Now();
 
     glfwSetErrorCallback(OnGlfwError);
@@ -74,12 +63,12 @@ void Window_Close(bool shouldClose)
 
 i32 window_get_target(void)
 {
-    return cv_fpslimit.asInt;
+    return ConVar_GetInt(&cv_r_fpslimit);
 }
 
 void window_set_target(i32 fps)
 {
-    ConVar_SetInt(&cv_fpslimit, fps);
+    ConVar_SetInt(&cv_r_fpslimit, fps);
 }
 
 ProfileMark(pm_waitfps, WaitForTargetFps)
@@ -87,7 +76,7 @@ static void WaitForTargetFps(void)
 {
     ProfileBegin(pm_waitfps);
 
-    const double targetMS = 1000.0 / cv_fpslimit.asInt;
+    const double targetMS = 1000.0 / window_get_target();
     const double diffMS = targetMS - Time_Milli(Time_Now() - ms_lastSwap);
     if (diffMS > 1.5)
     {

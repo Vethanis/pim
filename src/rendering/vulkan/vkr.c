@@ -31,7 +31,7 @@
 #include "rendering/camera.h"
 #include "rendering/screenblit.h"
 #include "rendering/lightmap.h"
-#include "rendering/constants.h"
+#include "rendering/r_constants.h"
 
 #include "ui/cimgui_ext.h"
 #include "ui/ui.h"
@@ -40,7 +40,7 @@
 #include "common/console.h"
 #include "common/profiler.h"
 #include "common/time.h"
-#include "common/cvar.h"
+#include "common/cvars.h"
 #include "common/atomics.h"
 #include "containers/table.h"
 #include "threading/task.h"
@@ -60,51 +60,9 @@ vkrDevExts g_vkrDevExts;
 vkrProps g_vkrProps;
 vkrFeats g_vkrFeats;
 
-static ConVar* cv_r_sun_dir;
-static ConVar* cv_r_sun_col;
-static ConVar* cv_r_sun_lum;
-
-static ConVar cv_lm_upload =
-{
-    .type = cvart_bool,
-    .name = "lm_upload",
-    .value = "0",
-    .desc = "upload lightmap data to GPU",
-};
-
-static ConVar cv_whitepoint =
-{
-    .type = cvart_float,
-    .name = "whitepoint",
-    .desc = "Value at which display should display paper white",
-    .value = "5.0",
-    .minFloat = 0.5f,
-    .maxFloat = 20.0f,
-};
-
-static ConVar cv_hdr_whitepoint =
-{
-    .type = cvart_float,
-    .name = "hdr_whitepoint",
-    .desc = "Luminance at which display should display paper white",
-    .value = "600.0",
-    .minFloat = 300.0f,
-    .maxFloat = 10000.0f,
-};
-
 bool vkrSys_Init(void)
 {
     memset(&g_vkr, 0, sizeof(g_vkr));
-
-    ConVar_Reg(&cv_lm_upload);
-    ConVar_Reg(&cv_whitepoint);
-    ConVar_Reg(&cv_hdr_whitepoint);
-    cv_r_sun_dir = ConVar_Find("r_sun_dir");
-    cv_r_sun_col = ConVar_Find("r_sun_col");
-    cv_r_sun_lum = ConVar_Find("r_sun_lum");
-    ASSERT(cv_r_sun_dir);
-    ASSERT(cv_r_sun_col);
-    ASSERT(cv_r_sun_lum);
 
     bool success = true;
 
@@ -345,7 +303,7 @@ bool vkrSys_HdrEnabled(void)
 
 float vkrSys_GetWhitepoint(void)
 {
-    return vkrSys_HdrEnabled() ? ConVar_GetFloat(&cv_hdr_whitepoint) : ConVar_GetFloat(&cv_whitepoint);
+    return vkrSys_HdrEnabled() ? ConVar_GetFloat(&cv_r_hdr_whitepoint) : ConVar_GetFloat(&cv_r_whitepoint);
 }
 
 static void vkrUploadLightmaps(void)

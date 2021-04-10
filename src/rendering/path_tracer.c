@@ -29,7 +29,7 @@
 #include "common/random.h"
 #include "common/profiler.h"
 #include "common/console.h"
-#include "common/cvar.h"
+#include "common/cvars.h"
 #include "common/stringutil.h"
 #include "common/serialize.h"
 #include "common/atomics.h"
@@ -400,44 +400,6 @@ pim_inline float VEC_CALL MisPrng(PtSampler *const pim_noalias sampler)
 }
 // ----------------------------------------------------------------------------
 
-static ConVar cv_pt_dist_meters =
-{
-    .type = cvart_float,
-    .name = "pt_dist_meters",
-    .value = "1.5",
-    .minFloat = 0.1f,
-    .maxFloat = 20.0f,
-    .desc = "path tracer light distribution meters per cell"
-};
-
-static ConVar cv_pt_dist_alpha =
-{
-    .type = cvart_float,
-    .name = "pt_dist_alpha",
-    .value = "0.9",
-    .minFloat = 0.0f,
-    .maxFloat = 1.0f,
-    .desc = "path tracer light distribution update amount",
-};
-
-static ConVar cv_pt_dist_samples =
-{
-    .type = cvart_int,
-    .name = "pt_dist_samples",
-    .value = "300",
-    .minInt = 30,
-    .maxInt = 1 << 20,
-    .desc = "path tracer light distribution minimum samples per update",
-};
-
-static ConVar cv_pt_retro =
-{
-    .type = cvart_bool,
-    .name = "pt_retro",
-    .value = "0",
-    .desc = "path tracer retro mode (point filtering and diffuse only)",
-};
-
 static RTCDevice ms_device;
 static PtSampler ms_samplers[kMaxThreads];
 
@@ -494,11 +456,6 @@ static void InitSamplers(void)
 
 void PtSys_Init(void)
 {
-    ConVar_Reg(&cv_pt_dist_meters);
-    ConVar_Reg(&cv_pt_dist_alpha);
-    ConVar_Reg(&cv_pt_dist_samples);
-    ConVar_Reg(&cv_pt_retro);
-
     InitRTC();
     InitSamplers();
     InitPixelDist();
