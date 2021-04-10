@@ -10,11 +10,39 @@
 
 #include "common/macro.h"
 #include "allocator/allocator.h"
+#include "miniz/miniz.h"
 
-#define STBIW_ASSERT(x) ASSERT(x)
-#define STBIW_MALLOC(bytes) Perm_Alloc(bytes)
-#define STBIW_REALLOC(ptr, bytes) Perm_Realloc(ptr, bytes)
-#define STBIW_FREE(ptr) Mem_Free(ptr)
+static unsigned char* Stbiw_Compress(
+    unsigned char* pInput,
+    int inputSize,
+    int *outputSizeOut,
+    int quality)
+{
+    ASSERT(pInput);
+    ASSERT(inputSize > 0);
+    ASSERT(outputSizeOut);
+    ASSERT(quality >= 0);
+    unsigned char* output = Tex_Alloc(inputSize);
+    mz_ulong outputLen = (mz_ulong)inputSize;
+    int status = mz_compress2(
+        output, &outputLen, pInput, (mz_ulong)inputSize, MZ_BEST_COMPRESSION);
+    ASSERT(status == MZ_OK);
+    if (status != MZ_OK)
+    {
+        Mem_Free(output);
+        output = NULL;
+        outputLen = 0;
+    }
+    *outputSizeOut = (int)outputLen;
+    ASSERT(*outputSizeOut >= 0);
+    return output;
+}
+
+#define STBIW_ASSERT(x)             ASSERT(x)
+#define STBIW_MALLOC(bytes)         Tex_Alloc(bytes)
+#define STBIW_REALLOC(ptr, bytes)   Tex_Realloc(ptr, bytes)
+#define STBIW_FREE(ptr)             Mem_Free(ptr)
+#define STBIW_ZLIB_COMPRESS         Stbiw_Compress
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb/stb_image_write.h>

@@ -9,11 +9,12 @@ typedef struct FrameBuf_s
 {
     i32 width;
     i32 height;
-    float4* pim_noalias light; // linear HDR light buffer (before tonemap, sRGB, dither, and convert)
-    R8G8B8A8_t* pim_noalias color; // sRGB LDR rgba8 color buffer
+    float4* pim_noalias light; // scene luminance
+    R16G16B16A16_t* pim_noalias color; // display value
 } FrameBuf;
 
 void FrameBuf_New(FrameBuf* buf, i32 width, i32 height);
 void FrameBuf_Del(FrameBuf* buf);
+void FrameBuf_Reserve(FrameBuf* buf, i32 width, i32 height);
 
 PIM_C_END

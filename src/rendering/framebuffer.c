@@ -25,3 +25,15 @@ void FrameBuf_Del(FrameBuf* buf)
         memset(buf, 0, sizeof(*buf));
     }
 }
+
+void FrameBuf_Reserve(FrameBuf* buf, i32 width, i32 height)
+{
+    const i32 len = width * height;
+    if (len > 0)
+    {
+        buf->light = Tex_Realloc(buf->light, sizeof(buf->light[0]) * len);
+        buf->color = Tex_Realloc(buf->color, sizeof(buf->color[0]) * len);
+        buf->width = width;
+        buf->height = height;
+    }
+}

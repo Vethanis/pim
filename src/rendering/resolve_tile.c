@@ -16,11 +16,9 @@ typedef struct resolve_s
     TonemapId tmapId;
 } resolve_t;
 
-pim_inline R8G8B8A8_t VEC_CALL ToColor(float4 Xi, float4 linear)
+pim_inline R16G16B16A16_t VEC_CALL Dither(float4 Xi, float4 v)
 {
-    float4 srgb = f4_tosrgb(linear);
-    srgb = f4_lerpvs(srgb, Xi, 1.0f / 255.0f);
-    return f4_rgba8(srgb);
+    return f4_rgba16(f4_lerpvs(v, Xi, 1.0f / 65535.0f));
 }
 
 static void VEC_CALL ResolvePQ(
@@ -32,19 +30,19 @@ static void VEC_CALL ResolvePQ(
     const float pqRatio = Lw / Lpq;
 
     float4* pim_noalias light = target->light;
-    R8G8B8A8_t* pim_noalias color = target->color;
+    R16G16B16A16_t* pim_noalias color = target->color;
 
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
-        float4 lum = light[i];
-        lum = tmap4_reinhard_lum(lum, wp);
-        lum = f4_mulvs(lum, pqRatio);
-        lum = f4_PQ_OETF(lum);
+        float4 v = light[i];
+        v = tmap4_reinhard_lum(v, wp);
+        v = f4_mulvs(v, pqRatio);
+        v = f4_PQ_OETF(v);
 
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = ToColor(Xi, lum);
+        color[i] = Dither(Xi, v);
     }
     Prng_Set(rng);
 }
@@ -53,14 +51,15 @@ static void VEC_CALL ResolveReinhard(
     i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
-    R8G8B8A8_t* pim_noalias color = target->color;
+    R16G16B16A16_t* pim_noalias color = target->color;
     float Lw = vkrSys_GetWhitepoint();
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
+        float4 v = tmap4_reinhard_lum(light[i], Lw);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = ToColor(Xi, tmap4_reinhard_lum(light[i], Lw));
+        color[i] = Dither(Xi, f4_tosrgb(v));
     }
     Prng_Set(rng);
 }
@@ -69,15 +68,14 @@ static void VEC_CALL ResolveUncharted2(
     i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
-    R8G8B8A8_t* pim_noalias color = target->color;
+    R16G16B16A16_t* pim_noalias color = target->color;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
-        float4 hdr = light[i];
-        hdr.w = 1.0f;
+        float4 v = tmap4_uchart2(light[i]);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = ToColor(Xi, tmap4_uchart2(hdr));
+        color[i] = Dither(Xi, f4_tosrgb(v));
     }
     Prng_Set(rng);
 }
@@ -86,15 +84,14 @@ static void VEC_CALL ResolveHable(
     i32 begin, i32 end, FrameBuf* target, float4 params)
 {
     float4* pim_noalias light = target->light;
-    R8G8B8A8_t* pim_noalias color = target->color;
+    R16G16B16A16_t* pim_noalias color = target->color;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
-        float4 hdr = light[i];
-        hdr.w = 1.0f;
+        float4 v = tmap4_hable(light[i], params);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = ToColor(Xi, tmap4_hable(hdr, params));
+        color[i] = Dither(Xi, f4_tosrgb(v));
     }
     Prng_Set(rng);
 }
@@ -103,13 +100,14 @@ static void VEC_CALL ResolveFilmic(
     i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
-    R8G8B8A8_t* pim_noalias color = target->color;
+    R16G16B16A16_t* pim_noalias color = target->color;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
+        float4 v = tmap4_filmic(light[i]);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = ToColor(Xi, tmap4_filmic(light[i]));
+        color[i] = Dither(Xi, f4_tosrgb(v));
     }
     Prng_Set(rng);
 }
@@ -118,13 +116,14 @@ static void VEC_CALL ResolveACES(
     i32 begin, i32 end, FrameBuf* target)
 {
     float4* pim_noalias light = target->light;
-    R8G8B8A8_t* pim_noalias color = target->color;
+    R16G16B16A16_t* pim_noalias color = target->color;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     for (i32 i = begin; i < end; ++i)
     {
+        float4 v = tmap4_aces(light[i]);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = ToColor(Xi, tmap4_aces(light[i]));
+        color[i] = Dither(Xi, f4_tosrgb(v));
     }
     Prng_Set(rng);
 }
@@ -154,9 +153,6 @@ static void ResolveTileFn(Task* task, i32 begin, i32 end)
             break;
         case TMap_Hable:
             ResolveHable(begin, end, target, params);
-            break;
-        case TMap_Filmic:
-            ResolveFilmic(begin, end, target);
             break;
         case TMap_ACES:
             ResolveACES(begin, end, target);

@@ -3,6 +3,7 @@
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_image.h"
+#include "rendering/vulkan/vkr_texture.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_swapchain.h"
 #include "rendering/r_constants.h"
@@ -68,15 +69,18 @@ void vkrScreenBlit_Del(void)
 ProfileMark(pm_blit, vkrScreenBlit_Blit)
 void vkrScreenBlit_Blit(
     const vkrPassContext* passCtx,
-    const FrameBuf* fbuf)
+    const void* src,
+    i32 width,
+    i32 height,
+    VkFormat format)
 {
-    ASSERT(passCtx);
-    ASSERT(fbuf);
-
     ProfileBegin(pm_blit);
 
-    const i32 width = fbuf->width;
-    const i32 height = fbuf->height;
+    ASSERT(passCtx);
+    ASSERT(src);
+    const i32 srcBytes = (width * height * vkrFormatToBpp(format)) / 8;
+    ASSERT(srcBytes > 0);
+
     const u32 queueFamilies[] =
     {
         g_vkr.queues[vkrQueueId_Gfx].family,
@@ -86,7 +90,7 @@ void vkrScreenBlit_Blit(
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .flags = 0x0,
         .imageType = VK_IMAGE_TYPE_2D,
-        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .format = format,
         .extent.width = width,
         .extent.height = height,
         .extent.depth = 1,
@@ -112,7 +116,7 @@ void vkrScreenBlit_Blit(
     }
     if (!vkrBufferSet_Reserve(
         &ms_blit.stagebuf,
-        width * height * sizeof(u32),
+        srcBytes,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         vkrMemUsage_CpuOnly))
     {
@@ -127,11 +131,7 @@ void vkrScreenBlit_Blit(
     vkrImage* srcImage = vkrImageSet_Current(&ms_blit.image);
     vkrBuffer* stageBuf = vkrBufferSet_Current(&ms_blit.stagebuf);
 
-    vkrBuffer_Write(
-        stageBuf,
-        fbuf->color,
-        width * height * sizeof(fbuf->color[0]));
-
+    vkrBuffer_Write(stageBuf, src, srcBytes);
     vkrImage_Barrier(
         srcImage,
         cmd,

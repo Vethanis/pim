@@ -341,6 +341,26 @@ typedef struct vkrReleasable_s
     };
 } vkrReleasable;
 
+typedef struct vkrAttachmentState_s
+{
+    VkFormat format;
+    VkImageLayout initialLayout;
+    VkImageLayout layout;
+    VkImageLayout finalLayout;
+    VkAttachmentLoadOp load;
+    VkAttachmentStoreOp store;
+} vkrAttachmentState;
+
+typedef struct vkrRenderPassDesc_s
+{
+    vkrAttachmentState depth;
+    vkrAttachmentState color[8];
+    VkAccessFlags srcAccessMask;
+    VkAccessFlags dstAccessMask;
+    VkPipelineStageFlags srcStageMask;
+    VkPipelineStageFlags dstStageMask;
+} vkrRenderPassDesc;
+
 typedef struct vkrPassContext_s
 {
     VkRenderPass renderPass;

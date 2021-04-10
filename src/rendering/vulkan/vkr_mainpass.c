@@ -85,7 +85,6 @@ void vkrMainPass_Del(vkrMainPass *const pass)
 {
     if (pass)
     {
-        vkrRenderPass_Del(pass->renderPass);
         vkrScreenBlit_Del();
         vkrDepthPass_Del();
         vkrOpaquePass_Del();
@@ -142,9 +141,13 @@ void vkrMainPass_Execute(
     };
     if (r_sw)
     {
+        FrameBuf* fbuf = RenderSys_FrontBuf();
         vkrScreenBlit_Blit(
             &passCtx,
-            RenderSys_FrontBuf());
+            fbuf->color,
+            fbuf->width,
+            fbuf->height,
+            VK_FORMAT_R16G16B16A16_UNORM);
     }
     else
     {
@@ -338,7 +341,7 @@ static VkRenderPass CreateRenderPass(const vkrSwapchain* chain)
         },
     };
 
-    VkRenderPass renderPass = vkrRenderPass_New(
+    VkRenderPass renderPass = vkrRenderPass_GetFull(
         NELEM(attachments), attachments,
         NELEM(subpasses), subpasses,
         NELEM(dependencies), dependencies);

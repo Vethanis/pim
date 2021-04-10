@@ -1,7 +1,6 @@
 #pragma once
 
 #include "rendering/vulkan/vkr.h"
-#include "rendering/framebuffer.h"
 
 PIM_C_BEGIN
 
@@ -10,6 +9,9 @@ void vkrScreenBlit_Del(void);
 
 void vkrScreenBlit_Blit(
     const vkrPassContext* passCtx,
-    const FrameBuf* fbuf);
+    const void* src,
+    i32 width,
+    i32 height,
+    VkFormat format);
 
 PIM_C_END

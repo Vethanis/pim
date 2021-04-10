@@ -320,6 +320,23 @@ pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
     return y;
 }
 
+// V: signal value in [0, 1]
+// L: display-referred luminance
+// https://nick-shaw.github.io/cinematiccolor/common-rgb-color-spaces.html
+pim_inline float4 VEC_CALL f4_PQ_EOTF(float4 V)
+{
+    const float c1 = 0.8359375;
+    const float c2 = 18.8515625;
+    const float c3 = 18.6875;
+    const float m1 = 0.15930175781;
+    const float m2 = 78.84375;
+    float4 t = f4_powvs(V, 1.0f / m2);
+    float4 a = f4_div(f4_maxvs(f4_subvs(t, c1), 0.0f), f4_subsv(c2, f4_mulvs(t, c3)));
+    float4 b = f4_powvs(a, 1.0f / m1);
+    float4 L = f4_mulvs(b, 10000.0f);
+    return L;
+}
+
 // L: display-referred luminance in [0, 1], with 1 == 10000 cd/m^2
 // V: signal value in [0, 1]
 // https://en.wikipedia.org/wiki/High-dynamic-range_video#Perceptual_quantizer
@@ -336,7 +353,6 @@ pim_inline float4 VEC_CALL f4_PQ_OETF(float4 L)
     float4 V = f4_powvs(f4_div(a, b), m2);
     return V;
 }
-
 #define kEmissionScale 100.0f
 
 pim_inline float VEC_CALL PackEmission(float4 emission)

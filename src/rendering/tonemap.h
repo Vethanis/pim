@@ -9,7 +9,6 @@ typedef enum
     TMap_Reinhard = 0,
     TMap_Uncharted2,
     TMap_Hable,
-    TMap_Filmic,
     TMap_ACES,
 
     TMap_COUNT

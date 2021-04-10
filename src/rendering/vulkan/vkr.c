@@ -269,6 +269,7 @@ void vkrSys_Shutdown(void)
         vkrBindings_Shutdown();
         vkrTexTable_Shutdown();
         vkrSampler_Shutdown();
+        vkrRenderPass_Clear();
 
         vkrMemSys_Finalize();
 
