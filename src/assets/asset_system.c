@@ -1,7 +1,7 @@
 #include "assets/asset_system.h"
 
 #include "allocator/allocator.h"
-#include "common/cvar.h"
+#include "common/cvars.h"
 #include "common/fnv1a.h"
 #include "common/profiler.h"
 #include "common/sort.h"
@@ -14,17 +14,11 @@
 #include "ui/cimgui_ext.h"
 #include "stb/stb_image.h"
 
-static ConVar cv_basedir = { .type = cvart_text,.name = "basedir",.value = "data",.desc = "base directory for game data" };
-static ConVar cv_gamedir = { .type = cvart_text,.name = "gamedir",.value = "id1",.desc = "name of the active game" };
-
 static StrDict ms_assets;
 static SearchPath ms_search;
 
 void AssetSys_Init(void)
 {
-    ConVar_Reg(&cv_basedir);
-    ConVar_Reg(&cv_gamedir);
-
     StrDict_New(&ms_assets, sizeof(asset_t), EAlloc_Perm);
     SearchPath_New(&ms_search);
 

@@ -7,7 +7,7 @@
 #include "ui/cimgui_ext.h"
 
 #include "common/time.h"
-#include "common/cvar.h"
+#include "common/cvars.h"
 #include "common/profiler.h"
 #include "common/console.h"
 #include "common/stringutil.h"
@@ -32,7 +32,7 @@
 #include "math/cubic_fit.h"
 #include "math/atmosphere.h"
 
-#include "rendering/constants.h"
+#include "rendering/r_constants.h"
 #include "rendering/r_window.h"
 #include "rendering/framebuffer.h"
 #include "rendering/camera.h"
@@ -59,169 +59,6 @@
 #include <stb/stb_image_write.h>
 #include <string.h>
 #include <time.h>
-
-static ConVar cv_pt_trace =
-{
-    .type = cvart_bool,
-    .name = "pt_trace",
-    .value = "0",
-    .desc = "enable path tracing",
-};
-
-static ConVar cv_pt_denoise =
-{
-    .type = cvart_bool,
-    .name = "pt_denoise",
-    .value = "0",
-    .desc = "denoise path tracing output",
-};
-
-static ConVar cv_pt_normal =
-{
-    .type = cvart_bool,
-    .name = "pt_normal",
-    .value = "0",
-    .desc = "output path tracer normals",
-};
-
-static ConVar cv_pt_albedo =
-{
-    .type = cvart_bool,
-    .name = "pt_albedo",
-    .value = "0",
-    .desc = "output path tracer albedo",
-};
-
-static ConVar cv_cm_gen =
-{
-    .type = cvart_bool,
-    .name = "cm_gen",
-    .value = "0",
-    .desc = "enable cubemap generation",
-};
-
-static ConVar cv_lm_gen =
-{
-    .type = cvart_bool,
-    .name = "lm_gen",
-    .value = "0",
-    .desc = "enable lightmap generation",
-};
-
-static ConVar cv_lm_density =
-{
-    .type = cvart_float,
-    .name = "lm_density",
-    .value = "4",
-    .minFloat = 0.1f,
-    .maxFloat = 32.0f,
-    .desc = "lightmap texels per meter",
-};
-
-static ConVar cv_lm_timeslice =
-{
-    .type = cvart_int,
-    .name = "lm_timeslice",
-    .value = "1",
-    .minInt = 1,
-    .maxInt = 1024,
-    .desc = "number of frames required to add 1 lighting sample to all lightmap texels",
-};
-
-static ConVar cv_lm_spp =
-{
-    .type = cvart_int,
-    .name = "lm_spp",
-    .value = "2",
-    .minInt = 1,
-    .maxInt = 1024,
-    .desc = "lightmap samples per pixel",
-};
-
-static ConVar cv_r_sun_dir =
-{
-    .type = cvart_vector,
-    .name = "r_sun_dir",
-    .value = "0.0 0.968 0.253 0.0",
-    .desc = "Sun Direction",
-};
-static ConVar cv_r_sun_col =
-{
-    .type = cvart_color,
-    .name = "r_sun_col",
-    .value = "1 1 1 1",
-    .desc = "Sun Color",
-};
-// https://en.wikipedia.org/wiki/Orders_of_magnitude_(luminance)
-// noon: around 2^31
-// sunrise: around 2^20
-// night: around 2^-10
-static ConVar cv_r_sun_lum =
-{
-    .type = cvart_float,
-    .name = "r_sun_lum",
-    .value = "16.0",
-    .minFloat = -10.0f,
-    .maxFloat = 31.0f,
-    .desc = "Log2 Sun Luminance",
-};
-static ConVar cv_r_sun_res =
-{
-    .type = cvart_int,
-    .name = "r_sun_res",
-#if _DEBUG
-    .value = "32",
-#else
-    .value = "256",
-#endif // _DEBUG
-    .minInt = 4,
-    .maxInt = 4096,
-    .desc = "Sky Cubemap Resolution",
-};
-static ConVar cv_r_sun_steps =
-{
-    .type = cvart_int,
-    .name = "r_sun_steps",
-#if _DEBUG
-    .value = "8",
-#else
-    .value = "64",
-#endif // _DEBUG
-    .minInt = 4,
-    .maxInt = 1024,
-    .desc = "Sky Cubemap Raymarch Steps",
-};
-
-static ConVar cv_r_qlights =
-{
-    .type = cvart_bool,
-    .name = "r_qlights",
-    .value = "0",
-    .desc = "Load quake light entities",
-};
-
-static void RegCVars(void)
-{
-    ConVar_Reg(&cv_pt_trace);
-    ConVar_Reg(&cv_pt_denoise);
-    ConVar_Reg(&cv_pt_normal);
-    ConVar_Reg(&cv_pt_albedo);
-
-    ConVar_Reg(&cv_lm_gen);
-    ConVar_Reg(&cv_lm_density);
-    ConVar_Reg(&cv_lm_timeslice);
-    ConVar_Reg(&cv_lm_spp);
-
-    ConVar_Reg(&cv_cm_gen);
-
-    ConVar_Reg(&cv_r_sun_dir);
-    ConVar_Reg(&cv_r_sun_col);
-    ConVar_Reg(&cv_r_sun_lum);
-    ConVar_Reg(&cv_r_sun_res);
-    ConVar_Reg(&cv_r_sun_steps);
-
-    ConVar_Reg(&cv_r_qlights);
-}
 
 // ----------------------------------------------------------------------------
 
@@ -475,12 +312,12 @@ static void Cubemap_Trace(void)
 {
     static u64 s_lap;
 
-    if (ConVar_GetBool(&cv_cm_gen))
+    if (ConVar_GetBool(&cv_r_refl_gen))
     {
         ProfileBegin(pm_CubemapTrace);
         EnsurePtScene();
 
-        if (ConVar_CheckDirty(&cv_cm_gen, Time_Lap(&s_lap)))
+        if (ConVar_CheckDirty(&cv_r_refl_gen, Time_Lap(&s_lap)))
         {
             ms_cmapSampleCount = 0;
         }
@@ -862,7 +699,6 @@ static void BakeSky(void)
 bool RenderSys_Init(void)
 {
     ms_iFrame = 0;
-    RegCVars();
 
     cmd_reg("screenshot", CmdScreenshot);
     cmd_reg("mapload", CmdLoadMap);

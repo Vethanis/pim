@@ -1,4 +1,5 @@
 #include "rendering/model.h"
+
 #include "math/types.h"
 #include "math/int2_funcs.h"
 #include "math/float2_funcs.h"
@@ -9,21 +10,26 @@
 #include "math/sdf.h"
 #include "math/sampling.h"
 #include "math/blending.h"
+
 #include "rendering/texture.h"
 #include "rendering/mesh.h"
 #include "rendering/material.h"
 #include "rendering/drawable.h"
 #include "rendering/lights.h"
+#include "rendering/camera.h"
+
 #include "allocator/allocator.h"
 #include "assets/asset_system.h"
+
 #include "common/stringutil.h"
 #include "common/console.h"
 #include "common/sort.h"
 #include "common/fnv1a.h"
-#include "common/cvar.h"
-#include "rendering/camera.h"
+#include "common/cvars.h"
+
 #include "quake/q_model.h"
 #include "stb/stb_image.h"
+
 #include <string.h>
 
 typedef struct mat_preset_s
@@ -34,24 +40,6 @@ typedef struct mat_preset_s
     float metallic;
     float emission;
 } mat_preset_t;
-
-static ConVar cv_model_bumpiness =
-{
-    .type = cvart_float,
-    .name = "model_bumpiness",
-    .desc = "Bumpiness of generated normal maps [0, 11]",
-    .value = "1",
-    .minFloat = 0.0f,
-    .maxFloat = 11.0f,
-};
-
-static ConVar cv_tex_custom =
-{
-    .type = cvart_bool,
-    .name = "tex_custom",
-    .desc = "Enable loading custom textures",
-    .value = "0",
-};
 
 #define kMatGen             0.5f, 1.0f, 0.0f, 0.0f,
 #define kMatRough           0.75f, 1.0f, 0.0f, 0.0f,
@@ -192,7 +180,7 @@ static Material GenMaterial(
 {
     Material material = { 0 };
     material.ior = 1.0f;
-    material.bumpiness = ConVar_GetFloat(&cv_model_bumpiness);
+    material.bumpiness = ConVar_GetFloat(&cv_r_bumpiness);
     if (!mtex)
     {
         return material;
@@ -316,7 +304,7 @@ static Material GenMaterial(
         }
     }
 
-    if (ConVar_GetBool(&cv_tex_custom))
+    if (ConVar_GetBool(&cv_r_tex_custom))
     {
         for (i32 i = 0; i < NELEM(ids); ++i)
         {
@@ -701,8 +689,7 @@ static i32 CmpName(const void* lhs, const void* rhs, void* usr)
 
 void ModelSys_Init(void)
 {
-    ConVar_Reg(&cv_model_bumpiness);
-    ConVar_Reg(&cv_tex_custom);
+
 }
 
 void ModelSys_Update(void)

@@ -5,7 +5,7 @@
 #include "rendering/vulkan/vkr_image.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_swapchain.h"
-#include "rendering/constants.h"
+#include "rendering/r_constants.h"
 #include "math/types.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"

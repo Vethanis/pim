@@ -1,26 +1,19 @@
 #include "rendering/vulkan/vkr_mem.h"
+
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_sync.h"
 #include "rendering/vulkan/vkr_device.h"
 #include "rendering/vulkan/vkr_context.h"
-#include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
+
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include "common/time.h"
 #include "common/console.h"
-#include "common/cvar.h"
+#include "common/cvars.h"
 #include "threading/task.h"
-#include <string.h>
 
-static ConVar cv_MaxGpuReleaseQueue =
-{
-    .type = cvart_int,
-    .name = "MaxGpuReleaseQueue",
-    .desc = "Maximum number of released gpu objects before force-finalizing (cpu stall)",
-    .value = "1024",
-    .minInt = 1 << 6,
-    .maxInt = 1 << 16,
-};
+#include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
+#include <string.h>
 
 typedef struct vkrAllocator_s
 {
@@ -44,8 +37,6 @@ static void FinalizeCheck(i32 len);
 bool vkrMemSys_Init(void)
 {
     bool success = true;
-
-    ConVar_Reg(&cv_MaxGpuReleaseQueue);
 
     vkrAllocator *const allocator = &ms_inst;
     memset(allocator, 0, sizeof(*allocator));
@@ -697,7 +688,7 @@ static VmaPool GetTexturePool(VkImageUsageFlags usage, vkrMemUsage memUsage)
 
 static void FinalizeCheck(i32 len)
 {
-    if (len >= ConVar_GetInt(&cv_MaxGpuReleaseQueue))
+    if (len >= ConVar_GetInt(&cv_r_maxdelqueue))
     {
         Con_Logf(LogSev_Warning, "vkr", "Too many gpu objects, force-finalizing");
         vkrMemSys_Finalize();

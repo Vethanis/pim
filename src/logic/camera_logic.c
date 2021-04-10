@@ -6,51 +6,15 @@
 #include "math/quat_funcs.h"
 #include "common/time.h"
 #include "common/profiler.h"
-#include "common/cvar.h"
+#include "common/cvars.h"
 #include "rendering/lights.h"
 #include "rendering/cubemap.h"
 
 static bool ms_placing = true;
 
-static ConVar cv_pitchscale = { .type = cvart_float,.name = "pitchscale",.value = "2",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "pitch input sensitivity" };
-static ConVar cv_yawscale = { .type = cvart_float,.name = "yawscale",.value = "1",.minFloat = 0.0f,.maxFloat = 10.0f,.desc = "yaw input sensitivity" };
-static ConVar cv_movescale = { .type = cvart_float,.name = "movescale",.value = "8",.minFloat = 0.0f,.maxFloat = 100.0f,.desc = "movement input sensitivity" };
-static ConVar cv_r_fov =
-{
-    .type = cvart_float,
-    .name = "r_fov",
-    .value = "90",
-    .minFloat = 1.0f,
-    .maxFloat = 170.0f,
-    .desc = "Vertical field of fiew, in degrees",
-};
-static ConVar cv_r_znear =
-{
-    .type = cvart_float,
-    .name = "r_znear",
-    .value = "0.1",
-    .minFloat = 0.01f,
-    .maxFloat = 1.0f,
-    .desc = "Near clipping plane, in meters",
-};
-static ConVar cv_r_zfar =
-{
-    .type = cvart_float,
-    .name = "r_zfar",
-    .value = "500",
-    .minFloat = 1.0f,
-    .maxFloat = 1000.0f,
-    .desc = "Far clipping plane, in meters",
-};
-
 void CameraLogic_Init(void)
 {
-    ConVar_Reg(&cv_pitchscale);
-    ConVar_Reg(&cv_yawscale);
-    ConVar_Reg(&cv_movescale);
-    ConVar_Reg(&cv_r_fov);
-    ConVar_Reg(&cv_r_znear);
-    ConVar_Reg(&cv_r_zfar);
+
 }
 
 ProfileMark(pm_update, CameraLogic_Update)
@@ -58,8 +22,8 @@ void CameraLogic_Update(void)
 {
     ProfileBegin(pm_update);
 
-    float dYaw = Input_GetDeltaAxis(MouseAxis_X) * ConVar_GetFloat(&cv_yawscale);
-    float dPitch = Input_GetDeltaAxis(MouseAxis_Y) * ConVar_GetFloat(&cv_pitchscale);
+    float dYaw = Input_GetDeltaAxis(MouseAxis_X) * ConVar_GetFloat(&cv_in_yawscale);
+    float dPitch = Input_GetDeltaAxis(MouseAxis_Y) * ConVar_GetFloat(&cv_in_pitchscale);
 
     Camera camera;
     Camera_Get(&camera);
@@ -89,7 +53,7 @@ void CameraLogic_Update(void)
     }
 
     const float dt = f1_clamp((float)Time_Deltaf(), 0.0f, 1.0f / 5.0f);
-    float moveScale = ConVar_GetFloat(&cv_movescale) * dt;
+    float moveScale = ConVar_GetFloat(&cv_in_movescale) * dt;
 
     quat rot = camera.rotation;
     float4 eye = camera.position;
