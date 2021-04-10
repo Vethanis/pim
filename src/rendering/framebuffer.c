@@ -12,8 +12,8 @@ void FrameBuf_New(FrameBuf* buf, i32 width, i32 height)
     buf->height = height;
     const i32 len = width * height;
     ASSERT(len > 0);
-    buf->light = Perm_Alloc(len * sizeof(buf->light[0]));
-    buf->color = Perm_Alloc(len * sizeof(buf->color[0]));
+    buf->light = Tex_Alloc(len * sizeof(buf->light[0]));
+    buf->color = Tex_Alloc(len * sizeof(buf->color[0]));
 }
 
 void FrameBuf_Del(FrameBuf* buf)

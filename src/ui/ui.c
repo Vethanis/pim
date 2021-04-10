@@ -23,7 +23,11 @@ static void ImGuiFreeFn(void* ptr, void* userData)
 
 static ImVec4 VEC_CALL BytesToColor(u32 r, u32 g, u32 b)
 {
-    u32 c = (r & 0xff) | ((g & 0xff) << 8) | ((b & 0xff) << 16) | (0xff << 24);
+    R8G8B8A8_t c;
+    c.r = r;
+    c.g = g;
+    c.b = b;
+    c.a = 0xff;
     float4 lin = ColorToLinear(c);
     lin.w = 0.95f;
     return *(ImVec4*)&lin;

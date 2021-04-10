@@ -297,14 +297,15 @@ typedef enum
     PalRow_COUNT
 } PalRow;
 
-pim_inline u32 DecodeTexel(u8 encoded)
+pim_inline R8G8B8A8_t DecodeTexel(u8 encoded)
 {
     const u8* pim_noalias palette = ms_palette;
-    u32 r = palette[encoded * 3 + 0];
-    u32 g = palette[encoded * 3 + 1];
-    u32 b = palette[encoded * 3 + 2];
-    u32 color = r | (g << 8) | (b << 16) | (0xff << 24);
-    return color;
+    R8G8B8A8_t c;
+    c.r = palette[encoded * 3 + 0];
+    c.g = palette[encoded * 3 + 1];
+    c.b = palette[encoded * 3 + 2];
+    c.a = 0xff;
+    return c;
 }
 
 pim_inline float DecodeEmission(u8 encoded, bool isLight)
@@ -348,12 +349,12 @@ typedef struct task_Unpalette
     int2 size;
     float2 min;
     float2 max;
-    const u8* bytes;
-    u32* albedo;
-    u32* rome;
-    short2* normal;
-    float2* gray;
-    Material const* material;
+    const u8* pim_noalias bytes;
+    R8G8B8A8_t* pim_noalias albedo;
+    R8G8B8A8_t* pim_noalias rome;
+    short2* pim_noalias normal;
+    float2* pim_noalias gray;
+    Material const* pim_noalias material;
     bool fullEmit;
     bool isLight;
 } task_Unpalette;
@@ -362,12 +363,12 @@ static void UnpaletteStep1Fn(void* pbase, i32 begin, i32 end)
 {
     task_Unpalette* task = pbase;
     const u8* pim_noalias bytes = task->bytes;
-    u32* pim_noalias albedo = task->albedo;
+    R8G8B8A8_t* pim_noalias albedo = task->albedo;
     float2* pim_noalias gray = task->gray;
 
     for (i32 i = begin; i < end; ++i)
     {
-        u32 color = DecodeTexel(bytes[i]);
+        R8G8B8A8_t color = DecodeTexel(bytes[i]);
         float4 diffuse = ColorToLinear(color);
         float4 linear = DiffuseToAlbedo(diffuse);
         linear.w = 1.0f;
@@ -406,7 +407,7 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
     const float2 max = task->max;
     const u8* pim_noalias bytes = task->bytes;
     const float2* pim_noalias gray = task->gray;
-    u32* pim_noalias rome = task->rome;
+    R8G8B8A8_t* pim_noalias rome = task->rome;
     short2* pim_noalias normal = task->normal;
     const bool fullEmit = task->fullEmit;
     const bool isLight = task->isLight;
@@ -513,8 +514,8 @@ bool Texture_Unpalette(
         const bool isLight = StrIStr(name, 16, "light");
         const bool fullEmit = isSky || isTeleport || isWindow;
 
-        u32* pim_noalias albedo = Tex_Alloc(len * sizeof(albedo[0]));
-        u32* pim_noalias rome = Tex_Alloc(len * sizeof(rome[0]));
+        R8G8B8A8_t* pim_noalias albedo = Tex_Alloc(len * sizeof(albedo[0]));
+        R8G8B8A8_t* pim_noalias rome = Tex_Alloc(len * sizeof(rome[0]));
         short2* pim_noalias normal = Tex_Alloc(len * sizeof(normal[0]));
         float2* pim_noalias gray = Tex_Alloc(len * sizeof(gray[0]));
 
@@ -571,8 +572,8 @@ typedef struct Task_ResizeToPow2
     Task task;
     int2 oldSize;
     int2 newSize;
-    void* src;
-    void* dst;
+    void* pim_noalias src;
+    void* pim_noalias dst;
 } Task_ResizeToPow2;
 
 static void ResizeToPow2Fn_f4(void* pbase, i32 begin, i32 end)
@@ -592,8 +593,8 @@ static void ResizeToPow2Fn_c32(void* pbase, i32 begin, i32 end)
     Task_ResizeToPow2* task = pbase;
     int2 oldSize = task->oldSize;
     int2 newSize = task->newSize;
-    u32* pim_noalias src = task->src;
-    u32* pim_noalias dst = task->dst;
+    R8G8B8A8_t* pim_noalias src = task->src;
+    R8G8B8A8_t* pim_noalias dst = task->dst;
     for (i32 i = begin; i < end; ++i)
     {
         dst[i] = LinearToColor(UvBilinearClamp_c32(src, oldSize, IndexToUv(newSize, i)));
@@ -604,8 +605,8 @@ static void ResizeToPow2Fn_dir8(void* pbase, i32 begin, i32 end)
     Task_ResizeToPow2* task = pbase;
     int2 oldSize = task->oldSize;
     int2 newSize = task->newSize;
-    u32* pim_noalias src = task->src;
-    u32* pim_noalias dst = task->dst;
+    R8G8B8A8_t* pim_noalias src = task->src;
+    R8G8B8A8_t* pim_noalias dst = task->dst;
     for (i32 i = begin; i < end; ++i)
     {
         dst[i] = DirectionToColor(UvBilinearClamp_dir8(src, oldSize, IndexToUv(newSize, i)));
@@ -659,7 +660,7 @@ static void ResizeToPow2(Texture* tex)
     break;
     case VK_FORMAT_R8G8B8A8_SRGB:
     {
-        task->dst = Tex_Alloc(newLen * sizeof(u32));
+        task->dst = Tex_Alloc(newLen * sizeof(R8G8B8A8_t));
         Task_Run(task, ResizeToPow2Fn_c32, newLen);
         Mem_Free(tex->texels);
         tex->texels = task->dst;
@@ -668,7 +669,7 @@ static void ResizeToPow2(Texture* tex)
     break;
     case VK_FORMAT_R8G8B8A8_UNORM:
     {
-        task->dst = Tex_Alloc(newLen * sizeof(u32));
+        task->dst = Tex_Alloc(newLen * sizeof(R8G8B8A8_t));
         Task_Run(task, ResizeToPow2Fn_dir8, newLen);
         Mem_Free(tex->texels);
         tex->texels = task->dst;
@@ -778,7 +779,10 @@ static void igTexture(const Texture* tex)
     const ImVec2 uv1 = { 1, 1 };
     const ImVec4 tint_col = { 1, 1, 1, 1 };
     const ImVec4 border_col = { 0, 0, 0, 0 };
-    igImage(*(ImTextureID*)&tex->slot, size, uv0, uv1, tint_col, border_col);
+    ImTextureID imtexid = { 0 };
+    memcpy(&imtexid, &tex->slot, sizeof(tex->slot));
+    SASSERT(sizeof(imtexid) >= sizeof(tex->slot));
+    igImage(imtexid, size, uv0, uv1, tint_col, border_col);
 }
 
 ProfileMark(pm_OnGui, TextureSys_Gui)

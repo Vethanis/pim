@@ -1635,7 +1635,7 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
         }
     }
 
-    u32* buffer = NULL;
+    R8G8B8A8_t* buffer = NULL;
     const LmPack* pack = LmPack_Get();
     for (i32 i = 0; i < pack->lmCount; ++i)
     {
@@ -1660,8 +1660,8 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
             for (i32 j = 0; j < len; ++j)
             {
                 float4 ldr = tmap4_reinhard_lum(f3_f4(srcBuffer[j], 1.0f), 10.0f);
-                u32 color = LinearToColor(ldr);
-                color |= 0xff << 24;
+                R8G8B8A8_t color = LinearToColor(ldr);
+                color.a = 0xff;
                 buffer[j] = color;
             }
         }
@@ -1671,8 +1671,8 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
             {
                 float3 pos = srcBuffer[j];
                 pos = f3_divvs(pos, 100.0f);
-                u32 color = f4_rgba8(f3_f4(pos, 1.0f));
-                color |= 0xff << 24;
+                R8G8B8A8_t color = f4_rgba8(f3_f4(pos, 1.0f));
+                color.a = 0xff;
                 buffer[j] = color;
             }
         }
@@ -1683,8 +1683,8 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
                 float3 norm = srcBuffer[j];
                 norm = f3_mulvs(norm, 0.5f);
                 norm = f3_addvs(norm, 0.5f);
-                u32 color = f4_rgba8(f3_f4(norm, 1.0f));
-                color |= 0xff << 24;
+                R8G8B8A8_t color = f4_rgba8(f3_f4(norm, 1.0f));
+                color.a = 0xff;
                 buffer[j] = color;
             }
         }

@@ -8,37 +8,73 @@ PIM_C_BEGIN
 #include "math/types.h"
 #include "math/float4_funcs.h"
 
-pim_inline u16 VEC_CALL f4_rgb5a1(float4 v)
+pim_inline R5G5B5A1_t VEC_CALL f4_rgb5a1(float4 v)
 {
     v = f4_saturate(v);
-    v = f4_addvs(f4_mulvs(v, 31.0f), 0.5f);
-    u16 r = (u16)v.x;
-    u16 g = (u16)v.y;
-    u16 b = (u16)v.z;
-    u16 c = (r << 11) | (g << 6) | (b << 1) | 1;
+    v = f4_addvs(f4_mul(v, f4_s(31.0f)), 0.5f);
+    R5G5B5A1_t c;
+    c.r = (u16)v.x;
+    c.g = (u16)v.y;
+    c.b = (u16)v.z;
+    c.a = 1;
     return c;
 }
+pim_inline float4 VEC_CALL rgb5a1_f4(R5G5B5A1_t c)
+{
+    const float s = 1.0f / 31.0f;
+    return f4_v(c.r * s, c.g * s, c.b * s, 1.0f);
+}
 
-pim_inline u32 VEC_CALL f4_rgba8(float4 v)
+pim_inline R8G8B8A8_t VEC_CALL f4_rgba8(float4 v)
 {
     v = f4_saturate(v);
     v = f4_addvs(f4_mulvs(v, 255.0f), 0.5f);
-    u32 r = (u32)v.x;
-    u32 g = (u32)v.y;
-    u32 b = (u32)v.z;
-    u32 a = (u32)v.w;
-    u32 c = (a << 24) | (b << 16) | (g << 8) | r;
+    R8G8B8A8_t c;
+    c.r = (u32)v.x;
+    c.g = (u32)v.y;
+    c.b = (u32)v.z;
+    c.a = (u32)v.w;
     return c;
 }
-
-pim_inline float4 VEC_CALL rgba8_f4(u32 c)
+pim_inline float4 VEC_CALL rgba8_f4(R8G8B8A8_t c)
 {
     const float s = 1.0f / 255.0f;
-    u32 r = c & 0xff;
-    u32 g = (c >> 8) & 0xff;
-    u32 b = (c >> 16) & 0xff;
-    u32 a = (c >> 24) & 0xff;
-    return f4_v((r + 0.5f) * s, (g + 0.5f) * s, (b + 0.5f) * s, (a + 0.5f) * s);
+    return f4_v(c.r * s, c.g * s, c.b * s, c.a * s);
+}
+
+pim_inline A2R10G10B10_t VEC_CALL f4_a2rgb10(float4 v)
+{
+    v = f4_saturate(v);
+    v = f4_addvs(f4_mul(v, f4_v(1023.0f, 1023.0f, 1023.0f, 3.0f)), 0.5f);
+    A2R10G10B10_t c;
+    c.r = (u32)v.x;
+    c.g = (u32)v.y;
+    c.b = (u32)v.z;
+    c.a = (u32)v.w;
+    return c;
+}
+pim_inline float4 VEC_CALL a2rgb10_f4(A2R10G10B10_t c)
+{
+    const float s = 1.0f / 1023.0f;
+    const float t = 1.0f / 3.0f;
+    return f4_v(c.r * s, c.g * s, c.b * s, c.a * t);
+}
+
+pim_inline R16G16B16A16_t VEC_CALL f4_rgba16(float4 v)
+{
+    v = f4_saturate(v);
+    v = f4_addvs(f4_mulvs(v, 65535.0f), 0.5f);
+    R16G16B16A16_t c;
+    c.r = (u32)v.x;
+    c.g = (u32)v.y;
+    c.b = (u32)v.z;
+    c.a = (u32)v.w;
+    return c;
+}
+pim_inline float4 VEC_CALL rgba16_f4(R16G16B16A16_t c)
+{
+    const float s = 1.0f / 65535.0f;
+    return f4_v(c.r * s, c.g * s, c.b * s, c.a * s);
 }
 
 // reference sRGB -> Linear conversion (no approximation)
@@ -95,18 +131,18 @@ pim_inline float4 VEC_CALL f4_tosrgb(float4 c)
     return f4_add(f4_add(f4_mulvs(s1, 0.658444f), f4_mulvs(s2, 0.643378f)), f4_mulvs(s3, -0.298148f));
 }
 
-pim_inline u32 VEC_CALL DirectionToColor(float4 dir)
+pim_inline R8G8B8A8_t VEC_CALL DirectionToColor(float4 dir)
 {
-    u32 c = f4_rgba8(f4_unorm(f4_normalize3(dir)));
-    c |= 0xff << 24;
+    R8G8B8A8_t c = f4_rgba8(f4_unorm(f4_normalize3(dir)));
+    c.a = 0xff;
     return c;
 }
 
-pim_inline float4 VEC_CALL ColorToDirection_fast(u32 c)
+pim_inline float4 VEC_CALL ColorToDirection_fast(R8G8B8A8_t c)
 {
     return f4_snorm(rgba8_f4(c));
 }
-pim_inline float4 VEC_CALL ColorToDirection(u32 c)
+pim_inline float4 VEC_CALL ColorToDirection(R8G8B8A8_t c)
 {
     return f4_normalize3(ColorToDirection_fast(c));
 }
@@ -131,18 +167,14 @@ pim_inline float4 VEC_CALL Xy16ToNormalTs(short2 xy)
     return n;
 }
 
-pim_inline u32 VEC_CALL LinearToColor(float4 lin)
+pim_inline R8G8B8A8_t VEC_CALL LinearToColor(float4 lin)
 {
-    float4 sRGB = f4_tosrgb(lin);
-    u32 color = f4_rgba8(sRGB);
-    return color;
+    return f4_rgba8(f4_tosrgb(lin));
 }
 
-pim_inline float4 VEC_CALL ColorToLinear(u32 c)
+pim_inline float4 VEC_CALL ColorToLinear(R8G8B8A8_t c)
 {
-    float4 sRGB = rgba8_f4(c);
-    float4 linear = f4_tolinear(sRGB);
-    return linear;
+    return f4_tolinear(rgba8_f4(c));
 }
 
 // https://alienryderflex.com/hsp.html
