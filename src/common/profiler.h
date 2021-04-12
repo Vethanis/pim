@@ -7,7 +7,6 @@ PIM_C_BEGIN
 typedef struct ProfMark_s
 {
     char const *const name;
-    u32 hash;
     u32 calls;
     u64 sum;
 } ProfMark;
