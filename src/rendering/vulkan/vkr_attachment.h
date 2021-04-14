@@ -5,18 +5,11 @@
 PIM_C_BEGIN
 
 bool vkrAttachment_New(
-    vkrAttachment* att,
+    vkrImage* att,
     i32 width,
     i32 height,
     VkFormat format,
     VkImageUsageFlags usage);
-void vkrAttachment_Release(vkrAttachment* att);
-
-VkAttachmentDescription vkrAttachment_Desc(
-    VkAttachmentLoadOp loadOp,
-    VkAttachmentStoreOp storeOp,
-    VkImageLayout initialLayout,
-    VkImageLayout finalLayout,
-    VkFormat format);
+void vkrAttachment_Release(vkrImage* att);
 
 PIM_C_END

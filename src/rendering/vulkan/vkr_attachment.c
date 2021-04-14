@@ -7,7 +7,7 @@
 #include <string.h>
 
 bool vkrAttachment_New(
-    vkrAttachment* att,
+    vkrImage* att,
     i32 width,
     i32 height,
     VkFormat format,
@@ -48,20 +48,7 @@ bool vkrAttachment_New(
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = usage,
     };
-    if (!vkrImage_New(&att->image, &info, vkrMemUsage_GpuOnly))
-    {
-        ASSERT(false);
-        success = false;
-        goto cleanup;
-    }
-    att->view = vkrImageView_New(
-        att->image.handle,
-        VK_IMAGE_VIEW_TYPE_2D,
-        format,
-        aspect,
-        0, 1,
-        0, 1);
-    if (!att->view)
+    if (!vkrImage_New(att, &info, vkrMemUsage_GpuOnly))
     {
         ASSERT(false);
         success = false;
@@ -76,34 +63,7 @@ cleanup:
     return success;
 }
 
-void vkrAttachment_Release(vkrAttachment* att)
+void vkrAttachment_Release(vkrImage* att)
 {
-    if (att)
-    {
-        vkrImageView_Release(att->view);
-        vkrImage_Release(&att->image);
-        memset(att, 0, sizeof(*att));
-    }
-}
-
-VkAttachmentDescription vkrAttachment_Desc(
-    VkAttachmentLoadOp loadOp,
-    VkAttachmentStoreOp storeOp,
-    VkImageLayout initialLayout,
-    VkImageLayout finalLayout,
-    VkFormat format)
-{
-    const VkAttachmentDescription desc =
-    {
-        .flags = 0x0,
-        .format = format,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp = loadOp,
-        .storeOp = storeOp,
-        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .stencilStoreOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        .initialLayout = initialLayout,
-        .finalLayout = finalLayout,
-    };
-    return desc;
+    vkrImage_Release(att);
 }

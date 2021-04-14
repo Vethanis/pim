@@ -122,7 +122,7 @@ void vkrExposurePass_Setup(void)
     const u32 imgIndex = (chain->imageIndex + (chainLen - 1u)) % chainLen;
     const u32 syncIndex = (chain->syncIndex + (kFramesInFlight - 1u)) % kFramesInFlight;
 
-    vkrAttachment *const lum = &chain->lumAttachments[imgIndex];
+    vkrImage *const lum = &chain->lumAttachments[imgIndex];
     vkrBuffer *const expBuffer = &ms_expBuffers.frames[syncIndex];
     vkrBuffer *const histBuffer = &ms_histBuffers.frames[syncIndex];
 
@@ -154,7 +154,7 @@ void vkrExposurePass_Execute(void)
     const u32 imgIndex = (chain->imageIndex + (chainLen - 1u)) % chainLen;
     const u32 syncIndex = (chain->syncIndex + (kFramesInFlight - 1u)) % kFramesInFlight;
 
-    vkrAttachment *const lum = &chain->lumAttachments[imgIndex];
+    vkrImage *const lum = &chain->lumAttachments[imgIndex];
     vkrBuffer *const expBuffer = &ms_expBuffers.frames[syncIndex];
     vkrBuffer *const histBuffer = &ms_histBuffers.frames[syncIndex];
 
@@ -176,7 +176,7 @@ void vkrExposurePass_Execute(void)
         vkrCmdBegin(gfxcmd);
 
         vkrImage_Transfer(
-            &lum->image,
+            lum,
             vkrQueueId_Gfx,
             vkrQueueId_Comp,
             gfxcmd,
@@ -254,7 +254,7 @@ void vkrExposurePass_Execute(void)
         vkrCmdBegin(gfxcmd);
 
         vkrImage_Transfer(
-            &lum->image,
+            lum,
             vkrQueueId_Comp,
             vkrQueueId_Gfx,
             cmpcmd,

@@ -159,6 +159,7 @@ typedef struct vkrImage_s
 {
     VkImage handle;
     VmaAllocation allocation;
+    VkImageView view;
     VkImageType type;
     VkFormat format;
     VkImageLayout layout;
@@ -175,11 +176,14 @@ typedef struct vkrImageSet_s
     vkrImage frames[kFramesInFlight];
 } vkrImageSet;
 
-typedef struct vkrAttachment_s
+typedef struct vkrFramebuffer_s
 {
-    vkrImage image;
-    VkImageView view;
-} vkrAttachment;
+    VkFramebuffer handle;
+    VkImageView attachments[8];
+    VkFormat formats[8];
+    i32 width;
+    i32 height;
+} vkrFramebuffer;
 
 typedef struct vkrCompileInput_s
 {
@@ -267,6 +271,7 @@ typedef struct vkrDisplay_s
 typedef struct vkrSwapchain_s
 {
     VkSwapchainKHR handle;
+    VkRenderPass presentPass;
     VkFormat colorFormat;
     VkColorSpaceKHR colorSpace;
     VkPresentModeKHR mode;
@@ -275,12 +280,12 @@ typedef struct vkrSwapchain_s
 
     i32 length;
     u32 imageIndex;
+    VkFence imageFences[kMaxSwapchainLen];
     VkImage images[kMaxSwapchainLen];
     VkImageView views[kMaxSwapchainLen];
-    VkFramebuffer buffers[kMaxSwapchainLen];
-    VkFence imageFences[kMaxSwapchainLen];
-    vkrAttachment lumAttachments[kMaxSwapchainLen];
-    vkrAttachment depthAttachments[kMaxSwapchainLen];
+    vkrFramebuffer buffers[kMaxSwapchainLen];
+    vkrImage lumAttachments[kMaxSwapchainLen];
+    vkrImage depthAttachments[kMaxSwapchainLen];
 
     u32 syncIndex;
     VkFence syncFences[kFramesInFlight];
@@ -341,20 +346,24 @@ typedef struct vkrReleasable_s
     };
 } vkrReleasable;
 
+// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#renderpass-compatibility
+// compatibility:
+// refs: matching format and sample count, or both VK_ATTACHMENT_UNUSED, or both NULL
+// arrays of refs: treats missing refs as VK_ATTACHMENT_UNUSED
+
 typedef struct vkrAttachmentState_s
 {
-    VkFormat format;
-    VkImageLayout initialLayout;
-    VkImageLayout layout;
-    VkImageLayout finalLayout;
-    VkAttachmentLoadOp load;
-    VkAttachmentStoreOp store;
+    VkFormat format;                // must match
+    VkImageLayout initialLayout;    // can vary
+    VkImageLayout layout;           // can vary
+    VkImageLayout finalLayout;      // can vary
+    VkAttachmentLoadOp load;        // can vary
+    VkAttachmentStoreOp store;      // can vary
 } vkrAttachmentState;
 
 typedef struct vkrRenderPassDesc_s
 {
-    vkrAttachmentState depth;
-    vkrAttachmentState color[8];
+    vkrAttachmentState attachments[8];
     VkAccessFlags srcAccessMask;
     VkAccessFlags dstAccessMask;
     VkPipelineStageFlags srcStageMask;
@@ -363,8 +372,6 @@ typedef struct vkrRenderPassDesc_s
 
 typedef struct vkrPassContext_s
 {
-    VkRenderPass renderPass;
-    i32 subpass;
     VkFramebuffer framebuffer;
     VkCommandBuffer cmd;
     VkFence fence;
@@ -420,11 +427,6 @@ typedef struct vkrExposure_s
     // standard output or saturation based exposure
     i32 standard;
 } vkrExposure;
-
-typedef struct vkrMainPass_s
-{
-    VkRenderPass renderPass;
-} vkrMainPass;
 
 // ----------------------------------------------------------------------------
 
@@ -507,8 +509,6 @@ typedef struct vkrSys_s
     vkrQueue queues[vkrQueueId_COUNT];
 
     vkrContext context;
-
-    vkrMainPass mainPass;
 } vkrSys;
 extern vkrSys g_vkr;
 

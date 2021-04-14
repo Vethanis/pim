@@ -41,6 +41,10 @@ typedef struct Cubemaps_s
     Box3D* bounds;
 } Cubemaps;
 
+extern const float4 Cubemap_kForwards[6];
+extern const float4 Cubemap_kUps[6];
+extern const float4 Cubemap_kRights[6];
+
 Cubemaps* Cubemaps_Get(void);
 
 i32 Cubemaps_Add(Cubemaps* maps, Guid name, i32 size, Box3D bounds);
@@ -63,36 +67,6 @@ pim_inline float VEC_CALL MipToRoughness(float mip)
 {
     return mip / CUBEMAP_MAX_MIP;
 }
-
-static const float4 Cubemap_kForwards[] =
-{
-    {1.0f, 0.0f, 0.0f},
-    {-1.0f, 0.0f, 0.0f},
-    {0.0f, 1.0f, 0.0f},
-    {0.0f, -1.0f, 0.0f},
-    {0.0f, 0.0f, 1.0f},
-    {0.0f, 0.0f, -1.0f},
-};
-
-static const float4 Cubemap_kUps[] =
-{
-    {0.0f, 1.0f, 0.0f},
-    {0.0f, 1.0f, 0.0f},
-    {0.0f, 0.0f, -1.0f},
-    {0.0f, 0.0f, -1.0f},
-    {0.0f, 1.0f, 0.0f},
-    {0.0f, 1.0f, 0.0f},
-};
-
-static const float4 Cubemap_kRights[] =
-{
-    {0.0f, 0.0f, -1.0f},
-    {0.0f, 0.0f, 1.0f},
-    {1.0f, 0.0f, 0.0f},
-    {-1.0f, 0.0f, 0.0f},
-    {1.0f, 0.0f, 0.0f},
-    {-1.0f, 0.0f, 0.0f},
-};
 
 pim_inline Cubeface VEC_CALL Cubemap_CalcUv(float4 dir, float2* uvOut)
 {

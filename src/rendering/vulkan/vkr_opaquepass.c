@@ -4,6 +4,7 @@
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_textable.h"
 #include "rendering/vulkan/vkr_shader.h"
+#include "rendering/vulkan/vkr_renderpass.h"
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_desc.h"
@@ -48,12 +49,61 @@ typedef struct PushConstants_s
 } PushConstants;
 
 static vkrPass ms_pass;
+static VkRenderPass ms_renderPass;
 static vkrBufferSet ms_perCameraBuffer;
 
-bool vkrOpaquePass_New(VkRenderPass renderPass)
+bool vkrOpaquePass_New(void)
 {
-    ASSERT(renderPass);
     bool success = true;
+
+    const vkrRenderPassDesc renderPassDesc =
+    {
+        .srcStageMask =
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        .srcAccessMask =
+            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+
+        .dstStageMask =
+            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstAccessMask =
+            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+
+        .attachments[0] =
+        {
+            .format = g_vkr.chain.depthAttachments[0].format,
+            .initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .load = VK_ATTACHMENT_LOAD_OP_LOAD,
+            .store = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        },
+        .attachments[1] =
+        {
+            .format = g_vkr.chain.colorFormat,
+            .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .load = VK_ATTACHMENT_LOAD_OP_LOAD,
+            .store = VK_ATTACHMENT_STORE_OP_STORE,
+        },
+        .attachments[2] =
+        {
+            .format = g_vkr.chain.lumAttachments[0].format,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .load = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .store = VK_ATTACHMENT_STORE_OP_STORE,
+        },
+    };
+    ms_renderPass = vkrRenderPass_Get(&renderPassDesc);
+    if (!ms_renderPass)
+    {
+        success = false;
+        goto cleanup;
+    }
 
     if (!vkrBufferSet_New(
         &ms_perCameraBuffer,
@@ -135,8 +185,8 @@ bool vkrOpaquePass_New(VkRenderPass renderPass)
     const vkrPassDesc desc =
     {
         .pushConstantBytes = sizeof(PushConstants),
-        .renderPass = renderPass,
-        .subpass = vkrPassId_Opaque,
+        .renderPass = ms_renderPass,
+        .subpass = 0,
         .vertLayout =
         {
             .bindingCount = NELEM(vertBindings),
@@ -237,6 +287,25 @@ void vkrOpaquePass_Execute(vkrPassContext const *const ctx)
     VkCommandBuffer cmd = ctx->cmd;
     vkrCmdDefaultViewport(cmd);
     vkrCmdBindPass(cmd, &ms_pass);
+    const VkClearValue clearValues[] =
+    {
+        {
+            .depthStencil = { 1.0f, 0 },
+        },
+        {
+            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+        },
+        {
+            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+        },
+    };
+    vkrCmdBeginRenderPass(
+        cmd,
+        ms_renderPass,
+        ctx->framebuffer,
+        vkrSwapchain_GetRect(&g_vkr.chain),
+        NELEM(clearValues), clearValues,
+        VK_SUBPASS_CONTENTS_INLINE);
 
     const Entities* ents = Entities_Get();
     for (i32 iEnt = 0; iEnt < ents->count; ++iEnt)
@@ -269,6 +338,8 @@ void vkrOpaquePass_Execute(vkrPassContext const *const ctx)
     pc.kTexInds = (uint4) { 0 };
     vkrCmdPushConstants(cmd, &ms_pass, &pc, sizeof(pc));
     vkrImSys_Draw(cmd);
+
+    vkrCmdEndRenderPass(cmd);
 
     ProfileEnd(pm_execute);
 }

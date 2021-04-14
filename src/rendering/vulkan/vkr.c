@@ -8,6 +8,7 @@
 #include "rendering/vulkan/vkr_shader.h"
 #include "rendering/vulkan/vkr_pipeline.h"
 #include "rendering/vulkan/vkr_renderpass.h"
+#include "rendering/vulkan/vkr_framebuffer.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_mesh.h"
@@ -142,7 +143,7 @@ bool vkrSys_Init(void)
         goto cleanup;
     }
 
-    if (!vkrMainPass_New(&g_vkr.mainPass))
+    if (!vkrMainPass_New())
     {
         success = false;
         goto cleanup;
@@ -153,8 +154,6 @@ bool vkrSys_Init(void)
         success = false;
         goto cleanup;
     }
-
-    vkrSwapchain_SetupBuffers(&g_vkr.chain, g_vkr.mainPass.renderPass);
 
 cleanup:
 
@@ -186,8 +185,7 @@ void vkrSys_Update(void)
         {
             if (vkrSwapchain_Recreate(
                 chain,
-                display,
-                g_vkr.mainPass.renderPass))
+                display))
             {
                 r_width_set(display->width);
                 r_height_set(display->height);
@@ -220,7 +218,7 @@ void vkrSys_Update(void)
     // setup phase
     {
         vkrExposurePass_Setup();
-        vkrMainPass_Setup(&g_vkr.mainPass);
+        vkrMainPass_Setup();
         vkrTexTable_Update();
         vkrBindings_Update();
     }
@@ -228,9 +226,7 @@ void vkrSys_Update(void)
     // execute phase
     {
         vkrExposurePass_Execute();
-        vkrCmdBegin(cmd);
-        vkrMainPass_Execute(&g_vkr.mainPass, cmd, fence);
-        vkrCmdEnd(cmd);
+        vkrMainPass_Execute(cmd, fence);
     }
 
     // present phase
@@ -262,7 +258,7 @@ void vkrSys_Shutdown(void)
         UiSys_Shutdown();
 
         vkrExposurePass_Del();
-        vkrMainPass_Del(&g_vkr.mainPass);
+        vkrMainPass_Del();
 
         vkrImSys_Shutdown();
         vkrMeshSys_Shutdown();

@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-bool vkrUIPass_New(VkRenderPass renderPass);
+bool vkrUIPass_New(void);
 void vkrUIPass_Del(void);
 
 void vkrUIPass_Setup(void);
