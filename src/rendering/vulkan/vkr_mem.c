@@ -457,8 +457,67 @@ bool vkrMem_ImageNew(
 {
     ProfileBegin(pm_imgnew);
 
+    ASSERT(g_vkr.dev);
     ASSERT(ms_inst.handle);
     memset(image, 0, sizeof(*image));
+    bool success = true;
+
+    image->type = info->imageType;
+    image->format = info->format;
+    image->layout = info->initialLayout;
+    image->usage = info->usage;
+    image->width = info->extent.width;
+    image->height = info->extent.height;
+    image->depth = info->extent.depth;
+    image->mipLevels = info->mipLevels;
+    image->arrayLayers = info->arrayLayers;
+
+    VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D;
+    switch (info->imageType)
+    {
+    default:
+    case VK_IMAGE_TYPE_2D:
+        if (info->arrayLayers <= 1)
+        {
+            viewType = VK_IMAGE_VIEW_TYPE_2D;
+        }
+        else if (info->arrayLayers == 6)
+        {
+            // may also want 2darray view for uav cubemap use
+            viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+        }
+        else
+        {
+            viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        }
+        break;
+    case VK_IMAGE_TYPE_1D:
+        viewType = (info->arrayLayers <= 1) ?
+            VK_IMAGE_VIEW_TYPE_1D : VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+        break;
+    case VK_IMAGE_TYPE_3D:
+        viewType = VK_IMAGE_VIEW_TYPE_3D;
+        break;
+    }
+
+    VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    switch (info->format)
+    {
+    default:
+        aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+        break;
+    case VK_FORMAT_D16_UNORM:
+    case VK_FORMAT_X8_D24_UNORM_PACK32:
+    case VK_FORMAT_D32_SFLOAT:
+    case VK_FORMAT_D16_UNORM_S8_UINT:
+    case VK_FORMAT_D24_UNORM_S8_UINT:
+    case VK_FORMAT_D32_SFLOAT_S8_UINT:
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+        break;
+    case VK_FORMAT_S8_UINT:
+        aspect = VK_IMAGE_ASPECT_STENCIL_BIT;
+        break;
+    }
 
     const VmaAllocationCreateInfo allocInfo =
     {
@@ -473,34 +532,58 @@ bool vkrMem_ImageNew(
         ms_inst.handle,
         info,
         &allocInfo,
-        &handle,
-        &allocation,
+        &image->handle,
+        &image->allocation,
         NULL));
-
-    if (handle)
+    if (!image->handle)
     {
-        image->handle = handle;
-        image->allocation = allocation;
-        image->type = info->imageType;
-        image->format = info->format;
-        image->layout = info->initialLayout;
-        image->usage = info->usage;
-        image->width = info->extent.width;
-        image->height = info->extent.height;
-        image->depth = info->extent.depth;
-        image->mipLevels = info->mipLevels;
-        image->arrayLayers = info->arrayLayers;
+        success = false;
+        goto cleanup;
     }
-    else
+
+    const VkImageUsageFlags viewUsage =
+        VK_IMAGE_USAGE_SAMPLED_BIT | // SRV
+        VK_IMAGE_USAGE_STORAGE_BIT | // UAV
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | // RTV
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | // DSV
+        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    if (info->usage & viewUsage)
+    {
+        const VkImageViewCreateInfo viewInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = image->handle,
+            .viewType = viewType,
+            .format = info->format,
+            .subresourceRange =
+            {
+                .aspectMask = aspect,
+                .baseMipLevel = 0,
+                .levelCount = info->mipLevels,
+                .baseArrayLayer = 0,
+                .layerCount = info->arrayLayers,
+            },
+        };
+        VkCheck(vkCreateImageView(g_vkr.dev, &viewInfo, NULL, &image->view));
+        if (!image->view)
+        {
+            success = false;
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    if (!success)
     {
         Con_Logf(LogSev_Error, "vkr", "Failed to allocate image:");
         Con_Logf(LogSev_Error, "vkr", "Size: %d x %d x %d", info->extent.width, info->extent.height, info->extent.depth);
         Con_Logf(LogSev_Error, "vkr", "Mip Levels: %d", info->mipLevels);
         Con_Logf(LogSev_Error, "vkr", "Array Layers: %d", info->arrayLayers);
+        vkrMem_ImageDel(image);
     }
 
     ProfileEnd(pm_imgnew);
-    return handle != NULL;
+    return success;
 }
 
 ProfileMark(pm_imgdel, vkrMem_ImageDel)
@@ -508,6 +591,11 @@ void vkrMem_ImageDel(vkrImage* image)
 {
     ProfileBegin(pm_imgdel);
 
+    if (image->view)
+    {
+        ASSERT(g_vkr.dev);
+        vkDestroyImageView(g_vkr.dev, image->view, NULL);
+    }
     if (image->handle)
     {
         ASSERT(ms_inst.handle);
@@ -572,7 +660,7 @@ bool vkrReleasable_Del(
             {
                 vkDestroyImageView(g_vkr.dev, releasable->view, NULL);
             }
-        break;
+            break;
         }
         memset(releasable, 0, sizeof(*releasable));
     }

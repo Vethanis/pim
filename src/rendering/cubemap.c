@@ -11,6 +11,36 @@
 #include "common/profiler.h"
 #include <string.h>
 
+const float4 Cubemap_kForwards[6] =
+{
+    {1.0f, 0.0f, 0.0f},
+    {-1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, -1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f},
+    {0.0f, 0.0f, -1.0f},
+};
+
+const float4 Cubemap_kUps[6] =
+{
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, -1.0f},
+    {0.0f, 0.0f, -1.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+};
+
+const float4 Cubemap_kRights[6] =
+{
+    {0.0f, 0.0f, -1.0f},
+    {0.0f, 0.0f, 1.0f},
+    {1.0f, 0.0f, 0.0f},
+    {-1.0f, 0.0f, 0.0f},
+    {1.0f, 0.0f, 0.0f},
+    {-1.0f, 0.0f, 0.0f},
+};
+
 static Cubemaps ms_cubemaps;
 Cubemaps* Cubemaps_Get(void) { return &ms_cubemaps; }
 

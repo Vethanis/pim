@@ -33,7 +33,7 @@ static const float2 kScreenMesh[] =
 
 // ----------------------------------------------------------------------------
 
-bool vkrScreenBlit_New(VkRenderPass renderPass)
+bool vkrScreenBlit_New(void)
 {
     vkrScreenBlit *const blit = &ms_blit;
     memset(blit, 0, sizeof(*blit));

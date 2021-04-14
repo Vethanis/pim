@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-bool vkrOpaquePass_New(VkRenderPass renderPass);
+bool vkrOpaquePass_New(void);
 void vkrOpaquePass_Del(void);
 
 void vkrOpaquePass_Setup(void);

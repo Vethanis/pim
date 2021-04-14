@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-bool vkrScreenBlit_New(VkRenderPass renderPass);
+bool vkrScreenBlit_New(void);
 void vkrScreenBlit_Del(void);
 
 void vkrScreenBlit_Blit(

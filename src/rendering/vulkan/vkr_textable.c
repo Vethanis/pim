@@ -42,7 +42,6 @@ typedef struct TexTable_s
 {
     IdAlloc ids;
     vkrImage* images;
-    VkImageView* views;
     VkDescriptorImageInfo* descriptors;
     i32 capacity;
     VkImageViewType viewType;
@@ -84,7 +83,6 @@ static void TexTable_New(TexTable* tt, VkImageViewType viewType, i32 capacity)
 
     IdAlloc_New(&tt->ids);
     tt->images = Perm_Calloc(sizeof(tt->images[0]) * capacity);
-    tt->views = Perm_Calloc(sizeof(tt->views[0]) * capacity);
     tt->descriptors = Perm_Calloc(sizeof(tt->descriptors[0]) * capacity);
     tt->capacity = capacity;
     tt->viewType = viewType;
@@ -123,13 +121,11 @@ static void TexTable_Del(TexTable* tt)
     {
         if (IdAlloc_ExistsAt(&tt->ids, i))
         {
-            vkrImageView_Release(tt->views[i]);
             vkrImage_Release(&tt->images[i]);
         }
     }
     IdAlloc_Del(&tt->ids);
     Mem_Free(tt->images);
-    Mem_Free(tt->views);
     Mem_Free(tt->descriptors);
     memset(tt, 0, sizeof(*tt));
 }
@@ -174,25 +170,9 @@ static vkrTextureId TexTable_Alloc(
         return NullId(viewType);
     }
 
-    const i32 mipCount = mips ? vkrTexture_MipCount(width, height, depth) : 1;
-    VkImageView view = vkrImageView_New(
-        image->handle,
-        viewType,
-        format,
-        VK_IMAGE_ASPECT_COLOR_BIT,
-        0, mipCount,
-        0, layers);
-    tt->views[slot] = view;
-    if (!view)
-    {
-        ASSERT(false);
-        TexTable_Free(tt, ToTexId(gid, viewType));
-        return NullId(viewType);
-    }
-
     VkDescriptorImageInfo* desc = &tt->descriptors[slot];
     desc->imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    desc->imageView = view;
+    desc->imageView = image->view;
     desc->sampler = vkrSampler_Get(
         VK_FILTER_LINEAR,
         VK_SAMPLER_MIPMAP_MODE_LINEAR,
@@ -210,7 +190,6 @@ static bool TexTable_Free(TexTable* tt, vkrTextureId id)
         i32 slot = id.index;
         ASSERT(slot >= 0);
         ASSERT(slot < tt->capacity);
-        vkrImageView_Release(tt->views[slot]);
         vkrImage_Release(&tt->images[slot]);
         tt->descriptors[slot] = tt->descriptors[0];
         return true;

@@ -8,12 +8,20 @@
 #include "rendering/vulkan/vkr_image.h"
 #include "rendering/vulkan/vkr_attachment.h"
 #include "rendering/vulkan/vkr_context.h"
+#include "rendering/vulkan/vkr_renderpass.h"
+#include "rendering/vulkan/vkr_framebuffer.h"
 #include "allocator/allocator.h"
 #include "common/console.h"
 #include "common/profiler.h"
 #include "math/scalar.h"
 #include <GLFW/glfw3.h>
 #include <string.h>
+
+// ----------------------------------------------------------------------------
+
+static void vkrSwapchain_SetupBuffers(vkrSwapchain* chain);
+
+// ----------------------------------------------------------------------------
 
 static const char* VkPresentModeKHR_Str[] =
 {
@@ -64,6 +72,8 @@ static const VkSurfaceFormatKHR kPreferredSurfaceFormats[] =
         VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
     },
 };
+
+// ----------------------------------------------------------------------------
 
 bool vkrSwapchain_New(
     vkrSwapchain* chain,
@@ -258,6 +268,8 @@ bool vkrSwapchain_New(
     };
     VkCheck(vkAllocateCommandBuffers(g_vkr.dev, &cmdinfo, chain->presCmds));
 
+    vkrSwapchain_SetupBuffers(chain);
+
     return true;
 }
 
@@ -287,11 +299,7 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
         const i32 len = chain->length;
         for (i32 i = 0; i < len; ++i)
         {
-            VkFramebuffer buffer = chain->buffers[i];
-            if (buffer)
-            {
-                vkDestroyFramebuffer(g_vkr.dev, buffer, NULL);
-            }
+            vkrFramebuffer_Del(&chain->buffers[i]);
             vkrImageView_Release(chain->views[i]);
             vkrAttachment_Release(&chain->lumAttachments[i]);
             vkrAttachment_Release(&chain->depthAttachments[i]);
@@ -307,50 +315,80 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
     }
 }
 
-void vkrSwapchain_SetupBuffers(vkrSwapchain* chain, VkRenderPass presentPass)
+static void vkrSwapchain_SetupBuffers(vkrSwapchain* chain)
 {
     ASSERT(chain);
-    ASSERT(presentPass);
+    const vkrRenderPassDesc renderPassDesc =
+    {
+        .srcStageMask =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask =
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+
+        .dstStageMask =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstAccessMask =
+            VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+
+        .attachments[0] =
+        {
+            .format = chain->depthAttachments[0].format,
+            .initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .load = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .store = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        },
+        .attachments[1] =
+        {
+            .format = chain->colorFormat,
+            .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        },
+        .attachments[2] =
+        {
+            .format = chain->lumAttachments[0].format,
+            .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .load = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .store = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        },
+    };
+    chain->presentPass = vkrRenderPass_Get(&renderPassDesc);
+    ASSERT(chain->presentPass);
+
     const i32 len = chain->length;
     for (i32 i = 0; i < len; ++i)
     {
+        vkrFramebuffer_Del(&chain->buffers[i]);
         const VkImageView attachments[] =
         {
+            chain->depthAttachments[i].view,
             chain->views[i],
             chain->lumAttachments[i].view,
-            chain->depthAttachments[i].view,
         };
-        VkFramebuffer buffer = chain->buffers[i];
-        if (buffer)
+        const VkFormat formats[] =
         {
-            vkDestroyFramebuffer(g_vkr.dev, buffer, NULL);
-            buffer = NULL;
-        }
-        const VkFramebufferCreateInfo bufferInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-            .renderPass = presentPass,
-            .attachmentCount = NELEM(attachments),
-            .pAttachments = attachments,
-            .width = chain->width,
-            .height = chain->height,
-            .layers = 1,
+            chain->depthAttachments[i].format,
+            chain->colorFormat,
+            chain->lumAttachments[i].format,
         };
-        VkCheck(vkCreateFramebuffer(g_vkr.dev, &bufferInfo, NULL, &buffer));
-        ASSERT(buffer);
-
-        chain->buffers[i] = buffer;
+        vkrFramebuffer_New(
+            &chain->buffers[i],
+            attachments, formats, NELEM(attachments),
+            chain->width,
+            chain->height);
     }
 }
 
 bool vkrSwapchain_Recreate(
     vkrSwapchain* chain,
-    vkrDisplay* display,
-    VkRenderPass presentPass)
+    vkrDisplay* display)
 {
     ASSERT(chain);
     ASSERT(display);
-    ASSERT(presentPass);
     vkrSwapchain next = { 0 };
     vkrSwapchain prev = *chain;
     vkrDevice_WaitIdle();
@@ -360,7 +398,7 @@ bool vkrSwapchain_Recreate(
     {
         recreated = true;
         vkrSwapchain_New(&next, display, &prev);
-        vkrSwapchain_SetupBuffers(&next, presentPass);
+        vkrSwapchain_SetupBuffers(&next);
     }
     vkrSwapchain_Del(&prev);
     *chain = next;
@@ -387,6 +425,8 @@ u32 vkrSwapchain_AcquireSync(vkrSwapchain* chain, VkCommandBuffer* cmdOut, VkFen
     chain->syncIndex = syncIndex;
 
     VkCheck(vkResetCommandBuffer(cmd, 0x0));
+
+    vkrCmdBegin(cmd);
 
     ProfileEnd(pm_acquiresync);
 
@@ -433,7 +473,7 @@ u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain, VkFramebuffer* bufferOut)
 
     ProfileEnd(pm_acquireimg);
 
-    *bufferOut = chain->buffers[imageIndex];
+    *bufferOut = chain->buffers[imageIndex].handle;
     return imageIndex;
 }
 
@@ -443,10 +483,33 @@ void vkrSwapchain_Submit(vkrSwapchain* chain, VkCommandBuffer cmd)
     ASSERT(chain->handle);
     ASSERT(cmd);
 
+    u32 imageIndex = chain->imageIndex;
     u32 syncIndex = chain->syncIndex;
     ASSERT(cmd == chain->presCmds[syncIndex]);
     VkQueue gfxQueue = g_vkr.queues[vkrQueueId_Gfx].handle;
     ASSERT(gfxQueue);
+
+    const VkClearValue clearValues[] =
+    {
+        {
+            .depthStencil = { 1.0f, 0 },
+        },
+        {
+            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+        },
+        {
+            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+        },
+    };
+    vkrCmdBeginRenderPass(
+        cmd,
+        chain->presentPass,
+        chain->buffers[imageIndex].handle,
+        vkrSwapchain_GetRect(chain),
+        NELEM(clearValues), clearValues,
+        VK_SUBPASS_CONTENTS_INLINE);
+    vkrCmdEndRenderPass(cmd);
+    vkrCmdEnd(cmd);
 
     vkrFence_Reset(chain->syncFences[syncIndex]);
     vkrCmdSubmit(
