@@ -78,43 +78,53 @@ PSOutput PSMain(PSInput input)
     float occlusion = rome.y;
     float metallic = rome.z;
     float emission = rome.w;
-    float3 light = 0.0001 * albedo;
+    float3 sceneLum = 0.0001 * albedo;
     {
         float3 emissive = UnpackEmission(albedo, emission);
-        light += emissive;
+        sceneLum += emissive;
     }
     {
         //float3 L = cameraData[0].lightDir.xyz;
         //float3 lightColor = cameraData[0].lightColor.xyz;
         //float3 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
         //float3 direct = brdf * lightColor * dotsat(N, L);
-        //light += direct;
+        //sceneLum += direct;
     }
     {
         float2 uv1 = input.uv01.zw;
         float3 R = reflect(-V, N);
         GISample gi = SampleLightmap(li, uv1, input.TBN, N, R);
         float3 indirect = IndirectBRDF(V, N, gi.diffuse, gi.specular, albedo, roughness, metallic, occlusion);
-        light += indirect;
+        sceneLum += indirect;
     }
 
     PSOutput output;
-    output.luminance = AverageLuminance(light);
-    light *= GetExposure();
+    output.luminance = AverageLuminance(sceneLum);
+    sceneLum *= GetExposure();
 
-    const float Lw = cameraData.whitepoint; // display's peak nits
-    const float Lpq = 10000.0; // PQ peak absolute nits
+    const float wp = cameraData.whitepoint;
+    //const float nits = cameraData.displayNits;
     if (cameraData.hdrEnabled != 0.0)
     {
-        light = TonemapReinhard(light, Lpq / Lw);
-        light *= (Lw / Lpq);
-        light = PQ_OETF(light);
+        float3 displayLum = PQ_OOTF(sceneLum);
+        // This is a bit ridiculous, but it works.
+        // multiple-exposure by projecting an hdr band
+        // into the sdr range for an sdr tonemapper,
+        // then projecting the result back to hdr range.
+        float3 a = TonemapUncharted2(displayLum, wp);
+        float3 b = TonemapUncharted2(displayLum * 0.1, wp) * 10.0;
+        float3 c = TonemapUncharted2(displayLum * 0.01, wp) * 100.0;
+        float3 d = TonemapUncharted2(displayLum * 0.001, wp) * 1000.0;
+        float3 e = TonemapUncharted2(displayLum * 0.0001, wp) * 10000.0;
+        displayLum = 0.2 * a + 0.2 * b + 0.2 * c + 0.2 * d + 0.2 * e;
+        float3 signal = PQ_InverseEOTF(displayLum);
+        output.color.rgb = signal;
     }
     else
     {
-        light = TonemapReinhard(light, Lw);
+        output.color.rgb = TonemapUncharted2(sceneLum, wp);
     }
 
-    output.color = float4(saturate(light), 1.0);
+    output.color = float4(saturate(output.color.rgb), 1.0);
     return output;
 }

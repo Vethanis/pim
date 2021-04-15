@@ -42,7 +42,7 @@ float3 TonemapReinhard(float3 x, float wp)
 }
 
 // http://filmicworlds.com/blog/filmic-tonemapping-operators/
-float3 TonemapUncharted2(float3 x)
+float3 TonemapUncharted2(float3 x, float wp)
 {
     const float a = 0.15;
     const float b = 0.50;
@@ -50,18 +50,24 @@ float3 TonemapUncharted2(float3 x)
     const float d = 0.20;
     const float e = 0.02;
     const float f = 0.30;
-    return ((x * (a * x + c * b) + d * e) / (x * (a * x + b) + d * f)) - e / f;
+    float4 v = float4(x.rgb, wp);
+    v = ((v * (a * v + c * b) + d * e) / (v * (a * v + b) + d * f)) - e / f;
+    v.rgb = v.rgb * (1.0 / v.a);
+    return v.rgb;
 }
 
 // https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
-float3 TonemapACES(float3 x)
+float3 TonemapACES(float3 x, float wp)
 {
-    const float a = 2.51;
+    const float a = 2.43;
     const float b = 0.03;
     const float c = 2.43;
     const float d = 0.59;
     const float e = 0.14;
-    return (x * (a * x + b)) / (x * (c * x + d) + e);
+    float4 v = float4(x.rgb, wp);
+    v = (v * (a * v + b)) / (v * (c * v + d) + e);
+    v.rgb = v.rgb * (1.0 / v.a);
+    return v.rgb;
 }
 
 static const float3x3 kBT709_To_XYZ =
@@ -86,40 +92,78 @@ float3 Color_XYZ_To_BT709(float3 x)
     return mul(kXYZ_To_BT709, x);
 }
 
-// V: signal value in [0, 1]
-// L: display-referred luminance
-// https://nick-shaw.github.io/cinematiccolor/common-rgb-color-spaces.html
-float3 PQ_EOTF(float3 V)
+// https://en.wikipedia.org/wiki/Transfer_functions_in_imaging
+// OETF: Scene Luminance to Signal; (eg. Camera)
+// EOTF: Signal to Display Luminance; (eg. Monitor)
+// OOTF: Scene Luminance to Display Luminance; OETF(EOTF(x));
+
+// Rec2100: https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-E.pdf
+
+// E: Scene linear light
+// Ep: Nonlinear color value
+float3 GRec709(float3 E)
+{
+    float3 a = 267.84 * E;
+    float3 b = 1.099 * pow(59.5208 * E, 0.45) - 0.099;
+    float3 Ep = lerp(a, b, step(0.0003024, E));
+    return Ep;
+}
+
+// Ep: Nonlinear color value
+// Fd: Display linear light
+float3 GRec1886(float3 Ep)
+{
+    float3 Fd = 100.0f * pow(Ep, 2.4);
+    return Fd;
+}
+
+// E: Scene linear light
+// Fd: Display linear light
+float3 PQ_OOTF(float3 E)
+{
+    float3 Fd = GRec1886(GRec709(E));
+    return Fd;
+}
+
+// Ep: Nonlinear Signal in [0, 1]
+// Fd: Display Luminance in [0, 10000] cd/m^2
+float3 PQ_EOTF(float3 Ep)
 {
     const float c1 = 0.8359375;
     const float c2 = 18.8515625;
     const float c3 = 18.6875;
     const float m1 = 0.15930175781;
     const float m2 = 78.84375;
-    float3 t = pow(V, 1.0 / m2);
-    float3 a = max(t - c1, 0.0) / (c2 - c3 * t);
-    float3 b = pow(a, 1.0 / m1);
-    float3 L = 10000.0 * b;
-    return L;
+    float3 t = pow(Ep, 1.0 / m2);
+    float3 Y = pow(max(t - c1, 0.0) / (c2 - c3 * t), 1.0 / m1);
+    float3 Fd = 10000.0 * Y;
+    return Fd;
 }
 
-// L: display-referred luminance in [0, 1], with 1 == 10000 cd/m^2
-// V: signal value in [0, 1]
-// https://en.wikipedia.org/wiki/High-dynamic-range_video#Perceptual_quantizer
-float3 PQ_OETF(float3 L)
+// Fd: Display Luminance in [0, 10000] cd/m^2
+// Ep: Signal in [0, 1]
+float3 PQ_InverseEOTF(float3 Fd)
 {
     const float c1 = 0.8359375;
     const float c2 = 18.8515625;
     const float c3 = 18.6875;
     const float m1 = 0.15930175781;
     const float m2 = 78.84375;
-    float3 t = pow(L, m1);
-    float3 V = pow((c1 + c2 * t) / (1.0 + c3 * t), m2);
-    return V;
+    float3 Y = Fd * (1.0 / 10000.0);
+    float3 y = pow(Y, m1);
+    float3 Ep = pow((c1 + c2 * y) / (1.0 + c3 * y), m2);
+    return Ep;
 }
 
-// L: display-referred luminance in [0, 1]
-// V: signal value in [0, 1]
+// E: Scene Luminance
+// Ep: Signal in [0, 1]
+float3 PQ_OETF(float3 E)
+{
+    return PQ_InverseEOTF(PQ_OOTF(E));
+}
+
+// L: Display Luminance in [0, 1]
+// V: Signal in [0, 1]
 // https://nick-shaw.github.io/cinematiccolor/common-rgb-color-spaces.html
 float HLG_OETF(float L)
 {
@@ -131,23 +175,23 @@ float HLG_OETF(float L)
     return V;
 }
 
-// L: display-referred luminance in [0, 1]
-// V: signal value in [0, 1]
+// L: Display Luminance in [0, 1]
+// V: Signal in [0, 1]
 // https://nick-shaw.github.io/cinematiccolor/common-rgb-color-spaces.html
 float3 HLG_OETF(float3 L)
 {
     return float3(HLG_OETF(L.x), HLG_OETF(L.y), HLG_OETF(L.z));
 }
 
-// S: scene-referred luminance
-// Lw: peak display luminance
-// D: display-referred luminance
+// S: Scene Luminance
+// P: Peak Display Luminance
+// D: Display Luminance
 // https://nick-shaw.github.io/cinematiccolor/common-rgb-color-spaces.html
-float3 HLG_OOTF(float3 S, float Lw)
+float3 HLG_OOTF(float3 S, float P)
 {
     float Ys = dot(S, float3(0.2627, 0.6780, 0.0593));
-    float g = 1.2 + 0.42 * log10(Lw / 1000.0);
-    float3 D = Lw * pow(Ys, g - 1.0) * S;
+    float g = 1.2 + 0.42 * log10(P / 1000.0);
+    float3 D = P * pow(Ys, g - 1.0) * S;
     return D;
 }
 

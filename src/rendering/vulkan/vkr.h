@@ -528,5 +528,7 @@ u32 vkrSys_FrameIndex(void);
 
 bool vkrSys_HdrEnabled(void);
 float vkrSys_GetWhitepoint(void);
+float vkrSys_GetDisplayNits(void);
+float vkrSys_GetUiNits(void);
 
 PIM_C_END

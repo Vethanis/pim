@@ -8,7 +8,8 @@ struct PerCamera
 
     float hdrEnabled;
     float whitepoint;
-    float2 pad;
+    float displayNits;
+    float uiNits;
 };
 
 // uniform buffer at binding 0
