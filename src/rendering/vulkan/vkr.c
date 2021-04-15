@@ -300,7 +300,17 @@ bool vkrSys_HdrEnabled(void)
 
 float vkrSys_GetWhitepoint(void)
 {
-    return vkrSys_HdrEnabled() ? ConVar_GetFloat(&cv_r_hdr_whitepoint) : ConVar_GetFloat(&cv_r_whitepoint);
+    return ConVar_GetFloat(&cv_r_whitepoint);
+}
+
+float vkrSys_GetDisplayNits(void)
+{
+    return ConVar_GetFloat(&cv_r_display_nits);
+}
+
+float vkrSys_GetUiNits(void)
+{
+    return ConVar_GetFloat(&cv_r_ui_nits);
 }
 
 static void vkrUploadLightmaps(void)

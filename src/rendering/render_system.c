@@ -447,12 +447,13 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     const i32 len = size.x * size.y;
     R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
 
+    const float wp = vkrSys_GetWhitepoint();
     for (i32 i = 0; i < len; ++i)
     {
         float4 v = buf->light[i];
-        v = tmap4_reinhard_lum(v, 1.0f);
+        v = f4_uncharted2(v, wp);
         v.w = 1.0f;
-        color[i] = f4_rgba8(f4_tosrgb(v));
+        color[i] = f4_rgba8(f4_sRGB_InverseEOTF_Fit(v));
     }
 
     stbi_flip_vertically_on_write(1);

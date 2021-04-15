@@ -77,58 +77,58 @@ pim_inline float4 VEC_CALL rgba16_f4(R16G16B16A16_t c)
     return f4_v(c.r * s, c.g * s, c.b * s, c.a * s);
 }
 
-// reference sRGB -> Linear conversion (no approximation)
-pim_inline float VEC_CALL sRGBToLinear(float c)
+// reference sRGB EOTF
+pim_inline float VEC_CALL f1_sRGB_EOTF(float V)
 {
-    if (c <= 0.04045f)
+    if (V <= 0.04045f)
     {
-        return c / 12.92f;
+        return V / 12.92f;
     }
-    return powf((c + 0.055f) / 1.055f, 2.4f);
+    return powf((V + 0.055f) / 1.055f, 2.4f);
 }
 
-// reference Linear -> sRGB conversion (no approximation)
-pim_inline float VEC_CALL LinearTosRGB(float c)
+// reference sRGB Inverse EOTF
+pim_inline float VEC_CALL f1_sRGB_InverseEOTF(float L)
 {
-    if (c <= 0.0031308f)
+    if (L <= 0.0031308f)
     {
-        return c * 12.92f;
+        return L * 12.92f;
     }
-    return 1.055f * powf(c, 1.0f / 2.4f) - 0.055f;
+    return 1.055f * powf(L, 1.0f / 2.4f) - 0.055f;
 }
 
-// cubic fit sRGB -> Linear conversion
+// cubic fit sRGB EOTF
 // max error = 0.001214
-pim_inline float VEC_CALL f1_tolinear(float c)
+pim_inline float VEC_CALL f1_sRGB_EOTF_Fit(float V)
 {
-    return 0.020883f * c + 0.656075f * (c*c) + 0.324285f * (c*c*c);
+    return 0.020883f * V + 0.656075f * (V*V) + 0.324285f * (V*V*V);
 }
 
-// cubic fit sRGB -> Linear conversion
+// cubic fit sRGB EOTF
 // max error = 0.001214
-pim_inline float4 VEC_CALL f4_tolinear(float4 c)
+pim_inline float4 VEC_CALL f4_sRGB_EOTF_Fit(float4 V)
 {
-    return f4_add(f4_add(f4_mulvs(c, 0.020883f), f4_mulvs(f4_mul(c, c), 0.656075f)), f4_mulvs(f4_mul(c, f4_mul(c, c)), 0.324285f));
+    return f4_add(f4_add(f4_mulvs(V, 0.020883f), f4_mulvs(f4_mul(V, V), 0.656075f)), f4_mulvs(f4_mul(V, f4_mul(V, V)), 0.324285f));
 }
 
-// cubic root fit Linear -> sRGB conversion
+// cubic root fit sRGB Inverse EOTF
 // max error = 0.003662
-pim_inline float VEC_CALL f1_tosrgb(float c)
+pim_inline float VEC_CALL f1_sRGB_InverseEOTF_Fit(float L)
 {
-    float s1 = sqrtf(c);
-    float s2 = sqrtf(s1);
-    float s3 = sqrtf(s2);
-    return 0.658444f * s1 + 0.643378f * s2 - 0.298148f * s3;
+    float l1 = sqrtf(L);
+    float l2 = sqrtf(l1);
+    float l3 = sqrtf(l2);
+    return 0.658444f * l1 + 0.643378f * l2 - 0.298148f * l3;
 }
 
-// cubic root fit Linear -> sRGB conversion
+// cubic root fit sRGB Inverse EOTF
 // max error = 0.003662
-pim_inline float4 VEC_CALL f4_tosrgb(float4 c)
+pim_inline float4 VEC_CALL f4_sRGB_InverseEOTF_Fit(float4 L)
 {
-    float4 s1 = f4_sqrt(c);
-    float4 s2 = f4_sqrt(s1);
-    float4 s3 = f4_sqrt(s2);
-    return f4_add(f4_add(f4_mulvs(s1, 0.658444f), f4_mulvs(s2, 0.643378f)), f4_mulvs(s3, -0.298148f));
+    float4 l1 = f4_sqrt(L);
+    float4 l2 = f4_sqrt(l1);
+    float4 l3 = f4_sqrt(l2);
+    return f4_add(f4_add(f4_mulvs(l1, 0.658444f), f4_mulvs(l2, 0.643378f)), f4_mulvs(l3, -0.298148f));
 }
 
 pim_inline R8G8B8A8_t VEC_CALL DirectionToColor(float4 dir)
@@ -169,12 +169,12 @@ pim_inline float4 VEC_CALL Xy16ToNormalTs(short2 xy)
 
 pim_inline R8G8B8A8_t VEC_CALL LinearToColor(float4 lin)
 {
-    return f4_rgba8(f4_tosrgb(lin));
+    return f4_rgba8(f4_sRGB_InverseEOTF_Fit(lin));
 }
 
 pim_inline float4 VEC_CALL ColorToLinear(R8G8B8A8_t c)
 {
-    return f4_tolinear(rgba8_f4(c));
+    return f4_sRGB_EOTF_Fit(rgba8_f4(c));
 }
 
 // https://alienryderflex.com/hsp.html
@@ -217,7 +217,7 @@ pim_inline float4 VEC_CALL f4_setlum(float4 x, float oldLum, float newLum)
     return f4_mulvs(x, newLum / f1_max(kEpsilon, oldLum));
 }
 
-pim_inline float4 VEC_CALL tmap4_reinhard_lum(float4 x, float wp)
+pim_inline float4 VEC_CALL f4_reinhard_lum(float4 x, float wp)
 {
     float l0 = f1_max(f4_avglum(x), kEpsilon);
     float n = l0 * (1.0f + (l0 / (wp * wp)));
@@ -225,54 +225,36 @@ pim_inline float4 VEC_CALL tmap4_reinhard_lum(float4 x, float wp)
     return f4_setlum(x, l0, l1);
 }
 
-pim_inline float4 VEC_CALL tmap4_reinhard_rgb(float4 x, float wp)
+pim_inline float4 VEC_CALL f4_reinhard_rgb(float4 x, float wp)
 {
     float4 n = f4_mul(x, f4_addvs(f4_divvs(x, wp * wp), 1.0f));
     return f4_div(n, f4_addvs(x, 1.0f));
 }
 
 // https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
-pim_inline float VEC_CALL tmap1_aces(float x)
+pim_inline float VEC_CALL f1_aceskfit(float x)
 {
-    const float a = 2.51f;
+    const float a = 2.43f; // <- modified to never clip
     const float b = 0.03f;
-    const float c = 2.43f;
     const float d = 0.59f;
     const float e = 0.14f;
-    float y = (x * (a * x + b)) / (x * (c * x + d) + e);
+    float y = (x * (a * x + b)) / (x * (a * x + d) + e);
     return y;
 }
 
-pim_inline float4 VEC_CALL tmap4_aces(float4 x)
+// https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+pim_inline float4 VEC_CALL f4_aceskfit(float4 x)
 {
     float4 y;
-    y.x = tmap1_aces(x.x);
-    y.y = tmap1_aces(x.y);
-    y.z = tmap1_aces(x.z);
+    y.x = f1_aceskfit(x.x);
+    y.y = f1_aceskfit(x.y);
+    y.z = f1_aceskfit(x.z);
     y.w = 1.0f;
     return y;
 }
 
 // http://filmicworlds.com/blog/filmic-tonemapping-operators/
-pim_inline float VEC_CALL tmap1_filmic(float x)
-{
-    x = f1_max(0.0f, x - 0.004f);
-    float y = (x * (6.2f * x + 0.5f)) / (x * (6.2f * x + 1.7f) + 0.06f);
-    return powf(y, 2.2f); // originally fit to gamma2.2
-}
-
-pim_inline float4 VEC_CALL tmap4_filmic(float4 x)
-{
-    float4 y;
-    y.x = tmap1_filmic(x.x);
-    y.y = tmap1_filmic(x.y);
-    y.z = tmap1_filmic(x.z);
-    y.w = 1.0f;
-    return y;
-}
-
-// http://filmicworlds.com/blog/filmic-tonemapping-operators/
-pim_inline float VEC_CALL tmap1_uchart2(float x)
+pim_inline float VEC_CALL f1_uncharted2(float x)
 {
     const float a = 0.15f;
     const float b = 0.50f;
@@ -284,20 +266,21 @@ pim_inline float VEC_CALL tmap1_uchart2(float x)
     return y;
 }
 
-pim_inline float4 VEC_CALL tmap4_uchart2(float4 x)
+// http://filmicworlds.com/blog/filmic-tonemapping-operators/
+pim_inline float4 VEC_CALL f4_uncharted2(float4 x, float wp)
 {
     float4 y;
-    y.x = tmap1_uchart2(x.x);
-    y.y = tmap1_uchart2(x.y);
-    y.z = tmap1_uchart2(x.z);
-    y.w = tmap1_uchart2(x.w);
-    y = f4_divvs(y, y.w);
+    y.x = f1_uncharted2(x.x);
+    y.y = f1_uncharted2(x.y);
+    y.z = f1_uncharted2(x.z);
+    wp = f1_uncharted2(wp);
+    y = f4_divvs(y, wp);
     return y;
 }
 
 // http://filmicworlds.com/blog/filmic-tonemapping-with-piecewise-power-curves/
 // params: Shoulder Strength, Linear Strength, Linear Angle, Toe Strength
-pim_inline float VEC_CALL tmap1_hable(float x, float4 params)
+pim_inline float VEC_CALL f1_hable(float x, float4 params)
 {
     const float A = params.x;
     const float B = params.y;
@@ -309,50 +292,160 @@ pim_inline float VEC_CALL tmap1_hable(float x, float4 params)
     return y;
 }
 
-pim_inline float4 VEC_CALL tmap4_hable(float4 x, float4 params)
+// http://filmicworlds.com/blog/filmic-tonemapping-with-piecewise-power-curves/
+// params: Shoulder Strength, Linear Strength, Linear Angle, Toe Strength
+pim_inline float4 VEC_CALL f4_hable(float4 x, float4 params)
 {
     float4 y;
-    y.x = tmap1_hable(x.x, params);
-    y.y = tmap1_hable(x.y, params);
-    y.z = tmap1_hable(x.z, params);
-    y.w = tmap1_hable(x.w, params);
+    y.x = f1_hable(x.x, params);
+    y.y = f1_hable(x.y, params);
+    y.z = f1_hable(x.z, params);
+    y.w = f1_hable(x.w, params);
     y = f4_divvs(y, y.w);
     return y;
 }
 
-// V: signal value in [0, 1]
-// L: display-referred luminance
-// https://nick-shaw.github.io/cinematiccolor/common-rgb-color-spaces.html
-pim_inline float4 VEC_CALL f4_PQ_EOTF(float4 V)
+// http://cdn2.gran-turismo.com/data/www/pdi_publications/PracticalHDRandWCGinGTS_20181222.pdf#page=184
+// https://www.desmos.com/calculator/mbkwnuihbd
+typedef struct pim_alignas(16) GTTonemapParams_s
 {
-    const float c1 = 0.8359375;
-    const float c2 = 18.8515625;
-    const float c3 = 18.6875;
-    const float m1 = 0.15930175781;
-    const float m2 = 78.84375;
-    float4 t = f4_powvs(V, 1.0f / m2);
-    float4 a = f4_div(f4_maxvs(f4_subvs(t, c1), 0.0f), f4_subsv(c2, f4_mulvs(t, c3)));
-    float4 b = f4_powvs(a, 1.0f / m1);
-    float4 L = f4_mulvs(b, 10000.0f);
-    return L;
+    float P;    // [1, 100] (1.0)    whitepoint, shoulder asymptote
+    float a;    // [0, 5]   (1.0)    linear section slope
+    float m;    // [0, 1)   (0.22)   linear section height
+    float l;    // [0, 1]   (0.4)    shoulder sharpness
+
+    float c;    // [1, 3]   (1.33)   toe curvature
+    float b;    // [0, 1]   (0.0)    bias, to avoid numerical instability near 0
+    float _pad1;
+    float _pad2;
+} GTTonemapParams;
+
+// http://cdn2.gran-turismo.com/data/www/pdi_publications/PracticalHDRandWCGinGTS_20181222.pdf#page=184
+// https://www.desmos.com/calculator/mbkwnuihbd
+pim_inline float VEC_CALL f1_GTTonemap(float x, GTTonemapParams gtp)
+{
+    const float P = gtp.P;
+    const float a = gtp.a;
+    const float m = gtp.m;
+    const float l = gtp.l;
+    const float c = gtp.c;
+    const float b = gtp.b;
+    const float l0 = ((P - m) * l) / a;
+    const float S0 = m + l0;
+    const float S1 = m + a * l0;
+    const float C2 = (a * P) / (P - S1);
+
+    float L = m + a * (x - m);
+    float T = m * powf(x / m, c) + b;
+    float S = P - (P - S1) * expf(-(C2 * (x - S0)) / P);
+    float w0 = 1.0f - f1_smoothstep(0.0f, m, x);
+    float w2 = (x < m + l0) ? 0.0f : 1.0f;
+    float w1 = 1.0f - w0 - w2;
+    return T * w0 + L * w1 + S * w2;
 }
 
-// L: display-referred luminance in [0, 1], with 1 == 10000 cd/m^2
-// V: signal value in [0, 1]
-// https://en.wikipedia.org/wiki/High-dynamic-range_video#Perceptual_quantizer
-pim_inline float4 VEC_CALL f4_PQ_OETF(float4 L)
+// http://cdn2.gran-turismo.com/data/www/pdi_publications/PracticalHDRandWCGinGTS_20181222.pdf#page=184
+// https://www.desmos.com/calculator/mbkwnuihbd
+pim_inline float4 VEC_CALL f4_GTTonemap(float4 x, GTTonemapParams gtp)
+{
+    x.x = f1_GTTonemap(x.x, gtp);
+    x.y = f1_GTTonemap(x.y, gtp);
+    x.z = f1_GTTonemap(x.z, gtp);
+    return x;
+}
+
+// https://gpuopen.com/wp-content/uploads/2016/03/GdcVdrLottes.pdf
+// p.x: contrast
+// p.y: shoulder
+// p.z: b anchor
+// p.w: c anchor
+// b: (-midIn^1 + hdrMax^a * midOut) / (((hdrMax^a)^d - (midIn^a)^d) * midOut)
+// c: ((hdrMax^a)^d * midIn^a - hdrMax^a * (midIn^a)^d * midOut) / (((hdrMax^a)^d - (midIn^a)^d) * midOut)
+pim_inline float VEC_CALL f1_lottes(float x, float4 p)
+{
+    float z = powf(x, p.x);
+    float y = z / (powf(z, p.y) * p.z + p.w);
+    return y;
+}
+pim_inline float4 VEC_CALL f4_lottes(float4 x, float4 p)
+{
+    float4 z = f4_powvs(x, p.x);
+    float4 y = f4_div(z, f4_addvs(f4_mulvs(f4_powvs(z, p.y), p.z), p.w));
+    return y;
+}
+
+// https://en.wikipedia.org/wiki/Transfer_functions_in_imaging
+// OETF: Scene Luminance to Signal; (eg. Camera)
+// EOTF: Signal to Display Luminance; (eg. Monitor)
+// OOTF: Scene Luminance to Display Luminance; OETF(EOTF(x));
+
+// Rec2100: https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-E.pdf
+
+// E: Scene linear light
+// Ep: Nonlinear color value
+pim_inline float4 VEC_CALL f4_GRec709(float4 E)
+{
+    float4 a = f4_mulvs(E, 267.84f);
+    float4 b = f4_subvs(f4_mulvs(f4_powvs(f4_mulvs(E, 59.5208f), 0.45f), 1.099f), 0.099f);
+    float4 Ep = f4_select(a, b, f4_lteqvs(E, 0.0003024f));
+    return Ep;
+}
+
+// Ep: Nonlinear color value
+// Fd: Display linear light
+pim_inline float4 VEC_CALL f4_GRec1886(float4 Ep)
+{
+    float4 Fd = f4_mulvs(f4_powvs(Ep, 2.4f), 100.0f);
+    return Fd;
+}
+
+// E: Scene linear light
+// Fd: Display linear light
+pim_inline float4 VEC_CALL f4_PQ_OOTF(float4 E)
+{
+    float4 Fd = f4_GRec1886(f4_GRec709(E));
+    return Fd;
+}
+
+// Ep: Nonlinear Signal in [0, 1]
+// Fd: Display Luminance in [0, 10000] cd/m^2
+pim_inline float4 VEC_CALL f4_PQ_EOTF(float4 Ep)
 {
     const float c1 = 0.8359375;
     const float c2 = 18.8515625;
     const float c3 = 18.6875;
     const float m1 = 0.15930175781;
     const float m2 = 78.84375;
-    float4 t = f4_powvs(L, m1);
-    float4 a = f4_addvs(f4_mulvs(t, c2), c1);
-    float4 b = f4_addvs(f4_mulvs(t, c3), 1.0f);
-    float4 V = f4_powvs(f4_div(a, b), m2);
-    return V;
+    float4 t = f4_powvs(Ep, 1.0f / m2);
+    float4 y = f4_div(f4_maxvs(f4_subvs(t, c1), 0.0f), f4_subsv(c2, f4_mulvs(t, c3)));
+    float4 Y = f4_powvs(y, 1.0f / m1);
+    float4 Fd = f4_mulvs(Y, 10000.0f);
+    return Fd;
 }
+
+// Fd: Display Luminance in [0, 10000] cd/m^2
+// Ep: Signal in [0, 1]
+pim_inline float4 VEC_CALL f4_PQ_InverseEOTF(float4 Fd)
+{
+    const float c1 = 0.8359375;
+    const float c2 = 18.8515625;
+    const float c3 = 18.6875;
+    const float m1 = 0.15930175781;
+    const float m2 = 78.84375;
+    float4 Y = f4_mulvs(Fd, 1.0f / 10000.0f);
+    float4 y = f4_powvs(Y, m1);
+    float4 n = f4_addvs(f4_mulvs(y, c2), c1);
+    float4 d = f4_addvs(f4_mulvs(y, c3), 1.0f);
+    float4 Ep = f4_powvs(f4_div(n, d), m2);
+    return Ep;
+}
+
+pim_inline float4 VEC_CALL f4_PQ_OETF(float4 E)
+{
+    return f4_PQ_InverseEOTF(f4_PQ_OOTF(E));
+}
+
+
 #define kEmissionScale 100.0f
 
 pim_inline float VEC_CALL PackEmission(float4 emission)

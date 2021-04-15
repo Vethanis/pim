@@ -49,9 +49,10 @@ PSOutput PSMain(PSInput input)
 
     if (cameraData.hdrEnabled != 0.0)
     {
-        const float Lw = cameraData.whitepoint; // display's peak nits
-        const float Lpq = 10000.0; // PQ peak absolute nits
-        color.rgb = PQ_OETF(color.rgb * (Lw / Lpq));
+        const float pqRange = cameraData.uiNits * (1.0 / 10000.0);
+        color.rgb = PQ_OOTF(color.rgb);
+        color.rgb *= pqRange;
+        color.rgb = PQ_InverseEOTF(color.rgb);
     }
 
     PSOutput output;

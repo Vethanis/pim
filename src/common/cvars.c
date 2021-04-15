@@ -102,14 +102,24 @@ ConVar cv_r_whitepoint =
     .desc = "Luminance at which tonemapping will clip",
 };
 
-ConVar cv_r_hdr_whitepoint =
+ConVar cv_r_display_nits =
 {
     .type = cvart_float,
-    .name = "r_hdr_whitepoint",
+    .name = "r_display_nits",
     .value = "600.0",
-    .minFloat = 1.0f,
+    .minFloat = 100.0f,
     .maxFloat = 10000.0f,
-    .desc = "Luminance at which tonemapping will clip",
+    .desc = "Display luminance, in nits (SDR is roughly 300)",
+};
+
+ConVar cv_r_ui_nits =
+{
+    .type = cvart_float,
+    .name = "r_ui_nits",
+    .value = "600.0",
+    .minFloat = 10.0f,
+    .maxFloat = 10000.0f,
+    .desc = "UI luminance, in nits (SDR is roughly 300)",
 };
 
 ConVar cv_r_maxdelqueue =
@@ -383,7 +393,8 @@ void ConVars_RegisterAll(void)
     ConVar_Reg(&cv_con_logpath);
     ConVar_Reg(&cv_r_fpslimit);
     ConVar_Reg(&cv_gamedir);
-    ConVar_Reg(&cv_r_hdr_whitepoint);
+    ConVar_Reg(&cv_r_display_nits);
+    ConVar_Reg(&cv_r_ui_nits);
     ConVar_Reg(&cv_lm_density);
     ConVar_Reg(&cv_lm_gen);
     ConVar_Reg(&cv_lm_spp);

@@ -36,7 +36,8 @@ typedef struct vkrPerCamera_s
 
     float hdrEnabled;
     float whitepoint;
-    float2 pad;
+    float displayNits;
+    float uiNits;
 } vkrPerCamera;
 
 typedef struct PushConstants_s
@@ -259,9 +260,10 @@ void vkrOpaquePass_Setup(void)
         vkrPerCamera perCamera;
         perCamera.worldToClip = Camera_GetWorldToClip(&camera, vkrSwapchain_GetAspect(&g_vkr.chain));
         perCamera.eye = camera.position;
-        bool hdr = vkrSys_HdrEnabled();
-        perCamera.hdrEnabled = hdr ? 1.0f : 0.0f;
+        perCamera.hdrEnabled = vkrSys_HdrEnabled() ? 1.0f : 0.0f;
         perCamera.whitepoint = vkrSys_GetWhitepoint();
+        perCamera.displayNits = vkrSys_GetDisplayNits();
+        perCamera.uiNits = vkrSys_GetUiNits();
         vkrBufferSet_Write(&ms_perCameraBuffer, &perCamera, sizeof(perCamera));
     }
 

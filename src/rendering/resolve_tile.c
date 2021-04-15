@@ -24,27 +24,40 @@ pim_inline R16G16B16A16_t VEC_CALL Dither(float4 Xi, float4 v)
 static void VEC_CALL ResolvePQ(
     i32 begin, i32 end, FrameBuf* target)
 {
-    const float Lw = vkrSys_GetWhitepoint();
-    const float Lpq = 10000.0f;
-    const float wp = Lpq / Lw;
-    const float pqRatio = Lw / Lpq;
+    // TODO: debug
+    // for some reason the gpu and the path tracer disagree on the whitepoint
+    const float wp = vkrSys_GetWhitepoint();
+    //const float nits = vkrSys_GetDisplayNits();
 
     float4* pim_noalias light = target->light;
     R16G16B16A16_t* pim_noalias color = target->color;
 
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
+    Prng_Set(rng);
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = tmap4_reinhard_lum(v, wp);
-        v = f4_mulvs(v, pqRatio);
-        v = f4_PQ_OETF(v);
+        v = f4_PQ_OOTF(v);
+        // This is a bit ridiculous, but it works.
+        // multiple-exposure by projecting an hdr band
+        // into the sdr range for an sdr tonemapper,
+        // then projecting the result back to hdr range.
+        float4 a = f4_uncharted2(v, wp);
+        float4 b = f4_mulvs(f4_uncharted2(f4_mulvs(v, 0.1f), wp), 10.0f);
+        float4 c = f4_mulvs(f4_uncharted2(f4_mulvs(v, 0.01f), wp), 100.0f);
+        float4 d = f4_mulvs(f4_uncharted2(f4_mulvs(v, 0.001f), wp), 1000.0f);
+        float4 e = f4_mulvs(f4_uncharted2(f4_mulvs(v, 0.0001f), wp), 10000.0f);
+        v = f4_mulvs(a, 0.2f);
+        v = f4_add(v, f4_mulvs(b, 0.2f));
+        v = f4_add(v, f4_mulvs(c, 0.2f));
+        v = f4_add(v, f4_mulvs(d, 0.2f));
+        v = f4_add(v, f4_mulvs(e, 0.2f));
+        v = f4_PQ_InverseEOTF(v);
 
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
         color[i] = Dither(Xi, v);
     }
-    Prng_Set(rng);
 }
 
 static void VEC_CALL ResolveReinhard(
@@ -52,16 +65,16 @@ static void VEC_CALL ResolveReinhard(
 {
     float4* pim_noalias light = target->light;
     R16G16B16A16_t* pim_noalias color = target->color;
-    float Lw = vkrSys_GetWhitepoint();
+    float wp = vkrSys_GetWhitepoint();
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
+    Prng_Set(rng);
     for (i32 i = begin; i < end; ++i)
     {
-        float4 v = tmap4_reinhard_lum(light[i], Lw);
+        float4 v = f4_reinhard_lum(light[i], wp);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = Dither(Xi, f4_tosrgb(v));
+        color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));
     }
-    Prng_Set(rng);
 }
 
 static void VEC_CALL ResolveUncharted2(
@@ -69,15 +82,16 @@ static void VEC_CALL ResolveUncharted2(
 {
     float4* pim_noalias light = target->light;
     R16G16B16A16_t* pim_noalias color = target->color;
+    float wp = vkrSys_GetWhitepoint();
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
+    Prng_Set(rng);
     for (i32 i = begin; i < end; ++i)
     {
-        float4 v = tmap4_uchart2(light[i]);
+        float4 v = f4_uncharted2(light[i], wp);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = Dither(Xi, f4_tosrgb(v));
+        color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));
     }
-    Prng_Set(rng);
 }
 
 static void VEC_CALL ResolveHable(
@@ -87,29 +101,13 @@ static void VEC_CALL ResolveHable(
     R16G16B16A16_t* pim_noalias color = target->color;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
+    Prng_Set(rng);
     for (i32 i = begin; i < end; ++i)
     {
-        float4 v = tmap4_hable(light[i], params);
+        float4 v = f4_hable(light[i], params);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = Dither(Xi, f4_tosrgb(v));
+        color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));
     }
-    Prng_Set(rng);
-}
-
-static void VEC_CALL ResolveFilmic(
-    i32 begin, i32 end, FrameBuf* target)
-{
-    float4* pim_noalias light = target->light;
-    R16G16B16A16_t* pim_noalias color = target->color;
-    Prng rng = Prng_Get();
-    float4 Xi = f4_rand(&rng);
-    for (i32 i = begin; i < end; ++i)
-    {
-        float4 v = tmap4_filmic(light[i]);
-        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = Dither(Xi, f4_tosrgb(v));
-    }
-    Prng_Set(rng);
 }
 
 static void VEC_CALL ResolveACES(
@@ -119,13 +117,13 @@ static void VEC_CALL ResolveACES(
     R16G16B16A16_t* pim_noalias color = target->color;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
+    Prng_Set(rng);
     for (i32 i = begin; i < end; ++i)
     {
-        float4 v = tmap4_aces(light[i]);
+        float4 v = f4_aceskfit(light[i]);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = Dither(Xi, f4_tosrgb(v));
+        color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));
     }
-    Prng_Set(rng);
 }
 
 static void ResolveTileFn(Task* task, i32 begin, i32 end)

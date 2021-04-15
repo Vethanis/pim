@@ -386,7 +386,7 @@ pim_inline float4 VEC_CALL BilinearBlend_c32_fast(
     float4 cf = rgba8_f4(c);
     float4 df = rgba8_f4(d);
     float4 res = BilinearBlend_f4(af, bf, cf, df, frac);
-    return f4_tolinear(res);
+    return f4_sRGB_EOTF_Fit(res);
 }
 
 pim_inline float4 VEC_CALL BilinearBlend_dir8(
