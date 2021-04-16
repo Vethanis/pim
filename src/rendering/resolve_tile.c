@@ -6,6 +6,7 @@
 #include "rendering/tonemap.h"
 #include "rendering/vulkan/vkr.h"
 #include "common/profiler.h"
+#include "common/cvars.h"
 #include "allocator/allocator.h"
 
 typedef struct resolve_s
@@ -24,11 +25,6 @@ pim_inline R16G16B16A16_t VEC_CALL Dither(float4 Xi, float4 v)
 static void VEC_CALL ResolvePQ(
     i32 begin, i32 end, FrameBuf* target)
 {
-    // TODO: debug
-    // for some reason the gpu and the path tracer disagree on the whitepoint
-    const float wp = vkrSys_GetWhitepoint();
-    //const float nits = vkrSys_GetDisplayNits();
-
     float4* pim_noalias light = target->light;
     R16G16B16A16_t* pim_noalias color = target->color;
 
@@ -38,23 +34,7 @@ static void VEC_CALL ResolvePQ(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = f4_PQ_OOTF(v);
-        // This is a bit ridiculous, but it works.
-        // multiple-exposure by projecting an hdr band
-        // into the sdr range for an sdr tonemapper,
-        // then projecting the result back to hdr range.
-        float4 a = f4_uncharted2(v, wp);
-        float4 b = f4_mulvs(f4_uncharted2(f4_mulvs(v, 0.1f), wp), 10.0f);
-        float4 c = f4_mulvs(f4_uncharted2(f4_mulvs(v, 0.01f), wp), 100.0f);
-        float4 d = f4_mulvs(f4_uncharted2(f4_mulvs(v, 0.001f), wp), 1000.0f);
-        float4 e = f4_mulvs(f4_uncharted2(f4_mulvs(v, 0.0001f), wp), 10000.0f);
-        v = f4_mulvs(a, 0.2f);
-        v = f4_add(v, f4_mulvs(b, 0.2f));
-        v = f4_add(v, f4_mulvs(c, 0.2f));
-        v = f4_add(v, f4_mulvs(d, 0.2f));
-        v = f4_add(v, f4_mulvs(e, 0.2f));
-        v = f4_PQ_InverseEOTF(v);
-
+        v = f4_PQ_OETF(v);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
         color[i] = Dither(Xi, v);
     }

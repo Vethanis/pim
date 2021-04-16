@@ -63,6 +63,11 @@ pim_inline float VEC_CALL f1_sq(float x)
     return x * x;
 }
 
+pim_inline float VEC_CALL f1_rcp(float x)
+{
+    return 1.0f / x;
+}
+
 pim_inline float VEC_CALL f1_unorm(float s)
 {
     return 0.5f + 0.5f * s;

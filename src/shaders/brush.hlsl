@@ -102,29 +102,15 @@ PSOutput PSMain(PSInput input)
     output.luminance = AverageLuminance(sceneLum);
     sceneLum *= GetExposure();
 
-    const float wp = cameraData.whitepoint;
-    //const float nits = cameraData.displayNits;
     if (cameraData.hdrEnabled != 0.0)
     {
-        float3 displayLum = PQ_OOTF(sceneLum);
-        // This is a bit ridiculous, but it works.
-        // multiple-exposure by projecting an hdr band
-        // into the sdr range for an sdr tonemapper,
-        // then projecting the result back to hdr range.
-        float3 a = TonemapUncharted2(displayLum, wp);
-        float3 b = TonemapUncharted2(displayLum * 0.1, wp) * 10.0;
-        float3 c = TonemapUncharted2(displayLum * 0.01, wp) * 100.0;
-        float3 d = TonemapUncharted2(displayLum * 0.001, wp) * 1000.0;
-        float3 e = TonemapUncharted2(displayLum * 0.0001, wp) * 10000.0;
-        displayLum = 0.2 * a + 0.2 * b + 0.2 * c + 0.2 * d + 0.2 * e;
-        float3 signal = PQ_InverseEOTF(displayLum);
-        output.color.rgb = signal;
+        sceneLum = PQ_OETF(sceneLum);
     }
     else
     {
-        output.color.rgb = TonemapUncharted2(sceneLum, wp);
+        sceneLum = TonemapUncharted2(sceneLum, cameraData.whitepoint);
     }
 
-    output.color = float4(saturate(output.color.rgb), 1.0);
+    output.color = float4(saturate(sceneLum), 1.0);
     return output;
 }

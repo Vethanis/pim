@@ -708,6 +708,12 @@ bool RenderSys_Init(void)
         Con_Logf(LogSev_Error, "vkr", "Failed to init RenderSys");
         return false;
     }
+    if (vkrSys_HdrEnabled())
+    {
+        // TODO: set hdr metadata so display knows exposure to expect
+        // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#vkSetHdrMetadataEXT
+        ms_exposure.offsetEV -= 6.0f;
+    }
     vkrExposurePass_SetParams(&ms_exposure);
 
     TextureSys_Init();

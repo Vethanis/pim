@@ -42,6 +42,7 @@ static const VkPresentModeKHR kPreferredPresentModes[] =
 
 static const VkSurfaceFormatKHR kPreferredSurfaceFormats[] =
 {
+#if ENABLE_HDR
     // PQ Rec2100
     // https://en.wikipedia.org/wiki/Rec._2100
     // https://en.wikipedia.org/wiki/High-dynamic-range_video#Perceptual_quantizer
@@ -62,6 +63,7 @@ static const VkSurfaceFormatKHR kPreferredSurfaceFormats[] =
         VK_FORMAT_A2B10G10R10_UNORM_PACK32,
         VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
     },
+#endif // ENABLE_HDR
     // 8 bit sRGB
     {
         VK_FORMAT_R8G8B8A8_SRGB,
