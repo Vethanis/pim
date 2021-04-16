@@ -270,13 +270,13 @@ static const char* LogSevToTag(LogSev sev)
     {
     default:
     case LogSev_Error:
-        return "ERROR";
+        return "ERRR";
     case LogSev_Warning:
         return "WARN";
     case LogSev_Info:
         return "INFO";
     case LogSev_Verbose:
-        return "VERBOSE";
+        return "VERB";
     }
 }
 
