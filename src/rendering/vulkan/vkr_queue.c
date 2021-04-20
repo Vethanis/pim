@@ -216,10 +216,10 @@ vkrQueueSupport vkrQueryQueueSupport(VkPhysicalDevice phdev, VkSurfaceKHR surf)
     vkrQueueSupport support = { 0 };
     support.count = famCount;
     support.properties = properties;
-    support.family[vkrQueueId_Gfx] = vkrSelectGfxFamily(properties, famCount);
-    support.family[vkrQueueId_Comp] = vkrSelectCompFamily(properties, famCount);
-    support.family[vkrQueueId_Xfer] = vkrSelectXferFamily(properties, famCount);
-    support.family[vkrQueueId_Pres] = vkrSelectPresFamily(phdev, surf, properties, famCount);
+    support.family[vkrQueueId_Graphics] = vkrSelectGfxFamily(properties, famCount);
+    support.family[vkrQueueId_Compute] = vkrSelectCompFamily(properties, famCount);
+    support.family[vkrQueueId_Transfer] = vkrSelectXferFamily(properties, famCount);
+    support.family[vkrQueueId_Present] = vkrSelectPresFamily(phdev, surf, properties, famCount);
 
     i32* choicects = Temp_Calloc(sizeof(choicects[0]) * famCount);
     for (i32 id = 0; id < vkrQueueId_COUNT; ++id)

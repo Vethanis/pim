@@ -447,11 +447,12 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     const i32 len = size.x * size.y;
     R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
 
-    const float wp = vkrSys_GetWhitepoint();
+    const float exposureAdjust = vkrSys_HdrEnabled() ? 64.0f : 1.0f;
     for (i32 i = 0; i < len; ++i)
     {
         float4 v = buf->light[i];
-        v = f4_uncharted2(v, wp);
+        v = f4_mulvs(v, exposureAdjust);
+        v = f4_aceskfit(v);
         v.w = 1.0f;
         color[i] = f4_rgba8(f4_sRGB_InverseEOTF_Fit(v));
     }
@@ -1039,6 +1040,56 @@ static MeshId GenQuadMesh(const char* name)
     return id;
 }
 
+// N = (0, 0, 1)
+// centered at origin, [-0.5, 0.5]
+static MeshId GenBoxMesh(const char* name)
+{
+    const float4 tl = { -0.5f, 0.5f, 0.0f };
+    const float4 tr = { 0.5f, 0.5f, 0.0f };
+    const float4 bl = { -0.5f, -0.5f, 0.0f };
+    const float4 br = { 0.5f, -0.5f, 0.0f };
+
+    const i32 length = 36;
+    float4* positions = Perm_Alloc(sizeof(positions[0]) * length);
+    float4* normals = Perm_Alloc(sizeof(normals[0]) * length);
+    float4* uvs = Perm_Alloc(sizeof(uvs[0]) * length);
+    int4* texIndices = Perm_Calloc(sizeof(texIndices[0]) * length);
+
+    // counter clockwise
+    float4 quadPos[6];
+    quadPos[0] = tl; uvs[0] = f4_v(0.0f, 1.0f, 0.0f, 0.0f);
+    quadPos[1] = bl; uvs[1] = f4_v(0.0f, 0.0f, 0.0f, 0.0f);
+    quadPos[2] = tr; uvs[2] = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
+    quadPos[3] = tr; uvs[3] = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
+    quadPos[4] = bl; uvs[4] = f4_v(0.0f, 0.0f, 0.0f, 0.0f);
+    quadPos[5] = br; uvs[5] = f4_v(1.0f, 0.0f, 0.0f, 0.0f);
+    for (i32 i = 0; i < 6; ++i)
+    {
+        const float4 N = Cubemap_kForwards[i];
+        const quat rot = quat_lookat(N, Cubemap_kUps[i]);
+        const float4x4 M = f4x4_trs(f4_mulvs(N, -0.5f), rot, f4_1);
+        for (i32 j = 0; j < 6; ++j)
+        {
+            positions[i * 6 + j] = f4x4_mul_pt(M, quadPos[j]);
+            normals[i * 6 + j] = N;
+            uvs[i * 6 + j] = uvs[j];
+        }
+    }
+
+    MeshId id = { 0 };
+    Mesh mesh = { 0 };
+    mesh.length = length;
+    mesh.positions = positions;
+    mesh.normals = normals;
+    mesh.uvs = uvs;
+    mesh.texIndices = texIndices;
+    Guid guid = Guid_FromStr(name);
+    bool added = Mesh_New(&mesh, guid, &id);
+    ASSERT(added);
+    return id;
+}
+
+
 static TextureId GenFlatTexture(const char* name, const char* suffix, float4 value)
 {
     TextureId id = { 0 };
@@ -1091,6 +1142,26 @@ static i32 CreateQuad(
     return i;
 }
 
+static i32 CreateBox(
+    const char* name,
+    float4 center,
+    float4 forward,
+    float4 up,
+    float4 scale,
+    float4 albedo,
+    float4 rome,
+    MatFlag flags)
+{
+    Entities* dr = Entities_Get();
+    i32 i = Entities_Add(dr, Guid_FromStr(name));
+    dr->meshes[i] = GenBoxMesh(name);
+    dr->materials[i] = GenMaterial(name, albedo, rome, flags);
+    dr->translations[i] = center;
+    dr->rotations[i] = quat_lookat(forward, up);
+    dr->scales[i] = scale;
+    return i;
+}
+
 static i32 CreateSphere(
     const char* name,
     float4 center,
@@ -1118,10 +1189,13 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 
     Camera_Reset();
 
-    const float wallExtents = 5.0f;
+    const float wallExtents = 2.0f;
     const float wallScale = 2.0f * wallExtents;
+    const float lightScale = 1.0f;
     const float sphereScale = 1.0f;
-    const float lightScale = 0.5f;
+    const float margin = sphereScale;
+    const float lo = -wallExtents + margin;
+    const float hi = wallExtents - margin;
 
     const float4 x = { 1.0f, 0.0f, 0.0f };
     const float4 y = { 0.0f, 1.0f, 0.0f };
@@ -1187,9 +1261,8 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
         f4_v(0.9f, 1.0f, 0.0f, 0.0f),
         0x0);
 
-    const float margin = sphereScale * 1.5f;
-    const float lo = -wallExtents + margin;
-    const float hi = wallExtents - margin;
+#define CORNELL_BOX_SPHERES 0
+#if CORNELL_BOX_SPHERES
     for (i32 j = 0; j < 5; ++j)
     {
         float t = (j + 0.5f) / 5;
@@ -1244,6 +1317,39 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
             MatFlag_Refractive);
         dr->materials[i].ior = 1.5f;
     }
+
+#else
+
+    {
+        float x = f1_lerp(lo, hi, 0.2f);
+        float y = -wallExtents + sphereScale;
+        float z = f1_lerp(lo, hi, 0.2f);
+        i = CreateBox(
+            "Cornell_MetalBox",
+            f4_v(x, y, z, 0.0f),
+            f4_normalize3(f4_v(0.2f, 0.0f, 1.0f, 0.0f)),
+            f4_v(0.0f, 1.0f, 0.0f, 0.0f),
+            f4_v(sphereScale, sphereScale * 2.0f, sphereScale, 0.0f),
+            f4_s(0.9f),
+            f4_v(0.1f, 1.0f, 1.0f, 0.0f),
+            0x0);
+    }
+    {
+        float x = f1_lerp(lo, hi, 0.8f);
+        float y = -wallExtents + sphereScale * 0.5f;
+        float z = f1_lerp(lo, hi, 0.8f);
+        i = CreateBox(
+            "Cornell_PlasticBox",
+            f4_v(x, y, z, 0.0f),
+            f4_normalize3(f4_v(-0.2f, 0.0f, 1.0f, 0.0f)),
+            f4_v(0.0f, 1.0f, 0.0f, 0.0f),
+            f4_v(sphereScale, sphereScale, sphereScale, 0.0f),
+            f4_s(0.9f),
+            f4_v(0.8f, 1.0f, 0.0f, 0.0f),
+            0x0);
+    }
+
+#endif // CORNELL_BOX_SPHERES
 
     Entities_UpdateTransforms(dr);
     Entities_UpdateBounds(dr);

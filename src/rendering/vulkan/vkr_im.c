@@ -100,7 +100,7 @@ void vkrImSys_Flush(VkCommandBuffer cmd)
                 VkQueue queue = NULL;
                 if (tmpCmd)
                 {
-                    cmd = vkrContext_GetTmpCmd(vkrQueueId_Gfx, &fence, &queue);
+                    cmd = vkrContext_GetTmpCmd(vkrQueueId_Graphics, &fence, &queue);
                     vkrCmdBegin(cmd);
                 }
                 vkrBuffer_Barrier(

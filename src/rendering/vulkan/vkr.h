@@ -55,13 +55,24 @@ typedef enum
 
 typedef enum
 {
-    vkrQueueId_Pres,
-    vkrQueueId_Gfx,
-    vkrQueueId_Comp,
-    vkrQueueId_Xfer,
+    vkrQueueId_Present,
+    vkrQueueId_Graphics,
+    vkrQueueId_Compute,
+    vkrQueueId_Transfer,
 
     vkrQueueId_COUNT
 } vkrQueueId;
+
+typedef enum
+{
+    vkrQueueFlag_PresentBit = 1 << vkrQueueId_Present,
+    vkrQueueFlag_GraphicsBit = 1 << vkrQueueId_Graphics,
+    vkrQueueFlag_ComputeBit = 1 << vkrQueueId_Compute,
+    vkrQueueFlag_TransferBit = 1 << vkrQueueId_Transfer,
+
+    vkrQueueFlag_ALL = 0x7fffffff,
+} vkrQueueFlagBits;
+typedef u32 vkrQueueFlags;
 
 typedef enum
 {
@@ -114,9 +125,8 @@ typedef enum
     vkrMemUsage_Unknown = 0,
     vkrMemUsage_GpuOnly = 1,
     vkrMemUsage_CpuOnly = 2,
-    vkrMemUsage_CpuToGpu = 3,
-    vkrMemUsage_GpuToCpu = 4,
-    vkrMemUsage_CpuCopy = 5,
+    vkrMemUsage_Dynamic = 3,    // mappable, 1 host write, cached device reads
+    vkrMemUsage_Readback = 4,   // mappable, 1 device write, cached host reads
 } vkrMemUsage;
 
 typedef enum
@@ -148,6 +158,11 @@ typedef struct vkrBuffer_s
     VkBuffer handle;
     VmaAllocation allocation;
     i32 size;
+    u32 gpuOnly : 1;
+    u32 cpuOnly : 1;
+    u32 cpuToGpu : 1;
+    u32 gpuToCpu : 1;
+    u32 cpuCopy : 1;
 } vkrBuffer;
 
 typedef struct vkrBufferSet_s

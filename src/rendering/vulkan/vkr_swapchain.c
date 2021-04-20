@@ -104,8 +104,8 @@ bool vkrSwapchain_New(
 
     const u32 families[] =
     {
-        qsup.family[vkrQueueId_Gfx],
-        qsup.family[vkrQueueId_Pres],
+        qsup.family[vkrQueueId_Graphics],
+        qsup.family[vkrQueueId_Present],
     };
     bool concurrent = families[0] != families[1];
 
@@ -255,7 +255,7 @@ bool vkrSwapchain_New(
     {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = g_vkr.queues[vkrQueueId_Gfx].family,
+        .queueFamilyIndex = g_vkr.queues[vkrQueueId_Graphics].family,
     };
     VkCommandPool cmdpool = NULL;
     VkCheck(vkCreateCommandPool(g_vkr.dev, &cmdpoolinfo, NULL, &cmdpool));
@@ -488,7 +488,7 @@ void vkrSwapchain_Submit(vkrSwapchain* chain, VkCommandBuffer cmd)
     u32 imageIndex = chain->imageIndex;
     u32 syncIndex = chain->syncIndex;
     ASSERT(cmd == chain->presCmds[syncIndex]);
-    VkQueue gfxQueue = g_vkr.queues[vkrQueueId_Gfx].handle;
+    VkQueue gfxQueue = g_vkr.queues[vkrQueueId_Graphics].handle;
     ASSERT(gfxQueue);
 
     const VkClearValue clearValues[] =
@@ -530,7 +530,7 @@ void vkrSwapchain_Present(vkrSwapchain* chain)
     ASSERT(chain->handle);
 
     u32 syncIndex = chain->syncIndex;
-    VkQueue presentQueue = g_vkr.queues[vkrQueueId_Pres].handle;
+    VkQueue presentQueue = g_vkr.queues[vkrQueueId_Present].handle;
     ASSERT(presentQueue);
 
     ProfileBegin(pm_present);

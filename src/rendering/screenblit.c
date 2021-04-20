@@ -43,7 +43,7 @@ bool vkrScreenBlit_New(void)
         &blit->meshbuf,
         sizeof(kScreenMesh),
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        vkrMemUsage_CpuToGpu))
+        vkrMemUsage_Dynamic))
     {
         ASSERT(false);
         success = false;
@@ -83,7 +83,7 @@ void vkrScreenBlit_Blit(
 
     const u32 queueFamilies[] =
     {
-        g_vkr.queues[vkrQueueId_Gfx].family,
+        g_vkr.queues[vkrQueueId_Graphics].family,
     };
     const VkImageCreateInfo imageInfo =
     {

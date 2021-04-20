@@ -173,7 +173,7 @@ bool vkrTexture_New(
     const i32 mipCount = mips ? vkrTexture_MipCount(width, height, depth) : 1;
     const u32 queueFamilies[] =
     {
-        g_vkr.queues[vkrQueueId_Gfx].family,
+        g_vkr.queues[vkrQueueId_Graphics].family,
     };
     VkImageCreateInfo info = { 0 };
     info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -252,7 +252,7 @@ VkFence vkrTexture_Upload(
 
     VkFence fence = NULL;
     VkQueue queue = NULL;
-    VkCommandBuffer cmd = vkrContext_GetTmpCmd(vkrQueueId_Gfx, &fence, &queue);
+    VkCommandBuffer cmd = vkrContext_GetTmpCmd(vkrQueueId_Graphics, &fence, &queue);
     vkrCmdBegin(cmd);
     {
         // transition all mips from undefined to xfer dst
