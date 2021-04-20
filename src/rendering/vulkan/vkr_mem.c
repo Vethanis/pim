@@ -11,25 +11,43 @@
 #include "common/console.h"
 #include "common/cvars.h"
 #include "threading/task.h"
+#include "math/scalar.h"
 
 #include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
 #include <string.h>
+
+typedef struct vkrMemPool_s
+{
+    VmaPool handle;
+    VkDeviceSize size;
+    VkBufferUsageFlags bufferUsage;
+    VkImageUsageFlags imageUsage;
+    vkrMemUsage memUsage;
+    vkrQueueFlags queueUsage;
+} vkrMemPool;
 
 typedef struct vkrAllocator_s
 {
     Spinlock lock;
     VmaAllocator handle;
-    VmaPool stagePool;
-    VmaPool texturePool;
-    VmaPool gpuMeshPool;
-    VmaPool cpuMeshPool;
-    VmaPool uavPool;
+    vkrMemPool stagingPool;
+    vkrMemPool deviceBufferPool;
+    vkrMemPool dynamicBufferPool;
+    vkrMemPool deviceTexturePool;
     vkrReleasable* releasables;
     i32 numreleasable;
 } vkrAllocator;
 
 static vkrAllocator ms_inst;
 
+static bool vkrMemPool_New(
+    vkrMemPool* pool,
+    VkDeviceSize size,
+    VkBufferUsageFlags bufferUsage,
+    VkImageUsageFlags imageUsage,
+    vkrMemUsage memUsage,
+    vkrQueueFlags queueUsage);
+static void vkrMemPool_Del(vkrMemPool* pool);
 static VmaPool GetBufferPool(VkBufferUsageFlags usage, vkrMemUsage memUsage);
 static VmaPool GetTexturePool(VkImageUsageFlags usage, vkrMemUsage memUsage);
 static void FinalizeCheck(i32 len);
@@ -92,185 +110,69 @@ bool vkrMemSys_Init(void)
         }
     }
 
+    if (!vkrMemPool_New(
+        &ms_inst.stagingPool,
+        1 << 20,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        0x0,
+        vkrMemUsage_CpuOnly,
+        vkrQueueFlag_TransferBit |
+        vkrQueueFlag_GraphicsBit |
+        vkrQueueFlag_ComputeBit))
     {
-        const VkBufferCreateInfo bufferInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = sizeof(float4) * 4 * 1024,
-            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        };
-        const VmaAllocationCreateInfo allocInfo =
-        {
-            .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
-            .usage = vkrMemUsage_CpuOnly,
-        };
-        u32 memTypeIndex = 0;
-        VkCheck(vmaFindMemoryTypeIndexForBufferInfo(
-            allocator->handle, &bufferInfo, &allocInfo, &memTypeIndex));
-        const VmaPoolCreateInfo poolInfo =
-        {
-            .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = kFramesInFlight - 1,
-        };
-        VmaPool pool = NULL;
-        VkCheck(vmaCreatePool(allocator->handle, &poolInfo, &pool));
-        ASSERT(pool);
-        allocator->stagePool = pool;
-        if (!pool)
-        {
-            success = false;
-            goto cleanup;
-        }
+        success = false;
+        goto cleanup;
     }
 
+    if (!vkrMemPool_New(
+        &ms_inst.deviceBufferPool,
+        1 << 20,
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        0x0,
+        vkrMemUsage_GpuOnly,
+        vkrQueueFlag_TransferBit |
+        vkrQueueFlag_GraphicsBit |
+        vkrQueueFlag_ComputeBit))
     {
-        const VkBufferCreateInfo bufferInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = sizeof(float4) * 4 * 1024,
-            .usage =
-                VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-                VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        };
-        const VmaAllocationCreateInfo allocInfo =
-        {
-            .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
-            .usage = vkrMemUsage_GpuOnly,
-        };
-        u32 memTypeIndex = 0;
-        VkCheck(vmaFindMemoryTypeIndexForBufferInfo(
-            allocator->handle, &bufferInfo, &allocInfo, &memTypeIndex));
-        const VmaPoolCreateInfo poolInfo =
-        {
-            .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = kFramesInFlight - 1,
-        };
-        VmaPool pool = NULL;
-        VkCheck(vmaCreatePool(allocator->handle, &poolInfo, &pool));
-        ASSERT(pool);
-        allocator->gpuMeshPool = pool;
-        if (!pool)
-        {
-            success = false;
-            goto cleanup;
-        }
+        success = false;
+        goto cleanup;
     }
 
+    if (!vkrMemPool_New(
+        &ms_inst.dynamicBufferPool,
+        1 << 20,
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        0x0,
+        vkrMemUsage_Dynamic,
+        vkrQueueFlag_GraphicsBit |
+        vkrQueueFlag_ComputeBit))
     {
-        const VkBufferCreateInfo bufferInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = sizeof(float4) * 4 * 1024,
-            .usage =
-                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-                VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        };
-        const VmaAllocationCreateInfo allocInfo =
-        {
-            .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
-            .usage = vkrMemUsage_CpuToGpu,
-        };
-        u32 memTypeIndex = 0;
-        VkCheck(vmaFindMemoryTypeIndexForBufferInfo(
-            allocator->handle, &bufferInfo, &allocInfo, &memTypeIndex));
-        const VmaPoolCreateInfo poolInfo =
-        {
-            .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = kFramesInFlight - 1,
-        };
-        VmaPool pool = NULL;
-        VkCheck(vmaCreatePool(allocator->handle, &poolInfo, &pool));
-        ASSERT(pool);
-        allocator->cpuMeshPool = pool;
-        if (!pool)
-        {
-            success = false;
-            goto cleanup;
-        }
+        success = false;
+        goto cleanup;
     }
 
+    if (!vkrMemPool_New(
+        &ms_inst.deviceTexturePool,
+        1024,
+        0x0,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_IMAGE_USAGE_SAMPLED_BIT |
+        VK_IMAGE_USAGE_STORAGE_BIT,
+        vkrMemUsage_GpuOnly,
+        vkrQueueFlag_TransferBit |
+        vkrQueueFlag_GraphicsBit |
+        vkrQueueFlag_ComputeBit))
     {
-        const VkBufferCreateInfo bufferInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = sizeof(float4) * 4 * 1024,
-            .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        };
-        const VmaAllocationCreateInfo allocInfo =
-        {
-            .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
-            .usage = vkrMemUsage_CpuToGpu,
-        };
-        u32 memTypeIndex = 0;
-        VkCheck(vmaFindMemoryTypeIndexForBufferInfo(
-            allocator->handle, &bufferInfo, &allocInfo, &memTypeIndex));
-        const VmaPoolCreateInfo poolInfo =
-        {
-            .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = kFramesInFlight - 1,
-        };
-        VmaPool pool = NULL;
-        VkCheck(vmaCreatePool(allocator->handle, &poolInfo, &pool));
-        ASSERT(pool);
-        allocator->uavPool = pool;
-        if (!pool)
-        {
-            success = false;
-            goto cleanup;
-        }
-    }
-
-    {
-        const u32 queueFamilies[] =
-        {
-            g_vkr.queues[vkrQueueId_Gfx].family,
-        };
-        VkImageCreateInfo imageInfo = { 0 };
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-        imageInfo.extent.width = 1024;
-        imageInfo.extent.height = 1024;
-        imageInfo.extent.depth = 1;
-        imageInfo.mipLevels = 10;
-        imageInfo.arrayLayers = 1;
-        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        imageInfo.usage =
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-            VK_IMAGE_USAGE_SAMPLED_BIT;
-        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        imageInfo.queueFamilyIndexCount = NELEM(queueFamilies);
-        imageInfo.pQueueFamilyIndices = queueFamilies;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        const VmaAllocationCreateInfo allocInfo =
-        {
-            .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
-            .usage = vkrMemUsage_GpuOnly,
-        };
-        u32 memTypeIndex = 0;
-        VkCheck(vmaFindMemoryTypeIndexForImageInfo(
-            allocator->handle, &imageInfo, &allocInfo, &memTypeIndex));
-        const VmaPoolCreateInfo poolInfo =
-        {
-            .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = kFramesInFlight - 1,
-        };
-        VmaPool pool = NULL;
-        VkCheck(vmaCreatePool(allocator->handle, &poolInfo, &pool));
-        ASSERT(pool);
-        allocator->texturePool = pool;
-        if (!pool)
-        {
-            success = false;
-            goto cleanup;
-        }
+        success = false;
+        goto cleanup;
     }
 
 cleanup:
@@ -288,26 +190,10 @@ void vkrMemSys_Shutdown(void)
     if (allocator->handle)
     {
         vkrMemSys_Finalize();
-        if (allocator->stagePool)
-        {
-            vmaDestroyPool(allocator->handle, allocator->stagePool);
-        }
-        if (allocator->uavPool)
-        {
-            vmaDestroyPool(allocator->handle, allocator->uavPool);
-        }
-        if (allocator->cpuMeshPool)
-        {
-            vmaDestroyPool(allocator->handle, allocator->cpuMeshPool);
-        }
-        if (allocator->gpuMeshPool)
-        {
-            vmaDestroyPool(allocator->handle, allocator->gpuMeshPool);
-        }
-        if (allocator->texturePool)
-        {
-            vmaDestroyPool(allocator->handle, allocator->texturePool);
-        }
+        vkrMemPool_Del(&ms_inst.stagingPool);
+        vkrMemPool_Del(&ms_inst.deviceTexturePool);
+        vkrMemPool_Del(&ms_inst.deviceBufferPool);
+        vkrMemPool_Del(&ms_inst.dynamicBufferPool);
         vmaDestroyAllocator(allocator->handle);
     }
     Spinlock_Del(&allocator->lock);
@@ -734,35 +620,150 @@ void vkrMem_Flush(VmaAllocation allocation)
     ProfileEnd(pm_memflush);
 }
 
+static bool vkrMemPool_New(
+    vkrMemPool* pool,
+    VkDeviceSize size,
+    VkBufferUsageFlags bufferUsage,
+    VkImageUsageFlags imageUsage,
+    vkrMemUsage memUsage,
+    vkrQueueFlags queueUsage)
+{
+    memset(pool, 0, sizeof(*pool));
+
+    ASSERT(size);
+    ASSERT((bufferUsage && !imageUsage) || (imageUsage && !bufferUsage));
+    ASSERT(memUsage);
+    ASSERT(queueUsage);
+
+    u32 queueFamilyCount = 0;
+    u32 queueFamilies[vkrQueueId_COUNT] = { 0 };
+    if (queueUsage & vkrQueueFlag_GraphicsBit)
+    {
+        queueFamilies[queueFamilyCount++] = g_vkr.queues[vkrQueueId_Graphics].family;
+    }
+    if (queueUsage & vkrQueueFlag_ComputeBit)
+    {
+        queueFamilies[queueFamilyCount++] = g_vkr.queues[vkrQueueId_Compute].family;
+    }
+    if (queueUsage & vkrQueueFlag_TransferBit)
+    {
+        queueFamilies[queueFamilyCount++] = g_vkr.queues[vkrQueueId_Transfer].family;
+    }
+    if (queueUsage & vkrQueueFlag_PresentBit)
+    {
+        queueFamilies[queueFamilyCount++] = g_vkr.queues[vkrQueueId_Present].family;
+    }
+
+    if (bufferUsage)
+    {
+        const VkBufferCreateInfo bufferInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .size = size,
+            .usage = bufferUsage,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount = queueFamilyCount,
+            .pQueueFamilyIndices = queueFamilies,
+        };
+        const VmaAllocationCreateInfo allocInfo =
+        {
+            .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
+            .usage = memUsage,
+        };
+        u32 memTypeIndex = 0;
+        VkCheck(vmaFindMemoryTypeIndexForBufferInfo(
+            ms_inst.handle, &bufferInfo, &allocInfo, &memTypeIndex));
+        const VmaPoolCreateInfo poolInfo =
+        {
+            .memoryTypeIndex = memTypeIndex,
+            .frameInUseCount = kFramesInFlight - 1,
+        };
+        VkCheck(vmaCreatePool(ms_inst.handle, &poolInfo, &pool->handle));
+        ASSERT(pool->handle);
+        if (pool->handle)
+        {
+            pool->size = size;
+            pool->bufferUsage = bufferUsage;
+            pool->memUsage = memUsage;
+            pool->queueUsage = queueUsage;
+        }
+        return pool->handle != NULL;
+    }
+    else if (imageUsage)
+    {
+        VkImageCreateInfo imageInfo = { 0 };
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        imageInfo.extent.width = (u32)size;
+        imageInfo.extent.height = (u32)size;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1 + u64_log2(size);
+        imageInfo.arrayLayers = 1;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.usage = imageUsage;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        imageInfo.queueFamilyIndexCount = queueFamilyCount;
+        imageInfo.pQueueFamilyIndices = queueFamilies;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        const VmaAllocationCreateInfo allocInfo =
+        {
+            .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
+            .usage = memUsage,
+        };
+        u32 memTypeIndex = 0;
+        VkCheck(vmaFindMemoryTypeIndexForImageInfo(
+            ms_inst.handle, &imageInfo, &allocInfo, &memTypeIndex));
+        const VmaPoolCreateInfo poolInfo =
+        {
+            .memoryTypeIndex = memTypeIndex,
+            .frameInUseCount = kFramesInFlight - 1,
+        };
+        VkCheck(vmaCreatePool(ms_inst.handle, &poolInfo, &pool->handle));
+        ASSERT(pool->handle);
+        if (pool->handle)
+        {
+            pool->size = size;
+            pool->imageUsage = imageUsage;
+            pool->memUsage = memUsage;
+            pool->queueUsage = queueUsage;
+        }
+        return pool->handle != NULL;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+static void vkrMemPool_Del(vkrMemPool* pool)
+{
+    if (pool->handle)
+    {
+        vmaDestroyPool(ms_inst.handle, pool->handle);
+    }
+    memset(pool, 0, sizeof(*pool));
+}
+
 static VmaPool GetBufferPool(VkBufferUsageFlags usage, vkrMemUsage memUsage)
 {
     VmaPool pool = NULL;
-    const VkBufferUsageFlags kMeshUsage =
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    const VkBufferUsageFlags kShaderUsage =
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     switch (memUsage)
     {
     default:
         break;
     case vkrMemUsage_CpuOnly:
-        pool = ms_inst.stagePool;
+        ASSERT(usage & ms_inst.stagingPool.bufferUsage);
+        pool = ms_inst.stagingPool.handle;
         break;
-    case vkrMemUsage_CpuToGpu:
-        if (usage & kMeshUsage)
-        {
-            pool = ms_inst.cpuMeshPool;
-        }
-        else if (usage & kShaderUsage)
-        {
-            pool = ms_inst.uavPool;
-        }
+    case vkrMemUsage_Dynamic:
+        ASSERT(usage & ms_inst.dynamicBufferPool.bufferUsage);
+        pool = ms_inst.dynamicBufferPool.handle;
         break;
     case vkrMemUsage_GpuOnly:
-        if (usage & kMeshUsage)
-        {
-            pool = ms_inst.gpuMeshPool;
-        }
+        ASSERT(usage & ms_inst.deviceBufferPool.bufferUsage);
+        pool = ms_inst.deviceBufferPool.handle;
         break;
     }
     ASSERT(pool);
@@ -771,7 +772,23 @@ static VmaPool GetBufferPool(VkBufferUsageFlags usage, vkrMemUsage memUsage)
 
 static VmaPool GetTexturePool(VkImageUsageFlags usage, vkrMemUsage memUsage)
 {
-    return ms_inst.texturePool;
+    VmaPool pool = NULL;
+    switch (memUsage)
+    {
+    default:
+        break;
+    case vkrMemUsage_GpuOnly:
+        if (usage & ms_inst.deviceTexturePool.imageUsage)
+        {
+            pool = ms_inst.deviceTexturePool.handle;
+        }
+        break;
+    }
+    const VkImageUsageFlags attachmentUsage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    ASSERT(pool || (usage & attachmentUsage));
+    return pool;
 }
 
 static void FinalizeCheck(i32 len)

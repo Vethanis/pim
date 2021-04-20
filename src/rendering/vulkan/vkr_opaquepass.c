@@ -110,7 +110,7 @@ bool vkrOpaquePass_New(void)
         &ms_perCameraBuffer,
         sizeof(vkrPerCamera),
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        vkrMemUsage_CpuToGpu))
+        vkrMemUsage_Dynamic))
     {
         success = false;
         goto cleanup;

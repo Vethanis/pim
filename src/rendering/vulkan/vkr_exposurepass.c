@@ -56,14 +56,14 @@ bool vkrExposurePass_New(void)
     }
     if (!vkrBufferSet_New(
         &ms_histBuffers, sizeof(u32) * kHistogramSize,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu))
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_GpuOnly))
     {
         success = false;
         goto cleanup;
     }
     if (!vkrBufferSet_New(
         &ms_expBuffers, sizeof(float4),
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_CpuToGpu))
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_GpuOnly))
     {
         success = false;
         goto cleanup;
@@ -165,20 +165,20 @@ void vkrExposurePass_Execute(void)
 
     VkFence cmpfence = NULL;
     VkQueue cmpqueue = NULL;
-    VkCommandBuffer cmpcmd = vkrContext_GetTmpCmd(vkrQueueId_Comp, &cmpfence, &cmpqueue);
+    VkCommandBuffer cmpcmd = vkrContext_GetTmpCmd(vkrQueueId_Compute, &cmpfence, &cmpqueue);
     vkrCmdBegin(cmpcmd);
 
     // transition lum img and exposure buf to compute
     {
         VkFence gfxfence = NULL;
         VkQueue gfxqueue = NULL;
-        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(vkrQueueId_Gfx, &gfxfence, &gfxqueue);
+        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(vkrQueueId_Graphics, &gfxfence, &gfxqueue);
         vkrCmdBegin(gfxcmd);
 
         vkrImage_Transfer(
             lum,
-            vkrQueueId_Gfx,
-            vkrQueueId_Comp,
+            vkrQueueId_Graphics,
+            vkrQueueId_Compute,
             gfxcmd,
             cmpcmd,
             VK_IMAGE_LAYOUT_GENERAL,
@@ -188,8 +188,8 @@ void vkrExposurePass_Execute(void)
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
         vkrBuffer_Transfer(
             expBuffer,
-            vkrQueueId_Gfx,
-            vkrQueueId_Comp,
+            vkrQueueId_Graphics,
+            vkrQueueId_Compute,
             gfxcmd,
             cmpcmd,
             VK_ACCESS_SHADER_READ_BIT,
@@ -250,13 +250,13 @@ void vkrExposurePass_Execute(void)
     {
         VkFence gfxfence = NULL;
         VkQueue gfxqueue = NULL;
-        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(vkrQueueId_Gfx, &gfxfence, &gfxqueue);
+        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(vkrQueueId_Graphics, &gfxfence, &gfxqueue);
         vkrCmdBegin(gfxcmd);
 
         vkrImage_Transfer(
             lum,
-            vkrQueueId_Comp,
-            vkrQueueId_Gfx,
+            vkrQueueId_Compute,
+            vkrQueueId_Graphics,
             cmpcmd,
             gfxcmd,
             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -266,8 +266,8 @@ void vkrExposurePass_Execute(void)
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
         vkrBuffer_Transfer(
             expBuffer,
-            vkrQueueId_Comp,
-            vkrQueueId_Gfx,
+            vkrQueueId_Compute,
+            vkrQueueId_Graphics,
             cmpcmd,
             gfxcmd,
             VK_ACCESS_SHADER_WRITE_BIT,

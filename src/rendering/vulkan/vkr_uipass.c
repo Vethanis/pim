@@ -106,12 +106,12 @@ bool vkrUIPass_New(void)
     }
 
     // Create Mesh Buffers:
-    if (!vkrBufferSet_New(&ms_vertbufs, 1024, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vkrMemUsage_CpuToGpu))
+    if (!vkrBufferSet_New(&ms_vertbufs, 1024, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vkrMemUsage_Dynamic))
     {
         success = false;
         goto cleanup;
     }
-    if (!vkrBufferSet_New(&ms_indbufs, 1024, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, vkrMemUsage_CpuToGpu))
+    if (!vkrBufferSet_New(&ms_indbufs, 1024, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, vkrMemUsage_Dynamic))
     {
         success = false;
         goto cleanup;
@@ -346,12 +346,12 @@ static void vkrImGui_UploadRenderDrawData(void)
             vertBuf,
             vertex_size,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu);
+            vkrMemUsage_Dynamic);
         vkrBuffer_Reserve(
             indBuf,
             index_size,
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            vkrMemUsage_CpuToGpu);
+            vkrMemUsage_Dynamic);
 
         ImDrawVert* pim_noalias vtx_dst = vkrBuffer_Map(vertBuf);
         ImDrawIdx* pim_noalias idx_dst = vkrBuffer_Map(indBuf);

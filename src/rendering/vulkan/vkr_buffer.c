@@ -179,13 +179,6 @@ vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set)
     return &set->frames[syncIndex];
 }
 
-vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set)
-{
-    u32 prevIndex = (vkrSys_SyncIndex() + (kFramesInFlight - 1u)) % kFramesInFlight;
-    ASSERT(prevIndex < NELEM(set->frames));
-    return &set->frames[prevIndex];
-}
-
 bool vkrBufferSet_Reserve(
     vkrBufferSet *const set,
     i32 size,
