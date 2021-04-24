@@ -62,6 +62,8 @@
 
 // ----------------------------------------------------------------------------
 
+static cmdstat_t CmdQuit(i32 argc, const char** argv);
+static cmdstat_t CmdScreenshot(i32 argc, const char** argv);
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv);
 static cmdstat_t CmdTeleport(i32 argc, const char** argv);
 static cmdstat_t CmdLookat(i32 argc, const char** argv);
@@ -198,70 +200,6 @@ static void LightmapRepack(void)
     LmPack_Del(LmPack_Get());
     LmPack pack = LmPack_Pack(1024, ConVar_GetFloat(&cv_lm_density), 0.1f, 15.0f);
     *LmPack_Get() = pack;
-}
-
-static float CalcStdDev(const float3* pim_noalias color, int2 size)
-{
-    const i32 len = size.x * size.y;
-    const float meanWeight = 1.0f / len;
-    const float varianceWeight = 1.0f / (len - 1);
-    float mean = 0.0f;
-    for (i32 i = 0; i < len; ++i)
-    {
-        float lum = f4_perlum(f3_f4(color[i], 0.0f));
-        mean += lum * meanWeight;
-    }
-    float variance = 0.0f;
-    for (i32 i = 0; i < len; ++i)
-    {
-        float lum = f4_perlum(f3_f4(color[i], 0.0f));
-        float err = lum - mean;
-        variance += varianceWeight * (err * err);
-    }
-    float stddev = sqrtf(variance);
-    return stddev;
-}
-
-static cmdstat_t CmdPtStdDev(i32 argc, const char** argv)
-{
-    const float3* color = ms_trace.color;
-    int2 size = ms_trace.imageSize;
-    if (color)
-    {
-        float stddev = CalcStdDev(color, size);
-        Con_Logf(LogSev_Info, "pt", "StdDev: %f", stddev);
-        char cmd[PIM_PATH] = { 0 };
-        SPrintf(ARGS(cmd), "screenshot pt_stddev_%f.png", stddev);
-        Con_Exec(cmd);
-        return cmdstat_ok;
-    }
-    return cmdstat_err;
-}
-
-static cmdstat_t CmdLoadTest(i32 argc, const char** argv)
-{
-    char cmd[PIM_PATH];
-    Con_Exec("mapload start");
-    for (i32 e = 1; ; ++e)
-    {
-        for (i32 m = 1; ; ++m)
-        {
-            SPrintf(ARGS(cmd), "mapload e%dm%d", e, m);
-            cmdstat_t status = cmd_text(cmd);
-            if (status != cmdstat_ok)
-            {
-                if (m == 1)
-                {
-                    goto end;
-                }
-                break;
-            }
-        }
-    }
-end:
-    Con_Exec("mapload end");
-    Con_Exec("mapload start");
-    return cmdstat_ok;
 }
 
 ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
@@ -419,61 +357,6 @@ static bool PathTrace(void)
     return false;
 }
 
-static cmdstat_t CmdQuit(i32 argc, const char** argv)
-{
-    Window_Close(true);
-    return cmdstat_ok;
-}
-
-static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
-{
-    char filename[PIM_PATH] = { 0 };
-    if (argc > 1 && argv[1])
-    {
-        StrCpy(ARGS(filename), argv[1]);
-    }
-    else
-    {
-        time_t ticks = time(NULL);
-        struct tm* local = localtime(&ticks);
-        char timestr[PIM_PATH] = { 0 };
-        strftime(ARGS(timestr), "%Y_%m_%d_%H_%M_%S", local);
-        SPrintf(ARGS(filename), "screenshot_%s.png", timestr);
-    }
-
-    const FrameBuf* buf = GetFrontBuf();
-    ASSERT(buf->color);
-    const int2 size = { buf->width, buf->height };
-    const i32 len = size.x * size.y;
-    R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
-
-    const float exposureAdjust = vkrSys_HdrEnabled() ? 64.0f : 1.0f;
-    for (i32 i = 0; i < len; ++i)
-    {
-        float4 v = buf->light[i];
-        v = f4_mulvs(v, exposureAdjust);
-        v = f4_aceskfit(v);
-        v.w = 1.0f;
-        color[i] = f4_rgba8(f4_sRGB_InverseEOTF_Fit(v));
-    }
-
-    stbi_flip_vertically_on_write(1);
-    i32 wrote = stbi_write_png(filename, size.x, size.y, 4, color, sizeof(color[0]) * size.x);
-
-    Mem_Free(color); color = NULL;
-
-    if (wrote)
-    {
-        Con_Logf(LogSev_Info, "Sc", "Took screenshot '%s'", filename);
-        return cmdstat_ok;
-    }
-    else
-    {
-        Con_Logf(LogSev_Error, "Sc", "Failed to take screenshot");
-        return cmdstat_err;
-    }
-}
-
 static void TakeScreenshot(void)
 {
     if (Input_IsKeyDown(KeyCode_F10))
@@ -512,108 +395,6 @@ static void Present(void)
         TakeScreenshot();
         ProfileEnd(pm_Present);
     }
-}
-
-static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
-{
-    if (argc != 2)
-    {
-        Con_Logf(LogSev_Error, "cmd", "mapload <map name>; map name is missing.");
-        return cmdstat_err;
-    }
-    const char* name = argv[1];
-    if (!name)
-    {
-        Con_Logf(LogSev_Error, "cmd", "mapload <map name>; map name is null.");
-        return cmdstat_err;
-    }
-
-    Con_Logf(LogSev_Info, "cmd", "mapload is clearing drawables.");
-    Entities_Clear(Entities_Get());
-    ShutdownPtScene();
-    LightmapShutdown();
-    Camera_Reset();
-    vkrSys_OnUnload();
-
-    bool loaded = false;
-
-    char mapname[PIM_PATH] = { 0 };
-    SPrintf(ARGS(mapname), "maps/%s.bsp", name);
-    Con_Logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
-
-    char cratepath[PIM_PATH] = { 0 };
-    SPrintf(ARGS(cratepath), "data/%s.crate", name);
-    Crate* crate = Temp_Alloc(sizeof(*crate));
-    if (Crate_Open(crate, cratepath))
-    {
-        loaded = true;
-        loaded &= Entities_Load(crate, Entities_Get());
-        loaded &= LmPack_Load(crate, LmPack_Get());
-        loaded &= Crate_Close(crate);
-    }
-
-    if (!loaded)
-    {
-        loaded = LoadModelAsDrawables(mapname, Entities_Get());
-    }
-
-    if (loaded)
-    {
-        Entities_UpdateTransforms(Entities_Get());
-        Entities_UpdateBounds(Entities_Get());
-        vkrSys_OnLoad();
-        Con_Logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
-        return cmdstat_ok;
-    }
-    else
-    {
-        Con_Logf(LogSev_Error, "cmd", "mapload failed to load '%s'.", mapname);
-        return cmdstat_err;
-    }
-}
-
-static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
-{
-    if (argc != 2)
-    {
-        Con_Logf(LogSev_Error, "cmd", "mapsave <map name>; map name is missing.");
-        return cmdstat_err;
-    }
-    const char* name = argv[1];
-    if (!name)
-    {
-        Con_Logf(LogSev_Error, "cmd", "mapsave <map name>; map name is null.");
-        return cmdstat_err;
-    }
-
-    bool saved = false;
-
-    char mapname[PIM_PATH] = { 0 };
-    SPrintf(ARGS(mapname), "maps/%s.bsp", name);
-
-    Con_Logf(LogSev_Info, "cmd", "mapsave is saving '%s'.", mapname);
-
-    char cratepath[PIM_PATH] = { 0 };
-    SPrintf(ARGS(cratepath), "data/%s.crate", name);
-    Crate* crate = Temp_Alloc(sizeof(*crate));
-    if (Crate_Open(crate, cratepath))
-    {
-        saved = true;
-        saved &= Entities_Save(crate, Entities_Get());
-        saved &= LmPack_Save(crate, LmPack_Get());
-        saved &= Crate_Close(crate);
-    }
-
-    if (saved)
-    {
-        Con_Logf(LogSev_Info, "cmd", "mapsave saved '%s'.", mapname);
-    }
-    else
-    {
-        Con_Logf(LogSev_Error, "cmd", "mapsave failed to save '%s'.", mapname);
-    }
-
-    return saved ? cmdstat_ok : cmdstat_err;
 }
 
 typedef struct task_BakeSky
@@ -855,6 +636,15 @@ void RenderSys_Gui(bool* pEnabled)
             igTreePop();
         }
 
+        if (igTreeNodeExStr("Color", ImGuiTreeNodeFlags_Framed))
+        {
+            if (igExButton("Dump Conversion Matrices"))
+            {
+                Color_DumpConversionMatrices();
+            }
+            igTreePop();
+        }
+
         if (ms_trace.scene)
         {
             PtTrace_Gui(&ms_trace);
@@ -870,6 +660,62 @@ void RenderSys_Gui(bool* pEnabled)
 }
 
 // ----------------------------------------------------------------------------
+
+static cmdstat_t CmdQuit(i32 argc, const char** argv)
+{
+    Window_Close(true);
+    return cmdstat_ok;
+}
+
+static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
+{
+    char filename[PIM_PATH] = { 0 };
+    if (argc > 1 && argv[1])
+    {
+        StrCpy(ARGS(filename), argv[1]);
+    }
+    else
+    {
+        time_t ticks = time(NULL);
+        struct tm* local = localtime(&ticks);
+        char timestr[PIM_PATH] = { 0 };
+        strftime(ARGS(timestr), "%Y_%m_%d_%H_%M_%S", local);
+        SPrintf(ARGS(filename), "screenshot_%s.png", timestr);
+    }
+
+    const FrameBuf* buf = GetFrontBuf();
+    ASSERT(buf->color);
+    const int2 size = { buf->width, buf->height };
+    const i32 len = size.x * size.y;
+    R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
+
+    const float exposureAdjust = vkrSys_HdrEnabled() ? 64.0f : 1.0f;
+    for (i32 i = 0; i < len; ++i)
+    {
+        float4 v = buf->light[i];
+        v = f4_mulvs(v, exposureAdjust);
+        v = f4_aceskfit(v);
+        v = f4_Rec2020_Rec709(v);
+        v.w = 1.0f;
+        color[i] = f4_rgba8(f4_sRGB_InverseEOTF_Fit(v));
+    }
+
+    stbi_flip_vertically_on_write(1);
+    i32 wrote = stbi_write_png(filename, size.x, size.y, 4, color, sizeof(color[0]) * size.x);
+
+    Mem_Free(color); color = NULL;
+
+    if (wrote)
+    {
+        Con_Logf(LogSev_Info, "Sc", "Took screenshot '%s'", filename);
+        return cmdstat_ok;
+    }
+    else
+    {
+        Con_Logf(LogSev_Error, "Sc", "Failed to take screenshot");
+        return cmdstat_err;
+    }
+}
 
 static MeshId GenSphereMesh(const char* name, i32 steps)
 {
@@ -1408,4 +1254,170 @@ static cmdstat_t CmdPtTest(i32 argc, const char** argv)
     Con_Exec("pt_stddev");
     Con_Exec("quit");
     return cmdstat_ok;
+}
+
+static float CalcStdDev(const float3* pim_noalias color, int2 size)
+{
+    const i32 len = size.x * size.y;
+    const float meanWeight = 1.0f / len;
+    const float varianceWeight = 1.0f / (len - 1);
+    float mean = 0.0f;
+    for (i32 i = 0; i < len; ++i)
+    {
+        float lum = f4_perlum(f3_f4(color[i], 0.0f));
+        mean += lum * meanWeight;
+    }
+    float variance = 0.0f;
+    for (i32 i = 0; i < len; ++i)
+    {
+        float lum = f4_perlum(f3_f4(color[i], 0.0f));
+        float err = lum - mean;
+        variance += varianceWeight * (err * err);
+    }
+    float stddev = sqrtf(variance);
+    return stddev;
+}
+
+static cmdstat_t CmdPtStdDev(i32 argc, const char** argv)
+{
+    const float3* color = ms_trace.color;
+    int2 size = ms_trace.imageSize;
+    if (color)
+    {
+        float stddev = CalcStdDev(color, size);
+        Con_Logf(LogSev_Info, "pt", "StdDev: %f", stddev);
+        char cmd[PIM_PATH] = { 0 };
+        SPrintf(ARGS(cmd), "screenshot pt_stddev_%f.png", stddev);
+        Con_Exec(cmd);
+        return cmdstat_ok;
+    }
+    return cmdstat_err;
+}
+
+static cmdstat_t CmdLoadTest(i32 argc, const char** argv)
+{
+    char cmd[PIM_PATH];
+    Con_Exec("mapload start");
+    for (i32 e = 1; ; ++e)
+    {
+        for (i32 m = 1; ; ++m)
+        {
+            SPrintf(ARGS(cmd), "mapload e%dm%d", e, m);
+            cmdstat_t status = cmd_text(cmd);
+            if (status != cmdstat_ok)
+            {
+                if (m == 1)
+                {
+                    goto end;
+                }
+                break;
+            }
+        }
+    }
+end:
+    Con_Exec("mapload end");
+    Con_Exec("mapload start");
+    return cmdstat_ok;
+}
+
+static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
+{
+    if (argc != 2)
+    {
+        Con_Logf(LogSev_Error, "cmd", "mapload <map name>; map name is missing.");
+        return cmdstat_err;
+    }
+    const char* name = argv[1];
+    if (!name)
+    {
+        Con_Logf(LogSev_Error, "cmd", "mapload <map name>; map name is null.");
+        return cmdstat_err;
+    }
+
+    Con_Logf(LogSev_Info, "cmd", "mapload is clearing drawables.");
+    Entities_Clear(Entities_Get());
+    ShutdownPtScene();
+    LightmapShutdown();
+    Camera_Reset();
+    vkrSys_OnUnload();
+
+    bool loaded = false;
+
+    char mapname[PIM_PATH] = { 0 };
+    SPrintf(ARGS(mapname), "maps/%s.bsp", name);
+    Con_Logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
+
+    char cratepath[PIM_PATH] = { 0 };
+    SPrintf(ARGS(cratepath), "data/%s.crate", name);
+    Crate* crate = Temp_Alloc(sizeof(*crate));
+    if (Crate_Open(crate, cratepath))
+    {
+        loaded = true;
+        loaded &= Entities_Load(crate, Entities_Get());
+        loaded &= LmPack_Load(crate, LmPack_Get());
+        loaded &= Crate_Close(crate);
+    }
+
+    if (!loaded)
+    {
+        loaded = LoadModelAsDrawables(mapname, Entities_Get());
+    }
+
+    if (loaded)
+    {
+        Entities_UpdateTransforms(Entities_Get());
+        Entities_UpdateBounds(Entities_Get());
+        vkrSys_OnLoad();
+        Con_Logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
+        return cmdstat_ok;
+    }
+    else
+    {
+        Con_Logf(LogSev_Error, "cmd", "mapload failed to load '%s'.", mapname);
+        return cmdstat_err;
+    }
+}
+
+static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
+{
+    if (argc != 2)
+    {
+        Con_Logf(LogSev_Error, "cmd", "mapsave <map name>; map name is missing.");
+        return cmdstat_err;
+    }
+    const char* name = argv[1];
+    if (!name)
+    {
+        Con_Logf(LogSev_Error, "cmd", "mapsave <map name>; map name is null.");
+        return cmdstat_err;
+    }
+
+    bool saved = false;
+
+    char mapname[PIM_PATH] = { 0 };
+    SPrintf(ARGS(mapname), "maps/%s.bsp", name);
+
+    Con_Logf(LogSev_Info, "cmd", "mapsave is saving '%s'.", mapname);
+
+    char cratepath[PIM_PATH] = { 0 };
+    SPrintf(ARGS(cratepath), "data/%s.crate", name);
+    Crate* crate = Temp_Alloc(sizeof(*crate));
+    if (Crate_Open(crate, cratepath))
+    {
+        saved = true;
+        saved &= Entities_Save(crate, Entities_Get());
+        saved &= LmPack_Save(crate, LmPack_Get());
+        saved &= Crate_Close(crate);
+    }
+
+    if (saved)
+    {
+        Con_Logf(LogSev_Info, "cmd", "mapsave saved '%s'.", mapname);
+    }
+    else
+    {
+        Con_Logf(LogSev_Error, "cmd", "mapsave failed to save '%s'.", mapname);
+    }
+
+    return saved ? cmdstat_ok : cmdstat_err;
 }
