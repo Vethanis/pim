@@ -208,7 +208,7 @@ ConVar cv_pt_dist_alpha =
 {
     .type = cvart_float,
     .name = "pt_dist_alpha",
-    .value = "0.9",
+    .value = "0.5",
     .minFloat = 0.0f,
     .maxFloat = 1.0f,
     .desc = "Path tracer light distribution update amount",

@@ -369,11 +369,12 @@ static void UnpaletteStep1Fn(void* pbase, i32 begin, i32 end)
     for (i32 i = begin; i < end; ++i)
     {
         R8G8B8A8_t color = DecodeTexel(bytes[i]);
-        float4 diffuse = ColorToLinear(color);
-        float4 linear = DiffuseToAlbedo(diffuse);
-        linear.w = 1.0f;
-        gray[i] = f2_v(f4_avglum(diffuse), f4_avglum(linear));
-        albedo[i] = LinearToColor(linear);
+        float4 diffuse709 = ColorToLinear(color);
+        float4 diffuse2020 = f4_Rec709_Rec2020(diffuse709);
+        float4 linear2020 = DiffuseToAlbedo(diffuse2020);
+        linear2020.w = 1.0f;
+        gray[i] = f2_v(f4_avglum(linear2020), f4_avglum(linear2020));
+        albedo[i] = LinearToColor(linear2020);
     }
 }
 

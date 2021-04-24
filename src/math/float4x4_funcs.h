@@ -53,30 +53,24 @@ pim_inline float4x4 VEC_CALL f4x4_transpose(float4x4 m)
     return r;
 }
 
+// no assumption of col.w
+pim_inline float4 VEC_CALL f4x4_mul_col(float4x4 m, float4 col)
+{
+    float4 a = f4_mulvs(m.c0, col.x);
+    float4 b = f4_mulvs(m.c1, col.y);
+    float4 c = f4_mulvs(m.c2, col.z);
+    float4 d = f4_mulvs(m.c3, col.w);
+    return f4_add(f4_add(a, b), f4_add(c, d));
+}
+
+// columns of b are transformed by matrix a
 pim_inline float4x4 VEC_CALL f4x4_mul(float4x4 a, float4x4 b)
 {
     float4x4 m;
-    float4 x, y, z, w;
-    x = f4_mulvs(a.c0, b.c0.x);
-    y = f4_mulvs(a.c1, b.c0.y);
-    z = f4_mulvs(a.c2, b.c0.z);
-    w = f4_mulvs(a.c3, b.c0.w);
-    m.c0 = f4_add(f4_add(x, y), f4_add(z, w));
-    x = f4_mulvs(a.c0, b.c1.x);
-    y = f4_mulvs(a.c1, b.c1.y);
-    z = f4_mulvs(a.c2, b.c1.z);
-    w = f4_mulvs(a.c3, b.c1.w);
-    m.c1 = f4_add(f4_add(x, y), f4_add(z, w));
-    x = f4_mulvs(a.c0, b.c2.x);
-    y = f4_mulvs(a.c1, b.c2.y);
-    z = f4_mulvs(a.c2, b.c2.z);
-    w = f4_mulvs(a.c3, b.c2.w);
-    m.c2 = f4_add(f4_add(x, y), f4_add(z, w));
-    x = f4_mulvs(a.c0, b.c3.x);
-    y = f4_mulvs(a.c1, b.c3.y);
-    z = f4_mulvs(a.c2, b.c3.z);
-    w = f4_mulvs(a.c3, b.c3.w);
-    m.c3 = f4_add(f4_add(x, y), f4_add(z, w));
+    m.c0 = f4x4_mul_col(a, b.c0);
+    m.c1 = f4x4_mul_col(a, b.c1);
+    m.c2 = f4x4_mul_col(a, b.c2);
+    m.c3 = f4x4_mul_col(a, b.c3);
     return m;
 }
 
@@ -105,16 +99,6 @@ pim_inline float4 VEC_CALL f4x4_mul_pt(float4x4 m, float4 pt)
     float4 b = f4_mulvs(m.c1, pt.y);
     float4 c = f4_mulvs(m.c2, pt.z);
     return f4_add(f4_add(a, b), f4_add(c, m.c3));
-}
-
-// no assumption of col.w
-pim_inline float4 VEC_CALL f4x4_mul_col(float4x4 m, float4 col)
-{
-    float4 a = f4_mulvs(m.c0, col.x);
-    float4 b = f4_mulvs(m.c1, col.y);
-    float4 c = f4_mulvs(m.c2, col.z);
-    float4 d = f4_mulvs(m.c3, col.w);
-    return f4_add(f4_add(a, b), f4_add(c, d));
 }
 
 pim_inline float4x4 VEC_CALL f4x4_translate(float4x4 m, float4 v)

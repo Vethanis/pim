@@ -161,4 +161,14 @@ pim_inline float4 VEC_CALL f3x3_mul_col(float3x3 m, float4 col)
     return f4_add(a, f4_add(b, c));
 }
 
+// columns of b are transformed by matrix a
+pim_inline float3x3 VEC_CALL f3x3_mul(float3x3 a, float3x3 b)
+{
+    float3x3 m;
+    m.c0 = f3x3_mul_col(a, b.c0);
+    m.c1 = f3x3_mul_col(a, b.c1);
+    m.c2 = f3x3_mul_col(a, b.c2);
+    return m;
+}
+
 PIM_C_END
