@@ -1,23 +1,23 @@
 #pragma once
 
-#include "common/macro.h"
+#include "math/scalar.h"
+#include "math/float4_funcs.h"
 
 PIM_C_BEGIN
 
-#include "math/scalar.h"
-#include "math/types.h"
-#include "math/float4_funcs.h"
+const char* Colorspace_Str(Colorspace space);
+float4x2 VEC_CALL Colorspace_GetPrimaries(Colorspace space);
 
-// x: { r.x, g.x, b.x, wp.x } tristimulus coordinates rgb and whitepoint
-// y: { r.y, g.y, b.y, wp.y } tristimulus coordinates rgb and whitepoint
+// pr.c0: { r.x, g.x, b.x, wp.x } tristimulus coordinates rgb and whitepoint
+// pr.c1: { r.y, g.y, b.y, wp.y } tristimulus coordinates rgb and whitepoint
 // returns: 3x3 matrix to convert an RGB value in xy colorspace to a CIE XYZ coordinate
-float3x3 VEC_CALL Color_RGB_XYZ(float4 x, float4 y);
+float3x3 VEC_CALL Color_RGB_XYZ(float4x2 pr);
 
-// x: { r.x, g.x, b.x, wp.x } tristimulus coordinates rgb and whitepoint
-// y: { r.y, g.y, b.y, wp.y } tristimulus coordinates rgb and whitepoint
+// pr.c0: { r.x, g.x, b.x, wp.x } tristimulus coordinates rgb and whitepoint
+// pr.c1: { r.y, g.y, b.y, wp.y } tristimulus coordinates rgb and whitepoint
 // returns: 3x3 matrix to convert a CIE XYZ cordinate to an RGB value in xy colorspace
 // This is the inverse of the RGB_XYZ matrix (you can use f3x3_inverse)
-float3x3 VEC_CALL Color_XYZ_RGB(float4 x, float4 y);
+float3x3 VEC_CALL Color_XYZ_RGB(float4x2 pr);
 
 void Color_DumpConversionMatrices(void);
 

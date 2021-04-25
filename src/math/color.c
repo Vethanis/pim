@@ -4,25 +4,76 @@
 #include "common/stringutil.h"
 #include "io/fstr.h"
 
-static const float4 Rec709x = { 0.64f, 0.3f, 0.15f, 0.3127f };
-static const float4 Rec709y = { 0.33f, 0.6f, 0.06f, 0.3290f };
+static const float4x2 kRec709 =
+{
+    { 0.64f, 0.3f, 0.15f, 0.3127f },
+    { 0.33f, 0.6f, 0.06f, 0.3290f },
+};
+static const float4x2 kRec2020 =
+{
+    { 0.708f, 0.170f, 0.131f, 0.3127f },
+    { 0.292f, 0.797f, 0.046f, 0.3290f },
+};
+static const float4x2 kAP0 =
+{
+    { 0.7347f, 0.0f, 0.0001f, 0.32168f },
+    { 0.2653f, 1.0f, -0.077f, 0.33767f },
+};
+static const float4x2 kAP1 =
+{
+    { 0.713f, 0.165f, 0.128f, 0.32168f },
+    { 0.293f, 0.830f, 0.044f, 0.33767f },
+};
 
-static const float4 Rec2020x = { 0.708f, 0.170f, 0.131f, 0.3127f };
-static const float4 Rec2020y = { 0.292f, 0.797f, 0.046f, 0.3290f };
+const char* Colorspace_Str(Colorspace space)
+{
+    switch (space)
+    {
+    default:
+        ASSERT(false);
+        return "Unknown";
+    case Colorspace_Rec709:
+        return "Rec709";
+    case Colorspace_Rec2020:
+        return "Rec2020";
+    case Colorspace_AP0:
+        return "AP0";
+    case Colorspace_AP1:
+        return "AP1";
+    }
+}
 
-static const float4 AP0x = { 0.7347f, 0.0f, 0.0001f, 0.32168f };
-static const float4 AP0y = { 0.2653f, 1.0f, -0.077f, 0.33767f };
+float4x2 VEC_CALL Colorspace_GetPrimaries(Colorspace space)
+{
+    float4x2 value = kRec709;
+    switch (space)
+    {
+    default:
+        ASSERT(false);
+        break;
+    case Colorspace_Rec709:
+        value = kRec709;
+        break;
+    case Colorspace_Rec2020:
+        value = kRec2020;
+        break;
+    case Colorspace_AP0:
+        value = kAP0;
+        break;
+    case Colorspace_AP1:
+        value = kAP1;
+        break;
+    }
+    return value;
+}
 
-static const float4 AP1x = { 0.713f, 0.165f, 0.128f, 0.32168f };
-static const float4 AP1y = { 0.293f, 0.830f, 0.044f, 0.33767f };
-
-float3x3 VEC_CALL Color_RGB_XYZ(float4 x, float4 y)
+float3x3 VEC_CALL Color_RGB_XYZ(float4x2 pr)
 {
     // regenerate tristimulus z coordinate
-    const float4 r = { x.x, y.x, 1.0f - (x.x + y.x) };
-    const float4 g = { x.y, y.y, 1.0f - (x.y + y.y) };
-    const float4 b = { x.z, y.z, 1.0f - (x.z + y.z) };
-    const float4 w = { x.w, y.w, 1.0f - (x.w + y.w) };
+    const float4 r = { pr.c0.x, pr.c1.x, 1.0f - (pr.c0.x + pr.c1.x) };
+    const float4 g = { pr.c0.y, pr.c1.y, 1.0f - (pr.c0.y + pr.c1.y) };
+    const float4 b = { pr.c0.z, pr.c1.z, 1.0f - (pr.c0.z + pr.c1.z) };
+    const float4 w = { pr.c0.w, pr.c1.w, 1.0f - (pr.c0.w + pr.c1.w) };
 
     // invert tristimulus matrix
     const float3x3 xyz = f3x3_inverse((float3x3) { r, g, b });
@@ -42,9 +93,9 @@ float3x3 VEC_CALL Color_RGB_XYZ(float4 x, float4 y)
     return XYZ;
 }
 
-float3x3 VEC_CALL Color_XYZ_RGB(float4 x, float4 y)
+float3x3 VEC_CALL Color_XYZ_RGB(float4x2 pr)
 {
-    return f3x3_inverse(Color_RGB_XYZ(x, y));
+    return f3x3_inverse(Color_RGB_XYZ(pr));
 }
 
 static void VEC_CALL Color_LogMatrix(FStream file, float3x3 m, const char* name)
@@ -62,25 +113,25 @@ void Color_DumpConversionMatrices(void)
     FStream file = FStream_Open("ColorConversionMatrices.txt", "wb");
     if (FStream_IsOpen(file))
     {
-        float3x3 Rec709_XYZ = Color_RGB_XYZ(Rec709x, Rec709y);
+        float3x3 Rec709_XYZ = Color_RGB_XYZ(kRec709);
         float3x3 XYZ_Rec709 = f3x3_inverse(Rec709_XYZ);
         Color_LogMatrix(file, Rec709_XYZ, "Rec709_XYZ");
         Color_LogMatrix(file, XYZ_Rec709, "XYZ_Rec709");
         FStream_Printf(file, "\n");
 
-        float3x3 Rec2020_XYZ = Color_RGB_XYZ(Rec2020x, Rec2020y);
+        float3x3 Rec2020_XYZ = Color_RGB_XYZ(kRec2020);
         float3x3 XYZ_Rec2020 = f3x3_inverse(Rec2020_XYZ);
         Color_LogMatrix(file, Rec2020_XYZ, "Rec2020_XYZ");
         Color_LogMatrix(file, XYZ_Rec2020, "XYZ_Rec2020");
         FStream_Printf(file, "\n");
 
-        float3x3 AP0_XYZ = Color_RGB_XYZ(AP0x, AP0y);
+        float3x3 AP0_XYZ = Color_RGB_XYZ(kAP0);
         float3x3 XYZ_AP0 = f3x3_inverse(AP0_XYZ);
         Color_LogMatrix(file, AP0_XYZ, "AP0_XYZ");
         Color_LogMatrix(file, XYZ_AP0, "XYZ_AP0");
         FStream_Printf(file, "\n");
 
-        float3x3 AP1_XYZ = Color_RGB_XYZ(AP1x, AP1y);
+        float3x3 AP1_XYZ = Color_RGB_XYZ(kAP1);
         float3x3 XYZ_AP1 = f3x3_inverse(AP1_XYZ);
         Color_LogMatrix(file, AP1_XYZ, "AP1_XYZ");
         Color_LogMatrix(file, XYZ_AP1, "XYZ_AP1");

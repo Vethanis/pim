@@ -4,12 +4,18 @@
 #include "Macro.hlsl"
 #include "bindings.hlsl"
 
-#define kNumBins        256
+#define kHistogramSize  (256)
+#define kBinRange       (kHistogramSize - 2)
+#define kLog2Epsilon    (-22.0)
 
 float GetAverageLum() { return ExposureBuffer[0]; }
-void SetAverageLum(float lum) { ExposureBuffer[0] = lum; }
+void SetAverageLum(float x) { ExposureBuffer[0] = x; }
 float GetExposure() { return ExposureBuffer[1]; }
-void SetExposure(float exposure) { ExposureBuffer[1] = exposure; }
+void SetExposure(float x) { ExposureBuffer[1] = x; }
+float GetMaxLum() { return ExposureBuffer[2]; }
+void SetMaxLum(float x) { ExposureBuffer[2] = x; }
+float GetMinLum() { return ExposureBuffer[3]; }
+void SetMinLum(float x) { ExposureBuffer[3] = x; }
 
 struct vkrExposure
 {
@@ -50,23 +56,21 @@ float EV100ToLum(float ev100)
 
 uint LumToBin(float lum, float minEV, float maxEV)
 {
-    if (lum <= kEpsilon)
-    {
-        return 0;
-    }
+    // bin 0 is everything <= kEpsilon
+    // add 1 to skip past bin 0
+    // add 0.5 to round to nearest bin
     float ev = LumToEV100(lum);
     float t = unlerp(minEV, maxEV, ev);
-    uint bin = (uint)(1.0 + t * 254.0);
+    const float binRange = kBinRange;
+    uint bin = (uint)(1.5 + t * binRange);
+    bin = (lum > kEpsilon) ? bin : 0;
     return bin;
 }
 
 float BinToEV(uint i, float minEV, float dEV)
 {
-    // i varies from 1 to 255
-    // reciprocal range is: 1.0 / 254.0
     float ev = minEV + (i - 1) * dEV;
-    // log2(kEpsilon) == -22
-    ev = i > 0 ? ev : -22.0;
+    ev = (i != 0) ? ev : kLog2Epsilon;
     return ev;
 }
 

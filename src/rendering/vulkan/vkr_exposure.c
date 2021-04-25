@@ -20,7 +20,10 @@
 #include "common/profiler.h"
 #include "common/time.h"
 #include "math/scalar.h"
+#include "math/color.h"
 #include <string.h>
+
+#define kHistogramSize (256)
 
 typedef struct PushConstants_s
 {
@@ -29,13 +32,23 @@ typedef struct PushConstants_s
     vkrExposure exposure;
 } PushConstants;
 
+typedef struct pim_alignas(16) ExposureBuffer_s
+{
+    float averageLum;
+    float exposure;
+    float maxLum;
+    float minLum;
+} ExposureBuffer;
+
 static vkrPass ms_buildPass;
 static vkrPass ms_adaptPass;
 static vkrBufferSet ms_histBuffers;
 static vkrBufferSet ms_expBuffers;
 static vkrBufferSet ms_readbackBuffers;
 static float4 ms_readbackValue;
+static float4 ms_averageValue;
 static VkFence ms_lastFence;
+static u32 ms_lastBuffer;
 static vkrExposure ms_params;
 
 bool vkrExposure_Init(void)
@@ -164,13 +177,13 @@ void vkrExposure_Setup(void)
         lum->view,
         VK_IMAGE_LAYOUT_GENERAL);
     vkrBindings_BindBuffer(
-        vkrBindId_ExposureBuffer,
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        expBuffer);
-    vkrBindings_BindBuffer(
         vkrBindId_HistogramBuffer,
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         histBuffer);
+    vkrBindings_BindBuffer(
+        vkrBindId_ExposureBuffer,
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        expBuffer);
 
     ProfileEnd(pm_setup);
 }
@@ -184,10 +197,44 @@ void vkrExposure_Execute(void)
     {
         vkrFence_Wait(ms_lastFence);
         ms_lastFence = NULL;
-        vkrBufferSet_Read(
-            &ms_readbackBuffers,
+        vkrBuffer_Read(
+            &ms_readbackBuffers.frames[ms_lastBuffer],
             &ms_readbackValue,
             sizeof(ms_readbackValue));
+
+        const float dt = f1_sat((float)Time_Deltaf());
+        ms_averageValue = f4_lerpvs(ms_averageValue, ms_readbackValue, dt);
+
+        if (g_vkrDevExts.EXT_hdr_metadata && vkrSys_HdrEnabled())
+        {
+            const float minMonitorNits = vkrSys_GetDisplayNitsMin();
+            const float maxMonitorNits = vkrSys_GetDisplayNitsMax();
+            const float4x2 primaries = Colorspace_GetPrimaries(vkrSys_GetDisplayColorspace());
+            const float4 averaged = f4_PQ_OOTF(ms_averageValue);
+            const float avgContentLum = averaged.x;
+            const float maxContentLum = averaged.z;
+            const VkHdrMetadataEXT metadata =
+            {
+                .sType = VK_STRUCTURE_TYPE_HDR_METADATA_EXT,
+                .displayPrimaryRed.x = primaries.c0.x,
+                .displayPrimaryRed.y = primaries.c1.x,
+                .displayPrimaryGreen.x = primaries.c0.y,
+                .displayPrimaryGreen.y = primaries.c1.y,
+                .displayPrimaryBlue.x = primaries.c0.z,
+                .displayPrimaryBlue.y = primaries.c1.z,
+                .whitePoint.x = primaries.c0.w,
+                .whitePoint.y = primaries.c1.w,
+                .minLuminance = minMonitorNits, // minimum luminance of the reference monitor in nits
+                .maxLuminance = maxMonitorNits, // maximum luminance of the reference monitor in nits
+                .maxFrameAverageLightLevel = avgContentLum, // MaxFALL (content's maximum frame average light level in nits)
+                .maxContentLightLevel = maxContentLum, // MaxCLL (content’s maximum luminance in nits)
+            };
+            const VkSwapchainKHR swapchains[] =
+            {
+                g_vkr.chain.handle,
+            };
+            vkSetHdrMetadataEXT(g_vkr.dev, NELEM(swapchains), swapchains, &metadata);
+        }
     }
     ProfileEnd(pm_readback);
 
@@ -333,6 +380,7 @@ void vkrExposure_Execute(void)
     }
 
     ms_lastFence = cmpfence;
+    ms_lastBuffer = syncIndex;
 
     ProfileEnd(pm_execute);
 }
@@ -345,14 +393,4 @@ vkrExposure* vkrExposure_GetParams(void)
 void vkrExposure_SetParams(const vkrExposure* params)
 {
     ms_params = *params;
-}
-
-float vkrExposure_GetExposure(void)
-{
-    return ms_params.exposure;
-}
-
-const vkrBuffer* vkrExposure_GetExposureBuffer(void)
-{
-    return vkrBufferSet_Current(&ms_expBuffers);
 }

@@ -12,7 +12,5 @@ void vkrExposure_Execute(void);
 
 vkrExposure* vkrExposure_GetParams(void);
 void vkrExposure_SetParams(const vkrExposure* params);
-float vkrExposure_GetExposure(void);
-const vkrBuffer* vkrExposure_GetExposureBuffer(void);
 
 PIM_C_END

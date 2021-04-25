@@ -13,6 +13,11 @@ float AverageLuminance(float3 color)
     return dot(color, (1.0 / 3.0));
 }
 
+float MaxLuminance(float3 color)
+{
+    return max(color.r, max(color.g, color.b));
+}
+
 float3 UnpackEmission(float3 albedo, float e)
 {
     e = e * e * kEmissionScale;
