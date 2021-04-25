@@ -78,8 +78,8 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv);
 static FrameBuf ms_buffers[2];
 static i32 ms_iFrame;
 
-static TonemapId ms_tonemapper = TMap_Uncharted2;
-static float4 ms_toneParams = { 1.0f, 0.5f, 0.5f, 0.5f };
+static TonemapId ms_tonemapper = TMap_ACES;
+static float4 ms_toneParams = { 0.5f, 0.5f, 0.5f, 0.5f };
 static vkrExposure ms_exposure =
 {
     .manual = false,
@@ -96,6 +96,9 @@ static vkrExposure ms_exposure =
     .minEV = -10.0f,
     .maxEV = 31.0f,
 };
+// HDR appears to want 5 stops of headroom over SDR
+static const float ms_hdrEvAdjust = -5.0f;
+static const float ms_hdrExposureAdjust = 32.0f;
 
 static Camera ms_ptcam;
 static PtScene* ms_ptscene;
@@ -492,9 +495,7 @@ bool RenderSys_Init(void)
     }
     if (vkrSys_HdrEnabled())
     {
-        // TODO: set hdr metadata so display knows exposure to expect
-        // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#vkSetHdrMetadataEXT
-        ms_exposure.offsetEV -= 7.0f;
+        ms_exposure.offsetEV += ms_hdrEvAdjust;
     }
     vkrExposure_SetParams(&ms_exposure);
 
@@ -689,7 +690,7 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     const i32 len = size.x * size.y;
     R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
 
-    const float exposureAdjust = vkrSys_HdrEnabled() ? 1 << 7 : 1.0f;
+    const float exposureAdjust = vkrSys_HdrEnabled() ? ms_hdrExposureAdjust : 1.0f;
     for (i32 i = 0; i < len; ++i)
     {
         float4 v = buf->light[i];
