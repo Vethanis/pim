@@ -11,7 +11,6 @@
 #include "rendering/vulkan/vkr_bindings.h"
 #include "rendering/vulkan/vkr_mesh.h"
 #include "rendering/vulkan/vkr_im.h"
-#include "rendering/vulkan/vkr_exposure.h"
 
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
@@ -262,7 +261,7 @@ void vkrOpaquePass_Setup(void)
         perCamera.eye = camera.position;
         perCamera.hdrEnabled = vkrSys_HdrEnabled() ? 1.0f : 0.0f;
         perCamera.whitepoint = vkrSys_GetWhitepoint();
-        perCamera.displayNits = vkrSys_GetDisplayNits();
+        perCamera.displayNits = vkrSys_GetDisplayNitsMax();
         perCamera.uiNits = vkrSys_GetUiNits();
         vkrBufferSet_Write(&ms_perCameraBuffer, &perCamera, sizeof(perCamera));
     }
@@ -271,10 +270,6 @@ void vkrOpaquePass_Setup(void)
         vkrBindId_CameraData,
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         vkrBufferSet_Current(&ms_perCameraBuffer));
-    vkrBindings_BindBuffer(
-        vkrBindId_ExposureBuffer,
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        vkrExposure_GetExposureBuffer());
 
     ProfileEnd(pm_update);
 }

@@ -4,6 +4,16 @@
 
 PIM_C_BEGIN
 
+typedef enum
+{
+    Colorspace_Rec709,
+    Colorspace_Rec2020,
+    Colorspace_AP0,
+    Colorspace_AP1,
+
+    Colorspace_COUNT
+} Colorspace;
+
 // ----------------------------------------------------------------------------
 
 typedef struct pim_alignas(8) bool2_s

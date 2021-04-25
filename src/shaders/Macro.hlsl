@@ -10,6 +10,13 @@
 #define kTau            6.283185307
 #define kEpsilon        2.38418579e-7
 
+#ifndef FLT_MAX
+#   define FLT_MAX 3.402823e+38
+#endif // FLT_MAX
+#ifndef FLT_MIN
+#   define FLT_MIN 1.175494e-38
+#endif // FLT_MIN
+
 #define dotsat(a, b)    saturate(dot((a), (b)))
 #define unlerp(a, b, x) saturate(((x) - (a)) / ((b) - (a)))
 

@@ -89,7 +89,7 @@ static vkrExposure ms_exposure =
     .shutterTime = 0.1f,
     .ISO = 100.0f,
 
-    .adaptRate = 1.0f,
+    .adaptRate = 5.0f,
     .offsetEV = 0.0f,
     .minCdf = 0.05f,
     .maxCdf = 0.95f,

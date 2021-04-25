@@ -11,27 +11,30 @@ cbuffer InputConstants
 
 // Based on https://www.alextardif.com/HistogramLuminance.html
 
-groupshared uint GroupHistogram[kNumBins];
+groupshared uint gs_histogram[kHistogramSize];
 
+// (numthreadsX * numthreadsY) must be == kHistogramSize
 [numthreads(16, 16, 1)]
 void CSMain(
-    uint localIndex : SV_GroupIndex,
-    uint3 globalID : SV_DispatchThreadID)
+    uint localId : SV_GroupIndex, // [0, (numthreadsX * numthreadsY * numthreadsZ) - 1]
+    uint3 tid : SV_DispatchThreadID)
 {
-    float minEV = m_exposure.minEV;
-    float maxEV = m_exposure.maxEV;
-    GroupHistogram[localIndex] = 0;
+    const float minEV = m_exposure.minEV;
+    const float maxEV = m_exposure.maxEV;
+    const uint2 inputSize = uint2(m_inputWidth, m_inputHeight);
+
+    gs_histogram[localId] = 0;
 
     GroupMemoryBarrierWithGroupSync();
 
-    if ((globalID.x < m_inputWidth) && (globalID.y < m_inputHeight))
+    if (all(tid.xy < inputSize))
     {
-        float lum = LumTexture.Load(globalID.xy).r;
+        float lum = LumTexture.Load(tid.xy).r;
         uint bin = LumToBin(lum, minEV, maxEV);
-        InterlockedAdd(GroupHistogram[bin], 1);
+        InterlockedAdd(gs_histogram[bin], 1);
     }
 
     GroupMemoryBarrierWithGroupSync();
 
-    InterlockedAdd(HistogramBuffer[localIndex], GroupHistogram[localIndex]);
+    InterlockedAdd(HistogramBuffer[localId], gs_histogram[localId]);
 }

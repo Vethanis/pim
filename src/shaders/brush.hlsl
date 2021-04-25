@@ -99,7 +99,7 @@ PSOutput PSMain(PSInput input)
     }
 
     PSOutput output;
-    output.luminance = AverageLuminance(sceneLum);
+    output.luminance = MaxLuminance(sceneLum);
     sceneLum *= GetExposure();
 
     if (cameraData.hdrEnabled != 0.0)

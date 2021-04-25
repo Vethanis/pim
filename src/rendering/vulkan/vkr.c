@@ -294,8 +294,15 @@ u32 vkrSys_FrameIndex(void) { return Time_FrameCount(); }
 
 bool vkrSys_HdrEnabled(void)
 {
-    // just Rec2100 PQ for now
-    return g_vkr.chain.colorSpace == VK_COLOR_SPACE_HDR10_ST2084_EXT;
+    switch (g_vkr.chain.colorSpace)
+    {
+    default:
+        return false;
+    case VK_COLOR_SPACE_HDR10_ST2084_EXT: // Rec2100 w/ PQ OETF
+        return true;
+    case VK_COLOR_SPACE_HDR10_HLG_EXT: // Rec2100 w/ HLG OETF
+        return true;
+    }
 }
 
 float vkrSys_GetWhitepoint(void)
@@ -303,14 +310,37 @@ float vkrSys_GetWhitepoint(void)
     return ConVar_GetFloat(&cv_r_whitepoint);
 }
 
-float vkrSys_GetDisplayNits(void)
+float vkrSys_GetDisplayNitsMin(void)
 {
-    return ConVar_GetFloat(&cv_r_display_nits);
+    return ConVar_GetFloat(&cv_r_display_nits_min);
+}
+
+float vkrSys_GetDisplayNitsMax(void)
+{
+    return ConVar_GetFloat(&cv_r_display_nits_max);
 }
 
 float vkrSys_GetUiNits(void)
 {
     return ConVar_GetFloat(&cv_r_ui_nits);
+}
+
+Colorspace vkrSys_GetRenderColorspace(void)
+{
+    return Colorspace_AP1;
+}
+
+Colorspace vkrSys_GetDisplayColorspace(void)
+{
+    switch (g_vkr.chain.colorSpace)
+    {
+    default:
+        return Colorspace_Rec709;
+    case VK_COLOR_SPACE_HDR10_ST2084_EXT: // Rec2100 w/ PQ OETF
+        return Colorspace_Rec2020;
+    case VK_COLOR_SPACE_HDR10_HLG_EXT: // Rec2100 w/ HLG OETF
+        return Colorspace_Rec2020;
+    }
 }
 
 ProfileMark(pm_uplm, vkrUploadLightmaps)

@@ -18,8 +18,6 @@ enum
     kDesiredSwapchainLen = 3,
     kResourceSets = 3,
 
-    kHistogramSize = 256,
-
     kTextureTable1DSize = 64,
     kTextureTable2DSize = 512,
     kTextureTable3DSize = 64,
@@ -543,7 +541,10 @@ u32 vkrSys_FrameIndex(void);
 
 bool vkrSys_HdrEnabled(void);
 float vkrSys_GetWhitepoint(void);
-float vkrSys_GetDisplayNits(void);
+float vkrSys_GetDisplayNitsMin(void);
+float vkrSys_GetDisplayNitsMax(void);
 float vkrSys_GetUiNits(void);
+Colorspace vkrSys_GetRenderColorspace(void);
+Colorspace vkrSys_GetDisplayColorspace(void);
 
 PIM_C_END

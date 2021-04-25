@@ -24,11 +24,13 @@ void CSMain(uint3 tid : SV_DispatchThreadID)
     const float maxCdf = args.maxCdf;
     // i varies from 1 to 255
     // reciprocal range is: 1.0 / 254.0
-    const float dEV = (maxEV - minEV) * 0.00393700787;
+    const float dEV = (maxEV - minEV) * (1.0 / kBinRange);
 
+    float minLum = FLT_MAX;
+    float maxLum = -FLT_MAX;
     float avgLum = 0.0;
     float cdf = 0.0;
-    for (uint i = 0; i < kNumBins; ++i)
+    for (uint i = 0; i < kHistogramSize; ++i)
     {
         uint count = HistogramBuffer[i];
         HistogramBuffer[i] = 0;
@@ -44,11 +46,14 @@ void CSMain(uint3 tid : SV_DispatchThreadID)
         float lum = EV100ToLum(ev);
         avgLum += lum * w;
         cdf += pdf;
+        maxLum = (count != 0) ? max(maxLum, lum) : maxLum;
+        minLum = (count != 0) ? min(minLum, lum) : minLum;
     }
 
-    float prevLum = GetAverageLum();
-    avgLum = AdaptLuminance(prevLum, avgLum, args.deltaTime, args.adaptRate);
+    avgLum = AdaptLuminance(GetAverageLum(), avgLum, args.deltaTime, args.adaptRate);
     float exposure = CalcExposure(args, avgLum);
     SetAverageLum(avgLum);
+    SetMaxLum(maxLum);
+    SetMinLum(minLum);
     SetExposure(exposure);
 }
