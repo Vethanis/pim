@@ -110,7 +110,7 @@ PSOutput PSMain(PSInput input)
     else
     {
         sceneLum = AP1_Rec709(sceneLum);
-        sceneLum = TonemapUncharted2(sceneLum, cameraData.whitepoint);
+        sceneLum = TonemapACES(sceneLum);
     }
 
     sceneLum = saturate(sceneLum);

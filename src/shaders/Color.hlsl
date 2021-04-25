@@ -62,17 +62,15 @@ float3 TonemapUncharted2(float3 x, float wp)
 }
 
 // https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
-float3 TonemapACES(float3 x, float wp)
+float3 TonemapACES(float3 x)
 {
     const float a = 2.43;
     const float b = 0.03;
     const float c = 2.43;
     const float d = 0.59;
     const float e = 0.14;
-    float4 v = float4(x.rgb, wp);
-    v = (v * (a * v + b)) / (v * (c * v + d) + e);
-    v.rgb = v.rgb * (1.0 / v.a);
-    return v.rgb;
+    x = (x * (a * x + b)) / (x * (c * x + d) + e);
+    return x;
 }
 
 float3 Rec709_XYZ(float3 c)
