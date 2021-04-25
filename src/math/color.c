@@ -104,6 +104,18 @@ void Color_DumpConversionMatrices(void)
         Color_LogMatrix(file, AP1_Rec709, "AP1_Rec709");
         FStream_Printf(file, "\n");
 
+        float3x3 Rec2020_AP0 = f3x3_mul(XYZ_AP0, Rec2020_XYZ);
+        float3x3 AP0_Rec2020 = f3x3_mul(XYZ_Rec2020, AP0_XYZ);
+        Color_LogMatrix(file, Rec2020_AP0, "Rec2020_AP0");
+        Color_LogMatrix(file, AP0_Rec2020, "AP0_Rec2020");
+        FStream_Printf(file, "\n");
+
+        float3x3 Rec2020_AP1 = f3x3_mul(XYZ_AP1, Rec2020_XYZ);
+        float3x3 AP1_Rec2020 = f3x3_mul(XYZ_Rec2020, AP1_XYZ);
+        Color_LogMatrix(file, Rec2020_AP1, "Rec2020_AP1");
+        Color_LogMatrix(file, AP1_Rec2020, "AP1_Rec2020");
+        FStream_Printf(file, "\n");
+
         FStream_Close(&file);
     }
 }

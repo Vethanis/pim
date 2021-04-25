@@ -104,13 +104,16 @@ PSOutput PSMain(PSInput input)
 
     if (cameraData.hdrEnabled != 0.0)
     {
+        sceneLum = AP1_Rec2020(sceneLum);
         sceneLum = PQ_OETF(sceneLum);
     }
     else
     {
+        sceneLum = AP1_Rec709(sceneLum);
         sceneLum = TonemapUncharted2(sceneLum, cameraData.whitepoint);
     }
 
-    output.color = float4(saturate(sceneLum), 1.0);
+    sceneLum = saturate(sceneLum);
+    output.color = float4(sceneLum, 1.0);
     return output;
 }

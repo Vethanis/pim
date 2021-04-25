@@ -141,6 +141,36 @@ pim_inline float4 VEC_CALL f4_AP1_Rec709(float4 c)
     return f4_add(f4_add(f4_mulvs(c0, c.x), f4_mulvs(c1, c.y)), f4_mulvs(c2, c.z));
 }
 
+pim_inline float4 VEC_CALL f4_Rec2020_AP0(float4 c)
+{
+    const float4 c0 = { 0.66868573f, 0.044900179f, 0.0f };
+    const float4 c1 = { 0.15181769f, 0.8621456f, 0.02782711f };
+    const float4 c2 = { 0.17718965f, 0.10192245f, 1.0517036f };
+    return f4_add(f4_add(f4_mulvs(c0, c.x), f4_mulvs(c1, c.y)), f4_mulvs(c2, c.z));
+}
+pim_inline float4 VEC_CALL f4_AP0_Rec2020(float4 c)
+{
+    const float4 c0 = { 1.512861f, -0.079036415f, 0.0020912308f };
+    const float4 c1 = { -0.25898734f, 1.1770666f, -0.031144103f };
+    const float4 c2 = { -0.22978596f, -0.10075563f, 0.95350415f };
+    return f4_add(f4_add(f4_mulvs(c0, c.x), f4_mulvs(c1, c.y)), f4_mulvs(c2, c.z));
+}
+
+pim_inline float4 VEC_CALL f4_Rec2020_AP1(float4 c)
+{
+    const float4 c0 = { 0.95993727f, 0.0016225278f, 0.0052900701f };
+    const float4 c1 = { 0.01046662f, 0.9996857f, 0.023825262f };
+    const float4 c2 = { 0.0070331395f, 0.0014901534f, 1.0501608f };
+    return f4_add(f4_add(f4_mulvs(c0, c.x), f4_mulvs(c1, c.y)), f4_mulvs(c2, c.z));
+}
+pim_inline float4 VEC_CALL f4_AP1_Rec2020(float4 c)
+{
+    const float4 c0 = { 1.0417912f, -0.0016830862f, -0.0052097263f };
+    const float4 c1 = { -0.010741562f, 1.0003656f, -0.022641439f };
+    const float4 c2 = { -0.0069618821f, -0.0014082193f, 0.95230216f };
+    return f4_add(f4_add(f4_mulvs(c0, c.x), f4_mulvs(c1, c.y)), f4_mulvs(c2, c.z));
+}
+
 pim_inline R5G5B5A1_t VEC_CALL f4_rgb5a1(float4 v)
 {
     v = f4_saturate(v);
@@ -300,12 +330,12 @@ pim_inline float4 VEC_CALL Xy16ToNormalTs(short2 xy)
     return n;
 }
 
-pim_inline R8G8B8A8_t VEC_CALL LinearToColor(float4 lin)
+pim_inline R8G8B8A8_t VEC_CALL GammaEncode_rgba8(float4 lin)
 {
     return f4_rgba8(f4_sRGB_InverseEOTF_Fit(lin));
 }
 
-pim_inline float4 VEC_CALL ColorToLinear(R8G8B8A8_t c)
+pim_inline float4 VEC_CALL GammaDecode_rgba8(R8G8B8A8_t c)
 {
     return f4_sRGB_EOTF_Fit(rgba8_f4(c));
 }
@@ -507,6 +537,27 @@ pim_inline float4 VEC_CALL f4_lottes(float4 x, float4 p)
     return y;
 }
 
+// https://www.cl.cam.ac.uk/teaching/1718/AdvGraph/06_HDR_and_tone_mapping.pdf#page=29
+// https://www.desmos.com/calculator/t5uzvc82ca
+pim_inline float4 VEC_CALL f4_sigmoid(float4 x, float a, float b, float Lm)
+{
+    float4 t = f4_powvs(x, b);
+    float u = powf(Lm / a, b);
+    return f4_mulvs(f4_div(t, f4_addvs(t, u)), Lm);
+}
+
+// https://www.desmos.com/calculator/fzsmuukao3
+// c: contrast [0.5, 4] (2)
+// cp: contrast point [0.1, 1] (0.5)
+// wp: whitepoint [1, +inf) (10)
+pim_inline float4 VEC_CALL f4_HdrCurve(float4 x, float c, float cp, float wp)
+{
+    float4 a = f4_powvs(x, c);
+    float4 b = f4_mulvs(f4_div(x, f4_addvs(x, wp)), wp);
+    float t = f1_unormstep(f1_sat(f4_avglum(x) / cp));
+    return f4_lerpvs(a, b, t);
+}
+
 // https://en.wikipedia.org/wiki/Transfer_functions_in_imaging
 // OETF: Scene Luminance to Signal; (eg. Camera)
 // EOTF: Signal to Display Luminance; (eg. Monitor)
@@ -577,7 +628,6 @@ pim_inline float4 VEC_CALL f4_PQ_OETF(float4 E)
 {
     return f4_PQ_InverseEOTF(f4_PQ_OOTF(E));
 }
-
 
 #define kEmissionScale 100.0f
 

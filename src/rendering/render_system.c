@@ -494,7 +494,7 @@ bool RenderSys_Init(void)
     {
         // TODO: set hdr metadata so display knows exposure to expect
         // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#vkSetHdrMetadataEXT
-        ms_exposure.offsetEV -= 6.0f;
+        ms_exposure.offsetEV -= 7.0f;
     }
     vkrExposurePass_SetParams(&ms_exposure);
 
@@ -689,13 +689,13 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     const i32 len = size.x * size.y;
     R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
 
-    const float exposureAdjust = vkrSys_HdrEnabled() ? 64.0f : 1.0f;
+    const float exposureAdjust = vkrSys_HdrEnabled() ? 1 << 7 : 1.0f;
     for (i32 i = 0; i < len; ++i)
     {
         float4 v = buf->light[i];
         v = f4_mulvs(v, exposureAdjust);
+        v = f4_AP1_Rec709(v);
         v = f4_aceskfit(v);
-        v = f4_Rec2020_Rec709(v);
         v.w = 1.0f;
         color[i] = f4_rgba8(f4_sRGB_InverseEOTF_Fit(v));
     }
@@ -944,7 +944,7 @@ static TextureId GenFlatTexture(const char* name, const char* suffix, float4 val
     Texture tex = { 0 };
     tex.size = i2_1;
     R8G8B8A8_t* texels = Tex_Alloc(sizeof(texels[0]));
-    texels[0] = LinearToColor(value);
+    texels[0] = GammaEncode_rgba8(value);
     tex.texels = texels;
     Texture_New(&tex, VK_FORMAT_R8G8B8A8_SRGB, Guid_FromStr(fullname), &id);
     return id;
@@ -958,7 +958,7 @@ static Material GenMaterial(
 {
     Material mat = { 0 };
     mat.ior = 1.0f;
-    mat.albedo = GenFlatTexture(name, "albedo", albedo);
+    mat.albedo = GenFlatTexture(name, "albedo", f4_Rec709_AP1(albedo));
     mat.rome = GenFlatTexture(name, "rome", rome);
     if (rome.w > 0.0f)
     {
