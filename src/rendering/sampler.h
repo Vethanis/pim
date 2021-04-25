@@ -158,19 +158,19 @@ pim_inline float4 VEC_CALL Clamp_c32(
     R8G8B8A8_t const *const pim_noalias buffer, int2 size, int2 coord)
 {
     i32 index = Clamp(size, coord);
-    return ColorToLinear(buffer[index]);
+    return GammaDecode_rgba8(buffer[index]);
 }
 pim_inline float4 VEC_CALL Wrap_c32(
     R8G8B8A8_t const *const pim_noalias buffer, int2 size, int2 coord)
 {
     i32 index = Wrap(size, coord);
-    return ColorToLinear(buffer[index]);
+    return GammaDecode_rgba8(buffer[index]);
 }
 pim_inline float4 VEC_CALL WrapPow2_c32(
     R8G8B8A8_t const *const pim_noalias buffer, int2 size, int2 coord)
 {
     i32 index = WrapPow2(size, coord);
-    return ColorToLinear(buffer[index]);
+    return GammaDecode_rgba8(buffer[index]);
 }
 
 // ----------------------------------------------------------------------------
@@ -179,19 +179,19 @@ pim_inline float4 VEC_CALL UvClamp_c32(
     R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
 {
     i32 index = UvClamp(size, uv);
-    return ColorToLinear(buffer[index]);
+    return GammaDecode_rgba8(buffer[index]);
 }
 pim_inline float4 VEC_CALL UvWrap_c32(
     R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
 {
     i32 index = UvWrap(size, uv);
-    return ColorToLinear(buffer[index]);
+    return GammaDecode_rgba8(buffer[index]);
 }
 pim_inline float4 VEC_CALL UvWrapPow2_c32(
     R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
 {
     i32 index = UvWrapPow2(size, uv);
-    return ColorToLinear(buffer[index]);
+    return GammaDecode_rgba8(buffer[index]);
 }
 
 // ----------------------------------------------------------------------------
@@ -371,10 +371,10 @@ pim_inline float4 VEC_CALL BilinearBlend_c32(
     R8G8B8A8_t a, R8G8B8A8_t b, R8G8B8A8_t c, R8G8B8A8_t d,
     float2 frac)
 {
-    float4 af = ColorToLinear(a);
-    float4 bf = ColorToLinear(b);
-    float4 cf = ColorToLinear(c);
-    float4 df = ColorToLinear(d);
+    float4 af = GammaDecode_rgba8(a);
+    float4 bf = GammaDecode_rgba8(b);
+    float4 cf = GammaDecode_rgba8(c);
+    float4 df = GammaDecode_rgba8(d);
     return BilinearBlend_f4(af, bf, cf, df, frac);
 }
 pim_inline float4 VEC_CALL BilinearBlend_c32_fast(
@@ -887,7 +887,7 @@ pim_inline void VEC_CALL Write_c32(
     R8G8B8A8_t *const pim_noalias dst, int2 size, int2 coord, float4 src)
 {
     i32 i = Clamp(size, coord);
-    dst[i] = LinearToColor(src);
+    dst[i] = GammaEncode_rgba8(src);
 }
 
 PIM_C_END

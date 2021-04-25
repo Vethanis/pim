@@ -9,8 +9,8 @@ typedef struct FrameBuf_s
 {
     i32 width;
     i32 height;
-    float4* pim_noalias light; // scene luminance
-    R16G16B16A16_t* pim_noalias color; // display value
+    float4* pim_noalias light; // scene luminance, linear AP1
+    R16G16B16A16_t* pim_noalias color; // display value, PQ encoded Rec2020
 } FrameBuf;
 
 void FrameBuf_New(FrameBuf* buf, i32 width, i32 height);

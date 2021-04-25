@@ -443,7 +443,7 @@ static bool ResampleToFloat4(Texture* tex)
         float4* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
         for (i32 i = 0; i < len; ++i)
         {
-            dst[i] = ColorToLinear(src[i]);
+            dst[i] = GammaDecode_rgba8(src[i]);
         }
         Mem_Free(tex->texels);
         tex->texels = dst;
@@ -496,7 +496,7 @@ static bool ResampleToSrgb(Texture* tex)
         R8G8B8A8_t* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
         for (i32 i = 0; i < len; ++i)
         {
-            dst[i] = LinearToColor(src[i]);
+            dst[i] = GammaEncode_rgba8(src[i]);
         }
         Mem_Free(tex->texels);
         tex->texels = dst;
@@ -651,7 +651,7 @@ static TextureId CreateRomeTexture(
             rome.y = UvBilinearClamp_f4(occtex.texels, occtex.size, uv).x;
             rome.w = PackEmission(UvBilinearClamp_f4(emtex.texels, emtex.size, uv));
             u32 index = x + y * size.x;
-            dst[index] = LinearToColor(rome);
+            dst[index] = GammaEncode_rgba8(rome);
         }
     }
     Texture tex = { 0 };
@@ -838,8 +838,8 @@ bool ResampleToAlbedoRome(
                 float metallic;
                 ConvertToMetallicRoughness(diffuse, specular, glossiness, &albedo, &roughness, &metallic);
                 i32 index = x + y * size.x;
-                albedoTexels[index] = LinearToColor(albedo);
-                romeTexels[index] = LinearToColor(f4_v(roughness, occlusion, metallic, emission));
+                albedoTexels[index] = GammaEncode_rgba8(albedo);
+                romeTexels[index] = GammaEncode_rgba8(f4_v(roughness, occlusion, metallic, emission));
             }
         }
         albedotex.texels = albedoTexels;

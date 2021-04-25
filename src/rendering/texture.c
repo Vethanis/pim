@@ -369,12 +369,12 @@ static void UnpaletteStep1Fn(void* pbase, i32 begin, i32 end)
     for (i32 i = begin; i < end; ++i)
     {
         R8G8B8A8_t color = DecodeTexel(bytes[i]);
-        float4 diffuse709 = ColorToLinear(color);
-        float4 diffuse2020 = f4_Rec709_Rec2020(diffuse709);
-        float4 linear2020 = DiffuseToAlbedo(diffuse2020);
-        linear2020.w = 1.0f;
-        gray[i] = f2_v(f4_avglum(linear2020), f4_avglum(linear2020));
-        albedo[i] = LinearToColor(linear2020);
+        float4 diffuse709 = GammaDecode_rgba8(color);
+        float4 diffuseAP1 = f4_Rec709_AP1(diffuse709);
+        float4 albedoAP1 = DiffuseToAlbedo(diffuseAP1);
+        albedoAP1.w = 1.0f;
+        gray[i] = f2_v(f4_avglum(diffuseAP1), f4_avglum(albedoAP1));
+        albedo[i] = GammaEncode_rgba8(albedoAP1);
     }
 }
 
@@ -419,8 +419,8 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
         u8 encoded = bytes[i];
         float2 grayscale = gray[i];
         float2 t = f2_smoothstep(min, max, grayscale);
-        float roughness = f1_lerp(1.0f, 0.9f, t.y);
-        float occlusion = 1.0f - f1_distance(grayscale.x, grayscale.y);
+        float roughness = f1_lerp(1.0f, 0.9f, t.x);
+        float occlusion = f1_lerp(1.0f, 0.5f, t.x);
         float metallic = 1.0f;
         float emission;
         if (fullEmit)
@@ -433,7 +433,7 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
         }
         float4 romeValue = f4_v(roughness, occlusion, metallic, emission);
         romeValue = f4_mul(romeValue, flatRome);
-        rome[i] = LinearToColor(romeValue);
+        rome[i] = GammaEncode_rgba8(romeValue);
     }
 
     for (i32 i = begin; i < end; ++i)
@@ -598,7 +598,7 @@ static void ResizeToPow2Fn_c32(void* pbase, i32 begin, i32 end)
     R8G8B8A8_t* pim_noalias dst = task->dst;
     for (i32 i = begin; i < end; ++i)
     {
-        dst[i] = LinearToColor(UvBilinearClamp_c32(src, oldSize, IndexToUv(newSize, i)));
+        dst[i] = GammaEncode_rgba8(UvBilinearClamp_c32(src, oldSize, IndexToUv(newSize, i)));
     }
 }
 static void ResizeToPow2Fn_dir8(void* pbase, i32 begin, i32 end)

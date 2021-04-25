@@ -1660,7 +1660,7 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
             for (i32 j = 0; j < len; ++j)
             {
                 float4 ldr = f4_reinhard_lum(f3_f4(srcBuffer[j], 1.0f), 10.0f);
-                R8G8B8A8_t color = LinearToColor(ldr);
+                R8G8B8A8_t color = GammaEncode_rgba8(ldr);
                 color.a = 0xff;
                 buffer[j] = color;
             }
