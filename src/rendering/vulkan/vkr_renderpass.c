@@ -96,6 +96,8 @@ VkRenderPass vkrRenderPass_Get(const vkrRenderPassDesc* desc)
 
     for (i32 i = 0; i < NELEM(desc->attachments); ++i)
     {
+        attachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[i].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         const vkrAttachmentState* src = &desc->attachments[i];
         if (src->format != VK_FORMAT_UNDEFINED)
         {

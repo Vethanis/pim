@@ -17,7 +17,7 @@
 #include "rendering/vulkan/vkr_texture.h"
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_mainpass.h"
-#include "rendering/vulkan/vkr_exposurepass.h"
+#include "rendering/vulkan/vkr_exposure.h"
 #include "rendering/vulkan/vkr_textable.h"
 #include "rendering/vulkan/vkr_bindings.h"
 #include "rendering/vulkan/vkr_im.h"
@@ -149,7 +149,7 @@ bool vkrSys_Init(void)
         goto cleanup;
     }
 
-    if (!vkrExposurePass_New())
+    if (!vkrExposure_Init())
     {
         success = false;
         goto cleanup;
@@ -217,7 +217,7 @@ void vkrSys_Update(void)
 
     // setup phase
     {
-        vkrExposurePass_Setup();
+        vkrExposure_Setup();
         vkrMainPass_Setup();
         vkrTexTable_Update();
         vkrBindings_Update();
@@ -225,7 +225,7 @@ void vkrSys_Update(void)
 
     // execute phase
     {
-        vkrExposurePass_Execute();
+        vkrExposure_Execute();
         vkrMainPass_Execute(cmd, fence);
     }
 
@@ -257,7 +257,7 @@ void vkrSys_Shutdown(void)
         LmPack_Del(LmPack_Get());
         UiSys_Shutdown();
 
-        vkrExposurePass_Del();
+        vkrExposure_Shutdown();
         vkrMainPass_Del();
 
         vkrImSys_Shutdown();
@@ -313,8 +313,10 @@ float vkrSys_GetUiNits(void)
     return ConVar_GetFloat(&cv_r_ui_nits);
 }
 
+ProfileMark(pm_uplm, vkrUploadLightmaps)
 static void vkrUploadLightmaps(void)
 {
+    ProfileBegin(pm_uplm);
     if (ConVar_GetBool(&cv_lm_upload))
     {
         ConVar_SetBool(&cv_lm_upload, false);
@@ -326,4 +328,5 @@ static void vkrUploadLightmaps(void)
             Lightmap_Upload(lm);
         }
     }
+    ProfileEnd(pm_uplm);
 }

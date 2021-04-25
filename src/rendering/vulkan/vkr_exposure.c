@@ -1,4 +1,5 @@
-#include "rendering/vulkan/vkr_exposurepass.h"
+#include "rendering/vulkan/vkr_exposure.h"
+
 #include "rendering/vulkan/vkr_renderpass.h"
 #include "rendering/vulkan/vkr_pipeline.h"
 #include "rendering/vulkan/vkr_compile.h"
@@ -28,59 +29,88 @@ typedef struct PushConstants_s
     vkrExposure exposure;
 } PushConstants;
 
-static vkrPass ms_pass;
-static VkPipeline ms_adapt;
+static vkrPass ms_buildPass;
+static vkrPass ms_adaptPass;
 static vkrBufferSet ms_histBuffers;
 static vkrBufferSet ms_expBuffers;
+static vkrBufferSet ms_readbackBuffers;
+static float4 ms_readbackValue;
+static VkFence ms_lastFence;
 static vkrExposure ms_params;
 
-bool vkrExposurePass_New(void)
+bool vkrExposure_Init(void)
 {
     bool success = true;
 
     VkPipelineShaderStageCreateInfo buildShaders[1] = { 0 };
     VkPipelineShaderStageCreateInfo adaptShaders[1] = { 0 };
-    if (!vkrShader_New(
-        &buildShaders[0],
-        "BuildHistogram.hlsl", "CSMain", vkrShaderType_Comp))
+
     {
-        success = false;
-        goto cleanup;
+        if (!vkrShader_New(
+            &buildShaders[0],
+            "BuildHistogram.hlsl", "CSMain", vkrShaderType_Comp))
+        {
+            success = false;
+            goto cleanup;
+        }
+        const vkrPassDesc desc =
+        {
+            .pushConstantBytes = sizeof(PushConstants),
+            .shaderCount = NELEM(buildShaders),
+            .shaders = buildShaders,
+        };
+        if (!vkrPass_New(&ms_buildPass, &desc))
+        {
+            success = false;
+            goto cleanup;
+        }
     }
-    if (!vkrShader_New(
-        &adaptShaders[0],
-        "AdaptHistogram.hlsl", "CSMain", vkrShaderType_Comp))
+
+    {
+        if (!vkrShader_New(
+            &adaptShaders[0],
+            "AdaptHistogram.hlsl", "CSMain", vkrShaderType_Comp))
+        {
+            success = false;
+            goto cleanup;
+        }
+        const vkrPassDesc desc =
+        {
+            .pushConstantBytes = sizeof(PushConstants),
+            .shaderCount = NELEM(adaptShaders),
+            .shaders = adaptShaders,
+        };
+        if (!vkrPass_New(&ms_adaptPass, &desc))
+        {
+            success = false;
+            goto cleanup;
+        }
+    }
+
+    if (!vkrBufferSet_New(
+        &ms_histBuffers,
+        sizeof(u32) * kHistogramSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        vkrMemUsage_GpuOnly))
     {
         success = false;
         goto cleanup;
     }
     if (!vkrBufferSet_New(
-        &ms_histBuffers, sizeof(u32) * kHistogramSize,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_GpuOnly))
+        &ms_expBuffers,
+        sizeof(float4),
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        vkrMemUsage_GpuOnly))
     {
         success = false;
         goto cleanup;
     }
     if (!vkrBufferSet_New(
-        &ms_expBuffers, sizeof(float4),
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkrMemUsage_GpuOnly))
-    {
-        success = false;
-        goto cleanup;
-    }
-    const vkrPassDesc desc =
-    {
-        .pushConstantBytes = sizeof(PushConstants),
-        .shaderCount = NELEM(buildShaders),
-        .shaders = buildShaders,
-    };
-    if (!vkrPass_New(&ms_pass, &desc))
-    {
-        success = false;
-        goto cleanup;
-    }
-    ms_adapt = vkrPipeline_NewComp(ms_pass.layout, &adaptShaders[0]);
-    if (!ms_adapt)
+        &ms_readbackBuffers,
+        ms_expBuffers.frames[0].size,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        vkrMemUsage_CpuOnly))
     {
         success = false;
         goto cleanup;
@@ -97,21 +127,22 @@ cleanup:
     }
     if (!success)
     {
-        vkrExposurePass_Del();
+        vkrExposure_Shutdown();
     }
     return success;
 }
 
-void vkrExposurePass_Del(void)
+void vkrExposure_Shutdown(void)
 {
-    vkrPipeline_Del(ms_adapt); ms_adapt = NULL;
-    vkrPass_Del(&ms_pass);
+    vkrPass_Del(&ms_buildPass);
+    vkrPass_Del(&ms_adaptPass);
     vkrBufferSet_Release(&ms_histBuffers);
     vkrBufferSet_Release(&ms_expBuffers);
+    vkrBufferSet_Release(&ms_readbackBuffers);
 }
 
-ProfileMark(pm_setup, vkrExposurePass_Setup)
-void vkrExposurePass_Setup(void)
+ProfileMark(pm_setup, vkrExposure_Setup)
+void vkrExposure_Setup(void)
 {
     ProfileBegin(pm_setup);
 
@@ -120,7 +151,7 @@ void vkrExposurePass_Setup(void)
     vkrSwapchain *const chain = &g_vkr.chain;
     const u32 chainLen = chain->length;
     const u32 imgIndex = (chain->imageIndex + (chainLen - 1u)) % chainLen;
-    const u32 syncIndex = (chain->syncIndex + (kFramesInFlight - 1u)) % kFramesInFlight;
+    const u32 syncIndex = (chain->syncIndex + (kResourceSets - 1u)) % kResourceSets;
 
     vkrImage *const lum = &chain->lumAttachments[imgIndex];
     vkrBuffer *const expBuffer = &ms_expBuffers.frames[syncIndex];
@@ -144,24 +175,32 @@ void vkrExposurePass_Setup(void)
     ProfileEnd(pm_setup);
 }
 
-ProfileMark(pm_execute, vkrExposurePass_Execute)
-void vkrExposurePass_Execute(void)
+ProfileMark(pm_execute, vkrExposure_Execute)
+ProfileMark(pm_readback, vkrExposure_Readback)
+void vkrExposure_Execute(void)
 {
+    ProfileBegin(pm_readback);
+    if (ms_lastFence)
+    {
+        vkrFence_Wait(ms_lastFence);
+        ms_lastFence = NULL;
+        vkrBufferSet_Read(
+            &ms_readbackBuffers,
+            &ms_readbackValue,
+            sizeof(ms_readbackValue));
+    }
+    ProfileEnd(pm_readback);
+
     ProfileBegin(pm_execute);
 
     vkrSwapchain *const chain = &g_vkr.chain;
     const u32 chainLen = chain->length;
     const u32 imgIndex = (chain->imageIndex + (chainLen - 1u)) % chainLen;
-    const u32 syncIndex = (chain->syncIndex + (kFramesInFlight - 1u)) % kFramesInFlight;
+    const u32 syncIndex = (chain->syncIndex + (kResourceSets - 1u)) % kResourceSets;
 
     vkrImage *const lum = &chain->lumAttachments[imgIndex];
     vkrBuffer *const expBuffer = &ms_expBuffers.frames[syncIndex];
     vkrBuffer *const histBuffer = &ms_histBuffers.frames[syncIndex];
-
-    VkDescriptorSet set = vkrBindings_GetSet();
-    VkPipelineLayout layout = ms_pass.layout;
-    VkPipeline buildPipe = ms_pass.pipeline;
-    VkPipeline adaptPipe = ms_adapt;
 
     VkFence cmpfence = NULL;
     VkQueue cmpqueue = NULL;
@@ -193,19 +232,29 @@ void vkrExposurePass_Execute(void)
             gfxcmd,
             cmpcmd,
             VK_ACCESS_SHADER_READ_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_TRANSFER_READ_BIT,
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+            VK_PIPELINE_STAGE_TRANSFER_BIT);
 
         vkrCmdEnd(gfxcmd);
         vkrCmdSubmit(gfxqueue, gfxcmd, gfxfence, NULL, 0x0, NULL);
     }
 
+    // copy exposure buffer to read buffer
+    {
+        vkrBuffer *const readBuffer = vkrBufferSet_Current(&ms_readbackBuffers);
+        vkrBuffer_Barrier(
+            readBuffer,
+            cmpcmd,
+            VK_ACCESS_HOST_READ_BIT,
+            VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_HOST_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT);
+        vkrCmdCopyBuffer(cmpcmd, expBuffer, readBuffer);
+    }
+
     // dispatch shaders
     {
-        vkCmdBindDescriptorSets(
-            cmpcmd, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &set, 0, NULL);
-
         const i32 width = chain->width;
         const i32 height = chain->height;
         const PushConstants constants =
@@ -214,19 +263,13 @@ void vkrExposurePass_Execute(void)
             .height = height,
             .exposure = ms_params,
         };
-        vkCmdPushConstants(
-            cmpcmd,
-            layout,
-            VK_SHADER_STAGE_COMPUTE_BIT,
-            0,
-            sizeof(PushConstants),
-            &constants);
 
         // build histogram
         {
+            vkrCmdBindPass(cmpcmd, &ms_buildPass);
+            vkrCmdPushConstants(cmpcmd, &ms_buildPass, &constants, sizeof(constants));
             const i32 dispatchX = (width + 15) / 16;
             const i32 dispatchY = (height + 15) / 16;
-            vkCmdBindPipeline(cmpcmd, VK_PIPELINE_BIND_POINT_COMPUTE, buildPipe);
             vkCmdDispatch(cmpcmd, dispatchX, dispatchY, 1);
         }
 
@@ -237,13 +280,20 @@ void vkrExposurePass_Execute(void)
             VK_ACCESS_SHADER_READ_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+        vkrBuffer_Barrier(
+            expBuffer,
+            cmpcmd,
+            VK_ACCESS_TRANSFER_READ_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
         // adapt exposure
         {
-            vkCmdBindPipeline(cmpcmd, VK_PIPELINE_BIND_POINT_COMPUTE, adaptPipe);
+            vkrCmdBindPass(cmpcmd, &ms_adaptPass);
+            vkrCmdPushConstants(cmpcmd, &ms_adaptPass, &constants, sizeof(constants));
             vkCmdDispatch(cmpcmd, 1, 1, 1);
         }
-
     }
 
     // transition to gfx
@@ -282,25 +332,27 @@ void vkrExposurePass_Execute(void)
         vkrCmdSubmit(gfxqueue, gfxcmd, gfxfence, NULL, 0x0, NULL);
     }
 
+    ms_lastFence = cmpfence;
+
     ProfileEnd(pm_execute);
 }
 
-vkrExposure* vkrExposurePass_GetParams(void)
+vkrExposure* vkrExposure_GetParams(void)
 {
     return &ms_params;
 }
 
-void vkrExposurePass_SetParams(const vkrExposure* params)
+void vkrExposure_SetParams(const vkrExposure* params)
 {
     ms_params = *params;
 }
 
-float vkrExposurePass_GetExposure(void)
+float vkrExposure_GetExposure(void)
 {
     return ms_params.exposure;
 }
 
-const vkrBuffer* vkrExposurePass_GetExposureBuffer(void)
+const vkrBuffer* vkrExposure_GetExposureBuffer(void)
 {
     return vkrBufferSet_Current(&ms_expBuffers);
 }

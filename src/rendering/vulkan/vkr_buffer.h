@@ -27,9 +27,13 @@ void vkrBuffer_Unmap(vkrBuffer const *const buffer);
 void vkrBuffer_Flush(vkrBuffer const *const buffer);
 
 // helper for map, unmap, flush
-void vkrBuffer_Write(
+bool vkrBuffer_Write(
     vkrBuffer const *const buffer,
     void const *const src,
+    i32 size);
+bool vkrBuffer_Read(
+    vkrBuffer const *const buffer,
+    void* dst,
     i32 size);
 
 void vkrBuffer_Barrier(
@@ -65,9 +69,13 @@ bool vkrBufferSet_Reserve(
     i32 size,
     VkBufferUsageFlags bufferUsage,
     vkrMemUsage memUsage);
-void vkrBufferSet_Write(
+bool vkrBufferSet_Write(
     vkrBufferSet *const set,
     const void* src,
+    i32 size);
+bool vkrBufferSet_Read(
+    vkrBufferSet *const set,
+    void* dst,
     i32 size);
 
 PIM_C_END

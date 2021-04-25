@@ -51,7 +51,7 @@
 #include "rendering/material.h"
 
 #include "rendering/vulkan/vkr.h"
-#include "rendering/vulkan/vkr_exposurepass.h"
+#include "rendering/vulkan/vkr_exposure.h"
 
 #include "quake/q_model.h"
 #include "assets/asset_system.h"
@@ -496,7 +496,7 @@ bool RenderSys_Init(void)
         // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#vkSetHdrMetadataEXT
         ms_exposure.offsetEV -= 7.0f;
     }
-    vkrExposurePass_SetParams(&ms_exposure);
+    vkrExposure_SetParams(&ms_exposure);
 
     TextureSys_Init();
     MeshSys_Init();
@@ -607,7 +607,7 @@ void RenderSys_Gui(bool* pEnabled)
         if (igTreeNodeExStr("Exposure", ImGuiTreeNodeFlags_Framed))
         {
             bool r_sw = ConVar_GetBool(&cv_pt_trace);
-            vkrExposure* exposure = r_sw ? &ms_exposure : vkrExposurePass_GetParams();
+            vkrExposure* exposure = r_sw ? &ms_exposure : vkrExposure_GetParams();
 
             bool manual = exposure->manual;
             bool standard = exposure->standard;

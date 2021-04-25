@@ -9,7 +9,7 @@
 #include "rendering/vulkan/vkr_depthpass.h"
 #include "rendering/vulkan/vkr_opaquepass.h"
 #include "rendering/vulkan/vkr_uipass.h"
-#include "rendering/vulkan/vkr_exposurepass.h"
+#include "rendering/vulkan/vkr_exposure.h"
 #include "rendering/vulkan/vkr_image.h"
 
 #include "rendering/drawable.h"

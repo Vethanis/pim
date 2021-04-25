@@ -16,7 +16,7 @@ enum
 {
     kMaxSwapchainLen = 3,
     kDesiredSwapchainLen = 3,
-    kFramesInFlight = 3,
+    kResourceSets = 3,
 
     kHistogramSize = 256,
 
@@ -167,7 +167,7 @@ typedef struct vkrBuffer_s
 
 typedef struct vkrBufferSet_s
 {
-    vkrBuffer frames[kFramesInFlight];
+    vkrBuffer frames[kResourceSets];
 } vkrBufferSet;
 
 typedef struct vkrImage_s
@@ -188,7 +188,7 @@ typedef struct vkrImage_s
 
 typedef struct vkrImageSet_s
 {
-    vkrImage frames[kFramesInFlight];
+    vkrImage frames[kResourceSets];
 } vkrImageSet;
 
 typedef struct vkrFramebuffer_s
@@ -303,10 +303,10 @@ typedef struct vkrSwapchain_s
     vkrImage depthAttachments[kMaxSwapchainLen];
 
     u32 syncIndex;
-    VkFence syncFences[kFramesInFlight];
-    VkSemaphore availableSemas[kFramesInFlight];
-    VkSemaphore renderedSemas[kFramesInFlight];
-    VkCommandBuffer presCmds[kFramesInFlight];
+    VkFence syncFences[kResourceSets];
+    VkSemaphore availableSemas[kResourceSets];
+    VkSemaphore renderedSemas[kResourceSets];
+    VkCommandBuffer presCmds[kResourceSets];
     VkCommandPool cmdpool;
 
 } vkrSwapchain;
