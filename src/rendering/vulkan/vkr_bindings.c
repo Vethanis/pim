@@ -110,7 +110,7 @@ static const VkDescriptorPoolSize kPoolSizes[] =
 
 static VkDescriptorSetLayout ms_layout;
 static VkDescriptorPool ms_pool;
-static VkDescriptorSet ms_sets[kFramesInFlight];
+static VkDescriptorSet ms_sets[kResourceSets];
 static VkWriteDescriptorSet ms_writes[vkrBindId_COUNT];
 static vkrBinding ms_bindings[vkrBindId_COUNT];
 static bool ms_dirty[vkrBindId_COUNT];
@@ -126,14 +126,14 @@ bool vkrBindings_Init(void)
         return false;
     }
 
-    ms_pool = vkrDescPool_New(kFramesInFlight, NELEM(kPoolSizes), kPoolSizes);
+    ms_pool = vkrDescPool_New(kResourceSets, NELEM(kPoolSizes), kPoolSizes);
     if (!ms_pool)
     {
         vkrBindings_Shutdown();
         return false;
     }
 
-    for (i32 i = 0; i < kFramesInFlight; ++i)
+    for (i32 i = 0; i < kResourceSets; ++i)
     {
         ms_sets[i] = vkrDescSet_New(ms_pool, ms_layout);
         if (!ms_sets[i])
@@ -165,7 +165,7 @@ void vkrBindings_Shutdown(void)
 {
     if (ms_pool)
     {
-        for (i32 i = 0; i < kFramesInFlight; ++i)
+        for (i32 i = 0; i < kResourceSets; ++i)
         {
             vkrDescSet_Del(ms_pool, ms_sets[i]);
             ms_sets[i] = NULL;

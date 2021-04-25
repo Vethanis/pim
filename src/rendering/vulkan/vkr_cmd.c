@@ -428,6 +428,8 @@ void vkrCmdCopyBuffer(
     {
         const VkBufferCopy region =
         {
+            .srcOffset = 0,
+            .dstOffset = 0,
             .size = size,
         };
         vkCmdCopyBuffer(cmdbuf, src->handle, dst->handle, 1, &region);

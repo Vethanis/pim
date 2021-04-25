@@ -96,7 +96,7 @@ bool vkrMemSys_Init(void)
             .physicalDevice = g_vkr.phdev,
             .device = g_vkr.dev,
             .pAllocationCallbacks = NULL,
-            .frameInUseCount = kFramesInFlight - 1,
+            .frameInUseCount = kResourceSets - 1,
             .pVulkanFunctions = &vulkanFns,
         };
         VmaAllocator handle = NULL;
@@ -113,7 +113,8 @@ bool vkrMemSys_Init(void)
     if (!vkrMemPool_New(
         &ms_inst.stagingPool,
         1 << 20,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         0x0,
         vkrMemUsage_CpuOnly,
         vkrQueueFlag_TransferBit |
@@ -240,7 +241,7 @@ void vkrMemSys_Finalize(void)
     ASSERT(allocator->handle);
 
     Spinlock_Lock(&allocator->lock);
-    const u32 frame = vkrSys_FrameIndex() + kFramesInFlight * 2;
+    const u32 frame = vkrSys_FrameIndex() + kResourceSets * 2;
     i32 len = allocator->numreleasable;
     vkrReleasable *const releasables = allocator->releasables;
     for (i32 i = len - 1; i >= 0; --i)
@@ -527,7 +528,7 @@ bool vkrReleasable_Del(
 
     ASSERT(releasable);
     u32 duration = frame - releasable->frame;
-    bool ready = duration > kFramesInFlight;
+    bool ready = duration > kResourceSets;
     if (ready)
     {
         switch (releasable->type)
@@ -676,7 +677,7 @@ static bool vkrMemPool_New(
         const VmaPoolCreateInfo poolInfo =
         {
             .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = kFramesInFlight - 1,
+            .frameInUseCount = kResourceSets - 1,
         };
         VkCheck(vmaCreatePool(ms_inst.handle, &poolInfo, &pool->handle));
         ASSERT(pool->handle);
@@ -718,7 +719,7 @@ static bool vkrMemPool_New(
         const VmaPoolCreateInfo poolInfo =
         {
             .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = kFramesInFlight - 1,
+            .frameInUseCount = kResourceSets - 1,
         };
         VkCheck(vmaCreatePool(ms_inst.handle, &poolInfo, &pool->handle));
         ASSERT(pool->handle);

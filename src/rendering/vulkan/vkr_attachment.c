@@ -19,21 +19,6 @@ bool vkrAttachment_New(
     ASSERT(height > 0);
     memset(att, 0, sizeof(*att));
 
-    VkImageAspectFlags aspect = 0x0;
-    VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-    if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
-    {
-        aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-        layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    }
-    else if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
-    {
-        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-        layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    }
-    ASSERT(aspect);
-
     const VkImageCreateInfo info = 
     {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,

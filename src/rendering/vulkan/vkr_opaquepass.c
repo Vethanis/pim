@@ -11,7 +11,7 @@
 #include "rendering/vulkan/vkr_bindings.h"
 #include "rendering/vulkan/vkr_mesh.h"
 #include "rendering/vulkan/vkr_im.h"
-#include "rendering/vulkan/vkr_exposurepass.h"
+#include "rendering/vulkan/vkr_exposure.h"
 
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
@@ -274,7 +274,7 @@ void vkrOpaquePass_Setup(void)
     vkrBindings_BindBuffer(
         vkrBindId_ExposureBuffer,
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        vkrExposurePass_GetExposureBuffer());
+        vkrExposure_GetExposureBuffer());
 
     ProfileEnd(pm_update);
 }

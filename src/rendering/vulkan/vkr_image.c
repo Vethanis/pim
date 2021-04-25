@@ -200,7 +200,7 @@ vkrImage* vkrImageSet_Current(vkrImageSet* set)
 
 vkrImage* vkrImageSet_Prev(vkrImageSet* set)
 {
-    u32 prevIndex = (vkrSys_SyncIndex() + (kFramesInFlight - 1u)) % kFramesInFlight;
+    u32 prevIndex = (vkrSys_SyncIndex() + (kResourceSets - 1u)) % kResourceSets;
     ASSERT(prevIndex < NELEM(set->frames));
     return &set->frames[prevIndex];
 }

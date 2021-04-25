@@ -75,7 +75,7 @@ void vkrBuffer_Flush(vkrBuffer const *const buffer)
 }
 
 ProfileMark(pm_bufferwrite, vkrBuffer_Write)
-void vkrBuffer_Write(
+bool vkrBuffer_Write(
     vkrBuffer const *const buffer,
     void const *const src,
     i32 size)
@@ -83,16 +83,40 @@ void vkrBuffer_Write(
     ProfileBegin(pm_bufferwrite);
     ASSERT(buffer);
     ASSERT(src);
-    ASSERT(size <= buffer->size);
-    ASSERT(size >= 0);
+    ASSERT(size == buffer->size);
+    bool success = false;
     void* dst = vkrBuffer_Map(buffer);
     if (dst)
     {
         memcpy(dst, src, size);
+        success = true;
     }
     vkrBuffer_Unmap(buffer);
     vkrBuffer_Flush(buffer);
     ProfileEnd(pm_bufferwrite);
+    return success;
+}
+
+ProfileMark(pm_bufferread, vkrBuffer_Read)
+bool vkrBuffer_Read(
+    vkrBuffer const *const buffer,
+    void* dst,
+    i32 size)
+{
+    ProfileBegin(pm_bufferread);
+    ASSERT(buffer);
+    ASSERT(dst);
+    ASSERT(size == buffer->size);
+    bool success = false;
+    const void* src = vkrBuffer_Map(buffer);
+    if (src)
+    {
+        memcpy(dst, src, size);
+        success = true;
+    }
+    vkrBuffer_Unmap(buffer);
+    ProfileEnd(pm_bufferread);
+    return success;
 }
 
 void vkrBuffer_Barrier(
@@ -188,7 +212,15 @@ bool vkrBufferSet_Reserve(
     return vkrBuffer_Reserve(vkrBufferSet_Current(set), size, bufferUsage, memUsage);
 }
 
-void vkrBufferSet_Write(vkrBufferSet *const set, const void* src, i32 size)
+bool vkrBufferSet_Write(vkrBufferSet *const set, const void* src, i32 size)
 {
-    vkrBuffer_Write(vkrBufferSet_Current(set), src, size);
+    return vkrBuffer_Write(vkrBufferSet_Current(set), src, size);
+}
+
+bool vkrBufferSet_Read(
+    vkrBufferSet *const set,
+    void* dst,
+    i32 size)
+{
+    return vkrBuffer_Read(vkrBufferSet_Current(set), dst, size);
 }

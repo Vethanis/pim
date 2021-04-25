@@ -243,7 +243,7 @@ bool vkrSwapchain_New(
     }
 
     // create synchronization objects
-    for (i32 i = 0; i < kFramesInFlight; ++i)
+    for (i32 i = 0; i < kResourceSets; ++i)
     {
         chain->syncFences[i] = vkrFence_New(true);
         chain->availableSemas[i] = vkrSemaphore_New();
@@ -287,7 +287,7 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
             chain->cmdpool = NULL;
         }
 
-        for (i32 i = 0; i < kFramesInFlight; ++i)
+        for (i32 i = 0; i < kResourceSets; ++i)
         {
             vkrFence_Del(chain->syncFences[i]);
             vkrSemaphore_Del(chain->availableSemas[i]);
@@ -322,15 +322,15 @@ static void vkrSwapchain_SetupBuffers(vkrSwapchain* chain)
     ASSERT(chain);
     const vkrRenderPassDesc renderPassDesc =
     {
-        .srcStageMask =
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         .srcAccessMask =
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-
-        .dstStageMask =
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         .dstAccessMask =
             VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+
+        .srcStageMask =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstStageMask =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 
         .attachments[0] =
         {
@@ -347,6 +347,8 @@ static void vkrSwapchain_SetupBuffers(vkrSwapchain* chain)
             .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            .load = VK_ATTACHMENT_LOAD_OP_LOAD,
+            .store = VK_ATTACHMENT_STORE_OP_STORE,
         },
         .attachments[2] =
         {
@@ -417,7 +419,7 @@ u32 vkrSwapchain_AcquireSync(vkrSwapchain* chain, VkCommandBuffer* cmdOut, VkFen
     ASSERT(cmdOut);
     ASSERT(fenceOut);
 
-    u32 syncIndex = (chain->syncIndex + 1) % kFramesInFlight;
+    u32 syncIndex = (chain->syncIndex + 1) % kResourceSets;
     VkFence fence = chain->syncFences[syncIndex];
     VkCommandBuffer cmd = chain->presCmds[syncIndex];
     ASSERT(fence);
@@ -448,7 +450,7 @@ u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain, VkFramebuffer* bufferOut)
     ASSERT(bufferOut);
 
     u32 syncIndex = chain->syncIndex;
-    ASSERT(syncIndex < kFramesInFlight);
+    ASSERT(syncIndex < kResourceSets);
 
     u32 imageIndex = 0;
     const u64 timeout = -1;
@@ -479,8 +481,11 @@ u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain, VkFramebuffer* bufferOut)
     return imageIndex;
 }
 
+ProfileMark(pm_submit, vkrSwapchain_Submit)
 void vkrSwapchain_Submit(vkrSwapchain* chain, VkCommandBuffer cmd)
 {
+    ProfileBegin(pm_submit);
+
     ASSERT(chain);
     ASSERT(chain->handle);
     ASSERT(cmd);
@@ -521,6 +526,8 @@ void vkrSwapchain_Submit(vkrSwapchain* chain, VkCommandBuffer cmd)
         chain->availableSemas[syncIndex],
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         chain->renderedSemas[syncIndex]);
+
+    ProfileEnd(pm_submit);
 }
 
 ProfileMark(pm_present, vkrSwapchain_Present)
