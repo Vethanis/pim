@@ -1029,6 +1029,9 @@ static i32 CreateSphere(
 
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 {
+    ConVar_SetFloat(&cv_pt_dist_alpha, 0.01f);
+    ConVar_SetFloat(&cv_pt_dist_samples, 10000.0f);
+
     Entities* dr = Entities_Get();
     Entities_Clear(dr);
     ShutdownPtScene();
@@ -1036,7 +1039,7 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 
     Camera_Reset();
 
-    const float wallExtents = 2.0f;
+    const float wallExtents = 5.0f;
     const float wallScale = 2.0f * wallExtents;
     const float lightScale = 1.0f;
     const float sphereScale = 1.0f;
@@ -1044,159 +1047,192 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     const float lo = -wallExtents + margin;
     const float hi = wallExtents - margin;
 
-    const float4 x = { 1.0f, 0.0f, 0.0f };
-    const float4 y = { 0.0f, 1.0f, 0.0f };
-    const float4 z = { 0.0f, 0.0f, 1.0f };
+    const float4 right = { 1.0f, 0.0f, 0.0f };
+    const float4 left = { -1.0f, 0.0f, 0.0f };
+    const float4 up = { 0.0f, 1.0f, 0.0f };
+    const float4 down = { 0.0f, -1.0f, 0.0f };
+    const float4 fwd = { 0.0f, 0.0f, -1.0f };
+    const float4 back = { 0.0f, 0.0f, 1.0f };
+
+    const float cHi = 0.9f;
+    const float cLo = 1.0f - cHi;
+    const float4 red = { cHi, cLo, cLo, 1.0f };
+    const float4 green = { cLo, cHi, cLo, 1.0f };
+    const float4 blue = { cLo, cLo, cHi, 1.0f };
+    const float4 white = { cHi, cHi, cHi, 1.0f };
+    const float4 plastic = { 0.9f, 1.0f, 0.0f, 0.0f };
+    const float4 metal = { 0.1f, 1.0f, 1.0f, 0.0f };
+    const float4 light = { 0.9f, 1.0f, 0.0f, 1.0f };
 
     i32 i = 0;
     i = CreateQuad(
         "Cornell_Floor",
-        f4_mulvs(y, -wallExtents),
-        f4_neg(y), f4_neg(z),
+        f4_mulvs(down, wallExtents),
+        down, back,
         wallScale,
-        f4_s(0.9f),
-        f4_v(0.1f, 1.0f, 0.0f, 0.0f),
+        white,
+        plastic,
         0x0);
     i = CreateQuad(
         "Cornell_Ceil",
-        f4_mulvs(y, wallExtents),
-        y, z,
+        f4_mulvs(up, wallExtents),
+        up, back,
         wallScale,
-        f4_s(0.9f),
-        f4_v(0.9f, 1.0f, 0.0f, 0.0f),
+        white,
+        plastic,
         0x0);
     i = CreateQuad(
         "Cornell_Light",
-        f4_mulvs(y, wallExtents - 0.01f),
-        y, z,
+        f4_mulvs(up, wallExtents - kMilli),
+        up, back,
         lightScale,
-        f4_s(0.9f),
-        f4_v(0.9f, 1.0f, 0.0f, 1.0f),
-        MatFlag_Sky);
+        f4_s(1.0f),
+        light,
+        0x0);
 
     i = CreateQuad(
         "Cornell_Left",
-        f4_mulvs(x, -wallExtents),
-        f4_neg(x), y,
+        f4_mulvs(left, wallExtents),
+        left, up,
         wallScale,
-        f4_v(0.9f, 0.1f, 0.1f, 1.0f),
-        f4_v(0.9f, 1.0f, 0.0f, 0.0f),
+        red,
+        plastic,
         0x0);
     i = CreateQuad(
         "Cornell_Right",
-        f4_mulvs(x, wallExtents),
-        x, y,
+        f4_mulvs(right, wallExtents),
+        right, up,
         wallScale,
-        f4_v(0.1f, 0.9f, 0.1f, 1.0f),
-        f4_v(0.9f, 1.0f, 0.0f, 0.0f),
+        green,
+        plastic,
         0x0);
 
     i = CreateQuad(
         "Cornell_Near",
-        f4_mulvs(z, wallExtents),
-        z, y,
+        f4_mulvs(back, wallExtents),
+        back, up,
         wallScale,
-        f4_s(0.9f),
-        f4_v(0.9f, 1.0f, 0.0f, 0.0f),
+        white,
+        plastic,
         0x0);
     i = CreateQuad(
         "Cornell_Far",
-        f4_mulvs(z, -wallExtents),
-        f4_neg(z), y,
+        f4_mulvs(fwd, wallExtents),
+        fwd, up,
         wallScale,
-        f4_v(0.1f, 0.1f, 0.9f, 1.0f),
-        f4_v(0.9f, 1.0f, 0.0f, 0.0f),
+        blue,
+        plastic,
         0x0);
 
-#define CORNELL_BOX_SPHERES 0
-#if CORNELL_BOX_SPHERES
-    for (i32 j = 0; j < 5; ++j)
+    typedef enum
     {
-        float t = (j + 0.5f) / 5;
-        float roughness = f1_lerp(0.0f, 1.0f, t);
-        float x = f1_lerp(lo, hi, t);
-        float y = -wallExtents + sphereScale;
-        float z = lo;
-        char name[PIM_PATH];
-        SPrintf(ARGS(name), "Cornell_MetalSphere_%d", j);
-        i = CreateSphere(
-            name,
-            f4_v(x, y, z, 0.0f),
-            sphereScale,
-            f4_s(0.9f),
-            f4_v(roughness, 1.0f, 1.0f, 0.0f),
-            0x0);
+        PrimType_Boxes,
+        PrimType_Spheres,
+    } PrimType;
+    PrimType primType = PrimType_Boxes;
+    if (1 < argc)
+    {
+        const char* prim = argv[1];
+        if (!StrICmp(prim, PIM_PATH, "spheres"))
+        {
+            primType = PrimType_Spheres;
+        }
+        else if (!StrICmp(prim, PIM_PATH, "boxes"))
+        {
+            primType = PrimType_Boxes;
+        }
     }
 
-    for (i32 j = 0; j < 5; ++j)
+    if (primType == PrimType_Spheres)
     {
-        float t = (j + 0.5f) / 5;
-        float roughness = f1_lerp(0.0f, 1.0f, t);
-        float x = f1_lerp(lo, hi, t);
-        float y = -wallExtents + sphereScale;
-        float z = lo + margin;
-        char name[PIM_PATH];
-        SPrintf(ARGS(name), "Cornell_PlasticSphere_%d", j);
-        i = CreateSphere(
-            name,
-            f4_v(x, y, z, 0.0f),
-            sphereScale,
-            f4_s(0.9f),
-            f4_v(roughness, 1.0f, 0.0f, 0.0f),
-            0x0);
-    }
+        for (i32 j = 0; j < 5; ++j)
+        {
+            float t = (j + 0.5f) / 5;
+            float roughness = f1_lerp(0.0f, 1.0f, t);
+            float x = f1_lerp(lo, hi, t);
+            float y = -wallExtents + sphereScale;
+            float z = lo;
+            char name[PIM_PATH];
+            SPrintf(ARGS(name), "Cornell_MetalSphere_%d", j);
+            i = CreateSphere(
+                name,
+                f4_v(x, y, z, 0.0f),
+                sphereScale,
+                white,
+                f4_v(roughness, 1.0f, 1.0f, 0.0f),
+                0x0);
+        }
 
-    for (i32 j = 0; j < 5; ++j)
+        for (i32 j = 0; j < 5; ++j)
+        {
+            float t = (j + 0.5f) / 5;
+            float roughness = f1_lerp(0.0f, 1.0f, t);
+            float x = f1_lerp(lo, hi, t);
+            float y = -wallExtents + sphereScale;
+            float z = f1_lerp(lo, hi, 1.0f / 3.0f);
+            char name[PIM_PATH];
+            SPrintf(ARGS(name), "Cornell_PlasticSphere_%d", j);
+            i = CreateSphere(
+                name,
+                f4_v(x, y, z, 0.0f),
+                sphereScale,
+                white,
+                f4_v(roughness, 1.0f, 0.0f, 0.0f),
+                0x0);
+}
+
+        for (i32 j = 0; j < 5; ++j)
+        {
+            float t = (j + 0.5f) / 5;
+            float roughness = f1_lerp(0.0f, 1.0f, t);
+            float x = f1_lerp(lo, hi, t);
+            float y = -wallExtents + sphereScale;
+            float z = f1_lerp(lo, hi, 2.0f / 3.0f);
+            char name[PIM_PATH];
+            SPrintf(ARGS(name), "Cornell_GlassSphere_%d", j);
+            i = CreateSphere(
+                name,
+                f4_v(x, y, z, 0.0f),
+                sphereScale,
+                white,
+                f4_v(roughness, 1.0f, 0.0f, 0.0f),
+                MatFlag_Refractive);
+            dr->materials[i].ior = 1.5f;
+        }
+
+    }
+    else if (primType == PrimType_Boxes)
     {
-        float t = (j + 0.5f) / 5;
-        float roughness = f1_lerp(0.0f, 1.0f, t);
-        float x = f1_lerp(lo, hi, t);
-        float y = -wallExtents + sphereScale;
-        float z = lo + margin * 2.0f;
-        char name[PIM_PATH];
-        SPrintf(ARGS(name), "Cornell_GlassSphere_%d", j);
-        i = CreateSphere(
-            name,
-            f4_v(x, y, z, 0.0f),
-            sphereScale,
-            f4_s(0.9f),
-            f4_v(roughness, 1.0f, 0.0f, 0.0f),
-            MatFlag_Refractive);
-        dr->materials[i].ior = 1.5f;
+        const float boxScale = 2.0f * sphereScale;
+        {
+            float x = f1_lerp(lo, hi, 0.2f);
+            float y = -wallExtents + boxScale;
+            float z = f1_lerp(lo, hi, 0.2f);
+            i = CreateBox(
+                "Cornell_MetalBox",
+                f4_v(x, y, z, 0.0f),
+                f4_normalize3(f4_v(0.2f, 0.0f, 1.0f, 0.0f)),
+                f4_v(0.0f, 1.0f, 0.0f, 0.0f),
+                f4_v(boxScale, boxScale * 2.0f, boxScale, 0.0f),
+                white,
+                metal,
+                0x0);
+        }
+        {
+            float x = f1_lerp(lo, hi, 0.8f);
+            float y = -wallExtents + boxScale * 0.5f;
+            float z = f1_lerp(lo, hi, 0.8f);
+            i = CreateBox(
+                "Cornell_PlasticBox",
+                f4_v(x, y, z, 0.0f),
+                f4_normalize3(f4_v(-0.2f, 0.0f, 1.0f, 0.0f)),
+                f4_v(0.0f, 1.0f, 0.0f, 0.0f),
+                f4_v(boxScale, boxScale, boxScale, 0.0f),
+                white,
+                plastic,
+                0x0);
+        }
     }
-
-#else
-
-    {
-        float x = f1_lerp(lo, hi, 0.2f);
-        float y = -wallExtents + sphereScale;
-        float z = f1_lerp(lo, hi, 0.2f);
-        i = CreateBox(
-            "Cornell_MetalBox",
-            f4_v(x, y, z, 0.0f),
-            f4_normalize3(f4_v(0.2f, 0.0f, 1.0f, 0.0f)),
-            f4_v(0.0f, 1.0f, 0.0f, 0.0f),
-            f4_v(sphereScale, sphereScale * 2.0f, sphereScale, 0.0f),
-            f4_s(0.9f),
-            f4_v(0.1f, 1.0f, 1.0f, 0.0f),
-            0x0);
-    }
-    {
-        float x = f1_lerp(lo, hi, 0.8f);
-        float y = -wallExtents + sphereScale * 0.5f;
-        float z = f1_lerp(lo, hi, 0.8f);
-        i = CreateBox(
-            "Cornell_PlasticBox",
-            f4_v(x, y, z, 0.0f),
-            f4_normalize3(f4_v(-0.2f, 0.0f, 1.0f, 0.0f)),
-            f4_v(0.0f, 1.0f, 0.0f, 0.0f),
-            f4_v(sphereScale, sphereScale, sphereScale, 0.0f),
-            f4_s(0.9f),
-            f4_v(0.8f, 1.0f, 0.0f, 0.0f),
-            0x0);
-    }
-
-#endif // CORNELL_BOX_SPHERES
 
     Entities_UpdateTransforms(dr);
     Entities_UpdateBounds(dr);
@@ -1366,6 +1402,8 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
 
     if (loaded)
     {
+        ConVar_SetFloat(&cv_pt_dist_alpha, 0.5f);
+        ConVar_SetFloat(&cv_pt_dist_samples, 1000.0f);
         Entities_UpdateTransforms(Entities_Get());
         Entities_UpdateBounds(Entities_Get());
         vkrSys_OnLoad();
