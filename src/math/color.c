@@ -100,12 +100,10 @@ float3x3 VEC_CALL Color_XYZ_RGB(float4x2 pr)
 
 static void VEC_CALL Color_LogMatrix(FStream file, float3x3 m, const char* name)
 {
-    FStream_Printf(file, "float3x3 %s =\n", name);
-    FStream_Printf(file, "{\n");
-    FStream_Printf(file, "    { %.8gf, %.8gf, %.8gf },\n", m.c0.x, m.c0.y, m.c0.z);
-    FStream_Printf(file, "    { %.8gf, %.8gf, %.8gf },\n", m.c1.x, m.c1.y, m.c1.z);
-    FStream_Printf(file, "    { %.8gf, %.8gf, %.8gf },\n", m.c2.x, m.c2.y, m.c2.z);
-    FStream_Printf(file, "};\n");
+    FStream_Printf(file, "%s:\n", name);
+    FStream_Printf(file, "c0 = { %.8gf, %.8gf, %.8gf }\n", m.c0.x, m.c0.y, m.c0.z);
+    FStream_Printf(file, "c1 = { %.8gf, %.8gf, %.8gf }\n", m.c1.x, m.c1.y, m.c1.z);
+    FStream_Printf(file, "c2 = { %.8gf, %.8gf, %.8gf }\n", m.c2.x, m.c2.y, m.c2.z);
 }
 
 void Color_DumpConversionMatrices(void)
