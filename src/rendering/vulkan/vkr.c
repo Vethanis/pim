@@ -327,7 +327,17 @@ float vkrSys_GetUiNits(void)
 
 Colorspace vkrSys_GetRenderColorspace(void)
 {
+#if COLOR_SCENE_REC709
+    return Colorspace_Rec709;
+#elif COLOR_SCENE_REC2020
+    return Colorspace_Rec2020;
+#elif COLOR_SCENE_AP1
     return Colorspace_AP1;
+#elif COLOR_SCENE_AP0
+    return Colorspace_AP0;
+#else
+#   error Unrecognized scene colorspace
+#endif // COLOR_SCENE_X
 }
 
 Colorspace vkrSys_GetDisplayColorspace(void)

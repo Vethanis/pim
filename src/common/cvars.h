@@ -46,6 +46,17 @@ extern ConVar cv_r_sun_steps;
 extern ConVar cv_r_qlights;
 extern ConVar cv_ui_opacity;
 
+extern ConVar cv_exp_standard;
+extern ConVar cv_exp_manual;
+extern ConVar cv_exp_aperture;
+extern ConVar cv_exp_shutter;
+extern ConVar cv_exp_adaptrate;
+extern ConVar cv_exp_evoffset;
+extern ConVar cv_exp_evmin;
+extern ConVar cv_exp_evmax;
+extern ConVar cv_exp_cdfmin;
+extern ConVar cv_exp_cdfmax;
+
 void ConVars_RegisterAll(void);
 
 PIM_C_END

@@ -395,6 +395,98 @@ ConVar cv_ui_opacity =
     .desc = "UI opacity",
 };
 
+// ----------------------------------------------------------------------------
+// exposure
+
+ConVar cv_exp_standard =
+{
+    .type = cvart_bool,
+    .name = "exp_standard",
+    .value = "1",
+    .desc = "1: Standard Calibration Exposure; 0: Saturation Based Exposure;",
+};
+ConVar cv_exp_manual =
+{
+    .type = cvart_bool,
+    .name = "exp_manual",
+    .value = "0",
+    .desc = "1: Manual Exposure; 0: Automatic Exposure",
+};
+ConVar cv_exp_aperture =
+{
+    .type = cvart_float,
+    .name = "exp_aperture",
+    .value = "1.4",
+    .minFloat = 1.4f,
+    .maxFloat = 22.0f,
+    .desc = "Exposure Aperture, in millimeters",
+};
+ConVar cv_exp_shutter =
+{
+    .type = cvart_float,
+    .name = "exp_shutter",
+    .value = "0.1",
+    .minFloat = 0.001f,
+    .maxFloat = 1.0f,
+    .desc = "Exposure Shutter Time, in seconds",
+};
+ConVar cv_exp_adaptrate =
+{
+    .type = cvart_float,
+    .name = "exp_adaptrate",
+    .value = "5.0",
+    .minFloat = 0.1f,
+    .maxFloat = 10.0f,
+    .desc = "Autoexposure Adaptation Rate",
+};
+ConVar cv_exp_evoffset =
+{
+    .type = cvart_float,
+    .name = "exp_evoffset",
+    .value = "0.0",
+    .minFloat = -10.0f,
+    .maxFloat = 10.0f,
+    .desc = "Exposure EV compensation",
+};
+ConVar cv_exp_evmin =
+{
+    .type = cvart_float,
+    .name = "exp_evmin",
+    .value = "-10.0",
+    .minFloat = -30.0f,
+    .maxFloat = 30.0f,
+    .desc = "Autoexposure Sensor Minimum",
+};
+ConVar cv_exp_evmax =
+{
+    .type = cvart_float,
+    .name = "exp_evmax",
+    .value = "30.0",
+    .minFloat = -29.0f,
+    .maxFloat = 31.0f,
+    .desc = "Autoexposure Sensor Maximum",
+};
+ConVar cv_exp_cdfmin =
+{
+    .type = cvart_float,
+    .name = "exp_cdfmin",
+    .value = "0.1",
+    .minFloat = 0.0f,
+    .maxFloat = 1.0f,
+    .desc = "Autoexposure Histogram Cdf Min",
+};
+ConVar cv_exp_cdfmax =
+{
+    .type = cvart_float,
+    .name = "exp_cdfmax",
+    .value = "0.9",
+    .minFloat = 0.0f,
+    .maxFloat = 1.0f,
+    .desc = "Autoexposure Histogram Cdf Max",
+};
+
+// ----------------------------------------------------------------------------
+
 void ConVars_RegisterAll(void)
 {
     ConVar_Reg(&cv_basedir);
@@ -438,4 +530,15 @@ void ConVars_RegisterAll(void)
     ConVar_Reg(&cv_ui_opacity);
     ConVar_Reg(&cv_r_whitepoint);
     ConVar_Reg(&cv_in_yawscale);
+
+    ConVar_Reg(&cv_exp_standard);
+    ConVar_Reg(&cv_exp_manual);
+    ConVar_Reg(&cv_exp_aperture);
+    ConVar_Reg(&cv_exp_shutter);
+    ConVar_Reg(&cv_exp_adaptrate);
+    ConVar_Reg(&cv_exp_evoffset);
+    ConVar_Reg(&cv_exp_evmin);
+    ConVar_Reg(&cv_exp_evmax);
+    ConVar_Reg(&cv_exp_cdfmin);
+    ConVar_Reg(&cv_exp_cdfmax);
 }

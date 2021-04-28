@@ -104,12 +104,12 @@ PSOutput PSMain(PSInput input)
 
     if (cameraData.hdrEnabled != 0.0)
     {
-        sceneLum = AP1_Rec2020(sceneLum);
+        sceneLum = Color_SceneToHDR(sceneLum);
         sceneLum = PQ_OETF(sceneLum);
     }
     else
     {
-        sceneLum = AP1_Rec709(sceneLum);
+        sceneLum = Color_SceneToSDR(sceneLum);
         sceneLum = TonemapACES(sceneLum);
     }
 

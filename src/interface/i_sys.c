@@ -244,7 +244,7 @@ bool Sys_MkDir(const char *path)
     {
         char normalized[PIM_PATH];
         Sys_NormalizePath(ARGS(normalized), path);
-        return Dir_Add(path);
+        return IO_MkDir(path);
     }
     return false;
 }
@@ -288,7 +288,7 @@ void Sys_Sleep(void)
 
 void Sys_Init(i32 argc, const char** argv)
 {
-    Dir_Get(ARGS(ms_cwd));
+    IO_GetCwd(ARGS(ms_cwd));
     i32 cwdLen = StrLen(ms_cwd);
     if (ms_cwd[cwdLen] == '/')
     {

@@ -93,20 +93,20 @@ void Queue_PushFront(Queue* q, const void* src, u32 itemSize)
     Queue_Reserve(q, Queue_Size(q) + 1);
     q->iWrite++;
 
-    const u32 mask = q->width - 1;
+    const u32 mask = q->width - 1u;
     const u32 len = Queue_Size(q);
     const u32 iRead = q->iRead;
     u8* ptr = q->ptr;
 
-    for (u32 i = 1; i < len; ++i)
+    for (u32 i = len; i != 0; --i)
     {
-        u32 iSrc = (iRead + i - 1) & mask;
-        u32 iDst = (iRead + i) & mask;
-        memcpy(ptr + iDst * stride, ptr + iSrc * stride, stride);
+        u32 iSrc = (iRead + i - 2u) & mask;
+        u32 iDst = (iRead + i - 1u) & mask;
+        memmove(&ptr[iDst * stride], &ptr[iSrc * stride], stride);
     }
 
     u32 iDst = iRead & mask;
-    memcpy(ptr + iDst * stride, src, stride);
+    memcpy(&ptr[iDst * stride], src, stride);
 }
 
 bool Queue_TryPop(Queue* q, void* dst, u32 itemSize)

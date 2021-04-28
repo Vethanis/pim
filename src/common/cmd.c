@@ -16,6 +16,7 @@ typedef struct cmdalias_s
     char* value;
 } cmdalias_t;
 
+static cmdstat_t cmd_text(const char* constText, bool immediate);
 static cmdstat_t cmd_exec(const char* line);
 static char** cmd_tokenize(const char* text, i32* argcOut);
 
@@ -183,7 +184,17 @@ static cmdstat_t cmd_exec(const char* line)
     return cmdstat_err;
 }
 
-cmdstat_t cmd_text(const char* constText)
+cmdstat_t cmd_enqueue(const char* text)
+{
+    return cmd_text(text, false);
+}
+
+cmdstat_t cmd_immediate(const char* text)
+{
+    return cmd_text(text, true);
+}
+
+static cmdstat_t cmd_text(const char* constText, bool immediate)
 {
     i32 i, q;
     if (!constText)
@@ -220,7 +231,14 @@ parseline:
     if (i > 0)
     {
         char* line = StrDup(text, EAlloc_Perm);
-        Queue_Push(&ms_queue, &line, sizeof(line));
+        if (immediate)
+        {
+            Queue_PushFront(&ms_queue, &line, sizeof(line));
+        }
+        else
+        {
+            Queue_Push(&ms_queue, &line, sizeof(line));
+        }
         text += i;
         goto parseline;
     }
@@ -447,7 +465,7 @@ static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv)
     if (Asset_Get(filename, &asset))
     {
         const char* text = asset.pData;
-        cmd_text(text);
+        cmd_enqueue(text);
         return cmdstat_ok;
     }
     return cmdstat_err;

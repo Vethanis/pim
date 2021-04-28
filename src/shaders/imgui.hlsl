@@ -50,14 +50,14 @@ PSOutput PSMain(PSInput input)
     if (cameraData.hdrEnabled != 0.0)
     {
         const float pqRange = cameraData.uiNits * (1.0 / 10000.0);
-        color.rgb = AP1_Rec2020(color.rgb);
+        color.rgb = Color_SceneToHDR(color.rgb);
         color.rgb = PQ_OOTF(color.rgb);
         color.rgb *= pqRange;
         color.rgb = PQ_InverseEOTF(color.rgb);
     }
     else
     {
-        color.rgb = AP1_Rec709(color.rgb);
+        color.rgb = Color_SceneToSDR(color.rgb);
     }
 
     PSOutput output;

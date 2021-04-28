@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/macro.h"
+#include "rendering/r_config.h"
 #include <volk/volk.h>
 #include "math/types.h"
 #include "threading/spinlock.h"

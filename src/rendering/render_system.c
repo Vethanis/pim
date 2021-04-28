@@ -15,6 +15,7 @@
 #include "common/cmd.h"
 #include "common/fnv1a.h"
 #include "input/input_system.h"
+#include "io/dir.h"
 
 #include "math/types.h"
 #include "math/int2_funcs.h"
@@ -80,22 +81,6 @@ static i32 ms_iFrame;
 
 static TonemapId ms_tonemapper = TMap_ACES;
 static float4 ms_toneParams = { 0.5f, 0.5f, 0.5f, 0.5f };
-static vkrExposure ms_exposure =
-{
-    .manual = false,
-    .standard = true,
-
-    .aperture = 1.4f,
-    .shutterTime = 0.1f,
-    .ISO = 100.0f,
-
-    .adaptRate = 5.0f,
-    .offsetEV = 0.0f,
-    .minCdf = 0.05f,
-    .maxCdf = 0.95f,
-    .minEV = -10.0f,
-    .maxEV = 31.0f,
-};
 // HDR appears to want 5 stops of headroom over SDR
 static const float ms_hdrEvAdjust = -5.0f;
 static const float ms_hdrExposureAdjust = 32.0f;
@@ -366,11 +351,11 @@ static void TakeScreenshot(void)
     {
         if (ConVar_GetBool(&cv_pt_trace))
         {
-            Con_Exec("pt_denoise 0; wait; screenshot; wait; pt_denoise 1; wait; screenshot; wait; pt_denoise 0");
+            cmd_enqueue("pt_denoise 0; wait; screenshot; wait; pt_denoise 1; wait; screenshot; wait; pt_denoise 0");
         }
         else
         {
-            Con_Exec("screenshot");
+            cmd_enqueue("screenshot");
         }
     }
     if (Input_IsKeyDown(KeyCode_PageUp))
@@ -393,7 +378,7 @@ static void Present(void)
         ProfileBegin(pm_Present);
         FrameBuf* frontBuf = GetFrontBuf();
         int2 size = { frontBuf->width, frontBuf->height };
-        ExposeImage(size, frontBuf->light, &ms_exposure);
+        ExposeImage(size, frontBuf->light, vkrExposure_GetParams());
         ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
         TakeScreenshot();
         ProfileEnd(pm_Present);
@@ -495,9 +480,8 @@ bool RenderSys_Init(void)
     }
     if (vkrSys_HdrEnabled())
     {
-        ms_exposure.offsetEV += ms_hdrEvAdjust;
+        ConVar_SetFloat(&cv_exp_evoffset, ConVar_GetFloat(&cv_exp_evoffset) + ms_hdrEvAdjust);
     }
-    vkrExposure_SetParams(&ms_exposure);
 
     TextureSys_Init();
     MeshSys_Init();
@@ -506,7 +490,7 @@ bool RenderSys_Init(void)
     EntSys_Init();
     EnsureFramebuf();
 
-    Con_Exec("mapload start");
+    cmd_enqueue("mapload start");
 
     return true;
 }
@@ -607,33 +591,46 @@ void RenderSys_Gui(bool* pEnabled)
 
         if (igTreeNodeExStr("Exposure", ImGuiTreeNodeFlags_Framed))
         {
-            bool r_sw = ConVar_GetBool(&cv_pt_trace);
-            vkrExposure* exposure = r_sw ? &ms_exposure : vkrExposure_GetParams();
+            bool manual = ConVar_GetBool(&cv_exp_manual);
+            bool standard = ConVar_GetBool(&cv_exp_standard);
+            float offsetEV = ConVar_GetFloat(&cv_exp_evoffset);
+            float aperture = ConVar_GetFloat(&cv_exp_aperture);
+            float shutterTime = ConVar_GetFloat(&cv_exp_shutter);
+            float adaptRate = ConVar_GetFloat(&cv_exp_adaptrate);
+            float minEV = ConVar_GetFloat(&cv_exp_evmin);
+            float maxEV = ConVar_GetFloat(&cv_exp_evmax);
+            float minCdf = ConVar_GetFloat(&cv_exp_cdfmin);
+            float maxCdf = ConVar_GetFloat(&cv_exp_cdfmax);
 
-            bool manual = exposure->manual;
-            bool standard = exposure->standard;
             igCheckbox("Manual", &manual);
             igCheckbox("Standard", &standard);
-            exposure->manual = manual;
-            exposure->standard = standard;
 
-            igExSliderFloat("Output Offset EV", &exposure->offsetEV, -10.0f, 10.0f);
-            if (exposure->manual)
+            igExSliderFloat("Output Offset EV", &offsetEV, -10.0f, 10.0f);
+            if (manual)
             {
-                igExSliderFloat("Aperture", &exposure->aperture, 1.4f, 22.0f);
-                igExSliderFloat("Shutter Speed", &exposure->shutterTime, 1.0f / 2000.0f, 1.0f);
-                float S = log2f(exposure->ISO / 100.0f);
-                igExSliderFloat("log2(ISO)", &S, 0.0f, 10.0f);
-                exposure->ISO = exp2f(S) * 100.0f;
+                igExSliderFloat("Aperture", &aperture, 1.4f, 22.0f);
+                igExSliderFloat("Shutter Speed", &shutterTime, 1.0f / 2000.0f, 1.0f);
             }
             else
             {
-                igExSliderFloat("Adapt Rate", &exposure->adaptRate, 0.1f, 10.0f);
-                igExSliderFloat("Hist Cdf Min", &exposure->minCdf, 0.0f, exposure->maxCdf - 0.01f);
-                igExSliderFloat("Hist Cdf Max", &exposure->maxCdf, exposure->minCdf + 0.01f, 1.0f);
-                igExSliderFloat("Min EV", &exposure->minEV, -30.0f, exposure->maxEV - 0.1f);
-                igExSliderFloat("Max EV", &exposure->maxEV, exposure->minEV + 0.1f, 31.0f);
+                igExSliderFloat("Adapt Rate", &adaptRate, 0.1f, 10.0f);
+                igExSliderFloat("Hist Cdf Min", &minCdf, 0.0f, maxCdf - 0.01f);
+                igExSliderFloat("Hist Cdf Max", &maxCdf, minCdf + 0.01f, 1.0f);
+                igExSliderFloat("Min EV", &minEV, -30.0f, maxEV - 0.1f);
+                igExSliderFloat("Max EV", &maxEV, minEV + 0.1f, 31.0f);
             }
+
+            ConVar_SetBool(&cv_exp_manual, manual);
+            ConVar_SetBool(&cv_exp_standard, standard);
+            ConVar_SetFloat(&cv_exp_evoffset, offsetEV);
+            ConVar_SetFloat(&cv_exp_aperture, aperture);
+            ConVar_SetFloat(&cv_exp_shutter, shutterTime);
+            ConVar_SetFloat(&cv_exp_adaptrate, adaptRate);
+            ConVar_SetFloat(&cv_exp_evmin, minEV);
+            ConVar_SetFloat(&cv_exp_evmax, maxEV);
+            ConVar_SetFloat(&cv_exp_cdfmin, minCdf);
+            ConVar_SetFloat(&cv_exp_cdfmax, maxCdf);
+
             igTreePop();
         }
 
@@ -673,7 +670,7 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     char filename[PIM_PATH] = { 0 };
     if (argc > 1 && argv[1])
     {
-        StrCpy(ARGS(filename), argv[1]);
+        SPrintf(ARGS(filename), "screenshots/%s.png", argv[1]);
     }
     else
     {
@@ -681,8 +678,9 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
         struct tm* local = localtime(&ticks);
         char timestr[PIM_PATH] = { 0 };
         strftime(ARGS(timestr), "%Y_%m_%d_%H_%M_%S", local);
-        SPrintf(ARGS(filename), "screenshot_%s.png", timestr);
+        SPrintf(ARGS(filename), "screenshots/%s.png", timestr);
     }
+    IO_MkDir("screenshots");
 
     const FrameBuf* buf = GetFrontBuf();
     ASSERT(buf->color);
@@ -695,7 +693,7 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     {
         float4 v = buf->light[i];
         v = f4_mulvs(v, exposureAdjust);
-        v = f4_AP1_Rec709(v);
+        v = Color_SceneToSDR(v);
         v = f4_aceskfit(v);
         v.w = 1.0f;
         color[i] = f4_rgba8(f4_sRGB_InverseEOTF_Fit(v));
@@ -936,7 +934,6 @@ static MeshId GenBoxMesh(const char* name)
     return id;
 }
 
-
 static TextureId GenFlatTexture(const char* name, const char* suffix, float4 value)
 {
     TextureId id = { 0 };
@@ -959,7 +956,9 @@ static Material GenMaterial(
 {
     Material mat = { 0 };
     mat.ior = 1.0f;
-    mat.albedo = GenFlatTexture(name, "albedo", f4_Rec709_AP1(albedo));
+    //albedo = Color_AP1_AP0(albedo); // project color from current space to widest space as a test (incorrect)
+    albedo = Color_SDRToScene(albedo); // project color into rendering space (correct-ish)
+    mat.albedo = GenFlatTexture(name, "albedo", albedo);
     mat.rome = GenFlatTexture(name, "rome", rome);
     if (rome.w > 0.0f)
     {
@@ -1030,7 +1029,7 @@ static i32 CreateSphere(
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 {
     ConVar_SetFloat(&cv_pt_dist_alpha, 0.01f);
-    ConVar_SetFloat(&cv_pt_dist_samples, 10000.0f);
+    ConVar_SetInt(&cv_pt_dist_samples, 10000);
 
     Entities* dr = Entities_Get();
     Entities_Clear(dr);
@@ -1283,13 +1282,17 @@ static cmdstat_t CmdLookat(i32 argc, const char** argv)
 
 static cmdstat_t CmdPtTest(i32 argc, const char** argv)
 {
-    Con_Exec("cornell_box");
-    Con_Exec("teleport -4 4 -4");
-    Con_Exec("lookat 0 2 0");
-    Con_Exec("pt_trace 1");
-    Con_Exec("wait 500");
-    Con_Exec("pt_stddev");
-    Con_Exec("quit");
+    cmd_enqueue("cornell_box");
+    cmd_enqueue("teleport -4 0 4");
+    cmd_enqueue("lookat 0 -1 0");
+    cmd_enqueue("pt_denoise 0");
+    cmd_enqueue("exp_manual 1");
+    cmd_enqueue("exp_evoffset 0");
+    cmd_enqueue("pt_trace 1");
+    cmd_enqueue("wait 500");
+    cmd_enqueue("pt_stddev");
+    cmd_enqueue("pt_denoise 1; wait; screenshot; pt_denoise 0; pt_trace 0");
+    cmd_enqueue("quit");
     return cmdstat_ok;
 }
 
@@ -1301,13 +1304,13 @@ static float CalcStdDev(const float3* pim_noalias color, int2 size)
     float mean = 0.0f;
     for (i32 i = 0; i < len; ++i)
     {
-        float lum = f4_perlum(f3_f4(color[i], 0.0f));
+        float lum = f4_avglum(f3_f4(color[i], 0.0f));
         mean += lum * meanWeight;
     }
     float variance = 0.0f;
     for (i32 i = 0; i < len; ++i)
     {
-        float lum = f4_perlum(f3_f4(color[i], 0.0f));
+        float lum = f4_avglum(f3_f4(color[i], 0.0f));
         float err = lum - mean;
         variance += varianceWeight * (err * err);
     }
@@ -1324,8 +1327,8 @@ static cmdstat_t CmdPtStdDev(i32 argc, const char** argv)
         float stddev = CalcStdDev(color, size);
         Con_Logf(LogSev_Info, "pt", "StdDev: %f", stddev);
         char cmd[PIM_PATH] = { 0 };
-        SPrintf(ARGS(cmd), "screenshot pt_stddev_%f.png", stddev);
-        Con_Exec(cmd);
+        SPrintf(ARGS(cmd), "screenshot pt_stddev_%f", stddev);
+        cmd_immediate(cmd);
         return cmdstat_ok;
     }
     return cmdstat_err;
@@ -1334,14 +1337,20 @@ static cmdstat_t CmdPtStdDev(i32 argc, const char** argv)
 static cmdstat_t CmdLoadTest(i32 argc, const char** argv)
 {
     char cmd[PIM_PATH];
-    Con_Exec("mapload start");
+    char mapname[PIM_PATH];
+    cmd_enqueue("mapload start; wait");
     for (i32 e = 1; ; ++e)
     {
         for (i32 m = 1; ; ++m)
         {
-            SPrintf(ARGS(cmd), "mapload e%dm%d", e, m);
-            cmdstat_t status = cmd_text(cmd);
-            if (status != cmdstat_ok)
+            SPrintf(ARGS(mapname), "maps/e%dm%d.bsp", e, m);
+            asset_t asset;
+            if (Asset_Get(mapname, &asset))
+            {
+                SPrintf(ARGS(cmd), "mapload e%dm%d; wait", e, m);
+                cmd_enqueue(cmd);
+            }
+            else
             {
                 if (m == 1)
                 {
@@ -1352,8 +1361,8 @@ static cmdstat_t CmdLoadTest(i32 argc, const char** argv)
         }
     }
 end:
-    Con_Exec("mapload end");
-    Con_Exec("mapload start");
+    cmd_enqueue("mapload end; wait");
+    cmd_enqueue("mapload start; wait");
     return cmdstat_ok;
 }
 
@@ -1403,7 +1412,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     if (loaded)
     {
         ConVar_SetFloat(&cv_pt_dist_alpha, 0.5f);
-        ConVar_SetFloat(&cv_pt_dist_samples, 1000.0f);
+        ConVar_SetInt(&cv_pt_dist_samples, 1000);
         Entities_UpdateTransforms(Entities_Get());
         Entities_UpdateBounds(Entities_Get());
         vkrSys_OnLoad();
