@@ -19,6 +19,7 @@
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include "common/time.h"
+#include "common/cvars.h"
 #include "math/scalar.h"
 #include "math/color.h"
 #include <string.h>
@@ -159,7 +160,20 @@ void vkrExposure_Setup(void)
 {
     ProfileBegin(pm_setup);
 
-    ms_params.deltaTime = f1_lerp(ms_params.deltaTime, (float)Time_Deltaf(), 0.25f);
+    {
+        ms_params.deltaTime = f1_lerp(ms_params.deltaTime, (float)Time_Deltaf(), 0.25f);
+        ms_params.manual = ConVar_GetBool(&cv_exp_manual);
+        ms_params.standard = ConVar_GetBool(&cv_exp_standard);
+        ms_params.offsetEV = ConVar_GetFloat(&cv_exp_evoffset);
+        ms_params.aperture = ConVar_GetFloat(&cv_exp_aperture);
+        ms_params.shutterTime = ConVar_GetFloat(&cv_exp_shutter);
+        ms_params.adaptRate = ConVar_GetFloat(&cv_exp_adaptrate);
+        ms_params.minEV = ConVar_GetFloat(&cv_exp_evmin);
+        ms_params.maxEV = ConVar_GetFloat(&cv_exp_evmax);
+        ms_params.minCdf = ConVar_GetFloat(&cv_exp_cdfmin);
+        ms_params.maxCdf = ConVar_GetFloat(&cv_exp_cdfmax);
+        ms_params.ISO = 100.0f;
+    }
 
     vkrSwapchain *const chain = &g_vkr.chain;
     const u32 chainLen = chain->length;
@@ -388,9 +402,4 @@ void vkrExposure_Execute(void)
 vkrExposure* vkrExposure_GetParams(void)
 {
     return &ms_params;
-}
-
-void vkrExposure_SetParams(const vkrExposure* params)
-{
-    ms_params = *params;
 }

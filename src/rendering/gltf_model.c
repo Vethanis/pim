@@ -78,6 +78,11 @@ static bool LoadImageUri(
     const char* basePath,
     const char* uri,
     Texture* tex);
+static bool ResampleToFloat4(Texture* tex);
+static bool ResampleToSrgb(Texture* tex);
+static bool ResampleToEmission(Texture* tex);
+static bool ImportColorspace(Texture* tex);
+static bool ExportColorspace(Texture* tex);
 
 // ----------------------------------------------------------------------------
 
@@ -431,6 +436,11 @@ static bool LoadImageUri(
 
 static bool ResampleToFloat4(Texture* tex)
 {
+    ASSERT(tex->texels);
+    if (!tex->texels)
+    {
+        return false;
+    }
     switch (tex->format)
     {
     default:
@@ -485,6 +495,11 @@ static bool ResampleToFloat4(Texture* tex)
 
 static bool ResampleToSrgb(Texture* tex)
 {
+    ASSERT(tex->texels);
+    if (!tex->texels)
+    {
+        return false;
+    }
     if (tex->format == VK_FORMAT_R8G8B8A8_SRGB)
     {
         return true;
@@ -507,6 +522,11 @@ static bool ResampleToSrgb(Texture* tex)
 
 static bool ResampleToEmission(Texture* tex)
 {
+    ASSERT(tex->texels);
+    if (!tex->texels)
+    {
+        return false;
+    }
     if (tex->format == VK_FORMAT_R32G32B32A32_SFLOAT)
     {
         return true;
@@ -523,6 +543,45 @@ static bool ResampleToEmission(Texture* tex)
             texels[i] = texel;
         }
         return true;
+    }
+    return false;
+}
+
+static bool ImportColorspace(Texture* tex)
+{
+    ASSERT(tex->texels);
+    ASSERT(tex->format == VK_FORMAT_R32G32B32A32_SFLOAT);
+    if (tex->texels)
+    {
+        if (tex->format == VK_FORMAT_R32G32B32A32_SFLOAT)
+        {
+            float4* pim_noalias texels = tex->texels;
+            const i32 len = tex->size.x * tex->size.y;
+            for (i32 i = 0; i < len; ++i)
+            {
+                texels[i] = Color_SDRToScene(texels[i]);
+            }
+        }
+    }
+    return false;
+}
+
+static bool ExportColorspace(Texture* tex)
+{
+    ASSERT(tex->texels);
+    ASSERT(tex->format == VK_FORMAT_R32G32B32A32_SFLOAT);
+    if (tex->texels)
+    {
+        if (tex->format == VK_FORMAT_R32G32B32A32_SFLOAT)
+        {
+            float4* pim_noalias texels = tex->texels;
+            const i32 len = tex->size.x * tex->size.y;
+            for (i32 i = 0; i < len; ++i)
+            {
+                texels[i] = Color_SceneToSDR(texels[i]);
+            }
+            return true;
+        }
     }
     return false;
 }
@@ -554,12 +613,20 @@ static TextureId CreateAlbedoTexture(
     {
         return id;
     }
+    if (!ResampleToFloat4(&tex))
+    {
+        Mem_Free(tex.texels);
+        return id;
+    }
+    ImportColorspace(&tex);
     if (!ResampleToSrgb(&tex))
     {
         Mem_Free(tex.texels);
         return id;
     }
-    Texture_New(&tex, tex.format, guid, &id);
+    // sRGB OETF encoded, but in scene colorspace
+    ASSERT(tex.format == VK_FORMAT_R8G8B8A8_SRGB);
+    Texture_New(&tex, VK_FORMAT_R8G8B8A8_SRGB, guid, &id);
     return id;
 }
 
@@ -622,7 +689,10 @@ static TextureId CreateRomeTexture(
     {
         if (LoadImageUri(basePath, cgemission->uri, &emtex))
         {
-            ResampleToEmission(&emtex);
+            if (ResampleToEmission(&emtex))
+            {
+                ImportColorspace(&emtex);
+            }
         }
     }
     if (!emtex.texels)
@@ -631,32 +701,34 @@ static TextureId CreateRomeTexture(
         emtex.texels = &defaultEm;
     }
 
-    int2 size = i2_1;
-    size = i2_max(size, mrtex.size);
-    size = i2_max(size, occtex.size);
-    size = i2_max(size, emtex.size);
-    const i32 len = size.x * size.y;
-    R8G8B8A8_t* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
-    for (i32 y = 0; y < size.y; ++y)
-    {
-        for (i32 x = 0; x < size.x; ++x)
-        {
-            float2 uv = CoordToUv(size, i2_v(x, y));
-            float4 rome = f4_0;
-            {
-                float4 sample = UvBilinearClamp_f4(mrtex.texels, mrtex.size, uv);
-                rome.x = sample.y;
-                rome.z = sample.x;
-            }
-            rome.y = UvBilinearClamp_f4(occtex.texels, occtex.size, uv).x;
-            rome.w = PackEmission(UvBilinearClamp_f4(emtex.texels, emtex.size, uv));
-            u32 index = x + y * size.x;
-            dst[index] = GammaEncode_rgba8(rome);
-        }
-    }
     Texture tex = { 0 };
-    tex.size = size;
-    tex.texels = dst;
+    {
+        int2 size = i2_1;
+        size = i2_max(size, mrtex.size);
+        size = i2_max(size, occtex.size);
+        size = i2_max(size, emtex.size);
+        const i32 len = size.x * size.y;
+        R8G8B8A8_t* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
+        for (i32 y = 0; y < size.y; ++y)
+        {
+            for (i32 x = 0; x < size.x; ++x)
+            {
+                float2 uv = CoordToUv(size, i2_v(x, y));
+                float4 rome = f4_0;
+                {
+                    float4 sample = UvBilinearClamp_f4(mrtex.texels, mrtex.size, uv);
+                    rome.x = sample.y;
+                    rome.z = sample.x;
+                }
+                rome.y = UvBilinearClamp_f4(occtex.texels, occtex.size, uv).x;
+                rome.w = PackEmission(UvBilinearClamp_f4(emtex.texels, emtex.size, uv));
+                i32 index = x + y * size.x;
+                dst[index] = GammaEncode_rgba8(rome);
+            }
+        }
+        tex.size = size;
+        tex.texels = dst;
+    }
 
     if (mrtex.texels != &defaultMr)
     {
@@ -765,7 +837,10 @@ bool ResampleToAlbedoRome(
     {
         if (LoadImageUri(basePath, cgdiffuse->uri, &diffuseTex))
         {
-            ResampleToFloat4(&diffuseTex);
+            if (ResampleToFloat4(&diffuseTex))
+            {
+                ImportColorspace(&diffuseTex);
+            }
         }
     }
     if (!diffuseTex.texels)
@@ -778,7 +853,10 @@ bool ResampleToAlbedoRome(
     {
         if (LoadImageUri(basePath, cgspecular->uri, &specularTex))
         {
-            ResampleToFloat4(&specularTex);
+            if (ResampleToFloat4(&specularTex))
+            {
+                ImportColorspace(&specularTex);
+            }
         }
     }
     if (!specularTex.texels)
@@ -804,7 +882,10 @@ bool ResampleToAlbedoRome(
     {
         if (LoadImageUri(basePath, cgemission->uri, &emtex))
         {
-            ResampleToEmission(&emtex);
+            if (ResampleToEmission(&emtex))
+            {
+                ImportColorspace(&emtex);
+            }
         }
     }
     if (!emtex.texels)

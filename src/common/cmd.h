@@ -21,7 +21,8 @@ void cmd_sys_shutdown(void);
 void cmd_reg(const char* name, cmd_fn_t fn);
 bool cmd_exists(const char* name);
 const char* cmd_complete(const char* namePart);
-cmdstat_t cmd_text(const char* text);
+cmdstat_t cmd_enqueue(const char* text);
+cmdstat_t cmd_immediate(const char* text);
 const char* cmd_parse(const char* text, char* tokenOut, i32 bufSize);
 
 PIM_C_END

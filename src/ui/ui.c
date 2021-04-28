@@ -28,7 +28,7 @@ static ImVec4 VEC_CALL BytesToColor(u32 r, u32 g, u32 b)
     c.g = g;
     c.b = b;
     c.a = 0xff;
-    float4 lin = GammaDecode_rgba8(c);
+    float4 lin = Color_SDRToScene(GammaDecode_rgba8(c));
     lin.w = 0.95f;
     return *(ImVec4*)&lin;
 }

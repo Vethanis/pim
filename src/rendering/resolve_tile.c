@@ -34,7 +34,7 @@ static void VEC_CALL ResolvePQ(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = f4_AP1_Rec2020(v);
+        v = Color_SceneToHDR(v);
         v = f4_PQ_OETF(v);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
         color[i] = Dither(Xi, v);
@@ -53,7 +53,7 @@ static void VEC_CALL ResolveReinhard(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = f4_AP1_Rec709(v);
+        v = Color_SceneToSDR(v);
         v = f4_reinhard_lum(v, wp);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
         color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));
@@ -72,7 +72,7 @@ static void VEC_CALL ResolveUncharted2(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = f4_AP1_Rec709(v);
+        v = Color_SceneToSDR(v);
         v = f4_uncharted2(v, wp);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
         color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));
@@ -90,7 +90,7 @@ static void VEC_CALL ResolveHable(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = f4_AP1_Rec709(v);
+        v = Color_SceneToSDR(v);
         v = f4_hable(v, params);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
         color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));
@@ -108,7 +108,7 @@ static void VEC_CALL ResolveACES(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = f4_AP1_Rec709(v);
+        v = Color_SceneToSDR(v);
         v = f4_aceskfit(v);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
         color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));

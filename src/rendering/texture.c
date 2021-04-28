@@ -350,10 +350,10 @@ typedef struct task_Unpalette
     float2 min;
     float2 max;
     const u8* pim_noalias bytes;
-    R8G8B8A8_t* pim_noalias albedo;
-    R8G8B8A8_t* pim_noalias rome;
-    short2* pim_noalias normal;
-    float2* pim_noalias gray;
+    R8G8B8A8_t* pim_noalias albedos;
+    R8G8B8A8_t* pim_noalias romes;
+    short2* pim_noalias normals;
+    float2* pim_noalias grays;
     Material const* pim_noalias material;
     bool fullEmit;
     bool isLight;
@@ -362,19 +362,17 @@ typedef struct task_Unpalette
 static void UnpaletteStep1Fn(void* pbase, i32 begin, i32 end)
 {
     task_Unpalette* task = pbase;
-    const u8* pim_noalias bytes = task->bytes;
-    R8G8B8A8_t* pim_noalias albedo = task->albedo;
-    float2* pim_noalias gray = task->gray;
+    const u8* pim_noalias srcBytes = task->bytes;
+    R8G8B8A8_t* pim_noalias dstAlbedos = task->albedos;
+    float2* pim_noalias dstGrays = task->grays;
 
     for (i32 i = begin; i < end; ++i)
     {
-        R8G8B8A8_t color = DecodeTexel(bytes[i]);
-        float4 diffuse709 = GammaDecode_rgba8(color);
-        float4 diffuseAP1 = f4_Rec709_AP1(diffuse709);
-        float4 albedoAP1 = DiffuseToAlbedo(diffuseAP1);
-        albedoAP1.w = 1.0f;
-        gray[i] = f2_v(f4_avglum(diffuseAP1), f4_avglum(albedoAP1));
-        albedo[i] = GammaEncode_rgba8(albedoAP1);
+        float4 diffuse = Color_SDRToScene(GammaDecode_rgba8(DecodeTexel(srcBytes[i])));
+        float4 albedo = DiffuseToAlbedo(diffuse);
+        albedo.w = 1.0f;
+        dstGrays[i] = f2_v(f4_avglum(diffuse), f4_avglum(albedo));
+        dstAlbedos[i] = GammaEncode_rgba8(albedo);
     }
 }
 
@@ -385,14 +383,14 @@ static void UnpaletteStep2Fn(void* pbase, i32 begin, i32 end)
         task_Unpalette* task = pbase;
         const int2 size = task->size;
         const i32 len = size.x * size.y;
-        const float2* pim_noalias gray = task->gray;
+        const float2* pim_noalias srcGrays = task->grays;
 
         float2 min = f2_1;
         float2 max = f2_0;
         for (i32 i = 0; i < len; ++i)
         {
-            min = f2_min(min, gray[i]);
-            max = f2_max(max, gray[i]);
+            min = f2_min(min, srcGrays[i]);
+            max = f2_max(max, srcGrays[i]);
         }
         task->min = min;
         task->max = max;
@@ -406,18 +404,18 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
     const int2 size = task->size;
     const float2 min = task->min;
     const float2 max = task->max;
-    const u8* pim_noalias bytes = task->bytes;
-    const float2* pim_noalias gray = task->gray;
-    R8G8B8A8_t* pim_noalias rome = task->rome;
-    short2* pim_noalias normal = task->normal;
+    const u8* pim_noalias srcBytes = task->bytes;
+    const float2* pim_noalias srcGrays = task->grays;
+    R8G8B8A8_t* pim_noalias dstRomes = task->romes;
+    short2* pim_noalias dstNormals = task->normals;
     const bool fullEmit = task->fullEmit;
     const bool isLight = task->isLight;
     const float bumpiness = task->material->bumpiness;
 
     for (i32 i = begin; i < end; ++i)
     {
-        u8 encoded = bytes[i];
-        float2 grayscale = gray[i];
+        u8 encoded = srcBytes[i];
+        float2 grayscale = srcGrays[i];
         float2 t = f2_smoothstep(min, max, grayscale);
         float roughness = f1_lerp(1.0f, 0.9f, t.x);
         float occlusion = f1_lerp(1.0f, 0.5f, t.x);
@@ -433,17 +431,17 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
         }
         float4 romeValue = f4_v(roughness, occlusion, metallic, emission);
         romeValue = f4_mul(romeValue, flatRome);
-        rome[i] = GammaEncode_rgba8(romeValue);
+        dstRomes[i] = GammaEncode_rgba8(romeValue);
     }
 
     for (i32 i = begin; i < end; ++i)
     {
         i32 x = i % size.x;
         i32 y = i / size.x;
-        float r = gray[Wrap(size, i2_v(x + 1, y + 0))].x;
-        float l = gray[Wrap(size, i2_v(x - 1, y + 0))].x;
-        float u = gray[Wrap(size, i2_v(x + 0, y - 1))].x;
-        float d = gray[Wrap(size, i2_v(x + 0, y + 1))].x;
+        float r = srcGrays[Wrap(size, i2_v(x + 1, y + 0))].x;
+        float l = srcGrays[Wrap(size, i2_v(x - 1, y + 0))].x;
+        float u = srcGrays[Wrap(size, i2_v(x + 0, y - 1))].x;
+        float d = srcGrays[Wrap(size, i2_v(x + 0, y + 1))].x;
 
         r = f1_smoothstep(min.x, max.x, r);
         l = f1_smoothstep(min.x, max.x, l);
@@ -455,7 +453,7 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
         float4 N = { -dx, -dy, 1.0f, 0.0f };
         N.x *= bumpiness;
         N.y *= bumpiness;
-        normal[i] = NormalTsToXy16(N);
+        dstNormals[i] = NormalTsToXy16(N);
     }
 }
 
@@ -515,23 +513,23 @@ bool Texture_Unpalette(
         const bool isLight = StrIStr(name, 16, "light");
         const bool fullEmit = isSky || isTeleport || isWindow;
 
-        R8G8B8A8_t* pim_noalias albedo = Tex_Alloc(len * sizeof(albedo[0]));
-        R8G8B8A8_t* pim_noalias rome = Tex_Alloc(len * sizeof(rome[0]));
-        short2* pim_noalias normal = Tex_Alloc(len * sizeof(normal[0]));
-        float2* pim_noalias gray = Tex_Alloc(len * sizeof(gray[0]));
+        R8G8B8A8_t* pim_noalias albedos = Tex_Alloc(len * sizeof(albedos[0]));
+        R8G8B8A8_t* pim_noalias romes = Tex_Alloc(len * sizeof(romes[0]));
+        short2* pim_noalias normals = Tex_Alloc(len * sizeof(normals[0]));
+        float2* pim_noalias grays = Tex_Alloc(len * sizeof(grays[0]));
 
         task_Unpalette* tasks = Temp_Calloc(sizeof(tasks[0]) * 3);
-        tasks[0].albedo = albedo;
+        tasks[0].albedos = albedos;
         tasks[0].bytes = bytes;
         tasks[0].material = material;
         tasks[0].flatRome = flatRome;
         tasks[0].fullEmit = fullEmit;
-        tasks[0].gray = gray;
+        tasks[0].grays = grays;
         tasks[0].isLight = isLight;
         tasks[0].max = f2_0;
         tasks[0].min = f2_1;
-        tasks[0].normal = normal;
-        tasks[0].rome = rome;
+        tasks[0].normals = normals;
+        tasks[0].romes = romes;
         tasks[0].size = size;
 
         // cannot reuse same task across invocations, the signalling state gets corrupted
@@ -543,24 +541,24 @@ bool Texture_Unpalette(
         tasks[2].task = (Task) { 0 };
         Task_Run(&tasks[2], UnpaletteStep3Fn, len);
 
-        Mem_Free(gray);
-        gray = NULL;
+        Mem_Free(grays);
+        grays = NULL;
 
         Texture albedoMap = { 0 };
         albedoMap.size = size;
-        albedoMap.texels = albedo;
+        albedoMap.texels = albedos;
         albedoAdded = Texture_New(
             &albedoMap, VK_FORMAT_R8G8B8A8_SRGB, albedoguid, albedoOut);
 
         Texture romeMap = { 0 };
         romeMap.size = size;
-        romeMap.texels = rome;
+        romeMap.texels = romes;
         romeAdded = Texture_New(
             &romeMap, VK_FORMAT_R8G8B8A8_SRGB, romeguid, romeOut);
 
         Texture normalMap = { 0 };
         normalMap.size = size;
-        normalMap.texels = normal;
+        normalMap.texels = normals;
         normalAdded = Texture_New(
             &normalMap, VK_FORMAT_R16G16_SNORM, normalguid, normalOut);
     }

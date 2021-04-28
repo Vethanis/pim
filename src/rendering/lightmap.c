@@ -38,7 +38,6 @@ typedef enum
     LmChannel_Color,
     LmChannel_Position,
     LmChannel_Normal,
-    LmChannel_Denoised,
 
     LmChannel_COUNT
 } LmChannel;
@@ -1604,99 +1603,106 @@ bool LmPack_Load(Crate* crate, LmPack* pack)
 
 static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
 {
+    cmdstat_t status = cmdstat_ok;
     char filename[PIM_PATH] = { 0 };
     const char* prefix = "lightmap";
     LmChannel channel = LmChannel_Color;
-    if (argc > 1)
+    R8G8B8A8_t* dstBuffer = NULL;
+    const LmPack* pack = LmPack_Get();
+
+    if (1 < argc)
     {
         const char* arg1 = argv[1];
         if (arg1)
         {
-            if (StrICmp(arg1, 16, "denoised") == 0)
-            {
-                channel = LmChannel_Denoised;
-            }
-            else if (StrICmp(arg1, 16, "color") == 0)
+            if (StrICmp(arg1, 16, "color") == 0)
             {
                 channel = LmChannel_Color;
+                prefix = "lightmap_color";
             }
             else if (StrICmp(arg1, 16, "position") == 0)
             {
                 channel = LmChannel_Position;
+                prefix = "lightmap_position";
             }
             else if (StrICmp(arg1, 16, "normal") == 0)
             {
                 channel = LmChannel_Normal;
-            }
-            else
-            {
-                prefix = arg1;
+                prefix = "lightmap_normal";
             }
         }
     }
 
-    R8G8B8A8_t* buffer = NULL;
-    const LmPack* pack = LmPack_Get();
-    for (i32 i = 0; i < pack->lmCount; ++i)
+    for (i32 iPage = 0; iPage < pack->lmCount; ++iPage)
     {
-        const Lightmap lm = pack->lightmaps[i];
+        const Lightmap lm = pack->lightmaps[iPage];
         const i32 len = lm.size * lm.size;
-        buffer = Temp_Realloc(buffer, sizeof(buffer[0]) * len);
+        dstBuffer = Tex_Realloc(dstBuffer, sizeof(dstBuffer[0]) * len);
 
-        const float3* pim_noalias srcBuffer = NULL;
         switch (channel)
         {
         default:
+            ASSERT(false);
+            break;
+        case LmChannel_Color:
+        {
+            const float4* pim_noalias srcBuffer = lm.probes[0];
+            for (i32 iTexel = 0; iTexel < len; ++iTexel)
+            {
+                float4 v = srcBuffer[iTexel];
+                v = Color_SceneToSDR(v);
+                v = f4_reinhard_simple(v);
+                R8G8B8A8_t c = GammaEncode_rgba8(v);
+                c.a = 0xff;
+                dstBuffer[iTexel] = c;
+            }
+        }
+        break;
         case LmChannel_Position:
-            srcBuffer = lm.position;
-            break;
+        {
+            const float3* pim_noalias srcBuffer = lm.position;
+            for (i32 iTexel = 0; iTexel < len; ++iTexel)
+            {
+                float4 v = f3_f4(srcBuffer[iTexel], 1.0f);
+                v = f4_mulvs(v, 1.0f / 100.0f);
+                v = f4_addvs(v, 0.5f);
+                v = f4_saturate(v);
+                R8G8B8A8_t c = GammaEncode_rgba8(v);
+                c.a = 0xff;
+                dstBuffer[iTexel] = c;
+            }
+        }
+        break;
         case LmChannel_Normal:
-            srcBuffer = lm.normal;
-            break;
+        {
+            const float3* pim_noalias srcBuffer = lm.normal;
+            for (i32 iTexel = 0; iTexel < len; ++iTexel)
+            {
+                float4 v = f3_f4(srcBuffer[iTexel], 1.0f);
+                v = f4_unorm(v);
+                v = f4_saturate(v);
+                R8G8B8A8_t c = GammaEncode_rgba8(v);
+                c.a = 0xff;
+                dstBuffer[iTexel] = c;
+            }
+        }
+        break;
         }
 
-        if ((channel == LmChannel_Color) || (channel == LmChannel_Denoised))
-        {
-            for (i32 j = 0; j < len; ++j)
-            {
-                float4 ldr = f4_reinhard_lum(f3_f4(srcBuffer[j], 1.0f), 10.0f);
-                R8G8B8A8_t color = GammaEncode_rgba8(ldr);
-                color.a = 0xff;
-                buffer[j] = color;
-            }
-        }
-        if (channel == LmChannel_Position)
-        {
-            for (i32 j = 0; j < len; ++j)
-            {
-                float3 pos = srcBuffer[j];
-                pos = f3_divvs(pos, 100.0f);
-                R8G8B8A8_t color = f4_rgba8(f3_f4(pos, 1.0f));
-                color.a = 0xff;
-                buffer[j] = color;
-            }
-        }
-        if (channel == LmChannel_Normal)
-        {
-            for (i32 j = 0; j < len; ++j)
-            {
-                float3 norm = srcBuffer[j];
-                norm = f3_mulvs(norm, 0.5f);
-                norm = f3_addvs(norm, 0.5f);
-                R8G8B8A8_t color = f4_rgba8(f3_f4(norm, 1.0f));
-                color.a = 0xff;
-                buffer[j] = color;
-            }
-        }
-
-        SPrintf(ARGS(filename), "%s_%d.png", prefix, i);
-        if (!stbi_write_png(filename, lm.size, lm.size, 4, buffer, lm.size * sizeof(buffer[0])))
+        SPrintf(ARGS(filename), "%s_%d.png", prefix, iPage);
+        if (!stbi_write_png(filename, lm.size, lm.size, 4, dstBuffer, lm.size * sizeof(dstBuffer[0])))
         {
             Con_Logf(LogSev_Error, "LM", "Failed to print lightmap image '%s'", filename);
-            return cmdstat_err;
+            status = cmdstat_err;
+            goto cleanup;
         }
-        Con_Logf(LogSev_Info, "LM", "Printed lightmap image '%s'", filename);
+        else
+        {
+            Con_Logf(LogSev_Info, "LM", "Printed lightmap image '%s'", filename);
+        }
     }
 
-    return cmdstat_ok;
+cleanup:
+    Mem_Free(dstBuffer);
+    return status;
 }

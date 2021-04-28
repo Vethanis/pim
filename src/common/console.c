@@ -16,6 +16,7 @@
 #include <stdarg.h>
 
 #define MAX_LINES       256
+#define MAX_HISTORY     16
 
 static void con_gui(void);
 static i32 OnTextInput(ImGuiInputTextCallbackData* data);
@@ -419,9 +420,19 @@ static void ExecCmd(const char* cmd, bool history)
 
     if (history)
     {
-        StrList_Add(&ms_history, cmd);
+        if (ms_history.count >= MAX_HISTORY)
+        {
+            Mem_Free(ms_history.ptr[0]);
+            ms_history.ptr[0] = NULL;
+            memmove(&ms_history.ptr[0], &ms_history.ptr[1], sizeof(ms_history.ptr[0]) * (ms_history.count - 1));
+            ms_history.ptr[ms_history.count - 1] = StrDup(cmd, EAlloc_Perm);
+        }
+        else
+        {
+            StrList_Add(&ms_history, cmd);
+        }
         ms_histCursor = 0;
     }
 
-    cmd_text(cmd);
+    cmd_enqueue(cmd);
 }
