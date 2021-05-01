@@ -81,9 +81,6 @@ static i32 ms_iFrame;
 
 static TonemapId ms_tonemapper = TMap_ACES;
 static float4 ms_toneParams = { 0.5f, 0.5f, 0.5f, 0.5f };
-// HDR appears to want 5 stops of headroom over SDR
-static const float ms_hdrEvAdjust = -5.0f;
-static const float ms_hdrExposureAdjust = 32.0f;
 
 static Camera ms_ptcam;
 static PtScene* ms_ptscene;
@@ -478,10 +475,6 @@ bool RenderSys_Init(void)
         Con_Logf(LogSev_Error, "vkr", "Failed to init RenderSys");
         return false;
     }
-    if (vkrSys_HdrEnabled())
-    {
-        ConVar_SetFloat(&cv_exp_evoffset, ConVar_GetFloat(&cv_exp_evoffset) + ms_hdrEvAdjust);
-    }
 
     TextureSys_Init();
     MeshSys_Init();
@@ -688,11 +681,9 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     const i32 len = size.x * size.y;
     R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
 
-    const float exposureAdjust = vkrSys_HdrEnabled() ? ms_hdrExposureAdjust : 1.0f;
     for (i32 i = 0; i < len; ++i)
     {
         float4 v = buf->light[i];
-        v = f4_mulvs(v, exposureAdjust);
         v = Color_SceneToSDR(v);
         v = f4_aceskfit(v);
         v.w = 1.0f;

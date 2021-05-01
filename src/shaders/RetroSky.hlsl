@@ -1,5 +1,4 @@
-#include "TextureTable.hlsl"
-#include "Exposure.hlsl"
+#include "common.hlsl"
 #include "Color.hlsl"
 
 struct VSInput
@@ -50,7 +49,6 @@ PSOutput PSMain(PSInput input)
 
     PSOutput output;
     output.luminance = 1.0;
-    light *= GetExposure();
-    output.color = float4(saturate(TonemapUncharted2(albedo)), 1.0);
+    output.color = float4(ExposeScene(albedo), 1.0);
     return output;
 }

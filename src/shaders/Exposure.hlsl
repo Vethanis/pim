@@ -1,21 +1,11 @@
 #ifndef EXPOSURE_HLSL
 #define EXPOSURE_HLSL
 
-#include "Macro.hlsl"
-#include "bindings.hlsl"
+#include "common.hlsl"
 
 #define kHistogramSize  (256)
 #define kBinRange       (kHistogramSize - 2)
 #define kLog2Epsilon    (-22.0)
-
-float GetAverageLum() { return ExposureBuffer[0]; }
-void SetAverageLum(float x) { ExposureBuffer[0] = x; }
-float GetExposure() { return ExposureBuffer[1]; }
-void SetExposure(float x) { ExposureBuffer[1] = x; }
-float GetMaxLum() { return ExposureBuffer[2]; }
-void SetMaxLum(float x) { ExposureBuffer[2] = x; }
-float GetMinLum() { return ExposureBuffer[3]; }
-void SetMinLum(float x) { ExposureBuffer[3] = x; }
 
 struct vkrExposure
 {

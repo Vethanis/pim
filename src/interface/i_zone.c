@@ -45,12 +45,12 @@ void Z_Free(void *ptr)
     Mem_Free(ptr);
 }
 
-static void* Z_Malloc(i32 size)
+void* Z_Malloc(i32 size)
 {
     return Z_TagMalloc(size, 1);
 }
 
-static void* Z_TagMalloc(i32 size, i32 tag)
+void* Z_TagMalloc(i32 size, i32 tag)
 {
     return Perm_Calloc(size);
 }
@@ -280,6 +280,7 @@ void Cache_Free(cache_user_t *c)
 
 void* Cache_Alloc(cache_user_t *c, i32 size, const char *name)
 {
+    ASSERT(c);
     ASSERT(!IdAlloc_Exists(&ms_cache.ids, c->hdl.h));
     ASSERT(size >= 0);
     ASSERT(name && name[0]);

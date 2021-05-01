@@ -1,4 +1,4 @@
-#include "TextureTable.hlsl"
+#include "common.hlsl"
 #include "Color.hlsl"
 
 struct VSInput
@@ -46,21 +46,8 @@ PSOutput PSMain(PSInput input)
     float4 texColor = SampleTable2D(kTextureIndex, input.uv);
     texColor.a = kDiscardAlpha != 0 ? 1.0 : texColor.a;
     float4 color = texColor * input.color;
-
-    if (cameraData.hdrEnabled != 0.0)
-    {
-        const float pqRange = cameraData.uiNits * (1.0 / 10000.0);
-        color.rgb = Color_SceneToHDR(color.rgb);
-        color.rgb = PQ_OOTF(color.rgb);
-        color.rgb *= pqRange;
-        color.rgb = PQ_InverseEOTF(color.rgb);
-    }
-    else
-    {
-        color.rgb = Color_SceneToSDR(color.rgb);
-    }
-
+    color.rgb = ExposeUI(color.rgb);
     PSOutput output;
-    output.color = saturate(color);
+    output.color = color;
     return output;
 }

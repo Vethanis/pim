@@ -15,10 +15,12 @@ extern char g_com_gamedir[PIM_PATH];
 extern char g_com_token[1024];
 extern i32 g_com_argc;
 extern const char **g_com_argv;
-extern i32 g_com_filesize;
 extern qboolean g_standard_quake;
 extern qboolean g_rogue;
 extern qboolean g_hipnotic;
+extern qboolean g_proghack;
+extern qboolean g_msg_badread;
+extern i32 g_msg_readcount;
 
 //=====================================
 // mathlib
@@ -201,7 +203,6 @@ extern u16 g_pr_crc;
 
 // persistent server info
 extern server_static_t g_svs;
-extern jmp_buf g_host_abortserver;
 // local server
 extern server_t g_sv;
 extern client_t *g_host_client;

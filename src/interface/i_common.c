@@ -23,14 +23,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if QUAKE_IMPL
 
 #include "interface/i_sys.h"
+#include "interface/i_zone.h"
 #include "interface/i_globals.h"
 #include "interface/i_zone.h"
 #include "interface/i_console.h"
 #include "interface/i_cmd.h"
+#include "interface/i_draw.h"
 
 #include "allocator/allocator.h"
+#include "containers/dict.h"
 #include "common/stringutil.h"
 #include "common/cmd.h"
+#include "io/fstr.h"
 
 #include <stdarg.h>
 
@@ -71,26 +75,14 @@ typedef struct dpackheader_s
 
 typedef struct SearchPath_s
 {
-    char* filename;
+    char* folder;
     pack_t* pack;
 } SearchPath;
 
 // ----------------------------------------------------------------------------
 
-const char **g_com_argv;
-i32 g_com_argc;
-i32 g_com_filesize;
-
-char g_com_cmdline[PIM_PATH];
-char g_com_gamedir[PIM_PATH];
-char g_com_token[1024];
 static char ms_vabuf[1024];
 
-qboolean g_standard_quake, g_rogue, g_hipnotic;
-qboolean g_proghack;
-
-qboolean g_msg_badread;
-i32 g_msg_readcount;
 char g_msg_string[2048];
 
 static i32 ms_pathCount;
@@ -351,7 +343,8 @@ float MSG_ReadAngle(void)
 
 const char* COM_Parse(const char* data)
 {
-    return cmd_parse(data, g_com_token, NELEM(g_com_token));
+    g_com_token[0] = 0;
+    return cmd_parse(data, ARGS(g_com_token));
 }
 
 // returns argv index of parm, or 0 if missing
@@ -392,17 +385,17 @@ static void COM_Path_f(void)
     const i32 len = ms_pathCount;
     const SearchPath* paths = ms_paths;
 
-    Con_Printf("Current search path:\n");
+    Sys_Printf("Current search path:\n");
     for (i32 i = 0; i < len; ++i)
     {
         const pack_t* pack = paths[i].pack;
         if (pack)
         {
-            Con_Printf("%s (%i files)\n", pack->filename, pack->numfiles);
+            Sys_Printf("%s (%i files)\n", pack->filename, pack->numfiles);
         }
         else
         {
-            Con_Printf("%s\n", paths[i].filename);
+            Sys_Printf("%s\n", paths[i].folder);
         }
     }
 }
@@ -433,30 +426,46 @@ static void COM_AddGameDirectory(const char *dir)
 
 static pack_t* COM_LoadPackFile(const char *packfile)
 {
-    filehdl_t packhandle = Sys_FileOpenRead(packfile);
-    if (!Sys_FileIsOpen(packhandle))
+    filehdl_t packhandle;
+    if (!Sys_FileOpenRead(packfile, &packhandle))
     {
         return NULL;
+    }
+
+    const i32 filesize = (i32)Sys_FileSize(packhandle);
+    if (filesize <= 0)
+    {
+        Sys_Error("Packfile size is not valid for '%s': %d", filesize);
     }
 
     dpackheader_t header = { 0 };
     Sys_FileRead(packhandle, &header, sizeof(header));
     if (memcmp(header.id, "PACK", 4) != 0)
     {
-        Sys_Error("%s is not a packfile", packfile);
+        Sys_Error("'%s' is not a packfile", packfile);
     }
 
     const i32 numpackfiles = header.dirlen / sizeof(dpackfile_t);
+    if ((header.dirlen % sizeof(dpackfile_t)) || (header.dirofs < 0) || (header.dirofs >= filesize))
+    {
+        Sys_Error("Corrupted packfile header in '%s'. dirlen: %d, dirofs: %d", packfile, header.dirlen, header.dirofs);
+    }
     if (numpackfiles < 1)
     {
-        Sys_Error("Invalid number of files in packfile %s", packfile);
+        Sys_Error("Invalid number of files in packfile '%s'", packfile);
     }
 
     packfile_t* newfiles = Hunk_AllocName(sizeof(newfiles[0]) * numpackfiles, "packfile");
 
     dpackfile_t* info = Perm_Alloc(sizeof(info[0]) * numpackfiles);
-    Sys_FileSeek(packhandle, header.dirofs);
-    Sys_FileRead(packhandle, info, header.dirlen);
+    if (!Sys_FileSeek(packhandle, header.dirofs))
+    {
+        Sys_Error("Failed seeking to offset %d in '%s'", packfile, header.dirofs);
+    }
+    if (Sys_FileRead(packhandle, info, header.dirlen) != header.dirlen)
+    {
+        Sys_Error("Failed reading %d bytes from '%s'", packfile, header.dirlen);
+    }
     for (i32 i = 0; i < numpackfiles; i++)
     {
         StrCpy(ARGS(newfiles[i].name), info[i].name);
@@ -471,8 +480,17 @@ static pack_t* COM_LoadPackFile(const char *packfile)
     pack->numfiles = numpackfiles;
     pack->files = newfiles;
 
-    Con_Printf("Added packfile %s (%i files)\n", packfile, numpackfiles);
+    Sys_Printf("Added packfile '%s' (%d files)", packfile, numpackfiles);
     return pack;
+}
+
+static void COM_FreePackFile(pack_t* pack)
+{
+    if (pack)
+    {
+        Sys_FileClose(pack->handle);
+        // rest is freed by hunk mark
+    }
 }
 
 void COM_InitFilesystem(void)
@@ -536,7 +554,7 @@ void COM_InitFilesystem(void)
             {
                 break;
             }
-            if (!StrICmp(COM_FileExtension(arg), 4, "pak"))
+            if (!StrICmp(COM_FileExtension(arg, PIM_PATH), 4, "pak"))
             {
                 pack_t* pack = COM_LoadPackFile(arg);
                 if (pack)
@@ -591,15 +609,15 @@ void COM_InitArgv(i32 argc, const char** argv)
     }
 }
 
-const char* COM_SkipPath(const char* pathname)
+const char* COM_SkipPath(const char* pathname, i32 size)
 {
     ASSERT(pathname);
-    const char* p = StrRChr(pathname, PIM_PATH, '/');
+    const char* p = StrRChr(pathname, size, '/');
     if (p)
     {
         return p + 1;
     }
-    p = StrRChr(pathname, PIM_PATH, '\\');
+    p = StrRChr(pathname, size, '\\');
     if (p)
     {
         return p + 1;
@@ -607,28 +625,30 @@ const char* COM_SkipPath(const char* pathname)
     return pathname;
 }
 
-void COM_StripExtension(const char *strIn, char *strOut)
+void COM_StripExtension(const char *strIn, i32 inSize, char *strOut, i32 outSize)
 {
     ASSERT(strIn);
     ASSERT(strOut);
     strOut[0] = 0;
-    const char* p = StrRChr(strIn, PIM_PATH, '.');
+    const char* p = StrRChr(strIn, inSize, '.');
     if (p)
     {
-        isize len = (isize)(p - strIn);
-        memcpy(strOut, strIn, len);
-        strOut[len] = 0;
+        const i32 len = (i32)(p - strIn);
+        ASSERT(len >= 0);
+        ASSERT(len < inSize);
+        memcpy(strOut, strIn, pim_min(len, outSize));
+        NullTerminate(strOut, outSize, len);
     }
     else
     {
-        StrCpy(strOut, PIM_PATH, strIn);
+        StrCpy(strOut, outSize, strIn);
     }
 }
 
-const char* COM_FileExtension(const char *str)
+const char* COM_FileExtension(const char *str, i32 size)
 {
     ASSERT(str);
-    const char* p = StrRChr(str, PIM_PATH, '.');
+    const char* p = StrRChr(str, size, '.');
     if (p)
     {
         return p + 1;
@@ -636,62 +656,229 @@ const char* COM_FileExtension(const char *str)
     return "";
 }
 
-void COM_FileBase(const char *strIn, char *strOut)
+void COM_FileBase(const char *strIn, i32 inSize, char *strOut, i32 outSize)
 {
     ASSERT(strIn);
     ASSERT(strOut);
-    StrCpy(strOut, PIM_PATH, COM_SkipPath(strIn));
-    char* p = (char*)StrRChr(strOut, PIM_PATH, '.');
+    StrCpy(strOut, outSize, COM_SkipPath(strIn, inSize));
+    char* p = (char*)StrRChr(strOut, outSize, '.');
     if (p)
     {
         *p = 0;
     }
 }
 
-void COM_DefaultExtension(char *path, char *ext)
+void COM_DefaultExtension(char *path, i32 pathSize, const char *ext)
 {
     ASSERT(path);
     ASSERT(ext);
-    const char* dot = StrRChr(path, PIM_PATH, '.');
+    const char* dot = StrRChr(path, pathSize, '.');
     if (!dot)
     {
-        StrCat(path, PIM_PATH, ext);
+        StrCat(path, pathSize, ext);
     }
 }
 
 void COM_WriteFile(const char* filename, const void* data, i32 len)
 {
-
+    char name[PIM_PATH];
+    ASSERT(filename && filename[0]);
+    ASSERT(g_com_gamedir[0]);
+    SPrintf(ARGS(name), "%s/%s", g_com_gamedir, filename);
+    StrPath(ARGS(name));
+    FStream file = FStream_Open(name, "wb");
+    if (FStream_IsOpen(file))
+    {
+        Sys_Printf("COM_WriteFile: %s", name);
+        FStream_Write(file, data, len);
+        FStream_Close(&file);
+    }
+    else
+    {
+        Sys_Printf("COM_WriteFile: failed on %s", name);
+    }
 }
 
-i32 COM_OpenFile(const char* filename, filehdl_t* hdlOut)
+typedef struct FileSearch_s
 {
+    filehdl_t hdl;
+    i32 size;
+    i32 offset;
+    bool ispack;
+} FileSearch;
+static FileSearch COM_FindFile(const char* filename)
+{
+    if (!filename || !filename[0])
+    {
+        ASSERT(false);
+        return (FileSearch) { 0 };
+    }
 
+    const i32 pathCount = ms_pathCount;
+    const SearchPath* paths = ms_paths;
+    for (i32 iPath = pathCount - 1; iPath >= 0; --iPath)
+    {
+        const SearchPath* path = &paths[iPath];
+        if (path->pack)
+        {
+            const pack_t* pack = path->pack;
+            const i32 numfiles = pack->numfiles;
+            const packfile_t* files = pack->files;
+            for (i32 iFile = 0; iFile < numfiles; ++iFile)
+            {
+                const packfile_t* file = &files[iFile];
+                if (StrCmp(ARGS(file->name), filename) != 0)
+                {
+                    continue;
+                }
+                const FileSearch result =
+                {
+                    .hdl = pack->handle,
+                    .size = file->filelen,
+                    .offset = file->filepos,
+                    .ispack = true,
+                };
+                if (result.size > 0)
+                {
+                    return result;
+                }
+                else
+                {
+                    Sys_Error("COM_LoadFile: packfile size is invalid '%s/%s' %d", pack->filename, filename, result.size);
+                }
+            }
+        }
+        else
+        {
+            char netpath[PIM_PATH];
+            ASSERT(path->folder && path->folder[0]);
+            SPrintf(ARGS(netpath), "%s/%s", path->folder, filename);
+            filehdl_t hdl;
+            if (Sys_FileOpenRead(netpath, &hdl))
+            {
+                const FileSearch result =
+                {
+                    .hdl = hdl,
+                    .size = (i32)Sys_FileSize(hdl),
+                    .offset = 0,
+                    .ispack = false,
+                };
+                if (result.size > 0)
+                {
+                    return result;
+                }
+                else
+                {
+                    Sys_FileClose(hdl);
+                    if (result.size < 0)
+                    {
+                        Sys_Error("COM_LoadFile: loose file size is too large '%s' %d", netpath, result.size);
+                    }
+                    // ignore empty files?
+                }
+            }
+        }
+    }
+
+    Sys_Printf("COM_LoadFile: can't find '%s'", filename);
+    return (FileSearch) { 0 };
 }
 
-void COM_CloseFile(filehdl_t file)
+static buffer_t COM_LoadFile(
+    const char* filename,
+    QAlloc allocator,
+    buffer_t loadbuf,
+    cache_user_t* loadcache)
 {
+    FileSearch file = COM_FindFile(filename);
+    if (!Sys_FileIsOpen(file.hdl))
+    {
+        return (buffer_t) { 0 };
+    }
 
+    char namebase[PIM_PATH] = { 0 };
+    COM_FileBase(filename, PIM_PATH, ARGS(namebase));
+
+    buffer_t mem = { 0 };
+    switch (allocator)
+    {
+    default:
+        Sys_Error("COM_LoadFile: bad allocator");
+        break;
+    case QAlloc_Zone:
+        mem.ptr = Z_Malloc(file.size + 1);
+        mem.len = file.size;
+        break;
+    case QAlloc_HunkNamed:
+        mem.ptr = Hunk_AllocName(file.size + 1, namebase);
+        mem.len = file.size;
+        break;
+    case QAlloc_HunkTemp:
+        mem.ptr = Hunk_TempAlloc(file.size + 1);
+        mem.len = file.size;
+        break;
+    case QAlloc_Cache:
+        mem.ptr = Cache_Alloc(loadcache, file.size + 1, namebase);
+        mem.len = file.size;
+        break;
+    case QAlloc_Stack:
+        if ((file.size + 1) <= loadbuf.len)
+        {
+            ASSERT(loadbuf.ptr);
+            mem.ptr = loadbuf.ptr;
+            mem.len = loadbuf.len;
+        }
+        else
+        {
+            mem.ptr = Hunk_TempAlloc(file.size + 1);
+            mem.len = file.size;
+        }
+        break;
+    }
+    if (!mem.ptr)
+    {
+        Sys_Error("COM_LoadFile: not enough space for '%s'", filename);
+    }
+
+    Draw_BeginDisc();
+    if (!Sys_FileSeek(file.hdl, file.offset))
+    {
+        Sys_Error("COM_LoadFile: bad seek while loading '%s'", filename);
+    }
+    if (Sys_FileRead(file.hdl, mem.ptr, file.size) != file.size)
+    {
+        Sys_Error("COM_LoadFile: bad read while loading '%s'", filename);
+    }
+    ((u8*)mem.ptr)[file.size] = 0;
+    if (!file.ispack)
+    {
+        Sys_FileClose(file.hdl);
+    }
+    Draw_EndDisc();
+
+    return mem;
 }
 
-u8* COM_LoadStackFile(const char* path, void* buf, i32 sz)
+buffer_t COM_LoadStackFile(const char* path, void* buf, i32 sz)
 {
-
+    ASSERT(buf || !sz);
+    ASSERT(sz >= 0);
+    return COM_LoadFile(path, QAlloc_Stack, (buffer_t) { buf, sz }, NULL);
 }
 
-u8* COM_LoadTempFile(const char* path)
+buffer_t COM_LoadTempFile(const char* path)
 {
-
+    return COM_LoadFile(path, QAlloc_HunkTemp, (buffer_t) { 0 }, NULL);
 }
 
-u8* COM_LoadHunkFile(const char* path)
+buffer_t COM_LoadHunkFile(const char* path)
 {
-
+    return COM_LoadFile(path, QAlloc_HunkNamed, (buffer_t) { 0 }, NULL);
 }
 
 void COM_LoadCacheFile(const char* path, cache_user_t *cu)
 {
-
+    COM_LoadFile(path, QAlloc_Cache, (buffer_t) { 0 }, cu);
 }
 
 const char* va(const char* fmt, ...)
@@ -707,19 +894,12 @@ const char* va(const char* fmt, ...)
 
 static void SearchPath_Clear(void)
 {
-    i32 len = ms_pathCount;
+    const i32 len = ms_pathCount;
     SearchPath* paths = ms_paths;
     for (i32 i = 0; i < len; ++i)
     {
-        if (paths[i].filename)
-        {
-            Mem_Free(paths[i].filename);
-        }
-        if (paths[i].pack)
-        {
-            filehdl_t file = paths[i].pack->handle;
-            Sys_FileClose(file);
-        }
+        Mem_Free(paths[i].folder);
+        COM_FreePackFile(paths[i].pack);
     }
     Mem_Free(paths);
     ms_pathCount = 0;
@@ -740,10 +920,10 @@ static void SearchPath_AddPack(pack_t* pack)
 
 static void SearchPath_AddPath(const char* str)
 {
-    if (str)
+    if (str && str[0])
     {
         SearchPath path = { 0 };
-        path.filename = StrDup(str, EAlloc_Perm);
+        path.folder = StrDup(str, EAlloc_Perm);
         i32 len = ++ms_pathCount;
         ms_paths = Perm_Realloc(ms_paths, len);
         ms_paths[len - 1] = path;

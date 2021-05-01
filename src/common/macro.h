@@ -150,20 +150,10 @@ SASSERT(sizeof(u64) == 8);
     typedef char* va_list;
 #endif // _VA_LIST_DEFINED
 
-#ifndef _JMP_BUF_DEFINED
-#   define _JMP_BUF_DEFINED
-    typedef struct pim_alignas(16) JmpBufElem_s
-    {
-        unsigned __int64 Part[2];
-    } JmpBufElem;
-    typedef JmpBufElem jmp_buf[16];
-#endif // _JMP_BUF_DEFINED
-
 #else
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdarg.h>
-#include <setjmp.h>
 
 #endif // _MSC_VER
 

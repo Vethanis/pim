@@ -27,6 +27,9 @@ static void VEC_CALL ResolvePQ(
 {
     float4* pim_noalias light = target->light;
     R16G16B16A16_t* pim_noalias color = target->color;
+    const float wp = vkrSys_GetWhitepoint();
+    const float nits = vkrSys_GetDisplayNitsMax();
+    const float scale = nits / (wp * 10000.0f);
 
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
@@ -34,8 +37,10 @@ static void VEC_CALL ResolvePQ(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
+        v = f4_mulvs(v, scale);
         v = Color_SceneToHDR(v);
-        v = f4_PQ_OETF(v);
+        v = f4_PQ_OOTF(v);
+        v = f4_PQ_InverseEOTF(v);
         Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
         color[i] = Dither(Xi, v);
     }
