@@ -1,8 +1,7 @@
 #ifndef GI_HLSL
 #define GI_HLSL
 
-#include "Macro.hlsl"
-#include "TextureTable.hlsl"
+#include "common.hlsl"
 #include "SG.hlsl"
 #include "Sampling.hlsl"
 

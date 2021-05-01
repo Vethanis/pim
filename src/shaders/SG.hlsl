@@ -1,7 +1,7 @@
 #ifndef SG_HLSL
 #define SG_HLSL
 
-#include "Macro.hlsl"
+#include "common.hlsl"
 
 float SG_BasisEval(float4 axis, float3 dir)
 {

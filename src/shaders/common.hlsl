@@ -1,8 +1,13 @@
 #ifndef MACRO_HLSL
 #define MACRO_HLSL
 
+#define PIM_HLSL        1
 #define i32             int
 #define u32             uint
+
+#include "../rendering/r_config.h"
+
+// TODO: move these to shared config file
 #define kMinLightDist   0.01
 #define kMinLightDistSq 0.001
 #define kMinAlpha       0.00001525878
@@ -19,5 +24,7 @@
 
 #define dotsat(a, b)    saturate(dot((a), (b)))
 #define unlerp(a, b, x) saturate(((x) - (a)) / ((b) - (a)))
+
+#include "bindings.hlsl"
 
 #endif // MACRO_HLSL

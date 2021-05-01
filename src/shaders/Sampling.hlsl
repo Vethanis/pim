@@ -1,6 +1,8 @@
 #ifndef SAMPLING_HLSL
 #define SAMPLING_HLSL
 
+#include "common.hlsl"
+
 float3x3 NormalToTBN(float3 N)
 {
     const float3 kX = { 1.0, 0.0, 0.0 };

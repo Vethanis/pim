@@ -23,18 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "interface/i_types.h"
 #include <string.h>
 
-extern qboolean standard_quake, rogue, hipnotic;
-
-extern char com_gamedir[PIM_PATH];
-extern i32 com_filesize;
-extern i32 com_argc;
-extern const char **com_argv;
-
-extern char com_token[1024];
-
-extern i32 msg_readcount;
-extern qboolean msg_badread; // set if a read goes beyond end of message
-
 void SZ_Alloc(sizebuf_t* buf, i32 startsize);
 void SZ_Free(sizebuf_t* buf);
 void SZ_Clear(sizebuf_t* buf);
@@ -73,20 +61,18 @@ const char* COM_GetParm(const char* parm, i32 parmArg);
 void COM_Init(const char *basedir);
 void COM_InitArgv(i32 argc, const char** argv);
 // returns the leaf string of a path, or the input if no slashes exist
-const char* COM_SkipPath(const char* pathname);
+const char* COM_SkipPath(const char* pathname, i32 size);
 // copies strIn to strOut until a '.' is encountered
-void COM_StripExtension(const char *strIn, char *strOut);
-const char *COM_FileExtension(const char *strIn);
+void COM_StripExtension(const char *strIn, i32 inSize, char *strOut, i32 outSize);
+const char *COM_FileExtension(const char *strIn, i32 size);
 // copies the leaf string of a path, without extension, into strOut
-void COM_FileBase(const char *strIn, char *strOut);
+void COM_FileBase(const char *strIn, i32 inSize, char *strOut, i32 outSize);
 // append the extension to path if the leaf string of path does not contain '.'
-void COM_DefaultExtension(char *path, char *ext);
+void COM_DefaultExtension(char *path, i32 pathSize, const char *ext);
 void COM_WriteFile(const char* filename, const void* data, i32 len);
-i32 COM_OpenFile(const char* filename, filehdl_t* hdlOut);
-void COM_CloseFile(filehdl_t file);
-u8* COM_LoadStackFile(const char* path, void* buf, i32 sz);
-u8* COM_LoadTempFile(const char* path);
-u8* COM_LoadHunkFile(const char* path);
+buffer_t COM_LoadStackFile(const char* path, void* buf, i32 sz);
+buffer_t COM_LoadTempFile(const char* path);
+buffer_t COM_LoadHunkFile(const char* path);
 void COM_LoadCacheFile(const char* path, cache_user_t *cu);
 
 //============================================================================

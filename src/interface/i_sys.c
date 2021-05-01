@@ -19,6 +19,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 typedef struct FileDesc_s
 {
@@ -57,103 +58,87 @@ i64 Sys_FileSize(filehdl_t handle)
     return 0;
 }
 
-filehdl_t Sys_FileOpenRead(const char *path)
+static bool Sys_FileOpen(const char *path, filehdl_t* hdlOut, bool writable)
 {
     ASSERT(path);
+    bool success = false;
     filehdl_t hdl = { 0 };
     if (path)
     {
-        char normalized[PIM_PATH];
+        char normalized[PIM_PATH] = { 0 };
         Sys_NormalizePath(ARGS(normalized), path);
+        const char* mode = writable ? "wb" : "rb";
 
-        Guid guid = Guid_HashStr(normalized);
+        Guid guid = Guid_FromBytes(normalized, sizeof(normalized));
         if (Table_Find(&ms_table, guid, &hdl.h))
         {
             Table_Retain(&ms_table, hdl.h);
             FileDesc* desc = Table_Get(&ms_table, hdl.h);
-            ASSERT(FStream_IsOpen(desc->stream));
             ASSERT(StrICmp(ARGS(desc->path), normalized) == 0);
             desc->tick = Time_Now();
-            if (desc->writable)
+            if (desc->writable != writable)
             {
-                desc->writable = false;
+                Con_Logf(
+                    LogSev_Warning, "qk", 
+                    "Closing file (%c) and reopening (%c): '%s'",
+                    desc->writable ? 'w' : 'r',
+                    writable ? 'w' : 'r',
+                    normalized);
+                desc->writable = writable;
                 FStream_Close(&desc->stream);
-                desc->stream = FStream_Open(desc->path, "rb");
+                desc->stream = FStream_Open(desc->path, mode);
                 ASSERT(FStream_IsOpen(desc->stream));
             }
+            FStream_Seek(desc->stream, 0);
+            success = true;
         }
         else
         {
-            FStream stream = FStream_Open(path, "rb");
+            FStream stream = FStream_Open(normalized, mode);
             if (FStream_IsOpen(stream))
             {
                 FileDesc desc = { 0 };
                 desc.stream = stream;
                 desc.tick = Time_Now();
                 StrCpy(ARGS(desc.path), normalized);
-                desc.writable = false;
+                desc.writable = writable;
                 if (!Table_Add(&ms_table, guid, &desc, &hdl.h))
                 {
                     ASSERT(false);
                 }
+                success = true;
             }
         }
     }
-    return hdl;
+    *hdlOut = hdl;
+    return success;
 }
 
-filehdl_t Sys_FileOpenWrite(const char *path)
+bool Sys_FileOpenRead(const char *path, filehdl_t* hdlOut)
 {
-    ASSERT(path);
-    filehdl_t hdl = { 0 };
-    if (path)
-    {
-        char normalized[PIM_PATH];
-        Sys_NormalizePath(ARGS(normalized), path);
-
-        Guid guid = Guid_HashStr(normalized);
-        if (Table_Find(&ms_table, guid, &hdl.h))
-        {
-            Table_Retain(&ms_table, hdl.h);
-            FileDesc* desc = Table_Get(&ms_table, hdl.h);
-            ASSERT(FStream_IsOpen(desc->stream));
-            ASSERT(StrICmp(ARGS(desc->path), normalized) == 0);
-            desc->tick = Time_Now();
-            if (!desc->writable)
-            {
-                desc->writable = true;
-                FStream_Close(&desc->stream);
-                desc->stream = FStream_Open(desc->path, "wb");
-                ASSERT(FStream_IsOpen(desc->stream));
-            }
-        }
-        else
-        {
-            FStream stream = FStream_Open(path, "wb");
-            if (FStream_IsOpen(stream))
-            {
-                FileDesc desc = { 0 };
-                desc.stream = stream;
-                desc.tick = Time_Now();
-                StrCpy(ARGS(desc.path), normalized);
-                desc.writable = false;
-                if (!Table_Add(&ms_table, guid, &desc, &hdl.h))
-                {
-                    ASSERT(false);
-                }
-            }
-        }
-    }
-    return hdl;
+    return Sys_FileOpen(path, hdlOut, false);
 }
 
-void Sys_FileClose(filehdl_t handle)
+bool Sys_FileOpenWrite(const char *path, filehdl_t* hdlOut)
 {
-    FileDesc desc;
-    if (Table_Release(&ms_table, handle.h, &desc))
+    return Sys_FileOpen(path, hdlOut, true);
+}
+
+void Sys_FileClose(filehdl_t hdl)
+{
+    FileDesc* pdesc = Table_Get(&ms_table, hdl.h);
+    if (pdesc)
     {
-        ASSERT(FStream_IsOpen(desc.stream));
-        FStream_Close(&desc.stream);
+        FStream stream = pdesc->stream;
+        if (pdesc->writable)
+        {
+            FStream_Flush(stream);
+        }
+        FStream_Seek(stream, 0);
+        if (Table_Release(&ms_table, hdl.h, NULL))
+        {
+            FStream_Close(&stream);
+        }
     }
 }
 
@@ -268,6 +253,17 @@ void Sys_Printf(const char *fmt, ...)
     va_start(ap, fmt);
     Con_Logv(LogSev_Info, "qk", fmt, ap);
     va_end(ap);
+}
+
+void Sys_DPrintf(const char *fmt, ...)
+{
+#ifdef _DEBUG
+    ASSERT(fmt && fmt[0]);
+    va_list ap;
+    va_start(ap, fmt);
+    Con_Logv(LogSev_Verbose, "qk", fmt, ap);
+    va_end(ap);
+#endif // _DEBUG
 }
 
 void Sys_Quit(void)

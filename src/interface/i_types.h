@@ -43,6 +43,7 @@ typedef struct texhdl_s { hdl_t h; } texhdl_t;
 typedef struct sockhdl_s { hdl_t h; } sockhdl_t;
 typedef struct enthdl_s { hdl_t h; } enthdl_t;
 typedef struct cachehdl_s { hdl_t h; } cachehdl_t;
+typedef struct buffer_s { void* ptr; i32 len; } buffer_t;
 
 //=============================================================================
 // type aliases
@@ -1190,8 +1191,8 @@ typedef struct globalvars_s
     i32 self;
     i32 other;
     i32 world;
-    float time;
-    float frametime;
+    double time;
+    double frametime;
     float force_retouch;
     string_t mapname;
     float deathmatch;

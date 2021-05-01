@@ -1,9 +1,8 @@
+#include "common.hlsl"
 #include "Lighting.hlsl"
 #include "Color.hlsl"
 #include "Sampling.hlsl"
-#include "TextureTable.hlsl"
 #include "GI.hlsl"
-#include "Exposure.hlsl"
 
 [[vk::push_constant]]
 cbuffer push_constants
@@ -100,20 +99,6 @@ PSOutput PSMain(PSInput input)
 
     PSOutput output;
     output.luminance = MaxLuminance(sceneLum);
-    sceneLum *= GetExposure();
-
-    if (cameraData.hdrEnabled != 0.0)
-    {
-        sceneLum = Color_SceneToHDR(sceneLum);
-        sceneLum = PQ_OETF(sceneLum);
-    }
-    else
-    {
-        sceneLum = Color_SceneToSDR(sceneLum);
-        sceneLum = TonemapACES(sceneLum);
-    }
-
-    sceneLum = saturate(sceneLum);
-    output.color = float4(sceneLum, 1.0);
+    output.color = float4(ExposeScene(sceneLum), 1.0);
     return output;
 }

@@ -29,8 +29,8 @@ i64 Sys_FileSize(filehdl_t handle);
 // returns the file size
 // return -1 if file is not present
 // the file should be in BINARY mode
-filehdl_t Sys_FileOpenRead(const char *path);
-filehdl_t Sys_FileOpenWrite(const char *path);
+bool Sys_FileOpenRead(const char *path, filehdl_t* hdlOut);
+bool Sys_FileOpenWrite(const char *path, filehdl_t* hdlOut);
 void Sys_FileClose(filehdl_t handle);
 bool Sys_FileSeek(filehdl_t handle, i32 position);
 i32 Sys_FileRead(filehdl_t handle, void *dst, i32 count);
@@ -44,6 +44,7 @@ bool Sys_MkDir(const char *path);
 void Sys_Error(const char *error, ...);
 // send text to the console
 void Sys_Printf(const char *fmt, ...);
+void Sys_DPrintf(const char *fmt, ...);
 void Sys_Quit(void);
 double Sys_FloatTime(void);
 // called to yield for 1ms so as not to hog cpu when paused or debugging

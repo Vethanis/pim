@@ -1,7 +1,7 @@
 #ifndef LIGHTING_HLSL
 #define LIGHTING_HLSL
 
-#include "Macro.hlsl"
+#include "common.hlsl"
 
 float BrdfAlpha(float roughness)
 {
