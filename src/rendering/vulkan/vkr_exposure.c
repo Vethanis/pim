@@ -24,8 +24,6 @@
 #include "math/color.h"
 #include <string.h>
 
-#define kHistogramSize (256)
-
 typedef struct PushConstants_s
 {
     u32 width;
@@ -103,7 +101,7 @@ bool vkrExposure_Init(void)
 
     if (!vkrBufferSet_New(
         &ms_histBuffers,
-        sizeof(u32) * kHistogramSize,
+        sizeof(u32) * kExposureHistogramSize,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         vkrMemUsage_GpuOnly))
     {

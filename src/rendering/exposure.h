@@ -5,6 +5,10 @@
 #include "math/scalar.h"
 #include "rendering/vulkan/vkr.h"
 
+#define kExposureHistogramSize  (256)
+#define kExposureBinRange       (kExposureHistogramSize - 2)
+#define kLog2Epsilon            (-22.0f)
+
 PIM_C_BEGIN
 
 // ----------------------------------------------------------------------------
@@ -30,20 +34,7 @@ PIM_C_BEGIN
 //       = log2(NN/t * 100/S)
 //       = log2((Lavg * S) / K)
 
-pim_inline float ManualEV100(
-    float aperture,
-    float shutterTime,
-    float ISO)
-{
-    // EVs = log2(NN/t)
-    // EV100 = EVs - log2(S/100)
-    // log(a) - log(b) = log(a * 1/b)
-    float a = (aperture * aperture) / shutterTime;
-    float b = 100.0f / ISO;
-    return log2f(a * b);
-}
-
-pim_inline float LumToEV100(float Lavg)
+pim_inline float VEC_CALL LumToEV100(float Lavg)
 {
     // EV100 = log2((Lavg * S) / K)
     // S = 100
@@ -53,12 +44,47 @@ pim_inline float LumToEV100(float Lavg)
 }
 
 // https://www.desmos.com/calculator/vorr8hwdl7
-pim_inline float EV100ToLum(float ev100)
+pim_inline float VEC_CALL EV100ToLum(float ev100)
 {
     return exp2f(ev100 - 3.0f);
 }
 
-pim_inline float SaturationExposure(float ev100)
+pim_inline u32 VEC_CALL LumToBin(float lum, float minEV, float maxEV)
+{
+    float ev = LumToEV100(lum);
+    float t = f1_unlerp(minEV, maxEV, ev);
+    const float binRange = (float)kExposureBinRange;
+    u32 bin = (u32)(1.5f + t * binRange);
+    bin = (lum > kEpsilon) ? bin : 0;
+    return bin;
+}
+
+pim_inline float VEC_CALL BinToEV(u32 i, float minEV, float dEV)
+{
+    float ev = minEV + (i - 1u) * dEV;
+    ev = (i != 0) ? ev : kLog2Epsilon;
+    return ev;
+}
+
+pim_inline float VEC_CALL AdaptLuminance(float lum0, float lum1, float dt, float tau)
+{
+    lum0 = f1_max(lum0, kEpsilon);
+    lum1 = f1_max(lum1, kEpsilon);
+    float t = 1.0f - expf(-dt * tau);
+    return f1_lerp(lum0, lum1, f1_sat(t));
+}
+
+pim_inline float VEC_CALL ManualEV100(float aperture, float shutterTime, float ISO)
+{
+    // EVs = log2(NN/t)
+    // EV100 = EVs - log2(S/100)
+    // log(a) - log(b) = log(a * 1/b)
+    float a = (aperture * aperture) / shutterTime;
+    float b = 100.0f / ISO;
+    return log2f(a * b);
+}
+
+pim_inline float VEC_CALL SaturationExposure(float ev100)
 {
     // The factor 78 is chosen such that exposure settings based on a standard
     // light meter and an 18-percent reflective surface will result in an image
@@ -72,7 +98,7 @@ pim_inline float SaturationExposure(float ev100)
     return 1.0f / Lmax;
 }
 
-pim_inline float StandardExposure(float ev100)
+pim_inline float VEC_CALL StandardExposure(float ev100)
 {
     const float midGrey = 0.18f;
     const float factor = 10.0f / (100.0f * 0.65f);
@@ -80,7 +106,7 @@ pim_inline float StandardExposure(float ev100)
     return midGrey / Lavg;
 }
 
-pim_inline float CalcExposure(const vkrExposure* args)
+pim_inline float VEC_CALL CalcExposure(const vkrExposure* args)
 {
     float ev100 = 0.0f;
     if (args->manual)
@@ -105,18 +131,6 @@ pim_inline float CalcExposure(const vkrExposure* args)
         exposure = SaturationExposure(ev100);
     }
     return exposure;
-}
-
-pim_inline float AdaptLuminance(
-    float lum0,
-    float lum1,
-    float dt,
-    float rate)
-{
-	lum0 = f1_max(lum0, kEpsilon);
-	lum1 = f1_max(lum1, kEpsilon);
-    float t = 1.0f - expf(-dt * rate);
-    return f1_lerp(lum0, lum1, f1_sat(t));
 }
 
 void ExposeImage(int2 size, float4* pim_noalias light, vkrExposure* parameters);

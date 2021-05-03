@@ -680,11 +680,13 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     const int2 size = { buf->width, buf->height };
     const i32 len = size.x * size.y;
     R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
+    const float exposure = vkrExposure_GetParams()->exposure;
 
     for (i32 i = 0; i < len; ++i)
     {
         float4 v = buf->light[i];
         v = Color_SceneToSDR(v);
+        v = f4_mulvs(v, exposure);
         v = f4_aceskfit(v);
         v.w = 1.0f;
         color[i] = f4_rgba8(f4_sRGB_InverseEOTF_Fit(v));
@@ -1278,7 +1280,7 @@ static cmdstat_t CmdPtTest(i32 argc, const char** argv)
     cmd_enqueue("lookat 0 -1 0");
     cmd_enqueue("pt_denoise 0");
     cmd_enqueue("exp_manual 1");
-    cmd_enqueue("exp_evoffset 0");
+    cmd_enqueue("exp_evoffset 5");
     cmd_enqueue("pt_trace 1");
     cmd_enqueue("wait 500");
     cmd_enqueue("pt_stddev");

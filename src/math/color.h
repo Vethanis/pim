@@ -545,6 +545,11 @@ pim_inline float4 VEC_CALL f4_PQ_OETF(float4 E)
     return f4_PQ_InverseEOTF(f4_PQ_OOTF(E));
 }
 
+pim_inline float VEC_CALL Color_PQExposure(float displayNits, float whitepoint)
+{
+    return displayNits / (whitepoint * 10000.0f);
+}
+
 pim_inline float VEC_CALL PackEmission(float4 emission)
 {
     float e = f1_sat(f4_hmax3(emission) * (1.0f / kEmissionScale));

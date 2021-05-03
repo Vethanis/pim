@@ -96,7 +96,7 @@ ConVar cv_r_whitepoint =
 {
     .type = cvart_float,
     .name = "r_whitepoint",
-    .value = "5.0",
+    .value = "3.0",
     .minFloat = 1.0f,
     .maxFloat = 20.0f,
     .desc = "Luminance at which tonemapping will clip",
