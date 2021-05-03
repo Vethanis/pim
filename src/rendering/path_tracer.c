@@ -1077,7 +1077,7 @@ static void PtScene_FindSky(PtScene* scene)
 }
 
 ProfileMark(pm_scene_update, PtScene_Update)
-void PtScene_Update(PtScene *const pim_noalias scene)
+void PtScene_Update(PtScene* scene)
 {
     ProfileBegin(pm_scene_update);
 
@@ -1150,7 +1150,7 @@ PtScene* PtScene_New(void)
     return scene;
 }
 
-void PtScene_Del(PtScene*const pim_noalias scene)
+void PtScene_Del(PtScene* scene)
 {
     if (scene)
     {
@@ -1159,7 +1159,7 @@ void PtScene_Del(PtScene*const pim_noalias scene)
     }
 }
 
-void PtScene_Gui(PtScene*const pim_noalias scene)
+void PtScene_Gui(PtScene* scene)
 {
     if (scene && igExCollapsingHeader1("pt scene"))
     {
@@ -1174,7 +1174,7 @@ void PtScene_Gui(PtScene*const pim_noalias scene)
 
 void PtTrace_New(
     PtTrace* trace,
-    PtScene*const pim_noalias scene,
+    PtScene* scene,
     int2 imageSize)
 {
     ASSERT(trace);
@@ -2977,9 +2977,9 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
     const Camera camera = task->camera;
 
     PtScene *const pim_noalias scene = trace->scene;
-    float3 *const pim_noalias color = trace->color;
-    float3 *const pim_noalias albedo = trace->albedo;
-    float3 *const pim_noalias normal = trace->normal;
+    float3 *const pim_noalias colors = trace->color;
+    float3 *const pim_noalias albedos = trace->albedo;
+    float3 *const pim_noalias normals = trace->normal;
 
     const int2 size = trace->imageSize;
     const float2 rcpSize = f2_rcp(i2_f2(size));
@@ -3017,9 +3017,9 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
         {
             result = Pt_TraceRayRetro(&sampler, scene, ray.ro, ray.rd);
         }
-        color[i] = f3_lerp(color[i], result.color, sampleWeight);
-        albedo[i] = f3_lerp(albedo[i], result.albedo, sampleWeight);
-        normal[i] = f3_lerp(normal[i], result.normal, sampleWeight);
+        colors[i] = f3_lerp(colors[i], result.color, sampleWeight);
+        albedos[i] = f3_lerp(albedos[i], result.albedo, sampleWeight);
+        normals[i] = f3_lerp(normals[i], result.normal, sampleWeight);
     }
     SetSampler(sampler);
 }

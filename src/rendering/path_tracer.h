@@ -50,10 +50,10 @@ typedef struct DofInfo_s
 typedef struct PtTrace_s
 {
     PtScene* scene;
-    float3* color;
-    float3* albedo;
-    float3* normal;
-    float3* denoised;
+    float3* pim_noalias color;
+    float3* pim_noalias albedo;
+    float3* pim_noalias normal;
+    float3* pim_noalias denoised;
     int2 imageSize;
     float sampleWeight;
     DofInfo dofinfo;
@@ -82,11 +82,11 @@ float2 VEC_CALL Pt_Sample2D(PtSampler*const pim_noalias sampler);
 float VEC_CALL Pt_Sample1D(PtSampler*const pim_noalias sampler);
 
 PtScene* PtScene_New(void);
-void PtScene_Update(PtScene*const pim_noalias scene);
-void PtScene_Del(PtScene*const pim_noalias scene);
-void PtScene_Gui(PtScene*const pim_noalias scene);
+void PtScene_Update(PtScene* scene);
+void PtScene_Del(PtScene* scene);
+void PtScene_Gui(PtScene* scene);
 
-void PtTrace_New(PtTrace* trace, PtScene*const pim_noalias scene, int2 imageSize);
+void PtTrace_New(PtTrace* trace, PtScene* scene, int2 imageSize);
 void PtTrace_Del(PtTrace* trace);
 void PtTrace_Gui(PtTrace* trace);
 

@@ -131,6 +131,11 @@ float3 Color_SceneToHDR(float3 x)
 #endif // COLOR_SCENE_X
 }
 
+float Color_PQExposure(float displayNits, float whitepoint)
+{
+    return displayNits / (whitepoint * 10000.0);
+}
+
 // https://en.wikipedia.org/wiki/Transfer_functions_in_imaging
 // OETF: Scene Luminance to Signal; (eg. Camera)
 // EOTF: Signal to Display Luminance; (eg. Monitor)
@@ -237,7 +242,7 @@ float3 HLG_OOTF(float3 S, float P)
 float3 ExposeScene(float3 c)
 {
     // scene-referred scale
-    const float hdrScale = GetDisplayNits() / (GetWhitepoint() * 10000.0f);
+    const float hdrScale = Color_PQExposure(GetDisplayNits(), GetWhitepoint());
     c *= GetExposure();
 
     if (HdrEnabled())
@@ -258,7 +263,7 @@ float3 ExposeScene(float3 c)
 float3 ExposeUI(float3 c)
 {
     // display-referred scale
-    const float uiScale = GetUiNits() * (1.0 / 10000.0);
+    const float uiScale = Color_PQExposure(GetUiNits(), 1.0);
     if (HdrEnabled())
     {
         c = Color_SceneToHDR(c);
