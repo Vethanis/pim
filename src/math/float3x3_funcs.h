@@ -84,6 +84,7 @@ pim_inline float3x3 VEC_CALL f3x3_inverse(float3x3 m)
     float d1 = -f3x3_10(m) * m_01_22_21_02;
     float d2 = f3x3_20(m) * m_01_12_11_02;
     float rcpDet = 1.0f / (d0 + d1 + d2);
+    ASSERT(f1_abs(rcpDet) >= kEpsilon);
 
     float3x3 inv;
 
@@ -139,7 +140,7 @@ pim_inline float3x3 VEC_CALL f3x3_lookat(float4 eye, float4 at, float4 up)
     // => this is right-handed aka GL
     float4 f = f4_normalize3(f4_sub(at, eye));
     float4 s = f4_normalize3(f4_cross3(f, up));
-    float4 u = f4_cross3(s, f);
+    float4 u = f4_normalize3(f4_cross3(s, f));
     float3x3 m;
     m.c0.x = s.x;
     m.c1.x = s.y;
@@ -155,10 +156,11 @@ pim_inline float3x3 VEC_CALL f3x3_lookat(float4 eye, float4 at, float4 up)
 
 pim_inline float4 VEC_CALL f3x3_mul_col(float3x3 m, float4 col)
 {
-    float4 a = f4_mulvs(m.c0, col.x);
-    float4 b = f4_mulvs(m.c1, col.y);
-    float4 c = f4_mulvs(m.c2, col.z);
-    return f4_add(a, f4_add(b, c));
+    return f4_add(
+            f4_mulvs(m.c0, col.x),
+        f4_add(
+            f4_mulvs(m.c1, col.y),
+            f4_mulvs(m.c2, col.z)));
 }
 
 // columns of b are transformed by matrix a

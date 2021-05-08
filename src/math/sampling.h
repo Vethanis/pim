@@ -5,6 +5,7 @@
 #include "math/scalar.h"
 #include "math/float2_funcs.h"
 #include "math/float4_funcs.h"
+#include "math/float3x3_funcs.h"
 #include "math/lighting.h"
 #include "math/sdf.h"
 
@@ -29,21 +30,18 @@ pim_inline float3x3 VEC_CALL NormalToTBN(float4 N)
 
     const float4 kX = { 1.0f, 0.0f, 0.0f, 0.0f };
     const float4 kZ = { 0.0f, 0.0f, 1.0f, 0.0f };
+    const float4 a = f1_abs(N.z) < 0.9f ? kZ : kX;
 
-    float4 a = f1_abs(N.z) < 0.9f ? kZ : kX;
-    float4 T = f4_normalize3(f4_cross3(a, N));
-    float4 B = f4_cross3(N, T);
-
-    return (float3x3) { T, B, N };
+    float3x3 TBN;
+    TBN.c2 = N;
+    TBN.c0 = f4_normalize3(f4_cross3(a, TBN.c2));
+    TBN.c1 = f4_cross3(TBN.c2, TBN.c0);
+    return TBN;
 }
 
 pim_inline float4 VEC_CALL TbnToWorld(float3x3 TBN, float4 nTS)
 {
-    float4 r = f4_mulvs(TBN.c0, nTS.x);
-    float4 u = f4_mulvs(TBN.c1, nTS.y);
-    float4 f = f4_mulvs(TBN.c2, nTS.z);
-    float4 dir = f4_add(f, f4_add(r, u));
-    return dir;
+    return f3x3_mul_col(TBN, nTS);
 }
 
 pim_inline float4 VEC_CALL TanToWorld(float4 normalWS, float4 normalTS)
@@ -133,10 +131,7 @@ pim_inline float2 VEC_CALL SamplePentagram(float2 Xi, i32 side)
     const float2 A = { q * cosf(a), q * sinf(a) };
     const float2 B = { cosf(b), sinf(b) };
     const float2 C = { q * cosf(c), q * sinf(c) };
-    return f2_lerp(
-        f2_lerp(A, B, Xi.x),
-        f2_lerp(f2_0, C, Xi.x),
-        Xi.y);
+    return f2_bilerp(A, B, f2_0, C, Xi);
 }
 
 pim_inline float4 VEC_CALL SphericalToCartesian(float cosTheta, float phi)

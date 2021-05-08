@@ -26,7 +26,7 @@ pim_inline quat VEC_CALL quat_v(float x, float y, float z, float w)
 
 pim_inline float VEC_CALL quat_dot(quat a, quat b)
 {
-    return f4_dot(a.v, b.v);
+    return f4_dot4(a.v, b.v);
 }
 
 pim_inline quat VEC_CALL quat_conjugate(quat q)

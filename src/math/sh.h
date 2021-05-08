@@ -101,9 +101,9 @@ pim_inline float3 VEC_CALL SH4v_irradiance(SH4v x, float3 direction)
 pim_inline SH4v VEC_CALL SH4v_fit(SH4v x, float3 dir, float3 rad, float weight)
 {
     SH4v proj = SH4v_proj(dir, rad, 4.0f * kPi, 4.0f * kPi);
-    x.v[0] = f3_lerp(x.v[0], proj.v[0], weight);
-    x.v[1] = f3_lerp(x.v[1], proj.v[1], weight);
-    x.v[2] = f3_lerp(x.v[2], proj.v[2], weight);
-    x.v[3] = f3_lerp(x.v[3], proj.v[3], weight);
+    x.v[0] = f3_lerpvs(x.v[0], proj.v[0], weight);
+    x.v[1] = f3_lerpvs(x.v[1], proj.v[1], weight);
+    x.v[2] = f3_lerpvs(x.v[2], proj.v[2], weight);
+    x.v[3] = f3_lerpvs(x.v[3], proj.v[3], weight);
     return x;
 }
