@@ -7,6 +7,50 @@ PIM_C_BEGIN
 #include "math/scalar.h"
 #include "common/random.h"
 
+pim_inline bool2 VEC_CALL b2_not(bool2 b)
+{
+    bool2 y = { ~b.x, ~b.y };
+    return y;
+}
+
+pim_inline bool2 VEC_CALL b2_and(bool2 lhs, bool2 rhs)
+{
+    bool2 vec = { lhs.x & rhs.x, lhs.y & rhs.y };
+    return vec;
+}
+
+pim_inline bool2 VEC_CALL b2_or(bool2 lhs, bool2 rhs)
+{
+    bool2 vec = { lhs.x | rhs.x, lhs.y | rhs.y };
+    return vec;
+}
+
+pim_inline bool2 VEC_CALL b2_xor(bool2 lhs, bool2 rhs)
+{
+    bool2 vec = { lhs.x ^ rhs.x, lhs.y ^ rhs.y };
+    return vec;
+}
+
+pim_inline bool2 VEC_CALL b2_nand(bool2 lhs, bool2 rhs)
+{
+    return b2_not(b2_and(lhs, rhs));
+}
+
+pim_inline bool2 VEC_CALL b2_nor(bool2 lhs, bool2 rhs)
+{
+    return b2_not(b2_or(lhs, rhs));
+}
+
+pim_inline bool VEC_CALL b2_any(bool2 b)
+{
+    return b.x | b.y;
+}
+
+pim_inline bool VEC_CALL b2_all(bool2 b)
+{
+    return b.x & b.y;
+}
+
 #define f2_0 f2_s(0.0f)
 #define f2_1 f2_s(1.0f)
 #define f2_2 f2_s(2.0f)
@@ -43,6 +87,18 @@ pim_inline int2 VEC_CALL f2_i2(float2 f)
     return i;
 }
 
+pim_inline float3 VEC_CALL f2_f3(float2 v, float z)
+{
+    float3 v3 = { v.x, v.y, z };
+    return v3;
+}
+
+pim_inline float4 VEC_CALL f2_f4(float2 v, float z, float w)
+{
+    float4 v4 = { v.x, v.y, z, w };
+    return v4;
+}
+
 pim_inline float2 VEC_CALL f2_xx(float2 v)
 {
     float2 vec = { v.x, v.x };
@@ -58,6 +114,18 @@ pim_inline float2 VEC_CALL f2_yy(float2 v)
 pim_inline float2 VEC_CALL f2_yx(float2 v)
 {
     float2 vec = { v.y, v.x };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f2_xxyy(float2 v)
+{
+    float4 vec = { v.x, v.x, v.y, v.y };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f2_xyxy(float2 v)
+{
+    float4 vec = { v.x, v.y, v.x, v.y };
     return vec;
 }
 
@@ -204,50 +272,6 @@ pim_inline bool2 VEC_CALL f2_gteq(float2 lhs, float2 rhs)
     return vec;
 }
 
-pim_inline bool2 VEC_CALL b2_not(bool2 b)
-{
-    bool2 y = { ~b.x, ~b.y };
-    return y;
-}
-
-pim_inline bool2 VEC_CALL b2_and(bool2 lhs, bool2 rhs)
-{
-    bool2 vec = { lhs.x & rhs.x, lhs.y & rhs.y };
-    return vec;
-}
-
-pim_inline bool2 VEC_CALL b2_or(bool2 lhs, bool2 rhs)
-{
-    bool2 vec = { lhs.x | rhs.x, lhs.y | rhs.y };
-    return vec;
-}
-
-pim_inline bool2 VEC_CALL b2_xor(bool2 lhs, bool2 rhs)
-{
-    bool2 vec = { lhs.x ^ rhs.x, lhs.y ^ rhs.y };
-    return vec;
-}
-
-pim_inline bool2 VEC_CALL b2_nand(bool2 lhs, bool2 rhs)
-{
-    return b2_not(b2_and(lhs, rhs));
-}
-
-pim_inline bool2 VEC_CALL b2_nor(bool2 lhs, bool2 rhs)
-{
-    return b2_not(b2_or(lhs, rhs));
-}
-
-pim_inline bool VEC_CALL b2_any(bool2 b)
-{
-    return b.x | b.y;
-}
-
-pim_inline bool VEC_CALL b2_all(bool2 b)
-{
-    return b.x & b.y;
-}
-
 pim_inline float VEC_CALL f2_sum(float2 v)
 {
     return v.x + v.y;
@@ -291,14 +315,14 @@ pim_inline float2 VEC_CALL f2_max(float2 a, float2 b)
     return vec;
 }
 
-pim_inline float2 VEC_CALL f2_select(float2 a, float2 b, bool2 t)
+pim_inline float2 VEC_CALL f2_clamp(float2 x, float2 lo, float2 hi)
 {
-    float2 c =
-    {
-        t.x ? b.x : a.x,
-        t.y ? b.y : a.y,
-    };
-    return c;
+    return f2_min(f2_max(x, lo), hi);
+}
+
+pim_inline float2 VEC_CALL f2_saturate(float2 x)
+{
+    return f2_clamp(x, f2_0, f2_1);
 }
 
 pim_inline float VEC_CALL f2_hmin(float2 v)
@@ -311,9 +335,14 @@ pim_inline float VEC_CALL f2_hmax(float2 v)
     return f1_max(v.x, v.y);
 }
 
-pim_inline float2 VEC_CALL f2_clamp(float2 x, float2 lo, float2 hi)
+pim_inline float2 VEC_CALL f2_select(float2 a, float2 b, bool2 t)
 {
-    return f2_min(f2_max(x, lo), hi);
+    float2 c =
+    {
+        t.x ? b.x : a.x,
+        t.y ? b.y : a.y,
+    };
+    return c;
 }
 
 pim_inline float VEC_CALL f2_dot(float2 a, float2 b)
@@ -346,17 +375,59 @@ pim_inline float VEC_CALL f2_distancesq(float2 a, float2 b)
     return f2_lengthsq(f2_sub(a, b));
 }
 
-pim_inline float2 VEC_CALL f2_lerp(float2 a, float2 b, float t)
+pim_inline float2 VEC_CALL f2_lerp(float2 a, float2 b, float2 t)
 {
-    float2 vt = f2_s(t);
-    float2 ba = f2_sub(b, a);
-    b = f2_mul(ba, vt);
-    return f2_add(a, b);
+    return f2_add(a, f2_mul(f2_sub(b, a), t));
+}
+pim_inline float2 VEC_CALL f2_lerpvs(float2 a, float2 b, float t)
+{
+    return f2_add(a, f2_mulvs(f2_sub(b, a), t));
+}
+pim_inline float2 VEC_CALL f2_lerpsv(float a, float b, float2 t)
+{
+    return f2_addsv(a, f2_mulsv(b - a, t));
 }
 
-pim_inline float2 VEC_CALL f2_saturate(float2 a)
+pim_inline float2 VEC_CALL f2_unlerp(float2 a, float2 b, float2 x)
 {
-    return f2_clamp(a, f2_0, f2_1);
+    return f2_saturate(f2_div(f2_sub(x, a), f2_sub(b, a)));
+}
+pim_inline float2 VEC_CALL f2_unlerpvs(float2 a, float2 b, float x)
+{
+    return f2_saturate(f2_div(f2_subsv(x, a), f2_sub(b, a)));
+}
+pim_inline float2 VEC_CALL f2_unlerpsv(float a, float b, float2 x)
+{
+    return f2_saturate(f2_divvs(f2_subvs(x, a), b - a));
+}
+
+pim_inline float2 VEC_CALL f2_bilerp(
+    float2 tl, float2 tr,
+    float2 bl, float2 br,
+    float2 x)
+{
+    return f2_lerpvs(
+        f2_lerpvs(tl, tr, x.x),
+        f2_lerpvs(bl, br, x.x),
+        x.y);
+}
+
+pim_inline float2 VEC_CALL f2_trilerp(
+    float2 tln, float2 trn,
+    float2 bln, float2 brn,
+    float2 tlf, float2 trf,
+    float2 blf, float2 brf,
+    float3 x)
+{
+    float2 n = f2_lerpvs(
+        f2_lerpvs(tln, trn, x.x),
+        f2_lerpvs(bln, brn, x.x),
+        x.y);
+    float2 f = f2_lerpvs(
+        f2_lerpvs(tlf, trf, x.x),
+        f2_lerpvs(blf, brf, x.x),
+        x.y);
+    return f2_lerpvs(n, f, x.z);
 }
 
 pim_inline float2 VEC_CALL f2_step(float2 a, float2 b)
@@ -364,23 +435,39 @@ pim_inline float2 VEC_CALL f2_step(float2 a, float2 b)
     return f2_select(f2_0, f2_1, f2_gteq(a, b));
 }
 
-pim_inline float2 VEC_CALL f2_smoothstep(float2 a, float2 b, float2 x)
-{
-    float2 t = f2_saturate(f2_div(f2_sub(x, a), f2_sub(b, a)));
-    float2 s = f2_sub(f2_s(3.0f), f2_mul(f2_2, t));
-    return f2_mul(f2_mul(t, t), s);
-}
-
 pim_inline float2 VEC_CALL f2_unormstep(float2 t)
 {
-    float2 s = f2_sub(f2_s(3.0f), f2_mul(f2_2, t));
-    return f2_mul(f2_mul(t, t), s);
+    return f2_mul(f2_mul(f2_addvs(f2_mulvs(t, -2.0f), 3.0f), t), t);
 }
-
 pim_inline float2 VEC_CALL f2_unormerstep(float2 t)
 {
-    float2 y = { f1_unormerstep(t.x), f1_unormerstep(t.y) };
-    return y;
+    return f2_mul(f2_mul(f2_mul(f2_addvs(f2_mul(f2_addvs(f2_mulvs(t, 6.0f), -15.0f), t), 10.0f), t), t), t);
+}
+
+pim_inline float2 VEC_CALL f2_smoothstep(float2 a, float2 b, float2 x)
+{
+    return f2_unormstep(f2_unlerp(a, b, x));
+}
+pim_inline float2 VEC_CALL f2_smoothstepvs(float2 a, float2 b, float x)
+{
+    return f2_unormstep(f2_unlerpvs(a, b, x));
+}
+pim_inline float2 VEC_CALL f2_smoothstepsv(float a, float b, float2 x)
+{
+    return f2_unormstep(f2_unlerpsv(a, b, x));
+}
+
+pim_inline float2 VEC_CALL f2_smootherstep(float2 a, float2 b, float2 x)
+{
+    return f2_unormerstep(f2_unlerp(a, b, x));
+}
+pim_inline float2 VEC_CALL f2_smootherstepvs(float2 a, float2 b, float x)
+{
+    return f2_unormerstep(f2_unlerpvs(a, b, x));
+}
+pim_inline float2 VEC_CALL f2_smootherstepsv(float a, float b, float2 x)
+{
+    return f2_unormerstep(f2_unlerpsv(a, b, x));
 }
 
 pim_inline float2 VEC_CALL f2_wrap(float2 x)
@@ -497,12 +584,22 @@ pim_inline float2 VEC_CALL f2_atan(float2 v)
     return vec;
 }
 
+pim_inline float2 VEC_CALL f2_trunc(float2 v)
+{
+    float2 vec =
+    {
+        f1_trunc(v.x),
+        f1_trunc(v.y),
+    };
+    return vec;
+}
+
 pim_inline float2 VEC_CALL f2_floor(float2 v)
 {
     float2 vec =
     {
-        floorf(v.x),
-        floorf(v.y),
+        f1_floor(v.x),
+        f1_floor(v.y),
     };
     return vec;
 }
@@ -511,18 +608,8 @@ pim_inline float2 VEC_CALL f2_ceil(float2 v)
 {
     float2 vec =
     {
-        ceilf(v.x),
-        ceilf(v.y),
-    };
-    return vec;
-}
-
-pim_inline float2 VEC_CALL f2_trunc(float2 v)
-{
-    float2 vec =
-    {
-        truncf(v.x),
-        truncf(v.y),
+        f1_ceil(v.x),
+        f1_ceil(v.y),
     };
     return vec;
 }
@@ -532,24 +619,34 @@ pim_inline float2 VEC_CALL f2_frac(float2 v)
     return f2_sub(v, f2_floor(v));
 }
 
+pim_inline float2 VEC_CALL f2_round(float2 v)
+{
+    float2 vec =
+    {
+        f1_round(v.x),
+        f1_round(v.y),
+    };
+    return vec;
+}
+
 pim_inline float2 VEC_CALL f2_fmod(float2 a, float2 b)
 {
     float2 vec =
     {
-        fmodf(a.x, b.x),
-        fmodf(a.y, b.y),
+        f1_mod(a.x, b.x),
+        f1_mod(a.y, b.y),
     };
     return vec;
 }
 
 pim_inline float2 VEC_CALL f2_rad(float2 x)
 {
-    return f2_mul(x, f2_s(kRadiansPerDegree));
+    return f2_mulvs(x, kRadiansPerDegree);
 }
 
 pim_inline float2 VEC_CALL f2_deg(float2 x)
 {
-    return f2_mul(x, f2_s(kDegreesPerRadian));
+    return f2_mulvs(x, kDegreesPerRadian);
 }
 
 pim_inline float2 VEC_CALL f2_blend(float2 a, float2 b, float2 c, float4 wuvt)

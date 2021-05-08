@@ -7,8 +7,6 @@
 #include "common/time.h"
 #include "common/cvars.h"
 
-#include <float.h>
-
 typedef struct task_ToLum
 {
     Task task;

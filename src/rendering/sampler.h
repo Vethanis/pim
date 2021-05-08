@@ -280,7 +280,7 @@ pim_inline float4 VEC_CALL UvWrapPow2_xy16(
 
 // ----------------------------------------------------------------------------
 
-typedef pim_alignas(16) struct bilinear_s
+typedef struct bilinear_s
 {
     i32 a;
     i32 b;
@@ -330,43 +330,6 @@ pim_inline bilinear_t VEC_CALL BilinearWrapPow2(int2 size, float2 uv)
 
 // ----------------------------------------------------------------------------
 
-pim_inline float4 VEC_CALL BilinearBlend_f4(
-    float4 a, float4 b, float4 c, float4 d,
-    float2 frac)
-{
-    a = f4_lerpvs(a, b, frac.x);
-    b = f4_lerpvs(c, d, frac.x);
-    c = f4_lerpvs(a, b, frac.y);
-    return c;
-}
-pim_inline float3 VEC_CALL BilinearBlend_f3(
-    float3 a, float3 b, float3 c, float3 d,
-    float2 frac)
-{
-    a = f3_lerp(a, b, frac.x);
-    b = f3_lerp(c, d, frac.x);
-    c = f3_lerp(a, b, frac.y);
-    return c;
-}
-pim_inline float2 VEC_CALL BilinearBlend_f2(
-    float2 a, float2 b, float2 c, float2 d,
-    float2 frac)
-{
-    a = f2_lerp(a, b, frac.x);
-    b = f2_lerp(c, d, frac.x);
-    c = f2_lerp(a, b, frac.y);
-    return c;
-}
-pim_inline float VEC_CALL BilinearBlend_f1(
-    float a, float b, float c, float d,
-    float2 frac)
-{
-    a = f1_lerp(a, b, frac.x);
-    b = f1_lerp(c, d, frac.x);
-    c = f1_lerp(a, b, frac.y);
-    return c;
-}
-
 pim_inline float4 VEC_CALL BilinearBlend_c32(
     R8G8B8A8_t a, R8G8B8A8_t b, R8G8B8A8_t c, R8G8B8A8_t d,
     float2 frac)
@@ -375,20 +338,8 @@ pim_inline float4 VEC_CALL BilinearBlend_c32(
     float4 bf = GammaDecode_rgba8(b);
     float4 cf = GammaDecode_rgba8(c);
     float4 df = GammaDecode_rgba8(d);
-    return BilinearBlend_f4(af, bf, cf, df, frac);
+    return f4_bilerp(af, bf, cf, df, frac);
 }
-pim_inline float4 VEC_CALL BilinearBlend_c32_fast(
-    R8G8B8A8_t a, R8G8B8A8_t b, R8G8B8A8_t c, R8G8B8A8_t d,
-    float2 frac)
-{
-    float4 af = rgba8_f4(a);
-    float4 bf = rgba8_f4(b);
-    float4 cf = rgba8_f4(c);
-    float4 df = rgba8_f4(d);
-    float4 res = BilinearBlend_f4(af, bf, cf, df, frac);
-    return f4_sRGB_EOTF_Fit(res);
-}
-
 pim_inline float4 VEC_CALL BilinearBlend_dir8(
     R8G8B8A8_t a, R8G8B8A8_t b, R8G8B8A8_t c, R8G8B8A8_t d,
     float2 frac)
@@ -397,21 +348,9 @@ pim_inline float4 VEC_CALL BilinearBlend_dir8(
     float4 bf = ColorToDirection(b);
     float4 cf = ColorToDirection(c);
     float4 df = ColorToDirection(d);
-    float4 res = BilinearBlend_f4(af, bf, cf, df, frac);
+    float4 res = f4_bilerp(af, bf, cf, df, frac);
     return f4_normalize3(res);
 }
-pim_inline float4 VEC_CALL BilinearBlend_dir8_fast(
-    R8G8B8A8_t a, R8G8B8A8_t b, R8G8B8A8_t c, R8G8B8A8_t d,
-    float2 frac)
-{
-    float4 af = ColorToDirection_fast(a);
-    float4 bf = ColorToDirection_fast(b);
-    float4 cf = ColorToDirection_fast(c);
-    float4 df = ColorToDirection_fast(d);
-    float4 res = BilinearBlend_f4(af, bf, cf, df, frac);
-    return f4_normalize3(res);
-}
-
 pim_inline float4 VEC_CALL BilinearBlend_xy16(
     short2 a, short2 b, short2 c, short2 d,
     float2 frac)
@@ -420,7 +359,7 @@ pim_inline float4 VEC_CALL BilinearBlend_xy16(
     float4 bf = Xy16ToNormalTs(b);
     float4 cf = Xy16ToNormalTs(c);
     float4 df = Xy16ToNormalTs(d);
-    float4 res = BilinearBlend_f4(af, bf, cf, df, frac);
+    float4 res = f4_bilerp(af, bf, cf, df, frac);
     return f4_normalize3(res);
 }
 
@@ -429,7 +368,7 @@ pim_inline float4 VEC_CALL BilinearBlend_xy16(
 pim_inline float4 VEC_CALL Bilinear_f4(
     float4 const *const pim_noalias buffer, int2 size, bilinear_t bi)
 {
-    return BilinearBlend_f4(
+    return f4_bilerp(
         buffer[bi.a],
         buffer[bi.b],
         buffer[bi.c],
@@ -439,7 +378,7 @@ pim_inline float4 VEC_CALL Bilinear_f4(
 pim_inline float3 VEC_CALL Bilinear_f3(
     float3 const *const pim_noalias buffer, int2 size, bilinear_t bi)
 {
-    return BilinearBlend_f3(
+    return f3_bilerp(
         buffer[bi.a],
         buffer[bi.b],
         buffer[bi.c],
@@ -449,7 +388,7 @@ pim_inline float3 VEC_CALL Bilinear_f3(
 pim_inline float2 VEC_CALL Bilinear_f2(
     float2 const *const pim_noalias buffer, int2 size, bilinear_t bi)
 {
-    return BilinearBlend_f2(
+    return f2_bilerp(
         buffer[bi.a],
         buffer[bi.b],
         buffer[bi.c],
@@ -459,12 +398,12 @@ pim_inline float2 VEC_CALL Bilinear_f2(
 pim_inline float VEC_CALL Bilinear_f1(
     float const *const pim_noalias buffer, int2 size, bilinear_t bi)
 {
-    return BilinearBlend_f1(
+    return f1_bilerp(
         buffer[bi.a],
         buffer[bi.b],
         buffer[bi.c],
         buffer[bi.d],
-        bi.frac);
+        bi.frac.x, bi.frac.y);
 }
 pim_inline float4 VEC_CALL Bilinear_c32(
     R8G8B8A8_t const *const pim_noalias buffer, int2 size, bilinear_t bi)
@@ -476,30 +415,10 @@ pim_inline float4 VEC_CALL Bilinear_c32(
         buffer[bi.d],
         bi.frac);
 }
-pim_inline float4 VEC_CALL Bilinear_c32_fast(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, bilinear_t bi)
-{
-    return BilinearBlend_c32_fast(
-        buffer[bi.a],
-        buffer[bi.b],
-        buffer[bi.c],
-        buffer[bi.d],
-        bi.frac);
-}
 pim_inline float4 VEC_CALL Bilinear_dir8(
     R8G8B8A8_t const *const pim_noalias buffer, int2 size, bilinear_t bi)
 {
     return BilinearBlend_dir8(
-        buffer[bi.a],
-        buffer[bi.b],
-        buffer[bi.c],
-        buffer[bi.d],
-        bi.frac);
-}
-pim_inline float4 VEC_CALL Bilinear_dir8_fast(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, bilinear_t bi)
-{
-    return BilinearBlend_dir8_fast(
         buffer[bi.a],
         buffer[bi.b],
         buffer[bi.c],
@@ -572,10 +491,10 @@ pim_inline float4 VEC_CALL UvBilinearWrap_c32(
 {
     return Bilinear_c32(buffer, size, BilinearWrap(size, uv));
 }
-pim_inline float4 VEC_CALL UvBilinearWrapPow2_c32_fast(
+pim_inline float4 VEC_CALL UvBilinearWrapPow2_c32(
     R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
 {
-    return Bilinear_c32_fast(buffer, size, BilinearWrapPow2(size, uv));
+    return Bilinear_c32(buffer, size, BilinearWrapPow2(size, uv));
 }
 
 // ----------------------------------------------------------------------------
@@ -590,10 +509,10 @@ pim_inline float4 VEC_CALL UvBilinearWrap_dir8(
 {
     return Bilinear_dir8(buffer, size, BilinearWrap(size, uv));
 }
-pim_inline float4 VEC_CALL UvBilinearWrapPow2_dir8_fast(
+pim_inline float4 VEC_CALL UvBilinearWrapPow2_dir8(
     R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
 {
-    return Bilinear_dir8_fast(buffer, size, BilinearWrapPow2(size, uv));
+    return Bilinear_dir8(buffer, size, BilinearWrapPow2(size, uv));
 }
 
 // ----------------------------------------------------------------------------
@@ -678,7 +597,7 @@ pim_inline float3 VEC_CALL TrilinearClamp_f3(
     float3 s0 = UvBilinearClamp_f3(buffer + i0, size0, uv);
     float3 s1 = UvBilinearClamp_f3(buffer + i1, size1, uv);
 
-    return f3_lerp(s0, s1, mfrac);
+    return f3_lerpvs(s0, s1, mfrac);
 }
 pim_inline float3 VEC_CALL TrilinearWrap_f3(
     float3 const *const pim_noalias buffer,
@@ -699,7 +618,7 @@ pim_inline float3 VEC_CALL TrilinearWrap_f3(
     float3 s0 = UvBilinearWrap_f3(buffer + i0, size0, uv);
     float3 s1 = UvBilinearWrap_f3(buffer + i1, size1, uv);
 
-    return f3_lerp(s0, s1, mfrac);
+    return f3_lerpvs(s0, s1, mfrac);
 }
 
 pim_inline float2 VEC_CALL TrilinearClamp_f2(
@@ -721,7 +640,7 @@ pim_inline float2 VEC_CALL TrilinearClamp_f2(
     float2 s0 = UvBilinearClamp_f2(buffer + i0, size0, uv);
     float2 s1 = UvBilinearClamp_f2(buffer + i1, size1, uv);
 
-    return f2_lerp(s0, s1, mfrac);
+    return f2_lerpvs(s0, s1, mfrac);
 }
 pim_inline float2 VEC_CALL TrilinearWrap_f2(
     float2 const *const pim_noalias buffer,
@@ -742,7 +661,7 @@ pim_inline float2 VEC_CALL TrilinearWrap_f2(
     float2 s0 = UvBilinearWrap_f2(buffer + i0, size0, uv);
     float2 s1 = UvBilinearWrap_f2(buffer + i1, size1, uv);
 
-    return f2_lerp(s0, s1, mfrac);
+    return f2_lerpvs(s0, s1, mfrac);
 }
 
 pim_inline float VEC_CALL TrilinearClamp_f1(

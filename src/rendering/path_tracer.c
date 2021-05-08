@@ -1392,7 +1392,7 @@ pim_inline float4 VEC_CALL GetEmission(
             Texture const *const tex = Texture_Get(mat->albedo);
             if (tex)
             {
-                albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
+                albedo = UvBilinearWrapPow2_c32(tex->texels, tex->size, uv);
             }
         }
         float e = 0.0f;
@@ -1400,7 +1400,7 @@ pim_inline float4 VEC_CALL GetEmission(
             Texture const *const tex = Texture_Get(mat->rome);
             if (tex)
             {
-                e = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv).w;
+                e = UvBilinearWrapPow2_c32(tex->texels, tex->size, uv).w;
             }
         }
         return UnpackEmission(albedo, e);
@@ -1450,7 +1450,7 @@ pim_inline SurfHit VEC_CALL GetSurface(
             Texture const *const pim_noalias tex = Texture_Get(mat->albedo);
             if (tex)
             {
-                surf.albedo = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
+                surf.albedo = UvBilinearWrapPow2_c32(tex->texels, tex->size, uv);
             }
         }
 
@@ -1459,7 +1459,7 @@ pim_inline SurfHit VEC_CALL GetSurface(
             Texture const *const pim_noalias tex = Texture_Get(mat->rome);
             if (tex)
             {
-                rome = UvBilinearWrapPow2_c32_fast(tex->texels, tex->size, uv);
+                rome = UvBilinearWrapPow2_c32(tex->texels, tex->size, uv);
             }
         }
         surf.emission = UnpackEmission(surf.albedo, rome.w);
@@ -2705,8 +2705,8 @@ PtResult VEC_CALL Pt_TraceRayRetro(
                 {
                     float t = 1.0f / (b + 1);
                     float4 albedo = Media_Albedo(&scene->mediaDesc, scatter.pos);
-                    result.albedo = f3_lerp(result.albedo, f4_f3(albedo), t);
-                    result.normal = f3_lerp(result.normal, f4_f3(f4_neg(rd)), t);
+                    result.albedo = f3_lerpvs(result.albedo, f4_f3(albedo), t);
+                    result.normal = f3_lerpvs(result.normal, f4_f3(f4_neg(rd)), t);
                 }
                 attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
                 ro = scatter.pos;
@@ -2721,8 +2721,8 @@ PtResult VEC_CALL Pt_TraceRayRetro(
 
         {
             float t = 1.0f / (b + 1);
-            result.albedo = f3_lerp(result.albedo, f4_f3(surf.albedo), t);
-            result.normal = f3_lerp(result.normal, f4_f3(surf.N), t);
+            result.albedo = f3_lerpvs(result.albedo, f4_f3(surf.albedo), t);
+            result.normal = f3_lerpvs(result.normal, f4_f3(surf.N), t);
         }
         if ((b == 0) || (prevFlags & MatFlag_Refractive))
         {
@@ -2807,8 +2807,8 @@ PtResult VEC_CALL Pt_TraceRay(
                 {
                     float t = 1.0f / (b + 1);
                     float4 albedo = Media_Albedo(&scene->mediaDesc, scatter.pos);
-                    result.albedo = f3_lerp(result.albedo, f4_f3(albedo), t);
-                    result.normal = f3_lerp(result.normal, f4_f3(f4_neg(rd)), t);
+                    result.albedo = f3_lerpvs(result.albedo, f4_f3(albedo), t);
+                    result.normal = f3_lerpvs(result.normal, f4_f3(f4_neg(rd)), t);
                 }
                 attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
                 ro = scatter.pos;
@@ -2823,8 +2823,8 @@ PtResult VEC_CALL Pt_TraceRay(
 
         {
             float t = 1.0f / (b + 1);
-            result.albedo = f3_lerp(result.albedo, f4_f3(surf.albedo), t);
-            result.normal = f3_lerp(result.normal, f4_f3(surf.N), t);
+            result.albedo = f3_lerpvs(result.albedo, f4_f3(surf.albedo), t);
+            result.normal = f3_lerpvs(result.normal, f4_f3(surf.N), t);
         }
         if ((b == 0) || (prevFlags & MatFlag_Refractive))
         {
@@ -3017,9 +3017,9 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
         {
             result = Pt_TraceRayRetro(&sampler, scene, ray.ro, ray.rd);
         }
-        colors[i] = f3_lerp(colors[i], result.color, sampleWeight);
-        albedos[i] = f3_lerp(albedos[i], result.albedo, sampleWeight);
-        normals[i] = f3_lerp(normals[i], result.normal, sampleWeight);
+        colors[i] = f3_lerpvs(colors[i], result.color, sampleWeight);
+        albedos[i] = f3_lerpvs(albedos[i], result.albedo, sampleWeight);
+        normals[i] = f3_lerpvs(normals[i], result.normal, sampleWeight);
     }
     SetSampler(sampler);
 }

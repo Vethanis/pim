@@ -11,6 +11,13 @@
 #   undef max
 #endif // max
 
+#ifndef FLT_MAX
+#   define FLT_MAX 3.402823e+38
+#endif // FLT_MAX
+#ifndef FLT_MIN
+#   define FLT_MIN 1.175494e-38
+#endif // FLT_MIN
+
 #define kPi                 3.1415926535897932384626433832795f
 #define kTau                6.283185307179586476925286766559f
 #define kRadiansPerDegree   (kTau / 360.0f)
@@ -47,6 +54,15 @@
 #define kNano               1e-9f
 
 PIM_C_BEGIN
+
+#define f1_sat(x) f1_saturate(x)
+pim_inline float VEC_CALL f1_saturate(float x)
+{
+    // flush NaNs to 0, since cmp(NaN, anything) is always false
+    x = (x > 0.0f) ? x : 0.0f;
+    x = (x < 1.0f) ? x : 1.0f;
+    return x;
+}
 
 pim_inline float VEC_CALL f1_radians(float x)
 {
@@ -88,25 +104,14 @@ pim_inline float VEC_CALL f1_max(float a, float b)
     return a > b ? a : b;
 }
 
-pim_inline float VEC_CALL f1_divsafe(float a, float b)
+pim_inline float VEC_CALL f1_clamp(float x, float lo, float hi)
 {
-    return a / f1_max(kEpsilon, b);
+    return f1_min(f1_max(x, lo), hi);
 }
 
 pim_inline float VEC_CALL f1_sign(float x)
 {
     return ((x > 0.0f) ? 1.0f : 0.0f) - ((x < 0.0f) ? 1.0f : 0.0f);
-}
-
-pim_inline float VEC_CALL f1_clamp(float x, float lo, float hi)
-{
-    return f1_min(hi, f1_max(lo, x));
-}
-
-#define f1_sat(x) f1_saturate(x)
-pim_inline float VEC_CALL f1_saturate(float x)
-{
-    return f1_clamp(x, 0.0f, 1.0f);
 }
 
 pim_inline float VEC_CALL f1_abs(float x)
@@ -116,30 +121,46 @@ pim_inline float VEC_CALL f1_abs(float x)
 
 pim_inline float VEC_CALL f1_trunc(float x)
 {
+#if 0
+    return truncf(x);
+#else
     i32 i = (i32)x;
     return (float)i;
-}
-
-pim_inline float VEC_CALL f1_frac(float x)
-{
-    return x - f1_trunc(x);
+#endif
 }
 
 pim_inline float VEC_CALL f1_floor(float x)
 {
+#if 0
+    return floorf(x);
+#else
     float i = f1_trunc(x);
     return i - (i > x);
+#endif
 }
 
 pim_inline float VEC_CALL f1_ceil(float x)
 {
+#if 0
+    return ceilf(x);
+#else
     float i = f1_trunc(x);
     return i + (x > i);
+#endif
+}
+
+pim_inline float VEC_CALL f1_frac(float x)
+{
+    return x - f1_floor(x);
 }
 
 pim_inline float VEC_CALL f1_round(float x)
 {
+#if 0
+    return roundf(x);
+#else
     return (x >= 0.0f) ? f1_floor(x + 0.5f) : f1_ceil(x - 0.5f);
+#endif
 }
 
 pim_inline float VEC_CALL f1_mod(float num, float div)
@@ -162,6 +183,35 @@ pim_inline float VEC_CALL f1_unlerp(float a, float b, float x)
     return f1_saturate((x - a) / (b - a));
 }
 
+pim_inline float VEC_CALL f1_bilerp(
+    float tl, float tr,
+    float bl, float br,
+    float x, float y)
+{
+    return f1_lerp(
+        f1_lerp(tl, tr, x),
+        f1_lerp(bl, br, x),
+        y);
+}
+
+pim_inline float VEC_CALL f1_trilerp(
+    float tln, float trn,
+    float bln, float brn,
+    float tlf, float trf,
+    float blf, float brf,
+    float x, float y, float z)
+{
+    float n = f1_lerp(
+        f1_lerp(tln, trn, x),
+        f1_lerp(bln, brn, x),
+        y);
+    float f = f1_lerp(
+        f1_lerp(tlf, trf, x),
+        f1_lerp(blf, brf, x),
+        y);
+    return f1_lerp(n, f, z);
+}
+
 pim_inline float VEC_CALL f1_qbezier(float a, float b, float c, float t)
 {
     return f1_lerp(f1_lerp(a, b, t), f1_lerp(b, c, t), t);
@@ -182,7 +232,6 @@ pim_inline float VEC_CALL f1_unormstep(float t)
 {
     return t * t * ((t * -2.0f) + 3.0f);
 }
-
 pim_inline float VEC_CALL f1_unormerstep(float t)
 {
     return t * t * t * (t * (t * 6.0f + -15.0f) + 10.0f);

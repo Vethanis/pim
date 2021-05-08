@@ -54,7 +54,7 @@ pim_inline float VEC_CALL sdLine3D(Capsule cap, float4 pt)
 
 pim_inline float VEC_CALL sdBox2D(Box2D box, float2 pt)
 {
-    float2 center = f2_lerp(box.lo, box.hi, 0.5f);
+    float2 center = f2_lerpvs(box.lo, box.hi, 0.5f);
     float2 extents = f2_sub(box.hi, center);
     float2 d = f2_sub(f2_abs(f2_sub(pt, center)), extents);
     return f2_length(f2_max(d, f2_0)) + f1_min(f2_hmax(d), 0.0f);
@@ -80,7 +80,7 @@ pim_inline float VEC_CALL sdPlaneSphere(Plane3D plane, Sphere sphere)
 
 pim_inline float VEC_CALL sdPlaneBox2D(Plane2D plane, Box2D box)
 {
-    float2 center = f2_lerp(box.lo, box.hi, 0.5f);
+    float2 center = f2_lerpvs(box.lo, box.hi, 0.5f);
     float2 extents = f2_sub(box.hi, center);
     return sdPlane2D(plane, center) - f2_dot(f2_abs(plane.normal), f2_abs(extents));
 }

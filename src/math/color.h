@@ -236,7 +236,7 @@ pim_inline float4 VEC_CALL Xy16ToNormalTs(short2 xy)
     float4 n;
     n.x = xy.x * (1.0f / (1 << 15));
     n.y = xy.y * (1.0f / (1 << 15));
-    n.z = sqrtf(f1_max(0.0f, 1.0f - (n.x * n.x + n.y * n.y)));
+    n.z = sqrtf(f1_max(kEpsilon, 1.0f - (n.x * n.x + n.y * n.y)));
     n.w = 0.0f;
     return n;
 }
@@ -511,11 +511,11 @@ pim_inline float4 VEC_CALL f4_PQ_OOTF(float4 E)
 // Fd: Display Luminance in [0, 10000] cd/m^2
 pim_inline float4 VEC_CALL f4_PQ_EOTF(float4 Ep)
 {
-    const float c1 = 0.8359375;
-    const float c2 = 18.8515625;
-    const float c3 = 18.6875;
-    const float m1 = 0.15930175781;
-    const float m2 = 78.84375;
+    const float c1 = 0.8359375f;
+    const float c2 = 18.8515625f;
+    const float c3 = 18.6875f;
+    const float m1 = 0.15930175781f;
+    const float m2 = 78.84375f;
     float4 t = f4_powvs(Ep, 1.0f / m2);
     float4 y = f4_div(f4_maxvs(f4_subvs(t, c1), 0.0f), f4_subsv(c2, f4_mulvs(t, c3)));
     float4 Y = f4_powvs(y, 1.0f / m1);
@@ -527,11 +527,11 @@ pim_inline float4 VEC_CALL f4_PQ_EOTF(float4 Ep)
 // Ep: Signal in [0, 1]
 pim_inline float4 VEC_CALL f4_PQ_InverseEOTF(float4 Fd)
 {
-    const float c1 = 0.8359375;
-    const float c2 = 18.8515625;
-    const float c3 = 18.6875;
-    const float m1 = 0.15930175781;
-    const float m2 = 78.84375;
+    const float c1 = 0.8359375f;
+    const float c2 = 18.8515625f;
+    const float c3 = 18.6875f;
+    const float m1 = 0.15930175781f;
+    const float m2 = 78.84375f;
     float4 Y = f4_mulvs(Fd, 1.0f / 10000.0f);
     float4 y = f4_powvs(Y, m1);
     float4 n = f4_addvs(f4_mulvs(y, c2), c1);

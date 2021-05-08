@@ -1028,7 +1028,7 @@ static void SetupBounds(Box2D* pim_noalias boxes, i32 p, i32 nodeCount)
     if ((c0 + 4) <= nodeCount)
     {
         {
-            float2 pcenter = f2_lerp(boxes[p].lo, boxes[p].hi, 0.5f);
+            float2 pcenter = f2_lerpvs(boxes[p].lo, boxes[p].hi, 0.5f);
             float2 pextents = f2_sub(boxes[p].hi, pcenter);
             float2 cextents = f2_mulvs(pextents, 0.5f);
             for (i32 i = 0; i < 4; ++i)
