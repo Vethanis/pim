@@ -62,6 +62,13 @@ bool FStream_Flush(FStream stream)
     return IsZero(fflush(file)) == 0;
 }
 
+bool FStream_AtEnd(FStream stream)
+{
+    FILE* file = stream.handle;
+    ASSERT(file);
+    return feof(file) != 0;
+}
+
 i32 FStream_Read(FStream stream, void* dst, i32 size)
 {
     FILE* file = stream.handle;
@@ -99,6 +106,13 @@ bool FStream_Gets(FStream stream, char* dst, i32 size)
     return NotNull(fgets(dst, size - 1, file)) != NULL;
 }
 
+i32 FStream_Getc(FStream stream)
+{
+    FILE* file = stream.handle;
+    ASSERT(file);
+    return fgetc(file);
+}
+
 i32 FStream_Puts(FStream stream, const char* src)
 {
     FILE* file = stream.handle;
@@ -117,6 +131,7 @@ i32 FStream_VPrintf(FStream stream, const char* fmt, va_list ap)
     FILE* file = stream.handle;
     ASSERT(file);
     ASSERT(fmt);
+    ASSERT(ap);
     i32 rval = NotNeg(vfprintf(file, fmt, ap));
     return rval;
 }
@@ -126,6 +141,24 @@ i32 FStream_Printf(FStream stream, const char* fmt, ...)
     va_list ap;
     va_start(ap, fmt);
     i32 rval = FStream_VPrintf(stream, fmt, ap);
+    va_end(ap);
+    return rval;
+}
+
+i32 FStream_VScanf(FStream stream, const char* fmt, va_list ap)
+{
+    FILE* file = stream.handle;
+    ASSERT(file);
+    ASSERT(fmt);
+    i32 rval = NotNeg(vfscanf(file, fmt, ap));
+    return rval;
+}
+
+i32 FStream_Scanf(FStream stream, const char* fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    i32 rval = FStream_VScanf(stream, fmt, ap);
     va_end(ap);
     return rval;
 }

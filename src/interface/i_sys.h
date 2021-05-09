@@ -23,7 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "interface/i_types.h"
 
 void Sys_Init(i32 argc, const char** argv);
-
+void Sys_SendKeyEvents(void);
+const char* Sys_ConsoleInput(void);
 bool Sys_FileIsOpen(filehdl_t handle);
 i64 Sys_FileSize(filehdl_t handle);
 // returns the file size
@@ -37,6 +38,10 @@ i32 Sys_FileRead(filehdl_t handle, void *dst, i32 count);
 i32 Sys_FileWrite(filehdl_t handle, const void *src, i32 count);
 i32 Sys_FileVPrintf(filehdl_t handle, const char* fmt, va_list ap);
 i32 Sys_FilePrintf(filehdl_t handle, const char* fmt, ...);
+i32 Sys_FileVScanf(filehdl_t handle, const char* fmt, va_list ap);
+i32 Sys_FileScanf(filehdl_t handle, const char* fmt, ...);
+bool Sys_FileAtEnd(filehdl_t handle);
+i32 Sys_FileGetc(filehdl_t handle);
 // returns >= 0 if file exists, -1 if it does not
 i64 Sys_FileTime(const char *path);
 bool Sys_MkDir(const char *path);

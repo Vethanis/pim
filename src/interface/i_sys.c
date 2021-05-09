@@ -187,6 +187,7 @@ i32 Sys_FileVPrintf(filehdl_t hdl, const char* fmt, va_list ap)
     FileDesc* desc = Table_Get(&ms_table, hdl.h);
     ASSERT(desc && desc->writable);
     ASSERT(fmt);
+    ASSERT(ap);
     if ((desc) && (fmt) && (desc->writable))
     {
         desc->tick = Time_Now();
@@ -202,6 +203,51 @@ i32 Sys_FilePrintf(filehdl_t hdl, const char* fmt, ...)
     i32 rv = Sys_FileVPrintf(hdl, fmt, ap);
     va_end(ap);
     return rv;
+}
+
+i32 Sys_FileVScanf(filehdl_t hdl, const char* fmt, va_list ap)
+{
+    FileDesc* desc = Table_Get(&ms_table, hdl.h);
+    ASSERT(desc && !desc->writable);
+    ASSERT(fmt);
+    ASSERT(ap);
+    if ((desc) && (fmt) && (!desc->writable))
+    {
+        desc->tick = Time_Now();
+        return FStream_VScanf(desc->stream, fmt, ap);
+    }
+    return 0;
+}
+
+i32 Sys_FileScanf(filehdl_t hdl, const char* fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    i32 rv = Sys_FileVScanf(hdl, fmt, ap);
+    va_end(ap);
+    return rv;
+}
+
+bool Sys_FileAtEnd(filehdl_t hdl)
+{
+    FileDesc* desc = Table_Get(&ms_table, hdl.h);
+    ASSERT(desc);
+    if (desc)
+    {
+        return FStream_AtEnd(desc->stream);
+    }
+    return true;
+}
+
+i32 Sys_FileGetc(filehdl_t hdl)
+{
+    FileDesc* desc = Table_Get(&ms_table, hdl.h);
+    ASSERT(desc);
+    if (desc)
+    {
+        return FStream_Getc(desc->stream);
+    }
+    return -1;
 }
 
 i64 Sys_FileTime(const char *path)
@@ -309,6 +355,18 @@ void Sys_Init(i32 argc, const char** argv)
     Host_Init(&ms_parms);
 
     // the rest is Host_Frame(Time_Deltaf())
+}
+
+void Sys_SendKeyEvents(void)
+{
+    ASSERT(false); // TODO
+}
+
+const char* Sys_ConsoleInput(void)
+{
+    // TODO
+    ASSERT(false);
+    return NULL;
 }
 
 #endif // QUAKE_IMPL

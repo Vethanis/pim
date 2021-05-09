@@ -5,6 +5,7 @@
 #include "stb/stb_sprintf.h"
 #include <string.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 pim_inline i32 min_i32(i32 a, i32 b)
 {
@@ -520,11 +521,16 @@ i32 ChrRep(char *const dst, i32 size, char fnd, char rep)
 {
     ASSERT(dst || !size);
     ASSERT(size >= 0);
+    ASSERT(fnd != '\0');
 
     i32 i = 0;
     for (; i < size && dst[i]; ++i)
     {
-        dst[i] = (dst[i] == fnd) ? rep : dst[i];
+        char c = dst[i];
+        if (c == fnd)
+        {
+            dst[i] = rep;
+        }
     }
     return NullTerminate(dst, size, i);
 }
@@ -660,4 +666,16 @@ i32 StrPath(char *const dst, i32 size)
     }
 
     return NullTerminate(dst, size, len);
+}
+
+i32 ParseInt(const char* x)
+{
+    ASSERT(x);
+    return atoi(x);
+}
+
+float ParseFloat(const char* x)
+{
+    ASSERT(x);
+    return (float)atof(x);
 }

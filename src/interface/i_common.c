@@ -131,8 +131,7 @@ void* SZ_GetSpace(sizebuf_t* buf, i32 length)
     ASSERT(length >= 0);
     const i32 prevsize = buf->cursize;
     buf->cursize = prevsize + length;
-    // hidden null terminator for SZ_Print.
-    buf->data = Perm_Realloc(buf->data, buf->cursize + 4);
+    buf->data = Perm_Realloc(buf->data, buf->cursize + 16);
     void* ptr = buf->data + prevsize;
     memset(ptr, 0, length + 4);
     return ptr;

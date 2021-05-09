@@ -224,20 +224,6 @@ void Con_Puts(u32 color, const char* line)
     }
 }
 
-void Con_Printf(u32 color, const char* fmt, ...)
-{
-    ASSERT(fmt);
-    if (fmt)
-    {
-        char buffer[4096];
-        va_list ap;
-        va_start(ap, fmt);
-        VSPrintf(ARGS(buffer), fmt, ap);
-        va_end(ap);
-        Con_Puts(color, buffer);
-    }
-}
-
 void Con_Clear(void)
 {
     ms_iLine = 0;
