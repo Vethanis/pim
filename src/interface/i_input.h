@@ -22,21 +22,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "interface/i_types.h"
 
-typedef struct I_Input_s
-{
-    void(*_IN_Init)(void);
-    void(*_IN_Shutdown)(void);
-    // oportunity for devices to stick commands on the script buffer
-    void(*_IN_Commands)(void);
-    // add additional movement on top of the keyboard move cmd
-    void(*_IN_Move)(usercmd_t *cmd);
-    // restores all button and position states to defaults
-    void(*_IN_ClearStates)(void);
-} I_Input_t;
-extern I_Input_t I_Input;
-
-#define IN_Init(...) I_Input._IN_Init(__VA_ARGS__)
-#define IN_Shutdown(...) I_Input._IN_Shutdown(__VA_ARGS__)
-#define IN_Commands(...) I_Input._IN_Commands(__VA_ARGS__)
-#define IN_Move(...) I_Input._IN_Move(__VA_ARGS__)
-#define IN_ClearStates(...) I_Input._IN_ClearStates(__VA_ARGS__)
+void IN_Init(void);
+void IN_Shutdown(void);
+// oportunity for devices to stick commands on the script buffer
+void IN_Commands(void);
+// add additional movement on top of the keyboard move cmd
+void IN_Move(usercmd_t *cmd);
+// restores all button and position states to defaults
+void IN_ClearStates(void);

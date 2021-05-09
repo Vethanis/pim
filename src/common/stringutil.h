@@ -91,4 +91,10 @@ i32 StrIRep(char *const dst, i32 size, char const *const fnd, char const *const 
 char ChrPath(char c);
 i32 StrPath(char *const dst, i32 size);
 
+// ----------------------------------------------------------------------------
+// parsing
+
+i32 ParseInt(const char* x);
+float ParseFloat(const char* x);
+
 PIM_C_END

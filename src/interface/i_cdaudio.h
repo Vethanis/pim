@@ -21,22 +21,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "interface/i_types.h"
 
-typedef struct I_CdAudio_s
-{
-    i32(*_CDAudio_Init)(void);
-    void(*_CDAudio_Play)(u8 track, qboolean looping);
-    void(*_CDAudio_Stop)(void);
-    void(*_CDAudio_Pause)(void);
-    void(*_CDAudio_Resume)(void);
-    void(*_CDAudio_Shutdown)(void);
-    void(*_CDAudio_Update)(void);
-} I_CdAudio_t;
-extern I_CdAudio_t I_CdAudio;
-
-#define CDAudio_Init(...) I_CdAudio._CDAudio_Init(__VA_ARGS__)
-#define CDAudio_Play(...) I_CdAudio._CDAudio_Play(__VA_ARGS__)
-#define CDAudio_Stop(...) I_CdAudio._CDAudio_Stop(__VA_ARGS__)
-#define CDAudio_Pause(...) I_CdAudio._CDAudio_Pause(__VA_ARGS__)
-#define CDAudio_Resume(...) I_CdAudio._CDAudio_Resume(__VA_ARGS__)
-#define CDAudio_Shutdown(...) I_CdAudio._CDAudio_Shutdown(__VA_ARGS__)
-#define CDAudio_Update(...) I_CdAudio._CDAudio_Update(__VA_ARGS__)
+i32 CDAudio_Init(void);
+void CDAudio_Play(u8 track, qboolean looping);
+void CDAudio_Stop(void);
+void CDAudio_Pause(void);
+void CDAudio_Resume(void);
+void CDAudio_Shutdown(void);
+void CDAudio_Update(void);

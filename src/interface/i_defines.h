@@ -560,6 +560,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define SPAWNFLAG_NOT_DEATHMATCH    2048
 
 //=====================================
+// host
+
+#define	SAVEGAME_VERSION    5
+
+//=====================================
 // gl_model
 
 #define SIDE_FRONT          0
@@ -735,7 +740,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAX_PARMS       8
 #define PROG_VERSION    6
 
-enum
+typedef enum
 {
     OP_DONE,
     OP_MUL_F,
@@ -811,8 +816,10 @@ enum
     OP_OR,
 
     OP_BITAND,
-    OP_BITOR
-};
+    OP_BITOR,
+
+    OP__COUNT
+} OP_t;
 
 //=====================================
 // modelgen

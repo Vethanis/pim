@@ -20,16 +20,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "interface/i_types.h"
-typedef struct I_Menu_s
-{
-    void(*_M_Init)(void);
-    void(*_M_Keydown)(i32 key);
-    void(*_M_Draw)(void);
-    void(*_M_ToggleMenu_f)(void);
-} I_Menu_t;
-extern I_Menu_t I_Menu;
 
-#define M_Init(...) I_Menu._M_Init(__VA_ARGS__)
-#define M_Keydown(...) I_Menu._M_Keydown(__VA_ARGS__)
-#define M_Draw(...) I_Menu._M_Draw(__VA_ARGS__)
-#define M_ToggleMenu_f(...) I_Menu._M_ToggleMenu_f(__VA_ARGS__)
+void M_Init(void);
+void M_Keydown(i32 key);
+void M_Draw(void);
+void M_ToggleMenu_f(void);
+void M_Menu_Quit_f(void);
