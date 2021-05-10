@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void SV_Init(void);
 void SV_StartParticle(vec3_t org, vec3_t dir, i32 color, i32 count);
 void SV_StartSound(edict_t *entity, i32 channel, const char *sample, i32 volume, float attenuation);
-void SV_DropClient(qboolean crash);
+void SV_DropClient(qboolean crash, client_t* client);
 void SV_SendClientMessages(void);
 void SV_ClearDatagram(void);
 i32 SV_ModelIndex(const char *name);
@@ -33,7 +33,7 @@ void SV_SetIdealPitch(void);
 void SV_AddUpdates(void);
 void SV_ClientThink(void);
 void SV_AddClientToServer(qsocket_t *ret);
-void SV_ClientPrintf(const char *fmt, ...);
+void SV_ClientPrintf(client_t* client, const char *fmt, ...);
 void SV_BroadcastPrintf(const char *fmt, ...);
 void SV_Physics(void);
 qboolean SV_CheckBottom(edict_t *ent);

@@ -1,5 +1,4 @@
 #pragma once
-
 /*
 Copyright (C) 1996-1997 Id Software, Inc.
 
@@ -112,7 +111,7 @@ typedef void(*xcommand_t)(void);
 typedef struct quakeparms_s
 {
     const char *basedir;
-    const char * const* argv;
+    const char **argv;
     i32 argc;
     i32 memsize;
 } quakeparms_t;
@@ -1385,8 +1384,7 @@ typedef struct client_s
 typedef struct server_static_s
 {
     i32 maxclients;
-    i32 maxclientslimit;
-    struct client_s *clients; // [maxclients]
+    client_t clients[MAX_SCOREBOARD]; // [maxclients]
     i32 serverflags; // episode completion information
     qboolean changelevel_issued; // cleared when at SV_SpawnServer
 } server_static_t;

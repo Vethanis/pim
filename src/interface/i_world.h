@@ -46,4 +46,16 @@ edict_t* SV_TestEntityPosition(edict_t *ent);
 // nomonsters is used for line of sight or edge testing, where mosnters
 // shouldn't be considered solid objects
 // passedict is explicitly excluded from clipping checks (normally NULL)
-trace_t SV_Move(vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, i32 type, edict_t *passedict);
+trace_t SV_Move(
+    vec3_t start,
+    vec3_t mins, vec3_t maxs,
+    vec3_t end,
+    i32 type,
+    edict_t *passedict);
+
+bool SV_RecursiveHullCheck(
+    hull_t *hull,
+    i32 num,
+    float p1f, float p2f,
+    vec3_t p1, vec3_t p2,
+    trace_t *trace);

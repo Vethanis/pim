@@ -1,5 +1,4 @@
 #pragma once
-
 /*
 Copyright (C) 1996-1997 Id Software, Inc.
 
@@ -22,37 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "interface/i_types.h"
 #include <string.h>
-
-void SZ_Alloc(sizebuf_t* buf, i32 startsize);
-void SZ_Free(sizebuf_t* buf);
-void SZ_Clear(sizebuf_t* buf);
-void* SZ_GetSpace(sizebuf_t* buf, i32 length);
-void SZ_Write(sizebuf_t* buf, const void* data, i32 length);
-// strcats onto the sizebuf
-void SZ_Print(sizebuf_t* buf, const char* data);
-
-void ClearLink(link_t *l);
-void RemoveLink(link_t *l);
-void InsertLinkBefore(link_t *l, link_t *before);
-void InsertLinkAfter(link_t *l, link_t *after);
-
-void MSG_WriteChar(sizebuf_t *sb, i32 x);
-void MSG_WriteByte(sizebuf_t *sb, i32 x);
-void MSG_WriteShort(sizebuf_t *sb, i32 x);
-void MSG_WriteLong(sizebuf_t *sb, i32 x);
-void MSG_WriteFloat(sizebuf_t *sb, float x);
-void MSG_WriteString(sizebuf_t *sb, const char *x);
-void MSG_WriteCoord(sizebuf_t *sb, float x);
-void MSG_WriteAngle(sizebuf_t *sb, float x);
-void MSG_BeginReading(void);
-i32 MSG_ReadChar(void);
-i32 MSG_ReadByte(void);
-i32 MSG_ReadShort(void);
-i32 MSG_ReadLong(void);
-float MSG_ReadFloat(void);
-const char* MSG_ReadString(void);
-float MSG_ReadCoord(void);
-float MSG_ReadAngle(void);
 
 const char* COM_Parse(const char* str);
 // returns argv index of parm, or 0 if missing

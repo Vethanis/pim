@@ -19,23 +19,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-// draw.h -- these are the only functions outside the refresh allowed
-// to touch the vid buffer
-
 #include "interface/i_types.h"
 
-void Draw_Init(void);
-void Draw_Character(i32 x, i32 y, i32 num);
-void Draw_DebugChar(char num);
-void Draw_Pic(i32 x, i32 y, qpic_t *pic);
-void Draw_TransPic(i32 x, i32 y, qpic_t *pic);
-void Draw_TransPicTranslate(i32 x, i32 y, qpic_t *pic, byte *translation);
-void Draw_ConsoleBackground(i32 lines);
-void Draw_BeginDisc(void);
-void Draw_EndDisc(void);
-void Draw_TileClear(i32 x, i32 y, i32 w, i32 h);
-void Draw_Fill(i32 x, i32 y, i32 w, i32 h, i32 c);
-void Draw_FadeScreen(void);
-void Draw_String(i32 x, i32 y, const char *str);
-qpic_t* Draw_PicFromWad(const char *name);
-qpic_t* Draw_CachePic(const char *path);
+void MSG_WriteChar(sizebuf_t *sb, i32 x);
+void MSG_WriteByte(sizebuf_t *sb, i32 x);
+void MSG_WriteShort(sizebuf_t *sb, i32 x);
+void MSG_WriteLong(sizebuf_t *sb, i32 x);
+void MSG_WriteFloat(sizebuf_t *sb, float x);
+void MSG_WriteString(sizebuf_t *sb, const char *x);
+void MSG_WriteCoord(sizebuf_t *sb, float x);
+void MSG_WriteAngle(sizebuf_t *sb, float x);
+void MSG_BeginReading(void);
+i32 MSG_ReadChar(void);
+i32 MSG_ReadByte(void);
+i32 MSG_ReadShort(void);
+i32 MSG_ReadLong(void);
+float MSG_ReadFloat(void);
+const char* MSG_ReadString(void);
+float MSG_ReadCoord(void);
+float MSG_ReadAngle(void);

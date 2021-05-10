@@ -19,23 +19,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-// draw.h -- these are the only functions outside the refresh allowed
-// to touch the vid buffer
-
 #include "interface/i_types.h"
 
-void Draw_Init(void);
-void Draw_Character(i32 x, i32 y, i32 num);
-void Draw_DebugChar(char num);
-void Draw_Pic(i32 x, i32 y, qpic_t *pic);
-void Draw_TransPic(i32 x, i32 y, qpic_t *pic);
-void Draw_TransPicTranslate(i32 x, i32 y, qpic_t *pic, byte *translation);
-void Draw_ConsoleBackground(i32 lines);
-void Draw_BeginDisc(void);
-void Draw_EndDisc(void);
-void Draw_TileClear(i32 x, i32 y, i32 w, i32 h);
-void Draw_Fill(i32 x, i32 y, i32 w, i32 h, i32 c);
-void Draw_FadeScreen(void);
-void Draw_String(i32 x, i32 y, const char *str);
-qpic_t* Draw_PicFromWad(const char *name);
-qpic_t* Draw_CachePic(const char *path);
+void ClearLink(link_t *l);
+void RemoveLink(link_t *l);
+void InsertLinkBefore(link_t *l, link_t *before);
+void InsertLinkAfter(link_t *l, link_t *after);

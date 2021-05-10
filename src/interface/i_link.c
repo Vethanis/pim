@@ -1,4 +1,3 @@
-#pragma once
 /*
 Copyright (C) 1996-1997 Id Software, Inc.
 
@@ -18,13 +17,36 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
-// wad.h
 
-#include "interface/i_types.h"
+#include "interface/i_link.h"
 
-void W_LoadWadFile(const char *filename);
-void W_CleanupName(const char *strIn, char *strOut);
-lumpinfo_t* W_GetLumpinfo(const char *name);
-void* W_GetLumpName(const char *name);
-void* W_GetLumpNum(i32 num);
-void SwapPic(qpic_t *pic);
+#if QUAKE_IMPL
+
+void ClearLink(link_t *l)
+{
+    l->prev = l->next = l;
+}
+
+void RemoveLink(link_t *l)
+{
+    l->next->prev = l->prev;
+    l->prev->next = l->next;
+}
+
+void InsertLinkBefore(link_t *l, link_t *before)
+{
+    l->next = before;
+    l->prev = before->prev;
+    l->prev->next = l;
+    l->next->prev = l;
+}
+
+void InsertLinkAfter(link_t *l, link_t *after)
+{
+    l->next = after->next;
+    l->prev = after;
+    l->prev->next = l;
+    l->next->prev = l;
+}
+
+#endif // QUAKE_IMPL
