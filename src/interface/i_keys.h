@@ -21,19 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "interface/i_types.h"
 
-typedef struct I_Keys_s
-{
-    void(*_Key_Event)(i32 key, qboolean down);
-    void(*_Key_Init)(void);
-    void(*_Key_WriteBindings)(filehdl_t f);
-    void(*_Key_SetBinding)(i32 keynum, const char* binding);
-    void(*_Key_ClearStates)(void);
-} I_Keys_t;
-extern I_Keys_t I_Keys;
-
-#define Key_Event(...) I_Keys._Key_Event(__VA_ARGS__)
-#define Key_Init(...) I_Keys._Key_Init(__VA_ARGS__)
-#define Key_WriteBindings(...) I_Keys._Key_WriteBindings(__VA_ARGS__)
-#define Key_SetBinding(...) I_Keys._Key_SetBinding(__VA_ARGS__)
-#define Key_ClearStates(...) I_Keys._Key_ClearStates(__VA_ARGS__)
-
+void Key_Event(i32 key, qboolean down);
+void Key_Init(void);
+void Key_WriteBindings(filehdl_t f);
+void Key_SetBinding(i32 keynum, const char* binding);
+void Key_ClearStates(void);
+const char* Key_KeynumToString(i32 keynum);

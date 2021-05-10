@@ -24,16 +24,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void Host_ClearMemory(void);
 void Host_ServerFrame(void);
 void Host_InitCommands(void);
+void Host_InitLocal(void);
 void Host_Init(quakeparms_t *parms);
 void Host_Shutdown(void);
 void Host_Error(const char *error, ...);
 void Host_EndGame(const char *message, ...);
+void Host_ServerFrame(void);
 void Host_Frame(float time);
 void Host_ClientCommands(const char *fmt, ...);
-void Host_ShutdownServer(qboolean crash);
+void Host_ShutdownServer(bool crash);
 bool Host_FilterTime(float time);
 void Host_GetConsoleCommands(void);
-
-void Chase_Init(void);
-void Chase_Reset(void);
-void Chase_Update(void);
+void Host_FindMaxClients(void);
+void Host_WriteConfiguration(void);

@@ -1,5 +1,4 @@
 #pragma once
-
 /*
 Copyright (C) 1996-1997 Id Software, Inc.
 

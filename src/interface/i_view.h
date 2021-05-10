@@ -22,16 +22,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "interface/i_types.h"
 
-typedef struct I_View_s
-{
-    void(*_V_Init)(void);
-    void(*_V_RenderView)(void);
-    float(*_V_CalcRoll)(vec3_t angles, vec3_t velocity);
-    void(*_V_UpdatePalette)(void);
-} I_View_t;
-extern I_View_t I_View;
+void V_Init(void);
+void V_RenderView(void);
+float V_CalcRoll(vec3_t angles, vec3_t velocity);
+void V_UpdatePalette(void);
 
-#define V_Init(...) I_View._V_Init(__VA_ARGS__)
-#define V_RenderView(...) I_View._V_RenderView(__VA_ARGS__)
-#define V_CalcRoll(...) I_View._V_CalcRoll(__VA_ARGS__)
-#define V_UpdatePalette(...) I_View._V_UpdatePalette(__VA_ARGS__)
+void V_StartPitchDrift(void);
+void V_StopPitchDrift(void);
+void V_RenderView(void);
+void V_UpdatePalette(void);
+void V_Register(void);
+void V_ParseDamage(void);
+void V_SetContentsColor(i32 contents);

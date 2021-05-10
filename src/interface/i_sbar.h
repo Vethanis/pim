@@ -18,27 +18,18 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
+// status bar
 
 #include "interface/i_types.h"
 
-typedef struct I_Sbar_s
-{
-    void(*_Sbar_Init)(void);
-    // call whenever any of the client stats represented on the sbar changes
-    void(*_Sbar_Changed)(void);
-    // called every frame by screen
-    void(*_Sbar_Draw)(void);
-    // called each frame after the level has been completed
-    void(*_Sbar_IntermissionOverlay)(void);
-    void(*_Sbar_FinaleOverlay)(void);
-} I_Sbar_t;
-extern I_Sbar_t I_Sbar;
-
-#define Sbar_Init(...) I_Sbar._Sbar_Init(__VA_ARGS__)
-#define Sbar_Changed(...) I_Sbar._Sbar_Changed(__VA_ARGS__)
-#define Sbar_Draw(...) I_Sbar._Sbar_Draw(__VA_ARGS__)
-#define Sbar_IntermissionOverlay(...) I_Sbar._Sbar_IntermissionOverlay(__VA_ARGS__)
-#define Sbar_FinaleOverlay(...) I_Sbar._Sbar_FinaleOverlay(__VA_ARGS__)
+void Sbar_Init(void);
+// call whenever any of the client stats represented on the sbar changes
+void Sbar_Changed(void);
+// called every frame by screen
+void Sbar_Draw(void);
+// called each frame after the level has been completed
+void Sbar_IntermissionOverlay(void);
+void Sbar_FinaleOverlay(void);
 
 // the status bar is only redrawn if something has changed, but if anything
 // does, the entire thing will be redrawn for the next vid.numpages frames.

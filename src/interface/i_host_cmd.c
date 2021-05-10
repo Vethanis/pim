@@ -1,3 +1,23 @@
+/*
+Copyright (C) 1996-1997 Id Software, Inc.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+
+*/
+
 #include "interface/i_host_cmd.h"
 
 #if QUAKE_IMPL
@@ -18,8 +38,12 @@
 #include "interface/i_world.h"
 #include "interface/i_zone.h"
 #include "interface/i_model.h"
+#include "interface/i_msg.h"
+#include "interface/i_sizebuf.h"
 
 #include "common/stringutil.h"
+
+#include <stdarg.h>
 
 /*
 ==================
@@ -40,6 +64,22 @@ void Host_Quit_f(void)
     Sys_Quit();
 }
 
+static void StatusPrint(bool console, const char* fmt, ...)
+{
+    va_list va;
+    char string[1024];
+    va_start(va, fmt);
+    VSPrintf(ARGS(string), fmt, va);
+    va_end(va);
+    if (console)
+    {
+        Con_Printf("%s", string);
+    }
+    else
+    {
+        SV_ClientPrintf(g_host_client, "%s", string);
+    }
+}
 
 /*
 ==================
@@ -48,52 +88,55 @@ Host_Status_f
 */
 void Host_Status_f(void)
 {
-    client_t *client;
-    int   seconds;
-    int   minutes;
-    int   hours = 0;
-    int   j;
-    void(*print) (const char *fmt, ...);
-
+    bool console = false;
     if (g_cmd_source == src_command)
     {
+        console = true;
         if (!g_sv.active)
         {
             Cmd_ForwardToServer();
             return;
         }
-        print = Con_Printf;
-    }
-    else
-    {
-        print = SV_ClientPrintf;
     }
 
-    print("host:    %s\n", Cvar_VariableString("hostname"));
-    print("version: %4.2f\n", VERSION);
+    StatusPrint(console, "host:    %s\n", Cvar_VariableString("hostname"));
+    StatusPrint(console, "version: %4.2f\n", VERSION);
     if (g_tcpipAvailable)
-        print("tcp/ip:  %s\n", g_my_tcpip_address);
-    print("map:     %s\n", g_sv.name);
-    print("players: %i active (%i max)\n\n", g_net_activeconnections, g_svs.maxclients);
-    for (j = 0, client = g_svs.clients; j < g_svs.maxclients; j++, client++)
     {
+        StatusPrint(console, "tcp/ip:  %s\n", g_my_tcpip_address);
+    }
+    StatusPrint(console, "map:     %s\n", g_sv.name);
+    StatusPrint(console, "players: %d active (%d max)\n\n", g_net_activeconnections, g_svs.maxclients);
+
+    const i32 maxclients = g_svs.maxclients;
+    for (i32 i = 0; i < maxclients; i++)
+    {
+        client_t* client = &g_svs.clients[i];
         if (!client->active)
+        {
             continue;
-        seconds = (int)(g_net_time - client->netconnection->connecttime);
-        minutes = seconds / 60;
+        }
+        i32 seconds = (i32)(g_net_time - client->netconnection->connecttime);
+        i32 minutes = seconds / 60;
+        i32 hours = 0;
         if (minutes)
         {
             seconds -= (minutes * 60);
             hours = minutes / 60;
             if (hours)
+            {
                 minutes -= (hours * 60);
+            }
         }
-        else
-        {
-            hours = 0;
-        }
-        print("#%-2u %-16.16s  %3i  %2i:%02i:%02i\n", j + 1, client->name, (int)client->edict->v.frags, hours, minutes, seconds);
-        print("   %s\n", client->netconnection->address);
+        StatusPrint(console,
+            "#%-2u %-16.16s  %3i  %2d:%02d:%02d\n",
+            i + 1,
+            client->name,
+            (i32)client->edict->v.frags,
+            hours,
+            minutes,
+            seconds);
+        StatusPrint(console, "   %s\n", client->netconnection->address);
     }
 }
 
@@ -120,9 +163,9 @@ void Host_God_f(void)
     flags ^= FL_GODMODE;
     g_sv_player->v.flags = (float)flags;
     if (!(flags & FL_GODMODE))
-        SV_ClientPrintf("godmode OFF\n");
+        SV_ClientPrintf(g_host_client, "godmode OFF\n");
     else
-        SV_ClientPrintf("godmode ON\n");
+        SV_ClientPrintf(g_host_client, "godmode ON\n");
 }
 
 void Host_Notarget_f(void)
@@ -140,9 +183,9 @@ void Host_Notarget_f(void)
     flags ^= FL_NOTARGET;
     g_sv_player->v.flags = (float)flags;
     if (!(flags & FL_NOTARGET))
-        SV_ClientPrintf("notarget OFF\n");
+        SV_ClientPrintf(g_host_client, "notarget OFF\n");
     else
-        SV_ClientPrintf("notarget ON\n");
+        SV_ClientPrintf(g_host_client, "notarget ON\n");
 }
 
 void Host_Noclip_f(void)
@@ -160,13 +203,13 @@ void Host_Noclip_f(void)
     {
         g_noclip_anglehack = true;
         g_sv_player->v.movetype = MOVETYPE_NOCLIP;
-        SV_ClientPrintf("noclip ON\n");
+        SV_ClientPrintf(g_host_client, "noclip ON\n");
     }
     else
     {
         g_noclip_anglehack = false;
         g_sv_player->v.movetype = MOVETYPE_WALK;
-        SV_ClientPrintf("noclip OFF\n");
+        SV_ClientPrintf(g_host_client, "noclip OFF\n");
     }
 }
 
@@ -191,12 +234,12 @@ void Host_Fly_f(void)
     if (g_sv_player->v.movetype != MOVETYPE_FLY)
     {
         g_sv_player->v.movetype = MOVETYPE_FLY;
-        SV_ClientPrintf("flymode ON\n");
+        SV_ClientPrintf(g_host_client, "flymode ON\n");
     }
     else
     {
         g_sv_player->v.movetype = MOVETYPE_WALK;
-        SV_ClientPrintf("flymode OFF\n");
+        SV_ClientPrintf(g_host_client, "flymode OFF\n");
     }
 }
 
@@ -215,7 +258,7 @@ void Host_Ping_f(void)
         return;
     }
 
-    SV_ClientPrintf("Client ping times:\n");
+    SV_ClientPrintf(g_host_client, "Client ping times:\n");
     const i32 maxclients = g_svs.maxclients;
     for (i32 i = 0; i < maxclients; ++i)
     {
@@ -230,7 +273,7 @@ void Host_Ping_f(void)
             total += client->ping_times[j];
         }
         total /= NUM_PING_TIMES;
-        SV_ClientPrintf("%4d %s\n", (i32)(total * 1000), client->name);
+        SV_ClientPrintf(g_host_client, "%4d %s\n", (i32)(total * 1000), client->name);
     }
 }
 
@@ -768,7 +811,7 @@ void Host_Say(bool teamonly)
 
     StrCatf(ARGS(text), "%s\n", argbuf);
 
-    client_t* save = g_host_client;
+    const float selfTeam = g_host_client->edict->v.team;
     const i32 maxclients = g_svs.maxclients;
     for (i32 i = 0; i < maxclients; i++)
     {
@@ -779,14 +822,12 @@ void Host_Say(bool teamonly)
         }
         if (teamonly &&
             (cv_teamplay.value != 0.0f) &&
-            (client->edict->v.team != save->edict->v.team))
+            (client->edict->v.team != selfTeam))
         {
             continue;
         }
-        g_host_client = client;
-        SV_ClientPrintf("%s", text);
+        SV_ClientPrintf(client, "%s", text);
     }
-    g_host_client = save;
 
     Sys_Printf("%s", &text[1]);
 }
@@ -824,7 +865,6 @@ void Host_Tell_f(void)
 
     StrCatf(ARGS(text), "%s\n", argbuf);
 
-    client_t* save = g_host_client;
     const i32 maxclients = g_svs.maxclients;
     const char* sendee = Cmd_Argv(1);
     for (i32 i = 0; i < maxclients; ++i)
@@ -838,11 +878,9 @@ void Host_Tell_f(void)
         {
             continue;
         }
-        g_host_client = client;
-        SV_ClientPrintf("%s", text);
+        SV_ClientPrintf(client, "%s", text);
         break;
     }
-    g_host_client = save;
 }
 
 
@@ -927,7 +965,7 @@ void Host_Kill_f(void)
 
     if (g_sv_player->v.health <= 0)
     {
-        SV_ClientPrintf("Can't suicide -- allready dead!\n");
+        SV_ClientPrintf(g_host_client, "Can't suicide -- allready dead!\n");
         return;
     }
 
@@ -951,7 +989,7 @@ void Host_Pause_f(void)
     }
     if (cv_pausable.value == 0.0f)
     {
-        SV_ClientPrintf("Pause not allowed.\n");
+        SV_ClientPrintf(g_host_client, "Pause not allowed.\n");
     }
     else
     {
@@ -1246,17 +1284,15 @@ void Host_Kick_f(void)
                 }
             }
 
-            g_host_client = target;
             if (message)
             {
-                SV_ClientPrintf("Kicked by %s: %s\n", by, message);
+                SV_ClientPrintf(target, "Kicked by %s: %s\n", by, message);
             }
             else
             {
-                SV_ClientPrintf("Kicked by %s\n", by);
+                SV_ClientPrintf(target, "Kicked by %s\n", by);
             }
-            SV_DropClient(false);
-            g_host_client = self;
+            SV_DropClient(false, target);
         }
     }
 }
@@ -1295,7 +1331,7 @@ void Host_Give_f(void)
     }
 
     const char* t = Cmd_Argv(1);
-    const i32 v = ParseInt(Cmd_Argv(2));
+    const float v = (float)ParseInt(Cmd_Argv(2));
 
     eval_t *val = NULL;
     switch (t[0])
@@ -1316,21 +1352,33 @@ void Host_Give_f(void)
             if (t[0] == '6')
             {
                 if (t[1] == 'a')
+                {
                     Float_Or(&g_sv_player->v.items, HIT_PROXIMITY_GUN);
+                }
                 else
+                {
                     Float_Or(&g_sv_player->v.items, IT_GRENADE_LAUNCHER);
+                }
             }
             else if (t[0] == '9')
-                g_sv_player->v.items = (i32)g_sv_player->v.items | HIT_LASER_CANNON;
+            {
+                Float_Or(&g_sv_player->v.items, HIT_LASER_CANNON);
+            }
             else if (t[0] == '0')
-                g_sv_player->v.items = (i32)g_sv_player->v.items | HIT_MJOLNIR;
+            {
+                Float_Or(&g_sv_player->v.items, HIT_MJOLNIR);
+            }
             else if (t[0] >= '2')
-                g_sv_player->v.items = (i32)g_sv_player->v.items | (IT_SHOTGUN << (t[0] - '2'));
+            {
+                Float_Or(&g_sv_player->v.items, (IT_SHOTGUN << (t[0] - '2')));
+            }
         }
         else
         {
             if (t[0] >= '2')
-                g_sv_player->v.items = (i32)g_sv_player->v.items | (IT_SHOTGUN << (t[0] - '2'));
+            {
+                Float_Or(&g_sv_player->v.items, (IT_SHOTGUN << (t[0] - '2')));
+            }
         }
         break;
 
@@ -1339,9 +1387,10 @@ void Host_Give_f(void)
         {
             val = GetEdictFieldValue(g_sv_player, "ammo_shells1");
             if (val)
+            {
                 val->_float = v;
+            }
         }
-
         g_sv_player->v.ammo_shells = v;
         break;
     case 'n':
@@ -1352,7 +1401,9 @@ void Host_Give_f(void)
             {
                 val->_float = v;
                 if (g_sv_player->v.weapon <= IT_LIGHTNING)
+                {
                     g_sv_player->v.ammo_nails = v;
+                }
             }
         }
         else
@@ -1368,7 +1419,9 @@ void Host_Give_f(void)
             {
                 val->_float = v;
                 if (g_sv_player->v.weapon > IT_LIGHTNING)
+                {
                     g_sv_player->v.ammo_nails = v;
+                }
             }
         }
         break;
@@ -1380,7 +1433,9 @@ void Host_Give_f(void)
             {
                 val->_float = v;
                 if (g_sv_player->v.weapon <= IT_LIGHTNING)
+                {
                     g_sv_player->v.ammo_rockets = v;
+                }
             }
         }
         else
@@ -1396,7 +1451,9 @@ void Host_Give_f(void)
             {
                 val->_float = v;
                 if (g_sv_player->v.weapon > IT_LIGHTNING)
+                {
                     g_sv_player->v.ammo_rockets = v;
+                }
             }
         }
         break;
@@ -1411,7 +1468,9 @@ void Host_Give_f(void)
             {
                 val->_float = v;
                 if (g_sv_player->v.weapon <= IT_LIGHTNING)
+                {
                     g_sv_player->v.ammo_cells = v;
+                }
             }
         }
         else
@@ -1427,7 +1486,9 @@ void Host_Give_f(void)
             {
                 val->_float = v;
                 if (g_sv_player->v.weapon > IT_LIGHTNING)
+                {
                     g_sv_player->v.ammo_cells = v;
+                }
             }
         }
         break;
@@ -1515,17 +1576,14 @@ void Host_Viewframe_f(void)
     }
 }
 
-static void PrintFrameName(model_t *m, int frame)
+static void PrintFrameName(model_t *m, i32 frame)
 {
-    aliashdr_t    *hdr;
-    maliasframedesc_t *pframedesc;
-
-    hdr = (aliashdr_t *)Mod_Extradata(m);
-    if (!hdr)
-        return;
-    pframedesc = &hdr->frames[frame];
-
-    Con_Printf("frame %i: %s\n", frame, pframedesc->name);
+    aliashdr_t* hdr = Mod_Extradata(m);
+    if (hdr)
+    {
+        maliasframedesc_t *pframedesc = &hdr->frames[frame];
+        Con_Printf("frame %i: %s\n", frame, pframedesc->name);
+    }
 }
 
 /*
@@ -1535,19 +1593,23 @@ Host_Viewnext_f
 */
 void Host_Viewnext_f(void)
 {
-    edict_t *e;
-    model_t *m;
-
-    e = FindViewthing();
+    edict_t* e = FindViewthing();
     if (!e)
+    {
         return;
-    m = g_cl.model_precache[(int)e->v.modelindex];
-
-    e->v.frame = e->v.frame + 1;
-    if (e->v.frame >= m->numframes)
-        e->v.frame = m->numframes - 1;
-
-    PrintFrameName(m, e->v.frame);
+    }
+    i32 modelIndex = (i32)e->v.modelindex;
+    if (modelIndex >= 0 && modelIndex < NELEM(g_cl.model_precache))
+    {
+        model_t* m = g_cl.model_precache[modelIndex];
+        if (m)
+        {
+            i32 frame = (i32)e->v.frame;
+            frame = pim_min(frame + 1, m->numframes - 1);
+            e->v.frame = (float)frame;
+            PrintFrameName(m, frame);
+        }
+    }
 }
 
 /*
@@ -1557,20 +1619,22 @@ Host_Viewprev_f
 */
 void Host_Viewprev_f(void)
 {
-    edict_t *e;
-    model_t *m;
-
-    e = FindViewthing();
-    if (!e)
-        return;
-
-    m = g_cl.model_precache[(int)e->v.modelindex];
-
-    e->v.frame = e->v.frame - 1;
-    if (e->v.frame < 0)
-        e->v.frame = 0;
-
-    PrintFrameName(m, e->v.frame);
+    edict_t* e = FindViewthing();
+    if (e)
+    {
+        i32 modelIndex = (i32)e->v.modelindex;
+        if (modelIndex >= 0 && modelIndex < NELEM(g_cl.model_precache))
+        {
+            model_t* m = g_cl.model_precache[modelIndex];
+            if (m)
+            {
+                i32 frame = (i32)e->v.frame;
+                frame = pim_max(frame - 1, 0);
+                e->v.frame = (float)frame;
+                PrintFrameName(m, frame);
+            }
+        }
+    }
 }
 
 /*
