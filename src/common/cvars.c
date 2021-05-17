@@ -233,14 +233,6 @@ ConVar cv_pt_dist_samples =
     .desc = "Path tracer light distribution minimum samples per update",
 };
 
-ConVar cv_pt_retro =
-{
-    .type = cvart_bool,
-    .name = "pt_retro",
-    .value = "0",
-    .desc = "Path tracer retro mode (point filtering and diffuse only)",
-};
-
 ConVar cv_pt_trace =
 {
     .type = cvart_bool,
@@ -487,6 +479,16 @@ ConVar cv_exp_cdfmax =
 
 // ----------------------------------------------------------------------------
 
+ConVar cv_fullscreen =
+{
+    .type = cvart_bool,
+    .name = "fullscreen",
+    .value = "0",
+    .desc = "Fullscreen windowing mode",
+};
+
+// ----------------------------------------------------------------------------
+
 void ConVars_RegisterAll(void)
 {
     ConVar_Reg(&cv_basedir);
@@ -512,7 +514,6 @@ void ConVars_RegisterAll(void)
     ConVar_Reg(&cv_pt_dist_meters);
     ConVar_Reg(&cv_pt_dist_samples);
     ConVar_Reg(&cv_pt_normal);
-    ConVar_Reg(&cv_pt_retro);
     ConVar_Reg(&cv_pt_trace);
     ConVar_Reg(&cv_r_fov);
     ConVar_Reg(&cv_r_height);
@@ -541,4 +542,6 @@ void ConVars_RegisterAll(void)
     ConVar_Reg(&cv_exp_evmax);
     ConVar_Reg(&cv_exp_cdfmin);
     ConVar_Reg(&cv_exp_cdfmax);
+
+    ConVar_Reg(&cv_fullscreen);
 }

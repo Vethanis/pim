@@ -63,14 +63,14 @@ pim_inline float4 VEC_CALL proj_pt(
 pim_inline float2 VEC_CALL unproj_dir(
     float4 right,
     float4 up,
+    float4 fwd,
     float2 slope,
     float4 rd)
 {
-    float r = f4_dot3(rd, right);
-    float u = f4_dot3(rd, up);
-    float x = r / slope.x;
-    float y = u / slope.y;
-    return f2_v(x, y);
+    float r = f4_dot3(rd, right) / slope.x;
+    float u = f4_dot3(rd, up) / slope.y;
+    float rcpf = 1.0f / f4_dot3(rd, fwd);
+    return f2_v(r * rcpf, u * rcpf);
 }
 
 pim_inline float3 VEC_CALL unproj_pt(
@@ -82,10 +82,10 @@ pim_inline float3 VEC_CALL unproj_pt(
     float4 pt)
 {
     float4 rd = f4_sub(pt, eye);
-    float z = f4_length3(rd);
-    rd = f4_divvs(rd, z);
-    z *= f1_sign(f4_dot3(rd, fwd));
-    float2 xy = unproj_dir(right, up, slope, rd);
+    float distance = f4_length3(rd);
+    rd = f4_divvs(rd, distance);
+    float z = distance * f1_sign(f4_dot3(rd, fwd));
+    float2 xy = unproj_dir(right, up, fwd, slope, rd);
     return f3_v(xy.x, xy.y, z);
 }
 

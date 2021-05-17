@@ -78,49 +78,28 @@ static void Shutdown(void)
     TimeSys_Shutdown();
 }
 
-ProfileMark(pm_input, InitPhase)
-static void InitPhase(void)
-{
-    ProfileBegin(pm_input);
-    InputSys_Update();         // pump input events to callbacks
-    WinSys_Update();        // update window size
-    NetSys_Update();       // transmit and receive game state
-    AssetSys_Update();         // stream assets in
-    ProfileEnd(pm_input);
-}
-
-ProfileMark(pm_simulate, SimulatePhase)
-static void SimulatePhase(void)
-{
-    ProfileBegin(pm_simulate);
-    cmd_sys_update();
-    LogicSys_Update();         // update game simulation
-    TaskSys_Update();          // schedule tasks
-    ProfileEnd(pm_simulate);
-}
-
-ProfileMark(pm_present, PresentPhase)
-static void PresentPhase(void)
-{
-    ProfileBegin(pm_present);
-    RenderSys_Update();        // draw tasks
-    AudioSys_Update();         // handle audio events
-    ProfileEnd(pm_present);
-}
-
 ProfileMark(pm_update, Update)
 static void Update(void)
 {
-    TimeSys_Update();          // bump frame id for profiler
-    MemSys_Update();         // reset linear allocator
+    TimeSys_Update();           // bump frame id for profiler
+    MemSys_Update();            // reset linear allocator
     ProfileBegin(pm_update);
 
-    InitPhase();
-    SimulatePhase();
-    OnGui();
-    PresentPhase();
+    InputSys_Update();          // pump input events to callbacks
+    NetSys_Update();            // transmit and receive game state
+    AssetSys_Update();          // stream assets in
+    TaskSys_Update();           // schedule tasks
+    cmd_sys_update();           // execute console commands
 
-    Window_SwapBuffers();       // wait for target fps
+    if (RenderSys_WindowUpdate())
+    {
+        LogicSys_Update();      // update game simulation
+        OnGui();
+        RenderSys_Update();
+        AudioSys_Update();
+    }
+
+    Window_Wait();              // wait for target fps
     ProfileEnd(pm_update);
 }
 

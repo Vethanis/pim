@@ -4,12 +4,12 @@
 
 PIM_C_BEGIN
 
-bool vkrSwapchain_New(vkrSwapchain* chain, vkrDisplay* display, vkrSwapchain* prev);
+bool vkrSwapchain_New(vkrSwapchain* chain, vkrWindow* window, vkrSwapchain* prev);
 void vkrSwapchain_Del(vkrSwapchain* chain);
 
 bool vkrSwapchain_Recreate(
     vkrSwapchain* chain,
-    vkrDisplay* display);
+    vkrWindow* window);
 
 // acquire synchronization index for a frame in flight
 // should be done at beginning of frame

@@ -7,6 +7,7 @@ PIM_C_BEGIN
 typedef struct FrameBuf_s FrameBuf;
 
 bool RenderSys_Init(void);
+bool RenderSys_WindowUpdate(void);
 void RenderSys_Update(void);
 void RenderSys_Shutdown(void);
 void RenderSys_Gui(bool* pEnabled);

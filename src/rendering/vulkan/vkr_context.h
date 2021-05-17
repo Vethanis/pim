@@ -12,8 +12,8 @@ void vkrContext_Del(vkrContext* ctx);
 bool vkrThreadContext_New(vkrThreadContext* ctx);
 void vkrThreadContext_Del(vkrThreadContext* ctx);
 
-void vkrContext_OnSwapRecreate(vkrContext* ctx);
-void vkrThreadContext_OnSwapRecreate(vkrThreadContext* ctx);
+void vkrContext_OnSwapDel(vkrContext* ctx);
+void vkrThreadContext_OnSwapDel(vkrThreadContext* ctx);
 
 VkCommandBuffer vkrContext_GetTmpCmd(
     vkrQueueId id,

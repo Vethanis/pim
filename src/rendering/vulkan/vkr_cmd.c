@@ -112,7 +112,7 @@ void vkrCmdAlloc_Del(vkrCmdAlloc* allocator)
     ProfileEnd(pm_cmdallocdel);
 }
 
-void vkrCmdAlloc_OnSwapRecreate(vkrCmdAlloc* allocator)
+void vkrCmdAlloc_OnSwapDel(vkrCmdAlloc* allocator)
 {
     if (allocator->level == VK_COMMAND_BUFFER_LEVEL_SECONDARY)
     {

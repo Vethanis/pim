@@ -10,9 +10,9 @@ void vkrCreateQueues(vkrSys* vkr)
 {
     ASSERT(vkr);
     ASSERT(vkr->dev);
-    ASSERT(vkr->display.surface);
+    ASSERT(vkr->window.surface);
 
-    vkrQueueSupport support = vkrQueryQueueSupport(vkr->phdev, vkr->display.surface);
+    vkrQueueSupport support = vkrQueryQueueSupport(vkr->phdev, vkr->window.surface);
     for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
     {
         vkrQueue_New(&vkr->queues[id], &support, id);

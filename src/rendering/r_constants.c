@@ -11,7 +11,7 @@ static void EnsureInit(void)
         ms_init = true;
         i32 width = 0;
         i32 height = 0;
-        if (vkrDisplay_MonitorSize(&width, &height));
+        if (vkrDisplay_GetWorkSize(&width, &height));
         {
             ConVar_SetInt(&cv_r_width, width);
             ConVar_SetInt(&cv_r_height, height);

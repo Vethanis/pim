@@ -79,16 +79,16 @@ static const VkSurfaceFormatKHR kPreferredSurfaceFormats[] =
 
 bool vkrSwapchain_New(
     vkrSwapchain* chain,
-    vkrDisplay* display,
+    vkrWindow* window,
     vkrSwapchain* prev)
 {
     ASSERT(chain);
-    ASSERT(display);
+    ASSERT(window);
     memset(chain, 0, sizeof(*chain));
 
     VkPhysicalDevice phdev = g_vkr.phdev;
     VkDevice dev = g_vkr.dev;
-    VkSurfaceKHR surface = display->surface;
+    VkSurfaceKHR surface = window->surface;
     ASSERT(phdev);
     ASSERT(dev);
     ASSERT(surface);
@@ -98,7 +98,7 @@ bool vkrSwapchain_New(
 
     VkSurfaceFormatKHR format = vkrSelectSwapFormat(sup.formats, sup.formatCount);
     VkPresentModeKHR mode = vkrSelectSwapMode(sup.modes, sup.modeCount);
-    VkExtent2D ext = vkrSelectSwapExtent(&sup.caps, display->width, display->height);
+    VkExtent2D ext = vkrSelectSwapExtent(&sup.caps, window->width, window->height);
 
     u32 imgCount = i1_clamp(kDesiredSwapchainLen, sup.caps.minImageCount, i1_min(kMaxSwapchainLen, sup.caps.maxImageCount));
 
@@ -280,6 +280,7 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
     if (chain)
     {
         vkrDevice_WaitIdle();
+        vkrContext_OnSwapDel(&g_vkr.context);
 
         if (chain->cmdpool)
         {
@@ -389,19 +390,17 @@ static void vkrSwapchain_SetupBuffers(vkrSwapchain* chain)
 
 bool vkrSwapchain_Recreate(
     vkrSwapchain* chain,
-    vkrDisplay* display)
+    vkrWindow* window)
 {
     ASSERT(chain);
-    ASSERT(display);
+    ASSERT(window);
     vkrSwapchain next = { 0 };
     vkrSwapchain prev = *chain;
-    vkrDevice_WaitIdle();
-    vkrContext_OnSwapRecreate(&g_vkr.context);
     bool recreated = false;
-    if ((display->width > 0) && (display->height > 0))
+    if ((window->width > 0) && (window->height > 0))
     {
         recreated = true;
-        vkrSwapchain_New(&next, display, &prev);
+        vkrSwapchain_New(&next, window, &prev);
         vkrSwapchain_SetupBuffers(&next);
     }
     vkrSwapchain_Del(&prev);
