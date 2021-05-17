@@ -16,7 +16,7 @@ bool vkrDevice_Init(vkrSys* vkr)
     ASSERT(vkr);
 
     vkr->phdev = vkrSelectPhysicalDevice(
-        &vkr->display,
+        &vkr->window,
         &g_vkrProps,
         &g_vkrFeats,
         &g_vkrDevExts);
@@ -29,7 +29,7 @@ bool vkrDevice_Init(vkrSys* vkr)
     vkrListDevExtensions(vkr->phdev);
 
     vkr->dev = vkrCreateDevice(
-        &vkr->display,
+        &vkr->window,
         vkrDevExts_ToList(&g_vkrDevExts),
         vkrGetLayers(&g_vkrLayers));
     ASSERT(vkr->dev);
@@ -142,15 +142,15 @@ u32 vkrEnumPhysicalDevices(
 }
 
 VkPhysicalDevice vkrSelectPhysicalDevice(
-    const vkrDisplay* display,
+    const vkrWindow* window,
     vkrProps* propsOut,
     vkrFeats* featuresOut,
     vkrDevExts* extsOut)
 {
     VkInstance inst = g_vkr.inst;
     ASSERT(inst);
-    ASSERT(display);
-    VkSurfaceKHR surface = display->surface;
+    ASSERT(window);
+    VkSurfaceKHR surface = window->surface;
     ASSERT(surface);
 
     if (propsOut)
@@ -250,14 +250,14 @@ VkPhysicalDevice vkrSelectPhysicalDevice(
 }
 
 VkDevice vkrCreateDevice(
-    const vkrDisplay* display,
+    const vkrWindow* window,
     StrList extensions,
     StrList layers)
 {
     VkPhysicalDevice phdev = g_vkr.phdev;
     ASSERT(phdev);
-    ASSERT(display);
-    VkSurfaceKHR surface = display->surface;
+    ASSERT(window);
+    VkSurfaceKHR surface = window->surface;
     ASSERT(surface);
 
     const vkrQueueSupport support = vkrQueryQueueSupport(phdev, surface);

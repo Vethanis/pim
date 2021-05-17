@@ -16,7 +16,7 @@ bool vkrCmdAlloc_New(
     VkCommandBufferLevel level);
 void vkrCmdAlloc_Del(vkrCmdAlloc* allocator);
 
-void vkrCmdAlloc_OnSwapRecreate(vkrCmdAlloc* allocator);
+void vkrCmdAlloc_OnSwapDel(vkrCmdAlloc* allocator);
 void vkrCmdAlloc_Reserve(vkrCmdAlloc* allocator, u32 capacity);
 
 // used for temporary primary command buffers (not the presentation command buffer)

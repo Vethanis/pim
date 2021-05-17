@@ -28,10 +28,6 @@ void WinSys_Init(void)
     ASSERT(rv == GLFW_TRUE);
 }
 
-void WinSys_Update(void)
-{
-}
-
 void WinSys_Shutdown(void)
 {
     glfwTerminate();
@@ -39,26 +35,29 @@ void WinSys_Shutdown(void)
 
 i32 Window_Width(void)
 {
-    return g_vkr.display.height;
+    return g_vkr.window.height;
 }
 
 i32 Window_Height(void)
 {
-    return g_vkr.display.width;
+    return g_vkr.window.width;
 }
 
 bool Window_IsOpen(void)
 {
-    if (g_vkr.display.window)
+    if (g_vkr.window.handle)
     {
-        return !glfwWindowShouldClose(g_vkr.display.window);
+        return !glfwWindowShouldClose(g_vkr.window.handle);
     }
     return false;
 }
 
 void Window_Close(bool shouldClose)
 {
-    glfwSetWindowShouldClose(g_vkr.display.window, shouldClose);
+    if (g_vkr.window.handle)
+    {
+        glfwSetWindowShouldClose(g_vkr.window.handle, shouldClose);
+    }
 }
 
 i32 window_get_target(void)
@@ -88,14 +87,14 @@ static void WaitForTargetFps(void)
     ProfileEnd(pm_waitfps);
 }
 
-void Window_SwapBuffers(void)
+void Window_Wait(void)
 {
     WaitForTargetFps();
 }
 
 GLFWwindow* Window_Get(void)
 {
-    return g_vkr.display.window;
+    return g_vkr.window.handle;
 }
 
 static void OnGlfwError(i32 error_code, const char* description)

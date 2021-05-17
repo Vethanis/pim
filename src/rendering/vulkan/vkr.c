@@ -22,6 +22,7 @@
 #include "rendering/vulkan/vkr_bindings.h"
 #include "rendering/vulkan/vkr_im.h"
 #include "rendering/vulkan/vkr_sampler.h"
+#include "rendering/vulkan/vkr_uipass.h"
 
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
@@ -61,6 +62,75 @@ vkrDevExts g_vkrDevExts;
 vkrProps g_vkrProps;
 vkrFeats g_vkrFeats;
 
+bool vkrSys_WindowInit(void)
+{
+    const bool fullscreen = ConVar_GetBool(&cv_fullscreen);
+    i32 width = 0;
+    i32 height = 0;
+    if (!vkrDisplay_GetSize(&width, &height, fullscreen))
+    {
+        return false;
+    }
+    if (!vkrWindow_New(&g_vkr.window, "pim", width, height, fullscreen))
+    {
+        return false;
+    }
+    r_width_set(width);
+    r_height_set(height);
+    UiSys_Init(g_vkr.window.handle);
+    return true;
+}
+
+void vkrSys_WindowShutdown(void)
+{
+    UiSys_Shutdown();
+    r_width_set(0);
+    r_height_set(0);
+    vkrWindow_Del(&g_vkr.window);
+}
+
+bool vkrSys_WindowUpdate(void)
+{
+    vkrWindow* window = &g_vkr.window;
+    vkrSwapchain* chain = &g_vkr.chain;
+
+    if (!g_vkr.inst)
+    {
+        return false;
+    }
+    if (!vkrWindow_IsOpen(window))
+    {
+        return false;
+    }
+    if (ConVar_GetBool(&cv_fullscreen) != window->fullscreen)
+    {
+        vkrDevice_WaitIdle();
+
+        vkrUIPass_Del();
+        vkrSwapchain_Del(chain);
+        vkrSys_WindowShutdown();
+
+        vkrSys_WindowInit();
+        vkrSwapchain_New(chain, window, NULL);
+        vkrUIPass_New();
+    }
+    if (vkrWindow_UpdateSize(window))
+    {
+        if (vkrSwapchain_Recreate(
+            chain,
+            window))
+        {
+            r_width_set(window->width);
+            r_height_set(window->height);
+        }
+    }
+    if (!chain->handle)
+    {
+        return false;
+    }
+    return true;
+}
+
 bool vkrSys_Init(void)
 {
     memset(&g_vkr, 0, sizeof(g_vkr));
@@ -73,21 +143,11 @@ bool vkrSys_Init(void)
         goto cleanup;
     }
 
-    i32 width = 0;
-    i32 height = 0;
-    if (!vkrDisplay_MonitorSize(&width, &height))
+    if (!vkrSys_WindowInit())
     {
         success = false;
         goto cleanup;
     }
-    r_width_set(width);
-    r_height_set(height);
-    if (!vkrDisplay_New(&g_vkr.display, width, height, "pim"))
-    {
-        success = false;
-        goto cleanup;
-    }
-    UiSys_Init(g_vkr.display.window);
 
     if (!vkrDevice_Init(&g_vkr))
     {
@@ -101,7 +161,7 @@ bool vkrSys_Init(void)
         goto cleanup;
     }
 
-    if (!vkrSwapchain_New(&g_vkr.chain, &g_vkr.display, NULL))
+    if (!vkrSwapchain_New(&g_vkr.chain, &g_vkr.window, NULL))
     {
         success = false;
         goto cleanup;
@@ -168,37 +228,9 @@ cleanup:
 ProfileMark(pm_update, vkrSys_Update)
 void vkrSys_Update(void)
 {
-    if (!g_vkr.inst)
-    {
-        return;
-    }
-    vkrDisplay* display = &g_vkr.display;
-    vkrSwapchain* chain = &g_vkr.chain;
-
-    // swapchain re-creation
-    {
-        if (!vkrDisplay_IsOpen(display))
-        {
-            return;
-        }
-        if (vkrDisplay_UpdateSize(display))
-        {
-            if (vkrSwapchain_Recreate(
-                chain,
-                display))
-            {
-                r_width_set(display->width);
-                r_height_set(display->height);
-            }
-        }
-        if (!chain->handle)
-        {
-            return;
-        }
-    }
-
     ProfileBegin(pm_update);
 
+    vkrSwapchain* chain = &g_vkr.chain;
     VkFence fence = NULL;
     VkCommandBuffer cmd = NULL;
 
@@ -255,7 +287,6 @@ void vkrSys_Shutdown(void)
         vkrDevice_WaitIdle();
 
         LmPack_Del(LmPack_Get());
-        UiSys_Shutdown();
 
         vkrExposure_Shutdown();
         vkrMainPass_Del();
@@ -271,9 +302,9 @@ void vkrSys_Shutdown(void)
 
         vkrContext_Del(&g_vkr.context);
         vkrSwapchain_Del(&g_vkr.chain);
+        vkrSys_WindowShutdown();
         vkrMemSys_Shutdown();
         vkrDevice_Shutdown(&g_vkr);
-        vkrDisplay_Del(&g_vkr.display);
         vkrInstance_Shutdown(&g_vkr);
     }
 }

@@ -160,8 +160,6 @@ static void PtScene_Clear(PtScene* scene);
 static void OnRtcError(void* user, RTCError error, const char* msg);
 static bool InitRTC(void);
 static void InitSamplers(void);
-static void InitPixelDist(void);
-static void ShutdownPixelDist(void);
 static RTCScene RtcNewScene(const PtScene*const pim_noalias scene);
 static void FlattenDrawables(PtScene*const pim_noalias scene);
 static float EmissionPdf(
@@ -430,14 +428,6 @@ static bool InitRTC(void)
     return true;
 }
 
-static void InitPixelDist(void)
-{
-}
-
-static void ShutdownPixelDist(void)
-{
-}
-
 static void InitSamplers(void)
 {
     const i32 numthreads = Task_ThreadCount();
@@ -458,7 +448,6 @@ void PtSys_Init(void)
 {
     InitRTC();
     InitSamplers();
-    InitPixelDist();
 }
 
 void PtSys_Update(void)
@@ -473,7 +462,6 @@ void PtSys_Shutdown(void)
         rtc.ReleaseDevice(ms_device);
         ms_device = NULL;
     }
-    ShutdownPixelDist();
 }
 
 PtSampler VEC_CALL PtSampler_Get(void) { return GetSampler(); }
@@ -837,9 +825,9 @@ static float EmissionPdf(
     i32 hits = 0;
     for (i32 i = 0; i < attempts; ++i)
     {
-        i32 iTexel = UvWrapPow2(texSize,
-            f2_blend(UA, UB, UC,
-                SampleBaryCoord(Sample2D(sampler))));
+        float4 wuv = SampleBaryCoord(Sample2D(sampler));
+        float2 uv = f2_blend(UA, UB, UC, wuv);
+        i32 iTexel = UvWrapPow2(texSize, uv);
         u32 sample = texels[iTexel] >> 24;
         hits += sample ? 1 : 0;
     }
@@ -1356,15 +1344,6 @@ pim_inline float4 VEC_CALL GetSky(
     float4 rd,
     RayHit hit)
 {
-    if (ConVar_GetBool(&cv_pt_retro))
-    {
-        const Material* mat = GetMaterial(scene, hit);
-        const Texture* tex = Texture_Get(mat->albedo);
-        if (tex)
-        {
-            return SampleSkyTex(tex, GetUV(scene, hit));
-        }
-    }
     if (scene->sky)
     {
         return f3_f4(Cubemap_ReadColor(scene->sky, rd), 1.0f);
@@ -1460,61 +1439,6 @@ pim_inline SurfHit VEC_CALL GetSurface(
             if (tex)
             {
                 rome = UvBilinearWrapPow2_c32(tex->texels, tex->size, uv);
-            }
-        }
-        surf.emission = UnpackEmission(surf.albedo, rome.w);
-        surf.roughness = rome.x;
-        surf.occlusion = rome.y;
-        surf.metallic = rome.z;
-    }
-
-    return surf;
-}
-
-pim_inline SurfHit VEC_CALL GetSurfaceRetro(
-    const PtScene *const pim_noalias scene,
-    float4 ro,
-    float4 rd,
-    RayHit hit,
-    i32 bounce)
-{
-    SurfHit surf;
-    surf.type = hit.type;
-
-    Material const *const pim_noalias mat = GetMaterial(scene, hit);
-    surf.flags = mat->flags;
-    surf.ior = mat->ior;
-    float2 uv = GetUV(scene, hit);
-    surf.M = GetNormal(scene, hit);
-    surf.N = surf.M;
-    surf.P = GetPosition(scene, hit);
-    surf.P = f4_add(surf.P, f4_mulvs(surf.M, 0.01f * kMilli));
-
-    if (hit.flags & MatFlag_Sky)
-    {
-        surf.albedo = f4_0;
-        surf.roughness = 1.0f;
-        surf.occlusion = 0.0f;
-        surf.metallic = 0.0f;
-        surf.emission = GetSky(scene, ro, rd, hit);
-    }
-    else
-    {
-        surf.albedo = f4_1;
-        {
-            Texture const *const pim_noalias tex = Texture_Get(mat->albedo);
-            if (tex)
-            {
-                surf.albedo = UvWrapPow2_c32(tex->texels, tex->size, uv);
-            }
-        }
-
-        float4 rome = f4_v(0.5f, 1.0f, 0.0f, 0.0f);
-        {
-            Texture const *const pim_noalias tex = Texture_Get(mat->rome);
-            if (tex)
-            {
-                rome = UvWrapPow2_c32(tex->texels, tex->size, uv);
             }
         }
         surf.emission = UnpackEmission(surf.albedo, rome.w);
@@ -1670,33 +1594,6 @@ pim_inline float4 VEC_CALL BrdfEval(
     return brdf;
 }
 
-pim_inline float4 VEC_CALL BrdfEvalRetro(
-    PtSampler*const pim_noalias sampler,
-    float4 I,
-    const SurfHit* surf,
-    float4 L)
-{
-    if (surf->flags & (MatFlag_Refractive | MatFlag_Portal))
-    {
-        return f4_0;
-    }
-    float4 N = surf->N;
-    float NoL = f4_dot3(N, L);
-    if (NoL <= 0.0f)
-    {
-        return f4_0;
-    }
-
-    float4 V = f4_neg(I);
-    float4 H = f4_normalize3(f4_add(V, L));
-    float NoV = f4_dotsat(N, V);
-    float HoV = f4_dotsat(H, V);
-    float fd = Fd_Burley(NoL, NoV, HoV, 1.0f);
-    float4 brdf = f4_mulvs(f4_mulvs(surf->albedo, fd), NoL);
-    brdf.w = ImportanceSampleLambertPdf(NoL);
-    return brdf;
-}
-
 pim_inline float VEC_CALL Schlick(float cosTheta, float k)
 {
     float r0 = (1.0f - k) / (1.0f + k);
@@ -1724,49 +1621,6 @@ pim_inline Scatter VEC_CALL RefractScatter(
     const float kAir = 1.000277f;
     const float matIor = f1_max(1.0f, surf->ior);
     const float alpha = BrdfAlpha(surf->roughness);
-
-    float4 V = f4_neg(I);
-    float4 M = surf->M;
-    float4 m = TanToWorld(surf->N, SampleGGXMicrofacet(Sample2D(sampler), alpha));
-    m = f4_dot3(m, M) > 0.0f ? m : f4_reflect3(m, M);
-    m = f4_normalize3(m);
-    bool entering = surf->type != Hit_Backface;
-    float k = entering ? (kAir / matIor) : (matIor / kAir);
-
-    float cosTheta = f1_min(1.0f, f4_dot3(V, m));
-    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
-    float pdf = Schlick(cosTheta, k);
-    float4 L = f4_normalize3(f4_reflect3(I, m));
-    bool tir = (k * sinTheta) > 1.0f;
-    pdf = tir ? 1.0f : pdf;
-
-    float4 P = surf->P;
-    float4 F = F_SchlickEx(surf->albedo, surf->metallic, f1_sat(cosTheta));
-    if (BrdfPrng(sampler) > pdf)
-    {
-        L = f4_normalize3(f4_refract3(I, m, k));
-        pdf = 1.0f - pdf;
-        F = f4_inv(F);
-        P = f4_sub(P, f4_mulvs(M, 0.02f * kMilli));
-    }
-
-    Scatter result = { 0 };
-    result.pos = P;
-    result.dir = L;
-    result.attenuation = tir ? f4_1 : F;
-    result.pdf = pdf;
-
-    return result;
-}
-
-pim_inline Scatter VEC_CALL RefractScatterRetro(
-    PtSampler*const pim_noalias sampler,
-    const SurfHit* surf,
-    float4 I)
-{
-    const float kAir = 1.000277f;
-    const float matIor = f1_max(1.0f, surf->ior);
-    const float alpha = BrdfAlpha(0.01f);
 
     float4 V = f4_neg(I);
     float4 M = surf->M;
@@ -1890,48 +1744,6 @@ pim_inline Scatter VEC_CALL BrdfScatter(
     return result;
 }
 
-pim_inline Scatter VEC_CALL BrdfScatterRetro(
-    PtSampler *const pim_noalias sampler,
-    PtScene *const pim_noalias scene,
-    const SurfHit* surf,
-    float4 I)
-{
-    ASSERT(IsUnitLength(I));
-    ASSERT(IsUnitLength(surf->N));
-    if (surf->flags & MatFlag_Portal)
-    {
-        return PortalScatter(scene, sampler, surf, I);
-    }
-    if (surf->flags & MatFlag_Refractive)
-    {
-        return RefractScatterRetro(sampler, surf, I);
-    }
-
-    Scatter result = { 0 };
-    result.pos = surf->P;
-
-    float4 N = surf->N;
-    float4 L = TanToWorld(N, SampleCosineHemisphere(Sample2D(sampler)));
-    float NoL = f4_dot3(N, L);
-    float pdf = ImportanceSampleLambertPdf(NoL);
-    if (pdf <= 0.0f)
-    {
-        return result;
-    }
-
-    float4 V = f4_neg(I);
-    float4 H = f4_normalize3(f4_add(V, L));
-    float NoV = f4_dotsat(N, V);
-    float HoV = f4_dotsat(H, V);
-    float fd = Fd_Burley(NoL, NoV, HoV, 1.0f);
-
-    result.dir = L;
-    result.pdf = pdf;
-    result.attenuation = f4_mulvs(f4_mulvs(surf->albedo, fd), NoL);
-
-    return result;
-}
-
 pim_inline void VEC_CALL LightOnHit(
     PtSampler *const pim_noalias sampler,
     PtScene *const pim_noalias scene,
@@ -2045,44 +1857,6 @@ pim_inline LightSample VEC_CALL SampleLight(
     return sample;
 }
 
-pim_inline LightSample VEC_CALL LightSampleRetro(
-    PtSampler *const pim_noalias sampler,
-    PtScene *const pim_noalias scene,
-    float4 ro,
-    i32 iVert,
-    i32 bounce)
-{
-    LightSample sample = { 0 };
-
-    float4 wuv = SampleBaryCoord(Sample2D(sampler));
-
-    const float4* pim_noalias positions = scene->positions;
-    float4 A = positions[iVert + 0];
-    float4 B = positions[iVert + 1];
-    float4 C = positions[iVert + 2];
-    float4 pt = f4_blend(A, B, C, wuv);
-    float area = TriArea3D(A, B, C);
-
-    float4 rd = f4_sub(pt, ro);
-    float distSq = f4_dot3(rd, rd);
-    float distance = sqrtf(distSq);
-    wuv.w = distance;
-    rd = f4_divvs(rd, distance);
-
-    sample.direction = rd;
-    sample.wuvt = wuv;
-
-    RayHit hit = pt_intersect_local(scene, ro, rd, 0.0f, distance + 0.01f * kMilli);
-    if ((hit.type != Hit_Nothing) && (hit.index == iVert))
-    {
-        float cosTheta = f1_abs(f4_dot3(rd, hit.normal));
-        sample.pdf = LightPdf(area, cosTheta, distSq);
-        sample.luminance = GetEmission(scene, ro, rd, hit, bounce);
-    }
-
-    return sample;
-}
-
 pim_inline float VEC_CALL LightEvalPdf(
     PtSampler *const pim_noalias sampler,
     PtScene *const pim_noalias scene,
@@ -2166,49 +1940,6 @@ pim_inline float4 VEC_CALL EstimateDirect(
                     Li = f4_mulvs(Li, PowerHeuristic(brdfPdf, lightPdf) * 0.5f / brdfPdf);
                     Li = f4_mul(Li, CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w));
                     result = f4_add(result, Li);
-                }
-            }
-        }
-    }
-
-    return result;
-}
-
-pim_inline float4 VEC_CALL EstimateDirectRetro(
-    PtSampler *const pim_noalias sampler,
-    PtScene *const pim_noalias scene,
-    SurfHit const *const pim_noalias surf,
-    RayHit const *const pim_noalias srcHit,
-    float4 I,
-    i32 bounce)
-{
-    float4 result = f4_0;
-    if (surf->flags & (MatFlag_Refractive | MatFlag_Portal))
-    {
-        return result;
-    }
-
-    {
-        i32 iVert;
-        float selectPdf;
-        if (LightSelect(sampler, scene, surf->P, &iVert, &selectPdf))
-        {
-            if (srcHit->index != iVert)
-            {
-                LightSample sample = LightSampleRetro(sampler, scene, surf->P, iVert, bounce);
-                float4 rd = sample.direction;
-                float4 Li = sample.luminance;
-                float lightPdf = sample.pdf * selectPdf;
-                if (lightPdf > kEpsilon)
-                {
-                    float4 brdf = BrdfEvalRetro(sampler, I, surf, rd);
-                    Li = f4_mul(Li, brdf);
-                    float brdfPdf = brdf.w;
-                    if (brdfPdf > kEpsilon)
-                    {
-                        Li = f4_mulvs(Li, 1.0f / lightPdf);
-                        result = f4_add(result, Li);
-                    }
                 }
             }
         }
@@ -2655,108 +2386,6 @@ pim_inline Scatter VEC_CALL ScatterRay(
     return result;
 }
 
-PtResult VEC_CALL Pt_TraceRayRetro(
-    PtSampler *const pim_noalias sampler,
-    PtScene *const pim_noalias scene,
-    float4 ro,
-    float4 rd)
-{
-    PtResult result = { 0 };
-    float4 luminance = f4_0;
-    float4 attenuation = f4_1;
-    u32 prevFlags = 0;
-
-    for (i32 b = 0; b < 666; ++b)
-    {
-        {
-            float p = f1_sat(f4_avglum(attenuation));
-            if (RoulettePrng(sampler) < p)
-            {
-                attenuation = f4_divvs(attenuation, p);
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        RayHit hit = pt_intersect_local(scene, ro, rd, 0.0f, 1 << 20);
-        if (hit.type == Hit_Nothing)
-        {
-            break;
-        }
-
-        SurfHit surf = GetSurfaceRetro(scene, ro, rd, hit, b);
-        if (hit.type == Hit_Backface && !(surf.flags & MatFlag_Refractive))
-        {
-            break;
-        }
-
-        if (b > 0)
-        {
-            LightOnHit(sampler, scene, ro, surf.emission, hit.index);
-        }
-
-        {
-            Scatter scatter = ScatterRay(sampler, scene, ro, rd, hit.wuvt.w, b);
-            luminance = f4_add(luminance, f4_mul(scatter.luminance, attenuation));
-            if (scatter.pdf > kEpsilon)
-            {
-                {
-                    float t = 1.0f / (b + 1);
-                    float4 albedo = Media_Albedo(&scene->mediaDesc, scatter.pos);
-                    result.albedo = f3_lerpvs(result.albedo, f4_f3(albedo), t);
-                    result.normal = f3_lerpvs(result.normal, f4_f3(f4_neg(rd)), t);
-                }
-                attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
-                ro = scatter.pos;
-                rd = scatter.dir;
-                continue;
-            }
-            else
-            {
-                attenuation = f4_mul(attenuation, scatter.attenuation);
-            }
-        }
-
-        {
-            float t = 1.0f / (b + 1);
-            result.albedo = f3_lerpvs(result.albedo, f4_f3(surf.albedo), t);
-            result.normal = f3_lerpvs(result.normal, f4_f3(surf.N), t);
-        }
-        if ((b == 0) || (prevFlags & MatFlag_Refractive))
-        {
-            if (!(hit.flags & MatFlag_Portal))
-            {
-                luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
-            }
-        }
-        if (hit.flags & MatFlag_Sky)
-        {
-            break;
-        }
-
-        {
-            float4 Li = EstimateDirectRetro(sampler, scene, &surf, &hit, rd, b);
-            luminance = f4_add(luminance, f4_mul(Li, attenuation));
-        }
-
-        Scatter scatter = BrdfScatterRetro(sampler, scene, &surf, rd);
-        if (scatter.pdf < kEpsilon)
-        {
-            break;
-        }
-        ro = scatter.pos;
-        rd = scatter.dir;
-
-        attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
-        prevFlags = surf.flags;
-    }
-
-    result.color = f4_f3(luminance);
-    return result;
-}
-
 PtResult VEC_CALL Pt_TraceRay(
     PtSampler *const pim_noalias sampler,
     PtScene *const pim_noalias scene,
@@ -2857,18 +2486,6 @@ PtResult VEC_CALL Pt_TraceRay(
 
     result.color = f4_f3(luminance);
     return result;
-}
-
-pim_inline float2 VEC_CALL SampleUv(
-    PtSampler*const pim_noalias sampler)
-{
-    // https://www.desmos.com/calculator/g8turex13k
-    float2 Xi = UvPrng(sampler);
-    float angle = Xi.x * kTau;
-    float radius = f1_gauss_invcdf(Xi.y, 0.0f, 1.0f);
-    Xi.x = cosf(angle);
-    Xi.y = sinf(angle);
-    return f2_mulvs(Xi, radius);
 }
 
 pim_inline Ray VEC_CALL CalculateDof(
@@ -2993,8 +2610,6 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
     const float2 slope = proj_slope(f1_radians(camera.fovy), (float)size.x / (float)size.y);
     const DofInfo dof = trace->dofinfo;
 
-    const bool pt_retro = ConVar_GetBool(&cv_pt_retro);
-
     PtSampler sampler = GetSampler();
     for (i32 i = begin; i < end; ++i)
     {
@@ -3002,21 +2617,13 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
 
         // gaussian AA filter
         float2 uv = { (coord.x + 0.5f), (coord.y + 0.5f) };
-        float2 Xi = SampleUv(&sampler);
+        float2 Xi = SampleGaussPixelFilter(UvPrng(&sampler));
         uv = f2_snorm(f2_mul(f2_add(uv, Xi), rcpSize));
 
         Ray ray = { eye, proj_dir(right, up, fwd, slope, uv) };
         ray = CalculateDof(&sampler, &dof, right, up, fwd, ray);
 
-        PtResult result;
-        if (!pt_retro)
-        {
-            result = Pt_TraceRay(&sampler, scene, ray.ro, ray.rd);
-        }
-        else
-        {
-            result = Pt_TraceRayRetro(&sampler, scene, ray.ro, ray.rd);
-        }
+        PtResult result = Pt_TraceRay(&sampler, scene, ray.ro, ray.rd);
         colors[i] = f3_lerpvs(colors[i], result.color, sampleWeight);
         albedos[i] = f3_lerpvs(albedos[i], result.albedo, sampleWeight);
         normals[i] = f3_lerpvs(normals[i], result.normal, sampleWeight);

@@ -357,12 +357,12 @@ static void TakeScreenshot(void)
     }
     if (Input_IsKeyDown(KeyCode_PageUp))
     {
-        r_scale_set(f1_clamp(1.1f * r_scale_get(), 0.05f, 2.0f));
+        r_scale_set(f1_clamp(r_scale_get() + 0.05f, 0.05f, 2.0f));
         ms_ptSampleCount = 0;
     }
     if (Input_IsKeyDown(KeyCode_PageDown))
     {
-        r_scale_set(f1_clamp((1.0f / 1.1f) * r_scale_get(), 0.05f, 2.0f));
+        r_scale_set(f1_clamp(r_scale_get() - 0.05f, 0.05f, 2.0f));
         ms_ptSampleCount = 0;
     }
 }
@@ -486,6 +486,11 @@ bool RenderSys_Init(void)
     cmd_enqueue("mapload start");
 
     return true;
+}
+
+bool RenderSys_WindowUpdate(void)
+{
+    return vkrSys_WindowUpdate();
 }
 
 ProfileMark(pm_update, RenderSys_Update)

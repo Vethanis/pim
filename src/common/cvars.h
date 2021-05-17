@@ -28,7 +28,6 @@ extern ConVar cv_r_tex_custom;
 extern ConVar cv_pt_dist_meters;
 extern ConVar cv_pt_dist_alpha;
 extern ConVar cv_pt_dist_samples;
-extern ConVar cv_pt_retro;
 extern ConVar cv_pt_trace;
 extern ConVar cv_pt_denoise;
 extern ConVar cv_pt_normal;
@@ -56,6 +55,8 @@ extern ConVar cv_exp_evmin;
 extern ConVar cv_exp_evmax;
 extern ConVar cv_exp_cdfmin;
 extern ConVar cv_exp_cdfmax;
+
+extern ConVar cv_fullscreen;
 
 void ConVars_RegisterAll(void);
 

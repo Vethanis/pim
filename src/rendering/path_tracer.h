@@ -106,12 +106,6 @@ PtResult VEC_CALL Pt_TraceRay(
     float4 ro,
     float4 rd);
 
-PtResult VEC_CALL Pt_TraceRayRetro(
-    PtSampler *const pim_noalias sampler,
-    PtScene *const pim_noalias scene,
-    float4 ro,
-    float4 rd);
-
 void Pt_Trace(PtTrace* traceDesc, const Camera* camera);
 
 PtResults Pt_RayGen(

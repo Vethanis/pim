@@ -157,11 +157,6 @@ typedef struct vkrBuffer_s
     VkBuffer handle;
     VmaAllocation allocation;
     i32 size;
-    u32 gpuOnly : 1;
-    u32 cpuOnly : 1;
-    u32 cpuToGpu : 1;
-    u32 gpuToCpu : 1;
-    u32 cpuCopy : 1;
 } vkrBuffer;
 
 typedef struct vkrBufferSet_s
@@ -274,13 +269,14 @@ typedef struct vkrFixedFuncs_s
     vkrBlendState attachments[8];
 } vkrFixedFuncs;
 
-typedef struct vkrDisplay_s
+typedef struct vkrWindow_s
 {
-    GLFWwindow* window;
+    GLFWwindow* handle;
     VkSurfaceKHR surface;
     i32 width;
     i32 height;
-} vkrDisplay;
+    bool fullscreen;
+} vkrWindow;
 
 typedef struct vkrSwapchain_s
 {
@@ -470,6 +466,7 @@ typedef struct vkrDevExts_s
     fn(KHR_acceleration_structure); \
     fn(KHR_ray_tracing_pipeline); \
     fn(KHR_ray_query); \
+    fn(KHR_deferred_host_operations); \
     fn(EXT_memory_budget); \
     fn(EXT_hdr_metadata); \
     fn(KHR_shader_float16_int8); \
@@ -518,7 +515,7 @@ typedef struct vkrSys_s
     VkDevice dev;
     VkDebugUtilsMessengerEXT messenger;
 
-    vkrDisplay display;
+    vkrWindow window;
     vkrSwapchain chain;
     vkrQueue queues[vkrQueueId_COUNT];
 
@@ -527,6 +524,7 @@ typedef struct vkrSys_s
 extern vkrSys g_vkr;
 
 bool vkrSys_Init(void);
+bool vkrSys_WindowUpdate(void);
 void vkrSys_Update(void);
 void vkrSys_Shutdown(void);
 

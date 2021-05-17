@@ -18,13 +18,13 @@ u32 vkrEnumPhysicalDevices(
     vkrFeats** featuresOut,
     vkrDevExts** extsOut);
 VkPhysicalDevice vkrSelectPhysicalDevice(
-    const vkrDisplay* display,
+    const vkrWindow* window,
     vkrProps* propsOut,
     vkrFeats* featsOut,
     vkrDevExts* extsOut);
 
 VkDevice vkrCreateDevice(
-    const vkrDisplay* display,
+    const vkrWindow* window,
     StrList extensions,
     StrList layers);
 

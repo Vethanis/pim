@@ -13,7 +13,7 @@ static bool EnsureGlfw(void)
     return rv == GLFW_TRUE;
 }
 
-bool vkrDisplay_MonitorSize(i32* widthOut, i32* heightOut)
+bool vkrDisplay_GetWorkSize(i32* widthOut, i32* heightOut)
 {
     *widthOut = 0;
     *heightOut = 0;
@@ -44,34 +44,107 @@ bool vkrDisplay_MonitorSize(i32* widthOut, i32* heightOut)
     return false;
 }
 
-bool vkrDisplay_New(vkrDisplay* display, i32 width, i32 height, const char* title)
+bool vkrDisplay_GetFullSize(i32* widthOut, i32* heightOut)
 {
-    ASSERT(display);
-    memset(display, 0, sizeof(*display));
+    *widthOut = 0;
+    *heightOut = 0;
+    if (!EnsureGlfw())
+    {
+        return false;
+    }
+
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    if (!monitor)
+    {
+        ASSERT(false);
+        return false;
+    }
+
+    i32 modeCount = 0;
+    const GLFWvidmode* modes = glfwGetVideoModes(monitor, &modeCount);
+    if (!modes || (modeCount <= 0))
+    {
+        ASSERT(false);
+        return false;
+    }
+
+    i32 chosen = -1;
+    i32 chosenArea = 0;
+    for (i32 i = 0; i < modeCount; ++i)
+    {
+        i32 area = modes[i].width * modes[i].height;
+        if (area > chosenArea)
+        {
+            chosen = i;
+            chosenArea = area;
+        }
+    }
+
+    if (chosen >= 0)
+    {
+        *widthOut = modes[chosen].width;
+        *heightOut = modes[chosen].height;
+        return true;
+    }
+
+    ASSERT(false);
+    return false;
+}
+
+bool vkrDisplay_GetSize(i32* widthOut, i32* heightOut, bool fullscreen)
+{
+    if (fullscreen)
+    {
+        return vkrDisplay_GetFullSize(widthOut, heightOut);
+    }
+    else
+    {
+        return vkrDisplay_GetWorkSize(widthOut, heightOut);
+    }
+}
+
+bool vkrWindow_New(
+    vkrWindow* vkwin,
+    const char* title,
+    i32 width, i32 height,
+    bool fullscreen)
+{
+    ASSERT(vkwin);
+    memset(vkwin, 0, sizeof(*vkwin));
+    vkwin->fullscreen = fullscreen;
 
     if (!EnsureGlfw())
     {
         return false;
     }
 
+    GLFWwindow* handle = NULL;
+
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
-    glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_TRUE);
-    glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
-    GLFWwindow* window = glfwCreateWindow(width, height, title, NULL, NULL);
-    display->window = window;
-    ASSERT(window);
-    if (!window)
+    if (!fullscreen)
     {
+        glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_TRUE);
+        glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
+        handle = glfwCreateWindow(width, height, title, NULL, NULL);
+    }
+    else
+    {
+        handle = glfwCreateWindow(width, height, title, glfwGetPrimaryMonitor(), NULL);
+    }
+    vkwin->handle = handle;
+    if (!handle)
+    {
+        ASSERT(false);
         goto cleanup;
     }
-    Input_RegWindow(window);
+    Input_RegWindow(handle);
 
-    glfwGetFramebufferSize(window, &display->width, &display->height);
+    glfwGetFramebufferSize(handle, &vkwin->width, &vkwin->height);
 
     VkSurfaceKHR surface = NULL;
-    VkCheck(glfwCreateWindowSurface(g_vkr.inst, window, NULL, &surface));
-    display->surface = surface;
+    VkCheck(glfwCreateWindowSurface(g_vkr.inst, handle, NULL, &surface));
+    vkwin->surface = surface;
     ASSERT(surface);
     if (!surface)
     {
@@ -79,63 +152,80 @@ bool vkrDisplay_New(vkrDisplay* display, i32 width, i32 height, const char* titl
     }
     return true;
 cleanup:
-    vkrDisplay_Del(display);
+    vkrWindow_Del(vkwin);
     return false;
 }
 
-void vkrDisplay_Del(vkrDisplay* display)
+void vkrWindow_Del(vkrWindow* vkwin)
 {
-    if (display)
+    if (vkwin)
     {
-        if (display->surface)
+        if (vkwin->surface)
         {
-            vkDestroySurfaceKHR(g_vkr.inst, display->surface, NULL);
+            vkDestroySurfaceKHR(g_vkr.inst, vkwin->surface, NULL);
         }
-        if (display->window)
+        if (vkwin->handle)
         {
-            glfwDestroyWindow(display->window);
+            glfwDestroyWindow(vkwin->handle);
         }
-        memset(display, 0, sizeof(*display));
+        memset(vkwin, 0, sizeof(*vkwin));
     }
 }
 
-ProfileMark(pm_updatesize, vkrDisplay_UpdateSize)
-bool vkrDisplay_UpdateSize(vkrDisplay* display)
+ProfileMark(pm_updatesize, vkrWindow_UpdateSize)
+bool vkrWindow_UpdateSize(vkrWindow* window)
 {
     ProfileBegin(pm_updatesize);
 
-    ASSERT(display);
-    ASSERT(display->window);
-    i32 prevWidth = display->width;
-    i32 prevHeight = display->height;
-    glfwGetFramebufferSize(display->window, &display->width, &display->height);
-    bool changed = (prevWidth != display->width) || (prevHeight != display->height);
+    ASSERT(window);
+    ASSERT(window->handle);
+    i32 prevWidth = window->width;
+    i32 prevHeight = window->height;
+    glfwGetFramebufferSize(window->handle, &window->width, &window->height);
+    bool changed = (prevWidth != window->width) || (prevHeight != window->height);
 
     ProfileEnd(pm_updatesize);
     return changed;
 }
 
-ProfileMark(pm_isopen, vkrDisplay_IsOpen)
-bool vkrDisplay_IsOpen(const vkrDisplay* display)
+ProfileMark(pm_getposition, vkrWindow_GetPosition)
+void vkrWindow_GetPosition(vkrWindow* window, i32* xOut, i32* yOut)
+{
+    ProfileBegin(pm_getposition);
+
+    glfwGetWindowPos(window->handle, xOut, yOut);
+
+    ProfileEnd(pm_getposition);
+}
+
+ProfileMark(pm_setposition, vkrWindow_SetPosition)
+void vkrWindow_SetPosition(vkrWindow* window, i32 x, i32 y)
+{
+    ProfileBegin(pm_setposition);
+
+    glfwSetWindowPos(window->handle, x, y);
+
+    ProfileEnd(pm_setposition);
+}
+
+ProfileMark(pm_isopen, vkrWindow_IsOpen)
+bool vkrWindow_IsOpen(const vkrWindow* window)
 {
     ProfileBegin(pm_isopen);
 
-    ASSERT(display);
-    ASSERT(display->window);
-    GLFWwindow* window = display->window;
-    bool isopen = !glfwWindowShouldClose(window);
+    ASSERT(window);
+    ASSERT(window->handle);
+    bool isopen = !glfwWindowShouldClose(window->handle);
 
     ProfileEnd(pm_isopen);
     return isopen;
 }
 
-ProfileMark(pm_pollevents, vkrDisplay_PollEvents)
-void vkrDisplay_PollEvents(const vkrDisplay* display)
+ProfileMark(pm_pollevents, vkrWindow_Poll)
+void vkrWindow_Poll(void)
 {
     ProfileBegin(pm_pollevents);
 
-    ASSERT(display);
-    ASSERT(display->window);
     glfwPollEvents();
 
     ProfileEnd(pm_pollevents);

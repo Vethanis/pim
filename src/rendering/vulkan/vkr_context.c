@@ -109,22 +109,22 @@ void vkrThreadContext_Del(vkrThreadContext* ctx)
     ProfileEnd(pm_trctxdel);
 }
 
-void vkrContext_OnSwapRecreate(vkrContext* ctx)
+void vkrContext_OnSwapDel(vkrContext* ctx)
 {
     const i32 threadcount = ctx->threadcount;
     vkrThreadContext* threads = ctx->threads;
     for (i32 i = 0; i < threadcount; ++i)
     {
-        vkrThreadContext_OnSwapRecreate(&threads[i]);
+        vkrThreadContext_OnSwapDel(&threads[i]);
     }
 }
 
-void vkrThreadContext_OnSwapRecreate(vkrThreadContext* ctx)
+void vkrThreadContext_OnSwapDel(vkrThreadContext* ctx)
 {
     for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
     {
-        vkrCmdAlloc_OnSwapRecreate(&ctx->cmds[id]);
-        vkrCmdAlloc_OnSwapRecreate(&ctx->seccmds[id]);
+        vkrCmdAlloc_OnSwapDel(&ctx->cmds[id]);
+        vkrCmdAlloc_OnSwapDel(&ctx->seccmds[id]);
     }
 }
 
