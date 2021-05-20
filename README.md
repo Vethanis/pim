@@ -15,7 +15,7 @@
 Pim is a [Quake engine](https://en.wikipedia.org/wiki/Quake_engine) in an early phase of development.
 
 Demo video:
-[![](https://img.youtube.com/vi/gL8CX1NF9rw/0.jpg)](https://www.youtube.com/watch?v=gL8CX1NF9rw)
+[![](https://img.youtube.com/vi/FMLjnC_sICE/0.jpg)](https://www.youtube.com/watch?v=FMLjnC_sICE)
 
 ### Goals
 
@@ -86,11 +86,9 @@ This repository uses [submodules](https://github.blog/2016-02-01-working-with-su
 * Install Git Bash
 * Buy and Download Quake
 * Clone the repo recursively
-* Run src/tools/dllcopy.sh in Git Bash
-* Run src/tools/datacopy.sh in Git Bash
-* Open proj/pim.sln in Visual Studio 2017 or newer
-* Build with F7 or Ctrl+Shift+B
-* Run with F5
+* Execute src/tools/datacopy.sh
+* Execute build.bat (change generator to 'Visual Studio 16 2019' if you are using that)
+* Execute run.bat
 
 ### Keybinds
 
