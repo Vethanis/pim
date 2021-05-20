@@ -4,31 +4,16 @@ project(pim_cmake)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_C_STANDARD 99)
 
-#set(CMAKE_BUILD_TYPE Release)
+# -----------------------------------------------------------------------------
+# files
 
-if (WIN32)
-    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Ob2 /Oi /GL")
-    set(CMAKE_CXX_FLAGS "/W3 /WX /MP /Zi /permissive- /GR- /GS- /arch:AVX2 /fp:fast /fp:except-")
-    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/OPT:REF /OPT:ICF /LTCG")
-    SET(CMAKE_EXE_LINKER_FLAGS "/WX /DEBUG:FULL /INCREMENTAL:NO")
-endif()
+file(GLOB_RECURSE PIM_CPP_FILES "src/*.cpp")
+file(GLOB_RECURSE PIM_C_FILES "src/*.c")
+file(GLOB_RECURSE PIM_C_HEADERS "src/*.h")
+file(GLOB_RECURSE PIM_CPP_HEADERS "src/*.hpp")
+file(GLOB_RECURSE PIM_HLSL_FILES "src/*.hlsl")
 
-if (UNIX)
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
-    set(CMAKE_CXX_FLAGS "-Wall -std=c++14 -Wfatal-errors -pthread")
-endif()
-
-file(GLOB_RECURSE CPP_FILES "src/*.cpp")
-file(GLOB_RECURSE C_FILES "src/*.c")
-file(GLOB_RECURSE C_HEADERS "src/*.h")
-file(GLOB_RECURSE CPP_HEADERS "src/*.hpp")
-
-add_executable(pim
-    ${C_FILES}
-    ${CPP_FILES}
-    ${C_HEADERS}
-    ${CPP_HEADERS}
+set(PIM_SUBMODULE_FILES 
     "submodules/cJSON/cJSON.c"
     "submodules/cJSON/cJSON_Utils.c"
     "submodules/glfw/src/context.c"
@@ -60,95 +45,159 @@ add_executable(pim
     "submodules/tlsf/tlsf.c"
     "submodules/volk/volk.c")
 
-if (WIN32)
-    target_sources(pim
-        PRIVATE
-        "submodules/glfw/src/egl_context.c"
-        "submodules/glfw/src/wgl_context.c"
-        "submodules/glfw/src/win32_init.c"
-        "submodules/glfw/src/win32_joystick.c"
-        "submodules/glfw/src/win32_monitor.c"
-        "submodules/glfw/src/win32_thread.c"
-        "submodules/glfw/src/win32_time.c"
-        "submodules/glfw/src/win32_window.c"
-        "submodules/stackwalker/StackWalker.cpp")
-endif()
-
-target_include_directories(pim
-    PRIVATE
+set(PIM_INCLUDE_DIRS
     "src"
     "submodules"
-    "submodules/cgltf"
-    "submodules/cJSON"
-    "submodules/glfw/include"
     "submodules/imgui"
-    "submodules/cimgui"
-    "submodules/miniz"
-    "submodules/pcg32"
-    "submodules/SPIRV-Reflect"
-    "submodules/stackwalker"
-    "submodules/stb"
-    "submodules/tlsf"
-    "submodules/volk"
-    "submodules/VulkanMemoryAllocator/src")
+    "submodules/glfw/include"
+    "submodules/VulkanMemoryAllocator/src"
+    "$ENV{VK_SDK_PATH}/Include")
 
-if (WIN32)
-    target_include_directories(pim
-        PRIVATE
-        "submodules/embree/embree-3.10.0.x64.vc14.windows/include"
-        "submodules/oidn/oidn-1.2.0.x64.vc14.windows/include"
-        "$ENV{VK_SDK_PATH}/Include")
-endif()
+set(PIM_MSVC_FILES 
+    "submodules/glfw/src/egl_context.c"
+    "submodules/glfw/src/wgl_context.c"
+    "submodules/glfw/src/win32_init.c"
+    "submodules/glfw/src/win32_joystick.c"
+    "submodules/glfw/src/win32_monitor.c"
+    "submodules/glfw/src/win32_thread.c"
+    "submodules/glfw/src/win32_time.c"
+    "submodules/glfw/src/win32_window.c"
+    "submodules/stackwalker/StackWalker.cpp")
 
-target_compile_definitions(pim
-    PRIVATE
-    IMGUI_DISABLE_DEMO_WINDOWS
-    CIMGUI_NO_EXPORT
-    CJSON_HIDE_SYMBOLS
-    SOKOL_NO_DEPRECATED)
+set(PIM_MSVC_INCLUDE_DIRS
+    "submodules/embree/embree-3.13.0.x64.vc14.windows/include"
+    "submodules/oidn/oidn-1.4.0.x64.vc14.windows/include")
 
-if (WIN32)
-    target_compile_definitions(pim
-        PRIVATE
-        NOMINMAX
-        WIN32_LEAN_AND_MEAN
-        _CRT_SECURE_NO_WARNINGS
-        VK_USE_PLATFORM_WIN32_KHR
-        _GLFW_WIN32)
+set(PIM_MSVC_DLLS
+    "submodules/embree/embree-3.13.0.x64.vc14.windows/bin/embree3.dll"
+    "submodules/oidn/oidn-1.4.0.x64.vc14.windows/bin/OpenImageDenoise.dll"
+    "submodules/oidn/oidn-1.4.0.x64.vc14.windows/bin/tbb12.dll")
+
+# -----------------------------------------------------------------------------
+# compiler options
+
+set(PIM_COMPILE_DEFINITIONS 
+    "IMGUI_DISABLE_DEMO_WINDOWS"
+    "CIMGUI_NO_EXPORT"
+    "CJSON_HIDE_SYMBOLS"
+    "SOKOL_NO_DEPRECATED")
+
+set(PIM_MSVC_COMPILE_DEFINITIONS 
+    "NOMINMAX"
+    "WIN32_LEAN_AND_MEAN"
+    "_CRT_SECURE_NO_WARNINGS"
+    "VK_USE_PLATFORM_WIN32_KHR"
+    "_GLFW_WIN32")
+
+# https://docs.microsoft.com/en-us/cpp/build/reference/compiler-options-listed-alphabetically?view=msvc-150
+set(PIM_MSVC_COMPILE_OPTIONS_RELEASE
+    "/W3"           # warning level 3
+    "/WX"           # warnings are errors
+    "/MP"           # multi-process compiles
+    "/permissive-"  # make compiler less goofy
+    "/GR-"          # disable runtime type information
+    "/arch:AVX2"    # vector extensions (modern cpu required)
+    "/O2"           # optimization level 2 (the max on msvc)
+    "/Ob2"          # inline any suitable function
+    "/Oi"           # emit intrinsic functions as their instruction (skip setting TLS errno)
+    "/GL"           # link time codegen
+    "/fp:fast"      # optimize fp expression order for speed rather than precision and disable fp exceptions
+    "/GS-"          # disable security check, it slow
+    "/Gw"           # emit global data as comdats to be de-duplicated in ltcg
+    "/Gy"           # emit functions as comdats to be de-duplicated in ltcg
+    "/volatile:iso" # don't add hardware memory barriers to volatile variable accesses
+)
+
+set(PIM_MSVC_COMPILE_OPTIONS_DEBUG
+    "/W3"           # warning level 3
+    "/WX"           # warnings are errors
+    "/MP"           # multi-process compiles
+    "/permissive-"  # make compiler less goofy
+    "/GR-"          # disable runtime type information
+    "/arch:AVX2"    # vector extensions (modern cpu required)
+    "/Zi"           # emit debug information in a pdb
+)
+
+# https://docs.microsoft.com/en-us/cpp/build/reference/linker-options?view=msvc-150#linker-options-listed-alphabetically
+set(PIM_MSVC_LINK_OPTIONS_RELEASE
+    "/WX"               # linker warnings are errors
+    "/INCREMENTAL:NO"   # disable incremental linking
+    "/OPT:REF"          # deduplicate data in ltcg
+    "/OPT:ICF"          # deduplicate code in ltcg
+    "/LTCG"             # link time code generation
+)
+
+set(PIM_MSVC_LINK_OPTIONS_DEBUG
+    "/DEBUG:FULL"       # emit debug information in a pdb
+    "/WX"               # linker warnings are errors
+    "/INCREMENTAL:NO"   # disable incremental linking
+)
+
+set(PIM_UNIX_COMPILE_OPTIONS_RELEASE
+    "-Wall"
+    "-Wfatal-errors"
+    "-pthread"
+    "-O3"
+)
+set(PIM_UNIX_COMPILE_OPTIONS_DEBUG
+    "-Wall"
+    "-Wfatal-errors"
+    "-pthread"
+    "-O0"
+    "-g"
+)
+
+# -----------------------------------------------------------------------------
+# cmake commands
+
+add_executable(pim
+    ${PIM_C_FILES}
+    ${PIM_CPP_FILES}
+    ${PIM_C_HEADERS}
+    ${PIM_CPP_HEADERS}
+    ${PIM_SUBMODULE_FILES})
+
+target_include_directories(pim PRIVATE ${PIM_INCLUDE_DIRS})
+target_compile_definitions(pim PRIVATE ${PIM_COMPILE_DEFINITIONS})
+
+if (MSVC)
+    target_sources(pim PRIVATE ${PIM_MSVC_FILES})
+    target_include_directories(pim PRIVATE ${PIM_MSVC_INCLUDE_DIRS})
+    target_compile_definitions(pim PRIVATE ${PIM_MSVC_COMPILE_DEFINITIONS})
+
+    target_compile_options(pim PRIVATE "$<$<CONFIG:RELEASE>:${PIM_MSVC_COMPILE_OPTIONS_RELEASE}>")
+    target_compile_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_MSVC_COMPILE_OPTIONS_DEBUG}>")
+    target_link_options(pim PRIVATE "$<$<CONFIG:RELEASE>:${PIM_MSVC_LINK_OPTIONS_RELEASE}>")
+    target_link_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_MSVC_LINK_OPTIONS_DEBUG}>")
+else()
+    target_compile_options(pim PRIVATE "$<$<CONFIG:RELEASE>:${PIM_UNIX_COMPILE_OPTIONS_RELEASE}>")
+    target_compile_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_OPTIONS_DEBUG}>")
 endif()
 
 target_link_libraries(pim)
 
-if (WIN32)
-    set(DLL_FILES
-        "submodules/embree/embree-3.10.0.x64.vc14.windows/bin/embree3.dll"
-        "submodules/oidn/oidn-1.2.0.x64.vc14.windows/bin/OpenImageDenoise.dll"
-        "submodules/oidn/oidn-1.2.0.x64.vc14.windows/bin/tbb.dll"
-        "submodules/oidn/oidn-1.2.0.x64.vc14.windows/bin/tbbmalloc.dll")
-    file(COPY ${DLL_FILES} DESTINATION ${CMAKE_BINARY_DIR}/Release NO_SOURCE_PERMISSIONS)
-    file(COPY ${DLL_FILES} DESTINATION ${CMAKE_BINARY_DIR}/Debug NO_SOURCE_PERMISSIONS)
+# -----------------------------------------------------------------------------
+# fluff
+
+if (MSVC)
+    file(COPY ${PIM_MSVC_DLLS} DESTINATION ${CMAKE_BINARY_DIR}/Release NO_SOURCE_PERMISSIONS)
+    file(COPY ${PIM_MSVC_DLLS} DESTINATION ${CMAKE_BINARY_DIR}/Debug NO_SOURCE_PERMISSIONS)
 endif()
 
-set_property(TARGET pim PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pim)
+set_property(TARGET pim PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
-source_group(TREE "${CMAKE_SOURCE_DIR}/src" FILES
-    ${C_FILES}
-    ${CPP_FILES}
-    ${C_HEADERS}
-    ${CPP_HEADERS})
+source_group(
+    TREE "${CMAKE_SOURCE_DIR}/src"
+    FILES
+    ${PIM_C_FILES}
+    ${PIM_CPP_FILES}
+    ${PIM_C_HEADERS}
+    ${PIM_CPP_HEADERS}
+    ${PIM_HLSL_FILES})
 
-source_group(TREE "${CMAKE_SOURCE_DIR}/submodules" FILES
-    "submodules/cJSON/cJSON.c"
-    "submodules/cJSON/cJSON_Utils.c"
-    "submodules/glfw/src/context.c"
-    "submodules/glfw/src/init.c"
-    "submodules/glfw/src/input.c"
-    "submodules/glfw/src/monitor.c"
-    "submodules/glfw/src/osmesa_context.c"
-    "submodules/glfw/src/vulkan.c"
-    "submodules/glfw/src/window.c"
-    "submodules/miniz/miniz.c"
-    "submodules/SPIRV-Reflect/spirv_reflect.c"
-    "submodules/tlsf/tlsf.c"
-    "submodules/volk/volk.c")
+source_group(
+    TREE "${CMAKE_SOURCE_DIR}/submodules"
+    FILES
+    ${PIM_SUBMODULE_FILES}
+    ${PIM_MSVC_FILES})
