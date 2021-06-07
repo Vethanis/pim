@@ -177,27 +177,21 @@ pim_inline float4x4 VEC_CALL f4x4_trs(float4 t, quat r, float4 s)
 
 pim_inline float4x4 VEC_CALL f4x4_lookat(float4 eye, float4 at, float4 up)
 {
-    // forward: index finger, straight
-    // up: middle finger, bent 90 degrees
-    // right: thumb, extended and flat
-    // => this is right-handed aka GL
-    float4 f = f4_normalize3(f4_sub(at, eye)); // front
-    float4 s = f4_normalize3(f4_cross3(f, up)); // side
-    float4 u = f4_cross3(s, f); // up
+    // right-handed
+    float4 f = f4_normalize3(f4_sub(at, eye));
+    float4 s = f4_normalize3(f4_cross3(f, up));
+    float4 u = f4_normalize3(f4_cross3(s, f));
 
-    float4x4 m = f4x4_id;
-    m.c0.x = s.x;
-    m.c1.x = s.y;
-    m.c2.x = s.z;
-    m.c0.y = u.x;
-    m.c1.y = u.y;
-    m.c2.y = u.z;
-    m.c0.z = -f.x;
-    m.c1.z = -f.y;
-    m.c2.z = -f.z;
-    m.c3.x = -f4_dot3(s, eye);
-    m.c3.y = -f4_dot3(u, eye);
-    m.c3.z = f4_dot3(f, eye); // not negated (backward == +Z)
+    float tx = -f4_dot3(s, eye);
+    float ty = -f4_dot3(u, eye);
+    float tz = f4_dot3(f, eye);
+    float4x4 m =
+    {
+        { s.x, u.x, -f.x, 0.0f },
+        { s.y, u.y, -f.y, 0.0f },
+        { s.z, u.z, -f.z, 0.0f },
+        { tx, ty, tz, 1.0f },
+    };
     return m;
 }
 

@@ -56,7 +56,7 @@ pim_inline quat VEC_CALL quat_slerp(quat a, quat b, float t)
         cosTheta = -cosTheta;
         b.v = f4_neg(b.v);
     }
-    if ((1.0f - fabsf(cosTheta)) < 0.001f)
+    if ((cosTheta * cosTheta) >= 0.99f)
     {
         return quat_lerp(a, b, t);
     }
@@ -66,37 +66,23 @@ pim_inline quat VEC_CALL quat_slerp(quat a, quat b, float t)
         float t0 = sinf((1.0f - t) * theta);
         float t1 = sinf(t * theta);
         float scale = 1.0f / sinf(theta);
-
-        float4 a4 = f4_mulvs(a.v, t0);
-        float4 b4 = f4_mulvs(b.v, t1);
-        float4 c4 = f4_mulvs(f4_add(a4, b4), scale);
-        return f4_quat(c4);
+        return f4_quat(
+            f4_mulvs(
+                f4_add(
+                    f4_mulvs(a.v, t0),
+                    f4_mulvs(b.v, t1)),
+                scale));
     }
 }
 
 pim_inline quat VEC_CALL quat_mul(quat a, quat b)
 {
-    //c.x = a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y;
-    //c.y = a.w * b.y + a.y * b.w + a.z * b.x - a.x * b.z;
-    //c.z = a.w * b.z + a.z * b.w + a.x * b.y - a.y * b.x;
-    //c.w = a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z;
-
-    float4 c, ca, cb;
-    c = f4_mul(f4_s(a.v.w), b.v);
-
-    ca = f4_v(a.v.x, a.v.y, a.v.z, -a.v.x);
-    cb = f4_v(b.v.w, b.v.w, b.v.w, b.v.x);
-    c = f4_add(c, f4_mul(ca, cb));
-
-    ca = f4_v(a.v.y, a.v.z, a.v.x, -a.v.y);
-    cb = f4_v(b.v.z, b.v.x, b.v.y, b.v.y);
-    c = f4_add(c, f4_mul(ca, cb));
-
-    ca = f4_v(-a.v.z, -a.v.x, -a.v.y, -a.v.z);
-    cb = f4_v(b.v.y, b.v.z, b.v.x, b.v.z);
-    c = f4_add(c, f4_mul(ca, cb));
-
-    return f4_quat(c);
+    quat c;
+    c.v.x = a.v.w * b.v.x + a.v.x * b.v.w + a.v.y * b.v.z - a.v.z * b.v.y;
+    c.v.y = a.v.w * b.v.y + a.v.y * b.v.w + a.v.z * b.v.x - a.v.x * b.v.z;
+    c.v.z = a.v.w * b.v.z + a.v.z * b.v.w + a.v.x * b.v.y - a.v.y * b.v.x;
+    c.v.w = a.v.w * b.v.w - a.v.x * b.v.x - a.v.y * b.v.y - a.v.z * b.v.z;
+    return c;
 }
 
 pim_inline float4 VEC_CALL quat_mul_dir(quat q, float4 dir)
@@ -148,26 +134,26 @@ pim_inline float3x3 VEC_CALL quat_f3x3(quat q)
 {
     float4 v = q.v;
     float xx = v.x * v.x;
-    float yy = v.y * v.y;
-    float zz = v.z * v.z;
-    float xz = v.x * v.z;
     float xy = v.x * v.y;
+    float xz = v.x * v.z;
+    float yy = v.y * v.y;
     float yz = v.y * v.z;
+    float zz = v.z * v.z;
     float wx = v.w * v.x;
     float wy = v.w * v.y;
     float wz = v.w * v.z;
 
     float3x3 m;
     m.c0.x = 1.0f - 2.0f * (yy + zz);
-    m.c0.y = 2.0f * (xy + wz);
-    m.c0.z = 2.0f * (xz - wy);
+    m.c0.y = 2.0f * (xy - wz);
+    m.c0.z = 2.0f * (xz + wy);
 
-    m.c1.x = 2.0f * (xy - wz);
+    m.c1.x = 2.0f * (xy + wz);
     m.c1.y = 1.0f - 2.0f * (xx + zz);
-    m.c1.z = 2.0f * (yz + wx);
+    m.c1.z = 2.0f * (yz - wx);
 
-    m.c2.x = 2.0f * (xz + wy);
-    m.c2.y = 2.0f * (yz - wx);
+    m.c2.x = 2.0f * (xz - wy);
+    m.c2.y = 2.0f * (yz + wx);
     m.c2.z = 1.0f - 2.0f * (xx + yy);
 
     return m;
@@ -175,66 +161,69 @@ pim_inline float3x3 VEC_CALL quat_f3x3(quat q)
 
 pim_inline quat VEC_CALL f3x3_quat(float3x3 m)
 {
-    float x = m.c0.x - m.c1.y - m.c2.z;
-    float y = m.c1.y - m.c0.x - m.c2.z;
-    float z = m.c2.z - m.c0.x - m.c1.y;
-    float w = m.c0.x + m.c1.y + m.c2.z;
+    float x = f3x3_00(m) - f3x3_11(m) - f3x3_22(m);
+    float y = f3x3_11(m) - f3x3_00(m) - f3x3_22(m);
+    float z = f3x3_22(m) - f3x3_00(m) - f3x3_11(m);
+    float w = f3x3_00(m) + f3x3_11(m) + f3x3_22(m);
+    float b = f1_max(f1_max(x, y), f1_max(z, w));
 
     i32 i = 0;
-    float b = w;
-    b = f1_max(b, x);
-    b = f1_max(b, z);
-    b = f1_max(b, y);
-    i = (b == x) ? 1 : i;
-    i = (b == y) ? 2 : i;
-    i = (b == z) ? 3 : i;
+    i = (b == y) ? 1 : i;
+    i = (b == z) ? 2 : i;
+    i = (b == w) ? 3 : i;
 
     b = sqrtf(b + 1.0f) * 0.5f;
     float mult = 0.25f / b;
 
-    float4 r = quat_id.v;
+    float c0 = (f3x3_10(m) + f3x3_01(m)) * mult;
+    float c1 = (f3x3_10(m) - f3x3_01(m)) * mult;
+    float c2 = (f3x3_21(m) + f3x3_12(m)) * mult;
+    float c3 = (f3x3_21(m) - f3x3_12(m)) * mult;
+    float c4 = (f3x3_02(m) + f3x3_20(m)) * mult;
+    float c5 = (f3x3_02(m) - f3x3_20(m)) * mult;
 
+    float4 r = quat_id.v;
     switch (i)
     {
+    default:
+        ASSERT(false);
+        break;
     case 0:
     {
-        // b == w
-        r.w = b;
-        r.x = (m.c1.z - m.c2.y) * mult;
-        r.y = (m.c2.x - m.c0.z) * mult;
-        r.z = (m.c0.y - m.c1.x) * mult;
+        // b == x
+        r.x = b;
+        r.y = c0;
+        r.z = c4;
+        r.w = c3;
     }
     break;
     case 1:
     {
-        // b == x
-        r.w = (m.c1.z - m.c2.y) * mult;
-        r.x = b;
-        r.y = (m.c0.y + m.c1.x) * mult;
-        r.z = (m.c2.x + m.c0.z) * mult;
+        // b == y
+        r.x = c0;
+        r.y = b;
+        r.z = c2;
+        r.w = c5;
     }
     break;
     case 2:
     {
-        // b == y
-        r.w = (m.c2.x - m.c0.z) * mult;
-        r.x = (m.c0.y + m.c1.x) * mult;
-        r.y = b;
-        r.z = (m.c1.z + m.c2.y) * mult;
+        // b == z
+        r.x = c4;
+        r.y = c2;
+        r.z = b;
+        r.w = c1;
     }
     break;
     case 3:
     {
-        // b == z
-        r.w = (m.c0.y - m.c1.x) * mult;
-        r.x = (m.c2.x + m.c0.z) * mult;
-        r.y = (m.c1.z + m.c2.y) * mult;
-        r.z = b;
+        // b == w
+        r.x = c3;
+        r.y = c5;
+        r.z = c1;
+        r.w = b;
     }
     break;
-    default:
-        ASSERT(false);
-        break;
     }
 
     return f4_quat(r);
@@ -242,11 +231,7 @@ pim_inline quat VEC_CALL f3x3_quat(float3x3 m)
 
 pim_inline quat VEC_CALL quat_lookat(float4 forward, float4 up)
 {
-    float3x3 m;
-    m.c2 = f4_neg(forward);
-    m.c0 = f4_normalize3(f4_cross3(up, m.c2));
-    m.c1 = f4_cross3(m.c2, m.c0);
-    return f3x3_quat(m);
+    return f3x3_quat(f3x3_lookat(forward, up));
 }
 
 PIM_C_END
