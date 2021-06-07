@@ -22,7 +22,7 @@
 #define kTau                6.283185307179586476925286766559f
 #define kRadiansPerDegree   (kTau / 360.0f)
 #define kDegreesPerRadian   (360.0f / kTau)
-#define kEpsilon            (1.0f / (1<<22))
+#define kEpsilon            (1.192092896e-07f)
 #define kGoldenAngle        2.3999632297286530580038288462674f // pi * (3 - sqrt(5))
 #define kGoldenConj         0.6180339887498949025257388711907f // (1 + sqrt(5)) / 2
 #define kSqrt2Conj          0.4142135623730951454746218587388f

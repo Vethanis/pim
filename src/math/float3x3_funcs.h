@@ -83,8 +83,9 @@ pim_inline float3x3 VEC_CALL f3x3_inverse(float3x3 m)
     float d0 = f3x3_00(m) * m_11_22_21_12;
     float d1 = -f3x3_10(m) * m_01_22_21_02;
     float d2 = f3x3_20(m) * m_01_12_11_02;
-    float rcpDet = 1.0f / (d0 + d1 + d2);
-    ASSERT(f1_abs(rcpDet) >= kEpsilon);
+    float det = d0 + d1 + d2;
+    ASSERT(f1_abs(det) >= kEpsilon);
+    float rcpDet = 1.0f / det;
 
     float3x3 inv;
 
@@ -132,25 +133,17 @@ pim_inline float3x3 VEC_CALL f3x3_angle_axis(float angle, float4 axis)
     return m;
 }
 
-pim_inline float3x3 VEC_CALL f3x3_lookat(float4 eye, float4 at, float4 up)
+pim_inline float3x3 VEC_CALL f3x3_lookat(float4 forward, float4 up)
 {
-    // forward: index finger, straight
-    // up: middle finger, bent 90 degrees
-    // right: thumb, extended and flat
-    // => this is right-handed aka GL
-    float4 f = f4_normalize3(f4_sub(at, eye));
-    float4 s = f4_normalize3(f4_cross3(f, up));
-    float4 u = f4_normalize3(f4_cross3(s, f));
-    float3x3 m;
-    m.c0.x = s.x;
-    m.c1.x = s.y;
-    m.c2.x = s.z;
-    m.c0.y = u.x;
-    m.c1.y = u.y;
-    m.c2.y = u.z;
-    m.c0.z = -f.x;
-    m.c1.z = -f.y;
-    m.c2.z = -f.z;
+    // right-handed
+    float4 right = f4_normalize3(f4_cross3(forward, up));
+    up = f4_normalize3(f4_cross3(right, forward));
+    float3x3 m =
+    {
+        { right.x, up.x, -forward.x },
+        { right.y, up.y, -forward.y },
+        { right.z, up.z, -forward.z },
+    };
     return m;
 }
 

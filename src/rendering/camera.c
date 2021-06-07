@@ -31,17 +31,23 @@ void Camera_Reset(void)
 
 void Camera_Frustum(const Camera* src, Frustum* dst, float aspect)
 {
-    Camera_SubFrustum(src, dst, f2_s(-1.0f), f2_s(1.0f), src->zNear, src->zFar, aspect);
+    Camera_SubFrustum(
+        src, dst,
+        f2_s(-1.0f), f2_s(1.0f),
+        src->zNear, src->zFar,
+        aspect);
 }
 
-void Camera_SubFrustum(const Camera* src, Frustum* dst, float2 lo, float2 hi, float zNear, float zFar, float aspect)
+void Camera_SubFrustum(
+    const Camera* src,
+    Frustum* dst,
+    float2 lo, float2 hi,
+    float zNear, float zFar,
+    float aspect)
 {
     ASSERT(src);
     ASSERT(dst);
-
-    const float fov = f1_radians(src->fovy);
-    const quat rot = src->rotation;
-
+    quat rot = src->rotation;
     *dst = frus_new(
         src->position,
         quat_right(rot),
@@ -49,24 +55,32 @@ void Camera_SubFrustum(const Camera* src, Frustum* dst, float2 lo, float2 hi, fl
         quat_fwd(rot),
         lo,
         hi,
-        proj_slope(fov, aspect),
+        proj_slope(f1_radians(src->fovy), aspect),
         zNear,
         zFar);
 }
 
 float4x4 VEC_CALL Camera_GetView(const Camera* src)
 {
-    float4 at = f4_add(src->position, quat_fwd(src->rotation));
-    float4 up = quat_up(src->rotation);
-    return f4x4_lookat(src->position, at, up);
+    float4 pos = src->position;
+    quat rot = src->rotation;
+    return f4x4_lookat(
+        pos,
+        f4_add(pos, quat_fwd(rot)),
+        quat_up(rot));
 }
 
 float4x4 VEC_CALL Camera_GetProj(const Camera* src, float aspect)
 {
-    return f4x4_vkperspective(f1_radians(src->fovy), aspect, src->zNear, src->zFar);
+    return f4x4_vkperspective(
+        f1_radians(src->fovy),
+        aspect,
+        src->zNear, src->zFar);
 }
 
 float4x4 VEC_CALL Camera_GetWorldToClip(const Camera* src, float aspect)
 {
-    return f4x4_mul(Camera_GetProj(src, aspect), Camera_GetView(src));
+    return f4x4_mul(
+        Camera_GetProj(src, aspect),
+        Camera_GetView(src));
 }
