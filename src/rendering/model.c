@@ -609,7 +609,7 @@ static float4x4 VEC_CALL QuakeToRhsMeters(void)
     const float speedScale = (1609.34f / (60.0f * 10.0f)) / 320.0f;
     const float jumpScale = 0.508f / 32.0f;
     const float avgScale = (heightScale + speedScale + jumpScale) / 3.0f;
-    const quat rot = quat_angleaxis(-kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
+    const quat rot = quat_angleaxis(kPi / 2.0f, f4_v(1.0f, 0.0f, 0.0f, 0.0f));
     const float4x4 M = f4x4_trs(f4_0, rot, f4_s(avgScale));
     return M;
 }
