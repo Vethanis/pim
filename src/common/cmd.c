@@ -16,16 +16,26 @@ typedef struct cmdalias_s
     char* value;
 } cmdalias_t;
 
+typedef struct cmddef_s
+{
+    const char* help;
+    const char* argDocs;
+    cmd_fn_t cmd;
+} cmddef_t;
+
 static cmdstat_t cmd_text(const char* constText, bool immediate);
 static cmdstat_t cmd_exec(const char* line);
+static void cmd_log_usage(const char* name, cmddef_t def);
 static char** cmd_tokenize(const char* text, i32* argcOut);
 
 static cmdstat_t ExecCmds(void);
 static bool IsSpecialChar(char c);
 static bool IsLineEnding(char c);
+static cmdstat_t cmd_help_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_alias_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_wait_fn(i32 argc, const char** argv);
+static cmdstat_t cmd_cmds_fn(i32 argc, const char** argv);
 
 static StrDict ms_cmds;
 static StrDict ms_aliases;
@@ -36,12 +46,14 @@ static i32 ms_waits;
 
 void cmd_sys_init(void)
 {
-    StrDict_New(&ms_cmds, sizeof(cmd_fn_t), EAlloc_Perm);
+    StrDict_New(&ms_cmds, sizeof(cmddef_t), EAlloc_Perm);
     StrDict_New(&ms_aliases, sizeof(cmdalias_t), EAlloc_Perm);
     Queue_New(&ms_queue, sizeof(char*), EAlloc_Perm);
-    cmd_reg("alias", cmd_alias_fn);
-    cmd_reg("exec", cmd_execfile_fn);
-    cmd_reg("wait", cmd_wait_fn);
+    cmd_reg("help", "", "show help information", cmd_help_fn);
+    cmd_reg("alias", "[<key> <command> [ <arg1> ... ]]", "no args: list all aliases. 1 or more args: alias the given key to the given command and argument list", cmd_alias_fn);
+    cmd_reg("exec", "<file>", "executes a script file", cmd_execfile_fn);
+    cmd_reg("wait", "[<ms>]", "wait the given number of milliseconds (1 by default) before executing the next command.", cmd_wait_fn);
+    cmd_reg("cmds", "", "list all registered commands.", cmd_cmds_fn);
 }
 
 void cmd_sys_update(void)
@@ -66,13 +78,23 @@ void cmd_sys_shutdown(void)
     Queue_Del(&ms_queue);
 }
 
-void cmd_reg(const char* name, cmd_fn_t fn)
+void cmd_reg(const char* name, const char* argDocs, const char* helpText, cmd_fn_t fn)
 {
     ASSERT(name);
+    ASSERT(argDocs);
+    ASSERT(helpText);
     ASSERT(fn);
-    if (!StrDict_Add(&ms_cmds, name, &fn))
+
+    cmddef_t def =
     {
-        StrDict_Set(&ms_cmds, name, &fn);
+        .help = helpText,
+        .argDocs = argDocs,
+        .cmd = fn
+    };
+
+    if (!StrDict_Add(&ms_cmds, name, &def))
+    {
+        StrDict_Set(&ms_cmds, name, &def);
     }
 }
 
@@ -116,10 +138,10 @@ static cmdstat_t cmd_exec(const char* line)
     ASSERT(name);
 
     // commands
-    cmd_fn_t cmd = NULL;
-    if (StrDict_Get(&ms_cmds, name, &cmd))
+    cmddef_t def = { 0 };
+    if (StrDict_Get(&ms_cmds, name, &def))
     {
-        return cmd(argc, argv);
+        return def.cmd(argc, argv);
     }
 
     // aliases (macros to expand into front of cbuf)
@@ -407,6 +429,35 @@ static char** cmd_tokenize(const char* text, i32* argcOut)
     return argv;
 }
 
+static cmdstat_t cmd_help_fn(i32 argc, const char** argv)
+{
+    if (argc <= 1)
+    {
+        Con_Logf(LogSev_Info, "cmd", "cmds - Display a full list of commands.");
+        Con_Logf(LogSev_Info, "cmd", "help - This help message.");
+        Con_Logf(LogSev_Info, "cmd", "help <cmd> - Describes a command");
+
+        return cmdstat_ok;
+    }
+
+    const char* name = argv[1];
+    cmddef_t def = { 0 };
+    if (!StrDict_Get(&ms_cmds, name, &def))
+    {
+        Con_Logf(LogSev_Error, "cmd", "No help for %s.", name);
+        return cmdstat_err;
+    }
+
+    cmd_log_usage(name, def);
+
+    return cmdstat_ok;
+}
+
+static void cmd_log_usage(const char* name, cmddef_t def)
+{
+    Con_Logf(LogSev_Info, "cmd", "%s %s - %s", name, def.argDocs, def.help);
+}
+
 static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
 {
     if (argc <= 1)
@@ -492,4 +543,21 @@ static cmdstat_t cmd_wait_fn(i32 argc, const char** argv)
         ++ms_waits;
         return cmdstat_ok;
     }
+}
+
+static cmdstat_t cmd_cmds_fn(i32 argc, const char** argv)
+{
+    Con_Logf(LogSev_Info, "cmd", "displaying %i commands (`help <cmd>` for more info):", ms_cmds.count);
+
+    u32* indices = StrDict_Sort(&ms_cmds, SDictStrCmp, NULL);
+
+    cmddef_t def = { 0 };
+    for (u32 i = 0; i < ms_cmds.count; i++)
+    {
+        u32 index = indices[i];
+        const char* key = ms_cmds.keys[index];
+        Con_Logf(LogSev_Info, "cmd", "\t%s", key);
+    }
+
+    return cmdstat_ok;
 }

@@ -1348,7 +1348,11 @@ LmPack LmPack_Pack(
     if (!ms_once)
     {
         ms_once = true;
-        cmd_reg("lm_print", CmdPrintLm);
+        cmd_reg(
+            "lm_print",
+            "[<color|position|normal>]",
+            "write lightmap image to a file. the optional arg specifies which channel should be written (color by default)",
+            CmdPrintLm);
     }
 
     float maxWidth = atlasSize / 3.0f;
@@ -1605,7 +1609,6 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
 {
     cmdstat_t status = cmdstat_ok;
     char filename[PIM_PATH] = { 0 };
-    const char* prefix = "lightmap";
     LmChannel channel = LmChannel_Color;
     R8G8B8A8_t* dstBuffer = NULL;
     const LmPack* pack = LmPack_Get();
