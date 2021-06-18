@@ -455,7 +455,7 @@ static cmdstat_t cmd_help_fn(i32 argc, const char** argv)
 
 static void cmd_log_usage(const char* name, cmddef_t def)
 {
-    Con_Logf(LogSev_Info, "cmd", "%s %s - %s", name, def.argDocs, def.help);
+    Con_Logf(LogSev_Info, "cmd", "%s %s : %s", name, def.argDocs, def.help);
 }
 
 static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
