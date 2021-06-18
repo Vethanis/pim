@@ -1609,6 +1609,7 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
 {
     cmdstat_t status = cmdstat_ok;
     char filename[PIM_PATH] = { 0 };
+    const char* prefix = "lightmap";
     LmChannel channel = LmChannel_Color;
     R8G8B8A8_t* dstBuffer = NULL;
     const LmPack* pack = LmPack_Get();
