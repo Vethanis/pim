@@ -444,7 +444,6 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
             StrCat(ARGS(cmd), " ");
         }
     }
-    StrCat(ARGS(cmd), ";");
 
     alias.value = StrDup(cmd, EAlloc_Perm);
     bool added = StrDict_Add(&ms_aliases, aliasKey, &alias);
