@@ -1348,7 +1348,11 @@ LmPack LmPack_Pack(
     if (!ms_once)
     {
         ms_once = true;
-        cmd_reg("lm_print", CmdPrintLm);
+        cmd_reg(
+            "lm_print",
+            "[<color|position|normal>]",
+            "write lightmap image to a file. the optional arg specifies which channel should be written (color by default)",
+            CmdPrintLm);
     }
 
     float maxWidth = atlasSize / 3.0f;
