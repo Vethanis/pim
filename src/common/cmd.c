@@ -218,7 +218,8 @@ cmdstat_t cmd_immediate(const char* text)
 
 static cmdstat_t cmd_text(const char* constText, bool immediate)
 {
-    i32 i, q;
+    i32 start, end, i, q;
+    i8 dir;
     if (!constText)
     {
         ASSERT(false);
@@ -227,27 +228,53 @@ static cmdstat_t cmd_text(const char* constText, bool immediate)
 
     char* text = StrDup(constText, EAlloc_Temp);
 
+    i = q = 0;
+    dir = 1;
+
+    if (immediate)
+    {
+        // got to go through lines backwards as we are pushing to the front of the queue.
+        i = q = StrLen(text) - 1;
+        dir = -1;
+
+        // Take care of the line endings at the very end, if any.
+        while (i >= 0 && IsLineEnding(text[i]))
+        {
+            text[i] = 0;
+            i--;
+        }
+    }
+
 parseline:
-    i = 0;
+    start = i;
     q = 0;
-    while (text[i])
+    end = -1;
+    while (i >= 0 && text[i])
     {
         char c = text[i];
-        ++i;
+        i += dir;
         if (c == '"')
         {
             ++q;
         }
         else if (!(q & 1) && IsLineEnding(c))
         {
-            text[i - 1] = 0;
+            end = i - dir;
+            text[end] = 0;
             break;
         }
     }
 
-    if (i > 0)
+    // If we're iterating backwards and we reach the front,
+    // that means we didn't zero-out the last line ending, do that now.
+    if (immediate && i < 0 && IsLineEnding(text[start + 1]))
     {
-        char* line = StrDup(text, EAlloc_Perm);
+        text[start] = 0;
+    }
+
+    if (i != start)
+    {
+        char* line = StrDup(&text[immediate ? end + 1 : start], EAlloc_Perm);
         if (immediate)
         {
             Queue_PushFront(&ms_queue, &line, sizeof(line));
@@ -256,7 +283,6 @@ parseline:
         {
             Queue_Push(&ms_queue, &line, sizeof(line));
         }
-        text += i;
         goto parseline;
     }
 
