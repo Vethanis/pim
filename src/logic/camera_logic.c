@@ -35,8 +35,7 @@ void CameraLogic_Update(void)
     if (Input_IsKeyUp(KeyCode_Escape))
     {
         Window_Close(true);
-        ProfileEnd(pm_update);
-        return;
+        goto cleanup;
     }
 
     GLFWwindow* focus = Input_GetFocus();
@@ -48,8 +47,7 @@ void CameraLogic_Update(void)
 
     if (!Input_IsCursorCaptured(focus))
     {
-        ProfileEnd(pm_update);
-        return;
+        goto cleanup;
     }
 
     const float dt = f1_clamp((float)Time_Deltaf(), 0.0f, 1.0f / 5.0f);
@@ -100,6 +98,7 @@ void CameraLogic_Update(void)
 
     Camera_Set(&camera);
 
+cleanup:
     ProfileEnd(pm_update);
 }
 
