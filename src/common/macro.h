@@ -65,25 +65,26 @@
 #   define pim_alignas(x)           _Alignas(x)
 #   define pim_optimize             _Pragma("clang optimize on")
 #   define pim_deoptimize           _Pragma("clang optimize off")
+#   define pim_noreturn             __declspec(noreturn)
 #endif // PLAT_WINDOWS
 
 #define NELEM(x)                    ( sizeof(x) / sizeof((x)[0]) )
-#define ARGS(x)                     x, NELEM(x)
-#define IF_TRUE(x, expr)            do { if(x) { expr; } } while(0)
-#define IF_FALSE(x, expr)           do { if(!(x)) { expr; } } while(0)
+#define ARGS(x)                     (x), NELEM(x)
+#define IF_TRUE(x, expr)            do { if (x) { expr; } } while(0)
+#define IF_FALSE(x, expr)           do { if (!(x)) { expr; } } while(0)
 #define pim_offsetof(T, f)          ((isize)&(((T*)0)->f))
 #define pim_cast(T, p)              ( (T*)(p) )
 #define pim_asbytes(p)              ( (u8*)(p) )
-#define pim_alignof(x)              _Alignof(x)
+#define pim_alignof(x)              (_Alignof(x))
 #define pim_min(a, b)               ((a) < (b) ? (a) : (b))
 #define pim_max(a, b)               ((a) > (b) ? (a) : (b))
 
-#define REL_ASSERT(x)               IF_FALSE(x, INTERRUPT())
+#define REL_ASSERT(x)               IF_FALSE((x), INTERRUPT())
 
 #ifdef _DEBUG
 #   define IF_DEBUG(x)             x
 #   define IFN_DEBUG(x)            (void)0
-#   define ASSERT(x)               IF_FALSE(x, INTERRUPT())
+#   define ASSERT(x)               IF_FALSE((x), INTERRUPT())
 #   define CONFIG_STR              "Debug"
 #else
 #   define IF_DEBUG(x)             (void)0

@@ -20,7 +20,9 @@ void VEC_CALL Guid_SetName(Guid id, const char* str);
 bool VEC_CALL Guid_GetName(Guid id, char* dst, i32 size);
 
 i32 VEC_CALL Guid_Find(Guid const *const pim_noalias ptr, i32 count, Guid key);
+// adds str to a guid->string lookup table
 Guid VEC_CALL Guid_FromStr(char const *const pim_noalias str);
+// only hashes str
 Guid VEC_CALL Guid_HashStr(char const *const pim_noalias str);
 Guid VEC_CALL Guid_FromBytes(void const *const pim_noalias ptr, i32 nBytes);
 
