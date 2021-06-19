@@ -36,6 +36,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_wait_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_cmds_fn(i32 argc, const char** argv);
+static cmdstat_t cmd_echo_fn(i32 argc, const char** argv);
 
 static StrDict ms_cmds;
 static StrDict ms_aliases;
@@ -54,6 +55,7 @@ void cmd_sys_init(void)
     cmd_reg("exec", "<file>", "executes a script file", cmd_execfile_fn);
     cmd_reg("wait", "[<ms>]", "wait the given number of milliseconds (1 by default) before executing the next command.", cmd_wait_fn);
     cmd_reg("cmds", "", "list all registered commands.", cmd_cmds_fn);
+    cmd_reg("echo", "<text>", "prints the specified text to the console.", cmd_echo_fn);
 }
 
 void cmd_sys_update(void)
@@ -558,6 +560,23 @@ static cmdstat_t cmd_cmds_fn(i32 argc, const char** argv)
         const char* key = ms_cmds.keys[index];
         Con_Logf(LogSev_Info, "cmd", "\t%s", key);
     }
+
+    return cmdstat_ok;
+}
+
+static cmdstat_t cmd_echo_fn(i32 argc, const char** argv)
+{
+	char text[1024] = { 0 };
+    for (i32 i = 1; i < argc; ++i)
+    {
+        StrCat(ARGS(text), argv[i]);
+        if ((i + 1) < argc)
+        {
+            StrCat(ARGS(text), " ");
+        }
+    }
+
+    Con_Logf(LogSev_Info, "cmd", text);
 
     return cmdstat_ok;
 }
