@@ -459,16 +459,20 @@ bool RenderSys_Init(void)
 {
     ms_iFrame = 0;
 
-    cmd_reg("screenshot", CmdScreenshot);
-    cmd_reg("mapload", CmdLoadMap);
-    cmd_reg("mapsave", CmdSaveMap);
-    cmd_reg("cornell_box", CmdCornellBox);
-    cmd_reg("teleport", CmdTeleport);
-    cmd_reg("lookat", CmdLookat);
-    cmd_reg("quit", CmdQuit);
-    cmd_reg("pt_test", CmdPtTest);
-    cmd_reg("pt_stddev", CmdPtStdDev);
-    cmd_reg("loadtest", CmdLoadTest);
+    cmd_reg(
+        "screenshot",
+        "[<filename>]",
+        "save a screenshot to the file in the screenshots folder. if no filename is specified the filename will contain a timestamp.",
+        CmdScreenshot);
+    cmd_reg("mapload", "<map name>", "load a map by name.", CmdLoadMap);
+    cmd_reg("mapsave", "<map name>", "save the current map by name", CmdSaveMap);
+    cmd_reg("cornell_box", "[<spheres|boxes>]", "(defaults to boxes) the type of primitive to use.", CmdCornellBox);
+    cmd_reg("teleport", "<x> <y> <z>", "teleport to the given location.", CmdTeleport);
+    cmd_reg("lookat", "<x> <y> <z>", "look at a given location.", CmdLookat);
+    cmd_reg("quit", "", "quit the game.", CmdQuit);
+    cmd_reg("pt_test", "", "run a path tracing test.", CmdPtTest);
+    cmd_reg("pt_stddev", "", "path tracing standard deviation", CmdPtStdDev);
+    cmd_reg("loadtest", "", "run a load test", CmdLoadTest);
 
     if (!vkrSys_Init())
     {
