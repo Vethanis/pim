@@ -126,9 +126,7 @@ static cmdstat_t cmd_exec(const char* line)
     cmdalias_t alias = { 0 };
     if (StrDict_Get(&ms_aliases, name, &alias))
     {
-        char* toPush = StrDup(alias.value, EAlloc_Perm);
-        Queue_PushFront(&ms_queue, &toPush, sizeof(toPush));
-        return cmdstat_ok;
+        return cmd_text(alias.value, true);
     }
 
     // cvars
@@ -216,12 +214,7 @@ parseline:
         {
             ++q;
         }
-        else if (!(q & 1) && (c == '\n'))
-        {
-            text[i - 1] = 0;
-            break;
-        }
-        else if (!(q & 1) && (c == ';'))
+        else if (!(q & 1) && IsLineEnding(c))
         {
             text[i - 1] = 0;
             break;
@@ -318,7 +311,7 @@ wspace:
     // comments
     if (c == '/' && text[1] == '/')
     {
-        while (*text && (*text != '\n'))
+        while (*text && !IsLineEnding(*text))
         {
             ++text;
         }
@@ -368,7 +361,7 @@ wspace:
         }
         ++text;
         c = *text;
-    } while ((c > ' ') && !IsSpecialChar(c));
+    } while ((c > ' ') && !IsSpecialChar(c) && !IsLineEnding(c));
 
     NullTerminate(token, tokenSize, len);
     return text;
@@ -385,12 +378,12 @@ static char** cmd_tokenize(const char* text, i32* argcOut)
     while (text)
     {
         char c = *text;
-        while (c && (c <= ' ') && (c != '\n'))
+        while (c && (c <= ' ') && !IsLineEnding(c))
         {
             ++text;
             c = *text;
         }
-        if (!c || (c == '\n'))
+        if (!c || IsLineEnding(c))
         {
             break;
         }
