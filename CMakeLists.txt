@@ -13,6 +13,12 @@ file(GLOB_RECURSE PIM_C_HEADERS "src/*.h")
 file(GLOB_RECURSE PIM_CPP_HEADERS "src/*.hpp")
 file(GLOB_RECURSE PIM_HLSL_FILES "src/*.hlsl")
 
+file(GLOB PIM_LUA_FILES "submodules/lua/*.c")
+list(FILTER
+    PIM_LUA_FILES
+    EXCLUDE REGEX
+    ".*/lua/(onelua|lua|luac)\.c") # these define main
+
 set(PIM_SUBMODULE_FILES 
     "submodules/cJSON/cJSON.c"
     "submodules/cJSON/cJSON_Utils.c"
@@ -43,7 +49,8 @@ set(PIM_SUBMODULE_FILES
     "submodules/miniz/miniz_zip.c"
     "submodules/SPIRV-Reflect/spirv_reflect.c"
     "submodules/tlsf/tlsf.c"
-    "submodules/volk/volk.c")
+    "submodules/volk/volk.c"
+    ${PIM_LUA_FILES})
 
 set(PIM_INCLUDE_DIRS
     "src"
