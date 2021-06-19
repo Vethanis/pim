@@ -4,13 +4,13 @@
 
 #include <string.h>
 
-void Queue_New(Queue* q, u32 itemSize, EAlloc allocator)
+void Queue_New(Queue* q, u32 valueSize, EAlloc allocator)
 {
     ASSERT(q);
-    ASSERT(itemSize > 0);
-    ASSERT(itemSize <= 256);
+    ASSERT(valueSize > 0);
+    ASSERT(valueSize <= 256);
     memset(q, 0, sizeof(*q));
-    q->stride = itemSize;
+    q->valueSize = valueSize;
     q->allocator = allocator;
 }
 
@@ -48,17 +48,17 @@ void Queue_Reserve(Queue* q, u32 capacity)
     const u32 oldWidth = q->width;
     if (newWidth > oldWidth)
     {
-        const u32 stride = q->stride;
-        ASSERT(stride > 0);
+        const u32 valueSize = q->valueSize;
+        ASSERT(valueSize > 0);
         u8* oldPtr = q->ptr;
-        u8* newPtr = Mem_Alloc(q->allocator, stride * newWidth);
+        u8* newPtr = Mem_Alloc(q->allocator, valueSize * newWidth);
         const u32 iRead = q->iRead;
         const u32 len = q->iWrite - iRead;
         if (len)
         {
             const u32 mask = oldWidth - 1u;
-            const u32 twist = (iRead & mask) * stride;
-            const u32 untwist = (oldWidth * stride) - twist;
+            const u32 twist = (iRead & mask) * valueSize;
+            const u32 untwist = (oldWidth * valueSize) - twist;
             memcpy(newPtr, oldPtr + twist, untwist);
             memcpy(newPtr + untwist, oldPtr, twist);
         }
@@ -74,21 +74,21 @@ void Queue_Push(Queue* q, const void* src, u32 itemSize)
 {
     ASSERT(q);
     ASSERT(src);
-    const u32 stride = q->stride;
-    ASSERT(itemSize == stride);
+    const u32 valueSize = q->valueSize;
+    ASSERT(itemSize == valueSize);
     Queue_Reserve(q, Queue_Size(q) + 1);
     u8* dst = q->ptr;
     const u32 mask = q->width - 1;
     const u32 iWrite = q->iWrite++ & mask;
-    memcpy(dst + iWrite * stride, src, stride);
+    memcpy(dst + iWrite * valueSize, src, valueSize);
 }
 
 void Queue_PushFront(Queue* q, const void* src, u32 itemSize)
 {
     ASSERT(q);
     ASSERT(src);
-    const u32 stride = q->stride;
-    ASSERT(itemSize == stride);
+    const u32 valueSize = q->valueSize;
+    ASSERT(itemSize == valueSize);
 
     Queue_Reserve(q, Queue_Size(q) + 1);
     q->iWrite++;
@@ -102,25 +102,25 @@ void Queue_PushFront(Queue* q, const void* src, u32 itemSize)
     {
         u32 iSrc = (iRead + i - 2u) & mask;
         u32 iDst = (iRead + i - 1u) & mask;
-        memmove(&ptr[iDst * stride], &ptr[iSrc * stride], stride);
+        memmove(&ptr[iDst * valueSize], &ptr[iSrc * valueSize], valueSize);
     }
 
     u32 iDst = iRead & mask;
-    memcpy(&ptr[iDst * stride], src, stride);
+    memcpy(&ptr[iDst * valueSize], src, valueSize);
 }
 
 bool Queue_TryPop(Queue* q, void* dst, u32 itemSize)
 {
     ASSERT(q);
     ASSERT(dst);
-    const u32 stride = q->stride;
-    ASSERT(itemSize == stride);
+    const u32 valueSize = q->valueSize;
+    ASSERT(itemSize == valueSize);
     if (Queue_Size(q))
     {
         const u8* src = q->ptr;
         const u32 mask = q->width - 1;
         const u32 iRead = q->iRead++ & mask;
-        memcpy(dst, src + iRead * stride, stride);
+        memcpy(dst, src + iRead * valueSize, valueSize);
         return true;
     }
     return false;
@@ -130,11 +130,11 @@ void Queue_Get(Queue* q, u32 i, void* dst, u32 itemSize)
 {
     ASSERT(i < Queue_Size(q));
     ASSERT(dst);
-    const u32 stride = q->stride;
-    ASSERT(itemSize == stride);
+    const u32 valueSize = q->valueSize;
+    ASSERT(itemSize == valueSize);
     const u8* src = q->ptr;
     const u32 mask = q->width - 1;
     const u32 iRead = q->iRead;
     const u32 j = (iRead + i) & mask;
-    memcpy(dst, src + j * stride, stride);
+    memcpy(dst, src + j * valueSize, valueSize);
 }

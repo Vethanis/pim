@@ -10,11 +10,11 @@ typedef struct Queue_s
     u32 width;
     u32 iRead;
     u32 iWrite;
-    u32 stride;
+    u32 valueSize;
     EAlloc allocator;
 } Queue;
 
-void Queue_New(Queue* queue, u32 itemSize, EAlloc allocator);
+void Queue_New(Queue* queue, u32 valueSize, EAlloc allocator);
 void Queue_Del(Queue* queue);
 
 u32 Queue_Size(const Queue* queue);

@@ -31,6 +31,8 @@ static char** cmd_tokenize(const char* text, i32* argcOut);
 static cmdstat_t ExecCmds(void);
 static bool IsSpecialChar(char c);
 static bool IsLineEnding(char c);
+static bool IsComment(const char* text);
+static bool IsQuote(char c);
 static cmdstat_t cmd_help_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_alias_fn(i32 argc, const char** argv);
 static cmdstat_t cmd_execfile_fn(i32 argc, const char** argv);
@@ -206,20 +208,18 @@ static cmdstat_t cmd_exec(const char* line)
     return cmdstat_err;
 }
 
-cmdstat_t cmd_enqueue(const char* text)
+cmdstat_t cmd_enqueue(const char* constText)
 {
-    return cmd_text(text, false);
+    return cmd_text(constText, false);
 }
 
-cmdstat_t cmd_immediate(const char* text)
+cmdstat_t cmd_immediate(const char* constText)
 {
-    return cmd_text(text, true);
+    return cmd_text(constText, true);
 }
 
 static cmdstat_t cmd_text(const char* constText, bool immediate)
 {
-    i32 start, end, i, q;
-    i8 dir;
     if (!constText)
     {
         ASSERT(false);
@@ -227,66 +227,65 @@ static cmdstat_t cmd_text(const char* constText, bool immediate)
     }
 
     char* text = StrDup(constText, EAlloc_Temp);
+    char** lines = NULL;
+    i32 lineCount = 0;
 
-    i = q = 0;
-    dir = 1;
-
-    if (immediate)
-    {
-        // got to go through lines backwards as we are pushing to the front of the queue.
-        i = q = StrLen(text) - 1;
-        dir = -1;
-
-        // Take care of the line endings at the very end, if any.
-        while (i >= 0 && IsLineEnding(text[i]))
-        {
-            text[i] = 0;
-            i--;
-        }
-    }
-
+    i32 len = 0;
+    i32 q = 0;
 parseline:
-    start = i;
+
+    len = 0;
     q = 0;
-    end = -1;
-    while (i >= 0 && text[i])
+    while (text[len])
     {
-        char c = text[i];
-        i += dir;
-        if (c == '"')
+        char c = text[len];
+        ++len;
+        if (IsQuote(c))
         {
             ++q;
         }
         else if (!(q & 1) && IsLineEnding(c))
         {
-            end = i - dir;
-            text[end] = 0;
+            // line ending becomes null terminator
+            text[len - 1] = 0;
             break;
         }
     }
 
-    // If we're iterating backwards and we reach the front,
-    // that means we didn't zero-out the last line ending, do that now.
-    if (immediate && i < 0 && IsLineEnding(text[start + 1]))
+    if (len > 0)
     {
-        text[start] = 0;
-    }
+        char* line = Perm_Calloc(len + 1);
+        memcpy(line, text, len);
+        text += len;
+        len = 0;
 
-    if (i != start)
-    {
-        char* line = StrDup(&text[immediate ? end + 1 : start], EAlloc_Perm);
-        if (immediate)
-        {
-            Queue_PushFront(&ms_queue, &line, sizeof(line));
-        }
-        else
-        {
-            Queue_Push(&ms_queue, &line, sizeof(line));
-        }
+        ++lineCount;
+        lines = Temp_Realloc(lines, sizeof(lines[0]) * lineCount);
+        lines[lineCount - 1] = line;
+
         goto parseline;
     }
 
-    return ExecCmds();
+    if (lineCount > 0)
+    {
+        if (immediate)
+        {
+            for (i32 i = lineCount - 1; i >= 0; --i)
+            {
+                Queue_PushFront(&ms_queue, &lines[i], sizeof(lines[i]));
+            }
+        }
+        else
+        {
+            for (i32 i = 0; i < lineCount; ++i)
+            {
+                Queue_Push(&ms_queue, &lines[i], sizeof(lines[i]));
+            }
+        }
+        return ExecCmds();
+    }
+
+    return cmdstat_ok;
 }
 
 // ----------------------------------------------------------------------------
@@ -332,6 +331,7 @@ static bool IsLineEnding(char c)
     {
     default:
         return false;
+    case '\0':
     case '\n':
     case '\r':
     case ';':
@@ -339,29 +339,45 @@ static bool IsLineEnding(char c)
     }
 }
 
+static bool IsComment(const char* text)
+{
+    return (text[0] == '/') && (text[1] == '/');
+}
+
+static bool IsQuote(char c)
+{
+    return c == '"';
+}
+
 const char* cmd_parse(const char* text, char* token, i32 tokenSize)
 {
     ASSERT(text);
     ASSERT(token);
     ASSERT(tokenSize > 0);
+    token[0] = 0;
     i32 len = 0;
     char c = 0;
 
 wspace:
+    c = *text;
+
     // whitespace
-    while ((c = *text) <= ' ')
+    while (IsSpace(c))
     {
-        if (!c)
-        {
-            return NULL;
-        }
         ++text;
+        c = *text;
+    }
+    if (!c)
+    {
+        NullTerminate(token, tokenSize, len);
+        return NULL;
     }
 
     // comments
-    if (c == '/' && text[1] == '/')
+    if (IsComment(text))
     {
-        while (*text && !IsLineEnding(*text))
+        text += 2;
+        while (!IsLineEnding(*text))
         {
             ++text;
         }
@@ -369,23 +385,30 @@ wspace:
     }
 
     // quotes
-    if (c == '"')
+    if (IsQuote(c))
     {
-        ++text;
+        ++text; // skip first quote character
         while (true)
         {
             c = *text;
-            ++text;
-            if (!c || c == '"')
+            if (!c)
             {
+                // unmatched quote. discard token
+                token[0] = 0;
+                return NULL;
+            }
+            if (IsQuote(c))
+            {
+                // end of quote
                 NullTerminate(token, tokenSize, len);
-                return text;
+                // skip second quote character
+                return text + 1;
             }
             if (len < tokenSize)
             {
-                token[len] = c;
-                ++len;
+                token[len++] = c;
             }
+            ++text;
         }
     }
 
@@ -394,8 +417,7 @@ wspace:
     {
         if (len < tokenSize)
         {
-            token[len] = c;
-            ++len;
+            token[len++] = c;
         }
         NullTerminate(token, tokenSize, len);
         return text + 1;
@@ -406,12 +428,11 @@ wspace:
     {
         if (len < tokenSize)
         {
-            token[len] = c;
-            ++len;
+            token[len++] = c;
         }
         ++text;
         c = *text;
-    } while ((c > ' ') && !IsSpecialChar(c) && !IsLineEnding(c));
+    } while (!IsSpace(c) && !IsSpecialChar(c) && !IsLineEnding(c) && !IsQuote(c) && !IsComment(text));
 
     NullTerminate(token, tokenSize, len);
     return text;
@@ -428,12 +449,12 @@ static char** cmd_tokenize(const char* text, i32* argcOut)
     while (text)
     {
         char c = *text;
-        while (c && (c <= ' ') && !IsLineEnding(c))
+        while (IsSpace(c) && !IsLineEnding(c))
         {
             ++text;
             c = *text;
         }
-        if (!c || IsLineEnding(c))
+        if (IsLineEnding(c))
         {
             break;
         }
