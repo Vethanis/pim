@@ -124,11 +124,11 @@ Guid VEC_CALL Guid_FromBytes(void const *const pim_noalias ptr, i32 nBytes)
 
 void VEC_CALL Guid_Format(char* dst, i32 size, Guid value)
 {
-    u32 a0 = (value.a >> 32) & 0xffffffff;
-    u32 a1 = (value.a >> 0) & 0xffffffff;
-    u32 b0 = (value.b >> 32) & 0xffffffff;
-    u32 b1 = (value.b >> 0) & 0xffffffff;
-    StrCatf(dst, size, "%x_%x_%x_%x", a0, a1, b0, b1);
+    u32 a0 = (value.a >> 0) & 0xffffffff;
+    u32 a1 = (value.a >> 32) & 0xffffffff;
+    u32 b0 = (value.b >> 0) & 0xffffffff;
+    u32 b1 = (value.b >> 32) & 0xffffffff;
+    StrCatf(dst, size, "0x%x%x%x%x", a0, a1, b0, b1);
 }
 
 u32 VEC_CALL Guid_HashOf(Guid x)
