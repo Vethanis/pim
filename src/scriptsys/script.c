@@ -2,6 +2,8 @@
 #include "lua/lauxlib.h"
 #include "lua/lualib.h"
 
+static lua_State* ms_luastate;
+
 void ScriptSys_Init()
 {
 	ms_luastate = luaL_newstate();
