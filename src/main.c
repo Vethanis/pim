@@ -16,7 +16,7 @@
 #include "common/console.h"
 #include "editor/editor.h"
 #include "common/serialize.h"
-#include "script/script.h"
+#include "scriptsys/script.h"
 
 static bool Init(void);
 static void Update(void);

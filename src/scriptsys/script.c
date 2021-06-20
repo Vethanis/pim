@@ -1,4 +1,4 @@
-#include "script/script.h"
+#include "scriptsys/script.h"
 #include "lua/lauxlib.h"
 #include "lua/lualib.h"
 
