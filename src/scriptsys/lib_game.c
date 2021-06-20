@@ -123,7 +123,7 @@ void lib_game_update(lua_State* L)
 	}
 }
 
-i32 lib_game_num_scripts()
+i32 lib_game_num_scripts(void)
 {
 	return update_handlers.count;
 }
