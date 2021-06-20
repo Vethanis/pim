@@ -43,5 +43,5 @@ void lib_log_init(lua_State* L)
 		LUA_FN(warning),
 		LUA_FN(verbose));
 
-	LUA_LIB_REG(L, "Log");
+	LUA_LIB_REG_GLOBAL(L, "Log");
 }

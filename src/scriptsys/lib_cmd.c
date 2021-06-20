@@ -49,5 +49,5 @@ void lib_cmd_init(lua_State* L)
 	lua_pushinteger(L, cmdstat_err);
 	lua_setfield(L, 1, "ERR");
 
-	LUA_LIB_REG(L, "Cmd");
+	LUA_LIB_REG_IMPORT(L, "cmd");
 }

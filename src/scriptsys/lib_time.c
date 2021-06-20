@@ -34,7 +34,7 @@ void lib_time_init(lua_State* L)
 		LUA_FN(toSec),
 		LUA_FN(toMilli),
 		LUA_FN(toMicro));
-	LUA_LIB_REG(L, "Time");
+	LUA_LIB_REG_GLOBAL(L, "Time");
 }
 
 void lib_time_update(lua_State* L)

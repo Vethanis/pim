@@ -1,3 +1,5 @@
+local Cmd = require("cmd")
+
 local test = {}
 
 local timer = 1
