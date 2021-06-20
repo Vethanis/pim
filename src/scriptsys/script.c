@@ -7,7 +7,7 @@
 
 static lua_State* L;
 
-void ScriptSys_Init()
+void ScriptSys_Init(void)
 {
 	L = luaL_newstate();
 	luaL_openlibs(L);
@@ -17,13 +17,13 @@ void ScriptSys_Init()
 	luaL_dofile(L, SCRIPT_DIR "init.lua");
 }
 
-void ScriptSys_Shutdown()
+void ScriptSys_Shutdown(void)
 {
 	lua_close(L);
 	L = NULL;
 }
 
-void ScriptSys_Update()
+void ScriptSys_Update(void)
 {
 }
 

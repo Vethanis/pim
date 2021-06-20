@@ -9,8 +9,8 @@ PIM_C_BEGIN
 
 typedef struct lua_State lua_State;
 
-void ScriptSys_Init();
-void ScriptSys_Shutdown();
-void ScriptSys_Update();
+void ScriptSys_Init(void);
+void ScriptSys_Shutdown(void);
+void ScriptSys_Update(void);
 
 PIM_C_END
