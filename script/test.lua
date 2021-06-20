@@ -1,4 +1,5 @@
 local Cmd = require("cmd")
+local Cvar = require("cvar")
 
 local test = {}
 
@@ -10,6 +11,8 @@ local speed = 5
 
 function test:start()
   Log.info("Beginning test...")
+  fov = Cvar.get("r_fov")
+  Log.info("Current fov is ", fov)
 end
 
 function test:update()
@@ -24,7 +27,7 @@ function test:update()
     end
   end
   
-  Cmd.exec(string.format("r_fov %f", fov))
+  Cvar.set("r_fov", fov)
   fov = fov + (dir * speed * Time.delta)
 
   timer = timer - Time.delta
