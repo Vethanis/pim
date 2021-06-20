@@ -153,7 +153,7 @@ bool HashSet_Rm(HashSet* set, const void* key, u32 keySize)
     const i32 i = hashset_find(set, key, keySize);
     if (i != -1)
     {
-        set->hashes[i] = hashutil_tomb_mask;
+        set->hashes[i] |= hashutil_tomb_mask;
         u8* keys = set->keys;
         memset(keys + keySize * i, 0, keySize);
         --(set->count);
