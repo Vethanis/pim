@@ -4,9 +4,10 @@
 #include "common/console.h"
 #include "common/cmd.h"
 #include "common/stringutil.h"
+#include "scr_cmd.h"
 #include "script.h"
 
-static i32 func_exec(lua_State* L)
+static i32 scr_func_exec(lua_State* L)
 {
 	const char* line = luaL_checkstring(L, 1);
 
@@ -15,7 +16,7 @@ static i32 func_exec(lua_State* L)
 	return 1;
 }
 
-static cmdstat_t cmd_script_exec(i32 argc, const char** argv)
+static cmdstat_t scr_cmd_exec(i32 argc, const char** argv)
 {
 	if (argc != 2)
 	{
@@ -26,7 +27,7 @@ static cmdstat_t cmd_script_exec(i32 argc, const char** argv)
 	return ScriptSys_Exec(argv[1]) ? cmdstat_ok : cmdstat_err;
 }
 
-static cmdstat_t cmd_script_eval(i32 argc, const char** argv)
+static cmdstat_t scr_cmd_eval(i32 argc, const char** argv)
 {
 	if (argc != 2)
 	{
@@ -37,10 +38,10 @@ static cmdstat_t cmd_script_eval(i32 argc, const char** argv)
 	return ScriptSys_Eval(argv[1]) ? cmdstat_ok : cmdstat_err;
 }
 
-void lib_cmd_init(lua_State* L)
+void scr_cmd_init(lua_State* L)
 {
-	cmd_reg("script_exec", "<script name>", "executes a script by name in the scripts folder.", cmd_script_exec);
-	cmd_reg("script_eval", "\"<lua code>\"", "executes the given argument as a script (surround in quotes).", cmd_script_eval);
+	cmd_reg("script_exec", "<script name>", "executes a script by name in the scripts folder.", scr_cmd_exec);
+	cmd_reg("script_eval", "\"<lua code>\"", "executes the given argument as a script (surround in quotes).", scr_cmd_eval);
 
 	LUA_LIB(L, LUA_FN(exec));
 
@@ -49,5 +50,5 @@ void lib_cmd_init(lua_State* L)
 	lua_pushinteger(L, cmdstat_err);
 	lua_setfield(L, 1, "ERR");
 
-	LUA_LIB_REG_IMPORT(L, "cmd");
+	Script_RegisterLib(L, "cmd", ScrLib_Import);
 }

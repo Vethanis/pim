@@ -4,10 +4,10 @@
 #include "lua/lua.h"
 #include "common/console.h"
 #include "common/stringutil.h"
-#include "lib_log.h"
-#include "lib_time.h"
-#include "lib_cmd.h"
-#include "lib_game.h"
+#include "scr_log.h"
+#include "scr_time.h"
+#include "scr_cmd.h"
+#include "scr_game.h"
 
 static lua_State* L;
 
@@ -16,17 +16,17 @@ void ScriptSys_Init(void)
 	L = luaL_newstate();
 	luaL_openlibs(L);
 
-	lib_cmd_init(L);
-	lib_log_init(L);
-	lib_time_init(L);
-	lib_game_init(L);
+	scr_cmd_init(L);
+	scr_log_init(L);
+	scr_time_init(L);
+	scr_game_init(L);
 
 	ScriptSys_Exec("init");
 }
 
 void ScriptSys_Shutdown(void)
 {
-	lib_game_shutdown(L);
+	scr_game_shutdown(L);
 
 	lua_close(L);
 	L = NULL;
@@ -34,13 +34,28 @@ void ScriptSys_Shutdown(void)
 
 void ScriptSys_Update(void)
 {
-	if (lib_game_num_scripts() <= 0)
+	if (scr_game_num_scripts() <= 0)
 	{
 		return;
 	}
 
-	lib_time_update(L);
-	lib_game_update(L);
+	scr_time_update(L);
+	scr_game_update(L);
+}
+
+void Script_RegisterLib(lua_State* L, const char* name, ScrLib_Reg regType)
+{
+	if (regType == ScrLib_Global)
+	{
+		lua_setglobal(L, name);
+		return;
+	}
+
+	lua_getglobal(L, "package");
+	lua_getfield(L, -1, "loaded");
+	lua_pushvalue(L, 1);
+	lua_setfield(L, -2, name);
+	lua_pop(L, 3);
 }
 
 bool ScriptSys_Exec(const char* filename)

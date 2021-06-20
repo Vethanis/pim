@@ -4,40 +4,40 @@
 #include "scriptsys/script.h"
 #include "common/console.h"
 #include "common/time.h"
-#include "lib_log.h"
-#include "lib_time.h"
+#include "scr_log.h"
+#include "scr_time.h"
 
-static int func_toSec(lua_State* L)
+static int scr_func_toSec(lua_State* L)
 {
 	lua_Integer ticks = luaL_checkinteger(L, 1);
 	lua_pushnumber(L, Time_Sec(ticks));
 	return 1;
 }
 
-static int func_toMilli(lua_State* L)
+static int scr_func_toMilli(lua_State* L)
 {
 	lua_Integer ticks = luaL_checkinteger(L, 1);
 	lua_pushnumber(L, Time_Milli(ticks));
 	return 1;
 }
 
-static int func_toMicro(lua_State* L)
+static int scr_func_toMicro(lua_State* L)
 {
 	lua_Integer ticks = luaL_checkinteger(L, 1);
 	lua_pushnumber(L, Time_Micro(ticks));
 	return 1;
 }
 
-void lib_time_init(lua_State* L)
+void scr_time_init(lua_State* L)
 {
 	LUA_LIB(L,
 		LUA_FN(toSec),
 		LUA_FN(toMilli),
 		LUA_FN(toMicro));
-	LUA_LIB_REG_GLOBAL(L, "Time");
+	Script_RegisterLib(L, "Time", ScrLib_Global);
 }
 
-void lib_time_update(lua_State* L)
+void scr_time_update(lua_State* L)
 {
 	u64 frameCount = Time_FrameCount();
 	u64 appStart = Time_AppStart();
