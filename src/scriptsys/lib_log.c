@@ -35,7 +35,7 @@ static int func_verbose(lua_State* L)
 	return log_sev(L, LogSev_Verbose);
 }
 
-void init_lib_log(lua_State* L)
+void lib_log_init(lua_State* L)
 {
 	LUA_LIB(L,
 		LUA_FN(info),

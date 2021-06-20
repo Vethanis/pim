@@ -1,4 +1,9 @@
 #include "script.h"
+#include "common/macro.h"
 
-void init_lib_time(lua_State* L);
-void lib_time_tick(lua_State* L);
+PIM_C_BEGIN
+
+void lib_time_init(lua_State* L);
+void lib_time_update(lua_State* L);
+
+PIM_C_END
