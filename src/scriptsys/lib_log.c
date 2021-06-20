@@ -37,15 +37,11 @@ static int func_verbose(lua_State* L)
 
 void init_lib_log(lua_State* L)
 {
-	luaL_Reg lib_log[] =
-	{
+	LUA_LIB(L,
 		LUA_FN(info),
 		LUA_FN(error),
 		LUA_FN(warning),
-		LUA_FN(verbose),
-		{ 0 }
-	};
+		LUA_FN(verbose));
 
-	luaL_newlib(L, lib_log);
-	lua_setglobal(L, "Log");
+	LUA_LIB_REG(L, "Log");
 }

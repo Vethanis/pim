@@ -16,23 +16,7 @@ static cmdstat_t cmd_script_exec(i32 argc, const char** argv)
 		return cmdstat_err;
 	}
 
-	char path[PIM_PATH];
-	StrCpy(ARGS(path), SCRIPT_DIR);
-	i32 len = StrCat(ARGS(path), argv[1]);
-
-	if (!IEndsWith(ARGS(path), ".lua"))
-	{
-		len = StrCat(ARGS(path), ".lua");
-	}
-
-	if (len > PIM_PATH)
-	{
-		Con_Logf(LogSev_Error, "script", "Path is too long (> %i)", PIM_PATH);
-		return cmdstat_err;
-	}
-
-	luaL_dofile(L, path);
-	return cmdstat_ok;
+	return ScriptSys_Exec(argv[1]) ? cmdstat_ok : cmdstat_err;
 }
 
 static cmdstat_t cmd_script_eval(i32 argc, const char** argv)
@@ -43,8 +27,7 @@ static cmdstat_t cmd_script_eval(i32 argc, const char** argv)
 		return cmdstat_err;
 	}
 
-	luaL_dostring(L, argv[1]);
-	return cmdstat_ok;
+	return ScriptSys_Eval(argv[1]) ? cmdstat_ok : cmdstat_err;
 }
 
 void init_cmds(lua_State* l)
