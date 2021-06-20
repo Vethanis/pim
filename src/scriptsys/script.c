@@ -93,7 +93,7 @@ bool ScriptSys_Exec(const char* filename)
 
 	if (luaL_dofile(L, path) != LUA_OK)
 	{
-		Con_Logf(LogSev_Error, "script", lua_tostring(L, -1));
+		Con_Logf(LogSev_Error, "script", "in exec: %s", lua_tostring(L, -1));
 		lua_pop(L, 1);
 		return false;
 	}
@@ -105,7 +105,7 @@ bool ScriptSys_Eval(const char* script)
 {
 	if (luaL_dostring(L, script) != LUA_OK)
 	{
-		Con_Logf(LogSev_Error, "script", lua_tostring(L, -1));
+		Con_Logf(LogSev_Error, "script", "in eval: %s", lua_tostring(L, -1));
 		lua_pop(L, 1);
 		return false;
 	}
