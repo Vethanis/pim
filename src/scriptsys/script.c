@@ -7,6 +7,7 @@
 #include "scr_log.h"
 #include "scr_time.h"
 #include "scr_cmd.h"
+#include "scr_cvar.h"
 #include "scr_game.h"
 #include "common/profiler.h"
 
@@ -20,6 +21,7 @@ void ScriptSys_Init(void)
 	scr_cmd_init(L);
 	scr_log_init(L);
 	scr_time_init(L);
+	scr_cvar_init(L);
 	scr_game_init(L);
 
 	ScriptSys_Exec("init");
