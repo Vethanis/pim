@@ -28,7 +28,7 @@ static int func_toMicro(lua_State* L)
 	return 1;
 }
 
-void init_lib_time(lua_State* L)
+void lib_time_init(lua_State* L)
 {
 	LUA_LIB(L,
 		LUA_FN(toSec),
@@ -37,7 +37,7 @@ void init_lib_time(lua_State* L)
 	LUA_LIB_REG(L, "Time");
 }
 
-void lib_time_tick(lua_State* L)
+void lib_time_update(lua_State* L)
 {
 	u64 frameCount = Time_FrameCount();
 	u64 appStart = Time_AppStart();

@@ -1,13 +1,17 @@
+local init = {} 
 
-local timer = 5;
+local timer = 15
 
-function update()
-  timer = timer - Time.delta
-  Log.info("tick ", timer)
-  
-  if timer < 0 then
-    Script.exit()
+function init:update()
+  if timer <= 0 then
+    return Game.stop_update(self)
   end
+
+  timer = timer - Time.delta
 end
 
-Log.info("Script system has been initialized.")
+function init:stop()
+  Log.info("Init script completed.")
+end
+
+Game.start_update(init)
