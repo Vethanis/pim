@@ -26,10 +26,14 @@ static int scr_func_start_update(lua_State* L)
 		lua_pushvalue(L, 1); // self arg
 		if (lua_pcall(L, 1, 0, 0) != LUA_OK)
 		{
-			Con_Logf(LogSev_Error, "script", lua_tostring(L, -1));
+			Con_Logf(LogSev_Error, "script", "in start_update: %s", lua_tostring(L, -1));
 			lua_pop(L, 1); // error
 			return 0;
 		}
+	}
+	else
+	{
+		lua_pop(L, 1); // nil field
 	}
 
 	lua_pushinteger(L, refId);
@@ -49,11 +53,15 @@ static void scr_remove_update_handler(lua_State* L, i32 refId)
 		lua_pushvalue(L, 1); // self arg
 		if (lua_pcall(L, 1, 0, 0) != LUA_OK)
 		{
-			Con_Logf(LogSev_Error, "script", lua_tostring(L, -1));
+			Con_Logf(LogSev_Error, "script", "in remove_update: %s", lua_tostring(L, -1));
 			lua_pop(L, 1); // error
 		}
 	}
-	lua_pop(L, 1);
+	else
+	{
+		lua_pop(L, 1); // nil field
+	}
+	lua_pop(L, 1); // table
 
 	HashSet_Rm(&sm_update_handlers, &refId, sizeof(i32));
 	luaL_unref(L, LUA_REGISTRYINDEX, refId);
@@ -113,8 +121,8 @@ void scr_game_update(lua_State* L)
 		lua_pushvalue(L, 1); // self arg
 		if (lua_pcall(L, 1, 0, 0) != LUA_OK)
 		{
-			Con_Logf(LogSev_Error, "script", lua_tostring(L, -1));
-			lua_pop(L, 1); // error
+			Con_Logf(LogSev_Error, "script", "in update: %s", lua_tostring(L, -1));
+			lua_pop(L, 1); // error, table
 			scr_remove_update_handler(L, refId);
 		}
 
