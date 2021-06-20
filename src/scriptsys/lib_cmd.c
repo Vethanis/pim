@@ -6,7 +6,14 @@
 #include "common/stringutil.h"
 #include "script.h"
 
-static lua_State* L = NULL;
+static i32 func_exec(lua_State* L)
+{
+	const char* line = luaL_checkstring(L, 1);
+
+	cmdstat_t result = cmd_enqueue(line);
+	lua_pushinteger(L, result);
+	return 1;
+}
 
 static cmdstat_t cmd_script_exec(i32 argc, const char** argv)
 {
@@ -30,10 +37,17 @@ static cmdstat_t cmd_script_eval(i32 argc, const char** argv)
 	return ScriptSys_Eval(argv[1]) ? cmdstat_ok : cmdstat_err;
 }
 
-void init_cmds(lua_State* l)
+void lib_cmd_init(lua_State* L)
 {
-	L = l;
-
 	cmd_reg("script_exec", "<script name>", "executes a script by name in the scripts folder.", cmd_script_exec);
 	cmd_reg("script_eval", "\"<lua code>\"", "executes the given argument as a script (surround in quotes).", cmd_script_eval);
+
+	LUA_LIB(L, LUA_FN(exec));
+
+	lua_pushinteger(L, cmdstat_ok);
+	lua_setfield(L, 1, "OK");
+	lua_pushinteger(L, cmdstat_err);
+	lua_setfield(L, 1, "ERR");
+
+	LUA_LIB_REG(L, "Cmd");
 }

@@ -3,6 +3,6 @@
 
 PIM_C_BEGIN
 
-void init_cmds(lua_State* L);
+void lib_cmd_init(lua_State* L);
 
 PIM_C_END
