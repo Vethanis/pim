@@ -43,6 +43,7 @@ static void remove_update_handler(lua_State* L, i32 refId)
 {
 	Con_Logf(LogSev_Verbose, "script", "stopping script activity #%i", refId);
 
+	lua_rawgeti(L, LUA_REGISTRYINDEX, refId);
 	if (lua_getfield(L, 1, "stop") != LUA_TNIL)
 	{
 		lua_pushvalue(L, 1); // self arg
@@ -52,6 +53,7 @@ static void remove_update_handler(lua_State* L, i32 refId)
 			lua_pop(L, 1); // error
 		}
 	}
+	lua_pop(L, 1);
 
 	HashSet_Rm(&update_handlers, &refId, sizeof(i32));
 	luaL_unref(L, LUA_REGISTRYINDEX, refId);
