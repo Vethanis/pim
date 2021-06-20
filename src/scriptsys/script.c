@@ -6,9 +6,8 @@
 #include "common/stringutil.h"
 #include "lib_log.h"
 #include "lib_time.h"
-#include "cmds.h"
+#include "lib_cmd.h"
 #include "lib_game.h"
-#include "cmds.h"
 
 static lua_State* L;
 
@@ -17,7 +16,7 @@ void ScriptSys_Init(void)
 	L = luaL_newstate();
 	luaL_openlibs(L);
 
-	init_cmds(L);
+	lib_cmd_init(L);
 	lib_log_init(L);
 	lib_time_init(L);
 	lib_game_init(L);
