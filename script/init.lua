@@ -1,1 +1,1 @@
-Console.log("Script system has been initialized.")
+Log.info("Script system has been initialized.")
