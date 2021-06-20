@@ -64,6 +64,7 @@ static bool Init(void)
 
 static void Shutdown(void)
 {
+    ScriptSys_Shutdown();
     EditorSys_Shutdown();
     LogicSys_Shutdown();
     InputSys_Shutdown();
