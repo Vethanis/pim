@@ -7,7 +7,7 @@
 
 #define LUA_LIB(L, ...) luaL_Reg lib[] = \
 { \
-	 __VA_ARGS__, \
+	__VA_ARGS__, \
 	{ 0 } \
 }; \
 luaL_newlib(L, lib);
