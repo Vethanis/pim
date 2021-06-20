@@ -16,6 +16,7 @@
 #include "common/console.h"
 #include "editor/editor.h"
 #include "common/serialize.h"
+#include "script/script.h"
 
 static bool Init(void);
 static void Update(void);
@@ -56,6 +57,7 @@ static bool Init(void)
     InputSys_Init();
     LogicSys_Init();
     EditorSys_Init();
+    ScriptSys_Init();
 
     return true;
 }
