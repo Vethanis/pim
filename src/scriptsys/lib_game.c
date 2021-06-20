@@ -74,7 +74,7 @@ void lib_game_init(lua_State* L)
 		LUA_FN(start_update),
 		LUA_FN(stop_update));
 
-	LUA_LIB_REG(L, "Game");
+	LUA_LIB_REG_GLOBAL(L, "Game");
 
 	HashSet_New(&update_handlers, sizeof(i32), EAlloc_Perm);
 }
