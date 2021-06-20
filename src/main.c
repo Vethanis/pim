@@ -93,6 +93,7 @@ static void Update(void)
     AssetSys_Update();          // stream assets in
     TaskSys_Update();           // schedule tasks
     cmd_sys_update();           // execute console commands
+    ScriptSys_Update();
 
     if (RenderSys_WindowUpdate())
     {

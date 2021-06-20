@@ -15,4 +15,9 @@ void ScriptSys_Init()
 void ScriptSys_Shutdown()
 {
 	lua_close(ms_luastate);
+	ms_luastate = NULL;
+}
+
+void ScriptSys_Update()
+{
 }
