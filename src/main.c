@@ -16,6 +16,7 @@
 #include "common/console.h"
 #include "editor/editor.h"
 #include "common/serialize.h"
+#include "scriptsys/script.h"
 
 static bool Init(void);
 static void Update(void);
@@ -56,12 +57,14 @@ static bool Init(void)
     InputSys_Init();
     LogicSys_Init();
     EditorSys_Init();
+    ScriptSys_Init();
 
     return true;
 }
 
 static void Shutdown(void)
 {
+    ScriptSys_Shutdown();
     EditorSys_Shutdown();
     LogicSys_Shutdown();
     InputSys_Shutdown();
@@ -90,6 +93,7 @@ static void Update(void)
     AssetSys_Update();          // stream assets in
     TaskSys_Update();           // schedule tasks
     cmd_sys_update();           // execute console commands
+    ScriptSys_Update();
 
     if (RenderSys_WindowUpdate())
     {
