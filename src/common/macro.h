@@ -202,6 +202,7 @@ typedef enum
     EAlloc_Perm = 0,
     EAlloc_Texture,
     EAlloc_Temp,
+    EAlloc_Script,
 
     EAlloc_COUNT
 } EAlloc;

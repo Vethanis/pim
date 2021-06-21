@@ -29,6 +29,10 @@ void Mem_Pop(i32 bytes);
 #define Temp_Calloc(bytes) Mem_Calloc(EAlloc_Temp, (bytes))
 #define Temp_Realloc(prev, bytes) Mem_Realloc(EAlloc_Temp, (prev), (bytes))
 
+#define Script_Alloc(bytes) Mem_Alloc(EAlloc_Script, (bytes))
+#define Script_Calloc(bytes) Mem_Calloc(EAlloc_Script, (bytes))
+#define Script_Realloc(prev, bytes) Mem_Realloc(EAlloc_Script, (prev), (bytes))
+
 #define ZeroElem(p, i) do { memset((p) + (i), 0, sizeof((p)[0])); } while(0)
 #define PopSwap(p, i, l) do { memcpy((p) + (i), (p) + (l) - 1, sizeof((p)[0])); } while(0)
 
@@ -41,5 +45,8 @@ void Mem_Pop(i32 bytes);
 
 #define Temp_Reserve(p, l) Mem_Reserve(EAlloc_Temp, (p), (l))
 #define Temp_Grow(p, l) Mem_Grow(EAlloc_Temp, (p), (l))
+
+#define Script_Reserve(p, l) Mem_Reserve(EAlloc_Script, (p), (l))
+#define ScriptTemp_Grow(p, l) Mem_Grow(EAlloc_Script, (p), (l))
 
 PIM_C_END
