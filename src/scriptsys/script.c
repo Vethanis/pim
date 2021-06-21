@@ -8,6 +8,7 @@
 #include "scr_time.h"
 #include "scr_cmd.h"
 #include "scr_game.h"
+#include "common/profiler.h"
 
 static lua_State* L;
 
@@ -32,6 +33,9 @@ void ScriptSys_Shutdown(void)
 	L = NULL;
 }
 
+ProfileMark(pm_update, scrUpdate)
+ProfileMark(pm_time_update, scrUpdate_Time)
+ProfileMark(pm_game_update, scrUpdate_Game)
 void ScriptSys_Update(void)
 {
 	if (scr_game_num_scripts() <= 0)
@@ -39,8 +43,17 @@ void ScriptSys_Update(void)
 		return;
 	}
 
+	ProfileBegin(pm_update);
+
+	ProfileBegin(pm_time_update);
 	scr_time_update(L);
+	ProfileEnd(pm_time_update);
+
+	ProfileBegin(pm_game_update);
 	scr_game_update(L);
+	ProfileEnd(pm_game_update);
+
+	ProfileEnd(pm_update);
 }
 
 void Script_RegisterLib(lua_State* L, const char* name, ScrLib_Reg regType)
