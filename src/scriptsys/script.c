@@ -23,7 +23,7 @@ static void* scr_lua_alloc(void* ud, void* ptr, size_t osize, size_t nsize)
 	}
 	else
 	{
-		return Script_Realloc(ptr, (i32)nsize); // would we ever allocate larger than i32 at once?
+		return Mem_Realloc(EAlloc_Script, ptr, (i32)nsize); // would we ever allocate larger than i32 at once?
 	}
 }
 
