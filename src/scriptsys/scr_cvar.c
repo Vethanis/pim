@@ -11,13 +11,13 @@ static void VEC_CALL scr_push_vec(lua_State* L, float4 vec)
 {
 	lua_createtable(L, 4, 0);
 	lua_pushnumber(L, vec.x);
-	lua_setfield(L, -1, "x");
+	lua_setfield(L, -2, "x");
 	lua_pushnumber(L, vec.y);
-	lua_setfield(L, -1, "y");
+	lua_setfield(L, -2, "y");
 	lua_pushnumber(L, vec.z);
-	lua_setfield(L, -1, "z");
+	lua_setfield(L, -2, "z");
 	lua_pushnumber(L, vec.w);
-	lua_setfield(L, -1, "w");
+	lua_setfield(L, -2, "w");
 }
 
 static lua_Number scr_checknumberfield(lua_State* L, i32 pos, const char* field)
