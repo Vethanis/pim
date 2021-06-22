@@ -7,7 +7,7 @@
 #include "scr_cmd.h"
 #include "script.h"
 
-static void scr_push_vec(lua_State* L, float4 vec)
+static void VEC_CALL scr_push_vec(lua_State* L, float4 vec)
 {
 	lua_createtable(L, 4, 0);
 	lua_pushnumber(L, vec.x);
