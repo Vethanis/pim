@@ -42,7 +42,4 @@ void Mem_Pop(i32 bytes);
 #define Temp_Reserve(p, l) Mem_Reserve(EAlloc_Temp, (p), (l))
 #define Temp_Grow(p, l) Mem_Grow(EAlloc_Temp, (p), (l))
 
-#define Script_Reserve(p, l) Mem_Reserve(EAlloc_Script, (p), (l))
-#define ScriptTemp_Grow(p, l) Mem_Grow(EAlloc_Script, (p), (l))
-
 PIM_C_END
