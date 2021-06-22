@@ -159,3 +159,7 @@ void scr_cvar_init(lua_State* L)
 
 	Script_RegisterLib(L, "cvar", ScrLib_Import);
 }
+
+void scr_cvar_shutdown(lua_State* L)
+{
+}
