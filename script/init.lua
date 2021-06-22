@@ -1,4 +1,4 @@
-local Cmd = require("cmd")
+local Cvar = require("cvar")
 
 local init = {}
 
@@ -6,7 +6,8 @@ local shutter = 0
 local speed = 0.01
 
 function init:start()
-  Cmd.exec("exp_manual 1; exp_shutter 0")
+  Cvar.set("exp_manual", 1)
+  Cvar.set("exp_shutter", 0)
 end
 
 function init:update()  
@@ -15,7 +16,7 @@ function init:update()
     return Game.stop_update(self)
   end
   
-  Cmd.exec(string.format("exp_shutter %f", shutter))
+  Cvar.set("exp_shutter", shutter)
 end
 
 function init:stop()
