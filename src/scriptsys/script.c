@@ -23,13 +23,16 @@ static void* scr_lua_alloc(void* ud, void* ptr, size_t osize, size_t nsize)
 	}
 	else
 	{
-		return Mem_Realloc(EAlloc_Script, ptr, (i32)nsize); // would we ever allocate larger than i32 at once?
+		ASSERT((i32)nsize > 0);
+		return Mem_Realloc(EAlloc_Script, ptr, (i32)nsize);
 	}
 }
 
 void ScriptSys_Init(void)
 {
 	L = lua_newstate(scr_lua_alloc, NULL);
+	ASSERT(L);
+
 	luaL_openlibs(L);
 
 	scr_cmd_init(L);
