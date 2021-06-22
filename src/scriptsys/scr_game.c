@@ -16,6 +16,7 @@ static int scr_func_start_update(lua_State* L)
 	i32 refId = luaL_ref(L, LUA_REGISTRYINDEX);
 	if (refId == LUA_REFNIL)
 	{
+		ASSERT(false);
 		return 0;
 	}
 

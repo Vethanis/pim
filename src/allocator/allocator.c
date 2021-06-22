@@ -17,6 +17,7 @@
 #define kPermCapacity       (1 << 30)
 #define kTextureCapacity    (1 << 30)
 #define kTempCapacity       (256 << 20)
+#define kScriptCapacity     (256 << 20)
 
 SASSERT((1 << kAlignShifts) == kAlign);
 
@@ -45,6 +46,7 @@ typedef struct linear_allocator_s
 
 static tlsf_allocator_t ms_perm;
 static tlsf_allocator_t ms_texture;
+static tlsf_allocator_t ms_script;
 static i32 ms_tempIndex;
 static linear_allocator_t ms_temp[kTempFrames];
 
@@ -165,6 +167,7 @@ void MemSys_Init(void)
 {
     tlsf_allocator_new(&ms_perm, kPermCapacity);
     tlsf_allocator_new(&ms_texture, kTextureCapacity);
+    tlsf_allocator_new(&ms_script, kScriptCapacity);
     ms_tempIndex = 0;
     for (i32 i = 0; i < kTempFrames; ++i)
     {
@@ -183,6 +186,7 @@ void MemSys_Shutdown(void)
 {
     tlsf_allocator_del(&ms_perm);
     tlsf_allocator_del(&ms_texture);
+    tlsf_allocator_del(&ms_script);
     for (i32 i = 0; i < kTempFrames; ++i)
     {
         linear_allocator_del(&ms_temp[i]);
@@ -213,6 +217,9 @@ void* Mem_Alloc(EAlloc type, i32 bytes)
             break;
         case EAlloc_Texture:
             ptr = tlsf_allocator_malloc(&ms_texture, bytes);
+            break;
+        case EAlloc_Script:
+            ptr = tlsf_allocator_malloc(&ms_script, bytes);
             break;
         case EAlloc_Temp:
             ptr = linear_allocator_malloc(&ms_temp[ms_tempIndex], bytes);
@@ -264,6 +271,9 @@ void Mem_Free(void* ptr)
             break;
         case EAlloc_Texture:
             tlsf_allocator_free(&ms_texture, hdr);
+            break;
+        case EAlloc_Script:
+            tlsf_allocator_free(&ms_script, hdr);
             break;
         case EAlloc_Temp:
             break;
