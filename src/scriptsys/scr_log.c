@@ -45,3 +45,7 @@ void scr_log_init(lua_State* L)
 
 	Script_RegisterLib(L, "Log", ScrLib_Global);
 }
+
+void scr_log_shutdown(lua_State* L)
+{
+}
