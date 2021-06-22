@@ -66,3 +66,7 @@ void scr_time_update(lua_State* L)
 		lua_setfield(L, -2, "delta");
 	lua_pop(L, 1);
 }
+
+void scr_time_shutdown(lua_State* L)
+{
+}

@@ -30,6 +30,10 @@ void ScriptSys_Init(void)
 void ScriptSys_Shutdown(void)
 {
 	scr_game_shutdown(L);
+	scr_cmd_shutdown(L);
+	scr_log_shutdown(L);
+	scr_time_shutdown(L);
+	scr_cvar_shutdown(L);
 
 	lua_close(L);
 	L = NULL;
