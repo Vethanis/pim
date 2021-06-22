@@ -9,12 +9,30 @@
 #include "scr_cmd.h"
 #include "scr_game.h"
 #include "common/profiler.h"
+#include "allocator/allocator.h"
 
 static lua_State* L;
 
+
+static void* scr_lua_alloc(void* ud, void* ptr, size_t osize, size_t nsize)
+{
+	if (nsize == 0)
+	{
+		Mem_Free(ptr);
+		return NULL;
+	}
+	else
+	{
+		ASSERT((i32)nsize > 0);
+		return Mem_Realloc(EAlloc_Script, ptr, (i32)nsize);
+	}
+}
+
 void ScriptSys_Init(void)
 {
-	L = luaL_newstate();
+	L = lua_newstate(scr_lua_alloc, NULL);
+	ASSERT(L);
+
 	luaL_openlibs(L);
 
 	scr_cmd_init(L);
