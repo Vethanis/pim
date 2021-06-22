@@ -52,3 +52,7 @@ void scr_cmd_init(lua_State* L)
 
 	Script_RegisterLib(L, "cmd", ScrLib_Import);
 }
+
+void scr_cmd_shutdown(lua_State* L)
+{
+}

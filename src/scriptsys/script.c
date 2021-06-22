@@ -7,6 +7,7 @@
 #include "scr_log.h"
 #include "scr_time.h"
 #include "scr_cmd.h"
+#include "scr_cvar.h"
 #include "scr_game.h"
 #include "common/profiler.h"
 #include "allocator/allocator.h"
@@ -38,6 +39,7 @@ void ScriptSys_Init(void)
 	scr_cmd_init(L);
 	scr_log_init(L);
 	scr_time_init(L);
+	scr_cvar_init(L);
 	scr_game_init(L);
 
 	ScriptSys_Exec("init");
@@ -46,6 +48,10 @@ void ScriptSys_Init(void)
 void ScriptSys_Shutdown(void)
 {
 	scr_game_shutdown(L);
+	scr_cmd_shutdown(L);
+	scr_log_shutdown(L);
+	scr_time_shutdown(L);
+	scr_cvar_shutdown(L);
 
 	lua_close(L);
 	L = NULL;
@@ -109,7 +115,7 @@ bool ScriptSys_Exec(const char* filename)
 
 	if (luaL_dofile(L, path) != LUA_OK)
 	{
-		Con_Logf(LogSev_Error, "script", lua_tostring(L, -1));
+		Con_Logf(LogSev_Error, "script", "in exec: %s", lua_tostring(L, -1));
 		lua_pop(L, 1);
 		return false;
 	}
@@ -121,7 +127,7 @@ bool ScriptSys_Eval(const char* script)
 {
 	if (luaL_dostring(L, script) != LUA_OK)
 	{
-		Con_Logf(LogSev_Error, "script", lua_tostring(L, -1));
+		Con_Logf(LogSev_Error, "script", "in eval: %s", lua_tostring(L, -1));
 		lua_pop(L, 1);
 		return false;
 	}
