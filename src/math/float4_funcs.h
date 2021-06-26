@@ -635,20 +635,20 @@ pim_inline float4 VEC_CALL f4_cross3(float4 a, float4 b)
 
 pim_inline float VEC_CALL f4_length4(float4 x)
 {
-    return sqrtf(f4_dot4(x, x));
+    return sqrtf(f1_max(kEpsilon, f4_dot4(x, x)));
 }
 pim_inline float VEC_CALL f4_length3(float4 x)
 {
-    return sqrtf(f4_dot3(x, x));
+    return sqrtf(f1_max(kEpsilon, f4_dot3(x, x)));
 }
 
 pim_inline float4 VEC_CALL f4_normalize4(float4 x)
 {
-    return f4_divvs(x, f1_max(f4_length4(x), kEpsilon));
+    return f4_divvs(x, f4_length4(x));
 }
 pim_inline float4 VEC_CALL f4_normalize3(float4 x)
 {
-    return f4_divvs(x, f1_max(f4_length3(x), kEpsilon));
+    return f4_divvs(x, f4_length3(x));
 }
 
 pim_inline float VEC_CALL f4_distance4(float4 a, float4 b)

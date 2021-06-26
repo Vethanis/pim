@@ -87,10 +87,9 @@ void CameraLogic_Update(void)
         eye = f4_add(eye, f4_mulvs(up, -moveScale));
     }
 
-    float4 at = f4_add(eye, fwd);
-    at = f4_add(at, f4_mulvs(right, dYaw));
-    at = f4_add(at, f4_mulvs(up, dPitch));
-    fwd = f4_normalize3(f4_sub(at, eye));
+    fwd = f4_add(fwd, f4_mulvs(right, dYaw));
+    fwd = f4_add(fwd, f4_mulvs(up, dPitch));
+    fwd = f4_normalize3(fwd);
     rot = quat_lookat(fwd, yAxis);
 
     camera.position = eye;

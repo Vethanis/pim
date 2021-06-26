@@ -49,6 +49,7 @@
 // SI units
 #define kKilo               1000.0f
 #define kMeter              1.0f
+#define kDeci               0.1f
 #define kCenti              0.01f
 #define kMilli              0.001f
 #define kMicro              1e-6f
