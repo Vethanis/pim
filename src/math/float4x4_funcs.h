@@ -83,15 +83,6 @@ pim_inline float4 VEC_CALL f4x4_mul_dir(float4x4 m, float4 dir)
     return f4_add(a, f4_add(b, c));
 }
 
-pim_inline float4 VEC_CALL f4x4_mul_extents(float4x4 M, float4 extents)
-{
-    // f4x4_mul_dir + abs before adding
-    float4 a = f4_abs(f4_mulvs(M.c0, extents.x));
-    float4 b = f4_abs(f4_mulvs(M.c1, extents.y));
-    float4 c = f4_abs(f4_mulvs(M.c2, extents.z));
-    return f4_add(f4_add(a, b), c);
-}
-
 // assumes pt.w == 1.0f
 pim_inline float4 VEC_CALL f4x4_mul_pt(float4x4 m, float4 pt)
 {
@@ -99,6 +90,15 @@ pim_inline float4 VEC_CALL f4x4_mul_pt(float4x4 m, float4 pt)
     float4 b = f4_mulvs(m.c1, pt.y);
     float4 c = f4_mulvs(m.c2, pt.z);
     return f4_add(f4_add(a, b), f4_add(c, m.c3));
+}
+
+pim_inline float4 VEC_CALL f4x4_mul_extents(float4x4 m, float4 extents)
+{
+    // f4x4_mul_dir + abs before adding
+    float4 a = f4_abs(f4_mulvs(m.c0, extents.x));
+    float4 b = f4_abs(f4_mulvs(m.c1, extents.y));
+    float4 c = f4_abs(f4_mulvs(m.c2, extents.z));
+    return f4_add(a, f4_add(b, c));
 }
 
 pim_inline float4x4 VEC_CALL f4x4_translate(float4x4 m, float4 v)
@@ -120,24 +120,14 @@ pim_inline float4x4 VEC_CALL f4x4_translation(float4 v)
     return m;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_rotate(float4x4 m, float a, float4 v)
+pim_inline float4x4 VEC_CALL f4x4_rotate(float4x4 m, quat q)
 {
-    float3x3 rot = f3x3_angle_axis(a, v);
     float4x4 res;
     {
-        float4 x, y, z;
-        x = f4_mulvs(m.c0, rot.c0.x);
-        y = f4_mulvs(m.c1, rot.c0.y);
-        z = f4_mulvs(m.c2, rot.c0.z);
-        res.c0 = f4_add(x, f4_add(y, z));
-        x = f4_mulvs(m.c0, rot.c1.x);
-        y = f4_mulvs(m.c1, rot.c1.y);
-        z = f4_mulvs(m.c2, rot.c1.z);
-        res.c1 = f4_add(x, f4_add(y, z));
-        x = f4_mulvs(m.c0, rot.c2.x);
-        y = f4_mulvs(m.c1, rot.c2.y);
-        z = f4_mulvs(m.c2, rot.c2.z);
-        res.c2 = f4_add(x, f4_add(y, z));
+        float3x3 rot = quat_f3x3(q);
+        res.c0 = f4x4_mul_dir(m, rot.c0);
+        res.c1 = f4x4_mul_dir(m, rot.c1);
+        res.c2 = f4x4_mul_dir(m, rot.c2);
         res.c3 = m.c3;
     }
     return res;
@@ -163,16 +153,7 @@ pim_inline float4x4 VEC_CALL f4x4_scaling(float4 v)
 
 pim_inline float4x4 VEC_CALL f4x4_trs(float4 t, quat r, float4 s)
 {
-    float3x3 rm = quat_f3x3(r);
-    rm.c0 = f4_mulvs(rm.c0, s.x);
-    rm.c1 = f4_mulvs(rm.c1, s.y);
-    rm.c2 = f4_mulvs(rm.c2, s.z);
-    float4x4 m;
-    m.c0 = f4_v(rm.c0.x, rm.c0.y, rm.c0.z, 0.0f);
-    m.c1 = f4_v(rm.c1.x, rm.c1.y, rm.c1.z, 0.0f);
-    m.c2 = f4_v(rm.c2.x, rm.c2.y, rm.c2.z, 0.0f);
-    m.c3 = f4_v(t.x, t.y, t.z, 1.0f);
-    return m;
+    return f4x4_scale(f4x4_rotate(f4x4_translation(t), r), s);
 }
 
 pim_inline float4x4 VEC_CALL f4x4_lookat(float4 eye, float4 at, float4 up)
