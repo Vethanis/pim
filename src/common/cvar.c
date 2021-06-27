@@ -37,6 +37,7 @@ void ConVar_Reg(ConVar* var)
 
 ConVar* ConVar_Find(const char* name)
 {
+    ASSERT(name);
     ConVar* value = NULL;
     StrDict_Get(&ms_dict, name, &value);
     return value;
