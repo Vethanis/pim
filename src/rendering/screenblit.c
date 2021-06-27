@@ -136,9 +136,9 @@ void vkrScreenBlit_Blit(
         srcImage,
         cmd,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_ACCESS_TRANSFER_READ_BIT,
+        0x0,
         VK_ACCESS_TRANSFER_WRITE_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT);
 
     // copy buffer to src image

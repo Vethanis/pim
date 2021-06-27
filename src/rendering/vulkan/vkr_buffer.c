@@ -83,7 +83,8 @@ bool vkrBuffer_Write(
     ProfileBegin(pm_bufferwrite);
     ASSERT(buffer);
     ASSERT(src);
-    ASSERT(size == buffer->size);
+    ASSERT(size >= 0);
+    ASSERT(size <= buffer->size);
     bool success = false;
     void* dst = vkrBuffer_Map(buffer);
     if (dst)
