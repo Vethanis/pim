@@ -55,8 +55,6 @@ bool vkrQueue_New(
     {
         queue->family = family;
         queue->index = index;
-        queue->granularity =
-            support->properties[family].minImageTransferGranularity;
         queue->handle = handle;
     }
 
