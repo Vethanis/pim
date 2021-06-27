@@ -311,7 +311,6 @@ typedef struct vkrQueue_s
     VkQueue handle;
     i32 family;
     i32 index;
-    VkExtent3D granularity;
 } vkrQueue;
 
 typedef struct vkrCmdAlloc_s
