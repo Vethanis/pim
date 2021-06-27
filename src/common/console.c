@@ -314,6 +314,7 @@ void Con_Logv(LogSev sev, const char* tag, const char* fmt, va_list ap)
             {
                 FStream_Flush(ms_file);
             }
+            ASSERT(false); // debugbreak on errors
         }
     }
 }
