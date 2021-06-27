@@ -7,7 +7,7 @@
 void HashSet_New(HashSet* set, u32 keySize, EAlloc allocator)
 {
     memset(set, 0, sizeof(*set));
-    set->stride = keySize;
+    set->keySize = keySize;
     set->allocator = allocator;
 }
 
@@ -27,7 +27,7 @@ void HashSet_Clear(HashSet* set)
     if (set->hashes)
     {
         memset(set->hashes, 0, sizeof(u32) * set->width);
-        memset(set->keys, 0, set->stride * set->width);
+        memset(set->keys, 0, set->keySize * set->width);
     }
 }
 
@@ -40,12 +40,12 @@ void HashSet_Reserve(HashSet* set, u32 minCount)
         return;
     }
 
-    const u32 stride = set->stride;
-    u32* newHashes = Mem_Calloc(set->allocator, sizeof(u32) * newWidth);
-    u8* newKeys = Mem_Calloc(set->allocator, stride * newWidth);
+    const u32 stride = set->keySize;
+    u32* pim_noalias newHashes = Mem_Calloc(set->allocator, sizeof(u32) * newWidth);
+    u8* pim_noalias newKeys = Mem_Calloc(set->allocator, stride * newWidth);
 
-    u32* oldHashes = set->hashes;
-    u8* oldKeys = set->keys;
+    u32* pim_noalias oldHashes = set->hashes;
+    u8* pim_noalias oldKeys = set->keys;
     const u32 newMask = newWidth - 1u;
 
     for (u32 i = 0u; i < oldWidth; ++i)
@@ -78,9 +78,9 @@ void HashSet_Reserve(HashSet* set, u32 minCount)
 
 static i32 hashset_find2(const HashSet* set, u32 keyHash, const void* key, u32 keySize)
 {
-    const u32* hashes = set->hashes;
-    const u8* keys = set->keys;
-    ASSERT(set->stride == keySize);
+    const u32* pim_noalias hashes = set->hashes;
+    const u8* pim_noalias keys = set->keys;
+    ASSERT(set->keySize == keySize);
 
     u32 width = set->width;
     const u32 mask = width - 1u;
@@ -127,8 +127,8 @@ bool HashSet_Add(HashSet* set, const void* key, u32 keySize)
 
     HashSet_Reserve(set, set->count + 3u);
 
-    u32* hashes = set->hashes;
-    u8* keys = set->keys;
+    u32* pim_noalias hashes = set->hashes;
+    u8* pim_noalias keys = set->keys;
     const u32 mask = set->width - 1u;
 
     u32 j = keyHash;
@@ -154,7 +154,7 @@ bool HashSet_Rm(HashSet* set, const void* key, u32 keySize)
     if (i != -1)
     {
         set->hashes[i] |= hashutil_tomb_mask;
-        u8* keys = set->keys;
+        u8* pim_noalias keys = set->keys;
         memset(keys + keySize * i, 0, keySize);
         --(set->count);
         return true;

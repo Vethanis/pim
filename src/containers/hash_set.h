@@ -10,7 +10,7 @@ typedef struct HashSet_s
     void* keys;
     u32 count;
     u32 width;
-    u32 stride;
+    u32 keySize;
     EAlloc allocator;
 } HashSet;
 
