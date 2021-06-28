@@ -429,7 +429,7 @@ static bool LoadTexInfo(
                 dst[i].texture = textures[miptex];
                 if (!dst[i].texture)
                 {
-                    Con_Logf(LogSev_Warning, "mdl", "Null texture found in model '%s' at index %d", model->name, miptex);
+                    Con_Logf(LogSev_Error, "mdl", "Null texture found in model '%s' at index %d", model->name, miptex);
                 }
             }
         }

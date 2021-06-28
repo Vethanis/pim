@@ -9,14 +9,27 @@ PIM_C_BEGIN
 #define C32_GRAY    0xff808080
 #define C32_BLACK   0xff000000
 #define C32_RED     0xff0000ff
+#define C32_ORANGE  0xff0080ff
+#define C32_YELLOW  0xff00ffff
+#define C32_LIME    0xff00ff80
 #define C32_GREEN   0xff00ff00
+#define C32_SPRING  0xff80ff00
+#define C32_CYAN    0xffffff00
+#define C32_AZURE   0xffff8000
 #define C32_BLUE    0xffff0000
-#define C32_YELLOW  (C32_RED | C32_GREEN)
-#define C32_MAGENTA (C32_BLUE | C32_RED)
-#define C32_CYAN    (C32_BLUE | C32_GREEN)
+#define C32_VIOLET  0xffff0080
+#define C32_MAGENTA 0xffff00ff
+#define C32_ROSE    0xff8000ff
+
+#if _DEBUG
+#   define Con_Assertf(x, tag, fmt, ...) do { if (!(x)) { Con_Logf(LogSev_Assert, (tag), (fmt), __VA_ARGS__); } } while(0)
+#else
+#   define Con_Assertf(x, tag, fmt, ...) 
+#endif // _DEBUG
 
 typedef enum
 {
+    LogSev_Assert,
     LogSev_Error,
     LogSev_Warning,
     LogSev_Info,

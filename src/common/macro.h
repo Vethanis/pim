@@ -70,8 +70,8 @@
 
 #define NELEM(x)                    ( sizeof(x) / sizeof((x)[0]) )
 #define ARGS(x)                     (x), NELEM(x)
-#define IF_TRUE(x, expr)            do { if (x) { expr; } } while(0)
-#define IF_FALSE(x, expr)           do { if (!(x)) { expr; } } while(0)
+#define IF_TRUE(x, ...)             do { if (x) { __VA_ARGS__; } } while(0)
+#define IF_FALSE(x, ...)            do { if (!(x)) { __VA_ARGS__; } } while(0)
 #define pim_offsetof(T, f)          ((isize)&(((T*)0)->f))
 #define pim_cast(T, p)              ( (T*)(p) )
 #define pim_asbytes(p)              ( (u8*)(p) )
@@ -82,14 +82,14 @@
 #define REL_ASSERT(x)               IF_FALSE((x), INTERRUPT())
 
 #ifdef _DEBUG
-#   define IF_DEBUG(x)             x
-#   define IFN_DEBUG(x)            (void)0
+#   define IF_DEBUG(...)           __VA_ARGS__
+#   define IFN_DEBUG(...)          
 #   define ASSERT(x)               IF_FALSE((x), INTERRUPT())
 #   define CONFIG_STR              "Debug"
 #else
-#   define IF_DEBUG(x)             (void)0
-#   define IFN_DEBUG(x)            x
-#   define ASSERT(x)               (void)0
+#   define IF_DEBUG(...)           
+#   define IFN_DEBUG(...)          __VA_ARGS__
+#   define ASSERT(...)             
 #   define CONFIG_STR              "Release"
 #endif // def _DEBUG
 
