@@ -1,27 +1,38 @@
 #include "common/console.h"
+
 #include "allocator/allocator.h"
 #include "common/cmd.h"
 #include "common/cvars.h"
 #include "common/profiler.h"
 #include "common/stringutil.h"
+#include "common/time.h"
 #include "containers/strlist.h"
 #include "io/fstr.h"
 #include "input/input_system.h"
-#include "ui/cimgui_ext.h"
 #include "rendering/r_window.h"
-#include "common/time.h"
+#include "ui/cimgui_ext.h"
 
 #include <string.h>
 #include <math.h>
 #include <stdarg.h>
 
+// ----------------------------------------------------------------------------
+
 #define MAX_LINES       256
 #define MAX_HISTORY     16
 
+// ----------------------------------------------------------------------------
+
 static void con_gui(void);
+static u32 LogSevToColor(LogSev sev);
+static const char* LogSevToTag(LogSev sev);
+static i32 OnTextComplete(ImGuiInputTextCallbackData* data);
+static i32 OnTextHistory(ImGuiInputTextCallbackData* data);
 static i32 OnTextInput(ImGuiInputTextCallbackData* data);
-static void ExecCmd(const char* cmd, bool history);
 static void HistClear(void);
+static void ExecCmd(const char* cmd, bool history);
+
+// ----------------------------------------------------------------------------
 
 static char ms_buffer[PIM_PATH];
 static FStream ms_file;
@@ -37,6 +48,8 @@ static bool ms_recapture;
 
 static i32 ms_histCursor;
 static StrList ms_history;
+
+// ----------------------------------------------------------------------------
 
 void ConSys_Init(void)
 {
@@ -67,7 +80,105 @@ void ConSys_Shutdown(void)
     StrList_Del(&ms_history);
 }
 
-ProfileMark(pm_gui, con_gui)
+void Con_Exec(const char* cmdText)
+{
+    if (cmdText)
+    {
+        ExecCmd(cmdText, false);
+    }
+}
+
+void Con_Puts(u32 color, const char* line)
+{
+    const i32 numLines = NELEM(ms_lines);
+    const i32 mask = numLines - 1;
+
+    ASSERT(line);
+    if (line)
+    {
+        if (FStream_IsOpen(ms_file))
+        {
+            FStream_Puts(ms_file, line);
+        }
+
+        char** lines = ms_lines;
+        u32* colors = ms_colors;
+        const i32 iLine = ms_iLine++ & mask;
+
+        Mem_Free(lines[iLine]);
+        lines[iLine] = StrDup(line, EAlloc_Perm);
+        colors[iLine] = color;
+    }
+}
+
+void Con_Clear(void)
+{
+    ms_iLine = 0;
+    for (i32 i = 0; i < NELEM(ms_lines); ++i)
+    {
+        Mem_Free(ms_lines[i]);
+        ms_lines[i] = NULL;
+        ms_colors[i] = C32_WHITE;
+    }
+}
+
+void Con_Logf(LogSev sev, const char* tag, const char* fmt, ...)
+{
+    ASSERT(fmt);
+    if (fmt)
+    {
+        va_list ap;
+        va_start(ap, fmt);
+        Con_Logv(sev, tag, fmt, ap);
+        va_end(ap);
+    }
+}
+
+void Con_Logv(LogSev sev, const char* tag, const char* fmt, va_list ap)
+{
+    ASSERT(fmt);
+    if (fmt)
+    {
+        double ms = Time_Milli(Time_Now() - Time_AppStart());
+        double seconds = ms / 1000.0;
+        ms = fmod(ms, 1000.0);
+        double minutes = seconds / 60.0;
+        seconds = fmod(seconds, 60.0);
+        double hours = minutes / 60.0;
+        minutes = fmod(minutes, 60.0);
+
+        u32 sevColor = LogSevToColor(sev);
+        const char* sevTag = LogSevToTag(sev);
+
+        char msg[4096];
+        SPrintf(ARGS(msg), "[%02d:%02d:%02d:%03d]", (i32)hours, (i32)minutes, (i32)seconds, (i32)ms);
+        StrCatf(ARGS(msg), "[%s]", sevTag);
+        if (tag)
+        {
+            StrCatf(ARGS(msg), "[%s]", tag);
+        }
+        StrCatf(ARGS(msg), " ");
+
+        VStrCatf(ARGS(msg), fmt, ap);
+
+        Con_Puts(sevColor, msg);
+
+        if (sev <= LogSev_Error)
+        {
+            if (FStream_IsOpen(ms_file))
+            {
+                FStream_Flush(ms_file);
+            }
+        }
+        if (sev <= LogSev_Assert)
+        {
+            ASSERT(false);
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+
 static void con_gui(void)
 {
     bool grabFocus = false;
@@ -95,8 +206,6 @@ static void con_gui(void)
     {
         return;
     }
-
-    ProfileBegin(pm_gui);
 
     const u32 winFlags =
         ImGuiWindowFlags_NoMove |
@@ -189,50 +298,6 @@ static void con_gui(void)
 
     }
     igEnd();
-
-    ProfileEnd(pm_gui);
-}
-
-void Con_Exec(const char* cmdText)
-{
-    if (cmdText)
-    {
-        ExecCmd(cmdText, false);
-    }
-}
-
-void Con_Puts(u32 color, const char* line)
-{
-    const i32 numLines = NELEM(ms_lines);
-    const i32 mask = numLines - 1;
-
-    ASSERT(line);
-    if (line)
-    {
-        if (FStream_IsOpen(ms_file))
-        {
-            FStream_Puts(ms_file, line);
-        }
-
-        char** lines = ms_lines;
-        u32* colors = ms_colors;
-        const i32 iLine = ms_iLine++ & mask;
-
-        Mem_Free(lines[iLine]);
-        lines[iLine] = StrDup(line, EAlloc_Perm);
-        colors[iLine] = color;
-    }
-}
-
-void Con_Clear(void)
-{
-    ms_iLine = 0;
-    for (i32 i = 0; i < NELEM(ms_lines); ++i)
-    {
-        Mem_Free(ms_lines[i]);
-        ms_lines[i] = NULL;
-        ms_colors[i] = C32_WHITE;
-    }
 }
 
 static u32 LogSevToColor(LogSev sev)
@@ -240,6 +305,8 @@ static u32 LogSevToColor(LogSev sev)
     switch (sev)
     {
     default:
+    case LogSev_Assert:
+        return C32_MAGENTA;
     case LogSev_Error:
         return C32_RED;
     case LogSev_Warning:
@@ -256,66 +323,16 @@ static const char* LogSevToTag(LogSev sev)
     switch (sev)
     {
     default:
+    case LogSev_Assert:
+        return "ASR";
     case LogSev_Error:
-        return "ERRR";
+        return "ERR";
     case LogSev_Warning:
-        return "WARN";
+        return "WRN";
     case LogSev_Info:
-        return "INFO";
+        return "INF";
     case LogSev_Verbose:
-        return "VERB";
-    }
-}
-
-void Con_Logf(LogSev sev, const char* tag, const char* fmt, ...)
-{
-    ASSERT(fmt);
-    if (fmt)
-    {
-        va_list ap;
-        va_start(ap, fmt);
-        Con_Logv(sev, tag, fmt, ap);
-        va_end(ap);
-    }
-}
-
-void Con_Logv(LogSev sev, const char* tag, const char* fmt, va_list ap)
-{
-    ASSERT(fmt);
-    if (fmt)
-    {
-        double ms = Time_Milli(Time_Now() - Time_AppStart());
-        double seconds = ms / 1000.0;
-        ms = fmod(ms, 1000.0);
-        double minutes = seconds / 60.0;
-        seconds = fmod(seconds, 60.0);
-        double hours = minutes / 60.0;
-        minutes = fmod(minutes, 60.0);
-
-        u32 sevColor = LogSevToColor(sev);
-        const char* sevTag = LogSevToTag(sev);
-
-        char msg[4096];
-        SPrintf(ARGS(msg), "[%02d:%02d:%02d:%03d]", (i32)hours, (i32)minutes, (i32)seconds, (i32)ms);
-        StrCatf(ARGS(msg), "[%s]", sevTag);
-        if (tag)
-        {
-            StrCatf(ARGS(msg), "[%s]", tag);
-        }
-        StrCatf(ARGS(msg), " ");
-
-        VStrCatf(ARGS(msg), fmt, ap);
-
-        Con_Puts(sevColor, msg);
-
-        if (sev == LogSev_Error)
-        {
-            if (FStream_IsOpen(ms_file))
-            {
-                FStream_Flush(ms_file);
-            }
-            ASSERT(false); // debugbreak on errors
-        }
+        return "VRB";
     }
 }
 
@@ -357,7 +374,7 @@ static i32 OnTextComplete(ImGuiInputTextCallbackData* data)
 static i32 OnTextHistory(ImGuiInputTextCallbackData* data)
 {
     const i32 length = ms_history.count;
-    if (length)
+    if (length > 0)
     {
         i32 cursor = ms_histCursor;
         switch (data->EventKey)
@@ -370,7 +387,7 @@ static i32 OnTextHistory(ImGuiInputTextCallbackData* data)
             cursor = (cursor + 1) % length;
             break;
         }
-        char* ptr = ms_history.ptr[cursor];
+        const char* ptr = ms_history.ptr[cursor];
         if (ptr)
         {
             StrCpy(data->Buf, data->BufSize, ptr);
@@ -387,6 +404,8 @@ static i32 OnTextInput(ImGuiInputTextCallbackData* data)
 {
     switch (data->EventFlag)
     {
+    default:
+        break;
     case ImGuiInputTextFlags_CallbackCompletion:
         return OnTextComplete(data);
     case ImGuiInputTextFlags_CallbackHistory:
@@ -409,10 +428,15 @@ static void ExecCmd(const char* cmd, bool history)
     {
         if (ms_history.count >= MAX_HISTORY)
         {
-            Mem_Free(ms_history.ptr[0]);
+            char* line = ms_history.ptr[0];
             ms_history.ptr[0] = NULL;
+            i32 len = StrLen(cmd);
+            line = Perm_Realloc(line, (len + 1));
+            memcpy(line, cmd, len);
+            line[len] = 0;
+
             memmove(&ms_history.ptr[0], &ms_history.ptr[1], sizeof(ms_history.ptr[0]) * (ms_history.count - 1));
-            ms_history.ptr[ms_history.count - 1] = StrDup(cmd, EAlloc_Perm);
+            ms_history.ptr[ms_history.count - 1] = line;
         }
         else
         {
