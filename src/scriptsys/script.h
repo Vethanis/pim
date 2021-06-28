@@ -1,4 +1,5 @@
 #pragma once
+
 #include "common/macro.h"
 
 #define SCRIPT_DIR "script/"
@@ -19,9 +20,12 @@ PIM_C_BEGIN
 
 typedef struct lua_State lua_State;
 
-typedef enum {
-	ScrLib_Global,
-	ScrLib_Import
+typedef enum
+{
+    ScrLib_Global,
+    ScrLib_Import,
+
+    ScrLib_COUNT
 } ScrLib_Reg;
 
 void ScriptSys_Init(void);
@@ -31,6 +35,6 @@ void ScriptSys_Update(void);
 void Script_RegisterLib(lua_State* L, const char* name, ScrLib_Reg regType);
 
 bool ScriptSys_Exec(const char* filename);
-bool ScriptSys_Eval(const char* filename);
+bool ScriptSys_Eval(const char* expression);
 
 PIM_C_END

@@ -1,137 +1,169 @@
-#include "lua/lua.h"
-#include "lua/lualib.h"
-#include "lua/lauxlib.h"
+#include "scriptsys/scr_game.h"
+
 #include "scriptsys/script.h"
-#include "common/console.h"
-#include "containers/hash_set.h"
+#include "scriptsys/scr_log.h"
+
 #include "allocator/allocator.h"
-#include "scr_log.h"
-#include "scr_game.h"
+#include "common/console.h"
+#include "common/profiler.h"
+#include "containers/hash_set.h"
 
-static HashSet sm_update_handlers;
+#include <lua/lua.h>
+#include <lua/lualib.h>
+#include <lua/lauxlib.h>
 
-static int scr_func_start_update(lua_State* L)
+// ----------------------------------------------------------------------------
+
+typedef i32 RefId;
+
+static i32 scr_func_start_update(lua_State* L);
+static i32 scr_func_stop_update(lua_State* L);
+static void scr_remove_update_handler(lua_State* L, RefId refId);
+
+// ----------------------------------------------------------------------------
+
+static const luaL_Reg ms_regs[] =
 {
-	lua_pushvalue(L, 1);
-	i32 refId = luaL_ref(L, LUA_REGISTRYINDEX);
-	if (refId == LUA_REFNIL)
-	{
-		ASSERT(false);
-		return 0;
-	}
+    {.name = "start_update",.func = scr_func_start_update },
+    {.name = "stop_update",.func = scr_func_stop_update },
+    {0},
+};
 
-	Con_Logf(LogSev_Verbose, "script", "starting script activity #%i", refId);
-
-	if (lua_getfield(L, 1, "start") != LUA_TNIL)
-	{
-		lua_pushvalue(L, 1); // self arg
-		if (lua_pcall(L, 1, 0, 0) != LUA_OK)
-		{
-			Con_Logf(LogSev_Error, "script", "in start_update: %s", lua_tostring(L, -1));
-			lua_pop(L, 1); // error
-			return 0;
-		}
-	}
-	else
-	{
-		lua_pop(L, 1); // nil field
-	}
-
-	lua_pushinteger(L, refId);
-	lua_setfield(L, 1, "__update_ref"); // set table.__update_ref for later unregistering
-	HashSet_Add(&sm_update_handlers, &refId, sizeof(i32));
-
-	return 0;
-}
-
-static void scr_remove_update_handler(lua_State* L, i32 refId)
+static HashSet ms_update_handlers =
 {
-	Con_Logf(LogSev_Verbose, "script", "stopping script activity #%i", refId);
+    .keySize = sizeof(RefId),
+};
 
-	lua_rawgeti(L, LUA_REGISTRYINDEX, refId);
-	if (lua_getfield(L, 1, "stop") != LUA_TNIL)
-	{
-		lua_pushvalue(L, 1); // self arg
-		if (lua_pcall(L, 1, 0, 0) != LUA_OK)
-		{
-			Con_Logf(LogSev_Error, "script", "in remove_update: %s", lua_tostring(L, -1));
-			lua_pop(L, 1); // error
-		}
-	}
-	else
-	{
-		lua_pop(L, 1); // nil field
-	}
-	lua_pop(L, 1); // table
-
-	HashSet_Rm(&sm_update_handlers, &refId, sizeof(i32));
-	luaL_unref(L, LUA_REGISTRYINDEX, refId);
-}
-
-static int scr_func_stop_update(lua_State* L)
-{
-	lua_getfield(L, 1, "__update_ref");
-	i32 refId = (i32)lua_tointeger(L, 2);
-
-	scr_remove_update_handler(L, refId);
-	return 0;
-}
+// ----------------------------------------------------------------------------
 
 void scr_game_init(lua_State* L)
 {
-	LUA_LIB(L,
-		LUA_FN(start_update),
-		LUA_FN(stop_update));
-
-	Script_RegisterLib(L, "Game", ScrLib_Global);
-
-	HashSet_New(&sm_update_handlers, sizeof(i32), EAlloc_Perm);
+    luaL_newlib(L, ms_regs);
+    Script_RegisterLib(L, "Game", ScrLib_Global);
 }
 
 void scr_game_shutdown(lua_State* L)
 {
-	i32* keys = sm_update_handlers.keys;
-	for (u32 i = 0; i < sm_update_handlers.width; i++)
-	{
-		i32 refId = keys[i];
-		if (!refId)
-		{
-			continue;
-		}
+    const RefId* refIds = ms_update_handlers.keys;
+    const i32 width = ms_update_handlers.width;
+    for (i32 i = 0; i < width; i++)
+    {
+        i32 refId = refIds[i];
+        if (!refId)
+        {
+            continue;
+        }
 
-		scr_remove_update_handler(L, refId);
-	}
+        scr_remove_update_handler(L, refId);
+    }
 
-	HashSet_Del(&sm_update_handlers);
+    HashSet_Del(&ms_update_handlers);
 }
 
+ProfileMark(pm_update, scr_game_update);
 void scr_game_update(lua_State* L)
 {
-	i32* keys = sm_update_handlers.keys;
+    ProfileBegin(pm_update);
 
-	for (u32 i = 0; i < sm_update_handlers.width; i++)
-	{
-		i32 refId = keys[i];
-		if (!refId)
-		{
-			continue;
-		}
+    if (ms_update_handlers.count > 0)
+    {
+        const RefId* refIds = ms_update_handlers.keys;
+        const i32 width = ms_update_handlers.width;
+        for (i32 i = 0; i < width; i++)
+        {
+            i32 refId = refIds[i];
+            if (!refId)
+            {
+                continue;
+            }
 
-		lua_rawgeti(L, LUA_REGISTRYINDEX, refId);
-		lua_getfield(L, 1, "update");
-		lua_pushvalue(L, 1); // self arg
-		if (lua_pcall(L, 1, 0, 0) != LUA_OK)
-		{
-			Con_Logf(LogSev_Error, "script", "in update: %s", lua_tostring(L, -1));
-			lua_pop(L, 1); // error, table
-			scr_remove_update_handler(L, refId);
-		}
+            lua_rawgeti(L, LUA_REGISTRYINDEX, refId);
+            lua_getfield(L, 1, "update");
+            lua_pushvalue(L, 1); // self arg
+            if (lua_pcall(L, 1, 0, 0) != LUA_OK)
+            {
+                Con_Logf(LogSev_Error, "scr", "in update: %s", lua_tostring(L, -1));
+                lua_pop(L, 1); // error, table
+                scr_remove_update_handler(L, refId);
+            }
 
-		lua_pop(L, 1); // table
-	}
+            lua_pop(L, 1); // table
+        }
+    }
+
+    ProfileEnd(pm_update);
 }
 
 i32 scr_game_num_scripts(void)
 {
-	return sm_update_handlers.count;
+    return ms_update_handlers.count;
+}
+
+// ----------------------------------------------------------------------------
+
+static i32 scr_func_start_update(lua_State* L)
+{
+    lua_pushvalue(L, 1);
+    RefId refId = luaL_ref(L, LUA_REGISTRYINDEX);
+    if (refId == LUA_REFNIL)
+    {
+        ASSERT(false);
+        return 0;
+    }
+
+    Con_Logf(LogSev_Verbose, "scr", "starting script activity #%d", refId);
+
+    if (lua_getfield(L, 1, "start") != LUA_TNIL)
+    {
+        lua_pushvalue(L, 1); // self arg
+        if (lua_pcall(L, 1, 0, 0) != LUA_OK)
+        {
+            Con_Logf(LogSev_Error, "scr", "in start_update: %s", lua_tostring(L, -1));
+            lua_pop(L, 1); // error
+            return 0;
+        }
+    }
+    else
+    {
+        lua_pop(L, 1); // nil field
+    }
+
+    lua_pushinteger(L, refId);
+    lua_setfield(L, 1, "__update_ref"); // set table.__update_ref for later unregistering
+    HashSet_Add(&ms_update_handlers, &refId, sizeof(refId));
+
+    return 0;
+}
+
+static i32 scr_func_stop_update(lua_State* L)
+{
+    lua_getfield(L, 1, "__update_ref");
+    RefId refId = (RefId)lua_tointeger(L, 2);
+
+    scr_remove_update_handler(L, refId);
+    return 0;
+}
+
+static void scr_remove_update_handler(lua_State* L, RefId refId)
+{
+    Con_Logf(LogSev_Verbose, "scr", "stopping script activity #%d", refId);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, refId);
+    if (lua_getfield(L, 1, "stop") != LUA_TNIL)
+    {
+        lua_pushvalue(L, 1); // self arg
+        if (lua_pcall(L, 1, 0, 0) != LUA_OK)
+        {
+            Con_Logf(LogSev_Error, "scr", "in remove_update: %s", lua_tostring(L, -1));
+            lua_pop(L, 1); // error
+        }
+    }
+    else
+    {
+        lua_pop(L, 1); // nil field
+    }
+    lua_pop(L, 1); // table
+
+    HashSet_Rm(&ms_update_handlers, &refId, sizeof(refId));
+    luaL_unref(L, LUA_REGISTRYINDEX, refId);
 }
