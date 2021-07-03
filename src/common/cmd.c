@@ -593,7 +593,7 @@ static cmdstat_t cmd_cmds_fn(i32 argc, const char** argv)
     const char** names = ms_cmds.keys;
     const cmddef_t* cmds = ms_cmds.values;
 
-    Con_Logf(LogSev_Info, "cmd", "displaying %d commands ('help <cmd>' for more info):", cmdCount);
+    Con_Logf(LogSev_Info, "cmd", "displaying %d commands (see also 'help <cmd>'):", cmdCount);
 
     const u32* indices = StrDict_Sort(&ms_cmds, SDictStrCmp, NULL);
     for (i32 iIndex = 0; iIndex < cmdCount; ++iIndex)
