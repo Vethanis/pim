@@ -18,9 +18,9 @@ typedef struct cmdalias_s
 
 typedef struct cmddef_s
 {
+    cmd_fn_t cmd;
     const char* help;
     const char* argDocs;
-    cmd_fn_t cmd;
 } cmddef_t;
 
 static cmdstat_t cmd_text(const char* constText, bool immediate);
@@ -52,12 +52,12 @@ void cmd_sys_init(void)
     StrDict_New(&ms_cmds, sizeof(cmddef_t), EAlloc_Perm);
     StrDict_New(&ms_aliases, sizeof(cmdalias_t), EAlloc_Perm);
     Queue_New(&ms_queue, sizeof(char*), EAlloc_Perm);
-    cmd_reg("help", "", "show help information", cmd_help_fn);
-    cmd_reg("alias", "[<key> <command> [ <arg1> ... ]]", "no args: list all aliases. 1 or more args: alias the given key to the given command and argument list", cmd_alias_fn);
+    cmd_reg("help", "[<cmd>]", "show help information", cmd_help_fn);
+    cmd_reg("alias", "[<key> \"<value>\"]", "0: list all. 2+: replace <key> with <value> when encountered in cmd parser.", cmd_alias_fn);
     cmd_reg("exec", "<file>", "executes a script file", cmd_execfile_fn);
-    cmd_reg("wait", "[<ms>]", "wait the given number of milliseconds (1 by default) before executing the next command.", cmd_wait_fn);
-    cmd_reg("cmds", "", "list all registered commands.", cmd_cmds_fn);
-    cmd_reg("echo", "<text>", "prints the specified text to the console.", cmd_echo_fn);
+    cmd_reg("wait", "[<frames>]", "wait 1 frame before executing the next command.", cmd_wait_fn);
+    cmd_reg("cmds", "", "list all commands.", cmd_cmds_fn);
+    cmd_reg("echo", "<text>", "prints to the console.", cmd_echo_fn);
 }
 
 void cmd_sys_update(void)
@@ -589,16 +589,20 @@ static cmdstat_t cmd_wait_fn(i32 argc, const char** argv)
 
 static cmdstat_t cmd_cmds_fn(i32 argc, const char** argv)
 {
-    Con_Logf(LogSev_Info, "cmd", "displaying %i commands (`help <cmd>` for more info):", ms_cmds.count);
+    const i32 cmdCount = ms_cmds.count;
+    const char** names = ms_cmds.keys;
+    const cmddef_t* cmds = ms_cmds.values;
 
-    u32* indices = StrDict_Sort(&ms_cmds, SDictStrCmp, NULL);
+    Con_Logf(LogSev_Info, "cmd", "displaying %d commands (see also 'help <cmd>'):", cmdCount);
 
-    cmddef_t def = { 0 };
-    for (u32 i = 0; i < ms_cmds.count; i++)
+    const u32* indices = StrDict_Sort(&ms_cmds, SDictStrCmp, NULL);
+    for (i32 iIndex = 0; iIndex < cmdCount; ++iIndex)
     {
-        u32 index = indices[i];
-        const char* key = ms_cmds.keys[index];
-        Con_Logf(LogSev_Info, "cmd", "\t%s", key);
+        i32 iCmd = indices[iIndex];
+        const char* name = names[iCmd];
+        const char* args = cmds[iCmd].argDocs;
+        const char* help = cmds[iCmd].help;
+        Con_Logf(LogSev_Info, "cmd", "    %-16s: %-16s; %-16s", name, args, help);
     }
 
     return cmdstat_ok;
@@ -606,14 +610,10 @@ static cmdstat_t cmd_cmds_fn(i32 argc, const char** argv)
 
 static cmdstat_t cmd_echo_fn(i32 argc, const char** argv)
 {
-	char text[1024] = { 0 };
+    char text[1024] = { 0 };
     for (i32 i = 1; i < argc; ++i)
     {
-        StrCat(ARGS(text), argv[i]);
-        if ((i + 1) < argc)
-        {
-            StrCat(ARGS(text), " ");
-        }
+        StrCatf(ARGS(text), "%s ", argv[i]);
     }
 
     Con_Logf(LogSev_Info, "cmd", text);

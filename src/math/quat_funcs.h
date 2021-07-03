@@ -226,7 +226,7 @@ pim_inline quat VEC_CALL quat_lookat(float4 forward, float4 up)
 {
     forward = f4_neg(forward);
     float4 right = f4_normalize3(f4_cross3(up, forward));
-    up = f4_cross3(forward, right);
+    up = f4_normalize3(f4_cross3(forward, right));
     float3x3 m;
     m.c2 = forward;
     m.c0 = right;
