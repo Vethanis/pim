@@ -50,7 +50,7 @@
 #   define pim_inline               __forceinline
 #   define pim_noalias              __restrict
 #   define pim_alignas(x)           __declspec(align(x))
-#   define pim_optimize             __pragma(optimize("", on))
+#   define pim_optimize             __pragma(optimize("gt", on))
 #   define pim_deoptimize           __pragma(optimize("", off))
 #   define pim_noreturn             __declspec(noreturn)
 #else

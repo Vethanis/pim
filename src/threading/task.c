@@ -16,6 +16,8 @@
 #include <xmmintrin.h>
 #include <pmmintrin.h>
 
+#define TASK_SINGLETHREADED 0
+
 // ----------------------------------------------------------------------------
 
 static i32 ms_numthreads;
@@ -195,7 +197,11 @@ void TaskSys_Init(void)
     Event_New(&ms_waitDone);
     store_i32(&ms_running, 1, MO_Release);
 
+#if TASK_SINGLETHREADED
+    const i32 numthreads = 1;
+#else
     const i32 numthreads = i1_min(kMaxThreads, Thread_HardwareCount());
+#endif // TASK_SINGLETHREADED
     ms_numthreads = numthreads;
     ms_worksplit = numthreads * numthreads;
 

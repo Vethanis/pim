@@ -4,6 +4,7 @@
 #include "rendering/vulkan/vkr_sync.h"
 #include "rendering/vulkan/vkr_device.h"
 #include "rendering/vulkan/vkr_context.h"
+#include "rendering/vulkan/vkr_image.h"
 
 #include "allocator/allocator.h"
 #include "common/profiler.h"
@@ -358,53 +359,7 @@ bool vkrMem_ImageNew(
     image->depth = info->extent.depth;
     image->mipLevels = info->mipLevels;
     image->arrayLayers = info->arrayLayers;
-
-    VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D;
-    switch (info->imageType)
-    {
-    default:
-    case VK_IMAGE_TYPE_2D:
-        if (info->arrayLayers <= 1)
-        {
-            viewType = VK_IMAGE_VIEW_TYPE_2D;
-        }
-        else if (info->arrayLayers == 6)
-        {
-            // may also want 2darray view for uav cubemap use
-            viewType = VK_IMAGE_VIEW_TYPE_CUBE;
-        }
-        else
-        {
-            viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-        }
-        break;
-    case VK_IMAGE_TYPE_1D:
-        viewType = (info->arrayLayers <= 1) ?
-            VK_IMAGE_VIEW_TYPE_1D : VK_IMAGE_VIEW_TYPE_1D_ARRAY;
-        break;
-    case VK_IMAGE_TYPE_3D:
-        viewType = VK_IMAGE_VIEW_TYPE_3D;
-        break;
-    }
-
-    VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-    switch (info->format)
-    {
-    default:
-        aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-        break;
-    case VK_FORMAT_D16_UNORM:
-    case VK_FORMAT_X8_D24_UNORM_PACK32:
-    case VK_FORMAT_D32_SFLOAT:
-    case VK_FORMAT_D16_UNORM_S8_UINT:
-    case VK_FORMAT_D24_UNORM_S8_UINT:
-    case VK_FORMAT_D32_SFLOAT_S8_UINT:
-        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-        break;
-    case VK_FORMAT_S8_UINT:
-        aspect = VK_IMAGE_ASPECT_STENCIL_BIT;
-        break;
-    }
+    image->imported = 0;
 
     const VmaAllocationCreateInfo allocInfo =
     {
@@ -413,8 +368,6 @@ bool vkrMem_ImageNew(
         .pool = GetTexturePool(info->usage, memUsage),
     };
 
-    VkImage handle = NULL;
-    VmaAllocation allocation = NULL;
     VkCheck(vmaCreateImage(
         ms_inst.handle,
         info,
@@ -428,29 +381,10 @@ bool vkrMem_ImageNew(
         goto cleanup;
     }
 
-    const VkImageUsageFlags viewUsage =
-        VK_IMAGE_USAGE_SAMPLED_BIT | // SRV
-        VK_IMAGE_USAGE_STORAGE_BIT | // UAV
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | // RTV
-        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | // DSV
-        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-    if (info->usage & viewUsage)
+    VkImageViewCreateInfo viewInfo;
+    if (vkrImage_InfoToViewInfo(info, &viewInfo))
     {
-        const VkImageViewCreateInfo viewInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = image->handle,
-            .viewType = viewType,
-            .format = info->format,
-            .subresourceRange =
-            {
-                .aspectMask = aspect,
-                .baseMipLevel = 0,
-                .levelCount = info->mipLevels,
-                .baseArrayLayer = 0,
-                .layerCount = info->arrayLayers,
-            },
-        };
+        viewInfo.image = image->handle;
         VkCheck(vkCreateImageView(g_vkr.dev, &viewInfo, NULL, &image->view));
         if (!image->view)
         {
@@ -483,8 +417,9 @@ void vkrMem_ImageDel(vkrImage* image)
         ASSERT(g_vkr.dev);
         vkDestroyImageView(g_vkr.dev, image->view, NULL);
     }
-    if (image->handle)
+    if (image->allocation)
     {
+        ASSERT(!image->imported);
         ASSERT(ms_inst.handle);
         vmaDestroyImage(
             ms_inst.handle,
@@ -527,6 +462,9 @@ bool vkrReleasable_Del(
     ProfileBegin(pm_releasabledel);
 
     ASSERT(releasable);
+    ASSERT(ms_inst.handle);
+    ASSERT(g_vkr.dev);
+
     u32 duration = frame - releasable->frame;
     bool ready = duration > kResourceSets;
     if (ready)
@@ -537,10 +475,26 @@ bool vkrReleasable_Del(
             ASSERT(false);
             break;
         case vkrReleasableType_Buffer:
-            vkrMem_BufferDel(&releasable->buffer);
+            if (releasable->buffer.handle)
+            {
+                vmaDestroyBuffer(
+                    ms_inst.handle,
+                    releasable->buffer.handle,
+                    releasable->buffer.allocation);
+            }
             break;
         case vkrReleasableType_Image:
-            vkrMem_ImageDel(&releasable->image);
+            if (releasable->image.view)
+            {
+                vkDestroyImageView(g_vkr.dev, releasable->image.view, NULL);
+            }
+            if (releasable->image.allocation)
+            {
+                vmaDestroyImage(
+                    ms_inst.handle,
+                    releasable->image.handle,
+                    releasable->image.allocation);
+            }
             break;
         case vkrReleasableType_ImageView:
             if (releasable->view)

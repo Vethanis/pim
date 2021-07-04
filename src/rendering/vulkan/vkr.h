@@ -178,6 +178,7 @@ typedef struct vkrImage_s
     u16 depth;
     u8 mipLevels;
     u8 arrayLayers;
+    u8 imported : 1;
 } vkrImage;
 
 typedef struct vkrImageSet_s
@@ -349,8 +350,17 @@ typedef struct vkrReleasable_s
     vkrReleasableType type; // type of resource
     union
     {
-        vkrBuffer buffer;
-        vkrImage image;
+        struct vkrReleasableBuffer_s
+        {
+            VkBuffer handle;
+            VmaAllocation allocation;
+        } buffer;
+        struct vkrReleasableImage_s
+        {
+            VkImage handle;
+            VmaAllocation allocation;
+            VkImageView view;
+        } image;
         VkImageView view;
     };
 } vkrReleasable;

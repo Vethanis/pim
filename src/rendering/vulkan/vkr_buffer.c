@@ -2,7 +2,6 @@
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_context.h"
-#include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include "common/time.h"
@@ -26,7 +25,8 @@ void vkrBuffer_Release(vkrBuffer *const buffer)
         {
             .frame = vkrSys_FrameIndex(),
             .type = vkrReleasableType_Buffer,
-            .buffer = *buffer,
+            .buffer.handle = buffer->handle,
+            .buffer.allocation = buffer->allocation,
         };
         vkrReleasable_Add(&releasable);
     }
