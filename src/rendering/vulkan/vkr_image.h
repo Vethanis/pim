@@ -12,6 +12,12 @@ bool vkrImage_New(
     vkrMemUsage memUsage);
 void vkrImage_Release(vkrImage* image);
 
+// turns an external VkImage handle into a vkrImage
+bool vkrImage_Import(
+    vkrImage* image,
+    const VkImageCreateInfo* info,
+    VkImage handle);
+
 bool vkrImage_Reserve(
     vkrImage* image,
     const VkImageCreateInfo* info,
@@ -54,15 +60,14 @@ bool vkrImageSet_Reserve(
 
 // ----------------------------------------------------------------------------
 
-VkImageView vkrImageView_New(
-    VkImage image,
-    VkImageViewType type,
-    VkFormat format,
-    VkImageAspectFlags aspect,
-    i32 baseMip, i32 mipCount,
-    i32 baseLayer, i32 layerCount);
 void vkrImageView_Release(VkImageView view);
 
 // ----------------------------------------------------------------------------
+
+VkImageViewType vkrImage_InfoToViewType(const VkImageCreateInfo* info);
+VkImageAspectFlags vkrImage_InfoToAspects(const VkImageCreateInfo* info);
+bool vkrImage_InfoToViewInfo(
+    const VkImageCreateInfo* info,
+    VkImageViewCreateInfo* viewInfo);
 
 PIM_C_END

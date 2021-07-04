@@ -84,14 +84,6 @@ ConVar cv_r_zfar =
     .desc = "Far clipping plane, in meters",
 };
 
-ConVar cv_lm_upload =
-{
-    .type = cvart_bool,
-    .name = "lm_upload",
-    .value = "0",
-    .desc = "Upload lightmap data to GPU",
-};
-
 ConVar cv_r_whitepoint =
 {
     .type = cvart_float,
@@ -273,44 +265,6 @@ ConVar cv_r_refl_gen =
     .desc = "Enable reflection generation",
 };
 
-ConVar cv_lm_gen =
-{
-    .type = cvart_bool,
-    .name = "lm_gen",
-    .value = "0",
-    .desc = "Enable lightmap generation",
-};
-
-ConVar cv_lm_density =
-{
-    .type = cvart_float,
-    .name = "lm_density",
-    .value = "4",
-    .minFloat = 0.1f,
-    .maxFloat = 32.0f,
-    .desc = "Lightmap texels per meter [0.1, 32]",
-};
-
-ConVar cv_lm_timeslice =
-{
-    .type = cvart_int,
-    .name = "lm_timeslice",
-    .value = "1",
-    .minInt = 1,
-    .maxInt = 1024,
-    .desc = "Lightmap timeslicing frames per sample [1, 1024]",
-};
-
-ConVar cv_lm_spp =
-{
-    .type = cvart_int,
-    .name = "lm_spp",
-    .value = "2",
-    .minInt = 1,
-    .maxInt = 1024,
-    .desc = "Lightmap samples per pixel",
-};
-
 ConVar cv_r_sun_dir =
 {
     .type = cvart_vector,
@@ -475,6 +429,54 @@ ConVar cv_exp_cdfmax =
     .minFloat = 0.0f,
     .maxFloat = 1.0f,
     .desc = "Autoexposure Histogram Cdf Max",
+};
+
+// ----------------------------------------------------------------------------
+
+ConVar cv_lm_upload =
+{
+    .type = cvart_bool,
+    .name = "lm_upload",
+    .value = "0",
+    .desc = "Upload the latest lightmap data to the GPU",
+};
+
+ConVar cv_lm_gen =
+{
+    .type = cvart_bool,
+    .name = "lm_gen",
+    .value = "0",
+    .desc = "Progressively bake lightmaps every frame",
+};
+
+ConVar cv_lm_density =
+{
+    .type = cvart_float,
+    .name = "lm_density",
+    .value = IF_DEBUG("2") IFN_DEBUG("4"),
+    .minFloat = 0.1f,
+    .maxFloat = 32.0f,
+    .desc = "Lightmap baking: texels per meter [0.1, 32]",
+};
+
+ConVar cv_lm_timeslice =
+{
+    .type = cvart_int,
+    .name = "lm_timeslice",
+    .value = IF_DEBUG("60") IFN_DEBUG("1"),
+    .minInt = 1,
+    .maxInt = 1024,
+    .desc = "Lightmap baking: number of frames per sample",
+};
+
+ConVar cv_lm_spp =
+{
+    .type = cvart_int,
+    .name = "lm_spp",
+    .value = "1",
+    .minInt = 1,
+    .maxInt = 1024,
+    .desc = "Lightmap baking: samples per pixel",
 };
 
 // ----------------------------------------------------------------------------

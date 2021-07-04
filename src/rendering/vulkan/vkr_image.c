@@ -1,12 +1,14 @@
 #include "rendering/vulkan/vkr_image.h"
+
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_context.h"
-#include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
+
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include "common/time.h"
 #include "common/console.h"
+
 #include <string.h>
 
 // ----------------------------------------------------------------------------
@@ -19,20 +21,95 @@ bool vkrImage_New(
     return vkrMem_ImageNew(image, info, memUsage);
 }
 
+bool vkrImage_Import(
+    vkrImage* image,
+    const VkImageCreateInfo* info,
+    VkImage handle)
+{
+    ASSERT(info);
+    ASSERT(handle);
+
+    bool success = true;
+    memset(image, 0, sizeof(*image));
+
+    image->handle = handle;
+    image->allocation = NULL;
+    image->view = NULL;
+    image->type = info->imageType;
+    image->format = info->format;
+    image->layout = info->initialLayout;
+    image->usage = info->usage;
+    image->width = info->extent.width;
+    image->height = info->extent.height;
+    image->depth = info->extent.depth;
+    image->mipLevels = info->mipLevels;
+    image->arrayLayers = info->arrayLayers;
+    image->imported = 1;
+
+    if (!handle)
+    {
+        success = false;
+        goto cleanup;
+    }
+
+    VkImageViewCreateInfo viewInfo;
+    if (vkrImage_InfoToViewInfo(info, &viewInfo))
+    {
+        viewInfo.image = image->handle;
+        VkCheck(vkCreateImageView(g_vkr.dev, &viewInfo, NULL, &image->view));
+        if (!image->view)
+        {
+            success = false;
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    if (!success)
+    {
+        vkrMem_ImageDel(image);
+    }
+    return success;
+}
+
 void vkrImage_Release(vkrImage* image)
 {
     ASSERT(image);
-    if (image->handle)
+    if (image->imported)
+    {
+        ASSERT(!image->allocation);
+        vkrImageView_Release(image->view);
+    }
+    else
+    {
+        if (image->handle || image->allocation || image->view)
+        {
+            const vkrReleasable releasable =
+            {
+                .frame = vkrSys_FrameIndex(),
+                .type = vkrReleasableType_Image,
+                .image.handle = image->handle,
+                .image.allocation = image->allocation,
+                .image.view = image->view,
+            };
+            vkrReleasable_Add(&releasable);
+        }
+    }
+    memset(image, 0, sizeof(*image));
+}
+
+void vkrImageView_Release(VkImageView view)
+{
+    if (view)
     {
         const vkrReleasable releasable =
         {
-            .frame = vkrSys_FrameIndex(),
-            .type = vkrReleasableType_Image,
-            .image = *image,
+            .type = vkrReleasableType_ImageView,
+            .frame = Time_FrameCount(),
+            .view = view,
         };
         vkrReleasable_Add(&releasable);
     }
-    memset(image, 0, sizeof(*image));
 }
 
 bool vkrImage_Reserve(
@@ -40,6 +117,7 @@ bool vkrImage_Reserve(
     const VkImageCreateInfo* info,
     vkrMemUsage memUsage)
 {
+    ASSERT(!image->imported);
     bool success = true;
     if ((image->type != info->imageType) ||
         (image->format != info->format) ||
@@ -215,48 +293,85 @@ bool vkrImageSet_Reserve(
 
 // ----------------------------------------------------------------------------
 
-VkImageView vkrImageView_New(
-    VkImage image,
-    VkImageViewType type,
-    VkFormat format,
-    VkImageAspectFlags aspect,
-    i32 baseMip, i32 mipCount,
-    i32 baseLayer, i32 layerCount)
+VkImageViewType vkrImage_InfoToViewType(const VkImageCreateInfo* info)
 {
-    ASSERT(image);
-    const VkImageViewCreateInfo viewInfo =
+    VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D;
+    switch (info->imageType)
     {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image,
-        .viewType = type,
-        .format = format,
-        .subresourceRange =
+    default:
+    case VK_IMAGE_TYPE_2D:
+        if (info->arrayLayers <= 1)
         {
-            .aspectMask = aspect,
-            .baseMipLevel = baseMip,
-            .levelCount = mipCount,
-            .baseArrayLayer = baseLayer,
-            .layerCount = layerCount,
-        },
-    };
-    VkImageView handle = NULL;
-    VkCheck(vkCreateImageView(g_vkr.dev, &viewInfo, NULL, &handle));
-    ASSERT(handle);
-    return handle;
-}
-
-void vkrImageView_Release(VkImageView view)
-{
-    if (view)
-    {
-        const vkrReleasable releasable =
+            viewType = VK_IMAGE_VIEW_TYPE_2D;
+        }
+        else if (info->arrayLayers == 6)
         {
-            .type = vkrReleasableType_ImageView,
-            .frame = Time_FrameCount(),
-            .view = view,
-        };
-        vkrReleasable_Add(&releasable);
+            // may also want 2darray view for uav cubemap use
+            viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+        }
+        else
+        {
+            viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+        }
+        break;
+    case VK_IMAGE_TYPE_1D:
+        viewType = (info->arrayLayers <= 1) ?
+            VK_IMAGE_VIEW_TYPE_1D : VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+        break;
+    case VK_IMAGE_TYPE_3D:
+        viewType = VK_IMAGE_VIEW_TYPE_3D;
+        break;
     }
+    return viewType;
 }
 
-// ----------------------------------------------------------------------------
+VkImageAspectFlags vkrImage_InfoToAspects(const VkImageCreateInfo* info)
+{
+    VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    switch (info->format)
+    {
+        // default to color aspect
+    default:
+        aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+        break;
+        // depth only formats:
+    case VK_FORMAT_D16_UNORM:
+    case VK_FORMAT_X8_D24_UNORM_PACK32:
+    case VK_FORMAT_D32_SFLOAT:
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+        break;
+        // depth and stencil formats:
+    case VK_FORMAT_D16_UNORM_S8_UINT:
+    case VK_FORMAT_D24_UNORM_S8_UINT:
+    case VK_FORMAT_D32_SFLOAT_S8_UINT:
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        break;
+        // stencil only formats:
+    case VK_FORMAT_S8_UINT:
+        aspect = VK_IMAGE_ASPECT_STENCIL_BIT;
+        break;
+    }
+    return aspect;
+}
+
+bool vkrImage_InfoToViewInfo(const VkImageCreateInfo* info, VkImageViewCreateInfo* viewInfo)
+{
+    memset(viewInfo, 0, sizeof(*viewInfo));
+    // anything but transfer usage needs a view
+    const VkImageUsageFlags viewless =
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if (info->usage & (~viewless))
+    {
+        viewInfo->sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo->format = info->format;
+        viewInfo->viewType = vkrImage_InfoToViewType(info);
+        viewInfo->subresourceRange.aspectMask = vkrImage_InfoToAspects(info);
+        viewInfo->subresourceRange.baseMipLevel = 0;
+        viewInfo->subresourceRange.levelCount = info->mipLevels;
+        viewInfo->subresourceRange.baseArrayLayer = 0;
+        viewInfo->subresourceRange.layerCount = info->arrayLayers;
+        return true;
+    }
+    return false;
+}

@@ -1,4 +1,5 @@
 #include "rendering/lightmap.h"
+
 #include "allocator/allocator.h"
 #include "rendering/drawable.h"
 #include "math/float2_funcs.h"
@@ -30,8 +31,11 @@
 #include <stb/stb_image_write.h>
 #include <string.h>
 
-#define CHART_SPLITS    2
-#define ROW_RESET       -(1<<20)
+#define CHART_SPLITS        2
+#define ROW_RESET           -(1<<20)
+#define kUnmappedMaterials  (MatFlag_Sky | MatFlag_Lava)
+#define kMinCoverage        (0.1f)
+#define kTexelPadding       (1.0f)
 
 typedef enum
 {
@@ -45,7 +49,7 @@ typedef enum
 typedef struct mask_s
 {
     int2 size;
-    u8* ptr;
+    u8* pim_noalias ptr;
 } mask_t;
 
 typedef struct chartnode_s
@@ -60,7 +64,7 @@ typedef struct chartnode_s
 typedef struct chart_s
 {
     mask_t mask;
-    chartnode_t* nodes;
+    chartnode_t* pim_noalias nodes;
     i32 nodeCount;
     i32 atlasIndex;
     int2 translation;
@@ -189,43 +193,41 @@ pim_inline void VEC_CALL mask_del(mask_t* mask)
     mask->size.y = 0;
 }
 
-pim_inline float4 VEC_CALL norm_blend(float4 A, float4 B, float4 C, float4 wuv)
+pim_inline float VEC_CALL CoverageCurve(float dist)
 {
-    float4 N = f4_blend(A, B, C, wuv);
-    return f4_normalize3(N);
+    dist = f1_max(dist, 0.0f);
+    return f1_sat(1.0f / (1.0f + dist * dist));
 }
 
-pim_inline float2 VEC_CALL lm_blend(float3 a, float3 b, float3 c, float4 wuv)
+pim_inline bool VEC_CALL mask_fits(mask_t a, mask_t b, int2 b_tr)
 {
-    float3 lm3 = f3_blend(a, b, c, wuv);
-    float2 lm = { lm3.x, lm3.y };
-    return lm;
-}
-
-pim_inline bool VEC_CALL mask_fits(mask_t a, mask_t b, int2 tr)
-{
-    for (i32 by = 0; by < b.size.y; ++by)
+    const int2 lo = i2_add(i2_0, b_tr);
+    const int2 hi = i2_add(b.size, b_tr);
+    if ((lo.x < 0) || (lo.y < 0))
     {
-        for (i32 bx = 0; bx < b.size.x; ++bx)
+        return false;
+    }
+    if ((hi.x > a.size.x) || (hi.y > a.size.y))
+    {
+        return false;
+    }
+    const i32 astride = a.size.x;
+    const i32 bstride = b.size.x;
+    for (i32 ay = lo.y; ay < hi.y; ++ay)
+    {
+        for (i32 ax = lo.x; ax < hi.x; ++ax)
         {
-            i32 bi = bx + by * b.size.x;
-            if (b.ptr[bi])
+            i32 bx = ax - b_tr.x;
+            i32 by = ay - b_tr.y;
+            i32 bi = bx + by * bstride;
+            i32 ai = ax + ay * astride;
+            ASSERT(bx >= 0);
+            ASSERT(bx < b.size.x);
+            ASSERT(by >= 0);
+            ASSERT(by < b.size.y);
+            if (b.ptr[bi] && a.ptr[ai])
             {
-                i32 ax = bx + tr.x;
-                i32 ay = by + tr.y;
-                if (ax < 0 || ay < 0)
-                {
-                    return false;
-                }
-                if (ax >= a.size.x || ay >= a.size.y)
-                {
-                    return false;
-                }
-                i32 ai = ax + ay * a.size.x;
-                if (a.ptr[ai])
-                {
-                    return false;
-                }
+                return false;
             }
         }
     }
@@ -264,23 +266,7 @@ pim_inline int2 VEC_CALL tri_size(Tri2D tri)
 
 pim_inline bool VEC_CALL TriTest(Tri2D tri, float2 pt)
 {
-    const i32 kSamples = 64;
-    const float kThresh = 2.0f;
-    for (i32 s = 0; s < kSamples; ++s)
-    {
-        float2 Xi = Hammersley2D(s, kSamples);
-        float2 subPt = { pt.x + Xi.x, pt.y + Xi.y };
-        float dist = sdTriangle2D(tri.a, tri.b, tri.c, subPt);
-        if (dist < kThresh)
-        {
-            return true;
-        }
-        if (dist > (kThresh * 2.0f))
-        {
-            return false;
-        }
-    }
-    return false;
+    return CoverageCurve(sdTriangle2D(tri.a, tri.b, tri.c, pt)) >= kMinCoverage;
 }
 
 pim_inline void VEC_CALL mask_tri(mask_t mask, Tri2D tri)
@@ -291,8 +277,8 @@ pim_inline void VEC_CALL mask_tri(mask_t mask, Tri2D tri)
         for (i32 x = 0; x < size.x; ++x)
         {
             const i32 i = x + y * size.x;
-            float2 pt = { (float)x, (float)y };
-            if (TriTest(tri, pt))
+            float2 texelCenter = { x + 0.5f, y + 0.5f };
+            if (TriTest(tri, texelCenter))
             {
                 mask.ptr[i] = 0xff;
             }
@@ -312,8 +298,8 @@ pim_inline mask_t VEC_CALL mask_fromtri(Tri2D tri)
 
 pim_inline bool VEC_CALL mask_find(mask_t atlas, mask_t item, int2* trOut, i32 prevRow)
 {
-    int2 lo = i2_addvs(i2_neg(item.size), 1);
-    int2 hi = i2_subvs(atlas.size, 1);
+    const int2 lo = i2_0;
+    const int2 hi = i2_sub(atlas.size, item.size);
     i32 y = lo.y;
     if (prevRow != ROW_RESET)
     {
@@ -460,7 +446,8 @@ pim_inline float VEC_CALL chart_density(chart_t chart)
 {
     float fromTri = chart_triarea(chart);
     float fromBounds = chart_area(chart);
-    return fromTri / f1_max(fromBounds, kEpsilon);
+    ASSERT(fromBounds >= (fromTri * 0.99f));// 1% overlap!
+    return fromTri / f1_max(fromBounds, fromTri);
 }
 
 pim_inline float2 VEC_CALL tri_center(Tri2D tri)
@@ -577,9 +564,9 @@ typedef struct chartmask_s
     i32 chartCount;
 } chartmask_t;
 
-static void ChartMaskFn(Task* pbase, i32 begin, i32 end)
+static void ChartMaskFn(void* pbase, i32 begin, i32 end)
 {
-    chartmask_t* task = (chartmask_t*)pbase;
+    chartmask_t* task = pbase;
     chart_t* charts = task->charts;
     i32 chartCount = task->chartCount;
 
@@ -615,9 +602,9 @@ static void ChartMaskFn(Task* pbase, i32 begin, i32 end)
 }
 
 static chart_t* chart_group(
-    chartnode_t* nodes,
+    chartnode_t* pim_noalias nodes,
     i32 nodeCount,
-    i32* countOut,
+    i32* pim_noalias countOut,
     float distThresh,
     float degreeThresh,
     float maxWidth)
@@ -627,8 +614,8 @@ static chart_t* chart_group(
     ASSERT(countOut);
 
     i32 chartCount = 0;
-    chart_t* charts = NULL;
-    Plane3D* planes = NULL;
+    chart_t* pim_noalias charts = NULL;
+    Plane3D* pim_noalias planes = NULL;
 
     // assign nodes to charts by triangle plane
     for (i32 iNode = 0; iNode < nodeCount; ++iNode)
@@ -650,9 +637,9 @@ static chart_t* chart_group(
         }
 
         chart_t chart = charts[iChart];
-        chart.nodeCount += 1;
-        Perm_Reserve(chart.nodes, chart.nodeCount);
-        chart.nodes[chart.nodeCount - 1] = node;
+        i32 b = chart.nodeCount++;
+        Perm_Reserve(chart.nodes, b + 1);
+        chart.nodes[b] = node;
         charts[iChart] = chart;
     }
 
@@ -705,11 +692,7 @@ pim_inline i32 chart_cmp(const void* plhs, const void* prhs, void* usr)
     const chart_t* rhs = prhs;
     float a = lhs->area;
     float b = rhs->area;
-    if (a != b)
-    {
-        return a > b ? -1 : 1;
-    }
-    return 0;
+    return ((a > b) ? 1 : 0) - ((b > a) ? 1 : 0);
 }
 
 pim_inline void chart_sort(chart_t* charts, i32 chartCount)
@@ -738,14 +721,14 @@ pim_inline void atlas_del(atlas_t* atlas)
 static bool atlas_search(
     atlas_t* pim_noalias atlases,
     i32 atlasCount,
-    chart_t* chart,
+    chart_t* pim_noalias chart,
     i32* pim_noalias prevAtlas,
     i32* pim_noalias prevRow)
 {
     int2 tr;
     for (i32 i = *prevAtlas; i < atlasCount; ++i)
     {
-        atlas_t* pim_noalias atlas = atlases + i;
+        atlas_t* pim_noalias atlas = &atlases[i];
     retry:
         if (mask_find(atlas->mask, chart->mask, &tr, *prevRow))
         {
@@ -789,11 +772,9 @@ static chartnode_t* chartnodes_create(float texelsPerUnit, i32* countOut)
     chartnode_t* nodes = NULL;
     i32 nodeCount = 0;
 
-    const u32 unmapped = MatFlag_Sky | MatFlag_Lava;
     for (i32 d = 0; d < numDrawables; ++d)
     {
-        const Material material = materials[d];
-        if (material.flags & unmapped)
+        if (materials[d].flags & kUnmappedMaterials)
         {
             continue;
         }
@@ -945,252 +926,94 @@ static void chartnodes_assign(
 
     for (i32 iChart = 0; iChart < chartCount; ++iChart)
     {
-        chart_t chart = charts[iChart];
+        const chart_t chart = charts[iChart];
         chartnode_t *const pim_noalias nodes = chart.nodes;
-        i32 nodeCount = chart.nodeCount;
-        Lightmap *const lightmap = &lightmaps[chart.atlasIndex];
-        i32 slot = lightmap->slot.index;
-        i32 size = lightmap->size;
-        const float scale = 1.0f / size;
+        const i32 nodeCount = chart.nodeCount;
+        Lightmap *const pim_noalias lightmap = &lightmaps[chart.atlasIndex];
+        const i32 lmTexId = lightmap->slot.index;
+        const float scale = 1.0f / lightmap->size;
         const float2 tr = i2_f2(chart.translation);
 
-        for (i32 i = 0; i < nodeCount; ++i)
+        for (i32 iNode = 0; iNode < nodeCount; ++iNode)
         {
-            chartnode_t node = nodes[i];
-            ASSERT(node.drawableIndex >= 0);
-            ASSERT(node.drawableIndex < numDrawables);
-            ASSERT(node.vertIndex >= 0);
+            chartnode_t node = nodes[iNode];
+            const i32 iDrawable = node.drawableIndex;
+            const i32 iVert = node.vertIndex;
+            ASSERT(iDrawable >= 0);
+            ASSERT(iDrawable < numDrawables);
+            ASSERT(iVert >= 0);
+            ASSERT((drawables->materials[iDrawable].flags & kUnmappedMaterials) == 0);
 
-            Mesh *const mesh = Mesh_Get(meshids[node.drawableIndex]);
+            Mesh *const mesh = Mesh_Get(meshids[iDrawable]);
             ASSERT(mesh);
             if (mesh)
             {
                 const i32 vertCount = mesh->length;
-                ASSERT((node.vertIndex + 2) < vertCount);
+                float4* pim_noalias uvs = mesh->uvs;
+                int4* pim_noalias texIndices = mesh->texIndices;
 
-                int4 *const pim_noalias texIndices = mesh->texIndices;
-                float4 *const pim_noalias uvs = mesh->uvs;
-                i32 a = node.vertIndex + 0;
-                i32 b = node.vertIndex + 1;
-                i32 c = node.vertIndex + 2;
-                texIndices[a].w = slot;
-                texIndices[b].w = slot;
-                texIndices[c].w = slot;
+                i32 ia = iVert + 0;
+                i32 ib = iVert + 1;
+                i32 ic = iVert + 2;
+                ASSERT(ic < vertCount);
+
+                texIndices[ia].w = lmTexId;
+                texIndices[ib].w = lmTexId;
+                texIndices[ic].w = lmTexId;
                 float2 uvA = f2_mulvs(f2_add(node.triCoord.a, tr), scale);
                 float2 uvB = f2_mulvs(f2_add(node.triCoord.b, tr), scale);
                 float2 uvC = f2_mulvs(f2_add(node.triCoord.c, tr), scale);
-                uvs[a].z = uvA.x;
-                uvs[a].w = uvA.y;
-                uvs[b].z = uvB.x;
-                uvs[b].w = uvB.y;
-                uvs[c].z = uvC.x;
-                uvs[c].w = uvC.y;
-
-                Mesh_Upload(meshids[node.drawableIndex]);
+                uvs[ia].z = uvA.x;
+                uvs[ia].w = uvA.y;
+                uvs[ib].z = uvB.x;
+                uvs[ib].w = uvB.y;
+                uvs[ic].z = uvC.x;
+                uvs[ic].w = uvC.y;
             }
         }
     }
-}
 
-typedef struct quadtree_s
-{
-    i32 maxDepth;
-    i32 nodeCount;
-    Box2D* pim_noalias boxes;         // bounding box of node
-    i32* pim_noalias listLens;          // number of triangles in this node
-    Tri2D** pim_noalias triLists;     // lightmap UV
-    int2** pim_noalias indexLists;      // iDrawable, iVert
-} quadtree_t;
-
-pim_inline i32 CalcNodeCount(i32 maxDepth)
-{
-    i32 nodeCount = 0;
-    for (i32 i = 0; i < maxDepth; ++i)
+    for (i32 iDraw = 0; iDraw < numDrawables; ++iDraw)
     {
-        nodeCount += 1 << (2 * i);
+        //Mesh *const mesh = Mesh_Get(meshids[iDraw]);
+        //if (mesh)
+        //{
+        //    Con_Logf(LogSev_Verbose, "lm", "iDraw | ia ib ic | ax ay, bx by, cx cy");
+        //    for (i32 iVert = 0; (iVert + 2) < mesh->length; iVert += 3)
+        //    {
+        //        i32 ia = iVert + 0;
+        //        i32 ib = iVert + 1;
+        //        i32 ic = iVert + 2;
+        //        float2 uvA = f2_v(mesh->uvs[ia].z, mesh->uvs[ia].w);
+        //        float2 uvB = f2_v(mesh->uvs[ib].z, mesh->uvs[ib].w);
+        //        float2 uvC = f2_v(mesh->uvs[ic].z, mesh->uvs[ic].w);
+        //        Con_Logf(LogSev_Verbose, "lm", "%-3d | %-4d %-4d %-4d | %f %f, %f %f, %f %f", iDraw, ia, ib, ic, uvA.x, uvA.y, uvB.x, uvB.y, uvC.x, uvC.y);
+        //    }
+        //}
+        Mesh_Upload(meshids[iDraw]);
     }
-    return nodeCount;
+    //Con_Flush();
 }
 
-pim_inline i32 GetChild(i32 parent, i32 i)
-{
-    return (parent << 2) | (i + 1);
-}
-
-pim_inline i32 GetParent(i32 c)
-{
-    return (c - 1) >> 2;
-}
-
-static void SetupBounds(Box2D* pim_noalias boxes, i32 p, i32 nodeCount)
-{
-    const i32 c0 = GetChild(p, 0);
-    if ((c0 + 4) <= nodeCount)
-    {
-        {
-            float2 pcenter = f2_lerpvs(boxes[p].lo, boxes[p].hi, 0.5f);
-            float2 pextents = f2_sub(boxes[p].hi, pcenter);
-            float2 cextents = f2_mulvs(pextents, 0.5f);
-            for (i32 i = 0; i < 4; ++i)
-            {
-                float2 sign;
-                sign.x = (i & 1) ? -1.0f : 1.0f;
-                sign.y = (i & 2) ? -1.0f : 1.0f;
-                float2 ccenter = f2_add(pcenter, f2_mul(sign, cextents));
-                boxes[c0 + i].lo = f2_sub(ccenter, cextents);
-                boxes[c0 + i].hi = f2_add(ccenter, cextents);
-            }
-        }
-        for (i32 i = 0; i < 4; ++i)
-        {
-            SetupBounds(boxes, c0 + i, nodeCount);
-        }
-    }
-}
-
-pim_inline void quadtree_new(quadtree_t* qt, i32 maxDepth, Box2D bounds)
-{
-    i32 len = CalcNodeCount(maxDepth);
-    qt->maxDepth = maxDepth;
-    qt->nodeCount = len;
-    qt->boxes = Perm_Calloc(sizeof(qt->boxes[0]) * len);
-    qt->listLens = Perm_Calloc(sizeof(qt->listLens[0]) * len);
-    qt->triLists = Perm_Calloc(sizeof(qt->triLists[0]) * len);
-    qt->indexLists = Perm_Calloc(sizeof(qt->indexLists[0]) * len);
-    if (len > 0)
-    {
-        qt->boxes[0] = bounds;
-        SetupBounds(qt->boxes, 0, len);
-    }
-}
-
-pim_inline void quadtree_del(quadtree_t* qt)
-{
-    if (qt)
-    {
-        Mem_Free(qt->boxes);
-        Mem_Free(qt->listLens);
-        i32 len = qt->nodeCount;
-        for (i32 i = 0; i < len; ++i)
-        {
-            Mem_Free(qt->triLists[i]);
-            Mem_Free(qt->indexLists[i]);
-        }
-        Mem_Free(qt->triLists);
-        Mem_Free(qt->indexLists);
-        memset(qt, 0, sizeof(*qt));
-    }
-}
-
-pim_inline bool VEC_CALL BoxHoldsTri(Box2D box, Tri2D tri)
-{
-    float2 lo = box.lo;
-    float2 hi = box.hi;
-    bool2 a = b2_and(b2_and(f2_gteq(tri.a, lo), f2_gteq(tri.b, lo)), f2_gteq(tri.c, lo));
-    bool2 b = b2_and(b2_and(f2_lteq(tri.a, hi), f2_lteq(tri.b, hi)), f2_lteq(tri.c, hi));
-    return b2_all(b2_and(a, b));
-}
-
-pim_inline bool VEC_CALL BoxHoldsPt(Box2D box, float2 pt)
-{
-    return b2_all(b2_and(f2_gteq(pt, box.lo), f2_lteq(pt, box.hi)));
-}
-
-static bool quadtree_insert(quadtree_t* pim_noalias qt, i32 n, Tri2D tri, i32 iDrawable, i32 iVert)
-{
-    if (n < qt->nodeCount)
-    {
-        if (BoxHoldsTri(qt->boxes[n], tri))
-        {
-            for (i32 i = 0; i < 4; ++i)
-            {
-                if (quadtree_insert(qt, GetChild(n, i), tri, iDrawable, iVert))
-                {
-                    return true;
-                }
-            }
-            i32 len = qt->listLens[n] + 1;
-            qt->listLens[n] = len;
-            Perm_Reserve(qt->triLists[n], len);
-            qt->triLists[n][len - 1] = tri;
-            Perm_Reserve(qt->indexLists[n], len);
-            qt->indexLists[n][len - 1] = i2_v(iDrawable, iVert);
-            return true;
-        }
-    }
-    return false;
-}
-
-static float quadtree_find(
-    const quadtree_t* qt,
-    i32 n,
-    float2 pt,
-    float limit,
-    int2* pim_noalias indOut)
-{
-    if (n < qt->nodeCount)
-    {
-        if (BoxHoldsPt(qt->boxes[n], pt))
-        {
-            i32 chosen = -1;
-            float chosenDist = limit;
-            i32 len = qt->listLens[n];
-            const Tri2D* triList = qt->triLists[n];
-            for (i32 i = 0; i < len; ++i)
-            {
-                Tri2D tri = triList[i];
-                float dist = sdTriangle2D(tri.a, tri.b, tri.c, pt);
-                if (dist < chosenDist)
-                {
-                    chosenDist = dist;
-                    chosen = i;
-                }
-            }
-
-            int2 ind = { -1, -1 };
-            if (chosenDist < limit)
-            {
-                limit = chosenDist;
-                ind = qt->indexLists[n][chosen];
-            }
-
-            for (i32 i = 0; i < 4; ++i)
-            {
-                int2 childInd = { -1, -1 };
-                float childDist = quadtree_find(qt, GetChild(n, i), pt, limit, &childInd);
-                if (childDist < limit)
-                {
-                    limit = childDist;
-                    ind = childInd;
-                }
-            }
-            *indOut = ind;
-        }
-    }
-    return limit;
-}
-
-typedef struct embed_s
+typedef struct EmbedTask_s
 {
     Task task;
     Lightmap* lightmaps;
-    const quadtree_t* trees;
     i32 lmCount;
     float texelsPerMeter;
-} embed_t;
+} EmbedTask;
 
-static void EmbedAttributesFn(void *const pbase, i32 begin, i32 end)
+static void EmbedTaskFn(void* pbase, i32 begin, i32 end)
 {
-    embed_t *const task = pbase;
+    EmbedTask *const task = pbase;
     Lightmap *const pim_noalias lightmaps = task->lightmaps;
-    const quadtree_t* pim_noalias trees = task->trees;
     const i32 lmCount = task->lmCount;
     const float texelsPerMeter = task->texelsPerMeter;
     const float metersPerTexel = 1.0f / texelsPerMeter;
     const i32 lmSize = lightmaps[0].size;
     const i32 lmLen = lmSize * lmSize;
     const int2 size = { lmSize, lmSize };
-    const float limit = 4.0f / lmSize;
+    const float texelSize = (float)lmSize;
 
     Entities const *const drawables = Entities_Get();
     const i32 drawablesCount = drawables->count;
@@ -1204,71 +1027,73 @@ static void EmbedAttributesFn(void *const pbase, i32 begin, i32 end)
         const i32 iTexel = iWork % lmLen;
         const i32 x = iTexel % lmSize;
         const i32 y = iTexel / lmSize;
-        const float2 uv = CoordToUv(size, i2_v(x, y));
+        const float2 pxCenter = { x + 0.5f, y + 0.5f };
         Lightmap lightmap = lightmaps[iLightmap];
-        const quadtree_t* qt = trees + iLightmap;
+        const i32 lmTxId = lightmap.slot.index;
 
-        lightmap.sampleCounts[iTexel] = 0.0f;
+        float4 lmPos = f4_0;
+        float4 lmNor = f4_0;
+        float lmCov = 0.0f;
 
-        int2 ind;
-        float dist = quadtree_find(qt, 0, uv, limit, &ind);
-        if ((dist < limit) && (ind.x != -1) && (ind.y != -1))
+        const Entities* drawables = Entities_Get();
+        const i32 dwCount = drawables->count;
+        const MeshId* pim_noalias meshids = drawables->meshes;
+        const Material* pim_noalias materials = drawables->materials;
+        for (i32 iDraw = 0; iDraw < dwCount; ++iDraw)
         {
-            i32 iDraw = ind.x;
-            i32 iVert = ind.y;
-
+            if (materials[iDraw].flags & kUnmappedMaterials)
+            {
+                continue;
+            }
             Mesh const *const mesh = Mesh_Get(meshids[iDraw]);
             if (!mesh)
             {
                 continue;
             }
-
+            const i32 meshLen = mesh->length;
             float4 const *const pim_noalias positions = mesh->positions;
             float4 const *const pim_noalias normals = mesh->normals;
             float4 const *const pim_noalias uvs = mesh->uvs;
-
-            const i32 a = iVert + 0;
-            const i32 b = iVert + 1;
-            const i32 c = iVert + 2;
-            ASSERT(c < mesh->length);
-            ASSERT((i32)mesh->normals[a].w == iLightmap);
-
-            float2 LMA = f2_v(uvs[a].z, uvs[a].w);
-            float2 LMB = f2_v(uvs[b].z, uvs[b].w);
-            float2 LMC = f2_v(uvs[c].z, uvs[c].w);
-            float area = sdEdge2D(LMA, LMB, LMC);
-            if (area <= 0.0f)
+            int4 const *const pim_noalias texIndices = mesh->texIndices;
+            for (i32 iVert = 0; (iVert + 3) <= meshLen; iVert += 3)
             {
-                continue;
+                if (texIndices[iVert].w != lmTxId)
+                {
+                    continue;
+                }
+                const i32 a = iVert + 0;
+                const i32 b = iVert + 1;
+                const i32 c = iVert + 2;
+
+                float2 A = f2_mulvs(f2_v(uvs[a].z, uvs[a].w), texelSize);
+                float2 B = f2_mulvs(f2_v(uvs[b].z, uvs[b].w), texelSize);
+                float2 C = f2_mulvs(f2_v(uvs[c].z, uvs[c].w), texelSize);
+
+                float cov = CoverageCurve(sdTriangle2D(A, B, C, pxCenter));
+                if (cov < kMinCoverage)
+                {
+                    continue;
+                }
+
+                float area = sdEdge2D(A, B, C);
+                float4 wuv = bary2D(A, B, C, 1.0f / area, pxCenter);
+                wuv = f4_saturate(wuv);
+                wuv = f4_divvs(wuv, wuv.x + wuv.y + wuv.z);
+
+                float4 fragPos = f4_blend(positions[a], positions[b], positions[c], wuv);
+                float4 fragNor = f4_normalize3(f4_blend(normals[a], normals[b], normals[c], wuv));
+                lmCov += cov;
+                cov = cov / lmCov;
+                lmPos = f4_lerpvs(lmPos, fragPos, cov);
+                lmNor = f4_lerpvs(lmNor, fragNor, cov);
             }
-
-            const float rcpArea = 1.0f / area;
-            float4 wuv = bary2D(LMA, LMB, LMC, rcpArea, uv);
-            wuv = f4_clampvs(wuv, 0.0f, 1.0f);
-            wuv = f4_divvs(wuv, f4_sum3(wuv));
-
-            const float4x4 M = matrices[iDraw];
-            const float3x3 IM = invMatrices[iDraw];
-
-            float4 A = f4x4_mul_pt(M, positions[a]);
-            float4 B = f4x4_mul_pt(M, positions[b]);
-            float4 C = f4x4_mul_pt(M, positions[c]);
-            float4 P = f4_blend(A, B, C, wuv);
-
-            float4 NA = f3x3_mul_col(IM, normals[a]);
-            float4 NB = f3x3_mul_col(IM, normals[a]);
-            float4 NC = f3x3_mul_col(IM, normals[a]);
-
-            NA = f4_normalize3(NA);
-            NB = f4_normalize3(NB);
-            NC = f4_normalize3(NC);
-            float4 N = f4_blend(NA, NB, NC, wuv);
-            N = f4_normalize3(N);
-
-            lightmap.position[iTexel] = f4_f3(P);
-            lightmap.normal[iTexel] = f4_f3(N);
-            lightmap.sampleCounts[iTexel] = 1.0f;
         }
+
+        lmNor = f4_normalize3(lmNor);
+
+        lightmap.position[iTexel] = f4_f3(lmPos);
+        lightmap.normal[iTexel] = f4_f3(lmNor);
+        lightmap.sampleCounts[iTexel] = lmCov >= kMinCoverage ? 1.0f : 0.0f;
     }
 }
 
@@ -1279,61 +1104,11 @@ static void EmbedAttributes(
 {
     if (lmCount > 0)
     {
-        quadtree_t* trees = Temp_Calloc(sizeof(trees[0]) * lmCount);
-        {
-            const float eps = 0.01f;
-            Box2D bounds = { f2_s(0.0f - eps), f2_s(1.0f + eps) };
-            for (i32 i = 0; i < lmCount; ++i)
-            {
-                quadtree_new(trees + i, 5, bounds);
-            }
-        }
-
-        {
-            const Entities* drawables = Entities_Get();
-            const i32 dwCount = drawables->count;
-            const MeshId* pim_noalias meshids = drawables->meshes;
-            for (i32 iDraw = 0; iDraw < dwCount; ++iDraw)
-            {
-                Mesh const *const mesh = Mesh_Get(meshids[iDraw]);
-                if (!mesh)
-                {
-                    continue;
-                }
-                const i32 meshLen = mesh->length;
-                float4 const *const pim_noalias normals = mesh->normals;
-                float4 const *const pim_noalias uvs = mesh->uvs;
-                for (i32 iVert = 0; (iVert + 3) <= meshLen; iVert += 3)
-                {
-                    const i32 a = iVert + 0;
-                    const i32 b = iVert + 1;
-                    const i32 c = iVert + 2;
-                    const i32 iMap = (i32)normals[a].w;
-                    if ((iMap >= 0) && (iMap < lmCount))
-                    {
-                        float2 A = f2_v(uvs[a].z, uvs[a].w);
-                        float2 B = f2_v(uvs[b].z, uvs[b].w);
-                        float2 C = f2_v(uvs[c].z, uvs[c].w);
-                        Tri2D tri = { A, B, C };
-                        quadtree_t* tree = trees + iMap;
-                        bool inserted = quadtree_insert(tree, 0, tri, iDraw, iVert);
-                        ASSERT(inserted);
-                    }
-                }
-            }
-        }
-
-        embed_t* task = Temp_Calloc(sizeof(*task));
+        EmbedTask* task = Temp_Calloc(sizeof(*task));
         task->lightmaps = lightmaps;
-        task->trees = trees;
         task->lmCount = lmCount;
         task->texelsPerMeter = texelsPerMeter;
-        Task_Run(task, EmbedAttributesFn, TexelCount(lightmaps, lmCount));
-
-        for (i32 i = 0; i < lmCount; ++i)
-        {
-            quadtree_del(trees + i);
-        }
+        Task_Run(task, EmbedTaskFn, TexelCount(lightmaps, lmCount));
     }
 }
 
@@ -1387,7 +1162,7 @@ LmPack LmPack_Pack(
     Mem_Free(nodes);
     for (i32 i = 0; i < chartCount; ++i)
     {
-        chart_del(charts + i);
+        chart_del(&charts[i]);
     }
     Mem_Free(charts);
 
@@ -1696,13 +1471,13 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
         SPrintf(ARGS(filename), "%s_%d.png", prefix, iPage);
         if (!stbi_write_png(filename, lm.size, lm.size, 4, dstBuffer, lm.size * sizeof(dstBuffer[0])))
         {
-            Con_Logf(LogSev_Error, "LM", "Failed to print lightmap image '%s'", filename);
+            Con_Logf(LogSev_Error, "lm", "Failed to print lightmap image '%s'", filename);
             status = cmdstat_err;
             goto cleanup;
         }
         else
         {
-            Con_Logf(LogSev_Info, "LM", "Printed lightmap image '%s'", filename);
+            Con_Logf(LogSev_Info, "lm", "Printed lightmap image '%s'", filename);
         }
     }
 

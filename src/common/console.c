@@ -177,6 +177,14 @@ void Con_Logv(LogSev sev, const char* tag, const char* fmt, va_list ap)
     }
 }
 
+void Con_Flush(void)
+{
+    if (FStream_IsOpen(ms_file))
+    {
+        FStream_Flush(ms_file);
+    }
+}
+
 // ----------------------------------------------------------------------------
 
 static void con_gui(void)

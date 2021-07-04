@@ -49,4 +49,7 @@ void Con_Puts(u32 color, const char* line);
 void Con_Logf(LogSev sev, const char* tag, const char* fmt, ...);
 void Con_Logv(LogSev sev, const char* tag, const char* fmt, va_list ap);
 
+// flush the logfile
+void Con_Flush(void);
+
 PIM_C_END
