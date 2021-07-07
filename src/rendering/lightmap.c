@@ -34,17 +34,8 @@
 #define CHART_SPLITS        2
 #define ROW_RESET           -(1<<20)
 #define kUnmappedMaterials  (MatFlag_Sky | MatFlag_Lava)
-#define kMinCoverage        (0.1f)
-#define kTexelPadding       (1.0f)
-
-typedef enum
-{
-    LmChannel_Color,
-    LmChannel_Position,
-    LmChannel_Normal,
-
-    LmChannel_COUNT
-} LmChannel;
+#define kMaskPadding        (1.0f)
+#define kFillPadding        (2.0f)
 
 typedef struct mask_s
 {
@@ -193,10 +184,11 @@ pim_inline void VEC_CALL mask_del(mask_t* mask)
     mask->size.y = 0;
 }
 
-pim_inline float VEC_CALL CoverageCurve(float dist)
+pim_inline float VEC_CALL CoverageCurve(float d)
 {
-    dist = f1_max(dist, 0.0f);
-    return f1_sat(1.0f / (1.0f + dist * dist));
+    d = f1_max(d - 0.5f, 0.0f);
+    const float s = 4.0f;
+    return f1_sat(1.0f / (1.0f + s * s * d * d * d * d));
 }
 
 pim_inline bool VEC_CALL mask_fits(mask_t a, mask_t b, int2 b_tr)
@@ -266,7 +258,7 @@ pim_inline int2 VEC_CALL tri_size(Tri2D tri)
 
 pim_inline bool VEC_CALL TriTest(Tri2D tri, float2 pt)
 {
-    return CoverageCurve(sdTriangle2D(tri.a, tri.b, tri.c, pt)) >= kMinCoverage;
+    return sdTriangle2D(tri.a, tri.b, tri.c, pt) <= kMaskPadding;
 }
 
 pim_inline void VEC_CALL mask_tri(mask_t mask, Tri2D tri)
@@ -975,24 +967,8 @@ static void chartnodes_assign(
 
     for (i32 iDraw = 0; iDraw < numDrawables; ++iDraw)
     {
-        //Mesh *const mesh = Mesh_Get(meshids[iDraw]);
-        //if (mesh)
-        //{
-        //    Con_Logf(LogSev_Verbose, "lm", "iDraw | ia ib ic | ax ay, bx by, cx cy");
-        //    for (i32 iVert = 0; (iVert + 2) < mesh->length; iVert += 3)
-        //    {
-        //        i32 ia = iVert + 0;
-        //        i32 ib = iVert + 1;
-        //        i32 ic = iVert + 2;
-        //        float2 uvA = f2_v(mesh->uvs[ia].z, mesh->uvs[ia].w);
-        //        float2 uvB = f2_v(mesh->uvs[ib].z, mesh->uvs[ib].w);
-        //        float2 uvC = f2_v(mesh->uvs[ic].z, mesh->uvs[ic].w);
-        //        Con_Logf(LogSev_Verbose, "lm", "%-3d | %-4d %-4d %-4d | %f %f, %f %f, %f %f", iDraw, ia, ib, ic, uvA.x, uvA.y, uvB.x, uvB.y, uvC.x, uvC.y);
-        //    }
-        //}
         Mesh_Upload(meshids[iDraw]);
     }
-    //Con_Flush();
 }
 
 typedef struct EmbedTask_s
@@ -1033,7 +1009,7 @@ static void EmbedTaskFn(void* pbase, i32 begin, i32 end)
 
         float4 lmPos = f4_0;
         float4 lmNor = f4_0;
-        float lmCov = 0.0f;
+        float lmDist = 1 << 23;
 
         const Entities* drawables = Entities_Get();
         const i32 dwCount = drawables->count;
@@ -1069,31 +1045,31 @@ static void EmbedTaskFn(void* pbase, i32 begin, i32 end)
                 float2 B = f2_mulvs(f2_v(uvs[b].z, uvs[b].w), texelSize);
                 float2 C = f2_mulvs(f2_v(uvs[c].z, uvs[c].w), texelSize);
 
-                float cov = CoverageCurve(sdTriangle2D(A, B, C, pxCenter));
-                if (cov < kMinCoverage)
+                float dist = sdTriangle2D(A, B, C, pxCenter);
+                if (dist < lmDist)
                 {
-                    continue;
+                    float area = sdEdge2D(A, B, C);
+                    float4 wuv = bary2D(A, B, C, 1.0f / area, pxCenter);
+                    wuv = f4_saturate(wuv);
+                    wuv = f4_divvs(wuv, wuv.x + wuv.y + wuv.z);
+                    float4 fragPos = f4_blend(positions[a], positions[b], positions[c], wuv);
+                    float4 fragNor = f4_normalize3(f4_blend(normals[a], normals[b], normals[c], wuv));
+
+                    lmDist = dist;
+                    lmPos = fragPos;
+                    lmNor = fragNor;
                 }
-
-                float area = sdEdge2D(A, B, C);
-                float4 wuv = bary2D(A, B, C, 1.0f / area, pxCenter);
-                wuv = f4_saturate(wuv);
-                wuv = f4_divvs(wuv, wuv.x + wuv.y + wuv.z);
-
-                float4 fragPos = f4_blend(positions[a], positions[b], positions[c], wuv);
-                float4 fragNor = f4_normalize3(f4_blend(normals[a], normals[b], normals[c], wuv));
-                lmCov += cov;
-                cov = cov / lmCov;
-                lmPos = f4_lerpvs(lmPos, fragPos, cov);
-                lmNor = f4_lerpvs(lmNor, fragNor, cov);
             }
         }
 
-        lmNor = f4_normalize3(lmNor);
+        if (lmDist < kFillPadding)
+        {
+            lmNor = f4_normalize3(lmNor);
+        }
 
+        lightmap.sampleCounts[iTexel] = lmDist < kFillPadding ? 1.0f : 0.0f;
         lightmap.position[iTexel] = f4_f3(lmPos);
         lightmap.normal[iTexel] = f4_f3(lmNor);
-        lightmap.sampleCounts[iTexel] = lmCov >= kMinCoverage ? 1.0f : 0.0f;
     }
 }
 
@@ -1125,8 +1101,8 @@ LmPack LmPack_Pack(
         ms_once = true;
         cmd_reg(
             "lm_print",
-            "[<color|position|normal>]",
-            "write lightmap image to a file. the optional arg specifies which channel should be written (color by default)",
+            "",
+            "debug print lightmap images",
             CmdPrintLm);
     }
 
@@ -1383,34 +1359,9 @@ bool LmPack_Load(Crate* crate, LmPack* pack)
 static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
 {
     cmdstat_t status = cmdstat_ok;
-    char filename[PIM_PATH] = { 0 };
-    const char* prefix = "lightmap_color";
-    LmChannel channel = LmChannel_Color;
-    R8G8B8A8_t* dstBuffer = NULL;
     const LmPack* pack = LmPack_Get();
-
-    if (1 < argc)
-    {
-        const char* arg1 = argv[1];
-        if (arg1)
-        {
-            if (StrICmp(arg1, 16, "color") == 0)
-            {
-                channel = LmChannel_Color;
-                prefix = "lightmap_color";
-            }
-            else if (StrICmp(arg1, 16, "position") == 0)
-            {
-                channel = LmChannel_Position;
-                prefix = "lightmap_position";
-            }
-            else if (StrICmp(arg1, 16, "normal") == 0)
-            {
-                channel = LmChannel_Normal;
-                prefix = "lightmap_normal";
-            }
-        }
-    }
+    R8G8B8A8_t* dstBuffer = NULL;
+    char filename[PIM_PATH] = { 0 };
 
     for (i32 iPage = 0; iPage < pack->lmCount; ++iPage)
     {
@@ -1418,67 +1369,87 @@ static cmdstat_t CmdPrintLm(i32 argc, const char** argv)
         const i32 len = lm.size * lm.size;
         dstBuffer = Tex_Realloc(dstBuffer, sizeof(dstBuffer[0]) * len);
 
-        switch (channel)
+        for (i32 iDir = 0; iDir < NELEM(lm.probes); ++iDir)
         {
-        default:
-            ASSERT(false);
-            break;
-        case LmChannel_Color:
-        {
-            const float4* pim_noalias srcBuffer = lm.probes[0];
-            for (i32 iTexel = 0; iTexel < len; ++iTexel)
+            const float4* pim_noalias srcBuffer = lm.probes[iDir];
+            if (srcBuffer)
             {
-                float4 v = srcBuffer[iTexel];
-                v = Color_SceneToSDR(v);
-                v = f4_reinhard_simple(v);
-                R8G8B8A8_t c = GammaEncode_rgba8(v);
-                c.a = 0xff;
-                dstBuffer[iTexel] = c;
+                for (i32 iTexel = 0; iTexel < len; ++iTexel)
+                {
+                    float4 v = srcBuffer[iTexel];
+                    v = (lm.sampleCounts[iTexel] > 0.0f) ? v : f4_0;
+                    v = Color_SceneToSDR(v);
+                    v = f4_reinhard_simple(v);
+                    R8G8B8A8_t c = GammaEncode_rgba8(v);
+                    c.a = 0xff;
+                    dstBuffer[iTexel] = c;
+                }
+                SPrintf(ARGS(filename), "lm_lum_dir%d_pg%d.png", iPage, iDir);
+                if (stbi_write_png(filename, lm.size, lm.size, 4, dstBuffer, lm.size * sizeof(dstBuffer[0])))
+                {
+                    Con_Logf(LogSev_Info, "lm", "Printed lightmap image '%s'", filename);
+                }
+                else
+                {
+                    Con_Logf(LogSev_Error, "lm", "Failed to print lightmap image '%s'", filename);
+                    status = cmdstat_err;
+                    goto cleanup;
+                }
             }
         }
-        break;
-        case LmChannel_Position:
+
+        if (lm.position)
         {
             const float3* pim_noalias srcBuffer = lm.position;
             for (i32 iTexel = 0; iTexel < len; ++iTexel)
             {
                 float4 v = f3_f4(srcBuffer[iTexel], 1.0f);
-                v = f4_mulvs(v, 1.0f / 100.0f);
-                v = f4_addvs(v, 0.5f);
+                v = (lm.sampleCounts[iTexel] > 0.0f) ? v : f4_0;
+                v = f4_frac(v);
                 v = f4_saturate(v);
                 R8G8B8A8_t c = GammaEncode_rgba8(v);
                 c.a = 0xff;
                 dstBuffer[iTexel] = c;
             }
+            SPrintf(ARGS(filename), "lm_pos_pg%d.png", iPage);
+            if (stbi_write_png(filename, lm.size, lm.size, 4, dstBuffer, lm.size * sizeof(dstBuffer[0])))
+            {
+                Con_Logf(LogSev_Info, "lm", "Printed lightmap image '%s'", filename);
+            }
+            else
+            {
+                Con_Logf(LogSev_Error, "lm", "Failed to print lightmap image '%s'", filename);
+                status = cmdstat_err;
+                goto cleanup;
+            }
         }
-        break;
-        case LmChannel_Normal:
+
+        if (lm.normal)
         {
             const float3* pim_noalias srcBuffer = lm.normal;
             for (i32 iTexel = 0; iTexel < len; ++iTexel)
             {
                 float4 v = f3_f4(srcBuffer[iTexel], 1.0f);
+                v = (lm.sampleCounts[iTexel] > 0.0f) ? v : f4_0;
                 v = f4_unorm(v);
                 v = f4_saturate(v);
                 R8G8B8A8_t c = GammaEncode_rgba8(v);
                 c.a = 0xff;
                 dstBuffer[iTexel] = c;
             }
-        }
-        break;
+            SPrintf(ARGS(filename), "lm_nor_pg%d.png", iPage);
+            if (stbi_write_png(filename, lm.size, lm.size, 4, dstBuffer, lm.size * sizeof(dstBuffer[0])))
+            {
+                Con_Logf(LogSev_Info, "lm", "Printed lightmap image '%s'", filename);
+            }
+            else
+            {
+                Con_Logf(LogSev_Error, "lm", "Failed to print lightmap image '%s'", filename);
+                status = cmdstat_err;
+                goto cleanup;
+            }
         }
 
-        SPrintf(ARGS(filename), "%s_%d.png", prefix, iPage);
-        if (!stbi_write_png(filename, lm.size, lm.size, 4, dstBuffer, lm.size * sizeof(dstBuffer[0])))
-        {
-            Con_Logf(LogSev_Error, "lm", "Failed to print lightmap image '%s'", filename);
-            status = cmdstat_err;
-            goto cleanup;
-        }
-        else
-        {
-            Con_Logf(LogSev_Info, "lm", "Printed lightmap image '%s'", filename);
-        }
     }
 
 cleanup:
