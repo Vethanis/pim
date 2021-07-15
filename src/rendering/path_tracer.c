@@ -1751,7 +1751,13 @@ pim_inline void VEC_CALL LightOnHit(
     float4 lum4,
     i32 iVert)
 {
-    u32 amt = (u32)(f4_avglum(lum4) * 64.0f + 0.5f);
+    float lum = f4_avglum(lum4);
+    if (lum <= kEpsilon)
+    {
+        return;
+    }
+    float loglum = log2f(lum) - kLog2Epsilon;
+    u32 amt = (u32)(loglum * 16.0f + 0.5f);
     i32 iGrid = Grid_Index(&scene->lightGrid, ro);
     i32 iEmit = scene->vertToEmit[iVert];
     if (iEmit >= 0)
@@ -2528,8 +2534,6 @@ typedef struct TaskUpdateDists
 {
     Task task;
     PtScene* scene;
-    float alpha;
-    u32 minSamples;
 } TaskUpdateDists;
 
 static void UpdateDistsFn(void* pbase, i32 begin, i32 end)
@@ -2537,11 +2541,9 @@ static void UpdateDistsFn(void* pbase, i32 begin, i32 end)
     TaskUpdateDists*const pim_noalias task = pbase;
     PtScene*const pim_noalias scene = task->scene;
     Dist1D*const pim_noalias dists = scene->lightDists;
-    float alpha = task->alpha;
-    u32 minSamples = task->minSamples;
     for (i32 i = begin; i < end; ++i)
     {
-        Dist1D_Update(&dists[i], alpha, minSamples);
+        Dist1D_Update(&dists[i]);
     }
 }
 
@@ -2554,8 +2556,6 @@ static void UpdateDists(PtScene*const pim_noalias scene)
         ProfileBegin(pm_updatedists);
         TaskUpdateDists *const pim_noalias task = Temp_Calloc(sizeof(*task));
         task->scene = scene;
-        task->alpha = ConVar_GetFloat(&cv_pt_dist_alpha);
-        task->minSamples = ConVar_GetInt(&cv_pt_dist_samples);
         Task_Run(task, UpdateDistsFn, worklen);
         ProfileEnd(pm_updatedists);
     }

@@ -7,7 +7,6 @@
 
 #define kExposureHistogramSize  (256)
 #define kExposureBinRange       (kExposureHistogramSize - 2)
-#define kLog2Epsilon            (-22.0f)
 
 PIM_C_BEGIN
 

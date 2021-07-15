@@ -25,8 +25,6 @@ extern ConVar cv_r_fpslimit;
 extern ConVar cv_r_bumpiness;
 extern ConVar cv_r_tex_custom;
 extern ConVar cv_pt_dist_meters;
-extern ConVar cv_pt_dist_alpha;
-extern ConVar cv_pt_dist_samples;
 extern ConVar cv_pt_trace;
 extern ConVar cv_pt_denoise;
 extern ConVar cv_pt_normal;
