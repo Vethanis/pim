@@ -125,7 +125,7 @@ void Dist1D_Inc(Dist1D *const dist, i32 i)
     inc_u32(dist->live + i, MO_Relaxed);
 }
 
-void Dist1D_Update(Dist1D *const dist, float alpha, u32 minSamples)
+void Dist1D_Update(Dist1D *const dist)
 {
     const i32 pdfLen = dist->length;
     if (pdfLen > 0)
@@ -135,18 +135,28 @@ void Dist1D_Update(Dist1D *const dist, float alpha, u32 minSamples)
         u32 sum = 0;
         for (i32 i = 0; i < pdfLen; ++i)
         {
-            u32 ct = live[i];
-            sum += ct;
+            sum += live[i];
         }
-        if (sum < minSamples)
+        if (sum < 30)
         {
+            // less than 30 is a very very weak distribution
             return;
         }
-        float scale = 1.0f / sum;
+        const float scale = 1.0f / sum;
+        const u32 prevSum = dist->sum;
+        dist->sum = sum;
+        float alpha = 0.5f;
+        if (prevSum > 0)
+        {
+            double ratio = (double)sum / (double)prevSum;
+            alpha = f1_saturate((float)ratio) * 0.9f;
+            alpha = alpha * alpha;
+        }
         for (i32 i = 0; i < pdfLen; ++i)
         {
-            pdf[i] = f1_lerp(pdf[i], live[i] * scale, alpha);
-            live[i] = live[i] >> 1;
+            u32 ct = live[i];
+            pdf[i] = f1_lerp(pdf[i], ct * scale, alpha);
+            live[i] = (ct >> 1); // retain some memory from last update
         }
         Dist1D_Bake(dist);
     }

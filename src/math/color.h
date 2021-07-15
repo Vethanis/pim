@@ -266,7 +266,7 @@ pim_inline float VEC_CALL f4_perlum(float4 x)
 // average luminosity
 pim_inline float VEC_CALL f4_avglum(float4 x)
 {
-    return (x.x + x.y + x.z) / 3.0f;
+    return (x.x + x.y + x.z) * (1.0f / 3.0f);
 }
 
 // maximum luminosity

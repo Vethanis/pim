@@ -205,26 +205,6 @@ ConVar cv_pt_dist_meters =
     .desc = "Path tracer light distribution meters per cell"
 };
 
-ConVar cv_pt_dist_alpha =
-{
-    .type = cvart_float,
-    .name = "pt_dist_alpha",
-    .value = "0.5",
-    .minFloat = 0.0f,
-    .maxFloat = 1.0f,
-    .desc = "Path tracer light distribution update amount",
-};
-
-ConVar cv_pt_dist_samples =
-{
-    .type = cvart_int,
-    .name = "pt_dist_samples",
-    .value = "300",
-    .minInt = 30,
-    .maxInt = 1 << 20,
-    .desc = "Path tracer light distribution minimum samples per update",
-};
-
 ConVar cv_pt_trace =
 {
     .type = cvart_bool,
@@ -512,9 +492,7 @@ void ConVars_RegisterAll(void)
     ConVar_Reg(&cv_in_pitchscale);
     ConVar_Reg(&cv_pt_albedo);
     ConVar_Reg(&cv_pt_denoise);
-    ConVar_Reg(&cv_pt_dist_alpha);
     ConVar_Reg(&cv_pt_dist_meters);
-    ConVar_Reg(&cv_pt_dist_samples);
     ConVar_Reg(&cv_pt_normal);
     ConVar_Reg(&cv_pt_trace);
     ConVar_Reg(&cv_r_fov);

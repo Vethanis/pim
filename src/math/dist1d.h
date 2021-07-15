@@ -9,6 +9,7 @@ typedef struct Dist1D_s
     u32* pim_noalias live;
     i32 length;
     float integral;
+    u32 sum;
 } Dist1D;
 
 void Dist1D_New(Dist1D *const dist, i32 length);
@@ -24,4 +25,4 @@ i32 Dist1D_SampleD(Dist1D const *const dist, float u);
 float Dist1D_PdfD(Dist1D const *const dist, i32 i);
 
 void Dist1D_Inc(Dist1D *const dist, i32 i);
-void Dist1D_Update(Dist1D *const dist, float alpha, u32 minSamples);
+void Dist1D_Update(Dist1D *const dist);

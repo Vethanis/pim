@@ -1086,9 +1086,6 @@ static i32 CreateSphere(
 
 static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 {
-    ConVar_SetFloat(&cv_pt_dist_alpha, 0.01f);
-    ConVar_SetInt(&cv_pt_dist_samples, 10000);
-
     Entities* dr = Entities_Get();
     Entities_Clear(dr);
     ShutdownPtScene();
@@ -1099,10 +1096,6 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
     const float wallExtents = 5.0f;
     const float4 wallScale = f4_v(2.0f * wallExtents, 2.0f * wallExtents, kDeci, 0.0f);
     const float lightScale = 1.0f;
-    const float sphereScale = 1.0f;
-    const float margin = sphereScale;
-    const float lo = -wallExtents + margin;
-    const float hi = wallExtents - margin;
 
     const float4 right = Cubemap_kForwards[Cubeface_XP];
     const float4 right_up = Cubemap_kUps[Cubeface_XP];
@@ -1208,68 +1201,51 @@ static cmdstat_t CmdCornellBox(i32 argc, const char** argv)
 
     if (primType == PrimType_Spheres)
     {
-        for (i32 j = 0; j < 5; ++j)
+        const float sphereScale = 0.75f;
+        const float margin = sphereScale * 1.5f;
+        const float lo = -wallExtents + margin;
+        const float hi = wallExtents - margin;
+
+        const i32 kRows = 3;
+        const i32 kColumns = 5;
+        const MatFlag kMatFlags[] = { 0x0, 0x0, MatFlag_Refractive };
+        const float kMetallics[] = { 1.0f, 0.0f, 0.0f };
+        const float kIors[] = { 1.0f, 1.0f, 1.5f };
+        ASSERT(NELEM(kMatFlags) == kRows);
+        ASSERT(NELEM(kMetallics) == kRows);
+        ASSERT(NELEM(kIors) == kRows);
+
+        for (i32 iRow = 0; iRow < kRows; ++iRow)
         {
-            float t = (j + 0.5f) / 5;
-            float roughness = f1_lerp(0.0f, 1.0f, t);
-            float x = f1_lerp(lo, hi, t);
-            float y = -wallExtents + sphereScale;
-            float z = lo;
-            char name[PIM_PATH];
-            SPrintf(ARGS(name), "Cornell_MetalSphere_%d", j);
-            i = CreateSphere(
-                name,
-                f4_v(x, y, z, 0.0f),
-                quat_id,
-                f4_s(sphereScale),
-                white,
-                f4_v(roughness, 1.0f, 1.0f, 0.0f),
-                0x0);
+            const float tRow = (iRow + 0.5f) / kRows;
+            const float z = f1_lerp(lo, hi, tRow);
+            const float y = lo;
+
+            for (i32 iCol = 0; iCol < kColumns; ++iCol)
+            {
+                float tCol = (iCol + 0.5f) / kColumns;
+                float roughness = f1_lerp(0.0f, 1.0f, tCol);
+                float x = f1_lerp(lo, hi, tCol);
+                char name[PIM_PATH];
+                SPrintf(ARGS(name), "Cornell_Sphere_%d_%d", iRow, iCol);
+                i = CreateSphere(
+                    name,
+                    f4_v(x, y, z, 0.0f),
+                    quat_id,
+                    f4_s(sphereScale),
+                    white,
+                    f4_v(roughness, 1.0f, kMetallics[iRow], 0.0f),
+                    kMatFlags[iRow]);
+                dr->materials[i].ior = kIors[iRow];
+            }
         }
-
-        for (i32 j = 0; j < 5; ++j)
-        {
-            float t = (j + 0.5f) / 5;
-            float roughness = f1_lerp(0.0f, 1.0f, t);
-            float x = f1_lerp(lo, hi, t);
-            float y = -wallExtents + sphereScale;
-            float z = f1_lerp(lo, hi, 1.0f / 3.0f);
-            char name[PIM_PATH];
-            SPrintf(ARGS(name), "Cornell_PlasticSphere_%d", j);
-            i = CreateSphere(
-                name,
-                f4_v(x, y, z, 0.0f),
-                quat_id,
-                f4_s(sphereScale),
-                white,
-                f4_v(roughness, 1.0f, 0.0f, 0.0f),
-                0x0);
-}
-
-        for (i32 j = 0; j < 5; ++j)
-        {
-            float t = (j + 0.5f) / 5;
-            float roughness = f1_lerp(0.0f, 1.0f, t);
-            float x = f1_lerp(lo, hi, t);
-            float y = -wallExtents + sphereScale;
-            float z = f1_lerp(lo, hi, 2.0f / 3.0f);
-            char name[PIM_PATH];
-            SPrintf(ARGS(name), "Cornell_GlassSphere_%d", j);
-            i = CreateSphere(
-                name,
-                f4_v(x, y, z, 0.0f),
-                quat_id,
-                f4_s(sphereScale),
-                white,
-                f4_v(roughness, 1.0f, 0.0f, 0.0f),
-                MatFlag_Refractive);
-            dr->materials[i].ior = 1.5f;
-        }
-
     }
     else if (primType == PrimType_Boxes)
     {
-        const float boxScale = 2.0f * sphereScale;
+        const float boxScale = 2.0f;
+        const float margin = boxScale * 0.5f;
+        const float lo = -wallExtents + margin;
+        const float hi = wallExtents - margin;
         {
             float x = f1_lerp(lo, hi, 0.2f);
             float y = -wallExtents + boxScale;
@@ -1477,8 +1453,6 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
 
     if (loaded)
     {
-        ConVar_SetFloat(&cv_pt_dist_alpha, 0.5f);
-        ConVar_SetInt(&cv_pt_dist_samples, 1000);
         Entities_UpdateTransforms(Entities_Get());
         Entities_UpdateBounds(Entities_Get());
         vkrSys_OnLoad();
