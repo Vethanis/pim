@@ -211,14 +211,9 @@ pim_inline R8G8B8A8_t VEC_CALL DirectionToColor(float4 dir)
     c.a = 0xff;
     return c;
 }
-
-pim_inline float4 VEC_CALL ColorToDirection_fast(R8G8B8A8_t c)
-{
-    return f4_snorm(rgba8_f4(c));
-}
 pim_inline float4 VEC_CALL ColorToDirection(R8G8B8A8_t c)
 {
-    return f4_normalize3(ColorToDirection_fast(c));
+    return f4_normalize3(f4_snorm(rgba8_f4(c)));
 }
 
 pim_inline short2 VEC_CALL NormalTsToXy16(float4 n)
@@ -251,38 +246,19 @@ pim_inline float4 VEC_CALL GammaDecode_rgba8(R8G8B8A8_t c)
     return f4_sRGB_EOTF_Fit(rgba8_f4(c));
 }
 
-// https://alienryderflex.com/hsp.html
-pim_inline float VEC_CALL f4_hsplum(float4 x)
-{
-    const float4 coeff = { 0.299f, 0.587f, 0.114f, 0.0f };
-    return sqrtf(f4_sum3(f4_mul(f4_mul(x, x), coeff)));
-}
-
-pim_inline float VEC_CALL f4_perlum(float4 x)
-{
-    return f4_dot3(x, f4_v(0.2126f, 0.7152f, 0.0722f, 0.0f));
-}
-
-// average luminosity
 pim_inline float VEC_CALL f4_avglum(float4 x)
 {
     return (x.x + x.y + x.z) * (1.0f / 3.0f);
 }
 
-// maximum luminosity
 pim_inline float VEC_CALL f4_maxlum(float4 x)
 {
     return f4_hmax3(x);
 }
 
-pim_inline float VEC_CALL f4_midlum(float4 x)
-{
-    return 0.5f * (f4_maxlum(x) + f4_avglum(x));
-}
-
 pim_inline float4 VEC_CALL f4_desaturate(float4 src, float amt)
 {
-    float lum = f4_perlum(src);
+    float lum = f4_avglum(src);
     return f4_lerpvs(src, f4_s(lum), amt);
 }
 
@@ -570,8 +546,8 @@ pim_inline void VEC_CALL ConvertToMetallicRoughness(
     float *const pim_noalias metallicOut)
 {
     const float invSpecMax = 1.0f - f4_hmax3(specular);
-    const float diffuseLum = f4_hsplum(diffuse);
-    const float specLum = f4_hsplum(specular);
+    const float diffuseLum = f4_avglum(diffuse);
+    const float specLum = f4_avglum(specular);
 
     float metallic = 0.0f;
     const float a = 0.04f;
