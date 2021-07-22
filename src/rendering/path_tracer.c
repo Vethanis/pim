@@ -75,14 +75,12 @@ typedef struct LightSample_s
 
 typedef struct MediaDesc_s
 {
-    float4 constantAlbedo;
-    float4 noiseAlbedo;
-    float4 logConstantAlbedo;
-    float4 logNoiseAlbedo;
+    float4 constantMfp;
+    float4 noiseMfp;
+    float4 constantMu;
+    float4 noiseMu;
     float rcpMajorant;
     float absorption;
-    float constantAmt;
-    float noiseAmt;
     i32 noiseOctaves;
     float noiseGain;
     float noiseLacunarity;
@@ -97,9 +95,8 @@ typedef struct MediaDesc_s
 
 typedef struct Media_s
 {
-    float4 logAlbedo;
-    float scattering;
-    float extinction;
+    float4 scattering;
+    float4 extinction;
 } Media;
 
 typedef struct PtScene_s
@@ -291,17 +288,12 @@ pim_inline bool VEC_CALL EvaluateLight(
 
 // ----------------------------------------------------------------------------
 
-pim_inline float4 VEC_CALL AlbedoToLogAlbedo(float4 albedo);
-pim_inline float2 VEC_CALL Media_Density(MediaDesc const *const desc, float4 P);
+pim_inline float4 VEC_CALL MeanFreePathToMu(float4 albedo);
 pim_inline Media VEC_CALL Media_Sample(MediaDesc const *const desc, float4 P);
-pim_inline float4 VEC_CALL Media_Albedo(MediaDesc const *const desc, float4 P);
-pim_inline float4 VEC_CALL Media_Normal(MediaDesc const *const desc, float4 P);
-pim_inline Media VEC_CALL Media_Lerp(Media lhs, Media rhs, float t);
+pim_inline float4 VEC_CALL Media_Albedo(MediaDesc const *const desc, float4 P, float t);
 pim_inline float VEC_CALL SampleFreePath(float Xi, float rcpU);
 pim_inline float VEC_CALL FreePathPdf(float t, float u);
 pim_inline float4 VEC_CALL CalcMajorant(MediaDesc const *const desc);
-pim_inline float4 VEC_CALL CalcControl(MediaDesc const *const desc);
-pim_inline float4 VEC_CALL CalcResidual(float4 control, float4 majorant);
 pim_inline float VEC_CALL CalcPhase(
     MediaDesc const *const desc,
     float cosTheta);
@@ -1979,11 +1971,9 @@ pim_inline bool VEC_CALL EvaluateLight(
 
 static void media_desc_new(MediaDesc *const desc)
 {
-    desc->constantAlbedo = f4_v(0.75f, 0.75f, 0.75f, 0.5f);
-    desc->noiseAlbedo = f4_v(0.75f, 0.75f, 0.75f, -0.5f);
+    desc->constantMfp = f4_s(1024.0f);
+    desc->noiseMfp = f4_s(1024.0f);
     desc->absorption = 0.1f;
-    desc->constantAmt = exp2f(-20.0f);
-    desc->noiseAmt = exp2f(-20.0f);
     desc->noiseOctaves = 2;
     desc->noiseGain = 0.5f;
     desc->noiseLacunarity = 2.0666f;
@@ -1998,8 +1988,8 @@ static void media_desc_new(MediaDesc *const desc)
 
 static void media_desc_update(MediaDesc *const desc)
 {
-    desc->logConstantAlbedo = AlbedoToLogAlbedo(desc->constantAlbedo);
-    desc->logNoiseAlbedo = AlbedoToLogAlbedo(desc->noiseAlbedo);
+    desc->constantMu = MeanFreePathToMu(desc->constantMfp);
+    desc->noiseMu = MeanFreePathToMu(desc->noiseMfp);
     desc->phaseDirA = f1_clamp(desc->phaseDirA, -0.99f, 0.99f);
     desc->phaseDirB = f1_clamp(desc->phaseDirB, -0.99f, 0.99f);
     desc->phaseBlend = f1_sat(desc->phaseBlend);
@@ -2034,11 +2024,9 @@ static void media_desc_load(MediaDesc *const desc, const char* name)
     SerObj* root = Ser_ReadFile(filename);
     if (root)
     {
-        Ser_LoadVector(desc, root, constantAlbedo);
-        Ser_LoadVector(desc, root, noiseAlbedo);
+        Ser_LoadVector(desc, root, constantMfp);
+        Ser_LoadVector(desc, root, noiseMfp);
         Ser_LoadFloat(desc, root, absorption);
-        Ser_LoadFloat(desc, root, constantAmt);
-        Ser_LoadFloat(desc, root, noiseAmt);
         Ser_LoadInt(desc, root, noiseOctaves);
         Ser_LoadFloat(desc, root, noiseGain);
         Ser_LoadFloat(desc, root, noiseLacunarity);
@@ -2068,11 +2056,9 @@ static void media_desc_save(MediaDesc const *const desc, const char* name)
     SerObj* root = SerObj_Dict();
     if (root)
     {
-        Ser_SaveVector(desc, root, constantAlbedo);
-        Ser_SaveVector(desc, root, noiseAlbedo);
+        Ser_SaveVector(desc, root, constantMfp);
+        Ser_SaveVector(desc, root, noiseMfp);
         Ser_SaveFloat(desc, root, absorption);
-        Ser_SaveFloat(desc, root, constantAmt);
-        Ser_SaveFloat(desc, root, noiseAmt);
         Ser_SaveInt(desc, root, noiseOctaves);
         Ser_SaveFloat(desc, root, noiseGain);
         Ser_SaveFloat(desc, root, noiseLacunarity);
@@ -2097,7 +2083,6 @@ static void igLog2SliderFloat(const char* label, float* pLinear, float log2Lo, f
     *pLinear = exp2f(asLog2);
 }
 
-static char gui_mediadesc_name[PIM_PATH];
 
 static void media_desc_gui(MediaDesc *const desc)
 {
@@ -2107,23 +2092,26 @@ static void media_desc_gui(MediaDesc *const desc)
     if (desc && igExCollapsingHeader1("MediaDesc"))
     {
         igIndent(0.0f);
-        igInputText("Preset Name", gui_mediadesc_name, sizeof(gui_mediadesc_name), 0, NULL, NULL);
+        static char name[PIM_PATH];
+        igInputText("Preset Name", name, sizeof(name), 0, NULL, NULL);
         if (igExButton("Load Preset"))
         {
-            media_desc_load(desc, gui_mediadesc_name);
+            media_desc_load(desc, name);
         }
         if (igExButton("Save Preset"))
         {
-            media_desc_save(desc, gui_mediadesc_name);
+            media_desc_save(desc, name);
         }
         igExSliderFloat("Phase Dir A", &desc->phaseDirA, -0.99f, 0.99f);
         igExSliderFloat("Phase Dir B", &desc->phaseDirB, -0.99f, 0.99f);
         igExSliderFloat("Phase Blend", &desc->phaseBlend, 0.0f, 1.0f);
-        igLog2SliderFloat("Log2 Absorption", &desc->absorption, -20.0f, 5.0f);
-        igColorEdit3("Constant Albedo", &desc->constantAlbedo.x, ldrPicker);
-        igLog2SliderFloat("Log2 Constant Amount", &desc->constantAmt, -20.0f, 5.0f);
-        igColorEdit3("Noise Albedo", &desc->noiseAlbedo.x, ldrPicker);
-        igLog2SliderFloat("Log2 Noise Amount", &desc->noiseAmt, -20.0f, 5.0f);
+        igLog2SliderFloat("L2 Absorption", &desc->absorption, -20.0f, 5.0f);
+        igLog2SliderFloat("L2 Const Mfp R", &desc->constantMfp.x, -5.0f, 10.0f);
+        igLog2SliderFloat("L2 Const Mfp G", &desc->constantMfp.y, -5.0f, 10.0f);
+        igLog2SliderFloat("L2 Const Mfp B", &desc->constantMfp.z, -5.0f, 10.0f);
+        igLog2SliderFloat("L2 Noise Mfp R", &desc->noiseMfp.x, -5.0f, 10.0f);
+        igLog2SliderFloat("L2 Noise Mfp G", &desc->noiseMfp.y, -5.0f, 10.0f);
+        igLog2SliderFloat("L2 Noise Mfp B", &desc->noiseMfp.z, -5.0f, 10.0f);
         igExSliderInt("Noise Octaves", &desc->noiseOctaves, 1, 10);
         igExSliderFloat("Noise Gain", &desc->noiseGain, 0.0f, 1.0f);
         igExSliderFloat("Noise Lacunarity", &desc->noiseLacunarity, 1.0f, 3.0f);
@@ -2136,9 +2124,10 @@ static void media_desc_gui(MediaDesc *const desc)
     }
 }
 
-pim_inline float2 VEC_CALL Media_Density(MediaDesc const *const desc, float4 P)
+pim_inline Media VEC_CALL Media_Sample(MediaDesc const *const desc, float4 P)
 {
-    float heightFog = 0.0f;
+    Media media;
+    media.scattering = desc->constantMu;
     if (f1_distance(P.y, desc->noiseHeight) <= desc->noiseRange)
     {
         float noiseFreq = desc->noiseFreq;
@@ -2153,76 +2142,23 @@ pim_inline float2 VEC_CALL Media_Density(MediaDesc const *const desc, float4 P)
         float height = desc->noiseHeight + noiseScale * noise;
         float dist = f1_distance(P.y, height) / noiseScale;
         float heightDensity = f1_sat(1.0f - dist);
-        heightFog = desc->noiseAmt * heightDensity;
+        float4 uS = f4_mulvs(desc->noiseMu, heightDensity);
+        media.scattering = f4_add(media.scattering, uS);
     }
-
-    float totalFog = desc->constantAmt + heightFog;
-    float t = heightFog / totalFog;
-    return f2_v(totalFog, t);
+    media.extinction = f4_mulvs(media.scattering, 1.0f + desc->absorption);
+    return media;
 }
 
-pim_inline Media VEC_CALL Media_Sample(MediaDesc const *const desc, float4 P)
+pim_inline float4 VEC_CALL MeanFreePathToMu(float4 mfp)
 {
-    float2 density = Media_Density(desc, P);
-    float totalScattering = density.x;
-    float totalExtinction = totalScattering * (1.0f + desc->absorption);
-    float4 logAlbedo = f4_lerpvs(desc->logConstantAlbedo, desc->logNoiseAlbedo, density.y);
-
-    Media result;
-    result.logAlbedo = logAlbedo;
-    result.scattering = totalScattering;
-    result.extinction = totalExtinction;
-
-    return result;
+    // https://www.desmos.com/calculator/glcsylcry7
+    return f4_rcp(mfp);
 }
 
-pim_inline float4 VEC_CALL AlbedoToLogAlbedo(float4 albedo)
+pim_inline float4 VEC_CALL Media_Albedo(MediaDesc const *const desc, float4 P, float t)
 {
-    // https://www.desmos.com/calculator/rqrl5xhtea
-    const float a = 0.3679f;
-    const float b = 0.6f;
-    float4 x = f4_addvs(f4_mulvs(albedo, b), a);
-    float4 y = f4_neg(f4_log(x));
-    return y;
-}
-
-pim_inline float4 VEC_CALL Media_Extinction(Media media)
-{
-    return f4_mulvs(media.logAlbedo, media.extinction);
-}
-
-pim_inline float VEC_CALL Media_Scattering(Media media)
-{
-    return f1_lerp(0.5f, 1.0f, f4_hmax3(media.logAlbedo)) * media.scattering;
-}
-
-pim_inline float4 VEC_CALL Media_Albedo(MediaDesc const *const desc, float4 P)
-{
-    return f4_inv(Media_Sample(desc, P).logAlbedo);
-}
-
-pim_inline float4 VEC_CALL Media_Normal(MediaDesc const *const desc, float4 P)
-{
-    const float e = kMicro;
-    float dx =
-        Media_Density(desc, f4_add(P, f4_v(e, 0.0f, 0.0f, 0.0f))).x -
-        Media_Density(desc, f4_add(P, f4_v(-e, 0.0f, 0.0f, 0.0f))).x;
-    float dy =
-        Media_Density(desc, f4_add(P, f4_v(0.0f, e, 0.0f, 0.0f))).x -
-        Media_Density(desc, f4_add(P, f4_v(0.0f, -e, 0.0f, 0.0f))).x;
-    float dz =
-        Media_Density(desc, f4_add(P, f4_v(0.0f, 0.0f, e, 0.0f))).x -
-        Media_Density(desc, f4_add(P, f4_v(0.0f, 0.0f, -e, 0.0f))).x;
-    return f4_normalize3(f4_v(-dx, -dy, -dz, 0.0f));
-}
-
-pim_inline Media VEC_CALL Media_Lerp(Media lhs, Media rhs, float t)
-{
-    Media result;
-    result.logAlbedo = f4_lerpvs(lhs.logAlbedo, rhs.logAlbedo, t);
-    result.scattering = f1_lerp(lhs.scattering, rhs.scattering, t);
-    result.extinction = f1_lerp(lhs.extinction, rhs.extinction, t);
-    return result;
+    float4 uT = Media_Sample(desc, P).extinction;
+    return f4_exp(f4_mulvs(uT, -t));
 }
 
 // samples a free path in a given media
@@ -2244,41 +2180,10 @@ pim_inline float VEC_CALL FreePathPdf(float t, float u)
 // maximum extinction coefficient of the media
 pim_inline float4 VEC_CALL CalcMajorant(MediaDesc const *const desc)
 {
-    i32 octaves = desc->noiseOctaves;
-    float gain = desc->noiseGain;
-    float sum = 0.0f;
-    float amplitude = 1.0f;
-    for (i32 i = 0; i < octaves; ++i)
-    {
-        sum += amplitude;
-        amplitude *= gain;
-    }
     float a = 1.0f + desc->absorption;
-    float4 ca = f4_mulvs(desc->logConstantAlbedo, desc->constantAmt * a);
-    float4 na = f4_mulvs(desc->logNoiseAlbedo, desc->noiseAmt * a * sum);
+    float4 ca = f4_mulvs(desc->constantMu, a);
+    float4 na = f4_mulvs(desc->noiseMu, a);
     return f4_add(ca, na);
-}
-
-pim_inline float4 VEC_CALL CalcControl(MediaDesc const *const desc)
-{
-    i32 octaves = desc->noiseOctaves;
-    float gain = desc->noiseGain;
-    float sum = 0.0f;
-    float amplitude = 1.0f;
-    for (i32 i = 0; i < octaves; ++i)
-    {
-        sum += amplitude;
-        amplitude *= gain;
-    }
-    float a = 1.0f + desc->absorption;
-    float4 ca = f4_mulvs(desc->logConstantAlbedo, desc->constantAmt * a);
-    float4 na = f4_mulvs(desc->logNoiseAlbedo, desc->noiseAmt * a * sum * 0.5f);
-    return f4_add(ca, na);
-}
-
-pim_inline float4 VEC_CALL CalcResidual(float4 control, float4 majorant)
-{
-    return f4_abs(f4_sub(majorant, control));
 }
 
 pim_inline float VEC_CALL CalcPhase(
@@ -2323,8 +2228,7 @@ pim_inline float4 VEC_CALL CalcTransmittance(
             break;
         }
         Media media = Media_Sample(desc, P);
-        float4 uT = Media_Extinction(media);
-        float4 ratio = f4_inv(f4_mulvs(uT, rcpU));
+        float4 ratio = f4_inv(f4_mulvs(media.extinction, rcpU));
         attenuation = f4_mul(attenuation, ratio);
     }
     return attenuation;
@@ -2358,7 +2262,7 @@ pim_inline Scatter VEC_CALL ScatterRay(
 
         Media media = Media_Sample(desc, P);
 
-        float uS = Media_Scattering(media);
+        float uS = f4_hmax3(media.scattering);
         bool scattered = ScatterPrng(sampler) < (uS * rcpU);
         if (scattered)
         {
@@ -2379,8 +2283,7 @@ pim_inline Scatter VEC_CALL ScatterRay(
             result.attenuation = f4_mulvs(result.attenuation, ph);
         }
 
-        float4 uT = Media_Extinction(media);
-        float4 ratio = f4_inv(f4_mulvs(uT, rcpU));
+        float4 ratio = f4_inv(f4_mulvs(media.extinction, rcpU));
         result.attenuation = f4_mul(result.attenuation, ratio);
 
         if (scattered)
@@ -2441,7 +2344,7 @@ PtResult VEC_CALL Pt_TraceRay(
             {
                 {
                     float t = 1.0f / (b + 1);
-                    float4 albedo = Media_Albedo(&scene->mediaDesc, scatter.pos);
+                    float4 albedo = Media_Albedo(&scene->mediaDesc, scatter.pos, hit.wuvt.w);
                     result.albedo = f3_lerpvs(result.albedo, f4_f3(albedo), t);
                     result.normal = f3_lerpvs(result.normal, f4_f3(f4_neg(rd)), t);
                 }

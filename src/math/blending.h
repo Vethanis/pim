@@ -136,7 +136,7 @@ pim_inline float4 VEC_CALL f4_exclusion(float4 src, float4 blend)
 
 pim_inline float4 VEC_CALL DiffuseToAlbedo(float4 diffuse)
 {
-    float lum = f4_perlum(diffuse);
+    float lum = f4_avglum(diffuse);
     float cavity = 1.0f - lum;
     float4 decav = f4_softlight(diffuse, f4_s(cavity));
     decav = f4_softlight(decav, f4_s(cavity));
