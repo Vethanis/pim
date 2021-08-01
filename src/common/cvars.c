@@ -253,14 +253,6 @@ ConVar cv_r_sun_dir =
     .desc = "Sun direction",
 };
 
-ConVar cv_r_sun_col =
-{
-    .type = cvart_color,
-    .name = "r_sun_col",
-    .value = "1 1 1 1",
-    .desc = "Sun color",
-};
-
 // https://en.wikipedia.org/wiki/Orders_of_magnitude_(luminance)
 // noon: around 2^31
 // sunrise: around 2^20
@@ -413,6 +405,72 @@ ConVar cv_exp_cdfmax =
 
 // ----------------------------------------------------------------------------
 
+ConVar cv_sky_rad_cr =
+{
+    .type = cvart_float,
+    .name = "sky_rad_cr",
+    .value = "6360",
+    .minFloat = 1000.0f,
+    .maxFloat = 10000.0f,
+    .desc = "Sky crust radius, kilometers",
+};
+ConVar cv_sky_rad_at =
+{
+    .type = cvart_float,
+    .name = "sky_rad_at",
+    .value = "6420",
+    .minFloat = 1000.0f,
+    .maxFloat = 10000.0f,
+    .desc = "Sky atmosphere radius, kilometers",
+};
+ConVar cv_sky_rlh_mfp =
+{
+    .type = cvart_point,
+    .name = "sky_rlh_mfp",
+    .value = "192 82 34",
+    .minFloat = 10.0f,
+    .maxFloat = 200.0f,
+    .desc = "Rayleigh mean free path, kilometers",
+};
+ConVar cv_sky_rlh_sh =
+{
+    .type = cvart_float,
+    .name = "sky_rlh_sh",
+    .value = "8.5",
+    .minFloat = 1.0f,
+    .maxFloat = 20.0f,
+    .desc = "Rayleigh scale height, kilometers",
+};
+ConVar cv_sky_mie_mfp =
+{
+    .type = cvart_float,
+    .name = "sky_mie_mfp",
+    .value = "48",
+    .minFloat = 10.0f,
+    .maxFloat = 200.0f,
+    .desc = "Mie mean free path, kilometers",
+};
+ConVar cv_sky_mie_sh =
+{
+    .type = cvart_float,
+    .name = "sky_mie_sh",
+    .value = "1.2",
+    .minFloat = 1.0f,
+    .maxFloat = 20.0f,
+    .desc = "Mie scale height, kilometers",
+};
+ConVar cv_sky_mie_g =
+{
+    .type = cvart_float,
+    .name = "sky_mie_g",
+    .value = "0.758",
+    .minFloat = -0.99f,
+    .maxFloat = 0.99f,
+    .desc = "Mie mean scatter angle, cosine theta",
+};
+
+// ----------------------------------------------------------------------------
+
 ConVar cv_lm_upload =
 {
     .type = cvart_bool,
@@ -498,7 +556,6 @@ void ConVars_RegisterAll(void)
     ConVar_Reg(&cv_r_fov);
     ConVar_Reg(&cv_r_height);
     ConVar_Reg(&cv_r_scale);
-    ConVar_Reg(&cv_r_sun_col);
     ConVar_Reg(&cv_r_sun_dir);
     ConVar_Reg(&cv_r_sun_lum);
     ConVar_Reg(&cv_r_sun_res);
@@ -522,6 +579,14 @@ void ConVars_RegisterAll(void)
     ConVar_Reg(&cv_exp_evmax);
     ConVar_Reg(&cv_exp_cdfmin);
     ConVar_Reg(&cv_exp_cdfmax);
+
+    ConVar_Reg(&cv_sky_rad_cr);
+    ConVar_Reg(&cv_sky_rad_at);
+    ConVar_Reg(&cv_sky_rlh_mfp);
+    ConVar_Reg(&cv_sky_rlh_sh);
+    ConVar_Reg(&cv_sky_mie_mfp);
+    ConVar_Reg(&cv_sky_mie_sh);
+    ConVar_Reg(&cv_sky_mie_g);
 
     ConVar_Reg(&cv_fullscreen);
 }

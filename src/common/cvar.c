@@ -318,9 +318,10 @@ void ConVar_Gui(bool* pEnabled)
             default: ASSERT(false); break;
             case cvart_bool:
             {
-                if (igCheckbox(cvar->name, &cvar->asBool))
+                bool v = cvar->asBool;
+                if (igCheckbox(cvar->name, &v))
                 {
-                    ConVar_SetBool(cvar, cvar->asBool);
+                    ConVar_SetBool(cvar, v);
                 }
             }
             break;
@@ -336,41 +337,46 @@ void ConVar_Gui(bool* pEnabled)
             break;
             case cvart_int:
             {
-                if (igExSliderInt(cvar->name, &cvar->asInt, cvar->minInt, cvar->maxInt))
+                i32 v = cvar->asInt;
+                if (igExSliderInt(cvar->name, &v, cvar->minInt, cvar->maxInt))
                 {
-                    ConVar_SetInt(cvar, cvar->asInt);
+                    ConVar_SetInt(cvar, v);
                 }
             }
             break;
             case cvart_float:
             {
-                if (igExSliderFloat(cvar->name, &cvar->asFloat, cvar->minFloat, cvar->maxFloat))
+                float v = cvar->asFloat;
+                if (igExSliderFloat(cvar->name, &v, cvar->minFloat, cvar->maxFloat))
                 {
-                    ConVar_SetFloat(cvar, cvar->asFloat);
+                    ConVar_SetFloat(cvar, v);
                 }
             }
             break;
             case cvart_color:
             {
-                if (igColorEdit4(cvar->name, &cvar->asVector.x, ldrPicker))
+                float4 v = cvar->asVector;
+                if (igColorEdit4(cvar->name, &v.x, ldrPicker))
                 {
-                    ConVar_SetVec(cvar, cvar->asVector);
+                    ConVar_SetVec(cvar, v);
                 }
             }
             break;
             case cvart_point:
             {
-                if (igExSliderFloat4(cvar->name, &cvar->asVector.x, cvar->minFloat, cvar->maxFloat))
+                float4 v = cvar->asVector;
+                if (igExSliderFloat4(cvar->name, &v.x, cvar->minFloat, cvar->maxFloat))
                 {
-                    ConVar_SetVec(cvar, cvar->asVector);
+                    ConVar_SetVec(cvar, v);
                 }
             }
             break;
             case cvart_vector:
             {
-                if (igExSliderFloat3(cvar->name, &cvar->asVector.x, -1.0f, 1.0f))
+                float4 v = cvar->asVector;
+                if (igExSliderFloat3(cvar->name, &v.x, -1.0f, 1.0f))
                 {
-                    ConVar_SetVec(cvar, cvar->asVector);
+                    ConVar_SetVec(cvar, v);
                 }
             }
             break;

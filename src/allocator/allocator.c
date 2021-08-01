@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define kTempFrames         4
+#define kTempFrames         2
 #define kAlignShifts        4
 #define kAlign              16
 #define kAlignMask          (kAlign - 1)
@@ -21,9 +21,8 @@
 
 SASSERT((1 << kAlignShifts) == kAlign);
 
-typedef struct hdr_s
+typedef struct pim_alignas(kAlign) hdr_s
 {
-    pim_alignas(kAlign) 
     i32 type;
     i32 userBytes;
     i32 tid;
@@ -328,9 +327,8 @@ void* Mem_Calloc(EAlloc type, i32 bytes)
 #define kStackCapacity      (4 << 10)
 #define kFrameCount         (kStackCapacity / kAlign)
 
-typedef struct StackFrame_s
+typedef struct pim_alignas(kAlign) StackFrame_s
 {
-    pim_alignas(kAlign)
     u8 value[kAlign];
 } StackFrame;
 

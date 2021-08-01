@@ -153,7 +153,7 @@ static void EnsurePtTrace(void)
     dirty |= ms_trace.imageSize.y != height;
     if (dirty)
     {
-        DofInfo dofinfo = ms_trace.dofinfo;
+        PtDofInfo dofinfo = ms_trace.dofinfo;
         PtTrace_Del(&ms_trace);
         PtTrace_New(&ms_trace, ms_ptscene, i2_v(width, height));
         if (dofinfo.bladeCount)
@@ -385,20 +385,22 @@ static void Present(void)
 typedef struct task_BakeSky
 {
     Task task;
+    SkyMedium sky;
     Cubemap* cm;
     float3 sunDir;
-    float3 sunRad;
+    float3 sunLum;
     i32 steps;
 } task_BakeSky;
 
 static void BakeSkyFn(Task* pbase, i32 begin, i32 end)
 {
     task_BakeSky* task = (task_BakeSky*)pbase;
+    const SkyMedium* pim_noalias sky = &task->sky;
     Cubemap* pim_noalias cm = task->cm;
     const i32 size = cm->size;
     float3** pim_noalias faces = cm->color;
     const float3 sunDir = task->sunDir;
-    const float3 sunRad = task->sunRad;
+    const float3 sunLum = task->sunLum;
     const i32 len = size * size;
     const i32 steps = task->steps;
 
@@ -409,7 +411,8 @@ static void BakeSkyFn(Task* pbase, i32 begin, i32 end)
         i32 x = iTexel % size;
         i32 y = iTexel / size;
         float4 rd = Cubemap_CalcDir(size, iFace, i2_v(x, y), f2_0);
-        faces[iFace][iTexel] = EarthAtmosphere(f3_0, f4_f3(rd), sunDir, sunRad, steps);
+        float3 ro = f3_v(0.0f, sky->rCrust, 0.0f);
+        faces[iFace][iTexel] = Atmosphere(sky, ro, f4_f3(rd), sunDir, sunLum, steps);
     }
 }
 
@@ -426,7 +429,7 @@ static void BakeSky(void)
         Cubemaps_Rm(maps, skyname);
     }
     i32 iSky = Cubemaps_Find(maps, skyname);
-    if (iSky == -1)
+    if (iSky < 0)
     {
         dirty = true;
         iSky = Cubemaps_Add(maps, skyname, ConVar_GetInt(&cv_r_sun_res), (Box3D) { 0 });
@@ -434,24 +437,42 @@ static void BakeSky(void)
 
     dirty |= ConVar_CheckDirty(&cv_r_sun_steps, lastCheck);
     dirty |= ConVar_CheckDirty(&cv_r_sun_dir, lastCheck);
-    dirty |= ConVar_CheckDirty(&cv_r_sun_col, lastCheck);
     dirty |= ConVar_CheckDirty(&cv_r_sun_lum, lastCheck);
+    dirty |= ConVar_CheckDirty(&cv_sky_rad_cr, lastCheck);
+    dirty |= ConVar_CheckDirty(&cv_sky_rad_at, lastCheck);
+    dirty |= ConVar_CheckDirty(&cv_sky_rlh_mfp, lastCheck);
+    dirty |= ConVar_CheckDirty(&cv_sky_rlh_sh, lastCheck);
+    dirty |= ConVar_CheckDirty(&cv_sky_mie_mfp, lastCheck);
+    dirty |= ConVar_CheckDirty(&cv_sky_mie_sh, lastCheck);
+    dirty |= ConVar_CheckDirty(&cv_sky_mie_g, lastCheck);
 
     if (dirty)
     {
+        const SkyMedium sky =
+        {
+            .rCrust = ConVar_GetFloat(&cv_sky_rad_cr) * kKilo,
+            .rAtmos = ConVar_GetFloat(&cv_sky_rad_at) * kKilo,
+            .muR = f4_f3(f4_rcp(f4_mulvs(ConVar_GetVec(&cv_sky_rlh_mfp), kKilo))),
+            .rhoR = 1.0f / (ConVar_GetFloat(&cv_sky_rlh_sh) * kKilo),
+            .muM = 1.0f / (ConVar_GetFloat(&cv_sky_mie_mfp) * kKilo),
+            .rhoM = 1.0f / (ConVar_GetFloat(&cv_sky_mie_sh) * kKilo),
+            .gM = ConVar_GetFloat(&cv_sky_mie_g),
+        };
+
         float4 sunDir = ConVar_GetVec(&cv_r_sun_dir);
-        float4 sunCol = ConVar_GetVec(&cv_r_sun_col);
-        float log2lum = ConVar_GetFloat(&cv_r_sun_lum);
-        float lum = exp2f(log2lum);
+        float sunLum = exp2f(ConVar_GetFloat(&cv_r_sun_lum));
+
         Cubemap* cm = &maps->cubemaps[iSky];
         i32 size = cm->size;
 
         task_BakeSky* task = Temp_Calloc(sizeof(*task));
+        task->sky = sky;
         task->cm = cm;
         task->sunDir = f4_f3(sunDir);
-        task->sunRad = f4_f3(f4_mulvs(sunCol, lum));
+        task->sunLum = f3_s(sunLum);
         task->steps = ConVar_GetInt(&cv_r_sun_steps);
         Task_Run(&task->task, BakeSkyFn, Cubeface_COUNT * size * size);
+        ms_ptSampleCount = 0;
     }
 }
 

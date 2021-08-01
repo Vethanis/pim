@@ -8,30 +8,23 @@
 
 PIM_C_BEGIN
 
-// Rayleigh scattering: blue/orange tinting due to air (smaller particles)
-// Mies scattering: hazy gray tinting due to aerosols (bigger particles)
+// Rayleigh scattering: blue/orange due to small particles
+// Mie scattering: hazy gray due to large particles
 
-typedef struct atmos_s
+typedef struct SkyMedium_s
 {
-    float crustRadius;
-    float atmosphereRadius;
-    float3 Br;      // beta rayleigh
-    float Bm;       // beta mie
-    float Hr;       // rayleigh scale height
-    float Hm;       // mie scale height
-    float g;        // mean cosine of mie phase function
-} atmos_t;
+    float rCrust;   // crust radius
+    float rAtmos;   // atmosphere radius
 
-static const atmos_t kEarthAtmosphere =
-{
-    6360e3f,
-    6420e3f,
-    { 5.5e-6f, 13.0e-6f, 22.4e-6f },
-    21e-6f,
-    7994.0f,
-    1200.0f,
-    0.758f,
-};
+    float3 muR;     // rayleigh scattering coefficient (1 / mean free path), at sea level
+    float rhoR;     // rayleigh density coefficient (1 / scale height)
+
+    float muM;      // mie scattering coefficient (1 / mean free path), at sea level
+    float rhoM;     // mie density coefficient (1 / scale height)
+    float gM;       // mean cosine of mie phase function
+} SkyMedium;
+
+extern const SkyMedium kEarthAtmosphere;
 
 pim_inline float2 VEC_CALL RaySphereIntersect(float3 ro, float3 rd, float radius)
 {
@@ -70,6 +63,7 @@ pim_inline float VEC_CALL HGPhase(float cosTheta, float g)
     float nom = 1.0f - g2;
     float denom = 1.0f + g2 + 2.0f * g * cosTheta;
     denom = denom * sqrtf(denom);
+    denom = f1_max(denom, kEpsilon);
     return nom / (4.0f * kPi * denom);
 }
 
@@ -82,28 +76,31 @@ pim_inline float4 VEC_CALL ImportanceSampleHGPhase(float2 Xi, float g)
         float b = 1.0f + (g * g);
         float nom = 1.0f - g * g;
         float denom = 1.0f + g - 2.0f * g * Xi.x;
+        denom = f1_max(denom, kEpsilon);
         float c = nom / denom;
         float u = a * (b - c * c);
         cosTheta = f1_clamp(u, -1.0f, 1.0f);
     }
     else
     {
-        cosTheta = 2.0f * Xi.x - 1.0f;
+        cosTheta = Xi.x * 2.0f  - 1.0f;
     }
     float phi = kTau * Xi.y;
     return SphericalToCartesian(cosTheta, phi);
 }
 
 pim_inline float3 VEC_CALL Atmosphere(
-    atmos_t atmos,
+    const SkyMedium* pim_noalias atmos,
     float3 ro,
     float3 rd,
     float3 lightDir,
-    float3 lightColor,
+    float3 luminance,
     i32 steps)
 {
-    float2 nfAt = RaySphereIntersect(ro, rd, atmos.atmosphereRadius);
-    float2 nfCr = RaySphereIntersect(ro, rd, atmos.crustRadius);
+    const float rAtmos = atmos->rAtmos;
+    const float rCrust = atmos->rCrust;
+    float2 nfAt = RaySphereIntersect(ro, rd, rAtmos);
+    float2 nfCr = RaySphereIntersect(ro, rd, rCrust);
     if (nfCr.x < nfCr.y)
     {
         nfAt.y = f1_min(nfAt.y, nfCr.x);
@@ -112,69 +109,119 @@ pim_inline float3 VEC_CALL Atmosphere(
     {
         return f3_0;
     }
-    const i32 iSteps = steps;
-    const i32 jSteps = steps >> 1;
-    const float rcpHr = 1.0f / atmos.Hr;
-    const float rcpHm = 1.0f / atmos.Hm;
-    const float iStepSize = (nfAt.y - nfAt.x) / iSteps;
-    const float deltaJ = 1.0f / jSteps;
 
-    float3 totalRlh = f3_0;
-    float3 totalMie = f3_0;
-    float iOdRlh = 0.0f;
-    float iOdMie = 0.0f;
-    for (i32 i = 0; i < iSteps; i++)
+    const i32 viewSteps = steps;
+    const i32 lightSteps = steps >> 1;
+    // reciprocal of scale height
+    const float rhoR = atmos->rhoR;
+    const float rhoM = atmos->rhoM;
+    // scattering coefficients
+    const float3 muR = atmos->muR;
+    const float muM = atmos->muM;
+    // delta time along view ray
+    const float dt_v = (nfAt.y - nfAt.x) / viewSteps;
+    const float dstep_l = 1.0f / lightSteps;
+
+    // integral of transmitted optical depth
+    float3 tr_r = f3_0;
+    float3 tr_m = f3_0;
+    // integral of optical depth along view ray
+    float odR_v = 0.0f;
+    float odM_v = 0.0f;
+
+    for (i32 iView = 0; iView < viewSteps; iView++)
     {
-        float3 iPos = f3_add(ro, f3_mulvs(rd, (i + 0.5f) * iStepSize));
-        float jStepSize = RaySphereIntersect(iPos, lightDir, atmos.atmosphereRadius).y * deltaJ;
-
-        float jOdRlh = 0.0f;
-        float jOdMie = 0.0f;
-        for (i32 j = 0; j < jSteps; j++)
+        // mean raytime along view ray segment
+        float t_v = (iView + 0.5f) * dt_v;
+        // mean position of view ray segment
+        float3 pos_v = f3_add(ro, f3_mulvs(rd, t_v));
+        // mean height of view segment in atmosphere
+        // assumes (0,0,0) is center of planet
+        float h_v = f3_length(pos_v) - rCrust;
+        if (h_v < 0.0f)
         {
-            float3 jPos = f3_add(iPos, f3_mulvs(lightDir, (j + 0.5f) * jStepSize));
-            float jHeight = f3_length(jPos) - atmos.crustRadius;
-
-            jOdRlh += expf(-jHeight * rcpHr) * jStepSize;
-            jOdMie += expf(-jHeight * rcpHm) * jStepSize;
+            break;
         }
 
-        float mieAttn = atmos.Bm * (iOdMie + jOdMie);
-        float3 rlhAttn = f3_mulvs(atmos.Br, iOdRlh + jOdRlh);
-        float3 attn = f3_exp(f3_neg(f3_addvs(rlhAttn, mieAttn)));
+        // raytime for light ray to exit atmosphere
+        float tFar_l = RaySphereIntersect(pos_v, lightDir, rAtmos).y;
+        // light ray segment length
+        float dt_l = tFar_l * dstep_l;
 
-        float iHeight = f3_length(iPos) - atmos.crustRadius;
-        float odStepRlh = expf(-iHeight * rcpHr) * iStepSize;
-        float odStepMie = expf(-iHeight * rcpHm) * iStepSize;
+        // optical depth of light ray
+        float odR_l = 0.0f;
+        float odM_l = 0.0f;
+        for (i32 iLight = 0; iLight < lightSteps; iLight++)
+        {
+            // mean raytime along light ray segment
+            float t_l = (iLight + 0.5f) * dt_l;
+            // mean position of light segment
+            float3 pos_l = f3_add(pos_v, f3_mulvs(lightDir, t_l));
+            // mean height of light segment in atmosphere
+            // assumes (0,0,0) is center of planet
+            float h_l = f3_length(pos_l) - rCrust;
+            if (h_l < 0.0f)
+            {
+                break;
+            }
+            // optical depth of light segment
+            float odR_li = expf(-h_l * rhoR) * dt_l;
+            float odM_li = expf(-h_l * rhoM) * dt_l;
+            // integrate light ray optical depth
+            odR_l += odR_li;
+            odM_l += odM_li;
+        }
 
-        iOdRlh += odStepRlh;
-        iOdMie += odStepMie;
+        // optical depth of view segment
+        float odR_vi = expf(-h_v * rhoR) * dt_v;
+        float odM_vi = expf(-h_v * rhoM) * dt_v;
 
-        totalRlh = f3_add(totalRlh, f3_mulvs(attn, odStepRlh));
-        totalMie = f3_add(totalMie, f3_mulvs(attn, odStepMie));
+        // optical depth thus far along view ray and light ray
+        float odR_i = muM * (odM_v + odM_l);
+        float3 odM_i = f3_mulvs(muR, odR_v + odR_l);
+        // transmittance for current light to eye path
+        float3 tr_i = f3_exp(f3_neg(f3_addvs(odM_i, odR_i)));
+
+        // integrate transmitted optical depth
+        tr_r = f3_add(tr_r, f3_mulvs(tr_i, odR_vi));
+        tr_m = f3_add(tr_m, f3_mulvs(tr_i, odM_vi));
+
+        // integrate optical depth along view ray
+        odR_v += odR_vi;
+        odM_v += odM_vi;
     }
 
+    // phase function normally goes in inner loop,
+    // but optimized to here for a directional light.
+    // some parallax is missing due to this simplification.
     float cosTheta = f3_dot(rd, lightDir);
-    totalRlh = f3_mul(totalRlh, f3_mulvs(atmos.Br, RayleighPhase(cosTheta)));
-    totalMie = f3_mulvs(totalMie, atmos.Bm * MiePhase(cosTheta, atmos.g));
+    float phR = RayleighPhase(cosTheta);
+    float phM = MiePhase(cosTheta, atmos->gM);
 
-    return f3_mul(f3_add(totalRlh, totalMie), lightColor);
+    // scale transmitted light by scattering coeff and phase fns
+    tr_r = f3_mul(tr_r, f3_mulvs(atmos->muR, phR));
+    tr_m = f3_mulvs(tr_m, atmos->muM * phM);
+
+    // transmitted luminance
+    return f3_mul(f3_add(tr_r, tr_m), luminance);
 }
 
 pim_inline float3 VEC_CALL EarthAtmosphere(
     float3 ro,
     float3 rd,
     float3 L,
-    float3 sunIntensity,
+    float3 luminance,
     i32 steps)
 {
-    ro.y += kEarthAtmosphere.crustRadius;
+    // moves outer origin to the north pole
+    // inner origin is center of planet
+    ro.y += kEarthAtmosphere.rCrust;
     return Atmosphere(
-        kEarthAtmosphere,
+        &kEarthAtmosphere,
         ro,
         rd,
         L,
-        sunIntensity,
+        luminance,
         steps);
 }
 

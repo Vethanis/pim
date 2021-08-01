@@ -20,23 +20,23 @@ typedef struct PtSampler_s
 
 typedef enum
 {
-    Hit_Nothing = 0,
-    Hit_Backface,
-    Hit_Triangle,
+    PtHit_Nothing = 0,
+    PtHit_Backface,
+    PtHit_Triangle,
 
-    Hit_COUNT
-} HitType;
+    PtHit_COUNT
+} PtHitType;
 
-typedef struct RayHit_s
+typedef struct PtRayHit_s
 {
     float4 wuvt;
     float4 normal;
-    HitType type;
-    i32 index;
+    PtHitType type;
+    i32 iVert;
     u32 flags;
-} RayHit;
+} PtRayHit;
 
-typedef struct DofInfo_s
+typedef struct PtDofInfo_s
 {
     float aperture;
     float focalLength;
@@ -45,7 +45,7 @@ typedef struct DofInfo_s
     float focalPlaneCurvature;
     float autoFocusSpeed;
     bool autoFocus;
-} DofInfo;
+} PtDofInfo;
 
 typedef struct PtTrace_s
 {
@@ -56,7 +56,7 @@ typedef struct PtTrace_s
     float3* pim_noalias denoised;
     int2 imageSize;
     float sampleWeight;
-    DofInfo dofinfo;
+    PtDofInfo dofinfo;
 } PtTrace;
 
 typedef struct PtResult_s
@@ -90,10 +90,10 @@ void PtTrace_New(PtTrace* trace, PtScene* scene, int2 imageSize);
 void PtTrace_Del(PtTrace* trace);
 void PtTrace_Gui(PtTrace* trace);
 
-void DofInfo_New(DofInfo* dof);
-void DofInfo_Gui(DofInfo* dof);
+void DofInfo_New(PtDofInfo* dof);
+void DofInfo_Gui(PtDofInfo* dof);
 
-RayHit VEC_CALL Pt_Intersect(
+PtRayHit VEC_CALL Pt_Intersect(
     PtScene *const pim_noalias scene,
     float4 ro,
     float4 rd,

@@ -26,19 +26,13 @@ typedef u32 MatFlag;
 
 typedef struct Material_s
 {
-    float4 uMin;
-    float4 uMax;
     TextureId albedo;       // rgba8 srgb (albedo, alpha)
     TextureId rome;         // rgba8 srgb (roughness, occlusion, metallic, emission)
     TextureId normal;       // rg16 (tangent space xy)
-    TextureId density;      // r8 3D
     MatFlag flags;
+    float4 meanFreePath;    // .w = scatter dir 'g'
     float ior;              // index of refraction
     float bumpiness;
-    float g0;
-    float g1;
-    float gBlend;
-    float absorption;
 } Material;
 
 typedef struct DiskMaterial_s
