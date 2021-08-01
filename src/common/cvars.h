@@ -31,7 +31,6 @@ extern ConVar cv_pt_normal;
 extern ConVar cv_pt_albedo;
 extern ConVar cv_r_refl_gen;
 extern ConVar cv_r_sun_dir;
-extern ConVar cv_r_sun_col;
 extern ConVar cv_r_sun_lum;
 extern ConVar cv_r_sun_res;
 extern ConVar cv_r_sun_steps;
@@ -54,6 +53,14 @@ extern ConVar cv_exp_evmin;
 extern ConVar cv_exp_evmax;
 extern ConVar cv_exp_cdfmin;
 extern ConVar cv_exp_cdfmax;
+
+extern ConVar cv_sky_rad_cr;
+extern ConVar cv_sky_rad_at;
+extern ConVar cv_sky_rlh_mfp;
+extern ConVar cv_sky_rlh_sh;
+extern ConVar cv_sky_mie_mfp;
+extern ConVar cv_sky_mie_sh;
+extern ConVar cv_sky_mie_g;
 
 extern ConVar cv_fullscreen;
 

@@ -197,22 +197,16 @@ void TaskSys_Init(void)
     Event_New(&ms_waitDone);
     store_i32(&ms_running, 1, MO_Release);
 
-#if TASK_SINGLETHREADED
-    const i32 numthreads = 1;
-#else
-    const i32 numthreads = i1_min(kMaxThreads, Thread_HardwareCount());
-#endif // TASK_SINGLETHREADED
+    const i32 numthreads = TASK_SINGLETHREADED ? 1 : Thread_HardwareCount();
     ms_numthreads = numthreads;
     ms_worksplit = numthreads * numthreads;
 
     const i32 kQueueSize = 64;
     PtrQueue_New(ms_queues + 0, EAlloc_Perm, kQueueSize);
-    Thread_SetAffinity(NULL, (1ull << 0) | (1ull << 1));
     for (i32 t = 1; t < numthreads; ++t)
     {
         PtrQueue_New(ms_queues + t, EAlloc_Perm, kQueueSize);
         Thread_New(ms_threads + t, TaskLoop, NULL);
-        Thread_SetAffinity(ms_threads + t, (1ull << t) | (1ull << (t + 1)));
     }
 }
 
