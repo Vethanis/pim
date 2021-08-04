@@ -13,13 +13,14 @@ typedef enum
     cvart_bool,
     cvart_vector,   // unit direction
     cvart_point,    // position
-    cvart_color,    // LDR color
+    cvart_color,    // color
 } cvar_type;
 
 typedef enum
 {
-    cvarf_save = 1 << 0,    // save value to config file
-
+    cvarf_save = 1 << 0,        // save value to config file
+    cvarf_logarithmic = 1 << 1, // logarithmic slider / picker
+    cvarf_hdr = 1 << 2,         // high dynamic range
 } cvar_flags;
 
 typedef struct ConVar_s

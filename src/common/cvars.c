@@ -107,7 +107,7 @@ ConVar cv_r_display_nits_max =
 {
     .type = cvart_float,
     .name = "r_display_nits_max",
-    .value = "600.0",
+    .value = "1000.0",
     .minFloat = 100.0f,
     .maxFloat = 10000.0f,
     .desc = "Max display luminance, in nits",
@@ -408,55 +408,61 @@ ConVar cv_exp_cdfmax =
 ConVar cv_sky_rad_cr =
 {
     .type = cvart_float,
+    .flags = cvarf_logarithmic,
     .name = "sky_rad_cr",
     .value = "6360",
-    .minFloat = 1000.0f,
-    .maxFloat = 10000.0f,
+    .minFloat = 100.0f,
+    .maxFloat = 100000.0f,
     .desc = "Sky crust radius, kilometers",
 };
 ConVar cv_sky_rad_at =
 {
     .type = cvart_float,
+    .flags = cvarf_logarithmic,
     .name = "sky_rad_at",
     .value = "6420",
-    .minFloat = 1000.0f,
-    .maxFloat = 10000.0f,
+    .minFloat = 100.0f,
+    .maxFloat = 100000.0f,
     .desc = "Sky atmosphere radius, kilometers",
 };
 ConVar cv_sky_rlh_mfp =
 {
     .type = cvart_point,
+    .flags = cvarf_logarithmic,
     .name = "sky_rlh_mfp",
     .value = "192 82 34",
-    .minFloat = 10.0f,
-    .maxFloat = 200.0f,
+    .minFloat = 0.1f,
+    .maxFloat = 1000.0f,
     .desc = "Rayleigh mean free path, kilometers",
 };
 ConVar cv_sky_rlh_sh =
 {
     .type = cvart_float,
+    .flags = cvarf_logarithmic,
     .name = "sky_rlh_sh",
     .value = "8.5",
-    .minFloat = 1.0f,
-    .maxFloat = 20.0f,
+    .minFloat = 0.1f,
+    .maxFloat = 100.0f,
     .desc = "Rayleigh scale height, kilometers",
 };
 ConVar cv_sky_mie_mfp =
 {
     .type = cvart_float,
+    .flags = cvarf_logarithmic,
     .name = "sky_mie_mfp",
     .value = "48",
-    .minFloat = 10.0f,
-    .maxFloat = 200.0f,
+    .minFloat = 0.1f,
+    .maxFloat = 1000.0f,
     .desc = "Mie mean free path, kilometers",
 };
 ConVar cv_sky_mie_sh =
 {
     .type = cvart_float,
+    .flags = cvarf_logarithmic,
     .name = "sky_mie_sh",
     .value = "1.2",
-    .minFloat = 1.0f,
-    .maxFloat = 20.0f,
+    .minFloat = 0.1f,
+    .maxFloat = 100.0f,
     .desc = "Mie scale height, kilometers",
 };
 ConVar cv_sky_mie_g =

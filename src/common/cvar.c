@@ -190,13 +190,25 @@ void ConVar_SetVec(ConVar* var, float4 value)
         break;
     case cvart_vector:
         value = f4_normalize3(value);
+        value.w = 0.0f;
         break;
     case cvart_point:
         value = f4_clampvs(value, var->minFloat, var->maxFloat);
+        value.w = 1.0f;
         break;
     case cvart_color:
-        value = f4_saturate(value);
-        break;
+    {
+        if (var->flags & cvarf_hdr)
+        {
+            value = f4_clampvs(value, var->minFloat, var->maxFloat);
+            value.w = f1_saturate(value.w);
+        }
+        else
+        {
+            value = f4_saturate(value);
+        }
+    }
+    break;
     }
     if (b4_any(f4_neq(value, var->asVector)))
     {
@@ -286,7 +298,22 @@ void ConVar_Gui(bool* pEnabled)
 {
     ProfileBegin(pm_gui);
 
-    const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
+    const u32 ldrPicker =
+        ImGuiColorEditFlags_Float |
+        ImGuiColorEditFlags_AlphaBar |
+        ImGuiColorEditFlags_AlphaPreviewHalf |
+        ImGuiColorEditFlags_PickerHueWheel |
+        ImGuiColorEditFlags_InputRGB |
+        ImGuiColorEditFlags_DisplayRGB;
+    const u32 hdrPicker =
+        ldrPicker |
+        ImGuiColorEditFlags_HDR;
+    const u32 slider =
+        ImGuiSliderFlags_NoRoundToFormat |
+        ImGuiSliderFlags_AlwaysClamp;
+    const u32 logSlider =
+        slider |
+        ImGuiSliderFlags_Logarithmic;
 
     if (igBegin("Config Vars", pEnabled, 0))
     {
@@ -313,6 +340,11 @@ void ConVar_Gui(bool* pEnabled)
                 continue;
             }
 
+            const bool isLog2 = (cvar->flags & cvarf_logarithmic) != 0;
+            const bool isHdr = (cvar->flags & cvarf_hdr) != 0;
+            const u32 sliderFlags = isLog2 ? logSlider : slider;
+            const u32 pickerFlags = isHdr ? hdrPicker : ldrPicker;
+
             switch (cvar->type)
             {
             default: ASSERT(false); break;
@@ -338,7 +370,13 @@ void ConVar_Gui(bool* pEnabled)
             case cvart_int:
             {
                 i32 v = cvar->asInt;
-                if (igExSliderInt(cvar->name, &v, cvar->minInt, cvar->maxInt))
+                if (igSliderInt(
+                    cvar->name,
+                    &v,
+                    cvar->minInt,
+                    cvar->maxInt,
+                    "%d",
+                    sliderFlags))
                 {
                     ConVar_SetInt(cvar, v);
                 }
@@ -347,7 +385,13 @@ void ConVar_Gui(bool* pEnabled)
             case cvart_float:
             {
                 float v = cvar->asFloat;
-                if (igExSliderFloat(cvar->name, &v, cvar->minFloat, cvar->maxFloat))
+                if (igSliderFloat(
+                    cvar->name,
+                    &v,
+                    cvar->minFloat,
+                    cvar->maxFloat,
+                    "%.3f",
+                    sliderFlags))
                 {
                     ConVar_SetFloat(cvar, v);
                 }
@@ -356,8 +400,16 @@ void ConVar_Gui(bool* pEnabled)
             case cvart_color:
             {
                 float4 v = cvar->asVector;
-                if (igColorEdit4(cvar->name, &v.x, ldrPicker))
+                if (isLog2)
                 {
+                    v = f4_log2(v);
+                }
+                if (igColorEdit4(cvar->name, &v.x, pickerFlags))
+                {
+                    if (isLog2)
+                    {
+                        v = f4_exp2(v);
+                    }
                     ConVar_SetVec(cvar, v);
                 }
             }
@@ -365,7 +417,13 @@ void ConVar_Gui(bool* pEnabled)
             case cvart_point:
             {
                 float4 v = cvar->asVector;
-                if (igExSliderFloat4(cvar->name, &v.x, cvar->minFloat, cvar->maxFloat))
+                if (igSliderFloat3(
+                    cvar->name,
+                    &v.x,
+                    cvar->minFloat,
+                    cvar->maxFloat,
+                    "%.3f",
+                    sliderFlags))
                 {
                     ConVar_SetVec(cvar, v);
                 }
@@ -374,7 +432,13 @@ void ConVar_Gui(bool* pEnabled)
             case cvart_vector:
             {
                 float4 v = cvar->asVector;
-                if (igExSliderFloat3(cvar->name, &v.x, -1.0f, 1.0f))
+                if (igSliderFloat3(
+                    cvar->name,
+                    &v.x,
+                    -1.0f,
+                    1.0f,
+                    "%.3f",
+                    sliderFlags))
                 {
                     ConVar_SetVec(cvar, v);
                 }
