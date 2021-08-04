@@ -12,26 +12,37 @@
 #include "common/cvars.h"
 #include "math/color.h"
 
-typedef struct resolve_s
+typedef struct TaskResolve_s
 {
     Task task;
     float4 toneParams;
     FrameBuf* target;
     TonemapId tmapId;
     float exposure;
+    float nits;
     float wp;
-} resolve_t;
+} TaskResolve;
 
-pim_inline R16G16B16A16_t VEC_CALL Dither(float4 Xi, float4 v)
+pim_inline R16G16B16A16_t VEC_CALL Dither(float4* pim_noalias Xi, float4 v)
 {
-    return f4_rgba16(f4_lerpvs(v, Xi, 1.0f / 65535.0f));
+    *Xi = f4_wrap(f4_add(*Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
+    return f4_rgba16(f4_lerpvs(v, *Xi, 1.0f / 65535.0f));
 }
 
 static void VEC_CALL ResolvePQ(
-    i32 begin, i32 end, FrameBuf* target, float exposure, float wp)
+    TaskResolve* pim_noalias task,
+    i32 begin, i32 end)
 {
-    float4* pim_noalias light = target->light;
-    R16G16B16A16_t* pim_noalias color = target->color;
+    const float4* pim_noalias light = task->target->light;
+    R16G16B16A16_t* pim_noalias color = task->target->color;
+    // PQ has a 10k range
+    const float kToPQNits = 1.0f / 10000.0f;
+    // standard / saturation based exposure is calibrated for 100 nits
+    const float mp = 100.0f * kToPQNits;
+    const float exposure = task->exposure * mp;
+    // use display's max nits as whitepoint
+    const float wp = task->nits * kToPQNits;
+
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     Prng_Set(rng);
@@ -40,18 +51,20 @@ static void VEC_CALL ResolvePQ(
         float4 v = light[i];
         v = Color_SceneToHDR(v);
         v = f4_mulvs(v, exposure);
-        v = f4_PQ_OOTF(v);
-        v = f4_PQ_InverseEOTF(v);
-        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = Dither(Xi, v);
+        v = f4_GtsTonemap(v, wp, mp);
+        v = f4_PQ_OETF(v);
+        color[i] = Dither(&Xi, v);
     }
 }
 
 static void VEC_CALL ResolveReinhard(
-    i32 begin, i32 end, FrameBuf* target, float exposure, float wp)
+    TaskResolve* pim_noalias task,
+    i32 begin, i32 end)
 {
-    float4* pim_noalias light = target->light;
-    R16G16B16A16_t* pim_noalias color = target->color;
+    const float4* pim_noalias light = task->target->light;
+    R16G16B16A16_t* pim_noalias color = task->target->color;
+    const float exposure = task->exposure;
+    const float wp = task->wp;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     Prng_Set(rng);
@@ -61,16 +74,19 @@ static void VEC_CALL ResolveReinhard(
         v = Color_SceneToSDR(v);
         v = f4_mulvs(v, exposure);
         v = f4_reinhard_lum(v, wp);
-        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));
+        v = f4_sRGB_InverseEOTF_Fit(v);
+        color[i] = Dither(&Xi, v);
     }
 }
 
 static void VEC_CALL ResolveUncharted2(
-    i32 begin, i32 end, FrameBuf* target, float exposure, float wp)
+    TaskResolve* pim_noalias task,
+    i32 begin, i32 end)
 {
-    float4* pim_noalias light = target->light;
-    R16G16B16A16_t* pim_noalias color = target->color;
+    const float4* pim_noalias light = task->target->light;
+    R16G16B16A16_t* pim_noalias color = task->target->color;
+    const float exposure = task->exposure;
+    const float wp = task->wp;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     Prng_Set(rng);
@@ -80,16 +96,19 @@ static void VEC_CALL ResolveUncharted2(
         v = Color_SceneToSDR(v);
         v = f4_mulvs(v, exposure);
         v = f4_uncharted2(v, wp);
-        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));
+        color[i] = Dither(&Xi, f4_sRGB_InverseEOTF_Fit(v));
     }
 }
 
 static void VEC_CALL ResolveHable(
-    i32 begin, i32 end, FrameBuf* target, float4 params, float exposure, float wp)
+    TaskResolve* pim_noalias task,
+    i32 begin, i32 end)
 {
-    float4* pim_noalias light = target->light;
-    R16G16B16A16_t* pim_noalias color = target->color;
+    const float4 params = task->toneParams;
+    const float4* pim_noalias light = task->target->light;
+    R16G16B16A16_t* pim_noalias color = task->target->color;
+    const float exposure = task->exposure;
+    const float wp = task->wp;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     Prng_Set(rng);
@@ -99,16 +118,18 @@ static void VEC_CALL ResolveHable(
         v = Color_SceneToSDR(v);
         v = f4_mulvs(v, exposure);
         v = f4_hable(v, params);
-        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));
+        color[i] = Dither(&Xi, f4_sRGB_InverseEOTF_Fit(v));
     }
 }
 
 static void VEC_CALL ResolveACES(
-    i32 begin, i32 end, FrameBuf* target, float exposure, float wp)
+    TaskResolve* pim_noalias task,
+    i32 begin, i32 end)
 {
-    float4* pim_noalias light = target->light;
-    R16G16B16A16_t* pim_noalias color = target->color;
+    const float4* pim_noalias light = task->target->light;
+    R16G16B16A16_t* pim_noalias color = task->target->color;
+    const float exposure = task->exposure;
+    const float wp = task->wp;
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
     Prng_Set(rng);
@@ -118,41 +139,34 @@ static void VEC_CALL ResolveACES(
         v = Color_SceneToSDR(v);
         v = f4_mulvs(v, exposure);
         v = f4_aceskfit(v);
-        Xi = f4_wrap(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        color[i] = Dither(Xi, f4_sRGB_InverseEOTF_Fit(v));
+        color[i] = Dither(&Xi, f4_sRGB_InverseEOTF_Fit(v));
     }
 }
 
 static void ResolveTileFn(void* pbase, i32 begin, i32 end)
 {
-    resolve_t* task = pbase;
-
-    FrameBuf* target = task->target;
-    const float4 params = task->toneParams;
-    const TonemapId id = task->tmapId;
-    const float exposure = task->exposure;
-    const float wp = task->wp;
+    TaskResolve* pim_noalias task = pbase;
 
     if (vkrSys_HdrEnabled())
     {
-        ResolvePQ(begin, end, target, exposure, wp);
+        ResolvePQ(task, begin, end);
     }
     else
     {
-        switch (id)
+        switch (task->tmapId)
         {
         default:
         case TMap_Reinhard:
-            ResolveReinhard(begin, end, target, exposure, wp);
+            ResolveReinhard(task, begin, end);
             break;
         case TMap_Uncharted2:
-            ResolveUncharted2(begin, end, target, exposure, wp);
+            ResolveUncharted2(task, begin, end);
             break;
         case TMap_Hable:
-            ResolveHable(begin, end, target, params, exposure, wp);
+            ResolveHable(task, begin, end);
             break;
         case TMap_ACES:
-            ResolveACES(begin, end, target, exposure, wp);
+            ResolveACES(task, begin, end);
             break;
         }
     }
@@ -166,20 +180,13 @@ void ResolveTile(FrameBuf* target, TonemapId tmapId, float4 toneParams)
 
     ASSERT(target);
 
-    const float wp = vkrSys_GetWhitepoint();
-    const float nits = vkrSys_GetDisplayNitsMax();
-    float exposure = vkrExposure_GetParams()->exposure;
-    if (vkrSys_HdrEnabled())
-    {
-        exposure *= Color_PQExposure(nits, wp);
-    }
-
-    resolve_t* task = Temp_Calloc(sizeof(*task));
+    TaskResolve* task = Temp_Calloc(sizeof(*task));
     task->target = target;
     task->tmapId = tmapId;
     task->toneParams = toneParams;
-    task->exposure = exposure;
-    task->wp = wp;
+    task->exposure = vkrExposure_GetParams()->exposure;
+    task->nits = vkrSys_GetDisplayNitsMax();
+    task->wp = vkrSys_GetWhitepoint();
     Task_Run(&task->task, ResolveTileFn, target->width * target->height);
 
     ProfileEnd(pm_ResolveTile);

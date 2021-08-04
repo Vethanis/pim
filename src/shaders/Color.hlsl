@@ -74,6 +74,18 @@ float3 TonemapACES(float3 x)
     return x;
 }
 
+// simplified version of GT tonemapper.
+// only has linear and shoulder sections.
+// https://www.desmos.com/calculator/fmdpqcubsa
+float3 GtsTonemap(float3 x, float wp, float si)
+{
+    float3 t = unlerp(si, wp, x);
+    //float3 t0 = exp(-t);
+    float3 t1 = 1.0 / (1.0 + t + t * t);
+    float3 s = lerp(wp, si, t1);
+    return (x > si) ? s : x;
+}
+
 float3 Color_SDRToScene(float3 x)
 {
 #if COLOR_SCENE_REC709
@@ -129,11 +141,6 @@ float3 Color_SceneToHDR(float3 x)
 #else
 #   error Unrecognized scene colorspace
 #endif // COLOR_SCENE_X
-}
-
-float Color_PQExposure(float displayNits, float whitepoint)
-{
-    return displayNits / (whitepoint * 10000.0);
 }
 
 // https://en.wikipedia.org/wiki/Transfer_functions_in_imaging
@@ -242,19 +249,27 @@ float3 HLG_OOTF(float3 S, float P)
 float3 ExposeScene(float3 c)
 {
     // scene-referred scale
-    const float hdrScale = Color_PQExposure(GetDisplayNits(), GetWhitepoint());
-    c *= GetExposure();
+    const float wp = GetWhitepoint();
+    const float nits = GetDisplayNits();
+    const float exposure = GetExposure();
 
     if (HdrEnabled())
     {
-        c *= hdrScale;
+        const float kToPqNits = 1.0 / 10000.0;
+        const float hdrMp = 100.0 * kToPqNits;
+        const float hdrWp = nits * kToPqNits;
+        const float hdrExposure = exposure * hdrMp;
+
         c = Color_SceneToHDR(c);
+        c *= hdrExposure;
+        c = GtsTonemap(c, hdrWp, hdrMp);
         c = PQ_OETF(c);
     }
     else
     {
         c = Color_SceneToSDR(c);
-        c = TonemapACES(c);
+        c *= exposure;
+        c = GtsTonemap(c, wp, 0.666);
     }
 
     return saturate(c);
@@ -262,14 +277,11 @@ float3 ExposeScene(float3 c)
 
 float3 ExposeUI(float3 c)
 {
-    // display-referred scale
-    const float uiScale = Color_PQExposure(GetUiNits(), 1.0);
     if (HdrEnabled())
     {
         c = Color_SceneToHDR(c);
-        c = PQ_OOTF(c);
-        c *= uiScale;
-        c = PQ_InverseEOTF(c);
+        c *= (GetUiNits() / 10000.0);
+        c = PQ_OETF(c);
     }
     else
     {

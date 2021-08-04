@@ -850,13 +850,14 @@ pim_inline float4 VEC_CALL f4_exp(float4 v)
     return vec;
 }
 
-pim_inline float4 VEC_CALL f4_exp3(float4 v)
+pim_inline float4 VEC_CALL f4_exp2(float4 v)
 {
     float4 vec =
     {
-        expf(v.x),
-        expf(v.y),
-        expf(v.z),
+        exp2f(v.x),
+        exp2f(v.y),
+        exp2f(v.z),
+        exp2f(v.w),
     };
     return vec;
 }
@@ -869,6 +870,18 @@ pim_inline float4 VEC_CALL f4_log(float4 v)
         logf(v.y),
         logf(v.z),
         logf(v.w),
+    };
+    return vec;
+}
+
+pim_inline float4 VEC_CALL f4_log2(float4 v)
+{
+    float4 vec =
+    {
+        log2f(v.x),
+        log2f(v.y),
+        log2f(v.z),
+        log2f(v.w),
     };
     return vec;
 }

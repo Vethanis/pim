@@ -1990,8 +1990,8 @@ pim_inline bool VEC_CALL EvaluateLight(
 
 static void media_desc_new(PtMediaDesc *const desc)
 {
-    desc->constantMfp = f4_s(1024.0f);
-    desc->noiseMfp = f4_s(1024.0f);
+    desc->constantMfp = f4_s(40.0f * kKilo);
+    desc->noiseMfp = f4_s(40.0f * kKilo);
     desc->absorption = 0.1f;
     desc->noiseOctaves = 2;
     desc->noiseGain = 0.5f;
@@ -2095,11 +2095,9 @@ static void media_desc_save(PtMediaDesc const *const desc, const char* name)
     }
 }
 
-static void igLog2SliderFloat(const char* label, float* pLinear, float log2Lo, float log2Hi)
+static void igLog2SliderFloat(const char* label, float* x, float lo, float hi)
 {
-    float asLog2 = log2f(*pLinear);
-    igExSliderFloat(label, &asLog2, log2Lo, log2Hi);
-    *pLinear = exp2f(asLog2);
+    igSliderFloat(label, x, lo, hi, "%.3f", ImGuiSliderFlags_Logarithmic);
 }
 
 
@@ -2121,22 +2119,42 @@ static void media_desc_gui(PtMediaDesc *const desc)
         {
             media_desc_save(desc, name);
         }
+        const float kMinMfp = 0.1f;
+        const float kMaxMfp = 40.0f * kKilo;
         igExSliderFloat("Phase Dir A", &desc->phaseDirA, -0.99f, 0.99f);
         igExSliderFloat("Phase Dir B", &desc->phaseDirB, -0.99f, 0.99f);
         igExSliderFloat("Phase Blend", &desc->phaseBlend, 0.0f, 1.0f);
-        igLog2SliderFloat("L2 Absorption", &desc->absorption, -20.0f, 5.0f);
-        igLog2SliderFloat("L2 Const Mfp R", &desc->constantMfp.x, -5.0f, 10.0f);
-        igLog2SliderFloat("L2 Const Mfp G", &desc->constantMfp.y, -5.0f, 10.0f);
-        igLog2SliderFloat("L2 Const Mfp B", &desc->constantMfp.z, -5.0f, 10.0f);
-        igLog2SliderFloat("L2 Noise Mfp R", &desc->noiseMfp.x, -5.0f, 10.0f);
-        igLog2SliderFloat("L2 Noise Mfp G", &desc->noiseMfp.y, -5.0f, 10.0f);
-        igLog2SliderFloat("L2 Noise Mfp B", &desc->noiseMfp.z, -5.0f, 10.0f);
+        igSliderFloat(
+            "Absorption",
+            &desc->absorption,
+            0.01f, 10.0f, "%.3f",
+            ImGuiSliderFlags_Logarithmic);
+        igSliderFloat3(
+            "Const Mean Free Path",
+            &desc->constantMfp.x,
+            kMinMfp, kMaxMfp,
+            "%.3f",
+            ImGuiSliderFlags_Logarithmic);
+        igSliderFloat3(
+            "Noise Mean Free Path",
+            &desc->noiseMfp.x,
+            kMinMfp, kMaxMfp,
+            "%.3f",
+            ImGuiSliderFlags_Logarithmic);
         igExSliderInt("Noise Octaves", &desc->noiseOctaves, 1, 10);
         igExSliderFloat("Noise Gain", &desc->noiseGain, 0.0f, 1.0f);
         igExSliderFloat("Noise Lacunarity", &desc->noiseLacunarity, 1.0f, 3.0f);
-        igLog2SliderFloat("Log2 Noise Frequency", &desc->noiseFreq, -5.0f, 5.0f);
+        igSliderFloat(
+            "Noise Frequency",
+            &desc->noiseFreq,
+            0.1f, 10.0f, "%.3f",
+            ImGuiSliderFlags_Logarithmic);
         igExSliderFloat("Noise Height", &desc->noiseHeight, -20.0f, 20.0f);
-        igLog2SliderFloat("Log2 Noise Scale", &desc->noiseScale, -5.0f, 5.0f);
+        igSliderFloat(
+            "Noise Scale",
+            &desc->noiseScale,
+            0.1f, 10.0f, "%.3f",
+            ImGuiSliderFlags_Logarithmic);
         igUnindent(0.0f);
 
         media_desc_update(desc);

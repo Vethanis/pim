@@ -364,9 +364,9 @@ pim_inline float4 VEC_CALL f4_hable(float4 x, float4 params)
 // https://www.desmos.com/calculator/mbkwnuihbd
 typedef struct pim_alignas(16) GTTonemapParams_s
 {
-    float P;    // [1, 100] (1.0)    whitepoint, shoulder asymptote
+    float P;    // [1, nits] (1.0)   whitepoint, shoulder asymptote
     float a;    // [0, 5]   (1.0)    linear section slope
-    float m;    // [0, 1)   (0.22)   linear section height
+    float m;    // [0, P)   (0.22)   shoulder intersection
     float l;    // [0, 1]   (0.4)    shoulder sharpness
 
     float c;    // [1, 3]   (1.33)   toe curvature
@@ -407,6 +407,39 @@ pim_inline float4 VEC_CALL f4_GTTonemap(float4 x, GTTonemapParams gtp)
     x.y = f1_GTTonemap(x.y, gtp);
     x.z = f1_GTTonemap(x.z, gtp);
     return x;
+}
+
+// simplified version of GT tonemapper.
+// only has linear and shoulder sections.
+// https://www.desmos.com/calculator/fmdpqcubsa
+pim_inline float VEC_CALL f1_GtsTonemap(
+    float x,
+    float wp, // whitepoint, [1, display nits]
+    float si) // shoulder intersection, [0, P)
+{
+    if (x > si)
+    {
+        float t = (x - si) / (wp - si);
+        //float t0 = expf(-t);
+        float t1 = 1.0f / (1.0f + t + t * t);
+        return f1_lerp(wp, si, t1);
+    }
+    return x;
+}
+
+// simplified version of GT tonemapper.
+// only has linear and shoulder sections.
+// https://www.desmos.com/calculator/fmdpqcubsa
+pim_inline float4 VEC_CALL f4_GtsTonemap(
+    float4 x,
+    float wp, // whitepoint, [1, display nits]
+    float si) // shoulder intersection, [0, P)
+{
+    float4 t = f4_unlerpsv(si, wp, x);
+    //float4 t0 = f4_exp(f4_neg(t));
+    float4 t1 = f4_divsv(1.0f, f4_add(f4_mul(t, t), f4_addvs(t, 1.0f)));
+    float4 s = f4_lerpsv(wp, si, t1);
+    return f4_select(x, s, f4_gtvs(x, si));
 }
 
 // https://gpuopen.com/wp-content/uploads/2016/03/GdcVdrLottes.pdf
@@ -519,11 +552,6 @@ pim_inline float4 VEC_CALL f4_PQ_InverseEOTF(float4 Fd)
 pim_inline float4 VEC_CALL f4_PQ_OETF(float4 E)
 {
     return f4_PQ_InverseEOTF(f4_PQ_OOTF(E));
-}
-
-pim_inline float VEC_CALL Color_PQExposure(float displayNits, float whitepoint)
-{
-    return displayNits / (whitepoint * 10000.0f);
 }
 
 pim_inline float VEC_CALL PackEmission(float4 emission)

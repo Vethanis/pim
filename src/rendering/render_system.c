@@ -256,6 +256,34 @@ static void Cubemap_Trace(void)
     }
 }
 
+typedef struct TaskBlit_s
+{
+    Task task;
+    const float3* pim_noalias src;
+    float4* pim_noalias dst;
+} TaskBlit;
+
+static void TaskBlitFn(void* pbase, i32 begin, i32 end)
+{
+    TaskBlit* task = pbase;
+    const float3* pim_noalias src = task->src;
+    float4* pim_noalias dst = task->dst;
+    for (i32 i = begin; i < end; ++i)
+    {
+        dst[i] = f3_f4(src[i], 1.0f);
+    }
+}
+static void TaskBlitNormalFn(void* pbase, i32 begin, i32 end)
+{
+    TaskBlit* task = pbase;
+    const float3* pim_noalias src = task->src;
+    float4* pim_noalias dst = task->dst;
+    for (i32 i = begin; i < end; ++i)
+    {
+        dst[i] = f4_unorm(f3_f4(src[i], 1.0f));
+    }
+}
+
 ProfileMark(pm_PathTrace, PathTrace)
 ProfileMark(pm_ptDenoise, Denoise)
 ProfileMark(pm_ptBlit, Blit)
@@ -308,31 +336,32 @@ static bool PathTrace(void)
                 output3 = ms_trace.denoised;
             }
         }
-        if (ConVar_GetBool(&cv_pt_albedo))
-        {
-            output3 = ms_trace.albedo;
-        }
-        if (ConVar_GetBool(&cv_pt_normal))
-        {
-            output3 = NULL;
 
-            const float3* pim_noalias input3 = ms_trace.normal;
-            float4* pim_noalias output4 = GetFrontBuf()->light;
-
-            for (i32 i = 0; i < texCount; ++i)
-            {
-                output4[i] = f3_f4(f3_unorm(input3[i]), 1.0f);
-            }
-        }
-
-        if (output3)
         {
             ProfileBegin(pm_ptBlit);
-            float4* pim_noalias output4 = GetFrontBuf()->light;
-            for (i32 i = 0; i < texCount; ++i)
+
+            if (ConVar_GetBool(&cv_pt_albedo))
             {
-                output4[i] = f3_f4(output3[i], 1.0f);
+                output3 = ms_trace.albedo;
             }
+            if (ConVar_GetBool(&cv_pt_normal))
+            {
+                TaskBlit* task = Temp_Calloc(sizeof(*task));
+                task->src = ms_trace.normal;
+                task->dst = GetFrontBuf()->light;
+                Task_Run(task, TaskBlitNormalFn, texCount);
+
+                output3 = NULL;
+            }
+
+            if (output3)
+            {
+                TaskBlit* task = Temp_Calloc(sizeof(*task));
+                task->src = output3;
+                task->dst = GetFrontBuf()->light;
+                Task_Run(task, TaskBlitFn, texCount);
+            }
+
             ProfileEnd(pm_ptBlit);
         }
 
@@ -711,16 +740,21 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     const i32 len = size.x * size.y;
     R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
     const float exposure = vkrExposure_GetParams()->exposure;
+    const float wp = vkrSys_GetWhitepoint();
 
+    Prng rng = Prng_Get();
     for (i32 i = 0; i < len; ++i)
     {
         float4 v = buf->light[i];
         v = Color_SceneToSDR(v);
         v = f4_mulvs(v, exposure);
-        v = f4_aceskfit(v);
+        v = f4_GtsTonemap(v, 1.0f, 0.5f);
         v.w = 1.0f;
-        color[i] = f4_rgba8(f4_sRGB_InverseEOTF_Fit(v));
+        v = f4_sRGB_InverseEOTF_Fit(v);
+        v = f4_lerpvs(v, f4_rand(&rng), 1.0f / 255.0f);
+        color[i] = f4_rgba8(v);
     }
+    Prng_Set(rng);
 
     stbi_flip_vertically_on_write(1);
     i32 wrote = stbi_write_png(filename, size.x, size.y, 4, color, sizeof(color[0]) * size.x);
