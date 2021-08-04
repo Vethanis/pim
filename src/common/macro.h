@@ -195,7 +195,7 @@ SASSERT(sizeof(u64) == 8);
 #endif // VKR_DEBUG_MESSENGER_ON
 
 #define QUAKE_IMPL 0
-#define ENABLE_HDR 0
+#define ENABLE_HDR 1
 
 typedef enum
 {
