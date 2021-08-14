@@ -536,7 +536,11 @@ bool RenderSys_Init(void)
     PtSys_Init();
     EntSys_Init();
     EnsureFramebuf();
+#if _DEBUG
+    g_BrdfLut = BrdfLut_New(i2_v(16, 16), 512);
+#else
     g_BrdfLut = BrdfLut_New(i2_v(64, 64), 8192);
+#endif // _DEBUG
 
     cmd_enqueue("mapload start");
 
