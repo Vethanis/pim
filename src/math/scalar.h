@@ -48,11 +48,13 @@
 #define kSqrt71Conj         0.4261497731763586306341399062027f
 
 // SI units
-#define kKilo               1000.0f
+#define kGiga               1e9f
+#define kMega               1e6f
+#define kKilo               1e3f
 #define kMeter              1.0f
-#define kDeci               0.1f
-#define kCenti              0.01f
-#define kMilli              0.001f
+#define kDeci               1e-1f
+#define kCenti              1e-2f
+#define kMilli              1e-3f
 #define kMicro              1e-6f
 #define kNano               1e-9f
 
@@ -252,7 +254,7 @@ pim_inline float VEC_CALL f1_smootherstep(float a, float b, float x)
 
 pim_inline float VEC_CALL f1_wrap(float x)
 {
-    return (x > 1.0f) ? x - 1.0f : x;
+    return (x >= 1.0f) ? x - 1.0f : x;
 }
 
 pim_inline float VEC_CALL f1_reflect(float i, float n)

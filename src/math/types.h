@@ -4,6 +4,8 @@
 
 PIM_C_BEGIN
 
+// ----------------------------------------------------------------------------
+
 typedef enum
 {
     Colorspace_Rec709,
@@ -13,6 +15,14 @@ typedef enum
 
     Colorspace_COUNT
 } Colorspace;
+
+typedef enum
+{
+    SGDist_Hemi = 0,
+    SGDist_Sphere,
+
+    SGDist_COUNT
+} SGDist;
 
 // ----------------------------------------------------------------------------
 
@@ -422,9 +432,50 @@ typedef struct FrustumBasis_s
     float zFar;
 } FrustumBasis;
 
+typedef struct Grid_s
+{
+    Box3D bounds;
+    int3 size;
+    float cellsPerMeter;
+} Grid;
+
+// ----------------------------------------------------------------------------
+
+typedef struct Dist1D_s
+{
+    float* pim_noalias pdf;
+    float* pim_noalias cdf;
+    u32* pim_noalias live;
+    i32 length;
+    float integral;
+    u32 sum;
+} Dist1D;
+
+typedef struct dataset_s
+{
+    float* pim_noalias xs;
+    float* pim_noalias ys;
+    i32 len;
+} dataset_t;
+
+typedef struct pim_alignas(16) fit_s
+{
+    float value[8];
+} fit_t;
+
+typedef struct BrdfLut_s
+{
+    int2 size;
+    // r: refractance, integral of (1-F)*D*G*NoL
+    // g: reflectance, integral of F*D*G*NoL
+    float2* pim_noalias texels;
+} BrdfLut;
+
+// ----------------------------------------------------------------------------
+
 typedef struct AmbCube_s
 {
-    // radiance along normals of a cube
+    // irradiance along normals of a cube
     float4 Values[6];
 } AmbCube_t;
 
@@ -437,5 +488,22 @@ typedef struct SH4v
 {
     float3 v[4];
 } SH4v;
+
+// ----------------------------------------------------------------------------
+
+typedef struct SkyMedium_s
+{
+    float rCrust;   // crust radius
+    float rAtmos;   // atmosphere radius, relative to crust
+
+    float3 muR;     // rayleigh scattering coefficient (1 / mean free path), at sea level
+    float rhoR;     // rayleigh density coefficient (1 / scale height)
+
+    float muM;      // mie scattering coefficient (1 / mean free path), at sea level
+    float rhoM;     // mie density coefficient (1 / scale height)
+    float gM;       // mean cosine of mie phase function
+} SkyMedium;
+
+// ----------------------------------------------------------------------------
 
 PIM_C_END

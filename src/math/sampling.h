@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/macro.h"
 #include "math/types.h"
 #include "math/scalar.h"
 #include "math/float2_funcs.h"
@@ -11,7 +10,7 @@
 
 PIM_C_BEGIN
 
-static bool VEC_CALL IsUnitLength(float4 dir)
+pim_inline bool VEC_CALL IsUnitLength(float4 dir)
 {
     float len = f4_length3(dir);
     float dist = f1_distance(len, 1.0f);
@@ -311,6 +310,22 @@ pim_inline float2 VEC_CALL SampleGaussPixelFilter(float2 Xi)
     Xi.x = cosf(angle);
     Xi.y = sinf(angle);
     return f2_mulvs(Xi, radius);
+}
+
+// samples a free path in a given media
+// Xi: random variable in [0, 1)
+// mfp: mean free path, 1 / extinction coefficient
+pim_inline float VEC_CALL SampleFreePath(float Xi, float mfp)
+{
+    return -logf(1.0f - Xi) * mfp;
+}
+
+// returns probability of a free path at t
+// t: ray time
+// u: extinction coefficient, or majorant in woodcock sampling
+pim_inline float VEC_CALL FreePathPdf(float t, float u)
+{
+    return u * expf(-t * u);
 }
 
 PIM_C_END

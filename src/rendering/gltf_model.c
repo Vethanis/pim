@@ -917,7 +917,7 @@ bool ResampleToAlbedoRome(
                 float4 albedo;
                 float roughness;
                 float metallic;
-                ConvertToMetallicRoughness(diffuse, specular, glossiness, &albedo, &roughness, &metallic);
+                SpecularToPBR(diffuse, specular, glossiness, &albedo, &roughness, &metallic);
                 i32 index = x + y * size.x;
                 albedoTexels[index] = GammaEncode_rgba8(albedo);
                 romeTexels[index] = GammaEncode_rgba8(f4_v(roughness, occlusion, metallic, emission));

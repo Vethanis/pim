@@ -1,13 +1,11 @@
 #pragma once
-#pragma once
 
 #include "math/types.h"
-
-PIM_C_BEGIN
-
 #include "math/scalar.h"
 #include "math/float3x3_funcs.h"
 #include "math/float4_funcs.h"
+
+PIM_C_BEGIN
 
 #define quat_0 quat_v(0.0f, 0.0f, 0.0f, 0.0f)
 #define quat_id quat_v(0.0f, 0.0f, 0.0f, 1.0f)

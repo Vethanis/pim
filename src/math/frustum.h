@@ -1,13 +1,11 @@
 #pragma once
 
-#include "common/macro.h"
-
-PIM_C_BEGIN
-
 #include "math/types.h"
 #include "math/sdf.h"
 #include "math/quat_funcs.h"
 #include "math/float4x4_funcs.h"
+
+PIM_C_BEGIN
 
 // returns value between zNear and zFar
 // t is in [0, 1] range

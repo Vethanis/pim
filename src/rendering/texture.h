@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/macro.h"
 #include "math/types.h"
 #include "common/guid.h"
 #include "common/dbytes.h"

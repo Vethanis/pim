@@ -1,12 +1,12 @@
 #include "rendering/path_tracer.h"
-#include "rendering/material.h"
+#include "rendering/pt/pt_types_private.h"
 #include "rendering/mesh.h"
 #include "rendering/camera.h"
 #include "rendering/sampler.h"
-#include "rendering/lights.h"
 #include "rendering/drawable.h"
-#include "rendering/librtc.h"
+#include "rendering/material.h"
 #include "rendering/cubemap.h"
+#include "rendering/librtc.h"
 
 #include "math/float2_funcs.h"
 #include "math/float4_funcs.h"
@@ -14,19 +14,18 @@
 #include "math/quat_funcs.h"
 #include "math/float4x4_funcs.h"
 #include "math/sampling.h"
+#include "math/grid.h"
+#include "math/dist1d.h"
 #include "math/sdf.h"
 #include "math/area.h"
 #include "math/frustum.h"
 #include "math/color.h"
 #include "math/lighting.h"
 #include "math/atmosphere.h"
-#include "math/dist1d.h"
-#include "math/grid.h"
 #include "math/box.h"
 
 #include "allocator/allocator.h"
 #include "threading/task.h"
-#include "common/random.h"
 #include "common/profiler.h"
 #include "common/console.h"
 #include "common/cvars.h"
@@ -38,124 +37,6 @@
 
 #include "stb/stb_perlin_fork.h"
 #include <string.h>
-
-// ----------------------------------------------------------------------------
-
-typedef struct PtSurfHit_s
-{
-    float4 P;
-    float4 M; // macro normal
-    float4 N; // micro normal
-    float4 albedo;
-    float4 emission;
-    float4 meanFreePath;
-    float roughness;
-    float occlusion;
-    float metallic;
-    float ior;
-    MatFlag flags;
-    PtHitType type;
-} PtSurfHit;
-
-typedef struct PtScatter_s
-{
-    float4 pos;
-    float4 dir;
-    float4 attenuation;
-    float4 luminance;
-    float pdf;
-} PtScatter;
-
-typedef struct PtLightSample_s
-{
-    float4 direction;
-    float4 luminance;
-    float4 wuvt;
-    float pdf;
-} PtLightSample;
-
-typedef struct PtMediaDesc_s
-{
-    float4 constantMfp;
-    float4 noiseMfp;
-    float4 constantMu;
-    float4 noiseMu;
-    float rcpMajorant;
-    float absorption;
-    i32 noiseOctaves;
-    float noiseGain;
-    float noiseLacunarity;
-    float noiseFreq;
-    float noiseScale;
-    float noiseHeight;
-    float noiseRange;
-    float phaseDirA;
-    float phaseDirB;
-    float phaseBlend;
-} PtMediaDesc;
-
-typedef struct PtMedia_s
-{
-    float4 scattering;
-    float4 extinction;
-} PtMedia;
-
-typedef struct PtScene_s
-{
-    RTCScene rtcScene;
-
-    // all geometry within the scene
-    // xyz: vertex position
-    //   w: 1
-    // [vertCount]
-    float4* pim_noalias positions;
-    // xyz: vertex normal
-    // [vertCount]
-    float4* pim_noalias normals;
-    //  xy: texture coordinate
-    // [vertCount]
-    float2* pim_noalias uvs;
-    // material indices
-    // [vertCount]
-    i32* pim_noalias matIds;
-    // emissive index
-    // [vertCount]
-    i32* pim_noalias vertToEmit;
-
-    // emissive triangle indices
-    // [emissiveCount]
-    i32* pim_noalias emitToVert;
-
-    // portal triangle indices
-    // [portalCount]
-    i32* pim_noalias portals;
-
-    // grid of discrete light distributions
-    Grid lightGrid;
-    // [lightGrid.size]
-    Dist1D* pim_noalias lightDists;
-
-    // surface description, indexed by matIds
-    // [matCount]
-    Material* pim_noalias materials;
-
-    Cubemap* pim_noalias sky;
-
-    // array lengths
-    i32 vertCount;
-    i32 matCount;
-    i32 emissiveCount;
-    i32 portalCount;
-    // parameters
-    PtMediaDesc mediaDesc;
-    u64 modtime;
-} PtScene;
-
-typedef struct PtContext_s
-{
-    PtSampler* pim_noalias sampler;
-    PtScene* pim_noalias scene;
-} PtContext;
 
 // ----------------------------------------------------------------------------
 
@@ -173,7 +54,6 @@ static float EmissionPdf(
     i32 attempts);
 static void CalcEmissionPdfFn(Task* pbase, i32 begin, i32 end);
 static void SetupEmissives(PtScene*const pim_noalias scene);
-static void SetupPortals(PtScene* scene);
 static void SetupLightGridFn(Task* pbase, i32 begin, i32 end);
 static void SetupLightGrid(PtScene*const pim_noalias scene);
 
@@ -298,15 +178,13 @@ pim_inline bool VEC_CALL EvaluateLight(
 pim_inline float4 VEC_CALL MeanFreePathToMu(float4 albedo);
 pim_inline PtMedia VEC_CALL Media_Sample(PtMediaDesc const *const desc, float4 P);
 pim_inline float4 VEC_CALL Media_Albedo(PtMediaDesc const *const desc, float4 P, float t);
-pim_inline float VEC_CALL SampleFreePath(float Xi, float rcpU);
-pim_inline float VEC_CALL FreePathPdf(float t, float u);
 pim_inline float4 VEC_CALL CalcMajorant(PtMediaDesc const *const desc);
 pim_inline float VEC_CALL CalcPhase(
-    PtMediaDesc const *const desc,
+    PtMedia media,
     float cosTheta);
 pim_inline float4 VEC_CALL SamplePhaseDir(
     PtSampler*const pim_noalias sampler,
-    PtMediaDesc const *const pim_noalias desc,
+    PtMedia media,
     float4 rd);
 pim_inline float4 VEC_CALL CalcTransmittance(
     PtSampler*const pim_noalias sampler,
@@ -896,31 +774,6 @@ static void SetupEmissives(PtScene*const pim_noalias scene)
     scene->emitToVert = emitToVert;
 }
 
-static void SetupPortals(PtScene* scene)
-{
-    i32 portalCount = 0;
-    i32* pim_noalias portals = NULL;
-    const i32 matCount = scene->matCount;
-    const Material* materials = scene->materials;
-    const i32 vertCount = scene->vertCount;
-    const i32* pim_noalias matIds = scene->matIds;
-    for (i32 iVert = 0; iVert < vertCount; iVert += 3)
-    {
-        i32 iMat = matIds[iVert];
-        ASSERT(iMat >= 0);
-        ASSERT(iMat < matCount);
-        const Material* material = &materials[iMat];
-        if (material->flags & MatFlag_Portal)
-        {
-            ++portalCount;
-            Perm_Reserve(portals, portalCount);
-            portals[portalCount - 1] = iVert;
-        }
-    }
-    scene->portalCount = portalCount;
-    scene->portals = portals;
-}
-
 typedef struct task_SetupLightGrid
 {
     Task task;
@@ -1084,7 +937,6 @@ static void PtScene_Init(PtScene* scene)
     PtScene_FindSky(scene);
     FlattenDrawables(scene);
     SetupEmissives(scene);
-    SetupPortals(scene);
     media_desc_new(&scene->mediaDesc);
     scene->rtcScene = RtcNewScene(scene);
     SetupLightGrid(scene);
@@ -1110,7 +962,6 @@ static void PtScene_Clear(PtScene* scene)
     Mem_Free(scene->materials);
 
     Mem_Free(scene->emitToVert);
-    Mem_Free(scene->portals);
 
     {
         const i32 gridLen = Grid_Len(&scene->lightGrid);
@@ -1515,37 +1366,6 @@ PtRayHit VEC_CALL Pt_Intersect(
     return pt_intersect_local(scene, ro, rd, tNear, tFar);
 }
 
-static PtScatter VEC_CALL PortalScatter(
-    PtScene *const pim_noalias scene,
-    PtSampler*const pim_noalias sampler,
-    const PtSurfHit* surf,
-    float4 I)
-{
-    PtScatter scatter = { 0 };
-    i32 portalCount = scene->portalCount;
-    if (portalCount)
-    {
-        i32 iPortal = Prng_i32(&sampler->rng) % portalCount;
-        i32 iVert = scene->portals[iPortal];
-        float4 wuvt = SampleBaryCoord(Sample2D(sampler));
-        float4 const *const pim_noalias positions = scene->positions;
-        float4 const *const pim_noalias normals = scene->normals;
-        float4 P = f4_blend(positions[iVert + 0], positions[iVert + 1], positions[iVert + 2], wuvt);
-        float4 N = f4_normalize3(f4_blend(normals[iVert + 0], normals[iVert + 1], normals[iVert + 2], wuvt));
-        P = f4_add(P, f4_mulvs(N, kMilli * 2.0f));
-        float4 rd = I;
-        if (f4_dot3(rd, N) < 0.0f)
-        {
-            rd = f4_neg(rd);
-        }
-        scatter.pos = P;
-        scatter.dir = rd;
-        scatter.attenuation = f4_s(0.5f);
-        scatter.pdf = 1.0f;
-    }
-    return scatter;
-}
-
 // returns attenuation value for the given interaction
 pim_inline float4 VEC_CALL BrdfEval(
     PtSampler*const pim_noalias sampler,
@@ -1584,8 +1404,9 @@ pim_inline float4 VEC_CALL BrdfEval(
     float4 F = F_SchlickEx(albedo, metallic, HoV);
     {
         float D = D_GTR(NoH, alpha);
-        float G = G_SmithGGX(NoL, NoV, alpha);
+        float G = V_SmithCorrelated(NoL, NoV, alpha);
         float4 Fr = f4_mulvs(F, D * G);
+        Fr = f4_mul(Fr, GGXEnergyCompensation(F_0(albedo, metallic), NoV, alpha));
         brdf = f4_add(brdf, Fr);
     }
     {
@@ -1675,10 +1496,6 @@ pim_inline PtScatter VEC_CALL BrdfScatter(
 {
     ASSERT(IsUnitLength(I));
     ASSERT(IsUnitLength(surf->N));
-    if (surf->flags & MatFlag_Portal)
-    {
-        return PortalScatter(scene, sampler, surf, I);
-    }
     if (surf->flags & MatFlag_Refractive)
     {
         return RefractScatter(sampler, surf, I);
@@ -1717,7 +1534,12 @@ pim_inline PtScatter VEC_CALL BrdfScatter(
     float NoL = f4_dot3(N, L);
     if (NoL <= 0.0f)
     {
-        return result;
+        L = f4_reflect3(L, N);
+        NoL = f4_dot3(N, L);
+        if (NoL <= 0.0f)
+        {
+            return result;
+        }
     }
 
     float4 H = f4_normalize3(f4_add(V, L));
@@ -1738,8 +1560,9 @@ pim_inline PtScatter VEC_CALL BrdfScatter(
     float4 F = F_SchlickEx(albedo, metallic, HoV);
     {
         float D = D_GTR(NoH, alpha);
-        float G = G_SmithGGX(NoL, NoV, alpha);
+        float G = V_SmithCorrelated(NoL, NoV, alpha);
         float4 Fr = f4_mulvs(F, D * G);
+        Fr = f4_mul(Fr, GGXEnergyCompensation(F_0(albedo, metallic), NoV, alpha));
         brdf = f4_add(brdf, Fr);
     }
     {
@@ -1871,6 +1694,7 @@ pim_inline PtLightSample VEC_CALL SampleLight(
         }
     }
 
+    ASSERT(f4_hmin3(sample.luminance) >= 0.0f);
     return sample;
 }
 
@@ -1910,6 +1734,8 @@ pim_inline float4 VEC_CALL EstimateDirect(
     }
 
     const float4 ro = surf->P;
+    ASSERT(surf->roughness >= 0.0f);
+    ASSERT(surf->roughness <= 1.0f);
     const float pRough = f1_lerp(0.05f, 0.95f, surf->roughness);
     const float pSmooth = 1.0f - pRough;
     if (MisPrng(sampler) < pRough)
@@ -1990,8 +1816,10 @@ pim_inline bool VEC_CALL EvaluateLight(
 
 static void media_desc_new(PtMediaDesc *const desc)
 {
-    desc->constantMfp = f4_s(40.0f * kKilo);
-    desc->noiseMfp = f4_s(40.0f * kKilo);
+    desc->constantColor = f4_v(0.5f, 0.5f, 0.5f, 2.0f);
+    desc->noiseColor = f4_v(0.5f, 0.5f, 0.5f, 2.0f);
+    desc->constantMfp = 20.0f * kKilo;
+    desc->noiseMfp = 20.0f * kKilo;
     desc->absorption = 0.1f;
     desc->noiseOctaves = 2;
     desc->noiseGain = 0.5f;
@@ -1999,16 +1827,18 @@ static void media_desc_new(PtMediaDesc *const desc)
     desc->noiseFreq = 1.0f;
     desc->noiseHeight = 20.0f;
     desc->noiseScale = exp2f(-5.0f);
-    desc->phaseDirA = 0.5f;
-    desc->phaseDirB = -0.5f;
-    desc->phaseBlend = 0.5f;
+    desc->phaseDirA = 0.75f;
+    desc->phaseDirB = -0.333f;
+    desc->phaseBlend = 0.25f;
     media_desc_update(desc);
 }
 
 static void media_desc_update(PtMediaDesc *const desc)
 {
-    desc->constantMu = MeanFreePathToMu(desc->constantMfp);
-    desc->noiseMu = MeanFreePathToMu(desc->noiseMfp);
+    float4 constantMfp = f4_lerpsv(desc->constantMfp * 0.5f, desc->constantMfp * 2.0f, desc->constantColor);
+    float4 noiseMfp = f4_lerpsv(desc->noiseMfp * 0.5f, desc->noiseMfp * 2.0f, desc->noiseColor);
+    desc->constantMu = MeanFreePathToMu(constantMfp);
+    desc->noiseMu = MeanFreePathToMu(noiseMfp);
     desc->phaseDirA = f1_clamp(desc->phaseDirA, -0.99f, 0.99f);
     desc->phaseDirB = f1_clamp(desc->phaseDirB, -0.99f, 0.99f);
     desc->phaseBlend = f1_sat(desc->phaseBlend);
@@ -2043,8 +1873,10 @@ static void media_desc_load(PtMediaDesc *const desc, const char* name)
     SerObj* root = Ser_ReadFile(filename);
     if (root)
     {
-        Ser_LoadVector(desc, root, constantMfp);
-        Ser_LoadVector(desc, root, noiseMfp);
+        Ser_LoadVector(desc, root, constantColor);
+        Ser_LoadVector(desc, root, noiseColor);
+        Ser_LoadFloat(desc, root, constantMfp);
+        Ser_LoadFloat(desc, root, noiseMfp);
         Ser_LoadFloat(desc, root, absorption);
         Ser_LoadInt(desc, root, noiseOctaves);
         Ser_LoadFloat(desc, root, noiseGain);
@@ -2075,8 +1907,10 @@ static void media_desc_save(PtMediaDesc const *const desc, const char* name)
     SerObj* root = SerObj_Dict();
     if (root)
     {
-        Ser_SaveVector(desc, root, constantMfp);
-        Ser_SaveVector(desc, root, noiseMfp);
+        Ser_SaveVector(desc, root, constantColor);
+        Ser_SaveVector(desc, root, noiseColor);
+        Ser_SaveFloat(desc, root, constantMfp);
+        Ser_SaveFloat(desc, root, noiseMfp);
         Ser_SaveFloat(desc, root, absorption);
         Ser_SaveInt(desc, root, noiseOctaves);
         Ser_SaveFloat(desc, root, noiseGain);
@@ -2103,8 +1937,22 @@ static void igLog2SliderFloat(const char* label, float* x, float lo, float hi)
 
 static void media_desc_gui(PtMediaDesc *const desc)
 {
-    const u32 hdrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_InputRGB;
-    const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
+    const u32 ldrPicker =
+        ImGuiColorEditFlags_Float |
+        ImGuiColorEditFlags_AlphaBar |
+        ImGuiColorEditFlags_AlphaPreviewHalf |
+        ImGuiColorEditFlags_PickerHueWheel |
+        ImGuiColorEditFlags_InputRGB |
+        ImGuiColorEditFlags_DisplayRGB;
+    const u32 hdrPicker =
+        ldrPicker |
+        ImGuiColorEditFlags_HDR;
+    const u32 slider =
+        ImGuiSliderFlags_NoRoundToFormat |
+        ImGuiSliderFlags_AlwaysClamp;
+    const u32 logSlider =
+        slider |
+        ImGuiSliderFlags_Logarithmic;
 
     if (desc && igExCollapsingHeader1("MediaDesc"))
     {
@@ -2119,28 +1967,44 @@ static void media_desc_gui(PtMediaDesc *const desc)
         {
             media_desc_save(desc, name);
         }
+
         const float kMinMfp = 0.1f;
         const float kMaxMfp = 40.0f * kKilo;
-        igExSliderFloat("Phase Dir A", &desc->phaseDirA, -0.99f, 0.99f);
-        igExSliderFloat("Phase Dir B", &desc->phaseDirB, -0.99f, 0.99f);
+        const float kMinG = -0.99f;
+        const float kMaxG = 0.99f;
+
+        igExSliderFloat("Phase Dir A", &desc->phaseDirA, kMinG, kMaxG);
+        igExSliderFloat("Phase Dir B", &desc->phaseDirB, kMinG, kMaxG);
         igExSliderFloat("Phase Blend", &desc->phaseBlend, 0.0f, 1.0f);
+
         igSliderFloat(
             "Absorption",
             &desc->absorption,
             0.01f, 10.0f, "%.3f",
-            ImGuiSliderFlags_Logarithmic);
-        igSliderFloat3(
+            logSlider);
+
+        igColorEdit3(
+            "Const Color",
+            &desc->constantColor.x,
+            ldrPicker);
+        igSliderFloat(
             "Const Mean Free Path",
-            &desc->constantMfp.x,
+            &desc->constantMfp,
             kMinMfp, kMaxMfp,
             "%.3f",
-            ImGuiSliderFlags_Logarithmic);
-        igSliderFloat3(
+            logSlider);
+
+        igColorEdit3(
+            "Noise Color",
+            &desc->noiseColor.x,
+            ldrPicker);
+        igSliderFloat(
             "Noise Mean Free Path",
-            &desc->noiseMfp.x,
+            &desc->noiseMfp,
             kMinMfp, kMaxMfp,
             "%.3f",
-            ImGuiSliderFlags_Logarithmic);
+            logSlider);
+
         igExSliderInt("Noise Octaves", &desc->noiseOctaves, 1, 10);
         igExSliderFloat("Noise Gain", &desc->noiseGain, 0.0f, 1.0f);
         igExSliderFloat("Noise Lacunarity", &desc->noiseLacunarity, 1.0f, 3.0f);
@@ -2148,13 +2012,14 @@ static void media_desc_gui(PtMediaDesc *const desc)
             "Noise Frequency",
             &desc->noiseFreq,
             0.1f, 10.0f, "%.3f",
-            ImGuiSliderFlags_Logarithmic);
+            logSlider);
         igExSliderFloat("Noise Height", &desc->noiseHeight, -20.0f, 20.0f);
         igSliderFloat(
             "Noise Scale",
             &desc->noiseScale,
             0.1f, 10.0f, "%.3f",
-            ImGuiSliderFlags_Logarithmic);
+            logSlider);
+
         igUnindent(0.0f);
 
         media_desc_update(desc);
@@ -2167,6 +2032,9 @@ pim_inline PtMedia VEC_CALL Media_Sample(
 {
     PtMedia hit;
     hit.scattering = desc->constantMu;
+    hit.g0 = desc->phaseDirA;
+    hit.g1 = desc->phaseDirB;
+    hit.gBlend = desc->phaseBlend;
 
     if (f1_distance(P.y, desc->noiseHeight) <= desc->noiseRange)
     {
@@ -2201,22 +2069,6 @@ pim_inline float4 VEC_CALL Media_Albedo(PtMediaDesc const *const desc, float4 P,
     return f4_exp(f4_mulvs(uT, -t));
 }
 
-// samples a free path in a given media
-// Xi: random variable in [0, 1)
-// mfp: mean free path, 1 / extinction coefficient
-pim_inline float VEC_CALL SampleFreePath(float Xi, float mfp)
-{
-    return -logf(1.0f - Xi) * mfp;
-}
-
-// returns probability of a free path at t
-// t: ray time
-// u: extinction coefficient, or majorant in woodcock sampling
-pim_inline float VEC_CALL FreePathPdf(float t, float u)
-{
-    return u * expf(-t * u);
-}
-
 // maximum extinction coefficient of the media
 pim_inline float4 VEC_CALL CalcMajorant(PtMediaDesc const *const desc)
 {
@@ -2227,25 +2079,25 @@ pim_inline float4 VEC_CALL CalcMajorant(PtMediaDesc const *const desc)
 }
 
 pim_inline float VEC_CALL CalcPhase(
-    PtMediaDesc const *const desc,
+    PtMedia media,
     float cosTheta)
 {
     return f1_lerp(
-        MiePhase(cosTheta, desc->phaseDirA),
-        MiePhase(cosTheta, desc->phaseDirB),
-        desc->phaseBlend);
+        MiePhase(cosTheta, media.g0),
+        MiePhase(cosTheta, media.g1),
+        media.gBlend);
 }
 
 pim_inline float4 VEC_CALL SamplePhaseDir(
     PtSampler*const pim_noalias sampler,
-    PtMediaDesc const *const pim_noalias desc,
+    PtMedia media,
     float4 rd)
 {
     float4 L;
     do
     {
         L = SampleUnitSphere(Sample2D(sampler));
-        L.w = CalcPhase(desc, f4_dot3(rd, L));
+        L.w = CalcPhase(media, f4_dot3(rd, L));
     } while (PhaseDirPrng(sampler) > L.w);
     return L;
 }
@@ -2258,21 +2110,22 @@ pim_inline float4 VEC_CALL CalcTransmittance(
     float rayLen)
 {
     PtMediaDesc const *const pim_noalias desc = &scene->mediaDesc;
-    const float rcpU = desc->rcpMajorant;
+    const float rcpMaj = desc->rcpMajorant;
     float t = 0.0f;
     float4 attenuation = f4_1;
     while (true)
     {
-        float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float dt = SampleFreePath(Sample1D(sampler), rcpU);
-        t += dt;
-        if (t >= rayLen)
+        float dt = SampleFreePath(Sample1D(sampler), rcpMaj);
+        if ((t + dt) >= rayLen)
         {
             break;
         }
-        float4 uT = Media_Sample(desc, P).extinction;
-        float4 ratio = f4_inv(f4_mulvs(uT, rcpU));
+        // ratio tracking
+        // https://jannovak.info/publications/VolumeCourse/novak18monte-sig-slides-4.2-transmittance-notes.pdf#page=7
+        PtMedia media = Media_Sample(desc, f4_add(ro, f4_mulvs(rd, t)));
+        float4 ratio = f4_inv(f4_mulvs(media.extinction, rcpMaj));
         attenuation = f4_mul(attenuation, ratio);
+        t += dt;
     }
     return attenuation;
 }
@@ -2289,54 +2142,66 @@ pim_inline PtScatter VEC_CALL ScatterRay(
     result.pdf = 0.0f;
 
     PtMediaDesc const *const pim_noalias desc = &scene->mediaDesc;
-    const float rcpU = desc->rcpMajorant;
+    const float rcpMaj = desc->rcpMajorant;
 
     float t = 0.0f;
     result.attenuation = f4_1;
     while (true)
     {
-        float4 P = f4_add(ro, f4_mulvs(rd, t));
-        float dt = SampleFreePath(Sample1D(sampler), rcpU);
-        t += dt;
-        if (t >= rayLen)
+        float dt = SampleFreePath(Sample1D(sampler), rcpMaj);
+        if ((t + dt) >= rayLen)
         {
             break;
         }
 
-        PtMedia media = Media_Sample(desc, P);
+        PtMedia media = Media_Sample(desc, f4_add(ro, f4_mulvs(rd, t)));
+        float4 ratio = f4_inv(f4_mulvs(media.extinction, rcpMaj));
 
-        float uS = f4_hmax3(media.scattering);
-        bool scattered = ScatterPrng(sampler) < (uS * rcpU);
-        if (scattered)
+        float scatterProb = f4_hmax3(media.scattering) * rcpMaj;
+        if (ScatterPrng(sampler) < scatterProb)
         {
+            float substep = Sample1D(sampler);
+            float4 P = f4_add(ro, f4_mulvs(rd, t + substep * dt));
+            result.attenuation = f4_lerpvs(result.attenuation, f4_mul(result.attenuation, ratio), substep);
+
             float4 lum;
             float4 L;
             if (EvaluateLight(sampler, scene, P, &lum, &L, bounce))
             {
-                float ph = CalcPhase(desc, f4_dot3(rd, L));
+                float ph = CalcPhase(media, f4_dot3(rd, L));
                 lum = f4_mulvs(lum, ph * dt);
-                lum = f4_mul(lum, result.attenuation);
                 result.luminance = lum;
             }
 
-            result.pos = f4_add(ro, f4_mulvs(rd, t));
-            result.dir = SamplePhaseDir(sampler, desc, rd);
+            result.pos = P;
+            result.dir = SamplePhaseDir(sampler, media, rd);
             result.pdf = result.dir.w;
-            float ph = CalcPhase(desc, f4_dot3(rd, result.dir));
+            float ph = CalcPhase(media, f4_dot3(rd, result.dir));
             result.attenuation = f4_mulvs(result.attenuation, ph);
-        }
-
-        float4 ratio = f4_inv(f4_mulvs(media.extinction, rcpU));
-        result.attenuation = f4_mul(result.attenuation, ratio);
-
-        if (scattered)
-        {
             break;
         }
+
+        result.attenuation = f4_mul(result.attenuation, ratio);
+        t += dt;
     }
 
     return result;
 }
+
+typedef struct TraceCtx_s
+{
+    PtSampler* pim_noalias sampler;
+    PtScene* pim_noalias scene;
+    PtResult result;
+    float4 luminance;
+    float4 transport;
+    float4 ro;
+    float4 rd;
+    PtRayHit rayHit[2];
+    PtSurfHit surfHit[2];
+    PtMedia media[2];
+    i32 bounce;
+} TraceCtx;
 
 PtResult VEC_CALL Pt_TraceRay(
     PtSampler *const pim_noalias sampler,
@@ -2368,16 +2233,9 @@ PtResult VEC_CALL Pt_TraceRay(
         {
             break;
         }
-
-        PtSurfHit surf = GetSurface(scene, ro, rd, hit, b);
-        if (hit.type == PtHit_Backface && !(surf.flags & MatFlag_Refractive))
+        if ((hit.type == PtHit_Backface) && !(hit.flags & MatFlag_Refractive))
         {
             break;
-        }
-
-        if (b > 0)
-        {
-            LightOnHit(sampler, scene, ro, surf.emission, hit.iVert);
         }
 
         {
@@ -2394,12 +2252,19 @@ PtResult VEC_CALL Pt_TraceRay(
                 attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
                 ro = scatter.pos;
                 rd = scatter.dir;
+                prevFlags = 0x0;
                 continue;
             }
             else
             {
                 attenuation = f4_mul(attenuation, scatter.attenuation);
             }
+        }
+
+        PtSurfHit surf = GetSurface(scene, ro, rd, hit, b);
+        if (b > 0)
+        {
+            LightOnHit(sampler, scene, ro, surf.emission, hit.iVert);
         }
 
         {
@@ -2409,10 +2274,7 @@ PtResult VEC_CALL Pt_TraceRay(
         }
         if ((b == 0) || (prevFlags & MatFlag_Refractive))
         {
-            if (!(hit.flags & MatFlag_Portal))
-            {
-                luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
-            }
+            luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
         }
         if (hit.flags & MatFlag_Sky)
         {

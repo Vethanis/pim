@@ -105,6 +105,16 @@ pim_inline float VEC_CALL StandardExposure(float ev100)
     return midGrey / Lavg;
 }
 
+// https://resources.mpi-inf.mpg.de/hdr/peffects/krawczyk05sccg.pdf
+pim_inline float VEC_CALL ExposureCompensationCurve(float ev100)
+{
+    float L = EV100ToLum(ev100);
+    float keyValue = 1.03f - 2.0f / (log10f(L + 1.0f) + 2.0f);
+    const float midGrey = 0.18f;
+    float exposureMultiplier = keyValue / midGrey;
+    return exposureMultiplier;
+}
+
 pim_inline float VEC_CALL CalcExposure(const vkrExposure* args)
 {
     float ev100 = 0.0f;
@@ -117,6 +127,7 @@ pim_inline float VEC_CALL CalcExposure(const vkrExposure* args)
         ev100 = LumToEV100(args->avgLum);
     }
 
+    float exposureCompensation = ExposureCompensationCurve(ev100);
     ev100 = ev100 - args->offsetEV;
     ev100 = f1_clamp(ev100, args->minEV, args->maxEV);
 
@@ -129,6 +140,8 @@ pim_inline float VEC_CALL CalcExposure(const vkrExposure* args)
     {
         exposure = SaturationExposure(ev100);
     }
+    exposure *= exposureCompensation;
+
     return exposure;
 }
 

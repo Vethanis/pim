@@ -35,13 +35,17 @@ static void VEC_CALL ResolvePQ(
 {
     const float4* pim_noalias light = task->target->light;
     R16G16B16A16_t* pim_noalias color = task->target->color;
-    // PQ has a 10k range
-    const float kToPQNits = 1.0f / 10000.0f;
-    // standard / saturation based exposure is calibrated for 100 nits
-    const float mp = 100.0f * kToPQNits;
-    const float exposure = task->exposure * mp;
-    // use display's max nits as whitepoint
-    const float wp = task->nits * kToPQNits;
+    const float nits = task->nits;
+    const float exposure = task->exposure * nits;
+    const GTTonemapParams gtp =
+    {
+        .P = nits,
+        .a = 1.0f,
+        .m = nits * 0.5f,
+        .l = 0.4f,
+        .c = 1.33f,
+        .b = 0.0f,
+    };
 
     Prng rng = Prng_Get();
     float4 Xi = f4_rand(&rng);
@@ -49,10 +53,11 @@ static void VEC_CALL ResolvePQ(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = Color_SceneToHDR(v);
         v = f4_mulvs(v, exposure);
-        v = f4_GtsTonemap(v, wp, mp);
-        v = f4_PQ_OETF(v);
+        v = Color_SceneToHDR(v);
+        v = f4_maxvs(v, 0.0f);
+        v = f4_GTTonemap(v, gtp);
+        v = f4_PQ_InverseEOTF(v);
         color[i] = Dither(&Xi, v);
     }
 }
@@ -71,8 +76,9 @@ static void VEC_CALL ResolveReinhard(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = Color_SceneToSDR(v);
         v = f4_mulvs(v, exposure);
+        v = Color_SceneToSDR(v);
+        v = f4_maxvs(v, 0.0f);
         v = f4_reinhard_lum(v, wp);
         v = f4_sRGB_InverseEOTF_Fit(v);
         color[i] = Dither(&Xi, v);
@@ -93,8 +99,9 @@ static void VEC_CALL ResolveUncharted2(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = Color_SceneToSDR(v);
         v = f4_mulvs(v, exposure);
+        v = Color_SceneToSDR(v);
+        v = f4_maxvs(v, 0.0f);
         v = f4_uncharted2(v, wp);
         color[i] = Dither(&Xi, f4_sRGB_InverseEOTF_Fit(v));
     }
@@ -115,8 +122,9 @@ static void VEC_CALL ResolveHable(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = Color_SceneToSDR(v);
         v = f4_mulvs(v, exposure);
+        v = Color_SceneToSDR(v);
+        v = f4_maxvs(v, 0.0f);
         v = f4_hable(v, params);
         color[i] = Dither(&Xi, f4_sRGB_InverseEOTF_Fit(v));
     }
@@ -136,8 +144,9 @@ static void VEC_CALL ResolveACES(
     for (i32 i = begin; i < end; ++i)
     {
         float4 v = light[i];
-        v = Color_SceneToSDR(v);
         v = f4_mulvs(v, exposure);
+        v = Color_SceneToSDR(v);
+        v = f4_maxvs(v, 0.0f);
         v = f4_aceskfit(v);
         color[i] = Dither(&Xi, f4_sRGB_InverseEOTF_Fit(v));
     }

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/macro.h"
 #include "math/types.h"
 #include "rendering/texture.h"
 
@@ -9,7 +8,7 @@ PIM_C_BEGIN
 typedef enum
 {
     MatFlag_Emissive = 1 << 0,      // enable emissive term
-    MatFlag_Sky = 1 << 1,
+    MatFlag_Sky = 1 << 1,           // lookup emission from sky cubemap
     MatFlag_Water = 1 << 2,
     MatFlag_Slime = 1 << 3,
     MatFlag_Lava = 1 << 4,

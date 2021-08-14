@@ -489,7 +489,7 @@ static void BakeSky(void)
         };
 
         float4 sunDir = ConVar_GetVec(&cv_r_sun_dir);
-        float sunLum = exp2f(ConVar_GetFloat(&cv_r_sun_lum));
+        float sunLum = ConVar_GetFloat(&cv_r_sun_lum);
 
         Cubemap* cm = &maps->cubemaps[iSky];
         i32 size = cm->size;
@@ -536,6 +536,7 @@ bool RenderSys_Init(void)
     PtSys_Init();
     EntSys_Init();
     EnsureFramebuf();
+    g_BrdfLut = BrdfLut_New(i2_v(64, 64), 8192);
 
     cmd_enqueue("mapload start");
 
@@ -586,6 +587,7 @@ void RenderSys_Update(void)
 
 void RenderSys_Shutdown(void)
 {
+    BrdfLut_Del(&g_BrdfLut);
     ShutdownPtScene();
 
     EntSys_Shutdown();
@@ -740,21 +742,33 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     const i32 len = size.x * size.y;
     R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
     const float exposure = vkrExposure_GetParams()->exposure;
-    const float wp = vkrSys_GetWhitepoint();
+    const GTTonemapParams gtp =
+    {
+        .P = 1.0f,
+        .a = 1.0f,
+        .m = 0.5f,
+        .l = 0.4f,
+        .c = 1.33f,
+        .b = 0.0f,
+    };
 
     Prng rng = Prng_Get();
+    float4 Xi = f4_rand(&rng);
+    Prng_Set(rng);
     for (i32 i = 0; i < len; ++i)
     {
         float4 v = buf->light[i];
-        v = Color_SceneToSDR(v);
         v = f4_mulvs(v, exposure);
-        v = f4_GtsTonemap(v, 1.0f, 0.5f);
+        v = Color_SceneToSDR(v);
+        v = f4_maxvs(v, 0.0f);
+        v = f4_GTTonemap(v, gtp);
         v.w = 1.0f;
-        v = f4_sRGB_InverseEOTF_Fit(v);
-        v = f4_lerpvs(v, f4_rand(&rng), 1.0f / 255.0f);
+        v = f4_sRGB_InverseEOTF(v);
+        Xi = f4_frac(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
+        v = f4_lerpvs(v, Xi, 1.0f / 255.0f);
+        v.w = 1.0f;
         color[i] = f4_rgba8(v);
     }
-    Prng_Set(rng);
 
     stbi_flip_vertically_on_write(1);
     i32 wrote = stbi_write_png(filename, size.x, size.y, 4, color, sizeof(color[0]) * size.x);

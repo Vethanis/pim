@@ -1,13 +1,11 @@
 #pragma once
 
-#include "common/macro.h"
-
-PIM_C_BEGIN
-
 #include "math/types.h"
 #include "math/float2_funcs.h"
 #include "math/float3_funcs.h"
 #include "math/float4_funcs.h"
+
+PIM_C_BEGIN
 
 pim_inline float VEC_CALL sdCircle(Circle c, float2 pt)
 {

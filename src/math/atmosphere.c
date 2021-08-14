@@ -3,7 +3,7 @@
 const SkyMedium kEarthAtmosphere =
 {
     .rCrust = 6360e3f, // 6360km
-    .rAtmos = 6420e3f, // 6420km
+    .rAtmos = 60.0f, // 6420km
 
     .muR =
     {
