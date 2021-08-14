@@ -98,7 +98,11 @@ pim_inline float3 VEC_CALL Atmosphere(
     // bias: use median free path instead of randomly sampling it
     const float mfp = SampleFreePath(0.5f, 1.0f / majorant);
     // bias: stop marching at a certain density
+#if _DEBUG
+    const float kMinDensity = 0.1f;
+#else
     const float kMinDensity = 1e-4f;
+#endif // _DEBUG
 
     float3 tr_r = f3_0;
     float3 tr_m = f3_0;
