@@ -88,9 +88,9 @@ ConVar cv_r_whitepoint =
 {
     .type = cvart_float,
     .name = "r_whitepoint",
-    .value = "3.0",
+    .value = "1.2",
     .minFloat = 1.0f,
-    .maxFloat = 20.0f,
+    .maxFloat = 5.0f,
     .desc = "Luminance at which tonemapping will clip",
 };
 
@@ -107,7 +107,7 @@ ConVar cv_r_display_nits_max =
 {
     .type = cvart_float,
     .name = "r_display_nits_max",
-    .value = "1000.0",
+    .value = "600.0",
     .minFloat = 100.0f,
     .maxFloat = 10000.0f,
     .desc = "Max display luminance, in nits",
@@ -117,7 +117,7 @@ ConVar cv_r_ui_nits =
 {
     .type = cvart_float,
     .name = "r_ui_nits",
-    .value = "600.0",
+    .value = "300.0",
     .minFloat = 10.0f,
     .maxFloat = 10000.0f,
     .desc = "UI luminance, in nits (SDR is roughly 300)",
@@ -249,22 +249,23 @@ ConVar cv_r_sun_dir =
 {
     .type = cvart_vector,
     .name = "r_sun_dir",
-    .value = "0.0 0.968 0.253 0.0",
+    .value = "0.882 0.195 0.429 0.0",
     .desc = "Sun direction",
 };
 
 // https://en.wikipedia.org/wiki/Orders_of_magnitude_(luminance)
-// noon: around 2^31
-// sunrise: around 2^20
-// night: around 2^-10
+// noon: around 2^31 (2147483648)
+// sunrise: around 2^20 (1048576)
+// night: around 2^-10 (0.0009765625)
 ConVar cv_r_sun_lum =
 {
     .type = cvart_float,
+    .flags = cvarf_logarithmic,
     .name = "r_sun_lum",
-    .value = "16.0",
-    .minFloat = -10.0f,
-    .maxFloat = 31.0f,
-    .desc = "Log2 sun luminance",
+    .value = "3800.0",
+    .minFloat = 0.0009765625f,
+    .maxFloat = 2147483648.0f,
+    .desc = "Sun luminance",
 };
 
 ConVar cv_r_sun_res =
@@ -272,12 +273,12 @@ ConVar cv_r_sun_res =
     .type = cvart_int,
     .name = "r_sun_res",
 #if _DEBUG
-    .value = "32",
+    .value = "16",
 #else
-    .value = "256",
+    .value = "64",
 #endif // _DEBUG
     .minInt = 4,
-    .maxInt = 4096,
+    .maxInt = 1024,
     .desc = "Sky cubemap resolution",
 };
 
@@ -286,12 +287,12 @@ ConVar cv_r_sun_steps =
     .type = cvart_int,
     .name = "r_sun_steps",
 #if _DEBUG
-    .value = "8",
+    .value = "1",
 #else
-    .value = "64",
+    .value = "4",
 #endif // _DEBUG
-    .minInt = 4,
-    .maxInt = 1024,
+    .minInt = 1,
+    .maxInt = 16,
     .desc = "Sky cubemap raymarch steps",
 };
 
@@ -411,8 +412,8 @@ ConVar cv_sky_rad_cr =
     .flags = cvarf_logarithmic,
     .name = "sky_rad_cr",
     .value = "6360",
-    .minFloat = 100.0f,
-    .maxFloat = 100000.0f,
+    .minFloat = 636.0f,
+    .maxFloat = 63600.0f,
     .desc = "Sky crust radius, kilometers",
 };
 ConVar cv_sky_rad_at =
@@ -420,10 +421,10 @@ ConVar cv_sky_rad_at =
     .type = cvart_float,
     .flags = cvarf_logarithmic,
     .name = "sky_rad_at",
-    .value = "6420",
-    .minFloat = 100.0f,
-    .maxFloat = 100000.0f,
-    .desc = "Sky atmosphere radius, kilometers",
+    .value = "60",
+    .minFloat = 6.0f,
+    .maxFloat = 600.0f,
+    .desc = "Sky atmosphere relative radius, kilometers",
 };
 ConVar cv_sky_rlh_mfp =
 {
@@ -431,7 +432,7 @@ ConVar cv_sky_rlh_mfp =
     .flags = cvarf_logarithmic,
     .name = "sky_rlh_mfp",
     .value = "192 82 34",
-    .minFloat = 0.1f,
+    .minFloat = 10.0f,
     .maxFloat = 1000.0f,
     .desc = "Rayleigh mean free path, kilometers",
 };
@@ -442,7 +443,7 @@ ConVar cv_sky_rlh_sh =
     .name = "sky_rlh_sh",
     .value = "8.5",
     .minFloat = 0.1f,
-    .maxFloat = 100.0f,
+    .maxFloat = 10.0f,
     .desc = "Rayleigh scale height, kilometers",
 };
 ConVar cv_sky_mie_mfp =
@@ -451,7 +452,7 @@ ConVar cv_sky_mie_mfp =
     .flags = cvarf_logarithmic,
     .name = "sky_mie_mfp",
     .value = "48",
-    .minFloat = 0.1f,
+    .minFloat = 10.0f,
     .maxFloat = 1000.0f,
     .desc = "Mie mean free path, kilometers",
 };
@@ -462,7 +463,7 @@ ConVar cv_sky_mie_sh =
     .name = "sky_mie_sh",
     .value = "1.2",
     .minFloat = 0.1f,
-    .maxFloat = 100.0f,
+    .maxFloat = 10.0f,
     .desc = "Mie scale height, kilometers",
 };
 ConVar cv_sky_mie_g =

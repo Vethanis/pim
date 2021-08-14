@@ -24,7 +24,6 @@ typedef struct PushConstants_s
 
     u32 textureIndex;
     u32 discardAlpha;
-    uint2 pad;
 } PushConstants;
 
 static VkRenderPass ms_renderPass;

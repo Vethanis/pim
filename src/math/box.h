@@ -4,6 +4,8 @@
 #include "math/float4_funcs.h"
 #include "math/float4x4_funcs.h"
 
+PIM_C_BEGIN
+
 pim_inline Box3D VEC_CALL box_new(float4 lo, float4 hi)
 {
     Box3D box = { lo, hi };
@@ -84,3 +86,5 @@ pim_inline Box3D VEC_CALL box_transform(float4x4 matrix, Box3D box)
     float4 hi = f4_add(center, extents);
     return box_new(lo, hi);
 }
+
+PIM_C_END

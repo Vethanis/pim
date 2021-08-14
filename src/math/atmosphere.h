@@ -1,28 +1,15 @@
 #pragma once
 
-#include "common/macro.h"
 #include "math/types.h"
 #include "math/float2_funcs.h"
 #include "math/float3_funcs.h"
 #include "math/sampling.h"
+#include "common/random.h"
 
 PIM_C_BEGIN
 
 // Rayleigh scattering: blue/orange due to small particles
 // Mie scattering: hazy gray due to large particles
-
-typedef struct SkyMedium_s
-{
-    float rCrust;   // crust radius
-    float rAtmos;   // atmosphere radius
-
-    float3 muR;     // rayleigh scattering coefficient (1 / mean free path), at sea level
-    float rhoR;     // rayleigh density coefficient (1 / scale height)
-
-    float muM;      // mie scattering coefficient (1 / mean free path), at sea level
-    float rhoM;     // mie density coefficient (1 / scale height)
-    float gM;       // mean cosine of mie phase function
-} SkyMedium;
 
 extern const SkyMedium kEarthAtmosphere;
 
@@ -35,9 +22,10 @@ pim_inline float2 VEC_CALL RaySphereIntersect(float3 ro, float3 rd, float radius
     {
         return f2_v(1.0f, -1.0f);
     }
-    float nb = -b;
     float sqrtd = sqrtf(d);
-    return f2_v((nb - sqrtd) * 0.5f, (nb + sqrtd) * 0.5f);
+    float t0 = (-b - sqrtd) * 0.5f;
+    float t1 = (-b + sqrtd) * 0.5f;
+    return f2_v(t0, t1);
 }
 
 pim_inline float VEC_CALL RayleighPhase(float cosTheta)
@@ -97,112 +85,100 @@ pim_inline float3 VEC_CALL Atmosphere(
     float3 luminance,
     i32 steps)
 {
-    const float rAtmos = atmos->rAtmos;
+    // assumes (0,0,0) is center of planet
     const float rCrust = atmos->rCrust;
-    float2 nfAt = RaySphereIntersect(ro, rd, rAtmos);
-    float2 nfCr = RaySphereIntersect(ro, rd, rCrust);
-    if (nfCr.x < nfCr.y)
-    {
-        nfAt.y = f1_min(nfAt.y, nfCr.x);
-    }
-    if (nfAt.x >= nfAt.y)
-    {
-        return f3_0;
-    }
 
-    const i32 viewSteps = steps;
-    const i32 lightSteps = steps >> 1;
     // reciprocal of scale height
     const float rhoR = atmos->rhoR;
     const float rhoM = atmos->rhoM;
     // scattering coefficients
     const float3 muR = atmos->muR;
     const float muM = atmos->muM;
-    // delta time along view ray
-    const float dt_v = (nfAt.y - nfAt.x) / viewSteps;
-    const float dstep_l = 1.0f / lightSteps;
+    const float majorant = f1_max(muM, f3_hmax(muR)) * steps;
+    // bias: use median free path instead of randomly sampling it
+    const float mfp = SampleFreePath(0.5f, 1.0f / majorant);
+    // bias: stop marching at a certain density
+    const float kMinDensity = 1e-4f;
 
-    // integral of transmitted optical depth
     float3 tr_r = f3_0;
     float3 tr_m = f3_0;
-    // integral of optical depth along view ray
     float odR_v = 0.0f;
     float odM_v = 0.0f;
-
-    for (i32 iView = 0; iView < viewSteps; iView++)
+    float t_v = 0.0f;
+    while (true)
     {
-        // mean raytime along view ray segment
-        float t_v = (iView + 0.5f) * dt_v;
-        // mean position of view ray segment
         float3 pos_v = f3_add(ro, f3_mulvs(rd, t_v));
-        // mean height of view segment in atmosphere
-        // assumes (0,0,0) is center of planet
         float h_v = f3_length(pos_v) - rCrust;
         if (h_v < 0.0f)
         {
             break;
         }
+        float densityR_v = expf(-h_v * rhoR);
+        float densityM_v = expf(-h_v * rhoM);
+        if ((densityR_v + densityM_v) < kMinDensity)
+        {
+            break;
+        }
+        float dt_v = mfp;
+        t_v += dt_v;
 
-        // raytime for light ray to exit atmosphere
-        float tFar_l = RaySphereIntersect(pos_v, lightDir, rAtmos).y;
-        // light ray segment length
-        float dt_l = tFar_l * dstep_l;
+        // in-scattering at view position
+        float odR_vi = densityR_v * dt_v;
+        float odM_vi = densityM_v * dt_v;
+        odR_v += odR_vi;
+        odM_v += odM_vi;
 
-        // optical depth of light ray
         float odR_l = 0.0f;
         float odM_l = 0.0f;
-        for (i32 iLight = 0; iLight < lightSteps; iLight++)
+        float t_l = 0.0f;
+        bool hitCrust = false;
+        while (true)
         {
-            // mean raytime along light ray segment
-            float t_l = (iLight + 0.5f) * dt_l;
-            // mean position of light segment
             float3 pos_l = f3_add(pos_v, f3_mulvs(lightDir, t_l));
-            // mean height of light segment in atmosphere
-            // assumes (0,0,0) is center of planet
             float h_l = f3_length(pos_l) - rCrust;
             if (h_l < 0.0f)
             {
+                hitCrust = true;
                 break;
             }
-            // optical depth of light segment
-            float odR_li = expf(-h_l * rhoR) * dt_l;
-            float odM_li = expf(-h_l * rhoM) * dt_l;
-            // integrate light ray optical depth
-            odR_l += odR_li;
-            odM_l += odM_li;
+            float densityR_l = expf(-h_l * rhoR);
+            float densityM_l = expf(-h_l * rhoM);
+            if ((densityR_l + densityM_l) < kMinDensity)
+            {
+                break;
+            }
+            float dt_l = mfp;
+            t_l += dt_l;
+            odR_l += densityR_l * dt_l;
+            odM_l += densityM_l * dt_l;
         }
 
-        // optical depth of view segment
-        float odR_vi = expf(-h_v * rhoR) * dt_v;
-        float odM_vi = expf(-h_v * rhoM) * dt_v;
+        if (!hitCrust)
+        {
+            // optical depth and transmittance for path from sun to eye
+            float3 od_i = f3_addvs(
+                f3_mulvs(muR, odR_v + odR_l),
+                muM * (odM_v + odM_l));
+            float3 tr_i = f3_exp(f3_neg(od_i));
 
-        // optical depth thus far along view ray and light ray
-        float odR_i = muM * (odM_v + odM_l);
-        float3 odM_i = f3_mulvs(muR, odR_v + odR_l);
-        // transmittance for current light to eye path
-        float3 tr_i = f3_exp(f3_neg(f3_addvs(odM_i, odR_i)));
-
-        // integrate transmitted optical depth
-        tr_r = f3_add(tr_r, f3_mulvs(tr_i, odR_vi));
-        tr_m = f3_add(tr_m, f3_mulvs(tr_i, odM_vi));
-
-        // integrate optical depth along view ray
-        odR_v += odR_vi;
-        odM_v += odM_vi;
+            // transmit in-scattering at view position through
+            // transmittance from light to eye at this step.
+            tr_r = f3_add(tr_r, f3_mulvs(tr_i, odR_vi));
+            tr_m = f3_add(tr_m, f3_mulvs(tr_i, odM_vi));
+        }
     }
 
-    // phase function normally goes in inner loop,
-    // but optimized to here for a directional light.
-    // some parallax is missing due to this simplification.
-    float cosTheta = f3_dot(rd, lightDir);
-    float phR = RayleighPhase(cosTheta);
-    float phM = MiePhase(cosTheta, atmos->gM);
+    {
+        // pulled out of loop due to directional light and single-scattering.
+        float cosTheta = f3_dot(rd, lightDir);
+        float phR = RayleighPhase(cosTheta);
+        float phM = MiePhase(cosTheta, atmos->gM);
+        // scale transmitted in-scattering by scattering coeff and phase fns
+        tr_r = f3_mul(tr_r, f3_mulvs(muR, phR));
+        tr_m = f3_mulvs(tr_m, muM * phM);
+    }
 
-    // scale transmitted light by scattering coeff and phase fns
-    tr_r = f3_mul(tr_r, f3_mulvs(atmos->muR, phR));
-    tr_m = f3_mulvs(tr_m, atmos->muM * phM);
-
-    // transmitted luminance
+    // scale transmitted in-scattering by luminance
     return f3_mul(f3_add(tr_r, tr_m), luminance);
 }
 

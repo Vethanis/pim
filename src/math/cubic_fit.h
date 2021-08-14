@@ -1,28 +1,15 @@
 #pragma once
 
-#include "common/macro.h"
-
-PIM_C_BEGIN
-
 #include "math/types.h"
 #include "math/scalar.h"
 
-typedef struct dataset_s
-{
-    const float* pim_noalias xs;
-    const float* pim_noalias ys;
-    i32 len;
-} dataset_t;
-
-typedef struct pim_alignas(16) fit_s
-{
-    float value[8];
-} fit_t;
+PIM_C_BEGIN
 
 // Attempts to fit a cubic polynomial to the given set of samples
 float CubicFit(dataset_t data, fit_t* fit, i32 iterations);
 float SqrticFit(dataset_t data, fit_t* fit, i32 iterations);
 float TMapFit(dataset_t data, fit_t* fit, i32 iterations);
+float PolyFit(dataset_t data, fit_t* fit, i32 iterations);
 
 pim_inline float VEC_CALL CubicEval(float x, fit_t fit)
 {
@@ -45,6 +32,15 @@ pim_inline float VEC_CALL TMapEval(float x, fit_t fit)
     float d = fit.value[3];
     float e = fit.value[4];
     return (x * (a * x + b)) / (x * (c * x + d) + e);
+}
+
+pim_inline float VEC_CALL PolyEval(float x, fit_t fit)
+{
+    float x2 = x * x;
+    float x3 = x * x * x;
+    float nom = fit.value[1] * x + fit.value[2] * x2 + fit.value[3] * x3;
+    float denom = fit.value[4] + fit.value[5] * x + fit.value[6] * x2 + fit.value[7] * x3;
+    return nom / denom;
 }
 
 PIM_C_END

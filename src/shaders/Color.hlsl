@@ -73,6 +73,51 @@ float3 TonemapACES(float3 x)
     x = (x * (a * x + b)) / (x * (c * x + d) + e);
     return x;
 }
+// http://cdn2.gran-turismo.com/data/www/pdi_publications/PracticalHDRandWCGinGTS_20181222.pdf#page=184
+// https://www.desmos.com/calculator/mbkwnuihbd
+struct GTTonemapParams
+{
+    float P;    // [1, nits] (1.0)   whitepoint, shoulder asymptote
+    float a;    // [0, 5]   (1.0)    linear section slope
+    float m;    // [0, P)   (0.22)   shoulder intersection
+    float l;    // [0, 1]   (0.4)    shoulder sharpness
+
+    float c;    // [1, 3]   (1.33)   toe curvature
+    float b;    // [0, 1]   (0.0)    bias, to avoid numerical instability near 0
+    float _pad1;
+    float _pad2;
+};
+
+// http://cdn2.gran-turismo.com/data/www/pdi_publications/PracticalHDRandWCGinGTS_20181222.pdf#page=184
+// https://www.desmos.com/calculator/mbkwnuihbd
+float GTTonemap(float x, GTTonemapParams gtp)
+{
+    const float P = gtp.P;
+    const float a = gtp.a;
+    const float m = gtp.m;
+    const float l = gtp.l;
+    const float c = gtp.c;
+    const float b = gtp.b;
+    const float l0 = ((P - m) * l) / a;
+    const float S0 = m + l0;
+    const float S1 = m + a * l0;
+    const float C2 = (a * P) / (P - S1);
+
+    float L = m + a * (x - m);
+    float T = m * pow(x / m, c) + b;
+    float S = P - (P - S1) * exp(-(C2 * (x - S0)) / P);
+    float w0 = 1.0 - smoothstep(0.0, m, x);
+    float w2 = (x < m + l0) ? 0.0 : 1.0;
+    float w1 = 1.0 - w0 - w2;
+    return T * w0 + L * w1 + S * w2;
+}
+float3 GTTonemap(float3 x, GTTonemapParams gtp)
+{
+    x.r = GTTonemap(x.r, gtp);
+    x.g = GTTonemap(x.g, gtp);
+    x.b = GTTonemap(x.b, gtp);
+    return x;
+}
 
 // simplified version of GT tonemapper.
 // only has linear and shoulder sections.
@@ -248,28 +293,42 @@ float3 HLG_OOTF(float3 S, float P)
 
 float3 ExposeScene(float3 c)
 {
-    // scene-referred scale
     const float wp = GetWhitepoint();
     const float nits = GetDisplayNits();
     const float exposure = GetExposure();
 
     if (HdrEnabled())
     {
-        const float kToPqNits = 1.0 / 10000.0;
-        const float hdrMp = 100.0 * kToPqNits;
-        const float hdrWp = nits * kToPqNits;
-        const float hdrExposure = exposure * hdrMp;
-
+        c *= exposure * nits;
         c = Color_SceneToHDR(c);
-        c *= hdrExposure;
-        c = GtsTonemap(c, hdrWp, hdrMp);
-        c = PQ_OETF(c);
+        c = max(c, 0.0);
+        const GTTonemapParams gtp =
+        {
+            nits,
+            1.0,
+            nits * 0.5,
+            0.4,
+            1.33,
+            0.0,
+        };
+        c = GTTonemap(c, gtp);
+        c = PQ_InverseEOTF(c);
     }
     else
     {
-        c = Color_SceneToSDR(c);
         c *= exposure;
-        c = GtsTonemap(c, wp, 0.666);
+        c = Color_SceneToSDR(c);
+        c = max(c, 0.0);
+        const GTTonemapParams gtp =
+        {
+            1.0,
+            1.0,
+            0.5,
+            0.4,
+            1.33,
+            0.0,
+        };
+        c = GTTonemap(c, gtp);
     }
 
     return saturate(c);
@@ -280,12 +339,14 @@ float3 ExposeUI(float3 c)
     if (HdrEnabled())
     {
         c = Color_SceneToHDR(c);
-        c *= (GetUiNits() / 10000.0);
-        c = PQ_OETF(c);
+        c = max(c, 0.0);
+        c *= GetUiNits();
+        c = PQ_InverseEOTF(c);
     }
     else
     {
         c = Color_SceneToSDR(c);
+        c = max(c, 0.0);
     }
     return saturate(c);
 }

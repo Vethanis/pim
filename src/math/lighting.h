@@ -1,10 +1,10 @@
 #pragma once
 
-#include "common/macro.h"
 #include "math/types.h"
 #include "math/float4_funcs.h"
 #include "math/float2_funcs.h"
 #include "math/area.h"
+#include "rendering/sampler.h"
 
 PIM_C_BEGIN
 
@@ -38,14 +38,16 @@ PIM_C_BEGIN
 #define kMinLightDistSq 0.001f
 #define kMinAlpha       kMinDenom
 
-typedef struct BrdfLut_s
-{
-    int2 size;
-    float2* pim_noalias texels;
-} BrdfLut;
-
+extern BrdfLut g_BrdfLut;
 BrdfLut BrdfLut_New(int2 size, u32 numSamples);
 void BrdfLut_Del(BrdfLut* lut);
+
+// r: refractance, integral of (1-F')*D*G*NoL
+// g: reflectance, integral of F'*D*G*NoL
+pim_inline float2 VEC_CALL BrdfLut_Sample(BrdfLut lut, float NoV, float alpha)
+{
+    return UvBilinearClamp_f2(lut.texels, lut.size, f2_v(NoV, alpha));
+}
 
 pim_inline float VEC_CALL BrdfAlpha(float roughness)
 {
@@ -142,7 +144,7 @@ pim_inline float VEC_CALL D_GTR_Sphere(
 // Correlated Smith
 // represents the self shadowing and masking of microfacets in rough materials
 // [Lagarde15, Page 12, Listing 2]
-pim_inline float VEC_CALL G_SmithGGX(float NoL, float NoV, float alpha)
+pim_inline float VEC_CALL V_SmithCorrelated(float NoL, float NoV, float alpha)
 {
     float a2 = alpha * alpha;
     float v = NoL * sqrtf(a2 + (NoV - NoV * a2) * NoV);
@@ -173,6 +175,28 @@ pim_inline float VEC_CALL Fd_Burley(
     return (lightScatter * viewScatter) / kPi;
 }
 
+pim_inline float4 VEC_CALL EnvBRDF(
+    float4 f0,
+    float NoV,
+    float alpha)
+{
+    float2 dfg = BrdfLut_Sample(g_BrdfLut, NoV, alpha);
+    float4 dfg1 = f4_mulvs(f4_inv(f0), dfg.x);
+    float4 dfg2 = f4_mulvs(f0, dfg.y);
+    return f4_add(dfg1, dfg2);
+}
+
+// https://advances.realtimerendering.com/s2018/Siggraph%202018%20HDRP%20talk_with%20notes.pdf#page=94
+pim_inline float4 VEC_CALL GGXEnergyCompensation(
+    float4 f0,
+    float NoV,
+    float alpha)
+{
+    float2 dfg = BrdfLut_Sample(g_BrdfLut, NoV, alpha);
+    float t = (1.0f / dfg.y) - 1.0f;
+    return f4_addvs(f4_mulvs(f0, t), 1.0f);
+}
+
 // multiply output by luminance
 pim_inline float4 VEC_CALL DirectBRDF(
     float4 V,
@@ -190,9 +214,10 @@ pim_inline float4 VEC_CALL DirectBRDF(
 
     float alpha = BrdfAlpha(roughness);
     float4 F = F_SchlickEx(albedo, metallic, HoV);
-    float G = G_SmithGGX(NoL, NoV, alpha);
+    float G = V_SmithCorrelated(NoL, NoV, alpha);
     float D = D_GTR(NoH, alpha);
     float4 Fr = f4_mulvs(F, D * G);
+    Fr = f4_mul(Fr, GGXEnergyCompensation(F_0(albedo, metallic), NoV, alpha));
 
     float4 Fd = f4_mulvs(
         DiffuseColor(albedo, metallic),
@@ -203,27 +228,11 @@ pim_inline float4 VEC_CALL DirectBRDF(
     return f4_add(Fr, Fd);
 }
 
-// polynomial approximation for convolved specular DFG
-// [Karis14]
-pim_inline float4 VEC_CALL EnvBRDF(
-    float4 F,
-    float NoV,
-    float alpha)
-{
-    const float4 c0 = { -1.0f, -0.0275f, -0.572f, 0.022f };
-    const float4 c1 = { 1.0f, 0.0425f, 1.04f, -0.04f };
-    float4 r = f4_add(f4_mulvs(c0, alpha), c1);
-    float a004 = f1_min(r.x * r.x, exp2f(-9.28f * NoV)) * r.x + r.y;
-    float a = -1.04f * a004 + r.z;
-    float b = 1.04f * a004 + r.w;
-    return f4_addvs(f4_mulvs(F, a), b);
-}
-
 pim_inline float4 VEC_CALL IndirectBRDF(
     float4 V,           // unit view vector pointing from surface to eye
     float4 N,           // unit normal vector pointing outward from surface
-    float4 diffuseGI,   // low frequency scene irradiance
-    float4 specularGI,  // high frequency scene irradiance
+    float4 diffuseGI,   // diffuse brdf scene irradiance
+    float4 specularGI,  // specular brdf filtered scene luminance
     float4 albedo,      // surface color
     float roughness,    // surface roughness
     float metallic,     // surface metalness
@@ -233,7 +242,7 @@ pim_inline float4 VEC_CALL IndirectBRDF(
     float NoV = f4_dotsat(N, V);
 
     float4 F = F_SchlickEx(albedo, metallic, NoV);
-    float4 Fr = EnvBRDF(F, NoV, alpha);
+    float4 Fr = EnvBRDF(F, NoV, roughness);
     Fr = f4_mul(Fr, specularGI);
 
     float4 Fd = f4_mul(DiffuseColor(albedo, metallic), diffuseGI);
@@ -462,7 +471,7 @@ pim_inline float4 VEC_CALL EvalSphereLight(
         float HoV = f4_dotsat(H, V);
         float NoL = f4_dotsat(N, L);
         float D = D_GTR_Sphere(NoH, alpha, alphaPrime);
-        float G = G_SmithGGX(NoL, NoV, alpha);
+        float G = V_SmithCorrelated(NoL, NoV, alpha);
         float4 F = F_SchlickEx(albedo, metallic, HoV);
         Fr = f4_mulvs(F, D * G);
 

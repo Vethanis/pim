@@ -3,12 +3,7 @@
 #include "math/types.h"
 #include "math/float4_funcs.h"
 
-typedef struct Grid_s
-{
-    Box3D bounds;
-    int3 size;
-    float cellsPerMeter;
-} Grid;
+PIM_C_BEGIN
 
 pim_inline void VEC_CALL Grid_New(Grid *const grid, Box3D bounds, float cellsPerMeter)
 {
@@ -52,3 +47,5 @@ pim_inline i32 VEC_CALL Grid_Index(Grid const *const grid, float4 position)
     i32 z = i1_clamp((i32)offset.z, 0, size.z - 1);
     return x + y * size.x + z * size.x * size.y;
 }
+
+PIM_C_END

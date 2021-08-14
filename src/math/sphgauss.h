@@ -1,10 +1,7 @@
 #pragma once
 
-#include "common/macro.h"
 #include "math/types.h"
 #include "math/float4_funcs.h"
-
-PIM_C_BEGIN
 
 /*
     This file was made possible from the knowledge shared by the following people:
@@ -18,13 +15,7 @@ PIM_C_BEGIN
       - https://torust.me/rendering/irradiance-caching/spherical-gaussians/2018/09/21/spherical-gaussians
 */
 
-typedef enum
-{
-    SGDist_Hemi = 0,
-    SGDist_Sphere,
-
-    SGDist_COUNT
-} SGDist;
+PIM_C_BEGIN
 
 // returns the value of a spherical gaussian basis when sampled by unit vector 'dir'
 pim_inline float VEC_CALL SG_BasisEval(float4 axis, float4 dir)

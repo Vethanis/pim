@@ -1,16 +1,8 @@
 #pragma once
 
-#include "common/macro.h"
+#include "math/types.h"
 
-typedef struct Dist1D_s
-{
-    float* pim_noalias pdf;
-    float* pim_noalias cdf;
-    u32* pim_noalias live;
-    i32 length;
-    float integral;
-    u32 sum;
-} Dist1D;
+PIM_C_BEGIN
 
 void Dist1D_New(Dist1D *const dist, i32 length);
 void Dist1D_Del(Dist1D *const dist);
@@ -26,3 +18,5 @@ float Dist1D_PdfD(Dist1D const *const dist, i32 i);
 
 void Dist1D_Inc(Dist1D *const dist, i32 i);
 void Dist1D_Update(Dist1D *const dist);
+
+PIM_C_END

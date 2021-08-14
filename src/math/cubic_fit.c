@@ -5,42 +5,58 @@
 #include "threading/task.h"
 #include "allocator/allocator.h"
 
-typedef float(*ErrFn)(dataset_t data, fit_t fit);
+typedef float(VEC_CALL *ErrFn)(dataset_t data, fit_t fit);
 
-pim_inline float CubicError(dataset_t data, fit_t fit)
+pim_inline float VEC_CALL CubicError(dataset_t data, fit_t fit)
 {
-    float error = 0.0f;
+    float err = 0.0f;
+    const float dx = 1.0f / data.len;
     for (i32 i = 0; i < data.len; ++i)
     {
         float y = CubicEval(data.xs[i], fit);
         float diff = y - data.ys[i];
-        error = f1_max(error, diff * diff);
+        err += diff * diff * dx;
     }
-    return sqrtf(error);
+    return sqrtf(err);
 }
 
-pim_inline float SqrticError(dataset_t data, fit_t fit)
+pim_inline float VEC_CALL SqrticError(dataset_t data, fit_t fit)
 {
-    float error = 0.0f;
+    float err = 0.0f;
+    const float dx = 1.0f / data.len;
     for (i32 i = 0; i < data.len; ++i)
     {
         float y = SqrticEval(data.xs[i], fit);
         float diff = y - data.ys[i];
-        error = f1_max(error, diff * diff);
+        err += diff * diff * dx;
     }
-    return sqrtf(error);
+    return sqrtf(err);
 }
 
-pim_inline float TMapError(dataset_t data, fit_t fit)
+pim_inline float VEC_CALL TMapError(dataset_t data, fit_t fit)
 {
-    float error = 0.0f;
+    float err = 0.0f;
+    const float dx = 1.0f / data.len;
     for (i32 i = 0; i < data.len; ++i)
     {
         float y = TMapEval(data.xs[i], fit);
         float diff = y - data.ys[i];
-        error = f1_max(error, diff * diff);
+        err += diff * diff * dx;
     }
-    return sqrtf(error);
+    return sqrtf(err);
+}
+
+pim_inline float VEC_CALL PolyError(dataset_t data, fit_t fit)
+{
+    float err = 0.0f;
+    const float dx = 1.0f / data.len;
+    for (i32 i = 0; i < data.len; ++i)
+    {
+        float y = PolyEval(data.xs[i], fit);
+        float diff = y - data.ys[i];
+        err += diff * diff * dx;
+    }
+    return sqrtf(err);
 }
 
 typedef enum
@@ -48,6 +64,9 @@ typedef enum
     Fit_Cubic,
     Fit_Sqrtic,
     Fit_TMap,
+    Fit_Poly,
+
+    Fit_COUNT
 } FitType;
 
 static const ErrFn ms_errFns[] =
@@ -55,6 +74,7 @@ static const ErrFn ms_errFns[] =
     CubicError,
     SqrticError,
     TMapError,
+    PolyError,
 };
 
 typedef struct FitTask
@@ -74,19 +94,17 @@ pim_inline float randf32(Prng* rng)
 
 pim_inline void randFit(Prng* rng, fit_t* fit)
 {
-    float* pim_noalias value = fit->value;
     for (i32 i = 0; i < NELEM(fit->value); ++i)
     {
-        value[i] = randf32(rng);
+        fit->value[i] = randf32(rng);
     }
 }
 
 pim_inline void mutateFit(Prng* rng, fit_t* fit, float amt)
 {
-    float* pim_noalias value = fit->value;
     for (i32 i = 0; i < NELEM(fit->value); ++i)
     {
-        value[i] += amt * randf32(rng);
+        fit->value[i] += amt * randf32(rng);
     }
 }
 
@@ -98,18 +116,18 @@ static void FitFn(void* pbase, i32 begin, i32 end)
     const ErrFn errFn = fitTask->errFn;
 
     Prng rng = Prng_Get();
-    for (i32 eval = begin; eval < end; ++eval)
+    for (i32 iFit = begin; iFit < end; ++iFit)
     {
         fit_t fit;
         randFit(&rng, &fit);
         float error = errFn(data, fit);
 
-        for (i32 j = 0; j < iterations; ++j)
+        for (i32 iIter = 0; iIter < iterations; ++iIter)
         {
-            for (i32 i = 0; i < 22; ++i)
+            for (i32 iBit = 0; iBit < 22; ++iBit)
             {
                 fit_t testFit = fit;
-                mutateFit(&rng, &testFit, 1.0f / (1 << i));
+                mutateFit(&rng, &testFit, 1.0f / (1 << iBit));
                 float testErr = errFn(data, testFit);
                 if (testErr < error)
                 {
@@ -119,8 +137,8 @@ static void FitFn(void* pbase, i32 begin, i32 end)
             }
         }
 
-        fitTask->fits[eval] = fit;
-        fitTask->errors[eval] = error;
+        fitTask->fits[iFit] = fit;
+        fitTask->errors[iFit] = error;
     }
     Prng_Set(rng);
 }
@@ -169,3 +187,9 @@ float TMapFit(dataset_t data, fit_t* fit, i32 iterations)
 {
     return CreateFit(data, fit, iterations, Fit_TMap);
 }
+
+float PolyFit(dataset_t data, fit_t* fit, i32 iterations)
+{
+    return CreateFit(data, fit, iterations, Fit_Poly);
+}
+

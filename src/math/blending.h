@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/macro.h"
 #include "math/types.h"
 #include "math/float4_funcs.h"
 #include "math/color.h"

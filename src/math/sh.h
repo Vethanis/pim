@@ -3,6 +3,8 @@
 #include "math/types.h"
 #include "math/float3_funcs.h"
 
+PIM_C_BEGIN
+
 pim_inline float VEC_CALL SH4_dotss(SH4s a, SH4s b)
 {
     float y = 0.0f;
@@ -107,3 +109,5 @@ pim_inline SH4v VEC_CALL SH4v_fit(SH4v x, float3 dir, float3 rad, float weight)
     x.v[3] = f3_lerpvs(x.v[3], proj.v[3], weight);
     return x;
 }
+
+PIM_C_END
