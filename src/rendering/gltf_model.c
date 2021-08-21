@@ -626,7 +626,7 @@ static TextureId CreateAlbedoTexture(
     }
     // sRGB OETF encoded, but in scene colorspace
     ASSERT(tex.format == VK_FORMAT_R8G8B8A8_SRGB);
-    Texture_New(&tex, VK_FORMAT_R8G8B8A8_SRGB, guid, &id);
+    Texture_New(&tex, VK_FORMAT_R8G8B8A8_SRGB, VK_SAMPLER_ADDRESS_MODE_REPEAT, guid, &id);
     return id;
 }
 
@@ -743,7 +743,7 @@ static TextureId CreateRomeTexture(
         Mem_Free(emtex.texels);
     }
 
-    Texture_New(&tex, VK_FORMAT_R8G8B8A8_SRGB, guid, &id);
+    Texture_New(&tex, VK_FORMAT_R8G8B8A8_SRGB, VK_SAMPLER_ADDRESS_MODE_REPEAT, guid, &id);
     return id;
 }
 
@@ -791,7 +791,7 @@ static TextureId CreateNormalTexture(
         tex.texels = dst;
         tex.format = VK_FORMAT_R16G16_SNORM;
     }
-    Texture_New(&tex, tex.format, guid, &id);
+    Texture_New(&tex, tex.format, VK_SAMPLER_ADDRESS_MODE_REPEAT, guid, &id);
     return id;
 }
 
@@ -950,7 +950,7 @@ bool ResampleToAlbedoRome(
 
     if (!Texture_Exists(material->albedo))
     {
-        Texture_New(&albedotex, albedotex.format, albedoGuid, &material->albedo);
+        Texture_New(&albedotex, albedotex.format, VK_SAMPLER_ADDRESS_MODE_REPEAT, albedoGuid, &material->albedo);
     }
     else
     {
@@ -958,7 +958,7 @@ bool ResampleToAlbedoRome(
     }
     if (!Texture_Exists(material->rome))
     {
-        Texture_New(&rometex, rometex.format, romeGuid, &material->rome);
+        Texture_New(&rometex, rometex.format, VK_SAMPLER_ADDRESS_MODE_REPEAT, romeGuid, &material->rome);
     }
     else
     {

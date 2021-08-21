@@ -38,12 +38,17 @@ PIM_C_BEGIN
 #define kMinLightDistSq 0.001f
 #define kMinAlpha       kMinDenom
 
-extern BrdfLut g_BrdfLut;
-BrdfLut BrdfLut_New(int2 size, u32 numSamples);
-void BrdfLut_Del(BrdfLut* lut);
+void LightingSys_Init(void);
+void LightingSys_Update(void);
+void LightingSys_Shutdown(void);
 
-// r: refractance, integral of (1-F')*D*G*NoL
-// g: reflectance, integral of F'*D*G*NoL
+extern BrdfLut g_BrdfLut;
+BrdfLut BrdfLut_New(int2 size, i32 numSamples);
+void BrdfLut_Del(BrdfLut* lut);
+void BrdfLut_Update(BrdfLut* lut, i32 prevSamples, i32 newSamples);
+
+// r: reflectance, integral of Fc*D*V*NoL
+// g: visibility, integral of D*V*NoL
 pim_inline float2 VEC_CALL BrdfLut_Sample(BrdfLut lut, float NoV, float alpha)
 {
     return UvBilinearClamp_f2(lut.texels, lut.size, f2_v(NoV, alpha));

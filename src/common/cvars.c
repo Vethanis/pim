@@ -195,6 +195,16 @@ ConVar cv_r_tex_custom =
     .desc = "Enable loading custom textures",
 };
 
+ConVar cv_r_brdflut_spf =
+{
+    .type = cvart_int,
+    .name = "r_brdflut_spf",
+    .value = "10",
+    .minInt = 0,
+    .maxInt = 1000,
+    .desc = "Brdf LUT samples per frame",
+};
+
 ConVar cv_pt_dist_meters =
 {
     .type = cvart_float,
@@ -572,6 +582,7 @@ void ConVars_RegisterAll(void)
     ConVar_Reg(&cv_r_zfar);
     ConVar_Reg(&cv_r_znear);
     ConVar_Reg(&cv_r_tex_custom);
+    ConVar_Reg(&cv_r_brdflut_spf);
     ConVar_Reg(&cv_ui_opacity);
     ConVar_Reg(&cv_r_whitepoint);
     ConVar_Reg(&cv_in_yawscale);
