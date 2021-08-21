@@ -466,8 +466,8 @@ typedef struct pim_alignas(16) fit_s
 typedef struct BrdfLut_s
 {
     int2 size;
-    // r: refractance, integral of (1-F)*D*G*NoL
-    // g: reflectance, integral of F*D*G*NoL
+    // r: reflectance, integral of Fc*D*V*NoL
+    // g: visibility, integral of D*V*NoL
     float2* pim_noalias texels;
 } BrdfLut;
 

@@ -25,4 +25,6 @@ cmdstat_t cmd_enqueue(const char* text);
 cmdstat_t cmd_immediate(const char* text);
 const char* cmd_parse(const char* text, char* tokenOut, i32 bufSize);
 
+const char* cmd_getopt(i32 argc, const char** argv, const char* key);
+
 PIM_C_END

@@ -40,6 +40,11 @@
 
 // ----------------------------------------------------------------------------
 
+static RTCDevice ms_device;
+static PtSampler ms_samplers[kMaxThreads];
+
+// ----------------------------------------------------------------------------
+
 static void PtScene_Init(PtScene* scene);
 static void PtScene_Clear(PtScene* scene);
 static void OnRtcError(void* user, RTCError error, const char* msg);
@@ -215,68 +220,27 @@ static void DofUpdate(PtTrace* trace, const Camera* camera);
 
 // ----------------------------------------------------------------------------
 
-pim_inline PtSampler VEC_CALL GetSampler(void);
-pim_inline void VEC_CALL SetSampler(PtSampler sampler);
+pim_inline PtSampler VEC_CALL GetSampler(void)
+{
+    i32 tid = Task_ThreadId();
+    return ms_samplers[tid];
+}
 
-pim_inline float VEC_CALL Sample1D(PtSampler*const pim_noalias sampler);
-pim_inline float2 VEC_CALL Sample2D(PtSampler*const pim_noalias sampler);
+pim_inline void VEC_CALL SetSampler(PtSampler sampler)
+{
+    i32 tid = Task_ThreadId();
+    ms_samplers[tid] = sampler;
+}
 
-pim_inline float VEC_CALL RoulettePrng(PtSampler *const pim_noalias sampler)
+pim_inline float VEC_CALL Sample1D(PtSampler*const pim_noalias sampler)
 {
-    float Xi = f1_wrap(sampler->Xi[0] + kGoldenConj);
-    sampler->Xi[0] = Xi;
-    return Xi;
+    return Prng_f32(&sampler->rng);
 }
-pim_inline float VEC_CALL LightSelectPrng(PtSampler *const pim_noalias sampler)
-{
-    float Xi = f1_wrap(sampler->Xi[1] + kSqrt2Conj);
-    sampler->Xi[1] = Xi;
-    return Xi;
-}
-pim_inline float VEC_CALL BrdfPrng(PtSampler*const pim_noalias sampler)
-{
-    float Xi = f1_wrap(sampler->Xi[2] + kSqrt3Conj);
-    sampler->Xi[2] = Xi;
-    return Xi;
-}
-pim_inline float VEC_CALL ScatterPrng(PtSampler *const pim_noalias sampler)
-{
-    float Xi = f1_wrap(sampler->Xi[3] + kSqrt5Conj);
-    sampler->Xi[3] = Xi;
-    return Xi;
-}
-pim_inline float VEC_CALL PhaseDirPrng(PtSampler *const pim_noalias sampler)
-{
-    float Xi = f1_wrap(sampler->Xi[4] + kSqrt7Conj);
-    sampler->Xi[4] = Xi;
-    return Xi;
-}
-pim_inline float2 VEC_CALL UvPrng(PtSampler *const pim_noalias sampler)
-{
-    float Xi = f1_wrap(sampler->Xi[5] + kSqrt11Conj);
-    sampler->Xi[5] = Xi;
-    float Yi = f1_wrap(sampler->Xi[6] + kSqrt17Conj);
-    sampler->Xi[6] = Yi;
-    return f2_v(Xi, Yi);
-}
-pim_inline float2 VEC_CALL DofPrng(PtSampler *const pim_noalias sampler)
-{
-    float Xi = f1_wrap(sampler->Xi[7] + kSqrt13Conj);
-    sampler->Xi[7] = Xi;
-    float Yi = f1_wrap(sampler->Xi[8] + kSqrt19Conj);
-    sampler->Xi[8] = Yi;
-    return f2_v(Xi, Yi);
-}
-pim_inline float VEC_CALL MisPrng(PtSampler *const pim_noalias sampler)
-{
-    float Xi = f1_wrap(sampler->Xi[9] + kSqrt23Conj);
-    sampler->Xi[9] = Xi;
-    return Xi;
-}
-// ----------------------------------------------------------------------------
 
-static RTCDevice ms_device;
-static PtSampler ms_samplers[kMaxThreads];
+pim_inline float2 VEC_CALL Sample2D(PtSampler*const pim_noalias sampler)
+{
+    return f2_rand(&sampler->rng);
+}
 
 // ----------------------------------------------------------------------------
 
@@ -307,16 +271,10 @@ static bool InitRTC(void)
 
 static void InitSamplers(void)
 {
-    const i32 numthreads = Task_ThreadCount();
-
     Prng rng = Prng_Get();
-    for (i32 i = 0; i < numthreads; ++i)
+    for (i32 i = 0; i < NELEM(ms_samplers); ++i)
     {
         ms_samplers[i].rng.state = Prng_u64(&rng);
-        for (i32 j = 0; j < NELEM(ms_samplers[i].Xi); ++j)
-        {
-            ms_samplers[i].Xi[j] = Prng_f32(&rng);
-        }
     }
     Prng_Set(rng);
 }
@@ -1471,7 +1429,7 @@ pim_inline PtScatter VEC_CALL RefractScatter(
 
     float4 P = surf->P;
     float4 F = F_SchlickEx(surf->albedo, surf->metallic, f1_sat(cosTheta));
-    if (BrdfPrng(sampler) > pdf)
+    if (Sample1D(sampler) > pdf)
     {
         L = f4_normalize3(f4_refract3(I, m, k));
         pdf = 1.0f - pdf;
@@ -1520,7 +1478,7 @@ pim_inline PtScatter VEC_CALL BrdfScatter(
     {
         float2 Xi = Sample2D(sampler);
         float3x3 TBN = NormalToTBN(N);
-        if (BrdfPrng(sampler) < rcpProb)
+        if (Sample1D(sampler) < rcpProb)
         {
             float4 m = TbnToWorld(TBN, SampleGGXMicrofacet(Xi, alpha));
             L = f4_reflect3(I, m);
@@ -1534,12 +1492,7 @@ pim_inline PtScatter VEC_CALL BrdfScatter(
     float NoL = f4_dot3(N, L);
     if (NoL <= 0.0f)
     {
-        L = f4_reflect3(L, N);
-        NoL = f4_dot3(N, L);
-        if (NoL <= 0.0f)
-        {
-            return result;
-        }
+        return result;
     }
 
     float4 H = f4_normalize3(f4_add(V, L));
@@ -1625,7 +1578,7 @@ pim_inline bool VEC_CALL LightSelect(
         return false;
     }
 
-    i32 iEmit = Dist1D_SampleD(dist, LightSelectPrng(sampler));
+    i32 iEmit = Dist1D_SampleD(dist, Sample1D(sampler));
     float pdf = Dist1D_PdfD(dist, iEmit);
 
     i32 iVert = scene->emitToVert[iEmit];
@@ -1738,7 +1691,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
     ASSERT(surf->roughness <= 1.0f);
     const float pRough = f1_lerp(0.05f, 0.95f, surf->roughness);
     const float pSmooth = 1.0f - pRough;
-    if (MisPrng(sampler) < pRough)
+    if (Sample1D(sampler) < pRough)
     {
         i32 iVert;
         float selectPdf;
@@ -2098,7 +2051,7 @@ pim_inline float4 VEC_CALL SamplePhaseDir(
     {
         L = SampleUnitSphere(Sample2D(sampler));
         L.w = CalcPhase(media, f4_dot3(rd, L));
-    } while (PhaseDirPrng(sampler) > L.w);
+    } while (Sample1D(sampler) > L.w);
     return L;
 }
 
@@ -2158,7 +2111,7 @@ pim_inline PtScatter VEC_CALL ScatterRay(
         float4 ratio = f4_inv(f4_mulvs(media.extinction, rcpMaj));
 
         float scatterProb = f4_hmax3(media.scattering) * rcpMaj;
-        if (ScatterPrng(sampler) < scatterProb)
+        if (Sample1D(sampler) < scatterProb)
         {
             float substep = Sample1D(sampler);
             float4 P = f4_add(ro, f4_mulvs(rd, t + substep * dt));
@@ -2218,7 +2171,7 @@ PtResult VEC_CALL Pt_TraceRay(
     {
         {
             float p = f1_sat(f4_avglum(attenuation));
-            if (RoulettePrng(sampler) < p)
+            if (Sample1D(sampler) < p)
             {
                 attenuation = f4_divvs(attenuation, p);
             }
@@ -2313,7 +2266,7 @@ pim_inline Ray VEC_CALL CalculateDof(
     float2 offset;
     {
         i32 side = Prng_i32(&sampler->rng);
-        float2 Xi = DofPrng(sampler);
+        float2 Xi = Sample2D(sampler);
         if (dof->bladeCount == 666)
         {
             offset = SamplePentagram(Xi, side);
@@ -2425,7 +2378,7 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
 
         // gaussian AA filter
         float2 uv = { (coord.x + 0.5f), (coord.y + 0.5f) };
-        float2 Xi = SampleGaussPixelFilter(UvPrng(&sampler));
+        float2 Xi = SampleGaussPixelFilter(Sample2D(&sampler));
         uv = f2_snorm(f2_mul(f2_add(uv, Xi), rcpSize));
 
         Ray ray = { eye, proj_dir(right, up, fwd, slope, uv) };
@@ -2533,26 +2486,4 @@ PtResults Pt_RayGen(
     ProfileEnd(pm_raygen);
 
     return results;
-}
-
-pim_inline float VEC_CALL Sample1D(PtSampler*const pim_noalias sampler)
-{
-    return Prng_f32(&sampler->rng);
-}
-
-pim_inline float2 VEC_CALL Sample2D(PtSampler*const pim_noalias sampler)
-{
-    return f2_rand(&sampler->rng);
-}
-
-pim_inline PtSampler VEC_CALL GetSampler(void)
-{
-    i32 tid = Task_ThreadId();
-    return ms_samplers[tid];
-}
-
-pim_inline void VEC_CALL SetSampler(PtSampler sampler)
-{
-    i32 tid = Task_ThreadId();
-    ms_samplers[tid] = sampler;
 }

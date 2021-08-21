@@ -536,11 +536,7 @@ bool RenderSys_Init(void)
     PtSys_Init();
     EntSys_Init();
     EnsureFramebuf();
-#if _DEBUG
-    g_BrdfLut = BrdfLut_New(i2_v(16, 16), 512);
-#else
-    g_BrdfLut = BrdfLut_New(i2_v(64, 64), 8192);
-#endif // _DEBUG
+    LightingSys_Init();
 
     cmd_enqueue("mapload start");
 
@@ -573,6 +569,7 @@ void RenderSys_Update(void)
     TextureSys_Update();
     MeshSys_Update();
     ModelSys_Update();
+    LightingSys_Update();
     PtSys_Update();
     EntSys_Update();
 
@@ -591,7 +588,7 @@ void RenderSys_Update(void)
 
 void RenderSys_Shutdown(void)
 {
-    BrdfLut_Del(&g_BrdfLut);
+    LightingSys_Shutdown();
     ShutdownPtScene();
 
     EntSys_Shutdown();
@@ -766,7 +763,6 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
         v = Color_SceneToSDR(v);
         v = f4_maxvs(v, 0.0f);
         v = f4_GTTonemap(v, gtp);
-        v.w = 1.0f;
         v = f4_sRGB_InverseEOTF(v);
         Xi = f4_frac(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
         v = f4_lerpvs(v, Xi, 1.0f / 255.0f);
@@ -1076,7 +1072,7 @@ static TextureId GenFlatTexture(const char* name, const char* suffix, float4 val
     R8G8B8A8_t* texels = Tex_Alloc(sizeof(texels[0]));
     texels[0] = GammaEncode_rgba8(value);
     tex.texels = texels;
-    Texture_New(&tex, VK_FORMAT_R8G8B8A8_SRGB, Guid_FromStr(fullname), &id);
+    Texture_New(&tex, VK_FORMAT_R8G8B8A8_SRGB, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, Guid_FromStr(fullname), &id);
     return id;
 }
 
@@ -1088,7 +1084,6 @@ static Material GenMaterial(
 {
     Material mat = { 0 };
     mat.ior = 1.0f;
-    //albedo = Color_AP1_AP0(albedo); // project color from current space to widest space as a test (incorrect)
     albedo = Color_SDRToScene(albedo); // project color into rendering space (correct-ish)
     mat.albedo = GenFlatTexture(name, "albedo", albedo);
     mat.rome = GenFlatTexture(name, "rome", rome);
@@ -1397,6 +1392,16 @@ static cmdstat_t CmdLookat(i32 argc, const char** argv)
 
 static cmdstat_t CmdPtTest(i32 argc, const char** argv)
 {
+    char cmd[PIM_PATH] = { 0 };
+
+    const char* framesopt = cmd_getopt(argc, argv, "frames");
+    i32 frames = 500;
+    if (framesopt)
+    {
+        frames = ParseInt(framesopt);
+        frames = i1_clamp(frames, 1, 1 << 20);
+    }
+
     cmd_enqueue("cornell_box");
     cmd_enqueue("teleport -4 0 4");
     cmd_enqueue("lookat 0 -1 0");
@@ -1404,7 +1409,7 @@ static cmdstat_t CmdPtTest(i32 argc, const char** argv)
     cmd_enqueue("exp_manual 1");
     cmd_enqueue("exp_evoffset 5");
     cmd_enqueue("pt_trace 1");
-    cmd_enqueue("wait 500");
+    SPrintf(ARGS(cmd), "wait %d", frames); cmd_enqueue(cmd);
     cmd_enqueue("pt_stddev");
     cmd_enqueue("pt_denoise 1; wait; screenshot; pt_denoise 0; pt_trace 0");
     cmd_enqueue("quit");

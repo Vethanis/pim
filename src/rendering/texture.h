@@ -46,8 +46,16 @@ void TextureSys_Update(void);
 void TextureSys_Shutdown(void);
 void TextureSys_Gui(bool* pEnabled);
 
-bool Texture_LoadAt(const char* path, VkFormat format, TextureId* idOut);
-bool Texture_New(Texture* tex, VkFormat format, Guid name, TextureId* idOut);
+bool Texture_LoadAt(const char* path, VkFormat format, VkSamplerAddressMode clamp, TextureId* idOut);
+bool Texture_New(
+    Texture* tex,
+    VkFormat format,
+    VkSamplerAddressMode clamp,
+    Guid name,
+    TextureId* idOut);
+
+// upload cpu changes to gpu
+bool Texture_Upload(TextureId id);
 
 bool Texture_Exists(TextureId id);
 

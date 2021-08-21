@@ -14,6 +14,7 @@ bool vkrTexTable_Exists(vkrTextureId id);
 vkrTextureId vkrTexTable_Alloc(
     VkImageViewType type,
     VkFormat format,
+    VkSamplerAddressMode clamp,
     i32 width,
     i32 height,
     i32 depth,

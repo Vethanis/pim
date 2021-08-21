@@ -24,11 +24,14 @@ extern ConVar cv_r_height;
 extern ConVar cv_r_fpslimit;
 extern ConVar cv_r_bumpiness;
 extern ConVar cv_r_tex_custom;
+extern ConVar cv_r_brdflut_spf;
+
 extern ConVar cv_pt_dist_meters;
 extern ConVar cv_pt_trace;
 extern ConVar cv_pt_denoise;
 extern ConVar cv_pt_normal;
 extern ConVar cv_pt_albedo;
+
 extern ConVar cv_r_refl_gen;
 extern ConVar cv_r_sun_dir;
 extern ConVar cv_r_sun_lum;

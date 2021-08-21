@@ -130,6 +130,7 @@ bool vkrUIPass_New(void)
         ms_font = vkrTexTable_Alloc(
             VK_IMAGE_VIEW_TYPE_2D,
             VK_FORMAT_R8G8B8A8_SRGB,
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
             width, height, 1, 1, true);
         vkrTexTable_Upload(ms_font, 0, pixels, sizeof(u32) * width * height);
         SASSERT(sizeof(io->Fonts[0].TexID) >= sizeof(ms_font));

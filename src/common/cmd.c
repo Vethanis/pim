@@ -438,6 +438,64 @@ wspace:
     return text;
 }
 
+const char* cmd_getopt(i32 argc, const char** argv, const char* key)
+{
+    ASSERT(argc >= 0);
+    ASSERT(argv);
+    ASSERT(key);
+    const i32 keyLen = StrLen(key);
+    for (i32 i = 0; i < argc; ++i)
+    {
+        const char* argvi = argv[i];
+        ASSERT(argvi);
+        if (argvi[0] == '-')
+        {
+            const char* maybeKey = argvi + 1;
+            if (StrICmp(maybeKey, keyLen, key) == 0)
+            {
+                const char* endOfKey = maybeKey + keyLen;
+                if (endOfKey[0] == '=')
+                {
+                    // -key=value
+                    return endOfKey + 1;
+                }
+                else if (!endOfKey[0])
+                {
+                    // -key value
+                    if (i + 1 < argc)
+                    {
+                        const char* value = argv[i + 1];
+                        ASSERT(value);
+                        if (value[0] == '-')
+                        {
+                            if (IsDigit(value[1]))
+                            {
+                                // -key -3
+                                return value;
+                            }
+                            else
+                            {
+                                // -keyA -keyB
+                                return "";
+                            }
+                        }
+                        else
+                        {
+                            return value;
+                        }
+                    }
+                    else
+                    {
+                        // -key 
+                        return "";
+                    }
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
 static char** cmd_tokenize(const char* text, i32* argcOut)
 {
     ASSERT(text);

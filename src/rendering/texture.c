@@ -90,8 +90,12 @@ void TextureSys_Shutdown(void)
     Table_Del(&ms_table);
 }
 
-bool Texture_LoadAt(const char* path, VkFormat format, TextureId* idOut)
+ProfileMark(pm_loadat, Texture_LoadAt)
+bool Texture_LoadAt(const char* path, VkFormat format, VkSamplerAddressMode clamp, TextureId* idOut)
 {
+    ProfileBegin(pm_loadat);
+
+    bool loaded = false;
     i32 width = 0;
     i32 height = 0;
     i32 channels = 0;
@@ -103,17 +107,22 @@ bool Texture_LoadAt(const char* path, VkFormat format, TextureId* idOut)
         tex.size = (int2) { width, height };
         tex.texels = texels;
         Guid name = Guid_FromStr(path);
-        return Texture_New(&tex, format, name, idOut);
+        loaded = Texture_New(&tex, format, clamp, name, idOut);
     }
-    return false;
+
+    ProfileEnd(pm_loadat);
+    return loaded;
 }
 
+ProfileMark(pm_new, Texture_New)
 bool Texture_New(
     Texture* tex,
     VkFormat format,
+    VkSamplerAddressMode clamp,
     Guid name,
     TextureId* idOut)
 {
+    ProfileBegin(pm_new);
     ASSERT(tex);
     ASSERT(idOut);
     ASSERT(tex->size.x > 0);
@@ -137,6 +146,7 @@ bool Texture_New(
             tex->slot = vkrTexTable_Alloc(
                 VK_IMAGE_VIEW_TYPE_2D,
                 format,
+                clamp,
                 width,
                 height,
                 1, // depth
@@ -157,7 +167,26 @@ bool Texture_New(
     {
         FreeTexture(tex);
     }
+    ProfileEnd(pm_new);
     return added;
+}
+
+ProfileMark(pm_upload, Texture_Upload)
+bool Texture_Upload(TextureId id)
+{
+    ProfileBegin(pm_upload);
+    VkFence fence = NULL;
+    Texture* tex = Texture_Get(id);
+    if (tex)
+    {
+        ResizeToPow2(tex);
+        i32 width = tex->size.x;
+        i32 height = tex->size.y;
+        i32 bytes = (width * height * vkrFormatToBpp(tex->format)) / 8;
+        fence = vkrTexTable_Upload(tex->slot, 0, tex->texels, bytes);
+    }
+    ProfileEnd(pm_upload);
+    return fence != NULL;
 }
 
 bool Texture_Exists(TextureId id)
@@ -170,13 +199,16 @@ void Texture_Retain(TextureId id)
     Table_Retain(&ms_table, ToGenId(id));
 }
 
+ProfileMark(pm_release, Texture_Release)
 void Texture_Release(TextureId id)
 {
+    ProfileBegin(pm_release);
     Texture tex = { 0 };
     if (Table_Release(&ms_table, ToGenId(id), &tex))
     {
         FreeTexture(&tex);
     }
+    ProfileEnd(pm_release);
 }
 
 Texture* Texture_Get(TextureId id)
@@ -210,8 +242,11 @@ bool Texture_GetName(TextureId tid, char* dst, i32 size)
     return false;
 }
 
+ProfileMark(pm_save, Texture_Save)
 bool Texture_Save(Crate* crate, TextureId tid, Guid* dst)
 {
+    ProfileBegin(pm_save);
+
     bool wasSet = false;
     if (Texture_GetGuid(tid, dst))
     {
@@ -233,18 +268,24 @@ bool Texture_Save(Crate* crate, TextureId tid, Guid* dst)
         }
         Mem_Free(dtexture);
     }
+
+    ProfileEnd(pm_save);
     return wasSet;
 }
 
+ProfileMark(pm_load, Texture_Load)
 bool Texture_Load(Crate* crate, Guid name, TextureId* dst)
 {
+    ProfileBegin(pm_load);
+
+    bool loaded = false;
     if (Texture_Find(name, dst))
     {
         Texture_Retain(*dst);
-        return true;
+        loaded = true;
+        goto cleanup;
     }
 
-    bool loaded = false;
     Texture texture = { 0 };
     i32 offset = 0;
     i32 size = 0;
@@ -266,12 +307,15 @@ bool Texture_Load(Crate* crate, Guid name, TextureId* dst)
                     memmove(dtexture, dtexture + 1, texelBytes);
                     texture.texels = (u32*)dtexture;
                     dtexture = NULL;
-                    loaded = Texture_New(&texture, format, name, dst);
+                    loaded = Texture_New(&texture, format, VK_SAMPLER_ADDRESS_MODE_REPEAT, name, dst);
                 }
             }
         }
         Mem_Free(dtexture);
     }
+
+cleanup:
+    ProfileEnd(pm_load);
     return loaded;
 }
 
@@ -458,6 +502,7 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
 }
 
 // https://quakewiki.org/wiki/Quake_palette
+ProfileMark(pm_unpalette, Texture_Unpalette)
 bool Texture_Unpalette(
     u8 const *const pim_noalias bytes,
     int2 size,
@@ -468,6 +513,8 @@ bool Texture_Unpalette(
     TextureId *const romeOut,
     TextureId *const normalOut)
 {
+    ProfileBegin(pm_unpalette);
+
     char albedoName[PIM_PATH] = { 0 };
     char romeName[PIM_PATH] = { 0 };
     char normalName[PIM_PATH] = { 0 };
@@ -548,21 +595,22 @@ bool Texture_Unpalette(
         albedoMap.size = size;
         albedoMap.texels = albedos;
         albedoAdded = Texture_New(
-            &albedoMap, VK_FORMAT_R8G8B8A8_SRGB, albedoguid, albedoOut);
+            &albedoMap, VK_FORMAT_R8G8B8A8_SRGB, VK_SAMPLER_ADDRESS_MODE_REPEAT, albedoguid, albedoOut);
 
         Texture romeMap = { 0 };
         romeMap.size = size;
         romeMap.texels = romes;
         romeAdded = Texture_New(
-            &romeMap, VK_FORMAT_R8G8B8A8_SRGB, romeguid, romeOut);
+            &romeMap, VK_FORMAT_R8G8B8A8_SRGB, VK_SAMPLER_ADDRESS_MODE_REPEAT, romeguid, romeOut);
 
         Texture normalMap = { 0 };
         normalMap.size = size;
         normalMap.texels = normals;
         normalAdded = Texture_New(
-            &normalMap, VK_FORMAT_R16G16_SNORM, normalguid, normalOut);
+            &normalMap, VK_FORMAT_R16G16_SNORM, VK_SAMPLER_ADDRESS_MODE_REPEAT, normalguid, normalOut);
     }
 
+    ProfileEnd(pm_unpalette);
     return albedoAdded && romeAdded && normalAdded;
 }
 
@@ -624,17 +672,19 @@ static void ResizeToPow2Fn_xy16(void* pbase, i32 begin, i32 end)
     }
 }
 
+ProfileMark(pm_resizepow2, ResizeToPow2)
 static void ResizeToPow2(Texture* tex)
 {
+    ProfileBegin(pm_resizepow2);
+
     const int2 oldSize = tex->size;
     const int2 newSize = {
         .x = NextPow2(oldSize.x),
         .y = NextPow2(oldSize.y),
     };
-
     if (i2_all(i2_eq(oldSize, newSize)))
     {
-        return;
+        goto cleanup;
     }
 
     const i32 newLen = newSize.x * newSize.y;
@@ -647,7 +697,7 @@ static void ResizeToPow2(Texture* tex)
     {
     default:
         ASSERT(false);
-        return;
+        break;
     case VK_FORMAT_R32G32B32A32_SFLOAT:
     {
         task->dst = Tex_Alloc(newLen * sizeof(float4));
@@ -685,6 +735,9 @@ static void ResizeToPow2(Texture* tex)
     }
     break;
     }
+
+cleanup:
+    ProfileEnd(pm_resizepow2);
 }
 
 // ----------------------------------------------------------------------------

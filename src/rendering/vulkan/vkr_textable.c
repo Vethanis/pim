@@ -54,6 +54,7 @@ static bool TexTable_Exists(const TexTable* tt, vkrTextureId id);
 static vkrTextureId TexTable_Alloc(
     TexTable* tt,
     VkFormat format,
+    VkSamplerAddressMode clamp,
     i32 width,
     i32 height,
     i32 depth,
@@ -101,7 +102,7 @@ static void TexTable_New(TexTable* tt, VkImageViewType viewType, i32 capacity)
         break;
     }
 
-    vkrTextureId id = TexTable_Alloc(tt, VK_FORMAT_R8G8B8A8_UNORM, 1, 1, 1, layers, false);
+    vkrTextureId id = TexTable_Alloc(tt, VK_FORMAT_R8G8B8A8_UNORM, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, 1, 1, 1, layers, false);
     ASSERT(id.index == 0);
     const u32 blackTexel = 0x0;
     for (i32 layer = 0; layer < layers; ++layer)
@@ -150,6 +151,7 @@ static bool TexTable_Exists(const TexTable* tt, vkrTextureId id)
 static vkrTextureId TexTable_Alloc(
     TexTable* tt,
     VkFormat format,
+    VkSamplerAddressMode clamp,
     i32 width,
     i32 height,
     i32 depth,
@@ -176,7 +178,7 @@ static vkrTextureId TexTable_Alloc(
     desc->sampler = vkrSampler_Get(
         VK_FILTER_LINEAR,
         VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        clamp,
         4.0f);
 
     return ToTexId(gid, viewType);
@@ -342,6 +344,7 @@ bool vkrTexTable_Exists(vkrTextureId id)
 vkrTextureId vkrTexTable_Alloc(
     VkImageViewType type,
     VkFormat format,
+    VkSamplerAddressMode clamp,
     i32 width,
     i32 height,
     i32 depth,
@@ -385,7 +388,7 @@ vkrTextureId vkrTexTable_Alloc(
         ASSERT(layers <= 255);
         break;
     }
-    return TexTable_Alloc(GetTexTable(type), format, width, height, depth, layers, mips);
+    return TexTable_Alloc(GetTexTable(type), format, clamp, width, height, depth, layers, mips);
 }
 
 bool vkrTexTable_Free(vkrTextureId id)

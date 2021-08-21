@@ -110,6 +110,7 @@ void Lightmap_New(Lightmap* lm, i32 size)
     lm->slot = vkrTexTable_Alloc(
         VK_IMAGE_VIEW_TYPE_2D_ARRAY,
         VK_FORMAT_R32G32B32A32_SFLOAT,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
         size,
         size,
         1,

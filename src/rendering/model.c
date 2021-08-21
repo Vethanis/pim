@@ -335,7 +335,7 @@ static Material GenMaterial(
             if (tex.texels)
             {
                 TextureId customId = { 0 };
-                if (Texture_New(&tex, format, guids[i], &customId))
+                if (Texture_New(&tex, format, VK_SAMPLER_ADDRESS_MODE_REPEAT, guids[i], &customId))
                 {
                     Texture_Release(ids[i]);
                     ids[i] = customId;

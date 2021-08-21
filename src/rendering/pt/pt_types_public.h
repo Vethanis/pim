@@ -15,7 +15,6 @@ typedef struct PtScene_s PtScene;
 typedef struct PtSampler_s
 {
     Prng rng;
-    float Xi[10];
 } PtSampler;
 
 typedef enum
