@@ -1,15 +1,8 @@
 #pragma once
 
-#include "common/macro.h"
+#include "io/types.h"
 
 PIM_C_BEGIN
-
-#include "io/fd.h"
-
-typedef struct FStream_s
-{
-    void* handle;
-} FStream;
 
 bool FStream_IsOpen(FStream fstr);
 FStream FStream_Open(const char* filename, const char* mode);

@@ -1,8 +1,46 @@
 #include "io/fmap.h"
+#include "io/fd.h"
+#include <string.h>
+
+// ----------------------------------------------------------------------------
+
+bool FileMap_IsOpen(FileMap* map)
+{
+    return map->ptr != NULL;
+}
+
+FileMap FileMap_Open(const char* path, bool writable)
+{
+    fd_t fd = fd_open(path, writable);
+    if (!fd_isopen(fd))
+    {
+        return (FileMap) { 0 };
+    }
+    FileMap map = FileMap_New(fd, writable);
+    if (!FileMap_IsOpen(&map))
+    {
+        fd_close(&fd);
+        return (FileMap) { 0 };
+    }
+    return map;
+}
+
+void FileMap_Close(FileMap* map)
+{
+    if (map)
+    {
+        fd_t fd = map->fd;
+        FileMap_Del(map);
+        fd_close(&fd);
+    }
+}
+
+#if PLAT_WINDOWS
+// ----------------------------------------------------------------------------
+// Windows
 
 #include <Windows.h>
 #include <io.h>
-#include <string.h>
 
 FileMap FileMap_New(fd_t fd, bool writable)
 {
@@ -29,8 +67,12 @@ FileMap FileMap_New(fd_t fd, bool writable)
         return result;
     }
 
-    i32 flProtect = writable ? PAGE_READWRITE : PAGE_READONLY;
-    i32 dwDesiredAccess = writable ? (FILE_MAP_READ | FILE_MAP_WRITE) : FILE_MAP_READ;
+    const i32 kRwProt = PAGE_READWRITE;
+    const i32 kReadProt = PAGE_READONLY;
+    const i32 kReadAcc = FILE_MAP_READ;
+    const i32 kWriteAcc = FILE_MAP_READ | FILE_MAP_WRITE;
+    i32 flProtect = writable ? kRwProt : kReadProt;
+    i32 dwDesiredAccess = writable ? kWriteAcc : kReadAcc;
 
     HANDLE fileMapping = CreateFileMappingA(hdl, NULL, flProtect, 0, size, NULL);
     if (!fileMapping)
@@ -60,19 +102,20 @@ void FileMap_Del(FileMap* fmap)
 {
     if (fmap)
     {
-        if (FileMap_IsOpen(*fmap))
+        if (FileMap_IsOpen(fmap))
         {
             UnmapViewOfFile(fmap->ptr);
         }
-        memset(fmap, 0, sizeof(*fmap));
+        fmap->ptr = NULL;
+        fmap->size = 0;
     }
 }
 
-bool FileMap_Flush(FileMap fmap)
+bool FileMap_Flush(FileMap* fmap)
 {
     if (FileMap_IsOpen(fmap))
     {
-        return FlushViewOfFile(fmap.ptr, fmap.size);
+        return FlushViewOfFile(fmap->ptr, fmap->size);
     }
     else
     {
@@ -80,28 +123,69 @@ bool FileMap_Flush(FileMap fmap)
     }
 }
 
-FileMap FileMap_Open(const char* path, bool writable)
+#else
+// ----------------------------------------------------------------------------
+// POSIX
+
+#include <sys/mman.h>
+
+FileMap FileMap_New(fd_t fd, bool writable)
 {
-    fd_t fd = fd_open(path, writable);
+    FileMap result = { 0 };
     if (!fd_isopen(fd))
     {
-        return (FileMap) { 0 };
+        ASSERT(false);
+        return result;
     }
-    FileMap map = FileMap_New(fd, writable);
-    if (!FileMap_IsOpen(map))
+
+    const i32 size = (i32)fd_size(fd);
+    if (size < 0)
     {
-        fd_close(&fd);
-        return (FileMap) { 0 };
+        // files bigger than 2GB are not supported
+        ASSERT(false);
+        return result;
     }
-    return map;
+
+    // https://man7.org/linux/man-pages/man2/mmap.2.html
+    const i32 kWriteProt = PROT_READ | PROT_WRITE;
+    const i32 kReadProt = PROT_READ;
+    const i32 prot = writable ? kWriteProt : kReadProt;
+    const i32 flags = 0x0;
+    const i32 offset = 0;
+    void* addr = mmap(NULL, size, prot, flags, fd.handle, offset)
+
+    result.ptr = addr;
+    result.size = size;
+    result.fd = fd;
+
+    return result;
 }
 
-void FileMap_Close(FileMap* map)
+void FileMap_Del(FileMap* fmap)
 {
-    if (map)
+    if (fmap)
     {
-        fd_t fd = map->fd;
-        FileMap_Del(map);
-        fd_close(&fd);
+        if (FileMap_IsOpen(fmap))
+        {
+            munmap(fmap->ptr, fmap->size);
+        }
+        fmap->ptr = NULL;
+        fmap->size = 0;
     }
 }
+
+bool FileMap_Flush(FileMap* fmap)
+{
+    if (FileMap_IsOpen(fmap))
+    {
+        // https://man7.org/linux/man-pages/man2/msync.2.html
+        // https://stackoverflow.com/a/47915517
+        return msync(fmap->ptr, fmap->size, MS_SYNC) == 0;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+#endif // PLAT_X

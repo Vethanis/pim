@@ -1,4 +1,5 @@
 #include "io/fstr.h"
+#include "io/fd.h"
 
 #include <stdio.h>
 #include <stdarg.h>

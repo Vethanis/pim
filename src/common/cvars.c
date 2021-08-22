@@ -8,10 +8,10 @@ ConVar cv_basedir =
     .desc = "Base directory for game data",
 };
 
-ConVar cv_gamedir =
+ConVar cv_game =
 {
     .type = cvart_text,
-    .name = "gamedir",
+    .name = "game",
     .value = "id1",
     .desc = "Name of the active game",
 };
@@ -552,7 +552,7 @@ void ConVars_RegisterAll(void)
     ConVar_Reg(&cv_r_refl_gen);
     ConVar_Reg(&cv_con_logpath);
     ConVar_Reg(&cv_r_fpslimit);
-    ConVar_Reg(&cv_gamedir);
+    ConVar_Reg(&cv_game);
     ConVar_Reg(&cv_r_display_nits_min);
     ConVar_Reg(&cv_r_display_nits_max);
     ConVar_Reg(&cv_r_ui_nits);

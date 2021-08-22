@@ -1,21 +1,21 @@
 #include "io/env.h"
 
-#include <stdlib.h>
 #include "common/stringutil.h"
+#include <stdlib.h>
 
-pim_inline i32 NotNeg(i32 x)
+static i32 NotNeg(i32 x)
 {
     ASSERT(x >= 0);
     return x;
 }
 
-pim_inline void* NotNull(void* x)
+static void* NotNull(void* x)
 {
     ASSERT(x != NULL);
     return x;
 }
 
-pim_inline i32 IsZero(i32 x)
+static i32 IsZero(i32 x)
 {
     ASSERT(x == 0);
     return x;

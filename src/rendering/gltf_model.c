@@ -95,7 +95,7 @@ bool Gltf_Load(const char* path, Entities* dr)
     cgltf_result result = cgltf_result_success;
 
     map = FileMap_Open(path, false);
-    if (!FileMap_IsOpen(map))
+    if (!FileMap_IsOpen(&map))
     {
         ASSERT(false);
         success = false;

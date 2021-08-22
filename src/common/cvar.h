@@ -60,6 +60,9 @@ ConVar* ConVar_Find(const char* name);
 // attempts to auto-complete namePart to a cvar name
 const char* ConVar_Complete(const char* namePart);
 
+bool ConVars_Save(const char* path);
+bool ConVars_Load(const char* path);
+
 // updates string and float value, sets dirty flag
 void ConVar_SetStr(ConVar* ptr, const char* value);
 void ConVar_SetFloat(ConVar* ptr, float value);
