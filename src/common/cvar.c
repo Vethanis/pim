@@ -2,6 +2,7 @@
 
 #include "allocator/allocator.h"
 #include "common/console.h"
+#include "common/cmd.h"
 #include "common/fnv1a.h"
 #include "common/stringutil.h"
 #include "common/profiler.h"
@@ -11,7 +12,7 @@
 #include "math/float4_funcs.h"
 #include "containers/sdict.h"
 #include "ui/cimgui_ext.h"
-#include <stdlib.h> // atof
+#include "io/fstr.h"
 #include <stdio.h> // sscanf
 #include <string.h>
 
@@ -63,6 +64,44 @@ const char* ConVar_Complete(const char* namePart)
     return NULL;
 }
 
+bool ConVars_Save(const char* path)
+{
+    FStream f = FStream_Open(path, "wb");
+    if (FStream_IsOpen(f))
+    {
+        const u32 width = ms_dict.width;
+        const char** keys = ms_dict.keys;
+        const ConVar* values = ms_dict.values;
+        for (u32 i = 0; i < width; ++i)
+        {
+            if (keys[i] && (values[i].flags & cvarf_save))
+            {
+                FStream_Printf(f, "%s = %s\n", values[i].name, values[i].value);
+            }
+        }
+        FStream_Close(&f);
+        return true;
+    }
+    return false;
+}
+
+bool ConVars_Load(const char* path)
+{
+    FStream f = FStream_Open(path, "rb");
+    if (FStream_IsOpen(f))
+    {
+        char line[1024] = { 0 };
+        while (FStream_Gets(f, ARGS(line)))
+        {
+            cmd_enqueue(line);
+            line[0] = 0;
+        }
+        FStream_Close(&f);
+        return true;
+    }
+    return false;
+}
+
 void ConVar_SetStr(ConVar* var, const char* value)
 {
     ASSERT(var);
@@ -89,12 +128,12 @@ void ConVar_SetStr(ConVar* var, const char* value)
         break;
         case cvart_int:
         {
-            var->asInt = i1_clamp(atoi(value), var->minInt, var->maxInt);
+            var->asInt = i1_clamp(ParseInt(value), var->minInt, var->maxInt);
         }
         break;
         case cvart_float:
         {
-            var->asFloat = f1_clamp((float)atof(value), var->minFloat, var->maxFloat);
+            var->asFloat = f1_clamp(ParseFloat(value), var->minFloat, var->maxFloat);
         }
         break;
         case cvart_color:

@@ -9,7 +9,6 @@
 #include "common/profiler.h"
 #include "common/console.h"
 #include <string.h>
-#include <stdlib.h>
 
 typedef struct cmdalias_s
 {
@@ -152,7 +151,7 @@ static cmdstat_t cmd_exec(const char* line)
     cmdalias_t alias = { 0 };
     if (StrDict_Get(&ms_aliases, name, &alias))
     {
-        return cmd_text(alias.value, true);
+        return cmd_immediate(alias.value);
     }
 
     // cvars
@@ -185,10 +184,10 @@ static cmdstat_t cmd_exec(const char* line)
                 ConVar_SetStr(cvar, v0);
                 break;
             case cvart_float:
-                ConVar_SetFloat(cvar, (float)atof(v0));
+                ConVar_SetFloat(cvar, ParseFloat(v0));
                 break;
             case cvart_int:
-                ConVar_SetInt(cvar, atoi(v0));
+                ConVar_SetInt(cvar, ParseInt(v0));
                 break;
             case cvart_bool:
                 ConVar_SetBool(cvar, (v0[0] != '0') && (v0[0] != 'f') && (v0[0] != 'F'));
@@ -196,7 +195,7 @@ static cmdstat_t cmd_exec(const char* line)
             case cvart_vector:
             case cvart_point:
             case cvart_color:
-                ConVar_SetVec(cvar, (float4) { (float)atof(v0), (float)atof(v1), (float)atof(v2), (float)atof(v2) });
+                ConVar_SetVec(cvar, (float4) { ParseFloat(v0), ParseFloat(v1), ParseFloat(v2), ParseFloat(v2) });
                 break;
             }
             Con_Logf(LogSev_Info, "cmd", "'%s' = '%s'", cvar->name, cvar->value);
@@ -626,7 +625,7 @@ static cmdstat_t cmd_wait_fn(i32 argc, const char** argv)
 {
     if (argc > 1)
     {
-        i32 count = atoi(argv[1]);
+        i32 count = ParseInt(argv[1]);
         if (count > 0)
         {
             ms_waits += count;

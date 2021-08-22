@@ -7,6 +7,7 @@
 #include "common/sort.h"
 #include "common/stringutil.h"
 #include "common/console.h"
+#include "common/time.h"
 #include "io/fnd.h"
 #include "containers/sdict.h"
 #include "quake/q_packfile.h"
@@ -16,16 +17,16 @@
 
 static StrDict ms_assets;
 static SearchPath ms_search;
+static char ms_dir[PIM_PATH];
 
-void AssetSys_Init(void)
+static void GetGameDir(char* dst, i32 size)
 {
-    StrDict_New(&ms_assets, sizeof(asset_t), EAlloc_Perm);
-    SearchPath_New(&ms_search);
+    SPrintf(dst, size, "%s/%s", ConVar_GetStr(&cv_basedir), ConVar_GetStr(&cv_game));
+}
 
-    char path[PIM_PATH] = { 0 };
-    SPrintf(ARGS(path), "%s/%s", ConVar_GetStr(&cv_basedir), ConVar_GetStr(&cv_gamedir));
-    SearchPath_AddPack(&ms_search, path);
-
+static void RefreshTable(void)
+{
+    StrDict_Clear(&ms_assets);
     for (i32 i = 0; i < ms_search.packCount; ++i)
     {
         const Pack* pack = &ms_search.packs[i];
@@ -47,10 +48,30 @@ void AssetSys_Init(void)
     }
 }
 
+void AssetSys_Init(void)
+{
+    StrDict_New(&ms_assets, sizeof(asset_t), EAlloc_Perm);
+    SearchPath_New(&ms_search);
+
+    GetGameDir(ARGS(ms_dir));
+    SearchPath_AddPack(&ms_search, ms_dir);
+    RefreshTable();
+}
+
 ProfileMark(pm_update, AssetSys_Update)
 void AssetSys_Update()
 {
     ProfileBegin(pm_update);
+
+    char dir[PIM_PATH];
+    GetGameDir(ARGS(dir));
+    if (StrCmp(ARGS(ms_dir), dir) != 0)
+    {
+        SearchPath_RmPack(&ms_search, ms_dir);
+        StrCpy(ARGS(ms_dir), dir);
+        SearchPath_AddPack(&ms_search, ms_dir);
+        RefreshTable();
+    }
 
     ProfileEnd(pm_update);
 }

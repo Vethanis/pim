@@ -65,4 +65,5 @@ void Pack_Free(Pack* pack);
 void SearchPath_New(SearchPath* sp);
 void SearchPath_Del(SearchPath* sp);
 i32 SearchPath_AddPack(SearchPath* sp, const char* dir);
-void SearchPath_RmPack(SearchPath* sp, const char* dir);
+bool SearchPath_RmPack(SearchPath* sp, const char* dir);
+i32 SearchPath_FindPack(SearchPath* sp, const char* dir);

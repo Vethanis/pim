@@ -2,13 +2,6 @@
 
 #include "common/macro.h"
 
-typedef enum
-{
-    ChMod_Read = 0x0100,
-    ChMod_Write = 0x0080,
-    ChMod_Exec = 0x0040,
-} ChModFlags;
-
 PIM_C_BEGIN
 
 bool IO_GetCwd(char* dst, i32 size);

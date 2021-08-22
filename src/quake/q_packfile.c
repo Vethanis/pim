@@ -12,7 +12,7 @@ bool Pack_Load(Pack* pack, const char* path)
     memset(pack, 0, sizeof(*pack));
 
     FileMap map = FileMap_Open(path, false);
-    if (!FileMap_IsOpen(map))
+    if (!FileMap_IsOpen(&map))
     {
         goto onfail;
     }
@@ -98,6 +98,10 @@ i32 SearchPath_AddPack(SearchPath* sp, const char* path)
         char subdir[PIM_PATH];
         SPrintf(ARGS(subdir), "%s/%s", path, fndData.name);
         StrPath(ARGS(subdir));
+        if (SearchPath_FindPack(sp, subdir) >= 0)
+        {
+            continue;
+        }
         Pack pack;
         if (Pack_Load(&pack, subdir))
         {
@@ -114,25 +118,28 @@ i32 SearchPath_AddPack(SearchPath* sp, const char* path)
     return numLoaded;
 }
 
-void SearchPath_RmPack(SearchPath* sp, const char* path)
+bool SearchPath_RmPack(SearchPath* sp, const char* path)
 {
-    i32 len = sp->packCount;
-    Pack* packs = sp->packs;
+    i32 i = SearchPath_FindPack(sp, path);
+    if (i >= 0)
+    {
+        Pack_Free(&sp->packs[i]);
+        sp->packs[i] = sp->packs[sp->packCount - 1];
+        sp->packCount--;
+    }
+    return i >= 0;
+}
+
+i32 SearchPath_FindPack(SearchPath* sp, const char* path)
+{
+    const i32 len = sp->packCount;
+    const Pack* packs = sp->packs;
     for (i32 i = 0; i < len; ++i)
     {
-        if (StrIStr(packs[i].path, PIM_PATH, path))
+        if (StrICmp(ARGS(packs[i].path), path) == 0)
         {
-            Pack_Free(&packs[i]);
-            --len;
-            packs[i] = packs[len];
-            memset(&packs[len], 0, sizeof(packs[0]));
-            --i;
+            return i;
         }
     }
-    sp->packCount = len;
-    if (!len)
-    {
-        Mem_Free(sp->packs);
-        sp->packs = NULL;
-    }
+    return -1;
 }

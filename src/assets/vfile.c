@@ -91,7 +91,7 @@ bool VFile_IsOpen(VFileHdl hdl)
         case VFileType_Stream:
             return FStream_IsOpen(vf->stream);
         case VFileType_Map:
-            return FileMap_IsOpen(vf->map);
+            return FileMap_IsOpen(&vf->map);
         case VFileType_SubFile:
             return VFile_IsOpen(vf->subfile.owner);
         }
@@ -127,7 +127,7 @@ VFileHdl VFile_New(const char* path, const char* mode, VFileType type)
     case VFileType_Map:
     {
         vf.map = FileMap_Open(path, writable);
-        opened = FileMap_IsOpen(vf.map);
+        opened = FileMap_IsOpen(&vf.map);
     }
     break;
     }

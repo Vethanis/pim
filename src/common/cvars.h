@@ -5,7 +5,7 @@
 PIM_C_BEGIN
 
 extern ConVar cv_basedir;
-extern ConVar cv_gamedir;
+extern ConVar cv_game;
 extern ConVar cv_con_logpath;
 extern ConVar cv_in_pitchscale;
 extern ConVar cv_in_yawscale;
