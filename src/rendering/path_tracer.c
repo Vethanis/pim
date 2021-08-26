@@ -2102,27 +2102,27 @@ pim_inline PtScatter VEC_CALL ScatterRay(
     while (true)
     {
         float dt = SampleFreePath(Sample1D(sampler), rcpMaj);
-        if ((t + dt) >= rayLen)
+        t += dt;
+        if (t >= rayLen)
         {
             break;
         }
 
-        PtMedia media = Media_Sample(desc, f4_add(ro, f4_mulvs(rd, t)));
+        float4 P = f4_add(ro, f4_mulvs(rd, t));
+        PtMedia media = Media_Sample(desc, P);
         float4 ratio = f4_inv(f4_mulvs(media.extinction, rcpMaj));
+        result.attenuation = f4_mul(result.attenuation, ratio);
 
         float scatterProb = f4_hmax3(media.scattering) * rcpMaj;
         if (Sample1D(sampler) < scatterProb)
         {
-            float substep = Sample1D(sampler);
-            float4 P = f4_add(ro, f4_mulvs(rd, t + substep * dt));
-            result.attenuation = f4_lerpvs(result.attenuation, f4_mul(result.attenuation, ratio), substep);
-
             float4 lum;
             float4 L;
             if (EvaluateLight(sampler, scene, P, &lum, &L, bounce))
             {
                 float ph = CalcPhase(media, f4_dot3(rd, L));
                 lum = f4_mulvs(lum, ph * dt);
+                lum = f4_mul(result.attenuation, lum);
                 result.luminance = lum;
             }
 
@@ -2133,28 +2133,10 @@ pim_inline PtScatter VEC_CALL ScatterRay(
             result.attenuation = f4_mulvs(result.attenuation, ph);
             break;
         }
-
-        result.attenuation = f4_mul(result.attenuation, ratio);
-        t += dt;
     }
 
     return result;
 }
-
-typedef struct TraceCtx_s
-{
-    PtSampler* pim_noalias sampler;
-    PtScene* pim_noalias scene;
-    PtResult result;
-    float4 luminance;
-    float4 transport;
-    float4 ro;
-    float4 rd;
-    PtRayHit rayHit[2];
-    PtSurfHit surfHit[2];
-    PtMedia media[2];
-    i32 bounce;
-} TraceCtx;
 
 PtResult VEC_CALL Pt_TraceRay(
     PtSampler *const pim_noalias sampler,
@@ -2193,7 +2175,6 @@ PtResult VEC_CALL Pt_TraceRay(
 
         {
             PtScatter scatter = ScatterRay(sampler, scene, ro, rd, hit.wuvt.w, b);
-            luminance = f4_add(luminance, f4_mul(scatter.luminance, attenuation));
             if (scatter.pdf > kEpsilon)
             {
                 {
@@ -2202,6 +2183,7 @@ PtResult VEC_CALL Pt_TraceRay(
                     result.albedo = f3_lerpvs(result.albedo, f4_f3(albedo), t);
                     result.normal = f3_lerpvs(result.normal, f4_f3(f4_neg(rd)), t);
                 }
+                luminance = f4_add(luminance, f4_mul(attenuation, scatter.luminance));
                 attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
                 ro = scatter.pos;
                 rd = scatter.dir;

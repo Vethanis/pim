@@ -11,18 +11,16 @@ bool Pack_Load(Pack* pack, const char* path)
 {
     memset(pack, 0, sizeof(*pack));
 
-    FileMap map = FileMap_Open(path, false);
-    if (!FileMap_IsOpen(&map))
+    pack->mapped = FileMap_Open(path, false);
+    if (!FileMap_IsOpen(&pack->mapped))
     {
         goto onfail;
     }
 
-    StrCpy(ARGS(pack->path), path);
-    const dpackheader_t* header = map.ptr;
-
-    if (map.size < sizeof(*header))
+    const dpackheader_t* header = pack->mapped.ptr;
+    if (pack->mapped.size < sizeof(*header))
     {
-        Con_Logf(LogSev_Error, "pak", "Pack is smaller than its header: '%d' in '%s'.", map.size, path);
+        Con_Logf(LogSev_Error, "pak", "Pack is smaller than its header: '%d' in '%s'.", pack->mapped.size, path);
         goto onfail;
     }
     if (memcmp(header->id, "PACK", 4) != 0)
@@ -40,13 +38,13 @@ bool Pack_Load(Pack* pack, const char* path)
         goto onfail;
     }
 
-    pack->mapped = map;
-    pack->files = (const dpackfile_t*)((u8*)map.ptr + header->offset);
+    StrCpy(ARGS(pack->path), path);
+    pack->files = (const dpackfile_t*)((u8*)(pack->mapped.ptr) + header->offset);
     pack->filecount = filecount;
     return true;
 
 onfail:
-    FileMap_Close(&map);
+    Pack_Free(pack);
     return false;
 }
 
@@ -56,6 +54,33 @@ void Pack_Free(Pack* pack)
     {
         FileMap_Close(&pack->mapped);
         memset(pack, 0, sizeof(*pack));
+    }
+}
+
+bool LooseFile_Load(LooseFile* file, const char* dir, const char* name)
+{
+    memset(file, 0, sizeof(*file));
+
+    file->mapped = FileMap_Open(dir, false);
+    if (!FileMap_IsOpen(&file->mapped))
+    {
+        goto onfail;
+    }
+    StrCpy(ARGS(file->path), dir);
+    StrCpy(ARGS(file->name), name);
+    return true;
+
+onfail:
+    LooseFile_Free(file);
+    return false;
+}
+
+void LooseFile_Free(LooseFile* file)
+{
+    if (file)
+    {
+        FileMap_Close(&file->mapped);
+        memset(file, 0, sizeof(*file));
     }
 }
 
@@ -75,14 +100,28 @@ void SearchPath_Del(SearchPath* sp)
         Mem_Free(sp->packs);
         for (i32 i = 0; i < sp->fileCount; ++i)
         {
-            Mem_Free(sp->filenames[i]);
+            LooseFile_Free(&sp->files[i]);
         }
-        Mem_Free(sp->filenames);
+        Mem_Free(sp->files);
         memset(sp, 0, sizeof(*sp));
     }
 }
 
-i32 SearchPath_AddPack(SearchPath* sp, const char* path)
+i32 SearchPath_FindPack(SearchPath* sp, const char* path)
+{
+    const i32 ct = sp->packCount;
+    const Pack* packs = sp->packs;
+    for (i32 i = ct - 1; i >= 0; --i)
+    {
+        if (StrICmp(ARGS(packs[i].path), path) == 0)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool SearchPath_AddPack(SearchPath* sp, const char* path)
 {
     char packDir[PIM_PATH];
     SPrintf(ARGS(packDir), "%s/*.pak", path);
@@ -115,7 +154,7 @@ i32 SearchPath_AddPack(SearchPath* sp, const char* path)
     sp->packs = packs;
     sp->packCount = length;
 
-    return numLoaded;
+    return numLoaded > 0;
 }
 
 bool SearchPath_RmPack(SearchPath* sp, const char* path)
@@ -130,16 +169,81 @@ bool SearchPath_RmPack(SearchPath* sp, const char* path)
     return i >= 0;
 }
 
-i32 SearchPath_FindPack(SearchPath* sp, const char* path)
+i32 SearchPath_FindLooseByPath(SearchPath* sp, const char* path)
 {
-    const i32 len = sp->packCount;
-    const Pack* packs = sp->packs;
-    for (i32 i = 0; i < len; ++i)
+    ASSERT(path && path[0]);
+    const i32 ct = sp->fileCount;
+    const LooseFile* files = sp->files;
+    for (i32 i = ct - 1; i >= 0; --i)
     {
-        if (StrICmp(ARGS(packs[i].path), path) == 0)
+        if (StrICmp(ARGS(files[i].path), path) == 0)
         {
             return i;
         }
     }
     return -1;
 }
+
+i32 SearchPath_FindLooseByName(SearchPath* sp, const char* name)
+{
+    ASSERT(name && name[0]);
+    const i32 ct = sp->fileCount;
+    const LooseFile* files = sp->files;
+    for (i32 i = ct - 1; i >= 0; --i)
+    {
+        if (StrICmp(ARGS(files[i].name), name) == 0)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool SearchPath_AddLoose(SearchPath* sp, const char* path, const char* name)
+{
+    // TODO: normalize paths and names, hash them for faster lookup.
+    if (SearchPath_FindLooseByPath(sp, path) >= 0)
+    {
+        return false;
+    }
+    if (SearchPath_FindLooseByName(sp, path) >= 0)
+    {
+        return false;
+    }
+    LooseFile file = { 0 };
+    if (LooseFile_Load(&file, path, name))
+    {
+        i32 b = sp->fileCount++;
+        Perm_Reserve(sp->files, b + 1);
+        sp->files[b] = file;
+        return true;
+    }
+    return false;
+}
+
+bool SearchPath_RmLooseByPath(SearchPath* sp, const char* path)
+{
+    i32 i = SearchPath_FindLooseByPath(sp, path);
+    if (i >= 0)
+    {
+        LooseFile_Free(&sp->files[i]);
+        PopSwap(sp->files, i, sp->fileCount);
+        sp->fileCount--;
+        return true;
+    }
+    return false;
+}
+
+bool SearchPath_RmLooseByName(SearchPath* sp, const char* name)
+{
+    i32 i = SearchPath_FindLooseByName(sp, name);
+    if (i >= 0)
+    {
+        LooseFile_Free(&sp->files[i]);
+        PopSwap(sp->files, i, sp->fileCount);
+        sp->fileCount--;
+        return true;
+    }
+    return false;
+}
+
