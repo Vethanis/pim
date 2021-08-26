@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "common/macro.h"
-#include "io/fmap.h"
+#include "io/types.h"
 
 // dpackheader_t
 // common.c 1231
@@ -51,19 +51,36 @@ typedef struct Pack_s
     const dpackfile_t* files;
 } Pack;
 
+typedef struct LooseFile_s
+{
+    char path[PIM_PATH];
+    char name[56];
+    FileMap mapped;
+} LooseFile;
+
 typedef struct SearchPath_s
 {
     i32 packCount;
     Pack* packs;
     i32 fileCount;
-    char** filenames;
+    LooseFile* files;
 } SearchPath;
 
 bool Pack_Load(Pack* pack, const char* dir);
 void Pack_Free(Pack* pack);
+bool LooseFile_Load(LooseFile* file, const char* dir, const char* name);
+void LooseFile_Free(LooseFile* file);
 
 void SearchPath_New(SearchPath* sp);
 void SearchPath_Del(SearchPath* sp);
-i32 SearchPath_AddPack(SearchPath* sp, const char* dir);
-bool SearchPath_RmPack(SearchPath* sp, const char* dir);
+
 i32 SearchPath_FindPack(SearchPath* sp, const char* dir);
+bool SearchPath_AddPack(SearchPath* sp, const char* dir);
+bool SearchPath_RmPack(SearchPath* sp, const char* dir);
+
+i32 SearchPath_FindLooseByPath(SearchPath* sp, const char* path);
+i32 SearchPath_FindLooseByName(SearchPath* sp, const char* name);
+bool SearchPath_AddLoose(SearchPath* sp, const char* path, const char* name);
+bool SearchPath_RmLooseByPath(SearchPath* sp, const char* path);
+bool SearchPath_RmLooseByName(SearchPath* sp, const char* name);
+
