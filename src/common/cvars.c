@@ -181,7 +181,7 @@ ConVar cv_r_bumpiness =
 {
     .type = cvart_float,
     .name = "r_bumpiness",
-    .value = "1",
+    .value = "0.75",
     .minFloat = 0.0f,
     .maxFloat = 11.0f,
     .desc = "Bumpiness of generated normal maps [0, 11]",

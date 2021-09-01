@@ -101,6 +101,66 @@ pim_inline float VEC_CALL F_Schlick1(float f0, float f90, float cosTheta)
     return f1_lerp(f0, f90, t5);
 }
 
+// common indices of refraction:
+// vacuum: 1.0
+// air at sea level: 1.00029
+// ice: 1.31
+// water at 20C: 1.333
+// quartz: 1.46
+// glass: 1.5 to 1.6
+// sapphire: 1.77
+// diamond: 2.42
+
+// cosTheta: HoV or HoL
+// etaI: ior of material on reflected side
+// etaT: ior of material on transmitted side
+pim_inline float VEC_CALL F_SchlickIor(float cosTheta, float etaI, float etaT)
+{
+    cosTheta = f1_clamp(cosTheta, -1.0f, 1.0f);
+    if (cosTheta < 0.0f)
+    {
+        // transmission
+        cosTheta = -cosTheta;
+        float tmp = etaI;
+        etaI = etaT;
+        etaT = tmp;
+    }
+    float k = etaI / etaT;
+    float r0 = f1_sat(f1_sq((1.0f - k) / (1.0f + k)));
+    float t = 1.0f - cosTheta;
+    t = t * t * t * t * t;
+    return f1_lerp(r0, 1.0f, f1_sat(t));
+}
+
+// cosThetaI: HoV or HoL
+// etaI: ior of material on reflected side
+// etaT: ior of material on transmitted side
+pim_inline float VEC_CALL F_Dielectric(float cosThetaI, float etaI, float etaT)
+{
+    cosThetaI = f1_clamp(cosThetaI, -1.0f, 1.0f);
+    if (cosThetaI < 0.0f)
+    {
+        // transmission
+        cosThetaI = -cosThetaI;
+        float tmp = etaI;
+        etaI = etaT;
+        etaT = tmp;
+    }
+    float sinThetaI = sqrtf(f1_max(0.0f, 1.0f - cosThetaI * cosThetaI));
+    float sinThetaT = (etaI / etaT) * sinThetaI;
+    if (sinThetaT >= 1.0f)
+    {
+        // total internal reflection
+        return 1.0f;
+    }
+    float cosThetaT = sqrtf(f1_max(0.0f, 1.0f - sinThetaT * sinThetaT));
+    float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
+        ((etaT * cosThetaI) + (etaI * cosThetaT));
+    float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
+        ((etaI * cosThetaI) + (etaT * cosThetaT));
+    return (Rparl * Rparl + Rperp * Rperp) * 0.5f;
+}
+
 // aka 'Specular Color'
 pim_inline float4 VEC_CALL F_SchlickEx(
     float4 albedo,

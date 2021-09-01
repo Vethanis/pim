@@ -15,7 +15,7 @@ pim_inline bool VEC_CALL IsUnitLength(float4 dir)
     float len = f4_length3(dir);
     float dist = f1_distance(len, 1.0f);
     // kEpsilon is a bit too strict in this case
-    if (dist > 0.0001f)
+    if (dist > 1e-4f)
     {
         INTERRUPT();
         return false;
@@ -35,12 +35,15 @@ pim_inline float3x3 VEC_CALL NormalToTBN(float4 N)
     TBN.c2 = N;
     TBN.c0 = f4_normalize3(f4_cross3(a, TBN.c2));
     TBN.c1 = f4_cross3(TBN.c2, TBN.c0);
+    ASSERT(IsUnitLength(TBN.c1));
     return TBN;
 }
 
 pim_inline float4 VEC_CALL TbnToWorld(float3x3 TBN, float4 nTS)
 {
-    return f3x3_mul_col(TBN, nTS);
+    float4 nWS = f3x3_mul_col(TBN, nTS);
+    ASSERT(IsUnitLength(nWS));
+    return nWS;
 }
 
 pim_inline float4 VEC_CALL TanToWorld(float4 normalWS, float4 normalTS)

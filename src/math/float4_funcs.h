@@ -782,12 +782,13 @@ pim_inline float4 VEC_CALL f4_reflect3(float4 i, float4 n)
     return f4_sub(i, f4_mulvs(nidn, 2.0f));
 }
 
-pim_inline float4 VEC_CALL f4_refract3(float4 i, float4 n, float eta)
+pim_inline float4 VEC_CALL f4_refract3(float4 i, float4 n, float etaI, float etaT)
 {
     float cosTheta = f1_min(1.0f, f4_dot3(f4_neg(i), n));
-    float4 r_out_perp = f4_mulvs(f4_add(f4_mulvs(n, cosTheta), i), eta);
+    float k = (cosTheta > 0.0f) ? (etaI / etaT) : (etaT / etaI);
+    float4 r_out_perp = f4_mulvs(f4_add(f4_mulvs(n, cosTheta), i), k);
     float4 r_out_parallel = f4_mulvs(n, -sqrtf(f1_abs(1.0f - f4_lengthsq3(r_out_perp))));
-    return f4_add(r_out_perp, r_out_parallel);
+    return f4_normalize3(f4_add(r_out_perp, r_out_parallel));
 }
 
 pim_inline float4 VEC_CALL f4_sqrt(float4 v)

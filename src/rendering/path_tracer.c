@@ -38,6 +38,8 @@
 #include "stb/stb_perlin_fork.h"
 #include <string.h>
 
+pim_optimize;
+
 // ----------------------------------------------------------------------------
 
 static RTCDevice ms_device;
@@ -1216,13 +1218,22 @@ pim_inline float4 VEC_CALL SampleRome(const Material* mat, float2 uv)
     return value;
 }
 
+// M: geometry normal
+// N: shading normal
+pim_inline float4 VEC_CALL FixShadingNormal(float4 M, float4 N)
+{
+    N = (f4_dot3(M, N) > 0.0f) ? N : f4_reflect3(N, M);
+    ASSERT(IsUnitLength(N));
+    return N;
+}
+
 pim_inline float4 VEC_CALL SampleNormal(const Material* mat, float2 uv, float4 N)
 {
     Texture const *const pim_noalias tex = Texture_Get(mat->normal);
     if (tex)
     {
         float4 Nts = UvBilinearWrapPow2_xy16(tex->texels, tex->size, uv);
-        N = TanToWorld(N, Nts);
+        N = FixShadingNormal(N, TanToWorld(N, Nts));
     }
     return N;
 }
@@ -1383,16 +1394,6 @@ pim_inline float4 VEC_CALL BrdfEval(
     return brdf;
 }
 
-pim_inline float VEC_CALL Schlick(float cosTheta, float k)
-{
-    float r0 = (1.0f - k) / (1.0f + k);
-    r0 = f1_sat(r0 * r0);
-    float t = 1.0f - cosTheta;
-    t = t * t * t * t * t;
-    t = f1_sat(t);
-    return f1_lerp(r0, 1.0f, t);
-}
-
 pim_inline float4 VEC_CALL RefractBrdfEval(
     PtSampler *const pim_noalias sampler,
     float4 I,
@@ -1408,39 +1409,49 @@ pim_inline PtScatter VEC_CALL RefractScatter(
     const PtSurfHit* surf,
     float4 I)
 {
-    const float kAir = 1.000277f;
-    const float matIor = f1_max(1.0f, surf->ior);
+    const float etaI = 1.000277f;
+    const float etaT = f1_max(1.0f, surf->ior);
     const float alpha = BrdfAlpha(surf->roughness);
 
     float4 V = f4_neg(I);
     float4 M = surf->M;
     float4 m = TanToWorld(surf->N, SampleGGXMicrofacet(Sample2D(sampler), alpha));
-    m = f4_dot3(m, M) > 0.0f ? m : f4_reflect3(m, M);
-    m = f4_normalize3(m);
+    m = FixShadingNormal(M, m);
     bool entering = surf->type != PtHit_Backface;
-    float k = entering ? (kAir / matIor) : (matIor / kAir);
 
-    float cosTheta = f1_min(1.0f, f4_dot3(V, m));
-    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
-    float pdf = Schlick(cosTheta, k);
-    float4 L = f4_normalize3(f4_reflect3(I, m));
-    bool tir = (k * sinTheta) > 1.0f;
-    pdf = tir ? 1.0f : pdf;
-
-    float4 P = surf->P;
-    float4 F = F_SchlickEx(surf->albedo, surf->metallic, f1_sat(cosTheta));
-    if (Sample1D(sampler) > pdf)
+    float cosThetaI = f1_clamp(f4_dot3(V, m), -1.0f, 1.0f);
+    cosThetaI = entering ? cosThetaI : -cosThetaI;
+    float4 F = F_SchlickEx(surf->albedo, surf->metallic, f1_abs(cosThetaI));
+    float pdf = F_Dielectric(cosThetaI, etaI, etaT);
+    if (pdf >= 1.0f)
     {
-        L = f4_normalize3(f4_refract3(I, m, k));
+        // total internal reflection
+        pdf = 1.0f;
+        F = f4_1;
+    }
+
+    float4 L;
+    if (Sample1D(sampler) < pdf)
+    {
+        L = f4_reflect3(I, m);
+        ASSERT(IsUnitLength(L));
+    }
+    else
+    {
+        L = f4_refract3(I, m, etaI, etaT);
         pdf = 1.0f - pdf;
         F = f4_inv(F);
-        P = f4_sub(P, f4_mulvs(M, 0.02f * kMilli));
+    }
+    float4 P = surf->P;
+    if (f4_dot3(L, M) < 0.0f)
+    {
+        P = f4_sub(P, f4_mulvs(M, kMilli * 0.1f));
     }
 
     PtScatter result = { 0 };
     result.pos = P;
     result.dir = L;
-    result.attenuation = tir ? f4_1 : F;
+    result.attenuation = F;
     result.pdf = pdf;
 
     return result;
