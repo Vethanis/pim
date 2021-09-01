@@ -588,15 +588,49 @@ static Mesh VEC_CALL TrisToMesh(
     return mesh;
 }
 
-static void FixZFighting(Mesh mesh)
+static void FixZFighting(Mesh* mesh)
 {
-    const i32 len = mesh.length;
-    float4 const *const pim_noalias normals = mesh.normals;
-    float4 *const pim_noalias positions = mesh.positions;
+    i32 len = mesh->length;
+    float4 const *const pim_noalias normals = mesh->normals;
+    float4 *const pim_noalias positions = mesh->positions;
     for (i32 i = 0; i < len; ++i)
     {
         positions[i] = f4_add(positions[i], f4_mulvs(normals[i], kMilli * 0.5f));
     }
+}
+
+static void RemoveDownwardFaces(Mesh* mesh)
+{
+    float4 *const pim_noalias normals = mesh->normals;
+    float4 *const pim_noalias positions = mesh->positions;
+    float4 *const pim_noalias uvs = mesh->uvs;
+    int4 *const pim_noalias texIndices = mesh->texIndices;
+    i32 triCount = mesh->length / 3;
+    for (i32 iTri = 0; iTri < triCount; ++iTri)
+    {
+        i32 a = iTri * 3 + 0;
+        i32 b = iTri * 3 + 1;
+        i32 c = iTri * 3 + 2;
+        float4 avgNormal = f4_normalize3(f4_add(normals[a], f4_add(normals[b], normals[c])));
+        if (avgNormal.y < 0.0f)
+        {
+            --triCount;
+            for (i32 v = 0; v < 3; ++v)
+            {
+                a = iTri * 3 + v;
+                b = triCount * 3 + v;
+                positions[a] = positions[b];
+                normals[a] = normals[b];
+                uvs[a] = uvs[b];
+                if (texIndices)
+                {
+                    texIndices[a] = texIndices[b];
+                }
+            }
+            --iTri;
+        }
+    }
+    mesh->length = triCount * 3;
 }
 
 static float4x4 VEC_CALL QuakeToRhsMeters(void)
@@ -645,13 +679,19 @@ static Guid CreateDrawable(
     {
         return (Guid) { 0 };
     }
+    Material mat = GenMaterial(mtex);
+
     const char* texname = mtex ? mtex->name : "null";
+    // quake double-sided these which messes up refraction
     if ((texname[0] == '*') || (texname[0] == '+'))
     {
-        FixZFighting(*mesh);
+        FixZFighting(mesh);
+    }
+    if (mat.flags & (MatFlag_Water | MatFlag_Slime))
+    {
+        RemoveDownwardFaces(mesh);
     }
 
-    Material mat = GenMaterial(mtex);
     AssignMaterial(mesh, mat);
 
     char name[PIM_PATH] = { 0 };
