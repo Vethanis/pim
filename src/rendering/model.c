@@ -92,7 +92,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "rock",
-        kMatGen
+        kMatRough
     },
     {
         "wood",
@@ -125,7 +125,7 @@ static const mat_preset_t ms_matPresets[] =
     },
     {
         "slip", // slipgate (map change, red lights)
-        kMatGen
+        kMatMetal
     },
     {
         "teleport", // teleporter (warped starry void)
@@ -202,17 +202,17 @@ static Material GenMaterial(
 
     if (StrIStr(ARGS(mtex->name), "light"))
     {
-        material.flags |= MatFlag_Emissive;
+        emission = 1.0f;
     }
     if (StrIStr(ARGS(mtex->name), "sky"))
     {
         material.flags |= MatFlag_Sky;
-        material.flags |= MatFlag_Emissive;
+        emission = 1.0f;
     }
     if (StrIStr(ARGS(mtex->name), "lava"))
     {
         material.flags |= MatFlag_Lava;
-        material.flags |= MatFlag_Emissive;
+        emission = 1.0f;
     }
     if (StrIStr(ARGS(mtex->name), "slime"))
     {
@@ -226,20 +226,29 @@ static Material GenMaterial(
         material.flags |= MatFlag_Water;
         material.flags |= MatFlag_Refractive;
     }
-    if (StrIStr(ARGS(mtex->name), "window"))
+    if (StrIStr(ARGS(mtex->name), "window") ||
+        StrIStr(ARGS(mtex->name), "wizwin"))
     {
         material.ior = 1.52f;
         material.flags |= MatFlag_Refractive;
-        material.flags |= MatFlag_Emissive;
         roughness = 0.05f;
+        emission = 0.5f;
     }
     if (StrIStr(ARGS(mtex->name), "teleport"))
     {
-        material.flags |= MatFlag_Portal;
+        emission = 0.5f;
     }
     if (StrIStr(ARGS(mtex->name), "slip"))
     {
-        material.flags |= MatFlag_Emissive;
+        emission = 0.5f;
+    }
+    if (StrIStr(ARGS(mtex->name), "shoot"))
+    {
+        emission = 0.5f;
+    }
+    if (StrIStr(ARGS(mtex->name), "wkey"))
+    {
+        emission = 0.5f;
     }
     if (mtex->name[0] == '*')
     {
@@ -252,10 +261,14 @@ static Material GenMaterial(
         material.flags |= MatFlag_Animated;
     }
 
+    if (emission > 0.0f)
+    {
+        material.flags |= MatFlag_Emissive;
+    }
+
     u8 const *const pim_noalias mip0 = (u8*)(mtex + 1);
     const int2 size = i2_v(mtex->width, mtex->height);
     const i32 texelCount = size.x * size.y;
-
     if (!(material.flags & MatFlag_Emissive))
     {
         for (i32 i = 0; i < texelCount; ++i)
@@ -265,18 +278,10 @@ static Material GenMaterial(
             if (mip0[i] >= 224)
             {
                 material.flags |= MatFlag_Emissive;
+                emission = 0.5f;
                 break;
             }
         }
-    }
-
-    if (emission > 0.0f)
-    {
-        material.flags |= MatFlag_Emissive;
-    }
-    if ((emission == 0.0f) && (material.flags & MatFlag_Emissive))
-    {
-        emission = 0.5f;
     }
 
     enum
