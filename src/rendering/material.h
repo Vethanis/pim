@@ -16,10 +16,6 @@ typedef enum
     MatFlag_Warped = 1 << 6,        // uv animated
     MatFlag_Animated = 1 << 7,      // keyframe animated
     MatFlag_Underwater = 1 << 8,    // SURF_UNDERWATER
-    MatFlag_Portal = 1 << 9,
-    MatFlag_Diffuse = 1 << 10,      // enable diffuse term
-    MatFlag_Specular = 1 << 11,     // enable specular term
-    MatFlag_Volume = 1 << 12,       // enable volumetric term
 } MatFlagBits;
 typedef u32 MatFlag;
 

@@ -95,8 +95,7 @@ pim_inline Material const *const pim_noalias VEC_CALL GetMaterial(
 pim_inline float4 VEC_CALL GetSky(
     const PtScene*const pim_noalias scene,
     float4 ro,
-    float4 rd,
-    PtRayHit hit);
+    float4 rd);
 pim_inline float4 VEC_CALL GetEmission(
     const PtScene*const pim_noalias scene,
     float4 ro,
@@ -1151,8 +1150,7 @@ pim_inline float4 VEC_CALL TriplaneSampleSkyTex(const Texture* tex, float4 dir, 
 pim_inline float4 VEC_CALL GetSky(
     const PtScene*const pim_noalias scene,
     float4 ro,
-    float4 rd,
-    PtRayHit hit)
+    float4 rd)
 {
     if (scene->sky)
     {
@@ -1170,7 +1168,7 @@ pim_inline float4 VEC_CALL GetEmission(
 {
     if (hit.flags & MatFlag_Sky)
     {
-        return GetSky(scene, ro, rd, hit);
+        return GetSky(scene, ro, rd);
     }
     else
     {
@@ -1264,7 +1262,7 @@ pim_inline PtSurfHit VEC_CALL GetSurface(
         surf.roughness = 1.0f;
         surf.occlusion = 0.0f;
         surf.metallic = 0.0f;
-        surf.emission = GetSky(scene, ro, rd, hit);
+        surf.emission = GetSky(scene, ro, rd);
     }
     else
     {
@@ -1335,6 +1333,15 @@ PtRayHit VEC_CALL Pt_Intersect(
     return pt_intersect_local(scene, ro, rd, tNear, tFar);
 }
 
+pim_inline float4 VEC_CALL RefractBrdfEval(
+    PtSampler *const pim_noalias sampler,
+    float4 I,
+    const PtSurfHit* surf,
+    float4 L)
+{
+    return f4_0;
+}
+
 // returns attenuation value for the given interaction
 pim_inline float4 VEC_CALL BrdfEval(
     PtSampler*const pim_noalias sampler,
@@ -1344,12 +1351,12 @@ pim_inline float4 VEC_CALL BrdfEval(
 {
     ASSERT(IsUnitLength(I));
     ASSERT(IsUnitLength(L));
+    if (surf->flags & MatFlag_Refractive)
+    {
+        return RefractBrdfEval(sampler, I, surf, L);
+    }
     float4 N = surf->N;
     ASSERT(IsUnitLength(N));
-    if (surf->flags & (MatFlag_Refractive | MatFlag_Portal))
-    {
-        return f4_0;
-    }
     float NoL = f4_dot3(N, L);
     if (NoL <= 0.0f)
     {
@@ -1394,16 +1401,6 @@ pim_inline float4 VEC_CALL BrdfEval(
     return brdf;
 }
 
-pim_inline float4 VEC_CALL RefractBrdfEval(
-    PtSampler *const pim_noalias sampler,
-    float4 I,
-    const PtSurfHit* surf,
-    float4 L)
-{
-    // dirac-delta => 0 for all but 1 direction
-    return f4_0;
-}
-
 pim_inline PtScatter VEC_CALL RefractScatter(
     PtSampler*const pim_noalias sampler,
     const PtSurfHit* surf,
@@ -1419,10 +1416,9 @@ pim_inline PtScatter VEC_CALL RefractScatter(
     m = FixShadingNormal(M, m);
     bool entering = surf->type != PtHit_Backface;
 
-    float cosThetaI = f1_clamp(f4_dot3(V, m), -1.0f, 1.0f);
-    cosThetaI = entering ? cosThetaI : -cosThetaI;
-    float4 F = F_SchlickEx(surf->albedo, surf->metallic, f1_abs(cosThetaI));
-    float pdf = F_Dielectric(cosThetaI, etaI, etaT);
+    float cosThetaI = f1_sat(f1_abs(f4_dot3(V, m)));
+    float4 F = F_SchlickEx(surf->albedo, surf->metallic, cosThetaI);
+    float pdf = F_Dielectric(entering ? cosThetaI : -cosThetaI, etaI, etaT);
     if (pdf >= 1.0f)
     {
         // total internal reflection
@@ -1438,10 +1434,12 @@ pim_inline PtScatter VEC_CALL RefractScatter(
     }
     else
     {
-        L = f4_refract3(I, m, etaI, etaT);
+        float k = entering ? etaI / etaT : etaT / etaI;
+        L = f4_refract3(I, m, k);
         pdf = 1.0f - pdf;
         F = f4_inv(F);
     }
+
     float4 P = surf->P;
     if (f4_dot3(L, M) < 0.0f)
     {
@@ -1692,7 +1690,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
     i32 bounce)
 {
     float4 result = f4_0;
-    if (surf->flags & (MatFlag_Refractive | MatFlag_Portal))
+    if (surf->flags & MatFlag_Refractive)
     {
         return result;
     }
@@ -1722,7 +1720,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
                     float brdfPdf = brdf.w * pSmooth;
                     if (brdfPdf > kEpsilon)
                     {
-                        Li = f4_mulvs(Li, PowerHeuristic(lightPdf, brdfPdf) * 0.5f / lightPdf);
+                        Li = f4_mulvs(Li, PowerHeuristic(lightPdf, brdfPdf) / lightPdf);
                         result = f4_add(result, Li);
                     }
                 }
@@ -1744,7 +1742,7 @@ pim_inline float4 VEC_CALL EstimateDirect(
                 float4 Li = f4_mul(GetEmission(scene, ro, rd, hit, bounce), sample.attenuation);
                 if (f4_hmax3(Li) > kEpsilon)
                 {
-                    Li = f4_mulvs(Li, PowerHeuristic(brdfPdf, lightPdf) * 0.5f / brdfPdf);
+                    Li = f4_mulvs(Li, PowerHeuristic(brdfPdf, lightPdf) / brdfPdf);
                     Li = f4_mul(Li, CalcTransmittance(sampler, scene, ro, rd, hit.wuvt.w));
                     result = f4_add(result, Li);
                 }
@@ -1782,18 +1780,18 @@ static void media_desc_new(PtMediaDesc *const desc)
 {
     desc->constantColor = f4_v(0.5f, 0.5f, 0.5f, 2.0f);
     desc->noiseColor = f4_v(0.5f, 0.5f, 0.5f, 2.0f);
-    desc->constantMfp = 20.0f * kKilo;
-    desc->noiseMfp = 20.0f * kKilo;
+    desc->constantMfp = 100.0f;
+    desc->noiseMfp = 40.0f * kKilo;
     desc->absorption = 0.1f;
-    desc->noiseOctaves = 2;
+    desc->noiseOctaves = 1;
     desc->noiseGain = 0.5f;
     desc->noiseLacunarity = 2.0666f;
     desc->noiseFreq = 1.0f;
     desc->noiseHeight = 20.0f;
-    desc->noiseScale = exp2f(-5.0f);
+    desc->noiseScale = 1.0f;
     desc->phaseDirA = 0.75f;
-    desc->phaseDirB = -0.333f;
-    desc->phaseBlend = 0.25f;
+    desc->phaseDirB = 0.0f;
+    desc->phaseBlend = 0.5f;
     media_desc_update(desc);
 }
 
@@ -2027,7 +2025,10 @@ pim_inline float4 VEC_CALL MeanFreePathToMu(float4 mfp)
     return f4_rcp(mfp);
 }
 
-pim_inline float4 VEC_CALL Media_Albedo(PtMediaDesc const *const desc, float4 P, float t)
+pim_inline float4 VEC_CALL Media_Albedo(
+    PtMediaDesc const *const desc,
+    float4 P,
+    float t)
 {
     float4 uT = Media_Sample(desc, P).extinction;
     return f4_exp(f4_mulvs(uT, -t));
@@ -2039,7 +2040,7 @@ pim_inline float4 VEC_CALL CalcMajorant(PtMediaDesc const *const desc)
     float a = 1.0f + desc->absorption;
     float4 ca = f4_mulvs(desc->constantMu, a);
     float4 na = f4_mulvs(desc->noiseMu, a);
-    return f4_add(ca, na);
+    return f4_mulvs(f4_add(ca, na), 2.0f);
 }
 
 pim_inline float VEC_CALL CalcPhase(
@@ -2177,6 +2178,8 @@ PtResult VEC_CALL Pt_TraceRay(
         PtRayHit hit = pt_intersect_local(scene, ro, rd, 0.0f, 1 << 20);
         if (hit.type == PtHit_Nothing)
         {
+            // TODO: toggle this off for lightmaps, on otherwise.
+            // luminance = f4_add(luminance, f4_mul(attenuation, GetSky(scene, ro, rd)));
             break;
         }
         if ((hit.type == PtHit_Backface) && !(hit.flags & MatFlag_Refractive))
@@ -2198,7 +2201,7 @@ PtResult VEC_CALL Pt_TraceRay(
                 attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
                 ro = scatter.pos;
                 rd = scatter.dir;
-                prevFlags = 0x0;
+                prevFlags = 0;
                 continue;
             }
             else
