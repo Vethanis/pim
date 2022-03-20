@@ -14,10 +14,12 @@
 #define kAlign              16
 #define kAlignMask          (kAlign - 1)
 
-#define kPermCapacity       (1 << 30)
-#define kTextureCapacity    (1 << 30)
+#define kPermCapacity       (512 << 20)
+#define kTextureCapacity    (512 << 20)
 #define kTempCapacity       (256 << 20)
-#define kScriptCapacity     (256 << 20)
+#define kScriptCapacity     (16 << 20)
+
+#define kMaxBytesPerTexture (2048 * 2048 * 4)
 
 SASSERT((1 << kAlignShifts) == kAlign);
 
@@ -215,8 +217,18 @@ void* Mem_Alloc(EAlloc type, i32 bytes)
             ptr = tlsf_allocator_malloc(&ms_perm, bytes);
             break;
         case EAlloc_Texture:
-            ptr = tlsf_allocator_malloc(&ms_texture, bytes);
-            break;
+        {
+            if (bytes < kMaxBytesPerTexture)
+            {
+                ptr = tlsf_allocator_malloc(&ms_texture, bytes);
+            }
+            else
+            {
+                // tlsf has trouble with very large allocations
+                ptr = malloc(bytes);
+            }
+        }
+        break;
         case EAlloc_Script:
             ptr = tlsf_allocator_malloc(&ms_script, bytes);
             break;
@@ -269,8 +281,17 @@ void Mem_Free(void* ptr)
             tlsf_allocator_free(&ms_perm, hdr);
             break;
         case EAlloc_Texture:
-            tlsf_allocator_free(&ms_texture, hdr);
-            break;
+        {
+            if ((userBytes + kAlign) < kMaxBytesPerTexture)
+            {
+                tlsf_allocator_free(&ms_texture, hdr);
+            }
+            else
+            {
+                free(hdr);
+            }
+        }
+        break;
         case EAlloc_Script:
             tlsf_allocator_free(&ms_script, hdr);
             break;

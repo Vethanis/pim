@@ -87,7 +87,7 @@ VkQueueFamilyProperties* vkrEnumQueueFamilyProperties(
 static i32 vkrSelectGfxFamily(const VkQueueFamilyProperties* families, u32 famCount)
 {
     i32 index = -1;
-    u32 cost = 0xffffffff;
+    u32 score = 0;
     for (u32 i = 0; i < famCount; ++i)
     {
         if (families[i].queueCount == 0)
@@ -97,14 +97,12 @@ static i32 vkrSelectGfxFamily(const VkQueueFamilyProperties* families, u32 famCo
         const u32 flags = families[i].queueFlags;
         if (flags & VK_QUEUE_GRAPHICS_BIT)
         {
-            u32 newCost = 0;
-            newCost += (flags & VK_QUEUE_COMPUTE_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_TRANSFER_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_SPARSE_BINDING_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_PROTECTED_BIT) ? 1 : 0;
-            if (newCost < cost)
+            u32 newScore = 0;
+            newScore += (flags & VK_QUEUE_COMPUTE_BIT) ? 1 : 0;
+            newScore += (flags & VK_QUEUE_TRANSFER_BIT) ? 1 : 0;
+            if (newScore > score)
             {
-                cost = newCost;
+                score = newScore;
                 index = (i32)i;
             }
         }
@@ -115,7 +113,7 @@ static i32 vkrSelectGfxFamily(const VkQueueFamilyProperties* families, u32 famCo
 static i32 vkrSelectCompFamily(const VkQueueFamilyProperties* families, u32 famCount)
 {
     i32 index = -1;
-    u32 cost = 0xffffffff;
+    u32 score = 0;
     for (u32 i = 0; i < famCount; ++i)
     {
         if (families[i].queueCount == 0)
@@ -125,14 +123,12 @@ static i32 vkrSelectCompFamily(const VkQueueFamilyProperties* families, u32 famC
         const u32 flags = families[i].queueFlags;
         if (flags & VK_QUEUE_COMPUTE_BIT)
         {
-            u32 newCost = 0;
-            newCost += (flags & VK_QUEUE_GRAPHICS_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_TRANSFER_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_SPARSE_BINDING_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_PROTECTED_BIT) ? 1 : 0;
-            if (newCost < cost)
+            u32 newScore = 0;
+            newScore += (flags & VK_QUEUE_GRAPHICS_BIT) ? 1 : 0;
+            newScore += (flags & VK_QUEUE_TRANSFER_BIT) ? 1 : 0;
+            if (newScore > score)
             {
-                cost = newCost;
+                score = newScore;
                 index = (i32)i;
             }
         }
@@ -143,7 +139,7 @@ static i32 vkrSelectCompFamily(const VkQueueFamilyProperties* families, u32 famC
 static i32 vkrSelectXferFamily(const VkQueueFamilyProperties* families, u32 famCount)
 {
     i32 index = -1;
-    u32 cost = 0xffffffff;
+    u32 score = 0;
     for (u32 i = 0; i < famCount; ++i)
     {
         if (families[i].queueCount == 0)
@@ -153,14 +149,12 @@ static i32 vkrSelectXferFamily(const VkQueueFamilyProperties* families, u32 famC
         const u32 flags = families[i].queueFlags;
         if (flags & VK_QUEUE_TRANSFER_BIT)
         {
-            u32 newCost = 0;
-            newCost += (flags & VK_QUEUE_GRAPHICS_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_COMPUTE_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_SPARSE_BINDING_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_PROTECTED_BIT) ? 1 : 0;
-            if (newCost < cost)
+            u32 newScore = 0;
+            newScore += (flags & VK_QUEUE_GRAPHICS_BIT) ? 1 : 0;
+            newScore += (flags & VK_QUEUE_COMPUTE_BIT) ? 1 : 0;
+            if (newScore > score)
             {
-                cost = newCost;
+                score = newScore;
                 index = (i32)i;
             }
         }
@@ -175,7 +169,7 @@ static i32 vkrSelectPresFamily(
     u32 famCount)
 {
     i32 index = -1;
-    u32 cost = 0xffffffff;
+    u32 score = 0;
     for (u32 i = 0; i < famCount; ++i)
     {
         if (families[i].queueCount == 0)
@@ -187,15 +181,13 @@ static i32 vkrSelectPresFamily(
         if (presentable)
         {
             const u32 flags = families[i].queueFlags;
-            u32 newCost = 0;
-            newCost += (flags & VK_QUEUE_GRAPHICS_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_COMPUTE_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_TRANSFER_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_SPARSE_BINDING_BIT) ? 1 : 0;
-            newCost += (flags & VK_QUEUE_PROTECTED_BIT) ? 1 : 0;
-            if (newCost < cost)
+            u32 newScore = 0;
+            newScore += (flags & VK_QUEUE_GRAPHICS_BIT) ? 1 : 0;
+            newScore += (flags & VK_QUEUE_COMPUTE_BIT) ? 1 : 0;
+            newScore += (flags & VK_QUEUE_TRANSFER_BIT) ? 1 : 0;
+            if (newScore > score)
             {
-                cost = newCost;
+                score = newScore;
                 index = (i32)i;
             }
         }
