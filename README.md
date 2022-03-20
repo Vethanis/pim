@@ -2,49 +2,20 @@
 
 - [Pim](#pim)
   - [About](#about)
-    - [Goals](#goals)
   - [Dependencies](#dependencies)
   - [Usage](#usage)
     - [Cloning](#cloning)
     - [Pulling](#pulling)
     - [Building](#building)
     - [Keybinds](#keybinds)
+    - [Commands](#commands)
 
 ## About
 
-Pim is a [Quake engine](https://en.wikipedia.org/wiki/Quake_engine) in an early phase of development.
+Pim is a little "zen garden" for tinkering around, for my own personal use.
 
-Demo video:
+Video:
 [![](https://img.youtube.com/vi/FMLjnC_sICE/0.jpg)](https://www.youtube.com/watch?v=FMLjnC_sICE)
-
-### Goals
-
-Initial goals:
-* Preserve the look and feel of Quake
-  * Tight, responsive controls
-  * Minimal deviation from software renderer's render target
-  * Smooth, low latency interaction loop
-
-Long term goals:
-* Create user friendly in-engine tools for content creation and modding
-  * Data driven
-    * No hardcoded settings
-    * Compatibility with original data formats
-    * Optional custom formats where prudent
-  * Fast iteration loop
-    * Minimize time between making a change and seeing it
-    * Ensure user can make edits without closing the game or map
-  * Editor tools
-    * CAD-like 3-view + isometric modeling tool
-      * eg. UnrealEditor / Hammer
-    * Inspector tool
-      * View and edit fields of the selected item
-    * Map tool
-      * Arrange and edit elements of the map
-    * Asset tool
-      * Manage your inventory of game assets
-    * Script tool
-      * For development of gameplay behavior
 
 ## Dependencies
 
@@ -101,3 +72,84 @@ This repository uses [submodules](https://github.blog/2016-02-01-working-with-su
 * W/S: forward/backward in flycam mode
 * space/left shift: upward/downward in flycam mode
 * mouse: yaw and pitch in flycam mode
+* page up: increase path tracer resolution
+* page down: reduce path tracer resolution
+
+
+### Commands
+
+* cmds: lists all commands
+* help: displays info about commands
+* exec: executes a script file
+* quit: exits the program
+* mapload: loads a map by name, eg. mapload e1m1
+* mapsave: saves the currently loaded map to disk
+* screenshot: saves a screenshot
+* loadtest: loads then unloads every map file
+* wait: waits N frames before executing the next command
+* cornell_box: loads a cornell box scene
+* teleport: teleports the camera to the given xyz coordinates
+* lookat: orients the camera to look at the given xyz coordinates
+* pt_stddev: calculates the standard deviation of the path tracers luminance buffer
+* pt_test: runs a path tracing test
+
+
+### Console Varaibles
+
+See also: cvars.c
+
+* con_logpath: path to the console log file
+* in_pitchscale: pitch input sensitivity
+* in_yawscale: yaw input sensitivity
+* in_movescale: movement input sensitivity
+* r_fov: vertical field of view, in degrees
+* r_znear: near clipping plane, in meters
+* r_zfar: far clipping plane, in meters
+* r_whitepoint: luminance at which tonemapping will clip
+* r_display_nits_min: Min display luminance, in nits
+* r_display_nits_max: Max display luminance, in nits
+* r_ui_nits: UI luminance, in nits
+* r_maxdelqueue: Maximum number of released driver objects before force-finalizing
+* r_scale: Render scale, path tracing only atm
+* r_width: Unscaled render width
+* r_height: Unscaled render height
+* r_fpslimit: Limits fps when above this value
+* r_bumpiness: Bumpiness of generated normal maps, requires map reload
+* r_tex_custom: Enable loading custom textures
+* r_brdflut_spf: Brdf LUT samples per frame
+* pt_dist_meters: Path tracer light distribution meters per cell
+* pt_trace: Enable path tracing
+* pt_denoise: Denoise path tracing output
+* pt_normal: Output path tracer normals
+* pt_albedo: Output path tracer albedo
+* r_refl_gen: Enable reflection generation
+* r_sun_dir: Sun direction
+* r_sun_lum: Sun luminance
+* r_sun_res: Sky cubemap resolution
+* r_sun_steps: Sky cubemap raymarch steps
+* r_qlights: Enable loading quake light entities
+* ui_opacity: UI opacity
+* exp_standard: 1: Standard Calibration Exposure; 0: Saturation Based Exposure;
+* exp_manual: 1: Manual Exposure; 0: Automatic Exposure
+* exp_aperture: Exposure Aperture, in millimeters
+* exp_shutter: Exposure Shutter Time, in seconds
+* exp_adaptrate: Autoexposure Adaptation Rate
+* exp_evoffset: Exposure EV compensation
+* exp_evmin: Autoexposure Sensor Minimum
+* exp_evmax: Autoexposure Sensor Maximum
+* exp_cdfmin: Autoexposure Histogram Cdf Min
+* exp_cdfmax: Autoexposure Histogram Cdf Max
+* sky_rad_cr: Sky crust radius, kilometers
+* sky_rad_at: Sky atmosphere relative radius, kilometers
+* sky_rlh_mfp: Rayleigh mean free path, kilometers
+* sky_rlh_sh: Rayleigh scale height, kilometers
+* sky_mie_mfp: Mie mean free path, kilometers
+* sky_mie_sh: Mie scale height, kilometers
+* sky_mie_g: Mie mean scatter angle, cosine theta
+* lm_upload: Upload the latest lightmap data to the GPU
+* lm_gen: Progressively bake lightmaps every frame
+* lm_density: Lightmap baking: texels per meter [0.1, 32]
+* lm_timeslice: Lightmap baking: number of frames per sample
+* lm_spp: Lightmap baking: samples per pixel
+* fullscreen: Fullscreen windowing mode
+
