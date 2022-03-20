@@ -79,19 +79,25 @@
 #define pim_min(a, b)               ((a) < (b) ? (a) : (b))
 #define pim_max(a, b)               ((a) > (b) ? (a) : (b))
 
-#define REL_ASSERT(x)               IF_FALSE((x), INTERRUPT())
-
 #ifdef _DEBUG
-#   define IF_DEBUG(...)           __VA_ARGS__
+#   define IF_DEBUG(...)            __VA_ARGS__
 #   define IFN_DEBUG(...)          
-#   define ASSERT(x)               IF_FALSE((x), INTERRUPT())
-#   define CONFIG_STR              "Debug"
+#   define CONFIG_STR               "Debug"
+#   define DEBUG_BUILD              1
 #else
 #   define IF_DEBUG(...)           
-#   define IFN_DEBUG(...)          __VA_ARGS__
-#   define ASSERT(...)             
-#   define CONFIG_STR              "Release"
+#   define IFN_DEBUG(...)           __VA_ARGS__
+#   define CONFIG_STR               "Release"
+#   define DEBUG_BUILD              0
 #endif // def _DEBUG
+
+#define ASSERTS_ENABLED             (0 || DEBUG_BUILD)
+
+#if ASSERTS_ENABLED
+#   define ASSERT(x)                IF_FALSE((x), INTERRUPT())
+#else
+#   define ASSERT(...)              
+#endif // ASSERTS_ENABLED
 
 #define _CAT_TOK(x, y)              x ## y
 #define CAT_TOK(x, y)               _CAT_TOK(x, y)

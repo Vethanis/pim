@@ -1263,6 +1263,9 @@ pim_inline PtSurfHit VEC_CALL GetSurface(
         surf.occlusion = 0.0f;
         surf.metallic = 0.0f;
         surf.emission = GetSky(scene, ro, rd);
+        surf.M = f4_neg(rd);
+        surf.N = surf.M;
+        surf.ior = 1.0f;
     }
     else
     {

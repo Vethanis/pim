@@ -13,6 +13,42 @@
 
 // ----------------------------------------------------------------------------
 
+static const u32 kQueueMasks[] =
+{
+    // present
+    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+    // gfx
+    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT |
+    VK_PIPELINE_STAGE_VERTEX_INPUT_BIT |
+    VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+    VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT |
+    VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+    VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT |
+    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+    VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
+    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+    VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT |
+    VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT,
+    // compute
+    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    // present
+    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_TRANSFER_BIT |
+    VK_PIPELINE_STAGE_HOST_BIT,
+};
+SASSERT(NELEM(kQueueMasks) == vkrQueueId_COUNT);
+
 bool vkrImage_New(
     vkrImage* image,
     const VkImageCreateInfo* info,
@@ -204,15 +240,18 @@ void vkrImage_Transfer(
     {
         aspect = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
     }
+    u32 srcQueueMask = kQueueMasks[srcQueueId];
+    u32 dstQueueMask = kQueueMasks[dstQueueId];
     u32 srcQueueFamily = g_vkr.queues[srcQueueId].family;
     u32 dstQueueFamily = g_vkr.queues[dstQueueId].family;
     VkImageLayout oldLayout = image->layout;
     bool wasUndefined = oldLayout == VK_IMAGE_LAYOUT_UNDEFINED;
+    srcAccessMask = wasUndefined ? 0x0 : srcAccessMask;
     const VkImageMemoryBarrier barrier =
     {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = wasUndefined ? 0x0 : srcAccessMask,
-        .dstAccessMask = dstAccessMask,
+        .srcAccessMask = srcAccessMask & srcQueueMask,
+        .dstAccessMask = dstAccessMask & dstQueueMask,
         .oldLayout = oldLayout,
         .newLayout = newLayout,
         .srcQueueFamilyIndex = srcQueueFamily,

@@ -45,7 +45,7 @@ typedef struct mat_preset_s
 #define kMatRough           0.75f, 1.0f, 0.0f, 0.0f,
 #define kMatSmooth          0.25f, 1.0f, 0.0f, 0.0f,
 #define kMatMetal           0.5f, 1.0f, 1.0f, 0.0f,
-#define kMatSMetal          0.15f, 1.0f, 1.0f, 0.0f,
+#define kMatSMetal          0.35f, 1.0f, 1.0f, 0.0f,
 #define kMatRMetal          0.75f, 1.0f, 1.0f, 0.0f,
 
 static const mat_preset_t ms_matPresets[] =
