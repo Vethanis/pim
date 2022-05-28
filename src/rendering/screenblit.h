@@ -8,7 +8,6 @@ bool vkrScreenBlit_New(void);
 void vkrScreenBlit_Del(void);
 
 void vkrScreenBlit_Blit(
-    const vkrPassContext* passCtx,
     const void* src,
     i32 width,
     i32 height,

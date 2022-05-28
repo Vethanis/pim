@@ -4,13 +4,17 @@
 
 PIM_C_BEGIN
 
-bool vkrFramebuffer_New(
-    vkrFramebuffer* fbuf,
-    const VkImageView* attachments,
-    const VkFormat* formats,
-    i32 attachmentCount,
+bool vkrFramebuffer_Init(void);
+void vkrFramebuffer_Shutdown(void);
+
+// find or create a framebuffer matching the inputs
+VkFramebuffer vkrFramebuffer_Get(
+    const vkrImage** attachments,
+    i32 count,
     i32 width,
     i32 height);
-void vkrFramebuffer_Del(vkrFramebuffer* fbuf);
+
+// remove all framebuffers referencing the given view
+void vkrFramebuffer_Remove(VkImageView view);
 
 PIM_C_END

@@ -153,13 +153,11 @@ bool Texture_New(
                 1, // layers
                 true); // mips
             i32 bytes = (width * height * vkrFormatToBpp(format)) / 8;
-            VkFence fence = vkrTexTable_Upload(tex->slot, 0, tex->texels, bytes);
-            ASSERT(fence);
-            if (fence)
+            if (vkrTexTable_Upload(tex->slot, 0, tex->texels, bytes))
             {
                 added = Table_Add(&ms_table, name, tex, &id);
-                ASSERT(added);
             }
+            ASSERT(added);
         }
     }
     *idOut = ToTexId(id);
@@ -175,7 +173,7 @@ ProfileMark(pm_upload, Texture_Upload)
 bool Texture_Upload(TextureId id)
 {
     ProfileBegin(pm_upload);
-    VkFence fence = NULL;
+    bool uploaded = false;
     Texture* tex = Texture_Get(id);
     if (tex)
     {
@@ -183,10 +181,10 @@ bool Texture_Upload(TextureId id)
         i32 width = tex->size.x;
         i32 height = tex->size.y;
         i32 bytes = (width * height * vkrFormatToBpp(tex->format)) / 8;
-        fence = vkrTexTable_Upload(tex->slot, 0, tex->texels, bytes);
+        uploaded = vkrTexTable_Upload(tex->slot, 0, tex->texels, bytes);
     }
     ProfileEnd(pm_upload);
-    return fence != NULL;
+    return uploaded;
 }
 
 bool Texture_Exists(TextureId id)

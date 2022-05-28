@@ -21,7 +21,7 @@ vkrTextureId vkrTexTable_Alloc(
     i32 layers,
     bool mips);
 bool vkrTexTable_Free(vkrTextureId id);
-VkFence vkrTexTable_Upload(
+bool vkrTexTable_Upload(
     vkrTextureId id,
     i32 layer,
     void const *const data,

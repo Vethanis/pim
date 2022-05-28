@@ -29,7 +29,8 @@ void CSMain(
 
     if (all(tid.xy < inputSize))
     {
-        float lum = LumTexture.Load(tid.xy).r;
+        float3 lum3 = SceneLuminance.Load(uint3(tid.xy, 0)).rgb;
+        float lum = dot(lum3, (1.0 / 3.0));
         uint bin = LumToBin(lum, minEV, maxEV);
         InterlockedAdd(gs_histogram[bin], 1);
     }

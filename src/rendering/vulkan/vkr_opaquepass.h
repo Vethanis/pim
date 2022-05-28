@@ -8,6 +8,6 @@ bool vkrOpaquePass_New(void);
 void vkrOpaquePass_Del(void);
 
 void vkrOpaquePass_Setup(void);
-void vkrOpaquePass_Execute(vkrPassContext const *const passCtx);
+void vkrOpaquePass_Execute(void);
 
 PIM_C_END

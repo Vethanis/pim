@@ -338,9 +338,9 @@ float3 ExposeUI(float3 c)
 {
     if (HdrEnabled())
     {
+        c *= GetUiNits();
         c = Color_SceneToHDR(c);
         c = max(c, 0.0);
-        c *= GetUiNits();
         c = PQ_InverseEOTF(c);
     }
     else

@@ -19,7 +19,7 @@ bool vkrTexture_New(
     bool mips);
 void vkrTexture_Release(vkrImage *const image);
 
-VkFence vkrTexture_Upload(
+void vkrTexture_Upload(
     vkrImage *const image,
     i32 layer,
     void const *const data,

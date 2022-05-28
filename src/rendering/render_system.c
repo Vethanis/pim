@@ -76,7 +76,7 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv);
 
 // ----------------------------------------------------------------------------
 
-static FrameBuf ms_buffers[2];
+static FrameBuf ms_buffers[1];
 static i32 ms_iFrame;
 
 static TonemapId ms_tonemapper = TMap_ACES;
@@ -96,12 +96,7 @@ static i32 ms_gigridsamples;
 
 static FrameBuf* GetFrontBuf(void)
 {
-    return &(ms_buffers[ms_iFrame & 1]);
-}
-
-static FrameBuf* GetBackBuf(void)
-{
-    return &(ms_buffers[(ms_iFrame + 1) & 1]);
+    return &(ms_buffers[0]);
 }
 
 static void SwapBuffers(void)
@@ -112,11 +107,6 @@ static void SwapBuffers(void)
 FrameBuf* RenderSys_FrontBuf(void)
 {
     return GetFrontBuf();
-}
-
-FrameBuf* RenderSys_BackBuf(void)
-{
-    return GetBackBuf();
 }
 
 static void EnsureFramebuf(void)
@@ -401,13 +391,13 @@ static void Present(void)
 {
     if (ConVar_GetBool(&cv_pt_trace))
     {
-        ProfileBegin(pm_Present);
-        FrameBuf* frontBuf = GetFrontBuf();
-        int2 size = { frontBuf->width, frontBuf->height };
-        ExposeImage(size, frontBuf->light, vkrExposure_GetParams());
-        ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
+        //ProfileBegin(pm_Present);
+        //FrameBuf* frontBuf = GetFrontBuf();
+        //int2 size = { frontBuf->width, frontBuf->height };
+        //ExposeImage(size, frontBuf->light, vkrExposure_GetParams());
+        //ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
         TakeScreenshot();
-        ProfileEnd(pm_Present);
+        //ProfileEnd(pm_Present);
     }
 }
 
@@ -594,7 +584,6 @@ void RenderSys_Shutdown(void)
     EntSys_Shutdown();
     PtSys_Shutdown();
     FrameBuf_Del(GetFrontBuf());
-    FrameBuf_Del(GetBackBuf());
 
     TextureSys_Shutdown();
     MeshSys_Shutdown();
@@ -624,28 +613,13 @@ void RenderSys_Gui(bool* pEnabled)
 
     if (igBegin("RenderSystem", pEnabled, 0x0))
     {
-        if (igTreeNodeExStr("Tonemapping", ImGuiTreeNodeFlags_Framed))
-        {
-            igComboStr_arr("Operator", (i32*)&ms_tonemapper, Tonemap_Names(), TMap_COUNT, -1);
-            switch (ms_tonemapper)
-            {
-            default:
-                break;
-            case TMap_Reinhard:
-                igExSliderFloat("White Point", &ms_toneParams.x, 0.1f, 10.0f);
-                break;
-            case TMap_Hable:
-                igExSliderFloat("Shoulder Strength", &ms_toneParams.x, 0.01f, 0.99f);
-                igExSliderFloat("Linear Strength", &ms_toneParams.y, 0.01f, 0.99f);
-                igExSliderFloat("Linear Angle", &ms_toneParams.z, 0.01f, 0.99f);
-                igExSliderFloat("Toe Strength", &ms_toneParams.w, 0.01f, 0.99f);
-                break;
-            }
-            igTreePop();
-        }
-
         if (igTreeNodeExStr("Exposure", ImGuiTreeNodeFlags_Framed))
         {
+            igText("Average Luminance: %g", vkrGetAvgLuminance());
+            igText("Min Luminance: %g", vkrGetMinLuminance());
+            igText("Max Luminance: %g", vkrGetMaxLuminance());
+            igText("Exposure: %g", vkrGetExposure());
+
             bool manual = ConVar_GetBool(&cv_exp_manual);
             bool standard = ConVar_GetBool(&cv_exp_standard);
             float offsetEV = ConVar_GetFloat(&cv_exp_evoffset);
@@ -738,7 +712,7 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     IO_MkDir("screenshots");
 
     const FrameBuf* buf = GetFrontBuf();
-    ASSERT(buf->color);
+    ASSERT(buf->light);
     const int2 size = { buf->width, buf->height };
     const i32 len = size.x * size.y;
     R8G8B8A8_t* pim_noalias color = Tex_Alloc(sizeof(color[0]) * len);
@@ -754,21 +728,20 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
     };
 
     Prng rng = Prng_Get();
-    float4 Xi = f4_rand(&rng);
-    Prng_Set(rng);
+    float4 const *const pim_noalias light = buf->light;
     for (i32 i = 0; i < len; ++i)
     {
-        float4 v = buf->light[i];
+        float4 v = light[i];
         v = f4_mulvs(v, exposure);
         v = Color_SceneToSDR(v);
         v = f4_maxvs(v, 0.0f);
         v = f4_GTTonemap(v, gtp);
         v = f4_sRGB_InverseEOTF(v);
-        Xi = f4_frac(f4_add(Xi, f4_v(kGoldenConj, kSqrt2Conj, kSqrt3Conj, kSqrt5Conj)));
-        v = f4_lerpvs(v, Xi, 1.0f / 255.0f);
+        v = f4_lerpvs(v, f4_rand(&rng), 1.0f / 255.0f);
         v.w = 1.0f;
         color[i] = f4_rgba8(v);
     }
+    Prng_Set(rng);
 
     stbi_flip_vertically_on_write(1);
     i32 wrote = stbi_write_png(filename, size.x, size.y, 4, color, sizeof(color[0]) * size.x);
@@ -1505,7 +1478,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     ShutdownPtScene();
     LightmapShutdown();
     Camera_Reset();
-    vkrSys_OnUnload();
+    vkrOnUnload();
 
     bool loaded = false;
 
@@ -1533,7 +1506,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     {
         Entities_UpdateTransforms(Entities_Get());
         Entities_UpdateBounds(Entities_Get());
-        vkrSys_OnLoad();
+        vkrOnLoad();
         Con_Logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
         return cmdstat_ok;
     }

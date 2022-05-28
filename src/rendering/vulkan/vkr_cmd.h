@@ -8,83 +8,161 @@ VkCommandPool vkrCmdPool_New(i32 family, VkCommandPoolCreateFlags flags);
 void vkrCmdPool_Del(VkCommandPool pool);
 void vkrCmdPool_Reset(VkCommandPool pool, VkCommandPoolResetFlagBits flags);
 
-// ----------------------------------------------------------------------------
-
 bool vkrCmdAlloc_New(
-    vkrCmdAlloc* allocator,
-    const vkrQueue* queue,
-    VkCommandBufferLevel level);
-void vkrCmdAlloc_Del(vkrCmdAlloc* allocator);
-
-void vkrCmdAlloc_OnSwapDel(vkrCmdAlloc* allocator);
-void vkrCmdAlloc_Reserve(vkrCmdAlloc* allocator, u32 capacity);
-
-// used for temporary primary command buffers (not the presentation command buffer)
-VkCommandBuffer vkrCmdAlloc_GetTemp(vkrCmdAlloc* allocator, VkFence* fenceOut);
-
-// for secondary command buffers executed within a primary buffer
-VkCommandBuffer vkrCmdAlloc_GetSecondary(vkrCmdAlloc* allocator, VkFence primaryFence);
+    vkrQueue* queue,
+    vkrQueueId queueId);
+void vkrCmdAlloc_Del(vkrQueue* queue);
 
 // ----------------------------------------------------------------------------
 
-void vkrCmdBegin(VkCommandBuffer cmdbuf);
-void vkrCmdBeginSec(
-    VkCommandBuffer cmd,
-    VkRenderPass renderPass,
-    i32 subpass,
-    VkFramebuffer framebuffer);
-void vkrCmdEnd(VkCommandBuffer cmdbuf);
-void vkrCmdReset(VkCommandBuffer cmdbuf);
+vkrCmdBuf* vkrCmdGet(vkrQueueId queueId);
 
-void vkrCmdSubmit(
-    VkQueue queue,
-    VkCommandBuffer cmd,
-    VkFence fence,                  // optional
+// present
+//vkrCmdBuf* vkrCmdGet_P(void);
+// graphics
+vkrCmdBuf* vkrCmdGet_G(void);
+// compute
+//vkrCmdBuf* vkrCmdGet_C(void);
+// transfer
+//vkrCmdBuf* vkrCmdGet_T(void);
+
+void vkrCmdReset(vkrCmdBuf* cmdbuf);
+
+vkrSubmitId vkrCmdSubmit(
+    vkrCmdBuf* cmd,
     VkSemaphore waitSema,           // optional
     VkPipelineStageFlags waitMask,  // optional
     VkSemaphore signalSema);        // optional
 
+bool vkrSubmit_Poll(vkrSubmitId submit);
+void vkrSubmit_Await(vkrSubmitId submit);
+void vkrSubmit_AwaitAll(void);
+
+void vkrCmdFlush(void);
+void vkrCmdFlushQueueTransfers(void);
+
 void vkrCmdBeginRenderPass(
-    VkCommandBuffer cmdbuf,
+    vkrCmdBuf* cmdbuf,
     VkRenderPass pass,
     VkFramebuffer framebuf,
     VkRect2D rect,
     i32 clearCount,
-    const VkClearValue* clearValues,
-    VkSubpassContents contents);
-void vkrCmdExecCmds(VkCommandBuffer cmd, i32 count, const VkCommandBuffer* pSecondaries);
-void vkrCmdNextSubpass(VkCommandBuffer cmdbuf, VkSubpassContents contents);
-void vkrCmdEndRenderPass(VkCommandBuffer cmdbuf);
+    const VkClearValue* clearValues);
+void vkrCmdNextSubpass(vkrCmdBuf* cmdbuf, VkSubpassContents contents);
+void vkrCmdEndRenderPass(vkrCmdBuf* cmdbuf);
 
 void vkrCmdViewport(
-    VkCommandBuffer cmdbuf,
+    vkrCmdBuf* cmdbuf,
     VkViewport viewport,
     VkRect2D scissor);
-void vkrCmdDefaultViewport(VkCommandBuffer cmdbuf);
+void vkrCmdDefaultViewport(vkrCmdBuf* cmdbuf);
 
-void vkrCmdDraw(VkCommandBuffer cmdbuf, i32 vertexCount, i32 firstVertex);
+void vkrCmdDraw(vkrCmdBuf* cmdbuf, i32 vertexCount, i32 firstVertex);
+
+void vkrBufferState(
+    vkrBuffer* buf,
+    const vkrBufferState_t* state);
+void vkrBufferState_HostRead(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_HostWrite(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_TransferSrc(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_TransferDst(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_UniformBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_IndirectDraw(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_IndirectDispatch(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_VertexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_IndexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_FragLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_FragStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_ComputeStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrBufferState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+
+void vkrImageState(
+    vkrImage* img,
+    const vkrImageState_t* state);
+
+// transfer layout
+void vkrImageState_TransferSrc(vkrCmdBuf* cmdbuf, vkrImage* img);
+void vkrImageState_TransferDst(vkrCmdBuf* cmdbuf, vkrImage* img);
+// read only optimal layout
+void vkrImageState_FragSample(vkrCmdBuf* cmdbuf, vkrImage* img);
+void vkrImageState_ComputeSample(vkrCmdBuf* cmdbuf, vkrImage* img);
+// general layout
+void vkrImageState_FragLoad(vkrCmdBuf* cmdbuf, vkrImage* img);
+void vkrImageState_FragStore(vkrCmdBuf* cmdbuf, vkrImage* img);
+void vkrImageState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img);
+void vkrImageState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrImage* img);
+void vkrImageState_ComputeStore(vkrCmdBuf* cmdbuf, vkrImage* img);
+void vkrImageState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img);
+// attachment output layout
+void vkrImageState_ColorAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img);
+void vkrImageState_DepthAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img);
+
+void vkrSubImageState(vkrImage* img,
+    const vkrSubImageState_t* state,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount);
 
 void vkrCmdCopyBuffer(
-    VkCommandBuffer cmdbuf,
-    const vkrBuffer* src,
-    const vkrBuffer* dst);
+    vkrCmdBuf* cmdbuf,
+    vkrBuffer* src,
+    vkrBuffer* dst);
 
-void vkrCmdBufferBarrier(
-    VkCommandBuffer cmdbuf,
-    VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask,
-    const VkBufferMemoryBarrier* barrier);
-void vkrCmdImageBarrier(
-    VkCommandBuffer cmdbuf,
-    VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask,
-    const VkImageMemoryBarrier* barrier);
+void vkrCmdCopyImage(
+    vkrCmdBuf* cmdbuf,
+    vkrImage* src,
+    vkrImage* dst,
+    const VkImageCopy* region);
+
+void vkrCmdBlitImage(
+    vkrCmdBuf* cmdbuf,
+    vkrImage* src,
+    vkrImage* dst,
+    const VkImageBlit* region);
+
+void vkrCmdCopyBufferToImage(
+    vkrCmdBuf* cmdbuf,
+    vkrBuffer* src,
+    vkrImage* dst,
+    const VkBufferImageCopy* region);
+
+void vkrCmdCopyImageToBuffer(
+    vkrCmdBuf* cmdbuf,
+    vkrImage* src,
+    vkrBuffer* dst,
+    const VkBufferImageCopy* region);
+
+// limited to 64kb
+void vkrCmdUpdateBuffer(
+    vkrCmdBuf* cmdbuf,
+    const void* src,
+    i32 srcSize,
+    vkrBuffer* dst);
+
+void vkrCmdFillBuffer(
+    vkrCmdBuf* cmdbuf,
+    vkrBuffer* dst,
+    u32 fillValue);
 
 void vkrCmdBindDescSets(
-    VkCommandBuffer cmdbuf,
+    vkrCmdBuf* cmdbuf,
     VkPipelineBindPoint bindpoint,
     VkPipelineLayout layout,
     i32 setCount,
     const VkDescriptorSet* sets);
+
+void vkrCmdBindPass(
+    vkrCmdBuf* cmdbuf,
+    const vkrPass* pass);
+
+void vkrCmdPushConstants(
+    vkrCmdBuf* cmdbuf,
+    const vkrPass* pass,
+    const void* src, i32 bytes);
+
+void vkrCmdDispatch(vkrCmdBuf* cmdbuf, i32 x, i32 y, i32 z);
+
+void vkrCmdDrawMesh(vkrCmdBuf* cmdbuf, vkrMeshId id);
 
 PIM_C_END

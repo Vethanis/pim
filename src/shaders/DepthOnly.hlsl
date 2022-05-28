@@ -1,4 +1,10 @@
 
+[[vk::push_constant]]
+cbuffer push_constants
+{
+    float4x4 g_LocalToClip;
+};
+
 struct VSInput
 {
     float4 positionWS : POSITION;
@@ -9,20 +15,20 @@ struct PSInput
     float4 positionCS : SV_Position;
 };
 
-[[vk::push_constant]]
-cbuffer push_constants
-{
-    float4x4 worldToClip;
-};
-
 PSInput VSMain(VSInput input)
 {
     PSInput output;
-    output.positionCS = mul(worldToClip, float4(input.positionWS.xyz, 1.0));
+    output.positionCS = mul(g_LocalToClip, float4(input.positionWS.xyz, 1.0));
     return output;
 }
 
-float4 PSMain(PSInput input) : SV_Target
+void PSMain(PSInput input)
 {
-    return 0.0;
+
 }
+
+// "fragment shader writes to output location 0 with no matching attachment"
+//float4 PSMain(PSInput input) : SV_Target
+//{
+//    return 0.0;
+//}

@@ -54,6 +54,11 @@ bool vkrMainPass_New(void)
         success = false;
         goto cleanup;
     }
+    if (!vkrExposure_Init())
+    {
+        success = false;
+        goto cleanup;
+    }
     if (!vkrUIPass_New())
     {
         success = false;
@@ -74,6 +79,7 @@ void vkrMainPass_Del(void)
     vkrScreenBlit_Del();
     vkrDepthPass_Del();
     vkrOpaquePass_Del();
+    vkrExposure_Shutdown();
     vkrUIPass_Del();
 }
 
@@ -84,86 +90,35 @@ void vkrMainPass_Setup(void)
 
     vkrDepthPass_Setup();
     vkrOpaquePass_Setup();
+    vkrExposure_Setup();
     vkrUIPass_Setup();
 
     ProfileEnd(pm_setup);
 }
 
 ProfileMark(pm_exec, vkrMainPass_Execute)
-void vkrMainPass_Execute(
-    VkCommandBuffer cmd,
-    VkFence fence)
+void vkrMainPass_Execute(void)
 {
     ProfileBegin(pm_exec);
 
-    const bool r_sw = ConVar_GetBool(&cv_pt_trace);
-
-    vkrSwapchain *const chain = &g_vkr.chain;
-    VkFramebuffer framebuffer = NULL;
-    vkrSwapchain_AcquireImage(chain, &framebuffer);
-    vkrPassContext passCtx =
-    {
-        .framebuffer = framebuffer,
-        .cmd = cmd,
-        .fence = fence,
-    };
-    if (r_sw)
+    if (ConVar_GetBool(&cv_pt_trace))
     {
         FrameBuf* fbuf = RenderSys_FrontBuf();
         vkrScreenBlit_Blit(
-            &passCtx,
-            fbuf->color,
+            fbuf->light,
             fbuf->width,
             fbuf->height,
-            VK_FORMAT_R16G16B16A16_UNORM);
+            VK_FORMAT_R32G32B32A32_SFLOAT);
     }
     else
     {
-        const u32 imageIndex = vkrSys_SwapIndex();
-        VkImage colorTarget = chain->images[imageIndex];
-        vkrImage* lumTarget = &chain->lumAttachments[imageIndex];
-        const VkImageMemoryBarrier colorBarrier =
-        {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask = 0x0,
-            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = colorTarget,
-            .subresourceRange =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .levelCount = 1,
-                .layerCount = 1,
-            },
-        };
-        vkrCmdImageBarrier(cmd,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            &colorBarrier);
-        vkrImage_Barrier(
-            lumTarget,
-            cmd,
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            0x0,
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+        vkrDepthPass_Execute();
+        vkrOpaquePass_Execute();
     }
 
-    if (!r_sw)
-    {
-        vkrDepthPass_Execute(&passCtx);
-    }
+    vkrExposure_Execute();
 
-    if (!r_sw)
-    {
-        vkrOpaquePass_Execute(&passCtx);
-    }
-
-    vkrUIPass_Execute(&passCtx);
+    vkrUIPass_Execute();
 
     ProfileEnd(pm_exec);
 }

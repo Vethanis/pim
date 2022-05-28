@@ -27,21 +27,6 @@ void* vkrImage_Map(const vkrImage* image);
 void vkrImage_Unmap(const vkrImage* image);
 void vkrImage_Flush(const vkrImage* image);
 
-void vkrImage_Barrier(
-    vkrImage* image,
-    VkCommandBuffer cmd,
-    VkImageLayout newLayout,
-    VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStages, VkPipelineStageFlags dstStages);
-
-void vkrImage_Transfer(
-    vkrImage* image,
-    vkrQueueId srcQueueId, vkrQueueId dstQueueId,
-    VkCommandBuffer srcCmd, VkCommandBuffer dstCmd,
-    VkImageLayout newLayout,
-    VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStages, VkPipelineStageFlags dstStages);
-
 // ----------------------------------------------------------------------------
 
 bool vkrImageSet_New(
@@ -61,6 +46,7 @@ bool vkrImageSet_Reserve(
 // ----------------------------------------------------------------------------
 
 void vkrImageView_Release(VkImageView view);
+void vkrAttachment_Release(VkImageView view);
 
 // ----------------------------------------------------------------------------
 

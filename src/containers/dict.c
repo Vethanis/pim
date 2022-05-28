@@ -155,6 +155,8 @@ void Dict_Reserve(Dict* dict, i32 count)
     dict->values = newValues;
 }
 
+i32 Dict_GetCount(const Dict* dict) { return dict->count; }
+
 i32 Dict_Find(const Dict* dict, const void* key)
 {
     ASSERT(dict);
@@ -235,33 +237,10 @@ bool Dict_Add(Dict* dict, const void* key, const void* valueIn)
 
 bool Dict_Rm(Dict* dict, const void* key, void* valueOut)
 {
-    ASSERT(dict);
-    ASSERT(key);
-
-    const i32 i = Dict_Find(dict, key);
+    i32 i = Dict_Find(dict, key);
     if (i >= 0)
     {
-        const u32 keySize = dict->keySize;
-        const u32 valueSize = dict->valueSize;
-        ASSERT(keySize);
-        ASSERT(valueSize);
-
-        u32 *const pim_noalias hashes = dict->hashes;
-        u8 *const pim_noalias keys = dict->keys;
-        u8 *const pim_noalias values = dict->values;
-
-        if (valueOut)
-        {
-            memcpy(valueOut, values + i * valueSize, valueSize);
-        }
-
-        hashes[i] |= hashutil_tomb_mask;
-        memset(keys + i * keySize, 0, keySize);
-        memset(values + i * valueSize, 0, valueSize);
-
-        dict->count--;
-
-        return true;
+        return Dict_RmAt(dict, i, valueOut);
     }
 
     return false;
@@ -348,4 +327,92 @@ u32* Dict_Sort(const Dict* dict, DictCmpFn cmp, void* usr)
     };
     QuickSort(indices, length, sizeof(indices[0]), DictCmp, &ctx);
     return indices;
+}
+
+u32 Dict_GetWidth(const Dict* dict) { return dict->width; }
+
+bool Dict_ValidAt(const Dict* dict, u32 i)
+{
+    ASSERT(i < dict->width);
+    return HashUtil_Valid(dict->hashes[i]) != 0u;
+}
+
+bool Dict_GetKeyAt(const Dict* dict, u32 i, void* keyOut)
+{
+    if (!Dict_ValidAt(dict, i))
+    {
+        return false;
+    }
+    const u32 keySize = dict->keySize;
+    u8 *const pim_noalias keys = dict->keys;
+    memcpy(keyOut, keys + i * keySize, keySize);
+    return true;
+}
+
+bool Dict_GetValueAt(const Dict* dict, u32 i, void* valueOut)
+{
+    if (!Dict_ValidAt(dict, i))
+    {
+        return false;
+    }
+    const u32 valueSize = dict->valueSize;
+    u8 *const pim_noalias values = dict->values;
+    memcpy(valueOut, values + i * valueSize, valueSize);
+    return true;
+}
+
+bool Dict_SetValueAt(Dict* dict, u32 i, const void* valueIn)
+{
+    ASSERT(valueIn);
+    if (!Dict_ValidAt(dict, i))
+    {
+        return false;
+    }
+    const u32 valueSize = dict->valueSize;
+    u8 *const pim_noalias values = dict->values;
+    memcpy(values + i * valueSize, valueIn, valueSize);
+    return true;
+}
+
+bool Dict_GetAt(const Dict* dict, u32 i, void* keyOut, void* valueOut)
+{
+    if (!Dict_ValidAt(dict, i))
+    {
+        return false;
+    }
+    const u32 keySize = dict->keySize;
+    const u32 valueSize = dict->valueSize;
+    u8 *const pim_noalias keys = dict->keys;
+    u8 *const pim_noalias values = dict->values;
+    memcpy(keyOut, keys + i * keySize, keySize);
+    memcpy(valueOut, values + i * valueSize, valueSize);
+    return true;
+}
+
+bool Dict_RmAt(Dict* dict, u32 i, void* valueOut)
+{
+    if (!Dict_ValidAt(dict, i))
+    {
+        return false;
+    }
+
+    const u32 keySize = dict->keySize;
+    const u32 valueSize = dict->valueSize;
+    u32 *const pim_noalias hashes = dict->hashes;
+    u8 *const pim_noalias keys = dict->keys;
+    u8 *const pim_noalias values = dict->values;
+
+    if (valueOut)
+    {
+        memcpy(valueOut, values + i * valueSize, valueSize);
+    }
+
+    hashes[i] |= hashutil_tomb_mask;
+    memset(keys + i * keySize, 0, keySize);
+    memset(values + i * valueSize, 0, valueSize);
+
+    ASSERT(dict->count > 0);
+    dict->count--;
+
+    return true;
 }

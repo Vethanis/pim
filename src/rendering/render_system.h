@@ -13,6 +13,5 @@ void RenderSys_Shutdown(void);
 void RenderSys_Gui(bool* pEnabled);
 
 FrameBuf* RenderSys_FrontBuf(void);
-FrameBuf* RenderSys_BackBuf(void);
 
 PIM_C_END

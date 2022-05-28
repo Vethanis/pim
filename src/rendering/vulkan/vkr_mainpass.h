@@ -8,8 +8,6 @@ bool vkrMainPass_New(void);
 void vkrMainPass_Del(void);
 
 void vkrMainPass_Setup(void);
-void vkrMainPass_Execute(
-    VkCommandBuffer cmd,
-    VkFence fence);
+void vkrMainPass_Execute(void);
 
 PIM_C_END

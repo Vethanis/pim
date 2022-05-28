@@ -5,13 +5,13 @@
 
 #include <Windows.h>
 
-SASSERT(sizeof(Mutex) >= sizeof(CRITICAL_SECTION));
-SASSERT(_Alignof(Mutex) >= _Alignof(CRITICAL_SECTION));
+SASSERT(sizeof(Mutex) == sizeof(CRITICAL_SECTION));
+SASSERT(_Alignof(Mutex) == _Alignof(CRITICAL_SECTION));
 
 void Mutex_New(Mutex* mut)
 {
     ASSERT(mut);
-    InitializeCriticalSection((LPCRITICAL_SECTION)mut);
+    InitializeCriticalSectionEx((LPCRITICAL_SECTION)mut, 1000, 0);
 }
 
 void Mutex_Del(Mutex* mut)

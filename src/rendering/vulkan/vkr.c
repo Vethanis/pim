@@ -23,6 +23,7 @@
 #include "rendering/vulkan/vkr_im.h"
 #include "rendering/vulkan/vkr_sampler.h"
 #include "rendering/vulkan/vkr_uipass.h"
+#include "rendering/vulkan/vkr_targets.h"
 
 #include "rendering/drawable.h"
 #include "rendering/mesh.h"
@@ -111,14 +112,12 @@ bool vkrSys_WindowUpdate(void)
         vkrSys_WindowShutdown();
 
         vkrSys_WindowInit();
-        vkrSwapchain_New(chain, window, NULL);
+        vkrSwapchain_New(chain, NULL);
         vkrUIPass_New();
     }
     if (vkrWindow_UpdateSize(window))
     {
-        if (vkrSwapchain_Recreate(
-            chain,
-            window))
+        if (vkrSwapchain_Recreate())
         {
             r_width_set(window->width);
             r_height_set(window->height);
@@ -128,6 +127,7 @@ bool vkrSys_WindowUpdate(void)
     {
         return false;
     }
+    vkrTargets_Recreate();
     return true;
 }
 
@@ -161,7 +161,13 @@ bool vkrSys_Init(void)
         goto cleanup;
     }
 
-    if (!vkrSwapchain_New(&g_vkr.chain, &g_vkr.window, NULL))
+    if (!vkrFramebuffer_Init())
+    {
+        success = false;
+        goto cleanup;
+    }
+
+    if (!vkrSwapchain_New(&g_vkr.chain, NULL))
     {
         success = false;
         goto cleanup;
@@ -191,6 +197,12 @@ bool vkrSys_Init(void)
         goto cleanup;
     }
 
+    if (!vkrTargets_Init())
+    {
+        success = false;
+        goto cleanup;
+    }
+
     if (!vkrMeshSys_Init())
     {
         success = false;
@@ -209,14 +221,8 @@ bool vkrSys_Init(void)
         goto cleanup;
     }
 
-    if (!vkrExposure_Init())
-    {
-        success = false;
-        goto cleanup;
-    }
 
 cleanup:
-
     if (!success)
     {
         Con_Logf(LogSev_Error, "vkr", "Failed to init vkrSys");
@@ -230,51 +236,41 @@ void vkrSys_Update(void)
 {
     ProfileBegin(pm_update);
 
-    vkrSwapchain* chain = &g_vkr.chain;
-    VkFence fence = NULL;
-    VkCommandBuffer cmd = NULL;
-
     // base system update
     {
-        vkrSwapchain_AcquireSync(chain, &cmd, &fence);
+        vkrSwapchain_AcquireSync();
+        vkrSwapchain_AcquireImage();
         vkrMemSys_Update();
+        vkrCmdFlush();
     }
 
     // system update
     {
         vkrSampler_Update();
         vkrMeshSys_Update();
-        vkrImSys_Flush(NULL);
+        vkrImSys_Flush();
+        vkrCmdFlush();
     }
 
     // setup phase
     {
-        vkrExposure_Setup();
         vkrMainPass_Setup();
         vkrTexTable_Update();
         vkrBindings_Update();
+        vkrCmdFlush();
     }
 
     // execute phase
-    {
-        vkrExposure_Execute();
-        vkrMainPass_Execute(cmd, fence);
-    }
+    vkrMainPass_Execute();
 
     // present phase
-    {
-        vkrSwapchain_Submit(chain, cmd);
-        vkrSwapchain_Present(chain);
-    }
+    vkrSwapchain_Submit(vkrCmdGet_G());
 
     // background work
     {
         vkrUploadLightmaps();
-    }
-
-    // setup for next frame
-    {
         vkrImSys_Clear();
+        vkrCmdFlush();
     }
 
     ProfileEnd(pm_update);
@@ -288,11 +284,11 @@ void vkrSys_Shutdown(void)
 
         LmPack_Del(LmPack_Get());
 
-        vkrExposure_Shutdown();
         vkrMainPass_Del();
 
         vkrImSys_Shutdown();
         vkrMeshSys_Shutdown();
+        vkrTargets_Shutdown();
         vkrBindings_Shutdown();
         vkrTexTable_Shutdown();
         vkrSampler_Shutdown();
@@ -302,6 +298,7 @@ void vkrSys_Shutdown(void)
 
         vkrContext_Del(&g_vkr.context);
         vkrSwapchain_Del(&g_vkr.chain);
+        vkrFramebuffer_Shutdown();
         vkrSys_WindowShutdown();
         vkrMemSys_Shutdown();
         vkrDevice_Shutdown(&g_vkr);
@@ -309,21 +306,48 @@ void vkrSys_Shutdown(void)
     }
 }
 
-void vkrSys_OnLoad(void)
+void vkrOnLoad(void)
 {
     vkrMemSys_Update();
 }
 
-void vkrSys_OnUnload(void)
+void vkrOnUnload(void)
 {
     vkrMemSys_Update();
 }
 
-u32 vkrSys_SyncIndex(void) { return g_vkr.chain.syncIndex; }
-u32 vkrSys_SwapIndex(void) { return g_vkr.chain.imageIndex; }
-u32 vkrSys_FrameIndex(void) { return Time_FrameCount(); }
+u32 vkrGetSyncIndex(void)
+{
+    return g_vkr.chain.syncIndex;
+}
 
-bool vkrSys_HdrEnabled(void)
+u32 vkrGetPrevSyncIndex(void)
+{
+    return (vkrGetSyncIndex() + (R_ResourceSets - 1u)) % R_ResourceSets;
+}
+
+u32 vkrGetNextSyncIndex(void)
+{
+    return (vkrGetSyncIndex() + 1u) % R_ResourceSets;
+}
+
+u32 vkrGetSwapIndex(void)
+{
+    return g_vkr.chain.imageIndex;
+}
+
+u32 vkrGetFrameCount(void)
+{
+    return Time_FrameCount();
+}
+
+vkrQueue* vkrGetQueue(vkrQueueId queueId)
+{
+    ASSERT(queueId < NELEM(g_vkr.queues));
+    return &g_vkr.queues[queueId];
+}
+
+bool vkrGetHdrEnabled(void)
 {
     switch (g_vkr.chain.colorSpace)
     {
@@ -331,32 +355,34 @@ bool vkrSys_HdrEnabled(void)
         return false;
     case VK_COLOR_SPACE_HDR10_ST2084_EXT: // Rec2100 w/ PQ OETF
         return true;
+    case VK_COLOR_SPACE_DOLBYVISION_EXT: // Rec2100 w/ PQ OETF
+        return true;
     case VK_COLOR_SPACE_HDR10_HLG_EXT: // Rec2100 w/ HLG OETF
         return true;
     }
 }
 
-float vkrSys_GetWhitepoint(void)
+float vkrGetWhitepoint(void)
 {
     return ConVar_GetFloat(&cv_r_whitepoint);
 }
 
-float vkrSys_GetDisplayNitsMin(void)
+float vkrGetDisplayNitsMin(void)
 {
     return ConVar_GetFloat(&cv_r_display_nits_min);
 }
 
-float vkrSys_GetDisplayNitsMax(void)
+float vkrGetDisplayNitsMax(void)
 {
     return ConVar_GetFloat(&cv_r_display_nits_max);
 }
 
-float vkrSys_GetUiNits(void)
+float vkrGetUiNits(void)
 {
     return ConVar_GetFloat(&cv_r_ui_nits);
 }
 
-Colorspace vkrSys_GetRenderColorspace(void)
+Colorspace vkrGetRenderColorspace(void)
 {
 #if COLOR_SCENE_REC709
     return Colorspace_Rec709;
@@ -371,13 +397,15 @@ Colorspace vkrSys_GetRenderColorspace(void)
 #endif // COLOR_SCENE_X
 }
 
-Colorspace vkrSys_GetDisplayColorspace(void)
+Colorspace vkrGetDisplayColorspace(void)
 {
     switch (g_vkr.chain.colorSpace)
     {
     default:
         return Colorspace_Rec709;
     case VK_COLOR_SPACE_HDR10_ST2084_EXT: // Rec2100 w/ PQ OETF
+        return Colorspace_Rec2020;
+    case VK_COLOR_SPACE_DOLBYVISION_EXT: // Rec2100 w/ PQ OETF
         return Colorspace_Rec2020;
     case VK_COLOR_SPACE_HDR10_HLG_EXT: // Rec2100 w/ HLG OETF
         return Colorspace_Rec2020;

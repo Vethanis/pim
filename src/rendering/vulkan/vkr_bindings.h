@@ -12,14 +12,14 @@ VkDescriptorSetLayout vkrBindings_GetSetLayout(void);
 VkDescriptorSet vkrBindings_GetSet(void);
 
 void vkrBindings_BindImage(
-    vkrBindId id,
+    i32 id,
     VkDescriptorType type,
     VkSampler sampler,
     VkImageView view,
     VkImageLayout layout);
 
 void vkrBindings_BindBuffer(
-    vkrBindId id,
+    i32 id,
     VkDescriptorType type,
     vkrBuffer const *const buffer);
 

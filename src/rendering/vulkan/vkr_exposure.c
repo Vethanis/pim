@@ -11,8 +11,12 @@
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_sync.h"
 #include "rendering/vulkan/vkr_pass.h"
+#include "rendering/vulkan/vkr_renderpass.h"
+#include "rendering/vulkan/vkr_framebuffer.h"
 #include "rendering/vulkan/vkr_image.h"
 #include "rendering/vulkan/vkr_bindings.h"
+#include "rendering/vulkan/vkr_swapchain.h"
+#include "rendering/vulkan/vkr_sampler.h"
 
 #include "rendering/exposure.h"
 
@@ -41,14 +45,21 @@ typedef struct pim_alignas(16) ExposureBuffer_s
 
 static vkrPass ms_buildPass;
 static vkrPass ms_adaptPass;
+static vkrPass ms_exposePass;
+static VkRenderPass ms_exposeRenderPass;
 static vkrBufferSet ms_histBuffers;
 static vkrBufferSet ms_expBuffers;
 static vkrBufferSet ms_readbackBuffers;
-static float4 ms_readbackValue;
-static float4 ms_averageValue;
-static VkFence ms_lastFence;
-static u32 ms_lastBuffer;
+static float4 ms_averageValue; // ExposureBuffer
+static vkrSubmitId ms_readbackId;
+static vkrBuffer* ms_readbackBuffer;
 static vkrExposure ms_params;
+
+vkrExposure* vkrExposure_GetParams(void) { return &ms_params; }
+float vkrGetAvgLuminance(void) { return ms_averageValue.x; }
+float vkrGetExposure(void) { return ms_averageValue.y; }
+float vkrGetMaxLuminance(void) { return ms_averageValue.z; }
+float vkrGetMinLuminance(void) { return ms_averageValue.w; }
 
 bool vkrExposure_Init(void)
 {
@@ -56,6 +67,7 @@ bool vkrExposure_Init(void)
 
     VkPipelineShaderStageCreateInfo buildShaders[1] = { 0 };
     VkPipelineShaderStageCreateInfo adaptShaders[1] = { 0 };
+    VkPipelineShaderStageCreateInfo exposeShaders[2] = { 0 };
 
     {
         if (!vkrShader_New(
@@ -93,6 +105,88 @@ bool vkrExposure_Init(void)
             .shaders = adaptShaders,
         };
         if (!vkrPass_New(&ms_adaptPass, &desc))
+        {
+            success = false;
+            goto cleanup;
+        }
+    }
+
+    {
+        const vkrImage* backBuffer = vkrGetBackBuffer();
+        const vkrRenderPassDesc renderPassDesc =
+        {
+            .srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask = 0x0,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .attachments[0] =
+            {
+                .format = backBuffer->format,
+                .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .load = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                .store = VK_ATTACHMENT_STORE_OP_STORE,
+            },
+        };
+        ms_exposeRenderPass = vkrRenderPass_Get(&renderPassDesc);
+        if (!ms_exposeRenderPass)
+        {
+            success = false;
+            goto cleanup;
+        }
+
+        if (!vkrShader_New(
+            &exposeShaders[0],
+            "post.hlsl", "VSMain", vkrShaderType_Vert))
+        {
+            success = false;
+            goto cleanup;
+        }
+        if (!vkrShader_New(
+            &exposeShaders[1],
+            "post.hlsl", "PSMain", vkrShaderType_Frag))
+        {
+            success = false;
+            goto cleanup;
+        }
+
+        const vkrPassDesc passDesc =
+        {
+            .pushConstantBytes = 0,
+            .renderPass = ms_exposeRenderPass,
+            .subpass = 0,
+            .vertLayout =
+            {
+                .bindingCount = 0,
+                .bindings = NULL,
+                .attributeCount = 0,
+                .attributes = NULL,
+            },
+            .fixedFuncs =
+            {
+                .viewport = vkrSwapchain_GetViewport(),
+                .scissor = vkrSwapchain_GetRect(),
+                .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+                .polygonMode = VK_POLYGON_MODE_FILL,
+                .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .cullMode = VK_CULL_MODE_NONE,
+                .depthCompareOp = VK_COMPARE_OP_ALWAYS,
+                .scissorOn = false,
+                .depthClamp = false,
+                .depthTestEnable = false,
+                .depthWriteEnable = false,
+                .attachmentCount = 1,
+                .attachments[0] =
+                {
+                    .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                    .blendEnable = false,
+                },
+            },
+            .shaderCount = NELEM(exposeShaders),
+            .shaders = exposeShaders,
+        };
+        if (!vkrPass_New(&ms_exposePass, &passDesc))
         {
             success = false;
             goto cleanup;
@@ -137,6 +231,10 @@ cleanup:
     {
         vkrShader_Del(&adaptShaders[i]);
     }
+    for (i32 i = 0; i < NELEM(exposeShaders); ++i)
+    {
+        vkrShader_Del(&exposeShaders[i]);
+    }
     if (!success)
     {
         vkrExposure_Shutdown();
@@ -148,6 +246,7 @@ void vkrExposure_Shutdown(void)
 {
     vkrPass_Del(&ms_buildPass);
     vkrPass_Del(&ms_adaptPass);
+    vkrPass_Del(&ms_exposePass);
     vkrBufferSet_Release(&ms_histBuffers);
     vkrBufferSet_Release(&ms_expBuffers);
     vkrBufferSet_Release(&ms_readbackBuffers);
@@ -173,149 +272,109 @@ void vkrExposure_Setup(void)
         ms_params.ISO = 100.0f;
     }
 
-    vkrSwapchain *const chain = &g_vkr.chain;
-    const u32 chainLen = chain->length;
-    const u32 imgIndex = (chain->imageIndex + (chainLen - 1u)) % chainLen;
-    const u32 syncIndex = (chain->syncIndex + (kResourceSets - 1u)) % kResourceSets;
-
-    vkrImage *const lum = &chain->lumAttachments[imgIndex];
-    vkrBuffer *const expBuffer = &ms_expBuffers.frames[syncIndex];
-    vkrBuffer *const histBuffer = &ms_histBuffers.frames[syncIndex];
+    vkrImage* lum = vkrGetSceneBuffer();
+    vkrBuffer* expBuffer = vkrBufferSet_Current(&ms_expBuffers);
+    vkrBuffer* histBuffer = vkrBufferSet_Current(&ms_histBuffers);
+    VkSampler lumSampler = vkrSampler_Get(
+        VK_FILTER_LINEAR,
+        VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        (float)R_AnisotropySamples);
 
     vkrBindings_BindImage(
-        vkrBindId_LumTexture,
-        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        NULL,
+        bid_SceneLuminance,
+        bid_SceneLuminance_TYPE,
+        lumSampler,
         lum->view,
-        VK_IMAGE_LAYOUT_GENERAL);
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     vkrBindings_BindBuffer(
-        vkrBindId_HistogramBuffer,
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        bid_HistogramBuffer,
+        bid_HistogramBuffer_TYPE,
         histBuffer);
     vkrBindings_BindBuffer(
-        vkrBindId_ExposureBuffer,
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        bid_ExposureBuffer,
+        bid_ExposureBuffer_TYPE,
         expBuffer);
 
     ProfileEnd(pm_setup);
 }
 
-ProfileMark(pm_execute, vkrExposure_Execute)
 ProfileMark(pm_readback, vkrExposure_Readback)
-void vkrExposure_Execute(void)
+static void vkrExposure_Readback(void)
 {
+    // readback last frames exposure info, to set monitor metadata
     ProfileBegin(pm_readback);
-    if (ms_lastFence)
+    if (ms_readbackBuffer)
     {
-        vkrFence_Wait(ms_lastFence);
-        ms_lastFence = NULL;
-        vkrBuffer_Read(
-            &ms_readbackBuffers.frames[ms_lastBuffer],
-            &ms_readbackValue,
-            sizeof(ms_readbackValue));
-
-        const float dt = f1_sat((float)Time_Deltaf());
-        ms_averageValue = f4_lerpvs(ms_averageValue, ms_readbackValue, dt);
-
-        if (g_vkrDevExts.EXT_hdr_metadata && vkrSys_HdrEnabled())
+        vkrSubmit_Await(ms_readbackId);
+        float4 readbackValue = f4_0;
+        if (vkrBuffer_Read(ms_readbackBuffer, &readbackValue, sizeof(readbackValue)))
         {
-            const float minMonitorNits = vkrSys_GetDisplayNitsMin();
-            const float maxMonitorNits = vkrSys_GetDisplayNitsMax();
-            const float4x2 primaries = Colorspace_GetPrimaries(vkrSys_GetDisplayColorspace());
-            const float4 averaged = f4_PQ_OOTF(ms_averageValue);
-            const float avgContentLum = averaged.x;
-            const float maxContentLum = averaged.z;
-            const VkHdrMetadataEXT metadata =
-            {
-                .sType = VK_STRUCTURE_TYPE_HDR_METADATA_EXT,
-                .displayPrimaryRed.x = primaries.c0.x,
-                .displayPrimaryRed.y = primaries.c1.x,
-                .displayPrimaryGreen.x = primaries.c0.y,
-                .displayPrimaryGreen.y = primaries.c1.y,
-                .displayPrimaryBlue.x = primaries.c0.z,
-                .displayPrimaryBlue.y = primaries.c1.z,
-                .whitePoint.x = primaries.c0.w,
-                .whitePoint.y = primaries.c1.w,
-                .minLuminance = minMonitorNits, // minimum luminance of the reference monitor in nits
-                .maxLuminance = maxMonitorNits, // maximum luminance of the reference monitor in nits
-                .maxFrameAverageLightLevel = avgContentLum, // MaxFALL (content's maximum frame average light level in nits)
-                .maxContentLightLevel = maxContentLum, // MaxCLL (content’s maximum luminance in nits)
-            };
-            const VkSwapchainKHR swapchains[] =
-            {
-                g_vkr.chain.handle,
-            };
-            vkSetHdrMetadataEXT(g_vkr.dev, NELEM(swapchains), swapchains, &metadata);
+            ms_averageValue = f4_lerpvs(ms_averageValue, readbackValue, f1_sat((float)Time_Deltaf()));
+            ms_params.avgLum = readbackValue.x;
+            ms_params.exposure = readbackValue.y;
         }
+        ms_readbackBuffer = NULL;
+        ms_readbackId = (vkrSubmitId){ 0 };
+    }
+    if (g_vkrDevExts.EXT_hdr_metadata && vkrGetHdrEnabled())
+    {
+        const float minMonitorNits = vkrGetDisplayNitsMin();
+        const float maxMonitorNits = vkrGetDisplayNitsMax();
+        const float4x2 primaries = Colorspace_GetPrimaries(vkrGetDisplayColorspace());
+        // convert scene luminance to display luminance
+        const float4 averaged = f4_PQ_OOTF(ms_averageValue);
+        const float avgContentLum = averaged.x;
+        const float maxContentLum = averaged.z;
+        const VkHdrMetadataEXT metadata =
+        {
+            .sType = VK_STRUCTURE_TYPE_HDR_METADATA_EXT,
+            .displayPrimaryRed.x = primaries.c0.x,
+            .displayPrimaryRed.y = primaries.c1.x,
+            .displayPrimaryGreen.x = primaries.c0.y,
+            .displayPrimaryGreen.y = primaries.c1.y,
+            .displayPrimaryBlue.x = primaries.c0.z,
+            .displayPrimaryBlue.y = primaries.c1.z,
+            .whitePoint.x = primaries.c0.w,
+            .whitePoint.y = primaries.c1.w,
+            .minLuminance = minMonitorNits, // minimum luminance of the reference monitor in nits
+            .maxLuminance = maxMonitorNits, // maximum luminance of the reference monitor in nits
+            .maxFrameAverageLightLevel = avgContentLum, // MaxFALL (content's maximum frame average light level in nits)
+            .maxContentLightLevel = maxContentLum, // MaxCLL (content’s maximum luminance in nits)
+        };
+        vkSetHdrMetadataEXT(g_vkr.dev, 1, &g_vkr.chain.handle, &metadata);
     }
     ProfileEnd(pm_readback);
+}
 
+ProfileMark(pm_execute, vkrExposure_Execute)
+void vkrExposure_Execute(void)
+{
     ProfileBegin(pm_execute);
 
-    vkrSwapchain *const chain = &g_vkr.chain;
-    const u32 chainLen = chain->length;
-    const u32 imgIndex = (chain->imageIndex + (chainLen - 1u)) % chainLen;
-    const u32 syncIndex = (chain->syncIndex + (kResourceSets - 1u)) % kResourceSets;
+    vkrExposure_Readback();
 
-    vkrImage *const lum = &chain->lumAttachments[imgIndex];
-    vkrBuffer *const expBuffer = &ms_expBuffers.frames[syncIndex];
-    vkrBuffer *const histBuffer = &ms_histBuffers.frames[syncIndex];
-
-    VkFence cmpfence = NULL;
-    VkQueue cmpqueue = NULL;
-    VkCommandBuffer cmpcmd = vkrContext_GetTmpCmd(vkrQueueId_Compute, &cmpfence, &cmpqueue);
-    vkrCmdBegin(cmpcmd);
-
-    // transition lum img and exposure buf to compute
-    {
-        VkFence gfxfence = NULL;
-        VkQueue gfxqueue = NULL;
-        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(vkrQueueId_Graphics, &gfxfence, &gfxqueue);
-        vkrCmdBegin(gfxcmd);
-
-        vkrImage_Transfer(
-            lum,
-            vkrQueueId_Graphics,
-            vkrQueueId_Compute,
-            gfxcmd,
-            cmpcmd,
-            VK_IMAGE_LAYOUT_GENERAL,
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-        vkrBuffer_Transfer(
-            expBuffer,
-            vkrQueueId_Graphics,
-            vkrQueueId_Compute,
-            gfxcmd,
-            cmpcmd,
-            VK_ACCESS_SHADER_READ_BIT,
-            VK_ACCESS_TRANSFER_READ_BIT,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT);
-
-        vkrCmdEnd(gfxcmd);
-        vkrCmdSubmit(gfxqueue, gfxcmd, gfxfence, NULL, 0x0, NULL);
-    }
+    // compute exposure of the previous frame
+    vkrImage* backbuffer = vkrGetBackBuffer();
+    vkrImage* sceneLum = vkrGetSceneBuffer();
+    vkrBuffer* expBuffer = vkrBufferSet_Current(&ms_expBuffers);
+    vkrBuffer* histBuffer = vkrBufferSet_Current(&ms_histBuffers);
 
     // copy exposure buffer to read buffer
     {
-        vkrBuffer *const readBuffer = vkrBufferSet_Current(&ms_readbackBuffers);
-        vkrBuffer_Barrier(
-            readBuffer,
-            cmpcmd,
-            VK_ACCESS_HOST_READ_BIT,
-            VK_ACCESS_TRANSFER_WRITE_BIT,
-            VK_PIPELINE_STAGE_HOST_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT);
-        vkrCmdCopyBuffer(cmpcmd, expBuffer, readBuffer);
+        //vkrCmdBuf* cmd_x = vkrCmdGet_T();
+        vkrCmdBuf* cmd_x = vkrCmdGet_G();
+        vkrBuffer* readBuffer = vkrBufferSet_Current(&ms_readbackBuffers);
+        vkrCmdCopyBuffer(cmd_x, expBuffer, readBuffer);
+        vkrBufferState_HostRead(cmd_x, readBuffer);
+        ms_readbackBuffer = readBuffer;
+        ms_readbackId = vkrCmdSubmit(cmd_x, NULL, 0x0, NULL);
     }
 
     // dispatch shaders
     {
-        const i32 width = chain->width;
-        const i32 height = chain->height;
+        const i32 width = sceneLum->width;
+        const i32 height = sceneLum->height;
         const PushConstants constants =
         {
             .width = width,
@@ -323,81 +382,64 @@ void vkrExposure_Execute(void)
             .exposure = ms_params,
         };
 
+        //vkrCmdBuf* cmd_c = vkrCmdGet_C();
+        vkrCmdBuf* cmd_c = vkrCmdGet_G();
+
         // build histogram
         {
-            vkrCmdBindPass(cmpcmd, &ms_buildPass);
-            vkrCmdPushConstants(cmpcmd, &ms_buildPass, &constants, sizeof(constants));
+            vkrImageState_ComputeLoad(cmd_c, sceneLum);
+            vkrBufferState_ComputeLoadStore(cmd_c, histBuffer);
+            vkrCmdBindPass(cmd_c, &ms_buildPass);
+            vkrCmdPushConstants(cmd_c, &ms_buildPass, &constants, sizeof(constants));
             const i32 dispatchX = (width + 15) / 16;
             const i32 dispatchY = (height + 15) / 16;
-            vkCmdDispatch(cmpcmd, dispatchX, dispatchY, 1);
+            vkrCmdDispatch(cmd_c, dispatchX, dispatchY, 1);
         }
-
-        vkrBuffer_Barrier(
-            histBuffer,
-            cmpcmd,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-        vkrBuffer_Barrier(
-            expBuffer,
-            cmpcmd,
-            VK_ACCESS_TRANSFER_READ_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
         // adapt exposure
         {
-            vkrCmdBindPass(cmpcmd, &ms_adaptPass);
-            vkrCmdPushConstants(cmpcmd, &ms_adaptPass, &constants, sizeof(constants));
-            vkCmdDispatch(cmpcmd, 1, 1, 1);
+            vkrBufferState_ComputeLoad(cmd_c, histBuffer);
+            vkrBufferState_ComputeStore(cmd_c, expBuffer);
+            vkrCmdBindPass(cmd_c, &ms_adaptPass);
+            vkrCmdPushConstants(cmd_c, &ms_adaptPass, &constants, sizeof(constants));
+            vkrCmdDispatch(cmd_c, 1, 1, 1);
         }
+
+        vkrCmdSubmit(cmd_c, NULL, 0x0, NULL);
     }
 
-    // transition to gfx
     {
-        VkFence gfxfence = NULL;
-        VkQueue gfxqueue = NULL;
-        VkCommandBuffer gfxcmd = vkrContext_GetTmpCmd(vkrQueueId_Graphics, &gfxfence, &gfxqueue);
-        vkrCmdBegin(gfxcmd);
+        vkrCmdBuf* cmd_g = vkrCmdGet_G();
+        vkrBufferState_FragLoad(cmd_g, expBuffer);
+        vkrImageState_FragSample(cmd_g, sceneLum);
+        vkrImageState_ColorAttachWrite(cmd_g, backbuffer);
 
-        vkrImage_Transfer(
-            lum,
-            vkrQueueId_Compute,
-            vkrQueueId_Graphics,
-            cmpcmd,
-            gfxcmd,
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            VK_ACCESS_SHADER_READ_BIT,
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-        vkrBuffer_Transfer(
-            expBuffer,
-            vkrQueueId_Compute,
-            vkrQueueId_Graphics,
-            cmpcmd,
-            gfxcmd,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+        const vkrImage* attachments[] =
+        {
+            backbuffer,
+        };
+        VkRect2D rect = { .extent = { attachments[0]->width, attachments[0]->height } };
+        VkFramebuffer framebuffer = vkrFramebuffer_Get(
+            attachments, NELEM(attachments),
+            rect.extent.width, rect.extent.height);
 
-        vkrCmdEnd(cmpcmd);
-        vkrCmdSubmit(cmpqueue, cmpcmd, cmpfence, NULL, 0x0, NULL);
-
-        vkrCmdEnd(gfxcmd);
-        vkrCmdSubmit(gfxqueue, gfxcmd, gfxfence, NULL, 0x0, NULL);
+        vkrCmdDefaultViewport(cmd_g);
+        vkrCmdBindPass(cmd_g, &ms_exposePass);
+        const VkClearValue clearValues[] =
+        {
+            {
+                .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+            },
+        };
+        vkrCmdBeginRenderPass(
+            cmd_g,
+            ms_exposeRenderPass,
+            framebuffer,
+            rect,
+            NELEM(clearValues), clearValues);
+        vkrCmdDraw(cmd_g, 3, 0);
+        vkrCmdEndRenderPass(cmd_g);
     }
-
-    ms_lastFence = cmpfence;
-    ms_lastBuffer = syncIndex;
 
     ProfileEnd(pm_execute);
-}
-
-vkrExposure* vkrExposure_GetParams(void)
-{
-    return &ms_params;
 }

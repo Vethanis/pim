@@ -5,6 +5,7 @@
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_swapchain.h"
 #include "rendering/vulkan/vkr_renderpass.h"
+#include "rendering/vulkan/vkr_framebuffer.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_buffer.h"
 #include "rendering/vulkan/vkr_mesh.h"
@@ -39,6 +40,9 @@ bool vkrDepthPass_New(void)
 {
     bool success = true;
 
+    const vkrImage* depthBuffer = vkrGetDepthBuffer();
+    ASSERT(depthBuffer->handle);
+
     const vkrRenderPassDesc renderPassDesc =
     {
         .srcStageMask =
@@ -53,30 +57,12 @@ bool vkrDepthPass_New(void)
 
         .attachments[0] =
         {
-            .format = g_vkr.chain.depthAttachments[0].format,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .format = depthBuffer->format,
+            .initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             .load = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .store = VK_ATTACHMENT_STORE_OP_STORE,
-        },
-        .attachments[1] =
-        {
-            .format = g_vkr.chain.colorFormat,
-            .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .load = VK_ATTACHMENT_LOAD_OP_LOAD,
-            .store = VK_ATTACHMENT_STORE_OP_STORE,
-        },
-        .attachments[2] =
-        {
-            .format = g_vkr.chain.lumAttachments[0].format,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .load = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .store = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         },
     };
     ms_renderPass = vkrRenderPass_Get(&renderPassDesc);
@@ -140,8 +126,8 @@ bool vkrDepthPass_New(void)
         },
         .fixedFuncs =
         {
-            .viewport = vkrSwapchain_GetViewport(&g_vkr.chain),
-            .scissor = vkrSwapchain_GetRect(&g_vkr.chain),
+            .viewport = vkrSwapchain_GetViewport(),
+            .scissor = vkrSwapchain_GetRect(),
             .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
             .polygonMode = VK_POLYGON_MODE_FILL,
             .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
@@ -151,7 +137,7 @@ bool vkrDepthPass_New(void)
             .depthClamp = false,
             .depthTestEnable = true,
             .depthWriteEnable = true,
-            .attachmentCount = 2,
+            .attachmentCount = 0,
         },
     };
 
@@ -184,15 +170,22 @@ void vkrDepthPass_Setup(void)
 }
 
 ProfileMark(pm_execute, vkrDepthPass_Execute)
-void vkrDepthPass_Execute(vkrPassContext const *const ctx)
+void vkrDepthPass_Execute(void)
 {
     ProfileBegin(pm_execute);
 
     Camera camera;
     Camera_Get(&camera);
-    float4x4 worldToClip = Camera_GetWorldToClip(&camera, vkrSwapchain_GetAspect(&g_vkr.chain));
+    float4x4 worldToClip = Camera_GetWorldToClip(&camera, vkrSwapchain_GetAspect());
 
-    VkCommandBuffer cmd = ctx->cmd;
+    vkrImage* attachments[] = { vkrGetDepthBuffer() };
+    VkRect2D rect = { .extent = { attachments[0]->width, attachments[0]->height } };
+    VkFramebuffer framebuffer = vkrFramebuffer_Get(attachments, NELEM(attachments), rect.extent.width, rect.extent.height);
+
+    vkrCmdBuf* cmd = vkrCmdGet_G();
+
+    vkrImageState_DepthAttachWrite(cmd, attachments[0]);
+
     vkrCmdDefaultViewport(cmd);
     vkrCmdBindPass(cmd, &ms_pass);
     const VkClearValue clearValues[] =
@@ -200,20 +193,13 @@ void vkrDepthPass_Execute(vkrPassContext const *const ctx)
         {
             .depthStencil = { 1.0f, 0 },
         },
-        {
-            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
-        },
-        {
-            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
-        },
     };
     vkrCmdBeginRenderPass(
         cmd,
         ms_renderPass,
-        ctx->framebuffer,
-        vkrSwapchain_GetRect(&g_vkr.chain),
-        NELEM(clearValues), clearValues,
-        VK_SUBPASS_CONTENTS_INLINE);
+        framebuffer,
+        rect,
+        NELEM(clearValues), clearValues);
 
     const Entities* ents = Entities_Get();
     for (i32 iEnt = 0; iEnt < ents->count; ++iEnt)
@@ -231,7 +217,7 @@ void vkrDepthPass_Execute(vkrPassContext const *const ctx)
     PushConstants pc;
     pc.localToClip = worldToClip;
     vkrCmdPushConstants(cmd, &ms_pass, &pc, sizeof(pc));
-    vkrImSys_DrawDepth(cmd);
+    vkrImSys_DrawDepth();
 
     vkrCmdEndRenderPass(cmd);
 
