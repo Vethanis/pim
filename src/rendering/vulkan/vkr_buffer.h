@@ -22,38 +22,20 @@ bool vkrBuffer_Reserve(
     VkBufferUsageFlags bufferUsage,
     vkrMemUsage memUsage);
 
-void *const vkrBuffer_Map(vkrBuffer const *const buffer);
-void vkrBuffer_Unmap(vkrBuffer const *const buffer);
-void vkrBuffer_Flush(vkrBuffer const *const buffer);
+const void* vkrBuffer_MapRead(vkrBuffer* buffer);
+void vkrBuffer_UnmapRead(vkrBuffer* buffer);
+void* vkrBuffer_MapWrite(vkrBuffer* buffer);
+void vkrBuffer_UnmapWrite(vkrBuffer* buffer);
 
 // helper for map, unmap, flush
 bool vkrBuffer_Write(
-    vkrBuffer const *const buffer,
-    void const *const src,
+    vkrBuffer* buffer,
+    const void* src,
     i32 size);
 bool vkrBuffer_Read(
-    vkrBuffer const *const buffer,
+    vkrBuffer* buffer,
     void* dst,
     i32 size);
-
-void vkrBuffer_Barrier(
-    vkrBuffer *const buffer,
-    VkCommandBuffer cmd,
-    VkAccessFlags srcAccessMask,
-    VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask);
-
-void vkrBuffer_Transfer(
-    vkrBuffer *const buffer,
-    vkrQueueId srcQueueId,
-    vkrQueueId dstQueueId,
-    VkCommandBuffer srcCmd,
-    VkCommandBuffer dstCmd,
-    VkAccessFlags srcAccessMask,
-    VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask);
 
 // ----------------------------------------------------------------------------
 

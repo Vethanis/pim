@@ -23,7 +23,7 @@ void vkrBuffer_Release(vkrBuffer *const buffer)
     {
         const vkrReleasable releasable =
         {
-            .frame = vkrSys_FrameIndex(),
+            .frame = vkrGetFrameCount(),
             .type = vkrReleasableType_Buffer,
             .buffer.handle = buffer->handle,
             .buffer.allocation = buffer->allocation,
@@ -56,28 +56,73 @@ bool vkrBuffer_Reserve(
     return success;
 }
 
-void *const vkrBuffer_Map(vkrBuffer const *const buffer)
+const void* vkrBuffer_MapRead(vkrBuffer* buffer)
 {
     ASSERT(buffer);
+    bool hasStage = (buffer->state.stage & VK_PIPELINE_STAGE_HOST_BIT) != 0;
+    bool hasAccess = (buffer->state.access & VK_ACCESS_HOST_READ_BIT) != 0;
+    if (!hasStage || !hasAccess)
+    {
+        // This sucks but im lazy.
+        vkrCmdBuf* cmd = vkrCmdGet_G();
+        vkrBufferState_HostRead(cmd, buffer);
+        vkrSubmitId submitId = vkrCmdSubmit(cmd, NULL, 0x0, NULL);
+        vkrSubmit_Await(submitId);
+        cmd = vkrCmdGet_G();
+        ASSERT(cmd->handle);
+    }
+    ASSERT(buffer->state.stage & VK_PIPELINE_STAGE_HOST_BIT);
+    ASSERT(buffer->state.access & VK_ACCESS_HOST_READ_BIT);
     return vkrMem_Map(buffer->allocation);
 }
 
-void vkrBuffer_Unmap(vkrBuffer const *const buffer)
+void vkrBuffer_UnmapRead(vkrBuffer* buffer)
 {
     ASSERT(buffer);
+    ASSERT(buffer->state.stage & VK_PIPELINE_STAGE_HOST_BIT);
+    ASSERT(buffer->state.access & VK_ACCESS_HOST_READ_BIT);
     vkrMem_Unmap(buffer->allocation);
 }
 
-void vkrBuffer_Flush(vkrBuffer const *const buffer)
+void* vkrBuffer_MapWrite(vkrBuffer* buffer)
 {
     ASSERT(buffer);
+    if (!buffer->state.stage)
+    {
+        // newly created buffer
+        buffer->state.stage = VK_PIPELINE_STAGE_HOST_BIT;
+        buffer->state.access = VK_ACCESS_HOST_WRITE_BIT;
+    }
+    bool hasStage = (buffer->state.stage & VK_PIPELINE_STAGE_HOST_BIT) != 0;
+    bool hasAccess = (buffer->state.access & VK_ACCESS_HOST_WRITE_BIT) != 0;
+    if (!hasStage || !hasAccess)
+    {
+        // This sucks but im lazy.
+        vkrCmdBuf* cmd = vkrCmdGet_G();
+        vkrBufferState_HostWrite(cmd, buffer);
+        vkrSubmitId submitId = vkrCmdSubmit(cmd, NULL, 0x0, NULL);
+        vkrSubmit_Await(submitId);
+        cmd = vkrCmdGet_G();
+        ASSERT(cmd->handle);
+    }
+    ASSERT(buffer->state.stage & VK_PIPELINE_STAGE_HOST_BIT);
+    ASSERT(buffer->state.access & VK_ACCESS_HOST_WRITE_BIT);
+    return vkrMem_Map(buffer->allocation);
+}
+
+void vkrBuffer_UnmapWrite(vkrBuffer* buffer)
+{
+    ASSERT(buffer);
+    ASSERT(buffer->state.stage & VK_PIPELINE_STAGE_HOST_BIT);
+    ASSERT(buffer->state.access & VK_ACCESS_HOST_WRITE_BIT);
+    vkrMem_Unmap(buffer->allocation);
     vkrMem_Flush(buffer->allocation);
 }
 
 ProfileMark(pm_bufferwrite, vkrBuffer_Write)
 bool vkrBuffer_Write(
-    vkrBuffer const *const buffer,
-    void const *const src,
+    vkrBuffer* buffer,
+    const void* src,
     i32 size)
 {
     ProfileBegin(pm_bufferwrite);
@@ -86,21 +131,20 @@ bool vkrBuffer_Write(
     ASSERT(size >= 0);
     ASSERT(size <= buffer->size);
     bool success = false;
-    void* dst = vkrBuffer_Map(buffer);
+    void* dst = vkrBuffer_MapWrite(buffer);
     if (dst)
     {
         memcpy(dst, src, size);
         success = true;
     }
-    vkrBuffer_Unmap(buffer);
-    vkrBuffer_Flush(buffer);
+    vkrBuffer_UnmapWrite(buffer);
     ProfileEnd(pm_bufferwrite);
     return success;
 }
 
 ProfileMark(pm_bufferread, vkrBuffer_Read)
 bool vkrBuffer_Read(
-    vkrBuffer const *const buffer,
+    vkrBuffer* buffer,
     void* dst,
     i32 size)
 {
@@ -109,63 +153,15 @@ bool vkrBuffer_Read(
     ASSERT(dst);
     ASSERT(size == buffer->size);
     bool success = false;
-    const void* src = vkrBuffer_Map(buffer);
+    const void* src = vkrBuffer_MapRead(buffer);
     if (src)
     {
         memcpy(dst, src, size);
         success = true;
     }
-    vkrBuffer_Unmap(buffer);
+    vkrBuffer_UnmapRead(buffer);
     ProfileEnd(pm_bufferread);
     return success;
-}
-
-void vkrBuffer_Barrier(
-    vkrBuffer *const buffer,
-    VkCommandBuffer cmd,
-    VkAccessFlags srcAccessMask,
-    VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask)
-{
-    const VkBufferMemoryBarrier barrier =
-    {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = srcAccessMask,
-        .dstAccessMask = dstAccessMask,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer = buffer->handle,
-        .size = VK_WHOLE_SIZE,
-    };
-    vkrCmdBufferBarrier(cmd, srcStageMask, dstStageMask, &barrier);
-}
-
-void vkrBuffer_Transfer(
-    vkrBuffer *const buffer,
-    vkrQueueId srcQueueId,
-    vkrQueueId dstQueueId,
-    VkCommandBuffer srcCmd,
-    VkCommandBuffer dstCmd,
-    VkAccessFlags srcAccessMask,
-    VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask)
-{
-    u32 srcFamily = g_vkr.queues[srcQueueId].family;
-    u32 dstFamily = g_vkr.queues[dstQueueId].family;
-    const VkBufferMemoryBarrier barrier =
-    {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = srcAccessMask,
-        .dstAccessMask = dstAccessMask,
-        .srcQueueFamilyIndex = srcFamily,
-        .dstQueueFamilyIndex = dstFamily,
-        .buffer = buffer->handle,
-        .size = VK_WHOLE_SIZE,
-    };
-    vkrCmdBufferBarrier(srcCmd, srcStageMask, dstStageMask, &barrier);
-    vkrCmdBufferBarrier(dstCmd, srcStageMask, dstStageMask, &barrier);
 }
 
 // ----------------------------------------------------------------------------
@@ -199,7 +195,7 @@ void vkrBufferSet_Release(vkrBufferSet *const set)
 
 vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set)
 {
-    u32 syncIndex = vkrSys_SyncIndex();
+    u32 syncIndex = vkrGetSyncIndex();
     ASSERT(syncIndex < NELEM(set->frames));
     return &set->frames[syncIndex];
 }

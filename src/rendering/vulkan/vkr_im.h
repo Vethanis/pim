@@ -14,10 +14,10 @@ bool vkrImSys_Init(void);
 void vkrImSys_Shutdown(void);
 
 void vkrImSys_Clear(void);
-void vkrImSys_Flush(VkCommandBuffer cmd);
+void vkrImSys_Flush(void);
 
-void vkrImSys_Draw(VkCommandBuffer cmd);
-void vkrImSys_DrawDepth(VkCommandBuffer cmd);
+void vkrImSys_Draw(void);
+void vkrImSys_DrawDepth(void);
 
 // ----------------------------------------------------------------------------
 // user

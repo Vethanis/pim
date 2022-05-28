@@ -27,7 +27,7 @@ typedef struct MacroMesh_s
 static i32 MacroMesh_Bytes(const MacroMesh* m);
 static void MacroMesh_Resize(MacroMesh* m, i32 ct);
 static void MacroMesh_Reset(MacroMesh* m);
-static bool MacroMesh_Fill(MacroMesh* m, vkrBuffer const *const buffer);
+static bool MacroMesh_Fill(MacroMesh* m, vkrBuffer* buffer);
 static i32 MacroMesh_Alloc(MacroMesh* m, i32 vertCount);
 
 static vkrBufferSet ms_buffer;
@@ -59,7 +59,7 @@ void vkrImSys_Clear(void)
 }
 
 ProfileMark(pm_flush, vkrImSys_Flush)
-void vkrImSys_Flush(VkCommandBuffer cmd)
+void vkrImSys_Flush(void)
 {
     ProfileBegin(pm_flush);
 
@@ -95,34 +95,9 @@ void vkrImSys_Flush(VkCommandBuffer cmd)
                 MacroMesh_Fill(&ms_macro, stage);
                 ms_gpuVertCount = ms_macro.length;
 
-                bool tmpCmd = !cmd;
-                VkFence fence = NULL;
-                VkQueue queue = NULL;
-                if (tmpCmd)
-                {
-                    cmd = vkrContext_GetTmpCmd(vkrQueueId_Graphics, &fence, &queue);
-                    vkrCmdBegin(cmd);
-                }
-                vkrBuffer_Barrier(
-                    stage,
-                    cmd,
-                    VK_ACCESS_HOST_WRITE_BIT,
-                    VK_ACCESS_TRANSFER_READ_BIT,
-                    VK_ACCESS_HOST_WRITE_BIT,
-                    VK_PIPELINE_STAGE_TRANSFER_BIT);
+                vkrCmdBuf* cmd = vkrCmdGet_G();
                 vkrCmdCopyBuffer(cmd, stage, buffer);
-                vkrBuffer_Barrier(
-                    buffer,
-                    cmd,
-                    VK_ACCESS_TRANSFER_WRITE_BIT,
-                    VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
-                    VK_PIPELINE_STAGE_TRANSFER_BIT,
-                    VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
-                if (tmpCmd)
-                {
-                    vkrCmdEnd(cmd);
-                    vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-                }
+                vkrBufferState_VertexBuffer(cmd, buffer);
             }
         }
     }
@@ -178,7 +153,7 @@ void VEC_CALL vkrIm_Vert(float4 pos, float4 nor, float4 uv, int4 itex)
     ms_macro.texInds[i] = itex;
 }
 
-void vkrImSys_Draw(VkCommandBuffer cmd)
+void vkrImSys_Draw(void)
 {
     // cannot flush during a VkRenderPass
     ASSERT(!ms_dirty);
@@ -186,7 +161,10 @@ void vkrImSys_Draw(VkCommandBuffer cmd)
     const i32 vertCount = ms_gpuVertCount;
     if (vertCount > 0)
     {
+        vkrCmdBuf* cmd = vkrCmdGet_G();
+        ASSERT(cmd->inRenderPass);
         vkrBuffer *const buffer = vkrBufferSet_Current(&ms_buffer);
+        ASSERT(buffer->state.access & VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT);
 
         const VkDeviceSize streamSize = sizeof(float4) * vertCount;
         const VkBuffer buffers[] =
@@ -203,12 +181,13 @@ void vkrImSys_Draw(VkCommandBuffer cmd)
             streamSize * 2,
             streamSize * 3,
         };
-        vkCmdBindVertexBuffers(cmd, 0, NELEM(buffers), buffers, offsets);
-        vkCmdDraw(cmd, vertCount, 1, 0, 0);
+        ASSERT(cmd->handle);
+        vkCmdBindVertexBuffers(cmd->handle, 0, NELEM(buffers), buffers, offsets);
+        vkCmdDraw(cmd->handle, vertCount, 1, 0, 0);
     }
 }
 
-void vkrImSys_DrawDepth(VkCommandBuffer cmd)
+void vkrImSys_DrawDepth(void)
 {
     // cannot flush during a VkRenderPass
     ASSERT(!ms_dirty);
@@ -216,7 +195,10 @@ void vkrImSys_DrawDepth(VkCommandBuffer cmd)
     const i32 vertCount = ms_gpuVertCount;
     if (vertCount > 0)
     {
+        vkrCmdBuf* cmd = vkrCmdGet_G();
+        ASSERT(cmd->inRenderPass);
         vkrBuffer *const buffer = vkrBufferSet_Current(&ms_buffer);
+        ASSERT(buffer->state.access & VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT);
 
         const VkDeviceSize streamSize = sizeof(float4) * vertCount;
         const VkBuffer buffers[] =
@@ -227,8 +209,9 @@ void vkrImSys_DrawDepth(VkCommandBuffer cmd)
         {
             streamSize * 0,
         };
-        vkCmdBindVertexBuffers(cmd, 0, NELEM(buffers), buffers, offsets);
-        vkCmdDraw(cmd, vertCount, 1, 0, 0);
+        ASSERT(cmd->handle);
+        vkCmdBindVertexBuffers(cmd->handle, 0, NELEM(buffers), buffers, offsets);
+        vkCmdDraw(cmd->handle, vertCount, 1, 0, 0);
     }
 }
 
@@ -264,11 +247,11 @@ static void MacroMesh_Reset(MacroMesh* m)
     memset(m, 0, sizeof(*m));
 }
 
-static bool MacroMesh_Fill(MacroMesh* m, vkrBuffer const *const buffer)
+static bool MacroMesh_Fill(MacroMesh* m, vkrBuffer* buffer)
 {
     ASSERT(buffer->size >= MacroMesh_Bytes(m));
     const i32 stride = m->length;
-    float4* mem = vkrBuffer_Map(buffer);
+    float4* mem = vkrBuffer_MapWrite(buffer);
     if (mem && stride > 0)
     {
         memcpy(mem, &m->positions[0], sizeof(m->positions[0]) * stride);
@@ -280,8 +263,7 @@ static bool MacroMesh_Fill(MacroMesh* m, vkrBuffer const *const buffer)
         memcpy(mem, &m->texInds[0], sizeof(m->texInds[0]) * stride);
         mem += stride;
     }
-    vkrBuffer_Unmap(buffer);
-    vkrBuffer_Flush(buffer);
+    vkrBuffer_UnmapWrite(buffer);
     return mem != NULL;
 }
 

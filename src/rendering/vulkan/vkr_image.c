@@ -3,6 +3,7 @@
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_context.h"
+#include "rendering/vulkan/vkr_queue.h"
 
 #include "allocator/allocator.h"
 #include "common/profiler.h"
@@ -12,42 +13,6 @@
 #include <string.h>
 
 // ----------------------------------------------------------------------------
-
-static const u32 kQueueMasks[] =
-{
-    // present
-    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
-    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
-    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-    // gfx
-    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
-    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
-    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
-    VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT |
-    VK_PIPELINE_STAGE_VERTEX_INPUT_BIT |
-    VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-    VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT |
-    VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
-    VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT |
-    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-    VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
-    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-    VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT |
-    VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT,
-    // compute
-    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
-    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
-    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
-    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    // present
-    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
-    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
-    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
-    VK_PIPELINE_STAGE_TRANSFER_BIT |
-    VK_PIPELINE_STAGE_HOST_BIT,
-};
-SASSERT(NELEM(kQueueMasks) == vkrQueueId_COUNT);
 
 bool vkrImage_New(
     vkrImage* image,
@@ -67,13 +32,17 @@ bool vkrImage_Import(
 
     bool success = true;
     memset(image, 0, sizeof(*image));
-
+    if (!handle)
+    {
+        success = false;
+        goto cleanup;
+    }
     image->handle = handle;
     image->allocation = NULL;
     image->view = NULL;
     image->type = info->imageType;
     image->format = info->format;
-    image->layout = info->initialLayout;
+    image->state.layout = info->initialLayout;
     image->usage = info->usage;
     image->width = info->extent.width;
     image->height = info->extent.height;
@@ -81,12 +50,6 @@ bool vkrImage_Import(
     image->mipLevels = info->mipLevels;
     image->arrayLayers = info->arrayLayers;
     image->imported = 1;
-
-    if (!handle)
-    {
-        success = false;
-        goto cleanup;
-    }
 
     VkImageViewCreateInfo viewInfo;
     if (vkrImage_InfoToViewInfo(info, &viewInfo))
@@ -103,6 +66,7 @@ bool vkrImage_Import(
 cleanup:
     if (!success)
     {
+        image->handle = NULL;
         vkrMem_ImageDel(image);
     }
     return success;
@@ -111,25 +75,38 @@ cleanup:
 void vkrImage_Release(vkrImage* image)
 {
     ASSERT(image);
+    const u32 attachUsage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    if (image->usage & attachUsage)
+    {
+        vkrAttachment_Release(image->view);
+        image->view = NULL;
+    }
     if (image->imported)
     {
         ASSERT(!image->allocation);
         vkrImageView_Release(image->view);
+        image->view = NULL;
+        image->handle = NULL;
+        image->allocation = NULL;
     }
-    else
+    else if (image->handle || image->allocation || image->view)
     {
-        if (image->handle || image->allocation || image->view)
+        const vkrReleasable releasable =
         {
-            const vkrReleasable releasable =
-            {
-                .frame = vkrSys_FrameIndex(),
-                .type = vkrReleasableType_Image,
-                .image.handle = image->handle,
-                .image.allocation = image->allocation,
-                .image.view = image->view,
-            };
-            vkrReleasable_Add(&releasable);
-        }
+            .frame = vkrGetFrameCount(),
+            .type = vkrReleasableType_Image,
+            .image.handle = image->handle,
+            .image.allocation = image->allocation,
+            .image.view = image->view,
+        };
+        vkrReleasable_Add(&releasable);
+        image->handle = NULL;
+        image->allocation = NULL;
+        image->view = NULL;
     }
     memset(image, 0, sizeof(*image));
 }
@@ -141,6 +118,20 @@ void vkrImageView_Release(VkImageView view)
         const vkrReleasable releasable =
         {
             .type = vkrReleasableType_ImageView,
+            .frame = Time_FrameCount(),
+            .view = view,
+        };
+        vkrReleasable_Add(&releasable);
+    }
+}
+
+void vkrAttachment_Release(VkImageView view)
+{
+    if (view)
+    {
+        const vkrReleasable releasable =
+        {
+            .type = vkrReleasableType_Attachment,
             .frame = Time_FrameCount(),
             .view = view,
         };
@@ -188,98 +179,6 @@ void vkrImage_Flush(const vkrImage* image)
     vkrMem_Flush(image->allocation);
 }
 
-void vkrImage_Barrier(
-    vkrImage* image,
-    VkCommandBuffer cmd,
-    VkImageLayout newLayout,
-    VkAccessFlags srcAccessMask,
-    VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStages,
-    VkPipelineStageFlags dstStages)
-{
-    VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-    if (image->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
-    {
-        aspect = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-    }
-    const VkImageMemoryBarrier barrier =
-    {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = srcAccessMask,
-        .dstAccessMask = dstAccessMask,
-        .oldLayout = image->layout,
-        .newLayout = newLayout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = image->handle,
-        .subresourceRange =
-        {
-            .aspectMask = aspect,
-            .levelCount = image->mipLevels,
-            .layerCount = image->arrayLayers,
-        },
-    };
-    vkrCmdImageBarrier(
-        cmd,
-        srcStages,
-        dstStages,
-        &barrier);
-    image->layout = newLayout;
-}
-
-void vkrImage_Transfer(
-    vkrImage* image,
-    vkrQueueId srcQueueId, vkrQueueId dstQueueId,
-    VkCommandBuffer srcCmd, VkCommandBuffer dstCmd,
-    VkImageLayout newLayout,
-    VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
-    VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask)
-{
-    VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-    if (image->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
-    {
-        aspect = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-    }
-    u32 srcQueueMask = kQueueMasks[srcQueueId];
-    u32 dstQueueMask = kQueueMasks[dstQueueId];
-    u32 srcQueueFamily = g_vkr.queues[srcQueueId].family;
-    u32 dstQueueFamily = g_vkr.queues[dstQueueId].family;
-    VkImageLayout oldLayout = image->layout;
-    bool wasUndefined = oldLayout == VK_IMAGE_LAYOUT_UNDEFINED;
-    srcAccessMask = wasUndefined ? 0x0 : srcAccessMask;
-    const VkImageMemoryBarrier barrier =
-    {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = srcAccessMask & srcQueueMask,
-        .dstAccessMask = dstAccessMask & dstQueueMask,
-        .oldLayout = oldLayout,
-        .newLayout = newLayout,
-        .srcQueueFamilyIndex = srcQueueFamily,
-        .dstQueueFamilyIndex = dstQueueFamily,
-        .image = image->handle,
-        .subresourceRange =
-        {
-            .aspectMask = aspect,
-            .levelCount = image->mipLevels,
-            .layerCount = image->arrayLayers,
-        },
-    };
-    vkrCmdImageBarrier(
-        srcCmd,
-        srcStageMask,
-        dstStageMask,
-        &barrier);
-    if (srcQueueFamily != dstQueueFamily)
-    {
-        vkrCmdImageBarrier(
-            dstCmd,
-            srcStageMask,
-            dstStageMask,
-            &barrier);
-    }
-    image->layout = newLayout;
-}
-
 // ----------------------------------------------------------------------------
 
 bool vkrImageSet_New(
@@ -310,14 +209,14 @@ void vkrImageSet_Release(vkrImageSet* set)
 
 vkrImage* vkrImageSet_Current(vkrImageSet* set)
 {
-    u32 syncIndex = vkrSys_SyncIndex();
+    u32 syncIndex = vkrGetSyncIndex();
     ASSERT(syncIndex < NELEM(set->frames));
     return &set->frames[syncIndex];
 }
 
 vkrImage* vkrImageSet_Prev(vkrImageSet* set)
 {
-    u32 prevIndex = (vkrSys_SyncIndex() + (kResourceSets - 1u)) % kResourceSets;
+    u32 prevIndex = (vkrGetSyncIndex() + (R_ResourceSets - 1u)) % R_ResourceSets;
     ASSERT(prevIndex < NELEM(set->frames));
     return &set->frames[prevIndex];
 }

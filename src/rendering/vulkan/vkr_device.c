@@ -40,7 +40,7 @@ bool vkrDevice_Init(vkrSys* vkr)
 
     volkLoadDevice(vkr->dev);
 
-    vkrCreateQueues(vkr);
+    vkrCreateQueues();
 
     return true;
 }
@@ -49,7 +49,7 @@ void vkrDevice_Shutdown(vkrSys* vkr)
 {
     if (vkr)
     {
-        vkrDestroyQueues(vkr);
+        vkrDestroyQueues();
         if (vkr->dev)
         {
             vkDestroyDevice(vkr->dev, NULL);
@@ -96,9 +96,7 @@ u32 vkrEnumPhysicalDevices(
             {
                 ASSERT(devices[i]);
                 props[i].phdev.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-                props[i].phdev.pNext = &props[i].rtnv;
-                props[i].rtnv.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PROPERTIES_NV;
-                props[i].rtnv.pNext = &props[i].accstr;
+                props[i].phdev.pNext = &props[i].accstr;
                 props[i].accstr.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
                 props[i].accstr.pNext = &props[i].rtpipe;
                 props[i].rtpipe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
@@ -334,11 +332,15 @@ VkDevice vkrCreateDevice(
         {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
             .accelerationStructure = feats->accstr.accelerationStructure,
+            .accelerationStructureIndirectBuild = feats->accstr.accelerationStructureIndirectBuild,
+            .accelerationStructureHostCommands = feats->accstr.accelerationStructureHostCommands,
         },
         .rtpipe =
         {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
             .rayTracingPipeline = feats->rtpipe.rayTracingPipeline,
+            .rayTracingPipelineTraceRaysIndirect = feats->rtpipe.rayTracingPipelineTraceRaysIndirect,
+            .rayTraversalPrimitiveCulling = feats->rtpipe.rayTraversalPrimitiveCulling,
         },
         .rquery =
         {

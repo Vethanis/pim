@@ -61,7 +61,7 @@ static vkrTextureId TexTable_Alloc(
     i32 layers,
     bool mips);
 static bool TexTable_Free(TexTable* tt, vkrTextureId id);
-static VkFence TexTable_Upload(
+static bool TexTable_Upload(
     TexTable* tt,
     vkrTextureId id,
     i32 layer,
@@ -179,7 +179,7 @@ static vkrTextureId TexTable_Alloc(
         VK_FILTER_LINEAR,
         VK_SAMPLER_MIPMAP_MODE_LINEAR,
         clamp,
-        4.0f);
+        (float)R_AnisotropySamples);
 
     return ToTexId(gid, viewType);
 }
@@ -199,7 +199,7 @@ static bool TexTable_Free(TexTable* tt, vkrTextureId id)
     return false;
 }
 
-static VkFence TexTable_Upload(
+static bool TexTable_Upload(
     TexTable* tt,
     vkrTextureId id,
     i32 layer,
@@ -208,9 +208,10 @@ static VkFence TexTable_Upload(
 {
     if (TexTable_Exists(tt, id))
     {
-        return vkrTexture_Upload(&tt->images[id.index], layer, data, bytes);
+        vkrTexture_Upload(&tt->images[id.index], layer, data, bytes);
+        return true;
     }
-    return NULL;
+    return false;
 }
 
 static bool TexTable_SetSampler(
@@ -259,21 +260,21 @@ SASSERT(NELEM(kTableViewTypes) == TexTableType_COUNT);
 
 static const i32 kTableCapacities[] =
 {
-    kTextureTable1DSize,
-    kTextureTable2DSize,
-    kTextureTable3DSize,
-    kTextureTableCubeSize,
-    kTextureTable2DArraySize,
+    bid_TextureTable1D_COUNT,
+    bid_TextureTable2D_COUNT,
+    bid_TextureTable3D_COUNT,
+    bid_TextureTableCube_COUNT,
+    bid_TextureTable2DArray_COUNT,
 };
 SASSERT(NELEM(kTableCapacities) == TexTableType_COUNT);
 
 static const i32 kTableBindIds[] =
 {
-    vkrBindTableId_Texture1D,
-    vkrBindTableId_Texture2D,
-    vkrBindTableId_Texture3D,
-    vkrBindTableId_TextureCube,
-    vkrBindTableId_Texture2DArray,
+    bid_TextureTable1D,
+    bid_TextureTable2D,
+    bid_TextureTable3D,
+    bid_TextureTableCube,
+    bid_TextureTable2DArray,
 };
 SASSERT(NELEM(kTableBindIds) == TexTableType_COUNT);
 
@@ -396,7 +397,7 @@ bool vkrTexTable_Free(vkrTextureId id)
     return TexTable_Free(GetTexTable(id.type), id);
 }
 
-VkFence vkrTexTable_Upload(
+bool vkrTexTable_Upload(
     vkrTextureId id,
     i32 layer,
     void const *const data,
@@ -406,7 +407,7 @@ VkFence vkrTexTable_Upload(
     {
     default:
         ASSERT(false);
-        return NULL;
+        return false;
     case VK_IMAGE_VIEW_TYPE_1D:
         layer = 0;
         break;

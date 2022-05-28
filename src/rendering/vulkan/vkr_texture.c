@@ -174,6 +174,7 @@ bool vkrTexture_New(
     const u32 queueFamilies[] =
     {
         g_vkr.queues[vkrQueueId_Graphics].family,
+        g_vkr.queues[vkrQueueId_Compute].family,
     };
     VkImageCreateInfo info = { 0 };
     info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -206,7 +207,7 @@ void vkrTexture_Release(vkrImage *const image)
     vkrImage_Release(image);
 }
 
-VkFence vkrTexture_Upload(
+void vkrTexture_Upload(
     vkrImage *const image,
     i32 layer,
     void const *const data,
@@ -216,11 +217,10 @@ VkFence vkrTexture_Upload(
     ASSERT(image->handle);
     ASSERT(bytes >= 0);
     ASSERT(data || !bytes);
-    ASSERT(layer >= 0);
-    ASSERT(layer < image->arrayLayers);
+    ASSERT((u32)layer < image->arrayLayers);
     if (bytes <= 0)
     {
-        return NULL;
+        return;
     }
 
     vkrBuffer stagebuf = { 0 };
@@ -230,18 +230,23 @@ VkFence vkrTexture_Upload(
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         vkrMemUsage_CpuOnly))
     {
-        return NULL;
+        return;
     }
 
     {
-        void *const dst = vkrBuffer_Map(&stagebuf);
+        void *const dst = vkrBuffer_MapWrite(&stagebuf);
         ASSERT(dst);
         if (dst)
         {
             memcpy(dst, data, bytes);
         }
-        vkrBuffer_Unmap(&stagebuf);
-        vkrBuffer_Flush(&stagebuf);
+        vkrBuffer_UnmapWrite(&stagebuf);
+    }
+
+    VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    if (image->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+    {
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
     }
 
     const i32 width = image->width;
@@ -250,42 +255,12 @@ VkFence vkrTexture_Upload(
     const i32 mipCount = image->mipLevels;
     VkImage handle = image->handle;
 
-    VkFence fence = NULL;
-    VkQueue queue = NULL;
-    VkCommandBuffer cmd = vkrContext_GetTmpCmd(vkrQueueId_Graphics, &fence, &queue);
-    vkrCmdBegin(cmd);
+    vkrCmdBuf* cmd = vkrCmdGet_G();
     {
-        // transition all mips from undefined to xfer dst
-        VkImageMemoryBarrier barrier =
-        {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = handle,
-            .subresourceRange =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = VK_REMAINING_MIP_LEVELS,
-                .baseArrayLayer = layer,
-                .layerCount = 1,
-            },
-        };
-        vkrCmdImageBarrier(
-            cmd,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            &barrier);
-        image->layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-
         // copy buffer to image mip 0
         const VkBufferImageCopy region =
         {
-            .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .imageSubresource.aspectMask = aspect,
             .imageSubresource.mipLevel = 0,
             .imageSubresource.baseArrayLayer = layer,
             .imageSubresource.layerCount = 1,
@@ -293,29 +268,11 @@ VkFence vkrTexture_Upload(
             .imageExtent.height = height,
             .imageExtent.depth = depth,
         };
-        vkCmdCopyBufferToImage(
-            cmd,
-            stagebuf.handle,
-            handle,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1, &region);
+        vkrCmdCopyBufferToImage(cmd, &stagebuf, image, &region);
 
-        barrier.subresourceRange.levelCount = 1;
         // generate mips
         for (i32 i = 1; i < mipCount; ++i)
         {
-            // transition (i-1) to xfer src optimal
-            barrier.subresourceRange.baseMipLevel = i - 1;
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            vkrCmdImageBarrier(
-                cmd,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                &barrier);
-
             // blit (i-1) into i
             i32 srcWidth = i1_max(width >> (i - 1), 1);
             i32 srcHeight = i1_max(height >> (i - 1), 1);
@@ -329,56 +286,27 @@ VkFence vkrTexture_Upload(
                 .dstOffsets[1] = { dstWidth, dstHeight, dstDepth, },
                 .srcSubresource =
                 {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .aspectMask = aspect,
                     .mipLevel = i - 1,
                     .baseArrayLayer = layer,
                     .layerCount = 1,
                 },
                 .dstSubresource =
                 {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .aspectMask = aspect,
                     .mipLevel = i,
                     .baseArrayLayer = layer,
                     .layerCount = 1,
                 },
             };
-            vkCmdBlitImage(
-                cmd,
-                handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                1, &blit,
-                VK_FILTER_LINEAR);
-
-            // transition (i-1) to shader read
-            barrier.subresourceRange.baseMipLevel = i - 1;
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            vkrCmdImageBarrier(
-                cmd,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                &barrier);
+            vkrCmdBlitImage(cmd, image, image, &blit);
         }
 
-        // transition last mip to shader read
-        barrier.subresourceRange.baseMipLevel = mipCount - 1;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        vkrCmdImageBarrier(
-            cmd,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            &barrier);
+        // TODO: checkpoints during frame where barriers can be sent to,
+        // and have user indicate where this should batch to.
+        // vkrDeferImageState_FragSample(vkrCmdGet_G(), image, checkpointFromUser);
+        vkrImageState_FragSample(cmd, image);
     }
-    vkrCmdEnd(cmd);
-    vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
+
     vkrBuffer_Release(&stagebuf);
-
-    image->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    return fence;
 }

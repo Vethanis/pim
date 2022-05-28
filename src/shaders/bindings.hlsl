@@ -3,47 +3,55 @@
 
 // ----------------------------------------------------------------------------
 
-struct PerCamera
+// uniform buffer
+[[vk::binding(bid_Globals)]]
+cbuffer GlobalsBuffer
 {
-    float4x4 worldToClip;
-    float4 eye;
+    float4x4 g_WorldToClip;
+    float4 g_Eye;
 
-    float hdrEnabled;
-    float whitepoint;
-    float displayNits;
-    float uiNits;
+    float g_HdrEnabled;
+    float g_Whitepoint;
+    float g_DisplayNits;
+    float g_UiNits;
+
+    uint2 g_RenderSize;
+    uint2 g_DisplaySize;
 };
 
-// uniform buffer at binding 0
-[[vk::binding(0)]]
-cbuffer cameraData
-{
-    PerCamera cameraData;
-};
-
-float4x4 GetWorldToClip() { return cameraData.worldToClip; }
-float3 GetEye() { return cameraData.eye; }
-bool HdrEnabled() { return cameraData.hdrEnabled != 0.0; }
-float GetWhitepoint() { return cameraData.whitepoint; }
-float GetDisplayNits() { return cameraData.displayNits; }
-float GetUiNits() { return cameraData.uiNits; }
+float4x4 GetWorldToClip() { return g_WorldToClip; }
+float3 GetEye() { return g_Eye.xyz; }
+bool HdrEnabled() { return g_HdrEnabled != 0.0; }
+float GetWhitepoint() { return g_Whitepoint; }
+float GetDisplayNits() { return g_DisplayNits; }
+float GetUiNits() { return g_UiNits; }
+uint2 GetRenderSize() { return g_RenderSize; }
+uint2 GetDisplaySize() { return g_DisplaySize; }
 
 // ----------------------------------------------------------------------------
 
-// storage image at binding 1
-[[vk::binding(1)]]
-RWTexture2D<half> LumTexture;
+// combined sampler sampled image table
+[[vk::binding(bid_SceneLuminance)]]
+Texture2D<float4> SceneLuminance;
+[[vk::binding(bid_SceneLuminance)]]
+SamplerState SceneLuminanceSampler;
 
 // ----------------------------------------------------------------------------
 
-// storage buffer at binding 2
-[[vk::binding(2)]]
+// storage image
+[[vk::binding(bid_RWSceneLuminance)]]
+RWTexture2D<float4> RWSceneLuminance;
+
+// ----------------------------------------------------------------------------
+
+// storage buffer
+[[vk::binding(bid_HistogramBuffer)]]
 RWStructuredBuffer<uint> HistogramBuffer;
 
 // ----------------------------------------------------------------------------
 
-// storage buffer at binding 3
-[[vk::binding(3)]]
+// storage buffer
+[[vk::binding(bid_ExposureBuffer)]]
 RWStructuredBuffer<float> ExposureBuffer;
 
 float GetAverageLum() { return ExposureBuffer[0]; }
@@ -57,10 +65,10 @@ void SetMinLum(float x) { ExposureBuffer[3] = x; }
 
 // ----------------------------------------------------------------------------
 
-// combined sampler sampled image table at binding 4
-[[vk::binding(4)]]
+// combined sampler sampled image table
+[[vk::binding(bid_TextureTable1D)]]
 Texture1D TextureTable1D[];
-[[vk::binding(4)]]
+[[vk::binding(bid_TextureTable1D)]]
 SamplerState SamplerTable1D[];
 
 float4 SampleTable1D(uint index, float u)
@@ -70,10 +78,10 @@ float4 SampleTable1D(uint index, float u)
 
 // ----------------------------------------------------------------------------
 
-// combined sampler sampled image table at binding 5
-[[vk::binding(5)]]
+// combined sampler sampled image table
+[[vk::binding(bid_TextureTable2D)]]
 Texture2D TextureTable2D[];
-[[vk::binding(5)]]
+[[vk::binding(bid_TextureTable2D)]]
 SamplerState SamplerTable2D[];
 
 float4 SampleTable2D(uint index, float2 uv)
@@ -83,10 +91,10 @@ float4 SampleTable2D(uint index, float2 uv)
 
 // ----------------------------------------------------------------------------
 
-// combined sampler sampled image table at binding 6
-[[vk::binding(6)]]
+// combined sampler sampled image table
+[[vk::binding(bid_TextureTable3D)]]
 Texture3D TextureTable3D[];
-[[vk::binding(6)]]
+[[vk::binding(bid_TextureTable3D)]]
 SamplerState SamplerTable3D[];
 
 float4 SampleTable3D(uint index, float3 uvw)
@@ -96,10 +104,10 @@ float4 SampleTable3D(uint index, float3 uvw)
 
 // ----------------------------------------------------------------------------
 
-// combined sampler sampled image table at binding 7
-[[vk::binding(7)]]
+// combined sampler sampled image table
+[[vk::binding(bid_TextureTableCube)]]
 TextureCube TextureTableCube[];
-[[vk::binding(7)]]
+[[vk::binding(bid_TextureTableCube)]]
 SamplerState SamplerTableCube[];
 
 float4 SampleTableCube(uint index, float3 dir)
@@ -109,10 +117,10 @@ float4 SampleTableCube(uint index, float3 dir)
 
 // ----------------------------------------------------------------------------
 
-// combined sampler sampled image table at binding 8
-[[vk::binding(8)]]
+// combined sampler sampled image table
+[[vk::binding(bid_TextureTable2DArray)]]
 Texture2DArray TextureTable2DArray[];
-[[vk::binding(8)]]
+[[vk::binding(bid_TextureTable2DArray)]]
 SamplerState SamplerTable2DArray[];
 
 float4 SampleTable2DArray(uint index, float2 uv, int layer)

@@ -6,28 +6,102 @@
 #include "threading/task.h"
 #include <string.h>
 
-void vkrCreateQueues(vkrSys* vkr)
-{
-    ASSERT(vkr);
-    ASSERT(vkr->dev);
-    ASSERT(vkr->window.surface);
+// ----------------------------------------------------------------------------
 
-    vkrQueueSupport support = vkrQueryQueueSupport(vkr->phdev, vkr->window.surface);
+static const VkPipelineStageFlags kPresentStages =
+    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+static const VkAccessFlags kPresentAccess =
+    VK_ACCESS_MEMORY_READ_BIT |
+    VK_ACCESS_MEMORY_WRITE_BIT;
+
+static const VkPipelineStageFlags kGraphicsStages =
+    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT |
+    VK_PIPELINE_STAGE_VERTEX_INPUT_BIT |
+    VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+    VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT |
+    VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+    VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT |
+    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+    VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
+    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+    VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT |
+    VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV |
+    VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV;
+static const VkAccessFlags kGraphicsAccess =
+    VK_ACCESS_MEMORY_READ_BIT |
+    VK_ACCESS_MEMORY_WRITE_BIT |
+    VK_ACCESS_INDIRECT_COMMAND_READ_BIT |
+    VK_ACCESS_INDEX_READ_BIT |
+    VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
+    VK_ACCESS_UNIFORM_READ_BIT |
+    VK_ACCESS_INPUT_ATTACHMENT_READ_BIT |
+    VK_ACCESS_SHADER_READ_BIT |
+    VK_ACCESS_SHADER_WRITE_BIT |
+    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+    VK_ACCESS_CONDITIONAL_RENDERING_READ_BIT_EXT |
+    VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR |
+    VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+
+static const VkPipelineStageFlags kComputeStages =
+    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
+    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR |
+    VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+static const VkAccessFlags kComputeAccess =
+    VK_ACCESS_MEMORY_READ_BIT |
+    VK_ACCESS_MEMORY_WRITE_BIT |
+    VK_ACCESS_INDIRECT_COMMAND_READ_BIT |
+    VK_ACCESS_UNIFORM_READ_BIT |
+    VK_ACCESS_SHADER_READ_BIT |
+    VK_ACCESS_SHADER_WRITE_BIT |
+    VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR |
+    VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+
+static const VkPipelineStageFlags kTransferStages =
+    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
+    VK_PIPELINE_STAGE_TRANSFER_BIT |
+    VK_PIPELINE_STAGE_HOST_BIT;
+static const VkAccessFlags kTransferAccess =
+    VK_ACCESS_MEMORY_READ_BIT |
+    VK_ACCESS_MEMORY_WRITE_BIT |
+    VK_ACCESS_HOST_READ_BIT |
+    VK_ACCESS_HOST_WRITE_BIT |
+    VK_ACCESS_TRANSFER_READ_BIT |
+    VK_ACCESS_TRANSFER_WRITE_BIT;
+
+// ----------------------------------------------------------------------------
+
+void vkrCreateQueues(void)
+{
+    ASSERT(g_vkr.phdev);
+    ASSERT(g_vkr.window.surface);
+
+    vkrQueueSupport support = vkrQueryQueueSupport(g_vkr.phdev, g_vkr.window.surface);
     for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
     {
-        vkrQueue_New(&vkr->queues[id], &support, id);
+        vkrQueue_New(&g_vkr.queues[id], &support, id);
     }
 }
 
-void vkrDestroyQueues(vkrSys* vkr)
+void vkrDestroyQueues(void)
 {
-    if (vkr)
+    vkrDevice_WaitIdle();
+    for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
     {
-        vkrDevice_WaitIdle();
-        for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
-        {
-            vkrQueue_Del(&vkr->queues[id]);
-        }
+        vkrQueue_Del(&g_vkr.queues[id]);
     }
 }
 
@@ -48,6 +122,7 @@ bool vkrQueue_New(
     ASSERT(index >= 0);
 
     VkQueue handle = NULL;
+    ASSERT(g_vkr.dev);
     vkGetDeviceQueue(g_vkr.dev, family, index, &handle);
     ASSERT(handle);
 
@@ -56,6 +131,38 @@ bool vkrQueue_New(
         queue->family = family;
         queue->index = index;
         queue->handle = handle;
+
+        i32 presFamily = support->family[vkrQueueId_Present];
+        VkQueueFlags queueFlags = support->properties->queueFlags;
+
+        if (queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        {
+            queue->gfx = 1;
+            queue->stageMask |= kGraphicsStages;
+            queue->accessMask |= kGraphicsAccess;
+        }
+        if (queueFlags & VK_QUEUE_COMPUTE_BIT)
+        {
+            queue->comp = 1;
+            queue->stageMask |= kComputeStages;
+            queue->accessMask |= kComputeAccess;
+        }
+        if (queueFlags & VK_QUEUE_TRANSFER_BIT)
+        {
+            queue->xfer = 1;
+            queue->stageMask |= kTransferStages;
+            queue->accessMask |= kTransferAccess;
+        }
+        if (family == presFamily)
+        {
+            queue->pres = 1;
+            queue->stageMask |= kPresentStages;
+            queue->accessMask |= kPresentAccess;
+        }
+        ASSERT(queue->stageMask != 0);
+        ASSERT(queue->accessMask != 0);
+
+        vkrCmdAlloc_New(queue, id);
     }
 
     return handle != NULL;
@@ -65,6 +172,7 @@ void vkrQueue_Del(vkrQueue* queue)
 {
     if (queue)
     {
+        vkrCmdAlloc_Del(queue);
         memset(queue, 0, sizeof(*queue));
     }
 }

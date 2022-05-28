@@ -13,7 +13,6 @@ void FrameBuf_New(FrameBuf* buf, i32 width, i32 height)
     const i32 len = width * height;
     ASSERT(len > 0);
     buf->light = Tex_Alloc(len * sizeof(buf->light[0]));
-    buf->color = Tex_Alloc(len * sizeof(buf->color[0]));
 }
 
 void FrameBuf_Del(FrameBuf* buf)
@@ -21,7 +20,6 @@ void FrameBuf_Del(FrameBuf* buf)
     if (buf)
     {
         Mem_Free(buf->light);
-        Mem_Free(buf->color);
         memset(buf, 0, sizeof(*buf));
     }
 }
@@ -32,7 +30,6 @@ void FrameBuf_Reserve(FrameBuf* buf, i32 width, i32 height)
     if (len > 0)
     {
         buf->light = Tex_Realloc(buf->light, sizeof(buf->light[0]) * len);
-        buf->color = Tex_Realloc(buf->color, sizeof(buf->color[0]) * len);
         buf->width = width;
         buf->height = height;
     }

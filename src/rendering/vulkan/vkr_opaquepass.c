@@ -5,6 +5,7 @@
 #include "rendering/vulkan/vkr_textable.h"
 #include "rendering/vulkan/vkr_shader.h"
 #include "rendering/vulkan/vkr_renderpass.h"
+#include "rendering/vulkan/vkr_framebuffer.h"
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_desc.h"
@@ -28,16 +29,20 @@
 #include "threading/task.h"
 #include <string.h>
 
-typedef struct vkrPerCamera_s
+typedef struct vkrGlobals_s
 {
-    float4x4 worldToClip;
-    float4 eye;
+    float4x4 g_WorldToClip;
+    float4 g_Eye;
 
-    float hdrEnabled;
-    float whitepoint;
-    float displayNits;
-    float uiNits;
-} vkrPerCamera;
+    float g_HdrEnabled;
+    float g_Whitepoint;
+    float g_DisplayNits;
+    float g_UiNits;
+
+    uint2 g_RenderSize;
+    uint2 g_DisplaySize;
+} vkrGlobals;
+SASSERT((sizeof(vkrGlobals) % 16) == 0);
 
 typedef struct PushConstants_s
 {
@@ -47,6 +52,7 @@ typedef struct PushConstants_s
     float4 kIMc2;
     uint4 kTexInds;
 } PushConstants;
+SASSERT((sizeof(PushConstants) % 16) == 0);
 
 static vkrPass ms_pass;
 static VkRenderPass ms_renderPass;
@@ -56,23 +62,25 @@ bool vkrOpaquePass_New(void)
 {
     bool success = true;
 
+    const vkrImage* sceneBuffer = vkrGetSceneBuffer();
+    const vkrImage* depthBuffer = vkrGetDepthBuffer();
     const vkrRenderPassDesc renderPassDesc =
     {
         .srcStageMask =
             VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        .srcAccessMask =
-            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-
         .dstStageMask =
             VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+
+        .srcAccessMask =
+            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
         .dstAccessMask =
             VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 
         .attachments[0] =
         {
-            .format = g_vkr.chain.depthAttachments[0].format,
+            .format = depthBuffer->format,
             .initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
@@ -81,17 +89,8 @@ bool vkrOpaquePass_New(void)
         },
         .attachments[1] =
         {
-            .format = g_vkr.chain.colorFormat,
+            .format = sceneBuffer->format,
             .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .load = VK_ATTACHMENT_LOAD_OP_LOAD,
-            .store = VK_ATTACHMENT_STORE_OP_STORE,
-        },
-        .attachments[2] =
-        {
-            .format = g_vkr.chain.lumAttachments[0].format,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .load = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -107,7 +106,7 @@ bool vkrOpaquePass_New(void)
 
     if (!vkrBufferSet_New(
         &ms_perCameraBuffer,
-        sizeof(vkrPerCamera),
+        sizeof(vkrGlobals),
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         vkrMemUsage_Dynamic))
     {
@@ -196,8 +195,8 @@ bool vkrOpaquePass_New(void)
         },
         .fixedFuncs =
         {
-            .viewport = vkrSwapchain_GetViewport(&g_vkr.chain),
-            .scissor = vkrSwapchain_GetRect(&g_vkr.chain),
+            .viewport = vkrSwapchain_GetViewport(),
+            .scissor = vkrSwapchain_GetRect(),
             .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
             .polygonMode = VK_POLYGON_MODE_FILL,
             .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
@@ -207,15 +206,10 @@ bool vkrOpaquePass_New(void)
             .depthClamp = false,
             .depthTestEnable = true,
             .depthWriteEnable = false,
-            .attachmentCount = 2,
+            .attachmentCount = 1,
             .attachments[0] =
             {
                 .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-                .blendEnable = false,
-            },
-            .attachments[1] =
-            {
-                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT,
                 .blendEnable = false,
             },
         },
@@ -256,18 +250,22 @@ void vkrOpaquePass_Setup(void)
         // TODO: Move this into some parameter provider standalone file
         Camera camera;
         Camera_Get(&camera);
-        vkrPerCamera perCamera;
-        perCamera.worldToClip = Camera_GetWorldToClip(&camera, vkrSwapchain_GetAspect(&g_vkr.chain));
-        perCamera.eye = camera.position;
-        perCamera.hdrEnabled = vkrSys_HdrEnabled() ? 1.0f : 0.0f;
-        perCamera.whitepoint = vkrSys_GetWhitepoint();
-        perCamera.displayNits = vkrSys_GetDisplayNitsMax();
-        perCamera.uiNits = vkrSys_GetUiNits();
-        vkrBufferSet_Write(&ms_perCameraBuffer, &perCamera, sizeof(perCamera));
+        vkrGlobals globals = { 0 };
+        globals.g_WorldToClip = Camera_GetWorldToClip(&camera, vkrGetRenderAspect());
+        globals.g_Eye = camera.position;
+        globals.g_HdrEnabled = vkrGetHdrEnabled() ? 1.0f : 0.0f;
+        globals.g_Whitepoint = vkrGetWhitepoint();
+        globals.g_DisplayNits = vkrGetDisplayNitsMax();
+        globals.g_UiNits = vkrGetUiNits();
+        globals.g_RenderSize.x = vkrGetRenderWidth();
+        globals.g_RenderSize.y = vkrGetRenderHeight();
+        globals.g_DisplaySize.x = vkrGetDisplayWidth();
+        globals.g_DisplaySize.y = vkrGetDisplayHeight();
+        vkrBufferSet_Write(&ms_perCameraBuffer, &globals, sizeof(globals));
     }
 
     vkrBindings_BindBuffer(
-        vkrBindId_CameraData,
+        bid_Globals,
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         vkrBufferSet_Current(&ms_perCameraBuffer));
 
@@ -277,11 +275,23 @@ void vkrOpaquePass_Setup(void)
 // ----------------------------------------------------------------------------
 
 ProfileMark(pm_execute, vkrOpaquePass_Execute)
-void vkrOpaquePass_Execute(vkrPassContext const *const ctx)
+void vkrOpaquePass_Execute(void)
 {
     ProfileBegin(pm_execute);
 
-    VkCommandBuffer cmd = ctx->cmd;
+    vkrImage* attachments[] =
+    {
+        vkrGetDepthBuffer(),
+        vkrGetSceneBuffer(),
+    };
+    VkRect2D rect = { .extent = { attachments[0]->width, attachments[0]->height } };
+    VkFramebuffer framebuffer = vkrFramebuffer_Get(attachments, NELEM(attachments), rect.extent.width, rect.extent.height);
+
+    vkrCmdBuf* cmd = vkrCmdGet_G();
+
+    vkrImageState_DepthAttachWrite(cmd, attachments[0]);
+    vkrImageState_ColorAttachWrite(cmd, attachments[1]);
+
     vkrCmdDefaultViewport(cmd);
     vkrCmdBindPass(cmd, &ms_pass);
     const VkClearValue clearValues[] =
@@ -292,17 +302,13 @@ void vkrOpaquePass_Execute(vkrPassContext const *const ctx)
         {
             .color = { 0.0f, 0.0f, 0.0f, 1.0f },
         },
-        {
-            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
-        },
     };
     vkrCmdBeginRenderPass(
         cmd,
         ms_renderPass,
-        ctx->framebuffer,
-        vkrSwapchain_GetRect(&g_vkr.chain),
-        NELEM(clearValues), clearValues,
-        VK_SUBPASS_CONTENTS_INLINE);
+        framebuffer,
+        rect,
+        NELEM(clearValues), clearValues);
 
     const Entities* ents = Entities_Get();
     for (i32 iEnt = 0; iEnt < ents->count; ++iEnt)
@@ -334,7 +340,7 @@ void vkrOpaquePass_Execute(vkrPassContext const *const ctx)
     pc.kIMc2 = f4_v(0.0f, 0.0f, 1.0f, 0.0f);
     pc.kTexInds = (uint4) { 0 };
     vkrCmdPushConstants(cmd, &ms_pass, &pc, sizeof(pc));
-    vkrImSys_Draw(cmd);
+    vkrImSys_Draw();
 
     vkrCmdEndRenderPass(cmd);
 

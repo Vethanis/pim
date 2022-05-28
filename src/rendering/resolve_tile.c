@@ -12,6 +12,8 @@
 #include "common/cvars.h"
 #include "math/color.h"
 
+#if 0
+
 typedef struct TaskResolve_s
 {
     Task task;
@@ -156,7 +158,7 @@ static void ResolveTileFn(void* pbase, i32 begin, i32 end)
 {
     TaskResolve* pim_noalias task = pbase;
 
-    if (vkrSys_HdrEnabled())
+    if (vkrGetHdrEnabled())
     {
         ResolvePQ(task, begin, end);
     }
@@ -194,9 +196,13 @@ void ResolveTile(FrameBuf* target, TonemapId tmapId, float4 toneParams)
     task->tmapId = tmapId;
     task->toneParams = toneParams;
     task->exposure = vkrExposure_GetParams()->exposure;
-    task->nits = vkrSys_GetDisplayNitsMax();
-    task->wp = vkrSys_GetWhitepoint();
+    task->nits = vkrGetDisplayNitsMax();
+    task->wp = vkrGetWhitepoint();
     Task_Run(&task->task, ResolveTileFn, target->width * target->height);
 
     ProfileEnd(pm_ResolveTile);
 }
+
+#else
+void ResolveTile(FrameBuf* target, TonemapId tmapId, float4 toneParams) {}
+#endif // 0

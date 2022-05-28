@@ -8,6 +8,6 @@ bool vkrUIPass_New(void);
 void vkrUIPass_Del(void);
 
 void vkrUIPass_Setup(void);
-void vkrUIPass_Execute(vkrPassContext const *const passCtx);
+void vkrUIPass_Execute(void);
 
 PIM_C_END

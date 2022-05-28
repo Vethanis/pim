@@ -1,6 +1,6 @@
 #include "audio/midi_system.h"
 #include "audio/audio_system.h"
-#include "threading/spinlock.h"
+#include "threading/mutex.h"
 #include "common/console.h"
 #include "allocator/allocator.h"
 #include "containers/queue.h"
@@ -20,7 +20,7 @@ typedef struct sysex_s
 
 typedef struct midicon_s
 {
-    Spinlock lock;
+    Mutex lock;
     HMIDIIN handle;
     OnMidiFn cb;
     void* usr;
@@ -49,12 +49,12 @@ static void __stdcall InputCallback(
 
 static void midicon_lock(midicon_t* con)
 {
-    Spinlock_Lock(&con->lock);
+    Mutex_Lock(&con->lock);
 }
 
 static void midicon_unlock(midicon_t* con)
 {
-    Spinlock_Unlock(&con->lock);
+    Mutex_Unlock(&con->lock);
 }
 
 static bool midicon_open(midicon_t* con, i32 port, OnMidiFn cb, void* usr)
@@ -62,7 +62,7 @@ static bool midicon_open(midicon_t* con, i32 port, OnMidiFn cb, void* usr)
     MMRESULT result = MMSYSERR_NOERROR;
 
     memset(con, 0, sizeof(*con));
-    Spinlock_New(&con->lock);
+    Mutex_New(&con->lock);
     con->cb = cb;
     con->usr = usr;
 
@@ -126,7 +126,7 @@ static void midicon_close(midicon_t* con)
         }
         midicon_unlock(con);
 
-        Spinlock_Del(&con->lock);
+        Mutex_Del(&con->lock);
         memset(con, 0, sizeof(*con));
     }
 }

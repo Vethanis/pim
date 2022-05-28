@@ -9,14 +9,13 @@
 #include "allocator/allocator.h"
 #include "math/scalar.h"
 #include "common/profiler.h"
+#include "common/cvars.h"
 
 #include <string.h>
 
 // fp flush and zeros mode
 #include <xmmintrin.h>
 #include <pmmintrin.h>
-
-#define TASK_SINGLETHREADED 0
 
 // ----------------------------------------------------------------------------
 
@@ -124,23 +123,38 @@ void Task_Submit(void* pbase, TaskExecuteFn execute, i32 worksize)
         store_i32(&task->head, 0, MO_Release);
         store_i32(&task->tail, 0, MO_Release);
 
+        bool anyFull = false;
+        bool resubmit[kMaxThreads] = { 0 };
+
         const i32 tid = ms_tid;
         const i32 numthreads = ms_numthreads;
         for (i32 t = 0; t < numthreads; ++t)
         {
-            if (t != tid)
+            bool full = !PtrQueue_TryPush(&ms_queues[t], task);
+            anyFull |= full;
+            resubmit[t] = full;
+        }
+
+        while (anyFull)
+        {
+            anyFull = false;
+            TaskSys_Schedule();
+            for (i32 t = 0; t < numthreads; ++t)
             {
-                if (!PtrQueue_TryPush(&ms_queues[t], task))
+                if (resubmit[t])
                 {
-                    INTERRUPT();
+                    TryRunTask(t);
+                    bool full = !PtrQueue_TryPush(&ms_queues[t], task);
+                    anyFull |= full;
+                    resubmit[t] = full;
                 }
             }
         }
     }
 }
 
-ProfileMark(pm_exec, task_exec);
-ProfileMark(pm_await, Task_Await);
+ProfileMark(pm_exec, Task_Exec);
+ProfileMark(pm_await, Task_Wait);
 void Task_Await(void* pbase)
 {
     Task* task = pbase;
@@ -197,7 +211,7 @@ void TaskSys_Init(void)
     Event_New(&ms_waitDone);
     store_i32(&ms_running, 1, MO_Release);
 
-    const i32 numthreads = TASK_SINGLETHREADED ? 1 : Thread_HardwareCount();
+    const i32 numthreads = Thread_HardwareCount();
     ms_numthreads = numthreads;
     ms_worksplit = numthreads * numthreads;
 
@@ -217,10 +231,7 @@ void TaskSys_Update(void)
 
     // clear out backlog, in case thread 0's queue piles up
     const i32 tid = ms_tid;
-    while (TryRunTask(tid))
-    {
-
-    }
+    while (TryRunTask(tid)) {}
 
     ProfileEnd(pm_update);
 }

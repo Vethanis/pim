@@ -4,70 +4,30 @@
 #include "rendering/r_config.h"
 #include <volk/volk.h>
 #include "math/types.h"
-#include "threading/spinlock.h"
 
 PIM_C_BEGIN
 
 #define VkCheck(expr) do { VkResult _res = (expr); ASSERT(_res == VK_SUCCESS); } while(0)
 
-PIM_FWD_DECL(GLFWwindow);
-PIM_DECL_HANDLE(VmaAllocation);
-
-enum
-{
-    kMaxSwapchainLen = 3,
-    kDesiredSwapchainLen = 3,
-    kResourceSets = 3,
-
-    kTextureTable1DSize = 64,
-    kTextureTable2DSize = 512,
-    kTextureTable3DSize = 64,
-    kTextureTableCubeSize = 64,
-    kTextureTable2DArraySize = 64,
-};
-
-// single descriptors
-typedef enum
-{
-    // uniforms
-    vkrBindId_CameraData,
-
-    // storage images
-    vkrBindId_LumTexture,
-
-    // storage buffers
-    vkrBindId_HistogramBuffer,
-    vkrBindId_ExposureBuffer,
-
-    vkrBindId_COUNT
-} vkrBindId;
-
-// descriptor arrays
-typedef enum
-{
-    vkrBindTableId_Texture1D = vkrBindId_COUNT,
-    vkrBindTableId_Texture2D,
-    vkrBindTableId_Texture3D,
-    vkrBindTableId_TextureCube,
-    vkrBindTableId_Texture2DArray,
-} vkrBindTableId;
+typedef struct GLFWwindow GLFWwindow;
+typedef struct VmaAllocation_T* VmaAllocation;
 
 typedef enum
 {
-    vkrQueueId_Present,
     vkrQueueId_Graphics,
     vkrQueueId_Compute,
     vkrQueueId_Transfer,
+    vkrQueueId_Present,
 
     vkrQueueId_COUNT
 } vkrQueueId;
 
 typedef enum
 {
-    vkrQueueFlag_PresentBit = 1 << vkrQueueId_Present,
     vkrQueueFlag_GraphicsBit = 1 << vkrQueueId_Graphics,
     vkrQueueFlag_ComputeBit = 1 << vkrQueueId_Compute,
     vkrQueueFlag_TransferBit = 1 << vkrQueueId_Transfer,
+    vkrQueueFlag_PresentBit = 1 << vkrQueueId_Present,
 
     vkrQueueFlag_ALL = 0x7fffffff,
 } vkrQueueFlagBits;
@@ -128,14 +88,12 @@ typedef enum
     vkrMemUsage_Readback = 4,   // mappable, 1 device write, cached host reads
 } vkrMemUsage;
 
-typedef enum
+typedef struct vkrSubmitId_s
 {
-    vkrPassId_Depth,
-    vkrPassId_Opaque,
-    vkrPassId_UI,
-
-    vkrPassId_COUNT
-} vkrPassId;
+    u32 counter;
+    u32 queueId : 4;
+    u32 valid : 1;
+} vkrSubmitId;
 
 typedef struct vkrTextureId_s
 {
@@ -152,8 +110,32 @@ typedef struct vkrMeshId_s
 } vkrMeshId;
 SASSERT(sizeof(vkrMeshId) == 4);
 
+typedef struct vkrSubImageState_s
+{
+    VkPipelineStageFlags stage;
+    VkAccessFlags access;
+    VkImageLayout layout;
+} vkrSubImageState_t;
+
+typedef struct vkrImgState_s
+{
+    vkrQueueId owner;
+    VkPipelineStageFlags stage;
+    VkAccessFlags access;
+    VkImageLayout layout;
+    vkrSubImageState_t* substates;
+} vkrImageState_t;
+
+typedef struct vkrBufferState_s
+{
+    vkrQueueId owner;
+    VkPipelineStageFlags stage;
+    VkAccessFlags access;
+} vkrBufferState_t;
+
 typedef struct vkrBuffer_s
 {
+    vkrBufferState_t state;
     VkBuffer handle;
     VmaAllocation allocation;
     i32 size;
@@ -161,39 +143,30 @@ typedef struct vkrBuffer_s
 
 typedef struct vkrBufferSet_s
 {
-    vkrBuffer frames[kResourceSets];
+    vkrBuffer frames[R_ResourceSets];
 } vkrBufferSet;
 
 typedef struct vkrImage_s
 {
+    vkrImageState_t state;
     VkImage handle;
     VmaAllocation allocation;
     VkImageView view;
-    VkImageType type;
     VkFormat format;
-    VkImageLayout layout;
-    VkImageUsageFlags usage;
-    u16 width;
-    u16 height;
-    u16 depth;
-    u8 mipLevels;
-    u8 arrayLayers;
-    u8 imported : 1;
+    u32 width : 16;
+    u32 height : 16;
+    u32 depth : 12;
+    u32 mipLevels : 8;
+    u32 arrayLayers : 8;
+    u32 usage : 8; // VkImageUsageFlagBits
+    u32 type : 2; // VkImageType
+    u32 imported : 1; // true if from swapchain
 } vkrImage;
 
 typedef struct vkrImageSet_s
 {
-    vkrImage frames[kResourceSets];
+    vkrImage frames[R_ResourceSets];
 } vkrImageSet;
-
-typedef struct vkrFramebuffer_s
-{
-    VkFramebuffer handle;
-    VkImageView attachments[8];
-    VkFormat formats[8];
-    i32 width;
-    i32 height;
-} vkrFramebuffer;
 
 typedef struct vkrCompileInput_s
 {
@@ -243,30 +216,30 @@ typedef struct vkrVertexLayout_s
 
 typedef struct vkrBlendState_s
 {
-    VkColorComponentFlags colorWriteMask;
-    bool blendEnable;
-    VkBlendFactor srcColorBlendFactor;
-    VkBlendFactor dstColorBlendFactor;
-    VkBlendOp colorBlendOp;
-    VkBlendFactor srcAlphaBlendFactor;
-    VkBlendFactor dstAlphaBlendFactor;
-    VkBlendOp alphaBlendOp;
+    u32 colorWriteMask : 4; // VkColorComponentFlags
+    u32 blendEnable : 1;
+    u32 srcColorBlendFactor : 5; // VkBlendFactor
+    u32 dstColorBlendFactor : 5; // VkBlendFactor
+    u32 colorBlendOp : 3; // VkBlendOp
+    u32 srcAlphaBlendFactor : 5; // VkBlendFactor
+    u32 dstAlphaBlendFactor : 5; // VkBlendFactor
+    u32 alphaBlendOp : 3; // VkBlendOp
 } vkrBlendState;
 
 typedef struct vkrFixedFuncs_s
 {
     VkViewport viewport;
     VkRect2D scissor;
-    VkPrimitiveTopology topology;
-    VkPolygonMode polygonMode;
-    VkCullModeFlagBits cullMode;
-    VkFrontFace frontFace;
-    VkCompareOp depthCompareOp;
-    bool scissorOn;
-    bool depthClamp;
-    bool depthTestEnable;
-    bool depthWriteEnable;
-    i32 attachmentCount;
+    u32 topology : 3; // VkPrimitiveTopology
+    u32 polygonMode : 2; // VkPolygonMode
+    u32 cullMode : 2; // VkCullModeFlagBits
+    u32 frontFace : 1; // VkFrontFace
+    u32 depthCompareOp : 3; // VkCompareOp
+    u32 scissorOn : 1;
+    u32 depthClamp : 1;
+    u32 depthTestEnable : 1;
+    u32 depthWriteEnable : 1;
+    u32 attachmentCount : 3;
     vkrBlendState attachments[8];
 } vkrFixedFuncs;
 
@@ -279,10 +252,18 @@ typedef struct vkrWindow_s
     bool fullscreen;
 } vkrWindow;
 
+typedef struct vkrTargets_s
+{
+    i32 width;
+    i32 height;
+    vkrImage depth[R_ResourceSets];
+    vkrImage scene[R_ResourceSets];
+} vkrTargets;
+
 typedef struct vkrSwapchain_s
 {
     VkSwapchainKHR handle;
-    VkRenderPass presentPass;
+    //VkRenderPass presentPass;
     VkFormat colorFormat;
     VkColorSpaceKHR colorSpace;
     VkPresentModeKHR mode;
@@ -291,20 +272,14 @@ typedef struct vkrSwapchain_s
 
     i32 length;
     u32 imageIndex;
-    VkFence imageFences[kMaxSwapchainLen];
-    VkImage images[kMaxSwapchainLen];
-    VkImageView views[kMaxSwapchainLen];
-    vkrFramebuffer buffers[kMaxSwapchainLen];
-    vkrImage lumAttachments[kMaxSwapchainLen];
-    vkrImage depthAttachments[kMaxSwapchainLen];
+    vkrSubmitId imageSubmits[R_MaxSwapchainLen];
+    vkrImage images[R_MaxSwapchainLen];
+    VkFramebuffer buffers[R_MaxSwapchainLen];
 
     u32 syncIndex;
-    VkFence syncFences[kResourceSets];
-    VkSemaphore availableSemas[kResourceSets];
-    VkSemaphore renderedSemas[kResourceSets];
-    VkCommandBuffer presCmds[kResourceSets];
-    VkCommandPool cmdpool;
-
+    vkrSubmitId syncSubmits[R_ResourceSets];
+    VkSemaphore availableSemas[R_ResourceSets];
+    VkSemaphore renderedSemas[R_ResourceSets];
 } vkrSwapchain;
 
 typedef struct vkrQueue_s
@@ -312,29 +287,47 @@ typedef struct vkrQueue_s
     VkQueue handle;
     i32 family;
     i32 index;
+    VkAccessFlags accessMask;
+    VkPipelineStageFlags stageMask;
+    u32 queueId : 4;
+    u32 gfx : 1;
+    u32 comp : 1;
+    u32 xfer : 1;
+    u32 pres : 1;
+
+    VkCommandPool cmdPool;
+    VkCommandBuffer cmds[R_CmdsPerQueue];
+    VkFence cmdFences[R_CmdsPerQueue];
+    u32 cmdIds[R_CmdsPerQueue];
+    u32 head;
+    u32 tail;
 } vkrQueue;
 
-typedef struct vkrCmdAlloc_s
+typedef struct vkrCmdBuf_s
 {
-    VkCommandPool pool;
-    VkQueue queue;
-    VkCommandBufferLevel level;
-    u32 head;
-    u32 capacity;
-    VkCommandBuffer* buffers;
-    VkFence* fences;
-} vkrCmdAlloc;
-
-typedef struct vkrThreadContext_s
-{
-    vkrCmdAlloc cmds[vkrQueueId_COUNT];     // primary level cmd buffers
-    vkrCmdAlloc seccmds[vkrQueueId_COUNT];  // secondary level cmd buffers
-} vkrThreadContext;
+    VkCommandBuffer handle;
+    VkFence fence;
+    u32 id;
+    u32 queueId : 4; // vkrQueueId
+    // indicates which types of cmds are legal on this cmdbuf
+    u32 gfx : 1;
+    u32 comp : 1;
+    u32 xfer : 1;
+    u32 pres : 1;
+    // cmd state
+    u32 began : 1;
+    u32 ended : 1;
+    u32 submit : 1;
+    u32 inRenderPass : 1;
+    u32 subpass : 8;
+    u32 queueTransferSrc : 1;
+    u32 queueTransferDst : 1;
+} vkrCmdBuf;
 
 typedef struct vkrContext_s
 {
-    i32 threadcount;
-    vkrThreadContext* threads;
+    vkrCmdBuf curCmdBuf[vkrQueueId_COUNT];
+    vkrCmdBuf prevCmdBuf[vkrQueueId_COUNT];
 } vkrContext;
 
 typedef enum
@@ -342,6 +335,7 @@ typedef enum
     vkrReleasableType_Buffer,
     vkrReleasableType_Image,
     vkrReleasableType_ImageView,
+    vkrReleasableType_Attachment, // view used as an attachment
 } vkrReleasableType;
 
 typedef struct vkrReleasable_s
@@ -388,13 +382,6 @@ typedef struct vkrRenderPassDesc_s
     VkPipelineStageFlags srcStageMask;
     VkPipelineStageFlags dstStageMask;
 } vkrRenderPassDesc;
-
-typedef struct vkrPassContext_s
-{
-    VkFramebuffer framebuffer;
-    VkCommandBuffer cmd;
-    VkFence fence;
-} vkrPassContext;
 
 typedef struct vkrPassDesc_s
 {
@@ -452,7 +439,6 @@ typedef struct vkrExposure_s
 typedef struct vkrProps_s
 {
     VkPhysicalDeviceProperties2 phdev;
-    VkPhysicalDeviceRayTracingPropertiesNV rtnv;
     VkPhysicalDeviceAccelerationStructurePropertiesKHR accstr;
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtpipe;
 } vkrProps;
@@ -471,7 +457,6 @@ typedef struct vkrDevExts_s
 {
 #define VKR_DEV_EXTS(fn) \
     fn(KHR_swapchain); \
-    fn(NV_ray_tracing); \
     fn(KHR_acceleration_structure); \
     fn(KHR_ray_tracing_pipeline); \
     fn(KHR_ray_query); \
@@ -537,22 +522,39 @@ bool vkrSys_WindowUpdate(void);
 void vkrSys_Update(void);
 void vkrSys_Shutdown(void);
 
-void vkrSys_OnLoad(void);
-void vkrSys_OnUnload(void);
+void vkrOnLoad(void);
+void vkrOnUnload(void);
 
 // frame in flight index
-u32 vkrSys_SyncIndex(void);
+u32 vkrGetSyncIndex(void);
+u32 vkrGetPrevSyncIndex(void);
+u32 vkrGetNextSyncIndex(void);
 // swapchain image index
-u32 vkrSys_SwapIndex(void);
+u32 vkrGetSwapIndex(void);
 // frame count
-u32 vkrSys_FrameIndex(void);
+u32 vkrGetFrameCount(void);
 
-bool vkrSys_HdrEnabled(void);
-float vkrSys_GetWhitepoint(void);
-float vkrSys_GetDisplayNitsMin(void);
-float vkrSys_GetDisplayNitsMax(void);
-float vkrSys_GetUiNits(void);
-Colorspace vkrSys_GetRenderColorspace(void);
-Colorspace vkrSys_GetDisplayColorspace(void);
+vkrContext* vkrGetContext(void);
+vkrQueue* vkrGetQueue(vkrQueueId queueId);
+
+bool vkrGetHdrEnabled(void);
+float vkrGetWhitepoint(void);
+float vkrGetDisplayNitsMin(void);
+float vkrGetDisplayNitsMax(void);
+float vkrGetUiNits(void);
+Colorspace vkrGetRenderColorspace(void);
+Colorspace vkrGetDisplayColorspace(void);
+
+// vkr_targets.c
+i32 vkrGetRenderWidth(void);
+i32 vkrGetRenderHeight(void);
+float vkrGetRenderAspect(void);
+float vkrGetRenderScale(void);
+i32 vkrGetDisplayWidth(void);
+i32 vkrGetDisplayHeight(void);
+vkrImage* vkrGetBackBuffer(void);
+vkrImage* vkrGetDepthBuffer(void);
+vkrImage* vkrGetSceneBuffer(void);
+vkrImage* vkrGetPrevSceneBuffer(void);
 
 PIM_C_END

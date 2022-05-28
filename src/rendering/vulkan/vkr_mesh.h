@@ -26,6 +26,4 @@ bool vkrMesh_Upload(
     const float4* pim_noalias uv01,
     const int4* pim_noalias texIndices);
 
-void vkrCmdDrawMesh(VkCommandBuffer cmdbuf, vkrMeshId id);
-
 PIM_C_END

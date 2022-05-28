@@ -1,7 +1,7 @@
 #include "allocator/allocator.h"
 
 #include "common/atomics.h"
-#include "threading/spinlock.h"
+#include "threading/mutex.h"
 #include "threading/task.h"
 #include "threading/thread.h"
 #include "tlsf/tlsf.h"
@@ -10,7 +10,6 @@
 #include <stdlib.h>
 
 #define kTempFrames         2
-#define kAlignShifts        4
 #define kAlign              16
 #define kAlignMask          (kAlign - 1)
 
@@ -20,8 +19,6 @@
 #define kScriptCapacity     (16 << 20)
 
 #define kMaxBytesPerTexture (2048 * 2048 * 4)
-
-SASSERT((1 << kAlignShifts) == kAlign);
 
 typedef struct pim_alignas(kAlign) hdr_s
 {
@@ -34,7 +31,7 @@ SASSERT((sizeof(hdr_t)) == kAlign);
 
 typedef struct tlsf_allocator_s
 {
-    Spinlock mtx;
+    Mutex mtx;
     tlsf_t tlsf;
 } tlsf_allocator_t;
 
@@ -86,7 +83,7 @@ static void tlsf_allocator_new(tlsf_allocator_t* allocator, i32 capacity)
     ASSERT(capacity > 0);
     memset(allocator, 0, sizeof(*allocator));
 
-    Spinlock_New(&allocator->mtx);
+    Mutex_New(&allocator->mtx);
 
     void* memory = malloc(capacity);
     ASSERT(memory);
@@ -102,7 +99,7 @@ static void tlsf_allocator_del(tlsf_allocator_t* allocator)
     {
         if (allocator->tlsf)
         {
-            Spinlock_Del(&allocator->mtx);
+            Mutex_Del(&allocator->mtx);
             tlsf_destroy(allocator->tlsf);
         }
         memset(allocator, 0, sizeof(*allocator));
@@ -111,18 +108,18 @@ static void tlsf_allocator_del(tlsf_allocator_t* allocator)
 
 static void* tlsf_allocator_malloc(tlsf_allocator_t* allocator, i32 bytes)
 {
-    Spinlock_Lock(&allocator->mtx);
+    Mutex_Lock(&allocator->mtx);
     void* ptr = tlsf_memalign(allocator->tlsf, kAlign, bytes);
-    Spinlock_Unlock(&allocator->mtx);
+    Mutex_Unlock(&allocator->mtx);
     ASSERT(ptr);
     return ptr;
 }
 
 static void tlsf_allocator_free(tlsf_allocator_t* allocator, void* ptr)
 {
-    Spinlock_Lock(&allocator->mtx);
+    Mutex_Lock(&allocator->mtx);
     tlsf_free(allocator->tlsf, ptr);
-    Spinlock_Unlock(&allocator->mtx);
+    Mutex_Unlock(&allocator->mtx);
 }
 
 // ----------------------------------------------------------------------------
@@ -359,10 +356,9 @@ static StackFrame ms_stack[kMaxThreads][kFrameCount];
 void* Mem_Push(i32 bytes)
 {
     ASSERT((u32)bytes <= (u32)kStackCapacity);
-    const i32 tid = Task_ThreadId();
+    i32 tid = Task_ThreadId();
 
-    bytes = align_bytes(bytes);
-    i32 frames = bytes >> kAlignShifts;
+    i32 frames = (bytes + sizeof(StackFrame) - 1) / sizeof(StackFrame);
     i32 back = ms_iFrame[tid];
     i32 front = back + frames;
     ASSERT(front <= kFrameCount);
@@ -375,10 +371,9 @@ void* Mem_Push(i32 bytes)
 void Mem_Pop(i32 bytes)
 {
     ASSERT((u32)bytes <= (u32)kStackCapacity);
-    const i32 tid = Task_ThreadId();
+    i32 tid = Task_ThreadId();
 
-    bytes = align_bytes(bytes);
-    const i32 frames = bytes >> kAlignShifts;
+    i32 frames = (bytes + sizeof(StackFrame) - 1) / sizeof(StackFrame);
     ms_iFrame[tid] -= frames;
 
     ASSERT(ms_iFrame[tid] >= 0);

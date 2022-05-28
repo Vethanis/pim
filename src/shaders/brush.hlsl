@@ -4,6 +4,7 @@
 #include "Sampling.hlsl"
 #include "GI.hlsl"
 
+// TODO: move to per-entity structured buffer, replace with entity ID
 [[vk::push_constant]]
 cbuffer push_constants
 {
@@ -14,6 +15,7 @@ cbuffer push_constants
     uint4 kTexInds;
 };
 
+// TODO: remove vertex input layout. move to typed buffer arrays indexed by entity buffer IDs.
 struct VSInput
 {
     float4 positionOS : POSITION;
@@ -34,14 +36,13 @@ struct PSInput
 struct PSOutput
 {
     float4 color : SV_Target0;
-    half luminance : SV_Target1;
 };
 
 PSInput VSMain(VSInput input)
 {
     float4 positionOS = float4(input.positionOS.xyz, 1.0);
     float4 positionWS = mul(kLocalToWorld, positionOS);
-    float4 positionCS = mul(cameraData.worldToClip, positionWS);
+    float4 positionCS = mul(GetWorldToClip(), positionWS);
     float3 normalWS = mul(float3x3(kIMc0.xyz, kIMc1.xyz, kIMc2.xyz), input.normalOS.xyz);
 
     PSInput output;
@@ -71,7 +72,7 @@ PSOutput PSMain(PSInput input)
     N = normalize(N);
 
     float3 P = input.positionWS;
-    float3 V = normalize(cameraData.eye.xyz - P);
+    float3 V = normalize(GetEye() - P);
 
     float roughness = rome.x;
     float occlusion = rome.y;
@@ -98,7 +99,6 @@ PSOutput PSMain(PSInput input)
     }
 
     PSOutput output;
-    output.luminance = MaxLuminance(sceneLum);
-    output.color = float4(ExposeScene(sceneLum), 1.0);
+    output.color = float4(sceneLum, 1.0);
     return output;
 }

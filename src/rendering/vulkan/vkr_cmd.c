@@ -1,12 +1,49 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_sync.h"
 #include "rendering/vulkan/vkr_swapchain.h"
+#include "rendering/vulkan/vkr_image.h"
+#include "rendering/vulkan/vkr_bindings.h"
 #include "allocator/allocator.h"
 #include "common/profiler.h"
 #include "common/time.h"
 #include "math/types.h"
 #include "threading/task.h"
 #include <string.h>
+
+// ----------------------------------------------------------------------------
+
+static const VkAccessFlags kWriteAccess =
+    VK_ACCESS_SHADER_WRITE_BIT |
+    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+    VK_ACCESS_TRANSFER_WRITE_BIT |
+    VK_ACCESS_HOST_WRITE_BIT |
+    VK_ACCESS_MEMORY_WRITE_BIT |
+    VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT |
+    VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT |
+    VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
+    VK_ACCESS_COMMAND_PREPROCESS_WRITE_BIT_NV;
+static const VkAccessFlags kReadAccess =
+    VK_ACCESS_INDIRECT_COMMAND_READ_BIT |
+    VK_ACCESS_INDEX_READ_BIT |
+    VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT |
+    VK_ACCESS_UNIFORM_READ_BIT |
+    VK_ACCESS_INPUT_ATTACHMENT_READ_BIT |
+    VK_ACCESS_SHADER_READ_BIT |
+    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+    VK_ACCESS_TRANSFER_READ_BIT |
+    VK_ACCESS_HOST_READ_BIT |
+    VK_ACCESS_MEMORY_READ_BIT |
+    VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT |
+    VK_ACCESS_CONDITIONAL_RENDERING_READ_BIT_EXT |
+    VK_ACCESS_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT |
+    VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR |
+    VK_ACCESS_FRAGMENT_DENSITY_MAP_READ_BIT_EXT |
+    VK_ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ_BIT_KHR |
+    VK_ACCESS_COMMAND_PREPROCESS_READ_BIT_NV;
+
+// ----------------------------------------------------------------------------
 
 ProfileMark(pm_cmdpoolnew, vkrCmdPool_New)
 VkCommandPool vkrCmdPool_New(i32 family, VkCommandPoolCreateFlags flags)
@@ -49,228 +86,195 @@ void vkrCmdPool_Reset(VkCommandPool pool, VkCommandPoolResetFlagBits flags)
 
 ProfileMark(pm_cmdallocnew, vkrCmdAlloc_New)
 bool vkrCmdAlloc_New(
-    vkrCmdAlloc* allocator,
-    const vkrQueue* queue,
-    VkCommandBufferLevel level)
+    vkrQueue* queue,
+    vkrQueueId queueId)
 {
     ProfileBegin(pm_cmdallocnew);
-    ASSERT(allocator);
     ASSERT(queue);
     ASSERT(queue->handle);
+    ASSERT(queue == vkrGetQueue(queueId));
+    ASSERT(!queue->cmdPool);
 
     bool success = true;
-    memset(allocator, 0, sizeof(*allocator));
 
-    allocator->queue = queue->handle;
-    if (!allocator->queue)
-    {
-        success = false;
-        goto cleanup;
-    }
-    allocator->pool = vkrCmdPool_New(
+    queue->queueId = queueId;
+    queue->cmdPool = vkrCmdPool_New(
         queue->family,
         VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-    if (!allocator->pool)
+    if (!queue->cmdPool)
     {
         success = false;
         goto cleanup;
     }
-    allocator->level = level;
+
+    const VkCommandBufferAllocateInfo bufferInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = queue->cmdPool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = NELEM(queue->cmds),
+    };
+    VkCheck(vkAllocateCommandBuffers(g_vkr.dev, &bufferInfo, queue->cmds));
+    if (!queue->cmds[0])
+    {
+        success = false;
+        goto cleanup;
+    }
+
+    for (u32 i = 0; i < NELEM(queue->cmds); ++i)
+    {
+        queue->cmdFences[i] = vkrFence_New(true);
+        queue->cmdIds[i] = 0;
+    }
+    if (!queue->cmdFences[0])
+    {
+        success = false;
+        goto cleanup;
+    }
 
 cleanup:
     if (!success)
     {
-        vkrCmdAlloc_Del(allocator);
+        vkrCmdAlloc_Del(queue);
     }
     ProfileEnd(pm_cmdallocnew);
     return success;
 }
 
 ProfileMark(pm_cmdallocdel, vkrCmdAlloc_Del)
-void vkrCmdAlloc_Del(vkrCmdAlloc* allocator)
+void vkrCmdAlloc_Del(vkrQueue* queue)
 {
     ProfileBegin(pm_cmdallocdel);
-    if (allocator)
+    ASSERT(g_vkr.dev);
+    VkCommandPool pool = queue->cmdPool;
+    VkFence* fences = queue->cmdFences;
+    VkCommandBuffer* cmds = queue->cmds;
+    u32* cmdIds = queue->cmdIds;
+    queue->cmdPool = NULL;
+    for (u32 i = 0; i < NELEM(queue->cmdFences); ++i)
     {
-        const u32 capacity = allocator->capacity;
-        if (allocator->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY)
-        {
-            VkFence* fences = allocator->fences;
-            for (u32 i = 0; i < capacity; ++i)
-            {
-                vkrFence_Del(fences[i]);
-            }
-        }
-        if (allocator->pool)
-        {
-            vkDestroyCommandPool(g_vkr.dev, allocator->pool, NULL);
-        }
-        Mem_Free(allocator->fences);
-        Mem_Free(allocator->buffers);
-        memset(allocator, 0, sizeof(*allocator));
+        vkrFence_Del(fences[i]);
+        fences[i] = NULL;
+        cmds[i] = NULL;
+        cmdIds[i] = 0;
+    }
+    if (pool)
+    {
+        vkDestroyCommandPool(g_vkr.dev, pool, NULL);
     }
     ProfileEnd(pm_cmdallocdel);
 }
 
-void vkrCmdAlloc_OnSwapDel(vkrCmdAlloc* allocator)
+ProfileMark(pm_cmdalloc_alloc, vkrCmdAlloc_Alloc)
+void vkrCmdAlloc_Alloc(vkrQueue* queue, vkrCmdBuf* cmdOut)
 {
-    if (allocator->level == VK_COMMAND_BUFFER_LEVEL_SECONDARY)
+    ProfileBegin(pm_cmdalloc_alloc);
+
+    ASSERT(queue);
+    ASSERT(queue->handle);
+    ASSERT(queue->cmdPool);
+    ASSERT(cmdOut);
+    ASSERT(!cmdOut->handle);
+
+    const u32 kRingMask = NELEM(queue->cmds) - 1u;
+    SASSERT((NELEM(queue->cmds) & (NELEM(queue->cmds) - 1u)) == 0);
+
+    VkCommandBuffer* const pim_noalias cmds = queue->cmds;
+    VkFence* const pim_noalias fences = queue->cmdFences;
+    u32* const pim_noalias ids = queue->cmdIds;
+
+    const u32 headId = queue->head++;
+
+    while ((headId - queue->tail) >= NELEM(queue->cmds))
     {
-        memset(allocator->fences, 0, sizeof(allocator->fences[0]) * allocator->capacity);
+        u32 tailSlot = queue->tail & kRingMask;
+        ASSERT(ids[tailSlot] == queue->tail);
+        VkFence tailFence = fences[tailSlot];
+        vkrFence_Wait(tailFence);
+        ids[tailSlot] = 0;
+        queue->tail++;
     }
-}
 
-void vkrCmdAlloc_Reserve(vkrCmdAlloc* allocator, u32 newcap)
-{
-    ASSERT(allocator);
-    u32 oldcap = allocator->capacity;
-    if (newcap > oldcap)
-    {
-        newcap = (newcap > 16) ? newcap : 16;
-        newcap = (newcap > oldcap * 2) ? newcap : oldcap * 2;
-        const u32 deltacap = newcap - oldcap;
-
-        Perm_Reserve(allocator->buffers, newcap);
-        Perm_Reserve(allocator->fences, newcap);
-
-        VkCommandBuffer* newbuffers = allocator->buffers + oldcap;
-        VkFence* newfences = allocator->fences + oldcap;
-
-        memset(newbuffers, 0, sizeof(newbuffers[0]) * deltacap);
-        memset(newfences, 0, sizeof(newfences[0]) * deltacap);
-
-        const VkCommandBufferAllocateInfo bufferInfo =
-        {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool = allocator->pool,
-            .level = allocator->level,
-            .commandBufferCount = deltacap,
-        };
-        VkCheck(vkAllocateCommandBuffers(g_vkr.dev, &bufferInfo, newbuffers));
-
-        if (allocator->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY)
-        {
-            for (u32 i = 0; i < deltacap; ++i)
-            {
-                newfences[i] = vkrFence_New(true);
-            }
-        }
-
-        allocator->capacity = newcap;
-    }
-}
-
-VkCommandBuffer vkrCmdAlloc_GetTemp(vkrCmdAlloc* allocator, VkFence* fenceOut)
-{
-    ASSERT(allocator);
-    ASSERT(allocator->pool);
-    ASSERT(allocator->level == VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-    ASSERT(fenceOut);
-
-    VkFence fence = NULL;
-    VkCommandBuffer buffer = NULL;
-    while (!buffer)
-    {
-        const u32 capacity = allocator->capacity;
-        VkCommandBuffer* const pim_noalias buffers = allocator->buffers;
-        VkFence* const pim_noalias fences = allocator->fences;
-        for (u32 i = 0; i < capacity; ++i)
-        {
-            ASSERT(fences[i]);
-            if (vkrFence_Stat(fences[i]) == vkrFenceState_Signalled)
-            {
-                fence = fences[i];
-                buffer = buffers[i];
-                break;
-            }
-        }
-        if (!buffer)
-        {
-            u32 newcap = capacity ? capacity * 2 : 16;
-            vkrCmdAlloc_Reserve(allocator, newcap);
-        }
-    }
+    const u32 headSlot = headId & kRingMask;
+    ASSERT(!ids[headSlot]);
+    ids[headSlot] = headId;
+    VkCommandBuffer cmd = cmds[headSlot];
+    VkFence fence = fences[headSlot];
 
     ASSERT(fence);
-    ASSERT(buffer);
-
+    ASSERT(cmd);
+    ASSERT(vkrFence_Stat(fence) == vkrFenceState_Signalled);
     vkrFence_Reset(fence);
-    *fenceOut = fence;
 
-    return buffer;
+    memset(cmdOut, 0, sizeof(*cmdOut));
+    cmdOut->handle = cmd;
+    cmdOut->fence = fence;
+    cmdOut->id = headId;
+    cmdOut->queueId = queue->queueId;
+    cmdOut->gfx = queue->gfx;
+    cmdOut->comp = queue->comp;
+    cmdOut->xfer = queue->xfer;
+    cmdOut->pres = queue->pres;
+
+    ProfileEnd(pm_cmdalloc_alloc);
 }
 
-VkCommandBuffer vkrCmdAlloc_GetSecondary(vkrCmdAlloc* allocator, VkFence primaryFence)
-{
-    ASSERT(allocator);
-    ASSERT(allocator->pool);
-    ASSERT(primaryFence);
-    ASSERT(allocator->level == VK_COMMAND_BUFFER_LEVEL_SECONDARY);
-
-    VkCommandBuffer buffer = NULL;
-    while (!buffer)
-    {
-        const u32 capacity = allocator->capacity;
-        VkCommandBuffer* const pim_noalias buffers = allocator->buffers;
-        VkFence* const pim_noalias fences = allocator->fences;
-
-        {
-            VkFence prevFence = NULL;
-            bool prevSignalled = false;
-            for (u32 i = 0; i < capacity; ++i)
-            {
-                VkFence fence = fences[i];
-                if (fence && (fence != primaryFence))
-                {
-                    if (fence == prevFence)
-                    {
-                        if (prevSignalled)
-                        {
-                            fences[i] = NULL;
-                        }
-                    }
-                    else
-                    {
-                        prevFence = fence;
-                        prevSignalled = false;
-                        if (vkrFence_Stat(fence) == vkrFenceState_Signalled)
-                        {
-                            prevSignalled = true;
-                            fences[i] = NULL;
-                        }
-                    }
-                }
-            }
-        }
-
-        for (u32 i = 0; i < capacity; ++i)
-        {
-            if (!fences[i])
-            {
-                fences[i] = primaryFence;
-                buffer = buffers[i];
-                break;
-            }
-        }
-
-        if (!buffer)
-        {
-            u32 newcap = capacity ? capacity * 2 : 16;
-            vkrCmdAlloc_Reserve(allocator, newcap);
-        }
-    }
-
-    ASSERT(buffer);
-
-    return buffer;
-}
 // ----------------------------------------------------------------------------
 
+//vkrCmdBuf* vkrCmdGet_P(void) { return vkrCmdGet(vkrQueueId_Present); }
+vkrCmdBuf* vkrCmdGet_G(void) { return vkrCmdGet(vkrQueueId_Graphics); }
+//vkrCmdBuf* vkrCmdGet_C(void) { return vkrCmdGet(vkrQueueId_Compute); }
+//vkrCmdBuf* vkrCmdGet_T(void) { return vkrCmdGet(vkrQueueId_Transfer); }
+
+vkrCmdBuf* vkrCmdGet(vkrQueueId queueId)
+{
+    vkrContext* ctx = vkrGetContext();
+    vkrQueue* queue = vkrGetQueue(queueId);
+    ASSERT(queueId < NELEM(ctx->curCmdBuf));
+    vkrCmdBuf* cmd = &ctx->curCmdBuf[queueId];
+    if (!cmd->handle)
+    {
+        vkrCmdAlloc_Alloc(queue, cmd);
+    }
+    if (!cmd->began)
+    {
+        const VkCommandBufferBeginInfo beginInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        };
+        VkCheck(vkBeginCommandBuffer(cmd->handle, &beginInfo));
+        cmd->began = 1;
+    }
+    ASSERT(cmd->handle);
+    ASSERT(cmd->began);
+    ASSERT(!cmd->ended);
+    ASSERT(!cmd->submit);
+    return cmd;
+}
+
+ProfileMark(pm_reset, vkrCmdReset)
+void vkrCmdReset(vkrCmdBuf* cmd)
+{
+    ProfileBegin(pm_reset);
+    ASSERT(!cmd->submit);
+    if (cmd->handle)
+    {
+        if (cmd->began && !cmd->ended)
+        {
+            VkCheck(vkEndCommandBuffer(cmd->handle));
+            cmd->ended = 1;
+        }
+        VkCheck(vkResetCommandBuffer(cmd->handle, 0x0));
+        cmd->began = 0;
+        cmd->ended = 0;
+    }
+    ProfileEnd(pm_reset);
+}
+
 ProfileMark(pm_cmdsubmit, vkrCmdSubmit)
-void vkrCmdSubmit(
-    VkQueue queue,
-    VkCommandBuffer cmd,
-    VkFence fence,
+vkrSubmitId vkrCmdSubmit(
+    vkrCmdBuf* cmd,
     VkSemaphore waitSema,
     VkPipelineStageFlags waitMask,
     VkSemaphore signalSema)
@@ -278,7 +282,38 @@ void vkrCmdSubmit(
     ProfileBegin(pm_cmdsubmit);
 
     ASSERT(cmd);
-    ASSERT(queue);
+    ASSERT(cmd->handle);
+    ASSERT(cmd->began);
+    ASSERT(!cmd->ended);
+    ASSERT(!cmd->submit);
+    ASSERT(!cmd->inRenderPass);
+
+    vkrContext* ctx = vkrGetContext();
+    const vkrQueueId queueId = cmd->queueId;
+    vkrQueue* queue = vkrGetQueue(queueId);
+    ASSERT(queue->handle);
+
+    vkrSubmitId submitId;
+    submitId.counter = cmd->id;
+    submitId.queueId = queueId;
+
+    u32 slot = cmd->id & (NELEM(queue->cmds) - 1u);
+    VkFence fence = queue->cmdFences[slot];
+    ASSERT(fence);
+
+    if (cmd->queueTransferDst)
+    {
+        ASSERT(!cmd->queueTransferSrc);
+        vkrCmdFlushQueueTransfers();
+    }
+    ASSERT(!cmd->queueTransferDst);
+
+    ASSERT(!cmd->ended);
+    VkCheck(vkEndCommandBuffer(cmd->handle));
+    cmd->ended = 1;
+
+    ASSERT(vkrFence_Stat(fence) == vkrFenceState_Unsignalled);
+
     const VkSubmitInfo submitInfo =
     {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -288,76 +323,172 @@ void vkrCmdSubmit(
         .signalSemaphoreCount = signalSema ? 1 : 0,
         .pSignalSemaphores = &signalSema,
         .commandBufferCount = 1,
-        .pCommandBuffers = &cmd,
+        .pCommandBuffers = &cmd->handle,
     };
-    VkCheck(vkQueueSubmit(queue, 1, &submitInfo, fence));
+    VkCheck(vkQueueSubmit(queue->handle, 1, &submitInfo, fence));
+    cmd->submit = 1;
+
+    // copy to prevCmd for debug purposes
+    vkrCmdBuf* prevCmd = &ctx->prevCmdBuf[queueId];
+    memcpy(prevCmd, cmd, sizeof(*cmd));
+
+    // reset to blank state
+    memset(cmd, 0, sizeof(*cmd));
+    cmd->queueId = queueId;
+    submitId.valid = 1;
 
     ProfileEnd(pm_cmdsubmit);
+
+    return submitId;
 }
 
-void vkrCmdBegin(VkCommandBuffer cmdbuf)
+ProfileMark(pm_submitpoll, vkrSubmit_Poll)
+bool vkrSubmit_Poll(vkrSubmitId submit)
 {
-    ASSERT(cmdbuf);
-    const VkCommandBufferBeginInfo beginInfo =
+    ProfileBegin(pm_submitpoll);
+
+    ASSERT(submit.valid);
+    bool signalled = true;
+
+    vkrQueue* queue = vkrGetQueue(submit.queueId);
+    VkFence* const pim_noalias fences = queue->cmdFences;
+    VkCommandBuffer* const pim_noalias cmds = queue->cmds;
+    u32* const pim_noalias ids = queue->cmdIds;
+
+    const u32 kRingMask = NELEM(queue->cmds) - 1u;
+    while ((submit.counter - queue->tail) < NELEM(queue->cmds))
     {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-    };
-    VkCheck(vkBeginCommandBuffer(cmdbuf, &beginInfo));
+        u32 i = queue->tail & kRingMask;
+        ASSERT(ids[i] == queue->tail);
+        if (vkrFence_Stat(fences[i]) != vkrFenceState_Signalled)
+        {
+            signalled = false;
+            goto end;
+        }
+        VkCheck(vkResetCommandBuffer(cmds[i], 0x0));
+        ids[i] = 0;
+        queue->tail++;
+    }
+
+end:
+    ProfileEnd(pm_submitpoll);
+    return signalled;
 }
 
-void vkrCmdBeginSec(
-    VkCommandBuffer cmd,
-    VkRenderPass renderPass,
-    i32 subpass,
-    VkFramebuffer framebuffer)
+ProfileMark(pm_submitawait, vkrSubmit_Await)
+void vkrSubmit_Await(vkrSubmitId submit)
 {
-    ASSERT(cmd);
-    ASSERT(renderPass);
-    ASSERT(subpass >= 0);
-    const VkCommandBufferInheritanceInfo inherInfo =
+    ProfileBegin(pm_submitawait);
+
+    ASSERT(submit.valid);
+
+    vkrQueue* queue = vkrGetQueue(submit.queueId);
+    VkFence* const pim_noalias fences = queue->cmdFences;
+    VkCommandBuffer* const pim_noalias cmds = queue->cmds;
+    u32* const pim_noalias ids = queue->cmdIds;
+
+    const u32 kRingMask = NELEM(queue->cmds) - 1u;
+    while ((submit.counter - queue->tail) < NELEM(queue->cmds))
     {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
-        .renderPass = renderPass,
-        .subpass = subpass,
-        .framebuffer = framebuffer,
-    };
-    const VkCommandBufferBeginInfo beginInfo =
+        u32 i = queue->tail & kRingMask;
+        ASSERT(ids[i] == queue->tail);
+        vkrFence_Wait(fences[i]);
+        VkCheck(vkResetCommandBuffer(cmds[i], 0x0));
+        ids[i] = 0;
+        queue->tail++;
+    }
+
+    ProfileEnd(pm_submitawait);
+}
+
+ProfileMark(pm_submitawaitall, vkrSubmit_AwaitAll)
+void vkrSubmit_AwaitAll(void)
+{
+    ProfileBegin(pm_submitawaitall);
+
+    for (u32 queueId = 0; queueId < vkrQueueId_COUNT; ++queueId)
     {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT | VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = &inherInfo,
-    };
-    VkCheck(vkBeginCommandBuffer(cmd, &beginInfo));
+        vkrQueue* queue = vkrGetQueue(queueId);
+        const u32 kRingMask = NELEM(queue->cmds) - 1u;
+        VkFence* const pim_noalias fences = queue->cmdFences;
+        VkCommandBuffer* const pim_noalias cmds = queue->cmds;
+        u32* const pim_noalias ids = queue->cmdIds;
+        while (queue->tail != queue->head)
+        {
+            u32 i = queue->tail & kRingMask;
+            ASSERT(ids[i] == queue->tail);
+            vkrFence_Wait(fences[i]);
+            VkCheck(vkResetCommandBuffer(cmds[i], 0x0));
+            ids[i] = 0;
+            queue->tail++;
+        }
+    }
+
+    ProfileEnd(pm_submitawaitall);
 }
 
-void vkrCmdEnd(VkCommandBuffer cmdbuf)
+ProfileMark(pm_cmdflush, vkrCmdFlush)
+void vkrCmdFlush(void)
 {
-    ASSERT(cmdbuf);
-    VkCheck(vkEndCommandBuffer(cmdbuf));
+    ProfileBegin(pm_cmdflush);
+
+    vkrContext* ctx = vkrGetContext();
+    for (i32 id = 0; id < NELEM(ctx->curCmdBuf); ++id)
+    {
+        vkrCmdBuf* cmd = &ctx->curCmdBuf[id];
+        if (cmd->began)
+        {
+            vkrCmdSubmit(cmd, NULL, 0, NULL);
+        }
+    }
+
+    ProfileEnd(pm_cmdflush);
 }
 
-ProfileMark(pm_reset, vkrCmdReset)
-void vkrCmdReset(VkCommandBuffer cmdbuf)
+ProfileMark(pm_cmdflushqueuetransfers, vkrCmdFlushQueueTransfers)
+void vkrCmdFlushQueueTransfers(void)
 {
-    ProfileBegin(pm_reset);
-    ASSERT(cmdbuf);
-    VkCheck(vkResetCommandBuffer(cmdbuf, 0x0));
-    ProfileEnd(pm_reset);
+    ProfileBegin(pm_cmdflushqueuetransfers);
+
+    vkrContext* ctx = vkrGetContext();
+    bool submit[vkrQueueId_COUNT] = { 0 };
+    for (i32 id = 0; id < NELEM(ctx->curCmdBuf); ++id)
+    {
+        vkrCmdBuf* cmd = &ctx->curCmdBuf[id];
+        ASSERT(!cmd->inRenderPass);
+        if (cmd->queueTransferSrc)
+        {
+            ASSERT(!cmd->queueTransferDst);
+            vkrCmdSubmit(cmd, NULL, 0, NULL);
+            ASSERT(!cmd->queueTransferSrc);
+            submit[id] = true;
+        }
+    }
+    for (i32 id = 0; id < NELEM(ctx->curCmdBuf); ++id)
+    {
+        vkrCmdBuf* cmd = &ctx->curCmdBuf[id];
+        cmd->queueTransferDst = 0;
+        if (submit[id])
+        {
+            vkrCmdGet(id); // reinitialize cmdbuf
+        }
+    }
+
+    ProfileEnd(pm_cmdflushqueuetransfers);
 }
 
 void vkrCmdBeginRenderPass(
-    VkCommandBuffer cmdbuf,
+    vkrCmdBuf* cmdbuf,
     VkRenderPass pass,
     VkFramebuffer framebuf,
     VkRect2D rect,
     i32 clearCount,
-    const VkClearValue* clearValues,
-    VkSubpassContents contents)
+    const VkClearValue* clearValues)
 {
-    ASSERT(cmdbuf);
+    ASSERT(cmdbuf && cmdbuf->handle);
     ASSERT(pass);
     ASSERT(framebuf);
+    ASSERT(!cmdbuf->inRenderPass);
     const VkRenderPassBeginInfo info =
     {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -367,128 +498,1384 @@ void vkrCmdBeginRenderPass(
         .clearValueCount = clearCount,
         .pClearValues = clearValues,
     };
-    vkCmdBeginRenderPass(cmdbuf, &info, contents);
+    vkCmdBeginRenderPass(cmdbuf->handle, &info, VK_SUBPASS_CONTENTS_INLINE);
+    cmdbuf->inRenderPass = 1;
+    cmdbuf->subpass = 0;
 }
 
-void vkrCmdExecCmds(VkCommandBuffer cmd, i32 count, const VkCommandBuffer* pSecondaries)
+void vkrCmdNextSubpass(vkrCmdBuf* cmdbuf, VkSubpassContents contents)
 {
-    ASSERT(cmd);
-    ASSERT(count >= 0);
-    ASSERT(pSecondaries || !count);
-    if (count > 0)
-    {
-        vkCmdExecuteCommands(cmd, count, pSecondaries);
-    }
+    ASSERT(cmdbuf && cmdbuf->handle);
+    ASSERT(cmdbuf->inRenderPass);
+    vkCmdNextSubpass(cmdbuf->handle, contents);
+    cmdbuf->subpass++;
 }
 
-void vkrCmdNextSubpass(VkCommandBuffer cmdbuf, VkSubpassContents contents)
+void vkrCmdEndRenderPass(vkrCmdBuf* cmdbuf)
 {
-    ASSERT(cmdbuf);
-    vkCmdNextSubpass(cmdbuf, contents);
-}
-
-void vkrCmdEndRenderPass(VkCommandBuffer cmdbuf)
-{
-    ASSERT(cmdbuf);
-    vkCmdEndRenderPass(cmdbuf);
+    ASSERT(cmdbuf && cmdbuf->handle);
+    ASSERT(cmdbuf->inRenderPass);
+    vkCmdEndRenderPass(cmdbuf->handle);
+    cmdbuf->inRenderPass = 0;
+    cmdbuf->subpass = 0;
 }
 
 void vkrCmdViewport(
-    VkCommandBuffer cmdbuf,
+    vkrCmdBuf* cmdbuf,
     VkViewport viewport,
     VkRect2D scissor)
 {
-    ASSERT(cmdbuf);
-    vkCmdSetViewport(cmdbuf, 0, 1, &viewport);
-    vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
+    ASSERT(cmdbuf && cmdbuf->handle);
+    vkCmdSetViewport(cmdbuf->handle, 0, 1, &viewport);
+    vkCmdSetScissor(cmdbuf->handle, 0, 1, &scissor);
 }
 
-void vkrCmdDefaultViewport(VkCommandBuffer cmdbuf)
+void vkrCmdDefaultViewport(vkrCmdBuf* cmdbuf)
 {
-    vkrCmdViewport(cmdbuf, vkrSwapchain_GetViewport(&g_vkr.chain), vkrSwapchain_GetRect(&g_vkr.chain));
+    vkrCmdViewport(cmdbuf, vkrSwapchain_GetViewport(), vkrSwapchain_GetRect());
 }
 
-void vkrCmdDraw(VkCommandBuffer cmdbuf, i32 vertexCount, i32 firstVertex)
+void vkrCmdDraw(vkrCmdBuf* cmdbuf, i32 vertexCount, i32 firstVertex)
 {
-    ASSERT(cmdbuf);
-    vkCmdDraw(cmdbuf, vertexCount, 1, firstVertex, 0);
+    ASSERT(cmdbuf && cmdbuf->handle);
+    ASSERT(vertexCount > 0);
+    ASSERT(firstVertex >= 0);
+    ASSERT(cmdbuf->inRenderPass);
+    vkCmdDraw(cmdbuf->handle, vertexCount, 1, firstVertex, 0);
+}
+
+void vkrBufferState(
+    vkrBuffer* buf,
+    const vkrBufferState_t* next)
+{
+    ASSERT(buf->handle);
+    ASSERT(next->access != 0);
+    ASSERT(next->stage != 0);
+    vkrBufferState_t* prev = &buf->state;
+    bool newResource = false;
+    if (prev->stage == 0)
+    {
+        prev->stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        newResource = true;
+    }
+    if (prev->owner != next->owner)
+    {
+        // queue ownership transfer
+        const vkrQueue* srcQueue = vkrGetQueue(prev->owner);
+        const vkrQueue* dstQueue = vkrGetQueue(next->owner);
+        vkrCmdBuf* srcCmd = vkrCmdGet(prev->owner);
+        vkrCmdBuf* dstCmd = vkrCmdGet(next->owner);
+        ASSERT(!srcCmd->inRenderPass);
+        ASSERT(!dstCmd->inRenderPass);
+        if (srcCmd->queueTransferDst || dstCmd->queueTransferSrc)
+        {
+            vkrCmdFlushQueueTransfers();
+        }
+        const VkBufferMemoryBarrier barrier =
+        {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+            .srcAccessMask = prev->access,
+            .dstAccessMask = next->access,
+            .srcQueueFamilyIndex = srcQueue->family,
+            .dstQueueFamilyIndex = dstQueue->family,
+            .buffer = buf->handle,
+            .offset = 0,
+            .size = VK_WHOLE_SIZE,
+        };
+        ASSERT(!srcCmd->queueTransferDst);
+        srcCmd->queueTransferSrc = 1;
+        vkCmdPipelineBarrier(
+            srcCmd->handle,
+            prev->stage, next->stage,
+            0x0,
+            0, NULL,
+            1, &barrier,
+            0, NULL);
+        ASSERT(!dstCmd->queueTransferSrc);
+        dstCmd->queueTransferDst = 1;
+        vkCmdPipelineBarrier(
+            dstCmd->handle,
+            prev->stage, next->stage,
+            0x0,
+            0, NULL,
+            1, &barrier,
+            0, NULL);
+        *prev = *next;
+    }
+    else
+    {
+        bool srcRead = (prev->access & kReadAccess) != 0;
+        bool srcWrite = (prev->access & kWriteAccess) != 0;
+        bool dstRead = (next->access & kReadAccess) != 0;
+        bool dstWrite = (next->access & kWriteAccess) != 0;
+        bool readAfterWrite = srcWrite && dstRead;
+        bool writeAfterRead = srcRead && dstWrite;
+        bool writeAfterWrite = srcWrite && dstWrite;
+        if (readAfterWrite || writeAfterRead || writeAfterWrite || newResource)
+        {
+            // data hazard, insert barrier
+            vkrCmdBuf* cmd = vkrCmdGet(next->owner);
+            ASSERT(!cmd->inRenderPass);
+            const VkBufferMemoryBarrier barrier =
+            {
+                .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                .srcAccessMask = prev->access,
+                .dstAccessMask = next->access,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .buffer = buf->handle,
+                .offset = 0,
+                .size = VK_WHOLE_SIZE,
+            };
+            vkCmdPipelineBarrier(
+                cmd->handle,
+                prev->stage, next->stage,
+                0x0,
+                0, NULL,
+                1, &barrier,
+                0, NULL);
+            *prev = *next;
+        }
+        else
+        {
+            // no data hazard, append usage state
+            prev->stage |= next->stage;
+            prev->access |= next->access;
+        }
+    }
+}
+
+void vkrBufferState_HostRead(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->xfer);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_HOST_BIT,
+        .access = VK_ACCESS_HOST_READ_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_HostWrite(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->xfer);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_HOST_BIT,
+        .access = VK_ACCESS_HOST_WRITE_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_TransferSrc(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->xfer);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_TRANSFER_BIT,
+        .access = VK_ACCESS_TRANSFER_READ_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_TransferDst(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->xfer);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_TRANSFER_BIT,
+        .access = VK_ACCESS_TRANSFER_WRITE_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_UniformBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx || cmdbuf->comp);
+    vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage =
+            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_UNIFORM_READ_BIT,
+    };
+    const vkrQueue* queue = vkrGetQueue(state.owner);
+    state.stage = state.stage & queue->stageMask;
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_IndirectDraw(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+        .access = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_IndirectDispatch(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        // not sure if draw indirect stage needed here or not
+        .stage = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_VertexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+        .access = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_IndexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+        .access = VK_ACCESS_INDEX_READ_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_FragLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_FragStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_WRITE_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_ComputeStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_WRITE_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrBufferState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    const vkrBufferState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrBufferState(buf, &state);
+}
+
+void vkrImageState(
+    vkrImage* img,
+    const vkrImageState_t* next)
+{
+    ASSERT(img->handle);
+    ASSERT(next->access != 0);
+    ASSERT(next->stage != 0);
+
+    vkrImageState_t* prev = &img->state;
+    if (prev->substates)
+    {
+        ASSERT(prev->owner == next->owner);
+        vkrSubImageState_t subnext = { 0 };
+        subnext.stage = next->stage;
+        subnext.access = next->access;
+        subnext.layout = next->layout;
+        vkrSubImageState(img, &subnext, 0, img->arrayLayers, 0, img->mipLevels);
+        ASSERT(!prev->substates);
+        return;
+    }
+
+    bool newResource = false;
+    if (prev->stage == 0)
+    {
+        prev->stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        newResource = true;
+    }
+    VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    if (img->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+    {
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+    }
+    if (prev->owner != next->owner)
+    {
+        // queue ownership transfer
+        const vkrQueue* srcQueue = vkrGetQueue(prev->owner);
+        const vkrQueue* dstQueue = vkrGetQueue(next->owner);
+        vkrCmdBuf* srcCmd = vkrCmdGet(prev->owner);
+        vkrCmdBuf* dstCmd = vkrCmdGet(next->owner);
+        if (srcCmd->queueTransferDst || dstCmd->queueTransferSrc)
+        {
+            vkrCmdFlushQueueTransfers();
+        }
+        const VkImageMemoryBarrier barrier =
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = prev->access,
+            .dstAccessMask = next->access,
+            .oldLayout = prev->layout,
+            .newLayout = next->layout,
+            .srcQueueFamilyIndex = srcQueue->family,
+            .dstQueueFamilyIndex = dstQueue->family,
+            .image = img->handle,
+            .subresourceRange =
+            {
+                .aspectMask = aspect,
+                .baseMipLevel = 0,
+                .levelCount = VK_REMAINING_MIP_LEVELS,
+                .baseArrayLayer = 0,
+                .layerCount = VK_REMAINING_ARRAY_LAYERS,
+            },
+        };
+        ASSERT(!srcCmd->queueTransferDst);
+        srcCmd->queueTransferSrc = 1;
+        vkCmdPipelineBarrier(
+            srcCmd->handle,
+            prev->stage, next->stage,
+            0x0,
+            0, NULL,
+            0, NULL,
+            1, &barrier);
+        ASSERT(!dstCmd->queueTransferSrc);
+        dstCmd->queueTransferDst = 1;
+        vkCmdPipelineBarrier(
+            dstCmd->handle,
+            prev->stage, next->stage,
+            0x0,
+            0, NULL,
+            0, NULL,
+            1, &barrier);
+        *prev = *next;
+    }
+    else
+    {
+        bool layoutChange = prev->layout != next->layout;
+        bool srcRead = (prev->access & kReadAccess) != 0;
+        bool srcWrite = (prev->access & kWriteAccess) != 0;
+        bool dstRead = (next->access & kReadAccess) != 0;
+        bool dstWrite = (next->access & kWriteAccess) != 0;
+        bool readAfterWrite = srcWrite && dstRead;
+        bool writeAfterRead = srcRead && dstWrite;
+        bool writeAfterWrite = srcWrite && dstWrite;
+        if (layoutChange || readAfterWrite || writeAfterRead || writeAfterWrite || newResource)
+        {
+            // data hazard, insert barrier
+            vkrCmdBuf* cmd = vkrCmdGet(next->owner);
+            const VkImageMemoryBarrier barrier =
+            {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .srcAccessMask = prev->access,
+                .dstAccessMask = next->access,
+                .oldLayout = prev->layout,
+                .newLayout = next->layout,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = img->handle,
+                .subresourceRange =
+                {
+                    .aspectMask = aspect,
+                    .baseMipLevel = 0,
+                    .levelCount = VK_REMAINING_MIP_LEVELS,
+                    .baseArrayLayer = 0,
+                    .layerCount = VK_REMAINING_ARRAY_LAYERS,
+                },
+            };
+            vkCmdPipelineBarrier(
+                cmd->handle,
+                prev->stage, next->stage,
+                0x0,
+                0, NULL,
+                0, NULL,
+                1, &barrier);
+            *prev = *next;
+        }
+        else
+        {
+            // no data hazard, append usage state
+            prev->stage |= next->stage;
+            prev->access |= next->access;
+        }
+    }
+    ASSERT(img->state.layout == next->layout);
+}
+
+void vkrImageState_TransferSrc(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->xfer);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_TRANSFER_BIT,
+        .access = VK_ACCESS_TRANSFER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrImageState_TransferDst(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->xfer);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_TRANSFER_BIT,
+        .access = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrImageState_FragSample(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrImageState_ComputeSample(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrImageState_FragLoad(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrImageState_FragStore(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrImageState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrImageState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrImageState_ComputeStore(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrImageState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrImageState_ColorAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrImageState_DepthAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    const vkrImageState_t state =
+    {
+        .owner = cmdbuf->queueId,
+        .stage = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        .access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(state.owner));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrImageState(img, &state);
+}
+
+void vkrSubImageState(
+    vkrImage* img,
+    const vkrSubImageState_t* next,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(img->handle);
+    ASSERT(next->access != 0);
+    ASSERT(next->stage != 0);
+    ASSERT(layerCount > 0);
+    ASSERT(mipCount > 0);
+
+    const i32 L = img->arrayLayers;
+    const i32 M = img->mipLevels;
+    ASSERT(baseLayer + layerCount <= L);
+    ASSERT(baseMip + mipCount <= M);
+    const i32 substatecount = L * M;
+
+    vkrImageState_t* prev = &img->state;
+    vkrSubImageState_t* substates = prev->substates;
+    if (!substates)
+    {
+        substates = Perm_Calloc(sizeof(prev->substates[0]) * substatecount);
+        prev->substates = substates;
+        if (!prev->stage)
+        {
+            prev->stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        }
+        for (i32 i = 0; i < substatecount; ++i)
+        {
+            substates[i].stage = prev->stage;
+            substates[i].access = prev->access;
+            substates[i].layout = prev->layout;
+        }
+    }
+    else
+    {
+        ASSERT(prev->layout == VK_IMAGE_LAYOUT_UNDEFINED);
+        ASSERT(!prev->access);
+        ASSERT(!prev->stage);
+    }
+
+    VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    if (img->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+    {
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+    }
+
+    const i32 maxBarriers = layerCount * mipCount;
+    VkImageMemoryBarrier* barriers = Perm_Calloc(sizeof(barriers[0]) * maxBarriers);
+
+    prev->layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    prev->access = 0;
+    prev->stage = 0;
+
+    i32 b = 0;
+    for (i32 l = 0; l < layerCount; ++l)
+    {
+        i32 iLayer = baseLayer + l;
+        for (i32 m = 0; m < mipCount; ++m)
+        {
+            i32 iMip = baseMip + m;
+            vkrSubImageState_t* prevsub = &substates[iLayer * M + iMip];
+            prev->stage |= prevsub->stage;
+            prev->access |= prevsub->access;
+
+            bool layoutChange = prevsub->layout != next->layout;
+            bool srcRead = (prevsub->access & kReadAccess) != 0;
+            bool srcWrite = (prevsub->access & kWriteAccess) != 0;
+            bool dstRead = (next->access & kReadAccess) != 0;
+            bool dstWrite = (next->access & kWriteAccess) != 0;
+            bool readAfterWrite = srcWrite && dstRead;
+            bool writeAfterRead = srcRead && dstWrite;
+            bool writeAfterWrite = srcWrite && dstWrite;
+
+            if (layoutChange || readAfterWrite || writeAfterRead || writeAfterWrite)
+            {
+                ASSERT(b < maxBarriers);
+                VkImageMemoryBarrier* barrier = &barriers[b++];
+                barrier->sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                barrier->srcAccessMask = prevsub->access;
+                barrier->dstAccessMask = next->access;
+                barrier->oldLayout = prevsub->layout;
+                barrier->newLayout = next->layout;
+                barrier->srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier->dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                barrier->image = img->handle;
+                barrier->subresourceRange.aspectMask = aspect;
+                barrier->subresourceRange.baseMipLevel = iMip;
+                barrier->subresourceRange.levelCount = 1;
+                barrier->subresourceRange.baseArrayLayer = iLayer;
+                barrier->subresourceRange.layerCount = 1;
+                *prevsub = *next;
+            }
+            else
+            {
+                prevsub->access |= next->access;
+                prevsub->stage |= next->stage;
+            }
+        }
+    }
+
+    // merge mips
+    for (i32 i = 0; (i + 1) < b; ++i)
+    {
+        VkImageMemoryBarrier* dst = &barriers[i];
+        VkImageMemoryBarrier* src = &barriers[i + 1];
+        VkImageSubresourceRange* dstRange = &dst->subresourceRange;
+        VkImageSubresourceRange* srcRange = &src->subresourceRange;
+        if (dst->oldLayout != src->oldLayout)
+            continue;
+        if (dstRange->baseArrayLayer != srcRange->baseArrayLayer)
+            continue;
+
+        if (dstRange->baseMipLevel + dstRange->levelCount == srcRange->baseMipLevel)
+        {
+            dstRange->levelCount += srcRange->levelCount;
+            dst->srcAccessMask |= src->srcAccessMask;
+            ASSERT(dstRange->levelCount <= img->mipLevels);
+            for (i32 j = i + 1; (j + 1) < b; ++j)
+            {
+                barriers[j] = barriers[j + 1];
+            }
+            --b;
+            ASSERT(b >= 1);
+            --i;
+        }
+    }
+
+    // merge layers
+    for (i32 i = 0; (i + 1) < b; ++i)
+    {
+        VkImageMemoryBarrier* dst = &barriers[i];
+        VkImageMemoryBarrier* src = &barriers[i + 1];
+        VkImageSubresourceRange* dstRange = &dst->subresourceRange;
+        VkImageSubresourceRange* srcRange = &src->subresourceRange;
+        if (dst->oldLayout != src->oldLayout)
+            continue;
+        if (dstRange->baseMipLevel != srcRange->baseMipLevel)
+            continue;
+        if (dstRange->levelCount != srcRange->levelCount)
+            continue;
+
+        if (dstRange->baseArrayLayer + dstRange->layerCount == srcRange->baseArrayLayer)
+        {
+            dstRange->layerCount += srcRange->layerCount;
+            dst->srcAccessMask |= src->srcAccessMask;
+            ASSERT(dstRange->layerCount <= img->arrayLayers);
+            for (i32 j = i + 1; (j + 1) < b; ++j)
+            {
+                barriers[j] = barriers[j + 1];
+            }
+            --b;
+            ASSERT(b >= 1);
+            --i;
+        }
+    }
+
+    vkrCmdBuf* cmd = vkrCmdGet(prev->owner);
+    ASSERT(cmd->handle);
+    ASSERT(b >= 1);
+    vkCmdPipelineBarrier(
+        cmd->handle,
+        prev->stage, next->stage,
+        0x0,
+        0, NULL,
+        0, NULL,
+        b, barriers);
+
+    Mem_Free(barriers);
+    barriers = NULL;
+    b = 0;
+
+    prev->access = substates[0].access;
+    prev->stage = substates[0].stage;
+    prev->layout = substates[0].layout;
+    bool isUniform = true;
+    for (i32 i = 1; i < substatecount; ++i)
+    {
+        if (substates[0].layout != substates[i].layout)
+        {
+            isUniform = false;
+            break;
+        }
+        prev->access |= substates[i].access;
+        prev->stage |= substates[i].stage;
+    }
+    if (isUniform)
+    {
+        prev->substates = NULL;
+        Mem_Free(substates);
+        substates = NULL;
+    }
+    else
+    {
+        prev->layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        prev->access = 0;
+        prev->stage = 0;
+    }
+}
+
+void vkrSubImageState_TransferSrc(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->xfer);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_TRANSFER_BIT,
+        .access = VK_ACCESS_TRANSFER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
+}
+
+void vkrSubImageState_TransferDst(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->xfer);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_TRANSFER_BIT,
+        .access = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
+}
+
+void vkrSubImageState_FragSample(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
+}
+
+void vkrSubImageState_ComputeSample(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
+}
+
+void vkrSubImageState_FragLoad(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
+}
+
+void vkrSubImageState_FragStore(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
+}
+
+void vkrSubImageState_FragLoadStore(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
+}
+
+void vkrSubImageState_ComputeLoad(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
+}
+
+void vkrSubImageState_ComputeStore(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
+}
+
+void vkrSubImageState_ComputeLoadStore(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
+}
+
+void vkrSubImageState_ColorAttachWrite(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
+}
+
+void vkrSubImageState_DepthAttachWrite(
+    vkrCmdBuf* cmdbuf, vkrImage* img,
+    i32 baseLayer, i32 layerCount,
+    i32 baseMip, i32 mipCount)
+{
+    ASSERT(cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
+    ASSERT(cmdbuf->queueId == img->state.owner);
+    const vkrSubImageState_t state =
+    {
+        .stage = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        .access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    };
+    ASSERT_ONLY(const vkrQueue* queue = vkrGetQueue(cmdbuf->queueId));
+    ASSERT(state.stage & queue->stageMask);
+    ASSERT(state.access & queue->accessMask);
+    vkrSubImageState(img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
 void vkrCmdCopyBuffer(
-    VkCommandBuffer cmdbuf,
-    const vkrBuffer* src,
-    const vkrBuffer* dst)
+    vkrCmdBuf* cmdbuf,
+    vkrBuffer* src,
+    vkrBuffer* dst)
 {
-    ASSERT(cmdbuf);
+    ASSERT(cmdbuf->handle);
     ASSERT(src->handle);
     ASSERT(dst->handle);
     i32 size = pim_min(src->size, dst->size);
     ASSERT(size >= 0);
     if (size > 0)
     {
+        vkrBufferState_TransferSrc(cmdbuf, src);
+        vkrBufferState_TransferDst(cmdbuf, dst);
         const VkBufferCopy region =
         {
             .srcOffset = 0,
             .dstOffset = 0,
             .size = size,
         };
-        vkCmdCopyBuffer(cmdbuf, src->handle, dst->handle, 1, &region);
+        ASSERT(cmdbuf->handle);
+        vkCmdCopyBuffer(cmdbuf->handle, src->handle, dst->handle, 1, &region);
     }
 }
 
-void vkrCmdBufferBarrier(
-    VkCommandBuffer cmdbuf,
-    VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask,
-    const VkBufferMemoryBarrier* barrier)
+void vkrCmdCopyImage(
+    vkrCmdBuf* cmdbuf,
+    vkrImage* src,
+    vkrImage* dst,
+    const VkImageCopy* region)
 {
-    ASSERT(cmdbuf);
-    ASSERT(barrier);
-    vkCmdPipelineBarrier(
-        cmdbuf,
-        srcStageMask, dstStageMask,
-        0x0,
-        0, NULL,
-        1, barrier,
-        0, NULL);
+    vkrSubImageState_TransferSrc(cmdbuf, src,
+        region->srcSubresource.baseArrayLayer,
+        region->srcSubresource.layerCount,
+        region->srcSubresource.mipLevel,
+        1);
+    vkrSubImageState_TransferDst(cmdbuf, dst,
+        region->dstSubresource.baseArrayLayer,
+        region->dstSubresource.layerCount,
+        region->dstSubresource.mipLevel,
+        1);
+    ASSERT(cmdbuf->handle);
+    ASSERT(src->handle);
+    ASSERT(dst->handle);
+    ASSERT(region);
+    vkCmdCopyImage(cmdbuf->handle, src->handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, region);
 }
 
-void vkrCmdImageBarrier(
-    VkCommandBuffer cmdbuf,
-    VkPipelineStageFlags srcStageMask,
-    VkPipelineStageFlags dstStageMask,
-    const VkImageMemoryBarrier* barrier)
+void vkrCmdBlitImage(
+    vkrCmdBuf* cmdbuf,
+    vkrImage* src,
+    vkrImage* dst,
+    const VkImageBlit* region)
 {
-    ASSERT(cmdbuf);
-    ASSERT(barrier);
-    vkCmdPipelineBarrier(
-        cmdbuf,
-        srcStageMask, dstStageMask,
-        0x0,
-        0, NULL,
-        0, NULL,
-        1, barrier);
+    vkrSubImageState_TransferSrc(cmdbuf, src,
+        region->srcSubresource.baseArrayLayer,
+        region->srcSubresource.layerCount,
+        region->srcSubresource.mipLevel,
+        1);
+    vkrSubImageState_TransferDst(cmdbuf, dst,
+        region->dstSubresource.baseArrayLayer,
+        region->dstSubresource.layerCount,
+        region->dstSubresource.mipLevel,
+        1);
+    ASSERT(cmdbuf->handle);
+    ASSERT(src->handle);
+    ASSERT(dst->handle);
+    vkCmdBlitImage(
+        cmdbuf->handle,
+        src->handle,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        dst->handle,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1, region,
+        VK_FILTER_LINEAR);
+}
+
+void vkrCmdCopyBufferToImage(
+    vkrCmdBuf* cmdbuf,
+    vkrBuffer* src,
+    vkrImage* dst,
+    const VkBufferImageCopy* region)
+{
+    vkrBufferState_TransferSrc(cmdbuf, src);
+    vkrSubImageState_TransferDst(cmdbuf, dst,
+        region->imageSubresource.baseArrayLayer,
+        region->imageSubresource.layerCount,
+        region->imageSubresource.mipLevel,
+        1);
+    ASSERT(cmdbuf->handle);
+    ASSERT(src->handle);
+    ASSERT(dst->handle);
+    vkCmdCopyBufferToImage(cmdbuf->handle, src->handle, dst->handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, region);
+}
+
+void vkrCmdCopyImageToBuffer(
+    vkrCmdBuf* cmdbuf,
+    vkrImage* src,
+    vkrBuffer* dst,
+    const VkBufferImageCopy* region)
+{
+    vkrSubImageState_TransferSrc(cmdbuf, src,
+        region->imageSubresource.baseArrayLayer,
+        region->imageSubresource.layerCount,
+        region->imageSubresource.mipLevel,
+        1);
+    vkrBufferState_TransferDst(cmdbuf, dst);
+    ASSERT(cmdbuf->handle);
+    ASSERT(src->handle);
+    ASSERT(dst->handle);
+    vkCmdCopyImageToBuffer(cmdbuf->handle, src->handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->handle, 1, region);
+}
+
+void vkrCmdUpdateBuffer(
+    vkrCmdBuf* cmdbuf,
+    const void* src,
+    i32 srcSize,
+    vkrBuffer* dst)
+{
+    const i32 kSizeLimit = 1 << 16;
+    vkrBufferState_TransferDst(cmdbuf, dst);
+    ASSERT(cmdbuf->handle);
+    ASSERT(dst->handle);
+    ASSERT((srcSize & 15) == 0);
+    if (src && (u32)srcSize < (u32)kSizeLimit && srcSize == dst->size)
+    {
+        vkCmdUpdateBuffer(cmdbuf->handle, dst->handle, 0, srcSize, src);
+    }
+    else
+    {
+        ASSERT(false);
+    }
+}
+
+void vkrCmdFillBuffer(
+    vkrCmdBuf* cmdbuf,
+    vkrBuffer* dst,
+    u32 fillValue)
+{
+    vkrBufferState_TransferDst(cmdbuf, dst);
+    ASSERT(cmdbuf->handle);
+    ASSERT(dst->handle);
+    vkCmdFillBuffer(cmdbuf->handle, dst->handle, 0, VK_WHOLE_SIZE, fillValue);
 }
 
 void vkrCmdBindDescSets(
-    VkCommandBuffer cmdbuf,
+    vkrCmdBuf* cmdbuf,
     VkPipelineBindPoint bindpoint,
     VkPipelineLayout layout,
     i32 setCount,
     const VkDescriptorSet* sets)
 {
-    ASSERT(cmdbuf);
+    ASSERT(cmdbuf && cmdbuf->handle);
+    ASSERT(cmdbuf->gfx || cmdbuf->comp);
     ASSERT(layout);
     ASSERT(sets || !setCount);
     ASSERT(setCount >= 0);
     if (setCount > 0)
     {
         vkCmdBindDescriptorSets(
-            cmdbuf,
+            cmdbuf->handle,
             bindpoint,
             layout,
             0,
             setCount, sets,
             0, NULL);
     }
+}
+
+void vkrCmdBindPass(
+    vkrCmdBuf* cmdbuf,
+    const vkrPass* pass)
+{
+    ASSERT(cmdbuf && cmdbuf->handle);
+    ASSERT(cmdbuf->gfx || cmdbuf->comp);
+    ASSERT(pass->pipeline);
+    vkCmdBindPipeline(cmdbuf->handle, pass->bindpoint, pass->pipeline);
+    VkDescriptorSet set = vkrBindings_GetSet();
+    vkrCmdBindDescSets(cmdbuf, pass->bindpoint, pass->layout, 1, &set);
+}
+
+void vkrCmdPushConstants(
+    vkrCmdBuf* cmdbuf,
+    const vkrPass* pass,
+    const void* src, i32 bytes)
+{
+    ASSERT(cmdbuf && cmdbuf->handle);
+    ASSERT(cmdbuf->gfx || cmdbuf->comp);
+    ASSERT(src);
+    ASSERT(bytes == pass->pushConstantBytes);
+    ASSERT(bytes > 0);
+    ASSERT(pass->layout);
+    ASSERT(pass->stageFlags);
+    vkCmdPushConstants(
+        cmdbuf->handle,
+        pass->layout,
+        pass->stageFlags,
+        0,
+        bytes,
+        src);
+}
+
+void vkrCmdDispatch(vkrCmdBuf* cmdbuf, i32 x, i32 y, i32 z)
+{
+    ASSERT(cmdbuf && cmdbuf->handle);
+    ASSERT(cmdbuf->comp);
+    ASSERT(x > 0);
+    ASSERT(y > 0);
+    ASSERT(z > 0);
+    vkCmdDispatch(cmdbuf->handle, x, y, z);
 }

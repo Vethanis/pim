@@ -5,6 +5,7 @@
 #include "rendering/vulkan/vkr_device.h"
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_image.h"
+#include "rendering/vulkan/vkr_framebuffer.h"
 
 #include "allocator/allocator.h"
 #include "common/profiler.h"
@@ -12,6 +13,7 @@
 #include "common/console.h"
 #include "common/cvars.h"
 #include "threading/task.h"
+#include "threading/mutex.h"
 #include "math/scalar.h"
 
 #include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
@@ -29,7 +31,7 @@ typedef struct vkrMemPool_s
 
 typedef struct vkrAllocator_s
 {
-    Spinlock lock;
+    Mutex lock;
     VmaAllocator handle;
     vkrMemPool stagingPool;
     vkrMemPool deviceBufferPool;
@@ -59,7 +61,7 @@ bool vkrMemSys_Init(void)
 
     vkrAllocator *const allocator = &ms_inst;
     memset(allocator, 0, sizeof(*allocator));
-    Spinlock_New(&allocator->lock);
+    Mutex_New(&allocator->lock);
 
     {
         const VmaVulkanFunctions vulkanFns =
@@ -97,7 +99,7 @@ bool vkrMemSys_Init(void)
             .physicalDevice = g_vkr.phdev,
             .device = g_vkr.dev,
             .pAllocationCallbacks = NULL,
-            .frameInUseCount = kResourceSets - 1,
+            .frameInUseCount = R_ResourceSets - 1,
             .pVulkanFunctions = &vulkanFns,
         };
         VmaAllocator handle = NULL;
@@ -198,7 +200,7 @@ void vkrMemSys_Shutdown(void)
         vkrMemPool_Del(&ms_inst.dynamicBufferPool);
         vmaDestroyAllocator(allocator->handle);
     }
-    Spinlock_Del(&allocator->lock);
+    Mutex_Del(&allocator->lock);
     memset(allocator, 0, sizeof(*allocator));
 }
 
@@ -210,10 +212,10 @@ void vkrMemSys_Update(void)
     vkrAllocator *const allocator = &ms_inst;
     if (allocator->handle)
     {
-        const u32 frame = vkrSys_FrameIndex();
+        const u32 frame = vkrGetFrameCount();
         vmaSetCurrentFrameIndex(allocator->handle, frame);
         {
-            Spinlock_Lock(&allocator->lock);
+            Mutex_Lock(&allocator->lock);
             i32 len = allocator->numreleasable;
             vkrReleasable* releasables = allocator->releasables;
             for (i32 i = len - 1; i >= 0; --i)
@@ -225,7 +227,7 @@ void vkrMemSys_Update(void)
                 }
             }
             allocator->numreleasable = len;
-            Spinlock_Unlock(&allocator->lock);
+            Mutex_Unlock(&allocator->lock);
 
             FinalizeCheck(len);
         }
@@ -241,8 +243,8 @@ void vkrMemSys_Finalize(void)
     vkrAllocator *const allocator = &ms_inst;
     ASSERT(allocator->handle);
 
-    Spinlock_Lock(&allocator->lock);
-    const u32 frame = vkrSys_FrameIndex() + kResourceSets * 2;
+    Mutex_Lock(&allocator->lock);
+    const u32 frame = vkrGetFrameCount() + R_ResourceSets * 2;
     i32 len = allocator->numreleasable;
     vkrReleasable *const releasables = allocator->releasables;
     for (i32 i = len - 1; i >= 0; --i)
@@ -257,7 +259,7 @@ void vkrMemSys_Finalize(void)
         }
     }
     allocator->numreleasable = len;
-    Spinlock_Unlock(&allocator->lock);
+    Mutex_Unlock(&allocator->lock);
 }
 
 // ----------------------------------------------------------------------------
@@ -275,6 +277,7 @@ bool vkrMem_BufferNew(
     ASSERT(size >= 0);
     ASSERT(buffer);
     memset(buffer, 0, sizeof(*buffer));
+    buffer->state.owner = vkrQueueId_Graphics;
 
     const VkBufferCreateInfo bufferInfo =
     {
@@ -352,7 +355,9 @@ bool vkrMem_ImageNew(
 
     image->type = info->imageType;
     image->format = info->format;
-    image->layout = info->initialLayout;
+    image->state.owner = vkrQueueId_Graphics;
+    image->state.stage = 0;
+    image->state.layout = info->initialLayout;
     image->usage = info->usage;
     image->width = info->extent.width;
     image->height = info->extent.height;
@@ -443,11 +448,11 @@ void vkrReleasable_Add(
     ASSERT(allocator->handle);
     ASSERT(releasable);
 
-    Spinlock_Lock(&allocator->lock);
+    Mutex_Lock(&allocator->lock);
     i32 back = allocator->numreleasable++;
     Perm_Reserve(allocator->releasables, back + 1);
     allocator->releasables[back] = *releasable;
-    Spinlock_Unlock(&allocator->lock);
+    Mutex_Unlock(&allocator->lock);
 
     FinalizeCheck(back + 1);
 
@@ -466,7 +471,7 @@ bool vkrReleasable_Del(
     ASSERT(g_vkr.dev);
 
     u32 duration = frame - releasable->frame;
-    bool ready = duration > kResourceSets;
+    bool ready = duration > R_ResourceSets;
     if (ready)
     {
         switch (releasable->type)
@@ -502,6 +507,13 @@ bool vkrReleasable_Del(
                 vkDestroyImageView(g_vkr.dev, releasable->view, NULL);
             }
             break;
+        case vkrReleasableType_Attachment:
+            if (releasable->view)
+            {
+                vkrFramebuffer_Remove(releasable->view);
+                vkDestroyImageView(g_vkr.dev, releasable->view, NULL);
+            }
+            break;
         }
         memset(releasable, 0, sizeof(*releasable));
     }
@@ -510,34 +522,8 @@ bool vkrReleasable_Del(
     return ready;
 }
 
-VkFence vkrMem_Barrier(
-    vkrQueueId id,
-    VkPipelineStageFlags srcStage,
-    VkPipelineStageFlags dstStage,
-    const VkMemoryBarrier* glob,
-    const VkBufferMemoryBarrier* buffer,
-    const VkImageMemoryBarrier* img)
-{
-    VkFence fence = NULL;
-    VkQueue queue = NULL;
-    VkCommandBuffer cmd = vkrContext_GetTmpCmd(id, &fence, &queue);
-    vkrCmdBegin(cmd);
-    {
-        vkCmdPipelineBarrier(
-            cmd,
-            srcStage, dstStage, 0x0,
-            glob ? 1 : 0, glob,
-            buffer ? 1 : 0, buffer,
-            img ? 1 : 0, img);
-    }
-    vkrCmdEnd(cmd);
-    vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
-    ASSERT(fence);
-    return fence;
-}
-
 ProfileMark(pm_memmap, vkrMem_Map)
-void *const vkrMem_Map(VmaAllocation allocation)
+void* vkrMem_Map(VmaAllocation allocation)
 {
     ProfileBegin(pm_memmap);
     ASSERT(allocation);
@@ -631,7 +617,7 @@ static bool vkrMemPool_New(
         const VmaPoolCreateInfo poolInfo =
         {
             .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = kResourceSets - 1,
+            .frameInUseCount = R_ResourceSets - 1,
         };
         VkCheck(vmaCreatePool(ms_inst.handle, &poolInfo, &pool->handle));
         ASSERT(pool->handle);
@@ -673,7 +659,7 @@ static bool vkrMemPool_New(
         const VmaPoolCreateInfo poolInfo =
         {
             .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = kResourceSets - 1,
+            .frameInUseCount = R_ResourceSets - 1,
         };
         VkCheck(vmaCreatePool(ms_inst.handle, &poolInfo, &pool->handle));
         ASSERT(pool->handle);

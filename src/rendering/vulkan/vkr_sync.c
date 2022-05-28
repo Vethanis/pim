@@ -74,7 +74,10 @@ void vkrFence_Wait(VkFence fence)
     ASSERT(g_vkr.dev);
     ASSERT(fence);
     const u64 timeout = -1;
-    VkCheck(vkWaitForFences(g_vkr.dev, 1, &fence, true, timeout));
+    while (vkrFence_Stat(fence) != vkrFenceState_Signalled)
+    {
+        VkCheck(vkWaitForFences(g_vkr.dev, 1, &fence, false, timeout));
+    }
     ProfileEnd(pm_waitfence);
 }
 
@@ -83,5 +86,6 @@ vkrFenceState vkrFence_Stat(VkFence fence)
     ASSERT(g_vkr.dev);
     ASSERT(fence);
     vkrFenceState state = vkGetFenceStatus(g_vkr.dev, fence);
+    ASSERT(state != vkrFenceState_Lost);
     return state;
 }

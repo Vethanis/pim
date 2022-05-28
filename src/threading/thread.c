@@ -130,8 +130,8 @@ i32 Thread_HardwareCount(void)
     GetSystemInfo(&systeminfo);
     i32 count = systeminfo.dwNumberOfProcessors;
     ASSERT(count > 0);
-    count = (count > 0) ? count : 1;
-    count = (count < kMaxThreads) ? count : kMaxThreads;
+    count = pim_max(count, 1);
+    count = pim_min(count, kMaxThreads);
     return count;
 }
 

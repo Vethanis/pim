@@ -6,7 +6,6 @@
 #include "rendering/vulkan/vkr_cmd.h"
 #include "rendering/vulkan/vkr_mem.h"
 #include "rendering/vulkan/vkr_image.h"
-#include "rendering/vulkan/vkr_attachment.h"
 #include "rendering/vulkan/vkr_context.h"
 #include "rendering/vulkan/vkr_renderpass.h"
 #include "rendering/vulkan/vkr_framebuffer.h"
@@ -16,10 +15,6 @@
 #include "math/scalar.h"
 #include <GLFW/glfw3.h>
 #include <string.h>
-
-// ----------------------------------------------------------------------------
-
-static void vkrSwapchain_SetupBuffers(vkrSwapchain* chain);
 
 // ----------------------------------------------------------------------------
 
@@ -79,13 +74,12 @@ static const VkSurfaceFormatKHR kPreferredSurfaceFormats[] =
 
 bool vkrSwapchain_New(
     vkrSwapchain* chain,
-    vkrWindow* window,
     vkrSwapchain* prev)
 {
     ASSERT(chain);
-    ASSERT(window);
     memset(chain, 0, sizeof(*chain));
 
+    vkrWindow *const window = &g_vkr.window;
     VkPhysicalDevice phdev = g_vkr.phdev;
     VkDevice dev = g_vkr.dev;
     VkSurfaceKHR surface = window->surface;
@@ -100,7 +94,7 @@ bool vkrSwapchain_New(
     VkPresentModeKHR mode = vkrSelectSwapMode(sup.modes, sup.modeCount);
     VkExtent2D ext = vkrSelectSwapExtent(&sup.caps, window->width, window->height);
 
-    u32 imgCount = i1_clamp(kDesiredSwapchainLen, sup.caps.minImageCount, i1_min(kMaxSwapchainLen, sup.caps.maxImageCount));
+    u32 imgCount = i1_clamp(R_DesiredSwapchainLen, sup.caps.minImageCount, i1_min(R_MaxSwapchainLen, sup.caps.maxImageCount));
 
     const u32 families[] =
     {
@@ -108,6 +102,9 @@ bool vkrSwapchain_New(
         qsup.family[vkrQueueId_Present],
     };
     bool concurrent = families[0] != families[1];
+
+    const u32 usage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
     const VkSwapchainCreateInfoKHR swapInfo =
     {
@@ -119,10 +116,7 @@ bool vkrSwapchain_New(
         .imageColorSpace = format.colorSpace,
         .imageExtent = ext,
         .imageArrayLayers = 1,
-        // use transfer_dst_bit if rendering offscreen
-        .imageUsage =
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .imageUsage = usage,
         .imageSharingMode = concurrent ?
             VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
         .queueFamilyIndexCount = concurrent ? NELEM(families) : 0,
@@ -155,8 +149,8 @@ bool vkrSwapchain_New(
     if (!prev)
     {
         Con_Logf(LogSev_Info, "vkr", "Present mode: '%s'", VkPresentModeKHR_Str[mode]);
-        Con_Logf(LogSev_Info, "vkr", "Present extent: %u x %u", ext.width, ext.height);
-        Con_Logf(LogSev_Info, "vkr", "Present images: %u", imgCount);
+        Con_Logf(LogSev_Info, "vkr", "Present extent: %d x %d", ext.width, ext.height);
+        Con_Logf(LogSev_Info, "vkr", "Present images: %d", imgCount);
         Con_Logf(LogSev_Info, "vkr", "Present sharing mode: %s", concurrent ? "Concurrent" : "Exclusive");
         const char* colorSpaceStr = "Unknown";
         switch (format.colorSpace)
@@ -193,9 +187,10 @@ bool vkrSwapchain_New(
     }
 
     // get swapchain images
+    VkImage images[R_MaxSwapchainLen] = { 0 };
     {
         VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, NULL));
-        if (imgCount > kMaxSwapchainLen)
+        if (imgCount > R_MaxSwapchainLen)
         {
             ASSERT(false);
             vkDestroySwapchainKHR(dev, handle, NULL);
@@ -203,74 +198,76 @@ bool vkrSwapchain_New(
             return false;
         }
         chain->length = imgCount;
-        VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, chain->images));
+        VkCheck(vkGetSwapchainImagesKHR(dev, handle, &imgCount, images));
     }
 
-    // create image views
+    // import images
     for (u32 i = 0; i < imgCount; ++i)
     {
-        const VkImageViewCreateInfo viewInfo =
+        const VkImageCreateInfo info =
         {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = chain->images[i],
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .imageType = VK_IMAGE_TYPE_2D,
             .format = chain->colorFormat,
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .subresourceRange.levelCount = 1,
-            .subresourceRange.layerCount = 1,
+            .extent.width = chain->width,
+            .extent.height = chain->height,
+            .extent.depth = 1,
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = swapInfo.imageUsage,
+            .sharingMode = swapInfo.imageSharingMode,
+            .queueFamilyIndexCount = swapInfo.queueFamilyIndexCount,
+            .pQueueFamilyIndices = swapInfo.pQueueFamilyIndices,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         };
-        VkImageView view = NULL;
-        VkCheck(vkCreateImageView(dev, &viewInfo, NULL, &view));
-        ASSERT(view);
-        chain->views[i] = view;
+        vkrImage_Import(&chain->images[i], &info, images[i]);
     }
 
-    // create luminance attachments
-    for(u32 i = 0; i < imgCount; ++i)
+    // create framebuffers for present pass
+    for (u32 i = 0; i < imgCount; ++i)
     {
-        vkrAttachment_New(
-            &chain->depthAttachments[i],
-            chain->width,
-            chain->height,
-            VK_FORMAT_D32_SFLOAT,
-            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-        vkrAttachment_New(
-            &chain->lumAttachments[i],
-            chain->width,
-            chain->height,
-            VK_FORMAT_R16_SFLOAT,
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
+        const vkrImage* attachments[] =
+        {
+            &chain->images[i],
+        };
+        chain->buffers[i] = vkrFramebuffer_Get(
+            attachments, NELEM(attachments), chain->width, chain->height);
     }
 
     // create synchronization objects
-    for (i32 i = 0; i < kResourceSets; ++i)
+    for (i32 i = 0; i < R_ResourceSets; ++i)
     {
-        chain->syncFences[i] = vkrFence_New(true);
         chain->availableSemas[i] = vkrSemaphore_New();
         chain->renderedSemas[i] = vkrSemaphore_New();
     }
 
-    // create presentation command buffers
-    const VkCommandPoolCreateInfo cmdpoolinfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = g_vkr.queues[vkrQueueId_Graphics].family,
-    };
-    VkCommandPool cmdpool = NULL;
-    VkCheck(vkCreateCommandPool(g_vkr.dev, &cmdpoolinfo, NULL, &cmdpool));
-    ASSERT(cmdpool);
-    chain->cmdpool = cmdpool;
-    const VkCommandBufferAllocateInfo cmdinfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = NELEM(chain->presCmds),
-        .commandPool = cmdpool,
-    };
-    VkCheck(vkAllocateCommandBuffers(g_vkr.dev, &cmdinfo, chain->presCmds));
+    //// create presentation renderpass
+    //const vkrRenderPassDesc renderPassDesc =
+    //{
+    //    .srcAccessMask =
+    //        VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+    //    .dstAccessMask =
+    //        VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
 
-    vkrSwapchain_SetupBuffers(chain);
+    //    .srcStageMask =
+    //        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+    //    .dstStageMask =
+    //        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+
+    //    .attachments[0] =
+    //    {
+    //        .format = chain->colorFormat,
+    //        .initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+    //        .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+    //        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+    //        .load = VK_ATTACHMENT_LOAD_OP_LOAD,
+    //        .store = VK_ATTACHMENT_STORE_OP_STORE,
+    //    },
+    //};
+    //chain->presentPass = vkrRenderPass_Get(&renderPassDesc);
+    //ASSERT(chain->presentPass);
 
     return true;
 }
@@ -280,32 +277,20 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
     if (chain)
     {
         vkrDevice_WaitIdle();
-        vkrContext_OnSwapDel(&g_vkr.context);
 
-        if (chain->cmdpool)
+        for (i32 i = 0; i < R_ResourceSets; ++i)
         {
-            vkDestroyCommandPool(g_vkr.dev, chain->cmdpool, NULL);
-            chain->cmdpool = NULL;
-        }
-
-        for (i32 i = 0; i < kResourceSets; ++i)
-        {
-            vkrFence_Del(chain->syncFences[i]);
             vkrSemaphore_Del(chain->availableSemas[i]);
             vkrSemaphore_Del(chain->renderedSemas[i]);
-            chain->syncFences[i] = NULL;
             chain->availableSemas[i] = NULL;
             chain->renderedSemas[i] = NULL;
-            chain->presCmds[i] = NULL;
         }
 
         const i32 len = chain->length;
         for (i32 i = 0; i < len; ++i)
         {
-            vkrFramebuffer_Del(&chain->buffers[i]);
-            vkrImageView_Release(chain->views[i]);
-            vkrAttachment_Release(&chain->lumAttachments[i]);
-            vkrAttachment_Release(&chain->depthAttachments[i]);
+            vkrImage_Release(&chain->images[i]);
+            chain->buffers[i] = NULL;
         }
 
         if (chain->handle)
@@ -318,138 +303,54 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
     }
 }
 
-static void vkrSwapchain_SetupBuffers(vkrSwapchain* chain)
+bool vkrSwapchain_Recreate(void)
 {
-    ASSERT(chain);
-    const vkrRenderPassDesc renderPassDesc =
-    {
-        .srcAccessMask =
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .dstAccessMask =
-            VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
-
-        .srcStageMask =
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .dstStageMask =
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-
-        .attachments[0] =
-        {
-            .format = chain->depthAttachments[0].format,
-            .initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            .load = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .store = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        },
-        .attachments[1] =
-        {
-            .format = chain->colorFormat,
-            .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            .load = VK_ATTACHMENT_LOAD_OP_LOAD,
-            .store = VK_ATTACHMENT_STORE_OP_STORE,
-        },
-        .attachments[2] =
-        {
-            .format = chain->lumAttachments[0].format,
-            .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .load = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .store = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        },
-    };
-    chain->presentPass = vkrRenderPass_Get(&renderPassDesc);
-    ASSERT(chain->presentPass);
-
-    const i32 len = chain->length;
-    for (i32 i = 0; i < len; ++i)
-    {
-        vkrFramebuffer_Del(&chain->buffers[i]);
-        const VkImageView attachments[] =
-        {
-            chain->depthAttachments[i].view,
-            chain->views[i],
-            chain->lumAttachments[i].view,
-        };
-        const VkFormat formats[] =
-        {
-            chain->depthAttachments[i].format,
-            chain->colorFormat,
-            chain->lumAttachments[i].format,
-        };
-        vkrFramebuffer_New(
-            &chain->buffers[i],
-            attachments, formats, NELEM(attachments),
-            chain->width,
-            chain->height);
-    }
-}
-
-bool vkrSwapchain_Recreate(
-    vkrSwapchain* chain,
-    vkrWindow* window)
-{
-    ASSERT(chain);
-    ASSERT(window);
-    vkrSwapchain next = { 0 };
-    vkrSwapchain prev = *chain;
+    vkrWindow* window = &g_vkr.window;
+    ASSERT(window->handle);
     bool recreated = false;
+    vkrSwapchain next = { 0 };
     if ((window->width > 0) && (window->height > 0))
     {
-        recreated = true;
-        vkrSwapchain_New(&next, window, &prev);
-        vkrSwapchain_SetupBuffers(&next);
+        recreated = vkrSwapchain_New(&next, &g_vkr.chain);
     }
-    vkrSwapchain_Del(&prev);
-    *chain = next;
+    vkrSwapchain_Del(&g_vkr.chain);
+    g_vkr.chain = next;
     return recreated;
 }
 
 ProfileMark(pm_acquiresync, vkrSwapchain_AcquireSync)
-u32 vkrSwapchain_AcquireSync(vkrSwapchain* chain, VkCommandBuffer* cmdOut, VkFence* fenceOut)
+u32 vkrSwapchain_AcquireSync(void)
 {
     ProfileBegin(pm_acquiresync);
 
-    ASSERT(chain);
+    vkrSwapchain *const chain = &g_vkr.chain;
     ASSERT(chain->handle);
-    ASSERT(cmdOut);
-    ASSERT(fenceOut);
 
-    u32 syncIndex = (chain->syncIndex + 1) % kResourceSets;
-    VkFence fence = chain->syncFences[syncIndex];
-    VkCommandBuffer cmd = chain->presCmds[syncIndex];
-    ASSERT(fence);
-    ASSERT(cmd);
-    // acquire resources associated with this frame in flight
-    vkrFence_Wait(fence);
+    u32 syncIndex = (chain->syncIndex + 1) % NELEM(chain->syncSubmits);
+    vkrSubmitId submit = chain->syncSubmits[syncIndex];
+    if (submit.valid)
+    {
+        vkrSubmit_Await(submit);
+    }
+
     chain->syncIndex = syncIndex;
-
-    VkCheck(vkResetCommandBuffer(cmd, 0x0));
-
-    vkrCmdBegin(cmd);
 
     ProfileEnd(pm_acquiresync);
 
-    *cmdOut = cmd;
-    *fenceOut = fence;
     return syncIndex;
 }
 
 ProfileMark(pm_acquireimg, vkrSwapchain_AcquireImage)
-u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain, VkFramebuffer* bufferOut)
+u32 vkrSwapchain_AcquireImage(void)
 {
     ProfileBegin(pm_acquireimg);
 
-    ASSERT(chain);
+    vkrSwapchain *const chain = &g_vkr.chain;
     ASSERT(chain->handle);
     ASSERT(chain->length > 0);
-    ASSERT(bufferOut);
 
     u32 syncIndex = chain->syncIndex;
-    ASSERT(syncIndex < kResourceSets);
+    ASSERT(syncIndex < NELEM(chain->syncSubmits));
 
     u32 imageIndex = 0;
     const u64 timeout = -1;
@@ -461,129 +362,118 @@ u32 vkrSwapchain_AcquireImage(vkrSwapchain* chain, VkFramebuffer* bufferOut)
         NULL,
         &imageIndex));
 
+    // acquire resources associated with the frame in flight for this image
+    // driver might not use same ring buffer index as the application
     ASSERT(imageIndex < (u32)chain->length);
+    vkrSubmitId submit = chain->imageSubmits[imageIndex];
+    if (submit.valid)
     {
-        // acquire resources associated with the frame in flight for this image
-        // driver might not use same ring buffer index as the application
-        VkFence fence = chain->imageFences[imageIndex];
-        if (fence)
-        {
-            vkrFence_Wait(fence);
-        }
+        vkrSubmit_Await(submit);
     }
-    chain->imageFences[imageIndex] = chain->syncFences[syncIndex];
     chain->imageIndex = imageIndex;
 
     ProfileEnd(pm_acquireimg);
 
-    *bufferOut = chain->buffers[imageIndex].handle;
     return imageIndex;
 }
 
 ProfileMark(pm_submit, vkrSwapchain_Submit)
-void vkrSwapchain_Submit(vkrSwapchain* chain, VkCommandBuffer cmd)
+void vkrSwapchain_Submit(vkrCmdBuf* cmd)
 {
     ProfileBegin(pm_submit);
 
-    ASSERT(chain);
+    ASSERT(cmd && cmd->handle);
+    ASSERT(cmd->fence);
+    ASSERT(cmd->pres);
+    vkrSwapchain *const chain = &g_vkr.chain;
     ASSERT(chain->handle);
-    ASSERT(cmd);
 
     u32 imageIndex = chain->imageIndex;
     u32 syncIndex = chain->syncIndex;
-    ASSERT(cmd == chain->presCmds[syncIndex]);
-    VkQueue gfxQueue = g_vkr.queues[vkrQueueId_Graphics].handle;
-    ASSERT(gfxQueue);
-
-    const VkClearValue clearValues[] =
     {
+        vkrImage* backbuf = vkrGetBackBuffer();
+        VkPipelineStageFlags prevUse = backbuf->state.stage;
+        const vkrImageState_t state =
         {
-            .depthStencil = { 1.0f, 0 },
-        },
-        {
-            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
-        },
-        {
-            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
-        },
-    };
-    vkrCmdBeginRenderPass(
-        cmd,
-        chain->presentPass,
-        chain->buffers[imageIndex].handle,
-        vkrSwapchain_GetRect(chain),
-        NELEM(clearValues), clearValues,
-        VK_SUBPASS_CONTENTS_INLINE);
-    vkrCmdEndRenderPass(cmd);
-    vkrCmdEnd(cmd);
+            .owner = cmd->queueId,
+            .stage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+            .access = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        };
+        vkrImageState(backbuf, &state);
+        //const VkClearValue clearValues[] =
+        //{
+        //    {
+        //        .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+        //    },
+        //};
+        //vkrCmdBeginRenderPass(
+        //    cmd,
+        //    chain->presentPass,
+        //    chain->buffers[imageIndex],
+        //    vkrSwapchain_GetRect(),
+        //    NELEM(clearValues), clearValues);
+        //vkrCmdEndRenderPass(cmd);
 
-    vkrFence_Reset(chain->syncFences[syncIndex]);
-    vkrCmdSubmit(
-        gfxQueue,
-        cmd,
-        chain->syncFences[syncIndex],
-        chain->availableSemas[syncIndex],
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        chain->renderedSemas[syncIndex]);
+        vkrSubmitId submitId = vkrCmdSubmit(
+            cmd,
+            chain->availableSemas[syncIndex],
+            prevUse,
+            chain->renderedSemas[syncIndex]);
+
+        chain->syncSubmits[syncIndex] = submitId;
+        chain->imageSubmits[imageIndex] = submitId;
+    }
+
+    {
+        VkQueue presentQueue = g_vkr.queues[vkrQueueId_Present].handle;
+        ASSERT(presentQueue);
+
+        const VkPresentInfoKHR presentInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = &chain->renderedSemas[syncIndex],
+            .swapchainCount = 1,
+            .pSwapchains = &chain->handle,
+            .pImageIndices = &chain->imageIndex,
+        };
+        VkCheck(vkQueuePresentKHR(presentQueue, &presentInfo));
+    }
 
     ProfileEnd(pm_submit);
 }
 
-ProfileMark(pm_present, vkrSwapchain_Present)
-void vkrSwapchain_Present(vkrSwapchain* chain)
+VkViewport vkrSwapchain_GetViewport(void)
 {
-    ASSERT(chain);
-    ASSERT(chain->handle);
-
-    u32 syncIndex = chain->syncIndex;
-    VkQueue presentQueue = g_vkr.queues[vkrQueueId_Present].handle;
-    ASSERT(presentQueue);
-
-    ProfileBegin(pm_present);
-
-    const VkPresentInfoKHR presentInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &chain->renderedSemas[syncIndex],
-        .swapchainCount = 1,
-        .pSwapchains = &chain->handle,
-        .pImageIndices = &chain->imageIndex,
-    };
-    VkCheck(vkQueuePresentKHR(presentQueue, &presentInfo));
-
-    ProfileEnd(pm_present);
-}
-
-VkViewport vkrSwapchain_GetViewport(const vkrSwapchain* chain)
-{
-    ASSERT(chain);
+    ASSERT(g_vkr.chain.handle);
     VkViewport viewport =
     {
         .x = 0.0f,
         .y = 0.0f,
-        .width = (float)chain->width,
-        .height = (float)chain->height,
+        .width = (float)g_vkr.chain.width,
+        .height = (float)g_vkr.chain.height,
         .minDepth = 0.0f,
         .maxDepth = 1.0f,
     };
     return viewport;
 }
 
-VkRect2D vkrSwapchain_GetRect(const vkrSwapchain* chain)
+VkRect2D vkrSwapchain_GetRect(void)
 {
-    ASSERT(chain);
+    ASSERT(g_vkr.chain.handle);
     VkRect2D rect =
     {
-        .extent.width = chain->width,
-        .extent.height = chain->height,
+        .extent.width = g_vkr.chain.width,
+        .extent.height = g_vkr.chain.height,
     };
     return rect;
 }
 
-float vkrSwapchain_GetAspect(const vkrSwapchain* chain)
+float vkrSwapchain_GetAspect(void)
 {
-    return (float)chain->width / (float)chain->height;
+    ASSERT(g_vkr.chain.handle);
+    return (float)g_vkr.chain.width / (float)g_vkr.chain.height;
 }
 
 // ----------------------------------------------------------------------------

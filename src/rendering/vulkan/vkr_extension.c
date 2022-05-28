@@ -364,7 +364,6 @@ i32 vkrDevExts_OptEval(const vkrDevExts* exts)
 i32 vkrDevExts_RtEval(const vkrDevExts* exts)
 {
     i32 score = 0;
-    score += exts->NV_ray_tracing ? 1 : 0;
     score += (exts->KHR_acceleration_structure && exts->KHR_ray_tracing_pipeline) ? 1 : 0;
     score += exts->KHR_ray_query ? 1 : 0;
     return score;

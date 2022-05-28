@@ -13,62 +13,24 @@
 #include "common/cvar.h"
 #include <string.h>
 
-typedef struct vkrScreenBlit_s
-{
-    vkrBuffer meshbuf;
-    vkrBufferSet stagebuf;
-    vkrImageSet image;
-} vkrScreenBlit;
-static vkrScreenBlit ms_blit;
-
-static const float2 kScreenMesh[] =
-{
-    { -1.0f, -1.0f },
-    { 1.0f, -1.0f },
-    { 1.0f,  1.0f },
-    { 1.0f,  1.0f },
-    { -1.0f,  1.0f },
-    { -1.0f, -1.0f },
-};
+static vkrBufferSet ms_stagebuf;
+static vkrImageSet ms_image;
 
 // ----------------------------------------------------------------------------
 
 bool vkrScreenBlit_New(void)
 {
-    vkrScreenBlit *const blit = &ms_blit;
-    memset(blit, 0, sizeof(*blit));
-    bool success = true;
-
-    if (!vkrBuffer_New(
-        &blit->meshbuf,
-        sizeof(kScreenMesh),
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        vkrMemUsage_Dynamic))
-    {
-        ASSERT(false);
-        success = false;
-        goto cleanup;
-    }
-
-cleanup:
-    if (!success)
-    {
-        vkrScreenBlit_Del();
-    }
-    return success;
+    return true;
 }
 
 void vkrScreenBlit_Del(void)
 {
-    vkrImageSet_Release(&ms_blit.image);
-    vkrBuffer_Release(&ms_blit.meshbuf);
-    vkrBufferSet_Release(&ms_blit.stagebuf);
-    memset(&ms_blit, 0, sizeof(ms_blit));
+    vkrBufferSet_Release(&ms_stagebuf);
+    vkrImageSet_Release(&ms_image);
 }
 
 ProfileMark(pm_blit, vkrScreenBlit_Blit)
 void vkrScreenBlit_Blit(
-    const vkrPassContext* passCtx,
     const void* src,
     i32 width,
     i32 height,
@@ -76,7 +38,6 @@ void vkrScreenBlit_Blit(
 {
     ProfileBegin(pm_blit);
 
-    ASSERT(passCtx);
     ASSERT(src);
     const i32 srcBytes = (width * height * vkrFormatToBpp(format)) / 8;
     ASSERT(srcBytes > 0);
@@ -107,7 +68,7 @@ void vkrScreenBlit_Blit(
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
     if (!vkrImageSet_Reserve(
-        &ms_blit.image,
+        &ms_image,
         &imageInfo,
         vkrMemUsage_GpuOnly))
     {
@@ -115,7 +76,7 @@ void vkrScreenBlit_Blit(
         goto cleanup;
     }
     if (!vkrBufferSet_Reserve(
-        &ms_blit.stagebuf,
+        &ms_stagebuf,
         srcBytes,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         vkrMemUsage_CpuOnly))
@@ -124,127 +85,53 @@ void vkrScreenBlit_Blit(
         goto cleanup;
     }
 
-    const u32 imageIndex = vkrSys_SwapIndex();
-    vkrSwapchain const *const chain = &g_vkr.chain;
-    VkCommandBuffer cmd = passCtx->cmd;
-    VkImage dstImage = chain->images[imageIndex];
-    vkrImage* srcImage = vkrImageSet_Current(&ms_blit.image);
-    vkrBuffer* stageBuf = vkrBufferSet_Current(&ms_blit.stagebuf);
+    vkrCmdBuf* cmd = vkrCmdGet_G();
+    vkrImage* srcImage = vkrImageSet_Current(&ms_image);
+    vkrImage* dstImage = vkrGetSceneBuffer();
+    vkrBuffer* stageBuf = vkrBufferSet_Current(&ms_stagebuf);
 
     vkrBuffer_Write(stageBuf, src, srcBytes);
-    vkrImage_Barrier(
-        srcImage,
-        cmd,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        0x0,
-        VK_ACCESS_TRANSFER_WRITE_BIT,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-    // copy buffer to src image
+    const VkBufferImageCopy bufferRegion =
     {
-        const VkBufferImageCopy bufferRegion =
+        .imageSubresource =
         {
-            .imageSubresource =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .mipLevel = 0,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-            },
-            .imageExtent.width = width,
-            .imageExtent.height = height,
-            .imageExtent.depth = 1,
-        };
-        vkCmdCopyBufferToImage(
-            cmd,
-            stageBuf->handle,
-            srcImage->handle,
-            srcImage->layout,
-            1, &bufferRegion);
-    }
-    vkrImage_Barrier(
-        srcImage,
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+        .imageExtent.width = width,
+        .imageExtent.height = height,
+        .imageExtent.depth = 1,
+    };
+    vkrCmdCopyBufferToImage(
         cmd,
-        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        VK_ACCESS_TRANSFER_WRITE_BIT,
-        VK_ACCESS_TRANSFER_READ_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT);
+        stageBuf,
+        srcImage,
+        &bufferRegion);
 
-    // transition dst image to xfer dst
+    const VkImageBlit imageRegion =
     {
-        const VkImageMemoryBarrier barrier =
+        .srcOffsets[0] = { 0, height, 0 }, // flipped vertically
+        .srcOffsets[1] = { width, 0, 1 },
+        .dstOffsets[1] = { dstImage->width, dstImage->height, 1 },
+        .srcSubresource =
         {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask = 0x0,
-            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = dstImage,
-            .subresourceRange =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .levelCount = 1,
-                .layerCount = 1,
-            },
-        };
-        vkrCmdImageBarrier(cmd,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            &barrier);
-    }
-    // blit src image to dst image
-    {
-        const VkImageBlit region =
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .layerCount = 1,
+        },
+        .dstSubresource =
         {
-            .srcOffsets[0] = { 0, height, 0 }, // flipped vertically
-            .srcOffsets[1] = { width, 0, 1 },
-            .dstOffsets[1] = { chain->width, chain->height, 1 },
-            .srcSubresource =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .layerCount = 1,
-            },
-            .dstSubresource =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .layerCount = 1,
-            },
-        };
-        vkCmdBlitImage(
-            cmd,
-            srcImage->handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1, &region,
-            VK_FILTER_LINEAR);
-    }
-    // transition dst image to attachment
-    {
-        const VkImageMemoryBarrier barrier =
-        {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask = 0x0,
-            .dstAccessMask = 0x0,
-            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = dstImage,
-            .subresourceRange =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .levelCount = 1,
-                .layerCount = 1,
-            },
-        };
-        vkrCmdImageBarrier(cmd,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            &barrier);
-    }
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .layerCount = 1,
+        },
+    };
+    vkrCmdBlitImage(
+        cmd,
+        srcImage,
+        dstImage,
+        &imageRegion);
 
 cleanup:
     ProfileEnd(pm_blit);

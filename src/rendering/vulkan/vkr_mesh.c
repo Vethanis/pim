@@ -175,7 +175,7 @@ bool vkrMesh_Upload(
     }
 
     {
-        float4* pim_noalias dst = vkrBuffer_Map(&stagebuf);
+        float4* pim_noalias dst = vkrBuffer_MapWrite(&stagebuf);
         ASSERT(dst);
         if (dst)
         {
@@ -188,36 +188,25 @@ bool vkrMesh_Upload(
             memcpy(dst, texIndices, sizeof(dst[0]) * vertCount);
             dst += vertCount;
         }
-        vkrBuffer_Unmap(&stagebuf);
-        vkrBuffer_Flush(&stagebuf);
+        vkrBuffer_UnmapWrite(&stagebuf);
     }
 
     vkrMesh* mesh = &ms_meshes[id.index];
     ASSERT(mesh->buffer.handle);
     mesh->vertCount = vertCount;
 
-    VkFence fence = NULL;
-    VkQueue queue = NULL;
-    VkCommandBuffer cmd = vkrContext_GetTmpCmd(vkrQueueId_Graphics, &fence, &queue);
-    vkrCmdBegin(cmd);
+    vkrCmdBuf* cmd = vkrCmdGet_G();
     vkrCmdCopyBuffer(cmd, &stagebuf, &mesh->buffer);
-    vkrBuffer_Barrier(
-        &mesh->buffer,
-        cmd,
-        VK_ACCESS_TRANSFER_WRITE_BIT,
-        VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
-    vkrCmdEnd(cmd);
-    vkrCmdSubmit(queue, cmd, fence, NULL, 0x0, NULL);
+    vkrBufferState_VertexBuffer(cmd, &mesh->buffer);
     vkrBuffer_Release(&stagebuf);
 
     return true;
 }
 
-void vkrCmdDrawMesh(VkCommandBuffer cmdbuf, vkrMeshId id)
+void vkrCmdDrawMesh(vkrCmdBuf* cmdbuf, vkrMeshId id)
 {
-    ASSERT(cmdbuf);
+    ASSERT(cmdbuf && cmdbuf->handle);
+    ASSERT(cmdbuf->gfx);
     if (vkrMesh_Exists(id))
     {
         const vkrMesh* mesh = &ms_meshes[id.index];
@@ -241,8 +230,8 @@ void vkrCmdDrawMesh(VkCommandBuffer cmdbuf, vkrMeshId id)
                 streamSize * 2,
                 streamSize * 3,
             };
-            vkCmdBindVertexBuffers(cmdbuf, 0, NELEM(buffers), buffers, offsets);
-            vkCmdDraw(cmdbuf, mesh->vertCount, 1, 0, 0);
+            vkCmdBindVertexBuffers(cmdbuf->handle, 0, NELEM(buffers), buffers, offsets);
+            vkCmdDraw(cmdbuf->handle, mesh->vertCount, 1, 0, 0);
         }
     }
 }

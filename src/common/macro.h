@@ -95,8 +95,10 @@
 
 #if ASSERTS_ENABLED
 #   define ASSERT(x)                IF_FALSE((x), INTERRUPT())
+#   define ASSERT_ONLY(...)         __VA_ARGS__
 #else
 #   define ASSERT(...)              
+#   define ASSERT_ONLY(...)         
 #endif // ASSERTS_ENABLED
 
 #define _CAT_TOK(x, y)              x ## y
@@ -164,7 +166,7 @@ SASSERT(sizeof(u64) == 8);
 
 #endif // _MSC_VER
 
-#define kMaxThreads                 256
+#define kMaxThreads                 64
 
 #define VK_NO_PROTOTYPES            1
 #define VK_ENABLE_BETA_EXTENSIONS   1

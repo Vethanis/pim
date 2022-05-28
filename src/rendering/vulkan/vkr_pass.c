@@ -107,29 +107,3 @@ void vkrPass_Del(vkrPass *const pass)
         memset(pass, 0, sizeof(*pass));
     }
 }
-
-void vkrCmdBindPass(VkCommandBuffer cmd, const vkrPass* pass)
-{
-    ASSERT(cmd);
-    ASSERT(pass->pipeline);
-    vkCmdBindPipeline(cmd, pass->bindpoint, pass->pipeline);
-    VkDescriptorSet set = vkrBindings_GetSet();
-    vkrCmdBindDescSets(cmd, pass->bindpoint, pass->layout, 1, &set);
-}
-
-void vkrCmdPushConstants(VkCommandBuffer cmd, const vkrPass* pass, const void* src, i32 bytes)
-{
-    ASSERT(cmd);
-    ASSERT(src);
-    ASSERT(bytes == pass->pushConstantBytes);
-    ASSERT(bytes > 0);
-    ASSERT(pass->layout);
-    ASSERT(pass->stageFlags);
-    vkCmdPushConstants(
-        cmd,
-        pass->layout,
-        pass->stageFlags,
-        0,
-        bytes,
-        src);
-}
