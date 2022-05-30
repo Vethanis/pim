@@ -368,8 +368,12 @@ void vkrSwapchain_Submit(vkrCmdBuf* cmd)
     }
 
     {
-        VkQueue presentQueue = g_vkr.queues[vkrQueueId_Present].handle;
-        ASSERT(presentQueue);
+        const vkrQueue* queue = vkrGetQueue(vkrQueueId_Graphics);
+        if (!queue->pres)
+        {
+            queue = vkrGetQueue(vkrQueueId_Present);
+        }
+        ASSERT(queue->handle);
 
         const VkPresentInfoKHR presentInfo =
         {
@@ -380,7 +384,7 @@ void vkrSwapchain_Submit(vkrCmdBuf* cmd)
             .pSwapchains = &chain->handle,
             .pImageIndices = &chain->imageIndex,
         };
-        VkCheck(vkQueuePresentKHR(presentQueue, &presentInfo));
+        VkCheck(vkQueuePresentKHR(queue->handle, &presentInfo));
     }
 
     ProfileEnd(pm_submit);
