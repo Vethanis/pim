@@ -310,13 +310,13 @@ static void vkrExposure_Readback(void)
         float4 readbackValue = f4_0;
         if (vkrBuffer_Read(ms_readbackBuffer, &readbackValue, sizeof(readbackValue)))
         {
+            ms_params.exposure = readbackValue.y;
             ms_averageValue = f4_lerpvs(ms_averageValue, readbackValue, ms_params.deltaTime * 0.5f);
         }
         ms_readbackBuffer = NULL;
         ms_readbackId = (vkrSubmitId){ 0 };
     }
     ms_params.avgLum = ms_averageValue.x;
-    ms_params.exposure = ms_averageValue.y;
     if (g_vkrDevExts.EXT_hdr_metadata && vkrGetHdrEnabled())
     {
         const float minMonitorNits = vkrGetDisplayNitsMin();

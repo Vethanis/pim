@@ -37,7 +37,7 @@ static void vkrImGui_SetupRenderState(
     vkrCmdBuf* command_buffer,
     i32 fb_width,
     i32 fb_height);
-static void vkrImGui_UploadRenderDrawData(vkrCmdBuf* cmd);
+static void vkrImGui_UploadRenderDrawData(void);
 static void vkrImGui_RenderDrawData(vkrCmdBuf* cmd);
 static void vkrImGui_SetTexture(vkrCmdBuf* cmd, vkrTextureId id);
 static vkrTextureId ToVkrTextureId(ImTextureID imid);
@@ -83,18 +83,6 @@ bool vkrUIPass_New(void)
     };
     ms_renderPass = vkrRenderPass_Get(&renderPassDesc);
     if (!ms_renderPass)
-    {
-        success = false;
-        goto cleanup;
-    }
-
-    // Create Mesh Buffers:
-    if (!vkrBufferSet_New(&ms_vertbufs, 1024, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vkrMemUsage_Dynamic))
-    {
-        success = false;
-        goto cleanup;
-    }
-    if (!vkrBufferSet_New(&ms_indbufs, 1024, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, vkrMemUsage_Dynamic))
     {
         success = false;
         goto cleanup;
@@ -232,18 +220,29 @@ void vkrUIPass_Del(void)
     vkrPass_Del(&ms_pass);
 }
 
+ProfileMark(pm_setup, vkrUIPass_Setup)
 void vkrUIPass_Setup(void)
 {
+    ProfileBegin(pm_setup);
+
+    igRender();
+    vkrImGui_UploadRenderDrawData();
+
+    ProfileEnd(pm_setup);
 }
 
 ProfileMark(pm_draw, vkrUIPass_Execute)
 void vkrUIPass_Execute(void)
 {
     ProfileBegin(pm_draw);
-    igRender();
 
     vkrCmdBuf* cmd = vkrCmdGet_G();
-    vkrImGui_UploadRenderDrawData(cmd);
+
+    vkrBuffer* const vertBuf = vkrBufferSet_Current(&ms_vertbufs);
+    vkrBuffer* const indBuf = vkrBufferSet_Current(&ms_indbufs);
+    vkrBufferState_VertexBuffer(cmd, vertBuf);
+    vkrBufferState_IndexBuffer(cmd, indBuf);
+
     vkrCmdBindPass(cmd, &ms_pass);
 
     const VkClearValue clearValues[] =
@@ -294,11 +293,24 @@ static void vkrImGui_SetupRenderState(
     vkCmdSetViewport(cmd->handle, 0, 1, &viewport);
     vkrImGui_SetTexture(cmd, ms_font);
 
+    vkrBuffer* const vertBuf = vkrBufferSet_Current(&ms_vertbufs);
+    vkrBuffer* const indBuf = vkrBufferSet_Current(&ms_indbufs);
+    const VkBuffer vbufs[] = { vertBuf->handle };
+    const VkDeviceSize voffsets[] = { 0 };
+    vkCmdBindVertexBuffers(
+        cmd->handle,
+        0, NELEM(vbufs), vbufs, voffsets);
+    vkCmdBindIndexBuffer(
+        cmd->handle,
+        indBuf->handle,
+        0,
+        sizeof(ImDrawIdx) == 2 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+
     ProfileEnd(pm_setuprenderstate);
 }
 
 ProfileMark(pm_upload, vkrImGui_UploadRenderDrawData)
-static void vkrImGui_UploadRenderDrawData(vkrCmdBuf* cmd)
+static void vkrImGui_UploadRenderDrawData(void)
 {
     ProfileBegin(pm_upload);
 
@@ -323,6 +335,11 @@ static void vkrImGui_UploadRenderDrawData(vkrCmdBuf* cmd)
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
             vkrMemUsage_Dynamic);
 
+        vkrCmdBuf* cmd = vkrCmdGet_G();
+        vkrBufferState_HostWrite(cmd, vertBuf);
+        vkrBufferState_HostWrite(cmd, indBuf);
+        vkrSubmit_Await(vkrCmdSubmit(cmd, NULL, 0x0, NULL));
+
         ImDrawVert* pim_noalias vtx_dst = vkrBuffer_MapWrite(vertBuf);
         ImDrawIdx* pim_noalias idx_dst = vkrBuffer_MapWrite(indBuf);
         ASSERT(vtx_dst);
@@ -345,19 +362,6 @@ static void vkrImGui_UploadRenderDrawData(vkrCmdBuf* cmd)
 
         vkrBuffer_UnmapWrite(vertBuf);
         vkrBuffer_UnmapWrite(indBuf);
-
-        vkrBufferState_VertexBuffer(cmd, vertBuf);
-        vkrBufferState_IndexBuffer(cmd, indBuf);
-        const VkBuffer vbufs[] = { vertBuf->handle };
-        const VkDeviceSize voffsets[] = { 0 };
-        vkCmdBindVertexBuffers(
-            cmd->handle,
-            0, NELEM(vbufs), vbufs, voffsets);
-        vkCmdBindIndexBuffer(
-            cmd->handle,
-            indBuf->handle,
-            0,
-            sizeof(ImDrawIdx) == 2 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
     }
 
     ProfileEnd(pm_upload);
