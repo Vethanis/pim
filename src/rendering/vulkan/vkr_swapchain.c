@@ -225,49 +225,12 @@ bool vkrSwapchain_New(
         vkrImage_Import(&chain->images[i], &info, images[i]);
     }
 
-    // create framebuffers for present pass
-    for (u32 i = 0; i < imgCount; ++i)
-    {
-        const vkrImage* attachments[] =
-        {
-            &chain->images[i],
-        };
-        chain->buffers[i] = vkrFramebuffer_Get(
-            attachments, NELEM(attachments), chain->width, chain->height);
-    }
-
     // create synchronization objects
     for (i32 i = 0; i < R_ResourceSets; ++i)
     {
         chain->availableSemas[i] = vkrSemaphore_New();
         chain->renderedSemas[i] = vkrSemaphore_New();
     }
-
-    //// create presentation renderpass
-    //const vkrRenderPassDesc renderPassDesc =
-    //{
-    //    .srcAccessMask =
-    //        VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
-    //    .dstAccessMask =
-    //        VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
-
-    //    .srcStageMask =
-    //        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-    //    .dstStageMask =
-    //        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-
-    //    .attachments[0] =
-    //    {
-    //        .format = chain->colorFormat,
-    //        .initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-    //        .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-    //        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-    //        .load = VK_ATTACHMENT_LOAD_OP_LOAD,
-    //        .store = VK_ATTACHMENT_STORE_OP_STORE,
-    //    },
-    //};
-    //chain->presentPass = vkrRenderPass_Get(&renderPassDesc);
-    //ASSERT(chain->presentPass);
 
     return true;
 }
@@ -290,7 +253,6 @@ void vkrSwapchain_Del(vkrSwapchain* chain)
         for (i32 i = 0; i < len; ++i)
         {
             vkrImage_Release(&chain->images[i]);
-            chain->buffers[i] = NULL;
         }
 
         if (chain->handle)
@@ -393,27 +355,7 @@ void vkrSwapchain_Submit(vkrCmdBuf* cmd)
     {
         vkrImage* backbuf = vkrGetBackBuffer();
         VkPipelineStageFlags prevUse = backbuf->state.stage;
-        const vkrImageState_t state =
-        {
-            .owner = cmd->queueId,
-            .stage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-            .access = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        };
-        vkrImageState(backbuf, &state);
-        //const VkClearValue clearValues[] =
-        //{
-        //    {
-        //        .color = { 0.0f, 0.0f, 0.0f, 1.0f },
-        //    },
-        //};
-        //vkrCmdBeginRenderPass(
-        //    cmd,
-        //    chain->presentPass,
-        //    chain->buffers[imageIndex],
-        //    vkrSwapchain_GetRect(),
-        //    NELEM(clearValues), clearValues);
-        //vkrCmdEndRenderPass(cmd);
+        vkrImageState_PresentSrc(cmd, backbuf);
 
         vkrSubmitId submitId = vkrCmdSubmit(
             cmd,

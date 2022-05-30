@@ -17,6 +17,7 @@ u64 Time_Lap(u64* tick);
 u64 Time_Now(void);
 u64 Time_Delta(void);
 double Time_Deltaf(void);
+double Time_SmoothDeltaf(void);
 
 double Time_Sec(u64 ticks);
 double Time_Milli(u64 ticks);

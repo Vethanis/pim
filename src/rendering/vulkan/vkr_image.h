@@ -45,8 +45,8 @@ bool vkrImageSet_Reserve(
 
 // ----------------------------------------------------------------------------
 
-void vkrImageView_Release(VkImageView view);
-void vkrAttachment_Release(VkImageView view);
+void vkrImageView_Release(VkImageView view, vkrSubmitId submitId);
+void vkrAttachment_Release(VkImageView view, vkrSubmitId submitId);
 
 // ----------------------------------------------------------------------------
 

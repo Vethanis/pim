@@ -78,6 +78,7 @@
 #define pim_alignof(x)              (_Alignof(x))
 #define pim_min(a, b)               ((a) < (b) ? (a) : (b))
 #define pim_max(a, b)               ((a) > (b) ? (a) : (b))
+#define pim_lerp(a, b, t)           ((a) + ((b) - (a)) * (t))
 
 #ifdef _DEBUG
 #   define IF_DEBUG(...)            __VA_ARGS__

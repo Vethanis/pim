@@ -220,8 +220,9 @@ void vkrMemSys_Update(void)
             vkrReleasable* releasables = allocator->releasables;
             for (i32 i = len - 1; i >= 0; --i)
             {
-                if (vkrReleasable_Del(&releasables[i], frame))
+                if (vkrSubmit_Poll(releasables[i].submitId))
                 {
+                    vkrReleasable_Del(&releasables[i]);
                     releasables[i] = releasables[len - 1];
                     --len;
                 }
@@ -244,19 +245,13 @@ void vkrMemSys_Finalize(void)
     ASSERT(allocator->handle);
 
     Mutex_Lock(&allocator->lock);
-    const u32 frame = vkrGetFrameCount() + R_ResourceSets * 2;
     i32 len = allocator->numreleasable;
     vkrReleasable *const releasables = allocator->releasables;
     for (i32 i = len - 1; i >= 0; --i)
     {
-        if (vkrReleasable_Del(&releasables[i], frame))
-        {
-            releasables[i] = releasables[--len];
-        }
-        else
-        {
-            ASSERT(false);
-        }
+        vkrSubmit_Await(releasables[i].submitId);
+        vkrReleasable_Del(&releasables[i]);
+        releasables[i] = releasables[--len];
     }
     allocator->numreleasable = len;
     Mutex_Unlock(&allocator->lock);
@@ -266,7 +261,7 @@ void vkrMemSys_Finalize(void)
 
 ProfileMark(pm_bufnew, vkrMem_BufferNew)
 bool vkrMem_BufferNew(
-    vkrBuffer *const buffer,
+    vkrBuffer* buffer,
     i32 size,
     VkBufferUsageFlags usage,
     vkrMemUsage memUsage)
@@ -321,7 +316,7 @@ bool vkrMem_BufferNew(
 }
 
 ProfileMark(pm_bufdel, vkrMem_BufferDel)
-void vkrMem_BufferDel(vkrBuffer *const buffer)
+void vkrMem_BufferDel(vkrBuffer* buffer)
 {
     ProfileBegin(pm_bufdel);
 
@@ -439,14 +434,14 @@ void vkrMem_ImageDel(vkrImage* image)
 // ----------------------------------------------------------------------------
 
 ProfileMark(pm_releasableadd, vkrReleasable_Add)
-void vkrReleasable_Add(
-    vkrReleasable const *const releasable)
+void vkrReleasable_Add(const vkrReleasable* releasable)
 {
     ProfileBegin(pm_releasableadd);
 
     vkrAllocator *const allocator = &ms_inst;
     ASSERT(allocator->handle);
     ASSERT(releasable);
+    ASSERT(releasable->submitId.valid);
 
     Mutex_Lock(&allocator->lock);
     i32 back = allocator->numreleasable++;
@@ -460,9 +455,7 @@ void vkrReleasable_Add(
 }
 
 ProfileMark(pm_releasabledel, vkrReleasable_Del)
-bool vkrReleasable_Del(
-    vkrReleasable *const releasable,
-    u32 frame)
+void vkrReleasable_Del(vkrReleasable* releasable)
 {
     ProfileBegin(pm_releasabledel);
 
@@ -470,56 +463,50 @@ bool vkrReleasable_Del(
     ASSERT(ms_inst.handle);
     ASSERT(g_vkr.dev);
 
-    u32 duration = frame - releasable->frame;
-    bool ready = duration > R_ResourceSets;
-    if (ready)
+    switch (releasable->type)
     {
-        switch (releasable->type)
+    default:
+        ASSERT(false);
+        break;
+    case vkrReleasableType_Buffer:
+        if (releasable->buffer.handle)
         {
-        default:
-            ASSERT(false);
-            break;
-        case vkrReleasableType_Buffer:
-            if (releasable->buffer.handle)
-            {
-                vmaDestroyBuffer(
-                    ms_inst.handle,
-                    releasable->buffer.handle,
-                    releasable->buffer.allocation);
-            }
-            break;
-        case vkrReleasableType_Image:
-            if (releasable->image.view)
-            {
-                vkDestroyImageView(g_vkr.dev, releasable->image.view, NULL);
-            }
-            if (releasable->image.allocation)
-            {
-                vmaDestroyImage(
-                    ms_inst.handle,
-                    releasable->image.handle,
-                    releasable->image.allocation);
-            }
-            break;
-        case vkrReleasableType_ImageView:
-            if (releasable->view)
-            {
-                vkDestroyImageView(g_vkr.dev, releasable->view, NULL);
-            }
-            break;
-        case vkrReleasableType_Attachment:
-            if (releasable->view)
-            {
-                vkrFramebuffer_Remove(releasable->view);
-                vkDestroyImageView(g_vkr.dev, releasable->view, NULL);
-            }
-            break;
+            vmaDestroyBuffer(
+                ms_inst.handle,
+                releasable->buffer.handle,
+                releasable->buffer.allocation);
         }
-        memset(releasable, 0, sizeof(*releasable));
+        break;
+    case vkrReleasableType_Image:
+        if (releasable->image.view)
+        {
+            vkDestroyImageView(g_vkr.dev, releasable->image.view, NULL);
+        }
+        if (releasable->image.allocation)
+        {
+            vmaDestroyImage(
+                ms_inst.handle,
+                releasable->image.handle,
+                releasable->image.allocation);
+        }
+        break;
+    case vkrReleasableType_ImageView:
+        if (releasable->view)
+        {
+            vkDestroyImageView(g_vkr.dev, releasable->view, NULL);
+        }
+        break;
+    case vkrReleasableType_Attachment:
+        if (releasable->view)
+        {
+            vkrFramebuffer_Remove(releasable->view);
+            vkDestroyImageView(g_vkr.dev, releasable->view, NULL);
+        }
+        break;
     }
+    memset(releasable, 0, sizeof(*releasable));
 
     ProfileEnd(pm_releasabledel);
-    return ready;
 }
 
 ProfileMark(pm_memmap, vkrMem_Map)
@@ -737,6 +724,8 @@ static void FinalizeCheck(i32 len)
     if (len >= ConVar_GetInt(&cv_r_maxdelqueue))
     {
         Con_Logf(LogSev_Warning, "vkr", "Too many gpu objects, force-finalizing");
-        vkrMemSys_Finalize();
+        vkrCmdFlush();
+        vkrSubmit_AwaitAll();
+        vkrMemSys_Update();
     }
 }

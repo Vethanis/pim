@@ -10,11 +10,11 @@ void vkrMemSys_Update(void);
 void vkrMemSys_Finalize(void);
 
 bool vkrMem_BufferNew(
-    vkrBuffer *const buffer,
+    vkrBuffer* buffer,
     i32 size,
     VkBufferUsageFlags usage,
     vkrMemUsage memUsage);
-void vkrMem_BufferDel(vkrBuffer *const buffer);
+void vkrMem_BufferDel(vkrBuffer* buffer);
 
 bool vkrMem_ImageNew(
     vkrImage* image,
@@ -22,8 +22,8 @@ bool vkrMem_ImageNew(
     vkrMemUsage memUsage);
 void vkrMem_ImageDel(vkrImage* image);
 
-void vkrReleasable_Add(vkrReleasable const *const releasable);
-bool vkrReleasable_Del(vkrReleasable *const releasable, u32 frame);
+void vkrReleasable_Add(const vkrReleasable* releasable);
+void vkrReleasable_Del(vkrReleasable* releasable);
 
 void* vkrMem_Map(VmaAllocation allocation);
 void vkrMem_Unmap(VmaAllocation allocation);

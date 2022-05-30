@@ -18,6 +18,7 @@ static const VkAccessFlags kPresentAccess =
 
 static const VkPipelineStageFlags kGraphicsStages =
     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT |
+    VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT |
     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
     VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT |
     VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT |

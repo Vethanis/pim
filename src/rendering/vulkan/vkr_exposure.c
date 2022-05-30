@@ -258,7 +258,6 @@ void vkrExposure_Setup(void)
     ProfileBegin(pm_setup);
 
     {
-        ms_params.deltaTime = f1_lerp(ms_params.deltaTime, (float)Time_Deltaf(), 0.25f);
         ms_params.manual = ConVar_GetBool(&cv_exp_manual);
         ms_params.standard = ConVar_GetBool(&cv_exp_standard);
         ms_params.offsetEV = ConVar_GetFloat(&cv_exp_evoffset);
@@ -304,19 +303,20 @@ static void vkrExposure_Readback(void)
 {
     // readback last frames exposure info, to set monitor metadata
     ProfileBegin(pm_readback);
+    ms_params.deltaTime = f1_sat((float)Time_SmoothDeltaf());
     if (ms_readbackBuffer)
     {
         vkrSubmit_Await(ms_readbackId);
         float4 readbackValue = f4_0;
         if (vkrBuffer_Read(ms_readbackBuffer, &readbackValue, sizeof(readbackValue)))
         {
-            ms_averageValue = f4_lerpvs(ms_averageValue, readbackValue, f1_sat((float)Time_Deltaf()));
-            ms_params.avgLum = readbackValue.x;
-            ms_params.exposure = readbackValue.y;
+            ms_averageValue = f4_lerpvs(ms_averageValue, readbackValue, ms_params.deltaTime * 0.5f);
         }
         ms_readbackBuffer = NULL;
         ms_readbackId = (vkrSubmitId){ 0 };
     }
+    ms_params.avgLum = ms_averageValue.x;
+    ms_params.exposure = ms_averageValue.y;
     if (g_vkrDevExts.EXT_hdr_metadata && vkrGetHdrEnabled())
     {
         const float minMonitorNits = vkrGetDisplayNitsMin();
