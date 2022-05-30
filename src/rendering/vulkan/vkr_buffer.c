@@ -23,7 +23,8 @@ void vkrBuffer_Release(vkrBuffer *const buffer)
     {
         const vkrReleasable releasable =
         {
-            .frame = vkrGetFrameCount(),
+            //.frame = vkrGetFrameCount(),
+            .submitId = vkrBuffer_GetSubmit(buffer),
             .type = vkrReleasableType_Buffer,
             .buffer.handle = buffer->handle,
             .buffer.allocation = buffer->allocation,

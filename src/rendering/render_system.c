@@ -1478,7 +1478,6 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     ShutdownPtScene();
     LightmapShutdown();
     Camera_Reset();
-    vkrOnUnload();
 
     bool loaded = false;
 
@@ -1506,7 +1505,6 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     {
         Entities_UpdateTransforms(Entities_Get());
         Entities_UpdateBounds(Entities_Get());
-        vkrOnLoad();
         Con_Logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
         return cmdstat_ok;
     }

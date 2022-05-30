@@ -306,16 +306,6 @@ void vkrSys_Shutdown(void)
     }
 }
 
-void vkrOnLoad(void)
-{
-    vkrMemSys_Update();
-}
-
-void vkrOnUnload(void)
-{
-    vkrMemSys_Update();
-}
-
 u32 vkrGetSyncIndex(void)
 {
     return g_vkr.chain.syncIndex;

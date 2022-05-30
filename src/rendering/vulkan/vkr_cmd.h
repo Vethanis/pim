@@ -34,6 +34,8 @@ vkrSubmitId vkrCmdSubmit(
     VkPipelineStageFlags waitMask,  // optional
     VkSemaphore signalSema);        // optional
 
+vkrSubmitId vkrGetHeadSubmit(vkrQueueId queueId);
+
 bool vkrSubmit_Poll(vkrSubmitId submit);
 void vkrSubmit_Await(vkrSubmitId submit);
 void vkrSubmit_AwaitAll(void);
@@ -59,9 +61,16 @@ void vkrCmdDefaultViewport(vkrCmdBuf* cmdbuf);
 
 void vkrCmdDraw(vkrCmdBuf* cmdbuf, i32 vertexCount, i32 firstVertex);
 
+void vkrCmdTouchBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+void vkrCmdTouchImage(vkrCmdBuf* cmdbuf, vkrImage* img);
+vkrSubmitId vkrBuffer_GetSubmit(const vkrBuffer* buf);
+vkrSubmitId vkrImage_GetSubmit(const vkrImage* img);
+
 void vkrBufferState(
+    vkrCmdBuf* cmdbuf,
     vkrBuffer* buf,
     const vkrBufferState_t* state);
+
 void vkrBufferState_HostRead(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
 void vkrBufferState_HostWrite(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
 void vkrBufferState_TransferSrc(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
@@ -79,6 +88,7 @@ void vkrBufferState_ComputeStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
 void vkrBufferState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
 
 void vkrImageState(
+    vkrCmdBuf* cmdbuf,
     vkrImage* img,
     const vkrImageState_t* state);
 
@@ -98,8 +108,12 @@ void vkrImageState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img);
 // attachment output layout
 void vkrImageState_ColorAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img);
 void vkrImageState_DepthAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img);
+// present layout
+void vkrImageState_PresentSrc(vkrCmdBuf* cmdbuf, vkrImage* img);
 
-void vkrSubImageState(vkrImage* img,
+void vkrSubImageState(
+    vkrCmdBuf* cmdbuf,
+    vkrImage* img,
     const vkrSubImageState_t* state,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount);

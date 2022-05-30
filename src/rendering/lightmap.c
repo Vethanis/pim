@@ -31,6 +31,8 @@
 #include <stb/stb_image_write.h>
 #include <string.h>
 
+pim_optimize;
+
 #define CHART_SPLITS        2
 #define ROW_RESET           -(1<<20)
 #define kUnmappedMaterials  (MatFlag_Sky | MatFlag_Lava)
@@ -185,16 +187,9 @@ pim_inline void VEC_CALL mask_del(mask_t* mask)
     mask->size.y = 0;
 }
 
-pim_inline float VEC_CALL CoverageCurve(float d)
-{
-    d = f1_max(d - 0.5f, 0.0f);
-    const float s = 4.0f;
-    return f1_sat(1.0f / (1.0f + s * s * d * d * d * d));
-}
-
 pim_inline bool VEC_CALL mask_fits(mask_t a, mask_t b, int2 b_tr)
 {
-    const int2 lo = i2_add(i2_0, b_tr);
+    const int2 lo = b_tr;
     const int2 hi = i2_add(b.size, b_tr);
     if ((lo.x < 0) || (lo.y < 0))
     {
@@ -208,17 +203,17 @@ pim_inline bool VEC_CALL mask_fits(mask_t a, mask_t b, int2 b_tr)
     const i32 bstride = b.size.x;
     for (i32 ay = lo.y; ay < hi.y; ++ay)
     {
+        i32 by = ay - lo.y;
         for (i32 ax = lo.x; ax < hi.x; ++ax)
         {
-            i32 bx = ax - b_tr.x;
-            i32 by = ay - b_tr.y;
+            i32 bx = ax - lo.x;
             i32 bi = bx + by * bstride;
             i32 ai = ax + ay * astride;
             ASSERT(bx >= 0);
             ASSERT(bx < b.size.x);
             ASSERT(by >= 0);
             ASSERT(by < b.size.y);
-            if (b.ptr[bi] && a.ptr[ai])
+            if ((b.ptr[bi] & a.ptr[ai]) != 0)
             {
                 return false;
             }
@@ -291,16 +286,15 @@ pim_inline mask_t VEC_CALL mask_fromtri(Tri2D tri)
 
 pim_inline bool VEC_CALL mask_find(mask_t atlas, mask_t item, int2* trOut, i32 prevRow)
 {
-    const int2 lo = i2_0;
-    const int2 hi = i2_sub(atlas.size, item.size);
-    i32 y = lo.y;
+    const int2 range = i2_sub(atlas.size, item.size);
+    i32 y = 0;
     if (prevRow != ROW_RESET)
     {
         y = prevRow;
     }
-    for (; y < hi.y; ++y)
+    for (; y < range.y; ++y)
     {
-        for (i32 x = lo.x; x < hi.x; ++x)
+        for (i32 x = 0; x < range.x; ++x)
         {
             int2 tr = { x, y };
             if (mask_fits(atlas, item, tr))
@@ -997,6 +991,7 @@ static void EmbedTaskFn(void* pbase, i32 begin, i32 end)
     MeshId const *const pim_noalias meshids = drawables->meshes;
     float4x4 const *const pim_noalias matrices = drawables->matrices;
     float3x3 const *const pim_noalias invMatrices = drawables->invMatrices;
+    Material const *const pim_noalias materials = drawables->materials;
 
     for (i32 iWork = begin; iWork < end; ++iWork)
     {
@@ -1005,24 +1000,20 @@ static void EmbedTaskFn(void* pbase, i32 begin, i32 end)
         const i32 x = iTexel % lmSize;
         const i32 y = iTexel / lmSize;
         const float2 pxCenter = { x + 0.5f, y + 0.5f };
-        Lightmap lightmap = lightmaps[iLightmap];
-        const i32 lmTxId = lightmap.slot.index;
+        Lightmap *const lightmap = &lightmaps[iLightmap];
+        const i32 lmTxId = lightmap->slot.index;
 
         float4 lmPos = f4_0;
         float4 lmNor = f4_0;
         float lmDist = 1 << 23;
 
-        const Entities* drawables = Entities_Get();
-        const i32 dwCount = drawables->count;
-        const MeshId* pim_noalias meshids = drawables->meshes;
-        const Material* pim_noalias materials = drawables->materials;
-        for (i32 iDraw = 0; iDraw < dwCount; ++iDraw)
+        for (i32 iDraw = 0; iDraw < drawablesCount; ++iDraw)
         {
             if (materials[iDraw].flags & kUnmappedMaterials)
             {
                 continue;
             }
-            Mesh const *const mesh = Mesh_Get(meshids[iDraw]);
+            Mesh const *const pim_noalias mesh = Mesh_Get(meshids[iDraw]);
             if (!mesh)
             {
                 continue;
@@ -1047,11 +1038,13 @@ static void EmbedTaskFn(void* pbase, i32 begin, i32 end)
                 float2 C = f2_mulvs(f2_v(uvs[c].z, uvs[c].w), texelSize);
 
                 float dist = sdTriangle2D(A, B, C, pxCenter);
-                if (dist < lmDist)
+                if (dist < kFillPadding && dist < lmDist)
                 {
                     float area = sdEdge2D(A, B, C);
+                    ASSERT(area >= 0.0f);
+                    area = pim_max(area, 1e-5f);
                     float4 wuv = bary2D(A, B, C, 1.0f / area, pxCenter);
-                    wuv = f4_saturate(wuv);
+                    //wuv = f4_saturate(wuv);
                     wuv = f4_divvs(wuv, wuv.x + wuv.y + wuv.z);
                     float4 fragPos = f4_blend(positions[a], positions[b], positions[c], wuv);
                     float4 fragNor = f4_normalize3(f4_blend(normals[a], normals[b], normals[c], wuv));
@@ -1068,9 +1061,9 @@ static void EmbedTaskFn(void* pbase, i32 begin, i32 end)
             lmNor = f4_normalize3(lmNor);
         }
 
-        lightmap.sampleCounts[iTexel] = lmDist < kFillPadding ? 1.0f : 0.0f;
-        lightmap.position[iTexel] = f4_f3(lmPos);
-        lightmap.normal[iTexel] = f4_f3(lmNor);
+        lightmap->sampleCounts[iTexel] = lmDist < kFillPadding ? 1.0f : 0.0f;
+        lightmap->position[iTexel] = f4_f3(lmPos);
+        lightmap->normal[iTexel] = f4_f3(lmNor);
     }
 }
 

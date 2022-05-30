@@ -120,6 +120,7 @@ typedef struct vkrSubImageState_s
 typedef struct vkrImgState_s
 {
     vkrQueueId owner;
+    u32 cmdId;
     VkPipelineStageFlags stage;
     VkAccessFlags access;
     VkImageLayout layout;
@@ -129,6 +130,7 @@ typedef struct vkrImgState_s
 typedef struct vkrBufferState_s
 {
     vkrQueueId owner;
+    u32 cmdId;
     VkPipelineStageFlags stage;
     VkAccessFlags access;
 } vkrBufferState_t;
@@ -263,7 +265,6 @@ typedef struct vkrTargets_s
 typedef struct vkrSwapchain_s
 {
     VkSwapchainKHR handle;
-    //VkRenderPass presentPass;
     VkFormat colorFormat;
     VkColorSpaceKHR colorSpace;
     VkPresentModeKHR mode;
@@ -274,7 +275,6 @@ typedef struct vkrSwapchain_s
     u32 imageIndex;
     vkrSubmitId imageSubmits[R_MaxSwapchainLen];
     vkrImage images[R_MaxSwapchainLen];
-    VkFramebuffer buffers[R_MaxSwapchainLen];
 
     u32 syncIndex;
     vkrSubmitId syncSubmits[R_ResourceSets];
@@ -328,6 +328,8 @@ typedef struct vkrContext_s
 {
     vkrCmdBuf curCmdBuf[vkrQueueId_COUNT];
     vkrCmdBuf prevCmdBuf[vkrQueueId_COUNT];
+    vkrQueueId lastSubmitQueue;
+    vkrQueueId mostRecentBegin;
 } vkrContext;
 
 typedef enum
@@ -340,7 +342,8 @@ typedef enum
 
 typedef struct vkrReleasable_s
 {
-    u32 frame;              // frame that resource was released
+    //u32 frame;              // frame that resource was released
+    vkrSubmitId submitId;
     vkrReleasableType type; // type of resource
     union
     {
@@ -521,9 +524,6 @@ bool vkrSys_Init(void);
 bool vkrSys_WindowUpdate(void);
 void vkrSys_Update(void);
 void vkrSys_Shutdown(void);
-
-void vkrOnLoad(void);
-void vkrOnUnload(void);
 
 // frame in flight index
 u32 vkrGetSyncIndex(void);

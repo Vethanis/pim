@@ -75,6 +75,7 @@ cleanup:
 void vkrImage_Release(vkrImage* image)
 {
     ASSERT(image);
+    const vkrSubmitId submitId = vkrImage_GetSubmit(image);
     const u32 attachUsage =
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
@@ -82,13 +83,13 @@ void vkrImage_Release(vkrImage* image)
         VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
     if (image->usage & attachUsage)
     {
-        vkrAttachment_Release(image->view);
+        vkrAttachment_Release(image->view, submitId);
         image->view = NULL;
     }
     if (image->imported)
     {
         ASSERT(!image->allocation);
-        vkrImageView_Release(image->view);
+        vkrImageView_Release(image->view, submitId);
         image->view = NULL;
         image->handle = NULL;
         image->allocation = NULL;
@@ -97,7 +98,7 @@ void vkrImage_Release(vkrImage* image)
     {
         const vkrReleasable releasable =
         {
-            .frame = vkrGetFrameCount(),
+            .submitId = submitId,
             .type = vkrReleasableType_Image,
             .image.handle = image->handle,
             .image.allocation = image->allocation,
@@ -111,28 +112,28 @@ void vkrImage_Release(vkrImage* image)
     memset(image, 0, sizeof(*image));
 }
 
-void vkrImageView_Release(VkImageView view)
+void vkrImageView_Release(VkImageView view, vkrSubmitId submitId)
 {
     if (view)
     {
         const vkrReleasable releasable =
         {
+            .submitId = submitId,
             .type = vkrReleasableType_ImageView,
-            .frame = Time_FrameCount(),
             .view = view,
         };
         vkrReleasable_Add(&releasable);
     }
 }
 
-void vkrAttachment_Release(VkImageView view)
+void vkrAttachment_Release(VkImageView view, vkrSubmitId submitId)
 {
     if (view)
     {
         const vkrReleasable releasable =
         {
+            .submitId = submitId,
             .type = vkrReleasableType_Attachment,
-            .frame = Time_FrameCount(),
             .view = view,
         };
         vkrReleasable_Add(&releasable);
