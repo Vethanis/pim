@@ -104,8 +104,8 @@ VkRenderPass vkrRenderPass_Get(const vkrRenderPassDesc* desc)
             ASSERT(attachmentCount < NELEM(attachments));
             VkAttachmentDescription* dst = &attachments[attachmentCount];
             dst->format = src->format;
-            dst->initialLayout = src->initialLayout;
-            dst->finalLayout = src->finalLayout;
+            dst->initialLayout = src->layout;
+            dst->finalLayout = src->layout;
             dst->samples = VK_SAMPLE_COUNT_1_BIT;
             dst->stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             dst->stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
