@@ -140,11 +140,7 @@ static VkFramebuffer vkrFramebuffer_New(
         {
             layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         }
-        passDesc.attachments[i].initialLayout = layout;
         passDesc.attachments[i].layout = layout;
-        passDesc.attachments[i].finalLayout = layout;
-        //passDesc.attachments[i].load = VK_ATTACHMENT_LOAD_OP_LOAD;
-        //passDesc.attachments[i].store = VK_ATTACHMENT_STORE_OP_STORE;
     }
     VkRenderPass pass = vkrRenderPass_Get(&passDesc);
     ASSERT(pass);

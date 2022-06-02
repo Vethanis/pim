@@ -74,9 +74,7 @@ bool vkrUIPass_New(void)
         .attachments[0] =
         {
             .format = backBuffer->format,
-            .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .load = VK_ATTACHMENT_LOAD_OP_LOAD,
             .store = VK_ATTACHMENT_STORE_OP_STORE,
         },

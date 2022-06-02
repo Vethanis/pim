@@ -135,7 +135,7 @@ bool vkrSwapchain_New(
     ASSERT(handle);
     if (!handle)
     {
-        Con_Logf(LogSev_Error, "Vk", "Failed to create swapchain, null handle");
+        Con_Logf(LogSev_Error, "vkr", "Failed to create swapchain, null handle");
         return false;
     }
 
