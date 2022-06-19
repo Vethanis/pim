@@ -9,6 +9,4 @@ void AudioSys_Update(void);
 void AudioSys_Shutdown(void);
 void AudioSys_Gui(bool* pEnabled);
 
-u32 AudioSys_Ticks(void);
-
 PIM_C_END

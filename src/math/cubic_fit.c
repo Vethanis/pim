@@ -1,6 +1,7 @@
 #include "math/cubic_fit.h"
 #include "math/scalar.h"
 #include "math/float3_funcs.h"
+#include "math/float4_funcs.h"
 #include "common/random.h"
 #include "threading/task.h"
 #include "allocator/allocator.h"
@@ -87,24 +88,24 @@ typedef struct FitTask
     fit_t fits[kMaxThreads];
 } FitTask;
 
-pim_inline float randf32(Prng* rng)
-{
-    return 2.0f * Prng_f32(rng) - 1.0f;
-}
-
 pim_inline void randFit(Prng* rng, fit_t* fit)
 {
-    for (i32 i = 0; i < NELEM(fit->value); ++i)
+    SASSERT((NELEM(fit->value) % 4) == 0);
+    float4* dst = (float4*)(fit->value);
+    for (i32 i = 0; i < (NELEM(fit->value)/4); ++i)
     {
-        fit->value[i] = randf32(rng);
+        dst[i] = Prng_float4(rng);
     }
 }
 
 pim_inline void mutateFit(Prng* rng, fit_t* fit, float amt)
 {
-    for (i32 i = 0; i < NELEM(fit->value); ++i)
+    SASSERT((NELEM(fit->value) % 4) == 0);
+    float4* dst = (float4*)(fit->value);
+    for (i32 i = 0; i < (NELEM(fit->value) / 4); ++i)
     {
-        fit->value[i] += amt * randf32(rng);
+        float4 Xi = Prng_float4(rng);
+        dst[i] = f4_add(f4_mulvs(Xi, amt), dst[i]);
     }
 }
 
