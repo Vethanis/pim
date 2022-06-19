@@ -2,6 +2,7 @@
 
 #include "math/types.h"
 #include "math/scalar.h"
+#include "common/random.h"
 
 PIM_C_BEGIN
 
@@ -455,6 +456,11 @@ pim_inline float3 VEC_CALL f3_unorm(float3 s)
 pim_inline float3 VEC_CALL f3_snorm(float3 u)
 {
     return f3_addvs(f3_mulvs(u, 2.0f), -1.0f);
+}
+
+pim_inline float3 VEC_CALL f3_rand(Prng* rng)
+{
+    return Prng_float3(rng);
 }
 
 pim_inline float3 VEC_CALL f3_reflect(float3 I, float3 N)
