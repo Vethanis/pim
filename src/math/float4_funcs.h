@@ -1084,7 +1084,7 @@ pim_inline float4 VEC_CALL f4_snorm(float4 u)
 
 pim_inline float4 VEC_CALL f4_rand(Prng *const pim_noalias rng)
 {
-    return f4_v(Prng_f32(rng), Prng_f32(rng), Prng_f32(rng), Prng_f32(rng));
+    return Prng_float4(rng);
 }
 
 PIM_C_END

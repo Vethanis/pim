@@ -240,7 +240,7 @@ pim_inline float VEC_CALL Sample1D(PtSampler*const pim_noalias sampler)
 
 pim_inline float2 VEC_CALL Sample2D(PtSampler*const pim_noalias sampler)
 {
-    return f2_rand(&sampler->rng);
+    return Prng_float2(&sampler->rng);
 }
 
 // ----------------------------------------------------------------------------
@@ -275,7 +275,7 @@ static void InitSamplers(void)
     Prng rng = Prng_Get();
     for (i32 i = 0; i < NELEM(ms_samplers); ++i)
     {
-        ms_samplers[i].rng.state = Prng_u64(&rng);
+        ms_samplers[i].rng.state = Prng_uint4(&rng);
     }
     Prng_Set(rng);
 }
@@ -1783,7 +1783,7 @@ static void media_desc_new(PtMediaDesc *const desc)
 {
     desc->constantColor = f4_v(0.5f, 0.5f, 0.5f, 2.0f);
     desc->noiseColor = f4_v(0.5f, 0.5f, 0.5f, 2.0f);
-    desc->constantMfp = 100.0f;
+    desc->constantMfp = 40.0f * kKilo;
     desc->noiseMfp = 40.0f * kKilo;
     desc->absorption = 0.1f;
     desc->noiseOctaves = 1;
