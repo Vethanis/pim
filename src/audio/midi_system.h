@@ -12,7 +12,7 @@ typedef struct MidiHdl_s
 
 typedef struct MidiMsg_s
 {
-    u32 tick;
+    i32 port;
     u8 command;
     u8 param1;
     u8 param2;

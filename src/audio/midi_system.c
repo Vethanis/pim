@@ -1,16 +1,18 @@
 #include "audio/midi_system.h"
-#include "audio/audio_system.h"
+
 #include "threading/mutex.h"
 #include "common/console.h"
 #include "allocator/allocator.h"
 #include "containers/queue.h"
 #include <string.h>
 
+// ----------------------------------------------------------------------------
+
+#if PLAT_WINDOWS
+
 // https://docs.microsoft.com/en-us/windows/win32/multimedia/managing-midi-recording
 #include <windows.h>
 #include <mmsystem.h>
-
-// ----------------------------------------------------------------------------
 
 typedef struct sysex_s
 {
@@ -24,26 +26,146 @@ typedef struct midicon_s
     HMIDIIN handle;
     OnMidiFn cb;
     void* usr;
+    i32 port;
     sysex_t buffers[4];
 } midicon_t;
 
-// ----------------------------------------------------------------------------
-
-static void midicon_lock(midicon_t* con);
-static void midicon_unlock(midicon_t* con);
-
-static bool midicon_open(midicon_t* con, i32 port, OnMidiFn cb, void* usr);
-static void midicon_close(midicon_t* con);
 static bool midicon_enqueue(midicon_t* con, i32 bufferId);
-static void midicon_push(midicon_t* con, const MidiMsg* src);
 static void midicon_result(MMRESULT result);
 
-static void __stdcall InputCallback(
+static void __stdcall MidiDeviceCallback(
     HMIDIIN handle,
     UINT status,
     DWORD_PTR user,
     DWORD_PTR message,
     DWORD timestamp);
+
+#else
+
+// TODO: midi on linux? there's probably 5 different competing APIs
+
+typedef struct midicon_s
+{
+    Mutex lock;
+    void* handle;
+    OnMidiFn cb;
+    void* usr;
+    i32 port;
+} midicon_t;
+
+#endif // PLAT_XXX
+
+// ----------------------------------------------------------------------------
+
+static void midicon_lock(midicon_t* con);
+static void midicon_unlock(midicon_t* con);
+static bool midicon_open(midicon_t* con, i32 port, OnMidiFn cb, void* usr);
+static void midicon_close(midicon_t* con);
+static void midicon_push(midicon_t* con, const MidiMsg* src);
+
+// ----------------------------------------------------------------------------
+
+static Queue ms_free;
+static i32 ms_length;
+static u8* ms_versions;
+static midicon_t* ms_cons;
+
+// ----------------------------------------------------------------------------
+
+void MidiSys_Init(void)
+{
+    Queue_New(&ms_free, sizeof(i32), EAlloc_Perm);
+}
+
+void MidiSys_Update(void)
+{
+
+}
+
+void MidiSys_Shutdown(void)
+{
+    midicon_t* cons = ms_cons; ms_cons = NULL;
+    u8* versions = ms_versions; ms_versions = NULL;
+    const i32 len = ms_length; ms_length = 0;
+    for (i32 i = 0; i < len; ++i)
+    {
+        if (versions[i] & 1)
+        {
+            midicon_close(&cons[i]);
+        }
+    }
+
+    Mem_Free(cons);
+    Mem_Free(versions);
+    Queue_Del(&ms_free);
+}
+
+i32 Midi_DeviceCount(void)
+{
+#if PLAT_WINDOWS
+    return midiInGetNumDevs();
+#else
+    return 0;
+#endif // PLAT_XXX
+}
+
+bool Midi_Exists(MidiHdl hdl)
+{
+    i32 index = hdl.index;
+    u8 version = hdl.version;
+    return (index < ms_length) && (ms_versions[index] == version);
+}
+
+MidiHdl Midi_Open(i32 port, OnMidiFn cb, void* usr)
+{
+    ASSERT(port >= 0);
+    ASSERT(cb);
+
+    MidiHdl hdl = { 0 };
+    if ((port < 0) || (port >= Midi_DeviceCount()))
+    {
+        return hdl;
+    }
+    if (!cb)
+    {
+        return hdl;
+    }
+
+    i32 index = 0;
+    if (!Queue_TryPop(&ms_free, &index, sizeof(index)))
+    {
+        index = ms_length++;
+        Perm_Grow(ms_versions, ms_length);
+        Perm_Grow(ms_cons, ms_length);
+    }
+    midicon_t* con = &ms_cons[index];
+    if (midicon_open(con, port, cb, usr))
+    {
+        u8 version = ++ms_versions[index];
+        ASSERT(ms_versions[index] & 1);
+        hdl.version = version;
+        hdl.index = index;
+        return hdl;
+    }
+    else
+    {
+        Queue_Push(&ms_free, &index, sizeof(index));
+        return hdl;
+    }
+}
+
+bool Midi_Close(MidiHdl hdl)
+{
+    if (Midi_Exists(hdl))
+    {
+        i32 index = hdl.index;
+        ++ms_versions[index];
+        ASSERT(!(ms_versions[index] & 1));
+        midicon_close(&ms_cons[index]);
+        return true;
+    }
+    return false;
+}
 
 // ----------------------------------------------------------------------------
 
@@ -57,6 +179,15 @@ static void midicon_unlock(midicon_t* con)
     Mutex_Unlock(&con->lock);
 }
 
+static void midicon_push(midicon_t* con, const MidiMsg* msg)
+{
+    OnMidiFn cb = con->cb;
+    void* usr = con->usr;
+    cb(msg, usr);
+}
+
+#if PLAT_WINDOWS
+
 static bool midicon_open(midicon_t* con, i32 port, OnMidiFn cb, void* usr)
 {
     MMRESULT result = MMSYSERR_NOERROR;
@@ -65,11 +196,12 @@ static bool midicon_open(midicon_t* con, i32 port, OnMidiFn cb, void* usr)
     Mutex_New(&con->lock);
     con->cb = cb;
     con->usr = usr;
+    con->port = port;
 
     result = midiInOpen(
         &con->handle,
         port,
-        (DWORD_PTR)InputCallback,
+        (DWORD_PTR)MidiDeviceCallback,
         (DWORD_PTR)con,
         CALLBACK_FUNCTION);
     if (result != MMSYSERR_NOERROR)
@@ -151,13 +283,6 @@ static bool midicon_enqueue(midicon_t* con, i32 bufferId)
     return result == MMSYSERR_NOERROR;
 }
 
-static void midicon_push(midicon_t* con, const MidiMsg* src)
-{
-    OnMidiFn cb = con->cb;
-    void* usr = con->usr;
-    cb(src, usr);
-}
-
 static void midicon_result(MMRESULT result)
 {
     if (result != MMSYSERR_NOERROR)
@@ -169,7 +294,7 @@ static void midicon_result(MMRESULT result)
     }
 }
 
-static void __stdcall InputCallback(
+static void __stdcall MidiDeviceCallback(
     HMIDIIN handle,
     UINT status,
     DWORD_PTR user,
@@ -184,7 +309,7 @@ static void __stdcall InputCallback(
     case MIM_DATA:
     {
         MidiMsg msg = { 0 };
-        msg.tick = AudioSys_Ticks();
+        msg.port = con->port;
         msg.command = (message >> 0) & 0xff;
         msg.param1 = (message >> 8) & 0xff;
         msg.param2 = (message >> 16) & 0xff;
@@ -208,97 +333,17 @@ static void __stdcall InputCallback(
     }
 }
 
-// ----------------------------------------------------------------------------
+#else
 
-static Queue ms_free;
-static i32 ms_length;
-static u8* ms_versions;
-static midicon_t* ms_cons;
-
-void MidiSys_Init(void)
+static bool midicon_open(midicon_t* con, i32 port, OnMidiFn cb, void* usr)
 {
-    Queue_New(&ms_free, sizeof(i32), EAlloc_Perm);
-}
-
-void MidiSys_Update(void)
-{
-
-}
-
-void MidiSys_Shutdown(void)
-{
-    midicon_t* cons = ms_cons;
-    const i32 len = ms_length;
-    for (i32 i = 0; i < len; ++i)
-    {
-        midicon_close(&cons[i]);
-    }
-
-    ms_length = 0;
-    Mem_Free(ms_cons); ms_cons = NULL;
-    Mem_Free(ms_versions); ms_versions = NULL;
-    Queue_Del(&ms_free);
-}
-
-i32 Midi_DeviceCount(void)
-{
-    return midiInGetNumDevs();
-}
-
-bool Midi_Exists(MidiHdl hdl)
-{
-    i32 index = hdl.index;
-    u8 version = hdl.version;
-    return (index < ms_length) && (ms_versions[index] == version);
-}
-
-MidiHdl Midi_Open(i32 port, OnMidiFn cb, void* usr)
-{
-    ASSERT(port >= 0);
-    ASSERT(cb);
-
-    MidiHdl hdl = { 0 };
-    if ((port < 0) || (port >= Midi_DeviceCount()))
-    {
-        return hdl;
-    }
-    if (!cb)
-    {
-        return hdl;
-    }
-
-    i32 index = 0;
-    if (!Queue_TryPop(&ms_free, &index, sizeof(index)))
-    {
-        index = ms_length++;
-        Perm_Grow(ms_versions, ms_length);
-        Perm_Grow(ms_cons, ms_length);
-    }
-    midicon_t* con = &ms_cons[index];
-    if (midicon_open(con, port, cb, usr))
-    {
-        u8 version = ++ms_versions[index];
-        ASSERT(ms_versions[index] & 1);
-        hdl.version = version;
-        hdl.index = index;
-        return hdl;
-    }
-    else
-    {
-        Queue_Push(&ms_free, &index, sizeof(index));
-        return hdl;
-    }
-}
-
-bool Midi_Close(MidiHdl hdl)
-{
-    if (Midi_Exists(hdl))
-    {
-        i32 index = hdl.index;
-        ++ms_versions[index];
-        ASSERT(!(ms_versions[index] & 1));
-        midicon_close(&ms_cons[index]);
-        return true;
-    }
+    memset(con, 0, sizeof(*con));
     return false;
 }
+
+static void midicon_close(midicon_t* con)
+{
+    memset(con, 0, sizeof(*con));
+}
+
+#endif // PLAT_XXX
