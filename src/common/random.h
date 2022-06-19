@@ -11,7 +11,7 @@ Prng Prng_New(void);
 Prng Prng_Get(void);
 void Prng_Set(Prng rng);
 
-pim_inline uint4 Prng_Next(Prng *const pim_noalias rng)
+pim_inline uint4 VEC_CALL Prng_Next(Prng *const pim_noalias rng)
 {
     // https://jcgt.org/published/0009/03/02/paper.pdf
     uint4 v = rng->state;
@@ -35,37 +35,37 @@ pim_inline uint4 Prng_Next(Prng *const pim_noalias rng)
     return v;
 }
 
-pim_inline u32 Prng_u32(Prng *const pim_noalias rng)
+pim_inline u32 VEC_CALL Prng_u32(Prng *const pim_noalias rng)
 {
     return Prng_Next(rng).x;
 }
-pim_inline uint2 Prng_uint2(Prng *const pim_noalias rng)
+pim_inline uint2 VEC_CALL Prng_uint2(Prng *const pim_noalias rng)
 {
     uint4 v = Prng_Next(rng);
     uint2 y = { v.x, v.y };
     return y;
 }
-pim_inline uint3 Prng_uint3(Prng *const pim_noalias rng)
+pim_inline uint3 VEC_CALL Prng_uint3(Prng *const pim_noalias rng)
 {
     uint4 v = Prng_Next(rng);
     uint3 y = { v.x, v.y, v.z };
     return y;
 }
-pim_inline uint4 Prng_uint4(Prng *const pim_noalias rng)
+pim_inline uint4 VEC_CALL Prng_uint4(Prng *const pim_noalias rng)
 {
     return Prng_Next(rng);
 }
 
-pim_inline bool Prng_bool(Prng *const pim_noalias rng)
+pim_inline bool VEC_CALL Prng_bool(Prng *const pim_noalias rng)
 {
     return Prng_u32(rng) & 1u;
 }
 
-pim_inline i32 Prng_i32(Prng *const pim_noalias rng)
+pim_inline i32 VEC_CALL Prng_i32(Prng *const pim_noalias rng)
 {
     return (i32)(0x7fffffff & Prng_u32(rng));
 }
-pim_inline int2 Prng_int2(Prng *const pim_noalias rng)
+pim_inline int2 VEC_CALL Prng_int2(Prng *const pim_noalias rng)
 {
     uint4 v = Prng_Next(rng);
     int2 y =
@@ -75,7 +75,7 @@ pim_inline int2 Prng_int2(Prng *const pim_noalias rng)
     };
     return y;
 }
-pim_inline int3 Prng_int3(Prng *const pim_noalias rng)
+pim_inline int3 VEC_CALL Prng_int3(Prng *const pim_noalias rng)
 {
     uint4 v = Prng_Next(rng);
     int3 y =
@@ -86,7 +86,7 @@ pim_inline int3 Prng_int3(Prng *const pim_noalias rng)
     };
     return y;
 }
-pim_inline int4 Prng_int4(Prng *const pim_noalias rng)
+pim_inline int4 VEC_CALL Prng_int4(Prng *const pim_noalias rng)
 {
     uint4 v = Prng_Next(rng);
     int4 y =
@@ -99,7 +99,7 @@ pim_inline int4 Prng_int4(Prng *const pim_noalias rng)
     return y;
 }
 
-pim_inline u64 Prng_u64(Prng *const pim_noalias rng)
+pim_inline u64 VEC_CALL Prng_u64(Prng *const pim_noalias rng)
 {
     uint4 v = Prng_Next(rng);
     u64 y = v.x;

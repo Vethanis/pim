@@ -1783,7 +1783,7 @@ static void media_desc_new(PtMediaDesc *const desc)
 {
     desc->constantColor = f4_v(0.5f, 0.5f, 0.5f, 2.0f);
     desc->noiseColor = f4_v(0.5f, 0.5f, 0.5f, 2.0f);
-    desc->constantMfp = 100.0f;
+    desc->constantMfp = 40.0f * kKilo;
     desc->noiseMfp = 40.0f * kKilo;
     desc->absorption = 0.1f;
     desc->noiseOctaves = 1;
