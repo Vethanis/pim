@@ -88,7 +88,7 @@ set(PIM_MSVC_INCLUDE_DIRS
 
 set(PIM_UNIX_INCLUDE_DIRS
     "submodules/embree/embree-3.13.3.x86_64.linux/include"
-    "submodules/oidn/oidn-1.4.3.x86_64.linux/include")
+   "submodules/oidn/oidn-1.4.3.x86_64.linux/include")
 
 set(PIM_MSVC_DLLS
     "submodules/embree/embree-3.13.0.x64.vc14.windows/bin/embree3.dll"
@@ -208,8 +208,6 @@ if (MSVC)
     target_compile_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_MSVC_COMPILE_OPTIONS_DEBUG}>")
     target_link_options(pim PRIVATE "$<$<CONFIG:RELEASE>:${PIM_MSVC_LINK_OPTIONS_RELEASE}>")
     target_link_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_MSVC_LINK_OPTIONS_DEBUG}>")
-
-    target_link_libraries(pim ${CMAKE_DL_LIBS})
 else()
     set(CMAKE_C_COMPILER clang)
     set(CMAKE_CXX_COMPILER clang++)
@@ -222,8 +220,15 @@ else()
     target_compile_options(pim PRIVATE "$<$<CONFIG:RELEASE>:${PIM_UNIX_COMPILE_OPTIONS_RELEASE}>")
     target_compile_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_OPTIONS_DEBUG}>")
 
-    target_link_libraries(pim ${CMAKE_DL_LIBS} ${GLFW_LIBRARIES} ${ALSA_LIBRARIES} glfw)
+    file(COPY ${PIM_UNIX_SOS} DESTINATION ${CMAKE_BINARY_DIR} NO_SOURCE_PERMISSIONS)
+    find_library(EMBREE_LIB embree3 PATH_SUFFIXES lib PATHS ${CMAKE_BINARY_DIR})
+    find_library(OIDN_LIB OpenImageDenoise PATHS ${CMAKE_BINARY_DIR})
+    find_library(TBB_LIB tbb PATHS ${CMAKE_BINARY_DIR})
+
+    target_link_libraries(pim ${GLFW_LIBRARIES} ${ALSA_LIBRARIES} ${EMBREE_LIB} ${OIDN_LIB} ${TBB_LIB} glfw)
 endif()
+
+target_link_libraries(pim ${CMAKE_DL_LIBS})
 
 # -----------------------------------------------------------------------------
 # fluff
@@ -231,8 +236,6 @@ endif()
 if (MSVC)
     file(COPY ${PIM_MSVC_DLLS} DESTINATION ${CMAKE_BINARY_DIR}/Release NO_SOURCE_PERMISSIONS)
     file(COPY ${PIM_MSVC_DLLS} DESTINATION ${CMAKE_BINARY_DIR}/Debug NO_SOURCE_PERMISSIONS)
-else()
-    file(COPY ${PIM_UNIX_SOS} DESTINATION ${CMAKE_BINARY_DIR} NO_SOURCE_PERMISSIONS)
 endif()
 
 set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT pim)
