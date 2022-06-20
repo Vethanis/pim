@@ -34,4 +34,26 @@ bool vkrTexTable_SetSampler(
     VkSamplerAddressMode addressMode,
     float aniso);
 
+// returns bindless index
+u32 vkrTexTable_State(
+    vkrTextureId id,
+    vkrCmdBuf* cmd,
+    const vkrImageState_t* state);
+u32 vkrTexTable_FragSample(
+    vkrTextureId id,
+    vkrCmdBuf* cmd);
+u32 vkrTexTable_ComputeSample(
+    vkrTextureId id,
+    vkrCmdBuf* cmd);
+u32 vkrTexTable_ComputeLoadStore(
+    vkrTextureId id,
+    vkrCmdBuf* cmd);
+
+void vkrTexTable_StateAll(
+    vkrCmdBuf* cmd,
+    const vkrImageState_t* state);
+void vkrTexTable_FragSampleAll(vkrCmdBuf* cmd);
+void vkrTexTable_ComputeSampleAll(vkrCmdBuf* cmd);
+void vkrTexTable_ComputeLoadStoreAll(vkrCmdBuf* cmd);
+
 PIM_C_END

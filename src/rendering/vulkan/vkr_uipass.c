@@ -240,8 +240,7 @@ void vkrUIPass_Execute(void)
     vkrBuffer* const indBuf = vkrBufferSet_Current(&ms_indbufs);
     vkrBufferState_VertexBuffer(cmd, vertBuf);
     vkrBufferState_IndexBuffer(cmd, indBuf);
-
-    vkrCmdBindPass(cmd, &ms_pass);
+    vkrTexTable_FragSampleAll(cmd);
 
     const VkClearValue clearValues[] =
     {
@@ -255,6 +254,8 @@ void vkrUIPass_Execute(void)
     rect.extent.height = attachments[0]->height;
     VkFramebuffer framebuffer = vkrFramebuffer_Get(attachments, NELEM(attachments), rect.extent.width, rect.extent.height);
     vkrImageState_ColorAttachWrite(cmd, attachments[0]);
+
+    vkrCmdBindPass(cmd, &ms_pass);
     vkrCmdBeginRenderPass(
         cmd,
         ms_renderPass,
@@ -334,9 +335,11 @@ static void vkrImGui_UploadRenderDrawData(void)
             vkrMemUsage_Dynamic);
 
         vkrCmdBuf* cmd = vkrCmdGet_G();
-        vkrBufferState_HostWrite(cmd, vertBuf);
-        vkrBufferState_HostWrite(cmd, indBuf);
-        vkrSubmit_Await(vkrCmdSubmit(cmd, NULL, 0x0, NULL));
+        if (vkrBufferState_HostWrite(cmd, vertBuf) ||
+            vkrBufferState_HostWrite(cmd, indBuf))
+        {
+            vkrSubmit_Await(vkrCmdSubmit(cmd, NULL, 0x0, NULL));
+        }
 
         ImDrawVert* pim_noalias vtx_dst = vkrBuffer_MapWrite(vertBuf);
         ImDrawIdx* pim_noalias idx_dst = vkrBuffer_MapWrite(indBuf);

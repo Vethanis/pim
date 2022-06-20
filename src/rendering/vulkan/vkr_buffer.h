@@ -46,6 +46,8 @@ bool vkrBufferSet_New(
     vkrMemUsage memUsage);
 void vkrBufferSet_Release(vkrBufferSet *const set);
 vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set);
+vkrBuffer *const vkrBufferSet_Next(vkrBufferSet *const set);
+vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set);
 bool vkrBufferSet_Reserve(
     vkrBufferSet *const set,
     i32 size,
