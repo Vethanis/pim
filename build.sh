@@ -1,7 +1,7 @@
 #!/bin/bash
 
 mkdir -p build/Debug
-mkdir build/Release
+mkdir -p build/Release
 
 pushd build/Debug
 cmake -DCMAKE_BUILD_TYPE=DEBUG ../../
