@@ -22,9 +22,34 @@ typedef enum
 
 #if PLAT_LINUX
 
-// FIXME: don't import, find a way to properly represent this struct.
-#include <sys/stat.h>
-typedef struct stat fd_status_t;
+typedef struct fd_timespec_s
+{
+    i64 tv_sec;
+    i64 tv_nsec;
+} fd_timespec_t;
+
+// Likely not very portable, based on GNU c.
+typedef struct fd_status_s
+{
+    u32 st_dev;
+    u64 st_ino;
+    u64 st_nlink;
+    u32 st_mode;
+    u32 st_uid;
+    u32 st_gid;
+    i32 __pad0;
+    u64 st_rdev;
+    u64 st_size;
+    u64 st_blksize;
+    u64 st_blocks;
+    i64 __reserved[3];
+    struct fd_timespec_s st_atim;
+    struct fd_timespec_s st_mtim;
+    struct fd_timespec_s st_ctim;
+#   define st_atime st_atim.tv_sec
+#   define st_mtime st_mtim.tv_sec
+#   define st_ctime st_ctim.tv_sec
+} fd_status_t;
 
 #else
 
