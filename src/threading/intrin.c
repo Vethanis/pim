@@ -31,7 +31,16 @@ void Intrin_Spin(u64 spins)
 u64 Intrin_Timestamp(void) { return __rdtsc(); }
 void Intrin_Yield(void) { SwitchToThread(); }
 #else
+#include <time.h>
+#include <sched.h>
+u64 Intrin_Timestamp(void)
+{
+    struct timespec tp;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+    return tp.tv_nsec;
+}
 
+void Intrin_Yield(void) { sched_yield(); }
 #endif // PLAT
 
 void Intrin_Pause(void) { _mm_pause(); }

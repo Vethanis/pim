@@ -37,7 +37,7 @@ typedef struct PushConstants_s
 
 typedef struct pim_alignas(16) ExposureBuffer_s
 {
-    float averageLum;
+    pim_alignas_field(16) float averageLum;
     float exposure;
     float maxLum;
     float minLum;

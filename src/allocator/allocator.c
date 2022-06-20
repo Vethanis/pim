@@ -347,7 +347,7 @@ void* Mem_Calloc(EAlloc type, i32 bytes)
 
 typedef struct pim_alignas(kAlign) StackFrame_s
 {
-    u8 value[kAlign];
+    pim_alignas_field(kAlign) u8 value[kAlign];
 } StackFrame;
 
 static i32 ms_iFrame[kMaxThreads];

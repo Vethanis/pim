@@ -137,10 +137,11 @@ i32 Thread_HardwareCount(void)
 
 #else
 
+#include <sys/sysinfo.h>
 #include <pthread.h>
 
 SASSERT(sizeof(pthread_t) == sizeof(Thread));
-SASSERT(alignof(pthread_t) == alignof(Thread));
+SASSERT(pim_alignof(pthread_t) == pim_alignof(Thread));
 
 void Thread_New(Thread* tr, i32(PIM_CDECL *entrypoint)(void*), void* arg)
 {
@@ -158,6 +159,11 @@ void Thread_Join(Thread* tr)
     i32 rv = pthread_join(pt, NULL);
     ASSERT(!rv);
     tr->handle = NULL;
+}
+
+i32 Thread_HardwareCount(void)
+{
+    return get_nprocs();
 }
 
 #endif // PLAT

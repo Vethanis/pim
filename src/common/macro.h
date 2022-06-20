@@ -50,23 +50,26 @@
 #   define pim_inline               __forceinline
 #   define pim_noalias              __restrict
 #   define pim_alignas(x)           __declspec(align(x))
+#   define pim_alignas_field(x)
 #   define pim_optimize             __pragma(optimize("gt", on))
 #   define pim_deoptimize           __pragma(optimize("", off))
 #   define pim_noreturn             __declspec(noreturn)
 #else
+#   include <signal.h>
 #   define INTERRUPT()              raise(SIGTRAP)
 #   define pim_thread_local         _Thread_local
 #   define PIM_EXPORT               
 #   define PIM_IMPORT               
 #   define PIM_CDECL                
 #   define VEC_CALL                 __vectorcall
-#   define pim_inline               __attribute__((always_inline))
+#   define pim_inline               static inline __attribute__((always_inline))
 #   define pim_noalias              __restrict__
-#   define pim_alignas(x)           _Alignas(x)
+#   define pim_alignas(x)
+#   define pim_alignas_field(x)     _Alignas(x)
 #   define pim_optimize             _Pragma("clang optimize on")
 #   define pim_deoptimize           _Pragma("clang optimize off")
 #   define pim_noreturn             __declspec(noreturn)
-#endif // PLAT_WINDOWS
+#endif // _MSC_VER
 
 #define NELEM(x)                    ( sizeof(x) / sizeof((x)[0]) )
 #define ARGS(x)                     (x), NELEM(x)

@@ -54,6 +54,7 @@ bool Semaphore_TryWait(Semaphore sema)
 #else
 
 #include <semaphore.h>
+#include <errno.h>
 
 // sem_wait is interruptable, must check for EINTR
 static i32 sem_wait_safe(sem_t* sem)

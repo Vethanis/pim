@@ -28,7 +28,7 @@ typedef enum
 
 typedef struct pim_alignas(8) bool2_s
 {
-    i32 x;
+    pim_alignas_field(8) i32 x;
     i32 y;
 } bool2;
 
@@ -41,7 +41,7 @@ typedef struct bool3_s
 
 typedef struct pim_alignas(16) bool4_s
 {
-    i32 x;
+    pim_alignas_field(16) i32 x;
     i32 y;
     i32 z;
     i32 w;
@@ -51,7 +51,7 @@ typedef struct pim_alignas(16) bool4_s
 
 typedef struct pim_alignas(8) float2_s
 {
-    float x;
+    pim_alignas_field(8) float x;
     float y;
 } float2;
 
@@ -64,7 +64,7 @@ typedef struct float3_s
 
 typedef struct pim_alignas(16) float4_s
 {
-    float x;
+    pim_alignas_field(16) float x;
     float y;
     float z;
     float w;
@@ -74,7 +74,7 @@ typedef struct pim_alignas(16) float4_s
 
 typedef struct pim_alignas(16) double2_s
 {
-    double x;
+    pim_alignas_field(16) double x;
     double y;
 } double2;
 
@@ -87,7 +87,7 @@ typedef struct double3_s
 
 typedef struct pim_alignas(16) double4_s
 {
-    double x;
+    pim_alignas_field(16) double x;
     double y;
     double z;
     double w;
@@ -97,7 +97,7 @@ typedef struct pim_alignas(16) double4_s
 
 typedef struct pim_alignas(4) short2_s
 {
-    i16 x;
+    pim_alignas_field(4) i16 x;
     i16 y;
 } short2;
 
@@ -110,7 +110,7 @@ typedef struct short3_s
 
 typedef struct pim_alignas(8) short4_s
 {
-    i16 x;
+    pim_alignas_field(8) i16 x;
     i16 y;
     i16 z;
     i16 w;
@@ -120,7 +120,7 @@ typedef struct pim_alignas(8) short4_s
 
 typedef struct pim_alignas(4) ushort2_s
 {
-    u16 x;
+    pim_alignas_field(4) u16 x;
     u16 y;
 } ushort2;
 
@@ -133,7 +133,7 @@ typedef struct ushort3_s
 
 typedef struct pim_alignas(8) ushort4_s
 {
-    u16 x;
+    pim_alignas_field(8) u16 x;
     u16 y;
     u16 z;
     u16 w;
@@ -143,7 +143,7 @@ typedef struct pim_alignas(8) ushort4_s
 
 typedef struct pim_alignas(8) int2_s
 {
-    i32 x;
+    pim_alignas_field(8) i32 x;
     i32 y;
 } int2;
 
@@ -156,7 +156,7 @@ typedef struct int3_s
 
 typedef struct pim_alignas(16) int4_s
 {
-    i32 x;
+    pim_alignas_field(16) i32 x;
     i32 y;
     i32 z;
     i32 w;
@@ -166,7 +166,7 @@ typedef struct pim_alignas(16) int4_s
 
 typedef struct pim_alignas(8) uint2_s
 {
-    u32 x;
+    pim_alignas_field(8) u32 x;
     u32 y;
 } uint2;
 
@@ -179,7 +179,7 @@ typedef struct uint3_s
 
 typedef struct pim_alignas(16) uint4_s
 {
-    u32 x;
+    pim_alignas_field(16) u32 x;
     u32 y;
     u32 z;
     u32 w;
@@ -189,7 +189,7 @@ typedef struct pim_alignas(16) uint4_s
 
 typedef struct pim_alignas(16) long2_s
 {
-    i64 x;
+    pim_alignas_field(16) i64 x;
     i64 y;
 } long2;
 
@@ -202,7 +202,7 @@ typedef struct long3_s
 
 typedef struct pim_alignas(16) long4_s
 {
-    i64 x;
+    pim_alignas_field(16) i64 x;
     i64 y;
     i64 z;
     i64 w;
@@ -212,7 +212,7 @@ typedef struct pim_alignas(16) long4_s
 
 typedef struct pim_alignas(16) ulong2_s
 {
-    u64 x;
+    pim_alignas_field(16) u64 x;
     u64 y;
 } ulong2;
 
@@ -225,7 +225,7 @@ typedef struct ulong3_s
 
 typedef struct pim_alignas(32) ulong4_s
 {
-    u64 x;
+    pim_alignas_field(32) u64 x;
     u64 y;
     u64 z;
     u64 w;
@@ -456,7 +456,7 @@ typedef struct dataset_s
 
 typedef struct pim_alignas(16) fit_s
 {
-    float value[8];
+    pim_alignas_field(16) float value[8];
 } fit_t;
 
 typedef struct BrdfLut_s
