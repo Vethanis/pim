@@ -6,7 +6,7 @@
 
 bool FileMap_IsOpen(FileMap* map)
 {
-    return map->ptr != NULL;
+    return map->ptr != NULL && map->ptr != (void*)-1;
 }
 
 FileMap FileMap_Open(const char* path, bool writable)
@@ -128,6 +128,7 @@ bool FileMap_Flush(FileMap* fmap)
 // POSIX
 
 #include <sys/mman.h>
+#include "common/console.h"
 
 FileMap FileMap_New(fd_t fd, bool writable)
 {
@@ -150,9 +151,9 @@ FileMap FileMap_New(fd_t fd, bool writable)
     const i32 kWriteProt = PROT_READ | PROT_WRITE;
     const i32 kReadProt = PROT_READ;
     const i32 prot = writable ? kWriteProt : kReadProt;
-    const i32 flags = 0x0;
+    const i32 flags = MAP_PRIVATE;
     const i32 offset = 0;
-    void* addr = mmap(NULL, size, prot, flags, fd.handle, offset)
+    void* addr = mmap(NULL, size, prot, flags, fd.handle, offset);
 
     result.ptr = addr;
     result.size = size;

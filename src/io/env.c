@@ -3,6 +3,12 @@
 #include "common/stringutil.h"
 #include <stdlib.h>
 
+#if PLAT_WINDOWS
+#define pim_putenv(p)   _putenv(p)
+#else
+#define pim_putenv(p)   putenv(p)
+#endif
+
 static i32 NotNeg(i32 x)
 {
     ASSERT(x >= 0);
@@ -27,7 +33,38 @@ bool Env_Search(const char* filename, const char* varname, char* dst)
     ASSERT(varname);
     ASSERT(dst);
     dst[0] = 0;
+
+    #if PLAT_WINDOWS
+
     _searchenv(filename, varname, dst);
+
+    #else
+
+    // TODO: unsure how we're meant to safely copy to destination without length.
+    // Currently env_search isn't referenced though.
+    /*
+    struct stat buffer;
+    char* env = getenv("PATH");
+    do
+    {
+        char* p = strchr(env, ':');
+        if (p != NULL && stat(p, &buffer) == 0)
+        {
+            break;
+        }
+        env = p + 1;
+    } 
+    while (p != NULL);
+
+    if (p != null)
+    {
+        StrCpy(dst, ???, p);
+    }
+    */
+
+    #endif // PLAT_WINDOWS
+
+
     return dst[0] != 0;
 }
 
@@ -42,5 +79,5 @@ bool Env_Set(const char* varname, const char* value)
     ASSERT(varname);
     char buf[260] = { 0 };
     SPrintf(ARGS(buf), "%s=%s", varname, value ? value : "");
-    return IsZero(_putenv(buf)) == 0;
+    return IsZero(pim_putenv(buf)) == 0;
 }

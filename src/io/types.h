@@ -20,6 +20,14 @@ typedef enum
     StMode_Exec = 0x0040,
 } StModeFlags;
 
+#if PLAT_LINUX
+
+// FIXME: don't import, find a way to properly represent this struct.
+#include <sys/stat.h>
+typedef struct stat fd_status_t;
+
+#else
+
 typedef struct fd_status_s
 {
     u32 st_dev;
@@ -34,6 +42,8 @@ typedef struct fd_status_s
     i64 st_mtime;
     i64 st_ctime;
 } fd_status_t;
+
+#endif // PLAT_LINUX
 
 // ------------------------------------
 // fmap
@@ -66,11 +76,31 @@ typedef enum
 // ------------------------------------
 // fnd
 
+#if PLAT_WINDOWS
+
 // Initialize to -1
 typedef struct Finder_s
 {
     isize handle;
 } Finder;
+
+#else
+
+typedef struct Glob_s
+{
+    size_t gl_pathc;
+    char **gl_pathv;
+    size_t gl_offs;
+} Glob;
+
+typedef struct Finder_s
+{
+    Glob glob;
+    bool open;
+    i32 index;
+} Finder;
+
+#endif // PLAT_WINDOWS
 
 typedef enum
 {
@@ -82,6 +112,8 @@ typedef enum
     FAF_Archive = 0x20,
 } FileAttrFlags;
 
+#if PLAT_WINDOWS
+
 // __finddata64_t, do not modify
 typedef struct FinderData_s
 {
@@ -92,6 +124,16 @@ typedef struct FinderData_s
     i64 size;
     char name[260];
 } FinderData;
+
+#else
+
+typedef struct FinderData_s
+{
+    // FIXME: on windows it's just the name, linux it's the full path. grumble.
+    char* name;
+} FinderData;
+
+#endif // PLAT_WINDOWS
 
 // ------------------------------------
 

@@ -121,10 +121,17 @@ i32 SearchPath_FindPack(SearchPath* sp, const char* path)
     return -1;
 }
 
+// not happy with how this looks tbh.
+#if PLAT_WIN
+#define PAK_GLOB "%s/*.pak"
+#else
+#define PAK_GLOB "%s/*.[pP][aA][kK]"
+#endif
+
 bool SearchPath_AddPack(SearchPath* sp, const char* path)
 {
     char packDir[PIM_PATH];
-    SPrintf(ARGS(packDir), "%s/*.pak", path);
+    SPrintf(ARGS(packDir), PAK_GLOB, path);
     StrPath(ARGS(packDir));
 
     Pack* packs = sp->packs;
@@ -134,8 +141,13 @@ bool SearchPath_AddPack(SearchPath* sp, const char* path)
     FinderData fndData;
     while (Finder_Iterate(&fnd, &fndData, packDir))
     {
+        // fixme haxx
         char subdir[PIM_PATH];
+      #if PLAT_WIN
         SPrintf(ARGS(subdir), "%s/%s", path, fndData.name);
+      #else
+        SPrintf(ARGS(subdir), "%s", fndData.name);
+      #endif
         StrPath(ARGS(subdir));
         if (SearchPath_FindPack(sp, subdir) >= 0)
         {
@@ -246,4 +258,3 @@ bool SearchPath_RmLooseByName(SearchPath* sp, const char* name)
     }
     return false;
 }
-

@@ -104,7 +104,7 @@ void Input_CaptureCursor(GLFWwindow* window, bool capture)
     }
 }
 
-bool Input_GetKey(KeyCode key)
+bool Input_GetKey(Pim_KeyCode key)
 {
     ASSERT(key > KeyCode_Invalid);
     ASSERT(key < KeyCode_COUNT);
@@ -118,7 +118,7 @@ bool Input_GetButton(MouseButton button)
     return ms_buttons[button];
 }
 
-bool Input_IsKeyDown(KeyCode key)
+bool Input_IsKeyDown(Pim_KeyCode key)
 {
     ASSERT(key > KeyCode_Invalid);
     ASSERT(key < KeyCode_COUNT);
@@ -132,7 +132,7 @@ bool Input_IsButtonDown(MouseButton button)
     return ms_buttons[button] && !ms_prevButtons[button];
 }
 
-bool Input_IsKeyUp(KeyCode key)
+bool Input_IsKeyUp(Pim_KeyCode key)
 {
     ASSERT(key > KeyCode_Invalid);
     ASSERT(key < KeyCode_COUNT);

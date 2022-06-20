@@ -224,6 +224,8 @@ bool Net_UrlToAddr(const char* url, u32* addrOut)
 {
 #if PLAT_WINDOWS
     return wsock_url2addr(url, addrOut);
+#else
+    return false;
 #endif // PLAT_WINDOWS
 }
 
@@ -231,6 +233,8 @@ bool Socket_Open(Socket* sock, SocketProto proto)
 {
 #if PLAT_WINDOWS
     return wsock_open(sock, proto);
+#else
+    return false;
 #endif // PLAT_WINDOWS
 }
 
@@ -245,6 +249,8 @@ bool Socket_IsOpen(Socket sock)
 {
 #if PLAT_WINDOWS
     return wsock_isopen(sock);
+#else
+    return false;
 #endif // PLAT_WINDOWS
 }
 
@@ -252,6 +258,8 @@ bool Socket_Bind(Socket sock, u32 addr, u16 port)
 {
 #if PLAT_WINDOWS
     return wsock_bind(sock, addr, port);
+#else
+    return false;
 #endif // PLAT_WINDOWS
 }
 
@@ -259,6 +267,8 @@ bool Socket_Listen(Socket sock)
 {
 #if PLAT_WINDOWS
     return wsock_listen(sock);
+#else
+    return false;
 #endif // PLAT_WINDOWS
 }
 
@@ -266,6 +276,9 @@ Socket Socket_Accept(Socket sock, u32* addr)
 {
 #if PLAT_WINDOWS
     return wsock_accept(sock, addr);
+#else
+    Socket s = {};
+    return s;
 #endif // PLAT_WINDOWS
 }
 
@@ -273,6 +286,8 @@ bool Socket_Connect(Socket sock, u32 addr, u16 port)
 {
 #if PLAT_WINDOWS
     return wsock_connect(sock, addr, port);
+#else
+    return false;
 #endif // PLAT_WINDOWS
 }
 
@@ -280,6 +295,8 @@ i32 Socket_Send(Socket sock, const void* src, i32 len)
 {
 #if PLAT_WINDOWS
     return wsock_send(sock, src, len);
+#else
+    return -1;
 #endif // PLAT_WINDOWS
 }
 
@@ -287,5 +304,7 @@ i32 Socket_Recv(Socket sock, void* dst, i32 len)
 {
 #if PLAT_WINDOWS
     return wsock_recv(sock, dst, len);
+#else
+    return -1;
 #endif // PLAT_WINDOWS
 }

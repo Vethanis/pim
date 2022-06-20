@@ -2,7 +2,11 @@
 
 bool Finder_IsOpen(Finder* fdr)
 {
+#if PLAT_WINDOWS
     return fdr->handle != -1;
+#else
+    return fdr->open;
+#endif // PLAT_WINDOWS
 }
 
 bool Finder_Iterate(Finder* fdr, FinderData* data, const char* spec)
@@ -66,32 +70,41 @@ void Finder_End(Finder* fdr)
 // ----------------------------------------------------------------------------
 // POSIX
 
-#include <dirent.h>
+#include <glob.h>
 
 bool Finder_Begin(Finder* fdr, FinderData* data, const char* spec)
 {
     ASSERT(fdr);
     ASSERT(data);
     ASSERT(spec);
-    // TODO
-    fdr->handle = -1;
-    return false;
+
+    fdr->open = (glob(spec, 0, NULL, (glob_t*)(&fdr->glob)) == 0);
+    if (fdr->open)
+    {
+        data->name = fdr->glob.gl_pathv[0];
+    }
+
+    return fdr->open;
 }
 
 bool Finder_Next(Finder* fdr, FinderData* data)
 {
     ASSERT(fdr);
     ASSERT(data);
-    // TODO
-    fdr->handle = -1;
-    return false;
+    if (++fdr->index >= fdr->glob.gl_pathc)
+    {
+        return false;
+    }
+
+    data->name = fdr->glob.gl_pathv[fdr->index];
+    return true;
 }
 
 void Finder_End(Finder* fdr)
 {
     ASSERT(fdr);
-    // TODO
-    fdr->handle = -1;
+    fdr->open = false;
+    globfree((glob_t*)(&fdr->glob));
 }
 
 #endif // PLAT_X

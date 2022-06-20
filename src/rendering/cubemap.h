@@ -54,7 +54,7 @@ i32 Cubemaps_Find(const Cubemaps* maps, Guid name);
 void Cubemap_New(Cubemap* cm, i32 size);
 void Cubemap_Del(Cubemap* cm);
 
-Cubeface VEC_CALL Cubemap_CalcUv(float4 dir, float2* uvOut);
+pim_inline Cubeface VEC_CALL Cubemap_CalcUv(float4 dir, float2* uvOut);
 
 // note: input is roughness, not alpha (aka roughness^2)
 pim_inline float VEC_CALL RoughnessToMip(float roughness)

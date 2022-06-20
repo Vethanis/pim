@@ -135,7 +135,7 @@ typedef enum
     KeyCode_Menu = 348,
 
     KeyCode_COUNT
-} KeyCode;
+} Pim_KeyCode;
 
 typedef enum
 {
@@ -168,13 +168,13 @@ void Input_SetFocus(GLFWwindow* window);
 bool Input_IsCursorCaptured(GLFWwindow* window);
 void Input_CaptureCursor(GLFWwindow* window, bool capture);
 
-bool Input_GetKey(KeyCode key);
+bool Input_GetKey(Pim_KeyCode key);
 bool Input_GetButton(MouseButton button);
 
-bool Input_IsKeyDown(KeyCode key);
+bool Input_IsKeyDown(Pim_KeyCode key);
 bool Input_IsButtonDown(MouseButton button);
 
-bool Input_IsKeyUp(KeyCode key);
+bool Input_IsKeyUp(Pim_KeyCode key);
 bool Input_IsButtonUp(MouseButton button);
 
 float Input_GetAxis(MouseAxis axis);
