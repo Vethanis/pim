@@ -41,6 +41,7 @@
 #define pim_tell(h)         lseek(h, 0, SEEK_CUR)
 #define pim_lseek(h, o, w)  lseek(h, o, w)
 
+SASSERT(sizeof(struct timespec) == sizeof(fd_timespec_t));
 SASSERT(sizeof(struct stat) == sizeof(fd_status_t));
 
 #define pim_fstat(h, s)     fstat(h, (struct stat*)s)
