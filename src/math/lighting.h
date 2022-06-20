@@ -179,6 +179,27 @@ pim_inline float4 VEC_CALL DiffuseColor(
     return f4_mulvs(albedo, 1.0f - metallic);
 }
 
+pim_inline float4 VEC_CALL SigmaAFromReflectance(float4 albedo, float beta_n)
+{
+    // Chiang et. al: A Practical and Controllable Hair and Fur Model for Production Path Tracing
+    // Section 4.2. Color Reparameterization
+    float r2 = beta_n * beta_n;
+    float r3 = r2 * beta_n;
+    float r4 = r3 * beta_n;
+    float r5 = r4 * beta_n;
+    float t = 5.969f - 0.215f * beta_n + 2.532f * r2 - 10.73f * r3 + 5.574f * r4 + 0.245f * r5;
+    float4 sigmaA = f4_log(albedo);
+    sigmaA = f4_divvs(sigmaA, f1_max(t, kEpsilon));
+    sigmaA = f4_mul(sigmaA, sigmaA);
+    return sigmaA;
+}
+
+pim_inline float4 VEC_CALL AlbedoToTransmittance(float4 albedo, float roughness, float thickness)
+{
+    float4 sigmaA = SigmaAFromReflectance(albedo, roughness);
+    return f4_exp(f4_mulvs(sigmaA, -thickness));
+}
+
 // Specular 'D' term
 // represents the normal distribution function
 // GGX Trowbridge-Reitz approximation

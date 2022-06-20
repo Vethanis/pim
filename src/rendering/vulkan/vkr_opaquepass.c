@@ -287,6 +287,7 @@ void vkrOpaquePass_Execute(void)
 
     vkrImageState_DepthAttachWrite(cmd, attachments[0]);
     vkrImageState_ColorAttachWrite(cmd, attachments[1]);
+    vkrTexTable_FragSampleAll(cmd);
 
     vkrCmdDefaultViewport(cmd);
     vkrCmdBindPass(cmd, &ms_pass);

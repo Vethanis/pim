@@ -129,6 +129,7 @@ pim_inline float4 VEC_CALL BrdfEval(
     float4 L);
 pim_inline PtScatter VEC_CALL RefractScatter(
     PtSampler*const pim_noalias sampler,
+    PtScene *const pim_noalias scene,
     const PtSurfHit* surf,
     float4 I);
 pim_inline PtScatter VEC_CALL BrdfScatter(
@@ -1406,6 +1407,7 @@ pim_inline float4 VEC_CALL BrdfEval(
 
 pim_inline PtScatter VEC_CALL RefractScatter(
     PtSampler*const pim_noalias sampler,
+    PtScene *const pim_noalias scene,
     const PtSurfHit* surf,
     float4 I)
 {
@@ -1420,16 +1422,15 @@ pim_inline PtScatter VEC_CALL RefractScatter(
     bool entering = surf->type != PtHit_Backface;
 
     float cosThetaI = f1_sat(f1_abs(f4_dot3(V, m)));
-    float4 F = F_SchlickEx(surf->albedo, surf->metallic, cosThetaI);
     float pdf = F_Dielectric(entering ? cosThetaI : -cosThetaI, etaI, etaT);
     if (pdf >= 1.0f)
     {
         // total internal reflection
         pdf = 1.0f;
-        F = f4_1;
     }
 
     float4 L;
+    bool refract = false;
     if (Sample1D(sampler) < pdf)
     {
         L = f4_reflect3(I, m);
@@ -1440,7 +1441,7 @@ pim_inline PtScatter VEC_CALL RefractScatter(
         float k = entering ? etaI / etaT : etaT / etaI;
         L = f4_refract3(I, m, k);
         pdf = 1.0f - pdf;
-        F = f4_inv(F);
+        refract = true;
     }
 
     float4 P = surf->P;
@@ -1452,8 +1453,23 @@ pim_inline PtScatter VEC_CALL RefractScatter(
     PtScatter result = { 0 };
     result.pos = P;
     result.dir = L;
-    result.attenuation = F;
     result.pdf = pdf;
+
+    if (refract && entering)
+    {
+        PtRayHit hit = pt_intersect_local(scene, P, L, 0.0f, 1 << 20);
+        float thickness = f1_max(hit.wuvt.w, kEpsilon);
+        if (hit.type == PtHit_Nothing)
+        {
+            thickness = (float)(1 << 20);
+        }
+        float4 tr = AlbedoToTransmittance(surf->albedo, surf->roughness, thickness);
+        result.attenuation = f4_mulvs(tr, pdf);
+    }
+    else
+    {
+        result.attenuation = f4_s(pdf);
+    }
 
     return result;
 }
@@ -1468,7 +1484,7 @@ pim_inline PtScatter VEC_CALL BrdfScatter(
     ASSERT(IsUnitLength(surf->N));
     if (surf->flags & MatFlag_Refractive)
     {
-        return RefractScatter(sampler, surf, I);
+        return RefractScatter(sampler, scene, surf, I);
     }
 
     PtScatter result = { 0 };
@@ -2160,6 +2176,7 @@ PtResult VEC_CALL Pt_TraceRay(
     float4 rd)
 {
     PtResult result = { 0 };
+    float resultWeight = 0.0f;
     float4 luminance = f4_0;
     float4 attenuation = f4_1;
     u32 prevFlags = 0;
@@ -2194,14 +2211,15 @@ PtResult VEC_CALL Pt_TraceRay(
             PtScatter scatter = ScatterRay(sampler, scene, ro, rd, hit.wuvt.w, b);
             if (scatter.pdf > kEpsilon)
             {
-                {
-                    float t = 1.0f / (b + 1);
-                    float4 albedo = Media_Albedo(&scene->mediaDesc, scatter.pos, hit.wuvt.w);
-                    result.albedo = f3_lerpvs(result.albedo, f4_f3(albedo), t);
-                    result.normal = f3_lerpvs(result.normal, f4_f3(f4_neg(rd)), t);
-                }
                 luminance = f4_add(luminance, f4_mul(attenuation, scatter.luminance));
                 attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
+                {
+                    float4 a = f4_mulvs(attenuation, 1.0f / kTau);
+                    float w = f1_sat(1.0f - f4_avglum(a));
+                    resultWeight += w;
+                    result.albedo = f3_add(result.albedo, f3_mulvs(f4_f3(a), w));
+                    result.normal = f3_add(result.normal, f3_mulvs(f4_f3(f4_neg(rd)), w));
+                }
                 ro = scatter.pos;
                 rd = scatter.dir;
                 prevFlags = 0;
@@ -2219,11 +2237,6 @@ PtResult VEC_CALL Pt_TraceRay(
             LightOnHit(sampler, scene, ro, surf.emission, hit.iVert);
         }
 
-        {
-            float t = 1.0f / (b + 1);
-            result.albedo = f3_lerpvs(result.albedo, f4_f3(surf.albedo), t);
-            result.normal = f3_lerpvs(result.normal, f4_f3(surf.N), t);
-        }
         if ((b == 0) || (prevFlags & MatFlag_Refractive))
         {
             luminance = f4_add(luminance, f4_mul(surf.emission, attenuation));
@@ -2248,9 +2261,22 @@ PtResult VEC_CALL Pt_TraceRay(
 
         attenuation = f4_mul(attenuation, f4_divvs(scatter.attenuation, scatter.pdf));
         prevFlags = surf.flags;
+
+        {
+            float4 a = f4_mulvs(attenuation, 1.0f / kPi);
+            float w = f1_sat(1.0f - f4_avglum(a));
+            resultWeight += w;
+            result.albedo = f3_add(result.albedo, f3_mulvs(f4_f3(surf.albedo), w));
+            result.normal = f3_add(result.normal, f3_mulvs(f4_f3(surf.N), w));
+        }
     }
 
-    result.color = f4_f3(luminance);
+    {
+        float s = 1.0f / f1_max(resultWeight, kEpsilon);
+        result.color = f4_f3(luminance);
+        result.albedo = f3_mulvs(result.albedo, s);
+        result.normal = f3_mulvs(result.normal, s);
+    }
     return result;
 }
 
