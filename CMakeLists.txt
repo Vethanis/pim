@@ -88,7 +88,7 @@ set(PIM_MSVC_INCLUDE_DIRS
 
 set(PIM_UNIX_INCLUDE_DIRS
     "submodules/embree/embree-3.13.3.x86_64.linux/include"
-   "submodules/oidn/oidn-1.4.3.x86_64.linux/include")
+    "submodules/oidn/oidn-1.4.3.x86_64.linux/include")
 
 set(PIM_MSVC_DLLS
     "submodules/embree/embree-3.13.0.x64.vc14.windows/bin/embree3.dll"
