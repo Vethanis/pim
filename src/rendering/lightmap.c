@@ -673,7 +673,7 @@ static chart_t* chart_group(
     return charts;
 }
 
-i32 chart_cmp(const void* plhs, const void* prhs, void* usr)
+pim_inline i32 chart_cmp(const void* plhs, const void* prhs, void* usr)
 {
     const chart_t* lhs = plhs;
     const chart_t* rhs = prhs;
