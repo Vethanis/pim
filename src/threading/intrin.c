@@ -28,11 +28,21 @@ void Intrin_Spin(u64 spins)
 #pragma intrinsic(__rdtsc)
 #pragma intrinsic(_mm_pause)
 
+void Intrin_Init(void) { }
 u64 Intrin_Timestamp(void) { return __rdtsc(); }
 void Intrin_Yield(void) { SwitchToThread(); }
 #else
 #include <time.h>
 #include <sched.h>
+
+void Intrin_Init(void)
+{
+    struct sched_param param = {
+        .sched_priority = 1
+    };
+    ASSERT(sched_setscheduler(0, SCHED_RR, &param) == 0);
+}
+
 u64 Intrin_Timestamp(void)
 {
     struct timespec tp;
