@@ -228,7 +228,7 @@ else()
     target_link_libraries(pim ${GLFW_LIBRARIES} ${ALSA_LIBRARIES} ${EMBREE_LIB} ${OIDN_LIB} ${TBB_LIB} glfw)
 endif()
 
-target_link_libraries(pim ${CMAKE_DL_LIBS})
+target_link_libraries(pim)
 
 # -----------------------------------------------------------------------------
 # fluff
