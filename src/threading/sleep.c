@@ -25,6 +25,8 @@ void Intrin_BeginClockRes(u32 millisecondsPerTick)
 {
     #if PLAT_WINDOWS
     timeBeginPeriod(millisecondsPerTick);
+    #else
+    Intrin_Init();
     #endif // PLAT_WINDOWS
 }
 
