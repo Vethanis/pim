@@ -109,8 +109,10 @@ set(PIM_MSVC_COMPILE_DEFINITIONS
 
 set(PIM_UNIX_COMPILE_DEFINITIONS
     "VK_USE_PLATFORM_XLIB_KHR"
-    "_DEBUG"
     "_GLFW_X11")
+
+set(PIM_UNIX_COMPILE_DEFINITIONS_DEBUG
+    "_DEBUG")
 
 # https://docs.microsoft.com/en-us/cpp/build/reference/compiler-options-listed-alphabetically?view=msvc-150
 set(PIM_MSVC_COMPILE_OPTIONS_RELEASE
@@ -202,7 +204,8 @@ else()
     target_sources(pim PRIVATE ${PIM_UNIX_FILES})
     find_package(ALSA REQUIRED)
 
-    target_compile_definitions(pim PRIVATE ${PIM_UNIX_COMPILE_DEFINITIONS})
+    target_compile_definitions(pim PRIVATE ${PIM_UNIX_COMPILE_DEFINITIONS}
+        "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_DEFINITIONS_DEBUG}>")
     target_compile_options(pim PRIVATE "$<$<CONFIG:RELEASE>:${PIM_UNIX_COMPILE_OPTIONS_RELEASE}>")
     target_compile_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_OPTIONS_DEBUG}>")
 
