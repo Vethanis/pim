@@ -174,4 +174,4 @@ static void OS_geterror(char* buffer, i32 size)
     }
 }
 
-#endif // PLAT_WINDOWS
+#endif // PLAT_X

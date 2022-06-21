@@ -20,7 +20,24 @@ typedef enum
     StMode_Exec = 0x0040,
 } StModeFlags;
 
-#if PLAT_LINUX
+#if PLAT_WIN
+
+typedef struct fd_status_s
+{
+    u32 st_dev;
+    u16 st_ino;
+    u16 st_mode;
+    i16 st_nlink;
+    i16 st_uid;
+    i16 st_guid;
+    u32 st_rdev;
+    i64 st_size;
+    i64 st_atime;
+    i64 st_mtime;
+    i64 st_ctime;
+} fd_status_t;
+
+#else
 
 typedef struct fd_timespec_s
 {
@@ -51,24 +68,7 @@ typedef struct fd_status_s
 #   define st_ctime st_ctim.tv_sec
 } fd_status_t;
 
-#else
-
-typedef struct fd_status_s
-{
-    u32 st_dev;
-    u16 st_ino;
-    u16 st_mode;
-    i16 st_nlink;
-    i16 st_uid;
-    i16 st_guid;
-    u32 st_rdev;
-    i64 st_size;
-    i64 st_atime;
-    i64 st_mtime;
-    i64 st_ctime;
-} fd_status_t;
-
-#endif // PLAT_LINUX
+#endif // PLAT_X
 
 // ------------------------------------
 // fmap
@@ -101,13 +101,37 @@ typedef enum
 // ------------------------------------
 // fnd
 
-#if PLAT_WINDOWS
+#if PLAT_WIN
 
 // Initialize to -1
 typedef struct Finder_s
 {
     isize handle;
+    char[PIM_PATH] path;
+    char[PIM_PATH] relPath;
+    FinderData data;
 } Finder;
+
+typedef enum
+{
+    FAF_Normal = 0x00,
+    FAF_ReadOnly = 0x01,
+    FAF_Hidden = 0x02,
+    FAF_System = 0x04,
+    FAF_SubDir = 0x10,
+    FAF_Archive = 0x20,
+} FileAttrFlags;
+
+// __finddata64_t, do not modify
+typedef struct FinderData_s
+{
+    u32 attrib;
+    i64 time_create;
+    i64 time_access;
+    i64 time_write;
+    i64 size;
+    char name[260];
+} FinderData;
 
 #else
 
@@ -123,42 +147,9 @@ typedef struct Finder_s
     Glob glob;
     bool open;
     i32 index;
+    char* relPath;
 } Finder;
-
-#endif // PLAT_WINDOWS
-
-typedef enum
-{
-    FAF_Normal = 0x00,
-    FAF_ReadOnly = 0x01,
-    FAF_Hidden = 0x02,
-    FAF_System = 0x04,
-    FAF_SubDir = 0x10,
-    FAF_Archive = 0x20,
-} FileAttrFlags;
-
-#if PLAT_WINDOWS
-
-// __finddata64_t, do not modify
-typedef struct FinderData_s
-{
-    u32 attrib;
-    i64 time_create;
-    i64 time_access;
-    i64 time_write;
-    i64 size;
-    char name[260];
-} FinderData;
-
-#else
-
-typedef struct FinderData_s
-{
-    // FIXME: on windows it's just the name, linux it's the full path. grumble.
-    char* name;
-} FinderData;
-
-#endif // PLAT_WINDOWS
+#endif // PLAT_X
 
 // ------------------------------------
 

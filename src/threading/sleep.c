@@ -1,4 +1,5 @@
 #include "sleep.h"
+#include "intrin.h"
 
 #if PLAT_WINDOWS
 #pragma comment(lib, "Winmm.lib")
