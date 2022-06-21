@@ -495,6 +495,8 @@ namespace StackWalker
             {
                 switch (Module.SymType)
                 {
+                default:
+                    break;
                 case SymNone:
                     symType = "-nosymbols-";
                     break;

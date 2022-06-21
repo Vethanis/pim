@@ -16,7 +16,6 @@ bool vkrBuffer_New(
     return vkrMem_BufferNew(buffer, size, usage, memUsage);
 }
 
-ProfileMark(pm_bufrelease, vkrBuffer_Release)
 void vkrBuffer_Release(vkrBuffer *const buffer)
 {
     if (buffer->handle)

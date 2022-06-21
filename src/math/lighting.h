@@ -328,7 +328,7 @@ pim_inline float4 VEC_CALL IndirectBRDF(
     float NoV = f4_dotsat(N, V);
 
     float4 F = F_SchlickEx(albedo, metallic, NoV);
-    float4 Fr = EnvBRDF(F, NoV, roughness);
+    float4 Fr = EnvBRDF(F, NoV, alpha);
     Fr = f4_mul(Fr, specularGI);
 
     float4 Fd = f4_mul(DiffuseColor(albedo, metallic), diffuseGI);

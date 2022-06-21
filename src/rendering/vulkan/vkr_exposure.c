@@ -426,7 +426,7 @@ void vkrExposure_Execute(void)
         const VkClearValue clearValues[] =
         {
             {
-                .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+                .color.float32 = { 0.0f, 0.0f, 0.0f, 1.0f },
             },
         };
         vkrCmdBeginRenderPass(

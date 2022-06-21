@@ -118,6 +118,9 @@ static OIDNFilter NewFilter(const CacheKey* key)
     const char* typeStr = "RT";
     switch (key->type)
     {
+    default:
+        ASSERT(false);
+        break;
     case DenoiseType_Image:
         typeStr = "RT";
         break;

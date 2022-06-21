@@ -4,19 +4,6 @@
 #include "common/sort.h"
 #include <string.h>
 
-static void dict_setkey(Dict* dict, u32 index, const void* keyIn)
-{
-    u8 *const pim_noalias items = dict->keys;
-    const u32 sz = dict->keySize;
-    memcpy(items + index * sz, keyIn, sz);
-}
-static void dict_getkey(const Dict* dict, u32 index, void* keyOut)
-{
-    u8 const *const pim_noalias items = dict->keys;
-    const u32 sz = dict->keySize;
-    memcpy(keyOut, items + index * sz, sz);
-}
-
 static void dict_setvalue(Dict* dict, u32 index, const void* valueIn)
 {
     u8 *const pim_noalias items = dict->values;

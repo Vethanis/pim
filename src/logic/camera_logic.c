@@ -10,8 +10,6 @@
 #include "rendering/lights.h"
 #include "rendering/cubemap.h"
 
-static bool ms_placing = true;
-
 void CameraLogic_Init(void)
 {
 

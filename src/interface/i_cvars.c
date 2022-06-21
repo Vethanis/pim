@@ -451,4 +451,4 @@ void Cvars_RegisterAll(void)
     Cvar_RegisterVariable(&cv_v_gamma);
 }
 
-#endif QUAKE_IMPL
+#endif // QUAKE_IMPL

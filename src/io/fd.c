@@ -24,12 +24,6 @@ static i32 NotNeg(i32 x)
     return x;
 }
 
-static void* NotNull(void* x)
-{
-    ASSERT(x != NULL);
-    return x;
-}
-
 static i32 IsZero(i32 x)
 {
     ASSERT(x == 0);

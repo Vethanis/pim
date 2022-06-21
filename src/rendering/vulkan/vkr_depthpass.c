@@ -82,13 +82,6 @@ bool vkrDepthPass_New(void)
         goto cleanup;
     }
 
-    const VkPushConstantRange ranges[] =
-    {
-        {
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-            .size = sizeof(float4x4),
-        },
-    };
     const VkVertexInputBindingDescription vertBindings[] =
     {
         // positionOS
