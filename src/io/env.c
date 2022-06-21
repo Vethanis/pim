@@ -9,12 +9,6 @@
 #define pim_putenv(p)   putenv(p)
 #endif
 
-static i32 NotNeg(i32 x)
-{
-    ASSERT(x >= 0);
-    return x;
-}
-
 static void* NotNull(void* x)
 {
     ASSERT(x != NULL);

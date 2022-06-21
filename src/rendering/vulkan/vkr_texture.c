@@ -253,7 +253,6 @@ void vkrTexture_Upload(
     const i32 height = image->height;
     const i32 depth = image->depth;
     const i32 mipCount = image->mipLevels;
-    VkImage handle = image->handle;
 
     vkrCmdBuf* cmd = vkrCmdGet_G();
     {

@@ -646,7 +646,7 @@ static bool vkrMemPool_New(
         const VmaPoolCreateInfo poolInfo =
         {
             .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = R_ResourceSets - 1,
+            .frameInUseCount = R_ResourceSets,
         };
         VkCheck(vmaCreatePool(ms_inst.handle, &poolInfo, &pool->handle));
         ASSERT(pool->handle);

@@ -126,7 +126,6 @@ bool Table_Release(Table *const table, GenId id, void *const valueOut)
     if (Table_Exists(table, id))
     {
         const i32 index = id.index;
-        const i32 version = id.version;
 
         ASSERT(table->refcounts[index] > 0);
         table->refcounts[index] -= 1;
