@@ -109,6 +109,7 @@ set(PIM_MSVC_COMPILE_DEFINITIONS
 
 set(PIM_UNIX_COMPILE_DEFINITIONS
     "VK_USE_PLATFORM_XLIB_KHR"
+    "_DEBUG"
     "_GLFW_X11")
 
 # https://docs.microsoft.com/en-us/cpp/build/reference/compiler-options-listed-alphabetically?view=msvc-150
