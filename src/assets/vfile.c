@@ -59,8 +59,8 @@ static bool vfilehdl_del(VFileHdl hdl)
     if (VFile_Exists(hdl))
     {
         i32 index = hdl.index;
-        u8 version = ++ms_versions[index];
-        ASSERT(!(version & 1));
+        ++ms_versions[index];
+        ASSERT(!(ms_versions[index] & 1));
         IntQueue_Push(&ms_freelist, index);
         return true;
     }

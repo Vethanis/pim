@@ -133,7 +133,7 @@ bool SearchPath_AddPack(SearchPath* sp, const char* path)
     Pack* packs = sp->packs;
     i32 length = sp->packCount;
 
-    Finder fnd = { -1 };
+    Finder fnd = { { -1 } };
     while (Finder_Iterate(&fnd, path, PACK_GLOB))
     {
         if (SearchPath_FindPack(sp, fnd.relPath) >= 0)

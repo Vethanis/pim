@@ -62,7 +62,7 @@
 #   define PIM_IMPORT               
 #   define PIM_CDECL                
 #   define VEC_CALL                 __vectorcall
-#   define pim_inline               static __attribute__((always_inline))
+#   define pim_inline               static inline __attribute__((always_inline))
 #   define pim_noalias              __restrict__
 #   define pim_alignas(x)           _Alignas(x)
 #   define pim_optimize             _Pragma("clang optimize on")

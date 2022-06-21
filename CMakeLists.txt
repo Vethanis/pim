@@ -160,9 +160,13 @@ set(PIM_MSVC_LINK_OPTIONS_DEBUG
 )
 
 set(PIM_UNIX_COMPILE_OPTIONS
-    #"-Werror"
+    "-Wall"
+    "-Werror"
     "-Wfatal-errors"
     "-pthread"
+    "-Wno-unused-function"
+    "-Wno-unused-variable"
+    "-Wno-unused-but-set-variable" # currently stb has a warning for this.
     "-Wno-incompatible-pointer-types-discards-qualifiers")
 
 set(PIM_UNIX_COMPILE_OPTIONS_RELEASE

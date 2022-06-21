@@ -299,8 +299,8 @@ static bool LoadTextures(
             memset(anims, 0, sizeof(anims));
             memset(altanims, 0, sizeof(altanims));
 
-            char maxanim = ChrUp(tx->name[1]);
-            char altmax = 0;
+            i8 maxanim = ChrUp(tx->name[1]);
+            i8 altmax = 0;
             if (IsDigit(maxanim))
             {
                 maxanim -= '0';
@@ -333,7 +333,7 @@ static bool LoadTextures(
                     continue;
                 }
 
-                char num = ChrUp(tx2->name[1]);
+                i8 num = ChrUp(tx2->name[1]);
                 if (IsDigit(num))
                 {
                     num -= '0';
