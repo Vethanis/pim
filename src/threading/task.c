@@ -68,7 +68,7 @@ static bool TryRunTask(i32 tid)
     return ExecuteTask(task);
 }
 
-static i32 TaskLoop(void* arg)
+static void* TaskLoop(void* arg)
 {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);

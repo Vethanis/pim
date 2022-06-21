@@ -18,7 +18,7 @@ typedef struct Thread_s
     void* handle;
 } Thread;
 
-void Thread_New(Thread* tr, i32(PIM_CDECL *entrypoint)(void*), void* data);
+void Thread_New(Thread* tr, void* (PIM_CDECL *entrypoint)(void*), void* data);
 void Thread_Join(Thread* tr);
 void Thread_SetAffinity(Thread* tr, u64 mask);
 void Thread_SetPriority(Thread* tr, ThreadPriority priority);
