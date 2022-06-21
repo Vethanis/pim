@@ -158,17 +158,17 @@ set(PIM_MSVC_LINK_OPTIONS_DEBUG
     "/INCREMENTAL:NO"   # disable incremental linking
 )
 
-set(PIM_UNIX_COMPILE_OPTIONS_RELEASE
+set(PIM_UNIX_COMPILE_OPTIONS
     #"-Werror"
     "-Wfatal-errors"
     "-pthread"
+    "-Wno-incompatible-pointer-types-discards-qualifiers")
+
+set(PIM_UNIX_COMPILE_OPTIONS_RELEASE
     "-O3"
     "-Wno-nullability-completeness"
 )
 set(PIM_UNIX_COMPILE_OPTIONS_DEBUG
-    #"-Werror"
-    "-Wfatal-errors"
-    "-pthread"
     "-fexceptions"
     "-O0"
     "-Wno-nullability-completeness"
@@ -204,8 +204,10 @@ else()
     target_sources(pim PRIVATE ${PIM_UNIX_FILES})
     find_package(ALSA REQUIRED)
 
-    target_compile_definitions(pim PRIVATE ${PIM_UNIX_COMPILE_DEFINITIONS}
-        "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_DEFINITIONS_DEBUG}>")
+    target_compile_definitions(pim PRIVATE ${PIM_UNIX_COMPILE_DEFINITIONS})
+    target_compile_definitions(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_DEFINITIONS_DEBUG}>")
+
+    target_compile_options(pim PRIVATE ${PIM_UNIX_COMPILE_OPTIONS})
     target_compile_options(pim PRIVATE "$<$<CONFIG:RELEASE>:${PIM_UNIX_COMPILE_OPTIONS_RELEASE}>")
     target_compile_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_OPTIONS_DEBUG}>")
 

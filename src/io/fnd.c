@@ -1,4 +1,5 @@
 #include "io/fnd.h"
+#include "common/stringutil.h"
 
 bool Finder_IsOpen(Finder* fdr)
 {

@@ -42,7 +42,7 @@ bool Mutex_TryLock(Mutex* mut)
 
 #include <pthread.h>
 
-CONV_ASSERT(Mutex, pthread_mutex_t);
+SASSERT(sizeof(Mutex) == sizeof(pthread_mutex_t));
 
 void Mutex_New(Mutex* mut)
 {

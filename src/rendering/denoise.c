@@ -124,6 +124,9 @@ static OIDNFilter NewFilter(const CacheKey* key)
     case DenoiseType_Lightmap:
         typeStr = "RTLightmap";
         break;
+    default:
+        ASSERT(false);
+        break;
     }
 
     OIDNFilter filter = oidn.oidnNewFilter(ms_device, typeStr);

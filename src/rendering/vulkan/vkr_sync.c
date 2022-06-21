@@ -85,7 +85,7 @@ vkrFenceState vkrFence_Stat(VkFence fence)
 {
     ASSERT(g_vkr.dev);
     ASSERT(fence);
-    vkrFenceState state = vkGetFenceStatus(g_vkr.dev, fence);
+    vkrFenceState state = (vkrFenceState)vkGetFenceStatus(g_vkr.dev, fence);
     ASSERT(state != vkrFenceState_Lost);
     return state;
 }
