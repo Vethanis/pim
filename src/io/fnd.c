@@ -93,7 +93,7 @@ bool Finder_Begin(Finder* fdr, const char* path, const char* wildcard)
     fdr->open = (glob(spec, 0, NULL, (glob_t*)(&fdr->glob)) == 0);
     if (fdr->open)
     {
-        ASSERT(fdr->glob.gl_pathc > 0)
+        ASSERT(fdr->glob.gl_pathc > 0);
         fdr->relPath = fdr->glob.gl_pathv[0];
     }
 
