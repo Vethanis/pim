@@ -619,7 +619,7 @@ vkrSubmitId vkrImage_GetSubmit(const vkrImage* img)
     return id;
 }
 
-void vkrBufferState(
+bool vkrBufferState(
     vkrCmdBuf* cmdbuf,
     vkrBuffer* buf,
     const vkrBufferState_t* next)
@@ -628,6 +628,7 @@ void vkrBufferState(
     ASSERT(next->access != 0);
     ASSERT(next->stage != 0);
 
+    bool insertedBarrier = false;
     vkrBufferState_t* prev = &buf->state;
     const vkrQueue* prevQueue = vkrGetQueue(prev->owner);
     const vkrQueue* nextQueue = vkrGetQueue(next->owner);
@@ -681,6 +682,7 @@ void vkrBufferState(
             1, &barrier,
             0, NULL);
         *prev = *next;
+        insertedBarrier = true;
     }
     else
     {
@@ -715,6 +717,7 @@ void vkrBufferState(
                 1, &barrier,
                 0, NULL);
             *prev = *next;
+            insertedBarrier = true;
         }
         else
         {
@@ -725,9 +728,11 @@ void vkrBufferState(
     }
 
     vkrCmdTouchBuffer(vkrCmdGet(next->owner), buf);
+
+    return insertedBarrier;
 }
 
-void vkrBufferState_HostRead(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_HostRead(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->xfer);
@@ -737,10 +742,10 @@ void vkrBufferState_HostRead(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_HOST_BIT,
         .access = VK_ACCESS_HOST_READ_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_HostWrite(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_HostWrite(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->xfer);
@@ -750,10 +755,10 @@ void vkrBufferState_HostWrite(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_HOST_BIT,
         .access = VK_ACCESS_HOST_WRITE_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_TransferSrc(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_TransferSrc(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->xfer);
@@ -763,10 +768,10 @@ void vkrBufferState_TransferSrc(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_TRANSFER_BIT,
         .access = VK_ACCESS_TRANSFER_READ_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_TransferDst(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_TransferDst(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->xfer);
@@ -776,10 +781,10 @@ void vkrBufferState_TransferDst(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_TRANSFER_BIT,
         .access = VK_ACCESS_TRANSFER_WRITE_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_UniformBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_UniformBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->gfx || cmdbuf->comp);
@@ -792,10 +797,10 @@ void vkrBufferState_UniformBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .access = VK_ACCESS_UNIFORM_READ_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_IndirectDraw(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_IndirectDraw(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->gfx);
@@ -805,10 +810,10 @@ void vkrBufferState_IndirectDraw(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
         .access = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_IndirectDispatch(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_IndirectDispatch(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->comp);
@@ -819,10 +824,10 @@ void vkrBufferState_IndirectDispatch(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .access = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_VertexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_VertexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->gfx);
@@ -832,10 +837,10 @@ void vkrBufferState_VertexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
         .access = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_IndexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_IndexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->gfx);
@@ -845,10 +850,10 @@ void vkrBufferState_IndexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
         .access = VK_ACCESS_INDEX_READ_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_FragLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_FragLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->gfx);
@@ -858,10 +863,10 @@ void vkrBufferState_FragLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
         .access = VK_ACCESS_SHADER_READ_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_FragStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_FragStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->gfx);
@@ -871,10 +876,10 @@ void vkrBufferState_FragStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
         .access = VK_ACCESS_SHADER_WRITE_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->gfx);
@@ -884,10 +889,10 @@ void vkrBufferState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
         .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->comp);
@@ -897,10 +902,10 @@ void vkrBufferState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .access = VK_ACCESS_SHADER_READ_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_ComputeStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_ComputeStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->comp);
@@ -910,10 +915,10 @@ void vkrBufferState_ComputeStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .access = VK_ACCESS_SHADER_WRITE_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrBufferState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
+bool vkrBufferState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
 {
     ASSERT(cmdbuf->handle);
     ASSERT(cmdbuf->comp);
@@ -923,10 +928,10 @@ void vkrBufferState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf)
         .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
     };
-    vkrBufferState(cmdbuf, buf, &state);
+    return vkrBufferState(cmdbuf, buf, &state);
 }
 
-void vkrImageState(
+bool vkrImageState(
     vkrCmdBuf* cmdbuf,
     vkrImage* img,
     const vkrImageState_t* next)
@@ -935,6 +940,7 @@ void vkrImageState(
     ASSERT(next->access != 0);
     ASSERT(next->stage != 0);
 
+    bool insertedBarrier = false;
     vkrImageState_t* prev = &img->state;
     const vkrQueue* prevQueue = vkrGetQueue(prev->owner);
     const vkrQueue* nextQueue = vkrGetQueue(next->owner);
@@ -948,9 +954,9 @@ void vkrImageState(
         subnext.stage = next->stage;
         subnext.access = next->access;
         subnext.layout = next->layout;
-        vkrSubImageState(cmdbuf, img, &subnext, 0, img->arrayLayers, 0, img->mipLevels);
+        insertedBarrier = vkrSubImageState(cmdbuf, img, &subnext, 0, img->arrayLayers, 0, img->mipLevels);
         ASSERT(!img->state.substates);
-        return;
+        return insertedBarrier;
     }
 
     bool newResource = false;
@@ -1011,6 +1017,7 @@ void vkrImageState(
             0, NULL,
             1, &barrier);
         *prev = *next;
+        insertedBarrier = true;
     }
     else
     {
@@ -1053,6 +1060,7 @@ void vkrImageState(
                 0, NULL,
                 1, &barrier);
             *prev = *next;
+            insertedBarrier = true;
         }
         else
         {
@@ -1064,9 +1072,11 @@ void vkrImageState(
 
     vkrCmdTouchImage(vkrCmdGet(next->owner), img);
     ASSERT(img->state.layout == next->layout);
+
+    return insertedBarrier;
 }
 
-void vkrImageState_TransferSrc(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_TransferSrc(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->xfer);
     const vkrImageState_t state =
@@ -1076,10 +1086,10 @@ void vkrImageState_TransferSrc(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_TRANSFER_READ_BIT,
         .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_TransferDst(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_TransferDst(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->xfer);
     const vkrImageState_t state =
@@ -1089,10 +1099,10 @@ void vkrImageState_TransferDst(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_TRANSFER_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_FragSample(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_FragSample(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->gfx);
     const vkrImageState_t state =
@@ -1102,10 +1112,10 @@ void vkrImageState_FragSample(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_SHADER_READ_BIT,
         .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_ComputeSample(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_ComputeSample(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->comp);
     const vkrImageState_t state =
@@ -1115,10 +1125,10 @@ void vkrImageState_ComputeSample(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_SHADER_READ_BIT,
         .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_FragLoad(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_FragLoad(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->gfx);
     const vkrImageState_t state =
@@ -1128,10 +1138,10 @@ void vkrImageState_FragLoad(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_SHADER_READ_BIT,
         .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_FragStore(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_FragStore(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->gfx);
     const vkrImageState_t state =
@@ -1141,10 +1151,10 @@ void vkrImageState_FragStore(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_SHADER_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_GENERAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->gfx);
     const vkrImageState_t state =
@@ -1154,10 +1164,10 @@ void vkrImageState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_GENERAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->comp);
     const vkrImageState_t state =
@@ -1167,10 +1177,10 @@ void vkrImageState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_SHADER_READ_BIT,
         .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_ComputeStore(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_ComputeStore(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->comp);
     const vkrImageState_t state =
@@ -1180,10 +1190,10 @@ void vkrImageState_ComputeStore(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_SHADER_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_GENERAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->comp);
     const vkrImageState_t state =
@@ -1193,10 +1203,10 @@ void vkrImageState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_GENERAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_ColorAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_ColorAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->gfx);
     const vkrImageState_t state =
@@ -1206,10 +1216,10 @@ void vkrImageState_ColorAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_DepthAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_DepthAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->gfx);
     const vkrImageState_t state =
@@ -1219,10 +1229,10 @@ void vkrImageState_DepthAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrImageState_PresentSrc(vkrCmdBuf* cmdbuf, vkrImage* img)
+bool vkrImageState_PresentSrc(vkrCmdBuf* cmdbuf, vkrImage* img)
 {
     ASSERT(cmdbuf->pres);
     const vkrImageState_t state =
@@ -1232,10 +1242,10 @@ void vkrImageState_PresentSrc(vkrCmdBuf* cmdbuf, vkrImage* img)
         .access = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
     };
-    vkrImageState(cmdbuf, img, &state);
+    return vkrImageState(cmdbuf, img, &state);
 }
 
-void vkrSubImageState(
+bool vkrSubImageState(
     vkrCmdBuf* cmd,
     vkrImage* img,
     const vkrSubImageState_t* next,
@@ -1255,6 +1265,7 @@ void vkrSubImageState(
         ASSERT((next->access & queue->accessMask) == next->access);
     }
 
+    bool insertedBarrier = false;
     const i32 L = img->arrayLayers;
     const i32 M = img->mipLevels;
     ASSERT(baseLayer + layerCount <= L);
@@ -1409,6 +1420,7 @@ void vkrSubImageState(
         0, NULL,
         0, NULL,
         b, barriers);
+    insertedBarrier = true;
 
     Mem_Free(barriers);
     barriers = NULL;
@@ -1442,9 +1454,11 @@ void vkrSubImageState(
     }
 
     vkrCmdTouchImage(cmd, img);
+
+    return insertedBarrier;
 }
 
-void vkrSubImageState_TransferSrc(
+bool vkrSubImageState_TransferSrc(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1456,10 +1470,10 @@ void vkrSubImageState_TransferSrc(
         .access = VK_ACCESS_TRANSFER_READ_BIT,
         .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
-void vkrSubImageState_TransferDst(
+bool vkrSubImageState_TransferDst(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1471,10 +1485,10 @@ void vkrSubImageState_TransferDst(
         .access = VK_ACCESS_TRANSFER_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
-void vkrSubImageState_FragSample(
+bool vkrSubImageState_FragSample(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1486,10 +1500,10 @@ void vkrSubImageState_FragSample(
         .access = VK_ACCESS_SHADER_READ_BIT,
         .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
-void vkrSubImageState_ComputeSample(
+bool vkrSubImageState_ComputeSample(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1501,10 +1515,10 @@ void vkrSubImageState_ComputeSample(
         .access = VK_ACCESS_SHADER_READ_BIT,
         .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
-void vkrSubImageState_FragLoad(
+bool vkrSubImageState_FragLoad(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1516,10 +1530,10 @@ void vkrSubImageState_FragLoad(
         .access = VK_ACCESS_SHADER_READ_BIT,
         .layout = VK_IMAGE_LAYOUT_GENERAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
-void vkrSubImageState_FragStore(
+bool vkrSubImageState_FragStore(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1531,10 +1545,10 @@ void vkrSubImageState_FragStore(
         .access = VK_ACCESS_SHADER_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_GENERAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
-void vkrSubImageState_FragLoadStore(
+bool vkrSubImageState_FragLoadStore(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1546,10 +1560,10 @@ void vkrSubImageState_FragLoadStore(
         .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_GENERAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
-void vkrSubImageState_ComputeLoad(
+bool vkrSubImageState_ComputeLoad(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1561,10 +1575,10 @@ void vkrSubImageState_ComputeLoad(
         .access = VK_ACCESS_SHADER_READ_BIT,
         .layout = VK_IMAGE_LAYOUT_GENERAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
-void vkrSubImageState_ComputeStore(
+bool vkrSubImageState_ComputeStore(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1576,10 +1590,10 @@ void vkrSubImageState_ComputeStore(
         .access = VK_ACCESS_SHADER_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_GENERAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
-void vkrSubImageState_ComputeLoadStore(
+bool vkrSubImageState_ComputeLoadStore(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1591,10 +1605,10 @@ void vkrSubImageState_ComputeLoadStore(
         .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_GENERAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
-void vkrSubImageState_ColorAttachWrite(
+bool vkrSubImageState_ColorAttachWrite(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1606,10 +1620,10 @@ void vkrSubImageState_ColorAttachWrite(
         .access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
-void vkrSubImageState_DepthAttachWrite(
+bool vkrSubImageState_DepthAttachWrite(
     vkrCmdBuf* cmdbuf, vkrImage* img,
     i32 baseLayer, i32 layerCount,
     i32 baseMip, i32 mipCount)
@@ -1621,7 +1635,7 @@ void vkrSubImageState_DepthAttachWrite(
         .access = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
         .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
     };
-    vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
+    return vkrSubImageState(cmdbuf, img, &state, baseLayer, layerCount, baseMip, mipCount);
 }
 
 void vkrCmdCopyBuffer(

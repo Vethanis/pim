@@ -103,6 +103,7 @@ static void Update(void)
         AudioSys_Update();
     }
 
+    TaskSys_EndFrame();
     Window_Wait();              // wait for target fps
     ProfileEnd(pm_update);
 }
