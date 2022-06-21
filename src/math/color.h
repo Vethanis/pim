@@ -365,9 +365,9 @@ pim_inline float4 VEC_CALL f4_hable(float4 x, float4 params)
 
 // http://cdn2.gran-turismo.com/data/www/pdi_publications/PracticalHDRandWCGinGTS_20181222.pdf#page=184
 // https://www.desmos.com/calculator/mbkwnuihbd
-typedef struct pim_alignas(16) GTTonemapParams_s
+typedef struct GTTonemapParams_s
 {
-    pim_alignas_field(16) float P;    // [1, nits] (1.0)   whitepoint, shoulder asymptote
+    pim_alignas(16) float P;    // [1, nits] (1.0)   whitepoint, shoulder asymptote
     float a;    // [0, 5]   (1.0)    linear section slope
     float m;    // [0, P)   (0.22)   shoulder intersection
     float l;    // [0, 1]   (0.4)    shoulder sharpness

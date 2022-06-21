@@ -50,7 +50,6 @@
 #   define pim_inline               __forceinline
 #   define pim_noalias              __restrict
 #   define pim_alignas(x)           __declspec(align(x))
-#   define pim_alignas_field(x)
 #   define pim_optimize             __pragma(optimize("gt", on))
 #   define pim_deoptimize           __pragma(optimize("", off))
 #   define pim_noreturn             __declspec(noreturn)
@@ -64,8 +63,7 @@
 #   define VEC_CALL                 __vectorcall
 #   define pim_inline               static inline __attribute__((always_inline))
 #   define pim_noalias              __restrict__
-#   define pim_alignas(x)
-#   define pim_alignas_field(x)     _Alignas(x)
+#   define pim_alignas(x)           _Alignas(x)
 #   define pim_optimize             _Pragma("clang optimize on")
 #   define pim_deoptimize           _Pragma("clang optimize off")
 #   define pim_noreturn             __declspec(noreturn)

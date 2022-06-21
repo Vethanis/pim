@@ -9,16 +9,16 @@
 #define kArenaSize      (1 << 20)
 #define kCacheLine      64
 
-typedef struct pim_alignas(kCacheLine) Arena_s
+typedef struct Arena_s
 {
-    u32 head;
+    pim_alignas(kCacheLine) u32 head;
     u8 pad[kCacheLine - 4];
 } Arena;
 SASSERT(sizeof(Arena) == kCacheLine);
 
-typedef struct pim_alignas(kCacheLine) ArenaSys_s
+typedef struct ArenaSys_s
 {
-    u8* mem;
+    pim_alignas(kCacheLine) u8* mem;
     u8 pad1[kCacheLine];
 
     u32 seqno;
