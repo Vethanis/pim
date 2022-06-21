@@ -35,7 +35,7 @@ static void __cdecl Win32ThreadFn(void* arg)
     _endthread();
 }
 
-void Thread_New(Thread* tr, i32(PIM_CDECL *entrypoint)(void*), void* arg)
+void Thread_New(Thread* tr, void* (PIM_CDECL *entrypoint)(void*), void* arg)
 {
     ASSERT(tr);
     ASSERT(entrypoint);
@@ -143,7 +143,7 @@ i32 Thread_HardwareCount(void)
 SASSERT(sizeof(pthread_t) == sizeof(Thread));
 SASSERT(pim_alignof(pthread_t) == pim_alignof(Thread));
 
-void Thread_New(Thread* tr, i32(PIM_CDECL *entrypoint)(void*), void* arg)
+void Thread_New(Thread* tr, void* (PIM_CDECL *entrypoint)(void*), void* arg)
 {
     ASSERT(tr);
     tr->handle = NULL;

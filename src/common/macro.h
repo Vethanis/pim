@@ -119,12 +119,22 @@ typedef signed char                 i8;
 typedef signed short                i16;
 typedef signed int                  i32;
 typedef signed long long            i64;
-typedef i64                         isize;
 typedef unsigned char               u8;
 typedef unsigned short              u16;
 typedef unsigned int                u32;
 typedef unsigned long long          u64;
+
+#if PLAT_WIN
+
+typedef i64                         isize;
 typedef u64                         usize;
+
+#else
+
+typedef long                        isize;
+typedef unsigned long               usize;
+
+#endif // PLAT_X
 
 SASSERT(sizeof(i8) == 1);
 SASSERT(sizeof(u8) == 1);
