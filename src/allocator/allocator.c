@@ -261,11 +261,10 @@ void Mem_Free(void* ptr)
 
         hdr_t* hdr = (hdr_t*)ptr - 1;
         const i32 userBytes = hdr->userBytes;
-        const i32 tid = hdr->tid;
 
         ASSERT(userBytes > 0);
         ASSERT(i32_is_aligned(userBytes));
-        ASSERT(valid_tid(tid));
+        ASSERT(valid_tid(hdr->tid));
         ASSERT(dec_i32(&(hdr->refCount), MO_Relaxed) == 1);
         IF_DEBUG(memset(ptr, 0xcd, userBytes));
 
