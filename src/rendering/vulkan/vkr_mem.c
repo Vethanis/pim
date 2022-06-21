@@ -284,7 +284,7 @@ bool vkrMem_BufferNew(
     const VmaAllocationCreateInfo allocInfo =
     {
         .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
-        .usage = memUsage,
+        .usage = (VmaMemoryUsage)memUsage,
         .pool = GetBufferPool(usage, memUsage),
     };
 
@@ -364,7 +364,7 @@ bool vkrMem_ImageNew(
     const VmaAllocationCreateInfo allocInfo =
     {
         .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
-        .usage = memUsage,
+        .usage = (VmaMemoryUsage)memUsage,
         .pool = GetTexturePool(info->usage, memUsage),
     };
 
@@ -596,7 +596,7 @@ static bool vkrMemPool_New(
         const VmaAllocationCreateInfo allocInfo =
         {
             .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
-            .usage = memUsage,
+            .usage = (VmaMemoryUsage)memUsage,
         };
         u32 memTypeIndex = 0;
         VkCheck(vmaFindMemoryTypeIndexForBufferInfo(
@@ -638,7 +638,7 @@ static bool vkrMemPool_New(
         const VmaAllocationCreateInfo allocInfo =
         {
             .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
-            .usage = memUsage,
+            .usage = (VmaMemoryUsage)memUsage,
         };
         u32 memTypeIndex = 0;
         VkCheck(vmaFindMemoryTypeIndexForImageInfo(
