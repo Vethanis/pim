@@ -224,16 +224,9 @@ void TaskSys_Init(void)
     }
 }
 
-ProfileMark(pm_update, TaskSys_Update)
 void TaskSys_Update(void)
 {
-    ProfileBegin(pm_update);
 
-    // clear out backlog, in case thread 0's queue piles up
-    const i32 tid = ms_tid;
-    while (TryRunTask(tid)) {}
-
-    ProfileEnd(pm_update);
 }
 
 void TaskSys_Shutdown(void)
@@ -256,4 +249,19 @@ void TaskSys_Shutdown(void)
     memset(ms_threads, 0, sizeof(ms_threads));
     memset(ms_queues, 0, sizeof(ms_queues));
     ms_numthreads = 0;
+}
+
+ProfileMark(pm_endframe, TaskSys_EndFrame)
+void TaskSys_EndFrame(void)
+{
+    ProfileBegin(pm_endframe);
+
+    // clear out backlog, in case a queue piles up
+    const i32 numthreads = ms_numthreads;
+    for (i32 tid = 0; tid < numthreads; ++tid)
+    {
+        while (TryRunTask(tid)) {}
+    }
+
+    ProfileEnd(pm_endframe);
 }

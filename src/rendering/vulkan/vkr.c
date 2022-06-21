@@ -241,7 +241,6 @@ void vkrSys_Update(void)
         vkrSwapchain_AcquireSync();
         vkrSwapchain_AcquireImage();
         vkrMemSys_Update();
-        vkrCmdFlush();
     }
 
     // system update
@@ -249,15 +248,14 @@ void vkrSys_Update(void)
         vkrSampler_Update();
         vkrMeshSys_Update();
         vkrImSys_Flush();
-        vkrCmdFlush();
     }
 
     // setup phase
     {
         vkrMainPass_Setup();
         vkrTexTable_Update();
-        vkrBindings_Update();
         vkrCmdFlush();
+        vkrBindings_Update();
     }
 
     // execute phase

@@ -3,6 +3,7 @@
 #include "rendering/vulkan/vkr_texture.h"
 #include "rendering/vulkan/vkr_image.h"
 #include "rendering/vulkan/vkr_sampler.h"
+#include "rendering/vulkan/vkr_cmd.h"
 
 #include "allocator/allocator.h"
 #include "containers/idalloc.h"
@@ -235,6 +236,39 @@ static bool TexTable_SetSampler(
     return false;
 }
 
+static u32 TexTable_State(
+    TexTable* tt,
+    vkrTextureId id,
+    vkrCmdBuf* cmd,
+    const vkrImageState_t* state)
+{
+    ASSERT(id.type == tt->viewType);
+    if (TexTable_Exists(tt, id))
+    {
+        vkrImage* image = &tt->images[id.index];
+        vkrImageState(cmd, image, state);
+        return id.index;
+    }
+    return 0;
+}
+
+static void TexTable_StateAll(
+    TexTable* tt,
+    vkrCmdBuf* cmd,
+    const vkrImageState_t* state)
+{
+    const i32 len = tt->ids.length;
+    vkrImage* pim_noalias images = tt->images;
+    for (i32 i = 0; i < len; ++i)
+    {
+        if (images[i].handle)
+        {
+            vkrImageState(cmd, &images[i], state);
+        }
+    }
+}
+
+
 // ----------------------------------------------------------------------------
 
 typedef enum
@@ -439,3 +473,103 @@ bool vkrTexTable_SetSampler(
     return TexTable_SetSampler(GetTexTable(id.type), id, filter, mipMode, addressMode, aniso);
 }
 
+u32 vkrTexTable_State(
+    vkrTextureId id,
+    vkrCmdBuf* cmd,
+    const vkrImageState_t* state)
+{
+    return TexTable_State(GetTexTable(id.type), id, cmd, state);
+}
+
+u32 vkrTexTable_FragSample(
+    vkrTextureId id,
+    vkrCmdBuf* cmd)
+{
+    ASSERT(cmd->gfx);
+    const vkrImageState_t state =
+    {
+        .owner = cmd->queueId,
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    return vkrTexTable_State(id, cmd, &state);
+}
+u32 vkrTexTable_ComputeSample(
+    vkrTextureId id,
+    vkrCmdBuf* cmd)
+{
+    ASSERT(cmd->comp);
+    const vkrImageState_t state =
+    {
+        .owner = cmd->queueId,
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    return vkrTexTable_State(id, cmd, &state);
+}
+u32 vkrTexTable_ComputeLoadStore(
+    vkrTextureId id,
+    vkrCmdBuf* cmd)
+{
+    ASSERT(cmd->comp);
+    const vkrImageState_t state =
+    {
+        .owner = cmd->queueId,
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    return vkrTexTable_State(id, cmd, &state);
+}
+
+ProfileMark(pm_stateall, vkrTexTable_StateAll);
+void vkrTexTable_StateAll(
+    vkrCmdBuf* cmd,
+    const vkrImageState_t* state)
+{
+    ProfileBegin(pm_stateall);
+    for (u32 i = 0; i < NELEM(ms_tables); ++i)
+    {
+        TexTable_StateAll(&ms_tables[i], cmd, state);
+    }
+    ProfileEnd(pm_stateall);
+}
+
+void vkrTexTable_FragSampleAll(vkrCmdBuf* cmd)
+{
+    ASSERT(cmd->gfx);
+    const vkrImageState_t state =
+    {
+        .owner = cmd->queueId,
+        .stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    vkrTexTable_StateAll(cmd, &state);
+}
+void vkrTexTable_ComputeSampleAll(vkrCmdBuf* cmd)
+{
+    ASSERT(cmd->comp);
+    const vkrImageState_t state =
+    {
+        .owner = cmd->queueId,
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    vkrTexTable_StateAll(cmd, &state);
+}
+void vkrTexTable_ComputeLoadStoreAll(vkrCmdBuf* cmd)
+{
+    ASSERT(cmd->comp);
+    const vkrImageState_t state =
+    {
+        .owner = cmd->queueId,
+        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .access = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+    vkrTexTable_StateAll(cmd, &state);
+}

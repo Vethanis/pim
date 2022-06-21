@@ -200,6 +200,18 @@ vkrBuffer *const vkrBufferSet_Current(vkrBufferSet *const set)
     ASSERT(syncIndex < NELEM(set->frames));
     return &set->frames[syncIndex];
 }
+vkrBuffer *const vkrBufferSet_Next(vkrBufferSet *const set)
+{
+    u32 syncIndex = vkrGetNextSyncIndex();
+    ASSERT(syncIndex < NELEM(set->frames));
+    return &set->frames[syncIndex];
+}
+vkrBuffer *const vkrBufferSet_Prev(vkrBufferSet *const set)
+{
+    u32 syncIndex = vkrGetPrevSyncIndex();
+    ASSERT(syncIndex < NELEM(set->frames));
+    return &set->frames[syncIndex];
+}
 
 bool vkrBufferSet_Reserve(
     vkrBufferSet *const set,

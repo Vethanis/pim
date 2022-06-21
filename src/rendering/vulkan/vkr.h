@@ -369,10 +369,10 @@ typedef struct vkrReleasable_s
 
 typedef struct vkrAttachmentState_s
 {
-    VkFormat format;                // must match
-    VkImageLayout layout;           // can vary
-    VkAttachmentLoadOp load;        // can vary
-    VkAttachmentStoreOp store;      // can vary
+    VkFormat format;        // must match
+    VkImageLayout layout;   // can vary
+    u8 load : 2;            // VkAttachmentLoadOp, can vary
+    u8 store : 2;           // VkAttachmentStoreOp, can vary
 } vkrAttachmentState;
 
 typedef struct vkrRenderPassDesc_s

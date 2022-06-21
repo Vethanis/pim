@@ -66,52 +66,52 @@ void vkrCmdTouchImage(vkrCmdBuf* cmdbuf, vkrImage* img);
 vkrSubmitId vkrBuffer_GetSubmit(const vkrBuffer* buf);
 vkrSubmitId vkrImage_GetSubmit(const vkrImage* img);
 
-void vkrBufferState(
+bool vkrBufferState(
     vkrCmdBuf* cmdbuf,
     vkrBuffer* buf,
     const vkrBufferState_t* state);
 
-void vkrBufferState_HostRead(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_HostWrite(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_TransferSrc(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_TransferDst(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_UniformBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_IndirectDraw(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_IndirectDispatch(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_VertexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_IndexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_FragLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_FragStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_ComputeStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
-void vkrBufferState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_HostRead(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_HostWrite(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_TransferSrc(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_TransferDst(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_UniformBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_IndirectDraw(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_IndirectDispatch(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_VertexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_IndexBuffer(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_FragLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_FragStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_ComputeStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
+bool vkrBufferState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrBuffer* buf);
 
-void vkrImageState(
+bool vkrImageState(
     vkrCmdBuf* cmdbuf,
     vkrImage* img,
     const vkrImageState_t* state);
 
 // transfer layout
-void vkrImageState_TransferSrc(vkrCmdBuf* cmdbuf, vkrImage* img);
-void vkrImageState_TransferDst(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_TransferSrc(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_TransferDst(vkrCmdBuf* cmdbuf, vkrImage* img);
 // read only optimal layout
-void vkrImageState_FragSample(vkrCmdBuf* cmdbuf, vkrImage* img);
-void vkrImageState_ComputeSample(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_FragSample(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_ComputeSample(vkrCmdBuf* cmdbuf, vkrImage* img);
 // general layout
-void vkrImageState_FragLoad(vkrCmdBuf* cmdbuf, vkrImage* img);
-void vkrImageState_FragStore(vkrCmdBuf* cmdbuf, vkrImage* img);
-void vkrImageState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img);
-void vkrImageState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrImage* img);
-void vkrImageState_ComputeStore(vkrCmdBuf* cmdbuf, vkrImage* img);
-void vkrImageState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_FragLoad(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_FragStore(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_FragLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_ComputeLoad(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_ComputeStore(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_ComputeLoadStore(vkrCmdBuf* cmdbuf, vkrImage* img);
 // attachment output layout
-void vkrImageState_ColorAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img);
-void vkrImageState_DepthAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_ColorAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_DepthAttachWrite(vkrCmdBuf* cmdbuf, vkrImage* img);
 // present layout
-void vkrImageState_PresentSrc(vkrCmdBuf* cmdbuf, vkrImage* img);
+bool vkrImageState_PresentSrc(vkrCmdBuf* cmdbuf, vkrImage* img);
 
-void vkrSubImageState(
+bool vkrSubImageState(
     vkrCmdBuf* cmdbuf,
     vkrImage* img,
     const vkrSubImageState_t* state,
