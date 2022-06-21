@@ -59,9 +59,9 @@ static float EmissionPdf(
     const PtScene*const pim_noalias scene,
     i32 iVert,
     i32 attempts);
-static void CalcEmissionPdfFn(Task* pbase, i32 begin, i32 end);
+static void CalcEmissionPdfFn(void* pbase, i32 begin, i32 end);
 static void SetupEmissives(PtScene*const pim_noalias scene);
-static void SetupLightGridFn(Task* pbase, i32 begin, i32 end);
+static void SetupLightGridFn(void* pbase, i32 begin, i32 end);
 static void SetupLightGrid(PtScene*const pim_noalias scene);
 
 static void media_desc_new(PtMediaDesc *const desc);
@@ -679,7 +679,7 @@ typedef struct task_CalcEmissionPdf
     i32 attempts;
 } task_CalcEmissionPdf;
 
-static void CalcEmissionPdfFn(Task* pbase, i32 begin, i32 end)
+static void CalcEmissionPdfFn(void* pbase, i32 begin, i32 end)
 {
     task_CalcEmissionPdf* task = (task_CalcEmissionPdf*)pbase;
     const PtScene*const pim_noalias scene = task->scene;
@@ -740,7 +740,7 @@ typedef struct task_SetupLightGrid
     PtScene* scene;
 } task_SetupLightGrid;
 
-static void SetupLightGridFn(Task* pbase, i32 begin, i32 end)
+static void SetupLightGridFn(void* pbase, i32 begin, i32 end)
 {
     task_SetupLightGrid* task = (task_SetupLightGrid*)pbase;
 
@@ -750,8 +750,6 @@ static void SetupLightGridFn(Task* pbase, i32 begin, i32 end)
     Dist1D *const pim_noalias dists = scene->lightDists;
 
     float4 const *const pim_noalias positions = scene->positions;
-    i32 const *const pim_noalias matIds = scene->matIds;
-    Material const *const pim_noalias materials = scene->materials;
 
     const i32 emissiveCount = scene->emissiveCount;
     i32 const *const pim_noalias emitToVert = scene->emitToVert;
@@ -802,7 +800,6 @@ static void SetupLightGridFn(Task* pbase, i32 begin, i32 end)
         for (i32 iEmit = 0; iEmit < emissiveCount; ++iEmit)
         {
             i32 iVert = emitToVert[iEmit];
-            i32 iMat = matIds[iVert];
             float4 A = positions[iVert + 0];
             float4 B = positions[iVert + 1];
             float4 C = positions[iVert + 2];
@@ -1527,7 +1524,6 @@ pim_inline PtScatter VEC_CALL BrdfScatter(
     float NoH = f4_dotsat(N, H);
     float HoV = f4_dotsat(H, V);
     float NoV = f4_dotsat(N, V);
-    float LoH = f4_dotsat(L, H);
 
     float specularPdf = amtSpecular * GGXPdf(NoH, HoV, alpha);
     float diffusePdf = amtDiffuse * ImportanceSampleLambertPdf(NoL);
@@ -1910,12 +1906,6 @@ static void media_desc_save(PtMediaDesc const *const desc, const char* name)
     }
 }
 
-static void igLog2SliderFloat(const char* label, float* x, float lo, float hi)
-{
-    igSliderFloat(label, x, lo, hi, "%.3f", ImGuiSliderFlags_Logarithmic);
-}
-
-
 static void media_desc_gui(PtMediaDesc *const desc)
 {
     const u32 ldrPicker =
@@ -1925,9 +1915,6 @@ static void media_desc_gui(PtMediaDesc *const desc)
         ImGuiColorEditFlags_PickerHueWheel |
         ImGuiColorEditFlags_InputRGB |
         ImGuiColorEditFlags_DisplayRGB;
-    const u32 hdrPicker =
-        ldrPicker |
-        ImGuiColorEditFlags_HDR;
     const u32 slider =
         ImGuiSliderFlags_NoRoundToFormat |
         ImGuiSliderFlags_AlwaysClamp;
@@ -2042,15 +2029,6 @@ pim_inline float4 VEC_CALL MeanFreePathToMu(float4 mfp)
 {
     // https://www.desmos.com/calculator/glcsylcry7
     return f4_rcp(mfp);
-}
-
-pim_inline float4 VEC_CALL Media_Albedo(
-    PtMediaDesc const *const desc,
-    float4 P,
-    float t)
-{
-    float4 uT = Media_Sample(desc, P).extinction;
-    return f4_exp(f4_mulvs(uT, -t));
 }
 
 // maximum extinction coefficient of the media

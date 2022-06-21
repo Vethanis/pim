@@ -3,12 +3,6 @@
 #include <direct.h>
 #include <io.h>
 
-pim_inline i32 NotNeg(i32 x)
-{
-    ASSERT(x >= 0);
-    return x;
-}
-
 pim_inline void* NotNull(void* x)
 {
     ASSERT(x != NULL);

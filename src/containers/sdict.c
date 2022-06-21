@@ -282,9 +282,8 @@ static i32 SDictCmp(const void* lhs, const void* rhs, void* usr)
 
 u32* StrDict_Sort(const StrDict* dict, SDictCmpFn cmp, void* usr)
 {
-    ASSERT(dict);
+    ASSERT(dict && dict->valueSize);
     ASSERT(cmp);
-    ASSERT(dict->valueSize);
 
     const u32 length = dict->count;
     const u32 width = dict->width;

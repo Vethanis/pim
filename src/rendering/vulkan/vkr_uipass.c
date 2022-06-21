@@ -41,7 +41,6 @@ static void vkrImGui_UploadRenderDrawData(void);
 static void vkrImGui_RenderDrawData(vkrCmdBuf* cmd);
 static void vkrImGui_SetTexture(vkrCmdBuf* cmd, vkrTextureId id);
 static vkrTextureId ToVkrTextureId(ImTextureID imid);
-static ImTextureID ToImTextureId(vkrTextureId vkrid);
 
 // ----------------------------------------------------------------------------
 
@@ -245,7 +244,7 @@ void vkrUIPass_Execute(void)
     const VkClearValue clearValues[] =
     {
         {
-            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+            .color.float32 = { 0.0f, 0.0f, 0.0f, 1.0f },
         },
     };
     vkrImage* attachments[] = { vkrGetBackBuffer() };
@@ -374,14 +373,6 @@ static vkrTextureId ToVkrTextureId(ImTextureID imid)
     SASSERT(sizeof(imid) >= sizeof(vkrid));
     memcpy(&vkrid, &imid, sizeof(vkrid));
     return vkrid;
-}
-
-static ImTextureID ToImTextureId(vkrTextureId vkrid)
-{
-    ImTextureID imid = { 0 };
-    SASSERT(sizeof(imid) >= sizeof(vkrid));
-    memcpy(&imid, &vkrid, sizeof(vkrid));
-    return imid;
 }
 
 static void vkrImGui_SetTexture(

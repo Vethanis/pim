@@ -407,7 +407,6 @@ static i32 FlattenSurface(
     const i32 modnumedges = model->numedges;
     medge_t const *const pim_noalias edges = model->edges;
     const i32 modnumvertices = model->numvertices;
-    float4 const *const pim_noalias vertices = model->vertices;
 
     *pPolys = Temp_Realloc(*pPolys, sizeof(pPolys[0][0]) * surfnumedges);
     *pTris = Temp_Realloc(*pTris, sizeof(pTris[0][0]) * surfnumedges * 3);

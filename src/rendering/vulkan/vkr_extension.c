@@ -84,7 +84,7 @@ void vkrDevExts_New(vkrDevExts* exts, VkPhysicalDevice phdev)
     u32 ct = 0;
     const VkExtensionProperties* props = vkrEnumDevExtensions(phdev, &ct);
     memset(exts, 0, sizeof(*exts));
-#define ADD_EXT(name) exts->name = vkrFindExtension(props, ct, CAT_TOK("VK_", STR_TOK(name))) >= 0;
+#define ADD_EXT(name) exts->name = vkrFindExtension(props, ct, "VK_" STR_TOK(name)) >= 0;
     VKR_DEV_EXTS(ADD_EXT);
 #undef ADD_EXT
 }
@@ -93,7 +93,7 @@ StrList vkrDevExts_ToList(const vkrDevExts* exts)
 {
     StrList list;
     StrList_New(&list, EAlloc_Temp);
-#define ADD_EXT(name) if(exts->name) { StrList_Add(&list, CAT_TOK("VK_", STR_TOK(name))); }
+#define ADD_EXT(name) if (exts->name) { StrList_Add(&list, "VK_" STR_TOK(name)); }
     VKR_DEV_EXTS(ADD_EXT);
 #undef ADD_EXT
     return list;
@@ -106,7 +106,7 @@ StrList vkrGetLayers(vkrLayers* layersOut)
     StrList_New(&list, EAlloc_Temp);
     u32 ct = 0;
     const VkLayerProperties* props = vkrEnumInstLayers(&ct);
-#define ADD_EXT(name) layersOut->name = vkrTryAddLayer(&list, props, ct, CAT_TOK("VK_LAYER_", STR_TOK(name)));
+#define ADD_EXT(name) layersOut->name = vkrTryAddLayer(&list, props, ct, "VK_LAYER_" STR_TOK(name));
     VKR_LAYERS(ADD_EXT);
 #undef ADD_EXT
     return list;
@@ -125,7 +125,7 @@ StrList vkrGetInstExtensions(vkrInstExts* extsOut)
     {
         vkrTryAddExtension(&list, props, ct, glfwList[i]);
     }
-#define ADD_EXT(name) extsOut->name = vkrTryAddExtension(&list, props, ct, CAT_TOK("VK_", STR_TOK(name)));
+#define ADD_EXT(name) extsOut->name = vkrTryAddExtension(&list, props, ct, "VK_" STR_TOK(name));
     VKR_INST_EXTS(ADD_EXT);
 #undef ADD_EXT
     return list;

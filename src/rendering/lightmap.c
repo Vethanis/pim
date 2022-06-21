@@ -154,22 +154,6 @@ pim_inline i32 TexelCount(const Lightmap* lightmaps, i32 lmCount)
     return texelCount;
 }
 
-pim_inline i32 chartnode_cmp(const void* lhs, const void* rhs, void* usr)
-{
-    const chartnode_t* a = lhs;
-    const chartnode_t* b = rhs;
-    if (a->area != b->area)
-    {
-        return a->area > b->area ? -1 : 1;
-    }
-    return a->drawableIndex - b->drawableIndex;
-}
-
-pim_inline void chartnode_sort(chartnode_t* nodes, i32 count)
-{
-    QuickSort(nodes, count, sizeof(nodes[0]), chartnode_cmp, NULL);
-}
-
 pim_inline mask_t VEC_CALL mask_new(int2 size)
 {
     i32 len = size.x * size.y;
@@ -272,16 +256,6 @@ pim_inline void VEC_CALL mask_tri(mask_t mask, Tri2D tri)
             }
         }
     }
-}
-
-pim_inline mask_t VEC_CALL mask_fromtri(Tri2D tri)
-{
-    int2 size = tri_size(tri);
-    size.x += 2;
-    size.y += 2;
-    mask_t mask = mask_new(size);
-    mask_tri(mask, tri);
-    return mask;
 }
 
 pim_inline bool VEC_CALL mask_find(mask_t atlas, mask_t item, int2* trOut, i32 prevRow)
@@ -555,7 +529,6 @@ static void ChartMaskFn(void* pbase, i32 begin, i32 end)
 {
     chartmask_t* task = pbase;
     chart_t* charts = task->charts;
-    i32 chartCount = task->chartCount;
 
     for (i32 i = begin; i < end; ++i)
     {
@@ -804,7 +777,7 @@ typedef struct atlastask_s
     atlas_t* atlases;
 } atlastask_t;
 
-static void AtlasFn(Task* pbase, i32 begin, i32 end)
+static void AtlasFn(void* pbase, i32 begin, i32 end)
 {
     atlastask_t* task = (atlastask_t*)pbase;
     chart_t* pim_noalias charts = task->charts;
@@ -970,27 +943,19 @@ typedef struct EmbedTask_s
 {
     Task task;
     Lightmap* lightmaps;
-    i32 lmCount;
-    float texelsPerMeter;
 } EmbedTask;
 
 static void EmbedTaskFn(void* pbase, i32 begin, i32 end)
 {
     EmbedTask *const task = pbase;
     Lightmap *const pim_noalias lightmaps = task->lightmaps;
-    const i32 lmCount = task->lmCount;
-    const float texelsPerMeter = task->texelsPerMeter;
-    const float metersPerTexel = 1.0f / texelsPerMeter;
     const i32 lmSize = lightmaps[0].size;
     const i32 lmLen = lmSize * lmSize;
-    const int2 size = { lmSize, lmSize };
     const float texelSize = (float)lmSize;
 
     Entities const *const drawables = Entities_Get();
     const i32 drawablesCount = drawables->count;
     MeshId const *const pim_noalias meshids = drawables->meshes;
-    float4x4 const *const pim_noalias matrices = drawables->matrices;
-    float3x3 const *const pim_noalias invMatrices = drawables->invMatrices;
     Material const *const pim_noalias materials = drawables->materials;
 
     for (i32 iWork = begin; iWork < end; ++iWork)
@@ -1076,8 +1041,6 @@ static void EmbedAttributes(
     {
         EmbedTask* task = Temp_Calloc(sizeof(*task));
         task->lightmaps = lightmaps;
-        task->lmCount = lmCount;
-        task->texelsPerMeter = texelsPerMeter;
         Task_Run(task, EmbedTaskFn, TexelCount(lightmaps, lmCount));
     }
 }
@@ -1162,8 +1125,6 @@ typedef struct bake_s
 
 static void BakeFn(void* pbase, i32 begin, i32 end)
 {
-    const i32 tid = Task_ThreadId();
-
     bake_t *const task = pbase;
     PtScene *const scene = task->scene;
     const float timeSlice = task->timeSlice;
@@ -1172,8 +1133,6 @@ static void BakeFn(void* pbase, i32 begin, i32 end)
     LmPack *const pack = LmPack_Get();
     const i32 lmSize = pack->lmSize;
     const i32 lmLen = lmSize * lmSize;
-    const float rcpSize = 1.0f / lmSize;
-    const int2 size = { lmSize, lmSize };
     const float metersPerTexel = 1.0f / pack->texelsPerMeter;
 
     PtSampler sampler = PtSampler_Get();

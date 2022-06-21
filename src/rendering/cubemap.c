@@ -136,7 +136,7 @@ typedef struct cmbake_s
     float weight;
 } cmbake_t;
 
-static void BakeFn(Task* pBase, i32 begin, i32 end)
+static void BakeFn(void* pBase, i32 begin, i32 end)
 {
     cmbake_t* task = (cmbake_t*)pBase;
 
@@ -233,7 +233,7 @@ typedef struct prefilter_s
     float weight;
 } prefilter_t;
 
-static void PrefilterFn(Task* pBase, i32 begin, i32 end)
+static void PrefilterFn(void* pBase, i32 begin, i32 end)
 {
     prefilter_t* task = (prefilter_t*)pBase;
     Cubemap* cm = task->cm;

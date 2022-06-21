@@ -10,9 +10,6 @@
 #include "rendering/vulkan/vkr.h"
 #include <math.h>
 
-static i32 ms_width;
-static i32 ms_height;
-static i32 ms_target;
 static u64 ms_lastSwap;
 
 static void OnGlfwError(i32 error_code, const char* description);

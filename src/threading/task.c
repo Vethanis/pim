@@ -126,7 +126,6 @@ void Task_Submit(void* pbase, TaskExecuteFn execute, i32 worksize)
         bool anyFull = false;
         bool resubmit[kMaxThreads] = { 0 };
 
-        const i32 tid = ms_tid;
         const i32 numthreads = ms_numthreads;
         for (i32 t = 0; t < numthreads; ++t)
         {
