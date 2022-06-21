@@ -285,7 +285,8 @@ static void con_gui(void)
         const u32 inputFlags =
             ImGuiInputTextFlags_EnterReturnsTrue |
             ImGuiInputTextFlags_CallbackCompletion |
-            ImGuiInputTextFlags_CallbackHistory;
+            ImGuiInputTextFlags_CallbackHistory |
+            ImGuiInputTextFlags_CallbackCharFilter;
         if (igInputText("", ARGS(ms_buffer), inputFlags, OnTextInput, NULL))
         {
             if (ms_buffer[0])
@@ -414,6 +415,9 @@ static i32 OnTextInput(ImGuiInputTextCallbackData* data)
     {
     default:
         break;
+    case ImGuiInputTextFlags_CallbackCharFilter:
+        // filter grave accent; at least on Linux it appears in the input when opening terminal.
+        return data->EventChar == KeyCode_GraveAccent ? 1 : 0;
     case ImGuiInputTextFlags_CallbackCompletion:
         return OnTextComplete(data);
     case ImGuiInputTextFlags_CallbackHistory:
