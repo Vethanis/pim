@@ -35,9 +35,9 @@ typedef struct PushConstants_s
     vkrExposure exposure;
 } PushConstants;
 
-typedef struct pim_alignas(16) ExposureBuffer_s
+typedef struct ExposureBuffer_s
 {
-    pim_alignas_field(16) float averageLum;
+    pim_alignas(16) float averageLum;
     float exposure;
     float maxLum;
     float minLum;

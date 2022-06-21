@@ -4,9 +4,9 @@
 
 PIM_C_BEGIN
 
-typedef struct pim_alignas(16) Guid_s
+typedef struct Guid_s
 {
-    pim_alignas_field(16) u64 a;
+    pim_alignas(16) u64 a;
     u64 b;
 } Guid;
 
