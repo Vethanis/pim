@@ -4,7 +4,6 @@
 
 PIM_C_BEGIN
 
-void Intrin_Init(void);                 // initialize settings for intrinsics
 u64 Intrin_Timestamp(void);             // read timestamp counter
 void Intrin_Pause(void);                // mm_pause
 void Intrin_Spin(u64 spins);            // spin this thread
