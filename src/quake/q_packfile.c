@@ -123,38 +123,25 @@ i32 SearchPath_FindPack(SearchPath* sp, const char* path)
 
 // not happy with how this looks tbh.
 #if PLAT_WIN
-#define PAK_GLOB "%s/*.pak"
+#define PACK_GLOB "*.pak"
 #else
-#define PAK_GLOB "%s/*.[pP][aA][kK]"
+#define PACK_GLOB "*.[pP][aA][kK]"
 #endif
 
 bool SearchPath_AddPack(SearchPath* sp, const char* path)
 {
-    char packDir[PIM_PATH];
-    SPrintf(ARGS(packDir), PAK_GLOB, path);
-    StrPath(ARGS(packDir));
-
     Pack* packs = sp->packs;
     i32 length = sp->packCount;
 
     Finder fnd = { -1 };
-    FinderData fndData;
-    while (Finder_Iterate(&fnd, &fndData, packDir))
+    while (Finder_Iterate(&fnd, path, PACK_GLOB))
     {
-        // fixme haxx
-        char subdir[PIM_PATH];
-      #if PLAT_WIN
-        SPrintf(ARGS(subdir), "%s/%s", path, fndData.name);
-      #else
-        SPrintf(ARGS(subdir), "%s", fndData.name);
-      #endif
-        StrPath(ARGS(subdir));
-        if (SearchPath_FindPack(sp, subdir) >= 0)
+        if (SearchPath_FindPack(sp, fnd.relPath) >= 0)
         {
             continue;
         }
         Pack pack;
-        if (Pack_Load(&pack, subdir))
+        if (Pack_Load(&pack, fnd.relPath))
         {
             ++length;
             Perm_Reserve(packs, length);

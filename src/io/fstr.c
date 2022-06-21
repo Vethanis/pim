@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#if PLAT_WIN
+#if PLAT_WINDOWS
 #define pim_fileno(f)   _fileno(f)
 #define pim_fdopen(f, m)   _fdopen(f, m)
 #define pim_popen(c, t)    _popen(c, t)
@@ -14,7 +14,7 @@
 #define pim_fdopen(f, m)   fdopen(f, m)
 #define pim_popen(c, t)    popen(c, t)
 #define pim_pclose(f)   pclose(f)
-#endif // PLAT_WIN
+#endif // PLAT_X
 
 static i32 NotNeg(i32 x)
 {

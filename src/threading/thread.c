@@ -156,7 +156,7 @@ void Thread_Join(Thread* tr)
 {
     ASSERT(tr);
     pthread_t* pt = (pthread_t*)tr;
-    i32 rv = pthread_join(pt, NULL);
+    i32 rv = pthread_join(*pt, NULL);
     ASSERT(!rv);
     tr->handle = NULL;
 }
