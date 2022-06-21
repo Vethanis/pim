@@ -54,8 +54,7 @@
 #   define pim_deoptimize           __pragma(optimize("", off))
 #   define pim_noreturn             __declspec(noreturn)
 #else
-#   include <signal.h>
-#   define INTERRUPT()              raise(SIGTRAP)
+#   define INTERRUPT()              do { __asm("int3"); } while(0)
 #   define pim_thread_local         _Thread_local
 #   define PIM_EXPORT               
 #   define PIM_IMPORT               
