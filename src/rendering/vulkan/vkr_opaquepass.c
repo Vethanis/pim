@@ -297,7 +297,7 @@ void vkrOpaquePass_Execute(void)
             .depthStencil = { 1.0f, 0 },
         },
         {
-            .color = { 0.0f, 0.0f, 0.0f, 1.0f },
+            .color.float32 = { 0.0f, 0.0f, 0.0f, 1.0f },
         },
     };
     vkrCmdBeginRenderPass(

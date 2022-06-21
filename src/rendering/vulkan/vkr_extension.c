@@ -93,7 +93,7 @@ StrList vkrDevExts_ToList(const vkrDevExts* exts)
 {
     StrList list;
     StrList_New(&list, EAlloc_Temp);
-#define ADD_EXT(name) if(exts->name) { StrList_Add(&list, "VK_" STR_TOK(name)); }
+#define ADD_EXT(name) if (exts->name) { StrList_Add(&list, "VK_" STR_TOK(name)); }
     VKR_DEV_EXTS(ADD_EXT);
 #undef ADD_EXT
     return list;

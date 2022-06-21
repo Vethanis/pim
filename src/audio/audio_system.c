@@ -123,6 +123,8 @@ void AudioSys_Shutdown(void)
 ProfileMark(pm_ongui, AudioSys_Gui)
 void AudioSys_Gui(bool* pEnabled)
 {
+    ProfileBegin(pm_ongui);
+
     if (igBegin("Audio", pEnabled, 0))
     {
 
@@ -211,6 +213,8 @@ void AudioSys_Gui(bool* pEnabled)
 
     }
     igEnd(); // Audio
+
+    ProfileEnd(pm_ongui);
 }
 
 // ----------------------------------------------------------------------------

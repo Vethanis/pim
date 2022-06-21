@@ -14,7 +14,7 @@ typedef struct taskcpy_s
     i32 sizeOf;
 } taskcpy_t;
 
-static void CpyFn(Task* pbase, i32 begin, i32 end)
+static void CpyFn(void* pbase, i32 begin, i32 end)
 {
     taskcpy_t* task = (taskcpy_t*)pbase;
     u8* pim_noalias dst = task->dst;
@@ -55,7 +55,7 @@ typedef struct blit34_s
     const float3* src;
 } blit34_t;
 
-static void Blit34Fn(Task* pbase, i32 begin, i32 end)
+static void Blit34Fn(void* pbase, i32 begin, i32 end)
 {
     blit34_t* task = (blit34_t*)pbase;
     float4* pim_noalias dst = task->dst;
@@ -93,7 +93,7 @@ typedef struct blit43_s
     const float4* src;
 } blit43_t;
 
-static void Blit43Fn(Task* pbase, i32 begin, i32 end)
+static void Blit43Fn(void* pbase, i32 begin, i32 end)
 {
     blit43_t* task = (blit43_t*)pbase;
     float3* pim_noalias dst = task->dst;

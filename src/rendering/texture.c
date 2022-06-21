@@ -747,7 +747,6 @@ static char gs_search[PIM_PATH];
 
 static i32 CmpSlotFn(i32 ilhs, i32 irhs, void* usr)
 {
-    const i32 width = ms_table.width;
     const Guid* pim_noalias names = ms_table.names;
     const Texture* pim_noalias textures = ms_table.values;
     const i32* pim_noalias refcounts = ms_table.refcounts;

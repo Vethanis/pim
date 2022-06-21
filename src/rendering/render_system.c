@@ -79,9 +79,6 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv);
 static FrameBuf ms_buffers[1];
 static i32 ms_iFrame;
 
-static TonemapId ms_tonemapper = TMap_ACES;
-static float4 ms_toneParams = { 0.5f, 0.5f, 0.5f, 0.5f };
-
 static Camera ms_ptcam;
 static PtScene* ms_ptscene;
 static PtTrace ms_trace;
@@ -90,7 +87,6 @@ static i32 ms_lmSampleCount;
 static i32 ms_acSampleCount;
 static i32 ms_ptSampleCount;
 static i32 ms_cmapSampleCount;
-static i32 ms_gigridsamples;
 
 // ----------------------------------------------------------------------------
 
@@ -275,7 +271,6 @@ static void TaskBlitNormalFn(void* pbase, i32 begin, i32 end)
 }
 
 ProfileMark(pm_PathTrace, PathTrace)
-ProfileMark(pm_ptDenoise, Denoise)
 ProfileMark(pm_ptBlit, Blit)
 static bool PathTrace(void)
 {
@@ -386,18 +381,11 @@ static void TakeScreenshot(void)
     }
 }
 
-ProfileMark(pm_Present, Present)
 static void Present(void)
 {
     if (ConVar_GetBool(&cv_pt_trace))
     {
-        //ProfileBegin(pm_Present);
-        //FrameBuf* frontBuf = GetFrontBuf();
-        //int2 size = { frontBuf->width, frontBuf->height };
-        //ExposeImage(size, frontBuf->light, vkrExposure_GetParams());
-        //ResolveTile(frontBuf, ms_tonemapper, ms_toneParams);
         TakeScreenshot();
-        //ProfileEnd(pm_Present);
     }
 }
 
@@ -411,13 +399,13 @@ typedef struct task_BakeSky
     i32 steps;
 } task_BakeSky;
 
-static void BakeSkyFn(Task* pbase, i32 begin, i32 end)
+static void BakeSkyFn(void* pbase, i32 begin, i32 end)
 {
     task_BakeSky* task = (task_BakeSky*)pbase;
     const SkyMedium* pim_noalias sky = &task->sky;
     Cubemap* pim_noalias cm = task->cm;
     const i32 size = cm->size;
-    float3** pim_noalias faces = cm->color;
+    float3* pim_noalias* pim_noalias faces = cm->color;
     const float3 sunDir = task->sunDir;
     const float3 sunLum = task->sunLum;
     const i32 len = size * size;
@@ -592,24 +580,10 @@ void RenderSys_Shutdown(void)
     vkrSys_Shutdown();
 }
 
-static i32 CmpFloat(const void* lhs, const void* rhs, void* usr)
-{
-    const float a = *(float*)lhs;
-    const float b = *(float*)rhs;
-    if (a != b)
-    {
-        return a < b ? -1 : 1;
-    }
-    return 0;
-}
-
 ProfileMark(pm_gui, RenderSys_Gui)
 void RenderSys_Gui(bool* pEnabled)
 {
     ProfileBegin(pm_gui);
-
-    const u32 hdrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_InputRGB;
-    const u32 ldrPicker = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_InputRGB;
 
     if (igBegin("RenderSystem", pEnabled, 0x0))
     {

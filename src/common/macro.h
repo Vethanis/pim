@@ -42,12 +42,13 @@
 
 #ifdef _MSC_VER
 #   define INTERRUPT()              __debugbreak()
+#   define SASSERT(x)               typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
 #   define pim_thread_local         __declspec(thread)
 #   define PIM_EXPORT               __declspec(dllexport)
 #   define PIM_IMPORT               __declspec(dllimport)
 #   define PIM_CDECL                __cdecl
 #   define VEC_CALL                 __vectorcall
-#   define pim_inline               __forceinline
+#   define pim_inline               static __forceinline
 #   define pim_noalias              __restrict
 #   define pim_alignas(x)           __declspec(align(x))
 #   define pim_optimize             __pragma(optimize("gt", on))
@@ -55,6 +56,7 @@
 #   define pim_noreturn             __declspec(noreturn)
 #else
 #   define INTERRUPT()              do { __asm("int3"); } while(0)
+#   define SASSERT(x)               _Static_assert((x), #x)
 #   define pim_thread_local         _Thread_local
 #   define PIM_EXPORT               
 #   define PIM_IMPORT               
@@ -107,7 +109,6 @@
 #define _STR_TOK(x)                  #x
 #define STR_TOK(x)                  _STR_TOK(x)
 
-#define SASSERT(x)                  typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
 
 #define PIM_FILELINE                CAT_TOK(__FILE__, STR_TOK(__LINE__))
 #define PIM_PATH                    256

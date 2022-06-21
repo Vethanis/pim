@@ -169,11 +169,9 @@ static cmdstat_t cmd_exec(const char* line)
             i32 iArg0 = explicit_set ? 2 : 1;
             i32 iArg1 = iArg0 + 1;
             i32 iArg2 = iArg0 + 2;
-            i32 iArg3 = iArg0 + 3;
             const char* v0 = argv[iArg0];
             const char* v1 = (argc > iArg1) ? argv[iArg1] : "0";
             const char* v2 = (argc > iArg2) ? argv[iArg2] : "0";
-            const char* v3 = (argc > iArg3) ? argv[iArg3] : "0";
             switch (cvar->type)
             {
             default:
@@ -256,7 +254,6 @@ parseline:
         char* line = Perm_Calloc(len + 1);
         memcpy(line, text, len);
         text += len;
-        len = 0;
 
         ++lineCount;
         lines = Temp_Realloc(lines, sizeof(lines[0]) * lineCount);
@@ -502,7 +499,6 @@ static char** cmd_tokenize(const char* text, i32* argcOut)
     char stackToken[1024];
     i32 argc = 0;
     char** argv = NULL;
-    i32 i = 0;
     while (text)
     {
         char c = *text;
@@ -597,7 +593,7 @@ static cmdstat_t cmd_alias_fn(i32 argc, const char** argv)
     StrCat(ARGS(cmd), ";");
 
     alias.value = StrDup(cmd, EAlloc_Perm);
-    bool added = StrDict_Add(&ms_aliases, aliasKey, &alias);
+    ASSERT_ONLY(bool added =) StrDict_Add(&ms_aliases, aliasKey, &alias);
     ASSERT(added);
 
     return cmdstat_ok;
