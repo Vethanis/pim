@@ -86,24 +86,10 @@ set(PIM_MSVC_INCLUDE_DIRS
     "submodules/embree/embree-3.13.0.x64.vc14.windows/include"
     "submodules/oidn/oidn-1.4.0.x64.vc14.windows/include")
 
-set(PIM_UNIX_INCLUDE_DIRS
-    "submodules/embree/embree-3.13.3.x86_64.linux/include"
-    "submodules/oidn/oidn-1.4.3.x86_64.linux/include")
-
 set(PIM_MSVC_DLLS
     "submodules/embree/embree-3.13.0.x64.vc14.windows/bin/embree3.dll"
     "submodules/oidn/oidn-1.4.0.x64.vc14.windows/bin/OpenImageDenoise.dll"
     "submodules/oidn/oidn-1.4.0.x64.vc14.windows/bin/tbb12.dll")
-
-set(PIM_UNIX_SOS
-    "submodules/embree/embree-3.13.3.x86_64.linux/lib/libembree3.so"
-    "submodules/embree/embree-3.13.3.x86_64.linux/lib/libembree3.so.3"
-    "submodules/oidn/oidn-1.4.3.x86_64.linux/lib/libOpenImageDenoise.so"
-    "submodules/oidn/oidn-1.4.3.x86_64.linux/lib/libOpenImageDenoise.so.1"
-    "submodules/oidn/oidn-1.4.3.x86_64.linux/lib/libOpenImageDenoise.so.1.4.3"
-    "submodules/oidn/oidn-1.4.3.x86_64.linux/lib/libtbb.so"
-    "submodules/oidn/oidn-1.4.3.x86_64.linux/lib/libtbb.so.12"
-    "submodules/oidn/oidn-1.4.3.x86_64.linux/lib/libtbb.so.12.5")
 
 # -----------------------------------------------------------------------------
 # compiler options
@@ -215,17 +201,16 @@ else()
     target_sources(pim PRIVATE ${PIM_UNIX_FILES})
     find_package(ALSA REQUIRED)
 
-    target_include_directories(pim PRIVATE ${PIM_UNIX_INCLUDE_DIRS})
     target_compile_definitions(pim PRIVATE ${PIM_UNIX_COMPILE_DEFINITIONS})
     target_compile_options(pim PRIVATE "$<$<CONFIG:RELEASE>:${PIM_UNIX_COMPILE_OPTIONS_RELEASE}>")
     target_compile_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_OPTIONS_DEBUG}>")
 
     file(COPY ${PIM_UNIX_SOS} DESTINATION ${CMAKE_BINARY_DIR} NO_SOURCE_PERMISSIONS)
-    find_library(EMBREE_LIB embree3 PATH_SUFFIXES lib PATHS ${CMAKE_BINARY_DIR})
-    find_library(OIDN_LIB OpenImageDenoise PATHS ${CMAKE_BINARY_DIR})
-    find_library(TBB_LIB tbb PATHS ${CMAKE_BINARY_DIR})
+    find_library(EMBREE_LIB embree3)
+    find_library(OIDN_LIB OpenImageDenoise)
+    find_library(TBB_LIB tbb)
 
-    target_link_libraries(pim ${GLFW_LIBRARIES} ${ALSA_LIBRARIES} ${EMBREE_LIB} ${OIDN_LIB} ${TBB_LIB} glfw)
+    target_link_libraries(pim ${GLFW_LIBRARIES} ${ALSA_LIBRARIES})
 endif()
 
 target_link_libraries(pim)
