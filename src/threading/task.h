@@ -36,5 +36,6 @@ void TaskSys_Schedule(void);
 void TaskSys_Init(void);
 void TaskSys_Update(void);
 void TaskSys_Shutdown(void);
+void TaskSys_EndFrame(void);
 
 PIM_C_END
