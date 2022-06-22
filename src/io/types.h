@@ -20,7 +20,7 @@ typedef enum
     StMode_Exec = 0x0040,
 } StModeFlags;
 
-#if PLAT_WIN
+#if PLAT_WINDOWS
 
 typedef struct fd_status_s
 {
@@ -101,16 +101,7 @@ typedef enum
 // ------------------------------------
 // fnd
 
-#if PLAT_WIN
-
-// Initialize to -1
-typedef struct Finder_s
-{
-    isize handle;
-    char[PIM_PATH] path;
-    char[PIM_PATH] relPath;
-    FinderData data;
-} Finder;
+#if PLAT_WINDOWS
 
 typedef enum
 {
@@ -133,6 +124,15 @@ typedef struct FinderData_s
     char name[260];
 } FinderData;
 
+// Initialize to -1
+typedef struct Finder_s
+{
+    isize handle;
+    char path[PIM_PATH];
+    char relPath[PIM_PATH];
+    FinderData data;
+} Finder;
+
 #else
 
 typedef struct Glob_s
@@ -149,6 +149,7 @@ typedef struct Finder_s
     i32 index;
     char* relPath;
 } Finder;
+
 #endif // PLAT_X
 
 // ------------------------------------

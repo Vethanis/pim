@@ -1,6 +1,8 @@
 #include "io/fstr.h"
 #include "io/fd.h"
 
+#define _CRT_NONSTDC_NO_WARNINGS 1
+
 #include <stdio.h>
 #include <stdarg.h>
 
@@ -9,13 +11,13 @@
 #ifndef fileno
 #   define fileno(f)        _fileno(f)
 #endif // fileno
-#ifdef fdopen
+#ifndef fdopen
 #   define fdopen(f, m)     _fdopen(f, m)
 #endif // fdopen
-#ifdef popen
+#ifndef popen
 #   define popen(c, t)      _popen(c, t)
 #endif // popen
-#ifdef pclose
+#ifndef pclose
 #   define pclose(f)        _pclose(f)
 #endif
 

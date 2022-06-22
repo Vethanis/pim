@@ -45,8 +45,7 @@ bool Finder_Begin(Finder* fdr, const char* path, const char* wildcard)
     SPrintf(ARGS(spec), "%s\\%s", path, wildcard);
     StrPath(ARGS(spec));
 
-    fdr->path = path;
-    fdr->handle = _findfirst64(spec, (struct __finddata64_t*)fdr->data);
+    fdr->handle = _findfirst64(spec, (struct __finddata64_t*)&fdr->data);
     return Finder_IsOpen(fdr);
 }
 
@@ -55,10 +54,10 @@ bool Finder_Next(Finder* fdr)
     ASSERT(fdr);
     if (Finder_IsOpen(fdr))
     {
-        if (!_findnext64(fdr->handle, (struct __finddata64_t*)fdr->data))
+        if (!_findnext64(fdr->handle, (struct __finddata64_t*)&fdr->data))
         {
-            SPrintf(ARGS(fdr->relpath), "%s\\%s", fdr->path, fdr->data.name)
-            StrPath(ARGS(fdr->relpath));
+            SPrintf(ARGS(fdr->relPath), "%s\\%s", fdr->path, fdr->data.name);
+            StrPath(ARGS(fdr->relPath));
             return true;
         }
     }
