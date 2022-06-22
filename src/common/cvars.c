@@ -331,7 +331,7 @@ ConVar cv_exp_standard =
 {
     .type = cvart_bool,
     .name = "exp_standard",
-    .value = "1",
+    .value = "0",
     .desc = "1: Standard Calibration Exposure; 0: Saturation Based Exposure;",
 };
 ConVar cv_exp_manual =
@@ -508,7 +508,7 @@ ConVar cv_lm_density =
 {
     .type = cvart_float,
     .name = "lm_density",
-    .value = IF_DEBUG("2") IFN_DEBUG("4"),
+    .value = DEBUG_ONLY("2") RELEASE_ONLY("4"),
     .minFloat = 0.1f,
     .maxFloat = 32.0f,
     .desc = "Lightmap baking: texels per meter [0.1, 32]",
@@ -518,7 +518,7 @@ ConVar cv_lm_timeslice =
 {
     .type = cvart_int,
     .name = "lm_timeslice",
-    .value = IF_DEBUG("60") IFN_DEBUG("1"),
+    .value = DEBUG_ONLY("60") RELEASE_ONLY("1"),
     .minInt = 1,
     .maxInt = 1024,
     .desc = "Lightmap baking: number of frames per sample",

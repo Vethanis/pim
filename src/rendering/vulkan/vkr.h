@@ -2,6 +2,41 @@
 
 #include "common/macro.h"
 #include "rendering/r_config.h"
+
+#define VK_NO_PROTOTYPES            1
+#define VK_ENABLE_BETA_EXTENSIONS   1
+#define VKR_KHRONOS_LAYER_NAME      "VK_LAYER_KHRONOS_validation"
+#define VKR_ASSIST_LAYER_NAME       "VK_LAYER_LUNARG_assistant_layer"
+
+#if defined(_DEBUG) && 1
+// these are very slow!
+#   define VKR_KHRONOS_LAYER_ON    1
+#   define VKR_ASSIST_LAYER_ON     1
+#else
+#   define VKR_KHRONOS_LAYER_ON    0
+#   define VKR_ASSIST_LAYER_ON     0
+#endif // _DEBUG
+
+#define VKR_DEBUG_MESSENGER_ON      (VKR_KHRONOS_LAYER_ON || VKR_ASSIST_LAYER_ON)
+
+#if VKR_KHRONOS_LAYER_ON
+#   define VKR_KHRONOS_LAYER_ONLY(...) __VA_ARGS__
+#else
+#   define VKR_KHRONOS_LAYER_ONLY(...) 
+#endif // VKR_KHRONOS_LAYER_ON
+
+#if VKR_ASSIST_LAYER_ON
+#   define VKR_ASSIST_LAYER_ONLY(...) __VA_ARGS__
+#else
+#   define VKR_ASSIST_LAYER_ONLY(...) 
+#endif // VKR_ASSIST_LAYER_ON
+
+#if VKR_DEBUG_MESSENGER_ON
+#   define VKR_DEBUG_MESSENGER_ONLY(...) __VA_ARGS__
+#else
+#   define VKR_DEBUG_MESSENGER_ONLY(...) 
+#endif // VKR_DEBUG_MESSENGER_ON
+
 #include <volk/volk.h>
 #include "math/types.h"
 
