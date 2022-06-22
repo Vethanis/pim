@@ -11,14 +11,16 @@
 
 typedef struct Arena_s
 {
-    pim_alignas(kCacheLine) u32 head;
+    pim_alignas(kCacheLine)
+    u32 head;
     u8 pad[kCacheLine - 4];
 } Arena;
 SASSERT(sizeof(Arena) == kCacheLine);
 
 typedef struct ArenaSys_s
 {
-    pim_alignas(kCacheLine) u8* mem;
+    pim_alignas(kCacheLine)
+    u8* mem;
     u8 pad1[kCacheLine];
 
     u32 seqno;
