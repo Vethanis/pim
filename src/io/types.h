@@ -9,66 +9,14 @@ PIM_C_BEGIN
 
 typedef struct fd_s { i32 handle; } fd_t;
 
-typedef enum
-{
-    StMode_Regular = 0x8000,
-    StMode_Dir = 0x4000,
-    StMode_SpecChar = 0x2000,
-    StMode_Pipe = 0x1000,
-    StMode_Read = 0x0100,
-    StMode_Write = 0x0080,
-    StMode_Exec = 0x0040,
-} StModeFlags;
-
-#if PLAT_WINDOWS
-
+// only the fields we actually care about from stat
 typedef struct fd_status_s
 {
-    u32 st_dev;
-    u16 st_ino;
-    u16 st_mode;
-    i16 st_nlink;
-    i16 st_uid;
-    i16 st_guid;
-    u32 st_rdev;
-    i64 st_size;
-    i64 st_atime;
-    i64 st_mtime;
-    i64 st_ctime;
+    i64 size;
+    i64 accessTime;
+    i64 modifyTime;
+    i64 createTime;
 } fd_status_t;
-
-#else
-
-typedef struct fd_timespec_s
-{
-    i64 tv_sec;
-    i64 tv_nsec;
-} fd_timespec_t;
-
-// Likely not very portable, based on GNU c.
-typedef struct fd_status_s
-{
-    u32 st_dev;
-    u64 st_ino;
-    u64 st_nlink;
-    u32 st_mode;
-    u32 st_uid;
-    u32 st_gid;
-    i32 __pad0;
-    u64 st_rdev;
-    u64 st_size;
-    u64 st_blksize;
-    u64 st_blocks;
-    i64 __reserved[3];
-    struct fd_timespec_s st_atim;
-    struct fd_timespec_s st_mtim;
-    struct fd_timespec_s st_ctim;
-#   define st_atime st_atim.tv_sec
-#   define st_mtime st_mtim.tv_sec
-#   define st_ctime st_ctim.tv_sec
-} fd_status_t;
-
-#endif // PLAT_X
 
 // ------------------------------------
 // fmap

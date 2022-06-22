@@ -12,61 +12,91 @@ pim_inline i32 IsZero(i32 x)
     return x;
 }
 
-#if PLAT_WINDOWS
-#include <direct.h>
-#include <io.h>
-
-#ifndef getcwd
-#   define getcwd(d, s) _getcwd(d, s)
-#endif // getcwd
-#ifndef chdir
-#   define chdir(p) _chdir(p)
-#endif // chdir
-#ifndef rmdir
-#   define rmdir(p) _rmdir(p)
-#endif // rmdir
-#ifndef chmod
-#   define chmod(p, f) _chmod(p, f)
-#endif // chmod
-
-// need special mkdir as linux has a second arg for permissions
-#define pim_mkdir(p) _mkdir(p)
-
-#else
-#include <unistd.h>
-#include <sys/stat.h>
-
-#define pim_mkdir(p) mkdir(p, 0755)
-
-#endif // PLAT_WINDOWS
+static char* GetCwd(char* dst, i32 size);
+static i32 ChDir(const char* path);
+static i32 RmDir(const char* path);
+static i32 ChMod(const char* filename, i32 mode);
+static i32 MkDir(const char* path);
 
 bool IO_GetCwd(char* dst, i32 size)
 {
     ASSERT(dst);
     ASSERT(size > 0);
-    return NotNull(getcwd(dst, size - 1)) != NULL;
+    return NotNull(GetCwd(dst, size - 1)) != NULL;
 }
 
 bool IO_ChDir(const char* path)
 {
     ASSERT(path);
-    return IsZero(chdir(path)) == 0;
+    return IsZero(ChDir(path)) == 0;
 }
 
 bool IO_MkDir(const char* path)
 {
     ASSERT(path);
-    return pim_mkdir(path) == 0;
+    return MkDir(path) == 0;
 }
 
 bool IO_RmDir(const char* path)
 {
     ASSERT(path);
-    return IsZero(rmdir(path)) == 0;
+    return IsZero(RmDir(path)) == 0;
 }
 
 bool IO_ChMod(const char* path, i32 flags)
 {
     ASSERT(path);
-    return IsZero(chmod(path, flags)) == 0;
+    return IsZero(ChMod(path, flags)) == 0;
 }
+
+#if PLAT_WINDOWS
+#include <direct.h>
+#include <io.h>
+
+static char* GetCwd(char* dst, i32 size)
+{
+    return _getcwd(dst, size);
+}
+static i32 ChDir(const char* path)
+{
+    return _chdir(path);
+}
+static i32 RmDir(const char* path)
+{
+    return _rmdir(path);
+}
+static i32 ChMod(const char* filename, i32 mode)
+{
+    return _chmod(filename, mode);
+}
+static i32 MkDir(const char* path)
+{
+    return _mkdir(path);
+}
+
+#else
+#include <unistd.h>
+#include <sys/stat.h>
+
+static char* GetCwd(char* dst, i32 size)
+{
+    return getcwd(dst, size);
+}
+static i32 ChDir(const char* path)
+{
+    return chdir(path);
+}
+static i32 RmDir(const char* path)
+{
+    return rmdir(path);
+}
+static i32 ChMod(const char* filename, i32 mode)
+{
+    return chmod(filename, mode);
+}
+static i32 MkDir(const char* path)
+{
+    return mkdir(path, 0755);
+}
+
+#endif // PLAT_XXX

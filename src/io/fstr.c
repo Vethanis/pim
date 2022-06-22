@@ -9,17 +9,17 @@
 #if PLAT_WINDOWS
 
 #ifndef fileno
-#   define fileno(f)        _fileno(f)
+#   define fileno(f)        _fileno((f))
 #endif // fileno
 #ifndef fdopen
-#   define fdopen(f, m)     _fdopen(f, m)
+#   define fdopen(f, m)     _fdopen((f), (m))
 #endif // fdopen
 #ifndef popen
-#   define popen(c, t)      _popen(c, t)
+#   define popen(c, t)      _popen((c), (t))
 #endif // popen
 #ifndef pclose
-#   define pclose(f)        _pclose(f)
-#endif
+#   define pclose(f)        _pclose((f))
+#endif // pclose
 
 #endif // PLAT_WINDOWS
 
@@ -244,5 +244,5 @@ i64 FStream_Size(FStream stream)
 {
     fd_status_t status;
     FStream_Stat(stream, &status);
-    return status.st_size;
+    return status.size;
 }
