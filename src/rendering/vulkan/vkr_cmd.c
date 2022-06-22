@@ -686,14 +686,20 @@ bool vkrBufferState(
     }
     else
     {
-        bool srcRead = (prev->access & kReadAccess) != 0;
-        bool srcWrite = (prev->access & kWriteAccess) != 0;
-        bool dstRead = (next->access & kReadAccess) != 0;
-        bool dstWrite = (next->access & kWriteAccess) != 0;
-        bool readAfterWrite = srcWrite && dstRead;
-        bool writeAfterRead = srcRead && dstWrite;
-        bool writeAfterWrite = srcWrite && dstWrite;
-        if (readAfterWrite || writeAfterRead || writeAfterWrite || newResource)
+        bool needBarrier = false;
+        bool hostOnly = prev->stage == VK_PIPELINE_STAGE_HOST_BIT && next->stage == VK_PIPELINE_STAGE_HOST_BIT;
+        if (!hostOnly)
+        {
+            bool srcRead = (prev->access & kReadAccess) != 0;
+            bool srcWrite = (prev->access & kWriteAccess) != 0;
+            bool dstRead = (next->access & kReadAccess) != 0;
+            bool dstWrite = (next->access & kWriteAccess) != 0;
+            bool readAfterWrite = srcWrite && dstRead;
+            bool writeAfterRead = srcRead && dstWrite;
+            bool writeAfterWrite = srcWrite && dstWrite;
+            needBarrier = readAfterWrite || writeAfterRead || writeAfterWrite || newResource;
+        }
+        if (needBarrier)
         {
             // data hazard, insert barrier
             vkrCmdBuf* cmd = vkrCmdGet(next->owner);

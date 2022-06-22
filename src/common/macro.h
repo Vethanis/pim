@@ -83,16 +83,19 @@
 #define pim_lerp(a, b, t)           ((a) + ((b) - (a)) * (t))
 
 #ifdef _DEBUG
-#   define IF_DEBUG(...)            __VA_ARGS__
-#   define IFN_DEBUG(...)          
-#   define CONFIG_STR               "Debug"
 #   define DEBUG_BUILD              1
+#   define DEBUG_ONLY(...)          __VA_ARGS__
 #else
-#   define IF_DEBUG(...)           
-#   define IFN_DEBUG(...)           __VA_ARGS__
-#   define CONFIG_STR               "Release"
 #   define DEBUG_BUILD              0
+#   define DEBUG_ONLY(...)           
 #endif // def _DEBUG
+
+#define RELEASE_BUILD               (!DEBUG_BUILD)
+#if RELEASE_BUILD
+#   define RELEASE_ONLY(...)        __VA_ARGS__
+#else
+#   define RELEASE_ONLY(...)        
+#endif // RELEASE_BUILD
 
 #define ASSERTS_ENABLED             (0 || DEBUG_BUILD)
 
@@ -108,7 +111,6 @@
 #define CAT_TOK(x, y)               _CAT_TOK(x, y)
 #define _STR_TOK(x)                  #x
 #define STR_TOK(x)                  _STR_TOK(x)
-
 
 #define PIM_FILELINE                CAT_TOK(__FILE__, STR_TOK(__LINE__))
 #define PIM_PATH                    256
@@ -128,6 +130,60 @@ typedef unsigned long long          u64;
 
 typedef i64                         isize;
 typedef u64                         usize;
+#ifdef _MSC_VER
+// msvc has bloated headers (sal.h!)
+
+#   ifndef NULL
+#       ifdef __cplusplus
+#           define NULL     0
+#       else
+#           define NULL     ((void*)0)
+#       endif // cpp
+#   endif // NULL
+
+#   ifndef _STDBOOL
+#       define _STDBOOL
+#       define __bool_true_false_are_defined 1
+#       ifndef __cplusplus
+#           define bool     _Bool
+#           define false    0
+#           define true     1
+#       endif // __cplusplus
+#   endif // _STDBOOL
+
+#   ifndef _VA_LIST_DEFINED
+#       define _VA_LIST_DEFINED
+        typedef char* va_list;
+#   endif // _VA_LIST_DEFINED
+
+    typedef signed char                 i8;
+    typedef signed short                i16;
+    typedef signed int                  i32;
+    typedef signed long long            i64;
+    typedef unsigned char               u8;
+    typedef unsigned short              u16;
+    typedef unsigned int                u32;
+    typedef unsigned long long          u64;
+    typedef i64                         isize;
+    typedef u64                         usize;
+
+#else
+    #include <stddef.h>
+    #include <stdint.h>
+    #include <stdbool.h>
+    #include <stdarg.h>
+
+    typedef int8_t                      i8;
+    typedef int16_t                     i16;
+    typedef int32_t                     i32;
+    typedef int64_t                     i64;
+    typedef uint8_t                     u8;
+    typedef uint16_t                    u16;
+    typedef uint32_t                    u32;
+    typedef uint64_t                    u64;
+    typedef intptr_t                    isize;
+    typedef uintptr_t                   usize;
+#endif // _MSC_VER
 
 #else
 
@@ -145,74 +201,7 @@ SASSERT(sizeof(u32) == 4);
 SASSERT(sizeof(i64) == 8);
 SASSERT(sizeof(u64) == 8);
 
-#ifdef _MSC_VER
-// msvc has bloated headers (sal.h!)
-
-#ifndef NULL
-#   ifdef __cplusplus
-#       define NULL     0
-#   else
-#       define NULL     ((void*)0)
-#   endif // cpp
-#endif // NULL
-
-#ifndef _STDBOOL
-#   define _STDBOOL
-#   define __bool_true_false_are_defined 1
-#   ifndef __cplusplus
-#       define bool     _Bool
-#       define false    0
-#       define true     1
-#   endif // __cplusplus
-#endif // _STDBOOL
-
-#ifndef _VA_LIST_DEFINED
-#   define _VA_LIST_DEFINED
-    typedef char* va_list;
-#endif // _VA_LIST_DEFINED
-
-#else
-#include <stddef.h>
-#include <stdbool.h>
-#include <stdarg.h>
-
-#endif // _MSC_VER
-
 #define kMaxThreads                 64
-
-#define VK_NO_PROTOTYPES            1
-#define VK_ENABLE_BETA_EXTENSIONS   1
-#define VKR_KHRONOS_LAYER_NAME      "VK_LAYER_KHRONOS_validation"
-#define VKR_ASSIST_LAYER_NAME       "VK_LAYER_LUNARG_assistant_layer"
-
-#if defined(_DEBUG) && 1
-    // these are very slow!
-#   define VKR_KHRONOS_LAYER_ON    1
-#   define VKR_ASSIST_LAYER_ON     1
-#else
-#   define VKR_KHRONOS_LAYER_ON    0
-#   define VKR_ASSIST_LAYER_ON     0
-#endif // _DEBUG
-
-#define VKR_DEBUG_MESSENGER_ON      (VKR_KHRONOS_LAYER_ON || VKR_ASSIST_LAYER_ON)
-
-#if VKR_KHRONOS_LAYER_ON
-#   define VKR_KHRONOS_LAYER_ONLY(...) __VA_ARGS__
-#else
-#   define VKR_KHRONOS_LAYER_ONLY(...) 
-#endif // VKR_KHRONOS_LAYER_ON
-
-#if VKR_ASSIST_LAYER_ON
-#   define VKR_ASSIST_LAYER_ONLY(...) __VA_ARGS__
-#else
-#   define VKR_ASSIST_LAYER_ONLY(...) 
-#endif // VKR_ASSIST_LAYER_ON
-
-#if VKR_DEBUG_MESSENGER_ON
-#   define VKR_DEBUG_MESSENGER_ONLY(...) __VA_ARGS__
-#else
-#   define VKR_DEBUG_MESSENGER_ONLY(...) 
-#endif // VKR_DEBUG_MESSENGER_ON
 
 #define QUAKE_IMPL 0
 #define ENABLE_HDR 1

@@ -22,7 +22,8 @@
 
 typedef struct hdr_s
 {
-    pim_alignas(kAlign) i32 type;
+    pim_alignas(kAlign)
+    i32 type;
     i32 userBytes;
     i32 tid;
     i32 refCount;
@@ -247,7 +248,7 @@ void* Mem_Alloc(EAlloc type, i32 bytes)
         ptr = hdr + 1;
 
         ASSERT(ptr_is_aligned(ptr));
-        IF_DEBUG(memset(ptr, 0xcc, userBytes));
+        DEBUG_ONLY(memset(ptr, 0xcc, userBytes));
     }
 
     return ptr;
@@ -266,7 +267,7 @@ void Mem_Free(void* ptr)
         ASSERT(i32_is_aligned(userBytes));
         ASSERT(valid_tid(hdr->tid));
         ASSERT(dec_i32(&(hdr->refCount), MO_Relaxed) == 1);
-        IF_DEBUG(memset(ptr, 0xcd, userBytes));
+        DEBUG_ONLY(memset(ptr, 0xcd, userBytes));
 
         switch (hdr->type)
         {
@@ -346,8 +347,10 @@ void* Mem_Calloc(EAlloc type, i32 bytes)
 
 typedef struct StackFrame_s
 {
-    pim_alignas(kAlign) u8 value[kAlign];
+    pim_alignas(kAlign)
+    u8 value[kAlign];
 } StackFrame;
+SASSERT(sizeof(StackFrame) == kAlign);
 
 static i32 ms_iFrame[kMaxThreads];
 static StackFrame ms_stack[kMaxThreads][kFrameCount];
