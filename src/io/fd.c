@@ -264,7 +264,7 @@ static i32 FileStatus64(i32 hdl, fd_status_t* desc)
 {
     memset(desc, 0, sizeof(*desc));
     struct stat x = { 0 };
-    i32 rv = _fstat64(hdl, &x);
+    i32 rv = fstat(hdl, &x);
     desc->size = x.st_size;
     desc->accessTime = x.st_atime;
     desc->modifyTime = x.st_mtime;
@@ -273,11 +273,11 @@ static i32 FileStatus64(i32 hdl, fd_status_t* desc)
 }
 static i32 OpenPipe(i32 handles[2], u32 size, i32 mode)
 {
-    return pipe(hdl);
+    return pipe(handles);
 }
 static i32 Tell(i32 hdl)
 {
-    return lseek(hdl, 0, SEEK_CUR)
+    return lseek(hdl, 0, SEEK_CUR);
 }
 
 #endif // PLAT_WINDOWS
