@@ -413,8 +413,9 @@ pim_inline void VEC_CALL RtcOccluded16(
     }
 }
 
-typedef struct pim_alignas(16) PointQueryUserData
+typedef struct PointQueryUserData
 {
+    pim_alignas(16)
     const float4* pim_noalias positions;
     float distance;
     u32 primID;

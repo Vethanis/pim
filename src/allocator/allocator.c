@@ -20,8 +20,9 @@
 
 #define kMaxBytesPerTexture (2048 * 2048 * 4)
 
-typedef struct pim_alignas(kAlign) hdr_s
+typedef struct hdr_s
 {
+    pim_alignas(kAlign)
     i32 type;
     i32 userBytes;
     i32 tid;
@@ -345,10 +346,12 @@ void* Mem_Calloc(EAlloc type, i32 bytes)
 #define kStackCapacity      (4 << 10)
 #define kFrameCount         (kStackCapacity / kAlign)
 
-typedef struct pim_alignas(kAlign) StackFrame_s
+typedef struct StackFrame_s
 {
+    pim_alignas(kAlign)
     u8 value[kAlign];
 } StackFrame;
+SASSERT(sizeof(StackFrame) == kAlign);
 
 static i32 ms_iFrame[kMaxThreads];
 static StackFrame ms_stack[kMaxThreads][kFrameCount];
