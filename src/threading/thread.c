@@ -2,6 +2,8 @@
 #include "threading/semaphore.h"
 #include "allocator/allocator.h"
 
+#if PLAT_WINDOWS
+
 typedef struct adapter_s
 {
     i32(PIM_CDECL *entrypoint)(void*);
@@ -12,7 +14,6 @@ typedef struct adapter_s
 
 typedef void* (*pthread_fn)(void*);
 
-#if PLAT_WINDOWS
 
 #include <Windows.h>
 #include <process.h>
@@ -139,6 +140,22 @@ i32 Thread_HardwareCount(void)
 
 #else
 
+typedef struct PthreadArgs_s
+{
+    i32(*func)(void*);
+    void* arg;
+} PthreadArgs;
+
+static void* PthreadAdapterFn(void* voidArg)
+{
+    PthreadArgs* args = voidArg;
+    args->func(args->arg);
+    Mem_Free(args);
+    return NULL;
+}
+
+typedef void* (*pthread_fn)(void*);
+
 #include <sys/sysinfo.h>
 #include <pthread.h>
 
@@ -150,7 +167,10 @@ void Thread_New(Thread* tr, i32(PIM_CDECL *entrypoint)(void*), void* arg)
     ASSERT(tr);
     tr->handle = NULL;
     pthread_t* pt = (pthread_t*)tr;
-    i32 rv = pthread_create(pt, NULL, (pthread_fn)entrypoint, arg);
+    PthreadArgs* args = Perm_Calloc(sizeof(PthreadArgs));
+    args->func = entrypoint;
+    args->arg = arg;
+    i32 rv = pthread_create(pt, NULL, PthreadAdapterFn, args);
     ASSERT(!rv);
 }
 
