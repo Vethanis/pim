@@ -62,13 +62,13 @@
 #   define PIM_IMPORT               
 #   define PIM_CDECL                
 #   define VEC_CALL                 __vectorcall
-#   define pim_inline               static inline __attribute__((always_inline))
+#   define pim_inline               static __attribute__((always_inline))
 #   define pim_noalias              __restrict__
 #   define pim_alignas(x)           _Alignas(x)
 #   define pim_optimize             _Pragma("clang optimize on")
 #   define pim_deoptimize           _Pragma("clang optimize off")
 #   define pim_noreturn             __declspec(noreturn)
-#endif // _MSC_VER
+#endif // PLAT_WINDOWS
 
 #define NELEM(x)                    ( sizeof(x) / sizeof((x)[0]) )
 #define ARGS(x)                     (x), NELEM(x)
@@ -117,19 +117,6 @@
 #define PIM_FWD_DECL(name)          typedef struct name name
 #define PIM_DECL_HANDLE(name)       typedef struct name##_T* name
 
-typedef signed char                 i8;
-typedef signed short                i16;
-typedef signed int                  i32;
-typedef signed long long            i64;
-typedef unsigned char               u8;
-typedef unsigned short              u16;
-typedef unsigned int                u32;
-typedef unsigned long long          u64;
-
-#if PLAT_WIN
-
-typedef i64                         isize;
-typedef u64                         usize;
 #ifdef _MSC_VER
 // msvc has bloated headers (sal.h!)
 
@@ -184,13 +171,6 @@ typedef u64                         usize;
     typedef intptr_t                    isize;
     typedef uintptr_t                   usize;
 #endif // _MSC_VER
-
-#else
-
-typedef long                        isize;
-typedef unsigned long               usize;
-
-#endif // PLAT_X
 
 SASSERT(sizeof(i8) == 1);
 SASSERT(sizeof(u8) == 1);
