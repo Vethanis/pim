@@ -34,3 +34,6 @@
 [submodule "submodules/lua"]
 	path = submodules/lua
 	url = https://github.com/lua/lua.git
+[submodule "submodules/sokol"]
+	path = submodules/sokol
+	url = https://github.com/floooh/sokol.git
