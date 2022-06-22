@@ -50,6 +50,8 @@ set(PIM_SUBMODULE_FILES
     "submodules/SPIRV-Reflect/spirv_reflect.c"
     "submodules/tlsf/tlsf.c"
     "submodules/volk/volk.c"
+    "submodules/sokol/sokol_audio.h"
+    "submodules/sokol/sokol_time.h"
     ${PIM_LUA_FILES})
 
 set(PIM_INCLUDE_DIRS

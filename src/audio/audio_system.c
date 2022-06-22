@@ -59,6 +59,8 @@ typedef struct MidiCon_s
 
 // ----------------------------------------------------------------------------
 
+static void* AudioAlloc(size_t size, void* userData);
+static void AudioFree(void* ptr, void* userData);
 static AudioEventSegment* GetAudioEvents_Reader(void);
 static AudioEventSegment* GetAudioEvents_Writer(void);
 static u32 AudioEventSegment_GetCount(const AudioEventSegment* seg);
@@ -87,6 +89,8 @@ void AudioSys_Init(void)
         .num_channels = 2,
         .sample_rate = 44100,
         .stream_cb = OnAudioPacketFn,
+        .allocator.alloc = AudioAlloc,
+        .allocator.free = AudioFree,
     };
     saudio_setup(&desc);
     ms_sampleRate = saudio_sample_rate();
@@ -218,6 +222,17 @@ void AudioSys_Gui(bool* pEnabled)
 }
 
 // ----------------------------------------------------------------------------
+
+static void* AudioAlloc(size_t size, void* userData)
+{
+    ASSERT((i32)size >= 0);
+    return Perm_Alloc((i32)size);
+}
+
+static void AudioFree(void* ptr, void* userData)
+{
+    Mem_Free(ptr);
+}
 
 static AudioEventSegment* GetAudioEvents_Reader(void)
 {
