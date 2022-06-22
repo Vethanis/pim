@@ -8,3 +8,5 @@ screenshots/
 imgui.ini
 *.log
 __pycache__
+.cache/
+compile_commands.json
