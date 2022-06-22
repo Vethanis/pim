@@ -4,10 +4,10 @@
 #include <stdlib.h>
 
 #if PLAT_WINDOWS
-#define pim_putenv(p)   _putenv(p)
-#else
-#define pim_putenv(p)   putenv(p)
-#endif
+#ifndef putenv
+#   define putenv(p)   _putenv(p)
+#endif // putenv
+#endif // PLAT_WINDOWS
 
 static void* NotNull(void* x)
 {
@@ -73,5 +73,5 @@ bool Env_Set(const char* varname, const char* value)
     ASSERT(varname);
     char buf[260] = { 0 };
     SPrintf(ARGS(buf), "%s=%s", varname, value ? value : "");
-    return IsZero(pim_putenv(buf)) == 0;
+    return IsZero(putenv(buf)) == 0;
 }

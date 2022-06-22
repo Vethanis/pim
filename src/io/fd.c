@@ -6,14 +6,28 @@
 #if PLAT_WINDOWS
 
 #include <io.h>
-#define pim_open(p, f, m)   _open(p, f, m)
-#define pim_close(h)        _close(h)
-#define pim_read(h, b, c)   _read(h, b, c)
-#define pim_write(h, b, c)  _write(h, b, c)
+
+#ifndef open
+#   define open(p, f, m)   _open(p, f, m)
+#endif // open
+#ifndef close
+#   define close(h)        _close(h)
+#endif // close
+#ifndef read
+#   define read(h, b, c)   _read(h, b, c)
+#endif // read
+#ifndef write
+#   define write(h, b, c)  _write(h, b, c)
+#endif // write
+#ifndef lseek
+#   define lseek(h, o, w)  _lseek(h, o, w)
+#endif // lseek
+#ifndef fstat
+#   define fstat(h, s)     _fstat64(h, (struct _stat64*)s)
+#endif // fstat
+
 #define pim_pipe(h, f, o)   _pipe(h, f, o)
 #define pim_tell(h)         _tell(h)
-#define pim_lseek(h, o, w)  _lseek(h, o, w)
-#define pim_fstat(h, s)     _fstat64(h, (struct _stat64*)s)
 
 #else
 
@@ -33,18 +47,13 @@
 
 #define WIN_EXTRA_FILE_FLAGS 0
 
-#define pim_open(p, f, m)   open(p, f, m)
-#define pim_close(h)        close(h)
-#define pim_read(h, b, c)   read(h, b, c)
-#define pim_write(h, b, c)  write(h, b, c)
 #define pim_pipe(h, f, o)   pipe(h)
 #define pim_tell(h)         lseek(h, 0, SEEK_CUR)
-#define pim_lseek(h, o, w)  lseek(h, o, w)
 
 SASSERT(sizeof(struct timespec) == sizeof(fd_timespec_t));
 SASSERT(sizeof(struct stat) == sizeof(fd_status_t));
 
-#define pim_fstat(h, s)     fstat(h, (struct stat*)s)
+#define fstat(h, s)     fstat(h, (struct stat*)s)
 #endif // PLAT_WINDOWS
 
 #include <string.h>
@@ -85,7 +94,7 @@ fd_t fd_new(const char* filename)
     const i32 kCreateMode = _S_IREAD | _S_IWRITE;
     const i32 kCreateFlags = _O_RDWR | _O_CREAT | _O_TRUNC | _O_BINARY | _O_NOINHERIT | _O_SEQUENTIAL;
 
-    i32 handle = pim_open(
+    i32 handle = open(
         filename,
         kCreateFlags,
         kCreateMode);
@@ -102,7 +111,7 @@ fd_t fd_open(const char* filename, bool writable)
     const i32 kWriteMode = _S_IREAD | _S_IWRITE;
     i32 flags = writable ? kWriteFlags : kReadFlags;
     i32 mode = writable ? kWriteMode : kReadMode;
-    return (fd_t) { pim_open(filename, flags, mode) };
+    return (fd_t) { open(filename, flags, mode) };
 }
 
 bool fd_close(fd_t* fd)
@@ -112,7 +121,7 @@ bool fd_close(fd_t* fd)
     fd->handle = SH_Closed;
     if (handle > SH_StdErr)
     {
-        return IsZero(pim_close(handle)) == 0;
+        return IsZero(close(handle)) == 0;
     }
     return false;
 }
@@ -122,7 +131,7 @@ i32 fd_read(fd_t fd, void* dst, i32 size)
     ASSERT(fd_isopen(fd));
     ASSERT(dst || !size);
     ASSERT(size >= 0);
-    return NotNeg(pim_read(fd.handle, dst, (u32)size));
+    return NotNeg(read(fd.handle, dst, (u32)size));
 }
 
 i32 fd_write(fd_t fd, const void* src, i32 size)
@@ -130,7 +139,7 @@ i32 fd_write(fd_t fd, const void* src, i32 size)
     ASSERT(fd_isopen(fd));
     ASSERT(src || !size);
     ASSERT(size >= 0);
-    return NotNeg(pim_write(fd.handle, src, (u32)size));
+    return NotNeg(write(fd.handle, src, (u32)size));
 }
 
 i32 fd_puts(fd_t fd, const char* str)
@@ -168,7 +177,7 @@ bool fd_seek(fd_t fd, i32 offset)
 {
     ASSERT(fd_isopen(fd));
     ASSERT(offset >= 0);
-    return NotNeg((i32)pim_lseek(fd.handle, offset, 0)) >= 0;
+    return NotNeg((i32)lseek(fd.handle, offset, 0)) >= 0;
 }
 
 i32 fd_tell(fd_t fd)
@@ -194,7 +203,7 @@ bool fd_stat(fd_t fd, fd_status_t* status)
     ASSERT(fd_isopen(fd));
     ASSERT(status);
     memset(status, 0, sizeof(*status));
-    return IsZero(pim_fstat(fd.handle, status)) == 0;
+    return IsZero(fstat(fd.handle, status)) == 0;
 }
 
 i64 fd_size(fd_t fd)
