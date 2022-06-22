@@ -10,6 +10,8 @@ typedef struct adapter_s
     Semaphore sema;
 } adapter_t;
 
+typedef void* (*pthread_fn)(void*);
+
 #if PLAT_WINDOWS
 
 #include <Windows.h>
@@ -148,7 +150,7 @@ void Thread_New(Thread* tr, i32(PIM_CDECL *entrypoint)(void*), void* arg)
     ASSERT(tr);
     tr->handle = NULL;
     pthread_t* pt = (pthread_t*)tr;
-    i32 rv = pthread_create(pt, NULL, (void*(*)(void*))entrypoint, arg);
+    i32 rv = pthread_create(pt, NULL, (pthread_fn)entrypoint, arg);
     ASSERT(!rv);
 }
 
