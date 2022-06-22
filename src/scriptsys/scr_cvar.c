@@ -181,7 +181,7 @@ static i32 scr_func_set(lua_State* L)
     break;
     }
 
-    Con_Logf(LogSev_Verbose, "scr", "'%s' = '%s'", var->value);
+    Con_Logf(LogSev_Verbose, "scr", "'%s' = '%s'", var->name, var->value);
 
     return 0;
 }
