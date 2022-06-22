@@ -5,16 +5,21 @@
 #include <stdarg.h>
 
 #if PLAT_WINDOWS
-#define pim_fileno(f)   _fileno(f)
-#define pim_fdopen(f, m)   _fdopen(f, m)
-#define pim_popen(c, t)    _popen(c, t)
-#define pim_pclose(f)   _pclose(f)
-#else
-#define pim_fileno(f)   fileno(f)
-#define pim_fdopen(f, m)   fdopen(f, m)
-#define pim_popen(c, t)    popen(c, t)
-#define pim_pclose(f)   pclose(f)
-#endif // PLAT_X
+
+#ifndef fileno
+#   define fileno(f)        _fileno(f)
+#endif // fileno
+#ifdef fdopen
+#   define fdopen(f, m)     _fdopen(f, m)
+#endif // fdopen
+#ifdef popen
+#   define popen(c, t)      _popen(c, t)
+#endif // popen
+#ifdef pclose
+#   define pclose(f)        _pclose(f)
+#endif
+
+#endif // PLAT_WINDOWS
 
 static i32 NotNeg(i32 x)
 {
@@ -180,7 +185,7 @@ fd_t FStream_ToFd(FStream stream)
 {
     FILE* file = stream.handle;
     ASSERT(file);
-    return (fd_t) { NotNeg(pim_fileno(file)) };
+    return (fd_t) { NotNeg(fileno(file)) };
 }
 
 FStream Fd_ToFStream(fd_t* pFD, const char* mode)
@@ -189,7 +194,7 @@ FStream Fd_ToFStream(fd_t* pFD, const char* mode)
     i32 fd = pFD->handle;
     pFD->handle = -1;
     ASSERT(fd >= 0);
-    FILE* ptr = pim_fdopen(fd, mode);
+    FILE* ptr = fdopen(fd, mode);
     return (FStream) { NotNull(ptr) };
 }
 
@@ -212,7 +217,7 @@ FStream FStream_POpen(const char* cmd, const char* mode)
 {
     ASSERT(cmd);
     ASSERT(mode);
-    FILE* file = pim_popen(cmd, mode);
+    FILE* file = popen(cmd, mode);
     return (FStream) { NotNull(file) };
 }
 
@@ -223,7 +228,7 @@ bool FStream_PClose(FStream* pStream)
     pStream->handle = NULL;
     if (file)
     {
-        return IsZero(pim_pclose(file)) == 0;
+        return IsZero(pclose(file)) == 0;
     }
     return false;
 }
