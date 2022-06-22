@@ -127,8 +127,8 @@ static void SaveLutImage(BrdfLut lut, const char* path)
 
 void LightingSys_Init(void)
 {
-    const i32 lutSize = 128 IF_DEBUG(/4);
-    const i32 numSamples = 256 IF_DEBUG(/4);
+    const i32 lutSize = 128 DEBUG_ONLY(/4);
+    const i32 numSamples = 256 DEBUG_ONLY(/4);
     g_BrdfLut = BrdfLut_New(i2_s(lutSize), numSamples);
 
     Texture tex = { 0 };

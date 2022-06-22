@@ -247,7 +247,7 @@ void* Mem_Alloc(EAlloc type, i32 bytes)
         ptr = hdr + 1;
 
         ASSERT(ptr_is_aligned(ptr));
-        IF_DEBUG(memset(ptr, 0xcc, userBytes));
+        DEBUG_ONLY(memset(ptr, 0xcc, userBytes));
     }
 
     return ptr;
@@ -267,7 +267,7 @@ void Mem_Free(void* ptr)
         ASSERT(i32_is_aligned(userBytes));
         ASSERT(valid_tid(tid));
         ASSERT(dec_i32(&(hdr->refCount), MO_Relaxed) == 1);
-        IF_DEBUG(memset(ptr, 0xcd, userBytes));
+        DEBUG_ONLY(memset(ptr, 0xcd, userBytes));
 
         switch (hdr->type)
         {
