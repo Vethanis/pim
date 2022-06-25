@@ -7,9 +7,13 @@
 #include "math/types.h"
 #include "math/float2_funcs.h"
 
-#include <sokol/sokol_audio.h>
+#include <portaudio.h>
 #include <ui/cimgui_ext.h>
 #include <string.h>
+
+#define REQUESTED_SAMPLE_RATE 44100
+#define FRAMES_PER_BUFFER 256
+#define NUM_CHANNELS 2
 
 // ----------------------------------------------------------------------------
 
@@ -67,7 +71,12 @@ static u32 AudioEventSegment_GetCount(const AudioEventSegment* seg);
 static bool AudioEventSegment_Push(AudioEventSegment* seg, const AudioEvent* evtIn);
 static bool AudioEventSegment_Pop(AudioEventSegment* seg, AudioEvent* evtOut);
 static void OnMidiEventFn(const MidiMsg* msg, void* usr);
-static void OnAudioPacketFn(float* buffer, i32 ticks, i32 numChannels);
+static int OnAudioPacketFn(
+    const void* inputBuffer,
+    void* outputBuffer, u64 frameCount,
+    const PaStreamCallbackTimeInfo* timeInfo,
+    PaStreamCallbackFlags statusFlags,
+    void* userData);
 static float2 OnAudioTickFn(u32 tick);
 static void OnAudioEventFn(const AudioEvent* evt);
 
@@ -80,23 +89,43 @@ static i32 ms_sampleRate;
 static float ms_secondsPerTick;
 static i32 ms_midiCount;
 static MidiCon* ms_midis;
+static PaStream* ms_stream;
 
 // ----------------------------------------------------------------------------
 
 void AudioSys_Init(void)
 {
-    const saudio_desc desc = {
-        .num_channels = 2,
-        .sample_rate = 44100,
-        .stream_cb = OnAudioPacketFn,
-        .allocator.alloc = AudioAlloc,
-        .allocator.free = AudioFree,
+    i32 err = Pa_Initialize();
+    ASSERT(err == 0);
+
+    i32 device = Pa_GetDefaultOutputDevice();
+    ASSERT(device >= 0);
+
+    const PaStreamParameters outputParams = {
+        .channelCount = NUM_CHANNELS,
+        .sampleFormat = paFloat32,
+        .device = device,
+        .suggestedLatency = Pa_GetDeviceInfo(outputParams.device)->defaultLowOutputLatency,
     };
-    saudio_setup(&desc);
-    ms_sampleRate = saudio_sample_rate();
-    ms_bufferSize = saudio_buffer_frames();
+
+    err = Pa_OpenDefaultStream(
+        &ms_stream,
+        0,
+        NUM_CHANNELS,
+        paFloat32,
+        REQUESTED_SAMPLE_RATE,
+        FRAMES_PER_BUFFER,
+        OnAudioPacketFn,
+        NULL);
+    ASSERT(err == 0);
+
+    PaStreamInfo* info = Pa_GetStreamInfo(ms_stream);
+    ms_sampleRate = info->sampleRate;
+    ms_bufferSize = FRAMES_PER_BUFFER;
     ms_secondsPerTick = 1.0f / ms_sampleRate;
 
+    err = Pa_StartStream(ms_stream);
+    ASSERT(err == 0);
     MidiSys_Init();
 }
 
@@ -121,7 +150,8 @@ void AudioSys_Shutdown(void)
     Mem_Free(midis);
 
     MidiSys_Shutdown();
-    saudio_shutdown();
+    Pa_CloseStream(ms_stream);
+    Pa_Terminate();
 }
 
 ProfileMark(pm_ongui, AudioSys_Gui)
@@ -292,16 +322,23 @@ static void OnMidiEventFn(const MidiMsg* msg, void* usr)
     AudioEventSegment_Push(seg, &evt);
 }
 
-static void OnAudioPacketFn(float* buffer, i32 ticks, i32 numChannels)
+static int OnAudioPacketFn(
+    const void* input,
+    void* output,
+    u64 frameCount,
+    const PaStreamCallbackTimeInfo* timeInfo,
+    PaStreamCallbackFlags statusFlags,
+    void* userData)
 {
     float scratch[16] = { 0 };
     AudioEventSegment* seg = GetAudioEvents_Reader();
+    float* outputBuffer = output;
 
-    if (numChannels > 0 && numChannels <= NELEM(scratch))
+    if (NUM_CHANNELS > 0 && NUM_CHANNELS <= NELEM(scratch))
     {
         AudioEvent evt = { 0 };
         AudioEventSegment_Pop(seg, &evt);
-        for (i32 i = 0; i < ticks; ++i)
+        for (i32 i = 0; i < frameCount; ++i)
         {
             u32 tick = fetch_add_u32(&ms_tick, 1, MO_AcqRel);
             while (evt.tick == tick)
@@ -315,10 +352,12 @@ static void OnAudioPacketFn(float* buffer, i32 ticks, i32 numChannels)
             float2 value = OnAudioTickFn(tick);
             scratch[0] = value.x;
             scratch[1] = value.y;
-            memcpy(buffer, scratch, sizeof(buffer[0]) * numChannels);
-            buffer += numChannels;
+            memcpy(outputBuffer, scratch, sizeof(outputBuffer[0]) * NUM_CHANNELS);
+            outputBuffer += NUM_CHANNELS;
         }
     }
+
+    return paContinue;
 }
 
 static float2 OnAudioTickFn(u32 tick)

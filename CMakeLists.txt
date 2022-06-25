@@ -50,7 +50,6 @@ set(PIM_SUBMODULE_FILES
     "submodules/SPIRV-Reflect/spirv_reflect.c"
     "submodules/tlsf/tlsf.c"
     "submodules/volk/volk.c"
-    "submodules/sokol/sokol_audio.h"
     "submodules/sokol/sokol_time.h"
     ${PIM_LUA_FILES})
 
@@ -222,8 +221,9 @@ else()
     find_library(EMBREE_LIB embree3)
     find_library(OIDN_LIB OpenImageDenoise)
     find_library(TBB_LIB tbb)
+    find_library(PA_LIB portaudio)
 
-    target_link_libraries(pim ${GLFW_LIBRARIES} ${ALSA_LIBRARIES})
+    target_link_libraries(pim ${GLFW_LIBRARIES} ${ALSA_LIBRARIES} ${PA_LIB})
 endif()
 
 target_link_libraries(pim)
