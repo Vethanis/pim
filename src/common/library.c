@@ -63,26 +63,6 @@ void* Library_Sym(Library lib, const char* name)
 }
 
 #if PLAT_WINDOWS
-    #define LIB_EXT ".dll"
-#elif PLAT_LINUX
-    #define LIB_EXT ".so"
-#elif PLAT_MAC
-    #define LIB_EXT ".dylib"
-#elif PLAT_ANDROID
-    #define LIB_EXT ".so"
-#elif PLAT_IOS
-    #define LIB_EXT ".dylib"
-    #error iOS AppStore does not accept anything but static linkage
-#endif // PLAT_STR
-
-static void OS_libfmt(char* buffer, i32 size, const char* name)
-{
-    StrCpy(buffer, size, name);
-    StrCat(buffer, size, LIB_EXT);
-    StrPath(buffer, size);
-}
-
-#if PLAT_WINDOWS
 // WIN32 API
 
 #include <Windows.h>
@@ -92,6 +72,12 @@ SASSERT(_Alignof(FARPROC) == _Alignof(void*));
 
 SASSERT(sizeof(HMODULE) == sizeof(void*));
 SASSERT(_Alignof(HMODULE) == _Alignof(void*));
+
+static void OS_libfmt(char* buffer, i32 size, const char* name)
+{
+    SPrintf(buffer, size, "%s.dll", name);
+    StrPath(buffer, size);
+}
 
 static void* OS_dlopen(const char* name)
 {
@@ -138,8 +124,14 @@ static void OS_geterror(char* buffer, i32 size)
 #else
 // POSIX API
 
-#include <dlcfn.h>
+#include <dlfcn.h>
 #include <errno.h>
+
+static void OS_libfmt(char* buffer, i32 size, const char* name)
+{
+    SPrintf(buffer, size, "lib%s.so", name);
+    StrPath(buffer, size);
+}
 
 static void* OS_dlopen(const char* name)
 {
@@ -169,4 +161,4 @@ static void OS_geterror(char* buffer, i32 size)
     }
 }
 
-#endif // PLAT_WINDOWS
+#endif // PLAT_X

@@ -28,10 +28,24 @@ void Intrin_Spin(u64 spins)
 #pragma intrinsic(__rdtsc)
 #pragma intrinsic(_mm_pause)
 
-u64 Intrin_Timestamp(void) { return __rdtsc(); }
 void Intrin_Yield(void) { SwitchToThread(); }
+
 #else
 
-#endif // PLAT
+#include <sched.h>
 
+pim_inline u64 __rdtsc(void)
+{
+    u32 hi, lo;
+    __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+    u64 value = hi;
+    value = value << 32;
+    value |= lo;
+    return value;
+}
+
+void Intrin_Yield(void) { sched_yield(); }
+#endif // PLAT_X
+
+u64 Intrin_Timestamp(void) { return __rdtsc(); }
 void Intrin_Pause(void) { _mm_pause(); }

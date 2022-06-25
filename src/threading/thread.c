@@ -2,6 +2,8 @@
 #include "threading/semaphore.h"
 #include "allocator/allocator.h"
 
+#if PLAT_WINDOWS
+
 typedef struct adapter_s
 {
     i32(PIM_CDECL *entrypoint)(void*);
@@ -10,7 +12,8 @@ typedef struct adapter_s
     Semaphore sema;
 } adapter_t;
 
-#if PLAT_WINDOWS
+typedef void* (*pthread_fn)(void*);
+
 
 #include <Windows.h>
 #include <process.h>
@@ -137,17 +140,37 @@ i32 Thread_HardwareCount(void)
 
 #else
 
+typedef struct PthreadArgs_s
+{
+    i32(*func)(void*);
+    void* arg;
+} PthreadArgs;
+
+static void* PthreadAdapterFn(void* voidArg)
+{
+    PthreadArgs* args = voidArg;
+    args->func(args->arg);
+    Mem_Free(args);
+    return NULL;
+}
+
+typedef void* (*pthread_fn)(void*);
+
+#include <sys/sysinfo.h>
 #include <pthread.h>
 
 SASSERT(sizeof(pthread_t) == sizeof(Thread));
-SASSERT(alignof(pthread_t) == alignof(Thread));
+SASSERT(pim_alignof(pthread_t) == pim_alignof(Thread));
 
 void Thread_New(Thread* tr, i32(PIM_CDECL *entrypoint)(void*), void* arg)
 {
     ASSERT(tr);
     tr->handle = NULL;
     pthread_t* pt = (pthread_t*)tr;
-    i32 rv = pthread_create(pt, NULL, entrypoint, arg);
+    PthreadArgs* args = Perm_Calloc(sizeof(PthreadArgs));
+    args->func = entrypoint;
+    args->arg = arg;
+    i32 rv = pthread_create(pt, NULL, PthreadAdapterFn, args);
     ASSERT(!rv);
 }
 
@@ -155,9 +178,14 @@ void Thread_Join(Thread* tr)
 {
     ASSERT(tr);
     pthread_t* pt = (pthread_t*)tr;
-    i32 rv = pthread_join(pt, NULL);
+    i32 rv = pthread_join(*pt, NULL);
     ASSERT(!rv);
     tr->handle = NULL;
+}
+
+i32 Thread_HardwareCount(void)
+{
+    return get_nprocs();
 }
 
 #endif // PLAT

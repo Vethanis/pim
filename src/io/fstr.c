@@ -1,8 +1,27 @@
 #include "io/fstr.h"
 #include "io/fd.h"
 
+#define _CRT_NONSTDC_NO_WARNINGS 1
+
 #include <stdio.h>
 #include <stdarg.h>
+
+#if PLAT_WINDOWS
+
+#ifndef fileno
+#   define fileno(f)        _fileno((f))
+#endif // fileno
+#ifndef fdopen
+#   define fdopen(f, m)     _fdopen((f), (m))
+#endif // fdopen
+#ifndef popen
+#   define popen(c, t)      _popen((c), (t))
+#endif // popen
+#ifndef pclose
+#   define pclose(f)        _pclose((f))
+#endif // pclose
+
+#endif // PLAT_WINDOWS
 
 static i32 NotNeg(i32 x)
 {
@@ -168,7 +187,7 @@ fd_t FStream_ToFd(FStream stream)
 {
     FILE* file = stream.handle;
     ASSERT(file);
-    return (fd_t) { NotNeg(_fileno(file)) };
+    return (fd_t) { NotNeg(fileno(file)) };
 }
 
 FStream Fd_ToFStream(fd_t* pFD, const char* mode)
@@ -177,7 +196,7 @@ FStream Fd_ToFStream(fd_t* pFD, const char* mode)
     i32 fd = pFD->handle;
     pFD->handle = -1;
     ASSERT(fd >= 0);
-    FILE* ptr = _fdopen(fd, mode);
+    FILE* ptr = fdopen(fd, mode);
     return (FStream) { NotNull(ptr) };
 }
 
@@ -200,7 +219,7 @@ FStream FStream_POpen(const char* cmd, const char* mode)
 {
     ASSERT(cmd);
     ASSERT(mode);
-    FILE* file = _popen(cmd, mode);
+    FILE* file = popen(cmd, mode);
     return (FStream) { NotNull(file) };
 }
 
@@ -211,7 +230,7 @@ bool FStream_PClose(FStream* pStream)
     pStream->handle = NULL;
     if (file)
     {
-        return IsZero(_pclose(file)) == 0;
+        return IsZero(pclose(file)) == 0;
     }
     return false;
 }
@@ -225,5 +244,5 @@ i64 FStream_Size(FStream stream)
 {
     fd_status_t status;
     FStream_Stat(stream, &status);
-    return status.st_size;
+    return status.size;
 }

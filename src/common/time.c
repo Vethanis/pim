@@ -24,7 +24,7 @@ void TimeSys_Init(void)
 void TimeSys_Update(void)
 {
     ++ms_frameCount;
-    ms_dt = stm_laptime(&ms_update);
+    ms_dt = stm_laptime((uint64_t*)&ms_update);
     ms_dtf = Time_Sec(ms_dt);
     ms_smoothdtf = pim_lerp(ms_smoothdtf, ms_dtf, (1.0f / 120.0f));
 }

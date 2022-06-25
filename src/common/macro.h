@@ -55,7 +55,7 @@
 #   define pim_deoptimize           __pragma(optimize("", off))
 #   define pim_noreturn             __declspec(noreturn)
 #else
-#   define INTERRUPT()              raise(SIGTRAP)
+#   define INTERRUPT()              do { __asm("int3"); } while(0)
 #   define SASSERT(x)               _Static_assert((x), #x)
 #   define pim_thread_local         _Thread_local
 #   define PIM_EXPORT               

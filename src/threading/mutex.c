@@ -42,33 +42,33 @@ bool Mutex_TryLock(Mutex* mut)
 
 #include <pthread.h>
 
-CONV_ASSERT(Mutex, pthread_mutex_t)
+SASSERT(sizeof(Mutex) == sizeof(pthread_mutex_t));
 
 void Mutex_New(Mutex* mut)
 {
     ASSERT(mut);
-    int32_t rv = pthread_mutex_init((pthread_mutex_t*)mut);
+    i32 rv = pthread_mutex_init((pthread_mutex_t*)mut, NULL);
     ASSERT(!rv);
 }
 
 void Mutex_Del(Mutex* mut)
 {
     ASSERT(mut);
-    int32_t rv = pthread_mutex_destroy((pthread_mutex_t*)mut);
+    i32 rv = pthread_mutex_destroy((pthread_mutex_t*)mut);
     ASSERT(!rv);
 }
 
 void Mutex_Lock(Mutex* mut)
 {
     ASSERT(mut);
-    int32_t rv = pthread_mutex_lock((pthread_mutex_t*)mut);
+    i32 rv = pthread_mutex_lock((pthread_mutex_t*)mut);
     ASSERT(!rv);
 }
 
 void Mutex_Unlock(Mutex* mut)
 {
     ASSERT(mut);
-    int32_t rv = pthread_mutex_unlock((pthread_mutex_t*)mut);
+    i32 rv = pthread_mutex_unlock((pthread_mutex_t*)mut);
     ASSERT(!rv);
 }
 

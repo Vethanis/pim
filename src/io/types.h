@@ -9,30 +9,13 @@ PIM_C_BEGIN
 
 typedef struct fd_s { i32 handle; } fd_t;
 
-typedef enum
-{
-    StMode_Regular = 0x8000,
-    StMode_Dir = 0x4000,
-    StMode_SpecChar = 0x2000,
-    StMode_Pipe = 0x1000,
-    StMode_Read = 0x0100,
-    StMode_Write = 0x0080,
-    StMode_Exec = 0x0040,
-} StModeFlags;
-
+// only the fields we actually care about from stat
 typedef struct fd_status_s
 {
-    u32 st_dev;
-    u16 st_ino;
-    u16 st_mode;
-    i16 st_nlink;
-    i16 st_uid;
-    i16 st_guid;
-    u32 st_rdev;
-    i64 st_size;
-    i64 st_atime;
-    i64 st_mtime;
-    i64 st_ctime;
+    i64 size;
+    i64 accessTime;
+    i64 modifyTime;
+    i64 createTime;
 } fd_status_t;
 
 // ------------------------------------
@@ -66,11 +49,7 @@ typedef enum
 // ------------------------------------
 // fnd
 
-// Initialize to -1
-typedef struct Finder_s
-{
-    isize handle;
-} Finder;
+#if PLAT_WINDOWS
 
 typedef enum
 {
@@ -92,6 +71,34 @@ typedef struct FinderData_s
     i64 size;
     char name[260];
 } FinderData;
+
+// Initialize to -1
+typedef struct Finder_s
+{
+    isize handle;
+    char path[PIM_PATH];
+    char relPath[PIM_PATH];
+    FinderData data;
+} Finder;
+
+#else
+
+typedef struct Glob_s
+{
+    size_t gl_pathc;
+    char **gl_pathv;
+    size_t gl_offs;
+} Glob;
+
+typedef struct Finder_s
+{
+    Glob glob;
+    bool open;
+    i32 index;
+    char* relPath;
+} Finder;
+
+#endif // PLAT_X
 
 // ------------------------------------
 
