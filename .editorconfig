@@ -1,0 +1,8 @@
+https://EditorConfig.org
+
+root = true
+
+[*.{c,cpp,h,bat,sh,txt,hlsl,lua}]
+charset = utf-8
+indent_style = space
+indent_size = 4
