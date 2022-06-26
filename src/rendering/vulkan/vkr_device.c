@@ -96,11 +96,15 @@ u32 vkrEnumPhysicalDevices(
             {
                 ASSERT(devices[i]);
                 props[i].phdev.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-                props[i].phdev.pNext = &props[i].accstr;
-                props[i].accstr.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
-                props[i].accstr.pNext = &props[i].rtpipe;
-                props[i].rtpipe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
-                props[i].rtpipe.pNext = NULL;
+#               if VKR_RT
+                {
+                    props[i].phdev.pNext = &props[i].accstr;
+                    props[i].accstr.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
+                    props[i].accstr.pNext = &props[i].rtpipe;
+                    props[i].rtpipe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+                    props[i].rtpipe.pNext = NULL;
+                }
+#               endif // VKR_RT
                 vkGetPhysicalDeviceProperties2(devices[i], &props[i].phdev);
             }
         }
@@ -113,13 +117,17 @@ u32 vkrEnumPhysicalDevices(
             {
                 ASSERT(devices[i]);
                 feats[i].phdev.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-                feats[i].phdev.pNext = &feats[i].accstr;
-                feats[i].accstr.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
-                feats[i].accstr.pNext = &feats[i].rtpipe;
-                feats[i].rtpipe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
-                feats[i].rtpipe.pNext = &feats[i].rquery;
-                feats[i].rquery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
-                feats[i].rquery.pNext = NULL;
+#               if VKR_RT
+                {
+                    feats[i].phdev.pNext = &feats[i].accstr;
+                    feats[i].accstr.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+                    feats[i].accstr.pNext = &feats[i].rtpipe;
+                    feats[i].rtpipe.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+                    feats[i].rtpipe.pNext = &feats[i].rquery;
+                    feats[i].rquery.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+                    feats[i].rquery.pNext = NULL;
+                }
+#               endif // VKR_RT
                 vkGetPhysicalDeviceFeatures2(devices[i], &feats[i].phdev);
             }
         }
@@ -328,6 +336,7 @@ VkDevice vkrCreateDevice(
                 .imageCubeArray = feats->phdev.features.imageCubeArray,
             },
         },
+#       if VKR_RT
         .accstr =
         {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
@@ -347,7 +356,9 @@ VkDevice vkrCreateDevice(
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
             .rayQuery = feats->rquery.rayQuery,
         },
+#       endif // VKR_RT
     };
+#if VKR_RT
     if (g_vkrDevExts.KHR_ray_tracing_pipeline)
     {
         reqFeats.phdev.pNext = &reqFeats.accstr;
@@ -355,6 +366,7 @@ VkDevice vkrCreateDevice(
         reqFeats.rtpipe.pNext = &reqFeats.rquery;
         reqFeats.rquery.pNext = NULL;
     }
+#endif // VKR_RT
 
     const VkDeviceCreateInfo devInfo =
     {

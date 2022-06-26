@@ -54,8 +54,10 @@ i32 vkrFeats_Eval(const vkrFeats* feats);
 
 i32 vkrProps_Eval(const vkrProps* props);
 i32 vkrProps_LimitsEval(const VkPhysicalDeviceLimits* lims);
-static i32 vkrProps_AccStrEval(const VkPhysicalDeviceAccelerationStructurePropertiesKHR* accstr);
-static i32 vkrProps_RtPipeEval(const VkPhysicalDeviceRayTracingPipelinePropertiesKHR* rtpipe);
+#if VKR_RT
+i32 vkrProps_AccStrEval(const VkPhysicalDeviceAccelerationStructurePropertiesKHR* accstr);
+i32 vkrProps_RtPipeEval(const VkPhysicalDeviceRayTracingPipelinePropertiesKHR* rtpipe);
+#endif // VKR_RT
 
 i32 vkrDevExts_OptEval(const vkrDevExts* exts);
 i32 vkrDevExts_RtEval(const vkrDevExts* exts);

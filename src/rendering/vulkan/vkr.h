@@ -40,6 +40,13 @@
 #include <volk/volk.h>
 #include "math/types.h"
 
+#define VKR_RT (1 && VK_KHR_acceleration_structure && VK_KHR_ray_tracing_pipeline && VK_KHR_ray_query)
+#if VKR_RT
+#   define VKR_RT_ONLY(...) __VA_ARGS__
+#else
+#   define VKR_RT_ONLY(...) 
+#endif // VKR_RT
+
 PIM_C_BEGIN
 
 #define VkCheck(expr) do { VkResult _res = (expr); ASSERT(_res == VK_SUCCESS); } while(0)
@@ -475,28 +482,26 @@ typedef struct vkrExposure_s
 typedef struct vkrProps_s
 {
     VkPhysicalDeviceProperties2 phdev;
+#if VKR_RT
     VkPhysicalDeviceAccelerationStructurePropertiesKHR accstr;
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtpipe;
+#endif // VKR_RT
 } vkrProps;
 extern vkrProps g_vkrProps;
 
 typedef struct vkrFeats_s
 {
     VkPhysicalDeviceFeatures2 phdev;
+#if VKR_RT
     VkPhysicalDeviceAccelerationStructureFeaturesKHR accstr;
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtpipe;
     VkPhysicalDeviceRayQueryFeaturesKHR rquery;
+#endif // VKR_RT
 } vkrFeats;
 extern vkrFeats g_vkrFeats;
 
-typedef struct vkrDevExts_s
-{
 #define VKR_DEV_EXTS(fn) \
     fn(KHR_swapchain); \
-    fn(KHR_acceleration_structure); \
-    fn(KHR_ray_tracing_pipeline); \
-    fn(KHR_ray_query); \
-    fn(KHR_deferred_host_operations); \
     fn(EXT_memory_budget); \
     fn(EXT_hdr_metadata); \
     fn(KHR_shader_float16_int8); \
@@ -507,7 +512,14 @@ typedef struct vkrDevExts_s
     fn(KHR_shader_float_controls); \
     fn(KHR_spirv_1_4); \
     fn(EXT_conditional_rendering); \
-    fn(KHR_draw_indirect_count);
+    fn(KHR_draw_indirect_count); \
+    VKR_RT_ONLY(fn(KHR_acceleration_structure);) \
+    VKR_RT_ONLY(fn(KHR_ray_tracing_pipeline);) \
+    VKR_RT_ONLY(fn(KHR_ray_query);) \
+    VKR_RT_ONLY(fn(KHR_deferred_host_operations);)
+
+typedef struct vkrDevExts_s
+{
 #define VKR_FN(name) u32 name : 1
     VKR_DEV_EXTS(VKR_FN)
 #undef VKR_FN

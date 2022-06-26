@@ -215,39 +215,6 @@ i32 vkrFeats_Eval(const vkrFeats* feats)
     i32 score = 0;
 
     // ------------------------------------------------------------------------
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPhysicalDeviceAccelerationStructureFeaturesKHR.html
-
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#acceleration-structure
-    score += feats->accstr.accelerationStructure ? 64 : 0;
-
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#vkCmdBuildAccelerationStructuresIndirectKHR
-    //score += feats->accstr.accelerationStructureIndirectBuild ? 16 : 0;
-
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#features-accelerationStructureHostCommands
-    //score += feats->accstr.accelerationStructureHostCommands ? 16 : 0;
-
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#features-descriptorBindingAccelerationStructureUpdateAfterBind
-    //score += feats->accstr.descriptorBindingAccelerationStructureUpdateAfterBind ? 4 : 0;
-
-    // ------------------------------------------------------------------------
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPhysicalDeviceRayTracingPipelineFeaturesKHR.html
-
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#ray-tracing
-    score += feats->rtpipe.rayTracingPipeline ? 64 : 0;
-
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#vkCmdTraceRaysIndirectKHR
-    //score += feats->rtpipe.rayTracingPipelineTraceRaysIndirect ? 16 : 0;
-
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#ray-traversal-culling-primitive
-    //score += feats->rtpipe.rayTraversalPrimitiveCulling ? 16 : 0;
-
-    // ------------------------------------------------------------------------
-    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPhysicalDeviceRayQueryFeaturesKHR.html
-
-    // https://github.com/KhronosGroup/SPIRV-Registry/blob/master/extensions/KHR/SPV_KHR_ray_query.asciidoc
-    score += feats->rquery.rayQuery ? 64 : 0;
-
-    // ------------------------------------------------------------------------
     // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPhysicalDeviceFeatures.html
 
     // highly useful things
@@ -283,6 +250,42 @@ i32 vkrFeats_Eval(const vkrFeats* feats)
     score += feats->phdev.features.multiDrawIndirect ? 1 : 0;
     score += feats->phdev.features.drawIndirectFirstInstance ? 1 : 0;
 
+#if VKR_RT
+    // ------------------------------------------------------------------------
+    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPhysicalDeviceAccelerationStructureFeaturesKHR.html
+
+    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#acceleration-structure
+    score += feats->accstr.accelerationStructure ? 64 : 0;
+
+    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#vkCmdBuildAccelerationStructuresIndirectKHR
+    //score += feats->accstr.accelerationStructureIndirectBuild ? 16 : 0;
+
+    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#features-accelerationStructureHostCommands
+    //score += feats->accstr.accelerationStructureHostCommands ? 16 : 0;
+
+    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#features-descriptorBindingAccelerationStructureUpdateAfterBind
+    //score += feats->accstr.descriptorBindingAccelerationStructureUpdateAfterBind ? 4 : 0;
+
+    // ------------------------------------------------------------------------
+    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPhysicalDeviceRayTracingPipelineFeaturesKHR.html
+
+    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#ray-tracing
+    score += feats->rtpipe.rayTracingPipeline ? 64 : 0;
+
+    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#vkCmdTraceRaysIndirectKHR
+    //score += feats->rtpipe.rayTracingPipelineTraceRaysIndirect ? 16 : 0;
+
+    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#ray-traversal-culling-primitive
+    //score += feats->rtpipe.rayTraversalPrimitiveCulling ? 16 : 0;
+
+    // ------------------------------------------------------------------------
+    // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkPhysicalDeviceRayQueryFeaturesKHR.html
+
+    // https://github.com/KhronosGroup/SPIRV-Registry/blob/master/extensions/KHR/SPV_KHR_ray_query.asciidoc
+    score += feats->rquery.rayQuery ? 64 : 0;
+
+#endif // VKR_RT
+
     return score;
 }
 
@@ -290,8 +293,10 @@ i32 vkrProps_Eval(const vkrProps* props)
 {
     i32 score = 0;
     score += vkrProps_LimitsEval(&props->phdev.properties.limits);
+#if VKR_RT
     score += vkrProps_AccStrEval(&props->accstr);
     score += vkrProps_RtPipeEval(&props->rtpipe);
+#endif // VKR_RT
     return score;
 }
 
@@ -323,7 +328,8 @@ i32 vkrProps_LimitsEval(const VkPhysicalDeviceLimits* lims)
     return score;
 }
 
-static i32 vkrProps_AccStrEval(const VkPhysicalDeviceAccelerationStructurePropertiesKHR* accstr)
+#if VKR_RT
+i32 vkrProps_AccStrEval(const VkPhysicalDeviceAccelerationStructurePropertiesKHR* accstr)
 {
     i32 score = 0;
     score += u64_log2(accstr->maxGeometryCount);
@@ -335,7 +341,7 @@ static i32 vkrProps_AccStrEval(const VkPhysicalDeviceAccelerationStructureProper
     return score;
 }
 
-static i32 vkrProps_RtPipeEval(const VkPhysicalDeviceRayTracingPipelinePropertiesKHR* rtpipe)
+i32 vkrProps_RtPipeEval(const VkPhysicalDeviceRayTracingPipelinePropertiesKHR* rtpipe)
 {
     i32 score = 0;
     score += u64_log2(rtpipe->maxRayRecursionDepth);
@@ -343,6 +349,7 @@ static i32 vkrProps_RtPipeEval(const VkPhysicalDeviceRayTracingPipelinePropertie
     score += u64_log2(rtpipe->maxRayHitAttributeSize);
     return score;
 }
+#endif // VKR_RT
 
 i32 vkrDevExts_OptEval(const vkrDevExts* exts)
 {
@@ -364,8 +371,10 @@ i32 vkrDevExts_OptEval(const vkrDevExts* exts)
 i32 vkrDevExts_RtEval(const vkrDevExts* exts)
 {
     i32 score = 0;
+#if VKR_RT
     score += (exts->KHR_acceleration_structure && exts->KHR_ray_tracing_pipeline) ? 1 : 0;
     score += exts->KHR_ray_query ? 1 : 0;
+#endif // VKR_RT
     return score;
 }
 
