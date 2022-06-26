@@ -625,7 +625,7 @@ i32 StrIRep(char *const dst, i32 size, char const *const fnd, char const *const 
 // ----------------------------------------------------------------------------
 // paths
 
-static bool IsPathSeparator(char c)
+bool IsPathSeparator(char c)
 {
     return (c == '/') || (c == '\\');
 }
