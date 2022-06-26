@@ -88,6 +88,7 @@ i32 StrIRep(char *const dst, i32 size, char const *const fnd, char const *const 
 // ----------------------------------------------------------------------------
 // paths
 
+bool IsPathSeparator(char c);
 char ChrPath(char c);
 i32 StrPath(char *const dst, i32 size);
 

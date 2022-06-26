@@ -121,27 +121,25 @@ i32 SearchPath_FindPack(SearchPath* sp, const char* path)
     return -1;
 }
 
-// not happy with how this looks tbh.
-#if PLAT_WIN
-#define PACK_GLOB "*.pak"
-#else
-#define PACK_GLOB "*.[pP][aA][kK]"
-#endif
-
 bool SearchPath_AddPack(SearchPath* sp, const char* path)
 {
     Pack* packs = sp->packs;
     i32 length = sp->packCount;
 
-    Finder fnd = { { -1 } };
-    while (Finder_Iterate(&fnd, path, PACK_GLOB))
+    Finder fnd = { 0 };
+    FinderData fndData;
+    while (Finder_Iterate(&fnd, &fndData, path))
     {
-        if (SearchPath_FindPack(sp, fnd.relPath) >= 0)
+        if (fndData.isFolder || !IEndsWith(ARGS(fndData.path), ".pak"))
+        {
+            continue;
+        }
+        if (SearchPath_FindPack(sp, fndData.path) >= 0)
         {
             continue;
         }
         Pack pack;
-        if (Pack_Load(&pack, fnd.relPath))
+        if (Pack_Load(&pack, fndData.path))
         {
             ++length;
             Perm_Reserve(packs, length);
