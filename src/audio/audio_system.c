@@ -73,7 +73,8 @@ static bool AudioEventSegment_Pop(AudioEventSegment* seg, AudioEvent* evtOut);
 static void OnMidiEventFn(const MidiMsg* msg, void* usr);
 static int OnAudioPacketFn(
     const void* inputBuffer,
-    void* outputBuffer, u64 frameCount,
+    void* outputBuffer,
+    unsigned long frameCount,
     const PaStreamCallbackTimeInfo* timeInfo,
     PaStreamCallbackFlags statusFlags,
     void* userData);
@@ -85,8 +86,8 @@ static void OnAudioEventFn(const AudioEvent* evt);
 static AudioEventSegmentRing ms_eventRing;
 static u32 ms_tick;
 static i32 ms_bufferSize;
-static i32 ms_sampleRate;
-static float ms_secondsPerTick;
+static double ms_sampleRate;
+static double ms_secondsPerTick;
 static i32 ms_midiCount;
 static MidiCon* ms_midis;
 static PaStream* ms_stream;
@@ -325,7 +326,7 @@ static void OnMidiEventFn(const MidiMsg* msg, void* usr)
 static int OnAudioPacketFn(
     const void* input,
     void* output,
-    u64 frameCount,
+    unsigned long frameCount,
     const PaStreamCallbackTimeInfo* timeInfo,
     PaStreamCallbackFlags statusFlags,
     void* userData)
