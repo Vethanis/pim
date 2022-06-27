@@ -1,5 +1,6 @@
 #include "scriptsys/script.h"
 
+#include "scriptsys/scr_math.h"
 #include "scriptsys/scr_log.h"
 #include "scriptsys/scr_time.h"
 #include "scriptsys/scr_cmd.h"
@@ -32,6 +33,7 @@ void ScriptSys_Init(void)
 
     luaL_openlibs(L);
 
+    scr_math_init(L);
     scr_cmd_init(L);
     scr_log_init(L);
     scr_time_init(L);
@@ -43,6 +45,7 @@ void ScriptSys_Init(void)
 
 void ScriptSys_Shutdown(void)
 {
+    scr_math_shutdown(L);
     scr_game_shutdown(L);
     scr_cmd_shutdown(L);
     scr_log_shutdown(L);
