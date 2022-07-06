@@ -5,9 +5,6 @@
 #include "math/scalar.h"
 #include "rendering/vulkan/vkr.h"
 
-#define kExposureHistogramSize  (256)
-#define kExposureBinRange       (kExposureHistogramSize - 2)
-
 PIM_C_BEGIN
 
 // ----------------------------------------------------------------------------
@@ -50,19 +47,23 @@ pim_inline float VEC_CALL EV100ToLum(float ev100)
 
 pim_inline u32 VEC_CALL LumToBin(float lum, float minEV, float maxEV)
 {
-    float ev = LumToEV100(lum);
-    float t = f1_unlerp(minEV, maxEV, ev);
-    const float binRange = (float)kExposureBinRange;
-    u32 bin = (u32)(1.5f + t * binRange);
-    bin = (lum > kEpsilon) ? bin : 0;
-    return bin;
+    if (lum > kEpsilon)
+    {
+        float ev = LumToEV100(lum);
+        float t = f1_unlerp(minEV, maxEV, ev);
+        return (u32)(1.5f + t * (R_ExposureHistogramSize - 2));
+    }
+    return 0;
 }
 
-pim_inline float VEC_CALL BinToEV(u32 i, float minEV, float dEV)
+pim_inline float VEC_CALL BinToEV(u32 i, float minEV, float maxEV)
 {
-    float ev = minEV + (i - 1u) * dEV;
-    ev = (i != 0) ? ev : kLog2Epsilon;
-    return ev;
+    if (i != 0)
+    {
+        const float rcpBinCount = 1.0f / (R_ExposureHistogramSize - 1);
+        return f1_lerp(minEV, maxEV, (i - 0.5f) * rcpBinCount);
+    }
+    return kLog2Epsilon;
 }
 
 pim_inline float VEC_CALL AdaptLuminance(float lum0, float lum1, float dt, float tau)
@@ -111,20 +112,20 @@ pim_inline float VEC_CALL ExposureCompensationCurve(float ev100)
     float L = EV100ToLum(ev100);
     float keyValue = 1.03f - 2.0f / (log10f(L + 1.0f) + 2.0f);
     const float midGrey = 0.18f;
-    float exposureMultiplier = keyValue / midGrey;
-    return exposureMultiplier;
+    return keyValue / midGrey;
 }
 
 pim_inline float VEC_CALL CalcExposure(const vkrExposure* args)
 {
-    float ev100 = 0.0f;
+    float avgLum = f1_max(args->avgLum, kEpsilon);
+    float ev100;
     if (args->manual)
     {
         ev100 = ManualEV100(args->aperture, args->shutterTime, args->ISO);
     }
     else
     {
-        ev100 = LumToEV100(args->avgLum);
+        ev100 = LumToEV100(avgLum);
     }
 
     float exposureCompensation = ExposureCompensationCurve(ev100);

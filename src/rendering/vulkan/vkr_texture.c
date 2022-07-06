@@ -174,7 +174,6 @@ bool vkrTexture_New(
     const u32 queueFamilies[] =
     {
         g_vkr.queues[vkrQueueId_Graphics].family,
-        g_vkr.queues[vkrQueueId_Compute].family,
     };
     VkImageCreateInfo info = { 0 };
     info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;

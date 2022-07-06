@@ -185,9 +185,9 @@ VkPhysicalDevice vkrSelectPhysicalDevice(
 
         vkrQueueSupport support = vkrQueryQueueSupport(devices[iDevice], surface);
         bool hasQueueSupport = true;
-        for (i32 iQueue = 0; iQueue < NELEM(support.family); ++iQueue)
+        for (i32 iQueue = 0; iQueue < NELEM(support.info); ++iQueue)
         {
-            hasQueueSupport &= (support.family[iQueue] >= 0);
+            hasQueueSupport &= (support.info[iQueue].index >= 0);
         }
         scores[iDevice].hasQueueSupport = hasQueueSupport;
     }
@@ -273,8 +273,9 @@ VkDevice vkrCreateDevice(
     i32 counts[vkrQueueId_COUNT] = { 0 };
     for (i32 id = 0; id < vkrQueueId_COUNT; ++id)
     {
-        i32 family = support.family[id];
+        i32 family = support.info[id].family;
         ASSERT(family >= 0);
+        ASSERT(support.info[id].index >= 0);
         i32 location = -1;
         for (i32 j = 0; j < familyCount; ++j)
         {

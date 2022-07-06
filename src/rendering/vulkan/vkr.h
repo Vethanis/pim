@@ -57,9 +57,6 @@ typedef struct VmaAllocation_T* VmaAllocation;
 typedef enum
 {
     vkrQueueId_Graphics,
-    vkrQueueId_Compute,
-    vkrQueueId_Transfer,
-    vkrQueueId_Present,
 
     vkrQueueId_COUNT
 } vkrQueueId;
@@ -67,9 +64,6 @@ typedef enum
 typedef enum
 {
     vkrQueueFlag_GraphicsBit = 1 << vkrQueueId_Graphics,
-    vkrQueueFlag_ComputeBit = 1 << vkrQueueId_Compute,
-    vkrQueueFlag_TransferBit = 1 << vkrQueueId_Transfer,
-    vkrQueueFlag_PresentBit = 1 << vkrQueueId_Present,
 
     vkrQueueFlag_ALL = 0x7fffffff,
 } vkrQueueFlagBits;
@@ -233,12 +227,20 @@ typedef struct vkrCompileOutput_s
     char* disassembly;
 } vkrCompileOutput;
 
+typedef struct vkrQueueInfo_s
+{
+    VkQueueFamilyProperties properties;
+    i32 family; // queue type
+    i32 index; // which subqueue of the same family
+    u32 gfx : 1;
+    u32 compute : 1;
+    u32 transfer : 1;
+    u32 present : 1;
+} vkrQueueInfo;
+
 typedef struct vkrQueueSupport_s
 {
-    i32 family[vkrQueueId_COUNT];
-    i32 index[vkrQueueId_COUNT];
-    u32 count;
-    VkQueueFamilyProperties* properties;
+    vkrQueueInfo info[vkrQueueId_COUNT];
 } vkrQueueSupport;
 
 typedef struct vkrSwapchainSupport_s
@@ -362,8 +364,6 @@ typedef struct vkrCmdBuf_s
     u32 submit : 1;
     u32 inRenderPass : 1;
     u32 subpass : 8;
-    u32 queueTransferSrc : 1;
-    u32 queueTransferDst : 1;
 } vkrCmdBuf;
 
 typedef struct vkrContext_s
@@ -384,7 +384,6 @@ typedef enum
 
 typedef struct vkrReleasable_s
 {
-    //u32 frame;              // frame that resource was released
     vkrSubmitId submitId;
     vkrReleasableType type; // type of resource
     union

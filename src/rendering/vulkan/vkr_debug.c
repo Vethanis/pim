@@ -1,5 +1,6 @@
 #include "rendering/vulkan/vkr_debug.h"
 #include "common/console.h"
+#include "common/cvars.h"
 #include <string.h>
 
 VkDebugUtilsMessengerEXT vkrCreateDebugMessenger()
@@ -73,7 +74,11 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL vkrOnVulkanMessage(
     {
         const char* pMessage = pCallbackData->pMessage;
         Con_Logf(sev, "vkr", pMessage);
-        ASSERT(sev != LogSev_Error);
+        if (!ConVar_GetBool(&cv_fullscreen))
+        {
+            // have to logout of PC to get control back when fullscreen...
+            ASSERT(sev != LogSev_Error);
+        }
     }
 
     return VK_FALSE;

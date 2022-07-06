@@ -11,7 +11,7 @@ cbuffer InputConstants
 
 // Based on https://www.alextardif.com/HistogramLuminance.html
 
-groupshared uint gs_histogram[kHistogramSize];
+groupshared uint gs_histogram[R_ExposureHistogramSize];
 
 // (numthreadsX * numthreadsY) must be == kHistogramSize
 [numthreads(16, 16, 1)]
@@ -19,7 +19,7 @@ void CSMain(
     uint localId : SV_GroupIndex, // [0, (numthreadsX * numthreadsY * numthreadsZ) - 1]
     uint3 tid : SV_DispatchThreadID)
 {
-    const float minEV = m_exposure.minEV;
+    const float minEV = max(m_exposure.minEV, kLog2Epsilon);
     const float maxEV = m_exposure.maxEV;
     const uint2 inputSize = uint2(m_inputWidth, m_inputHeight);
 

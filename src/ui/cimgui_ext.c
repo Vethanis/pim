@@ -56,6 +56,29 @@ bool igExSliderFloat4(const char* label, float x[4], float lo, float hi)
 {
     return igSliderFloat4(label, x, lo, hi, "%.3f", 0x0);
 }
+
+bool igExLogSliderInt(const char* label, i32* x, i32 lo, i32 hi)
+{
+    return igSliderInt(label, x, lo, hi, "%d", ImGuiSliderFlags_Logarithmic);
+}
+
+bool igExLogSliderFloat(const char* label, float* x, float lo, float hi)
+{
+    return igSliderFloat(label, x, lo, hi, "%.3f", ImGuiSliderFlags_Logarithmic);
+}
+bool igExLogSliderFloat2(const char* label, float x[2], float lo, float hi)
+{
+    return igSliderFloat2(label, x, lo, hi, "%.3f", ImGuiSliderFlags_Logarithmic);
+}
+bool igExLogSliderFloat3(const char* label, float x[3], float lo, float hi)
+{
+    return igSliderFloat3(label, x, lo, hi, "%.3f", ImGuiSliderFlags_Logarithmic);
+}
+bool igExLogSliderFloat4(const char* label, float x[4], float lo, float hi)
+{
+    return igSliderFloat4(label, x, lo, hi, "%.3f", ImGuiSliderFlags_Logarithmic);
+}
+
 bool igExCollapsingHeader1(const char* label)
 {
     return igCollapsingHeaderTreeNodeFlags(label, 0x0);

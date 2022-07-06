@@ -17,14 +17,7 @@ void vkrCmdAlloc_Del(vkrQueue* queue);
 
 vkrCmdBuf* vkrCmdGet(vkrQueueId queueId);
 
-// present
-//vkrCmdBuf* vkrCmdGet_P(void);
-// graphics
 vkrCmdBuf* vkrCmdGet_G(void);
-// compute
-//vkrCmdBuf* vkrCmdGet_C(void);
-// transfer
-//vkrCmdBuf* vkrCmdGet_T(void);
 
 void vkrCmdReset(vkrCmdBuf* cmdbuf);
 
@@ -41,7 +34,6 @@ void vkrSubmit_Await(vkrSubmitId submit);
 void vkrSubmit_AwaitAll(void);
 
 void vkrCmdFlush(void);
-void vkrCmdFlushQueueTransfers(void);
 
 void vkrCmdBeginRenderPass(
     vkrCmdBuf* cmdbuf,

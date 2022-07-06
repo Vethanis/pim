@@ -1,5 +1,6 @@
 #include "io/fnd.h"
 
+#include "io/fd.h"
 #include "common/stringutil.h"
 #include <string.h>
 

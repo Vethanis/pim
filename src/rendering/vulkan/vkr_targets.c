@@ -46,7 +46,6 @@ bool vkrTargets_Init(void)
         const u32 queueFamilyIndices[] =
         {
             g_vkr.queues[vkrQueueId_Graphics].family,
-            g_vkr.queues[vkrQueueId_Compute].family,
         };
         const VkImageCreateInfo info =
         {

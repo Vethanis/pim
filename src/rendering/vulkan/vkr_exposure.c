@@ -28,6 +28,8 @@
 #include "math/color.h"
 #include <string.h>
 
+// ----------------------------------------------------------------------------
+
 typedef struct PushConstants_s
 {
     u32 width;
@@ -44,17 +46,25 @@ typedef struct ExposureBuffer_s
     float minLum;
 } ExposureBuffer;
 
+// ----------------------------------------------------------------------------
+
+static void vkrExposure_Readback(void);
+
+// ----------------------------------------------------------------------------
+
+static vkrPass ms_clearPass;
 static vkrPass ms_buildPass;
 static vkrPass ms_adaptPass;
 static vkrPass ms_exposePass;
 static VkRenderPass ms_exposeRenderPass;
-static vkrBufferSet ms_histBuffers;
-static vkrBufferSet ms_expBuffers;
-static vkrBufferSet ms_readbackBuffers;
+static vkrBufferSet ms_histBuffer;
+static vkrBufferSet ms_expBuffer;
+static vkrBufferSet ms_readbackBuffer;
+static vkrSubmitId ms_readbacks[R_ResourceSets];
 static float4 ms_averageValue; // ExposureBuffer
-static vkrSubmitId ms_readbackId;
-static vkrBuffer* ms_readbackBuffer;
 static vkrExposure ms_params;
+
+// ----------------------------------------------------------------------------
 
 vkrExposure* vkrExposure_GetParams(void) { return &ms_params; }
 float vkrGetAvgLuminance(void) { return ms_averageValue.x; }
@@ -66,9 +76,31 @@ bool vkrExposure_Init(void)
 {
     bool success = true;
 
+    VkPipelineShaderStageCreateInfo clearShaders[1] = { 0 };
     VkPipelineShaderStageCreateInfo buildShaders[1] = { 0 };
     VkPipelineShaderStageCreateInfo adaptShaders[1] = { 0 };
     VkPipelineShaderStageCreateInfo exposeShaders[2] = { 0 };
+
+    {
+        if (!vkrShader_New(
+            &clearShaders[0],
+            "ClearHistogram.hlsl", "CSMain", vkrShaderType_Comp))
+        {
+            success = false;
+            goto cleanup;
+        }
+        const vkrPassDesc desc =
+        {
+            .pushConstantBytes = 0,
+            .shaderCount = NELEM(clearShaders),
+            .shaders = clearShaders,
+        };
+        if (!vkrPass_New(&ms_clearPass, &desc))
+        {
+            success = false;
+            goto cleanup;
+        }
+    }
 
     {
         if (!vkrShader_New(
@@ -192,36 +224,12 @@ bool vkrExposure_Init(void)
         }
     }
 
-    if (!vkrBufferSet_New(
-        &ms_histBuffers,
-        sizeof(u32) * kExposureHistogramSize,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        vkrMemUsage_GpuOnly))
-    {
-        success = false;
-        goto cleanup;
-    }
-    if (!vkrBufferSet_New(
-        &ms_expBuffers,
-        sizeof(float4),
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        vkrMemUsage_GpuOnly))
-    {
-        success = false;
-        goto cleanup;
-    }
-    if (!vkrBufferSet_New(
-        &ms_readbackBuffers,
-        ms_expBuffers.frames[0].size,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        vkrMemUsage_CpuOnly))
-    {
-        success = false;
-        goto cleanup;
-    }
 
 cleanup:
+    for (i32 i = 0; i < NELEM(clearShaders); ++i)
+    {
+        vkrShader_Del(&clearShaders[i]);
+    }
     for (i32 i = 0; i < NELEM(buildShaders); ++i)
     {
         vkrShader_Del(&buildShaders[i]);
@@ -243,12 +251,13 @@ cleanup:
 
 void vkrExposure_Shutdown(void)
 {
+    vkrPass_Del(&ms_clearPass);
     vkrPass_Del(&ms_buildPass);
     vkrPass_Del(&ms_adaptPass);
     vkrPass_Del(&ms_exposePass);
-    vkrBufferSet_Release(&ms_histBuffers);
-    vkrBufferSet_Release(&ms_expBuffers);
-    vkrBufferSet_Release(&ms_readbackBuffers);
+    vkrBufferSet_Release(&ms_histBuffer);
+    vkrBufferSet_Release(&ms_expBuffer);
+    vkrBufferSet_Release(&ms_readbackBuffer);
 }
 
 ProfileMark(pm_setup, vkrExposure_Setup)
@@ -270,9 +279,44 @@ void vkrExposure_Setup(void)
         ms_params.ISO = 100.0f;
     }
 
+    vkrExposure_Readback();
+
+    vkrBuffer* expBuffer = vkrBufferSet_Current(&ms_expBuffer);
+    vkrBuffer* histBuffer = vkrBufferSet_Current(&ms_histBuffer);
+
+    vkrBuffer_Reserve(
+        expBuffer,
+        sizeof(float4),
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        vkrMemUsage_GpuOnly);
+    vkrBuffer_Reserve(
+        histBuffer,
+        sizeof(u32) * R_ExposureHistogramSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        vkrMemUsage_GpuOnly);
+
+    // copy prior exposure buffer to prior read buffer
+    {
+        vkrBuffer* nextExpBuffer = vkrBufferSet_Next(&ms_expBuffer);
+        if (nextExpBuffer->handle)
+        {
+            vkrBuffer* nextReadBuffer = vkrBufferSet_Next(&ms_readbackBuffer);
+            vkrBuffer_Reserve(
+                nextReadBuffer,
+                sizeof(float4),
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                vkrMemUsage_CpuOnly);
+            vkrCmdBuf* cmd_x = vkrCmdGet_G();
+            vkrBufferState_TransferSrc(cmd_x, nextExpBuffer);
+            vkrBufferState_TransferDst(cmd_x, nextReadBuffer);
+            vkrCmdCopyBuffer(cmd_x, nextExpBuffer, nextReadBuffer);
+            vkrBufferState_HostRead(cmd_x, nextReadBuffer);
+            ms_readbacks[vkrGetNextSyncIndex()] = vkrCmdSubmit(cmd_x, NULL, 0x0, NULL);
+        }
+    }
+
     vkrImage* lum = vkrGetSceneBuffer();
-    vkrBuffer* expBuffer = vkrBufferSet_Current(&ms_expBuffers);
-    vkrBuffer* histBuffer = vkrBufferSet_Current(&ms_histBuffers);
     VkSampler lumSampler = vkrSampler_Get(
         VK_FILTER_LINEAR,
         VK_SAMPLER_MIPMAP_MODE_LINEAR,
@@ -297,81 +341,19 @@ void vkrExposure_Setup(void)
     ProfileEnd(pm_setup);
 }
 
-ProfileMark(pm_readback, vkrExposure_Readback)
-static void vkrExposure_Readback(void)
-{
-    // readback last frames exposure info, to set monitor metadata
-    ProfileBegin(pm_readback);
-    ms_params.deltaTime = f1_sat((float)Time_SmoothDeltaf());
-    if (ms_readbackBuffer)
-    {
-        vkrSubmit_Await(ms_readbackId);
-        float4 readbackValue = f4_0;
-        if (vkrBuffer_Read(ms_readbackBuffer, &readbackValue, sizeof(readbackValue)))
-        {
-            ms_params.exposure = readbackValue.y;
-            ms_averageValue = f4_lerpvs(ms_averageValue, readbackValue, ms_params.deltaTime * 0.5f);
-        }
-        ms_readbackBuffer = NULL;
-        ms_readbackId = (vkrSubmitId){ 0 };
-    }
-    ms_params.avgLum = ms_averageValue.x;
-    if (g_vkrDevExts.EXT_hdr_metadata && vkrGetHdrEnabled())
-    {
-        const float minMonitorNits = vkrGetDisplayNitsMin();
-        const float maxMonitorNits = vkrGetDisplayNitsMax();
-        const float4x2 primaries = Colorspace_GetPrimaries(vkrGetDisplayColorspace());
-        // convert scene luminance to display luminance
-        const float4 averaged = f4_PQ_OOTF(ms_averageValue);
-        const float avgContentLum = averaged.x;
-        const float maxContentLum = averaged.z;
-        const VkHdrMetadataEXT metadata =
-        {
-            .sType = VK_STRUCTURE_TYPE_HDR_METADATA_EXT,
-            .displayPrimaryRed.x = primaries.c0.x,
-            .displayPrimaryRed.y = primaries.c1.x,
-            .displayPrimaryGreen.x = primaries.c0.y,
-            .displayPrimaryGreen.y = primaries.c1.y,
-            .displayPrimaryBlue.x = primaries.c0.z,
-            .displayPrimaryBlue.y = primaries.c1.z,
-            .whitePoint.x = primaries.c0.w,
-            .whitePoint.y = primaries.c1.w,
-            .minLuminance = minMonitorNits, // minimum luminance of the reference monitor in nits
-            .maxLuminance = maxMonitorNits, // maximum luminance of the reference monitor in nits
-            .maxFrameAverageLightLevel = avgContentLum, // MaxFALL (content's maximum frame average light level in nits)
-            .maxContentLightLevel = maxContentLum, // MaxCLL (content’s maximum luminance in nits)
-        };
-        vkSetHdrMetadataEXT(g_vkr.dev, 1, &g_vkr.chain.handle, &metadata);
-    }
-    ProfileEnd(pm_readback);
-}
-
 ProfileMark(pm_execute, vkrExposure_Execute)
 void vkrExposure_Execute(void)
 {
     ProfileBegin(pm_execute);
 
-    vkrExposure_Readback();
-
-    // compute exposure of the previous frame
-    vkrImage* backbuffer = vkrGetBackBuffer();
+    vkrBuffer* expBuffer = vkrBufferSet_Current(&ms_expBuffer);
     vkrImage* sceneLum = vkrGetSceneBuffer();
-    vkrBuffer* expBuffer = vkrBufferSet_Current(&ms_expBuffers);
-    vkrBuffer* histBuffer = vkrBufferSet_Current(&ms_histBuffers);
-
-    // copy exposure buffer to read buffer
-    {
-        //vkrCmdBuf* cmd_x = vkrCmdGet_T();
-        vkrCmdBuf* cmd_x = vkrCmdGet_G();
-        vkrBuffer* readBuffer = vkrBufferSet_Current(&ms_readbackBuffers);
-        vkrCmdCopyBuffer(cmd_x, expBuffer, readBuffer);
-        vkrBufferState_HostRead(cmd_x, readBuffer);
-        ms_readbackBuffer = readBuffer;
-        ms_readbackId = vkrCmdSubmit(cmd_x, NULL, 0x0, NULL);
-    }
 
     // dispatch shaders
     {
+        vkrCmdBuf* cmd_c = vkrCmdGet_G();
+        vkrBuffer* histBuffer = vkrBufferSet_Current(&ms_histBuffer);
+
         const i32 width = sceneLum->width;
         const i32 height = sceneLum->height;
         const PushConstants constants =
@@ -381,8 +363,13 @@ void vkrExposure_Execute(void)
             .exposure = ms_params,
         };
 
-        //vkrCmdBuf* cmd_c = vkrCmdGet_C();
-        vkrCmdBuf* cmd_c = vkrCmdGet_G();
+        // clear histogram
+        {
+            vkrBufferState_ComputeStore(cmd_c, histBuffer);
+            vkrCmdBindPass(cmd_c, &ms_clearPass);
+            const i32 dispatchX = (R_ExposureHistogramSize + 31) / 32;
+            vkrCmdDispatch(cmd_c, dispatchX, 1, 1);
+        }
 
         // build histogram
         {
@@ -404,11 +391,12 @@ void vkrExposure_Execute(void)
             vkrCmdDispatch(cmd_c, 1, 1, 1);
         }
 
-        vkrCmdSubmit(cmd_c, NULL, 0x0, NULL);
     }
 
     {
         vkrCmdBuf* cmd_g = vkrCmdGet_G();
+        vkrImage* backbuffer = vkrGetBackBuffer();
+
         vkrBufferState_FragLoad(cmd_g, expBuffer);
         vkrImageState_FragSample(cmd_g, sceneLum);
         vkrImageState_ColorAttachWrite(cmd_g, backbuffer);
@@ -441,4 +429,60 @@ void vkrExposure_Execute(void)
     }
 
     ProfileEnd(pm_execute);
+}
+
+// ----------------------------------------------------------------------------
+
+ProfileMark(pm_readback, vkrExposure_Readback)
+static void vkrExposure_Readback(void)
+{
+    ProfileBegin(pm_readback);
+
+    ms_params.deltaTime = f1_sat((float)Time_SmoothDeltaf());
+
+    // readback prior frames exposure info
+    vkrSubmitId readSubmit = ms_readbacks[vkrGetSyncIndex()];
+    if (readSubmit.valid)
+    {
+        vkrSubmit_Await(readSubmit);
+        float4 readbackValue = f4_0;
+        vkrBuffer* readBuffer = vkrBufferSet_Current(&ms_readbackBuffer);
+        if (vkrBuffer_Read(readBuffer, &readbackValue, sizeof(readbackValue)))
+        {
+            ms_params.exposure = readbackValue.y;
+            ms_averageValue = f4_lerpvs(ms_averageValue, readbackValue, ms_params.deltaTime);
+        }
+    }
+    ms_params.avgLum = ms_averageValue.x;
+
+    // set monitor metadata
+    if (g_vkrDevExts.EXT_hdr_metadata && vkrGetHdrEnabled())
+    {
+        const float minMonitorNits = vkrGetDisplayNitsMin();
+        const float maxMonitorNits = vkrGetDisplayNitsMax();
+        const float4x2 primaries = Colorspace_GetPrimaries(vkrGetDisplayColorspace());
+        // convert scene luminance to display luminance
+        const float4 averaged = f4_PQ_OOTF(ms_averageValue);
+        const float avgContentLum = averaged.x;
+        const float maxContentLum = averaged.z;
+        const VkHdrMetadataEXT metadata =
+        {
+            .sType = VK_STRUCTURE_TYPE_HDR_METADATA_EXT,
+            .displayPrimaryRed.x = primaries.c0.x,
+            .displayPrimaryRed.y = primaries.c1.x,
+            .displayPrimaryGreen.x = primaries.c0.y,
+            .displayPrimaryGreen.y = primaries.c1.y,
+            .displayPrimaryBlue.x = primaries.c0.z,
+            .displayPrimaryBlue.y = primaries.c1.z,
+            .whitePoint.x = primaries.c0.w,
+            .whitePoint.y = primaries.c1.w,
+            .minLuminance = minMonitorNits, // minimum luminance of the reference monitor in nits
+            .maxLuminance = maxMonitorNits, // maximum luminance of the reference monitor in nits
+            .maxFrameAverageLightLevel = avgContentLum, // MaxFALL (content's maximum frame average light level in nits)
+            .maxContentLightLevel = maxContentLum, // MaxCLL (content’s maximum luminance in nits)
+        };
+        vkSetHdrMetadataEXT(g_vkr.dev, 1, &g_vkr.chain.handle, &metadata);
+    }
+
+    ProfileEnd(pm_readback);
 }

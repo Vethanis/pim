@@ -363,7 +363,7 @@ ConVar cv_exp_adaptrate =
 {
     .type = cvart_float,
     .name = "exp_adaptrate",
-    .value = "5.0",
+    .value = "1.0",
     .minFloat = 0.1f,
     .maxFloat = 10.0f,
     .desc = "Autoexposure Adaptation Rate",
@@ -382,17 +382,17 @@ ConVar cv_exp_evmin =
     .type = cvart_float,
     .name = "exp_evmin",
     .value = "-10.0",
-    .minFloat = -30.0f,
-    .maxFloat = 30.0f,
+    .minFloat = -23.0f,
+    .maxFloat = 23.0f,
     .desc = "Autoexposure Sensor Minimum",
 };
 ConVar cv_exp_evmax =
 {
     .type = cvart_float,
     .name = "exp_evmax",
-    .value = "30.0",
-    .minFloat = -29.0f,
-    .maxFloat = 31.0f,
+    .value = "23.0",
+    .minFloat = -23.0f,
+    .maxFloat = 23.0f,
     .desc = "Autoexposure Sensor Maximum",
 };
 ConVar cv_exp_cdfmin =

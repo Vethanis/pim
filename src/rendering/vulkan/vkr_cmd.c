@@ -301,13 +301,6 @@ vkrSubmitId vkrCmdSubmit(
     VkFence fence = queue->cmdFences[slot];
     ASSERT(fence);
 
-    if (cmd->queueTransferDst)
-    {
-        ASSERT(!cmd->queueTransferSrc);
-        vkrCmdFlushQueueTransfers();
-    }
-    ASSERT(!cmd->queueTransferDst);
-
     ASSERT(!cmd->ended);
     VkCheck(vkEndCommandBuffer(cmd->handle));
     cmd->ended = 1;
@@ -465,38 +458,6 @@ void vkrCmdFlush(void)
     ProfileEnd(pm_cmdflush);
 }
 
-ProfileMark(pm_cmdflushqueuetransfers, vkrCmdFlushQueueTransfers)
-void vkrCmdFlushQueueTransfers(void)
-{
-    ProfileBegin(pm_cmdflushqueuetransfers);
-
-    vkrContext* ctx = vkrGetContext();
-    bool submit[vkrQueueId_COUNT] = { 0 };
-    for (i32 id = 0; id < NELEM(ctx->curCmdBuf); ++id)
-    {
-        vkrCmdBuf* cmd = &ctx->curCmdBuf[id];
-        ASSERT(!cmd->inRenderPass);
-        if (cmd->queueTransferSrc)
-        {
-            ASSERT(!cmd->queueTransferDst);
-            vkrCmdSubmit(cmd, NULL, 0, NULL);
-            ASSERT(!cmd->queueTransferSrc);
-            submit[id] = true;
-        }
-    }
-    for (i32 id = 0; id < NELEM(ctx->curCmdBuf); ++id)
-    {
-        vkrCmdBuf* cmd = &ctx->curCmdBuf[id];
-        cmd->queueTransferDst = 0;
-        if (submit[id])
-        {
-            vkrCmdGet(id); // reinitialize cmdbuf
-        }
-    }
-
-    ProfileEnd(pm_cmdflushqueuetransfers);
-}
-
 void vkrCmdBeginRenderPass(
     vkrCmdBuf* cmdbuf,
     VkRenderPass pass,
@@ -641,50 +602,7 @@ bool vkrBufferState(
         prev->stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         newResource = true;
     }
-    if (prevQueue != nextQueue)
-    {
-        // queue ownership transfer
-        vkrCmdBuf* srcCmd = vkrCmdGet(prev->owner);
-        vkrCmdBuf* dstCmd = vkrCmdGet(next->owner);
-        ASSERT(!srcCmd->inRenderPass);
-        ASSERT(!dstCmd->inRenderPass);
-        if (srcCmd->queueTransferDst || dstCmd->queueTransferSrc)
-        {
-            vkrCmdFlushQueueTransfers();
-        }
-        const VkBufferMemoryBarrier barrier =
-        {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-            .srcAccessMask = prev->access,
-            .dstAccessMask = next->access,
-            .srcQueueFamilyIndex = prevQueue->family,
-            .dstQueueFamilyIndex = nextQueue->family,
-            .buffer = buf->handle,
-            .offset = 0,
-            .size = VK_WHOLE_SIZE,
-        };
-        ASSERT(!srcCmd->queueTransferDst);
-        srcCmd->queueTransferSrc = 1;
-        vkCmdPipelineBarrier(
-            srcCmd->handle,
-            prev->stage, next->stage,
-            0x0,
-            0, NULL,
-            1, &barrier,
-            0, NULL);
-        ASSERT(!dstCmd->queueTransferSrc);
-        dstCmd->queueTransferDst = 1;
-        vkCmdPipelineBarrier(
-            dstCmd->handle,
-            prev->stage, next->stage,
-            0x0,
-            0, NULL,
-            1, &barrier,
-            0, NULL);
-        *prev = *next;
-        insertedBarrier = true;
-    }
-    else
+    ASSERT(prevQueue == nextQueue); // not going to bother with queue transfers for now
     {
         bool needBarrier = false;
         bool hostOnly = prev->stage == VK_PIPELINE_STAGE_HOST_BIT && next->stage == VK_PIPELINE_STAGE_HOST_BIT;
@@ -976,56 +894,7 @@ bool vkrImageState(
     {
         aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
     }
-    if (prevQueue != nextQueue)
-    {
-        // queue ownership transfer
-        vkrCmdBuf* srcCmd = vkrCmdGet(prev->owner);
-        vkrCmdBuf* dstCmd = vkrCmdGet(next->owner);
-        if (srcCmd->queueTransferDst || dstCmd->queueTransferSrc)
-        {
-            vkrCmdFlushQueueTransfers();
-        }
-        const VkImageMemoryBarrier barrier =
-        {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask = prev->access,
-            .dstAccessMask = next->access,
-            .oldLayout = prev->layout,
-            .newLayout = next->layout,
-            .srcQueueFamilyIndex = prevQueue->family,
-            .dstQueueFamilyIndex = nextQueue->family,
-            .image = img->handle,
-            .subresourceRange =
-            {
-                .aspectMask = aspect,
-                .baseMipLevel = 0,
-                .levelCount = VK_REMAINING_MIP_LEVELS,
-                .baseArrayLayer = 0,
-                .layerCount = VK_REMAINING_ARRAY_LAYERS,
-            },
-        };
-        ASSERT(!srcCmd->queueTransferDst);
-        srcCmd->queueTransferSrc = 1;
-        vkCmdPipelineBarrier(
-            srcCmd->handle,
-            prev->stage, next->stage,
-            0x0,
-            0, NULL,
-            0, NULL,
-            1, &barrier);
-        ASSERT(!dstCmd->queueTransferSrc);
-        dstCmd->queueTransferDst = 1;
-        vkCmdPipelineBarrier(
-            dstCmd->handle,
-            prev->stage, next->stage,
-            0x0,
-            0, NULL,
-            0, NULL,
-            1, &barrier);
-        *prev = *next;
-        insertedBarrier = true;
-    }
-    else
+    ASSERT(prevQueue == nextQueue); // queue transfers not implemented
     {
         bool layoutChange = prev->layout != next->layout;
         bool srcRead = (prev->access & kReadAccess) != 0;

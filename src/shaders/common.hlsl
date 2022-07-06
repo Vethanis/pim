@@ -14,7 +14,8 @@
 #define kMinAlpha       0.00001525878f
 #define kPi             3.141592653f
 #define kTau            6.283185307f
-#define kEpsilon        2.38418579e-7f
+#define kEpsilon        (1.0f / (1 << 23))
+#define kLog2Epsilon    (-23.0f)
 
 #ifndef FLT_MAX
 #   define FLT_MAX 3.402823e+38f

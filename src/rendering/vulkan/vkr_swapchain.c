@@ -17,6 +17,7 @@
 #include <string.h>
 
 // ----------------------------------------------------------------------------
+#define VKR_NUM_PRESENT_MODES (VK_PRESENT_MODE_FIFO_RELAXED_KHR+1)
 
 static const char* VkPresentModeKHR_Str[] =
 {
@@ -25,20 +26,22 @@ static const char* VkPresentModeKHR_Str[] =
     "VK_PRESENT_MODE_FIFO_KHR",
     "VK_PRESENT_MODE_FIFO_RELAXED_KHR",
 };
+SASSERT(NELEM(VkPresentModeKHR_Str) == VKR_NUM_PRESENT_MODES);
 
 // pim prefers low latency over tear protection
 static const VkPresentModeKHR kPreferredPresentModes[] =
 {
     VK_PRESENT_MODE_MAILBOX_KHR,        // single-entry overwrote queue; good latency
-    VK_PRESENT_MODE_IMMEDIATE_KHR,      // no queue; best latency, bad tearing
     VK_PRESENT_MODE_FIFO_RELAXED_KHR,   // multi-entry adaptive queue; bad latency
     VK_PRESENT_MODE_FIFO_KHR ,          // multi-entry queue; bad latency
+    VK_PRESENT_MODE_IMMEDIATE_KHR,      // no queue; best latency, bad tearing
 };
+SASSERT(NELEM(kPreferredPresentModes) == VKR_NUM_PRESENT_MODES);
 
 static const VkSurfaceFormatKHR kPreferredSurfaceFormats[] =
 {
 #if ENABLE_HDR
-    // PQ Rec2100
+    // 10 bit PQ Rec2100
     // https://en.wikipedia.org/wiki/Rec._2100
     // https://en.wikipedia.org/wiki/High-dynamic-range_video#Perceptual_quantizer
     {
@@ -49,16 +52,37 @@ static const VkSurfaceFormatKHR kPreferredSurfaceFormats[] =
         VK_FORMAT_A2B10G10R10_UNORM_PACK32,
         VK_COLOR_SPACE_HDR10_ST2084_EXT,
     },
-    // 10 bit sRGB
     {
         VK_FORMAT_A2R10G10B10_UNORM_PACK32,
-        VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+        VK_COLOR_SPACE_DOLBYVISION_EXT,
     },
     {
         VK_FORMAT_A2B10G10R10_UNORM_PACK32,
-        VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+        VK_COLOR_SPACE_DOLBYVISION_EXT,
     },
+
+    // 10 bit hybrid log gamma
+    //{
+    //    VK_FORMAT_A2R10G10B10_UNORM_PACK32,
+    //    VK_COLOR_SPACE_HDR10_HLG_EXT,
+    //},
+    //{
+    //    VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+    //    VK_COLOR_SPACE_HDR10_HLG_EXT,
+    //},
+
 #endif // ENABLE_HDR
+
+    // 10 bit sRGB
+    //{
+    //    VK_FORMAT_A2R10G10B10_UNORM_PACK32,
+    //    VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+    //},
+    //{
+    //    VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+    //    VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+    //},
+
     // 8 bit sRGB
     {
         VK_FORMAT_R8G8B8A8_SRGB,
@@ -98,10 +122,8 @@ bool vkrSwapchain_New(
 
     const u32 families[] =
     {
-        qsup.family[vkrQueueId_Graphics],
-        qsup.family[vkrQueueId_Present],
+        qsup.info[vkrQueueId_Graphics].family,
     };
-    bool concurrent = families[0] != families[1];
 
     const u32 usage =
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -117,9 +139,8 @@ bool vkrSwapchain_New(
         .imageExtent = ext,
         .imageArrayLayers = 1,
         .imageUsage = usage,
-        .imageSharingMode = concurrent ?
-            VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
-        .queueFamilyIndexCount = concurrent ? NELEM(families) : 0,
+        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = NELEM(families),
         .pQueueFamilyIndices = families,
         .preTransform = sup.caps.currentTransform,
         // no compositing with window manager / desktop background
@@ -151,7 +172,7 @@ bool vkrSwapchain_New(
         Con_Logf(LogSev_Info, "vkr", "Present mode: '%s'", VkPresentModeKHR_Str[mode]);
         Con_Logf(LogSev_Info, "vkr", "Present extent: %d x %d", ext.width, ext.height);
         Con_Logf(LogSev_Info, "vkr", "Present images: %d", imgCount);
-        Con_Logf(LogSev_Info, "vkr", "Present sharing mode: %s", concurrent ? "Concurrent" : "Exclusive");
+        Con_Logf(LogSev_Info, "vkr", "Present sharing mode: %s", "Exclusive");
         const char* colorSpaceStr = "Unknown";
         switch (format.colorSpace)
         {
@@ -368,11 +389,7 @@ void vkrSwapchain_Submit(vkrCmdBuf* cmd)
     }
 
     {
-        const vkrQueue* queue = vkrGetQueue(vkrQueueId_Graphics);
-        if (!queue->pres)
-        {
-            queue = vkrGetQueue(vkrQueueId_Present);
-        }
+        const vkrQueue* queue = vkrGetQueue(cmd->queueId);
         ASSERT(queue->handle);
 
         const VkPresentInfoKHR presentInfo =

@@ -3,9 +3,28 @@
 
 #include "common.hlsl"
 
-#define kHistogramSize  (256)
-#define kBinRange       (kHistogramSize - 2)
-#define kLog2Epsilon    (-22.0)
+// ----------------------------------------------------------------------------
+// Legend
+// ----------------------------------------------------------------------------
+// N: relative aperture, in f-stops
+// t: Shutter time, in seconds
+// S: Sensor sensitivity, in ISO
+// q: Proportion of light traveling through lens to sensor
+
+// ----------------------------------------------------------------------------
+// Constants
+// ----------------------------------------------------------------------------
+// K: 12.5, standard camera calibration
+// q: 0.65, with theta=10deg, T=0.9, v=0.98
+
+// ----------------------------------------------------------------------------
+// Equations
+// ----------------------------------------------------------------------------
+// q = (pi/4) * T * v(theta) * pow(cos(theta), 4)
+//
+// EV100 = log2(NN/t) when S = 100
+//       = log2(NN/t * 100/S)
+//       = log2((Lavg * S) / K)
 
 struct vkrExposure
 {
@@ -36,6 +55,10 @@ struct vkrExposure
 
 float LumToEV100(float Lavg)
 {
+    // EV100 = log2((Lavg * S) / K)
+    // S = 100
+    // K = 12.5
+    // S/K = 8
     return log2(Lavg) + 3.0;
 }
 
@@ -46,22 +69,24 @@ float EV100ToLum(float ev100)
 
 uint LumToBin(float lum, float minEV, float maxEV)
 {
-    // bin 0 is everything <= kEpsilon
-    // add 1 to skip past bin 0
-    // add 0.5 to round to nearest bin
-    float ev = LumToEV100(lum);
-    float t = unlerp(minEV, maxEV, ev);
-    const float binRange = kBinRange;
-    uint bin = (uint)(1.5 + t * binRange);
-    bin = (lum > kEpsilon) ? bin : 0;
-    return bin;
+    if (lum > kEpsilon)
+    {
+        float ev = LumToEV100(lum);
+        float t = unlerp(minEV, maxEV, ev);
+        // [1, N-1]
+        return (uint)(1.5f + t * (R_ExposureHistogramSize - 2));
+    }
+    return 0;
 }
 
-float BinToEV(uint i, float minEV, float dEV)
+float BinToEV(uint i, float minEV, float maxEV)
 {
-    float ev = minEV + (i - 1) * dEV;
-    ev = (i != 0) ? ev : kLog2Epsilon;
-    return ev;
+    if (i != 0)
+    {
+        const float rcpBinCount = 1.0f / (R_ExposureHistogramSize - 1);
+        return lerp(minEV, maxEV, (i - 0.5) * rcpBinCount);
+    }
+    return kLog2Epsilon;
 }
 
 float AdaptLuminance(float lum0, float lum1, float dt, float tau)
@@ -94,6 +119,15 @@ float StandardExposure(float ev100)
     return midGrey / Lavg;
 }
 
+// https://resources.mpi-inf.mpg.de/hdr/peffects/krawczyk05sccg.pdf
+float ExposureCompensationCurve(float ev100)
+{
+    float L = EV100ToLum(ev100);
+    float keyValue = 1.03f - 2.0f / (log10(L + 1.0f) + 2.0f);
+    const float midGrey = 0.18f;
+    return keyValue / midGrey;
+}
+
 float CalcExposure(vkrExposure args, float avgLum)
 {
     avgLum = max(avgLum, kEpsilon);
@@ -107,6 +141,7 @@ float CalcExposure(vkrExposure args, float avgLum)
         ev100 = LumToEV100(avgLum);
     }
 
+    float exposureCompensation = ExposureCompensationCurve(ev100);
     ev100 = ev100 - args.offsetEV;
     ev100 = clamp(ev100, args.minEV, args.maxEV);
 
@@ -119,6 +154,8 @@ float CalcExposure(vkrExposure args, float avgLum)
     {
         exposure = SaturationExposure(ev100);
     }
+    exposure *= exposureCompensation;
+
     return exposure;
 }
 

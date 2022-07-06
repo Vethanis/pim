@@ -7,7 +7,7 @@
 #define R_MaxSwapchainLen        (3)
 #define R_DesiredSwapchainLen    (2)
 // number of resources for dynamic buffers and images
-#define R_ResourceSets           (2)
+#define R_ResourceSets           (3)
 #define R_CmdsPerQueue           (64)
 
 #define R_AnisotropySamples      (4)
@@ -102,5 +102,12 @@
 
 // packed emission range
 #define kEmissionScale          100.0f
+
+// ----------------------------------------------------------------------------
+
+// exposure
+#define R_ExposureHistogramSize  (256)
+
+// ----------------------------------------------------------------------------
 
 #endif // R_CONFIG_H

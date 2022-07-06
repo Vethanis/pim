@@ -120,9 +120,7 @@ bool vkrMemSys_Init(void)
         VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         0x0,
         vkrMemUsage_CpuOnly,
-        vkrQueueFlag_TransferBit |
-        vkrQueueFlag_GraphicsBit |
-        vkrQueueFlag_ComputeBit))
+        vkrQueueFlag_GraphicsBit))
     {
         success = false;
         goto cleanup;
@@ -139,9 +137,7 @@ bool vkrMemSys_Init(void)
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         0x0,
         vkrMemUsage_GpuOnly,
-        vkrQueueFlag_TransferBit |
-        vkrQueueFlag_GraphicsBit |
-        vkrQueueFlag_ComputeBit))
+        vkrQueueFlag_GraphicsBit))
     {
         success = false;
         goto cleanup;
@@ -155,8 +151,7 @@ bool vkrMemSys_Init(void)
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         0x0,
         vkrMemUsage_Dynamic,
-        vkrQueueFlag_GraphicsBit |
-        vkrQueueFlag_ComputeBit))
+        vkrQueueFlag_GraphicsBit))
     {
         success = false;
         goto cleanup;
@@ -171,9 +166,7 @@ bool vkrMemSys_Init(void)
         VK_IMAGE_USAGE_SAMPLED_BIT |
         VK_IMAGE_USAGE_STORAGE_BIT,
         vkrMemUsage_GpuOnly,
-        vkrQueueFlag_TransferBit |
-        vkrQueueFlag_GraphicsBit |
-        vkrQueueFlag_ComputeBit))
+        vkrQueueFlag_GraphicsBit))
     {
         success = false;
         goto cleanup;
@@ -568,18 +561,6 @@ static bool vkrMemPool_New(
     if (queueUsage & vkrQueueFlag_GraphicsBit)
     {
         queueFamilies[queueFamilyCount++] = g_vkr.queues[vkrQueueId_Graphics].family;
-    }
-    if (queueUsage & vkrQueueFlag_ComputeBit)
-    {
-        queueFamilies[queueFamilyCount++] = g_vkr.queues[vkrQueueId_Compute].family;
-    }
-    if (queueUsage & vkrQueueFlag_TransferBit)
-    {
-        queueFamilies[queueFamilyCount++] = g_vkr.queues[vkrQueueId_Transfer].family;
-    }
-    if (queueUsage & vkrQueueFlag_PresentBit)
-    {
-        queueFamilies[queueFamilyCount++] = g_vkr.queues[vkrQueueId_Present].family;
     }
 
     if (bufferUsage)

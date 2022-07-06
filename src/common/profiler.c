@@ -80,9 +80,9 @@ void ProfileSys_Gui(bool* pEnabled)
 
     if (igBegin("Profiler", pEnabled, 0))
     {
-        if (igCheckbox("Progressive", &ms_progressive))
+        if (igCheckbox("Progressive", &ms_progressive) && ms_progressive)
         {
-            ms_avgWindow = ms_progressive ? 0 : 1;
+            ms_avgWindow = 0;
         }
         if (ms_progressive)
         {
@@ -91,7 +91,7 @@ void ProfileSys_Gui(bool* pEnabled)
         }
         else
         {
-            igExSliderInt("Window", &ms_avgWindow, 1, 1000);
+            igExLogSliderInt("Window", &ms_avgWindow, 1, 1000);
         }
 
         ctx_t* ctx = GetContext();

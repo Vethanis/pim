@@ -543,6 +543,10 @@ void RenderSys_Update(void)
     {
         ConVar_Toggle(&cv_pt_denoise);
     }
+    if (Input_IsKeyDown(KeyCode_F11))
+    {
+        ConVar_Toggle(&cv_fullscreen);
+    }
 
     TextureSys_Update();
     MeshSys_Update();

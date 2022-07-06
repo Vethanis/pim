@@ -37,6 +37,7 @@ void vkrImageSet_Release(vkrImageSet* set);
 
 vkrImage* vkrImageSet_Current(vkrImageSet* set);
 vkrImage* vkrImageSet_Prev(vkrImageSet* set);
+vkrImage* vkrImageSet_Next(vkrImageSet* set);
 
 bool vkrImageSet_Reserve(
     vkrImageSet* set,

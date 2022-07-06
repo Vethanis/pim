@@ -31,6 +31,8 @@ static VkRenderPass ms_renderPass;
 static vkrPass ms_pass;
 static vkrBufferSet ms_vertbufs;
 static vkrBufferSet ms_indbufs;
+static vkrBufferSet ms_vertStageBuf;
+static vkrBufferSet ms_indStageBuf;
 static vkrTextureId ms_font;
 
 static void vkrImGui_SetupRenderState(
@@ -214,6 +216,8 @@ void vkrUIPass_Del(void)
     vkrTexTable_Free(ms_font);
     vkrBufferSet_Release(&ms_vertbufs);
     vkrBufferSet_Release(&ms_indbufs);
+    vkrBufferSet_Release(&ms_vertStageBuf);
+    vkrBufferSet_Release(&ms_indStageBuf);
     vkrPass_Del(&ms_pass);
 }
 
@@ -293,6 +297,7 @@ static void vkrImGui_SetupRenderState(
 
     vkrBuffer* const vertBuf = vkrBufferSet_Current(&ms_vertbufs);
     vkrBuffer* const indBuf = vkrBufferSet_Current(&ms_indbufs);
+    ASSERT(vertBuf->handle);
     const VkBuffer vbufs[] = { vertBuf->handle };
     const VkDeviceSize voffsets[] = { 0 };
     vkCmdBindVertexBuffers(
@@ -320,48 +325,66 @@ static void vkrImGui_UploadRenderDrawData(void)
         const i32 vertex_size = totalVtxCount * sizeof(ImDrawVert);
         const i32 index_size = totalIdxCount * sizeof(ImDrawIdx);
 
+        vkrBuffer* const vertStageBuf = vkrBufferSet_Current(&ms_vertStageBuf);
+        vkrBuffer* const indStageBuf = vkrBufferSet_Current(&ms_indStageBuf);
+        vkrBuffer_Reserve(
+            vertStageBuf,
+            vertex_size,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            vkrMemUsage_CpuOnly);
+        vkrBuffer_Reserve(
+            indStageBuf,
+            index_size,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            vkrMemUsage_CpuOnly);
+
+        vkrCmdBuf* cmd = vkrCmdGet_G();
+        vkrBufferState_HostWrite(cmd, vertStageBuf);
+        vkrBufferState_HostWrite(cmd, indStageBuf);
+        {
+            ImDrawVert* pim_noalias vtx_dst = vkrBuffer_MapWrite(vertStageBuf);
+            ImDrawIdx* pim_noalias idx_dst = vkrBuffer_MapWrite(indStageBuf);
+            ASSERT(vtx_dst);
+            ASSERT(idx_dst);
+            i32 vertOffset = 0;
+            i32 indOffset = 0;
+
+            const i32 cmdListCount = drawData->CmdListsCount;
+            ImDrawList const* const* const pim_noalias cmdLists = drawData->CmdLists;
+            for (i32 iCmdList = 0; iCmdList < cmdListCount; iCmdList++)
+            {
+                const ImDrawList* pim_noalias cmdlist = cmdLists[iCmdList];
+                i32 vlen = cmdlist->VtxBuffer.Size;
+                i32 ilen = cmdlist->IdxBuffer.Size;
+                memcpy(vtx_dst + vertOffset, cmdlist->VtxBuffer.Data, vlen * sizeof(ImDrawVert));
+                memcpy(idx_dst + indOffset, cmdlist->IdxBuffer.Data, ilen * sizeof(ImDrawIdx));
+                vertOffset += vlen;
+                indOffset += ilen;
+            }
+
+            vkrBuffer_UnmapWrite(vertStageBuf);
+            vkrBuffer_UnmapWrite(indStageBuf);
+        }
+
+        vkrBufferState_TransferSrc(cmd, vertStageBuf);
+        vkrBufferState_TransferSrc(cmd, indStageBuf);
+
         vkrBuffer* const vertBuf = vkrBufferSet_Current(&ms_vertbufs);
         vkrBuffer* const indBuf = vkrBufferSet_Current(&ms_indbufs);
         vkrBuffer_Reserve(
             vertBuf,
             vertex_size,
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-            vkrMemUsage_Dynamic);
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            vkrMemUsage_GpuOnly);
         vkrBuffer_Reserve(
             indBuf,
             index_size,
-            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            vkrMemUsage_Dynamic);
-
-        vkrCmdBuf* cmd = vkrCmdGet_G();
-        if (vkrBufferState_HostWrite(cmd, vertBuf) ||
-            vkrBufferState_HostWrite(cmd, indBuf))
-        {
-            vkrSubmit_Await(vkrCmdSubmit(cmd, NULL, 0x0, NULL));
-        }
-
-        ImDrawVert* pim_noalias vtx_dst = vkrBuffer_MapWrite(vertBuf);
-        ImDrawIdx* pim_noalias idx_dst = vkrBuffer_MapWrite(indBuf);
-        ASSERT(vtx_dst);
-        ASSERT(idx_dst);
-        i32 vertOffset = 0;
-        i32 indOffset = 0;
-
-        const i32 cmdListCount = drawData->CmdListsCount;
-        ImDrawList const *const *const pim_noalias cmdLists = drawData->CmdLists;
-        for (i32 iCmdList = 0; iCmdList < cmdListCount; iCmdList++)
-        {
-            const ImDrawList* pim_noalias cmdlist = cmdLists[iCmdList];
-            i32 vlen = cmdlist->VtxBuffer.Size;
-            i32 ilen = cmdlist->IdxBuffer.Size;
-            memcpy(vtx_dst + vertOffset, cmdlist->VtxBuffer.Data, vlen * sizeof(ImDrawVert));
-            memcpy(idx_dst + indOffset, cmdlist->IdxBuffer.Data, ilen * sizeof(ImDrawIdx));
-            vertOffset += vlen;
-            indOffset += ilen;
-        }
-
-        vkrBuffer_UnmapWrite(vertBuf);
-        vkrBuffer_UnmapWrite(indBuf);
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            vkrMemUsage_GpuOnly);
+        vkrBufferState_TransferDst(cmd, vertBuf);
+        vkrBufferState_TransferDst(cmd, indBuf);
+        vkrCmdCopyBuffer(cmd, vertStageBuf, vertBuf);
+        vkrCmdCopyBuffer(cmd, indStageBuf, indBuf);
     }
 
     ProfileEnd(pm_upload);

@@ -18,19 +18,16 @@ void CSMain(uint3 tid : SV_DispatchThreadID)
 
     const float rcpSamples = 1.0 / (m_inputWidth * m_inputHeight);
     vkrExposure args = m_exposure;
-    const float minEV = args.minEV;
+    const float minEV = max(args.minEV, kLog2Epsilon);
     const float maxEV = args.maxEV;
     const float minCdf = args.minCdf;
     const float maxCdf = args.maxCdf;
-    // i varies from 1 to 255
-    // reciprocal range is: 1.0 / 254.0
-    const float dEV = (maxEV - minEV) * (1.0 / kBinRange);
 
     float minLum = FLT_MAX;
     float maxLum = -FLT_MAX;
     float avgLum = 0.0;
     float cdf = 0.0;
-    for (uint i = 0; i < kHistogramSize; ++i)
+    for (uint i = 0; i < R_ExposureHistogramSize; ++i)
     {
         uint count = HistogramBuffer[i];
         HistogramBuffer[i] = 0;
@@ -42,12 +39,12 @@ void CSMain(uint3 tid : SV_DispatchThreadID)
         float w1 = saturate((maxCdf - cdf) * rcpPdf);
         float w = pdf * w0 * w1;
 
-        float ev = BinToEV(i, minEV, dEV);
+        float ev = BinToEV(i, minEV, maxEV);
         float lum = EV100ToLum(ev);
         avgLum += lum * w;
         cdf += pdf;
-        maxLum = (count != 0) ? max(maxLum, lum) : maxLum;
-        minLum = (count != 0) ? min(minLum, lum) : minLum;
+        maxLum = max(maxLum, lum);
+        minLum = min(minLum, lum);
     }
 
     avgLum = AdaptLuminance(GetAverageLum(), avgLum, args.deltaTime, args.adaptRate);

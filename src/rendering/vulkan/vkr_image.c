@@ -210,16 +210,23 @@ void vkrImageSet_Release(vkrImageSet* set)
 
 vkrImage* vkrImageSet_Current(vkrImageSet* set)
 {
-    u32 syncIndex = vkrGetSyncIndex();
-    ASSERT(syncIndex < NELEM(set->frames));
-    return &set->frames[syncIndex];
+    u32 i = vkrGetSyncIndex();
+    ASSERT(i < NELEM(set->frames));
+    return &set->frames[i];
 }
 
 vkrImage* vkrImageSet_Prev(vkrImageSet* set)
 {
-    u32 prevIndex = (vkrGetSyncIndex() + (R_ResourceSets - 1u)) % R_ResourceSets;
-    ASSERT(prevIndex < NELEM(set->frames));
-    return &set->frames[prevIndex];
+    u32 i = vkrGetPrevSyncIndex();
+    ASSERT(i < NELEM(set->frames));
+    return &set->frames[i];
+}
+
+vkrImage* vkrImageSet_Next(vkrImageSet* set)
+{
+    u32 i = vkrGetNextSyncIndex();
+    ASSERT(i < NELEM(set->frames));
+    return &set->frames[i];
 }
 
 bool vkrImageSet_Reserve(
