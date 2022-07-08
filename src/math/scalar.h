@@ -12,17 +12,18 @@
 #endif // max
 
 #ifndef FLT_MAX
-#   define FLT_MAX 3.402823e+38
+#   define FLT_MAX 3.402823466e+38f
 #endif // FLT_MAX
 #ifndef FLT_MIN
-#   define FLT_MIN 1.175494e-38
+#   define FLT_MIN 1.175494351e-38f
 #endif // FLT_MIN
 
 #define kPi                 3.1415926535897932384626433832795f
 #define kTau                6.283185307179586476925286766559f
 #define kRadiansPerDegree   (kTau / 360.0f)
 #define kDegreesPerRadian   (360.0f / kTau)
-#define kEpsilon            (1.0f / (1 << 23))
+#define kRcpEpsilon         8388608.0f
+#define kEpsilon            1.192092896e-07f
 #define kLog2Epsilon        (-23.0f)
 #define kGoldenAngle        2.3999632297286530580038288462674f // pi * (3 - sqrt(5))
 #define kGoldenConj         0.6180339887498949025257388711907f // (1 + sqrt(5)) / 2

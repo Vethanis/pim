@@ -279,7 +279,7 @@ void Mem_Free(void* ptr)
             break;
         case EAlloc_Texture:
         {
-            if ((userBytes + kAlign) < kMaxBytesPerTexture)
+            if (align_bytes(userBytes) < kMaxBytesPerTexture)
             {
                 tlsf_allocator_free(&ms_texture, hdr);
             }

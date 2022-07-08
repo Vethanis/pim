@@ -40,7 +40,23 @@
 #   define IF_UNIX(x)               x
 #endif // PLAT_WINDOWS
 
-#ifdef _MSC_VER
+#if defined(__clang__)
+#   define COMPILER_CLANG           1
+#   define COMPILER_GCC             0
+#   define COMPILER_MSVC            0
+#elif defined(__GNUC__) || defined(__GNUG__)
+#   define COMPILER_CLANG           0
+#   define COMPILER_GCC             1
+#   define COMPILER_MSVC            0
+#elif defined(_MSC_VER)
+#   define COMPILER_CLANG           0
+#   define COMPILER_GCC             0
+#   define COMPILER_MSVC            1
+#else
+#   error Unrecognized C compiler
+#endif // defined(__clang__)
+
+#if COMPILER_MSVC
 #   define INTERRUPT()              __debugbreak()
 #   define SASSERT(x)               typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
 #   define pim_thread_local         __declspec(thread)
@@ -48,13 +64,15 @@
 #   define PIM_IMPORT               __declspec(dllimport)
 #   define PIM_CDECL                __cdecl
 #   define VEC_CALL                 __vectorcall
-#   define pim_inline               static __forceinline
+#   define pim_inline               static inline __forceinline
 #   define pim_noalias              __restrict
 #   define pim_alignas(x)           __declspec(align(x))
 #   define pim_optimize             __pragma(optimize("gt", on))
 #   define pim_deoptimize           __pragma(optimize("", off))
 #   define pim_noreturn             __declspec(noreturn)
-#else
+#endif // COMPILER_MSVC
+
+#if COMPILER_CLANG
 #   define INTERRUPT()              do { __asm("int3"); } while(0)
 #   define SASSERT(x)               _Static_assert((x), #x)
 #   define pim_thread_local         _Thread_local
@@ -62,13 +80,29 @@
 #   define PIM_IMPORT               
 #   define PIM_CDECL                
 #   define VEC_CALL                 __vectorcall
-#   define pim_inline               static __attribute__((always_inline))
+#   define pim_inline               static inline __attribute__((always_inline))
 #   define pim_noalias              __restrict__
 #   define pim_alignas(x)           _Alignas(x)
 #   define pim_optimize             _Pragma("clang optimize on")
 #   define pim_deoptimize           _Pragma("clang optimize off")
 #   define pim_noreturn             __declspec(noreturn)
-#endif // PLAT_WINDOWS
+#endif // COMPILER_CLANG
+
+#if COMPILER_GCC
+#   define INTERRUPT()              do { __asm("int3"); } while(0)
+#   define SASSERT(x)               _Static_assert((x), #x)
+#   define pim_thread_local         _Thread_local
+#   define PIM_EXPORT               
+#   define PIM_IMPORT               
+#   define PIM_CDECL                
+#   define VEC_CALL                 
+#   define pim_inline               static inline __attribute__((always_inline))
+#   define pim_noalias              __restrict__
+#   define pim_alignas(x)           _Alignas(x)
+#   define pim_optimize             _Pragma("GCC optimize \"O3\"")
+#   define pim_deoptimize           _Pragma("GCC optimize \"O0\"")
+#   define pim_noreturn             __declspec(noreturn)
+#endif // COMPILER_GCC
 
 #define NELEM(x)                    ( sizeof(x) / sizeof((x)[0]) )
 #define ARGS(x)                     (x), NELEM(x)
@@ -117,7 +151,7 @@
 #define PIM_FWD_DECL(name)          typedef struct name name
 #define PIM_DECL_HANDLE(name)       typedef struct name##_T* name
 
-#ifdef _MSC_VER
+#if COMPILER_MSVC
 // msvc has bloated headers (sal.h!)
 
 #   ifndef NULL
@@ -170,7 +204,7 @@
     typedef uint64_t                    u64;
     typedef intptr_t                    isize;
     typedef uintptr_t                   usize;
-#endif // _MSC_VER
+#endif // COMPILER_MSVC
 
 SASSERT(sizeof(i8) == 1);
 SASSERT(sizeof(u8) == 1);

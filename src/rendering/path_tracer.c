@@ -1374,30 +1374,29 @@ pim_inline float4 VEC_CALL BrdfEval(
     float NoH = f4_dotsat(N, H);
     float HoV = f4_dotsat(H, V);
     float NoV = f4_dotsat(N, V);
+    float f = F_Dielectric(f4_dot3(H, V), 1.0f, 1.5f);
 
-    const float amtDiffuse = 1.0f - metallic;
-    const float amtSpecular = 1.0f;
-
+    float probSpec = f1_lerp(f, 1.0f, metallic);
+    float pdf = 0.0f;
     float4 brdf = f4_0;
-    float4 F = F_SchlickEx(albedo, metallic, HoV);
     {
+        float4 f0 = F_0(albedo, metallic);
+        float4 F = f4_lerpvs(f0, f4_s(F_90(f0)), f);
         float D = D_GTR(NoH, alpha);
         float G = V_SmithCorrelated(NoL, NoV, alpha);
         float4 Fr = f4_mulvs(F, D * G);
-        Fr = f4_mul(Fr, GGXEnergyCompensation(F_0(albedo, metallic), NoV, alpha));
+        Fr = f4_mul(Fr, GGXEnergyCompensation(f0, NoV, alpha));
         brdf = f4_add(brdf, Fr);
+        pdf += GGXPdf(NoH, HoV, alpha) * probSpec;
     }
     {
         float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, HoV, roughness));
-        Fd = f4_mulvs(Fd, amtDiffuse);
+        Fd = f4_mulvs(Fd, 1.0f - probSpec);
         brdf = f4_add(brdf, Fd);
+        pdf += ImportanceSampleLambertPdf(NoL) * (1.0f - probSpec);
     }
 
     brdf = f4_mulvs(brdf, NoL);
-
-    float diffusePdf = amtDiffuse * ImportanceSampleLambertPdf(NoL);
-    float specularPdf = amtSpecular * GGXPdf(NoH, HoV, alpha);
-    float pdf = diffusePdf + specularPdf;
 
     brdf.w = pdf;
     return brdf;
@@ -1421,11 +1420,6 @@ pim_inline PtScatter VEC_CALL RefractScatter(
 
     float cosThetaI = f1_sat(f1_abs(f4_dot3(V, m)));
     float pdf = F_Dielectric(entering ? cosThetaI : -cosThetaI, etaI, etaT);
-    if (pdf >= 1.0f)
-    {
-        // total internal reflection
-        pdf = 1.0f;
-    }
 
     float4 L;
     bool refract = false;
@@ -1495,64 +1489,49 @@ pim_inline PtScatter VEC_CALL BrdfScatter(
     float roughness = surf->roughness;
     float alpha = BrdfAlpha(roughness);
 
-    // metals are only specular
-    const float amtDiffuse = 1.0f - metallic;
-    const float amtSpecular = 1.0f;
-    const float rcpProb = 1.0f / (amtSpecular + amtDiffuse);
+    float3x3 TBN = NormalToTBN(N);
+    float4 H = TbnToWorld(TBN, SampleGGXMicrofacet(Sample2D(sampler), alpha));
+    float f = F_Dielectric(f4_dot3(H, V), 1.0f, 1.5f);
 
-    float4 L;
+    float probSpec = f1_lerp(f, 1.0f, metallic);
+    if (Sample1D(sampler) < probSpec)
     {
-        float2 Xi = Sample2D(sampler);
-        float3x3 TBN = NormalToTBN(N);
-        if (Sample1D(sampler) < rcpProb)
+        float4 L = f4_reflect3(I, H);
+        float NoL = f4_dot3(N, L);
+        float NoH = f4_dotsat(N, H);
+        float HoV = f4_dotsat(H, V);
+        float NoV = f4_dotsat(N, V);
+
+        float pdf = probSpec * GGXPdf(NoH, HoV, alpha);
+        if ((NoL > 0.0f) && (pdf > kEpsilon))
         {
-            float4 m = TbnToWorld(TBN, SampleGGXMicrofacet(Xi, alpha));
-            L = f4_reflect3(I, m);
+            float4 f0 = F_0(albedo, metallic);
+            float4 F = f4_lerpvs(f0, f4_s(F_90(f0)), f);
+            float D = D_GTR(NoH, alpha);
+            float G = V_SmithCorrelated(NoL, NoV, alpha);
+            float4 Fr = f4_mulvs(F, D * G);
+            Fr = f4_mul(Fr, GGXEnergyCompensation(f0, NoV, alpha));
+            result.dir = L;
+            result.pdf = pdf;
+            result.attenuation = f4_mulvs(Fr, NoL);
         }
-        else
+    }
+    else
+    {
+        float4 L = TbnToWorld(TBN, SampleCosineHemisphere(Sample2D(sampler)));
+        float NoL = f4_dot3(N, L);
+        float pdf = (1.0f - probSpec) * ImportanceSampleLambertPdf(NoL);
+        if (pdf > kEpsilon)
         {
-            L = TbnToWorld(TBN, SampleCosineHemisphere(Xi));
+            H = f4_normalize3(f4_add(V, L));
+            float NoV = f4_dotsat(N, V);
+            float HoV = f4_dotsat(H, V);
+            float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, HoV, roughness));
+            result.dir = L;
+            result.pdf = pdf;
+            result.attenuation = f4_mulvs(Fd, NoL);
         }
     }
-
-    float NoL = f4_dot3(N, L);
-    if (NoL <= 0.0f)
-    {
-        return result;
-    }
-
-    float4 H = f4_normalize3(f4_add(V, L));
-    float NoH = f4_dotsat(N, H);
-    float HoV = f4_dotsat(H, V);
-    float NoV = f4_dotsat(N, V);
-
-    float specularPdf = amtSpecular * GGXPdf(NoH, HoV, alpha);
-    float diffusePdf = amtDiffuse * ImportanceSampleLambertPdf(NoL);
-    float pdf = diffusePdf + specularPdf;
-    if (pdf <= 0.0f)
-    {
-        return result;
-    }
-
-    float4 brdf = f4_0;
-    float4 F = F_SchlickEx(albedo, metallic, HoV);
-    {
-        float D = D_GTR(NoH, alpha);
-        float G = V_SmithCorrelated(NoL, NoV, alpha);
-        float4 Fr = f4_mulvs(F, D * G);
-        Fr = f4_mul(Fr, GGXEnergyCompensation(F_0(albedo, metallic), NoV, alpha));
-        brdf = f4_add(brdf, Fr);
-    }
-    {
-        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, HoV, roughness));
-        Fd = f4_mulvs(Fd, amtDiffuse);
-        brdf = f4_add(brdf, Fd);
-    }
-
-    result.dir = L;
-    result.pdf = pdf;
-    result.attenuation = f4_mulvs(brdf, NoL);
-
     return result;
 }
 
@@ -2382,7 +2361,7 @@ static void TraceFn(void* pbase, i32 begin, i32 end)
 
         // gaussian AA filter
         float2 uv = { (coord.x + 0.5f), (coord.y + 0.5f) };
-        float2 Xi = SampleGaussPixelFilter(Sample2D(&sampler));
+        float2 Xi = SampleGaussPixelFilter(Sample2D(&sampler), 1.0f);
         uv = f2_snorm(f2_mul(f2_add(uv, Xi), rcpSize));
 
         Ray ray = { eye, proj_dir(right, up, fwd, slope, uv) };

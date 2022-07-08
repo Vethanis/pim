@@ -305,11 +305,11 @@ pim_inline float VEC_CALL LightPdf(float area, float cosTheta, float distSq)
     return distSq / f1_max(kEpsilon, cosTheta * area);
 }
 
-pim_inline float2 VEC_CALL SampleGaussPixelFilter(float2 Xi)
+pim_inline float2 VEC_CALL SampleGaussPixelFilter(float2 Xi, float stddev)
 {
     // https://www.desmos.com/calculator/yczmioogdu
     float angle = Xi.x * kTau;
-    float radius = f1_gauss_invcdf(Xi.y, 0.0f, 1.0f);
+    float radius = f1_gauss_invcdf(Xi.y, 0.0f, stddev);
     Xi.x = cosf(angle);
     Xi.y = sinf(angle);
     return f2_mulvs(Xi, radius);

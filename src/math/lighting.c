@@ -14,6 +14,8 @@
 #include <stb/stb_image_write.h>
 #include <string.h>
 
+pim_optimize
+
 BrdfLut g_BrdfLut;
 static TextureId ms_brdfTexId;
 static i32 ms_brdfLutSamples;
@@ -36,19 +38,24 @@ static void BakeBrdfFn(void* pbase, i32 begin, i32 end)
     const i32 deltaSamples = numSamples - prevSamples;
     const float dx = 1.0f / deltaSamples;
     const float dt = (float)deltaSamples / (float)numSamples;
+    const float rcpWidth = 1.0f / size.x;
+    const float rcpHeight = 1.0f / size.y;
 
     Prng rng = Prng_Get();
     for (i32 iTexel = begin; iTexel < end; ++iTexel)
     {
-        const float2 uv = IndexToUv(size, iTexel);
-        const float NoV = uv.x;
-        const float alpha = f1_max(uv.y, kMinAlpha);
-        const float4 V = SphericalToCartesian(NoV, 0.0f);
-        ASSERT(IsUnitLength(V));
+        const int2 coord = IndexToCoord(size, iTexel);
 
         float2 result = f2_0;
+        float sum = 0.0f;
         for (i32 iSample = prevSamples; iSample < numSamples; ++iSample)
         {
+            float2 aa = SampleGaussPixelFilter(f2_rand(&rng), 0.5f);
+            const float NoV = f1_sat((coord.x + aa.x) * rcpWidth);
+            const float alpha = f1_clamp((coord.y + aa.y) * rcpHeight, kMinAlpha, 1.0f);
+            const float4 V = SphericalToCartesian(NoV, Prng_f32(&rng) * kTau);
+            ASSERT(IsUnitLength(V));
+
             // N = (0, 0, 1)
             float4 H = SampleGGXMicrofacet(f2_rand(&rng), alpha);
             ASSERT(IsUnitLength(H));
@@ -63,11 +70,11 @@ static void BakeBrdfFn(void* pbase, i32 begin, i32 end)
             float HoV = f4_dotsat(H, V);
             float pdf = GGXPdf(NoH, HoV, alpha);
 
-            if ((NoL > 0.0f) && (pdf > kEpsilon))
+            if ((NoL > kEpsilon) && (pdf > kEpsilon))
             {
                 float D = D_GTR(NoH, alpha) / pdf;
                 float G = V_SmithCorrelated(NoL, NoV, alpha);
-                float Fc = F_Schlick1(0.0f, 1.0f, HoV);
+                float Fc = F_Dielectric(HoV, 1.0f, 1.5f);
                 float DG_NoL_dx = D * G * NoL * dx;
                 result.x += DG_NoL_dx * Fc;
                 result.y += DG_NoL_dx;

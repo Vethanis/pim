@@ -158,7 +158,18 @@ pim_inline float VEC_CALL F_Dielectric(float cosThetaI, float etaI, float etaT)
         ((etaT * cosThetaI) + (etaI * cosThetaT));
     float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
         ((etaI * cosThetaI) + (etaT * cosThetaT));
-    return (Rparl * Rparl + Rperp * Rperp) * 0.5f;
+    return f1_sat((Rparl * Rparl + Rperp * Rperp) * 0.5f);
+}
+
+// cosThetaI: HoV or HoL
+// etaI: ior of material on reflected side
+// etaT: ior of material on transmitted side
+pim_inline float4 VEC_CALL F_DielectricEx(float cosThetaI, float etaI, float etaT, float4 albedo, float metallic)
+{
+    float f = F_Dielectric(cosThetaI, etaI, etaT);
+    float4 f0 = F_0(albedo, metallic);
+    float4 f90 = f4_s(F_90(f0));
+    return f4_lerpvs(f0, f90, f1_sat(f));
 }
 
 // aka 'Specular Color'
