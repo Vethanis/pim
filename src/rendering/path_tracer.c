@@ -1370,33 +1370,24 @@ pim_inline float4 VEC_CALL BrdfEval(
     float metallic = surf->metallic;
     float roughness = surf->roughness;
     float alpha = BrdfAlpha(roughness);
+    float amtSpec = f1_lerp(0.5f, 1.0f, metallic);
     float4 H = f4_normalize3(f4_add(V, L));
     float NoH = f4_dotsat(N, H);
     float HoV = f4_dotsat(H, V);
     float NoV = f4_dotsat(N, V);
-    float f = F_Dielectric(f4_dot3(H, V), 1.0f, 1.5f);
 
-    float probSpec = f1_lerp(f, 1.0f, metallic);
-    float pdf = 0.0f;
-    float4 brdf = f4_0;
-    {
-        float4 f0 = F_0(albedo, metallic);
-        float4 F = f4_lerpvs(f0, f4_s(F_90(f0)), f);
-        float D = D_GTR(NoH, alpha);
-        float G = V_SmithCorrelated(NoL, NoV, alpha);
-        float4 Fr = f4_mulvs(F, D * G);
-        Fr = f4_mul(Fr, GGXEnergyCompensation(f0, NoV, alpha));
-        brdf = f4_add(brdf, Fr);
-        pdf += GGXPdf(NoH, HoV, alpha) * probSpec;
-    }
-    {
-        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, HoV, roughness));
-        Fd = f4_mulvs(Fd, 1.0f - probSpec);
-        brdf = f4_add(brdf, Fd);
-        pdf += ImportanceSampleLambertPdf(NoL) * (1.0f - probSpec);
-    }
+    float f = F_Dielectric(HoV, 1.0f, 1.5f);
+    float4 f0 = F_0(albedo, metallic);
+    float4 F = f4_lerpvs(f0, f4_s(F_90(f0)), f);
+    float D = D_GTR(NoH, alpha);
+    float G = V_SmithCorrelated(NoL, NoV, alpha);
+    float4 Fr = f4_mulvs(F, D * G);
+    Fr = f4_mul(Fr, GGXEnergyCompensation(f0, NoV, alpha));
+    float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, HoV, roughness));
 
+    float4 brdf = f4_lerpvs(Fd, Fr, amtSpec);
     brdf = f4_mulvs(brdf, NoL);
+    float pdf = f1_lerp(ImportanceSampleLambertPdf(NoL), GGXPdf(NoH, HoV, alpha), amtSpec);
 
     brdf.w = pdf;
     return brdf;
@@ -1488,49 +1479,44 @@ pim_inline PtScatter VEC_CALL BrdfScatter(
     float metallic = surf->metallic;
     float roughness = surf->roughness;
     float alpha = BrdfAlpha(roughness);
+    float amtSpec = f1_lerp(0.5f, 1.0f, metallic);
 
-    float3x3 TBN = NormalToTBN(N);
-    float4 H = TbnToWorld(TBN, SampleGGXMicrofacet(Sample2D(sampler), alpha));
-    float f = F_Dielectric(f4_dot3(H, V), 1.0f, 1.5f);
-
-    float probSpec = f1_lerp(f, 1.0f, metallic);
-    if (Sample1D(sampler) < probSpec)
+    float4 L, H;
+    if (Sample1D(sampler) < amtSpec)
     {
-        float4 L = f4_reflect3(I, H);
-        float NoL = f4_dot3(N, L);
-        float NoH = f4_dotsat(N, H);
-        float HoV = f4_dotsat(H, V);
-        float NoV = f4_dotsat(N, V);
-
-        float pdf = probSpec * GGXPdf(NoH, HoV, alpha);
-        if ((NoL > 0.0f) && (pdf > kEpsilon))
-        {
-            float4 f0 = F_0(albedo, metallic);
-            float4 F = f4_lerpvs(f0, f4_s(F_90(f0)), f);
-            float D = D_GTR(NoH, alpha);
-            float G = V_SmithCorrelated(NoL, NoV, alpha);
-            float4 Fr = f4_mulvs(F, D * G);
-            Fr = f4_mul(Fr, GGXEnergyCompensation(f0, NoV, alpha));
-            result.dir = L;
-            result.pdf = pdf;
-            result.attenuation = f4_mulvs(Fr, NoL);
-        }
+        H = TanToWorld(N, SampleGGXMicrofacet(Sample2D(sampler), alpha));
+        L = f4_reflect3(I, H);
     }
     else
     {
-        float4 L = TbnToWorld(TBN, SampleCosineHemisphere(Sample2D(sampler)));
-        float NoL = f4_dot3(N, L);
-        float pdf = (1.0f - probSpec) * ImportanceSampleLambertPdf(NoL);
-        if (pdf > kEpsilon)
-        {
-            H = f4_normalize3(f4_add(V, L));
-            float NoV = f4_dotsat(N, V);
-            float HoV = f4_dotsat(H, V);
-            float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, HoV, roughness));
-            result.dir = L;
-            result.pdf = pdf;
-            result.attenuation = f4_mulvs(Fd, NoL);
-        }
+        L = TanToWorld(N, SampleCosineHemisphere(Sample2D(sampler)));
+        H = f4_normalize3(f4_add(V, L));
+    }
+
+    float NoL = f4_dot3(N, L);
+    if (NoL <= 0.0f)
+    {
+        return result;
+    }
+
+    float NoH = f4_dotsat(N, H);
+    float HoV = f4_dotsat(H, V);
+    float NoV = f4_dotsat(N, V);
+    float pdf = f1_lerp(ImportanceSampleLambertPdf(NoL), GGXPdf(NoH, HoV, alpha), amtSpec);
+    if (pdf > kEpsilon)
+    {
+        float f = F_Dielectric(HoV, 1.0f, 1.5f);
+        float4 f0 = F_0(albedo, metallic);
+        float4 F = f4_lerpvs(f0, f4_s(F_90(f0)), f);
+        float D = D_GTR(NoH, alpha);
+        float G = V_SmithCorrelated(NoL, NoV, alpha);
+        float4 Fr = f4_mulvs(F, D * G);
+        Fr = f4_mul(Fr, GGXEnergyCompensation(f0, NoV, alpha));
+        float4 Fd = f4_mulvs(albedo, Fd_Burley(NoL, NoV, HoV, roughness));
+        float4 brdf = f4_lerpvs(Fd, Fr, amtSpec);
+        result.dir = L;
+        result.pdf = pdf;
+        result.attenuation = f4_mulvs(brdf, NoL);
     }
     return result;
 }

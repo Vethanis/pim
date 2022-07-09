@@ -48,8 +48,7 @@ pim_inline float4 VEC_CALL TbnToWorld(float3x3 TBN, float4 nTS)
 
 pim_inline float4 VEC_CALL TanToWorld(float4 normalWS, float4 normalTS)
 {
-    float3x3 TBN = NormalToTBN(normalWS);
-    return TbnToWorld(TBN, normalTS);
+    return TbnToWorld(NormalToTBN(normalWS), normalTS);
 }
 
 // Computes a radical inverse with base 2 using bit-twiddling from "Hacker's Delight"
