@@ -106,8 +106,7 @@ pim_inline PtSurfHit VEC_CALL GetSurface(
     const PtScene*const pim_noalias scene,
     float4 ro,
     float4 rd,
-    PtRayHit hit,
-    i32 bounce);
+    PtRayHit hit);
 pim_inline PtRayHit VEC_CALL pt_intersect_local(
     const PtScene*const pim_noalias scene,
     float4 ro,
@@ -1239,8 +1238,7 @@ pim_inline PtSurfHit VEC_CALL GetSurface(
     const PtScene *const pim_noalias scene,
     float4 ro,
     float4 rd,
-    PtRayHit hit,
-    i32 bounce)
+    PtRayHit hit)
 {
     PtSurfHit surf;
     surf.type = hit.type;
@@ -1534,7 +1532,8 @@ pim_inline void VEC_CALL LightOnHit(
         return;
     }
     float loglum = log2f(lum) - kLog2Epsilon;
-    u32 amt = (u32)(loglum * 16.0f + 0.5f);
+    loglum = f1_clamp(loglum, 0.0f, 46.0f);
+    u32 amt = (u32)(loglum * (0xff/46.0f) + 0.5f);
     i32 iGrid = Grid_Index(&scene->lightGrid, ro);
     i32 iEmit = scene->vertToEmit[iVert];
     if (iEmit >= 0)
@@ -2175,7 +2174,7 @@ PtResult VEC_CALL Pt_TraceRay(
             }
         }
 
-        PtSurfHit surf = GetSurface(scene, ro, rd, hit, b);
+        PtSurfHit surf = GetSurface(scene, ro, rd, hit);
         if (b > 0)
         {
             LightOnHit(sampler, scene, ro, surf.emission, hit.iVert);
