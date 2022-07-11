@@ -705,7 +705,15 @@ static void FinalizeCheck(i32 len)
     if (len >= ConVar_GetInt(&cv_r_maxdelqueue))
     {
         Con_Logf(LogSev_Warning, "vkr", "Too many gpu objects, force-finalizing");
-        vkrCmdFlush();
+        vkrContext* ctx = vkrGetContext();
+        for (i32 id = 0; id < NELEM(ctx->curCmdBuf); ++id)
+        {
+            vkrCmdBuf* cmd = &ctx->curCmdBuf[id];
+            if (cmd->began)
+            {
+                vkrCmdSubmit(cmd, NULL, 0, NULL);
+            }
+        }
         vkrSubmit_AwaitAll();
         vkrMemSys_Update();
     }

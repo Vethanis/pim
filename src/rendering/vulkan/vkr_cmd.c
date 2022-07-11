@@ -440,24 +440,6 @@ void vkrSubmit_AwaitAll(void)
     ProfileEnd(pm_submitawaitall);
 }
 
-ProfileMark(pm_cmdflush, vkrCmdFlush)
-void vkrCmdFlush(void)
-{
-    ProfileBegin(pm_cmdflush);
-
-    vkrContext* ctx = vkrGetContext();
-    for (i32 id = 0; id < NELEM(ctx->curCmdBuf); ++id)
-    {
-        vkrCmdBuf* cmd = &ctx->curCmdBuf[id];
-        if (cmd->began)
-        {
-            vkrCmdSubmit(cmd, NULL, 0, NULL);
-        }
-    }
-
-    ProfileEnd(pm_cmdflush);
-}
-
 void vkrCmdBeginRenderPass(
     vkrCmdBuf* cmdbuf,
     VkRenderPass pass,

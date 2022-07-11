@@ -248,13 +248,13 @@ void vkrSys_Update(void)
         vkrSampler_Update();
         vkrMeshSys_Update();
         vkrImSys_Flush();
+        vkrUploadLightmaps();
     }
 
     // setup phase
     {
         vkrMainPass_Setup();
         vkrTexTable_Update();
-        vkrCmdFlush();
         vkrBindings_Update();
     }
 
@@ -264,12 +264,7 @@ void vkrSys_Update(void)
     // present phase
     vkrSwapchain_Submit(vkrCmdGet_G());
 
-    // background work
-    {
-        vkrUploadLightmaps();
-        vkrImSys_Clear();
-        vkrCmdFlush();
-    }
+    vkrImSys_Clear();
 
     ProfileEnd(pm_update);
 }

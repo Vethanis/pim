@@ -33,8 +33,6 @@ bool vkrSubmit_Poll(vkrSubmitId submit);
 void vkrSubmit_Await(vkrSubmitId submit);
 void vkrSubmit_AwaitAll(void);
 
-void vkrCmdFlush(void);
-
 void vkrCmdBeginRenderPass(
     vkrCmdBuf* cmdbuf,
     VkRenderPass pass,

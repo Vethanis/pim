@@ -90,6 +90,7 @@ void vkrScreenBlit_Blit(
     vkrImage* dstImage = vkrGetSceneBuffer();
     vkrBuffer* stageBuf = vkrBufferSet_Current(&ms_stagebuf);
 
+    vkrBufferState_HostWrite(cmd, stageBuf);
     vkrBuffer_Write(stageBuf, src, srcBytes);
 
     const VkBufferImageCopy bufferRegion =
