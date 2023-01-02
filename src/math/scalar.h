@@ -23,7 +23,8 @@
 #define kRadiansPerDegree   (kTau / 360.0f)
 #define kDegreesPerRadian   (360.0f / kTau)
 #define kRcpEpsilon         8388608.0f
-#define kEpsilon            1.192092896e-07f
+#define kEpsilon            (1.0f / ((1u << 23) - 1u))          // 1.192093037616377e-7f
+#define kEpsilonSq          (1.0f / ((1ull << 46) - 1ull))      // 1.421085471520221e-14f
 #define kLog2Epsilon        (-23.0f)
 #define kGoldenAngle        2.3999632297286530580038288462674f // pi * (3 - sqrt(5))
 #define kGoldenConj         0.6180339887498949025257388711907f // (1 + sqrt(5)) / 2
@@ -346,8 +347,16 @@ pim_inline i32 VEC_CALL i1_min(i32 a, i32 b)
 {
     return a < b ? a : b;
 }
+pim_inline u32 VEC_CALL u1_min(u32 a, u32 b)
+{
+    return a < b ? a : b;
+}
 
 pim_inline i32 VEC_CALL i1_max(i32 a, i32 b)
+{
+    return a > b ? a : b;
+}
+pim_inline u32 VEC_CALL u1_max(u32 a, u32 b)
 {
     return a > b ? a : b;
 }
@@ -356,6 +365,10 @@ pim_inline i32 VEC_CALL i1_clamp(i32 x, i32 lo, i32 hi)
 {
     return i1_min(hi, i1_max(lo, x));
 }
+pim_inline u32 VEC_CALL u1_clamp(u32 x, u32 lo, u32 hi)
+{
+    return u1_min(hi, u1_max(lo, x));
+}
 
 pim_inline i32 VEC_CALL i1_abs(i32 x)
 {
@@ -363,6 +376,10 @@ pim_inline i32 VEC_CALL i1_abs(i32 x)
 }
 
 pim_inline i32 VEC_CALL i1_lerp(i32 a, i32 b, i32 t)
+{
+    return a + (b - a) * t;
+}
+pim_inline u32 VEC_CALL u1_lerp(u32 a, u32 b, u32 t)
 {
     return a + (b - a) * t;
 }
@@ -396,6 +413,36 @@ pim_inline i32 VEC_CALL i1_log2(i32 x)
         x >>= 2;
     }
     if (x >= (1 << 1))
+    {
+        y += 1;
+        x >>= 1;
+    }
+    return y;
+}
+pim_inline i32 VEC_CALL u1_log2(u32 x)
+{
+    i32 y = (x > 0) ? 0 : -1;
+    if (x >= (1u << 16))
+    {
+        y += 16;
+        x >>= 16;
+    }
+    if (x >= (1u << 8))
+    {
+        y += 8;
+        x >>= 8;
+    }
+    if (x >= (1u << 4))
+    {
+        y += 4;
+        x >>= 4;
+    }
+    if (x >= (1u << 2))
+    {
+        y += 2;
+        x >>= 2;
+    }
+    if (x >= (1u << 1))
     {
         y += 1;
         x >>= 1;

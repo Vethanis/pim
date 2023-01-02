@@ -28,25 +28,23 @@ typedef enum
 
 typedef struct bool2_s
 {
-    pim_alignas(8)
-    i32 x;
-    i32 y;
+    bool x;
+    bool y;
 } bool2;
 
 typedef struct bool3_s
 {
-    i32 x;
-    i32 y;
-    i32 z;
+    bool x;
+    bool y;
+    bool z;
 } bool3;
 
 typedef struct bool4_s
 {
-    pim_alignas(16)
-    i32 x;
-    i32 y;
-    i32 z;
-    i32 w;
+    bool x;
+    bool y;
+    bool z;
+    bool w;
 } bool4;
 
 // ----------------------------------------------------------------------------
@@ -454,6 +452,29 @@ typedef struct Grid_s
 } Grid;
 
 // ----------------------------------------------------------------------------
+
+typedef struct Prng_s
+{
+    uint4 state;
+} Prng;
+
+typedef struct MarkovSample_s
+{
+    float value;
+    float valueBackup;
+    u32 modIter;
+    u32 modIterBackup;
+} MarkovSample;
+
+typedef struct MarkovSampler_s
+{
+    MarkovSample* samples;
+    u32 iIteration;
+    u32 iLastLargeIteration;
+    u32 sampleCount : 24;
+    u32 iSample : 24;
+    u32 largeStep : 1;
+} MarkovSampler;
 
 typedef struct Dist1D_s
 {

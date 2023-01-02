@@ -94,7 +94,7 @@ This repository uses [submodules](https://github.blog/2016-02-01-working-with-su
 * pt_test: runs a path tracing test
 
 
-### Console Varaibles
+### Console Variables
 
 See also: cvars.c
 

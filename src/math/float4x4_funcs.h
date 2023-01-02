@@ -43,7 +43,7 @@ static const float4x4 f4x4_id =
     { 0.0f, 0.0f, 0.0f, 1.0f },
 };
 
-pim_inline float4x4 VEC_CALL f4x4_transpose(float4x4 m)
+pim_inline float4x4 VEC_CALL f4x4_transpose(const float4x4 m)
 {
     float4x4 r;
     r.c0 = f4_v(m.c0.x, m.c1.x, m.c2.x, m.c3.x);
@@ -54,7 +54,7 @@ pim_inline float4x4 VEC_CALL f4x4_transpose(float4x4 m)
 }
 
 // no assumption of col.w
-pim_inline float4 VEC_CALL f4x4_mul_col(float4x4 m, float4 col)
+pim_inline float4 VEC_CALL f4x4_mul_col(const float4x4 m, const float4 col)
 {
     float4 a = f4_mulvs(m.c0, col.x);
     float4 b = f4_mulvs(m.c1, col.y);
@@ -64,7 +64,7 @@ pim_inline float4 VEC_CALL f4x4_mul_col(float4x4 m, float4 col)
 }
 
 // columns of b are transformed by matrix a
-pim_inline float4x4 VEC_CALL f4x4_mul(float4x4 a, float4x4 b)
+pim_inline float4x4 VEC_CALL f4x4_mul(const float4x4 a, const float4x4 b)
 {
     float4x4 m;
     m.c0 = f4x4_mul_col(a, b.c0);
@@ -75,7 +75,7 @@ pim_inline float4x4 VEC_CALL f4x4_mul(float4x4 a, float4x4 b)
 }
 
 // assumes dir.w == 0.0f
-pim_inline float4 VEC_CALL f4x4_mul_dir(float4x4 m, float4 dir)
+pim_inline float4 VEC_CALL f4x4_mul_dir(const float4x4 m, const float4 dir)
 {
     float4 a = f4_mulvs(m.c0, dir.x);
     float4 b = f4_mulvs(m.c1, dir.y);
@@ -84,7 +84,7 @@ pim_inline float4 VEC_CALL f4x4_mul_dir(float4x4 m, float4 dir)
 }
 
 // assumes pt.w == 1.0f
-pim_inline float4 VEC_CALL f4x4_mul_pt(float4x4 m, float4 pt)
+pim_inline float4 VEC_CALL f4x4_mul_pt(const float4x4 m, const float4 pt)
 {
     float4 a = f4_mulvs(m.c0, pt.x);
     float4 b = f4_mulvs(m.c1, pt.y);
@@ -92,7 +92,7 @@ pim_inline float4 VEC_CALL f4x4_mul_pt(float4x4 m, float4 pt)
     return f4_add(f4_add(a, b), f4_add(c, m.c3));
 }
 
-pim_inline float4 VEC_CALL f4x4_mul_extents(float4x4 m, float4 extents)
+pim_inline float4 VEC_CALL f4x4_mul_extents(const float4x4 m, const float4 extents)
 {
     // f4x4_mul_dir + abs before adding
     float4 a = f4_abs(f4_mulvs(m.c0, extents.x));
@@ -101,16 +101,31 @@ pim_inline float4 VEC_CALL f4x4_mul_extents(float4x4 m, float4 extents)
     return f4_add(a, f4_add(b, c));
 }
 
-pim_inline float4x4 VEC_CALL f4x4_translate(float4x4 m, float4 v)
+pim_inline float4x4 VEC_CALL f4x4_mul_scalar(const float4x4 m, const float s)
 {
-    float4 a = f4_mulvs(m.c0, v.x);
-    float4 b = f4_mulvs(m.c1, v.y);
-    float4 c = f4_mulvs(m.c2, v.z);
-    m.c3 = f4_add(m.c3, f4_add(a, f4_add(b, c)));
-    return m;
+    float4x4 n =
+    {
+        f4_mulvs(m.c0, s),
+        f4_mulvs(m.c1, s),
+        f4_mulvs(m.c2, s),
+        f4_mulvs(m.c3, s),
+    };
+    return n;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_translation(float4 v)
+pim_inline float4x4 VEC_CALL f4x4_translate(const float4x4 m, const float4 v)
+{
+    float4x4 n =
+    {
+        m.c0,
+        m.c1,
+        m.c2,
+        f4x4_mul_pt(m, v),
+    };
+    return n;
+}
+
+pim_inline float4x4 VEC_CALL f4x4_translation(const float4 v)
 {
     float4x4 m;
     m.c0 = f4_v(1.0f, 0.0f, 0.0f, 0.0f);
@@ -120,7 +135,12 @@ pim_inline float4x4 VEC_CALL f4x4_translation(float4 v)
     return m;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_rotate(float4x4 m, quat q)
+pim_inline float4 VEC_CALL f4x4_derive_translation(const float4x4 m)
+{
+    return m.c3;
+}
+
+pim_inline float4x4 VEC_CALL f4x4_rotate(const float4x4 m, const quat q)
 {
     float4x4 res;
     {
@@ -133,15 +153,23 @@ pim_inline float4x4 VEC_CALL f4x4_rotate(float4x4 m, quat q)
     return res;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_scale(float4x4 m, float4 v)
+pim_inline quat VEC_CALL f4x4_derive_rotation(const float4x4 m)
 {
-    m.c0 = f4_mulvs(m.c0, v.x);
-    m.c1 = f4_mulvs(m.c1, v.y);
-    m.c2 = f4_mulvs(m.c2, v.z);
-    return m;
+    // maybe wrong
+    return f3x3_quat(f4x4_f3x3(m));
 }
 
-pim_inline float4x4 VEC_CALL f4x4_scaling(float4 v)
+pim_inline float4x4 VEC_CALL f4x4_scale(const float4x4 m, const float4 v)
+{
+    float4x4 n;
+    n.c0 = f4_mulvs(m.c0, v.x);
+    n.c1 = f4_mulvs(m.c1, v.y);
+    n.c2 = f4_mulvs(m.c2, v.z);
+    n.c3 = m.c3;
+    return n;
+}
+
+pim_inline float4x4 VEC_CALL f4x4_scaling(const float4 v)
 {
     float4x4 m;
     m.c0 = f4_v(v.x, 0.0f, 0.0f, 0.0f);
@@ -151,12 +179,19 @@ pim_inline float4x4 VEC_CALL f4x4_scaling(float4 v)
     return m;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_trs(float4 t, quat r, float4 s)
+pim_inline float4 VEC_CALL f4x4_derive_scale(const float4x4 m)
+{
+    // probably wrong.
+    // ignores negative scale.
+    return f4_v(f4_length3(m.c0), f4_length3(m.c1), f4_length3(m.c2), 0.0f);
+}
+
+pim_inline float4x4 VEC_CALL f4x4_trs(const float4 t, const quat r, const float4 s)
 {
     return f4x4_scale(f4x4_rotate(f4x4_translation(t), r), s);
 }
 
-pim_inline float4x4 VEC_CALL f4x4_lookat(float4 eye, float4 at, float4 up)
+pim_inline float4x4 VEC_CALL f4x4_lookat(const float4 eye, const float4 at, const float4 up)
 {
     // right-handed
     float4 f = f4_normalize3(f4_sub(at, eye));
@@ -242,7 +277,7 @@ pim_inline float4x4 VEC_CALL f4x4_inf_perspective(
     return m;
 }
 
-pim_inline float4x4 VEC_CALL f4x4_inverse(float4x4 m)
+pim_inline float4x4 VEC_CALL f4x4_inverse(const float4x4 m)
 {
     float c00 = m.c2.z * m.c3.w - m.c3.z * m.c2.w;
     float c02 = m.c1.z * m.c3.w - m.c3.z * m.c1.w;
@@ -268,37 +303,37 @@ pim_inline float4x4 VEC_CALL f4x4_inverse(float4x4 m)
     float c22 = m.c1.x * m.c3.y - m.c3.x * m.c1.y;
     float c23 = m.c1.x * m.c2.y - m.c2.x * m.c1.y;
 
-    float4 f0 = { c00, c00, c02, c03 };
-    float4 f1 = { c04, c04, c06, c07 };
-    float4 f2 = { c08, c08, c10, c11 };
-    float4 f3 = { c12, c12, c14, c15 };
-    float4 f4 = { c16, c16, c18, c19 };
-    float4 f5 = { c20, c20, c22, c23 };
+    const float4 f0 = { c00, c00, c02, c03 };
+    const float4 f1 = { c04, c04, c06, c07 };
+    const float4 f2 = { c08, c08, c10, c11 };
+    const float4 f3 = { c12, c12, c14, c15 };
+    const float4 f4 = { c16, c16, c18, c19 };
+    const float4 f5 = { c20, c20, c22, c23 };
 
-    float4 v0 = { m.c1.x, m.c0.x, m.c0.x, m.c0.x };
-    float4 v1 = { m.c1.y, m.c0.y, m.c0.y, m.c0.y };
-    float4 v2 = { m.c1.z, m.c0.z, m.c0.z, m.c0.z };
-    float4 v3 = { m.c1.w, m.c0.w, m.c0.w, m.c0.w };
+    const float4 v0 = { m.c1.x, m.c0.x, m.c0.x, m.c0.x };
+    const float4 v1 = { m.c1.y, m.c0.y, m.c0.y, m.c0.y };
+    const float4 v2 = { m.c1.z, m.c0.z, m.c0.z, m.c0.z };
+    const float4 v3 = { m.c1.w, m.c0.w, m.c0.w, m.c0.w };
 
-    float4 i0 =
+    const float4 i0 =
             f4_add(
             f4_sub(
             f4_mul(v1, f0),
             f4_mul(v2, f1)),
             f4_mul(v3, f2));
-    float4 i1 =
+    const float4 i1 =
             f4_add(
             f4_sub(
             f4_mul(v0, f0),
             f4_mul(v2, f3)),
             f4_mul(v3, f4));
-    float4 i2 =
+    const float4 i2 =
             f4_add(
             f4_sub(
             f4_mul(v0, f1),
             f4_mul(v1, f3)),
             f4_mul(v3, f5));
-    float4 i3 =
+    const float4 i3 =
             f4_add(
             f4_sub(
             f4_mul(v0, f2),
@@ -307,7 +342,7 @@ pim_inline float4x4 VEC_CALL f4x4_inverse(float4x4 m)
 
     const float4 s1 = { +1.0f, -1.0f, +1.0f, -1.0f };
     const float4 s2 = { -1.0f, +1.0f, -1.0f, +1.0f };
-    float4x4 inv = 
+    const float4x4 inv = 
     {
         f4_mul(i0, s1),
         f4_mul(i1, s2),
@@ -315,17 +350,33 @@ pim_inline float4x4 VEC_CALL f4x4_inverse(float4x4 m)
         f4_mul(i3, s2),
     };
 
-    float4 r0 = { inv.c0.x, inv.c1.x, inv.c2.x, inv.c3.x };
+    const float4 r0 = { inv.c0.x, inv.c1.x, inv.c2.x, inv.c3.x };
     float det = f4_sum(f4_mul(m.c0, r0));
     ASSERT(det != 0.0f);
     float rcpDet = 1.0f / det;
 
-    inv.c0 = f4_mulvs(inv.c0, rcpDet);
-    inv.c1 = f4_mulvs(inv.c1, rcpDet);
-    inv.c2 = f4_mulvs(inv.c2, rcpDet);
-    inv.c3 = f4_mulvs(inv.c3, rcpDet);
+    return f4x4_mul_scalar(inv, rcpDet);
+}
 
-    return inv;
+// calculates an eigenvector
+// Richard von Mises and H. Pollaczek-Geiringer
+//    Praktische Verfahren der Gleichungsauflösung
+//    ZAMM - Zeitschrift für Angewandte Mathematik und Mechanik 9, 152-164 (1929).
+pim_inline float4 VEC_CALL f4x4_power_iteration(
+    const float4x4 m,
+    const float4 guess, // eg. random vector of non-zero values
+    float maxErrSq)
+{
+    ASSERT(guess.x > kEpsilon && guess.y > kEpsilon && guess.z > kEpsilon && guess.w > kEpsilon);
+    float4 v1 = guess;
+    float errSq;
+    do
+    {
+        const float4 v0 = v1;
+        v1 = f4_normalize4(f4x4_mul_col(m, v0));
+        errSq = f4_distancesq4(v0, v1);
+    } while (errSq > maxErrSq);
+    return v1;
 }
 
 PIM_C_END

@@ -35,7 +35,7 @@ pim_inline float VEC_CALL TriArea2D(Tri2D tri)
     float2 ab = f2_sub(tri.b, tri.a);
     float2 ac = f2_sub(tri.c, tri.a);
     float cr = ab.x * ac.y - ac.x * ab.y;
-    return 0.5f * cr;
+    return 0.5f * f1_abs(cr);
 }
 
 PIM_C_END

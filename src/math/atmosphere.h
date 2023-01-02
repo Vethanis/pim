@@ -37,7 +37,7 @@ pim_inline float VEC_CALL MiePhase(float cosTheta, float g)
 {
     float k = (3.0f / (8.0f * kPi)) * (1.0f - g*g) / (2.0f + g*g);
     float l = 1.0f + g*g - 2.0f * g * cosTheta;
-    l = l * sqrtf(l);
+    l = l * sqrtf(f1_max(kEpsilonSq, l));
     // singularity at g=+-1
     return k * (1.0f + cosTheta*cosTheta) / f1_max(kEpsilon, l);
 }
@@ -50,9 +50,8 @@ pim_inline float VEC_CALL HGPhase(float cosTheta, float g)
     float g2 = g * g;
     float nom = 1.0f - g2;
     float denom = 1.0f + g2 + 2.0f * g * cosTheta;
-    denom = denom * sqrtf(denom);
-    denom = f1_max(denom, kEpsilon);
-    return nom / (4.0f * kPi * denom);
+    denom = denom * sqrtf(f1_max(kEpsilonSq, denom));
+    return nom / f1_max(4.0f * kPi * denom, kEpsilon);
 }
 
 pim_inline float4 VEC_CALL ImportanceSampleHGPhase(float2 Xi, float g)

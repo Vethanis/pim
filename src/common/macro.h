@@ -104,6 +104,11 @@
 #   define pim_noreturn             __declspec(noreturn)
 #endif // COMPILER_GCC
 
+#define _CAT_TOK(x, y)              x ## y
+#define CAT_TOK(x, y)               _CAT_TOK(x, y)
+#define _STR_TOK(x)                  #x
+#define STR_TOK(x)                  _STR_TOK(x)
+
 #define NELEM(x)                    ( sizeof(x) / sizeof((x)[0]) )
 #define ARGS(x)                     (x), NELEM(x)
 #define IF_TRUE(x, ...)             do { if (x) { __VA_ARGS__; } } while(0)
@@ -133,23 +138,17 @@
 
 #define ASSERTS_ENABLED             (0 || DEBUG_BUILD)
 
+#define PIM_FILELINE                CAT_TOK(__FILE__, STR_TOK(__LINE__))
+
 #if ASSERTS_ENABLED
-#   define ASSERT(x)                IF_FALSE((x), INTERRUPT())
+#   define ASSERT(x)                do { if (!(x)) { INTERRUPT(); } } while(0)
+#   define CHECK(x)                 PimCheckFn((x))
 #   define ASSERT_ONLY(...)         __VA_ARGS__
 #else
 #   define ASSERT(...)              
+#   define CHECK(...)               __VA_ARGS__
 #   define ASSERT_ONLY(...)         
 #endif // ASSERTS_ENABLED
-
-#define _CAT_TOK(x, y)              x ## y
-#define CAT_TOK(x, y)               _CAT_TOK(x, y)
-#define _STR_TOK(x)                  #x
-#define STR_TOK(x)                  _STR_TOK(x)
-
-#define PIM_FILELINE                CAT_TOK(__FILE__, STR_TOK(__LINE__))
-#define PIM_PATH                    256
-#define PIM_FWD_DECL(name)          typedef struct name name
-#define PIM_DECL_HANDLE(name)       typedef struct name##_T* name
 
 #if COMPILER_MSVC
 // msvc has bloated headers (sal.h!)
@@ -215,10 +214,14 @@ SASSERT(sizeof(u32) == 4);
 SASSERT(sizeof(i64) == 8);
 SASSERT(sizeof(u64) == 8);
 
-#define kMaxThreads                 64
+pim_inline bool PimCheckFn(bool cond) { if (!cond) { INTERRUPT(); } return cond; }
 
+// assigns field and asserts that bitfield assignment does not overflow
+#define ASSIGN(dst, src) do { (dst) = (src); ASSERT((dst) == (src)); } while(0)
+
+#define PIM_PATH                    256
+#define kMaxThreads                 64
 #define QUAKE_IMPL 0
-#define ENABLE_HDR 1
 
 typedef enum
 {
@@ -230,8 +233,9 @@ typedef enum
     EAlloc_COUNT
 } EAlloc;
 
-typedef struct hdl_s
+typedef struct GenId_s
 {
     u32 version : 8;
     u32 index : 24;
-} hdl_t;
+} GenId;
+

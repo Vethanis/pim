@@ -79,17 +79,7 @@ PSOutput PSMain(PSInput input)
     float metallic = rome.z;
     float emission = rome.w;
     float3 sceneLum = 0.0001 * albedo;
-    {
-        float3 emissive = UnpackEmission(albedo, emission);
-        sceneLum += emissive;
-    }
-    {
-        //float3 L = cameraData[0].lightDir.xyz;
-        //float3 lightColor = cameraData[0].lightColor.xyz;
-        //float3 brdf = DirectBRDF(V, L, N, albedo, roughness, metallic);
-        //float3 direct = brdf * lightColor * dotsat(N, L);
-        //sceneLum += direct;
-    }
+    sceneLum += UnpackEmission(albedo, emission);
     {
         float2 uv1 = input.uv01.zw;
         float3 R = reflect(-V, N);

@@ -1,6 +1,13 @@
 #ifndef R_CONFIG_H
 #define R_CONFIG_H
 
+// shaders must include common.hlsl before this file
+#ifndef PIM_HLSL
+#   define PIM_C                        1
+#   define PIM_STRUCT_BEGIN(name)       typedef struct
+#   define PIM_STRUCT_END(name)         name
+#endif // PIM_HLSL
+
 // ----------------------------------------------------------------------------
 
 // number of swapchain images
@@ -93,6 +100,8 @@
     bid_SceneLuminance)
 
 // ----------------------------------------------------------------------------
+
+#define ENABLE_HDR 1
 
 // colorspace
 //#define COLOR_SCENE_REC709      1

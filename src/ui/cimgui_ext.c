@@ -103,3 +103,11 @@ bool igExButton(const char* label)
 {
     return igButton(label, (ImVec2) { 0 });
 }
+void igExIndent(void)
+{
+    igIndent(0.0f);
+}
+void igExUnindent(void)
+{
+    igUnindent(0.0f);
+}

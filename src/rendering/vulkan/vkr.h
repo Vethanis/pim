@@ -2,6 +2,7 @@
 
 #include "common/macro.h"
 #include "rendering/r_config.h"
+#include "rendering/r_gpu_shared.h"
 
 #define VK_NO_PROTOTYPES            1
 #define VK_ENABLE_BETA_EXTENSIONS   1
@@ -121,7 +122,6 @@ typedef enum
     vkrMemUsage_GpuOnly = 1,
     vkrMemUsage_CpuOnly = 2,
     vkrMemUsage_Dynamic = 3,    // mappable, 1 host write, cached device reads
-    vkrMemUsage_Readback = 4,   // mappable, 1 device write, cached host reads
 } vkrMemUsage;
 
 typedef struct vkrSubmitId_s

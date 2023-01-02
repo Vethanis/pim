@@ -4,9 +4,9 @@
 
 // ----------------------------------------------------------------------------
 
-bool FileMap_IsOpen(FileMap* map)
+bool FileMap_IsOpen(const FileMap* map)
 {
-    return map->ptr != NULL && map->ptr != (void*)-1;
+    return map->ptr != NULL;
 }
 
 FileMap FileMap_Open(const char* path, bool writable)
@@ -32,6 +32,7 @@ void FileMap_Close(FileMap* map)
         fd_t fd = map->fd;
         FileMap_Del(map);
         fd_close(&fd);
+        *map = (FileMap){ 0 };
     }
 }
 
@@ -154,6 +155,15 @@ FileMap FileMap_New(fd_t fd, bool writable)
     const i32 flags = MAP_PRIVATE;
     const i32 offset = 0;
     void* addr = mmap(NULL, size, prot, flags, fd.handle, offset);
+
+    // higher level code should not need to check for -1.
+    // also, why the fuck does linux return -1???
+    // should return NULL and set errno to the error code wtf
+    if (!addr || addr == (void*)-1)
+    {
+        ASSERT(false);
+        return result;
+    }
 
     result.ptr = addr;
     result.size = size;

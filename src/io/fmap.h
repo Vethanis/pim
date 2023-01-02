@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-bool FileMap_IsOpen(FileMap* map);
+bool FileMap_IsOpen(const FileMap* map);
 
 // memory maps the file descriptor
 FileMap FileMap_New(fd_t fd, bool writable);

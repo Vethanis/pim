@@ -148,18 +148,17 @@ static void BakeFn(void* pBase, i32 begin, i32 end)
     const i32 size = cm->size;
     const i32 flen = size * size;
 
-    PtSampler sampler = PtSampler_Get();
+    Prng* rng = Prng_Get();
     for (i32 i = begin; i < end; ++i)
     {
         i32 face = i / flen;
         i32 fi = i % flen;
         int2 coord = { fi % size, fi / size };
-        float2 Xi = f2_tent(Pt_Sample2D(&sampler));
+        float2 Xi = f2_tent(Prng_float2(rng));
         float4 dir = Cubemap_CalcDir(size, face, coord, Xi);
-        PtResult result = Pt_TraceRay(&sampler, scene, origin, dir);
+        PtResult result = Pt_TraceRay(scene, origin, dir);
         cm->color[face][fi] = f3_lerpvs(cm->color[face][fi], result.color, weight);
     }
-    PtSampler_Set(sampler);
 }
 
 ProfileMark(pm_Bake, Cubemap_Bake)
@@ -245,7 +244,7 @@ static void PrefilterFn(void* pBase, i32 begin, i32 end)
     const i32 len = size * size;
     const float roughness = MipToRoughness((float)mip);
 
-    Prng rng = Prng_Get();
+    Prng* rng = Prng_Get();
     for (i32 i = begin; i < end; ++i)
     {
         i32 face = i / len;
@@ -253,14 +252,13 @@ static void PrefilterFn(void* pBase, i32 begin, i32 end)
         ASSERT(face < Cubeface_COUNT);
         int2 coord = { fi % size, fi / size };
 
-        float2 Xi = f2_tent(f2_rand(&rng));
+        float2 Xi = f2_tent(f2_rand(rng));
         float4 N = Cubemap_CalcDir(size, face, coord, Xi);
         float3x3 TBN = NormalToTBN(N);
 
-        float4 light = PrefilterEnvMap(&rng, cm, TBN, sampleCount, roughness);
+        float4 light = PrefilterEnvMap(rng, cm, TBN, sampleCount, roughness);
         Cubemap_BlendMip(cm, face, coord, mip, light, weight);
     }
-    Prng_Set(rng);
 }
 
 ProfileMark(pm_Convolve, Cubemap_Convolve)

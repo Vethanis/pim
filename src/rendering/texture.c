@@ -3,6 +3,7 @@
 #include "containers/table.h"
 #include "math/color.h"
 #include "math/blending.h"
+#include "math/bool_funcs.h"
 #include "rendering/sampler.h"
 #include "rendering/material.h"
 #include "assets/asset_system.h"
@@ -459,8 +460,8 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
         u8 encoded = srcBytes[i];
         float2 grayscale = srcGrays[i];
         float2 t = f2_smoothstep(min, max, grayscale);
-        float roughness = f1_lerp(1.0f, 0.9f, t.x);
-        float occlusion = f1_lerp(1.0f, 0.5f, t.x);
+        float roughness = f1_lerp(1.1f, 0.9f, t.x);
+        float occlusion = f1_lerp(0.5f, 1.0f, t.x);
         float metallic = 1.0f;
         float emission;
         if (fullEmit)
@@ -472,7 +473,7 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
             emission = DecodeEmission(encoded, isLight);
         }
         float4 romeValue = f4_v(roughness, occlusion, metallic, emission);
-        romeValue = f4_mul(romeValue, flatRome);
+        romeValue = f4_saturate(f4_mul(romeValue, flatRome));
         dstRomes[i] = GammaEncode_rgba8(romeValue);
     }
 
@@ -480,21 +481,23 @@ static void UnpaletteStep3Fn(void* pbase, i32 begin, i32 end)
     {
         i32 x = i % size.x;
         i32 y = i / size.x;
-        float r = srcGrays[Wrap(size, i2_v(x + 1, y + 0))].x;
-        float l = srcGrays[Wrap(size, i2_v(x - 1, y + 0))].x;
-        float u = srcGrays[Wrap(size, i2_v(x + 0, y - 1))].x;
-        float d = srcGrays[Wrap(size, i2_v(x + 0, y + 1))].x;
+        float c = srcGrays[i].x;
+        float up = srcGrays[Wrap(size, i2_v(x + 1, y + 0))].x;
+        float um = srcGrays[Wrap(size, i2_v(x - 1, y + 0))].x;
+        // vulkan and d3d use convention of V pointing in +y direction
+        float vp = srcGrays[Wrap(size, i2_v(x + 0, y + 1))].x;
+        float vm = srcGrays[Wrap(size, i2_v(x + 0, y - 1))].x;
 
-        r = f1_smoothstep(min.x, max.x, r);
-        l = f1_smoothstep(min.x, max.x, l);
-        u = f1_smoothstep(min.x, max.x, u);
-        d = f1_smoothstep(min.x, max.x, d);
-
-        float dx = r - l;
-        float dy = u - d;
-        float4 N = { -dx, -dy, 1.0f, 0.0f };
-        N.x *= bumpiness;
-        N.y *= bumpiness;
+        c = f1_unlerp(min.x, max.x, c);
+        up = f1_unlerp(min.x, max.x, up);
+        um = f1_unlerp(min.x, max.x, um);
+        vp = f1_unlerp(min.x, max.x, vp);
+        vm = f1_unlerp(min.x, max.x, vm);
+        float dhdu = f1_lerp(up - c, c - um, 0.5f);
+        float dhdv = f1_lerp(vp - c, c - vm, 0.5f);
+        dhdu *= bumpiness;
+        dhdv *= bumpiness;
+        float4 N = { dhdu, dhdv, 1.0f, 0.0f };
         dstNormals[i] = NormalTsToXy16(N);
     }
 }
@@ -680,7 +683,7 @@ static void ResizeToPow2(Texture* tex)
         .x = NextPow2(oldSize.x),
         .y = NextPow2(oldSize.y),
     };
-    if (i2_all(i2_eq(oldSize, newSize)))
+    if (b2_all(i2_eq(oldSize, newSize)))
     {
         goto cleanup;
     }

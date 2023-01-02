@@ -116,11 +116,11 @@ static void FitFn(void* pbase, i32 begin, i32 end)
     const i32 iterations = i1_max(fitTask->iterations, 2 * (data.len + 1));
     const ErrFn errFn = fitTask->errFn;
 
-    Prng rng = Prng_Get();
+    Prng* rng = Prng_Get();
     for (i32 iFit = begin; iFit < end; ++iFit)
     {
         fit_t fit;
-        randFit(&rng, &fit);
+        randFit(rng, &fit);
         float error = errFn(data, fit);
 
         for (i32 iIter = 0; iIter < iterations; ++iIter)
@@ -128,7 +128,7 @@ static void FitFn(void* pbase, i32 begin, i32 end)
             for (i32 iBit = 0; iBit < 22; ++iBit)
             {
                 fit_t testFit = fit;
-                mutateFit(&rng, &testFit, 1.0f / (1 << iBit));
+                mutateFit(rng, &testFit, 1.0f / (1 << iBit));
                 float testErr = errFn(data, testFit);
                 if (testErr < error)
                 {
@@ -141,7 +141,6 @@ static void FitFn(void* pbase, i32 begin, i32 end)
         fitTask->fits[iFit] = fit;
         fitTask->errors[iFit] = error;
     }
-    Prng_Set(rng);
 }
 
 static float CreateFit(
@@ -158,7 +157,7 @@ static float CreateFit(
     Task_Run(task, FitFn, numthreads);
 
     i32 chosen = 0;
-    float chosenError = 1 << 20;
+    float chosenError = 1 << 23;
     const float* pim_noalias errors = task->errors;
     for (i32 i = 1; i < numthreads; ++i)
     {

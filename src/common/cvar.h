@@ -16,17 +16,12 @@ typedef enum
     cvart_color,    // color
 } cvar_type;
 
-typedef enum
-{
-    cvarf_save = 1 << 0,        // save value to config file
-    cvarf_logarithmic = 1 << 1, // logarithmic slider / picker
-    cvarf_hdr = 1 << 2,         // high dynamic range
-} cvar_flags;
-
 typedef struct ConVar_s
 {
     cvar_type type;
-    u32 flags;
+    u32 flag_logarithmic : 1;
+    u32 flag_hdr : 1;
+    u32 flag_save : 1;
     const char* name;
     char value[64];
     const char* desc;
@@ -47,7 +42,7 @@ typedef struct ConVar_s
         i32 asInt;
         bool asBool;
     };
-    u64 modtime;
+    u32 version;
     bool registered;
 } ConVar;
 
@@ -80,7 +75,7 @@ bool ConVar_GetBool(const ConVar* ptr);
 
 void ConVar_Toggle(ConVar* ptr);
 
-bool ConVar_CheckDirty(const ConVar* ptr, u64 lastCheck);
+bool ConVar_CheckDirty(const ConVar* ptr, u32* pUserVersion);
 
 // displays the cvar gui
 void ConVar_Gui(bool* pEnabled);

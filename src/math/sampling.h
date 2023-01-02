@@ -65,22 +65,22 @@ pim_inline float VEC_CALL RadicalInverseBase2(u32 bits)
 // generates a stratified random 2D variable with range [0, 1]
 pim_inline float2 VEC_CALL Hammersley2D(u32 i, u32 N)
 {
-    float2 c = { (float)i / (float)N, RadicalInverseBase2(i) };
+    float2 c = { (i + 0.5f) / N, RadicalInverseBase2(i) };
     return c;
 }
 
 // http://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling.html
 pim_inline float VEC_CALL PowerHeuristic(float f, float g)
 {
-    return (f * f) / (f * f + g * g);
+    return (f * f) / f1_max(f * f + g * g, kEpsilon);
 }
 
 // Maps a value in unorm square to a value in snorm circle
 // https://psgraphics.blogspot.com/2011/01/improved-code-for-concentric-map.html
 pim_inline float2 VEC_CALL MapSquareToDisk(float2 Xi)
 {
+    Xi = f2_lerpsv(kEpsilon, 1.0f - kEpsilon, Xi);
     float phi, r;
-
     float a = 2.0f * Xi.x - 1.0f;
     float b = 2.0f * Xi.y - 1.0f;
     if ((a*a) > (b*b))
@@ -99,7 +99,7 @@ pim_inline float2 VEC_CALL MapSquareToDisk(float2 Xi)
 
 pim_inline float4 VEC_CALL SampleBaryCoord(float2 Xi)
 {
-    float r1 = sqrtf(Xi.x);
+    float r1 = sqrtf(f1_max(Xi.x, kEpsilonSq));
     float r2 = Xi.y;
     float u = r1 * (1.0f - r2);
     float v = r2 * r1;
@@ -107,7 +107,7 @@ pim_inline float4 VEC_CALL SampleBaryCoord(float2 Xi)
     return f4_v(w, u, v, 0.0f);
 }
 
-pim_inline float2 VEC_CALL SampleNGon(float2 Xi, i32 side, i32 N, float rot)
+pim_inline float2 VEC_CALL SampleNGon(float2 Xi, u32 side, u32 N, float rot)
 {
     side %= N;
     const float R = kTau / N;
@@ -118,7 +118,7 @@ pim_inline float2 VEC_CALL SampleNGon(float2 Xi, i32 side, i32 N, float rot)
     return f2_blend(f2_0, A, B, SampleBaryCoord(Xi));
 }
 
-pim_inline float2 VEC_CALL SamplePentagram(float2 Xi, i32 side)
+pim_inline float2 VEC_CALL SamplePentagram(float2 Xi, u32 side)
 {
     // https://mathworld.wolfram.com/Pentagram.html
     // https://www.desmos.com/calculator/ptfwlfemow
@@ -137,7 +137,7 @@ pim_inline float2 VEC_CALL SamplePentagram(float2 Xi, i32 side)
 
 pim_inline float4 VEC_CALL SphericalToCartesian(float cosTheta, float phi)
 {
-    float sinTheta = sqrtf(f1_max(0.0f, 1.0f - cosTheta * cosTheta));
+    float sinTheta = sqrtf(f1_max(1.0f - cosTheta * cosTheta, 0.0f));
     float x = sinTheta * cosf(phi);
     float y = sinTheta * sinf(phi);
     float4 dir = { x, y, cosTheta, 0.0f };
@@ -212,7 +212,7 @@ typedef struct SphereSA
 pim_inline float VEC_CALL CosAngularRadius(float distanceToCenter, float radius)
 {
     float sinTheta = radius / distanceToCenter;
-    float cosTheta = sqrtf(f1_max(0.0f, 1.0f - sinTheta * sinTheta));
+    float cosTheta = sqrtf(f1_max(1.0f - sinTheta * sinTheta, kEpsilonSq));
     return cosTheta;
 }
 
@@ -251,10 +251,8 @@ pim_inline float4 VEC_CALL SampleSphereSA(SphereSA sa, float2 Xi)
 pim_inline float4 VEC_CALL SampleCosineHemisphere(float2 Xi)
 {
     Xi = MapSquareToDisk(Xi);
-    float r = f2_lengthsq(Xi);
-    float z = sqrtf(f1_max(0.0f, 1.0f - r));
-    float4 dir = { Xi.x, Xi.y, z, 0.0f };
-    return f4_normalize3(dir);
+    float z = sqrtf(f1_max(1.0f - f2_lengthsq(Xi), kEpsilonSq));
+    return f4_v(Xi.x, Xi.y, z, 0.0f);
 }
 
 // returns a microfacet normal of the GGX NDF for given roughness
@@ -263,7 +261,8 @@ pim_inline float4 VEC_CALL SampleGGXMicrofacet(float2 Xi, float alpha)
 {
     float a2 = alpha * alpha;
     float phi = kTau * Xi.x;
-    float cosTheta = sqrtf((1.0f - Xi.y) / (1.0f + (a2 - 1.0f) * Xi.y));
+    float b = f1_max(1.0f + (a2 - 1.0f) * Xi.y, kEpsilon);
+    float cosTheta = sqrtf(f1_max((1.0f - Xi.y) / b, kEpsilonSq));
     return SphericalToCartesian(cosTheta, phi);
 }
 
@@ -292,7 +291,7 @@ pim_inline float VEC_CALL UniformSampleLambertPdf(void)
 pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)
 {
     float d = D_GTR(NoH, alpha);
-    return (d * NoH) / f1_max(kEpsilon, 4.0f * HoV);
+    return (HoV > kEpsilon) ? ((d * NoH) / (4.0f * HoV)) : 0.0f;
 }
 
 // returns pdf of an area light that passes the intersection test
@@ -301,7 +300,8 @@ pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)
 // distSq: dot(LPos - SurfPos, LPos - SurfPos)
 pim_inline float VEC_CALL LightPdf(float area, float cosTheta, float distSq)
 {
-    return distSq / f1_max(kEpsilon, cosTheta * area);
+    float t = cosTheta * area;
+    return (t > kEpsilon) ? (distSq / t) : 0.0f;
 }
 
 pim_inline float2 VEC_CALL SampleGaussPixelFilter(float2 Xi, float stddev)

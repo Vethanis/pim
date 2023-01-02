@@ -82,6 +82,7 @@ static i32 ms_iFrame;
 static Camera ms_ptcam;
 static PtScene* ms_ptscene;
 static PtTrace ms_trace;
+static PtDofInfo ms_dof;
 
 static i32 ms_lmSampleCount;
 static i32 ms_acSampleCount;
@@ -120,6 +121,7 @@ static void EnsurePtScene(void)
     if (!ms_ptscene)
     {
         ms_ptscene = PtScene_New();
+        DofInfo_New(&ms_dof);
         ms_ptSampleCount = 0;
         ms_acSampleCount = 0;
         ms_cmapSampleCount = 0;
@@ -139,13 +141,8 @@ static void EnsurePtTrace(void)
     dirty |= ms_trace.imageSize.y != height;
     if (dirty)
     {
-        PtDofInfo dofinfo = ms_trace.dofinfo;
         PtTrace_Del(&ms_trace);
-        PtTrace_New(&ms_trace, ms_ptscene, i2_v(width, height));
-        if (dofinfo.bladeCount)
-        {
-            ms_trace.dofinfo = dofinfo;
-        }
+        PtTrace_New(&ms_trace, i2_v(width, height));
     }
 }
 
@@ -211,14 +208,13 @@ static void Lightmap_Trace(void)
 ProfileMark(pm_CubemapTrace, Cubemap_Trace)
 static void Cubemap_Trace(void)
 {
-    static u64 s_lap;
-
+    static u32 s_lap;
     if (ConVar_GetBool(&cv_r_refl_gen))
     {
         ProfileBegin(pm_CubemapTrace);
         EnsurePtScene();
 
-        if (ConVar_CheckDirty(&cv_r_refl_gen, Time_Lap(&s_lap)))
+        if (ConVar_CheckDirty(&cv_r_refl_gen, &s_lap))
         {
             ms_cmapSampleCount = 0;
         }
@@ -274,7 +270,7 @@ ProfileMark(pm_PathTrace, PathTrace)
 ProfileMark(pm_ptBlit, Blit)
 static bool PathTrace(void)
 {
-    static u64 s_lap;
+    static u32 s_lap;
 
     if (ConVar_GetBool(&cv_pt_trace))
     {
@@ -286,7 +282,7 @@ static bool PathTrace(void)
             Camera_Get(&camera);
 
             bool dirty = false;
-            dirty |= ConVar_CheckDirty(&cv_pt_trace, Time_Lap(&s_lap));
+            dirty |= ConVar_CheckDirty(&cv_pt_trace, &s_lap);
             dirty |= memcmp(&camera, &ms_ptcam, sizeof(camera));
 
             if (dirty)
@@ -299,7 +295,7 @@ static bool PathTrace(void)
         ms_trace.sampleWeight = 1.0f / ++ms_ptSampleCount;
         const int2 size = ms_trace.imageSize;
         const i32 texCount = size.x * size.y;
-        Pt_Trace(&ms_trace, &ms_ptcam);
+        Pt_Trace(&ms_trace, &ms_dof, ms_ptscene, &ms_ptcam);
 
         float3* pim_noalias output3 = ms_trace.color;
         if (ConVar_GetBool(&cv_pt_denoise))
@@ -425,13 +421,12 @@ static void BakeSkyFn(void* pbase, i32 begin, i32 end)
 
 static void BakeSky(void)
 {
-    static u64 s_lap;
-    u64 lastCheck = Time_Lap(&s_lap);
     bool dirty = false;
 
+    static u32 s_sun_res;
     Guid skyname = Guid_FromStr("sky");
     Cubemaps* maps = Cubemaps_Get();
-    if (ConVar_CheckDirty(&cv_r_sun_res, lastCheck))
+    if (ConVar_CheckDirty(&cv_r_sun_res, &s_sun_res))
     {
         Cubemaps_Rm(maps, skyname);
     }
@@ -442,18 +437,28 @@ static void BakeSky(void)
         iSky = Cubemaps_Add(maps, skyname, ConVar_GetInt(&cv_r_sun_res), (Box3D) { 0 });
     }
 
-    dirty |= ConVar_CheckDirty(&cv_r_sun_steps, lastCheck);
-    dirty |= ConVar_CheckDirty(&cv_r_sun_dir, lastCheck);
-    dirty |= ConVar_CheckDirty(&cv_r_sun_lum, lastCheck);
-    dirty |= ConVar_CheckDirty(&cv_sky_rad_cr, lastCheck);
-    dirty |= ConVar_CheckDirty(&cv_sky_rad_at, lastCheck);
-    dirty |= ConVar_CheckDirty(&cv_sky_rlh_mfp, lastCheck);
-    dirty |= ConVar_CheckDirty(&cv_sky_rlh_sh, lastCheck);
-    dirty |= ConVar_CheckDirty(&cv_sky_mie_mfp, lastCheck);
-    dirty |= ConVar_CheckDirty(&cv_sky_mie_sh, lastCheck);
-    dirty |= ConVar_CheckDirty(&cv_sky_mie_g, lastCheck);
+    static u32 s_sun_steps;
+    dirty |= ConVar_CheckDirty(&cv_r_sun_steps, &s_sun_steps);
+    static u32 s_sun_dir;
+    dirty |= ConVar_CheckDirty(&cv_r_sun_dir, &s_sun_dir);
+    static u32 s_sun_lum;
+    dirty |= ConVar_CheckDirty(&cv_r_sun_lum, &s_sun_lum);
+    static u32 s_sky_rad_cr;
+    dirty |= ConVar_CheckDirty(&cv_sky_rad_cr, &s_sky_rad_cr);
+    static u32 s_sky_rad_at;
+    dirty |= ConVar_CheckDirty(&cv_sky_rad_at, &s_sky_rad_at);
+    static u32 s_sky_rlh_mfp;
+    dirty |= ConVar_CheckDirty(&cv_sky_rlh_mfp, &s_sky_rlh_mfp);
+    static u32 s_sky_rlh_sh;
+    dirty |= ConVar_CheckDirty(&cv_sky_rlh_sh, &s_sky_rlh_sh);
+    static u32 s_sky_mie_mfp;
+    dirty |= ConVar_CheckDirty(&cv_sky_mie_mfp, &s_sky_mie_mfp);
+    static u32 s_sky_mie_sh;
+    dirty |= ConVar_CheckDirty(&cv_sky_mie_sh, &s_sky_mie_sh);
+    static u32 s_sky_mie_g;
+    dirty |= ConVar_CheckDirty(&cv_sky_mie_g, &s_sky_mie_g);
 
-    if (dirty)
+    if (iSky >= 0 && dirty)
     {
         const SkyMedium sky =
         {
@@ -650,12 +655,9 @@ void RenderSys_Gui(bool* pEnabled)
             igTreePop();
         }
 
-        if (ms_trace.scene)
+        if (ms_ptscene)
         {
-            PtTrace_Gui(&ms_trace);
-        }
-        else if (ms_ptscene)
-        {
+            DofInfo_Gui(&ms_dof);
             PtScene_Gui(ms_ptscene);
         }
     }
@@ -705,7 +707,7 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
         .b = 0.0f,
     };
 
-    Prng rng = Prng_Get();
+    Prng* rng = Prng_Get();
     float4 const *const pim_noalias light = buf->light;
     for (i32 i = 0; i < len; ++i)
     {
@@ -715,11 +717,10 @@ static cmdstat_t CmdScreenshot(i32 argc, const char** argv)
         v = f4_maxvs(v, 0.0f);
         v = f4_GTTonemap(v, gtp);
         v = f4_sRGB_InverseEOTF(v);
-        v = f4_lerpvs(v, f4_rand(&rng), 1.0f / 255.0f);
+        v = f4_lerpvs(v, f4_rand(rng), 1.0f / 255.0f);
         v.w = 1.0f;
         color[i] = f4_rgba8(v);
     }
-    Prng_Set(rng);
 
     stbi_flip_vertically_on_write(1);
     i32 wrote = stbi_write_png(filename, size.x, size.y, 4, color, sizeof(color[0]) * size.x);
@@ -1350,7 +1351,7 @@ static cmdstat_t CmdPtTest(i32 argc, const char** argv)
     if (framesopt)
     {
         frames = ParseInt(framesopt);
-        frames = i1_clamp(frames, 1, 1 << 20);
+        frames = i1_clamp(frames, 1, 1 << 23);
     }
 
     cmd_enqueue("cornell_box");

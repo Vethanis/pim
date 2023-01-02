@@ -8,11 +8,13 @@ void TimeSys_Init(void);
 void TimeSys_Update(void);
 void TimeSys_Shutdown(void);
 
+u64 Time_GetRawCounter(void);
+u64 Time_GetRawFreq(void);
+
 u32 Time_FrameCount(void);
 u64 Time_AppStart(void);
 u64 Time_FrameStart(void);
 u64 Time_PrevFrame(void);
-u64 Time_Lap(u64* tick);
 
 u64 Time_Now(void);
 u64 Time_Delta(void);

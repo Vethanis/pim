@@ -36,12 +36,12 @@ typedef enum
     QAlloc_COUNT
 } QAlloc;
 
-typedef struct filehdl_s { hdl_t h; } filehdl_t;
-typedef struct meshhdl_s { hdl_t h; } meshhdl_t;
-typedef struct texhdl_s { hdl_t h; } texhdl_t;
-typedef struct sockhdl_s { hdl_t h; } sockhdl_t;
-typedef struct enthdl_s { hdl_t h; } enthdl_t;
-typedef struct cachehdl_s { hdl_t h; } cachehdl_t;
+typedef struct filehdl_s { u32 version : 8; u32 index : 24; } filehdl_t;
+typedef struct meshhdl_s { u32 version : 8; u32 index : 24; } meshhdl_t;
+typedef struct texhdl_s { u32 version : 8; u32 index : 24; } texhdl_t;
+typedef struct sockhdl_s { u32 version : 8; u32 index : 24; } sockhdl_t;
+typedef struct enthdl_s { u32 version : 8; u32 index : 24; } enthdl_t;
+typedef struct cachehdl_s { u32 version : 8; u32 index : 24; } cachehdl_t;
 typedef struct buffer_s { void* ptr; i32 len; } buffer_t;
 
 //=============================================================================

@@ -47,7 +47,7 @@ float3 DiffuseColor(float3 albedo, float metallic)
 float D_GTR(float NoH, float alpha)
 {
     float a2 = alpha * alpha;
-    float f = lerp(1.0f, a2, NoH * NoH);
+    float f = lerp(1.0, a2, NoH * NoH);
     return a2 / max(kEpsilon, f * f * kPi);
 }
 
@@ -56,12 +56,12 @@ float G_SmithGGX(float NoL, float NoV, float alpha)
     float a2 = alpha * alpha;
     float v = NoL * sqrt(a2 + (NoV - NoV * a2) * NoV);
     float l = NoV * sqrt(a2 + (NoL - NoL * a2) * NoL);
-    return 0.5f / max(kEpsilon, v + l);
+    return 0.5 / max(kEpsilon, v + l);
 }
 
 float Fd_Lambert()
 {
-    return 1.0f / kPi;
+    return 1.0 / kPi;
 }
 
 float Fd_Burley(
@@ -70,9 +70,9 @@ float Fd_Burley(
     float HoV,
     float roughness)
 {
-    float fd90 = 0.5f + 2.0f * HoV * HoV * roughness;
-    float lightScatter = F_Schlick1(1.0f, fd90, NoL);
-    float viewScatter = F_Schlick1(1.0f, fd90, NoV);
+    float fd90 = 0.5f + 2.0 * HoV * HoV * roughness;
+    float lightScatter = F_Schlick1(1.0, fd90, NoL);
+    float viewScatter = F_Schlick1(1.0, fd90, NoV);
     return (lightScatter * viewScatter) / kPi;
 }
 
@@ -94,12 +94,10 @@ float3 DirectBRDF(
     float3 F = F_SchlickEx(albedo, metallic, HoV);
     float G = G_SmithGGX(NoL, NoV, alpha);
     float D = D_GTR(NoH, alpha);
-    float3 Fr = D * G * F;
 
     float3 Fd = DiffuseColor(albedo, metallic) * Fd_Burley(NoL, NoV, HoV, roughness);
-    Fd *= 1.0 - F;
 
-    return Fr + Fd;
+    return lerp(Fd, D * G, F);
 }
 
 float3 EnvBRDF(
@@ -107,12 +105,12 @@ float3 EnvBRDF(
     float NoV,
     float alpha)
 {
-    const float4 c0 = { -1.0f, -0.0275f, -0.572f, 0.022f };
-    const float4 c1 = { 1.0f, 0.0425f, 1.04f, -0.04f };
+    const float4 c0 = { -1.0, -0.0275, -0.572, 0.022 };
+    const float4 c1 = { 1.0, 0.0425, 1.04, -0.04 };
     float4 r = c0 * alpha + c1;
-    float a004 = min(r.x * r.x, exp2(-9.28f * NoV)) * r.x + r.y;
-    float a = -1.04f * a004 + r.z;
-    float b = 1.04f * a004 + r.w;
+    float a004 = min(r.x * r.x, exp2(-9.28 * NoV)) * r.x + r.y;
+    float a = -1.04 * a004 + r.z;
+    float b = 1.04 * a004 + r.w;
     return F * a + b;
 }
 
@@ -129,7 +127,10 @@ float3 IndirectBRDF(
     float alpha = BrdfAlpha(roughness);
     float NoV = dotsat(N, V);
 
-    float3 F = F_SchlickEx(albedo, metallic, NoV);
+    float3 f0 = F_0(albedo, metallic);
+    float f90 = F_90(f0);
+
+    float3 F = F_Schlick(f0, f90, NoV);
     float3 Fr = EnvBRDF(F, NoV, alpha);
     Fr = Fr * specularGI;
 

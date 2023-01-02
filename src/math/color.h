@@ -181,6 +181,7 @@ pim_inline float4 VEC_CALL f4_sRGB_InverseEOTF(float4 L)
 
 // cubic fit sRGB EOTF
 // max error = 0.001214
+// https://www.desmos.com/calculator/ksqb6msjef
 pim_inline float VEC_CALL f1_sRGB_EOTF_Fit(float V)
 {
     return 0.020883f * V + 0.656075f * (V*V) + 0.324285f * (V*V*V);
@@ -188,6 +189,7 @@ pim_inline float VEC_CALL f1_sRGB_EOTF_Fit(float V)
 
 // cubic fit sRGB EOTF
 // max error = 0.001214
+// https://www.desmos.com/calculator/ksqb6msjef
 pim_inline float4 VEC_CALL f4_sRGB_EOTF_Fit(float4 V)
 {
     return f4_add(f4_add(f4_mulvs(V, 0.020883f), f4_mulvs(f4_mul(V, V), 0.656075f)), f4_mulvs(f4_mul(V, f4_mul(V, V)), 0.324285f));
@@ -195,6 +197,7 @@ pim_inline float4 VEC_CALL f4_sRGB_EOTF_Fit(float4 V)
 
 // cubic root fit sRGB Inverse EOTF
 // max error = 0.003662
+// https://www.desmos.com/calculator/gexmoddyqj
 pim_inline float VEC_CALL f1_sRGB_InverseEOTF_Fit(float L)
 {
     float l1 = sqrtf(L);
@@ -205,6 +208,7 @@ pim_inline float VEC_CALL f1_sRGB_InverseEOTF_Fit(float L)
 
 // cubic root fit sRGB Inverse EOTF
 // max error = 0.003662
+// https://www.desmos.com/calculator/gexmoddyqj
 pim_inline float4 VEC_CALL f4_sRGB_InverseEOTF_Fit(float4 L)
 {
     float4 l1 = f4_sqrt(L);
@@ -239,7 +243,7 @@ pim_inline float4 VEC_CALL Xy16ToNormalTs(short2 xy)
     float4 n;
     n.x = xy.x * (1.0f / (1 << 15));
     n.y = xy.y * (1.0f / (1 << 15));
-    n.z = sqrtf(f1_max(kEpsilon, 1.0f - (n.x * n.x + n.y * n.y)));
+    n.z = sqrtf(f1_max(kEpsilonSq, 1.0f - (n.x * n.x + n.y * n.y)));
     n.w = 0.0f;
     return n;
 }
@@ -586,7 +590,8 @@ pim_inline float4 VEC_CALL UnpackEmission(float4 albedo, float e)
     return f4_mulvs(albedo, (e * e) * kEmissionScale);
 }
 
-pim_inline void VEC_CALL SpecularToPBR(
+// specular+glossiness workflow to metallic+roughness workflow
+pim_inline void VEC_CALL SpecularToMetallic(
     float4 diffuse,
     float4 specular,
     float glossiness,
@@ -599,18 +604,27 @@ pim_inline void VEC_CALL SpecularToPBR(
     const float specLum = f4_avglum(specular);
 
     float metallic = 0.0f;
-    const float a = 0.04f;
-    if (specLum > a)
+    const float f0 = 0.04f;
+    if (specLum > f0)
     {
-        float b = (diffuseLum * invSpecMax / (1.0f - a)) + (specLum - 2.0f * a);
-        float c = a - specLum;
-        float d = f1_max(kEpsilon, b * b - 4.0f * a * c);
-        metallic = f1_sat((-b + sqrtf(d)) / (2.0f * a));
+        float b = (diffuseLum * invSpecMax / (1.0f - f0)) + (specLum - 2.0f * f0);
+        float c = f0 - specLum;
+        float d = f1_max(kEpsilonSq, b * b - 4.0f * f0 * c);
+        metallic = f1_sat((-b + sqrtf(d)) / (2.0f * f0));
     }
 
-    float4 diffAlbedo = f4_mulvs(diffuse, (invSpecMax / (1.0f - a)) / f1_max(kEpsilon, 1.0f - metallic));
-    float4 specAlbedo = f4_divvs(f4_subvs(specular, a * (1.0f - metallic)), f1_max(kEpsilon, metallic));
-    float4 albedo = f4_saturate(f4_lerpvs(diffAlbedo, specAlbedo, metallic * metallic));
+    float4 conductor = f4_0;
+    if (metallic >= kEpsilon)
+    {
+        conductor = f4_divvs(f4_subvs(specular, f0 * (1.0f - metallic)), metallic);
+    }
+    float4 dielectric = f4_0;
+    if ((1.0f - metallic) >= kEpsilon)
+    {
+        float t = (invSpecMax / (1.0f - f0)) / (1.0f - metallic);
+        dielectric = f4_mulvs(diffuse, t);
+    }
+    float4 albedo = f4_saturate(f4_lerpvs(dielectric, conductor, metallic * metallic));
     albedo.w = diffuse.w;
 
     float roughness = 1.0f - f1_sat(glossiness);

@@ -12,6 +12,8 @@ void Mem_Free(void* ptr);
 void* Mem_Alloc(EAlloc allocator, i32 bytes);
 void* Mem_Realloc(EAlloc allocator, void* prev, i32 bytes);
 void* Mem_Calloc(EAlloc allocator, i32 bytes);
+void* Mem_Dup(EAlloc allocator, const void* src);
+void Mem_Zero(void* ptr);
 
 // alternative to alloca
 void* Mem_Push(i32 bytes);
@@ -20,14 +22,17 @@ void Mem_Pop(i32 bytes);
 #define Perm_Alloc(bytes) Mem_Alloc(EAlloc_Perm, (bytes))
 #define Perm_Calloc(bytes) Mem_Calloc(EAlloc_Perm, (bytes))
 #define Perm_Realloc(prev, bytes) Mem_Realloc(EAlloc_Perm, (prev), (bytes))
+#define Perm_Dup(prev) Mem_Dup(EAlloc_Perm, (prev))
 
 #define Tex_Alloc(bytes) Mem_Alloc(EAlloc_Texture, (bytes))
 #define Tex_Calloc(bytes) Mem_Calloc(EAlloc_Texture, (bytes))
 #define Tex_Realloc(prev, bytes) Mem_Realloc(EAlloc_Texture, (prev), (bytes))
+#define Tex_Dup(prev) Mem_Dup(EAlloc_Texture, (prev))
 
 #define Temp_Alloc(bytes) Mem_Alloc(EAlloc_Temp, (bytes))
 #define Temp_Calloc(bytes) Mem_Calloc(EAlloc_Temp, (bytes))
 #define Temp_Realloc(prev, bytes) Mem_Realloc(EAlloc_Temp, (prev), (bytes))
+#define Temp_Dup(prev) Mem_Dup(EAlloc_Temp, (prev))
 
 #define ZeroElem(p, i) do { memset((p) + (i), 0, sizeof((p)[0])); } while(0)
 #define PopSwap(p, i, l) do { memcpy((p) + (i), (p) + (l) - 1, sizeof((p)[0])); } while(0)

@@ -140,8 +140,8 @@ void UiSys_BeginFrame(void)
 {
     ProfileBegin(pm_beginframe);
 
-    static u64 s_lap;
-    if (ConVar_CheckDirty(&cv_ui_opacity, Time_Lap(&s_lap)))
+    static u32 s_lap;
+    if (ConVar_CheckDirty(&cv_ui_opacity, &s_lap))
     {
         UpdateOpacity();
     }

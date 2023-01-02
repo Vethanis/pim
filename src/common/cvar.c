@@ -10,6 +10,7 @@
 #include "common/time.h"
 #include "math/scalar.h"
 #include "math/float4_funcs.h"
+#include "math/bool_funcs.h"
 #include "containers/sdict.h"
 #include "ui/cimgui_ext.h"
 #include "io/fstr.h"
@@ -74,7 +75,7 @@ bool ConVars_Save(const char* path)
         const ConVar* values = ms_dict.values;
         for (u32 i = 0; i < width; ++i)
         {
-            if (keys[i] && (values[i].flags & cvarf_save))
+            if (keys[i] && values[i].flag_save)
             {
                 FStream_Printf(f, "%s = %s\n", values[i].name, values[i].value);
             }
@@ -109,7 +110,7 @@ void ConVar_SetStr(ConVar* var, const char* value)
     if (!var->registered || (StrCmp(ARGS(var->value), value) != 0))
     {
         StrCpy(ARGS(var->value), value);
-        var->modtime = Time_Now();
+        var->version++;
         switch (var->type)
         {
         default:
@@ -200,7 +201,7 @@ void ConVar_SetFloat(ConVar* var, float value)
     {
         SPrintf(ARGS(var->value), "%f", value);
         var->asFloat = value;
-        var->modtime = Time_Now();
+        var->version++;
     }
 }
 
@@ -214,7 +215,7 @@ void ConVar_SetInt(ConVar* var, i32 value)
     {
         SPrintf(ARGS(var->value), "%d", value);
         var->asInt = value;
-        var->modtime = Time_Now();
+        var->version++;
     }
 }
 
@@ -237,7 +238,7 @@ void ConVar_SetVec(ConVar* var, float4 value)
         break;
     case cvart_color:
     {
-        if (var->flags & cvarf_hdr)
+        if (var->flag_hdr)
         {
             value = f4_clampvs(value, var->minFloat, var->maxFloat);
             value.w = f1_saturate(value.w);
@@ -249,11 +250,11 @@ void ConVar_SetVec(ConVar* var, float4 value)
     }
     break;
     }
-    if (b4_any(f4_neq(value, var->asVector)))
+    if (b4_any4(f4_neq(value, var->asVector)))
     {
         SPrintf(ARGS(var->value), "%f %f %f %f", value.x, value.y, value.z, value.w);
         var->asVector = value;
-        var->modtime = Time_Now();
+        var->version++;
     }
 }
 
@@ -267,7 +268,7 @@ void ConVar_SetBool(ConVar* var, bool value)
         var->value[0] = value ? '1' : '0';
         var->value[1] = 0;
         var->asBool = value;
-        var->modtime = Time_Now();
+        var->version++;
     }
 }
 
@@ -324,10 +325,12 @@ void ConVar_Toggle(ConVar* var)
     ConVar_SetBool(var, !ConVar_GetBool(var));
 }
 
-bool ConVar_CheckDirty(const ConVar* var, u64 lastCheck)
+bool ConVar_CheckDirty(const ConVar* var, u32* pUserVersion)
 {
     ASSERT(var->registered);
-    return var->modtime > lastCheck;
+    bool dirty = var->version != *pUserVersion;
+    *pUserVersion = var->version;
+    return dirty;
 }
 
 static char ms_search[PIM_PATH];
@@ -379,10 +382,8 @@ void ConVar_Gui(bool* pEnabled)
                 continue;
             }
 
-            const bool isLog2 = (cvar->flags & cvarf_logarithmic) != 0;
-            const bool isHdr = (cvar->flags & cvarf_hdr) != 0;
-            const u32 sliderFlags = isLog2 ? logSlider : slider;
-            const u32 pickerFlags = isHdr ? hdrPicker : ldrPicker;
+            const u32 sliderFlags = cvar->flag_logarithmic ? logSlider : slider;
+            const u32 pickerFlags = cvar->flag_hdr ? hdrPicker : ldrPicker;
 
             switch (cvar->type)
             {
@@ -439,15 +440,15 @@ void ConVar_Gui(bool* pEnabled)
             case cvart_color:
             {
                 float4 v = cvar->asVector;
-                if (isLog2)
+                if (cvar->flag_logarithmic)
                 {
-                    v = f4_log2(v);
+                    v = f4_log(v);
                 }
                 if (igColorEdit4(cvar->name, &v.x, pickerFlags))
                 {
-                    if (isLog2)
+                    if (cvar->flag_logarithmic)
                     {
-                        v = f4_exp2(v);
+                        v = f4_exp(v);
                     }
                     ConVar_SetVec(cvar, v);
                 }

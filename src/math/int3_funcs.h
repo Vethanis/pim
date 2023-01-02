@@ -1,10 +1,9 @@
 #pragma once
 
 #include "math/types.h"
+#include "math/scalar.h"
 
 PIM_C_BEGIN
-
-#include "math/scalar.h"
 
 #define i3_0 i3_s(0)
 #define i3_1 i3_s(1)
@@ -76,10 +75,30 @@ pim_inline int3 VEC_CALL i3_add(int3 lhs, int3 rhs)
     int3 vec = { lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z };
     return vec;
 }
+pim_inline int3 VEC_CALL i3_addvs(int3 lhs, i32 rhs)
+{
+    int3 vec = { lhs.x + rhs, lhs.y + rhs, lhs.z + rhs };
+    return vec;
+}
+pim_inline int3 VEC_CALL i3_addsv(i32 lhs, int3 rhs)
+{
+    int3 vec = { lhs + rhs.x, lhs + rhs.y, lhs + rhs.z };
+    return vec;
+}
 
 pim_inline int3 VEC_CALL i3_sub(int3 lhs, int3 rhs)
 {
     int3 vec = { lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z };
+    return vec;
+}
+pim_inline int3 VEC_CALL i3_subvs(int3 lhs, i32 rhs)
+{
+    int3 vec = { lhs.x - rhs, lhs.y - rhs, lhs.z - rhs };
+    return vec;
+}
+pim_inline int3 VEC_CALL i3_subsv(i32 lhs, int3 rhs)
+{
+    int3 vec = { lhs - rhs.x, lhs - rhs.y, lhs - rhs.z };
     return vec;
 }
 
@@ -88,10 +107,30 @@ pim_inline int3 VEC_CALL i3_mul(int3 lhs, int3 rhs)
     int3 vec = { lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z };
     return vec;
 }
+pim_inline int3 VEC_CALL i3_mulvs(int3 lhs, i32 rhs)
+{
+    int3 vec = { lhs.x * rhs, lhs.y * rhs, lhs.z * rhs };
+    return vec;
+}
+pim_inline int3 VEC_CALL i3_mulsv(i32 lhs, int3 rhs)
+{
+    int3 vec = { lhs * rhs.x, lhs * rhs.y, lhs * rhs.z };
+    return vec;
+}
 
 pim_inline int3 VEC_CALL i3_div(int3 lhs, int3 rhs)
 {
     int3 vec = { lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z };
+    return vec;
+}
+pim_inline int3 VEC_CALL i3_divvs(int3 lhs, i32 rhs)
+{
+    int3 vec = { lhs.x / rhs, lhs.y / rhs, lhs.z / rhs };
+    return vec;
+}
+pim_inline int3 VEC_CALL i3_divsv(i32 lhs, int3 rhs)
+{
+    int3 vec = { lhs / rhs.x, lhs / rhs.y, lhs / rhs.z };
     return vec;
 }
 
@@ -101,9 +140,9 @@ pim_inline int3 VEC_CALL i3_neg(int3 v)
     return vec;
 }
 
-pim_inline int3 VEC_CALL i3_eq(int3 lhs, int3 rhs)
+pim_inline bool3 VEC_CALL i3_eq(int3 lhs, int3 rhs)
 {
-    int3 vec =
+    bool3 vec =
     {
         lhs.x == rhs.x,
         lhs.y == rhs.y,
@@ -111,10 +150,30 @@ pim_inline int3 VEC_CALL i3_eq(int3 lhs, int3 rhs)
     };
     return vec;
 }
-
-pim_inline int3 VEC_CALL i3_neq(int3 lhs, int3 rhs)
+pim_inline bool3 VEC_CALL i3_eqvs(int3 lhs, i32 rhs)
 {
-    int3 vec =
+    bool3 vec =
+    {
+        lhs.x == rhs,
+        lhs.y == rhs,
+        lhs.z == rhs,
+    };
+    return vec;
+}
+pim_inline bool3 VEC_CALL i3_eqsv(i32 lhs, int3 rhs)
+{
+    bool3 vec =
+    {
+        lhs == rhs.x,
+        lhs == rhs.y,
+        lhs == rhs.z,
+    };
+    return vec;
+}
+
+pim_inline bool3 VEC_CALL i3_neq(int3 lhs, int3 rhs)
+{
+    bool3 vec =
     {
         lhs.x != rhs.x,
         lhs.y != rhs.y,
@@ -122,10 +181,30 @@ pim_inline int3 VEC_CALL i3_neq(int3 lhs, int3 rhs)
     };
     return vec;
 }
-
-pim_inline int3 VEC_CALL i3_lt(int3 lhs, int3 rhs)
+pim_inline bool3 VEC_CALL i3_neqvs(int3 lhs, i32 rhs)
 {
-    int3 vec =
+    bool3 vec =
+    {
+        lhs.x != rhs,
+        lhs.y != rhs,
+        lhs.z != rhs,
+    };
+    return vec;
+}
+pim_inline bool3 VEC_CALL i3_neqsv(i32 lhs, int3 rhs)
+{
+    bool3 vec =
+    {
+        lhs != rhs.x,
+        lhs != rhs.y,
+        lhs != rhs.z,
+    };
+    return vec;
+}
+
+pim_inline bool3 VEC_CALL i3_lt(int3 lhs, int3 rhs)
+{
+    bool3 vec =
     {
         lhs.x < rhs.x,
         lhs.y < rhs.y,
@@ -133,10 +212,9 @@ pim_inline int3 VEC_CALL i3_lt(int3 lhs, int3 rhs)
     };
     return vec;
 }
-
-pim_inline int3 VEC_CALL i3_ltvs(int3 lhs, i32 rhs)
+pim_inline bool3 VEC_CALL i3_ltvs(int3 lhs, i32 rhs)
 {
-    int3 vec =
+    bool3 vec =
     {
         lhs.x < rhs,
         lhs.y < rhs,
@@ -144,10 +222,9 @@ pim_inline int3 VEC_CALL i3_ltvs(int3 lhs, i32 rhs)
     };
     return vec;
 }
-
-pim_inline int3 VEC_CALL i3_ltsv(i32 lhs, int3 rhs)
+pim_inline bool3 VEC_CALL i3_ltsv(i32 lhs, int3 rhs)
 {
-    int3 vec =
+    bool3 vec =
     {
         lhs < rhs.x,
         lhs < rhs.y,
@@ -156,9 +233,9 @@ pim_inline int3 VEC_CALL i3_ltsv(i32 lhs, int3 rhs)
     return vec;
 }
 
-pim_inline int3 VEC_CALL i3_gt(int3 lhs, int3 rhs)
+pim_inline bool3 VEC_CALL i3_gt(int3 lhs, int3 rhs)
 {
-    int3 vec =
+    bool3 vec =
     {
         lhs.x > rhs.x,
         lhs.y > rhs.y,
@@ -166,10 +243,9 @@ pim_inline int3 VEC_CALL i3_gt(int3 lhs, int3 rhs)
     };
     return vec;
 }
-
-pim_inline int3 VEC_CALL i3_gtvs(int3 lhs, i32 rhs)
+pim_inline bool3 VEC_CALL i3_gtvs(int3 lhs, i32 rhs)
 {
-    int3 vec =
+    bool3 vec =
     {
         lhs.x > rhs,
         lhs.y > rhs,
@@ -177,10 +253,9 @@ pim_inline int3 VEC_CALL i3_gtvs(int3 lhs, i32 rhs)
     };
     return vec;
 }
-
-pim_inline int3 VEC_CALL i3_gtsv(i32 lhs, int3 rhs)
+pim_inline bool3 VEC_CALL i3_gtsv(i32 lhs, int3 rhs)
 {
-    int3 vec =
+    bool3 vec =
     {
         lhs > rhs.x,
         lhs > rhs.y,
@@ -189,9 +264,9 @@ pim_inline int3 VEC_CALL i3_gtsv(i32 lhs, int3 rhs)
     return vec;
 }
 
-pim_inline int3 VEC_CALL i3_lteq(int3 lhs, int3 rhs)
+pim_inline bool3 VEC_CALL i3_lteq(int3 lhs, int3 rhs)
 {
-    int3 vec =
+    bool3 vec =
     {
         lhs.x <= rhs.x,
         lhs.y <= rhs.y,
@@ -199,10 +274,30 @@ pim_inline int3 VEC_CALL i3_lteq(int3 lhs, int3 rhs)
     };
     return vec;
 }
-
-pim_inline int3 VEC_CALL i3_gteq(int3 lhs, int3 rhs)
+pim_inline bool3 VEC_CALL i3_lteqvs(int3 lhs, i32 rhs)
 {
-    int3 vec =
+    bool3 vec =
+    {
+        lhs.x <= rhs,
+        lhs.y <= rhs,
+        lhs.z <= rhs,
+    };
+    return vec;
+}
+pim_inline bool3 VEC_CALL i3_lteqsv(i32 lhs, int3 rhs)
+{
+    bool3 vec =
+    {
+        lhs <= rhs.x,
+        lhs <= rhs.y,
+        lhs <= rhs.z,
+    };
+    return vec;
+}
+
+pim_inline bool3 VEC_CALL i3_gteq(int3 lhs, int3 rhs)
+{
+    bool3 vec =
     {
         lhs.x >= rhs.x,
         lhs.y >= rhs.y,
@@ -210,25 +305,30 @@ pim_inline int3 VEC_CALL i3_gteq(int3 lhs, int3 rhs)
     };
     return vec;
 }
+pim_inline bool3 VEC_CALL i3_gteqvs(int3 lhs, i32 rhs)
+{
+    bool3 vec =
+    {
+        lhs.x >= rhs,
+        lhs.y >= rhs,
+        lhs.z >= rhs,
+    };
+    return vec;
+}
+pim_inline bool3 VEC_CALL i3_gteqsv(i32 lhs, int3 rhs)
+{
+    bool3 vec =
+    {
+        lhs >= rhs.x,
+        lhs >= rhs.y,
+        lhs >= rhs.z,
+    };
+    return vec;
+}
 
 pim_inline i32 VEC_CALL i3_sum(int3 v)
 {
     return v.x + v.y + v.z;
-}
-
-pim_inline bool VEC_CALL i3_any(int3 b)
-{
-    return i3_sum(b) != 0;
-}
-
-pim_inline bool VEC_CALL i3_all(int3 b)
-{
-    return i3_sum(b) == 3;
-}
-
-pim_inline int3 VEC_CALL i3_not(int3 b)
-{
-    return i3_sub(i3_1, b);
 }
 
 pim_inline int3 VEC_CALL i3_abs(int3 v)
@@ -247,7 +347,6 @@ pim_inline int3 VEC_CALL i3_min(int3 a, int3 b)
     };
     return vec;
 }
-
 pim_inline int3 VEC_CALL i3_minvs(int3 a, i32 b)
 {
     int3 vec =
@@ -258,7 +357,6 @@ pim_inline int3 VEC_CALL i3_minvs(int3 a, i32 b)
     };
     return vec;
 }
-
 pim_inline int3 VEC_CALL i3_minsv(i32 a, int3 b)
 {
     int3 vec =
@@ -280,7 +378,6 @@ pim_inline int3 VEC_CALL i3_max(int3 a, int3 b)
     };
     return vec;
 }
-
 pim_inline int3 VEC_CALL i3_maxvs(int3 a, i32 b)
 {
     int3 vec =
@@ -291,7 +388,6 @@ pim_inline int3 VEC_CALL i3_maxvs(int3 a, i32 b)
     };
     return vec;
 }
-
 pim_inline int3 VEC_CALL i3_maxsv(i32 a, int3 b)
 {
     int3 vec =
@@ -313,6 +409,26 @@ pim_inline int3 VEC_CALL i3_select(int3 a, int3 b, int3 t)
     };
     return c;
 }
+pim_inline int3 VEC_CALL i3_selectvs(int3 a, int3 b, i32 t)
+{
+    int3 c =
+    {
+        t ? b.x : a.x,
+        t ? b.y : a.y,
+        t ? b.z : a.z,
+    };
+    return c;
+}
+pim_inline int3 VEC_CALL i3_selectsv(i32 a, i32 b, int3 t)
+{
+    int3 c =
+    {
+        t.x ? b : a,
+        t.y ? b : a,
+        t.z ? b : a,
+    };
+    return c;
+}
 
 pim_inline i32 VEC_CALL i3_hmin(int3 v)
 {
@@ -328,10 +444,13 @@ pim_inline int3 VEC_CALL i3_clamp(int3 x, int3 lo, int3 hi)
 {
     return i3_min(i3_max(x, lo), hi);
 }
-
 pim_inline int3 VEC_CALL i3_clampvs(int3 x, i32 lo, i32 hi)
 {
     return i3_minvs(i3_maxvs(x, lo), hi);
+}
+pim_inline int3 VEC_CALL i3_clampsv(i32 x, int3 lo, int3 hi)
+{
+    return i3_min(i3_maxsv(x, lo), hi);
 }
 
 pim_inline i32 VEC_CALL i3_dot(int3 a, int3 b)
@@ -341,12 +460,20 @@ pim_inline i32 VEC_CALL i3_dot(int3 a, int3 b)
 
 pim_inline i32 VEC_CALL i3_length(int3 x)
 {
-    return (i32)sqrt((double)i3_dot(x, x));
+    return (i32)(sqrt((double)i3_dot(x, x)) + 0.5);
 }
 
 pim_inline i32 VEC_CALL i3_distance(int3 a, int3 b)
 {
     return i3_length(i3_sub(a, b));
+}
+pim_inline i32 VEC_CALL i3_distancevs(int3 a, i32 b)
+{
+    return i3_length(i3_subvs(a, b));
+}
+pim_inline i32 VEC_CALL i3_distancesv(i32 a, int3 b)
+{
+    return i3_length(i3_subsv(a, b));
 }
 
 pim_inline i32 VEC_CALL i3_lengthsq(int3 x)
@@ -359,12 +486,17 @@ pim_inline i32 VEC_CALL i3_distancesq(int3 a, int3 b)
     return i3_lengthsq(i3_sub(a, b));
 }
 
-pim_inline int3 VEC_CALL i3_lerp(int3 a, int3 b, i32 t)
+pim_inline int3 VEC_CALL i3_lerp(int3 a, int3 b, int3 t)
 {
-    int3 vt = i3_s(t);
-    int3 ba = i3_sub(b, a);
-    b = i3_mul(ba, vt);
-    return i3_add(a, b);
+    return i3_add(a, i3_mul(i3_sub(b, a), t));
+}
+pim_inline int3 VEC_CALL i3_lerpvs(int3 a, int3 b, i32 t)
+{
+    return i3_add(a, i3_mulvs(i3_sub(b, a), t));
+}
+pim_inline int3 VEC_CALL i3_lerpsv(i32 a, i32 b, int3 t)
+{
+    return i3_addsv(a, i3_mulsv(b - a, t));
 }
 
 PIM_C_END

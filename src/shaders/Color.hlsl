@@ -30,7 +30,7 @@ float3 Xy16ToNormalTs(float2 xy)
     float3 n;
     n.x = xy.x;
     n.y = xy.y;
-    n.z = sqrt(max(0.0f, 1.0f - (n.x * n.x + n.y * n.y)));
+    n.z = sqrt(max(1e-7f, 1.0f - (n.x * n.x + n.y * n.y)));
     return n;
 }
 

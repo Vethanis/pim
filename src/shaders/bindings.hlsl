@@ -7,26 +7,17 @@
 [[vk::binding(bid_Globals)]]
 cbuffer GlobalsBuffer
 {
-    float4x4 g_WorldToClip;
-    float4 g_Eye;
-
-    float g_HdrEnabled;
-    float g_Whitepoint;
-    float g_DisplayNits;
-    float g_UiNits;
-
-    uint2 g_RenderSize;
-    uint2 g_DisplaySize;
+    GpuGlobals globals;
 };
 
-float4x4 GetWorldToClip() { return g_WorldToClip; }
-float3 GetEye() { return g_Eye.xyz; }
-bool HdrEnabled() { return g_HdrEnabled != 0.0; }
-float GetWhitepoint() { return g_Whitepoint; }
-float GetDisplayNits() { return g_DisplayNits; }
-float GetUiNits() { return g_UiNits; }
-uint2 GetRenderSize() { return g_RenderSize; }
-uint2 GetDisplaySize() { return g_DisplaySize; }
+float4x4 GetWorldToClip() { return globals.worldToClip; }
+float3 GetEye() { return globals.eye.xyz; }
+bool HdrEnabled() { return globals.hdrEnabled != 0.0; }
+float GetWhitepoint() { return globals.whitepoint; }
+float GetDisplayNits() { return globals.displayNits; }
+float GetUiNits() { return globals.uiNits; }
+uint2 GetRenderSize() { return globals.renderSize; }
+uint2 GetDisplaySize() { return globals.displaySize; }
 
 // ----------------------------------------------------------------------------
 

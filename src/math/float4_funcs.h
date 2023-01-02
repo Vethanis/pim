@@ -402,78 +402,6 @@ pim_inline float VEC_CALL f4_sum3(float4 v)
     return v.x + v.y + v.z;
 }
 
-pim_inline bool VEC_CALL b4_any(bool4 b)
-{
-    return b.x | b.y | b.z | b.w;
-}
-
-pim_inline bool VEC_CALL b4_any3(bool4 b)
-{
-    return b.x | b.y | b.z;
-}
-
-pim_inline bool VEC_CALL b4_all(bool4 b)
-{
-    return b.x & b.y & b.z & b.w;
-}
-
-pim_inline bool VEC_CALL b4_all3(bool4 b)
-{
-    return b.x & b.y & b.z;
-}
-
-pim_inline bool4 VEC_CALL b4_not(bool4 b)
-{
-    bool4 y = { ~b.x, ~b.y, ~b.z, ~b.w };
-    return y;
-}
-
-pim_inline bool4 VEC_CALL b4_and(bool4 lhs, bool4 rhs)
-{
-    bool4 y =
-    {
-        lhs.x & rhs.x,
-        lhs.y & rhs.y,
-        lhs.z & rhs.z,
-        lhs.w & rhs.w
-    };
-    return y;
-}
-
-pim_inline bool4 VEC_CALL b4_or(bool4 lhs, bool4 rhs)
-{
-    bool4 y =
-    {
-        lhs.x | rhs.x,
-        lhs.y | rhs.y,
-        lhs.z | rhs.z,
-        lhs.w | rhs.w
-    };
-    return y;
-}
-
-pim_inline bool4 VEC_CALL b4_xor(bool4 lhs, bool4 rhs)
-{
-    bool4 y =
-    {
-        lhs.x ^ rhs.x,
-        lhs.y ^ rhs.y,
-        lhs.z ^ rhs.z,
-        lhs.w ^ rhs.w
-    };
-    return y;
-}
-
-pim_inline bool4 VEC_CALL b4_nand(bool4 lhs, bool4 rhs)
-{
-    return b4_not(b4_and(lhs, rhs));
-}
-
-pim_inline bool4 VEC_CALL b4_nor(bool4 lhs, bool4 rhs)
-{
-    return b4_not(b4_or(lhs, rhs));
-}
-
 pim_inline float4 VEC_CALL f4_min(float4 a, float4 b)
 {
     float4 vec =
@@ -635,11 +563,11 @@ pim_inline float4 VEC_CALL f4_cross3(float4 a, float4 b)
 
 pim_inline float VEC_CALL f4_length4(float4 x)
 {
-    return sqrtf(f1_max(kEpsilon, f4_dot4(x, x)));
+    return sqrtf(f1_max(kEpsilonSq, f4_dot4(x, x)));
 }
 pim_inline float VEC_CALL f4_length3(float4 x)
 {
-    return sqrtf(f1_max(kEpsilon, f4_dot3(x, x)));
+    return sqrtf(f1_max(kEpsilonSq, f4_dot3(x, x)));
 }
 
 pim_inline float4 VEC_CALL f4_normalize4(float4 x)

@@ -14,6 +14,7 @@
 #include "common/cvars.h"
 #include "common/cmd.h"
 #include "common/console.h"
+#include "common/random.h"
 #include "editor/editor.h"
 #include "common/serialize.h"
 #include "scriptsys/script.h"
@@ -40,6 +41,7 @@ int main()
 static bool Init(void)
 {
     TimeSys_Init();
+    Random_Init();
     MemSys_Init();
     ConVars_RegisterAll();
     SerSys_Init();

@@ -358,7 +358,7 @@ pim_inline i32 plane_find(
 
 pim_inline void VEC_CALL chart_minmax(chart_t chart, float2* loOut, float2* hiOut)
 {
-    const float bigNum = 1 << 20;
+    const float bigNum = 1 << 23;
     float2 lo = f2_s(bigNum);
     float2 hi = f2_s(-bigNum);
     for (i32 i = 0; i < chart.nodeCount; ++i)
@@ -435,7 +435,7 @@ pim_inline float2 VEC_CALL cluster_mean(const Tri2D* tris, i32 count)
 pim_inline i32 cluster_nearest(const float2* means, i32 k, Tri2D tri)
 {
     i32 chosen = -1;
-    float chosenDist = 1 << 20;
+    float chosenDist = 1 << 23;
     for (i32 i = 0; i < k; ++i)
     {
         float dist = sdTriangle2D(tri.a, tri.b, tri.c, means[i]);
@@ -461,16 +461,15 @@ static void chart_split(chart_t chart, chart_t* split)
     const i32 k = CHART_SPLITS;
 
     // create k initial means
-    Prng rng = Prng_Get();
+    Prng* rng = Prng_Get();
     for (i32 i = 0; i < k; ++i)
     {
-        i32 j = Prng_i32(&rng) % nodeCount;
+        i32 j = Prng_i32(rng) % nodeCount;
         Tri2D tri = nodes[j].triCoord;
         means[i] = tri_center(tri);
         triLists[i] = Temp_Alloc(sizeof(Tri2D) * nodeCount);
         nodeLists[i] = Temp_Alloc(sizeof(i32) * nodeCount);
     }
-    Prng_Set(rng);
 
     do
     {
@@ -788,7 +787,7 @@ static void AtlasFn(void* pbase, i32 begin, i32 end)
 
     i32 prevAtlas = 0;
     i32 prevRow = ROW_RESET;
-    float prevArea = 1 << 20;
+    float prevArea = 1 << 23;
     for (i32 i = begin; i < end; ++i)
     {
         i32 iChart = inc_i32(pHead, MO_Relaxed);
@@ -1135,7 +1134,7 @@ static void BakeFn(void* pbase, i32 begin, i32 end)
     const i32 lmLen = lmSize * lmSize;
     const float metersPerTexel = 1.0f / pack->texelsPerMeter;
 
-    PtSampler sampler = PtSampler_Get();
+    Prng* rng = Prng_Get();
     for (i32 iWork = begin; iWork < end; ++iWork)
     {
         i32 iLightmap = iWork / lmLen;
@@ -1148,7 +1147,7 @@ static void BakeFn(void* pbase, i32 begin, i32 end)
             continue;
         }
 
-        if (Pt_Sample1D(&sampler) > timeSlice)
+        if (Prng_f32(rng) > timeSlice)
         {
             continue;
         }
@@ -1174,14 +1173,14 @@ static void BakeFn(void* pbase, i32 begin, i32 end)
 
         for (i32 i = 0; i < spp; ++i)
         {
-            float4 Lts = SampleUnitHemisphere(Pt_Sample2D(&sampler));
+            float4 Lts = SampleUnitHemisphere(Prng_float2(rng));
             float4 rd = TbnToWorld(TBN, Lts);
-            float dt = (Pt_Sample1D(&sampler) - 0.5f) * metersPerTexel;
-            float db = (Pt_Sample1D(&sampler) - 0.5f) * metersPerTexel;
+            float dt = (Prng_f32(rng) - 0.5f) * metersPerTexel;
+            float db = (Prng_f32(rng) - 0.5f) * metersPerTexel;
             float4 ro = P;
             ro = f4_add(ro, f4_mulvs(TBN.c0, dt));
             ro = f4_add(ro, f4_mulvs(TBN.c1, db));
-            PtResult result = Pt_TraceRay(&sampler, scene, ro, rd);
+            PtResult result = Pt_TraceRay(scene, ro, rd);
             float weight = 1.0f / sampleCount;
             sampleCount += 1.0f;
             SG_Accumulate(
@@ -1199,7 +1198,6 @@ static void BakeFn(void* pbase, i32 begin, i32 end)
         }
         lightmap.sampleCounts[iTexel] = sampleCount;
     }
-    PtSampler_Set(sampler);
 }
 
 ProfileMark(pm_Bake, LmPack_Bake)

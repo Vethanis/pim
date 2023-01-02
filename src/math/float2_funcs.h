@@ -1,55 +1,10 @@
 #pragma once
 
 #include "math/types.h"
-
-PIM_C_BEGIN
-
 #include "math/scalar.h"
 #include "common/random.h"
 
-pim_inline bool2 VEC_CALL b2_not(bool2 b)
-{
-    bool2 y = { ~b.x, ~b.y };
-    return y;
-}
-
-pim_inline bool2 VEC_CALL b2_and(bool2 lhs, bool2 rhs)
-{
-    bool2 vec = { lhs.x & rhs.x, lhs.y & rhs.y };
-    return vec;
-}
-
-pim_inline bool2 VEC_CALL b2_or(bool2 lhs, bool2 rhs)
-{
-    bool2 vec = { lhs.x | rhs.x, lhs.y | rhs.y };
-    return vec;
-}
-
-pim_inline bool2 VEC_CALL b2_xor(bool2 lhs, bool2 rhs)
-{
-    bool2 vec = { lhs.x ^ rhs.x, lhs.y ^ rhs.y };
-    return vec;
-}
-
-pim_inline bool2 VEC_CALL b2_nand(bool2 lhs, bool2 rhs)
-{
-    return b2_not(b2_and(lhs, rhs));
-}
-
-pim_inline bool2 VEC_CALL b2_nor(bool2 lhs, bool2 rhs)
-{
-    return b2_not(b2_or(lhs, rhs));
-}
-
-pim_inline bool VEC_CALL b2_any(bool2 b)
-{
-    return b.x | b.y;
-}
-
-pim_inline bool VEC_CALL b2_all(bool2 b)
-{
-    return b.x & b.y;
-}
+PIM_C_BEGIN
 
 #define f2_0 f2_s(0.0f)
 #define f2_1 f2_s(1.0f)

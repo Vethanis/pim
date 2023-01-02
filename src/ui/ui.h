@@ -4,7 +4,7 @@
 
 PIM_C_BEGIN
 
-PIM_FWD_DECL(GLFWwindow);
+typedef struct GLFWwindow GLFWwindow;
 
 void UiSys_Init(GLFWwindow* window);
 void UiSys_BeginFrame(void);

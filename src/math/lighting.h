@@ -146,14 +146,14 @@ pim_inline float VEC_CALL F_Dielectric(float cosThetaI, float etaI, float etaT)
         etaI = etaT;
         etaT = tmp;
     }
-    float sinThetaI = sqrtf(f1_max(0.0f, 1.0f - cosThetaI * cosThetaI));
+    float sinThetaI = sqrtf(f1_max(1.0f - cosThetaI * cosThetaI, kEpsilonSq));
     float sinThetaT = (etaI / etaT) * sinThetaI;
     if (sinThetaT >= 1.0f)
     {
         // total internal reflection
         return 1.0f;
     }
-    float cosThetaT = sqrtf(f1_max(0.0f, 1.0f - sinThetaT * sinThetaT));
+    float cosThetaT = sqrtf(f1_max(1.0f - sinThetaT * sinThetaT, kEpsilonSq));
     float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
         ((etaT * cosThetaI) + (etaI * cosThetaT));
     float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
@@ -219,7 +219,8 @@ pim_inline float VEC_CALL D_GTR(float NoH, float alpha)
 {
     float a2 = alpha * alpha;
     float f = f1_lerp(1.0f, a2, NoH * NoH);
-    return a2 / f1_max(kEpsilon, f * f * kPi);
+    f = f * f * kPi;
+    return (f > kEpsilon) ? (a2 / f) : 0.0f;
 }
 
 // Specular 'D' term with SphereNormalization applied
@@ -234,7 +235,8 @@ pim_inline float VEC_CALL D_GTR_Sphere(
     float a2 = alpha * alpha;
     float ap2 = alphaPrime * alphaPrime;
     float f = f1_lerp(1.0f, a2, NoH * NoH);
-    return (a2 * ap2) / f1_max(kEpsilon, f * f);
+    f = f * f;
+    return (f > kEpsilon) ? ((a2 * ap2) / f) : 0.0f;
 }
 
 // Specular 'V' term (G term / denominator)
@@ -244,9 +246,10 @@ pim_inline float VEC_CALL D_GTR_Sphere(
 pim_inline float VEC_CALL V_SmithCorrelated(float NoL, float NoV, float alpha)
 {
     float a2 = alpha * alpha;
-    float v = NoL * sqrtf(a2 + (NoV - NoV * a2) * NoV);
-    float l = NoV * sqrtf(a2 + (NoL - NoL * a2) * NoL);
-    return 0.5f / f1_max(kEpsilon, v + l);
+    float v = NoL * sqrtf(f1_max(a2 + (NoV - NoV * a2) * NoV, kEpsilonSq));
+    float l = NoV * sqrtf(f1_max(a2 + (NoL - NoL * a2) * NoL, kEpsilonSq));
+    float t = v + l;
+    return (t > kEpsilon) ? (0.5f / t) : 0.0f;
 }
 
 // Lambert diffuse brdf
@@ -277,10 +280,14 @@ pim_inline float4 VEC_CALL EnvBRDF(
     float NoV,
     float alpha)
 {
-    float2 dfg = BrdfLut_Sample(g_BrdfLut, NoV, alpha);
-    float4 dfg1 = f4_mulvs(f4_inv(f0), dfg.x);
-    float4 dfg2 = f4_mulvs(f0, dfg.y);
-    return f4_add(dfg1, dfg2);
+    // x: distribution * visibility * fresnel
+    // y: distribution * visibility
+    float2 dvf_dv = BrdfLut_Sample(g_BrdfLut, NoV, alpha);
+    // (1 - f0) * dvf
+    float4 if0_dvf = f4_mulvs(f4_inv(f0), dvf_dv.x);
+    // f0 * dv
+    float4 f0_dv = f4_mulvs(f0, dvf_dv.y);
+    return f4_add(if0_dvf, f0_dv);
 }
 
 // https://advances.realtimerendering.com/s2018/Siggraph%202018%20HDRP%20talk_with%20notes.pdf#page=94
@@ -289,8 +296,9 @@ pim_inline float4 VEC_CALL GGXEnergyCompensation(
     float NoV,
     float alpha)
 {
-    float2 dfg = BrdfLut_Sample(g_BrdfLut, NoV, alpha);
-    float t = (1.0f / dfg.y) - 1.0f;
+    float2 dvf_dv = BrdfLut_Sample(g_BrdfLut, NoV, alpha);
+    // 1 + f0 * ((1 / (D * V)) - 1)
+    float t = (1.0f / f1_max(dvf_dv.y, kEpsilon)) - 1.0f;
     return f4_addvs(f4_mulvs(f0, t), 1.0f);
 }
 
@@ -338,14 +346,13 @@ pim_inline float4 VEC_CALL IndirectBRDF(
     float alpha = BrdfAlpha(roughness);
     float NoV = f4_dotsat(N, V);
 
-    float4 F = F_SchlickEx(albedo, metallic, NoV);
-    float4 Fr = EnvBRDF(F, NoV, alpha);
+    float4 f0 = F_0(albedo, metallic);
+    float4 Fr = EnvBRDF(f0, NoV, alpha);
     Fr = f4_mul(Fr, specularGI);
 
     float4 Fd = f4_mul(DiffuseColor(albedo, metallic), diffuseGI);
-    // diffuse term is scaled by fresnel refractance
-    Fd = f4_mul(Fd, f4_inv(F));
-    return f4_add(Fr, Fd);
+    float4 F = F_Schlick(f0, f4_s(F_90(f0)), NoV);
+    return f4_lerp(Fd, Fr, F);
 }
 
 // [Lagarde15]
@@ -361,7 +368,7 @@ pim_inline float VEC_CALL SmoothDistanceAtt(
 
 pim_inline float VEC_CALL PowerToAttRadius(float power, float thresh)
 {
-    return sqrtf(power / thresh);
+    return sqrtf(f1_max(power / thresh, kEpsilonSq));
 }
 
 pim_inline float VEC_CALL DistanceAtt(float distance)
@@ -477,7 +484,7 @@ pim_inline float VEC_CALL SphereDiskIlluminance(
     float cosTheta,
     float sinSigmaSqr)
 {
-    cosTheta = f1_clamp(cosTheta, -0.9999f, 0.9999f);
+    cosTheta = f1_clamp(cosTheta, -1.0f + kEpsilon, 1.0f - kEpsilon);
 
     float c2 = cosTheta * cosTheta;
 
@@ -489,8 +496,9 @@ pim_inline float VEC_CALL SphereDiskIlluminance(
     else
     {
         float sinTheta = sqrtf(1.0f - c2);
-        float x = sqrtf(1.0f / sinSigmaSqr - 1.0f);
+        float x = sqrtf(f1_max(1.0f / sinSigmaSqr - 1.0f, kEpsilonSq));
         float y = -x * (cosTheta / sinTheta);
+        y = f1_clamp(y, -1.0f + kEpsilon, 1.0f - kEpsilon);
         float sinThetaSqrtY = sinTheta * sqrtf(1.0f - y * y);
 
         float t1 = (cosTheta * acosf(y) - x * sinThetaSqrtY) * sinSigmaSqr;
@@ -554,7 +562,8 @@ pim_inline float4 VEC_CALL EvalSphereLight(
     float alpha = BrdfAlpha(roughness);
     float NoV = f4_dotsat(N, V);
 
-    float4 Fr = f4_0;
+    float Fr = 0.0f;
+    float4 F;
     {
         float4 R = f4_normalize3(f4_reflect3(f4_neg(V), N));
         float4 L = SphereRepresentativePoint(R, N, L0, radius, alpha);
@@ -569,11 +578,10 @@ pim_inline float4 VEC_CALL EvalSphereLight(
         float NoL = f4_dotsat(N, L);
         float D = D_GTR_Sphere(NoH, alpha, alphaPrime);
         float G = V_SmithCorrelated(NoL, NoV, alpha);
-        float4 F = F_SchlickEx(albedo, metallic, HoV);
-        Fr = f4_mulvs(F, D * G);
+        F = F_SchlickEx(albedo, metallic, HoV);
 
         float I = NoL * DistanceAtt(distance);
-        Fr = f4_mulvs(Fr, I);
+        Fr = D * G * I;
     }
 
     float4 Fd = f4_0;
@@ -592,12 +600,7 @@ pim_inline float4 VEC_CALL EvalSphereLight(
         Fd = f4_mulvs(Fd, I);
     }
 
-    const float amtSpecular = 1.0f;
-    float amtDiffuse = 1.0f - metallic;
-    float scale = 1.0f / (amtSpecular + amtDiffuse);
-    float4 brdf = f4_add(Fd, Fr);
-    brdf = f4_mulvs(brdf, scale);
-
+    float4 brdf = f4_lerp(Fd, f4_s(Fr), F);
     float4 light = f4_mul(brdf, lightColor);
 
     return light;

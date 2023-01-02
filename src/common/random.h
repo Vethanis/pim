@@ -1,110 +1,107 @@
 #pragma once
 
-#include "common/macro.h"
-#include "math/types.h"
+#include "math/pcg.h"
+#include "math/scalar.h"
 
 PIM_C_BEGIN
 
-typedef struct Prng_s { uint4 state; } Prng;
+void Random_Init(void);
 
 Prng Prng_New(void);
-Prng Prng_Get(void);
-void Prng_Set(Prng rng);
+Prng* Prng_Get(void);
 
-pim_inline uint4 VEC_CALL Prng_Next(Prng *const pim_noalias rng)
+pim_inline void VEC_CALL Prng_Next1(Prng* pim_noalias rng)
 {
-    // https://jcgt.org/published/0009/03/02/paper.pdf
-    uint4 v = rng->state;
-    v.x = v.x * 1664525u + 1013904223u;
-    v.y = v.y * 1664525u + 1013904223u;
-    v.z = v.z * 1664525u + 1013904223u;
-    v.w = v.w * 1664525u + 1013904223u;
-    v.x += v.y * v.w;
-    v.y += v.z * v.x;
-    v.z += v.x * v.y;
-    v.w += v.y * v.z;
-    v.x ^= v.x >> 16;
-    v.y ^= v.y >> 16;
-    v.z ^= v.z >> 16;
-    v.w ^= v.w >> 16;
-    v.x += v.y * v.w;
-    v.y += v.z * v.x;
-    v.z += v.x * v.y;
-    v.w += v.y * v.z;
-    rng->state = v;
-    return v;
+    u32 v = rng->state.x;
+    v = Pcg1(v);
+    rng->state.x = v;
 }
-
-pim_inline u32 VEC_CALL Prng_u32(Prng *const pim_noalias rng)
+pim_inline void VEC_CALL Prng_Next2(Prng* pim_noalias rng)
 {
-    return Prng_Next(rng).x;
+    uint2 v = Pcg2(rng->state.x, rng->state.y);
+    rng->state.x = v.x;
+    rng->state.y = v.y;
 }
-pim_inline uint2 VEC_CALL Prng_uint2(Prng *const pim_noalias rng)
+pim_inline void VEC_CALL Prng_Next3(Prng* pim_noalias rng)
 {
-    uint4 v = Prng_Next(rng);
-    uint2 y = { v.x, v.y };
-    return y;
+    uint3 v = Pcg3(rng->state.x, rng->state.y, rng->state.z);
+    rng->state.x = v.x;
+    rng->state.y = v.y;
+    rng->state.z = v.z;
 }
-pim_inline uint3 VEC_CALL Prng_uint3(Prng *const pim_noalias rng)
+pim_inline void VEC_CALL Prng_Next4(Prng* pim_noalias rng)
 {
-    uint4 v = Prng_Next(rng);
-    uint3 y = { v.x, v.y, v.z };
-    return y;
-}
-pim_inline uint4 VEC_CALL Prng_uint4(Prng *const pim_noalias rng)
-{
-    return Prng_Next(rng);
+    rng->state = Pcg4(rng->state.x, rng->state.y, rng->state.z, rng->state.w);
 }
 
-pim_inline bool VEC_CALL Prng_bool(Prng *const pim_noalias rng)
+pim_inline u32 VEC_CALL Prng_u32(Prng* pim_noalias rng)
 {
-    return Prng_u32(rng) & 1u;
+    Prng_Next1(rng);
+    return rng->state.x;
+}
+pim_inline uint2 VEC_CALL Prng_uint2(Prng* pim_noalias rng)
+{
+    Prng_Next2(rng);
+    return (uint2) { rng->state.x, rng->state.y };
+}
+pim_inline uint3 VEC_CALL Prng_uint3(Prng* pim_noalias rng)
+{
+    Prng_Next3(rng);
+    return (uint3) { rng->state.x, rng->state.y, rng->state.z };
+}
+pim_inline uint4 VEC_CALL Prng_uint4(Prng* pim_noalias rng)
+{ 
+    Prng_Next4(rng);
+    return rng->state;
 }
 
-pim_inline i32 VEC_CALL Prng_i32(Prng *const pim_noalias rng)
+pim_inline bool VEC_CALL Prng_bool(Prng* pim_noalias rng)
 {
-    return (i32)(0x7fffffff & Prng_u32(rng));
+    return (Prng_u32(rng) >> 31) != 0;
 }
-pim_inline int2 VEC_CALL Prng_int2(Prng *const pim_noalias rng)
+
+pim_inline i32 VEC_CALL Prng_i32(Prng* pim_noalias rng)
 {
-    uint4 v = Prng_Next(rng);
-    int2 y =
+    Prng_Next1(rng);
+    return (i32)(rng->state.x & 0x7fffffff);
+}
+pim_inline int2 VEC_CALL Prng_int2(Prng* pim_noalias rng)
+{
+    Prng_Next2(rng);
+    return (int2)
     {
-        (i32)(v.x & 0x7fffffff),
-        (i32)(v.y & 0x7fffffff),
+        (i32)(rng->state.x & 0x7fffffff),
+        (i32)(rng->state.y & 0x7fffffff),
     };
-    return y;
 }
-pim_inline int3 VEC_CALL Prng_int3(Prng *const pim_noalias rng)
+pim_inline int3 VEC_CALL Prng_int3(Prng* pim_noalias rng)
 {
-    uint4 v = Prng_Next(rng);
-    int3 y =
+    Prng_Next3(rng);
+    return (int3)
     {
-        (i32)(v.x & 0x7fffffff),
-        (i32)(v.y & 0x7fffffff),
-        (i32)(v.z & 0x7fffffff),
+        (i32)(rng->state.x & 0x7fffffff),
+        (i32)(rng->state.y & 0x7fffffff),
+        (i32)(rng->state.z & 0x7fffffff),
     };
-    return y;
 }
-pim_inline int4 VEC_CALL Prng_int4(Prng *const pim_noalias rng)
+pim_inline int4 VEC_CALL Prng_int4(Prng* pim_noalias rng)
 {
-    uint4 v = Prng_Next(rng);
-    int4 y =
+    Prng_Next4(rng);
+    return (int4)
     {
-        (i32)(v.x & 0x7fffffff),
-        (i32)(v.y & 0x7fffffff),
-        (i32)(v.z & 0x7fffffff),
-        (i32)(v.w & 0x7fffffff),
+        (i32)(rng->state.x & 0x7fffffff),
+        (i32)(rng->state.y & 0x7fffffff),
+        (i32)(rng->state.z & 0x7fffffff),
+        (i32)(rng->state.w & 0x7fffffff),
     };
-    return y;
 }
 
-pim_inline u64 VEC_CALL Prng_u64(Prng *const pim_noalias rng)
+pim_inline u64 VEC_CALL Prng_u64(Prng* pim_noalias rng)
 {
-    uint4 v = Prng_Next(rng);
-    u64 y = v.x;
-    y <<= 32;
-    y |= v.y;
+    Prng_Next2(rng);
+    u64 y = rng->state.x;
+    y = y << 32;
+    y = y | rng->state.y;
     return y;
 }
 
@@ -112,43 +109,40 @@ pim_inline float VEC_CALL Prng_ToFloat(u32 x)
 {
     return (x >> 8) * (1.0f / (1 << 24));
 }
-pim_inline float VEC_CALL Prng_f32(Prng *const pim_noalias rng)
+pim_inline float VEC_CALL Prng_f32(Prng* pim_noalias rng)
 {
-    uint4 v = Prng_Next(rng);
-    return Prng_ToFloat(v.x);
+    Prng_Next1(rng);
+    return Prng_ToFloat(rng->state.x);
 }
-pim_inline float2 VEC_CALL Prng_float2(Prng *const pim_noalias rng)
+pim_inline float2 VEC_CALL Prng_float2(Prng* pim_noalias rng)
 {
-    uint4 v = Prng_Next(rng);
-    float2 y =
+    Prng_Next2(rng);
+    return (float2)
     {
-        Prng_ToFloat(v.x),
-        Prng_ToFloat(v.y),
+        Prng_ToFloat(rng->state.x),
+        Prng_ToFloat(rng->state.y),
     };
-    return y;
 }
-pim_inline float3 VEC_CALL Prng_float3(Prng *const pim_noalias rng)
+pim_inline float3 VEC_CALL Prng_float3(Prng* pim_noalias rng)
 {
-    uint4 v = Prng_Next(rng);
-    float3 y =
+    Prng_Next3(rng);
+    return (float3)
     {
-        Prng_ToFloat(v.x),
-        Prng_ToFloat(v.y),
-        Prng_ToFloat(v.z),
+        Prng_ToFloat(rng->state.x),
+        Prng_ToFloat(rng->state.y),
+        Prng_ToFloat(rng->state.z),
     };
-    return y;
 }
-pim_inline float4 VEC_CALL Prng_float4(Prng *const pim_noalias rng)
+pim_inline float4 VEC_CALL Prng_float4(Prng* pim_noalias rng)
 {
-    uint4 v = Prng_Next(rng);
-    float4 y =
+    Prng_Next4(rng);
+    return (float4)
     {
-        Prng_ToFloat(v.x),
-        Prng_ToFloat(v.y),
-        Prng_ToFloat(v.z),
-        Prng_ToFloat(v.w),
+        Prng_ToFloat(rng->state.x),
+        Prng_ToFloat(rng->state.y),
+        Prng_ToFloat(rng->state.z),
+        Prng_ToFloat(rng->state.w),
     };
-    return y;
 }
 
 PIM_C_END

@@ -151,7 +151,8 @@ pim_inline float VEC_CALL sdTriangle2D(
 
     float2 d = f2_min(t0, f2_min(t1, t2));
 
-    return -sqrtf(d.x) * f1_sign(d.y);
+    float dySign = (d.y >= 0.0f) ? 1.0f : -1.0f;
+    return -sqrtf(f1_max(d.x, kEpsilonSq)) * dySign;
 }
 
 pim_inline float VEC_CALL sdTriangle3D(
@@ -184,7 +185,7 @@ pim_inline float VEC_CALL sdTriangle3D(
         t0 = f4_dot3(nor, pa);
         t = t0 * t0 / f4_lengthsq3(nor);
     }
-    return sqrtf(t);
+    return sqrtf(f1_max(t, kEpsilonSq));
 }
 
 pim_inline float4 VEC_CALL isectTri3D(Ray ray, float4 A, float4 B, float4 C)
@@ -219,12 +220,12 @@ pim_inline float2 VEC_CALL isectSphere3D(float4 ro, float4 rd, Sphere sph)
     float b = 2.0f * f4_dot3(rd, ro);
     float c = f4_dot3(ro, ro) - radius * radius;
     float d = (b * b) - 4.0f * c;
-    if (d <= 0.0f)
+    if (d < 0.0f)
     {
         return f2_v(1.0f, -1.0f);
     }
     float nb = -b;
-    float sqrtd = sqrtf(d);
+    float sqrtd = sqrtf(f1_max(d, kEpsilonSq));
     return f2_v((nb - sqrtd) * 0.5f, (nb + sqrtd) * 0.5f);
 }
 
@@ -262,7 +263,7 @@ pim_inline Sphere VEC_CALL triToSphere(float4 A, float4 B, float4 C)
     float db = f4_distancesq3(B, center);
     float dc = f4_distancesq3(C, center);
     float rsqr = f1_max(da, f1_max(db, dc));
-    center.w = sqrtf(rsqr);
+    center.w = sqrtf(f1_max(rsqr, kEpsilonSq));
     Sphere sph = { center };
     return sph;
 }

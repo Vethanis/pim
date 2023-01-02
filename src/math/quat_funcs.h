@@ -170,7 +170,7 @@ pim_inline quat VEC_CALL f3x3_quat(float3x3 m)
     i = (b == y) ? 2 : i;
     i = (b == z) ? 3 : i;
 
-    b = sqrtf(b + 1.0f) * 0.5f;
+    b = sqrtf(f1_max(b + 1.0f, 4.0f * kEpsilonSq)) * 0.5f;
     float mult = 0.25f / b;
 
     float4 r = quat_id.v;

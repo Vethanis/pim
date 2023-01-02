@@ -41,7 +41,7 @@ static void BakeBrdfFn(void* pbase, i32 begin, i32 end)
     const float rcpWidth = 1.0f / size.x;
     const float rcpHeight = 1.0f / size.y;
 
-    Prng rng = Prng_Get();
+    Prng* rng = Prng_Get();
     for (i32 iTexel = begin; iTexel < end; ++iTexel)
     {
         const int2 coord = IndexToCoord(size, iTexel);
@@ -50,31 +50,30 @@ static void BakeBrdfFn(void* pbase, i32 begin, i32 end)
         float sum = 0.0f;
         for (i32 iSample = prevSamples; iSample < numSamples; ++iSample)
         {
-            float2 aa = SampleGaussPixelFilter(f2_rand(&rng), 0.5f);
-            const float NoV = f1_sat((coord.x + aa.x) * rcpWidth);
+            float2 aa = SampleGaussPixelFilter(f2_rand(rng), 0.5f);
+            const float NoV = f1_clamp((coord.x + aa.x) * rcpWidth, kEpsilon, 1.0f - kEpsilon);
             const float alpha = f1_clamp((coord.y + aa.y) * rcpHeight, kMinAlpha, 1.0f);
-            const float4 V = SphericalToCartesian(NoV, Prng_f32(&rng) * kTau);
+            const float4 V = SphericalToCartesian(NoV, Prng_f32(rng) * kTau);
             ASSERT(IsUnitLength(V));
 
             // N = (0, 0, 1)
-            float4 H = SampleGGXMicrofacet(f2_rand(&rng), alpha);
+            float4 H = SampleGGXMicrofacet(f2_rand(rng), alpha);
             ASSERT(IsUnitLength(H));
             ASSERT(H.z >= 0.0f);
 
             float4 L = f4_reflect3(f4_neg(V), H);
             ASSERT(IsUnitLength(L));
-            L.z = f1_abs(L.z);
 
-            float NoL = f1_sat(L.z);
-            float NoH = f1_sat(H.z);
-            float HoV = f4_dotsat(H, V);
+            float NoL = L.z;
+            float NoH = H.z;
+            float HoV = f4_dot3(H, V);
             float pdf = GGXPdf(NoH, HoV, alpha);
 
-            if ((NoL > kEpsilon) && (pdf > kEpsilon))
+            if ((NoH > kEpsilon) && (NoL > kEpsilon) && (HoV > kEpsilon) && (pdf > kEpsilon))
             {
                 float D = D_GTR(NoH, alpha) / pdf;
                 float G = V_SmithCorrelated(NoL, NoV, alpha);
-                float Fc = F_Dielectric(HoV, 1.0f, 1.5f);
+                float Fc = F_Dielectric(HoV, 1.000293f, 1.52f);
                 float DG_NoL_dx = D * G * NoL * dx;
                 result.x += DG_NoL_dx * Fc;
                 result.y += DG_NoL_dx;
@@ -82,7 +81,6 @@ static void BakeBrdfFn(void* pbase, i32 begin, i32 end)
         }
         texels[iTexel] = f2_lerpvs(texels[iTexel], result, dt);
     }
-    Prng_Set(rng);
 }
 
 BrdfLut BrdfLut_New(int2 size, i32 numSamples)

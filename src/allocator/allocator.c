@@ -340,6 +340,47 @@ void* Mem_Calloc(EAlloc type, i32 bytes)
     return ptr;
 }
 
+void* Mem_Dup(EAlloc allocator, const void* src)
+{
+    void* dst = NULL;
+    i32 srcBytes = 0;
+    if (src)
+    {
+        const hdr_t* srcHdr = (const hdr_t*)src - 1;
+        srcBytes = srcHdr->userBytes;
+
+        ASSERT(ptr_is_aligned(srcHdr));
+        ASSERT(valid_type(srcHdr->type));
+        ASSERT(srcBytes > 0);
+        ASSERT(i32_is_aligned(srcBytes));
+        ASSERT(valid_tid(srcHdr->tid));
+        ASSERT(load_i32(&(srcHdr->refCount), MO_Relaxed) == 1);
+
+        dst = Mem_Alloc(allocator, srcBytes);
+        memcpy(dst, src, srcBytes);
+    }
+
+    return dst;
+}
+
+void Mem_Zero(void* ptr)
+{
+    if (ptr)
+    {
+        const hdr_t* hdr = (const hdr_t*)ptr - 1;
+        i32 bytes = hdr->userBytes;
+
+        ASSERT(ptr_is_aligned(hdr));
+        ASSERT(valid_type(hdr->type));
+        ASSERT(bytes > 0);
+        ASSERT(i32_is_aligned(bytes));
+        ASSERT(valid_tid(hdr->tid));
+        ASSERT(load_i32(&(hdr->refCount), MO_Relaxed) == 1);
+
+        memset(ptr, 0, bytes);
+    }
+}
+
 // ----------------------------------------------------------------------------
 
 #define kStackCapacity      (4 << 10)

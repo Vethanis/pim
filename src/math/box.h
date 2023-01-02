@@ -3,6 +3,7 @@
 #include "math/types.h"
 #include "math/float4_funcs.h"
 #include "math/float4x4_funcs.h"
+#include "math/bool_funcs.h"
 
 PIM_C_BEGIN
 
@@ -14,7 +15,7 @@ pim_inline Box3D VEC_CALL box_new(float4 lo, float4 hi)
 
 pim_inline Box3D VEC_CALL box_empty(void)
 {
-    return box_new(f4_s(1 << 20), f4_s(-(1 << 20)));
+    return box_new(f4_s(1 << 23), f4_s(-(1 << 23)));
 }
 
 pim_inline float4 VEC_CALL box_center(Box3D box)
@@ -37,10 +38,16 @@ pim_inline bool VEC_CALL box_contains(Box3D box, float4 pt)
     return b4_all3(f4_gteq(pt, box.lo)) && b4_all3(f4_lteq(pt, box.hi));
 }
 
-pim_inline float VEC_CALL box_area(Box3D box)
+pim_inline float VEC_CALL box_volume(Box3D box)
 {
     float4 size = box_size(box);
     return size.x * size.y * size.z;
+}
+
+pim_inline float VEC_CALL box_area(Box3D box)
+{
+    float4 size = box_size(box);
+    return (size.x * size.y + size.x * size.z + size.y * size.z) * 2.0f;
 }
 
 pim_inline Box3D VEC_CALL box_from_pts(const float4* pim_noalias pts, i32 length)
@@ -49,8 +56,8 @@ pim_inline Box3D VEC_CALL box_from_pts(const float4* pim_noalias pts, i32 length
     {
         return box_new(f4_0, f4_0);
     }
-    float4 lo = f4_s(1 << 20);
-    float4 hi = f4_s(-(1 << 20));
+    float4 lo = f4_s(1 << 23);
+    float4 hi = f4_s(-(1 << 23));
     for (i32 i = 0; i < length; ++i)
     {
         float4 pt = pts[i];

@@ -19,6 +19,7 @@
 #include "rendering/material.h"
 #include "rendering/camera.h"
 #include "rendering/lightmap.h"
+#include "rendering/r_gpu_shared.h"
 
 #include "allocator/allocator.h"
 #include "common/profiler.h"
@@ -26,23 +27,9 @@
 #include "containers/table.h"
 #include "math/box.h"
 #include "math/frustum.h"
+#include "math/quat_funcs.h"
 #include "threading/task.h"
 #include <string.h>
-
-typedef struct vkrGlobals_s
-{
-    float4x4 g_WorldToClip;
-    float4 g_Eye;
-
-    float g_HdrEnabled;
-    float g_Whitepoint;
-    float g_DisplayNits;
-    float g_UiNits;
-
-    uint2 g_RenderSize;
-    uint2 g_DisplaySize;
-} vkrGlobals;
-SASSERT((sizeof(vkrGlobals) % 16) == 0);
 
 typedef struct PushConstants_s
 {
@@ -102,7 +89,7 @@ bool vkrOpaquePass_New(void)
 
     if (!vkrBufferSet_New(
         &ms_perCameraBuffer,
-        sizeof(vkrGlobals),
+        sizeof(g_GpuGlobals),
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         vkrMemUsage_Dynamic))
     {
@@ -246,18 +233,23 @@ void vkrOpaquePass_Setup(void)
         // TODO: Move this into some parameter provider standalone file
         Camera camera;
         Camera_Get(&camera);
-        vkrGlobals globals = { 0 };
-        globals.g_WorldToClip = Camera_GetWorldToClip(&camera, vkrGetRenderAspect());
-        globals.g_Eye = camera.position;
-        globals.g_HdrEnabled = vkrGetHdrEnabled() ? 1.0f : 0.0f;
-        globals.g_Whitepoint = vkrGetWhitepoint();
-        globals.g_DisplayNits = vkrGetDisplayNitsMax();
-        globals.g_UiNits = vkrGetUiNits();
-        globals.g_RenderSize.x = vkrGetRenderWidth();
-        globals.g_RenderSize.y = vkrGetRenderHeight();
-        globals.g_DisplaySize.x = vkrGetDisplayWidth();
-        globals.g_DisplaySize.y = vkrGetDisplayHeight();
-        vkrBufferSet_Write(&ms_perCameraBuffer, &globals, sizeof(globals));
+        g_GpuGlobals.worldToClip = Camera_GetWorldToClip(&camera, vkrGetRenderAspect());
+        g_GpuGlobals.eye = camera.position;
+        g_GpuGlobals.forward = quat_fwd(camera.rotation);
+        g_GpuGlobals.right = quat_right(camera.rotation);
+        g_GpuGlobals.up = quat_up(camera.rotation);
+        g_GpuGlobals.zNear = camera.zNear;
+        g_GpuGlobals.zFar = camera.zFar;
+        g_GpuGlobals.slope = proj_slope(camera.fovy, vkrGetRenderAspect());
+        g_GpuGlobals.hdrEnabled = vkrGetHdrEnabled() ? 1.0f : 0.0f;
+        g_GpuGlobals.whitepoint = vkrGetWhitepoint();
+        g_GpuGlobals.displayNits = vkrGetDisplayNitsMax();
+        g_GpuGlobals.uiNits = vkrGetUiNits();
+        g_GpuGlobals.renderSize.x = vkrGetRenderWidth();
+        g_GpuGlobals.renderSize.y = vkrGetRenderHeight();
+        g_GpuGlobals.displaySize.x = vkrGetDisplayWidth();
+        g_GpuGlobals.displaySize.y = vkrGetDisplayHeight();
+        vkrBufferSet_Write(&ms_perCameraBuffer, &g_GpuGlobals, sizeof(g_GpuGlobals));
     }
 
     vkrBindings_BindBuffer(

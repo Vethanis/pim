@@ -39,7 +39,7 @@ i32 VEC_CALL Guid_Compare(Guid lhs, Guid rhs)
 
 Guid VEC_CALL Guid_New(void)
 {
-    u64 a = Time_Now();
+    u64 a = Time_FrameStart();
     a = a ? a : 1;
     u64 b = inc_u64(&ms_counter, MO_Relaxed);
     return (Guid) { a, b };
@@ -78,7 +78,7 @@ i32 VEC_CALL Guid_Find(Guid const *const pim_noalias ptr, i32 count, Guid key)
 {
     ASSERT(ptr || !count);
     ASSERT(count >= 0);
-    for (i32 i = 0; i < count; ++i)
+    for (i32 i = count - 1; i >= 0; --i)
     {
         if (Guid_Equal(ptr[i], key))
         {
@@ -110,7 +110,7 @@ Guid VEC_CALL Guid_FromStr(char const *const pim_noalias str)
     return id;
 }
 
-Guid VEC_CALL Guid_FromBytes(void const *const pim_noalias ptr, i32 nBytes)
+Guid VEC_CALL Guid_HashBytes(void const *const pim_noalias ptr, i32 nBytes)
 {
     Guid id = { 0 };
     if (ptr && nBytes > 0)

@@ -26,5 +26,7 @@ void igExSetNextWindowPos(ImVec2 pos, ImGuiCond_ cond);
 void igExSameLine(void);
 void igExLogToClipboard(void);
 bool igExButton(const char* label);
+void igExIndent(void);
+void igExUnindent(void);
 
 PIM_C_END

@@ -11,6 +11,7 @@
 #include "common/guid.h"
 #include "common/stringutil.h"
 #include "common/random.h"
+#include "common/nextpow2.h"
 #include "stb/stb_image.h"
 #include "math/types.h"
 #include "math/int2_funcs.h"
@@ -24,65 +25,83 @@
 
 static bool CreateScenes(
     const char* basePath,
-    cgltf_data* cgdata,
+    const cgltf_data* cgdata,
     Entities* dr);
 static bool CreateScene(
     const char* basePath,
-    cgltf_scene* cgscene,
+    const cgltf_scene* cgscene,
     Entities* dr);
-static i32 CreateNode(
+static bool CreateNode(
     const char* basePath,
-    cgltf_scene* cgscene,
-    cgltf_node* cgnode,
+    const cgltf_scene* cgscene,
+    const cgltf_node* cgnode,
     Entities* dr);
-static bool CreateMesh(
-    const char* basePath,
-    cgltf_mesh* cgmesh,
-    Entities* dr,
-    i32 iDrawable);
 static bool CreateMaterial(
     const char* basePath,
-    cgltf_material* cgmat,
-    Entities* dr,
-    i32 iDrawable);
+    const cgltf_material* cgmat,
+    Material* matOut);
 static TextureId CreateAlbedoTexture(
     const char* basePath,
-    cgltf_image* cgalbedo);
+    const cgltf_image* cgalbedo);
 static TextureId CreateRomeTexture(
     const char* basePath,
-    cgltf_image* cgmetallic_roughness,
-    cgltf_image* cgocclusion,
-    cgltf_image* cgemission);
+    const cgltf_image* cgmetallic_roughness,
+    const cgltf_image* cgocclusion,
+    const cgltf_image* cgemission);
 static TextureId CreateNormalTexture(
     const char* basePath,
-    cgltf_image* cgnormal);
+    const cgltf_image* cgnormal);
 bool ResampleToAlbedoRome(
     const char* basePath,
     Material* material,
-    cgltf_image* cgdiffuse,
-    cgltf_image* cgspecular,
-    cgltf_image* cgocclusion,
-    cgltf_image* cgemission,
+    const cgltf_image* cgdiffuse,
+    const cgltf_image* cgspecular,
+    const cgltf_image* cgocclusion,
+    const cgltf_image* cgemission,
     float glossiness);
-static bool CreateLight(
-    const char* basePath,
-    cgltf_light* cglight,
-    Entities* dr,
-    i32 iDrawable);
 
 // ----------------------------------------------------------------------------
 
-static void CatNodeLineage(char* dst, i32 size, cgltf_node* cgnode);
-static char const *const ShortenString(char const *const str, i32 maxLen);
+static i32 CatNodeLineage(char* dst, i32 size, const cgltf_node* cgnode);
+static char const* const ShortenString(char const* const str, i32 maxLen);
 static bool LoadImageUri(
     const char* basePath,
     const char* uri,
     Texture* tex);
-static bool ResampleToFloat4(Texture* tex);
+static bool ResampleTextureToFloat4(Texture* tex);
 static bool ResampleToSrgb(Texture* tex);
 static bool ResampleToEmission(Texture* tex);
 static bool ImportColorspace(Texture* tex);
 static bool ExportColorspace(Texture* tex);
+
+static void* Gltf_Alloc(void* user, cgltf_size size)
+{
+    return Perm_Alloc((i32)size);
+}
+static void Gltf_Free(void* user, void* ptr)
+{
+    Mem_Free(ptr);
+}
+
+typedef struct GltfFileHandler_s
+{
+    i32 fileCount;
+    Guid* names;
+    FileMap* files;
+    i32* refCounts;
+} GltfFileHandler;
+static GltfFileHandler s_fileHandler;
+
+static cgltf_result Gltf_FileRead(
+    const cgltf_memory_options* memory_options,
+    const cgltf_file_options* file_options,
+    const char* path,
+    cgltf_size* size,
+    void** data);
+static void Gltf_FileRelease(
+    const cgltf_memory_options* memory_options,
+    const cgltf_file_options* file_options,
+    void* data);
 
 // ----------------------------------------------------------------------------
 
@@ -91,7 +110,14 @@ bool Gltf_Load(const char* path, Entities* dr)
     bool success = true;
     FileMap map = { 0 };
     cgltf_data* cgdata = NULL;
-    cgltf_options options = { 0 };
+    const cgltf_options options =
+    {
+        .memory.alloc = Gltf_Alloc,
+        .memory.free = Gltf_Free,
+        .file.read = Gltf_FileRead,
+        .file.release = Gltf_FileRelease,
+        .file.user_data = &s_fileHandler,
+    };
     cgltf_result result = cgltf_result_success;
 
     map = FileMap_Open(path, false);
@@ -136,58 +162,35 @@ cleanup:
 
 // ----------------------------------------------------------------------------
 
-static char const *const ShortenString(char const *const str, i32 maxLen)
+static char const* const ShortenString(char const* const str, i32 maxLen)
 {
-    i32 i = 0;
     i32 len = StrLen(str);
-    while (len > maxLen)
-    {
-        len = len >> 1;
-        i += len;
-    }
-    return str + i;
+    i32 diff = len - maxLen;
+    return str + pim_max(diff, 0);
 }
 
-static void ConcatNames(
-    char *const dst, i32 size,
-    char const *const *const names, i32 nameCount)
+static i32 CatNodeLineage(char* dst, i32 size, const cgltf_node* cgnode)
 {
-    const i32 maxLen = size / (1 + nameCount);
-    for (i32 i = 0; i < nameCount; ++i)
-    {
-        char const *const name = names[i];
-        if (name)
-        {
-            StrCat(dst, size, ShortenString(name, maxLen));
-        }
-        else
-        {
-            StrCat(dst, size, "0");
-        }
-        if ((i + 1) < nameCount)
-        {
-            StrCat(dst, size, ":");
-        }
-    }
-}
-
-static void CatNodeLineage(char* dst, i32 size, cgltf_node* cgnode)
-{
-    if (cgnode)
+    i32 len = 0;
+    if (cgnode->parent)
     {
         CatNodeLineage(dst, size, cgnode->parent);
-        const char* name = ShortenString(cgnode->name, 16);
-        StrCat(dst, size, name);
+        len = StrCatf(dst, size, "/%s", ShortenString(cgnode->name, 16));
     }
+    else
+    {
+        len = StrCatf(dst, size, "%s", ShortenString(cgnode->name, 16));
+    }
+    return len;
 }
 
 static bool CreateScenes(
     const char* basePath,
-    cgltf_data* cgdata,
+    const cgltf_data* cgdata,
     Entities* dr)
 {
     const i32 sceneCount = (i32)cgdata->scenes_count;
-    cgltf_scene* cgscenes = cgdata->scenes;
+    const cgltf_scene* cgscenes = cgdata->scenes;
     for (i32 i = 0; i < sceneCount; ++i)
     {
         CreateScene(basePath, &cgscenes[i], dr);
@@ -197,11 +200,11 @@ static bool CreateScenes(
 
 static bool CreateScene(
     const char* basePath,
-    cgltf_scene* cgscene,
+    const cgltf_scene* cgscene,
     Entities* dr)
 {
     const i32 nodeCount = (i32)cgscene->nodes_count;
-    cgltf_node** cgnodes = cgscene->nodes;
+    const cgltf_node** cgnodes = cgscene->nodes;
     for (i32 i = 0; i < nodeCount; ++i)
     {
         CreateNode(basePath, cgscene, cgnodes[i], dr);
@@ -209,41 +212,432 @@ static bool CreateScene(
     return true;
 }
 
-static i32 CreateNode(
+static const void* GetAccessorMemory(const cgltf_accessor* acc)
+{
+    const void* mem = NULL;
+    if (!acc->is_sparse)
+    {
+        const cgltf_buffer_view* view = acc->buffer_view;
+        if (view)
+        {
+            mem = view->data;
+            if (!mem && view->buffer)
+            {
+                mem = view->buffer->data;
+                if (mem)
+                {
+                    mem = (const u8*)(mem)+view->offset;
+                }
+            }
+        }
+        if (mem)
+        {
+            mem = (const u8*)(mem)+acc->offset;
+        }
+    }
+    return mem;
+}
+
+static i32* ReadPrimitiveIndices(
+    const cgltf_accessor* acc,
+    i32* countOut)
+{
+    i32* indices = NULL;
+    i32 count = 0;
+    bool success = true;
+    if (!acc)
+    {
+        success = false;
+        goto cleanup;
+    }
+
+    count = (i32)acc->count;
+    ASSERT(count >= 0);
+    if (count > 0)
+    {
+        indices = Perm_Alloc(sizeof(indices[0]) * count);
+        bool anyFail = false;
+        for (i32 i = 0; i < count; ++i)
+        {
+            i32 index = (i32)cgltf_accessor_read_index(acc, (cgltf_size)i);
+            indices[i] = index;
+            anyFail |= ((u32)index >= (u32)count);
+        }
+        if (anyFail)
+        {
+            ASSERT(false);
+            success = false;
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    if (!success)
+    {
+        Mem_Free(indices);
+        indices = NULL;
+        count = 0;
+    }
+    *countOut = count;
+    return indices;
+}
+
+static float* ReadPrimitiveFloats(
+    const cgltf_accessor* acc,
+    i32* countOut,
+    i32* floatsPerElementOut)
+{
+    float* values = NULL;
+    i32 count = 0;
+    i32 floatCount = 0;
+    i32 bytes = 0;
+    bool success = true;
+    if (!acc)
+    {
+        success = false;
+        goto cleanup;
+    }
+    floatCount = (i32)cgltf_accessor_unpack_floats(acc, NULL, 0);
+    bytes = floatCount * sizeof(float);
+    count = (i32)acc->count;
+    ASSERT(bytes >= 0);
+    if (bytes <= 0)
+    {
+        success = false;
+        goto cleanup;
+    }
+    values = Perm_Calloc(bytes);
+    if (!cgltf_accessor_unpack_floats(acc, values, floatCount))
+    {
+        success = false;
+        goto cleanup;
+    }
+
+cleanup:
+    if (!success)
+    {
+        Mem_Free(values);
+        values = NULL;
+        count = 0;
+        floatCount = 0;
+    }
+    *countOut = count;
+    *floatsPerElementOut = floatCount / pim_max(count, 1);
+    return values;
+}
+
+typedef enum
+{
+    FlattenToFloat4s_PositionMode,
+    FlattenToFloat4s_DirectionMode,
+    FlattenToFloat4s_UvMode,
+} FlattenToFloat4s_Mode;
+
+static void FlattenToFloat4s(
+    const float* __restrict srcFloats,
+    i32 srcStride,
+    float4* __restrict dstFloat4s,
+    const i32* __restrict indices,
+    i32 indCount,
+    FlattenToFloat4s_Mode mode)
+{
+    const float wFillValue = (mode == FlattenToFloat4s_PositionMode) ? (1.0f) : (0.0f);
+    if (!srcFloats)
+    {
+        for (i32 i = 0; i < indCount; ++i)
+        {
+            dstFloat4s[i] = f4_v(0.0f, 0.0f, 0.0f, wFillValue);
+        }
+        return;
+    }
+    switch (srcStride)
+    {
+    default:
+        ASSERT(false);
+        break;
+    case 1:
+    {
+        for (i32 i = 0; i < indCount; ++i)
+        {
+            i32 index = indices[i];
+            ASSERT((u32)index < (u32)indCount);
+            const float* __restrict src = srcFloats + index;
+            dstFloat4s[i] = f4_v(src[0], 0.0f, 0.0f, wFillValue);
+        }
+    }
+    break;
+    case 2:
+    {
+        const float2* __restrict src = (float2*)srcFloats;
+        for (i32 i = 0; i < indCount; ++i)
+        {
+            i32 index = indices[i];
+            ASSERT((u32)index < (u32)indCount);
+            dstFloat4s[i] = f4_v(src[index].x, src[index].y, 0.0f, wFillValue);
+        }
+    }
+    break;
+    case 3:
+    {
+        const float3* __restrict src = (float3*)srcFloats;
+        for (i32 i = 0; i < indCount; ++i)
+        {
+            i32 index = indices[i];
+            ASSERT((u32)index < (u32)indCount);
+            dstFloat4s[i] = f4_v(src[index].x, src[index].y, src[index].z, wFillValue);
+        }
+    }
+    break;
+    case 4:
+    {
+        const float4* __restrict src = (float4*)srcFloats;
+        if (mode != FlattenToFloat4s_UvMode)
+        {
+            for (i32 i = 0; i < indCount; ++i)
+            {
+                i32 index = indices[i];
+                ASSERT((u32)index < (u32)indCount);
+                dstFloat4s[i] = f4_v(src[index].x, src[index].y, src[index].z, wFillValue);
+            }
+        }
+        else
+        {
+            for (i32 i = 0; i < indCount; ++i)
+            {
+                i32 index = indices[i];
+                ASSERT((u32)index < (u32)indCount);
+                dstFloat4s[i] = src[index];
+            }
+        }
+    }
+    break;
+    }
+}
+
+static bool CreateMesh(
+    const char* name,
+    const cgltf_primitive* cgprim,
+    MeshId* meshIdOut)
+{
+    bool success = true;
+    i32* indices = NULL;
+    float* positions = NULL;
+    float* normals = NULL;
+    float* uvs = NULL;
+
+    if (!cgprim)
+    {
+        success = false;
+        goto cleanup;
+    }
+    if (cgprim->type != cgltf_primitive_type_triangles)
+    {
+        success = false;
+        goto cleanup;
+    }
+
+    const Guid guid = Guid_FromStr(name);
+    if (Mesh_Find(guid, meshIdOut))
+    {
+        Mesh_Retain(*meshIdOut);
+        success = true;
+        goto cleanup;
+    }
+
+    const cgltf_attribute* cgattributes = cgprim->attributes;
+    const i32 attributeCount = (i32)cgprim->attributes_count;
+
+    i32 attrInds[cgltf_attribute_type_weights + 1];
+    for (i32 i = 0; i < NELEM(attrInds); ++i)
+    {
+        attrInds[i] = -1;
+    }
+
+    for (i32 iAttr = 0; iAttr < attributeCount; ++iAttr)
+    {
+        cgltf_attribute_type attrType = cgattributes[iAttr].type;
+        ASSERT((u32)attrType < (u32)NELEM(attrInds));
+        if ((u32)attrType < (u32)NELEM(attrInds))
+        {
+            ASSERT(attrInds[attrType] < 0);
+            if (attrInds[attrType] < 0)
+            {
+                attrInds[attrType] = iAttr;
+                ASSERT(cgattributes[iAttr].data);
+            }
+        }
+    }
+    ASSERT(attrInds[cgltf_attribute_type_invalid] < 0);
+
+    const i32 iPosition = attrInds[cgltf_attribute_type_position];
+    const i32 iNormal = attrInds[cgltf_attribute_type_normal];
+    const i32 iTexcoord = attrInds[cgltf_attribute_type_texcoord];
+    if (iPosition < 0)
+    {
+        ASSERT(false);
+        success = false;
+        goto cleanup;
+    }
+    if (iNormal < 0)
+    {
+        ASSERT(false);
+        success = false;
+        goto cleanup;
+    }
+    if (iTexcoord < 0)
+    {
+        ASSERT(false);
+        success = false;
+        goto cleanup;
+    }
+
+    i32 indCount = 0;
+    indices = ReadPrimitiveIndices(cgprim->indices, &indCount);
+    i32 positionCount = 0;
+    i32 posStride = 0;
+    positions = ReadPrimitiveFloats(cgattributes[iPosition].data, &positionCount, &posStride);
+    i32 normalCount = 0;
+    i32 normStride = 0;
+    normals = ReadPrimitiveFloats(cgattributes[iNormal].data, &normalCount, &normStride);
+    i32 uvCount = 0;
+    i32 uvStride = 0;
+    uvs = ReadPrimitiveFloats(cgattributes[iTexcoord].data, &uvCount, &uvStride);
+
+    if (!positionCount)
+    {
+        ASSERT(false);
+        success = false;
+        goto cleanup;
+    }
+
+    if (!indCount)
+    {
+        indCount = positionCount;
+        indices = Perm_Alloc(sizeof(indices[0]) * indCount);
+        for (i32 i = 0; i < indCount; ++i)
+        {
+            indices[i] = i;
+        }
+    }
+
+    if ((indCount % 3) != 0)
+    {
+        ASSERT(false);
+        success = false;
+        goto cleanup;
+    }
+
+    Mesh mesh = { 0 };
+    mesh.positions = Perm_Alloc(sizeof(mesh.positions[0]) * indCount);
+    mesh.normals = Perm_Alloc(sizeof(mesh.normals[0]) * indCount);
+    mesh.uvs = Perm_Alloc(sizeof(mesh.uvs[0]) * indCount);
+    mesh.texIndices = Perm_Calloc(sizeof(mesh.texIndices[0]) * indCount);
+    mesh.length = indCount;
+
+    // TODO: wasteful to flatten indexed mesh
+    FlattenToFloat4s(
+        positions,
+        posStride,
+        mesh.positions,
+        indices,
+        indCount,
+        FlattenToFloat4s_PositionMode);
+    FlattenToFloat4s(
+        normals,
+        normStride,
+        mesh.normals,
+        indices,
+        indCount,
+        FlattenToFloat4s_DirectionMode);
+    FlattenToFloat4s(
+        uvs,
+        uvStride,
+        mesh.uvs,
+        indices,
+        indCount,
+        FlattenToFloat4s_UvMode);
+
+    Mesh_New(&mesh, guid, meshIdOut);
+
+cleanup:
+    Mem_Free(indices);
+    Mem_Free(positions);
+    Mem_Free(normals);
+    Mem_Free(uvs);
+
+    return success;
+}
+
+static bool CreateNode(
     const char* basePath,
-    cgltf_scene* cgscene,
-    cgltf_node* cgnode,
+    const cgltf_scene* cgscene,
+    const cgltf_node* cgnode,
     Entities* dr)
 {
     if (!cgnode)
     {
-        return -1;
+        return false;
     }
     const char* name = cgnode->name;
     if (!name || !name[0])
     {
         ASSERT(false);
-        return -1;
+        return false;
     }
 
-    char fullName[PIM_PATH] = { 0 };
-    StrCpy(ARGS(fullName), cgscene->name);
-    CatNodeLineage(ARGS(fullName), cgnode);
-    Guid guid = Guid_FromStr(fullName);
-
-    i32 iDrawable = Entities_Find(dr, guid);
-    if (iDrawable >= 0)
+    const cgltf_mesh* cgmesh = cgnode->mesh;
+    if (cgmesh)
     {
-        return iDrawable;
+        float4x4 localToWorld = f4x4_id;
+        cgltf_node_transform_world(cgnode, &localToWorld.c0.x);
+
+        char lineageName[PIM_PATH] = { 0 };
+        SPrintf(ARGS(lineageName), "%s/", cgscene->name);
+        CatNodeLineage(ARGS(lineageName), cgnode);
+
+        const i32 primCount = (i32)cgmesh->primitives_count;
+        const cgltf_primitive* cgprims = cgmesh->primitives;
+        for (i32 iPrim = 0; iPrim < primCount; ++iPrim)
+        {
+            char entityName[PIM_PATH] = { 0 };
+            SPrintf(ARGS(entityName), "%s_%d", lineageName, iPrim);
+            Guid guid = Guid_FromStr(entityName);
+            if (Entities_Find(dr, guid) >= 0)
+            {
+                ASSERT(false);
+                continue;
+            }
+
+            MeshId meshId = { 0 };
+            char meshName[PIM_PATH] = { 0 };
+            SPrintf(ARGS(meshName), "%s/%s/%s",
+                ShortenString(basePath, 64),
+                ShortenString(cgscene->name, 64),
+                ShortenString(cgmesh->name, 64));
+            StrPath(ARGS(meshName));
+            if (!CreateMesh(meshName, &cgprims[iPrim], &meshId))
+            {
+                continue;
+            }
+
+            i32 iDrawable = Entities_Add(dr, guid);
+
+            dr->meshes[iDrawable] = meshId;
+
+            // TODO: probably wrong, will need to debug.
+            dr->translations[iDrawable] = f4x4_derive_translation(localToWorld);
+            dr->rotations[iDrawable] = f4x4_derive_rotation(localToWorld);
+            dr->scales[iDrawable] = f4x4_derive_scale(localToWorld);
+            // Entities_UpdateTransforms will overwrite this with value from f4x4_trs().
+            // maybe add an entity flag to skip Entities_UpdateTransforms, for debugging and perf sake.
+            dr->matrices[iDrawable] = localToWorld;
+
+            Material mat = { 0 };
+            CreateMaterial(basePath, cgprims[iPrim].material, &mat);
+            dr->materials[iDrawable] = mat;
+
+        }
     }
-    iDrawable = Entities_Add(dr, guid);
-
-    float4x4 localToWorld = f4x4_id;
-    cgltf_node_transform_world(cgnode, &localToWorld.c0.x);
-    dr->matrices[iDrawable] = localToWorld;
-
-    CreateLight(basePath, cgnode->light, dr, iDrawable);
-    CreateMesh(basePath, cgnode->mesh, dr, iDrawable);
 
     const i32 childCount = (i32)cgnode->children_count;
     cgltf_node** children = cgnode->children;
@@ -252,72 +646,35 @@ static i32 CreateNode(
         CreateNode(basePath, cgscene, children[iChild], dr);
     }
 
-    return iDrawable;
-}
-
-static bool CreateMesh(
-    const char* basePath,
-    cgltf_mesh* cgmesh,
-    Entities* dr,
-    i32 iDrawable)
-{
-    if (!cgmesh)
-    {
-        return false;
-    }
-    const char* name = cgmesh->name;
-    if (!name || !name[0])
-    {
-        ASSERT(false);
-        return false;
-    }
-    char fullName[PIM_PATH] = { 0 };
-    char const *const names[] = { basePath, name };
-    ConcatNames(ARGS(fullName), ARGS(names));
-    Guid guid = Guid_FromStr(fullName);
-
-    MeshId id = { 0 };
-    if (Mesh_Find(guid, &id))
-    {
-        Mesh_Retain(id);
-        return true;
-    }
-
-    const i32 primCount = (i32)cgmesh->primitives_count;
-    cgltf_primitive* cgprims = cgmesh->primitives;
-    for (i32 iPrim = 0; iPrim < primCount; ++iPrim)
-    {
-        cgltf_primitive* cgprim = &cgprims[iPrim];
-        CreateMaterial(basePath, cgprim->material, dr, iDrawable);
-    }
-
     return true;
 }
 
+// ----------------------------------------------------------------------------
+
 static bool CreateMaterial(
     const char* basePath,
-    cgltf_material* cgmat,
-    Entities* dr,
-    i32 iDrawable)
+    const cgltf_material* cgmat,
+    Material* matOut)
 {
     if (!cgmat)
     {
         return false;
     }
-    char const *const name = cgmat->name;
+    char const* const name = cgmat->name;
     if (!name || !name[0])
     {
         ASSERT(false);
         return false;
     }
-    char const *const names[] = { basePath, name };
     char fullName[PIM_PATH] = { 0 };
-    ConcatNames(ARGS(fullName), ARGS(names));
+    SPrintf(ARGS(fullName), "%s/%s", ShortenString(basePath, 120), ShortenString(name, 64));
+    StrPath(ARGS(fullName));
 
     // TODO: Cache imported materials for reuse
 
     Material material = { 0 };
     material.ior = 1.0f;
+    material.bumpiness = 1.0f;
     if (cgmat->has_ior)
     {
         material.ior = cgmat->ior.ior;
@@ -325,18 +682,18 @@ static bool CreateMaterial(
 
     if (cgmat->normal_texture.texture)
     {
-        cgltf_image* cgnormal = cgmat->normal_texture.texture->image;
+        const cgltf_image* cgnormal = cgmat->normal_texture.texture->image;
         material.normal = CreateNormalTexture(basePath, cgnormal);
     }
 
-    cgltf_image* cgocclusion = NULL;
+    const cgltf_image* cgocclusion = NULL;
     if (cgmat->occlusion_texture.texture)
     {
         cgocclusion = cgmat->occlusion_texture.texture->image;
     }
 
     // TODO: add dedicated emission texture to Material
-    cgltf_image* cgemission = NULL;
+    const cgltf_image* cgemission = NULL;
     if (cgmat->emissive_texture.texture)
     {
         cgemission = cgmat->emissive_texture.texture->image;
@@ -344,8 +701,8 @@ static bool CreateMaterial(
 
     if (cgmat->has_pbr_metallic_roughness)
     {
-        cgltf_image* cgalbedo = NULL;
-        cgltf_image* cgmetallicroughness = NULL;
+        const cgltf_image* cgalbedo = NULL;
+        const cgltf_image* cgmetallicroughness = NULL;
         if (cgmat->pbr_metallic_roughness.base_color_texture.texture)
         {
             cgalbedo = cgmat->pbr_metallic_roughness.base_color_texture.texture->image;
@@ -359,8 +716,8 @@ static bool CreateMaterial(
     }
     else if (cgmat->has_pbr_specular_glossiness)
     {
-        cgltf_image* cgdiffuse = NULL;
-        cgltf_image* cgspecular = NULL;
+        const cgltf_image* cgdiffuse = NULL;
+        const cgltf_image* cgspecular = NULL;
         float glossiness = cgmat->pbr_specular_glossiness.glossiness_factor;
         if (cgmat->pbr_specular_glossiness.diffuse_texture.texture)
         {
@@ -382,7 +739,7 @@ static bool CreateMaterial(
         material.flags |= MatFlag_Refractive;
     }
 
-    dr->materials[iDrawable] = material;
+    *matOut = material;
 
     return true;
 }
@@ -394,28 +751,30 @@ static bool LoadImageUri(
 {
     memset(tex, 0, sizeof(*tex));
 
-    char imagePath[PIM_PATH] = { 0 };
-    StrCpy(ARGS(imagePath), basePath);
-    StrCat(ARGS(imagePath), uri);
-    cgltf_decode_uri(imagePath);
+    char name[PIM_PATH] = { 0 };
+    StrCpy(ARGS(name), uri);
+    cgltf_decode_uri(name);
+    char path[PIM_PATH] = { 0 };
+    SPrintf(ARGS(path), "%s/%s", basePath, name);
+    StrPath(ARGS(path));
 
-    if (stbi_is_hdr(imagePath))
+    if (stbi_is_hdr(path))
     {
         i32 channels = 0;
         tex->format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        tex->texels = stbi_loadf(imagePath, &tex->size.x, &tex->size.y, &channels, 4);
+        tex->texels = stbi_loadf(path, &tex->size.x, &tex->size.y, &channels, 4);
     }
-    else if (stbi_is_16_bit(imagePath))
+    else if (stbi_is_16_bit(path))
     {
         i32 channels = 0;
         tex->format = VK_FORMAT_R16G16B16A16_UNORM;
-        tex->texels = stbi_load_16(imagePath, &tex->size.x, &tex->size.y, &channels, 4);
+        tex->texels = stbi_load_16(path, &tex->size.x, &tex->size.y, &channels, 4);
     }
     else
     {
         i32 channels = 0;
         tex->format = VK_FORMAT_R8G8B8A8_SRGB;
-        tex->texels = stbi_load(imagePath, &tex->size.x, &tex->size.y, &channels, 4);
+        tex->texels = stbi_load(path, &tex->size.x, &tex->size.y, &channels, 4);
     }
 
     if (tex->texels)
@@ -427,14 +786,15 @@ static bool LoadImageUri(
         const char* reason = stbi_failure_reason();
         if (reason)
         {
-            Con_Logf(LogSev_Error, "gltf", "Failed to load image at '%s' due to '%s'.", imagePath, reason);
+            Con_Logf(LogSev_Error, "gltf", "Failed to load image at '%s' due to '%s'.", path, reason);
         }
         memset(tex, 0, sizeof(*tex));
         return false;
     }
 }
 
-static bool ResampleToFloat4(Texture* tex)
+// This is inefficient, but it reduces the number of format conversions to handle to N instead of N^2
+static bool ResampleTextureToFloat4(Texture* tex)
 {
     ASSERT(tex->texels);
     if (!tex->texels)
@@ -489,7 +849,7 @@ static bool ResampleToFloat4(Texture* tex)
     }
     return true;
     case VK_FORMAT_R32G32B32A32_SFLOAT:
-    return true;
+        return true;
     }
 }
 
@@ -504,7 +864,7 @@ static bool ResampleToSrgb(Texture* tex)
     {
         return true;
     }
-    if (ResampleToFloat4(tex))
+    if (ResampleTextureToFloat4(tex))
     {
         const i32 len = tex->size.x * tex->size.y;
         const float4* pim_noalias src = tex->texels;
@@ -531,7 +891,7 @@ static bool ResampleToEmission(Texture* tex)
     {
         return true;
     }
-    if (ResampleToFloat4(tex))
+    if (ResampleTextureToFloat4(tex))
     {
         const i32 len = tex->size.x * tex->size.y;
         float4* pim_noalias texels = tex->texels;
@@ -588,7 +948,7 @@ static bool ExportColorspace(Texture* tex)
 
 static TextureId CreateAlbedoTexture(
     const char* basePath,
-    cgltf_image* cgalbedo)
+    const cgltf_image* cgalbedo)
 {
     TextureId id = { 0 };
     if (!cgalbedo)
@@ -596,10 +956,14 @@ static TextureId CreateAlbedoTexture(
         return id;
     }
 
+    char albedoName[PIM_PATH] = { 0 };
+    StrCpy(ARGS(albedoName), cgalbedo->uri);
+    cgltf_decode_uri(albedoName);
+
     char fullName[PIM_PATH] = { 0 };
-    char const *const names[] = { basePath, cgalbedo->uri };
-    ConcatNames(ARGS(fullName), ARGS(names));
-    cgltf_decode_uri(fullName);
+    char const* const names[] = { basePath, &albedoName[0] };
+    SPrintf(ARGS(fullName), "%s/%s", basePath, albedoName);
+    StrPath(ARGS(fullName));
     Guid guid = Guid_FromStr(fullName);
 
     if (Texture_Find(guid, &id))
@@ -613,7 +977,7 @@ static TextureId CreateAlbedoTexture(
     {
         return id;
     }
-    if (!ResampleToFloat4(&tex))
+    if (!ResampleTextureToFloat4(&tex))
     {
         Mem_Free(tex.texels);
         return id;
@@ -632,17 +996,46 @@ static TextureId CreateAlbedoTexture(
 
 static TextureId CreateRomeTexture(
     const char* basePath,
-    cgltf_image* cgmetallic_roughness,
-    cgltf_image* cgocclusion,
-    cgltf_image* cgemission)
+    const cgltf_image* cgmetallic_roughness,
+    const cgltf_image* cgocclusion,
+    const cgltf_image* cgemission)
 {
-    const char* mrname = cgmetallic_roughness ? cgmetallic_roughness->uri : NULL;
-    const char* occname = cgocclusion ? cgocclusion->uri : NULL;
-    const char* emname = cgemission ? cgemission->uri : NULL;
-    char const *const names[] = { basePath, mrname, occname, emname };
+    char mrName[PIM_PATH] = { 0 };
+    if (cgmetallic_roughness && cgmetallic_roughness->uri)
+    {
+        StrCpy(ARGS(mrName), cgmetallic_roughness->uri);
+        cgltf_decode_uri(mrName);
+    }
+
+    char occName[PIM_PATH] = { 0 };
+    if (cgocclusion && cgocclusion->uri)
+    {
+        StrCpy(ARGS(occName), cgocclusion->uri);
+        cgltf_decode_uri(occName);
+    }
+
+    char emName[PIM_PATH] = { 0 };
+    if (cgemission && cgemission->uri)
+    {
+        StrCpy(ARGS(emName), cgemission->uri);
+        cgltf_decode_uri(emName);
+    }
+
     char fullName[PIM_PATH] = { 0 };
-    ConcatNames(ARGS(fullName), ARGS(names));
-    cgltf_decode_uri(fullName);
+    StrCpy(ARGS(fullName), basePath);
+    if (mrName[0])
+    {
+        StrCatf(ARGS(fullName), "/%s", ShortenString(mrName, 64));
+    }
+    if (occName[0])
+    {
+        StrCatf(ARGS(fullName), "/%s", ShortenString(occName, 64));
+    }
+    if (emName[0])
+    {
+        StrCatf(ARGS(fullName), "/%s", ShortenString(emName, 64));
+    }
+
     Guid guid = Guid_FromStr(fullName);
 
     TextureId id = { 0 };
@@ -663,26 +1056,36 @@ static TextureId CreateRomeTexture(
     {
         if (LoadImageUri(basePath, cgmetallic_roughness->uri, &mrtex))
         {
-            ResampleToFloat4(&mrtex);
+            if (mrtex.format == VK_FORMAT_R8G8B8A8_SRGB)
+            {
+                mrtex.format = VK_FORMAT_R8G8B8A8_UNORM;
+            }
+            ResampleTextureToFloat4(&mrtex);
         }
     }
     if (!mrtex.texels)
     {
         mrtex.size = i2_1;
         mrtex.texels = &defaultMr;
+        mrtex.format = VK_FORMAT_R32G32B32A32_SFLOAT;
     }
 
     if (cgocclusion)
     {
         if (LoadImageUri(basePath, cgocclusion->uri, &occtex))
         {
-            ResampleToFloat4(&occtex);
+            if (mrtex.format == VK_FORMAT_R8G8B8A8_SRGB)
+            {
+                mrtex.format = VK_FORMAT_R8G8B8A8_UNORM;
+            }
+            ResampleTextureToFloat4(&occtex);
         }
     }
     if (!occtex.texels)
     {
         occtex.size = i2_1;
         occtex.texels = &defaultOcc;
+        mrtex.format = VK_FORMAT_R32G32B32A32_SFLOAT;
     }
 
     if (cgemission)
@@ -699,35 +1102,44 @@ static TextureId CreateRomeTexture(
     {
         emtex.size = i2_1;
         emtex.texels = &defaultEm;
+        mrtex.format = VK_FORMAT_R32G32B32A32_SFLOAT;
     }
 
     Texture tex = { 0 };
     {
-        int2 size = i2_1;
-        size = i2_max(size, mrtex.size);
-        size = i2_max(size, occtex.size);
-        size = i2_max(size, emtex.size);
-        const i32 len = size.x * size.y;
+        i32 size = 1;
+        size = pim_max(size, mrtex.size.x);
+        size = pim_max(size, mrtex.size.y);
+        size = pim_max(size, occtex.size.x);
+        size = pim_max(size, occtex.size.y);
+        size = pim_max(size, emtex.size.x);
+        size = pim_max(size, emtex.size.y);
+        size = NextPow2(size);
+        size = pim_min(size, 2048);
+
+        const i32 len = size * size;
+        const float rcpSize = 1.0f / size;
         R8G8B8A8_t* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
-        for (i32 y = 0; y < size.y; ++y)
+        for (i32 y = 0; y < size; ++y)
         {
-            for (i32 x = 0; x < size.x; ++x)
+            for (i32 x = 0; x < size; ++x)
             {
-                float2 uv = CoordToUv(size, i2_v(x, y));
+                float2 uv = { (x + 0.5f) * rcpSize, (y + 0.5f) * rcpSize };
                 float4 rome = f4_0;
                 {
-                    float4 sample = UvBilinearClamp_f4(mrtex.texels, mrtex.size, uv);
-                    rome.x = sample.y;
-                    rome.z = sample.x;
+                    float4 mr = UvBilinearClamp_f4(mrtex.texels, mrtex.size, uv);
+                    rome.x = mr.y;
+                    rome.z = mr.x;
                 }
                 rome.y = UvBilinearClamp_f4(occtex.texels, occtex.size, uv).x;
                 rome.w = PackEmission(UvBilinearClamp_f4(emtex.texels, emtex.size, uv));
-                i32 index = x + y * size.x;
-                dst[index] = GammaEncode_rgba8(rome);
+                i32 index = x + y * size;
+                dst[index] = f4_rgba8(rome);
             }
         }
-        tex.size = size;
+        tex.size = i2_s(size);
         tex.texels = dst;
+        tex.format = VK_FORMAT_R8G8B8A8_UNORM;
     }
 
     if (mrtex.texels != &defaultMr)
@@ -749,7 +1161,7 @@ static TextureId CreateRomeTexture(
 
 static TextureId CreateNormalTexture(
     const char* basePath,
-    cgltf_image* cgnormal)
+    const cgltf_image* cgnormal)
 {
     TextureId id = { 0 };
     if (!cgnormal)
@@ -757,10 +1169,13 @@ static TextureId CreateNormalTexture(
         return id;
     }
 
+    char normalName[PIM_PATH] = { 0 };
+    StrCpy(ARGS(normalName), cgnormal->uri);
+    cgltf_decode_uri(normalName);
+
     char fullName[PIM_PATH] = { 0 };
-    char const *const names[] = { basePath, cgnormal->uri };
-    ConcatNames(ARGS(fullName), ARGS(names));
-    cgltf_decode_uri(fullName);
+    SPrintf(ARGS(fullName), "%s/%s", basePath, normalName);
+    StrPath(ARGS(fullName));
     Guid guid = Guid_FromStr(fullName);
 
     if (Texture_Find(guid, &id))
@@ -774,21 +1189,44 @@ static TextureId CreateNormalTexture(
     {
         return id;
     }
-    if (!ResampleToFloat4(&tex))
+    if (!ResampleTextureToFloat4(&tex))
     {
         Mem_Free(tex.texels);
         return id;
     }
     {
+        ASSERT(tex.texels);
+        i32 size = pim_max(tex.size.x, tex.size.y);
+        ASSERT(size > 0);
+        size = NextPow2(size);
+        size = pim_min(size, 2048);
+        const float rcpSize = 1.0f / size;
         const float4* pim_noalias src = tex.texels;
-        const i32 len = tex.size.x * tex.size.y;
+        const i32 len = size * size;
         short2* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
-        for (i32 i = 0; i < len; ++i)
+        if (size == tex.size.x && size == tex.size.y)
         {
-            dst[i] = NormalTsToXy16(f4_snorm(src[i]));
+            for (i32 i = 0; i < len; ++i)
+            {
+                dst[i] = NormalTsToXy16(f4_snorm(src[i]));
+            }
+        }
+        else
+        {
+            for (i32 y = 0; y < size; ++y)
+            {
+                for (i32 x = 0; x < size; ++x)
+                {
+                    float2 uv = { (x + 0.5f) * rcpSize, (y + 0.5f) * rcpSize };
+                    float4 sample = UvBilinearClamp_f4(src, tex.size, uv);
+                    i32 index = x + y * size;
+                    dst[index] = NormalTsToXy16(f4_snorm(sample));
+                }
+            }
         }
         Mem_Free(tex.texels);
         tex.texels = dst;
+        tex.size = i2_s(size);
         tex.format = VK_FORMAT_R16G16_SNORM;
     }
     Texture_New(&tex, tex.format, VK_SAMPLER_ADDRESS_MODE_REPEAT, guid, &id);
@@ -798,29 +1236,81 @@ static TextureId CreateNormalTexture(
 bool ResampleToAlbedoRome(
     const char* basePath,
     Material* material,
-    cgltf_image* cgdiffuse,
-    cgltf_image* cgspecular,
-    cgltf_image* cgocclusion,
-    cgltf_image* cgemission,
+    const cgltf_image* cgdiffuse,
+    const cgltf_image* cgspecular,
+    const cgltf_image* cgocclusion,
+    const cgltf_image* cgemission,
     float glossiness)
 {
-    const char* diffuseName = cgdiffuse ? cgdiffuse->uri : NULL;
-    const char* specularName = cgspecular ? cgspecular->uri : NULL;
-    const char* occlusionName = cgocclusion ? cgocclusion->uri : NULL;
-    const char* emissionName = cgemission ? cgemission->uri : NULL;
-    char albedoFullname[PIM_PATH] = { 0 };
-    char romeFullname[PIM_PATH] = { 0 };
-    char const *const albedoNames[] = { basePath, diffuseName, specularName };
-    char const *const romeNames[] = { basePath, diffuseName, specularName, occlusionName, emissionName };
-    ConcatNames(ARGS(albedoFullname), ARGS(albedoNames));
-    ConcatNames(ARGS(romeFullname), ARGS(romeNames));
-    cgltf_decode_uri(albedoFullname);
-    cgltf_decode_uri(romeFullname);
-    Guid albedoGuid = Guid_FromStr(albedoFullname);
-    Guid romeGuid = Guid_FromStr(romeFullname);
+    char diffuseName[PIM_PATH] = { 0 };
+    if (cgdiffuse && cgdiffuse->uri)
+    {
+        StrCpy(ARGS(diffuseName), cgdiffuse->uri);
+        cgltf_decode_uri(diffuseName);
+    }
+    char specularName[PIM_PATH] = { 0 };
+    if (cgspecular && cgspecular->uri)
+    {
+        StrCpy(ARGS(specularName), cgspecular->uri);
+        cgltf_decode_uri(specularName);
+    }
+    char occlusionName[PIM_PATH] = { 0 };
+    if (cgocclusion && cgocclusion->uri)
+    {
+        StrCpy(ARGS(occlusionName), cgocclusion->uri);
+        cgltf_decode_uri(occlusionName);
+    }
+    char emissionName[PIM_PATH] = { 0 };
+    if (cgemission && cgemission->uri)
+    {
+        StrCpy(ARGS(emissionName), cgemission->uri);
+        cgltf_decode_uri(emissionName);
+    }
+
+    Guid albedoGuid = { 0 };
+    {
+        char albedoName[PIM_PATH] = { 0 };
+        StrCpy(ARGS(albedoName), ShortenString(basePath, 120));
+        if (diffuseName[0])
+        {
+            StrCatf(ARGS(albedoName), "/%s", ShortenString(diffuseName, 64));
+        }
+        if (specularName[0])
+        {
+            StrCatf(ARGS(albedoName), "/%s", ShortenString(specularName, 64));
+        }
+        StrPath(ARGS(albedoName));
+        albedoGuid = Guid_FromStr(albedoName);
+    }
+
+    Guid romeGuid = { 0 };
+    {
+        char romeName[PIM_PATH] = { 0 };
+        StrCpy(ARGS(romeName), ShortenString(basePath, 120));
+        if (diffuseName[0])
+        {
+            StrCatf(ARGS(romeName), "/%s", ShortenString(diffuseName, 32));
+        }
+        if (specularName[0])
+        {
+            StrCatf(ARGS(romeName), "/%s", ShortenString(specularName, 32));
+        }
+        if (occlusionName[0])
+        {
+            StrCatf(ARGS(romeName), "/%s", ShortenString(occlusionName, 32));
+        }
+        if (emissionName[0])
+        {
+            StrCatf(ARGS(romeName), "/%s", ShortenString(emissionName, 32));
+        }
+        StrPath(ARGS(romeName));
+        romeGuid = Guid_FromStr(romeName);
+    }
 
     if (Texture_Find(albedoGuid, &material->albedo) && Texture_Find(romeGuid, &material->rome))
     {
+        Texture_Retain(material->albedo);
+        Texture_Retain(material->rome);
         return true;
     }
 
@@ -837,7 +1327,7 @@ bool ResampleToAlbedoRome(
     {
         if (LoadImageUri(basePath, cgdiffuse->uri, &diffuseTex))
         {
-            if (ResampleToFloat4(&diffuseTex))
+            if (ResampleTextureToFloat4(&diffuseTex))
             {
                 ImportColorspace(&diffuseTex);
             }
@@ -847,13 +1337,14 @@ bool ResampleToAlbedoRome(
     {
         diffuseTex.size = i2_1;
         diffuseTex.texels = &defaultDiffuse;
+        diffuseTex.format = VK_FORMAT_R32G32B32A32_SFLOAT;
     }
 
     if (cgspecular)
     {
         if (LoadImageUri(basePath, cgspecular->uri, &specularTex))
         {
-            if (ResampleToFloat4(&specularTex))
+            if (ResampleTextureToFloat4(&specularTex))
             {
                 ImportColorspace(&specularTex);
             }
@@ -863,19 +1354,25 @@ bool ResampleToAlbedoRome(
     {
         specularTex.size = i2_1;
         specularTex.texels = &defaultSpecular;
+        specularTex.format = VK_FORMAT_R32G32B32A32_SFLOAT;
     }
 
     if (cgocclusion)
     {
         if (LoadImageUri(basePath, cgocclusion->uri, &occtex))
         {
-            ResampleToFloat4(&occtex);
+            if (occtex.format == VK_FORMAT_R8G8B8A8_SRGB)
+            {
+                occtex.format = VK_FORMAT_R8G8B8A8_UNORM;
+            }
+            ResampleTextureToFloat4(&occtex);
         }
     }
     if (!occtex.texels)
     {
         occtex.size = i2_1;
         occtex.texels = &defaultOcclusion;
+        occtex.format = VK_FORMAT_R32G32B32A32_SFLOAT;
     }
 
     if (cgemission)
@@ -892,6 +1389,7 @@ bool ResampleToAlbedoRome(
     {
         emtex.size = i2_1;
         emtex.texels = &defaultEmission;
+        emtex.format = VK_FORMAT_R32G32B32A32_SFLOAT;
     }
 
     Texture albedotex = { 0 };
@@ -917,7 +1415,7 @@ bool ResampleToAlbedoRome(
                 float4 albedo;
                 float roughness;
                 float metallic;
-                SpecularToPBR(diffuse, specular, glossiness, &albedo, &roughness, &metallic);
+                SpecularToMetallic(diffuse, specular, glossiness, &albedo, &roughness, &metallic);
                 i32 index = x + y * size.x;
                 albedoTexels[index] = GammaEncode_rgba8(albedo);
                 romeTexels[index] = GammaEncode_rgba8(f4_v(roughness, occlusion, metallic, emission));
@@ -928,7 +1426,7 @@ bool ResampleToAlbedoRome(
         albedotex.format = VK_FORMAT_R8G8B8A8_SRGB;
         rometex.texels = romeTexels;
         rometex.size = size;
-        rometex.format = VK_FORMAT_R8G8B8A8_SRGB;
+        rometex.format = VK_FORMAT_R8G8B8A8_UNORM;
     }
 
     if (diffuseTex.texels != &defaultDiffuse)
@@ -954,6 +1452,7 @@ bool ResampleToAlbedoRome(
     }
     else
     {
+        Texture_Retain(material->albedo);
         Mem_Free(albedotex.texels);
     }
     if (!Texture_Exists(material->rome))
@@ -962,28 +1461,111 @@ bool ResampleToAlbedoRome(
     }
     else
     {
+        Texture_Retain(material->rome);
         Mem_Free(rometex.texels);
     }
 
     return true;
 }
 
-static bool CreateLight(
-    const char* basePath,
-    cgltf_light* cglight,
-    Entities* dr,
-    i32 iDrawable)
+// ----------------------------------------------------------------------------
+
+static cgltf_result Gltf_FileRead(
+    const cgltf_memory_options* memory_options,
+    const cgltf_file_options* file_options,
+    const char* path,
+    cgltf_size* size,
+    void** data)
 {
-    if (!cglight)
+    *size = 0;
+    *data = NULL;
+    ASSERT(path && path[0]);
+    if (!path || !path[0])
     {
-        return false;
+        return cgltf_result_file_not_found;
     }
-    const char* name = cglight->name;
-    if (!name || !name[0])
+
+    const Guid name = Guid_FromStr(path);
+
+    i32 fileCount = s_fileHandler.fileCount;
+    Guid* pim_noalias names = s_fileHandler.names;
+    FileMap* pim_noalias files = s_fileHandler.files;
+    i32* pim_noalias refCounts = s_fileHandler.refCounts;
+
+    for (i32 i = fileCount - 1; i >= 0; --i)
     {
-        ASSERT(false);
-        return false;
+        if (Guid_Equal(name, names[i]))
+        {
+            refCounts[i]++;
+            ASSERT(refCounts[i] > 1);
+            ASSERT(files[i].ptr);
+            ASSERT(files[i].size > 0);
+            *data = files[i].ptr;
+            *size = files[i].size;
+            return cgltf_result_success;
+        }
     }
-    // TODO: support punctual lights by converting to area lights.
-    return false;
+
+    FileMap file = FileMap_Open(path, false);
+    if (!FileMap_IsOpen(&file))
+    {
+        return cgltf_result_file_not_found;
+    }
+
+    ASSERT(file.ptr);
+    ASSERT(file.size > 0);
+
+    i32 b = fileCount++;
+    Perm_Reserve(names, fileCount);
+    Perm_Reserve(files, fileCount);
+    Perm_Reserve(refCounts, fileCount);
+
+    names[b] = name;
+    files[b] = file;
+    refCounts[b] = 1;
+
+    s_fileHandler.names = names;
+    s_fileHandler.files = files;
+    s_fileHandler.refCounts = refCounts;
+    s_fileHandler.fileCount = fileCount;
+
+    *data = file.ptr;
+    *size = file.size;
+    return cgltf_result_success;
+}
+static void Gltf_FileRelease(
+    const cgltf_memory_options* memory_options,
+    const cgltf_file_options* file_options,
+    void* data)
+{
+    i32 fileCount = s_fileHandler.fileCount;
+    Guid* pim_noalias names = s_fileHandler.names;
+    FileMap* pim_noalias files = s_fileHandler.files;
+    i32* pim_noalias refCounts = s_fileHandler.refCounts;
+
+    i32 slot = -1;
+    for (i32 i = fileCount - 1; i >= 0; --i)
+    {
+        if (files[i].ptr == data)
+        {
+            slot = i;
+            break;
+        }
+    }
+
+    ASSERT(slot >= 0);
+    if (slot >= 0)
+    {
+        refCounts[slot] = refCounts[slot] - 1;
+        ASSERT(refCounts[slot] >= 0);
+        if (refCounts[slot] == 0)
+        {
+            FileMap_Close(&files[slot]);
+            --fileCount;
+            names[slot] = names[fileCount]; names[fileCount] = (Guid){ 0 };
+            files[slot] = files[fileCount]; files[fileCount] = (FileMap){ 0 };
+            refCounts[slot] = refCounts[fileCount]; refCounts[fileCount] = 0;
+            s_fileHandler.fileCount = fileCount;
+        }
+    }
 }

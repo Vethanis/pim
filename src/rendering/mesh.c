@@ -4,6 +4,7 @@
 #include "common/stringutil.h"
 #include "common/sort.h"
 #include "common/profiler.h"
+#include "common/console.h"
 #include "containers/table.h"
 #include "math/float4_funcs.h"
 #include "math/float4x4_funcs.h"
@@ -90,7 +91,6 @@ bool Mesh_New(Mesh *const mesh, Guid name, MeshId *const idOut)
     if (mesh->length > 0)
     {
         added = Table_Add(&ms_table, name, mesh, &id);
-        ASSERT(added);
         if (added)
         {
             vkrMeshId vkId = vkrMesh_New(mesh->length, mesh->positions, mesh->normals, mesh->uvs, mesh->texIndices);
@@ -98,6 +98,10 @@ bool Mesh_New(Mesh *const mesh, Guid name, MeshId *const idOut)
             meshes[id.index].id = vkId;
             if (!vkrMesh_Exists(vkId))
             {
+                char nameStr[PIM_PATH];
+                Guid_GetName(name, ARGS(nameStr));
+                Con_Logf(LogSev_Error, "mesh", "Failed to create vkrMesh for mesh named '%s'", nameStr);
+                ASSERT(false);
                 added = false;
                 Table_Release(&ms_table, id, NULL);
             }
@@ -105,7 +109,6 @@ bool Mesh_New(Mesh *const mesh, Guid name, MeshId *const idOut)
     }
     if (!added)
     {
-        ASSERT(false);
         FreeMesh(mesh);
     }
     memset(mesh, 0, sizeof(*mesh));

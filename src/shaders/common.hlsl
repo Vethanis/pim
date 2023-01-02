@@ -1,11 +1,14 @@
 #ifndef COMMON_HLSL
 #define COMMON_HLSL
 
-#define PIM_HLSL        1
-#define i32             int
-#define u32             uint
+#define PIM_HLSL                1
+#define PIM_STRUCT_BEGIN(name)  struct name
+#define PIM_STRUCT_END(name)    
+#define i32                     int
+#define u32                     uint
 
 #include "../rendering/r_config.h"
+#include "../rendering/r_gpu_shared.h"
 #include "bindings.hlsl"
 
 // TODO: move these to shared config file

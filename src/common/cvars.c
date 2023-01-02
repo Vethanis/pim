@@ -181,10 +181,10 @@ ConVar cv_r_bumpiness =
 {
     .type = cvart_float,
     .name = "r_bumpiness",
-    .value = "0.75",
+    .value = "1.0",
     .minFloat = 0.0f,
-    .maxFloat = 11.0f,
-    .desc = "Bumpiness of generated normal maps [0, 11]",
+    .maxFloat = 2.0f,
+    .desc = "Bumpiness of generated normal maps [0, 2]",
 };
 
 ConVar cv_r_tex_custom =
@@ -270,7 +270,7 @@ ConVar cv_r_sun_dir =
 ConVar cv_r_sun_lum =
 {
     .type = cvart_float,
-    .flags = cvarf_logarithmic,
+    .flag_logarithmic = 1,
     .name = "r_sun_lum",
     .value = "3800.0",
     .minFloat = 0.0009765625f,
@@ -419,7 +419,7 @@ ConVar cv_exp_cdfmax =
 ConVar cv_sky_rad_cr =
 {
     .type = cvart_float,
-    .flags = cvarf_logarithmic,
+    .flag_logarithmic = 1,
     .name = "sky_rad_cr",
     .value = "6360",
     .minFloat = 636.0f,
@@ -429,7 +429,7 @@ ConVar cv_sky_rad_cr =
 ConVar cv_sky_rad_at =
 {
     .type = cvart_float,
-    .flags = cvarf_logarithmic,
+    .flag_logarithmic = 1,
     .name = "sky_rad_at",
     .value = "60",
     .minFloat = 6.0f,
@@ -439,7 +439,7 @@ ConVar cv_sky_rad_at =
 ConVar cv_sky_rlh_mfp =
 {
     .type = cvart_point,
-    .flags = cvarf_logarithmic,
+    .flag_logarithmic = 1,
     .name = "sky_rlh_mfp",
     .value = "192 82 34",
     .minFloat = 10.0f,
@@ -449,7 +449,7 @@ ConVar cv_sky_rlh_mfp =
 ConVar cv_sky_rlh_sh =
 {
     .type = cvart_float,
-    .flags = cvarf_logarithmic,
+    .flag_logarithmic = 1,
     .name = "sky_rlh_sh",
     .value = "8.5",
     .minFloat = 0.1f,
@@ -459,7 +459,7 @@ ConVar cv_sky_rlh_sh =
 ConVar cv_sky_mie_mfp =
 {
     .type = cvart_float,
-    .flags = cvarf_logarithmic,
+    .flag_logarithmic = 1,
     .name = "sky_mie_mfp",
     .value = "48",
     .minFloat = 10.0f,
@@ -469,7 +469,7 @@ ConVar cv_sky_mie_mfp =
 ConVar cv_sky_mie_sh =
 {
     .type = cvart_float,
-    .flags = cvarf_logarithmic,
+    .flag_logarithmic = 1,
     .name = "sky_mie_sh",
     .value = "1.2",
     .minFloat = 0.1f,
