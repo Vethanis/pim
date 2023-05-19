@@ -43,7 +43,6 @@
 #include "rendering/path_tracer.h"
 #include "rendering/cubemap.h"
 #include "rendering/drawable.h"
-#include "rendering/model.h"
 #include "rendering/lightmap.h"
 #include "rendering/denoise.h"
 #include "rendering/rtcdraw.h"
@@ -54,7 +53,6 @@
 #include "rendering/vulkan/vkr.h"
 #include "rendering/vulkan/vkr_exposure.h"
 
-#include "quake/q_model.h"
 #include "assets/asset_system.h"
 
 #include <stb/stb_image_write.h>
@@ -515,13 +513,13 @@ bool RenderSys_Init(void)
 
     TextureSys_Init();
     MeshSys_Init();
-    ModelSys_Init();
     PtSys_Init();
     EntSys_Init();
     EnsureFramebuf();
     LightingSys_Init();
 
-    cmd_enqueue("mapload start");
+    cmd_enqueue("cornell_box spheres");
+    cmd_enqueue("pt_trace 1");
 
     return true;
 }
@@ -555,7 +553,6 @@ void RenderSys_Update(void)
 
     TextureSys_Update();
     MeshSys_Update();
-    ModelSys_Update();
     LightingSys_Update();
     PtSys_Update();
     EntSys_Update();
@@ -584,7 +581,6 @@ void RenderSys_Shutdown(void)
 
     TextureSys_Shutdown();
     MeshSys_Shutdown();
-    ModelSys_Shutdown();
 
     vkrSys_Shutdown();
 }
@@ -1408,34 +1404,7 @@ static cmdstat_t CmdPtStdDev(i32 argc, const char** argv)
 
 static cmdstat_t CmdLoadTest(i32 argc, const char** argv)
 {
-    char cmd[PIM_PATH];
-    char mapname[PIM_PATH];
-    cmd_enqueue("mapload start; wait");
-    for (i32 e = 1; ; ++e)
-    {
-        for (i32 m = 1; ; ++m)
-        {
-            SPrintf(ARGS(mapname), "maps/e%dm%d.bsp", e, m);
-            asset_t asset;
-            if (Asset_Get(mapname, &asset))
-            {
-                SPrintf(ARGS(cmd), "mapload e%dm%d; wait", e, m);
-                cmd_enqueue(cmd);
-            }
-            else
-            {
-                if (m == 1)
-                {
-                    goto end;
-                }
-                break;
-            }
-        }
-    }
-end:
-    cmd_enqueue("mapload end; wait");
-    cmd_enqueue("mapload start; wait");
-    return cmdstat_ok;
+    return cmdstat_err;
 }
 
 static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
@@ -1461,7 +1430,7 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     bool loaded = false;
 
     char mapname[PIM_PATH] = { 0 };
-    SPrintf(ARGS(mapname), "maps/%s.bsp", name);
+    SPrintf(ARGS(mapname), "maps/%s", name);
     Con_Logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
 
     char cratepath[PIM_PATH] = { 0 };
@@ -1473,11 +1442,6 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
         loaded &= Entities_Load(crate, Entities_Get());
         loaded &= LmPack_Load(crate, LmPack_Get());
         loaded &= Crate_Close(crate);
-    }
-
-    if (!loaded)
-    {
-        loaded = LoadModelAsDrawables(mapname, Entities_Get());
     }
 
     if (loaded)
@@ -1511,7 +1475,7 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
     bool saved = false;
 
     char mapname[PIM_PATH] = { 0 };
-    SPrintf(ARGS(mapname), "maps/%s.bsp", name);
+    SPrintf(ARGS(mapname), "maps/%s", name);
 
     Con_Logf(LogSev_Info, "cmd", "mapsave is saving '%s'.", mapname);
 

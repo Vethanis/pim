@@ -306,14 +306,6 @@ ConVar cv_r_sun_steps =
     .desc = "Sky cubemap raymarch steps",
 };
 
-ConVar cv_r_qlights =
-{
-    .type = cvart_bool,
-    .name = "r_qlights",
-    .value = "0",
-    .desc = "Enable loading quake light entities",
-};
-
 ConVar cv_ui_opacity =
 {
     .type = cvart_float,
@@ -577,7 +569,6 @@ void ConVars_RegisterAll(void)
     ConVar_Reg(&cv_r_sun_lum);
     ConVar_Reg(&cv_r_sun_res);
     ConVar_Reg(&cv_r_sun_steps);
-    ConVar_Reg(&cv_r_qlights);
     ConVar_Reg(&cv_r_width);
     ConVar_Reg(&cv_r_zfar);
     ConVar_Reg(&cv_r_znear);

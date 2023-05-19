@@ -37,7 +37,6 @@ extern ConVar cv_r_sun_dir;
 extern ConVar cv_r_sun_lum;
 extern ConVar cv_r_sun_res;
 extern ConVar cv_r_sun_steps;
-extern ConVar cv_r_qlights;
 extern ConVar cv_ui_opacity;
 
 extern ConVar cv_lm_upload;

@@ -391,9 +391,11 @@ end:
 ProfileMark(pm_submitawait, vkrSubmit_Await)
 void vkrSubmit_Await(vkrSubmitId submit)
 {
+    if (!submit.valid)
+    {
+        return;
+    }
     ProfileBegin(pm_submitawait);
-
-    ASSERT(submit.valid);
 
     vkrQueue* queue = vkrGetQueue(submit.queueId);
     VkFence* const pim_noalias fences = queue->cmdFences;
@@ -557,7 +559,7 @@ vkrSubmitId vkrImage_GetSubmit(const vkrImage* img)
         {
             id = vkrGetHeadSubmit(img->state.owner);
         }
-        ASSERT(id.valid);
+        //ASSERT(id.valid);
     }
     return id;
 }

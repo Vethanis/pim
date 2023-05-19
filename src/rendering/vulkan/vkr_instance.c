@@ -51,7 +51,7 @@ VkInstance vkrCreateInstance(StrList extensions, StrList layers)
     const VkApplicationInfo appInfo =
     {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pApplicationName = "pimquake",
+        .pApplicationName = "pim",
         .applicationVersion = 1,
         .pEngineName = "pim",
         .engineVersion = 1,

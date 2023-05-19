@@ -221,7 +221,6 @@ pim_inline bool PimCheckFn(bool cond) { if (!cond) { INTERRUPT(); } return cond;
 
 #define PIM_PATH                    256
 #define kMaxThreads                 64
-#define QUAKE_IMPL 0
 
 typedef enum
 {

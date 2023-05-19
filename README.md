@@ -55,9 +55,7 @@ This repository uses [submodules](https://github.blog/2016-02-01-working-with-su
 * Install Visual Studio
 * Install the Vulkan SDK
 * Install Git Bash
-* Buy and Download Quake
 * Clone the repo recursively
-* Execute src/tools/datacopy.sh
 * Execute build.bat (change generator to 'Visual Studio 16 2019' if you are using that)
 * Execute run.bat
 

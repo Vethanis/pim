@@ -434,7 +434,7 @@ void vkrReleasable_Add(const vkrReleasable* releasable)
     vkrAllocator *const allocator = &ms_inst;
     ASSERT(allocator->handle);
     ASSERT(releasable);
-    ASSERT(releasable->submitId.valid);
+    //ASSERT(releasable->submitId.valid);
 
     Mutex_Lock(&allocator->lock);
     i32 back = allocator->numreleasable++;

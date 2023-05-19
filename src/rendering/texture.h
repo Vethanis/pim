@@ -71,14 +71,4 @@ bool Texture_GetName(TextureId tid, char* dst, i32 size);
 bool Texture_Save(Crate* crate, TextureId tid, Guid* dst);
 bool Texture_Load(Crate* crate, Guid name, TextureId* dst);
 
-bool Texture_Unpalette(
-    u8 const *const pim_noalias bytes,
-    int2 size,
-    const char* name,
-    Material const *const material,
-    float4 flatRome,
-    TextureId *const albedoOut,
-    TextureId *const romeOut,
-    TextureId *const normalOut);
-
 PIM_C_END
