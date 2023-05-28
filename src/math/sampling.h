@@ -14,28 +14,48 @@ pim_inline bool VEC_CALL IsUnitLength(float4 dir)
 {
     float len = f4_length3(dir);
     float dist = f1_distance(len, 1.0f);
-    // kEpsilon is a bit too strict in this case
-    if (dist > 1e-4f)
-    {
-        INTERRUPT();
-        return false;
-    }
-    return true;
+    return dist < 1e-4f;
+}
+
+pim_inline bool VEC_CALL IsOrtho(float4 a, float4 b)
+{
+    float d = f4_dot3(a, b);
+    return f1_abs(d) < 1e-4f;
 }
 
 pim_inline float3x3 VEC_CALL NormalToTBN(float4 N)
 {
     ASSERT(IsUnitLength(N));
 
-    const float4 kX = { 1.0f, 0.0f, 0.0f, 0.0f };
-    const float4 kZ = { 0.0f, 0.0f, 1.0f, 0.0f };
-    const float4 a = f1_abs(N.z) < 0.9f ? kZ : kX;
+    // Building an Orthonormal Basis, Revisited
+    // Tom Duff, James Burgess, Per Christensen, Christophe Hery, Andrew Kensler, Max Liani, and Ryusuke Villemin
+    // Listing 3
+    // https://graphics.pixar.com/library/OrthonormalB/paper.pdf#page=6
+
+    float s = (N.z < 0.0f) ? -1.0f : 1.0f;
+    const float a = -1.0f / (s + N.z);
+    const float b = N.x * N.y * a;
+    float4 b1;
+    b1.x = 1.0f + s * N.x * N.x * a;
+    b1.y = s * b;
+    b1.z = -s * N.x;
+    b1.w = 0.0f;
+    ASSERT(IsUnitLength(b1));
+    ASSERT(IsOrtho(N, b1));
+
+    float4 b2;
+    b2.x = b;
+    b2.y = s + N.y * N.y * a;
+    b2.z = -N.y;
+    b2.w = 0.0f;
+    ASSERT(IsUnitLength(b2));
+    ASSERT(IsOrtho(N, b2));
+    ASSERT(IsOrtho(b1, b2));
 
     float3x3 TBN;
     TBN.c2 = N;
-    TBN.c0 = f4_normalize3(f4_cross3(a, TBN.c2));
-    TBN.c1 = f4_cross3(TBN.c2, TBN.c0);
-    ASSERT(IsUnitLength(TBN.c1));
+    TBN.c0 = b1;
+    TBN.c1 = b2;
     return TBN;
 }
 
