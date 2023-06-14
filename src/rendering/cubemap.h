@@ -133,7 +133,7 @@ pim_inline void VEC_CALL Cubemap_WriteColor(Cubemap* cm, Cubeface face, int2 coo
     ASSERT(cm);
     float3* pim_noalias buffer = cm->color[face];
     ASSERT(buffer);
-    i32 i = Clamp(i2_s(cm->size), coord);
+    i32 i = DecodeCoord2(i2_s(cm->size), coord);
     buffer[i] = value;
 }
 
@@ -142,7 +142,7 @@ pim_inline void VEC_CALL Cubemap_WriteConvolved(Cubemap* cm, Cubeface face, int2
     ASSERT(cm);
     float4* pim_noalias buffer = cm->convolved[face];
     ASSERT(buffer);
-    i32 i = Clamp(i2_s(cm->size), coord);
+    i32 i = DecodeCoord2(i2_s(cm->size), coord);
     buffer[i] = value;
 }
 
@@ -162,7 +162,7 @@ pim_inline void VEC_CALL Cubemap_WriteMip(
     buffer += offset;
 
     int2 mipSize = CalcMipSize(size, mip);
-    i32 i = Clamp(mipSize, coord);
+    i32 i = DecodeCoord2(mipSize, coord);
     buffer[i] = value;
 }
 
@@ -183,7 +183,7 @@ pim_inline void VEC_CALL Cubemap_BlendMip(
     buffer += offset;
 
     int2 mipSize = CalcMipSize(size, mip);
-    i32 i = Clamp(mipSize, coord);
+    i32 i = DecodeCoord2(mipSize, coord);
     buffer[i] = f4_lerpvs(buffer[i], value, weight);
 }
 
@@ -193,7 +193,7 @@ pim_inline float4 VEC_CALL Cubemap_CalcDir(
     int2 coord,     // [0, size) 2d face coordinate
     float2 Xi)      // [-1, 1] subpixel jitter
 {
-    float2 uv = CoordToUv(i2_s(size), coord);
+    float2 uv = BilinearInvert(i2_s(size), coord);
     Xi = f2_mulvs(Xi, 1.0f / size);
     uv = f2_add(uv, Xi);
     uv = f2_snorm(uv);

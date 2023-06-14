@@ -817,7 +817,8 @@ static float EmissionPdf(
     {
         float4 wuv = SampleBaryCoord(Prng_float2(rng));
         float2 uv = f2_blend(UA, UB, UC, wuv);
-        i32 iTexel = UvWrapPow2(texSize, uv);
+        int2 coord = PointWrap2D(texSize, uv);
+        i32 iTexel = DecodeCoord2(texSize, coord);
         u32 sample = texels[iTexel] >> 24;
         hits += sample ? 1 : 0;
     }
@@ -1256,14 +1257,14 @@ pim_inline float4 VEC_CALL SampleSkyTex(
     topUv.x += duration * 0.1f;
     topUv.y += duration * 0.1f;
     topUv.x = fmodf(topUv.x, 0.5f);
-    float4 albedo = UvWrapPow2_c32(tex->texels, tex->size, topUv);
+    float4 albedo = UvBilinearWrap_c32(tex->texels, tex->size, topUv);
     if (f4_hmax3(albedo) <= (1.0f / 255.0f))
     {
         float2 bottomUv = uv;
         bottomUv.x += duration * 0.05f;
         bottomUv.y += duration * 0.05f;
         bottomUv.x = 0.5f + fmodf(bottomUv.x, 0.5f);
-        albedo = UvWrapPow2_c32(tex->texels, tex->size, bottomUv);
+        albedo = UvBilinearWrap_c32(tex->texels, tex->size, bottomUv);
     }
     return albedo;
 }
@@ -1313,7 +1314,7 @@ pim_inline float4 VEC_CALL GetEmission(
             Texture const *const tex = Texture_Get(mat->albedo);
             if (tex)
             {
-                albedo = UvBilinearWrapPow2_c32(tex->texels, tex->size, uv);
+                albedo = UvBilinearWrap_c32(tex->texels, tex->size, uv);
             }
         }
         float e = 0.0f;
@@ -1321,7 +1322,7 @@ pim_inline float4 VEC_CALL GetEmission(
             Texture const *const tex = Texture_Get(mat->rome);
             if (tex)
             {
-                e = UvBilinearWrapPow2_c32(tex->texels, tex->size, uv).w;
+                e = UvBilinearWrap_c32(tex->texels, tex->size, uv).w;
             }
         }
         return UnpackEmission(albedo, e);
@@ -1336,7 +1337,7 @@ pim_inline float4 VEC_CALL SampleAlbedo(
     Texture const *const pim_noalias tex = Texture_Get(mat->albedo);
     if (tex)
     {
-        value = UvBilinearWrapPow2_c32(tex->texels, tex->size, uv);
+        value = UvBilinearWrap_c32(tex->texels, tex->size, uv);
     }
     return value;
 }
@@ -1349,7 +1350,7 @@ pim_inline float4 VEC_CALL SampleRome(
     Texture const *const pim_noalias tex = Texture_Get(mat->rome);
     if (tex)
     {
-        value = UvBilinearWrapPow2_c32(tex->texels, tex->size, uv);
+        value = UvBilinearWrap_c32(tex->texels, tex->size, uv);
     }
     return value;
 }
@@ -1371,7 +1372,7 @@ pim_inline float4 VEC_CALL SampleNormal(
     Texture const *const pim_noalias tex = Texture_Get(mat->normal);
     if (tex)
     {
-        float4 Nts = UvBilinearWrapPow2_xy16(tex->texels, tex->size, uv);
+        float4 Nts = UvBilinearWrap_xy16(tex->texels, tex->size, uv);
         N = FixShadingNormal(N, TanToWorld(N, Nts));
     }
     return N;
@@ -1533,7 +1534,7 @@ pim_inline float4 VEC_CALL Eval_Specular(
         float NoH = f4_dot3(N, H);
         float HoV = f4_dot3(H, V);
         float pdf = GGXPdf(NoH, HoV, alpha);
-        if (NoH > kEpsilon && HoV > kEpsilon && pdf > kEpsilon)
+        if (pdf > kEpsilon)
         {
             float NoV = f4_dotsat(N, V);
             float f = F_Dielectric(HoV, 1.0f, 1.5f);

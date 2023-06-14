@@ -298,7 +298,7 @@ pim_inline float VEC_CALL f1_gauss(float x, float u, float s)
 // technically a positive-only half-gauss.
 pim_inline float VEC_CALL f1_gauss_invcdf(float p, float u, float s)
 {
-    return u + s * sqrtf(-logf(1.0f - p));
+    return u + s * sqrtf(-logf(f1_max(1.0f - p, kEpsilon)));
 }
 
 // x: random variable

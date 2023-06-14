@@ -311,7 +311,7 @@ pim_inline float VEC_CALL UniformSampleLambertPdf(void)
 pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)
 {
     float d = D_GTR(NoH, alpha);
-    return (HoV > kEpsilon) ? ((d * NoH) / (4.0f * HoV)) : 0.0f;
+    return (d * NoH) / f1_max(4.0f * HoV, kEpsilon);
 }
 
 // returns pdf of an area light that passes the intersection test
@@ -321,7 +321,7 @@ pim_inline float VEC_CALL GGXPdf(float NoH, float HoV, float alpha)
 pim_inline float VEC_CALL LightPdf(float area, float cosTheta, float distSq)
 {
     float t = cosTheta * area;
-    return (t > kEpsilon) ? (distSq / t) : 0.0f;
+    return distSq / f1_max(t, kEpsilon);
 }
 
 pim_inline float2 VEC_CALL SampleGaussPixelFilter(float2 Xi, float stddev)
@@ -339,7 +339,7 @@ pim_inline float2 VEC_CALL SampleGaussPixelFilter(float2 Xi, float stddev)
 // mfp: mean free path, 1 / extinction coefficient
 pim_inline float VEC_CALL SampleFreePath(float Xi, float mfp)
 {
-    return -logf(1.0f - Xi) * mfp;
+    return -logf(f1_max(1.0f - Xi, kEpsilon)) * mfp;
 }
 
 // returns probability of a free path at t

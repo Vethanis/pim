@@ -22,8 +22,6 @@
 
 static Table ms_table;
 
-static void ResizeToPow2(Texture* tex);
-
 static GenId ToGenId(TextureId tid)
 {
     GenId gid;
@@ -132,7 +130,6 @@ bool Texture_New(
         }
         else
         {
-            ResizeToPow2(tex);
             i32 width = tex->size.x;
             i32 height = tex->size.y;
             tex->slot = vkrTexTable_Alloc(
@@ -169,7 +166,6 @@ bool Texture_Upload(TextureId id)
     Texture* tex = Texture_Get(id);
     if (tex)
     {
-        ResizeToPow2(tex);
         i32 width = tex->size.x;
         i32 height = tex->size.y;
         i32 bytes = (width * height * vkrFormatToBpp(tex->format)) / 8;
@@ -307,132 +303,6 @@ bool Texture_Load(Crate* crate, Guid name, TextureId* dst)
 cleanup:
     ProfileEnd(pm_load);
     return loaded;
-}
-
-typedef struct Task_ResizeToPow2
-{
-    Task task;
-    int2 oldSize;
-    int2 newSize;
-    void* pim_noalias src;
-    void* pim_noalias dst;
-} Task_ResizeToPow2;
-
-static void ResizeToPow2Fn_f4(void* pbase, i32 begin, i32 end)
-{
-    Task_ResizeToPow2* task = pbase;
-    int2 oldSize = task->oldSize;
-    int2 newSize = task->newSize;
-    float4* pim_noalias src = task->src;
-    float4* pim_noalias dst = task->dst;
-    for (i32 i = begin; i < end; ++i)
-    {
-        dst[i] = UvBilinearClamp_f4(src, oldSize, IndexToUv(newSize, i));
-    }
-}
-static void ResizeToPow2Fn_c32(void* pbase, i32 begin, i32 end)
-{
-    Task_ResizeToPow2* task = pbase;
-    int2 oldSize = task->oldSize;
-    int2 newSize = task->newSize;
-    R8G8B8A8_t* pim_noalias src = task->src;
-    R8G8B8A8_t* pim_noalias dst = task->dst;
-    for (i32 i = begin; i < end; ++i)
-    {
-        dst[i] = GammaEncode_rgba8(UvBilinearClamp_c32(src, oldSize, IndexToUv(newSize, i)));
-    }
-}
-static void ResizeToPow2Fn_dir8(void* pbase, i32 begin, i32 end)
-{
-    Task_ResizeToPow2* task = pbase;
-    int2 oldSize = task->oldSize;
-    int2 newSize = task->newSize;
-    R8G8B8A8_t* pim_noalias src = task->src;
-    R8G8B8A8_t* pim_noalias dst = task->dst;
-    for (i32 i = begin; i < end; ++i)
-    {
-        dst[i] = DirectionToColor(UvBilinearClamp_dir8(src, oldSize, IndexToUv(newSize, i)));
-    }
-}
-static void ResizeToPow2Fn_xy16(void* pbase, i32 begin, i32 end)
-{
-    Task_ResizeToPow2* task = pbase;
-    int2 oldSize = task->oldSize;
-    int2 newSize = task->newSize;
-    short2* pim_noalias src = task->src;
-    short2* pim_noalias dst = task->dst;
-    for (i32 i = begin; i < end; ++i)
-    {
-        dst[i] = NormalTsToXy16(UvBilinearClamp_xy16(src, oldSize, IndexToUv(newSize, i)));
-    }
-}
-
-ProfileMark(pm_resizepow2, ResizeToPow2)
-static void ResizeToPow2(Texture* tex)
-{
-    ProfileBegin(pm_resizepow2);
-
-    const int2 oldSize = tex->size;
-    const int2 newSize = {
-        .x = NextPow2(oldSize.x),
-        .y = NextPow2(oldSize.y),
-    };
-    if (b2_all(i2_eq(oldSize, newSize)))
-    {
-        goto cleanup;
-    }
-
-    const i32 newLen = newSize.x * newSize.y;
-    Task_ResizeToPow2* task = Temp_Calloc(sizeof(*task));
-    task->src = tex->texels;
-    task->oldSize = oldSize;
-    task->newSize = newSize;
-
-    switch (tex->format)
-    {
-    default:
-        ASSERT(false);
-        break;
-    case VK_FORMAT_R32G32B32A32_SFLOAT:
-    {
-        task->dst = Tex_Alloc(newLen * sizeof(float4));
-        Task_Run(task, ResizeToPow2Fn_f4, newLen);
-        Mem_Free(tex->texels);
-        tex->texels = task->dst;
-        tex->size = newSize;
-    }
-    break;
-    case VK_FORMAT_R8G8B8A8_SRGB:
-    {
-        task->dst = Tex_Alloc(newLen * sizeof(R8G8B8A8_t));
-        Task_Run(task, ResizeToPow2Fn_c32, newLen);
-        Mem_Free(tex->texels);
-        tex->texels = task->dst;
-        tex->size = newSize;
-    }
-    break;
-    case VK_FORMAT_R8G8B8A8_UNORM:
-    {
-        task->dst = Tex_Alloc(newLen * sizeof(R8G8B8A8_t));
-        Task_Run(task, ResizeToPow2Fn_dir8, newLen);
-        Mem_Free(tex->texels);
-        tex->texels = task->dst;
-        tex->size = newSize;
-    }
-    break;
-    case VK_FORMAT_R16G16_SNORM:
-    {
-        task->dst = Tex_Alloc(newLen * sizeof(short2));
-        Task_Run(task, ResizeToPow2Fn_xy16, newLen);
-        Mem_Free(tex->texels);
-        tex->texels = task->dst;
-        tex->size = newSize;
-    }
-    break;
-    }
-
-cleanup:
-    ProfileEnd(pm_resizepow2);
 }
 
 // ----------------------------------------------------------------------------

@@ -220,7 +220,7 @@ pim_inline float VEC_CALL D_GTR(float NoH, float alpha)
     float a2 = alpha * alpha;
     float f = f1_lerp(1.0f, a2, NoH * NoH);
     f = f * f * kPi;
-    return (f > kEpsilon) ? (a2 / f) : 0.0f;
+    return a2 / f1_max(f, kEpsilon);
 }
 
 // Specular 'D' term with SphereNormalization applied
@@ -236,7 +236,7 @@ pim_inline float VEC_CALL D_GTR_Sphere(
     float ap2 = alphaPrime * alphaPrime;
     float f = f1_lerp(1.0f, a2, NoH * NoH);
     f = f * f;
-    return (f > kEpsilon) ? ((a2 * ap2) / f) : 0.0f;
+    return (a2 * ap2) / f1_max(f, kEpsilon);
 }
 
 // Specular 'V' term (G term / denominator)
@@ -249,7 +249,7 @@ pim_inline float VEC_CALL V_SmithCorrelated(float NoL, float NoV, float alpha)
     float v = NoL * sqrtf(f1_max(a2 + (NoV - NoV * a2) * NoV, kEpsilonSq));
     float l = NoV * sqrtf(f1_max(a2 + (NoL - NoL * a2) * NoL, kEpsilonSq));
     float t = v + l;
-    return (t > kEpsilon) ? (0.5f / t) : 0.0f;
+    return 0.5f / f1_max(t, kEpsilon);
 }
 
 // Lambert diffuse brdf

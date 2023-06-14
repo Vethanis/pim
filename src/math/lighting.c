@@ -44,7 +44,7 @@ static void BakeBrdfFn(void* pbase, i32 begin, i32 end)
     Prng* rng = Prng_Get();
     for (i32 iTexel = begin; iTexel < end; ++iTexel)
     {
-        const int2 coord = IndexToCoord(size, iTexel);
+        const int2 coord = EncodeCoord2(size, iTexel);
 
         float2 result = f2_0;
         float sum = 0.0f;
@@ -69,7 +69,7 @@ static void BakeBrdfFn(void* pbase, i32 begin, i32 end)
             float HoV = f4_dot3(H, V);
             float pdf = GGXPdf(NoH, HoV, alpha);
 
-            if ((NoH > kEpsilon) && (NoL > kEpsilon) && (HoV > kEpsilon) && (pdf > kEpsilon))
+            if ((NoL > kEpsilon) && (pdf > kEpsilon))
             {
                 float D = D_GTR(NoH, alpha) / pdf;
                 float G = V_SmithCorrelated(NoL, NoV, alpha);

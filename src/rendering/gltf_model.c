@@ -1403,11 +1403,13 @@ bool ResampleToAlbedoRome(
         const i32 len = size.x * size.y;
         R8G8B8A8_t* pim_noalias albedoTexels = Tex_Alloc(sizeof(albedoTexels[0]) * len);
         R8G8B8A8_t* pim_noalias romeTexels = Tex_Alloc(sizeof(romeTexels[0]) * len);
+        float deltaU = 1.0f / (size.x - 1);
+        float deltaV = 1.0f / (size.y - 1);
         for (i32 y = 0; y < size.y; ++y)
         {
             for (i32 x = 0; x < size.x; ++x)
             {
-                float2 uv = CoordToUv(size, i2_v(x, y));
+                float2 uv = { x * deltaU, y * deltaV };
                 float4 diffuse = UvBilinearClamp_f4(diffuseTex.texels, diffuseTex.size, uv);
                 float4 specular = UvBilinearClamp_f4(specularTex.texels, specularTex.size, uv);
                 float occlusion = UvBilinearClamp_f4(occtex.texels, occtex.size, uv).x;
@@ -1485,7 +1487,7 @@ static cgltf_result Gltf_FileRead(
         return cgltf_result_file_not_found;
     }
 
-    const Guid name = Guid_FromStr(path);
+    const Guid name = Guid_HashStr(path);
 
     i32 fileCount = s_fileHandler.fileCount;
     Guid* pim_noalias names = s_fileHandler.names;

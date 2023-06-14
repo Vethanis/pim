@@ -75,207 +75,123 @@ pim_inline i32 VEC_CALL CalcTileMip(int2 tileSize)
 
 // ----------------------------------------------------------------------------
 
-pim_inline float2 VEC_CALL UvToCoordf(int2 size, float2 uv)
+pim_inline int2 VEC_CALL EncodeCoord2(int2 size, i32 i)
 {
-    return f2_mul(uv, i2_f2(size));
+    int2 coord;
+    coord.x = i % size.x;
+    coord.y = i / size.x;
+    return coord;
 }
-pim_inline int2 VEC_CALL UvToCoord(int2 size, float2 uv)
+pim_inline i32 VEC_CALL DecodeCoord2(int2 size, int2 coord)
 {
-    return f2_i2(UvToCoordf(size, uv));
-}
-
-pim_inline float2 VEC_CALL CoordToUv(int2 size, int2 coord)
-{
-    float2 uv = f2_addvs(i2_f2(coord), 0.5f);
-    return f2_div(uv, i2_f2(size));
+    return size.x * coord.y + coord.x;
 }
 
-pim_inline i32 VEC_CALL CoordToIndex(int2 size, int2 coord)
+pim_inline int3 VEC_CALL EncodeCoord3(int3 size, i32 i)
 {
-    return coord.x + coord.y * size.x;
+    int3 coord;
+    coord.x = i % size.x;
+    coord.y = (i / size.x) % size.y;
+    coord.z = i / (size.x * size.y);
+    return coord;
 }
-pim_inline int2 VEC_CALL IndexToCoord(int2 size, i32 index)
+pim_inline i32 VEC_CALL DecodeCoord3(int3 size, int3 coord)
 {
-    return i2_v(index % size.x, index / size.x);
-}
-
-pim_inline float2 VEC_CALL IndexToUv(int2 size, i32 index)
-{
-    return CoordToUv(size, IndexToCoord(size, index));
-}
-pim_inline i32 VEC_CALL UvToIndex(int2 size, float2 uv)
-{
-    return CoordToIndex(size, UvToCoord(size, uv));
-}
-
-pim_inline int2 VEC_CALL ClampCoord(int2 size, int2 coord)
-{
-    return i2_clamp(coord, i2_0, i2_addvs(size, -1));
-}
-pim_inline int2 VEC_CALL WrapCoord(int2 size, int2 coord)
-{
-    return i2_mod(coord, size);
-}
-pim_inline int2 VEC_CALL WrapCoordPow2(int2 size, int2 coord)
-{
-    int2 result;
-    result.x = coord.x & (size.x - 1);
-    result.y = coord.y & (size.y - 1);
-    return result;
+    return (size.x * size.y) * coord.z + size.x * coord.y + coord.x;
 }
 
 // ----------------------------------------------------------------------------
 
-pim_inline i32 VEC_CALL Clamp(int2 size, int2 coord)
+pim_inline i32 VEC_CALL PointClamp1D(i32 size, float u)
 {
-    return CoordToIndex(size, ClampCoord(size, coord));
+    return (i32)(f1_sat(u) * (size - 1) + 0.5f);
 }
-pim_inline i32 VEC_CALL Wrap(int2 size, int2 coord)
+pim_inline i32 VEC_CALL PointWrap1D(i32 size, float u)
 {
-    return CoordToIndex(size, WrapCoord(size, coord));
+    u = (u >= 0.0f) ? u : (1.0f - u);
+    u = f1_frac(u);
+    return PointClamp1D(size, u);
 }
-pim_inline i32 VEC_CALL WrapPow2(int2 size, int2 coord)
+pim_inline float VEC_CALL PointInvert1D(i32 size, i32 x)
 {
-    return CoordToIndex(size, WrapCoordPow2(size, coord));
-}
-
-pim_inline i32 VEC_CALL UvClamp(int2 size, float2 uv)
-{
-    return Clamp(size, UvToCoord(size, uv));
-}
-pim_inline i32 VEC_CALL UvWrap(int2 size, float2 uv)
-{
-    return Wrap(size, UvToCoord(size, uv));
-}
-pim_inline i32 VEC_CALL UvWrapPow2(int2 size, float2 uv)
-{
-    return WrapPow2(size, UvToCoord(size, uv));
+    return (x + 0.5f) / size;
 }
 
-// ----------------------------------------------------------------------------
+pim_inline int2 VEC_CALL PointClamp2D(int2 size, float2 uv)
+{
+    int2 coord;
+    coord.x = PointClamp1D(size.x, uv.x);
+    coord.y = PointClamp1D(size.y, uv.y);
+    return coord;
+}
+pim_inline int2 VEC_CALL PointWrap2D(int2 size, float2 uv)
+{
+    int2 coord;
+    coord.x = PointWrap1D(size.x, uv.x);
+    coord.y = PointWrap1D(size.y, uv.y);
+    return coord;
+}
+pim_inline float2 VEC_CALL PointInvert2D(int2 size, int2 coord)
+{
+    float2 uv;
+    uv.x = PointInvert1D(size.x, coord.x);
+    uv.y = PointInvert1D(size.y, coord.y);
+    return uv;
+}
 
-pim_inline float4 VEC_CALL Clamp_c32(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, int2 coord)
+pim_inline int3 VEC_CALL PointClamp3D(int3 size, float3 uvw)
 {
-    i32 index = Clamp(size, coord);
-    return GammaDecode_rgba8(buffer[index]);
+    int3 coord;
+    coord.x = PointClamp1D(size.x, uvw.x);
+    coord.y = PointClamp1D(size.y, uvw.y);
+    coord.z = PointClamp1D(size.z, uvw.z);
+    return coord;
 }
-pim_inline float4 VEC_CALL Wrap_c32(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, int2 coord)
+pim_inline int3 VEC_CALL PointWrap3D(int3 size, float3 uvw)
 {
-    i32 index = Wrap(size, coord);
-    return GammaDecode_rgba8(buffer[index]);
+    int3 coord;
+    coord.x = PointWrap1D(size.x, uvw.x);
+    coord.y = PointWrap1D(size.y, uvw.y);
+    coord.z = PointWrap1D(size.z, uvw.z);
+    return coord;
 }
-pim_inline float4 VEC_CALL WrapPow2_c32(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, int2 coord)
+pim_inline float3 VEC_CALL PointInvert3D(int3 size, int3 coord)
 {
-    i32 index = WrapPow2(size, coord);
-    return GammaDecode_rgba8(buffer[index]);
-}
-
-// ----------------------------------------------------------------------------
-
-pim_inline float4 VEC_CALL UvClamp_c32(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    i32 index = UvClamp(size, uv);
-    return GammaDecode_rgba8(buffer[index]);
-}
-pim_inline float4 VEC_CALL UvWrap_c32(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    i32 index = UvWrap(size, uv);
-    return GammaDecode_rgba8(buffer[index]);
-}
-pim_inline float4 VEC_CALL UvWrapPow2_c32(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    i32 index = UvWrapPow2(size, uv);
-    return GammaDecode_rgba8(buffer[index]);
+    float3 uvw;
+    uvw.x = PointInvert1D(size.x, coord.x);
+    uvw.y = PointInvert1D(size.y, coord.y);
+    uvw.z = PointInvert1D(size.z, coord.z);
+    return uvw;
 }
 
 // ----------------------------------------------------------------------------
 
-pim_inline float4 VEC_CALL Clamp_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, int2 coord)
+typedef struct linear_s
 {
-    i32 index = Clamp(size, coord);
-    return ColorToDirection(buffer[index]);
+    i32 a;
+    i32 b;
+    float t;
+} linear_t;
+
+pim_inline linear_t VEC_CALL LinearClamp(i32 size, float u)
+{
+    float x = f1_sat(u) * (size - 1);
+    linear_t f;
+    f.a = (i32)x;
+    f.t = x - (float)f.a;
+    f.b = i1_min(f.a + 1, (size - 1));
+    return f;
 }
-pim_inline float4 VEC_CALL Wrap_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, int2 coord)
+pim_inline linear_t VEC_CALL LinearWrap(i32 size, float u)
 {
-    i32 index = Wrap(size, coord);
-    return ColorToDirection(buffer[index]);
-}
-pim_inline float4 VEC_CALL WrapPow2_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, int2 coord)
-{
-    i32 index = WrapPow2(size, coord);
-    return ColorToDirection(buffer[index]);
+    u = (u >= 0.0f) ? u : (1.0f - u);
+    u = f1_frac(u);
+    return LinearClamp(size, u);
 }
 
-// ----------------------------------------------------------------------------
-
-pim_inline float4 VEC_CALL UvClamp_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
+pim_inline float VEC_CALL LinearInvert(i32 size, i32 x)
 {
-    i32 index = UvClamp(size, uv);
-    return ColorToDirection(buffer[index]);
-}
-pim_inline float4 VEC_CALL UvWrap_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    i32 index = UvWrap(size, uv);
-    return ColorToDirection(buffer[index]);
-}
-pim_inline float4 VEC_CALL UvWrapPow2_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    i32 index = UvWrapPow2(size, uv);
-    return ColorToDirection(buffer[index]);
-}
-
-// ----------------------------------------------------------------------------
-
-pim_inline float4 VEC_CALL Clamp_xy16(
-    short2 const *const pim_noalias buffer, int2 size, int2 coord)
-{
-    i32 index = Clamp(size, coord);
-    return Xy16ToNormalTs(buffer[index]);
-}
-pim_inline float4 VEC_CALL Wrap_xy16(
-    short2 const *const pim_noalias buffer, int2 size, int2 coord)
-{
-    i32 index = Wrap(size, coord);
-    return Xy16ToNormalTs(buffer[index]);
-}
-pim_inline float4 VEC_CALL WrapPow2_xy16(
-    short2 const *const pim_noalias buffer, int2 size, int2 coord)
-{
-    i32 index = WrapPow2(size, coord);
-    return Xy16ToNormalTs(buffer[index]);
-}
-
-// ----------------------------------------------------------------------------
-
-pim_inline float4 VEC_CALL UvClamp_xy16(
-    short2 const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    i32 index = UvClamp(size, uv);
-    return Xy16ToNormalTs(buffer[index]);
-}
-pim_inline float4 VEC_CALL UvWrap_xy16(
-    short2 const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    i32 index = UvWrap(size, uv);
-    return Xy16ToNormalTs(buffer[index]);
-}
-pim_inline float4 VEC_CALL UvWrapPow2_xy16(
-    short2 const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    i32 index = UvWrapPow2(size, uv);
-    return Xy16ToNormalTs(buffer[index]);
+    return (float)x / (float)(size - 1);
 }
 
 // ----------------------------------------------------------------------------
@@ -294,38 +210,29 @@ typedef struct bilinear_s
 pim_inline bilinear_t VEC_CALL BilinearClamp(int2 size, float2 uv)
 {
     bilinear_t b;
-    float2 coordf = UvToCoordf(size, uv);
-    b.frac = f2_frac(coordf);
-    int2 a = f2_i2(coordf);
-    b.a = Clamp(size, a);
-    b.b = Clamp(size, i2_v(a.x + 1, a.y + 0));
-    b.c = Clamp(size, i2_v(a.x + 0, a.y + 1));
-    b.d = Clamp(size, i2_v(a.x + 1, a.y + 1));
+    linear_t x = LinearClamp(size.x, uv.x);
+    linear_t y = LinearClamp(size.y, uv.y);
+    b.frac.x = x.t;
+    b.frac.y = y.t;
+    b.a = y.a * size.x + x.a;
+    b.b = y.a * size.x + x.b;
+    b.c = y.b * size.x + x.a;
+    b.d = y.b * size.x + x.b;
     return b;
 }
 pim_inline bilinear_t VEC_CALL BilinearWrap(int2 size, float2 uv)
 {
-    bilinear_t b;
-    float2 coordf = UvToCoordf(size, uv);
-    b.frac = f2_frac(coordf);
-    int2 a = f2_i2(coordf);
-    b.a = Wrap(size, a);
-    b.b = Wrap(size, i2_v(a.x + 1, a.y + 0));
-    b.c = Wrap(size, i2_v(a.x + 0, a.y + 1));
-    b.d = Wrap(size, i2_v(a.x + 1, a.y + 1));
-    return b;
+    uv.x = (uv.x >= 0.0f) ? uv.x : (1.0f - uv.x);
+    uv.y = (uv.y >= 0.0f) ? uv.y : (1.0f - uv.y);
+    uv = f2_frac(uv);
+    return BilinearClamp(size, uv);
 }
-pim_inline bilinear_t VEC_CALL BilinearWrapPow2(int2 size, float2 uv)
+pim_inline float2 VEC_CALL BilinearInvert(int2 size, int2 coord)
 {
-    bilinear_t b;
-    float2 coordf = UvToCoordf(size, uv);
-    b.frac = f2_frac(coordf);
-    int2 a = f2_i2(coordf);
-    b.a = WrapPow2(size, a);
-    b.b = WrapPow2(size, i2_v(a.x + 1, a.y + 0));
-    b.c = WrapPow2(size, i2_v(a.x + 0, a.y + 1));
-    b.d = WrapPow2(size, i2_v(a.x + 1, a.y + 1));
-    return b;
+    float2 uv;
+    uv.x = LinearInvert(size.x, coord.x);
+    uv.y = LinearInvert(size.y, coord.y);
+    return uv;
 }
 
 // ----------------------------------------------------------------------------
@@ -339,17 +246,6 @@ pim_inline float4 VEC_CALL BilinearBlend_c32(
     float4 cf = GammaDecode_rgba8(c);
     float4 df = GammaDecode_rgba8(d);
     return f4_bilerp(af, bf, cf, df, frac);
-}
-pim_inline float4 VEC_CALL BilinearBlend_dir8(
-    R8G8B8A8_t a, R8G8B8A8_t b, R8G8B8A8_t c, R8G8B8A8_t d,
-    float2 frac)
-{
-    float4 af = ColorToDirection(a);
-    float4 bf = ColorToDirection(b);
-    float4 cf = ColorToDirection(c);
-    float4 df = ColorToDirection(d);
-    float4 res = f4_bilerp(af, bf, cf, df, frac);
-    return f4_normalize3(res);
 }
 pim_inline float4 VEC_CALL BilinearBlend_xy16(
     short2 a, short2 b, short2 c, short2 d,
@@ -409,16 +305,6 @@ pim_inline float4 VEC_CALL Bilinear_c32(
     R8G8B8A8_t const *const pim_noalias buffer, int2 size, bilinear_t bi)
 {
     return BilinearBlend_c32(
-        buffer[bi.a],
-        buffer[bi.b],
-        buffer[bi.c],
-        buffer[bi.d],
-        bi.frac);
-}
-pim_inline float4 VEC_CALL Bilinear_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, bilinear_t bi)
-{
-    return BilinearBlend_dir8(
         buffer[bi.a],
         buffer[bi.b],
         buffer[bi.c],
@@ -491,29 +377,6 @@ pim_inline float4 VEC_CALL UvBilinearWrap_c32(
 {
     return Bilinear_c32(buffer, size, BilinearWrap(size, uv));
 }
-pim_inline float4 VEC_CALL UvBilinearWrapPow2_c32(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    return Bilinear_c32(buffer, size, BilinearWrapPow2(size, uv));
-}
-
-// ----------------------------------------------------------------------------
-
-pim_inline float4 VEC_CALL UvBilinearClamp_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    return Bilinear_dir8(buffer, size, BilinearClamp(size, uv));
-}
-pim_inline float4 VEC_CALL UvBilinearWrap_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    return Bilinear_dir8(buffer, size, BilinearWrap(size, uv));
-}
-pim_inline float4 VEC_CALL UvBilinearWrapPow2_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    return Bilinear_dir8(buffer, size, BilinearWrapPow2(size, uv));
-}
 
 // ----------------------------------------------------------------------------
 
@@ -526,11 +389,6 @@ pim_inline float4 VEC_CALL UvBilinearWrap_xy16(
     short2 const *const pim_noalias buffer, int2 size, float2 uv)
 {
     return Bilinear_xy16(buffer, size, BilinearWrap(size, uv));
-}
-pim_inline float4 VEC_CALL UvBilinearWrapPow2_xy16(
-    short2 const *const pim_noalias buffer, int2 size, float2 uv)
-{
-    return Bilinear_xy16(buffer, size, BilinearWrapPow2(size, uv));
 }
 
 // ----------------------------------------------------------------------------
@@ -750,62 +608,17 @@ pim_inline float4 VEC_CALL TrilinearWrap_c32(
     return f4_lerpvs(s0, s1, mfrac);
 }
 
-pim_inline float4 VEC_CALL TrilinearClamp_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer,
-    int2 size,
-    float2 uv,
-    float mip)
-{
-    i32 m0 = (i32)f1_floor(mip);
-    i32 m1 = (i32)f1_ceil(mip);
-    float mfrac = f1_frac(mip);
-
-    int2 size0 = CalcMipSize(size, m0);
-    int2 size1 = CalcMipSize(size, m1);
-
-    i32 i0 = CalcMipOffset(size, m0);
-    i32 i1 = CalcMipOffset(size, m1);
-
-    float4 s0 = UvBilinearClamp_dir8(buffer + i0, size0, uv);
-    float4 s1 = UvBilinearClamp_dir8(buffer + i1, size1, uv);
-
-    float4 N = f4_lerpvs(s0, s1, mfrac);
-    return f4_normalize3(N);
-}
-pim_inline float4 VEC_CALL TrilinearWrap_dir8(
-    R8G8B8A8_t const *const pim_noalias buffer,
-    int2 size,
-    float2 uv,
-    float mip)
-{
-    i32 m0 = (i32)f1_floor(mip);
-    i32 m1 = (i32)f1_ceil(mip);
-    float mfrac = f1_frac(mip);
-
-    int2 size0 = CalcMipSize(size, m0);
-    int2 size1 = CalcMipSize(size, m1);
-
-    i32 i0 = CalcMipOffset(size, m0);
-    i32 i1 = CalcMipOffset(size, m1);
-
-    float4 s0 = UvBilinearWrap_dir8(buffer + i0, size0, uv);
-    float4 s1 = UvBilinearWrap_dir8(buffer + i1, size1, uv);
-
-    float4 N = f4_lerpvs(s0, s1, mfrac);
-    return f4_normalize3(N);
-}
-
 pim_inline void VEC_CALL Write_f4(
     float4 *const pim_noalias dst, int2 size, int2 coord, float4 src)
 {
-    i32 i = Clamp(size, coord);
+    i32 i = size.x * coord.y + coord.x;
     dst[i] = src;
 }
 
 pim_inline void VEC_CALL Write_c32(
     R8G8B8A8_t *const pim_noalias dst, int2 size, int2 coord, float4 src)
 {
-    i32 i = Clamp(size, coord);
+    i32 i = size.x * coord.y + coord.x;
     dst[i] = GammaEncode_rgba8(src);
 }
 
