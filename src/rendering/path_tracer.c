@@ -2338,7 +2338,7 @@ PtResult VEC_CALL Pt_TraceRay(
         if (hit.type == PtHit_Nothing)
         {
             // TODO: toggle this off for lightmaps, on otherwise.
-            // luminance = f4_add(luminance, f4_mul(attenuation, GetSky(scene, ro, rd)));
+            luminance = f4_add(luminance, f4_mul(attenuation, GetSky(scene, ro, rd)));
             break;
         }
         if ((hit.type == PtHit_Backface) && !(hit.flags & MatFlag_Refractive))

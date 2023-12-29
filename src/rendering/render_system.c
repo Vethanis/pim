@@ -49,6 +49,7 @@
 #include "rendering/exposure.h"
 #include "rendering/mesh.h"
 #include "rendering/material.h"
+#include "rendering/gltf_model.h"
 
 #include "rendering/vulkan/vkr.h"
 #include "rendering/vulkan/vkr_exposure.h"
@@ -1428,32 +1429,39 @@ static cmdstat_t CmdLoadMap(i32 argc, const char** argv)
     Camera_Reset();
 
     bool loaded = false;
+    Con_Logf(LogSev_Info, "cmd", "mapload is loading '%s'.", name);
 
-    char mapname[PIM_PATH] = { 0 };
-    SPrintf(ARGS(mapname), "maps/%s", name);
-    Con_Logf(LogSev_Info, "cmd", "mapload is loading '%s'.", mapname);
-
-    char cratepath[PIM_PATH] = { 0 };
-    SPrintf(ARGS(cratepath), "data/%s.crate", name);
-    Crate* crate = Temp_Alloc(sizeof(*crate));
-    if (Crate_Open(crate, cratepath))
+    const bool useCrate = false;
+    if (useCrate)
     {
-        loaded = true;
-        loaded &= Entities_Load(crate, Entities_Get());
-        loaded &= LmPack_Load(crate, LmPack_Get());
-        loaded &= Crate_Close(crate);
+        char cratepath[PIM_PATH] = { 0 };
+        SPrintf(ARGS(cratepath), "data/%s.crate", name);
+        Crate* crate = Temp_Alloc(sizeof(*crate));
+        if (Crate_Open(crate, cratepath))
+        {
+            loaded = true;
+            loaded &= Entities_Load(crate, Entities_Get());
+            loaded &= LmPack_Load(crate, LmPack_Get());
+            loaded &= Crate_Close(crate);
+        }
+    }
+    else
+    {
+        char gltfPath[PIM_PATH] = { 0 };
+        SPrintf(ARGS(gltfPath), "data/%s/glTF/%s.gltf", name, name);
+        loaded = Gltf_Load(gltfPath, Entities_Get());
     }
 
     if (loaded)
     {
         Entities_UpdateTransforms(Entities_Get());
         Entities_UpdateBounds(Entities_Get());
-        Con_Logf(LogSev_Info, "cmd", "mapload loaded '%s'.", mapname);
+        Con_Logf(LogSev_Info, "cmd", "mapload loaded '%s'.", name);
         return cmdstat_ok;
     }
     else
     {
-        Con_Logf(LogSev_Error, "cmd", "mapload failed to load '%s'.", mapname);
+        Con_Logf(LogSev_Error, "cmd", "mapload failed to load '%s'.", name);
         return cmdstat_err;
     }
 }
@@ -1474,10 +1482,7 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
 
     bool saved = false;
 
-    char mapname[PIM_PATH] = { 0 };
-    SPrintf(ARGS(mapname), "maps/%s", name);
-
-    Con_Logf(LogSev_Info, "cmd", "mapsave is saving '%s'.", mapname);
+    Con_Logf(LogSev_Info, "cmd", "mapsave is saving '%s'.", name);
 
     char cratepath[PIM_PATH] = { 0 };
     SPrintf(ARGS(cratepath), "data/%s.crate", name);
@@ -1492,11 +1497,11 @@ static cmdstat_t CmdSaveMap(i32 argc, const char** argv)
 
     if (saved)
     {
-        Con_Logf(LogSev_Info, "cmd", "mapsave saved '%s'.", mapname);
+        Con_Logf(LogSev_Info, "cmd", "mapsave saved '%s'.", name);
     }
     else
     {
-        Con_Logf(LogSev_Error, "cmd", "mapsave failed to save '%s'.", mapname);
+        Con_Logf(LogSev_Error, "cmd", "mapsave failed to save '%s'.", name);
     }
 
     return saved ? cmdstat_ok : cmdstat_err;

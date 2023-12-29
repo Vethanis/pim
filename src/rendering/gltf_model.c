@@ -27,17 +27,14 @@ static bool CreateScenes(
     const char* basePath,
     const cgltf_data* cgdata,
     Entities* dr);
-static bool CreateScene(
-    const char* basePath,
-    const cgltf_scene* cgscene,
-    Entities* dr);
 static bool CreateNode(
     const char* basePath,
-    const cgltf_scene* cgscene,
+    const char* parentPath,
     const cgltf_node* cgnode,
     Entities* dr);
 static bool CreateMaterial(
     const char* basePath,
+    const char* parentPath,
     const cgltf_material* cgmat,
     Material* matOut);
 static TextureId CreateAlbedoTexture(
@@ -112,8 +109,6 @@ bool Gltf_Load(const char* path, Entities* dr)
     cgltf_data* cgdata = NULL;
     const cgltf_options options =
     {
-        .memory.alloc = Gltf_Alloc,
-        .memory.free = Gltf_Free,
         .file.read = Gltf_FileRead,
         .file.release = Gltf_FileRelease,
         .file.user_data = &s_fileHandler,
@@ -152,7 +147,27 @@ bool Gltf_Load(const char* path, Entities* dr)
     }
 #endif // _DEBUG
 
-    success = CreateScenes(path, cgdata, dr);
+    char basePath[PIM_PATH];
+    StrCpy(ARGS(basePath), path);
+    char* ext = (char*)StrIStr(ARGS(basePath), ".gltf");
+    if (ext)
+    {
+        while (ext >= basePath)
+        {
+            if (IsPathSeparator(*ext))
+            {
+                *ext = 0;
+                break;
+            }
+            --ext;
+        }
+        if (ext < basePath)
+        {
+            basePath[0] = 0;
+        }
+    }
+
+    success = CreateScenes(basePath, cgdata, dr);
 
 cleanup:
     cgltf_free(cgdata);
@@ -189,25 +204,25 @@ static bool CreateScenes(
     const cgltf_data* cgdata,
     Entities* dr)
 {
-    const i32 sceneCount = (i32)cgdata->scenes_count;
-    const cgltf_scene* cgscenes = cgdata->scenes;
-    for (i32 i = 0; i < sceneCount; ++i)
+    for (cgltf_size iScene = 0; iScene < cgdata->scenes_count; ++iScene)
     {
-        CreateScene(basePath, &cgscenes[i], dr);
-    }
-    return true;
-}
+        const cgltf_scene* cgscene = &cgdata->scenes[iScene];
 
-static bool CreateScene(
-    const char* basePath,
-    const cgltf_scene* cgscene,
-    Entities* dr)
-{
-    const i32 nodeCount = (i32)cgscene->nodes_count;
-    const cgltf_node** cgnodes = cgscene->nodes;
-    for (i32 i = 0; i < nodeCount; ++i)
-    {
-        CreateNode(basePath, cgscene, cgnodes[i], dr);
+        char selfPath[PIM_PATH];
+        StrCpy(ARGS(selfPath), basePath);
+        if (cgscene->name)
+        {
+            StrCatf(ARGS(selfPath), "/%s", cgscene->name);
+        }
+        else if (cgdata->scenes_count > 1)
+        {
+            SPrintf(ARGS(selfPath), "%s/%zu", basePath, iScene);
+        }
+
+        for (cgltf_size iNode = 0; iNode < cgscene->nodes_count; ++iNode)
+        {
+            CreateNode(basePath, selfPath, cgscene->nodes[iNode], dr);
+        }
     }
     return true;
 }
@@ -570,7 +585,7 @@ cleanup:
 
 static bool CreateNode(
     const char* basePath,
-    const cgltf_scene* cgscene,
+    const char* parentPath,
     const cgltf_node* cgnode,
     Entities* dr)
 {
@@ -578,12 +593,14 @@ static bool CreateNode(
     {
         return false;
     }
-    const char* name = cgnode->name;
-    if (!name || !name[0])
+    if (!cgnode->name)
     {
         ASSERT(false);
         return false;
     }
+
+    char selfPath[PIM_PATH];
+    SPrintf(ARGS(selfPath), "%s/%s", parentPath, cgnode->name);
 
     const cgltf_mesh* cgmesh = cgnode->mesh;
     if (cgmesh)
@@ -591,17 +608,14 @@ static bool CreateNode(
         float4x4 localToWorld = f4x4_id;
         cgltf_node_transform_world(cgnode, &localToWorld.c0.x);
 
-        char lineageName[PIM_PATH] = { 0 };
-        SPrintf(ARGS(lineageName), "%s/", cgscene->name);
-        CatNodeLineage(ARGS(lineageName), cgnode);
-
-        const i32 primCount = (i32)cgmesh->primitives_count;
-        const cgltf_primitive* cgprims = cgmesh->primitives;
-        for (i32 iPrim = 0; iPrim < primCount; ++iPrim)
+        for (cgltf_size iPrim = 0; iPrim < cgmesh->primitives_count; ++iPrim)
         {
-            char entityName[PIM_PATH] = { 0 };
-            SPrintf(ARGS(entityName), "%s_%d", lineageName, iPrim);
-            Guid guid = Guid_FromStr(entityName);
+            const cgltf_primitive* cgprim = &cgmesh->primitives[iPrim];
+
+            char primPath[PIM_PATH];
+            SPrintf(ARGS(primPath), "%s/%s_%d", selfPath, cgmesh->name, iPrim);
+
+            Guid guid = Guid_FromStr(primPath);
             if (Entities_Find(dr, guid) >= 0)
             {
                 ASSERT(false);
@@ -609,13 +623,7 @@ static bool CreateNode(
             }
 
             MeshId meshId = { 0 };
-            char meshName[PIM_PATH] = { 0 };
-            SPrintf(ARGS(meshName), "%s/%s/%s",
-                ShortenString(basePath, 64),
-                ShortenString(cgscene->name, 64),
-                ShortenString(cgmesh->name, 64));
-            StrPath(ARGS(meshName));
-            if (!CreateMesh(meshName, &cgprims[iPrim], &meshId))
+            if (!CreateMesh(primPath, cgprim, &meshId))
             {
                 continue;
             }
@@ -633,17 +641,15 @@ static bool CreateNode(
             dr->matrices[iDrawable] = localToWorld;
 
             Material mat = { 0 };
-            CreateMaterial(basePath, cgprims[iPrim].material, &mat);
+            CreateMaterial(basePath, selfPath, cgprim->material, &mat);
             dr->materials[iDrawable] = mat;
 
         }
     }
 
-    const i32 childCount = (i32)cgnode->children_count;
-    cgltf_node** children = cgnode->children;
-    for (i32 iChild = 0; iChild < childCount; ++iChild)
+    for (cgltf_size iChild = 0; iChild < cgnode->children_count; ++iChild)
     {
-        CreateNode(basePath, cgscene, children[iChild], dr);
+        CreateNode(basePath, selfPath, cgnode->children[iChild], dr);
     }
 
     return true;
@@ -653,6 +659,7 @@ static bool CreateNode(
 
 static bool CreateMaterial(
     const char* basePath,
+    const char* parentPath,
     const cgltf_material* cgmat,
     Material* matOut)
 {
@@ -661,14 +668,11 @@ static bool CreateMaterial(
         return false;
     }
     char const* const name = cgmat->name;
-    if (!name || !name[0])
+    if (!name)
     {
         ASSERT(false);
         return false;
     }
-    char fullName[PIM_PATH] = { 0 };
-    SPrintf(ARGS(fullName), "%s/%s", ShortenString(basePath, 120), ShortenString(name, 64));
-    StrPath(ARGS(fullName));
 
     // TODO: Cache imported materials for reuse
 
@@ -875,6 +879,7 @@ static bool ResampleToSrgb(Texture* tex)
         }
         Mem_Free(tex->texels);
         tex->texels = dst;
+        tex->format = VK_FORMAT_R8G8B8A8_SRGB;
         return true;
     }
     return false;
@@ -1118,13 +1123,13 @@ static TextureId CreateRomeTexture(
         size = pim_min(size, 2048);
 
         const i32 len = size * size;
-        const float rcpSize = 1.0f / size;
+        const float rcpSize = 1.0f / (size - 1);
         R8G8B8A8_t* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
         for (i32 y = 0; y < size; ++y)
         {
             for (i32 x = 0; x < size; ++x)
             {
-                float2 uv = { (x + 0.5f) * rcpSize, (y + 0.5f) * rcpSize };
+                float2 uv = { x * rcpSize, y * rcpSize };
                 float4 rome = f4_0;
                 {
                     float4 mr = UvBilinearClamp_f4(mrtex.texels, mrtex.size, uv);
@@ -1189,6 +1194,10 @@ static TextureId CreateNormalTexture(
     {
         return id;
     }
+    if (tex.format == VK_FORMAT_R8G8B8A8_SRGB)
+    {
+        tex.format = VK_FORMAT_R8G8B8A8_UNORM;
+    }
     if (!ResampleTextureToFloat4(&tex))
     {
         Mem_Free(tex.texels);
@@ -1200,7 +1209,7 @@ static TextureId CreateNormalTexture(
         ASSERT(size > 0);
         size = NextPow2(size);
         size = pim_min(size, 2048);
-        const float rcpSize = 1.0f / size;
+        const float rcpSize = 1.0f / (size - 1);
         const float4* pim_noalias src = tex.texels;
         const i32 len = size * size;
         short2* pim_noalias dst = Tex_Alloc(sizeof(dst[0]) * len);
@@ -1217,7 +1226,7 @@ static TextureId CreateNormalTexture(
             {
                 for (i32 x = 0; x < size; ++x)
                 {
-                    float2 uv = { (x + 0.5f) * rcpSize, (y + 0.5f) * rcpSize };
+                    float2 uv = { x * rcpSize, y * rcpSize };
                     float4 sample = UvBilinearClamp_f4(src, tex.size, uv);
                     i32 index = x + y * size;
                     dst[index] = NormalTsToXy16(f4_snorm(sample));
@@ -1540,6 +1549,10 @@ static void Gltf_FileRelease(
     const cgltf_file_options* file_options,
     void* data)
 {
+    if (!data)
+    {
+        return;
+    }
     i32 fileCount = s_fileHandler.fileCount;
     Guid* pim_noalias names = s_fileHandler.names;
     FileMap* pim_noalias files = s_fileHandler.files;
