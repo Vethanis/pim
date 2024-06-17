@@ -82,25 +82,6 @@ bool vkrDepthPass_New(void)
         goto cleanup;
     }
 
-    const VkVertexInputBindingDescription vertBindings[] =
-    {
-        // positionOS
-        {
-            .binding = 0,
-            .stride = sizeof(float4),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-        },
-    };
-    const VkVertexInputAttributeDescription vertAttributes[] =
-    {
-        // positionOS
-        {
-            .binding = 0,
-            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-            .location = 0,
-        },
-    };
-
     const vkrPassDesc desc =
     {
         .pushConstantBytes = sizeof(PushConstants),
@@ -108,13 +89,6 @@ bool vkrDepthPass_New(void)
         .shaders = shaders,
         .renderPass = ms_renderPass,
         .subpass = 0,
-        .vertLayout =
-        {
-            .bindingCount = NELEM(vertBindings),
-            .bindings = vertBindings,
-            .attributeCount = NELEM(vertAttributes),
-            .attributes = vertAttributes,
-        },
         .fixedFuncs =
         {
             .viewport = vkrSwapchain_GetViewport(),

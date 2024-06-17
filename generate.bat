@@ -2,5 +2,3 @@ mkdir build
 cd build
 cmake .. -G "Visual Studio 17 2022" -T ClangCL -A x64
 cd ..
-cmake --build build --config Debug
-cmake --build build --config Release

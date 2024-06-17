@@ -238,9 +238,9 @@ static void con_gui(void)
         igSeparator();
         const float curHeight = igGetStyle()->ItemSpacing.y + igGetFrameHeightWithSpacing();
         const u32 childFlags = ImGuiWindowFlags_AlwaysVerticalScrollbar;
-        igBeginChildStr("ScrollRegion", (ImVec2) { 0.0f, -curHeight }, false, childFlags);
+        igBeginChild_Str("ScrollRegion", (ImVec2) { 0.0f, -curHeight }, false, childFlags);
         {
-            igPushStyleVarVec2(ImGuiStyleVar_ItemSpacing, (ImVec2) { 4.0f, 1.0f });
+            igPushStyleVar_Vec2(ImGuiStyleVar_ItemSpacing, (ImVec2) { 4.0f, 1.0f });
             if (logToClipboard)
             {
                 igExLogToClipboard();
@@ -259,7 +259,7 @@ static void con_gui(void)
                 const u32 color = colors[j];
                 if (line)
                 {
-                    igPushStyleColorU32(ImGuiCol_Text, color);
+                    igPushStyleColor_U32(ImGuiCol_Text, color);
                     igTextUnformatted(line, NULL);
                     igPopStyleColor(1);
                 }

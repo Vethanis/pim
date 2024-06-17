@@ -109,73 +109,11 @@ bool vkrOpaquePass_New(void)
         goto cleanup;
     }
 
-    const VkVertexInputBindingDescription vertBindings[] =
-    {
-        // positionWS
-        {
-            .binding = 0,
-            .stride = sizeof(float4),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-        },
-        // normalWS and lightmap index
-        {
-            .binding = 1,
-            .stride = sizeof(float4),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-        },
-        // uv0 and uv1
-        {
-            .binding = 2,
-            .stride = sizeof(float4),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-        },
-        // texture indices
-        {
-            .binding = 3,
-            .stride = sizeof(int4),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-        },
-    };
-    const VkVertexInputAttributeDescription vertAttributes[] =
-    {
-        // positionOS
-        {
-            .binding = 0,
-            .location = 0,
-            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-        },
-        // normalOS and lightmap index
-        {
-            .binding = 1,
-            .location = 1,
-            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-        },
-        // uv0 and uv1
-        {
-            .binding = 2,
-            .location = 2,
-            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-        },
-        // texture indices
-        {
-            .binding = 3,
-            .location = 3,
-            .format = VK_FORMAT_R32G32B32A32_UINT,
-        }
-    };
-
     const vkrPassDesc desc =
     {
         .pushConstantBytes = sizeof(PushConstants),
         .renderPass = ms_renderPass,
         .subpass = 0,
-        .vertLayout =
-        {
-            .bindingCount = NELEM(vertBindings),
-            .bindings = vertBindings,
-            .attributeCount = NELEM(vertAttributes),
-            .attributes = vertAttributes,
-        },
         .fixedFuncs =
         {
             .viewport = vkrSwapchain_GetViewport(),

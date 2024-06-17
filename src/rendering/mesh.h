@@ -26,6 +26,7 @@ typedef struct Mesh_s
 {
     float4* pim_noalias positions;
     float4* pim_noalias normals;
+    float4* pim_noalias tangents;
     float4* pim_noalias uvs;
     int4* pim_noalias texIndices;
     i32 length;

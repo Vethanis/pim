@@ -79,7 +79,6 @@ bool vkrPass_New(vkrPass *const pass, vkrPassDesc const *const desc)
         ASSERT(desc->shaderCount == 2);
         pass->pipeline = vkrPipeline_NewGfx(
             &desc->fixedFuncs,
-            &desc->vertLayout,
             pass->layout,
             desc->renderPass,
             desc->subpass,

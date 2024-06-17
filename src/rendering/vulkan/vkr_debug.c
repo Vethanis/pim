@@ -35,7 +35,7 @@ void vkrDestroyDebugMessenger(VkDebugUtilsMessengerEXT messenger)
 #endif // VKR_DEBUG_MESSENGER_ON
 }
 
-static VKAPI_ATTR VkBool32 VKAPI_CALL vkrOnVulkanMessage(
+VKAPI_ATTR VkBool32 VKAPI_CALL vkrOnVulkanMessage(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,

@@ -89,8 +89,8 @@ void AudioSys_Init(void)
         .num_channels = 2,
         .sample_rate = 44100,
         .stream_cb = OnAudioPacketFn,
-        .allocator.alloc = AudioAlloc,
-        .allocator.free = AudioFree,
+        .allocator.alloc_fn = AudioAlloc,
+        .allocator.free_fn = AudioFree,
     };
     saudio_setup(&desc);
     ms_sampleRate = saudio_sample_rate();
@@ -132,7 +132,7 @@ void AudioSys_Gui(bool* pEnabled)
     if (igBegin("Audio", pEnabled, 0))
     {
 
-        if (igTreeNodeStr("Midi Devices"))
+        if (igTreeNode_Str("Midi Devices"))
         {
             const i32 portCount = Midi_DeviceCount();
             if (portCount > ms_midiCount)
@@ -175,7 +175,7 @@ void AudioSys_Gui(bool* pEnabled)
             igTreePop(); // Midi Devices
         }
 
-        if (igTreeNodeStr("Audio Events"))
+        if (igTreeNode_Str("Audio Events"))
         {
             igText("Current Tick: %u", load_u32(&ms_tick, MO_Acquire));
 

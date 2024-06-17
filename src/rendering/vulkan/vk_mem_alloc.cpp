@@ -3,4 +3,10 @@
 #define VMA_ASSERT                      ASSERT
 #define VMA_STATIC_VULKAN_FUNCTIONS     0
 #define VMA_IMPLEMENTATION              1
-#include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
+
+#if COMPILER_CLANG
+#pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wunused-variable"
+#endif
+
+#include "VulkanMemoryAllocator/include/vk_mem_alloc.h"

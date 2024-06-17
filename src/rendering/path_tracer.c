@@ -62,7 +62,6 @@ typedef struct PtSurfHit_s
     float4 N; // micro normal
     float4 albedo;
     float4 emission;
-    float4 meanFreePath;
     float roughness;
     float occlusion;
     float metallic;
@@ -131,6 +130,9 @@ typedef struct PtScene_s
     // xyz: vertex normal
     // [vertCount]
     float4* pim_noalias normals;
+    // xyz: vertex tangent
+    // [vertCount]
+    float4* pim_noalias tangents;
     //  xy: texture coordinate
     // [vertCount]
     float2* pim_noalias uvs;
@@ -490,38 +492,6 @@ pim_inline RTCRayHit VEC_CALL RtcIntersect(
 }
 
 // ros[i].w = tNear
-// rds[i].w = tFar
-pim_inline RTCRayHit16 VEC_CALL RtcIntersect16(
-    RTCScene scene,
-    const float4* pim_noalias ros,
-    const float4* pim_noalias rds)
-{
-    RTCRayHit16 rayHit = { 0 };
-    RTCIntersectContext ctx = { 0 };
-    rtcInitIntersectContext(&ctx);
-    i32 valid[16] = { 0 };
-    for (i32 i = 0; i < 16; ++i)
-    {
-        rayHit.ray.org_x[i] = ros[i].x;
-        rayHit.ray.org_y[i] = ros[i].y;
-        rayHit.ray.org_z[i] = ros[i].z;
-        rayHit.ray.tnear[i] = ros[i].w;
-        rayHit.ray.dir_x[i] = rds[i].x;
-        rayHit.ray.dir_y[i] = rds[i].y;
-        rayHit.ray.dir_z[i] = rds[i].z;
-        rayHit.ray.tfar[i] = rds[i].w;
-        rayHit.ray.mask[i] = -1;
-        rayHit.ray.flags[i] = 0;
-        rayHit.hit.primID[i] = RTC_INVALID_GEOMETRY_ID;
-        rayHit.hit.geomID[i] = RTC_INVALID_GEOMETRY_ID;
-        rayHit.hit.instID[0][i] = RTC_INVALID_GEOMETRY_ID;
-        valid[i] = -1;
-    }
-    rtc.Intersect16(valid, scene, &ctx, &rayHit);
-    return rayHit;
-}
-
-// ros[i].w = tNear
 // rds[i].w = tFar (place at least 1 millimeter before surface)
 // on miss (visible): tFar unchanged
 // on hit (occluded): tFar < 0
@@ -718,6 +688,7 @@ static void FlattenDrawables(
     i32 vertCount = 0;
     float4* positions = Perm_Calloc(sizeof(positions[0]) * vertCap);
     float4* normals = Perm_Calloc(sizeof(normals[0]) * vertCap);
+    float4* tangents = Perm_Calloc(sizeof(tangents[0]) * vertCap);
     float2* uvs = Perm_Calloc(sizeof(uvs[0]) * vertCap);
     i32* matIds = Perm_Calloc(sizeof(matIds[0]) * vertCap);
 
@@ -735,6 +706,7 @@ static void FlattenDrawables(
         const i32 meshLen = mesh->length;
         const float4* pim_noalias meshPositions = mesh->positions;
         const float4* pim_noalias meshNormals = mesh->normals;
+        const float4* pim_noalias meshTangents = mesh->tangents;
         const float4* pim_noalias meshUvs = mesh->uvs;
 
         const i32 vertBack = vertCount;
@@ -754,6 +726,11 @@ static void FlattenDrawables(
         for (i32 j = 0; j < meshLen; ++j)
         {
             normals[vertBack + j] = f4_normalize3(f3x3_mul_col(IM, meshNormals[j]));
+        }
+
+        for (i32 j = 0; j < meshLen; ++j)
+        {
+            tangents[vertBack + j] = f4_normalize3(f3x3_mul_col(IM, meshTangents[j]));
         }
 
         for (i32 j = 0; (j + 3) <= meshLen; j += 3)
@@ -778,6 +755,7 @@ static void FlattenDrawables(
     scene->vertCount = vertCount;
     scene->positions = positions;
     scene->normals = normals;
+    scene->tangents = tangents;
     scene->uvs = uvs;
     scene->matIds = matIds;
 
@@ -1063,6 +1041,7 @@ static void PtScene_Clear(PtScene* scene)
 
     Mem_Free(scene->positions);
     Mem_Free(scene->normals);
+    Mem_Free(scene->tangents);
     Mem_Free(scene->uvs);
     Mem_Free(scene->matIds);
     Mem_Free(scene->vertToEmit);
@@ -1242,45 +1221,6 @@ pim_inline const Material* pim_noalias VEC_CALL GetMaterial(
     return &scene->materials[matIndex];
 }
 
-pim_inline float4 VEC_CALL TriplaneBlending(float4 dir)
-{
-    float4 a = f4_abs(dir);
-    return f4_divvs(a, a.x + a.y + a.z + kEpsilon);
-}
-
-pim_inline float4 VEC_CALL SampleSkyTex(
-    const Texture* pim_noalias tex,
-    float2 uv)
-{
-    float duration = kTau;// (float)Time_Sec(Time_FrameStart() - Time_AppStart());
-    float2 topUv = uv;
-    topUv.x += duration * 0.1f;
-    topUv.y += duration * 0.1f;
-    topUv.x = fmodf(topUv.x, 0.5f);
-    float4 albedo = UvBilinearWrap_c32(tex->texels, tex->size, topUv);
-    if (f4_hmax3(albedo) <= (1.0f / 255.0f))
-    {
-        float2 bottomUv = uv;
-        bottomUv.x += duration * 0.05f;
-        bottomUv.y += duration * 0.05f;
-        bottomUv.x = 0.5f + fmodf(bottomUv.x, 0.5f);
-        albedo = UvBilinearWrap_c32(tex->texels, tex->size, bottomUv);
-    }
-    return albedo;
-}
-
-pim_inline float4 VEC_CALL TriplaneSampleSkyTex(
-    const Texture* pim_noalias tex,
-    float4 dir,
-    float4 pos)
-{
-    float4 b = TriplaneBlending(dir);
-    float4 x = f4_mulvs(SampleSkyTex(tex, f2_v(pos.z, pos.y)), b.x);
-    float4 y = f4_mulvs(SampleSkyTex(tex, f2_v(pos.x, pos.z)), b.y);
-    float4 z = f4_mulvs(SampleSkyTex(tex, f2_v(pos.x, pos.y)), b.z);
-    return f4_add(x, f4_add(y, z));
-}
-
 pim_inline float4 VEC_CALL GetSky(
     const PtScene* pim_noalias scene,
     float4 ro,
@@ -1355,29 +1295,6 @@ pim_inline float4 VEC_CALL SampleRome(
     return value;
 }
 
-// M: geometry normal
-// N: shading normal
-pim_inline float4 VEC_CALL FixShadingNormal(float4 M, float4 N)
-{
-    N = (f4_dot3(M, N) > 0.0f) ? N : f4_reflect3(N, M);
-    ASSERT(IsUnitLength(N));
-    return N;
-}
-
-pim_inline float4 VEC_CALL SampleNormal(
-    const Material* pim_noalias mat,
-    float2 uv,
-    float4 N)
-{
-    Texture const *const pim_noalias tex = Texture_Get(mat->normal);
-    if (tex)
-    {
-        float4 Nts = UvBilinearWrap_xy16(tex->texels, tex->size, uv);
-        N = FixShadingNormal(N, TanToWorld(N, Nts));
-    }
-    return N;
-}
-
 pim_inline PtSurfHit VEC_CALL GetSurface(
     const PtScene* pim_noalias scene,
     float4 ro,
@@ -1395,7 +1312,6 @@ pim_inline PtSurfHit VEC_CALL GetSurface(
     surf.N = surf.M;
     surf.P = GetPosition(scene, hit);
     surf.P = f4_add(surf.P, f4_mulvs(surf.M, 0.01f * kMilli));
-    surf.meanFreePath = mat->meanFreePath;
 
     if (hit.flags & MatFlag_Sky)
     {
@@ -1410,7 +1326,13 @@ pim_inline PtSurfHit VEC_CALL GetSurface(
     }
     else
     {
-        surf.N = SampleNormal(mat, uv, surf.N);
+        // TODO: mesh tangents
+        //Texture const* const pim_noalias nTex = Texture_Get(mat->normal);
+        //if (nTex)
+        //{
+        //    float4 Nts = UvBilinearWrap_xy16(nTex->texels, nTex->size, uv);
+        //}
+        //surf.N = SampleNormal(mat, uv, surf.N);
         surf.albedo = SampleAlbedo(mat, uv);
         float4 rome = SampleRome(mat, uv);
         surf.emission = UnpackEmission(surf.albedo, rome.w);
@@ -1531,8 +1453,8 @@ pim_inline float4 VEC_CALL Eval_Specular(
         float alpha = BrdfAlpha(surf->roughness);
         float4 V = f4_neg(I);
         float4 H = f4_normalize3(f4_add(V, L));
-        float NoH = f4_dot3(N, H);
-        float HoV = f4_dot3(H, V);
+        float NoH = f4_dotsat(N, H);
+        float HoV = f4_dotsat(H, V);
         float pdf = GGXPdf(NoH, HoV, alpha);
         if (pdf > kEpsilon)
         {
@@ -1560,7 +1482,6 @@ pim_inline PtScatter VEC_CALL Scatter_Specular(
     PtScatter result = { 0 };
     float4 m = SampleGGXMicrofacet(Sample2D(ctx), BrdfAlpha(surf->roughness));
     m = TanToWorld(surf->N, m);
-    m = FixShadingNormal(surf->M, m);
     result.dir = f4_reflect3(I, m);
     result.attenuation = Eval_Specular(scene, surf, I, result.dir);
     result.pdf = result.attenuation.w;
@@ -1590,7 +1511,6 @@ pim_inline PtScatter VEC_CALL Scatter_Refractive(
     float4 V = f4_neg(I);
     float4 M = surf->M;
     float4 m = TanToWorld(surf->N, SampleGGXMicrofacet(Sample2D(ctx), alpha));
-    m = FixShadingNormal(M, m);
     bool entering = surf->type != PtHit_Backface;
 
     float cosThetaI = f1_sat(f1_abs(f4_dot3(V, m)));
@@ -1659,16 +1579,15 @@ pim_inline float4 VEC_CALL Eval_Principled(
     {
         return f4_0;
     }
-    float amtA = f1_lerp(0.5f, 1.0f, surf->metallic);
-    float amtB = 1.0f - amtA;
-    float4 evalA = Eval_Specular(scene, surf, I, L);
-    float4 evalB = f4_0;
-    if (amtB > kEpsilon)
+    float amtSpec = f1_lerp(0.5f, 1.0f, surf->metallic);
+    float amtDiffuse = 1.0f - amtSpec;
+    float4 result = Eval_Specular(scene, surf, I, L);
+    if (amtDiffuse > kEpsilon)
     {
-        evalB = Eval_Diffuse(scene, surf, I, L);
-        evalA = f4_lerpvs(evalA, evalB, amtB);
+        float4 diffuse = Eval_Diffuse(scene, surf, I, L);
+        result = f4_lerpvs(result, diffuse, amtDiffuse);
     }
-    return evalA;
+    return result;
 }
 
 pim_inline PtScatter VEC_CALL Scatter_Principled(
@@ -2337,12 +2256,7 @@ PtResult VEC_CALL Pt_TraceRay(
         PtRayHit hit = pt_intersect_local(scene, ro, rd, 0.0f, kRcpEpsilon);
         if (hit.type == PtHit_Nothing)
         {
-            // TODO: toggle this off for lightmaps, on otherwise.
             luminance = f4_add(luminance, f4_mul(attenuation, GetSky(scene, ro, rd)));
-            break;
-        }
-        if ((hit.type == PtHit_Backface) && !(hit.flags & MatFlag_Refractive))
-        {
             break;
         }
 

@@ -369,11 +369,11 @@ void EntSys_Gui(bool* enabled)
         bool modified = false;
         for (i32 iDrawable = 0; iDrawable < dr->count; ++iDrawable)
         {
-            igPushIDInt(iDrawable);
+            igPushID_Int(iDrawable);
             char name[PIM_PATH] = { 0 };
             Guid_GetName(dr->names[iDrawable], ARGS(name));
 
-            if (igTreeNodeStr(name))
+            if (igTreeNode_Str(name))
             {
                 modified |= EntSys_MaterialGui(dr, iDrawable);
                 igTreePop();
@@ -395,7 +395,7 @@ void EntSys_Gui(bool* enabled)
 static bool EntSys_MaterialGui(Entities* dr, i32 iDrawable)
 {
     bool modified = false;
-    if (igTreeNodeStr("Material"))
+    if (igTreeNode_Str("Material"))
     {
         Material* mat = &dr->materials[iDrawable];
 

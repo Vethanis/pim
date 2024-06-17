@@ -282,7 +282,7 @@ static void VisitGui(const node_t* node)
             igText("%4.1f%%", rootPct); igNextColumn();
             igText("%4.1f%%", parentPct); igNextColumn();
 
-            igTreePushPtr((void*)(node->hash));
+            igTreePush_Ptr((void*)(node->hash));
             if (node->depth < kDepthLimit)
             {
                 VisitGui(node->fchild);

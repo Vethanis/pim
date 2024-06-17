@@ -7,7 +7,7 @@ PIM_C_BEGIN
 VkDebugUtilsMessengerEXT vkrCreateDebugMessenger(void);
 void vkrDestroyDebugMessenger(VkDebugUtilsMessengerEXT messenger);
 
-static VKAPI_ATTR VkBool32 VKAPI_CALL vkrOnVulkanMessage(
+VKAPI_ATTR VkBool32 VKAPI_CALL vkrOnVulkanMessage(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,

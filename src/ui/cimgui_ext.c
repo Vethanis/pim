@@ -81,11 +81,11 @@ bool igExLogSliderFloat4(const char* label, float x[4], float lo, float hi)
 
 bool igExCollapsingHeader1(const char* label)
 {
-    return igCollapsingHeaderTreeNodeFlags(label, 0x0);
+    return igCollapsingHeader_TreeNodeFlags(label, 0x0);
 }
 bool igExCollapsingHeader2(const char* label, bool* pVisible)
 {
-    return igCollapsingHeaderBoolPtr(label, pVisible, 0x0);
+    return igCollapsingHeader_BoolPtr(label, pVisible, 0x0);
 }
 void igExSetNextWindowPos(ImVec2 pos, ImGuiCond_ cond)
 {

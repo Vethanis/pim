@@ -47,6 +47,7 @@ static void FreeMesh(Mesh *const mesh)
     vkrMesh_Del(mesh->id);
     Mem_Free(mesh->positions);
     Mem_Free(mesh->normals);
+    Mem_Free(mesh->tangents);
     Mem_Free(mesh->uvs);
     Mem_Free(mesh->texIndices);
     memset(mesh, 0, sizeof(*mesh));
@@ -83,6 +84,7 @@ bool Mesh_New(Mesh *const mesh, Guid name, MeshId *const idOut)
     ASSERT((mesh->length % 3) == 0);
     ASSERT(mesh->positions);
     ASSERT(mesh->normals);
+    ASSERT(mesh->tangents);
     ASSERT(mesh->uvs);
     ASSERT(mesh->texIndices);
 
@@ -93,7 +95,7 @@ bool Mesh_New(Mesh *const mesh, Guid name, MeshId *const idOut)
         added = Table_Add(&ms_table, name, mesh, &id);
         if (added)
         {
-            vkrMeshId vkId = vkrMesh_New(mesh->length, mesh->positions, mesh->normals, mesh->uvs, mesh->texIndices);
+            vkrMeshId vkId = vkrMesh_New(mesh->length, mesh->positions, mesh->normals, mesh->tangents, mesh->uvs, mesh->texIndices);
             Mesh* pim_noalias meshes = ms_table.values;
             meshes[id.index].id = vkId;
             if (!vkrMesh_Exists(vkId))
@@ -171,7 +173,7 @@ bool Mesh_Upload(MeshId id)
     Mesh* mesh = Mesh_Get(id);
     if (mesh)
     {
-        return vkrMesh_Upload(mesh->id, mesh->length, mesh->positions, mesh->normals, mesh->uvs, mesh->texIndices);
+        return vkrMesh_Upload(mesh->id, mesh->length, mesh->positions, mesh->normals, mesh->tangents, mesh->uvs, mesh->texIndices);
     }
     return false;
 }
@@ -186,19 +188,22 @@ bool Mesh_Save(Crate *const crate, MeshId id, Guid *const dst)
         const i32 hdrBytes = sizeof(DiskMesh);
         const i32 positionBytes = sizeof(mesh.positions[0]) * len;
         const i32 normalBytes = sizeof(mesh.normals[0]) * len;
+        const i32 tangentBytes = sizeof(mesh.tangents[0]) * len;
         const i32 uvBytes = sizeof(mesh.uvs[0]) * len;
         const i32 texIndBytes = sizeof(mesh.texIndices[0]) * len;
-        const i32 totalBytes = hdrBytes + positionBytes + normalBytes + uvBytes + texIndBytes;
+        const i32 totalBytes = hdrBytes + positionBytes + normalBytes + tangentBytes + uvBytes + texIndBytes;
         DiskMesh* dmesh = Perm_Alloc(totalBytes);
         dmesh->version = kMeshVersion;
         dmesh->length = len;
         Guid_GetName(*dst, ARGS(dmesh->name));
         float4* positions = (float4*)(dmesh + 1);
         float4* normals = positions + len;
-        float4* uvs = normals + len;
+        float4* tangents = normals + len;
+        float4* uvs = tangents + len;
         int4* texIndices = (int4*)(uvs + len);
         memcpy(positions, mesh.positions, positionBytes);
         memcpy(normals, mesh.normals, normalBytes);
+        memcpy(tangents, mesh.tangents, tangentBytes);
         memcpy(uvs, mesh.uvs, uvBytes);
         memcpy(texIndices, mesh.texIndices, texIndBytes);
         bool wasSet = Crate_Set(crate, *dst, dmesh, totalBytes);
@@ -234,15 +239,18 @@ bool Mesh_Load(Crate *const crate, Guid name, MeshId *const dst)
                     mesh.length = len;
                     mesh.positions = Perm_Alloc(sizeof(mesh.positions[0]) * mesh.length);
                     mesh.normals = Perm_Alloc(sizeof(mesh.normals[0]) * mesh.length);
+                    mesh.tangents = Perm_Alloc(sizeof(mesh.tangents[0]) * mesh.length);
                     mesh.uvs = Perm_Alloc(sizeof(mesh.uvs[0]) * mesh.length);
                     mesh.texIndices = Perm_Alloc(sizeof(mesh.texIndices[0]) * mesh.length);
 
                     float4* positions = (float4*)(dmesh + 1);
                     float4* normals = positions + len;
-                    float4* uvs = normals + len;
+                    float4* tangents = normals + len;
+                    float4* uvs = tangents + len;
                     int4* texIndices = (int4*)(uvs + len);
                     memcpy(mesh.positions, positions, sizeof(mesh.positions[0]) * len);
                     memcpy(mesh.normals, normals, sizeof(mesh.normals[0]) * len);
+                    memcpy(mesh.tangents, tangents, sizeof(mesh.tangents[0]) * len);
                     memcpy(mesh.uvs, uvs, sizeof(mesh.uvs[0]) * len);
                     memcpy(mesh.texIndices, texIndices, sizeof(mesh.texIndices[0]) * len);
                     loaded = Mesh_New(&mesh, name, dst);
@@ -340,6 +348,7 @@ void MeshSys_Gui(bool* pEnabled)
                 bytesUsed += sizeof(meshes[0]);
                 bytesUsed += length * sizeof(meshes[0].positions[0]);
                 bytesUsed += length * sizeof(meshes[0].normals[0]);
+                bytesUsed += length * sizeof(meshes[0].tangents[0]);
                 bytesUsed += length * sizeof(meshes[0].uvs[0]);
                 bytesUsed += length * sizeof(meshes[0].texIndices[0]);
             }
@@ -405,7 +414,7 @@ void MeshSys_Gui(bool* pEnabled)
             igText("%d", length); igNextColumn();
             igText("%d", refcount); igNextColumn();
             const char* selectText = selection == j ? "Selected" : "Select";
-            igPushIDInt(j);
+            igPushID_Int(j);
             if (igExButton(selectText))
             {
                 selection = j;

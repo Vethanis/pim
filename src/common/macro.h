@@ -86,6 +86,11 @@
 #   define pim_optimize             _Pragma("clang optimize on")
 #   define pim_deoptimize           _Pragma("clang optimize off")
 #   define pim_noreturn             __declspec(noreturn)
+//#   pragma clang diagnostic ignored "-Wunused-function"
+//#   pragma clang diagnostic ignored "-Wunused-variable"
+#   pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
+#   pragma clang diagnostic ignored "-Wimplicit-const-int-float-conversion"
+#   pragma clang diagnostic ignored "-Wnullability-completeness"
 #endif // COMPILER_CLANG
 
 #if COMPILER_GCC
@@ -121,13 +126,13 @@
 #define pim_max(a, b)               ((a) > (b) ? (a) : (b))
 #define pim_lerp(a, b, t)           ((a) + ((b) - (a)) * (t))
 
-#ifdef _DEBUG
+#if defined(_DEBUG)
 #   define DEBUG_BUILD              1
 #   define DEBUG_ONLY(...)          __VA_ARGS__
 #else
 #   define DEBUG_BUILD              0
 #   define DEBUG_ONLY(...)           
-#endif // def _DEBUG
+#endif // _DEBUG
 
 #define RELEASE_BUILD               (!DEBUG_BUILD)
 #if RELEASE_BUILD

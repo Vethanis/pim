@@ -251,12 +251,14 @@ pim_inline float4 VEC_CALL BilinearBlend_xy16(
     short2 a, short2 b, short2 c, short2 d,
     float2 frac)
 {
-    float4 af = Xy16ToNormalTs(a);
-    float4 bf = Xy16ToNormalTs(b);
-    float4 cf = Xy16ToNormalTs(c);
-    float4 df = Xy16ToNormalTs(d);
-    float4 res = f4_bilerp(af, bf, cf, df, frac);
-    return f4_normalize3(res);
+    const float s = (1.0f / (1 << 15));
+    float2 af = { a.x * s, a.y * s };
+    float2 bf = { b.x * s, b.y * s };
+    float2 cf = { c.x * s, c.y * s };
+    float2 df = { d.x * s, d.y * s };
+    float2 xy = f2_bilerp(af, bf, cf, df, frac);
+    float z = sqrtf(f1_max(kEpsilon, 1.0f - f2_dot(xy, xy)));
+    return f4_v(xy.x, xy.y, z, 0.0f);
 }
 
 // ----------------------------------------------------------------------------

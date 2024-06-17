@@ -59,7 +59,6 @@ bool ResampleToAlbedoRome(
 
 // ----------------------------------------------------------------------------
 
-static i32 CatNodeLineage(char* dst, i32 size, const cgltf_node* cgnode);
 static char const* const ShortenString(char const* const str, i32 maxLen);
 static bool LoadImageUri(
     const char* basePath,
@@ -69,7 +68,6 @@ static bool ResampleTextureToFloat4(Texture* tex);
 static bool ResampleToSrgb(Texture* tex);
 static bool ResampleToEmission(Texture* tex);
 static bool ImportColorspace(Texture* tex);
-static bool ExportColorspace(Texture* tex);
 
 static void* Gltf_Alloc(void* user, cgltf_size size)
 {
@@ -112,6 +110,8 @@ bool Gltf_Load(const char* path, Entities* dr)
         .file.read = Gltf_FileRead,
         .file.release = Gltf_FileRelease,
         .file.user_data = &s_fileHandler,
+        .memory.alloc_func = Gltf_Alloc,
+        .memory.free_func = Gltf_Free,
     };
     cgltf_result result = cgltf_result_success;
 
@@ -184,21 +184,6 @@ static char const* const ShortenString(char const* const str, i32 maxLen)
     return str + pim_max(diff, 0);
 }
 
-static i32 CatNodeLineage(char* dst, i32 size, const cgltf_node* cgnode)
-{
-    i32 len = 0;
-    if (cgnode->parent)
-    {
-        CatNodeLineage(dst, size, cgnode->parent);
-        len = StrCatf(dst, size, "/%s", ShortenString(cgnode->name, 16));
-    }
-    else
-    {
-        len = StrCatf(dst, size, "%s", ShortenString(cgnode->name, 16));
-    }
-    return len;
-}
-
 static bool CreateScenes(
     const char* basePath,
     const cgltf_data* cgdata,
@@ -225,32 +210,6 @@ static bool CreateScenes(
         }
     }
     return true;
-}
-
-static const void* GetAccessorMemory(const cgltf_accessor* acc)
-{
-    const void* mem = NULL;
-    if (!acc->is_sparse)
-    {
-        const cgltf_buffer_view* view = acc->buffer_view;
-        if (view)
-        {
-            mem = view->data;
-            if (!mem && view->buffer)
-            {
-                mem = view->buffer->data;
-                if (mem)
-                {
-                    mem = (const u8*)(mem)+view->offset;
-                }
-            }
-        }
-        if (mem)
-        {
-            mem = (const u8*)(mem)+acc->offset;
-        }
-    }
-    return mem;
 }
 
 static i32* ReadPrimitiveIndices(
@@ -677,7 +636,7 @@ static bool CreateMaterial(
     // TODO: Cache imported materials for reuse
 
     Material material = { 0 };
-    material.ior = 1.0f;
+    material.ior = 1.5f;
     material.bumpiness = 1.0f;
     if (cgmat->has_ior)
     {
@@ -738,7 +697,7 @@ static bool CreateMaterial(
     {
         material.flags |= MatFlag_Emissive;
     }
-    if ((material.ior != 1.0f) || cgmat->has_transmission)
+    if (cgmat->has_transmission)
     {
         material.flags |= MatFlag_Refractive;
     }
@@ -931,26 +890,6 @@ static bool ImportColorspace(Texture* tex)
     return false;
 }
 
-static bool ExportColorspace(Texture* tex)
-{
-    ASSERT(tex->texels);
-    ASSERT(tex->format == VK_FORMAT_R32G32B32A32_SFLOAT);
-    if (tex->texels)
-    {
-        if (tex->format == VK_FORMAT_R32G32B32A32_SFLOAT)
-        {
-            float4* pim_noalias texels = tex->texels;
-            const i32 len = tex->size.x * tex->size.y;
-            for (i32 i = 0; i < len; ++i)
-            {
-                texels[i] = Color_SceneToSDR(texels[i]);
-            }
-            return true;
-        }
-    }
-    return false;
-}
-
 static TextureId CreateAlbedoTexture(
     const char* basePath,
     const cgltf_image* cgalbedo)
@@ -966,7 +905,6 @@ static TextureId CreateAlbedoTexture(
     cgltf_decode_uri(albedoName);
 
     char fullName[PIM_PATH] = { 0 };
-    char const* const names[] = { basePath, &albedoName[0] };
     SPrintf(ARGS(fullName), "%s/%s", basePath, albedoName);
     StrPath(ARGS(fullName));
     Guid guid = Guid_FromStr(fullName);

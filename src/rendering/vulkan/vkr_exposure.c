@@ -187,13 +187,6 @@ bool vkrExposure_Init(void)
             .pushConstantBytes = 0,
             .renderPass = ms_exposeRenderPass,
             .subpass = 0,
-            .vertLayout =
-            {
-                .bindingCount = 0,
-                .bindings = NULL,
-                .attributeCount = 0,
-                .attributes = NULL,
-            },
             .fixedFuncs =
             {
                 .viewport = vkrSwapchain_GetViewport(),

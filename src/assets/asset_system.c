@@ -66,24 +66,12 @@ bool Asset_Get(const char* name, asset_t* asset)
 
 typedef enum
 {
-    FileCmp_Index,
-    FileCmp_Name,
-    FileCmp_Offset,
-    FileCmp_Size,
-    FileCmp_UsagePct,
-
-    FileCmp_COUNT
-} FileCmpMode;
-
-typedef enum
-{
     AssetCmp_Name,
     AssetCmp_Size,
 
     AssetCmp_COUNT
 } AssetCmpMode;
 
-static FileCmpMode gs_fileCmpMode;
 static AssetCmpMode gs_assetCmpMode;
 static bool gs_revSort;
 

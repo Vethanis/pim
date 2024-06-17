@@ -72,6 +72,7 @@ typedef u32 vkrQueueFlags;
 
 typedef enum
 {
+    vkrShaderType_Unknown,
     vkrShaderType_Vert,
     vkrShaderType_Frag,
     vkrShaderType_Comp,
@@ -83,29 +84,37 @@ typedef enum
     vkrShaderType_Call,
     vkrShaderType_Task,
     vkrShaderType_Mesh,
+
+    vkrShaderType_COUNT,
 } vkrShaderType;
 
 typedef enum
 {
-    vkrVertType_float,
-    vkrVertType_float2,
-    vkrVertType_float3,
-    vkrVertType_float4,
-    vkrVertType_int,
-    vkrVertType_int2,
-    vkrVertType_int3,
-    vkrVertType_int4,
-} vkrVertType;
+    vkrStreamFormat_Raw,
+    vkrStreamFormat_Index,
+    vkrStreamFormat_Position,
+    vkrStreamFormat_Basis,
+    vkrStreamFormat_Uv,
+    vkrStreamFormat_Color,
 
-typedef enum
+    vkrStreamFormat_COUNT
+} vkrStreamFormat;
+SASSERT(vkrStreamFormat_COUNT <= 256);
+
+#define vkrMeshStreamCount 8
+
+typedef struct vkrMeshDesc_s
 {
-    vkrMeshStream_Position,     // float4; xyz=positionOS
-    vkrMeshStream_Normal,       // float4; xyz=normalOS, w=uv1 image index
-    vkrMeshStream_Uv01,         // float4; xy=uv0, zw=uv1
-    vkrMeshStream_TexIndices,   // int4; albedo, rome, normal, lightmap index
-
-    vkrMeshStream_COUNT
-} vkrMeshStream;
+    void* buffer;
+    u32 bufferSize;
+    u32 offsets[vkrMeshStreamCount];
+    u8 formats[vkrMeshStreamCount];
+    u8 strides[vkrMeshStreamCount];
+    float3 positionMin;
+    u32 indexCount;
+    float3 positionMax;
+    u32 vertexCount;
+} vkrMeshDesc;
 
 // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkGetFenceStatus.html
 typedef enum
@@ -118,10 +127,16 @@ typedef enum
 // Mirror of VmaMemoryUsage enum to avoid exposing giant header
 typedef enum
 {
-    vkrMemUsage_Unknown = 0,
-    vkrMemUsage_GpuOnly = 1,
-    vkrMemUsage_CpuOnly = 2,
-    vkrMemUsage_Dynamic = 3,    // mappable, 1 host write, cached device reads
+    vkrMemUsage_Unknown = 0,            // VMA_MEMORY_USAGE_UNKNOWN
+    vkrMemUsage_GpuOnly = 1,            // VMA_MEMORY_USAGE_GPU_ONLY
+    vkrMemUsage_CpuOnly = 2,            // VMA_MEMORY_USAGE_CPU_ONLY
+    vkrMemUsage_CpuToGpu = 3,           // VMA_MEMORY_USAGE_CPU_TO_GPU
+    vkrMemUsage_GpuToCpu = 4,           // VMA_MEMORY_USAGE_GPU_TO_CPU
+    vkrMemUsage_CpuCopy = 5,            // VMA_MEMORY_USAGE_CPU_COPY
+    vkrMemUsage_LazilyAllocated = 6,    // VMA_MEMORY_USAGE_GPU_LAZILY_ALLOCATED
+    vkrMemUsage_Auto = 7,               // VMA_MEMORY_USAGE_AUTO
+    vkrMemUsage_AutoGpu = 8,            // VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
+    vkrMemUsage_AutoCpu = 9,            // VMA_MEMORY_USAGE_AUTO_PREFER_HOST
 } vkrMemUsage;
 
 typedef struct vkrSubmitId_s
@@ -251,14 +266,6 @@ typedef struct vkrSwapchainSupport_s
     u32 modeCount;
     VkPresentModeKHR* modes;
 } vkrSwapchainSupport;
-
-typedef struct vkrVertexLayout_s
-{
-    i32 bindingCount;
-    const VkVertexInputBindingDescription* bindings;
-    i32 attributeCount;
-    const VkVertexInputAttributeDescription* attributes;
-} vkrVertexLayout;
 
 typedef struct vkrBlendState_s
 {
@@ -434,7 +441,6 @@ typedef struct vkrPassDesc_s
 // Graphics only
     VkRenderPass renderPass;
     i32 subpass;
-    vkrVertexLayout vertLayout;
     vkrFixedFuncs fixedFuncs;
 } vkrPassDesc;
 

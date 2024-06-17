@@ -229,13 +229,6 @@ pim_inline void VEC_CALL mask_write(mask_t a, mask_t b, int2 tr)
     }
 }
 
-pim_inline int2 VEC_CALL tri_size(Tri2D tri)
-{
-    float2 hi = f2_max(f2_max(tri.a, tri.b), tri.c);
-    int2 size = f2_i2(f2_ceil(hi));
-    return size;
-}
-
 pim_inline bool VEC_CALL TriTest(Tri2D tri, float2 pt)
 {
     return sdTriangle2D(tri.a, tri.b, tri.c, pt) <= kMaskPadding;

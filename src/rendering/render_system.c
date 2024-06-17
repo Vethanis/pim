@@ -593,7 +593,7 @@ void RenderSys_Gui(bool* pEnabled)
 
     if (igBegin("RenderSystem", pEnabled, 0x0))
     {
-        if (igTreeNodeExStr("Exposure", ImGuiTreeNodeFlags_Framed))
+        if (igTreeNodeEx_Str("Exposure", ImGuiTreeNodeFlags_Framed))
         {
             igText("Average Luminance: %g", vkrGetAvgLuminance());
             igText("Min Luminance: %g", vkrGetMinLuminance());
@@ -643,7 +643,7 @@ void RenderSys_Gui(bool* pEnabled)
             igTreePop();
         }
 
-        if (igTreeNodeExStr("Color", ImGuiTreeNodeFlags_Framed))
+        if (igTreeNodeEx_Str("Color", ImGuiTreeNodeFlags_Framed))
         {
             if (igExButton("Dump Conversion Matrices"))
             {
@@ -871,48 +871,48 @@ static MeshId GenSphereMesh(void)
 
 // N = (0, 0, 1)
 // centered at origin, [-0.5, 0.5]
-static MeshId GenQuadMesh(void)
-{
-    static MeshId s_id;
-    if (Mesh_Exists(s_id))
-    {
-        return s_id;
-    }
-
-    const float4 tl = { -0.5f, 0.5f, 0.0f };
-    const float4 tr = { 0.5f, 0.5f, 0.0f };
-    const float4 bl = { -0.5f, -0.5f, 0.0f };
-    const float4 br = { 0.5f, -0.5f, 0.0f };
-    const float4 N = { 0.0f, 0.0f, 1.0f };
-
-    const i32 length = 6;
-    float4* positions = Perm_Alloc(sizeof(positions[0]) * length);
-    float4* normals = Perm_Alloc(sizeof(normals[0]) * length);
-    float4* uvs = Perm_Alloc(sizeof(uvs[0]) * length);
-    int4* texIndices = Perm_Calloc(sizeof(texIndices[0]) * length);
-
-    // counter clockwise
-    positions[0] = tl; uvs[0] = f4_v(0.0f, 1.0f, 0.0f, 0.0f);
-    positions[1] = bl; uvs[1] = f4_v(0.0f, 0.0f, 0.0f, 0.0f);
-    positions[2] = tr; uvs[2] = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
-    positions[3] = tr; uvs[3] = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
-    positions[4] = bl; uvs[4] = f4_v(0.0f, 0.0f, 0.0f, 0.0f);
-    positions[5] = br; uvs[5] = f4_v(1.0f, 0.0f, 0.0f, 0.0f);
-    for (i32 i = 0; i < length; ++i)
-    {
-        normals[i] = N;
-    }
-
-    Mesh mesh = { 0 };
-    mesh.length = length;
-    mesh.positions = positions;
-    mesh.normals = normals;
-    mesh.uvs = uvs;
-    mesh.texIndices = texIndices;
-    bool added = Mesh_New(&mesh, Guid_FromStr("QuadMesh"), &s_id);
-    ASSERT(added);
-    return s_id;
-}
+//static MeshId GenQuadMesh(void)
+//{
+//    static MeshId s_id;
+//    if (Mesh_Exists(s_id))
+//    {
+//        return s_id;
+//    }
+//
+//    const float4 tl = { -0.5f, 0.5f, 0.0f };
+//    const float4 tr = { 0.5f, 0.5f, 0.0f };
+//    const float4 bl = { -0.5f, -0.5f, 0.0f };
+//    const float4 br = { 0.5f, -0.5f, 0.0f };
+//    const float4 N = { 0.0f, 0.0f, 1.0f };
+//
+//    const i32 length = 6;
+//    float4* positions = Perm_Alloc(sizeof(positions[0]) * length);
+//    float4* normals = Perm_Alloc(sizeof(normals[0]) * length);
+//    float4* uvs = Perm_Alloc(sizeof(uvs[0]) * length);
+//    int4* texIndices = Perm_Calloc(sizeof(texIndices[0]) * length);
+//
+//    // counter clockwise
+//    positions[0] = tl; uvs[0] = f4_v(0.0f, 1.0f, 0.0f, 0.0f);
+//    positions[1] = bl; uvs[1] = f4_v(0.0f, 0.0f, 0.0f, 0.0f);
+//    positions[2] = tr; uvs[2] = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
+//    positions[3] = tr; uvs[3] = f4_v(1.0f, 1.0f, 0.0f, 0.0f);
+//    positions[4] = bl; uvs[4] = f4_v(0.0f, 0.0f, 0.0f, 0.0f);
+//    positions[5] = br; uvs[5] = f4_v(1.0f, 0.0f, 0.0f, 0.0f);
+//    for (i32 i = 0; i < length; ++i)
+//    {
+//        normals[i] = N;
+//    }
+//
+//    Mesh mesh = { 0 };
+//    mesh.length = length;
+//    mesh.positions = positions;
+//    mesh.normals = normals;
+//    mesh.uvs = uvs;
+//    mesh.texIndices = texIndices;
+//    bool added = Mesh_New(&mesh, Guid_FromStr("QuadMesh"), &s_id);
+//    ASSERT(added);
+//    return s_id;
+//}
 
 // N = (0, 0, 1)
 // centered at origin, [-0.5, 0.5]
@@ -1044,24 +1044,24 @@ static Material GenMaterial(
     return mat;
 }
 
-static i32 CreateQuad(
-    const char* name,
-    float4 t,
-    quat r,
-    float4 s,
-    float4 albedo,
-    float4 rome,
-    MatFlag flags)
-{
-    Entities* dr = Entities_Get();
-    i32 i = Entities_Add(dr, Guid_FromStr(name));
-    dr->meshes[i] = GenQuadMesh();
-    dr->materials[i] = GenMaterial(name, albedo, rome, flags);
-    dr->translations[i] = t;
-    dr->rotations[i] = r;
-    dr->scales[i] = s;
-    return i;
-}
+//static i32 CreateQuad(
+//    const char* name,
+//    float4 t,
+//    quat r,
+//    float4 s,
+//    float4 albedo,
+//    float4 rome,
+//    MatFlag flags)
+//{
+//    Entities* dr = Entities_Get();
+//    i32 i = Entities_Add(dr, Guid_FromStr(name));
+//    dr->meshes[i] = GenQuadMesh();
+//    dr->materials[i] = GenMaterial(name, albedo, rome, flags);
+//    dr->translations[i] = t;
+//    dr->rotations[i] = r;
+//    dr->scales[i] = s;
+//    return i;
+//}
 
 static i32 CreateBox(
     const char* name,

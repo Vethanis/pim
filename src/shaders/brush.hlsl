@@ -20,6 +20,7 @@ struct VSInput
 {
     float4 positionOS : POSITION;
     float4 normalOS : NORMAL;
+    float4 tangentOS : TANGENT;
     float4 uv01 : TEXCOORD0;
     uint4 texIndices : TEXCOORD1;
 };
@@ -28,8 +29,9 @@ struct PSInput
 {
     float4 positionCS : SV_Position;
     float3 positionWS : TEXCOORD0;
-    float4 uv01 : TEXCOORD1;
-    float3x3 TBN : TEXCOORD2;
+    float3 normalWS : TEXCOORD1;
+    float3 tangentWS : TEXCOORD2;
+    float4 uv01 : TEXCOORD3;
     nointerpolation uint4 texIndices : TEXCOORD3;
 };
 
@@ -43,12 +45,15 @@ PSInput VSMain(VSInput input)
     float4 positionOS = float4(input.positionOS.xyz, 1.0);
     float4 positionWS = mul(kLocalToWorld, positionOS);
     float4 positionCS = mul(GetWorldToClip(), positionWS);
-    float3 normalWS = mul(float3x3(kIMc0.xyz, kIMc1.xyz, kIMc2.xyz), input.normalOS.xyz);
+    float3x3 IM = float3x3(kIMc0.xyz, kIMc1.xyz, kIMc2.xyz);
+    float3 normalWS = mul(IM, input.normalOS.xyz);
+    float3 tangentWS = mul(IM, input.tangentOS.xyz);
 
     PSInput output;
     output.positionCS = positionCS;
     output.positionWS = positionWS.xyz;
-    output.TBN = NormalToTBN(normalWS.xyz);
+    output.normalWS = normalWS;
+    output.tangentWS = tangentWS;
     output.uv01 = input.uv01;
     output.texIndices = kTexInds;
     output.texIndices.w = input.texIndices.w;
@@ -68,8 +73,11 @@ PSOutput PSMain(PSInput input)
     float4 rome = SampleTable2D(ri, uv0);
     float3 normalTS = Xy16ToNormalTs(SampleTable2D(ni, uv0).xy);
 
-    float3 N = TbnToWorld(input.TBN, normalTS);
-    N = normalize(N);
+    float3x3 TBN;
+    TBN[0] = normalize(input.tangentWS);
+    TBN[2] = normalize(input.normalWS);
+    TBN[1] = cross(TBN[0], TBN[2]);
+    float3 N = TbnToWorld(TBN, normalTS);
 
     float3 P = input.positionWS;
     float3 V = normalize(GetEye() - P);
@@ -83,7 +91,7 @@ PSOutput PSMain(PSInput input)
     {
         float2 uv1 = input.uv01.zw;
         float3 R = reflect(-V, N);
-        GISample gi = SampleLightmap(li, uv1, input.TBN, N, R);
+        GISample gi = SampleLightmap(li, uv1, TBN, N, R);
         float3 indirect = IndirectBRDF(V, N, gi.diffuse, gi.specular, albedo, roughness, metallic, occlusion);
         sceneLum += indirect;
     }

@@ -16,7 +16,7 @@
 #include "threading/mutex.h"
 #include "math/scalar.h"
 
-#include "VulkanMemoryAllocator/src/vk_mem_alloc.h"
+#include "VulkanMemoryAllocator/include/vk_mem_alloc.h"
 #include <string.h>
 
 typedef struct vkrMemPool_s
@@ -99,7 +99,6 @@ bool vkrMemSys_Init(void)
             .physicalDevice = g_vkr.phdev,
             .device = g_vkr.dev,
             .pAllocationCallbacks = NULL,
-            .frameInUseCount = R_ResourceSets - 1,
             .pVulkanFunctions = &vulkanFns,
         };
         VmaAllocator handle = NULL;
@@ -585,7 +584,6 @@ static bool vkrMemPool_New(
         const VmaPoolCreateInfo poolInfo =
         {
             .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = R_ResourceSets - 1,
         };
         VkCheck(vmaCreatePool(ms_inst.handle, &poolInfo, &pool->handle));
         ASSERT(pool->handle);
@@ -627,7 +625,6 @@ static bool vkrMemPool_New(
         const VmaPoolCreateInfo poolInfo =
         {
             .memoryTypeIndex = memTypeIndex,
-            .frameInUseCount = R_ResourceSets,
         };
         VkCheck(vmaCreatePool(ms_inst.handle, &poolInfo, &pool->handle));
         ASSERT(pool->handle);

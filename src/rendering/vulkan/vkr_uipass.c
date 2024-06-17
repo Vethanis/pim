@@ -120,35 +120,35 @@ bool vkrUIPass_New(void)
         goto cleanup;
     }
 
-    const VkVertexInputBindingDescription vertBindings[] =
-    {
-        {
-            .stride = sizeof(ImDrawVert),
-            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-        },
-    };
+    //const VkVertexInputBindingDescription vertBindings[] =
+    //{
+    //    {
+    //        .stride = sizeof(ImDrawVert),
+    //        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+    //    },
+    //};
 
-    const VkVertexInputAttributeDescription vertAttributes[] =
-    {
-        {
-            .location = 0,
-            .binding = 0,
-            .format = VK_FORMAT_R32G32_SFLOAT,
-            .offset = pim_offsetof(ImDrawVert, pos),
-        },
-        {
-            .location = 1,
-            .binding = 0,
-            .format = VK_FORMAT_R32G32_SFLOAT,
-            .offset = pim_offsetof(ImDrawVert, uv),
-        },
-        {
-            .location = 2,
-            .binding = 0,
-            .format = VK_FORMAT_R8G8B8A8_UNORM,
-            .offset = pim_offsetof(ImDrawVert, col),
-        },
-    };
+    //const VkVertexInputAttributeDescription vertAttributes[] =
+    //{
+    //    {
+    //        .location = 0,
+    //        .binding = 0,
+    //        .format = VK_FORMAT_R32G32_SFLOAT,
+    //        .offset = pim_offsetof(ImDrawVert, pos),
+    //    },
+    //    {
+    //        .location = 1,
+    //        .binding = 0,
+    //        .format = VK_FORMAT_R32G32_SFLOAT,
+    //        .offset = pim_offsetof(ImDrawVert, uv),
+    //    },
+    //    {
+    //        .location = 2,
+    //        .binding = 0,
+    //        .format = VK_FORMAT_R8G8B8A8_UNORM,
+    //        .offset = pim_offsetof(ImDrawVert, col),
+    //    },
+    //};
 
     const vkrPassDesc desc =
     {
@@ -157,13 +157,6 @@ bool vkrUIPass_New(void)
         .shaders = shaders,
         .renderPass = ms_renderPass,
         .subpass = 0,
-        .vertLayout =
-        {
-            .bindingCount = NELEM(vertBindings),
-            .bindings = vertBindings,
-            .attributeCount = NELEM(vertAttributes),
-            .attributes = vertAttributes,
-        },
         .fixedFuncs =
         {
             .viewport = vkrSwapchain_GetViewport(),
@@ -349,11 +342,10 @@ static void vkrImGui_UploadRenderDrawData(void)
             i32 vertOffset = 0;
             i32 indOffset = 0;
 
-            const i32 cmdListCount = drawData->CmdListsCount;
-            ImDrawList const* const* const pim_noalias cmdLists = drawData->CmdLists;
-            for (i32 iCmdList = 0; iCmdList < cmdListCount; iCmdList++)
+            const ImVector_ImDrawListPtr cmdLists = drawData->CmdLists;
+            for (i32 iCmdList = 0; iCmdList < cmdLists.Size; iCmdList++)
             {
-                const ImDrawList* pim_noalias cmdlist = cmdLists[iCmdList];
+                const ImDrawList* pim_noalias cmdlist = cmdLists.Data[iCmdList];
                 i32 vlen = cmdlist->VtxBuffer.Size;
                 i32 ilen = cmdlist->IdxBuffer.Size;
                 memcpy(vtx_dst + vertOffset, cmdlist->VtxBuffer.Data, vlen * sizeof(ImDrawVert));
@@ -439,8 +431,6 @@ static void vkrImGui_RenderDrawData(vkrCmdBuf* cmd)
         goto end;
     }
 
-    const i32 cmdListCount = drawData->CmdListsCount;
-    ImDrawList const *const *const pim_noalias cmdLists = drawData->CmdLists;
     const i32 totalVtxCount = drawData->TotalVtxCount;
     const i32 totalIdxCount = drawData->TotalIdxCount;
     if (totalVtxCount <= 0 || totalIdxCount <= 0)
@@ -458,9 +448,10 @@ static void vkrImGui_RenderDrawData(vkrCmdBuf* cmd)
     // (Because we merged all buffers into a single one, we maintain our own offset into them)
     i32 global_vtx_offset = 0;
     i32 global_idx_offset = 0;
-    for (i32 iList = 0; iList < cmdListCount; iList++)
+    const ImVector_ImDrawListPtr cmdLists = drawData->CmdLists;
+    for (i32 iList = 0; iList < cmdLists.Size; iList++)
     {
-        ImDrawList const *const pim_noalias cmdList = cmdLists[iList];
+        ImDrawList const *const pim_noalias cmdList = cmdLists.Data[iList];
         const i32 cmdCount = cmdList->CmdBuffer.Size;
         ImDrawCmd const *const pim_noalias cmds = cmdList->CmdBuffer.Data;
         for (i32 iCmd = 0; iCmd < cmdCount; iCmd++)

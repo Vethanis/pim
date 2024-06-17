@@ -47,7 +47,6 @@ static void BakeBrdfFn(void* pbase, i32 begin, i32 end)
         const int2 coord = EncodeCoord2(size, iTexel);
 
         float2 result = f2_0;
-        float sum = 0.0f;
         for (i32 iSample = prevSamples; iSample < numSamples; ++iSample)
         {
             float2 aa = SampleGaussPixelFilter(f2_rand(rng), 0.5f);
@@ -71,7 +70,7 @@ static void BakeBrdfFn(void* pbase, i32 begin, i32 end)
 
             if ((NoL > kEpsilon) && (pdf > kEpsilon))
             {
-                float D = D_GTR(NoH, alpha) / pdf;
+                float D = D_GTR(NoH, alpha);
                 float G = V_SmithCorrelated(NoL, NoV, alpha);
                 float Fc = F_Dielectric(HoV, 1.000293f, 1.52f);
                 float DG_NoL_dx = D * G * NoL * dx;
@@ -115,19 +114,6 @@ void BrdfLut_Update(BrdfLut* lut, i32 prevSamples, i32 newSamples)
         task->numSamples = newSamples;
         Task_Run(task, BakeBrdfFn, lut->size.x * lut->size.y);
     }
-}
-
-static void SaveLutImage(BrdfLut lut, const char* path)
-{
-    const i32 texelCount = lut.size.x * lut.size.y;
-    R8G8B8A8_t* pim_noalias ldrtexels = Tex_Calloc(sizeof(ldrtexels[0]) * texelCount);
-    for (i32 i = 0; i < texelCount; ++i)
-    {
-        float4 v = { lut.texels[i].x, lut.texels[i].y, 0.0f, 1.0f };
-        ldrtexels[i] = GammaEncode_rgba8(v);
-    }
-    stbi_write_png(path, lut.size.x, lut.size.y, 4, ldrtexels, sizeof(ldrtexels[0]) * lut.size.x);
-    Mem_Free(ldrtexels);
 }
 
 void LightingSys_Init(void)

@@ -4,58 +4,6 @@
 #include "math/types.h"
 #include <string.h>
 
-i32 vkrVertTypeSize(vkrVertType type)
-{
-    switch (type)
-    {
-    default:
-        ASSERT(false);
-        return 0;
-    case vkrVertType_float:
-        return sizeof(float);
-    case vkrVertType_float2:
-        return sizeof(float2);
-    case vkrVertType_float3:
-        return sizeof(float3);
-    case vkrVertType_float4:
-        return sizeof(float4);
-    case vkrVertType_int:
-        return sizeof(i32);
-    case vkrVertType_int2:
-        return sizeof(int2);
-    case vkrVertType_int3:
-        return sizeof(int3);
-    case vkrVertType_int4:
-        return sizeof(int4);
-    }
-}
-
-VkFormat vkrVertTypeFormat(vkrVertType type)
-{
-    switch (type)
-    {
-    default:
-        ASSERT(false);
-        return 0;
-    case vkrVertType_float:
-        return VK_FORMAT_R32_SFLOAT;
-    case vkrVertType_float2:
-        return VK_FORMAT_R32G32_SFLOAT;
-    case vkrVertType_float3:
-        return VK_FORMAT_R32G32B32_SFLOAT;
-    case vkrVertType_float4:
-        return VK_FORMAT_R32G32B32A32_SFLOAT;
-    case vkrVertType_int:
-        return VK_FORMAT_R32_SINT;
-    case vkrVertType_int2:
-        return VK_FORMAT_R32G32_SINT;
-    case vkrVertType_int3:
-        return VK_FORMAT_R32G32B32_SINT;
-    case vkrVertType_int4:
-        return VK_FORMAT_R32G32B32A32_SINT;
-    }
-}
-
 VkPipelineLayout vkrPipelineLayout_New(
     i32 setCount, const VkDescriptorSetLayout* setLayouts,
     i32 rangeCount, const VkPushConstantRange* ranges)
@@ -84,7 +32,6 @@ void vkrPipelineLayout_Del(VkPipelineLayout layout)
 
 VkPipeline vkrPipeline_NewGfx(
     const vkrFixedFuncs* fixedfuncs,
-    const vkrVertexLayout* vertLayout,
     VkPipelineLayout layout,
     VkRenderPass renderPass,
     i32 subpass,
@@ -92,17 +39,13 @@ VkPipeline vkrPipeline_NewGfx(
     const VkPipelineShaderStageCreateInfo* shaders)
 {
     ASSERT(fixedfuncs);
-    ASSERT(vertLayout);
     ASSERT(layout);
     ASSERT(renderPass);
 
     const VkPipelineVertexInputStateCreateInfo vertexInputInfo =
     {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = vertLayout->bindingCount,
-        .pVertexBindingDescriptions = vertLayout->bindings,
-        .vertexAttributeDescriptionCount = vertLayout->attributeCount,
-        .pVertexAttributeDescriptions = vertLayout->attributes,
+        // sw vertex fetch instead
     };
     const VkPipelineInputAssemblyStateCreateInfo inputAssembly =
     {

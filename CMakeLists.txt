@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 project(pim_cmake)
 
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_C_STANDARD 11)
+#set(CMAKE_CXX_STANDARD 20)
+#set(CMAKE_C_STANDARD 11)
 
 # -----------------------------------------------------------------------------
 # files
@@ -27,26 +27,28 @@ set(PIM_SUBMODULE_FILES
     "submodules/glfw/src/input.c"
     "submodules/glfw/src/monitor.c"
     "submodules/glfw/src/osmesa_context.c"
+    "submodules/glfw/src/platform.c"
     "submodules/glfw/src/vulkan.c"
     "submodules/glfw/src/window.c"
-    "submodules/imgui/imconfig.h"
-    "submodules/imgui/imgui.cpp"
-    "submodules/imgui/imgui.h"
-    "submodules/imgui/imgui_draw.cpp"
-    "submodules/imgui/imgui_internal.h"
-    "submodules/imgui/imgui_tables.cpp"
-    "submodules/imgui/imgui_widgets.cpp"
-    "submodules/imgui/imstb_rectpack.h"
-    "submodules/imgui/imstb_textedit.h"
-    "submodules/imgui/imstb_truetype.h"
-    "submodules/imgui/backends/imgui_impl_glfw.h"
-    "submodules/imgui/backends/imgui_impl_glfw.cpp"
+    "submodules/glfw/src/null_init.c"
+    "submodules/glfw/src/null_joystick.c"
+    "submodules/glfw/src/null_monitor.c"
+    "submodules/glfw/src/null_window.c"
+    "submodules/cimgui/imgui/imconfig.h"
+    "submodules/cimgui/imgui/imgui.cpp"
+    "submodules/cimgui/imgui/imgui.h"
+    "submodules/cimgui/imgui/imgui_draw.cpp"
+    "submodules/cimgui/imgui/imgui_internal.h"
+    "submodules/cimgui/imgui/imgui_tables.cpp"
+    "submodules/cimgui/imgui/imgui_widgets.cpp"
+    "submodules/cimgui/imgui/imstb_rectpack.h"
+    "submodules/cimgui/imgui/imstb_textedit.h"
+    "submodules/cimgui/imgui/imstb_truetype.h"
+    "submodules/cimgui/imgui/backends/imgui_impl_glfw.h"
+    "submodules/cimgui/imgui/backends/imgui_impl_glfw.cpp"
     "submodules/cimgui/cimgui.cpp"
     "submodules/cimgui/cimgui.h"
     "submodules/miniz/miniz.c"
-    "submodules/miniz/miniz_tdef.c"
-    "submodules/miniz/miniz_tinfl.c"
-    "submodules/miniz/miniz_zip.c"
     "submodules/SPIRV-Reflect/spirv_reflect.c"
     "submodules/tlsf/tlsf.c"
     "submodules/volk/volk.c"
@@ -57,9 +59,9 @@ set(PIM_SUBMODULE_FILES
 set(PIM_INCLUDE_DIRS
     "src"
     "submodules"
-    "submodules/imgui"
+    "submodules/cimgui/imgui"
     "submodules/glfw/include"
-    "submodules/VulkanMemoryAllocator/src"
+    "submodules/VulkanMemoryAllocator/include"
     "$ENV{VK_SDK_PATH}/Include")
 
 set(PIM_MSVC_FILES 
@@ -67,6 +69,7 @@ set(PIM_MSVC_FILES
     "submodules/glfw/src/wgl_context.c"
     "submodules/glfw/src/win32_init.c"
     "submodules/glfw/src/win32_joystick.c"
+    "submodules/glfw/src/win32_module.c"
     "submodules/glfw/src/win32_monitor.c"
     "submodules/glfw/src/win32_thread.c"
     "submodules/glfw/src/win32_time.c"
@@ -76,13 +79,15 @@ set(PIM_MSVC_FILES
 set(PIM_UNIX_FILES
     "submodules/glfw/src/egl_context.c"
     "submodules/glfw/src/glx_context.c"
-    "submodules/glfw/src/x11_init.c"
     "submodules/glfw/src/linux_joystick.c"
-    "submodules/glfw/src/x11_monitor.c"
+    "submodules/glfw/src/posix_module.c"
+    "submodules/glfw/src/posix_poll.c"
     "submodules/glfw/src/posix_thread.c"
     "submodules/glfw/src/posix_time.c"
-    "submodules/glfw/src/xkb_unicode.c"
-    "submodules/glfw/src/x11_window.c")
+    "submodules/glfw/src/x11_init.c"
+    "submodules/glfw/src/x11_monitor.c"
+    "submodules/glfw/src/x11_window.c"
+    "submodules/glfw/src/xkb_unicode.c")
 
 set(PIM_MSVC_INCLUDE_DIRS
     "submodules/embree/embree-3.13.0.x64.vc14.windows/include"
@@ -129,11 +134,11 @@ set(PIM_MSVC_COMPILE_OPTIONS_RELEASE
     "/Ob2"          # inline any suitable function
     "/Oi"           # emit intrinsic functions as their instruction (skip setting TLS errno)
     "/GL"           # link time codegen
-    "/fp:fast"      # optimize fp expression order for speed rather than precision and disable fp exceptions
+    "/fp:fast"      # optimize fp expression order for speed rather than precision
+    "/fp:except-"   # disable fp exceptions
     "/GS-"          # disable security check, it slow
     "/Gw"           # emit global data as comdats to be de-duplicated in ltcg
     "/Gy"           # emit functions as comdats to be de-duplicated in ltcg
-    "/volatile:iso" # don't add hardware memory barriers to volatile variable accesses
 )
 
 set(PIM_MSVC_COMPILE_OPTIONS_DEBUG
@@ -143,11 +148,18 @@ set(PIM_MSVC_COMPILE_OPTIONS_DEBUG
     "/permissive-"  # make compiler less goofy
     "/GR-"          # disable runtime type information
     "/arch:AVX2"    # vector extensions (modern cpu required)
+    "/Od"           # optimization level 0
+    "/Ob0"          # no inline function expansion
+    "/Oi"           # emit intrinsic functions as their instruction (skip setting TLS errno)
+    "/fp:fast"      # optimize fp expression order for speed rather than precision
+    "/fp:except-"   # disable fp exceptions
+    "/GS-"          # disable security check, it slow
     "/Zi"           # emit debug information in a pdb
 )
 
 # https://docs.microsoft.com/en-us/cpp/build/reference/linker-options?view=msvc-150#linker-options-listed-alphabetically
 set(PIM_MSVC_LINK_OPTIONS_RELEASE
+    "/DEBUG"            # emit debug information in a pdb
     "/WX"               # linker warnings are errors
     "/INCREMENTAL:NO"   # disable incremental linking
     "/OPT:REF"          # deduplicate data in ltcg
@@ -156,7 +168,7 @@ set(PIM_MSVC_LINK_OPTIONS_RELEASE
 )
 
 set(PIM_MSVC_LINK_OPTIONS_DEBUG
-    "/DEBUG:FULL"       # emit debug information in a pdb
+    "/DEBUG"            # emit debug information in a pdb
     "/WX"               # linker warnings are errors
     "/INCREMENTAL:NO"   # disable incremental linking
 )

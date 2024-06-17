@@ -499,7 +499,7 @@ void TextureSys_Gui(bool* pEnabled)
             igText("%d", size.y); igNextColumn();
             igText("%d", refcount); igNextColumn();
             const char* selectText = selection == j ? "Selected" : "Select";
-            igPushIDInt(j);
+            igPushID_Int(j);
             if (igExButton(selectText))
             {
                 selection = j;

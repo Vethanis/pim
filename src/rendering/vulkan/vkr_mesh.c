@@ -67,6 +67,7 @@ vkrMeshId vkrMesh_New(
     i32 vertCount,
     const float4* pim_noalias positions,
     const float4* pim_noalias normals,
+    const float4* pim_noalias tangents,
     const float4* pim_noalias uv01,
     const int4* pim_noalias texIndices)
 {
@@ -85,6 +86,7 @@ vkrMeshId vkrMesh_New(
 
     SASSERT(sizeof(positions[0]) == sizeof(float4));
     SASSERT(sizeof(normals[0]) == sizeof(float4));
+    SASSERT(sizeof(tangents[0]) == sizeof(float4));
     SASSERT(sizeof(uv01[0]) == sizeof(float4));
     SASSERT(sizeof(texIndices[0]) == sizeof(float4));
 
@@ -107,7 +109,7 @@ vkrMeshId vkrMesh_New(
         goto cleanup;
     }
 
-    if (!vkrMesh_Upload(id, vertCount, positions, normals, uv01, texIndices))
+    if (!vkrMesh_Upload(id, vertCount, positions, normals, tangents, uv01, texIndices))
     {
         ASSERT(false);
         success = false;
@@ -139,6 +141,7 @@ bool vkrMesh_Upload(
     i32 vertCount,
     const float4* pim_noalias positions,
     const float4* pim_noalias normals,
+    const float4* pim_noalias tangents,
     const float4* pim_noalias uv01,
     const int4* pim_noalias texIndices)
 {
@@ -147,7 +150,7 @@ bool vkrMesh_Upload(
         ASSERT(false);
         return false;
     }
-    if (!positions || !normals || !uv01)
+    if (!positions || !normals || !tangents || !uv01)
     {
         ASSERT(false);
         return false;
@@ -160,6 +163,7 @@ bool vkrMesh_Upload(
 
     SASSERT(sizeof(positions[0]) == sizeof(float4));
     SASSERT(sizeof(normals[0]) == sizeof(float4));
+    SASSERT(sizeof(tangents[0]) == sizeof(float4));
     SASSERT(sizeof(uv01[0]) == sizeof(float4));
     SASSERT(sizeof(texIndices[0]) == sizeof(float4));
 
@@ -182,6 +186,8 @@ bool vkrMesh_Upload(
             memcpy(dst, positions, sizeof(dst[0]) * vertCount);
             dst += vertCount;
             memcpy(dst, normals, sizeof(dst[0]) * vertCount);
+            dst += vertCount;
+            memcpy(dst, tangents, sizeof(dst[0]) * vertCount);
             dst += vertCount;
             memcpy(dst, uv01, sizeof(dst[0]) * vertCount);
             dst += vertCount;
@@ -234,4 +240,114 @@ void vkrCmdDrawMesh(vkrCmdBuf* cmdbuf, vkrMeshId id)
             vkCmdDraw(cmdbuf->handle, mesh->vertCount, 1, 0, 0);
         }
     }
+}
+
+bool vkrMeshDesc_Alloc(vkrMeshDesc* desc)
+{
+    ASSERT(!desc->buffer);
+    ASSERT(desc->indexCount || desc->vertexCount);
+    desc->positionMin = (float3){ FLT_MAX, FLT_MAX , FLT_MAX };
+    desc->positionMax = (float3){ -FLT_MAX, -FLT_MAX , -FLT_MAX };
+    const u32 headerSize = sizeof(uint2) * vkrMeshStreamCount + sizeof(float4) + sizeof(float4);
+    u32 size = headerSize;
+    for (u32 s = 0; s < vkrMeshStreamCount && desc->strides[s]; ++s)
+    {
+        u32 elemCount = (desc->formats[s] == vkrStreamFormat_Index) ? desc->indexCount : desc->vertexCount;
+        ASSERT(elemCount);
+        u32 stride = desc->strides[s];
+        u32 streamSize = (stride * elemCount + 15) & (~(u32)15);
+        ASSERT(size < (size + streamSize));
+        ASSERT(!(size & 15));
+        desc->offsets[s] = size;
+        size += streamSize;
+    }
+    desc->buffer = Perm_Calloc(size);
+    desc->bufferSize = desc->buffer ? size : 0;
+    return desc->buffer != NULL;
+}
+
+void vkrMeshDesc_Free(vkrMeshDesc* desc)
+{
+    if (desc->buffer)
+    {
+        Mem_Free(desc->buffer);
+        desc->buffer = NULL;
+    }
+    desc->bufferSize = 0;
+}
+
+void vkrMeshDesc_SetRaw(vkrMeshDesc* desc, u32 s, u32 i, const void* value, u32 ASSERT_ONLY(bytes))
+{
+    ASSERT(s < vkrMeshStreamCount);
+    ASSERT(i < desc->vertexCount);
+    const u32 stride = desc->strides[s];
+    ASSERT(desc->offsets[s]);
+    ASSERT(desc->formats[s] == vkrStreamFormat_Raw);
+    ASSERT(stride == bytes);
+    u32 offset = desc->offsets[s] + stride * i;
+    memcpy((u8*)desc->buffer + offset, value, stride);
+}
+
+void vkrMeshDesc_SetIndex(vkrMeshDesc* desc, u32 s, u32 i, u16 value)
+{
+    ASSERT(s < vkrMeshStreamCount);
+    ASSERT(i < desc->indexCount);
+    const u32 stride = sizeof(u16);
+    ASSERT(desc->offsets[s]);
+    ASSERT(desc->formats[s] == vkrStreamFormat_Index);
+    ASSERT(desc->strides[s] == stride);
+    u32 offset = desc->offsets[s] + stride * i;
+    memcpy((u8*)desc->buffer + offset, &value, stride);
+}
+
+void VEC_CALL vkrMeshDesc_SetPosition(vkrMeshDesc* desc, u32 s, u32 i, float4 value)
+{
+    ASSERT(s < vkrMeshStreamCount);
+    ASSERT(i < desc->vertexCount);
+    const u32 stride = sizeof(uint4);
+    ASSERT(desc->offsets[s]);
+    ASSERT(desc->formats[s] == vkrStreamFormat_Position);
+    ASSERT(desc->strides[s] == stride);
+    u32 offset = desc->offsets[s] + stride * i;
+    uint4 packed;
+    memcpy((u8*)desc->buffer + offset, &packed, stride);
+}
+
+void VEC_CALL vkrMeshDesc_SetBasis(vkrMeshDesc* desc, u32 s, u32 i, float4 normal, float4 tangent)
+{
+    ASSERT(s < vkrMeshStreamCount);
+    ASSERT(i < desc->vertexCount);
+    const u32 stride = sizeof(uint4);
+    ASSERT(desc->offsets[s]);
+    ASSERT(desc->formats[s] == vkrStreamFormat_Basis);
+    ASSERT(desc->strides[s] == stride);
+    u32 offset = desc->offsets[s] + stride * i;
+    uint4 packed;
+    memcpy((u8*)desc->buffer + offset, &packed, stride);
+}
+
+void VEC_CALL vkrMeshDesc_SetUv(vkrMeshDesc* desc, u32 s, u32 i, float2 value)
+{
+    ASSERT(s < vkrMeshStreamCount);
+    ASSERT(i < desc->vertexCount);
+    const u32 stride = sizeof(u32);
+    ASSERT(desc->offsets[s]);
+    ASSERT(desc->formats[s] == vkrStreamFormat_Uv);
+    ASSERT(desc->strides[s] == stride);
+    u32 offset = desc->offsets[s] + stride * i;
+    u32 packed;
+    memcpy((u8*)desc->buffer + offset, &packed, stride);
+}
+
+void VEC_CALL vkrMeshDesc_SetColor(vkrMeshDesc* desc, u32 s, u32 i, float4 value)
+{
+    ASSERT(s < vkrMeshStreamCount);
+    ASSERT(i < desc->vertexCount);
+    const u32 stride = sizeof(u32);
+    ASSERT(desc->offsets[s]);
+    ASSERT(desc->formats[s] == vkrStreamFormat_Color);
+    ASSERT(desc->strides[s] == stride);
+    u32 offset = desc->offsets[s] + stride * i;
+    u32 packed;
+    memcpy((u8*)desc->buffer + offset, &packed, stride);
 }
