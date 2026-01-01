@@ -88,10 +88,19 @@ set(PIM_MSVC_INCLUDE_DIRS
     "submodules/embree/embree-3.13.0.x64.vc14.windows/include"
     "submodules/oidn/oidn-1.4.0.x64.vc14.windows/include")
 
+set(PIM_UNIX_INCLUDE_DIRS
+    "submodules/embree/embree-3.13.5.x86_64.linux/include"
+    "submodules/oidn/oidn-1.4.3.x86_64.linux/include")
+
 set(PIM_MSVC_DLLS
     "submodules/embree/embree-3.13.0.x64.vc14.windows/bin/embree3.dll"
     "submodules/oidn/oidn-1.4.0.x64.vc14.windows/bin/OpenImageDenoise.dll"
     "submodules/oidn/oidn-1.4.0.x64.vc14.windows/bin/tbb12.dll")
+
+set(PIM_UNIX_SOS
+    "submodules/embree/embree-3.13.5.x86_64.linux/lib/libembree3.so"
+    "submodules/embree/embree-3.13.5.x86_64.linux/lib/libtbb.so"
+    "submodules/oidn/oidn-1.4.3.x86_64.linux/lib/libOpenImageDenoise.so")
 
 # -----------------------------------------------------------------------------
 # compiler options
@@ -163,13 +172,15 @@ set(PIM_MSVC_LINK_OPTIONS_DEBUG
 
 set(PIM_UNIX_COMPILE_OPTIONS
     "-Wall"
-    "-Werror"
+    #"-Werror" # pedantic
     "-Wfatal-errors"
     "-pthread"
     "-Wno-unused-function"
     "-Wno-unused-variable"
+    "-Wno-unused-local-typedefs" # static assert implementation uses a typedef
     "-Wno-unused-but-set-variable" # currently stb has a warning for this.
-    "-Wno-incompatible-pointer-types-discards-qualifiers")
+    "-Wno-incompatible-pointer-types-discards-qualifiers"
+    "-Wno-incompatible-pointer-types")
 
 set(PIM_UNIX_COMPILE_OPTIONS_RELEASE
     "-O3"
@@ -205,12 +216,10 @@ if (MSVC)
     target_link_options(pim PRIVATE "$<$<CONFIG:RELEASE>:${PIM_MSVC_LINK_OPTIONS_RELEASE}>")
     target_link_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_MSVC_LINK_OPTIONS_DEBUG}>")
 else()
-    set(CMAKE_C_COMPILER clang)
-    set(CMAKE_CXX_COMPILER clang++)
-
     target_sources(pim PRIVATE ${PIM_UNIX_FILES})
     find_package(ALSA REQUIRED)
 
+    target_include_directories(pim PRIVATE ${PIM_UNIX_INCLUDE_DIRS})
     target_compile_definitions(pim PRIVATE ${PIM_UNIX_COMPILE_DEFINITIONS})
     target_compile_definitions(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_DEFINITIONS_DEBUG}>")
 
@@ -219,11 +228,8 @@ else()
     target_compile_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_OPTIONS_DEBUG}>")
 
     file(COPY ${PIM_UNIX_SOS} DESTINATION ${CMAKE_BINARY_DIR} NO_SOURCE_PERMISSIONS)
-    find_library(EMBREE_LIB embree3)
-    find_library(OIDN_LIB OpenImageDenoise)
-    find_library(TBB_LIB tbb)
 
-    target_link_libraries(pim ${GLFW_LIBRARIES} ${ALSA_LIBRARIES})
+    target_link_libraries(pim ${ALSA_LIBRARIES})
 endif()
 
 target_link_libraries(pim)

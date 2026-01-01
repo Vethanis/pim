@@ -61,7 +61,7 @@ VkRenderPass vkrRenderPass_Get(const vkrRenderPassDesc* desc)
                 refs[attachmentCount].attachment = VK_ATTACHMENT_UNUSED;
                 refs[attachmentCount].layout = VK_IMAGE_LAYOUT_UNDEFINED;
                 if ((dst->loadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE) ||
-                    (dst->storeOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE))
+                    (dst->storeOp != VK_ATTACHMENT_STORE_OP_DONT_CARE))
                 {
                     ASSERT(refCount < NELEM(refs));
                     refs[attachmentCount].attachment = attachmentCount;

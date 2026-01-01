@@ -5,7 +5,7 @@
 static Camera ms_camera = 
 {
     .position = { 0.0f, 0.0f, 5.0f, 1.0f },
-    .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+    .rotation = { { 0.0f, 0.0f, 0.0f, 1.0f } },
     .zNear = 0.1f,
     .zFar = 500.0f,
     .fovy = 90.0f,

@@ -56,9 +56,10 @@
 #   error Unrecognized C compiler
 #endif // defined(__clang__)
 
+#define SASSERT(x)               typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
+
 #if COMPILER_MSVC
 #   define INTERRUPT()              __debugbreak()
-#   define SASSERT(x)               typedef char CAT_TOK(StaticAssert_, __COUNTER__) [ (x) ? 1 : -1]
 #   define pim_thread_local         __declspec(thread)
 #   define PIM_EXPORT               __declspec(dllexport)
 #   define PIM_IMPORT               __declspec(dllimport)
@@ -74,7 +75,6 @@
 
 #if COMPILER_CLANG
 #   define INTERRUPT()              do { __asm("int3"); } while(0)
-#   define SASSERT(x)               _Static_assert((x), #x)
 #   define pim_thread_local         _Thread_local
 #   define PIM_EXPORT               
 #   define PIM_IMPORT               
@@ -90,7 +90,6 @@
 
 #if COMPILER_GCC
 #   define INTERRUPT()              do { __asm("int3"); } while(0)
-#   define SASSERT(x)               _Static_assert((x), #x)
 #   define pim_thread_local         _Thread_local
 #   define PIM_EXPORT               
 #   define PIM_IMPORT               

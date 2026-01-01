@@ -2106,7 +2106,7 @@ static void media_desc_gui(PtMediaDesc* desc)
 
         igColorEdit3(
             "Const Color",
-            &desc->constantColor.x,
+            (float*)&desc->constantColor,
             ldrPicker);
         igSliderFloat(
             "Const Mean Free Path",
@@ -2117,7 +2117,7 @@ static void media_desc_gui(PtMediaDesc* desc)
 
         igColorEdit3(
             "Noise Color",
-            &desc->noiseColor.x,
+            (float*)&desc->noiseColor,
             ldrPicker);
         igSliderFloat(
             "Noise Mean Free Path",

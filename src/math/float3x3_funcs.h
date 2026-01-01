@@ -87,7 +87,7 @@ pim_inline float3x3 VEC_CALL f3x3_inverse(float3x3 m)
     ASSERT(f1_abs(det) >= kEpsilon);
     float rcpDet = 1.0f / det;
 
-    float3x3 inv;
+    float3x3 inv = {0};
 
     f3x3_00(inv) = rcpDet * m_11_22_21_12;
     f3x3_10(inv) = -rcpDet * m_10_22_20_12;

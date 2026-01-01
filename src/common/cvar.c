@@ -444,7 +444,7 @@ void ConVar_Gui(bool* pEnabled)
                 {
                     v = f4_log(v);
                 }
-                if (igColorEdit4(cvar->name, &v.x, pickerFlags))
+                if (igColorEdit4(cvar->name, (float*)&v, pickerFlags))
                 {
                     if (cvar->flag_logarithmic)
                     {
@@ -459,7 +459,7 @@ void ConVar_Gui(bool* pEnabled)
                 float4 v = cvar->asVector;
                 if (igSliderFloat3(
                     cvar->name,
-                    &v.x,
+                    (float*)&v,
                     cvar->minFloat,
                     cvar->maxFloat,
                     "%.3f",
@@ -474,7 +474,7 @@ void ConVar_Gui(bool* pEnabled)
                 float4 v = cvar->asVector;
                 if (igSliderFloat3(
                     cvar->name,
-                    &v.x,
+                    (float*)&v,
                     -1.0f,
                     1.0f,
                     "%.3f",
