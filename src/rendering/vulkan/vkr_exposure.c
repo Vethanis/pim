@@ -148,9 +148,9 @@ bool vkrExposure_Init(void)
         const vkrImage* backBuffer = vkrGetBackBuffer();
         const vkrRenderPassDesc renderPassDesc =
         {
-            .srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
             .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask = 0x0,
             .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             .attachments[0] =
             {
@@ -479,7 +479,7 @@ static void vkrExposure_Readback(void)
             .minLuminance = minMonitorNits, // minimum luminance of the reference monitor in nits
             .maxLuminance = maxMonitorNits, // maximum luminance of the reference monitor in nits
             .maxFrameAverageLightLevel = avgContentLum, // MaxFALL (content's maximum frame average light level in nits)
-            .maxContentLightLevel = maxContentLum, // MaxCLL (content’s maximum luminance in nits)
+            .maxContentLightLevel = maxContentLum, // MaxCLL (contentï¿½s maximum luminance in nits)
         };
         vkSetHdrMetadataEXT(g_vkr.dev, 1, &g_vkr.chain.handle, &metadata);
     }

@@ -52,6 +52,7 @@ bool vkrPass_New(vkrPass *const pass, vkrPassDesc const *const desc)
     pass->bindpoint = bindPoint;
     pass->stageFlags = stageFlags;
     pass->pushConstantBytes = desc->pushConstantBytes;
+    ASSERT(!(desc->pushConstantBytes & 15)); // align these to 16 bytes
     ASSERT(desc->pushConstantBytes <= 256);
 
     pass->layout = vkrPipelineLayout_New(

@@ -57,6 +57,13 @@ void* Library_Sym(Library lib, const char* name)
     if (lib.handle && name)
     {
         result = OS_dlsym(lib.handle, name);
+        if (!result)
+        {
+            Con_Logf(LogSev_Error, "lib", "Failed to load symbol '%s'", name);
+            char text[PIM_PATH] = { 0 };
+            OS_geterror(ARGS(text));
+            Con_Logf(LogSev_Error, "lib", "%s", text);
+        }
     }
 
     return result;
@@ -154,7 +161,7 @@ static void OS_geterror(char* buffer, i32 size)
 {
     buffer[0] = 0;
 
-    char* src = strerror(errno);
+    char* src = dlerror();
     if (src)
     {
         StrCpy(buffer, size, src);

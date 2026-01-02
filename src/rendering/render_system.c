@@ -115,8 +115,12 @@ static void EnsureFramebuf(void)
     }
 }
 
-static void EnsurePtScene(void)
+static bool EnsurePtScene(void)
 {
+    static bool s_Once = false;
+    if (s_Once)
+        return ms_ptscene != NULL;
+    s_Once = true;
     if (!ms_ptscene)
     {
         ms_ptscene = PtScene_New();
@@ -126,11 +130,13 @@ static void EnsurePtScene(void)
         ms_cmapSampleCount = 0;
         ms_lmSampleCount = 0;
     }
+    return ms_ptscene != NULL;
 }
 
-static void EnsurePtTrace(void)
+static bool EnsurePtTrace(void)
 {
-    EnsurePtScene();
+    if (!EnsurePtScene())
+        return false;
 
     const i32 width = r_scaledwidth_get();
     const i32 height = r_scaledheight_get();
@@ -143,6 +149,7 @@ static void EnsurePtTrace(void)
         PtTrace_Del(&ms_trace);
         PtTrace_New(&ms_trace, i2_v(width, height));
     }
+    return true;
 }
 
 static void ShutdownPtScene(void)
@@ -162,7 +169,8 @@ static void LightmapShutdown(void)
 
 static void LightmapRepack(void)
 {
-    EnsurePtScene();
+    if (!EnsurePtScene())
+        return;
 
     LmPack_Del(LmPack_Get());
     LmPack pack = LmPack_Pack(1024, ConVar_GetFloat(&cv_lm_density), 0.1f, 15.0f);
@@ -172,11 +180,12 @@ static void LightmapRepack(void)
 ProfileMark(pm_Lightmap_Trace, Lightmap_Trace)
 static void Lightmap_Trace(void)
 {
-    if (ConVar_GetBool(&cv_lm_gen))
-    {
-        ProfileBegin(pm_Lightmap_Trace);
-        EnsurePtScene();
+    if (!ConVar_GetBool(&cv_lm_gen))
+        return;
 
+    ProfileBegin(pm_Lightmap_Trace);
+    if (EnsurePtScene())
+    {
         bool dirty = LmPack_Get()->lmCount == 0;
         dirty |= ConVar_GetFloat(&cv_lm_density) != LmPack_Get()->texelsPerMeter;
         if (dirty)
@@ -199,20 +208,19 @@ static void Lightmap_Trace(void)
                 Lightmap_Upload(&pack->lightmaps[i]);
             }
         }
-
-        ProfileEnd(pm_Lightmap_Trace);
     }
+    ProfileEnd(pm_Lightmap_Trace);
 }
 
 ProfileMark(pm_CubemapTrace, Cubemap_Trace)
 static void Cubemap_Trace(void)
 {
+    if (!ConVar_GetBool(&cv_r_refl_gen))
+        return;
     static u32 s_lap;
-    if (ConVar_GetBool(&cv_r_refl_gen))
+    ProfileBegin(pm_CubemapTrace);
+    if (EnsurePtScene())
     {
-        ProfileBegin(pm_CubemapTrace);
-        EnsurePtScene();
-
         if (ConVar_CheckDirty(&cv_r_refl_gen, &s_lap))
         {
             ms_cmapSampleCount = 0;
@@ -232,9 +240,8 @@ static void Cubemap_Trace(void)
             }
             Cubemap_Convolve(cubemap, 64, weight);
         }
-
-        ProfileEnd(pm_CubemapTrace);
     }
+    ProfileEnd(pm_CubemapTrace);
 }
 
 typedef struct TaskBlit_s
@@ -270,12 +277,11 @@ ProfileMark(pm_ptBlit, Blit)
 static bool PathTrace(void)
 {
     static u32 s_lap;
-
-    if (ConVar_GetBool(&cv_pt_trace))
+    if (!ConVar_GetBool(&cv_pt_trace))
+        return false;
+    if (EnsurePtTrace())
     {
         ProfileBegin(pm_PathTrace);
-        EnsurePtTrace();
-
         {
             Camera camera;
             Camera_Get(&camera);

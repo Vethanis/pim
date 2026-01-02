@@ -25,6 +25,8 @@ typedef struct PushConstants_s
 
     u32 textureIndex;
     u32 discardAlpha;
+    u32 padz;
+    u32 padw;
 } PushConstants;
 
 static VkRenderPass ms_renderPass;
@@ -62,16 +64,10 @@ bool vkrUIPass_New(void)
     const vkrImage* backBuffer = vkrGetBackBuffer();
     const vkrRenderPassDesc renderPassDesc =
     {
-        .srcStageMask =
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .srcAccessMask =
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-
-        .dstStageMask =
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .dstAccessMask =
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-
+        .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         .attachments[0] =
         {
             .format = backBuffer->format,

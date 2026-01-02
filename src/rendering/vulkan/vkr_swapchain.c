@@ -28,13 +28,12 @@ static const char* VkPresentModeKHR_Str[] =
 };
 SASSERT(NELEM(VkPresentModeKHR_Str) == VKR_NUM_PRESENT_MODES);
 
-// pim prefers low latency over tear protection
 static const VkPresentModeKHR kPreferredPresentModes[] =
 {
-    VK_PRESENT_MODE_MAILBOX_KHR,        // single-entry overwrote queue; good latency
-    VK_PRESENT_MODE_FIFO_RELAXED_KHR,   // multi-entry adaptive queue; bad latency
-    VK_PRESENT_MODE_FIFO_KHR ,          // multi-entry queue; bad latency
-    VK_PRESENT_MODE_IMMEDIATE_KHR,      // no queue; best latency, bad tearing
+    VK_PRESENT_MODE_FIFO_KHR,          // multi-entry queue; bad latency, good pacing?
+    VK_PRESENT_MODE_FIFO_RELAXED_KHR,   // multi-entry adaptive queue; bad latency, questionable pacing?
+    VK_PRESENT_MODE_MAILBOX_KHR,        // single-entry overwrote queue; good latency, bad pacing?
+    VK_PRESENT_MODE_IMMEDIATE_KHR,      // no queue; best latency, bad tearing, bad pacing
 };
 SASSERT(NELEM(kPreferredPresentModes) == VKR_NUM_PRESENT_MODES);
 
@@ -118,7 +117,11 @@ bool vkrSwapchain_New(
     VkPresentModeKHR mode = vkrSelectSwapMode(sup.modes, sup.modeCount);
     VkExtent2D ext = vkrSelectSwapExtent(&sup.caps, window->width, window->height);
 
-    u32 imgCount = i1_clamp(R_DesiredSwapchainLen, sup.caps.minImageCount, i1_min(R_MaxSwapchainLen, sup.caps.maxImageCount));
+    u32 imgCount = i1_max(R_DesiredSwapchainLen, sup.caps.minImageCount);
+    if (sup.caps.maxImageCount > 0)
+    {
+        imgCount = i1_min(imgCount, sup.caps.maxImageCount);
+    }
 
     const u32 families[] =
     {

@@ -11,8 +11,8 @@
 // ----------------------------------------------------------------------------
 
 // number of swapchain images
-#define R_MaxSwapchainLen        (3)
-#define R_DesiredSwapchainLen    (2)
+#define R_MaxSwapchainLen        (4)
+#define R_DesiredSwapchainLen    (3)
 // number of resources for dynamic buffers and images
 #define R_ResourceSets           (3)
 #define R_CmdsPerQueue           (64)
@@ -101,12 +101,12 @@
 
 // ----------------------------------------------------------------------------
 
-#define ENABLE_HDR 1
+#define ENABLE_HDR 0
 
 // colorspace
-//#define COLOR_SCENE_REC709      1
+#define COLOR_SCENE_REC709      1
 //#define COLOR_SCENE_REC2020     1
-#define COLOR_SCENE_AP1         1
+//#define COLOR_SCENE_AP1         1
 //#define COLOR_SCENE_AP0         1
 
 // packed emission range

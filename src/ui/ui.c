@@ -21,6 +21,16 @@ static void ImGuiFreeFn(void* ptr, void* userData)
     Mem_Free(ptr);
 }
 
+static ImVec4 VEC_CALL ToImVec4(float4 vIn)
+{
+    ImVec4 vOut;
+    vOut.x = vIn.x;
+    vOut.y = vIn.y;
+    vOut.z = vIn.z;
+    vOut.w = vIn.w;
+    return vOut;
+}
+
 static ImVec4 VEC_CALL BytesToColor(u32 r, u32 g, u32 b)
 {
     R8G8B8A8_t c;
@@ -30,7 +40,7 @@ static ImVec4 VEC_CALL BytesToColor(u32 r, u32 g, u32 b)
     c.a = 0xff;
     float4 lin = Color_SDRToScene(GammaDecode_rgba8(c));
     lin.w = 0.95f;
-    return *(ImVec4*)&lin;
+    return ToImVec4(lin);
 }
 
 static void SetupStyle(void)

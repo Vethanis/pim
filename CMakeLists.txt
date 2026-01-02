@@ -4,6 +4,8 @@ project(pim_cmake)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_C_STANDARD 11)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
+
 # -----------------------------------------------------------------------------
 # files
 
@@ -22,13 +24,6 @@ list(FILTER
 set(PIM_SUBMODULE_FILES 
     "submodules/cJSON/cJSON.c"
     "submodules/cJSON/cJSON_Utils.c"
-    "submodules/glfw/src/context.c"
-    "submodules/glfw/src/init.c"
-    "submodules/glfw/src/input.c"
-    "submodules/glfw/src/monitor.c"
-    "submodules/glfw/src/osmesa_context.c"
-    "submodules/glfw/src/vulkan.c"
-    "submodules/glfw/src/window.c"
     "submodules/imgui/imconfig.h"
     "submodules/imgui/imgui.cpp"
     "submodules/imgui/imgui.h"
@@ -58,11 +53,16 @@ set(PIM_INCLUDE_DIRS
     "src"
     "submodules"
     "submodules/imgui"
-    "submodules/glfw/include"
-    "submodules/VulkanMemoryAllocator/src"
-    "$ENV{VK_SDK_PATH}/Include")
+    "submodules/VulkanMemoryAllocator/src")
 
 set(PIM_MSVC_FILES 
+    "submodules/glfw/src/context.c"
+    "submodules/glfw/src/init.c"
+    "submodules/glfw/src/input.c"
+    "submodules/glfw/src/monitor.c"
+    "submodules/glfw/src/osmesa_context.c"
+    "submodules/glfw/src/vulkan.c"
+    "submodules/glfw/src/window.c"
     "submodules/glfw/src/egl_context.c"
     "submodules/glfw/src/wgl_context.c"
     "submodules/glfw/src/win32_init.c"
@@ -73,18 +73,9 @@ set(PIM_MSVC_FILES
     "submodules/glfw/src/win32_window.c"
     "submodules/stackwalker/StackWalker.cpp")
 
-set(PIM_UNIX_FILES
-    "submodules/glfw/src/egl_context.c"
-    "submodules/glfw/src/glx_context.c"
-    "submodules/glfw/src/x11_init.c"
-    "submodules/glfw/src/linux_joystick.c"
-    "submodules/glfw/src/x11_monitor.c"
-    "submodules/glfw/src/posix_thread.c"
-    "submodules/glfw/src/posix_time.c"
-    "submodules/glfw/src/xkb_unicode.c"
-    "submodules/glfw/src/x11_window.c")
-
 set(PIM_MSVC_INCLUDE_DIRS
+    "$ENV{VK_SDK_PATH}/Include"
+    "submodules/glfw/include"
     "submodules/embree/embree-3.13.0.x64.vc14.windows/include"
     "submodules/oidn/oidn-1.4.0.x64.vc14.windows/include")
 
@@ -119,9 +110,8 @@ set(PIM_MSVC_COMPILE_DEFINITIONS
     "_GLFW_WIN32")
 
 set(PIM_UNIX_COMPILE_DEFINITIONS
-    "VK_USE_PLATFORM_XLIB_KHR"
-    "LUA_USE_LINUX"
-    "_GLFW_X11")
+    "VK_USE_PLATFORM_WAYLAND_KHR"
+    "LUA_USE_LINUX")
 
 set(PIM_UNIX_COMPILE_DEFINITIONS_DEBUG
     "_DEBUG")
@@ -217,7 +207,18 @@ if (MSVC)
     target_link_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_MSVC_LINK_OPTIONS_DEBUG}>")
 else()
     target_sources(pim PRIVATE ${PIM_UNIX_FILES})
+
     find_package(ALSA REQUIRED)
+    if (ALSA_FOUND)
+        target_include_directories(pim PRIVATE ${ALSA_INCLUDE_DIRS})                  
+        target_link_libraries(pim ${ALSA_LIBRARIES}) 
+    endif (ALSA_FOUND)
+
+    find_package(GLFW3 REQUIRED)
+    if (GLFW3_FOUND)
+        target_include_directories(pim PRIVATE ${GLFW3_INCLUDE_DIRS})                  
+        target_link_libraries(pim ${GLFW3_LIBRARIES}) 
+    endif (GLFW3_FOUND)
 
     target_include_directories(pim PRIVATE ${PIM_UNIX_INCLUDE_DIRS})
     target_compile_definitions(pim PRIVATE ${PIM_UNIX_COMPILE_DEFINITIONS})
@@ -226,10 +227,6 @@ else()
     target_compile_options(pim PRIVATE ${PIM_UNIX_COMPILE_OPTIONS})
     target_compile_options(pim PRIVATE "$<$<CONFIG:RELEASE>:${PIM_UNIX_COMPILE_OPTIONS_RELEASE}>")
     target_compile_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_OPTIONS_DEBUG}>")
-
-    file(COPY ${PIM_UNIX_SOS} DESTINATION ${CMAKE_BINARY_DIR} NO_SOURCE_PERMISSIONS)
-
-    target_link_libraries(pim ${ALSA_LIBRARIES})
 endif()
 
 target_link_libraries(pim)
