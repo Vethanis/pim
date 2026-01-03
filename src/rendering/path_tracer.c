@@ -397,17 +397,13 @@ static void OnRtcError(void* user, RTCError error, const char* msg)
 
 static bool InitRTC(void)
 {
-    if (!LibRtc_Init())
-    {
-        return false;
-    }
-    ms_device = rtc.NewDevice(NULL);
+    ms_device = rtcNewDevice(NULL);
     if (!ms_device)
     {
-        OnRtcError(NULL, rtc.GetDeviceError(NULL), "Failed to create device");
+        OnRtcError(NULL, rtcGetDeviceError(NULL), "Failed to create device");
         return false;
     }
-    rtc.SetDeviceErrorFunction(ms_device, OnRtcError, NULL);
+    rtcSetDeviceErrorFunction(ms_device, OnRtcError, NULL);
     return true;
 }
 
@@ -444,7 +440,7 @@ void PtSys_Shutdown(void)
     }
     if (ms_device)
     {
-        rtc.ReleaseDevice(ms_device);
+        rtcReleaseDevice(ms_device);
         ms_device = NULL;
     }
 }
@@ -485,7 +481,7 @@ pim_inline RTCRayHit VEC_CALL RtcIntersect(
     rayHit.hit.primID = RTC_INVALID_GEOMETRY_ID; // triangle index
     rayHit.hit.geomID = RTC_INVALID_GEOMETRY_ID; // object id
     rayHit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID; // instance id
-    rtc.Intersect1(scene, &ctx, &rayHit);
+    rtcIntersect1(scene, &ctx, &rayHit);
     return rayHit;
 }
 
@@ -517,7 +513,7 @@ pim_inline RTCRayHit16 VEC_CALL RtcIntersect16(
         rayHit.hit.instID[0][i] = RTC_INVALID_GEOMETRY_ID;
         valid[i] = -1;
     }
-    rtc.Intersect16(valid, scene, &ctx, &rayHit);
+    rtcIntersect16(valid, scene, &ctx, &rayHit);
     return rayHit;
 }
 
@@ -549,7 +545,7 @@ pim_inline void VEC_CALL RtcOccluded16(
         rayHit.flags[i] = 0;
         valid[i] = -1;
     }
-    rtc.Occluded16(valid, scene, &ctx, &rayHit);
+    rtcOccluded16(valid, scene, &ctx, &rayHit);
     for (i32 i = 0; i < 16; ++i)
     {
         visibles[i] = rayHit.tfar[i] > 0.0f;
@@ -615,22 +611,22 @@ pim_inline PointQueryUserData VEC_CALL RtcPointQuery(
     query.z = pt.z;
     query.radius = pt.w;
     query.time = 0.0f;
-    rtc.PointQuery(scene->rtcScene, &query, &ctx, RtcPointQueryFn, &usr);
+    rtcPointQuery(scene->rtcScene, &query, &ctx, RtcPointQueryFn, &usr);
     return usr;
 }
 
 static RTCScene RtcNewScene(const PtScene* pim_noalias scene)
 {
-    RTCScene rtcScene = rtc.NewScene(ms_device);
+    RTCScene rtcScene = rtcNewScene(ms_device);
     ASSERT(rtcScene);
     if (!rtcScene)
     {
         return NULL;
     }
 
-    rtc.SetSceneBuildQuality(rtcScene, RTC_BUILD_QUALITY_HIGH);
+    rtcSetSceneBuildQuality(rtcScene, RTC_BUILD_QUALITY_HIGH);
 
-    RTCGeometry geom = rtc.NewGeometry(ms_device, RTC_GEOMETRY_TYPE_TRIANGLE);
+    RTCGeometry geom = rtcNewGeometry(ms_device, RTC_GEOMETRY_TYPE_TRIANGLE);
     ASSERT(geom);
 
     const i32 vertCount = scene->vertCount;
@@ -639,7 +635,7 @@ static RTCScene RtcNewScene(const PtScene* pim_noalias scene)
 
     if (vertCount > 0)
     {
-        float3* pim_noalias dstPositions = rtc.SetNewGeometryBuffer(
+        float3* pim_noalias dstPositions = rtcSetNewGeometryBuffer(
             geom,
             RTC_BUFFER_TYPE_VERTEX,
             0,
@@ -649,8 +645,8 @@ static RTCScene RtcNewScene(const PtScene* pim_noalias scene)
         if (!dstPositions)
         {
             ASSERT(false);
-            rtc.ReleaseGeometry(geom);
-            rtc.ReleaseScene(rtcScene);
+            rtcReleaseGeometry(geom);
+            rtcReleaseScene(rtcScene);
             return NULL;
         }
         const float4* pim_noalias srcPositions = scene->positions;
@@ -663,7 +659,7 @@ static RTCScene RtcNewScene(const PtScene* pim_noalias scene)
     if (triCount > 0)
     {
         // kind of wasteful
-        i32* pim_noalias dstIndices = rtc.SetNewGeometryBuffer(
+        i32* pim_noalias dstIndices = rtcSetNewGeometryBuffer(
             geom,
             RTC_BUFFER_TYPE_INDEX,
             0,
@@ -673,8 +669,8 @@ static RTCScene RtcNewScene(const PtScene* pim_noalias scene)
         if (!dstIndices)
         {
             ASSERT(false);
-            rtc.ReleaseGeometry(geom);
-            rtc.ReleaseScene(rtcScene);
+            rtcReleaseGeometry(geom);
+            rtcReleaseScene(rtcScene);
             return NULL;
         }
         for (i32 i = 0; i < vertCount; ++i)
@@ -683,12 +679,12 @@ static RTCScene RtcNewScene(const PtScene* pim_noalias scene)
         }
     }
 
-    rtc.CommitGeometry(geom);
-    rtc.AttachGeometry(rtcScene, geom);
-    rtc.ReleaseGeometry(geom);
+    rtcCommitGeometry(geom);
+    rtcAttachGeometry(rtcScene, geom);
+    rtcReleaseGeometry(geom);
     geom = NULL;
 
-    rtc.CommitScene(rtcScene);
+    rtcCommitScene(rtcScene);
 
     return rtcScene;
 }
@@ -1057,7 +1053,7 @@ static void PtScene_Clear(PtScene* scene)
     if (scene->rtcScene)
     {
         RTCScene rtcScene = scene->rtcScene;
-        rtc.ReleaseScene(rtcScene);
+        rtcReleaseScene(rtcScene);
         scene->rtcScene = NULL;
     }
 

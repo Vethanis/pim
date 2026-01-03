@@ -327,8 +327,11 @@ void* Mem_Realloc(EAlloc type, void* prev, i32 bytes)
     nextBytes = nextBytes > bytes ? nextBytes : bytes;
 
     void* next = Mem_Alloc(type, nextBytes);
-    memcpy(next, prev, prevBytes);
-    Mem_Free(prev);
+    if (prev)
+    {
+        memcpy(next, prev, prevBytes);
+        Mem_Free(prev);
+    }
 
     return next;
 }

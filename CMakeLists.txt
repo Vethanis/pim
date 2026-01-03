@@ -165,6 +165,8 @@ set(PIM_UNIX_COMPILE_OPTIONS
     #"-Werror" # pedantic
     "-Wfatal-errors"
     "-pthread"
+    "-ffast-math"
+    "-Wno-nullability-completeness"
     "-Wno-unused-function"
     "-Wno-unused-variable"
     "-Wno-unused-local-typedefs" # static assert implementation uses a typedef
@@ -174,12 +176,10 @@ set(PIM_UNIX_COMPILE_OPTIONS
 
 set(PIM_UNIX_COMPILE_OPTIONS_RELEASE
     "-O3"
-    "-Wno-nullability-completeness"
 )
 set(PIM_UNIX_COMPILE_OPTIONS_DEBUG
     "-fexceptions"
     "-O0"
-    "-Wno-nullability-completeness"
     "-g"
 )
 
@@ -228,6 +228,18 @@ else()
     target_compile_options(pim PRIVATE "$<$<CONFIG:RELEASE>:${PIM_UNIX_COMPILE_OPTIONS_RELEASE}>")
     target_compile_options(pim PRIVATE "$<$<CONFIG:DEBUG>:${PIM_UNIX_COMPILE_OPTIONS_DEBUG}>")
 endif()
+
+find_package(EMBREE3 REQUIRED)
+if (EMBREE3_FOUND)
+    target_include_directories(pim PRIVATE ${EMBREE3_INCLUDE_DIRS})                  
+    target_link_libraries(pim ${EMBREE3_LIBRARIES}) 
+endif (EMBREE3_FOUND)
+
+find_package(OIDN REQUIRED)
+if (OIDN_FOUND)
+    target_include_directories(pim PRIVATE ${OIDN_INCLUDE_DIRS})                  
+    target_link_libraries(pim ${OIDN_LIBRARIES}) 
+endif (OIDN_FOUND)
 
 target_link_libraries(pim)
 

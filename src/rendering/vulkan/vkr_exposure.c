@@ -479,7 +479,7 @@ static void vkrExposure_Readback(void)
             .minLuminance = minMonitorNits, // minimum luminance of the reference monitor in nits
             .maxLuminance = maxMonitorNits, // maximum luminance of the reference monitor in nits
             .maxFrameAverageLightLevel = avgContentLum, // MaxFALL (content's maximum frame average light level in nits)
-            .maxContentLightLevel = maxContentLum, // MaxCLL (content�s maximum luminance in nits)
+            .maxContentLightLevel = maxContentLum, // MaxCLL (content's maximum luminance in nits)
         };
         vkSetHdrMetadataEXT(g_vkr.dev, 1, &g_vkr.chain.handle, &metadata);
     }
